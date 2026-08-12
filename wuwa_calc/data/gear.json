@@ -1,0 +1,1456 @@
+[
+  {
+    "name": "Qingxiao",
+    "category": "Resonator",
+    "cost": 1
+  },
+  {
+    "name": "Cloud Jasper",
+    "category": "Weapon",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Celestial Puppet",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Heart of Purity 5pc",
+    "category": "Sonata"
+  },
+  {
+    "name": "Heart of Purity 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "NM Kerasaur",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Spacetrek Explorer",
+    "category": "Mainslot",
+    "shorthand": "(shield)"
+  },
+  {
+    "name": "Jingran",
+    "category": "Resonator",
+    "cost": 1
+  },
+  {
+    "name": "Thousandfold Deliverance",
+    "category": "Weapon",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Myriad Snare",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Lamp of Nether Road 5pc",
+    "category": "Sonata"
+  },
+  {
+    "name": "Lamp of Nether Road 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "Stonewall Bracer",
+    "category": "Mainslot",
+    "shorthand": "(shield)"
+  },
+  {
+    "name": "Zhezhi Matrix",
+    "category": "Mode",
+    "shorthand": "(matrix)"
+  },
+  {
+    "name": "Carlotta Matrix",
+    "category": "Mode",
+    "shorthand": "(matrix)"
+  },
+  {
+    "name": "Jinhsi Matrix",
+    "category": "Mode",
+    "shorthand": "(matrix)"
+  },
+  {
+    "name": "Changli Matrix",
+    "category": "Mode",
+    "shorthand": "(matrix)"
+  },
+  {
+    "name": "Brant Matrix",
+    "category": "Mode",
+    "shorthand": "(matrix)"
+  },
+  {
+    "name": "Cantarella Matrix",
+    "category": "Mode",
+    "shorthand": "(matrix)"
+  },
+  {
+    "name": "Roccia Matrix",
+    "category": "Mode",
+    "shorthand": "(matrix)"
+  },
+  {
+    "name": "Roccia",
+    "category": "Resonator",
+    "cost": 1
+  },
+  {
+    "name": "Tragicomedy",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "NM Heron",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Xuanling 1f1a",
+    "category": "Mode",
+    "shorthand": "1f1a"
+  },
+  {
+    "name": "Xuanling 2f",
+    "category": "Mode",
+    "shorthand": "2f"
+  },
+  {
+    "name": "Xuanling 2f1a",
+    "category": "Mode",
+    "shorthand": "2f1a"
+  },
+  {
+    "name": "Xuanling 1f2a",
+    "category": "Mode",
+    "shorthand": "1f2a"
+  },
+  {
+    "name": "Xuanling",
+    "category": "Resonator",
+    "shorthand": "YY",
+    "cost": 1
+  },
+  {
+    "name": "Xuanling S1",
+    "category": "Sequence",
+    "shorthand": "s1",
+    "cost": 1
+  },
+  {
+    "name": "Xuanling S2",
+    "category": "Sequence",
+    "shorthand": "s2",
+    "cost": 2
+  },
+  {
+    "name": "Xuanling S3",
+    "category": "Sequence",
+    "shorthand": "s3",
+    "cost": 3
+  },
+  {
+    "name": "Xuanling S6",
+    "category": "Sequence",
+    "shorthand": "s6",
+    "cost": 4
+  },
+  {
+    "name": "Suisui S1",
+    "category": "Sequence",
+    "shorthand": "s1"
+  },
+  {
+    "name": "Suisui S0",
+    "category": "Sequence"
+  },
+  {
+    "name": "Suisui",
+    "category": "Resonator",
+    "shorthand": "SS",
+    "cost": 1
+  },
+  {
+    "name": "Azure Oath",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Firstlight's Herald",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Thousand-Puppet Pavilion",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Forbidden Bastion",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Song of Feathered Trace 5pc (bane)",
+    "category": "Sonata"
+  },
+  {
+    "name": "Song of Feathered Trace 5pc (chafe)",
+    "category": "Sonata"
+  },
+  {
+    "name": "Song of Feathered Trace 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "ERover",
+    "category": "Resonator",
+    "shorthand": "erover"
+  },
+  {
+    "name": "ERover sub",
+    "category": "Mode"
+  },
+  {
+    "name": "ERover S6 mdps",
+    "category": "Mode"
+  },
+  {
+    "name": "ERover S6",
+    "category": "Sequence",
+    "shorthand": "s6"
+  },
+  {
+    "name": "Mortefi",
+    "category": "Resonator",
+    "shorthand": "mortefi"
+  },
+  {
+    "name": "Mortefi S6",
+    "category": "Sequence",
+    "shorthand": "s6"
+  },
+  {
+    "name": "Sanhua",
+    "category": "Resonator",
+    "shorthand": "sanhua"
+  },
+  {
+    "name": "Encore",
+    "category": "Resonator",
+    "shorthand": "encore"
+  },
+  {
+    "name": "Encore S6",
+    "category": "Sequence",
+    "shorthand": "s6"
+  },
+  {
+    "name": "Verina",
+    "category": "Resonator",
+    "shorthand": "verina"
+  },
+  {
+    "name": "Verina S4",
+    "category": "Sequence",
+    "shorthand": "s4"
+  },
+  {
+    "name": "Jianxin",
+    "category": "Resonator",
+    "shorthand": "jianxin"
+  },
+  {
+    "name": "Shorekeeper",
+    "category": "Resonator",
+    "shorthand": "sk",
+    "cost": 1
+  },
+  {
+    "name": "Jinhsi",
+    "category": "Resonator",
+    "shorthand": "jinhsi",
+    "cost": 1
+  },
+  {
+    "name": "Zhezhi",
+    "category": "Resonator",
+    "shorthand": "zz",
+    "cost": 1
+  },
+  {
+    "name": "Carlotta",
+    "category": "Resonator",
+    "shorthand": "lotta",
+    "cost": 1
+  },
+  {
+    "name": "SRover",
+    "category": "Resonator",
+    "shorthand": "srover"
+  },
+  {
+    "name": "Phoebe",
+    "category": "Resonator",
+    "shorthand": "peeb",
+    "cost": 1
+  },
+  {
+    "name": "Zani",
+    "category": "Resonator",
+    "shorthand": "zani",
+    "cost": 1
+  },
+  {
+    "name": "ARover",
+    "category": "Resonator",
+    "shorthand": "arover"
+  },
+  {
+    "name": "Ciaconna",
+    "category": "Resonator",
+    "shorthand": "cia",
+    "cost": 1
+  },
+  {
+    "name": "Cartethiya",
+    "category": "Resonator",
+    "shorthand": "carte",
+    "cost": 1
+  },
+  {
+    "name": "Lupa",
+    "category": "Resonator",
+    "shorthand": "lupa",
+    "cost": 1
+  },
+  {
+    "name": "Brant",
+    "category": "Resonator",
+    "shorthand": "brant",
+    "cost": 1
+  },
+  {
+    "name": "Changli",
+    "category": "Resonator",
+    "shorthand": "changli",
+    "cost": 1
+  },
+  {
+    "name": "Cantarella",
+    "category": "Resonator",
+    "shorthand": "canta",
+    "cost": 1
+  },
+  {
+    "name": "Phrolova",
+    "category": "Resonator",
+    "shorthand": "frolo",
+    "cost": 1
+  },
+  {
+    "name": "Phrolova S0 1-4 coda",
+    "category": "Mode"
+  },
+  {
+    "name": "Phrolova S2 1-4 coda",
+    "category": "Mode"
+  },
+  {
+    "name": "Phrolova S6 1-4 coda",
+    "category": "Mode"
+  },
+  {
+    "name": "Phrolova S0 1-5 coda",
+    "category": "Mode"
+  },
+  {
+    "name": "Phrolova S2 1-5 coda",
+    "category": "Mode"
+  },
+  {
+    "name": "Phrolova S6 1-5 coda",
+    "category": "Mode"
+  },
+  {
+    "name": "Phrolova S0 2-5 coda",
+    "category": "Mode"
+  },
+  {
+    "name": "Phrolova S2 2-5 coda",
+    "category": "Mode"
+  },
+  {
+    "name": "Phrolova S6 2-5 coda",
+    "category": "Mode"
+  },
+  {
+    "name": "Phrolova S2",
+    "category": "Sequence",
+    "shorthand": "s2",
+    "cost": 2
+  },
+  {
+    "name": "Phrolova S3",
+    "category": "Sequence",
+    "shorthand": "s3",
+    "cost": 3
+  },
+  {
+    "name": "Phrolova S6",
+    "category": "Sequence",
+    "shorthand": "s6",
+    "cost": 4
+  },
+  {
+    "name": "Augusta",
+    "category": "Resonator",
+    "shorthand": "augusta",
+    "cost": 1
+  },
+  {
+    "name": "Iuno",
+    "category": "Resonator",
+    "shorthand": "iuno",
+    "cost": 1
+  },
+  {
+    "name": "Galbrena",
+    "category": "Resonator",
+    "shorthand": "galb",
+    "cost": 1
+  },
+  {
+    "name": "Qiuyuan",
+    "category": "Resonator",
+    "shorthand": "qy",
+    "cost": 1
+  },
+  {
+    "name": "Chisa",
+    "category": "Resonator",
+    "shorthand": "chisa",
+    "cost": 1
+  },
+  {
+    "name": "Buling",
+    "category": "Resonator",
+    "shorthand": "buling"
+  },
+  {
+    "name": "Buling S6",
+    "category": "Sequence",
+    "shorthand": "s6"
+  },
+  {
+    "name": "Lynae",
+    "category": "Resonator",
+    "shorthand": "lynae",
+    "cost": 1
+  },
+  {
+    "name": "Mornye",
+    "category": "Resonator",
+    "shorthand": "mornye",
+    "cost": 1
+  },
+  {
+    "name": "Aemeath",
+    "category": "Resonator",
+    "shorthand": "amy",
+    "cost": 1
+  },
+  {
+    "name": "Luuk",
+    "category": "Resonator",
+    "shorthand": "luuk",
+    "cost": 1
+  },
+  {
+    "name": "Sigrika",
+    "category": "Resonator",
+    "shorthand": "sigrika",
+    "cost": 1
+  },
+  {
+    "name": "Denia",
+    "category": "Resonator",
+    "shorthand": "denia",
+    "cost": 1
+  },
+  {
+    "name": "Hiyuki",
+    "category": "Resonator",
+    "shorthand": "hiyuki",
+    "cost": 1
+  },
+  {
+    "name": "Hiyuki 3 iai",
+    "category": "Mode",
+    "shorthand": "hiyuki"
+  },
+  {
+    "name": "Hiyuki 4 iai",
+    "category": "Mode",
+    "shorthand": "hiyuki"
+  },
+  {
+    "name": "Lucilla",
+    "category": "Resonator",
+    "shorthand": "lucilla",
+    "cost": 1
+  },
+  {
+    "name": "Rebecca",
+    "category": "Resonator",
+    "shorthand": "rebecca"
+  },
+  {
+    "name": "Phoebe Absolution",
+    "category": "Mode",
+    "shorthand": "abs"
+  },
+  {
+    "name": "Phoebe Confession",
+    "category": "Mode",
+    "shorthand": "conf"
+  },
+  {
+    "name": "Mornye S1",
+    "category": "Sequence",
+    "shorthand": "s1",
+    "cost": 1
+  },
+  {
+    "name": "Mornye 2 break",
+    "category": "Mode",
+    "shorthand": "(2x break)"
+  },
+  {
+    "name": "Lynae Strain",
+    "category": "Mode",
+    "shorthand": "strain"
+  },
+  {
+    "name": "Lynae Rupture",
+    "category": "Mode",
+    "shorthand": "rupture"
+  },
+  {
+    "name": "Aemeath Burst",
+    "category": "Mode",
+    "shorthand": "burst"
+  },
+  {
+    "name": "Aemeath Rupture",
+    "category": "Mode",
+    "shorthand": "rupture"
+  },
+  {
+    "name": "Denia Burst",
+    "category": "Mode",
+    "shorthand": "burst"
+  },
+  {
+    "name": "Denia Strain",
+    "category": "Mode",
+    "shorthand": "strain"
+  },
+  {
+    "name": "Lucilla Chafe",
+    "category": "Mode",
+    "shorthand": "chafe"
+  },
+  {
+    "name": "Lucilla Echo",
+    "category": "Mode",
+    "shorthand": "echo"
+  },
+  {
+    "name": "Lucy",
+    "category": "Resonator",
+    "shorthand": "lucy",
+    "cost": 1
+  },
+  {
+    "name": "Lucy S0",
+    "category": "Sequence"
+  },
+  {
+    "name": "Lucy S1",
+    "category": "Sequence",
+    "shorthand": "s1",
+    "cost": 0
+  },
+  {
+    "name": "Lucy S2",
+    "category": "Sequence",
+    "shorthand": "s2",
+    "cost": 1
+  },
+  {
+    "name": "Lucy S3",
+    "category": "Sequence",
+    "shorthand": "s3",
+    "cost": 2
+  },
+  {
+    "name": "Lucy Matrix",
+    "category": "Mode",
+    "shorthand": "Matrix"
+  },
+  {
+    "name": "Rebecca S1",
+    "category": "Sequence",
+    "shorthand": "s1",
+    "cost": 1
+  },
+  {
+    "name": "Rebecca S2",
+    "category": "Sequence",
+    "shorthand": "s2",
+    "cost": 1
+  },
+  {
+    "name": "Stringmaster",
+    "category": "Weapon",
+    "shorthand": "SM",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Stellar Symphony",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Ages of Harvest",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Rime-Draped Sprouts",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "The Last Dance",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Luminous Hymn",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Blazing Justice",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Woodland Aria",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Defier's Thorn",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Wildfire Mark",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Unflickering Valor",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Blazing Brilliance",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Whispers of Sirens",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Lethean Elegy",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Lethean Elegy R5",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 3.333333333
+  },
+  {
+    "name": "Moongazer's Sigil",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Lux & Umbra",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Bamboo Cutter",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Kumokiri",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Spectrum Blaster",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Starfield Calibrator",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Everbright Polestar",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Daybreaker's Spine",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Solsworn Ciphers",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Forged Dwarf Star",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Frostburn",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Freeze Frame",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Spectral Trigger",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Skull Thrasher",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Thunderflare Dominion",
+    "category": "Weapon",
+    "shorthand": "r1",
+    "cost": 0.6666666667
+  },
+  {
+    "name": "Static Mist",
+    "category": "Weapon"
+  },
+  {
+    "name": "Static Mist (3rd slot)",
+    "category": "Weapon"
+  },
+  {
+    "name": "Emerald of Genesis",
+    "category": "Weapon"
+  },
+  {
+    "name": "Lustrous Razer",
+    "category": "Weapon"
+  },
+  {
+    "name": "Radiance Cleaver",
+    "category": "Weapon"
+  },
+  {
+    "name": "Cosmic Ripples",
+    "category": "Weapon"
+  },
+  {
+    "name": "Variation",
+    "category": "Weapon"
+  },
+  {
+    "name": "Discord",
+    "category": "Weapon"
+  },
+  {
+    "name": "Abyss Surges",
+    "category": "Weapon"
+  },
+  {
+    "name": "Pulsation Bracer",
+    "category": "Weapon"
+  },
+  {
+    "name": "Phasic Homogenizer",
+    "category": "Weapon"
+  },
+  {
+    "name": "Emerald of Genesis R5",
+    "category": "Weapon",
+    "shorthand": "eog r5"
+  },
+  {
+    "name": "Abyss Surges R5",
+    "category": "Weapon",
+    "shorthand": "surges r5"
+  },
+  {
+    "name": "Pulsation Bracer R5",
+    "category": "Weapon",
+    "shorthand": "bracer r5"
+  },
+  {
+    "name": "Phasic Homogenizer R5",
+    "category": "Weapon",
+    "shorthand": "phasic r5"
+  },
+  {
+    "name": "Ages of Harvest R5",
+    "category": "Weapon",
+    "shorthand": "r5",
+    "cost": 3.333333333
+  },
+  {
+    "name": "Bloodpact's Pledge R5",
+    "category": "Weapon",
+    "shorthand": "r5",
+    "cost": 3.333333333
+  },
+  {
+    "name": "Everbright Polestar R5",
+    "category": "Weapon",
+    "shorthand": "r5",
+    "cost": 3.333333333
+  },
+  {
+    "name": "Daybreaker's Spine R5",
+    "category": "Weapon",
+    "shorthand": "r5",
+    "cost": 3.333333333
+  },
+  {
+    "name": "Solsworn Ciphers R5",
+    "category": "Weapon",
+    "shorthand": "r5",
+    "cost": 3.333333333
+  },
+  {
+    "name": "Frostburn R5",
+    "category": "Weapon",
+    "shorthand": "r5",
+    "cost": 3.333333333
+  },
+  {
+    "name": "Hecate",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Heron",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Heron (3rd slot)",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Inferno Rider",
+    "category": "Mainslot"
+  },
+  {
+    "name": "NM Thunder",
+    "category": "Mainslot"
+  },
+  {
+    "name": "NM Tempest",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Fallacy",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Jue",
+    "category": "Mainslot"
+  },
+  {
+    "name": "NM Lampy",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Sentry Construct",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Capitaneus",
+    "category": "Mainslot"
+  },
+  {
+    "name": "NM Kelpie",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Rem Fleurdelys",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Lioness of Glory",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Dragon of Dirge",
+    "category": "Mainslot"
+  },
+  {
+    "name": "NM Inferno Rider",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Lorelei",
+    "category": "Mainslot"
+  },
+  {
+    "name": "NM Hecate",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Lady of the Sea",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Corrosaurus",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Fenrico",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Leviathan",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Hyvatia",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Reactor Husk",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Sigillum",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Twin Nova",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Nameless Explorer",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Trickster (3rd slot)",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Trickster",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Voidwing Moth",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Rem Threnodian",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Glommoth",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Adam Smasher",
+    "category": "Mainslot"
+  },
+  {
+    "name": "False Sovereign",
+    "category": "Mainslot"
+  },
+  {
+    "name": "Empyrean Anthem 5pc",
+    "category": "Sonata",
+    "shorthand": "empy"
+  },
+  {
+    "name": "Moonlit Clouds 5pc",
+    "category": "Sonata",
+    "shorthand": "mc"
+  },
+  {
+    "name": "Moonlit Clouds 5pc (3rd slot)",
+    "category": "Sonata",
+    "shorthand": "mc (2x intro)"
+  },
+  {
+    "name": "Molten Rift 5pc",
+    "category": "Sonata"
+  },
+  {
+    "name": "Void Thunder 5pc",
+    "category": "Sonata"
+  },
+  {
+    "name": "Rejuvenating Glow 5pc",
+    "category": "Sonata"
+  },
+  {
+    "name": "Celestial Light 5pc",
+    "category": "Sonata"
+  },
+  {
+    "name": "Frosty Resolve 5pc",
+    "category": "Sonata"
+  },
+  {
+    "name": "Eternal Radiance 5pc",
+    "category": "Sonata"
+  },
+  {
+    "name": "Gusts of Welkin 5pc",
+    "category": "Sonata"
+  },
+  {
+    "name": "Windward Pilgrimage 5pc",
+    "category": "Sonata"
+  },
+  {
+    "name": "Flaming Clawprint 5pc",
+    "category": "Sonata",
+    "shorthand": "fcp"
+  },
+  {
+    "name": "Tidebreaking Courage 5pc",
+    "category": "Sonata"
+  },
+  {
+    "name": "Midnight Veil 5pc",
+    "category": "Sonata",
+    "shorthand": "mv"
+  },
+  {
+    "name": "Dreams of Lost 3pc",
+    "category": "Sonata"
+  },
+  {
+    "name": "Crown of Valor 3pc",
+    "category": "Sonata"
+  },
+  {
+    "name": "Flamewing's Shadow 3pc",
+    "category": "Sonata"
+  },
+  {
+    "name": "Law of Harmony 3pc",
+    "category": "Sonata",
+    "shorthand": "loh"
+  },
+  {
+    "name": "Threads of Fate 3pc",
+    "category": "Sonata"
+  },
+  {
+    "name": "Pact of Neonlight Leap 5pc",
+    "category": "Sonata",
+    "shorthand": "neon"
+  },
+  {
+    "name": "Halo of Starry Radiance 5pc",
+    "category": "Sonata"
+  },
+  {
+    "name": "Trailblazing Star 5pc",
+    "category": "Sonata"
+  },
+  {
+    "name": "Rite of Gilded Revelation 5pc",
+    "category": "Sonata"
+  },
+  {
+    "name": "Sound of True Name 5pc",
+    "category": "Sonata"
+  },
+  {
+    "name": "Chromatic Foam 5pc",
+    "category": "Sonata"
+  },
+  {
+    "name": "Chromatic Foam 5pc (3rd slot)",
+    "category": "Sonata"
+  },
+  {
+    "name": "Reel of Spliced Memories 5pc",
+    "category": "Sonata",
+    "shorthand": "rosm"
+  },
+  {
+    "name": "Wishes of Quiet Snowfall 5pc (Outro)",
+    "category": "Sonata"
+  },
+  {
+    "name": "Wishes of Quiet Snowfall 5pc (Lib)",
+    "category": "Sonata"
+  },
+  {
+    "name": "Lingering Tunes 5pc",
+    "category": "Sonata"
+  },
+  {
+    "name": "Void Thunder 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "Celestial Light 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "Empyrean Anthem 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "Moonlit Clouds 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "Molten Rift 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "Sierra Gale 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "Lingering Tunes 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "Rejuvenating Glow 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "Frosty Resolve 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "Eternal Radiance 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "Gusts of Welkin 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "Windward Pilgrimage 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "Flaming Clawprint 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "Tidebreaking Courage 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "Midnight Veil 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "Pact of Neonlight Leap 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "Halo of Starry Radiance 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "Trailblazing Star 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "Rite of Gilded Revelation 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "Sound of True Name 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "Chromatic Foam 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "Reel of Spliced Memories 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "Wishes of Quiet Snowfall 2pc",
+    "category": "2pc"
+  },
+  {
+    "name": "ATK ele ele atk atk",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CD ele ele atk atk",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CR ele ele atk atk",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CR ele ATK atk atk",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CD ele ATK atk atk",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CR CD atk atk atk",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CR CR atk atk atk",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CD CD atk atk atk",
+    "category": "Mainstats"
+  },
+  {
+    "name": "HP ER ER hp hp",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CD ER ER hp hp",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CD ER ER atk atk",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CR ER ER atk atk",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CD ele ER atk atk",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CR ele ER atk atk",
+    "category": "Mainstats"
+  },
+  {
+    "name": "11111 hp",
+    "category": "Mainstats"
+  },
+  {
+    "name": "41111 hp",
+    "category": "Mainstats"
+  },
+  {
+    "name": "44111 hp",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CD ele hp hp hp",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CD atk hp hp hp",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CD hp hp hp hp",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CR hp hp hp hp",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CR CR hp hp hp",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CR CD hp hp hp",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CD CD hp hp hp",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CR ele hp hp hp",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CD ele ATK hp hp",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CR ele ATK hp hp",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CD ele ele hp hp",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CR ele ele hp hp",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CD ER ER def def",
+    "category": "Mainstats"
+  },
+  {
+    "name": "DEF ER ER def def",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CD ER ATK atk atk",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CR ER ATK atk atk",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CD ATK ATK atk atk",
+    "category": "Mainstats"
+  },
+  {
+    "name": "CR ATK ATK atk atk",
+    "category": "Mainstats"
+  },
+  {
+    "name": "chem hp heavy",
+    "category": "Substats"
+  },
+  {
+    "name": "chem atk lib",
+    "category": "Substats"
+  },
+  {
+    "name": "chem atk skill",
+    "category": "Substats"
+  },
+  {
+    "name": "chem atk heavy",
+    "category": "Substats"
+  },
+  {
+    "name": "chem atk basic",
+    "category": "Substats"
+  },
+  {
+    "name": "6k tuners atk lib",
+    "category": "Substats"
+  },
+  {
+    "name": "6k tuners atk skill",
+    "category": "Substats"
+  },
+  {
+    "name": "6k tuners atk heavy",
+    "category": "Substats"
+  },
+  {
+    "name": "6k tuners atk basic",
+    "category": "Substats"
+  },
+  {
+    "name": "speedrun ER atk",
+    "category": "Substats"
+  },
+  {
+    "name": "speedrun ER basic",
+    "category": "Substats"
+  },
+  {
+    "name": "chem ER def lib",
+    "category": "Substats"
+  },
+  {
+    "name": "chem ER atk",
+    "category": "Substats"
+  },
+  {
+    "name": "chem ER atk basic",
+    "category": "Substats"
+  },
+  {
+    "name": "chem ER hp lib",
+    "category": "Substats"
+  },
+  {
+    "name": "chem hp basic",
+    "category": "Substats"
+  }
+]

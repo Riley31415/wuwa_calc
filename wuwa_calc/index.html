@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Riley Calc</title>
+<link rel="stylesheet" href="./index.css">
+</head>
+<body>
+
+<!--
+  Nothing here is generated. index.js imports the engine out of src/ as real ES modules and
+  runs the whole team in the page, so a refresh is all it takes to see an edit to a resonator
+  file. That does mean the page has to be served rather than opened off disk — browsers block
+  module imports and fetch() on file:// URLs. From this directory:
+
+      python -m http.server 8000        ->  http://localhost:8000/
+-->
+
+<div id="app" class="loading">
+  <div class="spinner"></div>
+  <p>running the rotation…</p>
+</div>
+
+<script type="module" src="./index.js"></script>
+</body>
+</html>

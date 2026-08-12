@@ -1,0 +1,425 @@
+/* =============================================================================
+   Team rotation viewer — dark theme.
+   Committed to dark on purpose: this is a tool you stare at for a long time next
+   to the game, so there is no light palette to swap to.
+
+   Column widths come from display.js's `width` (a character count, since the same
+   report also prints to a terminal), scaled by --cw. Change --cw to loosen or
+   tighten the whole table at once.
+   ============================================================================= */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+:root {
+  color-scheme: dark;
+
+  /* surfaces, lightest on top of darkest */
+  --bg:        #090b0f;
+  --surface:   #12161d;
+  --surface-2: #171c25;
+  --surface-3: #1e2530;
+  --line:      #222a36;
+  --line-2:    #2c3543;
+
+  /* text */
+  --ink:   #e7ebf3;
+  --ink-2: #b3bccb;
+  --dim:   #7c8798;
+  --faint: #57616f;
+
+  /* accents */
+  --accent: #5b9cff;
+  --violet: #a98bff;
+  --amber:  #f0b444;
+  --mint:   #45d6a4;
+
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+
+  --r:   10px;
+  --r-s: 6px;
+  --sh-1: 0 1px 2px rgba(0, 0, 0, .5);
+  --sh-2: 0 18px 40px -22px rgba(0, 0, 0, .9), 0 0 0 1px var(--line);
+
+  /* A column's width is its character count from display.js scaled by --cw, plus --cpad for
+     the cell's own horizontal padding — the terminal spelling of the report has no padding to
+     pay for, so the character count alone clips here. */
+  --cw: 7.7px;
+  --cpad: 18px;
+}
+
+html { background: var(--bg); }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  font: 13px/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  background:
+    radial-gradient(1100px 620px at 12% -8%,  rgba(91, 156, 255, .10), transparent 62%),
+    radial-gradient(900px 520px at 100% 2%,   rgba(169, 139, 255, .08), transparent 58%),
+    var(--bg);
+  background-attachment: fixed;
+}
+
+/* ------------------------------------------------------------------- loading */
+
+.loading {
+  min-height: 70vh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 16px;
+  color: var(--dim);
+}
+.spinner {
+  width: 26px; height: 26px;
+  border: 2px solid var(--line-2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* -------------------------------------------------------------------- header */
+
+.top {
+  padding: 28px 26px 22px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .028), transparent);
+}
+
+.top h1 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 620;
+  letter-spacing: -.2px;
+}
+
+.titlerow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-bottom: 14px;
+}
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  padding: 3px 9px;
+  border: 1px solid var(--line-2);
+  border-radius: 100px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.chip b { color: var(--ink); font-weight: 600; }
+
+/* the member summary strip */
+.summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.card {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--m, var(--accent));
+  border-radius: var(--r-s);
+  background: var(--surface);
+  box-shadow: var(--sh-1);
+}
+.card .k {
+  display: block;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--dim);
+  margin-bottom: 5px;
+}
+.card .v {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--m, var(--accent));
+  letter-spacing: -.4px;
+}
+.card .sub { display: block; margin-top: 3px; font-size: 11px; color: var(--faint); }
+
+.card.grand {
+  border-left-color: var(--mint);
+  background: linear-gradient(180deg, rgba(69, 214, 164, .07), var(--surface));
+}
+.card.grand .v { color: var(--mint); }
+
+/* ---------------------------------------------------------------------- main */
+
+main { padding: 22px 26px 96px; }
+
+.member { margin-bottom: 30px; }
+
+.mhead {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 9px 2px;
+}
+.mhead .dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--m, var(--accent));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--m, var(--accent)) 18%, transparent);
+}
+.mhead h2 { margin: 0; font-size: 14px; font-weight: 620; letter-spacing: -.1px; }
+.mhead .meta { color: var(--faint); font-size: 11.5px; font-weight: 400; }
+
+/* ---------------------------------------------------------------------- table */
+
+.gridwrap {
+  background: var(--surface);
+  border-radius: var(--r);
+  box-shadow: var(--sh-2);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.gridwrap::-webkit-scrollbar { height: 10px; }
+.gridwrap::-webkit-scrollbar-track { background: transparent; }
+.gridwrap::-webkit-scrollbar-thumb {
+  background: var(--line-2);
+  border: 3px solid var(--surface);
+  border-radius: 100px;
+}
+.gridwrap::-webkit-scrollbar-thumb:hover { background: var(--faint); }
+
+.grid { min-width: max-content; }
+
+.r {
+  display: grid;
+  grid-template-columns: var(--cols);
+  align-items: stretch;
+  background: var(--surface);
+}
+
+.c {
+  padding: 7px 9px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  position: relative;
+}
+.num {
+  text-align: right;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+/* the leading columns stay put while the rest of the table scrolls sideways */
+.c.stick { position: sticky; z-index: 2; background: inherit; }
+.c.seam::after {
+  content: "";
+  position: absolute; top: 0; right: 0; bottom: 0;
+  width: 14px;
+  transform: translateX(100%);
+  background: linear-gradient(90deg, rgba(0, 0, 0, .35), transparent);
+  pointer-events: none;
+}
+
+/* head */
+.head { background: var(--surface-3); }
+.head .c {
+  padding: 9px;
+  font-size: 10px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--dim);
+  font-family: var(--sans);
+}
+.head .c:first-child { border-top-left-radius: var(--r); }
+.head .c:last-child  { border-top-right-radius: var(--r); }
+
+/* body rows. Always positioned, so the hidden expand checkbox has something to anchor to;
+   raised on hover so a source panel opening downward is not painted under the next row. */
+.step { position: relative; border-top: 1px solid var(--line); }
+.step:first-of-type { border-top: 0; }
+.step:hover { z-index: 30; }
+.step:hover > .r { background: var(--surface-2); }
+
+/* One table holds every resonator's rotation, so each row carries its owner's hue down the
+   left edge — the job the separate tables used to do. */
+.step > .r > .c.stick:first-child { box-shadow: inset 2px 0 0 var(--m, transparent); }
+.c.action { font-weight: 550; color: var(--ink); }
+.c.off { color: var(--faint); }
+.c.avg { color: var(--amber); font-weight: 600; }
+
+/* total row */
+.totalrow {
+  background: var(--surface-3);
+  border-top: 1px solid var(--line-2);
+  font-weight: 650;
+}
+.totalrow .c { color: var(--ink); }
+.totalrow .c:first-child { border-bottom-left-radius: var(--r); }
+.totalrow .c:last-child  { border-bottom-right-radius: var(--r); }
+
+/* ------------------------------------------- chains: click a row for its parts */
+
+.chain > .r { cursor: pointer; }
+.caret {
+  display: inline-block;
+  width: 11px;
+  margin-right: 1px;
+  color: var(--dim);
+  transition: transform .14s ease;
+}
+.tgl { position: absolute; opacity: 0; pointer-events: none; }
+.tgl:checked ~ .r .caret { transform: rotate(90deg); color: var(--accent); }
+.tgl:focus-visible ~ .r { outline: 1px solid var(--accent); outline-offset: -1px; }
+
+.parts { display: none; }
+.tgl:checked ~ .parts { display: block; }
+
+.parts .r {
+  background: var(--surface-2);
+  color: var(--dim);
+  font-size: 12px;
+}
+.parts .r:hover { background: var(--surface-3); }
+.parts .c { padding-top: 4px; padding-bottom: 4px; }
+.parts .name { padding-left: 26px; }
+.parts .best { color: var(--amber); }
+
+.tag {
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--line-2);
+  border-radius: 3px;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--faint);
+  vertical-align: 1px;
+}
+
+/* ------------------------------------------------------- hover source panels */
+
+.has {
+  cursor: help;
+  border-bottom: 1px dotted var(--faint);
+}
+/*
+ * The panel is laid out against the viewport, not its cell, and index.js puts it in place.
+ *
+ * It cannot be `absolute`: a cell clips its own overflow — that is what gives a long action
+ * name its ellipsis — and the table scrolls inside its own box, so between the two there is no
+ * way for a box anchored to a cell to escape. Both clip on the axis the panel has to grow
+ * along. `fixed` is resolved against the viewport instead and ignores both, at the cost of
+ * needing real coordinates, which is the whole of what the script does.
+ */
+.pop {
+  display: none;
+  position: fixed;
+  z-index: 60;
+  min-width: 250px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--line-2);
+  /* opaque, not translucent: the table underneath it is dense and shows straight through */
+  background: var(--surface-3);
+  box-shadow: 0 20px 44px -12px rgba(0, 0, 0, .95), 0 0 0 1px rgba(0, 0, 0, .35);
+  white-space: nowrap;
+  text-align: left;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-2);
+}
+
+.pop h5 {
+  margin: 0 0 6px;
+  font-size: 9.5px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .7px;
+  color: var(--dim);
+}
+.pop table { width: 100%; border-collapse: collapse; }
+.pop td { padding: 1.5px 0; }
+.pop td.s { color: var(--dim); padding-right: 14px; }
+.pop td.k { color: var(--faint); padding-right: 14px; font-size: 11px; }
+.pop td.v {
+  text-align: right;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.pop .sum td { padding-top: 5px; border-top: 1px solid var(--line-2); font-weight: 650; }
+.pop .sum td.v { color: var(--amber); }
+
+/* -------------------------------------------------------------- event log */
+
+.eventlog {
+  margin-top: 26px;
+  border-radius: var(--r);
+  background: var(--surface);
+  box-shadow: var(--sh-2);
+  overflow: hidden;
+}
+.eventlog h2 {
+  margin: 0;
+  padding: 11px 15px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-3);
+  font-size: 10px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .7px;
+  color: var(--dim);
+}
+.eventlog ol {
+  margin: 0;
+  padding: 10px 16px 12px 38px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.85;
+  color: var(--ink-2);
+}
+.eventlog li::marker { color: var(--faint); font-size: 10px; }
+
+/* ------------------------------------------------------------------- error */
+
+.error {
+  margin: 26px;
+  padding: 16px 18px;
+  border: 1px solid #6b2a2a;
+  border-left: 3px solid #ff6b6b;
+  border-radius: var(--r-s);
+  background: rgba(255, 107, 107, .06);
+}
+.error h2 { margin: 0 0 6px; font-size: 14px; color: #ff8f8f; }
+.error p { margin: 0 0 12px; color: var(--ink-2); }
+.error pre {
+  margin: 0;
+  padding: 12px;
+  border-radius: var(--r-s);
+  background: rgba(0, 0, 0, .4);
+  color: var(--dim);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+.error code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, .45);
+  font-family: var(--mono);
+  color: var(--amber);
+}

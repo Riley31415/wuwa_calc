@@ -1,0 +1,3029 @@
+[
+  {
+    "name": "test",
+    "enabled": true,
+    "slots": [
+      "test",
+      null,
+      null
+    ],
+    "sheetDpr": {
+      "slot1": 0,
+      "slot2": 0,
+      "slot3": 0
+    }
+  },
+  {
+    "name": "jingran r1 cov cr/cd iuno r1 sk r1",
+    "enabled": false,
+    "slots": [
+      "jingran r1 cov cr/cd",
+      "iuno r1",
+      "sk r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1919678.3717431063,
+      "slot2": 598276.0682511806,
+      "slot3": 37671.7312189081,
+      "team": 2555626.1712131947
+    }
+  },
+  {
+    "name": "jingran r1 cov cr/hp iuno r1 sk r1",
+    "enabled": false,
+    "slots": [
+      "jingran r1 cov cr/hp",
+      "iuno r1",
+      "sk r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1933552.2980851184,
+      "slot2": 598276.0682511806,
+      "slot3": 37671.7312189081,
+      "team": 2569500.097555207
+    }
+  },
+  {
+    "name": "jingran r1 cr/cd (theoretical) iuno r1 sk r1",
+    "enabled": false,
+    "slots": [
+      "jingran r1 cr/cd (theoretical)",
+      "iuno r1",
+      "sk r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1943073.4830649178,
+      "slot2": 598276.0682511806,
+      "slot3": 37671.7312189081,
+      "team": 2579021.2825350063
+    }
+  },
+  {
+    "name": "jingran r1 cr/hp iuno r1 sk r1",
+    "enabled": false,
+    "slots": [
+      "jingran r1 cr/hp",
+      "iuno r1",
+      "sk r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1921332.1245060642,
+      "slot2": 598276.0682511806,
+      "slot3": 37671.7312189081,
+      "team": 2557279.9239761527
+    }
+  },
+  {
+    "name": "jingran r1 cd/hp iuno r1 sk r1",
+    "enabled": false,
+    "slots": [
+      "jingran r1 cd/hp",
+      "iuno r1",
+      "sk r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1957329.4307472312,
+      "slot2": 598276.0682511806,
+      "slot3": 37671.7312189081,
+      "team": 2593277.23021732
+    }
+  },
+  {
+    "name": "jingran r1 cd/ele/hp iuno r1 sk r1",
+    "enabled": false,
+    "slots": [
+      "jingran r1 cd/ele/hp",
+      "iuno r1",
+      "sk r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1829141.6792405723,
+      "slot2": 598276.0682511806,
+      "slot3": 37671.7312189081,
+      "team": 2465089.4787106607
+    }
+  },
+  {
+    "name": "jingran r1 cd/atk/hp iuno r1 sk r1",
+    "enabled": false,
+    "slots": [
+      "jingran r1 cd/atk/hp",
+      "iuno r1",
+      "sk r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1820902.285158104,
+      "slot2": 598276.0682511806,
+      "slot3": 37671.7312189081,
+      "team": 2456850.0846281927
+    }
+  },
+  {
+    "name": "jingran r1 cd/ele/ele iuno r1 sk r1",
+    "enabled": false,
+    "slots": [
+      "jingran r1 cd/ele/ele",
+      "iuno r1",
+      "sk r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1621408.3335814734,
+      "slot2": 598276.0682511806,
+      "slot3": 37671.7312189081,
+      "team": 2257356.133051562
+    }
+  },
+  {
+    "name": "jingran r1 cd/ele/atk iuno r1 sk r1",
+    "enabled": false,
+    "slots": [
+      "jingran r1 cd/ele/atk",
+      "iuno r1",
+      "sk r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1619909.4846763143,
+      "slot2": 598276.0682511806,
+      "slot3": 37671.7312189081,
+      "team": 2255857.284146403
+    }
+  },
+  {
+    "name": "jingran aug sig cov 41111 hp iuno r1 sk r1",
+    "enabled": false,
+    "slots": [
+      "jingran aug sig cov 41111 hp",
+      "iuno r1",
+      "sk r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1674811.864287533,
+      "slot2": 598276.0682511806,
+      "slot3": 37671.7312189081,
+      "team": 2310759.663757622
+    }
+  },
+  {
+    "name": "jingran aug sig cov 41111 cr iuno r1 sk r1",
+    "enabled": false,
+    "slots": [
+      "jingran aug sig cov 41111 cr",
+      "iuno r1",
+      "sk r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1613879.017505093,
+      "slot2": 598276.0682511806,
+      "slot3": 37671.7312189081,
+      "team": 2249826.8169751815
+    }
+  },
+  {
+    "name": "jingran aug sig 41111 hp iuno r1 sk r1",
+    "enabled": false,
+    "slots": [
+      "jingran aug sig 41111 hp",
+      "iuno r1",
+      "sk r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1714863.1941037858,
+      "slot2": 598276.0682511806,
+      "slot3": 37671.7312189081,
+      "team": 2350810.9935738742
+    }
+  },
+  {
+    "name": "jingran aug sig 41111 cd iuno r1 sk r1",
+    "enabled": false,
+    "slots": [
+      "jingran aug sig 41111 cd",
+      "iuno r1",
+      "sk r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1662508.4949762204,
+      "slot2": 598276.0682511806,
+      "slot3": 37671.7312189081,
+      "team": 2298456.294446309
+    }
+  },
+  {
+    "name": "jingran r0 41111 hp iuno r1 sk r1",
+    "enabled": false,
+    "slots": [
+      "jingran r0 41111 hp",
+      "iuno r1",
+      "sk r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1404149.3365226232,
+      "slot2": 598276.0682511806,
+      "slot3": 37671.7312189081,
+      "team": 2040097.1359927119
+    }
+  },
+  {
+    "name": "jingran r0 41111 cr iuno r1 sk r1",
+    "enabled": false,
+    "slots": [
+      "jingran r0 41111 cr",
+      "iuno r1",
+      "sk r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1311220.3907954055,
+      "slot2": 598276.0682511806,
+      "slot3": 37671.7312189081,
+      "team": 1947168.190265494
+    }
+  },
+  {
+    "name": "jingran r1 cd/hp iuno r1 sk r1",
+    "enabled": false,
+    "slots": [
+      "jingran r1 cd/hp",
+      "iuno r1",
+      "sk r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1957329.4307472312,
+      "slot2": 598276.0682511806,
+      "slot3": 37671.7312189081,
+      "team": 2593277.23021732
+    }
+  },
+  {
+    "name": "jingran r1 cd/hp iuno r1 rejuv lupa r1",
+    "enabled": false,
+    "slots": [
+      "jingran r1 cd/hp",
+      "iuno r1 rejuv",
+      "lupa r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1847215.145341467,
+      "slot2": 339439.8228119138,
+      "slot3": 261637.509458033,
+      "team": 2448292.4776114137
+    }
+  },
+  {
+    "name": "jingran r1 cd/hp brant r1 sub Matrix lupa r1",
+    "enabled": false,
+    "slots": [
+      "jingran r1 cd/hp",
+      "brant r1 sub Matrix",
+      "lupa r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1279282.247759699,
+      "slot2": 832847.2611234023,
+      "slot3": 271180.9592170506,
+      "team": 2383310.4681001515
+    }
+  },
+  {
+    "name": "jingran r1 cd/hp brant r1 sub lupa r1",
+    "enabled": false,
+    "slots": [
+      "jingran r1 cd/hp",
+      "brant r1 sub",
+      "lupa r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1279282.247759699,
+      "slot2": 666277.8088987218,
+      "slot3": 271180.9592170506,
+      "team": 2216741.0158754713
+    }
+  },
+  {
+    "name": "jingran r1 cd/hp lupa r1 mornye r1 (shield)",
+    "enabled": false,
+    "slots": [
+      "jingran r1 cd/hp",
+      "lupa r1",
+      "mornye r1 (shield)"
+    ],
+    "sheetDpr": {
+      "slot1": 1733666.5692566927,
+      "slot2": 398240.6340578567,
+      "slot3": 73807.085058536,
+      "team": 2205714.288373085
+    }
+  },
+  {
+    "name": "jingran r1 cd/hp mortefi s6 (shield) lupa r1",
+    "enabled": false,
+    "slots": [
+      "jingran r1 cd/hp",
+      "mortefi s6 (shield)",
+      "lupa r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1584198.7121862262,
+      "slot2": 229510.8219777513,
+      "slot3": 293759.0318791363,
+      "team": 2107468.566043114
+    }
+  },
+  {
+    "name": "jingran r1 cd/hp lupa r1 mc denia r1 fcp (shield)",
+    "enabled": false,
+    "slots": [
+      "jingran r1 cd/hp",
+      "lupa r1 mc",
+      "denia r1 fcp (shield)"
+    ],
+    "sheetDpr": {
+      "slot1": 1445987.0046715897,
+      "slot2": 259543.5451722028,
+      "slot3": 369108.8341226156,
+      "team": 2074639.3839664082
+    }
+  },
+  {
+    "name": "jingran r1 cd/hp lynae r1 rupture mornye r1 (shield)",
+    "enabled": false,
+    "slots": [
+      "jingran r1 cd/hp",
+      "lynae r1 rupture",
+      "mornye r1 (shield)"
+    ],
+    "sheetDpr": {
+      "slot1": 1561556.3568371001,
+      "slot2": 460368.4063749996,
+      "slot3": 89726.5358561079,
+      "team": 2111651.2990682074
+    }
+  },
+  {
+    "name": "jingran r1 cd/hp iuno r1 lynae r1 rupture",
+    "enabled": false,
+    "slots": [
+      "jingran r1 cd/hp",
+      "iuno r1",
+      "lynae r1 rupture"
+    ],
+    "sheetDpr": {
+      "slot1": 1577112.813427824,
+      "slot2": 753664.8944893292,
+      "slot3": 296335.9292497193,
+      "team": 2627113.6371668726
+    }
+  },
+  {
+    "name": "augusta r1 jingran r1 cov cr/cd iuno r1 rejuv",
+    "enabled": false,
+    "slots": [
+      "augusta r1",
+      "jingran r1 cov cr/cd",
+      "iuno r1 rejuv"
+    ],
+    "sheetDpr": {
+      "slot1": 746155.7631457577,
+      "slot2": 1450221.7213528098,
+      "slot3": 357254.3778042781,
+      "team": 2553631.8623028453
+    }
+  },
+  {
+    "name": "qx r1 44111 denia r1 reel mornye r1",
+    "enabled": false,
+    "slots": [
+      "qx r1 44111",
+      "denia r1 reel",
+      "mornye r1"
+    ],
+    "sheetDpr": {
+      "slot1": 2002288.0687763698,
+      "slot2": 402654.8867009816,
+      "slot3": 58884.0567970538,
+      "team": 2463827.012274405
+    }
+  },
+  {
+    "name": "qx r1 denia r1 reel mornye r1",
+    "enabled": false,
+    "slots": [
+      "qx r1",
+      "denia r1 reel",
+      "mornye r1"
+    ],
+    "sheetDpr": {
+      "slot1": 2023537.2612467003,
+      "slot2": 402654.8867009816,
+      "slot3": 58884.0567970538,
+      "team": 2485076.2047447357
+    }
+  },
+  {
+    "name": "qx r1 44111 denia r1 neon mornye r1",
+    "enabled": false,
+    "slots": [
+      "qx r1 44111",
+      "denia r1 neon",
+      "mornye r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1997197.9041666703,
+      "slot2": 366090.4891068939,
+      "slot3": 55809.4145908785,
+      "team": 2419097.8078644425
+    }
+  },
+  {
+    "name": "qx r1 44111 lynae r1 strain reel mornye r1",
+    "enabled": false,
+    "slots": [
+      "qx r1 44111",
+      "lynae r1 strain reel",
+      "mornye r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1857945.6125455098,
+      "slot2": 367751.3215037605,
+      "slot3": 76758.6698817569,
+      "team": 2302455.603931027
+    }
+  },
+  {
+    "name": "qx r1 44111 lynae r1 strain mornye r1",
+    "enabled": false,
+    "slots": [
+      "qx r1 44111",
+      "lynae r1 strain",
+      "mornye r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1857208.570824605,
+      "slot2": 347593.3936178722,
+      "slot3": 72952.4548462979,
+      "team": 2277754.419288775
+    }
+  },
+  {
+    "name": "qx r1 lynae r1 strain sk r1",
+    "enabled": false,
+    "slots": [
+      "qx r1",
+      "lynae r1 strain",
+      "sk r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1566604.9181067327,
+      "slot2": 301834.6447644337,
+      "slot3": 53683.7819297153,
+      "team": 1922123.3448008816
+    }
+  },
+  {
+    "name": "qx r1 denia r1 reel sk r1",
+    "enabled": false,
+    "slots": [
+      "qx r1",
+      "denia r1 reel",
+      "sk r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1461728.252699666,
+      "slot2": 302148.2683195303,
+      "slot3": 37671.7312189081,
+      "team": 1801548.2522381041
+    }
+  },
+  {
+    "name": "YYXL s6r1 2f chisa r1 rejuv suisui r1",
+    "enabled": false,
+    "slots": [
+      "YYXL s6r1 2f",
+      "chisa r1 rejuv",
+      "suisui r1"
+    ],
+    "sheetDpr": {
+      "slot1": 5737888.426071196,
+      "slot2": 394073.1380682043,
+      "slot3": 66702.1307478608,
+      "team": 6198663.694887262
+    }
+  },
+  {
+    "name": "YYXL s3r1 2f chisa r1 rejuv suisui r1",
+    "enabled": false,
+    "slots": [
+      "YYXL s3r1 2f",
+      "chisa r1 rejuv",
+      "suisui r1"
+    ],
+    "sheetDpr": {
+      "slot1": 3389956.88256609,
+      "slot2": 366285.1921580785,
+      "slot3": 65389.6891834641,
+      "team": 3821631.763907633
+    }
+  },
+  {
+    "name": "YYXL s2r1 2f chisa r1 rejuv suisui r1",
+    "enabled": false,
+    "slots": [
+      "YYXL s2r1 2f",
+      "chisa r1 rejuv",
+      "suisui r1"
+    ],
+    "sheetDpr": {
+      "slot1": 2844555.3733250503,
+      "slot2": 355590.433361559,
+      "slot3": 63463.4743430919,
+      "team": 3263609.2810297012
+    }
+  },
+  {
+    "name": "YYXL s1r1 2f chisa r1 rejuv suisui r1",
+    "enabled": false,
+    "slots": [
+      "YYXL s1r1 2f",
+      "chisa r1 rejuv",
+      "suisui r1"
+    ],
+    "sheetDpr": {
+      "slot1": 2427784.71900268,
+      "slot2": 355590.433361559,
+      "slot3": 63463.4743430919,
+      "team": 2846838.626707331
+    }
+  },
+  {
+    "name": "YYXL r1 2f chisa r1 rejuv suisui r1",
+    "enabled": false,
+    "slots": [
+      "YYXL r1 2f",
+      "chisa r1 rejuv",
+      "suisui r1"
+    ],
+    "sheetDpr": {
+      "slot1": 2356375.2972021312,
+      "slot2": 382887.1769169302,
+      "slot3": 66485.0152057479,
+      "team": 2805747.4893248095
+    }
+  },
+  {
+    "name": "YYXL r1 1f2a chisa r1 rejuv suisui r1",
+    "enabled": false,
+    "slots": [
+      "YYXL r1 1f2a",
+      "chisa r1 rejuv",
+      "suisui r1"
+    ],
+    "sheetDpr": {
+      "slot1": 2317408.835327145,
+      "slot2": 355590.433361559,
+      "slot3": 63463.4743430919,
+      "team": 2736462.743031796
+    }
+  },
+  {
+    "name": "YYXL r1 2f chisa r1 rejuv suisui r1",
+    "enabled": false,
+    "slots": [
+      "YYXL r1 2f",
+      "chisa r1 rejuv",
+      "suisui r1"
+    ],
+    "sheetDpr": {
+      "slot1": 2356375.2972021312,
+      "slot2": 382887.1769169302,
+      "slot3": 66485.0152057479,
+      "team": 2805747.4893248095
+    }
+  },
+  {
+    "name": "YYXL r1 1f2a frolo r1 qs suisui r1",
+    "enabled": false,
+    "slots": [
+      "YYXL r1 1f2a",
+      "frolo r1 qs",
+      "suisui r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1622385.762389005,
+      "slot2": 843595.2820030111,
+      "slot3": 51379.1872785401,
+      "team": 2517360.231670556
+    }
+  },
+  {
+    "name": "YYXL r1 2f frolo r1 qs suisui r1",
+    "enabled": false,
+    "slots": [
+      "YYXL r1 2f",
+      "frolo r1 qs",
+      "suisui r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1489630.0614272477,
+      "slot2": 843595.2820030111,
+      "slot3": 51379.1872785401,
+      "team": 2384604.530708799
+    }
+  },
+  {
+    "name": "YYXL r1 2f1a frolo r1 qs chisa r1 rejuv",
+    "enabled": false,
+    "slots": [
+      "YYXL r1 2f1a",
+      "frolo r1 qs",
+      "chisa r1 rejuv"
+    ],
+    "sheetDpr": {
+      "slot1": 1526467.372803769,
+      "slot2": 726590.3780369037,
+      "slot3": 204015.4413534254,
+      "team": 2457073.192194098
+    }
+  },
+  {
+    "name": "YYXL r1 1f2a rebecca r1 mc suisui r1",
+    "enabled": false,
+    "slots": [
+      "YYXL r1 1f2a",
+      "rebecca r1 mc",
+      "suisui r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1881143.932693269,
+      "slot2": 364074.3127822158,
+      "slot3": 52315.6738448876,
+      "team": 2297533.9193203724
+    }
+  },
+  {
+    "name": "YYXL r1 2f1a rebecca r1 mc chisa r1 rejuv",
+    "enabled": false,
+    "slots": [
+      "YYXL r1 2f1a",
+      "rebecca r1 mc",
+      "chisa r1 rejuv"
+    ],
+    "sheetDpr": {
+      "slot1": 1816180.5663141238,
+      "slot2": 313006.2806101063,
+      "slot3": 220734.2461078178,
+      "team": 2349921.0930320476
+    }
+  },
+  {
+    "name": "YYXL r1 1f2a mortefi s6 suisui r1",
+    "enabled": false,
+    "slots": [
+      "YYXL r1 1f2a",
+      "mortefi s6",
+      "suisui r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1903684.4070828715,
+      "slot2": 201902.8730104035,
+      "slot3": 52315.6738448876,
+      "team": 2157902.9539381624
+    }
+  },
+  {
+    "name": "YYXL r1 2f1a mortefi s6 chisa r1 rejuv",
+    "enabled": false,
+    "slots": [
+      "YYXL r1 2f1a",
+      "mortefi s6",
+      "chisa r1 rejuv"
+    ],
+    "sheetDpr": {
+      "slot1": 1841489.3656383117,
+      "slot2": 164851.9686367477,
+      "slot3": 220734.2461078178,
+      "team": 2227075.580382877
+    }
+  },
+  {
+    "name": "YYXL r1 1f1a chisa r1 rejuv suisui r1",
+    "enabled": false,
+    "slots": [
+      "YYXL r1 1f1a",
+      "chisa r1 rejuv",
+      "suisui r1"
+    ],
+    "sheetDpr": {
+      "slot1": 2122737.1299476735,
+      "slot2": 382887.1769169302,
+      "slot3": 66485.0152057479,
+      "team": 2572109.322070352
+    }
+  },
+  {
+    "name": "YYXL r1 1f1a frolo r1 suisui r1",
+    "enabled": false,
+    "slots": [
+      "YYXL r1 1f1a",
+      "frolo r1",
+      "suisui r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1453292.9798674798,
+      "slot2": 862845.9035852262,
+      "slot3": 51379.1872785401,
+      "team": 2367518.0707312464
+    }
+  },
+  {
+    "name": "YYXL r1 1f1a frolo r1 chisa rejuv",
+    "enabled": false,
+    "slots": [
+      "YYXL r1 1f1a",
+      "frolo r1",
+      "chisa rejuv"
+    ],
+    "sheetDpr": {
+      "slot1": 1226048.813848797,
+      "slot2": 721006.3752622355,
+      "slot3": 204015.4413534254,
+      "team": 2151070.630464458
+    }
+  },
+  {
+    "name": "YYXL r1 1f1a rebecca r1 mc suisui r1",
+    "enabled": false,
+    "slots": [
+      "YYXL r1 1f1a",
+      "rebecca r1 mc",
+      "suisui r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1697628.4581870374,
+      "slot2": 364074.3127822158,
+      "slot3": 52315.6738448876,
+      "team": 2114018.444814141
+    }
+  },
+  {
+    "name": "YYXL r1 1f1a rebecca r1 mc chisa rejuv",
+    "enabled": false,
+    "slots": [
+      "YYXL r1 1f1a",
+      "rebecca r1 mc",
+      "chisa rejuv"
+    ],
+    "sheetDpr": {
+      "slot1": 1478813.5882634423,
+      "slot2": 313006.2806101063,
+      "slot3": 220734.2461078178,
+      "team": 2012554.1149813666
+    }
+  },
+  {
+    "name": "YYXL r1 1f1a iuno r1 suisui r1",
+    "enabled": false,
+    "slots": [
+      "YYXL r1 1f1a",
+      "iuno r1",
+      "suisui r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1649117.522925105,
+      "slot2": 335832.9210764191,
+      "slot3": 51379.1872785401,
+      "team": 2036329.6312800641
+    }
+  },
+  {
+    "name": "YYXL r1 1f1a iuno r1 chisa rejuv",
+    "enabled": false,
+    "slots": [
+      "YYXL r1 1f1a",
+      "iuno r1",
+      "chisa rejuv"
+    ],
+    "sheetDpr": {
+      "slot1": 1410601.3862543951,
+      "slot2": 275252.24926416,
+      "slot3": 205957.8212886778,
+      "team": 1891811.456807233
+    }
+  },
+  {
+    "name": "YYXL r1 1f1a mortefi s6 suisui r1",
+    "enabled": false,
+    "slots": [
+      "YYXL r1 1f1a",
+      "mortefi s6",
+      "suisui r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1725106.6199501369,
+      "slot2": 201902.8730104035,
+      "slot3": 52315.6738448876,
+      "team": 1979325.166805428
+    }
+  },
+  {
+    "name": "YYXL r1 1f1a mortefi s6 chisa rejuv",
+    "enabled": false,
+    "slots": [
+      "YYXL r1 1f1a",
+      "mortefi s6",
+      "chisa rejuv"
+    ],
+    "sheetDpr": {
+      "slot1": 1501807.2962213801,
+      "slot2": 164851.9686367477,
+      "slot3": 220734.2461078178,
+      "team": 1887393.5109659457
+    }
+  },
+  {
+    "name": "YYXL r1 1f1a lynae r1 rupture mornye r1",
+    "enabled": false,
+    "slots": [
+      "YYXL r1 1f1a",
+      "lynae r1 rupture",
+      "mornye r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1288251.6291723535,
+      "slot2": 397293.909897898,
+      "slot3": 109282.004688002,
+      "team": 1794827.5437582533
+    }
+  },
+  {
+    "name": "YYXL r1 1f1a lynae r1 rupture suisui r1",
+    "enabled": false,
+    "slots": [
+      "YYXL r1 1f1a",
+      "lynae r1 rupture",
+      "suisui r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1657343.6161605613,
+      "slot2": 332049.9794437594,
+      "slot3": 55704.4224760124,
+      "team": 2045098.0180803332
+    }
+  },
+  {
+    "name": "hiyuki r1 YYXL r1 1f1a chisa rejuv",
+    "enabled": false,
+    "slots": [
+      "hiyuki r1",
+      "YYXL r1 1f1a",
+      "chisa rejuv"
+    ],
+    "sheetDpr": {
+      "slot1": 995088.615493582,
+      "slot2": 1028837.1550754086,
+      "slot3": 195615.2614036575,
+      "team": 2219541.031972648
+    }
+  },
+  {
+    "name": "hiyuki r1 YYXL r1 1f1a suisui",
+    "enabled": false,
+    "slots": [
+      "hiyuki r1",
+      "YYXL r1 1f1a",
+      "suisui"
+    ],
+    "sheetDpr": {
+      "slot1": 1282413.1240134197,
+      "slot2": 1008246.9549104893,
+      "slot3": 69674.2185659944,
+      "team": 2360334.2974899034
+    }
+  },
+  {
+    "name": "hiyuki r1 4 iai lucilla r1 chafe chisa rejuv",
+    "enabled": false,
+    "slots": [
+      "hiyuki r1 4 iai",
+      "lucilla r1 chafe",
+      "chisa rejuv"
+    ],
+    "sheetDpr": {
+      "slot1": 2026733.210274571,
+      "slot2": 352778.3458401177,
+      "slot3": 186916.0459216972,
+      "team": 2566427.6020363863
+    }
+  },
+  {
+    "name": "hiyuki r1 4 iai lynae r1 rupture suisui",
+    "enabled": false,
+    "slots": [
+      "hiyuki r1 4 iai",
+      "lynae r1 rupture",
+      "suisui"
+    ],
+    "sheetDpr": {
+      "slot1": 2021183.6391365493,
+      "slot2": 378411.0773036637,
+      "slot3": 79681.1312102218,
+      "team": 2479275.847650435
+    }
+  },
+  {
+    "name": "hiyuki r1 4 iai lynae r1 rupture chisa rejuv",
+    "enabled": false,
+    "slots": [
+      "hiyuki r1 4 iai",
+      "lynae r1 rupture",
+      "chisa rejuv"
+    ],
+    "sheetDpr": {
+      "slot1": 1776160.6774883275,
+      "slot2": 335541.0012098824,
+      "slot3": 212249.3306147913,
+      "team": 2323951.0093130013
+    }
+  },
+  {
+    "name": "hiyuki r1 4 iai lynae r1 rupture mornye 2x break",
+    "enabled": false,
+    "slots": [
+      "hiyuki r1 4 iai",
+      "lynae r1 rupture",
+      "mornye 2x break"
+    ],
+    "sheetDpr": {
+      "slot1": 1768304.5199524832,
+      "slot2": 497272.8861581904,
+      "slot3": 116474.6597556536,
+      "team": 2382052.0658663274
+    }
+  },
+  {
+    "name": "hiyuki r1 4 iai chisa r1 rejuv suisui",
+    "enabled": false,
+    "slots": [
+      "hiyuki r1 4 iai",
+      "chisa r1 rejuv",
+      "suisui"
+    ],
+    "sheetDpr": {
+      "slot1": 2024330.3289127664,
+      "slot2": 306800.749482259,
+      "slot3": 95967.3250758168,
+      "team": 2427098.403470842
+    }
+  },
+  {
+    "name": "hiyuki r1 4 iai frolo r1 qs suisui",
+    "enabled": false,
+    "slots": [
+      "hiyuki r1 4 iai",
+      "frolo r1 qs",
+      "suisui"
+    ],
+    "sheetDpr": {
+      "slot1": 1367503.7318004975,
+      "slot2": 816738.1936014408,
+      "slot3": 69956.134518404,
+      "team": 2254198.059920342
+    }
+  },
+  {
+    "name": "hiyuki r1 lucilla r1 chafe suisui",
+    "enabled": false,
+    "slots": [
+      "hiyuki r1",
+      "lucilla r1 chafe",
+      "suisui"
+    ],
+    "sheetDpr": {
+      "slot1": 2029440.7345214176,
+      "slot2": 375252.3079383307,
+      "slot3": 89925.7285915131,
+      "team": 2494618.771051261
+    }
+  },
+  {
+    "name": "hiyuki r1 lucilla r1 chafe chisa rejuv",
+    "enabled": false,
+    "slots": [
+      "hiyuki r1",
+      "lucilla r1 chafe",
+      "chisa rejuv"
+    ],
+    "sheetDpr": {
+      "slot1": 1788103.3559374758,
+      "slot2": 352778.3458401177,
+      "slot3": 186916.0459216972,
+      "team": 2327797.747699291
+    }
+  },
+  {
+    "name": "hiyuki r1 lynae r1 rupture suisui",
+    "enabled": false,
+    "slots": [
+      "hiyuki r1",
+      "lynae r1 rupture",
+      "suisui"
+    ],
+    "sheetDpr": {
+      "slot1": 1847913.4067874488,
+      "slot2": 378411.0773036637,
+      "slot3": 79681.1312102218,
+      "team": 2306005.6153013343
+    }
+  },
+  {
+    "name": "hiyuki r1 lynae r1 rupture chisa rejuv",
+    "enabled": false,
+    "slots": [
+      "hiyuki r1",
+      "lynae r1 rupture",
+      "chisa rejuv"
+    ],
+    "sheetDpr": {
+      "slot1": 1583892.4122465388,
+      "slot2": 335541.0012098824,
+      "slot3": 212249.3306147913,
+      "team": 2131682.7440712126
+    }
+  },
+  {
+    "name": "hiyuki r1 lynae r1 rupture mornye",
+    "enabled": false,
+    "slots": [
+      "hiyuki r1",
+      "lynae r1 rupture",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 1539357.8450474835,
+      "slot2": 442006.9748856968,
+      "slot3": 107711.4535561677,
+      "team": 2089076.273489348
+    }
+  },
+  {
+    "name": "hiyuki r1 chisa r1 rejuv suisui",
+    "enabled": false,
+    "slots": [
+      "hiyuki r1",
+      "chisa r1 rejuv",
+      "suisui"
+    ],
+    "sheetDpr": {
+      "slot1": 1756227.4145661788,
+      "slot2": 306800.749482259,
+      "slot3": 95967.3250758168,
+      "team": 2158995.489124255
+    }
+  },
+  {
+    "name": "lucy s3r1 rebecca r1 neon mornye",
+    "enabled": false,
+    "slots": [
+      "lucy s3r1",
+      "rebecca r1 neon",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 2111259.3258540416,
+      "slot2": 538494.7351344925,
+      "slot3": 59174.7789085099,
+      "team": 2708928.839897044
+    }
+  },
+  {
+    "name": "lucy s2r1 rebecca s2r1 mornye",
+    "enabled": false,
+    "slots": [
+      "lucy s2r1",
+      "rebecca s2r1",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 1563540.3319662374,
+      "slot2": 804704.1978133211,
+      "slot3": 69708.5128939469,
+      "team": 2437953.0426735054
+    }
+  },
+  {
+    "name": "lucy s2r1 qs DOPA rebecca r1 neon qs mornye r1 2x break",
+    "enabled": false,
+    "slots": [
+      "lucy s2r1 qs DOPA",
+      "rebecca r1 neon qs",
+      "mornye r1 2x break"
+    ],
+    "sheetDpr": {
+      "slot1": 2010022.5971541754,
+      "slot2": 627575.0172994772,
+      "slot3": 64615.9810367587,
+      "team": 2702213.595490412
+    }
+  },
+  {
+    "name": "lucy s2r1 qs DOPA rebecca r1 neon qs sk r1",
+    "enabled": false,
+    "slots": [
+      "lucy s2r1 qs DOPA",
+      "rebecca r1 neon qs",
+      "sk r1"
+    ],
+    "sheetDpr": {
+      "slot1": 2078414.8642774369,
+      "slot2": 451635.5340582776,
+      "slot3": 42230.8062145745,
+      "team": 2572281.2045502886
+    }
+  },
+  {
+    "name": "lucy s2r1 rebecca r1 neon mornye r1",
+    "enabled": false,
+    "slots": [
+      "lucy s2r1",
+      "rebecca r1 neon",
+      "mornye r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1615212.065901226,
+      "slot2": 557411.7703568451,
+      "slot3": 65878.4434120701,
+      "team": 2238502.279670141
+    }
+  },
+  {
+    "name": "lucy s2r1 rebecca r1 neon sk r1",
+    "enabled": false,
+    "slots": [
+      "lucy s2r1",
+      "rebecca r1 neon",
+      "sk r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1715110.508915799,
+      "slot2": 499116.1590111724,
+      "slot3": 42230.8062145745,
+      "team": 2256457.4741415456
+    }
+  },
+  {
+    "name": "lucy s3r1 rebecca neon sk",
+    "enabled": false,
+    "slots": [
+      "lucy s3r1",
+      "rebecca neon",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 2180970.0486968923,
+      "slot2": 403675.8303626087,
+      "slot3": 38927.3038545268,
+      "team": 2623573.182914028
+    }
+  },
+  {
+    "name": "lucy s3r1 rebecca neon mornye",
+    "enabled": false,
+    "slots": [
+      "lucy s3r1",
+      "rebecca neon",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 2033190.9074368314,
+      "slot2": 462877.11137052,
+      "slot3": 57076.9366295587,
+      "team": 2553144.9554369105
+    }
+  },
+  {
+    "name": "lucy s2r1 rebecca r1 neon mornye",
+    "enabled": false,
+    "slots": [
+      "lucy s2r1",
+      "rebecca r1 neon",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 1520856.1146445996,
+      "slot2": 538494.7351344925,
+      "slot3": 59174.7789085099,
+      "team": 2118525.628687602
+    }
+  },
+  {
+    "name": "lucy r1 rebecca s2r1 mornye",
+    "enabled": false,
+    "slots": [
+      "lucy r1",
+      "rebecca s2r1",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 1203322.0292051465,
+      "slot2": 804704.1978133211,
+      "slot3": 69708.5128939469,
+      "team": 2077734.7399124145
+    }
+  },
+  {
+    "name": "lucy s3r0 rebecca neon mornye",
+    "enabled": false,
+    "slots": [
+      "lucy s3r0",
+      "rebecca neon",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 1651243.3490405981,
+      "slot2": 462877.11137052,
+      "slot3": 57076.9366295587,
+      "team": 2171197.3970406773
+    }
+  },
+  {
+    "name": "lucy s1r1 qs DOPA rebecca r1 neon qs mornye r1 2x break",
+    "enabled": false,
+    "slots": [
+      "lucy s1r1 qs DOPA",
+      "rebecca r1 neon qs",
+      "mornye r1 2x break"
+    ],
+    "sheetDpr": {
+      "slot1": 1718937.5902875606,
+      "slot2": 627575.0172994772,
+      "slot3": 64615.9810367587,
+      "team": 2411128.5886237966
+    }
+  },
+  {
+    "name": "lucy s1r1 qs DOPA rebecca r1 neon qs sk r1",
+    "enabled": false,
+    "slots": [
+      "lucy s1r1 qs DOPA",
+      "rebecca r1 neon qs",
+      "sk r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1765264.2972669136,
+      "slot2": 451635.5340582776,
+      "slot3": 42230.8062145745,
+      "team": 2259130.637539766
+    }
+  },
+  {
+    "name": "lucy s1r1 qs rebecca r1 qs mornye r1 2x break",
+    "enabled": false,
+    "slots": [
+      "lucy s1r1 qs",
+      "rebecca r1 qs",
+      "mornye r1 2x break"
+    ],
+    "sheetDpr": {
+      "slot1": 1433892.9981618945,
+      "slot2": 654591.2498813453,
+      "slot3": 64615.9810367587,
+      "team": 2153100.2290799986
+    }
+  },
+  {
+    "name": "lucy s1r1 qs rebecca r1 qs sk r1",
+    "enabled": false,
+    "slots": [
+      "lucy s1r1 qs",
+      "rebecca r1 qs",
+      "sk r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1456425.5894521459,
+      "slot2": 489018.3624813268,
+      "slot3": 42230.8062145745,
+      "team": 1987674.7581480471
+    }
+  },
+  {
+    "name": "lucy s1r1 rebecca r1 mornye r1",
+    "enabled": false,
+    "slots": [
+      "lucy s1r1",
+      "rebecca r1",
+      "mornye r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1198944.8701477738,
+      "slot2": 695849.5415327246,
+      "slot3": 65878.4434120701,
+      "team": 1960672.8550925686
+    }
+  },
+  {
+    "name": "lucy s1r1 rebecca r1 mc mornye r1",
+    "enabled": false,
+    "slots": [
+      "lucy s1r1",
+      "rebecca r1 mc",
+      "mornye r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1317112.7776405476,
+      "slot2": 557411.7703568451,
+      "slot3": 65878.4434120701,
+      "team": 1940402.9914094629
+    }
+  },
+  {
+    "name": "lucy s1r1 rebecca r1 neon mornye r1",
+    "enabled": false,
+    "slots": [
+      "lucy s1r1",
+      "rebecca r1 neon",
+      "mornye r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1315241.7752012915,
+      "slot2": 557411.7703568451,
+      "slot3": 65878.4434120701,
+      "team": 1938531.9889702068
+    }
+  },
+  {
+    "name": "lucy s1r1 rebecca r1 sk r1",
+    "enabled": false,
+    "slots": [
+      "lucy s1r1",
+      "rebecca r1",
+      "sk r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1261906.6460465705,
+      "slot2": 632191.2608253404,
+      "slot3": 42230.8062145745,
+      "team": 1936328.7130864854
+    }
+  },
+  {
+    "name": "lucy s2r1 rebecca neon sk",
+    "enabled": false,
+    "slots": [
+      "lucy s2r1",
+      "rebecca neon",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 776865.0148107607,
+      "slot2": 67559.2274406332,
+      "slot3": 67559.2274406332,
+      "team": 911983.4696920272
+    }
+  },
+  {
+    "name": "lucy s2r1 rebecca neon mornye",
+    "enabled": false,
+    "slots": [
+      "lucy s2r1",
+      "rebecca neon",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 776865.0148107607,
+      "slot2": 67559.2274406332,
+      "slot3": 67559.2274406332,
+      "team": 911983.4696920272
+    }
+  },
+  {
+    "name": "lucy s1r1 rebecca r1 mornye",
+    "enabled": false,
+    "slots": [
+      "lucy s1r1",
+      "rebecca r1",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 983969.5712026493,
+      "slot2": 494736.1661497065,
+      "slot3": 67559.2274406332,
+      "team": 1546264.9647929892
+    }
+  },
+  {
+    "name": "lucy s1r1 rebecca r1 sk",
+    "enabled": false,
+    "slots": [
+      "lucy s1r1",
+      "rebecca r1",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 983969.5712026493,
+      "slot2": 494736.1661497065,
+      "slot3": 67559.2274406332,
+      "team": 1546264.9647929892
+    }
+  },
+  {
+    "name": "lucy s2r0 rebecca neon mornye",
+    "enabled": false,
+    "slots": [
+      "lucy s2r0",
+      "rebecca neon",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 611360.5067060913,
+      "slot2": 67559.2274406332,
+      "slot3": 67559.2274406332,
+      "team": 746478.9615873578
+    }
+  },
+  {
+    "name": "lucy r0 rebecca s2 mornye",
+    "enabled": false,
+    "slots": [
+      "lucy r0",
+      "rebecca s2",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 522666.2974700596,
+      "slot2": 67559.2274406332,
+      "slot3": 67559.2274406332,
+      "team": 657784.752351326
+    }
+  },
+  {
+    "name": "lucy s1r1 rebecca mornye",
+    "enabled": false,
+    "slots": [
+      "lucy s1r1",
+      "rebecca",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 652925.0766162018,
+      "slot2": 67559.2274406332,
+      "slot3": 67559.2274406332,
+      "team": 788043.5314974682
+    }
+  },
+  {
+    "name": "lucy s1r0 rebecca r1 mornye",
+    "enabled": false,
+    "slots": [
+      "lucy s1r0",
+      "rebecca r1",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 814457.0248544314,
+      "slot2": 494736.1661497065,
+      "slot3": 67559.2274406332,
+      "team": 1376752.4184447713
+    }
+  },
+  {
+    "name": "lucy r1 rebecca mornye",
+    "enabled": false,
+    "slots": [
+      "lucy r1",
+      "rebecca",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 651015.5262466191,
+      "slot2": 67559.2274406332,
+      "team": 718574.7536872523
+    }
+  },
+  {
+    "name": "lucy r0 rebecca r1 mornye",
+    "enabled": false,
+    "slots": [
+      "lucy r0",
+      "rebecca r1",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 955710.998484768,
+      "team": 955710.998484768
+    }
+  },
+  {
+    "name": "lucy r0 rebecca mornye",
+    "enabled": false,
+    "slots": [
+      "lucy r0",
+      "rebecca",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 918806.5209895726,
+      "team": 918806.5209895726
+    }
+  },
+  {
+    "name": "amy r1 burst 3 forte denia r1 foam chisa rejuv",
+    "enabled": false,
+    "slots": [
+      "amy r1 burst 3 forte",
+      "denia r1 foam",
+      "chisa rejuv"
+    ],
+    "sheetDpr": {
+      "slot1": 2016193.4893019374,
+      "slot2": 353983.1737692552,
+      "slot3": 179516.8003300814,
+      "team": 2549693.4634012743
+    }
+  },
+  {
+    "name": "amy r1 burst 3 forte lupa r1 denia foam 2x intro",
+    "enabled": false,
+    "slots": [
+      "amy r1 burst 3 forte",
+      "lupa r1",
+      "denia foam 2x intro"
+    ],
+    "sheetDpr": {
+      "slot1": 1714223.9062989147,
+      "slot2": 329252.1929479283,
+      "slot3": 300673.4342121537,
+      "team": 2344149.5334589966
+    }
+  },
+  {
+    "name": "amy r1 rupture lynae r1 rupture mornye 2x break",
+    "enabled": false,
+    "slots": [
+      "amy r1 rupture",
+      "lynae r1 rupture",
+      "mornye 2x break"
+    ],
+    "sheetDpr": {
+      "slot1": 1720353.6390881257,
+      "slot2": 541587.2714157612,
+      "slot3": 94989.7996118758,
+      "team": 2356930.7101157624
+    }
+  },
+  {
+    "name": "amy r1 burst denia r1 foam chisa rejuv",
+    "enabled": false,
+    "slots": [
+      "amy r1 burst",
+      "denia r1 foam",
+      "chisa rejuv"
+    ],
+    "sheetDpr": {
+      "slot1": 1663286.1875607588,
+      "slot2": 353983.1737692552,
+      "slot3": 179516.8003300814,
+      "team": 2196786.161660095
+    }
+  },
+  {
+    "name": "amy r1 burst lupa r1 denia foam 2x intro",
+    "enabled": false,
+    "slots": [
+      "amy r1 burst",
+      "lupa r1",
+      "denia foam 2x intro"
+    ],
+    "sheetDpr": {
+      "slot1": 1474843.5651126953,
+      "slot2": 329252.1929479283,
+      "slot3": 300673.4342121537,
+      "team": 2104769.192272777
+    }
+  },
+  {
+    "name": "amy r1 rupture lynae r1 rupture mornye",
+    "enabled": false,
+    "slots": [
+      "amy r1 rupture",
+      "lynae r1 rupture",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 1655011.5818886273,
+      "slot2": 486200.4534566114,
+      "slot3": 87321.2869480667,
+      "team": 2228533.3222933053
+    }
+  },
+  {
+    "name": "amy r1 rupture lupa r1 mornye",
+    "enabled": false,
+    "slots": [
+      "amy r1 rupture",
+      "lupa r1",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 1401750.7667220011,
+      "slot2": 432111.725057711,
+      "slot3": 102104.9750861659,
+      "team": 1935967.4668658779
+    }
+  },
+  {
+    "name": "amy r1 burst denia foam suisui s1",
+    "enabled": false,
+    "slots": [
+      "amy r1 burst",
+      "denia foam",
+      "suisui s1"
+    ],
+    "sheetDpr": {
+      "slot1": 1758734.277080966,
+      "slot2": 279505.1442776319,
+      "slot3": 51144.7321365887,
+      "team": 2089384.1534951867
+    }
+  },
+  {
+    "name": "amy r1 burst denia r1 foam suisui",
+    "enabled": false,
+    "slots": [
+      "amy r1 burst",
+      "denia r1 foam",
+      "suisui"
+    ],
+    "sheetDpr": {
+      "slot1": 1673923.5983715607,
+      "slot2": 381162.0720663944,
+      "slot3": 51144.7321365887,
+      "team": 2106230.402574544
+    }
+  },
+  {
+    "name": "amy r1 rupture changli lupa r1",
+    "enabled": false,
+    "slots": [
+      "amy r1 rupture",
+      "changli",
+      "lupa r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1065166.706848728,
+      "slot2": 525740.7647730738,
+      "slot3": 298299.0551387558,
+      "team": 1889206.5267605577
+    }
+  },
+  {
+    "name": "sigrika r1 lucilla mc frolo r1 qs",
+    "enabled": false,
+    "slots": [
+      "sigrika r1",
+      "lucilla mc",
+      "frolo r1 qs"
+    ],
+    "sheetDpr": {
+      "slot1": 1308023.5068955852,
+      "slot2": 128027.5600901115,
+      "slot3": 844822.4817227102,
+      "team": 2280873.548708407
+    }
+  },
+  {
+    "name": "sigrika r1 qy mc frolo r1 qs",
+    "enabled": false,
+    "slots": [
+      "sigrika r1",
+      "qy mc",
+      "frolo r1 qs"
+    ],
+    "sheetDpr": {
+      "slot1": 1297371.4426854618,
+      "slot2": 159255.218209527,
+      "slot3": 800983.1013787938,
+      "team": 2257609.762273783
+    }
+  },
+  {
+    "name": "sigrika r1 2x outburst lucilla r1 mc sk",
+    "enabled": false,
+    "slots": [
+      "sigrika r1 2x outburst",
+      "lucilla r1 mc",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 2094493.4554060968,
+      "slot2": 237412.0535288982,
+      "slot3": 37109.1202074216,
+      "team": 2369014.6291424166
+    }
+  },
+  {
+    "name": "sigrika r1 2x outburst qy r1 mc sk",
+    "enabled": false,
+    "slots": [
+      "sigrika r1 2x outburst",
+      "qy r1 mc",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 2029411.700006287,
+      "slot2": 235674.1607504561,
+      "slot3": 40001.406532729,
+      "team": 2305087.2672894723
+    }
+  },
+  {
+    "name": "sigrika r1 lucilla r1 mc sk",
+    "enabled": false,
+    "slots": [
+      "sigrika r1",
+      "lucilla r1 mc",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 1870845.7140593054,
+      "slot2": 237412.0535288982,
+      "slot3": 37109.1202074216,
+      "team": 2145366.8877956253
+    }
+  },
+  {
+    "name": "sigrika r1 qy mc sk",
+    "enabled": false,
+    "slots": [
+      "sigrika r1",
+      "qy mc",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 1724391.6996907394,
+      "slot2": 193477.6502414166,
+      "slot3": 39290.7242734745,
+      "team": 1957160.0742056305
+    }
+  },
+  {
+    "name": "sigrika r1 qy mc cia r1",
+    "enabled": false,
+    "slots": [
+      "sigrika r1",
+      "qy mc",
+      "cia r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1618274.9342658154,
+      "slot2": 183949.1240389246,
+      "slot3": 293798.371471853,
+      "team": 2096022.429776593
+    }
+  },
+  {
+    "name": "luuk r0 denia r1 reel mornye r1",
+    "enabled": false,
+    "slots": [
+      "luuk r0",
+      "denia r1 reel",
+      "mornye r1"
+    ]
+  },
+  {
+    "name": "luuk r1 denia r1 reel mornye r1",
+    "enabled": false,
+    "slots": [
+      "luuk r1",
+      "denia r1 reel",
+      "mornye r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1891864.1305901308,
+      "slot2": 402654.8867009816,
+      "slot3": 58884.0567970538,
+      "team": 2353403.074088166
+    }
+  },
+  {
+    "name": "luuk r1 denia r1 neon mornye r1",
+    "enabled": false,
+    "slots": [
+      "luuk r1",
+      "denia r1 neon",
+      "mornye r1"
+    ]
+  },
+  {
+    "name": "luuk r1 lynae r1 strain reel mornye r1",
+    "enabled": false,
+    "slots": [
+      "luuk r1",
+      "lynae r1 strain reel",
+      "mornye r1"
+    ]
+  },
+  {
+    "name": "luuk r1 lynae r1 strain mornye r1",
+    "enabled": false,
+    "slots": [
+      "luuk r1",
+      "lynae r1 strain",
+      "mornye r1"
+    ]
+  },
+  {
+    "name": "luuk r1 denia r1 reel sk r1",
+    "enabled": false,
+    "slots": [
+      "luuk r1",
+      "denia r1 reel",
+      "sk r1"
+    ]
+  },
+  {
+    "name": "luuk r1 lynae r1 strain reel sk r1",
+    "enabled": false,
+    "slots": [
+      "luuk r1",
+      "lynae r1 strain reel",
+      "sk r1"
+    ]
+  },
+  {
+    "name": "luuk r1 sanhua s6 mornye r1",
+    "enabled": false,
+    "slots": [
+      "luuk r1",
+      "sanhua s6",
+      "mornye r1"
+    ]
+  },
+  {
+    "name": "luuk r1 sanhua s6 sk r1",
+    "enabled": false,
+    "slots": [
+      "luuk r1",
+      "sanhua s6",
+      "sk r1"
+    ]
+  },
+  {
+    "name": "glob r1 qy mc qs frolo r1 qs",
+    "enabled": false,
+    "slots": [
+      "glob r1",
+      "qy mc qs",
+      "frolo r1 qs"
+    ],
+    "sheetDpr": {
+      "slot1": 1008389.700705028,
+      "slot2": 113418.7431519885,
+      "slot3": 780742.6040915516,
+      "team": 1902551.0479485681
+    }
+  },
+  {
+    "name": "glob r1 echo lucilla r1 mc sk",
+    "enabled": false,
+    "slots": [
+      "glob r1 echo",
+      "lucilla r1 mc",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 1580937.4107313072,
+      "slot2": 226473.0604733271,
+      "slot3": 36856.6310956577,
+      "team": 1844267.1023002919
+    }
+  },
+  {
+    "name": "glob r1 echo qy r1 mc sk",
+    "enabled": false,
+    "slots": [
+      "glob r1 echo",
+      "qy r1 mc",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 1554387.45230586,
+      "slot2": 214717.8831069173,
+      "slot3": 39748.9174209651,
+      "team": 1808854.2528337424
+    }
+  },
+  {
+    "name": "glob r1 lupa r1 denia foam 2x intro",
+    "enabled": false,
+    "slots": [
+      "glob r1",
+      "lupa r1",
+      "denia foam 2x intro"
+    ],
+    "sheetDpr": {
+      "slot1": 1257651.8589602467,
+      "slot2": 299320.1754072075,
+      "slot3": 273153.5894505223,
+      "team": 1830125.6238179766
+    }
+  },
+  {
+    "name": "glob r1 mortefi s6 lupa r1",
+    "enabled": false,
+    "slots": [
+      "glob r1",
+      "mortefi s6",
+      "lupa r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1234054.8304205397,
+      "slot2": 229399.8935959351,
+      "slot3": 293759.0318791363,
+      "team": 1757213.7558956111
+    }
+  },
+  {
+    "name": "glob r1 lupa mornye s1",
+    "enabled": false,
+    "slots": [
+      "glob r1",
+      "lupa",
+      "mornye s1"
+    ],
+    "sheetDpr": {
+      "slot1": 1410969.5828629509,
+      "slot2": 394926.0190859217,
+      "slot3": 71811.4479588004,
+      "team": 1877707.0499076732
+    }
+  },
+  {
+    "name": "glob r1 lupa r1 mornye",
+    "enabled": false,
+    "slots": [
+      "glob r1",
+      "lupa r1",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 1338401.378195937,
+      "slot2": 374216.2989195685,
+      "slot3": 65682.7994606353,
+      "team": 1778300.4765761408
+    }
+  },
+  {
+    "name": "iuno r0 mdps lynae r1 rupture mornye",
+    "enabled": false,
+    "slots": [
+      "iuno r0 mdps",
+      "lynae r1 rupture",
+      "mornye"
+    ]
+  },
+  {
+    "name": "iuno r1 mdps lynae r1 rupture mornye",
+    "enabled": false,
+    "slots": [
+      "iuno r1 mdps",
+      "lynae r1 rupture",
+      "mornye"
+    ]
+  },
+  {
+    "name": "iuno r1 mdps lynae r1 rupture sk",
+    "enabled": false,
+    "slots": [
+      "iuno r1 mdps",
+      "lynae r1 rupture",
+      "sk"
+    ]
+  },
+  {
+    "name": "augusta r0 iuno r1 sk",
+    "enabled": false,
+    "slots": [
+      "augusta r0",
+      "iuno r1",
+      "sk"
+    ]
+  },
+  {
+    "name": "augusta r1 iuno r1 sk",
+    "enabled": false,
+    "slots": [
+      "augusta r1",
+      "iuno r1",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 1192536.1848949876,
+      "slot2": 569393.7753011239,
+      "slot3": 39917.0048656933,
+      "team": 1801846.9650618047
+    }
+  },
+  {
+    "name": "augusta r1 iuno r1 mc sk",
+    "enabled": false,
+    "slots": [
+      "augusta r1",
+      "iuno r1 mc",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 1346178.9122146259,
+      "slot2": 404577.9424409277,
+      "slot3": 39917.0048656933,
+      "team": 1790673.859521247
+    }
+  },
+  {
+    "name": "augusta r1 iuno sk",
+    "enabled": false,
+    "slots": [
+      "augusta r1",
+      "iuno",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 1192536.1848949876,
+      "slot2": 442035.8340549548,
+      "slot3": 39917.0048656933,
+      "team": 1674489.0238156358
+    }
+  },
+  {
+    "name": "augusta r1 iuno mc sk",
+    "enabled": false,
+    "slots": [
+      "augusta r1",
+      "iuno mc",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 1346178.9122146259,
+      "slot2": 310808.3809457945,
+      "slot3": 39917.0048656933,
+      "team": 1696904.2980261138
+    }
+  },
+  {
+    "name": "augusta r1 lynae rupture mornye",
+    "enabled": false,
+    "slots": [
+      "augusta r1",
+      "lynae rupture",
+      "mornye"
+    ]
+  },
+  {
+    "name": "augusta r1 rebecca mc sk",
+    "enabled": false,
+    "slots": [
+      "augusta r1",
+      "rebecca mc",
+      "sk"
+    ]
+  },
+  {
+    "name": "augusta r1 mortefi s6 sk",
+    "enabled": false,
+    "slots": [
+      "augusta r1",
+      "mortefi s6",
+      "sk"
+    ]
+  },
+  {
+    "name": "augusta r1 mortefi s6 empy sk",
+    "enabled": false,
+    "slots": [
+      "augusta r1",
+      "mortefi s6 empy",
+      "sk"
+    ]
+  },
+  {
+    "name": "augusta r1 iuno r1 lynae rupture",
+    "enabled": false,
+    "slots": [
+      "augusta r1",
+      "iuno r1",
+      "lynae rupture"
+    ]
+  },
+  {
+    "name": "encore s6r1 lupa r1 mortefi s6 empy",
+    "enabled": false,
+    "slots": [
+      "encore s6r1",
+      "lupa r1",
+      "mortefi s6 empy"
+    ],
+    "sheetDpr": {
+      "slot1": 1052133.1493968319,
+      "slot2": 358353.5207771368,
+      "slot3": 305215.6540374242,
+      "team": 1715702.324211393
+    }
+  },
+  {
+    "name": "encore s6r1 lupa mornye s1",
+    "enabled": false,
+    "slots": [
+      "encore s6r1",
+      "lupa",
+      "mornye s1"
+    ],
+    "sheetDpr": {
+      "slot1": 1266970.9982148805,
+      "slot2": 420813.1692938631,
+      "slot3": 79472.2585815069,
+      "team": 1767256.4260902505
+    }
+  },
+  {
+    "name": "encore s6r1 lupa r1 mornye",
+    "enabled": false,
+    "slots": [
+      "encore s6r1",
+      "lupa r1",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 1217767.3416945979,
+      "slot2": 400103.44912751,
+      "slot3": 73343.6100833417,
+      "team": 1691214.4009054496
+    }
+  },
+  {
+    "name": "encore s6r1 lupa r1 sk",
+    "enabled": false,
+    "slots": [
+      "encore s6r1",
+      "lupa r1",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 1145089.9838365868,
+      "slot2": 352012.8189157696,
+      "slot3": 35819.9910154743,
+      "team": 1532922.7937678308
+    }
+  },
+  {
+    "name": "encore s6r1 sanhua s6 sk",
+    "enabled": false,
+    "slots": [
+      "encore s6r1",
+      "sanhua s6",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 982195.5998023999,
+      "slot2": 122636.7868345332,
+      "slot3": 35868.0841796198,
+      "team": 1140700.4708165529
+    }
+  },
+  {
+    "name": "encore s6r1 lupa r1 verina",
+    "enabled": false,
+    "slots": [
+      "encore s6r1",
+      "lupa r1",
+      "verina"
+    ],
+    "sheetDpr": {
+      "slot1": 1051706.5401847782,
+      "slot2": 346761.0075566955,
+      "slot3": 783.5457693663,
+      "team": 1399251.09351084
+    }
+  },
+  {
+    "name": "encore s6r1 sanhua s6 verina",
+    "enabled": false,
+    "slots": [
+      "encore s6r1",
+      "sanhua s6",
+      "verina"
+    ],
+    "sheetDpr": {
+      "slot1": 897914.8223928696,
+      "slot2": 131027.8755246028,
+      "slot3": 789.886602182,
+      "team": 1029732.5845196544
+    }
+  },
+  {
+    "name": "brant r1 (2 anchor) Matrix lupa r1 denia foam 2x intro",
+    "enabled": false,
+    "slots": [
+      "brant r1 (2 anchor) Matrix",
+      "lupa r1",
+      "denia foam 2x intro"
+    ],
+    "sheetDpr": {
+      "slot1": 1633848.4850184235,
+      "slot2": 299320.1754072075,
+      "slot3": 273153.5894505223,
+      "team": 2206322.249876153
+    }
+  },
+  {
+    "name": "brant r1 (2 anchor) Matrix lupa mornye s1",
+    "enabled": false,
+    "slots": [
+      "brant r1 (2 anchor) Matrix",
+      "lupa",
+      "mornye s1"
+    ],
+    "sheetDpr": {
+      "slot1": 1796578.564342371,
+      "slot2": 394926.0190859217,
+      "slot3": 82940.003761797,
+      "team": 2274444.5871900897
+    }
+  },
+  {
+    "name": "brant r1 (2 anchor) Matrix lupa r1 mornye",
+    "enabled": false,
+    "slots": [
+      "brant r1 (2 anchor) Matrix",
+      "lupa r1",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 1706804.0225218362,
+      "slot2": 374216.2989195685,
+      "slot3": 75865.873408527,
+      "team": 2156886.1948499316
+    }
+  },
+  {
+    "name": "changli Matrix brant r1 (1 anchor) Matrix lupa r1",
+    "enabled": false,
+    "slots": [
+      "changli Matrix",
+      "brant r1 (1 anchor) Matrix",
+      "lupa r1"
+    ],
+    "sheetDpr": {
+      "slot1": 636484.8535844274,
+      "slot2": 892525.8975940619,
+      "slot3": 369738.8224421818,
+      "team": 1898749.5736206712
+    }
+  },
+  {
+    "name": "brant r1 (2 anchor) Matrix sanhua s6 sk",
+    "enabled": false,
+    "slots": [
+      "brant r1 (2 anchor) Matrix",
+      "sanhua s6",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 1311567.8550028962,
+      "slot2": 122636.7868345332,
+      "slot3": 35868.0841796198,
+      "team": 1470072.7260170493
+    }
+  },
+  {
+    "name": "brant r1 (2 anchor) lupa r1 denia foam 2x intro",
+    "enabled": false,
+    "slots": [
+      "brant r1 (2 anchor)",
+      "lupa r1",
+      "denia foam 2x intro"
+    ],
+    "sheetDpr": {
+      "slot1": 1307078.7880147388,
+      "slot2": 299320.1754072075,
+      "slot3": 273153.5894505223,
+      "team": 1879552.5528724687
+    }
+  },
+  {
+    "name": "brant r1 (2 anchor) lupa mornye s1",
+    "enabled": false,
+    "slots": [
+      "brant r1 (2 anchor)",
+      "lupa",
+      "mornye s1"
+    ],
+    "sheetDpr": {
+      "slot1": 1437262.8514738972,
+      "slot2": 394926.0190859217,
+      "slot3": 82940.003761797,
+      "team": 1915128.874321616
+    }
+  },
+  {
+    "name": "brant r1 (2 anchor) lupa r1 mornye",
+    "enabled": false,
+    "slots": [
+      "brant r1 (2 anchor)",
+      "lupa r1",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 1365443.2180174692,
+      "slot2": 374216.2989195685,
+      "slot3": 75865.873408527,
+      "team": 1815525.3903455646
+    }
+  },
+  {
+    "name": "changli brant r1 (1 anchor) lupa r1",
+    "enabled": false,
+    "slots": [
+      "changli",
+      "brant r1 (1 anchor)",
+      "lupa r1"
+    ],
+    "sheetDpr": {
+      "slot1": 509187.8828675419,
+      "slot2": 714020.7180752493,
+      "slot3": 369738.8224421818,
+      "team": 1592947.423384973
+    }
+  },
+  {
+    "name": "brant r1 (2 anchor) sanhua s6 sk",
+    "enabled": false,
+    "slots": [
+      "brant r1 (2 anchor)",
+      "sanhua s6",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 1049254.2840023169,
+      "slot2": 122636.7868345332,
+      "slot3": 35868.0841796198,
+      "team": 1207759.15501647
+    }
+  },
+  {
+    "name": "frolo s6r1 lucilla r1 mc qy loh+fallacy",
+    "enabled": false,
+    "slots": [
+      "frolo s6r1",
+      "lucilla r1 mc",
+      "qy loh+fallacy"
+    ],
+    "sheetDpr": {
+      "slot1": 4284998.580200805,
+      "slot2": 331231.3661104899,
+      "slot3": 271018.9374003166,
+      "team": 4887248.883711612
+    }
+  },
+  {
+    "name": "frolo s6r1 canta mc lucilla r1 loh+fallacy",
+    "enabled": false,
+    "slots": [
+      "frolo s6r1",
+      "canta mc",
+      "lucilla r1 loh+fallacy"
+    ],
+    "sheetDpr": {
+      "slot1": 4332132.926337109,
+      "slot2": 265144.685239581,
+      "slot3": 206271.0155615656,
+      "team": 4803548.627138256
+    }
+  },
+  {
+    "name": "frolo s6r1 canta mc qy loh+fallacy",
+    "enabled": false,
+    "slots": [
+      "frolo s6r1",
+      "canta mc",
+      "qy loh+fallacy"
+    ],
+    "sheetDpr": {
+      "slot1": 4092854.3729802133,
+      "slot2": 260840.1680868537,
+      "slot3": 231882.2480518548,
+      "team": 4585576.789118921
+    }
+  },
+  {
+    "name": "frolo s6r1 fba spam canta mc suisui r1",
+    "enabled": false,
+    "slots": [
+      "frolo s6r1 fba spam",
+      "canta mc",
+      "suisui r1"
+    ],
+    "sheetDpr": {
+      "slot1": 4372103.504015118,
+      "slot2": 361784.846147228,
+      "slot3": 57559.9692900099,
+      "team": 4791448.319452356
+    }
+  },
+  {
+    "name": "frolo s3r1 lucilla r1 mc qy loh+fallacy",
+    "enabled": false,
+    "slots": [
+      "frolo s3r1",
+      "lucilla r1 mc",
+      "qy loh+fallacy"
+    ],
+    "sheetDpr": {
+      "slot1": 2340457.7523515774,
+      "slot2": 279126.7206700537,
+      "slot3": 193389.6386276544,
+      "team": 2812974.1116492855
+    }
+  },
+  {
+    "name": "frolo s3r1 canta mc lucilla r1 loh+fallacy",
+    "enabled": false,
+    "slots": [
+      "frolo s3r1",
+      "canta mc",
+      "lucilla r1 loh+fallacy"
+    ],
+    "sheetDpr": {
+      "slot1": 2586777.1631186013,
+      "slot2": 177783.8200478345,
+      "slot3": 169668.7482345393,
+      "team": 2934229.731400975
+    }
+  },
+  {
+    "name": "frolo s3r1 canta mc qy r1 loh+fallacy",
+    "enabled": false,
+    "slots": [
+      "frolo s3r1",
+      "canta mc",
+      "qy r1 loh+fallacy"
+    ],
+    "sheetDpr": {
+      "slot1": 2470051.545346067,
+      "slot2": 180888.0858028862,
+      "slot3": 198754.5755163991,
+      "team": 2849694.206665352
+    }
+  },
+  {
+    "name": "frolo s3r1 +1manual canta mc suisui r1",
+    "enabled": false,
+    "slots": [
+      "frolo s3r1 +1manual",
+      "canta mc",
+      "suisui r1"
+    ],
+    "sheetDpr": {
+      "slot1": 2646541.5953157977,
+      "slot2": 243177.5495711062,
+      "slot3": 51311.949745569,
+      "team": 2941031.094632473
+    }
+  },
+  {
+    "name": "frolo s2r1 lucilla r1 mc qy loh+fallacy",
+    "enabled": false,
+    "slots": [
+      "frolo s2r1",
+      "lucilla r1 mc",
+      "qy loh+fallacy"
+    ],
+    "sheetDpr": {
+      "slot1": 1953432.2433628116,
+      "slot2": 308768.4755200122,
+      "slot3": 252040.3028811549,
+      "team": 2514241.0217639785
+    }
+  },
+  {
+    "name": "frolo s2r1 canta mc lucilla r1 loh+fallacy",
+    "enabled": false,
+    "slots": [
+      "frolo s2r1",
+      "canta mc",
+      "lucilla r1 loh+fallacy"
+    ],
+    "sheetDpr": {
+      "slot1": 2155879.5307315784,
+      "slot2": 243087.7925806011,
+      "slot3": 190098.7048181316,
+      "team": 2589066.028130311
+    }
+  },
+  {
+    "name": "frolo s2r1 canta mc qy r1 loh+fallacy",
+    "enabled": false,
+    "slots": [
+      "frolo s2r1",
+      "canta mc",
+      "qy r1 loh+fallacy"
+    ],
+    "sheetDpr": {
+      "slot1": 2072055.2544463838,
+      "slot2": 239156.1615088136,
+      "slot3": 215111.0824845865,
+      "team": 2526322.498439784
+    }
+  },
+  {
+    "name": "frolo s2r1 +1manual canta mc suisui r1",
+    "enabled": false,
+    "slots": [
+      "frolo s2r1 +1manual",
+      "canta mc",
+      "suisui r1"
+    ],
+    "sheetDpr": {
+      "slot1": 2352654.1567484643,
+      "slot2": 333036.1891386244,
+      "slot3": 53654.9570747343,
+      "team": 2739345.302961823
+    }
+  },
+  {
+    "name": "frolo r1 lucilla r1 mc qy loh+fallacy",
+    "enabled": false,
+    "slots": [
+      "frolo r1",
+      "lucilla r1 mc",
+      "qy loh+fallacy"
+    ],
+    "sheetDpr": {
+      "slot1": 1429443.6506076623,
+      "slot2": 308768.4755200122,
+      "slot3": 252040.3028811549,
+      "team": 1990252.4290088294
+    }
+  },
+  {
+    "name": "frolo r1 canta mc lucilla r1 loh+fallacy",
+    "enabled": false,
+    "slots": [
+      "frolo r1",
+      "canta mc",
+      "lucilla r1 loh+fallacy"
+    ],
+    "sheetDpr": {
+      "slot1": 1491388.4865530417,
+      "slot2": 243087.7925806011,
+      "slot3": 190098.7048181316,
+      "team": 1924574.9839517744
+    }
+  },
+  {
+    "name": "frolo r1 canta mc qy r1 loh+fallacy",
+    "enabled": false,
+    "slots": [
+      "frolo r1",
+      "canta mc",
+      "qy r1 loh+fallacy"
+    ],
+    "sheetDpr": {
+      "slot1": 1428197.019599594,
+      "slot2": 239156.1615088136,
+      "slot3": 215111.0824845865,
+      "team": 1882464.2635929938
+    }
+  },
+  {
+    "name": "frolo r1 +1manual canta mc suisui r1",
+    "enabled": false,
+    "slots": [
+      "frolo r1 +1manual",
+      "canta mc",
+      "suisui r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1537065.0122592782,
+      "slot2": 333036.1891386244,
+      "slot3": 53654.9570747343,
+      "team": 1923756.158472637
+    }
+  },
+  {
+    "name": "frolo r1 +1manual lucilla r1 mc suisui",
+    "enabled": false,
+    "slots": [
+      "frolo r1 +1manual",
+      "lucilla r1 mc",
+      "suisui"
+    ],
+    "sheetDpr": {
+      "slot1": 1527064.1756343008,
+      "slot2": 270904.9341050845,
+      "slot3": 55665.3677031803,
+      "team": 1853634.4774425656
+    }
+  },
+  {
+    "name": "frolo r1 +1manual qy r1 mc suisui",
+    "enabled": false,
+    "slots": [
+      "frolo r1 +1manual",
+      "qy r1 mc",
+      "suisui"
+    ],
+    "sheetDpr": {
+      "slot1": 1475747.8590330528,
+      "slot2": 242109.3602209214,
+      "slot3": 58970.9412883993,
+      "team": 1776828.1605423735
+    }
+  },
+  {
+    "name": "frolo r1 +1manual canta mc mornye r1",
+    "enabled": false,
+    "slots": [
+      "frolo r1 +1manual",
+      "canta mc",
+      "mornye r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1517851.7674409882,
+      "slot2": 310752.2626008411,
+      "slot3": 57004.0073667791,
+      "team": 1885608.0374086082
+    }
+  },
+  {
+    "name": "frolo r1 +1manual lucilla r1 mc mornye",
+    "enabled": false,
+    "slots": [
+      "frolo r1 +1manual",
+      "lucilla r1 mc",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 1521377.5110767332,
+      "slot2": 255204.6185038877,
+      "slot3": 60284.8903303975,
+      "team": 1836867.0199110184
+    }
+  },
+  {
+    "name": "frolo r1 +1manual qy r1 mc mornye",
+    "enabled": false,
+    "slots": [
+      "frolo r1 +1manual",
+      "qy r1 mc",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 1460854.321279822,
+      "slot2": 227567.1813081731,
+      "slot3": 60590.3555543001,
+      "team": 1749011.8581422952
+    }
+  },
+  {
+    "name": "frolo r1 +1manual canta r1 mv sk",
+    "enabled": false,
+    "slots": [
+      "frolo r1 +1manual",
+      "canta r1 mv",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 1433206.1840112614,
+      "slot2": 408537.8278899391,
+      "slot3": 37951.4958118403,
+      "team": 1879695.5077130408
+    }
+  },
+  {
+    "name": "frolo r1 +1manual canta r1 mc sk",
+    "enabled": false,
+    "slots": [
+      "frolo r1 +1manual",
+      "canta r1 mc",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 1493594.9511828856,
+      "slot2": 312378.3392075567,
+      "slot3": 37951.4958118403,
+      "team": 1843924.7862022824
+    }
+  },
+  {
+    "name": "frolo r1 +1manual lucilla r1 mc sk",
+    "enabled": false,
+    "slots": [
+      "frolo r1 +1manual",
+      "lucilla r1 mc",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 1470390.9388454687,
+      "slot2": 254190.4093575845,
+      "slot3": 39557.8009374801,
+      "team": 1764139.1491405333
+    }
+  },
+  {
+    "name": "frolo r1 +1manual sk qy r1 loh",
+    "enabled": false,
+    "slots": [
+      "frolo r1 +1manual",
+      "sk",
+      "qy r1 loh"
+    ],
+    "sheetDpr": {
+      "slot1": 1329212.446006144,
+      "slot2": 42870.1030333246,
+      "slot3": 331430.6694049097,
+      "team": 1703513.2184443783
+    }
+  },
+  {
+    "name": "frolo r1 +1manual qy r1 mc sk",
+    "enabled": false,
+    "slots": [
+      "frolo r1 +1manual",
+      "qy r1 mc",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 1416996.6581523279,
+      "slot2": 226515.5689919128,
+      "slot3": 42553.5259611742,
+      "team": 1686065.7531054148
+    }
+  },
+  {
+    "name": "frolo r1 +1manual canta r1 mv Matrix roccia mv Matrix",
+    "enabled": false,
+    "slots": [
+      "frolo r1 +1manual",
+      "canta r1 mv Matrix",
+      "roccia mv Matrix"
+    ],
+    "sheetDpr": {
+      "slot1": 1285436.1713745494,
+      "slot2": 592471.6548327806,
+      "slot3": 280342.6698377578,
+      "team": 2158250.496045088
+    }
+  },
+  {
+    "name": "frolo r1 +1manual canta r1 mv roccia mv",
+    "enabled": false,
+    "slots": [
+      "frolo r1 +1manual",
+      "canta r1 mv",
+      "roccia mv"
+    ],
+    "sheetDpr": {
+      "slot1": 1191462.3763020304,
+      "slot2": 440182.8605655795,
+      "slot3": 203851.2543770046,
+      "team": 1835496.4912446146
+    }
+  },
+  {
+    "name": "cart r1 123 cia r1 chisa r1",
+    "enabled": false,
+    "slots": [
+      "cart r1 123",
+      "cia r1",
+      "chisa r1"
+    ],
+    "sheetDpr": {
+      "slot1": 1478963.9977718634,
+      "slot2": 366335.094882655,
+      "slot3": 277726.7406637782,
+      "team": 2123025.8333182964
+    }
+  },
+  {
+    "name": "cart r1 123 cia r1 chisa",
+    "enabled": false,
+    "slots": [
+      "cart r1 123",
+      "cia r1",
+      "chisa"
+    ],
+    "sheetDpr": {
+      "slot1": 1386435.6239089235,
+      "slot2": 339162.0777575179,
+      "slot3": 216373.5454610853,
+      "team": 1941971.2471275267
+    }
+  },
+  {
+    "name": "cart r1 123 cia r1 arover s6r5",
+    "enabled": false,
+    "slots": [
+      "cart r1 123",
+      "cia r1",
+      "arover s6r5"
+    ],
+    "sheetDpr": {
+      "slot1": 1367084.3561773286,
+      "slot2": 342554.4112123322,
+      "slot3": 268697.1836865143,
+      "team": 1978335.951076175
+    }
+  },
+  {
+    "name": "cart r1 123 cia arover s6r5",
+    "enabled": false,
+    "slots": [
+      "cart r1 123",
+      "cia",
+      "arover s6r5"
+    ],
+    "sheetDpr": {
+      "slot1": 1223395.0377256935,
+      "slot2": 265580.5032580751,
+      "slot3": 238841.9410546794,
+      "team": 1727817.482038448
+    }
+  },
+  {
+    "name": "zani r1 3NF peeb r1 mc srover rejuv",
+    "enabled": false,
+    "slots": [
+      "zani r1 3NF",
+      "peeb r1 mc",
+      "srover rejuv"
+    ],
+    "sheetDpr": {
+      "slot1": 1432644.8292186188,
+      "slot2": 264548.3697509424,
+      "slot3": 263286.5408534016,
+      "team": 1960479.7398229628
+    }
+  },
+  {
+    "name": "peeb r1 mdps srover mc chisa r1 rejuv",
+    "enabled": false,
+    "slots": [
+      "peeb r1 mdps",
+      "srover mc",
+      "chisa r1 rejuv"
+    ],
+    "sheetDpr": {
+      "slot1": 973386.9934887773,
+      "slot2": 243587.3548718685,
+      "slot3": 228332.7334568273,
+      "team": 1445307.081817473
+    }
+  },
+  {
+    "name": "jinhsi r1 2x epiph Matrix zz empy Matrix sk",
+    "enabled": false,
+    "slots": [
+      "jinhsi r1 2x epiph Matrix",
+      "zz empy Matrix",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 1407483.2283202715,
+      "slot2": 299501.7932622746,
+      "slot3": 36451.907140741,
+      "team": 1743436.928723287
+    }
+  },
+  {
+    "name": "jinhsi r1 2x epiph zz empy sk",
+    "enabled": false,
+    "slots": [
+      "jinhsi r1 2x epiph",
+      "zz empy",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 1041363.0659134424,
+      "slot2": 237231.3795347516,
+      "slot3": 36120.5732913836,
+      "team": 1314715.0187395776
+    }
+  },
+  {
+    "name": "jinhsi r1 Matrix zz empy Matrix sk",
+    "enabled": false,
+    "slots": [
+      "jinhsi r1 Matrix",
+      "zz empy Matrix",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 1233439.558495461,
+      "slot2": 299501.7932622746,
+      "slot3": 36451.907140741,
+      "team": 1569393.2588984764
+    }
+  },
+  {
+    "name": "jinhsi r1 zz empy sk",
+    "enabled": false,
+    "slots": [
+      "jinhsi r1",
+      "zz empy",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 905376.9701462713,
+      "slot2": 237231.3795347516,
+      "slot3": 36120.5732913836,
+      "team": 1178728.9229724065
+    }
+  },
+  {
+    "name": "lotta r1 Matrix lynae rupture mornye",
+    "enabled": false,
+    "slots": [
+      "lotta r1 Matrix",
+      "lynae rupture",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 1455282.342112528,
+      "slot2": 385038.0566362662,
+      "slot3": 96907.756908777,
+      "team": 1937228.155657571
+    }
+  },
+  {
+    "name": "lotta r1 lynae rupture mornye",
+    "enabled": false,
+    "slots": [
+      "lotta r1",
+      "lynae rupture",
+      "mornye"
+    ],
+    "sheetDpr": {
+      "slot1": 1164225.8736900226,
+      "slot2": 385038.0566362662,
+      "slot3": 96907.756908777,
+      "team": 1646171.6872350657
+    }
+  },
+  {
+    "name": "lotta r1 rebecca r1 mc sk",
+    "enabled": false,
+    "slots": [
+      "lotta r1",
+      "rebecca r1 mc",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 1154694.4870118655,
+      "slot2": 404270.4054282489,
+      "slot3": 36721.7378432024,
+      "team": 1595686.6302833168
+    }
+  },
+  {
+    "name": "lotta r1 Matrix zz empy Matrix sk",
+    "enabled": false,
+    "slots": [
+      "lotta r1 Matrix",
+      "zz empy Matrix",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 1541160.723359328,
+      "slot2": 299501.7932622746,
+      "slot3": 36451.907140741,
+      "team": 1877114.4237623436
+    }
+  },
+  {
+    "name": "lotta r1 zz empy sk",
+    "enabled": false,
+    "slots": [
+      "lotta r1",
+      "zz empy",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 1139030.7250641517,
+      "slot2": 237231.3795347516,
+      "slot3": 36120.5732913836,
+      "team": 1412382.677890287
+    }
+  },
+  {
+    "name": "lotta r1 zz mc sk",
+    "enabled": false,
+    "slots": [
+      "lotta r1",
+      "zz mc",
+      "sk"
+    ],
+    "sheetDpr": {
+      "slot1": 1190947.766373652,
+      "slot2": 177023.6312332254,
+      "slot3": 35619.6028315347,
+      "team": 1403591.000438412
+    }
+  }
+]
