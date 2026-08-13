@@ -45,14 +45,27 @@
      the cell's own horizontal padding — the terminal spelling of the report has no padding to
      pay for, so the character count alone clips here. */
   --cw: 7.7px;
-  --cpad: 18px;
+  --cpad: 4px;
+  /* Extra breathing room on the leading column only, so the action name is not flush against
+     the table edge. index.js adds it to that column's track width too — the two must agree. */
+  --lead: 10px;
 }
 
 html { background: var(--bg); }
 
+/*
+ * The page itself never scrolls: it is exactly the viewport tall, the summary header keeps its
+ * place at the top, and everything below scrolls inside <main>. That is what lets the column
+ * headers stay put — `position: sticky` resolves against the nearest scrolling ancestor, so the
+ * table can only pin its header row if the scrolling happens somewhere the header lives inside.
+ * The old layout scrolled the table in its own box, which put the header out of reach.
+ */
 body {
   margin: 0;
-  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   color: var(--ink);
   font: 13px/1.5 var(--sans);
   -webkit-font-smoothing: antialiased;
@@ -61,6 +74,13 @@ body {
     radial-gradient(900px 520px at 100% 2%,   rgba(169, 139, 255, .08), transparent 58%),
     var(--bg);
   background-attachment: fixed;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
 }
 
 /* ------------------------------------------------------------------- loading */
@@ -85,9 +105,12 @@ body {
 /* -------------------------------------------------------------------- header */
 
 .top {
+  flex: none;                       /* stays put; <main> below it is what scrolls */
   padding: 28px 26px 22px;
   border-bottom: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(255, 255, 255, .028), transparent);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .028), transparent),
+    var(--bg);
 }
 
 .top h1 {
@@ -158,8 +181,17 @@ body {
 
 /* ---------------------------------------------------------------------- main */
 
-main { padding: 22px 26px 96px; }
-
+/* the one scrolling box on the page, both axes */
+main {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  /* No padding at the top: a sticky header pins to the scrollport edge, so any padding there
+     leaves a band the rows scroll through above it. The gap moves to the table's own margin,
+     which scrolls away like content should. */
+  padding: 0 26px 96px;
+}
 .member { margin-bottom: 30px; }
 
 .mhead {
@@ -179,21 +211,23 @@ main { padding: 22px 26px 96px; }
 
 /* ---------------------------------------------------------------------- table */
 
+/* No longer a scroll box of its own — <main> scrolls, so the header row can pin to it. */
 .gridwrap {
+  margin-top: 22px;
   background: var(--surface);
   border-radius: var(--r);
   box-shadow: var(--sh-2);
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
+  width: max-content;
+  min-width: 100%;
 }
-.gridwrap::-webkit-scrollbar { height: 10px; }
-.gridwrap::-webkit-scrollbar-track { background: transparent; }
-.gridwrap::-webkit-scrollbar-thumb {
+main::-webkit-scrollbar { width: 10px; height: 10px; }
+main::-webkit-scrollbar-track { background: transparent; }
+main::-webkit-scrollbar-thumb {
   background: var(--line-2);
-  border: 3px solid var(--surface);
+  border: 3px solid var(--bg);
   border-radius: 100px;
 }
-.gridwrap::-webkit-scrollbar-thumb:hover { background: var(--faint); }
+main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 
 .grid { min-width: max-content; }
 
@@ -205,7 +239,7 @@ main { padding: 22px 26px 96px; }
 }
 
 .c {
-  padding: 7px 9px;
+  padding: 7px 2px;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -222,6 +256,9 @@ main { padding: 22px 26px 96px; }
 
 /* the leading columns stay put while the rest of the table scrolls sideways */
 .c.stick { position: sticky; z-index: 2; background: inherit; }
+
+/* the lead-in, paired with the extra track width colWidth() gives column 0 */
+.r > .c:first-child { padding-left: calc(2px + var(--lead)); }
 .c.seam::after {
   content: "";
   position: absolute; top: 0; right: 0; bottom: 0;
@@ -231,17 +268,25 @@ main { padding: 22px 26px 96px; }
   pointer-events: none;
 }
 
-/* head */
-.head { background: var(--surface-3); }
+/* head — pinned to the top of <main> so the column names survive scrolling */
+.head {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--surface-3);
+}
 .head .c {
-  padding: 9px;
+  padding: 9px 2px;
   font-size: 10px;
   font-weight: 650;
   text-transform: uppercase;
   letter-spacing: .6px;
   color: var(--dim);
   font-family: var(--sans);
+  background: var(--surface-3);
 }
+/* the two leading cells pin on both axes, so they outrank either sticky alone */
+.head .c.stick { z-index: 41; }
 .head .c:first-child { border-top-left-radius: var(--r); }
 .head .c:last-child  { border-top-right-radius: var(--r); }
 
@@ -249,15 +294,18 @@ main { padding: 22px 26px 96px; }
    raised on hover so a source panel opening downward is not painted under the next row. */
 .step { position: relative; border-top: 1px solid var(--line); }
 .step:first-of-type { border-top: 0; }
-.step:hover { z-index: 30; }
-.step:hover > .r { background: var(--surface-2); }
 
-/* One table holds every resonator's rotation, so each row carries its owner's hue down the
-   left edge — the job the separate tables used to do. */
+/* One table holds every resonator's rotation, so each row carries its owner's hue: a bar down
+   the left edge, and a wash across the whole row. `color-mix` keeps the wash at a few percent
+   so the text on top stays at full contrast — the tint is for grouping, not for decoration.
+   The cells inherit it (`.c.stick { background: inherit }`), which is what keeps the frozen
+   leading columns the same colour as the row they belong to while it scrolls sideways. */
 .step > .r > .c.stick:first-child { box-shadow: inset 2px 0 0 var(--m, transparent); }
+.step > .r        { background: color-mix(in srgb, var(--m, transparent) 8%, var(--surface)); }
+.step:hover > .r  { background: color-mix(in srgb, var(--m, transparent) 15%, var(--surface)); }
+
 .c.action { font-weight: 550; color: var(--ink); }
-.c.off { color: var(--faint); }
-.c.avg { color: var(--amber); font-weight: 600; }
+.c.avg { color: #fff; font-weight: 700; }
 
 /* total row */
 .totalrow {
@@ -287,13 +335,13 @@ main { padding: 22px 26px 96px; }
 .tgl:checked ~ .parts { display: block; }
 
 .parts .r {
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--m, transparent) 5%, var(--surface-2));
   color: var(--dim);
   font-size: 12px;
 }
-.parts .r:hover { background: var(--surface-3); }
+.parts .r:hover { background: color-mix(in srgb, var(--m, transparent) 11%, var(--surface-2)); }
 .parts .c { padding-top: 4px; padding-bottom: 4px; }
-.parts .name { padding-left: 26px; }
+.parts .name { padding-left: calc(var(--lead) + 18px); }
 .parts .best { color: var(--amber); }
 
 .tag {
@@ -326,7 +374,9 @@ main { padding: 22px 26px 96px; }
 .pop {
   display: none;
   position: fixed;
-  z-index: 60;
+  /* Above the pinned column header. Nothing between the panel and the page root sets a
+     z-index, so this competes at the top level rather than inside a row's own context. */
+  z-index: 200;
   min-width: 250px;
   padding: 9px 11px;
   border-radius: 8px;
@@ -342,14 +392,6 @@ main { padding: 22px 26px 96px; }
   color: var(--ink-2);
 }
 
-.pop h5 {
-  margin: 0 0 6px;
-  font-size: 9.5px;
-  font-weight: 650;
-  text-transform: uppercase;
-  letter-spacing: .7px;
-  color: var(--dim);
-}
 .pop table { width: 100%; border-collapse: collapse; }
 .pop td { padding: 1.5px 0; }
 .pop td.s { color: var(--dim); padding-right: 14px; }
@@ -362,6 +404,28 @@ main { padding: 22px 26px 96px; }
 }
 .pop .sum td { padding-top: 5px; border-top: 1px solid var(--line-2); font-weight: 650; }
 .pop .sum td.v { color: var(--amber); }
+
+/* a group heading — base / bonus / flat — and that group's own subtotal */
+.pop .sec td {
+  padding: 7px 0 2px;
+  font-size: 9.5px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .7px;
+  color: var(--dim);
+}
+.pop tr:first-child.sec td { padding-top: 0; }
+.pop .sub td {
+  padding-bottom: 3px;
+  border-bottom: 1px dotted var(--line-2);
+}
+.pop .sub td.v { color: var(--ink-2); font-size: 11px; }
+
+/* pinned by a click: it stays until you click away, so it may be read and selected */
+.pop.pinned {
+  border-color: var(--accent);
+  user-select: text;
+}
 
 /* -------------------------------------------------------------- event log */
 

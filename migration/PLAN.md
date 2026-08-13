@@ -63,7 +63,7 @@ Still open, all deferrable:
 # next steps
 
 ## 2. lock the data model — DONE
-Schemas for all 8 files documented in [data/README.md](data/README.md).
+Schemas for all 8 files documented in [data/README.md](../data/README.md).
 
 ## 3. extract to local files — DONE
 `python tools/extract.py` → `data/*.json`, idempotent. 308 gear, 1051 actions, 1459 stat

@@ -55,10 +55,9 @@ buff to a resonator's list".
 
 ```js
 defineBuff("Myriad Snare", {
-  category: "Mainslot",
   apply() {
-    add(12, FUSION_DMG);
-    add(12, HEAVY_DMG);
+    add(12, "fusion", DMG_BONUS);
+    add(12, "heavy", DMG_BONUS);
   },
 });
 ```
@@ -66,28 +65,37 @@ defineBuff("Myriad Snare", {
 Functions use the **ambient namespace** — `add`, `get`, `hp()`, `counter()` — rather than
 threading `state` through every call.
 
-### Conditions live in the action, not the buff
+### Conditions are a scope on the stat
 
-There is no tag filter on a buff. Two ways a conditional buff gets expressed:
-
-- **element / type conditions** become their own stat. "12% fusion damage" is
-  `add(12, FUSION_DMG)`, and an action resolves the scoped bonuses matching its own element,
-  type and scaling. Pass the constant directly — `FUSION_DMG`, `HEAVY_DMG`, … — rather than
-  building the key from a tag string.
-- **action-specific effects** live in the action. The sheet gave Jingran's weapon
-  "def ignore, but only on `action3`/`action4`"; here the forte-skill actions apply it:
+`add` has two forms:
 
 ```js
-function heavyAttack() {
-  add(9.003 * per1000(hp(), 25000, 50000), MV);
-  if (equipped(WEAPON)) add(30, DEF_IGNORE);
-}
+add(value, stat)         // applies to everything
+add(value, tag, stat)    // applies only when the action matches `tag`
 ```
 
-`node` (normal/skill/forte/liberation/intro) is deliberately **not** resolved as a scoped
-bonus, matching the sheet — Jingran's Lib1 has node `liberation` but type `heavy`, so
-resolving node too would start paying liberation bonuses on it. Revisit when a piece of gear
-actually needs "Liberation DMG +x%".
+**Any** stat can be scoped — there is nothing special about damage bonus. All of these are the
+same mechanism, a stat key with a tag glued on:
+
+```js
+add(12, "fusion", DMG_BONUS);      // 12% fusion damage
+add(50, "heavy", AMP);             // 50% amplification on heavy attacks
+add(12, "heavy", CRIT_RATE);       // 12% crit rate on heavy attacks
+add(7.2, "liberation", DEF_IGNORE);// pierces defence on liberation damage only
+```
+
+A conditional matches the action's **element** or its **damage type**. `node` and `scaling` are
+deliberately excluded: Jingran's Lib1 has node `liberation` but type `heavy`, so resolving node
+would start paying liberation bonuses on it.
+
+What is left for an `if` is anything that is not a property of the action's element or type —
+a gauge threshold, a stack count, whether a gear piece is equipped:
+
+```js
+function heavyAttack(mvPer1000) {
+  if (counter(MINGFIRE) > 0) add(/* … */, MV);
+}
+```
 
 ### States are buffs
 
@@ -110,11 +118,11 @@ Prefer deriving a state from a gauge over holding a separate flag — `counter(M
 is Jingran's whole liberation window.
 
 Shields are **per resonator**, not shared: Jingran's weapon caps at 6 of his own stacks and
-Iuno's Crown of Valor caps at 5 of hers, so `SHIELDS` lives on `Slot.counters`, read with
-`counter()`. Reading a *teammate's* live stat (rather than calling their exported hook) was
-tried and reverted — not worth re-running another resonator's whole buff list on every action
-of everyone else's rotation. If a mechanic ever needs it, `grantOthers`/`grantTeam` plus an
-exported function is the pattern; keep the buff list itself untouched.
+Iuno's Crown of Valor caps at 5 of hers, so each is a stacking buff on its own wearer rather
+than any shared total. Reading a *teammate's* live stat (rather than calling their exported
+hook) was tried and reverted — not worth re-running another resonator's whole buff list on
+every action of everyone else's rotation. If a mechanic ever needs it, `grantOthers`/`grantTeam`
+plus an exported function is the pattern; keep the buff list itself untouched.
 
 ### Reaching another resonator
 
@@ -135,20 +143,20 @@ apply() { allyGainedShield(); }
 
 ### The four stages
 
-A buff that only *adds* a stat can stay at `DEFAULT` — sums do not care about order. A buff
-that *reads* one has to run after everything that feeds it, and that is what the later stages
-are for. `registry.js` carries the full list; in short:
+A buff that only *adds* a stat can stay at `STATS` — sums do not care about order. A buff
+that *reads* a summed one has to run after everything that feeds it, and that is what the
+conversion stages are for. `registry.js` carries the full list; in short:
 
 | stage | for | example |
 | --- | --- | --- |
-| `DEFAULT` | stats, states, gauges — nearly everything | gear, passives |
-| `LATE` | conversions reading a summed total | Jingran HP → ATK; Shorekeeper ER → team crit |
-| `LATER` | conversions reading what a `LATE` one produced | a second HP → ATK reading that ATK |
-| `LATEST` | aggregations over everything above | Tune Break's break boost → special amp |
+| `UPDATE_BUFFS` | what the cast itself does, before anything reacts to it | Jingran's intro spending Ghost Shroud |
+| `STATS` | stats, states, gauges — nearly everything | gear, passives |
+| `EARLY_CONVERSION` | conversions reading a summed total | Jingran HP → ATK; Shorekeeper ER → team crit |
+| `LATE_CONVERSION` | conversions reading what an earlier one produced, and aggregations | Tune Break's break boost → special amp |
 
 ```js
 defineBuff("Jingran: HP conversion", {
-  priority: PRIORITY.LATE,
+  priority: PRIORITY.EARLY_CONVERSION,
   apply() {
     if (!onField()) return;
     add(36 * per1000(hp(), 0, 50000), FLAT_ATK);
@@ -238,26 +246,38 @@ and the hardest part is used. Follow-ups queued mid-chain stay out of the group.
 ## Actions
 
 ```js
-const HEAVY_ATTACK = defineBuff("Jingran: heavy attack", {
-  apply() { /* spend the gauge, queue the follow-up, add its own stats */ },
-});
-
-defineAction("Jingran: FSkill", {
+defineAction("Jingran: FHA", {
   node: "forte", element: "fusion", type: "heavy", scaling: "atk",
   mv: 307.34,
   energy: 10.53, concerto: 13, offtune: 1.014,
-  buffs: [HEAVY_ATTACK],
+  shields: 1,
+  apply() { /* spend the gauge, queue the follow-up, add its own stats */ },
 });
 ```
 
-An action has **no hook of its own**. Whatever it does — spend a gauge, open a state, queue a
-follow-up, add its own stats — is written as a buff and listed in `buffs`. Those apply for
-that action only and never join the resonator's list.
+Whatever a cast does beyond its numbers — spend a gauge, open a state, queue a follow-up, add
+its own stats — is written as the action's own `apply()`. It runs for that action only and
+never joins the resonator's buff list. Two actions that do the same thing point at the same
+plain function (`apply: heavyAttack`); there is nothing to register or name.
 
-Two things fall out of that. An action's buffs run **after** the resonator's gear in the same
-priority band (the sort is stable), so they can read summed totals like `hp()`. And an action
-buff can be `LATE` — which is how the tune break converts the whole team's break boost into
-special amplification only once every other buff has contributed it.
+It runs **after** the resonator's gear in the same priority band (the sort is stable), so it can
+read summed totals like `hp()`. An action may also declare a `priority` — which is how the tune
+break converts the whole team's break boost into special amplification at `LATEST`, once every
+other buff has contributed it.
+
+`shields` says how many shields the cast grants. Everything shield-driven in the game is phrased
+as an event — "upon gaining a Shield, gain 1 stack, up to N" — so that is what this is, and the
+buffs that care read it back off the action:
+
+```js
+defineGear(LAMP_5PC, {
+  apply() { if (action().shields) addStack(LAMP_STACKS, 1, LAMP_MAX); },
+});
+```
+
+A watcher that has to tell a teammate's shielding from the acting resonator's own asks
+`equipped()` which resonator is acting — that is how Jingran's Trace the Vestige pays 2 Ghost
+Shroud for an ally's shield and 1 for his own.
 
 Queue a follow-up with `queue(CHIMEI)`. Follow-ups are spliced in **directly
 after** the current action in the order they were queued, and a follow-up may queue more of
@@ -304,8 +324,7 @@ Stats are rebuilt from the buff list on every action, so a buff contributing eve
 naturally idempotent. Counters persist instead — that is the whole difference.
 
 - **team-wide counters** on `State`, read with `teamCounter()`, moved with `gainTeam()` /
-  `spendTeam()`: `SHIELDS`, `COUNT_FUSION`. Anything on the team can read or spend them,
-  which is why shields live here and not on the resonator that generates them.
+  `spendTeam()`: `COUNT_FUSION`. Anything on the team can read or spend them.
 - **per-resonator counters** on `Slot`, read with `counter()`: `ENERGY`, `CONCERTO` and the
   four generic gauges `FORTE1`–`FORTE4`. All are running totals across the rotation and none
   is shared between resonators. `OFFTUNE` is the exception: it is **team-wide**, because the
@@ -346,7 +365,7 @@ counter, and her outro publishes a buff that simply reads it back:
 
 ```js
 defineBuff(STELLAREALM, {                 // on her, LATE: reads her summed ER
-  priority: PRIORITY.LATE,
+  priority: PRIORITY.EARLY_CONVERSION,
   apply() { setTeamCounter(REALM_CR, Math.min(12.5, get(ER) * 0.05)); },
 });
 

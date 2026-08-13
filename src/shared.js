@@ -2,35 +2,33 @@
  * Actions and gear that are not tied to one resonator. Anything only a single resonator can
  * use belongs in that resonator's file instead.
  */
-import { defineAction, defineBuff, defineGear, PRIORITY } from "./registry.js";
+import { defineAction, defineGear, PRIORITY } from "./registry.js";
 import { add, get } from "./state.js";
 import {
-  SPECIAL_AMP, TBB, CRIT_RATE, CRIT_DMG, ER, dmgBonusFor,
+  SPECIAL_AMP, TBB, CRIT_RATE, CRIT_DMG, ER, DMG_BONUS,
   BONUS_ATK, BONUS_HP, BONUS_DEF, FLAT_ATK, FLAT_HP, FLAT_DEF,
-  BASIC_DMG, HEAVY_DMG, SKILL_DMG, LIB_DMG,
+  scopedStat, splitStat,
+  PHYSICAL, BREAK, BASIC, HEAVY, SKILL, LIB,
+  GLACIO, FUSION, ELECTRO, AERO, SPECTRO, HAVOC,
 } from "./stats.js";
 
 /**
- * Tune break boost converts one for one into special amplification.
+ * Off-tune break. Scales off the tune constant rather than a stat, and bypasses crit.
  *
- * LATEST, because it has to read the whole team's break boost after every other buff has
- * contributed — including any conversion that grants break boost itself. Special amp is also
- * the only multiplier tune damage still receives, since the ordinary damage bonus and
- * amplification are both gated off for tune, so this conversion is the entire point of TBB.
+ * Its body converts tune break boost one for one into special amplification, and runs at
+ * LATE_CONVERSION: it reads the whole team's break boost after every other buff has contributed —
+ * including any conversion that grants break boost itself. Special amp is also the only
+ * multiplier tune damage still receives, since the ordinary damage bonus and amplification are
+ * both gated off for tune, so this conversion is the entire point of TBB.
  */
-export const TUNE_BREAK_AMP = defineBuff("Tune Break: TBB amp", {
-  priority: PRIORITY.LATEST,
-  apply() { add(get(TBB), SPECIAL_AMP); },
-});
-
-/** Off-tune break. Scales off the tune constant rather than a stat, and bypasses crit. */
-export const TUNE_BREAK = defineAction("Tune Break", {
+export const AUTO_TUNE_BREAK = defineAction("Auto Tune Break", {
   source: "Tune Break",
-  element: "physical",
+  element: PHYSICAL,
   scaling: "tune",
-  type: "break",
+  type: BREAK,
   mv: 1600,
-  buffs: [TUNE_BREAK_AMP],
+  priority: PRIORITY.LATE_CONVERSION,
+  apply() { add(get(TBB), SPECIAL_AMP); },
 });
 
 /* ========================================================== echo main stats */
@@ -49,13 +47,26 @@ export const TUNE_BREAK = defineAction("Tune Break", {
  *
  * Healing bonus is the one legal 4-cost main stat left out — this calculator ignores healing.
  */
+/**
+ * The shorthand a build is written in — `"43311 CD aero aero atk atk"` — is its **own**
+ * vocabulary, spelled out here as plain strings rather than borrowed from the engine's tag
+ * constants. These strings end up inside every generated gear name, and a loadout refers to
+ * that name, so tying them to a constant means renaming the constant silently renames every
+ * build and orphans the loadouts pointing at it. Only the *values* speak the engine's language.
+ */
 const ELEMENTS = ["glacio", "fusion", "electro", "aero", "spectro", "havoc"];
 
+/** `[stat, value]`, or `[stat, value, tag]` when the roll only pays on one element or type. */
 const MAIN = {
   4: { CR: [CRIT_RATE, 22], CD: [CRIT_DMG, 44],
        ATK: [BONUS_ATK, 33], HP: [BONUS_HP, 33], DEF: [BONUS_DEF, 41.8] },
-  3: { ER: [ER, 32], ATK: [BONUS_ATK, 30], HP: [BONUS_HP, 30], DEF: [BONUS_DEF, 38],
-       ...Object.fromEntries(ELEMENTS.map((e) => [e, [dmgBonusFor(e), 30]])) },
+  3: { ER: [ER, 32], atk: [BONUS_ATK, 30], HP: [BONUS_HP, 30], DEF: [BONUS_DEF, 38],
+       glacio:  [DMG_BONUS, 30, GLACIO],
+       fusion:  [DMG_BONUS, 30, FUSION],
+       electro: [DMG_BONUS, 30, ELECTRO],
+       aero:    [DMG_BONUS, 30, AERO],
+       spectro: [DMG_BONUS, 30, SPECTRO],
+       havoc:   [DMG_BONUS, 30, HAVOC] },
   1: { atk: [BONUS_ATK, 18], hp: [BONUS_HP, 22.8], def: [BONUS_DEF, 18] },
 };
 
@@ -87,9 +98,15 @@ export function mainstats(c4 = "", c3 = "", c1 = "") {
     throw new Error(`mainstats(${c4}|${c3}|${c1}): costs ${cost}, over the ${COST_CAP} cap`);
   }
 
-  // sum the contributions now, so apply() is a flat loop and one stat traces to one row
+  // sum the contributions now, so apply() is a flat loop and one stat traces to one row.
+  // Keyed by the scoped name, so two aero 3-costs merge but aero and fusion stay apart.
   const totals = new Map();
-  const bump = ([stat, value]) => totals.set(stat, (totals.get(stat) ?? 0) + value);
+  const bump = ([stat, value, tag = null]) => {
+    const key = tag ? scopedStat(tag, stat) : stat;
+    const seen = totals.get(key);
+    if (seen) seen.value += value;
+    else totals.set(key, { stat, tag, value });
+  };
   for (const [c, key] of slots) {
     const main = MAIN[c][key];
     if (!main) throw new Error(`no cost-${c} main stat called "${key}"`);
@@ -97,11 +114,15 @@ export function mainstats(c4 = "", c3 = "", c1 = "") {
     bump(SECONDARY[c]);
   }
 
-  const entries = [...totals];
+  const entries = [...totals.values()];
   const layout = slots.map(([c]) => c).join("");
   const name = `${layout} ${slots.map(([, key]) => key).join(" ")}`;
   return defineGear(name, {
-    apply() { for (const [stat, value] of entries) add(value, stat); },
+    apply() {
+      for (const { stat, tag, value } of entries) {
+        if (tag) add(value, tag, stat); else add(value, stat);
+      }
+    },
   });
 }
 
@@ -116,7 +137,7 @@ const ones = (n) => Array.from({ length: n + 1 }, (_, hp) =>
   [...Array(n - hp).fill("atk"), ...Array(hp).fill("hp")].join(" "));
 
 /** Percent stats a 3-cost or 4-cost can roll, and every unordered pair of them. */
-const C3_KEYS = ["ele", "ER", "ATK", "HP"];
+const C3_KEYS = ["ele", "ER", "atk"];
 const C4_KEYS = ["CR", "CD", "ATK", "HP"];
 const pairsOf = (keys) => keys.flatMap((a, i) => keys.slice(i).map((b) => `${a} ${b}`));
 
@@ -162,11 +183,18 @@ const ROLL = {
   [BONUS_ATK]: 7.9, [FLAT_ATK]: 40,
   [BONUS_HP]: 7.9, [FLAT_HP]: 430,
   [BONUS_DEF]: 10, [FLAT_DEF]: 50,
-  [BASIC_DMG]: 7.9, [HEAVY_DMG]: 7.9, [SKILL_DMG]: 7.9, [LIB_DMG]: 7.9,
+  // a damage-type roll, which only ever appears scoped to one of TYPES below
+  [DMG_BONUS]: 7.9,
 };
 
 const ROLLS_PER_BUILD = 25;
-const TYPE_DMG = { basic: BASIC_DMG, heavy: HEAVY_DMG, skill: SKILL_DMG, liberation: LIB_DMG };
+/**
+ * The four damage types a substat can roll into: the build shorthand on the left — which is
+ * what a name like `"Chem Substats: hp heavy"` is spelled with — and the tag it scopes to on
+ * the right. Same split as `MAIN` above, and for the same reason.
+ */
+const TYPE_KEYS = { basic: BASIC, heavy: HEAVY, skill: SKILL, liberation: LIB };
+const TYPES = Object.keys(TYPE_KEYS);
 const SCALER_STATS = { atk: [BONUS_ATK, FLAT_ATK], hp: [BONUS_HP, FLAT_HP] };
 
 /**
@@ -178,12 +206,18 @@ export function substats(name, counts) {
   if (total !== ROLLS_PER_BUILD) {
     throw new Error(`substats("${name}"): ${total} rolls, a build has ${ROLLS_PER_BUILD}`);
   }
-  const entries = Object.entries(counts).map(([stat, n]) => {
-    if (!(stat in ROLL)) throw new Error(`substats("${name}"): nothing rolls "${stat}"`);
-    return [stat, ROLL[stat] * n];
+  // counts are keyed by the scoped name, so `dmgBonus:heavy` rolls at the base stat's rate
+  const entries = Object.entries(counts).map(([key, n]) => {
+    const [stat, tag] = splitStat(key);
+    if (!(stat in ROLL)) throw new Error(`substats("${name}"): nothing rolls "${key}"`);
+    return { stat, tag, value: ROLL[stat] * n };
   });
   return defineGear(name, {
-    apply() { for (const [stat, value] of entries) add(value, stat); },
+    apply() {
+      for (const { stat, tag, value } of entries) {
+        if (tag) add(value, tag, stat); else add(value, stat);
+      }
+    },
   });
 }
 
@@ -206,13 +240,15 @@ export function chem(scaler, type, { er = false } = {}) {
     [offPct]: 1, [offFlat]: 1,
     [BONUS_DEF]: 1, [FLAT_DEF]: 1,
   };
-  for (const [t, stat] of Object.entries(TYPE_DMG)) counts[stat] = t === type ? 2 : 1;
+  for (const [key, tag] of Object.entries(TYPE_KEYS)) {
+    counts[scopedStat(tag, DMG_BONUS)] = key === type ? 2 : 1;
+  }
 
-  return substats(`chem${er ? " ER" : ""} ${scaler} ${type}`, counts);
+  return substats(`Chem Substats:${er ? " ER" : ""} ${scaler} ${type}`, counts);
 }
 
 for (const scaler of ["atk", "hp"]) {
-  for (const type of Object.keys(TYPE_DMG)) {
+  for (const type of TYPES) {
     chem(scaler, type);
     chem(scaler, type, { er: true });
   }

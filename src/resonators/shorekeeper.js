@@ -15,12 +15,14 @@
  */
 import { defineGear, defineBuff, defineAction, defineChain, PRIORITY } from "../registry.js";
 import {
-  add, counter, setCounter, action, isOutro,
+  add, counter, setCounter, action, isOutro, nextSlot,
   grantTeam, grantOthers, revokeTeam, grantSelf, revoke, gain,
 } from "../state.js";
 import {
   BASE_ATK, BASE_HP, BONUS_HP, BONUS_ATK, CRIT_RATE, CRIT_DMG, ER, AMP,
   CONCERTO, FORTE1,
+  SPECTRO, BASIC, HEAVY, SKILL, LIB, OUTRO, ECHO, NORMAL, FORTE, INTRO,
+  SCALE_HP,
 } from "../stats.js";
 
 export const SHOREKEEPER = "Shorekeeper";
@@ -37,10 +39,10 @@ export const VARIATION = "Variation R5";
 export const VARIATION_READY    = "Variation: Ceaseless Aria";
 export const VARIATION_COOLDOWN = "Variation: Ceaseless Aria (cooldown)";
 export const FALLACY      = "Fallacy";
-export const FALLACY_TEAM = "Fallacy: team";
+export const FALLACY_TEAM = "Fallacy:";
 export const REJUV_5PC    = "Rejuvenating Glow 5pc";
 export const REJUV_2PC    = "Rejuvenating Glow 2pc";
-export const REJUV_TEAM   = "Rejuvenating Glow: team";
+export const REJUV_TEAM   = "Rejuvenating Glow:";
 
 /** Empirical Data lives in her forte gauge, 0 to 5 segments. */
 const DATA_MAX = 5;
@@ -76,16 +78,11 @@ defineGear(SHOREKEEPER, {
     add(287.5, BASE_ATK);
     add(12, BONUS_HP);
     add(10, ER);          // Self Gravitation, while the field is inside a Stellarealm
-
-    // Empirical Data holds 0-5 segments, so keep the gauge inside its bounds
-    setCounter(FORTE1, Math.max(0, Math.min(DATA_MAX, counter(FORTE1))));
-
-    // Binary Butterfly amplifies the whole team's damage
-    grantTeam(SK_OUTRO);
   },
 });
 
 defineBuff(SK_OUTRO, {
+  priority: PRIORITY.BUFF_STATS,
   apply() { add(15, AMP); },
 });
 
@@ -97,15 +94,21 @@ defineBuff(SK_OUTRO, {
  *   blue   -> purple  on the next outro. Purple pays crit rate.
  *   purple -> gold    on the outro after. Gold pays crit rate and crit damage.
  *
- * Her enhanced intro (Discernment) ends the realm outright, which is what the kit says:
- * "casting Discernment ends the current Stellarealm".
+ * The realm ends when the field is handed back to *her* — the outro that swaps her in, not her
+ * own intro afterwards — and that outro gets nothing from it, so each colour checks for the
+ * handover before paying anything out.
  *
  * Each colour is granted to every slot, so whoever is on the field is standing in it.
  */
 
+/** True on the outro that is swapping Shorekeeper in: the moment her realm ends. */
+const swappingHerIn = () => isOutro(action()) && nextSlot().hasBuff(SHOREKEEPER);
+
 defineBuff(SK_BLUE_REALM, {
+  priority: PRIORITY.UPDATE_BUFFS,
   apply() {
     // the outer realm only heals, so it pays no stat — it just waits to evolve
+    if (swappingHerIn()) return void revokeTeam(SK_BLUE_REALM);
     if (isOutro(action())) {
       revokeTeam(SK_BLUE_REALM);
       grantTeam(SK_PURPLE_REALM);
@@ -114,7 +117,9 @@ defineBuff(SK_BLUE_REALM, {
 });
 
 defineBuff(SK_PURPLE_REALM, {
+  priority: PRIORITY.UPDATE_BUFFS,
   apply() {
+    if (swappingHerIn()) return void revokeTeam(SK_PURPLE_REALM);
     add(REALM_CR, CRIT_RATE);
     if (isOutro(action())) {
       revokeTeam(SK_PURPLE_REALM);
@@ -124,7 +129,9 @@ defineBuff(SK_PURPLE_REALM, {
 });
 
 defineBuff(SK_GOLD_REALM, {
+  priority: PRIORITY.BUFF_STATS,
   apply() {
+    if (swappingHerIn()) return void revokeTeam(SK_GOLD_REALM);
     add(REALM_CR, CRIT_RATE);
     add(REALM_CD, CRIT_DMG);
   },
@@ -142,10 +149,10 @@ defineGear(SK_SIG, {
     add(77.04, ER);       // the level 90 energy regen substat
     add(12, BONUS_HP);
     grantTeam(SK_SIG_TEAM);
-    if (action().node === "liberation") gain(CONCERTO, 8);
+    if (action().node === LIB) gain(CONCERTO, 8);
   },
 });
-defineBuff(SK_SIG_TEAM, { apply() { add(14, BONUS_ATK); } });
+defineBuff(SK_SIG_TEAM, { priority: PRIORITY.BUFF_STATS, apply() { add(14, BONUS_ATK); } });
 
 /**
  * Variation, the four-star alternative.
@@ -167,6 +174,7 @@ defineGear(VARIATION, {
 });
 
 defineBuff(VARIATION_READY, {
+  priority: PRIORITY.UPDATE_BUFFS,
   apply() {
     if (!/skill/i.test(action().id)) return;
     gain(CONCERTO, 16);          // R5; R1 restores 8
@@ -176,8 +184,9 @@ defineBuff(VARIATION_READY, {
 });
 
 defineBuff(VARIATION_COOLDOWN, {
+  priority: PRIORITY.UPDATE_BUFFS,
   apply() {
-    if (action().node !== "liberation") return;
+    if (action().node !== LIB) return;
     revoke(VARIATION_COOLDOWN);
     grantSelf(VARIATION_READY);
   },
@@ -185,29 +194,29 @@ defineBuff(VARIATION_COOLDOWN, {
 
 /* -------------------------------------------------------------- echo, sonata */
 
-defineGear(FALLACY, {
+defineGear(FALLACY, { apply() {} }); // buffs come from the action. maybe we link the echo action here?
+defineBuff(FALLACY_TEAM, { priority: PRIORITY.BUFF_STATS, apply() { add(10, BONUS_ATK); } });
+
+/** The echo's cast. `node: "echo"` marks it as one even though it deals spectro echo damage. */
+export const ACTION_FALLACY = defineAction("Echo: Fallacy", {
+  source: "Echo",
+  node: ECHO,
+  element: SPECTRO,
+  scaling: SCALE_HP,
+  type: ECHO,
+  mv: 15.85,
+  energy: 3.04,
+  priority: PRIORITY.UPDATE_BUFFS,
   apply() {
     add(10, ER);          // the sheet assumes permanent uptime
     grantOthers(FALLACY_TEAM);
   },
 });
-defineBuff(FALLACY_TEAM, { apply() { add(10, BONUS_ATK); } });
-
-/** The echo's cast. `node: "echo"` marks it as one even though it deals spectro echo damage. */
-export const ACTION_FALLACY = defineAction("Echo: Fallacy", {
-  source: "Echo",
-  node: "echo",
-  element: "spectro",
-  scaling: "hp",
-  type: "echo",
-  mv: 15.85,
-  energy: 3.04,
-});
 
 defineGear(REJUV_5PC, {
   apply() { grantTeam(REJUV_TEAM); },
 });
-defineBuff(REJUV_TEAM, { apply() { add(15, BONUS_ATK); } });
+defineBuff(REJUV_TEAM, { priority: PRIORITY.BUFF_STATS, apply() { add(15, BONUS_ATK); } });
 
 /** 2pc is a healing bonus, and this calculator ignores healing — so it contributes nothing. */
 defineGear(REJUV_2PC, { apply() {} });
@@ -217,71 +226,62 @@ defineGear(REJUV_2PC, { apply() {} });
  * spread, because she is not here to hit anything: the realm pays the team crit off her energy
  * regen, and HP is what her own numbers scale on.
  */
-export const SK_MAINSTATS = "43311 HP ER ER hp hp";
-export const SK_SUBSTATS  = "chem ER hp liberation";
 
-const ECHOES = [SK_MAINSTATS, SK_SUBSTATS];
-
-export const LOADOUT = [SHOREKEEPER, SK_SIG, FALLACY, REJUV_5PC, REJUV_2PC, ...ECHOES];
+export const LOADOUT = [SHOREKEEPER, SK_SIG, FALLACY, REJUV_5PC, REJUV_2PC, 
+    "43311 HP ER ER hp hp", "Chem Substats: ER hp liberation"];
 /** The same build on the four-star alternative. */
-export const LOADOUT_ALT = [SHOREKEEPER, VARIATION, FALLACY, REJUV_5PC, REJUV_2PC, ...ECHOES];
-
-/* ------------------------------------------------------ what her actions do */
-
-/** Her liberation opens the realm. */
-const OPEN_REALM = defineBuff("Shorekeeper: open the Stellarealm", {
-  apply() { grantTeam(SK_BLUE_REALM); },
-});
-
-/** Discernment ends whichever realm is up, and always crits. */
-const DISCERNMENT = defineBuff("Shorekeeper: Discernment", {
-  apply() {
-    add(100, CRIT_RATE);          // guaranteed critical hit
-    revokeTeam(SK_BLUE_REALM);
-    revokeTeam(SK_PURPLE_REALM);
-    revokeTeam(SK_GOLD_REALM);
-  },
-});
+export const LOADOUT_ALT = [SHOREKEEPER, VARIATION, FALLACY, REJUV_5PC, REJUV_2PC,
+    "43311 HP ER ER hp hp", "Chem Substats: ER hp liberation"];
 
 /* ----------------------------------------------------------------- actions */
 
 function skAction(name, def) {
   return defineAction(`Shorekeeper: ${name}`, {
     source: "Shorekeeper",
-    element: "spectro",
+    element: SPECTRO,
     scaling: "atk",
     ...def,
   });
 }
 
 // --- basics. Each stage banks Empirical Data in forte1; stage 3 is worth two.
-skAction("BA1", { node: "normal", type: "basic", mv: 31.78, energy: 0.5, concerto: 1.6, offtune: 0.2664, forte1: 1 });
-skAction("BA2", { node: "normal", type: "basic", mv: 47.72, energy: 0.76, concerto: 2.4, offtune: 0.4, forte1: 1 });
-skAction("BA3", { node: "normal", type: "basic", mv: 69.96, energy: 1.12, concerto: 3.56, offtune: 0.599, forte1: 2 });
-skAction("BA4", { node: "normal", type: "basic", mv: 72.72, energy: 1.15, concerto: 3.66, offtune: 0.6096, forte1: 1 });
-skAction("MA", { node: "normal", type: "basic", mv: 73.96, energy: 1.55, concerto: 5, offtune: 0.496, forte1: 1 });
+skAction("BA1", { node: NORMAL, type: BASIC, mv: 31.78, energy: 0.5, concerto: 1.6, offtune: 0.2664, forte1: 1 });
+skAction("BA2", { node: NORMAL, type: BASIC, mv: 47.72, energy: 0.76, concerto: 2.4, offtune: 0.4, forte1: 1 });
+skAction("BA3", { node: NORMAL, type: BASIC, mv: 69.96, energy: 1.12, concerto: 3.56, offtune: 0.599, forte1: 2 });
+skAction("BA4", { node: NORMAL, type: BASIC, mv: 72.72, energy: 1.15, concerto: 3.66, offtune: 0.6096, forte1: 1 });
+skAction("MA", { node: NORMAL, type: BASIC, mv: 73.96, energy: 1.55, concerto: 5, offtune: 0.496, forte1: 1 });
 
 // --- skill, forte, liberation. The forte casts spend the whole gauge.
-skAction("Skill", { node: "skill", type: "skill", mv: 156.55, energy: 10, concerto: 30, offtune: 0.525 });
-skAction("FHA", { node: "forte", type: "heavy", mv: 281.3, energy: 4.95, concerto: 11, offtune: 0.636, forte1: -5 });
-skAction("FMA", { node: "forte", type: "basic", mv: 260.41, energy: 4, concerto: 11, offtune: 0.496, forte1: -5 });
+skAction("Skill", { node: SKILL, type: SKILL, mv: 156.55, energy: 10, concerto: 30, offtune: 0.525 });
+skAction("FHA", { node: FORTE, type: HEAVY, mv: 281.3, energy: 4.95, concerto: 11, offtune: 0.636, forte1: -5 });
+skAction("FMA", { node: FORTE, type: BASIC, mv: 260.41, energy: 4, concerto: 11, offtune: 0.496, forte1: -5 });
 skAction("Liberation", {
-  node: "liberation", type: "liberation", mv: 0, energy: -175, concerto: 28,
-  buffs: [OPEN_REALM],
+  node: LIB, type: LIB, mv: 0, energy: -175, concerto: 20,
+  /** It opens the realm, on the blue rung. */
+  priority: PRIORITY.UPDATE_BUFFS,
+  apply() { grantTeam(SK_BLUE_REALM); },
 });
 
 // --- intro / outro. EIntro is Discernment: it replaces the intro while a Supernal realm is
-//     up, scales off HP, counts as liberation damage, always crits, and ends the realm.
+//     up, scales off HP, counts as liberation damage, and always crits.
 skAction("Intro", {
-  node: "intro", type: "skill", mv: 226.5, energy: 10, concerto: 20, offtune: 1.1395,
+  node: INTRO, type: SKILL, mv: 226.5, energy: 10, concerto: 20, offtune: 1.1395,
 });
 skAction("EIntro", {
-  node: "intro", type: "liberation", scaling: "hp", mv: 58.92,
+  node: INTRO, type: LIB, scaling: SCALE_HP, mv: 58.92,
   energy: 10.02, concerto: 20, offtune: 7.3242,
-  buffs: [DISCERNMENT],
+  /** Discernment always crits. The realm is already gone by now — the outro that swapped her
+   *  in ended it, so there is nothing here to revoke. */
+  priority: PRIORITY.UPDATE_BUFFS,
+  apply() { add(100, CRIT_RATE); },
 });
-/** `node: "outro"` marks it as one; it deals no damage at all. */
-skAction("Outro", { node: "outro", type: "outro", mv: 0, concerto: -100 });
+/** `node: "outro"` marks it as one; it deals no damage at all. Casting it is what puts Binary
+ *  Butterfly on the team, so the amplification starts with whoever she hands the field to. */
+skAction("Outro", {
+  node: OUTRO, type: OUTRO, mv: 0, concerto: -100,
+  priority: PRIORITY.UPDATE_BUFFS,
+  apply() { grantTeam(SK_OUTRO); },
+});
 
 /* ------------------------------------------------------------------ chains */
 /* The sheet carried BA12/BA23/BA123/BA234/BA1234 as pre-summed actions. They are exactly the
@@ -309,18 +309,28 @@ export const ROTATION_OPENER = [
 ];
 
 /**
- * Her loop, and the default: every rotation after the first opens with Discernment rather than
- * the ordinary intro.
+ * Her loop, and the default: the sheet's `sk` rotation, which opens with Discernment rather
+ * than the ordinary intro.
  *
  * That is not a preference, it is what the kit does — Discernment replaces the intro whenever a
  * Supernal realm is up, and by the second rotation one always is: the liberation opens the blue
  * realm and the two outros that follow evolve it blue → purple → gold. It hits far harder than
  * the intro (it scales off her HP, counts as liberation damage and always crits), and it ends
  * the realm, which is what lets the next liberation open a fresh one.
+ *
+ * The loop is shorter than the opener: one basic string and one forte heavy, not two of each.
+ * That is what makes it a loop — it generates just over the 100 concerto the outro spends, so
+ * she leaves the field with the bar where she found it. The second FHA the opener runs has no
+ * Empirical Data left to spend by then anyway.
+ *
+ * The sheet lists the outro second rather than last, which reads as a rotation that swaps out
+ * immediately. It is a spreadsheet artefact: there, order only decides the running totals and
+ * the burst window, so the outro sits wherever it was typed. Here the outro closes the on-field
+ * window and hands the field to the next resonator, so it has to be last or the rest of her
+ * rotation would resolve on somebody else's slot.
  */
 export const ROTATION = [
   "Shorekeeper: EIntro",
-  BA123, "Shorekeeper: MA", "Shorekeeper: FHA",
-  "Shorekeeper: Skill", BA23, BA12, "Shorekeeper: FHA",
+  BA123, "Shorekeeper: MA", "Shorekeeper: FHA", "Shorekeeper: Skill",
   ACTION_FALLACY, "Shorekeeper: Liberation", "Shorekeeper: Outro",
 ];

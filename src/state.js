@@ -19,12 +19,17 @@
  */
 import {
   ATK, HP, DEF, BASE_ATK, BASE_HP, BASE_DEF, FLAT_ATK, FLAT_HP, FLAT_DEF,
-  BONUS_ATK, BONUS_HP, BONUS_DEF, DMG_BONUS, dmgBonusFor, AMP, ampFor, isPercent,
-  SLOT_RESOURCES, TEAM_RESOURCES, ENERGY, CONCERTO, OFFTUNE, SHIELDS, SHIELDS_HELD,
+  BONUS_ATK, BONUS_HP, BONUS_DEF, DMG_BONUS, AMP, isPercent,
+  SLOT_RESOURCES, TEAM_RESOURCES, ENERGY, CONCERTO, OFFTUNE,
+  scopedStat, TAGS_MATCHED, INTRO, OUTRO, ECHO, LIB,
 } from "./stats.js";
 import {
   getBuff, getAction, hasAction, getChain, hasChain, isGear, getGearOnFightStart,
+  PRIORITY_BANDS,
 } from "./registry.js";
+
+/** What an action is, for matching scoped stats: its element and its damage type. */
+const tagsOf = (action) => TAGS_MATCHED.map((k) => action?.[k]).filter(Boolean);
 
 /* ------------------------------------------------------- automatic tune break */
 /**
@@ -36,7 +41,7 @@ import {
  * off-tune at all, and the actions inside that window would otherwise be free progress toward
  * the next break.
  */
-const TUNE_BREAK_ACTION = "Tune Break";
+const TUNE_BREAK_ACTION = "Auto Tune Break";
 const OFFTUNE_AFTER_BREAK = -3;
 
 /**
@@ -45,10 +50,10 @@ const OFFTUNE_AFTER_BREAK = -3;
  * casts deal no outro or echo damage at all, which is what the `outro` and `echo` nodes are
  * for.
  */
-export const isIntro = (action) => action.node === "intro" || action.type === "intro";
-export const isOutro = (action) => action.node === "outro" || action.type === "outro";
-export const isEcho = (action) => action.node === "echo" || action.type === "echo";
-export const isLiberation = (action) => action.node === "liberation";
+export const isIntro = (action) => action.node === INTRO;
+export const isOutro = (action) => action.node === OUTRO;
+export const isEcho = (action) => action.node === ECHO;
+export const isLiberation = (action) => action.node === LIB;
 
 /* ------------------------------------------------------------------- one slot */
 
@@ -255,10 +260,6 @@ export class State {
     if (isIntro(action)) { slot.onField = true; this.adoptOutroBuffs(); }
     if (isOutro(action)) slot.onField = false;
 
-    // An outro action may declare, right on itself, what it publishes for the next intro to
-    // pick up — the declarative alternative to a buff whose only job is calling outro().
-    if (action.outro) this.publishOutro(action.outro);
-
     // 1. resources first, so buffs that scale on a counter see this action's own change.
     //    Every one is a running total across the rotation. The forte gauges, energy and
     //    concerto belong to the resonator; off-tune is one bar the whole team fills.
@@ -275,48 +276,38 @@ export class State {
     slot.entries = [];
     const ctx = { state: this, slot, action, source: null };
 
-    // The action's own shields, seeded as an ordinary stat entry before any buff runs, so a
-    // buff can add to it (or a watcher read the total) exactly like any other stat. An action
-    // that shields says so through `applications`; one that uses that field for dot ticks
-    // simply has nothing watching shields.
-    if (action.applications) {
-      slot.entries.push({ stat: SHIELDS, value: action.applications, source: action.id });
-    }
-
-    // 2. every buff applies its stats, in priority order: DEFAULT, then the conversions in
-    //    LATE / LATER / LATEST. Within a stage the order is the list's — states the resonator
-    //    picked up, then its gear, then whatever the action brought — and the sort is stable,
-    //    so that holds. Each gets the stack count it currently holds; a buff the action brought
-    //    that the resonator does not already hold applies at 1.
+    // 2. every buff applies, stage by stage: UPDATE_BUFFS, GEAR_STATS, BUFF_STATS, then the two
+    //    conversion stages.
     //
-    //    A buff applies **once** per action, however many ways it arrived. An action listing a
-    //    buff its own resonator already holds is re-stating something true, not doubling it —
-    //    which matters for a buff that does more than add a stat: the shared Shield buff would
-    //    otherwise stack itself twice on every action that shields.
+    //    The list is re-read at the top of each stage rather than materialised once, so a buff
+    //    that an earlier stage *created* still runs in its own — a weapon stacking a buff into
+    //    existence at GEAR_STATS has it pay out at BUFF_STATS on the same cast, with nothing
+    //    pre-seeded. A buff added at a stage already gone by simply waits for the next action.
     //
-    //    The pairs are materialised before any of them run, since a buff may revoke itself.
-    const held = new Map(
-      [...slot.list.entries()].map(([name, meta]) => [name, meta.stacks]));
-    for (const name of action.buffs) if (!held.has(name)) held.set(name, 1);
-    const entries = [...held]
-      .map(([name, stacks]) => ({ name, stacks, buff: getBuff(name) }))
-      .sort((a, b) => a.buff.priority - b.buff.priority);
-
-    // A buff's apply() may return how many of its stacks it actually used, capped at its own
-    // ceiling — a stackable buff returns Math.min(stacks, itsCap); one that never stacks
-    // returns nothing. Captured per action so a snapshot can show what was actually in play.
+    //    Within a stage the names are collected before any of them run, so a buff that revokes
+    //    itself still applies once, and the resonator's own buffs come before the action's body.
+    //    Stack counts are never cached: `stacksOf()` reads live.
     const used = new Map();
-    for (const { buff, stacks } of entries) {
-      const result = withContext({ ...ctx, source: buff.name }, () => buff.apply(stacks));
-      if (result !== undefined) used.set(buff.name, result);
+    const ran = new Set();
+
+    for (const band of PRIORITY_BANDS) {
+      const names = [...slot.list.keys()]
+        .filter((name) => !ran.has(name) && getBuff(name).priority === band);
+      for (const name of names) ran.add(name);
+
+      const running = names.map((name) => getBuff(name));
+      // The action's own body joins its own stage, last — which is what lets it read summed
+      // totals like hp() when it sits at GEAR_STATS or later.
+      if (action.apply && action.priority === band) {
+        running.push({ name: action.id, apply: action.apply });
+      }
+
+      for (const buff of running) {
+        const result = withContext({ ...ctx, source: buff.name }, () => buff.apply());
+        if (result !== undefined) used.set(buff.name, result);
+      }
     }
     slot.lastUsed = used;
-
-    // Bank this action's shields into the running total, now that every buff that could have
-    // changed the number has run. Gear scaling on shields held therefore reads the total as it
-    // stood before this action — the same one-action lag every other state has.
-    const shields = slot.total(SHIELDS);
-    if (shields) slot.setCounter(SHIELDS_HELD, slot.counter(SHIELDS_HELD) + shields);
 
     const snapshot = this.resolve(action, meta);
 
@@ -345,16 +336,15 @@ export class State {
    */
   resolve(action, meta = {}) {
     const slot = this.slot;
-    // An action picks up the generic bonus plus the ones scoped to what it is: its element,
-    // its damage type, and what it scales off. `node` (normal/skill/forte/liberation/intro)
-    // is deliberately NOT resolved, matching the sheet — Jingran's Lib1 has node
-    // "liberation" but type "heavy", so resolving node too would start paying out
-    // liberation bonuses on it. Worth revisiting when gear needs node-scoped bonuses.
+    // Every stat picks up its generic total plus whatever was scoped to what this action *is*.
+    // `node` and `scaling` deliberately do NOT participate — Jingran's Lib1 has node
+    // "liberation" but type "heavy", so resolving node would start paying liberation bonuses
+    // on it. See TAGS_MATCHED in stats.js.
     const totals = new Map();
     for (const e of slot.entries) totals.set(e.stat, (totals.get(e.stat) ?? 0) + e.value);
 
-    const tags = [action.element, action.type, action.scaling].filter(Boolean);
-    const scoped = (key) => tags.reduce((n, tag) => n + (totals.get(key(tag)) ?? 0), 0);
+    const stat = (s) => tagsOf(action).reduce(
+      (n, tag) => n + (totals.get(scopedStat(tag, s)) ?? 0), totals.get(s) ?? 0);
 
     return {
       action,
@@ -365,11 +355,11 @@ export class State {
       atk: slot.derived(ATK),
       hp: slot.derived(HP),
       def: slot.derived(DEF),
-      dmgBonus: (totals.get(DMG_BONUS) ?? 0) + scoped(dmgBonusFor),
-      amp: (totals.get(AMP) ?? 0) + scoped(ampFor),
+      dmgBonus: stat(DMG_BONUS),
+      amp: stat(AMP),
       entries: slot.entries,
       totals,
-      stat: (s) => totals.get(s) ?? 0,
+      stat,
       counters: Object.fromEntries(slot.counters),
       teamCounters: Object.fromEntries(this.counters),
       buffs: [...slot.list.keys()],
@@ -427,16 +417,40 @@ function cur() {
   return CTX;
 }
 
-/** Contribute to a stat. Ratio stats are in percent units: add(36, CRIT_RATE) is +36%. */
-export function add(value, stat) {
+/**
+ * Contribute to a stat. Ratio stats are in percent units: `add(36, CRIT_RATE)` is +36%.
+ *
+ * A third form scopes the contribution to what the action is — its element or its damage type:
+ *
+ * ```js
+ * add(12, DMG_BONUS);                 // 12% damage, on anything
+ * add(12, "fusion", DMG_BONUS);       // 12% fusion damage
+ * add(50, "heavy", AMP);              // 50% amplification, heavy attacks only
+ * add(12, "heavy", CRIT_RATE);        // 12% crit rate, heavy attacks only
+ * ```
+ *
+ * Any stat can be scoped this way; there is nothing special about damage bonus or
+ * amplification. An action resolves the ones matching itself when its stats are summed.
+ */
+export function add(value, tagOrStat, maybeStat) {
+  const scoped = maybeStat !== undefined;
+  const stat = scoped ? scopedStat(tagOrStat, maybeStat) : tagOrStat;
   if (!Number.isFinite(value)) throw new Error(`add(): ${stat} got ${value}`);
   const c = cur();
   c.slot.entries.push({ stat, value, source: c.source });
   return value;
 }
 
-/** Read the running total of a stat (percent units for ratio stats). */
-export const get = (stat) => cur().slot.total(stat);
+/**
+ * Read the running total of a stat (percent units for ratio stats), including everything
+ * scoped to the action being evaluated — so `get(DMG_BONUS)` on a fusion heavy sees the
+ * generic bonus plus the fusion one plus the heavy one.
+ */
+export function get(stat) {
+  const c = cur();
+  return tagsOf(c.action).reduce(
+    (n, tag) => n + c.slot.total(scopedStat(tag, stat)), c.slot.total(stat));
+}
 export const pct = (stat) => (isPercent(stat) ? get(stat) / 100 : get(stat));
 
 /** Summed totals. Safe to read from the action's apply() and from LATE conversions. */
@@ -480,6 +494,16 @@ export function action() {
 
 export const equipped = (name) => cur().slot.hasBuff(name);
 export const self = () => cur().slot;
+
+/**
+ * The slot an outro is about to hand the field to — the next one in the cycle. The switch
+ * itself happens after the buff pass, so during an outro this is who is coming *in*, which is
+ * what a buff needs to know to end on the swap rather than on the incoming resonator's intro.
+ */
+export const nextSlot = () => {
+  const c = cur();
+  return c.state.slots[(c.state.active + 1) % c.state.slots.length];
+};
 /** Inside the intro→outro window. Gate on-field-only passives on this. */
 export const onField = () => cur().slot.onField;
 

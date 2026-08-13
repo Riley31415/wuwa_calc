@@ -21,7 +21,7 @@ Normalisation, and why:
 
 Unrecognised tags and dangling references are reported and, for tags, fatal.
 
-Usage:  python tools/extract.py [--xlsx old.xlsx] [--out data] [--force]
+Usage:  python tools/extract.py [--xlsx old.xlsx] [--out ../data] [--force]
 """
 from __future__ import annotations
 
@@ -483,7 +483,7 @@ def extract_teams(wb, rep: Report, build_names):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--xlsx", default="old.xlsx")
-    ap.add_argument("--out", default="data")
+    ap.add_argument("--out", default="../data")
     ap.add_argument("--force", action="store_true",
                     help="write the JSON even if validation found errors")
     args = ap.parse_args()
