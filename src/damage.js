@@ -8,14 +8,23 @@
  * dot and tune scalings deliberately bypass amplification, damage bonus and crit.
  */
 import {
-  CRIT_RATE, CRIT_DMG, MV, MV_BASE, SPECIAL_AMP, DMG_DEALT,
+  CRIT_RATE, CRIT_DMG, ADD_MV, MUL_MV, SPECIAL_MV, SPECIAL_AMP, DMG_DEALT, TBB,
   RES_IGNORE, RES_SHRED, DEF_IGNORE, DEF_SHRED, DEF_REDUCE,
   SCALE_ATK, SCALE_HP, SCALE_DEF, SCALE_DOT, SCALE_TUNE,
 } from "./stats.js";
 
-/** The action's motion value after its multipliers, in percent. */
+/**
+ * The action's motion value after everything that changes it, in percent:
+ *
+ *     (base + added) x (1 + bonus) x (1 + special bonus)
+ *
+ * The addition happens first and in the action's own units, so a kit that adds motion value
+ * outright does not have to be re-expressed as a multiplier of whatever the action started at.
+ */
 export const mvPercent = (snapshot) =>
-  snapshot.action.mv * (1 + snapshot.stat(MV) / 100) * (1 + snapshot.stat(MV_BASE) / 100);
+  (snapshot.action.mv + snapshot.stat(ADD_MV))
+  * (1 + snapshot.stat(MUL_MV) / 100)
+  * (1 + snapshot.stat(SPECIAL_MV) / 100);
 
 /** What the enemy defends with before the attacker touches it. */
 export const enemyBaseDef = (config) => 792 + config.enemyLevel * 8;
@@ -87,10 +96,14 @@ export function damageFactors(snapshot, config, levels) {
   );
 
   // motion values are authored in percent, so 307.34 is a 3.0734x multiplier
-  const finalMv = (action.mv * (1 + s(MV)) * (1 + s(MV_BASE))) / 100;
+  const finalMv = mvPercent(snapshot) / 100;
 
   const ampFactor = 1 + (snapshot.amp / 100) * notDot * notTune + s(SPECIAL_AMP);
   const bonusFactor = 1 + (snapshot.dmgBonus / 100) * notDot * notTune;
+  // Tune break boost multiplies tune damage and nothing else. It is part of the formula rather
+  // than something the tune break converts into amplification on itself: the ordinary damage
+  // bonus and amplification are both gated off for tune, so this is the multiplier tune has.
+  const tbbFactor = 1 + s(TBB) * (1 - notTune);
   const resFactor = resFactorOf(snapshot, config);
   const defFactor = defFactorOf(snapshot, config);
   const dealtFactor = 1 + s(DMG_DEALT);
@@ -101,12 +114,12 @@ export function damageFactors(snapshot, config, levels) {
   // what an average hit is worth: every hit crits above 100% rate, otherwise the blend
   const critFactor = cr >= 1 ? critMult : (1 - cr) + critMult * cr;
 
-  const noCrit = finalMv * finalStat * ampFactor * bonusFactor
+  const noCrit = finalMv * finalStat * ampFactor * bonusFactor * tbbFactor
     * resFactor * defFactor * dealtFactor;
 
   return {
     scaling, finalMv, finalStat,
-    ampFactor, bonusFactor, resFactor, defFactor, dealtFactor, critFactor, critMult,
+    ampFactor, bonusFactor, tbbFactor, resFactor, defFactor, dealtFactor, critFactor, critMult,
     noCrit,
     crit: noCrit * critMult,
     avg: noCrit * critFactor,

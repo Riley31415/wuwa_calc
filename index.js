@@ -6,23 +6,36 @@
  * imports and fetch() on file:// URLs, so the page has to be served — `python -m http.server`
  * from this directory is enough.
  */
+import { collapseChains } from "./src/kit.js";
 import { State } from "./src/state.js";
 import { damage } from "./src/damage.js";
-import { collapseChains } from "./src/chain.js";
 import { buildReport, totalsBySlot } from "./src/display.js";
 import { isPercent, statLabel } from "./src/stats.js";
-import "./src/shared.js";
+import { AUTO_TUNE_BREAK, MISC, attributeMisc } from "./src/shared.js";
 
 import * as SK from "./src/resonators/shorekeeper.js";
 import * as IO from "./src/resonators/iuno.js";
 import * as JR from "./src/resonators/jingran.js";
+import * as LP from "./src/resonators/lupa.js";
 
-/** Who is on the team, in the order they act. */
-const MEMBERS = [
-  { name: "Shorekeeper", loadout: SK.LOADOUT, rotation: SK.ROTATION },
-  { name: "Iuno", loadout: IO.LOADOUT, rotation: IO.ROTATION },
-  { name: "Jingran", loadout: JR.LOADOUT, rotation: JR.ROTATION },
-];
+/**
+ * The two teams the switch at the top of the page picks between, each a member list in the
+ * order they act. Only the lead changes — Iuno and Jingran are common to both, so switching is
+ * really just swapping who is standing in the first slot.
+ */
+const TEAMS = {
+  sk: [
+    { name: "Shorekeeper", loadout: SK.LOADOUT, rotation: SK.ROTATION },
+    { name: "Iuno", loadout: IO.LOADOUT, rotation: IO.ROTATION },
+    { name: "Jingran", loadout: JR.LOADOUT, rotation: JR.ROTATION },
+  ],
+  lupa: [
+    { name: "Lupa", loadout: LP.LOADOUT, rotation: LP.ROTATION },
+    { name: "Iuno", loadout: IO.LOADOUT, rotation: IO.ROTATION },
+    { name: "Jingran", loadout: JR.LOADOUT, rotation: JR.ROTATION },
+  ],
+};
+const DEFAULT_TEAM = "sk";
 
 /**
  * One hue per resonator, shared by their summary card, their heading and every row of their
@@ -33,6 +46,8 @@ const HUES = {
   Shorekeeper: "#8fb3d9",   // grayish light blue
   Iuno:        "#2dd4c0",   // turquoise
   Jingran:     "#f2603c",   // orangeish red
+  Lupa:        "#ef4d6e",   // pinkish red
+  [MISC]:      "#8a94a3",   // grayish — off-tune's own fourth "member", not a resonator
 };
 const FALLBACK_HUE = "#5b9cff";
 const hueOf = (name) => HUES[name] ?? FALLBACK_HUE;
@@ -48,24 +63,30 @@ async function loadData(name) {
   return res.json();
 }
 
-async function runTeam() {
-  const cfg = (await loadData("config.json")).constants;
-  const levels = await loadData("levels.json");
+/** Both teams read the same config and level table — fetched once and reused on every switch
+ *  rather than re-requested each time the button is pressed. */
+let dataPromise = null;
+const loadOnce = () => (dataPromise ??= Promise.all([loadData("config.json"), loadData("levels.json")]));
+
+async function runTeam(members) {
+  const [{ constants: cfg }, levels] = await loadOnce();
 
   const state = new State({
-    team: MEMBERS.map((m) => m.name),
+    team: members.map((m) => m.name),
     level: cfg.resonatorLevel,
     enemyLevel: cfg.enemyLevel,
     res: cfg.defaultRes * 100,
+    // the engine's own standing rules, ahead of anything a build equips
+    buffs: [AUTO_TUNE_BREAK],
   });
   state.config.maxOfftune = cfg.maxOfftune;
-  state.startFight(Object.fromEntries(MEMBERS.map((m) => [m.name, m.loadout])));
+  state.startFight(Object.fromEntries(members.map((m) => [m.name, m.loadout])));
 
   // One table for the whole team, in the order they act. Nothing is stripped from the action
   // names: with three rotations in one table the source prefix is what tells them apart.
-  const lines = MEMBERS.flatMap((m) => {
+  const lines = members.flatMap((m) => {
     const rows = state.run(m.rotation)
-      .map((s) => ({ snap: s, dmg: damage(s, state.config, levels) }));
+      .map((s) => ({ snap: attributeMisc(s), dmg: damage(s, state.config, levels) }));
     return collapseChains(rows);
   });
 
@@ -85,19 +106,30 @@ const fmt = (v, digits = 0) =>
  * One table cell. Columns carry a character `width` (the report also prints to a terminal), so
  * a sticky column's offset is the character widths to its left, scaled by the CSS --cw.
  */
-const colWidth = (c, i) => (i === 0
+const colWidth = (c, i) => {
+  // Two fonts, two per-character widths. The numeric columns are monospace, where --cw is exact;
+  // the action column is set in the proportional UI font, whose average character is a good deal
+  // narrower — sizing it with --cw is what left a gap in front of the first number.
+  const per = c.align === "left" ? "var(--cwt)" : "var(--cw)";
+  const base = `${per} * ${c.width} + var(--cpad)`;
   // The first column carries an extra lead-in so the action name is not flush against the
   // table edge. It has to be in the track width as well as the cell padding, or the grid
   // and the sticky offsets stop agreeing on where the column ends.
-  ? `calc(var(--cw) * ${c.width} + var(--cpad) + var(--lead))`
-  : `calc(var(--cw) * ${c.width} + var(--cpad))`);
+  return i === 0 ? `calc(${base} + var(--lead))` : `calc(${base})`;
+};
 
 function cell(columns, index, { cls = [], html = "" }) {
   const col = columns[index];
   const stick = index < STICK;
+  // A sticky column's offset is everything to its left, which has to be summed in the same two
+  // units colWidth() lays those tracks out in — plus the lead-in they carry, or the frozen
+  // columns drift against the rest of the row as it scrolls.
   const before = columns.slice(0, index);
-  const left = `calc(var(--cw) * ${before.reduce((n, c) => n + c.width, 0)}`
-    + ` + var(--cpad) * ${before.length})`;
+  const span = (want) => before.filter((c) => (c.align === "left") === want)
+    .reduce((n, c) => n + c.width, 0);
+  const left = `calc(var(--cwt) * ${span(true)} + var(--cw) * ${span(false)}`
+    + ` + var(--cpad) * ${before.length}`
+    + `${before.length ? " + var(--lead)" : ""})`;
   const classes = [
     "c",
     col.align === "left" ? "" : "num",
@@ -171,16 +203,27 @@ function popover(col, rows, total, suffix = "") {
     const head = key ? `<tr class="sec"><td colspan="3">${esc(key)}</td></tr>` : "";
     const sub = key
       ? `<tr class="sub"><td class="s" colspan="2">`
-        + `total ${esc(key)} ${esc(col.noun ?? col.label)}</td><td class="v">`
+        // `key` is already the full stat name ("Flat ATK", "Base HP", ...) — appending the
+        // column's own noun on top ("... attack", "... HP") just repeated it.
+        + `Total ${esc(key)}</td><td class="v">`
         + `${fmt(group.reduce((n, r) => n + r.value, 0), 4)}${unit(group[0])}</td></tr>`
       : "";
     return head + group.map(panelRow).join("") + sub;
   }).join("");
 
   return `<span class="pop"><table>${body}${before.map(panelRow).join("")}`
-    + `<tr class="sum"><td colspan="2">total</td>`
+    + `<tr class="sum"><td colspan="2">Total</td>`
     + `<td class="v">${fmt(total, col.digits ?? 0)}${col.percent ? "%" : ""}${esc(suffix)}</td>`
     + `</tr>${after.map(panelRow).join("")}</table></span>`;
+}
+
+/** The hover on an action's own name: what it scales off, its element, its damage type — one
+ *  word a row, in the same `<span class="pop"><table>` shell every other panel uses (see
+ *  `popover()` above), just without a total to sum to. */
+function infoPopover(info) {
+  if (!info?.length) return "";
+  const rows = info.map((t) => `<tr><td colspan="3">${esc(t)}</td></tr>`).join("");
+  return `<span class="pop info"><table>${rows}</table></span>`;
 }
 
 /* --------------------------------------------------------------------- table */
@@ -203,16 +246,18 @@ function stepRow(columns, row, { part = false } = {}) {
 
     // a ratio column carries its unit on the value, so a row reads as the game writes it
     const text = esc(fmt(v, col.digits ?? 0)) + (col.percent && typeof v === "number" ? "%" : "");
+    // The dotted underline (`.has`) means "this cell has extra info on hover" — informative on
+    // a value cell, where it is sometimes true. Every action name carries a popover, so the
+    // same treatment there is never informative and reads as a stray line under every row.
     let html = sources ? `<span class="has">${text}</span>` : text;
-    if (col.key === "action") {
-      if (part) html += `<span class="tag">${esc(row.type)}</span>`;
-      // a chain gets a caret, since its row is the thing you click to see the parts
-      else if (row.parts.length) html = `<span class="caret">▸</span>${html}`;
+    // a chain gets a caret, since its row is the thing you click to see the parts
+    if (col.key === "action" && !part && row.parts.length) {
+      html = `<span class="caret">▸</span>${html}`;
     }
     // only the motion value names its unit: it is the one number multiplying a stat
     const suffix = col.key === "mv" && row.scaling
       ? ` ${SCALING_LABEL[row.scaling] ?? row.scaling}` : "";
-    html += popover(col, sources, v, suffix);
+    html += col.key === "action" ? infoPopover(row.info) : popover(col, sources, v, suffix);
 
     return cell(columns, i, { cls, html });
   }).join("");
@@ -344,23 +389,44 @@ function errorPage(err) {
  * The panel is `position: fixed` (see index.css for why it has to be), so the only thing left
  * is to give it coordinates: under its cell, right edges aligned, flipped above instead when
  * there is no room below and pulled back inside the window when there is none to the side.
+ *
+ * One column is sticky (`.c.stick`, the action column — see index.css), and a sticky element
+ * sets its own `z-index` so it can paint over the rest of its own row scrolling underneath it.
+ * That gives it a stacking context of its own, which traps any `z-index` a descendant sets
+ * too: a panel living inside it never actually competes at `z-index: 200` against the *rest of
+ * the page* — only against its sticky ancestor's other content, at whatever level *that*
+ * ancestor got. A later row's own sticky cell — same z-index, later in DOM order — ends up
+ * painted on top of an earlier row's "open" panel despite its higher number. `place()` below
+ * moves the panel to be a direct child of `<body>` while it is shown, which escapes the trap
+ * entirely: from the root stacking context, its own z-index finally means what it says.
  */
 function wireSourcePanels(root) {
   const GAP = 4, EDGE = 6;
   let open = null;
+  /** Where an open panel actually lives — its cell, before `place()` moves it to `<body>`. Put
+   *  back there on close, so the plain in-cell lookup works again for its next hover. */
+  let openHome = null;
   /** While pinned, hovering elsewhere leaves the panel alone; only a click outside closes it. */
   let pinned = false;
+
+  // A panel from a previous render may still be sitting directly in <body> if the team was
+  // switched away while it was open — the cell it was moved out of no longer exists to reclaim
+  // it, and this function's own `open`/`openHome` are fresh on every call, so nothing else would.
+  document.body.querySelectorAll(":scope > .pop").forEach((el) => el.remove());
 
   const close = () => {
     if (open) {
       open.style.display = "";
       open.classList.remove("pinned");
+      if (openHome && open.parentElement !== openHome) openHome.appendChild(open);
     }
     open = null;
+    openHome = null;
     pinned = false;
   };
 
   const place = (cell, pop) => {
+    if (pop.parentElement !== document.body) document.body.appendChild(pop);
     // measure it where it will be shown, but before it can be seen
     pop.style.visibility = "hidden";
     pop.style.display = "block";
@@ -377,15 +443,24 @@ function wireSourcePanels(root) {
     pop.style.top = `${top}px`;
     pop.style.visibility = "";
     open = pop;
+    openHome = cell;
   };
 
   const panelIn = (target) => {
     const cell = target?.closest?.(".c");
-    return { cell, pop: cell?.querySelector(":scope > .pop") ?? null };
+    if (!cell) return { cell: null, pop: null };
+    // The open panel may already have been moved out to <body> by `place()`, so it is no
+    // longer reachable as a child of its own cell — check the remembered home first. A cell
+    // whose panel has never opened still finds it the plain way.
+    const pop = (open && openHome === cell) ? open : cell.querySelector(":scope > .pop");
+    return { cell, pop };
   };
 
-  root.addEventListener("mouseover", (e) => {
+  // Listens on the document rather than just the table: an open panel now lives in <body> once
+  // shown (see above), somewhere the table's own listeners would never see it hovered.
+  document.addEventListener("mouseover", (e) => {
     if (pinned) return;
+    if (open && open.contains(e.target)) return;   // hovering the open panel itself
     const { cell, pop } = panelIn(e.target);
     if (pop === open) return;
     close();
@@ -393,21 +468,23 @@ function wireSourcePanels(root) {
   });
 
   // leaving the table entirely, and any scroll — a fixed panel does not follow its cell
-  root.addEventListener("mouseout", (e) => {
+  document.addEventListener("mouseout", (e) => {
     if (pinned) return;
-    if (!e.relatedTarget || !root.contains(e.relatedTarget)) close();
+    const to = e.relatedTarget;
+    if (to && (root.contains(to) || (open && open.contains(to)))) return;
+    close();
   });
 
   /**
    * Click a cell to pin its panel open, so it can be read at leisure or its numbers selected.
    * Clicking the same cell again unpins; clicking anywhere outside the open panel closes it.
    *
-   * Chain rows are `<label>`s wrapping a checkbox, so a click inside one would also toggle the
-   * expander — `preventDefault` on a cell that owns a panel keeps pinning from doing both.
+   * Chain rows are `<label>`s wrapping a checkbox, so a click on the *cell* would also toggle
+   * the expander — `preventDefault` there keeps pinning from doing both. A click already inside
+   * an open panel does not reach this far: an open panel lives in `<body>` (see `place()`), well
+   * outside any `<label>`, so the guard below is only for reading/selecting it, not for that.
    */
   addEventListener("click", (e) => {
-    // Clicks inside an open panel are for reading it, not for the row underneath — the panel
-    // lives inside the chain row's <label>, so without this they would toggle the expander.
     if (open && open.contains(e.target)) { e.preventDefault(); return; }
 
     const { cell, pop } = panelIn(e.target);
@@ -428,13 +505,44 @@ function wireSourcePanels(root) {
 /* ----------------------------------------------------------------------- mount */
 
 const app = document.getElementById("app");
+const switchBar = document.getElementById("teamSwitch");
+const teamButtons = [...switchBar.querySelectorAll(".teambtn")];
 
-try {
-  app.innerHTML = page(await runTeam());
-  app.className = "";
-  wireSourcePanels(app);
-} catch (err) {
-  console.error(err);
-  app.innerHTML = errorPage(err);
-  app.className = "";
+/**
+ * Run one team and mount it. `token` guards against two switches racing: if the button is
+ * pressed again before this one's fetch/compute finishes, its result is thrown away instead of
+ * clobbering whatever the newer click already showed — the only way that could happen here,
+ * since `runTeam` itself is a pure function of which team it was asked for.
+ */
+let renderToken = 0;
+
+async function renderTeam(key) {
+  const token = ++renderToken;
+  for (const b of teamButtons) {
+    b.classList.toggle("active", b.dataset.team === key);
+    b.disabled = true;
+  }
+  app.innerHTML = `<div class="spinner"></div><p>running the rotation…</p>`;
+  app.className = "loading";
+
+  try {
+    const result = await runTeam(TEAMS[key]);
+    if (token !== renderToken) return;
+    app.innerHTML = page(result);
+    app.className = "";
+    wireSourcePanels(app);
+  } catch (err) {
+    if (token !== renderToken) return;
+    console.error(err);
+    app.innerHTML = errorPage(err);
+    app.className = "";
+  } finally {
+    if (token === renderToken) for (const b of teamButtons) b.disabled = false;
+  }
 }
+
+for (const b of teamButtons) {
+  b.addEventListener("click", () => renderTeam(b.dataset.team));
+}
+
+renderTeam(DEFAULT_TEAM);

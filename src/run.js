@@ -8,13 +8,13 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
+import { collapseChains } from "./kit.js";
 import { State } from "./state.js";
 import { damage } from "./damage.js";
-import { collapseChains } from "./chain.js";
 import { buildReport, renderReport, explain } from "./display.js";
-import "./shared.js";
+import { AUTO_TUNE_BREAK } from "./shared.js";
 import { LOADOUT, ROTATION } from "./resonators/jingran.js";
-import { COUNT_FUSION } from "./stats.js";
+import { FUSION } from "./stats.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const dataFile = (n) => JSON.parse(readFileSync(join(HERE, "..", "data", n), "utf8"));
@@ -28,6 +28,8 @@ export function runJingran(rotation = ROTATION) {
     level: cfg.resonatorLevel,
     enemyLevel: cfg.enemyLevel,
     res: cfg.defaultRes * 100,
+    // the engine's own standing rules, ahead of anything a build equips
+    buffs: [AUTO_TUNE_BREAK],
   });
   state.config.maxOfftune = cfg.maxOfftune;
   state.startFight({ Jingran: LOADOUT });
@@ -58,9 +60,11 @@ function main() {
     }
   }
 
-  console.log(`\nteam: fusion count ${state.counter(COUNT_FUSION)} · `
-    + `buffs held ${state.slots[0].list.size}`);
-  if (state.log.length) console.log(`\nlog:\n  ${state.log.join("\n  ")}`);
+  const fusionCount = state.slots.filter((s) => s.resonator?.element === FUSION).length;
+  console.log(`\nteam: fusion count ${fusionCount} · buffs held ${state.slots[0].list.size}`);
+  if (state.log.length) {
+    console.log(`\nbuff log (${state.log.length} events):\n  ${state.log.join("\n  ")}`);
+  }
 }
 
 if (import.meta.url === `file:///${process.argv[1]?.replace(/\\/g, "/")}`) main();

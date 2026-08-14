@@ -45,6 +45,10 @@
      the cell's own horizontal padding — the terminal spelling of the report has no padding to
      pay for, so the character count alone clips here. */
   --cw: 7.7px;
+  /* The same figure for the columns set in the proportional UI font — action and tags. Its
+     average character is narrower than a monospace digit, so sizing those tracks with --cw
+     padded them out and left a gap in front of the first number. */
+  --cwt: 6.7px;
   --cpad: 4px;
   /* Extra breathing room on the leading column only, so the action name is not flush against
      the table edge. index.js adds it to that column's track width too — the two must agree. */
@@ -82,6 +86,30 @@ body {
   min-height: 0;
   flex: 1;
 }
+
+/* ---------------------------------------------------------------- team switch */
+
+.teamswitch {
+  flex: none;                       /* same reason as .top: it never scrolls away */
+  display: flex;
+  gap: 8px;
+  padding: 14px 26px 0;
+}
+.teambtn {
+  padding: 7px 16px;
+  border: 1px solid var(--line-2);
+  border-radius: 100px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.teambtn:hover { background: var(--surface-2); color: var(--ink); }
+.teambtn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.teambtn:disabled { opacity: .5; cursor: default; }
 
 /* ------------------------------------------------------------------- loading */
 
@@ -215,7 +243,6 @@ main {
 .gridwrap {
   margin-top: 22px;
   background: var(--surface);
-  border-radius: var(--r);
   box-shadow: var(--sh-2);
   width: max-content;
   min-width: 100%;
@@ -240,6 +267,11 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 
 .c {
   padding: 7px 2px;
+  /* Explicit and whole. Inherited `line-height: 1.5` is a ratio, so each cell sized itself off
+     its own font — 19.5px in the sans columns, 18px in the mono ones, 15px in the header — and
+     a row ended up 33.5px tall while the header ended up 33px. Fractional, mismatched row
+     heights are what left the header short of the body and put hairlines between rows. */
+  line-height: 18px;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -285,10 +317,8 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
   font-family: var(--sans);
   background: var(--surface-3);
 }
-/* the two leading cells pin on both axes, so they outrank either sticky alone */
+/* the leading cell pins on both axes, so it outranks either sticky alone */
 .head .c.stick { z-index: 41; }
-.head .c:first-child { border-top-left-radius: var(--r); }
-.head .c:last-child  { border-top-right-radius: var(--r); }
 
 /* body rows. Always positioned, so the hidden expand checkbox has something to anchor to;
    raised on hover so a source panel opening downward is not painted under the next row. */
@@ -343,18 +373,6 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 .parts .c { padding-top: 4px; padding-bottom: 4px; }
 .parts .name { padding-left: calc(var(--lead) + 18px); }
 .parts .best { color: var(--amber); }
-
-.tag {
-  margin-left: 6px;
-  padding: 0 5px;
-  border: 1px solid var(--line-2);
-  border-radius: 3px;
-  font-size: 9.5px;
-  text-transform: uppercase;
-  letter-spacing: .4px;
-  color: var(--faint);
-  vertical-align: 1px;
-}
 
 /* ------------------------------------------------------- hover source panels */
 
@@ -426,6 +444,18 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
   border-color: var(--accent);
   user-select: text;
 }
+
+/* The hover on an action's own name: what it scales off, its element, its damage type — one
+ * word a row, in the same table shell as the other panels, just one column and no total. */
+.pop.info { min-width: 0; padding: 8px 14px; }
+.pop.info td {
+  padding: 3px 0;
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: .4px;
+  color: var(--ink);
+}
+.pop.info tr + tr td { border-top: 1px dotted var(--line-2); }
 
 /* -------------------------------------------------------------- event log */
 

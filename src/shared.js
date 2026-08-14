@@ -2,34 +2,90 @@
  * Actions and gear that are not tied to one resonator. Anything only a single resonator can
  * use belongs in that resonator's file instead.
  */
-import { defineAction, defineGear, PRIORITY } from "./registry.js";
-import { add, get } from "./state.js";
+import { Action, Buff, Gear, PRIORITY } from "./kit.js";
+import { add, action, config, queue, teamCounter, setTeamCounter } from "./state.js";
 import {
-  SPECIAL_AMP, TBB, CRIT_RATE, CRIT_DMG, ER, DMG_BONUS,
+  OFFTUNE, CRIT_RATE, CRIT_DMG, ER, DMG_BONUS,
   BONUS_ATK, BONUS_HP, BONUS_DEF, FLAT_ATK, FLAT_HP, FLAT_DEF,
   scopedStat, splitStat,
   PHYSICAL, BREAK, BASIC, HEAVY, SKILL, LIB,
   GLACIO, FUSION, ELECTRO, AERO, SPECTRO, HAVOC,
 } from "./stats.js";
 
+/*
+ * Off-tune is one bar the whole team fills, and nobody presses tune break — it goes off the
+ * moment the bar is full. That used to be a special case inside `State.evaluate`; it is an
+ * ordinary buff and an ordinary action now, so the engine has no idea tune break exists.
+ *
+ * The two halves:
+ *   AUTO_TUNE_BREAK   a buff that watches the bar and queues the cast
+ *   TUNE_BREAK_CAST   the cast, which empties the bar
+ */
+
+/**
+ * The bar resets to -3 rather than 0: for about three seconds afterwards nothing can build
+ * off-tune at all, and the actions inside that window would otherwise be free progress toward
+ * the next break.
+ */
+const OFFTUNE_AFTER_BREAK = -3;
+
 /**
  * Off-tune break. Scales off the tune constant rather than a stat, and bypasses crit.
  *
- * Its body converts tune break boost one for one into special amplification, and runs at
- * LATE_CONVERSION: it reads the whole team's break boost after every other buff has contributed —
- * including any conversion that grants break boost itself. Special amp is also the only
- * multiplier tune damage still receives, since the ordinary damage bonus and amplification are
- * both gated off for tune, so this conversion is the entire point of TBB.
+ * Tune break boost is a term of the damage formula itself (see `tbbFactor` in damage.js),
+ * applied to anything with tune scaling. It used to be converted into special amplification by
+ * a body on this action, which meant the one multiplier tune damage receives lived in a kit
+ * file rather than in the formula that uses it.
+ *
+ * Emptying the bar is the cast's own doing, so it happens here rather than in whatever action
+ * happened to fill it — which also puts the drop on this row's own off-tune trace.
  */
-export const AUTO_TUNE_BREAK = defineAction("Auto Tune Break", {
+export const TUNE_BREAK_CAST = new Action("Auto Tune Break", {
   source: "Tune Break",
   element: PHYSICAL,
   scaling: "tune",
   type: BREAK,
   mv: 1600,
-  priority: PRIORITY.LATE_CONVERSION,
-  apply() { add(get(TBB), SPECIAL_AMP); },
+  priority: PRIORITY.UPDATE_BUFFS,
+  apply() { setTeamCounter(OFFTUNE, OFFTUNE_AFTER_BREAK); },
 });
+
+/**
+ * The watcher. Seed it onto a State (`new State({ buffs: [AUTO_TUNE_BREAK] })`) and the bar
+ * takes care of itself; without it, off-tune simply accumulates and nothing ever breaks.
+ *
+ * AUTO_ACTION: the bar has to be read after everything that could have added to it this action,
+ * which will include a stat that boosts off-tune buildup once one exists. That stat is a
+ * conversion, so the reading has to come after even the conversions.
+ *
+ * It only queues. The cast that follows is what empties the bar, so the action that filled it
+ * still reports the full bar it earned rather than the aftermath.
+ */
+export const AUTO_TUNE_BREAK = new Buff("Auto Tune Break", PRIORITY.AUTO_ACTION, () => {
+  const max = config().maxOfftune;
+  // The cast never triggers itself — by the time this runs on it the bar is already emptied,
+  // so this is belt and braces rather than the thing holding the recursion back.
+  if (!max || action() === TUNE_BREAK_CAST) return;
+  if (teamCounter(OFFTUNE) >= max) queue(TUNE_BREAK_CAST);
+});
+
+/**
+ * Who a tune break's own row is attributed to for display — grouping and coloring, never the
+ * numbers behind it. It fires on whoever is active when the bar fills and is evaluated on their
+ * slot, so it already uses their stats; but it is the team's shared bar going off, not something
+ * that resonator chose to cast, so crediting it to them would misattribute it. `attributeMisc`
+ * relabels the snapshot's `slot` after the fact — display.js and index.js only ever read that
+ * field to decide grouping and colour, never to compute a number, so nothing about how the row
+ * was evaluated changes.
+ */
+export const MISC = "Misc";
+
+/** Call once, right after a rotation is run, before the snapshot reaches anything that groups
+ *  or colours by `.slot`. Returns the same snapshot for easy chaining into a `.map()`. */
+export const attributeMisc = (snap) => {
+  if (snap.action === TUNE_BREAK_CAST) snap.slot = MISC;
+  return snap;
+};
 
 /* ========================================================== echo main stats */
 /**
@@ -48,11 +104,10 @@ export const AUTO_TUNE_BREAK = defineAction("Auto Tune Break", {
  * Healing bonus is the one legal 4-cost main stat left out — this calculator ignores healing.
  */
 /**
- * The shorthand a build is written in — `"43311 CD aero aero atk atk"` — is its **own**
- * vocabulary, spelled out here as plain strings rather than borrowed from the engine's tag
- * constants. These strings end up inside every generated gear name, and a loadout refers to
- * that name, so tying them to a constant means renaming the constant silently renames every
- * build and orphans the loadouts pointing at it. Only the *values* speak the engine's language.
+ * The shorthand a build is written in — `mainstats("CD", "aero aero", "atk atk")` — is its
+ * **own** vocabulary, spelled out here as plain strings rather than borrowed from the engine's
+ * tag constants: it is what somebody types to describe a build, and it should not move when an
+ * internal stat key is renamed. Only the *values* speak the engine's language.
  */
 const ELEMENTS = ["glacio", "fusion", "electro", "aero", "spectro", "havoc"];
 
@@ -81,10 +136,13 @@ const SLOTS = 5, COST_CAP = 12;
  * space-separated list in the shorthand `MAIN` above uses. `mainstats("CR CD", "", "atk atk
  * atk")` is the 44111 double-crit build.
  *
- * The name it gets — and returns, so a loadout can name it — leads with the cost layout, as
- * the sheet's own `44111 hp` did. That is not decoration: ATK, HP and DEF are legal main stats
- * at both cost 4 and cost 3, so "ATK ATK atk atk atk" alone could be either a 43111 or a 44111
- * and the two are different builds.
+ * Returns the `Gear`, which is what a loadout holds. The **name** it carries is for display and
+ * leads with the cost layout, as the sheet's own `44111 hp` did. That is not decoration: ATK, HP
+ * and DEF are legal main stats at both cost 4 and cost 3, so "ATK ATK atk atk atk" alone could be
+ * either a 43111 or a 44111 and the two are different builds.
+ *
+ * Calling this twice with the same arguments yields two equivalent but distinct objects. That is
+ * harmless — they are interchangeable — and `startFight()` rejects a loadout that equips both.
  */
 export function mainstats(c4 = "", c3 = "", c1 = "") {
   const slots = [[4, c4], [3, c3], [1, c1]].flatMap(([cost, spec]) =>
@@ -117,12 +175,10 @@ export function mainstats(c4 = "", c3 = "", c1 = "") {
   const entries = [...totals.values()];
   const layout = slots.map(([c]) => c).join("");
   const name = `${layout} ${slots.map(([, key]) => key).join(" ")}`;
-  return defineGear(name, {
-    apply() {
-      for (const { stat, tag, value } of entries) {
-        if (tag) add(value, tag, stat); else add(value, stat);
-      }
-    },
+  return new Gear(name, () => {
+    for (const { stat, tag, value } of entries) {
+      if (tag) add(value, tag, stat); else add(value, stat);
+    }
   });
 }
 
@@ -149,25 +205,33 @@ const pairsOf = (keys) => keys.flatMap((a, i) => keys.slice(i).map((b) => `${a} 
 const elements = (spec) =>
   spec.includes("ele") ? ELEMENTS.map((e) => spec.replaceAll("ele", e)) : [spec];
 
+/**
+ * Every build worth comparing, as a flat list. A loadout does not read this — it calls
+ * `mainstats(...)` for the one build it runs — so this exists purely to be swept over when
+ * something wants to rank builds against each other.
+ */
+export const ALL_MAINSTATS = [];
+const build = (...args) => { ALL_MAINSTATS.push(mainstats(...args)); };
+
 /** 43311 and 43111 — the layouts that spend the full cost budget. */
 for (const c4 of C4_KEYS) {
   for (const pair of pairsOf(C3_KEYS)) {
-    for (const c3 of elements(pair)) for (const c1 of ones(2)) mainstats(c4, c3, c1);
+    for (const c3 of elements(pair)) for (const c1 of ones(2)) build(c4, c3, c1);
   }
   for (const key of C3_KEYS) {
-    for (const c3 of elements(key)) for (const c1 of ones(3)) mainstats(c4, c3, c1);
+    for (const c3 of elements(key)) for (const c1 of ones(3)) build(c4, c3, c1);
   }
 }
 
 /** 44111 — two 4-costs and three 1-costs, eleven of the twelve cost. */
-for (const c4 of pairsOf(C4_KEYS)) for (const c1 of ones(3)) mainstats(c4, "", c1);
+for (const c4 of pairsOf(C4_KEYS)) for (const c1 of ones(3)) build(c4, "", c1);
 
 /** 41111 and 11111 — the cheap end, where a stat stick 4-cost earns its slot. */
-for (const c4 of C4_KEYS) for (const c1 of ones(4)) mainstats(c4, "", c1);
-for (const c1 of ones(SLOTS)) mainstats("", "", c1);
+for (const c4 of C4_KEYS) for (const c1 of ones(4)) build(c4, "", c1);
+for (const c1 of ones(SLOTS)) build("", "", c1);
 
 /** DEF scaling, which nobody on the current team uses — kept short until somebody does. */
-for (const c4 of ["CR", "CD", "DEF"]) mainstats(c4, "ER ER", "def def");
+for (const c4 of ["CR", "CD", "DEF"]) build(c4, "ER ER", "def def");
 
 /* =========================================================== echo substats */
 /**
@@ -212,12 +276,10 @@ export function substats(name, counts) {
     if (!(stat in ROLL)) throw new Error(`substats("${name}"): nothing rolls "${key}"`);
     return { stat, tag, value: ROLL[stat] * n };
   });
-  return defineGear(name, {
-    apply() {
-      for (const { stat, tag, value } of entries) {
-        if (tag) add(value, tag, stat); else add(value, stat);
-      }
-    },
+  return new Gear(name, () => {
+    for (const { stat, tag, value } of entries) {
+      if (tag) add(value, tag, stat); else add(value, stat);
+    }
   });
 }
 
@@ -247,9 +309,11 @@ export function chem(scaler, type, { er = false } = {}) {
   return substats(`Chem Substats:${er ? " ER" : ""} ${scaler} ${type}`, counts);
 }
 
+/** The same catalogue for substats — see ALL_MAINSTATS above. */
+export const ALL_SUBSTATS = [];
 for (const scaler of ["atk", "hp"]) {
   for (const type of TYPES) {
-    chem(scaler, type);
-    chem(scaler, type, { er: true });
+    ALL_SUBSTATS.push(chem(scaler, type));
+    ALL_SUBSTATS.push(chem(scaler, type, { er: true }));
   }
 }

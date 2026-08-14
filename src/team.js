@@ -11,21 +11,22 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
+import { collapseChains } from "./kit.js";
 import { State } from "./state.js";
 import { damage } from "./damage.js";
-import { collapseChains } from "./chain.js";
 import { buildReport, renderReport, explain, totalsBySlot } from "./display.js";
-import "./shared.js";
+import { AUTO_TUNE_BREAK, attributeMisc } from "./shared.js";
 
-import * as SK from "./resonators/shorekeeper.js";
+import * as LP from "./resonators/lupa.js";
 import * as IO from "./resonators/iuno.js";
 import * as JR from "./resonators/jingran.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const dataFile = (n) => JSON.parse(readFileSync(join(HERE, "..", "data", n), "utf8"));
 
+// Lupa standing in for Shorekeeper, to test her kit against the rest of a real team.
 const MEMBERS = [
-  { name: "Shorekeeper", loadout: SK.LOADOUT, rotation: SK.ROTATION },
+  { name: "Lupa", loadout: LP.LOADOUT, rotation: LP.ROTATION },
   { name: "Iuno", loadout: IO.LOADOUT, rotation: IO.ROTATION },
   { name: "Jingran", loadout: JR.LOADOUT, rotation: JR.ROTATION },
 ];
@@ -39,6 +40,8 @@ export function runTeam() {
     level: cfg.resonatorLevel,
     enemyLevel: cfg.enemyLevel,
     res: cfg.defaultRes * 100,
+    // the engine's own standing rules, ahead of anything a build equips
+    buffs: [AUTO_TUNE_BREAK],
   });
   state.config.maxOfftune = cfg.maxOfftune;
   state.startFight(Object.fromEntries(MEMBERS.map((m) => [m.name, m.loadout])));
@@ -48,7 +51,7 @@ export function runTeam() {
   // stripped, since with three resonators in one table the prefix is what tells them apart.
   const lines = MEMBERS.flatMap((m) => {
     const rows = state.run(m.rotation)
-      .map((s) => ({ snap: s, dmg: damage(s, state.config, levels) }));
+      .map((s) => ({ snap: attributeMisc(s), dmg: damage(s, state.config, levels) }));
     return collapseChains(rows);
   });
 
@@ -79,11 +82,13 @@ function main() {
     console.log(`${name.padEnd(14)}${fmt(total).padStart(14)}`);
   }
   console.log(`${"team total".padEnd(14)}${fmt(report.total).padStart(14)}`);
-  console.log(`\nnotable handoffs:`);
-  for (const line of state.log) {
-    if (["granted", "published", "adopted", "lost"].some((w) => line.includes(w))) {
-      console.log(`  ${line}`);
-    }
+  // Every buff event, in order: gained, stacked, spent, lost. Behind `--log` because it is
+  // long — the interesting handoffs are in there, but so is every stack of Ghost Shroud.
+  if (process.argv.includes("--log")) {
+    console.log(`\nbuff log (${state.log.length} events):`);
+    for (const line of state.log) console.log(`  ${line}`);
+  } else {
+    console.log(`\nbuff log: ${state.log.length} events — rerun with --log to list them`);
   }
 }
 

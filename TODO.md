@@ -1,27 +1,19 @@
-
-change the auto tune break into a buff?
-
-add additive MV
-
-make concerto, energy, offtune hover breakdowns
-maybe add element + type tags to all events?
-
+# naming
 add correct buff name to jingran heavy attack mv
+update all action names to use the full names, only use shorthand for the const name in the code
 
-make TBB conversion built into the dmg formula
-remove the need for special amp just handle it internally
+# echo action based on mainslot and summon/transform
 
-update all action names to use the ingame names
+# chains
+clean up chain system
 
-make all buffs and gear objects, stop using string constants everywhere to reference and add them
-this removes the need for a "registry"
+# sub and mainstats
+add iteration over all combos of substats and mainstats
+also maybe define combos of sonatas + 2pc + mainslot?
 
-# global buff system
+# add a trigger and response system
+triggers: heavy/lib/basic/skill/intro/outro/echo cast, shield application
+response: allow gear to set up response handlers that add the actual buffs
 
-have buffs define and update "users" of the buff, while only ticking once
-need to think of how to fix duplicate names or 2 COV users
+remove the fake outro + echo nodes.
 
-# stacking
-make the buffs just straight up return their name?
-including whatever format they like for stack counts?
-figure out stack count and max stack count handling

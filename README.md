@@ -18,10 +18,9 @@ block module imports and `fetch()` on `file://` URLs.
 | file | role |
 | --- | --- |
 | `stats.js` | the stat vocabulary and its units |
-| `registry.js` | `defineBuff` / `defineAction`, and `PRIORITY` |
+| `kit.js` | the `Buff` / `Gear` / `Action` / `Chain` classes, `PRIORITY`, and chain collapsing |
 | `state.js` | `State`, `Slot`, the ambient namespace, the per-action pipeline |
 | `damage.js` | the damage formula, transcribed from `Calculator!BY:CI` |
-| `chain.js` | collapsing chain results for display |
 | `display.js` | the action table: stats and resources snapshotted at each step |
 | `test.js` | the whole suite |
 | `shared.js` | gear and actions not tied to one resonator |
@@ -54,13 +53,17 @@ start of the fight. That is why all three delivery mechanisms below can talk abo
 buff to a resonator's list".
 
 ```js
-defineBuff("Myriad Snare", {
+export const MYRIAD_SNARE = new Gear("Myriad Snare", {
   apply() {
     add(12, "fusion", DMG_BONUS);
     add(12, "heavy", DMG_BONUS);
   },
 });
 ```
+
+Every definition **is** an object, and everything else holds that object rather than its name:
+a loadout is an array of `Gear`, a rotation an array of `Action`, and `grantTeam(MYRIAD_SNARE)`
+takes the buff itself. Names survive only for display, so two buffs may share one.
 
 Functions use the **ambient namespace** — `add`, `get`, `hp()`, `counter()` — rather than
 threading `state` through every call.
@@ -106,12 +109,13 @@ the gear that scales on it and the gear reads the value this action produced. It
 special stage.
 
 ```js
-defineBuff("Jingran: Earth Charm", {
-  apply() { if (onField()) gainTeam(SHIELDS, 1); },
+const EARTH_CHARM = new Buff("Jingran: Earth Charm", {
+  priority: PRIORITY.BUFF_STATS,
+  apply() { /* … */ },
 });
 
-// an action opens it, via a buff of its own
-defineBuff("Jingran: open Earth Charm", { apply() { grantSelf(EARTH_CHARM); } });
+// an action opens it, from its own apply()
+apply() { grantSelf(EARTH_CHARM); }
 ```
 
 Prefer deriving a state from a gauge over holding a separate flag — `counter(MINGFIRE) > 0`
@@ -126,7 +130,7 @@ plus an exported function is the pattern; keep the buff list itself untouched.
 
 ### Reaching another resonator
 
-`slotsWith(buffName)` finds every slot holding a buff, which is how one resonator's code
+`slotsWith(buff)` finds every slot holding a buff, which is how one resonator's code
 addresses another's. Export a named function rather than making callers poke at counters —
 this is how Iuno's shielding feeds Jingran's Ghost Shroud instead of the sheet's flat guess:
 
@@ -141,21 +145,27 @@ import { allyGainedShield } from "./jingran.js";
 apply() { allyGainedShield(); }
 ```
 
-### The four stages
+### The five stages
 
-A buff that only *adds* a stat can stay at `STATS` — sums do not care about order. A buff
+A buff that only *adds* a stat can stay at `BUFF_STATS` — sums do not care about order. A buff
 that *reads* a summed one has to run after everything that feeds it, and that is what the
-conversion stages are for. `registry.js` carries the full list; in short:
+conversion stages are for. There is **no default**: every buff and every action body states its
+own. `kit.js` carries the full list; in short:
 
 | stage | for | example |
 | --- | --- | --- |
 | `UPDATE_BUFFS` | what the cast itself does, before anything reacts to it | Jingran's intro spending Ghost Shroud |
-| `STATS` | stats, states, gauges — nearly everything | gear, passives |
+| `GEAR_STATS` | every gear entry, always — the unbuffed stat line | weapons, echoes, sonatas |
+| `BUFF_STATS` | a buff that is nothing but `add()` calls | a stacking buff's payout, a team aura |
 | `EARLY_CONVERSION` | conversions reading a summed total | Jingran HP → ATK; Shorekeeper ER → team crit |
 | `LATE_CONVERSION` | conversions reading what an earlier one produced, and aggregations | Tune Break's break boost → special amp |
 
+The pass re-reads the buff list at each stage, so a buff *created* by an earlier stage still runs
+in its own — nothing has to be pre-seeded at zero stacks. Only the reverse fails: a buff added at
+a stage already gone by waits for the next action.
+
 ```js
-defineBuff("Jingran: HP conversion", {
+const HP_TO_ATK = new Buff("Jingran: HP conversion", {
   priority: PRIORITY.EARLY_CONVERSION,
   apply() {
     if (!onField()) return;
@@ -232,8 +242,7 @@ each still evaluated on its own with its own snapshot and its own damage — the
 changes how the result reads.
 
 ```js
-defineChain("Jingran: BA1234",
-  ["Jingran: BA1", "Jingran: BA2", "Jingran: BA3", "Jingran: BA4"]);
+export const BA1234 = new Chain("Jingran: BA1234", [BA1, BA2, BA3, BA4]);
 
 const lines = collapseChains(rows);   // rows are [{ snap, dmg }]
 ```
@@ -246,7 +255,7 @@ and the hardest part is used. Follow-ups queued mid-chain stay out of the group.
 ## Actions
 
 ```js
-defineAction("Jingran: FHA", {
+const FHA = new Action("Jingran: FHA", {
   node: "forte", element: "fusion", type: "heavy", scaling: "atk",
   mv: 307.34,
   energy: 10.53, concerto: 13, offtune: 1.014,
@@ -270,7 +279,7 @@ as an event — "upon gaining a Shield, gain 1 stack, up to N" — so that is wh
 buffs that care read it back off the action:
 
 ```js
-defineGear(LAMP_5PC, {
+export const LAMP_5PC = new Gear("Lamp of Nether Road 5pc", {
   apply() { if (action().shields) addStack(LAMP_STACKS, 1, LAMP_MAX); },
 });
 ```
@@ -344,8 +353,8 @@ and `CRIT_RATE`, in percent units and rebuilt from the buff list every action.
 A **static team property** belongs in `onFightStart()`, not `apply()`:
 
 ```js
-defineBuff("Jingran", {
-  onFightStart() { gainTeam(COUNT_FUSION, 1); },   // once
+export const JINGRAN = new Gear("Jingran", {
+  onFightStart() { gainTeam(COUNT_FUSION, 1); },   // once, and only gear gets this hook
   apply() { /* … */ },                             // every action
 });
 ```
@@ -364,12 +373,13 @@ by then `get(ER)` would read theirs. It runs `LATE` on her, banks the result in 
 counter, and her outro publishes a buff that simply reads it back:
 
 ```js
-defineBuff(STELLAREALM, {                 // on her, LATE: reads her summed ER
+const STELLAREALM = new Buff("…: Stellarealm", {   // on her: reads her summed ER
   priority: PRIORITY.EARLY_CONVERSION,
   apply() { setTeamCounter(REALM_CR, Math.min(12.5, get(ER) * 0.05)); },
 });
 
-defineBuff(REALM_HANDOFF, {               // what the next resonator holds
+const REALM_HANDOFF = new Buff("…: handoff", {     // what the next resonator holds
+  priority: PRIORITY.BUFF_STATS,
   apply() { add(teamCounter(REALM_CR), CRIT_RATE); },
 });
 
@@ -390,8 +400,7 @@ others in `shared.js`.
 Start from the innate line every resonator has, then their own stats:
 
 ```js
-defineBuff("Name", {
-  category: "Resonator",
+export const NAME = new Gear("Name", {
   onFightStart() { gainTeam(COUNT_FUSION, 1); },
   apply() {
     add(100, ER); add(5, CRIT_RATE); add(150, CRIT_DMG);   // innate

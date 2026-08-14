@@ -38,8 +38,21 @@ export const CRIT_DMG  = "critDmg";
 export const ER        = "er";    // energy regen
 export const TBB       = "tbb";   // tune break boost
 
-export const MV      = "mv";        // multiplier on the action's motion value
-export const MV_BASE = "mvBase";    // second, independent motion-value multiplier
+/*
+ * Motion value, in three parts:
+ *
+ *     (base mv + ADD_MV) x (1 + MUL_MV) x (1 + SPECIAL_MV)
+ *
+ * ADD_MV is in the same units as the action's own `mv` — percent — and lands inside the
+ * parentheses, so a kit that says "adds 21.10% motion value per 1000 Max HP" says exactly that
+ * instead of dividing through by the action's own value to fake it as a multiplier.
+ *
+ * MUL_MV and SPECIAL_MV are independent multipliers, so two sources never compound into each
+ * other the way a single stacked one would.
+ */
+export const ADD_MV     = "addMv";
+export const MUL_MV     = "mulMv";
+export const SPECIAL_MV = "specialMv";
 
 /*
  * Shields are not a stat. An action says how many it grants with its own `shields` field, and
@@ -132,7 +145,8 @@ export const TAGS_MATCHED = ["element", "type"];
 
 /** Ratio stats, held in percent units. Everything else is a flat amount or a count. */
 export const PERCENT_STATS = new Set([
-  BONUS_ATK, BONUS_HP, BONUS_DEF, CRIT_RATE, CRIT_DMG, ER, TBB, MV, MV_BASE,
+  BONUS_ATK, BONUS_HP, BONUS_DEF, CRIT_RATE, CRIT_DMG, ER, TBB,
+  ADD_MV, MUL_MV, SPECIAL_MV,
   DMG_BONUS, AMP, SPECIAL_AMP, DMG_DEALT,
   RES_IGNORE, RES_SHRED, DEF_IGNORE, DEF_SHRED, DEF_REDUCE,
 ]);
@@ -155,7 +169,8 @@ const STAT_NAMES = {
   [BONUS_ATK]: "ATK%", [BONUS_HP]: "HP%", [BONUS_DEF]: "DEF%",
   [CRIT_RATE]: "Crit Rate", [CRIT_DMG]: "Crit Dmg",
   [ER]: "Energy Regen", [TBB]: "Tune Break Boost",
-  [MV]: "Motion Value Bonus", [MV_BASE]: "Motion Value Bonus 2",
+  [ADD_MV]: "additional MV",
+  [MUL_MV]: "MV multiplier", [SPECIAL_MV]: "Special MV multiplier",
   [DMG_BONUS]: "Dmg Bonus", [AMP]: "Amplification",
   [SPECIAL_AMP]: "Special Amp", [DMG_DEALT]: "Dmg Dealt",
   [RES_IGNORE]: "Res Ignore", [RES_SHRED]: "Res Shred",
@@ -181,13 +196,13 @@ export function statLabel(stat) {
  * Counters persist across actions rather than being rebuilt from the buff list each time,
  * which is what separates them from the stats above.
  *
- * Team-wide ones live on `State.counters` and are read with `teamCounter()`. Some are static
- * team properties contributed once in `onFightStart()` (fusion count); others are live
- * resources any action can move (shield count, break bar).
- *
- * Per-resonator resources live on `Slot.counters` and are read with `counter()`.
+ * Each one is a real, hardcoded field on `Slot` (energy, concerto, forte1-4) or `State`
+ * (off-tune, the one team-wide bar) — not a map a kit could add a new entry to by typo. The
+ * string constants below are what `counter()`/`setCounter()` accept; anything else throws.
+ * Static team composition (how many resonators are a given element, say) is not a counter at
+ * all: it is read straight off each slot's own resonator Gear via `teamElements()` in
+ * state.js, so nothing has to remember to keep a count in sync as the team changes.
  */
-export const COUNT_FUSION = "countFusion";   // team-wide, set at fight start
 
 /** Off-tune is a property of the fight, not of a resonator: the whole team fills one bar. */
 export const OFFTUNE  = "offtune";           // team-wide running total
