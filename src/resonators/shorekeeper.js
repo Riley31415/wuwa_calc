@@ -15,41 +15,20 @@
  */
 import { Buff, Gear, Action, Chain, PRIORITY } from "../kit.js";
 import {
-  add, counter, setCounter, action, isOutro, nextSlot,
-  grantTeam, grantOthers, revokeTeam, grantSelf, revoke, gain,
+  add, counter, setCounter, action, isOutro, isLiberation, nextSlot,
+  grantTeam, grantOthers, revokeTeam, grantSelf, revoke, gain, slotsWith, stacksOf,
 } from "../state.js";
 import {
   BASE_ATK, BASE_HP, BONUS_HP, BONUS_ATK, CRIT_RATE, CRIT_DMG, ER, AMP,
   CONCERTO, FORTE1,
-  SPECTRO, BASIC, HEAVY, SKILL, LIB, OUTRO, ECHO, NORMAL, FORTE, INTRO,
+  SPECTRO, BASIC, HEAVY, SKILL, LIB, OUTRO, ECHO, INTRO, NORMAL, FORTE,
   SCALE_HP,
 } from "../stats.js";
 import { mainstats, chem } from "../shared.js";
 
-/** Empirical Data lives in her forte gauge, 0 to 5 segments. */
-const DATA_MAX = 5;
-
-/** Inner Stellarealm: 0.01% crit rate per 0.2% ER. Supernal: 0.01% crit damage per 0.1%. */
-const CR_PER_ER = 0.01 / 0.2, CR_CAP = 12.5;
-const CD_PER_ER = 0.01 / 0.1, CD_CAP = 25;
-
-/**
- * The realm's payout. Her energy regen is taken as a flat 250%, which is what a real build
- * lands on and exactly where both caps bite — 250 × 0.05 = 12.5, 250 × 0.1 = 25 — so this is
- * the same pair of numbers the spreadsheet hardcoded.
- *
- * Reading her live total across the team is possible (`statOf`) but is not worth re-running
- * her whole buff list on every action of everyone else's rotation.
- */
-const ASSUMED_ER = 250;
-const REALM_CR = Math.min(CR_CAP, ASSUMED_ER * CR_PER_ER);
-const REALM_CD = Math.min(CD_CAP, ASSUMED_ER * CD_PER_ER);
-
-export const GAUGES = [{ key: FORTE1, label: "data" }];
-
 /* --------------------------------------------------------------- resonator */
 
-export const SHOREKEEPER = new Gear("Shorekeeper", () => {
+export const SHOREKEEPER = new Gear(() => {
   // the innate line every resonator carries
   add(100, ER);
   add(5, CRIT_RATE);
@@ -59,51 +38,46 @@ export const SHOREKEEPER = new Gear("Shorekeeper", () => {
   add(287.5, BASE_ATK);
   add(12, BONUS_HP);
   add(10, ER);          // Self Gravitation, while the field is inside a Stellarealm
+  return "Shorekeeper";
 }, null, SPECTRO);
 
-export const SK_OUTRO = new Buff("Shorekeeper: Outro", PRIORITY.BUFF_STATS, () => { add(15, AMP); });
+export const SK_OUTRO = new Buff(PRIORITY.BUFF_STATS,
+  () => { add(15, AMP); return "Shorekeeper: Outro"; });
 
-/* ------------------------------------------------------------------- realm */
-/*
- * Her liberation puts the blue realm on the team. Each outro after that advances it, because
- * the realm evolves when somebody intros into it and an outro is always followed by an intro:
+/**
+ * The realm, as one buff whose stack count *is* the stage:
  *
- *   blue   -> purple  on the next outro. Purple pays crit rate.
- *   purple -> gold    on the outro after. Gold pays crit rate and crit damage.
+ *   1  Outer      heals only, pays no stat — it is just waiting to evolve
+ *   2  Inner      crit rate
+ *   3  Supernal   crit rate and crit damage
  *
- * The realm ends when the field is handed back to *her* — the outro that swaps her in, not her
- * own intro afterwards — and that outro gets nothing from it, so each colour checks for the
- * handover before paying anything out.
- *
- * Each colour is granted to every slot, so whoever is on the field is standing in it.
+ * One buff means one `apply()` per action, so it cannot take two steps on one cast however the
+ * engine schedules things — which a chain of three buffs granting each other could, and did.
  */
-
-/** True on the outro that is swapping Shorekeeper in: the moment her realm ends. */
-const swappingHerIn = () => isOutro(action()) && nextSlot().hasBuff(SHOREKEEPER);
-
-export const SK_BLUE_REALM = new Buff("Shorekeeper: Outer Stellarealm", PRIORITY.UPDATE_BUFFS, () => {
-  // the outer realm only heals, so it pays no stat — it just waits to evolve
-  if (swappingHerIn()) return void revokeTeam(SK_BLUE_REALM);
-  if (isOutro(action())) {
-    revokeTeam(SK_BLUE_REALM);
-    grantTeam(SK_PURPLE_REALM);
+export const SK_REALM = new Buff(PRIORITY.BUFF_STATS, () => {
+  // handing the field back to her ends the realm, and that outro gets nothing from it
+  if (isOutro(action()) && nextSlot().hasBuff(SHOREKEEPER)) {
+    revokeTeam(SK_REALM);
+    return "Shorekeeper: Stellarealm (ended)";
   }
-});
 
-export const SK_PURPLE_REALM = new Buff("Shorekeeper: Inner Stellarealm", PRIORITY.UPDATE_BUFFS, () => {
-  if (swappingHerIn()) return void revokeTeam(SK_PURPLE_REALM);
-  add(REALM_CR, CRIT_RATE);
+  // The realm evolves when somebody intros into it, and an outro is always followed by an intro
+  // — so it steps *before* paying out, and the outro that triggers the step is already standing
+  // in the realm it just became.
   if (isOutro(action())) {
-    revokeTeam(SK_PURPLE_REALM);
-    grantTeam(SK_GOLD_REALM);
+    for (const slot of slotsWith(SK_REALM)) {
+        slot.addStack(SK_REALM);
+    }
   }
-});
 
-export const SK_GOLD_REALM = new Buff("Shorekeeper: Supernal Stellarealm", PRIORITY.BUFF_STATS, () => {
-  if (swappingHerIn()) return void revokeTeam(SK_GOLD_REALM);
-  add(REALM_CR, CRIT_RATE);
-  add(REALM_CD, CRIT_DMG);
-});
+  const stage = stacksOf(SK_REALM);
+  // The kit gives these as rates off her own Energy Regen — 0.01% crit rate per 0.2% ER,
+  // 0.01% crit damage per 0.1% — each with a cap. A real build runs 250% ER, which is exactly
+  // where both caps bite, so she is assumed to sit there and the realm simply pays them out.
+  if (stage >= 2) add(12.5, CRIT_RATE);
+  if (stage >= 3) add(25, CRIT_DMG);
+  return `Shorekeeper: ${["Outer", "Inner", "Supernal"][stage - 1] ?? "no"} Stellarealm`;
+}, 3);
 
 /* ------------------------------------------------------------------ weapons */
 
@@ -111,14 +85,16 @@ export const SK_GOLD_REALM = new Buff("Shorekeeper: Supernal Stellarealm", PRIOR
  * Stellar Symphony, her signature: 12% HP to herself, 14% attack to the team, and concerto
  * back on any liberation. R1, the rank the sheet's numbers describe.
  */
-export const SK_SIG = new Gear("Stellar Symphony", () => {
+export const SK_SIG = new Gear(() => {
   add(412.5, BASE_ATK);
   add(77.04, ER);       // the level 90 energy regen substat
   add(12, BONUS_HP);
   grantTeam(SK_SIG_TEAM);
-  if (action().node === LIB) gain(CONCERTO, 8);
+  if (isLiberation(action())) gain(CONCERTO, 8);
+  return "Stellar Symphony";
 });
-export const SK_SIG_TEAM = new Buff("Stellar Symphony: Astral Evolvement", PRIORITY.BUFF_STATS, () => { add(14, BONUS_ATK); });
+export const SK_SIG_TEAM = new Buff(PRIORITY.BUFF_STATS,
+  () => { add(14, BONUS_ATK); return "Stellar Symphony: Astral Evolvement"; });
 
 /**
  * Variation, the four-star alternative.
@@ -131,33 +107,39 @@ export const SK_SIG_TEAM = new Buff("Stellar Symphony: Astral Evolvement", PRIOR
  * skill and swaps itself for the cooling half; the cooling half watches for a liberation and
  * swaps back. That stands in for "once every 20s" without the engine needing a clock.
  */
-export const VARIATION = new Gear("Variation R5", () => {
+export const VARIATION = new Gear(() => {
   add(337.5, BASE_ATK);
   add(51.84, ER);       // the level 90 energy regen substat
+  return "Variation R5";
 }, () => { grantSelf(VARIATION_READY); });
 
-export const VARIATION_READY = new Buff("Variation: Ceaseless Aria", PRIORITY.UPDATE_BUFFS, () => {
-  if (!/skill/i.test(action().id)) return;
-  gain(CONCERTO, 16);          // R5; R1 restores 8
-  revoke(VARIATION_READY);
-  grantSelf(VARIATION_COOLDOWN);
+export const VARIATION_READY = new Buff(PRIORITY.UPDATE_BUFFS, () => {
+  if (action().cast === SKILL) {
+    gain(CONCERTO, 16);          // R5; R1 restores 8
+    revoke(VARIATION_READY);
+    grantSelf(VARIATION_COOLDOWN);
+  }
+  return "Variation: Ceaseless Aria";
 });
 
-export const VARIATION_COOLDOWN = new Buff("Variation: Ceaseless Aria (cooldown)", PRIORITY.UPDATE_BUFFS, () => {
-  if (action().node !== LIB) return;
-  revoke(VARIATION_COOLDOWN);
-  grantSelf(VARIATION_READY);
+export const VARIATION_COOLDOWN = new Buff(PRIORITY.UPDATE_BUFFS, () => {
+  if (isLiberation(action())) {
+    revoke(VARIATION_COOLDOWN);
+    grantSelf(VARIATION_READY);
+  }
+  return "Variation: Ceaseless Aria (cooldown)";
 });
 
 /* -------------------------------------------------------------- echo, sonata */
 
-export const FALLACY = new Gear("Fallacy", () => {}); // buffs come from the action. maybe we link the echo action here?
-export const FALLACY_TEAM = new Buff("Fallacy", PRIORITY.BUFF_STATS, () => { add(10, BONUS_ATK); });
+export const FALLACY = new Gear(() => "Fallacy"); // buffs come from the action. maybe we link the echo action here?
+export const FALLACY_TEAM = new Buff(PRIORITY.BUFF_STATS,
+  () => { add(10, BONUS_ATK); return "Fallacy"; });
 
-/** The echo's cast. `node: "echo"` marks it as one even though it deals spectro echo damage. */
+/** The echo's cast. `cast: ECHO` marks it as one even though it deals spectro echo damage. */
 export const ACTION_FALLACY = new Action("Echo: Fallacy", {
   source: "Echo",
-  node: ECHO,
+  cast: ECHO,
   element: SPECTRO,
   scaling: SCALE_HP,
   type: ECHO,
@@ -170,11 +152,12 @@ export const ACTION_FALLACY = new Action("Echo: Fallacy", {
   },
 });
 
-export const REJUV_5PC = new Gear("Rejuvenating Glow 5pc", () => { grantTeam(REJUV_TEAM); });
-export const REJUV_TEAM = new Buff("Rejuvenating Glow", PRIORITY.BUFF_STATS, () => { add(15, BONUS_ATK); });
+export const REJUV_5PC = new Gear(() => { grantTeam(REJUV_TEAM); return "Rejuvenating Glow 5pc"; });
+export const REJUV_TEAM = new Buff(PRIORITY.BUFF_STATS,
+  () => { add(15, BONUS_ATK); return "Rejuvenating Glow"; });
 
 /** 2pc is a healing bonus, and this calculator ignores healing — so it contributes nothing. */
-export const REJUV_2PC = new Gear("Rejuvenating Glow 2pc", () => {});
+export const REJUV_2PC = new Gear(() => "Rejuvenating Glow 2pc");
 
 /**
  * Her echoes, from the sheet's `sk r1` build. No crit main stat and an ER-heavy substat
@@ -200,40 +183,40 @@ function skAction(name, def) {
 }
 
 // --- basics. Each stage banks Empirical Data in forte1; stage 3 is worth two.
-const BA1 = skAction("BA1", { node: NORMAL, type: BASIC, mv: 31.78, energy: 0.5, concerto: 1.6, offtune: 0.2664, forte1: 1 });
-const BA2 = skAction("BA2", { node: NORMAL, type: BASIC, mv: 47.72, energy: 0.76, concerto: 2.4, offtune: 0.4, forte1: 1 });
-const BA3 = skAction("BA3", { node: NORMAL, type: BASIC, mv: 69.96, energy: 1.12, concerto: 3.56, offtune: 0.599, forte1: 2 });
-const BA4 = skAction("BA4", { node: NORMAL, type: BASIC, mv: 72.72, energy: 1.15, concerto: 3.66, offtune: 0.6096, forte1: 1 });
-const MA = skAction("MA", { node: NORMAL, type: BASIC, mv: 73.96, energy: 1.55, concerto: 5, offtune: 0.496, forte1: 1 });
+const BA1 = skAction("Basic 1", { node: NORMAL, cast: BASIC, type: BASIC, mv: 31.78, energy: 0.5, concerto: 1.6, offtune: 0.2664, forte1: 1 });
+const BA2 = skAction("Basic 2", { node: NORMAL, cast: BASIC, type: BASIC, mv: 47.72, energy: 0.76, concerto: 2.4, offtune: 0.4, forte1: 1 });
+const BA3 = skAction("Basic 3", { node: NORMAL, cast: BASIC, type: BASIC, mv: 69.96, energy: 1.12, concerto: 3.56, offtune: 0.599, forte1: 2 });
+const BA4 = skAction("Basic 4", { node: NORMAL, cast: BASIC, type: BASIC, mv: 72.72, energy: 1.15, concerto: 3.66, offtune: 0.6096, forte1: 1 });
+const MA = skAction("Plunge", { node: NORMAL, cast: BASIC, type: BASIC, mv: 73.96, energy: 1.55, concerto: 5, offtune: 0.496, forte1: 1 });
 
 // --- skill, forte, liberation. The forte casts spend the whole gauge.
-const Skill = skAction("Skill", { node: SKILL, type: SKILL, mv: 156.55, energy: 10, concerto: 30, offtune: 0.525 });
-const FHA = skAction("FHA", { node: FORTE, type: HEAVY, mv: 281.3, energy: 4.95, concerto: 11, offtune: 0.636, forte1: -5 });
-const FMA = skAction("FMA", { node: FORTE, type: BASIC, mv: 260.41, energy: 4, concerto: 11, offtune: 0.496, forte1: -5 });
+const Skill = skAction("Skill", { node: SKILL, cast: SKILL, type: SKILL, mv: 156.55, energy: 10, concerto: 30, offtune: 0.525 });
+const FHA = skAction("Forte Heavy", { node: FORTE, cast: HEAVY, type: HEAVY, mv: 281.3, energy: 4.95, concerto: 11, offtune: 0.636, forte1: -5 });
+const FMA = skAction("Forte Plunge", { node: FORTE, cast: BASIC, type: BASIC, mv: 260.41, energy: 4, concerto: 11, offtune: 0.496, forte1: -5 });
 const Liberation = skAction("Liberation", {
-  node: LIB, type: LIB, mv: 0, energy: -175, concerto: 20,
+  node: LIB, cast: LIB, type: LIB, mv: 0, energy: -175, concerto: 20,
   /** It opens the realm, on the blue rung. */
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() { grantTeam(SK_BLUE_REALM); },
+  apply() { grantTeam(SK_REALM); },
 });
 
 // --- intro / outro. EIntro is Discernment: it replaces the intro while a Supernal realm is
 //     up, scales off HP, counts as liberation damage, and always crits.
 const Intro = skAction("Intro", {
-  node: INTRO, type: SKILL, mv: 226.5, energy: 10, concerto: 20, offtune: 1.1395,
+  node: INTRO, cast: INTRO, type: SKILL, mv: 226.5, energy: 10, concerto: 20, offtune: 1.1395,
 });
-const EIntro = skAction("EIntro", {
-  node: INTRO, type: LIB, scaling: SCALE_HP, mv: 58.92,
+const EIntro = skAction("Enhanced Intro", {
+  node: INTRO, cast: INTRO, type: LIB, scaling: SCALE_HP, mv: 58.92,
   energy: 10.02, concerto: 20, offtune: 7.3242,
   /** Discernment always crits. The realm is already gone by now — the outro that swapped her
    *  in ended it, so there is nothing here to revoke. */
   priority: PRIORITY.UPDATE_BUFFS,
   apply() { add(100, CRIT_RATE); },
 });
-/** `node: "outro"` marks it as one; it deals no damage at all. Casting it is what puts Binary
+/** `cast: OUTRO` marks it as one; it deals no damage at all. Casting it is what puts Binary
  *  Butterfly on the team, so the amplification starts with whoever she hands the field to. */
 const Outro = skAction("Outro", {
-  node: OUTRO, type: OUTRO, mv: 0, concerto: -100,
+  cast: OUTRO, type: OUTRO, mv: 0, concerto: -100,
   priority: PRIORITY.UPDATE_BUFFS,
   apply() { grantTeam(SK_OUTRO); },
 });
@@ -243,15 +226,15 @@ const Outro = skAction("Outro", {
  * sums of their stages — motion value, energy, concerto, off-tune and data alike — so they are
  * chains here and the totals still match. */
 
-export const BA12 = new Chain("Shorekeeper: BA12",
+export const BA12 = new Chain("Shorekeeper: Basic 12",
   [BA1, BA2]);
-export const BA23 = new Chain("Shorekeeper: BA23",
+export const BA23 = new Chain("Shorekeeper: Basic 23",
   [BA2, BA3]);
-export const BA123 = new Chain("Shorekeeper: BA123",
+export const BA123 = new Chain("Shorekeeper: Basic 123",
   [BA1, BA2, BA3]);
-export const BA234 = new Chain("Shorekeeper: BA234",
+export const BA234 = new Chain("Shorekeeper: Basic 234",
   [BA2, BA3, BA4]);
-export const BA1234 = new Chain("Shorekeeper: BA1234",
+export const BA1234 = new Chain("Shorekeeper: Basic 1234",
   [BA1, BA2, BA3, BA4]);
 
 /** The sheet's `sk opener`, with her intro in front so the on-field window opens. Only the

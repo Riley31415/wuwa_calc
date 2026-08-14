@@ -46,15 +46,10 @@ import {
 } from "../stats.js";
 import { mainstats, chem } from "../shared.js";
 
-/** How many resonators currently on the team are fusion — read straight off each slot's own
- *  resonator (see `Slot.resonator` / `teamElements()` in state.js), not a hand-kept counter. */
-const fusionCount = () => teamElements().filter((e) => e === FUSION).length;
-
 /** Wolflame is the gauge the game shows; Wolfaith is the short-lived resource her enhanced
  *  heavies feed and her Dance With the Wolf casts spend. */
 export const LUPA_WOLFLAME = FORTE1;
 export const LUPA_WOLFAITH = FORTE2;
-const WOLFLAME_MAX = 100, WOLFLAME_PER_ENHANCED_HEAVY = 50;
 
 /* ------------------------------------------------------------- Pack Hunt, Glory, the outro */
 
@@ -82,14 +77,15 @@ function setStacksForTeam(buff, stacks) {
  * 10% fusion damage bonus it names is applied unconditionally — the same simplification every
  * other target-tier-gated passive in this codebase already makes.
  */
-export const PACK_HUNT = new Buff("Lupa: Pack Hunt", PRIORITY.BUFF_STATS, () => {
+export const PACK_HUNT = new Buff(PRIORITY.BUFF_STATS, () => {
   if (isIntro(action())) setStacksForTeam(PACK_HUNT, stacksOf(PACK_HUNT) + 1);
   const held = stacksOf(PACK_HUNT);
-  if (!held) return held;
+  if (!held) return "Lupa: Pack Hunt x0";
   add(6 * held, BONUS_ATK);
   add(10, FUSION, DMG_BONUS);
-  if (fusionCount() >= 3) add(10, FUSION, DMG_BONUS);
-  return held;
+  // read straight off each slot's own resonator, not a hand-kept counter
+  if (teamElements().filter((e) => e === FUSION).length >= 3) add(10, FUSION, DMG_BONUS);
+  return `Lupa: Pack Hunt x${held}`;
 }, 3);
 
 /**
@@ -99,18 +95,19 @@ export const PACK_HUNT = new Buff("Lupa: Pack Hunt", PRIORITY.BUFF_STATS, () => 
  * resonators are actually on the team *at that moment*, rather than every holder re-deriving
  * the same team-composition question on every action they take.
  */
-export const GLORY = new Buff("Lupa: Glory", PRIORITY.BUFF_STATS, () => {
+export const GLORY = new Buff(PRIORITY.BUFF_STATS, () => {
   const held = stacksOf(GLORY);
-  if (!held) return held;
+  if (!held) return "Lupa: Glory x0";
   add(3 * held, FUSION, RES_IGNORE);
   if (held >= 3) add(6, FUSION, RES_IGNORE);
-  return held;
+  return `Lupa: Glory x${held}`;
 }, 3);
 
 /** Stand by Me, Warrior — what the next resonator actually holds. */
-export const LUPA_OUTRO = new Buff("Lupa: Outro", PRIORITY.BUFF_STATS, () => {
+export const LUPA_OUTRO = new Buff(PRIORITY.BUFF_STATS, () => {
   add(20, FUSION, AMP);
   add(25, BASIC, AMP);
+  return "Lupa: Outro";
 });
 
 /**
@@ -125,21 +122,25 @@ export const LUPA_OUTRO = new Buff("Lupa: Outro", PRIORITY.BUFF_STATS, () => {
  * The kit's 8s window is not modelled — the same "stays up" simplification as Iuno's Full Moon
  * Domain — since nothing in her rotation lets it lapse before the liberation it is meant for.
  */
-const LUPA_BACKUP_READY = new Buff("Lupa: Set the Arena Ablaze (ready)", PRIORITY.BUFF_STATS, () => {});
+const LUPA_BACKUP_READY = new Buff(PRIORITY.BUFF_STATS,
+  () => "Lupa: Set the Arena Ablaze (ready)");
 
 /** Team-wide from the start of the fight, so it can catch a liberation cast by anyone at any
  *  point, not only right after Lupa's own forte cast. */
-const BACKUP_WATCH = new Buff("Lupa: Set the Arena Ablaze (watcher)", PRIORITY.UPDATE_BUFFS, () => {
-  if (!isLiberation(action())) return;
-  const [lupaSlot] = slotsWith(LUPA_BACKUP_READY);
-  if (!lupaSlot || self() === lupaSlot) return;
-  queueOn(lupaSlot, fskillFUA);
-  lupaSlot.removeBuff(LUPA_BACKUP_READY);
+const BACKUP_WATCH = new Buff(PRIORITY.UPDATE_BUFFS, () => {
+  const [lupaSlot] = isLiberation(action()) ? slotsWith(LUPA_BACKUP_READY) : [];
+  // not on her own liberation: the kit has her backing up *the active Resonator*, which only
+  // means anything once she has switched off field
+  if (lupaSlot && self() !== lupaSlot) {
+    queueOn(lupaSlot, fskillFUA);
+    lupaSlot.removeBuff(LUPA_BACKUP_READY);
+  }
+  return "Lupa: Set the Arena Ablaze (watcher)";
 });
 
 /* --------------------------------------------------------------- resonator */
 
-export const LUPA = new Gear("Lupa", () => {
+export const LUPA = new Gear(() => {
   // Every resonator's innate baseline.
   add(100, ER);
   add(5, CRIT_RATE);
@@ -151,40 +152,69 @@ export const LUPA = new Gear("Lupa", () => {
   add(387.5, BASE_ATK);
   add(8, CRIT_RATE);
   add(12, BONUS_ATK);
+  return "Lupa";
 }, () => { grantTeam(BACKUP_WATCH); }, FUSION);
 
 /* ------------------------------------------------------------------ weapons */
 
-/** Wildfire Mark, her signature: R1, the rank the sheet's numbers describe. */
-const WILDFIRE_TEAM = new Buff("Wildfire Mark: Blazing Starfire", PRIORITY.BUFF_STATS,
-  () => { add(24, FUSION, DMG_BONUS); });
+/**
+ * Wildfire Mark, her signature: R1, the rank the sheet's numbers describe.
+ *
+ * The kit is a chain of three things, and only the last of them reaches the team:
+ *
+ *   1. 12% ATK, flat.
+ *   2. An intro skill or a resonance liberation gives *her* 24% Resonance Liberation DMG for 6s.
+ *   3. Dealing Heavy Attack DMG once extends that window by 4s, and **that extension** is what
+ *      hands every resonator 24% Fusion DMG Bonus for 30s.
+ *
+ * Step 2 is modelled as permanently up on her: she opens every rotation with an intro and casts
+ * her liberation inside it, so the window is never actually down while she is on field — the
+ * same "assume the uptime a real rotation gets" simplification as Jingran's Earth Charm.
+ *
+ * Step 3 is *not* assumed, because it is a real gate: nothing pays the team until she has landed
+ * Heavy Attack DMG, which in her rotation does not happen until Firestrike, well after her
+ * liberation. Granting it from the start quietly paid her whole opener a bonus she had not
+ * earned yet.
+ *
+ * "Dealing Heavy Attack DMG" is the damage **type**, not the cast — Mid-air Firestrike is a
+ * basic-attack press that deals Heavy Attack DMG, and it counts. "Up to 1 time" and "effects of
+ * the same name cannot be stacked" both fall out of the buff being unstacked and `grantTeam`
+ * being idempotent: re-triggering it costs nothing and changes nothing.
+ */
+const WILDFIRE_TEAM = new Buff(PRIORITY.BUFF_STATS,
+  () => { add(24, FUSION, DMG_BONUS); return "Wildfire Mark: Blazing Starfire"; });
 
-export const WILDFIRE_MARK = new Gear("Wildfire Mark", () => {
+export const WILDFIRE_MARK = new Gear(() => {
   add(587.5, BASE_ATK);
   add(48.6, CRIT_DMG);
   add(12, BONUS_ATK);
   add(24, LIB, DMG_BONUS);
-  grantTeam(WILDFIRE_TEAM);
+  // The extension, and with it the team's fusion bonus. Granted at GEAR_STATS, so the hit that
+  // earns it is itself paid at BUFF_STATS on this same cast.
+  if (action().type === HEAVY) grantTeam(WILDFIRE_TEAM);
+  return "Wildfire Mark";
 });
 
 /** Radiance Cleaver, the f2p alternative. Its own conditional (a liberation bonus against
  *  tune-strained targets) is left out — see the file header. */
-export const RADIANCE_CLEAVER = new Gear("Radiance Cleaver", () => {
+export const RADIANCE_CLEAVER = new Gear(() => {
   add(587.5, BASE_ATK);
   add(48.6, CRIT_DMG);
   add(12, BONUS_ATK);
+  return "Radiance Cleaver";
 });
 
 /* -------------------------------------------------------------- echo, sonata */
 
-export const LIONESS_OF_GLORY = new Gear("Lioness of Glory", () => {
+export const LIONESS_OF_GLORY = new Gear(() => {
   add(12, LIB, DMG_BONUS);
   add(12, FUSION, DMG_BONUS);
+  return "Lioness of Glory";
 });
 
 export const ACTION_LIONESS = new Action("Echo: Lioness of Glory", {
   source: "Echo",
-  node: ECHO,
+  cast: ECHO,
   element: FUSION,
   scaling: "atk",
   type: ECHO,
@@ -192,16 +222,18 @@ export const ACTION_LIONESS = new Action("Echo: Lioness of Glory", {
   energy: 3.8,
 });
 
-const CLAWPRINT_TEAM = new Buff("Flaming Clawprint", PRIORITY.BUFF_STATS,
-  () => { add(15, FUSION, DMG_BONUS); });
+const CLAWPRINT_TEAM = new Buff(PRIORITY.BUFF_STATS,
+  () => { add(15, FUSION, DMG_BONUS); return "Flaming Clawprint"; });
 
-export const CLAWPRINT_5PC = new Gear("Flaming Clawprint 5pc", () => {
+export const CLAWPRINT_5PC = new Gear(() => {
   add(20, LIB, DMG_BONUS);
   grantTeam(CLAWPRINT_TEAM);
+  return "Flaming Clawprint 5pc";
 });
 
-export const CLAWPRINT_2PC = new Gear("Flaming Clawprint 2pc", () => {
+export const CLAWPRINT_2PC = new Gear(() => {
   add(10, FUSION, DMG_BONUS);
+  return "Flaming Clawprint 2pc";
 });
 
 /**
@@ -233,51 +265,51 @@ function lupaAction(name, def) {
 }
 
 // --- basics and mid-air
-const BA1 = lupaAction("BA1", { node: NORMAL, type: BASIC, mv: 90.08, energy: 1.35, concerto: 2.68 });
-const BA2 = lupaAction("BA2", { node: NORMAL, type: BASIC, mv: 90.08, energy: 1.34, concerto: 2.67 });
-const BA3 = lupaAction("BA3", { node: NORMAL, type: BASIC, mv: 157.68, energy: 2.37, concerto: 4.68 });
-const BA4 = lupaAction("BA4", { node: NORMAL, type: BASIC, mv: 246.24, energy: 3.66, concerto: 7.3 });
+const BA1 = lupaAction("Basic 1", { node: NORMAL, cast: BASIC, type: BASIC, mv: 90.08, energy: 1.35, concerto: 2.68 });
+const BA2 = lupaAction("Basic 2", { node: NORMAL, cast: BASIC, type: BASIC, mv: 90.08, energy: 1.34, concerto: 2.67 });
+const BA3 = lupaAction("Basic 3", { node: NORMAL, cast: BASIC, type: BASIC, mv: 157.68, energy: 2.37, concerto: 4.68 });
+const BA4 = lupaAction("Basic 4", { node: NORMAL, cast: BASIC, type: BASIC, mv: 246.24, energy: 3.66, concerto: 7.3 });
 /** Basic Attack - Starfall, the enhanced follow-up after a plunging attack or dodge counter. */
-const EBA = lupaAction("EBA", { node: NORMAL, type: BASIC, mv: 168.66, energy: 2.51, concerto: 5.02 });
+const EBA = lupaAction("Enhanced Basic", { node: NORMAL, cast: BASIC, type: BASIC, mv: 168.66, energy: 2.51, concerto: 5.02 });
 
-const MA1 = lupaAction("MA1", { node: NORMAL, type: BASIC, mv: 76.73, energy: 1.14, concerto: 2.27 });
-const MA2 = lupaAction("MA2", { node: NORMAL, type: BASIC, mv: 154.47, energy: 2.31, concerto: 4.61 });
-const MA3 = lupaAction("MA3", { node: NORMAL, type: BASIC, mv: 56.96, energy: 0.86, concerto: 1.7 });
+const MA1 = lupaAction("Midair 1", { node: NORMAL, cast: BASIC, type: BASIC, mv: 76.73, energy: 1.14, concerto: 2.27 });
+const MA2 = lupaAction("Midair 2", { node: NORMAL, cast: BASIC, type: BASIC, mv: 154.47, energy: 2.31, concerto: 4.61 });
+const MA3 = lupaAction("Midair 3", { node: NORMAL, cast: BASIC, type: BASIC, mv: 56.96, energy: 0.86, concerto: 1.7 });
 
 // --- heavy attacks. HA is the base cast; the three enhanced forms each spend 50 Wolflame for
 //     a point of Wolfaith rather than restoring the gauge — plain declarative deltas, same as
 //     every other resource on these actions. Nothing clamps forte1/forte2 at 0 or at the cap;
 //     that is fine, the same way a rotation can already run a resonator's energy negative.
-const HA = lupaAction("HA", { node: NORMAL, type: HEAVY, mv: 112.72, energy: 1.68, concerto: 3.34 });
+const HA = lupaAction("Heavy", { node: NORMAL, cast: HEAVY, type: HEAVY, mv: 112.72, energy: 1.68, concerto: 3.34 });
 
 /** Mid-air Attack - Firestrike, at Wolflame 50+. Counts as Heavy Attack DMG. */
-const EMA3 = lupaAction("EMA3", {
-  node: NORMAL, type: HEAVY, mv: 56.96, energy: 0.86, concerto: 10,
-  forte1: -WOLFLAME_PER_ENHANCED_HEAVY, forte2: 1,
-});
-/** Heavy Attack - Wolf's Claw, at Wolflame 50+ and Wolfaith 1+. */
-const EHA3 = lupaAction("EHA3", {
-  node: NORMAL, type: HEAVY, mv: 112.22, energy: 1.66, concerto: 10,
-  forte1: -WOLFLAME_PER_ENHANCED_HEAVY, forte2: 1,
+const EMA3 = lupaAction("Enhanced Midair 3", {
+  node: NORMAL, cast: BASIC, type: HEAVY, mv: 56.96, energy: 0.86, concerto: 10,
+  forte1: -50, forte2: 1,
 });
 /** Heavy Attack - Wolf's Gnawing, at Wolflame 50+. */
-const EMA4 = lupaAction("EMA4", {
-  node: NORMAL, type: HEAVY, mv: 240.5, energy: 3.58, concerto: 10,
-  forte1: -WOLFLAME_PER_ENHANCED_HEAVY, forte2: 1,
+const EHA3 = lupaAction("Enhanced Heavy 1", {
+  node: NORMAL, cast: HEAVY, type: HEAVY, mv: 112.22, energy: 1.66, concerto: 10,
+  forte1: -50, forte2: 1,
+});
+/** Heavy Attack - Wolf's Claw, at Wolflame 50+ and Wolfaith 1+. */
+const EMA4 = lupaAction("Enhanced Heavy 2", {
+  node: NORMAL, cast: HEAVY, type: HEAVY, mv: 240.5, energy: 3.58, concerto: 10,
+  forte1: -50, forte2: 1,
 });
 
 // --- resonance skill: Shewolf's Hunt and its Feral Fang follow-up, each restoring 15 Wolflame.
-const Skill1 = lupaAction("Skill1", {
-  node: SKILL, type: SKILL, mv: 140.77, energy: 2.09, concerto: 4.17, forte1: 15,
+const Skill1 = lupaAction("Skill 1", {
+  node: SKILL, cast: SKILL, type: SKILL, mv: 140.77, energy: 2.09, concerto: 4.17, forte1: 15,
 });
-const Skill2 = lupaAction("Skill2", {
-  node: SKILL, type: SKILL, mv: 470.41, energy: 13.67, forte1: 15,
+const Skill2 = lupaAction("Skill 2", {
+  node: SKILL, cast: SKILL, type: SKILL, mv: 470.41, energy: 13.67, forte1: 15,
 });
 
 /** Resonance Skill - Foebreaker: consumes every point of Wolflame and enters Burning
  *  Matchpoint (not separately modelled — see the file header). */
-const USkill = lupaAction("USkill", {
-  node: LIB, type: SKILL, mv: 304.46, concerto: 20,
+const USkill = lupaAction("Liberation Skill", {
+  node: LIB, cast: SKILL, type: SKILL, mv: 304.46, concerto: 20,
   priority: PRIORITY.UPDATE_BUFFS,
   apply() { setCounter(LUPA_WOLFLAME, 0); },
 });
@@ -285,29 +317,29 @@ const USkill = lupaAction("USkill", {
 // --- liberation: tops Wolflame to 100, spends every point of Wolfaith, and opens the team
 //     window — Pack Hunt and Glory both granted here.
 const Liberation = lupaAction("Liberation", {
-  node: LIB, type: LIB, mv: 820.44, energy: -125, concerto: 20,
+  node: LIB, cast: LIB, type: LIB, mv: 820.44, energy: -125, concerto: 20,
   priority: PRIORITY.UPDATE_BUFFS,
   apply() {
-    setCounter(LUPA_WOLFLAME, WOLFLAME_MAX);
+    setCounter(LUPA_WOLFLAME, 100);   // tops the gauge
     setCounter(LUPA_WOLFAITH, 0);
+    // granting it *is* level 1 (6% team ATK); anyone's intro escalates it from there
     grantTeam(PACK_HUNT);
-    setStacksForTeam(PACK_HUNT, stacksOf(PACK_HUNT) + 1);
     grantTeam(GLORY);
-    setStacksForTeam(GLORY, fusionCount());
+    setStacksForTeam(GLORY, teamElements().filter((e) => e === FUSION).length);
   },
 });
 
 // --- forte circuit: Dance With the Wolf and its Climax form, each spending every point of
 //     Wolfaith. The Climax variant only becomes available in Burning Matchpoint, which this
 //     engine does not gate on — both are simply available actions a rotation can call.
-const FSkill = lupaAction("FSkill", {
-  node: FORTE, type: LIB, mv: 560.21, energy: 30, concerto: 15.02,
+const FSkill = lupaAction("Forte Skill", {
+  node: FORTE, cast: SKILL, type: LIB, mv: 560.21, energy: 30, concerto: 15.02,
   priority: PRIORITY.UPDATE_BUFFS,
   forte2: -2,
   apply() { grantSelf(LUPA_BACKUP_READY); },
 });
-const UFSkill = lupaAction("UFSkill", {
-  node: FORTE, type: LIB, mv: 756.26, energy: 30, concerto: 30,
+const UFSkill = lupaAction("Liberation Forte Skill", {
+  node: FORTE, cast: SKILL, type: LIB, mv: 756.26, energy: 30, concerto: 30,
   priority: PRIORITY.UPDATE_BUFFS,
   forte2: -2,
   apply() { grantSelf(LUPA_BACKUP_READY); },
@@ -315,11 +347,11 @@ const UFSkill = lupaAction("UFSkill", {
 /** Set the Arena Ablaze — the follow-up Dance With the Wolf leaves behind for whoever's next
  *  liberation backs her up (see `BACKUP_WATCH` above). Queued by that watcher now, not placed
  *  in the rotation: nothing about when it fires is a rotation author's choice to make. */
-const fskillFUA = lupaAction("fskill FUA", { node: FORTE, type: SKILL, mv: 211.75 });
+const fskillFUA = lupaAction("FSkill FUA", { node: FORTE, type: SKILL, mv: 211.75 });
 
 // --- intro / outro
 const Intro = lupaAction("Intro", {
-  node: INTRO, type: INTRO, mv: 198.4, energy: 10.02, concerto: 10,
+  node: INTRO, cast: INTRO, type: INTRO, mv: 198.4, energy: 10.02, concerto: 10,
 });
 /**
  * Nowhere to Run! — replaces the intro once Pack Hunt is capped (Wild Hunt). Not gated on that
@@ -328,8 +360,8 @@ const Intro = lupaAction("Intro", {
  * `revokeTeam` discards every resonator's own copy outright, so a later liberation regrants
  * fresh ones at 0 rather than reading a stale count nothing explicitly cleared.
  */
-const EIntro = lupaAction("EIntro", {
-  node: INTRO, type: LIB, mv: 991.97, energy: 10, concerto: 10,
+const EIntro = lupaAction("Enhanced Intro", {
+  node: INTRO, cast: INTRO, type: LIB, mv: 991.97, energy: 10, concerto: 10,
   priority: PRIORITY.UPDATE_BUFFS,
   apply() {
     revokeTeam(PACK_HUNT);
@@ -338,7 +370,7 @@ const EIntro = lupaAction("EIntro", {
 });
 /** Stand by Me, Warrior: hands the incoming resonator her amplification window. */
 const Outro = lupaAction("Outro", {
-  node: OUTRO, type: OUTRO, mv: 0, concerto: -100,
+  cast: OUTRO, type: OUTRO, mv: 0, concerto: -100,
   priority: PRIORITY.UPDATE_BUFFS,
   apply() { outro(LUPA_OUTRO); },
 });

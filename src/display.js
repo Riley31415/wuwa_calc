@@ -13,7 +13,7 @@ import {
   CRIT_RATE, CRIT_DMG, ENERGY, CONCERTO, OFFTUNE,
   BASE_ATK, BONUS_ATK, FLAT_ATK, BASE_HP, BONUS_HP, FLAT_HP,
   ADD_MV, MUL_MV, SPECIAL_MV, DMG_BONUS, AMP, FORTE1, FORTE2, FORTE3, FORTE4,
-  SCALE_TUNE,
+  SCALE_TUNE, OUTRO,
   DEF_IGNORE, DEF_SHRED, DEF_REDUCE, RES_IGNORE, RES_SHRED,
   scopedStat, TAGS_MATCHED, SCALE_ATK, splitStat, statLabel,
 } from "./stats.js";
@@ -241,18 +241,18 @@ function rowValues(snap, { mv, avg, config, levels }) {
     // amount being multiplied and everything below it is a multiplier on that amount, so reading
     // top to bottom follows the arithmetic instead of opening with a factor of nothing.
     sources.avg = [
-      { source: STAT_SOURCE[f.scaling] ?? f.scaling, label: "final stat", value: f.finalStat },
-      { source: snap.action.id, label: "motion value", value: f.finalMv, mult: true },
-      { source: "buffs", label: "amplification", value: f.ampFactor, mult: true },
-      { source: "buffs", label: "damage bonus", value: f.bonusFactor, mult: true },
+      { source: STAT_SOURCE[f.scaling] ?? f.scaling, label: "Final Stat", value: f.finalStat },
+      { source: snap.action.id, label: "Motion Value", value: f.finalMv, mult: true },
+      { source: "buffs", label: "Amplification", value: f.ampFactor, mult: true },
+      { source: "buffs", label: "Damage Bonus", value: f.bonusFactor, mult: true },
       // Only tune scaling receives it, and only tune scaling should have to read a row about it.
       ...(f.scaling === SCALE_TUNE
-        ? [{ source: "buffs", label: "tune break boost", value: f.tbbFactor, mult: true }]
+        ? [{ source: "buffs", label: "Tune Break Boost", value: f.tbbFactor, mult: true }]
         : []),
-      { source: "enemy", label: "res factor", value: f.resFactor, mult: true },
-      { source: "enemy", label: "def factor", value: f.defFactor, mult: true },
-      { source: "buffs", label: "damage dealt", value: f.dealtFactor, mult: true },
-      { source: "crit", label: "average crit", value: f.critFactor, mult: true },
+      { source: "enemy", label: "Res Factor", value: f.resFactor, mult: true },
+      { source: "enemy", label: "Def Factor", value: f.defFactor, mult: true },
+      { source: "buffs", label: "Damage Dealt", value: f.dealtFactor, mult: true },
+      { source: "crit", label: "Average Crit", value: f.critFactor, mult: true },
     ];
   }
 
@@ -274,11 +274,11 @@ export function buildReport(lines, { strip = null, config = null, levels = null 
   const columns = [
     { key: "action", label: "action", align: "left" },
 
+    { key: "avg", label: "avg dmg" },
     // `percent` marks a column whose value is a ratio in percent units rather than a flat
     // amount. atk and hp are not: they are totals in whole points, even though percent stats
     // fed them.
     { key: "mv", label: "mv%", digits: 2, percent: true },
-    { key: "avg", label: "avg dmg" },
     { key: "atk", label: "atk" },
     { key: "hp", label: "hp" },
     { key: "dmgBonus", label: "dmg%", digits: 1, percent: true },
@@ -296,6 +296,11 @@ export function buildReport(lines, { strip = null, config = null, levels = null 
 
   const name = (id) => (strip ? id.replace(strip, "") : id);
 
+  // A row earns the table's shorter treatment when it is not really a rotation beat of its
+  // own: a follow-up the engine queued rather than something a rotation author placed, a hit
+  // that deals no damage at all, or the outro that only hands off the field.
+  const isShort = (snap, mv) => snap.triggered || !mv || snap.action.cast === OUTRO;
+
   const rows = lines.map((line) => {
     const { raw, sources } = rowValues(line.snap, { mv: line.mv, avg: line.avg, config, levels });
     raw.action = name(line.id);
@@ -309,6 +314,7 @@ export function buildReport(lines, { strip = null, config = null, levels = null 
       info: actionInfo(line.snap.action),
       // what the motion value is multiplying, so the mv panel can name its own unit
       scaling: line.snap.action.scaling ?? SCALE_ATK,
+      short: isShort(line.snap, line.mv),
       parts: line.isChain
         ? line.parts.map((p) => {
             const part = rowValues(p.snap, { mv: mvPercent(p.snap), avg: p.dmg.avg, config, levels });
@@ -317,6 +323,7 @@ export function buildReport(lines, { strip = null, config = null, levels = null 
             part.type = p.snap.action.type ?? "";
             part.scaling = p.snap.action.scaling ?? SCALE_ATK;
             part.isShown = p.snap === line.snap;
+            part.short = isShort(p.snap, mvPercent(p.snap));
             return part;
           })
         : [],

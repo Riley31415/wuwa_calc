@@ -17,9 +17,9 @@
  * `apply()` already runs every action.
  *
  * An **action** is a step in a rotation. It carries the static numbers (motion value, energy,
- * concerto, offtune, forte, shields) and, optionally, an `apply()` of its own — whatever that
- * cast does beyond its numbers, run in the middle of the buff pass rather than defined
- * somewhere else and referenced by name.
+ * concerto, offtune, forte), says which button it is (`cast`), and optionally has an `apply()`
+ * of its own — whatever that cast does beyond its numbers, run in the middle of the buff pass
+ * rather than defined somewhere else and referenced by name.
  *
  * Nothing here imports `state.js`, which is what keeps the dependency graph acyclic:
  * kit.js <- state.js <- the resonators. (`damage.js` is safe to reach for — it only reads
@@ -99,15 +99,24 @@ const PRIORITY_NAMES = new Set(Object.values(PRIORITY));
  * ever runs long after the assignment has completed.
  */
 export class Buff {
-  constructor(name, priority, apply, max_stacks = 1) {
-    if (typeof apply !== "function") throw new Error(`buff "${name}" needs an apply() function`);
+  /**
+   * No name is passed in. `apply()` **returns** what this buff is called, every time it runs,
+   * and a buff that stacks writes its own count into that string (`` `Ghost Shroud x${held}` ``)
+   * rather than leaving a `toString()` to guess where the number goes. The name is therefore
+   * whatever the buff says it is *on this cast*, which is what the traces and the event log show.
+   */
+  constructor(priority, apply, max_stacks = 1) {
+    if (typeof apply !== "function") throw new Error("a buff needs an apply() function");
     if (!PRIORITY_NAMES.has(priority)) {
-      throw new Error(`buff "${name}" needs an explicit PRIORITY — there is no default`);
+      throw new Error("a buff needs an explicit PRIORITY — there is no default");
     }
-    if (!(max_stacks >= 1)) throw new Error(`buff "${name}": max_stacks must be at least 1`);
-    this.name = name;
+    if (!(max_stacks >= 1)) throw new Error("a buff's max_stacks must be at least 1");
     this.priority = priority;
     this.apply = apply;
+    /** The last name `apply()` reported. Filled in by the engine as it runs; read by the log and
+     *  the stat traces, both of which ask what a buff is called after it has spoken. */
+    this.label = null;
+    this.labelAt = 0;
     /**
      * How many stacks are live. The ceiling is enforced here rather than at every call site, so
      * a kit says how many stacks a thing has once — in its definition — and everything that
@@ -131,7 +140,10 @@ export class Buff {
   instance() {
     const copy = Object.create(Object.getPrototypeOf(this));
     Object.assign(copy, this);
-    copy.stacks = 0;
+    // Holding a buff *is* one stack. There is no such thing as a buff you have at zero — that
+    // is just not having it — so granting one plainly leaves it at 1 and a kit that wants a
+    // level-1 state can simply grant it. `addStack` knows the first stack is already there.
+    copy.stacks = 1;
     copy.definition = this;
     return copy;
   }
@@ -147,21 +159,44 @@ export class Buff {
     this.stacks = Math.max(0, this.stacks - n);
     return this.stacks;
   }
+}
 
-  /**
-   * So a log line or a trace can interpolate a buff directly: `granted ${buff}`.
-   *
-   * A buff that can stack says how many it is holding, since for those the count *is* the
-   * interesting part of the reading — "Nature's Order x6" rather than a bare name against a
-   * number that only makes sense once you know the stacks behind it.
-   *
-   * The count is per resonator, so this only reads correctly on an instance (see `instance()`).
-   * A definition always reports x0, because a definition never holds anything.
-   */
-  toString() {
-    return this.max_stacks > 1 ? `${this.name} x${this.stacks}` : this.name;
+/** Bumped every time a buff reports a name, so the freshest of two labels can be told apart. */
+let labelClock = 0;
+
+/** Record what a buff just called itself, on this resonator's copy and on the shared definition
+ *  — the copy because it carries the stack count the name may quote, the definition so a slot
+ *  that has never run it still has something to go on. */
+export function setLabel(buff, name) {
+  const at = ++labelClock;
+  buff.label = name;
+  buff.labelAt = at;
+  if (buff.definition) {
+    buff.definition.label = name;
+    buff.definition.labelAt = at;
   }
 }
+
+/**
+ * What something is called, for a log line or a stat trace.
+ *
+ * A buff only knows its name once it has run, so this reads the label its last `apply()`
+ * reported — whichever of this resonator's own copy and the shared definition spoke more
+ * recently. A buff held by several resonators is usually kept in lockstep (a realm, a team
+ * aura), so the newer reading is the truer one for a slot that has not acted this cast.
+ * An action has an id from the start and never needs any of this.
+ */
+export function labelOf(x) {
+  if (x instanceof Action) return x.id;
+  if (!(x instanceof Buff)) return x == null ? null : String(x);
+  const def = x.definition;
+  if (x.label == null) return def?.label ?? null;      // never run: nothing can name it yet
+  if (def?.label == null) return x.label;
+  return (def.labelAt ?? 0) > (x.labelAt ?? 0) ? def.label : x.label;
+}
+
+/** For somewhere a string is required whether or not the buff has ever run. */
+export const nameOf = (x) => labelOf(x) ?? "(unnamed buff)";
 
 /**
  * Gear: a buff that something equips, plus an optional `onFightStart()` — the one hook only
@@ -180,8 +215,8 @@ export class Gear extends Buff {
    * (Lupa's Pack Hunt counting how many fusion resonators are on the team, say) can read it
    * straight off `Slot.resonator` rather than a hand-maintained team counter.
    */
-  constructor(name, apply, onFightStart = null, element = null) {
-    super(name, PRIORITY.GEAR_STATS, apply);
+  constructor(apply, onFightStart = null, element = null) {
+    super(PRIORITY.GEAR_STATS, apply);
     this.onFightStart = onFightStart;
     this.element = element;
   }
@@ -198,6 +233,27 @@ export class Action {
     // these itself, which is why buffs no longer carry a tag filter.
     this.element = def.element ?? null;
     this.type = def.type ?? null;
+    /**
+     * Which button this is — see CASTS in stats.js. The engine fires this cast's trigger for
+     * every action that names one, which is how "when you cast a heavy attack" passives reach it.
+     *
+     * `null` is meaningful and not a default to shrug at: it says this is not something the
+     * player pressed. A summoned follow-up (Jingran's Chimei Wangliang, Lupa's Set the Arena
+     * Ablaze) and the automatic tune break all deal damage without being a cast, so none of them
+     * should fire a cast trigger or earn the shield a real press would.
+     */
+    this.cast = def.cast ?? null;
+    /**
+     * How many shields this cast grants. Everything shield-driven in the game is phrased as an
+     * event — "upon gaining a Shield, gain 1 stack" — so this is that event, and the buffs that
+     * care read it back off the action (`action().shields`).
+     */
+    this.shields = def.shields ?? 0;
+    /**
+     * Which branch of the kit this comes out of — see NODES in stats.js. Purely for attributing
+     * damage ("how much of this rotation came out of the forte circuit"); nothing in the engine
+     * branches on it, and it resolves no scoped stats. An echo or an outro has none.
+     */
     this.node = def.node ?? null;
     this.scaling = def.scaling ?? null;
     this.mv = def.mv ?? 0;
@@ -209,10 +265,6 @@ export class Action {
     this.forte2 = def.forte2 ?? 0;
     this.forte3 = def.forte3 ?? 0;
     this.forte4 = def.forte4 ?? 0;
-    // How many shields this action grants. Everything shield-driven in the game is phrased as
-    // an event — "upon gaining a Shield, gain 1 stack" — so this is that event, and the buffs
-    // that care read it off the action and turn it into stacks of their own.
-    this.shields = def.shields ?? 0;
     // What the action itself does — spend a gauge, open a state, queue a follow-up, add its own
     // stats. Written straight here rather than as a buff the action carries: it only ever runs
     // for this action, so naming it bought nothing but a layer to look through.
@@ -228,9 +280,11 @@ export class Action {
     }
   }
 
-  /** Does this action carry any of these tags? Tests element, damage type and node. */
+  /** Does this action carry any of these tags? Tests all four axes: element, damage type,
+   *  cast and node. */
   is(...tags) {
-    return tags.some((t) => t === this.element || t === this.type || t === this.node);
+    return tags.some((t) =>
+      t === this.element || t === this.type || t === this.cast || t === this.node);
   }
 
   toString() { return this.id; }

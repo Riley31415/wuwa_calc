@@ -57,8 +57,8 @@ export const SPECIAL_MV = "specialMv";
 /*
  * Shields are not a stat. An action says how many it grants with its own `shields` field, and
  * a buff that cares reads it straight off the action (`action().shields`). Everything that
- * used to scale on a running shield total is a stacking buff instead, which is what the game
- * actually describes ("upon gaining a Shield, gain 1 stack, up to N").
+ * scales on shielding is a stacking buff instead, which is what the game actually describes
+ * ("upon gaining a Shield, gain 1 stack, up to N").
  */
 
 export const DMG_BONUS  = "dmgBonus";
@@ -80,8 +80,9 @@ export const DEF_REDUCE = "defReduce";
  * key with a tag glued on — rather than a separate named constant per combination.
  *
  * Authors never build these by hand: `add(value, tag, stat)` does it (see state.js). An action
- * resolves the ones matching its own **element** and **damage type**; `node` and `scaling` do
- * not participate, so Jingran's Lib1 (node liberation, type heavy) pays heavy bonuses only.
+ * resolves the ones matching its own **element** and **damage type**; `cast` and `scaling` do
+ * not participate, so Jingran's liberation (cast liberation, type heavy) pays heavy bonuses
+ * only.
  */
 export const scopedStat = (tag, stat) => `${stat}:${tag}`;
 
@@ -112,17 +113,44 @@ export const HACK    = "hack";
 export const TYPES = [BASIC, HEAVY, SKILL, LIB, INTRO, OUTRO, ECHO, BREAK, STATUS, RUPTURE, HACK];
 
 /**
- * `node` — which button a cast is, as opposed to `type` (what damage it deals) or `element`.
- * Deliberately not matched by a conditional (see TAGS_MATCHED above): Jingran's Lib1 has node
- * `liberation` but type `heavy`, so resolving node too would start paying liberation bonuses
- * on it. Reuses the same words as a handful of damage types (`SKILL`, `LIB`, `INTRO`, `OUTRO`,
- * `ECHO`) since the game does too — Shorekeeper's intro deals skill damage and both are
- * legitimately "skill" in their own vocabulary.
+ * `cast` — which button an action is, as opposed to `type` (what damage it deals) or `element`.
+ *
+ * This is the axis a "when you cast X" passive keys off: casting a heavy attack is a heavy
+ * attack whatever damage it happens to deal, which is how the game words all of them — a kit
+ * that cares just checks `action().cast`. Deliberately not matched by a conditional (see
+ * TAGS_MATCHED above): Jingran's liberation is `cast: LIB` but `type: HEAVY`, so resolving cast
+ * too would start paying liberation damage bonuses on it.
+ *
+ * The two axes genuinely disagree all over the place, which is the whole reason both exist:
+ *   Jingran  basic stage 3   cast BASIC, type HEAVY   (a basic press that deals heavy damage)
+ *   Jingran  forte heavy     cast HEAVY, type HEAVY
+ *   Iuno     Moonbow basic   cast BASIC, type LIB     (a basic press, liberation damage)
+ *   SK       intro           cast INTRO, type SKILL
+ *
+ * Reuses the damage-type spellings, since the game does too. There is no `normal` or `forte`
+ * cast: "forte" is where a cast comes from, not which button it is — every forte cast is
+ * really a basic, heavy, skill or liberation press.
+ */
+export const CASTS = [BASIC, HEAVY, SKILL, LIB, INTRO, OUTRO, ECHO];
+
+/**
+ * `node` — which part of the kit a cast comes out of, as opposed to `cast` (which button) or
+ * `type` (what damage it deals). This is the axis damage is worth *attributing* along: how much
+ * of a rotation came out of the forte circuit versus the liberation versus ordinary attacks.
+ *
+ * Five, and only five. `outro` and `echo` used to be listed here too, which was a fiction — an
+ * outro is not a branch of the kit the way the forte circuit is, and an echo is not part of the
+ * resonator's kit at all. Both are casts, and `cast` is where they live now; an action from
+ * neither branch simply has no node.
+ *
+ * Orthogonal to `cast` on purpose, and they disagree constantly: Jingran's forte heavy is
+ * `node: FORTE` but `cast: HEAVY`, his liberation is `node: LIB` but `cast: LIB` and
+ * `type: HEAVY`, and Iuno's Moonbow basics are `node: FORTE`, `cast: BASIC`, `type: LIB`.
  */
 export const NORMAL = "normal";
 export const FORTE  = "forte";
-// SKILL, LIB, INTRO, OUTRO, ECHO already declared above — a node and a type sharing a spelling
-export const NODES = [NORMAL, SKILL, FORTE, LIB, INTRO, OUTRO, ECHO];
+// SKILL, LIB and INTRO already declared above — a node and a type sharing a spelling
+export const NODES = [NORMAL, SKILL, FORTE, LIB, INTRO];
 
 /** `scaling` — which stat a hit reads its final number from. */
 export const SCALE_ATK = "atk";

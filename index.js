@@ -164,8 +164,8 @@ const SECTION_RANK = (key) =>
  * its own `label`, which is how the formula terms and the derived factors get in. `mult` marks
  * a value that is a multiplier rather than an amount, so it reads `x1.24` and not `1.24`.
  */
-const panelRow = (r) =>
-  `<tr><td class="s">${esc(r.source)}</td>`
+const panelRow = (r, { noSource = false } = {}) =>
+  `<tr>${noSource ? "" : `<td class="s">${esc(r.source)}</td>`}`
   + `<td class="k">${esc(r.label ?? (r.stat ? statLabel(r.stat) : ""))}</td>`
   + `<td class="v">${r.mult ? `&times;${fmt(r.value, 4)}` : `${fmt(r.value, 4)}${unit(r)}`}</td>`
   + `</tr>`;
@@ -179,6 +179,12 @@ const panelRow = (r) =>
  */
 function popover(col, rows, total, suffix = "") {
   if (!rows?.length) return "";
+
+  // The avg column's own panel is a flat list of formula terms whose labels already say what
+  // they are ("Motion Value", "Damage Bonus", ...) — a source column would only repeat that,
+  // so it drops the column entirely rather than leave it echoing the label next to it.
+  const noSource = col.key === "avg";
+  const row = (r) => panelRow(r, { noSource });
 
   // A row may sit outside the sections entirely: just above the total (a derived figure the
   // sections lead to) or just below it (what the total then becomes).
@@ -208,13 +214,13 @@ function popover(col, rows, total, suffix = "") {
         + `Total ${esc(key)}</td><td class="v">`
         + `${fmt(group.reduce((n, r) => n + r.value, 0), 4)}${unit(group[0])}</td></tr>`
       : "";
-    return head + group.map(panelRow).join("") + sub;
+    return head + group.map(row).join("") + sub;
   }).join("");
 
-  return `<span class="pop"><table>${body}${before.map(panelRow).join("")}`
-    + `<tr class="sum"><td colspan="2">Total</td>`
+  return `<span class="pop"><table>${body}${before.map(row).join("")}`
+    + `<tr class="sum"><td colspan="${noSource ? 1 : 2}">Total</td>`
     + `<td class="v">${fmt(total, col.digits ?? 0)}${col.percent ? "%" : ""}${esc(suffix)}</td>`
-    + `</tr>${after.map(panelRow).join("")}</table></span>`;
+    + `</tr>${after.map(row).join("")}</table></span>`;
 }
 
 /** The hover on an action's own name: what it scales off, its element, its damage type — one
@@ -266,7 +272,7 @@ function stepRow(columns, row, { part = false } = {}) {
 /** A chain's members, one full row each. */
 function partRows(columns, parts) {
   return parts
-    .map((p) => `<div class="r">${stepRow(columns, p, { part: true })}</div>`)
+    .map((p) => `<div class="r${p.short ? " short" : ""}">${stepRow(columns, p, { part: true })}</div>`)
     .join("");
 }
 
@@ -289,13 +295,14 @@ function rotationTable(report, slotHue) {
     const hue = slotHue.get(row.line.snap.slot) ?? FALLBACK_HUE;
     const style = ` style="--m:${hue}"`;
     const cells = stepRow(columns, row);
+    const shortCls = row.short ? " short" : "";
     if (!row.parts.length) {
-      return `<div class="step"${style}><div class="r">${cells}</div></div>`;
+      return `<div class="step"${style}><div class="r${shortCls}">${cells}</div></div>`;
     }
     const id = `x${i}`;
     return `<div class="step chain"${style}>`
       + `<input class="tgl" type="checkbox" id="${id}">`
-      + `<label class="r" for="${id}">${cells}</label>`
+      + `<label class="r${shortCls}" for="${id}">${cells}</label>`
       + `<div class="parts">${partRows(columns, row.parts)}</div>`
       + `</div>`;
   }).join("");
@@ -488,6 +495,11 @@ function wireSourcePanels(root) {
     if (open && open.contains(e.target)) { e.preventDefault(); return; }
 
     const { cell, pop } = panelIn(e.target);
+    // A chain's own action cell carries the expand caret. Clicking it is how the row opens its
+    // parts — that has to win over pinning the element/type/scaling popover sitting on the same
+    // name, so this falls through to the label's own default behaviour instead of stealing the
+    // click the way every other popover-bearing cell does.
+    if (cell?.querySelector(":scope > .caret")) { close(); return; }
     if (!pop || !root.contains(cell)) { close(); return; }
 
     e.preventDefault();

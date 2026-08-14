@@ -23,25 +23,22 @@ import {
   SLOT_RESOURCES, TEAM_RESOURCES, ENERGY, CONCERTO, FORTE1, FORTE2, FORTE3, FORTE4, OFFTUNE,
   scopedStat, TAGS_MATCHED, INTRO, OUTRO, ECHO, LIB,
 } from "./stats.js";
-import { Gear, Chain, asBuff, asAction, PRIORITY_BANDS } from "./kit.js";
+import {
+  Gear, Chain, asBuff, asAction, labelOf, nameOf, setLabel, PRIORITY, PRIORITY_BANDS,
+} from "./kit.js";
 
 /** What an action is, for matching scoped stats: its element and its damage type. */
 const tagsOf = (action) => TAGS_MATCHED.map((k) => action?.[k]).filter(Boolean);
 
-/** Whatever is applying right now, named — a buff, a gear entry, or the action's own body.
- *  Used to attribute a counter change the way `add()` attributes a stat. */
-const srcName = () => String(CTX?.source ?? "");
-
 /**
  * Which button an action is, rather than what damage it deals. Shorekeeper's intro deals skill
- * damage and her Discernment deals liberation damage; both are intros. Her outro and the echo
- * casts deal no outro or echo damage at all, which is what the `outro` and `echo` nodes are
- * for.
+ * damage and her Discernment deals liberation damage; both are intros, because both are `cast:
+ * INTRO`. A summoned follow-up is no cast at all and answers false to every one of these.
  */
-export const isIntro = (action) => action.node === INTRO;
-export const isOutro = (action) => action.node === OUTRO;
-export const isEcho = (action) => action.node === ECHO;
-export const isLiberation = (action) => action.node === LIB;
+export const isIntro = (action) => action.cast === INTRO;
+export const isOutro = (action) => action.cast === OUTRO;
+export const isEcho = (action) => action.cast === ECHO;
+export const isLiberation = (action) => action.cast === LIB;
 
 /* ------------------------------------------------------------------- one slot */
 
@@ -91,9 +88,16 @@ export class Slot {
    * Every change to the buff list goes through the four methods below, so logging here — rather
    * than at `grant`/`adopt`/`revoke` — is what makes the log complete: a buff that arrives by a
    * route nobody thought to instrument still shows up.
+   *
+   * `make` is a function, not a string, because a buff is granted *before* it has ever run and
+   * only names itself by running. Deferring the wording to read time means the line says what
+   * the buff turned out to be called rather than "(unnamed buff)"; the action tag is captured
+   * now, since by read time the fight has moved on.
    */
-  note(msg) {
-    if (this.state) this.state.log.push(`${this.state.tag()}${this.name} ${msg}`);
+  note(buff, make) {
+    if (!this.state) return;
+    const tag = this.state.tag();
+    this.state.events.push({ buff, render: () => `${tag}${this.name} ${make()}` });
   }
 
   /**
@@ -107,7 +111,7 @@ export class Slot {
   addBuff(buff, { revokeOnOutro = false, via = "gear", front = false } = {}) {
     asBuff(buff);                        // fail fast on an undefined reference
     if (this.list.has(buff)) return this;
-    this.note(`gained ${buff.name} (${via})`);
+    this.note(buff, () => `gained ${nameOf(this.list.get(buff) ?? buff)} (${via})`);
     // keyed by the definition, holding this resonator's own instance of it
     const entry = buff.instance();
     entry.revokeOnOutro = revokeOnOutro;
@@ -128,13 +132,16 @@ export class Slot {
   /** Hold the buff if it is not held already, and stack this resonator's own instance of it.
    *  The ceiling is the buff's `max_stacks`; anything past it is discarded. */
   addStack(buff, n = 1) {
+    // A grant already carries the first stack, so asking for 3 on something not yet held means
+    // three, not four.
+    const fresh = !this.list.has(buff);
     this.addBuff(buff, { via: "state" });
     const held = this.list.get(buff);
     const before = held.stacks;
-    const after = held.addStacks(n);
+    const after = held.addStacks(fresh ? Math.max(0, n - 1) : n);
     if (after !== before) {
       const capped = after === held.max_stacks && before + n > held.max_stacks ? " (capped)" : "";
-      this.note(`${buff.name} ${before} -> ${after}${capped}`);
+      this.note(buff, () => `${nameOf(held)} ${before} -> ${after}${capped}`);
     }
     return after;
   }
@@ -145,8 +152,10 @@ export class Slot {
     if (!held) return false;
     const before = held.stacks;
     const after = held.removeStacks(n);
-    if (after !== before) this.note(`${buff.name} ${before} -> ${after} (spent ${before - after})`);
-    if (after <= 0) { this.list.delete(buff); this.note(`lost ${buff.name} (empty)`); }
+    if (after !== before) {
+      this.note(buff, () => `${nameOf(held)} ${before} -> ${after} (spent ${before - after})`);
+    }
+    if (after <= 0) { this.list.delete(buff); this.note(buff, () => `lost ${nameOf(held)} (empty)`); }
     return true;
   }
 
@@ -156,7 +165,8 @@ export class Slot {
     const held = this.list.get(buff);
     if (!held) return false;
     this.list.delete(buff);
-    this.note(`lost ${buff.name}${held.max_stacks > 1 ? ` (at ${held.stacks})` : ""}`);
+    const at = held.max_stacks > 1 ? ` (at ${held.stacks})` : "";
+    this.note(buff, () => `lost ${nameOf(held)}${at}`);
     return true;
   }
   hasBuff(buff) { return this.list.has(buff); }
@@ -186,7 +196,9 @@ export class Slot {
       case FORTE3: this.forte3 = v; break;
       case FORTE4: this.forte4 = v; break;
     }
-    if (v !== before) this.counterLog.push({ counter: name, delta: v - before, source: srcName() });
+    // the *object* that moved it, not its name — a buff only names itself once it runs, so the
+    // wording is resolved at the end of the action (see `evaluate`)
+    if (v !== before) this.counterLog.push({ counter: name, delta: v - before, src: CTX?.source });
     return v;
   }
 
@@ -218,7 +230,12 @@ export class State {
    */
   constructor({ team = ["slot1"], level = 90, enemyLevel = 100, res = 20, buffs = [] } = {}) {
     // the log and the action tag come first: a slot writes to them the moment it is handed a buff
-    this.log = [];
+    /**
+     * Log lines. Written as thunks — see `Slot.note()` for why the wording is deferred — and
+     * frozen into strings at the end of the action that produced them, so a line says what a
+     * buff was called *then* rather than what it was last called at the end of the fight.
+     */
+    this.events = [];
     this.currentAction = null;
     this.slots = team.map((n, i) => new Slot(n, i, this));
     this.active = 0;
@@ -244,6 +261,29 @@ export class State {
   get slot() { return this.slots[this.active]; }
   slotOf(name) { return this.slots.find((s) => s.name === name); }
 
+  /**
+   * Freeze every log line written so far into its final wording. Called at the end of each
+   * action, once every buff involved has reported its name.
+   *
+   * Lines written before any action has run — equipping gear at `startFight()` — simply wait
+   * here until the first one does, which is exactly when those names first exist.
+   */
+  settleLog() {
+    for (let i = 0; i < this.events.length; i++) {
+      const e = this.events[i];
+      if (typeof e === "string") continue;
+      // a line about a buff nobody has run yet cannot be worded — Iuno's gear is equipped
+      // before she ever acts, and only names itself once she does. It waits.
+      if (e.buff && labelOf(e.buff) == null) continue;
+      this.events[i] = e.render();
+    }
+  }
+
+  /** The event log. Anything not yet frozen is worded on the way out. */
+  get log() {
+    return this.events.map((line) => (typeof line === "string" ? line : line.render()));
+  }
+
   counter(name) {
     if (name !== OFFTUNE) throw new Error(`State: no such team counter "${name}"`);
     return this.offtune;
@@ -251,7 +291,9 @@ export class State {
   setCounter(name, v) {
     const before = this.counter(name);   // also rejects an unknown name before anything moves
     this.offtune = v;
-    if (v !== before) this.counterLog.push({ counter: name, delta: v - before, source: srcName() });
+    // the *object* that moved it, not its name — a buff only names itself once it runs, so the
+    // wording is resolved at the end of the action (see `evaluate`)
+    if (v !== before) this.counterLog.push({ counter: name, delta: v - before, src: CTX?.source });
     return v;
   }
 
@@ -276,8 +318,10 @@ export class State {
         if (!(gear instanceof Gear)) {
           throw new Error(`${slotName}: startFight() only equips Gear, got ${gear}`);
         }
-        if (seen.has(gear.name)) throw new Error(`${slotName} equips "${gear.name}" twice`);
-        seen.add(gear.name);
+        // By identity: a Gear has no name to collide on any more, and equipping the very same
+        // object twice is the collision that actually doubles a stat line.
+        if (seen.has(gear)) throw new Error(`${slotName} equips the same gear twice`);
+        seen.add(gear);
         slot.addBuff(gear, { via: "gear" });
       }
       // The first entry is the resonator themself, by loadout convention — every kit file
@@ -298,7 +342,8 @@ export class State {
   publishOutro(buff) {
     asBuff(buff);
     this.outroQueue.push(buff);
-    this.log.push(`${this.tag()}published ${buff} to the outro queue`);
+    const tag = this.tag();
+    this.events.push({ buff, render: () => `${tag}published ${nameOf(buff)} to the outro queue` });
   }
 
   /** Mechanism 2 — the acting resonator intros and adopts whatever is queued. */
@@ -347,9 +392,9 @@ export class State {
     // the outro queue. An outro closes the window; it is half-open, matching the sheet, so
     // the outro action itself is already off field.
     //
-    // An intro is recognised by its *node* — which button it is — not by its damage type.
+    // An intro is recognised by its *cast* — which button it is — not by its damage type.
     // Shorekeeper's intro deals skill damage and her Discernment deals liberation damage;
-    // both are still intros. There is no outro node, so an outro goes by type.
+    // both are still intros, because both are cast: INTRO.
     if (isIntro(action)) { slot.onField = true; this.adoptOutroBuffs(); }
     if (isOutro(action)) slot.onField = false;
 
@@ -379,31 +424,69 @@ export class State {
     // 2. every buff applies, stage by stage: UPDATE_BUFFS, GEAR_STATS, BUFF_STATS, then the two
     //    conversion stages.
     //
-    //    The list is re-read at the top of each stage rather than materialised once, so a buff
-    //    that an earlier stage *created* still runs in its own — a weapon stacking a buff into
-    //    existence at GEAR_STATS has it pay out at BUFF_STATS on the same cast, with nothing
-    //    pre-seeded. A buff added at a stage already gone by simply waits for the next action.
+    //    A stage does not materialise its list once and walk it. It **drains**: it runs whatever
+    //    is waiting, then looks again, until nothing new turns up. That is what lets a buff grant
+    //    another buff of the *same* priority and have it still apply on this cast — a state that
+    //    opens another state, a passive that installs the thing that pays out — instead of the
+    //    grant landing a moment too late and waiting for the next action.
     //
-    //    Within a stage the names are collected before any of them run, so a buff that revokes
-    //    itself still applies once, and the resonator's own buffs come before the action's body.
-    //    Stack counts are never cached: a buff reads its own `stacks` field live.
+    //    Reaching later stages was never in question (the list is re-read at each one, so a
+    //    weapon stacking something into existence at GEAR_STATS has it pay out at BUFF_STATS).
+    //    Only an *earlier* stage is out of reach, and that is unavoidable: it has already run.
+    //
+    //    `ran` is what makes draining terminate and keeps it honest — one apply() per buff per
+    //    action, keyed on the definition, so a buff revoked and re-granted mid-pass still runs
+    //    exactly once and two buffs granting each other cannot ping-pong.
     const ran = new Set();
 
+    /**
+     * Run one buff, and keep the name it reports.
+     *
+     * `apply()` returning its own name is the only way a buff is named at all, so the label is
+     * recorded on this resonator's instance (which carries the stack count the name may quote)
+     * and on the shared definition, so anything holding only the definition can still read it.
+     */
+    const runBuff = (buff) => {
+      const said = withContext({ ...ctx, source: buff }, () => buff.apply());
+      if (typeof said === "string" && said) setLabel(buff, said);
+    };
+
+    /** Run everything at this band that has not run yet, repeatedly, until nothing new appears. */
+    const drain = (band) => {
+      for (let sweep = 0; ; sweep++) {
+        // The acting resonator's own *instances* run, not the definitions — that is what makes a
+        // stacking buff report this resonator's count when it names itself in a trace.
+        const running = [...slot.list.values()]
+          .filter((buff) => !ran.has(buff.definition) && buff.priority === band);
+        if (!running.length) return;
+        if (sweep > 1000) {
+          throw new Error(`priority band ${band} did not settle — a buff granting new buffs forever?`);
+        }
+        // Claimed before any of them run, so a buff that revokes itself still applies once.
+        for (const buff of running) ran.add(buff.definition);
+        for (const buff of running) runBuff(buff);
+      }
+    };
+
     for (const band of PRIORITY_BANDS) {
-      // The acting resonator's own *instances* run, not the definitions — that is what makes a
-      // stacking buff report this resonator's count when it names itself in a trace. `ran` is
-      // keyed on the definition, so a buff revoked and re-granted mid-pass still runs only once.
-      const running = [...slot.list.values()]
-        .filter((buff) => !ran.has(buff.definition) && buff.priority === band);
-      for (const buff of running) ran.add(buff.definition);
+      drain(band);
 
       // The action's own body joins its own stage, last — which is what lets it read summed
       // totals like hp() when it sits at GEAR_STATS or later. It stands in for a buff here, and
       // an Action already has the `name`-ish identity `add()` wants: its own `toString()`.
-      if (action.apply && action.priority === band) running.push(action);
-
-      for (const buff of running) withContext({ ...ctx, source: buff }, () => buff.apply());
+      if (action.apply && action.priority === band) {
+        withContext({ ...ctx, source: action }, () => action.apply());
+        drain(band);   // and whatever the body just granted at this band runs too
+      }
     }
+
+    // Every buff has now said what it is called, so the traces can be worded. Done here rather
+    // than at each `add()` because at that moment the buff contributing was still mid-apply and
+    // had not reported its name yet.
+    for (const e of slot.entries) e.source = nameOf(e.src);
+    for (const e of slot.counterLog) e.source = nameOf(e.src);
+    for (const e of this.counterLog) e.source = nameOf(e.src);
+    this.settleLog();
 
     const snapshot = this.resolve(action, meta);
 
@@ -424,8 +507,8 @@ export class State {
   resolve(action, meta = {}) {
     const slot = this.slot;
     // Every stat picks up its generic total plus whatever was scoped to what this action *is*.
-    // `node` and `scaling` deliberately do NOT participate — Jingran's Lib1 has node
-    // "liberation" but type "heavy", so resolving node would start paying liberation bonuses
+    // `cast` and `scaling` deliberately do NOT participate — Jingran's liberation is cast
+    // "liberation" but type "heavy", so resolving cast would start paying liberation bonuses
     // on it. See TAGS_MATCHED in stats.js.
     const totals = new Map();
     for (const e of slot.entries) totals.set(e.stat, (totals.get(e.stat) ?? 0) + e.value);
@@ -436,6 +519,10 @@ export class State {
     return {
       action,
       slot: slot.name,
+      // A queued follow-up (`queue()`/`queueOn()`) always names the slot it runs on; a plain
+      // rotation entry never does — that is the one thing telling the two apart by the time a
+      // snapshot exists, so display gets it for free rather than the engine tagging it twice.
+      triggered: meta.slot != null,
       chain: meta.chain ?? null,
       chainOf: meta.chainOf ?? null,
       onField: slot.onField,
@@ -460,8 +547,8 @@ export class State {
       // short by exactly the reset.
       counterLog: [...slot.counterLog],
       teamCounterLog: [...this.counterLog],
-      buffs: [...slot.list.keys()].map((b) => b.name),
-      stacks: Object.fromEntries([...slot.list].map(([def, held]) => [def.name, held.stacks])),
+      buffs: [...slot.list.values()].map(nameOf),
+      stacks: Object.fromEntries([...slot.list.values()].map((h) => [nameOf(h), h.stacks])),
     };
   }
 
@@ -535,9 +622,9 @@ export function add(value, tagOrStat, maybeStat) {
   const stat = scoped ? scopedStat(tagOrStat, maybeStat) : tagOrStat;
   if (!Number.isFinite(value)) throw new Error(`add(): ${stat} got ${value}`);
   const c = cur();
-  // The trace is display data, so the source is flattened to its name here: a Buff stringifies
-  // to its name and an Action — which stands in for a buff when its own body runs — to its id.
-  c.slot.entries.push({ stat, value, source: String(c.source) });
+  // The *object* that contributed, not its name. A buff only names itself by running, and it is
+  // still running right now — the wording is filled in once the pass is over (see `evaluate`).
+  c.slot.entries.push({ stat, value, src: c.source });
   return value;
 }
 
@@ -583,7 +670,7 @@ export function spendTeam(name, n) {
 export const flag = (name) => cur().state.flags.add(name);
 export const flagged = (name) => cur().state.flags.has(name);
 
-/** The action being evaluated — the `Action` itself, whose `is()` tests element / type / node. */
+/** The action being evaluated — the `Action` itself, whose `is()` tests element / type / cast. */
 export const action = () => cur().action;
 
 /** The fight's settings: level, enemyLevel, res, maxOfftune. Read-only by convention. */
@@ -636,7 +723,10 @@ export const removeStack = (buff, n = 1) => cur().slot.removeStack(buff, n);
 
 /** Record something notable — a rotation that spends a gauge it does not have, say. Prefixed
  *  with the full name of the action in progress. */
-export const note = (msg) => cur().state.log.push(`${cur().state.tag()}${msg}`);
+export function note(msg) {
+  const tag = cur().state.tag();
+  cur().state.events.push({ buff: null, render: () => `${tag}${msg}` });
+}
 
 /** Queue a follow-up action, evaluated straight after the current one, on the resonator that
  *  queued it. */

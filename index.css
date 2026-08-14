@@ -283,7 +283,7 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   font-size: 12px;
-  color: var(--ink-2);
+  color: var(--ink);
 }
 
 /* the leading columns stay put while the rest of the table scrolls sideways */
@@ -335,7 +335,8 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 .step:hover > .r  { background: color-mix(in srgb, var(--m, transparent) 15%, var(--surface)); }
 
 .c.action { font-weight: 550; color: var(--ink); }
-.c.avg { color: #fff; font-weight: 700; }
+/* the same green the team-total card uses, so the eye can tie a row's damage back to it */
+.c.avg { color: var(--mint); font-weight: 700; }
 
 /* total row */
 .totalrow {
@@ -373,6 +374,13 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 .parts .c { padding-top: 4px; padding-bottom: 4px; }
 .parts .name { padding-left: calc(var(--lead) + 18px); }
 .parts .best { color: var(--amber); }
+
+/* A triggered follow-up, a zero-damage hit, or an outro isn't a rotation beat of its own —
+   thinner and dimmer, so scanning the table isn't slowed reading past them. Opacity rather than
+   a specific colour: it fades every column's own colour by the same amount, avg's mint included,
+   instead of having to restate each one. */
+.r.short .c { padding-top: 2px; padding-bottom: 2px; opacity: .5; }
+.parts .r.short .c { padding-top: 1px; padding-bottom: 1px; }
 
 /* ------------------------------------------------------- hover source panels */
 

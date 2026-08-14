@@ -61,12 +61,14 @@ export const TUNE_BREAK_CAST = new Action("Auto Tune Break", {
  * It only queues. The cast that follows is what empties the bar, so the action that filled it
  * still reports the full bar it earned rather than the aftermath.
  */
-export const AUTO_TUNE_BREAK = new Buff("Auto Tune Break", PRIORITY.AUTO_ACTION, () => {
+export const AUTO_TUNE_BREAK = new Buff(PRIORITY.AUTO_ACTION, () => {
   const max = config().maxOfftune;
   // The cast never triggers itself — by the time this runs on it the bar is already emptied,
   // so this is belt and braces rather than the thing holding the recursion back.
-  if (!max || action() === TUNE_BREAK_CAST) return;
-  if (teamCounter(OFFTUNE) >= max) queue(TUNE_BREAK_CAST);
+  if (max && action() !== TUNE_BREAK_CAST && teamCounter(OFFTUNE) >= max) {
+    queue(TUNE_BREAK_CAST);
+  }
+  return "Auto Tune Break";
 });
 
 /**
@@ -175,10 +177,11 @@ export function mainstats(c4 = "", c3 = "", c1 = "") {
   const entries = [...totals.values()];
   const layout = slots.map(([c]) => c).join("");
   const name = `${layout} ${slots.map(([, key]) => key).join(" ")}`;
-  return new Gear(name, () => {
+  return new Gear(() => {
     for (const { stat, tag, value } of entries) {
       if (tag) add(value, tag, stat); else add(value, stat);
     }
+    return name;
   });
 }
 
@@ -276,10 +279,11 @@ export function substats(name, counts) {
     if (!(stat in ROLL)) throw new Error(`substats("${name}"): nothing rolls "${key}"`);
     return { stat, tag, value: ROLL[stat] * n };
   });
-  return new Gear(name, () => {
+  return new Gear(() => {
     for (const { stat, tag, value } of entries) {
       if (tag) add(value, tag, stat); else add(value, stat);
     }
+    return name;
   });
 }
 
