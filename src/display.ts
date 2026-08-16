@@ -28,6 +28,11 @@ export interface TraceEntry {
   mult?: boolean;
   place?: "beforeTotal" | "afterTotal";
   label?: string;
+  /** How many decimals this row's own value reads to, when the panel's default (4) is more
+   *  precision than the figure deserves. */
+  digits?: number;
+  /** Which team member granted this — the hover panel's colour bar. See `Buff.owner`. */
+  owner?: string | null;
 }
 
 /** The raw (already-formatted-ready) values for one row, keyed by column. */
@@ -104,7 +109,7 @@ function tracing(snapshot: ResolvedSnapshot, stats: string[]): TraceEntry[] {
     else {
       by.set(key, {
         source: e.source ?? "", stat: e.stat, value: e.value,
-        section: SECTION_OF[splitStat(e.stat)[0]] ?? null,
+        section: SECTION_OF[splitStat(e.stat)[0]] ?? null, owner: e.owner ?? null,
       });
     }
   }
@@ -150,7 +155,7 @@ function resourceTrace(
   // What the rotation had already banked. Shown even when nothing moved, so the number in the
   // column is always accounted for rather than appearing from nowhere on a row that spent nothing.
   const carried = total - moved.reduce((n, m) => n + m.value, 0);
-  if (Math.abs(carried) > 1e-9) rows.push({ source: "carried in", value: carried });
+  if (Math.abs(carried) > 1e-9) rows.push({ source: "Concerto Held", value: carried });
   rows.push(...moved.filter((m) => Math.abs(m.value) > 1e-9));
 
   // A liberation declares -125 energy and an outro -100 concerto, but neither moves the running
@@ -190,6 +195,7 @@ function rowValues(
   { mv, avg, config }: { mv: number; avg: number; config: DamageConfig | null },
 ): RowValues {
   const raw: RawRow = {
+    member: snap.member,
     atk: snap.atk,
     hp: snap.hp,
     mv,
@@ -242,9 +248,9 @@ function rowValues(
   // How much the build lifts the bare base stat: (flat + bonus% x base) / base, which is the
   // same as (total - base) / base. It is the one number that says whether a piece of gear is
   // worth more than another, and it cannot be read off the three sections separately.
-  for (const [key, [baseStat, bonusStat, flatStat], noun] of [
-    ["atk", [Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk], "attack"],
-    ["hp", [Stat.BaseHp, Stat.BonusHp, Stat.FlatHp], "HP"],
+  for (const [key, [baseStat, bonusStat, flatStat]] of [
+    ["atk", [Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk]],
+    ["hp", [Stat.BaseHp, Stat.BonusHp, Stat.FlatHp]],
   ] as const) {
     const traced = sources[key];
     if (!traced) continue;
@@ -254,9 +260,9 @@ function rowValues(
     const base = sum(baseStat);
     if (!base) continue;
     sources[key] = [...traced, {
-      source: `Relative ${noun} increase`,
+      source: "", label: "Relative",
       value: ((sum(flatStat) + (sum(bonusStat) / 100) * base) / base) * 100,
-      percent: true, place: "beforeTotal",
+      percent: true, place: "afterTotal", digits: 2,
     }];
   }
 
@@ -347,6 +353,7 @@ export function buildReport(
   // further down. `align: "left"` is what separates the text columns from the numeric ones —
   // it decides both the padding side and, in the web view, which per-character unit sizes them.
   const columns: Column[] = [
+    { key: "member", label: "member", align: "left" },
     { key: "action", label: "action", align: "left" },
 
     { key: "avg", label: "avg dmg" },

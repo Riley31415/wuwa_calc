@@ -7,10 +7,6 @@
  * (tsc compiles into dist/, mirroring this file's own path one level deeper — run `npm run
  * build` first if dist/ is stale.)
  */
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-
 import { collapseChains } from "./kit.js";
 import type { ChainGroup } from "./kit.js";
 import { State, Enemy } from "./state.js";
@@ -21,23 +17,20 @@ import { AUTO_TUNE_BREAK } from "./shared/tunebreak.js";
 import { LOADOUT, ROTATION } from "./resonators/jingran.js";
 import { Element, ELEMENTS } from "./stats.js";
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-// one ".." further than data/'s real depth from this file's own source location — dist/src/
-// sits one level deeper than src/ does, since dist/ mirrors the whole project under itself
-const dataFile = (n: string): any => JSON.parse(readFileSync(join(HERE, "..", "..", "data", n), "utf8"));
+// level 100 enemy, level 90 resonators, a flat 20% base resistance, 39.2% max off-tune — every
+// fight this calculator runs uses the same standing numbers.
+const ENEMY_LEVEL = 100, RESONATOR_LEVEL = 90, DEFAULT_RES = 20, MAX_OFFTUNE = 39.2;
 
 export function runJingran(rotation: RotationEntry[] = ROTATION) {
-  const cfg = dataFile("config.json").constants;
-
   // the same flat resistance seeded onto every element, until a fight wants them to differ
   const enemy = new Enemy({
-    level: cfg.enemyLevel,
-    baseRes: Object.fromEntries(ELEMENTS.map((e) => [e, cfg.defaultRes * 100])),
-    maxOfftune: cfg.maxOfftune,
+    level: ENEMY_LEVEL,
+    baseRes: Object.fromEntries(ELEMENTS.map((e) => [e, DEFAULT_RES])),
+    maxOfftune: MAX_OFFTUNE,
   });
   const state = new State({
     team: ["Jingran"],
-    level: cfg.resonatorLevel,
+    level: RESONATOR_LEVEL,
     enemy,
     // the engine's own standing rules, ahead of anything a build equips
     buffs: [AUTO_TUNE_BREAK],
@@ -53,7 +46,7 @@ function main(): void {
   const showEntries = process.argv.includes("--entries");
   const { state, rows, lines } = runJingran();
 
-  const report = buildReport(lines, { strip: /^Jingran: /, config: state.config });
+  const report = buildReport(lines, { config: state.config });
 
   console.log(`Jingran — ${lines.length} steps / ${rows.length} actions, `
     + `level ${state.config.level} vs level ${state.enemy.level}, `

@@ -14,8 +14,10 @@
  * is the same idea again, one further step removed — held on `Enemy`, ticking on every action
  * including one not owned by any team member (a future DOT tick, say).
  *
- * Authoring style: functions use the ambient namespace (`add(36, CRIT_RATE)`) rather than
- * threading `state` through every call. `withContext` binds it.
+ * Authoring style: functions read/mutate through an explicit `ctx: Ctx` (`ctx.add(36, CRIT_RATE)`),
+ * handed in as the first argument to every `apply()`/`onFightStart()`/`onIntro()` — built fresh
+ * per call, nothing ambient, so a `State` never depends on anything outside itself and two of
+ * them can evaluate side by side.
  */
 import {
   Stat, Resource, DamageType, Cast,
@@ -53,6 +55,9 @@ export interface StatEntry {
   src: unknown;
   forcedName?: string;
   source?: string;
+  /** Which team member's own gear/kit produced this contribution — the hover panel's colour
+   *  bar. See `Buff.owner`. */
+  owner?: string | null;
 }
 
 /** Who moved a resource counter, for the resource panels' hover trace. */
@@ -68,6 +73,10 @@ export type HeldBuff = Buff;
 
 /** A single loadout: the resonator's own Gear first, then weapon/echo/sonata/mainstats/etc. */
 export type Loadout = Gear[];
+
+/** A buff waiting in the outro queue, its owner captured at publish time — the resonator who
+ *  eventually adopts it on their own intro is not who granted it. */
+export interface QueuedOutro { buff: Buff; owner: string | null; }
 
 export class Slot {
   name: string;
@@ -124,22 +133,29 @@ export class Slot {
   }
 
   /** Put a buff on this resonator's list — idempotent. Only decides whether `apply()` runs
-   *  here; `addStack` is what moves the stack count. */
-  addBuff(buff: Buff, { via = "gear" }: { via?: string } = {}): this {
+   *  here; `addStack` is what moves the stack count.
+   *
+   *  `owner` names who's responsible for it, for display only. An explicit `owner` (the outro
+   *  queue passes the publisher's own, captured at publish time; `addStack` passes its own
+   *  caller's) wins; gear is always owned by whoever it's equipped on; omitted otherwise. */
+  addBuff(buff: Buff, { via = "gear", owner }: { via?: string; owner?: string | null } = {}): this {
     asBuff(buff);
     if (this.list.has(buff)) return this;
     this.note(buff, () => `gained ${nameOf(this.list.get(buff) ?? buff)} (${via})`);
     const entry = buff.instance();
     entry.via = via;
+    entry.owner = owner !== undefined ? owner : (via === "gear" ? this.name : null);
     this.list.set(buff, entry);
     return this;
   }
 
-  /** Hold the buff if not already held, and stack this resonator's own instance of it. */
-  addStack(buff: Buff, n = 1): number {
+  /** Hold the buff if not already held, and stack this resonator's own instance of it. `owner`
+   *  passes straight through to `addBuff` for a fresh grant — whoever's `Ctx.grantSelf`/
+   *  `grantOthers` called this hands in their own `owner`. */
+  addStack(buff: Buff, n = 1, owner?: string | null): number {
     // a grant already carries the first stack
     const fresh = !this.list.has(buff);
-    this.addBuff(buff, { via: "state" });
+    this.addBuff(buff, { via: "state", owner });
     const held = this.list.get(buff)!;
     const before = held.stacks;
     const after = held.addStacks(fresh ? Math.max(0, n - 1) : n);
@@ -188,7 +204,7 @@ export class Slot {
       default: throw new Error(`Slot: no such counter "${name}"`);
     }
   }
-  setCounter(name: Resource, v: number): number {
+  setCounter(name: Resource, v: number, source?: unknown): number {
     const before = this.counter(name);
     switch (name) {
       case Resource.Energy: this.energy = v; break;
@@ -199,7 +215,7 @@ export class Slot {
       case Resource.Forte4: this.forte4 = v; break;
     }
     // the object that moved it, not its name — resolved once the buff has named itself
-    if (v !== before) this.counterLog.push({ counter: name, delta: v - before, src: CTX?.source });
+    if (v !== before) this.counterLog.push({ counter: name, delta: v - before, src: source });
     return v;
   }
 
@@ -273,22 +289,25 @@ export class Enemy {
   }
 
   /** Put a debuff on the enemy — idempotent. Only decides whether `apply()` runs here;
-   *  `addStack` is what moves the stack count. */
-  addDebuff(debuff: Debuff, { via = "grant" }: { via?: string } = {}): this {
+   *  `addStack` is what moves the stack count. A debuff is never gear, so `owner` is always
+   *  whatever its caller hands in (`Ctx.grantEnemy`'s own owner, ultimately). */
+  addDebuff(debuff: Debuff, { via = "grant", owner = null }: { via?: string; owner?: string | null } = {}): this {
     asDebuff(debuff);
     if (this.list.has(debuff)) return this;
     this.note(debuff, () => `gained ${nameOf(this.list.get(debuff) ?? debuff)} (${via})`);
     const entry = debuff.instance();
     entry.via = via;
+    entry.owner = owner;
     this.list.set(debuff, entry);
     return this;
   }
 
-  /** Hold the debuff if not already held, and stack it. */
-  addStack(debuff: Debuff, n = 1): number {
+  /** Hold the debuff if not already held, and stack it. `owner` passes straight through to
+   *  `addDebuff` for a fresh grant. */
+  addStack(debuff: Debuff, n = 1, owner?: string | null): number {
     // a grant already carries the first stack
     const fresh = !this.list.has(debuff);
-    this.addDebuff(debuff, { via: "state" });
+    this.addDebuff(debuff, { via: "state", owner });
     const held = this.list.get(debuff)!;
     const before = held.stacks;
     const after = held.addStacks(fresh ? Math.max(0, n - 1) : n);
@@ -347,10 +366,10 @@ export class Enemy {
     if (name !== Resource.Offtune) throw new Error(`Enemy: no such counter "${name}"`);
     return this.offtune;
   }
-  setCounter(name: string, v: number): number {
+  setCounter(name: string, v: number, source?: unknown): number {
     const before = this.counter(name);
     this.offtune = v;
-    if (v !== before) this.counterLog.push({ counter: name, delta: v - before, src: CTX?.source });
+    if (v !== before) this.counterLog.push({ counter: name, delta: v - before, src: source });
     return v;
   }
 }
@@ -377,6 +396,9 @@ export interface Step {
  *  hover panels want. */
 export interface ResolvedSnapshot extends Snapshot {
   slot: string;
+  /** Who actually acted — unlike `slot`, never relabeled (see `attributeMisc`'s "Misc" bucket
+   *  for tune breaks). Display-only: which resonator's own turn this event happened on. */
+  member: string;
   triggered: boolean;
   active: boolean;
   entries: StatEntry[];
@@ -400,7 +422,7 @@ export class State {
   config: DamageConfig;
   enemy: Enemy;
   globalBuffs: Map<GlobalBuff, GlobalBuff>;
-  outroQueue: Buff[];
+  outroQueue: QueuedOutro[];
   pending: Step[];
   chainSeq: number;
 
@@ -439,22 +461,25 @@ export class State {
   }
 
   /** Put a global buff on the fight — idempotent. Only decides whether `apply()` runs here;
-   *  `addGlobalStack` is what moves the stack count. */
-  addGlobalBuff(buff: GlobalBuff, { via = "grant" }: { via?: string } = {}): this {
+   *  `addGlobalStack` is what moves the stack count. A global buff is never gear, so `owner`
+   *  is always whatever its caller hands in (`Ctx.grantGlobal`'s own owner, ultimately). */
+  addGlobalBuff(buff: GlobalBuff, { via = "grant", owner = null }: { via?: string; owner?: string | null } = {}): this {
     asGlobalBuff(buff);
     if (this.globalBuffs.has(buff)) return this;
     this.noteGlobal(buff, () => `gained ${nameOf(this.globalBuffs.get(buff) ?? buff)} (${via})`);
     const entry = buff.instance();
     entry.via = via;
+    entry.owner = owner;
     this.globalBuffs.set(buff, entry);
     return this;
   }
 
-  /** Hold the global buff if not already held, and stack it. */
-  addGlobalStack(buff: GlobalBuff, n = 1): number {
+  /** Hold the global buff if not already held, and stack it. `owner` passes straight through to
+   *  `addGlobalBuff` for a fresh grant. */
+  addGlobalStack(buff: GlobalBuff, n = 1, owner?: string | null): number {
     // a grant already carries the first stack
     const fresh = !this.globalBuffs.has(buff);
-    this.addGlobalBuff(buff, { via: "state" });
+    this.addGlobalBuff(buff, { via: "state", owner });
     const held = this.globalBuffs.get(buff)!;
     const before = held.stacks;
     const after = held.addStacks(fresh ? Math.max(0, n - 1) : n);
@@ -496,10 +521,10 @@ export class State {
    *  it's already held. For a buff whose cast genuinely *replaces* whatever it last reached
    *  (a fresh Array overwriting Thunder Spell's progress) rather than accumulating — most
    *  global buffs only ever need the plain relative `addGlobalStack`. */
-  setGlobalStacks(buff: GlobalBuff, n: number): number {
+  setGlobalStacks(buff: GlobalBuff, n: number, owner?: string | null): number {
     const clamped = Math.min(buff.max_stacks, Math.max(0, n));
     const before = this.stacksOfGlobal(buff);
-    if (before < clamped) this.addGlobalStack(buff, clamped - before);
+    if (before < clamped) this.addGlobalStack(buff, clamped - before, owner);
     else if (before > clamped) this.removeGlobalStack(buff, before - clamped);
     return clamped;
   }
@@ -553,16 +578,17 @@ export class State {
       const slot = this.slotOf(slotName)!;
       for (const gear of gearList) {
         if (!gear.onFightStart) continue;
-        withContext({ state: this, slot, action: null, source: gear }, gear.onFightStart);
+        gear.onFightStart(new Ctx({ state: this, slot, action: null, source: gear, owner: slot.name }));
       }
     }
     return this;
   }
 
-  /** Mechanism 2 — publish a buff for whoever intros next. */
-  publishOutro(buff: Buff): void {
+  /** Mechanism 2 — publish a buff for whoever intros next. `owner` is the publisher's own,
+   *  captured now — by the time it's adopted the acting slot has moved on to someone else. */
+  publishOutro(buff: Buff, owner: string | null = null): void {
     asBuff(buff);
-    this.outroQueue.push(buff);
+    this.outroQueue.push({ buff, owner });
     const tag = this.tag();
     this.events.push({ buff, render: () => `${tag}published ${nameOf(buff)} to the outro queue` });
   }
@@ -573,8 +599,8 @@ export class State {
   adoptOutroBuffs(): Buff[] {
     if (!this.outroQueue.length) return [];
     const taken = this.outroQueue.splice(0);
-    for (const buff of taken) this.slot.addBuff(buff, { via: "outro" });
-    return taken;
+    for (const { buff, owner } of taken) this.slot.addBuff(buff, { via: "outro", owner });
+    return taken.map((t) => t.buff);
   }
 
   /** Mechanism 3 — a grant to specific slots. Idempotent: no duplicate, no stack. */
@@ -606,9 +632,8 @@ export class State {
     let queuedIntro: Step | null = null;
     if (isOutro(action)) {
       const incoming = this.slots[(this.active + 1) % this.slots.length]!;
-      const introAction = withContext(
-        { state: this, slot: incoming, action: null, source: incoming.resonator },
-        () => incoming.resonator!.onIntro!(),
+      const introAction = incoming.resonator!.onIntro!(
+        new Ctx({ state: this, slot: incoming, action: null, source: incoming.resonator, owner: incoming.name }),
       );
       queuedIntro = { action: asAction(introAction), slot: incoming.index };
     }
@@ -619,23 +644,23 @@ export class State {
     // the resonator leaving the field with nothing carried over.
     slot.counterLog = [];
     this.enemy.counterLog = [];
-    const ctx: Context = { state: this, slot, action, source: null };
+    // shared fields every Ctx built below starts from — only `source` (and, for a buff, `owner`)
+    // ever varies per call
+    const base = { state: this, slot, action, owner: slot.name };
 
-    withContext({ ...ctx, source: action }, () => {
-      for (const r of SLOT_RESOURCES) {
-        const delta = (action as unknown as Record<string, number>)[r] ?? 0;
-        const spendsEverything = delta < 0 && (r === Resource.Energy || r === Resource.Concerto);
-        slot.setCounter(r, slot.counter(r) + (spendsEverything ? 0 : delta));
-      }
-      for (const r of TEAM_RESOURCES) {
-        const delta = (action as unknown as Record<string, number>)[r] ?? 0;
-        this.enemy.setCounter(r, this.enemy.counter(r) + delta);
-      }
-      if (isOutro(action)) {
-        slot.setCounter(Resource.Energy, 0);
-        slot.setCounter(Resource.Concerto, 0);
-      }
-    });
+    for (const r of SLOT_RESOURCES) {
+      const delta = (action as unknown as Record<string, number>)[r] ?? 0;
+      const spendsEverything = delta < 0 && (r === Resource.Energy || r === Resource.Concerto);
+      slot.setCounter(r, slot.counter(r) + (spendsEverything ? 0 : delta), action);
+    }
+    for (const r of TEAM_RESOURCES) {
+      const delta = (action as unknown as Record<string, number>)[r] ?? 0;
+      this.enemy.setCounter(r, this.enemy.counter(r) + delta, action);
+    }
+    if (isOutro(action)) {
+      slot.setCounter(Resource.Energy, 0, action);
+      slot.setCounter(Resource.Concerto, 0, action);
+    }
 
     slot.entries = [];
     this.enemy.entries = [];
@@ -649,11 +674,13 @@ export class State {
     // who's acting — a local buff (`slot.list`) only runs on its own holder's turn.
     const ran = new Set<Buff>();
 
-    /** Run one buff or debuff, and keep the name it reports. Its own current stack count and
-     *  the action being evaluated are handed in — most bodies would otherwise open with
-     *  `stacksOf(SELF)` and/or `action()`. */
+    /** Run one buff or debuff, and keep the name it reports. Its own current stack count is
+     *  handed in; the action being evaluated reaches it through `ctx.action` instead. */
     const runBuff = (buff: Buff): void => {
-      const said = withContext({ ...ctx, source: buff }, () => buff.apply(buff.stacks, action));
+      // the held instance's own stamped owner, not whoever's turn it happens to be — a global
+      // buff ticking on someone else's action still grants under its original owner's name
+      const ctx = new Ctx({ ...base, source: buff, owner: buff.owner ?? null });
+      const said = buff.apply(ctx, buff.stacks);
       if (typeof said === "string" && said) setLabel(buff, said);
     };
 
@@ -679,7 +706,7 @@ export class State {
       // through here (not what buffs it triggered add) then traces back to instead.
       if (action.apply && action.priority === band) {
         const before = slot.entries.length;
-        const said = withContext({ ...ctx, source: action }, () => action.apply!());
+        const said = action.apply!(new Ctx({ ...base, source: action }));
         if (typeof said === "string" && said) {
           for (let i = before; i < slot.entries.length; i++) slot.entries[i]!.forcedName = said;
         }
@@ -720,6 +747,7 @@ export class State {
     return {
       action,
       slot: slot.name,
+      member: slot.name,
       // a queued follow-up always names the slot it runs on; a plain rotation entry never does
       triggered: meta.slot != null,
       chain: meta.chain ?? null,
@@ -778,196 +806,197 @@ export class State {
   }
 }
 
-/* ------------------------------------------------- the ambient state namespace */
-
-/** What every ambient function reads via `cur()` — bound for the duration of one `withContext`
- *  call (one buff's `apply()`, one action's `apply()`, one `onFightStart()`/`onIntro()`). */
-export interface Context {
-  state: State;
-  slot: Slot;
-  action: Action | null;
-  source: unknown;
-}
-
-let CTX: Context | null = null;
-
-export function withContext<T>(ctx: Context, fn: () => T): T {
-  const prev = CTX;
-  CTX = ctx;
-  try { return fn(); } finally { CTX = prev; }
-}
-
-function cur(): Context {
-  if (!CTX) throw new Error("no active calculation — call inside State.evaluate()");
-  return CTX;
-}
+/* ------------------------------------------------------------------------- Ctx */
 
 /**
- * Contribute to a stat. Ratio stats are percent units: `add(36, Stat.CritRate)` is +36%.
- * A third form scopes it: `add(12, "fusion", Stat.DmgBonus)` is 12% fusion damage.
+ * Everything a buff/action/gear callback can read or do, built fresh for one `apply()`/
+ * `onFightStart()`/`onIntro()` call and handed in as its first argument. Nothing here is
+ * ambient or shared across calls — a `Ctx` is a plain value pointing at the live `State`, so
+ * two `State`s (or, down the line, two worker threads) can evaluate at once without a shared
+ * mutable global to race on.
  */
-export function add(value: number, tagOrStat: string, maybeStat?: string): number {
-  const scoped = maybeStat !== undefined;
-  const stat = scoped ? scopedStat(tagOrStat, maybeStat) : tagOrStat;
-  if (!Number.isFinite(value)) throw new Error(`add(): ${stat} got ${value}`);
-  const c = cur();
-  // the object that contributed, not its name — worded once the pass is over
-  c.slot.entries.push({ stat, value, src: c.source });
-  return value;
+export class Ctx {
+  readonly state: State;
+  readonly slot: Slot;
+  readonly action: Action | null;
+  /** The buff/action/gear this Ctx was built for — what a stat contribution attributes to. */
+  readonly source: unknown;
+  /** Which team member's own gear/kit is running right now — what a newly granted buff's own
+   *  `owner` inherits. `null` for an engine-wide standing rule with no member behind it. */
+  readonly owner: string | null;
+
+  constructor(fields: { state: State; slot: Slot; action: Action | null; source: unknown; owner: string | null }) {
+    this.state = fields.state;
+    this.slot = fields.slot;
+    this.action = fields.action;
+    this.source = fields.source;
+    this.owner = fields.owner;
+  }
+
+  /** The fight's one enemy — its own level, resistances, defence and off-tune. Read-only by
+   *  convention; a debuff changes it through `addEnemyRes`/`addEnemyDef`/`grantEnemy`, not by
+   *  poking its fields directly. */
+  get enemy(): Enemy { return this.state.enemy; }
+
+  /**
+   * Contribute to a stat. Ratio stats are percent units: `ctx.add(36, Stat.CritRate)` is +36%.
+   * A third form scopes it: `ctx.add(12, "fusion", Stat.DmgBonus)` is 12% fusion damage.
+   */
+  add(value: number, tagOrStat: string, maybeStat?: string): number {
+    const scoped = maybeStat !== undefined;
+    const stat = scoped ? scopedStat(tagOrStat, maybeStat) : tagOrStat;
+    if (!Number.isFinite(value)) throw new Error(`add(): ${stat} got ${value}`);
+    // the object that contributed, not its name — worded once the pass is over
+    this.slot.entries.push({ stat, value, src: this.source, owner: this.owner });
+    return value;
+  }
+
+  /** Running total of a stat, including everything scoped to the action being evaluated. */
+  get(stat: string): number {
+    return tagsOf(this.action).reduce(
+      (n, tag) => n + this.slot.total(scopedStat(tag, stat)), this.slot.total(stat));
+  }
+  pct(stat: string): number { return isPercent(stat) ? this.get(stat) / 100 : this.get(stat); }
+
+  /** Summed totals. Safe to read from the action's apply() and from LATE conversions. */
+  atk(): number { return this.slot.derived(Stat.Atk); }
+  hp(): number { return this.slot.derived(Stat.Hp); }
+  def(): number { return this.slot.derived(Stat.Def); }
+
+  /* counters — per resonator */
+  counter(name: Resource): number { return this.slot.counter(name); }
+  setCounter(name: Resource, v: number): number { return this.slot.setCounter(name, v, this.source); }
+  gain(name: Resource, n = 1): number {
+    return this.slot.setCounter(name, this.slot.counter(name) + n, this.source);
+  }
+  spend(name: Resource, n: number): boolean {
+    const have = this.slot.counter(name);
+    if (have < n) return false;
+    this.slot.setCounter(name, have - n, this.source);
+    return true;
+  }
+
+  /* counters — team wide: off-tune, the enemy's own bar */
+  teamCounter(name: string): number { return this.state.enemy.counter(name); }
+  setTeamCounter(name: string, v: number): number { return this.state.enemy.setCounter(name, v, this.source); }
+  gainTeam(name: string, n = 1): number {
+    return this.state.enemy.setCounter(name, this.state.enemy.counter(name) + n, this.source);
+  }
+  spendTeam(name: string, n: number): boolean {
+    const have = this.state.enemy.counter(name);
+    if (have < n) return false;
+    this.state.enemy.setCounter(name, have - n, this.source);
+    return true;
+  }
+
+  /** The fight's settings: just the resonator's own level now — enemy level/resistance/off-tune
+   *  cap all live on `enemy`. Read-only by convention. */
+  config(): DamageConfig { return this.state.config; }
+
+  /** Does the acting resonator hold this local buff, or is this global buff currently up —
+   *  routed by the buff's own class, so the same call works for either. */
+  equipped(buff: Buff): boolean {
+    return buff instanceof GlobalBuff ? this.state.hasGlobalBuff(buff) : this.slot.hasBuff(buff);
+  }
+
+  /** Contribute to the enemy's resistance to one element, in percent — same shape as `add()` but
+   *  scoped to the enemy rather than the acting resonator. Only ever call this from inside a
+   *  Debuff's own `apply()`. */
+  addEnemyRes(value: number, element: string): number {
+    if (!Number.isFinite(value)) throw new Error(`addEnemyRes(): ${element} got ${value}`);
+    this.state.enemy.entries.push({ stat: `res:${element}`, value, src: this.source, owner: this.owner });
+    return value;
+  }
+
+  /** Contribute to the enemy's own defence — same shape as `addEnemyRes`, unscoped since defence
+   *  doesn't vary by element. */
+  addEnemyDef(value: number): number {
+    if (!Number.isFinite(value)) throw new Error(`addEnemyDef(): got ${value}`);
+    this.state.enemy.entries.push({ stat: "def", value, src: this.source, owner: this.owner });
+    return value;
+  }
+
+  /** Put a debuff on the enemy, adding `n` stacks (a fresh grant already carries the first) —
+   *  the enemy-side equivalent of `grantSelf`. */
+  grantEnemy(debuff: Debuff, n = 1): number { return this.state.enemy.addStack(debuff, n, this.owner); }
+
+  /** The enemy's live stack count for a debuff. 0 if not held. */
+  stacksOfEnemy(debuff: Debuff): number { return this.state.enemy.stacksOf(debuff); }
+
+  /** Spend stacks; the debuff drops off the enemy once it is empty. */
+  removeStackEnemy(debuff: Debuff, n = 1): boolean { return this.state.enemy.removeStack(debuff, n); }
+
+  /** Take the debuff off the enemy entirely. */
+  revokeEnemy(debuff: Debuff): boolean { return this.state.enemy.removeDebuff(debuff); }
+
+  /** The slot an outro is about to hand the field to — who's coming in next in the cycle. */
+  nextSlot(): Slot { return this.state.slots[(this.state.active + 1) % this.state.slots.length]!; }
+
+  /** Put a buff on the acting resonator's own list, adding `n` stacks (a fresh grant already
+   *  carries the first) — how an action opens a state, or stacks one it already holds. Local
+   *  buffs only; a `GlobalBuff` goes through `grantGlobal` instead. */
+  grantSelf(buff: Buff, n = 1): number { return this.slot.addStack(buff, n, this.owner); }
+
+  /** Put a global buff on the fight, adding `n` stacks (a fresh grant already carries the first)
+   *  — the team-wide equivalent of `grantSelf`. One shared instance, so this doesn't touch any
+   *  one resonator's own list. */
+  grantGlobal(buff: GlobalBuff, n = 1): number { return this.state.addGlobalStack(buff, n, this.owner); }
+
+  /** Set a global buff to exactly `n` stacks, whether or not it's already held — for a cast that
+   *  replaces the buff's own progress rather than adding to it (see `State.setGlobalStacks`). */
+  setStacksGlobal(buff: GlobalBuff, n: number): number { return this.state.setGlobalStacks(buff, n, this.owner); }
+
+  /** This resonator's live stack count for a local buff, or the fight's stack count for a global
+   *  one — routed by the buff's own class. 0 if not held. */
+  stacksOf(buff: Buff): number {
+    return buff instanceof GlobalBuff ? this.state.stacksOfGlobal(buff) : this.slot.stacksOf(buff);
+  }
+
+  /** Spend stacks; the buff drops off once it is empty — the acting resonator's own copy for a
+   *  local buff, the fight's shared copy for a global one. */
+  removeStack(buff: Buff, n = 1): boolean {
+    return buff instanceof GlobalBuff ? this.state.removeGlobalStack(buff, n) : this.slot.removeStack(buff, n);
+  }
+
+  /** Record something notable, prefixed with the action in progress. */
+  note(msg: string): void {
+    const tag = this.state.tag();
+    this.state.events.push({ buff: null, render: () => `${tag}${msg}` });
+  }
+
+  /** Queue a follow-up action, evaluated straight after the current one, on the same resonator. */
+  queue(action: Action): void {
+    asAction(action);
+    this.state.pending.push({ action, slot: this.state.active });
+  }
+
+  /** Queue a follow-up on a specific resonator rather than whoever is acting — a teammate's own
+   *  assist attack, dealing their own damage on their own buffs. */
+  queueOn(slot: Slot, action: Action): void {
+    asAction(action);
+    this.state.pending.push({ action, slot: slot.index });
+  }
+
+  /* the buff delivery mechanisms, from inside a buff or action */
+  outro(buff: Buff): void { this.state.publishOutro(buff, this.owner); }
+
+  /** Grant a *local* buff to every slot but the acting one's own — the one remaining case a
+   *  single shared `GlobalBuff` can't express (it always ticks for whoever's acting, grantor
+   *  included). Everything else "the entire team" used to mean now goes through `grantGlobal`.
+   *  `n` stacks each, same relative-add shape as `grantSelf`/`grantGlobal`. */
+  grantOthers(buff: Buff, n = 1): void {
+    for (const s of this.state.slots) if (s !== this.slot) s.addStack(buff, n, this.owner);
+  }
+
+  /** Take the buff away entirely — the acting resonator's own copy for a local buff, the fight's
+   *  one shared copy for a global one. */
+  revoke(buff: Buff): boolean {
+    return buff instanceof GlobalBuff ? this.state.removeGlobalBuff(buff) : this.slot.removeBuff(buff);
+  }
+
+  /** Every slot currently holding `buff`. */
+  slotsWith(buff: Buff): Slot[] { return this.state.slots.filter((s) => s.hasBuff(buff)); }
+
+  /** Every resonator currently on the team, by element — one entry per slot, in team order. */
+  teamElements(): (string | null)[] { return this.state.slots.map((s) => s.resonator?.element ?? null); }
 }
-
-/** Running total of a stat, including everything scoped to the action being evaluated. */
-export function get(stat: string): number {
-  const c = cur();
-  return tagsOf(c.action).reduce(
-    (n, tag) => n + c.slot.total(scopedStat(tag, stat)), c.slot.total(stat));
-}
-export const pct = (stat: string): number => (isPercent(stat) ? get(stat) / 100 : get(stat));
-
-/** Summed totals. Safe to read from the action's apply() and from LATE conversions. */
-export const atk = (): number => cur().slot.derived(Stat.Atk);
-export const hp = (): number => cur().slot.derived(Stat.Hp);
-export const def = (): number => cur().slot.derived(Stat.Def);
-
-/* counters — per resonator */
-export const counter = (name: Resource): number => cur().slot.counter(name);
-export const setCounter = (name: Resource, v: number): number => cur().slot.setCounter(name, v);
-export const gain = (name: Resource, n = 1): number =>
-  cur().slot.setCounter(name, cur().slot.counter(name) + n);
-export function spend(name: Resource, n: number): boolean {
-  const have = cur().slot.counter(name);
-  if (have < n) return false;
-  cur().slot.setCounter(name, have - n);
-  return true;
-}
-
-/* counters — team wide: off-tune, the enemy's own bar */
-export const teamCounter = (name: string): number => cur().state.enemy.counter(name);
-export const setTeamCounter = (name: string, v: number): number => cur().state.enemy.setCounter(name, v);
-export const gainTeam = (name: string, n = 1): number =>
-  cur().state.enemy.setCounter(name, cur().state.enemy.counter(name) + n);
-export function spendTeam(name: string, n: number): boolean {
-  const have = cur().state.enemy.counter(name);
-  if (have < n) return false;
-  cur().state.enemy.setCounter(name, have - n);
-  return true;
-}
-/** The action being evaluated — the `Action` itself, whose `is()` tests element / type / cast. */
-export const action = (): Action | null => cur().action;
-
-/** The fight's settings: just the resonator's own level now — enemy level/resistance/off-tune
- *  cap all live on `enemy()`. Read-only by convention. */
-export const config = (): DamageConfig => cur().state.config;
-
-/** Does the acting resonator hold this local buff, or is this global buff currently up —
- *  routed by the buff's own class, so the same call works for either. */
-export const equipped = (buff: Buff): boolean =>
-  buff instanceof GlobalBuff ? cur().state.hasGlobalBuff(buff) : cur().slot.hasBuff(buff);
-export const self = (): Slot => cur().slot;
-
-/** The fight's one enemy — its own level, resistances, defence and off-tune. Read-only by
- *  convention; a debuff changes it through `addEnemyRes`/`addEnemyDef`/`grantEnemy`, not by
- *  poking its fields directly. */
-export const enemy = (): Enemy => cur().state.enemy;
-
-/** Contribute to the enemy's resistance to one element, in percent — same shape as `add()` but
- *  scoped to the enemy rather than the acting resonator. Only ever call this from inside a
- *  Debuff's own `apply()`. */
-export function addEnemyRes(value: number, element: string): number {
-  if (!Number.isFinite(value)) throw new Error(`addEnemyRes(): ${element} got ${value}`);
-  cur().state.enemy.entries.push({ stat: `res:${element}`, value, src: cur().source });
-  return value;
-}
-
-/** Contribute to the enemy's own defence — same shape as `addEnemyRes`, unscoped since defence
- *  doesn't vary by element. */
-export function addEnemyDef(value: number): number {
-  if (!Number.isFinite(value)) throw new Error(`addEnemyDef(): got ${value}`);
-  cur().state.enemy.entries.push({ stat: "def", value, src: cur().source });
-  return value;
-}
-
-/** Put a debuff on the enemy, adding `n` stacks (a fresh grant already carries the first) —
- *  the enemy-side equivalent of `grantSelf`. */
-export const grantEnemy = (debuff: Debuff, n = 1): number => cur().state.enemy.addStack(debuff, n);
-
-/** The enemy's live stack count for a debuff. 0 if not held. */
-export const stacksOfEnemy = (debuff: Debuff): number => cur().state.enemy.stacksOf(debuff);
-
-/** Spend stacks; the debuff drops off the enemy once it is empty. */
-export const removeStackEnemy = (debuff: Debuff, n = 1): boolean => cur().state.enemy.removeStack(debuff, n);
-
-/** Take the debuff off the enemy entirely. */
-export const revokeEnemy = (debuff: Debuff): boolean => cur().state.enemy.removeDebuff(debuff);
-
-/** The slot an outro is about to hand the field to — who's coming in next in the cycle. */
-export const nextSlot = (): Slot => {
-  const c = cur();
-  return c.state.slots[(c.state.active + 1) % c.state.slots.length]!;
-};
-/** Put a buff on the acting resonator's own list, adding `n` stacks (a fresh grant already
- *  carries the first) — how an action opens a state, or stacks one it already holds. Local
- *  buffs only; a `GlobalBuff` goes through `grantGlobal` instead. */
-export const grantSelf = (buff: Buff, n = 1): number => cur().slot.addStack(buff, n);
-
-/** Put a global buff on the fight, adding `n` stacks (a fresh grant already carries the first)
- *  — the team-wide equivalent of `grantSelf`. One shared instance, so this doesn't touch any
- *  one resonator's own list. */
-export const grantGlobal = (buff: GlobalBuff, n = 1): number => cur().state.addGlobalStack(buff, n);
-
-/** Set a global buff to exactly `n` stacks, whether or not it's already held — for a cast that
- *  replaces the buff's own progress rather than adding to it (see `State.setGlobalStacks`). */
-export const setStacksGlobal = (buff: GlobalBuff, n: number): number => cur().state.setGlobalStacks(buff, n);
-
-/** This resonator's live stack count for a local buff, or the fight's stack count for a global
- *  one — routed by the buff's own class. 0 if not held. */
-export const stacksOf = (buff: Buff): number =>
-  buff instanceof GlobalBuff ? cur().state.stacksOfGlobal(buff) : cur().slot.stacksOf(buff);
-
-/** Spend stacks; the buff drops off once it is empty — the acting resonator's own copy for a
- *  local buff, the fight's shared copy for a global one. */
-export const removeStack = (buff: Buff, n = 1): boolean =>
-  buff instanceof GlobalBuff ? cur().state.removeGlobalStack(buff, n) : cur().slot.removeStack(buff, n);
-
-/** Record something notable, prefixed with the action in progress. */
-export function note(msg: string): void {
-  const tag = cur().state.tag();
-  cur().state.events.push({ buff: null, render: () => `${tag}${msg}` });
-}
-
-/** Queue a follow-up action, evaluated straight after the current one, on the same resonator. */
-export function queue(action: Action): void {
-  asAction(action);
-  cur().state.pending.push({ action, slot: cur().state.active });
-}
-
-/** Queue a follow-up on a specific resonator rather than whoever is acting — a teammate's own
- *  assist attack, dealing their own damage on their own buffs. */
-export function queueOn(slot: Slot, action: Action): void {
-  asAction(action);
-  cur().state.pending.push({ action, slot: slot.index });
-}
-
-/* the buff delivery mechanisms, from inside a buff or action */
-export const outro = (buff: Buff): void => cur().state.publishOutro(buff);
-
-/** Grant a *local* buff to every slot but the acting one's own — the one remaining case a
- *  single shared `GlobalBuff` can't express (it always ticks for whoever's acting, grantor
- *  included). Everything else "the entire team" used to mean now goes through `grantGlobal`.
- *  `n` stacks each, same relative-add shape as `grantSelf`/`grantGlobal`. */
-export function grantOthers(buff: Buff, n = 1): void {
-  const c = cur();
-  for (const s of c.state.slots) if (s !== c.slot) s.addStack(buff, n);
-}
-
-/** Take the buff away entirely — the acting resonator's own copy for a local buff, the fight's
- *  one shared copy for a global one. */
-export const revoke = (buff: Buff): boolean =>
-  buff instanceof GlobalBuff ? cur().state.removeGlobalBuff(buff) : cur().slot.removeBuff(buff);
-
-/** Every slot currently holding `buff`. */
-export const slotsWith = (buff: Buff): Slot[] => cur().state.slots.filter((s) => s.hasBuff(buff));
-
-/** Every resonator currently on the team, by element — one entry per slot, in team order. */
-export const teamElements = (): (string | null)[] =>
-  cur().state.slots.map((s) => s.resonator?.element ?? null);

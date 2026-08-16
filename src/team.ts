@@ -10,10 +10,6 @@
  * (tsc compiles into dist/, mirroring this file's own path one level deeper — run `npm run
  * build` first if dist/ is stale.)
  */
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-
 import { collapseChains } from "./kit.js";
 import type { ChainGroup } from "./kit.js";
 import { State, Enemy } from "./state.js";
@@ -28,10 +24,9 @@ import * as LP from "./resonators/lupa.js";
 import * as IO from "./resonators/iuno.js";
 import * as JR from "./resonators/jingran.js";
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-// one ".." further than data/'s real depth from this file's own source location — dist/src/
-// sits one level deeper than src/ does, since dist/ mirrors the whole project under itself
-const dataFile = (n: string): any => JSON.parse(readFileSync(join(HERE, "..", "..", "data", n), "utf8"));
+// level 100 enemy, level 90 resonators, a flat 20% base resistance, 39.2% max off-tune — every
+// fight this calculator runs uses the same standing numbers.
+const ENEMY_LEVEL = 100, RESONATOR_LEVEL = 90, DEFAULT_RES = 20, MAX_OFFTUNE = 39.2;
 
 interface Member {
   name: string;
@@ -50,17 +45,15 @@ const MEMBERS: Member[] = [
 ];
 
 export function runTeam(): { state: State; lines: ChainGroup[]; report: Report } {
-  const cfg = dataFile("config.json").constants;
-
   // the same flat resistance seeded onto every element, until a fight wants them to differ
   const enemy = new Enemy({
-    level: cfg.enemyLevel,
-    baseRes: Object.fromEntries(ELEMENTS.map((e) => [e, cfg.defaultRes * 100])),
-    maxOfftune: cfg.maxOfftune,
+    level: ENEMY_LEVEL,
+    baseRes: Object.fromEntries(ELEMENTS.map((e) => [e, DEFAULT_RES])),
+    maxOfftune: MAX_OFFTUNE,
   });
   const state = new State({
     team: MEMBERS.map((m) => m.name),
-    level: cfg.resonatorLevel,
+    level: RESONATOR_LEVEL,
     enemy,
     // the engine's own standing rules, ahead of anything a build equips
     buffs: [AUTO_TUNE_BREAK],
@@ -70,8 +63,7 @@ export function runTeam(): { state: State; lines: ChainGroup[]; report: Report }
   // Every member's opener runs first, in team order, then every member's loop — matching how a
   // real run actually goes: the whole team gets set up before anyone starts repeating. Each
   // rotation is still evaluated on its own resonator; they are only concatenated for display,
-  // and no source prefix is stripped, since with three resonators in one table the prefix is
-  // what tells them apart.
+  // and the "member" column is what tells them apart.
   const runPart = (rotation: RotationEntry[]): ChainGroup[] => {
     if (!rotation.length) return [];
     const rows = state.run(rotation)

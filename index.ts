@@ -29,6 +29,9 @@ import * as LC from "./src/resonators/lucilla.js";
 
 interface Member {
   name: string;
+  /** This member's own color — each resonator file exports its own `COLOR`, so a build's team
+   *  entry just carries it through rather than looking it up by name. */
+  color: string;
   loadout: Loadout;
   opener: RotationEntry[];
   loop: RotationEntry[];
@@ -45,111 +48,115 @@ const noOpener = (loadout: Loadout, loop: RotationEntry[]): { opener: RotationEn
   ({ opener: loop, loop, loadout });
 
 const TEAMS: Record<string, Member[]> = {
-  sk: [
-    { name: "Shorekeeper", loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
-    { name: "Iuno", ...noOpener(IO.LOADOUT, IO.ROTATION) },
-    { name: "Jingran", ...noOpener(JR.LOADOUT, JR.ROTATION) },
+  skIunoJingran: [
+    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
+    { name: "Iuno", color: IO.COLOR, ...noOpener(IO.LOADOUT, IO.ROTATION) },
+    { name: "Jingran", color: JR.COLOR, ...noOpener(JR.LOADOUT, JR.ROTATION) },
   ],
-  lupa: [
-    { name: "Lupa", loadout: LP.LOADOUT, opener: LP.OPENER, loop: LP.LOOP },
-    { name: "Iuno", ...noOpener(IO.LOADOUT, IO.ROTATION) },
-    { name: "Jingran", ...noOpener(JR.LOADOUT_CRCD, JR.ROTATION) },
+  lupaIunoJingran: [
+    { name: "Lupa", color: LP.COLOR, loadout: LP.LOADOUT, opener: LP.OPENER, loop: LP.LOOP },
+    { name: "Iuno", color: IO.COLOR, ...noOpener(IO.LOADOUT, IO.ROTATION) },
+    { name: "Jingran", color: JR.COLOR, ...noOpener(JR.LOADOUT_CRCD, JR.ROTATION) },
   ],
-  phro: [
-    { name: "Phrolova", loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
-    { name: "Qiuyuan", ...noOpener(QY.LOADOUT, QY.ROTATION) },
-    { name: "Cantarella", ...noOpener(CT.LOADOUT, CT.ROTATION) },
+  froloQyCanta: [
+    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
+    { name: "Qiuyuan", color: QY.COLOR, ...noOpener(QY.LOADOUT, QY.ROTATION) },
+    { name: "Cantarella", color: CT.COLOR, ...noOpener(CT.LOADOUT, CT.ROTATION) },
   ],
-  phroSk: [
-    { name: "Phrolova", loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
-    { name: "Shorekeeper", ...noOpener(SK.LOADOUT, SK.LOOP) },
-    { name: "Cantarella", ...noOpener(CT.LOADOUT, CT.ROTATION) },
+  froloQyCantaS6R5: [
+    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT_S6R5, opener: PH.OPENER_S6R5, loop: PH.LOOP_S6R5 },
+    { name: "Qiuyuan", color: QY.COLOR, ...noOpener(QY.LOADOUT, QY.ROTATION) },
+    { name: "Cantarella", color: CT.COLOR, ...noOpener(CT.LOADOUT, CT.ROTATION) },
   ],
-  lupaBrant: [
-    { name: "Lupa", loadout: LP.LOADOUT, opener: LP.OPENER, loop: LP.LOOP },
-    { name: "Brant", ...noOpener(BT.LOADOUT, BT.ROTATION_1_ANCHOR) },
-    { name: "Jingran", ...noOpener(JR.LOADOUT_CRCD, JR.ROTATION) },
+  froloSkCanta: [
+    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
+    { name: "Shorekeeper", color: SK.COLOR, ...noOpener(SK.LOADOUT, SK.LOOP) },
+    { name: "Cantarella", color: CT.COLOR, ...noOpener(CT.LOADOUT, CT.ROTATION) },
+  ],
+  froloSkCantaS6R5: [
+    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT_S6R5, opener: PH.OPENER_S6R5, loop: PH.LOOP_S6R5 },
+    { name: "Shorekeeper", color: SK.COLOR, ...noOpener(SK.LOADOUT, SK.LOOP) },
+    { name: "Cantarella", color: CT.COLOR, ...noOpener(CT.LOADOUT, CT.ROTATION) },
+  ],
+  lupaBrantJingran: [
+    { name: "Lupa", color: LP.COLOR, loadout: LP.LOADOUT, opener: LP.OPENER, loop: LP.LOOP },
+    { name: "Brant", color: BT.COLOR, ...noOpener(BT.LOADOUT, BT.ROTATION_1_ANCHOR) },
+    { name: "Jingran", color: JR.COLOR, ...noOpener(JR.LOADOUT_CRCD, JR.ROTATION) },
   ],
   skSanhuaBrant: [
-    { name: "Shorekeeper", loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
-    { name: "Sanhua", ...noOpener(SH.LOADOUT, SH.ROTATION) },
-    { name: "Brant", ...noOpener(BT.LOADOUT, BT.ROTATION_1_ANCHOR) },
+    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
+    { name: "Sanhua", color: SH.COLOR, ...noOpener(SH.LOADOUT, SH.ROTATION) },
+    { name: "Brant", color: BT.COLOR, ...noOpener(BT.LOADOUT, BT.ROTATION_1_ANCHOR) },
   ],
   froloBulingCanta: [
-    { name: "Phrolova", loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
-    { name: "Buling", ...noOpener(BU.LOADOUT, BU.ROTATION) },
-    { name: "Cantarella", ...noOpener(CT.LOADOUT, CT.ROTATION) },
+    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
+    { name: "Buling", color: BU.COLOR, ...noOpener(BU.LOADOUT, BU.ROTATION) },
+    { name: "Cantarella", color: CT.COLOR, ...noOpener(CT.LOADOUT, CT.ROTATION) },
+  ],
+  froloBulingCantaS6R5: [
+    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT_S6R5, opener: PH.OPENER_S6R5, loop: PH.LOOP_S6R5 },
+    { name: "Buling", color: BU.COLOR, ...noOpener(BU.LOADOUT, BU.ROTATION) },
+    { name: "Cantarella", color: CT.COLOR, ...noOpener(CT.LOADOUT, CT.ROTATION) },
   ],
   froloLucillaCanta: [
-    { name: "Phrolova", loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
-    { name: "Lucilla", ...noOpener(LC.LOADOUT, LC.ROTATION) },
-    { name: "Cantarella", ...noOpener(CT.LOADOUT, CT.ROTATION) },
+    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
+    { name: "Lucilla", color: LC.COLOR, ...noOpener(LC.LOADOUT, LC.ROTATION) },
+    { name: "Cantarella", color: CT.COLOR, ...noOpener(CT.LOADOUT, CT.ROTATION) },
+  ],
+  froloLucillaCantaS6R5: [
+    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT_S6R5, opener: PH.OPENER_S6R5, loop: PH.LOOP_S6R5 },
+    { name: "Lucilla", color: LC.COLOR, ...noOpener(LC.LOADOUT, LC.ROTATION) },
+    { name: "Cantarella", color: CT.COLOR, ...noOpener(CT.LOADOUT, CT.ROTATION) },
   ],
   froloSkLucilla: [
-    { name: "Phrolova", loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
-    { name: "Shorekeeper", ...noOpener(SK.LOADOUT, SK.LOOP) },
-    { name: "Lucilla", ...noOpener(LC.LOADOUT, LC.ROTATION) },
+    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
+    { name: "Shorekeeper", color: SK.COLOR, ...noOpener(SK.LOADOUT, SK.LOOP) },
+    { name: "Lucilla", color: LC.COLOR, ...noOpener(LC.LOADOUT, LC.ROTATION) },
+  ],
+  froloSkLucillaS6R5: [
+    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT_S6R5, opener: PH.OPENER_S6R5, loop: PH.LOOP_S6R5 },
+    { name: "Shorekeeper", color: SK.COLOR, ...noOpener(SK.LOADOUT, SK.LOOP) },
+    { name: "Lucilla", color: LC.COLOR, ...noOpener(LC.LOADOUT, LC.ROTATION) },
   ],
   froloQyLucilla: [
-    { name: "Phrolova", loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
-    { name: "Qiuyuan", ...noOpener(QY.LOADOUT, QY.ROTATION) },
-    { name: "Lucilla", ...noOpener(LC.LOADOUT, LC.ROTATION) },
+    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
+    { name: "Qiuyuan", color: QY.COLOR, ...noOpener(QY.LOADOUT, QY.ROTATION) },
+    { name: "Lucilla", color: LC.COLOR, ...noOpener(LC.LOADOUT, LC.ROTATION) },
+  ],
+  froloQyLucillaS6R5: [
+    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT_S6R5, opener: PH.OPENER_S6R5, loop: PH.LOOP_S6R5 },
+    { name: "Qiuyuan", color: QY.COLOR, ...noOpener(QY.LOADOUT, QY.ROTATION) },
+    { name: "Lucilla", color: LC.COLOR, ...noOpener(LC.LOADOUT, LC.ROTATION) },
   ],
 };
-const DEFAULT_TEAM = "sk";
+const DEFAULT_TEAM = "skIunoJingran";
 
-/**
- * One hue per resonator, shared by their summary card, their heading and every row of their
- * rotation. Keyed by name rather than by slot order so a member keeps their colour wherever
- * they sit in the team; anything unlisted falls back to the neutral accent.
- */
-const HUES: Record<string, string> = {
-  Shorekeeper: "#8fb3d9",   // grayish light blue
-  Iuno:        "#2dd4c0",   // turquoise
-  Jingran:     "#f2603c",   // orangeish red
-  Lupa:        "#ef4d6e",   // pinkish red
-  Phrolova:    "#d84b5a",   // bright red
-  Qiuyuan:     "#6bb668",   // darker green
-  Cantarella:  "#ab84dd",   // purple, lighter than Phrolova's
-  Brant:       "#a0522d",   // auburn brownish red
-  Sanhua:      "#5fc9e8",   // icy cyan blue
-  Buling:      "#7a6ff0",   // electric indigo
-  Lucilla:     "#4f74c2",   // lighter navy blue
-  [MISC]:      "#8a94a3",   // grayish — off-tune's own fourth "member", not a resonator
-};
+/** Off-tune's own fourth "member" — not a real resonator, so it has no `COLOR` export to carry
+ *  through the way a team's own members do. */
+const MISC_HUE = "#8a94a3";
 const FALLBACK_HUE = "#5b9cff";
-const hueOf = (name: string): string => HUES[name] ?? FALLBACK_HUE;
 
-/** How many leading columns stay put while the table scrolls sideways: just `action`. */
-const STICK = 1;
+/** How many leading columns stay put while the table scrolls sideways: `member` and `action`. */
+const STICK = 2;
 
 /* ------------------------------------------------------------------ the engine */
 
-async function loadData(name: string): Promise<any> {
-  const res = await fetch(`./data/${name}`);
-  if (!res.ok) throw new Error(`fetch ./data/${name} failed — ${res.status} ${res.statusText}`);
-  return res.json();
-}
-
-/** Config is fetched once and reused on every switch rather than re-requested each time the
- *  button is pressed. */
-let dataPromise: Promise<any> | null = null;
-const loadOnce = (): Promise<any> => (dataPromise ??= loadData("config.json"));
+// level 100 enemy, level 90 resonators, a flat 20% base resistance, 39.2% max off-tune — every
+// fight this calculator runs uses the same standing numbers.
+const ENEMY_LEVEL = 100, RESONATOR_LEVEL = 90, DEFAULT_RES = 20, MAX_OFFTUNE = 39.2;
 
 async function runTeam(members: Member[]): Promise<{
-  state: State; report: Report; openerReport: Report; loopReport: Report;
+  state: State; report: Report; openerReport: Report; loopReport: Report; members: Member[];
 }> {
-  const { constants: cfg } = await loadOnce();
-
   // the same flat resistance seeded onto every element, until a fight wants them to differ
   const enemy = new Enemy({
-    level: cfg.enemyLevel,
-    baseRes: Object.fromEntries(ELEMENTS.map((e) => [e, cfg.defaultRes * 100])),
-    maxOfftune: cfg.maxOfftune,
+    level: ENEMY_LEVEL,
+    baseRes: Object.fromEntries(ELEMENTS.map((e) => [e, DEFAULT_RES])),
+    maxOfftune: MAX_OFFTUNE,
   });
   const state = new State({
     team: members.map((m) => m.name),
-    level: cfg.resonatorLevel,
+    level: RESONATOR_LEVEL,
     enemy,
     // the engine's own standing rules, ahead of anything a build equips
     buffs: [AUTO_TUNE_BREAK],
@@ -174,6 +181,7 @@ async function runTeam(members: Member[]): Promise<{
     // "one rotation each" figure, not halves of a single total
     openerReport: buildReport(openerLines, { config: state.config }),
     loopReport: buildReport(loopLines, { config: state.config }),
+    members,
   };
 }
 
@@ -202,7 +210,7 @@ const colWidth = (c: Column, i: number): string => {
   return i === 0 ? `calc(${base} + var(--lead))` : `calc(${base})`;
 };
 
-function cell(columns: Column[], index: number, { cls = [], html = "" }: { cls?: string[]; html?: string }): string {
+function cell(columns: Column[], index: number, { cls = [], html = "", style = "" }: { cls?: string[]; html?: string; style?: string }): string {
   const col = columns[index]!;
   const stick = index < STICK;
   // A sticky column's offset is everything to its left, which has to be summed in the same two
@@ -221,8 +229,8 @@ function cell(columns: Column[], index: number, { cls = [], html = "" }: { cls?:
     stick ? "stick" : "",
     stick && index === STICK - 1 ? "seam" : "",
   ].filter(Boolean).join(" ");
-  const style = stick ? ` style="left:${left}"` : "";
-  return `<span class="${classes}"${style}>${html}</span>`;
+  const styleAttr = [stick ? `left:${left}` : "", style].filter(Boolean).join(";");
+  return `<span class="${classes}"${styleAttr ? ` style="${styleAttr}"` : ""}>${html}</span>`;
 }
 
 /**
@@ -248,11 +256,18 @@ const SECTION_RANK = (key: string | null): number =>
  * its own `label`, which is how the formula terms and the derived factors get in. `mult` marks
  * a value that is a multiplier rather than an amount, so it reads `x1.24` and not `1.24`.
  */
-const panelRow = (r: TraceEntry, { noSource = false }: { noSource?: boolean } = {}): string =>
-  `<tr>${noSource ? "" : `<td class="s">${esc(r.source)}</td>`}`
+const panelRow = (r: TraceEntry, slotHue: Map<string, string>, { noSource = false }: { noSource?: boolean } = {}): string => {
+  // the same left bar the member column carries, colored by whoever granted this row rather
+  // than whoever's turn it is — a global buff still bars in its original owner's colour.
+  // `owner` is only ever set on rows traced back from an actual StatEntry — a derived row built
+  // by hand here in display.ts (the Relative row, a factor row, ...) leaves it undefined, which
+  // is how those opt out of the bar rather than all landing on the ownerless MISC_HUE.
+  const own = r.owner !== undefined ? (slotHue.get(r.owner ?? "") ?? MISC_HUE) : null;
+  return `<tr>${noSource ? "" : `<td class="s"${own ? ` style="--own:${own}"` : ""}>${esc(r.source)}</td>`}`
   + `<td class="k">${esc(r.label ?? (r.stat ? statLabel(r.stat) : ""))}</td>`
-  + `<td class="v">${r.mult ? `&times;${fmt(r.value, 4)}` : `${fmt(r.value, 4)}${unit(r)}`}</td>`
+  + `<td class="v">${r.mult ? `&times;${fmt(r.value, r.digits ?? 4)}` : `${fmt(r.value, r.digits ?? 4)}${unit(r)}`}</td>`
   + `</tr>`;
+};
 
 /**
  * `suffix` is appended after the total's own value — the motion value names what it scales off.
@@ -261,14 +276,14 @@ const panelRow = (r: TraceEntry, { noSource = false }: { noSource?: boolean } = 
  * makes an attack panel legible: base, bonus and flat do not sum to the total, they fold into
  * it as `base x (1 + bonus%) + flat`, and separating them shows that rather than hiding it.
  */
-function popover(col: Column, rows: TraceEntry[] | undefined, total: number | string | null | undefined, suffix = ""): string {
+function popover(col: Column, rows: TraceEntry[] | undefined, total: number | string | null | undefined, slotHue: Map<string, string>, suffix = ""): string {
   if (!rows?.length) return "";
 
   // The avg column's own panel is a flat list of formula terms whose labels already say what
   // they are ("Motion Value", "Damage Bonus", ...) — a source column would only repeat that,
   // so it drops the column entirely rather than leave it echoing the label next to it.
   const noSource = col.key === "avg";
-  const row = (r: TraceEntry) => panelRow(r, { noSource });
+  const row = (r: TraceEntry) => panelRow(r, slotHue, { noSource });
 
   // A row may sit outside the sections entirely: just above the total (a derived figure the
   // sections lead to) or just below it (what the total then becomes).
@@ -291,18 +306,19 @@ function popover(col: Column, rows: TraceEntry[] | undefined, total: number | st
 
   const body = sections.map(({ key, rows: group }) => {
     const head = key ? `<tr class="sec"><td colspan="3">${esc(key)}</td></tr>` : "";
+    // The heading right above already says which group this is ("BASE", "BONUS", "FLAT"), so
+    // the subtotal only has to say "Total" — in the label column, lining it up with every other
+    // row's own label rather than restating the stat name across both columns.
     const sub = key
-      ? `<tr class="sub"><td class="s" colspan="2">`
-        // `key` is already the full stat name ("Flat ATK", "Base HP", ...) — appending the
-        // column's own noun on top ("... attack", "... HP") just repeated it.
-        + `Total ${esc(key)}</td><td class="v">`
+      ? `<tr class="sub">${noSource ? "" : `<td class="s"></td>`}<td class="k">Total</td>`
+        + `<td class="v">`
         + `${fmt(group.reduce((n, r) => n + r.value, 0), 4)}${unit(group[0]!)}</td></tr>`
       : "";
     return head + group.map(row).join("") + sub;
   }).join("");
 
   return `<span class="pop"><table>${body}${before.map(row).join("")}`
-    + `<tr class="sum"><td colspan="${noSource ? 1 : 2}">Total</td>`
+    + `<tr class="sum">${noSource ? "" : `<td class="s"></td>`}<td class="k">Total</td>`
     + `<td class="v">${fmt(total, col.digits ?? 0)}${col.percent ? "%" : ""}${esc(suffix)}</td>`
     + `</tr>${after.map(row).join("")}</table></span>`;
 }
@@ -323,7 +339,7 @@ function infoPopover(info: string[] | undefined): string {
  * values and the same hover traces as a lone action does — `part` only changes how the action
  * cell reads: indented and tagged with its damage type, rather than carrying the expand caret.
  */
-function stepRow(columns: Column[], row: ReportRow | ReportPart, { part = false }: { part?: boolean } = {}): string {
+function stepRow(columns: Column[], row: ReportRow | ReportPart, slotHue: Map<string, string>, { part = false }: { part?: boolean } = {}): string {
   return columns.map((col, i) => {
     const v = row.raw[col.key];
     const sources = row.sources[col.key];
@@ -332,6 +348,7 @@ function stepRow(columns: Column[], row: ReportRow | ReportPart, { part = false 
       cls.push(part ? "name" : "action");
     }
     if (col.key === "avg") cls.push("avg");
+    if (col.key === "member") cls.push("member");
 
     // a ratio column carries its unit on the value, so a row reads as the game writes it
     const text = esc(fmt(v, col.digits ?? 0)) + (col.percent && typeof v === "number" ? "%" : "");
@@ -342,21 +359,28 @@ function stepRow(columns: Column[], row: ReportRow | ReportPart, { part = false 
     // a chain gets a caret, since its row is the thing you click to see the parts — only a full
     // ReportRow (never a chain's own part) carries a `parts` list to expand
     if (col.key === "action" && !part && "parts" in row && row.parts.length) {
-      html = `<span class="caret">▸</span>${html}`;
+      html = `${html}<span class="caret">▸</span>`;
     }
     // only the motion value names its unit: it is the one number multiplying a stat
     const suffix = col.key === "mv" && row.scaling
       ? ` ${SCALING_LABEL[row.scaling] ?? row.scaling}` : "";
-    html += col.key === "action" ? infoPopover("info" in row ? row.info : undefined) : popover(col, sources, v, suffix);
+    html += col.key === "action" ? infoPopover("info" in row ? row.info : undefined) : popover(col, sources, v, slotHue, suffix);
 
-    return cell(columns, i, { cls, html });
+    // the member column carries its own full-strength color, independent of the row's own
+    // (much fainter) action-based tint — so who acted still reads clearly on a white/green row
+    // The member column is its own colour system end to end — text, left bar and background
+    // wash all come from the member, never from the action the rest of the row is tinted by.
+    const mem = slotHue.get(String(v)) ?? FALLBACK_HUE;
+    const style = col.key === "member" ? `--mem:${mem};color:${mem}` : "";
+
+    return cell(columns, i, { cls, html, style });
   }).join("");
 }
 
 /** A chain's members, one full row each. */
-function partRows(columns: Column[], parts: ReportPart[]): string {
+function partRows(columns: Column[], parts: ReportPart[], slotHue: Map<string, string>): string {
   return parts
-    .map((p) => `<div class="r${p.short ? " short" : ""}">${stepRow(columns, p, { part: true })}</div>`)
+    .map((p) => `<div class="r${p.short ? " short" : ""}">${stepRow(columns, p, slotHue, { part: true })}</div>`)
     .join("");
 }
 
@@ -364,8 +388,10 @@ function partRows(columns: Column[], parts: ReportPart[]): string {
  * The whole team's rotation as one table, in the order they act.
  *
  * A chain's parts are collapsed behind its own row — a hidden checkbox and a label, so clicking
- * anywhere on the row opens it and no script is needed to keep that state. Each row is tinted
- * by whose rotation it belongs to, which is what separating the tables used to do.
+ * anywhere on the row opens it and no script is needed to keep that state. Each row is tinted by
+ * its own action's color (white/green for generic gear, otherwise whoever's kit it belongs to)
+ * — a much fainter wash than before (see the CSS), since the member column now carries the
+ * full-strength "whose turn" color instead.
  */
 function rotationTable(report: Report, slotHue: Map<string, string>): string {
   const columns = report.columns;
@@ -376,11 +402,9 @@ function rotationTable(report: Report, slotHue: Map<string, string>): string {
     .join("");
 
   const steps = report.rows.map((row, i) => {
-    // ReportRow.line.snap is typed as the plain damage.ts Snapshot, but every row here was
-    // built from state.run()'s own resolved snapshots — only those carry `.slot`.
-    const hue = slotHue.get((row.line.snap as ResolvedSnapshot).slot) ?? FALLBACK_HUE;
+    const hue = (row.line.snap as ResolvedSnapshot).action.color || FALLBACK_HUE;
     const style = ` style="--m:${hue}"`;
-    const cells = stepRow(columns, row);
+    const cells = stepRow(columns, row, slotHue);
     const shortCls = row.short ? " short" : "";
     if (!row.parts.length) {
       return `<div class="step"${style}><div class="r${shortCls}">${cells}</div></div>`;
@@ -389,7 +413,7 @@ function rotationTable(report: Report, slotHue: Map<string, string>): string {
     return `<div class="step chain"${style}>`
       + `<input class="tgl" type="checkbox" id="${id}">`
       + `<label class="r${shortCls}" for="${id}">${cells}</label>`
-      + `<div class="parts">${partRows(columns, row.parts)}</div>`
+      + `<div class="parts">${partRows(columns, row.parts, slotHue)}</div>`
       + `</div>`;
   }).join("");
 
@@ -453,11 +477,13 @@ function summaryCards(label: string, report: Report, slotHue: Map<string, string
   </div>`;
 }
 
-function page({ state, report, openerReport, loopReport }: {
-  state: State; report: Report; openerReport: Report; loopReport: Report;
+function page({ state, report, openerReport, loopReport, members }: {
+  state: State; report: Report; openerReport: Report; loopReport: Report; members: Member[];
 }): string {
-  const totals = totalsBySlot(report);
-  const slotHue = new Map([...totals.keys()].map((name) => [name, hueOf(name)]));
+  // one member's own color each, plus Misc's fixed one — keyed by slot name for the summary
+  // cards and the rotation table's own "member" column (the row-wide tint uses the action's
+  // own color instead, read straight off each row).
+  const slotHue = new Map([...members.map((m): [string, string] => [m.name, m.color]), [MISC, MISC_HUE]]);
 
   return `<main>
   ${rotationTable(report, slotHue)}

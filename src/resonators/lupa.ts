@@ -13,13 +13,13 @@
  */
 import { Buff, GlobalBuff, Gear, Action, PRIORITY } from "../kit.js";
 import type { ActionDef } from "../kit.js";
-import {
-  add, action, self, isIntro, isOutro, isLiberation, grantGlobal, grantSelf, revoke,
-  slotsWith, stacksOf, queueOn, teamElements, setCounter, outro,
-} from "../state.js";
+import { isIntro, isOutro, isLiberation } from "../state.js";
 import { Stat, Element, DamageType, Node, Resource, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
+
+/** This resonator's own color — every action from the wrapper below defaults to it. */
+export const COLOR = "#ef4d6e";
 
 /** Wolflame is the gauge the game shows; Wolfaith is the short-lived resource her enhanced
  *  heavies feed and her Dance With the Wolf casts spend. */
@@ -35,14 +35,14 @@ export const LUPA_WOLFAITH = Resource.Forte2;
  *  team member's own Intro, not just Lupa's own turn. `grantGlobal`'s stack count is a relative
  *  add (matching `grantSelf`), not the absolute target `grantTeam` used to take — a single
  *  shared instance never drifts, so a plain +1 a stack is all escalating needs now. */
-export const PACK_HUNT = new GlobalBuff(PRIORITY.BUFF_STATS, (stacks) => {
-  if (isIntro(action()!)) grantGlobal(PACK_HUNT);
+export const PACK_HUNT = new GlobalBuff(PRIORITY.BUFF_STATS, (ctx) => {
+  if (isIntro(ctx.action!)) ctx.grantGlobal(PACK_HUNT);
   // re-read live: the grant above may just have moved it past the `stacks` this call started with
-  const held = stacksOf(PACK_HUNT);
-  add(6 * held, Stat.BonusAtk);
-  add(10, Element.Fusion, Stat.DmgBonus);
+  const held = ctx.stacksOf(PACK_HUNT);
+  ctx.add(6 * held, Stat.BonusAtk);
+  ctx.add(10, Element.Fusion, Stat.DmgBonus);
   // read straight off each slot's own resonator, not a hand-kept counter
-  if (teamElements().filter((e) => e === Element.Fusion).length >= 3) add(10, Element.Fusion, Stat.DmgBonus);
+  if (ctx.teamElements().filter((e) => e === Element.Fusion).length >= 3) ctx.add(10, Element.Fusion, Stat.DmgBonus);
   return `Lupa: Pack Hunt x${held}`;
 }, 3);
 
@@ -50,17 +50,17 @@ export const PACK_HUNT = new GlobalBuff(PRIORITY.BUFF_STATS, (stacks) => {
  *  +6% flat once all three are held. Doesn't escalate — her liberation sets it once, to the
  *  team's fusion count at that moment. Global so it pays every team member's own hit, not just
  *  Lupa's. */
-export const GLORY = new GlobalBuff(PRIORITY.BUFF_STATS, (stacks) => {
-  add(3 * stacks, Element.Fusion, Stat.ResIgnore);
-  if (stacks >= 3) add(6, Element.Fusion, Stat.ResIgnore);
+export const GLORY = new GlobalBuff(PRIORITY.BUFF_STATS, (ctx, stacks) => {
+  ctx.add(3 * stacks, Element.Fusion, Stat.ResIgnore);
+  if (stacks >= 3) ctx.add(6, Element.Fusion, Stat.ResIgnore);
   return `Lupa: Glory x${stacks}`;
 }, 3);
 
 /** Stand by Me, Warrior — what the next resonator actually holds. */
-export const LUPA_OUTRO = new Buff(PRIORITY.BUFF_STATS, (stacks, a) => {
-  if (isOutro(a)) revoke(LUPA_OUTRO);
-  add(20, Element.Fusion, Stat.Amp);
-  add(25, DamageType.Basic, Stat.Amp);
+export const LUPA_OUTRO = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
+  if (isOutro(ctx.action!)) ctx.revoke(LUPA_OUTRO);
+  ctx.add(20, Element.Fusion, Stat.Amp);
+  ctx.add(25, DamageType.Basic, Stat.Amp);
   return "Lupa: Outro";
 });
 
@@ -72,11 +72,11 @@ const LUPA_BACKUP_READY = new Buff(PRIORITY.BUFF_STATS,
   () => "Lupa: Set the Arena Ablaze (ready)");
 
 /** Global from fight start, so it can catch a liberation cast at any point, from anyone. */
-const BACKUP_WATCH = new GlobalBuff(PRIORITY.UPDATE_BUFFS, () => {
-  const [lupaSlot] = isLiberation(action()!) ? slotsWith(LUPA_BACKUP_READY) : [];
+const BACKUP_WATCH = new GlobalBuff(PRIORITY.UPDATE_BUFFS, (ctx) => {
+  const [lupaSlot] = isLiberation(ctx.action!) ? ctx.slotsWith(LUPA_BACKUP_READY) : [];
   // not on her own liberation — only matters once she's switched off field
-  if (lupaSlot && self() !== lupaSlot) {
-    queueOn(lupaSlot, fskillFUA);
+  if (lupaSlot && ctx.slot !== lupaSlot) {
+    ctx.queueOn(lupaSlot, fskillFUA);
     lupaSlot.removeBuff(LUPA_BACKUP_READY);
   }
   return "Lupa: Set the Arena Ablaze (watcher)";
@@ -84,23 +84,23 @@ const BACKUP_WATCH = new GlobalBuff(PRIORITY.UPDATE_BUFFS, () => {
 
 /* --------------------------------------------------------------- resonator */
 
-export const LUPA = new Gear(() => {
-  add(100, Stat.Er);
-  add(5, Stat.CritRate);
-  add(150, Stat.CritDmg);
+export const LUPA = new Gear((ctx) => {
+  ctx.add(100, Stat.Er);
+  ctx.add(5, Stat.CritRate);
+  ctx.add(150, Stat.CritDmg);
 
   // level 90 base stats — see the file header for the two figures that disagree with the sheet
-  add(11912.5, Stat.BaseHp);
-  add(387.5, Stat.BaseAtk);
-  add(8, Stat.CritRate);
-  add(12, Stat.BonusAtk);
+  ctx.add(11912.5, Stat.BaseHp);
+  ctx.add(387.5, Stat.BaseAtk);
+  ctx.add(8, Stat.CritRate);
+  ctx.add(12, Stat.BonusAtk);
   return "Lupa";
 // decides on Pack Hunt/Glory and strips them right here — on the outro that's handing her the
 // field, before Nowhere to Run! (which doesn't get their bonus) ever runs
-}, () => { grantGlobal(BACKUP_WATCH); }, Element.Fusion, () => {
-  if (stacksOf(PACK_HUNT) < 3) return Intro;
-  revoke(PACK_HUNT);
-  revoke(GLORY);
+}, (ctx) => { ctx.grantGlobal(BACKUP_WATCH); }, Element.Fusion, (ctx) => {
+  if (ctx.stacksOf(PACK_HUNT) < 3) return Intro;
+  ctx.revoke(PACK_HUNT);
+  ctx.revoke(GLORY);
   return EIntro;
 });
 
@@ -122,27 +122,28 @@ export const LUPA = new Gear(() => {
  * fall out of the buff being unstacked and a global grant being idempotent.
  */
 const WILDFIRE_TEAM = new GlobalBuff(PRIORITY.BUFF_STATS,
-  () => { add(24, Element.Fusion, Stat.DmgBonus); return "Wildfire Mark: Blazing Starfire"; });
+  (ctx) => { ctx.add(24, Element.Fusion, Stat.DmgBonus); return "Wildfire Mark: Blazing Starfire"; });
 
-export const WILDFIRE_MARK = new Gear(() => {
-  add(587.5, Stat.BaseAtk);
-  add(48.6, Stat.CritDmg);
-  add(12, Stat.BonusAtk);
-  add(24, DamageType.Liberation, Stat.DmgBonus);
+export const WILDFIRE_MARK = new Gear((ctx) => {
+  ctx.add(587.5, Stat.BaseAtk);
+  ctx.add(48.6, Stat.CritDmg);
+  ctx.add(12, Stat.BonusAtk);
+  ctx.add(24, DamageType.Liberation, Stat.DmgBonus);
   // granted at GEAR_STATS, so the hit that earns it is itself paid at BUFF_STATS same-cast
-  if (action()!.type === DamageType.Heavy) grantGlobal(WILDFIRE_TEAM);
+  if (ctx.action!.type === DamageType.Heavy) ctx.grantGlobal(WILDFIRE_TEAM);
   return "Wildfire Mark";
 });
 
 /* -------------------------------------------------------------- echo, sonata */
 
-export const LIONESS_OF_GLORY = new Gear(() => {
-  add(12, DamageType.Liberation, Stat.DmgBonus);
-  add(12, Element.Fusion, Stat.DmgBonus);
+export const LIONESS_OF_GLORY = new Gear((ctx) => {
+  ctx.add(12, DamageType.Liberation, Stat.DmgBonus);
+  ctx.add(12, Element.Fusion, Stat.DmgBonus);
   return "Lioness of Glory";
 });
 
 export const ACTION_LIONESS = new Action("Echo: Lioness of Glory", {
+  color: COLOR,
   cast: DamageType.Echo,
   element: Element.Fusion,
   scaling: Scaling.Atk,
@@ -152,16 +153,16 @@ export const ACTION_LIONESS = new Action("Echo: Lioness of Glory", {
 });
 
 const CLAWPRINT_TEAM = new GlobalBuff(PRIORITY.BUFF_STATS,
-  () => { add(15, Element.Fusion, Stat.DmgBonus); return "Flaming Clawprint"; });
+  (ctx) => { ctx.add(15, Element.Fusion, Stat.DmgBonus); return "Flaming Clawprint"; });
 
-export const CLAWPRINT_5PC = new Gear(() => {
-  add(20, DamageType.Liberation, Stat.DmgBonus);
-  grantGlobal(CLAWPRINT_TEAM);
+export const CLAWPRINT_5PC = new Gear((ctx) => {
+  ctx.add(20, DamageType.Liberation, Stat.DmgBonus);
+  ctx.grantGlobal(CLAWPRINT_TEAM);
   return "Flaming Clawprint 5pc";
 });
 
-export const CLAWPRINT_2PC = new Gear(() => {
-  add(10, Element.Fusion, Stat.DmgBonus);
+export const CLAWPRINT_2PC = new Gear((ctx) => {
+  ctx.add(10, Element.Fusion, Stat.DmgBonus);
   return "Flaming Clawprint 2pc";
 });
 
@@ -177,8 +178,9 @@ export const LOADOUT = [
 /* ------------------------------------------------------- what her actions do */
 
 function lupaAction(name: string, def: ActionDef): Action {
-  return new Action(`Lupa: ${name}`, {
+  return new Action(name, {
     element: Element.Fusion,
+    color: COLOR,
     scaling: Scaling.Atk,
     ...def,
   });
@@ -229,19 +231,19 @@ const Skill2 = lupaAction("Skill 2", {
 const USkill = lupaAction("Liberation Skill", {
   node: Node.Liberation, cast: DamageType.Skill, type: DamageType.Skill, mv: 304.46, concerto: 20,
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() { setCounter(LUPA_WOLFLAME, 0); },
+  apply(ctx) { ctx.setCounter(LUPA_WOLFLAME, 0); },
 });
 
 // --- liberation: tops Wolflame to 100, spends every point of Wolfaith, opens the team window.
 const Liberation = lupaAction("Liberation", {
   node: Node.Liberation, cast: DamageType.Liberation, type: DamageType.Liberation, mv: 820.44, energy: -125, concerto: 20,
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() {
-    setCounter(LUPA_WOLFLAME, 100);   // tops the gauge
-    setCounter(LUPA_WOLFAITH, 0);
+  apply(ctx) {
+    ctx.setCounter(LUPA_WOLFLAME, 100);   // tops the gauge
+    ctx.setCounter(LUPA_WOLFAITH, 0);
     // granting it *is* level 1 (6% team ATK); anyone's intro escalates it from there
-    grantGlobal(PACK_HUNT);
-    grantGlobal(GLORY, teamElements().filter((e) => e === Element.Fusion).length);
+    ctx.grantGlobal(PACK_HUNT);
+    ctx.grantGlobal(GLORY, ctx.teamElements().filter((e) => e === Element.Fusion).length);
   },
 });
 
@@ -251,13 +253,13 @@ const FSkill = lupaAction("Forte Skill", {
   node: Node.Forte, cast: DamageType.Skill, type: DamageType.Liberation, mv: 560.21, energy: 30, concerto: 15.02,
   priority: PRIORITY.UPDATE_BUFFS,
   forte2: -2,
-  apply() { grantSelf(LUPA_BACKUP_READY); },
+  apply(ctx) { ctx.grantSelf(LUPA_BACKUP_READY); },
 });
 const UFSkill = lupaAction("Liberation Forte Skill", {
   node: Node.Forte, cast: DamageType.Skill, type: DamageType.Liberation, mv: 756.26, energy: 30, concerto: 30,
   priority: PRIORITY.UPDATE_BUFFS,
   forte2: -2,
-  apply() { grantSelf(LUPA_BACKUP_READY); },
+  apply(ctx) { ctx.grantSelf(LUPA_BACKUP_READY); },
 });
 /** Set the Arena Ablaze — queued by `BACKUP_WATCH` the moment a teammate's liberation earns it,
  *  not placed in the rotation directly. */
@@ -278,7 +280,7 @@ const EIntro = lupaAction("Enhanced Intro", {
 const Outro = lupaAction("Outro", {
   cast: DamageType.Outro, type: DamageType.Outro, mv: 0, concerto: -100, active: false,
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() { outro(LUPA_OUTRO); },
+  apply(ctx) { ctx.outro(LUPA_OUTRO); },
 });
 
 /** She isn't the team's lead, so the opener skips the real Intro entirely and starts on her

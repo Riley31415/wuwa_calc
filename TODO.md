@@ -29,10 +29,6 @@ still procs all the on cast effects
 but all the mv, energy, offtune is set to 0 so it does no damage
 
 
-# engine
-remove global context, pass objects around
-so that we can parallelize calculations
-
 # sub and mainstats
 add iteration over all combos of substats and mainstats
 also maybe define combos of sonatas + 2pc + mainslot?
@@ -50,5 +46,5 @@ normalize dodge counter concerto, move it into engine
 # stats
 complete the TODOs in stats.ts
 
-# opener vs loop
-make sure the loop display is starting after any triggered actions on the final outro (so the opener includes an intro at the very end)
+
+

@@ -6,29 +6,31 @@
  */
 import { Buff, GlobalBuff, Gear, Action, Chain, PRIORITY } from "../kit.js";
 import type { ActionDef } from "../kit.js";
-import {
-  add, action, grantSelf, outro, revoke, isOutro, grantGlobal,
-} from "../state.js";
+import { isOutro } from "../state.js";
 import { Stat, Element, DamageType, Node, Cast, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 import { SIERRA_2PC } from "../shared/echoes.js";
 
+/** This resonator's own color — every action from the wrapper below defaults to it. */
+export const COLOR = "#2dd4c0";
+
 /* --------------------------------------------------------------- resonator */
 
-export const IUNO = new Gear((stacks, { cast }) => {
+export const IUNO = new Gear((ctx) => {
   // Derivation: her intro and liberation grant five Blessing stacks outright, no shield needed
-  if (cast === DamageType.Intro || cast === DamageType.Liberation) grantSelf(IUNO_BLESSING, 5);
+  const { cast } = ctx.action!;
+  if (cast === DamageType.Intro || cast === DamageType.Liberation) ctx.grantSelf(IUNO_BLESSING, 5);
 
-  add(100, Stat.Er);
-  add(5, Stat.CritRate);
-  add(150, Stat.CritDmg);
+  ctx.add(100, Stat.Er);
+  ctx.add(5, Stat.CritRate);
+  ctx.add(150, Stat.CritDmg);
 
-  add(10525, Stat.BaseHp);
-  add(450, Stat.BaseAtk);
-  add(1124, Stat.BaseDef);
-  add(8, Stat.CritRate);
-  add(12, Stat.BonusAtk);
+  ctx.add(10525, Stat.BaseHp);
+  ctx.add(450, Stat.BaseAtk);
+  ctx.add(1124, Stat.BaseDef);
+  ctx.add(8, Stat.CritRate);
+  ctx.add(12, Stat.BonusAtk);
   return "Iuno";
 }, null, Element.Aero, () => Intro);
 
@@ -36,33 +38,35 @@ export const IUNO = new Gear((stacks, { cast }) => {
 
 /** Moongazer's Sigil, her signature. Liberation damage gets a flat bonus and, per shield
  *  stack, pierces defence. R1, the rank the sheet's numbers describe. */
-export const IUNO_SIG = new Gear((stacks, a) => {
-  add(500, Stat.BaseAtk);
-  add(36, Stat.CritRate);
-  add(12, Stat.BonusAtk);
-  add(20, DamageType.Liberation, Stat.DmgBonus);
+export const IUNO_SIG = new Gear((ctx) => {
+  const a = ctx.action!;
+  ctx.add(500, Stat.BaseAtk);
+  ctx.add(36, Stat.CritRate);
+  ctx.add(12, Stat.BonusAtk);
+  ctx.add(20, DamageType.Liberation, Stat.DmgBonus);
   // a shield stacks it one for one; her intro takes it straight to the ceiling
-  if (a.cast === DamageType.Intro) grantSelf(MOONGAZER_STACKS, 5);   // straight to the ceiling
-  else if (a.shields) grantSelf(MOONGAZER_STACKS, a.shields);
+  if (a.cast === DamageType.Intro) ctx.grantSelf(MOONGAZER_STACKS, 5);   // straight to the ceiling
+  else if (a.shields) ctx.grantSelf(MOONGAZER_STACKS, a.shields);
   return "Moongazer's Sigil";
 });
 
-export const MOONGAZER_STACKS = new Buff(PRIORITY.BUFF_STATS, (stacks) => {
+export const MOONGAZER_STACKS = new Buff(PRIORITY.BUFF_STATS, (ctx, stacks) => {
   // scoped to liberation damage — most of Lunar Cycle qualifies, intro/outro/echo don't
-  add(7.2 * stacks, DamageType.Liberation, Stat.DefIgnore);
+  ctx.add(7.2 * stacks, DamageType.Liberation, Stat.DefIgnore);
   return `Moongazer's Sigil: Plenilune Radiance x${stacks}`;
 }, 5);
 
 /* -------------------------------------------------------------- echo, sonata */
 
-export const MYA = new Gear(() => {
-  add(12, DamageType.Liberation, Stat.DmgBonus);
-  add(12, Element.Aero, Stat.DmgBonus);
+export const MYA = new Gear((ctx) => {
+  ctx.add(12, DamageType.Liberation, Stat.DmgBonus);
+  ctx.add(12, Element.Aero, Stat.DmgBonus);
   return "Lady of the Sea";
 });
 
 /** The echo's cast. */
 export const ACTION_MYA = new Action("Echo: Lady of the Sea", {
+  color: COLOR,
   cast: DamageType.Echo,
   element: Element.Aero,
   scaling: Scaling.Atk,
@@ -71,14 +75,15 @@ export const ACTION_MYA = new Action("Echo: Lady of the Sea", {
   energy: 4.18,
 });
 
-export const COV_3PC = new Gear((stacks, { shields }) => {
-  if (shields) grantSelf(CROWN_STACKS, shields);
+export const COV_3PC = new Gear((ctx) => {
+  const { shields } = ctx.action!;
+  if (shields) ctx.grantSelf(CROWN_STACKS, shields);
   return "Crown of Valor 3pc";
 });
 
-export const CROWN_STACKS = new Buff(PRIORITY.BUFF_STATS, (stacks) => {
-  add(6 * stacks, Stat.BonusAtk);
-  add(4 * stacks, Stat.CritDmg);
+export const CROWN_STACKS = new Buff(PRIORITY.BUFF_STATS, (ctx, stacks) => {
+  ctx.add(6 * stacks, Stat.BonusAtk);
+  ctx.add(4 * stacks, Stat.CritDmg);
   return `Crown of Valor x${stacks}`;
 }, 5);
 
@@ -94,27 +99,28 @@ export const LOADOUT = [IUNO, IUNO_SIG, MYA, COV_3PC, SIERRA_2PC,
 /** Full Moon Domain: what Heavy Attack - Absolute Fullness (FHA) leaves at her feet — a
  *  team-wide shield watcher, so a teammate accrues Blessing off their own shielding. Global
  *  (max_stacks 1), so recasting it each rotation is free either way. */
-export const IUNO_DOMAIN = new GlobalBuff(PRIORITY.UPDATE_BUFFS, (stacks, { shields }) => {
-  if (shields) grantSelf(IUNO_BLESSING, shields);
+export const IUNO_DOMAIN = new GlobalBuff(PRIORITY.UPDATE_BUFFS, (ctx) => {
+  const { shields } = ctx.action!;
+  if (shields) ctx.grantSelf(IUNO_BLESSING, shields);
   return "Iuno: Full Moon Domain";
 });
 
 /** Blessing of the Wan Light: 4% all-damage amplification a stack, ten stacks. Amplification
  *  rather than damage bonus, so it multiplies its own term instead of diluting into the pile. */
-export const IUNO_BLESSING = new Buff(PRIORITY.BUFF_STATS, (stacks) => {
+export const IUNO_BLESSING = new Buff(PRIORITY.BUFF_STATS, (ctx, stacks) => {
   // ends early if switched off field — the outro is that switch, and carries none of it
-  if (isOutro(action()!)) {
-    revoke(IUNO_BLESSING);
+  if (isOutro(ctx.action!)) {
+    ctx.revoke(IUNO_BLESSING);
     return "Iuno: Blessing of the Wan Light x0";
   }
-  add(4 * stacks, Stat.Amp);
+  ctx.add(4 * stacks, Stat.Amp);
   return `Iuno: Blessing of the Wan Light x${stacks}`;
 }, 10);
 
 /** From Gloom to Gleam: the window her outro hands the incoming resonator. */
-export const IUNO_OUTRO = new Buff(PRIORITY.BUFF_STATS, (stacks, a) => {
-  if (isOutro(a)) revoke(IUNO_OUTRO);
-  add(50, DamageType.Heavy, Stat.Amp);
+export const IUNO_OUTRO = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
+  if (isOutro(ctx.action!)) ctx.revoke(IUNO_OUTRO);
+  ctx.add(50, DamageType.Heavy, Stat.Amp);
   return "Iuno: Outro";
 });
 
@@ -122,8 +128,9 @@ export const IUNO_OUTRO = new Buff(PRIORITY.BUFF_STATS, (stacks, a) => {
 /* ----------------------------------------------------------------- actions */
 
 function iunoAction(name: string, def: ActionDef): Action {
-  return new Action(`Iuno: ${name}`, {
+  return new Action(name, {
     element: Element.Aero,
+    color: COLOR,
     scaling: Scaling.Atk,
     ...def,
   });
@@ -161,7 +168,7 @@ const Intro = iunoAction("Intro", {
 const Outro = iunoAction("Outro", {
   cast: DamageType.Outro, type: DamageType.Outro, mv: 100, concerto: -100, active: false,
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() { outro(IUNO_OUTRO); },
+  apply(ctx) { ctx.outro(IUNO_OUTRO); },
 });
 
 // --- forte (jump / Flux) casts, all liberation damage while in Lunar Cycle. Same shielding
@@ -178,14 +185,14 @@ const FMSkill = iunoAction("Forte Moonbow Skill", { node: Node.Forte, cast: Dama
 const FHA = iunoAction("Forte Heavy", {
   node: Node.Forte, cast: DamageType.Heavy, shields: 1, type: DamageType.Liberation, mv: 159.05, energy: 5, offtune: 0.24,
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() { grantGlobal(IUNO_DOMAIN); },
+  apply(ctx) { ctx.grantGlobal(IUNO_DOMAIN); },
 });
 
 /* ------------------------------------------------------------------ chains */
 
-export const MA123 = new Chain("Iuno: Moonbow Basic 123",
+export const MA123 = new Chain("Moonbow Basic 123",
   [MA1, MA2, MA3, MDC]);
-export const FMA123 = new Chain("Iuno: Forte Moonbow Basic 123",
+export const FMA123 = new Chain("Forte Moonbow Basic 123",
   [FMA1, FMA2, FMA3]);
 
 /** The sheet's `iuno sub` rotation — a sub-DPS opener leaning on the forte Moonbow chain. Intro

@@ -4,7 +4,6 @@
  * per element rather than generic, so a mismatched slot doesn't silently pay full price.
  */
 import { Gear } from "../kit.js";
-import { add } from "../state.js";
 import { Stat, Element, scopedStat } from "../stats.js";
 
 /** No physical entry: a 3-cost elemental damage main stat doesn't exist for physical in-game. */
@@ -70,9 +69,9 @@ export function mainstats(c4 = "", c3 = "", c1 = ""): Gear {
   const entries = [...totals.values()];
   const layout = slots.map(([c]) => c).join("");
   const name = `${layout} ${slots.map(([, key]) => key).join(" ")}`;
-  return new Gear(() => {
+  return new Gear((ctx) => {
     for (const { stat, tag, value } of entries) {
-      if (tag) add(value, tag, stat); else add(value, stat);
+      if (tag) ctx.add(value, tag, stat); else ctx.add(value, stat);
     }
     return name;
   });

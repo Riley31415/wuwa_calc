@@ -14,6 +14,9 @@
 import { mvPercent } from "./damage.js";
 import type { Snapshot } from "./damage.js";
 import type { Element, DamageType, Cast, Type2, Node, Scaling } from "./stats.js";
+// type-only — erased at compile time, so this doesn't become a real runtime edge back to
+// state.js (which already imports plenty of runtime values from here, see the header above)
+import type { Ctx } from "./state.js";
 
 /**
  * Priority stages, walked in order. Numeric (an ordinal sequence something sorts and compares
@@ -58,15 +61,16 @@ export const PRIORITY_BANDS: Priority[] =
 
 const PRIORITY_NAMES = new Set(PRIORITY_BANDS);
 
-/** What a Buff's `apply()` is handed and may return. */
-export type BuffApply = (stacks: number, action: Action) => string | void | undefined;
+/** What a Buff's `apply()` is handed and may return — `ctx` is the only way in to the acting
+ *  slot, the action, or any of the grant/read helpers; nothing is ambient any more. */
+export type BuffApply = (ctx: Ctx, stacks: number) => string | void | undefined;
 
-/** What an Action's own `apply()` is handed and may return — called with no arguments. */
-export type ActionApply = () => string | void | undefined;
+/** What an Action's own `apply()` is handed and may return. */
+export type ActionApply = (ctx: Ctx) => string | void | undefined;
 
 /**
- * A buff: applied wherever it is added. `apply(stacks, action)` is handed its own current stack
- * count and the action being evaluated — a buff that doesn't need one or either just ignores it.
+ * A buff: applied wherever it is added. `apply(ctx, stacks)` is handed the running calculation
+ * and its own current stack count — a buff that doesn't need either just ignores the argument.
  */
 export class Buff {
   priority: Priority;
@@ -80,8 +84,16 @@ export class Buff {
   /** Set only on a per-resonator copy made by `instance()` — the shared definition never has
    *  one, which is what `labelOf`/etc. use to tell the two apart. */
   definition?: Buff;
-  /** Bookkeeping `Slot.addBuff` stamps on an instance — not read by kit.js itself. */
+  /** Bookkeeping `Slot.addBuff`/`State.addGlobalBuff`/`Enemy.addDebuff` stamp on an instance —
+   *  not read by kit.js itself. */
   via?: string;
+  /** Which team member's own gear/kit is responsible for this instance — for display only (the
+   *  hover panels' colour bar), never read by the engine itself. Stamped once at grant time:
+   *  gear is owned by whoever equipped it; anything a buff or gear grants while its own apply()
+   *  is running inherits that same owner, all the way down the chain. `null` on the shared
+   *  definition and on anything granted with no live owner to inherit (an engine-wide standing
+   *  rule, say). */
+  owner?: string | null;
 
   /**
    * No name is passed in. `apply()` **returns** what this buff is called, every time it runs —
@@ -180,11 +192,11 @@ export function labelOf(x: unknown): string | null {
 export const nameOf = (x: unknown): string => labelOf(x) ?? "(unnamed buff)";
 
 /** What an incoming resonator's own Gear decides to trigger next, off their own live state. */
-export type OnIntro = () => Action;
+export type OnIntro = (ctx: Ctx) => Action;
 
 /** Gear: a buff that's equipped, plus an optional `onFightStart()` run once at `startFight()`. */
 export class Gear extends Buff {
-  onFightStart: (() => void) | null;
+  onFightStart: ((ctx: Ctx) => void) | null;
   element: Element | null;
   onIntro: OnIntro | null;
 
@@ -203,7 +215,7 @@ export class Gear extends Buff {
    */
   constructor(
     apply: BuffApply,
-    onFightStart: (() => void) | null = null,
+    onFightStart: ((ctx: Ctx) => void) | null = null,
     element: Element | null = null,
     onIntro: OnIntro | null = null,
     priority: Priority = Priority.GearStats,
@@ -225,9 +237,16 @@ export class Gear extends Buff {
  */
 export class Mode extends Gear {}
 
+/** Reserved colors for gear that isn't any one resonator's own identity — a mainslot echo or
+ *  weapon usable by anyone stays visually neutral rather than borrowing whoever equipped it.
+ *  Nothing else should share these two. */
+export const WHITE = "#ffffff";
+export const GREEN = "#a3e635";
+
 /** The options bag `new Action(id, def)` takes — everything optional, matching the `??`
  *  defaults in the constructor below. */
 export interface ActionDef {
+  color?: string;
   element?: Element | null;
   type?: DamageType | null;
   type2?: Type2 | null;
@@ -255,6 +274,11 @@ export interface ActionDef {
 /** One step in a rotation. Everything it declares is static; only `apply()` runs. */
 export class Action {
   id: string;
+  /** Display only — the row this action's own cast draws in the web report. Defaults to the
+   *  resonator whose kit it belongs to (each file's own `xxxAction()` wrapper sets it); generic
+   *  gear anyone can equip (a mainslot echo, a weapon) overrides it to `WHITE`/`GREEN` instead,
+   *  so it reads the same regardless of who's wearing it. */
+  color: string;
   element: Element | null;
   type: DamageType | null;
   /** A second, independent damage-type tag (see TYPE2S in stats.js) — a hit can be both
@@ -305,6 +329,7 @@ export class Action {
 
   constructor(id: string, def: ActionDef = {}) {
     this.id = id;
+    this.color = def.color ?? "";
     this.element = def.element ?? null;
     this.type = def.type ?? null;
     this.type2 = def.type2 ?? null;

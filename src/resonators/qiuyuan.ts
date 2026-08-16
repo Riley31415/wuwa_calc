@@ -11,48 +11,48 @@
  */
 import { Buff, GlobalBuff, Gear, Action, Chain, PRIORITY } from "../kit.js";
 import type { ActionDef } from "../kit.js";
-import {
-  add, counter, stacksOf, grantSelf, grantGlobal, gain, revoke, outro, action,
-  isIntro, isOutro, isEcho,
-} from "../state.js";
+import { isIntro, isOutro, isEcho } from "../state.js";
 import { Stat, Element, DamageType, Node, Resource, Cast, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 import { FALLACY, ACTION_FALLACY, REJUV_2PC } from "../shared/echoes.js";
 
+/** This resonator's own color — every action from the wrapper below defaults to it. */
+export const COLOR = "#6bb668";
+
 /* --------------------------------------------------------------- resonator */
 
-export const QIUYUAN = new Gear(() => {
-  add(100, Stat.Er);
-  add(5, Stat.CritRate);
-  add(150, Stat.CritDmg);
+export const QIUYUAN = new Gear((ctx) => {
+  ctx.add(100, Stat.Er);
+  ctx.add(5, Stat.CritRate);
+  ctx.add(150, Stat.CritDmg);
 
-  add(12238, Stat.BaseHp);
-  add(375, Stat.BaseAtk);
-  add(1198, Stat.BaseDef);
-  add(8, Stat.CritRate);
-  add(12, Stat.BonusAtk);   // stat-tree bonus; Drink Away Woes Age-Old's 10% is its own buff below
+  ctx.add(12238, Stat.BaseHp);
+  ctx.add(375, Stat.BaseAtk);
+  ctx.add(1198, Stat.BaseDef);
+  ctx.add(8, Stat.CritRate);
+  ctx.add(12, Stat.BonusAtk);   // stat-tree bonus; Drink Away Woes Age-Old's 10% is its own buff below
 
   // his own thresholds, checked every one of his own actions since resources land before this
-  if (counter(Resource.Forte1) >= 400) grantGlobal(BAMBOO_SHADE);
-  if (counter(Resource.Forte1) >= 600) grantSelf(QUIETUDE_WITHIN);
+  if (ctx.counter(Resource.Forte1) >= 400) ctx.grantGlobal(BAMBOO_SHADE);
+  if (ctx.counter(Resource.Forte1) >= 600) ctx.grantSelf(QUIETUDE_WITHIN);
   return "Qiuyuan";
-}, () => { grantSelf(DRINK_AWAY_WOES); }, Element.Aero, () => Intro);
+}, (ctx) => { ctx.grantSelf(DRINK_AWAY_WOES); }, Element.Aero, () => Intro);
 
 /** Drink Away Woes Age-Old (Inherent Skill): simplified from "brews on an Echo Skill cast,
  *  consumed by the next Soliloquy gain" to just watching for any Soliloquy gain directly —
  *  his rotation's one Echo cast comes after everything that would spend it, so the real
  *  two-step trigger would never actually pay out. */
-export const DRINK_AWAY_WOES = new Buff(PRIORITY.UPDATE_BUFFS, () => {
-  if (action()!.forte1 > 0) grantSelf(FLOWING_PANACEA);
+export const DRINK_AWAY_WOES = new Buff(PRIORITY.UPDATE_BUFFS, (ctx) => {
+  if (ctx.action!.forte1 > 0) ctx.grantSelf(FLOWING_PANACEA);
   return "Qiuyuan: Drink Away Woes (watcher)";
 });
 
 /** Flowing Panacea: +10% ATK. Ends on his outro — which still gets the bonus, since the
  *  revoke happens after that last cast's cut, not instead of it. */
-export const FLOWING_PANACEA = new Buff(PRIORITY.BUFF_STATS, () => {
-  add(10, Stat.BonusAtk);
-  if (isOutro(action()!)) revoke(FLOWING_PANACEA);
+export const FLOWING_PANACEA = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
+  ctx.add(10, Stat.BonusAtk);
+  if (isOutro(ctx.action!)) ctx.revoke(FLOWING_PANACEA);
   return "Qiuyuan: Flowing Panacea";
 });
 
@@ -60,17 +60,18 @@ export const FLOWING_PANACEA = new Buff(PRIORITY.BUFF_STATS, () => {
  *  "considered as Echo Skill DMG" (type ECHO) even though they're not literal Echo casts, so
  *  this scopes the same way theirs does. */
 export const BAMBOO_SHADE = new GlobalBuff(PRIORITY.BUFF_STATS,
-  () => { add(30, DamageType.Echo, Stat.DmgBonus); return "Qiuyuan: Bamboo's Shade"; });
+  (ctx) => { ctx.add(30, DamageType.Echo, Stat.DmgBonus); return "Qiuyuan: Bamboo's Shade"; });
 
 /** Quietude Within (Inherent Skill): +50% DMG to the Inksplash of Mind combo specifically —
  *  gated on exact action identity since To Teach/To Save/To Sacrifice share `type: HEAVY` with
  *  his ordinary heavy attack, which doesn't get this. To Sacrifice also restores 30 Concerto.
  *  Ends early if he's switched off field — any inactive action, not just his own outro. */
-export const QUIETUDE_WITHIN = new Buff(PRIORITY.BUFF_STATS, (stacks, a) => {
-  if (!a.active) { revoke(QUIETUDE_WITHIN); return; }
+export const QUIETUDE_WITHIN = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
+  const a = ctx.action!;
+  if (!a.active) { ctx.revoke(QUIETUDE_WITHIN); return; }
   if (a !== FHA1 && a !== FHA2 && a !== FHA3) return;
-  add(50, Stat.DmgDealt);
-  if (a === FHA3) { gain(Resource.Concerto, 30); revoke(QUIETUDE_WITHIN); }
+  ctx.add(50, Stat.DmgDealt);
+  if (a === FHA3) { ctx.gain(Resource.Concerto, 30); ctx.revoke(QUIETUDE_WITHIN); }
   return "Qiuyuan: Quietude Within";
 });
 
@@ -87,33 +88,34 @@ export const QUIETUDE_WITHIN = new Buff(PRIORITY.BUFF_STATS, (stacks, a) => {
  * all three of its own states rather than a separate ready flag: stack 1 is "ready" (no
  * bonus yet), stacks 2 and 3 are the real 1st/2nd Bamboo Cleaver stacks.
  */
-export const EMERALD_SENTENCE = new Gear((stacks, a) => {
-  add(587.5, Stat.BaseAtk);
-  add(24.3, Stat.CritRate);
-  add(12, Stat.BonusAtk);
+export const EMERALD_SENTENCE = new Gear((ctx) => {
+  const a = ctx.action!;
+  ctx.add(587.5, Stat.BaseAtk);
+  ctx.add(24.3, Stat.CritRate);
+  ctx.add(12, Stat.BonusAtk);
 
-  if (isIntro(a)) grantGlobal(HEART_SETTLES_TEAM);
+  if (isIntro(a)) ctx.grantGlobal(HEART_SETTLES_TEAM);
 
-  const cleaver = stacksOf(BAMBOO_CLEAVER);
+  const cleaver = ctx.stacksOf(BAMBOO_CLEAVER);
   if (a.cast === DamageType.Intro || a.cast === DamageType.Basic) {
-    if (!cleaver) grantSelf(BAMBOO_CLEAVER);          // reach "ready"
+    if (!cleaver) ctx.grantSelf(BAMBOO_CLEAVER);          // reach "ready"
   }
 
   return "Emerald Sentence";
 });
 
 export const HEART_SETTLES_TEAM = new GlobalBuff(PRIORITY.BUFF_STATS,
-  () => { add(20, DamageType.Echo, Stat.DmgBonus); return "Emerald Sentence: When A Heart Settles"; });
+  (ctx) => { ctx.add(20, DamageType.Echo, Stat.DmgBonus); return "Emerald Sentence: When A Heart Settles"; });
 
 /** Lost entirely if he's switched off field — any inactive action, same as Quietude Within. */
-export const BAMBOO_CLEAVER = new Buff(PRIORITY.BUFF_STATS, () => {
-  if (!action()!.active) { revoke(BAMBOO_CLEAVER); return; }
-  if (isEcho(action()!)) {
-    grantSelf(BAMBOO_CLEAVER);
+export const BAMBOO_CLEAVER = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
+  if (!ctx.action!.active) { ctx.revoke(BAMBOO_CLEAVER); return; }
+  if (isEcho(ctx.action!)) {
+    ctx.grantSelf(BAMBOO_CLEAVER);
   }
-  const held = stacksOf(BAMBOO_CLEAVER);
+  const held = ctx.stacksOf(BAMBOO_CLEAVER);
   if (held < 2) return;
-  add(30 * (held - 1), DamageType.Heavy, Stat.DmgBonus);
+  ctx.add(30 * (held - 1), DamageType.Heavy, Stat.DmgBonus);
   return `Emerald Sentence: Bamboo Cleaver x${held - 1}`;
 }, 3);
 
@@ -121,13 +123,14 @@ export const BAMBOO_CLEAVER = new Buff(PRIORITY.BUFF_STATS, () => {
 
 /** Reminiscence: Fenrico, his mainslot echo — flat Aero/Heavy DMG Bonus for whoever wears it
  *  in the mainslot, no trigger involved. */
-export const FENRICO = new Gear(() => {
-  add(12, Element.Aero, Stat.DmgBonus);
-  add(12, DamageType.Heavy, Stat.DmgBonus);
+export const FENRICO = new Gear((ctx) => {
+  ctx.add(12, Element.Aero, Stat.DmgBonus);
+  ctx.add(12, DamageType.Heavy, Stat.DmgBonus);
   return "Reminiscence: Fenrico";
 });
 
 export const ACTION_FENRICO = new Action("Echo: Fenrico", {
+  color: COLOR,
   cast: DamageType.Echo,
   element: Element.Aero,
   scaling: Scaling.Atk,
@@ -142,19 +145,19 @@ export const ACTION_FENRICO = new Action("Echo: Fenrico", {
  * named Echo that's triggered it (every echo cast is assumed unique, so a repeat cast of his
  * own Echo: Fenrico across a later loop counts as another one same as it would in a real fight).
  **/
-export const LAW_OF_HARMONY_3PC = new Gear((stacks, a) => {
-  if (isEcho(a)) {
-    grantSelf(LAW_OF_HARMONY_SELF);
-    grantGlobal(LAW_OF_HARMONY_TEAM);
+export const LAW_OF_HARMONY_3PC = new Gear((ctx) => {
+  if (isEcho(ctx.action!)) {
+    ctx.grantSelf(LAW_OF_HARMONY_SELF);
+    ctx.grantGlobal(LAW_OF_HARMONY_TEAM);
   }
   return "Law of Harmony 3pc";
 });
 
 export const LAW_OF_HARMONY_SELF = new Buff(PRIORITY.BUFF_STATS,
-  () => { add(30, DamageType.Heavy, Stat.DmgBonus); return "Law of Harmony"; });
+  (ctx) => { ctx.add(30, DamageType.Heavy, Stat.DmgBonus); return "Law of Harmony"; });
 
-export const LAW_OF_HARMONY_TEAM = new GlobalBuff(PRIORITY.BUFF_STATS, (stacks) => {
-  add(4 * stacks, DamageType.Echo, Stat.DmgBonus);
+export const LAW_OF_HARMONY_TEAM = new GlobalBuff(PRIORITY.BUFF_STATS, (ctx, stacks) => {
+  ctx.add(4 * stacks, DamageType.Echo, Stat.DmgBonus);
   return `Law of Harmony x${stacks}`;
 }, 4);
 
@@ -170,8 +173,9 @@ export const LOADOUT = [
 /* ----------------------------------------------------------------- actions */
 
 function qiuyuanAction(name: string, def: ActionDef): Action {
-  return new Action(`Qiuyuan: ${name}`, {
+  return new Action(name, {
     element: Element.Aero,
+    color: COLOR,
     scaling: Scaling.Atk,
     ...def,
   });
@@ -186,7 +190,7 @@ const HA = qiuyuanAction("Heavy", { node: Node.Normal, cast: DamageType.Heavy, t
 // the sheet's own DC row has no forte1 — the page is explicit that Dodge Counter restores 100
 const DC = qiuyuanAction("Dodge Counter", { node: Node.Normal, cast: Cast.DodgeCounter, type: DamageType.Heavy, mv: 278.36, energy: 3.5, concerto: 21.2, offtune: 1.12, forte1: 100 });
 
-export const BA123 = new Chain("Qiuyuan: Basic 123", [BA1, BA2, BA3]);
+export const BA123 = new Chain("Basic 123", [BA1, BA2, BA3]);
 
 // --- Thus Spoke the Blade: Inkwash — Basic Attack replaced from 200 Soliloquy on
 const EBA1 = qiuyuanAction("Inkwash Basic 1", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Heavy, mv: 119.3, energy: 1.5, concerto: 4.8, offtune: 0.48, forte1: 100 });
@@ -194,8 +198,8 @@ const EBA2 = qiuyuanAction("Inkwash Basic 2", { node: Node.Normal, cast: DamageT
 const EBA3 = qiuyuanAction("Inkwash Basic 3", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Heavy, mv: 145.77, energy: 3.69, concerto: 7.07, offtune: 0.5916, forte1: 100 });
 const EBA4 = qiuyuanAction("Inkwash Basic 4", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Heavy, mv: 172.37, energy: 4.34, concerto: 8.33, offtune: 0.6936, forte1: 100 });
 
-export const EBA34 = new Chain("Qiuyuan: Inkwash Basic 34", [EBA3, EBA4]);
-export const EBA1234 = new Chain("Qiuyuan: Inkwash Basic 1234", [EBA1, EBA2, EBA3, EBA4]);
+export const EBA34 = new Chain("Inkwash Basic 34", [EBA3, EBA4]);
+export const EBA1234 = new Chain("Inkwash Basic 1234", [EBA1, EBA2, EBA3, EBA4]);
 
 // --- resonance skill: Undaunted Wayfarer. Tap is the rotation's default; Hold assumes a fixed
 //     3-tick dash, same as the sheet.
@@ -208,13 +212,13 @@ const SkillHold = qiuyuanAction("Skill Hold", { node: Node.Skill, cast: DamageTy
 const Liberation = qiuyuanAction("Liberation", {
   node: Node.Liberation, cast: DamageType.Liberation, type: DamageType.Echo, mv: 795.24, energy: -125, concerto: 20, offtune: 9.6,
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() { grantGlobal(SUNDERING_STRIKE_CD); },
+  apply(ctx) { ctx.grantGlobal(SUNDERING_STRIKE_CD); },
 });
 // "all nearby active Resonators in the team" — skip inactive actions rather than paying them.
 // Global now, so it reacts to everyone directly — no more per-slot copy to stay held on.
-const SUNDERING_STRIKE_CD = new GlobalBuff(PRIORITY.BUFF_STATS, () => {
-  if (!action()!.active) return;
-  add(30, Stat.CritDmg);
+const SUNDERING_STRIKE_CD = new GlobalBuff(PRIORITY.BUFF_STATS, (ctx) => {
+  if (!ctx.action!.active) return;
+  ctx.add(30, Stat.CritDmg);
   return "Qiuyuan: Sundering Strike";
 });
 
@@ -225,11 +229,11 @@ const Intro = qiuyuanAction("Intro", {
 const Outro = qiuyuanAction("Outro", {
   cast: DamageType.Outro, type: DamageType.Echo, mv: 100, concerto: -100, active: false,
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() { outro(QIUYUAN_OUTRO); },
+  apply(ctx) { ctx.outro(QIUYUAN_OUTRO); },
 });
-export const QIUYUAN_OUTRO = new Buff(PRIORITY.BUFF_STATS, (stacks, a) => {
-  if (isOutro(a)) revoke(QIUYUAN_OUTRO);
-  add(50, DamageType.Echo, Stat.Amp);
+export const QIUYUAN_OUTRO = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
+  if (isOutro(ctx.action!)) ctx.revoke(QIUYUAN_OUTRO);
+  ctx.add(50, DamageType.Echo, Stat.Amp);
   return "Qiuyuan: Outro";
 });
 
@@ -242,7 +246,7 @@ export const FHA1 = qiuyuanAction("Forte Heavy 1", { node: Node.Forte, cast: Dam
 export const FHA2 = qiuyuanAction("Forte Heavy 2", { node: Node.Forte, cast: DamageType.Heavy, cast2: DamageType.Echo, type: DamageType.Heavy, mv: 209.67, energy: 3.54, concerto: 6.78, offtune: 0.5628, forte1: -200 });
 export const FHA3 = qiuyuanAction("Forte Heavy 3", { node: Node.Forte, cast: DamageType.Heavy, cast2: DamageType.Echo, type: DamageType.Heavy, mv: 217.7, energy: 3.65, concerto: 7.01, offtune: 0.584, forte1: -200 });
 
-export const FHA123 = new Chain("Qiuyuan: Forte Heavy 123", [FHA1, FHA2, FHA3]);
+export const FHA123 = new Chain("Forte Heavy 123", [FHA1, FHA2, FHA3]);
 
 /** The sheet's `qy` rotation: Intro tops Soliloquy at 400 (Bamboo's Shade), Inkwash 34 fills the
  *  rest to 600 (Inksplash of Mind), Liberation, then the full combo spends it — cast for his own

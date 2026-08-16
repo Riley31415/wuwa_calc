@@ -25,43 +25,45 @@
  */
 import { Buff, Gear, Action, Chain, PRIORITY } from "../kit.js";
 import type { ActionDef } from "../kit.js";
-import {
-  add, get, gain, grantSelf, stacksOf, revoke, outro, isOutro, isLiberation,
-} from "../state.js";
+import { isOutro, isLiberation } from "../state.js";
+import type { Ctx } from "../state.js";
 import { Stat, Element, DamageType, Node, Resource, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 
+/** This resonator's own color — every action from the wrapper below defaults to it. */
+export const COLOR = "#a0522d";
+
 /* --------------------------------------------------------------- resonator */
 
-export const BRANT = new Gear(() => {
-  add(100, Stat.Er);
-  add(5, Stat.CritRate);
-  add(150, Stat.CritDmg);
+export const BRANT = new Gear((ctx) => {
+  ctx.add(100, Stat.Er);
+  ctx.add(5, Stat.CritRate);
+  ctx.add(150, Stat.CritDmg);
 
-  add(11675, Stat.BaseHp);
-  add(375, Stat.BaseAtk);
-  add(1308, Stat.BaseDef);
-  add(8, Stat.CritRate);
-  add(12, Stat.BonusAtk);
+  ctx.add(11675, Stat.BaseHp);
+  ctx.add(375, Stat.BaseAtk);
+  ctx.add(1308, Stat.BaseDef);
+  ctx.add(8, Stat.CritRate);
+  ctx.add(12, Stat.BonusAtk);
 
   return "Brant";
-}, () => { grantSelf(THEATRICAL_MOMENT); }, Element.Fusion, () => Intro);
+}, (ctx) => { ctx.grantSelf(THEATRICAL_MOMENT); }, Element.Fusion, () => Intro);
 
 /** Trial by Fire and Tide (Inherent Skill): +15% Fusion DMG Bonus, on his mid-air combo stages
  *  specifically — placed on each of those actions directly below, rather than as a Gear-wide
  *  check, since it's their own passive, not a generic one. */
-function midAirBonus(): void { add(15, Element.Fusion, Stat.DmgBonus); }
+function midAirBonus(ctx: Ctx): void { ctx.add(15, Element.Fusion, Stat.DmgBonus); }
 
 /** Theatrical Moment / "My" Moment: +12 ATK per 1% Energy Regen over 150%, capped at +1560
  *  (i.e. 280% ER) — doubled to +20 per 1%, capped at +2600 (same 280% ER cap), while Aflame is
  *  up. EARLY_CONVERSION so every ER contribution (gear, sonata, substats) has already landed. */
-export const THEATRICAL_MOMENT = new Buff(PRIORITY.EARLY_CONVERSION, () => {
-  const aflame = stacksOf(AFLAME) > 0;
+export const THEATRICAL_MOMENT = new Buff(PRIORITY.EARLY_CONVERSION, (ctx) => {
+  const aflame = ctx.stacksOf(AFLAME) > 0;
   const perPoint = aflame ? 20 : 12;
   const cap = aflame ? 2600 : 1560;
-  const over = Math.max(0, get(Stat.Er) - 150);
-  add(Math.min(cap, perPoint * over), Stat.FlatAtk);
+  const over = Math.max(0, ctx.get(Stat.Er) - 150);
+  ctx.add(Math.min(cap, perPoint * over), Stat.FlatAtk);
   return aflame ? 'Brant: "My" Moment' : "Brant: Theatrical Moment";
 });
 
@@ -71,9 +73,10 @@ export const THEATRICAL_MOMENT = new Buff(PRIORITY.EARLY_CONVERSION, () => {
  *  on Normal Attack (node: NORMAL, his mid-air combo) and Resonance Skill (node: SKILL, Anchors
  *  Aweigh!) hits, per the kit's own wording — not Intro — by re-granting the same forte1 amount
  *  a second time; the base gain already lands before this buff's body runs. */
-export const AFLAME = new Buff(PRIORITY.BUFF_STATS, (stacks, a) => {
-  if (isOutro(a)) { revoke(AFLAME); return; }
-  if (a.node === Node.Normal || a.node === Node.Skill) gain(Resource.Forte1, a.forte1);
+export const AFLAME = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
+  const a = ctx.action!;
+  if (isOutro(a)) { ctx.revoke(AFLAME); return; }
+  if (a.node === Node.Normal || a.node === Node.Skill) ctx.gain(Resource.Forte1, a.forte1);
   return "Brant: Aflame";
 });
 
@@ -83,24 +86,24 @@ export const AFLAME = new Buff(PRIORITY.BUFF_STATS, (stacks, a) => {
  *  +24% Basic Attack DMG Bonus instances — casting Liberation grants one (10s), dealing Basic
  *  Attack DMG grants the other (4s); both up at once is +48%, not capped to one. Both short
  *  enough that only the standing outro-loss rule matters for either. */
-export const UNFLICKERING_VALOR = new Gear((stacks, a) => {
-  add(413, Stat.BaseAtk);
-  add(77.04, Stat.Er);
-  add(8, Stat.CritRate);
-  if (isLiberation(a)) grantSelf(LAUGHTER_PREVAILS_LIB);
-  if (a.type === DamageType.Basic) grantSelf(LAUGHTER_PREVAILS_BASIC);
+export const UNFLICKERING_VALOR = new Gear((ctx) => {
+  ctx.add(413, Stat.BaseAtk);
+  ctx.add(77.04, Stat.Er);
+  ctx.add(8, Stat.CritRate);
+  if (isLiberation(ctx.action!)) ctx.grantSelf(LAUGHTER_PREVAILS_LIB);
+  if (ctx.action!.type === DamageType.Basic) ctx.grantSelf(LAUGHTER_PREVAILS_BASIC);
   return "Unflickering Valor";
 });
 
-export const LAUGHTER_PREVAILS_LIB = new Buff(PRIORITY.BUFF_STATS, (stacks, a) => {
-  add(24, DamageType.Basic, Stat.DmgBonus);
-  if (isOutro(a)) revoke(LAUGHTER_PREVAILS_LIB);
+export const LAUGHTER_PREVAILS_LIB = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
+  ctx.add(24, DamageType.Basic, Stat.DmgBonus);
+  if (isOutro(ctx.action!)) ctx.revoke(LAUGHTER_PREVAILS_LIB);
   return "Unflickering Valor: Laughter Prevails (Liberation)";
 });
 
-export const LAUGHTER_PREVAILS_BASIC = new Buff(PRIORITY.BUFF_STATS, (stacks, a) => {
-  add(24, DamageType.Basic, Stat.DmgBonus);
-  if (isOutro(a)) revoke(LAUGHTER_PREVAILS_BASIC);
+export const LAUGHTER_PREVAILS_BASIC = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
+  ctx.add(24, DamageType.Basic, Stat.DmgBonus);
+  if (isOutro(ctx.action!)) ctx.revoke(LAUGHTER_PREVAILS_BASIC);
   return "Unflickering Valor: Laughter Prevails (Basic Attack)";
 });
 
@@ -108,9 +111,9 @@ export const LAUGHTER_PREVAILS_BASIC = new Buff(PRIORITY.BUFF_STATS, (stacks, a)
 
 /** Dragon of Dirge, his mainslot echo — flat Fusion/Basic Attack DMG Bonus for whoever wears it,
  *  no trigger. */
-export const DRAGON_OF_DIRGE = new Gear(() => {
-  add(12, Element.Fusion, Stat.DmgBonus);
-  add(12, DamageType.Basic, Stat.DmgBonus);
+export const DRAGON_OF_DIRGE = new Gear((ctx) => {
+  ctx.add(12, Element.Fusion, Stat.DmgBonus);
+  ctx.add(12, DamageType.Basic, Stat.DmgBonus);
   return "Dragon of Dirge";
 });
 
@@ -119,19 +122,19 @@ export const DRAGON_OF_DIRGE = new Gear(() => {
  *  the one tick nanoka actually gives a number for, not placed in any rotation below (none of
  *  the migrated ones use it either). */
 export const ACTION_DRAGON_OF_DIRGE = new Action("Echo: Dragon of Dirge", {
-  cast: DamageType.Echo, element: Element.Fusion, scaling: Scaling.Atk, type: DamageType.Echo, mv: 36.81, energy: 0.51,
+  color: COLOR, cast: DamageType.Echo, element: Element.Fusion, scaling: Scaling.Atk, type: DamageType.Echo, mv: 36.81, energy: 0.51,
 });
 
-export const TIDEBREAKING_2PC = new Gear(() => { add(10, Stat.Er); return "Tidebreaking Courage 2pc"; });
+export const TIDEBREAKING_2PC = new Gear((ctx) => { ctx.add(10, Stat.Er); return "Tidebreaking Courage 2pc"; });
 
 /** Tidebreaking Courage 5pc: +15% ATK flat, and +30% (unscoped) DMG Bonus once Energy Regen
  *  actually reaches 250% — a real threshold read off the total, not assumed. EARLY_CONVERSION
  *  (overriding Gear's default GEAR_STATS) so every other ER contribution — the 2pc, mainstats,
  *  substats, all listed after this piece in the loadout — has already landed before it reads
  *  `get(ER)`. */
-export const TIDEBREAKING_5PC = new Gear(() => {
-  add(15, Stat.BonusAtk);
-  if (get(Stat.Er) >= 250) add(30, Stat.DmgBonus);
+export const TIDEBREAKING_5PC = new Gear((ctx) => {
+  ctx.add(15, Stat.BonusAtk);
+  if (ctx.get(Stat.Er) >= 250) ctx.add(30, Stat.DmgBonus);
   return "Tidebreaking Courage 5pc";
 }, null, null, null, PRIORITY.EARLY_CONVERSION);
 
@@ -146,8 +149,9 @@ export const LOADOUT = [
 /* ----------------------------------------------------------------- actions */
 
 function brantAction(name: string, def: ActionDef): Action {
-  return new Action(`Brant: ${name}`, {
+  return new Action(name, {
     element: Element.Fusion,
+    color: COLOR,
     scaling: Scaling.Atk,
     ...def,
   });
@@ -160,12 +164,12 @@ const Intro = brantAction("Intro", {
 const Outro = brantAction("Outro", {
   cast: DamageType.Outro, type: DamageType.Outro, mv: 0, concerto: -100, active: false,
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() { outro(BRANT_OUTRO); },
+  apply(ctx) { ctx.outro(BRANT_OUTRO); },
 });
-export const BRANT_OUTRO = new Buff(PRIORITY.BUFF_STATS, (stacks, a) => {
-  if (isOutro(a)) revoke(BRANT_OUTRO);
-  add(20, Element.Fusion, Stat.Amp);
-  add(25, DamageType.Skill, Stat.Amp);
+export const BRANT_OUTRO = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
+  if (isOutro(ctx.action!)) ctx.revoke(BRANT_OUTRO);
+  ctx.add(20, Element.Fusion, Stat.Amp);
+  ctx.add(25, DamageType.Skill, Stat.Amp);
   return "Brant: Outro";
 });
 
@@ -176,7 +180,7 @@ const Skill = brantAction("Skill", {
 const Liberation = brantAction("Liberation", {
   node: Node.Liberation, cast: DamageType.Liberation, type: DamageType.Liberation, mv: 680.45, energy: -175, concerto: 20,
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() { grantSelf(AFLAME); },
+  apply(ctx) { ctx.grantSelf(AFLAME); },
 });
 
 // --- forte circuit: Returned from Ashes, at 100 Bravo — considered Basic Attack DMG, spends
@@ -187,7 +191,7 @@ const FSkill = brantAction("Forte Skill", {
   node: Node.Forte, cast: DamageType.Skill, type: DamageType.Basic, mv: 1888.71, energy: 30, concerto: 50, forte1: -100,
   shields: 1,
   priority: PRIORITY.AUTO_ACTION,
-  apply: () => { if (stacksOf(AFLAME)) revoke(AFLAME); },
+  apply: (ctx) => { if (ctx.stacksOf(AFLAME)) ctx.revoke(AFLAME); },
 });
 
 // --- mid-air combo stages. Each carries Trial by Fire and Tide's own +15% Fusion DMG Bonus (see
@@ -198,11 +202,11 @@ const MA2 = brantAction("Midair 2", { node: Node.Normal, cast: DamageType.Basic,
 const MA2H = brantAction("Midair 2 Hold", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 460.01, energy: 5.46, concerto: 10.92, forte1: 24.39, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
 const MA3 = brantAction("Midair 3", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 261.97, energy: 2.52, concerto: 10.08, forte1: 13.41, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
 const MA4 = brantAction("Midair 4", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 253.85, energy: 3.78, concerto: 7.55, forte1: 9.76, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
-export const MA12 = new Chain("Brant: Midair 12", [MA1, MA2]);
-export const MA234 = new Chain("Brant: Midair 234", [MA2, MA3, MA4]);
-export const MA2H34 = new Chain("Brant: Midair 2Hold34", [MA2H, MA3, MA4]);
-export const MA1234 = new Chain("Brant: Midair 1234", [MA1, MA2, MA3, MA4]);
-export const MA1H2H34 = new Chain("Brant: Midair 1Hold2Hold34", [MA1H, MA2H, MA3, MA4]);
+export const MA12 = new Chain("Midair 12", [MA1, MA2]);
+export const MA234 = new Chain("Midair 234", [MA2, MA3, MA4]);
+export const MA2H34 = new Chain("Midair 2Hold34", [MA2H, MA3, MA4]);
+export const MA1234 = new Chain("Midair 1234", [MA1, MA2, MA3, MA4]);
+export const MA1H2H34 = new Chain("Midair 1Hold2Hold34", [MA1H, MA2H, MA3, MA4]);
 
 /** The sheet's `brant 1 anchor` rotation — identical to the sub rotation; the sheet's own extra
  *  entry there is just a Tune Break note, which the engine's own auto-tune-break watcher

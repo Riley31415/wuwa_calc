@@ -10,14 +10,14 @@
  */
 import { Buff, GlobalBuff, Gear, Action, Chain, PRIORITY } from "../kit.js";
 import type { ActionDef } from "../kit.js";
-import {
-  add, hp, spend, counter, setCounter, action, grantGlobal,
-  equipped, grantSelf, slotsWith, queue, note, isOutro, castedAs,
-  stacksOf, removeStack, revoke,
-} from "../state.js";
+import { isOutro, castedAs } from "../state.js";
+import type { Ctx } from "../state.js";
 import { Stat, Element, DamageType, Node, Resource, Cast, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
+
+/** This resonator's own color — every action from the wrapper below defaults to it. */
+export const COLOR = "#f2603c";
 
 /* ------------------------------------------------------- his kit mechanics */
 /*
@@ -39,14 +39,14 @@ export const JINGRAN_MINGFIRE = Resource.Forte2;   // the burst window
 
 /** Ghost Shroud — a resource; the stack count *is* the value. His intro spends it. */
 export const JINGRAN_GHOST_SHROUD = new Buff(PRIORITY.BUFF_STATS,
-  (stacks) => `Jingran: Ghost Shroud x${stacks}`, 50);
+  (ctx, stacks) => `Jingran: Ghost Shroud x${stacks}`, 50);
 
 /** Fortune in Disguise — fusion damage scaled off Max HP per stack, own ceiling. EARLY_CONVERSION
  *  since it reads total HP; seeded empty at fight start so his intro pays out same-cast. */
-export const JINGRAN_FORTUNE = new Buff(PRIORITY.EARLY_CONVERSION, (stacks) => {
+export const JINGRAN_FORTUNE = new Buff(PRIORITY.EARLY_CONVERSION, (ctx, stacks) => {
   // 0.05% fusion per 1000 Max HP per stack, capped at 2.5% — hence the 50,000 HP ceiling
-  const perStack = Math.min(2.5, 0.05 * Math.floor(hp() / 1000));
-  add(perStack * stacks, Element.Fusion, Stat.DmgBonus);
+  const perStack = Math.min(2.5, 0.05 * Math.floor(ctx.hp() / 1000));
+  ctx.add(perStack * stacks, Element.Fusion, Stat.DmgBonus);
   return `Jingran: Fortune in Disguise x${stacks}`;
 }, 50);
 
@@ -54,16 +54,17 @@ export const JINGRAN_FORTUNE = new Buff(PRIORITY.EARLY_CONVERSION, (stacks) => {
 export const JINGRAN_FIXATION = new Buff(PRIORITY.BUFF_STATS, () => "Jingran: Fixation");
 
 /** Trace the Vestige — global, banks Ghost Shroud on whichever slot is running Jingran. */
-export const JINGRAN_GHOST_FEED = new GlobalBuff(PRIORITY.UPDATE_BUFFS, (stacks, { shields }) => {
+export const JINGRAN_GHOST_FEED = new GlobalBuff(PRIORITY.UPDATE_BUFFS, (ctx) => {
+  const { shields } = ctx.action!;
   if (shields) {
     // the base rule pays 1 for anyone shielded; Trace the Vestige pays 2 for a teammate
-    const own = equipped(JINGRAN);
+    const own = ctx.equipped(JINGRAN);
     const per = own ? 1 : 2;
-    for (const slot of slotsWith(JINGRAN)) {
-      slot.addStack(JINGRAN_GHOST_SHROUD, shields * per);
+    for (const slot of ctx.slotsWith(JINGRAN)) {
+      slot.addStack(JINGRAN_GHOST_SHROUD, shields * per, ctx.owner);
       // Fixation pays once, on a teammate's shield, and is consumed doing it
       if (!own && slot.hasBuff(JINGRAN_FIXATION)) {
-        slot.addStack(JINGRAN_GHOST_SHROUD, 15);
+        slot.addStack(JINGRAN_GHOST_SHROUD, 15, ctx.owner);
         slot.removeBuff(JINGRAN_FIXATION);
       }
     }
@@ -73,24 +74,24 @@ export const JINGRAN_GHOST_FEED = new GlobalBuff(PRIORITY.UPDATE_BUFFS, (stacks,
 
 /* --------------------------------------------------------------- resonator */
 
-export const JINGRAN = new Gear(() => {
-  add(100, Stat.Er);
-  add(5, Stat.CritRate);
-  add(150, Stat.CritDmg);   // a total multiplier, not a bonus: a crit deals 150%
+export const JINGRAN = new Gear((ctx) => {
+  ctx.add(100, Stat.Er);
+  ctx.add(5, Stat.CritRate);
+  ctx.add(150, Stat.CritDmg);   // a total multiplier, not a bonus: a crit deals 150%
 
   // level 90 base stats, rebalanced after the spreadsheet was written (13713 HP / 350 ATK)
-  add(15375, Stat.BaseHp);
-  add(313, Stat.BaseAtk);
-  add(12, Stat.BonusHp);
-  add(8, Stat.CritRate);
+  ctx.add(15375, Stat.BaseHp);
+  ctx.add(313, Stat.BaseAtk);
+  ctx.add(12, Stat.BonusHp);
+  ctx.add(8, Stat.CritRate);
   return "Jingran";
-}, () => {
-  grantSelf(JINGRAN_HP_TO_FUSION);
-  grantSelf(JINGRAN_HP_TO_ATK);
-  grantSelf(JINGRAN_FIXATION);      // "upon engaging in combat, Jingran gains Fixation"
-  grantGlobal(JINGRAN_GHOST_FEED);
+}, (ctx) => {
+  ctx.grantSelf(JINGRAN_HP_TO_FUSION);
+  ctx.grantSelf(JINGRAN_HP_TO_ATK);
+  ctx.grantSelf(JINGRAN_FIXATION);      // "upon engaging in combat, Jingran gains Fixation"
+  ctx.grantGlobal(JINGRAN_GHOST_FEED);
   // entering combat tops Ghost Shroud up to 25 if he holds less
-  grantSelf(JINGRAN_GHOST_SHROUD, 25);
+  ctx.grantSelf(JINGRAN_GHOST_SHROUD, 25);
 }, Element.Fusion, () => Intro);
 
 /** Nether to Light (Inherent Skill): his DEF is fixed at 0 (the flat -99999 forces it there —
@@ -99,17 +100,17 @@ export const JINGRAN = new Gear(() => {
  *  Incoming Healing Bonus and Fusion DMG Bonus. LATE, so every buff has contributed base HP/HP%
  *  first. Attached at fight start, not gear — a permanent passive. Healing Bonus is unused by
  *  the formula (healing is out of scope), tracked for completeness only. */
-export const JINGRAN_HP_TO_FUSION = new Buff(PRIORITY.EARLY_CONVERSION, () => {
-  add(-99999, Stat.FlatDef);
-  const steps = Math.floor(Math.min(hp(), 50000) / 1000);   // only HP up to 50k counts
-  add(6.2 * steps, Stat.HealingTaken);                       // 6.2% Incoming Healing Bonus per 1000 HP, capped at 310%
-  add(1.5 * steps, Element.Fusion, Stat.DmgBonus);           // 1.5% fusion per 1000 HP, capped at 75%
+export const JINGRAN_HP_TO_FUSION = new Buff(PRIORITY.EARLY_CONVERSION, (ctx) => {
+  ctx.add(-99999, Stat.FlatDef);
+  const steps = Math.floor(Math.min(ctx.hp(), 50000) / 1000);   // only HP up to 50k counts
+  ctx.add(6.2 * steps, Stat.HealingTaken);                       // 6.2% Incoming Healing Bonus per 1000 HP, capped at 310%
+  ctx.add(1.5 * steps, Element.Fusion, Stat.DmgBonus);           // 1.5% fusion per 1000 HP, capped at 75%
   return "Jingran: Nether to Light";
 });
 
-export const JINGRAN_HP_TO_ATK = new Buff(PRIORITY.EARLY_CONVERSION, () => {
-  const steps = Math.floor(Math.min(hp(), 50000) / 1000);   // only HP up to 50k counts
-  add(36 * steps, Stat.FlatAtk);                       // 36 ATK per 1000 HP, capped at 1800
+export const JINGRAN_HP_TO_ATK = new Buff(PRIORITY.EARLY_CONVERSION, (ctx) => {
+  const steps = Math.floor(Math.min(ctx.hp(), 50000) / 1000);   // only HP up to 50k counts
+  ctx.add(36 * steps, Stat.FlatAtk);                       // 36 ATK per 1000 HP, capped at 1800
   return "Jingran: Yang Changes, Yin Unites";
 });
 
@@ -120,10 +121,11 @@ export const JINGRAN_HP_TO_ATK = new Buff(PRIORITY.EARLY_CONVERSION, () => {
  *  full six sharpens heavy attacks. Cradle of Life stacks the same way, spent by a heavy for
  *  defence ignore. Both end on his outro. */
 
-export const JINGRAN_SIG = new Gear((stacks, a) => {
-  add(413, Stat.BaseAtk);
-  add(72.2, Stat.BonusHp);
-  add(12, Stat.DmgBonus);
+export const JINGRAN_SIG = new Gear((ctx) => {
+  const a = ctx.action!;
+  ctx.add(413, Stat.BaseAtk);
+  ctx.add(72.2, Stat.BonusHp);
+  ctx.add(12, Stat.DmgBonus);
 
   // the shield trigger has a 0.5s ICD, but every cast that shields him twice (his liberation,
   // both heavy attacks) is long enough that the two shields land more than 0.5s apart — so
@@ -131,21 +133,21 @@ export const JINGRAN_SIG = new Gear((stacks, a) => {
   // cast that's both pays both.
   const gained = a.shields + (a.cast === DamageType.Intro ? 1 : 0);
   if (gained) {
-    grantSelf(NATURES_ORDER, gained);
-    grantSelf(CRADLE_OF_LIFE, gained);
+    ctx.grantSelf(NATURES_ORDER, gained);
+    ctx.grantSelf(CRADLE_OF_LIFE, gained);
   }
   return "Thousandfold Deliverance";
 });
 
-export const NATURES_ORDER = new Buff(PRIORITY.BUFF_STATS, (stacks) => {
+export const NATURES_ORDER = new Buff(PRIORITY.BUFF_STATS, (ctx, stacks) => {
   // switching resonator ends it immediately — whoever is wielding the weapon, not just Jingran
-  if (isOutro(action()!)) {
-    revoke(NATURES_ORDER);
+  if (isOutro(ctx.action!)) {
+    ctx.revoke(NATURES_ORDER);
     return "Thousandfold Deliverance: Nature's Order x0";
   }
-  add(4 * stacks, Stat.CritDmg);
+  ctx.add(4 * stacks, Stat.CritDmg);
   // the full six pay crit rate, scoped so only heavy attack damage resolves it
-  if (stacks >= 6) add(12, DamageType.Heavy, Stat.CritRate);
+  if (stacks >= 6) ctx.add(12, DamageType.Heavy, Stat.CritRate);
   return `Thousandfold Deliverance: Nature's Order x${stacks}`;
 }, 6);
 
@@ -153,29 +155,30 @@ export const NATURES_ORDER = new Buff(PRIORITY.BUFF_STATS, (stacks) => {
  *  stacks, each piercing 15% defence. "Heavy attack" is the cast, not the damage type (his
  *  basic stages 3/4 deal Heavy Attack DMG without being heavy-attack casts). Also ends on
  *  switching resonator, same as Nature's Order. */
-export const CRADLE_OF_LIFE = new Buff(PRIORITY.BUFF_STATS, (stacks) => {
-  if (isOutro(action()!)) {
-    revoke(CRADLE_OF_LIFE);
+export const CRADLE_OF_LIFE = new Buff(PRIORITY.BUFF_STATS, (ctx, stacks) => {
+  if (isOutro(ctx.action!)) {
+    ctx.revoke(CRADLE_OF_LIFE);
     return;
   }
-  if (!castedAs(action()!, DamageType.Heavy)) return;
+  if (!castedAs(ctx.action!, DamageType.Heavy)) return;
 
   const spent = Math.min(stacks, 2);
-  add(15 * spent, DamageType.Heavy, Stat.DefIgnore);
-  removeStack(CRADLE_OF_LIFE, spent);
+  ctx.add(15 * spent, DamageType.Heavy, Stat.DefIgnore);
+  ctx.removeStack(CRADLE_OF_LIFE, spent);
   return `Thousandfold Deliverance: Cradle of Life x${stacks}`;
 }, 6);
 
 /* -------------------------------------------------------------- echo, sonata */
 
-export const MYRIAD_SNARE = new Gear(() => {
-  add(12, Element.Fusion, Stat.DmgBonus);
-  add(12, DamageType.Heavy, Stat.DmgBonus);
+export const MYRIAD_SNARE = new Gear((ctx) => {
+  ctx.add(12, Element.Fusion, Stat.DmgBonus);
+  ctx.add(12, DamageType.Heavy, Stat.DmgBonus);
   return "Myriad Snare";
 });
 
 /** The echo's cast, paired with the Mainslot buff above. */
 export const ACTION_MYRIAD_SNARE = new Action("Echo: Myriad Snare", {
+  color: COLOR,
   cast: DamageType.Echo,
   element: Element.Fusion,
   scaling: Scaling.Hp,
@@ -186,18 +189,19 @@ export const ACTION_MYRIAD_SNARE = new Action("Echo: Myriad Snare", {
 
 /** Lamp of Nether Road 5pc: a shield grants 5% crit rate, four stacks, full four pay 15% fusion
  *  damage on top. */
-export const LAMP_5PC = new Gear((stacks, { shields }) => {
-  if (shields) grantSelf(LAMP_STACKS, shields);
+export const LAMP_5PC = new Gear((ctx) => {
+  const { shields } = ctx.action!;
+  if (shields) ctx.grantSelf(LAMP_STACKS, shields);
   return "Lamp of Nether Road 5pc";
 });
 
-export const LAMP_STACKS = new Buff(PRIORITY.BUFF_STATS, (stacks) => {
-  add(5 * stacks, Stat.CritRate);
-  if (stacks >= 4) add(15, Element.Fusion, Stat.DmgBonus);
+export const LAMP_STACKS = new Buff(PRIORITY.BUFF_STATS, (ctx, stacks) => {
+  ctx.add(5 * stacks, Stat.CritRate);
+  if (stacks >= 4) ctx.add(15, Element.Fusion, Stat.DmgBonus);
   return `Lamp of Nether Road x${stacks}`;
 }, 4);
 
-export const LAMP_2PC = new Gear(() => { add(10, Stat.BonusHp); return "Lamp of Nether Road 2pc"; });
+export const LAMP_2PC = new Gear((ctx) => { ctx.add(10, Stat.BonusHp); return "Lamp of Nether Road 2pc"; });
 
 /** His echoes: the sheet's `jingran r1 cd/hp` build, running the Lamp 5pc his loadout already
  *  has. Substats are HP not ATK — it's his real damage stat, and two HP% rolls clear his
@@ -225,8 +229,9 @@ export const LOADOUT_CRCD = [
 
 /** Wrapper: element and scaling are the same for everything he does. */
 function jingranAction(name: string, def: ActionDef): Action {
-  return new Action(`Jingran: ${name}`, {
+  return new Action(name, {
     element: Element.Fusion,
+    color: COLOR,
     scaling: Scaling.Atk,
     ...def,
   });
@@ -246,8 +251,8 @@ const EBA3 = jingranAction("Yin Basic 3", { node: Node.Normal, cast: DamageType.
 const EBA4 = jingranAction("Yin Basic 4", { node: Node.Normal, cast: DamageType.Basic, shields: 1, type: DamageType.Heavy, mv: 153.16, energy: 2.6, concerto: 5.16, offtune: 0.8218, forte1: 50 });
 
 // chains
-export const BA234 = new Chain("Jingran: Yang Basic 234", [BA2, BA3, BA4]);
-export const EBA234 = new Chain("Jingran: Yin Basic 234", [EBA2, EBA3, EBA4]);
+export const BA234 = new Chain("Yang Basic 234", [BA2, BA3, BA4]);
+export const EBA234 = new Chain("Yin Basic 234", [EBA2, EBA3, EBA4]);
 
 // --- dodge counters: Nether Dive / Light Watch, 100 Qi each
 const DC = jingranAction("Yang Dodge Counter", { node: Node.Normal, cast: Cast.DodgeCounter, shields: 1, type: DamageType.Heavy, mv: 198.8, energy: 3.36, concerto: 6.68, offtune: 1.0664, forte1: 100 });
@@ -274,7 +279,7 @@ const Lib = jingranAction("Liberation", {
   node: Node.Liberation, cast: DamageType.Liberation, shields: 2, type: DamageType.Heavy, mv: 745.2,      // 93.15% x 8
   energy: -125, concerto: 20, offtune: 16.8, forte1: 200,
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() { setCounter(JINGRAN_MINGFIRE, 100); },
+  apply(ctx) { ctx.setCounter(JINGRAN_MINGFIRE, 100); },
 });
 
 /** Chimei Wangliang — the Yinghuo follow-up, one per heavy attack. Node LIB (attributed to the
@@ -292,40 +297,40 @@ const Intro = jingranAction("Intro", {
   // spends every Ghost Shroud stack he walked in with for Fortune in Disguise. UPDATE_BUFFS:
   // this action's own shield must not be in the pile it converts.
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() {
-    const shroud = stacksOf(JINGRAN_GHOST_SHROUD);
+  apply(ctx) {
+    const shroud = ctx.stacksOf(JINGRAN_GHOST_SHROUD);
     if (!shroud) return;
-    revoke(JINGRAN_GHOST_SHROUD);
-    grantSelf(JINGRAN_FORTUNE, shroud);
+    ctx.revoke(JINGRAN_GHOST_SHROUD);
+    ctx.grantSelf(JINGRAN_FORTUNE, shroud);
   },
 });
 const Outro = jingranAction("Outro", {
   cast: DamageType.Outro, type: DamageType.Outro, mv: 795, concerto: -100, active: false,
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() {
-    setCounter(JINGRAN_MINGFIRE, 0);
-    revoke(JINGRAN_FORTUNE);
-    grantSelf(JINGRAN_FIXATION);
+  apply(ctx) {
+    ctx.setCounter(JINGRAN_MINGFIRE, 0);
+    ctx.revoke(JINGRAN_FORTUNE);
+    ctx.grantSelf(JINGRAN_FIXATION);
   },
 });
 
 /** Heavy attack — Soul Raid / Stardome Meander, shared function, `mvPer1000` differs. Spends
  *  the whole Qi gauge; while Mingfire is up, summons Lib FUA and refunds most of the Qi. */
-function heavyAttack(mvPer1000: number): string {
-  const mingfire = counter(JINGRAN_MINGFIRE);
+function heavyAttack(ctx: Ctx, mvPer1000: number): string {
+  const mingfire = ctx.counter(JINGRAN_MINGFIRE);
 
   // above 25 Mingfire a heavy still has a Wayfarer's Mark to spend, which refunds 200 Qi
   if (mingfire > 25) {
-    setCounter(JINGRAN_QI, counter(JINGRAN_QI) + 200);
+    ctx.setCounter(JINGRAN_QI, ctx.counter(JINGRAN_QI) + 200);
   }
   if (mingfire > 0) {                                 // the burst window is open
-    queue(ACTION_LIB_FUA);
-    setCounter(JINGRAN_MINGFIRE, Math.max(0, mingfire - 25));
+    ctx.queue(ACTION_LIB_FUA);
+    ctx.setCounter(JINGRAN_MINGFIRE, Math.max(0, mingfire - 25));
 
     // Mingfire's MV boost: 25 of it, only inside Yinghuo, only HP between 25k-50k counts.
     // Added straight to motion value (ADD_MV), so it needs no re-expressing.
-    const steps = Math.max(0, Math.floor((Math.min(hp(), 50000) - 25000) / 1000));
-    add(mvPer1000 * steps, Stat.AddMv);
+    const steps = Math.max(0, Math.floor((Math.min(ctx.hp(), 50000) - 25000) / 1000));
+    ctx.add(mvPer1000 * steps, Stat.AddMv);
   }
   return "Jingran: Fire of Life";
 }
@@ -334,11 +339,11 @@ function heavyAttack(mvPer1000: number): string {
 //     EFHA (Yin Vessel) = Soul Raid.
 const FHA = jingranAction("Yang Forte Heavy", {
   node: Node.Forte, cast: DamageType.Heavy, shields: 2, type: DamageType.Heavy, mv: 240.38,          // 24.04% + 24.04% + 48.08% + 144.22%
-  energy: 8.5, concerto: 13, offtune: 1.04, forte1: -300, priority: PRIORITY.LATE_CONVERSION, apply: () => heavyAttack(21.65),   // 2.17% + 2.17% + 4.33% + 12.98%
+  energy: 8.5, concerto: 13, offtune: 1.04, forte1: -300, priority: PRIORITY.LATE_CONVERSION, apply: (ctx) => heavyAttack(ctx, 21.65),   // 2.17% + 2.17% + 4.33% + 12.98%
 });
 const EFHA = jingranAction("Yin Forte Heavy", {
   node: Node.Forte, cast: DamageType.Heavy, shields: 2, type: DamageType.Heavy, mv: 234.29,          // 16.40% x2 + 21.09% x3 + 138.22%
-  energy: 8.53, concerto: 13, offtune: 1.014, forte1: -300, priority: PRIORITY.LATE_CONVERSION, apply: () => heavyAttack(21.10),    // 1.48% x2 + 1.90% x3 + 12.44%
+  energy: 8.53, concerto: 13, offtune: 1.014, forte1: -300, priority: PRIORITY.LATE_CONVERSION, apply: (ctx) => heavyAttack(ctx, 21.10),    // 1.48% x2 + 1.90% x3 + 12.44%
 });
 
 /** His standard opener. Qi economy: intro 100, liberation +200 to 300, each of the four heavy

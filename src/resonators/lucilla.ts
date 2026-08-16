@@ -30,27 +30,28 @@
  */
 import { Buff, GlobalBuff, Gear, Mode, Action, Chain, PRIORITY } from "../kit.js";
 import type { ActionDef } from "../kit.js";
-import {
-  add, grantSelf, grantGlobal, stacksOf, counter, revoke, outro, queue, isOutro,
-} from "../state.js";
+import { isOutro } from "../state.js";
 import { Stat, Element, DamageType, Node, Resource, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 import { DREAM_OF_THE_LOST_3PC } from "./phrolova.js";
 import { BELL_BORNE_GEOCHELONE, ACTION_BELL_BORNE, MOONLIT_CLOUDS_2PC } from "../shared/echoes.js";
 
+/** This resonator's own color — every action from the wrapper below defaults to it. */
+export const COLOR = "#4f74c2";
+
 /* --------------------------------------------------------------- resonator */
 
-export const LUCILLA = new Gear(() => {
-  add(100, Stat.Er);
-  add(5, Stat.CritRate);
-  add(150, Stat.CritDmg);
+export const LUCILLA = new Gear((ctx) => {
+  ctx.add(100, Stat.Er);
+  ctx.add(5, Stat.CritRate);
+  ctx.add(150, Stat.CritDmg);
 
-  add(12237.5, Stat.BaseHp);
-  add(375, Stat.BaseAtk);
-  add(1197.78, Stat.BaseDef);
-  add(8, Stat.CritRate);
-  add(12, Stat.BonusAtk);
+  ctx.add(12237.5, Stat.BaseHp);
+  ctx.add(375, Stat.BaseAtk);
+  ctx.add(1197.78, Stat.BaseDef);
+  ctx.add(8, Stat.CritRate);
+  ctx.add(12, Stat.BonusAtk);
 
   return "Lucilla";
 }, null, Element.Glacio, () => Intro);
@@ -66,31 +67,31 @@ export const MODE_CHAFE = new Mode(() => "Lucilla: Resonance Mode - Glacio Chafe
  *  the quick Compensate tap), Echo mode grants the whole team +25% Echo Skill DMG Bonus for
  *  30s — permanent uptime, per the standing duration rule. */
 export const SLOW_MOTION_TEAM = new GlobalBuff(PRIORITY.BUFF_STATS,
-  () => { add(25, DamageType.Echo, Stat.DmgBonus); return "Lucilla: Slow Motion"; });
+  (ctx) => { ctx.add(25, DamageType.Echo, Stat.DmgBonus); return "Lucilla: Slow Motion"; });
 
 /** Déjà Vu / Remembrance (Forte Circuit + Inherent Skill, both always-on): Liberation grants 1
  *  stack of Zoom, and — under Remembrance — so does every Photo Oblivion spends, up to 4 stacks
  *  total (Remembrance itself raises the cap from 1 to 4). Global since the bonus lands on
  *  whichever teammate is actively attacking, not Lucilla specifically. */
-export const ZOOM = new GlobalBuff(PRIORITY.BUFF_STATS, (stacks, a) => {
-  if (!a.active) return;
-  add(10 * stacks, DamageType.Echo, Stat.CritDmg);
+export const ZOOM = new GlobalBuff(PRIORITY.BUFF_STATS, (ctx, stacks) => {
+  if (!ctx.action!.active) return;
+  ctx.add(10 * stacks, DamageType.Echo, Stat.CritDmg);
   return `Lucilla: Zoom x${stacks}`;
 }, 4);
 
 /** Clear As Day's own cast, Echo mode: +30% Echo Skill DMG Bonus to Lucilla for 10s — short
  *  window, lost after the outro action gains stats. */
-export const LIB_SELF_DMG = new Buff(PRIORITY.BUFF_STATS, (stacks, a) => {
-  add(30, DamageType.Echo, Stat.DmgBonus);
-  if (isOutro(a)) revoke(LIB_SELF_DMG);
+export const LIB_SELF_DMG = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
+  ctx.add(30, DamageType.Echo, Stat.DmgBonus);
+  if (isOutro(ctx.action!)) ctx.revoke(LIB_SELF_DMG);
   return "Lucilla: Clear As Day";
 });
 
 /** Montage (Outro Skill), Echo mode: the incoming resonator gets +50% Echo Skill DMG
  *  Amplification for 14s — short window, lost once they themselves outro. */
-export const MONTAGE_HANDOFF = new Buff(PRIORITY.BUFF_STATS, (stacks, a) => {
-  if (isOutro(a)) revoke(MONTAGE_HANDOFF);
-  add(50, DamageType.Echo, Stat.Amp);
+export const MONTAGE_HANDOFF = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
+  if (isOutro(ctx.action!)) ctx.revoke(MONTAGE_HANDOFF);
+  ctx.add(50, DamageType.Echo, Stat.Amp);
   return "Lucilla: Montage";
 });
 
@@ -104,20 +105,20 @@ export const MONTAGE_HANDOFF = new Buff(PRIORITY.BUFF_STATS, (stacks, a) => {
  * of 1. Reacts to the wielder's *own* chafe application (`a.chafe`), so it still works if
  * someone other than Lucilla equips it.
  */
-export const FREEZE_FRAME = new Gear((stacks, a) => {
-  add(587.5, Stat.BaseAtk);
-  add(24.3, Stat.CritRate);
-  add(12, Stat.BonusAtk);
-  if (a.chafe > 0) { grantSelf(FREEZE_FRAME_SELF); grantGlobal(FREEZE_FRAME_TEAM); }
+export const FREEZE_FRAME = new Gear((ctx) => {
+  ctx.add(587.5, Stat.BaseAtk);
+  ctx.add(24.3, Stat.CritRate);
+  ctx.add(12, Stat.BonusAtk);
+  if (ctx.action!.chafe > 0) { ctx.grantSelf(FREEZE_FRAME_SELF); ctx.grantGlobal(FREEZE_FRAME_TEAM); }
   return "Freeze Frame";
 });
-export const FREEZE_FRAME_SELF = new Buff(PRIORITY.BUFF_STATS, (stacks, a) => {
-  add(30, Element.Glacio, Stat.DmgBonus);
-  if (isOutro(a)) revoke(FREEZE_FRAME_SELF);
+export const FREEZE_FRAME_SELF = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
+  ctx.add(30, Element.Glacio, Stat.DmgBonus);
+  if (isOutro(ctx.action!)) ctx.revoke(FREEZE_FRAME_SELF);
   return "Freeze Frame: Light's Offering";
 });
 export const FREEZE_FRAME_TEAM = new GlobalBuff(PRIORITY.BUFF_STATS,
-  () => { add(24, Stat.BonusAtk); return "Freeze Frame: Light's Offering"; });
+  (ctx) => { ctx.add(24, Stat.BonusAtk); return "Freeze Frame: Light's Offering"; });
 
 /** Echoes/sonata: Bell-Borne Geochelone mainslot, Moonlit Clouds 2pc + Dream of the Lost 3pc —
  *  all generic gear reused as-is, per the standing rule that gear works on whoever equips it. */
@@ -130,8 +131,9 @@ export const LOADOUT = [
 /* ----------------------------------------------------------------- actions */
 
 function lucillaAction(name: string, def: ActionDef): Action {
-  return new Action(`Lucilla: ${name}`, {
+  return new Action(name, {
     element: Element.Glacio,
+    color: COLOR,
     scaling: Scaling.Atk,
     ...def,
   });
@@ -145,14 +147,14 @@ const Intro = lucillaAction("Intro", {
 const Outro = lucillaAction("Outro", {
   cast: DamageType.Outro, type: DamageType.Outro, mv: 0, concerto: -100, active: false,
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() { outro(MONTAGE_HANDOFF); },
+  apply(ctx) { ctx.outro(MONTAGE_HANDOFF); },
 });
 
 // --- normal attacks: Basic 1/2, Basic 3 (Focus Ring, always assumed Perfect/Commendable)
 const BA1 = lucillaAction("Basic 1", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 59.29, energy: 1.07, concerto: 1.71, offtune: 0.34 });
 const BA2 = lucillaAction("Basic 2", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 67.23, energy: 1.22, concerto: 1.94, offtune: 0.39 });
 const BA3 = lucillaAction("Basic 3", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 235.27, energy: 4.23, concerto: 6.77, forte1: 50, offtune: 1.35 });
-export const BA123 = new Chain("Lucilla: Basic 123", [BA1, BA2, BA3]);
+export const BA123 = new Chain("Basic 123", [BA1, BA2, BA3]);
 
 // --- resonance skill: a quick tap (Compensate) for the CD-reduction utility (unmodeled — no CD
 //     tracking here, same as other kits' skill-CD text), then later a held Perfect Focus press
@@ -163,7 +165,7 @@ const SkillPerfect = lucillaAction("Skill perfect", {
   node: Node.Skill, cast: DamageType.Skill, type: DamageType.Skill, mv: 548.98,
   energy: 27.9, concerto: 26.8, forte1: 50, offtune: 0.92,
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() { if (stacksOf(MODE_ECHO)) grantGlobal(SLOW_MOTION_TEAM); },
+  apply(ctx) { if (ctx.stacksOf(MODE_ECHO)) ctx.grantGlobal(SLOW_MOTION_TEAM); },
 });
 
 // --- liberation: Clear As Day, Echo mode — Echo Skill DMG, no Energy cost (see file header)
@@ -171,7 +173,7 @@ const Liberation = lucillaAction("Liberation", {
   node: Node.Liberation, cast: DamageType.Liberation, type: DamageType.Echo, mv: 142.74,
   concerto: 20, offtune: 3.84,
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() { grantSelf(LIB_SELF_DMG); grantGlobal(ZOOM); },
+  apply(ctx) { ctx.grantSelf(LIB_SELF_DMG); ctx.grantGlobal(ZOOM); },
 });
 
 // --- Reminiscence: Basic Attack - Tracing Forms (unconditionally Basic Attack DMG regardless
@@ -184,12 +186,12 @@ const UBA3 = lucillaAction("Tracing Forms 3", {
   node: Node.Liberation, cast: DamageType.Basic, type: DamageType.Basic, mv: 416.96,
   energy: 5.84, concerto: 11.2, offtune: 1.864,
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() {
-    const photos = Math.min(3, Math.floor(counter(Resource.Forte1) / 50));
-    for (let i = 0; i < photos; i++) queue(OblivionEcho);
+  apply(ctx) {
+    const photos = Math.min(3, Math.floor(ctx.counter(Resource.Forte1) / 50));
+    for (let i = 0; i < photos; i++) ctx.queue(OblivionEcho);
   },
 });
-export const UBA123 = new Chain("Lucilla: Tracing Forms 123", [UBA1, UBA2, UBA3]);
+export const UBA123 = new Chain("Tracing Forms 123", [UBA1, UBA2, UBA3]);
 
 /** Oblivion: during Tracing Forms 3, spends a banked Photo (50 Trace) for an extra hit — queued
  *  by Stage 3 itself above, once per Photo actually banked at that point. Under Echo mode this
@@ -198,7 +200,7 @@ const OblivionEcho = lucillaAction("Oblivion", {
   node: Node.Forte, cast: DamageType.Echo, type: DamageType.Echo, mv: 285.48,
   forte1: -50, offtune: 0.96,
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() { grantGlobal(ZOOM); },
+  apply(ctx) { ctx.grantGlobal(ZOOM); },
 });
 
 const LettingGoEcho = lucillaAction("Letting It Go", {

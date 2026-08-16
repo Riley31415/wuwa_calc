@@ -7,40 +7,40 @@
  */
 import { Buff, GlobalBuff, Gear, Action, Chain, PRIORITY } from "../kit.js";
 import type { ActionDef } from "../kit.js";
-import {
-  add, counter, setCounter, action, isOutro, isLiberation,
-  grantGlobal, revoke, gain, stacksOf,
-} from "../state.js";
+import { isOutro, isLiberation } from "../state.js";
 import { Stat, Element, DamageType, Node, Resource, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 import { FALLACY, ACTION_FALLACY, REJUV_5PC, REJUV_2PC } from "../shared/echoes.js";
 
+/** This resonator's own color — every action from the wrapper below defaults to it. */
+export const COLOR = "#8fb3d9";
+
 /* --------------------------------------------------------------- resonator */
 
-export const SHOREKEEPER = new Gear(() => {
+export const SHOREKEEPER = new Gear((ctx) => {
   // the innate line every resonator carries
-  add(100, Stat.Er);
-  add(5, Stat.CritRate);
-  add(150, Stat.CritDmg);
+  ctx.add(100, Stat.Er);
+  ctx.add(5, Stat.CritRate);
+  ctx.add(150, Stat.CritDmg);
 
-  add(16712.5, Stat.BaseHp);
-  add(287.5, Stat.BaseAtk);
-  add(12, Stat.BonusHp);
-  add(10, Stat.Er);          // Self Gravitation, while the field is inside a Stellarealm
-  add(12, Stat.HealingBonus); // stat-tree Healing Bonus+ nodes, 1.8+1.8+4.2+4.2 — unused by the
+  ctx.add(16712.5, Stat.BaseHp);
+  ctx.add(287.5, Stat.BaseAtk);
+  ctx.add(12, Stat.BonusHp);
+  ctx.add(10, Stat.Er);          // Self Gravitation, while the field is inside a Stellarealm
+  ctx.add(12, Stat.HealingBonus); // stat-tree Healing Bonus+ nodes, 1.8+1.8+4.2+4.2 — unused by the
                                // formula (healing is out of scope), tracked for completeness only
   return "Shorekeeper";
 // decides on the incoming realm stage and ends it right here — on the outro that's handing her
 // the field, before Discernment (which doesn't get the realm's own bonus) ever runs
-}, null, Element.Spectro, () => {
-  if (stacksOf(SK_REALM) < 3) return Intro;
-  revoke(SK_REALM);
+}, null, Element.Spectro, (ctx) => {
+  if (ctx.stacksOf(SK_REALM) < 3) return Intro;
+  ctx.revoke(SK_REALM);
   return EIntro;
 });
 
-export const SK_OUTRO = new GlobalBuff(PRIORITY.BUFF_STATS, (stacks, a) => {
-  add(15, Stat.Amp);
+export const SK_OUTRO = new GlobalBuff(PRIORITY.BUFF_STATS, (ctx) => {
+  ctx.add(15, Stat.Amp);
   return "Shorekeeper: Outro";
 });
 
@@ -55,15 +55,15 @@ export const SK_OUTRO = new GlobalBuff(PRIORITY.BUFF_STATS, (stacks, a) => {
  * engine schedules things — which a chain of three buffs granting each other could, and did.
  * Global: the stage is the whole team's shared realm, not any one resonator's own stack.
  */
-export const SK_REALM = new GlobalBuff(PRIORITY.BUFF_STATS, () => {
+export const SK_REALM = new GlobalBuff(PRIORITY.BUFF_STATS, (ctx) => {
   // evolves when somebody intros into it; an outro is always followed by an intro, so it steps
   // *before* paying out — the outro that triggers the step is already standing in the new realm
-  if (isOutro(action()!)) grantGlobal(SK_REALM);
+  if (isOutro(ctx.action!)) ctx.grantGlobal(SK_REALM);
 
-  const stage = stacksOf(SK_REALM);
+  const stage = ctx.stacksOf(SK_REALM);
   // rates off her Energy Regen, capped: a real build runs 250% ER, exactly where both caps bite
-  if (stage >= 2) add(12.5, Stat.CritRate);
-  if (stage >= 3) add(25, Stat.CritDmg);
+  if (stage >= 2) ctx.add(12.5, Stat.CritRate);
+  if (stage >= 3) ctx.add(25, Stat.CritDmg);
   return `Shorekeeper: ${["Outer", "Inner", "Supernal"][stage - 1] ?? "no"} Stellarealm`;
 }, 3);
 
@@ -71,16 +71,16 @@ export const SK_REALM = new GlobalBuff(PRIORITY.BUFF_STATS, () => {
 
 /** Stellar Symphony, her signature: 12% HP to herself, 14% attack to the team, and concerto
  *  back on any liberation. R1, the rank the sheet's numbers describe. */
-export const SK_SIG = new Gear(() => {
-  add(412.5, Stat.BaseAtk);
-  add(77.04, Stat.Er);       // the level 90 energy regen substat
-  add(12, Stat.BonusHp);
-  grantGlobal(SK_SIG_TEAM);
-  if (isLiberation(action()!)) gain(Resource.Concerto, 8);
+export const SK_SIG = new Gear((ctx) => {
+  ctx.add(412.5, Stat.BaseAtk);
+  ctx.add(77.04, Stat.Er);       // the level 90 energy regen substat
+  ctx.add(12, Stat.BonusHp);
+  ctx.grantGlobal(SK_SIG_TEAM);
+  if (isLiberation(ctx.action!)) ctx.gain(Resource.Concerto, 8);
   return "Stellar Symphony";
 });
 export const SK_SIG_TEAM = new GlobalBuff(PRIORITY.BUFF_STATS,
-  () => { add(14, Stat.BonusAtk); return "Stellar Symphony: Astral Evolvement"; });
+  (ctx) => { ctx.add(14, Stat.BonusAtk); return "Stellar Symphony: Astral Evolvement"; });
 
 /* -------------------------------------------------------------- echo, sonata */
 
@@ -93,8 +93,9 @@ export const LOADOUT = [SHOREKEEPER, SK_SIG, FALLACY, REJUV_5PC, REJUV_2PC,
 /* ----------------------------------------------------------------- actions */
 
 function skAction(name: string, def: ActionDef): Action {
-  return new Action(`Shorekeeper: ${name}`, {
+  return new Action(name, {
     element: Element.Spectro,
+    color: COLOR,
     scaling: Scaling.Atk,
     ...def,
   });
@@ -113,14 +114,14 @@ const MA = skAction("Plunge", { node: Node.Normal, cast: DamageType.Basic, type:
 const Skill = skAction("Skill", {
   node: Node.Skill, cast: DamageType.Skill, type: DamageType.Skill, mv: 156.55, energy: 10, concerto: 30, offtune: 0.525,
   priority: PRIORITY.BUFF_STATS,
-  apply() { add(70, Stat.HealingBonus); },
+  apply(ctx) { ctx.add(70, Stat.HealingBonus); },
 });
 const FHA = skAction("Forte Heavy", { node: Node.Forte, cast: DamageType.Heavy, type: DamageType.Heavy, mv: 281.3, energy: 4.95, concerto: 11, offtune: 0.636, forte1: -5 });
 const FMA = skAction("Forte Plunge", { node: Node.Forte, cast: DamageType.Basic, type: DamageType.Basic, mv: 260.41, energy: 4, concerto: 11, offtune: 0.496, forte1: -5 });
 const Liberation = skAction("Liberation", {
   node: Node.Liberation, cast: DamageType.Liberation, type: DamageType.Liberation, mv: 0, energy: -175, concerto: 20,
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() { grantGlobal(SK_REALM); },
+  apply(ctx) { ctx.grantGlobal(SK_REALM); },
 });
 
 // --- intro / outro. EIntro is Discernment: replaces intro under a Supernal realm, scales off
@@ -134,27 +135,27 @@ const EIntro = skAction("Enhanced Intro", {
   // the realm already ended on the outro that triggered this (see the SHOREKEEPER Gear's
   // onIntro) — Discernment itself never sees it
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() { add(100, Stat.CritRate); },
+  apply(ctx) { ctx.add(100, Stat.CritRate); },
 });
 /** Puts Binary Butterfly on the team, so amplification starts with whoever she hands the
  *  field to. Deals no damage of its own. */
 const Outro = skAction("Outro", {
   cast: DamageType.Outro, type: DamageType.Outro, mv: 0, concerto: -100, active: false,
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() { grantGlobal(SK_OUTRO); },
+  apply(ctx) { ctx.grantGlobal(SK_OUTRO); },
 });
 
 /* ------------------------------------------------------------------ chains */
 
-export const BA12 = new Chain("Shorekeeper: Basic 12",
+export const BA12 = new Chain("Basic 12",
   [BA1, BA2]);
-export const BA23 = new Chain("Shorekeeper: Basic 23",
+export const BA23 = new Chain("Basic 23",
   [BA2, BA3]);
-export const BA123 = new Chain("Shorekeeper: Basic 123",
+export const BA123 = new Chain("Basic 123",
   [BA1, BA2, BA3]);
-export const BA234 = new Chain("Shorekeeper: Basic 234",
+export const BA234 = new Chain("Basic 234",
   [BA2, BA3, BA4]);
-export const BA1234 = new Chain("Shorekeeper: Basic 1234",
+export const BA1234 = new Chain("Basic 1234",
   [BA1, BA2, BA3, BA4]);
 
 /** The sheet's `sk opener`, intro up front. Only the first rotation of a fight looks like

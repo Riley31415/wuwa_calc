@@ -1,7 +1,6 @@
 /** An echo build's substats: five echoes, five rolls each, twenty-five total. Every roll is
  *  valued at the mid-tier number below. */
 import { Gear } from "../kit.js";
-import { add } from "../state.js";
 import { Stat, DamageType, scopedStat, splitStat } from "../stats.js";
 
 const ROLL: Record<string, number> = {
@@ -32,9 +31,9 @@ export function substats(name: string, counts: Record<string, number>): Gear {
     if (!(stat in ROLL)) throw new Error(`substats("${name}"): nothing rolls "${key}"`);
     return { stat, tag, value: ROLL[stat]! * n };
   });
-  return new Gear(() => {
+  return new Gear((ctx) => {
     for (const { stat, tag, value } of entries) {
-      if (tag) add(value, tag, stat); else add(value, stat);
+      if (tag) ctx.add(value, tag, stat); else ctx.add(value, stat);
     }
     return name;
   });

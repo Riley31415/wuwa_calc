@@ -53,25 +53,28 @@
  */
 import { Buff, GlobalBuff, Gear, Action, Chain, PRIORITY } from "../kit.js";
 import type { ActionDef } from "../kit.js";
-import { add, gain, grantGlobal, setStacksGlobal, stacksOf, isIntro, queue } from "../state.js";
+import { isIntro } from "../state.js";
 import { Stat, Element, DamageType, Node, Resource, Cast, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 import { VARIATION } from "../shared/weapons.js";
 import { FALLACY, ACTION_FALLACY, REJUV_5PC, REJUV_2PC } from "../shared/echoes.js";
 
+/** This resonator's own color — every action from the wrapper below defaults to it. */
+export const COLOR = "#7a6ff0";
+
 /* --------------------------------------------------------------- resonator */
 
-export const BULING = new Gear(() => {
-  add(100, Stat.Er);
-  add(5, Stat.CritRate);
-  add(150, Stat.CritDmg);
+export const BULING = new Gear((ctx) => {
+  ctx.add(100, Stat.Er);
+  ctx.add(5, Stat.CritRate);
+  ctx.add(150, Stat.CritDmg);
 
-  add(10625, Stat.BaseHp);
-  add(225, Stat.BaseAtk);
-  add(1259, Stat.BaseDef);
-  add(12, Stat.BonusAtk);   // In Shadow Thunder Stirs (Skill) B2/B4 + Flashing Thunder Spell (Lib) B2/B4 ATK+ nodes
-  add(12, Stat.HealingBonus); // stat-tree Healing Bonus+ nodes, 1.8+1.8+4.2+4.2 — unused by the
+  ctx.add(10625, Stat.BaseHp);
+  ctx.add(225, Stat.BaseAtk);
+  ctx.add(1259, Stat.BaseDef);
+  ctx.add(12, Stat.BonusAtk);   // In Shadow Thunder Stirs (Skill) B2/B4 + Flashing Thunder Spell (Lib) B2/B4 ATK+ nodes
+  ctx.add(12, Stat.HealingBonus); // stat-tree Healing Bonus+ nodes, 1.8+1.8+4.2+4.2 — unused by the
                                // formula (healing is out of scope), tracked for completeness only.
                                // Her Inherent Skill "Time Arrives, Evil Declines" (+25% Healing
                                // Bonus while healing an ally under 50% HP) isn't modelled — no
@@ -85,7 +88,7 @@ export const BULING = new Gear(() => {
 /** S1 Exorcist Gadgets, Lend Me Your Power: +20% Crit Rate on Flashing Thunder Spell: Harmony —
  *  scoped to Liberation damage, so both her own Liberation cast and the Array it queues (both
  *  `type: LIB`) pick it up without a trigger. */
-export const S1 = new Gear(() => { add(20, DamageType.Liberation, Stat.CritRate); return "Buling S1"; });
+export const S1 = new Gear((ctx) => { ctx.add(20, DamageType.Liberation, Stat.CritRate); return "Buling S1"; });
 
 /** S2 Talisman Burns, Spirits Turn: 25 Energy on entering Yin-Yang Balance, every 24s — read
  *  directly by Twin Mountains/Twin Thunders below, since this file doesn't simulate live Trigram
@@ -98,7 +101,7 @@ export const S3 = new Gear(() => "Buling S3");
 
 /** S4 Wanderer of Solaris, Blessed by Fortune: flat +20% Healing Bonus — unused by the formula
  *  (healing is out of scope), tracked for completeness only. */
-export const S4 = new Gear(() => { add(20, Stat.HealingBonus); return "Buling S4"; });
+export const S4 = new Gear((ctx) => { ctx.add(20, Stat.HealingBonus); return "Buling S4"; });
 
 /** S5 Forum Ban? New Account!: the Array inflicts 6 more Electro Flare stacks on generation —
  *  no-op. Nothing reads Electro Flare stacks yet (see file header), so the exact count has no
@@ -123,17 +126,18 @@ export const LOADOUT = [
  *  Liberation. Global so any teammate's Intro can advance it — self-included, since Buling
  *  casting her own Intro counts too. Only the top two stacks' own DMG Bonus is scoped to
  *  whoever's currently active, per the kit's own "active Resonators" wording. */
-export const THUNDER_SPELL = new GlobalBuff(PRIORITY.BUFF_STATS, (stacks, a) => {
-  if (isIntro(a) && stacks < 3) grantGlobal(THUNDER_SPELL);
+export const THUNDER_SPELL = new GlobalBuff(PRIORITY.BUFF_STATS, (ctx, stacks) => {
+  const a = ctx.action!;
+  if (isIntro(a) && stacks < 3) ctx.grantGlobal(THUNDER_SPELL);
   // re-read live: `stacks` is this call's pre-increment snapshot, stale the instant the grant
   // above just moved it
-  const held = stacksOf(THUNDER_SPELL);
+  const held = ctx.stacksOf(THUNDER_SPELL);
   if (a.active) {
-    if (held === 2) add(10, DamageType.Skill, Stat.DmgBonus);
-    else if (held >= 3) add(stacksOf(S6) ? 50 : 25, DamageType.Skill, Stat.DmgBonus);
+    if (held === 2) ctx.add(10, DamageType.Skill, Stat.DmgBonus);
+    else if (held >= 3) ctx.add(ctx.stacksOf(S6) ? 50 : 25, DamageType.Skill, Stat.DmgBonus);
   }
   if (held >= 3) {
-    if (stacksOf(S6)) {
+    if (ctx.stacksOf(S6)) {
         return "Buling: Thunder Spell - Heaven, Earth, Mind S6";
     }
     return "Buling: Thunder Spell - Heaven, Earth, Mind";
@@ -145,8 +149,9 @@ export const THUNDER_SPELL = new GlobalBuff(PRIORITY.BUFF_STATS, (stacks, a) => 
 /* ----------------------------------------------------------------- actions */
 
 function bulingAction(name: string, def: ActionDef): Action {
-  return new Action(`Buling: ${name}`, {
+  return new Action(name, {
     element: Element.Electro,
+    color: COLOR,
     scaling: Scaling.Atk,
     ...def,
   });
@@ -159,11 +164,11 @@ const Intro = bulingAction("Intro", {
 const Outro = bulingAction("Outro", {
   cast: DamageType.Outro, type: DamageType.Outro, mv: 0, concerto: -100, active: false,
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() { queue(ACTION_FIVE_THUNDERS_ARRAY); grantGlobal(BULING_OUTRO); },
+  apply(ctx) { ctx.queue(ACTION_FIVE_THUNDERS_ARRAY); ctx.grantGlobal(BULING_OUTRO); },
 });
 /** Exorcism Spell: +15% (unscoped) DMG Amplified, 30s — past the standing 20s cutoff, so treated
  *  as permanent uptime rather than lost on the receiving resonator's own outro. */
-export const BULING_OUTRO = new GlobalBuff(PRIORITY.BUFF_STATS, () => { add(15, Stat.Amp); return "Buling: Outro"; });
+export const BULING_OUTRO = new GlobalBuff(PRIORITY.BUFF_STATS, (ctx) => { ctx.add(15, Stat.Amp); return "Buling: Outro"; });
 
 // --- resonance skill: grants a Thunder Trigram
 const Skill = bulingAction("Skill", {
@@ -176,7 +181,7 @@ const Skill = bulingAction("Skill", {
 export const Liberation = bulingAction("Liberation", {
   node: Node.Liberation, cast: DamageType.Liberation, type: DamageType.Liberation, mv: 536.79, energy: -150, concerto: 20,
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() { setStacksGlobal(THUNDER_SPELL, 1); },
+  apply(ctx) { ctx.setStacksGlobal(THUNDER_SPELL, 1); },
 });
 
 /** Five Thunders Spell Array: the sheet's own full 12-tick lifetime total (238.32% mv, 25 energy,
@@ -195,8 +200,8 @@ const BA4 = bulingAction("Basic 4", { node: Node.Normal, cast: DamageType.Basic,
 export const MA = bulingAction("Plunge", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 73.96, energy: 1.24, concerto: 4.96 }); // grants Trigram: Thunder
 export const DC = bulingAction("Dodge Counter", { node: Node.Normal, cast: Cast.DodgeCounter, type: DamageType.Basic, mv: 47.02, energy: 1.2, concerto: 13.8 });
 
-export const BA12 = new Chain("Buling: Basic 12", [BA1, BA2]);
-export const BA1234 = new Chain("Buling: Basic 1234", [BA1, BA2, BA3, BA4]);
+export const BA12 = new Chain("Basic 12", [BA1, BA2]);
+export const BA1234 = new Chain("Basic 1234", [BA1, BA2, BA3, BA4]);
 
 // --- heavy attacks: spend specific Trigram pairs left-to-right for a Minor state
 export const HA_MOUNTAIN_OVER_THUNDER = bulingAction("Heavy Mountain Over Thunder",
@@ -208,12 +213,12 @@ export const HA_THUNDER_OVER_MOUNTAIN = bulingAction("Heavy Thunder Over Mountai
 export const HA_TWIN_MOUNTAINS = bulingAction("Heavy: Twin Mountains", {
   node: Node.Normal, cast: DamageType.Heavy, type: DamageType.Heavy, mv: 0, energy: 0, concerto: 15, heal: 1,
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() { if (stacksOf(S2)) gain(Resource.Energy, 25); },
+  apply(ctx) { if (ctx.stacksOf(S2)) ctx.gain(Resource.Energy, 25); },
 });
 export const HA_TWIN_THUNDERS = bulingAction("Heavy: Twin Thunders", {
   node: Node.Normal, cast: DamageType.Heavy, type: DamageType.Heavy, mv: 0, energy: 0, concerto: 15, heal: 1,
   priority: PRIORITY.UPDATE_BUFFS,
-  apply() { if (stacksOf(S2)) gain(Resource.Energy, 25); },
+  apply(ctx) { if (ctx.stacksOf(S2)) ctx.gain(Resource.Energy, 25); },
 });
 
 /** The migrated sheet's `buling` rotation, values and order both cross-checked — except the
