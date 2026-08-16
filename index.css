@@ -90,11 +90,19 @@ body {
 /* ---------------------------------------------------------------- team switch */
 
 .teamswitch {
-  flex: none;                       /* same reason as .top: it never scrolls away */
+  flex: none;                       /* stays put; <main> below it is what scrolls */
   display: flex;
-  gap: 8px;
-  padding: 14px 26px 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+  padding: 14px 26px;
+  border-bottom: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .028), transparent),
+    var(--bg);
 }
+.teambtns { display: flex; gap: 8px; }
 .teambtn {
   padding: 7px 16px;
   border: 1px solid var(--line-2);
@@ -113,8 +121,11 @@ body {
 
 /* ------------------------------------------------------------------- loading */
 
-.loading {
-  min-height: 70vh;
+/* #app carries its own `display: flex` by ID, which outranks a plain .loading class rule — the
+   #app.loading combo matches that specificity so grid actually wins and centers both axes. */
+#app.loading {
+  position: fixed;
+  inset: 0;
   display: grid;
   place-content: center;
   justify-items: center;
@@ -132,30 +143,6 @@ body {
 
 /* -------------------------------------------------------------------- header */
 
-.top {
-  flex: none;                       /* stays put; <main> below it is what scrolls */
-  padding: 28px 26px 22px;
-  border-bottom: 1px solid var(--line);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, .028), transparent),
-    var(--bg);
-}
-
-.top h1 {
-  margin: 0;
-  font-size: 19px;
-  font-weight: 620;
-  letter-spacing: -.2px;
-}
-
-.titlerow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 14px;
-  margin-bottom: 14px;
-}
-
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip {
   padding: 3px 9px;
@@ -168,7 +155,17 @@ body {
 }
 .chip b { color: var(--ink); font-weight: 600; }
 
-/* the member summary strip */
+/* the member summary strip — below the table now, so it carries its own top margin the way
+   .gridwrap and .eventlog do rather than relying on .top's padding */
+.summary-label {
+  margin: 22px 0 8px;
+  font-size: 10px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .7px;
+  color: var(--dim);
+}
+
 .summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -334,9 +331,12 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 .step > .r        { background: color-mix(in srgb, var(--m, transparent) 8%, var(--surface)); }
 .step:hover > .r  { background: color-mix(in srgb, var(--m, transparent) 15%, var(--surface)); }
 
-.c.action { font-weight: 550; color: var(--ink); }
+/* the action name reads in its own resonator's colour — the same --m every other per-member
+   accent (the card value, the mhead dot, the row's own left border/wash) already uses */
+.c.action { font-weight: 550; }
+.c.action, .c.name { color: var(--m, var(--accent)); }
 /* the same green the team-total card uses, so the eye can tie a row's damage back to it */
-.c.avg { color: var(--mint); font-weight: 700; }
+.c.avg { color: var(--ink); font-weight: 700; }
 
 /* total row */
 .totalrow {
@@ -373,7 +373,6 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 .parts .r:hover { background: color-mix(in srgb, var(--m, transparent) 11%, var(--surface-2)); }
 .parts .c { padding-top: 4px; padding-bottom: 4px; }
 .parts .name { padding-left: calc(var(--lead) + 18px); }
-.parts .best { color: var(--amber); }
 
 /* A triggered follow-up, a zero-damage hit, or an outro isn't a rotation beat of its own —
    thinner and dimmer, so scanning the table isn't slowed reading past them. Opacity rather than

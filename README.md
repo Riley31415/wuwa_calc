@@ -23,10 +23,13 @@ block module imports and `fetch()` on `file://` URLs.
 | `damage.js` | the damage formula, transcribed from `Calculator!BY:CI` |
 | `display.js` | the action table: stats and resources snapshotted at each step |
 | `test.js` | the whole suite |
-| `shared.js` | gear and actions not tied to one resonator |
 | `resonators/jingran.js` | a DPS: passives, weapon, sonata, echo, states, actions |
 | `resonators/shorekeeper.js` | a support: team grants and the realm's blue/purple/gold handoff |
 | `resonators/iuno.js` | a support: shielding, and a Heavy Attack amplification handoff |
+| `resonators/shared/mainstats.js` | echo main-stat builds (`mainstats()`), and every build worth comparing |
+| `resonators/shared/substats.js` | echo substat spreads (`substats()`, `chem()`) |
+| `resonators/shared/tunebreak.js` | off-tune break as an ordinary buff/action, and the `Misc` display slot |
+| `resonators/shared/weapons.js` | standard/f2p weapons usable by more than one resonator |
 | `team.js` | the three of them together, one rotation per slot |
 
 There is no global baseline buff. Every resonator declares its own innate line — 100% ER,
@@ -395,7 +398,7 @@ Discernment deals liberation damage, and both are still intros.
 One file per resonator in `resonators/`, holding their innate line, passives, signature
 weapon, sonata, echo (buff **and** cast) and actions — `jingran.js` is the worked example.
 Export a `LOADOUT` (what the build starts holding) and a `ROTATION`. Put anything usable by
-others in `shared.js`.
+others in `resonators/shared/`.
 
 Start from the innate line every resonator has, then their own stats:
 

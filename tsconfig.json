@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+
+    /* dist/ mirrors the whole project one level deeper (dist/index.js, dist/src/kit.js, ...).
+       Every relative import stays exactly as written — tsc doesn't rewrite specifiers, and the
+       mirrored structure means "../kit.js" still finds the right sibling inside dist/ — so the
+       only two things that had to change for the move are index.html's own <script src> (now
+       "./dist/index.js") and the CLI scripts' data/*.json resolution (one extra ".." to cross
+       the added nesting level; see team.ts/run.ts). allowJs stays on even though every file is
+       now .ts, just so a stray .js dropped in later still gets swept into the build. */
+    "outDir": "dist",
+    "rootDir": ".",
+
+    "allowJs": true,
+    "checkJs": false,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "declaration": false
+  },
+  "include": ["index.ts", "src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

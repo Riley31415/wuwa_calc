@@ -1,0 +1,27 @@
+{
+  "name": "wuwa_calc",
+  "version": "1.0.0",
+  "description": "Stat, buff and gear system. TypeScript, compiled with tsc alone (no bundler), no runtime dependencies.",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Riley31415/wuwa_calc.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Riley31415/wuwa_calc/issues"
+  },
+  "homepage": "https://github.com/Riley31415/wuwa_calc#readme",
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "typescript": "^5.6.3"
+  }
+}
