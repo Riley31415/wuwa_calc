@@ -23,10 +23,10 @@
  * it's still flagged via `shields: 1` on FSkill below, since that's just a count of shield-
  * granting events for whichever teammate's own kit reacts to it (see Iuno/Jingran).
  */
-import { Buff, Gear, Action, Chain, PRIORITY } from "../kit.js";
+import { Buff, Gear, Mainslot, Action, Chain, PRIORITY } from "../kit.js";
 import type { ActionDef } from "../kit.js";
-import { isOutro, isLiberation } from "../state.js";
-import type { Ctx } from "../state.js";
+import { Resonator, Loadout, isOutro, isLiberation } from "../state.js";
+import type { Ctx, ResonatorFactory } from "../state.js";
 import { Stat, Element, DamageType, Node, Resource, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
@@ -35,20 +35,6 @@ import { chem } from "../shared/substats.js";
 export const COLOR = "#a0522d";
 
 /* --------------------------------------------------------------- resonator */
-
-export const BRANT = new Gear((ctx) => {
-  ctx.add(100, Stat.Er);
-  ctx.add(5, Stat.CritRate);
-  ctx.add(150, Stat.CritDmg);
-
-  ctx.add(11675, Stat.BaseHp);
-  ctx.add(375, Stat.BaseAtk);
-  ctx.add(1308, Stat.BaseDef);
-  ctx.add(8, Stat.CritRate);
-  ctx.add(12, Stat.BonusAtk);
-
-  return "Brant";
-}, (ctx) => { ctx.grantSelf(THEATRICAL_MOMENT); }, Element.Fusion, () => Intro);
 
 /** Trial by Fire and Tide (Inherent Skill): +15% Fusion DMG Bonus, on his mid-air combo stages
  *  specifically — placed on each of those actions directly below, rather than as a Gear-wide
@@ -86,13 +72,12 @@ export const AFLAME = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
  *  +24% Basic Attack DMG Bonus instances — casting Liberation grants one (10s), dealing Basic
  *  Attack DMG grants the other (4s); both up at once is +48%, not capped to one. Both short
  *  enough that only the standing outro-loss rule matters for either. */
-export const UNFLICKERING_VALOR = new Gear((ctx) => {
+export const UNFLICKERING_VALOR = new Gear("Unflickering Valor", (ctx) => {
   ctx.add(413, Stat.BaseAtk);
   ctx.add(77.04, Stat.Er);
   ctx.add(8, Stat.CritRate);
   if (isLiberation(ctx.action!)) ctx.grantSelf(LAUGHTER_PREVAILS_LIB);
   if (ctx.action!.type === DamageType.Basic) ctx.grantSelf(LAUGHTER_PREVAILS_BASIC);
-  return "Unflickering Valor";
 });
 
 export const LAUGHTER_PREVAILS_LIB = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
@@ -109,42 +94,61 @@ export const LAUGHTER_PREVAILS_BASIC = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
 
 /* -------------------------------------------------------------- echo, sonata */
 
-/** Dragon of Dirge, his mainslot echo — flat Fusion/Basic Attack DMG Bonus for whoever wears it,
- *  no trigger. */
-export const DRAGON_OF_DIRGE = new Gear((ctx) => {
-  ctx.add(12, Element.Fusion, Stat.DmgBonus);
-  ctx.add(12, DamageType.Basic, Stat.DmgBonus);
-  return "Dragon of Dirge";
-});
-
 /** The echo's own cast (Grief Rift): a 5s, 25s-cooldown periodic zone with no real per-second
  *  clock here, so — matching Cantarella's Diffusion / Phrolova's Hecate cycle — this is just
  *  the one tick nanoka actually gives a number for, not placed in any rotation below (none of
  *  the migrated ones use it either). */
 export const ACTION_DRAGON_OF_DIRGE = new Action("Echo: Dragon of Dirge", {
-  color: COLOR, cast: DamageType.Echo, element: Element.Fusion, scaling: Scaling.Atk, type: DamageType.Echo, mv: 36.81, energy: 0.51,
+  color: COLOR, cast: DamageType.Echo, element: Element.Fusion, scaling: Scaling.Atk, type: DamageType.Echo, mv: 36.81, energy: 51,
 });
 
-export const TIDEBREAKING_2PC = new Gear((ctx) => { ctx.add(10, Stat.Er); return "Tidebreaking Courage 2pc"; });
+/** Dragon of Dirge, his mainslot echo — flat Fusion/Basic Attack DMG Bonus for whoever wears it,
+ *  no trigger. */
+export const DRAGON_OF_DIRGE = new Mainslot("Dragon of Dirge", ACTION_DRAGON_OF_DIRGE, (ctx) => {
+  ctx.add(12, Element.Fusion, Stat.DmgBonus);
+  ctx.add(12, DamageType.Basic, Stat.DmgBonus);
+});
+
+export const TIDEBREAKING_2PC = new Gear("Tidebreaking Courage 2pc", (ctx) => { ctx.add(10, Stat.Er); });
 
 /** Tidebreaking Courage 5pc: +15% ATK flat, and +30% (unscoped) DMG Bonus once Energy Regen
  *  actually reaches 250% — a real threshold read off the total, not assumed. EARLY_CONVERSION
  *  (overriding Gear's default GEAR_STATS) so every other ER contribution — the 2pc, mainstats,
  *  substats, all listed after this piece in the loadout — has already landed before it reads
  *  `get(ER)`. */
-export const TIDEBREAKING_5PC = new Gear((ctx) => {
+export const TIDEBREAKING_5PC = new Gear("Tidebreaking Courage 5pc", (ctx) => {
   ctx.add(15, Stat.BonusAtk);
   if (ctx.get(Stat.Er) >= 250) ctx.add(30, Stat.DmgBonus);
-  return "Tidebreaking Courage 5pc";
 }, null, null, null, PRIORITY.EARLY_CONVERSION);
 
 /** His echoes: Dragon of Dirge mainslot, Tidebreaking Courage 5pc/2pc — leaning on the build's
  *  own "Key Stat: Energy Regen 280%" recommendation. */
-export const LOADOUT = [
-  BRANT, UNFLICKERING_VALOR, DRAGON_OF_DIRGE, TIDEBREAKING_5PC, TIDEBREAKING_2PC,
-  mainstats("CR", "ER ER", "atk atk"),
-  chem("atk", "basic"),
-];
+const BRANT_LOADOUT = new Loadout(
+  UNFLICKERING_VALOR, DRAGON_OF_DIRGE, TIDEBREAKING_5PC, TIDEBREAKING_2PC,
+  mainstats("CR", "ER ER", "atk atk"), chem("atk", "basic"),
+);
+
+export class Brant extends Resonator {
+  constructor(loadout: Loadout) {
+    super(
+      "Brant",
+      Element.Fusion,
+      () => Intro,
+      loadout,
+      (ctx) => {
+        ctx.add(11675, Stat.BaseHp);
+        ctx.add(375, Stat.BaseAtk);
+        ctx.add(1308, Stat.BaseDef);
+      },
+      (ctx) => {
+        ctx.add(8, Stat.CritRate);
+        ctx.add(12, Stat.BonusAtk);
+      },
+      (ctx) => { ctx.grantSelf(THEATRICAL_MOMENT); },
+    );
+  }
+}
+export const LOADOUT: ResonatorFactory = () => new Brant(BRANT_LOADOUT);
 
 /* ----------------------------------------------------------------- actions */
 
@@ -159,10 +163,10 @@ function brantAction(name: string, def: ActionDef): Action {
 
 // --- intro / outro
 const Intro = brantAction("Intro", {
-  node: Node.Intro, cast: DamageType.Intro, type: DamageType.Intro, mv: 253.49, energy: 0, concerto: 10, forte1: 25,
+  node: Node.Intro, cast: DamageType.Intro, type: DamageType.Intro, mv: 253.49, energy: 0, concerto: 1000, forte1: 25,
 });
 const Outro = brantAction("Outro", {
-  cast: DamageType.Outro, type: DamageType.Outro, mv: 0, concerto: -100, active: false,
+  cast: DamageType.Outro, type: DamageType.Outro, mv: 0, concerto: -10000, active: false,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.outro(BRANT_OUTRO); },
 });
@@ -175,10 +179,10 @@ export const BRANT_OUTRO = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
 
 // --- resonance skill: Anchors Aweigh!, and liberation: To the Horizon (opens Aflame)
 const Skill = brantAction("Skill", {
-  node: Node.Skill, cast: DamageType.Skill, type: DamageType.Skill, mv: 333.92, energy: 7.18, concerto: 10, forte1: 7.93,
+  node: Node.Skill, cast: DamageType.Skill, type: DamageType.Skill, mv: 333.92, energy: 718, concerto: 1000, forte1: 7.93,
 });
 const Liberation = brantAction("Liberation", {
-  node: Node.Liberation, cast: DamageType.Liberation, type: DamageType.Liberation, mv: 680.45, energy: -175, concerto: 20,
+  node: Node.Liberation, cast: DamageType.Liberation, type: DamageType.Liberation, mv: 680.45, energy: -17500, concerto: 2000,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.grantSelf(AFLAME); },
 });
@@ -188,7 +192,7 @@ const Liberation = brantAction("Liberation", {
 //     gets Aflame's own stats (e.g. THEATRICAL_MOMENT's "My Moment" rate) before it's revoked —
 //     per the kit's own wording, casting this "ends [Aflame] after Returned from Ashes ends".
 const FSkill = brantAction("Forte Skill", {
-  node: Node.Forte, cast: DamageType.Skill, type: DamageType.Basic, mv: 1888.71, energy: 30, concerto: 50, forte1: -100,
+  node: Node.Forte, cast: DamageType.Skill, type: DamageType.Basic, mv: 1888.71, energy: 3000, concerto: 5000, forte1: -100,
   shields: 1,
   priority: PRIORITY.AUTO_ACTION,
   apply: (ctx) => { if (ctx.stacksOf(AFLAME)) ctx.revoke(AFLAME); },
@@ -196,12 +200,12 @@ const FSkill = brantAction("Forte Skill", {
 
 // --- mid-air combo stages. Each carries Trial by Fire and Tide's own +15% Fusion DMG Bonus (see
 //     midAirBonus above); forte1 is the base (un-doubled) Bravo gain — AFLAME doubles it live.
-const MA1 = brantAction("Midair 1", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 215.81, energy: 1.82, concerto: 7.28, forte1: 9.76, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
-const MA1H = brantAction("Midair 1 Hold", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 548.29, energy: 4.96, concerto: 9.85, forte1: 21.95, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
-const MA2 = brantAction("Midair 2", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 262.79, energy: 2.52, concerto: 10.08, forte1: 12.2, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
-const MA2H = brantAction("Midair 2 Hold", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 460.01, energy: 5.46, concerto: 10.92, forte1: 24.39, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
-const MA3 = brantAction("Midair 3", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 261.97, energy: 2.52, concerto: 10.08, forte1: 13.41, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
-const MA4 = brantAction("Midair 4", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 253.85, energy: 3.78, concerto: 7.55, forte1: 9.76, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
+const MA1 = brantAction("Midair 1", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 215.81, energy: 182, concerto: 728, forte1: 9.76, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
+const MA1H = brantAction("Midair 1 Hold", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 548.29, energy: 496, concerto: 985, forte1: 21.95, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
+const MA2 = brantAction("Midair 2", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 262.79, energy: 252, concerto: 1008, forte1: 12.2, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
+const MA2H = brantAction("Midair 2 Hold", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 460.01, energy: 546, concerto: 1092, forte1: 24.39, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
+const MA3 = brantAction("Midair 3", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 261.97, energy: 252, concerto: 1008, forte1: 13.41, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
+const MA4 = brantAction("Midair 4", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 253.85, energy: 378, concerto: 755, forte1: 9.76, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
 export const MA12 = new Chain("Midair 12", [MA1, MA2]);
 export const MA234 = new Chain("Midair 234", [MA2, MA3, MA4]);
 export const MA2H34 = new Chain("Midair 2Hold34", [MA2H, MA3, MA4]);

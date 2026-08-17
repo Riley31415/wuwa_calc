@@ -196,11 +196,18 @@ export type OnIntro = (ctx: Ctx) => Action;
 
 /** Gear: a buff that's equipped, plus an optional `onFightStart()` run once at `startFight()`. */
 export class Gear extends Buff {
+  /** What this piece is called. Unlike a plain Buff — whose name is whatever its `apply()`
+   *  returns, so a stacking one can write its own count into it — gear's name is fixed, so it's
+   *  declared once here and the constructor wraps `apply()` to report it automatically. */
+  name: string;
   onFightStart: ((ctx: Ctx) => void) | null;
   element: Element | null;
   onIntro: OnIntro | null;
 
   /**
+   * `apply()` returns nothing — the wrapper below reports `name` for it. A piece with no stat
+   * line at all (a sequence node read directly by another buff, say) can omit it entirely.
+   *
    * `element` is a resonator's own elemental identity, declared on their own Gear. Weapons and
    * echoes leave it null, same as `onIntro` — both are `startFight()`-enforced on a resonator's
    * own Gear specifically (the loadout's first entry), not on every Gear that exists.
@@ -214,16 +221,39 @@ export class Gear extends Buff {
    * a conversion band instead of a second buff just to get the later read.
    */
   constructor(
-    apply: BuffApply,
+    name: string,
+    apply: ((ctx: Ctx, stacks: number) => void) | null = null,
     onFightStart: ((ctx: Ctx) => void) | null = null,
     element: Element | null = null,
     onIntro: OnIntro | null = null,
     priority: Priority = Priority.GearStats,
   ) {
-    super(priority, apply);
+    if (!name) throw new Error("gear needs a name");
+    super(priority, (ctx, stacks) => { apply?.(ctx, stacks); return name; });
+    this.name = name;
     this.onFightStart = onFightStart;
     this.element = element;
     this.onIntro = onIntro;
+  }
+}
+
+/**
+ * A mainslot echo: gear that also carries its own cast. Every build equips exactly one, so a
+ * rotation doesn't name the echo — it holds the `ECHO_CAST` marker below, and `State.run()`
+ * swaps in whichever mainslot the acting resonator is actually wearing.
+ */
+export class Mainslot extends Gear {
+  /** The cast this echo performs, pulled out by the `ECHO_CAST` marker. */
+  action: Action;
+
+  constructor(
+    name: string,
+    action: Action,
+    apply: ((ctx: Ctx, stacks: number) => void) | null = null,
+    priority: Priority = Priority.GearStats,
+  ) {
+    super(name, apply, null, null, null, priority);
+    this.action = asAction(action, `mainslot "${name}" needs an Action`);
   }
 }
 
@@ -267,6 +297,7 @@ export interface ActionDef {
   forte2?: number;
   forte3?: number;
   forte4?: number;
+  forte5?: number;
   apply?: ActionApply | null;
   priority?: Priority | null;
 }
@@ -323,6 +354,7 @@ export class Action {
   forte2: number;
   forte3: number;
   forte4: number;
+  forte5: number;
   // what the action itself does, beyond its declared numbers
   apply: ActionApply | null;
   priority: Priority | null;
@@ -350,6 +382,7 @@ export class Action {
     this.forte2 = def.forte2 ?? 0;
     this.forte3 = def.forte3 ?? 0;
     this.forte4 = def.forte4 ?? 0;
+    this.forte5 = def.forte5 ?? 0;
     this.apply = def.apply ?? null;
     this.priority = def.priority ?? null;
     if (this.apply && !PRIORITY_NAMES.has(this.priority as Priority)) {
@@ -365,6 +398,10 @@ export class Action {
 
   toString(): string { return this.id; }
 }
+
+/** Rotation marker: "cast the equipped mainslot echo here". Never evaluated itself — `run()`
+ *  replaces it with the acting resonator's own `Mainslot.action` before it reaches `evaluate`. */
+export const ECHO_CAST = new Action("Echo Cast");
 
 /**
  * A chain stands for several actions in a rotation (`BA1234`). Each member is evaluated on its

@@ -69,11 +69,10 @@ export function mainstats(c4 = "", c3 = "", c1 = ""): Gear {
   const entries = [...totals.values()];
   const layout = slots.map(([c]) => c).join("");
   const name = `${layout} ${slots.map(([, key]) => key).join(" ")}`;
-  return new Gear((ctx) => {
+  return new Gear(name, (ctx) => {
     for (const { stat, tag, value } of entries) {
       if (tag) ctx.add(value, tag, stat); else ctx.add(value, stat);
     }
-    return name;
   });
 }
 

@@ -75,13 +75,6 @@ export function effectiveRes(snapshot: Snapshot): number {
   return (snapshot.enemyRes / 100 - s(Stat.ResIgnore) * notDotFor(snapshot) - s(Stat.ResShred)) * 100;
 }
 
-/** Base stat a dot or tune hit scales off — both fixed at their level-90 value (see above). */
-export function constantStat(scaling: string): number {
-  if (scaling === Scaling.Tune) return LEVEL_90_TUNE;
-  if (scaling === Scaling.Dot) return LEVEL_90_DOT;
-  return 0;
-}
-
 /** The enemy's resistance turned into the multiplier the formula uses. */
 export function resFactorOf(snapshot: Snapshot): number {
   const finalRes = effectiveRes(snapshot) / 100;
@@ -133,7 +126,9 @@ export function damageFactors(snapshot: Snapshot, config: DamageConfig): DamageF
     scaling === Scaling.Atk ? snapshot.atk
     : scaling === Scaling.Hp ? snapshot.hp
     : scaling === Scaling.Def ? snapshot.def
-    : constantStat(scaling),
+    : scaling === Scaling.Dot ? LEVEL_90_DOT
+    : scaling === Scaling.Tune ? LEVEL_90_TUNE
+    : 9999999999999999999999
   );
 
   // motion values are authored in percent, so 307.34 is a 3.0734x multiplier

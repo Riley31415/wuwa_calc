@@ -19,7 +19,7 @@ import { Element, ELEMENTS } from "./stats.js";
 
 // level 100 enemy, level 90 resonators, a flat 20% base resistance, 39.2% max off-tune — every
 // fight this calculator runs uses the same standing numbers.
-const ENEMY_LEVEL = 100, RESONATOR_LEVEL = 90, DEFAULT_RES = 20, MAX_OFFTUNE = 39.2;
+const ENEMY_LEVEL = 100, RESONATOR_LEVEL = 90, DEFAULT_RES = 20, MAX_OFFTUNE = 392000;
 
 export function runJingran(rotation: RotationEntry[] = ROTATION) {
   // the same flat resistance seeded onto every element, until a fight wants them to differ

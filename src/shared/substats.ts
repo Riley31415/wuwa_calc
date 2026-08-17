@@ -31,11 +31,10 @@ export function substats(name: string, counts: Record<string, number>): Gear {
     if (!(stat in ROLL)) throw new Error(`substats("${name}"): nothing rolls "${key}"`);
     return { stat, tag, value: ROLL[stat]! * n };
   });
-  return new Gear((ctx) => {
+  return new Gear(name, (ctx) => {
     for (const { stat, tag, value } of entries) {
       if (tag) ctx.add(value, tag, stat); else ctx.add(value, stat);
     }
-    return name;
   });
 }
 

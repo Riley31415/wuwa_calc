@@ -1,6 +1,6 @@
 /**
  * Phrolova — a havoc main DPS. Volatile Notes (Strings/Winds/Cadenza, a real 6-slot FIFO queue
- * in `self().data.notes`) build off Basic Attack 3 / Movement of Fate and Finality (Strings)
+ * held on her own `Phrolova.notes`) build off Basic Attack 3 / Movement of Fate and Finality (Strings)
  * and Skill / Murmurs in a Haunting Dream (Winds). Aftersound (10 on combat start, +1 per
  * Hecate Enhanced Attack) pays Crit DMG directly and scales Scarlet Coda's own damage.
  *
@@ -32,10 +32,10 @@
  * its enemy ATK-down debuff are skipped the same way (Cadenza/Strings already share one MV, and
  * enemy ATK never feeds our own damage) — only its own +80% Echo Skill DMG Amp is modelled.
  */
-import { Buff, GlobalBuff, Gear, Action, Chain, PRIORITY } from "../kit.js";
+import { Buff, GlobalBuff, Gear, Mainslot, Action, Chain, PRIORITY, ECHO_CAST } from "../kit.js";
 import type { ActionDef } from "../kit.js";
-import type { Ctx, Slot } from "../state.js";
-import { isOutro, isEcho, isIntro } from "../state.js";
+import type { Ctx, Slot, ResonatorFactory } from "../state.js";
+import { Resonator, Loadout, isOutro, isEcho, isIntro } from "../state.js";
 import { Stat, Element, DamageType, Node, Cast, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
@@ -49,30 +49,6 @@ type NoteType = "strings" | "winds" | "cadenza";
 
 /* --------------------------------------------------------------- resonator */
 
-export const PHROLOVA = new Gear((ctx) => {
-  ctx.add(100, Stat.Er);
-  ctx.add(5, Stat.CritRate);
-  ctx.add(150, Stat.CritDmg);
-
-  ctx.add(10775, Stat.BaseHp);
-  ctx.add(438, Stat.BaseAtk);
-  ctx.add(1137, Stat.BaseDef);
-  ctx.add(8, Stat.CritRate);
-  ctx.add(12, Stat.BonusAtk);
-
-  // Accidental: Intro/Enhanced Intro/Echo Skill casts upgrade her next Volatile Note to Cadenza
-  if (isIntro(ctx.action!) || isEcho(ctx.action!)) ctx.grantSelf(ACCIDENTAL_CADENZA);
-  return "Phrolova";
-// decides on Maestro and ends it right here — on the outro that's handing her the field,
-// before Suite of Immortality (which doesn't get Maestro's own ATK) ever runs
-}, (ctx) => {
-  ctx.grantSelf(AFTERSOUND, 10);   // Octet: 10 Aftersound on entering combat
-}, Element.Havoc, (ctx) => {
-  if (!ctx.stacksOf(MAESTRO_ATK)) return Intro;
-  endMaestro(ctx);
-  return EIntro;
-});
-
 /** Accidental: a one-shot marker, no stats of its own — the next `gainNote()` call checks it. */
 export const ACCIDENTAL_CADENZA = new Buff(PRIORITY.BUFF_STATS,
   () => "Phrolova: Accidental (next note is Cadenza)");
@@ -81,8 +57,7 @@ export const ACCIDENTAL_CADENZA = new Buff(PRIORITY.BUFF_STATS,
  *  — Cadenza notes are immune to eviction, per the kit text. Accidental upgrades the next one
  *  to Cadenza regardless of its natural type. */
 function gainNote(ctx: Ctx, type: NoteType): void {
-  const data = ctx.slot.data as { notes?: NoteType[] };
-  const notes = (data.notes ??= []);
+  const notes = (ctx.slot.resonator as Phrolova).notes;
   const upgraded = ctx.stacksOf(ACCIDENTAL_CADENZA) > 0;
   if (upgraded) ctx.revoke(ACCIDENTAL_CADENZA);
   notes.push(upgraded ? "cadenza" : type);
@@ -106,19 +81,25 @@ export const AFTERSOUND = new Buff(PRIORITY.BUFF_STATS, (ctx, stacks) => {
 export const MAESTRO_ATK = new Buff(PRIORITY.BUFF_STATS,
   (ctx) => { ctx.add(120, Stat.BonusAtk); return "Phrolova: Maestro"; });
 
-function endMaestro(ctx: Ctx): void {
-  ctx.revoke(MAESTRO_ATK);
+/** `slot` defaults to the acting one (every in-file call site), but takes an explicit override
+ *  for a teammate's own kit ending Maestro on Phrolova's behalf — Augusta's Lib2, currently, the
+ *  same way her own EIntro would. HECATE_ECHO_WATCH/HECATE_CHARGES are global, so `ctx.revoke`
+ *  reaches them regardless of whose slot is acting; only the local buff and the note queue need
+ *  the explicit slot. */
+export function endMaestro(ctx: Ctx, slot: Slot = ctx.slot): void {
+  slot.removeBuff(MAESTRO_ATK);
   ctx.revoke(HECATE_ECHO_WATCH);
   ctx.revoke(HECATE_CHARGES);
-  (ctx.slot.data as { notes?: NoteType[] }).notes = [];
+  const phrolova = slot.resonator as Phrolova;
+  phrolova.notes = [];
+  phrolova.hecateProgress = 0;
 }
 
 /** Queues the Hecate Enhanced Attack for whichever Volatile Note is active right now — read
- *  off `HECATE_ECHO_WATCH`'s remaining charges (a global count now, not this slot's own — the
- *  note queue itself is still per-slot, hence the explicit `slot` argument). */
+ *  off Phrolova's own `hecateProgress` (still per-slot, hence the explicit `slot` argument). */
 function triggerHecateAttack(ctx: Ctx, slot: Slot): void {
-  const triggered = 48 - ctx.stacksOf(HECATE_ECHO_WATCH);
-  const note = ((slot.data as { notes?: NoteType[] }).notes ?? [])[Math.floor(triggered / 8)];
+  const phrolova = slot.resonator as Phrolova;
+  const note = phrolova.notes[Math.floor(phrolova.hecateProgress / 8)];
   const eba = note === "winds" ? EBA_WINDS : note === "cadenza" ? EBA_CADENZA : EBA_STRINGS;
   ctx.queueOn(slot, eba);
 }
@@ -129,38 +110,40 @@ function triggerHecateAttack(ctx: Ctx, slot: Slot): void {
 export const HECATE_CHARGES = new GlobalBuff(PRIORITY.BUFF_STATS,
   (ctx, stacks) => `Phrolova: Hecate Charges x${stacks}`, 10);
 
-/** Ticks down on every active action from *any* team member, 48 to 1 — that's what actually
- *  moves the active note, every 8 ticks. Past the 48th active action it stalls on the 6th
- *  (last) note rather than ending — Maestro itself only ends on Curtain Call or switching back
- *  to Phrolova (Suite of Immortality), not from running out of notes to cycle through. A team
- *  Echo Skill cast additionally queues a Hecate Enhanced Attack for whichever note is active at
- *  that moment, as long as HECATE_CHARGES still has one to spend. Global so it can react no
- *  matter whose turn either kind of action lands on; only Phrolova's own note queue and
- *  Aftersound move (both read straight off her own slot, found via `slotsWith(PHROLOVA)`). */
+/** Whether Maestro's Hecate window is open at all — the countdown itself (0-47, moving the
+ *  active note every 8 ticks) isn't a real buff (nothing reads it as a stat), so it lives as
+ *  `hecateProgress` directly on Phrolova's own Resonator instead of this buff's stack count; this
+ *  is just the presence/absence gate plus the trigger, granted once (see Liberation's apply())
+ *  and revoked by `endMaestro`. Past the 47th active action it stalls on the 6th (last) note
+ *  rather than ending — Maestro itself only ends on Curtain Call or switching back to Phrolova
+ *  (Suite of Immortality), not from running out of notes to cycle through. A team Echo Skill cast
+ *  additionally queues a Hecate Enhanced Attack for whichever note is active at that moment, as
+ *  long as HECATE_CHARGES still has one to spend. Global so it can react no matter whose turn
+ *  either kind of action lands on; only Phrolova's own note queue/progress and Aftersound move
+ *  (all read straight off her own slot, found via `slotsWith("Phrolova")`). */
 export const HECATE_ECHO_WATCH = new GlobalBuff(PRIORITY.UPDATE_BUFFS, (ctx) => {
   const a = ctx.action!;
   if (!a.active) return;
-  const [phrolova] = ctx.slotsWith(PHROLOVA);
-  const held = ctx.stacksOf(HECATE_ECHO_WATCH);
+  const [phrolovaSlot] = ctx.slotsWith("Phrolova");
+  const phrolova = phrolovaSlot!.resonator as Phrolova;
   if (isEcho(a) && ctx.stacksOf(HECATE_CHARGES)) {
-    triggerHecateAttack(ctx, phrolova!);
+    triggerHecateAttack(ctx, phrolovaSlot!);
     ctx.removeStack(HECATE_CHARGES, 1);
   }
-  if (held > 1) ctx.removeStack(HECATE_ECHO_WATCH, 1);
-  return `Phrolova: Hecate Note Progress x${held}`;
-}, 48);
+  if (phrolova.hecateProgress < 47) phrolova.hecateProgress++;
+  return `Phrolova: Hecate Note Progress x${Math.floor(phrolova.hecateProgress / 8) + 1}`;
+});
 
 /* ------------------------------------------------------------------ weapon */
 
 /** Lethean Elegy, R1: Underworld Requiem. +12% ATK flat. Dealing Echo Skill DMG (a damage-type
  *  hit, not just a cast that counts as one) grants +32% Skill DMG Bonus, +32% Echo Skill DMG
  *  Amplification and 8% DEF ignore for 12s */
-export const LETHEAN_ELEGY = new Gear((ctx) => {
+export const LETHEAN_ELEGY = new Gear("Lethean Elegy", (ctx) => {
   ctx.add(587.5, Stat.BaseAtk);
   ctx.add(24.3, Stat.CritRate);
   ctx.add(12, Stat.BonusAtk);
   if (ctx.action!.type === DamageType.Echo) ctx.grantSelf(UNDERWORLD_REQUIEM);
-  return "Lethean Elegy";
 });
 
 export const UNDERWORLD_REQUIEM = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
@@ -172,12 +155,11 @@ export const UNDERWORLD_REQUIEM = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
 
 /** Lethean Elegy, R5: base ATK/Crit Rate are the same at every refinement — only the passive's
  *  own numbers scale (+24% ATK flat; +64%/+64%/16% DEF ignore on the same Echo-DMG trigger). */
-export const LETHEAN_ELEGY_R5 = new Gear((ctx) => {
+export const LETHEAN_ELEGY_R5 = new Gear("Lethean Elegy R5", (ctx) => {
   ctx.add(587.5, Stat.BaseAtk);
   ctx.add(24.3, Stat.CritRate);
   ctx.add(24, Stat.BonusAtk);
   if (ctx.action!.type === DamageType.Echo) ctx.grantSelf(UNDERWORLD_REQUIEM_R5);
-  return "Lethean Elegy R5";
 });
 
 export const UNDERWORLD_REQUIEM_R5 = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
@@ -189,14 +171,6 @@ export const UNDERWORLD_REQUIEM_R5 = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
 
 /* -------------------------------------------------------------- echo, sonata */
 
-/** Nightmare: Hecate, her mainslot echo — flat Havoc/Echo Skill DMG Bonus for whoever wears it,
- *  no trigger. */
-export const NM_HECATE = new Gear((ctx) => {
-  ctx.add(12, Element.Havoc, Stat.DmgBonus);
-  ctx.add(20, DamageType.Echo, Stat.DmgBonus);
-  return "Nightmare: Hecate";
-});
-
 export const ACTION_NM_HECATE = new Action("Echo: Nightmare Hecate", {
   color: COLOR,
   cast: DamageType.Echo,
@@ -204,46 +178,94 @@ export const ACTION_NM_HECATE = new Action("Echo: Nightmare Hecate", {
   scaling: Scaling.Atk,
   type: DamageType.Echo,
   mv: 457.17,
-  energy: 3.15,
+  energy: 315,
 });
 
-/** Dream of the Lost 3pc: "Holding 0 Resonance Energy" — her max Energy is 0 (Liberation costs
- *  none), so this is unconditionally true for her specifically, not a real trigger. */
-export const DREAM_OF_THE_LOST_3PC = new Gear((ctx) => {
-  ctx.add(20, Stat.CritRate); // only frolo and lucilla
-  ctx.add(35, DamageType.Echo, Stat.DmgBonus);
-  return "Dream of the Lost 3pc";
+/** Nightmare: Hecate, her mainslot echo — flat Havoc/Echo Skill DMG Bonus for whoever wears it,
+ *  no trigger. */
+export const NM_HECATE = new Mainslot("Nightmare: Hecate", ACTION_NM_HECATE, (ctx) => {
+  ctx.add(12, Element.Havoc, Stat.DmgBonus);
+  ctx.add(20, DamageType.Echo, Stat.DmgBonus);
 });
+
+/** Dream of the Lost 3pc: "Holding 0 Resonance Energy" — checked for real off the wearer's own
+ *  `maxEnergy` now (Phrolova/Lucilla both declare 0, Liberation costing no Resonance Energy for
+ *  either), rather than assumed unconditionally true because only they equip it. */
+export const DREAM_OF_THE_LOST_3PC = new Gear("Dream of the Lost 3pc", (ctx) => {
+  if (ctx.slot.resonator?.maxEnergy !== 0) return;
+  ctx.add(20, Stat.CritRate);
+  ctx.add(35, DamageType.Echo, Stat.DmgBonus);
+});
+
+/** Her own Resonator — shared by both loadouts below (see `LOADOUT_S6R5`); only the weapon and
+ *  sonata (sequences added on top) differ, so mainstats/substats live here once rather than
+ *  being repeated per loadout. */
+export class Phrolova extends Resonator {
+  /** Volatile Notes: the 6-slot FIFO queue `gainNote` pushes onto — real per-fight state, not a
+   *  buff, so it's a plain field here instead of the generic `slot.data` bag. */
+  notes: NoteType[] = [];
+  /** 0-47 while Maestro's Hecate window is open (HECATE_ECHO_WATCH's own apply() advances it and
+   *  reads it for the active note index) — also not a real buff, just a countdown. */
+  hecateProgress = 0;
+
+  constructor(loadout: Loadout, sequences: Gear[] = []) {
+    super(
+      "Phrolova",
+      Element.Havoc,
+      // decides on Maestro and ends it right here — on the outro that's handing her the field,
+      // before Suite of Immortality (which doesn't get Maestro's own ATK) ever runs
+      (ctx) => {
+        if (!ctx.stacksOf(MAESTRO_ATK)) return Intro;
+        endMaestro(ctx);
+        return EIntro;
+      },
+      loadout,
+      (ctx) => {
+        ctx.add(10775, Stat.BaseHp);
+        ctx.add(438, Stat.BaseAtk);
+        ctx.add(1137, Stat.BaseDef);
+        // Accidental: Intro/Enhanced Intro/Echo Skill casts upgrade her next Volatile Note to Cadenza
+        if (isIntro(ctx.action!) || isEcho(ctx.action!)) ctx.grantSelf(ACCIDENTAL_CADENZA);
+      },
+      (ctx) => {
+        ctx.add(8, Stat.CritRate);
+        ctx.add(12, Stat.BonusAtk);
+      },
+      (ctx) => { ctx.grantSelf(AFTERSOUND, 10); },   // Octet: 10 Aftersound on entering combat
+      null,
+      sequences,
+      0,   // Liberation costs no Resonance Energy — see DREAM_OF_THE_LOST_3PC's own check
+    );
+  }
+}
 
 /** Her echoes: Nightmare: Hecate mainslot, Dream of the Lost 3pc, Midnight Veil 2pc (shared
  *  with Cantarella) — the sheet's `frolo r1` build. 43311 crit-rate. */
-export const LOADOUT = [
-  PHROLOVA, LETHEAN_ELEGY, NM_HECATE, DREAM_OF_THE_LOST_3PC, MIDNIGHT_VEIL_2PC,
-  mainstats("CD", "havoc havoc", "atk atk"),
-  chem("atk", "skill"),
-];
+const PHROLOVA_LOADOUT = new Loadout(
+  LETHEAN_ELEGY, NM_HECATE, DREAM_OF_THE_LOST_3PC, MIDNIGHT_VEIL_2PC,
+  mainstats("CD", "havoc havoc", "atk atk"), chem("atk", "skill"),
+);
+export const LOADOUT: ResonatorFactory = () => new Phrolova(PHROLOVA_LOADOUT);
 
 /* ------------------------------------------------------------------- sequences */
 
 /** S1 A Key to Netherworld's Secrets: +80% MV multiplier on Movement of Fate and Finality (Forte
  *  Basic) and Murmurs in a Haunting Dream (Forte Skill) specifically. The out-of-combat Cadenza
  *  regen (staying below 2 notes outside Maestro for 4s) has no combat-relevant effect here — no-op. */
-export const S1 = new Gear((ctx) => {
+export const S1 = new Gear("Phrolova S1", (ctx) => {
   const a = ctx.action!;
   if (a === FBA || a === FSkill) ctx.add(80, Stat.MulMv);
-  return "Phrolova S1";
 });
 
 /** S2 A Rope Tied to a Life Beyond: +75% MV multiplier on Scarlet Coda specifically, and each
  *  Aftersound stack pays an extra 75% MV on it (on top of the base 82.55%/stack) — both read
  *  directly off `stacksOf(S2)` inside Scarlet Coda's own apply() below, so its damage formula
  *  stays in one place. Casting Scarlet Coda also grants 14 Aftersound outright. */
-export const S2 = new Gear((ctx) => {
+export const S2 = new Gear("Phrolova S2", (ctx) => {
   if (ctx.action === ScarletCoda) {
     ctx.grantSelf(AFTERSOUND, 14);
     ctx.add(75, Stat.MulMv);
   }
-  return "Phrolova S2";
 });
 
 /** S3 A Dagger to Cut Clean Obsessions: +80% Echo Skill DMG Amplification, permanent. Casting
@@ -251,15 +273,14 @@ export const S2 = new Gear((ctx) => {
  *  enemy-facing/non-combat-formula effects with no equivalent here (note *type* barely matters
  *  anyway, since Cadenza and Strings already share one MV, and enemy ATK never feeds our own
  *  damage), so this is DMG Amp only. */
-export const S3 = new Gear((ctx) => { ctx.add(80, DamageType.Echo, Stat.Amp); return "Phrolova S3"; });
+export const S3 = new Gear("Phrolova S3", (ctx) => { ctx.add(80, DamageType.Echo, Stat.Amp); });
 
 /** S4 A Torch Illuminating the Path: a team Echo Skill cast grants the whole team +20%
  *  (unscoped) DMG Bonus for 30s — permanent uptime, per the standing duration rule. S4 itself
  *  only grants the global watcher once (idempotent); from there it reacts no matter whose turn
  *  the Echo cast lands on. */
-export const S4 = new Gear((ctx) => {
+export const S4 = new Gear("Phrolova S4", (ctx) => {
     if (isEcho(ctx.action!)) ctx.grantGlobal(S4_TEAM);
-    return "Phrolova S4";
 });
 export const S4_TEAM = new GlobalBuff(PRIORITY.BUFF_STATS,
   (ctx) => { ctx.add(20, Stat.DmgBonus); return "Phrolova S4"; });
@@ -267,7 +288,7 @@ export const S4_TEAM = new GlobalBuff(PRIORITY.BUFF_STATS,
 /** S5 A Forked Road in Fate's Heartland: an enemy-targeting Stagnate field on entering Maestro,
  *  and -30% DMG taken during Maestro — both out of scope (crowd control, incoming-damage
  *  reduction is a DPS calculator's non-concern), so this is a no-op placeholder. */
-export const S5 = new Gear(() => "Phrolova S5");
+export const S5 = new Gear("Phrolova S5");
 
 /**
  * S6 A Night to Depart From Eternal Rest: +24% MV multiplier on the three named Hecate Enhanced
@@ -283,7 +304,7 @@ export const S5 = new Gear(() => "Phrolova S5");
  * is queued/evaluated on), so both branches land on exactly "Hecate and Phrolova", never a
  * teammate's own hit.
  */
-export const S6 = new Gear((ctx) => {
+export const S6 = new Gear("Phrolova S6", (ctx) => {
   const a = ctx.action!;
   if (a === FBA || a === FSkill) ctx.queue(APPARITION_OF_BEYOND);
   if (a === EBA_STRINGS || a === EBA_WINDS || a === EBA_CADENZA) ctx.add(24, Stat.MulMv);
@@ -292,7 +313,6 @@ export const S6 = new Gear((ctx) => {
     if (!a.active) ctx.add(40, Stat.DmgDealt);
     else ctx.add(60, Element.Havoc, Stat.DmgBonus);
   }
-  return "Phrolova S6";
 });
 
 export const APPARITION_OF_BEYOND = new Action("Hecate: Apparition of Beyond", {
@@ -302,14 +322,14 @@ export const APPARITION_OF_BEYOND = new Action("Hecate: Apparition of Beyond", {
   apply(ctx) { ctx.grantSelf(AFTERSOUND, 8); },
 });
 
-/** Secondary loadout: all six sequences, R5 Lethean Elegy. Everything else (echoes/sonata/main
- *  stats) stays the same as the default `LOADOUT`. */
-export const LOADOUT_S6R5 = [
-  PHROLOVA, LETHEAN_ELEGY_R5, NM_HECATE, DREAM_OF_THE_LOST_3PC, MIDNIGHT_VEIL_2PC,
-  S1, S2, S3, S4, S5, S6,
-  mainstats("CD", "havoc havoc", "atk atk"),
-  chem("atk", "skill"),
-];
+/** Secondary loadout: all six sequences, R5 Lethean Elegy. Everything else (mainstats/substats,
+ *  mainslot echo) stays the same as the default `LOADOUT`. */
+const PHROLOVA_LOADOUT_S6R5 = new Loadout(
+  LETHEAN_ELEGY_R5, NM_HECATE, DREAM_OF_THE_LOST_3PC, MIDNIGHT_VEIL_2PC,
+  mainstats("CD", "havoc havoc", "atk atk"), chem("atk", "skill"),
+);
+export const LOADOUT_S6R5: ResonatorFactory = () =>
+  new Phrolova(PHROLOVA_LOADOUT_S6R5, [S1, S2, S3, S4, S5, S6]);
 
 /* ----------------------------------------------------------------- actions */
 
@@ -323,27 +343,27 @@ function phroAction(name: string, def: ActionDef): Action {
 }
 
 // --- basics, mid-air, dodge counter
-const BA1 = phroAction("Basic 1", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 106.9, energy: 1.59, concerto: 3.18 });
-const BA2 = phroAction("Basic 2", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 95.43, energy: 1.59, concerto: 3.18 });
-const BA3 = phroAction("Basic 3", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 196.14, energy: 3.12, concerto: 6.18,
+const BA1 = phroAction("Basic 1", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 106.9, energy: 159, concerto: 318, offtune: 5376 });
+const BA2 = phroAction("Basic 2", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 95.43, energy: 159, concerto: 318, offtune: 4800 });
+const BA3 = phroAction("Basic 3", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 196.14, energy: 312, concerto: 618, offtune: 9864,
   priority: PRIORITY.UPDATE_BUFFS, apply(ctx) { gainNote(ctx, "strings"); } });
-const MA = phroAction("Plunge", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 127.24, energy: 2, concerto: 4 });
-const DC = phroAction("Dodge Counter", { node: Node.Normal, cast: Cast.DodgeCounter, type: DamageType.Basic, mv: 121.99, energy: 1.92, concerto: 3.84 });
-const HA = phroAction("Heavy", { node: Node.Normal, cast: DamageType.Heavy, type: DamageType.Heavy, mv: 159.7, energy: 2.52, concerto: 5.02 });
+const MA = phroAction("Plunge", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 127.24, energy: 200, concerto: 400, offtune: 6400 });
+const DC = phroAction("Dodge Counter", { node: Node.Normal, cast: Cast.DodgeCounter, type: DamageType.Basic, mv: 121.99, energy: 192, concerto: 384, offtune: 1336 });
+const HA = phroAction("Heavy", { node: Node.Normal, cast: DamageType.Heavy, type: DamageType.Heavy, mv: 159.7, energy: 252, concerto: 502, offtune: 8032 });
 
 export const BA12 = new Chain("Basic 12", [BA1, BA2]);
 export const BA23 = new Chain("Basic 23", [BA2, BA3]);
 export const BA123 = new Chain("Basic 123", [BA1, BA2, BA3]);
 
 // --- resonance skill: Whispers in a Fleeting Dream, sends her into Reincarnate
-const Skill = phroAction("Skill", { node: Node.Skill, cast: DamageType.Skill, type: DamageType.Skill, mv: 211.94, energy: 13.34, concerto: 10,
+const Skill = phroAction("Skill", { node: Node.Skill, cast: DamageType.Skill, type: DamageType.Skill, mv: 211.94, energy: 1334, concerto: 1000, offtune: 4264,
   priority: PRIORITY.UPDATE_BUFFS, apply(ctx) { gainNote(ctx, "winds"); } });
 
 // --- Reincarnate follow-ups: Movement of Fate and Finality (basic), Murmurs in a Haunting
 //     Dream (skill) — both "considered Resonance Skill DMG"
-const FBA = phroAction("Forte Basic", { node: Node.Forte, cast: DamageType.Basic, type: DamageType.Skill, mv: 505.01, energy: 3.21, concerto: 10.02,
+const FBA = phroAction("Forte Basic", { node: Node.Forte, cast: DamageType.Basic, type: DamageType.Skill, mv: 505.01, energy: 321, concerto: 1002, offtune: 10161,
   priority: PRIORITY.UPDATE_BUFFS, apply(ctx) { gainNote(ctx, "strings"); } });
-const FSkill = phroAction("Forte Skill", { node: Node.Forte, cast: DamageType.Skill, type: DamageType.Skill, mv: 464.07, energy: 2.95, concerto: 10,
+const FSkill = phroAction("Forte Skill", { node: Node.Forte, cast: DamageType.Skill, type: DamageType.Skill, mv: 464.07, energy: 295, concerto: 1000, offtune: 9338,
   priority: PRIORITY.UPDATE_BUFFS, apply(ctx) { gainNote(ctx, "winds"); } });
 
 /** Scarlet Coda: base 660.16% plus 82.55% (S2: +75%, so 157.55%) of her ATK's own motion value
@@ -351,7 +371,7 @@ const FSkill = phroAction("Forte Skill", { node: Node.Forte, cast: DamageType.Sk
  *  counts as casting Echo Skill. S2's own flat +75% MV multiplier is read here too, alongside
  *  its formula change, so Scarlet Coda's whole damage shape stays in one place. */
 const ScarletCoda = phroAction("Forte Heavy", {
-  node: Node.Normal, cast: DamageType.Heavy, cast2: DamageType.Echo, type: DamageType.Skill, mv: 660.16, energy: 6.93, concerto: 40,
+  node: Node.Normal, cast: DamageType.Heavy, cast2: DamageType.Echo, type: DamageType.Skill, mv: 660.16, energy: 693, concerto: 4000, offtune: 166144,
   priority: PRIORITY.LATE_CONVERSION,
   apply(ctx) {
     const perStack = 82.55;
@@ -361,7 +381,7 @@ const ScarletCoda = phroAction("Forte Heavy", {
 
 // --- liberation: opens Maestro
 const Liberation = phroAction("Liberation", {
-  node: Node.Liberation, cast: DamageType.Liberation, type: DamageType.Liberation, mv: 0, concerto: 20,
+  node: Node.Liberation, cast: DamageType.Liberation, type: DamageType.Liberation, mv: 0, concerto: 2000,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) {
     ctx.grantSelf(MAESTRO_ATK);
@@ -383,15 +403,15 @@ export const HECATE_AUTO_CYCLE = new Action("Hecate: Auto Basic 12 x4", {
  *  never calls onIntro at all — this only ever fires once Maestro has already ended (Curtain
  *  Call, or a loop that outlasted the 30-action window) by the time she'd swap back in. */
 const Intro = phroAction("Intro", {
-  node: Node.Intro, cast: DamageType.Intro, type: DamageType.Intro, mv: 201.52, energy: 10, concerto: 10,
+  node: Node.Intro, cast: DamageType.Intro, type: DamageType.Intro, mv: 201.52, energy: 1000, concerto: 1000, offtune: 10137,
 });
 /** Suite of Immortality — the Maestro-replaced Intro press. Maestro already ended on the outro
  *  that triggered this (see the PHROLOVA Gear's onIntro); this hit never sees its +120% ATK. */
 const EIntro = phroAction("Enhanced Intro", {
-  node: Node.Intro, cast: DamageType.Intro, type: DamageType.Skill, mv: 596.43, energy: 10, concerto: 10,
+  node: Node.Intro, cast: DamageType.Intro, type: DamageType.Skill, mv: 596.43, energy: 1000, concerto: 1000, offtune: 9600,
 });
 const Outro = phroAction("Outro", {
-  cast: DamageType.Outro, type: DamageType.Outro, mv: 0, concerto: -100, active: false,
+  cast: DamageType.Outro, type: DamageType.Outro, mv: 0, concerto: -10000, active: false,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) {
     ctx.outro(PHROLOVA_OUTRO);
@@ -412,7 +432,7 @@ export const PHROLOVA_OUTRO = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
  *  header: nothing here auto-triggers it). Ends Maestro same as EIntro, on whichever of its 5
  *  real trigger conditions actually casts it. */
 export const CurtainCall = phroAction("Curtain Call", {
-  node: Node.Liberation, type: DamageType.Liberation, mv: 465.22,
+  node: Node.Liberation, type: DamageType.Liberation, mv: 465.22, offtune: 9360,
   // AUTO_ACTION: same reason as EIntro — still benefits from Maestro's ATK on the hit that ends it.
   priority: PRIORITY.AUTO_ACTION,
   apply(ctx) { endMaestro(ctx); },
@@ -450,9 +470,9 @@ export const EBA_CADENZA = hecateAction("Enhanced Cadenza", {
 
 /** She isn't the team's lead — her first appearance is a mid-combo swap-in, not a real Intro
  *  press, so the opener is just enough Basic Attacks to get going. */
-export const OPENER = [BA23, ACTION_NM_HECATE, FBA, Skill, FBA, BA123, FBA, 
+export const OPENER = [BA23, ECHO_CAST, FBA, Skill, FBA, BA123, FBA, 
     ScarletCoda, Liberation, HBA1, EBA_CADENZA, Outro];
-export const OPENER_S6R5 = [BA123, ACTION_NM_HECATE, FBA, Skill, FBA, 
+export const OPENER_S6R5 = [BA123, ECHO_CAST, FBA, Skill, FBA, 
     ScarletCoda, Liberation, Outro];
 
 /** The sheet's `frolo manual` loop: the preceding member's outro triggers Enhanced Intro
@@ -462,10 +482,10 @@ export const OPENER_S6R5 = [BA123, ACTION_NM_HECATE, FBA, Skill, FBA,
  *  after her Echo cast to Cadenza) before Scarlet Coda, then Liberation reopens Maestro, and
  *  Outro closes the loop — triggering 2 bonus Enhanced Hecate Attacks since Maestro is freshly
  *  open. */
-export const LOOP = [ BA3, FBA, Skill, FBA, ACTION_NM_HECATE, BA123, FSkill,
+export const LOOP = [ BA3, FBA, Skill, FBA, ECHO_CAST, BA123, FSkill,
   ScarletCoda, Liberation, HBA1, EBA_CADENZA, Outro,
 ];
 export const LOOP_S6R5 = [
-  BA3, FBA, Skill, FBA, ACTION_NM_HECATE, BA12, FBA, BA12, FBA,
+  BA3, FBA, Skill, FBA, ECHO_CAST, BA12, FBA, BA12, FBA,
   ScarletCoda, Liberation, Outro,
 ];

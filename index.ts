@@ -8,7 +8,7 @@
  */
 import { collapseChains } from "./src/kit.js";
 import { State, Enemy } from "./src/state.js";
-import type { Loadout, RotationEntry, ResolvedSnapshot } from "./src/state.js";
+import type { ResonatorFactory, RotationEntry, ResolvedSnapshot } from "./src/state.js";
 import { damage } from "./src/damage.js";
 import { buildReport, totalsBySlot } from "./src/display.js";
 import type { Report, Column, ReportRow, ReportPart, TraceEntry } from "./src/display.js";
@@ -26,13 +26,16 @@ import * as BT from "./src/resonators/brant.js";
 import * as SH from "./src/resonators/sanhua.js";
 import * as BU from "./src/resonators/buling.js";
 import * as LC from "./src/resonators/lucilla.js";
+import * as ZZ from "./src/resonators/zhezhi.js";
+import * as AG from "./src/resonators/augusta.js";
+import * as CL from "./src/resonators/carlotta.js";
 
 interface Member {
   name: string;
   /** This member's own color — each resonator file exports its own `COLOR`, so a build's team
    *  entry just carries it through rather than looking it up by name. */
   color: string;
-  loadout: Loadout;
+  loadout: ResonatorFactory;
   opener: RotationEntry[];
   loop: RotationEntry[];
 }
@@ -44,7 +47,7 @@ interface Member {
  */
 // A member without its own opener (not the team's lead) doesn't have one written yet — stand in
 // with their loop rotation for now, so they still get a real turn during the opener phase.
-const noOpener = (loadout: Loadout, loop: RotationEntry[]): { opener: RotationEntry[]; loop: RotationEntry[]; loadout: Loadout } =>
+const noOpener = (loadout: ResonatorFactory, loop: RotationEntry[]): { opener: RotationEntry[]; loop: RotationEntry[]; loadout: ResonatorFactory } =>
   ({ opener: loop, loop, loadout });
 
 const TEAMS: Record<string, Member[]> = {
@@ -128,6 +131,16 @@ const TEAMS: Record<string, Member[]> = {
     { name: "Qiuyuan", color: QY.COLOR, ...noOpener(QY.LOADOUT, QY.ROTATION) },
     { name: "Lucilla", color: LC.COLOR, ...noOpener(LC.LOADOUT, LC.ROTATION) },
   ],
+  skZhezhiCarlotta: [
+    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
+    { name: "Zhezhi", color: ZZ.COLOR, ...noOpener(ZZ.LOADOUT, ZZ.ROTATION) },
+    { name: "Carlotta", color: CL.COLOR, ...noOpener(CL.LOADOUT, CL.ROTATION) },
+  ],
+  skIunoAugusta: [
+    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
+    { name: "Iuno", color: IO.COLOR, ...noOpener(IO.LOADOUT, IO.ROTATION) },
+    { name: "Augusta", color: AG.COLOR, ...noOpener(AG.LOADOUT, AG.ROTATION) },
+  ],
 };
 const DEFAULT_TEAM = "skIunoJingran";
 
@@ -143,7 +156,7 @@ const STICK = 2;
 
 // level 100 enemy, level 90 resonators, a flat 20% base resistance, 39.2% max off-tune — every
 // fight this calculator runs uses the same standing numbers.
-const ENEMY_LEVEL = 100, RESONATOR_LEVEL = 90, DEFAULT_RES = 20, MAX_OFFTUNE = 39.2;
+const ENEMY_LEVEL = 100, RESONATOR_LEVEL = 90, DEFAULT_RES = 20, MAX_OFFTUNE = 392000;
 
 async function runTeam(members: Member[]): Promise<{
   state: State; report: Report; openerReport: Report; loopReport: Report; members: Member[];

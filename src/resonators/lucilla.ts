@@ -23,45 +23,32 @@
  *
  * Numbers from nanoka.cc (character 1109, weapon 21050086); cross-checked against the migrated
  * sheet's `lucilla echo` rotation and `Lucilla`/`Lucilla Echo`/`Freeze Frame` stat rows. One
- * departure from the sheet: Liberation's `energy: -125` is dropped — the page is explicit that
+ * departure from the sheet: Liberation's `energy: -12500` is dropped — the page is explicit that
  * "Clear As Day consumes no Resonance Energy" (she holds 0 max Energy to begin with), so that
  * number reads like a template default left over from every other character's ultimate-cost row
  * rather than something that applies to her.
  */
-import { Buff, GlobalBuff, Gear, Mode, Action, Chain, PRIORITY } from "../kit.js";
+import { Buff, GlobalBuff, Gear, Mode, Action, Chain, PRIORITY, ECHO_CAST } from "../kit.js";
 import type { ActionDef } from "../kit.js";
-import { isOutro } from "../state.js";
+import { Resonator, Loadout, isOutro } from "../state.js";
+import type { ResonatorFactory } from "../state.js";
 import { Stat, Element, DamageType, Node, Resource, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 import { DREAM_OF_THE_LOST_3PC } from "./phrolova.js";
-import { BELL_BORNE_GEOCHELONE, ACTION_BELL_BORNE, MOONLIT_CLOUDS_2PC } from "../shared/echoes.js";
+import { BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_2PC } from "../shared/echoes.js";
 
 /** This resonator's own color — every action from the wrapper below defaults to it. */
 export const COLOR = "#4f74c2";
 
 /* --------------------------------------------------------------- resonator */
 
-export const LUCILLA = new Gear((ctx) => {
-  ctx.add(100, Stat.Er);
-  ctx.add(5, Stat.CritRate);
-  ctx.add(150, Stat.CritDmg);
-
-  ctx.add(12237.5, Stat.BaseHp);
-  ctx.add(375, Stat.BaseAtk);
-  ctx.add(1197.78, Stat.BaseDef);
-  ctx.add(8, Stat.CritRate);
-  ctx.add(12, Stat.BonusAtk);
-
-  return "Lucilla";
-}, null, Element.Glacio, () => Intro);
-
 /** Resonance Mode: a loadout equips exactly one. Neither carries its own stat line — both are
  *  pure markers other pieces read via `stacksOf(MODE_ECHO)`, same as checking a sequence Gear. */
-export const MODE_ECHO = new Mode(() => "Lucilla: Resonance Mode - Echo");
+export const MODE_ECHO = new Mode("Lucilla: Resonance Mode - Echo");
 /** Not implemented — declared only so the loadout shape (and `startFight`'s "at most one Mode"
  *  check) has a second real mode to be mutually exclusive with. */
-export const MODE_CHAFE = new Mode(() => "Lucilla: Resonance Mode - Glacio Chafe");
+export const MODE_CHAFE = new Mode("Lucilla: Resonance Mode - Glacio Chafe");
 
 /** Slow Motion (Inherent Skill): while casting Spotlight (the Perfect Focus Skill press, not
  *  the quick Compensate tap), Echo mode grants the whole team +25% Echo Skill DMG Bonus for
@@ -105,12 +92,11 @@ export const MONTAGE_HANDOFF = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
  * of 1. Reacts to the wielder's *own* chafe application (`a.chafe`), so it still works if
  * someone other than Lucilla equips it.
  */
-export const FREEZE_FRAME = new Gear((ctx) => {
+export const FREEZE_FRAME = new Gear("Freeze Frame", (ctx) => {
   ctx.add(587.5, Stat.BaseAtk);
   ctx.add(24.3, Stat.CritRate);
   ctx.add(12, Stat.BonusAtk);
   if (ctx.action!.chafe > 0) { ctx.grantSelf(FREEZE_FRAME_SELF); ctx.grantGlobal(FREEZE_FRAME_TEAM); }
-  return "Freeze Frame";
 });
 export const FREEZE_FRAME_SELF = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
   ctx.add(30, Element.Glacio, Stat.DmgBonus);
@@ -122,11 +108,35 @@ export const FREEZE_FRAME_TEAM = new GlobalBuff(PRIORITY.BUFF_STATS,
 
 /** Echoes/sonata: Bell-Borne Geochelone mainslot, Moonlit Clouds 2pc + Dream of the Lost 3pc —
  *  all generic gear reused as-is, per the standing rule that gear works on whoever equips it. */
-export const LOADOUT = [
-  LUCILLA, MODE_ECHO, FREEZE_FRAME, BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_2PC, DREAM_OF_THE_LOST_3PC,
-  mainstats("CD", "glacio glacio", "atk atk"),
-  chem("atk", "basic"),
-];
+const LUCILLA_LOADOUT = new Loadout(
+  FREEZE_FRAME, BELL_BORNE_GEOCHELONE, DREAM_OF_THE_LOST_3PC, MOONLIT_CLOUDS_2PC,
+  mainstats("CD", "glacio glacio", "atk atk"), chem("atk", "basic"),
+);
+
+export class Lucilla extends Resonator {
+  constructor(loadout: Loadout) {
+    super(
+      "Lucilla",
+      Element.Glacio,
+      () => Intro,
+      loadout,
+      (ctx) => {
+        ctx.add(12237.5, Stat.BaseHp);
+        ctx.add(375, Stat.BaseAtk);
+        ctx.add(1197.78, Stat.BaseDef);
+      },
+      (ctx) => {
+        ctx.add(8, Stat.CritRate);
+        ctx.add(12, Stat.BonusAtk);
+      },
+      null,
+      MODE_ECHO,
+      [],
+      0,   // Clear As Day costs no Resonance Energy — see DREAM_OF_THE_LOST_3PC's own check
+    );
+  }
+}
+export const LOADOUT: ResonatorFactory = () => new Lucilla(LUCILLA_LOADOUT);
 
 /* ----------------------------------------------------------------- actions */
 
@@ -142,28 +152,28 @@ function lucillaAction(name: string, def: ActionDef): Action {
 // --- intro / outro
 const Intro = lucillaAction("Intro", {
   node: Node.Intro, cast: DamageType.Intro, type: DamageType.Intro, mv: 97.42,
-  energy: 11.75, concerto: 14.13, forte1: 100, offtune: 0.56, chafe: 1,
+  energy: 1175, concerto: 1413, forte1: 100, offtune: 5600, chafe: 1,
 });
 const Outro = lucillaAction("Outro", {
-  cast: DamageType.Outro, type: DamageType.Outro, mv: 0, concerto: -100, active: false,
+  cast: DamageType.Outro, type: DamageType.Outro, mv: 0, concerto: -10000, active: false,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.outro(MONTAGE_HANDOFF); },
 });
 
 // --- normal attacks: Basic 1/2, Basic 3 (Focus Ring, always assumed Perfect/Commendable)
-const BA1 = lucillaAction("Basic 1", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 59.29, energy: 1.07, concerto: 1.71, offtune: 0.34 });
-const BA2 = lucillaAction("Basic 2", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 67.23, energy: 1.22, concerto: 1.94, offtune: 0.39 });
-const BA3 = lucillaAction("Basic 3", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 235.27, energy: 4.23, concerto: 6.77, forte1: 50, offtune: 1.35 });
+const BA1 = lucillaAction("Basic 1", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 59.29, energy: 107, concerto: 171, offtune: 3400 });
+const BA2 = lucillaAction("Basic 2", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 67.23, energy: 122, concerto: 194, offtune: 3900 });
+const BA3 = lucillaAction("Basic 3", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 235.27, energy: 423, concerto: 677, forte1: 50, offtune: 13500 });
 export const BA123 = new Chain("Basic 123", [BA1, BA2, BA3]);
 
 // --- resonance skill: a quick tap (Compensate) for the CD-reduction utility (unmodeled — no CD
 //     tracking here, same as other kits' skill-CD text), then later a held Perfect Focus press
 //     (Spotlight) — the sheet's own rotation presses both, and the numbers below are its own
 //     tested values rather than re-derived from the page's separate move list.
-const SkillTap = lucillaAction("Skill tap", { node: Node.Skill, cast: DamageType.Skill, type: DamageType.Skill, mv: 42.39, energy: 1.35, concerto: 3.15, offtune: 0.42 });
+const SkillTap = lucillaAction("Skill tap", { node: Node.Skill, cast: DamageType.Skill, type: DamageType.Skill, mv: 42.39, energy: 135, concerto: 315, offtune: 4200 });
 const SkillPerfect = lucillaAction("Skill perfect", {
   node: Node.Skill, cast: DamageType.Skill, type: DamageType.Skill, mv: 548.98,
-  energy: 27.9, concerto: 26.8, forte1: 50, offtune: 0.92,
+  energy: 2790, concerto: 2680, forte1: 50, offtune: 9200,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { if (ctx.stacksOf(MODE_ECHO)) ctx.grantGlobal(SLOW_MOTION_TEAM); },
 });
@@ -171,7 +181,7 @@ const SkillPerfect = lucillaAction("Skill perfect", {
 // --- liberation: Clear As Day, Echo mode — Echo Skill DMG, no Energy cost (see file header)
 const Liberation = lucillaAction("Liberation", {
   node: Node.Liberation, cast: DamageType.Liberation, type: DamageType.Echo, mv: 142.74,
-  concerto: 20, offtune: 3.84,
+  concerto: 2000, offtune: 38400,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.grantSelf(LIB_SELF_DMG); ctx.grantGlobal(ZOOM); },
 });
@@ -180,11 +190,11 @@ const Liberation = lucillaAction("Liberation", {
 //     of mode) and Letting It Go (mode-typed). node: liberation, matching the sheet. Stage 3
 //     itself triggers Oblivion — a real follow-up action, not a separately-placed rotation step
 //     — once per Photo actually banked, read straight off forte1 (max 3, 50 Trace each).
-const UBA1 = lucillaAction("Tracing Forms 1", { node: Node.Liberation, cast: DamageType.Basic, type: DamageType.Basic, mv: 76.59, energy: 1.08, concerto: 2.54, offtune: 0.34 });
-const UBA2 = lucillaAction("Tracing Forms 2", { node: Node.Liberation, cast: DamageType.Basic, type: DamageType.Basic, mv: 149.42, energy: 2.1, concerto: 4.94, offtune: 0.67 });
+const UBA1 = lucillaAction("Tracing Forms 1", { node: Node.Liberation, cast: DamageType.Basic, type: DamageType.Basic, mv: 76.59, energy: 108, concerto: 254, offtune: 3400 });
+const UBA2 = lucillaAction("Tracing Forms 2", { node: Node.Liberation, cast: DamageType.Basic, type: DamageType.Basic, mv: 149.42, energy: 210, concerto: 494, offtune: 6700 });
 const UBA3 = lucillaAction("Tracing Forms 3", {
   node: Node.Liberation, cast: DamageType.Basic, type: DamageType.Basic, mv: 416.96,
-  energy: 5.84, concerto: 11.2, offtune: 1.864,
+  energy: 584, concerto: 1120, offtune: 18640,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) {
     const photos = Math.min(3, Math.floor(ctx.counter(Resource.Forte1) / 50));
@@ -198,14 +208,14 @@ export const UBA123 = new Chain("Tracing Forms 123", [UBA1, UBA2, UBA3]);
  *  is Echo Skill DMG and a real Echo cast (Remembrance's own Zoom stack too). */
 const OblivionEcho = lucillaAction("Oblivion", {
   node: Node.Forte, cast: DamageType.Echo, type: DamageType.Echo, mv: 285.48,
-  forte1: -50, offtune: 0.96,
+  forte1: -50, offtune: 9600,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.grantGlobal(ZOOM); },
 });
 
 const LettingGoEcho = lucillaAction("Letting It Go", {
   node: Node.Liberation, type: DamageType.Echo, mv: 848.07,
-  energy: 3.36, concerto: 27.88, offtune: 3.67,
+  energy: 336, concerto: 2788, offtune: 36700,
 });
 
 /** The sheet's `lucilla echo` rotation: Intro, a quick Skill tap then a held Spotlight,
@@ -213,6 +223,6 @@ const LettingGoEcho = lucillaAction("Letting It Go", {
  *  hits), Letting It Go closes it out — Bell-Borne Geochelone's own cast placed before Outro,
  *  same ordering Sanhua's file uses for its own mainslot echo. */
 export const ROTATION = [
-  SkillPerfect, ACTION_BELL_BORNE, Liberation, UBA123,
+  SkillPerfect, ECHO_CAST, Liberation, UBA123,
   LettingGoEcho, Outro,
 ];

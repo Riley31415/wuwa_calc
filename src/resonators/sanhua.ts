@@ -30,33 +30,20 @@
  * resonator, so they live in shared/echoes.js instead — this file just imports what its own
  * default loadout equips.
  */
-import { Buff, Gear, Action, Chain, PRIORITY } from "../kit.js";
+import { Buff, Gear, Action, Chain, PRIORITY, ECHO_CAST } from "../kit.js";
 import type { ActionDef } from "../kit.js";
-import { isOutro } from "../state.js";
+import { Resonator, Loadout, isOutro } from "../state.js";
+import type { ResonatorFactory } from "../state.js";
 import { Stat, Element, DamageType, Type2, Node, Resource, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 import { EMERALD_OF_GENESIS } from "../shared/weapons.js";
-import { HERON, ACTION_HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../shared/echoes.js";
+import { HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../shared/echoes.js";
 
 /** This resonator's own color — every action from the wrapper below defaults to it. */
 export const COLOR = "#5fc9e8";
 
 /* --------------------------------------------------------------- resonator */
-
-export const SANHUA = new Gear((ctx) => {
-  ctx.add(100, Stat.Er);
-  ctx.add(5, Stat.CritRate);
-  ctx.add(150, Stat.CritDmg);
-
-  ctx.add(10063, Stat.BaseHp);
-  ctx.add(275, Stat.BaseAtk);
-  ctx.add(941, Stat.BaseDef);
-  ctx.add(12, Stat.BonusAtk);          // Eternal Frost B2/B4 + Glacial Gaze B2/B4 ATK+ nodes
-  ctx.add(12, Element.Glacio, Stat.DmgBonus);  // Frigid Light B3/B5 + Freezing Thorns B3/B5 Glacio DMG Bonus+ nodes
-
-  return "Sanhua";
-}, null, Element.Glacio, () => Intro);
 
 /** Condensation (Inherent Skill): +20% Resonance Skill DMG for 8s after casting Intro Skill
  *  Freezing Thorns — short enough that only the standing outro-loss rule matters. */
@@ -78,9 +65,8 @@ export const AVALANCHE = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
 /* ------------------------------------------------------------------- sequences */
 
 /** S1 Solitude's Embrace: Basic Attack 5 grants +15% Crit Rate for 10s. */
-export const S1 = new Gear((ctx) => {
+export const S1 = new Gear("Sanhua S1", (ctx) => {
   if (ctx.action === BA5) ctx.grantSelf(S1_CRIT);
-  return "Sanhua S1";
 });
 export const S1_CRIT = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
   ctx.add(15, Stat.CritRate);
@@ -90,16 +76,16 @@ export const S1_CRIT = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
 
 /** S2 Snowy Clarity: Detonate STA cost down, interruption resistance on Skill cast — neither
  *  has a damage-relevant effect in this calculator, so this is a no-op placeholder. */
-export const S2 = new Gear(() => "Sanhua S2");
+export const S2 = new Gear("Sanhua S2");
 
 /** S3 Anomalous Vision: +35% DMG vs targets below 70% HP. No enemy-HP tracking here, so modelled
  *  as a flat 35% * 70% assumed uptime, per explicit approval. */
-export const S3 = new Gear((ctx) => { ctx.add(24.5, Stat.DmgBonus); return "Sanhua S3"; });
+export const S3 = new Gear("Sanhua S3", (ctx) => { ctx.add(24.5, Stat.DmgBonus); });
 
 /** S4 Blade Mastery: Liberation refunds 10 Energy (see Liberation's own apply() below) and arms
  *  a one-shot +120% DMG Bonus for the very next Detonate — consumed the instant FHA lands, or
  *  lost on outro if Detonate never comes. */
-export const S4 = new Gear(() => "Sanhua S4");
+export const S4 = new Gear("Sanhua S4");
 export const S4_WINDOW = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
   const a = ctx.action!;
   if (a === FHA) ctx.add(120, Stat.DmgBonus);
@@ -111,12 +97,12 @@ export const S4_WINDOW = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
  *  Liberation's own apply() reads this to grant 2 Glacier stacks instead of 1. Ice Creations
  *  auto-exploding even when not detonated needs no extra modelling — every rotation below
  *  detonates everything anyway. */
-export const S5 = new Gear((ctx) => { ctx.add(100, Type2.Burst, Stat.CritDmg); return "Sanhua S5"; });
+export const S5 = new Gear("Sanhua S5", (ctx) => { ctx.add(100, Type2.Burst, Stat.CritDmg); });
 
 /** S6 Daybreak Radiance: detonating an Ice Prism or a Glacier grants the other 2 team members
  *  +10% ATK, permanently, stacking twice — read from DETONATE_PRISM/DETONATE_GLACIER's own
  *  apply() below. Local (not Sanhua's own global reward), delivered like Fallacy. */
-export const S6 = new Gear(() => "Sanhua S6");
+export const S6 = new Gear("Sanhua S6");
 export const S6_ATK = new Buff(PRIORITY.BUFF_STATS, (ctx, stacks) => {
   ctx.add(10 * stacks, Stat.BonusAtk);
   return `Sanhua S6 x${stacks}`;
@@ -125,13 +111,35 @@ export const S6_ATK = new Buff(PRIORITY.BUFF_STATS, (ctx, stacks) => {
 /** Her echoes, leaning on the combat role's own "Concerto Efficiency" / "Basic Attack DMG
  *  Amplification" tags. Emerald of Genesis (a standard weapon, already shared) tops her own
  *  nanoka-recommended weapon list — she has no signature, being 4-star. Default loadout carries
- *  all six sequences. */
-export const LOADOUT = [
-  SANHUA, EMERALD_OF_GENESIS, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC,
-  S1, S2, S3, S4, S5, S6,
-  mainstats("CD", "glacio glacio", "atk atk"),
-  chem("atk", "skill"),
-];
+ *  all six sequences, lumped in with the sonata pieces. */
+const SANHUA_LOADOUT = new Loadout(
+  EMERALD_OF_GENESIS, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC,
+  mainstats("CD", "glacio glacio", "atk atk"), chem("atk", "skill"),
+);
+
+export class Sanhua extends Resonator {
+  constructor(loadout: Loadout) {
+    super(
+      "Sanhua",
+      Element.Glacio,
+      () => Intro,
+      loadout,
+      (ctx) => {
+        ctx.add(10063, Stat.BaseHp);
+        ctx.add(275, Stat.BaseAtk);
+        ctx.add(941, Stat.BaseDef);
+      },
+      (ctx) => {
+        ctx.add(12, Stat.BonusAtk);          // Eternal Frost B2/B4 + Glacial Gaze B2/B4 ATK+ nodes
+        ctx.add(12, Element.Glacio, Stat.DmgBonus);  // Frigid Light B3/B5 + Freezing Thorns B3/B5 Glacio DMG Bonus+ nodes
+      },
+      null,
+      null,
+      [S1, S2, S3, S4, S5, S6],
+    );
+  }
+}
+export const LOADOUT: ResonatorFactory = () => new Sanhua(SANHUA_LOADOUT);
 
 /* ----------------------------------------------------------------- actions */
 
@@ -146,12 +154,12 @@ function sanhuaAction(name: string, def: ActionDef): Action {
 
 // --- intro / outro
 const Intro = sanhuaAction("Intro", {
-  node: Node.Intro, cast: DamageType.Intro, type: DamageType.Intro, mv: 139.17, energy: 10, concerto: 10, offtune: 0.28,
+  node: Node.Intro, cast: DamageType.Intro, type: DamageType.Intro, mv: 139.17, energy: 1000, concerto: 1000, offtune: 2800,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.grantSelf(CONDENSATION); ctx.grantSelf(THORN_BUFF); },
 });
 const Outro = sanhuaAction("Outro", {
-  cast: DamageType.Outro, type: DamageType.Outro, mv: 0, concerto: -100, active: false,
+  cast: DamageType.Outro, type: DamageType.Outro, mv: 0, concerto: -10000, active: false,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.outro(SANHUA_OUTRO); },
 });
@@ -164,31 +172,31 @@ export const SANHUA_OUTRO = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
 // --- resonance skill (creates Ice Prism) and liberation (creates Glacier, refunds Energy/arms
 //     Blade Mastery under S4, doubles the Glacier grant under S5)
 const Skill = sanhuaAction("Skill", {
-  node: Node.Skill, cast: DamageType.Skill, type: DamageType.Skill, mv: 359.85, energy: 10, concerto: 15,
+  node: Node.Skill, cast: DamageType.Skill, type: DamageType.Skill, mv: 359.85, energy: 1000, concerto: 1500,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.grantSelf(PRISM_BUFF); },
 });
 const Liberation = sanhuaAction("Liberation", {
-  node: Node.Liberation, cast: DamageType.Liberation, type: DamageType.Liberation, mv: 809.48, energy: -100, concerto: 20,
+  node: Node.Liberation, cast: DamageType.Liberation, type: DamageType.Liberation, mv: 809.48, energy: -10000, concerto: 2000,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) {
     ctx.grantSelf(GLACIER_BUFF, ctx.stacksOf(S5) ? 2 : 1);
-    if (ctx.stacksOf(S4)) { ctx.gain(Resource.Energy, 10); ctx.grantSelf(S4_WINDOW); }
+    if (ctx.stacksOf(S4)) { ctx.gain(Resource.Energy, 1000); ctx.grantSelf(S4_WINDOW); }
   },
 });
 
 // --- normal attacks: five basics, a heavy, a mid-air
-const BA1 = sanhuaAction("Basic 1", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 48.71, energy: 0.87, concerto: 2, offtune: 0.434 });
-const BA2 = sanhuaAction("Basic 2", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 73.76, energy: 1.32, concerto: 4, offtune: 0.496 });
-const BA3 = sanhuaAction("Basic 3", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 86.32, energy: 1.52, concerto: 8, offtune: 0.456 });
-const BA4 = sanhuaAction("Basic 4", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 79.34, energy: 1.42, concerto: 8, offtune: 1.344 });
+const BA1 = sanhuaAction("Basic 1", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 48.71, energy: 87, concerto: 200, offtune: 4340 });
+const BA2 = sanhuaAction("Basic 2", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 73.76, energy: 132, concerto: 400, offtune: 4960 });
+const BA3 = sanhuaAction("Basic 3", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 86.32, energy: 152, concerto: 800, offtune: 4560 });
+const BA4 = sanhuaAction("Basic 4", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 79.34, energy: 142, concerto: 800, offtune: 13440 });
 const BA5 = sanhuaAction("Basic 5", {
-  node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 233.81, energy: 4.2, concerto: 10, offtune: 0.952,
+  node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 233.81, energy: 420, concerto: 1000, offtune: 9520,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.grantSelf(AVALANCHE); },
 });
-export const HA = sanhuaAction("Heavy", { node: Node.Normal, cast: DamageType.Heavy, type: DamageType.Heavy, mv: 111.35, energy: 2, concerto: 8, offtune: 0.8 });
-export const MA = sanhuaAction("Plunge", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 86.29, energy: 0.51, concerto: 1, offtune: 0.8 });
+export const HA = sanhuaAction("Heavy", { node: Node.Normal, cast: DamageType.Heavy, type: DamageType.Heavy, mv: 111.35, energy: 200, concerto: 800, offtune: 8000 });
+export const MA = sanhuaAction("Plunge", { node: Node.Normal, cast: DamageType.Basic, type: DamageType.Basic, mv: 86.29, energy: 51, concerto: 100, offtune: 8000 });
 
 export const BA123 = new Chain("Basic 123", [BA1, BA2, BA3]);
 export const BA12345 = new Chain("Basic 12345", [BA1, BA2, BA3, BA4, BA5]);
@@ -215,7 +223,7 @@ export const GLACIER_BUFF = new Buff(PRIORITY.UPDATE_BUFFS, (ctx, stacks) => {
 //     Creations are up (Resonance Skill DMG, type2: BURST for Avalanche/S5's own scoping). The
 //     Ice Thorn burst is the one exception noted above: 0 concerto, just 2 Energy.
 export const FHA = sanhuaAction("Forte Heavy", {
-  node: Node.Normal, cast: DamageType.Heavy, type: DamageType.Heavy, mv: 372.58, energy: 4.68, concerto: 15,
+  node: Node.Normal, cast: DamageType.Heavy, type: DamageType.Heavy, mv: 372.58, energy: 468, concerto: 1500,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) {
     if (ctx.stacksOf(THORN_BUFF)) { ctx.queue(DETONATE_THORN); ctx.removeStack(THORN_BUFF); }
@@ -225,14 +233,14 @@ export const FHA = sanhuaAction("Forte Heavy", {
     if (glaciers) ctx.removeStack(GLACIER_BUFF, glaciers);
   },
 });
-export const DETONATE_THORN = sanhuaAction("Detonate Intro", { node: Node.Normal, cast: DamageType.Heavy, type: DamageType.Skill, type2: Type2.Burst, mv: 59.65, energy: 2, concerto: 0 });
+export const DETONATE_THORN = sanhuaAction("Detonate Intro", { node: Node.Normal, cast: DamageType.Heavy, type: DamageType.Skill, type2: Type2.Burst, mv: 59.65, energy: 200, concerto: 0 });
 export const DETONATE_PRISM = sanhuaAction("Detonate Skill", {
-  node: Node.Normal, cast: DamageType.Heavy, type: DamageType.Skill, type2: Type2.Burst, mv: 79.53, energy: 7, concerto: 15,
+  node: Node.Normal, cast: DamageType.Heavy, type: DamageType.Skill, type2: Type2.Burst, mv: 79.53, energy: 700, concerto: 1500,
   priority: PRIORITY.UPDATE_BUFFS,
   apply: (ctx) => { if (ctx.stacksOf(S6)) ctx.grantOthers(S6_ATK); },
 });
 export const DETONATE_GLACIER = sanhuaAction("Detonate Liberation", {
-  node: Node.Normal, cast: DamageType.Heavy, type: DamageType.Skill, type2: Type2.Burst, mv: 139.17, energy: 7, concerto: 15,
+  node: Node.Normal, cast: DamageType.Heavy, type: DamageType.Skill, type2: Type2.Burst, mv: 139.17, energy: 700, concerto: 1500,
   priority: PRIORITY.UPDATE_BUFFS,
   apply: (ctx) => { if (ctx.stacksOf(S6)) ctx.grantOthers(S6_ATK); },
 });
@@ -242,5 +250,5 @@ export const DETONATE_GLACIER = sanhuaAction("Detonate Liberation", {
  *  basics chain ends on Basic 5 so Avalanche (and S1's Crit Rate) are up for the Detonate that
  *  follows it, and Blade Mastery's window (if S4) still covers that same Detonate. */
 export const ROTATION = [
-  Skill, Liberation, FHA, ACTION_HERON, Outro,
+  Skill, Liberation, FHA, ECHO_CAST, Outro,
 ];

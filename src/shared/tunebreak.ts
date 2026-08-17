@@ -7,8 +7,9 @@ import { Action, Buff, PRIORITY, WHITE } from "../kit.js";
 import type { ResolvedSnapshot } from "../state.js";
 import { Resource, Element, DamageType, Cast, Scaling } from "../stats.js";
 
-/** The bar resets to -3, not 0: about three seconds of dead window before it can build again. */
-const OFFTUNE_AFTER_BREAK = -3;
+/** The bar resets to -30000, not 0: about three seconds of dead window before it can build
+ *  again. */
+const OFFTUNE_AFTER_BREAK = -30000;
 
 /** Off-tune break. Scales off the tune constant, bypasses crit. Empties the bar itself, so the
  *  drop lands on this row's own off-tune trace rather than whatever action filled it. Colored

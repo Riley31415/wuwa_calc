@@ -236,28 +236,31 @@ export function statLabel(stat: string): string {
 /* ---------------------------------------------------------------------- counters */
 /**
  * Counters persist across actions rather than being rebuilt each time. Each is a real,
- * hardcoded field on `Slot` (energy, concerto, forte1-4) or `State` (off-tune) — not a map a
- * kit could add an entry to by typo. `counter()`/`setCounter()` reject anything else.
+ * hardcoded field on `Slot` (energy, concerto) or `State` (off-tune), or on `Resonator`
+ * (forte1-5) — not a map a kit could add an entry to by typo. `counter()`/`setCounter()`
+ * reject anything else.
  */
 export enum Resource {
   /** Off-tune is a property of the fight, not of a resonator: the whole team fills one bar. */
   // TODO move to enemy
   Offtune = "offtune", // team-wide running total
 
-  // TODO move into resonator instances, store max concerto and max energy
-  Energy = "energy",   // per resonator, running total
+  Energy = "energy",   // per resonator, running total; ceiling declared on Resonator (unenforced)
   Concerto = "concerto",
 
-  /** Generic forte gauges — a resonator assigns its own meaning onto whichever fits its kit. */
-  // TODO move into resonator instances
+  /** Generic forte gauges — a resonator assigns its own meaning onto whichever fits its kit.
+   *  Held on `Resonator`, not `Slot` — a fresh instance per fight, so nothing leaks between
+   *  runs. */
   Forte1 = "forte1",
   Forte2 = "forte2",
   Forte3 = "forte3",
   Forte4 = "forte4",
+  Forte5 = "forte5",
 }
 
 export const SLOT_RESOURCES: Resource[] = [
-  Resource.Energy, Resource.Concerto, Resource.Forte1, Resource.Forte2, Resource.Forte3, Resource.Forte4,
+  Resource.Energy, Resource.Concerto,
+  Resource.Forte1, Resource.Forte2, Resource.Forte3, Resource.Forte4, Resource.Forte5,
 ];
 export const TEAM_RESOURCES: Resource[] = [Resource.Offtune];
 export const ACTION_RESOURCES: Resource[] = [...SLOT_RESOURCES, ...TEAM_RESOURCES];

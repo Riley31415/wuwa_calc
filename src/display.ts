@@ -155,22 +155,23 @@ function resourceTrace(
   // What the rotation had already banked. Shown even when nothing moved, so the number in the
   // column is always accounted for rather than appearing from nowhere on a row that spent nothing.
   const carried = total - moved.reduce((n, m) => n + m.value, 0);
-  if (Math.abs(carried) > 1e-9) rows.push({ source: "Concerto Held", value: carried });
-  rows.push(...moved.filter((m) => Math.abs(m.value) > 1e-9));
+  if (Math.abs(carried) > 1e-9) rows.push({ source: "Concerto Held", value: carried, digits: 0 });
+  rows.push(...moved.filter((m) => Math.abs(m.value) > 1e-9).map((m) => ({ ...m, digits: 0 })));
 
-  // A liberation declares -125 energy and an outro -100 concerto, but neither moves the running
-  // total: they consume whatever is banked, which no running total can express. The declared cost
-  // is real and worth showing, so it sits below the total rather than pretending to sum into it.
+  // A liberation declares -12500 energy and an outro -10000 concerto, but neither moves the
+  // running total: they consume whatever is banked, which no running total can express. The
+  // declared cost is real and worth showing, so it sits below the total rather than pretending
+  // to sum into it.
   const declared = (snap.action as unknown as Record<string, number>)[key] ?? 0;
   if (declared < 0 && !moved.some((m) => m.value < 0)) {
     rows.push({ source: "declared cost", label: "spends the bar",
-      value: declared, place: "afterTotal" });
+      value: declared, place: "afterTotal", digits: 0 });
   }
   return rows;
 }
 
 /** The four generic forte gauges, shown under their own names rather than a kit's word. */
-const FORTE_GAUGES = [Resource.Forte1, Resource.Forte2, Resource.Forte3, Resource.Forte4];
+const FORTE_GAUGES = [Resource.Forte1, Resource.Forte2, Resource.Forte3, Resource.Forte4, Resource.Forte5];
 
 /** How the terminal marks a chain's member, and what it calls the bottom row — both occupy the
  *  action column, so both have to fit inside its measured width. */
@@ -371,9 +372,9 @@ export function buildReport(
     { key: "effDef", label: "def%", digits: 1, percent: true },
     { key: "effRes", label: "res%", digits: 1, percent: true },
 
-    { key: "energy", label: "energy", digits: 1, hideIfZero: true },
-    { key: "concerto", label: "concerto", digits: 1, hideIfZero: true },
-    { key: "offtune", label: "offtune", digits: 2, hideIfZero: true },
+    { key: "energy", label: "energy", digits: 0, hideIfZero: true },
+    { key: "concerto", label: "concerto", digits: 0, hideIfZero: true },
+    { key: "offtune", label: "offtune", digits: 0, hideIfZero: true },
     ...FORTE_GAUGES.map((key) => ({ key: `gauge:${key}`, label: key, hideIfZero: true })),
   ];
 

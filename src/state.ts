@@ -20,14 +20,15 @@
  * them can evaluate side by side.
  */
 import {
-  Stat, Resource, DamageType, Cast,
+  Stat, Element, Resource, DamageType, Cast,
   isPercent, SLOT_RESOURCES, TEAM_RESOURCES, scopedStat, TAGS_MATCHED,
 } from "./stats.js";
 import {
-  Buff, Debuff, GlobalBuff, Gear, Mode, Chain, Action, asBuff, asDebuff, asGlobalBuff, asAction,
+  Buff, Debuff, GlobalBuff, Gear, Mode, Mainslot, Chain, Action, ECHO_CAST,
+  asBuff, asDebuff, asGlobalBuff, asAction,
   labelOf, nameOf, setLabel, PRIORITY, PRIORITY_BANDS,
 } from "./kit.js";
-import type { Priority } from "./kit.js";
+import type { Priority, OnIntro } from "./kit.js";
 import type { Snapshot, DamageConfig } from "./damage.js";
 
 /** What an action is, for matching scoped stats: its element and its damage type. */
@@ -71,12 +72,122 @@ export interface CounterLogEntry {
 /** A per-resonator held buff instance, as `Slot.list`'s values — `Buff.instance()`'s shape. */
 export type HeldBuff = Buff;
 
-/** A single loadout: the resonator's own Gear first, then weapon/echo/sonata/mainstats/etc. */
-export type Loadout = Gear[];
-
 /** A buff waiting in the outro queue, its owner captured at publish time — the resonator who
  *  eventually adopts it on their own intro is not who granted it. */
 export interface QueuedOutro { buff: Buff; owner: string | null; }
+
+/** A resonator's held gear: weapon, mainslot echo, the sonata's two pieces, mainstats and
+ *  substats — every field required, since a build always equips all six. Resonance Mode and any
+ *  extra sequence gear aren't part of this (not every build has either), so they stay their own
+ *  fields on `Resonator` instead. */
+export class Loadout {
+  weapon: Gear;
+  mainslot: Mainslot;
+  sonata: Gear;
+  pc2: Gear;
+  mainstat: Gear;
+  substat: Gear;
+
+  constructor(weapon: Gear, mainslot: Mainslot, sonata: Gear, pc2: Gear, mainstat: Gear, substat: Gear) {
+    this.weapon = weapon;
+    this.mainslot = mainslot;
+    this.sonata = sonata;
+    this.pc2 = pc2;
+    this.mainstat = mainstat;
+    this.substat = substat;
+  }
+}
+
+/**
+ * One playable character's own held state and gear for a single fight — the "team member" that
+ * replaces a resonator's own Gear const from before. Every piece of gear (weapon, mainslot echo,
+ * sonata, mainstats, substats — bundled in `loadout`) is a shared singleton, reused across every
+ * fight, since none of them hold mutable per-fight state of their own. A Resonator does — the
+ * forte gauges — so each resonator file exports a factory (`LOADOUT`, a `ResonatorFactory`)
+ * rather than a ready-made const, and `startFight()` calls it fresh every time, so nothing leaks
+ * between fights sharing the same process (the web UI re-running a different team, say).
+ *
+ * Does not extend `Gear`/`Buff` — it isn't itself a stat contribution, it *holds* the two that
+ * are (`base`, `talents`), plus its own `loadout`/`mode`/`sequences`, in named fields instead of
+ * a loose array, so equipping two weapons (or two mainslots, or two modes) is a type error, not
+ * a runtime check.
+ */
+export class Resonator {
+  name: string;
+  element: Element;
+  onIntro: OnIntro;
+  loadout: Loadout;
+  /** A build commits to at most one stance for the whole fight (see `Mode` in kit.js) — most
+   *  characters have none. */
+  mode: Mode | null;
+  /** Extra Gear a loadout equips beyond the standard six (a character's own sequence pieces,
+   *  say) — not every build has any. */
+  sequences: Gear[];
+  onFightStart: ((ctx: Ctx) => void) | null;
+  maxEnergy: number;
+  maxConcerto: number;
+  /** Forte gauges: generic, a kit assigns its own meaning to whichever it uses — mutated
+   *  directly by a kit's own code, or through the Resource system (`ctx.gain(Resource.Forte1,
+   *  ...)`) same as Energy/Concerto. A fresh Resonator zeroes all five every fight. */
+  forte1 = 0;
+  forte2 = 0;
+  forte3 = 0;
+  forte4 = 0;
+  forte5 = 0;
+  /** This character's own base stat line (HP/ATK/DEF, etc) — reported under their own name,
+   *  added to the slot exactly like any other Gear. */
+  readonly base: Buff;
+  /** The stat-tree talent bonus, split into its own buff so a trace can tell it apart from
+   *  `base`: the universal 100% ER / 5% Crit Rate / 150% Crit DMG baseline every resonator
+   *  carries, plus whatever `talents` adds. */
+  readonly talents: Buff;
+
+  constructor(
+    name: string,
+    element: Element,
+    onIntro: OnIntro,
+    loadout: Loadout,
+    /** This character's own kit-specific base stats (HP/ATK/DEF, etc) — not the universal
+     *  CR/CD/ER baseline or the stat-tree talent bonus, both handled by `talents` below instead. */
+    stats: ((ctx: Ctx, stacks: number) => void) | null = null,
+    /** The stat-tree talent bonus alone — usually 12% ATK plus either 8% Crit Rate or 16% Crit
+     *  DMG, per character. Reported under its own "$Name: Talents" buff (`this.talents`), split
+     *  from `stats` so a trace can tell a character's own numbers from their stat tree's. */
+    talents: ((ctx: Ctx, stacks: number) => void) | null = null,
+    onFightStart: ((ctx: Ctx) => void) | null = null,
+    mode: Mode | null = null,
+    sequences: Gear[] = [],
+    /** Declared ceilings, not yet enforced anywhere — Energy/Concerto still accumulate uncapped
+     *  in `evaluate()`, so far. */
+    maxEnergy = 10000,
+    maxConcerto = 10000,
+  ) {
+    this.name = name;
+    this.element = element;
+    this.onIntro = onIntro;
+    this.loadout = loadout;
+    this.mode = mode;
+    this.sequences = sequences;
+    this.onFightStart = onFightStart;
+    this.maxEnergy = maxEnergy;
+    this.maxConcerto = maxConcerto;
+
+    this.base = new Buff(PRIORITY.GEAR_STATS, (ctx, stacks) => { stats?.(ctx, stacks); return name; });
+    this.talents = new Buff(PRIORITY.GEAR_STATS, (ctx, stacks) => {
+      ctx.add(100, Stat.Er);
+      ctx.add(5, Stat.CritRate);
+      ctx.add(150, Stat.CritDmg);   // a total multiplier, not a bonus: a crit deals 150%
+      talents?.(ctx, stacks);
+      return `${name}: Talents`;
+    });
+  }
+
+  toString(): string { return this.name; }
+}
+
+/** A resonator file's own `LOADOUT` export — called fresh by `startFight()` every time, so a
+ *  Resonator's mutable fields (the forte gauges) never carry over from a previous fight. */
+export type ResonatorFactory = () => Resonator;
 
 export class Slot {
   name: string;
@@ -85,13 +196,14 @@ export class Slot {
   list: Map<Buff, HeldBuff>;
   energy: number;
   concerto: number;
-  forte1: number;
-  forte2: number;
-  forte3: number;
-  forte4: number;
+  /** How many shields this cast grants — reset to the action's own declared count at the start
+   *  of every `evaluate()`, same as `entries`; a buff adds to it the same way it adds to
+   *  Concerto/Energy (`Ctx.gainShields`), not through the Stat/`add()` system (shields are not
+   *  a stat, see stats.ts). */
+  shields: number;
   entries: StatEntry[];
   counterLog: CounterLogEntry[];
-  resonator: Gear | null;
+  resonator: Resonator | null;
   data: Record<string, unknown>;
 
   constructor(name: string, index: number, state: State | null = null) {
@@ -101,14 +213,11 @@ export class Slot {
     this.state = state;
     /** Every buff on this resonator. Buff -> instance (carries its own `via`). */
     this.list = new Map();
-    /** Resources and gauges: six real fields, not a map — `counter()`/`setCounter()` reject
-     *  any other name. Forte gauges stay generic; a kit assigns its own meaning to one. */
+    /** Energy/Concerto: real fields, not a map — `counter()`/`setCounter()` reject any other
+     *  name. Forte gauges live on `resonator` instead (see Resource.ForteN's own comment). */
     this.energy = 0;
     this.concerto = 0;
-    this.forte1 = 0;
-    this.forte2 = 0;
-    this.forte3 = 0;
-    this.forte4 = 0;
+    this.shields = 0;
     /** Stat entries rebuilt for every action. */
     this.entries = [];
     /** Who moved which counter this action — the resource panels' hover trace. */
@@ -192,15 +301,17 @@ export class Slot {
   /** This resonator's stack count for a buff. 0 if it does not hold it. */
   stacksOf(buff: Buff): number { return this.list.get(buff)?.stacks ?? 0; }
 
-  /** One of the six named resources — throws on anything else. */
+  /** One of the named resources — Energy/Concerto live here, the forte gauges on `resonator`
+   *  (a fresh instance per fight; see `Resonator`'s own header). Throws on anything else. */
   counter(name: Resource): number {
     switch (name) {
       case Resource.Energy: return this.energy;
       case Resource.Concerto: return this.concerto;
-      case Resource.Forte1: return this.forte1;
-      case Resource.Forte2: return this.forte2;
-      case Resource.Forte3: return this.forte3;
-      case Resource.Forte4: return this.forte4;
+      case Resource.Forte1: return this.resonator!.forte1;
+      case Resource.Forte2: return this.resonator!.forte2;
+      case Resource.Forte3: return this.resonator!.forte3;
+      case Resource.Forte4: return this.resonator!.forte4;
+      case Resource.Forte5: return this.resonator!.forte5;
       default: throw new Error(`Slot: no such counter "${name}"`);
     }
   }
@@ -209,10 +320,11 @@ export class Slot {
     switch (name) {
       case Resource.Energy: this.energy = v; break;
       case Resource.Concerto: this.concerto = v; break;
-      case Resource.Forte1: this.forte1 = v; break;
-      case Resource.Forte2: this.forte2 = v; break;
-      case Resource.Forte3: this.forte3 = v; break;
-      case Resource.Forte4: this.forte4 = v; break;
+      case Resource.Forte1: this.resonator!.forte1 = v; break;
+      case Resource.Forte2: this.resonator!.forte2 = v; break;
+      case Resource.Forte3: this.resonator!.forte3 = v; break;
+      case Resource.Forte4: this.resonator!.forte4 = v; break;
+      case Resource.Forte5: this.resonator!.forte5 = v; break;
     }
     // the object that moved it, not its name — resolved once the buff has named itself
     if (v !== before) this.counterLog.push({ counter: name, delta: v - before, src: source });
@@ -353,12 +465,12 @@ export class Enemy {
 
   /** Current resistance to one element: its base plus whatever debuffs contributed this pass. */
   res(element: string): number {
-    return (this.baseRes[element] ?? 0) + this.total(`res:${element}`);
+    return (this.baseRes[element] ?? 0);
   }
 
   /** Current defence: the level-derived base, plus whatever debuffs contributed this pass. */
   defense(): number {
-    return 792 + this.level * 8 + this.total("def");
+    return 792 + this.level * 8;
   }
 
   /** Off-tune is the only enemy counter — throws on anything else, same as `Slot.counter`. */
@@ -548,37 +660,43 @@ export class State {
   /** Prefix for a log line: the full action name, when one is in progress. */
   tag(): string { return this.currentAction ? `${this.currentAction}: ` : ""; }
 
-  /** Mechanism 1 — equip each resonator's gear, then run every equipped gear's onFightStart(). */
-  startFight(loadouts: Record<string, Loadout>): this {
-    for (const [slotName, gearList] of Object.entries(loadouts)) {
+  /** Mechanism 1 — build each resonator fresh from their own factory, equip their held gear,
+   *  then run onFightStart: the resonator's own, then whichever of their weapon/mainslot/mode
+   *  also declares one (a Resonator is the only thing the *engine* calls onFightStart on
+   *  directly — everything else's own hook, if any, only ever runs through this delegation). */
+  startFight(loadouts: Record<string, ResonatorFactory>): this {
+    for (const [slotName, factory] of Object.entries(loadouts)) {
       const slot = this.slotOf(slotName);
       if (!slot) throw new Error(`no slot named "${slotName}"`);
+      const resonator = factory();
+      slot.resonator = resonator;
+      const { loadout } = resonator;
+
+      const pieces: Gear[] = [
+        loadout.weapon, loadout.mainslot, loadout.sonata, loadout.pc2,
+        ...(resonator.mode ? [resonator.mode] : []),
+        ...resonator.sequences,
+        loadout.mainstat, loadout.substat,
+      ];
       const seen = new Set<Gear>();
-      for (const gear of gearList) {
-        if (!(gear instanceof Gear)) {
-          throw new Error(`${slotName}: startFight() only equips Gear, got ${gear}`);
-        }
+      for (const gear of pieces) {
         // by identity — equipping the same object twice doubles a stat line
         if (seen.has(gear)) throw new Error(`${slotName} equips the same gear twice`);
         seen.add(gear);
         slot.addBuff(gear, { via: "gear" });
       }
-      // a build commits to one stance, same as it can only equip one weapon
-      const modes = gearList.filter((g) => g instanceof Mode);
-      if (modes.length > 1) {
-        throw new Error(`${slotName} equips ${modes.length} Resonance Mode pieces, at most one`);
-      }
-      // the first entry is the resonator themself, by loadout convention
-      slot.resonator = gearList[0] ?? null;
-      if (typeof slot.resonator?.onIntro !== "function") {
-        throw new Error(`${slotName}: resonator gear needs an onIntro()`);
-      }
+      // the resonator's own two stat buffs join the same list, same as any other gear
+      slot.addBuff(resonator.base, { via: "gear" });
+      slot.addBuff(resonator.talents, { via: "gear" });
     }
-    for (const [slotName, gearList] of Object.entries(loadouts)) {
+    for (const slotName of Object.keys(loadouts)) {
       const slot = this.slotOf(slotName)!;
-      for (const gear of gearList) {
-        if (!gear.onFightStart) continue;
-        gear.onFightStart(new Ctx({ state: this, slot, action: null, source: gear, owner: slot.name }));
+      const resonator = slot.resonator!;
+      const ctxFor = (source: unknown): Ctx =>
+        new Ctx({ state: this, slot, action: null, source, owner: slot.name });
+      resonator.onFightStart?.(ctxFor(resonator));
+      for (const gear of [resonator.loadout.weapon, resonator.loadout.mainslot, resonator.mode]) {
+        gear?.onFightStart?.(ctxFor(gear));
       }
     }
     return this;
@@ -632,7 +750,7 @@ export class State {
     let queuedIntro: Step | null = null;
     if (isOutro(action)) {
       const incoming = this.slots[(this.active + 1) % this.slots.length]!;
-      const introAction = incoming.resonator!.onIntro!(
+      const introAction = incoming.resonator!.onIntro(
         new Ctx({ state: this, slot: incoming, action: null, source: incoming.resonator, owner: incoming.name }),
       );
       queuedIntro = { action: asAction(introAction), slot: incoming.index };
@@ -644,6 +762,9 @@ export class State {
     // the resonator leaving the field with nothing carried over.
     slot.counterLog = [];
     this.enemy.counterLog = [];
+    // starts at the action's own declared count; a buff adds to it the same way it adds to
+    // Concerto/Energy (Ctx.gainShields), so it needs the same early reset those get below
+    slot.shields = action.shields;
     // shared fields every Ctx built below starts from — only `source` (and, for a buff, `owner`)
     // ever varies per call
     const base = { state: this, slot, action, owner: slot.name };
@@ -765,11 +886,7 @@ export class State {
       entries: slot.entries,
       totals,
       stat,
-      counters: {
-        [Resource.Energy]: slot.energy, [Resource.Concerto]: slot.concerto,
-        [Resource.Forte1]: slot.forte1, [Resource.Forte2]: slot.forte2,
-        [Resource.Forte3]: slot.forte3, [Resource.Forte4]: slot.forte4,
-      },
+      counters: Object.fromEntries(SLOT_RESOURCES.map((r) => [r, slot.counter(r)])),
       teamCounters: { [Resource.Offtune]: this.enemy.offtune },
       // copied rather than referenced: the automatic tune break resets the off-tune bar after
       // this snapshot, and a live reference would short the panel's arithmetic
@@ -788,6 +905,12 @@ export class State {
     while (queue.length) {
       if (++guard > 10000) throw new Error("action queue did not drain — cyclic queue()?");
       const step = queue.shift()!;
+      // the marker only says "cast the echo here" — which echo is whatever this resonator wears
+      if (step.action === ECHO_CAST) {
+        const acting = this.slots[step.slot ?? this.active]!;
+        if (!acting.resonator) throw new Error(`${acting.name} casts ECHO_CAST but has no resonator equipped`);
+        step.action = acting.resonator.loadout.mainslot.action;
+      }
       this.pending = [];
       // switching to a queued step's slot is temporary, unless the step is an outro
       const before = this.active;
@@ -832,6 +955,17 @@ export class Ctx {
     this.source = fields.source;
     this.owner = fields.owner;
   }
+
+  /** How many shields this cast grants so far — the action's own declared count plus whatever
+   *  any buff has added via `gainShields`. Same read/mutate shape as Energy/Concerto: a
+   *  running value for the current cast, not a settled-in-advance total, so a buff adding to
+   *  it needs to run before whoever reads it (same as Jingran's own Ghost Feed already does,
+   *  at `UPDATE_BUFFS`). */
+  get shields(): number { return this.slot.shields; }
+
+  /** Add shields to the action currently being evaluated — same shape as `gain()` for
+   *  Energy/Concerto, just not a fight-long resource (see `Slot.shields`). */
+  gainShields(n: number): number { return (this.slot.shields += n); }
 
   /** The fight's one enemy — its own level, resistances, defence and off-tune. Read-only by
    *  convention; a debuff changes it through `addEnemyRes`/`addEnemyDef`/`grantEnemy`, not by
@@ -994,8 +1128,14 @@ export class Ctx {
     return buff instanceof GlobalBuff ? this.state.removeGlobalBuff(buff) : this.slot.removeBuff(buff);
   }
 
-  /** Every slot currently holding `buff`. */
-  slotsWith(buff: Buff): Slot[] { return this.state.slots.filter((s) => s.hasBuff(buff)); }
+  /** Every slot currently holding `buff` — or, given a resonator's own name instead, every slot
+   *  whose own character that is (a Resonator is no longer a Buff, so finding "Augusta's own
+   *  slot" needs a name match rather than an identity check against a shared gear const). */
+  slotsWith(target: Buff | string): Slot[] {
+    return typeof target === "string"
+      ? this.state.slots.filter((s) => s.resonator?.name === target)
+      : this.state.slots.filter((s) => s.hasBuff(target));
+  }
 
   /** Every resonator currently on the team, by element — one entry per slot, in team order. */
   teamElements(): (string | null)[] { return this.state.slots.map((s) => s.resonator?.element ?? null); }

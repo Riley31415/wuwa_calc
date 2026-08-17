@@ -13,7 +13,7 @@
 import { collapseChains } from "./kit.js";
 import type { ChainGroup } from "./kit.js";
 import { State, Enemy } from "./state.js";
-import type { Loadout, RotationEntry, ResolvedSnapshot } from "./state.js";
+import type { ResonatorFactory, RotationEntry, ResolvedSnapshot } from "./state.js";
 import { damage } from "./damage.js";
 import { buildReport, renderReport, explain, totalsBySlot } from "./display.js";
 import type { Report } from "./display.js";
@@ -26,11 +26,11 @@ import * as JR from "./resonators/jingran.js";
 
 // level 100 enemy, level 90 resonators, a flat 20% base resistance, 39.2% max off-tune — every
 // fight this calculator runs uses the same standing numbers.
-const ENEMY_LEVEL = 100, RESONATOR_LEVEL = 90, DEFAULT_RES = 20, MAX_OFFTUNE = 39.2;
+const ENEMY_LEVEL = 100, RESONATOR_LEVEL = 90, DEFAULT_RES = 20, MAX_OFFTUNE = 392000;
 
 interface Member {
   name: string;
-  loadout: Loadout;
+  loadout: ResonatorFactory;
   opener: RotationEntry[];
   loop: RotationEntry[];
 }

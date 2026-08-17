@@ -4,7 +4,7 @@ keep code comments short only show the most important details or simplifications
 do not read my TODO.md
 
 # implementing kits
-the migration data is just a sanity check
+the migration folder data is just a sanity check, use it to get action MVs too
 use nanoka.cc and view the pages through chrome to get the most accurate data
 however, thing like base attack =588 may be 587.5 in reality because nanoka rounds it on the website
 no need to check for held stacks >0, a buff is auto removed when it reaches 0 stacks
