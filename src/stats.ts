@@ -27,11 +27,7 @@ export enum Stat {
   FlatHp = "Flat HP",
   FlatDef = "Flat DEF",
 
-  /** Derived totals, folded on demand from base/bonus/flat. Read these in conversion passives. */
-  Atk = "ATK",
-  Hp = "HP",
-  Def = "DEF",
-
+  // TODO delete
   BonusAtk = "ATK%",
   BonusHp = "HP%",
   BonusDef = "DEF%",
@@ -40,6 +36,7 @@ export enum Stat {
   CritDmg = "Crit Dmg",
   Er = "Energy Regen",
   Tbb = "Tune Break Boost",
+  OfftuneBuildup = "Off-Tune Buildup Rate",
 
   /**
    * Motion value: `(base mv + AddMv) x (1 + MulMv) x (1 + SpecialMv)`.
@@ -48,7 +45,7 @@ export enum Stat {
    */
   AddMv = "additional MV",
   MulMv = "MV multiplier",
-  SpecialMv = "Special MV multiplier", // TODO make all MulMV multipy with eachother so wee can remove SpecialMV
+  SpecialMv = "special MV", // TODO remove
 
   /*
    * Shields are not a stat. An action says how many it grants (`shields` field); a buff that
@@ -109,17 +106,17 @@ export const ELEMENTS: Element[] = [
  * Liberation`.
  */
 export enum DamageType {
-  Basic = "basic",
-  Heavy = "heavy",
-  Skill = "skill",
-  Liberation = "liberation",
-  Intro = "intro",
-  Outro = "outro",
-  Echo = "echo",
-  Break = "break",
-  Status = "status",
-  Rupture = "rupture",
-  Hack = "hack",
+  Basic = "Basic",
+  Heavy = "Heavy",
+  Skill = "Skill",
+  Liberation = "Liberation",
+  Intro = "Intro",
+  Outro = "Outro",
+  Echo = "Echo",
+  Status = "Negative Status",
+  Break = "Tune Break",
+  Rupture = "Tune Rupture",
+  Hack = "Tune Hack",
 }
 
 /** Cast identities that are never a damage type of their own — a Dodge Counter always deals
@@ -127,15 +124,15 @@ export enum DamageType {
  *  appears on. Kept out of `DamageType` so it can't be reached for `type`/`type2` by mistake. */
 export enum Cast {
   DodgeCounter = "dodgeCounter",
-  Basic = "basic",
-  Heavy = "heavy",
-  Skill = "skill",
+  Basic = "Basic",
+  Heavy = "Heavy",
+  Skill = "Skill",
   Liberation = "liberation",
-  Intro = "intro",
-  Outro = "outro",
-  Echo = "echo",
-  TuneBreak = "tuneBreak",
-  Coordinated = "coordinated"
+  Intro = "Intro",
+  Outro = "Outro",
+  Echo = "Echo",
+  TuneBreak = "Tune Break",
+  Coordinated = "Coordinated"
 }
 
 export const TYPES: DamageType[] = [
@@ -156,12 +153,12 @@ export const CASTS: Array<DamageType | Cast> = [
  *  hit that's both Heavy Attack DMG and Coordinated Attack DMG). Scoped the same way `type` is. */
 // TODO rename to SpecialDamageType
 export enum Type2 {
-  Coordinated = "coordinated",
-  Frazzle = "frazzle",
-  Erosion = "erosion",
-  Burst = "burst",
-  Chafe = "chafe",
-  Flare = "flare",
+  Coordinated = "Coordinated",
+  Frazzle = "Spectro Frazzle",
+  Erosion = "Aero Erosion",
+  Burst = "Fusion Burst",
+  Chafe = "Glacio Chafe",
+  Flare = "Electro Flare",
 }
 export const TYPE2S: Type2[] = [
   Type2.Coordinated,
@@ -176,21 +173,21 @@ export const TYPE2S: Type2[] = [
  * genuinely independent axis (see the file's own note above), not the same vocabulary reused.
  */
 export enum Node {
-  Normal = "normal",
-  Skill = "skill",
-  Forte = "forte",
-  Liberation = "liberation",
-  Intro = "intro",
+  Normal = "Normal",
+  Skill = "Skill",
+  Forte = "Forte",
+  Liberation = "Liberation",
+  Intro = "Intro",
 }
 export const NODES: Node[] = [Node.Normal, Node.Skill, Node.Forte, Node.Liberation, Node.Intro];
 
 /** `scaling` — which stat a hit reads its final number from. */
 export enum Scaling {
-  Atk = "atk",
-  Hp = "hp",
-  Def = "def",
-  Dot = "dot",
-  Tune = "tune",
+  Atk = "ATK",
+  Hp = "HP",
+  Def = "DEF",
+  Dot = "DOT",
+  Tune = "TUNE",
 }
 export const SCALINGS: Scaling[] = [
   Scaling.Atk, Scaling.Hp, Scaling.Def, Scaling.Dot, Scaling.Tune,

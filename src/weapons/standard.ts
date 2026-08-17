@@ -1,10 +1,17 @@
-/** Standard/f2p weapons — usable by more than one resonator, so they live apart from any one
- *  resonator's file. Each resonator's own file picks which of these its f2p loadout equips. */
+/** Standard/f2p weapons — no signature character, usable by anyone of the matching weapon type.
+ *  Three generations, 5 weapons each (one per weapon type), 15 total: Ceaseless Aria (the
+ *  original 4-star standard set), Stormy Resolution (the 5-star standard set), and the "new
+ *  standard" 5-star set. Each resonator's own file picks which of these its f2p loadout equips.
+ *  Signature weapons live in their own weapon-type file instead (sword.ts, broadblade.ts,
+ *  pistol.ts, gauntlet.ts, rectifier.ts) — including Stringmaster, which isn't part of any of
+ *  these three named tiers, so it lives in rectifier.ts alongside Encore's own gear. */
 import { isOutro, isSkill, isTuneBreak } from "../state.js";
 import { Buff, Gear, PRIORITY } from "../kit.js";
 import { Stat, DamageType, Resource } from "../stats.js";
 
-/** Ceaseless Aria — the six standard weapons' shared passive. One buff, two stacks: 1 is
+/* ---------------------------------------------------------------- Ceaseless Aria (4-star, 5) */
+
+/** Ceaseless Aria — the five standard weapons' shared passive. One buff, two stacks: 1 is
  *  ready (a Skill cast restores Concerto and promotes to 2), 2 is cooling down (an Outro
  *  demotes back to 1). */
 export const CEASELESS_ARIA = new Buff(PRIORITY.UPDATE_BUFFS, (ctx) => {
@@ -42,6 +49,8 @@ export const DISCORD = new Gear("Discord R5", (ctx) => {
   ctx.add(338, Stat.BaseAtk);
   ctx.add(51.84, Stat.Er);
 }, (ctx) => { ctx.grantSelf(CEASELESS_ARIA); });
+
+/* --------------------------------------------------------------- Stormy Resolution (5-star, 5) */
 
 /** Static Mist, R1. Stormy Resolution: +12.8% ER flat. On the wielder's outro, hands the
  *  incoming resonator +10% ATK — the outro-handoff queue expires it on their own outro. */
@@ -128,6 +137,8 @@ export const LUSTROUS_RAZOR_STACKS = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
   return `Lustrous Razor: Stormy Resolution x${held}`;
 }, 3);
 
+/* ------------------------------------------------------------------- new standard (5-star, 5) */
+
 /** Radiance Cleaver, Lupa's f2p alternative. Tune-strained bonus skipped — untracked state. */
 export const NEW_STD_BRAUDBLADE = new Gear("Radiance Cleaver", (ctx) => {
   ctx.add(587.5, Stat.BaseAtk);
@@ -181,21 +192,3 @@ export const INSIGHT_BEARER_BUFF = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
   if (isOutro(ctx.action!)) ctx.revoke(INSIGHT_BEARER_BUFF);
   return "Phasic Homogenizer: Insight Bearer";
 });
-
-/** Stringmaster, R1: Electric Amplification. +12% Attribute DMG Bonus flat (unscoped — "all
- *  attribute" isn't the wielder's own element), +12% ATK on any inactive action. Skill DMG
- *  stacks ATK twice over (12% a stack), lost after the outro action gains stats. */
-export const STRINGMASTER = new Gear("Stringmaster", (ctx) => {
-  ctx.add(500, Stat.BaseAtk);
-  ctx.add(36, Stat.CritRate);
-  ctx.add(12, Stat.DmgBonus);
-  if (ctx.action!.type === DamageType.Skill) ctx.grantSelf(STRINGMASTER_STACKS);
-});
-
-export const STRINGMASTER_STACKS = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
-  if (!ctx.action!.active) ctx.add(12, Stat.BonusAtk);
-  const held = ctx.stacksOf(STRINGMASTER_STACKS);
-  ctx.add(12 * held, Stat.BonusAtk);
-  if (isOutro(ctx.action!)) ctx.revoke(STRINGMASTER_STACKS);
-  return `Stringmaster: Electric Amplification x${held}`;
-}, 2);

@@ -14,7 +14,7 @@ import { collapseChains } from "./kit.js";
 import type { ChainGroup } from "./kit.js";
 import { State, Enemy } from "./state.js";
 import type { ResonatorFactory, RotationEntry, ResolvedSnapshot } from "./state.js";
-import { damage } from "./damage.js";
+import { damage, RESONATOR_LEVEL } from "./damage.js";
 import { buildReport, renderReport, explain, totalsBySlot } from "./display.js";
 import type { Report } from "./display.js";
 import { AUTO_TUNE_BREAK, attributeMisc } from "./shared/tunebreak.js";
@@ -24,9 +24,9 @@ import * as LP from "./resonators/lupa.js";
 import * as IO from "./resonators/iuno.js";
 import * as JR from "./resonators/jingran.js";
 
-// level 100 enemy, level 90 resonators, a flat 20% base resistance, 39.2% max off-tune — every
-// fight this calculator runs uses the same standing numbers.
-const ENEMY_LEVEL = 100, RESONATOR_LEVEL = 90, DEFAULT_RES = 20, MAX_OFFTUNE = 392000;
+// level 100 enemy, a flat 20% base resistance, 39.2% max off-tune — every fight this calculator
+// runs uses the same standing numbers (resonator level is RESONATOR_LEVEL, from damage.js).
+const ENEMY_LEVEL = 100, DEFAULT_RES = 20, MAX_OFFTUNE = 392000;
 
 interface Member {
   name: string;
@@ -53,7 +53,6 @@ export function runTeam(): { state: State; lines: ChainGroup[]; report: Report }
   });
   const state = new State({
     team: MEMBERS.map((m) => m.name),
-    level: RESONATOR_LEVEL,
     enemy,
     // the engine's own standing rules, ahead of anything a build equips
     buffs: [AUTO_TUNE_BREAK],
@@ -67,7 +66,7 @@ export function runTeam(): { state: State; lines: ChainGroup[]; report: Report }
   const runPart = (rotation: RotationEntry[]): ChainGroup[] => {
     if (!rotation.length) return [];
     const rows = state.run(rotation)
-      .map((s) => ({ snap: attributeMisc(s), dmg: damage(s, state.config) }));
+      .map((s) => ({ snap: attributeMisc(s), dmg: damage(s) }));
     return collapseChains(rows);
   };
   const lines = [
@@ -75,7 +74,7 @@ export function runTeam(): { state: State; lines: ChainGroup[]; report: Report }
     ...MEMBERS.flatMap((m) => runPart(m.loop)),
   ];
 
-  return { state, lines, report: buildReport(lines, { config: state.config }) };
+  return { state, lines, report: buildReport(lines) };
 }
 
 function main(): void {
@@ -84,7 +83,7 @@ function main(): void {
   const fmt = (n: number): string => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
 
   console.log(`Team: ${MEMBERS.map((m) => m.name).join(" -> ")}  `
-    + `level ${state.config.level} vs level ${state.enemy.level}, ${state.enemy.baseRes[Element.Physical] ?? 0}% res\n`);
+    + `level ${RESONATOR_LEVEL} vs level ${state.enemy.level}, ${state.enemy.baseRes[Element.Physical] ?? 0}% res\n`);
 
   console.log(renderReport(report, { showParts: false }));
 

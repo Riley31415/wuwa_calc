@@ -27,15 +27,11 @@ export interface Snapshot {
   chainOf?: string | null;
 }
 
-/** Only the resonator's own level lives here now — enemy level, its base resistances and
- *  max off-tune all moved onto `Enemy` (see state.js). */
-export interface DamageConfig {
-  level: number;
-}
-
-/** Every fight in this calculator runs at level 90 — the only two figures a dot/tune hit needs
- *  that don't come off the resonator's own stats, taken straight from `data/levels.json`'s own
- *  level-90 row rather than looked up out of the whole table at runtime. */
+/** Every fight in this calculator runs at level 90 — the resonator's own level, plus the only
+ *  two figures a dot/tune hit needs that don't come off the resonator's own stats, taken
+ *  straight from `data/levels.json`'s own level-90 row rather than looked up out of the whole
+ *  table at runtime. */
+export const RESONATOR_LEVEL = 90;
 const LEVEL_90_DOT = 3674;
 const LEVEL_90_TUNE = 10027;
 
@@ -84,10 +80,10 @@ export function resFactorOf(snapshot: Snapshot): number {
 }
 
 /** The enemy's defence turned into the multiplier the formula uses. */
-export function defFactorOf(snapshot: Snapshot, config: DamageConfig): number {
+export function defFactorOf(snapshot: Snapshot): number {
   // the ratio the table shows, back out to the absolute defence the formula divides by
   const finalDef = effectiveDef(snapshot) * snapshot.enemyDef;
-  const ownDef = 800 + config.level * 8;
+  const ownDef = 800 + RESONATOR_LEVEL * 8;
   return ownDef / (ownDef + finalDef);
 }
 
@@ -114,7 +110,7 @@ export interface DamageFactors {
  *
  * @returns each multiplier, plus the `avg` they come to
  */
-export function damageFactors(snapshot: Snapshot, config: DamageConfig): DamageFactors {
+export function damageFactors(snapshot: Snapshot): DamageFactors {
   const { action } = snapshot;
   const s = (k: string) => snapshot.stat(k) / 100;   // ratio stats
   const scaling = action.scaling ?? Scaling.Atk;
@@ -141,7 +137,7 @@ export function damageFactors(snapshot: Snapshot, config: DamageConfig): DamageF
   // bonus and amplification are both gated off for tune, so this is the multiplier tune has.
   const tbbFactor = 1 + s(Stat.Tbb) * (1 - notTune);
   const resFactor = resFactorOf(snapshot);
-  const defFactor = defFactorOf(snapshot, config);
+  const defFactor = defFactorOf(snapshot);
   const dealtFactor = 1 + s(Stat.DmgDealt);
 
   // dot and tune never crit, so their crit multiplier is a flat 1
@@ -168,11 +164,8 @@ export interface Damage {
   avg: number;
 }
 
-/**
- * @param snapshot  from State.resolve()
- * @param config    { level } — the resonator's own level
- */
-export function damage(snapshot: Snapshot, config: DamageConfig): Damage {
-  const { noCrit, crit, avg } = damageFactors(snapshot, config);
+/** @param snapshot  from State.resolve() */
+export function damage(snapshot: Snapshot): Damage {
+  const { noCrit, crit, avg } = damageFactors(snapshot);
   return { noCrit, crit, avg };
 }

@@ -36,8 +36,10 @@
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
 
-  --r:   10px;
-  --r-s: 6px;
+  /* square corners everywhere on purpose — the two knobs every rounded-corner rule in this
+     file reads from, kept rather than deleted so a future change is one edit, not a hunt. */
+  --r:   0px;
+  --r-s: 0px;
   --sh-1: 0 1px 2px rgba(0, 0, 0, .5);
   --sh-2: 0 18px 40px -22px rgba(0, 0, 0, .9), 0 0 0 1px var(--line);
 
@@ -87,9 +89,9 @@ body {
   flex: 1;
 }
 
-/* ---------------------------------------------------------------- team switch */
+/* -------------------------------------------------------------------- topbar */
 
-.teamswitch {
+.topbar {
   flex: none;                       /* stays put; <main> below it is what scrolls */
   display: flex;
   flex-wrap: wrap;
@@ -102,22 +104,14 @@ body {
     linear-gradient(180deg, rgba(255, 255, 255, .028), transparent),
     var(--bg);
 }
-.teambtns { display: flex; gap: 8px; }
-.teambtn {
-  padding: 7px 16px;
-  border: 1px solid var(--line-2);
-  border-radius: 100px;
-  background: var(--surface);
+.backlink {
   color: var(--ink-2);
-  font: inherit;
   font-size: 12.5px;
   font-weight: 600;
-  cursor: pointer;
-  transition: background .12s, color .12s, border-color .12s;
+  text-decoration: none;
 }
-.teambtn:hover { background: var(--surface-2); color: var(--ink); }
-.teambtn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-.teambtn:disabled { opacity: .5; cursor: default; }
+.backlink:hover { color: var(--ink); }
+.backlink[hidden] { display: none; }
 
 /* ------------------------------------------------------------------- loading */
 
@@ -132,28 +126,36 @@ body {
   gap: 16px;
   color: var(--dim);
 }
-.spinner {
-  width: 26px; height: 26px;
-  border: 2px solid var(--line-2);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin .7s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
+/* the <p> tags carry the browser's own default margin, which would stack on top of the grid's
+   gap above and give the bar/count an oversized, uneven-looking space above them */
+#app.loading p { margin: 0; }
 
-/* -------------------------------------------------------------------- header */
-
-.chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip {
-  padding: 3px 9px;
-  border: 1px solid var(--line-2);
-  border-radius: 100px;
-  background: var(--surface);
+/* the progress bar sits under the "running every team's rotation…" line — a fixed-width track
+   so the fill's own width is the only thing that moves as teams finish. Sized and bordered to
+   read as an actual graphic at a glance rather than a thin, easy-to-miss line — the whole run
+   can finish in well under a second, so it has to be unmistakable even in a brief glimpse. */
+.progress-count {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: .3px;
   color: var(--ink-2);
-  font-size: 11px;
-  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
-.chip b { color: var(--ink); font-weight: 600; }
+.progress-track {
+  width: 320px;
+  height: 14px;
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .35);
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 85%, white), var(--accent));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent);
+  transition: width .15s ease-out;
+}
 
 /* the member summary strip — below the table now, so it carries its own top margin the way
    .gridwrap and .eventlog do rather than relying on .top's padding */
@@ -218,6 +220,109 @@ main {
   padding: 0 26px 96px;
 }
 
+/* ---------------------------------------------------------------- comparison table */
+
+.tcfilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 22px;
+  font-size: 12px;
+  color: var(--dim);
+}
+.tcfilters label { display: flex; align-items: center; gap: 8px; }
+.tcfilters select {
+  padding: 6px 10px;
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+}
+.tcfilters select:hover { border-color: var(--faint); }
+.tcfilters select:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+
+/* a plain `hidden` attribute loses to `.trow`'s own `display: grid` on specificity otherwise
+   (an attribute selector and a class selector tie, and author order decides the winner) */
+.trow[hidden] { display: none; }
+
+.tcwrap {
+  margin-top: 14px;
+  border-radius: var(--r);
+  background: var(--surface);
+  box-shadow: var(--sh-2);
+  overflow: hidden;
+}
+.tgrid { display: flex; flex-direction: column; }
+.trow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(120px, 1.3fr)) repeat(4, minmax(90px, 1fr)) minmax(110px, 1fr);
+  align-items: stretch;
+}
+.trow + .trow { border-top: 1px solid var(--line); }
+.trow.thead {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--surface-3);
+}
+.trow.thead .c {
+  padding: 9px 10px;
+  font-size: 10px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--dim);
+}
+.trow:not(.thead):hover { background: var(--surface-2); }
+.trow .c {
+  padding: 6px 10px;
+  line-height: 16px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  position: relative;
+}
+.trow .c.num {
+  text-align: right;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  color: var(--ink);
+}
+/* a member's own name — full-strength text colour, a left bar and a background wash, same trick
+   as the detail table's own member column (`--mem`, see index.js's `gearPopover`/`comparisonTable`) */
+.trow .c.name {
+  font-weight: 600;
+  background: color-mix(in srgb, var(--mem, transparent) 10%, var(--surface));
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--mem, transparent) 70%, transparent);
+}
+.trow:not(.thead):hover .c.name { background: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface)); }
+.trow .c.total { color: var(--ink); font-weight: 700; }
+
+/* the only clickable cell in the row: a small arrow marker after the number, both of it — and
+   the number itself — navigating to that team's own full rotation/event-log page */
+.gotodetail { cursor: pointer; }
+.gotodetail:hover { color: var(--ink); }
+.gotodetail .arrow {
+  display: inline-block;
+  margin-left: 4px;
+  color: var(--faint);
+  transition: color .12s, transform .12s;
+}
+.gotodetail:hover .arrow { color: var(--accent); transform: translateX(2px); }
+
+/* the gear popover's own two-column shell reuses .pop/table/.k/.v wholesale (see below) — no
+   extra rules needed beyond a touch more breathing room since its rows run longer than a stat
+   trace's ever do */
+.pop.gear td.v { padding-left: 14px; }
+.pop .pct { color: var(--dim); font-weight: 400; }
+/* the breakdown popover's own Type/Type 2/Node headings read in normal case — only the
+   pre-existing source-trace panels' BASE/BONUS/FLAT headings shout in the inherited
+   `.pop .sec` uppercase */
+.pop.breakdown .sec td { text-transform: none; letter-spacing: normal; }
+
 /* ---------------------------------------------------------------------- table */
 
 /* No longer a scroll box of its own — <main> scrolls, so the header row can pin to it. */
@@ -233,7 +338,6 @@ main::-webkit-scrollbar-track { background: transparent; }
 main::-webkit-scrollbar-thumb {
   background: var(--line-2);
   border: 3px solid var(--bg);
-  border-radius: 100px;
 }
 main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 
@@ -315,13 +419,12 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 .step > .r        { background: color-mix(in srgb, var(--m, transparent) 4%, var(--surface)); }
 .step:hover > .r  { background: color-mix(in srgb, var(--m, transparent) 8%, var(--surface)); }
 
-/* the action column reads in its own action's colour at reduced opacity — full strength is
-   reserved for the member column, which is the separate "who acted" signal. A little breathing
-   room before the name: it isn't column 0 any more, so it no longer picks up the lead-in
-   `.r > .c:first-child` gives the member column beside it. */
+/* the action name reads in plain full-strength white — "whose turn" is entirely the member
+   column's own signal now (see below), so the action name doesn't also compete for it. A little
+   breathing room before the name: it isn't column 0 any more, so it no longer picks up the
+   lead-in `.r > .c:first-child` gives the member column beside it. */
 .c.action { font-weight: 550; padding-left: 8px; }
-.c.action, .c.name { color: color-mix(in srgb, var(--m, var(--accent)) 70%, transparent); }
-/* the same green the team-total card uses, so the eye can tie a row's damage back to it */
+.c.action, .c.name { color: var(--ink); }
 .c.avg { color: var(--ink); font-weight: 700; }
 
 /* The member column: its own colour system, sourced from `--mem` (the member's own colour, set
@@ -404,7 +507,6 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
   z-index: 200;
   min-width: 250px;
   padding: 9px 11px;
-  border-radius: 8px;
   border: 1px solid var(--line-2);
   /* opaque, not translucent: the table underneath it is dense and shows straight through */
   background: var(--surface-3);
@@ -528,7 +630,6 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 }
 .error code {
   padding: 1px 5px;
-  border-radius: 4px;
   background: rgba(0, 0, 0, .45);
   font-family: var(--mono);
   color: var(--amber);

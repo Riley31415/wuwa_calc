@@ -7,13 +7,14 @@
  * from this directory is enough.
  */
 import { collapseChains } from "./src/kit.js";
+import type { Action, ChainGroup } from "./src/kit.js";
 import { State, Enemy } from "./src/state.js";
-import type { ResonatorFactory, RotationEntry, ResolvedSnapshot } from "./src/state.js";
+import type { ResonatorFactory, Resonator, RotationEntry, ResolvedSnapshot } from "./src/state.js";
 import { damage } from "./src/damage.js";
 import { buildReport, totalsBySlot } from "./src/display.js";
 import type { Report, Column, ReportRow, ReportPart, TraceEntry } from "./src/display.js";
-import { isPercent, statLabel, ELEMENTS } from "./src/stats.js";
-import { AUTO_TUNE_BREAK, MISC, attributeMisc } from "./src/shared/tunebreak.js";
+import { isPercent, statLabel, ELEMENTS, Cast } from "./src/stats.js";
+import { AUTO_TUNE_BREAK, MISC, attributeMisc, TUNE_BREAK_CAST, TUNE_BREAK_COLOR } from "./src/shared/tunebreak.js";
 
 import * as SK from "./src/resonators/shorekeeper.js";
 import * as IO from "./src/resonators/iuno.js";
@@ -29,6 +30,16 @@ import * as LC from "./src/resonators/lucilla.js";
 import * as ZZ from "./src/resonators/zhezhi.js";
 import * as AG from "./src/resonators/augusta.js";
 import * as CL from "./src/resonators/carlotta.js";
+import * as RC from "./src/resonators/roccia.js";
+import * as SG from "./src/resonators/sigrika.js";
+import * as GB from "./src/resonators/galbrena.js";
+import * as CH from "./src/resonators/changli.js";
+import * as EC from "./src/resonators/encore.js";
+import * as VR from "./src/resonators/verina.js";
+import * as JX from "./src/resonators/jianxin.js";
+import * as RH from "./src/resonators/rover_havoc.js";
+import * as DJ from "./src/resonators/danjin.js";
+import * as CM from "./src/resonators/camellya.js";
 
 interface Member {
   name: string;
@@ -86,11 +97,6 @@ const TEAMS: Record<string, Member[]> = {
     { name: "Brant", color: BT.COLOR, ...noOpener(BT.LOADOUT, BT.ROTATION_1_ANCHOR) },
     { name: "Jingran", color: JR.COLOR, ...noOpener(JR.LOADOUT_CRCD, JR.ROTATION) },
   ],
-  skSanhuaBrant: [
-    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
-    { name: "Sanhua", color: SH.COLOR, ...noOpener(SH.LOADOUT, SH.ROTATION) },
-    { name: "Brant", color: BT.COLOR, ...noOpener(BT.LOADOUT, BT.ROTATION_1_ANCHOR) },
-  ],
   froloBulingCanta: [
     { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
     { name: "Buling", color: BU.COLOR, ...noOpener(BU.LOADOUT, BU.ROTATION) },
@@ -141,8 +147,92 @@ const TEAMS: Record<string, Member[]> = {
     { name: "Iuno", color: IO.COLOR, ...noOpener(IO.LOADOUT, IO.ROTATION) },
     { name: "Augusta", color: AG.COLOR, ...noOpener(AG.LOADOUT, AG.ROTATION) },
   ],
+  froloRocciaCanta: [
+    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
+    { name: "Roccia", color: RC.COLOR, ...noOpener(RC.LOADOUT, RC.ROTATION) },
+    { name: "Cantarella", color: CT.COLOR, ...noOpener(CT.LOADOUT, CT.ROTATION) },
+  ],
+  skQySigrika: [
+    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
+    { name: "Qiuyuan", color: QY.COLOR, ...noOpener(QY.LOADOUT, QY.ROTATION) },
+    { name: "Sigrika", color: SG.COLOR, ...noOpener(SG.LOADOUT, SG.ROTATION) },
+  ],
+  skLucillaSigrika: [
+    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
+    { name: "Lucilla", color: LC.COLOR, ...noOpener(LC.LOADOUT, LC.ROTATION) },
+    { name: "Sigrika", color: SG.COLOR, ...noOpener(SG.LOADOUT, SG.ROTATION) },
+  ],
+  skQyGalbrena: [
+    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
+    { name: "Qiuyuan", color: QY.COLOR, ...noOpener(QY.LOADOUT, QY.ROTATION) },
+    { name: "Galbrena", color: GB.COLOR, ...noOpener(GB.LOADOUT, GB.ROTATION) },
+  ],
+  skLucillaGalbrena: [
+    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
+    { name: "Lucilla", color: LC.COLOR, ...noOpener(LC.LOADOUT, LC.ROTATION) },
+    { name: "Galbrena", color: GB.COLOR, ...noOpener(GB.LOADOUT, GB.ROTATION) },
+  ],
+  skIunoChangli: [
+    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
+    { name: "Iuno", color: IO.COLOR, ...noOpener(IO.LOADOUT, IO.ROTATION) },
+    { name: "Changli", color: CH.COLOR, ...noOpener(CH.LOADOUT, CH.ROTATION) },
+  ],
+  skQyEncore: [
+    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
+    { name: "Qiuyuan", color: QY.COLOR, ...noOpener(QY.LOADOUT, QY.ROTATION) },
+    { name: "Encore", color: EC.COLOR, ...noOpener(EC.LOADOUT, EC.ROTATION) },
+  ],
+  froloVerinaCanta: [
+    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
+    { name: "Verina", color: VR.COLOR, ...noOpener(VR.LOADOUT, VR.ROTATION) },
+    { name: "Cantarella", color: CT.COLOR, ...noOpener(CT.LOADOUT, CT.ROTATION) },
+  ],
+  froloJianxinCanta: [
+    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
+    { name: "Jianxin", color: JX.COLOR, ...noOpener(JX.LOADOUT, JX.ROTATION) },
+    { name: "Cantarella", color: CT.COLOR, ...noOpener(CT.LOADOUT, CT.ROTATION) },
+  ],
+  roverDanjinVerina: [
+    { name: "Rover: Havoc", color: RH.COLOR, ...noOpener(RH.LOADOUT, RH.ROTATION) },
+    { name: "Danjin", color: DJ.COLOR, ...noOpener(DJ.LOADOUT, DJ.ROTATION) },
+    { name: "Verina", color: VR.COLOR, ...noOpener(VR.LOADOUT, VR.ROTATION) },
+  ],
+  roverDanjinJianxin: [
+    { name: "Rover: Havoc", color: RH.COLOR, ...noOpener(RH.LOADOUT, RH.ROTATION) },
+    { name: "Danjin", color: DJ.COLOR, ...noOpener(DJ.LOADOUT, DJ.ROTATION) },
+    { name: "Jianxin", color: JX.COLOR, ...noOpener(JX.LOADOUT, JX.ROTATION) },
+  ],
+  skJianxinIuno: [
+    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
+    { name: "Jianxin", color: JX.COLOR, ...noOpener(JX.LOADOUT, JX.ROTATION) },
+    { name: "Iuno", color: IO.COLOR, ...noOpener(IO.LOADOUT, IO.ROTATION) },
+  ],
+  lupaBrantChangli: [
+    { name: "Lupa", color: LP.COLOR, loadout: LP.LOADOUT, opener: LP.OPENER, loop: LP.LOOP },
+    { name: "Brant", color: BT.COLOR, ...noOpener(BT.LOADOUT, BT.ROTATION_1_ANCHOR) },
+    { name: "Changli", color: CH.COLOR, ...noOpener(CH.LOADOUT, CH.ROTATION) },
+  ],
+  skRocciaCamellya: [
+    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
+    { name: "Roccia", color: RC.COLOR, ...noOpener(RC.LOADOUT, RC.ROTATION) },
+    { name: "Camellya", color: CM.COLOR, ...noOpener(CM.LOADOUT, CM.ROTATION) },
+  ],
+  skSanhuaCamellya: [
+    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
+    { name: "Sanhua", color: SH.COLOR, ...noOpener(SH.LOADOUT, SH.ROTATION) },
+    { name: "Camellya", color: CM.COLOR, ...noOpener(CM.LOADOUT, CM.ROTATION) },
+  ],
+  skRocciaRover: [
+    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
+    { name: "Roccia", color: RC.COLOR, ...noOpener(RC.LOADOUT, RC.ROTATION) },
+    { name: "Rover: Havoc", color: RH.COLOR, ...noOpener(RH.LOADOUT, RH.ROTATION) },
+  ],
+  verinaSanhuaEncore: [
+    { name: "Verina", color: VR.COLOR, ...noOpener(VR.LOADOUT, VR.ROTATION) },
+    { name: "Sanhua", color: SH.COLOR, ...noOpener(SH.LOADOUT, SH.ROTATION) },
+    { name: "Encore", color: EC.COLOR, ...noOpener(EC.LOADOUT, EC.ROTATION) },
+  ],
 };
-const DEFAULT_TEAM = "skIunoJingran";
 
 /** Off-tune's own fourth "member" — not a real resonator, so it has no `COLOR` export to carry
  *  through the way a team's own members do. */
@@ -154,13 +244,26 @@ const STICK = 2;
 
 /* ------------------------------------------------------------------ the engine */
 
-// level 100 enemy, level 90 resonators, a flat 20% base resistance, 39.2% max off-tune — every
-// fight this calculator runs uses the same standing numbers.
-const ENEMY_LEVEL = 100, RESONATOR_LEVEL = 90, DEFAULT_RES = 20, MAX_OFFTUNE = 392000;
+// level 100 enemy, a flat 20% base resistance, 39.2% max off-tune — every fight this calculator
+// runs uses the same standing numbers (resonator level is RESONATOR_LEVEL, from damage.js).
+const ENEMY_LEVEL = 100, DEFAULT_RES = 20, MAX_OFFTUNE = 392000;
 
-async function runTeam(members: Member[]): Promise<{
-  state: State; report: Report; openerReport: Report; loopReport: Report; members: Member[];
-}> {
+interface TeamRun {
+  state: State;
+  report: Report;
+  openerReport: Report;
+  loopReport: Report;
+  /** The loop's own evaluated lines, pre-`buildReport` — what the comparison table's own
+   *  damage-breakdown popovers read (grouped by tag rather than laid out as report columns). */
+  loopLines: ChainGroup[];
+  members: Member[];
+  /** Each member's actual built `Resonator` (name -> instance), for the comparison table's own
+   *  gear popover — read straight off the slot `startFight()` already populated, rather than
+   *  calling a member's `loadout` factory a second time (which would build an unrelated instance). */
+  resonators: Map<string, Resonator>;
+}
+
+async function runTeam(members: Member[]): Promise<TeamRun> {
   // the same flat resistance seeded onto every element, until a fight wants them to differ
   const enemy = new Enemy({
     level: ENEMY_LEVEL,
@@ -169,7 +272,6 @@ async function runTeam(members: Member[]): Promise<{
   });
   const state = new State({
     team: members.map((m) => m.name),
-    level: RESONATOR_LEVEL,
     enemy,
     // the engine's own standing rules, ahead of anything a build equips
     buffs: [AUTO_TUNE_BREAK],
@@ -181,7 +283,7 @@ async function runTeam(members: Member[]): Promise<{
   const runPart = (rotation: RotationEntry[]) => {
     if (!rotation.length) return [];
     const rows = state.run(rotation)
-      .map((s) => ({ snap: attributeMisc(s), dmg: damage(s, state.config) }));
+      .map((s) => ({ snap: attributeMisc(s), dmg: damage(s) }));
     return collapseChains(rows);
   };
   const openerLines = members.flatMap((m) => runPart(m.opener));
@@ -189,12 +291,14 @@ async function runTeam(members: Member[]): Promise<{
 
   return {
     state,
-    report: buildReport([...openerLines, ...loopLines], { config: state.config }),
+    report: buildReport([...openerLines, ...loopLines]),
     // separate reports just for the two totals rows — the opener and loop are each their own
     // "one rotation each" figure, not halves of a single total
-    openerReport: buildReport(openerLines, { config: state.config }),
-    loopReport: buildReport(loopLines, { config: state.config }),
+    openerReport: buildReport(openerLines),
+    loopReport: buildReport(loopLines),
+    loopLines,
     members,
+    resonators: new Map(state.slots.map((s) => [s.name, s.resonator!])),
   };
 }
 
@@ -259,10 +363,16 @@ const unit = (r: TraceEntry): string => ((r.percent ?? (r.stat ? isPercent(r.sta
 /** How a scaling reads in the motion-value panel's total: `738.33% ATK`. */
 const SCALING_LABEL: Record<string, string> = { atk: "ATK", hp: "HP", def: "DEF", dot: "Dot", tune: "Tune" };
 
-/** Headings run in the order the fold applies them: `base x (1 + bonus%) + flat`. */
+/** Headings run in the order the fold applies them: `base x (1 + bonus%) + flat`. `key` is the
+ *  section's own full label ("Base ATK", "Bonus HP", ...) — only its leading word decides the
+ *  rank, so this reads the same for every stat the sections cover. */
 const SECTION_ORDER = ["base", "bonus", "flat"];
-const SECTION_RANK = (key: string | null): number =>
-  (key === null ? -1 : (SECTION_ORDER.indexOf(key) + 1 || SECTION_ORDER.length + 1));
+const SECTION_RANK = (key: string | null): number => {
+  if (key === null) return -1;
+  const word = key.split(" ")[0]!.toLowerCase();
+  const i = SECTION_ORDER.indexOf(word);
+  return i === -1 ? SECTION_ORDER.length + 1 : i;
+};
 
 /**
  * One row of a panel. A row either names a stat — and takes that stat's own unit — or carries
@@ -345,6 +455,164 @@ function infoPopover(info: string[] | undefined): string {
   return `<span class="pop info"><table>${rows}</table></span>`;
 }
 
+/* -------------------------------------------------------------- comparison table */
+
+/**
+ * Sum one slot's own loop damage, grouped by whatever tag `keyOf` reads off each hit's own
+ * action — the type1/type2/node breakdown popups below all share this. Reads every chain's own
+ * parts individually (not the collapsed row), so each part attributes under its own tag rather
+ * than the whole chain filing under whichever part happened to hit hardest. `keyOf` returning
+ * `null` drops that hit from the map entirely — how the type2 breakdown leaves an untagged hit
+ * out rather than filing it under a fake bucket; the node breakdown instead maps a missing node
+ * to the literal string `"None"`, so it stays in.
+ */
+function sumByTag(lines: ChainGroup[], slot: string, keyOf: (a: Action) => string | null): Map<string, number> {
+  const by = new Map<string, number>();
+  for (const line of lines) {
+    for (const part of line.parts) {
+      const snap = part.snap as ResolvedSnapshot;
+      if (snap.slot !== slot) continue;
+      const key = keyOf(snap.action);
+      if (key == null) continue;
+      by.set(key, (by.get(key) ?? 0) + part.dmg.avg);
+    }
+  }
+  return by;
+}
+
+/** One section of a breakdown popover — a heading, one row a bucket (biggest first), each with
+ *  its own share of the slot's own total. Empty string when `by` is empty, so a member with no
+ *  type2 tag anywhere in their kit just doesn't get that section at all, per the standing "don't
+ *  show an empty section" rule. No per-section subtotal — the popover's own single total (at the
+ *  bottom, see `damagePopover`) is the only sum shown. */
+function breakdownSection(heading: string, by: Map<string, number>, total: number): string {
+  if (!by.size) return "";
+  const rows = [...by].sort((a, b) => b[1] - a[1]);
+  const label = (k: string) => k.charAt(0).toUpperCase() + k.slice(1);
+  const body = rows.map(([k, v]) => {
+    const pct = total ? Math.round((v / total) * 100) : 0;
+    return `<tr><td class="k">${esc(label(k))}</td><td class="v">${fmt(v)} <span class="pct">(${pct}%)</span></td></tr>`;
+  }).join("");
+  return `<tr class="sec"><td colspan="2">${esc(heading)}</td></tr>${body}`;
+}
+
+/** The hover on a member's (or Misc's) own loop-damage cell: damage type, then — only if
+ *  anything in this rotation actually carries one — type2, then — members only, never Misc —
+ *  node, ending in what share of the loop's own grand total this one slot is responsible for. */
+function damagePopover(
+  lines: ChainGroup[], slot: string, total: number, grandTotal: number, { withNode }: { withNode: boolean },
+): string {
+  const body = breakdownSection("Type", sumByTag(lines, slot, (a) => a.type), total)
+    + breakdownSection("Type 2", sumByTag(lines, slot, (a) => a.type2), total)
+    + (withNode ? breakdownSection("Node", sumByTag(lines, slot, (a) => a.node ?? "None"), total) : "");
+  const pct = grandTotal ? Math.round((total / grandTotal) * 100) : 0;
+  return `<span class="pop breakdown"><table>${body}`
+    + `<tr class="sum"><td class="k">Total</td><td class="v">${fmt(total)} <span class="pct">(${pct}% of team)</span></td></tr>`
+    + `</table></span>`;
+}
+
+/** The hover on a member's own name: everything their build equips, one line a piece. Mode and
+ *  sequences are only shown when the build actually carries one — most don't. */
+function gearPopover(resonator: Resonator): string {
+  const { loadout, mode, sequences } = resonator;
+  const rows: Array<[string, string]> = [
+    ["Weapon", loadout.weapon.name],
+    ["Mainslot", loadout.mainslot.name],
+    ["Sonata", loadout.sonata.name],
+    ["2pc", loadout.pc2.name],
+    ["Main Stats", loadout.mainstat.name],
+    ["Substats", loadout.substat.name],
+  ];
+  if (mode) rows.push(["Mode", mode.name]);
+  if (sequences.length) rows.push(["Sequences", sequences.map((s) => s.name).join(", ")]);
+
+  const body = rows.map(([k, v]) => `<tr><td class="k">${esc(k)}</td><td class="v">${esc(v)}</td></tr>`).join("");
+  return `<span class="pop gear"><table>${body}</table></span>`;
+}
+
+/** The two filter dropdowns above the comparison table — a resonator to require somewhere on
+ *  the team, and a ceiling on the highest sequence any one member's build equips (a build's own
+ *  sequence level is just how many sequence pieces its `Resonator.sequences` carries — every
+ *  kit that has any equips them contiguously S1..Sn, never a gap). Defaults to S0, so a sequence
+ *  build doesn't show up until asked for. Wired once in `boot()`, not re-wired per render — see
+ *  `applyFilters`. */
+function comparisonFilters(results: Map<string, TeamRun>): string {
+  const names = new Set<string>();
+  for (const run of results.values()) for (const m of run.members) names.add(m.name);
+  const resonatorOptions = [`<option value="">All resonators</option>`]
+    .concat([...names].sort().map((n) => `<option value="${esc(n)}">${esc(n)}</option>`)).join("");
+  const seqOptions = [0, 1, 2, 3, 4, 5, 6]
+    .map((n) => `<option value="${n}"${n === 0 ? " selected" : ""}>S${n}</option>`).join("");
+
+  return `<div class="tcfilters">
+    <label>Resonator <select id="resonatorFilter">${resonatorOptions}</select></label>
+    <label>Max sequence <select id="seqFilter">${seqOptions}</select></label>
+  </div>`;
+}
+
+/**
+ * The new landing page: every team, one row each — its three members, their own loop damage,
+ * Misc's, and the grand loop total. Member names and damage cells both carry a `.pop` (gear and
+ * breakdown respectively, wired up by the same `wireSourcePanels` the detail view's own hover
+ * panels use — see the mount section). Only the last column is a link: the small arrow marker
+ * and the total itself both navigate to that team's full rotation/event-log page.
+ */
+function comparisonTable(results: Map<string, TeamRun>): string {
+  const sorted = [...results].sort((a, b) => b[1].loopReport.total - a[1].loopReport.total);
+  const rows = sorted.map(([key, run]) => {
+    const totals = totalsBySlot(run.loopReport);
+    const grand = run.loopReport.total;
+    const memberNames = run.members.map((m) => m.name).join("|");
+    // an always-unlocked resonator's own sequences don't count against the filter's ceiling —
+    // see Resonator.alwaysUnlocked
+    const maxSeq = Math.max(0, ...run.members.map((m) => {
+      const r = run.resonators.get(m.name);
+      return r && !r.alwaysUnlocked ? r.sequences.length : 0;
+    }));
+
+    const memberCell = (m: Member) => {
+      const resonator = run.resonators.get(m.name);
+      return `<div class="c name" style="--mem:${m.color};color:${m.color}">${esc(m.name)}`
+        + `${resonator ? gearPopover(resonator) : ""}</div>`;
+    };
+    const dmgCell = (slot: string, withNode: boolean) => {
+      const total = totals.get(slot) ?? 0;
+      return `<div class="c num has">${fmt(total)}${damagePopover(run.loopLines, slot, total, grand, { withNode })}</div>`;
+    };
+
+    return `<div class="trow" data-team="${esc(key)}" data-members="${esc(memberNames)}" data-maxseq="${maxSeq}">`
+      + run.members.map(memberCell).join("")
+      + run.members.map((m) => dmgCell(m.name, true)).join("")
+      + dmgCell(MISC, false)
+      + `<div class="c num total gotodetail" data-team="${esc(key)}">${fmt(grand)}<span class="arrow">›</span></div>`
+      + `</div>`;
+  }).join("");
+
+  const head = `<div class="trow thead">`
+    + `<div class="c">Member 1</div><div class="c">Member 2</div><div class="c">Member 3</div>`
+    + `<div class="c num">Dmg 1</div><div class="c num">Dmg 2</div><div class="c num">Dmg 3</div>`
+    + `<div class="c num">Misc</div><div class="c num">Total (loop)</div>`
+    + `</div>`;
+
+  return `<main>${comparisonFilters(results)}<div class="tcwrap"><div class="tgrid">${head}${rows}</div></div></main>`;
+}
+
+/** Hide a team's row unless it holds the selected resonator (blank = anyone) and every member's
+ *  own sequence level is at or below the selected ceiling. A no-op away from the comparison
+ *  page, where neither `<select>` exists. */
+function applyFilters(): void {
+  const resonatorSel = document.getElementById("resonatorFilter") as HTMLSelectElement | null;
+  const seqSel = document.getElementById("seqFilter") as HTMLSelectElement | null;
+  if (!resonatorSel || !seqSel) return;
+  const resonator = resonatorSel.value;
+  const maxSeq = Number(seqSel.value);
+  for (const row of document.querySelectorAll<HTMLElement>(".trow:not(.thead)")) {
+    const members = (row.dataset.members ?? "").split("|");
+    const rowMaxSeq = Number(row.dataset.maxseq ?? "0");
+    row.hidden = (resonator !== "" && !members.includes(resonator)) || rowMaxSeq > maxSeq;
+  }
+}
+
 /* --------------------------------------------------------------------- table */
 
 /**
@@ -401,10 +669,16 @@ function partRows(columns: Column[], parts: ReportPart[], slotHue: Map<string, s
  * The whole team's rotation as one table, in the order they act.
  *
  * A chain's parts are collapsed behind its own row — a hidden checkbox and a label, so clicking
- * anywhere on the row opens it and no script is needed to keep that state. Each row is tinted by
- * its own action's color (white/green for generic gear, otherwise whoever's kit it belongs to)
- * — a much fainter wash than before (see the CSS), since the member column now carries the
- * full-strength "whose turn" color instead.
+ * anywhere on the row opens it and no script is needed to keep that state. Actions don't carry
+ * their own colour any more (see kit.js), so a row's wash is whoever acted's own colour instead
+ * — the same lookup the member cell itself uses, just at the row wash's own lower opacity (see
+ * the CSS), so the member cell reads strongest and the rest of the row carries a fainter version
+ * of the same hue "all the way across". A tune break gets the same neutral white override, as
+ * does an action *also* counted as performing the mainslot's Echo Skill (`cast2`, see kit.js) —
+ * that's an incidental extra on top of whichever button it really is, not a turn of its own, so
+ * it doesn't belong to any one kit either. A dedicated echo-cast action (`cast: ECHO`, a rotation
+ * author placing the mainslot as its own turn) is a deliberate action like any other and keeps
+ * the acting member's own colour.
  */
 function rotationTable(report: Report, slotHue: Map<string, string>): string {
   const columns = report.columns;
@@ -415,7 +689,9 @@ function rotationTable(report: Report, slotHue: Map<string, string>): string {
     .join("");
 
   const steps = report.rows.map((row, i) => {
-    const hue = (row.line.snap as ResolvedSnapshot).action.color || FALLBACK_HUE;
+    const snap = row.line.snap as ResolvedSnapshot;
+    const isNeutral = snap.action === TUNE_BREAK_CAST || snap.action.cast2 === Cast.Echo;
+    const hue = isNeutral ? TUNE_BREAK_COLOR : (slotHue.get(snap.member) ?? FALLBACK_HUE);
     const style = ` style="--m:${hue}"`;
     const cells = stepRow(columns, row, slotHue);
     const shortCls = row.short ? " short" : "";
@@ -449,22 +725,6 @@ function eventLog(log: string[]): string {
   if (!log.length) return "";
   return `<div class="eventlog"><h2>Event log</h2>`
     + `<ol>${log.map((l) => `<li>${esc(l)}</li>`).join("")}</ol></div>`;
-}
-
-function chips(state: State, report: Report): string {
-  const { level } = state.config;
-  const { level: enemyLevel, baseRes } = state.enemy;
-  // every element still seeded the same flat value today (see runTeam) — show that one number,
-  // or "mixed" once something actually gives the enemy asymmetric resistances
-  const resValues = new Set(ELEMENTS.map((e) => baseRes[e] ?? 0));
-  const res = resValues.size === 1 ? `${[...resValues][0]}%` : "mixed";
-
-  return [
-    `resonator lv<b>${level}</b>`,
-    `enemy lv<b>${enemyLevel}</b>`,
-    `<b>${res}</b> res`,
-    `<b>${report.rows.length}</b> actions`,
-  ].map((c) => `<span class="chip">${c}</span>`).join("");
 }
 
 /** The five totals — one card a member, one grand total. Sits below the table now, so it reads
@@ -652,46 +912,91 @@ function wireSourcePanels(root: HTMLElement): void {
 /* ----------------------------------------------------------------------- mount */
 
 const app = document.getElementById("app")!;
-const switchBar = document.getElementById("teamSwitch")!;
-const teamButtons = [...switchBar.querySelectorAll<HTMLElement>(".teambtn")];
-const headerChips = document.getElementById("headerChips")!;
+const backLink = document.getElementById("backLink")!;
+
+/** `#team=<key>` names a detail page; anything else (including empty) is the comparison table. */
+const routeTeam = (): string | null => {
+  const m = /^#team=(.+)$/.exec(location.hash);
+  return m && TEAMS[m[1]!] ? m[1]! : null;
+};
+
+function renderComparison(results: Map<string, TeamRun>): void {
+  backLink.hidden = true;
+  app.innerHTML = comparisonTable(results);
+  app.className = "";
+  applyFilters();   // the default S0/"all resonators" selection still has to actually hide rows
+}
+
+function renderDetail(key: string, results: Map<string, TeamRun>): void {
+  const result = results.get(key)!;
+  backLink.hidden = false;
+  app.innerHTML = page(result);
+  app.className = "";
+}
 
 /**
- * Run one team and mount it. `token` guards against two switches racing: if the button is
- * pressed again before this one's fetch/compute finishes, its result is thrown away instead of
- * clobbering whatever the newer click already showed — the only way that could happen here,
- * since `runTeam` itself is a pure function of which team it was asked for.
+ * Every team runs once, up front — the comparison table needs all of them at once anyway, and
+ * caching the results is what lets clicking into a team's own detail page (and back) be instant
+ * rather than re-running its rotation. `runTeam` is a pure function of which team it was asked
+ * for, so there's nothing to invalidate.
+ *
+ * Run one team at a time rather than `Promise.all`-ing them: `runTeam` has no real `await` of
+ * its own (it's CPU-bound start to finish), so kicking them all off together would still run
+ * them back to back in one synchronous burst — the browser never gets a chance to paint until
+ * every last one is done, and a progress count stuck at "0/N" the whole time isn't one. The
+ * explicit frame-yield after each team is what actually lets the count/bar update land on
+ * screen before the next team's own run blocks the main thread again.
  */
-let renderToken = 0;
-
-async function renderTeam(key: string): Promise<void> {
-  const token = ++renderToken;
-  for (const b of teamButtons) {
-    b.classList.toggle("active", b.dataset.team === key);
-    (b as HTMLButtonElement).disabled = true;
-  }
-  app.innerHTML = `<div class="spinner"></div><p>running the rotation…</p>`;
+async function boot(): Promise<void> {
+  const teamEntries = Object.entries(TEAMS);
+  const total = teamEntries.length;
+  app.innerHTML = `<p>Running Teams...</p>`
+    + `<div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>`
+    + `<p class="progress-count" id="progressCount">0/${total}</p>`;
   app.className = "loading";
 
+  const fillEl = document.getElementById("progressFill")!;
+  const countEl = document.getElementById("progressCount")!;
+
+  let results: Map<string, TeamRun>;
   try {
-    const result = await runTeam(TEAMS[key]!);
-    if (token !== renderToken) return;
-    app.innerHTML = page(result);
-    headerChips.innerHTML = chips(result.state, result.report);
-    app.className = "";
-    wireSourcePanels(app);
+    const entries: Array<[string, TeamRun]> = [];
+    for (const [key, members] of teamEntries) {
+      entries.push([key, await runTeam(members)]);
+      countEl.textContent = `${entries.length}/${total}`;
+      fillEl.style.width = `${(entries.length / total) * 100}%`;
+      await new Promise(requestAnimationFrame);
+    }
+    results = new Map(entries);
   } catch (err) {
-    if (token !== renderToken) return;
     console.error(err);
     app.innerHTML = errorPage(err);
     app.className = "";
-  } finally {
-    if (token === renderToken) for (const b of teamButtons) (b as HTMLButtonElement).disabled = false;
+    return;
   }
+
+  const route = (): void => {
+    const key = routeTeam();
+    if (key) renderDetail(key, results);
+    else renderComparison(results);
+  };
+  addEventListener("hashchange", route);
+  route();
+
+  // wired once: every listener inside is delegated off `document`/`window` and re-looks-up its
+  // target on each event, so it keeps working across every future re-render of #app's contents
+  // rather than needing to be re-attached each time.
+  wireSourcePanels(app);
+  document.addEventListener("click", (e) => {
+    const el = (e.target as Element).closest<HTMLElement>(".gotodetail");
+    if (el?.dataset.team) location.hash = `team=${el.dataset.team}`;
+  });
+  document.addEventListener("change", (e) => {
+    const id = (e.target as HTMLElement).id;
+    if (id === "resonatorFilter" || id === "seqFilter") applyFilters();
+  });
 }
 
-for (const b of teamButtons) {
-  b.addEventListener("click", () => renderTeam(b.dataset.team!));
-}
+backLink.addEventListener("click", (e) => { e.preventDefault(); location.hash = ""; });
 
-renderTeam(DEFAULT_TEAM);
+boot();

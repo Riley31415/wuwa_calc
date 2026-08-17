@@ -8,13 +8,15 @@
  * simulated rather than hand-authored per action slot. His numbers will not match the old sheet
  * exactly.
  */
-import { Buff, GlobalBuff, Gear, Mainslot, Action, Chain, PRIORITY, ECHO_CAST } from "../kit.js";
+import { Buff, GlobalBuff, Action, Chain, PRIORITY, ECHO_CAST } from "../kit.js";
 import type { ActionDef } from "../kit.js";
-import { Resonator, Loadout, isOutro, castedAs } from "../state.js";
+import { Resonator, Loadout, isOutro } from "../state.js";
 import type { Ctx, ResonatorFactory } from "../state.js";
 import { Stat, Element, DamageType, Node, Resource, Cast, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
+import { MYRIAD_SNARE, LAMP_2PC, LAMP_5PC } from "../echoes/mengzhou.js";
+import { JINGRAN_SIG } from "../weapons/broadblade.js";
 
 /** This resonator's own color — every action from the wrapper below defaults to it. */
 export const COLOR = "#f2603c";
@@ -94,91 +96,9 @@ export const JINGRAN_HP_TO_ATK = new Buff(PRIORITY.EARLY_CONVERSION, (ctx) => {
 });
 
 
-/* ------------------------------------------------------------------ weapon */
-
-/** Thousandfold Deliverance, R1. Nature's Order stacks on intro/shield, 6x 4% crit damage,
- *  full six sharpens heavy attacks. Cradle of Life stacks the same way, spent by a heavy for
- *  defence ignore. Both end on his outro. */
-
-export const JINGRAN_SIG = new Gear("Thousandfold Deliverance", (ctx) => {
-  const a = ctx.action!;
-  ctx.add(413, Stat.BaseAtk);
-  ctx.add(72.2, Stat.BonusHp);
-  ctx.add(12, Stat.DmgBonus);
-
-  // the shield trigger has a 0.5s ICD, but every cast that shields him twice (his liberation,
-  // both heavy attacks) is long enough that the two shields land more than 0.5s apart — so
-  // `shields` itself is the stack count, not capped to 1. The intro is a separate trigger — a
-  // cast that's both pays both.
-  const gained = ctx.shields + (a.cast === DamageType.Intro ? 1 : 0);
-  if (gained) {
-    ctx.grantSelf(NATURES_ORDER, gained);
-    ctx.grantSelf(CRADLE_OF_LIFE, gained);
-  }
-});
-
-export const NATURES_ORDER = new Buff(PRIORITY.BUFF_STATS, (ctx, stacks) => {
-  // switching resonator ends it immediately — whoever is wielding the weapon, not just Jingran
-  if (isOutro(ctx.action!)) {
-    ctx.revoke(NATURES_ORDER);
-    return "Thousandfold Deliverance: Nature's Order x0";
-  }
-  ctx.add(4 * stacks, Stat.CritDmg);
-  // the full six pay crit rate, scoped so only heavy attack damage resolves it
-  if (stacks >= 6) ctx.add(12, DamageType.Heavy, Stat.CritRate);
-  return `Thousandfold Deliverance: Nature's Order x${stacks}`;
-}, 6);
-
-/** Cradle of Life — stacks like Nature's Order but is spent: a heavy attack consumes up to two
- *  stacks, each piercing 15% defence. "Heavy attack" is the cast, not the damage type (his
- *  basic stages 3/4 deal Heavy Attack DMG without being heavy-attack casts). Also ends on
- *  switching resonator, same as Nature's Order. */
-export const CRADLE_OF_LIFE = new Buff(PRIORITY.BUFF_STATS, (ctx, stacks) => {
-  if (isOutro(ctx.action!)) {
-    ctx.revoke(CRADLE_OF_LIFE);
-    return;
-  }
-  if (!castedAs(ctx.action!, DamageType.Heavy)) return;
-
-  const spent = Math.min(stacks, 2);
-  ctx.add(15 * spent, DamageType.Heavy, Stat.DefIgnore);
-  ctx.removeStack(CRADLE_OF_LIFE, spent);
-  return `Thousandfold Deliverance: Cradle of Life x${stacks}`;
-}, 6);
-
-/* -------------------------------------------------------------- echo, sonata */
-
-/** The echo's cast, paired with the Mainslot below. */
-export const ACTION_MYRIAD_SNARE = new Action("Echo: Myriad Snare", {
-  color: COLOR,
-  cast: DamageType.Echo,
-  element: Element.Fusion,
-  scaling: Scaling.Hp,
-  type: DamageType.Echo,
-  mv: 17.23,
-  energy: 380,
-});
-
-export const MYRIAD_SNARE = new Mainslot("Myriad Snare", ACTION_MYRIAD_SNARE, (ctx) => {
-  ctx.add(12, Element.Fusion, Stat.DmgBonus);
-  ctx.add(12, DamageType.Heavy, Stat.DmgBonus);
-});
-
-/** Lamp of Nether Road 5pc: a shield grants 5% crit rate, four stacks, full four pay 15% fusion
- *  damage on top. */
-export const LAMP_5PC = new Gear("Lamp of Nether Road 5pc", (ctx) => {
-  if (ctx.shields) ctx.grantSelf(LAMP_STACKS, ctx.shields);
-});
-
-export const LAMP_STACKS = new Buff(PRIORITY.BUFF_STATS, (ctx, stacks) => {
-  ctx.add(5 * stacks, Stat.CritRate);
-  if (stacks >= 4) ctx.add(15, Element.Fusion, Stat.DmgBonus);
-  return `Lamp of Nether Road x${stacks}`;
-}, 4);
-
-export const LAMP_2PC = new Gear("Lamp of Nether Road 2pc", (ctx) => { ctx.add(10, Stat.BonusHp); });
-
-/** His own Resonator — shared by both loadouts below, only the mainstat spread differs. */
+/** His own Resonator — shared by both loadouts below, only the mainstat spread differs. His
+ *  weapon (Thousandfold Deliverance) lives in weapons/broadblade.js; his mainslot echo (Myriad Snare)
+ *  and sonata (Lamp of Nether Road) live in echoes/mengzhou.js. */
 export class Jingran extends Resonator {
   constructor(loadout: Loadout) {
     super(
@@ -233,52 +153,56 @@ export const LOADOUT_CRCD: ResonatorFactory = () => new Jingran(JINGRAN_LOADOUT_
 function jingranAction(name: string, def: ActionDef): Action {
   return new Action(name, {
     element: Element.Fusion,
-    color: COLOR,
     scaling: Scaling.Atk,
     ...def,
   });
 }
 
-// --- basics and mid-air. Stages 3 and 4 restore Qi.
-const BA1 = jingranAction("Yang Basic 1", { node: Node.Normal, cast: DamageType.Basic, shields: 1, type: DamageType.Basic, mv: 39.82, energy: 67, concerto: 134, offtune: 2136 });
-const BA2 = jingranAction("Yang Basic 2", { node: Node.Normal, cast: DamageType.Basic, shields: 1, type: DamageType.Basic, mv: 99.47, energy: 168, concerto: 335, offtune: 5337 });
-const BA3 = jingranAction("Yang Basic 3", { node: Node.Normal, cast: DamageType.Basic, shields: 1, type: DamageType.Heavy, mv: 159.1, energy: 269, concerto: 536, offtune: 8537, forte1: 50 });
-const BA4 = jingranAction("Yang Basic 4", { node: Node.Normal, cast: DamageType.Basic, shields: 1, type: DamageType.Heavy, mv: 124.24, energy: 209, concerto: 418, offtune: 6666, forte1: 50 });
-const MA = jingranAction("Plunge", { node: Node.Normal, cast: DamageType.Basic, shields: 1, type: DamageType.Basic, mv: 92.45, energy: 155, concerto: 310, offtune: 4960 });
+// --- basics and mid-air. Stages 3 and 4 restore Qi. Unprefixed = Yang Font's own basic combo
+//     (Devil's Bane); "Drink Soul" is Yin Vessel's. Mid-air Attack itself is shared by both
+//     states — no separate name — so it's filed under his own basic-attack tree's own umbrella
+//     name (Edge of Life and Death), same convention as every other kit's own tree-named basics.
+const BA1 = jingranAction("Basic: Devil's Bane 1", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: DamageType.Basic, mv: 39.82, energy: 67, concerto: 134, offtune: 2136 });
+const BA2 = jingranAction("Basic: Devil's Bane 2", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: DamageType.Basic, mv: 99.47, energy: 168, concerto: 335, offtune: 5337 });
+const BA3 = jingranAction("Basic: Devil's Bane 3", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: DamageType.Heavy, mv: 159.1, energy: 269, concerto: 536, offtune: 8537, forte1: 50 });
+const BA4 = jingranAction("Basic: Devil's Bane 4", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: DamageType.Heavy, mv: 124.24, energy: 209, concerto: 418, offtune: 6666, forte1: 50 });
+const MA = jingranAction("Basic: Edge of Life and Death (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: DamageType.Basic, mv: 92.45, energy: 155, concerto: 310, offtune: 4960 });
 
-// --- enhanced basics
-const EBA1 = jingranAction("Yin Basic 1", { node: Node.Normal, cast: DamageType.Basic, shields: 1, type: DamageType.Basic, mv: 44.74, energy: 75, concerto: 150, offtune: 2400 });
-const EBA2 = jingranAction("Yin Basic 2", { node: Node.Normal, cast: DamageType.Basic, shields: 1, type: DamageType.Basic, mv: 74.56, energy: 126, concerto: 250, offtune: 4000 });
-const EBA3 = jingranAction("Yin Basic 3", { node: Node.Normal, cast: DamageType.Basic, shields: 1, type: DamageType.Heavy, mv: 109.32, energy: 184, concerto: 368, offtune: 5864, forte1: 50 });
-const EBA4 = jingranAction("Yin Basic 4", { node: Node.Normal, cast: DamageType.Basic, shields: 1, type: DamageType.Heavy, mv: 153.16, energy: 260, concerto: 516, offtune: 8218, forte1: 50 });
+// --- enhanced basics: Drink Soul, Yin Vessel's own basic combo
+const EBA1 = jingranAction("Basic: Drink Soul 1", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: DamageType.Basic, mv: 44.74, energy: 75, concerto: 150, offtune: 2400 });
+const EBA2 = jingranAction("Basic: Drink Soul 2", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: DamageType.Basic, mv: 74.56, energy: 126, concerto: 250, offtune: 4000 });
+const EBA3 = jingranAction("Basic: Drink Soul 3", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: DamageType.Heavy, mv: 109.32, energy: 184, concerto: 368, offtune: 5864, forte1: 50 });
+const EBA4 = jingranAction("Basic: Drink Soul 4", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: DamageType.Heavy, mv: 153.16, energy: 260, concerto: 516, offtune: 8218, forte1: 50 });
 
 // chains
-export const BA234 = new Chain("Yang Basic 234", [BA2, BA3, BA4]);
-export const EBA234 = new Chain("Yin Basic 234", [EBA2, EBA3, EBA4]);
+export const BA234 = new Chain("Basic: Devil's Bane 234", [BA2, BA3, BA4]);
+export const EBA234 = new Chain("Basic: Drink Soul 234", [EBA2, EBA3, EBA4]);
 
-// --- dodge counters: Nether Dive / Light Watch, 100 Qi each
-const DC = jingranAction("Yang Dodge Counter", { node: Node.Normal, cast: Cast.DodgeCounter, shields: 1, type: DamageType.Heavy, mv: 198.8, energy: 336, concerto: 668, offtune: 10664, forte1: 100 });
-const EDC = jingranAction("Yin Dodge Counter", { node: Node.Normal, cast: Cast.DodgeCounter, shields: 1, type: DamageType.Heavy, mv: 248.57, energy: 419, concerto: 836, offtune: 13337, forte1: 100 });
+// --- dodge counters: Light Watch (Yang Font), Nether Dive (Yin Vessel), 100 Qi each
+const DC = jingranAction("Basic: Light Watch", { node: Node.Normal, cast: Cast.DodgeCounter, shields: 1, type: DamageType.Heavy, mv: 198.8, energy: 336, concerto: 668, offtune: 10664, forte1: 100 });
+const EDC = jingranAction("Basic: Nether Dive", { node: Node.Normal, cast: Cast.DodgeCounter, shields: 1, type: DamageType.Heavy, mv: 248.57, energy: 419, concerto: 836, offtune: 13337, forte1: 100 });
 
-// --- resonance skill. The "2" casts are the hold-Normal-Attack follow-ups, 100 Qi.
-const Skill1 = jingranAction("Yang Skill 1", {
-  node: Node.Skill, cast: DamageType.Skill, shields: 1, type: DamageType.Skill, mv: 164.04, energy: 175, concerto: 350, offtune: 5600,
+// --- resonance skill. Scorching Yang/Afterlife's Guide are Yang Font's own tap+hold pair;
+//     Encroaching Yin/Netherworld Traverse are Yin Vessel's — the "2" casts are the hold-Normal-
+//     Attack follow-ups, 100 Qi.
+const Skill1 = jingranAction("Skill: Scorching Yang", {
+  node: Node.Skill, cast: Cast.Skill, shields: 1, type: DamageType.Skill, mv: 164.04, energy: 175, concerto: 350, offtune: 5600,
 });
-const ESkill1 = jingranAction("Yin Skill 1", {
-  node: Node.Skill, cast: DamageType.Skill, shields: 1, type: DamageType.Skill, mv: 164.04, energy: 175, concerto: 350, offtune: 5600,
+const ESkill1 = jingranAction("Skill: Encroaching Yin", {
+  node: Node.Skill, cast: Cast.Skill, shields: 1, type: DamageType.Skill, mv: 164.04, energy: 175, concerto: 350, offtune: 5600,
 });
-const Skill2 = jingranAction("Yang Skill 2", {
-  node: Node.Skill, cast: DamageType.Skill, shields: 1, type: DamageType.Heavy, mv: 258.47, energy: 335, concerto: 500, offtune: 10667,
+const Skill2 = jingranAction("Skill: Afterlife's Guide", {
+  node: Node.Skill, cast: Cast.Skill, shields: 1, type: DamageType.Heavy, mv: 258.47, energy: 335, concerto: 500, offtune: 10667,
   forte1: 100,
 });
-const ESkill2 = jingranAction("Yin Skill 2", {
-  node: Node.Skill, cast: DamageType.Skill, shields: 1, type: DamageType.Heavy, mv: 263.48, energy: 343, concerto: 500, offtune: 10936,
+const ESkill2 = jingranAction("Skill: Netherworld Traverse", {
+  node: Node.Skill, cast: Cast.Skill, shields: 1, type: DamageType.Heavy, mv: 263.48, energy: 343, concerto: 500, offtune: 10936,
   forte1: 100,
 });
 
 // --- liberation. -125 is display only: a liberation doesn't move the running energy total.
-const Lib = jingranAction("Liberation", {
-  node: Node.Liberation, cast: DamageType.Liberation, shields: 2, type: DamageType.Heavy, mv: 745.2,      // 93.15% x 8
+const Lib = jingranAction("Liberation: Burial of Thousand Souls", {
+  node: Node.Liberation, cast: Cast.Liberation, shields: 2, type: DamageType.Heavy, mv: 745.2,      // 93.15% x 8
   energy: -12500, concerto: 2000, offtune: 168000, forte1: 200,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.setCounter(JINGRAN_MINGFIRE, 100); },
@@ -286,15 +210,15 @@ const Lib = jingranAction("Liberation", {
 
 /** Chimei Wangliang — the Yinghuo follow-up, one per heavy attack. Node LIB (attributed to the
  *  liberation) but no `cast`: it's a summon, not a press, so it fires no trigger. */
-export const ACTION_LIB_FUA = jingranAction("Liberation Followup", {
+export const ACTION_LIB_FUA = jingranAction("Liberation: Chimei Wangliang", {
   node: Node.Liberation,
   type: DamageType.Heavy,
   mv: 83.51,
 });
 
 // --- intro / outro. Outro declares -100 concerto for display only.
-const Intro = jingranAction("Intro", {
-  node: Node.Intro, cast: DamageType.Intro, shields: 1, type: DamageType.Intro, mv: 198.81,
+const Intro = jingranAction("Intro: Question the Tombs", {
+  node: Node.Intro, cast: Cast.Intro, shields: 1, type: DamageType.Intro, mv: 198.81,
   energy: 1000, concerto: 1000, offtune: 8000, forte1: 100,
   // spends every Ghost Shroud stack he walked in with for Fortune in Disguise. UPDATE_BUFFS:
   // this action's own shield must not be in the pile it converts.
@@ -306,8 +230,8 @@ const Intro = jingranAction("Intro", {
     ctx.grantSelf(JINGRAN_FORTUNE, shroud);
   },
 });
-const Outro = jingranAction("Outro", {
-  cast: DamageType.Outro, type: DamageType.Outro, mv: 795, concerto: -10000, active: false,
+const Outro = jingranAction("Outro: Rising Fortune and Ebbing Evil", {
+  cast: Cast.Outro, type: DamageType.Outro, mv: 795, concerto: -10000, active: false,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) {
     ctx.setCounter(JINGRAN_MINGFIRE, 0);
@@ -337,14 +261,15 @@ function heavyAttack(ctx: Ctx, mvPer1000: number): string {
   return "Jingran: Fire of Life";
 }
 
-// --- heavy attacks ("forte skills"). Unprefixed = Yang Font (FHA = Stardome Meander),
-//     EFHA (Yin Vessel) = Soul Raid.
-const FHA = jingranAction("Yang Forte Heavy", {
-  node: Node.Forte, cast: DamageType.Heavy, shields: 2, type: DamageType.Heavy, mv: 240.38,          // 24.04% + 24.04% + 48.08% + 144.22%
+// --- heavy attacks ("forte skills"). Unprefixed = Yang Font's own (FHA = Stardome Meander,
+//     switches him to Yin Vessel on landing), EFHA (Yin Vessel's own) = Soul Raid (switches him
+//     to Yang Font).
+const FHA = jingranAction("Heavy: Stardome Meander", {
+  node: Node.Forte, cast: Cast.Heavy, shields: 2, type: DamageType.Heavy, mv: 240.38,          // 24.04% + 24.04% + 48.08% + 144.22%
   energy: 850, concerto: 1300, offtune: 10400, forte1: -300, priority: PRIORITY.LATE_CONVERSION, apply: (ctx) => heavyAttack(ctx, 21.65),   // 2.17% + 2.17% + 4.33% + 12.98%
 });
-const EFHA = jingranAction("Yin Forte Heavy", {
-  node: Node.Forte, cast: DamageType.Heavy, shields: 2, type: DamageType.Heavy, mv: 234.29,          // 16.40% x2 + 21.09% x3 + 138.22%
+const EFHA = jingranAction("Heavy: Soul Raid", {
+  node: Node.Forte, cast: Cast.Heavy, shields: 2, type: DamageType.Heavy, mv: 234.29,          // 16.40% x2 + 21.09% x3 + 138.22%
   energy: 853, concerto: 1300, offtune: 10140, forte1: -300, priority: PRIORITY.LATE_CONVERSION, apply: (ctx) => heavyAttack(ctx, 21.10),    // 1.48% x2 + 1.90% x3 + 12.44%
 });
 

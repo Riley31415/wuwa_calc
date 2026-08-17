@@ -3,7 +3,7 @@
  *   AUTO_TUNE_BREAK   a buff that watches the bar and queues the cast
  *   TUNE_BREAK_CAST   the cast, which empties the bar
  */
-import { Action, Buff, PRIORITY, WHITE } from "../kit.js";
+import { Action, Buff, PRIORITY } from "../kit.js";
 import type { ResolvedSnapshot } from "../state.js";
 import { Resource, Element, DamageType, Cast, Scaling } from "../stats.js";
 
@@ -11,11 +11,15 @@ import { Resource, Element, DamageType, Cast, Scaling } from "../stats.js";
  *  again. */
 const OFFTUNE_AFTER_BREAK = -30000;
 
+/** What a tune break's own row renders in — actions don't carry their own colour any more (see
+ *  kit.js), so the web view (index.ts) reads this directly and gives an echo cast the same
+ *  treatment: neither belongs to any one kit, so both read the same neutral white rather than
+ *  whoever happened to be acting. */
+export const TUNE_BREAK_COLOR = "#ffffff";
+
 /** Off-tune break. Scales off the tune constant, bypasses crit. Empties the bar itself, so the
- *  drop lands on this row's own off-tune trace rather than whatever action filled it. Colored
- *  white, same reasoning as generic gear — it's the whole team's shared bar, not one kit's own. */
+ *  drop lands on this row's own off-tune trace rather than whatever action filled it. */
 export const TUNE_BREAK_CAST = new Action("Tune Break", {
-  color: WHITE,
   element: Element.Physical,
   scaling: Scaling.Tune,
   cast: Cast.TuneBreak,
@@ -45,8 +49,8 @@ export const MISC = "Misc";
 /** Call once after a rotation is run, before the snapshot reaches anything that groups by
  *  `.slot`. Only `.slot` (the totals bucket) is relabeled to "Misc" — `.member` (the per-row
  *  "who acted" column) is left alone, so a tune break still shows its real actor there even
- *  though the row itself renders in the action's own white. Returns the same snapshot for easy
- *  chaining into a `.map()`. */
+ *  though the row itself renders in the neutral white every tune break/echo cast shares (see
+ *  `TUNE_BREAK_COLOR`). Returns the same snapshot for easy chaining into a `.map()`. */
 export const attributeMisc = (snap: ResolvedSnapshot): ResolvedSnapshot => {
   if (snap.action === TUNE_BREAK_CAST) snap.slot = MISC;
   return snap;

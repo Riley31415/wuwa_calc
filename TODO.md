@@ -1,7 +1,3 @@
-# offtune
-add offtune to resonator actions missing it
-buling, brant
-
 # heron
 add heron 10 energy? make sure it works with echo mainslot system
 full moonlit implementation, have it extend for N more actions after outro
@@ -13,11 +9,8 @@ then 1 action between each?
 if none queue it gets instantly queued tho
 insert hecate ba12 whenever none has been queued for a certain # of actions?
 
-# action names
-update all action names to the ingame names, shortened in only certain cases
-
 #
-delete DamageConfig, use a constant RESONATOR_LEVEL = 90 just like the dot and tune constants
+check all exports for ones that are unnecessary
 
 # cancel mode
 first need to seperate on hit vs on cast effects
@@ -41,25 +34,34 @@ but still display they way they do currently
 also store all concerto, energy, shields, mv, dots as integers in the object
 
 # building swap system
+actions to mark swaps, and swaps that need swapback
+have outro become a triggered action
 
+#
+buff sources finish colors, maybe give echoes white?
 
 #
 normalize dodge counter concerto, move it into engine
+
+#
+remove ResonatorFactory
+
+# 
+clean up kit.ts
 
 # enemy class
 needs to be cleaned up its a mess
 
 # stats
-complete the TODOs in stats.ts
+complete the TODOs in stats.ts 
 
-# todo
-move sonata, mainslot, 2pc into 3 files under shared/: echoes1x, echoes2x, echoes3x corresponding to the major version release
-move weapons into weapons1x, weapons2x, weapons3x corresponding to the major version release
-move current weapons into weapons0x for standard weapons.
+#
+have a way to list non-stat adding buffs
 
 # characters that need tune implementation
 mornye https://ww.nanoka.cc/character/1209 (maybe implement without any tune aspects first?)
 denia https://ww.nanoka.cc/character/1211 (maybe implement without any tune aspects first?)
+https://ww.nanoka.cc/weapon/21050076
 aemeath https://ww.nanoka.cc/character/1210
 rebecca https://ww.nanoka.cc/character/1308
 qingxiao https://ww.nanoka.cc/character/1413
@@ -70,44 +72,36 @@ lynae https://ww.nanoka.cc/character/1509
 # characters that need dot implementation
 chisa https://ww.nanoka.cc/character/1508
 suisui https://ww.nanoka.cc/character/1110
+https://ww.nanoka.cc/weapon/21050096
 hiyuki https://ww.nanoka.cc/character/1108
 electro rover https://ww.nanoka.cc/character/1310
 ciaconna https://ww.nanoka.cc/character/1407 (maybe impl without dot)
 xuanling https://ww.nanoka.cc/character/1610 
 zani https://ww.nanoka.cc/character/1507
 phoebe https://ww.nanoka.cc/character/1506
+https://ww.nanoka.cc/weapon/21050027/ at R5
+https://ww.nanoka.cc/weapon/21050046
 spectro rover https://ww.nanoka.cc/character/1502
 aero rover https://ww.nanoka.cc/character/1408 
+https://ww.nanoka.cc/weapon/21020046/
 cartethiya https://ww.nanoka.cc/character/1409
 
-# less important chars
+# needs coords
 jinhsi https://ww.nanoka.cc/character/1304
-havoc rover https://ww.nanoka.cc/character/1605
-camellya https://ww.nanoka.cc/character/1603
-danjin https://ww.nanoka.cc/character/1602
 
-# characters to implement now
+# todo fix these kits
+Galbrena
+Sigrika
+Roccia
+Changli 
+Encore 
+Verina
+Jianxin 
+havoc rover
+cammelya
+danjin
+add offtune to resonator actions missing it
 
-
-https://ww.nanoka.cc/character/1606 roccia
-https://ww.nanoka.cc/weapon/21040026 roccia weapon
-
-https://ww.nanoka.cc/character/1412 sigrika
-https://ww.nanoka.cc/weapon/21040066 sigrika weapon
-
-https://ww.nanoka.cc/character/1208 galbrena
-https://ww.nanoka.cc/weapon/21030036 galbrena weapon
-
-https://ww.nanoka.cc/character/1205 changli
-https://ww.nanoka.cc/weapon/21020016 changli weapon
-https://wuwalab.com/characters/changli/
-
-https://ww.nanoka.cc/character/1203 encore (standard 5*, implement all her sequences, use stringmaster as her weapon)
-https://ww.nanoka.cc/character/1405 jianxin (standard 5*, implement all sequences and use marcato R5 as her weapon)
-https://ww.nanoka.cc/character/1503 verina (standard 5*, implement all sequences and use variation R5)
-
-# add additional weapons from characters we arent implementing yet
-move stringmaster to yinlin.ts (we wont implement yinlin herself tho)
-https://ww.nanoka.cc/weapon/21040016 xiangliyao.js
-https://ww.nanoka.cc/weapon/21010026 jinhsi.js
-https://ww.nanoka.cc/weapon/21010016 jiyan.js
+check old sonatas
+check all sonata buff names, 2pc, 5pc
+fix skill chain names

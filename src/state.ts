@@ -29,7 +29,7 @@ import {
   labelOf, nameOf, setLabel, PRIORITY, PRIORITY_BANDS,
 } from "./kit.js";
 import type { Priority, OnIntro } from "./kit.js";
-import type { Snapshot, DamageConfig } from "./damage.js";
+import type { Snapshot } from "./damage.js";
 
 /** What an action is, for matching scoped stats: its element and its damage type. */
 const tagsOf = (action: Action | null): string[] =>
@@ -123,6 +123,13 @@ export class Resonator {
   /** Extra Gear a loadout equips beyond the standard six (a character's own sequence pieces,
    *  say) — not every build has any. */
   sequences: Gear[];
+  /** True for a resonator whose sequences should always show, regardless of the comparison
+   *  table's own "max sequence" filter ceiling — a subclass sets this itself, after calling
+   *  `super()` (see Buling/Sanhua). Usually a 4-star character (sequences 1-6 are far easier to
+   *  reach on a 4-star than a 5-star's own), but also used for standard/permanent-banner 5-stars
+   *  that are similarly easy to build out (Havoc Rover). Nothing inside the engine itself reads
+   *  this — display-only (see index.ts's `applyFilters`). */
+  alwaysUnlocked = false;
   onFightStart: ((ctx: Ctx) => void) | null;
   maxEnergy: number;
   maxConcerto: number;
@@ -134,12 +141,12 @@ export class Resonator {
   forte3 = 0;
   forte4 = 0;
   forte5 = 0;
-  /** This character's own base stat line (HP/ATK/DEF, etc) — reported under their own name,
+  /** This character's own base stat line (HP/ATK/DEF, etc), plus the universal 100% ER / 5%
+   *  Crit Rate / 150% Crit DMG baseline every resonator carries — reported under their own name,
    *  added to the slot exactly like any other Gear. */
   readonly base: Buff;
-  /** The stat-tree talent bonus, split into its own buff so a trace can tell it apart from
-   *  `base`: the universal 100% ER / 5% Crit Rate / 150% Crit DMG baseline every resonator
-   *  carries, plus whatever `talents` adds. */
+  /** The stat-tree talent bonus alone, split into its own buff so a trace can tell it apart
+   *  from `base`. */
   readonly talents: Buff;
 
   constructor(
@@ -172,12 +179,16 @@ export class Resonator {
     this.maxEnergy = maxEnergy;
     this.maxConcerto = maxConcerto;
 
-    this.base = new Buff(PRIORITY.GEAR_STATS, (ctx, stacks) => { stats?.(ctx, stacks); return name; });
-    this.talents = new Buff(PRIORITY.GEAR_STATS, (ctx, stacks) => {
+    this.base = new Buff(PRIORITY.GEAR_STATS, (ctx, stacks) => {
       ctx.add(100, Stat.Er);
       ctx.add(5, Stat.CritRate);
       ctx.add(150, Stat.CritDmg);   // a total multiplier, not a bonus: a crit deals 150%
-      talents?.(ctx, stacks);
+      stats?.(ctx, stacks);
+      return name;
+    });
+    this.talents = new Buff(PRIORITY.GEAR_STATS, (ctx, stacks) => {
+      if (!talents) return;
+      talents(ctx, stacks);
       return `${name}: Talents`;
     });
   }
@@ -339,11 +350,7 @@ export class Slot {
   }
 
   /** Flat totals fold base × (1 + bonus%) + flat, computed on demand. */
-  derived(kind: string): number {
-    const [base, bonus, flat] =
-      kind === Stat.Atk ? [Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk]
-      : kind === Stat.Hp ? [Stat.BaseHp, Stat.BonusHp, Stat.FlatHp]
-      : [Stat.BaseDef, Stat.BonusDef, Stat.FlatDef];
+  derived(base: Stat, bonus: Stat, flat: Stat): number {
     return Math.floor(this.total(base) * (1 + this.total(bonus) / 100) + this.total(flat));
   }
 }
@@ -490,7 +497,6 @@ export class Enemy {
 
 export interface StateOptions {
   team?: string[];
-  level?: number;
   enemy?: Enemy;
   buffs?: Buff[];
 }
@@ -531,7 +537,6 @@ export class State {
   currentAction: Action | null;
   slots: Slot[];
   active: number;
-  config: DamageConfig;
   enemy: Enemy;
   globalBuffs: Map<GlobalBuff, GlobalBuff>;
   outroQueue: QueuedOutro[];
@@ -541,13 +546,12 @@ export class State {
   /** `buffs` seeds every slot before anything is equipped — the engine's own standing rules.
    *  `enemy` defaults to a bare `Enemy` (level 100, 0 resistance everywhere, no off-tune cap) if
    *  the caller doesn't build its own. */
-  constructor({ team = ["slot1"], level = 90, enemy = new Enemy(), buffs = [] }: StateOptions = {}) {
+  constructor({ team = ["slot1"], enemy = new Enemy(), buffs = [] }: StateOptions = {}) {
     /** Log lines, as thunks — frozen at the end of the action that produced them. */
     this.events = [];
     this.currentAction = null;
     this.slots = team.map((n, i) => new Slot(n, i, this));
     this.active = 0;
-    this.config = { level };
     this.enemy = enemy;
     this.enemy.state = this;
     for (const slot of this.slots) for (const b of buffs) slot.addBuff(b, { via: "engine" });
@@ -874,9 +878,9 @@ export class State {
       chain: meta.chain ?? null,
       chainOf: meta.chainOf ?? null,
       active: action.active,
-      atk: slot.derived(Stat.Atk),
-      hp: slot.derived(Stat.Hp),
-      def: slot.derived(Stat.Def),
+      atk: slot.derived(Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk),
+      hp: slot.derived(Stat.BaseHp, Stat.BonusHp, Stat.FlatHp),
+      def: slot.derived(Stat.BaseDef, Stat.BonusDef, Stat.FlatDef),
       dmgBonus: stat(Stat.DmgBonus),
       amp: stat(Stat.Amp),
       // read straight off the enemy — its own level/baseRes plus whatever debuffs on it
@@ -993,9 +997,9 @@ export class Ctx {
   pct(stat: string): number { return isPercent(stat) ? this.get(stat) / 100 : this.get(stat); }
 
   /** Summed totals. Safe to read from the action's apply() and from LATE conversions. */
-  atk(): number { return this.slot.derived(Stat.Atk); }
-  hp(): number { return this.slot.derived(Stat.Hp); }
-  def(): number { return this.slot.derived(Stat.Def); }
+  atk(): number { return this.slot.derived(Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk); }
+  hp(): number { return this.slot.derived(Stat.BaseHp, Stat.BonusHp, Stat.FlatHp); }
+  def(): number { return this.slot.derived(Stat.BaseDef, Stat.BonusDef, Stat.FlatDef); }
 
   /* counters — per resonator */
   counter(name: Resource): number { return this.slot.counter(name); }
@@ -1022,10 +1026,6 @@ export class Ctx {
     this.state.enemy.setCounter(name, have - n, this.source);
     return true;
   }
-
-  /** The fight's settings: just the resonator's own level now — enemy level/resistance/off-tune
-   *  cap all live on `enemy`. Read-only by convention. */
-  config(): DamageConfig { return this.state.config; }
 
   /** Does the acting resonator hold this local buff, or is this global buff currently up —
    *  routed by the buff's own class, so the same call works for either. */

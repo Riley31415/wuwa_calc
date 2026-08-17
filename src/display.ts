@@ -12,9 +12,9 @@
 import {
   Stat, Resource, Scaling,
   scopedStat, TAGS_MATCHED, splitStat, statLabel,
+  ELEMENTS, TYPES, TYPE2S,
 } from "./stats.js";
 import { mvPercent, effectiveDef, effectiveRes, damageFactors } from "./damage.js";
-import type { DamageConfig } from "./damage.js";
 import type { ChainGroup } from "./kit.js";
 import type { ResolvedSnapshot, StatEntry } from "./state.js";
 
@@ -97,7 +97,21 @@ const STAT_SOURCE: Record<string, string> = {
   [Scaling.Dot]: "dot constant", [Scaling.Tune]: "tune constant",
 };
 
-/** Every entry that fed `stats`, summed per source and kept in contribution order. */
+/** A row's own scope, broadest first: unscoped ("general") entries before ones scoped to the
+ *  action's element, then its own damage type, then its second damage type — the same order a
+ *  kit's own conditionals read broadest-to-narrowest in. `atk`/`hp` don't use this: their own
+ *  panels group by section (base/bonus/flat) instead, see `popover()` in index.ts. */
+function tagRank(stat: string): number {
+  const tag = splitStat(stat)[1];
+  if (tag == null) return 0;
+  if ((ELEMENTS as string[]).includes(tag)) return 1;
+  if ((TYPES as string[]).includes(tag)) return 2;
+  if ((TYPE2S as string[]).includes(tag)) return 3;
+  return 4;
+}
+
+/** Every entry that fed `stats`, summed per source and sorted broadest-scope-first (see
+ *  `tagRank`) — a stable sort, so same-scope rows keep the order the buffs contributed them. */
 function tracing(snapshot: ResolvedSnapshot, stats: string[]): TraceEntry[] {
   const wanted = new Set(stats);
   const by = new Map<string, TraceEntry>();
@@ -113,7 +127,7 @@ function tracing(snapshot: ResolvedSnapshot, stats: string[]): TraceEntry[] {
       });
     }
   }
-  return [...by.values()];
+  return [...by.values()].sort((a, b) => tagRank(a.stat ?? "") - tagRank(b.stat ?? ""));
 }
 
 const num = (v: number | null | undefined, digits = 0): string =>
@@ -155,7 +169,7 @@ function resourceTrace(
   // What the rotation had already banked. Shown even when nothing moved, so the number in the
   // column is always accounted for rather than appearing from nowhere on a row that spent nothing.
   const carried = total - moved.reduce((n, m) => n + m.value, 0);
-  if (Math.abs(carried) > 1e-9) rows.push({ source: "Concerto Held", value: carried, digits: 0 });
+  if (Math.abs(carried) > 1e-9) rows.push({ source: "Held", value: carried, digits: 0 });
   rows.push(...moved.filter((m) => Math.abs(m.value) > 1e-9).map((m) => ({ ...m, digits: 0 })));
 
   // A liberation declares -12500 energy and an outro -10000 concerto, but neither moves the
@@ -193,7 +207,7 @@ export interface RowValues {
  */
 function rowValues(
   snap: ResolvedSnapshot,
-  { mv, avg, config }: { mv: number; avg: number; config: DamageConfig | null },
+  { mv, avg }: { mv: number; avg: number },
 ): RowValues {
   const raw: RawRow = {
     member: snap.member,
@@ -207,7 +221,7 @@ function rowValues(
     dealt: snap.stat(Stat.DmgDealt),
     // what the hit actually meets: the enemy's defence as a fraction of its base, and the
     // resistance left after ignore and shred — both read straight off the resolved snapshot's
-    // own enemyDef/enemyRes now, so unlike the rest of this panel they don't need `config`.
+    // own enemyDef/enemyRes.
     effDef: effectiveDef(snap) * 100,
     effRes: effectiveRes(snap),
     energy: snap.counters[Resource.Energy] ?? 0,
@@ -270,34 +284,32 @@ function rowValues(
   // The enemy-side panels end with the multiplier the formula actually applies, which is the
   // thing the ignore/shred rows above it are working towards — a res of 20% is a x0.8, and the
   // relationship is not linear once resistance goes negative or past 80%.
-  if (config) {
-    const f = damageFactors(snap, config);
-    // Always present, even with nothing shredding: the factor is the point of these panels, and
-    // an unshredded 20% resistance still costs a fifth of the hit. `afterTotal` puts it below
-    // the total, since it is what the total becomes rather than another thing summed into it.
-    sources.effRes = [...(sources.effRes ?? []),
-      { source: "resistance factor", value: f.resFactor, mult: true, place: "afterTotal" }];
-    sources.effDef = [...(sources.effDef ?? []),
-      { source: "defense factor", value: f.defFactor, mult: true, place: "afterTotal" }];
+  const f = damageFactors(snap);
+  // Always present, even with nothing shredding: the factor is the point of these panels, and
+  // an unshredded 20% resistance still costs a fifth of the hit. `afterTotal` puts it below
+  // the total, since it is what the total becomes rather than another thing summed into it.
+  sources.effRes = [...(sources.effRes ?? []),
+    { source: "resistance factor", value: f.resFactor, mult: true, place: "afterTotal" }];
+  sources.effDef = [...(sources.effDef ?? []),
+    { source: "defense factor", value: f.defFactor, mult: true, place: "afterTotal" }];
 
-    // Every term of the damage product. The stat leads rather than the motion value: it is the
-    // amount being multiplied and everything below it is a multiplier on that amount, so reading
-    // top to bottom follows the arithmetic instead of opening with a factor of nothing.
-    sources.avg = [
-      { source: STAT_SOURCE[f.scaling] ?? f.scaling, label: "Final Stat", value: f.finalStat },
-      { source: snap.action.id, label: "Motion Value", value: f.finalMv, mult: true },
-      { source: "buffs", label: "Amplification", value: f.ampFactor, mult: true },
-      { source: "buffs", label: "Damage Bonus", value: f.bonusFactor, mult: true },
-      // Only tune scaling receives it, and only tune scaling should have to read a row about it.
-      ...(f.scaling === Scaling.Tune
-        ? [{ source: "buffs", label: "Tune Break Boost", value: f.tbbFactor, mult: true }]
-        : []),
-      { source: "enemy", label: "Res Factor", value: f.resFactor, mult: true },
-      { source: "enemy", label: "Def Factor", value: f.defFactor, mult: true },
-      { source: "buffs", label: "Damage Dealt", value: f.dealtFactor, mult: true },
-      { source: "crit", label: "Average Crit", value: f.critFactor, mult: true },
-    ];
-  }
+  // Every term of the damage product. The stat leads rather than the motion value: it is the
+  // amount being multiplied and everything below it is a multiplier on that amount, so reading
+  // top to bottom follows the arithmetic instead of opening with a factor of nothing.
+  sources.avg = [
+    { source: STAT_SOURCE[f.scaling] ?? f.scaling, label: "Final Stat", value: f.finalStat },
+    { source: snap.action.id, label: "Motion Value", value: f.finalMv, mult: true },
+    { source: "buffs", label: "Amplification", value: f.ampFactor, mult: true },
+    { source: "buffs", label: "Damage Bonus", value: f.bonusFactor, mult: true },
+    // Only tune scaling receives it, and only tune scaling should have to read a row about it.
+    ...(f.scaling === Scaling.Tune
+      ? [{ source: "buffs", label: "Tune Break Boost", value: f.tbbFactor, mult: true }]
+      : []),
+    { source: "enemy", label: "Res Factor", value: f.resFactor, mult: true },
+    { source: "enemy", label: "Def Factor", value: f.defFactor, mult: true },
+    { source: "buffs", label: "Damage Dealt", value: f.dealtFactor, mult: true },
+    { source: "crit", label: "Average Crit", value: f.critFactor, mult: true },
+  ];
 
   return { raw, sources };
 }
@@ -348,7 +360,7 @@ export interface Report {
  */
 export function buildReport(
   lines: ChainGroup[],
-  { strip = null, config = null }: { strip?: RegExp | null; config?: DamageConfig | null } = {},
+  { strip = null }: { strip?: RegExp | null } = {},
 ): Report {
   // No column declares a width: every one is measured from what this report actually holds,
   // further down. `align: "left"` is what separates the text columns from the numeric ones —
@@ -388,7 +400,7 @@ export function buildReport(
 
   const rows: ReportRow[] = lines.map((line) => {
     const { raw, sources } = rowValues(
-      line.snap as ResolvedSnapshot, { mv: line.mv, avg: line.avg, config },
+      line.snap as ResolvedSnapshot, { mv: line.mv, avg: line.avg },
     );
     raw.action = name(line.id);
 
@@ -405,7 +417,7 @@ export function buildReport(
       parts: line.isChain
         ? line.parts.map((p): ReportPart => {
             const part = rowValues(
-              p.snap as ResolvedSnapshot, { mv: mvPercent(p.snap), avg: p.dmg.avg, config },
+              p.snap as ResolvedSnapshot, { mv: mvPercent(p.snap), avg: p.dmg.avg },
             ) as ReportPart;
             part.raw.action = name(p.snap.action.id);
             (part as unknown as { info: string[] }).info = actionInfo(p.snap.action);

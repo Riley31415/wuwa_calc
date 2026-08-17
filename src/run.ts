@@ -11,15 +11,15 @@ import { collapseChains } from "./kit.js";
 import type { ChainGroup } from "./kit.js";
 import { State, Enemy } from "./state.js";
 import type { RotationEntry, ResolvedSnapshot } from "./state.js";
-import { damage } from "./damage.js";
+import { damage, RESONATOR_LEVEL } from "./damage.js";
 import { buildReport, renderReport, explain } from "./display.js";
 import { AUTO_TUNE_BREAK } from "./shared/tunebreak.js";
 import { LOADOUT, ROTATION } from "./resonators/jingran.js";
 import { Element, ELEMENTS } from "./stats.js";
 
-// level 100 enemy, level 90 resonators, a flat 20% base resistance, 39.2% max off-tune — every
-// fight this calculator runs uses the same standing numbers.
-const ENEMY_LEVEL = 100, RESONATOR_LEVEL = 90, DEFAULT_RES = 20, MAX_OFFTUNE = 392000;
+// level 100 enemy, a flat 20% base resistance, 39.2% max off-tune — every fight this calculator
+// runs uses the same standing numbers (resonator level is RESONATOR_LEVEL, from damage.js).
+const ENEMY_LEVEL = 100, DEFAULT_RES = 20, MAX_OFFTUNE = 392000;
 
 export function runJingran(rotation: RotationEntry[] = ROTATION) {
   // the same flat resistance seeded onto every element, until a fight wants them to differ
@@ -30,7 +30,6 @@ export function runJingran(rotation: RotationEntry[] = ROTATION) {
   });
   const state = new State({
     team: ["Jingran"],
-    level: RESONATOR_LEVEL,
     enemy,
     // the engine's own standing rules, ahead of anything a build equips
     buffs: [AUTO_TUNE_BREAK],
@@ -38,7 +37,7 @@ export function runJingran(rotation: RotationEntry[] = ROTATION) {
   state.startFight({ Jingran: LOADOUT });
 
   const rows = state.run(rotation)
-    .map((s) => ({ snap: s, dmg: damage(s, state.config) }));
+    .map((s) => ({ snap: s, dmg: damage(s) }));
   return { state, rows, lines: collapseChains(rows) };
 }
 
@@ -46,10 +45,10 @@ function main(): void {
   const showEntries = process.argv.includes("--entries");
   const { state, rows, lines } = runJingran();
 
-  const report = buildReport(lines, { config: state.config });
+  const report = buildReport(lines);
 
   console.log(`Jingran — ${lines.length} steps / ${rows.length} actions, `
-    + `level ${state.config.level} vs level ${state.enemy.level}, `
+    + `level ${RESONATOR_LEVEL} vs level ${state.enemy.level}, `
     + `${state.enemy.baseRes[Element.Physical] ?? 0}% res\n`);
   console.log(renderReport(report));
 

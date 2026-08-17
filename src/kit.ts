@@ -202,7 +202,6 @@ export class Gear extends Buff {
   name: string;
   onFightStart: ((ctx: Ctx) => void) | null;
   element: Element | null;
-  onIntro: OnIntro | null;
 
   /**
    * `apply()` returns nothing — the wrapper below reports `name` for it. A piece with no stat
@@ -225,7 +224,6 @@ export class Gear extends Buff {
     apply: ((ctx: Ctx, stacks: number) => void) | null = null,
     onFightStart: ((ctx: Ctx) => void) | null = null,
     element: Element | null = null,
-    onIntro: OnIntro | null = null,
     priority: Priority = Priority.GearStats,
   ) {
     if (!name) throw new Error("gear needs a name");
@@ -233,7 +231,6 @@ export class Gear extends Buff {
     this.name = name;
     this.onFightStart = onFightStart;
     this.element = element;
-    this.onIntro = onIntro;
   }
 }
 
@@ -267,21 +264,14 @@ export class Mainslot extends Gear {
  */
 export class Mode extends Gear {}
 
-/** Reserved colors for gear that isn't any one resonator's own identity — a mainslot echo or
- *  weapon usable by anyone stays visually neutral rather than borrowing whoever equipped it.
- *  Nothing else should share these two. */
-export const WHITE = "#ffffff";
-export const GREEN = "#a3e635";
-
 /** The options bag `new Action(id, def)` takes — everything optional, matching the `??`
  *  defaults in the constructor below. */
 export interface ActionDef {
-  color?: string;
   element?: Element | null;
   type?: DamageType | null;
   type2?: Type2 | null;
-  cast?: DamageType | Cast | null;
-  cast2?: DamageType | Cast | null;
+  cast?: Cast | null;
+  cast2?: Cast | null;
   shields?: number;
   flare?: number;
   chafe?: number;
@@ -305,11 +295,6 @@ export interface ActionDef {
 /** One step in a rotation. Everything it declares is static; only `apply()` runs. */
 export class Action {
   id: string;
-  /** Display only — the row this action's own cast draws in the web report. Defaults to the
-   *  resonator whose kit it belongs to (each file's own `xxxAction()` wrapper sets it); generic
-   *  gear anyone can equip (a mainslot echo, a weapon) overrides it to `WHITE`/`GREEN` instead,
-   *  so it reads the same regardless of who's wearing it. */
-  color: string;
   element: Element | null;
   type: DamageType | null;
   /** A second, independent damage-type tag (see TYPE2S in stats.js) — a hit can be both
@@ -319,11 +304,11 @@ export class Action {
    * Which button this is (see CASTS in stats.js). Fires this cast's trigger. `null` means
    * this wasn't a player press — a summoned follow-up or the automatic tune break.
    */
-  cast: DamageType | Cast | null;
+  cast: Cast | null;
   /** A second cast identity this action *also* counts as — e.g. a cast: HEAVY action that's
    *  also "considered as performing Echo Skill". An action is at most 1 or 2 casts, never
    *  more, so this is a single value rather than a list, same shape as `type`/`type2`. */
-  cast2: DamageType | Cast | null;
+  cast2: Cast | null;
   /** How many shields this cast grants — read back off the action (`action().shields`). */
   shields: number;
   /** How many Electro Flare stacks this cast inflicts — same shape as `shields`, a plain
@@ -361,7 +346,6 @@ export class Action {
 
   constructor(id: string, def: ActionDef = {}) {
     this.id = id;
-    this.color = def.color ?? "";
     this.element = def.element ?? null;
     this.type = def.type ?? null;
     this.type2 = def.type2 ?? null;
