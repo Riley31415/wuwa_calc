@@ -56,7 +56,7 @@ export const QUIETUDE_WITHIN = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
   const a = ctx.action!;
   if (!a.active) { ctx.revoke(QUIETUDE_WITHIN); return; }
   if (a !== FHA1 && a !== FHA2 && a !== FHA3) return;
-  ctx.add(50, Stat.DmgDealt);
+  ctx.add(50, Stat.TotalDmg);
   if (a === FHA3) { ctx.gain(Resource.Concerto, 3000); ctx.revoke(QUIETUDE_WITHIN); }
   return "Qiuyuan: Quietude Within";
 });

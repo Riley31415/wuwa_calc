@@ -62,7 +62,7 @@ function inCosmosRave(a: import("../kit.js").Action): boolean {
 }
 export const ANGRY_COSMOS = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
   if (!inCosmosRave(ctx.action!)) return;
-  ctx.add(10, Stat.DmgDealt);
+  ctx.add(10, Stat.TotalDmg);
   return "Encore: Angry Cosmos";
 });
 

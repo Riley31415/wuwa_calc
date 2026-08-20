@@ -249,7 +249,7 @@ export const S6 = new Gear("Phrolova S6", (ctx) => {
   if (a === EBA_STRINGS || a === EBA_WINDS || a === EBA_CADENZA) ctx.add(24, Stat.MulMv);
 
   if (ctx.stacksOf(MAESTRO_ATK)) {
-    if (!a.active) ctx.add(40, Stat.DmgDealt);
+    if (!a.active) ctx.add(40, Stat.TotalDmg);
     else ctx.add(60, Element.Havoc, Stat.DmgBonus);
   }
 });

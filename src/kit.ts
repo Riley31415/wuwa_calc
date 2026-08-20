@@ -249,7 +249,7 @@ export class Mainslot extends Gear {
     apply: ((ctx: Ctx, stacks: number) => void) | null = null,
     priority: Priority = Priority.GearStats,
   ) {
-    super(name, apply, null, null, null, priority);
+    super(name, apply, null, null, priority);
     this.action = asAction(action, `mainslot "${name}" needs an Action`);
   }
 }

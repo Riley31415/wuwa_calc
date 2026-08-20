@@ -54,7 +54,7 @@ const FEEDS: Record<string, () => string[]> = {
   cd: () => [Stat.CritDmg],
   dmgBonus: () => [Stat.DmgBonus],
   amp: () => [Stat.Amp],
-  dealt: () => [Stat.DmgDealt],
+  dealt: () => [Stat.TotalDmg],
   // what is being done to the enemy rather than to the resonator
   effDef: () => [Stat.DefIgnore, Stat.DefShred, Stat.DefReduce],
   effRes: () => [Stat.ResIgnore, Stat.ResShred],
@@ -218,7 +218,7 @@ function rowValues(
     amp: snap.amp,
     cr: snap.stat(Stat.CritRate),
     cd: snap.stat(Stat.CritDmg),
-    dealt: snap.stat(Stat.DmgDealt),
+    dealt: snap.stat(Stat.TotalDmg),
     // what the hit actually meets: the enemy's defence as a fraction of its base, and the
     // resistance left after ignore and shred — both read straight off the resolved snapshot's
     // own enemyDef/enemyRes.

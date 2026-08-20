@@ -138,7 +138,7 @@ const Liberation = brantAction("Liberation: To the Horizon", {
 //     the whole gauge, and ends Aflame (if up) once it resolves. AUTO_ACTION so this row still
 //     gets Aflame's own stats (e.g. THEATRICAL_MOMENT's "My Moment" rate) before it's revoked —
 //     per the kit's own wording, casting this "ends [Aflame] after Returned from Ashes ends".
-const FSkill = brantAction("Skill: Returned from Ashes", {
+const FSkill = brantAction("Forte: Returned from Ashes", {
   node: Node.Forte, cast: Cast.Skill, type: DamageType.Basic, mv: 1888.71, energy: 3000, concerto: 5000, forte1: -100,
   shields: 1,
   priority: PRIORITY.AUTO_ACTION,

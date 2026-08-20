@@ -15,6 +15,7 @@ import { buildReport, totalsBySlot } from "./src/display.js";
 import type { Report, Column, ReportRow, ReportPart, TraceEntry } from "./src/display.js";
 import { isPercent, statLabel, ELEMENTS, Cast } from "./src/stats.js";
 import { AUTO_TUNE_BREAK, MISC, attributeMisc, TUNE_BREAK_CAST, TUNE_BREAK_COLOR } from "./src/shared/tunebreak.js";
+import { optimizeTeam } from "./src/optimize.js";
 
 import * as SK from "./src/resonators/shorekeeper.js";
 import * as IO from "./src/resonators/iuno.js";
@@ -261,6 +262,22 @@ interface TeamRun {
    *  gear popover — read straight off the slot `startFight()` already populated, rather than
    *  calling a member's `loadout` factory a second time (which would build an unrelated instance). */
   resonators: Map<string, Resonator>;
+}
+
+/**
+ * What the comparison table actually needs, from the numbers-only pass: a grand loop total, a
+ * per-slot breakdown, the raw lines for the damage popover, and the resonators built along the
+ * way for the gear popover — no `buildReport()`, which is most of what a full `TeamRun` costs
+ * (see `optimize.ts`'s own header). `members` carries whichever weapon `optimizeTeam` found best
+ * per slot, so a click-through re-runs the *optimized* build, not the file's own hardcoded one.
+ */
+interface FastTeamRun {
+  members: Member[];
+  total: number;
+  bySlot: Map<string, number>;
+  lines: ChainGroup[];
+  resonators: Map<string, Resonator>;
+  changes: { name: string; weapon: string }[];
 }
 
 async function runTeam(members: Member[]): Promise<TeamRun> {
@@ -536,7 +553,7 @@ function gearPopover(resonator: Resonator): string {
  *  kit that has any equips them contiguously S1..Sn, never a gap). Defaults to S0, so a sequence
  *  build doesn't show up until asked for. Wired once in `boot()`, not re-wired per render — see
  *  `applyFilters`. */
-function comparisonFilters(results: Map<string, TeamRun>): string {
+function comparisonFilters(results: Map<string, FastTeamRun>): string {
   const names = new Set<string>();
   for (const run of results.values()) for (const m of run.members) names.add(m.name);
   const resonatorOptions = [`<option value="">All resonators</option>`]
@@ -557,11 +574,11 @@ function comparisonFilters(results: Map<string, TeamRun>): string {
  * panels use — see the mount section). Only the last column is a link: the small arrow marker
  * and the total itself both navigate to that team's full rotation/event-log page.
  */
-function comparisonTable(results: Map<string, TeamRun>): string {
-  const sorted = [...results].sort((a, b) => b[1].loopReport.total - a[1].loopReport.total);
+function comparisonTable(results: Map<string, FastTeamRun>): string {
+  const sorted = [...results].sort((a, b) => b[1].total - a[1].total);
   const rows = sorted.map(([key, run]) => {
-    const totals = totalsBySlot(run.loopReport);
-    const grand = run.loopReport.total;
+    const totals = run.bySlot;
+    const grand = run.total;
     const memberNames = run.members.map((m) => m.name).join("|");
     // an always-unlocked resonator's own sequences don't count against the filter's ceiling —
     // see Resonator.alwaysUnlocked
@@ -577,7 +594,7 @@ function comparisonTable(results: Map<string, TeamRun>): string {
     };
     const dmgCell = (slot: string, withNode: boolean) => {
       const total = totals.get(slot) ?? 0;
-      return `<div class="c num has">${fmt(total)}${damagePopover(run.loopLines, slot, total, grand, { withNode })}</div>`;
+      return `<div class="c num has">${fmt(total)}${damagePopover(run.lines, slot, total, grand, { withNode })}</div>`;
     };
 
     return `<div class="trow" data-team="${esc(key)}" data-members="${esc(memberNames)}" data-maxseq="${maxSeq}">`
@@ -920,32 +937,45 @@ const routeTeam = (): string | null => {
   return m && TEAMS[m[1]!] ? m[1]! : null;
 };
 
-function renderComparison(results: Map<string, TeamRun>): void {
+function renderComparison(results: Map<string, FastTeamRun>): void {
   backLink.hidden = true;
   app.innerHTML = comparisonTable(results);
   app.className = "";
   applyFilters();   // the default S0/"all resonators" selection still has to actually hide rows
 }
 
-function renderDetail(key: string, results: Map<string, TeamRun>): void {
-  const result = results.get(key)!;
+/** The full `TeamRun` (buildReport() and all) is the expensive ~7/8 of a team's own cost (see
+ *  optimize.ts's own header) — deferred until a team is actually clicked into, and cached here
+ *  so revisiting it (or hitting back then forward) is instant rather than re-running it. Keyed
+ *  by the same team key the comparison table uses; `fast.members` already carries whichever
+ *  weapon `optimizeTeam` found best per slot, so this renders that build, not the file's own
+ *  hardcoded default. */
+async function renderDetail(
+  key: string, fastResults: Map<string, FastTeamRun>, detailCache: Map<string, TeamRun>,
+): Promise<void> {
+  let result = detailCache.get(key);
+  if (!result) {
+    result = await runTeam(fastResults.get(key)!.members);
+    detailCache.set(key, result);
+  }
   backLink.hidden = false;
   app.innerHTML = page(result);
   app.className = "";
 }
 
 /**
- * Every team runs once, up front — the comparison table needs all of them at once anyway, and
- * caching the results is what lets clicking into a team's own detail page (and back) be instant
- * rather than re-running its rotation. `runTeam` is a pure function of which team it was asked
- * for, so there's nothing to invalidate.
+ * Every team runs once, up front — the comparison table needs all of them at once anyway. This
+ * is the numbers-only pass, though: `optimizeTeam` tries each resonator's own standard-weapon
+ * alternatives alongside their current pick and settles on whichever build wins, but never
+ * builds a full `TeamRun` (`buildReport()`, the expensive part) doing it — that's deferred to
+ * `renderDetail`, on demand, for one team at a time.
  *
- * Run one team at a time rather than `Promise.all`-ing them: `runTeam` has no real `await` of
- * its own (it's CPU-bound start to finish), so kicking them all off together would still run
- * them back to back in one synchronous burst — the browser never gets a chance to paint until
- * every last one is done, and a progress count stuck at "0/N" the whole time isn't one. The
- * explicit frame-yield after each team is what actually lets the count/bar update land on
- * screen before the next team's own run blocks the main thread again.
+ * Run one team at a time rather than `Promise.all`-ing them: this is CPU-bound start to finish,
+ * so kicking them all off together would still run them back to back in one synchronous burst —
+ * the browser never gets a chance to paint until every last one is done, and a progress count
+ * stuck at "0/N" the whole time isn't one. The explicit frame-yield after each team is what
+ * actually lets the count/bar update land on screen before the next team's own run blocks the
+ * main thread again.
  */
 async function boot(): Promise<void> {
   const teamEntries = Object.entries(TEAMS);
@@ -958,11 +988,11 @@ async function boot(): Promise<void> {
   const fillEl = document.getElementById("progressFill")!;
   const countEl = document.getElementById("progressCount")!;
 
-  let results: Map<string, TeamRun>;
+  let results: Map<string, FastTeamRun>;
   try {
-    const entries: Array<[string, TeamRun]> = [];
+    const entries: Array<[string, FastTeamRun]> = [];
     for (const [key, members] of teamEntries) {
-      entries.push([key, await runTeam(members)]);
+      entries.push([key, optimizeTeam(members)]);
       countEl.textContent = `${entries.length}/${total}`;
       fillEl.style.width = `${(entries.length / total) * 100}%`;
       await new Promise(requestAnimationFrame);
@@ -975,9 +1005,11 @@ async function boot(): Promise<void> {
     return;
   }
 
+  // the one full TeamRun a click has resolved so far, per team key — see renderDetail
+  const detailCache = new Map<string, TeamRun>();
   const route = (): void => {
     const key = routeTeam();
-    if (key) renderDetail(key, results);
+    if (key) void renderDetail(key, results, detailCache);
     else renderComparison(results);
   };
   addEventListener("hashchange", route);

@@ -53,17 +53,10 @@ export const ACTION_HERON = new Action("Echo: Impermanence Heron", {
   cast: Cast.Echo, element: Havoc, scaling: Atk, type: Echo,
   mv: 310.56, energy: 485,
   priority: PRIORITY.UPDATE_BUFFS,
-  apply(ctx) { ctx.grantSelf(HERON_PRIMED); },
+  apply(ctx) { ctx.outro(HERON_HANDOFF); },
 });
 
-export const HERON = new Mainslot("Impermanence Heron", ACTION_HERON, (ctx) => {
-  if (isOutro(ctx.action!) && ctx.stacksOf(HERON_PRIMED)) { ctx.outro(HERON_HANDOFF); ctx.revoke(HERON_PRIMED); }
-});
-
-export const HERON_PRIMED = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
-  if (isOutro(ctx.action!)) ctx.revoke(HERON_PRIMED);
-  return "Impermanence Heron";
-});
+export const HERON = new Mainslot("Impermanence Heron", ACTION_HERON);
 
 export const HERON_HANDOFF = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
   if (isOutro(ctx.action!)) ctx.revoke(HERON_HANDOFF);
@@ -77,7 +70,7 @@ export const HERON_HANDOFF = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
 export const MOONLIT_CLOUDS_2PC = new Gear("Moonlit Clouds 2pc", (ctx) => { ctx.add(10, Er); });
 
 export const MOONLIT_CLOUDS_5PC = new Gear("Moonlit Clouds 5pc", (ctx) => {
-  if (isOutro(ctx.action!)) ctx.outro(MOONLIT_CLOUDS_HANDOFF);
+  ctx.outro(MOONLIT_CLOUDS_HANDOFF);
 });
 
 export const MOONLIT_CLOUDS_HANDOFF = new Buff(PRIORITY.BUFF_STATS, (ctx) => {

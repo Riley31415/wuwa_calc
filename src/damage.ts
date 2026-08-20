@@ -124,7 +124,7 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
     : scaling === Scaling.Def ? snapshot.def
     : scaling === Scaling.Dot ? LEVEL_90_DOT
     : scaling === Scaling.Tune ? LEVEL_90_TUNE
-    : 9999999999999999999999
+    : NaN
   );
 
   // motion values are authored in percent, so 307.34 is a 3.0734x multiplier
@@ -138,7 +138,7 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
   const tbbFactor = 1 + s(Stat.Tbb) * (1 - notTune);
   const resFactor = resFactorOf(snapshot);
   const defFactor = defFactorOf(snapshot);
-  const dealtFactor = 1 + s(Stat.DmgDealt);
+  const dealtFactor = 1 + s(Stat.TotalDmg);
 
   // dot and tune never crit, so their crit multiplier is a flat 1
   const critMult = notDot * notTune ? s(Stat.CritDmg) : 1;

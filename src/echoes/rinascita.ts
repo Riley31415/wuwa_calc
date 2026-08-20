@@ -132,7 +132,7 @@ export const TIDEBREAKING_2PC = new Gear("Tidebreaking Courage 2pc", (ctx) => { 
 export const TIDEBREAKING_5PC = new Gear("Tidebreaking Courage 5pc", (ctx) => {
   ctx.add(15, BonusAtk);
   if (ctx.get(Er) >= 250) ctx.add(30, DmgBonus);
-}, null, null, null, PRIORITY.EARLY_CONVERSION);
+}, null, null, PRIORITY.EARLY_CONVERSION);
 
 /* ----------------------------------------------------------------------------------- Lupa, 2.4 */
 

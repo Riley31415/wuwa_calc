@@ -60,7 +60,7 @@ export const BURNING_DRIVE = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
 /** Oathbound Hunt: +5% DMG Dealt a stack (own casts only), up to 4, 5.5s — short window, ICD not
  *  modelled (see file header). */
 export const OATHBOUND_HUNT = new Buff(PRIORITY.BUFF_STATS, (ctx, stacks) => {
-  ctx.add(5 * stacks, Stat.DmgDealt);
+  ctx.add(5 * stacks, Stat.TotalDmg);
   if (isOutro(ctx.action!)) ctx.revoke(OATHBOUND_HUNT);
   return `Galbrena: Oathbound Hunt x${stacks}`;
 }, 4);
@@ -75,7 +75,7 @@ export const AFTERFLAME_SCALING = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
     && a !== FlamewingVerdict1 && a !== FlamewingVerdict2 && a !== FlamewingVerdict3
     && a !== Ravage) return;
   const afterflame = ctx.counter(GALBRENA_AFTERFLAME);
-  ctx.add(Math.min(60, 1.5 * afterflame), Stat.DmgDealt);
+  ctx.add(Math.min(60, 1.5 * afterflame), Stat.TotalDmg);
   return "Galbrena: Demon Hypostasis (Afterflame)";
 });
 

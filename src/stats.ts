@@ -56,7 +56,7 @@ export enum Stat {
   Amp = "Amplification",
   SpecialAmp = "Special Amp", // amp that works on tune and dot
   // TODO just make it so only type2 amps work on dot, and none on tune
-  DmgDealt = "Dmg Dealt",
+  TotalDmg = "Total Damage",
 
   ResIgnore = "Res Ignore", // doesnt work on dot
   ResShred = "Res Shred", // TODO move to enemy stat
@@ -68,7 +68,7 @@ export enum Stat {
    *  are tracked purely for kit completeness. Nothing reads either; they never reach a column
    *  or a panel. */
   HealingBonus = "Healing Bonus",
-  HealingTaken = "Healing Taken",
+  HealingTaken = "Healing Recieved",
 }
 
 /* ------------------------------------------------------------ scoped stats */
@@ -82,13 +82,13 @@ export const scopedStat = (tag: string, stat: string): string => `${stat}:${tag}
 /* --- the tag vocabulary: what a conditional, an element field or a type field may say ------ */
 
 export enum Element {
-  Aero = "aero",
-  Electro = "electro",
-  Fusion = "fusion",
-  Glacio = "glacio",
-  Spectro = "spectro",
-  Havoc = "havoc",
-  Physical = "physical",
+  Aero = "Aero",
+  Electro = "Electro",
+  Fusion = "Fusion",
+  Glacio = "Glacio",
+  Spectro = "Spectro",
+  Havoc = "Havoc",
+  Physical = "Physical",
 }
 
 // todo rename ELEMENTS to attributes across the project
@@ -208,7 +208,7 @@ export const TAGS_MATCHED: string[] = ["element", "type", "type2"];
 export const PERCENT_STATS: Set<string> = new Set([
   Stat.BonusAtk, Stat.BonusHp, Stat.BonusDef, Stat.CritRate, Stat.CritDmg, Stat.Er, Stat.Tbb,
   Stat.AddMv, Stat.MulMv, Stat.SpecialMv,
-  Stat.DmgBonus, Stat.Amp, Stat.SpecialAmp, Stat.DmgDealt,
+  Stat.DmgBonus, Stat.Amp, Stat.SpecialAmp, Stat.TotalDmg,
   Stat.ResIgnore, Stat.ResShred, Stat.DefIgnore, Stat.DefShred, Stat.DefReduce,
   Stat.HealingBonus, Stat.HealingTaken,
 ]);

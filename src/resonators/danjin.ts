@@ -46,7 +46,7 @@ export const DANJIN_RUBY_BLOSSOM = Resource.Forte1;
  *  Erosion is common enough across a real rotation that — same as Empyrean Anthem's own
  *  Coordinated Attack trigger — it's treated as effectively always up past the first hit). */
 export const INCINERATING_WILL = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
-  ctx.add(20, Stat.DmgDealt);
+  ctx.add(20, Stat.TotalDmg);
   return "Danjin: Incinerating Will";
 });
 
