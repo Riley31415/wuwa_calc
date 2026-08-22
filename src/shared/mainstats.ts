@@ -3,7 +3,7 @@
  * alone decides. Values are the 5-star level-25 numbers. A 3-cost's elemental damage is scoped
  * per element rather than generic, so a mismatched slot doesn't silently pay full price.
  */
-import { Gear } from "../kit.js";
+import { Buff, addStat } from "../kit.js";
 import { Stat, Element, scopedStat } from "../stats.js";
 
 /** No physical entry: a 3-cost elemental damage main stat doesn't exist for physical in-game. */
@@ -36,10 +36,10 @@ const SLOTS = 5, COST_CAP = 12;
 
 /**
  * Define one main-stat build from its 4/3/1-cost slots, e.g. `mainstats("CR CD", "", "atk atk
- * atk")` for 44111 double-crit. Returns the `Gear`. The name leads with the cost layout, since
+ * atk")` for 44111 double-crit. Returns the `Buff`. The name leads with the cost layout, since
  * ATK/HP/DEF are legal at both cost 4 and cost 3 and would otherwise be ambiguous.
  */
-export function mainstats(c4 = "", c3 = "", c1 = ""): Gear {
+export function mainstats(c4 = "", c3 = "", c1 = ""): Buff {
   const slots: Array<[number, string]> = ([[4, c4], [3, c3], [1, c1]] as const).flatMap(([cost, spec]) =>
     spec.split(" ").filter(Boolean).map((key): [number, string] => [cost, key]));
 
@@ -69,10 +69,9 @@ export function mainstats(c4 = "", c3 = "", c1 = ""): Gear {
   const entries = [...totals.values()];
   const layout = slots.map(([c]) => c).join("");
   const name = `${layout} ${slots.map(([, key]) => key).join(" ")}`;
-  return new Gear(name, (ctx) => {
-    for (const { stat, tag, value } of entries) {
-      if (tag) ctx.add(value, tag, stat); else ctx.add(value, stat);
-    }
+  return new Buff({
+    name,
+    apply: () => { for (const { stat, tag, value } of entries) addStat(stat, value, tag ?? undefined); },
   });
 }
 
@@ -91,10 +90,10 @@ const pairsOf = (keys: string[]): string[] =>
 /** `ele` stands for "an elemental damage 3-cost" — expand into one build per element. Both
  *  3-cost slots take the same element, or half the build would be dead weight. */
 const elements = (spec: string): string[] =>
-  spec.includes("ele") ? ELEMENTS.map((e) => spec.replaceAll("ele", e)) : [spec];
+  spec.includes("ele") ? ELEMENTS.map((e) => spec.replaceAll("ele", e.toLowerCase())) : [spec];
 
 /** Every build worth comparing. A loadout doesn't read this; it's swept over to rank builds. */
-export const ALL_MAINSTATS: Gear[] = [];
+export const ALL_MAINSTATS: Buff[] = [];
 const build = (...args: [string?, string?, string?]): void => { ALL_MAINSTATS.push(mainstats(...args)); };
 
 /** 43311 and 43111 — the layouts that spend the full cost budget. */

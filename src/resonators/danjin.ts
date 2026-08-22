@@ -26,7 +26,7 @@ import { Buff, Action, Chain, PRIORITY, ECHO_CAST } from "../kit.js";
 import type { ActionDef } from "../kit.js";
 import { Resonator, Loadout, isOutro } from "../state.js";
 import type { ResonatorFactory } from "../state.js";
-import { Stat, Element, DamageType, Node, Resource, Cast, Scaling } from "../stats.js";
+import { Stat, Element, Type1, Node, Resource, Cast, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 import { NM_CROWNLESS, HAVOC_ECLIPSE_2PC, HAVOC_ECLIPSE_5PC } from "../echoes/jinzhou.js";
@@ -98,59 +98,59 @@ function danjinAction(name: string, def: ActionDef): Action {
 }
 
 // --- basics, mid-air, dodge counter (Execution)
-const BA1 = danjinAction("Basic: Execution 1", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 57.26 });
-const BA2 = danjinAction("Basic: Execution 2", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 58.85 });
-const BA3 = danjinAction("Basic: Execution 3", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 79.53 });
+const BA1 = danjinAction("Basic: Execution 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 57.26 });
+const BA2 = danjinAction("Basic: Execution 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 58.85 });
+const BA3 = danjinAction("Basic: Execution 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.53 });
 export const BA123 = new Chain("Basic: Execution 123", [BA1, BA2, BA3]);
 
-export const MA = danjinAction("Mid-air Attack", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 98.61 });
-const HA = danjinAction("Heavy Attack", { node: Node.Normal, cast: Cast.Heavy, type: DamageType.Heavy, mv: 111.36 });   // 37.12% x3
+export const MA = danjinAction("Mid-air Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61 });
+const HA = danjinAction("Heavy Attack", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 111.36 });   // 37.12% x3
 /** Ruby Shades: a successful Dodge Counter opens the Skill's own Crimson Erosion form. */
-const DC = danjinAction("Dodge Counter: Ruby Shades", { node: Node.Normal, cast: Cast.DodgeCounter, type: DamageType.Basic, mv: 190.86 });   // 63.62% x3
+const DC = danjinAction("Dodge Counter: Ruby Shades", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 190.86 });   // 63.62% x3
 
 // --- resonance skill: three forms depending on the preceding action (see the file header)
 const CarmineGleam = danjinAction("Skill: Carmine Gleam", {
-  node: Node.Skill, cast: Cast.Skill, type: DamageType.Skill, mv: 76.36,   // 38.18% x2
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 76.36,   // 38.18% x2
 });
-const CrimsonErosion1 = danjinAction("Skill: Crimson Erosion 1", { node: Node.Skill, cast: Cast.Skill, type: DamageType.Skill, mv: 128.84 });   // 64.42% x2
+const CrimsonErosion1 = danjinAction("Skill: Crimson Erosion 1", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 128.84 });   // 64.42% x2
 const CrimsonErosion2 = danjinAction("Skill: Crimson Erosion 2", {
-  node: Node.Skill, cast: Cast.Skill, type: DamageType.Skill, mv: 119.30,   // 59.65% x2
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 119.30,   // 59.65% x2
   priority: PRIORITY.BUFF_STATS,
   apply(ctx) { ctx.grantSelf(INCINERATING_WILL); },
 });
 export const CrimsonErosion12 = new Chain("Skill: Crimson Erosion 12", [CrimsonErosion1, CrimsonErosion2]);
 
-const SanguinePulse1 = danjinAction("Skill: Sanguine Pulse 1", { node: Node.Skill, cast: Cast.Skill, type: DamageType.Skill, mv: 112.14 });   // 56.07% x2
-const SanguinePulse2 = danjinAction("Skill: Sanguine Pulse 2", { node: Node.Skill, cast: Cast.Skill, type: DamageType.Skill, mv: 128.85 });   // 42.95% x3
-const SanguinePulse3 = danjinAction("Skill: Sanguine Pulse 3", { node: Node.Skill, cast: Cast.Skill, type: DamageType.Skill, mv: 193.26 });   // 64.42% x3
+const SanguinePulse1 = danjinAction("Skill: Sanguine Pulse 1", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 112.14 });   // 56.07% x2
+const SanguinePulse2 = danjinAction("Skill: Sanguine Pulse 2", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 128.85 });   // 42.95% x3
+const SanguinePulse3 = danjinAction("Skill: Sanguine Pulse 3", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 193.26 });   // 64.42% x3
 export const SanguinePulse123 = new Chain("Skill: Sanguine Pulse 123", [SanguinePulse1, SanguinePulse2, SanguinePulse3]);
 
 // --- forte circuit: Chaoscleave (Heavy Attack DMG, at 60+ Ruby Blossom) into Scatterbloom
 const Chaoscleave = danjinAction("Heavy: Chaoscleave", {
-  node: Node.Forte, cast: Cast.Heavy, type: DamageType.Heavy, mv: 417.55, forte1: -60,   // 59.65% x7
+  node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 417.55, forte1: -60,   // 59.65% x7
 });
 const Scatterbloom = danjinAction("Heavy: Scatterbloom", {
-  node: Node.Forte, cast: Cast.Heavy, type: DamageType.Heavy, mv: 178.93,
+  node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 178.93,
 });
 /** Full Energy variants, at 120 Ruby Blossom — spends 120 instead of 60. */
 export const FullChaoscleave = danjinAction("Heavy: Chaoscleave (Full Energy)", {
-  node: Node.Forte, cast: Cast.Heavy, type: DamageType.Heavy, mv: 1002.05, forte1: -120,   // 143.15% x7
+  node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 1002.05, forte1: -120,   // 143.15% x7
 });
 export const FullScatterbloom = danjinAction("Heavy: Scatterbloom (Full Energy)", {
-  node: Node.Forte, cast: Cast.Heavy, type: DamageType.Heavy, mv: 429.43,
+  node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 429.43,
 });
 
 // --- liberation: Crimson Bloom — consecutive attacks plus one Scarlet Burst, lumped into one hit
 const Liberation = danjinAction("Liberation: Crimson Bloom", {
-  node: Node.Liberation, cast: Cast.Liberation, type: DamageType.Liberation, mv: 785.37,   // 49.09%x8+392.65%
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 785.37,   // 49.09%x8+392.65%
 });
 
 // --- intro / outro
 const Intro = danjinAction("Intro: Vindication", {
-  node: Node.Intro, cast: Cast.Intro, type: DamageType.Intro, mv: 198.84,   // 49.71% x4
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.84,   // 49.71% x4
 });
 const Outro = danjinAction("Outro: Duality", {
-  cast: Cast.Outro, type: DamageType.Outro, mv: 0, active: false,
+  cast: Cast.Outro, mv: 0, active: false,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.outro(DANJIN_OUTRO); },
 });

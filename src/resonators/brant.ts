@@ -27,7 +27,7 @@ import { Buff, Action, Chain, PRIORITY } from "../kit.js";
 import type { ActionDef } from "../kit.js";
 import { Resonator, Loadout, isOutro } from "../state.js";
 import type { Ctx, ResonatorFactory } from "../state.js";
-import { Stat, Element, DamageType, Node, Resource, Cast, Scaling } from "../stats.js";
+import { Stat, Element, Type1, Node, Resource, Cast, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 import { DRAGON_OF_DIRGE, TIDEBREAKING_2PC, TIDEBREAKING_5PC } from "../echoes/rinascita.js";
@@ -110,26 +110,26 @@ function brantAction(name: string, def: ActionDef): Action {
 
 // --- intro / outro
 const Intro = brantAction("Intro: Applaud for Me!", {
-  node: Node.Intro, cast: Cast.Intro, type: DamageType.Intro, mv: 253.49, energy: 0, concerto: 1000, forte1: 25,
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 253.49, energy: 0, concerto: 1000, forte1: 25,
 });
 const Outro = brantAction("Outro: The Course is Set!", {
-  cast: Cast.Outro, type: DamageType.Outro, mv: 0, concerto: -10000, active: false,
+  cast: Cast.Outro, mv: 0, concerto: -10000, active: false,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.outro(BRANT_OUTRO); },
 });
 export const BRANT_OUTRO = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
   if (isOutro(ctx.action!)) ctx.revoke(BRANT_OUTRO);
   ctx.add(20, Element.Fusion, Stat.Amp);
-  ctx.add(25, DamageType.Skill, Stat.Amp);
+  ctx.add(25, Type1.Skill, Stat.Amp);
   return "Brant: Outro";
 });
 
 // --- resonance skill: Anchors Aweigh!, and liberation: To the Horizon (opens Aflame)
 const Skill = brantAction("Skill: Anchors Aweigh!", {
-  node: Node.Skill, cast: Cast.Skill, type: DamageType.Skill, mv: 333.92, energy: 718, concerto: 1000, forte1: 7.93,
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 333.92, energy: 718, concerto: 1000, forte1: 7.93,
 });
 const Liberation = brantAction("Liberation: To the Horizon", {
-  node: Node.Liberation, cast: Cast.Liberation, type: DamageType.Liberation, mv: 680.45, energy: -17500, concerto: 2000,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 680.45, energy: -17500, concerto: 2000,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.grantSelf(AFLAME); },
 });
@@ -139,7 +139,7 @@ const Liberation = brantAction("Liberation: To the Horizon", {
 //     gets Aflame's own stats (e.g. THEATRICAL_MOMENT's "My Moment" rate) before it's revoked —
 //     per the kit's own wording, casting this "ends [Aflame] after Returned from Ashes ends".
 const FSkill = brantAction("Forte: Returned from Ashes", {
-  node: Node.Forte, cast: Cast.Skill, type: DamageType.Basic, mv: 1888.71, energy: 3000, concerto: 5000, forte1: -100,
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 1888.71, energy: 3000, concerto: 5000, forte1: -100,
   shields: 1,
   priority: PRIORITY.AUTO_ACTION,
   apply: (ctx) => { if (ctx.stacksOf(AFLAME)) ctx.revoke(AFLAME); },
@@ -147,12 +147,12 @@ const FSkill = brantAction("Forte: Returned from Ashes", {
 
 // --- mid-air combo stages. Each carries Trial by Fire and Tide's own +15% Fusion DMG Bonus (see
 //     midAirBonus above); forte1 is the base (un-doubled) Bravo gain — AFLAME doubles it live.
-const MA1 = brantAction("Basic: Captain's Rhapsody (Mid-Air) 1", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 215.81, energy: 182, concerto: 728, forte1: 9.76, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
-const MA1H = brantAction("Basic: Captain's Rhapsody (Mid-Air) 1 (Hold)", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 548.29, energy: 496, concerto: 985, forte1: 21.95, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
-const MA2 = brantAction("Basic: Captain's Rhapsody (Mid-Air) 2", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 262.79, energy: 252, concerto: 1008, forte1: 12.2, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
-const MA2H = brantAction("Basic: Captain's Rhapsody (Mid-Air) 2 (Hold)", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 460.01, energy: 546, concerto: 1092, forte1: 24.39, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
-const MA3 = brantAction("Basic: Captain's Rhapsody (Mid-Air) 3", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 261.97, energy: 252, concerto: 1008, forte1: 13.41, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
-const MA4 = brantAction("Basic: Captain's Rhapsody (Mid-Air) 4", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 253.85, energy: 378, concerto: 755, forte1: 9.76, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
+const MA1 = brantAction("Basic: Captain's Rhapsody (Mid-Air) 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 215.81, energy: 182, concerto: 728, forte1: 9.76, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
+const MA1H = brantAction("Basic: Captain's Rhapsody (Mid-Air) 1 (Hold)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 548.29, energy: 496, concerto: 985, forte1: 21.95, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
+const MA2 = brantAction("Basic: Captain's Rhapsody (Mid-Air) 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 262.79, energy: 252, concerto: 1008, forte1: 12.2, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
+const MA2H = brantAction("Basic: Captain's Rhapsody (Mid-Air) 2 (Hold)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 460.01, energy: 546, concerto: 1092, forte1: 24.39, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
+const MA3 = brantAction("Basic: Captain's Rhapsody (Mid-Air) 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 261.97, energy: 252, concerto: 1008, forte1: 13.41, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
+const MA4 = brantAction("Basic: Captain's Rhapsody (Mid-Air) 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 253.85, energy: 378, concerto: 755, forte1: 9.76, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
 export const MA12 = new Chain("Basic: Captain's Rhapsody (Mid-Air) 12", [MA1, MA2]);
 export const MA234 = new Chain("Basic: Captain's Rhapsody (Mid-Air) 234", [MA2, MA3, MA4]);
 export const MA2H34 = new Chain("Basic: Captain's Rhapsody (Mid-Air) 2H34", [MA2H, MA3, MA4]);

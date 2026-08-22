@@ -14,7 +14,7 @@ import { Buff, GlobalBuff, Action, Chain, PRIORITY, ECHO_CAST } from "../kit.js"
 import type { ActionDef } from "../kit.js";
 import { Resonator, Loadout, isOutro } from "../state.js";
 import type { ResonatorFactory } from "../state.js";
-import { Stat, Element, DamageType, Node, Cast, Resource, Scaling } from "../stats.js";
+import { Stat, Element, Type1, Node, Cast, Resource, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 import { NM_INFERNO_RIDER, MOLTEN_RIFT_2PC, MOLTEN_RIFT_5PC } from "../echoes/jinzhou.js";
@@ -60,7 +60,7 @@ export const FIERY_FEATHER = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
 export const CHANGLI_OUTRO = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
   if (isOutro(ctx.action!)) ctx.revoke(CHANGLI_OUTRO);
   ctx.add(20, Element.Fusion, Stat.Amp);
-  ctx.add(25, DamageType.Liberation, Stat.Amp);
+  ctx.add(25, Type1.Liberation, Stat.Amp);
   return "Changli: Strategy of Duality";
 });
 
@@ -105,59 +105,59 @@ function changliAction(name: string, def: ActionDef): Action {
 }
 
 // --- basics, dodge counter, heavy (Blazing Enlightment). Stage 4 opens True Sight.
-const BA1 = changliAction("Basic: Blazing Enlightment 1", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 58.98, energy: 88, concerto: 176 });
-const BA2 = changliAction("Basic: Blazing Enlightment 2", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 70.98, energy: 106, concerto: 210 });
-const BA3 = changliAction("Basic: Blazing Enlightment 3", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 109.35, energy: 162, concerto: 324 });
+const BA1 = changliAction("Basic: Blazing Enlightment 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 58.98, energy: 88, concerto: 176 });
+const BA2 = changliAction("Basic: Blazing Enlightment 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 70.98, energy: 106, concerto: 210 });
+const BA3 = changliAction("Basic: Blazing Enlightment 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 109.35, energy: 162, concerto: 324 });
 const BA4 = changliAction("Basic: Blazing Enlightment 4", {
-  node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 169.02, energy: 251, concerto: 502,
+  node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 169.02, energy: 251, concerto: 502,
   priority: PRIORITY.BUFF_STATS, apply(ctx) { ctx.grantSelf(TRUE_SIGHT); },
 });
-const DC = changliAction("Basic: Blazing Enlightment 3 (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: DamageType.Basic, mv: 247.92, energy: 312, concerto: 624 });
-const HA = changliAction("Heavy: Blazing Enlightment", { node: Node.Normal, cast: Cast.Heavy, type: DamageType.Heavy, mv: 124.24, energy: 185, concerto: 369 });
+const DC = changliAction("Basic: Blazing Enlightment 3 (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 247.92, energy: 312, concerto: 624 });
+const HA = changliAction("Heavy: Blazing Enlightment", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 124.24, energy: 185, concerto: 369 });
 
 export const BA1234 = new Chain("Basic: Blazing Enlightment 1234", [BA1, BA2, BA3, BA4]);
 
 // --- mid-air basics, mid-air heavy — the same combo, airborne. Stage 4 also opens True Sight.
-const MA1 = changliAction("Basic: Blazing Enlightment 1 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 61.35, energy: 91, concerto: 182 });
-const MA2 = changliAction("Basic: Blazing Enlightment 2 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 101.74, energy: 152, concerto: 302 });
-const MA3 = changliAction("Basic: Blazing Enlightment 3 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 132.00, energy: 198, concerto: 393 });
+const MA1 = changliAction("Basic: Blazing Enlightment 1 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 61.35, energy: 91, concerto: 182 });
+const MA2 = changliAction("Basic: Blazing Enlightment 2 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 101.74, energy: 152, concerto: 302 });
+const MA3 = changliAction("Basic: Blazing Enlightment 3 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 132.00, energy: 198, concerto: 393 });
 const MA4 = changliAction("Basic: Blazing Enlightment 4 (Mid-Air)", {
-  node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 126.75, energy: 189, concerto: 377,
+  node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 126.75, energy: 189, concerto: 377,
   priority: PRIORITY.BUFF_STATS, apply(ctx) { ctx.grantSelf(TRUE_SIGHT); },
 });
-export const MHA = changliAction("Heavy: Blazing Enlightment (Mid-air)", { node: Node.Normal, cast: Cast.Heavy, type: DamageType.Heavy, mv: 123.27, energy: 155, concerto: 100 });
+export const MHA = changliAction("Heavy: Blazing Enlightment (Mid-air)", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 123.27, energy: 155, concerto: 100 });
 
 export const MA1234 = new Chain("Basic: Blazing Enlightment 1234 (Mid-Air)", [MA1, MA2, MA3, MA4]);
 
 // --- True Sight's own finishers: Conquest (ground Basic), Charge (jump/mid-air Basic) — both
 //     Resonance Skill DMG, both bank a stack of Enflamement and end True Sight
 const TrueSightConquest = changliAction("True Sight: Conquest", {
-  node: Node.Skill, cast: Cast.Basic, type: DamageType.Skill, mv: 294.73, energy: 420, concerto: 700, forte1: 1,
+  node: Node.Skill, cast: Cast.Basic, type: Type1.Skill, mv: 294.73, energy: 420, concerto: 700, forte1: 1,
   priority: PRIORITY.UPDATE_BUFFS, apply(ctx) { ctx.revoke(TRUE_SIGHT); },
 });
 const TrueSightCharge = changliAction("True Sight: Charge", {
-  node: Node.Skill, cast: Cast.Basic, type: DamageType.Skill, mv: 181.70, energy: 257, concerto: 600, forte1: 1,
+  node: Node.Skill, cast: Cast.Basic, type: Type1.Skill, mv: 181.70, energy: 257, concerto: 600, forte1: 1,
   priority: PRIORITY.UPDATE_BUFFS, apply(ctx) { ctx.revoke(TRUE_SIGHT); },
 });
 
 // --- resonance skill: Tripartite Flames — also opens True Sight: Capture (bundled into the
 //     one hit's own total per wuwalab, not a separate press)
 const Skill = changliAction("Skill: Tripartite Flames", {
-  node: Node.Skill, cast: Cast.Skill, type: DamageType.Skill, mv: 409.40, energy: 800, concerto: 1400,
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 409.40, energy: 800, concerto: 1400,
   priority: PRIORITY.BUFF_STATS, apply(ctx) { ctx.grantSelf(TRUE_SIGHT); },
 });
 
 // --- forte circuit: Flaming Sacrifice, at 4 Enflamement — Sweeping Force's own +20% Fusion DMG
 //     Bonus / 15% DEF ignore pays on this same hit (no separate lingering buff, see file header)
 const FlamingSacrifice = changliAction("Forte: Flaming Sacrifice", {
-  node: Node.Forte, cast: Cast.Heavy, type: DamageType.Skill, mv: 654.10, energy: 661, concerto: 1000, forte1: -4,
+  node: Node.Forte, cast: Cast.Heavy, type: Type1.Skill, mv: 654.10, energy: 661, concerto: 1000, forte1: -4,
   priority: PRIORITY.BUFF_STATS,
   apply(ctx) { ctx.add(20, Element.Fusion, Stat.DmgBonus); ctx.add(15, Stat.DefIgnore); },
 });
 
 // --- liberation: Radiance of Fealty — grants 4 Enflamement outright and opens Fiery Feather
 const Liberation = changliAction("Liberation: Radiance of Fealty", {
-  node: Node.Liberation, cast: Cast.Liberation, type: DamageType.Liberation, mv: 1212.75,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1212.75,
   energy: -12500, concerto: 2000, forte1: 4,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) {
@@ -168,11 +168,11 @@ const Liberation = changliAction("Liberation: Radiance of Fealty", {
 
 // --- intro / outro. Intro also opens True Sight.
 const Intro = changliAction("Intro: Obedience of Rules", {
-  node: Node.Intro, cast: Cast.Intro, type: DamageType.Intro, mv: 148.34, energy: 1000, concerto: 1000,
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 148.34, energy: 1000, concerto: 1000,
   priority: PRIORITY.BUFF_STATS, apply(ctx) { ctx.grantSelf(TRUE_SIGHT); },
 });
 const Outro = changliAction("Outro: Strategy of Duality", {
-  cast: Cast.Outro, type: DamageType.Outro, mv: 0, concerto: -10000, active: false,
+  cast: Cast.Outro, mv: 0, concerto: -10000, active: false,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.outro(CHANGLI_OUTRO); },
 });

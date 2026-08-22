@@ -41,7 +41,7 @@ import { Buff, GlobalBuff, Action, Chain, PRIORITY } from "../kit.js";
 import type { ActionDef } from "../kit.js";
 import { Resonator, Loadout, isOutro, isIntro } from "../state.js";
 import type { ResonatorFactory } from "../state.js";
-import { Stat, Element, DamageType, Node, Cast, Resource, Scaling } from "../stats.js";
+import { Stat, Element, Type1, Node, Cast, Resource, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 import { VOID_THUNDER_2PC, FALSE_SOVEREIGN, COV_3PC } from "../echoes/septimont.js";
@@ -132,51 +132,51 @@ function augustaAction(name: string, def: ActionDef): Action {
 }
 
 // --- basics, mid-air, dodge counter (Hunter's Path)
-const BA1 = augustaAction("Basic: Hunter's Path 1", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 57.46, energy: 73, concerto: 145, offtune: 2300, forte1: 99, forte2: 74 });
-const BA2 = augustaAction("Basic: Hunter's Path 2", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 134, energy: 170, concerto: 338, offtune: 5400, forte1: 230, forte2: 172 });
-const BA3 = augustaAction("Basic: Hunter's Path 3", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 196.83, energy: 249, concerto: 495, offtune: 7900, forte1: 336, forte2: 252 });
-const BA4 = augustaAction("Basic: Hunter's Path 4", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 193.89, energy: 246, concerto: 489, offtune: 7800, forte1: 333, forte2: 249 });
+const BA1 = augustaAction("Basic: Hunter's Path 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 57.46, energy: 73, concerto: 145, offtune: 2300, forte1: 99, forte2: 74 });
+const BA2 = augustaAction("Basic: Hunter's Path 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 134, energy: 170, concerto: 338, offtune: 5400, forte1: 230, forte2: 172 });
+const BA3 = augustaAction("Basic: Hunter's Path 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 196.83, energy: 249, concerto: 495, offtune: 7900, forte1: 336, forte2: 252 });
+const BA4 = augustaAction("Basic: Hunter's Path 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 193.89, energy: 246, concerto: 489, offtune: 7800, forte1: 333, forte2: 249 });
 export const BA123 = new Chain("Basic: Hunter's Path 123", [BA1, BA2, BA3]);
 export const BA1234 = new Chain("Basic: Hunter's Path 1234", [BA1, BA2, BA3, BA4]);
 
 // --- mid-air, dodge counter — not in the migrated rotation, so only nanoka's own MV (see header)
-export const MA = augustaAction("Basic: Hunter's Path (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 119.3 });
-export const DC = augustaAction("Basic: Hunter's Path 2 (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: DamageType.Basic, mv: 134 });
+export const MA = augustaAction("Basic: Hunter's Path (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 119.3 });
+export const DC = augustaAction("Basic: Hunter's Path 2 (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 134 });
 // no confident wuwalab match for this one (their list has only one, non-mid-air, Dodge Counter)
-export const MDC = augustaAction("Mid-air Dodge Counter", { node: Node.Normal, cast: Cast.DodgeCounter, type: DamageType.Basic, mv: 119.3 });
+export const MDC = augustaAction("Mid-air Dodge Counter", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 119.3 });
 
 // --- heavy attack: Steelclash, base cast; at full Prowess it's replaced by the Thunderoar
 //     Backstep -> Spinslash chain instead (FHA1/FHA2), and Jump becomes Uppercut (FJump).
-const HA = augustaAction("Heavy 1: Hunter's Path", { node: Node.Normal, cast: Cast.Heavy, type: DamageType.Heavy, mv: 139.17, energy: 177, concerto: 351, offtune: 5700, forte1: 342, forte2: 255 });
+const HA = augustaAction("Heavy 1: Hunter's Path", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 139.17, energy: 177, concerto: 351, offtune: 5700, forte1: 342, forte2: 255 });
 
 const FHA1 = augustaAction("Heavy 2: Thunderoar - Backstep", {
-  node: Node.Normal, cast: Cast.Heavy, type: DamageType.Heavy, mv: 53.68, energy: 50, concerto: 100, offtune: 1600, forte1: -660, forte2: 50,
+  node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 53.68, energy: 50, concerto: 100, offtune: 1600, forte1: -660, forte2: 50,
 });
 const FHA2 = augustaAction("Heavy 2: Thunderoar - Spinslash", {
-  node: Node.Normal, cast: Cast.Heavy, type: DamageType.Heavy, mv: 425.16, energy: 447, concerto: 891, offtune: 14400, forte2: 744,
+  node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 425.16, energy: 447, concerto: 891, offtune: 14400, forte2: 744,
 });
 
 export const FJump = augustaAction("Heavy 3: Thunderoar - Uppercut", {
-  node: Node.Normal, cast: Cast.Heavy, type: DamageType.Heavy, mv: 357.86, energy: 376, concerto: 750, offtune: 12000, forte1: -660, forte2: 382,
+  node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 357.86, energy: 376, concerto: 750, offtune: 12000, forte1: -660, forte2: 382,
 });
 
 // --- resonance skill: Warrior's Blade, base cast; at full Ascendancy it's replaced by the
 //     Undying Sunlight Strike -> Leap -> Plunge chain instead (FSkill1/FSkill2/FSkill3).
 const Skill = augustaAction("Skill 1: Warrior's Blade", {
-  node: Node.Skill, cast: Cast.Skill, type: DamageType.Skill, mv: 656.1, energy: 900, concerto: 1000, offtune: 4500, forte1: 660, forte2: 400,
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 656.1, energy: 900, concerto: 1000, offtune: 4500, forte1: 660, forte2: 400,
 });
 
 const FSkill1 = augustaAction("Skill 2: Undying Sunlight - Strike", {
-  node: Node.Forte, cast: Cast.Skill, type: DamageType.Skill, mv: 278.34, energy: 500, concerto: 700, offtune: 18200, forte2: -4000,
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 278.34, energy: 500, concerto: 700, offtune: 18200, forte2: -4000,
 });
 const FSkill2 = augustaAction("Skill 2: Undying Sunlight - Leap", {
-  node: Node.Forte, cast: Cast.Skill, type: DamageType.Skill, mv: 278.35, energy: 500, concerto: 700, offtune: 11200, shields: 2,
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 278.35, energy: 500, concerto: 700, offtune: 11200, shields: 2,
 });
 
 /** Undying Sunlight: Plunge — consumes all Ascendancy, counts as Heavy Attack DMG, and grants
  *  a stack of Majesty. */
 const FSkill3 = augustaAction("Skill 2: Undying Sunlight - Plunge", {
-  node: Node.Forte, cast: Cast.Skill, type: DamageType.Heavy, mv: 865.83, energy: 1100, concerto: 700, offtune: 24000, shields: 2,
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Heavy, mv: 865.83, energy: 1100, concerto: 700, offtune: 24000, shields: 2,
   priority: PRIORITY.BUFF_STATS,
   apply(ctx) { ctx.grantSelf(MAJESTY); },
 });
@@ -184,7 +184,7 @@ const FSkill3 = augustaAction("Skill 2: Undying Sunlight - Plunge", {
 // --- liberation: Sword of Eternal Oath, the plain press-and-release cast — costs Energy like
 //     any other liberation and restores 40% Ascendancy.
 const Lib1 = augustaAction("Liberation 1: Sword of Eternal Oath", {
-  node: Node.Liberation, cast: Cast.Liberation, type: DamageType.Heavy, mv: 1099.48, shields: 2,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 1099.48, shields: 2,
   energy: -12500, concerto: 2000, offtune: 29400, forte2: 1600,
 });
 
@@ -197,7 +197,7 @@ const Lib1 = augustaAction("Liberation 1: Sword of Eternal Oath", {
  *  naming the two phases apart, so the "- Sunborne x9"/"- Everbright Protector" suffixes below
  *  are the kit text's own wording, not wuwalab's. */
 const Lib2 = augustaAction("Liberation 2: Sublime is the Sun - Sunborne x9", {
-  node: Node.Liberation, type: DamageType.Heavy, mv: 1073.61, concerto: 1800, offtune: 64800,
+  node: Node.Liberation, type: Type1.Heavy, mv: 1073.61, concerto: 1800, offtune: 64800,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) {
     ctx.queue(Lib3);
@@ -210,20 +210,20 @@ const Lib2 = augustaAction("Liberation 2: Sublime is the Sun - Sunborne x9", {
 /** Sublime is the Sun - Everbright Protector, the finisher — ends Sworn Allegiance and spends
  *  every stack of Crown of Wills. */
 const Lib3 = augustaAction("Liberation 2: Sublime is the Sun - Everbright Protector", {
-  node: Node.Liberation, type: DamageType.Heavy, mv: 1192.93, concerto: 1000, offtune: 49800,
+  node: Node.Liberation, type: Type1.Heavy, mv: 1192.93, concerto: 1000, offtune: 49800,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.revoke(CROWN_OF_WILLS); },
 });
 
 // --- intro / outro
 const Intro = augustaAction("Intro: Stride of Goldenflare", {
-  node: Node.Intro, cast: Cast.Intro, type: DamageType.Intro, mv: 198.82,
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.82,
   energy: 1000, concerto: 1000, offtune: 4800, forte1: 660, forte2: 800,
 });
 /** Battlesong of the Unyielding: hands the incoming resonator +15% DMG Amplification (all
  *  attributes) for 14s, and grants Augusta herself a stack each of Majesty and Crown of Wills. */
 const Outro = augustaAction("Outro: Battlesong of the Unyielding", {
-  cast: Cast.Outro, type: DamageType.Outro, mv: 0, concerto: -10000, active: false,
+  cast: Cast.Outro, mv: 0, concerto: -10000, active: false,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) {
     ctx.outro(BATTLESONG);

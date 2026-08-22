@@ -32,7 +32,7 @@ import { Buff, GlobalBuff, Mode, Action, Chain, PRIORITY, ECHO_CAST } from "../k
 import type { ActionDef } from "../kit.js";
 import { Resonator, Loadout, isOutro } from "../state.js";
 import type { ResonatorFactory } from "../state.js";
-import { Stat, Element, DamageType, Node, Resource, Cast, Scaling } from "../stats.js";
+import { Stat, Element, Type1, Node, Resource, Cast, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 import { BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_2PC } from "../echoes/jinzhou.js";
@@ -55,7 +55,7 @@ export const MODE_CHAFE = new Mode("Resonance Mode - Glacio Chafe");
  *  the quick Compensate tap), Echo mode grants the whole team +25% Echo Skill DMG Bonus for
  *  30s — permanent uptime, per the standing duration rule. */
 export const SLOW_MOTION_TEAM = new GlobalBuff(PRIORITY.BUFF_STATS,
-  (ctx) => { ctx.add(25, DamageType.Echo, Stat.DmgBonus); return "Lucilla: Slow Motion"; });
+  (ctx) => { ctx.add(25, Type1.Echo, Stat.DmgBonus); return "Lucilla: Slow Motion"; });
 
 /** Déjà Vu / Remembrance (Forte Circuit + Inherent Skill, both always-on): Liberation grants 1
  *  stack of Zoom, and — under Remembrance — so does every Photo Oblivion spends, up to 4 stacks
@@ -63,14 +63,14 @@ export const SLOW_MOTION_TEAM = new GlobalBuff(PRIORITY.BUFF_STATS,
  *  whichever teammate is actively attacking, not Lucilla specifically. */
 export const ZOOM = new GlobalBuff(PRIORITY.BUFF_STATS, (ctx, stacks) => {
   if (!ctx.action!.active) return;
-  ctx.add(10 * stacks, DamageType.Echo, Stat.CritDmg);
+  ctx.add(10 * stacks, Type1.Echo, Stat.CritDmg);
   return `Lucilla: Zoom x${stacks}`;
 }, 4);
 
 /** Clear As Day's own cast, Echo mode: +30% Echo Skill DMG Bonus to Lucilla for 10s — short
  *  window, lost after the outro action gains stats. */
 export const LIB_SELF_DMG = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
-  ctx.add(30, DamageType.Echo, Stat.DmgBonus);
+  ctx.add(30, Type1.Echo, Stat.DmgBonus);
   if (isOutro(ctx.action!)) ctx.revoke(LIB_SELF_DMG);
   return "Lucilla: Clear As Day";
 });
@@ -79,7 +79,7 @@ export const LIB_SELF_DMG = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
  *  Amplification for 14s — short window, lost once they themselves outro. */
 export const MONTAGE_HANDOFF = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
   if (isOutro(ctx.action!)) ctx.revoke(MONTAGE_HANDOFF);
-  ctx.add(50, DamageType.Echo, Stat.Amp);
+  ctx.add(50, Type1.Echo, Stat.Amp);
   return "Lucilla: Montage";
 });
 
@@ -129,19 +129,19 @@ function lucillaAction(name: string, def: ActionDef): Action {
 
 // --- intro / outro
 const Intro = lucillaAction("Intro: Clip It", {
-  node: Node.Intro, cast: Cast.Intro, type: DamageType.Intro, mv: 97.42,
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 97.42,
   energy: 1175, concerto: 1413, forte1: 100, offtune: 5600, chafe: 1,
 });
 const Outro = lucillaAction("Outro: Montage", {
-  cast: Cast.Outro, type: DamageType.Outro, mv: 0, concerto: -10000, active: false,
+  cast: Cast.Outro, mv: 0, concerto: -10000, active: false,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.outro(MONTAGE_HANDOFF); },
 });
 
 // --- normal attacks: Basic 1/2, Basic 3 (Focus Ring, always assumed Perfect/Commendable)
-const BA1 = lucillaAction("Basic: Snapshot 1", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 59.29, energy: 107, concerto: 171, offtune: 3400 });
-const BA2 = lucillaAction("Basic: Snapshot 2", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 67.23, energy: 122, concerto: 194, offtune: 3900 });
-const BA3 = lucillaAction("Basic: Snapshot 3 - Commendable", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 235.27, energy: 423, concerto: 677, forte1: 50, offtune: 13500 });
+const BA1 = lucillaAction("Basic: Snapshot 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 59.29, energy: 107, concerto: 171, offtune: 3400 });
+const BA2 = lucillaAction("Basic: Snapshot 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 67.23, energy: 122, concerto: 194, offtune: 3900 });
+const BA3 = lucillaAction("Basic: Snapshot 3 - Commendable", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 235.27, energy: 423, concerto: 677, forte1: 50, offtune: 13500 });
 export const BA123 = new Chain("Basic: Snapshot 123", [BA1, BA2, BA3]);
 
 // --- resonance skill: Phantom Frame (the pull-in dash, held to deploy Focus Ring) into either
@@ -150,14 +150,14 @@ export const BA123 = new Chain("Basic: Snapshot 123", [BA1, BA2, BA3]);
 //     in for both. Numbers are the migrated sheet's own tested rows ("Skill tap"/"Skill miss"/
 //     "Skill perfect"), matching the kit page's own Lv.10 Skill Attributes table exactly
 //     (Phantom Frame 13.26%x3, Compensate 249.07%, Spotlight 82.35+82.35+274.48+109.80%).
-const PhantomFrame = lucillaAction("Skill: Phantom Frame", { node: Node.Skill, cast: Cast.Skill, type: DamageType.Skill, mv: 39.78, energy: 135, concerto: 315, offtune: 4200 });
+const PhantomFrame = lucillaAction("Skill: Phantom Frame", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 39.78, energy: 135, concerto: 315, offtune: 4200 });
 // Compensate: also reduces the Resonance Skill's own cooldown by 8s — unmodeled, no CD tracking
 // here, same as other kits' skill-CD text. Still `cast: SKILL` like Phantom Frame — both
 // Compensate and Spotlight are outcomes of the same Resonance Skill button, not a follow-up
 // press of their own, so a generic "on Skill cast" weapon still sees them.
-const Compensate = lucillaAction("Skill: Compensate", { node: Node.Skill, cast: Cast.Skill, type: DamageType.Skill, mv: 249.07, energy: 931, concerto: 308, forte1: 25, offtune: 4200 });
+const Compensate = lucillaAction("Skill: Compensate", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 249.07, energy: 931, concerto: 308, forte1: 25, offtune: 4200 });
 const Spotlight = lucillaAction("Skill: Spotlight", {
-  node: Node.Skill, cast: Cast.Skill, type: DamageType.Skill, mv: 548.98,
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 548.98,
   energy: 2790, concerto: 2680, forte1: 50, offtune: 9200,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { if (ctx.stacksOf(MODE_ECHO)) ctx.grantGlobal(SLOW_MOTION_TEAM); },
@@ -167,7 +167,7 @@ export const SKILL_SPOTLIGHT = new Chain("Skill: Spotlight", [PhantomFrame, Spot
 
 // --- liberation: Clear As Day, Echo mode — Echo Skill DMG, no Energy cost (see file header)
 const Liberation = lucillaAction("Liberation: Clear As Day (Echo)", {
-  node: Node.Liberation, cast: Cast.Liberation, type: DamageType.Echo, mv: 142.74,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Echo, mv: 142.74,
   concerto: 2000, offtune: 38400,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.grantSelf(LIB_SELF_DMG); ctx.grantGlobal(ZOOM); },
@@ -177,10 +177,10 @@ const Liberation = lucillaAction("Liberation: Clear As Day (Echo)", {
 //     of mode) and Letting It Go (mode-typed). node: liberation, matching the sheet. Stage 3
 //     itself triggers Oblivion — a real follow-up action, not a separately-placed rotation step
 //     — once per Photo actually banked, read straight off forte1 (max 3, 50 Trace each).
-const UBA1 = lucillaAction("Basic: Tracing Forms 1", { node: Node.Liberation, cast: Cast.Basic, type: DamageType.Basic, mv: 76.59, energy: 108, concerto: 254, offtune: 3400 });
-const UBA2 = lucillaAction("Basic: Tracing Forms 2", { node: Node.Liberation, cast: Cast.Basic, type: DamageType.Basic, mv: 149.42, energy: 210, concerto: 494, offtune: 6700 });
+const UBA1 = lucillaAction("Basic: Tracing Forms 1", { node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 76.59, energy: 108, concerto: 254, offtune: 3400 });
+const UBA2 = lucillaAction("Basic: Tracing Forms 2", { node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 149.42, energy: 210, concerto: 494, offtune: 6700 });
 const UBA3 = lucillaAction("Basic: Tracing Forms 3", {
-  node: Node.Liberation, cast: Cast.Basic, type: DamageType.Basic, mv: 416.96,
+  node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 416.96,
   energy: 584, concerto: 1120, offtune: 18640,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) {
@@ -194,14 +194,14 @@ export const UBA123 = new Chain("Basic: Tracing Forms 123", [UBA1, UBA2, UBA3]);
  *  by Stage 3 itself above, once per Photo actually banked at that point. Under Echo mode this
  *  is Echo Skill DMG and a real Echo cast (Remembrance's own Zoom stack too). */
 const OblivionEcho = lucillaAction("Forte: Oblivion (Echo)", {
-  node: Node.Forte, cast: Cast.Echo, type: DamageType.Echo, mv: 285.48,
+  node: Node.Forte, cast: Cast.Echo, type: Type1.Echo, mv: 285.48,
   forte1: -50, offtune: 9600,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.grantGlobal(ZOOM); },
 });
 
 const LettingGoEcho = lucillaAction("Basic: Letting It Go (Echo)", {
-  node: Node.Liberation, type: DamageType.Echo, mv: 848.07,
+  node: Node.Liberation, type: Type1.Echo, mv: 848.07,
   energy: 336, concerto: 2788, offtune: 36700,
 });
 

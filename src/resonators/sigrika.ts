@@ -29,7 +29,7 @@ import { Buff, GlobalBuff, Action, Chain, PRIORITY, ECHO_CAST } from "../kit.js"
 import type { ActionDef } from "../kit.js";
 import { Resonator, Loadout, isOutro, isEcho } from "../state.js";
 import type { ResonatorFactory } from "../state.js";
-import { Stat, Element, DamageType, Node, Cast, Resource, Scaling } from "../stats.js";
+import { Stat, Element, Type1, Node, Cast, Resource, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 import { NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_2PC, SOUND_OF_TRUE_NAME_5PC } from "../echoes/lahairoi.js";
@@ -56,10 +56,10 @@ export const BLESSING_OF_RUNES = new GlobalBuff(PRIORITY.BUFF_STATS, (ctx, stack
   const held = ctx.stacksOf(BLESSING_OF_RUNES);
   if (!ctx.action!.active) return;
   ctx.add(3 * held, Element.Aero, Stat.DmgBonus);
-  ctx.add(3 * held, DamageType.Echo, Stat.DmgBonus);
+  ctx.add(3 * held, Type1.Echo, Stat.DmgBonus);
   if (held >= 6) {
     ctx.add(30, Element.Aero, Stat.DmgBonus);
-    ctx.add(30, DamageType.Echo, Stat.DmgBonus);
+    ctx.add(30, Type1.Echo, Stat.DmgBonus);
   }
   return `Sigrika: Blessing of Runes x${held}`;
 }, 6);
@@ -68,7 +68,7 @@ export const BLESSING_OF_RUNES = new GlobalBuff(PRIORITY.BUFF_STATS, (ctx, stack
  *  capped at 50%. EARLY_CONVERSION so every ER contribution has already landed. */
 export const SIGRIKA_ER_CONVERSION = new Buff(PRIORITY.EARLY_CONVERSION, (ctx) => {
   const over = Math.max(0, ctx.get(Stat.Er) - 125);
-  ctx.add(Math.min(50, 2 * over), DamageType.Echo, Stat.DmgBonus);
+  ctx.add(Math.min(50, 2 * over), Type1.Echo, Stat.DmgBonus);
   return "Sigrika: True Names Aligned";
 });
 
@@ -77,7 +77,7 @@ export const SIGRIKA_ER_CONVERSION = new Buff(PRIORITY.EARLY_CONVERSION, (ctx) =
  *  Schemata actions below). Ends after Learn My True Name resolves, or on switching off field. */
 export const INNATE_GIFT = new Buff(PRIORITY.BUFF_STATS, (ctx, stacks) => {
   if (!ctx.action!.active) { ctx.revoke(INNATE_GIFT); return; }
-  ctx.add(30 * stacks, DamageType.Echo, Stat.Amp);
+  ctx.add(30 * stacks, Type1.Echo, Stat.Amp);
   return `Sigrika: Innate Gift? x${stacks}`;
 }, 2);
 
@@ -128,19 +128,19 @@ function sigrikaAction(name: string, def: ActionDef): Action {
 // --- basics, mid-air, dodge counter (One, Two, Three). Energy/concerto/offtune come from the
 //     migrated sheet, same gap-fill as every other unregistered kit here — Mid-air/Dodge
 //     Counter/Heavy have no sheet row at all, so they're still bare (nanoka's own MV only).
-const BA1 = sigrikaAction("Basic: One, Two, Three 1", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 52.97, energy: 84, concerto: 167, offtune: 2700 });
-const BA2 = sigrikaAction("Basic: One, Two, Three 2", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 100.68, energy: 160, concerto: 318, offtune: 5100 });   // 50.34% x2
-const BA3 = sigrikaAction("Basic: One, Two, Three 3", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 111.36, energy: 176, concerto: 350, offtune: 5600 });    // 33.41+33.41+44.54
+const BA1 = sigrikaAction("Basic: One, Two, Three 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 52.97, energy: 84, concerto: 167, offtune: 2700 });
+const BA2 = sigrikaAction("Basic: One, Two, Three 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 100.68, energy: 160, concerto: 318, offtune: 5100 });   // 50.34% x2
+const BA3 = sigrikaAction("Basic: One, Two, Three 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 111.36, energy: 176, concerto: 350, offtune: 5600 });    // 33.41+33.41+44.54
 const BA4 = sigrikaAction("Basic: One, Two, Three 4", {
-  node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 206.79,   // 41.36+51.70+51.70+62.03
+  node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 206.79,   // 41.36+51.70+51.70+62.03
   energy: 327, concerto: 651, offtune: 10400,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.grantSelf(DECIPHER); },
 });
-const MA = sigrikaAction("Basic: One, Two, Three (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 104.78 });
-const MDC = sigrikaAction("Basic: One, Two, Three (Mid-Air Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: DamageType.Basic, mv: 206.17 });
-const DC = sigrikaAction("Basic: One, Two, Three (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: DamageType.Basic, mv: 219.70 });   // 65.91+65.91+87.88
-const HA = sigrikaAction("Heavy: One, Two, Three", { node: Node.Normal, cast: Cast.Heavy, type: DamageType.Heavy, mv: 116.28 });   // 58.14% x2
+const MA = sigrikaAction("Basic: One, Two, Three (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78 });
+const MDC = sigrikaAction("Basic: One, Two, Three (Mid-Air Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 206.17 });
+const DC = sigrikaAction("Basic: One, Two, Three (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 219.70 });   // 65.91+65.91+87.88
+const HA = sigrikaAction("Heavy: One, Two, Three", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 116.28 });   // 58.14% x2
 
 export const BA1234 = new Chain("Basic: One, Two, Three 1234", [BA1, BA2, BA3, BA4]);
 
@@ -155,13 +155,13 @@ export const DECIPHER = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
 // --- Decipher-gated finishers: both grant a Rune: Trust and exit Decipher, both Echo Skill DMG
 //     (the migrated sheet only has one row for the pair — same numbers, both used here)
 const Elucidated = sigrikaAction("Basic: Elucidated", {
-  node: Node.Normal, cast: Cast.Basic, type: DamageType.Echo, mv: 307.79,   // 61.56% x3 + 123.11%
+  node: Node.Normal, cast: Cast.Basic, type: Type1.Echo, mv: 307.79,   // 61.56% x3 + 123.11%
   energy: 260, concerto: 520,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.revoke(DECIPHER); },
 });
 export const DodgeCounterDecipher = sigrikaAction("Basic: Decipher (Dodge Counter)", {
-  node: Node.Normal, cast: Cast.DodgeCounter, type: DamageType.Echo, mv: 307.79,   // 61.56% x3 + 123.11%
+  node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Echo, mv: 307.79,   // 61.56% x3 + 123.11%
   energy: 260, concerto: 520,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.revoke(DECIPHER); },
@@ -169,15 +169,15 @@ export const DodgeCounterDecipher = sigrikaAction("Basic: Decipher (Dodge Counte
 
 // --- resonance skill: BOOMY BOOM! (base), or — while in Decipher — BIG BOOMY BOOM! (grants
 //     Rune: Answer) / Soliskin to the Aid (also 50+ Full Stop, likewise grants Rune: Answer)
-const Skill = sigrikaAction("Skill: BOOMY BOOM!", { node: Node.Skill, cast: Cast.Skill, type: DamageType.Skill, mv: 143.15, energy: 225, concerto: 450 });   // 28.63% x3 + 57.26%
+const Skill = sigrikaAction("Skill: BOOMY BOOM!", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 143.15, energy: 225, concerto: 450 });   // 28.63% x3 + 57.26%
 const BigSkill = sigrikaAction("Skill: BIG BOOMY BOOM!", {
-  node: Node.Skill, cast: Cast.Skill, type: DamageType.Echo, mv: 288.09,   // 28.81% x4 + 172.85%
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Echo, mv: 288.09,   // 28.81% x4 + 172.85%
   energy: 245, concerto: 490,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.revoke(DECIPHER); },
 });
 const SoliskinAid = sigrikaAction("Skill: Soliskin to the Aid", {
-  node: Node.Skill, cast: Cast.Skill, type: DamageType.Echo, mv: 278.26,   // 27.83% x3 + 194.77%
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Echo, mv: 278.26,   // 27.83% x3 + 194.77%
   energy: 236, concerto: 472,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.revoke(DECIPHER); },
@@ -199,37 +199,37 @@ function spendVitality(ctx: import("../state.js").Ctx): void {
   ctx.grantSelf(INNATE_GIFT);
 }
 const RunicOutburst = sigrikaAction("Skill: Runic Outburst", {   // 117.67+205.92+264.75
-  node: Node.Forte, type: DamageType.Echo, mv: 588.34, energy: 1000, concerto: 700, offtune: 24800,
+  node: Node.Forte, type: Type1.Echo, mv: 588.34, energy: 1000, concerto: 700, offtune: 24800,
   priority: PRIORITY.BUFF_STATS, apply: spendVitality,
 });
 const RunicChainWhip = sigrikaAction("Skill: Runic Chain Whip", {   // 49.70x4+66.26x3
-  node: Node.Forte, type: DamageType.Echo, mv: 397.58, energy: 1000, concerto: 703, offtune: 24802,
+  node: Node.Forte, type: Type1.Echo, mv: 397.58, energy: 1000, concerto: 703, offtune: 24802,
   priority: PRIORITY.BUFF_STATS, apply: spendVitality,
 });
 const RunicSoliskin = sigrikaAction("Skill: Runic Soliskin", {   // 39.76+59.63x4+119.26
-  node: Node.Forte, type: DamageType.Echo, mv: 397.54, energy: 1000, concerto: 703, offtune: 24802,
+  node: Node.Forte, type: Type1.Echo, mv: 397.54, energy: 1000, concerto: 703, offtune: 24802,
   priority: PRIORITY.BUFF_STATS, apply: spendVitality,
 });
 
 const SchemataOutburst = sigrikaAction("Heavy: Schemata of Runes (Runic Outburst)", {
-  node: Node.Forte, cast: Cast.Heavy, type: DamageType.Echo, mv: 132.51,
+  node: Node.Forte, cast: Cast.Heavy, type: Type1.Echo, mv: 132.51,
   energy: 334, concerto: 750, offtune: 27500, forte1: 50,
   priority: PRIORITY.UPDATE_BUFFS, apply(ctx) { ctx.queue(RunicOutburst); },
 });
 export const SchemataChainWhip = sigrikaAction("Heavy: Schemata of Runes (Runic Chain Whip)", {
-  node: Node.Forte, cast: Cast.Heavy, type: DamageType.Echo, mv: 132.51,
+  node: Node.Forte, cast: Cast.Heavy, type: Type1.Echo, mv: 132.51,
   energy: 334, concerto: 750, offtune: 27500, forte1: 50,
   priority: PRIORITY.UPDATE_BUFFS, apply(ctx) { ctx.queue(RunicChainWhip); },
 });
 export const SchemataSoliskin = sigrikaAction("Heavy: Schemata of Runes (Runic Soliskin)", {
-  node: Node.Forte, cast: Cast.Heavy, type: DamageType.Echo, mv: 132.51,
+  node: Node.Forte, cast: Cast.Heavy, type: Type1.Echo, mv: 132.51,
   energy: 334, concerto: 750, offtune: 27500, forte1: 50,
   priority: PRIORITY.UPDATE_BUFFS, apply(ctx) { ctx.queue(RunicSoliskin); },
 });
 
 /** Learn My True Name: at 100 Full Stop, spends it all. */
 const LearnMyTrueName = sigrikaAction("Forte: Learn My True Name", {
-  node: Node.Forte, cast: Cast.Skill, type: DamageType.Echo, mv: 1211.48,   // 302.87% + 908.61%
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Echo, mv: 1211.48,   // 302.87% + 908.61%
   energy: 543, concerto: 3000, offtune: 101300, forte1: -100,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.revoke(INNATE_GIFT); },
@@ -237,16 +237,16 @@ const LearnMyTrueName = sigrikaAction("Forte: Learn My True Name", {
 
 // --- liberation: Where Trust Leads Me!
 const Liberation = sigrikaAction("Liberation: Where Trust Leads Me!", {
-  node: Node.Liberation, cast: Cast.Liberation, type: DamageType.Echo, mv: 861.43,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Echo, mv: 861.43,
   energy: -12500, concerto: 2000, offtune: 50400,
 });
 
 // --- intro / outro
 const Intro = sigrikaAction("Intro: Solsworn Etymology", {
-  node: Node.Intro, cast: Cast.Intro, type: DamageType.Intro, mv: 163.42, energy: 1000, concerto: 1000, offtune: 7700,
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 163.42, energy: 1000, concerto: 1000, offtune: 7700,
 });
 const Outro = sigrikaAction("Outro: In This Very Moment", {
-  cast: Cast.Outro, type: DamageType.Outro, mv: 795, concerto: -10000, active: false,
+  cast: Cast.Outro, type: Type1.Outro, mv: 795, concerto: -10000, active: false,
 });
 
 /** A kit-valid line: Intro opens Decipher-free, the basics chain opens Decipher on Stage 4,

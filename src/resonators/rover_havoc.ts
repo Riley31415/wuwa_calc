@@ -28,7 +28,7 @@ import { Buff, GlobalBuff, Gear, Action, Chain, PRIORITY, ECHO_CAST } from "../k
 import type { ActionDef } from "../kit.js";
 import { Resonator, Loadout, isOutro } from "../state.js";
 import type { ResonatorFactory } from "../state.js";
-import { Stat, Element, DamageType, Node, Resource, Cast, Scaling } from "../stats.js";
+import { Stat, Element, Type1, Node, Resource, Cast, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 import { NM_CROWNLESS, HAVOC_ECLIPSE_2PC, HAVOC_ECLIPSE_5PC } from "../echoes/jinzhou.js";
@@ -54,7 +54,7 @@ export const DARK_SURGE = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
 
 /** S1 Cryptic Insight: +30% Resonance Skill DMG Bonus flat (Wingblade and its Dark Surge
  *  replacement Lifetaker both share `cast: Cast.Skill`). */
-export const S1 = new Gear("Rover S1", (ctx) => { ctx.add(30, DamageType.Skill, Stat.DmgBonus); });
+export const S1 = new Gear("Rover S1", (ctx) => { ctx.add(30, Type1.Skill, Stat.DmgBonus); });
 
 /** S2 Waning Crescent: resets Resonance Skill's cooldown on entering Dark Surge — no real-time
  *  clock here, so this is a no-op, same treatment as every other cooldown-only effect. */
@@ -131,20 +131,20 @@ function roverAction(name: string, def: ActionDef): Action {
 }
 
 // --- basics, mid-air, dodge counter (Tuneslayer), outside Dark Surge
-const BA1 = roverAction("Basic: Tuneslayer 1", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 56.67 });
-const BA2 = roverAction("Basic: Tuneslayer 2", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 113.34 });   // 56.67% x2
-const BA3 = roverAction("Basic: Tuneslayer 3", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 85.00 });
-const BA4 = roverAction("Basic: Tuneslayer 4", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 120.90 });   // 40.30% x3
-const BA5 = roverAction("Basic: Tuneslayer 5", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 188.88 });   // 94.44% x2
+const BA1 = roverAction("Basic: Tuneslayer 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 56.67 });
+const BA2 = roverAction("Basic: Tuneslayer 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 113.34 });   // 56.67% x2
+const BA3 = roverAction("Basic: Tuneslayer 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 85.00 });
+const BA4 = roverAction("Basic: Tuneslayer 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 120.90 });   // 40.30% x3
+const BA5 = roverAction("Basic: Tuneslayer 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 188.88 });   // 94.44% x2
 export const BA12345 = new Chain("Basic: Tuneslayer 12345", [BA1, BA2, BA3, BA4, BA5]);
 
-export const MA = roverAction("Mid-air Attack", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 117.10 });
-export const DC = roverAction("Dodge Counter", { node: Node.Normal, cast: Cast.DodgeCounter, type: DamageType.Basic, mv: 179.43 });
-const HA = roverAction("Heavy Attack", { node: Node.Normal, cast: Cast.Heavy, type: DamageType.Heavy, mv: 95.43 });
+export const MA = roverAction("Mid-air Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 117.10 });
+export const DC = roverAction("Dodge Counter", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 179.43 });
+const HA = roverAction("Heavy Attack", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 95.43 });
 
 // --- forte circuit: Devastation, at full Umbra — enters Dark Surge, considered Heavy Attack DMG
 const Devastation = roverAction("Forte: Devastation", {
-  node: Node.Forte, cast: Cast.Heavy, type: DamageType.Heavy, mv: 228.14, forte1: -100,
+  node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 228.14, forte1: -100,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.grantSelf(DARK_SURGE); },
 });
@@ -153,38 +153,38 @@ const Devastation = roverAction("Forte: Devastation", {
 //     into Enhanced Basic 3, Enhanced Mid-air/Dodge Counter — all considered their own base
 //     damage types per the kit text ("Umbra: ... DMG, considered as Heavy Attack DMG" only for
 //     the Heavy/Thwackblade pair; the basics stay Basic Attack DMG).
-const EBA1 = roverAction("Umbra: Basic Attack 1", { node: Node.Forte, cast: Cast.Basic, type: DamageType.Basic, mv: 56.37 });
-const EBA2 = roverAction("Umbra: Basic Attack 2", { node: Node.Forte, cast: Cast.Basic, type: DamageType.Basic, mv: 93.94 });
-const EBA3 = roverAction("Umbra: Basic Attack 3", { node: Node.Forte, cast: Cast.Basic, type: DamageType.Basic, mv: 155.67 });
-const EBA4 = roverAction("Umbra: Basic Attack 4", { node: Node.Forte, cast: Cast.Basic, type: DamageType.Basic, mv: 222.78 });   // 37.13%x3+111.39%
-const EBA5 = roverAction("Umbra: Basic Attack 5", { node: Node.Forte, cast: Cast.Basic, type: DamageType.Basic, mv: 228.15 });   // 28.52%x4+114.07%
+const EBA1 = roverAction("Umbra: Basic Attack 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 56.37 });
+const EBA2 = roverAction("Umbra: Basic Attack 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 93.94 });
+const EBA3 = roverAction("Umbra: Basic Attack 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 155.67 });
+const EBA4 = roverAction("Umbra: Basic Attack 4", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 222.78 });   // 37.13%x3+111.39%
+const EBA5 = roverAction("Umbra: Basic Attack 5", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 228.15 });   // 28.52%x4+114.07%
 export const EBA12345 = new Chain("Umbra: Basic Attack 12345", [EBA1, EBA2, EBA3, EBA4, EBA5]);
 
-export const EMA = roverAction("Umbra: Plunging Attack", { node: Node.Forte, cast: Cast.Basic, type: DamageType.Basic, mv: 123.27 });
-export const EDC = roverAction("Umbra: Dodge Counter", { node: Node.Forte, cast: Cast.DodgeCounter, type: DamageType.Basic, mv: 316.71 });
+export const EMA = roverAction("Umbra: Plunging Attack", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 123.27 });
+export const EDC = roverAction("Umbra: Dodge Counter", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 316.71 });
 
-const EHA = roverAction("Umbra: Heavy Attack", { node: Node.Forte, cast: Cast.Heavy, type: DamageType.Heavy, mv: 128.83 });
-const Thwackblade = roverAction("Umbra: Thwackblade", { node: Node.Forte, cast: Cast.Heavy, type: DamageType.Heavy, mv: 166.45 });   // 126.65%+9.95%x4
+const EHA = roverAction("Umbra: Heavy Attack", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 128.83 });
+const Thwackblade = roverAction("Umbra: Thwackblade", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 166.45 });   // 126.65%+9.95%x4
 
 // --- resonance skill: Wingblade outside Dark Surge, Lifetaker (Skill replacement) inside it —
 //     both "Resonance Skill DMG" per S1's own wording, hence sharing cast: Cast.Skill
-const Wingblade = roverAction("Skill: Wingblade", { node: Node.Skill, cast: Cast.Skill, type: DamageType.Skill, mv: 572.58 });   // 286.29% x2
-const Lifetaker = roverAction("Umbra: Lifetaker", { node: Node.Forte, cast: Cast.Skill, type: DamageType.Skill, mv: 592.50 });   // 276.35%x2+9.95%x4
+const Wingblade = roverAction("Skill: Wingblade", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 572.58 });   // 286.29% x2
+const Lifetaker = roverAction("Umbra: Lifetaker", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 592.50 });   // 276.35%x2+9.95%x4
 
 // --- liberation: Deadening Abyss
 const Liberation = roverAction("Liberation: Deadening Abyss", {
-  node: Node.Liberation, cast: Cast.Liberation, type: DamageType.Liberation, mv: 1520.90,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1520.90,
 });
 
 // --- intro / outro
 const Intro = roverAction("Intro: Instant of Annihilation", {
-  node: Node.Intro, cast: Cast.Intro, type: DamageType.Intro, mv: 198.81,
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81,
 });
 /** Soundweaver: a Havoc Field, 3 ticks (143.3% ATK each) over 6s — no real per-second clock
  *  here, so lumped into one action, same treatment as every other periodic zone elsewhere
  *  (Cantarella's Diffusion, Brant's Grief Rift). No handoff buff is described on the page. */
 const Outro = roverAction("Outro: Soundweaver", {
-  cast: Cast.Outro, type: DamageType.Outro, mv: 429.9, active: false,   // 143.3% x3
+  cast: Cast.Outro, type: Type1.Outro, mv: 429.9, active: false,   // 143.3% x3
 });
 
 /** A kit-valid line: Intro, the normal Tuneslayer combo tops Umbra, Wingblade, Devastation

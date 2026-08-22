@@ -1,194 +1,187 @@
-/** Standard/f2p weapons — no signature character, usable by anyone of the matching weapon type.
- *  Three generations, 5 weapons each (one per weapon type), 15 total: Ceaseless Aria (the
- *  original 4-star standard set), Stormy Resolution (the 5-star standard set), and the "new
- *  standard" 5-star set. Each resonator's own file picks which of these its f2p loadout equips.
- *  Signature weapons live in their own weapon-type file instead (sword.ts, broadblade.ts,
- *  pistol.ts, gauntlet.ts, rectifier.ts) — including Stringmaster, which isn't part of any of
- *  these three named tiers, so it lives in rectifier.ts alongside Encore's own gear. */
-import { isOutro, isSkill, isTuneBreak } from "../state.js";
-import { Buff, Gear, PRIORITY } from "../kit.js";
-import { Stat, DamageType, Resource } from "../stats.js";
+/**
+ * Standard/f2p weapons, ported to the new engine — no signature character, usable by anyone of
+ * the matching weapon type. Three generations, 5 weapons each: Ceaseless Aria (4-star), Stormy
+ * Resolution (5-star), and the "new standard" 5-star set.
+ *
+ * Base ATK is ported via Stat.BaseAtk for fidelity to the source numbers; engine2's own atk
+ * formula (core.ts's evaluate()) doesn't fold those contributions into Slot.baseAtk yet — a known
+ * engine gap, not a modeling choice made here.
+ */
+import {
+  Buff, Stat, Type1, Cast, AddConcerto,
+  addStat, applySelf, isHeld, removeStack, revoke, casting, currentAction, stacks, queueOutro,
+} from "../kit.js";
 
 /* ---------------------------------------------------------------- Ceaseless Aria (4-star, 5) */
 
-/** Ceaseless Aria — the five standard weapons' shared passive. One buff, two stacks: 1 is
- *  ready (a Skill cast restores Concerto and promotes to 2), 2 is cooling down (an Outro
- *  demotes back to 1). */
-export const CEASELESS_ARIA = new Buff(PRIORITY.UPDATE_BUFFS, (ctx) => {
-  const held = ctx.stacksOf(CEASELESS_ARIA);
-  if (held === 1 && isSkill(ctx.action!)) {
-    ctx.gain(Resource.Concerto, 1600);   // R5; R1 restores 800
-    ctx.grantSelf(CEASELESS_ARIA);
-  } else if (held === 2 && isOutro(ctx.action!)) {
-    ctx.removeStack(CEASELESS_ARIA, 1);
-  }
-  return held === 1 ? "Ceaseless Aria" : "Ceaseless Aria (cooldown)";
-}, 2);
+/** Shared passive of the five standard weapons. Two stacks: 1 is ready (a Skill cast restores
+ *  Concerto and promotes to 2), 2 is cooling down (the wielder's own Outro demotes back to 1). */
+export const CEASELESS_ARIA = new Buff({
+  name: "Ceaseless Aria", maxStacks: 2,
+  update: () => {
+    if (stacks() === 1 && casting(Cast.Skill)) { applySelf(CEASELESS_ARIA, 1); addStat(AddConcerto, 1600); }
+    else if (stacks() === 2 && casting(Cast.Outro)) removeStack(CEASELESS_ARIA, 1);
+  },
+});
 
-export const VARIATION = new Gear("Variation R5", (ctx) => {
-  ctx.add(337.5, Stat.BaseAtk);
-  ctx.add(51.84, Stat.Er);
-}, (ctx) => { ctx.grantSelf(CEASELESS_ARIA); });
+export const VARIATION = new Buff({
+  name: "Variation R5",
+  apply: () => { addStat(Stat.BaseAtk, 337.5); addStat(Stat.Er, 51.84); },
+  update: () => { if (!isHeld(CEASELESS_ARIA)) applySelf(CEASELESS_ARIA, 1); },
+});
 
-export const MARCATO = new Gear("Marcato R5", (ctx) => {
-  ctx.add(338, Stat.BaseAtk);
-  ctx.add(51.84, Stat.Er);
-}, (ctx) => { ctx.grantSelf(CEASELESS_ARIA); });
+export const MARCATO = new Buff({
+  name: "Marcato R5",
+  apply: () => { addStat(Stat.BaseAtk, 338); addStat(Stat.Er, 51.84); },
+  update: () => { if (!isHeld(CEASELESS_ARIA)) applySelf(CEASELESS_ARIA, 1); },
+});
 
-export const CADENZA = new Gear("Cadenza R5", (ctx) => {
-  ctx.add(338, Stat.BaseAtk);
-  ctx.add(51.84, Stat.Er);
-}, (ctx) => { ctx.grantSelf(CEASELESS_ARIA); });
+export const CADENZA = new Buff({
+  name: "Cadenza R5",
+  apply: () => { addStat(Stat.BaseAtk, 338); addStat(Stat.Er, 51.84); },
+  update: () => { if (!isHeld(CEASELESS_ARIA)) applySelf(CEASELESS_ARIA, 1); },
+});
 
-export const OVERTURE = new Gear("Overture R5", (ctx) => {
-  ctx.add(338, Stat.BaseAtk);
-  ctx.add(51.84, Stat.Er);
-}, (ctx) => { ctx.grantSelf(CEASELESS_ARIA); });
+export const OVERTURE = new Buff({
+  name: "Overture R5",
+  apply: () => { addStat(Stat.BaseAtk, 338); addStat(Stat.Er, 51.84); },
+  update: () => { if (!isHeld(CEASELESS_ARIA)) applySelf(CEASELESS_ARIA, 1); },
+});
 
-export const DISCORD = new Gear("Discord R5", (ctx) => {
-  ctx.add(338, Stat.BaseAtk);
-  ctx.add(51.84, Stat.Er);
-}, (ctx) => { ctx.grantSelf(CEASELESS_ARIA); });
+export const DISCORD = new Buff({
+  name: "Discord R5",
+  apply: () => { addStat(Stat.BaseAtk, 338); addStat(Stat.Er, 51.84); },
+  update: () => { if (!isHeld(CEASELESS_ARIA)) applySelf(CEASELESS_ARIA, 1); },
+});
 
 /* --------------------------------------------------------------- Stormy Resolution (5-star, 5) */
 
-/** Static Mist, R1. Stormy Resolution: +12.8% ER flat. On the wielder's outro, hands the
- *  incoming resonator +10% ATK — the outro-handoff queue expires it on their own outro. */
-export const STATIC_MIST = new Gear("Static Mist", (ctx) => {
-  ctx.add(587.5, Stat.BaseAtk);
-  ctx.add(24.3, Stat.CritRate);
-  ctx.add(12.8, Stat.Er);
-  if (isOutro(ctx.action!)) ctx.outro(STATIC_MIST_HANDOFF);
+/** Static Mist, R1. Stormy Resolution: +12.8% ER flat. On the wielder's own Outro, hands the
+ *  incoming resonator +10% ATK — the outro-handoff buff drops itself on their own outro. */
+export const STATIC_MIST = new Buff({
+  name: "Static Mist",
+  apply: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.Er, 12.8); },
+  update: () => { if (casting(Cast.Outro)) queueOutro(STATIC_MIST_HANDOFF); },
 });
 
-export const STATIC_MIST_HANDOFF = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
-  if (isOutro(ctx.action!)) ctx.revoke(STATIC_MIST_HANDOFF);
-  ctx.add(10, Stat.BonusAtk);
-  return "Static Mist: Stormy Resolution";
+export const STATIC_MIST_HANDOFF = new Buff({
+  name: "Static Mist: Stormy Resolution",
+  apply: () => addStat(Stat.BonusAtk, 10),
+  // short window, so it still counts on the wearer's own outro (see jinzhou.ts's HERON_HANDOFF)
+  convert: () => { if (casting(Cast.Outro)) revoke(STATIC_MIST_HANDOFF); },
 });
 
 /** Emerald of Genesis, R1. Stormy Resolution: +12.8% ER flat. Skill DMG stacks ATK twice over
  *  (6% a stack), lost after the outro action gains stats. */
-export const EMERALD_OF_GENESIS = new Gear("Emerald of Genesis", (ctx) => {
-  ctx.add(587.5, Stat.BaseAtk);
-  ctx.add(24.3, Stat.CritRate);
-  ctx.add(12.8, Stat.Er);
-  if (isSkill(ctx.action!)) ctx.grantSelf(EOG_STACKS);
+export const EMERALD_OF_GENESIS = new Buff({
+  name: "Emerald of Genesis",
+  apply: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.Er, 12.8); },
+  update: () => { if (casting(Cast.Skill)) applySelf(EOG_STACKS, 1); },
 });
 
-export const EOG_STACKS = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
-  const held = ctx.stacksOf(EOG_STACKS);
-  ctx.add(6 * held, Stat.BonusAtk);
-  if (isOutro(ctx.action!)) ctx.revoke(EOG_STACKS);
-  return `Emerald of Genesis: Stormy Resolution x${held}`;
-}, 2);
+export const EOG_STACKS = new Buff({
+  name: "Emerald of Genesis: Stormy Resolution", maxStacks: 2,
+  apply: () => addStat(Stat.BonusAtk, 6 * stacks()),
+  convert: () => { if (casting(Cast.Outro)) revoke(EOG_STACKS); },
+});
 
 /** Cosmic Ripples, R1. Stormy Resolution: +12.8% ER flat. Basic Attack DMG stacks Basic DMG
  *  Bonus five times over (3.2% a stack), lost after the outro action gains stats. */
-export const COSMIC_RIPPLES = new Gear("Cosmic Ripples", (ctx) => {
-  ctx.add(500, Stat.BaseAtk);
-  ctx.add(54, Stat.BonusAtk);
-  ctx.add(12.8, Stat.Er);
-  if (ctx.action!.type === DamageType.Basic) ctx.grantSelf(COSMIC_RIPPLES_STACKS);
+export const COSMIC_RIPPLES = new Buff({
+  name: "Cosmic Ripples",
+  apply: () => { addStat(Stat.BaseAtk, 500); addStat(Stat.BonusAtk, 54); addStat(Stat.Er, 12.8); },
+  update: () => { if (currentAction().type === Type1.Basic) applySelf(COSMIC_RIPPLES_STACKS, 1); },
 });
 
-export const COSMIC_RIPPLES_STACKS = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
-  const held = ctx.stacksOf(COSMIC_RIPPLES_STACKS);
-  ctx.add(3.2 * held, DamageType.Basic, Stat.DmgBonus);
-  if (isOutro(ctx.action!)) ctx.revoke(COSMIC_RIPPLES_STACKS);
-  return `Cosmic Ripples: Stormy Resolution x${held}`;
-}, 5);
+export const COSMIC_RIPPLES_STACKS = new Buff({
+  name: "Cosmic Ripples: Stormy Resolution", maxStacks: 5,
+  apply: () => addStat(Stat.DmgBonus, 3.2 * stacks(), Type1.Basic),
+  convert: () => { if (casting(Cast.Outro)) revoke(COSMIC_RIPPLES_STACKS); },
+});
 
 /** Abyss Surges, R1. Stormy Resolution: +12.8% ER flat. A Skill hit grants Basic DMG Bonus; a
  *  Basic hit grants Skill DMG Bonus — both lost after the outro action gains stats. */
-export const ABYSS_SURGES = new Gear("Abyss Surges", (ctx) => {
-  ctx.add(587.5, Stat.BaseAtk);
-  ctx.add(36.45, Stat.BonusAtk);
-  ctx.add(12.8, Stat.Er);
-  if (ctx.action!.type === DamageType.Skill) ctx.grantSelf(ABYSS_SKILL_HIT);
-  if (ctx.action!.type === DamageType.Basic) ctx.grantSelf(ABYSS_BASIC_HIT);
+export const ABYSS_SURGES = new Buff({
+  name: "Abyss Surges",
+  apply: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.BonusAtk, 36.45); addStat(Stat.Er, 12.8); },
+  update: () => {
+    if (currentAction().type === Type1.Skill) applySelf(ABYSS_SKILL_HIT, 1);
+    if (currentAction().type === Type1.Basic) applySelf(ABYSS_BASIC_HIT, 1);
+  },
 });
 
-export const ABYSS_SKILL_HIT = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
-  ctx.add(10, DamageType.Basic, Stat.DmgBonus);
-  if (isOutro(ctx.action!)) ctx.revoke(ABYSS_SKILL_HIT);
-  return "Abyss Surges: Stormy Resolution";
+export const ABYSS_SKILL_HIT = new Buff({
+  name: "Abyss Surges: Stormy Resolution",
+  apply: () => addStat(Stat.DmgBonus, 10, Type1.Basic),
+  convert: () => { if (casting(Cast.Outro)) revoke(ABYSS_SKILL_HIT); },
 });
 
-export const ABYSS_BASIC_HIT = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
-  ctx.add(10, DamageType.Skill, Stat.DmgBonus);
-  if (isOutro(ctx.action!)) ctx.revoke(ABYSS_BASIC_HIT);
-  return "Abyss Surges: Stormy Resolution";
+export const ABYSS_BASIC_HIT = new Buff({
+  name: "Abyss Surges: Stormy Resolution",
+  apply: () => addStat(Stat.DmgBonus, 10, Type1.Skill),
+  convert: () => { if (casting(Cast.Outro)) revoke(ABYSS_BASIC_HIT); },
 });
 
 /** Lustrous Razor, R1. Stormy Resolution: +12.8% ER flat. Skill cast stacks Liberation DMG
  *  Bonus three times over (7% a stack), lost after the outro action gains stats. */
-export const LUSTROUS_RAZOR = new Gear("Lustrous Razor", (ctx) => {
-  ctx.add(587.5, Stat.BaseAtk);
-  ctx.add(36.45, Stat.BonusAtk);
-  ctx.add(12.8, Stat.Er);
-  if (isSkill(ctx.action!)) ctx.grantSelf(LUSTROUS_RAZOR_STACKS);
+export const LUSTROUS_RAZOR = new Buff({
+  name: "Lustrous Razor",
+  apply: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.BonusAtk, 36.45); addStat(Stat.Er, 12.8); },
+  update: () => { if (casting(Cast.Skill)) applySelf(LUSTROUS_RAZOR_STACKS, 1); },
 });
 
-export const LUSTROUS_RAZOR_STACKS = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
-  const held = ctx.stacksOf(LUSTROUS_RAZOR_STACKS);
-  ctx.add(7 * held, DamageType.Liberation, Stat.DmgBonus);
-  if (isOutro(ctx.action!)) ctx.revoke(LUSTROUS_RAZOR_STACKS);
-  return `Lustrous Razor: Stormy Resolution x${held}`;
-}, 3);
+export const LUSTROUS_RAZOR_STACKS = new Buff({
+  name: "Lustrous Razor: Stormy Resolution", maxStacks: 3,
+  apply: () => addStat(Stat.DmgBonus, 7 * stacks(), Type1.Liberation),
+  convert: () => { if (casting(Cast.Outro)) revoke(LUSTROUS_RAZOR_STACKS); },
+});
 
 /* ------------------------------------------------------------------- new standard (5-star, 5) */
 
 /** Radiance Cleaver, Lupa's f2p alternative. Tune-strained bonus skipped — untracked state. */
-export const NEW_STD_BRAUDBLADE = new Gear("Radiance Cleaver", (ctx) => {
-  ctx.add(587.5, Stat.BaseAtk);
-  ctx.add(48.6, Stat.CritDmg);
-  ctx.add(12, Stat.BonusAtk);
+export const NEW_STD_BRAUDBLADE = new Buff({
+  name: "Radiance Cleaver",
+  apply: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.BonusAtk, 12); },
 });
 
 /** Pulsation Bracer, Iuno's f2p alternative. Conversion-stack bonus skipped — untracked state. */
-export const NEW_STD_GAUNTLET = new Gear("Pulsation Bracer", (ctx) => {
-  ctx.add(587.5, Stat.BaseAtk);
-  ctx.add(24.3, Stat.CritRate);
-  ctx.add(12, Stat.BonusAtk);
+export const NEW_STD_GAUNTLET = new Buff({
+  name: "Pulsation Bracer",
+  apply: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.BonusAtk, 12); },
 });
 
 /** Laser Shearer, R1: Signal Catcher, +12% ATK flat. Tune Strain half skipped — untracked
  *  enemy state. */
-export const NEW_STD_SWORD = new Gear("Laser Shearer", (ctx) => {
-  ctx.add(587.5, Stat.BaseAtk);
-  ctx.add(38.88, Stat.Er);
-  ctx.add(12, Stat.BonusAtk);
+export const NEW_STD_SWORD = new Buff({
+  name: "Laser Shearer",
+  apply: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.Er, 38.88); addStat(Stat.BonusAtk, 12); },
 });
 
 /** Boson Astrolabe, R1: Path Observer, +12% ATK flat. Only the wielder's own Tune Break cast
  *  procs it — a team-wide trigger would need a global watcher. Proc lost after the outro
  *  action gains stats. */
-export const NEW_STD_RECTIFIER = new Gear("Boson Astrolabe", (ctx) => {
-  ctx.add(525, Stat.BaseAtk);
-  ctx.add(38.88, Stat.Er);
-  ctx.add(12, Stat.BonusAtk);
-  if (isTuneBreak(ctx.action!)) ctx.grantSelf(PATH_OBSERVER_BUFF);
+export const NEW_STD_RECTIFIER = new Buff({
+  name: "Boson Astrolabe",
+  apply: () => { addStat(Stat.BaseAtk, 525); addStat(Stat.Er, 38.88); addStat(Stat.BonusAtk, 12); },
+  update: () => { if (casting(Cast.TuneBreak)) applySelf(PATH_OBSERVER_BUFF, 1); },
 });
 
-export const PATH_OBSERVER_BUFF = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
-  ctx.add(12, Stat.BonusAtk);
-  ctx.add(12, DamageType.Basic, Stat.DmgBonus);
-  if (isOutro(ctx.action!)) ctx.revoke(PATH_OBSERVER_BUFF);
-  return "Boson Astrolabe: Path Observer";
+export const PATH_OBSERVER_BUFF = new Buff({
+  name: "Boson Astrolabe: Path Observer",
+  apply: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Type1.Basic); },
+  convert: () => { if (casting(Cast.Outro)) revoke(PATH_OBSERVER_BUFF); },
 });
 
 /** Phasic Homogenizer, R1: Insight Bearer, +12% ATK flat. Same simplification as Boson
  *  Astrolabe above. */
-export const NEW_STD_PISTOL = new Gear("Phasic Homogenizer", (ctx) => {
-  ctx.add(587.5, Stat.BaseAtk);
-  ctx.add(48.6, Stat.CritDmg);
-  ctx.add(12, Stat.BonusAtk);
-  if (isTuneBreak(ctx.action!)) ctx.grantSelf(INSIGHT_BEARER_BUFF);
+export const NEW_STD_PISTOL = new Buff({
+  name: "Phasic Homogenizer",
+  apply: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.BonusAtk, 12); },
+  update: () => { if (casting(Cast.TuneBreak)) applySelf(INSIGHT_BEARER_BUFF, 1); },
 });
 
-export const INSIGHT_BEARER_BUFF = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
-  ctx.add(20, Stat.DmgBonus);
-  if (isOutro(ctx.action!)) ctx.revoke(INSIGHT_BEARER_BUFF);
-  return "Phasic Homogenizer: Insight Bearer";
+export const INSIGHT_BEARER_BUFF = new Buff({
+  name: "Phasic Homogenizer: Insight Bearer",
+  apply: () => addStat(Stat.DmgBonus, 20),
+  convert: () => { if (casting(Cast.Outro)) revoke(INSIGHT_BEARER_BUFF); },
 });

@@ -3,6 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- `python -m http.server` sends Last-Modified but no Cache-Control and no ETag, so Chrome
+     falls back to heuristic freshness and can serve a stale index.css / dist/index.js off an
+     ordinary reload — which looks exactly like "the edit did nothing". -->
+<meta http-equiv="Cache-Control" content="no-store">
 <title>Riley Calc</title>
 <link rel="stylesheet" href="./index.css">
 </head>
@@ -17,15 +21,40 @@
   imports and fetch() on file:// URLs. From this directory:
 
       npm run build                     ->  compiles src/**/*.ts (+ passthrough .js) into dist/
-      python -m http.server 8000        ->  http://localhost:8000/
+      python serve.py                   ->  http://localhost:8731/  (no-store + hot reload)
 -->
 
 <div id="topbar" class="topbar">
   <a id="backLink" class="backlink" href="#" hidden>&larr; All teams</a>
 </div>
 
+<script>
+  // Hot reload, serve.py's half: poll its /__livereload endpoint and reload the moment it
+  // reports any watched .html/.css/.js file changed, so a fix on disk (or a `tsc` run finishing)
+  // reaches the screen with no manual refresh. Talks to that one path only, so it's inert under
+  // any other static host — a 404 just means "not on serve.py", not an error worth surfacing.
+  (function poll() {
+    let last = null;
+    setInterval(async () => {
+      try {
+        const res = await fetch("/__livereload", { cache: "no-store" });
+        if (!res.ok) return;
+        const v = await res.text();
+        if (last === null) { last = v; return; } // baseline on first successful poll, not a reload
+        if (v !== last) location.reload();
+      } catch { /* server mid-restart or not serve.py — try again next tick */ }
+    }, 500);
+  })();
+</script>
+
+<!-- The loading state lives here rather than being written by the script, so it is on screen
+     while the module is still being fetched and parsed. boot() drives the fill and the count
+     in place; it does not replace this markup. -->
 <div id="app" class="loading">
-  <p>running the rotation…</p>
+  <p class="loading-status">
+    <span class="status-text">Initializing…</span>
+    <span class="progress-count"></span>
+  </p>
   <div class="progress-track"><div class="progress-fill"></div></div>
 </div>
 

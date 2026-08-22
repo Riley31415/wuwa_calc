@@ -22,7 +22,7 @@ import { Buff, GlobalBuff, Action, Chain, PRIORITY, ECHO_CAST } from "../kit.js"
 import type { ActionDef } from "../kit.js";
 import { Resonator, Loadout, isOutro } from "../state.js";
 import type { ResonatorFactory } from "../state.js";
-import { Stat, Element, DamageType, Node, Cast, Resource, Scaling } from "../stats.js";
+import { Stat, Element, Type1, Node, Cast, Resource, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 import { MIDNIGHT_VEIL_2PC, MIDNIGHT_VEIL_5PC, NM_HERON } from "../echoes/rinascita.js";
@@ -56,7 +56,7 @@ export const COMMEDIA_TEAM_ATK = new GlobalBuff(PRIORITY.BUFF_STATS,
 export const ROCCIA_OUTRO = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
   if (isOutro(ctx.action!)) ctx.revoke(ROCCIA_OUTRO);
   ctx.add(20, Element.Havoc, Stat.DmgBonus);
-  ctx.add(25, DamageType.Basic, Stat.DmgBonus);
+  ctx.add(25, Type1.Basic, Stat.DmgBonus);
   return "Roccia: Applause, Please!";
 });
 
@@ -104,19 +104,19 @@ function rocciaAction(name: string, def: ActionDef): Action {
 //     from the migrated sheet now — nanoka's own page never gave them (see the file header) but
 //     the sheet already had this character. Dodge Counter has no sheet row either, so it's still
 //     bare (nanoka's own MV only).
-const BA1 = rocciaAction("Basic: Pero, Easy 1", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 73.18, energy: 109, concerto: 347, offtune: 3464, forte1: 19 });
-const BA2 = rocciaAction("Basic: Pero, Easy 2", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 114.42, energy: 171, concerto: 543, offtune: 5418, forte1: 33 });   // 38.14% x3
-const BA3 = rocciaAction("Basic: Pero, Easy 3", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 169.00, energy: 250, concerto: 800, offtune: 8000, forte1: 49 });   // 33.80% x2 + 101.40%
-const BA4 = rocciaAction("Basic: Pero, Easy 4", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 208.38, energy: 310, concerto: 988, offtune: 9920, forte1: 100 });   // 104.19% x2
-const MA = rocciaAction("Basic: Pero, Easy (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 104.78, energy: 155, concerto: 496, offtune: 4960, forte1: 38 });
-const DC = rocciaAction("Basic: Pero, Easy (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: DamageType.Basic, mv: 206.70 });   // 68.90% x3
+const BA1 = rocciaAction("Basic: Pero, Easy 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.18, energy: 109, concerto: 347, offtune: 3464, forte1: 19 });
+const BA2 = rocciaAction("Basic: Pero, Easy 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 114.42, energy: 171, concerto: 543, offtune: 5418, forte1: 33 });   // 38.14% x3
+const BA3 = rocciaAction("Basic: Pero, Easy 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 169.00, energy: 250, concerto: 800, offtune: 8000, forte1: 49 });   // 33.80% x2 + 101.40%
+const BA4 = rocciaAction("Basic: Pero, Easy 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 208.38, energy: 310, concerto: 988, offtune: 9920, forte1: 100 });   // 104.19% x2
+const MA = rocciaAction("Basic: Pero, Easy (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 155, concerto: 496, offtune: 4960, forte1: 38 });
+const DC = rocciaAction("Basic: Pero, Easy (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 206.70 });   // 68.90% x3
 
 export const BA1234 = new Chain("Basic: Pero, Easy 1234", [BA1, BA2, BA3, BA4]);
 
 // --- heavy attack: hitting with at least 100 Imagination also launches Beyond Imagination —
 //     same trigger Acrobatic Trick has unconditionally, so this only matters as a second way in.
 const HA = rocciaAction("Heavy: Pero, Easy", {
-  node: Node.Normal, cast: Cast.Heavy, type: DamageType.Heavy, mv: 168.99,
+  node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 168.99,
   energy: 250, concerto: 800, offtune: 8000, forte1: 100,
   priority: PRIORITY.BUFF_STATS,
   apply(ctx) { ctx.grantSelf(IMMERSIVE_PERFORMANCE); },
@@ -124,7 +124,7 @@ const HA = rocciaAction("Heavy: Pero, Easy", {
 
 // --- resonance skill: Acrobatic Trick — pulls in targets and always launches Beyond Imagination
 const Skill = rocciaAction("Skill: Acrobatic Trick", {
-  node: Node.Skill, cast: Cast.Skill, type: DamageType.Skill, mv: 491.76,   // 61.47% x8
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 491.76,   // 61.47% x8
   energy: 1400, concerto: 2000, offtune: 10992, forte1: 100,
   priority: PRIORITY.BUFF_STATS,
   apply(ctx) { ctx.grantSelf(IMMERSIVE_PERFORMANCE); },
@@ -133,9 +133,9 @@ const Skill = rocciaAction("Skill: Acrobatic Trick", {
 // --- forte circuit: Real Fantasy, a 3-stage Heavy Attack DMG combo while in Beyond Imagination.
 //     100 Imagination is spent once, on the first hit — the kit text's own "consume 100 to cast"
 //     gate, not a per-stage cost.
-const FBA1 = rocciaAction("Basic: Real Fantasy 1", { node: Node.Forte, cast: Cast.Basic, type: DamageType.Heavy, mv: 322.08, energy: 800, concerto: 1000, offtune: 7200, forte1: -100 });
-const FBA2 = rocciaAction("Basic: Real Fantasy 2", { node: Node.Forte, cast: Cast.Basic, type: DamageType.Heavy, mv: 339.97, energy: 800, concerto: 1600, offtune: 7600 });
-const FBA3 = rocciaAction("Basic: Real Fantasy 3", { node: Node.Forte, cast: Cast.Basic, type: DamageType.Heavy, mv: 357.86, energy: 800, concerto: 2500, offtune: 8000 });
+const FBA1 = rocciaAction("Basic: Real Fantasy 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 322.08, energy: 800, concerto: 1000, offtune: 7200, forte1: -100 });
+const FBA2 = rocciaAction("Basic: Real Fantasy 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 339.97, energy: 800, concerto: 1600, offtune: 7600 });
+const FBA3 = rocciaAction("Basic: Real Fantasy 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 357.86, energy: 800, concerto: 2500, offtune: 8000 });
 export const FBA123 = new Chain("Basic: Real Fantasy 123", [FBA1, FBA2, FBA3]);
 
 // --- liberation: Commedia Improvviso! — team ATK scaled off her own Crit Rate past 50%. The
@@ -143,7 +143,7 @@ export const FBA123 = new Chain("Basic: Real Fantasy 123", [FBA1, FBA2, FBA3]);
 //     page is explicit about a 125-point Resonance Cost (matching every other kit's declared-cost
 //     shape), so that's trusted here instead — flagged since the two disagree outright.
 const Liberation = rocciaAction("Liberation: Commedia Improvviso!", {
-  node: Node.Liberation, cast: Cast.Liberation, type: DamageType.Heavy, mv: 835.02,   // 278.34% x3
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 835.02,   // 278.34% x3
   energy: -12500, concerto: 2000, offtune: 96000,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) {
@@ -154,11 +154,11 @@ const Liberation = rocciaAction("Liberation: Commedia Improvviso!", {
 
 // --- intro / outro
 const Intro = rocciaAction("Intro: Pero, Help", {
-  node: Node.Intro, cast: Cast.Intro, type: DamageType.Intro, mv: 168.99,
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 168.99,
   energy: 1000, concerto: 1000, offtune: 10824, forte1: 100,
 });
 const Outro = rocciaAction("Outro: Applause, Please!", {
-  cast: Cast.Outro, type: DamageType.Outro, mv: 0, concerto: -10000, active: false,
+  cast: Cast.Outro, mv: 0, concerto: -10000, active: false,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.outro(ROCCIA_OUTRO); },
 });

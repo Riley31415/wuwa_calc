@@ -1,185 +1,173 @@
 /**
- * Zhezhi — a glacio Coordinated-Attack support/sub-DPS, similar shape to Cantarella: her
- * Liberation (Living Canvas) opens a passive 30s window where Inklit Spirits perform
- * Coordinated Attacks off the *active* resonator's own hits — one lump action for the whole
- * 21-hit window (`ACTION_LIB_COORDS`), same treatment as Cantarella's Diffusion.
+ * Zhezhi, ported to the new engine — sequence-0 core loop only. A glacio Coordinated-Attack
+ * support/sub-DPS, similar shape to Cantarella: her Liberation (Living Canvas) opens a passive
+ * 30s window where Inklit Spirits perform Coordinated Attacks off the *active* resonator's own
+ * hits — one lump action for the whole 21-hit window (`ACTION_LIB_COORDS`), queued off her own
+ * Outro rather than placed directly in the rotation, same treatment as Cantarella's Diffusion.
  *
  * Afflatus (forte1, up to 90) gates her forte chain: at 60+, Resonance Skill (Manifestation)
  * summons Phantasmic Imprint - Left/Right (spending 60); at 30+, the Heavy Attack - Conjuration
  * follow-up summons Phantasmic Imprint - Middle (spending 30). With an Imprint nearby, Resonance
  * Skill is replaced by Stroke of Genius (removes one, grants a Painter's Delight stack, up to 2);
- * at 2 stacks, it's replaced again by Creation's Zenith (removes one, spends every stack). Live
- * Imprint tracking isn't simulated — same as Buling's Trigram queue — the rotation below just
- * places Skill, then the Heavy Attack follow-up, then Stroke of Genius twice, then Creation's
- * Zenith by hand, in the order that's actually kit-valid (opens exactly 3 Imprints, spends
- * exactly 3). Painter's Delight itself carries no stat of its own — pure gating, nothing here
- * reads it — so it isn't modelled as a buff at all, only what it gates (Creation's Zenith's own
- * cast) is.
+ * at 2 stacks, it's replaced again by Creation's Zenith (removes one, spends every stack, and
+ * grants Ivory Herald — +18% Basic Attack DMG Bonus, 27s, permanent uptime once granted). Live
+ * Imprint tracking isn't simulated — the rotation below just places Skill, then the Heavy Attack
+ * follow-up, then Stroke of Genius twice, then Creation's Zenith by hand, in the order that's
+ * actually kit-valid (opens exactly 3 Imprints, spends exactly 3). Painter's Delight itself
+ * carries no stat of its own — pure gating, nothing here reads it — so it isn't modelled as a
+ * buff at all, only what it gates (Creation's Zenith's own cast) is.
  *
- * Calligrapher's Touch (Inherent Skill): +6% ATK a stack, up to 3, on casting Stroke of Genius
- * or Creation's Zenith — both share Resonance Skill's own `cast` tag, so one check covers every
- * form. Flourish (Inherent Skill): her Outro restores 15 Energy to the incoming resonator
- * directly (`nextSlot()`), not a buff.
- *
- * The migrated sheet's own `zz` rotation opens with three basics *before* Intro and places Intro
- * mid-sequence — an artifact of however it was authored, not real cast order (you can't attack
- * before intro-ing in) — so the actual order below is reconstructed from the kit text instead:
- * Intro (auto-triggered, not placed) grants ~45 Afflatus, three basics push it to 90+, Skill
- * spends 60 for the first two Imprints, the Heavy Attack follow-up spends the remaining 30 for
- * the third, two Strokes of Genius spend two of them, Creation's Zenith spends the last.
- *
- * "Zhezhi Matrix" (a `Mode`-category migration entry, ~25% self DMG Dealt / 30% team Skill DMG
- * Bonus) has no corresponding mechanic anywhere on her current nanoka.cc page — no resonance
- * mode, no chain-gated stance, nothing — so it reads as a stale/deprecated sheet entry rather
- * than a real kit piece, and is skipped entirely rather than copied in unconfirmed.
- *
- * Numbers from nanoka.cc (character 1105, https://ww.nanoka.cc/character/1105, echo 6000105, weapon 21050026) for every named hit's
- * MV — cross-checked against the migrated sheet's own multi-hit totals, all agreeing exactly.
- * Energy/concerto/offtune/Afflatus deltas aren't cleanly exposed on the page itself, so those
- * come from the migrated sheet directly, same gap other kits (Sanhua, Brant) have.
+ * Numbers from nanoka.cc (character 1105, https://ww.nanoka.cc/character/1105) — base stats
+ * (12,250 HP / 375 ATK / 1,198 DEF) confirmed there directly; every action's own MV/energy/
+ * concerto/offtune/forte1 delta ported from the migrated (old-engine) sheet, which already cites
+ * the same character page and cross-checks its own multi-hit totals.
  */
-import { Buff, GlobalBuff, Action, Chain, PRIORITY, ECHO_CAST } from "../kit.js";
-import type { ActionDef } from "../kit.js";
-import { Resonator, Loadout, isOutro } from "../state.js";
-import type { ResonatorFactory } from "../state.js";
-import { Stat, Element, DamageType, Node, Cast, Resource, Type2, Scaling } from "../stats.js";
+import {
+  Buff, Resonator, Action, ECHO_CAST, INTRO, Stat, Element, WeaponType, Type1, Type2, Cast, Node, Scaling,
+  applySelf, currentAction, casting, revoke, addStat, stacks, queue, queueOutro, AddEnergy,
+} from "../kit.js";
+import { RIME_DRAPED_SPROUTS } from "../weapons/rectifier.js";
+import { EMPYREAN_ANTHEM_2PC, EMPYREAN_ANTHEM_5PC, NM_LAMPY } from "../echoes/jinzhou.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
-import { EMPYREAN_ANTHEM_2PC, EMPYREAN_ANTHEM_5PC, NM_LAMPY } from "../echoes/jinzhou.js";
-import { RIME_DRAPED_SPROUTS, PANORAMA_STACKS, PANORAMA_OFFIELD } from "../weapons/rectifier.js";
 
-/** This resonator's own color — every action from the wrapper below defaults to it. */
-export const COLOR = "#8fd3e8";
+/* ------------------------------------------------------------------------------------ buffs */
 
-/** The gauge the game shows — up to 90, spent 60/30 by the forte chain (see file header). */
-export const ZHEZHI_AFFLATUS = Resource.Forte1;
+/** Calligrapher's Touch (Inherent Skill): +6% ATK a stack, up to 3, on Stroke of Genius or
+ *  Creation's Zenith — both share Resonance Skill's own `cast` tag, so her own update() below
+ *  checks for the two forte forms by identity rather than by cast type. 27s, so per the standing
+ *  duration rule this is permanent uptime once granted, never revoked. */
+export const CALLIGRAPHERS_TOUCH = new Buff({
+  name: "Zhezhi: Calligrapher's Touch", maxStacks: 3,
+  apply: () => addStat(Stat.BonusAtk, 6 * stacks()),
+});
 
-/* --------------------------------------------------------------- resonator */
+/** Ivory Herald: Creation's Zenith's own +18% Basic Attack DMG Bonus, 27s — permanent uptime
+ *  once granted, never revoked. Stroke of Genius doesn't grant this, only Creation's Zenith. */
+export const IVORY_HERALD = new Buff({
+  name: "Zhezhi: Ivory Herald",
+  apply: () => addStat(Stat.DmgBonus, 18, Type1.Basic),
+});
 
-/** Calligrapher's Touch: +6% ATK a stack, up to 3, on Stroke of Genius or Creation's Zenith —
- *  both share Resonance Skill's own `cast` tag. 27s, so per the standing duration rule this is
- *  permanent uptime once granted, never revoked. */
-export const CALLIGRAPHERS_TOUCH = new Buff(PRIORITY.BUFF_STATS, (ctx, stacks) => {
-  ctx.add(6 * stacks, Stat.BonusAtk);
-  return `Zhezhi: Calligrapher's Touch x${stacks}`;
-}, 3);
+/** Carve and Draw: the window her outro hands the incoming resonator — +20% Glacio DMG Amp,
+ *  +25% Skill DMG Amp, 14s (short enough that only the standing outro-loss rule matters). Flourish
+ *  (Inherent Skill) restores 15 Energy to whoever adopts this, paid out the instant they do —
+ *  their own Intro cast, the one action every recipient of a queued outro buff is guaranteed to
+ *  have just played. */
+export const ZHEZHI_OUTRO = new Buff({
+  name: "Zhezhi: Outro",
+  apply: () => {
+    addStat(Stat.Amp, 20, Element.Glacio);
+    addStat(Stat.Amp, 25, Type1.Skill);
+    if (casting(Cast.Intro)) addStat(AddEnergy, 1500);
+  },
+  // a plain window, not "lost on swap" wording — still counts on the recipient's own outro (see
+  // jinzhou.ts's HERON_HANDOFF for the same shape)
+  convert: () => { if (casting(Cast.Outro)) revoke(ZHEZHI_OUTRO); },
+});
 
-/** Her echoes: Nightmare: Lampylumen Myriad mainslot, full 5pc Empyrean Anthem (both her own,
- *  echoes/jinzhou.js); Rime-Draped Sprouts (her own signature) lives in weapons/rectifier.js. 43311
- *  crit-rate build. */
-const ZHEZHI_LOADOUT = new Loadout(
-  RIME_DRAPED_SPROUTS, NM_LAMPY, EMPYREAN_ANTHEM_5PC, EMPYREAN_ANTHEM_2PC,
-  mainstats("CR", "glacio glacio", "atk atk"), chem("atk", "basic"),
-);
+/* ----------------------------------------------------------------------------------- actions */
 
-export class Zhezhi extends Resonator {
-  constructor(loadout: Loadout) {
-    super(
-      "Zhezhi",
-      Element.Glacio,
-      () => Intro,
-      loadout,
-      (ctx) => {
-        ctx.add(12250, Stat.BaseHp);
-        ctx.add(375, Stat.BaseAtk);
-        ctx.add(1198, Stat.BaseDef);
-      },
-      (ctx) => {
-        ctx.add(8, Stat.CritRate);
-        ctx.add(12, Stat.BonusAtk);
-      },
-    );
-  }
-}
-export const LOADOUT: ResonatorFactory = () => new Zhezhi(ZHEZHI_LOADOUT);
-
-/* ----------------------------------------------------------------- actions */
-
-function zhezhiAction(name: string, def: ActionDef): Action {
-  return new Action(name, {
-    element: Element.Glacio,
-    scaling: Scaling.Atk,
-    ...def,
-  });
+function zhezhiAction(id: string, def: object): Action {
+  return new Action(id, { element: Element.Glacio, scaling: Scaling.Atk, ...def });
 }
 
+// energy/concerto/offtune are her own kit's real generation per cast — Liberation/Outro's own
+// old declared "spend the bar" costs aren't repeated here (TODO_ENGINE.md: that's what
+// Resonator.maxEnergy and the engine's own outro handling are for).
 // --- basics, mid-air, dodge counter (Dimming Brush)
-const BA1 = zhezhiAction("Basic: Dimming Brush 1", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 83.52, energy: 150, concerto: 480, offtune: 4800, forte1: 10 });
-const BA2 = zhezhiAction("Basic: Dimming Brush 2", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 102.75, energy: 185, concerto: 595, offtune: 5905, forte1: 15 });
-const BA3 = zhezhiAction("Basic: Dimming Brush 3", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 133.61, energy: 240, concerto: 768, offtune: 7680, forte1: 25 });
-export const BA123 = new Chain("Basic: Dimming Brush 123", [BA1, BA2, BA3]);
+export const BA1 = zhezhiAction("Basic - Dimming Brush 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 83.52, energy: 150, concerto: 480, offtune: 4800, forte1: 10 });
+export const BA2 = zhezhiAction("Basic - Dimming Brush 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 102.75, energy: 185, concerto: 595, offtune: 5905, forte1: 15 });
+export const BA3 = zhezhiAction("Basic - Dimming Brush 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 133.61, energy: 240, concerto: 768, offtune: 7680, forte1: 25 });
 
-export const MA = zhezhiAction("Basic: Dimming Brush (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 229.53, energy: 340, concerto: 1091, offtune: 10865, forte1: 25 });
-export const DC = zhezhiAction("Basic: Dimming Brush (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: DamageType.Basic, mv: 145.35, energy: 215, concerto: 2000, offtune: 6880 });
-const HA = zhezhiAction("Heavy: Dimming Brush", { node: Node.Normal, cast: Cast.Heavy, type: DamageType.Heavy, mv: 112.72, energy: 167, concerto: 534, offtune: 5336, forte1: 15 });
+export const MA = zhezhiAction("Basic - Dimming Brush (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 229.53, energy: 340, concerto: 1091, offtune: 10865, forte1: 25 });
+export const DC = zhezhiAction("Basic - Dimming Brush (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 145.35, energy: 215, concerto: 2000, offtune: 6880 });
+export const HA = zhezhiAction("Heavy - Dimming Brush", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 112.72, energy: 167, concerto: 534, offtune: 5336, forte1: 15 });
 
 // --- resonance skill: Manifestation, base cast — spends 60 Afflatus for a pair of Imprints
-//     once it's actually banked (hand-placed after Intro + BA123, see file header)
-const Skill = zhezhiAction("Skill 1: Manifestation", {
-  node: Node.Skill, cast: Cast.Skill, type: DamageType.Skill, mv: 295.26, energy: 792, concerto: 800, offtune: 4737, forte1: -60,
+export const Skill = zhezhiAction("Skill - Manifestation", {
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 295.26, energy: 792, concerto: 800, offtune: 4737, forte1: -60,
 });
 
 // --- forte circuit: Heavy Attack - Conjuration (spends the remaining 30 Afflatus for a third
 //     Imprint), then Stroke of Genius (twice — two of the three Imprints), then Creation's
 //     Zenith (the last Imprint, plus both Painter's Delight stacks it never tracks directly)
-const FHA = zhezhiAction("Heavy: Conjuration", {
-  node: Node.Forte, cast: Cast.Heavy, type: DamageType.Heavy, mv: 249.03, energy: 210, concerto: 669, offtune: 6681, forte1: -30,
+export const FHA = zhezhiAction("Forte Heavy - Conjuration", {
+  node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 249.03, energy: 210, concerto: 669, offtune: 6681, forte1: -30,
 });
-export const FSkill = zhezhiAction("Skill 2: Stroke of Genius", {
-  node: Node.Forte, cast: Cast.Skill, type: DamageType.Basic, mv: 298.22, energy: 700, concerto: 1300, offtune: 7736,
-  priority: PRIORITY.BUFF_STATS,
-  apply(ctx) { ctx.grantSelf(CALLIGRAPHERS_TOUCH); },
+export const FSkill = zhezhiAction("Forte Skill - Stroke of Genius", {
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 298.22, energy: 700, concerto: 1300, offtune: 7736,
 });
-export const FSkill3 = zhezhiAction("Skill 3: Creation's Zenith", {
-  node: Node.Forte, cast: Cast.Skill, type: DamageType.Basic, mv: 357.87, energy: 702, concerto: 1300, offtune: 10401,
-  priority: PRIORITY.BUFF_STATS,
-  apply(ctx) { ctx.grantSelf(CALLIGRAPHERS_TOUCH); },
+export const FSkill3 = zhezhiAction("Forte Skill - Creation's Zenith", {
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 357.87, energy: 702, concerto: 1300, offtune: 10401,
 });
 
 // --- liberation: Living Canvas — opens the Inklit Spirit window, no damage of its own
-const Liberation = zhezhiAction("Liberation: Living Canvas", {
-  node: Node.Liberation, cast: Cast.Liberation, type: DamageType.Basic, mv: 0, energy: -12500, concerto: 2000, offtune: 0,
+export const Liberation = zhezhiAction("Liberation - Living Canvas", {
+  node: Node.Liberation, cast: Cast.Liberation, mv: 0, concerto: 2000,
 });
-/** Inklit Spirit: up to 21 Coordinated Attack hits over 30s, one per second the active
- *  resonator lands a hit — lumped into one action, same treatment as Cantarella's Diffusion.
- *  Not queued off Liberation itself since the real window spans everyone else's own actions
- *  too; placed directly, same as Phrolova's Hecate auto-cycle. */
-export const ACTION_LIB_COORDS = zhezhiAction("Inklit Spirit x21", {
-  node: Node.Liberation, type: DamageType.Basic, type2: Type2.Coordinated, mv: 1369.41, active: false,
+/** Inklit Spirit: up to 21 Coordinated Attack hits over 30s, one per second the active resonator
+ *  lands a hit — lumped into one action, same treatment as Cantarella's Diffusion, queued the
+ *  same way too: off her own Outro rather than placed directly in the rotation. */
+export const ACTION_LIB_COORDS = zhezhiAction("Liberation - Inklit Spirit x21", {
+  node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 1369.41, active: false,
 });
 
 // --- intro / outro
-const Intro = zhezhiAction("Intro: Radiant Ruin", {
-  node: Node.Intro, cast: Cast.Intro, type: DamageType.Intro, mv: 258.48, energy: 1002, concerto: 1000, offtune: 10401, forte1: 45,
+export const Intro = zhezhiAction("Intro - Radiant Ruin", {
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 258.48, energy: 1002, concerto: 1000, offtune: 10401, forte1: 45,
 });
-/** Carve and Draw: hands the incoming resonator +20% Glacio DMG Amp / +25% Skill DMG Amp for
- *  14s (short — lost after the outro action gains stats). Flourish restores the incoming
- *  resonator's own Energy directly, not through a buff. Her own Panorama stacks (if 3+) also
- *  convert here — see the weapon above. */
-const Outro = zhezhiAction("Outro: Carve and Draw", {
-  cast: Cast.Outro, type: DamageType.Outro, mv: 0, concerto: -10000, active: false,
-  priority: PRIORITY.UPDATE_BUFFS,
-  apply(ctx) {
-    ctx.outro(ZHEZHI_OUTRO);
-    const next = ctx.nextSlot();
-    next.setCounter(Resource.Energy, next.counter(Resource.Energy) + 1500, ctx.source);
-    if (ctx.stacksOf(PANORAMA_STACKS) >= 3) { ctx.revoke(PANORAMA_STACKS); ctx.grantSelf(PANORAMA_OFFIELD); }
+export const Outro = zhezhiAction("Outro - Carve and Draw", { cast: Cast.Outro, mv: 0, active: false });
+
+/** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her
+ *  own base stat line. The stat-tree talent bonus lives in its own `ZHEZHI_TALENTS` buff below —
+ *  just another piece of her loadout, not special-cased on the Resonator itself. */
+export const ZHEZHI = new Resonator({
+  name: "Zhezhi",
+  element: Element.Glacio,
+  weapon: WeaponType.Rectifier,
+  intro: () => Intro,
+  color: "#8fd3e8",
+  maxEnergy: 12500,
+
+  update: () => {
+    const a = currentAction();
+    if (a === FSkill || a === FSkill3) applySelf(CALLIGRAPHERS_TOUCH, 1);
+    if (a === FSkill3) applySelf(IVORY_HERALD, 1);
+    if (a === Outro) { queue(ACTION_LIB_COORDS); queueOutro(ZHEZHI_OUTRO); }
+  },
+
+  apply: () => {
+    addStat(Stat.BaseHp, 12250); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1198);
+    addStat(Stat.Er, 100); addStat(Stat.CritRate, 5); addStat(Stat.CritDmg, 150);
   },
 });
-export const ZHEZHI_OUTRO = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
-  if (isOutro(ctx.action!)) ctx.revoke(ZHEZHI_OUTRO);
-  ctx.add(20, Element.Glacio, Stat.Amp);
-  ctx.add(25, DamageType.Skill, Stat.Amp);
-  return "Zhezhi: Outro";
+
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
+export const ZHEZHI_TALENTS = new Buff({
+  name: "Zhezhi: Talents",
+  apply: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
-/** The kit-valid line reconstructed from the file header: Intro (auto) + basics bank Afflatus,
- *  Skill opens two Imprints, the forte Heavy Attack opens the third, two Strokes of Genius and
- *  a Creation's Zenith spend all three, Liberation opens the Coordinated Attack window before
- *  Outro closes the loop out. */
-export const ROTATION = [
-  ECHO_CAST, BA123,
+/** The kit-valid line reconstructed from the old sheet: Intro banks Afflatus, three basics push
+ *  it to 90+, Skill opens two Imprints, the forte Heavy Attack opens the third, two Strokes of
+ *  Genius and a Creation's Zenith spend all three, Liberation opens the Coordinated Attack window
+ *  (its own Inklit Spirit hits queued off Outro, not placed here — see ACTION_LIB_COORDS' own
+ *  comment) before Outro closes the loop out. She's never the team's own lead, so unlike a
+ *  first-position member's own opener, this same rotation covers both. */
+export const ZZ_ROTATION = [
+  INTRO, BA1, BA2, BA3,
   Skill, FHA, FSkill, FSkill, FSkill3,
-  Liberation, ACTION_LIB_COORDS,
+  ECHO_CAST, Liberation,
   Outro,
+];
+
+/* ----------------------------------------------------------------------------------- loadout */
+
+// her real 43311 build: resonator + talents, weapon, mainslot echo, sonata pieces, mainstat/substat
+export const ZZ_LOADOUT = [
+  ZHEZHI, ZHEZHI_TALENTS,
+  RIME_DRAPED_SPROUTS,
+  NM_LAMPY, EMPYREAN_ANTHEM_5PC, EMPYREAN_ANTHEM_2PC,
+  mainstats("CR", "glacio glacio", "atk atk"), chem("atk", "basic"),
 ];

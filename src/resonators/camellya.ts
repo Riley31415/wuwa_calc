@@ -32,7 +32,7 @@ import { Buff, Action, Chain, PRIORITY, ECHO_CAST } from "../kit.js";
 import type { ActionDef } from "../kit.js";
 import { Resonator, Loadout, isOutro } from "../state.js";
 import type { ResonatorFactory } from "../state.js";
-import { Stat, Element, DamageType, Node, Resource, Cast, Scaling } from "../stats.js";
+import { Stat, Element, Type1, Node, Resource, Cast, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 import { NM_CROWNLESS, HAVOC_ECLIPSE_2PC, HAVOC_ECLIPSE_5PC } from "../echoes/jinzhou.js";
@@ -85,7 +85,7 @@ export class Camellya extends Resonator {
         ctx.add(16, Stat.CritDmg);          // Burgeoning B3/B5 + Everblooming's own node, 2.4+5.6 x2
         ctx.add(12, Stat.BonusAtk);         // Valse B2/B4 + Fervor Efflorescent's own node, 1.8+4.2 x2
         ctx.add(15, Element.Havoc, Stat.DmgBonus);   // Seedbed
-        ctx.add(15, DamageType.Basic, Stat.DmgBonus);   // Epiphyte
+        ctx.add(15, Type1.Basic, Stat.DmgBonus);   // Epiphyte
       },
     );
   }
@@ -103,24 +103,24 @@ function camellyaAction(name: string, def: ActionDef): Action {
 }
 
 // --- basics, mid-air, dodge counter (Burgeoning), outside Blossom Mode
-const BA1 = camellyaAction("Basic: Burgeoning 1", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 62.53 });
-const BA2 = camellyaAction("Basic: Burgeoning 2", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 92.96 });   // 46.48% x2
-const BA3 = camellyaAction("Basic: Burgeoning 3", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 152.10 });   // 50.70% x3
+const BA1 = camellyaAction("Basic: Burgeoning 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 62.53 });
+const BA2 = camellyaAction("Basic: Burgeoning 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 92.96 });   // 46.48% x2
+const BA3 = camellyaAction("Basic: Burgeoning 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 152.10 });   // 50.70% x3
 /** Chain Basic Attack — hold Normal Attack after Stage 3 to keep striking, 20 hits. */
-const BA4 = camellyaAction("Basic: Burgeoning 4 (Chain)", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 494.00 });   // 24.70% x20
-const BA5 = camellyaAction("Basic: Burgeoning 5", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 192.68 });   // 48.17% x4
+const BA4 = camellyaAction("Basic: Burgeoning 4 (Chain)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 494.00 });   // 24.70% x20
+const BA5 = camellyaAction("Basic: Burgeoning 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 192.68 });   // 48.17% x4
 export const BA12345 = new Chain("Basic: Burgeoning 12345", [BA1, BA2, BA3, BA4, BA5]);
 
-export const MA = camellyaAction("Mid-air Attack", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 131.22 });   // 65.61% x2
-export const DC = camellyaAction("Dodge Counter", { node: Node.Normal, cast: Cast.DodgeCounter, type: DamageType.Basic, mv: 298.20 });   // 99.40% x3
+export const MA = camellyaAction("Mid-air Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 131.22 });   // 65.61% x2
+export const DC = camellyaAction("Dodge Counter", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 298.20 });   // 99.40% x3
 /** Heavy Attack: Pruning — considered Basic Attack DMG per Seedbed's own text. */
-const HA = camellyaAction("Heavy: Pruning", { node: Node.Normal, cast: Cast.Heavy, type: DamageType.Basic, mv: 264.42 });   // 88.14% x3
+const HA = camellyaAction("Heavy: Pruning", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Basic, mv: 264.42 });   // 88.14% x3
 
 // --- resonance skill: Crimson Blossom opens Blossom Mode; Vining Waltz/Blazing Waltz/Vining
 //     Ronde/Atonement replace Basic/Dodge Counter/Jump while it's up; Floral Ravage (Skill
 //     replacement) ends it.
 const CrimsonBlossom = camellyaAction("Skill: Crimson Blossom", {
-  node: Node.Skill, cast: Cast.Skill, type: DamageType.Basic, mv: 227.24,   // 113.62% x2
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 227.24,   // 113.62% x2
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.grantSelf(BLOSSOM_MODE); },
 });
@@ -129,28 +129,28 @@ export const BLOSSOM_MODE = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
   return "Camellya: Blossom Mode";
 });
 
-const VW1 = camellyaAction("Basic: Vining Waltz 1", { node: Node.Skill, cast: Cast.Basic, type: DamageType.Basic, mv: 96.33 });
-const VW2 = camellyaAction("Basic: Vining Waltz 2", { node: Node.Skill, cast: Cast.Basic, type: DamageType.Basic, mv: 91.26 });   // 45.63% x2
-const VW3 = camellyaAction("Basic: Vining Waltz 3", { node: Node.Skill, cast: Cast.Basic, type: DamageType.Basic, mv: 131.70 });   // 21.95% x6
+const VW1 = camellyaAction("Basic: Vining Waltz 1", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 96.33 });
+const VW2 = camellyaAction("Basic: Vining Waltz 2", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 91.26 });   // 45.63% x2
+const VW3 = camellyaAction("Basic: Vining Waltz 3", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 131.70 });   // 21.95% x6
 /** Blazing Waltz — hold Normal Attack on Vining Waltz Stage 3 before it auto-continues to
  *  Stage 4. */
-const BlazingWaltz = camellyaAction("Basic: Blazing Waltz", { node: Node.Skill, cast: Cast.Basic, type: DamageType.Basic, mv: 417.05 });   // 21.95% x19
-const VW4 = camellyaAction("Basic: Vining Waltz 4", { node: Node.Skill, cast: Cast.Basic, type: DamageType.Basic, mv: 202.77 });   // 67.59% x3
+const BlazingWaltz = camellyaAction("Basic: Blazing Waltz", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 417.05 });   // 21.95% x19
+const VW4 = camellyaAction("Basic: Vining Waltz 4", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 202.77 });   // 67.59% x3
 export const VW1234 = new Chain("Basic: Vining Waltz 1234", [VW1, VW2, VW3, VW4]);
 export const VW12Blazing4 = new Chain("Basic: Vining Waltz 12-Blazing-4", [VW1, VW2, BlazingWaltz, VW4]);
 
 /** Vining Ronde — Jump's own replacement in Blossom Mode, ends it (per the kit's own text). */
 export const ViningRonde = camellyaAction("Basic: Vining Ronde", {
-  node: Node.Skill, cast: Cast.Basic, type: DamageType.Basic, mv: 158.85,   // 52.95% x3
+  node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 158.85,   // 52.95% x3
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.revoke(BLOSSOM_MODE); },
 });
 /** Dodge Counter Atonement — the Blossom Mode Dodge Counter replacement. */
-export const Atonement = camellyaAction("Dodge Counter: Atonement", { node: Node.Skill, cast: Cast.DodgeCounter, type: DamageType.Basic, mv: 226.66 });   // 113.33% x2
+export const Atonement = camellyaAction("Dodge Counter: Atonement", { node: Node.Skill, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 226.66 });   // 113.33% x2
 
 /** Floral Ravage — the Skill replacement in Blossom Mode, ends it. Considered Basic Attack DMG. */
 const FloralRavage = camellyaAction("Skill: Floral Ravage", {
-  node: Node.Skill, cast: Cast.Skill, type: DamageType.Basic, mv: 263.05,   // 52.61% x5
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 263.05,   // 52.61% x5
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.revoke(BLOSSOM_MODE); },
 });
@@ -158,25 +158,25 @@ const FloralRavage = camellyaAction("Skill: Floral Ravage", {
 // --- forte circuit: Ephemeral, at full Crimson Pistil — considered Basic Attack DMG, enters
 //     Budding Mode
 const Ephemeral = camellyaAction("Forte: Ephemeral", {
-  node: Node.Forte, cast: Cast.Skill, type: DamageType.Basic, mv: 1262.45, forte1: -100,
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 1262.45, forte1: -100,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.grantSelf(BUDDING_MODE); },
 });
 
 // --- liberation: Fervor Efflorescent
 const Liberation = camellyaAction("Liberation: Fervor Efflorescent", {
-  node: Node.Liberation, cast: Cast.Liberation, type: DamageType.Liberation, mv: 1202.81,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1202.81,
 });
 
 // --- intro / outro
 const Intro = camellyaAction("Intro: Everblooming", {
-  node: Node.Intro, cast: Cast.Intro, type: DamageType.Intro, mv: 198.81,
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81,
 });
 /** Twining — no handoff buff is described on her own kit page, unlike most other kits' outros;
  *  left as a plain damage hit, nothing invented. The Ephemeral-boosted variant (459.02% instead
  *  of 329.24%) isn't separately placed — the rotation below closes on the plain form. */
 const Outro = camellyaAction("Outro: Twining", {
-  cast: Cast.Outro, type: DamageType.Outro, mv: 329.24, active: false,
+  cast: Cast.Outro, type: Type1.Outro, mv: 329.24, active: false,
 });
 
 /** A kit-valid line: Intro, the Burgeoning chain (through its own 20-hit Chain Basic Attack and

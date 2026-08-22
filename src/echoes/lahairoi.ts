@@ -1,39 +1,37 @@
-/** Mainslot echoes and sonatas from Lahairoi (versions 2.8-3.4) — see echoes/jinzhou.ts for the
- *  region split's own rationale. Each resonator's own file picks which of these its loadout
- *  equips. (Buling and Lucilla, also Lahairoi-era, own no mainslot echo or sonata of their own
- *  — Lucilla reuses Bell-Borne Geochelone/Moonlit Clouds from jinzhou.ts and Dream of the Lost
- *  from septimont.ts.) */
-import { isOutro } from "../state.js";
-import { Buff, Gear, Mainslot, Action, PRIORITY } from "../kit.js";
-import { DamageType, Cast, Element, Scaling, Stat } from "../stats.js";
-const { Echo } = DamageType;
-const { Aero } = Element;
-const { Atk } = Scaling;
-const { DmgBonus } = Stat;
+/**
+ * Mainslot echoes and sonatas from Lahairoi (versions 2.8-3.4), ported to the new engine. See
+ * src/echoes/lahairoi.ts for the original — each resonator's own file picks which of these its
+ * loadout equips. (Buling and Lucilla, also Lahairoi-era, own no mainslot echo or sonata of
+ * their own — Lucilla reuses Bell-Borne Geochelone/Moonlit Clouds from echoes_jinzhou.ts and
+ * Dream of the Lost from echoes_septimont.ts.)
+ */
+import {
+  Buff, Action, Stat, Element, Type1, Cast, Scaling,
+  addStat, applySelf, casting, currentAction, revoke,
+} from "../kit.js";
 
 /* ------------------------------------------------------------------------------ Sigrika, 3.2 */
 
 /** Nameless Explorer, Sigrika's own mainslot echo — flat Aero/Echo Skill DMG Bonus for whoever
- *  wears it, no trigger. Sigrika, character 1412, released 3.2 —
- *  https://ww.nanoka.cc/character/1412, https://ww.nanoka.cc/echo/6000192 */
-export const ACTION_NAMELESS_EXPLORER = new Action("Echo: Nameless Explorer", {
-  cast: Cast.Echo, element: Aero, scaling: Atk, type: Echo, mv: 273.6, energy: 380,
+ *  wears it, no trigger. */
+export const ACTION_NAMELESS_EXPLORER = new Action("Echo - Nameless Explorer", {
+  cast: Cast.Echo, element: Element.Aero, scaling: Scaling.Atk, type: Type1.Echo, mv: 273.6,
 });
-export const NAMELESS_EXPLORER = new Mainslot("Nameless Explorer", ACTION_NAMELESS_EXPLORER, (ctx) => {
-  ctx.add(12, Aero, DmgBonus);
-  ctx.add(20, DamageType.Echo, DmgBonus);
+export const NAMELESS_EXPLORER = new Buff({
+  name: "Nameless Explorer",
+  apply: () => { addStat(Stat.DmgBonus, 12, Element.Aero); addStat(Stat.DmgBonus, 20, Type1.Echo); },
 });
 
 /** Sound of True Name, Sigrika's own sonata (paired directly with Nameless Explorer above).
  *  2pc: +10% Aero DMG Bonus flat. 5pc: dealing Echo Skill DMG grants +20% Echo Skill Crit Rate
  *  and +15% Aero DMG Bonus for 5s — short window, lost after the outro action gains stats. */
-export const SOUND_OF_TRUE_NAME_2PC = new Gear("Sound of True Name 2pc", (ctx) => { ctx.add(10, Aero, DmgBonus); });
-export const SOUND_OF_TRUE_NAME_5PC = new Gear("Sound of True Name 5pc", (ctx) => {
-  if (ctx.action!.type === Echo) ctx.grantSelf(SOUND_OF_TRUE_NAME_BUFF);
+export const SOUND_OF_TRUE_NAME_2PC = new Buff({ name: "Sound of True Name 2pc", apply: () => addStat(Stat.DmgBonus, 10, Element.Aero) });
+export const SOUND_OF_TRUE_NAME_BUFF = new Buff({
+  name: "Sound of True Name",
+  apply: () => { addStat(Stat.CritRate, 20, Type1.Echo); addStat(Stat.DmgBonus, 15, Element.Aero); },
+  convert: () => { if (casting(Cast.Outro)) revoke(SOUND_OF_TRUE_NAME_BUFF); },
 });
-export const SOUND_OF_TRUE_NAME_BUFF = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
-  ctx.add(20, DamageType.Echo, Stat.CritRate);
-  ctx.add(15, Aero, DmgBonus);
-  if (isOutro(ctx.action!)) ctx.revoke(SOUND_OF_TRUE_NAME_BUFF);
-  return "Sound of True Name";
+export const SOUND_OF_TRUE_NAME_5PC = new Buff({
+  name: "Sound of True Name 5pc",
+  update: () => { if (currentAction().type === Type1.Echo) applySelf(SOUND_OF_TRUE_NAME_BUFF, 1); },
 });

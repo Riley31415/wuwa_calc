@@ -36,7 +36,7 @@ import { Buff, GlobalBuff, Gear, Action, Chain, PRIORITY, ECHO_CAST } from "../k
 import type { ActionDef } from "../kit.js";
 import { Resonator, Loadout, isOutro } from "../state.js";
 import type { ResonatorFactory } from "../state.js";
-import { Stat, Element, DamageType, Node, Cast, Resource, Scaling } from "../stats.js";
+import { Stat, Element, Type1, Node, Cast, Resource, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 import { MARCATO } from "../weapons/standard.js";
@@ -52,12 +52,12 @@ export const JIANXIN_CHI = Resource.Forte1;
 
 /** Formless Release (Inherent Skill): flat +20% Resonance Liberation DMG Bonus. */
 export const FORMLESS_RELEASE = new Buff(PRIORITY.BUFF_STATS,
-  (ctx) => { ctx.add(20, DamageType.Liberation, Stat.DmgBonus); return "Jianxin: Formless Release"; });
+  (ctx) => { ctx.add(20, Type1.Liberation, Stat.DmgBonus); return "Jianxin: Formless Release"; });
 
 /** Jianxin's own outro window: Transcendence. */
 export const JIANXIN_OUTRO = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
   if (isOutro(ctx.action!)) ctx.revoke(JIANXIN_OUTRO);
-  ctx.add(38, DamageType.Liberation, Stat.Amp);
+  ctx.add(38, Type1.Liberation, Stat.Amp);
   return "Jianxin: Transcendence";
 });
 
@@ -69,7 +69,7 @@ export const S4 = new Gear("Jianxin S4", (ctx) => {
   if (ctx.action!.node === Node.Forte) ctx.grantSelf(S4_WINDOW);
 });
 export const S4_WINDOW = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
-  ctx.add(80, DamageType.Liberation, Stat.DmgBonus);
+  ctx.add(80, Type1.Liberation, Stat.DmgBonus);
   if (isOutro(ctx.action!)) ctx.revoke(S4_WINDOW);
   return "Jianxin S4";
 });
@@ -77,7 +77,7 @@ export const S4_WINDOW = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
 /** S6 Truth from Within: during Primordial Chi Spiral, after Pushing Punch, an enhanced Chi
  *  Counter usable once in 5s — the ICD isn't modelled (no real-time clock here), so it's placed
  *  directly instead; the Zhoutian 4 shield it also grants is skipped (shields out of scope). */
-export const SpecialChiCounter = jianxinAction("Skill: Special Chi Counter", { node: Node.Forte, cast: Cast.Skill, type: DamageType.Heavy, mv: 556.67 });
+export const SpecialChiCounter = jianxinAction("Skill: Special Chi Counter", { node: Node.Forte, cast: Cast.Skill, type: Type1.Heavy, mv: 556.67 });
 export const S6 = new Gear("Jianxin S6");
 
 /* ------------------------------------------------------------------ loadout */
@@ -124,42 +124,42 @@ function jianxinAction(name: string, def: ActionDef): Action {
 }
 
 // --- basics, mid-air, dodge counter, heavy (Fengyiquan)
-const BA1 = jianxinAction("Basic: Fengyiquan 1", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 69.46 });
-const BA2 = jianxinAction("Basic: Fengyiquan 2", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 133.18 });   // 26.64% x2 + 79.90%
-const BA3 = jianxinAction("Basic: Fengyiquan 3", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 167.00 });   // 41.75% x4
-const BA4 = jianxinAction("Basic: Fengyiquan 4", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 113.40 });
-const HA = jianxinAction("Heavy: Fengyiquan", { node: Node.Normal, cast: Cast.Heavy, type: DamageType.Heavy, mv: 126.07 });
-const MA = jianxinAction("Basic: Fengyiquan (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 123.27 });
-const DC = jianxinAction("Basic: Fengyiquan (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: DamageType.Basic, mv: 244.95 });   // 40.83% x2 + 163.29%
+const BA1 = jianxinAction("Basic: Fengyiquan 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 69.46 });
+const BA2 = jianxinAction("Basic: Fengyiquan 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 133.18 });   // 26.64% x2 + 79.90%
+const BA3 = jianxinAction("Basic: Fengyiquan 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 167.00 });   // 41.75% x4
+const BA4 = jianxinAction("Basic: Fengyiquan 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 113.40 });
+const HA = jianxinAction("Heavy: Fengyiquan", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 126.07 });
+const MA = jianxinAction("Basic: Fengyiquan (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.27 });
+const DC = jianxinAction("Basic: Fengyiquan (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 244.95 });   // 40.83% x2 + 163.29%
 
 export const BA1234 = new Chain("Basic: Fengyiquan 1234", [BA1, BA2, BA3, BA4]);
 
 // --- resonance skill: Calming Air opens Parry Stance — Chi Parry (released early) is the
 //     rotation's own placed choice; Chi Counter (only reachable if actually hit) is exported for
 //     completeness, same treatment as every other reactive/defensive proc elsewhere.
-const ChiParry = jianxinAction("Skill: Chi Parry", { node: Node.Skill, cast: Cast.Skill, type: DamageType.Skill, mv: 258.73, concerto: 800 });
-export const ChiCounter = jianxinAction("Skill: Chi Counter", { node: Node.Skill, cast: Cast.Skill, type: DamageType.Skill, mv: 334.60, concerto: 1400 });
+const ChiParry = jianxinAction("Skill: Chi Parry", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 258.73, concerto: 800 });
+export const ChiCounter = jianxinAction("Skill: Chi Counter", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 334.60, concerto: 1400 });
 
 // --- forte circuit: Primordial Chi Spiral, channelled all the way to Major Zhoutian - Outer
 //     (see the file header for the earlier-release variants, exported but not placed).
-export const PushingPunch = jianxinAction("Heavy: Pushing Punch", { node: Node.Forte, cast: Cast.Heavy, type: DamageType.Heavy, mv: 248.52, concerto: 1000 });
-export const MinorZhoutianShock = jianxinAction("Heavy: Minor Zhoutian Shock", { node: Node.Forte, cast: Cast.Heavy, type: DamageType.Heavy, mv: 139.17, concerto: 500 });
-export const MajorZhoutianInnerShock = jianxinAction("Heavy: Major Zhoutian - Inner Shock", { node: Node.Forte, cast: Cast.Heavy, type: DamageType.Heavy, mv: 377.74, concerto: 1800 });
-const MajorZhoutianOuterShock = jianxinAction("Heavy: Major Zhoutian - Outer Shock", { node: Node.Forte, cast: Cast.Heavy, type: DamageType.Heavy, mv: 516.91, concerto: 2300, forte1: -120 });
-export const YieldingPull = jianxinAction("Heavy: Yielding Pull", { node: Node.Forte, cast: Cast.Heavy, type: DamageType.Heavy, mv: 218.70, concerto: 700 });
+export const PushingPunch = jianxinAction("Heavy: Pushing Punch", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 248.52, concerto: 1000 });
+export const MinorZhoutianShock = jianxinAction("Heavy: Minor Zhoutian Shock", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 139.17, concerto: 500 });
+export const MajorZhoutianInnerShock = jianxinAction("Heavy: Major Zhoutian - Inner Shock", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 377.74, concerto: 1800 });
+const MajorZhoutianOuterShock = jianxinAction("Heavy: Major Zhoutian - Outer Shock", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 516.91, concerto: 2300, forte1: -120 });
+export const YieldingPull = jianxinAction("Heavy: Yielding Pull", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 218.70, concerto: 700 });
 
 // --- liberation: Purification Force Field — only the Explosion Damage is modelled (see header)
 const Liberation = jianxinAction("Liberation: Purification Force Field", {
-  node: Node.Liberation, cast: Cast.Liberation, type: DamageType.Liberation, mv: 636.20,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 636.20,
   energy: -15000, concerto: 2000,
 });
 
 // --- intro / outro
 const Intro = jianxinAction("Intro: Essence of Tao", {
-  node: Node.Intro, cast: Cast.Intro, type: DamageType.Intro, mv: 169.00, concerto: 1000,   // 33.80% x3 + 67.60%
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 169.00, concerto: 1000,   // 33.80% x3 + 67.60%
 });
 const Outro = jianxinAction("Outro: Transcendence", {
-  cast: Cast.Outro, type: DamageType.Outro, mv: 0, concerto: -10000, active: false,
+  cast: Cast.Outro, mv: 0, concerto: -10000, active: false,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.outro(JIANXIN_OUTRO); },
 });

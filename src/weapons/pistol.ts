@@ -1,23 +1,29 @@
-/** Signature Pistols weapons — grouped by weapon type rather than version (see standard.ts for
- *  the non-signature, any-type-usable weapons). Each section is the character it's signature to. */
-import { isOutro, isIntro, isLiberation } from "../state.js";
-import { Buff, Gear, PRIORITY } from "../kit.js";
-import { Stat, DamageType } from "../stats.js";
+/**
+ * Signature Pistols weapons, ported to the new engine — grouped by weapon type rather than
+ * version (see weapons_standard.ts for the non-signature, any-type-usable weapons).
+ *
+ * Base ATK is ported via Stat.BaseAtk for fidelity to the source numbers; see the note at the
+ * top of weapons_standard.ts — engine2's own atk formula doesn't fold those contributions in yet.
+ */
+import {
+  Buff, Stat, Type1, Cast,
+  addStat, applySelf, isHeld, casting, currentAction, revoke,
+} from "../kit.js";
 
 /** The Last Dance, Carlotta's signature, R1: Silent Eulogy. +12% ATK flat. Intro or Liberation
  *  cast grants +48% Resonance Skill DMG Bonus for 5s — short enough that only the standing
  *  outro-loss rule matters. Carlotta, character 1107, released 2.0 —
  *  https://ww.nanoka.cc/character/1107, https://ww.nanoka.cc/weapon/21030016 */
-export const THE_LAST_DANCE = new Gear("The Last Dance", (ctx) => {
-  ctx.add(500, Stat.BaseAtk);
-  ctx.add(72, Stat.CritDmg);
-  ctx.add(12, Stat.BonusAtk);
-  if (isIntro(ctx.action!) || isLiberation(ctx.action!)) ctx.grantSelf(SILENT_EULOGY);
+export const THE_LAST_DANCE = new Buff({
+  name: "The Last Dance",
+  apply: () => { addStat(Stat.BaseAtk, 500); addStat(Stat.CritDmg, 72); addStat(Stat.BonusAtk, 12); },
+  update: () => { if (casting(Cast.Intro) || casting(Cast.Liberation)) applySelf(SILENT_EULOGY, 1); },
 });
-export const SILENT_EULOGY = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
-  ctx.add(48, DamageType.Skill, Stat.DmgBonus);
-  if (isOutro(ctx.action!)) ctx.revoke(SILENT_EULOGY);
-  return "The Last Dance: Silent Eulogy";
+export const SILENT_EULOGY = new Buff({
+  name: "The Last Dance: Silent Eulogy",
+  apply: () => addStat(Stat.DmgBonus, 48, Type1.Skill),
+  // short window, so it still counts on the wearer's own outro (see jinzhou.ts's HERON_HANDOFF)
+  convert: () => { if (casting(Cast.Outro)) revoke(SILENT_EULOGY); },
 });
 
 /** Lux & Umbra, Galbrena's signature, R1: To Fire She Returns. +12% ATK flat. Dealing Echo
@@ -26,22 +32,25 @@ export const SILENT_EULOGY = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
  *  outro-loss rule matters. While both are up, dealing DMG ignores 8% DEF. Galbrena, character
  *  1208, released 2.7 — https://ww.nanoka.cc/character/1208,
  *  https://ww.nanoka.cc/weapon/21030036 */
-export const LUX_UMBRA = new Gear("Lux & Umbra", (ctx) => {
-  const a = ctx.action!;
-  ctx.add(587.5, Stat.BaseAtk);
-  ctx.add(48.6, Stat.CritDmg);
-  ctx.add(12, Stat.BonusAtk);
-  if (a.type === DamageType.Echo) ctx.grantSelf(TO_FIRE_SHE_RETURNS_HEAVY);
-  if (a.type === DamageType.Heavy) ctx.grantSelf(TO_FIRE_SHE_RETURNS_ECHO);
-  if (ctx.stacksOf(TO_FIRE_SHE_RETURNS_HEAVY) && ctx.stacksOf(TO_FIRE_SHE_RETURNS_ECHO)) ctx.add(8, Stat.DefIgnore);
+export const LUX_UMBRA = new Buff({
+  name: "Lux & Umbra",
+  apply: () => {
+    addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.BonusAtk, 12);
+    if (isHeld(TO_FIRE_SHE_RETURNS_HEAVY) && isHeld(TO_FIRE_SHE_RETURNS_ECHO)) addStat(Stat.DefIgnore, 8);
+  },
+  update: () => {
+    const a = currentAction();
+    if (a.type === Type1.Echo) applySelf(TO_FIRE_SHE_RETURNS_HEAVY, 1);
+    if (a.type === Type1.Heavy) applySelf(TO_FIRE_SHE_RETURNS_ECHO, 1);
+  },
 });
-export const TO_FIRE_SHE_RETURNS_HEAVY = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
-  ctx.add(24, DamageType.Heavy, Stat.Amp);
-  if (isOutro(ctx.action!)) ctx.revoke(TO_FIRE_SHE_RETURNS_HEAVY);
-  return "Lux & Umbra: To Fire She Returns (Heavy)";
+export const TO_FIRE_SHE_RETURNS_HEAVY = new Buff({
+  name: "Lux & Umbra: To Fire She Returns (Heavy)",
+  apply: () => addStat(Stat.Amp, 24, Type1.Heavy),
+  convert: () => { if (casting(Cast.Outro)) revoke(TO_FIRE_SHE_RETURNS_HEAVY); },
 });
-export const TO_FIRE_SHE_RETURNS_ECHO = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
-  ctx.add(24, DamageType.Echo, Stat.Amp);
-  if (isOutro(ctx.action!)) ctx.revoke(TO_FIRE_SHE_RETURNS_ECHO);
-  return "Lux & Umbra: To Fire She Returns (Echo)";
+export const TO_FIRE_SHE_RETURNS_ECHO = new Buff({
+  name: "Lux & Umbra: To Fire She Returns (Echo)",
+  apply: () => addStat(Stat.Amp, 24, Type1.Echo),
+  convert: () => { if (casting(Cast.Outro)) revoke(TO_FIRE_SHE_RETURNS_ECHO); },
 });

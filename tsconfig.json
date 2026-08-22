@@ -27,5 +27,22 @@
     "declaration": false
   },
   "include": ["index.ts", "src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  /* display.ts is restored — kit.ts now exports ResolvedSnapshot/StatEntry/ChainGroup so it
+     compiles against the new engine unmodified (see kit.ts's own header on those types).
+     optimize.ts/run.ts/team.ts are still the old CLI/report-building harness for the OLD engine
+     (Loadout, ResonatorFactory, Resonator) with no port yet — team.ts/run.ts are CLI-only
+     (unrelated to index.ts) and optimize.ts's weapon optimizer isn't wired into the restored
+     site. The 21 resonators below are back in the tree (kept for reference / not to lose the
+     work) but not yet ported to the new engine's Buff/Gear shape — restore each one to "include"
+     as it gets ported, same as phrolova/qiuyuan/cantarella already were. */
+  "exclude": [
+    "node_modules", "dist", "src/optimize.ts", "src/run.ts", "src/team.ts", "src/shared/tunebreak.ts",
+    "src/resonators/augusta.ts", "src/resonators/brant.ts", "src/resonators/buling.ts",
+    "src/resonators/camellya.ts", "src/resonators/changli.ts",
+    "src/resonators/danjin.ts", "src/resonators/encore.ts", "src/resonators/galbrena.ts",
+    "src/resonators/jianxin.ts",
+    "src/resonators/lucilla.ts", "src/resonators/lupa.ts", "src/resonators/roccia.ts",
+    "src/resonators/rover_havoc.ts", "src/resonators/sanhua.ts",
+    "src/resonators/sigrika.ts", "src/resonators/verina.ts"
+  ]
 }

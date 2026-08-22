@@ -1,14 +1,3 @@
-# heron
-add heron 10 energy? make sure it works with echo mainslot system
-full moonlit implementation, have it extend for N more actions after outro
-add bell
-
-# rework frolova auto hecates
-first on is queue on next intro
-then 1 action between each?
-if none queue it gets instantly queued tho
-insert hecate ba12 whenever none has been queued for a certain # of actions?
-
 # characters that need tune implementation
 mornye https://ww.nanoka.cc/character/1209 (maybe implement without any tune aspects first?)
 denia https://ww.nanoka.cc/character/1211 (maybe implement without any tune aspects first?)

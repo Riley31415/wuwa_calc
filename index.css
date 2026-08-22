@@ -45,12 +45,13 @@
 
   /* A column's width is its character count from display.js scaled by --cw, plus --cpad for
      the cell's own horizontal padding — the terminal spelling of the report has no padding to
-     pay for, so the character count alone clips here. */
+     pay for, so the character count alone clips here.
+     One figure for every column, because the table is set in one font (see `.c` below). There
+     used to be a second (`--cwt`, 6.7px) for the columns that were set in the proportional UI
+     font — with two metrics in play, a sticky column's `left` offset (index.js's own `cell()`)
+     was computed off different per-character widths than the grid tracks it had to line up
+     with, so the frozen columns landed a fraction off their own track. */
   --cw: 7.7px;
-  /* The same figure for the columns set in the proportional UI font — action and tags. Its
-     average character is narrower than a monospace digit, so sizing those tracks with --cw
-     padded them out and left a gap in front of the first number. */
-  --cwt: 6.7px;
   --cpad: 4px;
   /* Extra breathing room on the leading column only, so the action name is not flush against
      the table edge. index.js adds it to that column's track width too — the two must agree. */
@@ -129,6 +130,17 @@ body {
 /* the <p> tags carry the browser's own default margin, which would stack on top of the grid's
    gap above and give the bar/count an oversized, uneven-looking space above them */
 #app.loading p { margin: 0; }
+
+/* status text and the X/total count share one line above the bar — the count used to be its own
+   <p> below the track, but an empty-to-filled paragraph there changed the centered block's total
+   height once boot() started writing to it, nudging the bar up a few pixels mid-run. Both spans
+   live in the status line's own line box instead, so the count filling in never changes anything
+   the bar's position depends on. */
+.loading-status {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
 
 /* the progress bar sits under the "running every team's rotation…" line — a fixed-width track
    so the fill's own width is the only thing that moves as teams finish. Sized and bordered to
@@ -268,33 +280,31 @@ main {
 }
 .trow.thead .c {
   padding: 9px 10px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 650;
   text-transform: uppercase;
   letter-spacing: .6px;
   color: var(--dim);
 }
 .trow:not(.thead):hover { background: var(--surface-2); }
+/* one font, one size, one weight — same reasoning as the rotation table's own `.c` below */
 .trow .c {
   padding: 6px 10px;
-  line-height: 16px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  line-height: 17px;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   position: relative;
 }
-.trow .c.num {
-  text-align: right;
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 12.5px;
-  color: var(--ink);
-}
+.trow .c.num { text-align: right; color: var(--ink); }
 /* a member's own name — full-strength text colour, a left bar and a background wash, same trick
    as the detail table's own member column (`--mem`, see index.js's `gearPopover`/`comparisonTable`) */
 .trow .c.name {
-  font-weight: 600;
   background: color-mix(in srgb, var(--mem, transparent) 10%, var(--surface));
   box-shadow: inset 2px 0 0 color-mix(in srgb, var(--mem, transparent) 70%, transparent);
 }
@@ -350,40 +360,34 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
   background: var(--surface);
 }
 
+/* One font, one size, one weight for every cell in the table — the action and member columns
+   used to be set in the proportional --sans while the stat columns were set in --mono, and no
+   amount of matching `font-weight` hid that: --sans renders visibly heavier and wider at the
+   same nominal weight. Nothing below re-declares font-family, font-size, or font-weight; a
+   column differentiates itself with colour and alignment only. */
 .c {
   padding: 7px 2px;
-  /* Explicit and whole. Inherited `line-height: 1.5` is a ratio, so each cell sized itself off
-     its own font — 19.5px in the sans columns, 18px in the mono ones, 15px in the header — and
-     a row ended up 33.5px tall while the header ended up 33px. Fractional, mismatched row
-     heights are what left the header short of the body and put hairlines between rows. */
-  line-height: 18px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  /* Explicit and whole, not the inherited `line-height: 1.5` ratio, so a row's height is a whole
+     number of pixels and rows can't leave hairline gaps between themselves. */
+  line-height: 19px;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   position: relative;
 }
-.num {
-  text-align: right;
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 12px;
-  color: var(--ink);
-}
+/* alignment and colour only — the type itself is `.c`'s, same as every other column */
+.num { text-align: right; color: var(--ink); }
 
 /* the leading columns stay put while the rest of the table scrolls sideways */
 .c.stick { position: sticky; z-index: 2; background: inherit; }
 
 /* the lead-in, paired with the extra track width colWidth() gives column 0 */
 .r > .c:first-child { padding-left: calc(2px + var(--lead)); }
-.c.seam::after {
-  content: "";
-  position: absolute; top: 0; right: 0; bottom: 0;
-  width: 14px;
-  transform: translateX(100%);
-  background: linear-gradient(90deg, rgba(0, 0, 0, .35), transparent);
-  pointer-events: none;
-}
 
 /* head — pinned to the top of <main> so the column names survive scrolling */
 .head {
@@ -392,14 +396,17 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
   z-index: 40;
   background: var(--surface-3);
 }
+/* the one place in the table that does re-declare weight — a column heading has to read as a
+   heading. Same family and size as the cells under it, still. */
 .head .c {
   padding: 9px 2px;
-  font-size: 10px;
+  /* smaller than the cells below on purpose: uppercase + letter-spacing at the body size would
+     outrun the narrow columns, whose tracks are sized off their values, not their headings */
+  font-size: 11px;
   font-weight: 650;
   text-transform: uppercase;
   letter-spacing: .6px;
   color: var(--dim);
-  font-family: var(--sans);
   background: var(--surface-3);
 }
 /* the leading cell pins on both axes, so it outranks either sticky alone */
@@ -420,20 +427,19 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 .step:hover > .r  { background: color-mix(in srgb, var(--m, transparent) 8%, var(--surface)); }
 
 /* the action name reads in plain full-strength white — "whose turn" is entirely the member
-   column's own signal now (see below), so the action name doesn't also compete for it. A little
+   column's own signal (see below), so the action name doesn't also compete for it. A little
    breathing room before the name: it isn't column 0 any more, so it no longer picks up the
-   lead-in `.r > .c:first-child` gives the member column beside it. */
-.c.action { font-weight: 550; padding-left: 8px; }
+   lead-in `.r > .c:first-child` gives the member column beside it. Colour only — the type is
+   `.c`'s, identical to every stat column. */
+.c.action { padding-left: 8px; }
 .c.action, .c.name { color: var(--ink); }
-.c.avg { color: var(--ink); font-weight: 700; }
+.c.avg { color: var(--ink); }
 
 /* The member column: its own colour system, sourced from `--mem` (the member's own colour, set
    inline per cell) rather than `--m` (the row's action colour) — a left bar and a background
-   wash of its own, full-strength text, all independent of whatever the rest of the row is
-   tinted by. Comes after `.c.stick` in the cascade so its own background wins over `inherit`. */
+   wash of its own, all independent of whatever the rest of the row is tinted by. Comes after
+   `.c.stick` in the cascade so its own background wins over `inherit`. Again: colour only. */
 .c.member {
-  font-weight: 600;
-  font-size: 12.5px;
   background: color-mix(in srgb, var(--mem, transparent) 10%, var(--surface));
   box-shadow: inset 2px 0 0 color-mix(in srgb, var(--mem, transparent) 70%, transparent);
 }
@@ -443,7 +449,6 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 .totalrow {
   background: var(--surface-3);
   border-top: 1px solid var(--line-2);
-  font-weight: 650;
 }
 .totalrow .c { color: var(--ink); }
 .totalrow .c:first-child { border-bottom-left-radius: var(--r); }
@@ -470,7 +475,6 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 .parts .r {
   background: color-mix(in srgb, var(--m, transparent) 3%, var(--surface-2));
   color: var(--dim);
-  font-size: 12px;
 }
 .parts .r:hover { background: color-mix(in srgb, var(--m, transparent) 6%, var(--surface-2)); }
 .parts .c { padding-top: 4px; padding-bottom: 4px; }
@@ -478,11 +482,9 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 
 /* A triggered follow-up, a zero-damage hit, or an outro isn't a rotation beat of its own —
    thinner and dimmer, so scanning the table isn't slowed reading past them. Opacity rather than
-   a specific colour: it fades every column's own colour by the same amount, avg's mint included,
-   instead of having to restate each one. The member column is exempt: it is the "who acted"
-   signal, and has to read at full strength on every row for the eye to follow the handoffs. */
+   a specific colour: it fades every column's own colour by the same amount, avg's mint and the
+   member column's own included, instead of having to restate each one per column. */
 .r.short .c { padding-top: 2px; padding-bottom: 2px; opacity: .5; }
-.r.short .c.member { opacity: 1; }
 .parts .r.short .c { padding-top: 1px; padding-bottom: 1px; }
 
 /* ------------------------------------------------------- hover source panels */
@@ -505,7 +507,6 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
   /* Above the pinned column header. Nothing between the panel and the page root sets a
      z-index, so this competes at the top level rather than inside a row's own context. */
   z-index: 200;
-  min-width: 250px;
   padding: 9px 11px;
   border: 1px solid var(--line-2);
   /* opaque, not translucent: the table underneath it is dense and shows straight through */
@@ -513,13 +514,22 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
   box-shadow: 0 20px 44px -12px rgba(0, 0, 0, .95), 0 0 0 1px rgba(0, 0, 0, .35);
   white-space: nowrap;
   text-align: left;
-  font-family: var(--sans);
-  font-size: 12px;
+  /* the exact same font/size/weight the table's own stat columns use (see `.num`/`.c` below) —
+     no separate scale for a popover just because it floats above the table instead of sitting
+     in it. */
+  font-family: var(--mono);
+  font-size: 13px;
   font-weight: 400;
   color: var(--ink-2);
 }
 
-.pop table { width: 100%; border-collapse: collapse; }
+/* No `width: 100%` — that stretched every panel out to `.pop`'s own box (which used to carry a
+   flat `min-width: 250px`, gone now too) rather than letting the table size itself, so a
+   two-column panel's columns weren't each sized to their own longest cell, just proportioned
+   across whatever width the box happened to be. Default `table-layout: auto` with no forced
+   width sizes every column to the widest cell it actually holds, and the panel's own box (no
+   min-width of its own any more) then hugs that. */
+.pop table { border-collapse: collapse; }
 .pop td { padding: 1.5px 0; }
 /* the buff's own name reads full-strength, with a tiny left bar in whoever granted it colour
    (see `.c.member` above — same trick, --own instead of --mem); the stat it fed sits in the
@@ -530,10 +540,10 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
   padding-right: 14px;
   box-shadow: inset 2px 0 0 color-mix(in srgb, var(--own, transparent) 70%, transparent);
 }
-.pop td.k { color: var(--dim); padding-right: 14px; font-size: 11px; }
+/* label and value differ by colour and alignment only — the type is `.pop`'s, for all three */
+.pop td.k { color: var(--dim); padding-right: 14px; }
 .pop td.v {
   text-align: right;
-  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--ink);
 }
@@ -543,19 +553,18 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 /* a group heading — base / bonus / flat — and that group's own subtotal */
 .pop .sec td {
   padding: 7px 0 2px;
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 650;
   text-transform: uppercase;
   letter-spacing: .7px;
   color: var(--dim);
 }
 .pop tr:first-child.sec td { padding-top: 0; }
-/* the section's own subtotal — "Total" in the label column, separated from the detail rows
-   above it by the dotted line, its value the same white every other row's value reads in */
-.pop .sub td {
-  padding-top: 3px;
-  border-top: 1px dotted var(--line-2);
-}
+/* the section's own subtotal — "Total" in the label column, its value the same white every other
+   row's value reads in. Separated from the detail rows above it by space alone now (no rule) —
+   removed rather than restyled since nothing else in either the table or its panels draws a
+   dotted line anywhere else. */
+.pop .sub td { padding-top: 5px; }
 
 /* pinned by a click: it stays until you click away, so it may be read and selected */
 .pop.pinned {
@@ -563,17 +572,11 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
   user-select: text;
 }
 
-/* The hover on an action's own name: what it scales off, its element, its damage type — one
- * word a row, in the same table shell as the other panels, just one column and no total. */
-.pop.info { min-width: 0; padding: 8px 14px; }
-.pop.info td {
-  padding: 3px 0;
-  font-size: 11.5px;
-  font-weight: 650;
-  letter-spacing: .4px;
-  color: var(--ink);
-}
-.pop.info tr + tr td { border-top: 1px dotted var(--line-2); }
+/* The hover on an action's own name: what it scales off, its element, its damage type, every
+ * declared amount it carries — a label/value row apiece, its two columns auto-sized to their own
+ * longest cell exactly like every other panel's (see `.pop table` above). Carries no rules of its
+ * own at all: it is the same box, the same dim `.k` label, and the same white mono `.v` value as
+ * every stat panel above, just with no total row. */
 
 /* -------------------------------------------------------------- event log */
 

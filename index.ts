@@ -1,321 +1,126 @@
 /**
- * The whole website: loads the engine out of src/, runs the team, renders the page.
+ * The whole website, restored to the old rich comparison-table UI (see git history at
+ * `40ee581:index.ts` for the original, ~30-team version this is rebuilt from) but wired to the
+ * new engine and scoped to the two ported teams: Qiuyuan/Cantarella/Phrolova, and the shield
+ * team Shorekeeper/Iuno/Jingran.
  *
- * Nothing is pre-generated. This imports the real ES modules and computes everything in the
- * browser, so editing a resonator file and refreshing is the whole loop. Browsers block module
- * imports and fetch() on file:// URLs, so the page has to be served — `python -m http.server`
- * from this directory is enough.
+ * display.ts is unmodified — kit.ts now exports `ResolvedSnapshot`/`StatEntry`/`ChainGroup` so
+ * `buildReport()` compiles and runs against this engine exactly as it did the old one (see
+ * kit.ts's own header on those types and on `addStat()`'s automatic source/owner tagging).
+ *
+ * Two things the old page had that this one doesn't, because the new engine doesn't track them
+ * yet: a resource/counter system (Energy, Concerto, Off-tune, the forte gauges all read 0 here,
+ * so `buildReport()`'s own "drop an all-zero column" rule hides them), and a buff event log
+ * (`state.log` doesn't exist on the new `State`, so the detail page has no Event Log section).
+ * There's also no weapon optimizer — each member runs their own file's hardcoded loadout, not
+ * whichever weapon scores highest.
  */
-import { collapseChains } from "./src/kit.js";
-import type { Action, ChainGroup } from "./src/kit.js";
-import { State, Enemy } from "./src/state.js";
-import type { ResonatorFactory, Resonator, RotationEntry, ResolvedSnapshot } from "./src/state.js";
-import { damage } from "./src/damage.js";
-import { buildReport, totalsBySlot } from "./src/display.js";
-import type { Report, Column, ReportRow, ReportPart, TraceEntry } from "./src/display.js";
-import { isPercent, statLabel, ELEMENTS, Cast } from "./src/stats.js";
-import { AUTO_TUNE_BREAK, MISC, attributeMisc, TUNE_BREAK_CAST, TUNE_BREAK_COLOR } from "./src/shared/tunebreak.js";
-import { optimizeTeam } from "./src/optimize.js";
+import { State, run, withTeam, equip, Resonator, Gear, Action } from "./src/kit.js";
+import type { ChainGroup, HeldBuff, ResolvedSnapshot } from "./src/kit.js";
+import { damage, mvPercent, effectiveDef, effectiveRes, damageFactors } from "./src/damage.js";
+import { buildReport, totalsBySlot, explain } from "./src/display.js";
+import type { Report, Column, ReportRow, ReportPart, TraceEntry, InfoEntry } from "./src/display.js";
+import { isPercent, statLabel } from "./src/stats.js";
 
-import * as SK from "./src/resonators/shorekeeper.js";
-import * as IO from "./src/resonators/iuno.js";
-import * as JR from "./src/resonators/jingran.js";
-import * as LP from "./src/resonators/lupa.js";
-import * as QY from "./src/resonators/qiuyuan.js";
-import * as CT from "./src/resonators/cantarella.js";
-import * as PH from "./src/resonators/phrolova.js";
-import * as BT from "./src/resonators/brant.js";
-import * as SH from "./src/resonators/sanhua.js";
-import * as BU from "./src/resonators/buling.js";
-import * as LC from "./src/resonators/lucilla.js";
-import * as ZZ from "./src/resonators/zhezhi.js";
-import * as AG from "./src/resonators/augusta.js";
-import * as CL from "./src/resonators/carlotta.js";
-import * as RC from "./src/resonators/roccia.js";
-import * as SG from "./src/resonators/sigrika.js";
-import * as GB from "./src/resonators/galbrena.js";
-import * as CH from "./src/resonators/changli.js";
-import * as EC from "./src/resonators/encore.js";
-import * as VR from "./src/resonators/verina.js";
-import * as JX from "./src/resonators/jianxin.js";
-import * as RH from "./src/resonators/rover_havoc.js";
-import * as DJ from "./src/resonators/danjin.js";
-import * as CM from "./src/resonators/camellya.js";
+import { QIUYUAN, QY_LOADOUT, QY_ROTATION } from "./src/resonators/qiuyuan.js";
+import { CANTARELLA, CA_LOADOUT, CA_ROTATION } from "./src/resonators/cantarella.js";
+import { PHROLOVA, PH_LOADOUT, PH_OPENER, PH_LOOP } from "./src/resonators/phrolova.js";
+import { SHOREKEEPER, SK_LOADOUT, SK_OPENER, SK_LOOP } from "./src/resonators/shorekeeper.js";
+import { IUNO, IO_LOADOUT, IO_ROTATION } from "./src/resonators/iuno.js";
+import { JINGRAN, JR_LOADOUT, JR_ROTATION } from "./src/resonators/jingran.js";
+import { ZHEZHI, ZZ_LOADOUT, ZZ_ROTATION } from "./src/resonators/zhezhi.js";
+import { CARLOTTA, CL_LOADOUT, CL_ROTATION } from "./src/resonators/carlotta.js";
+
+/* ------------------------------------------------------------------------------------ teams */
 
 interface Member {
   name: string;
-  /** This member's own color — each resonator file exports its own `COLOR`, so a build's team
-   *  entry just carries it through rather than looking it up by name. */
   color: string;
-  loadout: ResonatorFactory;
-  opener: RotationEntry[];
-  loop: RotationEntry[];
+  loadout: Gear[];
+  opener: Action[];
+  loop: Action[];
 }
 
-/**
- * The teams the switch at the top of the page picks between, each a member list in the order
- * they act. Only the lead changes across the first two — Iuno and Jingran are common to both,
- * so switching is really just swapping who is standing in the first slot.
- */
-// A member without its own opener (not the team's lead) doesn't have one written yet — stand in
-// with their loop rotation for now, so they still get a real turn during the opener phase.
-const noOpener = (loadout: ResonatorFactory, loop: RotationEntry[]): { opener: RotationEntry[]; loop: RotationEntry[]; loadout: ResonatorFactory } =>
-  ({ opener: loop, loop, loadout });
+/** name/color both come straight off the resonator's own field — nothing here retypes them. */
+const member = (resonator: Resonator, loadout: Gear[], opener: Action[], loop: Action[]): Member =>
+  ({ name: resonator.name, color: resonator.color, loadout, opener, loop });
 
+/** Only the two ported teams — the old page's team switcher compared ~30 of these; with two,
+ *  the landing page is a short ranking rather than the full catalog. */
 const TEAMS: Record<string, Member[]> = {
-  skIunoJingran: [
-    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
-    { name: "Iuno", color: IO.COLOR, ...noOpener(IO.LOADOUT, IO.ROTATION) },
-    { name: "Jingran", color: JR.COLOR, ...noOpener(JR.LOADOUT, JR.ROTATION) },
-  ],
-  lupaIunoJingran: [
-    { name: "Lupa", color: LP.COLOR, loadout: LP.LOADOUT, opener: LP.OPENER, loop: LP.LOOP },
-    { name: "Iuno", color: IO.COLOR, ...noOpener(IO.LOADOUT, IO.ROTATION) },
-    { name: "Jingran", color: JR.COLOR, ...noOpener(JR.LOADOUT_CRCD, JR.ROTATION) },
-  ],
   froloQyCanta: [
-    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
-    { name: "Qiuyuan", color: QY.COLOR, ...noOpener(QY.LOADOUT, QY.ROTATION) },
-    { name: "Cantarella", color: CT.COLOR, ...noOpener(CT.LOADOUT, CT.ROTATION) },
+    member(PHROLOVA, PH_LOADOUT, PH_OPENER, PH_LOOP),
+    member(QIUYUAN, QY_LOADOUT, QY_ROTATION, QY_ROTATION),
+    member(CANTARELLA, CA_LOADOUT, CA_ROTATION, CA_ROTATION),
   ],
-  froloQyCantaS6R5: [
-    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT_S6R5, opener: PH.OPENER_S6R5, loop: PH.LOOP_S6R5 },
-    { name: "Qiuyuan", color: QY.COLOR, ...noOpener(QY.LOADOUT, QY.ROTATION) },
-    { name: "Cantarella", color: CT.COLOR, ...noOpener(CT.LOADOUT, CT.ROTATION) },
+  skIunoJingran: [
+    member(SHOREKEEPER, SK_LOADOUT, SK_OPENER, SK_LOOP),
+    member(IUNO, IO_LOADOUT, IO_ROTATION, IO_ROTATION),
+    member(JINGRAN, JR_LOADOUT, JR_ROTATION, JR_ROTATION),
   ],
-  froloSkCanta: [
-    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
-    { name: "Shorekeeper", color: SK.COLOR, ...noOpener(SK.LOADOUT, SK.LOOP) },
-    { name: "Cantarella", color: CT.COLOR, ...noOpener(CT.LOADOUT, CT.ROTATION) },
-  ],
-  froloSkCantaS6R5: [
-    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT_S6R5, opener: PH.OPENER_S6R5, loop: PH.LOOP_S6R5 },
-    { name: "Shorekeeper", color: SK.COLOR, ...noOpener(SK.LOADOUT, SK.LOOP) },
-    { name: "Cantarella", color: CT.COLOR, ...noOpener(CT.LOADOUT, CT.ROTATION) },
-  ],
-  lupaBrantJingran: [
-    { name: "Lupa", color: LP.COLOR, loadout: LP.LOADOUT, opener: LP.OPENER, loop: LP.LOOP },
-    { name: "Brant", color: BT.COLOR, ...noOpener(BT.LOADOUT, BT.ROTATION_1_ANCHOR) },
-    { name: "Jingran", color: JR.COLOR, ...noOpener(JR.LOADOUT_CRCD, JR.ROTATION) },
-  ],
-  froloBulingCanta: [
-    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
-    { name: "Buling", color: BU.COLOR, ...noOpener(BU.LOADOUT, BU.ROTATION) },
-    { name: "Cantarella", color: CT.COLOR, ...noOpener(CT.LOADOUT, CT.ROTATION) },
-  ],
-  froloBulingCantaS6R5: [
-    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT_S6R5, opener: PH.OPENER_S6R5, loop: PH.LOOP_S6R5 },
-    { name: "Buling", color: BU.COLOR, ...noOpener(BU.LOADOUT, BU.ROTATION) },
-    { name: "Cantarella", color: CT.COLOR, ...noOpener(CT.LOADOUT, CT.ROTATION) },
-  ],
-  froloLucillaCanta: [
-    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
-    { name: "Lucilla", color: LC.COLOR, ...noOpener(LC.LOADOUT, LC.ROTATION) },
-    { name: "Cantarella", color: CT.COLOR, ...noOpener(CT.LOADOUT, CT.ROTATION) },
-  ],
-  froloLucillaCantaS6R5: [
-    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT_S6R5, opener: PH.OPENER_S6R5, loop: PH.LOOP_S6R5 },
-    { name: "Lucilla", color: LC.COLOR, ...noOpener(LC.LOADOUT, LC.ROTATION) },
-    { name: "Cantarella", color: CT.COLOR, ...noOpener(CT.LOADOUT, CT.ROTATION) },
-  ],
-  froloSkLucilla: [
-    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
-    { name: "Shorekeeper", color: SK.COLOR, ...noOpener(SK.LOADOUT, SK.LOOP) },
-    { name: "Lucilla", color: LC.COLOR, ...noOpener(LC.LOADOUT, LC.ROTATION) },
-  ],
-  froloSkLucillaS6R5: [
-    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT_S6R5, opener: PH.OPENER_S6R5, loop: PH.LOOP_S6R5 },
-    { name: "Shorekeeper", color: SK.COLOR, ...noOpener(SK.LOADOUT, SK.LOOP) },
-    { name: "Lucilla", color: LC.COLOR, ...noOpener(LC.LOADOUT, LC.ROTATION) },
-  ],
-  froloQyLucilla: [
-    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
-    { name: "Qiuyuan", color: QY.COLOR, ...noOpener(QY.LOADOUT, QY.ROTATION) },
-    { name: "Lucilla", color: LC.COLOR, ...noOpener(LC.LOADOUT, LC.ROTATION) },
-  ],
-  froloQyLucillaS6R5: [
-    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT_S6R5, opener: PH.OPENER_S6R5, loop: PH.LOOP_S6R5 },
-    { name: "Qiuyuan", color: QY.COLOR, ...noOpener(QY.LOADOUT, QY.ROTATION) },
-    { name: "Lucilla", color: LC.COLOR, ...noOpener(LC.LOADOUT, LC.ROTATION) },
-  ],
-  skZhezhiCarlotta: [
-    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
-    { name: "Zhezhi", color: ZZ.COLOR, ...noOpener(ZZ.LOADOUT, ZZ.ROTATION) },
-    { name: "Carlotta", color: CL.COLOR, ...noOpener(CL.LOADOUT, CL.ROTATION) },
-  ],
-  skIunoAugusta: [
-    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
-    { name: "Iuno", color: IO.COLOR, ...noOpener(IO.LOADOUT, IO.ROTATION) },
-    { name: "Augusta", color: AG.COLOR, ...noOpener(AG.LOADOUT, AG.ROTATION) },
-  ],
-  froloRocciaCanta: [
-    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
-    { name: "Roccia", color: RC.COLOR, ...noOpener(RC.LOADOUT, RC.ROTATION) },
-    { name: "Cantarella", color: CT.COLOR, ...noOpener(CT.LOADOUT, CT.ROTATION) },
-  ],
-  skQySigrika: [
-    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
-    { name: "Qiuyuan", color: QY.COLOR, ...noOpener(QY.LOADOUT, QY.ROTATION) },
-    { name: "Sigrika", color: SG.COLOR, ...noOpener(SG.LOADOUT, SG.ROTATION) },
-  ],
-  skLucillaSigrika: [
-    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
-    { name: "Lucilla", color: LC.COLOR, ...noOpener(LC.LOADOUT, LC.ROTATION) },
-    { name: "Sigrika", color: SG.COLOR, ...noOpener(SG.LOADOUT, SG.ROTATION) },
-  ],
-  skQyGalbrena: [
-    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
-    { name: "Qiuyuan", color: QY.COLOR, ...noOpener(QY.LOADOUT, QY.ROTATION) },
-    { name: "Galbrena", color: GB.COLOR, ...noOpener(GB.LOADOUT, GB.ROTATION) },
-  ],
-  skLucillaGalbrena: [
-    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
-    { name: "Lucilla", color: LC.COLOR, ...noOpener(LC.LOADOUT, LC.ROTATION) },
-    { name: "Galbrena", color: GB.COLOR, ...noOpener(GB.LOADOUT, GB.ROTATION) },
-  ],
-  skIunoChangli: [
-    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
-    { name: "Iuno", color: IO.COLOR, ...noOpener(IO.LOADOUT, IO.ROTATION) },
-    { name: "Changli", color: CH.COLOR, ...noOpener(CH.LOADOUT, CH.ROTATION) },
-  ],
-  skQyEncore: [
-    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
-    { name: "Qiuyuan", color: QY.COLOR, ...noOpener(QY.LOADOUT, QY.ROTATION) },
-    { name: "Encore", color: EC.COLOR, ...noOpener(EC.LOADOUT, EC.ROTATION) },
-  ],
-  froloVerinaCanta: [
-    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
-    { name: "Verina", color: VR.COLOR, ...noOpener(VR.LOADOUT, VR.ROTATION) },
-    { name: "Cantarella", color: CT.COLOR, ...noOpener(CT.LOADOUT, CT.ROTATION) },
-  ],
-  froloJianxinCanta: [
-    { name: "Phrolova", color: PH.COLOR, loadout: PH.LOADOUT, opener: PH.OPENER, loop: PH.LOOP },
-    { name: "Jianxin", color: JX.COLOR, ...noOpener(JX.LOADOUT, JX.ROTATION) },
-    { name: "Cantarella", color: CT.COLOR, ...noOpener(CT.LOADOUT, CT.ROTATION) },
-  ],
-  roverDanjinVerina: [
-    { name: "Rover: Havoc", color: RH.COLOR, ...noOpener(RH.LOADOUT, RH.ROTATION) },
-    { name: "Danjin", color: DJ.COLOR, ...noOpener(DJ.LOADOUT, DJ.ROTATION) },
-    { name: "Verina", color: VR.COLOR, ...noOpener(VR.LOADOUT, VR.ROTATION) },
-  ],
-  roverDanjinJianxin: [
-    { name: "Rover: Havoc", color: RH.COLOR, ...noOpener(RH.LOADOUT, RH.ROTATION) },
-    { name: "Danjin", color: DJ.COLOR, ...noOpener(DJ.LOADOUT, DJ.ROTATION) },
-    { name: "Jianxin", color: JX.COLOR, ...noOpener(JX.LOADOUT, JX.ROTATION) },
-  ],
-  skJianxinIuno: [
-    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
-    { name: "Jianxin", color: JX.COLOR, ...noOpener(JX.LOADOUT, JX.ROTATION) },
-    { name: "Iuno", color: IO.COLOR, ...noOpener(IO.LOADOUT, IO.ROTATION) },
-  ],
-  lupaBrantChangli: [
-    { name: "Lupa", color: LP.COLOR, loadout: LP.LOADOUT, opener: LP.OPENER, loop: LP.LOOP },
-    { name: "Brant", color: BT.COLOR, ...noOpener(BT.LOADOUT, BT.ROTATION_1_ANCHOR) },
-    { name: "Changli", color: CH.COLOR, ...noOpener(CH.LOADOUT, CH.ROTATION) },
-  ],
-  skRocciaCamellya: [
-    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
-    { name: "Roccia", color: RC.COLOR, ...noOpener(RC.LOADOUT, RC.ROTATION) },
-    { name: "Camellya", color: CM.COLOR, ...noOpener(CM.LOADOUT, CM.ROTATION) },
-  ],
-  skSanhuaCamellya: [
-    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
-    { name: "Sanhua", color: SH.COLOR, ...noOpener(SH.LOADOUT, SH.ROTATION) },
-    { name: "Camellya", color: CM.COLOR, ...noOpener(CM.LOADOUT, CM.ROTATION) },
-  ],
-  skRocciaRover: [
-    { name: "Shorekeeper", color: SK.COLOR, loadout: SK.LOADOUT, opener: SK.OPENER, loop: SK.LOOP },
-    { name: "Roccia", color: RC.COLOR, ...noOpener(RC.LOADOUT, RC.ROTATION) },
-    { name: "Rover: Havoc", color: RH.COLOR, ...noOpener(RH.LOADOUT, RH.ROTATION) },
-  ],
-  verinaSanhuaEncore: [
-    { name: "Verina", color: VR.COLOR, ...noOpener(VR.LOADOUT, VR.ROTATION) },
-    { name: "Sanhua", color: SH.COLOR, ...noOpener(SH.LOADOUT, SH.ROTATION) },
-    { name: "Encore", color: EC.COLOR, ...noOpener(EC.LOADOUT, EC.ROTATION) },
+  skZzCarlotta: [
+    member(SHOREKEEPER, SK_LOADOUT, SK_OPENER, SK_LOOP),
+    member(ZHEZHI, ZZ_LOADOUT, ZZ_ROTATION, ZZ_ROTATION),
+    member(CARLOTTA, CL_LOADOUT, CL_ROTATION, CL_ROTATION),
   ],
 };
 
-/** Off-tune's own fourth "member" — not a real resonator, so it has no `COLOR` export to carry
- *  through the way a team's own members do. */
+const MISC = "Misc";
 const MISC_HUE = "#8a94a3";
 const FALLBACK_HUE = "#5b9cff";
+
+/** Kill switch for the resonator popover's "Gear" section — off for now, kept as a single flag
+ *  rather than ripping the section's own code out, so turning it back on later is a one-line
+ *  flip (see `buffsPopover`'s own use of this). */
+const GEAR_SECTION_ENABLED = false;
 
 /** How many leading columns stay put while the table scrolls sideways: `member` and `action`. */
 const STICK = 2;
 
 /* ------------------------------------------------------------------ the engine */
 
-// level 100 enemy, a flat 20% base resistance, 39.2% max off-tune — every fight this calculator
-// runs uses the same standing numbers (resonator level is RESONATOR_LEVEL, from damage.js).
-const ENEMY_LEVEL = 100, DEFAULT_RES = 20, MAX_OFFTUNE = 392000;
-
 interface TeamRun {
   state: State;
   report: Report;
   openerReport: Report;
   loopReport: Report;
-  /** The loop's own evaluated lines, pre-`buildReport` — what the comparison table's own
-   *  damage-breakdown popovers read (grouped by tag rather than laid out as report columns). */
+  /** The loop's own evaluated lines — what the comparison table's own damage-breakdown popovers
+   *  read (grouped by tag rather than laid out as report columns). */
   loopLines: ChainGroup[];
-  members: Member[];
-  /** Each member's actual built `Resonator` (name -> instance), for the comparison table's own
-   *  gear popover — read straight off the slot `startFight()` already populated, rather than
-   *  calling a member's `loadout` factory a second time (which would build an unrelated instance). */
-  resonators: Map<string, Resonator>;
-}
-
-/**
- * What the comparison table actually needs, from the numbers-only pass: a grand loop total, a
- * per-slot breakdown, the raw lines for the damage popover, and the resonators built along the
- * way for the gear popover — no `buildReport()`, which is most of what a full `TeamRun` costs
- * (see `optimize.ts`'s own header). `members` carries whichever weapon `optimizeTeam` found best
- * per slot, so a click-through re-runs the *optimized* build, not the file's own hardcoded one.
- */
-interface FastTeamRun {
   members: Member[];
   total: number;
   bySlot: Map<string, number>;
-  lines: ChainGroup[];
-  resonators: Map<string, Resonator>;
-  changes: { name: string; weapon: string }[];
 }
 
-async function runTeam(members: Member[]): Promise<TeamRun> {
-  // the same flat resistance seeded onto every element, until a fight wants them to differ
-  const enemy = new Enemy({
-    level: ENEMY_LEVEL,
-    baseRes: Object.fromEntries(ELEMENTS.map((e) => [e, DEFAULT_RES])),
-    maxOfftune: MAX_OFFTUNE,
+const toLine = (snap: ResolvedSnapshot): ChainGroup =>
+  ({ id: snap.action.id, isChain: false, parts: [], snap, mv: mvPercent(snap), avg: damage(snap).avg });
+
+function runTeam(members: Member[]): TeamRun {
+  const state = new State(members.map((m) => m.name));
+  members.forEach((m, i) => {
+    state.active = i;
+    withTeam(state, () => { for (const g of m.loadout) equip(g, 1); });
   });
-  const state = new State({
-    team: members.map((m) => m.name),
-    enemy,
-    // the engine's own standing rules, ahead of anything a build equips
-    buffs: [AUTO_TUNE_BREAK],
-  });
-  state.startFight(Object.fromEntries(members.map((m) => [m.name, m.loadout])));
+  state.active = 0;
 
   // Every member's opener runs first, in team order, then every member's loop — matching how a
   // real run actually goes: the whole team gets set up before anyone starts repeating.
-  const runPart = (rotation: RotationEntry[]) => {
-    if (!rotation.length) return [];
-    const rows = state.run(rotation)
-      .map((s) => ({ snap: attributeMisc(s), dmg: damage(s) }));
-    return collapseChains(rows);
-  };
+  const runPart = (rotation: Action[]): ChainGroup[] =>
+    rotation.length ? run(state, rotation).map(toLine) : [];
   const openerLines = members.flatMap((m) => runPart(m.opener));
   const loopLines = members.flatMap((m) => runPart(m.loop));
+
+  const openerReport = buildReport(openerLines);
+  const loopReport = buildReport(loopLines);
 
   return {
     state,
     report: buildReport([...openerLines, ...loopLines]),
-    // separate reports just for the two totals rows — the opener and loop are each their own
-    // "one rotation each" figure, not halves of a single total
-    openerReport: buildReport(openerLines),
-    loopReport: buildReport(loopLines),
-    loopLines,
-    members,
-    resonators: new Map(state.slots.map((s) => [s.name, s.resonator!])),
+    openerReport, loopReport, loopLines, members,
+    // the comparison row and its hover breakdown both read the loop — the steady-state figure
+    // every build in this project is judged by, same convention src/test_team.ts uses
+    total: loopReport.total,
+    bySlot: totalsBySlot(loopReport),
   };
 }
 
@@ -333,27 +138,18 @@ const fmt = (v: number | string | null | undefined, digits = 0): string =>
  * a sticky column's offset is the character widths to its left, scaled by the CSS --cw.
  */
 const colWidth = (c: Column, i: number): string => {
-  // Two fonts, two per-character widths. The numeric columns are monospace, where --cw is exact;
-  // the action column is set in the proportional UI font, whose average character is a good deal
-  // narrower — sizing it with --cw is what left a gap in front of the first number.
-  const per = c.align === "left" ? "var(--cwt)" : "var(--cw)";
-  const base = `${per} * ${c.width} + var(--cpad)`;
-  // The first column carries an extra lead-in so the action name is not flush against the
-  // table edge. It has to be in the track width as well as the cell padding, or the grid
-  // and the sticky offsets stop agreeing on where the column ends.
+  const base = `var(--cw) * ${c.width} + var(--cpad)`;
   return i === 0 ? `calc(${base} + var(--lead))` : `calc(${base})`;
 };
 
 function cell(columns: Column[], index: number, { cls = [], html = "", style = "" }: { cls?: string[]; html?: string; style?: string }): string {
   const col = columns[index]!;
   const stick = index < STICK;
-  // A sticky column's offset is everything to its left, which has to be summed in the same two
-  // units colWidth() lays those tracks out in — plus the lead-in they carry, or the frozen
-  // columns drift against the rest of the row as it scrolls.
   const before = columns.slice(0, index);
-  const span = (want: boolean) => before.filter((c) => (c.align === "left") === want)
-    .reduce((n, c) => n + (c.width ?? 0), 0);
-  const left = `calc(var(--cwt) * ${span(true)} + var(--cw) * ${span(false)}`
+  // one per-character metric for every column (see index.css's own --cw), so this offset is
+  // computed exactly the way the grid tracks colWidth() emits are
+  const span = before.reduce((n, c) => n + (c.width ?? 0), 0);
+  const left = `calc(var(--cw) * ${span}`
     + ` + var(--cpad) * ${before.length}`
     + `${before.length ? " + var(--lead)" : ""})`;
   const classes = [
@@ -361,28 +157,16 @@ function cell(columns: Column[], index: number, { cls = [], html = "", style = "
     col.align === "left" ? "" : "num",
     ...cls,
     stick ? "stick" : "",
-    stick && index === STICK - 1 ? "seam" : "",
   ].filter(Boolean).join(" ");
   const styleAttr = [stick ? `left:${left}` : "", style].filter(Boolean).join(";");
   return `<span class="${classes}"${styleAttr ? ` style="${styleAttr}"` : ""}>${html}</span>`;
 }
 
-/**
- * Every source that fed one value, revealed on hover.
- *
- * A row is marked with a % when its own stat is a ratio, which is decided per row rather than
- * per column: attack is fed by base attack in points and by attack bonus in percent, and 12
- * points of attack and 12% of it are not remotely the same claim. The total takes the
- * column's own unit — attack totals a flat number however much of it arrived as a percentage.
- */
+/** Every source that fed one value, revealed on hover. */
 const unit = (r: TraceEntry): string => ((r.percent ?? (r.stat ? isPercent(r.stat) : false)) ? "%" : "");
 
-/** How a scaling reads in the motion-value panel's total: `738.33% ATK`. */
 const SCALING_LABEL: Record<string, string> = { atk: "ATK", hp: "HP", def: "DEF", dot: "Dot", tune: "Tune" };
 
-/** Headings run in the order the fold applies them: `base x (1 + bonus%) + flat`. `key` is the
- *  section's own full label ("Base ATK", "Bonus HP", ...) — only its leading word decides the
- *  rank, so this reads the same for every stat the sections cover. */
 const SECTION_ORDER = ["base", "bonus", "flat"];
 const SECTION_RANK = (key: string | null): number => {
   if (key === null) return -1;
@@ -391,17 +175,7 @@ const SECTION_RANK = (key: string | null): number => {
   return i === -1 ? SECTION_ORDER.length + 1 : i;
 };
 
-/**
- * One row of a panel. A row either names a stat — and takes that stat's own unit — or carries
- * its own `label`, which is how the formula terms and the derived factors get in. `mult` marks
- * a value that is a multiplier rather than an amount, so it reads `x1.24` and not `1.24`.
- */
 const panelRow = (r: TraceEntry, slotHue: Map<string, string>, { noSource = false }: { noSource?: boolean } = {}): string => {
-  // the same left bar the member column carries, colored by whoever granted this row rather
-  // than whoever's turn it is — a global buff still bars in its original owner's colour.
-  // `owner` is only ever set on rows traced back from an actual StatEntry — a derived row built
-  // by hand here in display.ts (the Relative row, a factor row, ...) leaves it undefined, which
-  // is how those opt out of the bar rather than all landing on the ownerless MISC_HUE.
   const own = r.owner !== undefined ? (slotHue.get(r.owner ?? "") ?? MISC_HUE) : null;
   return `<tr>${noSource ? "" : `<td class="s"${own ? ` style="--own:${own}"` : ""}>${esc(r.source)}</td>`}`
   + `<td class="k">${esc(r.label ?? (r.stat ? statLabel(r.stat) : ""))}</td>`
@@ -409,31 +183,15 @@ const panelRow = (r: TraceEntry, slotHue: Map<string, string>, { noSource = fals
   + `</tr>`;
 };
 
-/**
- * `suffix` is appended after the total's own value — the motion value names what it scales off.
- *
- * Rows carrying a `section` are grouped under a heading with their own subtotal, which is what
- * makes an attack panel legible: base, bonus and flat do not sum to the total, they fold into
- * it as `base x (1 + bonus%) + flat`, and separating them shows that rather than hiding it.
- */
 function popover(col: Column, rows: TraceEntry[] | undefined, total: number | string | null | undefined, slotHue: Map<string, string>, suffix = ""): string {
   if (!rows?.length) return "";
-
-  // The avg column's own panel is a flat list of formula terms whose labels already say what
-  // they are ("Motion Value", "Damage Bonus", ...) — a source column would only repeat that,
-  // so it drops the column entirely rather than leave it echoing the label next to it.
   const noSource = col.key === "avg";
   const row = (r: TraceEntry) => panelRow(r, slotHue, { noSource });
 
-  // A row may sit outside the sections entirely: just above the total (a derived figure the
-  // sections lead to) or just below it (what the total then becomes).
   const before = rows.filter((r) => r.place === "beforeTotal");
   const after = rows.filter((r) => r.place === "afterTotal");
   const listed = rows.filter((r) => !r.place);
 
-  // Gather every row of a section together rather than by run: the traced rows arrive in the
-  // order the buffs contributed them, so base/bonus/flat interleave by source and grouping
-  // consecutive ones would split each heading into several fragments with partial subtotals.
   const bySection = new Map<string | null, TraceEntry[]>();
   for (const r of listed) {
     const key = r.section ?? null;
@@ -446,9 +204,6 @@ function popover(col: Column, rows: TraceEntry[] | undefined, total: number | st
 
   const body = sections.map(({ key, rows: group }) => {
     const head = key ? `<tr class="sec"><td colspan="3">${esc(key)}</td></tr>` : "";
-    // The heading right above already says which group this is ("BASE", "BONUS", "FLAT"), so
-    // the subtotal only has to say "Total" — in the label column, lining it up with every other
-    // row's own label rather than restating the stat name across both columns.
     const sub = key
       ? `<tr class="sub">${noSource ? "" : `<td class="s"></td>`}<td class="k">Total</td>`
         + `<td class="v">`
@@ -463,45 +218,70 @@ function popover(col: Column, rows: TraceEntry[] | undefined, total: number | st
     + `</tr>${after.map(row).join("")}</table></span>`;
 }
 
-/** The hover on an action's own name: what it scales off, its element, its damage type — one
- *  word a row, in the same `<span class="pop"><table>` shell every other panel uses (see
- *  `popover()` above), just without a total to sum to. */
-function infoPopover(info: string[] | undefined): string {
+function infoPopover(info: InfoEntry[] | undefined): string {
   if (!info?.length) return "";
-  const rows = info.map((t) => `<tr><td colspan="3">${esc(t)}</td></tr>`).join("");
+  const rows = info.map((e) => `<tr><td class="k">${esc(e.label)}</td><td class="v">${esc(e.value)}</td></tr>`).join("");
   return `<span class="pop info"><table>${rows}</table></span>`;
+}
+
+/** The hover on a resonator's own name, in the rotation table: every buff actually held once
+ *  this action resolved — local (this member's own), global (team-wide), and enemy (debuffs on
+ *  the target) kept in their own sections, since that's a real distinction (kit.ts's own
+ *  `heldLocal`/`heldGlobal`/`heldEnemy`), not just a formatting choice. Buffs only: equipped gear
+ *  is filtered out engine-side (see kit.ts's own `TeamMember.equipped`) and named by the loadout
+ *  popover instead.
+ *
+ *  Sorted and coloured by source — whose kit each buff came from, tracked by the engine as it's
+ *  granted (`State.sourceOf`) rather than guessed from the buff's own name, so a buff one kit
+ *  puts up on another member (or on the enemy) still groups under the kit that granted it. Team
+ *  order first (the order `slotHue` lists them, which is the order they act), then alphabetical
+ *  within a source.
+ *
+ *  Gear gets its own section above all three — equipped gear has no "source" the way a buff does
+ *  (it isn't granted by anything, it's just worn), so every row there is coloured this member's
+ *  own hue rather than looked up per row. */
+function buffsPopover(member: string, gear: Gear[], local: HeldBuff[], global: HeldBuff[], enemy: HeldBuff[], slotHue: Map<string, string>): string {
+  // Gear section disabled for now (its own code below kept, not deleted) — flip GEAR_SECTION_ENABLED
+  // back on when it's ready to ship again.
+  const showGear = GEAR_SECTION_ENABLED && gear.length > 0;
+  if (!showGear && !local.length && !global.length && !enemy.length) return "";
+  const order = [...slotHue.keys()];
+  const rank = (b: HeldBuff) => { const i = order.indexOf(b.source); return i === -1 ? order.length : i; };
+  const sorted = (buffs: HeldBuff[]) => [...buffs]
+    .sort((a, b) => rank(a) - rank(b) || a.source.localeCompare(b.source) || a.name.localeCompare(b.name));
+
+  // the name goes in the `.s` cell — the same left-aligned, full-strength, colour-barred column
+  // every stat panel puts its own source in, rather than the right-aligned `.v` value column
+  const row = (name: string, hue: string) => `<tr><td class="s" style="--own:${hue}">${esc(name)}</td></tr>`;
+  const own = slotHue.get(member) ?? FALLBACK_HUE;
+  const gearSection = showGear
+    ? `<tr class="sec"><td>Gear</td></tr>` + gear.map((g) => row(g.name, own)).join("")
+    : "";
+  const section = (heading: string, buffs: HeldBuff[]) => (buffs.length
+    ? `<tr class="sec"><td>${esc(heading)}</td></tr>`
+      + sorted(buffs).map((b) => row(b.name, slotHue.get(b.source) ?? MISC_HUE)).join("")
+    : "");
+  return `<span class="pop buffs"><table>`
+    + `${gearSection}${section("Local buffs", local)}${section("Global buffs", global)}${section("Enemy debuffs", enemy)}</table></span>`;
 }
 
 /* -------------------------------------------------------------- comparison table */
 
-/**
- * Sum one slot's own loop damage, grouped by whatever tag `keyOf` reads off each hit's own
- * action — the type1/type2/node breakdown popups below all share this. Reads every chain's own
- * parts individually (not the collapsed row), so each part attributes under its own tag rather
- * than the whole chain filing under whichever part happened to hit hardest. `keyOf` returning
- * `null` drops that hit from the map entirely — how the type2 breakdown leaves an untagged hit
- * out rather than filing it under a fake bucket; the node breakdown instead maps a missing node
- * to the literal string `"None"`, so it stays in.
- */
+/** Sum one slot's own loop damage, grouped by whatever tag `keyOf` reads off each hit's own
+ *  action. Every line here is a single action (this engine has no chain concept — see kit.ts's
+ *  own `ChainGroup`), so it reads `line.snap` directly rather than iterating `parts`. */
 function sumByTag(lines: ChainGroup[], slot: string, keyOf: (a: Action) => string | null): Map<string, number> {
   const by = new Map<string, number>();
   for (const line of lines) {
-    for (const part of line.parts) {
-      const snap = part.snap as ResolvedSnapshot;
-      if (snap.slot !== slot) continue;
-      const key = keyOf(snap.action);
-      if (key == null) continue;
-      by.set(key, (by.get(key) ?? 0) + part.dmg.avg);
-    }
+    const snap = line.snap;
+    if (snap.slot !== slot) continue;
+    const key = keyOf(snap.action);
+    if (key == null) continue;
+    by.set(key, (by.get(key) ?? 0) + line.avg);
   }
   return by;
 }
 
-/** One section of a breakdown popover — a heading, one row a bucket (biggest first), each with
- *  its own share of the slot's own total. Empty string when `by` is empty, so a member with no
- *  type2 tag anywhere in their kit just doesn't get that section at all, per the standing "don't
- *  show an empty section" rule. No per-section subtotal — the popover's own single total (at the
- *  bottom, see `damagePopover`) is the only sum shown. */
 function breakdownSection(heading: string, by: Map<string, number>, total: number): string {
   if (!by.size) return "";
   const rows = [...by].sort((a, b) => b[1] - a[1]);
@@ -513,47 +293,44 @@ function breakdownSection(heading: string, by: Map<string, number>, total: numbe
   return `<tr class="sec"><td colspan="2">${esc(heading)}</td></tr>${body}`;
 }
 
-/** The hover on a member's (or Misc's) own loop-damage cell: damage type, then — only if
- *  anything in this rotation actually carries one — type2, then — members only, never Misc —
- *  node, ending in what share of the loop's own grand total this one slot is responsible for. */
-function damagePopover(
-  lines: ChainGroup[], slot: string, total: number, grandTotal: number, { withNode }: { withNode: boolean },
-): string {
-  const body = breakdownSection("Type", sumByTag(lines, slot, (a) => a.type), total)
-    + breakdownSection("Type 2", sumByTag(lines, slot, (a) => a.type2), total)
-    + (withNode ? breakdownSection("Node", sumByTag(lines, slot, (a) => a.node ?? "None"), total) : "");
+function damagePopover(lines: ChainGroup[], slot: string, total: number, grandTotal: number): string {
+  const body = breakdownSection("Node", sumByTag(lines, slot, (a) => a.node), total)
+    + breakdownSection("Type", sumByTag(lines, slot, (a) => a.type), total)
+    + breakdownSection("Type 2", sumByTag(lines, slot, (a) => a.type2), total);
   const pct = grandTotal ? Math.round((total / grandTotal) * 100) : 0;
   return `<span class="pop breakdown"><table>${body}`
     + `<tr class="sum"><td class="k">Total</td><td class="v">${fmt(total)} <span class="pct">(${pct}% of team)</span></td></tr>`
     + `</table></span>`;
 }
 
-/** The hover on a member's own name: everything their build equips, one line a piece. Mode and
- *  sequences are only shown when the build actually carries one — most don't. */
-function gearPopover(resonator: Resonator): string {
-  const { loadout, mode, sequences } = resonator;
-  const rows: Array<[string, string]> = [
-    ["Weapon", loadout.weapon.name],
-    ["Mainslot", loadout.mainslot.name],
-    ["Sonata", loadout.sonata.name],
-    ["2pc", loadout.pc2.name],
-    ["Main Stats", loadout.mainstat.name],
-    ["Substats", loadout.substat.name],
-  ];
-  if (mode) rows.push(["Mode", mode.name]);
-  if (sequences.length) rows.push(["Sequences", sequences.map((s) => s.name).join(", ")]);
+/** A member's own equipped gear: weapon, mainslot echo, sonata pieces, mainstat/substat rolls —
+ *  everything but the resonator itself and its talents buff, which aren't "equipped gear" in the
+ *  sense either popover below is showing. Shared so the comparison table's own gear popover and
+ *  the rotation table's resonator popover (its own "Gear" section) read off the same list. */
+function equippedGear(member: Member): Gear[] {
+  return member.loadout.filter((g) => !(g instanceof Resonator) && g.name !== `${member.name}: Talents`);
+}
 
-  const body = rows.map(([k, v]) => `<tr><td class="k">${esc(k)}</td><td class="v">${esc(v)}</td></tr>`).join("");
+// every loadout array is built in this exact order (see any resonator file's own LOADOUT
+// export) — equippedGear() strips the leading Resonator/Talents pair, leaving these six in
+// the order they were declared, so a plain positional label is all this needs
+const GEAR_LABELS = ["Weapon", "Mainslot", "Sonata", "2pc", "Mainstats", "Substats"];
+
+/** The hover on a member's own name, in the comparison table: every piece of gear their loadout
+ *  equips, each labelled by slot. `.k`/`.v` reused wholesale from the stat-trace panels (see
+ *  index.css's own note by `.pop.gear`) — the label column's gray already matches those, and the
+ *  browser's own table layout sizes both columns to their own longest cell with no extra CSS. */
+function gearPopover(member: Member): string {
+  const body = equippedGear(member)
+    .map((g, i) => `<tr><td class="k">${esc(GEAR_LABELS[i] ?? "")}</td><td class="v">${esc(g.name)}</td></tr>`)
+    .join("");
   return `<span class="pop gear"><table>${body}</table></span>`;
 }
 
-/** The two filter dropdowns above the comparison table — a resonator to require somewhere on
- *  the team, and a ceiling on the highest sequence any one member's build equips (a build's own
- *  sequence level is just how many sequence pieces its `Resonator.sequences` carries — every
- *  kit that has any equips them contiguously S1..Sn, never a gap). Defaults to S0, so a sequence
- *  build doesn't show up until asked for. Wired once in `boot()`, not re-wired per render — see
- *  `applyFilters`. */
-function comparisonFilters(results: Map<string, FastTeamRun>): string {
+/** The two filter dropdowns above the comparison table. With one team and no sequence system
+ *  (this project never implements S1-S6 — every build is sequence 0), the sequence filter is
+ *  kept for visual parity with the old page but is always a no-op: every row is S0. */
+function comparisonFilters(results: Map<string, TeamRun>): string {
   const names = new Set<string>();
   for (const run of results.values()) for (const m of run.members) names.add(m.name);
   const resonatorOptions = [`<option value="">All resonators</option>`]
@@ -567,40 +344,23 @@ function comparisonFilters(results: Map<string, FastTeamRun>): string {
   </div>`;
 }
 
-/**
- * The new landing page: every team, one row each — its three members, their own loop damage,
- * Misc's, and the grand loop total. Member names and damage cells both carry a `.pop` (gear and
- * breakdown respectively, wired up by the same `wireSourcePanels` the detail view's own hover
- * panels use — see the mount section). Only the last column is a link: the small arrow marker
- * and the total itself both navigate to that team's full rotation/event-log page.
- */
-function comparisonTable(results: Map<string, FastTeamRun>): string {
+function comparisonTable(results: Map<string, TeamRun>): string {
   const sorted = [...results].sort((a, b) => b[1].total - a[1].total);
   const rows = sorted.map(([key, run]) => {
-    const totals = run.bySlot;
     const grand = run.total;
     const memberNames = run.members.map((m) => m.name).join("|");
-    // an always-unlocked resonator's own sequences don't count against the filter's ceiling —
-    // see Resonator.alwaysUnlocked
-    const maxSeq = Math.max(0, ...run.members.map((m) => {
-      const r = run.resonators.get(m.name);
-      return r && !r.alwaysUnlocked ? r.sequences.length : 0;
-    }));
 
-    const memberCell = (m: Member) => {
-      const resonator = run.resonators.get(m.name);
-      return `<div class="c name" style="--mem:${m.color};color:${m.color}">${esc(m.name)}`
-        + `${resonator ? gearPopover(resonator) : ""}</div>`;
-    };
-    const dmgCell = (slot: string, withNode: boolean) => {
-      const total = totals.get(slot) ?? 0;
-      return `<div class="c num has">${fmt(total)}${damagePopover(run.lines, slot, total, grand, { withNode })}</div>`;
+    const memberCell = (m: Member) =>
+      `<div class="c name" style="--mem:${m.color};color:${m.color}">${esc(m.name)}${gearPopover(m)}</div>`;
+    const dmgCell = (slot: string) => {
+      const total = run.bySlot.get(slot) ?? 0;
+      return `<div class="c num has">${fmt(total)}${damagePopover(run.loopLines, slot, total, grand)}</div>`;
     };
 
-    return `<div class="trow" data-team="${esc(key)}" data-members="${esc(memberNames)}" data-maxseq="${maxSeq}">`
+    return `<div class="trow" data-team="${esc(key)}" data-members="${esc(memberNames)}" data-maxseq="0">`
       + run.members.map(memberCell).join("")
-      + run.members.map((m) => dmgCell(m.name, true)).join("")
-      + dmgCell(MISC, false)
+      + run.members.map((m) => dmgCell(m.name)).join("")
+      + dmgCell(MISC)
       + `<div class="c num total gotodetail" data-team="${esc(key)}">${fmt(grand)}<span class="arrow">›</span></div>`
       + `</div>`;
   }).join("");
@@ -614,9 +374,6 @@ function comparisonTable(results: Map<string, FastTeamRun>): string {
   return `<main>${comparisonFilters(results)}<div class="tcwrap"><div class="tgrid">${head}${rows}</div></div></main>`;
 }
 
-/** Hide a team's row unless it holds the selected resonator (blank = anyone) and every member's
- *  own sequence level is at or below the selected ceiling. A no-op away from the comparison
- *  page, where neither `<select>` exists. */
 function applyFilters(): void {
   const resonatorSel = document.getElementById("resonatorFilter") as HTMLSelectElement | null;
   const seqSel = document.getElementById("seqFilter") as HTMLSelectElement | null;
@@ -632,42 +389,34 @@ function applyFilters(): void {
 
 /* --------------------------------------------------------------------- table */
 
-/**
- * One row of the table. A chain's members go through this too, so a part carries the same
- * values and the same hover traces as a lone action does — `part` only changes how the action
- * cell reads: indented and tagged with its damage type, rather than carrying the expand caret.
- */
-function stepRow(columns: Column[], row: ReportRow | ReportPart, slotHue: Map<string, string>, { part = false }: { part?: boolean } = {}): string {
+function stepRow(
+  columns: Column[], row: ReportRow | ReportPart, slotHue: Map<string, string>, gearByMember: Map<string, Gear[]>,
+  { part = false }: { part?: boolean } = {},
+): string {
   return columns.map((col, i) => {
     const v = row.raw[col.key];
     const sources = row.sources[col.key];
     const cls: string[] = [];
-    if (col.key === "action") {
-      cls.push(part ? "name" : "action");
-    }
+    if (col.key === "action") cls.push(part ? "name" : "action");
     if (col.key === "avg") cls.push("avg");
     if (col.key === "member") cls.push("member");
 
-    // a ratio column carries its unit on the value, so a row reads as the game writes it
     const text = esc(fmt(v, col.digits ?? 0)) + (col.percent && typeof v === "number" ? "%" : "");
-    // The dotted underline (`.has`) means "this cell has extra info on hover" — informative on
-    // a value cell, where it is sometimes true. Every action name carries a popover, so the
-    // same treatment there is never informative and reads as a stray line under every row.
     let html = sources ? `<span class="has">${text}</span>` : text;
-    // a chain gets a caret, since its row is the thing you click to see the parts — only a full
-    // ReportRow (never a chain's own part) carries a `parts` list to expand
     if (col.key === "action" && !part && "parts" in row && row.parts.length) {
       html = `${html}<span class="caret">▸</span>`;
     }
-    // only the motion value names its unit: it is the one number multiplying a stat
     const suffix = col.key === "mv" && row.scaling
       ? ` ${SCALING_LABEL[row.scaling] ?? row.scaling}` : "";
-    html += col.key === "action" ? infoPopover("info" in row ? row.info : undefined) : popover(col, sources, v, slotHue, suffix);
+    if (col.key === "action") {
+      html += infoPopover("info" in row ? row.info : undefined);
+    } else if (col.key === "member" && "line" in row) {
+      const gear = gearByMember.get(row.line.snap.member) ?? [];
+      html += buffsPopover(row.line.snap.member, gear, row.line.snap.heldLocal, row.line.snap.heldGlobal, row.line.snap.heldEnemy, slotHue);
+    } else {
+      html += popover(col, sources, v, slotHue, suffix);
+    }
 
-    // the member column carries its own full-strength color, independent of the row's own
-    // (much fainter) action-based tint — so who acted still reads clearly on a white/green row
-    // The member column is its own colour system end to end — text, left bar and background
-    // wash all come from the member, never from the action the rest of the row is tinted by.
     const mem = slotHue.get(String(v)) ?? FALLBACK_HUE;
     const style = col.key === "member" ? `--mem:${mem};color:${mem}` : "";
 
@@ -675,29 +424,18 @@ function stepRow(columns: Column[], row: ReportRow | ReportPart, slotHue: Map<st
   }).join("");
 }
 
-/** A chain's members, one full row each. */
-function partRows(columns: Column[], parts: ReportPart[], slotHue: Map<string, string>): string {
+function partRows(columns: Column[], parts: ReportPart[], slotHue: Map<string, string>, gearByMember: Map<string, Gear[]>): string {
   return parts
-    .map((p) => `<div class="r${p.short ? " short" : ""}">${stepRow(columns, p, slotHue, { part: true })}</div>`)
+    .map((p) => `<div class="r${p.short ? " short" : ""}">${stepRow(columns, p, slotHue, gearByMember, { part: true })}</div>`)
     .join("");
 }
 
-/**
- * The whole team's rotation as one table, in the order they act.
- *
- * A chain's parts are collapsed behind its own row — a hidden checkbox and a label, so clicking
- * anywhere on the row opens it and no script is needed to keep that state. Actions don't carry
- * their own colour any more (see kit.js), so a row's wash is whoever acted's own colour instead
- * — the same lookup the member cell itself uses, just at the row wash's own lower opacity (see
- * the CSS), so the member cell reads strongest and the rest of the row carries a fainter version
- * of the same hue "all the way across". A tune break gets the same neutral white override, as
- * does an action *also* counted as performing the mainslot's Echo Skill (`cast2`, see kit.js) —
- * that's an incidental extra on top of whichever button it really is, not a turn of its own, so
- * it doesn't belong to any one kit either. A dedicated echo-cast action (`cast: ECHO`, a rotation
- * author placing the mainslot as its own turn) is a deliberate action like any other and keeps
- * the acting member's own colour.
- */
-function rotationTable(report: Report, slotHue: Map<string, string>): string {
+/** The whole team's rotation as one table, in the order they act. A row's own wash is whoever
+ *  acted's colour, always — an echo-cast row (the rotation marker standing in for whichever
+ *  mainslot echo is equipped, see kit.ts's own `run()`) still belongs to whoever's turn it was
+ *  and is still shown at full strength here; only its dimmed/short treatment marks it as not a
+ *  kit's own button press (`triggered`, from `run()`). */
+function rotationTable(report: Report, slotHue: Map<string, string>, gearByMember: Map<string, Gear[]>): string {
   const columns = report.columns;
   const cols = columns.map((c, i) => colWidth(c, i)).join(" ");
 
@@ -706,11 +444,10 @@ function rotationTable(report: Report, slotHue: Map<string, string>): string {
     .join("");
 
   const steps = report.rows.map((row, i) => {
-    const snap = row.line.snap as ResolvedSnapshot;
-    const isNeutral = snap.action === TUNE_BREAK_CAST || snap.action.cast2 === Cast.Echo;
-    const hue = isNeutral ? TUNE_BREAK_COLOR : (slotHue.get(snap.member) ?? FALLBACK_HUE);
+    const snap = row.line.snap;
+    const hue = slotHue.get(snap.member) ?? FALLBACK_HUE;
     const style = ` style="--m:${hue}"`;
-    const cells = stepRow(columns, row, slotHue);
+    const cells = stepRow(columns, row, slotHue, gearByMember);
     const shortCls = row.short ? " short" : "";
     if (!row.parts.length) {
       return `<div class="step"${style}><div class="r${shortCls}">${cells}</div></div>`;
@@ -719,7 +456,7 @@ function rotationTable(report: Report, slotHue: Map<string, string>): string {
     return `<div class="step chain"${style}>`
       + `<input class="tgl" type="checkbox" id="${id}">`
       + `<label class="r${shortCls}" for="${id}">${cells}</label>`
-      + `<div class="parts">${partRows(columns, row.parts, slotHue)}</div>`
+      + `<div class="parts">${partRows(columns, row.parts, slotHue, gearByMember)}</div>`
       + `</div>`;
   }).join("");
 
@@ -736,17 +473,6 @@ function rotationTable(report: Report, slotHue: Map<string, string>): string {
 
 /* ----------------------------------------------------------------- page pieces */
 
-/** Buffs granted, adopted, lost, published to the outro queue. Each line already names the
- *  action that caused it, so it reads as a trace rather than a list of resonators. */
-function eventLog(log: string[]): string {
-  if (!log.length) return "";
-  return `<div class="eventlog"><h2>Event log</h2>`
-    + `<ol>${log.map((l) => `<li>${esc(l)}</li>`).join("")}</ol></div>`;
-}
-
-/** The five totals — one card a member, one grand total. Sits below the table now, so it reads
- *  as a summary of what was just scrolled through rather than a header claiming the answer
- *  before the rotation that produced it. */
 function summaryCards(label: string, report: Report, slotHue: Map<string, string>): string {
   const totals = totalsBySlot(report);
   const cards = [...totals].map(([name, total]) =>
@@ -767,19 +493,16 @@ function summaryCards(label: string, report: Report, slotHue: Map<string, string
   </div>`;
 }
 
-function page({ state, report, openerReport, loopReport, members }: {
+function page({ report, openerReport, loopReport, members }: {
   state: State; report: Report; openerReport: Report; loopReport: Report; members: Member[];
 }): string {
-  // one member's own color each, plus Misc's fixed one — keyed by slot name for the summary
-  // cards and the rotation table's own "member" column (the row-wide tint uses the action's
-  // own color instead, read straight off each row).
   const slotHue = new Map([...members.map((m): [string, string] => [m.name, m.color]), [MISC, MISC_HUE]]);
+  const gearByMember = new Map(members.map((m): [string, Gear[]] => [m.name, equippedGear(m)]));
 
   return `<main>
-  ${rotationTable(report, slotHue)}
+  ${rotationTable(report, slotHue, gearByMember)}
   ${summaryCards("opener", openerReport, slotHue)}
   ${summaryCards("loop", loopReport, slotHue)}
-  ${eventLog(state.log)}
 </main>`;
 }
 
@@ -802,35 +525,14 @@ function errorPage(err: unknown): string {
 
 /* ------------------------------------------------------------- source panels */
 
-/**
- * Show the panel listing every buff that fed a value, when its cell is hovered.
- *
- * The panel is `position: fixed` (see index.css for why it has to be), so the only thing left
- * is to give it coordinates: under its cell, right edges aligned, flipped above instead when
- * there is no room below and pulled back inside the window when there is none to the side.
- *
- * One column is sticky (`.c.stick`, the action column — see index.css), and a sticky element
- * sets its own `z-index` so it can paint over the rest of its own row scrolling underneath it.
- * That gives it a stacking context of its own, which traps any `z-index` a descendant sets
- * too: a panel living inside it never actually competes at `z-index: 200` against the *rest of
- * the page* — only against its sticky ancestor's other content, at whatever level *that*
- * ancestor got. A later row's own sticky cell — same z-index, later in DOM order — ends up
- * painted on top of an earlier row's "open" panel despite its higher number. `place()` below
- * moves the panel to be a direct child of `<body>` while it is shown, which escapes the trap
- * entirely: from the root stacking context, its own z-index finally means what it says.
- */
+/** Show the panel listing every buff that fed a value, when its cell is hovered. Pure DOM
+ *  wiring — no engine dependency, so this is unchanged from the old page. */
 function wireSourcePanels(root: HTMLElement): void {
   const GAP = 4, EDGE = 6;
   let open: HTMLElement | null = null;
-  /** Where an open panel actually lives — its cell, before `place()` moves it to `<body>`. Put
-   *  back there on close, so the plain in-cell lookup works again for its next hover. */
   let openHome: Element | null = null;
-  /** While pinned, hovering elsewhere leaves the panel alone; only a click outside closes it. */
   let pinned = false;
 
-  // A panel from a previous render may still be sitting directly in <body> if the team was
-  // switched away while it was open — the cell it was moved out of no longer exists to reclaim
-  // it, and this function's own `open`/`openHome` are fresh on every call, so nothing else would.
   document.body.querySelectorAll(":scope > .pop").forEach((el) => el.remove());
 
   const close = (): void => {
@@ -846,13 +548,27 @@ function wireSourcePanels(root: HTMLElement): void {
 
   const place = (cell: Element, pop: HTMLElement): void => {
     if (pop.parentElement !== document.body) document.body.appendChild(pop);
-    // measure it where it will be shown, but before it can be seen
     pop.style.visibility = "hidden";
     pop.style.display = "block";
     const c = cell.getBoundingClientRect();
     const p = pop.getBoundingClientRect();
 
-    const left = Math.max(EDGE, Math.min(c.right - p.width, innerWidth - p.width - EDGE));
+    // A right-aligned (`.num`) cell's own text sits flush against its right edge, so anchoring
+    // the panel's right edge there lines it up under what you're actually pointing at. A
+    // left-aligned cell (action, member, team name) is the opposite — its text starts at the
+    // cell's own left edge, often well short of the cell's right edge once a column is wide
+    // (action's own track is sized for its longest name, not this one) — anchoring off the right
+    // edge there floated the panel away from the text itself. Anchor off whichever edge the text
+    // actually sits on.
+    const rightAligned = cell.classList.contains("num");
+    const natural = rightAligned ? c.right - p.width : c.left;
+    // Clamped to the table's own box, not just the viewport — `EDGE` alone let a panel opened on
+    // a narrow leftmost column (the member column) bleed out past the table's own left edge and
+    // into the page's margin, since a viewport-relative clamp has no idea where the table itself
+    // starts.
+    const tableLeft = (cell.closest(".gridwrap, .tcwrap")?.getBoundingClientRect().left ?? EDGE);
+    const minLeft = Math.max(EDGE, tableLeft);
+    const left = Math.max(minLeft, Math.min(natural, innerWidth - p.width - EDGE));
     const below = c.bottom + GAP;
     const top = below + p.height > innerHeight - EDGE
       ? Math.max(EDGE, c.top - p.height - GAP)
@@ -868,25 +584,19 @@ function wireSourcePanels(root: HTMLElement): void {
   const panelIn = (target: EventTarget | null): { cell: Element | null; pop: HTMLElement | null } => {
     const cell = (target as Element | null)?.closest?.(".c") ?? null;
     if (!cell) return { cell: null, pop: null };
-    // The open panel may already have been moved out to <body> by `place()`, so it is no
-    // longer reachable as a child of its own cell — check the remembered home first. A cell
-    // whose panel has never opened still finds it the plain way.
     const pop = (open && openHome === cell) ? open : cell.querySelector<HTMLElement>(":scope > .pop");
     return { cell, pop };
   };
 
-  // Listens on the document rather than just the table: an open panel now lives in <body> once
-  // shown (see above), somewhere the table's own listeners would never see it hovered.
   document.addEventListener("mouseover", (e) => {
     if (pinned) return;
-    if (open && open.contains(e.target as Node)) return;   // hovering the open panel itself
+    if (open && open.contains(e.target as Node)) return;
     const { cell, pop } = panelIn(e.target);
     if (pop === open) return;
     close();
     if (pop) place(cell!, pop);
   });
 
-  // leaving the table entirely, and any scroll — a fixed panel does not follow its cell
   document.addEventListener("mouseout", (e) => {
     if (pinned) return;
     const to = e.relatedTarget as Node | null;
@@ -894,23 +604,10 @@ function wireSourcePanels(root: HTMLElement): void {
     close();
   });
 
-  /**
-   * Click a cell to pin its panel open, so it can be read at leisure or its numbers selected.
-   * Clicking the same cell again unpins; clicking anywhere outside the open panel closes it.
-   *
-   * Chain rows are `<label>`s wrapping a checkbox, so a click on the *cell* would also toggle
-   * the expander — `preventDefault` there keeps pinning from doing both. A click already inside
-   * an open panel does not reach this far: an open panel lives in `<body>` (see `place()`), well
-   * outside any `<label>`, so the guard below is only for reading/selecting it, not for that.
-   */
   addEventListener("click", (e) => {
     if (open && open.contains(e.target as Node)) { e.preventDefault(); return; }
 
     const { cell, pop } = panelIn(e.target);
-    // A chain's own action cell carries the expand caret. Clicking it is how the row opens its
-    // parts — that has to win over pinning the element/type/scaling popover sitting on the same
-    // name, so this falls through to the label's own default behaviour instead of stealing the
-    // click the way every other popover-bearing cell does.
     if (cell?.querySelector(":scope > .caret")) { close(); return; }
     if (!pop || !root.contains(cell)) { close(); return; }
 
@@ -931,73 +628,61 @@ function wireSourcePanels(root: HTMLElement): void {
 const app = document.getElementById("app")!;
 const backLink = document.getElementById("backLink")!;
 
-/** `#team=<key>` names a detail page; anything else (including empty) is the comparison table. */
 const routeTeam = (): string | null => {
   const m = /^#team=(.+)$/.exec(location.hash);
   return m && TEAMS[m[1]!] ? m[1]! : null;
 };
 
-function renderComparison(results: Map<string, FastTeamRun>): void {
+function renderComparison(results: Map<string, TeamRun>): void {
   backLink.hidden = true;
   app.innerHTML = comparisonTable(results);
   app.className = "";
-  applyFilters();   // the default S0/"all resonators" selection still has to actually hide rows
+  applyFilters();
 }
 
-/** The full `TeamRun` (buildReport() and all) is the expensive ~7/8 of a team's own cost (see
- *  optimize.ts's own header) — deferred until a team is actually clicked into, and cached here
- *  so revisiting it (or hitting back then forward) is instant rather than re-running it. Keyed
- *  by the same team key the comparison table uses; `fast.members` already carries whichever
- *  weapon `optimizeTeam` found best per slot, so this renders that build, not the file's own
- *  hardcoded default. */
-async function renderDetail(
-  key: string, fastResults: Map<string, FastTeamRun>, detailCache: Map<string, TeamRun>,
-): Promise<void> {
-  let result = detailCache.get(key);
-  if (!result) {
-    result = await runTeam(fastResults.get(key)!.members);
-    detailCache.set(key, result);
-  }
+function renderDetail(key: string, results: Map<string, TeamRun>): void {
   backLink.hidden = false;
-  app.innerHTML = page(result);
+  app.innerHTML = page(results.get(key)!);
   app.className = "";
 }
 
-/**
- * Every team runs once, up front — the comparison table needs all of them at once anyway. This
- * is the numbers-only pass, though: `optimizeTeam` tries each resonator's own standard-weapon
- * alternatives alongside their current pick and settles on whichever build wins, but never
- * builds a full `TeamRun` (`buildReport()`, the expensive part) doing it — that's deferred to
- * `renderDetail`, on demand, for one team at a time.
+/** Wait for the browser to actually paint.
  *
- * Run one team at a time rather than `Promise.all`-ing them: this is CPU-bound start to finish,
- * so kicking them all off together would still run them back to back in one synchronous burst —
- * the browser never gets a chance to paint until every last one is done, and a progress count
- * stuck at "0/N" the whole time isn't one. The explicit frame-yield after each team is what
- * actually lets the count/bar update land on screen before the next team's own run blocks the
- * main thread again.
- */
+ *  Two frames, not one: inside a `requestAnimationFrame` callback the frame is still being built,
+ *  so resolving there would hand the thread straight back to a blocking team run and the width
+ *  set a moment ago would never reach the screen. The second callback only fires once the first
+ *  frame has been committed. A bare `setTimeout` can't promise that. */
+const paint = (): Promise<void> =>
+  new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+
+/** Every team runs once, up front. `runTeam()` is synchronous and blocks the main thread for its
+ *  whole run, so the progress bar can only move if this loop yields a frame between teams —
+ *  without that, every width assignment would be collapsed into one repaint after the last team
+ *  finished, which is the same as having no bar at all. The markup it drives is in index.html,
+ *  already on screen before this module even parsed; this fills it in rather than replacing it. */
 async function boot(): Promise<void> {
-  const teamEntries = Object.entries(TEAMS);
-  const total = teamEntries.length;
-  app.innerHTML = `<p>Running Teams...</p>`
-    + `<div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>`
-    + `<p class="progress-count" id="progressCount">0/${total}</p>`;
-  app.className = "loading";
+  const teams = Object.entries(TEAMS);
+  const status = document.querySelector<HTMLElement>(".status-text");
+  const fill = document.querySelector<HTMLElement>(".progress-fill");
+  const count = document.querySelector<HTMLElement>(".progress-count");
+  const progress = (done: number): void => {
+    if (fill) fill.style.width = `${(done / teams.length) * 100}%`;
+    if (count) count.textContent = `${done} / ${teams.length}`;
+  };
 
-  const fillEl = document.getElementById("progressFill")!;
-  const countEl = document.getElementById("progressCount")!;
-
-  let results: Map<string, FastTeamRun>;
+  const results = new Map<string, TeamRun>();
   try {
-    const entries: Array<[string, FastTeamRun]> = [];
-    for (const [key, members] of teamEntries) {
-      entries.push([key, optimizeTeam(members)]);
-      countEl.textContent = `${entries.length}/${total}`;
-      fillEl.style.width = `${(entries.length / total) * 100}%`;
-      await new Promise(requestAnimationFrame);
+    progress(0);
+    // "Initializing…" is what's on screen at parse time (see index.html); swap to the real
+    // status text only once team runs are actually about to start, not a moment before.
+    if (status) status.textContent = "running every team's rotation…";
+    for (let i = 0; i < teams.length; i++) {
+      const [key, members] = teams[i]!;
+      await paint(); // the bar as it stands has to land before this team seizes the thread
+      results.set(key, runTeam(members));
+      progress(i + 1);
     }
-    results = new Map(entries);
+    await paint(); // and the finished bar before the table replaces the whole loading screen
   } catch (err) {
     console.error(err);
     app.innerHTML = errorPage(err);
@@ -1005,19 +690,14 @@ async function boot(): Promise<void> {
     return;
   }
 
-  // the one full TeamRun a click has resolved so far, per team key — see renderDetail
-  const detailCache = new Map<string, TeamRun>();
   const route = (): void => {
     const key = routeTeam();
-    if (key) void renderDetail(key, results, detailCache);
+    if (key) renderDetail(key, results);
     else renderComparison(results);
   };
   addEventListener("hashchange", route);
   route();
 
-  // wired once: every listener inside is delegated off `document`/`window` and re-looks-up its
-  // target on each event, so it keeps working across every future re-render of #app's contents
-  // rather than needing to be re-attached each time.
   wireSourcePanels(app);
   document.addEventListener("click", (e) => {
     const el = (e.target as Element).closest<HTMLElement>(".gotodetail");
@@ -1031,4 +711,11 @@ async function boot(): Promise<void> {
 
 backLink.addEventListener("click", (e) => { e.preventDefault(); location.hash = ""; });
 
-boot();
+// async now (it yields a frame between teams so the progress bar can move), so anything thrown
+// after its own try/catch — wiring up the page, the first render — would otherwise surface as an
+// unhandled rejection in the console and a blank page with no explanation
+boot().catch((err: unknown) => {
+  console.error(err);
+  app.innerHTML = errorPage(err);
+  app.className = "";
+});

@@ -1,147 +1,152 @@
-/** Mainslot echoes and sonatas from Septimont (versions 2.5-2.7) — see echoes/jinzhou.ts for
- *  the region split's own rationale. Each resonator's own file picks which of these its loadout
- *  equips. */
-import { isOutro, isIntro, isEcho } from "../state.js";
-import { Buff, GlobalBuff, Gear, Mainslot, Action, PRIORITY } from "../kit.js";
-import { DamageType, Cast, Element, Scaling, Stat } from "../stats.js";
-const { Echo } = DamageType;
-const { Havoc, Electro, Aero, Fusion } = Element;
-const { Atk } = Scaling;
-const { DmgBonus, BonusAtk, CritDmg } = Stat;
+/**
+ * Mainslot echoes and sonatas from Septimont (versions 2.5-2.7), ported to the new engine. See
+ * src/echoes/septimont.ts for the original — each resonator's own file picks which of these its
+ * loadout equips.
+ */
+import {
+  Buff, Mainslot, Action, Stat, Element, Type1, Cast, Scaling,
+  addStat, stacks, stacksOf, stacksOfTeam, applySelf, applyTeam, casting, currentAction, revoke, maxEnergy, queue,
+} from "../kit.js";
 
 /* --------------------------------------------------------------------------------- Phrolova, 2.5 */
 
 /** Nightmare: Hecate, Phrolova's own mainslot echo — flat Havoc/Echo Skill DMG Bonus for
- *  whoever wears it, no trigger. Phrolova, character 1608, released 2.5 —
- *  https://ww.nanoka.cc/character/1608, https://ww.nanoka.cc/echo/6000115 */
-export const ACTION_NM_HECATE = new Action("Echo: Nightmare: Hecate", {
-  cast: Cast.Echo, element: Havoc, scaling: Atk, type: Echo, mv: 457.17, energy: 315,
+ *  whoever wears it, no trigger. */
+export const ACTION_NM_HECATE = new Action("Echo - Nightmare: Hecate", {
+  cast: Cast.Echo, element: Element.Havoc, scaling: Scaling.Atk, type: Type1.Echo, mv: 457.17,
 });
-export const NM_HECATE = new Mainslot("Nightmare: Hecate", ACTION_NM_HECATE, (ctx) => {
-  ctx.add(12, Havoc, DmgBonus);
-  ctx.add(20, DamageType.Echo, DmgBonus);
+export const NM_HECATE = new Mainslot({
+  name: "Nightmare: Hecate",
+  action: ACTION_NM_HECATE,
+  apply: () => { addStat(Stat.DmgBonus, 12, Element.Havoc); addStat(Stat.DmgBonus, 20, Type1.Echo); },
 });
 
 /** Dream of the Lost 3pc, Phrolova's own sonata — also reused by Lucilla (both hold 0 max
  *  Resonance Energy). "Holding 0 Resonance Energy" is checked for real off the wearer's own
- *  `maxEnergy`, rather than assumed unconditionally true because only they equip it. */
-export const DREAM_OF_THE_LOST_3PC = new Gear("Dream of the Lost 3pc", (ctx) => {
-  if (ctx.slot.resonator?.maxEnergy !== 0) return;
-  ctx.add(20, Stat.CritRate);
-  ctx.add(35, DamageType.Echo, DmgBonus);
+ *  `maxEnergy()`, rather than assumed unconditionally true because only they equip it. */
+export const DREAM_OF_THE_LOST_3PC = new Buff({
+  name: "Dream of the Lost 3pc",
+  apply: () => {
+    if (maxEnergy() !== 0) return;
+    addStat(Stat.CritRate, 20);
+    addStat(Stat.DmgBonus, 35, Type1.Echo);
+  },
 });
 
 /* ----------------------------------------------------------------------------- Augusta, 2.6 */
 
-/** False Sovereign, Augusta's own mainslot echo — she's the only Electro Heavy Attack
- *  character, so it lives here rather than as a truly generic piece. Flat Electro/Heavy Attack
- *  DMG Bonus for whoever wears it. Casting Intro also summons it for a bonus hit — the skill's
- *  own 2-charge/8s-CD gating isn't modelled (no real-time clock here), so it's assumed available
- *  whenever an Intro lands, same treatment as every other cooldown-gated echo. Augusta, character
- *  1306, released 2.6 — https://ww.nanoka.cc/character/1306 */
-export const ACTION_FALSE_SOVEREIGN = new Action("Echo: False Sovereign", {
-  cast: Cast.Echo, element: Electro, scaling: Atk, type: Echo, mv: 221.4,
+/** False Sovereign, Augusta's own mainslot echo — flat Electro/Heavy Attack DMG Bonus for
+ *  whoever wears it. Casting Intro also summons it for a bonus hit — the skill's own 2-charge/
+ *  8s-CD gating isn't modelled (no real-time clock here), assumed available whenever an Intro
+ *  lands, same treatment as every other cooldown-gated echo. */
+export const ACTION_FALSE_SOVEREIGN = new Action("Echo - False Sovereign", {
+  cast: Cast.Echo, element: Element.Electro, scaling: Scaling.Atk, type: Type1.Echo, mv: 221.4,
 });
-export const FALSE_SOVEREIGN = new Mainslot("False Sovereign", ACTION_FALSE_SOVEREIGN, (ctx) => {
-  ctx.add(12, Electro, DmgBonus);
-  ctx.add(12, DamageType.Heavy, DmgBonus);
-  if (isIntro(ctx.action!)) ctx.queue(ACTION_FALSE_SOVEREIGN_INTRO);
+export const ACTION_FALSE_SOVEREIGN_INTRO = new Action("Echo - False Sovereign (Intro)", {
+  element: Element.Electro, scaling: Scaling.Atk, type: Type1.Echo, mv: 405,
 });
-/** The bonus summon on the wielder's own Intro cast — not a real press, so no `cast` trigger,
- *  same treatment as Phrolova's Hecate follow-ups. */
-export const ACTION_FALSE_SOVEREIGN_INTRO = new Action("Echo: False Sovereign (Intro)", {
-  element: Electro, scaling: Atk, type: Echo, mv: 405, energy: 304,
+export const FALSE_SOVEREIGN = new Buff({
+  name: "False Sovereign",
+  update: () => { if (casting(Cast.Intro)) queue(ACTION_FALSE_SOVEREIGN_INTRO); },
+  apply: () => { addStat(Stat.DmgBonus, 12, Element.Electro); addStat(Stat.DmgBonus, 12, Type1.Heavy); },
 });
 
 /** Crown of Valor, Augusta's own sonata — also reused by Iuno. 3pc: a shield stacks +6% ATK /
  *  +4% Crit DMG, up to five. */
-export const COV_3PC = new Gear("Crown of Valor 3pc", (ctx) => {
-  if (ctx.shields) ctx.grantSelf(CROWN_STACKS, ctx.shields);
+export const CROWN_STACKS = new Buff({
+  name: "Crown of Valor", maxStacks: 5,
+  apply: () => { addStat(Stat.BonusAtk, 6 * stacks()); addStat(Stat.CritDmg, 4 * stacks()); },
 });
-export const CROWN_STACKS = new Buff(PRIORITY.BUFF_STATS, (ctx, stacks) => {
-  ctx.add(6 * stacks, BonusAtk);
-  ctx.add(4 * stacks, CritDmg);
-  return `Crown of Valor x${stacks}`;
-}, 5);
+export const COV_3PC = new Buff({
+  name: "Crown of Valor 3pc",
+  update: () => { if (currentAction().shields) applySelf(CROWN_STACKS, currentAction().shields); },
+});
 
 /** Void Thunder, a generic sonata reused by Augusta. 2pc: +10% Electro DMG Bonus flat. 5pc:
  *  +30% Electro DMG Bonus flat (its real trigger is unconditional here — same "assumed always
- *  up" treatment as Rejuvenating Glow's own 5pc, echoes/jinzhou.ts). */
-export const VOID_THUNDER_2PC = new Gear("Void Thunder 2pc", (ctx) => { ctx.add(10, Electro, DmgBonus); });
-export const VOID_THUNDER_5PC = new Gear("Void Thunder 5pc", (ctx) => { ctx.add(30, Electro, DmgBonus); });
+ *  up" treatment as Rejuvenating Glow's own 5pc). */
+export const VOID_THUNDER_2PC = new Buff({ name: "Void Thunder 2pc", apply: () => addStat(Stat.DmgBonus, 10, Element.Electro) });
+export const VOID_THUNDER_5PC = new Buff({ name: "Void Thunder 5pc", apply: () => addStat(Stat.DmgBonus, 30, Element.Electro) });
 
 /* ------------------------------------------------------------------------------- Iuno, 2.6 */
 
-/** Lady of the Sea, Iuno's own mainslot echo. Iuno, character 1410, released 2.6 —
- *  https://ww.nanoka.cc/character/1410. (Her own sonata pick, Sierra Gale, is actually a
- *  Jinzhou-era set — see echoes/jinzhou.ts — she just reuses it.) */
-export const ACTION_MYA = new Action("Echo: Lady of the Sea", {
-  cast: Cast.Echo, element: Aero, scaling: Atk, type: Echo, mv: 300.96, energy: 418,
+/** Lady of the Sea, Iuno's own mainslot echo. (Her own sonata pick, Sierra Gale, is a
+ *  Jinzhou-era set — see echoes_jinzhou.ts — she just reuses it.) */
+export const ACTION_MYA = new Action("Echo - Lady of the Sea", {
+  cast: Cast.Echo, element: Element.Aero, scaling: Scaling.Atk, type: Type1.Echo, mv: 300.96,
 });
-export const MYA = new Mainslot("Lady of the Sea", ACTION_MYA, (ctx) => {
-  ctx.add(12, DamageType.Liberation, DmgBonus);
-  ctx.add(12, Aero, DmgBonus);
+export const MYA = new Mainslot({
+  name: "Lady of the Sea",
+  action: ACTION_MYA,
+  apply: () => { addStat(Stat.DmgBonus, 12, Type1.Liberation); addStat(Stat.DmgBonus, 12, Element.Aero); },
 });
 
 /* ----------------------------------------------------------------------------- Galbrena, 2.7 */
 
 /** Corrosaurus, Galbrena's own mainslot echo — flat Fusion/Echo Skill DMG Bonus for whoever
- *  wears it, no trigger. Galbrena, character 1208, released 2.7 —
- *  https://ww.nanoka.cc/character/1208, https://ww.nanoka.cc/echo/6000120 */
-export const ACTION_CORROSAURUS = new Action("Echo: Corrosaurus", {
-  cast: Cast.Echo, element: Fusion, scaling: Atk, type: Echo, mv: 273.6, energy: 380,
+ *  wears it, no trigger. */
+export const ACTION_CORROSAURUS = new Action("Echo - Corrosaurus", {
+  cast: Cast.Echo, element: Element.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 273.6,
 });
-export const CORROSAURUS = new Mainslot("Corrosaurus", ACTION_CORROSAURUS, (ctx) => {
-  ctx.add(12, Fusion, DmgBonus);
-  ctx.add(20, DamageType.Echo, DmgBonus);
+export const CORROSAURUS = new Buff({
+  name: "Corrosaurus",
+  apply: () => { addStat(Stat.DmgBonus, 12, Element.Fusion); addStat(Stat.DmgBonus, 20, Type1.Echo); },
 });
 
 /** Flamewing's Shadow 3pc, Galbrena's own sonata: dealing Echo Skill DMG grants +20% Heavy
  *  Attack Crit Rate for 6s; dealing Heavy Attack DMG grants +20% Echo Skill Crit Rate for 6s;
- *  while both are up, +16% Fusion DMG Bonus. Same shape as her own weapon's DEF-ignore pairing
- *  (weapons/pistol.ts). */
-export const FLAMEWING_SHADOW_3PC = new Gear("Flamewing's Shadow 3pc", (ctx) => {
-  const a = ctx.action!;
-  if (a.type === DamageType.Echo) ctx.grantSelf(FLAMEWING_SHADOW_HEAVY);
-  if (a.type === DamageType.Heavy) ctx.grantSelf(FLAMEWING_SHADOW_ECHO);
-  if (ctx.stacksOf(FLAMEWING_SHADOW_HEAVY) && ctx.stacksOf(FLAMEWING_SHADOW_ECHO)) ctx.add(16, Fusion, DmgBonus);
+ *  while both are up, +16% Fusion DMG Bonus. */
+export const FLAMEWING_SHADOW_HEAVY = new Buff({
+  name: "Flamewing's Shadow: Heavy Attack Crit. Rate",
+  apply: () => addStat(Stat.CritRate, 20, Type1.Heavy),
+  // 6s window, so it still counts on the wearer's own outro (see jinzhou.ts's HERON_HANDOFF)
+  convert: () => { if (casting(Cast.Outro)) revoke(FLAMEWING_SHADOW_HEAVY); },
 });
-export const FLAMEWING_SHADOW_HEAVY = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
-  ctx.add(20, DamageType.Heavy, Stat.CritRate);
-  if (isOutro(ctx.action!)) ctx.revoke(FLAMEWING_SHADOW_HEAVY);
-  return "Flamewing's Shadow: Heavy Attack Crit. Rate";
+export const FLAMEWING_SHADOW_ECHO = new Buff({
+  name: "Flamewing's Shadow: Echo Skill Crit. Rate",
+  apply: () => addStat(Stat.CritRate, 20, Type1.Echo),
+  convert: () => { if (casting(Cast.Outro)) revoke(FLAMEWING_SHADOW_ECHO); },
 });
-export const FLAMEWING_SHADOW_ECHO = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
-  ctx.add(20, DamageType.Echo, Stat.CritRate);
-  if (isOutro(ctx.action!)) ctx.revoke(FLAMEWING_SHADOW_ECHO);
-  return "Flamewing's Shadow: Echo Skill Crit. Rate";
+export const FLAMEWING_SHADOW_3PC = new Buff({
+  name: "Flamewing's Shadow 3pc",
+  update: () => {
+    const a = currentAction();
+    if (a.type === Type1.Echo) applySelf(FLAMEWING_SHADOW_HEAVY, 1);
+    if (a.type === Type1.Heavy) applySelf(FLAMEWING_SHADOW_ECHO, 1);
+  },
+  apply: () => {
+    if (stacksOf(FLAMEWING_SHADOW_HEAVY) && stacksOf(FLAMEWING_SHADOW_ECHO)) addStat(Stat.DmgBonus, 16, Element.Fusion);
+  },
 });
 
 /* ------------------------------------------------------------------------------- Qiuyuan, 2.7 */
 
 /** Reminiscence: Fenrico, Qiuyuan's own mainslot echo — flat Aero/Heavy DMG Bonus for whoever
- *  wears it in the mainslot, no trigger. Qiuyuan, character 1411, released 2.7 —
- *  https://ww.nanoka.cc/character/1411, https://ww.nanoka.cc/echo/6000116 */
-export const ACTION_FENRICO = new Action("Echo: Reminiscence: Fenrico", {
-  cast: Cast.Echo, element: Aero, scaling: Atk, type: Echo, mv: 273.6, energy: 380,
+ *  wears it, no trigger. */
+export const ACTION_FENRICO = new Action("Echo - Reminiscence: Fenrico", {
+  cast: Cast.Echo, element: Element.Aero, scaling: Scaling.Atk, type: Type1.Echo, mv: 273.6,
 });
-export const FENRICO = new Mainslot("Reminiscence: Fenrico", ACTION_FENRICO, (ctx) => {
-  ctx.add(12, Aero, DmgBonus);
-  ctx.add(12, DamageType.Heavy, DmgBonus);
+export const FENRICO = new Buff({
+  name: "Reminiscence: Fenrico",
+  apply: () => { addStat(Stat.DmgBonus, 12, Element.Aero); addStat(Stat.DmgBonus, 12, Type1.Heavy); },
 });
 
 /** Law of Harmony 3pc, Qiuyuan's own sonata: casting Echo Skill grants the caster +30% Heavy
- *  Attack DMG Bonus for 4s, and the whole team +4% Echo Skill DMG Bonus, stacking up to 4 — one
- *  stack per distinct named Echo that's triggered it (every echo cast is assumed unique). */
-export const LAW_OF_HARMONY_3PC = new Gear("Law of Harmony 3pc", (ctx) => {
-  if (isEcho(ctx.action!)) {
-    ctx.grantSelf(LAW_OF_HARMONY_SELF);
-    ctx.grantGlobal(LAW_OF_HARMONY_TEAM);
-  }
+ *  Attack DMG Bonus for 4s (short window, lost after the outro action gains stats), and the
+ *  whole team +4% Echo Skill DMG Bonus, stacking up to 4 — one stack per distinct named Echo
+ *  that's triggered it (every echo cast is assumed unique). */
+export const LAW_OF_HARMONY_SELF = new Buff({
+  name: "Law of Harmony",
+  apply: () => addStat(Stat.DmgBonus, 30, Type1.Heavy),
+  convert: () => { if (casting(Cast.Outro)) revoke(LAW_OF_HARMONY_SELF); },
 });
-export const LAW_OF_HARMONY_SELF = new Buff(PRIORITY.BUFF_STATS,
-  (ctx) => { ctx.add(30, DamageType.Heavy, DmgBonus); return "Law of Harmony"; });
-export const LAW_OF_HARMONY_TEAM = new GlobalBuff(PRIORITY.BUFF_STATS, (ctx, stacks) => {
-  ctx.add(4 * stacks, DamageType.Echo, DmgBonus);
-  return `Law of Harmony x${stacks}`;
-}, 4);
+export const LAW_OF_HARMONY_TEAM = new Buff({
+  name: "Law of Harmony", maxStacks: 4,
+  apply: () => { addStat(Stat.DmgBonus, 4 * stacksOfTeam(LAW_OF_HARMONY_TEAM), Type1.Echo); },
+});
+export const LAW_OF_HARMONY_3PC = new Buff({
+  name: "Law of Harmony 3pc",
+  update: () => {
+    if (casting(Cast.Echo)) { applySelf(LAW_OF_HARMONY_SELF, 1); applyTeam(LAW_OF_HARMONY_TEAM, 1); }
+  },
+});

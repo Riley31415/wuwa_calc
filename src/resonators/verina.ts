@@ -33,7 +33,7 @@ import { Buff, GlobalBuff, Gear, Action, Chain, PRIORITY, ECHO_CAST } from "../k
 import type { ActionDef } from "../kit.js";
 import { Resonator, Loadout, isOutro } from "../state.js";
 import type { ResonatorFactory } from "../state.js";
-import { Stat, Element, DamageType, Type2, Node, Cast, Resource, Scaling } from "../stats.js";
+import { Stat, Element, Type1, Type2, Node, Cast, Resource, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 import { VARIATION } from "../weapons/standard.js";
@@ -130,34 +130,34 @@ function verinaAction(name: string, def: ActionDef): Action {
 }
 
 // --- basics, mid-air, dodge counter, heavy (Cultivation)
-const BA1 = verinaAction("Basic: Cultivation 1", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 37.86 });
-const BA2 = verinaAction("Basic: Cultivation 2", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 51.16 });
-const BA3 = verinaAction("Basic: Cultivation 3", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 51.16 });   // 25.58% x2
-const BA4 = verinaAction("Basic: Cultivation 4", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 67.32 });
-const BA5 = verinaAction("Basic: Cultivation 5", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 71.62, forte1: 1 });
-const HA = verinaAction("Heavy: Cultivation", { node: Node.Normal, cast: Cast.Heavy, type: DamageType.Heavy, mv: 99.41 });
-const MA1 = verinaAction("Basic: Cultivation 1 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 56.37 });
-const MA2 = verinaAction("Basic: Cultivation 2 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 53.19 });
-const MA3 = verinaAction("Basic: Cultivation 3 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 76.26 });   // 25.42% x3
-export const MHA = verinaAction("Heavy: Cultivation (Mid-air)", { node: Node.Normal, cast: Cast.Heavy, type: DamageType.Heavy, mv: 61.64 });
-const DC = verinaAction("Basic: Cultivation (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: DamageType.Basic, mv: 129.23 });
+const BA1 = verinaAction("Basic: Cultivation 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 37.86 });
+const BA2 = verinaAction("Basic: Cultivation 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 51.16 });
+const BA3 = verinaAction("Basic: Cultivation 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 51.16 });   // 25.58% x2
+const BA4 = verinaAction("Basic: Cultivation 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 67.32 });
+const BA5 = verinaAction("Basic: Cultivation 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 71.62, forte1: 1 });
+const HA = verinaAction("Heavy: Cultivation", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 99.41 });
+const MA1 = verinaAction("Basic: Cultivation 1 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 56.37 });
+const MA2 = verinaAction("Basic: Cultivation 2 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 53.19 });
+const MA3 = verinaAction("Basic: Cultivation 3 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 76.26 });   // 25.42% x3
+export const MHA = verinaAction("Heavy: Cultivation (Mid-air)", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 61.64 });
+const DC = verinaAction("Basic: Cultivation (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 129.23 });
 
 export const BA12345 = new Chain("Basic: Cultivation 12345", [BA1, BA2, BA3, BA4, BA5]);
 
 // --- resonance skill: Botany Experiment
 const Skill = verinaAction("Skill: Botany Experiment", {
-  node: Node.Skill, cast: Cast.Skill, type: DamageType.Skill, mv: 178.95,   // 35.79% x3 + 71.58%
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 178.95,   // 35.79% x3 + 71.58%
   concerto: 3000, forte1: 1,
 });
 
 // --- forte circuit: Starflower Blooms, spends 1 Photosynthesis Energy either way
 const StarflowerHeavy = verinaAction("Heavy: Starflower Blooms", {
-  node: Node.Forte, cast: Cast.Heavy, type: DamageType.Heavy, mv: 162.37,   // 64.95% + 97.42%
+  node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 162.37,   // 64.95% + 97.42%
   concerto: 1200, forte1: -1,
   priority: PRIORITY.BUFF_STATS, apply(ctx) { ctx.grantGlobal(GIFT_OF_NATURE); },
 });
 const StarflowerMidair = verinaAction("Basic: Starflower Blooms (Mid-Air)", {
-  node: Node.Forte, cast: Cast.Basic, type: DamageType.Basic, mv: 222.96,   // 67.64+63.82+30.50x3
+  node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 222.96,   // 67.64+63.82+30.50x3
   concerto: 1200, forte1: -1,
   priority: PRIORITY.BUFF_STATS, apply(ctx) { ctx.grantGlobal(GIFT_OF_NATURE); },
 });
@@ -167,27 +167,27 @@ const StarflowerMidair = verinaAction("Basic: Starflower Blooms (Mid-Air)", {
 //     queued off Liberation itself since the real window spans everyone else's own actions too;
 //     placed directly in the rotation below instead, same as Phrolova's Hecate auto-cycle.
 const Liberation = verinaAction("Liberation: Arboreal Flourish", {
-  node: Node.Liberation, cast: Cast.Liberation, type: DamageType.Liberation, mv: 198.81,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 198.81,
   energy: -17500, concerto: 2000,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.grantGlobal(GIFT_OF_NATURE); },
 });
 /** One Coordinated Attack tick, S6's own single-hit reuse. */
 const PhotosynthesisTick = verinaAction("Photosynthesis Mark", {
-  node: Node.Liberation, type: DamageType.Basic, type2: Type2.Coordinated, mv: 9.95, active: false,
+  node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 9.95, active: false,
 });
 /** The full 12-tick window off her own Liberation. */
 const PhotosynthesisMark = verinaAction("Photosynthesis Mark x12", {
-  node: Node.Liberation, type: DamageType.Basic, type2: Type2.Coordinated, mv: 119.4, active: false,
+  node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 119.4, active: false,
 });
 
 // --- intro / outro
 const Intro = verinaAction("Intro: Verdant Growth", {
-  node: Node.Intro, cast: Cast.Intro, type: DamageType.Intro, mv: 99.41, concerto: 1000, forte1: 1,
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 99.41, concerto: 1000, forte1: 1,
 });
 /** Blossom: no damage of its own, just the Gift of Nature/S4 trigger and (skipped) healing. */
 const Outro = verinaAction("Outro: Blossom", {
-  cast: Cast.Outro, type: DamageType.Outro, mv: 0, concerto: -10000, active: false,
+  cast: Cast.Outro, mv: 0, concerto: -10000, active: false,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.grantGlobal(GIFT_OF_NATURE); },
 });

@@ -54,15 +54,16 @@ export enum Stat {
 
   DmgBonus = "Dmg Bonus",
   Amp = "Amplification",
-  SpecialAmp = "Special Amp", // amp that works on tune and dot
-  // TODO just make it so only type2 amps work on dot, and none on tune
+  SpecialAmp = "Special Amp", // TODO remove this, instead
+  // TODO just make it so only type2 amps work on dot, and neither amp works on tune
+
   TotalDmg = "Total Damage",
 
   ResIgnore = "Res Ignore", // doesnt work on dot
-  ResShred = "Res Shred", // TODO move to enemy stat
-  DefIgnore = "Def Ignore", // doesnt work on dot
-  DefShred = "Def Shred",   // doesnt work on dot
-  DefReduce = "Def Reduce", // TODO move to on enemy stat
+  ResShred = "Res Reduce", // TODO move to EnemyStat enum
+  DefIgnore = "Def Ignore (new)", // TODO rename to DefIgnoreNew, use only on the newest resonators
+  DefShred = "Def Ignore (old)",   // TODO rename to DefIgnoreOld, use on resonators phrolova and older
+  DefReduce = "Def Reduce", // TODO move to EnemyStat enum
 
   /** Healing itself is out of scope for this calculator (see the standing rule) — these two
    *  are tracked purely for kit completeness. Nothing reads either; they never reach a column
@@ -97,6 +98,20 @@ export const ELEMENTS: Element[] = [
   Element.Spectro, Element.Havoc, Element.Physical,
 ];
 
+/** Which of the five weapon categories a resonator wields — decides which weapon files
+ *  (src/weapons/) their loadout can actually equip. */
+export enum WeaponType {
+  Sword = "Sword",
+  Broadblade = "Broadblade",
+  Pistols = "Pistols",
+  Gauntlets = "Gauntlets",
+  Rectifier = "Rectifier",
+}
+
+export const WEAPON_TYPES: WeaponType[] = [
+  WeaponType.Sword, WeaponType.Broadblade, WeaponType.Pistols, WeaponType.Gauntlets, WeaponType.Rectifier,
+];
+
 /**
  * `type`/`cast` share one vocabulary — a damage type and a button press draw from the same set
  * of "kinds of thing", just onto two independent fields (see `TYPES`/`CASTS` below, which each
@@ -105,7 +120,7 @@ export const ELEMENTS: Element[] = [
  * basic stage 3 is `cast: Basic, type: Heavy`; Iuno's Moonbow basics are `cast: Basic, type:
  * Liberation`.
  */
-export enum DamageType {
+export enum Type1 {
   Basic = "Basic",
   Heavy = "Heavy",
   Skill = "Skill",
@@ -119,34 +134,11 @@ export enum DamageType {
   Hack = "Tune Hack",
 }
 
-/** Cast identities that are never a damage type of their own — a Dodge Counter always deals
- *  whatever damage type its own hit lists under `type`; `cast` is the only field this ever
- *  appears on. Kept out of `DamageType` so it can't be reached for `type`/`type2` by mistake. */
-export enum Cast {
-  DodgeCounter = "dodgeCounter",
-  Basic = "Basic",
-  Heavy = "Heavy",
-  Skill = "Skill",
-  Liberation = "liberation",
-  Intro = "Intro",
-  Outro = "Outro",
-  Echo = "Echo",
-  TuneBreak = "Tune Break",
-  Coordinated = "Coordinated"
-}
-
-export const TYPES: DamageType[] = [
-  DamageType.Basic, DamageType.Heavy, DamageType.Skill, DamageType.Liberation,
-  DamageType.Intro, DamageType.Outro, DamageType.Echo, 
-  DamageType.Status, 
-  DamageType.Break, DamageType.Rupture, DamageType.Hack,
-];
-export const CASTS: Array<DamageType | Cast> = [
-  Cast.Basic, Cast.Heavy, Cast.Skill, Cast.Liberation,
-  Cast.Intro, Cast.Outro, Cast.Echo, 
-  Cast.TuneBreak,
-  Cast.DodgeCounter, 
-  Cast.Coordinated
+export const TYPE1S: Type1[] = [
+  Type1.Basic, Type1.Heavy, Type1.Skill, Type1.Liberation,
+  Type1.Intro, Type1.Outro, Type1.Echo, 
+  Type1.Status, 
+  Type1.Break, Type1.Rupture, Type1.Hack,
 ];
 
 /** `type2` — a second, independent damage-type tag some hits carry alongside `type` (e.g. a
@@ -165,11 +157,35 @@ export const TYPE2S: Type2[] = [
   Type2.Frazzle, Type2.Flare, Type2.Erosion, Type2.Burst, Type2.Chafe, 
 ];
 
+/** Cast identities that are never a damage type of their own — a Dodge Counter always deals
+ *  whatever damage type its own hit lists under `type`; `cast` is the only field this ever
+ *  appears on. Kept out of `Type1` so it can't be reached for `type`/`type2` by mistake. */
+export enum Cast {
+  DodgeCounter = "Dodge Counter",
+  Basic = "Basic",
+  Heavy = "Heavy",
+  Skill = "Skill",
+  Liberation = "Liberation",
+  Intro = "Intro",
+  Outro = "Outro",
+  Echo = "Echo",
+  TuneBreak = "Tune Break",
+  Coordinated = "Coordinated"
+}
+
+export const CASTS: Array<Type1 | Cast> = [
+  Cast.Basic, Cast.Heavy, Cast.Skill, Cast.Liberation,
+  Cast.Intro, Cast.Outro, Cast.Echo, 
+  Cast.TuneBreak,
+  Cast.DodgeCounter, 
+  Cast.Coordinated
+];
+
 /**
  * `node` — which branch of the kit a cast comes from, vs `cast` (button) or `type` (damage).
  * For attributing damage (forte circuit vs liberation vs ordinary attacks). Only five —
  * `outro`/`echo` aren't kit branches, so those casts simply have no node. Its own enum: Skill/
- * Liberation/Intro share a string value with the matching `DamageType` member, but `node` is a
+ * Liberation/Intro share a string value with the matching `Type1` member, but `node` is a
  * genuinely independent axis (see the file's own note above), not the same vocabulary reused.
  */
 export enum Node {
@@ -254,10 +270,3 @@ export enum Resource {
   Forte4 = "forte4",
   Forte5 = "forte5",
 }
-
-export const SLOT_RESOURCES: Resource[] = [
-  Resource.Energy, Resource.Concerto,
-  Resource.Forte1, Resource.Forte2, Resource.Forte3, Resource.Forte4, Resource.Forte5,
-];
-export const TEAM_RESOURCES: Resource[] = [Resource.Offtune];
-export const ACTION_RESOURCES: Resource[] = [...SLOT_RESOURCES, ...TEAM_RESOURCES];

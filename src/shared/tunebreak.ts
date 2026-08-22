@@ -5,7 +5,7 @@
  */
 import { Action, Buff, PRIORITY } from "../kit.js";
 import type { ResolvedSnapshot } from "../state.js";
-import { Resource, Element, DamageType, Cast, Scaling } from "../stats.js";
+import { Resource, Element, Type1, Cast, Scaling } from "../stats.js";
 
 /** The bar resets to -30000, not 0: about three seconds of dead window before it can build
  *  again. */
@@ -23,7 +23,7 @@ export const TUNE_BREAK_CAST = new Action("Tune Break", {
   element: Element.Physical,
   scaling: Scaling.Tune,
   cast: Cast.TuneBreak,
-  type: DamageType.Break,
+  type: Type1.Break,
   mv: 1600,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.setTeamCounter(Resource.Offtune, OFFTUNE_AFTER_BREAK); },

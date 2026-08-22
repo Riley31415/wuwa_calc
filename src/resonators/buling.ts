@@ -55,7 +55,7 @@ import { Buff, GlobalBuff, Gear, Action, Chain, PRIORITY, ECHO_CAST } from "../k
 import type { ActionDef } from "../kit.js";
 import { Resonator, Loadout, isIntro } from "../state.js";
 import type { ResonatorFactory } from "../state.js";
-import { Stat, Element, DamageType, Node, Resource, Cast, Scaling } from "../stats.js";
+import { Stat, Element, Type1, Node, Resource, Cast, Scaling } from "../stats.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 import { VARIATION } from "../weapons/standard.js";
@@ -69,7 +69,7 @@ export const COLOR = "#7a6ff0";
 /** S1 Exorcist Gadgets, Lend Me Your Power: +20% Crit Rate on Flashing Thunder Spell: Harmony —
  *  scoped to Liberation damage, so both her own Liberation cast and the Array it queues (both
  *  `type: LIB`) pick it up without a trigger. */
-export const S1 = new Gear("Buling S1", (ctx) => { ctx.add(20, DamageType.Liberation, Stat.CritRate); });
+export const S1 = new Gear("Buling S1", (ctx) => { ctx.add(20, Type1.Liberation, Stat.CritRate); });
 
 /** S2 Talisman Burns, Spirits Turn: 25 Energy on entering Yin-Yang Balance, every 24s — read
  *  directly by Twin Mountains/Twin Thunders below, since this file doesn't simulate live Trigram
@@ -143,8 +143,8 @@ export const THUNDER_SPELL = new GlobalBuff(PRIORITY.BUFF_STATS, (ctx, stacks) =
   // above just moved it
   const held = ctx.stacksOf(THUNDER_SPELL);
   if (a.active) {
-    if (held === 2) ctx.add(10, DamageType.Skill, Stat.DmgBonus);
-    else if (held >= 3) ctx.add(ctx.stacksOf(S6) ? 50 : 25, DamageType.Skill, Stat.DmgBonus);
+    if (held === 2) ctx.add(10, Type1.Skill, Stat.DmgBonus);
+    else if (held >= 3) ctx.add(ctx.stacksOf(S6) ? 50 : 25, Type1.Skill, Stat.DmgBonus);
   }
   if (held >= 3) {
     if (ctx.stacksOf(S6)) {
@@ -168,10 +168,10 @@ function bulingAction(name: string, def: ActionDef): Action {
 
 // --- intro / outro
 const Intro = bulingAction("Intro: Summon and Smite", {
-  node: Node.Intro, cast: Cast.Intro, type: DamageType.Intro, mv: 131.10, energy: 0, concerto: 1000, flare: 4,
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 131.10, energy: 0, concerto: 1000, flare: 4,
 });
 const Outro = bulingAction("Outro: Exorcism Spell", {
-  cast: Cast.Outro, type: DamageType.Outro, mv: 0, concerto: -10000, active: false,
+  cast: Cast.Outro, mv: 0, concerto: -10000, active: false,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.queue(ACTION_FIVE_THUNDERS_ARRAY); ctx.grantGlobal(BULING_OUTRO); },
 });
@@ -181,14 +181,14 @@ export const BULING_OUTRO = new GlobalBuff(PRIORITY.BUFF_STATS, (ctx) => { ctx.a
 
 // --- resonance skill: grants a Thunder Trigram
 const Skill = bulingAction("Skill: In Shadow Thunder Stirs", {
-  node: Node.Skill, cast: Cast.Skill, type: DamageType.Skill, mv: 116.8, energy: 1500, concerto: 2300,
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 116.8, energy: 1500, concerto: 2300,
 });
 
 // --- resonance liberation: Flashing Thunder Spell, assumed always cast as Harmony (see file
 //     header) — generates the Array, opening Thunder Spell at Primordial Qi. A fresh Array
 //     replaces whatever stage the last one reached, hence the explicit stack: 1.
 export const Liberation = bulingAction("Liberation: Flashing Thunder Spell - Harmony", {
-  node: Node.Liberation, cast: Cast.Liberation, type: DamageType.Liberation, mv: 536.79, energy: -15000, concerto: 2000,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 536.79, energy: -15000, concerto: 2000,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { ctx.setStacksGlobal(THUNDER_SPELL, 1); },
 });
@@ -197,35 +197,35 @@ export const Liberation = bulingAction("Liberation: Flashing Thunder Spell - Har
  *  24 Electro Flare stacks) rather than one representative tick — see file header. Nanoka's own
  *  single-tick number is 19.89% mv for reference. */
 export const ACTION_FIVE_THUNDERS_ARRAY = bulingAction("Five Thunders Spell Array x12", {
-  type: DamageType.Liberation, mv: 238.32, energy: 2500, flare: 24, active: false,
+  type: Type1.Liberation, mv: 238.32, energy: 2500, flare: 24, active: false,
 });
 
 // --- normal attacks: four basics, a mid-air, a dodge counter — Stage 2/4 (and Mid-air, Skill
 //     above) are what grant Trigrams, commented per hit
-const BA1 = bulingAction("Basic: Hexagram Calls, Lightning Falls 1", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 41.46, energy: 106, concerto: 334 });
-const BA2 = bulingAction("Basic: Hexagram Calls, Lightning Falls 2", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 66.9, energy: 170, concerto: 540 });     // grants Trigram: Mountain
-const BA3 = bulingAction("Basic: Hexagram Calls, Lightning Falls 3", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 47.02, energy: 120, concerto: 380 });
-const BA4 = bulingAction("Basic: Hexagram Calls, Lightning Falls 4", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 93.64, energy: 472, concerto: 1508 }); // grants Trigram: Thunder
-export const MA = bulingAction("Basic: Hexagram Calls, Lightning Falls (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: DamageType.Basic, mv: 73.96, energy: 124, concerto: 496 }); // grants Trigram: Thunder
-export const DC = bulingAction("Basic: Hexagram Calls, Lightning Falls 3 (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: DamageType.Basic, mv: 47.02, energy: 120, concerto: 1380 });
+const BA1 = bulingAction("Basic: Hexagram Calls, Lightning Falls 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 41.46, energy: 106, concerto: 334 });
+const BA2 = bulingAction("Basic: Hexagram Calls, Lightning Falls 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 66.9, energy: 170, concerto: 540 });     // grants Trigram: Mountain
+const BA3 = bulingAction("Basic: Hexagram Calls, Lightning Falls 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 47.02, energy: 120, concerto: 380 });
+const BA4 = bulingAction("Basic: Hexagram Calls, Lightning Falls 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 93.64, energy: 472, concerto: 1508 }); // grants Trigram: Thunder
+export const MA = bulingAction("Basic: Hexagram Calls, Lightning Falls (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.96, energy: 124, concerto: 496 }); // grants Trigram: Thunder
+export const DC = bulingAction("Basic: Hexagram Calls, Lightning Falls 3 (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 47.02, energy: 120, concerto: 1380 });
 
 export const BA12 = new Chain("Basic: Hexagram Calls, Lightning Falls 12", [BA1, BA2]);
 export const BA1234 = new Chain("Basic: Hexagram Calls, Lightning Falls 1234", [BA1, BA2, BA3, BA4]);
 
 // --- heavy attacks: spend specific Trigram pairs left-to-right for a Minor state
 export const HA_MOUNTAIN_OVER_THUNDER = bulingAction("Heavy: Mountain Over Thunder",
-  { node: Node.Normal, cast: Cast.Heavy, type: DamageType.Heavy, mv: 178.93, energy: 300, concerto: 1500 });   // spends Mountain+Thunder -> Minor Yang
+  { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 178.93, energy: 300, concerto: 1500 });   // spends Mountain+Thunder -> Minor Yang
 export const HA_THUNDER_OVER_MOUNTAIN = bulingAction("Heavy: Thunder Over Mountain",
-  { node: Node.Normal, cast: Cast.Heavy, type: DamageType.Heavy, mv: 89.47, energy: 300, concerto: 1500 });    // spends Thunder+Mountain -> Minor Yang
+  { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 89.47, energy: 300, concerto: 1500 });    // spends Thunder+Mountain -> Minor Yang
 // spends Mountain+Mountain/Thunder+Thunder -> Minor Yin; healing only. Both are the kit's own
 // "reaches Minor Yin" (Yin-Yang Balance) actions — S2's Energy restore reads off them directly.
 export const HA_TWIN_MOUNTAINS = bulingAction("Heavy: Twin Mountains", {
-  node: Node.Normal, cast: Cast.Heavy, type: DamageType.Heavy, mv: 0, energy: 0, concerto: 1500, heal: 1,
+  node: Node.Normal, cast: Cast.Heavy, mv: 0, energy: 0, concerto: 1500, heal: 1,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { if (ctx.stacksOf(S2)) ctx.gain(Resource.Energy, 2500); },
 });
 export const HA_TWIN_THUNDERS = bulingAction("Heavy: Twin Thunders", {
-  node: Node.Normal, cast: Cast.Heavy, type: DamageType.Heavy, mv: 0, energy: 0, concerto: 1500, heal: 1,
+  node: Node.Normal, cast: Cast.Heavy, mv: 0, energy: 0, concerto: 1500, heal: 1,
   priority: PRIORITY.UPDATE_BUFFS,
   apply(ctx) { if (ctx.stacksOf(S2)) ctx.gain(Resource.Energy, 2500); },
 });
