@@ -3,7 +3,7 @@
  *  signature to; Stringmaster (Encore's own, a standard/permanent-availability weapon) lives
  *  here too since it isn't part of any named tier. */
 import {
-  Buff, Stat, Element, Type1, Cast, AddConcerto,
+  Buff, Weapon, WeaponType, Stat, Element, Type1, Cast, AddConcerto,
   addStat, stacks, stacksOf, applySelf, applyTeam, revoke, casting, currentAction, lostOnSwap,
 } from "../kit.js";
 
@@ -13,7 +13,8 @@ import {
  *  spends them all for +52% Basic Attack DMG Bonus, 27s — permanent uptime once granted. Zhezhi,
  *  character 1105, released 1.2 — https://ww.nanoka.cc/character/1105,
  *  https://ww.nanoka.cc/weapon/21050026 */
-export const RIME_DRAPED_SPROUTS = new Buff({
+export const RIME_DRAPED_SPROUTS = new Weapon({
+  weaponType: WeaponType.Rectifier,
   name: "Rime-Draped Sprouts",
   update: () => { if (currentAction().cast === Cast.Skill) applySelf(PANORAMA_STACKS, 1); },
   apply: () => {
@@ -51,7 +52,8 @@ export const PANORAMA_OFFIELD = new Buff({
  *  pays +40% Basic Attack DMG Bonus, stack 2 also ignores 12% Havoc RES. Lost entirely if she's
  *  switched off field. Cantarella, character 1607, released 2.2 —
  *  https://ww.nanoka.cc/character/1607, https://ww.nanoka.cc/weapon/21050056 */
-export const WHISPERS_OF_SIRENS = new Buff({
+export const WHISPERS_OF_SIRENS = new Weapon({
+  weaponType: WeaponType.Rectifier,
   name: "Whispers of Sirens",
   update: () => {
     const a = currentAction();
@@ -84,7 +86,8 @@ export const GENTLE_DREAM = new Buff({
  *  same at every refinement — only the passive's own numbers scale (+24% ATK flat; +64%/+64%/
  *  16% DEF ignore on the same trigger). Phrolova, character 1608, released 2.5 —
  *  https://ww.nanoka.cc/character/1608, https://ww.nanoka.cc/weapon/21050066 */
-export const LETHEAN_ELEGY = new Buff({
+export const LETHEAN_ELEGY = new Weapon({
+  weaponType: WeaponType.Rectifier,
   name: "Lethean Elegy",
   update: () => { if (currentAction().type === Type1.Echo) applySelf(UNDERWORLD_REQUIEM, 1); },
   apply: () => {
@@ -101,7 +104,8 @@ export const UNDERWORLD_REQUIEM = new Buff({
     addStat(Stat.DefIgnore, 8);
   },
 });
-export const LETHEAN_ELEGY_R5 = new Buff({
+export const LETHEAN_ELEGY_R5 = new Weapon({
+  weaponType: WeaponType.Rectifier,
   name: "Lethean Elegy R5",
   update: () => { if (currentAction().type === Type1.Echo) applySelf(UNDERWORLD_REQUIEM_R5, 1); },
   apply: () => {
@@ -125,7 +129,8 @@ export const UNDERWORLD_REQUIEM_R5 = new Buff({
  *  (permanent uptime). Reacts to the wielder's *own* chafe application (`a.chafe`), so it still
  *  works if someone other than Lucilla equips it. Lucilla, character 1109, released 3.4 —
  *  https://ww.nanoka.cc/character/1109, https://ww.nanoka.cc/weapon/21050086 */
-export const FREEZE_FRAME = new Buff({
+export const FREEZE_FRAME = new Weapon({
+  weaponType: WeaponType.Rectifier,
   name: "Freeze Frame",
   update: () => { if (currentAction().chafe > 0) { applySelf(FREEZE_FRAME_SELF, 1); applyTeam(FREEZE_FRAME_TEAM, 1); } },
   apply: () => {
@@ -147,7 +152,8 @@ export const FREEZE_FRAME_TEAM = new Buff({
  *  concerto back on any liberation or a Resonance Skill cast that heals (`currentAction().heals`
  *  — Chaos Theory, not every skill she has). R1, the rank the sheet's numbers describe.
  *  Shorekeeper, character 1505, released 1.3 — https://ww.nanoka.cc/character/1505 */
-export const SK_SIG = new Buff({
+export const SK_SIG = new Weapon({
+  weaponType: WeaponType.Rectifier,
   name: "Stellar Symphony",
   update: () => {
     if (casting(Cast.Skill) && currentAction().heals) {
@@ -158,7 +164,7 @@ export const SK_SIG = new Buff({
     addStat(Stat.BaseAtk, 412.5);
     addStat(Stat.Er, 77.04);  
     addStat(Stat.BonusHp, 12);
-    if (casting(Cast.Liberation)) addStat(AddConcerto, 800);
+    if (casting(Cast.Liberation)) addStat(AddConcerto, 8);
   },
 });
 export const SK_SIG_TEAM = new Buff({
@@ -169,7 +175,8 @@ export const SK_SIG_TEAM = new Buff({
  *  attribute" isn't the wielder's own element), +12% ATK on any inactive action. Skill DMG
  *  stacks ATK twice over (12% a stack), lost after the outro action gains stats. Encore's own
  *  weapon, by explicit instruction. */
-export const STRINGMASTER = new Buff({
+export const STRINGMASTER = new Weapon({
+  weaponType: WeaponType.Rectifier,
   name: "Stringmaster",
   update: () => { if (currentAction().type === Type1.Skill) applySelf(STRINGMASTER_STACKS, 1); },
   apply: () => {

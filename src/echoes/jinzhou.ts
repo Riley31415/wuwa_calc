@@ -154,8 +154,9 @@ export const MOLTEN_RIFT_BUFF = new Buff({
 /** Nightmare: Inferno Rider, Changli's own mainslot echo — her Skill DMG is Fusion. Flat
  *  Fusion/Skill DMG Bonus for whoever wears it, no trigger. */
 export const ACTION_NM_INFERNO_RIDER = jinzhouAction("Echo - Nightmare: Inferno Rider", { element: Element.Fusion, mv: 405 });
-export const NM_INFERNO_RIDER = new Buff({
+export const NM_INFERNO_RIDER = new Mainslot({
   name: "Nightmare: Inferno Rider",
+  action: ACTION_NM_INFERNO_RIDER,
   apply: () => { addStat(Stat.DmgBonus, 12, Element.Fusion); addStat(Stat.DmgBonus, 12, Type1.Skill); },
 });
 
@@ -170,8 +171,9 @@ export const INFERNO_RIDER_WINDOW = new Buff({
   // a temporary window, not "lost on swap" wording — still counts on the wearer's own outro
   convert: () => { if (casting(Cast.Outro)) revoke(INFERNO_RIDER_WINDOW); },
 });
-export const INFERNO_RIDER = new Buff({
+export const INFERNO_RIDER = new Mainslot({
   name: "Inferno Rider",
+  action: ACTION_INFERNO_RIDER,
   update: () => { if (currentAction() === ACTION_INFERNO_RIDER) applySelf(INFERNO_RIDER_WINDOW, 1); },
 });
 
@@ -180,8 +182,9 @@ export const INFERNO_RIDER = new Buff({
 /** Nightmare: Crownless, the shared Havoc mainslot echo for Camellya and Havoc Rover — both
  *  Basic-Attack-focused Havoc sword users. Flat Havoc/Basic Attack DMG Bonus, no trigger. */
 export const ACTION_NM_CROWNLESS = jinzhouAction("Echo - Nightmare: Crownless", { element: Element.Havoc, mv: 264.6 });
-export const NM_CROWNLESS = new Buff({
+export const NM_CROWNLESS = new Mainslot({
   name: "Nightmare: Crownless",
+  action: ACTION_NM_CROWNLESS,
   apply: () => { addStat(Stat.DmgBonus, 12, Element.Havoc); addStat(Stat.DmgBonus, 12, Type1.Basic); },
 });
 
@@ -214,8 +217,9 @@ export const LAMPYLUMEN_MYRIAD_STACKS = new Buff({
   // 15s a stack, so still counts on the wearer's own outro (see HERON_HANDOFF's own comment)
   convert: () => { if (casting(Cast.Outro)) revoke(LAMPYLUMEN_MYRIAD_STACKS); },
 });
-export const LAMPYLUMEN_MYRIAD = new Buff({
+export const LAMPYLUMEN_MYRIAD = new Mainslot({
   name: "Lampylumen Myriad",
+  action: ACTION_LAMPYLUMEN_MYRIAD,
   update: () => { if (currentAction() === ACTION_LAMPYLUMEN_MYRIAD) applySelf(LAMPYLUMEN_MYRIAD_STACKS, 3); },
 });
 
@@ -239,8 +243,9 @@ export const FREEZING_FROST_STACKS = new Buff({
 /** Nightmare: Feilian Beringal — Sierra Gale's own real matching mainslot echo (a Jinzhou-era
  *  set; Iuno just happens to reuse it). Flat Aero/Heavy Attack DMG Bonus, no trigger. */
 export const ACTION_NM_FEILIAN_BERINGAL = jinzhouAction("Echo - Nightmare: Feilian Beringal", { element: Element.Aero, mv: 273.56 });   // 164.16%+21.88%x5
-export const NM_FEILIAN_BERINGAL = new Buff({
+export const NM_FEILIAN_BERINGAL = new Mainslot({
   name: "Nightmare: Feilian Beringal",
+  action: ACTION_NM_FEILIAN_BERINGAL,
   apply: () => { addStat(Stat.DmgBonus, 12, Element.Aero); addStat(Stat.DmgBonus, 12, Type1.Heavy); },
 });
 
@@ -263,7 +268,7 @@ export const SIERRA_GALE_INTRO = new Buff({
  *  lumped into one action the same way Zhezhi's Inklit Spirit/Cantarella's Diffusion lump their
  *  own multi-hit windows into one — and grants the wearer a permanent +16% Resonance Skill DMG
  *  Bonus (uptime never lost, by explicit instruction — not modelled as a 15s window). */
-export const ACTION_JUE = jinzhouAction("Echo - Jué", { element: Element.Spectro, mv: 48.64 * 2 + 19.46 * 5, energy: 76*2 + 30*5 });
+export const ACTION_JUE = jinzhouAction("Echo - Jué", { element: Element.Spectro, mv: 48.64 * 2 + 19.46 * 5, energy: 0.76*2 + 0.3*5 });
 export const ACTION_JUE_BLESSING = jinzhouAction("Echo - Jué: Blessing of Time x15", {
   element: Element.Spectro, type: Type1.Skill, mv: 16 * 15,
 });
@@ -271,8 +276,9 @@ export const JUE_BLESSING = new Buff({
   name: "Jué: Blessing of Time",
   apply: () => addStat(Stat.DmgBonus, 16, Type1.Skill),
 });
-export const JUE = new Buff({
+export const JUE = new Mainslot({
   name: "Jué",
+  action: ACTION_JUE,
   update: () => {
     if (currentAction() !== ACTION_JUE) return;
     applySelf(JUE_BLESSING, 1);
@@ -297,9 +303,9 @@ export const CELESTIAL_LIGHT_INTRO = new Buff({
  *  while, combined into one 480% follow-up action queued off the initial strike rather than
  *  folded into its own flat MV. Mech Waste's damage "equals the Resonator's Outro Skill DMG" —
  *  just a stat scope, not a live lookup, so it's typed `Type1.Outro` and nothing more. */
-export const ACTION_MECH_ABOMINATION = jinzhouAction("Echo - Mech Abomination", { element: Element.Electro, mv: 48.64,energy: 76, });
+export const ACTION_MECH_ABOMINATION = jinzhouAction("Echo - Mech Abomination", { element: Element.Electro, mv: 48.64,energy: 0.76, });
 export const ACTION_MECH_WASTE = jinzhouAction("Echo - Mech Abomination: Mech Waste", {
-  element: Element.Electro, type: Type1.Outro, mv: 480, energy: 152,
+  element: Element.Electro, type: Type1.Outro, mv: 480, energy: 1.52,
 });
 export const MECH_ABOMINATION_ATK = new Buff({
   name: "Mech Abomination",
@@ -307,8 +313,9 @@ export const MECH_ABOMINATION_ATK = new Buff({
   // plain 15s window, so it still counts on the wearer's own outro (see HERON_HANDOFF's comment)
   convert: () => { if (casting(Cast.Outro)) revoke(MECH_ABOMINATION_ATK); },
 });
-export const MECH_ABOMINATION = new Buff({
+export const MECH_ABOMINATION = new Mainslot({
   name: "Mech Abomination",
+  action: ACTION_MECH_ABOMINATION,
   update: () => {
     if (currentAction() !== ACTION_MECH_ABOMINATION) return;
     applySelf(MECH_ABOMINATION_ATK, 1);
@@ -337,3 +344,17 @@ export const LINGERING_TUNES_STACKS = new Buff({
   update: () => lostOnSwap(),
   display: () => `Lingering Tunes: 5pc x${Math.ceil(stacks() / 2)}`,
 });
+
+/** Void Thunder, a generic sonata reused by Augusta. 2pc: +10% Electro DMG Bonus flat. 5pc: +15%
+ *  Electro DMG Bonus per stack on releasing Heavy Attack or Resonance Skill, up to 2 stacks —
+ *  equipped gear, so its own update() only runs while its wearer is acting, same as any other
+ *  self buff. 15s a stack, short enough that per the standing convention this is lost after its
+ *  own outro (convert()) rather than modelled with literal per-stack decay. */
+export const VOID_THUNDER_2PC = new Buff({ name: "Void Thunder 2pc", apply: () => addStat(Stat.DmgBonus, 10, Element.Electro) });
+export const VOID_THUNDER_5PC = new Buff({
+  name: "Void Thunder 5pc", maxStacks: 2,
+  apply: () => addStat(Stat.DmgBonus, 15 * stacks(), Element.Electro),
+  update: () => { if (casting(Cast.Heavy) || casting(Cast.Skill)) applySelf(VOID_THUNDER_5PC, 1); },
+  convert: () => { if (casting(Cast.Outro)) revoke(VOID_THUNDER_5PC); },
+});
+

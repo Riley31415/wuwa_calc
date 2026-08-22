@@ -50,6 +50,7 @@ import {
   Buff, Resonator, Action, ECHO_CAST, INTRO, Stat, Element, WeaponType, Type1, Cast, Node, Scaling,
   applySelf, applyEnemy, revokeEnemy, isHeld, currentAction, casting, revoke, addStat,
   forte1, forte2, setForte2, AddForte1, AddForte2,
+  Debuff,
 } from "../kit.js";
 import { THE_LAST_DANCE } from "../weapons/pistol.js";
 import { FROSTY_RESOLVE_2PC, FROSTY_RESOLVE_5PC, SENTRY_CONSTRUCT } from "../echoes/rinascita.js";
@@ -63,7 +64,7 @@ import { chem } from "../shared/substats.js";
  *  by `isHeld(CARLOTTA)`: this buff's own apply() runs on every member's turn (it's held by the
  *  enemy, not any one slot), same as a team buff, but `currentSlot` during that call is always
  *  whoever's actually acting — so this is exactly "is Carlotta the one dealing this hit". */
-export const DECONSTRUCTION = new Buff({
+export const DECONSTRUCTION = new Debuff({
   name: "Carlotta: Deconstruction",
   apply: () => { if (isHeld(CARLOTTA)) addStat(Stat.DefShred, 18); },
   // lost after her own outro action gains stats — convert() runs after apply() already paid out
@@ -128,35 +129,35 @@ function carlottaAction(id: string, def: object): Action {
 // old declared "spend the bar" costs aren't repeated here (TODO_ENGINE.md: that's what
 // Resonator.maxEnergy and the engine's own outro handling are for).
 // --- basics, mid-air, dodge counter (Silent Execution)
-export const BA1 = carlottaAction("Basic - Silent Execution 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 54.08, energy: 80, concerto: 160, offtune: 2560 });
-export const BA2 = carlottaAction("Basic - Silent Execution 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 131.83, energy: 196, concerto: 390, offtune: 6240, forte1: 3 });
-export const MA1 = carlottaAction("Basic - Silent Execution (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 300, concerto: 600, offtune: 9600 });
-export const MA2 = carlottaAction("Basic - Silent Execution: Customary Greetings", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 239.98, energy: 211, concerto: 420, offtune: 6720, forte1: 3 });
-export const DC = carlottaAction("Basic - Silent Execution (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 241.32, energy: 358, concerto: 715, offtune: 11426, forte2: 10, forte1: -1 });
+export const BA1 = carlottaAction("Basic - Silent Execution 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 54.08, energy: 0.8, concerto: 1.6, offtune: 2560 });
+export const BA2 = carlottaAction("Basic - Silent Execution 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 131.83, energy: 1.96, concerto: 3.9, offtune: 6240, forte1: 3 });
+export const MA1 = carlottaAction("Basic - Silent Execution (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 3, concerto: 6, offtune: 9600 });
+export const MA2 = carlottaAction("Basic - Silent Execution: Customary Greetings", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 239.98, energy: 2.11, concerto: 4.2, offtune: 6720, forte1: 3 });
+export const DC = carlottaAction("Basic - Silent Execution (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 241.32, energy: 3.58, concerto: 7.15, offtune: 11426, forte2: 10, forte1: -1 });
 
 // --- Necessary Measures: Basic Attack replaced while holding Moldable Crystals, each stage
 //     spending one. Not placed in the rotation below (see file header), kept for completeness.
-export const NM1 = carlottaAction("Basic - Silent Execution: Necessary Measures 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 65.91, energy: 98, concerto: 195, offtune: 3120, forte2: 10, forte1: -1 });
-export const NM2 = carlottaAction("Basic - Silent Execution: Necessary Measures 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 133.51, energy: 198, concerto: 396, offtune: 5320, forte2: 10, forte1: -1 });
-export const NM3 = carlottaAction("Basic - Silent Execution: Necessary Measures 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 233.25, energy: 347, concerto: 690, offtune: 11040, forte2: 10, forte1: -1 });
+export const NM1 = carlottaAction("Basic - Silent Execution: Necessary Measures 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 65.91, energy: 0.98, concerto: 1.95, offtune: 3120, forte2: 10, forte1: -1 });
+export const NM2 = carlottaAction("Basic - Silent Execution: Necessary Measures 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 133.51, energy: 1.98, concerto: 3.96, offtune: 5320, forte2: 10, forte1: -1 });
+export const NM3 = carlottaAction("Basic - Silent Execution: Necessary Measures 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 233.25, energy: 3.47, concerto: 6.9, offtune: 11040, forte2: 10, forte1: -1 });
 
 // --- heavy attack: base cast, and Containment Tactics once Substance is full
-export const HA = carlottaAction("Heavy - Silent Execution", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 152.12, energy: 226, concerto: 452, offtune: 7200, forte1: 3 });
-export const EHA = carlottaAction("Heavy - Silent Execution: Containment Tactics", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 228.18, energy: 226, concerto: 1500, offtune: 7200, forte2: -120 });
+export const HA = carlottaAction("Heavy - Silent Execution", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 152.12, energy: 2.26, concerto: 4.52, offtune: 7200, forte1: 3 });
+export const EHA = carlottaAction("Heavy - Silent Execution: Containment Tactics", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 228.18, energy: 2.26, concerto: 15, offtune: 7200, forte2: -120 });
 
 // --- resonance skill: Art of Violence, then Chromatic Splendor (press again shortly after) —
 //     Chromatic Splendor's own Substance gain/crystal spend is dynamic (see CHROMATIC_SPLENDOR_SPEND
 //     above), not a declared forte1/forte2 field here
 export const Skill1 = carlottaAction("Skill - Art of Violence", {
-  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 288.22, energy: 200, concerto: 500, offtune: 6136, forte1: 3,
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 288.22, energy: 2, concerto: 5, offtune: 6136, forte1: 3,
 });
 export const Skill2 = carlottaAction("Skill - Chromatic Splendor", {
-  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 563.64, energy: 300, concerto: 500, offtune: 6136,
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 563.64, energy: 3, concerto: 5, offtune: 6136,
 });
 
 // --- forte circuit: Imminent Oblivion, considered Resonance Skill DMG, spends all Substance
 export const FHA = carlottaAction("Heavy - Imminent Oblivion", {
-  node: Node.Forte, cast: Cast.Heavy, type: Type1.Skill, mv: 835.36, energy: 1700, concerto: 1500, offtune: 97361, forte2: -120,
+  node: Node.Forte, cast: Cast.Heavy, type: Type1.Skill, mv: 835.36, energy: 17, concerto: 15, offtune: 97361, forte2: -120,
 });
 
 // --- liberation: Era of New Wave opens Twilight Tango; Death Knell (press Normal/Liberation, up
@@ -164,18 +165,18 @@ export const FHA = carlottaAction("Heavy - Imminent Oblivion", {
 //     it out — the rotation below places exactly 4 Death Knells then one Fatal Finale, matching
 //     both the kit text and the forte3 deltas declared here.
 export const Lib1 = carlottaAction("Liberation - Era of New Wave", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Skill, mv: 402.71, concerto: 2000, offtune: 33600,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Skill, mv: 402.71, concerto: 20, offtune: 33600,
 });
 export const DeathKnell = carlottaAction("Liberation - Death Knell", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Skill, mv: 241.64, energy: 500, concerto: 700, offtune: 9600, forte3: 1,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Skill, mv: 241.64, energy: 5, concerto: 7, offtune: 9600, forte3: 1,
 });
 export const FatalFinale = carlottaAction("Liberation - Fatal Finale", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Skill, mv: 644.33, concerto: 1000, offtune: 50400, forte3: -4,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Skill, mv: 644.33, concerto: 10, offtune: 50400, forte3: -4,
 });
 
 // --- intro / outro
 export const Intro = carlottaAction("Intro - Wintertime Aria", {
-  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 298.23, energy: 1000, concerto: 1000, offtune: 9335, forte2: 30, forte1: 3,
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 298.23, energy: 10, concerto: 10, offtune: 9335, forte2: 30, forte1: 3,
 });
 /** Closing Remark — no handoff buff of any kind is described on her own kit page, unlike every
  *  other kit implemented so far; left as a plain damage hit rather than inventing one. */

@@ -31,18 +31,16 @@ jinhsi https://ww.nanoka.cc/character/1304
 
 # todo fix these kits
 Galbrena
-Sigrika
 Roccia
 Changli 
 Encore 
-Verina
 Jianxin 
-havoc rover
 cammelya
 danjin
-add offtune to resonator actions missing it
-sanhua bug
+
 
 check old sonatas
 check all sonata buff names, 2pc, 5pc
-fix skill chain names
+
+#
+add mortefi

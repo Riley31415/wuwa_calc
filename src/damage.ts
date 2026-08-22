@@ -45,8 +45,7 @@ const LEVEL_90_TUNE = 10027;
  */
 export const mvPercent = (snapshot: Snapshot): number =>
   (snapshot.action.mv + snapshot.stat(Stat.AddMv))
-  * (1 + snapshot.stat(Stat.MulMv) / 100)
-  * (1 + snapshot.stat(Stat.SpecialMv) / 100);
+  * (1 + snapshot.stat(Stat.MulMv) / 100);
 
 /** Dot damage bypasses ignore and shred; both helpers below need to know. */
 const notDotFor = (snapshot: Snapshot): number =>
@@ -114,6 +113,17 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
   const { action } = snapshot;
   const s = (k: string) => snapshot.stat(k) / 100;   // ratio stats
   const scaling = action.scaling ?? Scaling.Atk;
+
+  // Fixed reads no stat and takes no buff — its own mv is the damage, full stop. Every other
+  // factor is reported as a neutral 1 so the table still has something to show per term.
+  if (scaling === Scaling.Fixed) {
+    return {
+      scaling, finalMv: action.mv, finalStat: 1,
+      ampFactor: 1, bonusFactor: 1, tbbFactor: 1, resFactor: 1, defFactor: 1, dealtFactor: 1,
+      critFactor: 1, critMult: 1,
+      noCrit: action.mv, crit: action.mv, avg: action.mv,
+    };
+  }
 
   const notDot = scaling !== Scaling.Dot ? 1 : 0;
   const notTune = scaling !== Scaling.Tune ? 1 : 0;

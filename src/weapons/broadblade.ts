@@ -1,13 +1,14 @@
 /** Signature Broadblade weapons, ported to the new engine. Each section is the character it's
  *  signature to; every piece works if equipped on any resonator, not just its own. */
 import {
-  Buff, Stat, Element, Type1, Cast,
+  Buff, Weapon, WeaponType, Stat, Element, Type1, Cast,
   addStat, stacks, casting, currentAction, revoke, applySelf, applyTeam, removeStack, lostOnSwap,
 } from "../kit.js";
 
 /** Jiyan's sig, R1: Swordsworn. +12% Attribute DMG Bonus flat (unscoped). Every Intro Skill or
  *  Resonance Liberation cast grants +24% Heavy Attack DMG Bonus, up to 2 stacks, 14s. */
-export const VERDANT_SUMMIT = new Buff({
+export const VERDANT_SUMMIT = new Weapon({
+  weaponType: WeaponType.Broadblade,
   name: "Verdant Summit",
   apply: () => {
     addStat(Stat.BaseAtk, 587.5);
@@ -27,7 +28,8 @@ export const SWORDSWORN_STACKS = new Buff({
 /** Jinhsi's sig, R1: Divine Blessing. +12% Attribute DMG Bonus flat (unscoped). Casting Intro
  *  Skill gives Ageless Marking (+24% Resonance Skill DMG, 12s); casting Resonance Skill gives
  *  Ethereal Endowment (+24% Resonance Skill DMG, 12s) — independently stackable, up to +48%. */
-export const AGES_OF_HARVEST = new Buff({
+export const AGES_OF_HARVEST = new Weapon({
+  weaponType: WeaponType.Broadblade,
   name: "Ages of Harvest",
   apply: () => {
     addStat(Stat.BaseAtk, 587.5);
@@ -53,7 +55,8 @@ export const ETHEREAL_ENDOWMENT = new Buff({
 
 /** Augusta's sig, R1. +12% ATK flat. Intro/Skill cast grants +20% Heavy Attack DMG Bonus for
  *  15s; gaining a shield grants a stack (up to 5) of +7.2% Heavy Attack DEF ignore, 7s. */
-export const THUNDERFLARE_DOMINION = new Buff({
+export const THUNDERFLARE_DOMINION = new Weapon({
+  weaponType: WeaponType.Broadblade,
   name: "Thunderflare Dominion",
   apply: () => {
     addStat(Stat.BaseAtk, 675);
@@ -67,13 +70,13 @@ export const THUNDERFLARE_DOMINION = new Buff({
   },
 });
 export const THUNDERBLAZE_DMG = new Buff({
-  name: "Thunderflare Dominion: Thunderblaze Eminence",
+  name: "Thunderflare Dominion: Thunderblaze Eminence (heavy)",
   apply: () => addStat(Stat.DmgBonus, 20, Type1.Heavy),
   // 15s window, so it still counts on the wearer's own outro (see jinzhou.ts's HERON_HANDOFF)
   convert: () => { if (casting(Cast.Outro)) revoke(THUNDERBLAZE_DMG); },
 });
 export const THUNDERBLAZE_DEF = new Buff({
-  name: "Thunderflare Dominion: Thunderblaze Eminence", maxStacks: 5,
+  name: "Thunderflare Dominion: Thunderblaze Eminence (def ignore)", maxStacks: 5,
   update: () => {
     addStat(Stat.DefIgnore, 7.2 * stacks(), Type1.Heavy);
     if (casting(Cast.Outro)) revoke(THUNDERBLAZE_DEF);
@@ -89,7 +92,8 @@ export const WILDFIRE_TEAM = new Buff({
   name: "Wildfire Mark: Blazing Starfire",
   apply: () => addStat(Stat.DmgBonus, 24, Element.Fusion),
 });
-export const WILDFIRE_MARK = new Buff({
+export const WILDFIRE_MARK = new Weapon({
+  weaponType: WeaponType.Broadblade,
   name: "Wildfire Mark",
   apply: () => {
     addStat(Stat.BaseAtk, 587.5);
@@ -105,7 +109,8 @@ export const WILDFIRE_MARK = new Buff({
  *  same way, spent by a heavy attack for defence ignore. Both end on switching resonator. Intro
  *  is its own flat +1 trigger rather than also counting its own declared shield, so the one
  *  action doesn't double-stack. */
-export const JINGRAN_SIG = new Buff({
+export const JINGRAN_SIG = new Weapon({
+  weaponType: WeaponType.Broadblade,
   name: "Thousandfold Deliverance",
   apply: () => {
     addStat(Stat.BaseAtk, 413);

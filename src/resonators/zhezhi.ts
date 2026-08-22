@@ -59,7 +59,7 @@ export const ZHEZHI_OUTRO = new Buff({
   apply: () => {
     addStat(Stat.Amp, 20, Element.Glacio);
     addStat(Stat.Amp, 25, Type1.Skill);
-    if (casting(Cast.Intro)) addStat(AddEnergy, 1500);
+    if (casting(Cast.Intro)) addStat(AddEnergy, 15);
   },
   // a plain window, not "lost on swap" wording — still counts on the recipient's own outro (see
   // jinzhou.ts's HERON_HANDOFF for the same shape)
@@ -76,35 +76,35 @@ function zhezhiAction(id: string, def: object): Action {
 // old declared "spend the bar" costs aren't repeated here (TODO_ENGINE.md: that's what
 // Resonator.maxEnergy and the engine's own outro handling are for).
 // --- basics, mid-air, dodge counter (Dimming Brush)
-export const BA1 = zhezhiAction("Basic - Dimming Brush 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 83.52, energy: 150, concerto: 480, offtune: 4800, forte1: 10 });
-export const BA2 = zhezhiAction("Basic - Dimming Brush 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 102.75, energy: 185, concerto: 595, offtune: 5905, forte1: 15 });
-export const BA3 = zhezhiAction("Basic - Dimming Brush 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 133.61, energy: 240, concerto: 768, offtune: 7680, forte1: 25 });
+export const BA1 = zhezhiAction("Basic - Dimming Brush 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 83.52, energy: 1.5, concerto: 4.8, offtune: 4800, forte1: 10 });
+export const BA2 = zhezhiAction("Basic - Dimming Brush 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 102.75, energy: 1.85, concerto: 5.95, offtune: 5905, forte1: 15 });
+export const BA3 = zhezhiAction("Basic - Dimming Brush 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 133.61, energy: 2.4, concerto: 7.68, offtune: 7680, forte1: 25 });
 
-export const MA = zhezhiAction("Basic - Dimming Brush (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 229.53, energy: 340, concerto: 1091, offtune: 10865, forte1: 25 });
-export const DC = zhezhiAction("Basic - Dimming Brush (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 145.35, energy: 215, concerto: 2000, offtune: 6880 });
-export const HA = zhezhiAction("Heavy - Dimming Brush", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 112.72, energy: 167, concerto: 534, offtune: 5336, forte1: 15 });
+export const MA = zhezhiAction("Basic - Dimming Brush (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 229.53, energy: 3.4, concerto: 10.91, offtune: 10865, forte1: 25 });
+export const DC = zhezhiAction("Basic - Dimming Brush (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 145.35, energy: 2.15, concerto: 20, offtune: 6880 });
+export const HA = zhezhiAction("Heavy - Dimming Brush", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 112.72, energy: 1.67, concerto: 5.34, offtune: 5336, forte1: 15 });
 
 // --- resonance skill: Manifestation, base cast — spends 60 Afflatus for a pair of Imprints
 export const Skill = zhezhiAction("Skill - Manifestation", {
-  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 295.26, energy: 792, concerto: 800, offtune: 4737, forte1: -60,
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 295.26, energy: 7.92, concerto: 8, offtune: 4737, forte1: -60,
 });
 
 // --- forte circuit: Heavy Attack - Conjuration (spends the remaining 30 Afflatus for a third
 //     Imprint), then Stroke of Genius (twice — two of the three Imprints), then Creation's
 //     Zenith (the last Imprint, plus both Painter's Delight stacks it never tracks directly)
 export const FHA = zhezhiAction("Forte Heavy - Conjuration", {
-  node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 249.03, energy: 210, concerto: 669, offtune: 6681, forte1: -30,
+  node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 249.03, energy: 2.1, concerto: 6.69, offtune: 6681, forte1: -30,
 });
 export const FSkill = zhezhiAction("Forte Skill - Stroke of Genius", {
-  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 298.22, energy: 700, concerto: 1300, offtune: 7736,
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 298.22, energy: 7, concerto: 13, offtune: 7736,
 });
 export const FSkill3 = zhezhiAction("Forte Skill - Creation's Zenith", {
-  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 357.87, energy: 702, concerto: 1300, offtune: 10401,
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 357.87, energy: 7.02, concerto: 13, offtune: 10401,
 });
 
 // --- liberation: Living Canvas — opens the Inklit Spirit window, no damage of its own
 export const Liberation = zhezhiAction("Liberation - Living Canvas", {
-  node: Node.Liberation, cast: Cast.Liberation, mv: 0, concerto: 2000,
+  node: Node.Liberation, cast: Cast.Liberation, mv: 0, concerto: 20,
 });
 /** Inklit Spirit: up to 21 Coordinated Attack hits over 30s, one per second the active resonator
  *  lands a hit — lumped into one action, same treatment as Cantarella's Diffusion, queued the
@@ -115,7 +115,7 @@ export const ACTION_LIB_COORDS = zhezhiAction("Liberation - Inklit Spirit x21", 
 
 // --- intro / outro
 export const Intro = zhezhiAction("Intro - Radiant Ruin", {
-  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 258.48, energy: 1002, concerto: 1000, offtune: 10401, forte1: 45,
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 258.48, energy: 10.02, concerto: 10, offtune: 10401, forte1: 45,
 });
 export const Outro = zhezhiAction("Outro - Carve and Draw", { cast: Cast.Outro, mv: 0, active: false });
 

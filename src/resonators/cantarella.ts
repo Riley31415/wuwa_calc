@@ -9,7 +9,8 @@
 import {
   Buff, Resonator, Gear, Action, ECHO_CAST, INTRO, Stat, Element, WeaponType, Type1, Type2, Cast, Node, Scaling,
   applySelf, removeStack, stacksOf, currentAction, casting, queue, queueOutro,
-  removeStackTeam, setStacksTeam, revoke, addStat, stacks,
+  removeStackTeam, revoke, addStat, stacks,
+  applyTeam,
 } from "../kit.js";
 import { WHISPERS_OF_SIRENS } from "../weapons/rectifier.js";
 import { HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../echoes/jinzhou.js";
@@ -114,7 +115,7 @@ export const CANTARELLA = new Resonator({
     if (casting(Cast.Echo)) applySelf(POISON, 1);
     if (a === EHA) applySelf(MIRAGE, 1);
     if (a === ESkill) applySelf(HAZY_DREAM, 1);
-    if (a === Intro) setStacksTeam(ABYSSAL_REBIRTH, 6);
+    if (a === Intro) applyTeam(ABYSSAL_REBIRTH, 6);
     if (a === Outro) { queue(ACTION_DIFFUSION); queueOutro(CANTARELLA_OUTRO); }
   },
 

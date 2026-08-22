@@ -36,20 +36,14 @@ first on is queue on next intro
 then 1 action between each?
 if none queue it gets instantly queued tho
 insert hecate ba12 whenever none has been queued for a certain # of actions?
-
+add the manual hecate attacks too
 
 #
 add "er rolls needed" to substats
-
-#
-mark concerto red on outro if not enough
+create a more in depth substat system
 
 # 
 implement all tune
 
 #
 implement all statuses
-#
-carlotta deconstruction should be a debuff class (purple for readability) and also should end after outro via conversion.
-
-update all echoes and weapons to be Gear not Buffs where applicable. also make Weapons a new Weapon class that extends gear and has a WeaponType field.

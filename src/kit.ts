@@ -91,6 +91,7 @@ export class Gear {
 }
 
 export class Buff extends Gear {}
+export class Debuff extends Buff {}
 
 export interface ResonatorDef extends GearDef {
   element: Element;
@@ -114,6 +115,14 @@ export interface ResonatorDef extends GearDef {
    *  with the "current" pointers already aimed at the acting slot, so it can read
    *  stacksOf()/stacksOfTeam() etc. same as any other kit logic. */
   intro: () => Action;
+  /** Any 4-star or standard (permanently available) resonator — trivial to fully sequence, so
+   *  their own S6 resonance-chain bonus is assumed as their baseline kit rather than gated behind
+   *  the sequence-0 default every 5-star build in this project uses. Set true on the Resonator
+   *  itself, not per-team: the kit file that declares it is what decides whether its own S6 buff
+   *  belongs in its loadout unconditionally — nothing here enforces it, this is purely the flag a
+   *  kit file checks. Doesn't affect the comparison table's own sequence filter (`data-maxseq`),
+   *  which still reflects the *limited* members' own baseline. */
+  standardCharacter?: boolean;
 }
 
 /** A resonator: a Gear like any other (TODO_ENGINE.md — "Resonator extends Gear"), plus its own
@@ -126,6 +135,7 @@ export class Resonator extends Gear {
   maxEnergy: number;
   color: string;
   introFn: () => Action;
+  standardCharacter: boolean;
   constructor(def: ResonatorDef) {
     super({ ...def, combatStart: () => { currentSlot!.resonator = this; def.combatStart?.(); } });
     this.element = def.element;
@@ -133,6 +143,7 @@ export class Resonator extends Gear {
     this.maxEnergy = def.maxEnergy ?? 0;
     this.color = def.color;
     this.introFn = def.intro;
+    this.standardCharacter = def.standardCharacter ?? false;
   }
 }
 
@@ -149,6 +160,22 @@ export class Mainslot extends Gear {
   constructor(def: MainslotDef) {
     super(def);
     this.action = def.action;
+  }
+}
+
+export interface WeaponDef extends GearDef {
+  /** Which of the five weapon categories this is — must match the wielder's own `Resonator.weapon`. */
+  weaponType: WeaponType;
+}
+
+/** A weapon: gear that also carries which of the five categories it belongs to. Every top-level
+ *  weapon export in src/weapons/ is one of these, not a plain Gear — the secondary proc buffs a
+ *  weapon grants (Ad Veritatem, Panorama, etc.) stay plain Buff. */
+export class Weapon extends Gear {
+  weaponType: WeaponType;
+  constructor(def: WeaponDef) {
+    super(def);
+    this.weaponType = def.weaponType;
   }
 }
 
@@ -557,10 +584,6 @@ export function applyTeam(buff: Buff, n = 1): number {
   attribute(buff);
   return currentState!.addStackGlobal(buff, n);
 }
-export function setStacksTeam(buff: Buff, n: number): number {
-  attribute(buff);
-  return currentState!.setStacksGlobal(buff, n);
-}
 export function removeStackTeam(buff: Buff, n = 1): number { return currentState!.removeStackGlobal(buff, n); }
 export function revokeTeam(buff: Buff): void { currentState!.revokeGlobal(buff); }
 
@@ -568,16 +591,12 @@ export function revokeTeam(buff: Buff): void { currentState!.revokeGlobal(buff);
 // the Team functions above, kept as its own pool so the report can tell the two apart (see
 // State.enemyStacks)
 export function stacksOfEnemy(gear: Gear): number { return currentState!.stacksOfEnemy(gear); }
-export function applyEnemy(buff: Buff, n = 1): number {
-  attribute(buff);
-  return currentState!.addStackEnemy(buff, n);
+export function applyEnemy(debuff: Debuff, n = 1): number {
+  attribute(debuff);
+  return currentState!.addStackEnemy(debuff, n);
 }
-export function setStacksEnemy(buff: Buff, n: number): number {
-  attribute(buff);
-  return currentState!.setStacksEnemy(buff, n);
-}
-export function removeStackEnemy(buff: Buff, n = 1): number { return currentState!.removeStackEnemy(buff, n); }
-export function revokeEnemy(buff: Buff): void { currentState!.revokeEnemy(buff); }
+export function removeStackEnemy(debuff: Debuff, n = 1): number { return currentState!.removeStackEnemy(debuff, n); }
+export function revokeEnemy(debuff: Debuff): void { currentState!.revokeEnemy(debuff); }
 
 /** Grant/spend a Buff on one specific resonator's own local stacks, regardless of whose turn it
  *  is — for a kit that reacts to the whole team but pays out onto one specific member (Jingran's
@@ -590,6 +609,9 @@ export function addBuff(resonator: Resonator, buff: Buff, n = 1): number {
 }
 export function removeBuff(resonator: Resonator, buff: Buff, n = 1): number {
   return currentState!.memberOf(resonator).removeStack(buff, n);
+}
+export function revokeBuff(resonator: Resonator, buff: Buff): void {
+  currentState!.memberOf(resonator).revoke(buff);
 }
 
 /** Grant to every slot except the one currently acting. */
@@ -620,6 +642,15 @@ export function queueOutro(buff: Buff): void {
 const pendingQueue: { action: Action; slot: number }[] = [];
 export function queue(action: Action): void {
   pendingQueue.push({ action, slot: currentState!.slots.indexOf(currentSlot!) });
+}
+
+/** Same as `queue()`, but attributed to one specific resonator's own slot regardless of whose
+ *  turn it actually is or who's reacting — for a kit reacting through `updateGlobal()` (so
+ *  `currentSlot` is its own holder, not the real actor) that still wants the follow-up to land on
+ *  whoever it's actually for. Resolved via `State.memberOf()`, same "throws rather than silently
+ *  no-opping" contract as `addBuff()`. */
+export function queueOn(resonator: Resonator, action: Action): void {
+  pendingQueue.push({ action, slot: currentState!.slots.indexOf(currentState!.memberOf(resonator)) });
 }
 
 /** Run `fn` (a resonator's initial grants, before any rotation has evaluated) with the "current"

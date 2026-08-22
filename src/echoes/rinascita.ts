@@ -53,8 +53,9 @@ export const FROSTY_RESOLVE_5PC = new Buff({
 export const ACTION_NM_HERON = new Action("Echo - Nightmare: Impermanence Heron", {
   cast: Cast.Echo, element: Element.Havoc, scaling: Scaling.Atk, type: Type1.Echo, mv: 405,
 });
-export const NM_HERON = new Buff({
+export const NM_HERON = new Mainslot({
   name: "Nightmare: Impermanence Heron",
+  action: ACTION_NM_HERON,
   apply: () => { addStat(Stat.DmgBonus, 12, Element.Havoc); addStat(Stat.DmgBonus, 12, Type1.Heavy); },
 });
 
@@ -65,8 +66,9 @@ export const NM_HERON = new Buff({
 export const ACTION_LORELEI = new Action("Echo - Lorelei", {
   cast: Cast.Echo, element: Element.Havoc, scaling: Scaling.Atk, type: Type1.Echo, mv: 405,
 });
-export const LORELEI = new Buff({
+export const LORELEI = new Mainslot({
   name: "Lorelei",
+  action: ACTION_LORELEI,
   apply: () => { addStat(Stat.DmgBonus, 12, Element.Havoc); addStat(Stat.DmgBonus, 12, Type1.Basic); },
 });
 
@@ -101,8 +103,9 @@ export const MIDNIGHT_VEIL_5PC = new Buff({
 export const ACTION_DRAGON_OF_DIRGE = new Action("Echo - Dragon of Dirge", {
   cast: Cast.Echo, element: Element.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 36.81,
 });
-export const DRAGON_OF_DIRGE = new Buff({
+export const DRAGON_OF_DIRGE = new Mainslot({
   name: "Dragon of Dirge",
+  action: ACTION_DRAGON_OF_DIRGE,
   apply: () => { addStat(Stat.DmgBonus, 12, Element.Fusion); addStat(Stat.DmgBonus, 12, Type1.Basic); },
 });
 
@@ -124,8 +127,9 @@ export const TIDEBREAKING_5PC = new Buff({
 export const ACTION_LIONESS = new Action("Echo - Lioness of Glory", {
   cast: Cast.Echo, element: Element.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 273.6,
 });
-export const LIONESS_OF_GLORY = new Buff({
+export const LIONESS_OF_GLORY = new Mainslot({
   name: "Lioness of Glory",
+  action: ACTION_LIONESS,
   apply: () => { addStat(Stat.DmgBonus, 12, Type1.Liberation); addStat(Stat.DmgBonus, 12, Element.Fusion); },
 });
 

@@ -1,14 +1,15 @@
 /** Signature Sword weapons, ported to the new engine. Each section is the character it's
  *  signature to; every piece works if equipped on any resonator, not just its own. */
 import {
-  Buff, Stat, Type1, Cast,
+  Buff, Weapon, WeaponType, Stat, Type1, Cast,
   addStat, stacks, casting, currentAction, revoke, applySelf, stacksOf, applyTeam, lostOnSwap,
 } from "../kit.js";
 
 /** Changli's sig, R1: Crimson Phoenix. +12% ATK flat. Resonance Skill cast grants 5 stacks of
  *  Searing Feather outright (up to 14) — the per-hit 0.5s-ICD trickle is skipped, same as every
  *  other ICD-gated stack elsewhere. */
-export const BLAZING_BRILLIANCE = new Buff({
+export const BLAZING_BRILLIANCE = new Weapon({
+  weaponType: WeaponType.Sword,
   name: "Blazing Brilliance",
   apply: () => {
     addStat(Stat.BaseAtk, 587.5);
@@ -31,10 +32,11 @@ export const SEARING_FEATHER = new Buff({
  *  Basic Attack DMG Bonus for 14s (once per second, up to 3 stacks — the ICD isn't modelled).
  *  The Concerto-consumption half of the passive (+40% Basic DMG for 10s) has no clean trigger in
  *  this engine (Concerto isn't spent per-action) — left unmodelled rather than guessed at. */
-export const RED_SPRING = new Buff({
+export const RED_SPRING = new Weapon({
+  weaponType: WeaponType.Sword,
   name: "Red Spring",
   apply: () => {
-    addStat(Stat.BaseAtk, 588);
+    addStat(Stat.BaseAtk, 587.5);
     addStat(Stat.CritRate, 24.3);
     addStat(Stat.BonusAtk, 12);
   },
@@ -51,7 +53,8 @@ export const RED_SPRING_BASIC = new Buff({
 /** Brant's sig, R1: Laughter Prevails. +8% Crit Rate flat. Two independent +24% Basic Attack DMG
  *  Bonus instances — Liberation cast grants one (10s), dealing Basic Attack DMG grants the other
  *  (4s); both up at once is +48%, not capped to one. */
-export const UNFLICKERING_VALOR = new Buff({
+export const UNFLICKERING_VALOR = new Weapon({
+  weaponType: WeaponType.Sword,
   name: "Unflickering Valor",
   apply: () => {
     addStat(Stat.BaseAtk, 413);
@@ -82,7 +85,8 @@ export const LAUGHTER_PREVAILS_BASIC = new Buff({
  *  literal timer here, so "within 10s" is approximated by staying ready until something other
  *  than Intro/Basic/Echo happens. One buff stores all three states: stack 1 is "ready" (no
  *  bonus), stacks 2-3 are the real Bamboo Cleaver stacks. */
-export const EMERALD_SENTENCE = new Buff({
+export const EMERALD_SENTENCE = new Weapon({
+  weaponType: WeaponType.Sword,
   name: "Emerald Sentence",
   apply: () => {
     addStat(Stat.BaseAtk, 587.5);

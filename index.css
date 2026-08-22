@@ -433,7 +433,17 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
    `.c`'s, identical to every stat column. */
 .c.action { padding-left: 8px; }
 .c.action, .c.name { color: var(--ink); }
-.c.avg { color: var(--ink); }
+.c.avg { color: var(--ink); font-weight: 700; }
+
+/* mv/energy/concerto/offtune: a dotted underline when a stat buff actually moved this cell's own
+   value, not just its usual carried/declared trace (see display.ts's own ReportRow.buffed) —
+   white, so it reads as "a buff is in play" without implying anything's wrong the way the
+   concerto-underspend colour below does. */
+.c.buffed { text-decoration: underline dotted #fff; text-underline-offset: 3px; }
+
+/* concerto only: an outro that fired without a full 100-point bar banked — a real "we didn't
+   have enough" case, so it reads as an error rather than the neutral `.buffed` note above. */
+.c.underspent { color: #e5484d; text-decoration: underline dotted #e5484d; text-underline-offset: 3px; }
 
 /* The member column: its own colour system, sourced from `--mem` (the member's own colour, set
    inline per cell) rather than `--m` (the row's action colour) — a left bar and a background

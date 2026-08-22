@@ -22,7 +22,7 @@ import { buildReport, totalsBySlot, explain } from "./src/display.js";
 import type { Report, Column, ReportRow, ReportPart, TraceEntry, InfoEntry } from "./src/display.js";
 import { isPercent, statLabel } from "./src/stats.js";
 
-import { QIUYUAN, QY_LOADOUT, QY_ROTATION } from "./src/resonators/qiuyuan.js";
+import { QIUYUAN, QY_LOADOUT, QY_LOADOUT_MOONLIT, QY_ROTATION } from "./src/resonators/qiuyuan.js";
 import { CANTARELLA, CA_LOADOUT, CA_ROTATION } from "./src/resonators/cantarella.js";
 import { PHROLOVA, PH_LOADOUT, PH_OPENER, PH_LOOP } from "./src/resonators/phrolova.js";
 import { SHOREKEEPER, SK_LOADOUT, SK_OPENER, SK_LOOP } from "./src/resonators/shorekeeper.js";
@@ -30,6 +30,12 @@ import { IUNO, IO_LOADOUT, IO_ROTATION } from "./src/resonators/iuno.js";
 import { JINGRAN, JR_LOADOUT, JR_ROTATION } from "./src/resonators/jingran.js";
 import { ZHEZHI, ZZ_LOADOUT, ZZ_ROTATION } from "./src/resonators/zhezhi.js";
 import { CARLOTTA, CL_LOADOUT, CL_ROTATION } from "./src/resonators/carlotta.js";
+import { SIGRIKA, SR_LOADOUT, SR_ROTATION } from "./src/resonators/sigrika.js";
+import { VERINA, VR_LOADOUT, VR_OPENER, VR_LOOP } from "./src/resonators/verina.js";
+import { SANHUA, SH_LOADOUT, SH_ROTATION } from "./src/resonators/sanhua.js";
+import { ROVER_HAVOC, RH_LOADOUT, RH_ROTATION } from "./src/resonators/rover_havoc.js";
+import { ROCCIA, RC_LOADOUT, RC_ROTATION } from "./src/resonators/roccia.js";
+import { AUGUSTA, AG_LOADOUT, AG_ROTATION } from "./src/resonators/augusta.js";
 
 /* ------------------------------------------------------------------------------------ teams */
 
@@ -45,8 +51,6 @@ interface Member {
 const member = (resonator: Resonator, loadout: Gear[], opener: Action[], loop: Action[]): Member =>
   ({ name: resonator.name, color: resonator.color, loadout, opener, loop });
 
-/** Only the two ported teams — the old page's team switcher compared ~30 of these; with two,
- *  the landing page is a short ranking rather than the full catalog. */
 const TEAMS: Record<string, Member[]> = {
   froloQyCanta: [
     member(PHROLOVA, PH_LOADOUT, PH_OPENER, PH_LOOP),
@@ -62,6 +66,33 @@ const TEAMS: Record<string, Member[]> = {
     member(SHOREKEEPER, SK_LOADOUT, SK_OPENER, SK_LOOP),
     member(ZHEZHI, ZZ_LOADOUT, ZZ_ROTATION, ZZ_ROTATION),
     member(CARLOTTA, CL_LOADOUT, CL_ROTATION, CL_ROTATION),
+  ],
+  skQiuyuanSigrika: [
+    member(SHOREKEEPER, SK_LOADOUT, SK_OPENER, SK_LOOP),
+    member(QIUYUAN, QY_LOADOUT_MOONLIT, QY_ROTATION, QY_ROTATION),
+    member(SIGRIKA, SR_LOADOUT, SR_ROTATION, SR_ROTATION),
+  ],
+  verinaSanhuaRover: [
+    member(VERINA, VR_LOADOUT, VR_OPENER, VR_LOOP),
+    member(SANHUA, SH_LOADOUT, SH_ROTATION, SH_ROTATION),
+    member(ROVER_HAVOC, RH_LOADOUT, RH_ROTATION, RH_ROTATION),
+  ],
+  froloSkCanta: [
+    member(PHROLOVA, PH_LOADOUT, PH_OPENER, PH_LOOP),
+    // she's never the team's own lead here, so SK_LOOP covers both slots (see any non-leading
+    // member's own rotation file for the same reasoning)
+    member(SHOREKEEPER, SK_LOADOUT, SK_LOOP, SK_LOOP),
+    member(CANTARELLA, CA_LOADOUT, CA_ROTATION, CA_ROTATION),
+  ],
+  froloRocciaCanta: [
+    member(PHROLOVA, PH_LOADOUT, PH_OPENER, PH_LOOP),
+    member(ROCCIA, RC_LOADOUT, RC_ROTATION, RC_ROTATION),
+    member(CANTARELLA, CA_LOADOUT, CA_ROTATION, CA_ROTATION),
+  ],
+  skIunoAugusta: [
+    member(SHOREKEEPER, SK_LOADOUT, SK_OPENER, SK_LOOP),
+    member(IUNO, IO_LOADOUT, IO_ROTATION, IO_ROTATION),
+    member(AUGUSTA, AG_LOADOUT, AG_ROTATION, AG_ROTATION),
   ],
 };
 
@@ -81,13 +112,20 @@ const STICK = 2;
 
 interface TeamRun {
   state: State;
+  /** All 4 sections combined (opener, then loop 1-3 in a row) — what the detail page's own action
+   *  table reads, so every rotation it ran is right there to read top to bottom, not just the
+   *  first loop pass. */
   report: Report;
-  openerReport: Report;
-  loopReport: Report;
-  /** The loop's own evaluated lines — what the comparison table's own damage-breakdown popovers
-   *  read (grouped by tag rather than laid out as report columns). */
-  loopLines: ChainGroup[];
+  /** The 4 sections' own separate reports, in order: [opener, loop 1, loop 2, loop 3]. The detail
+   *  page's own four summary cards read one apiece; the comparison table below averages across
+   *  all four instead of judging a build off any single one of them. */
+  rotationReports: Report[];
+  /** The same 4 sections' own raw lines, same order — what the comparison table's own damage-
+   *  breakdown hover reads (concatenated + divided by 4 there, see `damagePopover`'s own divisor). */
+  rotationLines: ChainGroup[][];
   members: Member[];
+  /** The comparison table's own figures: the plain mean across all 4 sections' own grand total /
+   *  per-member total, each section weighted equally — see `runTeam()`'s own comment. */
   total: number;
   bySlot: Map<string, number>;
 }
@@ -103,24 +141,34 @@ function runTeam(members: Member[]): TeamRun {
   });
   state.active = 0;
 
-  // Every member's opener runs first, in team order, then every member's loop — matching how a
-  // real run actually goes: the whole team gets set up before anyone starts repeating.
+  // Every member's opener runs first, in team order, then every member's loop, three times over
+  // — matching how a real run actually goes: the whole team gets set up before anyone starts
+  // repeating, and a loop-only buff/gauge that hasn't settled by the first pass (still ramping
+  // up, or handed off from the opener) gets the two more passes it needs to reach steady state.
   const runPart = (rotation: Action[]): ChainGroup[] =>
     rotation.length ? run(state, rotation).map(toLine) : [];
   const openerLines = members.flatMap((m) => runPart(m.opener));
-  const loopLines = members.flatMap((m) => runPart(m.loop));
+  const loop1Lines = members.flatMap((m) => runPart(m.loop));
+  const loop2Lines = members.flatMap((m) => runPart(m.loop));
+  const loop3Lines = members.flatMap((m) => runPart(m.loop));
+  const rotationLines = [openerLines, loop1Lines, loop2Lines, loop3Lines];
+  const rotationReports = rotationLines.map((lines) => buildReport(lines));
 
-  const openerReport = buildReport(openerLines);
-  const loopReport = buildReport(loopLines);
+  // The comparison table (not the detail page's own action table) judges a build by the plain
+  // mean across these four sections rather than any one of them alone — the opener counts
+  // exactly as much as a single loop pass, not amortized over however many loops a real run
+  // would actually repeat.
+  const total = rotationReports.reduce((sum, r) => sum + r.total, 0) / rotationReports.length;
+  const bySlot = new Map<string, number>();
+  for (const r of rotationReports) {
+    for (const [slot, v] of totalsBySlot(r)) bySlot.set(slot, (bySlot.get(slot) ?? 0) + v / rotationReports.length);
+  }
 
   return {
     state,
-    report: buildReport([...openerLines, ...loopLines]),
-    openerReport, loopReport, loopLines, members,
-    // the comparison row and its hover breakdown both read the loop — the steady-state figure
-    // every build in this project is judged by, same convention src/test_team.ts uses
-    total: loopReport.total,
-    bySlot: totalsBySlot(loopReport),
+    report: buildReport(rotationLines.flat()),
+    rotationReports, rotationLines, members,
+    total, bySlot,
   };
 }
 
@@ -129,9 +177,18 @@ function runTeam(members: Member[]): TeamRun {
 const esc = (s: unknown): string => String(s)
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-const fmt = (v: number | string | null | undefined, digits = 0): string =>
-  typeof v === "number" ? v.toLocaleString("en-US", { maximumFractionDigits: digits })
-                        : String(v ?? "");
+const fmt = (v: number | string | null | undefined, digits = 0, pad = false): string =>
+  typeof v === "number"
+    ? v.toLocaleString("en-US", { maximumFractionDigits: digits, minimumFractionDigits: pad ? digits : 0 })
+    : String(v ?? "");
+
+// energy/concerto/offtune always show their own column's full digit count in the action table
+// (2/2/4) rather than trimming trailing zeros the way every other column does.
+const PAD_DIGITS_COLUMNS = new Set(["energy", "concerto", "offtune"]);
+
+// mv and the three running resources get a dotted underline when a stat buff actually moved them
+// this action, not just carried/declared their own usual trace (see ReportRow.buffed).
+const BUFF_UNDERLINE_COLUMNS = new Set(["mv", "energy", "concerto", "offtune"]);
 
 /**
  * One table cell. Columns carry a character `width` (the report also prints to a terminal), so
@@ -267,10 +324,15 @@ function buffsPopover(member: string, gear: Gear[], local: HeldBuff[], global: H
 
 /* -------------------------------------------------------------- comparison table */
 
-/** Sum one slot's own loop damage, grouped by whatever tag `keyOf` reads off each hit's own
- *  action. Every line here is a single action (this engine has no chain concept — see kit.ts's
- *  own `ChainGroup`), so it reads `line.snap` directly rather than iterating `parts`. */
-function sumByTag(lines: ChainGroup[], slot: string, keyOf: (a: Action) => string | null): Map<string, number> {
+/** Sum one slot's own damage, grouped by whatever tag `keyOf` reads off each hit's own action.
+ *  Every line here is a single action (this engine has no chain concept — see kit.ts's own
+ *  `ChainGroup`), so it reads `line.snap` directly rather than iterating `parts`. `divisor`
+ *  scales every bucket down after summing — the comparison table's own hover passes `lines`
+ *  concatenated across all 4 sections (opener + 3 loops) and divides by 4, so each bucket reads
+ *  as the same per-section average `total`/`grandTotal` already are, not a 4-section sum. */
+function sumByTag(
+  lines: ChainGroup[], slot: string, keyOf: (a: Action) => string | null, divisor = 1,
+): Map<string, number> {
   const by = new Map<string, number>();
   for (const line of lines) {
     const snap = line.snap;
@@ -279,6 +341,7 @@ function sumByTag(lines: ChainGroup[], slot: string, keyOf: (a: Action) => strin
     if (key == null) continue;
     by.set(key, (by.get(key) ?? 0) + line.avg);
   }
+  if (divisor !== 1) for (const [k, v] of by) by.set(k, v / divisor);
   return by;
 }
 
@@ -293,10 +356,12 @@ function breakdownSection(heading: string, by: Map<string, number>, total: numbe
   return `<tr class="sec"><td colspan="2">${esc(heading)}</td></tr>${body}`;
 }
 
-function damagePopover(lines: ChainGroup[], slot: string, total: number, grandTotal: number): string {
-  const body = breakdownSection("Node", sumByTag(lines, slot, (a) => a.node), total)
-    + breakdownSection("Type", sumByTag(lines, slot, (a) => a.type), total)
-    + breakdownSection("Type 2", sumByTag(lines, slot, (a) => a.type2), total);
+function damagePopover(
+  lines: ChainGroup[], slot: string, total: number, grandTotal: number, divisor = 1,
+): string {
+  const body = breakdownSection("Node", sumByTag(lines, slot, (a) => a.node, divisor), total)
+    + breakdownSection("Type", sumByTag(lines, slot, (a) => a.type, divisor), total)
+    + breakdownSection("Type 2", sumByTag(lines, slot, (a) => a.type2, divisor), total);
   const pct = grandTotal ? Math.round((total / grandTotal) * 100) : 0;
   return `<span class="pop breakdown"><table>${body}`
     + `<tr class="sum"><td class="k">Total</td><td class="v">${fmt(total)} <span class="pct">(${pct}% of team)</span></td></tr>`
@@ -311,19 +376,32 @@ function equippedGear(member: Member): Gear[] {
   return member.loadout.filter((g) => !(g instanceof Resonator) && g.name !== `${member.name}: Talents`);
 }
 
-// every loadout array is built in this exact order (see any resonator file's own LOADOUT
-// export) — equippedGear() strips the leading Resonator/Talents pair, leaving these six in
-// the order they were declared, so a plain positional label is all this needs
+// every loadout array's own core six are built in this exact order (see any resonator file's own
+// LOADOUT export) — equippedGear() strips the leading Resonator/Talents pair, so a plain
+// positional label is all these need. A standardCharacter kit's own S1-S6 pieces (see kit.ts's
+// own doc comment on the flag) come *before* the core six in that same array, named "<name>
+// S<N>: <title>" — filtered out into their own section below rather than thrown off by position.
 const GEAR_LABELS = ["Weapon", "Mainslot", "Sonata", "2pc", "Mainstats", "Substats"];
+const SEQUENCE_NAME = /\sS[1-6]:\s/;
 
 /** The hover on a member's own name, in the comparison table: every piece of gear their loadout
- *  equips, each labelled by slot. `.k`/`.v` reused wholesale from the stat-trace panels (see
- *  index.css's own note by `.pop.gear`) — the label column's gray already matches those, and the
- *  browser's own table layout sizes both columns to their own longest cell with no extra CSS. */
+ *  equips, each labelled by slot, with any sequence nodes listed the same way — full name, no
+ *  splitting — after the core six, under a single "Sequences" label shared by the whole group:
+ *  it sits in the first sequence row's own `.k` cell (S1's), and every row after it (S2-S6)
+ *  leaves `.k` blank, same shape the core six's own label column already uses. `.k`/`.v` reused
+ *  wholesale from the stat-trace panels (see index.css's own note by `.pop.gear`) — the label
+ *  column's gray already matches those, and the browser's own table layout sizes both columns to
+ *  their own longest cell with no extra CSS. */
 function gearPopover(member: Member): string {
-  const body = equippedGear(member)
+  const gear = equippedGear(member);
+  const core = gear.filter((g) => !SEQUENCE_NAME.test(g.name));
+  const sequences = gear.filter((g) => SEQUENCE_NAME.test(g.name));
+  const body = core
     .map((g, i) => `<tr><td class="k">${esc(GEAR_LABELS[i] ?? "")}</td><td class="v">${esc(g.name)}</td></tr>`)
-    .join("");
+    .join("")
+    + sequences
+      .map((g, i) => `<tr><td class="k">${i === 0 ? "Sequences" : ""}</td><td class="v">${esc(g.name)}</td></tr>`)
+      .join("");
   return `<span class="pop gear"><table>${body}</table></span>`;
 }
 
@@ -354,7 +432,7 @@ function comparisonTable(results: Map<string, TeamRun>): string {
       `<div class="c name" style="--mem:${m.color};color:${m.color}">${esc(m.name)}${gearPopover(m)}</div>`;
     const dmgCell = (slot: string) => {
       const total = run.bySlot.get(slot) ?? 0;
-      return `<div class="c num has">${fmt(total)}${damagePopover(run.loopLines, slot, total, grand)}</div>`;
+      return `<div class="c num has">${fmt(total)}${damagePopover(run.rotationLines.flat(), slot, total, grand, 4)}</div>`;
     };
 
     return `<div class="trow" data-team="${esc(key)}" data-members="${esc(memberNames)}" data-maxseq="0">`
@@ -367,8 +445,8 @@ function comparisonTable(results: Map<string, TeamRun>): string {
 
   const head = `<div class="trow thead">`
     + `<div class="c">Member 1</div><div class="c">Member 2</div><div class="c">Member 3</div>`
-    + `<div class="c num">Dmg 1</div><div class="c num">Dmg 2</div><div class="c num">Dmg 3</div>`
-    + `<div class="c num">Misc</div><div class="c num">Total (loop)</div>`
+    + `<div class="c num">Avg DPR 1</div><div class="c num">Avg DPR 2</div><div class="c num">Avg DPR 3</div>`
+    + `<div class="c num">Avg DPR Misc</div><div class="c num">Avg Total DPR</div>`
     + `</div>`;
 
   return `<main>${comparisonFilters(results)}<div class="tcwrap"><div class="tgrid">${head}${rows}</div></div></main>`;
@@ -400,8 +478,17 @@ function stepRow(
     if (col.key === "action") cls.push(part ? "name" : "action");
     if (col.key === "avg") cls.push("avg");
     if (col.key === "member") cls.push("member");
+    // a genuine stat buff moved this cell's own value, not just its usual carried/declared trace
+    // (see display.ts's own ReportRow.buffed) — mv, and the three running resources
+    if (BUFF_UNDERLINE_COLUMNS.has(col.key) && row.buffed.has(col.key)) cls.push("buffed");
+    // an outro fired without a full 100-point concerto bar banked — never true off a non-outro
+    // row, concertoSpent only ever moves on one (see display.ts's own rowValues())
+    if (col.key === "concerto" && Number(row.raw.isOutro) && Number(row.raw.concertoSpent) < 100) {
+      cls.push("underspent");
+    }
 
-    const text = esc(fmt(v, col.digits ?? 0)) + (col.percent && typeof v === "number" ? "%" : "");
+    const text = esc(fmt(v, col.digits ?? 0, PAD_DIGITS_COLUMNS.has(col.key)))
+      + (col.percent && typeof v === "number" ? "%" : "");
     let html = sources ? `<span class="has">${text}</span>` : text;
     if (col.key === "action" && !part && "parts" in row && row.parts.length) {
       html = `${html}<span class="caret">▸</span>`;
@@ -493,16 +580,18 @@ function summaryCards(label: string, report: Report, slotHue: Map<string, string
   </div>`;
 }
 
-function page({ report, openerReport, loopReport, members }: {
-  state: State; report: Report; openerReport: Report; loopReport: Report; members: Member[];
+function page({ report, rotationReports, members }: {
+  state: State; report: Report; rotationReports: Report[]; members: Member[];
 }): string {
   const slotHue = new Map([...members.map((m): [string, string] => [m.name, m.color]), [MISC, MISC_HUE]]);
   const gearByMember = new Map(members.map((m): [string, Gear[]] => [m.name, equippedGear(m)]));
 
   return `<main>
   ${rotationTable(report, slotHue, gearByMember)}
-  ${summaryCards("opener", openerReport, slotHue)}
-  ${summaryCards("loop", loopReport, slotHue)}
+  ${summaryCards("opener", rotationReports[0]!, slotHue)}
+  ${summaryCards("loop 1", rotationReports[1]!, slotHue)}
+  ${summaryCards("loop 2", rotationReports[2]!, slotHue)}
+  ${summaryCards("loop 3", rotationReports[3]!, slotHue)}
 </main>`;
 }
 

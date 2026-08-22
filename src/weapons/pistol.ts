@@ -6,7 +6,7 @@
  * top of weapons_standard.ts — engine2's own atk formula doesn't fold those contributions in yet.
  */
 import {
-  Buff, Stat, Type1, Cast,
+  Buff, Weapon, WeaponType, Stat, Type1, Cast,
   addStat, applySelf, isHeld, casting, currentAction, revoke,
 } from "../kit.js";
 
@@ -14,7 +14,8 @@ import {
  *  cast grants +48% Resonance Skill DMG Bonus for 5s — short enough that only the standing
  *  outro-loss rule matters. Carlotta, character 1107, released 2.0 —
  *  https://ww.nanoka.cc/character/1107, https://ww.nanoka.cc/weapon/21030016 */
-export const THE_LAST_DANCE = new Buff({
+export const THE_LAST_DANCE = new Weapon({
+  weaponType: WeaponType.Pistols,
   name: "The Last Dance",
   apply: () => { addStat(Stat.BaseAtk, 500); addStat(Stat.CritDmg, 72); addStat(Stat.BonusAtk, 12); },
   update: () => { if (casting(Cast.Intro) || casting(Cast.Liberation)) applySelf(SILENT_EULOGY, 1); },
@@ -32,7 +33,8 @@ export const SILENT_EULOGY = new Buff({
  *  outro-loss rule matters. While both are up, dealing DMG ignores 8% DEF. Galbrena, character
  *  1208, released 2.7 — https://ww.nanoka.cc/character/1208,
  *  https://ww.nanoka.cc/weapon/21030036 */
-export const LUX_UMBRA = new Buff({
+export const LUX_UMBRA = new Weapon({
+  weaponType: WeaponType.Pistols,
   name: "Lux & Umbra",
   apply: () => {
     addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.BonusAtk, 12);

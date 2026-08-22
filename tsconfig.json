@@ -37,12 +37,10 @@
      as it gets ported, same as phrolova/qiuyuan/cantarella already were. */
   "exclude": [
     "node_modules", "dist", "src/optimize.ts", "src/run.ts", "src/team.ts", "src/shared/tunebreak.ts",
-    "src/resonators/augusta.ts", "src/resonators/brant.ts", "src/resonators/buling.ts",
+    "src/resonators/brant.ts", "src/resonators/buling.ts",
     "src/resonators/camellya.ts", "src/resonators/changli.ts",
     "src/resonators/danjin.ts", "src/resonators/encore.ts", "src/resonators/galbrena.ts",
     "src/resonators/jianxin.ts",
-    "src/resonators/lucilla.ts", "src/resonators/lupa.ts", "src/resonators/roccia.ts",
-    "src/resonators/rover_havoc.ts", "src/resonators/sanhua.ts",
-    "src/resonators/sigrika.ts", "src/resonators/verina.ts"
+    "src/resonators/lucilla.ts", "src/resonators/lupa.ts"
   ]
 }

@@ -10,7 +10,7 @@
  * forte3 does not get a column of noughts.
  */
 import {
-  Stat, Resource, Scaling,
+  Stat, Resource, Scaling, Cast,
   scopedStat, TAGS_MATCHED, splitStat, statLabel,
   ELEMENTS, TYPE1S, TYPE2S,
 } from "./stats.js";
@@ -50,9 +50,10 @@ export type Sources = Record<string, TraceEntry[]>;
 const FEEDS: Record<string, () => string[]> = {
   atk: () => [Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk],
   hp: () => [Stat.BaseHp, Stat.BonusHp, Stat.FlatHp],
-  mv: () => [Stat.AddMv, Stat.MulMv, Stat.SpecialMv],
+  mv: () => [Stat.AddMv, Stat.MulMv],
   cr: () => [Stat.CritRate],
   cd: () => [Stat.CritDmg],
+  er: () => [Stat.Er],
   dmgBonus: () => [Stat.DmgBonus],
   amp: () => [Stat.Amp],
   dealt: () => [Stat.TotalDmg],
@@ -167,20 +168,25 @@ function tracing(snapshot: ResolvedSnapshot, stats: string[]): TraceEntry[] {
   return [...by.values()].sort((a, b) => tagRank(a.stat ?? "") - tagRank(b.stat ?? ""));
 }
 
-const num = (v: number | null | undefined, digits = 0): string =>
-  v == null ? "" : v.toLocaleString("en-US", { maximumFractionDigits: digits });
+const num = (v: number | null | undefined, digits = 0, pad = false): string =>
+  v == null ? "" : v.toLocaleString("en-US", { maximumFractionDigits: digits, minimumFractionDigits: pad ? digits : 0 });
+
+// energy/concerto/offtune always show their own column's full digit count (2/2/4) rather than
+// trimming trailing zeros the way every other column does — matches index.ts's own PAD_DIGITS_COLUMNS.
+const PAD_DIGITS_COLUMNS = new Set(["energy", "concerto", "offtune"]);
 
 /** The five generic forte gauges, shown under their own names rather than a kit's word — real
  *  numbers on the TeamMember itself (kit.ts's own forte1()-forte5()), not stats, so they carry
  *  no per-entry trace the way FEEDS-driven columns do; the popover just names whose gauge it is. */
 const FORTE_GAUGES = [Resource.Forte1, Resource.Forte2, Resource.Forte3, Resource.Forte4, Resource.Forte5];
 
-/** The engine's own units for energy/concerto/off-tune run finer than the game's own displayed
- *  points — this is purely a display scale, nothing upstream (kit.ts, a kit's own numbers) uses
- *  it. The forte gauges carry no such scale: a kit's own forte1()-forte5() are already whole
- *  numbers in the units a kit itself defines (Jingran's Qi tops out at 300, not 30000), so this
- *  column shows them as-is. */
-const RESOURCE_SCALE = { energy: 100, concerto: 100, offtune: 10000 } as const;
+/** Off-tune's own raw unit (Weakness Break DMG straight off nanoka's table) runs finer than the
+ *  game's own displayed off-tune points, so it alone gets a display-only /10000 — purely a
+ *  display scale, nothing upstream (kit.ts, a kit's own numbers) uses it. Energy/concerto are
+ *  already stored at nanoka's own scale directly, same as the forte gauges: a kit's own
+ *  forte1()-forte5() are already whole numbers in the units a kit itself defines (Jingran's Qi
+ *  tops out at 300, not 30000), so both show as-is. */
+const RESOURCE_SCALE = { energy: 1, concerto: 1, offtune: 10000 } as const;
 
 /** How the terminal marks a chain's member, and what it calls the bottom row — both occupy the
  *  action column, so both have to fit inside its measured width. */
@@ -191,6 +197,9 @@ const TOTAL_LABEL = "team total";
 export interface RowValues {
   raw: RawRow;
   sources: Sources;
+  /** Which columns a stat buff actually moved this action, not just carried or declared — see
+   *  `rowValues()`'s own comment on why `sources[key]` alone can't tell the two apart. */
+  buffed: Set<string>;
 }
 
 /**
@@ -209,6 +218,12 @@ function rowValues(
   // that reads like a result; blank says "this cast was never about damage". Every other column
   // still pays out, because the stat line at that moment is exactly what the row is there for.
   const dealsDamage = mv !== 0;
+  // Which columns a stat buff actually moved, not just carried/declared — mv (below) always adds
+  // a "Base MV" row of its own regardless, and energy/concerto/offtune always carry the action's
+  // own declared row, so `sources[key]` being non-empty alone can't tell "a buff touched this"
+  // apart from "this column just has its own ordinary trace". index.ts's own action table reads
+  // this to underline a cell only when something actually buffed it.
+  const buffed = new Set<string>();
   const raw: RawRow = {
     member: snap.member,
     atk: snap.atk,
@@ -224,11 +239,12 @@ function rowValues(
     // own enemyDef/enemyRes.
     effDef: effectiveDef(snap) * 100,
     effRes: effectiveRes(snap),
+    er: snap.stat(Stat.Er),
     // real running totals — kit.ts's own evaluate() banks these every action, off however much
-    // AddEnergy/AddConcerto/AddOfftune this action's own held Gear contributed. The engine's own
-    // units run finer than the game's own displayed points (a resonator's energy bar, the
-    // team's off-tune bar): /100 for energy/concerto/forte, /10000 for off-tune, purely a
-    // display scale — RESOURCE_SCALE below is the single place that ratio lives.
+    // AddEnergy/AddConcerto/AddOfftune this action's own held Gear contributed. Energy/concerto
+    // are already stored at nanoka's own scale; only off-tune's own raw unit runs finer than the
+    // game's own displayed off-tune bar (/10000), purely a display scale — RESOURCE_SCALE below
+    // is the single place that ratio lives.
     energy: snap.energy / RESOURCE_SCALE.energy,
     concerto: snap.concerto / RESOURCE_SCALE.concerto,
     offtune: snap.offtune / RESOURCE_SCALE.offtune,
@@ -236,6 +252,11 @@ function rowValues(
   };
   // real numbers straight off the TeamMember, not stats.
   FORTE_GAUGES.forEach((key, i) => { raw[`gauge:${key}`] = snap.forte[i]!; });
+  // Auxiliary, not a shown column — index.ts's own action table reads these to flag the concerto
+  // cell red when an outro fired without a full 100-point bar banked (never true off an outro
+  // row: concertoSpent only moves on one, see kit.ts's own evaluate()).
+  raw.concertoSpent = snap.concertoSpent;
+  raw.isOutro = snap.action.cast === Cast.Outro ? 1 : 0;
 
   // where each value came from, for the hover panels
   const sources: Sources = {};
@@ -270,6 +291,7 @@ function rowValues(
     if (declared) rows.push({ source: snap.action.id, value: declared, digits, owner: snap.member });
     rows.push(...traced.map((r) => ({ ...r, digits })));
     if (rows.length) sources[key] = rows;
+    if (traced.length) buffed.add(key);
   }
   // Forte: held-before, this action's own declared delta, and whatever AddForte1-5 a held buff
   // contributed (Jingran's Fire of Life refunding Qi) — same shape as energy/concerto just above.
@@ -299,8 +321,9 @@ function rowValues(
     // raw percent (e.g. "80%"), not the `x1.8` factor it becomes in the formula: `mult: true` is
     // for the overall damage-factors panel further down, where the value shown really is the
     // final applied multiplier; here it would just restate the same 80% in a less readable form.
-    const isFactor = (r: TraceEntry) => [Stat.MulMv, Stat.SpecialMv].includes(splitStat(r.stat ?? "")[0] as Stat);
+    const isFactor = (r: TraceEntry) => [Stat.MulMv].includes(splitStat(r.stat ?? "")[0] as Stat);
     const parts = sources.mv ?? [];
+    if (parts.length) buffed.add("mv");
     sources.mv = [
       { source: snap.action.id, stat: "Base MV", value: snap.action.mv, percent: true, owner: snap.member },
       ...parts.filter((r) => !isFactor(r)),
@@ -362,7 +385,7 @@ function rowValues(
     { source: "crit", label: "Average Crit", value: f.critFactor, mult: true },
   ];
 
-  return { raw, sources };
+  return { raw, sources, buffed };
 }
 
 /** A rendered column heading — width/measurement is filled in once every row is known. */
@@ -381,6 +404,7 @@ export interface ReportRow {
   line: ChainGroup;
   raw: RawRow;
   sources: Sources;
+  buffed: Set<string>;
   info: InfoEntry[];
   scaling: string;
   short: boolean;
@@ -434,13 +458,14 @@ export function buildReport(
     { key: "dealt", label: "dealt%", digits: 1, percent: true },
     { key: "effDef", label: "def%", digits: 1, percent: true },
     { key: "effRes", label: "res%", digits: 1, percent: true },
+    { key: "er", label: "er%", digits: 1, percent: true },
 
-    // digits matches how finely each /100 or /10000 scale-down (RESOURCE_SCALE above) can
-    // actually land: a /100 raw integer never needs more than 2 decimal places, a /10000 one
-    // never needs more than 4 — so these show up to (not padded to) that many. The forte gauges
-    // aren't scaled down at all (see RESOURCE_SCALE.forte below), so they stay whole numbers.
-    { key: "energy", label: "energy", digits: 2, hideIfZero: true },
+    // digits matches nanoka's own table precision: energy/concerto never need more than 2 decimal
+    // places, offtune's own /10000 scale-down (RESOURCE_SCALE above) never needs more than 4 —
+    // always padded to that many (PAD_DIGITS_COLUMNS above), not just capped. The forte gauges
+    // aren't scaled at all, so they stay whole numbers.
     { key: "concerto", label: "concerto", digits: 2, hideIfZero: true },
+    { key: "energy", label: "energy", digits: 2, hideIfZero: true },
     { key: "offtune", label: "offtune", digits: 4, hideIfZero: true },
     ...FORTE_GAUGES.map((key) => ({ key: `gauge:${key}`, label: key, hideIfZero: true })),
   ];
@@ -454,7 +479,7 @@ export function buildReport(
   const isShort = (snap: ResolvedSnapshot) => snap.triggered;
 
   const rows: ReportRow[] = lines.map((line) => {
-    const { raw, sources } = rowValues(
+    const { raw, sources, buffed } = rowValues(
       line.snap as ResolvedSnapshot, { mv: line.mv, avg: line.avg },
     );
     raw.action = name(line.id);
@@ -463,6 +488,7 @@ export function buildReport(
       line,
       raw,
       sources,
+      buffed,
       // what the action *is*, for the hover on its name. A chain takes it from the part whose
       // stats it is reporting, the same part every other value on the row comes from.
       info: actionInfo(line.snap.action),
@@ -501,7 +527,7 @@ export function buildReport(
   const shown = (r: { raw: RawRow }, c: Column): string => {
     const v = r.raw[c.key];
     return typeof v === "number"
-      ? num(v, c.digits ?? 0) + (c.percent ? "%" : "")
+      ? num(v, c.digits ?? 0, PAD_DIGITS_COLUMNS.has(c.key)) + (c.percent ? "%" : "")
       : String(v ?? "");
   };
   const sized: Column[] = used.map((c) => {
@@ -534,7 +560,9 @@ export function totalsBySlot(report: Report): Map<string, number> {
 export function renderReport(report: Report, { showParts = true }: { showParts?: boolean } = {}): string {
   const { columns, rows, total } = report;
   const cell = (col: Column, value: unknown): string => {
-    const text = typeof value === "number" ? num(value, col.digits ?? 0) : String(value ?? "");
+    const text = typeof value === "number"
+      ? num(value, col.digits ?? 0, PAD_DIGITS_COLUMNS.has(col.key))
+      : String(value ?? "");
     return col.align === "left" ? text.padEnd(col.width ?? 0) : text.padStart(col.width ?? 0);
   };
 

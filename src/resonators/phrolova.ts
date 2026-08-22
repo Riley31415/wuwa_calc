@@ -100,32 +100,41 @@ function phroAction(id: string, def: object): Action {
   return new Action(id, { element: Element.Havoc, scaling: Scaling.Atk, ...def });
 }
 
-export const BA1 = phroAction("Basic - Movement of Life and Death 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 106.9 });
-export const BA2 = phroAction("Basic - Movement of Life and Death 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 95.43 });
-export const BA3 = phroAction("Basic - Movement of Life and Death 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 196.14, forte1: 1 });
+// energy/concerto come off the migrated (old-engine) sheet, which only ever gave the basics chain
+// combined (BA12/BA23/BA123 alongside BA3 alone) — BA1/BA2 below are derived by subtraction
+// (BA1 = BA123-BA23, BA2 = BA123-BA3-BA1), cross-checked two ways: BA1+BA2 reproduces BA12
+// exactly (3.18 energy, 6.36 concerto) and BA2+BA3 reproduces BA23 exactly (4.62 energy, 9.18
+// concerto). Nothing here is a nanoka page read (see file header for why).
+export const BA1 = phroAction("Basic - Movement of Life and Death 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 106.9, energy: 1.68, concerto: 3.36 });
+export const BA2 = phroAction("Basic - Movement of Life and Death 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 95.43, energy: 1.5, concerto: 3 });
+export const BA3 = phroAction("Basic - Movement of Life and Death 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 196.14, energy: 3.12, concerto: 6.18, forte1: 1 });
 
-export const Skill = phroAction("Skill - Whispers in a Fleeting Dream", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 211.94, forte1: 1 });
+export const Skill = phroAction("Skill - Whispers in a Fleeting Dream", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 211.94, energy: 13.34, concerto: 10, forte1: 1 });
 
-export const FBA = phroAction("Forte - Movement of Fate and Finality", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 505.01, forte1: 1 });
-export const FSkill = phroAction("Forte - Murmurs in a Haunting Dream", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 464.07, forte1: 1 });
+export const FBA = phroAction("Forte - Movement of Fate and Finality", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 505.01, energy: 3.21, concerto: 10.02, forte1: 1 });
+export const FSkill = phroAction("Forte - Murmurs in a Haunting Dream", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 464.07, energy: 2.95, concerto: 10, forte1: 1 });
 
 export const ScarletCoda = phroAction("Heavy - Scarlet Coda", {
-  node: Node.Normal, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Skill, mv: 660.16, forte1: -6,
+  node: Node.Normal, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Skill, mv: 660.16, energy: 6.93, concerto: 40, forte1: -6,
 });
 
+// concerto only — Liberation costs no Resonance Energy at all (maxEnergy: 0 below), so the sheet's
+// own blank energy cell is trusted as a real 0, not a gap. The sheet also carries a separate
+// "Lib2" row (465.22% MV) with no matching action here — a real, sizeable chunk of Waltz of
+// Forsaken Depths' own damage this port is still missing, flagged rather than guessed at.
 export const Liberation = phroAction("Liberation - Waltz of Forsaken Depths", {
-  node: Node.Liberation, cast: Cast.Liberation, mv: 0,
+  node: Node.Liberation, cast: Cast.Liberation, mv: 0, concerto: 20,
 });
 
 export const Intro = phroAction("Intro - Suite of Quietus", {
-  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 201.52,
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 201.52, energy: 10, concerto: 10,
 });
 /** Maestro-replaced Intro press — used whenever she re-enters with Maestro still open (any loop
  *  where a previous visit's own Liberation opened it and this one is the first cast since). Far
  *  higher MV than plain Intro (596.43 vs 201.52) — a real, large contributor. Playing it is also
  *  what closes Maestro back out — see MAESTRO's own convert() above. */
 export const EIntro = phroAction("Intro - Suite of Immortality", {
-  node: Node.Intro, cast: Cast.Intro, type: Type1.Skill, mv: 596.43,
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Skill, mv: 596.43, energy: 10, concerto: 10,
 });
 export const Outro = phroAction("Outro - Unfinished Piece", {
   cast: Cast.Outro, mv: 0, active: false,

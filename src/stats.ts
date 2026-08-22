@@ -22,12 +22,10 @@ export enum Stat {
   BaseHp = "Base HP",
   BaseDef = "Base DEF",
 
-  /** Additive flat amounts, applied on top of base × (1 + bonus). */
   FlatAtk = "Flat ATK",
   FlatHp = "Flat HP",
   FlatDef = "Flat DEF",
 
-  // TODO delete
   BonusAtk = "ATK%",
   BonusHp = "HP%",
   BonusDef = "DEF%",
@@ -39,13 +37,12 @@ export enum Stat {
   OfftuneBuildup = "Off-Tune Buildup Rate",
 
   /**
-   * Motion value: `(base mv + AddMv) x (1 + MulMv) x (1 + SpecialMv)`.
+   * Motion value: `(base mv + AddMv) x (1 + MulMv)`.
    * AddMv lands inside the parentheses, in the action's own units — no re-expressing a flat
-   * motion-value add as a multiplier. MulMv and SpecialMv are independent multipliers.
+   * motion-value add as a multiplier. MulMv is an independent multiplier.
    */
   AddMv = "additional MV",
   MulMv = "MV multiplier",
-  SpecialMv = "special MV", // TODO remove
 
   /*
    * Shields are not a stat. An action says how many it grants (`shields` field); a buff that
@@ -132,13 +129,16 @@ export enum Type1 {
   Break = "Tune Break",
   Rupture = "Tune Rupture",
   Hack = "Tune Hack",
+  /** A tag essentially nothing scopes its own DmgBonus/Amp to — used for hits meant to be
+   *  DMG-bonus-immune, e.g. Roccia's Magic Box (see roccia.ts). */
+  Utility = "Utility",
 }
 
 export const TYPE1S: Type1[] = [
   Type1.Basic, Type1.Heavy, Type1.Skill, Type1.Liberation,
-  Type1.Intro, Type1.Outro, Type1.Echo, 
-  Type1.Status, 
-  Type1.Break, Type1.Rupture, Type1.Hack,
+  Type1.Intro, Type1.Outro, Type1.Echo,
+  Type1.Status,
+  Type1.Break, Type1.Rupture, Type1.Hack, Type1.Utility,
 ];
 
 /** `type2` — a second, independent damage-type tag some hits carry alongside `type` (e.g. a
@@ -146,15 +146,15 @@ export const TYPE1S: Type1[] = [
 // TODO rename to SpecialDamageType
 export enum Type2 {
   Coordinated = "Coordinated",
-  Frazzle = "Spectro Frazzle",
-  Erosion = "Aero Erosion",
-  Burst = "Fusion Burst",
-  Chafe = "Glacio Chafe",
-  Flare = "Electro Flare",
+  SpectroFrazzle = "Spectro Frazzle",
+  AeroErosion = "Aero Erosion",
+  FusionBurst = "Fusion Burst",
+  GlacioChafe = "Glacio Chafe",
+  ElectroFlare = "Electro Flare",
 }
 export const TYPE2S: Type2[] = [
   Type2.Coordinated,
-  Type2.Frazzle, Type2.Flare, Type2.Erosion, Type2.Burst, Type2.Chafe, 
+  Type2.SpectroFrazzle, Type2.ElectroFlare, Type2.AeroErosion, Type2.FusionBurst, Type2.GlacioChafe, 
 ];
 
 /** Cast identities that are never a damage type of their own — a Dodge Counter always deals
@@ -169,16 +169,14 @@ export enum Cast {
   Intro = "Intro",
   Outro = "Outro",
   Echo = "Echo",
-  TuneBreak = "Tune Break",
-  Coordinated = "Coordinated"
+  TuneBreak = "Tune Break"
 }
 
 export const CASTS: Array<Type1 | Cast> = [
   Cast.Basic, Cast.Heavy, Cast.Skill, Cast.Liberation,
   Cast.Intro, Cast.Outro, Cast.Echo, 
   Cast.TuneBreak,
-  Cast.DodgeCounter, 
-  Cast.Coordinated
+  Cast.DodgeCounter
 ];
 
 /**
@@ -197,16 +195,18 @@ export enum Node {
 }
 export const NODES: Node[] = [Node.Normal, Node.Skill, Node.Forte, Node.Liberation, Node.Intro];
 
-/** `scaling` — which stat a hit reads its final number from. */
+/** `scaling` — which stat a hit reads its final number from. Fixed reads no stat at all: its own
+ *  mv is the damage, unconditionally — see damage.ts's own damageFactors() for the bypass. */
 export enum Scaling {
   Atk = "ATK",
   Hp = "HP",
   Def = "DEF",
   Dot = "DOT",
   Tune = "TUNE",
+  Fixed = "FIXED",
 }
 export const SCALINGS: Scaling[] = [
-  Scaling.Atk, Scaling.Hp, Scaling.Def, Scaling.Dot, Scaling.Tune,
+  Scaling.Atk, Scaling.Hp, Scaling.Def, Scaling.Dot, Scaling.Tune, Scaling.Fixed,
 ];
 
 /** Split a scoped key back into its parts. `Dmg Bonus:fusion` -> `["Dmg Bonus", "fusion"]`. */
@@ -223,7 +223,7 @@ export const TAGS_MATCHED: string[] = ["element", "type", "type2"];
 /** Ratio stats, held in percent units. Everything else is a flat amount or a count. */
 export const PERCENT_STATS: Set<string> = new Set([
   Stat.BonusAtk, Stat.BonusHp, Stat.BonusDef, Stat.CritRate, Stat.CritDmg, Stat.Er, Stat.Tbb,
-  Stat.AddMv, Stat.MulMv, Stat.SpecialMv,
+  Stat.AddMv, Stat.MulMv,
   Stat.DmgBonus, Stat.Amp, Stat.SpecialAmp, Stat.TotalDmg,
   Stat.ResIgnore, Stat.ResShred, Stat.DefIgnore, Stat.DefShred, Stat.DefReduce,
   Stat.HealingBonus, Stat.HealingTaken,

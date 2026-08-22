@@ -6,7 +6,7 @@
  * top of weapons_standard.ts — engine2's own atk formula doesn't fold those contributions in yet.
  */
 import {
-  Buff, Stat, Element, Type1, Cast,
+  Buff, Weapon, WeaponType, Stat, Element, Type1, Cast,
   addStat, applySelf, setStacksSelf, casting, currentAction, revoke, stacks,
 } from "../kit.js";
 
@@ -17,7 +17,8 @@ import {
  *  real countdown, same shape as every other short-window weapon passive), lost after the outro
  *  action gains stats. Not owned by any resonator implemented in this codebase yet — exported
  *  standalone. Xiangli Yao, released 1.2 — https://ww.nanoka.cc/weapon/21040016 */
-export const VERITYS_HANDLE = new Buff({
+export const VERITYS_HANDLE = new Weapon({
+  weaponType: WeaponType.Gauntlets,
   name: "Verity's Handle",
   apply: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.DmgBonus, 12); },
   update: () => { if (casting(Cast.Liberation) || casting(Cast.Skill)) applySelf(AD_VERITATEM, 1); },
@@ -36,7 +37,8 @@ export const AD_VERITATEM = new Buff({
  *  directly rather than `casting()`, since a cast2 match must not count here. Roccia, character
  *  1606, released 2.0 — https://ww.nanoka.cc/character/1606,
  *  https://ww.nanoka.cc/weapon/21040026 */
-export const TRAGICOMEDY = new Buff({
+export const TRAGICOMEDY = new Weapon({
+  weaponType: WeaponType.Gauntlets,
   name: "Tragicomedy",
   apply: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.BonusAtk, 12); },
   update: () => {
@@ -55,7 +57,8 @@ export const FOOLS_WARBLE = new Buff({
  *  Aero DMG ignore 10% DEF for 6s — both short enough that only the standing outro-loss rule
  *  matters for either. Sigrika, character 1412, released 3.2 —
  *  https://ww.nanoka.cc/character/1412, https://ww.nanoka.cc/weapon/21040066 */
-export const SOLSWORN_CIPHERS = new Buff({
+export const SOLSWORN_CIPHERS = new Weapon({
+  weaponType: WeaponType.Gauntlets,
   name: "Solsworn Ciphers",
   apply: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.BonusAtk, 12); },
   update: () => {
@@ -64,12 +67,12 @@ export const SOLSWORN_CIPHERS = new Buff({
   },
 });
 export const SUNWARD_AMP = new Buff({
-  name: "Solsworn Ciphers: Sunward",
+  name: "Solsworn Ciphers: Sunward (echo amp)",
   apply: () => addStat(Stat.Amp, 32, Type1.Echo),
   convert: () => { if (casting(Cast.Outro)) revoke(SUNWARD_AMP); },
 });
 export const SUNWARD_IGNORE = new Buff({
-  name: "Solsworn Ciphers: Sunward",
+  name: "Solsworn Ciphers: Sunward (def ignore)",
   apply: () => addStat(Stat.DefIgnore, 10, Element.Aero),
   convert: () => { if (casting(Cast.Outro)) revoke(SUNWARD_IGNORE); },
 });
@@ -78,7 +81,8 @@ export const SUNWARD_IGNORE = new Buff({
  *  stack, pierces defence — her own Intro takes the stack straight to the ceiling, every other
  *  shielding cast of hers adds one per shield it declares. R1, the rank the sheet's numbers
  *  describe. Iuno, character 1410, released 2.6 — https://ww.nanoka.cc/character/1410 */
-export const IUNO_SIG = new Buff({
+export const IUNO_SIG = new Weapon({
+  weaponType: WeaponType.Gauntlets,
   name: "Moongazer's Sigil",
   apply: () => {
     addStat(Stat.BaseAtk, 500); addStat(Stat.CritRate, 36); addStat(Stat.BonusAtk, 12);

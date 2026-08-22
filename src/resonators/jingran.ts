@@ -169,27 +169,27 @@ function jingranAction(id: string, def: object): Action {
 // Resonator.maxEnergy and the engine's own outro handling are for).
 // --- basics and mid-air. Stages 3/4 restore Qi. Unprefixed = Yang Font's own basic combo
 //     (Devil's Bane); "Drink Soul" is Yin Vessel's.
-export const BA1 = jingranAction("Basic - Devil's Bane 1", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Basic, mv: 39.82, energy: 67, concerto: 134, offtune: 2136 });
-export const BA2 = jingranAction("Basic - Devil's Bane 2", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Basic, mv: 99.47, energy: 168, concerto: 335, offtune: 5337 });
-export const BA3 = jingranAction("Basic - Devil's Bane 3", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Heavy, mv: 159.1, energy: 269, concerto: 536, offtune: 8537, forte1: 50 });
-export const BA4 = jingranAction("Basic - Devil's Bane 4", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Heavy, mv: 124.24, energy: 209, concerto: 418, offtune: 6666, forte1: 50 });
-export const MA = jingranAction("Basic - Edge of Life and Death (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Basic, mv: 92.45, energy: 155, concerto: 310, offtune: 4960 });
+export const BA1 = jingranAction("Basic - Devil's Bane 1", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Basic, mv: 39.82, energy: 0.67, concerto: 1.34, offtune: 2136 });
+export const BA2 = jingranAction("Basic - Devil's Bane 2", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Basic, mv: 99.47, energy: 1.68, concerto: 3.35, offtune: 5337 });
+export const BA3 = jingranAction("Basic - Devil's Bane 3", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Heavy, mv: 159.1, energy: 2.69, concerto: 5.36, offtune: 8537, forte1: 50 });
+export const BA4 = jingranAction("Basic - Devil's Bane 4", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Heavy, mv: 124.24, energy: 2.09, concerto: 4.18, offtune: 6666, forte1: 50 });
+export const MA = jingranAction("Basic - Edge of Life and Death (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Basic, mv: 92.45, energy: 1.55, concerto: 3.1, offtune: 4960 });
 
-export const EBA1 = jingranAction("Basic - Drink Soul 1", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Basic, mv: 44.74, energy: 75, concerto: 150, offtune: 2400 });
-export const EBA2 = jingranAction("Basic - Drink Soul 2", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Basic, mv: 74.56, energy: 126, concerto: 250, offtune: 4000 });
-export const EBA3 = jingranAction("Basic - Drink Soul 3", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Heavy, mv: 109.32, energy: 184, concerto: 368, offtune: 5864, forte1: 50 });
-export const EBA4 = jingranAction("Basic - Drink Soul 4", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Heavy, mv: 153.16, energy: 260, concerto: 516, offtune: 8218, forte1: 50 });
+export const EBA1 = jingranAction("Basic - Drink Soul 1", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Basic, mv: 44.74, energy: 0.75, concerto: 1.5, offtune: 2400 });
+export const EBA2 = jingranAction("Basic - Drink Soul 2", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Basic, mv: 74.56, energy: 1.26, concerto: 2.5, offtune: 4000 });
+export const EBA3 = jingranAction("Basic - Drink Soul 3", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Heavy, mv: 109.32, energy: 1.84, concerto: 3.68, offtune: 5864, forte1: 50 });
+export const EBA4 = jingranAction("Basic - Drink Soul 4", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Heavy, mv: 153.16, energy: 2.6, concerto: 5.16, offtune: 8218, forte1: 50 });
 
 // --- dodge counters: Light Watch (Yang Font), Nether Dive (Yin Vessel), 100 Qi each
-export const DC = jingranAction("Basic - Light Watch", { node: Node.Normal, cast: Cast.DodgeCounter, shields: 1, type: Type1.Heavy, mv: 198.8, energy: 336, concerto: 668, offtune: 10664, forte1: 100 });
-export const EDC = jingranAction("Basic - Nether Dive", { node: Node.Normal, cast: Cast.DodgeCounter, shields: 1, type: Type1.Heavy, mv: 248.57, energy: 419, concerto: 836, offtune: 13337, forte1: 100 });
+export const DC = jingranAction("Basic - Light Watch", { node: Node.Normal, cast: Cast.DodgeCounter, shields: 1, type: Type1.Heavy, mv: 198.8, energy: 3.36, concerto: 6.68, offtune: 10664, forte1: 100 });
+export const EDC = jingranAction("Basic - Nether Dive", { node: Node.Normal, cast: Cast.DodgeCounter, shields: 1, type: Type1.Heavy, mv: 248.57, energy: 4.19, concerto: 8.36, offtune: 13337, forte1: 100 });
 
 // --- resonance skill. Scorching Yang/Afterlife's Guide are Yang Font's own tap+hold pair;
 //     Encroaching Yin/Netherworld Traverse are Yin Vessel's.
-export const Skill1 = jingranAction("Skill - Scorching Yang", { node: Node.Skill, cast: Cast.Skill, shields: 1, type: Type1.Skill, mv: 164.04, energy: 175, concerto: 350, offtune: 5600 });
-export const ESkill1 = jingranAction("Skill - Encroaching Yin", { node: Node.Skill, cast: Cast.Skill, shields: 1, type: Type1.Skill, mv: 164.04, energy: 175, concerto: 350, offtune: 5600 });
-export const Skill2 = jingranAction("Skill - Afterlife's Guide", { node: Node.Skill, cast: Cast.Skill, shields: 1, type: Type1.Heavy, mv: 258.47, energy: 335, concerto: 500, offtune: 10667, forte1: 100 });
-export const ESkill2 = jingranAction("Skill - Netherworld Traverse", { node: Node.Skill, cast: Cast.Skill, shields: 1, type: Type1.Heavy, mv: 263.48, energy: 343, concerto: 500, offtune: 10936, forte1: 100 });
+export const Skill1 = jingranAction("Skill - Scorching Yang", { node: Node.Skill, cast: Cast.Skill, shields: 1, type: Type1.Skill, mv: 164.04, energy: 1.75, concerto: 3.5, offtune: 5600 });
+export const ESkill1 = jingranAction("Skill - Encroaching Yin", { node: Node.Skill, cast: Cast.Skill, shields: 1, type: Type1.Skill, mv: 164.04, energy: 1.75, concerto: 3.5, offtune: 5600 });
+export const Skill2 = jingranAction("Skill - Afterlife's Guide", { node: Node.Skill, cast: Cast.Skill, shields: 1, type: Type1.Heavy, mv: 258.47, energy: 3.35, concerto: 5, offtune: 10667, forte1: 100 });
+export const ESkill2 = jingranAction("Skill - Netherworld Traverse", { node: Node.Skill, cast: Cast.Skill, shields: 1, type: Type1.Heavy, mv: 263.48, energy: 3.43, concerto: 5, offtune: 10936, forte1: 100 });
 
 // --- liberation
 export const Lib = jingranAction("Liberation - Burial of Thousand Souls", {
@@ -201,13 +201,13 @@ export const Lib = jingranAction("Liberation - Burial of Thousand Souls", {
 export const ACTION_LIB_FUA = jingranAction("Liberation - Chimei Wangliang", { node: Node.Liberation, type: Type1.Heavy, mv: 83.51 });
 
 // --- intro / outro
-export const Intro = jingranAction("Intro - Question the Tombs", { node: Node.Intro, cast: Cast.Intro, shields: 1, type: Type1.Intro, mv: 198.81, energy: 1000, concerto: 1000, offtune: 8000, forte1: 100 });
+export const Intro = jingranAction("Intro - Question the Tombs", { node: Node.Intro, cast: Cast.Intro, shields: 1, type: Type1.Intro, mv: 198.81, energy: 10, concerto: 10, offtune: 8000, forte1: 100 });
 export const Outro = jingranAction("Outro - Rising Fortune and Ebbing Evil", { cast: Cast.Outro, type: Type1.Outro, mv: 795, active: false });
 
 // --- heavy attacks ("forte skills"). Unprefixed = Yang Font's own (FHA = Stardome Meander,
 //     switches him to Yin Vessel on landing), EFHA (Yin Vessel's own) = Soul Raid.
-export const FHA = jingranAction("Forte - Stardome Meander", { node: Node.Forte, cast: Cast.Heavy, shields: 2, type: Type1.Heavy, mv: 240.38, energy: 850, concerto: 1300, offtune: 10400, forte1: -300 }); // 24.04%+24.04%+48.08%+144.22%
-export const EFHA = jingranAction("Forte - Soul Raid", { node: Node.Forte, cast: Cast.Heavy, shields: 2, type: Type1.Heavy, mv: 234.29, energy: 853, concerto: 1300, offtune: 10140, forte1: -300 }); // 16.40%x2+21.09%x3+138.22%
+export const FHA = jingranAction("Forte - Stardome Meander", { node: Node.Forte, cast: Cast.Heavy, shields: 2, type: Type1.Heavy, mv: 240.38, energy: 8.5, concerto: 13, offtune: 10400, forte1: -300 }); // 24.04%+24.04%+48.08%+144.22%
+export const EFHA = jingranAction("Forte - Soul Raid", { node: Node.Forte, cast: Cast.Heavy, shields: 2, type: Type1.Heavy, mv: 234.29, energy: 8.53, concerto: 13, offtune: 10140, forte1: -300 }); // 16.40%x2+21.09%x3+138.22%
 
 /** His, as a Resonator: name/element/weapon, every grant/spend/queue rule his kit needs, and his
  *  own base stat line. The stat-tree talent bonus lives in its own `JINGRAN_TALENTS` buff below

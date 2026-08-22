@@ -45,8 +45,9 @@ export const ACTION_FALSE_SOVEREIGN = new Action("Echo - False Sovereign", {
 export const ACTION_FALSE_SOVEREIGN_INTRO = new Action("Echo - False Sovereign (Intro)", {
   element: Element.Electro, scaling: Scaling.Atk, type: Type1.Echo, mv: 405,
 });
-export const FALSE_SOVEREIGN = new Buff({
+export const FALSE_SOVEREIGN = new Mainslot({
   name: "False Sovereign",
+  action: ACTION_FALSE_SOVEREIGN,
   update: () => { if (casting(Cast.Intro)) queue(ACTION_FALSE_SOVEREIGN_INTRO); },
   apply: () => { addStat(Stat.DmgBonus, 12, Element.Electro); addStat(Stat.DmgBonus, 12, Type1.Heavy); },
 });
@@ -62,11 +63,6 @@ export const COV_3PC = new Buff({
   update: () => { if (currentAction().shields) applySelf(CROWN_STACKS, currentAction().shields); },
 });
 
-/** Void Thunder, a generic sonata reused by Augusta. 2pc: +10% Electro DMG Bonus flat. 5pc:
- *  +30% Electro DMG Bonus flat (its real trigger is unconditional here — same "assumed always
- *  up" treatment as Rejuvenating Glow's own 5pc). */
-export const VOID_THUNDER_2PC = new Buff({ name: "Void Thunder 2pc", apply: () => addStat(Stat.DmgBonus, 10, Element.Electro) });
-export const VOID_THUNDER_5PC = new Buff({ name: "Void Thunder 5pc", apply: () => addStat(Stat.DmgBonus, 30, Element.Electro) });
 
 /* ------------------------------------------------------------------------------- Iuno, 2.6 */
 
@@ -88,8 +84,9 @@ export const MYA = new Mainslot({
 export const ACTION_CORROSAURUS = new Action("Echo - Corrosaurus", {
   cast: Cast.Echo, element: Element.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 273.6,
 });
-export const CORROSAURUS = new Buff({
+export const CORROSAURUS = new Mainslot({
   name: "Corrosaurus",
+  action: ACTION_CORROSAURUS,
   apply: () => { addStat(Stat.DmgBonus, 12, Element.Fusion); addStat(Stat.DmgBonus, 20, Type1.Echo); },
 });
 
@@ -126,8 +123,9 @@ export const FLAMEWING_SHADOW_3PC = new Buff({
 export const ACTION_FENRICO = new Action("Echo - Reminiscence: Fenrico", {
   cast: Cast.Echo, element: Element.Aero, scaling: Scaling.Atk, type: Type1.Echo, mv: 273.6,
 });
-export const FENRICO = new Buff({
+export const FENRICO = new Mainslot({
   name: "Reminiscence: Fenrico",
+  action: ACTION_FENRICO,
   apply: () => { addStat(Stat.DmgBonus, 12, Element.Aero); addStat(Stat.DmgBonus, 12, Type1.Heavy); },
 });
 

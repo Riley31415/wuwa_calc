@@ -55,32 +55,32 @@ function iunoAction(id: string, def: object): Action {
 // old declared "spend the bar" costs aren't repeated here (TODO_ENGINE.md: that's what
 // Resonator.maxEnergy and the engine's own outro handling are for).
 // --- basics and dodge counter, all shielding
-export const BA1 = iunoAction("Basic - Moonring 1", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Basic, mv: 87.68, energy: 123, concerto: 123, offtune: 3920 });
-export const BA2 = iunoAction("Basic - Moonring 2", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Basic, mv: 139.58, energy: 197, concerto: 197, offtune: 4120 });
-export const BA3 = iunoAction("Basic - Moonring 3", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Basic, mv: 266.61, energy: 373, concerto: 373, offtune: 11921 });
-export const DC = iunoAction("Basic - Moonring (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, shields: 1, type: Type1.Basic, mv: 248.73, energy: 200, concerto: 2397, offtune: 6321 });
+export const BA1 = iunoAction("Basic - Moonring 1", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Basic, mv: 87.68, energy: 1.23, concerto: 1.23, offtune: 3920 });
+export const BA2 = iunoAction("Basic - Moonring 2", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Basic, mv: 139.58, energy: 1.97, concerto: 1.97, offtune: 4120 });
+export const BA3 = iunoAction("Basic - Moonring 3", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Basic, mv: 266.61, energy: 3.73, concerto: 3.73, offtune: 11921 });
+export const DC = iunoAction("Basic - Moonring (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, shields: 1, type: Type1.Basic, mv: 248.73, energy: 2, concerto: 23.97, offtune: 6321 });
 
 // --- Moonbow basics (Lunar Cycle - New Moon), considered liberation damage; also shield
-export const MA1 = iunoAction("Basic - Moonbow 1", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Liberation, mv: 126.45, energy: 233, concerto: 265, offtune: 4240 });
-export const MA2 = iunoAction("Basic - Moonbow 2", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Liberation, mv: 167.01, energy: 325, concerto: 350, offtune: 5601 });
-export const MA3 = iunoAction("Basic - Moonbow 3", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Liberation, mv: 334.02, energy: 600, concerto: 700, offtune: 11200 });
-export const MDC = iunoAction("Basic - Moonbow (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, shields: 1, type: Type1.Liberation, mv: 310.17, energy: 177, concerto: 2351, offtune: 5601 });
+export const MA1 = iunoAction("Basic - Moonbow 1", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Liberation, mv: 126.45, energy: 2.33, concerto: 2.65, offtune: 4240 });
+export const MA2 = iunoAction("Basic - Moonbow 2", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Liberation, mv: 167.01, energy: 3.25, concerto: 3.5, offtune: 5601 });
+export const MA3 = iunoAction("Basic - Moonbow 3", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Liberation, mv: 334.02, energy: 6, concerto: 7, offtune: 11200 });
+export const MDC = iunoAction("Basic - Moonbow (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, shields: 1, type: Type1.Liberation, mv: 310.17, energy: 1.77, concerto: 23.51, offtune: 5601 });
 
 // --- resonance skill
-export const Skill = iunoAction("Skill - Pulse of Origins", { node: Node.Skill, cast: Cast.Skill, shields: 1, type: Type1.Skill, mv: 261.07, energy: 458, concerto: 600, offtune: 8086 });
-export const ESkill = iunoAction("Skill - Closing Refrain", { node: Node.Skill, cast: Cast.Skill, shields: 1, type: Type1.Skill, mv: 426.46, energy: 815, concerto: 800, offtune: 13200 });
-export const MSkill = iunoAction("Skill - Arc Beyond the Edge", { node: Node.Skill, cast: Cast.Skill, shields: 1, type: Type1.Liberation, mv: 439.58, energy: 936, concerto: 800, offtune: 10720 });
+export const Skill = iunoAction("Skill - Pulse of Origins", { node: Node.Skill, cast: Cast.Skill, shields: 1, type: Type1.Skill, mv: 261.07, energy: 4.58, concerto: 6, offtune: 8086 });
+export const ESkill = iunoAction("Skill - Closing Refrain", { node: Node.Skill, cast: Cast.Skill, shields: 1, type: Type1.Skill, mv: 426.46, energy: 8.15, concerto: 8, offtune: 13200 });
+export const MSkill = iunoAction("Skill - Arc Beyond the Edge", { node: Node.Skill, cast: Cast.Skill, shields: 1, type: Type1.Liberation, mv: 439.58, energy: 9.36, concerto: 8, offtune: 10720 });
 
 // --- liberation: shields and grants Blessing
 export const Liberation = iunoAction("Liberation - Beneath Lunar Tides", {
-  node: Node.Liberation, cast: Cast.Liberation, shields: 1, type: Type1.Liberation, mv: 1093.46,
+  node: Node.Liberation, cast: Cast.Liberation, shields: 1, type: Type1.Liberation, mv: 1093.46, concerto: 20,
   offtune: 96000,
 });
 
 // --- intro / outro
 export const Intro = iunoAction("Intro - Illuminated Manifestation", {
   node: Node.Intro, cast: Cast.Intro, shields: 1, type: Type1.Intro, mv: 159.09,
-  energy: 1000, concerto: 1000, offtune: 10400,
+  energy: 10, concerto: 10, offtune: 10400,
 });
 /** Her outro hands the Heavy Attack amplification window straight to the next intro. */
 export const Outro = iunoAction("Outro - From Gloom to Gleam", {
@@ -89,15 +89,15 @@ export const Outro = iunoAction("Outro - From Gloom to Gleam", {
 
 // --- forte (jump / Flux) casts, all liberation damage while in Lunar Cycle. Same shielding as
 //     the ordinary basics/dodge counter above.
-export const Jump = iunoAction("Forte - Flux: Moonbow", { node: Node.Forte, cast: Cast.Heavy, shields: 1, type: Type1.Liberation, mv: 250.51, energy: 350, concerto: 700, offtune: 1120 });
-export const FJump = iunoAction("Forte - Flux: Moonring", { node: Node.Forte, cast: Cast.Heavy, shields: 1, type: Type1.Liberation, mv: 316.72, energy: 444, concerto: 888, offtune: 14160 });
-export const FMA1 = iunoAction("Forte - Enhanced Moonbow 1", { node: Node.Forte, cast: Cast.Basic, shields: 1, type: Type1.Liberation, mv: 205.97, energy: 233, concerto: 665, offtune: 4240 });
-export const FMA2 = iunoAction("Forte - Enhanced Moonbow 2", { node: Node.Forte, cast: Cast.Basic, shields: 1, type: Type1.Liberation, mv: 286.29, energy: 327, concerto: 951, offtune: 5601 });
-export const FMA3 = iunoAction("Forte - Enhanced Moonbow 3", { node: Node.Forte, cast: Cast.Basic, shields: 1, type: Type1.Liberation, mv: 532.82, energy: 600, concerto: 1700, offtune: 11200 });
-export const FMSkill = iunoAction("Forte - Enhanced Arc Beyond the Edge", { node: Node.Forte, cast: Cast.Skill, shields: 1, type: Type1.Liberation, mv: 638.38, energy: 936, concerto: 1800, offtune: 10720 });
+export const Jump = iunoAction("Forte - Flux: Moonbow", { node: Node.Forte, cast: Cast.Heavy, shields: 1, type: Type1.Liberation, mv: 250.51, energy: 3.5, concerto: 7, offtune: 1120 });
+export const FJump = iunoAction("Forte - Flux: Moonring", { node: Node.Forte, cast: Cast.Heavy, shields: 1, type: Type1.Liberation, mv: 316.72, energy: 4.44, concerto: 8.88, offtune: 14160 });
+export const FMA1 = iunoAction("Forte - Enhanced Moonbow 1", { node: Node.Forte, cast: Cast.Basic, shields: 1, type: Type1.Liberation, mv: 205.97, energy: 2.33, concerto: 6.65, offtune: 4240 });
+export const FMA2 = iunoAction("Forte - Enhanced Moonbow 2", { node: Node.Forte, cast: Cast.Basic, shields: 1, type: Type1.Liberation, mv: 286.29, energy: 3.27, concerto: 9.51, offtune: 5601 });
+export const FMA3 = iunoAction("Forte - Enhanced Moonbow 3", { node: Node.Forte, cast: Cast.Basic, shields: 1, type: Type1.Liberation, mv: 532.82, energy: 6, concerto: 17, offtune: 11200 });
+export const FMSkill = iunoAction("Forte - Enhanced Arc Beyond the Edge", { node: Node.Forte, cast: Cast.Skill, shields: 1, type: Type1.Liberation, mv: 638.38, energy: 9.36, concerto: 18, offtune: 10720 });
 
 /** Heavy Attack - Absolute Fullness. Ends Lunar Cycle and conjures the Full Moon domain. */
-export const FHA = iunoAction("Forte - Absolute Fullness", { node: Node.Forte, cast: Cast.Heavy, shields: 1, type: Type1.Liberation, mv: 159.05, energy: 500, offtune: 2400 });
+export const FHA = iunoAction("Forte - Absolute Fullness", { node: Node.Forte, cast: Cast.Heavy, shields: 1, type: Type1.Liberation, mv: 159.05, energy: 5, offtune: 2400 });
 
 /** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her
  *  own base stat line. The stat-tree talent bonus lives in its own `IUNO_TALENTS` buff below —

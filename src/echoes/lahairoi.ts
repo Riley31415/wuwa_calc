@@ -6,7 +6,7 @@
  * Dream of the Lost from echoes_septimont.ts.)
  */
 import {
-  Buff, Action, Stat, Element, Type1, Cast, Scaling,
+  Buff, Mainslot, Action, Stat, Element, Type1, Cast, Scaling,
   addStat, applySelf, casting, currentAction, revoke,
 } from "../kit.js";
 
@@ -17,8 +17,9 @@ import {
 export const ACTION_NAMELESS_EXPLORER = new Action("Echo - Nameless Explorer", {
   cast: Cast.Echo, element: Element.Aero, scaling: Scaling.Atk, type: Type1.Echo, mv: 273.6,
 });
-export const NAMELESS_EXPLORER = new Buff({
+export const NAMELESS_EXPLORER = new Mainslot({
   name: "Nameless Explorer",
+  action: ACTION_NAMELESS_EXPLORER,
   apply: () => { addStat(Stat.DmgBonus, 12, Element.Aero); addStat(Stat.DmgBonus, 20, Type1.Echo); },
 });
 
@@ -27,7 +28,7 @@ export const NAMELESS_EXPLORER = new Buff({
  *  and +15% Aero DMG Bonus for 5s — short window, lost after the outro action gains stats. */
 export const SOUND_OF_TRUE_NAME_2PC = new Buff({ name: "Sound of True Name 2pc", apply: () => addStat(Stat.DmgBonus, 10, Element.Aero) });
 export const SOUND_OF_TRUE_NAME_BUFF = new Buff({
-  name: "Sound of True Name",
+  name: "Sound of True Name 5pc",
   apply: () => { addStat(Stat.CritRate, 20, Type1.Echo); addStat(Stat.DmgBonus, 15, Element.Aero); },
   convert: () => { if (casting(Cast.Outro)) revoke(SOUND_OF_TRUE_NAME_BUFF); },
 });

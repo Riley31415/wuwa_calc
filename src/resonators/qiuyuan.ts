@@ -12,7 +12,7 @@ import {
   addStat, stacks,
 } from "../kit.js";
 import { EMERALD_SENTENCE } from "../weapons/sword.js";
-import { FALLACY, REJUV_2PC } from "../echoes/jinzhou.js";
+import { FALLACY, REJUV_2PC, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../echoes/jinzhou.js";
 import { LAW_OF_HARMONY_3PC } from "../echoes/septimont.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
@@ -135,5 +135,14 @@ export const QY_LOADOUT: Gear[] = [
   QIUYUAN, QIUYUAN_TALENTS,
   EMERALD_SENTENCE,
   FALLACY, LAW_OF_HARMONY_3PC, REJUV_2PC,
+  mainstats("CD", "aero aero", "atk atk"), chem("atk", "heavy"),
+];
+
+// second build: Impermanence Heron mainslot, full Moonlit Clouds 5pc instead of the Law of
+// Harmony/Rejuvenating Glow split above — same weapon/mainstat/substat choices otherwise
+export const QY_LOADOUT_MOONLIT: Gear[] = [
+  QIUYUAN, QIUYUAN_TALENTS,
+  EMERALD_SENTENCE,
+  HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC,
   mainstats("CD", "aero aero", "atk atk"), chem("atk", "heavy"),
 ];
