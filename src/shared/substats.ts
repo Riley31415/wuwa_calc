@@ -29,7 +29,7 @@ export function substats(name: string, counts: Record<string, number>): Buff {
   const entries = Object.entries(counts).map(([key, n]) => {
     const [stat, tag] = splitStat(key);
     if (!(stat in ROLL)) throw new Error(`substats("${name}"): nothing rolls "${key}"`);
-    return { stat, tag, value: ROLL[stat]! * n };
+    return { stat: stat as Stat, tag, value: ROLL[stat]! * n };
   });
   return new Buff({
     name,

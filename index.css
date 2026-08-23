@@ -268,7 +268,7 @@ main {
 .tgrid { display: flex; flex-direction: column; }
 .trow {
   display: grid;
-  grid-template-columns: repeat(3, minmax(120px, 1.3fr)) repeat(4, minmax(90px, 1fr)) minmax(110px, 1fr);
+  grid-template-columns: repeat(3, minmax(120px, 1.3fr)) minmax(110px, 1fr) repeat(4, minmax(90px, 1fr));
   align-items: stretch;
 }
 .trow + .trow { border-top: 1px solid var(--line); }
@@ -444,6 +444,10 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 /* concerto only: an outro that fired without a full 100-point bar banked — a real "we didn't
    have enough" case, so it reads as an error rather than the neutral `.buffed` note above. */
 .c.underspent { color: #e5484d; text-decoration: underline dotted #e5484d; text-underline-offset: 3px; }
+
+/* forte gauges only: the gauge itself has gone negative — same red treatment as underspent
+   concerto, since it's the same "ran out" story. */
+.c.negative { color: #e5484d; text-decoration: underline dotted #e5484d; text-underline-offset: 3px; }
 
 /* The member column: its own colour system, sourced from `--mem` (the member's own colour, set
    inline per cell) rather than `--m` (the row's action colour) — a left bar and a background

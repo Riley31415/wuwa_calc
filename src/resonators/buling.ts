@@ -1,244 +1,223 @@
 /**
- * Buling — an electro support/healer. Trigram (Mountain/Thunder, up to 4 held, FIFO) builds off
- * Basic Attack Stage 2 (Mountain) / Stage 4, Mid-air Attack, or Resonance Skill (Thunder); a Heavy
- * Attack spends specific Trigram pairs left-to-right for Minor Yang (Mountain+Thunder, either
- * order) or Minor Yin (two of the same). Holding both at once upgrades Resonance Liberation to
- * Flashing Thunder Spell: Harmony, which alone generates the Five Thunders Spell Array and opens
- * Thunder Spell. The rotation below hand-places one specific, kit-valid Trigram/Minor sequence
- * (Mid-air -> Thunder, Basic 12 -> Mountain, Heavy: Thunder Over Mountain -> Minor Yang, Skill ->
- * Thunder, Basic 4 -> Thunder, Heavy: Twin Thunders -> Minor Yin, unlocking Harmony) rather than
- * tracking the Trigram queue live — it's a fixed authored line, not a simulator, so the state
- * machine doesn't need runtime enforcement; each Heavy Attack action is commented with what it
- * spends/grants for reference. Healing (Twin Mountains/Twin Thunders' own heal, Intro's heal,
- * Outro's heal) is out of scope, per the standing rule — both healing-only Heavy Attacks carry
- * 0 mv here for that reason, not a missing number.
+ * Buling, ported to the new engine — sequence-0 core loop, except sequences 1-6 (see below). An
+ * electro Rectifier support/healer built around Trigram (Mountain/Thunder, up to 4 held, FIFO):
+ * Basic Attack Stage 2 grants Mountain, Stage 4/Mid-air/Resonance Skill grant Thunder, and a
+ * Heavy Attack spends a specific pair for Minor Yang (Mountain+Thunder) or Minor Yin (two of the
+ * same) — both real Buffs, consumed the instant she holds both at once, entering Yin-Yang
+ * Balance. Holding both Minors upgrades Liberation to Flashing Thunder Spell: Harmony (assumed
+ * always the case, since nothing tracks a live 4-slot Trigram queue — same "fixed valid line, no
+ * live queue" treatment as Zhezhi's Imprints/Sigrika's Runes). Yin-Yang Balance itself is held
+ * for exactly the one action that grants it (real kit text keeps it until the following
+ * Liberation, but nothing else here reads it that late), long enough for S2's own +25 Energy to
+ * see it from its own apply(). The rotation hand-places one kit-valid Trigram/Minor sequence
+ * rather than a runtime state machine. Healing is out of scope, so both healing-only Heavy
+ * Attacks carry 0 mv, not a missing number.
  *
- * Thunder Spell: opened (Primordial Qi, stack 1) when the Array generates; the first Intro Skill
- * cast from *any* team member while held escalates everyone to Yin and Yang (stack 2, +10% Skill
- * DMG to whoever's active); the second escalates to Heaven, Earth, Mind (stack 3, +25%, or +50%
- * with S6). Team-wide watcher, same pattern as Phrolova's HECATE_ECHO_WATCH — necessary since the
- * trigger can be anyone's cast. 24s(ish) real duration, past the standing rule's 20s cutoff, so no
- * revoke-on-outro is modelled — treated as permanent for a showcase-length rotation.
+ * Thunder Spell: opened (Primordial Qi, stack 1) when Liberation generates the Array; the first
+ * Intro Skill cast from *any* team member while held escalates everyone to Yin and Yang (stack 2,
+ * +10% Skill DMG to whoever's active), the second to Heaven, Earth, Mind (stack 3, +25%) — a
+ * team-wide watcher via `updateGlobal()`, same shape Sigrika's own Blessing of Runes uses.
  *
- * Sequences 1-6, each its own Gear, all six in the default loadout:
- *  S1 Exorcist Gadgets, Lend Me Your Power — +20% Crit Rate on Flashing Thunder Spell: Harmony
- *     (Liberation) and its own Array, scoped so the hit that earns it is itself paid same-cast.
- *  S2 Talisman Burns, Spirits Turn — 25 Energy on entering Yin-Yang Balance (the state Minor Yin
- *     opens Harmony from), every 24s. No live Trigram state to key off (see above), so this reads
- *     off the two actions the kit itself treats as "reaches Minor Yin" — Twin Mountains/Twin
- *     Thunders — rather than a real state check; the 24s cooldown never matters in a fixed line
- *     that only reaches Minor Yin once.
- *  S3 Summoner of Spirits, Seeker of Fate — heals the team below 50% HP for 350+150% ATK while
- *     the Array lasts. Healing amounts and ally HP are both out of scope, so this is a no-op.
- *  S4 Wanderer of Solaris, Blessed by Fortune — flat +20% Healing Bonus.
- *  S5 Forum Ban? New Account! — the Array inflicts 6 more Electro Flare stacks on generation.
- *     Electro Flare itself (S5's own stacks, the Array's periodic 2-a-tick, Earthly Immortal's 4
- *     on Intro-hit) is left as a bare count on the action (`flare`, see kit.js, mirroring
- *     `shields`) — nothing reads it yet, so getting this one exactly right has no payoff; no-op.
- *  S6 "Almighty Forum Lord of Thunder Spell" — Thunder Spell - Heaven, Earth, Mind grants 50%
- *     Resonance Skill DMG Bonus instead of 25% — read directly by THUNDER_SPELL below.
+ * Numbers from nanoka.cc (character 1307) at skill level 10. Energy Regen isn't published there,
+ * so every action's own `energy` is the migrated (old-engine) sheet's number, ÷100 — confirmed
+ * against the page's own Concerto Regen and Resonance Cost (150, `maxEnergy` below), which
+ * matched the same sheet ÷100 everywhere they overlap. `offtune` isn't published either and has
+ * no equivalent in the old sheet — left unset (0), a real gap, not a rounding shortcut.
  *
- * Numbers from nanoka.cc (character 1307, https://ww.nanoka.cc/character/1307), cross-checked against the migrated sheet's `buling`
- * rotation, which this follows — except the sheet's own trailing `Echo: Fallacy` / `FLib field *
- * 12` land *after* its `Outro` entry; since this engine's Outro ends the resonator's own turn and
- * hands the active slot to the next teammate, both are reordered to land before Outro instead so
- * they still resolve as Buling's own hits. The sheet's `Electro Flare: N` lines are its own
- * running-stack annotations, not real actions — skipped, matching the unread `flare` count above.
- * Flashing Thunder Spell's Concerto Regen: the sheet gives 28 for both Liberation forms; nanoka's
- * own text says 20 for the plain one (no figure given separately for Harmony) — nanoka trusted
- * per the standing rule, flagged here since the two disagree outright rather than one filling a
- * gap in the other. The Array's own energy/mv (`ACTION_FIVE_THUNDERS_ARRAY`) use the sheet's own
- * `FLib field * 12` totals (full 12-tick lifetime), not a single tick — nanoka's one-tick number
- * given inline below for reference, but the sheet's total is what's actually placed.
+ * Sequences 1-6, each its own always-equipped gear, all in the default loadout — by explicit
+ * instruction, same one-off exception Encore's own file documents:
+ *  S1 +20% Crit Rate on Flashing Thunder Spell: Harmony and its own Array (scoped to Liberation
+ *     DMG so both pick it up without a trigger).
+ *  S2 25 Energy on entering Yin-Yang Balance, every 24s (ICD not modelled).
+ *  S3 heals the team below 50% HP — out of scope, no-op.
+ *  S4 flat +20% Healing Bonus, unused by the formula, tracked for completeness.
+ *  S5 the Array inflicts 6 more Electro Flare — nothing reads Electro Flare yet, no-op.
+ *  S6 Heaven, Earth, Mind grants 50% Resonance Skill DMG Bonus instead of 25% — read by THUNDER_SPELL.
  */
-import { Buff, GlobalBuff, Gear, Action, Chain, PRIORITY, ECHO_CAST } from "../kit.js";
-import type { ActionDef } from "../kit.js";
-import { Resonator, Loadout, isIntro } from "../state.js";
-import type { ResonatorFactory } from "../state.js";
-import { Stat, Element, Type1, Node, Resource, Cast, Scaling } from "../stats.js";
+import {
+  Buff, Talent, Inherent, Sequence, Resonator, Loadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
+  applyTeam, applySelf, stacksOfTeam, isHeld, casting, currentAction, currentTeam, addStat, queue, revoke, revokeTeam,
+} from "../kit.js";
+import { COSMIC_RIPPLES, VARIATION } from "../weapons/standard.js";
+import { FALLACY, REJUV_5PC, REJUV_2PC } from "../echoes/jinzhou.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
-import { VARIATION } from "../weapons/standard.js";
-import { FALLACY, REJUV_5PC, REJUV_2PC } from "../echoes/jinzhou.js";
 
-/** This resonator's own color — every action from the wrapper below defaults to it. */
-export const COLOR = "#7a6ff0";
+/* ----------------------------------------------------------------------------------- actions */
 
-/* ------------------------------------------------------------------- sequences */
-
-/** S1 Exorcist Gadgets, Lend Me Your Power: +20% Crit Rate on Flashing Thunder Spell: Harmony —
- *  scoped to Liberation damage, so both her own Liberation cast and the Array it queues (both
- *  `type: LIB`) pick it up without a trigger. */
-export const S1 = new Gear("Buling S1", (ctx) => { ctx.add(20, Type1.Liberation, Stat.CritRate); });
-
-/** S2 Talisman Burns, Spirits Turn: 25 Energy on entering Yin-Yang Balance, every 24s — read
- *  directly by Twin Mountains/Twin Thunders below, since this file doesn't simulate live Trigram
- *  state (see file header) and those two are already the kit's own "reaches Minor Yin" actions. */
-export const S2 = new Gear("Buling S2");
-
-/** S3 Summoner of Spirits, Seeker of Fate: heals the team below 50% HP for 350+150% ATK while
- *  the Array lasts — no-op. Healing amounts and ally HP are both out of scope. */
-export const S3 = new Gear("Buling S3");
-
-/** S4 Wanderer of Solaris, Blessed by Fortune: flat +20% Healing Bonus — unused by the formula
- *  (healing is out of scope), tracked for completeness only. */
-export const S4 = new Gear("Buling S4", (ctx) => { ctx.add(20, Stat.HealingBonus); });
-
-/** S5 Forum Ban? New Account!: the Array inflicts 6 more Electro Flare stacks on generation —
- *  no-op. Nothing reads Electro Flare stacks yet (see file header), so the exact count has no
- *  payoff to get right. */
-export const S5 = new Gear("Buling S5");
-
-/** S6 "Almighty Forum Lord of Thunder Spell": Thunder Spell - Heaven, Earth, Mind grants 50%
- *  Resonance Skill DMG Bonus instead of 25% — read directly by THUNDER_SPELL below. */
-export const S6 = new Gear("Buling S6");
-
-/** Cosmic Ripples, her own top-recommended weapon — no deeper research on its own passive done
- *  this pass, just the base stat line. Mainslot Fallacy, full 5pc Rejuvenating Glow — both
- *  generic gear, imported from echoes/jinzhou.js. Default loadout carries all six sequences,
- *  passed as `sequences` below — nothing distinguishes how either gets equipped. */
-const BULING_LOADOUT = new Loadout(
-  VARIATION, FALLACY, REJUV_5PC, REJUV_2PC,
-  mainstats("CD", "ER ER", "atk atk"), chem("atk", "liberation", { er: true }),
-);
-
-export class Buling extends Resonator {
-  constructor(loadout: Loadout) {
-    super(
-      "Buling",
-      Element.Electro,
-      () => Intro,
-      loadout,
-      (ctx) => {
-        ctx.add(10625, Stat.BaseHp);
-        ctx.add(225, Stat.BaseAtk);
-        ctx.add(1259, Stat.BaseDef);
-      },
-      (ctx) => {
-        ctx.add(12, Stat.BonusAtk);   // In Shadow Thunder Stirs (Skill) B2/B4 + Flashing Thunder Spell (Lib) B2/B4 ATK+ nodes
-        ctx.add(12, Stat.HealingBonus); // stat-tree Healing Bonus+ nodes, 1.8+1.8+4.2+4.2 — unused
-                                     // by the formula (healing is out of scope), tracked for
-                                     // completeness only. Her Inherent Skill "Time Arrives, Evil
-                                     // Declines" (+25% Healing Bonus while healing an ally under
-                                     // 50% HP) isn't modelled — no ally-HP tracking here, same as
-                                     // every other untracked-state skip.
-      },
-      null,
-      null,
-      [S1, S2, S3, S4, S5, S6],
-    );
-    this.alwaysUnlocked = true;
-  }
+function bulingAction(id: string, def: object): Action {
+  return new Action(id, { element: Attribute.Electro, scaling: Scaling.Atk, ...def });
 }
-export const LOADOUT: ResonatorFactory = () => new Buling(BULING_LOADOUT);
 
-/** Thunder Spell: 1 buff, 3 stacks, named for whichever state it currently is. Opened by
- *  Liberation. Global so any teammate's Intro can advance it — self-included, since Buling
- *  casting her own Intro counts too. Only the top two stacks' own DMG Bonus is scoped to
- *  whoever's currently active, per the kit's own "active Resonators" wording. */
-export const THUNDER_SPELL = new GlobalBuff(PRIORITY.BUFF_STATS, (ctx, stacks) => {
-  const a = ctx.action!;
-  if (isIntro(a) && stacks < 3) ctx.grantGlobal(THUNDER_SPELL);
-  // re-read live: `stacks` is this call's pre-increment snapshot, stale the instant the grant
-  // above just moved it
-  const held = ctx.stacksOf(THUNDER_SPELL);
-  if (a.active) {
-    if (held === 2) ctx.add(10, Type1.Skill, Stat.DmgBonus);
-    else if (held >= 3) ctx.add(ctx.stacksOf(S6) ? 50 : 25, Type1.Skill, Stat.DmgBonus);
-  }
-  if (held >= 3) {
-    if (ctx.stacksOf(S6)) {
-        return "Buling: Thunder Spell - Heaven, Earth, Mind S6";
+// --- basics, mid-air, dodge counter (Hexagram Calls, Lightning Falls) — Stage 2 grants Trigram:
+//     Mountain, Stage 4/Mid-air grant Trigram: Thunder (fixed valid line, not enforced here)
+export const BA1 = bulingAction("Basic - Hexagram Calls, Lightning Falls 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 41.46, energy: 1.06, concerto: 3.34 });
+export const BA2 = bulingAction("Basic - Hexagram Calls, Lightning Falls 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 66.90, energy: 1.70, concerto: 5.40, forte1: 1 });
+export const BA3 = bulingAction("Basic - Hexagram Calls, Lightning Falls 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 47.02, energy: 1.20, concerto: 3.80 });
+export const BA4 = bulingAction("Basic - Hexagram Calls, Lightning Falls 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 93.64, energy: 2.36, concerto: 7.54, forte1: 1 });
+export const MA = bulingAction("Basic - Hexagram Calls, Lightning Falls (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.96, energy: 1.24, concerto: 4.96, forte1: 1 });
+export const DC = bulingAction("Basic - Hexagram Calls, Lightning Falls 3 (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 47.02, energy: 1.20, concerto: 13.80 });
+
+// hold Normal Attack to spend a specific Trigram pair left-to-right for a Minor state. Twin
+// Mountains/Twin Thunders heal only (0 mv, healing out of scope).
+export const HA_MOUNTAIN_OVER_THUNDER = bulingAction("Heavy - Mountain Over Thunder", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 178.93, energy: 3.00, concerto: 15, forte1: -2 });
+export const HA_THUNDER_OVER_MOUNTAIN = bulingAction("Heavy - Thunder Over Mountain", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 89.47, energy: 3.00, concerto: 15, forte1: -2 });
+export const HA_TWIN_MOUNTAINS = bulingAction("Heavy - Twin Mountains", { node: Node.Normal, cast: Cast.Heavy, mv: 0, heals: true, concerto: 15, forte1: -2 });
+export const HA_TWIN_THUNDERS = bulingAction("Heavy - Twin Thunders", { node: Node.Normal, cast: Cast.Heavy, mv: 0, heals: true, concerto: 15, forte1: -2 });
+
+// grants a Trigram: Thunder
+export const Skill = bulingAction("Skill - In Shadow Thunder Stirs", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 116.8, energy: 15.00, concerto: 23, forte1: +1 });
+
+// assumed always cast as Harmony (see file header) — generates the Array, opening/refreshing
+// Thunder Spell at Primordial Qi
+export const Liberation = bulingAction("Liberation - Flashing Thunder Spell - Harmony", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 536.79, concerto: 20 });
+
+/** The migrated sheet's own full 12-tick lifetime total (238.32% mv, 25 energy, 24 Electro
+ *  Flare) rather than one representative tick, same lumped-window treatment as Zhezhi's Inklit
+ *  Spirit/Cantarella's Diffusion. Nanoka's own single-tick number is 19.89% mv, for reference. */
+export const ACTION_FIVE_THUNDERS_ARRAY = bulingAction("Liberation - Five Thunders Spell Array x12", { type: Type1.Liberation, mv: 238.32, energy: 25, flare: 24, active: false });
+
+export const Intro = bulingAction("Intro - Summon and Smite", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 131.10, concerto: 10, flare: 4 });
+export const Outro = bulingAction("Outro - Exorcism Spell", { cast: Cast.Outro, mv: 0, active: false });
+
+/* ------------------------------------------------------------------------------------ buffs */
+
+/** Named for its own current stage rather than a stack count, same reasoning as Shorekeeper's
+ *  Stellarealm. Paid out only to whoever's active. */
+const THUNDER_SPELL_STAGE = ["Primordial Qi", "Yin and Yang", "Heaven, Earth, Mind"];
+export const THUNDER_SPELL = new Buff({
+  name: "Buling: Thunder Spell", maxStacks: 3,
+  display: (): string => `Buling: Thunder Spell - ${THUNDER_SPELL_STAGE[stacksOfTeam(THUNDER_SPELL) - 1]}`,
+  updateGlobal: () => { if (casting(Cast.Intro) && stacksOfTeam(THUNDER_SPELL) < 3) applyTeam(THUNDER_SPELL, 1); },
+  apply: () => {
+    if (!currentAction().active) return;
+    const stage = stacksOfTeam(THUNDER_SPELL);
+    if (stage === 2) addStat(Stat.DmgBonus, 10, Type1.Skill);
+    else if (stage >= 3) {
+      // pays out on whoever's active, not necessarily Buling — S6 is her own local Sequence, so
+      // it's read off her own slot specifically, found by resonator identity
+      const buling = currentTeam().slots.find((s) => s.resonator === BULING);
+      addStat(Stat.DmgBonus, buling?.isHeld(BL_S6) ? 50 : 25, Type1.Skill);
     }
-    return "Buling: Thunder Spell - Heaven, Earth, Mind";
-  }
-  if (held === 2) return "Buling: Thunder Spell - Yin and Yang";
-  return "Buling: Thunder Spell - Primordial Qi";
-}, 3);
-
-/* ----------------------------------------------------------------- actions */
-
-function bulingAction(name: string, def: ActionDef): Action {
-  return new Action(name, {
-    element: Element.Electro,
-    scaling: Scaling.Atk,
-    ...def,
-  });
-}
-
-// --- intro / outro
-const Intro = bulingAction("Intro: Summon and Smite", {
-  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 131.10, energy: 0, concerto: 1000, flare: 4,
-});
-const Outro = bulingAction("Outro: Exorcism Spell", {
-  cast: Cast.Outro, mv: 0, concerto: -10000, active: false,
-  priority: PRIORITY.UPDATE_BUFFS,
-  apply(ctx) { ctx.queue(ACTION_FIVE_THUNDERS_ARRAY); ctx.grantGlobal(BULING_OUTRO); },
-});
-/** Exorcism Spell: +15% (unscoped) DMG Amplified, 30s — past the standing 20s cutoff, so treated
- *  as permanent uptime rather than lost on the receiving resonator's own outro. */
-export const BULING_OUTRO = new GlobalBuff(PRIORITY.BUFF_STATS, (ctx) => { ctx.add(15, Stat.Amp); return "Buling: Outro"; });
-
-// --- resonance skill: grants a Thunder Trigram
-const Skill = bulingAction("Skill: In Shadow Thunder Stirs", {
-  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 116.8, energy: 1500, concerto: 2300,
+  },
 });
 
-// --- resonance liberation: Flashing Thunder Spell, assumed always cast as Harmony (see file
-//     header) — generates the Array, opening Thunder Spell at Primordial Qi. A fresh Array
-//     replaces whatever stage the last one reached, hence the explicit stack: 1.
-export const Liberation = bulingAction("Liberation: Flashing Thunder Spell - Harmony", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 536.79, energy: -15000, concerto: 2000,
-  priority: PRIORITY.UPDATE_BUFFS,
-  apply(ctx) { ctx.setStacksGlobal(THUNDER_SPELL, 1); },
+/** Pure state markers, no stat of their own — both are consumed the instant she holds both at
+ *  once (see BULING's own update()), entering Yin-Yang Balance. */
+export const MINOR_YANG = new Buff({ name: "Buling: Minor Yang" });
+export const MINOR_YIN = new Buff({ name: "Buling: Minor Yin" });
+
+/** Held for exactly the one action that grants it (BULING's own update() grants, its own
+ *  convert() revokes) — the only real reader left is S2's own +25 Energy, between those two. */
+export const YIN_YANG_BALANCE = new Buff({ name: "Buling: Yin-Yang Balance" });
+
+/** +15% (unscoped) DMG Amplification, 30s — permanent uptime once granted. */
+export const BULING_OUTRO = new Buff({
+  name: "Buling: Outro",
+  apply: () => addStat(Stat.Amp, 15),
 });
 
-/** Five Thunders Spell Array: the sheet's own full 12-tick lifetime total (238.32% mv, 25 energy,
- *  24 Electro Flare stacks) rather than one representative tick — see file header. Nanoka's own
- *  single-tick number is 19.89% mv for reference. */
-export const ACTION_FIVE_THUNDERS_ARRAY = bulingAction("Five Thunders Spell Array x12", {
-  type: Type1.Liberation, mv: 238.32, energy: 2500, flare: 24, active: false,
+/** +25% Healing Bonus while healing an ally under 50% HP — no ally-HP tracking, named marker only. */
+export const BL_INHERENT_1 = new Inherent({ name: "Buling: Time Arrives, Evil Declines" });
+
+/** The source of Intro's own 4 Electro Flare stacks (declared on the Intro action). */
+export const BL_INHERENT_2 = new Inherent({ name: "Buling: Earthly Immortal is Here!" });
+
+/* ------------------------------------------------------------------------------- sequences */
+
+export const BL_S1 = new Sequence({
+  name: "Buling S1",
+  apply: () => { if (currentAction() == Liberation) addStat(Stat.CritRate, 20); }
 });
 
-// --- normal attacks: four basics, a mid-air, a dodge counter — Stage 2/4 (and Mid-air, Skill
-//     above) are what grant Trigrams, commented per hit
-const BA1 = bulingAction("Basic: Hexagram Calls, Lightning Falls 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 41.46, energy: 106, concerto: 334 });
-const BA2 = bulingAction("Basic: Hexagram Calls, Lightning Falls 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 66.9, energy: 170, concerto: 540 });     // grants Trigram: Mountain
-const BA3 = bulingAction("Basic: Hexagram Calls, Lightning Falls 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 47.02, energy: 120, concerto: 380 });
-const BA4 = bulingAction("Basic: Hexagram Calls, Lightning Falls 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 93.64, energy: 472, concerto: 1508 }); // grants Trigram: Thunder
-export const MA = bulingAction("Basic: Hexagram Calls, Lightning Falls (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.96, energy: 124, concerto: 496 }); // grants Trigram: Thunder
-export const DC = bulingAction("Basic: Hexagram Calls, Lightning Falls 3 (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 47.02, energy: 120, concerto: 1380 });
-
-export const BA12 = new Chain("Basic: Hexagram Calls, Lightning Falls 12", [BA1, BA2]);
-export const BA1234 = new Chain("Basic: Hexagram Calls, Lightning Falls 1234", [BA1, BA2, BA3, BA4]);
-
-// --- heavy attacks: spend specific Trigram pairs left-to-right for a Minor state
-export const HA_MOUNTAIN_OVER_THUNDER = bulingAction("Heavy: Mountain Over Thunder",
-  { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 178.93, energy: 300, concerto: 1500 });   // spends Mountain+Thunder -> Minor Yang
-export const HA_THUNDER_OVER_MOUNTAIN = bulingAction("Heavy: Thunder Over Mountain",
-  { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 89.47, energy: 300, concerto: 1500 });    // spends Thunder+Mountain -> Minor Yang
-// spends Mountain+Mountain/Thunder+Thunder -> Minor Yin; healing only. Both are the kit's own
-// "reaches Minor Yin" (Yin-Yang Balance) actions — S2's Energy restore reads off them directly.
-export const HA_TWIN_MOUNTAINS = bulingAction("Heavy: Twin Mountains", {
-  node: Node.Normal, cast: Cast.Heavy, mv: 0, energy: 0, concerto: 1500, heal: 1,
-  priority: PRIORITY.UPDATE_BUFFS,
-  apply(ctx) { if (ctx.stacksOf(S2)) ctx.gain(Resource.Energy, 2500); },
-});
-export const HA_TWIN_THUNDERS = bulingAction("Heavy: Twin Thunders", {
-  node: Node.Normal, cast: Cast.Heavy, mv: 0, energy: 0, concerto: 1500, heal: 1,
-  priority: PRIORITY.UPDATE_BUFFS,
-  apply(ctx) { if (ctx.stacksOf(S2)) ctx.gain(Resource.Energy, 2500); },
+export const BL_S2 = new Sequence({
+  name: "Buling S2",
+  apply: () => { if (isHeld(YIN_YANG_BALANCE)) addStat(Stat.AddEnergy, 25); },
 });
 
-/** The migrated sheet's `buling` rotation, values and order both cross-checked — except the
- *  Array tick is no longer placed by hand: Outro's own apply() queues it now (see Outro above),
- *  matching Cantarella's Diffusion. Mid-air opens with a Thunder Trigram; Basic 12 adds Mountain;
- *  Heavy: Thunder Over Mountain spends both for Minor Yang; Skill and Basic 4 each add a fresh
- *  Thunder; Heavy: Twin Thunders spends both for Minor Yin — Yin and Yang together unlock Harmony
- *  for the Liberation that follows. Intro is no longer placed here — the preceding member's
- *  outro triggers it (see `onIntro`). */
-export const ROTATION = [
-  MA, BA12, HA_THUNDER_OVER_MOUNTAIN,
+export const BL_S3 = new Sequence({ name: "Buling S3" });
+
+export const BL_S4 = new Sequence({
+  name: "Buling S4",
+  apply: () => addStat(Stat.HealingBonus, 20),
+});
+
+export const BL_S5 = new Sequence({ name: "Buling S5" });
+
+export const BL_S6 = new Sequence({ name: "Buling S6" });
+
+export const BULING = new Resonator({
+  name: "Buling",
+  element: Attribute.Electro,
+  weapon: WeaponType.Rectifier,
+  intro: () => Intro,
+  color: "#7a6ff0",
+  maxEnergy: 150,
+
+  update: () => {
+    const a = currentAction();
+    if (a === HA_MOUNTAIN_OVER_THUNDER || a === HA_THUNDER_OVER_MOUNTAIN) {
+      applySelf(MINOR_YANG, 1);
+      if (isHeld(MINOR_YIN)) { revoke(MINOR_YANG); revoke(MINOR_YIN); applySelf(YIN_YANG_BALANCE, 1); }
+    }
+    if (a === HA_TWIN_MOUNTAINS || a === HA_TWIN_THUNDERS) {
+      applySelf(MINOR_YIN, 1);
+      if (isHeld(MINOR_YANG)) { revoke(MINOR_YANG); revoke(MINOR_YIN); applySelf(YIN_YANG_BALANCE, 1); }
+    }
+    if (a === Liberation) { revokeTeam(THUNDER_SPELL); applyTeam(THUNDER_SPELL, 1); }
+    if (a === Outro) { queue(ACTION_FIVE_THUNDERS_ARRAY); applyTeam(BULING_OUTRO, 1); }
+  },
+  // Yin-Yang Balance is same-action-only — granted above in update(), spent here in convert(),
+  // once S2's own apply() (in between) has had its chance to read it
+  convert: () => { if (isHeld(YIN_YANG_BALANCE)) revoke(YIN_YANG_BALANCE); },
+
+  apply: () => {
+    addStat(Stat.BaseHp, 10625); addStat(Stat.BaseAtk, 225); addStat(Stat.BaseDef, 1259);
+    addStat(Stat.Er, 100); addStat(Stat.CritRate, 5); addStat(Stat.CritDmg, 150);
+  },
+});
+
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit.
+// Healing Bonus+ nodes are unused by the formula (healing out of scope), tracked for completeness.
+export const BULING_TALENTS = new Talent({
+  name: "Buling: Talents",
+  apply: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.HealingBonus, 12); },
+});
+
+// the kit-valid line: Mid-air opens with a Thunder Trigram, Basic 1/2 adds Mountain, Heavy:
+// Thunder Over Mountain spends both for Minor Yang, Skill and Basic 4 each add a fresh Thunder,
+// Heavy: Twin Thunders spends both for Minor Yin — unlocking Harmony for the Liberation after.
+// BL_ROTATION for a non-leading slot (opens on her own Intro); BL_OPENER for a leading one.
+export const BL_ROTATION = [
+  INTRO, MA, BA2, HA_THUNDER_OVER_MOUNTAIN,
   Skill, BA4, HA_TWIN_THUNDERS, ECHO_CAST,
   Liberation, Outro,
 ];
+export const BL_OPENER = [
+  MA, BA2, HA_THUNDER_OVER_MOUNTAIN,
+  Skill, BA4, HA_TWIN_THUNDERS, ECHO_CAST,
+  Liberation, Outro,
+];
+
+/* ----------------------------------------------------------------------------------- loadout */
+
+// her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
+// sonata pieces, mainstat/substat, all six sequences (by explicit instruction — see file header)
+export const BL_LOADOUT = new Loadout(
+  BULING,
+  BULING_TALENTS,
+  BL_INHERENT_1,
+  BL_INHERENT_2,
+  COSMIC_RIPPLES,
+  FALLACY,
+  REJUV_5PC,
+  REJUV_2PC,
+  mainstats("CD", "ER ER", "atk atk"),
+  chem("atk", "liberation", { er: true }),
+  BL_S1,
+  BL_S2,
+  BL_S3,
+  BL_S4,
+  BL_S5,
+  BL_S6,
+);

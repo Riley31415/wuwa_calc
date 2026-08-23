@@ -1,7 +1,4 @@
-# general across the project
-check all exports for ones that are unnecessary
-reduce comment sizes and remove uncessacary comments
-update README.md
+
 
 # optimal calculation sub and mainstats
 optimize the calculation code
@@ -14,22 +11,13 @@ you need to compute every combination for all 3 resonators in the team
 re add chains, more simple definition,
 make triggered actions from chains move into the correct place after opening the dropdwon
 
-# make mvs accurate
-transform all mvs by * 100 (so that they are all integers, no decimal places)
-but still display they way they do currently
-also store all concerto, energy, shields, mv, dots as integers
-
 # building swap system
 actions to mark swaps, and swaps that need swapback
 have outro become a triggered action
 
-# code cleanup
-complete the TODOs in stats.ts 
-
 # echoes
 update transform echoes to be inactive or cancelled
-heron 10 er
-
+make transforms not triggered, summons are triggered
 
 # rework frolova auto hecates
 first on is queue on next intro
@@ -47,3 +35,10 @@ implement all tune
 
 #
 implement all statuses
+
+
+#
+standardize action naming
+
+#
+standardize sequence naming

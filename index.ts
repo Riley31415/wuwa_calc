@@ -15,7 +15,7 @@
  * There's also no weapon optimizer — each member runs their own file's hardcoded loadout, not
  * whichever weapon scores highest.
  */
-import { State, run, withTeam, equip, Resonator, Gear, Action } from "./src/kit.js";
+import { State, run, withTeam, equip, Resonator, Gear, Action, Loadout } from "./src/kit.js";
 import type { ChainGroup, HeldBuff, ResolvedSnapshot } from "./src/kit.js";
 import { damage, mvPercent, effectiveDef, effectiveRes, damageFactors } from "./src/damage.js";
 import { buildReport, totalsBySlot, explain } from "./src/display.js";
@@ -28,27 +28,37 @@ import { PHROLOVA, PH_LOADOUT, PH_OPENER, PH_LOOP } from "./src/resonators/phrol
 import { SHOREKEEPER, SK_LOADOUT, SK_OPENER, SK_LOOP } from "./src/resonators/shorekeeper.js";
 import { IUNO, IO_LOADOUT, IO_ROTATION } from "./src/resonators/iuno.js";
 import { JINGRAN, JR_LOADOUT, JR_ROTATION } from "./src/resonators/jingran.js";
-import { ZHEZHI, ZZ_LOADOUT, ZZ_ROTATION } from "./src/resonators/zhezhi.js";
+import { ZHEZHI, ZZ_LOADOUT_MOONLIT, ZZ_ROTATION } from "./src/resonators/zhezhi.js";
 import { CARLOTTA, CL_LOADOUT, CL_ROTATION } from "./src/resonators/carlotta.js";
 import { SIGRIKA, SR_LOADOUT, SR_ROTATION } from "./src/resonators/sigrika.js";
 import { VERINA, VR_LOADOUT, VR_OPENER, VR_LOOP } from "./src/resonators/verina.js";
 import { SANHUA, SH_LOADOUT, SH_ROTATION } from "./src/resonators/sanhua.js";
 import { ROVER_HAVOC, RH_LOADOUT, RH_ROTATION } from "./src/resonators/rover_havoc.js";
-import { ROCCIA, RC_LOADOUT, RC_ROTATION } from "./src/resonators/roccia.js";
+import { ROCCIA, RC_LOADOUT, RC_LOADOUT_MOONLIT, RC_ROTATION } from "./src/resonators/roccia.js";
 import { AUGUSTA, AG_LOADOUT, AG_ROTATION } from "./src/resonators/augusta.js";
+import { LUPA, LP_LOADOUT, LP_OPENER, LP_LOOP } from "./src/resonators/lupa.js";
+import { GALBRENA, GB_LOADOUT, GB_ROTATION, GB_ROTATION_ECHO_FOCUS } from "./src/resonators/galbrena.js";
+import { BRANT, BR_LOADOUT, BR_ROTATION } from "./src/resonators/brant.js";
+import { ENCORE, EN_LOADOUT, EN_ROTATION } from "./src/resonators/encore.js";
+import { CHANGLI, CH_LOADOUT, CH_ROTATION } from "./src/resonators/changli.js";
+import { DANJIN, DJ_LOADOUT, DJ_ROTATION } from "./src/resonators/danjin.js";
+import { CAMELLYA, CM_LOADOUT, CM_ROTATION } from "./src/resonators/camellya.js";
+import { MORTEFI, MO_LOADOUT, MO_ROTATION } from "./src/resonators/mortefi.js";
+import { BULING, BL_LOADOUT, BL_OPENER, BL_ROTATION } from "./src/resonators/buling.js";
+import { LUCILLA, LC_LOADOUT, LC_ROTATION } from "./src/resonators/lucilla.js";
 
 /* ------------------------------------------------------------------------------------ teams */
 
 interface Member {
   name: string;
   color: string;
-  loadout: Gear[];
+  loadout: Loadout;
   opener: Action[];
   loop: Action[];
 }
 
 /** name/color both come straight off the resonator's own field — nothing here retypes them. */
-const member = (resonator: Resonator, loadout: Gear[], opener: Action[], loop: Action[]): Member =>
+const member = (resonator: Resonator, loadout: Loadout, opener: Action[], loop: Action[]): Member =>
   ({ name: resonator.name, color: resonator.color, loadout, opener, loop });
 
 const TEAMS: Record<string, Member[]> = {
@@ -64,7 +74,7 @@ const TEAMS: Record<string, Member[]> = {
   ],
   skZzCarlotta: [
     member(SHOREKEEPER, SK_LOADOUT, SK_OPENER, SK_LOOP),
-    member(ZHEZHI, ZZ_LOADOUT, ZZ_ROTATION, ZZ_ROTATION),
+    member(ZHEZHI, ZZ_LOADOUT_MOONLIT, ZZ_ROTATION, ZZ_ROTATION),
     member(CARLOTTA, CL_LOADOUT, CL_ROTATION, CL_ROTATION),
   ],
   skQiuyuanSigrika: [
@@ -94,6 +104,84 @@ const TEAMS: Record<string, Member[]> = {
     member(IUNO, IO_LOADOUT, IO_ROTATION, IO_ROTATION),
     member(AUGUSTA, AG_LOADOUT, AG_ROTATION, AG_ROTATION),
   ],
+  skQyGalbrena: [
+    member(SHOREKEEPER, SK_LOADOUT, SK_OPENER, SK_LOOP),
+    member(QIUYUAN, QY_LOADOUT_MOONLIT, QY_ROTATION, QY_ROTATION),
+    member(GALBRENA, GB_LOADOUT, GB_ROTATION_ECHO_FOCUS, GB_ROTATION_ECHO_FOCUS),
+  ],
+  skLupaEncore: [
+    member(SHOREKEEPER, SK_LOADOUT, SK_OPENER, SK_LOOP),
+    // she's in the 2nd slot here, not leading, so LP_LOOP (which opens on her own Intro) covers
+    // both — same shape as any other non-leading member's own opener
+    member(LUPA, LP_LOADOUT, LP_LOOP, LP_LOOP),
+    member(ENCORE, EN_LOADOUT, EN_ROTATION, EN_ROTATION),
+  ],
+  lupaBrantGalbrena: [
+    // she leads here, so LP_OPENER (no Intro — she's already on field at combat start) covers
+    // the opener, same shape as any other leading member's own opener
+    member(LUPA, LP_LOADOUT, LP_OPENER, LP_LOOP),
+    member(BRANT, BR_LOADOUT, BR_ROTATION, BR_ROTATION),
+    member(GALBRENA, GB_LOADOUT, GB_ROTATION, GB_ROTATION),
+  ],
+  lupaBrantChangli: [
+    member(LUPA, LP_LOADOUT, LP_OPENER, LP_LOOP),
+    member(BRANT, BR_LOADOUT, BR_ROTATION, BR_ROTATION),
+    member(CHANGLI, CH_LOADOUT, CH_ROTATION, CH_ROTATION),
+  ],
+  froloDanjinCanta: [
+    member(PHROLOVA, PH_LOADOUT, PH_OPENER, PH_LOOP),
+    member(DANJIN, DJ_LOADOUT, DJ_ROTATION, DJ_ROTATION),
+    member(CANTARELLA, CA_LOADOUT, CA_ROTATION, CA_ROTATION),
+  ],
+  skRocciaCamellya: [
+    member(SHOREKEEPER, SK_LOADOUT, SK_OPENER, SK_LOOP),
+    member(ROCCIA, RC_LOADOUT_MOONLIT, RC_ROTATION, RC_ROTATION),
+    member(CAMELLYA, CM_LOADOUT, CM_ROTATION, CM_ROTATION),
+  ],
+  skSanhuaCamellya: [
+    member(SHOREKEEPER, SK_LOADOUT, SK_OPENER, SK_LOOP),
+    member(SANHUA, SH_LOADOUT, SH_ROTATION, SH_ROTATION),
+    member(CAMELLYA, CM_LOADOUT, CM_ROTATION, CM_ROTATION),
+  ],
+  lupaMortefiJingran: [
+    member(LUPA, LP_LOADOUT, LP_OPENER, LP_LOOP),
+    member(MORTEFI, MO_LOADOUT, MO_ROTATION, MO_ROTATION),
+    member(JINGRAN, JR_LOADOUT, JR_ROTATION, JR_ROTATION),
+  ],
+  skMortefiAugusta: [
+    member(SHOREKEEPER, SK_LOADOUT, SK_OPENER, SK_LOOP),
+    member(MORTEFI, MO_LOADOUT, MO_ROTATION, MO_ROTATION),
+    member(AUGUSTA, AG_LOADOUT, AG_ROTATION, AG_ROTATION),
+  ],
+  froloBulingCanta: [
+    member(PHROLOVA, PH_LOADOUT, PH_OPENER, PH_LOOP),
+    member(BULING, BL_LOADOUT, BL_ROTATION, BL_ROTATION),
+    member(CANTARELLA, CA_LOADOUT, CA_ROTATION, CA_ROTATION),
+  ],
+  bulingZzCarlotta: [
+    // she leads here, so BL_OPENER (no Intro — she's already on field at combat start) covers
+    // the opener, same shape as any other leading member's own opener
+    member(BULING, BL_LOADOUT, BL_OPENER, BL_ROTATION),
+    member(ZHEZHI, ZZ_LOADOUT_MOONLIT, ZZ_ROTATION, ZZ_ROTATION),
+    member(CARLOTTA, CL_LOADOUT, CL_ROTATION, CL_ROTATION),
+  ],
+  froloQyLucillaEcho: [
+    member(PHROLOVA, PH_LOADOUT, PH_OPENER, PH_LOOP),
+    member(QIUYUAN, QY_LOADOUT, QY_ROTATION, QY_ROTATION),
+    member(LUCILLA, LC_LOADOUT, LC_ROTATION, LC_ROTATION),
+  ],
+  skLucillaSigrika: [
+    member(SHOREKEEPER, SK_LOADOUT, SK_OPENER, SK_LOOP),
+    member(LUCILLA, LC_LOADOUT, LC_ROTATION, LC_ROTATION),
+    member(SIGRIKA, SR_LOADOUT, SR_ROTATION, SR_ROTATION),
+  ],
+  skLucillaGalbrena: [
+    member(SHOREKEEPER, SK_LOADOUT, SK_OPENER, SK_LOOP),
+    member(LUCILLA, LC_LOADOUT, LC_ROTATION, LC_ROTATION),
+    // the echo-focus variant, same as skQyGalbrena — the one that actually casts Echo Skills for
+    // Shorekeeper/Lucilla's own Echo Skill DMG buffs to land on
+    member(GALBRENA, GB_LOADOUT, GB_ROTATION_ECHO_FOCUS, GB_ROTATION_ECHO_FOCUS),
+  ],
 };
 
 const MISC = "Misc";
@@ -112,32 +200,46 @@ const STICK = 2;
 
 interface TeamRun {
   state: State;
-  /** All 4 sections combined (opener, then loop 1-3 in a row) — what the detail page's own action
-   *  table reads, so every rotation it ran is right there to read top to bottom, not just the
-   *  first loop pass. */
-  report: Report;
-  /** The 4 sections' own separate reports, in order: [opener, loop 1, loop 2, loop 3]. The detail
-   *  page's own four summary cards read one apiece; the comparison table below averages across
-   *  all four instead of judging a build off any single one of them. */
-  rotationReports: Report[];
-  /** The same 4 sections' own raw lines, same order — what the comparison table's own damage-
-   *  breakdown hover reads (concatenated + divided by 4 there, see `damagePopover`'s own divisor). */
-  rotationLines: ChainGroup[][];
   members: Member[];
+  /** The 4 sections' own raw lines, in order [opener, loop 1, loop 2, loop 3] — what the
+   *  comparison table's own damage-breakdown hover reads (concatenated + divided by 4 there, see
+   *  `damagePopover`'s own divisor), and what `detailFor()` below builds the full report from
+   *  without re-simulating anything. */
+  rotationLines: ChainGroup[][];
   /** The comparison table's own figures: the plain mean across all 4 sections' own grand total /
    *  per-member total, each section weighted equally — see `runTeam()`'s own comment. */
   total: number;
   bySlot: Map<string, number>;
+  /** The detail page's own rich report — every row's hover-trace panel data (`buildReport()`, see
+   *  display.ts's own rowValues()/tracing()) — built once, the first time this team is actually
+   *  opened, and cached here so revisiting it costs nothing. See `detailFor()`. */
+  detail?: { report: Report; rotationReports: Report[] };
 }
 
 const toLine = (snap: ResolvedSnapshot): ChainGroup =>
   ({ id: snap.action.id, isChain: false, parts: [], snap, mv: mvPercent(snap), avg: damage(snap).avg });
 
+/** One section's own grand total and per-member sum, read straight off its resolved lines — the
+ *  same "no motion value means no damage" rule `display.ts`'s own rowValues() applies (`line.mv`
+ *  is already `mvPercent(snap)`, from `toLine()` above), just without building a whole report to
+ *  get there. */
+function sumSection(lines: ChainGroup[]): { total: number; bySlot: Map<string, number> } {
+  const bySlot = new Map<string, number>();
+  let total = 0;
+  for (const line of lines) {
+    if (line.mv === 0) continue;
+    const slot = (line.snap as ResolvedSnapshot).member;
+    bySlot.set(slot, (bySlot.get(slot) ?? 0) + line.avg);
+    total += line.avg;
+  }
+  return { total, bySlot };
+}
+
 function runTeam(members: Member[]): TeamRun {
   const state = new State(members.map((m) => m.name));
   members.forEach((m, i) => {
     state.active = i;
-    withTeam(state, () => { for (const g of m.loadout) equip(g, 1); });
+    withTeam(state, () => { for (const g of m.loadout.pieces()) equip(g, 1); });
   });
   state.active = 0;
 
@@ -147,29 +249,39 @@ function runTeam(members: Member[]): TeamRun {
   // up, or handed off from the opener) gets the two more passes it needs to reach steady state.
   const runPart = (rotation: Action[]): ChainGroup[] =>
     rotation.length ? run(state, rotation).map(toLine) : [];
-  const openerLines = members.flatMap((m) => runPart(m.opener));
-  const loop1Lines = members.flatMap((m) => runPart(m.loop));
-  const loop2Lines = members.flatMap((m) => runPart(m.loop));
-  const loop3Lines = members.flatMap((m) => runPart(m.loop));
-  const rotationLines = [openerLines, loop1Lines, loop2Lines, loop3Lines];
-  const rotationReports = rotationLines.map((lines) => buildReport(lines));
+  const rotationLines = [
+    members.flatMap((m) => runPart(m.opener)),
+    members.flatMap((m) => runPart(m.loop)),
+    members.flatMap((m) => runPart(m.loop)),
+    members.flatMap((m) => runPart(m.loop)),
+  ];
 
-  // The comparison table (not the detail page's own action table) judges a build by the plain
-  // mean across these four sections rather than any one of them alone — the opener counts
-  // exactly as much as a single loop pass, not amortized over however many loops a real run
-  // would actually repeat.
-  const total = rotationReports.reduce((sum, r) => sum + r.total, 0) / rotationReports.length;
+  // The comparison table (not the detail page's own action table) only ever needs a grand total
+  // and a per-member sum — the plain mean across these four sections rather than any one of them
+  // alone, the opener counting exactly as much as a single loop pass. Read straight off the
+  // resolved lines rather than through buildReport(), which also builds every row's own hover-
+  // trace panel data purely for the detail page — the bulk of a team run's own cost, for data
+  // this table never reads. See `detailFor()` below for where that actually gets built.
+  let total = 0;
   const bySlot = new Map<string, number>();
-  for (const r of rotationReports) {
-    for (const [slot, v] of totalsBySlot(r)) bySlot.set(slot, (bySlot.get(slot) ?? 0) + v / rotationReports.length);
+  for (const lines of rotationLines) {
+    const section = sumSection(lines);
+    total += section.total / rotationLines.length;
+    for (const [slot, v] of section.bySlot) bySlot.set(slot, (bySlot.get(slot) ?? 0) + v / rotationLines.length);
   }
 
-  return {
-    state,
-    report: buildReport(rotationLines.flat()),
-    rotationReports, rotationLines, members,
-    total, bySlot,
-  };
+  return { state, members, rotationLines, total, bySlot };
+}
+
+/** The detail page's own rich report, built only the first time a team is actually opened and
+ *  cached on `run` so revisiting it is free — no re-simulation, just `buildReport()` over the
+ *  lines `runTeam()` already resolved. */
+function detailFor(run: TeamRun): { report: Report; rotationReports: Report[] } {
+  if (run.detail) return run.detail;
+  const rotationReports = run.rotationLines.map((lines) => buildReport(lines));
+  const report = buildReport(run.rotationLines.flat());
+  run.detail = { report, rotationReports };
+  return run.detail;
 }
 
 /* --------------------------------------------------------------------- helpers */
@@ -368,21 +480,24 @@ function damagePopover(
     + `</table></span>`;
 }
 
-/** A member's own equipped gear: weapon, mainslot echo, sonata pieces, mainstat/substat rolls —
- *  everything but the resonator itself and its talents buff, which aren't "equipped gear" in the
- *  sense either popover below is showing. Shared so the comparison table's own gear popover and
- *  the rotation table's resonator popover (its own "Gear" section) read off the same list. */
+/** A member's own equipped gear: both Inherent Skills, weapon, mainslot echo, sonata pieces,
+ *  mainstat/substat rolls — everything but the resonator itself and its talents buff, which
+ *  aren't "equipped gear" in the sense either popover below is showing. Shared so the comparison
+ *  table's own gear popover and the rotation table's resonator popover (its own "Gear" section)
+ *  read off the same list. Fixed order, one entry per `GEAR_LABELS` slot below — reads the
+ *  Loadout's own named fields directly rather than filtering a flat array by position/name. */
 function equippedGear(member: Member): Gear[] {
-  return member.loadout.filter((g) => !(g instanceof Resonator) && g.name !== `${member.name}: Talents`);
+  const l = member.loadout;
+  return [l.inherent1, l.inherent2, l.weapon, l.mainslot, l.sonata, l.sonata2pc, l.mainstat, l.substat];
 }
+const GEAR_LABELS = ["Inherent", "Inherent", "Weapon", "Mainslot", "Sonata", "2pc", "Mainstats", "Substats"];
 
-// every loadout array's own core six are built in this exact order (see any resonator file's own
-// LOADOUT export) — equippedGear() strips the leading Resonator/Talents pair, so a plain
-// positional label is all these need. A standardCharacter kit's own S1-S6 pieces (see kit.ts's
-// own doc comment on the flag) come *before* the core six in that same array, named "<name>
-// S<N>: <title>" — filtered out into their own section below rather than thrown off by position.
-const GEAR_LABELS = ["Weapon", "Mainslot", "Sonata", "2pc", "Mainstats", "Substats"];
-const SEQUENCE_NAME = /\sS[1-6]:\s/;
+/** A standardCharacter's own resonance chain nodes (see kit.ts's own doc comment on the flag) —
+ *  up to six, named "<name> S<N>: <title>", listed in their own section below. */
+function equippedSequences(member: Member): Gear[] {
+  const l = member.loadout;
+  return [l.sequence1, l.sequence2, l.sequence3, l.sequence4, l.sequence5, l.sequence6].filter((g): g is Gear => g != null);
+}
 
 /** The hover on a member's own name, in the comparison table: every piece of gear their loadout
  *  equips, each labelled by slot, with any sequence nodes listed the same way — full name, no
@@ -393,9 +508,8 @@ const SEQUENCE_NAME = /\sS[1-6]:\s/;
  *  column's gray already matches those, and the browser's own table layout sizes both columns to
  *  their own longest cell with no extra CSS. */
 function gearPopover(member: Member): string {
-  const gear = equippedGear(member);
-  const core = gear.filter((g) => !SEQUENCE_NAME.test(g.name));
-  const sequences = gear.filter((g) => SEQUENCE_NAME.test(g.name));
+  const core = equippedGear(member);
+  const sequences = equippedSequences(member);
   const body = core
     .map((g, i) => `<tr><td class="k">${esc(GEAR_LABELS[i] ?? "")}</td><td class="v">${esc(g.name)}</td></tr>`)
     .join("")
@@ -437,16 +551,17 @@ function comparisonTable(results: Map<string, TeamRun>): string {
 
     return `<div class="trow" data-team="${esc(key)}" data-members="${esc(memberNames)}" data-maxseq="0">`
       + run.members.map(memberCell).join("")
+      + `<div class="c num total gotodetail" data-team="${esc(key)}">${fmt(grand)}<span class="arrow">›</span></div>`
       + run.members.map((m) => dmgCell(m.name)).join("")
       + dmgCell(MISC)
-      + `<div class="c num total gotodetail" data-team="${esc(key)}">${fmt(grand)}<span class="arrow">›</span></div>`
       + `</div>`;
   }).join("");
 
   const head = `<div class="trow thead">`
     + `<div class="c">Member 1</div><div class="c">Member 2</div><div class="c">Member 3</div>`
+    + `<div class="c num">Avg Total DPR</div>`
     + `<div class="c num">Avg DPR 1</div><div class="c num">Avg DPR 2</div><div class="c num">Avg DPR 3</div>`
-    + `<div class="c num">Avg DPR Misc</div><div class="c num">Avg Total DPR</div>`
+    + `<div class="c num">Avg DPR Misc</div>`
     + `</div>`;
 
   return `<main>${comparisonFilters(results)}<div class="tcwrap"><div class="tgrid">${head}${rows}</div></div></main>`;
@@ -486,6 +601,10 @@ function stepRow(
     if (col.key === "concerto" && Number(row.raw.isOutro) && Number(row.raw.concertoSpent) < 100) {
       cls.push("underspent");
     }
+    // a forte gauge that's gone negative — kit.ts's own forte gauges have no floor, so a kit
+    // whose declared spend outruns what's actually held really can dip below 0 (see e.g.
+    // Galbrena's own Purging Flame)
+    if (col.key.startsWith("gauge:") && typeof v === "number" && v < 0) cls.push("negative");
 
     const text = esc(fmt(v, col.digits ?? 0, PAD_DIGITS_COLUMNS.has(col.key)))
       + (col.percent && typeof v === "number" ? "%" : "");
@@ -580,9 +699,9 @@ function summaryCards(label: string, report: Report, slotHue: Map<string, string
   </div>`;
 }
 
-function page({ report, rotationReports, members }: {
-  state: State; report: Report; rotationReports: Report[]; members: Member[];
-}): string {
+function page(run: TeamRun): string {
+  const { report, rotationReports } = detailFor(run);
+  const { members } = run;
   const slotHue = new Map([...members.map((m): [string, string] => [m.name, m.color]), [MISC, MISC_HUE]]);
   const gearByMember = new Map(members.map((m): [string, Gear[]] => [m.name, equippedGear(m)]));
 
@@ -748,7 +867,12 @@ const paint = (): Promise<void> =>
  *  whole run, so the progress bar can only move if this loop yields a frame between teams —
  *  without that, every width assignment would be collapsed into one repaint after the last team
  *  finished, which is the same as having no bar at all. The markup it drives is in index.html,
- *  already on screen before this module even parsed; this fills it in rather than replacing it. */
+ *  already on screen before this module even parsed; this fills it in rather than replacing it.
+ *
+ *  The yield itself is throttled to roughly every 50ms of wall-clock work, not one per team —
+ *  `runTeam()` now only computes the comparison table's own cheap numbers (see its own comment),
+ *  a couple milliseconds a team, so yielding unconditionally would mean paint()'s own two-frame
+ *  wait (~33ms) dominates the whole loop once there are hundreds of teams instead of a dozen. */
 async function boot(): Promise<void> {
   const teams = Object.entries(TEAMS);
   const status = document.querySelector<HTMLElement>(".status-text");
@@ -765,11 +889,16 @@ async function boot(): Promise<void> {
     // "Initializing…" is what's on screen at parse time (see index.html); swap to the real
     // status text only once team runs are actually about to start, not a moment before.
     if (status) status.textContent = "running every team's rotation…";
+    let lastPaint = performance.now();
     for (let i = 0; i < teams.length; i++) {
       const [key, members] = teams[i]!;
-      await paint(); // the bar as it stands has to land before this team seizes the thread
       results.set(key, runTeam(members));
       progress(i + 1);
+      const now = performance.now();
+      if (now - lastPaint > 50) {
+        await paint();
+        lastPaint = performance.now();
+      }
     }
     await paint(); // and the finished bar before the table replaces the whole loading screen
   } catch (err) {

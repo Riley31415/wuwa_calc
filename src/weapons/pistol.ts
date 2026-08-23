@@ -1,19 +1,11 @@
-/**
- * Signature Pistols weapons, ported to the new engine — grouped by weapon type rather than
- * version (see weapons_standard.ts for the non-signature, any-type-usable weapons).
- *
- * Base ATK is ported via Stat.BaseAtk for fidelity to the source numbers; see the note at the
- * top of weapons_standard.ts — engine2's own atk formula doesn't fold those contributions in yet.
- */
+/** Signature Pistols weapons, ported to the new engine. */
 import {
   Buff, Weapon, WeaponType, Stat, Type1, Cast,
   addStat, applySelf, isHeld, casting, currentAction, revoke,
 } from "../kit.js";
 
-/** The Last Dance, Carlotta's signature, R1: Silent Eulogy. +12% ATK flat. Intro or Liberation
- *  cast grants +48% Resonance Skill DMG Bonus for 5s — short enough that only the standing
- *  outro-loss rule matters. Carlotta, character 1107, released 2.0 —
- *  https://ww.nanoka.cc/character/1107, https://ww.nanoka.cc/weapon/21030016 */
+/** The Last Dance, Carlotta's sig, R1: Silent Eulogy. +12% ATK flat. Intro/Liberation grants
+ *  +48% Resonance Skill DMG Bonus for 5s. */
 export const THE_LAST_DANCE = new Weapon({
   weaponType: WeaponType.Pistols,
   name: "The Last Dance",
@@ -23,22 +15,18 @@ export const THE_LAST_DANCE = new Weapon({
 export const SILENT_EULOGY = new Buff({
   name: "The Last Dance: Silent Eulogy",
   apply: () => addStat(Stat.DmgBonus, 48, Type1.Skill),
-  // short window, so it still counts on the wearer's own outro (see jinzhou.ts's HERON_HANDOFF)
   convert: () => { if (casting(Cast.Outro)) revoke(SILENT_EULOGY); },
 });
 
-/** Lux & Umbra, Galbrena's signature, R1: To Fire She Returns. +12% ATK flat. Dealing Echo
- *  Skill DMG grants +24% Heavy Attack DMG Amplification for 6s; dealing Heavy Attack DMG grants
- *  +24% Echo Skill DMG Amplification for 6s — both short enough that only the standing
- *  outro-loss rule matters. While both are up, dealing DMG ignores 8% DEF. Galbrena, character
- *  1208, released 2.7 — https://ww.nanoka.cc/character/1208,
- *  https://ww.nanoka.cc/weapon/21030036 */
+/** Lux & Umbra, Galbrena's sig, R1: To Fire She Returns. +12% ATK flat. Echo Skill DMG grants
+ *  +24% Heavy Attack DMG Amp for 6s; Heavy Attack DMG grants +24% Echo Skill DMG Amp for 6s.
+ *  While both are up, dealing DMG ignores 8% DEF. */
 export const LUX_UMBRA = new Weapon({
   weaponType: WeaponType.Pistols,
   name: "Lux & Umbra",
   apply: () => {
     addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.BonusAtk, 12);
-    if (isHeld(TO_FIRE_SHE_RETURNS_HEAVY) && isHeld(TO_FIRE_SHE_RETURNS_ECHO)) addStat(Stat.DefIgnore, 8);
+    if (isHeld(TO_FIRE_SHE_RETURNS_HEAVY) && isHeld(TO_FIRE_SHE_RETURNS_ECHO)) addStat(Stat.DefIgnoreNew, 8);
   },
   update: () => {
     const a = currentAction();
@@ -47,12 +35,12 @@ export const LUX_UMBRA = new Weapon({
   },
 });
 export const TO_FIRE_SHE_RETURNS_HEAVY = new Buff({
-  name: "Lux & Umbra: To Fire She Returns (Heavy)",
+  name: "Lux & Umbra: To Fire She Returns (heavy)",
   apply: () => addStat(Stat.Amp, 24, Type1.Heavy),
   convert: () => { if (casting(Cast.Outro)) revoke(TO_FIRE_SHE_RETURNS_HEAVY); },
 });
 export const TO_FIRE_SHE_RETURNS_ECHO = new Buff({
-  name: "Lux & Umbra: To Fire She Returns (Echo)",
+  name: "Lux & Umbra: To Fire She Returns (echo)",
   apply: () => addStat(Stat.Amp, 24, Type1.Echo),
   convert: () => { if (casting(Cast.Outro)) revoke(TO_FIRE_SHE_RETURNS_ECHO); },
 });

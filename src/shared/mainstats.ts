@@ -4,31 +4,31 @@
  * per element rather than generic, so a mismatched slot doesn't silently pay full price.
  */
 import { Buff, addStat } from "../kit.js";
-import { Stat, Element, scopedStat } from "../stats.js";
+import { Stat, Attribute, scopedStat } from "../stats.js";
 
 /** No physical entry: a 3-cost elemental damage main stat doesn't exist for physical in-game. */
-const ELEMENTS: Element[] = [
-  Element.Glacio, Element.Fusion, Element.Electro, Element.Aero, Element.Spectro, Element.Havoc,
+const ELEMENTS: Attribute[] = [
+  Attribute.Glacio, Attribute.Fusion, Attribute.Electro, Attribute.Aero, Attribute.Spectro, Attribute.Havoc,
 ];
 
 /** `[stat, value]`, or `[stat, value, tag]` when the roll only pays on one element or type. */
-type MainEntry = readonly [string, number] | readonly [string, number, string];
+type MainEntry = readonly [Stat, number] | readonly [Stat, number, string];
 
 const MAIN: Record<number, Record<string, MainEntry>> = {
   4: { CR: [Stat.CritRate, 22], CD: [Stat.CritDmg, 44],
        ATK: [Stat.BonusAtk, 33], HP: [Stat.BonusHp, 33], DEF: [Stat.BonusDef, 41.8] },
   3: { ER: [Stat.Er, 32], atk: [Stat.BonusAtk, 30], HP: [Stat.BonusHp, 30], DEF: [Stat.BonusDef, 38],
-       glacio:  [Stat.DmgBonus, 30, Element.Glacio],
-       fusion:  [Stat.DmgBonus, 30, Element.Fusion],
-       electro: [Stat.DmgBonus, 30, Element.Electro],
-       aero:    [Stat.DmgBonus, 30, Element.Aero],
-       spectro: [Stat.DmgBonus, 30, Element.Spectro],
-       havoc:   [Stat.DmgBonus, 30, Element.Havoc] },
+       glacio:  [Stat.DmgBonus, 30, Attribute.Glacio],
+       fusion:  [Stat.DmgBonus, 30, Attribute.Fusion],
+       electro: [Stat.DmgBonus, 30, Attribute.Electro],
+       aero:    [Stat.DmgBonus, 30, Attribute.Aero],
+       spectro: [Stat.DmgBonus, 30, Attribute.Spectro],
+       havoc:   [Stat.DmgBonus, 30, Attribute.Havoc] },
   1: { atk: [Stat.BonusAtk, 18], hp: [Stat.BonusHp, 22.8], def: [Stat.BonusDef, 18] },
 };
 
 /** What a cost gives on top of its main stat. */
-const SECONDARY: Record<number, readonly [string, number]> =
+const SECONDARY: Record<number, readonly [Stat, number]> =
   { 4: [Stat.FlatAtk, 150], 3: [Stat.FlatAtk, 100], 1: [Stat.FlatHp, 2280] };
 
 /** Five echoes to a build, cost capped at twelve. */
@@ -51,7 +51,7 @@ export function mainstats(c4 = "", c3 = "", c1 = ""): Buff {
     throw new Error(`mainstats(${c4}|${c3}|${c1}): costs ${cost}, over the ${COST_CAP} cap`);
   }
 
-  const totals = new Map<string, { stat: string; tag: string | null; value: number }>();
+  const totals = new Map<string, { stat: Stat; tag: string | null; value: number }>();
   const bump = (entry: MainEntry): void => {
     const [stat, value, tag] = entry;
     const key = tag ? scopedStat(tag, stat) : stat;

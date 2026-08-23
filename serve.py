@@ -9,8 +9,13 @@ watched .html/.css/.js file's mtime a few times a second, and the tiny script in
 polls a version endpoint and reloads the page the moment that scan sees anything change. No
 manual refresh needed after a fix lands on disk (or after `npx tsc` finishes rebuilding dist/).
 
-    python serve.py            ->  http://localhost:8731/
-    python serve.py 9000       ->  http://localhost:9000/
+    python serve.py            ->  http://127.0.0.1:8731/
+    python serve.py 9000       ->  http://127.0.0.1:9000/
+
+Use 127.0.0.1, not localhost: this binds IPv4 only, and on Windows "localhost" tries the IPv6
+loopback (::1) first and falls back after a ~200ms stall — paid on *every* connection, which adds
+up fast across the dozen-plus separate module files the unbundled dist/ ships as (see index.ts's
+own header on why there's no bundler here).
 """
 import sys
 import threading
@@ -54,6 +59,12 @@ def _watch_loop() -> None:
 
 
 class NoCacheHandler(SimpleHTTPRequestHandler):
+    # HTTP/1.1 so the browser keeps one connection open across the whole module-import waterfall
+    # (dozens of separate dist/*.js files, no bundler — see index.ts's own header) instead of
+    # paying a fresh TCP handshake per file; SimpleHTTPRequestHandler defaults to 1.0 (a new
+    # connection every request), which is the difference between one slow connection and ~40 of them.
+    protocol_version = "HTTP/1.1"
+
     def end_headers(self):
         self.send_header("Cache-Control", "no-store, must-revalidate")
         self.send_header("Pragma", "no-cache")
@@ -82,5 +93,5 @@ if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8731
     threading.Thread(target=_watch_loop, daemon=True).start()
     handler = partial(NoCacheHandler, directory=".")
-    print(f"serving http://localhost:{port}/  (no-store, hot reload; ctrl-c to stop)")
+    print(f"serving http://127.0.0.1:{port}/  (no-store, hot reload; ctrl-c to stop)")
     ThreadingHTTPServer(("127.0.0.1", port), handler).serve_forever()

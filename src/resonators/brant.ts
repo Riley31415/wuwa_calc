@@ -1,167 +1,157 @@
 /**
- * Brant — a fusion sword support/sub-DPS. Bravo (Forte gauge, forte1, max 100) builds off
- * Normal Attack/Resonance Skill/Intro hits; at 100, Resonance Skill is replaced by Returned
- * from Ashes (spends it all). Liberation opens Aflame (12s): doubles Bravo gain on mid-air
- * combo hits specifically — AFLAME's own body re-applies the same forte1 gain a second time
- * when it's up, rather than needing separate doubled-value action variants — and swaps his
- * ATK-from-Energy-Regen conversion (Theatrical Moment -> "My" Moment, a bigger per-% rate).
+ * Brant, ported to the new engine — sequence-0 core loop, a limited 5-star (not
+ * `standardCharacter`). A fusion sword support/sub-DPS. Bravo (forte1, max 100) builds off Basic
+ * Attack/Resonance Skill/Intro hits; at 100, Resonance Skill is replaced by Returned from Ashes
+ * (spends it all). Liberation opens Aflame (12s): doubles Bravo gain on mid-air combo hits and
+ * Resonance Skill specifically (not Intro), and swaps his ATK-from-Energy-Regen conversion
+ * (Theatrical Moment -> "My" Moment, a bigger per-point rate).
  *
- * Numbers from nanoka.cc (character 1206, https://ww.nanoka.cc/character/1206, weapon 21020036, echo 6000084). His mid-air combo
- * (4 basic stages, each with a charged/held variant) is nanoka's own per-hit table, each stage
- * its own Action; MA12, MA234, MA1H2H34, etc. are Chains grouping those stages for display —
- * cross-checked against the migrated sheet's own pre-built combo multipliers, which sum to the
- * same totals (e.g. MA1H2H34 = MA1-charged + MA2-charged + MA3 + MA4, to the hundredth of a
- * percent).
+ * Numbers from nanoka.cc (character 1206) for MV; energy/concerto come off the old-engine
+ * reference file's own numbers (÷100 relative to this file's own scale). No offtune in either
+ * source, left off entirely rather than guessed at.
  *
- * Interlude Applause (Intro makes the next Mid-air Attack start at stage 2) isn't modelled —
- * every rotation below goes straight from Intro into Liberation, so it never actually has a
- * mid-air attack to apply to.
- *
- * Healing (Waves of Acclaims, Voyager's Blaze, and Liberation's own heal) is out of scope for
- * this calculator, per the standing rule. Returned from Ashes' shield (4750 + 17.1 per 1% Energy
- * Regen, 30s) is the same kind of defensive stat, so its HP value is likewise not modelled — but
- * it's still flagged via `shields: 1` on FSkill below, since that's just a count of shield-
- * granting events for whichever teammate's own kit reacts to it (see Iuno/Jingran).
+ * Interlude Applause (Intro makes the next Mid-air Attack start at stage 2) isn't modelled — the
+ * rotation below goes straight from Intro into Liberation. Healing is out of scope, per the
+ * standing rule; Returned from Ashes' own shield isn't modelled for HP value, only `shields: 1`.
  */
-import { Buff, Action, Chain, PRIORITY } from "../kit.js";
-import type { ActionDef } from "../kit.js";
-import { Resonator, Loadout, isOutro } from "../state.js";
-import type { Ctx, ResonatorFactory } from "../state.js";
-import { Stat, Element, Type1, Node, Resource, Cast, Scaling } from "../stats.js";
+import {
+  Buff, Talent, Inherent, Resonator, Loadout, Action, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
+  applySelf, revoke, casting, currentAction, addStat, get, isHeld, queueOutro,
+  forte1, setForte1,
+  lostOnSwap,
+} from "../kit.js";
+import { UNFLICKERING_VALOR } from "../weapons/sword.js";
+import { DRAGON_OF_DIRGE, TIDEBREAKING_5PC, TIDEBREAKING_2PC } from "../echoes/rinascita.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
-import { DRAGON_OF_DIRGE, TIDEBREAKING_2PC, TIDEBREAKING_5PC } from "../echoes/rinascita.js";
-import { UNFLICKERING_VALOR } from "../weapons/sword.js";
 
-/** This resonator's own color — every action from the wrapper below defaults to it. */
-export const COLOR = "#a0522d";
+/* ----------------------------------------------------------------------------------- actions */
 
-/* --------------------------------------------------------------- resonator */
-
-/** Trial by Fire and Tide (Inherent Skill): +15% Fusion DMG Bonus, on his mid-air combo stages
- *  specifically — placed on each of those actions directly below, rather than as a Gear-wide
- *  check, since it's their own passive, not a generic one. */
-function midAirBonus(ctx: Ctx): void { ctx.add(15, Element.Fusion, Stat.DmgBonus); }
-
-/** Theatrical Moment / "My" Moment: +12 ATK per 1% Energy Regen over 150%, capped at +1560
- *  (i.e. 280% ER) — doubled to +20 per 1%, capped at +2600 (same 280% ER cap), while Aflame is
- *  up. EARLY_CONVERSION so every ER contribution (gear, sonata, substats) has already landed. */
-export const THEATRICAL_MOMENT = new Buff(PRIORITY.EARLY_CONVERSION, (ctx) => {
-  const aflame = ctx.stacksOf(AFLAME) > 0;
-  const perPoint = aflame ? 20 : 12;
-  const cap = aflame ? 2600 : 1560;
-  const over = Math.max(0, ctx.get(Stat.Er) - 150);
-  ctx.add(Math.min(cap, perPoint * over), Stat.FlatAtk);
-  return aflame ? 'Brant: "My" Moment' : "Brant: Theatrical Moment";
-});
-
-/** Aflame: 12s, opened by Liberation — lost after the outro action gains stats, per the
- *  standing short-duration rule. Also ends early the instant Returned from Ashes is cast while
- *  it's up, per the kit's own explicit rule (see FSkill below). Doubles Bravo gain specifically
- *  on Normal Attack (node: NORMAL, his mid-air combo) and Resonance Skill (node: SKILL, Anchors
- *  Aweigh!) hits, per the kit's own wording — not Intro — by re-granting the same forte1 amount
- *  a second time; the base gain already lands before this buff's body runs. */
-export const AFLAME = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
-  const a = ctx.action!;
-  if (isOutro(a)) { ctx.revoke(AFLAME); return; }
-  if (a.node === Node.Normal || a.node === Node.Skill) ctx.gain(Resource.Forte1, a.forte1);
-  return "Brant: Aflame";
-});
-
-/** His echoes: Dragon of Dirge mainslot, Tidebreaking Courage 5pc/2pc (echoes/rinascita.js) —
- *  Unflickering Valor (his own signature, weapons/sword.js) — leaning on the build's
- *  own "Key Stat: Energy Regen 280%" recommendation. */
-const BRANT_LOADOUT = new Loadout(
-  UNFLICKERING_VALOR, DRAGON_OF_DIRGE, TIDEBREAKING_5PC, TIDEBREAKING_2PC,
-  mainstats("CR", "ER ER", "atk atk"), chem("atk", "basic"),
-);
-
-export class Brant extends Resonator {
-  constructor(loadout: Loadout) {
-    super(
-      "Brant",
-      Element.Fusion,
-      () => Intro,
-      loadout,
-      (ctx) => {
-        ctx.add(11675, Stat.BaseHp);
-        ctx.add(375, Stat.BaseAtk);
-        ctx.add(1308, Stat.BaseDef);
-      },
-      (ctx) => {
-        ctx.add(8, Stat.CritRate);
-        ctx.add(12, Stat.BonusAtk);
-      },
-      (ctx) => { ctx.grantSelf(THEATRICAL_MOMENT); },
-    );
-  }
-}
-export const LOADOUT: ResonatorFactory = () => new Brant(BRANT_LOADOUT);
-
-/* ----------------------------------------------------------------- actions */
-
-function brantAction(name: string, def: ActionDef): Action {
-  return new Action(name, {
-    element: Element.Fusion,
-    scaling: Scaling.Atk,
-    ...def,
-  });
+function brantAction(id: string, def: object): Action {
+  return new Action(id, { element: Attribute.Fusion, scaling: Scaling.Atk, ...def });
 }
 
+// energy/concerto come off the old reference file's own numbers (÷100 — see file header); no
+// offtune anywhere in it either, so every action below is bare on that front.
 // --- intro / outro
-const Intro = brantAction("Intro: Applaud for Me!", {
-  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 253.49, energy: 0, concerto: 1000, forte1: 25,
-});
-const Outro = brantAction("Outro: The Course is Set!", {
-  cast: Cast.Outro, mv: 0, concerto: -10000, active: false,
-  priority: PRIORITY.UPDATE_BUFFS,
-  apply(ctx) { ctx.outro(BRANT_OUTRO); },
-});
-export const BRANT_OUTRO = new Buff(PRIORITY.BUFF_STATS, (ctx) => {
-  if (isOutro(ctx.action!)) ctx.revoke(BRANT_OUTRO);
-  ctx.add(20, Element.Fusion, Stat.Amp);
-  ctx.add(25, Type1.Skill, Stat.Amp);
-  return "Brant: Outro";
-});
+export const Intro = brantAction("Intro - Applaud for Me!", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 253.49, concerto: 10, forte1: 2500, heals: true });
+export const Outro = brantAction("Outro - The Course is Set!", { cast: Cast.Outro, active: false });
 
 // --- resonance skill: Anchors Aweigh!, and liberation: To the Horizon (opens Aflame)
-const Skill = brantAction("Skill: Anchors Aweigh!", {
-  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 333.92, energy: 718, concerto: 1000, forte1: 7.93,
-});
-const Liberation = brantAction("Liberation: To the Horizon", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 680.45, energy: -17500, concerto: 2000,
-  priority: PRIORITY.UPDATE_BUFFS,
-  apply(ctx) { ctx.grantSelf(AFLAME); },
+export const Skill = brantAction("Skill - Anchors Aweigh!", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 333.92, energy: 7.18, concerto: 10, forte1: 793 });
+export const Liberation = brantAction("Liberation - To the Horizon", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 680.45, concerto: 20 });
+
+/** At 100 Bravo — considered Basic Attack DMG, spends the whole gauge, and ends Aflame (if up)
+ *  once it resolves — see AFLAME's own convert() below. */
+export const FSkill = brantAction("Forte - Returned from Ashes", { node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 1888.71, energy: 30, concerto: 50, forte1: -10000, shields: 1 });
+
+// --- mid-air combo stages (Captain's Rhapsody). forte1 is the base (un-doubled) Bravo gain —
+//     AFLAME doubles it live while held.
+export const MA1 = brantAction("Basic - Captain's Rhapsody 1 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 215.81, energy: 1.82, concerto: 7.28, forte1: 976 });
+export const MA1H = brantAction("Basic - Captain's Rhapsody 1 (Mid-Air, Hold)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 548.29, energy: 4.96, concerto: 9.85, forte1: 2195 });
+export const MA2 = brantAction("Basic - Captain's Rhapsody 2 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 262.79, energy: 2.52, concerto: 10.08, forte1: 1220 });
+export const MA2H = brantAction("Basic - Captain's Rhapsody 2 (Mid-Air, Hold)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 460.01, energy: 5.46, concerto: 10.92, forte1: 2439 });
+export const MA3 = brantAction("Basic - Captain's Rhapsody 3 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 261.97, energy: 2.52, concerto: 10.08, forte1: 1341 });
+export const MA4 = brantAction("Basic - Captain's Rhapsody 4 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 253.85, energy: 3.78, concerto: 7.55, forte1: 976 });
+
+/* ------------------------------------------------------------------------------------ buffs */
+
+/** 12s, opened by Liberation — lost after the outro action gains stats, or the instant Returned
+ *  from Ashes is cast while it's up (checked in convert() so that same action still gets the
+ *  doubling first). Doubles Bravo gain on mid-air combo/Resonance Skill hits (not Intro) by
+ *  re-adding the same forte1 amount through AddForte1. */
+export const AFLAME = new Buff({
+  name: "Brant: Aflame",
+  apply: () => {
+    const a = currentAction();
+    if (a.node === Node.Normal || a.node === Node.Skill) addStat(Stat.AddForte1, a.forte1);
+  },
+  convert: () => { if (casting(Cast.Outro) || currentAction() === FSkill) revoke(AFLAME); },
 });
 
-// --- forte circuit: Returned from Ashes, at 100 Bravo — considered Basic Attack DMG, spends
-//     the whole gauge, and ends Aflame (if up) once it resolves. AUTO_ACTION so this row still
-//     gets Aflame's own stats (e.g. THEATRICAL_MOMENT's "My Moment" rate) before it's revoked —
-//     per the kit's own wording, casting this "ends [Aflame] after Returned from Ashes ends".
-const FSkill = brantAction("Forte: Returned from Ashes", {
-  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 1888.71, energy: 3000, concerto: 5000, forte1: -100,
-  shields: 1,
-  priority: PRIORITY.AUTO_ACTION,
-  apply: (ctx) => { if (ctx.stacksOf(AFLAME)) ctx.revoke(AFLAME); },
+/** +12 ATK per 1% Energy Regen over 150%, capped at +1560 (280% ER) — doubled to +20 a point,
+ *  capped at +2600, while Aflame is up. Read in convert() so every ER source has landed. */
+export const THEATRICAL_MOMENT = new Buff({
+  name: "Brant: Theatrical Moment",
+  display: () => (isHeld(AFLAME) ? "Brant: \"My\" Moment" : "Brant: Theatrical Moment"),
+  convert: () => {
+    const aflame = isHeld(AFLAME);
+    const perPoint = aflame ? 20 : 12;
+    const cap = aflame ? 2600 : 1560;
+    const over = Math.max(0, get(Stat.Er) - 150);
+    addStat(Stat.FlatAtk, Math.min(cap, perPoint * over));
+  },
 });
 
-// --- mid-air combo stages. Each carries Trial by Fire and Tide's own +15% Fusion DMG Bonus (see
-//     midAirBonus above); forte1 is the base (un-doubled) Bravo gain — AFLAME doubles it live.
-const MA1 = brantAction("Basic: Captain's Rhapsody (Mid-Air) 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 215.81, energy: 182, concerto: 728, forte1: 9.76, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
-const MA1H = brantAction("Basic: Captain's Rhapsody (Mid-Air) 1 (Hold)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 548.29, energy: 496, concerto: 985, forte1: 21.95, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
-const MA2 = brantAction("Basic: Captain's Rhapsody (Mid-Air) 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 262.79, energy: 252, concerto: 1008, forte1: 12.2, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
-const MA2H = brantAction("Basic: Captain's Rhapsody (Mid-Air) 2 (Hold)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 460.01, energy: 546, concerto: 1092, forte1: 24.39, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
-const MA3 = brantAction("Basic: Captain's Rhapsody (Mid-Air) 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 261.97, energy: 252, concerto: 1008, forte1: 13.41, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
-const MA4 = brantAction("Basic: Captain's Rhapsody (Mid-Air) 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 253.85, energy: 378, concerto: 755, forte1: 9.76, priority: PRIORITY.BUFF_STATS, apply: midAirBonus });
-export const MA12 = new Chain("Basic: Captain's Rhapsody (Mid-Air) 12", [MA1, MA2]);
-export const MA234 = new Chain("Basic: Captain's Rhapsody (Mid-Air) 234", [MA2, MA3, MA4]);
-export const MA2H34 = new Chain("Basic: Captain's Rhapsody (Mid-Air) 2H34", [MA2H, MA3, MA4]);
-export const MA1234 = new Chain("Basic: Captain's Rhapsody (Mid-Air) 1234", [MA1, MA2, MA3, MA4]);
-export const MA1H2H34 = new Chain("Basic: Captain's Rhapsody (Mid-Air) 1H2H34", [MA1H, MA2H, MA3, MA4]);
+/** The outro handoff. */
+export const BRANT_OUTRO = new Buff({
+  name: "Brant: Outro",
+  apply: () => { addStat(Stat.Amp, 20, Attribute.Fusion); addStat(Stat.Amp, 25, Type1.Skill); },
+    update: () => { lostOnSwap(); },
+});
 
-/** The sheet's `brant 1 anchor` rotation — identical to the sub rotation; the sheet's own extra
- *  entry there is just a Tune Break note, which the engine's own auto-tune-break watcher
- *  already handles without a placed action. */
-export const ROTATION_1_ANCHOR = [
-    Liberation, MA1H2H34, FSkill, Outro,
+/** Trial by Fire and Tide (Inherent Skill) — genuinely unconditional, always equipped. */
+export const BR_TRIAL_INHERENT = new Inherent({
+  name: "Brant: Trial by Fire and Tide",
+  apply: () => addStat(Stat.DmgBonus, 15, Attribute.Fusion),
+});
+
+/** Voyager's Blaze (Inherent Skill) — genuinely unconditional, always equipped. */
+export const BR_VOYAGE_INHERENT = new Inherent({
+  name: "Brant: Voyager's Blaze",
+  apply: () => addStat(Stat.HealingBonus, 20),
+});
+
+export const BRANT = new Resonator({
+  name: "Brant",
+  element: Attribute.Fusion,
+  weapon: WeaponType.Sword,
+  intro: () => Intro,
+  color: "#d1257f",
+  maxEnergy: 175,
+
+  combatStart: () => applySelf(THEATRICAL_MOMENT, 1),
+
+  // Forte Circuit (Bravo): pre-clamp an overshoot back to exactly 10000 so Returned from Ashes'
+  // own declared forte1: -10000 lands exactly on 0; under 10000, leave it alone (matches
+  // Galbrena's own Purging Flame).
+  update: () => {
+    const a = currentAction();
+    if (a === Liberation) applySelf(AFLAME, 1);
+    if (a === Outro) queueOutro(BRANT_OUTRO);
+    if (a === FSkill && forte1() >= 10000) setForte1(10000);
+  },
+
+  apply: () => {
+    addStat(Stat.BaseHp, 11675); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1308);
+    addStat(Stat.Er, 100); addStat(Stat.CritRate, 5); addStat(Stat.CritDmg, 150);
+  },
+});
+
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
+export const BRANT_TALENTS = new Talent({
+  name: "Brant: Talents",
+  apply: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+});
+
+// he's never the team's own lead, so this same rotation covers both opener and loop
+export const BR_ROTATION = [
+  INTRO, Liberation, MA1H, MA2H, MA3, MA4, FSkill, Outro,
 ];
+
+/* ----------------------------------------------------------------------------------- loadout */
+
+// his real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
+// sonata pieces, mainstat/substat
+export const BR_LOADOUT = new Loadout(
+  BRANT,
+  BRANT_TALENTS,
+  BR_TRIAL_INHERENT,
+  BR_VOYAGE_INHERENT,
+  UNFLICKERING_VALOR,
+  DRAGON_OF_DIRGE,
+  TIDEBREAKING_5PC,
+  TIDEBREAKING_2PC,
+  mainstats("CR", "ER ER", "atk atk"),
+  chem("atk", "basic"),
+);

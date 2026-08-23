@@ -8,7 +8,7 @@
  * dot and tune scalings deliberately bypass amplification, damage bonus and crit.
  */
 import type { Action } from "./kit.js";
-import { Stat, Scaling } from "./stats.js";
+import { Stat, EnemyStat, Scaling } from "./stats.js";
 
 /** A resolved action snapshot, from `State.resolve()` — everything the formula reads off it. */
 export interface Snapshot {
@@ -60,14 +60,14 @@ export function effectiveDef(snapshot: Snapshot): number {
   const s = (k: string) => snapshot.stat(k) / 100;
   const notDot = notDotFor(snapshot);
   const base = snapshot.enemyDef;
-  return ((1 - notDot * s(Stat.DefIgnore))
-    * Math.floor(base * (1 - s(Stat.DefReduce) - notDot * s(Stat.DefShred)))) / base;
+  return ((1 - notDot * s(Stat.DefIgnoreNew))
+    * Math.floor(base * (1 - s(EnemyStat.DefReduce) - notDot * s(Stat.DefIgnoreOld)))) / base;
 }
 
 /** The enemy's resistance after ignore and shred, in percent units. May go negative. */
 export function effectiveRes(snapshot: Snapshot): number {
   const s = (k: string) => snapshot.stat(k) / 100;
-  return (snapshot.enemyRes / 100 - s(Stat.ResIgnore) * notDotFor(snapshot) - s(Stat.ResShred)) * 100;
+  return (snapshot.enemyRes / 100 - s(Stat.ResIgnore) * notDotFor(snapshot) - s(EnemyStat.ResShred)) * 100;
 }
 
 /** The enemy's resistance turned into the multiplier the formula uses. */
@@ -121,7 +121,7 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
       scaling, finalMv: action.mv, finalStat: 1,
       ampFactor: 1, bonusFactor: 1, tbbFactor: 1, resFactor: 1, defFactor: 1, dealtFactor: 1,
       critFactor: 1, critMult: 1,
-      noCrit: action.mv, crit: action.mv, avg: action.mv,
+      noCrit: action.mv / 100, crit: action.mv / 100, avg: action.mv / 100,
     };
   }
 
@@ -140,7 +140,7 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
   // motion values are authored in percent, so 307.34 is a 3.0734x multiplier
   const finalMv = mvPercent(snapshot) / 100;
 
-  const ampFactor = 1 + (snapshot.amp / 100) * notDot * notTune + s(Stat.SpecialAmp);
+  const ampFactor = 1 + (snapshot.amp / 100) * notDot * notTune;
   const bonusFactor = 1 + (snapshot.dmgBonus / 100) * notDot * notTune;
   // Tune break boost multiplies tune damage and nothing else. It is part of the formula rather
   // than something the tune break converts into amplification on itself: the ordinary damage

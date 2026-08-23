@@ -1,421 +1,103 @@
-# src/
+# wuwa_calc
 
-Stat, buff and gear system. Pure JS, no dependencies, no DOM.
+A Wuthering Waves damage calculator. Pure TypeScript, no framework, no bundler — `tsc` compiles
+`index.ts` and everything under `src/` into `dist/`, mirrored one level deeper.
 
 ```
-node src/run.js                # Jingran's opener, per action
-node src/team.js               # the full team, one rotation per slot
-node --test src/test.js
-
-python -m http.server 8000     # then http://localhost:8000/ for the same thing in a browser
+python serve.py                # then http://localhost:8731/
+npx tsc                        # build; npx tsc --noEmit to just typecheck
 ```
 
-The web view is `index.html` / `index.css` / `index.js` in the project root. It is not
-generated: `index.js` imports these modules and runs the team in the page, so a refresh is
-enough to see an edit here. It has to be served rather than opened off disk, since browsers
-block module imports and `fetch()` on `file://` URLs.
+Has to be served, not opened off disk — browsers block module imports on `file://` URLs.
 
-| file | role |
+| path | role |
 | --- | --- |
-| `stats.js` | the stat vocabulary and its units |
-| `kit.js` | the `Buff` / `Gear` / `Action` / `Chain` classes, `PRIORITY`, and chain collapsing |
-| `state.js` | `State`, `Slot`, the ambient namespace, the per-action pipeline |
-| `damage.js` | the damage formula, transcribed from `Calculator!BY:CI` |
-| `display.js` | the action table: stats and resources snapshotted at each step |
-| `test.js` | the whole suite |
-| `resonators/jingran.js` | a DPS: passives, weapon, sonata, echo, states, actions |
-| `resonators/shorekeeper.js` | a support: team grants and the realm's blue/purple/gold handoff |
-| `resonators/iuno.js` | a support: shielding, and a Heavy Attack amplification handoff |
-| `resonators/shared/mainstats.js` | echo main-stat builds (`mainstats()`), and every build worth comparing |
-| `resonators/shared/substats.js` | echo substat spreads (`substats()`, `chem()`) |
-| `resonators/shared/tunebreak.js` | off-tune break as an ordinary buff/action, and the `Misc` display slot |
-| `resonators/shared/weapons.js` | standard/f2p weapons usable by more than one resonator |
-| `team.js` | the three of them together, one rotation per slot |
+| `src/kit.ts` | the engine: `Gear`/`Buff`/`Action`/`Loadout`/`State`, `equip()`/`run()`/`evaluate()` |
+| `src/stats.ts` | the stat vocabulary (`Stat`, `Element`, `Type1`/`Type2`, `Cast`, `Node`, `Scaling`) |
+| `src/damage.ts` | the damage formula |
+| `src/display.ts` | turns a run into the report/hover-trace data the page renders |
+| `src/resonators/*.ts` | one file per resonator: actions, buffs, the Resonator itself, talents, inherent skills, sequences, a sample rotation, a loadout |
+| `src/echoes/*.ts` | mainslot echoes and sonata sets, grouped by the region that introduced them |
+| `src/weapons/*.ts` | signature and standard weapons, grouped by weapon type |
+| `src/shared/mainstats.ts` / `substats.ts` | echo main-stat builds (`mainstats()`) and substat spreads (`substats()`/`chem()`) |
+| `index.ts` | the whole site — team definitions, the comparison table, the detail page |
 
-There is no global baseline buff. Every resonator declares its own innate line — 100% ER,
-5% crit rate, 150% crit damage — in its own file, so one file describes a resonator
-completely.
+## The engine
 
----
+A `Gear` is anything equippable that can react to actions: `Buff`, `Debuff`, `Talent`,
+`Inherent`, `Sequence`, `Weapon`, `Mainslot`, `Sonata`/`Sonata2pc`, `Resonator` itself — all
+plain subclasses, nothing added. A `Resonator` is just a `Gear` that also carries element/
+weapon type/base stats/`maxEnergy`/color.
 
-## Units
-
-Ratio stats are authored **in percent**: `add(36, CRIT_RATE)` is +36%. Flat stats are flat:
-`add(500, BASE_ATK)`. Motion values are percent too, so `mv: 307.34` is a 3.07× multiplier.
-The engine divides by 100 only where it uses a value, so authored numbers always read the
-way the game presents them.
-
-`CRIT_DMG` is a **total** multiplier, not a bonus — the baseline's 150 means a crit deals
-150%, matching the spreadsheet.
-
-## Buffs
-
-A buff is anything named that applies stats: a resonator's passives, a weapon, a sonata
-set, an echo, an outro effect. Gear is just a buff that is on a resonator's list from the
-start of the fight. That is why all three delivery mechanisms below can talk about "adding a
-buff to a resonator's list".
-
-```js
-export const MYRIAD_SNARE = new Gear("Myriad Snare", {
-  apply() {
-    add(12, "fusion", DMG_BONUS);
-    add(12, "heavy", DMG_BONUS);
-  },
+```ts
+export const MYRIAD_SNARE = new Mainslot({
+  name: "Myriad Snare",
+  action: ACTION_MYRIAD_SNARE,
+  apply: () => { addStat(Stat.DmgBonus, 12, Element.Fusion); addStat(Stat.DmgBonus, 12, Type1.Heavy); },
 });
 ```
 
-Every definition **is** an object, and everything else holds that object rather than its name:
-a loadout is an array of `Gear`, a rotation an array of `Action`, and `grantTeam(MYRIAD_SNARE)`
-takes the buff itself. Names survive only for display, so two buffs may share one.
+Each piece of `GearDef` runs at a different point in `evaluate()`, for whichever Gear is
+actually held (locally, globally, or on the enemy) when an action resolves:
 
-Functions use the **ambient namespace** — `add`, `get`, `hp()`, `counter()` — rather than
-threading `state` through every call.
+- `combatStart` — once, at `equip()` time, never mid-fight (a resonator's own base stats).
+- `update`/`updateGlobal` — grant/revoke/queue/spend, never a stat contribution. `update` only
+  runs for gear held by the acting slot; `updateGlobal` runs for every slot's own held gear
+  every action, `currentSlot` switched to that gear's own holder — how a self-held buff reacts
+  to a *teammate's* action without being promoted to a real team-wide buff.
+- `apply` — stat contributions, `addStat(stat, value, tag?)`. Runs after every `update()`.
+- `convert` — for a buff that reads a value some other buff's own `apply()` just produced
+  (an HP fold into a stat conversion, a threshold check against a running total).
 
-### Conditions are a scope on the stat
-
-`add` has two forms:
-
-```js
-add(value, stat)         // applies to everything
-add(value, tag, stat)    // applies only when the action matches `tag`
-```
-
-**Any** stat can be scoped — there is nothing special about damage bonus. All of these are the
-same mechanism, a stat key with a tag glued on:
-
-```js
-add(12, "fusion", DMG_BONUS);      // 12% fusion damage
-add(50, "heavy", AMP);             // 50% amplification on heavy attacks
-add(12, "heavy", CRIT_RATE);       // 12% crit rate on heavy attacks
-add(7.2, "liberation", DEF_IGNORE);// pierces defence on liberation damage only
-```
-
-A conditional matches the action's **element** or its **damage type**. `node` and `scaling` are
-deliberately excluded: Jingran's Lib1 has node `liberation` but type `heavy`, so resolving node
-would start paying liberation bonuses on it.
-
-What is left for an `if` is anything that is not a property of the action's element or type —
-a gauge threshold, a stack count, whether a gear piece is equipped:
-
-```js
-function heavyAttack(mvPer1000) {
-  if (counter(MINGFIRE) > 0) add(/* … */, MV);
-}
-```
-
-### States are buffs
-
-A state — Jingran's Earth Charm, a stance — is just a named buff that an action puts on the
-resonator. It applies every action like any other buff, and can revoke itself when it is done.
-`grantSelf` puts it at the **front** of the list, so a state that moves a counter applies before
-the gear that scales on it and the gear reads the value this action produced. It needs no
-special stage.
-
-```js
-const EARTH_CHARM = new Buff("Jingran: Earth Charm", {
-  priority: PRIORITY.BUFF_STATS,
-  apply() { /* … */ },
-});
-
-// an action opens it, from its own apply()
-apply() { grantSelf(EARTH_CHARM); }
-```
-
-Prefer deriving a state from a gauge over holding a separate flag — `counter(MINGFIRE) > 0`
-is Jingran's whole liberation window.
-
-Shields are **per resonator**, not shared: Jingran's weapon caps at 6 of his own stacks and
-Iuno's Crown of Valor caps at 5 of hers, so each is a stacking buff on its own wearer rather
-than any shared total. Reading a *teammate's* live stat (rather than calling their exported
-hook) was tried and reverted — not worth re-running another resonator's whole buff list on
-every action of everyone else's rotation. If a mechanic ever needs it, `grantOthers`/`grantTeam`
-plus an exported function is the pattern; keep the buff list itself untouched.
-
-### Reaching another resonator
-
-`slotsWith(buff)` finds every slot holding a buff, which is how one resonator's code
-addresses another's. Export a named function rather than making callers poke at counters —
-this is how Iuno's shielding feeds Jingran's Ghost Shroud instead of the sheet's flat guess:
-
-```js
-// jingran.js
-export function allyGainedShield(stacks = 2) {
-  for (const slot of slotsWith(JINGRAN)) { /* feed his Ghost Shroud */ }
-}
-
-// any shielder's file
-import { allyGainedShield } from "./jingran.js";
-apply() { allyGainedShield(); }
-```
-
-### The five stages
-
-A buff that only *adds* a stat can stay at `BUFF_STATS` — sums do not care about order. A buff
-that *reads* a summed one has to run after everything that feeds it, and that is what the
-conversion stages are for. There is **no default**: every buff and every action body states its
-own. `kit.js` carries the full list; in short:
-
-| stage | for | example |
-| --- | --- | --- |
-| `UPDATE_BUFFS` | what the cast itself does, before anything reacts to it | Jingran's intro spending Ghost Shroud |
-| `GEAR_STATS` | every gear entry, always — the unbuffed stat line | weapons, echoes, sonatas |
-| `BUFF_STATS` | a buff that is nothing but `add()` calls | a stacking buff's payout, a team aura |
-| `EARLY_CONVERSION` | conversions reading a summed total | Jingran HP → ATK; Shorekeeper ER → team crit |
-| `LATE_CONVERSION` | conversions reading what an earlier one produced, and aggregations | Tune Break's break boost → special amp |
-
-The pass re-reads the buff list at each stage, so a buff *created* by an earlier stage still runs
-in its own — nothing has to be pre-seeded at zero stacks. Only the reverse fails: a buff added at
-a stage already gone by waits for the next action.
-
-```js
-const HP_TO_ATK = new Buff("Jingran: HP conversion", {
-  priority: PRIORITY.EARLY_CONVERSION,
-  apply() {
-    if (!onField()) return;
-    add(36 * per1000(hp(), 0, 50000), FLAT_ATK);
-  },
-});
-```
-
-There are no shared clamp/window helpers: a kit does its own arithmetic in its own file, so
-`per1000` and the shield caps live in `jingran.js` where they are used.
-
-### Six lists, three of them applying
-
-| list | holds | applies |
-| --- | --- | --- |
-| `slot.self` ×3 | each resonator's own gear and the states its actions opened | the acting one |
-| `state.team` | team-wide auras, stored **once** rather than copied per resonator | always |
-| `state.currentOutro` | what the resonator on the field picked up when it introed | until it outros |
-| `state.outroQueue` | published, waiting for the next intro | never |
-
-An action resolves `slot.self + currentOutro + team`, plus the buffs the action itself brings.
-`state.activeBuffNames()` is that combination.
-
-```js
-// own gear — seeded at the start of the fight, onto slot.self
-state.startFight({ Jingran: LOADOUT });
-
-// a state the resonator opens for itself, also slot.self (front-inserted)
-grantSelf(EARTH_CHARM);
-
-// the outro queue — handed over on the next intro, dropped on that resonator's outro
-outro("Shorekeeper: Stellarealm handoff");
-
-// a team-wide aura, held once
-grantTeam(BUTTERFLY);
-revokeTeam(REALM_PURPLE);
-
-// specific resonators rather than the whole team — a single team list cannot
-// express "everyone but me", so this writes to their own self lists
-grantOthers("Fallacy: team attack");
-```
-
-The outro queue is what the spreadsheet called scope `next`; `grantTeam` covers `team` and
-`grantOthers` covers `other`. Both grants are idempotent, so a buff may re-assert one every
-action without the list or the log growing.
-
-`equipped(name)` asks all three live lists. `statOf(resonatorBuff, stat)` reads a **teammate's**
-stat by re-running their `self + team` buffs in a read-only context, so nothing they do can
-take effect twice.
-
-## Rules every resonator shares
-
-The engine applies these itself, so no kit has to remember them and no kit can disagree:
-
-- an **intro** opens the on-field window and takes over the outro queue. An intro is
-  recognised by its **node**, not its damage type — Shorekeeper's deals skill damage and her
-  Discernment deals liberation damage, and both are intros. `outro` and `echo` are nodes too,
-  for actions that deal no outro or echo damage at all
-- an **outro** closes the window and drops everything it adopted; it contributes **nothing**
-  to the concerto total
-- a **liberation** (`node: "liberation"`) contributes **nothing** to the energy total
-
-Both of those consume whatever is banked, which a running total cannot express, so they
-simply do not move it. The costs they declare (`-125` energy, `-100` concerto) stay on the
-action and are still shown — they just do not feed the counter.
-
-A follow-up summoned by a liberation should therefore *not* carry `node: "liberation"` — it
-is a summon, not the cast, and would otherwise re-empty the bar.
-
-## Chains
-
-One rotation entry can stand for several actions. `BA1234` expands to the four basic stages,
-each still evaluated on its own with its own snapshot and its own damage — the chain only
-changes how the result reads.
-
-```js
-export const BA1234 = new Chain("Jingran: BA1234", [BA1, BA2, BA3, BA4]);
-
-const lines = collapseChains(rows);   // rows are [{ snap, dmg }]
-```
-
-A collapsed line carries the **total motion value** of every part, the **summed damage**, and
-the stats of **whichever part hit hardest**. Members may be of different types — stages 1-2
-are basic and 3-4 are heavy — which is exactly why no single set of stats describes the chain
-and the hardest part is used. Follow-ups queued mid-chain stay out of the group.
+`addStat`'s optional third argument scopes it to an element or damage type (`Type1`/`Type2`) —
+`get(stat)`/`pct(stat)` sum both the bare and the matching scoped entries for whatever action is
+resolving. `node`/`cast`/`scaling` never participate in scoping.
 
 ## Actions
 
-```js
-const FHA = new Action("Jingran: FHA", {
-  node: "forte", element: "fusion", type: "heavy", scaling: "atk",
-  mv: 307.34,
-  energy: 10.53, concerto: 13, offtune: 1.014,
-  shields: 1,
-  apply() { /* spend the gauge, queue the follow-up, add its own stats */ },
+```ts
+export const FHA = jingranAction("Forte - Stardome Meander", {
+  node: Node.Forte, cast: Cast.Heavy, shields: 2, type: Type1.Heavy, mv: 240.38,
+  energy: 8.5, concerto: 13, offtune: 10400, forte1: -300,
 });
 ```
 
-Whatever a cast does beyond its numbers — spend a gauge, open a state, queue a follow-up, add
-its own stats — is written as the action's own `apply()`. It runs for that action only and
-never joins the resonator's buff list. Two actions that do the same thing point at the same
-plain function (`apply: heavyAttack`); there is nothing to register or name.
+`mv`/`energy`/`concerto`/`offtune`/`forte1`-`forte5` are the action's own declared baseline,
+banked automatically every time it resolves — a kit never mutates its own running total or
+gauge directly from an action. A buff that needs to contribute *on top* of the declared amount
+(a proc, a conditional refund) does it through `Stat.AddEnergy`/`AddConcerto`/`AddOfftune`/
+`AddForte1`-`5`, so the contribution still traces back to whichever buff granted it.
 
-It runs **after** the resonator's gear in the same priority band (the sort is stable), so it can
-read summed totals like `hp()`. An action may also declare a `priority` — which is how the tune
-break converts the whole team's break boost into special amplification at `LATEST`, once every
-other buff has contributed it.
+`shields` says how many shields a cast grants — read back off `currentAction().shields` by
+whichever kit reacts to it (its own, or, via `updateGlobal()`, a teammate's).
 
-`shields` says how many shields the cast grants. Everything shield-driven in the game is phrased
-as an event — "upon gaining a Shield, gain 1 stack, up to N" — so that is what this is, and the
-buffs that care read it back off the action:
+`queue(action)`/`queueOn(resonator, action)` splice a follow-up in directly after the current
+one; `queueOutro(buff)` hands a buff to whoever the outro queue delivers it to next.
 
-```js
-export const LAMP_5PC = new Gear("Lamp of Nether Road 5pc", {
-  apply() { if (action().shields) addStack(LAMP_STACKS, 1, LAMP_MAX); },
-});
-```
+## Conventions
 
-A watcher that has to tell a teammate's shielding from the acting resonator's own asks
-`equipped()` which resonator is acting — that is how Jingran's Trace the Vestige pays 2 Ghost
-Shroud for an ally's shield and 1 for his own.
-
-Queue a follow-up with `queue(CHIMEI)`. Follow-ups are spliced in **directly
-after** the current action in the order they were queued, and a follow-up may queue more of
-its own. A cyclic queue throws rather than hanging.
-
-## Per-action pipeline
-
-1. intro opens the on-field window and adopts queued outro buffs; outro closes it
-2. the action's declared resource deltas
-3. every buff's `apply()`, in priority order — `EARLY` states that move a counter, then the
-   gear that reads it, then the buffs the action brought
-4. buffs at `LATE` priority — the conversions, and any `LATE` buff the action brought
-5. `resolve()` snapshots the totals; `damage(snapshot, config, levels)` returns
-   `{ noCrit, crit, avg }` — nothing else
-
-`resolve()` captures everything **eagerly** — a snapshot never reads back through to the live
-slot, and it carries the full entry list, so "which buffs hit this stat, and why" is already
-answerable per action (`run.js --entries` prints exactly that).
-
-`ATK`/`HP`/`DEF` are folds computed on demand: `base × (1 + bonus%) + flat`, floored. So a
-LATE conversion adding `FLAT_ATK` is picked up by any later read without re-deriving.
-
-## Display
-
-`buildReport(lines, { gauges, strip })` turns collapsed rows into columns and rows of
-formatted values — one line per step, carrying the stats and resources snapshotted at it:
-attack, HP, motion value, damage bonus, crit, then energy, concerto, off-tune and the forte
-gauges under the names the resonator gives them.
-
-```js
-export const GAUGES = [
-  { key: QI, label: "qi" },
-  { key: MINGFIRE, label: "mingfire" },
-];
-```
-
-A resource nothing ever moves gets no column. `renderReport` is the terminal spelling of the
-same data, and `explain(snapshot)` lists every contribution behind one row, attributed by
-source — the old spreadsheet's `Buffs` inspector.
-
-## Counters vs stats
-
-Stats are rebuilt from the buff list on every action, so a buff contributing every action is
-naturally idempotent. Counters persist instead — that is the whole difference.
-
-- **team-wide counters** on `State`, read with `teamCounter()`, moved with `gainTeam()` /
-  `spendTeam()`: `COUNT_FUSION`. Anything on the team can read or spend them.
-- **per-resonator counters** on `Slot`, read with `counter()`: `ENERGY`, `CONCERTO` and the
-  four generic gauges `FORTE1`–`FORTE4`. All are running totals across the rotation and none
-  is shared between resonators. `OFFTUNE` is the exception: it is **team-wide**, because the
-  whole team fills one off-tune bar. **Use the forte gauges in order for whatever a kit has, and only invent
-  a name of your own once all four are taken** — Jingran's four are Qi, Mingfire, Fortune in
-  Disguise and Ghost Shroud.
-
-Prefer deriving a state from a gauge over adding another gauge. Jingran's Yinghuo window and
-his Wayfarer's Marks are both just thresholds on Mingfire — `> 0` and `> 25` — so 100 Mingfire
-spent 25 at a time gives four follow-ups and three refunds without either being tracked.
-- **gauges contributed by buffs** — `GHOST_SHROUD` and friends: rebuilt each action, so they
-  behave like any other stat.
-
-`TBB` (tune break boost) is **not** a counter — it is an ordinary ratio stat alongside `ER`
-and `CRIT_RATE`, in percent units and rebuilt from the buff list every action.
-
-A **static team property** belongs in `onFightStart()`, not `apply()`:
-
-```js
-export const JINGRAN = new Gear("Jingran", {
-  onFightStart() { gainTeam(COUNT_FUSION, 1); },   // once, and only gear gets this hook
-  apply() { /* … */ },                             // every action
-});
-```
-
-Setting a counter from `apply()` would climb by one on every action. `onFightStart()` runs
-for every buff on every list right after `startFight()` seeds them, before any action.
-
-Havoc bane is exported the same way: a resonator that can inflict it contributes the
-`defReduce` from its own file, rather than a global rule guessing at stacks.
-
-## Handing a buff to the next resonator
-
-Shorekeeper is the worked example of a support. Her Stellarealm gives the team crit rate and
-crit damage scaled off **her** energy regen, so the conversion cannot run on the recipient —
-by then `get(ER)` would read theirs. It runs `LATE` on her, banks the result in a team
-counter, and her outro publishes a buff that simply reads it back:
-
-```js
-const STELLAREALM = new Buff("…: Stellarealm", {   // on her: reads her summed ER
-  priority: PRIORITY.EARLY_CONVERSION,
-  apply() { setTeamCounter(REALM_CR, Math.min(12.5, get(ER) * 0.05)); },
-});
-
-const REALM_HANDOFF = new Buff("…: handoff", {     // what the next resonator holds
-  priority: PRIORITY.BUFF_STATS,
-  apply() { add(teamCounter(REALM_CR), CRIT_RATE); },
-});
-
-// her outro publishes it; the engine delivers on the next intro and revokes on that outro
-apply() { outro(REALM_HANDOFF); }
-```
-
-An **intro is recognised by its node**, not its damage type — hers deals skill damage and her
-Discernment deals liberation damage, and both are still intros.
+- Forte gauges (`forte1()`-`forte5()`) have no floor or ceiling of their own — a kit clamps its
+  own real bounds itself (`setForteN`) only where the mechanic actually needs one.
+- A short window (≤20s): a self buff is lost after the outro action gains stats (`convert()`,
+  checked after `apply()` already paid out); a team buff is lost on the applier's own next
+  intro. A window ≥21s is permanent uptime once granted, never revoked. An outro-lost buff is
+  checked in `update()` instead, matching the standing "lost on inactive action" rule.
+- ICD-gated passives ("triggers once every 0.5s") fire on every qualifying action instead —
+  there's no real-time clock here.
+- A live per-hit ramp that only makes sense against real-time state this engine doesn't track
+  (a resonance-chain trigger tied to a teammate's own unspecified cast rate, a per-hit stacking
+  buff inside an already-lumped multi-hit window) is left undocumented as a no-op rather than
+  approximated — flagged in the file, not guessed at.
+- A resonator's own file is ordered actions, then buffs/talent/inherents/sequences, then the
+  `Resonator` itself, then its talent-tree bonus, then a sample rotation, then its loadout(s).
+- Sequence nodes (S1-S6) are out of scope by default — every build is sequence 0 — except a
+  resonator explicitly marked `standardCharacter: true` (a standard-banner pull, trivially
+  farmable to full sequence), which folds all six in as always-equipped `Sequence` pieces.
 
 ## Adding a resonator
 
-One file per resonator in `resonators/`, holding their innate line, passives, signature
-weapon, sonata, echo (buff **and** cast) and actions — `jingran.js` is the worked example.
-Export a `LOADOUT` (what the build starts holding) and a `ROTATION`. Put anything usable by
-others in `resonators/shared/`.
-
-Start from the innate line every resonator has, then their own stats:
-
-```js
-export const NAME = new Gear("Name", {
-  onFightStart() { gainTeam(COUNT_FUSION, 1); },
-  apply() {
-    add(100, ER); add(5, CRIT_RATE); add(150, CRIT_DMG);   // innate
-    add(13713, BASE_HP); add(350, BASE_ATK);               // their own
-  },
-});
-```
-
-`data/stats.json` is the source material: the rows for a gear name are the buff you are
-writing. Cross-check the mechanics against the kit on nanoka.cc, whose static JSON is at
-`static.nanoka.cc/ww/<version>/en/character/<id>.json` — the sheet often carries a capped or
-averaged number where the kit gives the real formula. Scope `self` → mechanism 1, `next` → mechanism 2, `team`/`other` → mechanism 3, a
-`type` tag → either a scoped stat or a condition in the action, and `scaler2` with
-`start`/`end` → arithmetic in the resonator's own file (the lower bound is an offset, not
-just a floor).
+One file in `src/resonators/`. Cite the nanoka.cc character page and, where used, the migrated
+sheet in the file header. Export a `_LOADOUT` (a `Loadout`, built from the resonator + talent +
+both inherents + weapon + mainslot + sonata + mainstat + substat, plus up to six sequence nodes)
+and a rotation array. Wire it into `index.ts`'s own `TEAMS` once it has a team to run in — a
+fully-ported resonator with no team yet (see `buling.ts`/`lucilla.ts`) is normal, not a stub.

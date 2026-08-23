@@ -21,7 +21,10 @@
   imports and fetch() on file:// URLs. From this directory:
 
       npm run build                     ->  compiles src/**/*.ts (+ passthrough .js) into dist/
-      python serve.py                   ->  http://localhost:8731/  (no-store + hot reload)
+      python serve.py                   ->  http://127.0.0.1:8731/  (no-store + hot reload)
+
+  Use 127.0.0.1, not localhost — see serve.py's own header on the ~200ms-per-connection stall
+  "localhost" costs on Windows, paid on every one of the unbundled module fetches below.
 -->
 
 <div id="topbar" class="topbar">

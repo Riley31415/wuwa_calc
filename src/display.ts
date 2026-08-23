@@ -10,14 +10,13 @@
  * forte3 does not get a column of noughts.
  */
 import {
-  Stat, Resource, Scaling, Cast,
+  Stat, EnemyStat, Resource, Scaling, Cast,
   scopedStat, TAGS_MATCHED, splitStat, statLabel,
-  ELEMENTS, TYPE1S, TYPE2S,
+  ATTRIBUTES, TYPE1S, TYPE2S,
 } from "./stats.js";
 import { mvPercent, effectiveDef, effectiveRes, damageFactors } from "./damage.js";
-import { AddEnergy, AddConcerto, AddOfftune, AddForte1, AddForte2, AddForte3, AddForte4, AddForte5 } from "./kit.js";
 import type { ChainGroup } from "./kit.js";
-import type { ResolvedSnapshot, StatEntry } from "./state.js";
+import type { ResolvedSnapshot, StatEntry } from "./kit.js";
 
 /** One line in a source-trace panel — what fed a value, and how to read it. */
 export interface TraceEntry {
@@ -58,8 +57,8 @@ const FEEDS: Record<string, () => string[]> = {
   amp: () => [Stat.Amp],
   dealt: () => [Stat.TotalDmg],
   // what is being done to the enemy rather than to the resonator
-  effDef: () => [Stat.DefIgnore, Stat.DefShred, Stat.DefReduce],
-  effRes: () => [Stat.ResIgnore, Stat.ResShred],
+  effDef: () => [Stat.DefIgnoreNew, Stat.DefIgnoreOld, EnemyStat.DefReduce],
+  effRes: () => [Stat.ResIgnore, EnemyStat.ResShred],
   // energy/concerto/offtune are NOT built off this — they're running totals, not a per-action
   // sum, so rowValues() builds their own panel by hand further down, off RESOURCE_STAT instead.
 };
@@ -116,7 +115,7 @@ const actionInfo = (action: {
   push("Node", action.node);
   push("Cast", action.cast);
   push("Cast 2", action.cast2);
-  push("Element", action.element);
+  push("Attribute", action.element);
   push("Scaling", action.scaling ?? Scaling.Atk);
   push("Type", action.type);
   push("Type 2", action.type2);
@@ -142,7 +141,7 @@ const STAT_SOURCE: Record<string, string> = {
 function tagRank(stat: string): number {
   const tag = splitStat(stat)[1];
   if (tag == null) return 0;
-  if ((ELEMENTS as string[]).includes(tag)) return 1;
+  if ((ATTRIBUTES as string[]).includes(tag)) return 1;
   if ((TYPE1S as string[]).includes(tag)) return 2;
   if ((TYPE2S as string[]).includes(tag)) return 3;
   return 4;
@@ -270,7 +269,7 @@ function rowValues(
   // this cast (if any — same "Base MV" treatment as the mv panel below), then whatever a buff
   // itself added. Scaled the same as the column itself, so the panel's own rows still sum to
   // the number shown outside it.
-  const RESOURCE_STAT = { energy: AddEnergy, concerto: AddConcerto, offtune: AddOfftune } as const;
+  const RESOURCE_STAT = { energy: Stat.AddEnergy, concerto: Stat.AddConcerto, offtune: Stat.AddOfftune } as const;
   // matches each column's own digits (see the `columns` array below) — a /100 value never needs
   // more than 2 decimal places, a /10000 one (offtune) never needs more than 4.
   const RESOURCE_DIGITS = { energy: 2, concerto: 2, offtune: 4 } as const;
@@ -296,7 +295,7 @@ function rowValues(
   // Forte: held-before, this action's own declared delta, and whatever AddForte1-5 a held buff
   // contributed (Jingran's Fire of Life refunding Qi) — same shape as energy/concerto just above.
   const FORTE_FIELD = ["forte1", "forte2", "forte3", "forte4", "forte5"] as const;
-  const FORTE_STAT = [AddForte1, AddForte2, AddForte3, AddForte4, AddForte5] as const;
+  const FORTE_STAT = [Stat.AddForte1, Stat.AddForte2, Stat.AddForte3, Stat.AddForte4, Stat.AddForte5] as const;
   FORTE_GAUGES.forEach((key, i) => {
     const declared = snap.action[FORTE_FIELD[i]!];
     const traced = tracing(snap, keysFor(FORTE_STAT[i]!, snap.action as unknown as Record<string, unknown>));

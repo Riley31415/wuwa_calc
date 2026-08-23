@@ -4,8 +4,8 @@
  *   TUNE_BREAK_CAST   the cast, which empties the bar
  */
 import { Action, Buff, PRIORITY } from "../kit.js";
-import type { ResolvedSnapshot } from "../state.js";
-import { Resource, Element, Type1, Cast, Scaling } from "../stats.js";
+import type { ResolvedSnapshot } from "../kit.js";
+import { Resource, Attribute, Type1, Cast, Scaling } from "../stats.js";
 
 /** The bar resets to -30000, not 0: about three seconds of dead window before it can build
  *  again. */
@@ -20,7 +20,7 @@ export const TUNE_BREAK_COLOR = "#ffffff";
 /** Off-tune break. Scales off the tune constant, bypasses crit. Empties the bar itself, so the
  *  drop lands on this row's own off-tune trace rather than whatever action filled it. */
 export const TUNE_BREAK_CAST = new Action("Tune Break", {
-  element: Element.Physical,
+  element: Attribute.Physical,
   scaling: Scaling.Tune,
   cast: Cast.TuneBreak,
   type: Type1.Break,

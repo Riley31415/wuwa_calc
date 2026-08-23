@@ -1,13 +1,12 @@
 /**
  * Qiuyuan, ported to the new engine. Sequence-0 core loop; weapon/echo pieces are real ports
- * (see weapons.ts/echoes.ts) rather than a flat approximation, since this is the full-team test.
+ * rather than a flat approximation, since this is the full-team test.
  *
  * Soliloquy is his own forte1 gauge — a declared `forte1: N` on every action that moves it
- * (100 a basic/enhanced-basic, 400 on Intro, -200 a Forte heavy), not a hand-rolled buff-stack
- * plus a delta-map lookup in update().
+ * (100 a basic/enhanced-basic, 400 on Intro, -200 a Forte heavy), not a hand-rolled buff-stack.
  */
 import {
-  Buff, Resonator, Gear, Action, ECHO_CAST, INTRO, Stat, Element, WeaponType, Type1, Cast, Node, Scaling,
+  Buff, Talent, Inherent, Resonator, Loadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
   applySelf, forte1, currentAction, casting, queueOutro, applyTeam, revoke, lostOnSwap,
   addStat, stacks,
 } from "../kit.js";
@@ -17,50 +16,10 @@ import { LAW_OF_HARMONY_3PC } from "../echoes/septimont.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 
-/* ------------------------------------------------------------------------------------ buffs */
-
-export const FLOWING_PANACEA = new Buff({
-  name: "Qiuyuan: Flowing Panacea",
-  apply: () => addStat(Stat.BonusAtk, 10),
-  // short window, so it still counts on his own outro (see jinzhou.ts's HERON_HANDOFF)
-  convert: () => { if (casting(Cast.Outro)) revoke(FLOWING_PANACEA); },
-});
-
-// team-wide, permanent once granted at 400 Soliloquy
-export const BAMBOO_SHADE = new Buff({
-  name: "Qiuyuan: Bamboo's Shade", apply: () => addStat(Stat.DmgBonus, 30, Type1.Echo),
-});
-
-export const QUIETUDE_WITHIN = new Buff({
-  name: "Qiuyuan: Quietude Within",
-  update: () => {
-    lostOnSwap();
-    if (currentAction() === FHA3) revoke(QUIETUDE_WITHIN);
-  },
-  apply: () => {
-    const a = currentAction();
-    if (a === FHA1 || a === FHA2 || a === FHA3) addStat(Stat.TotalDmg, 50);
-  },
-});
-
-// team-wide — "all nearby active Resonators," gated on the acting resonator's own active flag
-export const SUNDERING_STRIKE_CD = new Buff({
-  name: "Qiuyuan: Sundering Strike",
-  apply: () => { if (currentAction().active) addStat(Stat.CritDmg, 30); },
-});
-
-export const QIUYUAN_OUTRO = new Buff({
-  name: "Qiuyuan: Outro",
-  apply: () => addStat(Stat.Amp, 50, Type1.Echo),
-  // a plain window, not "lost on swap" wording — still counts on the recipient's own outro (see
-  // jinzhou.ts's HERON_HANDOFF for the same shape)
-  convert: () => { if (casting(Cast.Outro)) revoke(QIUYUAN_OUTRO); },
-});
-
 /* ----------------------------------------------------------------------------------- actions */
 
 function qiuyuanAction(id: string, def: object): Action {
-  return new Action(id, { element: Element.Aero, scaling: Scaling.Atk, ...def });
+  return new Action(id, { element: Attribute.Aero, scaling: Scaling.Atk, ...def });
 }
 
 export const BA1 = qiuyuanAction("Basic - Inkwash 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 41.76 });
@@ -90,28 +49,71 @@ export const FHA1 = qiuyuanAction("Forte - Thus Spoke the Blade: To Teach", { no
 export const FHA2 = qiuyuanAction("Forte - Thus Spoke the Blade: To Save", { node: Node.Forte, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Heavy, mv: 209.67, forte1: -200 });
 export const FHA3 = qiuyuanAction("Forte - Thus Spoke the Blade: To Sacrifice", { node: Node.Forte, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Heavy, mv: 217.7, forte1: -200 });
 
+/* ------------------------------------------------------------------------------------ buffs */
+
+export const FLOWING_PANACEA = new Buff({
+  name: "Qiuyuan: Flowing Panacea",
+  apply: () => addStat(Stat.BonusAtk, 10),
+  convert: () => { if (casting(Cast.Outro)) revoke(FLOWING_PANACEA); },
+});
+
+// team-wide, permanent once granted at 400 Soliloquy
+export const BAMBOO_SHADE = new Buff({
+  name: "Qiuyuan: Bamboo's Shade", apply: () => addStat(Stat.DmgBonus, 30, Type1.Echo),
+});
+
+export const QUIETUDE_WITHIN = new Buff({
+  name: "Qiuyuan: Quietude Within",
+  update: () => {
+    lostOnSwap();
+    // TODO needs special handling for double forte
+  },
+  apply: () => {
+    const a = currentAction();
+    if (a === FHA1 || a === FHA2 || a === FHA3) addStat(Stat.TotalDmg, 50);
+  },
+});
+
+// team-wide — "all nearby active Resonators," gated on the acting resonator's own active flag
+export const SUNDERING_STRIKE_CD = new Buff({
+  name: "Qiuyuan: Sundering Strike",
+  apply: () => { if (currentAction().active) addStat(Stat.CritDmg, 30); },
+});
+
+export const QIUYUAN_OUTRO = new Buff({
+  name: "Qiuyuan: Outro",
+  apply: () => addStat(Stat.Amp, 50, Type1.Echo),
+  update: () => { lostOnSwap(); },
+});
+
+export const QY_INHERENT_2 = new Inherent({
+  name: "Qiuyuan: Drink Away Woes Age-Old",
+  update: () => { if (currentAction().forte1 > 0) applySelf(FLOWING_PANACEA, 1); },
+});
+
+export const QY_INHERENT_1 = new Inherent({
+  name: "Qiuyuan: Quietude Within",
+  update: () => {
+    const soliloquy = forte1() + currentAction().forte1;
+    if (soliloquy >= 600) applySelf(QUIETUDE_WITHIN, 1);
+  },
+});
+
 export const QIUYUAN = new Resonator({
   name: "Qiuyuan",
-  element: Element.Aero,
+  element: Attribute.Aero,
   weapon: WeaponType.Sword,
   intro: () => Intro,
   color: "#4fae6b",
-  maxEnergy: 12500,
+  maxEnergy: 125,
   update: () => {
     const a = currentAction();
-
-    if (a.forte1 > 0) applySelf(FLOWING_PANACEA, 1);
-
-    // his own thresholds. forte1() itself only reflects every *prior* action's own contribution —
-    // kit.ts's own evaluate() banks this action's own declared forte1 delta only after
-    // update()/apply()/convert() have all already run — so what the gauge is *about* to become
-    // this action (forte1() + a.forte1) is what has to be checked, not what it reads right now.
+    if (a === Outro) queueOutro(QIUYUAN_OUTRO);
+    if (a === Liberation) applyTeam(SUNDERING_STRIKE_CD, 1);
+    // forte1() only reflects every *prior* action's own contribution, so what the gauge is about
+    // to become (forte1() + a.forte1) is what has to be checked, not what it reads right now
     const soliloquy = forte1() + a.forte1;
     if (soliloquy >= 400) applyTeam(BAMBOO_SHADE, 1);
-    if (soliloquy >= 600) applySelf(QUIETUDE_WITHIN, 1);
-
-    if (a === Liberation) applyTeam(SUNDERING_STRIKE_CD, 1);
-    if (a === Outro) queueOutro(QIUYUAN_OUTRO);
   },
 
   apply: () => {
@@ -121,7 +123,7 @@ export const QIUYUAN = new Resonator({
 });
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
-export const QIUYUAN_TALENTS = new Buff({
+export const QIUYUAN_TALENTS = new Talent({
   name: "Qiuyuan: Talents",
   apply: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
@@ -130,19 +132,32 @@ export const QY_ROTATION = [INTRO, EBA3, EBA4, ECHO_CAST, Liberation, Skill, FHA
 
 /* ----------------------------------------------------------------------------------- loadout */
 
-// his real 43311 build: resonator + talents, weapon, mainslot echo, sonata pieces, mainstat/substat
-export const QY_LOADOUT: Gear[] = [
-  QIUYUAN, QIUYUAN_TALENTS,
+// his real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
+// sonata pieces, mainstat/substat
+export const QY_LOADOUT = new Loadout(
+  QIUYUAN,
+  QIUYUAN_TALENTS,
+  QY_INHERENT_1,
+  QY_INHERENT_2,
   EMERALD_SENTENCE,
-  FALLACY, LAW_OF_HARMONY_3PC, REJUV_2PC,
-  mainstats("CD", "aero aero", "atk atk"), chem("atk", "heavy"),
-];
+  FALLACY,
+  LAW_OF_HARMONY_3PC,
+  REJUV_2PC,
+  mainstats("CD", "aero aero", "atk atk"),
+  chem("atk", "heavy"),
+);
 
 // second build: Impermanence Heron mainslot, full Moonlit Clouds 5pc instead of the Law of
-// Harmony/Rejuvenating Glow split above — same weapon/mainstat/substat choices otherwise
-export const QY_LOADOUT_MOONLIT: Gear[] = [
-  QIUYUAN, QIUYUAN_TALENTS,
+// Harmony/Rejuvenating Glow split above
+export const QY_LOADOUT_MOONLIT = new Loadout(
+  QIUYUAN,
+  QIUYUAN_TALENTS,
+  QY_INHERENT_1,
+  QY_INHERENT_2,
   EMERALD_SENTENCE,
-  HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC,
-  mainstats("CD", "aero aero", "atk atk"), chem("atk", "heavy"),
-];
+  HERON,
+  MOONLIT_CLOUDS_5PC,
+  MOONLIT_CLOUDS_2PC,
+  mainstats("CD", "aero aero", "atk atk"),
+  chem("atk", "heavy"),
+);
