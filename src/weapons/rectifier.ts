@@ -2,7 +2,7 @@
  *  standard/permanent-availability) lives here too since it isn't part of any named tier. */
 import {
   Buff, Weapon, WeaponType, Stat, Attribute, Type1, Cast,
-  addStat, stacks, stacksOf, applySelf, applyTeam, revoke, casting, currentAction, lostOnSwap,
+  addStat, stacks, stacksOf, applySelf, applyTeam, revoke, removeStack, casting, currentAction, lostOnSwap,
 } from "../kit.js";
 
 /** Rime-Draped Sprouts, Zhezhi's sig, R1. +12% ATK flat. On field, Resonance Skill grants +12%
@@ -128,12 +128,14 @@ export const FREEZE_FRAME_TEAM = new Buff({
   name: "Freeze Frame: Light's Offering (team)", apply: () => addStat(Stat.BonusAtk, 24),
 });
 
-/** Stellar Symphony, Shorekeeper's sig, R1: 12% HP to herself, 14% attack to the team, and
- *  concerto back on any liberation or a healing Resonance Skill cast (Chaos Theory specifically). */
+/** Stellar Symphony, Shorekeeper's sig, R1: 12% HP to herself, 14% attack to the team, and 8
+ *  Concerto on a Skill or Liberation cast, once every 20s — the cooldown works like Variation's
+ *  Ceaseless Aria: first cast grants it and goes on cooldown, reset by the wielder's Outro. */
 export const SK_SIG = new Weapon({
   weaponType: WeaponType.Rectifier,
   name: "Stellar Symphony",
   update: () => {
+    if (casting(Cast.Skill) || casting(Cast.Liberation)) applySelf(SK_SIG_CONCERTO, 1);
     if (casting(Cast.Skill) && currentAction().heals) {
       applyTeam(SK_SIG_TEAM, 1);
     }
@@ -142,11 +144,19 @@ export const SK_SIG = new Weapon({
     addStat(Stat.BaseAtk, 412.5);
     addStat(Stat.Er, 77.04);
     addStat(Stat.BonusHp, 12);
-    if (casting(Cast.Liberation)) addStat(Stat.AddConcerto, 8);
   },
 });
 export const SK_SIG_TEAM = new Buff({
-  name: "Stellar Symphony: Astral Evolvement", apply: () => addStat(Stat.BonusAtk, 14),
+  name: "Stellar Symphony: Astral Evolvement (team)", apply: () => addStat(Stat.BonusAtk, 14),
+});
+export const SK_SIG_CONCERTO = new Buff({
+  name: "Stellar Symphony: Astral Evolvement", maxStacks: 2,
+  apply: () => {
+    if (stacks() === 1 && (casting(Cast.Skill) || casting(Cast.Liberation))) {
+      applySelf(SK_SIG_CONCERTO, 1); addStat(Stat.AddConcerto, 8);
+    } else if (stacks() === 2 && casting(Cast.Outro)) removeStack(SK_SIG_CONCERTO, 2);
+  },
+  display: () => `Stellar Symphony: Astral Evolvement${stacks() === 1 ? "" : " (cooldown)"}`,
 });
 
 /** Stringmaster, R1: Electric Amplification. +12% Attribute DMG Bonus flat, +12% ATK on any

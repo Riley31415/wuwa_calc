@@ -19,6 +19,9 @@
 import { State, run, withTeam, equip, setTracing, Buff, Loadout, EchoLoadout, Weapon } from "./kit.js";
 import type { Action, ChainGroup, ResolvedSnapshot } from "./kit.js";
 import { damage, mvPercent } from "./damage.js";
+// imported for its own side effect: tunebreak.ts registers the Tune Break resolver with the
+// engine on load, and this is the one file every path that runs a team goes through
+import "./tunebreak.js";
 import type { Report } from "./display.js";
 import { LOADOUTS } from "./loadouts.js";
 import type { LoadoutName } from "./loadouts.js";

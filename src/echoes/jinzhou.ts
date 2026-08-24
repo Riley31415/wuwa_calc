@@ -82,27 +82,6 @@ export const REJUV_TEAM = new Buff({ name: "Rejuvenating Glow (team)", apply: ()
 
 export const REJUV_2PC = new Sonata2pc({ name: "Rejuvenating Glow 2pc", apply: () => addStat(Stat.HealingBonus, 10) });
 
-/** Fallacy, a generic HP-scaling spectro mainslot echo. Its cast puts up a team-wide +10% ATK,
- *  gone the moment its own wearer casts an Intro. The wearer's own +10% ER reads that same
- *  buff's own uptime rather than firing only on the cast. The revoke lives on `FALLACY` (local,
- *  so it only ever sees its own wearer's turn), not on the global `FALLACY_TEAM` itself. */
-export const ACTION_FALLACY = new Action("Echo - Fallacy of No Return", {
-  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Hp, type: Type1.Echo, mv: 15.85, energy: 3.04,
-});
-
-export const FALLACY_TEAM = new Buff({ name: "Fallacy of No Return (team)", apply: () => addStat(Stat.BonusAtk, 10) });
-
-export const FALLACY = new Mainslot({
-  name: "Fallacy of No Return",
-  abbreviation: "Fallacy",
-  action: ACTION_FALLACY,
-  update: () => {
-    if (currentAction() === ACTION_FALLACY) applyTeam(FALLACY_TEAM, 1);
-    if (casting(Cast.Intro)) revokeTeam(FALLACY_TEAM);
-  },
-  apply: () => { if (stacksOfTeam(FALLACY_TEAM)) addStat(Stat.Er, 10); },
-});
-
 /* ------------------------------------------------------------------------------- Changli, 1.1 */
 
 /** Molten Rift, Changli's own sonata — also reused by Encore's Inferno Rider mainslot below.
@@ -346,6 +325,17 @@ export const NM_MEPHIS = new Mainslot({
   apply: () => { addStat(Stat.DmgBonus, 12, Attribute.Electro); addStat(Stat.DmgBonus, 12, Type1.Liberation); },
 });
 
+/** Nightmare: Tempest Mephis — the other Overlord-class Mephis (Yinlin's pick, carries Empyrean
+ *  Anthem too). Flat Electro/Resonance Skill DMG Bonus, no trigger. */
+export const ACTION_NM_TEMPEST_MEPHIS = new Action("Echo - Nightmare: Tempest Mephis", {
+  cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type1.Echo, mv: 405, energy: 5.62,
+});
+export const NM_TEMPEST_MEPHIS = new Mainslot({
+  name: "Nightmare: Tempest Mephis",
+  action: ACTION_NM_TEMPEST_MEPHIS,
+  apply: () => { addStat(Stat.DmgBonus, 12, Attribute.Electro); addStat(Stat.DmgBonus, 12, Type1.Skill); },
+});
+
 /** Void Thunder, a generic sonata reused by Augusta. 2pc: +10% Electro DMG Bonus flat. 5pc: +15%
  *  Electro DMG Bonus per stack on releasing Heavy Attack or Resonance Skill, up to 2 stacks, 15s
  *  a stack — lost after its own outro rather than modelled with literal per-stack decay. */
@@ -356,4 +346,25 @@ export const VOID_THUNDER_5PC = new Sonata({
   apply: () => addStat(Stat.DmgBonus, 15 * stacks(), Attribute.Electro),
   update: () => { if (casting(Cast.Heavy) || casting(Cast.Skill)) applySelf(VOID_THUNDER_5PC, 1); },
   convert: () => { if (casting(Cast.Outro)) revoke(VOID_THUNDER_5PC); },
+});
+
+/** Fallacy, a generic HP-scaling spectro mainslot echo. Its cast puts up a team-wide +10% ATK,
+ *  gone the moment its own wearer casts an Intro. The wearer's own +10% ER reads that same
+ *  buff's own uptime rather than firing only on the cast. The revoke lives on `FALLACY` (local,
+ *  so it only ever sees its own wearer's turn), not on the global `FALLACY_TEAM` itself. */
+export const ACTION_FALLACY = new Action("Echo - Fallacy of No Return", {
+  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Hp, type: Type1.Echo, mv: 15.85, energy: 3.04,
+});
+
+export const FALLACY_TEAM = new Buff({ name: "Fallacy of No Return (team)", apply: () => addStat(Stat.BonusAtk, 10) });
+
+export const FALLACY = new Mainslot({
+  name: "Fallacy of No Return",
+  abbreviation: "Fallacy",
+  action: ACTION_FALLACY,
+  update: () => {
+    if (currentAction() === ACTION_FALLACY) applyTeam(FALLACY_TEAM, 1);
+    if (casting(Cast.Intro)) revokeTeam(FALLACY_TEAM);
+  },
+  apply: () => { if (stacksOfTeam(FALLACY_TEAM)) addStat(Stat.Er, 10); },
 });

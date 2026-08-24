@@ -1,7 +1,7 @@
 /** Mainslot echoes and sonatas from Rinascita (versions 2.0-2.4). */
 import {
   Buff, Sonata, Sonata2pc, Mainslot, Action, Stat, Attribute, Type1, Type2, Cast, Scaling,
-  addStat, stacks, applySelf, applyTeam, casting, currentAction, revoke, get, queue, queueOutro,
+  addStat, stacks, applySelf, applyTeam, casting, currentAction, revoke, getStat, queue, queueOutro,
   revokeTeam,
 } from "../kit.js";
 
@@ -113,7 +113,7 @@ export const TIDEBREAKING_5PC = new Sonata({
   name: "Tidebreaking Courage 5pc",
   abbreviation: "Tide",
   apply: () => addStat(Stat.BonusAtk, 15),
-  convert: () => { if (get(Stat.Er) >= 250) addStat(Stat.DmgBonus, 30); },
+  convert: () => { if (getStat(Stat.Er) >= 250) addStat(Stat.DmgBonus, 30); },
 });
 
 /* --------------------------------------------------------------------------------- Phrolova */

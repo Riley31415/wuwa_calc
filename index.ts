@@ -23,7 +23,8 @@
  * back here, because a `TeamRun` carries a whole `State` for the detail page and none of that can
  * cross a postMessage.
  */
-import { Gear, Action, Stat, TUNE_BREAK_SLOT } from "./src/kit.js";
+import { Gear, Action, Stat } from "./src/kit.js";
+import { TUNE_BREAK_SLOT } from "./src/tunebreak.js";
 import type { ChainGroup, HeldBuff, ResolvedSnapshot } from "./src/kit.js";
 import { buildReport, totalsBySlot } from "./src/display.js";
 import type { Report, Column, ReportRow, ReportPart, TraceEntry, InfoEntry } from "./src/display.js";

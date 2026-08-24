@@ -164,7 +164,7 @@ export class Loadout {
   inherent2: Inherent;
   weapons: Weapon[];
   echoLoadouts: EchoLoadout[];
-  /** Every main-stat build this loadout is willing to run (see shared/mainstats.ts's own
+  /** Every main-stat build this loadout is willing to run (see mainstats.ts's own
    *  `mainstatOptions()`) — a list for the same reason `weapons`/`echoLoadouts` are, the table
    *  runs one row per combination. A pure support names just the one. */
   mainstats: Buff[];
@@ -471,58 +471,6 @@ export const ECHO_CAST = new Action("Echo Cast");
  *  before it reaches `evaluate()`, same shape as `ECHO_CAST` above. */
 export const INTRO = new Action("Intro");
 
-/**
- * Off-tune break — the team's shared bar hitting its ceiling. Engine-owned rather than a buff
- * watching the bar: nothing declares it, no kit can hold it, and `run()` fires it directly (see
- * there). It never appears in a rotation.
- *
- * Scales off the tune constant, which is what makes it its own thing in the damage formula: no
- * Amp, no DMG Bonus and no crit reach it (damage.ts's own `notTune`), and Tune Break Boost is the
- * only multiplier that does.
- */
-export const TUNE_BREAK = new Action("Tune Break", {
-  element: Attribute.Physical,
-  scaling: Scaling.Tune,
-  cast: Cast.TuneBreak,
-  type: Type1.Break,
-  mv: 1600,
-});
-
-/**
- * A Tune Break comes in variants. An action that declares `rupture`/`strain`/`hack` puts the
- * target into that *Shifting* state (only ever one at a time — a new one replaces the last, see
- * `State.shifting`), and the next break resolves as that variant instead of the plain one. The
- * variant is only a damage *type*: the amount is the same tune-scaled hit either way, so a kit
- * that scopes a bonus to `Type1.Rupture` picks it up and nothing else changes.
- */
-const tuneBreak = (id: string, type: Type1): Action => new Action(id, {
-  element: Attribute.Physical, scaling: Scaling.Tune, cast: Cast.TuneBreak, type, mv: 1600,
-});
-export const TUNE_BREAK_RUPTURE = tuneBreak("Tune Rupture", Type1.Rupture);
-export const TUNE_BREAK_STRAIN = tuneBreak("Tune Strain", Type1.Strain);
-export const TUNE_BREAK_HACK = tuneBreak("Tune Hack", Type1.Hack);
-
-/** The *Interfered* states a break leaves behind, one per variant — stacking debuffs on the target
- *  rather than engine-private counters, so a kit reads them with the ordinary `stacksOfEnemy()` and
- *  they show up in the enemy-debuff section of the resonator popover like anything else. No cap is
- *  enforced here (see CLAUDE.md); a kit that cares reads the count. */
-export const TUNE_RUPTURE_INTERFERED = new Debuff({ name: "Tune Rupture - Interfered", maxStacks: 99 });
-export const TUNE_STRAIN_INTERFERED = new Debuff({ name: "Tune Strain - Interfered", maxStacks: 99 });
-export const TUNE_HACK_INTERFERED = new Debuff({ name: "Tune Hack - Interfered", maxStacks: 99 });
-
-/** The break each Shifting resolves into, and the state it leaves. */
-const TUNE_VARIANTS = new Map<Type1, { action: Action; interfered: Debuff }>([
-  [Type1.Rupture, { action: TUNE_BREAK_RUPTURE, interfered: TUNE_RUPTURE_INTERFERED }],
-  [Type1.Strain, { action: TUNE_BREAK_STRAIN, interfered: TUNE_STRAIN_INTERFERED }],
-  [Type1.Hack, { action: TUNE_BREAK_HACK, interfered: TUNE_HACK_INTERFERED }],
-]);
-
-/** Which bucket a tune break's damage groups under. It goes off on whoever happens to be on field,
- *  but it's the team's shared bar breaking rather than that resonator's own cast, so it gets a row
- *  of its own instead of inflating one character's total. Only `ResolvedSnapshot.slot` — the
- *  grouping key — is relabeled; `.member` keeps the real actor, so the action log still shows whose
- *  turn it landed on. */
-export const TUNE_BREAK_SLOT = "Misc";
 
 /* --------------------------------------------------------------- engine-owned per-slot state */
 
@@ -690,22 +638,22 @@ export class TeamMember {
 export class State {
   slots: TeamMember[];
   active = 0;
-  globalStacks = new Map<Gear, number>();
+  globalStacks = new Map<Gear, number>(); // use Buff here? how are maxstacks even handled?
   /** Debuffs placed on the enemy rather than held by any resonator — mechanically identical to
    *  `globalStacks` (ticks on every slot's own turn regardless of who's acting), kept as its own
    *  map purely so the resonator popover can bucket it into its own "Enemy debuffs" section
    *  instead of mixing it into "Global buffs" — a real distinction to the report, not just
    *  formatting (see `buffsPopover` in index.ts). */
-  enemyStacks = new Map<Gear, number>();
+  enemyStacks = new Map<Gear, number>(); // TODO change Gear to Debuff
+  /** Raised caps for enemy debuffs, kept beside the stack counts: the effective max of any enemy
+   *  debuff is its own declared maxStacks plus this entry. Independent of `enemyStacks`, so a cap
+   *  can be raised before the debuff is ever applied (kits do it at combatStart). */
+  enemyMaxIncrease = new Map<Gear, number>(); // TODO change Gear to Debuff
   outroQueue: Buff[] = [];
   /** Off-tune buildup — the enemy's own bar, not any one member's, banked automatically by
    *  evaluate() off whichever held Gear contributed AddOfftune this action, same as
    *  TeamMember's own energy/concerto. */
   offtune = 0;
-  /** Which Tune Break variant the target is shifted toward right now, or `null` for a plain break.
-   *  Set by any action declaring `rupture`/`strain`/`hack` (see `evaluate()`), and only ever one at
-   *  a time — a new Shifting replaces whatever was there. Consumed by the break it decides. */
-  shifting: Type1 | null = null;
   /** Whose kit each piece of Gear ultimately came from, by member name.
    *
    *  Gear equipped at setup is sourced to whoever equipped it. Everything else inherits: a buff
@@ -772,8 +720,12 @@ export class State {
   }
 
   stacksOfEnemy(gear: Gear): number { return this.enemyStacks.get(gear) ?? 0; }
+  enemyMax(gear: Gear): number { return gear.maxStacks + (this.enemyMaxIncrease.get(gear) ?? 0); }
+  increaseMaxEnemy(gear: Gear, n = 1): void {
+    this.enemyMaxIncrease.set(gear, (this.enemyMaxIncrease.get(gear) ?? 0) + n);
+  }
   addStackEnemy(gear: Gear, n = 1): number {
-    const next = Math.min(gear.maxStacks, this.stacksOfEnemy(gear) + n);
+    const next = Math.min(this.enemyMax(gear), this.stacksOfEnemy(gear) + n);
     if (this.enemyStacks.get(gear) === next) return next;
     stackVersion++;
     this.enemyStacks.set(gear, next);
@@ -793,7 +745,7 @@ export class State {
     return next;
   }
   setStacksEnemy(gear: Gear, n: number): number {
-    const next = Math.max(0, Math.min(gear.maxStacks, n));
+    const next = Math.max(0, Math.min(this.enemyMax(gear), n));
     if (next === 0) {
       if (!this.enemyStacks.has(gear)) return 0;
       stackVersion++;
@@ -812,10 +764,39 @@ export class State {
   }
 }
 
+// TODO move this into enemy.ts
 // level-100 enemy at a flat 20% resistance — the project's own standing baseline
 const ENEMY_RES = 20, ENEMY_DEF_LEVEL = 100;
 export const enemyDef = () => 792 + 8 * ENEMY_DEF_LEVEL;
 export const enemyRes = () => ENEMY_RES;
+
+/**
+ * How a Tune Break resolves — injected by tunebreak.ts rather than imported from it, because the
+ * dependency only runs one way: that file needs `Action`/`Debuff` from here at module-evaluation
+ * time, so importing it back would be a cycle whose classes are still in their temporal dead zone.
+ * `run()` calls this when the bar fills; the resolver picks which variant the break is and hands
+ * back a callback for whatever state it leaves behind, run once the break itself has resolved.
+ *
+ * Registered by importing tunebreak.ts, which solver.ts does for every path that runs a team.
+ */
+export interface TuneBreak { action: Action; slot: string; resolved: () => void }
+
+
+// TODO MOVE ALL THIS INTO tunebreak.ts
+/** The plain break, and the bucket every break's damage groups under. Both live here rather than in
+ *  tunebreak.ts so the engine still breaks correctly on its own: the resolver below defaults to
+ *  this, and importing tunebreak.ts only *upgrades* it with the variants. Nothing silently stops
+ *  happening if a consumer forgets that import. tunebreak.ts re-exports both. */
+export const TUNE_BREAK = new Action("Tune Break", {
+  element: Attribute.Physical, scaling: Scaling.Tune, cast: Cast.TuneBreak, type: Type1.Break, mv: 1600,
+});
+export const TUNE_BREAK_SLOT = "Misc";
+
+const plainTuneBreak = (): TuneBreak =>
+  ({ action: TUNE_BREAK, slot: TUNE_BREAK_SLOT, resolved: () => {} });
+
+let tuneBreakResolver: (state: State) => TuneBreak = plainTuneBreak;
+export function setTuneBreakResolver(fn: (state: State) => TuneBreak): void { tuneBreakResolver = fn; }
 
 /** The off-tune bar's own ceiling, in this engine's units — the migrated sheet's own 39.2, scaled
  *  x10000 exactly like every `offtune` an action declares (see migration/data/config.json's own
@@ -974,10 +955,10 @@ export function addEnemyStat(stat: EnemyStat, value: number, tag?: string): void
 
 /** Running total for the action being evaluated, including any scoped variant matching it — one
  *  lookup, since `pushStat()` already folded every matching scope in as it was written. */
-export function get(stat: Stat): number {
+export function getStat(stat: Stat): number {
   return currentSlot!.effective[STAT_INDEX.get(stat)!]!;
 }
-export function pct(stat: Stat): number { return get(stat) / 100; }
+export function pct(stat: Stat): number { return getStat(stat) / 100; }
 
 // local — the acting resonator's own held Gear. Read-only, so these still take any Gear
 // (checking whether a Mainslot/Resonator is equipped is legitimate); only the stack-modifying
@@ -1077,13 +1058,6 @@ export function revokeTeam(buff: Buff): void { currentState!.revokeGlobal(buff);
 // placed on the enemy rather than any resonator — same "ticks on every slot's own turn" shape as
 // the Team functions above, kept as its own pool so the report can tell the two apart (see
 // State.enemyStacks)
-/** Put the target under a Tune Break Shifting from inside a kit, for the kits whose variant isn't
- *  a property of the action but of the mode they're in — Lynae's Photochromic Flux shifts Rupture
- *  or Strain purely by which Resonance Mode she holds, so the action itself can't declare it the
- *  way `ActionDef.rupture`/`strain`/`hack` does. `null` clears it. Exclusive either way: one
- *  Shifting at a time (see `State.shifting`). */
-export function shift(type: Type1 | null): void { currentState!.shifting = type; }
-
 export function stacksOfEnemy(gear: Gear): number { return currentState!.stacksOfEnemy(gear); }
 export function applyEnemy(debuff: Debuff, n = 1): number {
   attribute(debuff);
@@ -1091,6 +1065,10 @@ export function applyEnemy(debuff: Debuff, n = 1): number {
 }
 export function removeStackEnemy(debuff: Debuff, n = 1): number { return currentState!.removeStackEnemy(debuff, n); }
 export function revokeEnemy(debuff: Debuff): void { currentState!.revokeEnemy(debuff); }
+/** Raise an enemy debuff's cap for the rest of the fight: its effective max becomes its own
+ *  declared maxStacks plus every increase granted. Works before the debuff is ever applied, so a
+ *  kit can call it from combatStart(). */
+export function maxStackIncrease(debuff: Debuff, n = 1): void { currentState!.increaseMaxEnemy(debuff, n); }
 
 /** Grant/spend a Buff on one specific resonator's own local stacks, regardless of whose turn it
  *  is — for a kit that reacts to the whole team but pays out onto one specific member (Jingran's
@@ -1369,12 +1347,6 @@ export function evaluate(state: State, action: Action): ResolvedSnapshot {
   const offtuneGain = (action.offtune + stat(Stat.AddOfftune)) * (1 + stat(Stat.OfftuneBuildup) / 100);
   state.offtune = Math.max(OFFTUNE_AFTER_BREAK, state.offtune + offtuneGain);
 
-  // Shifting: whichever variant this cast declares becomes the one the next break resolves as.
-  // Declared like the elemental statuses (a plain amount on the action, see `ActionDef.rupture`),
-  // and exclusive — the target can only be shifted one way at a time.
-  if (action.rupture > 0) state.shifting = Type1.Rupture;
-  else if (action.strain > 0) state.shifting = Type1.Strain;
-  else if (action.hack > 0) state.shifting = Type1.Hack;
 
   // RealEnergy (TeamMember.realEnergy): the same gain as the real Energy bar above, each holder
   // capped at their own maxEnergy, plus half of it shared to every *other* member — a standing
@@ -1500,18 +1472,13 @@ export function run(state: State, rotation: Action[]): ResolvedSnapshot[] {
     // rather than through a declared `offtune` on the action keeps the drop off the break's own
     // off-tune column — the row reports the full bar it went off at — and stops it re-triggering
     // on itself.
-    if (state.offtune >= ENEMY_MAX_OFFTUNE) {
-      // whichever Shifting the target is under decides the variant; the Shifting is spent doing so
-      const variant = state.shifting ? TUNE_VARIANTS.get(state.shifting) : undefined;
-      state.shifting = null;
-      const broke = evaluate(state, variant?.action ?? TUNE_BREAK);
-      broke.slot = TUNE_BREAK_SLOT;
+    const tuneBreak = state.offtune >= ENEMY_MAX_OFFTUNE ? tuneBreakResolver(state) : undefined;
+    if (tuneBreak) {
+      const broke = evaluate(state, tuneBreak.action);
+      broke.slot = tuneBreak.slot;
       broke.triggered = true;   // nobody's turn, so the report dims it like any other follow-up
       state.offtune = OFFTUNE_AFTER_BREAK;
-      // ...and leaves the target Interfered. Added straight to the pool rather than through
-      // `applyEnemy()`, which would attribute it to whichever buff happened to be current — this
-      // is the engine's own doing, the same way the break itself is nobody's cast.
-      if (variant) state.addStackEnemy(variant.interfered, 1);
+      tuneBreak.resolved();     // the Interfered state the break leaves behind (see tunebreak.ts)
       out.push(broke);
     }
 

@@ -9,38 +9,39 @@
  */
 import type { Loadout } from "./kit.js";
 
-import { QY_LOADOUT } from "./resonators/qiuyuan.js";
-import { CANTA_LOADOUT } from "./resonators/cantarella.js";
-import { FROLO_LOADOUT } from "./resonators/phrolova.js";
-import { SK_LOADOUT } from "./resonators/shorekeeper.js";
-import { UNO_LOADOUT } from "./resonators/iuno.js";
-import { JINGOAT_LOADOUT } from "./resonators/jingran.js";
-import { ZZ_LOADOUT } from "./resonators/zhezhi.js";
-import { LOTTA_LOADOUT } from "./resonators/carlotta.js";
-import { GEEK_LOADOUT } from "./resonators/sigrika.js";
-import { VERINA_LOADOUT } from "./resonators/verina.js";
-import { SANHUA_LOADOUT } from "./resonators/sanhua.js";
-import { HROVER_LOADOUT } from "./resonators/rover_havoc.js";
-import { EROVER_LOADOUT } from "./resonators/rover_electro.js";
-import { AROVER_LOADOUT } from "./resonators/rover_aero.js";
-import { SROVER_LOADOUT } from "./resonators/rover_spectro.js";
-import { CIA_LOADOUT } from "./resonators/ciaccona.js";
-import { ROCCIA_LOADOUT } from "./resonators/roccia.js";
-import { AUGUGU_LOADOUT } from "./resonators/augusta.js";
-import { LOPA_LOADOUT } from "./resonators/lupa.js";
-import { GLOB_LOADOUT, GLOB_LOADOUT_ECHO_FOCUS } from "./resonators/galbrena.js";
-import { BRANT_LOADOUT } from "./resonators/brant.js";
-import { ENCORE_LOADOUT } from "./resonators/encore.js";
-import { CHANGLI_LOADOUT } from "./resonators/changli.js";
-import { DANJIN_LOADOUT } from "./resonators/danjin.js";
-import { CAMMY_LOADOUT } from "./resonators/camellya.js";
-import { MORT_LOADOUT } from "./resonators/mortefi.js";
-import { BULING_LOADOUT } from "./resonators/buling.js";
-import { LUCILLA_LOADOUT } from "./resonators/lucilla.js";
-import { LYNAE_LOADOUT, LYNAE_LOADOUT_STRAIN } from "./resonators/lynae.js";
-import { JIYAN_LOADOUT } from "./resonators/jiyan.js";
-import { YINLIN_LOADOUT } from "./resonators/yinlin.js";
-import { XLY_LOADOUT } from "./resonators/xiangli_yao.js";
+import { QY_LOADOUT } from "./resonators/septimont/qiuyuan.js";
+import { CANTA_LOADOUT } from "./resonators/rinascita/cantarella.js";
+import { FROLO_LOADOUT } from "./resonators/fractsidus/phrolova.js";
+import { SK_LOADOUT } from "./resonators/blackshores/shorekeeper.js";
+import { UNO_LOADOUT } from "./resonators/septimont/iuno.js";
+import { JINGOAT_LOADOUT } from "./resonators/mengzhou/jingran.js";
+import { ZZ_LOADOUT } from "./resonators/jinzhou/zhezhi.js";
+import { LOTTA_LOADOUT } from "./resonators/rinascita/carlotta.js";
+import { GEEK_LOADOUT } from "./resonators/lahairoi/sigrika.js";
+import { VERINA_LOADOUT } from "./resonators/standard/verina.js";
+import { SANHUA_LOADOUT } from "./resonators/standard/sanhua.js";
+import { HROVER_LOADOUT } from "./resonators/blackshores/rover_havoc.js";
+import { EROVER_LOADOUT } from "./resonators/blackshores/rover_electro.js";
+import { AROVER_LOADOUT } from "./resonators/blackshores/rover_aero.js";
+import { SROVER_LOADOUT } from "./resonators/blackshores/rover_spectro.js";
+import { CIA_LOADOUT } from "./resonators/rinascita/ciaccona.js";
+import { ROCCIA_LOADOUT } from "./resonators/rinascita/roccia.js";
+import { AUGUGU_LOADOUT } from "./resonators/septimont/augusta.js";
+import { LOPA_LOADOUT } from "./resonators/septimont/lupa.js";
+import { GLOB_LOADOUT, GLOB_LOADOUT_ECHO_FOCUS } from "./resonators/septimont/galbrena.js";
+import { BRANT_LOADOUT } from "./resonators/rinascita/brant.js";
+import { ENCORE_LOADOUT } from "./resonators/standard/encore.js";
+import { CHANGLI_LOADOUT } from "./resonators/jinzhou/changli.js";
+import { DANJIN_LOADOUT } from "./resonators/standard/danjin.js";
+import { CAMMY_LOADOUT } from "./resonators/blackshores/camellya.js";
+import { MORT_LOADOUT } from "./resonators/standard/mortefi.js";
+import { BULING_LOADOUT } from "./resonators/standard/buling.js";
+import { LUCILLA_LOADOUT } from "./resonators/lahairoi/lucilla.js";
+import { LYNAE_LOADOUT, LYNAE_LOADOUT_STRAIN } from "./resonators/lahairoi/lynae.js";
+import { MORNYE_LOADOUT } from "./resonators/lahairoi/mornye.js";
+import { JIYAN_LOADOUT } from "./resonators/jinzhou/jiyan.js";
+import { YINLIN_LOADOUT } from "./resonators/jinzhou/yinlin.js";
+import { XLY_LOADOUT } from "./resonators/jinzhou/xiangli_yao.js";
 
 /** Keyed by export name, and deliberately not typed as `Record<string, Loadout>` — the inferred
  *  literal keys are what let index.ts destructure this without every entry coming back as
@@ -80,6 +81,7 @@ export const LOADOUTS = {
   XLY_LOADOUT,
   LYNAE_LOADOUT,
   LYNAE_LOADOUT_STRAIN,
+  MORNYE_LOADOUT,
 };
 
 export type LoadoutName = keyof typeof LOADOUTS;
@@ -131,4 +133,5 @@ export {
   XLY_LOADOUT,
   LYNAE_LOADOUT,
   LYNAE_LOADOUT_STRAIN,
+  MORNYE_LOADOUT,
 };

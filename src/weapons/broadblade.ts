@@ -147,3 +147,31 @@ export const CRADLE_OF_LIFE = new Buff({
     removeStack(CRADLE_OF_LIFE, spent);
   },
 });
+
+/** Starfield Calibrator, Mornye's sig, R1: Definite Solution. Base 412.5 ATK and a huge 77.04% ER
+ *  — the ER is the point, since her own Liberation converts everything past 100% into crit. +16%
+ *  DEF flat (she scales her Liberation and her healing off DEF). Healing anyone hands the whole
+ *  team +20% Crit. DMG for 4s; her rotation heals on both her skill and her field, so it holds.
+ *  The Resonance Skill's 8 Concerto on a 20s cooldown works like Variation's Ceaseless Aria:
+ *  first Skill cast grants it and goes on cooldown, reset by the wielder's Outro. */
+export const STARFIELD_CALIBRATOR = new Weapon({
+  weaponType: WeaponType.Broadblade,
+  name: "Starfield Calibrator",
+  apply: () => { addStat(Stat.BaseAtk, 412.5); addStat(Stat.Er, 77.04); addStat(Stat.BonusDef, 16); },
+  update: () => {
+    if (casting(Cast.Skill)) applySelf(DEFINITE_SOLUTION_CONCERTO, 1);
+    if (currentAction().heals) applyTeam(DEFINITE_SOLUTION, 1);
+  },
+});
+export const DEFINITE_SOLUTION = new Buff({
+  name: "Starfield Calibrator: Definite Solution (team)",
+  apply: () => { if (currentAction().active) addStat(Stat.CritDmg, 20); },
+});
+export const DEFINITE_SOLUTION_CONCERTO = new Buff({
+  name: "Starfield Calibrator: Definite Solution", maxStacks: 2,
+  apply: () => {
+    if (stacks() === 1 && casting(Cast.Skill)) { applySelf(DEFINITE_SOLUTION_CONCERTO, 1); addStat(Stat.AddConcerto, 8); }
+    else if (stacks() === 2 && casting(Cast.Outro)) removeStack(DEFINITE_SOLUTION_CONCERTO, 2);
+  },
+  display: () => `Starfield Calibrator: Definite Solution${stacks() === 1 ? "" : " (cooldown)"}`,
+});

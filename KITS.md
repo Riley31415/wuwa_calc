@@ -36,3 +36,9 @@ https://ww.nanoka.cc/weapon/21050096
 hiyuki https://ww.nanoka.cc/character/1108
 xuanling https://ww.nanoka.cc/character/1610 
 aemeath https://ww.nanoka.cc/character/1210
+
+#
+fix yinlin
+verify xiangliyao
+test mornye and lynae
+add mornye and lynae forte

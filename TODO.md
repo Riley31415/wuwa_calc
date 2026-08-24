@@ -18,6 +18,9 @@ insert hecate ba12 whenever none has been queued for a certain # of actions?
 add the manual hecate attacks too
 moonlit and shorekeeper domain correct action timing
 
+# team generation system
+dps give a list of valid characters for each slot in the team
+
 # rotation compare
 multiple rotations as an axis
 

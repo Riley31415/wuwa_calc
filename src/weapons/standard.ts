@@ -158,7 +158,7 @@ export const NEW_STD_SWORD = new Weapon({
  *  +26% Resonance Skill DMG Bonus for 6s — that half works for anyone, so it lives here. The other
  *  half names Rover: Aero's own Unbound Flow outright, so its trigger lives in their kit file
  *  instead (rover_aero.ts's own update(), gated on holding this weapon): importing those two
- *  actions here would make weapons/standard.ts and resonators/rover_aero.ts a cycle, and whichever
+ *  actions here would make weapons/standard.ts and resonators/rinascita/rover_aero.ts a cycle, and whichever
  *  loaded second would read the other's exports before they were initialized. */
 export const BLOODPACTS_PLEDGE = new Weapon({
   weaponType: WeaponType.Sword,

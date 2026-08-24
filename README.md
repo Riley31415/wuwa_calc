@@ -16,10 +16,10 @@ Has to be served, not opened off disk — browsers block module imports on `file
 | `src/stats.ts` | the stat vocabulary (`Stat`, `Element`, `Type1`/`Type2`, `Cast`, `Node`, `Scaling`) |
 | `src/damage.ts` | the damage formula |
 | `src/display.ts` | turns a run into the report/hover-trace data the page renders |
-| `src/resonators/*.ts` | one file per resonator: actions, buffs, the Resonator itself, talents, inherent skills, sequences, a sample rotation, a loadout |
-| `src/echoes/*.ts` | mainslot echoes and sonata sets, grouped by the region that introduced them |
+| `src/resonators/<region>/*.ts` | one folder per region (jinzhou, blackshores, rinascita, septimont, lahairoi, mengzhou), plus `standard/` for the launch-roster standard characters: one file per resonator — actions, buffs, the Resonator itself, talents, inherent skills, sequences, a sample rotation, a loadout |
+| `src/echoes/<region>.ts` | mainslot echoes and sonata sets, one file per region that introduced them (Black Shores' Fallacy lives in jinzhou.ts) |
 | `src/weapons/*.ts` | signature and standard weapons, grouped by weapon type |
-| `src/shared/mainstats.ts` / `substats.ts` | echo main-stat builds (`mainstats()`) and substat spreads (`substats()`/`chem()`) |
+| `src/mainstats.ts` / `substats.ts` | echo main-stat builds (`mainstats()`) and substat spreads (`substats()`/`chem()`) |
 | `index.ts` | the whole site — team definitions, the comparison table, the detail page |
 
 ## The engine
@@ -96,7 +96,7 @@ one; `queueOutro(buff)` hands a buff to whoever the outro queue delivers it to n
 
 ## Adding a resonator
 
-One file in `src/resonators/`. Cite the nanoka.cc character page and, where used, the migrated
+One file in the resonator's own region folder (`src/resonators/<region>/`). Cite the nanoka.cc character page and, where used, the migrated
 sheet in the file header. Export a `_LOADOUT` (a `Loadout`, built from the resonator + talent +
 both inherents + weapon + mainslot + sonata + mainstat + substat, plus up to six sequence nodes)
 and a rotation array. Wire it into `index.ts`'s own `TEAMS` once it has a team to run in — a

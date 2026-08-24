@@ -3,8 +3,8 @@
  * alone decides. Values are the 5-star level-25 numbers. A 3-cost's elemental damage is scoped
  * per element rather than generic, so a mismatched slot doesn't silently pay full price.
  */
-import { Buff, addStat } from "../kit.js";
-import { Stat, Attribute, scopedStat } from "../stats.js";
+import { Buff, addStat } from "./kit.js";
+import { Stat, Attribute, scopedStat } from "./stats.js";
 
 /** No physical entry: a 3-cost elemental damage main stat doesn't exist for physical in-game. */
 const ELEMENTS: Attribute[] = [

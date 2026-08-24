@@ -1,8 +1,9 @@
 /** Signature Pistols weapons, ported to the new engine. */
 import {
   Buff, Debuff, Weapon, WeaponType, Stat, EnemyStat, Attribute, Type1, Cast,
-  addStat, addEnemyStat, applySelf, applyEnemy, applyTeam, isHeld, casting, currentAction, currentTeam, revoke, stacks,
+  addStat, addEnemyStat, applySelf, applyEnemy, applyTeam, isHeld, casting, currentAction, revoke, stacks,
 } from "../kit.js";
+import { isShifted } from "../tunebreak.js";
 
 /** The Last Dance, Carlotta's sig, R1: Silent Eulogy. +12% ATK flat. Intro/Liberation grants
  *  +48% Resonance Skill DMG Bonus for 5s. */
@@ -76,10 +77,9 @@ export const SPECTRUM_BLASTER = new Weapon({
   name: "Spectrum Blaster",
   apply: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.BonusAtk, 12); },
   update: () => {
-    if (casting(Cast.Intro) || currentAction().type === Type1.Basic) applySelf(ATTENDANCE_EXEMPTION, 1);
-    // "each time the wielder inflicts a Shifting during Basic Attacks" — the shift itself is the
-    // mode gear's doing (see lynae.ts), so this keys off the same actions carrying it
-    if (currentAction().type === Type1.Basic && currentTeam().shifting) applyTeam(SPECTRUM_CHORUS, 1);
+    const a = currentAction();
+    if (casting(Cast.Intro) || a.type === Type1.Basic) applySelf(ATTENDANCE_EXEMPTION, 1);
+    if (casting(Cast.Basic) && (a.rupture || a.strain)) applyTeam(SPECTRUM_CHORUS, 1);
   },
 });
 export const ATTENDANCE_EXEMPTION = new Buff({
@@ -88,6 +88,6 @@ export const ATTENDANCE_EXEMPTION = new Buff({
   convert: () => { if (casting(Cast.Outro)) revoke(ATTENDANCE_EXEMPTION); },
 });
 export const SPECTRUM_CHORUS = new Buff({
-  name: "Spectrum Blaster: Shifting Chorus", maxStacks: 3,
+  name: "Spectrum Blaster: Attendance Exemption Protocol (team)", maxStacks: 3,
   apply: () => addStat(Stat.DmgBonus, 8 * stacks()),
 });
