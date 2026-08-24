@@ -11,7 +11,7 @@ import {
 export const RIME_DRAPED_SPROUTS = new Weapon({
   weaponType: WeaponType.Rectifier,
   name: "Rime-Draped Sprouts",
-  update: () => { if (currentAction().cast === Cast.Skill) applySelf(PANORAMA_STACKS, 1); },
+  update: () => { if (casting(Cast.Skill)) applySelf(PANORAMA_STACKS, 1); },
   apply: () => {
     addStat(Stat.BaseAtk, 500);
     addStat(Stat.CritDmg, 72);
@@ -44,8 +44,7 @@ export const WHISPERS_OF_SIRENS = new Weapon({
   weaponType: WeaponType.Rectifier,
   name: "Whispers of Sirens",
   update: () => {
-    const a = currentAction();
-    if ((a.cast === Cast.Intro || a.cast === Cast.Basic) && !stacksOf(GENTLE_DREAM)) applySelf(GENTLE_DREAM, 1);
+    if ((casting(Cast.Intro) || casting(Cast.Basic)) && !stacksOf(GENTLE_DREAM)) applySelf(GENTLE_DREAM, 1);
   },
   apply: () => {
     addStat(Stat.BaseAtk, 500);

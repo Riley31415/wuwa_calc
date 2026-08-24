@@ -10,6 +10,7 @@ import {
  *  Energy" is checked for real off the wearer's own `maxEnergy()`. */
 export const DREAM_OF_THE_LOST_3PC = new Sonata({
   name: "Dream of the Lost 3pc",
+  abbreviation: "DotL",
   apply: () => {
     if (maxEnergy() !== 0) return;
     addStat(Stat.CritRate, 20);
@@ -43,6 +44,7 @@ export const CROWN_STACKS = new Buff({
 });
 export const COV_3PC = new Sonata({
   name: "Crown of Valor 3pc",
+  abbreviation: "CoV",
   update: () => { if (currentAction().shields) applySelf(CROWN_STACKS, currentAction().shields); },
 });
 
@@ -83,6 +85,7 @@ export const CLAWPRINT_LIBERATION = new Buff({
 });
 export const CLAWPRINT_5PC = new Sonata({
   name: "Flaming Clawprint 5pc",
+  abbreviation: "Clawprint",
   update: () => { if (casting(Cast.Liberation)) { applyTeam(CLAWPRINT_TEAM, 1); applySelf(CLAWPRINT_LIBERATION, 1); } },
 });
 export const CLAWPRINT_2PC = new Sonata2pc({ name: "Flaming Clawprint 2pc", apply: () => addStat(Stat.DmgBonus, 10, Attribute.Fusion) });
@@ -114,6 +117,7 @@ export const FLAMEWING_SHADOW_ECHO = new Buff({
 });
 export const FLAMEWING_SHADOW_3PC = new Sonata({
   name: "Flamewing's Shadow 3pc",
+  abbreviation: "Flamewing",
   update: () => {
     const a = currentAction();
     if (a.type === Type1.Echo) applySelf(FLAMEWING_SHADOW_HEAVY, 1);
@@ -150,6 +154,7 @@ export const LAW_OF_HARMONY_TEAM = new Buff({
 });
 export const LAW_OF_HARMONY_3PC = new Sonata({
   name: "Law of Harmony 3pc",
+  abbreviation: "LoH",
   update: () => {
     if (casting(Cast.Echo)) { applySelf(LAW_OF_HARMONY_SELF, 1); applyTeam(LAW_OF_HARMONY_TEAM, 1); }
   },

@@ -1,18 +1,19 @@
 /**
- * Phrolova, ported to the new engine — sequence-0 core loop only.
+ * Phrolova, ported to the new engine.
  * Maestro (open/charges/next-note) is one stacking Buff rather than three separate mechanics —
  * see MAESTRO's own comment for how a single stack count carries all three.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
   applySelf, stacksOf, currentAction, casting, queue, queueOutro,
   revoke, addStat, stacks,
-  lostOnSwap,
+  lostOnSwap, Sequence, applyTeam, isHeld, setForte1,
 } from "../kit.js";
-import { LETHEAN_ELEGY } from "../weapons/rectifier.js";
+import { LETHEAN_ELEGY, STRINGMASTER } from "../weapons/rectifier.js";
+import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../weapons/standard.js";
 import { DREAM_OF_THE_LOST_3PC } from "../echoes/septimont.js";
 import { NM_HECATE, MIDNIGHT_VEIL_2PC } from "../echoes/rinascita.js";
-import { mainstats } from "../shared/mainstats.js";
+import { mainstatOptions } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -23,17 +24,17 @@ function phroAction(id: string, def: object): Action {
 
 // energy/concerto come off the migrated sheet's combined BA12/BA23/BA123 rows — BA1/BA2 are
 // derived by subtraction, cross-checked both ways against BA12 and BA23.
-export const BA1 = phroAction("Basic - Movement of Life and Death 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 106.9, energy: 1.68, concerto: 3.36 });
-export const BA2 = phroAction("Basic - Movement of Life and Death 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 95.43, energy: 1.5, concerto: 3 });
-export const BA3 = phroAction("Basic - Movement of Life and Death 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 196.14, energy: 3.12, concerto: 6.18, forte1: 1 });
+export const BA1 = phroAction("Basic - Movement of Life and Death 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 106.9, offtune: 5376, energy: 1.68, concerto: 3.36 });
+export const BA2 = phroAction("Basic - Movement of Life and Death 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 95.43, offtune: 4800, energy: 1.5, concerto: 3 });
+export const BA3 = phroAction("Basic - Movement of Life and Death 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 196.14, offtune: 9864, energy: 3.12, concerto: 6.18, forte1: 1 });
 
-export const Skill = phroAction("Skill - Whispers in a Fleeting Dream", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 211.94, energy: 13.34, concerto: 10, forte1: 1 });
+export const Skill = phroAction("Skill - Whispers in a Fleeting Dream", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 211.94, offtune: 4264, energy: 13.34, concerto: 10, forte1: 1 });
 
-export const FBA = phroAction("Forte - Movement of Fate and Finality", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 505.01, energy: 3.21, concerto: 10.02, forte1: 1 });
-export const FSkill = phroAction("Forte - Murmurs in a Haunting Dream", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 464.07, energy: 2.95, concerto: 10, forte1: 1 });
+export const FBA = phroAction("Forte - Movement of Fate and Finality", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 505.01, offtune: 10161, energy: 3.21, concerto: 10.02, forte1: 1 });
+export const FSkill = phroAction("Forte - Murmurs in a Haunting Dream", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 464.07, offtune: 9338, energy: 2.95, concerto: 10, forte1: 1 });
 
 export const ScarletCoda = phroAction("Heavy - Scarlet Coda", {
-  node: Node.Normal, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Skill, mv: 660.16, energy: 6.93, concerto: 40, forte1: -6,
+  node: Node.Normal, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Skill, mv: 660.16, offtune: 166144, energy: 6.93, concerto: 40, forte1: -6,
 });
 
 // concerto only — Liberation costs no Resonance Energy (maxEnergy: 0 below). The sheet's separate
@@ -43,12 +44,12 @@ export const Liberation = phroAction("Liberation - Waltz of Forsaken Depths", {
 });
 
 export const Intro = phroAction("Intro - Suite of Quietus", {
-  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 201.52, energy: 10, concerto: 10,
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 201.52, offtune: 10137, energy: 10, concerto: 10,
 });
 /** Maestro-replaced Intro — used whenever she re-enters with Maestro still open. Playing it is
  *  also what closes Maestro back out (see MAESTRO's own convert() below). */
 export const EIntro = phroAction("Intro - Suite of Immortality", {
-  node: Node.Intro, cast: Cast.Intro, type: Type1.Skill, mv: 596.43, energy: 10, concerto: 10,
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Skill, mv: 596.43, offtune: 9600, energy: 10, concerto: 10,
 });
 export const Outro = phroAction("Outro - Unfinished Piece", {
   cast: Cast.Outro, mv: 0, active: false,
@@ -76,9 +77,12 @@ const NOTE_LABEL = new Map<Action, string>([
   [EBA_CADENZA, "Cadenza"], [EBA_STRINGS, "Strings"], [EBA_WINDS, "Winds"],
 ]);
 
-/** Queue the next undrawn note and advance MAESTRO's own count. */
+/** Queue the next undrawn note and advance MAESTRO's own count. S3 turns every note she's
+ *  holding when Maestro opens into a Cadenza (Scarlet Coda, its trigger, is always the cast right
+ *  before Liberation here), so the first six she plays are Cadenza on that chain. */
 function drawNote(): void {
-  queue(SEQUENCE[Math.min(SEQUENCE.length - 1, stacksOf(MAESTRO) - 1)]!);
+  const i = Math.min(SEQUENCE.length - 1, stacksOf(MAESTRO) - 1);
+  queue(isHeld(PH_S3) && i < 6 ? EBA_CADENZA : SEQUENCE[i]!);
   applySelf(MAESTRO, 1);
 }
 
@@ -114,7 +118,8 @@ export const MAESTRO = new Buff({
   display: (): string => {
     const justPlayed = NOTE_LABEL.get(currentAction());
     if (justPlayed) return `Maestro: ${justPlayed}`;
-    const next = SEQUENCE[Math.min(SEQUENCE.length - 1, stacks() - 1)]!;
+    const i = Math.min(SEQUENCE.length - 1, stacks() - 1);
+    const next = isHeld(PH_S3) && i < 6 ? EBA_CADENZA : SEQUENCE[i]!;
     return `Maestro: ${NOTE_LABEL.get(next)}`;
   },
 });
@@ -143,10 +148,73 @@ export const PHROLOVA_OUTRO = new Buff({
   update: () => { lostOnSwap(); },
 });
 
+/* --------------------------------------------------------------------------------- sequences */
+
+/** S6's own Hecate cast, queued out of her two Forte actions — she's on the field for those, so
+ *  unlike the Maestro notes this is an active action. */
+export const Apparition = phroAction("Hecate - Apparition of Beyond", { type: Type1.Echo, mv: 216.42 });
+
+/** S1: the out-of-combat top-up only ever reads, in a rotation, as opening the fight holding 2
+ *  Volatile Notes. */
+export const PH_S1 = new Sequence({
+  name: "Phrolova S1: A Key to Netherworld's Secrets",
+  combatStart: () => setForte1(2),
+  apply: () => { const a = currentAction(); if (a === FBA || a === FSkill) addStat(Stat.MulMv, 80); },
+});
+
+/** S2: both Scarlet Coda lines together are the one +75% MV multiplier, not a per-Aftersound one. */
+export const PH_S2 = new Sequence({
+  name: "Phrolova S2: A Rope Tied to a Life Beyond",
+  update: () => { if (currentAction() === ScarletCoda) applySelf(AFTERSOUND, 14); },
+  apply: () => { if (currentAction() === ScarletCoda) addStat(Stat.MulMv, 75); },
+});
+
+/** S3: the Cadenza ATK shred isn't modelled (enemy ATK doesn't enter this formula); the note
+ *  conversion lives in drawNote() above. */
+export const PH_S3 = new Sequence({
+  name: "Phrolova S3: A Dagger to Cut Clean Obsessions",
+  apply: () => addStat(Stat.Amp, 80, Type1.Echo),
+});
+
+/** S4: 30s, so permanent uptime; untagged per the attribute-bonus rule. Her own Echo Skill casts
+ *  are the trigger — Scarlet Coda counts as one (cast2). */
+export const PH_S4_TEAM = new Buff({
+  name: "Phrolova S4: A Torch Illuminating the Path (team)",
+  apply: () => addStat(Stat.DmgBonus, 20),
+});
+export const PH_S4 = new Sequence({
+  name: "Phrolova S4: A Torch Illuminating the Path",
+  update: () => { if (casting(Cast.Echo)) applyTeam(PH_S4_TEAM, 1); },
+});
+
+/** S5: a Stagnation field and 30% damage-taken reduction — neither reaches this calculator. */
+export const PH_S5 = new Sequence({ name: "Phrolova S5: A Forked Road in Fate's Heartland" });
+
+/** S6: +24% MV on the Maestro notes, an extra Hecate cast out of each Forte action, and the
+ *  Maestro damage split — off-field (her inactive actions) is the 40% the target takes, on-field
+ *  is the Havoc bonus instead. */
+export const PH_S6 = new Sequence({
+  name: "Phrolova S6: A Night to Depart From Eternal Rest",
+  update: () => {
+    const a = currentAction();
+    if (a === FBA || a === FSkill) queue(Apparition);
+    if (a === Apparition) applySelf(AFTERSOUND, 8); // TODO check if the apparition gains the 8 stacks for its damage
+  },
+  apply: () => {
+    const a = currentAction();
+    if (a === EBA_STRINGS || a === EBA_WINDS || a === EBA_CADENZA) addStat(Stat.MulMv, 24);
+    if (stacksOf(MAESTRO)) {
+      if (a.active) addStat(Stat.DmgBonus, 60, Attribute.Havoc);
+      else addStat(Stat.TotalDmg, 40);
+    }
+  },
+});
+
 /** Her, as a Resonator: name/element, every grant/spend/queue rule her kit needs, and her own
  *  base stat line. */
 export const PHROLOVA = new Resonator({
   name: "Phrolova",
+  abbreviation: "Frolo",
   element: Attribute.Havoc,
   weapon: WeaponType.Rectifier,
   color: "#c6547a",
@@ -191,15 +259,16 @@ export const PH_LOOP = [
 
 // her real 43311 build: resonator + talents + both Inherent Skills + Forte Circuit, weapon,
 // mainslot echo, sonata pieces, mainstat/substat
-export const PH_LOADOUT = new Loadout(
+export const FROLO_LOADOUT = new Loadout(
   PHROLOVA,
+  true,
   PHROLOVA_TALENTS,
   PH_INHERENT_1,
   PH_INHERENT_2,
-  LETHEAN_ELEGY,
-  NM_HECATE,
-  DREAM_OF_THE_LOST_3PC,
-  MIDNIGHT_VEIL_2PC,
-  mainstats("CD", "havoc havoc", "atk atk"),
+  [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER],
+  [new EchoLoadout(NM_HECATE, DREAM_OF_THE_LOST_3PC, MIDNIGHT_VEIL_2PC)],
+  mainstatOptions(["CR", "CD"], ["atk", "havoc"], ["atk"]),
   chem("atk", "skill"),
+  PH_OPENER, PH_LOOP,
+  PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6,
 );

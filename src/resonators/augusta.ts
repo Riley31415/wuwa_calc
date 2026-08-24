@@ -25,16 +25,17 @@
  * `shields` value onto another kit's own action.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
   applySelf, applyTeam, revoke, revokeBuff, casting, currentAction, currentTeam, addStat,
   queue, queueOutro,
   lostOnSwap,
 } from "../kit.js";
-import { THUNDERFLARE_DOMINION } from "../weapons/broadblade.js";
+import { THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../weapons/broadblade.js";
+import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../weapons/standard.js";
 import { FALSE_SOVEREIGN, COV_3PC } from "../echoes/septimont.js";
 import { VOID_THUNDER_2PC } from "../echoes/jinzhou.js";
 import { PHROLOVA, MAESTRO } from "./phrolova.js";
-import { mainstats } from "../shared/mainstats.js";
+import { mainstatOptions } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -44,41 +45,41 @@ function augustaAction(id: string, def: object): Action {
 }
 
 // --- basics, mid-air, dodge counter (Hunter's Path)
-export const BA1 = augustaAction("Basic - Hunter's Path 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 57.46, energy: 0.73, concerto: 1.45, offtune: 2300, forte1: 99, forte2: 74 });
-export const BA2 = augustaAction("Basic - Hunter's Path 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 134, energy: 1.70, concerto: 3.38, offtune: 5400, forte1: 230, forte2: 172 });
-export const BA3 = augustaAction("Basic - Hunter's Path 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 196.83, energy: 2.49, concerto: 4.95, offtune: 7900, forte1: 336, forte2: 252 });
-export const BA4 = augustaAction("Basic - Hunter's Path 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 193.89, energy: 2.46, concerto: 4.89, offtune: 7800, forte1: 333, forte2: 249 });
-export const MA = augustaAction("Basic - Hunter's Path (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 119.3 });
-export const DC = augustaAction("Basic - Hunter's Path 2 (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 134 });
-export const MDC = augustaAction("Basic - Hunter's Path (Mid-Air Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 119.3 });
+export const BA1 = augustaAction("Basic - Hunter's Path 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 57.46, energy: 0.73, concerto: 1.45, offtune: 2312, forte1: 99, forte2: 74 });
+export const BA2 = augustaAction("Basic - Hunter's Path 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 134, energy: 1.70, concerto: 3.38, offtune: 5392, forte1: 230, forte2: 172 });
+export const BA3 = augustaAction("Basic - Hunter's Path 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 196.83, energy: 2.49, concerto: 4.95, offtune: 7920, forte1: 336, forte2: 252 });
+export const BA4 = augustaAction("Basic - Hunter's Path 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 193.89, energy: 2.46, concerto: 4.89, offtune: 7803, forte1: 333, forte2: 249 });
+export const MA = augustaAction("Basic - Hunter's Path (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 119.3, energy: 1.5, concerto: 2, offtune: 7200 });
+export const DC = augustaAction("Basic - Hunter's Path 2 (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 134, energy: 1.7, concerto: 13.38, offtune: 5392 });
+export const MDC = augustaAction("Basic - Hunter's Path (Mid-Air Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 119.3, energy: 1.5, concerto: 12, offtune: 7200 });
 
 // heavy attack: Steelclash, base cast; at full Prowess it's replaced by Backstep -> Spinslash
-export const HA = augustaAction("Heavy - Hunter's Path", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 139.17, energy: 1.77, concerto: 3.51, offtune: 5700, forte1: 342, forte2: 255 });
+export const HA = augustaAction("Heavy - Hunter's Path", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 139.17, energy: 1.77, concerto: 3.51, offtune: 5601, forte1: 342, forte2: 255 });
 export const FHA1 = augustaAction("Forte Heavy - Thunderoar: Backstep", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 53.68, energy: 0.50, concerto: 1, offtune: 1600, forte1: -660, forte2: 50 });
-export const FHA2 = augustaAction("Forte Heavy - Thunderoar: Spinslash", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 425.16, energy: 4.47, concerto: 8.91, offtune: 14400, forte2: 744 });
+export const FHA2 = augustaAction("Forte Heavy - Thunderoar: Spinslash", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 425.16, energy: 4.47, concerto: 8.91, offtune: 14256, forte2: 744 });
 export const FJump = augustaAction("Forte Heavy - Thunderoar: Uppercut", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 357.86, energy: 3.76, concerto: 7.50, offtune: 12000, forte1: -660, forte2: 382 });
 
 // resonance skill: Warrior's Blade, base cast; at full Ascendancy it's replaced by the Undying
 // Sunlight Strike -> Leap -> Plunge chain instead
-export const Skill = augustaAction("Skill - Warrior's Blade", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 656.1, energy: 9, concerto: 10, offtune: 4500, forte1: 660, forte2: 400 });
+export const Skill = augustaAction("Skill - Warrior's Blade", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 656.1, energy: 9, concerto: 10, offtune: 4491, forte1: 660, forte2: 400 });
 export const FSkill1 = augustaAction("Forte Skill - Undying Sunlight: Strike", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 278.34, energy: 5, concerto: 7, offtune: 18200, forte2: -4000 });
 export const FSkill2 = augustaAction("Forte Skill - Undying Sunlight: Leap", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 278.35, energy: 5, concerto: 7, offtune: 11200, shields: 2 });
 /** Consumes all Ascendancy, counts as Heavy Attack DMG, grants a stack of Majesty. */
 export const FSkill3 = augustaAction("Forte Skill - Undying Sunlight: Plunge", { node: Node.Forte, cast: Cast.Skill, type: Type1.Heavy, mv: 865.83, energy: 11, concerto: 7, offtune: 24000, shields: 2 });
 
 // liberation: Sword of Eternal Oath, the plain press-and-release cast
-export const Lib1 = augustaAction("Liberation - Sword of Eternal Oath", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 1099.48, shields: 2, concerto: 20, offtune: 29400, forte2: 1600 });
+export const Lib1 = augustaAction("Liberation - Sword of Eternal Oath", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 1099.48, energy: 4.74, shields: 2, concerto: 20, offtune: 29342, forte2: 1600, resetEnergy: true });
 /** Held instead of released once Majesty reaches 2 — costs both stacks of Majesty rather than
  *  Energy, spent via AUGUSTA's own update() below. Nine hits lumped into one action; queues
  *  Everbright Protector itself once the ninth lands. */
-export const Lib2 = augustaAction("Liberation - Sublime is the Sun", { node: Node.Liberation, cast: Cast.Liberation });
+export const Lib2 = augustaAction("Liberation - Sublime is the Sun", { node: Node.Liberation, cast: Cast.Liberation, resetEnergy: true });
 
 export const Lib2fua = augustaAction("Liberation - Sublime is the Sun: Sunborne x9", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 1073.61, concerto: 18, offtune: 64800 });
 /** The finisher — ends Sworn Allegiance and spends every stack of Crown of Wills. Costs no
  *  Resonance Energy. */
-export const Lib3 = augustaAction("Liberation - Sublime is the Sun: Everbright Protector", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 1192.93, concerto: 10, offtune: 49800 });
+export const Lib3 = augustaAction("Liberation - Sublime is the Sun: Everbright Protector", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 1192.93, energy: 60, concerto: 10, offtune: 50400 });
 
-export const Intro = augustaAction("Intro - Stride of Goldenflare", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.82, energy: 10, concerto: 10, offtune: 4800, forte1: 660, forte2: 800 });
+export const Intro = augustaAction("Intro - Stride of Goldenflare", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.82, energy: 10, concerto: 10, offtune: 9600, forte1: 660, forte2: 800 });
 /** No damage of its own, just the outro handoff (BATTLESONG) — her own Majesty/Crown of Wills
  *  grant is earned later, off the recipient's own Outro. */
 export const Outro = augustaAction("Outro - Battlesong of the Unyielding", { cast: Cast.Outro, active: false });
@@ -127,6 +128,7 @@ export const AG_INHERENT_2 = new Inherent({
 
 export const AUGUSTA = new Resonator({
   name: "Augusta",
+  abbreviation: "Augugu",
   element: Attribute.Electro,
   weapon: WeaponType.Broadblade,
   intro: () => Intro,
@@ -175,11 +177,12 @@ export const AG_ROTATION = [
 
 /* ----------------------------------------------------------------------------------- loadout */
 
-// her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
+// her real 43311 build: resonator + talents + both Inherent Skills, viable weapons, mainslot echo,
 // sonata pieces, mainstat/substat
-export const AG_LOADOUT = new Loadout(
-  AUGUSTA, AUGUSTA_TALENTS, AG_INHERENT_1, AG_INHERENT_2,
-  THUNDERFLARE_DOMINION,
-  FALSE_SOVEREIGN, COV_3PC, VOID_THUNDER_2PC,
-  mainstats("CR", "electro electro", "atk atk"), chem("atk", "heavy"),
+export const AUGUGU_LOADOUT = new Loadout(
+  AUGUSTA, true, AUGUSTA_TALENTS, AG_INHERENT_1, AG_INHERENT_2,
+  [THUNDERFLARE_DOMINION, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR, VERDANT_SUMMIT],
+  [new EchoLoadout(FALSE_SOVEREIGN, COV_3PC, VOID_THUNDER_2PC)],
+  mainstatOptions(["CR", "CD"], ["atk", "electro"], ["atk"]), chem("atk", "heavy"),
+  AG_ROTATION, AG_ROTATION,
 );

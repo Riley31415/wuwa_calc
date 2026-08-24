@@ -3,7 +3,7 @@
  *  Geochelone/Moonlit Clouds from jinzhou.ts and Dream of the Lost from septimont.ts. */
 import {
   Buff, Sonata, Sonata2pc, Mainslot, Action, Stat, Attribute, Type1, Cast, Scaling,
-  addStat, applySelf, casting, currentAction, revoke,
+  addStat, applySelf, casting, currentAction, queueOutro, revoke,
 } from "../kit.js";
 
 /* ------------------------------------------------------------------------------ Sigrika, 3.2 */
@@ -30,5 +30,30 @@ export const SOUND_OF_TRUE_NAME_BUFF = new Buff({
 });
 export const SOUND_OF_TRUE_NAME_5PC = new Sonata({
   name: "Sound of True Name 5pc",
+  abbreviation: "SoTN",
   update: () => { if (currentAction().type === Type1.Echo) applySelf(SOUND_OF_TRUE_NAME_BUFF, 1); },
+});
+
+/* -------------------------------------------------------------------------------- Lynae, 3.6 */
+
+/** Hyvatia: ten lasers at 27.36% apiece. */
+export const ACTION_HYVATIA = new Action("Echo - Hyvatia", {
+  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Echo,
+  mv: 27.36 * 10,
+});
+
+/** Its own handoff: an Outro within 15s of the summon hands the next resonator's Intro +10%
+ *  All-Attribute DMG Bonus for 15s. Modelled the way every other echo handoff here is — queued
+ *  onto the outro rather than tracking the 15s window, which a rotation never misses. */
+export const HYVATIA_HANDOFF = new Buff({
+  name: "Hyvatia: Outro",
+  apply: () => addStat(Stat.DmgBonus, 10),
+  convert: () => { if (casting(Cast.Outro)) revoke(HYVATIA_HANDOFF); },
+});
+
+export const HYVATIA = new Mainslot({
+  name: "Hyvatia",
+  abbreviation: "Hyvatia",
+  action: ACTION_HYVATIA,
+  update: () => { if (currentAction() === ACTION_HYVATIA) queueOutro(HYVATIA_HANDOFF); },
 });

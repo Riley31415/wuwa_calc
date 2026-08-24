@@ -22,6 +22,7 @@ export const ACTION_BELL_BORNE = new Action("Echo - Bell-Borne Geochelone", {
 
 export const BELL_BORNE_GEOCHELONE = new Mainslot({
   name: "Bell-Borne Geochelone",
+  abbreviation: "Bell",
   action: ACTION_BELL_BORNE,
   update: () => { if (currentAction() === ACTION_BELL_BORNE) applyTeam(BELL_BORNE_SHIELD, 2); },
 });
@@ -42,6 +43,7 @@ export const ACTION_HERON = new Action("Echo - Impermanence Heron", {
 
 export const HERON = new Mainslot({
   name: "Impermanence Heron",
+  abbreviation: "Heron",
   action: ACTION_HERON,
   update: () => { if (currentAction() === ACTION_HERON) queueOutro(HERON_HANDOFF); },
 });
@@ -59,6 +61,7 @@ export const MOONLIT_CLOUDS_2PC = new Sonata2pc({ name: "Moonlit Clouds 2pc", ap
 
 export const MOONLIT_CLOUDS_5PC = new Sonata({
   name: "Moonlit Clouds 5pc",
+  abbreviation: "Moonlit",
   update: () => { if (casting(Cast.Outro)) queueOutro(MOONLIT_CLOUDS_HANDOFF); },
 });
 
@@ -72,6 +75,7 @@ export const MOONLIT_CLOUDS_HANDOFF = new Buff({
  *  permanent uptime once triggered. 2pc: +10% Healing Bonus flat, tracked for completeness only. */
 export const REJUV_5PC = new Sonata({
   name: "Rejuvenating Glow 5pc",
+  abbreviation: "Rejuv",
   update: () => { if (currentAction().heals) applyTeam(REJUV_TEAM, 1); },
 });
 export const REJUV_TEAM = new Buff({ name: "Rejuvenating Glow (team)", apply: () => addStat(Stat.BonusAtk, 15) });
@@ -90,6 +94,7 @@ export const FALLACY_TEAM = new Buff({ name: "Fallacy of No Return (team)", appl
 
 export const FALLACY = new Mainslot({
   name: "Fallacy of No Return",
+  abbreviation: "Fallacy",
   action: ACTION_FALLACY,
   update: () => {
     if (currentAction() === ACTION_FALLACY) applyTeam(FALLACY_TEAM, 1);
@@ -105,6 +110,7 @@ export const FALLACY = new Mainslot({
 export const MOLTEN_RIFT_2PC = new Sonata2pc({ name: "Molten Rift 2pc", apply: () => addStat(Stat.DmgBonus, 10, Attribute.Fusion) });
 export const MOLTEN_RIFT_5PC = new Sonata({
   name: "Molten Rift 5pc",
+  abbreviation: "Molten",
   update: () => { if (casting(Cast.Skill)) applySelf(MOLTEN_RIFT_BUFF, 1); },
 });
 export const MOLTEN_RIFT_BUFF = new Buff({
@@ -144,7 +150,7 @@ export const INFERNO_RIDER = new Mainslot({
 
 /* ------------------------------------------------------------------ Camellya 1.4 / Rover 1.0 */
 
-// TODO implement crownless and dreamless
+// TODO implement dreamless
 /** Nightmare: Crownless, the shared Havoc mainslot echo for Camellya and Havoc Rover. Flat
  *  Havoc/Basic Attack DMG Bonus, no trigger. */
 // TODO 20% dmg bonus to echo on consecutive hits
@@ -157,11 +163,26 @@ export const NM_CROWNLESS = new Mainslot({
   apply: () => { addStat(Stat.DmgBonus, 12, Attribute.Havoc); addStat(Stat.DmgBonus, 12, Type1.Basic); },
 });
 
+export const ACTION_CROWNLESS = new Action("Echo - Nightmare: Crownless", {
+  cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Echo, mv: 134.08*2, energy: 	2.09*2,
+});
+export const CROWNLESS_WINDOW = new Buff({
+  name: "Crownless",
+  apply: () => { addStat(Stat.DmgBonus, 12, Attribute.Havoc); addStat(Stat.DmgBonus, 12, Type1.Skill); },
+  convert: () => { if (casting(Cast.Outro)) revoke(CROWNLESS_WINDOW); },
+});
+export const CROWNLESS = new Mainslot({
+  name: "Crownless",
+  action: ACTION_CROWNLESS,
+  update: () => { if (currentAction() === ACTION_CROWNLESS) applySelf(CROWNLESS_WINDOW, 1); },
+});
+
 /** Havoc Eclipse, the matching sonata. 2pc: +10% Havoc DMG Bonus flat. 5pc: +7.5% Havoc DMG
  *  Bonus after Basic/Heavy Attack, up to 4 stacks, 15s each. */
 export const HAVOC_ECLIPSE_2PC = new Sonata2pc({ name: "Havoc Eclipse 2pc", apply: () => addStat(Stat.DmgBonus, 10, Attribute.Havoc) });
 export const HAVOC_ECLIPSE_5PC = new Sonata({
   name: "Havoc Eclipse 5pc",
+  abbreviation: "Havoc",
   update: () => {
     const a = currentAction();
     if (a.type === Type1.Basic || a.type === Type1.Heavy) applySelf(HAVOC_ECLIPSE_STACKS, 1);
@@ -197,6 +218,7 @@ export const LAMPYLUMEN_MYRIAD = new Mainslot({
 export const FREEZING_FROST_2PC = new Sonata2pc({ name: "Freezing Frost 2pc", apply: () => addStat(Stat.DmgBonus, 10, Attribute.Glacio) });
 export const FREEZING_FROST_5PC = new Sonata({
   name: "Freezing Frost 5pc",
+  abbreviation: "Frost",
   update: () => {
     const a = currentAction();
     if (a.type === Type1.Basic || a.type === Type1.Heavy) applySelf(FREEZING_FROST_STACKS, 1);
@@ -224,6 +246,7 @@ export const NM_FEILIAN_BERINGAL = new Mainslot({
 export const SIERRA_GALE_2PC = new Sonata2pc({ name: "Sierra Gale 2pc", apply: () => addStat(Stat.DmgBonus, 10, Attribute.Aero) });
 export const SIERRA_GALE_5PC = new Sonata({
   name: "Sierra Gale 5pc",
+  abbreviation: "Sierra",
   update: () => { if (casting(Cast.Intro)) applySelf(SIERRA_GALE_INTRO, 1); },
 });
 export const SIERRA_GALE_INTRO = new Buff({
@@ -261,6 +284,7 @@ export const JUE = new Mainslot({
 export const CELESTIAL_LIGHT_2PC = new Sonata2pc({ name: "Celestial Light 2pc", apply: () => addStat(Stat.DmgBonus, 10, Attribute.Spectro) });
 export const CELESTIAL_LIGHT_5PC = new Sonata({
   name: "Celestial Light 5pc",
+  abbreviation: "Celestial",
   update: () => { if (casting(Cast.Intro)) applySelf(CELESTIAL_LIGHT_INTRO, 1); },
 });
 export const CELESTIAL_LIGHT_INTRO = new Buff({
@@ -300,6 +324,7 @@ export const MECH_ABOMINATION = new Mainslot({
 export const LINGERING_TUNES_2PC = new Sonata2pc({ name: "Lingering Tunes 2pc", apply: () => addStat(Stat.BonusAtk, 10) });
 export const LINGERING_TUNES_5PC = new Sonata({
   name: "Lingering Tunes 5pc",
+  abbreviation: "Lingering",
   apply: () => addStat(Stat.DmgBonus, 60, Type1.Outro),
   update: () => { if (currentAction().active) applySelf(LINGERING_TUNES_STACKS, 1); },
 });
@@ -310,12 +335,24 @@ export const LINGERING_TUNES_STACKS = new Buff({
   display: () => `Lingering Tunes x${Math.ceil(stacks() / 2)}`,
 });
 
+/** Nightmare: Thundering Mephis — Void Thunder's own Overlord-class mainslot echo (Xiangli Yao's
+ *  pick). Flat Electro/Liberation DMG Bonus, no trigger. */
+export const ACTION_NM_MEPHIS = new Action("Echo - Nightmare: Thundering Mephis", {
+  cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type1.Echo, mv: 405, energy: 5.62,
+});
+export const NM_MEPHIS = new Mainslot({
+  name: "Nightmare: Thundering Mephis",
+  action: ACTION_NM_MEPHIS,
+  apply: () => { addStat(Stat.DmgBonus, 12, Attribute.Electro); addStat(Stat.DmgBonus, 12, Type1.Liberation); },
+});
+
 /** Void Thunder, a generic sonata reused by Augusta. 2pc: +10% Electro DMG Bonus flat. 5pc: +15%
  *  Electro DMG Bonus per stack on releasing Heavy Attack or Resonance Skill, up to 2 stacks, 15s
  *  a stack — lost after its own outro rather than modelled with literal per-stack decay. */
 export const VOID_THUNDER_2PC = new Sonata2pc({ name: "Void Thunder 2pc", apply: () => addStat(Stat.DmgBonus, 10, Attribute.Electro) });
 export const VOID_THUNDER_5PC = new Sonata({
-  name: "Void Thunder 5pc", maxStacks: 2,
+  name: "Void Thunder 5pc",
+  abbreviation: "Void", maxStacks: 2,
   apply: () => addStat(Stat.DmgBonus, 15 * stacks(), Attribute.Electro),
   update: () => { if (casting(Cast.Heavy) || casting(Cast.Skill)) applySelf(VOID_THUNDER_5PC, 1); },
   convert: () => { if (casting(Cast.Outro)) revoke(VOID_THUNDER_5PC); },

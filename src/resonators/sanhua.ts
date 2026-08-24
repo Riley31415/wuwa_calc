@@ -7,14 +7,14 @@
  * own update() reads and consumes.
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Loadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
+  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
   applySelf, applyTeam, revokeTeam, isHeld, stacksOf, removeStack, revoke, casting, currentAction,
   addStat, stacks, queue, queueOutro,
   lostOnSwap,
 } from "../kit.js";
-import { EMERALD_OF_GENESIS } from "../weapons/standard.js";
+import { EMERALD_OF_GENESIS, OVERTURE } from "../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../echoes/jinzhou.js";
-import { mainstats } from "../shared/mainstats.js";
+import { mainstatOptions } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -27,20 +27,20 @@ export const Intro = sanhuaAction("Intro - Freezing Thorns", { node: Node.Intro,
 export const Outro = sanhuaAction("Outro - Silversnow", { cast: Cast.Outro, active: false });
 
 // Skill creates Ice Prism; Liberation creates 2 Glacier stacks (S5) and arms Blade Mastery (S4)
-export const Skill = sanhuaAction("Skill - Eternal Frost", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 359.85, energy: 10, concerto: 15 });
-export const Liberation = sanhuaAction("Liberation - Glacial Gaze", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 809.48, energy: 10, concerto: 20 });
+export const Skill = sanhuaAction("Skill - Eternal Frost", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 359.85, offtune: 8000, energy: 10, concerto: 15 });
+export const Liberation = sanhuaAction("Liberation - Glacial Gaze", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 809.48, offtune: 61440, energy: 10, concerto: 20, resetEnergy: true });
 
-export const BA1 = sanhuaAction("Basic - Frigid Light 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 48.71, energy: 0.87, concerto: 2, offtune: 4340 });
-export const BA2 = sanhuaAction("Basic - Frigid Light 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.76, energy: 1.32, concerto: 4, offtune: 4960 });
-export const BA3 = sanhuaAction("Basic - Frigid Light 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.32, energy: 1.52, concerto: 8, offtune: 4560 });
-export const BA4 = sanhuaAction("Basic - Frigid Light 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.34, energy: 1.42, concerto: 8, offtune: 13440 });
-export const BA5 = sanhuaAction("Basic - Frigid Light 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 233.81, energy: 4.2, concerto: 10, offtune: 9520 });
+export const BA1 = sanhuaAction("Basic - Frigid Light 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 48.71, energy: 0.87, concerto: 2, offtune: 2800 });
+export const BA2 = sanhuaAction("Basic - Frigid Light 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.76, energy: 1.32, concerto: 4, offtune: 4240 });
+export const BA3 = sanhuaAction("Basic - Frigid Light 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.32, energy: 1.52, concerto: 8, offtune: 4960 });
+export const BA4 = sanhuaAction("Basic - Frigid Light 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.34, energy: 1.42, concerto: 8, offtune: 4560 });
+export const BA5 = sanhuaAction("Basic - Frigid Light 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 233.81, energy: 4.2, concerto: 10, offtune: 13440 });
 export const HA = sanhuaAction("Heavy - Frigid Light", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 111.35, energy: 2, concerto: 8, offtune: 8000 });
-export const MA = sanhuaAction("Basic - Frigid Light (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.29, energy: 0.51, concerto: 1, offtune: 8000 });
+export const MA = sanhuaAction("Basic - Frigid Light (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.29, energy: 0.51, concerto: 1, offtune: 9520 });
 
 // Ice Thorn's own burst is a real exception, not a data gap: 0 concerto (every other burst pays
 // 1500), just 200 Energy — kept as given rather than smoothed over.
-export const FHA = sanhuaAction("Forte Heavy - Detonate", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 372.58, energy: 4.68, concerto: 15 });
+export const FHA = sanhuaAction("Forte Heavy - Detonate", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 372.58, offtune: 14992, energy: 4.68, concerto: 15 });
 export const DETONATE_THORN = sanhuaAction("Forte - Ice Burst (Thorn)", { node: Node.Normal, type: Type1.Skill, mv: 59.65, energy: 2, concerto: 0, active: false });
 export const DETONATE_PRISM = sanhuaAction("Forte - Ice Burst (Prism)", { node: Node.Normal, type: Type1.Skill, mv: 79.53, energy: 7, concerto: 15, active: false });
 export const DETONATE_GLACIER = sanhuaAction("Forte - Ice Burst (Glacier)", { node: Node.Normal, type: Type1.Skill, mv: 139.17, energy: 7, concerto: 15, active: false });
@@ -161,6 +161,7 @@ export const SANHUA_S6 = new Sequence({
  *  own base stat line. `standardCharacter: true` — see the file header. */
 export const SANHUA = new Resonator({
   name: "Sanhua",
+  abbreviation: "Sanhua",
   element: Attribute.Glacio,
   weapon: WeaponType.Sword,
   intro: () => Intro,
@@ -208,17 +209,17 @@ export const SH_ROTATION = [
 
 // her real build: resonator + talents + both Inherent Skills + every sequence node
 // (standardCharacter — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat
-export const SH_LOADOUT = new Loadout(
+export const SANHUA_LOADOUT = new Loadout(
   SANHUA,
+  false,
   SANHUA_TALENTS,
   SH_INHERENT_1,
   SH_INHERENT_2,
-  EMERALD_OF_GENESIS,
-  HERON,
-  MOONLIT_CLOUDS_5PC,
-  MOONLIT_CLOUDS_2PC,
-  mainstats("CD", "glacio glacio", "atk atk"),
+  [EMERALD_OF_GENESIS, OVERTURE],
+  [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC)],
+  mainstatOptions(["CR", "CD"], ["atk", "glacio"], ["atk"]),
   chem("atk", "skill"),
+  SH_ROTATION, SH_ROTATION,
   SANHUA_S1,
   SANHUA_S2,
   SANHUA_S3,

@@ -15,14 +15,15 @@
  * standing rule; Returned from Ashes' own shield isn't modelled for HP value, only `shields: 1`.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, Action, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
   applySelf, revoke, casting, currentAction, addStat, get, isHeld, queueOutro,
   forte1, setForte1,
   lostOnSwap,
 } from "../kit.js";
 import { UNFLICKERING_VALOR } from "../weapons/sword.js";
+import { EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE } from "../weapons/standard.js";
 import { DRAGON_OF_DIRGE, TIDEBREAKING_5PC, TIDEBREAKING_2PC } from "../echoes/rinascita.js";
-import { mainstats } from "../shared/mainstats.js";
+import { mainstatOptions } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -34,25 +35,25 @@ function brantAction(id: string, def: object): Action {
 // energy/concerto come off the old reference file's own numbers (÷100 — see file header); no
 // offtune anywhere in it either, so every action below is bare on that front.
 // --- intro / outro
-export const Intro = brantAction("Intro - Applaud for Me!", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 253.49, concerto: 10, forte1: 2500, heals: true });
+export const Intro = brantAction("Intro - Applaud for Me!", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 253.49, offtune: 12000, concerto: 10, forte1: 2500, heals: true });
 export const Outro = brantAction("Outro - The Course is Set!", { cast: Cast.Outro, active: false });
 
 // --- resonance skill: Anchors Aweigh!, and liberation: To the Horizon (opens Aflame)
-export const Skill = brantAction("Skill - Anchors Aweigh!", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 333.92, energy: 7.18, concerto: 10, forte1: 793 });
-export const Liberation = brantAction("Liberation - To the Horizon", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 680.45, concerto: 20 });
+export const Skill = brantAction("Skill - Anchors Aweigh!", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 333.92, offtune: 10160, energy: 7.18, concerto: 10, forte1: 793 });
+export const Liberation = brantAction("Liberation - To the Horizon", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 680.45, offtune: 48000, concerto: 20, resetEnergy: true });
 
 /** At 100 Bravo — considered Basic Attack DMG, spends the whole gauge, and ends Aflame (if up)
  *  once it resolves — see AFLAME's own convert() below. */
-export const FSkill = brantAction("Forte - Returned from Ashes", { node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 1888.71, energy: 30, concerto: 50, forte1: -10000, shields: 1 });
+export const FSkill = brantAction("Forte - Returned from Ashes", { node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 1888.71, offtune: 63200, energy: 30, concerto: 50, forte1: -10000, shields: 1 });
 
 // --- mid-air combo stages (Captain's Rhapsody). forte1 is the base (un-doubled) Bravo gain —
 //     AFLAME doubles it live while held.
-export const MA1 = brantAction("Basic - Captain's Rhapsody 1 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 215.81, energy: 1.82, concerto: 7.28, forte1: 976 });
-export const MA1H = brantAction("Basic - Captain's Rhapsody 1 (Mid-Air, Hold)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 548.29, energy: 4.96, concerto: 9.85, forte1: 2195 });
-export const MA2 = brantAction("Basic - Captain's Rhapsody 2 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 262.79, energy: 2.52, concerto: 10.08, forte1: 1220 });
-export const MA2H = brantAction("Basic - Captain's Rhapsody 2 (Mid-Air, Hold)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 460.01, energy: 5.46, concerto: 10.92, forte1: 2439 });
-export const MA3 = brantAction("Basic - Captain's Rhapsody 3 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 261.97, energy: 2.52, concerto: 10.08, forte1: 1341 });
-export const MA4 = brantAction("Basic - Captain's Rhapsody 4 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 253.85, energy: 3.78, concerto: 7.55, forte1: 976 });
+export const MA1 = brantAction("Basic - Captain's Rhapsody 1 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 215.81, offtune: 10216, energy: 3.2, concerto: 6.39, forte1: 976 });
+export const MA1H = brantAction("Basic - Captain's Rhapsody 1 (Mid-Air, Hold)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 548.29, offtune: 25952, energy: 8.16, concerto: 16.24, forte1: 2195 });
+export const MA2 = brantAction("Basic - Captain's Rhapsody 2 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 262.79, offtune: 12440, energy: 3.9, concerto: 7.79, forte1: 1220 });
+export const MA2H = brantAction("Basic - Captain's Rhapsody 2 (Mid-Air, Hold)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 460.01, energy: 6.84, concerto: 13.67, offtune: 21776, forte1: 2439 });
+export const MA3 = brantAction("Basic - Captain's Rhapsody 3 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 261.97, offtune: 12398, energy: 3.9, concerto: 7.79, forte1: 1341 });
+export const MA4 = brantAction("Basic - Captain's Rhapsody 4 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 253.85, offtune: 12017, energy: 3.78, concerto: 7.55, forte1: 976 });
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -104,6 +105,7 @@ export const BR_VOYAGE_INHERENT = new Inherent({
 
 export const BRANT = new Resonator({
   name: "Brant",
+  abbreviation: "Brant",
   element: Attribute.Fusion,
   weapon: WeaponType.Sword,
   intro: () => Intro,
@@ -143,15 +145,15 @@ export const BR_ROTATION = [
 
 // his real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
-export const BR_LOADOUT = new Loadout(
+export const BRANT_LOADOUT = new Loadout(
   BRANT,
+  false,
   BRANT_TALENTS,
   BR_TRIAL_INHERENT,
   BR_VOYAGE_INHERENT,
-  UNFLICKERING_VALOR,
-  DRAGON_OF_DIRGE,
-  TIDEBREAKING_5PC,
-  TIDEBREAKING_2PC,
-  mainstats("CR", "ER ER", "atk atk"),
+  [UNFLICKERING_VALOR, EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE],
+  [new EchoLoadout(DRAGON_OF_DIRGE, TIDEBREAKING_5PC, TIDEBREAKING_2PC)],
+  mainstatOptions(["CR", "CD"], ["ER", "fusion"], ["atk"]),
   chem("atk", "basic"),
+  BR_ROTATION, BR_ROTATION,
 );

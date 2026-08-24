@@ -35,10 +35,10 @@
  *  S6 Heaven, Earth, Mind grants 50% Resonance Skill DMG Bonus instead of 25% — read by THUNDER_SPELL.
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Loadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
+  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
   applyTeam, applySelf, stacksOfTeam, isHeld, casting, currentAction, currentTeam, addStat, queue, revoke, revokeTeam,
 } from "../kit.js";
-import { COSMIC_RIPPLES, VARIATION } from "../weapons/standard.js";
+import { COSMIC_RIPPLES, NEW_STD_RECTIFIER, VARIATION } from "../weapons/standard.js";
 import { FALLACY, REJUV_5PC, REJUV_2PC } from "../echoes/jinzhou.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
@@ -51,33 +51,33 @@ function bulingAction(id: string, def: object): Action {
 
 // --- basics, mid-air, dodge counter (Hexagram Calls, Lightning Falls) — Stage 2 grants Trigram:
 //     Mountain, Stage 4/Mid-air grant Trigram: Thunder (fixed valid line, not enforced here)
-export const BA1 = bulingAction("Basic - Hexagram Calls, Lightning Falls 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 41.46, energy: 1.06, concerto: 3.34 });
-export const BA2 = bulingAction("Basic - Hexagram Calls, Lightning Falls 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 66.90, energy: 1.70, concerto: 5.40, forte1: 1 });
-export const BA3 = bulingAction("Basic - Hexagram Calls, Lightning Falls 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 47.02, energy: 1.20, concerto: 3.80 });
-export const BA4 = bulingAction("Basic - Hexagram Calls, Lightning Falls 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 93.64, energy: 2.36, concerto: 7.54, forte1: 1 });
-export const MA = bulingAction("Basic - Hexagram Calls, Lightning Falls (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.96, energy: 1.24, concerto: 4.96, forte1: 1 });
-export const DC = bulingAction("Basic - Hexagram Calls, Lightning Falls 3 (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 47.02, energy: 1.20, concerto: 13.80 });
+export const BA1 = bulingAction("Basic - Hexagram Calls, Lightning Falls 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 41.46, offtune: 3336, energy: 1.06, concerto: 3.34 });
+export const BA2 = bulingAction("Basic - Hexagram Calls, Lightning Falls 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 66.90, offtune: 5384, energy: 1.70, concerto: 5.40, forte1: 1 });
+export const BA3 = bulingAction("Basic - Hexagram Calls, Lightning Falls 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 47.02, offtune: 3784, energy: 1.20, concerto: 3.80 });
+export const BA4 = bulingAction("Basic - Hexagram Calls, Lightning Falls 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 93.64, offtune: 7536, energy: 2.36, concerto: 7.54, forte1: 1 });
+export const MA = bulingAction("Basic - Hexagram Calls, Lightning Falls (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.96, offtune: 4960, energy: 1.24, concerto: 4.96, forte1: 1 });
+export const DC = bulingAction("Basic - Hexagram Calls, Lightning Falls 3 (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 47.02, offtune: 3784, energy: 1.20, concerto: 13.80 });
 
 // hold Normal Attack to spend a specific Trigram pair left-to-right for a Minor state. Twin
 // Mountains/Twin Thunders heal only (0 mv, healing out of scope).
-export const HA_MOUNTAIN_OVER_THUNDER = bulingAction("Heavy - Mountain Over Thunder", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 178.93, energy: 3.00, concerto: 15, forte1: -2 });
-export const HA_THUNDER_OVER_MOUNTAIN = bulingAction("Heavy - Thunder Over Mountain", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 89.47, energy: 3.00, concerto: 15, forte1: -2 });
+export const HA_MOUNTAIN_OVER_THUNDER = bulingAction("Heavy - Mountain Over Thunder", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 178.93, offtune: 8000, energy: 3.00, concerto: 15, forte1: -2 });
+export const HA_THUNDER_OVER_MOUNTAIN = bulingAction("Heavy - Thunder Over Mountain", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 89.47, offtune: 8000, energy: 3.00, concerto: 15, forte1: -2 });
 export const HA_TWIN_MOUNTAINS = bulingAction("Heavy - Twin Mountains", { node: Node.Normal, cast: Cast.Heavy, mv: 0, heals: true, concerto: 15, forte1: -2 });
 export const HA_TWIN_THUNDERS = bulingAction("Heavy - Twin Thunders", { node: Node.Normal, cast: Cast.Heavy, mv: 0, heals: true, concerto: 15, forte1: -2 });
 
 // grants a Trigram: Thunder
-export const Skill = bulingAction("Skill - In Shadow Thunder Stirs", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 116.8, energy: 15.00, concerto: 23, forte1: +1 });
+export const Skill = bulingAction("Skill - In Shadow Thunder Stirs", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 116.8, offtune: 7832, energy: 15.00, concerto: 23, forte1: +1 });
 
 // assumed always cast as Harmony (see file header) — generates the Array, opening/refreshing
 // Thunder Spell at Primordial Qi
-export const Liberation = bulingAction("Liberation - Flashing Thunder Spell - Harmony", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 536.79, concerto: 20 });
+export const Liberation = bulingAction("Liberation - Flashing Thunder Spell - Harmony", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 536.79, offtune: 72000, concerto: 20, resetEnergy: true });
 
 /** The migrated sheet's own full 12-tick lifetime total (238.32% mv, 25 energy, 24 Electro
  *  Flare) rather than one representative tick, same lumped-window treatment as Zhezhi's Inklit
  *  Spirit/Cantarella's Diffusion. Nanoka's own single-tick number is 19.89% mv, for reference. */
 export const ACTION_FIVE_THUNDERS_ARRAY = bulingAction("Liberation - Five Thunders Spell Array x12", { type: Type1.Liberation, mv: 238.32, energy: 25, flare: 24, active: false });
 
-export const Intro = bulingAction("Intro - Summon and Smite", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 131.10, concerto: 10, flare: 4 });
+export const Intro = bulingAction("Intro - Summon and Smite", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 131.10, offtune: 8792, concerto: 10, flare: 4 });
 export const Outro = bulingAction("Outro - Exorcism Spell", { cast: Cast.Outro, mv: 0, active: false });
 
 /* ------------------------------------------------------------------------------------ buffs */
@@ -148,6 +148,8 @@ export const BL_S6 = new Sequence({ name: "Buling S6" });
 
 export const BULING = new Resonator({
   name: "Buling",
+  standardCharacter: true,
+  abbreviation: "Buling",
   element: Attribute.Electro,
   weapon: WeaponType.Rectifier,
   intro: () => Intro,
@@ -203,17 +205,17 @@ export const BL_OPENER = [
 
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat, all six sequences (by explicit instruction — see file header)
-export const BL_LOADOUT = new Loadout(
+export const BULING_LOADOUT = new Loadout(
   BULING,
+  false,
   BULING_TALENTS,
   BL_INHERENT_1,
   BL_INHERENT_2,
-  COSMIC_RIPPLES,
-  FALLACY,
-  REJUV_5PC,
-  REJUV_2PC,
-  mainstats("CD", "ER ER", "atk atk"),
+  [VARIATION],
+  [new EchoLoadout(FALLACY, REJUV_5PC, REJUV_2PC)],
+  [mainstats("CD", "ER ER", "atk atk")],
   chem("atk", "liberation", { er: true }),
+  BL_OPENER, BL_ROTATION,
   BL_S1,
   BL_S2,
   BL_S3,

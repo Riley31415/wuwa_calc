@@ -36,14 +36,15 @@
  * damage hit, nothing invented.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
   applySelf, applyEnemy, revokeEnemy, isHeld, currentAction, casting, revoke, addStat,
   forte1, forte2, setForte2,
   Debuff,
 } from "../kit.js";
 import { THE_LAST_DANCE } from "../weapons/pistol.js";
+import { NEW_STD_PISTOL, STATIC_MIST } from "../weapons/standard.js";
 import { FROSTY_RESOLVE_2PC, FROSTY_RESOLVE_5PC, SENTRY_CONSTRUCT } from "../echoes/rinascita.js";
-import { mainstats } from "../shared/mainstats.js";
+import { mainstatOptions } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -57,12 +58,12 @@ export const BA1 = carlottaAction("Basic - Silent Execution 1", { node: Node.Nor
 export const BA2 = carlottaAction("Basic - Silent Execution 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 131.83, energy: 1.96, concerto: 3.9, offtune: 6240, forte1: 3 });
 export const MA1 = carlottaAction("Basic - Silent Execution (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 3, concerto: 6, offtune: 9600 });
 export const MA2 = carlottaAction("Basic - Silent Execution: Customary Greetings", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 239.98, energy: 2.11, concerto: 4.2, offtune: 6720, forte1: 3 });
-export const DC = carlottaAction("Basic - Silent Execution (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 241.32, energy: 3.58, concerto: 7.15, offtune: 11426, forte2: 10, forte1: -1 });
+export const DC = carlottaAction("Basic - Silent Execution (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 241.32, energy: 3.58, concerto: 17.15, offtune: 11425, forte2: 10, forte1: -1 });
 
 // Necessary Measures: Basic Attack replaced while holding Moldable Crystals, each stage spending
 // one. Not placed in the rotation below (see file header), kept for completeness.
 export const NM1 = carlottaAction("Basic - Silent Execution: Necessary Measures 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 65.91, energy: 0.98, concerto: 1.95, offtune: 3120, forte2: 10, forte1: -1 });
-export const NM2 = carlottaAction("Basic - Silent Execution: Necessary Measures 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 133.51, energy: 1.98, concerto: 3.96, offtune: 5320, forte2: 10, forte1: -1 });
+export const NM2 = carlottaAction("Basic - Silent Execution: Necessary Measures 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 133.51, energy: 1.98, concerto: 3.96, offtune: 6320, forte2: 10, forte1: -1 });
 export const NM3 = carlottaAction("Basic - Silent Execution: Necessary Measures 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 233.25, energy: 3.47, concerto: 6.9, offtune: 11040, forte2: 10, forte1: -1 });
 
 // base cast, and Containment Tactics once Substance is full
@@ -75,7 +76,7 @@ export const Skill1 = carlottaAction("Skill - Art of Violence", {
   node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 288.22, energy: 2, concerto: 5, offtune: 6136, forte1: 3,
 });
 export const Skill2 = carlottaAction("Skill - Chromatic Splendor", {
-  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 563.64, energy: 3, concerto: 5, offtune: 6136,
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 563.64, energy: 3, concerto: 5, offtune: 12000,
 });
 
 // considered Resonance Skill DMG, spends all Substance
@@ -86,7 +87,7 @@ export const FHA = carlottaAction("Heavy - Imminent Oblivion", {
 // Era of New Wave opens Twilight Tango; Death Knell (up to 4, each granting 1 Meta Vector) then
 // Fatal Finale (requires and spends all 4) close it out
 export const Lib1 = carlottaAction("Liberation - Era of New Wave", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Skill, mv: 402.71, concerto: 20, offtune: 33600,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Skill, mv: 402.71, concerto: 20, offtune: 33600, resetEnergy: true,
 });
 export const DeathKnell = carlottaAction("Liberation - Death Knell", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Skill, mv: 241.64, energy: 5, concerto: 7, offtune: 9600, forte3: 1,
@@ -99,7 +100,7 @@ export const Intro = carlottaAction("Intro - Wintertime Aria", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 298.23, energy: 10, concerto: 10, offtune: 9335, forte2: 30, forte1: 3,
 });
 /** No handoff buff of any kind is described on her own kit page — left as a plain damage hit. */
-export const Outro = carlottaAction("Outro - Closing Remark", { cast: Cast.Outro, type: Type1.Outro, mv: 794.2, active: false });
+export const Outro = carlottaAction("Outro - Closing Remark", { cast: Cast.Outro, type: Type1.Outro, mv: 794.2, offtune: 28030, concerto: 5.85, energy: 22.94, active: false });
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -164,6 +165,7 @@ export const FINAL_BOW = new Buff({
 
 export const CARLOTTA = new Resonator({
   name: "Carlotta",
+  abbreviation: "Lotta",
   element: Attribute.Glacio,
   weapon: WeaponType.Pistols,
   intro: () => Intro,
@@ -210,15 +212,15 @@ export const CL_ROTATION = [
 
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
-export const CL_LOADOUT = new Loadout(
+export const LOTTA_LOADOUT = new Loadout(
   CARLOTTA,
+  true,
   CARLOTTA_TALENTS,
   CL_INHERENT_1,
   CL_INHERENT_2,
-  THE_LAST_DANCE,
-  SENTRY_CONSTRUCT,
-  FROSTY_RESOLVE_5PC,
-  FROSTY_RESOLVE_2PC,
-  mainstats("CR CR", "", "atk atk atk"),
+  [THE_LAST_DANCE, NEW_STD_PISTOL, STATIC_MIST],
+  [new EchoLoadout(SENTRY_CONSTRUCT, FROSTY_RESOLVE_5PC, FROSTY_RESOLVE_2PC)],
+  mainstatOptions(["CR", "CD"], ["atk", "glacio"], ["atk"]),
   chem("atk", "skill"),
+  CL_ROTATION, CL_ROTATION,
 );

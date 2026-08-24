@@ -14,6 +14,7 @@ import {
   scopedStat, TAGS_MATCHED, splitStat, statLabel,
   ATTRIBUTES, TYPE1S, TYPE2S,
 } from "./stats.js";
+import { isCast } from "./kit.js";
 import { mvPercent, effectiveDef, effectiveRes, damageFactors } from "./damage.js";
 import type { ChainGroup } from "./kit.js";
 import type { ResolvedSnapshot, StatEntry } from "./kit.js";
@@ -255,7 +256,7 @@ function rowValues(
   // cell red when an outro fired without a full 100-point bar banked (never true off an outro
   // row: concertoSpent only moves on one, see kit.ts's own evaluate()).
   raw.concertoSpent = snap.concertoSpent;
-  raw.isOutro = snap.action.cast === Cast.Outro ? 1 : 0;
+  raw.isOutro = isCast(snap.action, Cast.Outro) ? 1 : 0;
 
   // where each value came from, for the hover panels
   const sources: Sources = {};

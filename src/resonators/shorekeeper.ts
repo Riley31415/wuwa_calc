@@ -7,10 +7,11 @@
  * migrated sheet this was ported from didn't carry it.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
   applyTeam, applySelf, addBuff, revokeBuff, stacksOfTeam, currentAction, currentTeam, casting, revokeTeam, addStat,
 } from "../kit.js";
 import { SK_SIG } from "../weapons/rectifier.js";
+import { VARIATION } from "../weapons/standard.js";
 import { FALLACY, REJUV_5PC, REJUV_2PC } from "../echoes/jinzhou.js";
 import { mainstats } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
@@ -26,7 +27,7 @@ function skAction(id: string, def: object): Action {
 // basic before Forte: Illation spends the whole gauge below.
 export const BA1 = skAction("Basic - Origin Calculus 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 31.78, energy: 0.5, concerto: 1.6, offtune: 2664, forte1: 1 });
 export const BA2 = skAction("Basic - Origin Calculus 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 47.72, energy: 0.76, concerto: 2.4, offtune: 4000, forte1: 1 });
-export const BA3 = skAction("Basic - Origin Calculus 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 69.96, energy: 1.12, concerto: 3.56, offtune: 5990, forte1: 2 });
+export const BA3 = skAction("Basic - Origin Calculus 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 69.96, energy: 1.11, concerto: 3.54, offtune: 5865, forte1: 2 });
 
 export const MA = skAction("Basic - Origin Calculus (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.96, energy: 1.55, concerto: 5, offtune: 4960, forte1: 1 });
 
@@ -37,7 +38,7 @@ export const Skill = skAction("Skill - Chaos Theory", { node: Node.Skill, cast: 
 export const FHA = skAction("Forte - Illation", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 281.3, energy: 4.95, concerto: 11, offtune: 6360, forte1: -5 });
 
 export const Liberation = skAction("Liberation - End Loop", {
-  node: Node.Liberation, cast: Cast.Liberation, mv: 0, heals: true, concerto: 20,
+  node: Node.Liberation, cast: Cast.Liberation, mv: 0, heals: true, concerto: 20, resetEnergy: true,
 });
 
 export const Intro = skAction("Intro - Enlightenment", { node: Node.Intro, cast: Cast.Intro, type: Type1.Skill, mv: 226.5, heals: true, energy: 10, concerto: 20, offtune: 11395 });
@@ -112,6 +113,7 @@ export const SK_INHERENT_1 = new Inherent({ name: "Shorekeeper: Life Entwined" }
 
 export const SHOREKEEPER = new Resonator({
   name: "Shorekeeper",
+  abbreviation: "SK",
   element: Attribute.Spectro,
   weapon: WeaponType.Rectifier,
   color: "#f2e08a",
@@ -167,13 +169,13 @@ export const SK_LOOP = [
 // sonata pieces, mainstat/substat
 export const SK_LOADOUT = new Loadout(
   SHOREKEEPER,
+  false,
   SHOREKEEPER_TALENTS,
   SK_INHERENT_1,
   SK_INHERENT_2,
-  SK_SIG,
-  FALLACY,
-  REJUV_5PC,
-  REJUV_2PC,
-  mainstats("HP", "ER ER", "hp hp"),
+  [SK_SIG, VARIATION],
+  [new EchoLoadout(FALLACY, REJUV_5PC, REJUV_2PC)],
+  [mainstats("HP", "ER ER", "hp hp")],
   chem("hp", "liberation"),
+  SK_OPENER, SK_LOOP,
 );

@@ -24,14 +24,16 @@
  * genuinely team-wide buffs just to be reachable from a teammate's turn.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
   applySelf, forte2, setForte2, stacksOf, isHeld, currentAction,
   currentTeam, queue, revoke, addStat, get, stacks,
 } from "../kit.js";
-import { JINGRAN_SIG } from "../weapons/broadblade.js";
+import { JINGRAN_SIG, THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../weapons/broadblade.js";
+import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../weapons/standard.js";
 import { MYRIAD_SNARE, LAMP_5PC, LAMP_2PC } from "../echoes/mengzhou.js";
-import { mainstats } from "../shared/mainstats.js";
+import { mainstatOptions } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
+import { COV_3PC } from "../echoes/septimont.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -53,8 +55,8 @@ export const EBA3 = jingranAction("Basic - Drink Soul 3", { node: Node.Normal, c
 export const EBA4 = jingranAction("Basic - Drink Soul 4", { node: Node.Normal, cast: Cast.Basic, shields: 2, type: Type1.Heavy, mv: 153.16, energy: 2.6, concerto: 5.16, offtune: 8218, forte1: 50 });
 
 // --- dodge counters: Light Watch (Yang Font), Nether Dive (Yin Vessel), 100 Qi each
-export const DC = jingranAction("Basic - Light Watch", { node: Node.Normal, cast: Cast.DodgeCounter, shields: 1, type: Type1.Heavy, mv: 198.8, energy: 3.36, concerto: 6.68, offtune: 10664, forte1: 100 });
-export const EDC = jingranAction("Basic - Nether Dive", { node: Node.Normal, cast: Cast.DodgeCounter, shields: 1, type: Type1.Heavy, mv: 248.57, energy: 4.19, concerto: 8.36, offtune: 13337, forte1: 100 });
+export const DC = jingranAction("Basic - Light Watch", { node: Node.Normal, cast: Cast.DodgeCounter, shields: 1, type: Type1.Heavy, mv: 198.8, energy: 10, concerto: 6.68, offtune: 8000, forte1: 100 });
+export const EDC = jingranAction("Basic - Nether Dive", { node: Node.Normal, cast: Cast.DodgeCounter, shields: 1, type: Type1.Heavy, mv: 248.57, energy: 4.19, concerto: 18.36, offtune: 13337, forte1: 100 });
 
 // --- resonance skill. Scorching Yang/Afterlife's Guide are Yang Font's own tap+hold pair;
 //     Encroaching Yin/Netherworld Traverse are Yin Vessel's.
@@ -65,7 +67,7 @@ export const ESkill2 = jingranAction("Skill - Netherworld Traverse", { node: Nod
 
 export const Lib = jingranAction("Liberation - Burial of Thousand Souls", {
   node: Node.Liberation, cast: Cast.Liberation, shields: 2, type: Type1.Heavy, mv: 745.2, // 93.15% x 8
-  offtune: 168000, forte1: 200, forte2: 100,
+  offtune: 168000, forte1: 200, forte2: 100, resetEnergy: true, concerto: 20,
 });
 /** One per heavy attack while Mingfire is up. Node Liberation (attributed to it) but no `cast`:
  *  it's a summon, not a press. */
@@ -198,6 +200,7 @@ export const JINGRAN_FIRE_OF_LIFE = new Buff({
 
 export const JINGRAN = new Resonator({
   name: "Jingran",
+  abbreviation: "Jingoat",
   element: Attribute.Fusion,
   weapon: WeaponType.Broadblade,
   intro: () => Intro,
@@ -254,15 +257,16 @@ export const JR_ROTATION = [
 
 // his real 44111 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
-export const JR_LOADOUT = new Loadout(
+export const JINGOAT_LOADOUT = new Loadout(
   JINGRAN,
+  true,
   JINGRAN_TALENTS,
   JR_INHERENT_1,
   JR_INHERENT_2,
-  JINGRAN_SIG,
-  MYRIAD_SNARE,
-  LAMP_5PC,
-  LAMP_2PC,
-  mainstats("CD CD", "", "hp hp hp"),
+  [JINGRAN_SIG, NEW_STD_BRAUDBLADE, THUNDERFLARE_DOMINION, LUSTROUS_RAZOR, VERDANT_SUMMIT],
+  [new EchoLoadout(MYRIAD_SNARE, LAMP_5PC, LAMP_2PC),
+  new EchoLoadout(MYRIAD_SNARE, COV_3PC, LAMP_2PC)],
+  mainstatOptions(["CR", "CD", "HP"], ["atk", "fusion"], ["atk", "hp"]),
   chem("hp", "heavy"),
+  JR_ROTATION, JR_ROTATION,
 );

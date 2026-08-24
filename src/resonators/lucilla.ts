@@ -41,14 +41,16 @@
  * old migrated sheet predates Chafe mode entirely, so none of it could be cross-checked.
  */
 import {
-  Buff, Debuff, Talent, Inherent, Resonator, Loadout, ResonanceMode, Action, ECHO_CAST, INTRO, Stat, EnemyStat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling,
+  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, ResonanceMode, Action, ECHO_CAST, INTRO, Stat, EnemyStat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling,
   applySelf, applyTeam, applyEnemy, isHeld, casting, currentAction, addStat, addEnemyStat, stacks, forte1, queue, queueOutro, revoke,
   lostOnSwap,
 } from "../kit.js";
-import { FREEZE_FRAME } from "../weapons/rectifier.js";
-import { BELL_BORNE_GEOCHELONE, HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC } from "../echoes/jinzhou.js";
-import { DREAM_OF_THE_LOST_3PC } from "../echoes/septimont.js";
-import { mainstats } from "../shared/mainstats.js";
+import { FREEZE_FRAME, STRINGMASTER, LETHEAN_ELEGY } from "../weapons/rectifier.js";
+import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../weapons/standard.js";
+import { BELL_BORNE_GEOCHELONE, HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC, FALLACY, REJUV_2PC, FREEZING_FROST_2PC } from "../echoes/jinzhou.js";
+import { DREAM_OF_THE_LOST_3PC, LAW_OF_HARMONY_3PC } from "../echoes/septimont.js";
+import { NM_HECATE } from "../echoes/rinascita.js";
+import { mainstatOptions } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -69,7 +71,7 @@ export const BA1 = lucillaAction("Basic - Snapshot 1", { node: Node.Normal, cast
 export const BA2 = lucillaAction("Basic - Snapshot 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 67.23, energy: 1.22, concerto: 1.94, offtune: 3865 });
 export const BA3 = lucillaAction("Basic - Snapshot 3 - Commendable", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 235.27, energy: 4.23, concerto: 6.77, offtune: 13524, forte1: 50 });
 export const MA = lucillaAction("Basic - Snapshot (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.29, energy: 1.55, concerto: 3.66, offtune: 4960 });
-export const DC = lucillaAction("Basic - Snapshot (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 150.73, energy: 2.71, concerto: 6.40, offtune: 8665 });
+export const DC = lucillaAction("Basic - Snapshot (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 150.73, energy: 2.71, concerto: 16.4, offtune: 8665 });
 
 // Phantom Frame (the pull-in dash, held to deploy Focus Ring) into either Compensate (cursor
 // outside Perfect Focus) or Spotlight (cursor within it); the rotation below only places
@@ -77,7 +79,7 @@ export const DC = lucillaAction("Basic - Snapshot (Dodge Counter)", { node: Node
 export const PhantomFrame = lucillaAction("Skill - Phantom Frame", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 39.78, energy: 1.26, concerto: 2.07, offtune: 4002 });
 // also reduces the Resonance Skill's own cooldown by 8s — unmodeled, no CD tracking here
 export const Compensate = lucillaAction("Skill - Compensate", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 249.07, energy: 9.31, concerto: 3.08, offtune: 4176, forte1: 25 });
-export const Spotlight = lucillaAction("Skill - Spotlight", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 548.98, energy: 27.90, concerto: 6.80, offtune: 9205, forte1: 50 });
+export const Spotlight = lucillaAction("Skill - Spotlight", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 548.98, energy: 27.90, concerto: 6.8, offtune: 9205, forte1: 50 });
 
 // Echo Skill DMG under Echo mode, Basic Attack DMG under Chafe (separate Action objects, since
 // `type` is fixed data)
@@ -87,7 +89,7 @@ export const LiberationChafe = lucillaAction("Liberation - Clear As Day (Chafe)"
 // Reminiscence: Basic Attack - Tracing Forms (unconditionally Basic Attack DMG) and Letting It Go
 // (mode-typed). Stage 3 itself triggers Oblivion once per Photo actually banked (forte1, max 3).
 export const UBA1 = lucillaAction("Basic - Tracing Forms 1", { node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 76.59, energy: 1.08, concerto: 2.07, offtune: 3425 });
-export const UBA2 = lucillaAction("Basic - Tracing Forms 2", { node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 149.42, energy: 2.10, concerto: 4.02, offtune: 6680 });
+export const UBA2 = lucillaAction("Basic - Tracing Forms 2", { node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 149.42, energy: 12.09, concerto: 4.93, offtune: 6680 });
 export const UBA3 = lucillaAction("Basic - Tracing Forms 3", { node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 416.96, energy: 5.84, concerto: 11.20, offtune: 18640 });
 
 /** Spends a banked Photo for an extra hit — queued by Stage 3 itself. Under Echo mode this is
@@ -98,8 +100,8 @@ export const OblivionChafe = lucillaAction("Forte - Oblivion (Chafe)", { node: N
 
 // concerto is 7.88 off its own 3 Damage Data hits, plus a separate flat +20 the page states
 // Letting It Go "additionally restores" — both folded into the one number below.
-export const LettingGoEcho = lucillaAction("Basic - Letting It Go (Echo)", { node: Node.Liberation, type: Type1.Echo, mv: 848.07, energy: 3.36, concerto: 27.88, offtune: 36514 });
-export const LettingGoChafe = lucillaAction("Basic - Letting It Go (Chafe)", { node: Node.Liberation, type: Type1.Basic, mv: 848.07, energy: 3.36, concerto: 27.88, offtune: 36514 });
+export const LettingGoEcho = lucillaAction("Basic - Letting It Go (Echo)", { node: Node.Liberation, type: Type1.Echo, mv: 848.07, energy: 3.36, concerto: 7.88, offtune: 36514 });
+export const LettingGoChafe = lucillaAction("Basic - Letting It Go (Chafe)", { node: Node.Liberation, type: Type1.Basic, mv: 848.07, energy: 3.36, concerto: 7.88, offtune: 36514 });
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -179,6 +181,7 @@ export const MONTAGE_CHAFE = new Buff({
 
 export const LUCILLA = new Resonator({
   name: "Lucilla",
+  abbreviation: "Lucilla",
   element: Attribute.Glacio,
   weapon: WeaponType.Rectifier,
   intro: () => Intro,
@@ -212,7 +215,15 @@ export const LUCILLA = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 export const LUCILLA_TALENTS = new Talent({
   name: "Lucilla: Talents",
-  apply: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); }
+  apply: () => {
+    addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8);
+    // Two flat Concerto grants that live in the skill *text* rather than nanoka's attribute table
+    // (see CLAUDE.md): Phantom Frame's "while casting Spotlight ... restores 20 of Concerto
+    // Energy", and Clear As Day's same line for Letting It Go. Both are base kit and
+    // unconditional, so they ride the always-held talent rather than a state buff of their own.
+    const a = currentAction();
+    if (a === Spotlight || a === LettingGoEcho || a === LettingGoChafe) addStat(Stat.AddConcerto, 20);
+  },
 });
 
 // the kit page's own Echo-mode line: a held Phantom Frame -> Spotlight opener, Liberation into
@@ -234,34 +245,49 @@ export const LC_ROTATION_CHAFE = [
 
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat, Resonance Mode (Echo). Freeze Frame, her own signature.
-export const LC_LOADOUT = new Loadout(
+// every echo choice, shared by both her Echo and Chafe mode loadouts — automatically iterated
+// (see kit.ts's own EchoLoadout)
+const LC_ECHOES = [
+  new EchoLoadout(BELL_BORNE_GEOCHELONE, DREAM_OF_THE_LOST_3PC, MOONLIT_CLOUDS_2PC),
+  new EchoLoadout(NM_HECATE, DREAM_OF_THE_LOST_3PC, FREEZING_FROST_2PC),
+  new EchoLoadout(HERON, DREAM_OF_THE_LOST_3PC, MOONLIT_CLOUDS_2PC),
+  new EchoLoadout(FALLACY, DREAM_OF_THE_LOST_3PC, REJUV_2PC),
+
+  new EchoLoadout(HERON, LAW_OF_HARMONY_3PC, MOONLIT_CLOUDS_2PC),
+  new EchoLoadout(BELL_BORNE_GEOCHELONE, LAW_OF_HARMONY_3PC, MOONLIT_CLOUDS_2PC),
+  new EchoLoadout(FALLACY, LAW_OF_HARMONY_3PC, REJUV_2PC),
+
+    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
+  new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
+];
+
+export const LUCILLA_LOADOUT = new Loadout(
   LUCILLA,
+  false,
   LUCILLA_TALENTS,
   LC_INHERENT_1,
   LC_INHERENT_2,
-  FREEZE_FRAME,
-  BELL_BORNE_GEOCHELONE,
-  DREAM_OF_THE_LOST_3PC,
-  MOONLIT_CLOUDS_2PC,
-  mainstats("CD", "glacio glacio", "atk atk"),
+  [FREEZE_FRAME, NEW_STD_RECTIFIER, COSMIC_RIPPLES, STRINGMASTER, LETHEAN_ELEGY],
+  LC_ECHOES,
+  mainstatOptions(["CR", "CD"], ["atk", "glacio"], ["atk"]),
   chem("atk", "basic"),
+  LC_ROTATION, LC_ROTATION,
   undefined, undefined, undefined, undefined, undefined, undefined,
   MODE_ECHO,
 );
 
-// same weapon/mainstat/substat, different mainslot/sonata and Resonance Mode — same shape as
-// Qiuyuan's own two loadouts, which likewise only ever swap mainslot/sonata
-export const LC_LOADOUT_CHAFE = new Loadout(
+// same weapons/mainstat/substat/echo choices, different rotation and Resonance Mode
+export const LUCILLA_LOADOUT_CHAFE = new Loadout(
   LUCILLA,
+  false,
   LUCILLA_TALENTS,
   LC_INHERENT_1,
   LC_INHERENT_2,
-  FREEZE_FRAME,
-  HERON,
-  MOONLIT_CLOUDS_5PC,
-  MOONLIT_CLOUDS_2PC,
-  mainstats("CD", "glacio glacio", "atk atk"),
+  [FREEZE_FRAME, NEW_STD_RECTIFIER, COSMIC_RIPPLES, STRINGMASTER, LETHEAN_ELEGY],
+  LC_ECHOES,
+  mainstatOptions(["CR", "CD"], ["atk", "glacio"], ["atk"]),
   chem("atk", "basic"),
+  LC_ROTATION_CHAFE, LC_ROTATION_CHAFE,
   undefined, undefined, undefined, undefined, undefined, undefined,
   MODE_CHAFE,
 );

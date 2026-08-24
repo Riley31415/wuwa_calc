@@ -42,15 +42,16 @@
  * Outro/Twining's own table gives 0 across the board, a real absence, not an unchecked gap.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
   applySelf, revoke, casting, currentAction, addStat, setForte1, isHeld, concerto, setConcerto,
   stacksOf, stacks,
   lostOnSwap,
   forte1,
 } from "../kit.js";
 import { RED_SPRING } from "../weapons/sword.js";
+import { EMERALD_OF_GENESIS } from "../weapons/standard.js";
 import { NM_CROWNLESS, HAVOC_ECLIPSE_5PC, HAVOC_ECLIPSE_2PC } from "../echoes/jinzhou.js";
-import { mainstats } from "../shared/mainstats.js";
+import { mainstatOptions } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -72,13 +73,13 @@ export const BA1 = camellyaAction("Basic - Burgeoning 1", { node: Node.Normal, c
 export const BA2 = camellyaAction("Basic - Burgeoning 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 92.96, energy: 1.38, concerto: 2.76, offtune: 4400, forte1: -914 }); // 46.48% x2
 export const BA3 = camellyaAction("Basic - Burgeoning 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 152.10, energy: 2.25, concerto: 4.5, offtune: 7200, forte1: -1494 }); // 50.70% x3
 /** Chain Basic Attack — hold Normal Attack after Stage 3 to keep striking, 20 hits. */
-export const BA4 = camellyaAction("Basic - Burgeoning 4 (Hold)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 494.00, energy: 5.4, concerto: 10.8, offtune: 17200, forte1: -3600 }); // 24.70% x20
+export const BA4 = camellyaAction("Basic - Burgeoning 4 (Hold)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 494.00, energy: 5.4, concerto: 10.8, offtune: 17280, forte1: -3600 }); // 24.70% x20
 export const BA5 = camellyaAction("Basic - Burgeoning 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 192.68, energy: 2.88, concerto: 5.72, offtune: 9120, forte1: -1896 }); // 48.17% x4
 
 export const MA = camellyaAction("Basic - Mid-air Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 131.22, energy: 1.66, concerto: 3.3, offtune: 5280, forte1: -1096 }); // 65.61% x2
-export const DC = camellyaAction("Basic - Dodge Counter", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 298.20, energy: 2.25, concerto: 4.5, offtune: 7200, forte1: -2490 }); // 99.40% x3
+export const DC = camellyaAction("Basic - Dodge Counter", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 298.20, energy: 2.25, concerto: 14.5, offtune: 7200, forte1: -2490 }); // 99.40% x3
 /** Considered Basic Attack DMG per Seedbed's own text. */
-export const HA = camellyaAction("Heavy - Pruning", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Basic, mv: 264.42, energy: 3.33, concerto: 6.66, offtune: 10650, forte1: -2208 }); // 88.14% x3
+export const HA = camellyaAction("Heavy - Pruning", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Basic, mv: 264.42, energy: 3.33, concerto: 6.66, offtune: 10641, forte1: -2208 }); // 88.14% x3
 
 // Crimson Blossom opens Blossom Mode; Vining Waltz/Blazing Waltz/Vining Ronde/Atonement replace
 // Basic/Dodge Counter/Jump while it's up; Floral Ravage (Skill replacement) ends it.
@@ -86,26 +87,26 @@ export const CrimsonBlossom = camellyaAction("Skill - Crimson Blossom", { node: 
 
 export const VW1 = camellyaAction("Basic - Vining Waltz 1", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 96.33, energy: 1.43, concerto: 2.85, offtune: 4560, forte1: -947 });
 export const VW2 = camellyaAction("Basic - Vining Waltz 2", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 91.26, energy: 1.36, concerto: 2.7, offtune: 4320, forte1: -898 }); // 45.63% x2
-export const VW3 = camellyaAction("Basic - Vining Waltz 3", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 131.70, energy: 1.44, concerto: 2.88, offtune: 4620, forte1: -960 }); // 21.95% x6
+export const VW3 = camellyaAction("Basic - Vining Waltz 3", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 131.70, energy: 1.44, concerto: 2.88, offtune: 4608, forte1: -960 }); // 21.95% x6
 /** Blazing Waltz — hold Normal Attack on Vining Waltz Stage 3 before it auto-continues to Stage
  *  4. Shares Vining Waltz 3's own per-hit row, multiplied out to its own real *19 hit count. */
-export const BlazingWaltz = camellyaAction("Basic - Blazing Waltz", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 417.05, energy: 4.56, concerto: 9.12, offtune: 14630, forte1: -3040 }); // 21.95% x19
+export const BlazingWaltz = camellyaAction("Basic - Blazing Waltz", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 417.05, energy: 4.56, concerto: 9.12, offtune: 14592, forte1: -3040 }); // 21.95% x19
 export const VW4 = camellyaAction("Basic - Vining Waltz 4", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 202.77, energy: 3, concerto: 6, offtune: 9600, forte1: -1992 }); // 67.59% x3
 
 /** Jump's own replacement in Blossom Mode, ends it. Never placed in the rotation below (she
  *  never jumps into one there), exported for completeness. */
-export const ViningRonde = camellyaAction("Basic - Vining Ronde", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 158.85, energy: 2.37, concerto: 4.71, offtune: 7530, forte1: -1563 }); // 52.95% x3
-export const Atonement = camellyaAction("Basic - Atonement (Dodge Counter)", { node: Node.Skill, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 226.66, energy: 1.36, concerto: 2.7, offtune: 4320, forte1: -1894 }); // 113.33% x2
+export const ViningRonde = camellyaAction("Basic - Vining Ronde", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 158.85, energy: 2.37, concerto: 4.71, offtune: 7521, forte1: -1563 }); // 52.95% x3
+export const Atonement = camellyaAction("Basic - Atonement (Dodge Counter)", { node: Node.Skill, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 226.66, energy: 1.36, concerto: 12.7, offtune: 4320, forte1: -1894 }); // 113.33% x2
 
 /** The Skill replacement in Blossom Mode, ends it. Considered Basic Attack DMG. */
-export const FloralRavage = camellyaAction("Skill - Floral Ravage", { node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 263.05, concerto: 7, energy: 3.7, offtune: 11750, forte1: -2445 }); // 52.61% x5
+export const FloralRavage = camellyaAction("Skill - Floral Ravage", { node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 263.05, concerto: 7, energy: 3.7, offtune: 11760, forte1: -2445 }); // 52.61% x5
 
 /** At full Crimson Pistil/Concerto — considered Basic Attack DMG, enters Budding Mode, genuinely
  *  recovers Crimson Pistil to a hard 100, and spends 70 Concerto off a hard-clamped-to-100
  *  starting point (see file header on both pre-clamps in CAMELLYA's own update()). */
 export const Ephemeral = camellyaAction("Forte - Ephemeral", { node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 1262.45, forte1: 10000, concerto: -70, energy: 12, offtune: 60800 });
 
-export const Liberation = camellyaAction("Liberation - Fervor Efflorescent", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1202.81, concerto: 20, offtune: 84000 });
+export const Liberation = camellyaAction("Liberation - Fervor Efflorescent", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1202.81, concerto: 20, offtune: 84000, resetEnergy: true });
 
 export const Intro = camellyaAction("Intro - Everblooming", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81, concerto: 10, forte1: 10000, energy: 10, offtune: 9600 });
 /** No handoff buff is described on her own kit page, unlike most other kits' outros — left as a
@@ -190,6 +191,7 @@ export const CONSUME_CRIMSON_PISTIL = new Buff({
 
 export const CAMELLYA = new Resonator({
   name: "Camellya",
+  abbreviation: "Cammy",
   element: Attribute.Havoc,
   weapon: WeaponType.Sword,
   intro: () => Intro,
@@ -240,9 +242,10 @@ export const CM_ROTATION = [
 
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
-export const CM_LOADOUT = new Loadout(
-  CAMELLYA, CAMELLYA_TALENTS, SEEDBED, EPIPHYTE,
-  RED_SPRING,
-  NM_CROWNLESS, HAVOC_ECLIPSE_5PC, HAVOC_ECLIPSE_2PC,
-  mainstats("CR CD", "", "atk atk atk"), chem("atk", "basic"),
+export const CAMMY_LOADOUT = new Loadout(
+  CAMELLYA, true, CAMELLYA_TALENTS, SEEDBED, EPIPHYTE,
+  [RED_SPRING, EMERALD_OF_GENESIS],
+  [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC, HAVOC_ECLIPSE_2PC)],
+  mainstatOptions(["CR", "CD"], ["atk", "havoc"], ["atk"]), chem("atk", "basic"),
+  CM_ROTATION, CM_ROTATION,
 );

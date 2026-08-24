@@ -92,9 +92,8 @@ export const EMERALD_SENTENCE = new Weapon({
     addStat(Stat.BonusAtk, 12);
   },
   update: () => {
-    const a = currentAction();
-    if (a.cast === Cast.Intro) applyTeam(HEART_SETTLES_TEAM);
-    if ((a.cast === Cast.Intro || a.cast === Cast.Basic) && !stacksOf(BAMBOO_CLEAVER)) {
+    if (casting(Cast.Intro)) applyTeam(HEART_SETTLES_TEAM);
+    if ((casting(Cast.Intro) || casting(Cast.Basic)) && !stacksOf(BAMBOO_CLEAVER)) {
       applySelf(BAMBOO_CLEAVER);
     }
   },

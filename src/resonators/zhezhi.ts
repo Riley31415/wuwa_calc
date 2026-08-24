@@ -19,13 +19,14 @@
  * own MV/energy/concerto/offtune/forte1 delta ported from the migrated (old-engine) sheet.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling,
   applySelf, currentAction, casting, revoke, addStat, stacks, queue, queueOutro,
   lostOnSwap,
 } from "../kit.js";
-import { RIME_DRAPED_SPROUTS } from "../weapons/rectifier.js";
+import { RIME_DRAPED_SPROUTS, STRINGMASTER, LETHEAN_ELEGY } from "../weapons/rectifier.js";
+import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../weapons/standard.js";
 import { EMPYREAN_ANTHEM_2PC, EMPYREAN_ANTHEM_5PC, NM_LAMPY } from "../echoes/rinascita.js";
-import { mainstats } from "../shared/mainstats.js";
+import { mainstatOptions } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 import { HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC } from "../echoes/jinzhou.js";
 
@@ -63,11 +64,11 @@ export const FSkill3 = zhezhiAction("Forte Skill - Creation's Zenith", {
 
 // opens the Inklit Spirit window, no damage of its own
 export const Liberation = zhezhiAction("Liberation - Living Canvas", {
-  node: Node.Liberation, cast: Cast.Liberation, mv: 0, concerto: 20,
+  node: Node.Liberation, cast: Cast.Liberation, mv: 0, concerto: 20, resetEnergy: true,
 });
 /** Up to 21 Coordinated Attack hits over 30s, lumped into one action, queued off her own Outro. */
 export const ACTION_LIB_COORDS = zhezhiAction("Liberation - Inklit Spirit x21", {
-  node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 1369.41, active: false,
+  node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 1369.41, offtune: 96012, active: false,
 });
 
 export const Intro = zhezhiAction("Intro - Radiant Ruin", {
@@ -126,6 +127,7 @@ export const ZZ_INHERENT_2 = new Inherent({
 
 export const ZHEZHI = new Resonator({
   name: "Zhezhi",
+  abbreviation: "ZZ",
   element: Attribute.Glacio,
   weapon: WeaponType.Rectifier,
   intro: () => Intro,
@@ -163,31 +165,21 @@ export const ZZ_ROTATION = [
 
 /* ----------------------------------------------------------------------------------- loadout */
 
-// her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
-// sonata pieces, mainstat/substat
-export const ZZ_LOADOUT_EMPY = new Loadout(
+// her real 43311 build: resonator + talents + both Inherent Skills, viable weapons, and two real
+// echo choices — Empyrean Anthem or Moonlit Clouds — both automatically iterated (see kit.ts's
+// own EchoLoadout)
+export const ZZ_LOADOUT = new Loadout(
   ZHEZHI,
+  false,
   ZHEZHI_TALENTS,
   ZZ_INHERENT_1,
   ZZ_INHERENT_2,
-  RIME_DRAPED_SPROUTS,
-  NM_LAMPY,
-  EMPYREAN_ANTHEM_5PC,
-  EMPYREAN_ANTHEM_2PC,
-  mainstats("CR", "glacio glacio", "atk atk"),
+  [RIME_DRAPED_SPROUTS, VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES, STRINGMASTER, LETHEAN_ELEGY],
+  [
+    new EchoLoadout(NM_LAMPY, EMPYREAN_ANTHEM_5PC, EMPYREAN_ANTHEM_2PC),
+    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
+  ],
+  mainstatOptions(["CR", "CD"], ["atk", "glacio"], ["atk"]),
   chem("atk", "basic"),
-);
-
-// same build, Moonlit Clouds instead of Empyrean Anthem
-export const ZZ_LOADOUT_MOONLIT = new Loadout(
-  ZHEZHI,
-  ZHEZHI_TALENTS,
-  ZZ_INHERENT_1,
-  ZZ_INHERENT_2,
-  RIME_DRAPED_SPROUTS,
-  HERON,
-  MOONLIT_CLOUDS_5PC,
-  MOONLIT_CLOUDS_2PC,
-  mainstats("CR", "glacio glacio", "atk atk"),
-  chem("atk", "basic"),
+  ZZ_ROTATION, ZZ_ROTATION,
 );

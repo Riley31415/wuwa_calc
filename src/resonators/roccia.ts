@@ -16,15 +16,16 @@
  * Counter has no sheet row at all, so it's still bare (nanoka's own MV only).
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
   applySelf, applyTeam, revoke, casting, currentAction, currentTeam, addStat, stacks, get,
   queueOutro, queueOn,
   lostOnSwap,
 } from "../kit.js";
 import { TRAGICOMEDY } from "../weapons/gauntlet.js";
+import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../weapons/standard.js";
 import { NM_HERON, MIDNIGHT_VEIL_5PC, MIDNIGHT_VEIL_2PC } from "../echoes/rinascita.js";
-import { MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, HERON } from "../echoes/jinzhou.js";
-import { mainstats } from "../shared/mainstats.js";
+import { MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, HERON, BELL_BORNE_GEOCHELONE } from "../echoes/jinzhou.js";
+import { mainstatOptions } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -37,9 +38,9 @@ function rocciaAction(id: string, def: object): Action {
 export const BA1 = rocciaAction("Basic - Pero, Easy 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.18, energy: 1.09, concerto: 3.47, offtune: 3464, forte1: 19 });
 export const BA2 = rocciaAction("Basic - Pero, Easy 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 114.42, energy: 1.71, concerto: 5.43, offtune: 5418, forte1: 33 });
 export const BA3 = rocciaAction("Basic - Pero, Easy 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 169.00, energy: 2.50, concerto: 8, offtune: 8000, forte1: 49 });
-export const BA4 = rocciaAction("Basic - Pero, Easy 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 208.38, energy: 3.10, concerto: 9.88, offtune: 9920, forte1: 100 });
+export const BA4 = rocciaAction("Basic - Pero, Easy 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 208.38, energy: 3.10, concerto: 9.88, offtune: 9864, forte1: 100 });
 export const MA = rocciaAction("Basic - Pero, Easy (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 4.96, offtune: 4960, forte1: 38 });
-export const DC = rocciaAction("Basic - Pero, Easy (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 206.70 });
+export const DC = rocciaAction("Basic - Pero, Easy (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 206.70, offtune: 4986, concerto: 15.01, energy: 1.56 });
 
 // hitting with 100+ Imagination also launches Beyond Imagination — a second way in besides Skill
 export const HA = rocciaAction("Heavy - Pero, Easy", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 168.99, energy: 2.50, concerto: 8, offtune: 8000, forte1: 100 });
@@ -53,7 +54,7 @@ export const FBA2 = rocciaAction("Forte Basic - Real Fantasy 2", { node: Node.Fo
 export const FBA3 = rocciaAction("Forte Basic - Real Fantasy 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 357.86, energy: 8, concerto: 25, offtune: 8000, forte1: -100 });
 
 // Resonance Cost 125 (maxEnergy below) is nanoka's own declared cost, not the migrated sheet's 0
-export const Liberation = rocciaAction("Liberation - Commedia Improvviso!", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 835.02, concerto: 20, offtune: 96000 });
+export const Liberation = rocciaAction("Liberation - Commedia Improvviso!", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 835.02, concerto: 20, offtune: 96000, resetEnergy: true });
 
 export const Intro = rocciaAction("Intro - Pero, Help", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 168.99, energy: 10, concerto: 10, offtune: 10824, forte1: 100 });
 export const Outro = rocciaAction("Outro - Applause, Please!", { cast: Cast.Outro, active: false });
@@ -75,7 +76,7 @@ export const IMMERSIVE_PERFORMANCE = new Buff({
 });
 export const RC_INHERENT_1 = new Inherent({
   name: "Roccia: Immersive Performance",
-  update: () => { const a = currentAction(); if (a.cast === Cast.Skill || a.cast === Cast.Heavy) applySelf(IMMERSIVE_PERFORMANCE, 1); },
+  update: () => { if (casting(Cast.Skill) || casting(Cast.Heavy)) applySelf(IMMERSIVE_PERFORMANCE, 1); },
 });
 
 /** 1 flat ATK per 0.1% Crit Rate held over 50%, capped at 200 — read live at the Liberation cast,
@@ -106,6 +107,7 @@ export const RC_INHERENT_2 = new Inherent({
 
 export const ROCCIA = new Resonator({
   name: "Roccia",
+  abbreviation: "Roccia",
   element: Attribute.Havoc,
   weapon: WeaponType.Gauntlets,
   intro: () => Intro,
@@ -138,31 +140,22 @@ export const RC_ROTATION = [
 
 /* ----------------------------------------------------------------------------------- loadout */
 
-// her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
-// sonata pieces, mainstat/substat
-export const RC_LOADOUT = new Loadout(
+// her real 43311 build: resonator + talents + both Inherent Skills, viable weapons, and two real
+// echo choices — Midnight Veil or Moonlit Clouds (same mainslot either way) — both automatically
+// iterated (see kit.ts's own EchoLoadout)
+export const ROCCIA_LOADOUT = new Loadout(
   ROCCIA,
+  false,
   ROCCIA_TALENTS,
   RC_INHERENT_1,
   RC_INHERENT_2,
-  TRAGICOMEDY,
-  NM_HERON,
-  MIDNIGHT_VEIL_5PC,
-  MIDNIGHT_VEIL_2PC,
-  mainstats("CR", "havoc havoc", "atk atk"),
+  [TRAGICOMEDY, NEW_STD_GAUNTLET, ABYSS_SURGES],
+  [
+    new EchoLoadout(NM_HERON, MIDNIGHT_VEIL_5PC, MIDNIGHT_VEIL_2PC),
+    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
+    new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
+  ],
+  mainstatOptions(["CR", "CD"], ["atk", "havoc"], ["atk"]),
   chem("atk", "heavy"),
-);
-
-// same build, Moonlit Clouds instead of Midnight Veil (same mainslot either way)
-export const RC_LOADOUT_MOONLIT = new Loadout(
-  ROCCIA,
-  ROCCIA_TALENTS,
-  RC_INHERENT_1,
-  RC_INHERENT_2,
-  TRAGICOMEDY,
-  HERON,
-  MOONLIT_CLOUDS_5PC,
-  MOONLIT_CLOUDS_2PC,
-  mainstats("CR", "havoc havoc", "atk atk"),
-  chem("atk", "heavy"),
+  RC_ROTATION, RC_ROTATION,
 );

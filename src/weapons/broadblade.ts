@@ -64,7 +64,7 @@ export const THUNDERFLARE_DOMINION = new Weapon({
   },
   update: () => {
     const a = currentAction();
-    if (a.cast === Cast.Intro || a.cast === Cast.Skill) applySelf(THUNDERBLAZE_DMG);
+    if (casting(Cast.Intro) || casting(Cast.Skill)) applySelf(THUNDERBLAZE_DMG);
     if (a.shields) applySelf(THUNDERBLAZE_DEF, a.shields);
   },
 });
@@ -122,7 +122,7 @@ export const JINGRAN_SIG = new Weapon({
   },
   update: () => {
     const a = currentAction();
-    if (a.cast === Cast.Intro) { applySelf(NATURES_ORDER); applySelf(CRADLE_OF_LIFE); }
+    if (casting(Cast.Intro)) { applySelf(NATURES_ORDER); applySelf(CRADLE_OF_LIFE); }
     else if (a.shields) { applySelf(NATURES_ORDER, a.shields); applySelf(CRADLE_OF_LIFE, a.shields); }
   },
 });

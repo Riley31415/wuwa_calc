@@ -9,13 +9,14 @@
  * against the migrated (old-engine) sheet's own totals.
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Loadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling,
+  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling,
   applySelf, applyTeam, revokeTeam, stacksOfTeam, isHeld, casting, currentAction, addStat, revoke, queue,
   queueOutro, lostOnSwap,
 } from "../kit.js";
-import { STATIC_MIST } from "../weapons/standard.js";
+import { STATIC_MIST, CADENZA, NEW_STD_PISTOL } from "../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../echoes/jinzhou.js";
-import { mainstats } from "../shared/mainstats.js";
+import { NM_HECATE, EMPYREAN_ANTHEM_5PC, EMPYREAN_ANTHEM_2PC, HECATE } from "../echoes/rinascita.js";
+import { mainstatOptions } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -27,14 +28,14 @@ function mortefiAction(id: string, def: object): Action {
 // --- basics, mid-air, dodge counter, heavy (Impromptu Show) — BA2/BA4 fold multiple hits into
 //     one action, same as their own mv already did
 export const BA1 = mortefiAction("Basic - Impromptu Show 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 48.30, energy: 0.86, concerto: 2.77, offtune: 2800, forte1: 5 });
-export const BA2 = mortefiAction("Basic - Impromptu Show 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 40.78 * 2, energy: 1.46, concerto: 4.68, offtune: 4700, forte1: 10 });
-export const BA3 = mortefiAction("Basic - Impromptu Show 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 107.30, energy: 1.92, concerto: 6.16, offtune: 6170, forte1: 10 });
-export const BA4 = mortefiAction("Basic - Impromptu Show 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 21.02 * 4 + 126.93, energy: 3.76, concerto: 12.09, offtune: 12140, forte1: 25 });
+export const BA2 = mortefiAction("Basic - Impromptu Show 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 40.78 * 2, energy: 1.46, concerto: 4.68, offtune: 4720, forte1: 10 });
+export const BA3 = mortefiAction("Basic - Impromptu Show 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 107.30, energy: 1.92, concerto: 6.16, offtune: 6160, forte1: 10 });
+export const BA4 = mortefiAction("Basic - Impromptu Show 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 21.02 * 4 + 126.93, energy: 3.76, concerto: 12.09, offtune: 12080, forte1: 25 });
 
 export const HA = mortefiAction("Heavy - Impromptu Show", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 167.01, energy: 2.4, concerto: 7.68, offtune: 9600 });
-export const MA1 = mortefiAction("Basic - Impromptu Show 1 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 23.25, energy: 0.41, concerto: 1, offtune: 1340 });
-export const MA2 = mortefiAction("Basic - Impromptu Show 2 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 23.25, energy: 0.41, concerto: 1, offtune: 1340 });
-export const DC = mortefiAction("Basic - Impromptu Show (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 194.98, energy: 3.5, concerto: 6.4, offtune: 6400 });
+export const MA1 = mortefiAction("Basic - Impromptu Show 1 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 23.25, energy: 0.41, concerto: 1, offtune: 1360 });
+export const MA2 = mortefiAction("Basic - Impromptu Show 2 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 23.25, energy: 0.41, concerto: 1, offtune: 1360 });
+export const DC = mortefiAction("Basic - Impromptu Show (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 194.98, energy: 3.5, concerto: 16.4, offtune: 6400 });
 
 // --- resonance skill: Passionate Variation. Elemental DMG reads 0, so concerto is the flat
 //     Concerto Regen (18) instead, same treatment as every other such row.
@@ -45,7 +46,7 @@ export const FSkill = mortefiAction("Forte Skill - Fury Fugue", { node: Node.For
 
 // --- resonance liberation: Violent Finale opens Burning Rhapsody; Marcato's own window is queued
 //     separately off Outro (see ACTION_LIB_COORDS below)
-export const Liberation = mortefiAction("Liberation - Violent Finale", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 159.05, concerto: 20, offtune: 96000 });
+export const Liberation = mortefiAction("Liberation - Violent Finale", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 159.05, concerto: 20, offtune: 96000, resetEnergy: true });
 /** The whole Burning Rhapsody window, lumped: 35 Coordinated Attacks x 2 Marcato = 70 hits, the
  *  migrated sheet's own assumed real-rotation uptime, not a theoretical duration/0.35s max. */
 export const ACTION_LIB_COORDS = mortefiAction("Liberation - Marcato x70", { node: Node.Liberation, type: Type1.Liberation, type2: Type2.Coordinated, mv: 31.81 * 70, active: false });
@@ -139,6 +140,7 @@ export const MORTEFI_S6 = new Sequence({
  *  own base stat line. `standardCharacter: true` — see the file header. */
 export const MORTEFI = new Resonator({
   name: "Mortefi",
+  abbreviation: "Mort",
   element: Attribute.Fusion,
   weapon: WeaponType.Pistols,
   intro: () => Intro,
@@ -183,17 +185,20 @@ export const MO_ROTATION = [
 
 // his real 5pc Moonlit Clouds + Impermanence Heron build, Static Mist signature-adjacent standard
 // weapon, all six sequence nodes (standardCharacter — see file header)
-export const MO_LOADOUT = new Loadout(
+export const MORT_LOADOUT = new Loadout(
   MORTEFI,
+  false,
   MORTEFI_TALENTS,
   MO_INHERENT_1,
   MO_INHERENT_2,
-  STATIC_MIST,
-  HERON,
-  MOONLIT_CLOUDS_5PC,
-  MOONLIT_CLOUDS_2PC,
-  mainstats("CR", "fusion fusion", "atk atk"),
+  [STATIC_MIST, CADENZA, NEW_STD_PISTOL],
+  [
+    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
+    new EchoLoadout(HECATE, EMPYREAN_ANTHEM_5PC, EMPYREAN_ANTHEM_2PC),
+  ],
+  mainstatOptions(["CR", "CD"], ["atk", "fusion"], ["atk"]),
   chem("atk", "basic"),
+  MO_ROTATION, MO_ROTATION,
   MORTEFI_S1,
   MORTEFI_S2,
   MORTEFI_S3,

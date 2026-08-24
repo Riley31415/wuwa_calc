@@ -28,8 +28,7 @@ export const TRAGICOMEDY = new Weapon({
   name: "Tragicomedy",
   apply: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.BonusAtk, 12); },
   update: () => {
-    const a = currentAction();
-    if (a.cast === Cast.Basic || a.cast === Cast.Intro) applySelf(FOOLS_WARBLE, 1);
+    if (casting(Cast.Basic) || casting(Cast.Intro)) applySelf(FOOLS_WARBLE, 1);
   },
 });
 export const FOOLS_WARBLE = new Buff({

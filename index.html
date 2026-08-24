@@ -50,10 +50,15 @@
   })();
 </script>
 
+<div id="app"></div>
+
 <!-- The loading state lives here rather than being written by the script, so it is on screen
-     while the module is still being fetched and parsed. boot() drives the fill and the count
-     in place; it does not replace this markup. -->
-<div id="app" class="loading">
+     while the module is still being fetched and parsed. It is an overlay over #app, not a page
+     of its own: boot() draws the empty table (filters, header, no rows) underneath first and
+     this floats above it, blurring it, while the teams actually run. boot() drives the fill and
+     the count in place and hides the whole thing when there is nothing left to run; it never
+     replaces this markup. -->
+<div id="loading">
   <p class="loading-status">
     <span class="status-text">Initializing…</span>
     <span class="progress-count"></span>

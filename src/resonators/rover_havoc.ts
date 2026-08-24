@@ -10,13 +10,14 @@
  * Damage Data's own Energy/Elemental DMG columns, offtune off Weakness Break DMG x10000).
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Loadout, Action, ECHO_CAST, INTRO, Stat, EnemyStat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
+  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, EnemyStat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
   applySelf, applyEnemy, revokeEnemy, isHeld, revoke, casting, currentAction, addStat, addEnemyStat,
   Debuff,
 } from "../kit.js";
 import { EMERALD_OF_GENESIS } from "../weapons/standard.js";
+import { BLAZING_BRILLIANCE, RED_SPRING } from "../weapons/sword.js";
 import { NM_CROWNLESS, HAVOC_ECLIPSE_5PC, HAVOC_ECLIPSE_2PC } from "../echoes/jinzhou.js";
-import { mainstats } from "../shared/mainstats.js";
+import { mainstatOptions } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -31,11 +32,11 @@ function roverAction(id: string, def: object): Action {
 export const BA1 = roverAction("Basic - Tuneslayer 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 56.67, energy: 0.6, concerto: 0.74, offtune: 2400, forte1: 3 });
 export const BA2 = roverAction("Basic - Tuneslayer 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 113.34, energy: 1.2, concerto: 1.48, offtune: 4800, forte1: 6 });
 export const BA3 = roverAction("Basic - Tuneslayer 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 85.00, energy: 0.9, concerto: 1.11, offtune: 2800, forte1: 4 });
-export const BA4 = roverAction("Basic - Tuneslayer 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 120.90, energy: 1.26, concerto: 1.56, offtune: 5130, forte1: 9 });
+export const BA4 = roverAction("Basic - Tuneslayer 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 120.90, energy: 1.26, concerto: 1.56, offtune: 5121, forte1: 9 });
 export const BA5 = roverAction("Basic - Tuneslayer 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 188.88, energy: 2, concerto: 2.48, offtune: 8000, forte1: 10 });
 
 export const MA = roverAction("Basic - Mid-air Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 117.10, energy: 0.41, concerto: 1, offtune: 9600, forte1: 9 });
-export const DC = roverAction("Basic - Dodge Counter", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 179.43, energy: 1.9, concerto: 0.86, offtune: 4640 });
+export const DC = roverAction("Basic - Dodge Counter", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 179.43, energy: 1.9, concerto: 10.86, offtune: 4640 });
 export const HA = roverAction("Heavy - Attack", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 95.43, energy: 0.96, concerto: 1.19, offtune: 5360 });
 
 // --- forte circuit: Devastation, at full Umbra — enters Dark Surge, considered Heavy Attack DMG,
@@ -48,25 +49,25 @@ export const Devastation = roverAction("Forte Heavy - Devastation", { node: Node
 export const EBA1 = roverAction("Forte Basic - Umbra 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 56.37, energy: 0.42, concerto: 0.72, offtune: 1440 });
 export const EBA2 = roverAction("Forte Basic - Umbra 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 93.94, energy: 0.7, concerto: 1.2, offtune: 2560 });
 export const EBA3 = roverAction("Forte Basic - Umbra 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 155.67, energy: 1.16, concerto: 1.98, offtune: 4480 });
-export const EBA4 = roverAction("Forte Basic - Umbra 4", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 222.78, energy: 1.1, concerto: 1.89, offtune: 6640 });
-export const EBA5 = roverAction("Forte Basic - Umbra 5", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 228.15, energy: 1.06, concerto: 1.81, offtune: 6720, heals: true });
+export const EBA4 = roverAction("Forte Basic - Umbra 4", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 222.78, energy: 1.64, concerto: 2.83, offtune: 13280 });
+export const EBA5 = roverAction("Forte Basic - Umbra 5", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 228.15, energy: 1.7, concerto: 1.81, offtune: 56320, heals: true });
 
 export const EMA = roverAction("Forte Basic - Umbra Plunge", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 123.27, energy: 0.41, concerto: 1, offtune: 9600 });
-export const EDC = roverAction("Forte Basic - Umbra Dodge Counter", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 316.71, energy: 2.36, concerto: 1.98, offtune: 4640 });
+export const EDC = roverAction("Forte Basic - Umbra Dodge Counter", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 316.71, energy: 2.36, concerto: 11.98, offtune: 4640 });
 
 export const EHA = roverAction("Forte Heavy - Umbra", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 128.83, energy: 0.96, concerto: 1.64, offtune: 6400 });
-export const EHA2 = roverAction("Forte Heavy - Umbra: Thwackblade", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 166.45, energy: 1.24, concerto: 2.12, offtune: 8720 });
+export const EHA2 = roverAction("Forte Heavy - Umbra: Thwackblade", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 166.45, energy: 1.24, concerto: 2.12, offtune: 8704 });
 
 // --- resonance skill: Wingblade outside Dark Surge, Lifetaker inside it — both share
 //     cast: Cast.Skill (S1's own "Resonance Skill DMG" wording covers either).
 export const Skill = roverAction("Skill - Wingblade", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 572.58, energy: 12, concerto: 15, offtune: 8640, forte1: 39 });
-export const ESkill = roverAction("Forte Skill - Umbra: Lifetaker", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 592.50, energy: 12, concerto: 15, offtune: 9360, forte1: 39 });
+export const ESkill = roverAction("Forte Skill - Umbra: Lifetaker", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 592.50, energy: 8, concerto: 15, offtune: 11664, forte1: 39 });
 
 // --- liberation: Deadening Abyss — also shreds the target's own Havoc RES (S4)
-export const Liberation = roverAction("Liberation - Deadening Abyss", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1520.90, concerto: 20, offtune: 53760 });
+export const Liberation = roverAction("Liberation - Deadening Abyss", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1520.90, concerto: 20, offtune: 53760, resetEnergy: true });
 
 // --- intro / outro
-export const Intro = roverAction("Intro - Instant of Annihilation", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, forte1: 29, mv: 198.81, energy: 10, concerto: 10, offtune: 1870 });
+export const Intro = roverAction("Intro - Instant of Annihilation", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, forte1: 29, mv: 198.81, energy: 10, concerto: 10, offtune: 1867 });
 /** Soundweaver: a Havoc Field, 3 ticks over 6s, lumped into one action. No Skill Attributes/
  *  Damage Data table on the page at all, so energy/concerto/offtune stay 0 — a real absence. */
 export const Outro = roverAction("Outro - Soundweaver", { cast: Cast.Outro, type: Type1.Outro, mv: 429.9, active: false });
@@ -89,7 +90,7 @@ export const RH_INHERENT_1 = new Inherent({
 export const RH_INHERENT_2 = new Inherent({
   name: "Havoc Rover: Bleak Crescendo",
   apply: () => {
-    if (isHeld(DARK_SURGE) && currentAction().cast === Cast.Basic) {
+    if (isHeld(DARK_SURGE) && casting(Cast.Basic)) {
       addStat(Stat.AddEnergy, 1);
     }
   }
@@ -107,6 +108,7 @@ export const S4_RES_SHRED = new Debuff({
  *  own base stat line. `standardCharacter: true` — see the file header. */
 export const ROVER_HAVOC = new Resonator({
   name: "Havoc Rover",
+  abbreviation: "HRover",
   element: Attribute.Havoc,
   weapon: WeaponType.Sword,
   intro: () => Intro,
@@ -176,17 +178,17 @@ export const RH_ROTATION = [
 
 // his real 43311 build: resonator + talents + both Inherent Skills + Forte Circuit + all six
 // sequence nodes (standardCharacter), weapon, mainslot echo, sonata pieces, mainstat/substat
-export const RH_LOADOUT = new Loadout(
+export const HROVER_LOADOUT = new Loadout(
   ROVER_HAVOC,
+  true,
   ROVER_TALENTS,
   RH_INHERENT_1,
   RH_INHERENT_2,
-  EMERALD_OF_GENESIS,
-  NM_CROWNLESS,
-  HAVOC_ECLIPSE_5PC,
-  HAVOC_ECLIPSE_2PC,
-  mainstats("CD", "havoc havoc", "atk atk"),
+  [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, RED_SPRING],
+  [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC, HAVOC_ECLIPSE_2PC)],
+  mainstatOptions(["CR", "CD"], ["atk", "havoc"], ["atk"]),
   chem("atk", "basic"),
+  RH_ROTATION, RH_ROTATION,
   ROVER_S1,
   ROVER_S2,
   ROVER_S3,

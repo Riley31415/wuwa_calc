@@ -1,5 +1,5 @@
 /**
- * Encore, ported to the new engine — sequence-6, a limited 5-star (not `standardCharacter`), by
+ * Encore, ported to the new engine — sequence-6 standard 5* character
  * explicit instruction (see [[project_no_resonance_chains]]'s own Encore exception — every other
  * resonator here is sequence-0 only). A fusion rectifier main DPS. Mayhem (forte1, 0-100) builds
  * off nearly every hit; a Heavy Attack at 100 spends it all for Cloudy Frenzy (Threshold state) or
@@ -26,13 +26,14 @@
  * "Nightmare:") — see echoes/jinzhou.ts's own INFERNO_RIDER.
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Loadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
+  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
   applySelf, applyTeam, revoke, isHeld, casting, currentAction, addStat, stacks, queueOutro,
   forte1, setForte1,
 } from "../kit.js";
 import { STRINGMASTER } from "../weapons/rectifier.js";
+import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../weapons/standard.js";
 import { INFERNO_RIDER, MOLTEN_RIFT_5PC, MOLTEN_RIFT_2PC } from "../echoes/jinzhou.js";
-import { mainstats } from "../shared/mainstats.js";
+import { mainstatOptions } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -51,17 +52,17 @@ export const BA4 = encoreAction("Basic - Wooly Attack 4", { node: Node.Normal, c
 export const WoolyStrike = encoreAction("Basic - Wooly Strike", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 238.57, energy: 3.00, concerto: 6.00, offtune: 14400, forte1: 25 });
 export const HA = encoreAction("Heavy - Wooly Attack", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 187.08, energy: 2.35, concerto: 4.70, offtune: 11292, forte1: 5 });
 export const MA = encoreAction("Basic - Wooly Attack (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.26, energy: 0.51, concerto: 1.00, offtune: 14400, forte1: 11 });
-export const DC = encoreAction("Basic - Wooly Attack (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 251.88, energy: 3.16, concerto: 3.32, offtune: 8004, forte1: 6 });
+export const DC = encoreAction("Basic - Wooly Attack (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 251.88, energy: 3.16, concerto: 13.32, offtune: 8004, forte1: 6 });
 
 // Flaming Woolies, then Energetic Welcome (press again shortly after)
 export const Skill1 = encoreAction("Skill - Flaming Woolies", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 612.88, energy: 15.28, concerto: 15.00, offtune: 25600, forte1: 32 });
-export const Skill2 = encoreAction("Skill - Energetic Welcome", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 339.16, energy: 0.75, concerto: 5.00, offtune: 9072, forte1: 30 });
+export const Skill2 = encoreAction("Skill - Energetic Welcome", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 339.16, energy: 0.75, concerto: 6.51, offtune: 9072, forte1: 30 });
 
 // Cloudy Frenzy (Threshold), spends the full Mayhem gauge
-export const CloudyFrenzy = encoreAction("Heavy - Cloudy Frenzy", { node: Node.Forte, active: false, cast: Cast.Heavy, type: Type1.Liberation, mv: 773.73, concerto: 10.00, offtune: 41103, forte1: -100 });
+export const CloudyFrenzy = encoreAction("Heavy - Cloudy Frenzy", { node: Node.Forte, active: false, cast: Cast.Heavy, type: Type1.Liberation, mv: 773.73, concerto: 10.00, offtune: 46709, forte1: -100 });
 
 /** No damage of its own, just opens the state. */
-export const Liberation = encoreAction("Liberation - Cosmos Rave", { node: Node.Liberation, cast: Cast.Liberation, concerto: 20 });
+export const Liberation = encoreAction("Liberation - Cosmos Rave", { node: Node.Liberation, cast: Cast.Liberation, concerto: 20, resetEnergy: true });
 
 // Cosmos Rave's own moveset: Frolicking (Basic), Cosmos Heavy Attack, Cosmos - Rampage (Skill),
 // Cosmos Dodge Counter, Cosmos Rupture (Forte) — all "considered" their Threshold-state damage type
@@ -72,8 +73,8 @@ export const UBA4 = encoreAction("Basic - Cosmos: Frolicking 4", { node: Node.Li
 
 export const CosmosHeavy = encoreAction("Heavy - Cosmos: Heavy Attack", { node: Node.Liberation, cast: Cast.Heavy, type: Type1.Heavy, mv: 217.58, energy: 1.60, concerto: 3.21, offtune: 7716, forte1: 9 });
 export const USkill = encoreAction("Skill - Cosmos: Rampage", { node: Node.Liberation, cast: Cast.Skill, type: Type1.Skill, mv: 253.28, energy: 6.56, concerto: 8.00, offtune: 6168, forte1: 28 });
-export const CosmosDodgeCounter = encoreAction("Basic - Cosmos: Dodge Counter", { node: Node.Liberation, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 263.96, energy: 3.44, concerto: 3.88, offtune: 9360, forte1: 16 });
-export const FHA = encoreAction("Forte Heavy - Cosmos Rupture", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Liberation, mv: 773.73, concerto: 10.00, offtune: 41103, forte1: -100, active: false });
+export const CosmosDodgeCounter = encoreAction("Basic - Cosmos: Dodge Counter", { node: Node.Liberation, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 263.96, energy: 1.92, concerto: 13.88, offtune: 9360, forte1: 16 });
+export const FHA = encoreAction("Forte Heavy - Cosmos Rupture", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Liberation, mv: 773.73, concerto: 10.00, offtune: 46709, forte1: -100, active: false });
 
 export const Intro = encoreAction("Intro - Woolies Helpers", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81, energy: 10.00, concerto: 10.00, offtune: 15132, forte1: 40 });
 /** A burn zone, 4 ticks over 6s, lumped into one action same as every other periodic effect
@@ -155,6 +156,8 @@ export const S6 = new Sequence({
 
 export const ENCORE = new Resonator({
   name: "Encore",
+  standardCharacter: true,
+  abbreviation: "Encore",
   element: Attribute.Fusion,
   weapon: WeaponType.Rectifier,
   intro: () => Intro,
@@ -203,17 +206,17 @@ export const EN_ROTATION = [
 
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat, all six sequences (by explicit instruction — see file header)
-export const EN_LOADOUT = new Loadout(
+export const ENCORE_LOADOUT = new Loadout(
   ENCORE,
+  true,
   ENCORE_TALENTS,
   EN_INHERENT_1,
   EN_INHERENT_2,
-  STRINGMASTER,
-  INFERNO_RIDER,
-  MOLTEN_RIFT_5PC,
-  MOLTEN_RIFT_2PC,
-  mainstats("CD", "fusion fusion", "atk atk"),
+  [STRINGMASTER, NEW_STD_RECTIFIER, COSMIC_RIPPLES],
+  [new EchoLoadout(INFERNO_RIDER, MOLTEN_RIFT_5PC, MOLTEN_RIFT_2PC)],
+  mainstatOptions(["CR", "CD"], ["atk", "fusion"], ["atk"]),
   chem("atk", "basic"),
+  EN_ROTATION, EN_ROTATION,
   S1,
   S2,
   S3,

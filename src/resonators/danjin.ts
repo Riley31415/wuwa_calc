@@ -24,14 +24,16 @@
  * Resonance Cost (`maxEnergy` below) is her own real 100%, not the generic 125% default.
  */
 import {
-  Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
+  Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
   applySelf, applyTeam, applyEnemy, revoke, revokeTeam, revokeEnemy, isHeld, stacksOfEnemy, casting,
   currentAction, addStat, stacks, queueOutro, lostOnSwap, forte1,
 } from "../kit.js";
-import { EMERALD_OF_GENESIS } from "../weapons/standard.js";
+import { EMERALD_OF_GENESIS, OVERTURE } from "../weapons/standard.js";
+import { BLAZING_BRILLIANCE, EMERALD_SENTENCE } from "../weapons/sword.js";
 import { NM_HERON, MIDNIGHT_VEIL_5PC, MIDNIGHT_VEIL_2PC } from "../echoes/rinascita.js";
-import { mainstats } from "../shared/mainstats.js";
+import { mainstatOptions } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
+import { CROWNLESS, FALLACY, HAVOC_ECLIPSE_2PC, HAVOC_ECLIPSE_5PC, HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC, REJUV_2PC, REJUV_5PC } from "../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -49,9 +51,9 @@ export const BA2 = danjinAction("Basic - Execution 2", { node: Node.Normal, cast
 export const BA3 = danjinAction("Basic - Execution 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.53, energy: 1.25, concerto: 1.5, offtune: 3120 });
 
 export const MA = danjinAction("Mid-air - Execution", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 0.51, concerto: 1, offtune: 9600 });
-export const HA = danjinAction("Heavy - Execution", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 111.36, energy: 1.74, concerto: 2.1, offtune: 5370 }); // 37.12% x3
+export const HA = danjinAction("Heavy - Execution", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 111.36, energy: 1.74, concerto: 2.1, offtune: 5358 }); // 37.12% x3
 /** A successful Dodge Counter opens the Skill's own Crimson Erosion form, and grants Crimson Light. */
-export const DC = danjinAction("Dodge Counter - Ruby Shades", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 190.86, energy: 3, concerto: 1.8, offtune: 4800 }); // 63.62% x3
+export const DC = danjinAction("Dodge Counter - Ruby Shades", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 190.86, energy: 3, concerto: 11.8, offtune: 4800 }); // 63.62% x3
 
 // three forms depending on the preceding action (see file header)
 export const CarmineGleam = danjinAction("Skill - Carmine Gleam", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 76.36, forte1: 10.5, energy: 1.2, offtune: 2960, concerto: 8 }); // 38.18% x2
@@ -61,18 +63,18 @@ export const CrimsonErosion2 = danjinAction("Skill - Crimson Erosion 2", { node:
 // NOTE 40.5 forte for sanguine pulse 123, not sure on individual
 export const SanguinePulse1 = danjinAction("Skill - Sanguine Pulse 1", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 112.14, forte1: 13.5, energy: 3, offtune: 3760, concerto: 8 }); // 56.07% x2
 export const SanguinePulse2 = danjinAction("Skill - Sanguine Pulse 2", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 128.85, forte1: 13.5, energy: 3, offtune: 4230, concerto: 8 }); // 42.95% x3
-export const SanguinePulse3 = danjinAction("Skill - Sanguine Pulse 3", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 193.26, forte1: 13.5, energy: 3.99, offtune: 6390, concerto: 8 }); // 64.42% x3
+export const SanguinePulse3 = danjinAction("Skill - Sanguine Pulse 3", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 193.26, forte1: 13.5, energy: 3.75, offtune: 6360, concerto: 8 }); // 64.42% x3
 
 // Chaoscleave (Heavy Attack DMG, at 60+ Ruby Blossom) into Scatterbloom
-export const Chaoscleave = danjinAction("Heavy - Chaoscleave", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 417.55, forte1: -60, energy: 14, concerto: 50, offtune: 11550, heals: true }); // 59.65% x7
-export const Scatterbloom = danjinAction("Heavy - Scatterbloom", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 178.93, energy: 6, offtune: 6400 });
+export const Chaoscleave = danjinAction("Heavy - Chaoscleave", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 417.55, forte1: -60, energy: 14, concerto: 50, offtune: 11578, heals: true }); // 59.65% x7
+export const Scatterbloom = danjinAction("Heavy - Scatterbloom", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 178.93, energy: 6, offtune: 5360 });
 /** Full Energy variants, at 120 Ruby Blossom — spends 120 instead of 60. No separate Concerto
  *  Regen is given, so it carries Chaoscleave's own. */
-export const FullChaoscleave = danjinAction("Heavy - Chaoscleave (Full Energy)", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 1002.05, forte1: -120, energy: 14, concerto: 50, offtune: 11550, heals: true }); // 143.15% x7
+export const FullChaoscleave = danjinAction("Heavy - Chaoscleave (Full Energy)", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 1002.05, forte1: -120, energy: 14, concerto: 50, offtune: 11578, heals: true }); // 143.15% x7
 export const FullScatterbloom = danjinAction("Heavy - Scatterbloom (Full Energy)", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 429.43, energy: 6, offtune: 5360 });
 
 // consecutive attacks plus one Scarlet Burst, lumped into one hit
-export const Liberation = danjinAction("Liberation - Crimson Bloom", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 785.37, concerto: 20, offtune: 61440 }); // 49.09%x8+392.65%
+export const Liberation = danjinAction("Liberation - Crimson Bloom", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 785.37, concerto: 20, offtune: 61440, resetEnergy: true }); // 49.09%x8+392.65%
 
 export const Intro = danjinAction("Intro - Vindication", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.84, energy: 10, concerto: 10, offtune: 12240 }); // 49.71% x4
 export const Outro = danjinAction("Outro - Duality", { cast: Cast.Outro, active: false });
@@ -125,6 +127,7 @@ export const DANJIN_OUTRO = new Buff({
 
 export const DANJIN = new Resonator({
   name: "Danjin",
+  abbreviation: "Danjin",
   element: Attribute.Havoc,
   weapon: WeaponType.Sword,
   intro: () => Intro,
@@ -234,10 +237,15 @@ export const DJ_ROTATION = [
 
 // her real build: resonator + talents + both Inherent Skills + every sequence node
 // (standardCharacter — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat
-export const DJ_LOADOUT = new Loadout(
-  DANJIN, DANJIN_TALENTS, DJ_INHERENT_OVERFLOW, DJ_INHERENT_CRIMSON_LIGHT,
-  EMERALD_OF_GENESIS,
-  NM_HERON, MIDNIGHT_VEIL_5PC, MIDNIGHT_VEIL_2PC,
-  mainstats("CR", "havoc havoc", "atk atk"), chem("atk", "heavy"),
+export const DANJIN_LOADOUT = new Loadout(
+  DANJIN, false, DANJIN_TALENTS, DJ_INHERENT_OVERFLOW, DJ_INHERENT_CRIMSON_LIGHT,
+  [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, EMERALD_SENTENCE],
+  [new EchoLoadout(NM_HERON, MIDNIGHT_VEIL_5PC, MIDNIGHT_VEIL_2PC),
+    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
+    new EchoLoadout(FALLACY, REJUV_5PC, REJUV_2PC),
+    new EchoLoadout(CROWNLESS, HAVOC_ECLIPSE_5PC, HAVOC_ECLIPSE_2PC),
+  ],
+  mainstatOptions(["CR", "CD"], ["atk", "havoc"], ["atk"]), chem("atk", "heavy"),
+  DJ_ROTATION, DJ_ROTATION,
   DJ_S1, DJ_S2, DJ_S3, DJ_S4, DJ_S5, DJ_S6,
 );

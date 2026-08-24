@@ -1,7 +1,7 @@
 /** Mainslot echoes and sonatas from Mengzhou (versions 3.5-3.8). */
 import {
   Buff, Sonata, Sonata2pc, Mainslot, Action, Stat, Attribute, Type1, Cast, Scaling,
-  addStat, stacks, applySelf, currentAction, casting, revoke,
+  addStat, stacks, applySelf, applyTeam, revokeTeam, currentAction, casting, revoke,
 } from "../kit.js";
 
 /* ------------------------------------------------------------------------------ Jingran, 3.6 */
@@ -31,6 +31,8 @@ export const LAMP_STACKS = new Buff({
 });
 export const LAMP_5PC = new Sonata({
   name: "Lamp of Nether Road 5pc",
+  abbreviation: "Lamp",
   update: () => { if (currentAction().shields) applySelf(LAMP_STACKS, currentAction().shields); },
 });
 export const LAMP_2PC = new Sonata2pc({ name: "Lamp of Nether Road 2pc", apply: () => addStat(Stat.BonusHp, 10) });
+

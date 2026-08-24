@@ -24,14 +24,16 @@
  *    bare base-kit Liberation effect (see GLORY's own trigger below).
  */
 import {
-  Buff, Debuff, Talent, Inherent, Resonator, Loadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
+  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
   applySelf, applyTeam, applyEnemy, revoke, revokeTeam, revokeEnemy, casting, currentAction, currentTeam, addStat,
   stacks, stacksOfTeam, queueOn, queueOutro, setForte1, setForte2, lostOnSwap,
 } from "../kit.js";
 import { WILDFIRE_MARK } from "../weapons/broadblade.js";
+import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../weapons/standard.js";
 import { LIONESS_OF_GLORY, CLAWPRINT_5PC, CLAWPRINT_2PC } from "../echoes/septimont.js";
-import { mainstats } from "../shared/mainstats.js";
+import { mainstatOptions } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
+import { HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC } from "../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -41,7 +43,7 @@ function lupaAction(id: string, def: object): Action {
 
 // energy/concerto off the migrated sheet; offtune off the old reference's own nanoka numbers (see
 // file header). Ordinary Basic/Heavy hits feed Wolflame in this simplified model.
-export const BA1 = lupaAction("Basic - Flaming Star 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 90.08, energy: 1.35, concerto: 2.68, offtune: 4264, forte1: 7.5 });
+export const BA1 = lupaAction("Basic - Flaming Star 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 90.08, energy: 1.34, concerto: 2.67, offtune: 4264, forte1: 7.5 });
 export const BA2 = lupaAction("Basic - Flaming Star 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 90.08, energy: 1.34, concerto: 2.67, offtune: 4264, forte1: 7.5 });
 export const BA3 = lupaAction("Basic - Flaming Star 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 157.68, energy: 2.37, concerto: 4.68, offtune: 7464, forte1: 12.5 });
 export const BA4 = lupaAction("Basic - Flaming Star 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 246.24, energy: 3.66, concerto: 7.30, offtune: 11656, forte1: 17.5 });
@@ -51,7 +53,7 @@ export const EBA = lupaAction("Basic - Flaming Star: Starfall", { node: Node.Nor
 /** Wolf's Descent, her plunging attack — never placed in the rotation below, kept for completeness. */
 export const MA = lupaAction("Basic - Flaming Star: Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.79, energy: 1.56, concerto: 3.11, offtune: 4960, forte1: 5 });
 /** Flaming Star, her dodge counter — same treatment as `MA` above. */
-export const DC = lupaAction("Basic - Flaming Star (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 273.44, energy: 4.07, concerto: 8.13, offtune: 12944 });
+export const DC = lupaAction("Basic - Flaming Star (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 273.44, energy: 4.07, concerto: 18.13, offtune: 12944 });
 
 export const MA1 = lupaAction("Basic - Flaming Star 1 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 76.73, energy: 1.14, concerto: 2.27, offtune: 3632, forte1: 7 });
 export const MA2 = lupaAction("Basic - Flaming Star 2 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 154.47, energy: 2.31, concerto: 4.61, offtune: 7312, forte1: 13 });
@@ -61,7 +63,7 @@ export const MA3 = lupaAction("Basic - Flaming Star 3 (Mid-Air)", { node: Node.N
 // rather than restoring the gauge)
 export const HA = lupaAction("Heavy - Flaming Star", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 112.72, energy: 1.68, concerto: 3.34, offtune: 5336 });
 /** Firestrike, at Wolflame 50+. Counts as Heavy Attack DMG. */
-export const EMA3 = lupaAction("Heavy - Flaming Star: Firestrike (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 56.96, energy: 0.86, concerto: 10, offtune: 2696, forte1: -50, forte2: 1 });
+export const EMA3 = lupaAction("Heavy - Flaming Star: Firestrike (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 56.96, energy: 0.86, concerto: 1.7, offtune: 2696, forte1: -50, forte2: 1 });
 /** Wolf's Gnawing, at Wolflame 50+. */
 export const EHA3 = lupaAction("Heavy - Flaming Star: Wolf's Gnawing", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 112.22, energy: 1.66, concerto: 10, offtune: 5312, forte1: -50, forte2: 1 });
 /** Wolf's Claw, at Wolflame 50+ and Wolfaith 1+. */
@@ -79,7 +81,7 @@ export const Skill2 = lupaAction("Skill - Feral Fang", { node: Node.Skill, cast:
 export const USkill = lupaAction("Liberation Skill - Foebreaker", { node: Node.Liberation, cast: Cast.Skill, type: Type1.Skill, mv: 304.46, concerto: 20, offtune: 6448, forte1: -100 });
 
 // tops Wolflame to 100, spends every point of Wolfaith, opens Pack Hunt/Glory
-export const Liberation = lupaAction("Liberation - Fire-Kissed Glory", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 820.44, concerto: 20, offtune: 48000, forte1: 100, });
+export const Liberation = lupaAction("Liberation - Fire-Kissed Glory", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 820.44, concerto: 20, offtune: 48000, forte1: 100, resetEnergy: true });
 
 // Dance With the Wolf and its Climax form, each spending every point of Wolfaith (a fixed -2
 // delta — always exactly 2 in this fixed-rotation-line, the only gate that lets either one fire)
@@ -193,6 +195,7 @@ export const LUPA_BACKUP_READY = new Buff({
  *  own base stat line. Sequence-0 only — a limited 5-star, not `standardCharacter`. */
 export const LUPA = new Resonator({
   name: "Lupa",
+  abbreviation: "Lopa",
   element: Attribute.Fusion,
   weapon: WeaponType.Broadblade,
   intro: () => {
@@ -246,9 +249,12 @@ export const LP_OPENER = [
 
 // her real 43311 build: resonator + talents + both Inherent Skills + Forte Circuit, weapon,
 // mainslot echo, sonata pieces, mainstat/substat
-export const LP_LOADOUT = new Loadout(
-  LUPA, LUPA_TALENTS, LP_INHERENT_1, LP_INHERENT_2,
-  WILDFIRE_MARK,
-  LIONESS_OF_GLORY, CLAWPRINT_5PC, CLAWPRINT_2PC,
-  mainstats("CR", "fusion fusion", "atk atk"), chem("atk", "liberation"),
+export const LOPA_LOADOUT = new Loadout(
+  LUPA, false, LUPA_TALENTS, LP_INHERENT_1, LP_INHERENT_2,
+  [WILDFIRE_MARK, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR],
+  [new EchoLoadout(LIONESS_OF_GLORY, CLAWPRINT_5PC, CLAWPRINT_2PC),
+    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
+  ],
+  mainstatOptions(["CR", "CD"], ["atk", "fusion"], ["atk"]), chem("atk", "liberation"),
+  LP_OPENER, LP_LOOP,
 );

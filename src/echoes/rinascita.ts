@@ -2,6 +2,7 @@
 import {
   Buff, Sonata, Sonata2pc, Mainslot, Action, Stat, Attribute, Type1, Type2, Cast, Scaling,
   addStat, stacks, applySelf, applyTeam, casting, currentAction, revoke, get, queue, queueOutro,
+  revokeTeam,
 } from "../kit.js";
 
 /* ----------------------------------------------------------------------------- Carlotta, 2.0 */
@@ -21,7 +22,8 @@ export const SENTRY_CONSTRUCT = new Mainslot({
  *  DMG Bonus for 15s; Resonance Liberation grants +18% Resonance Skill DMG Bonus for 5s, up to
  *  2 stacks. */
 export const FROSTY_RESOLVE_2PC = new Sonata2pc({
-  name: "Frosty Resolve 2pc", apply: () => addStat(Stat.DmgBonus, 12, Type1.Skill),
+  name: "Frosty Resolve 2pc",
+  apply: () => addStat(Stat.DmgBonus, 12, Type1.Skill),
 });
 export const FROSTY_RESOLVE_GLACIO = new Buff({
   name: "Frosty Resolve 5pc: Glacio",
@@ -35,6 +37,7 @@ export const FROSTY_RESOLVE_SKILL_DMG = new Buff({
 });
 export const FROSTY_RESOLVE_5PC = new Sonata({
   name: "Frosty Resolve 5pc",
+  abbreviation: "Frosty",
   update: () => {
     if (casting(Cast.Skill)) applySelf(FROSTY_RESOLVE_GLACIO, 1);
     if (casting(Cast.Liberation)) applySelf(FROSTY_RESOLVE_SKILL_DMG, 1);
@@ -70,7 +73,8 @@ export const LORELEI = new Mainslot({
  *  DMG Bonus flat. 5pc: her outro also fires a 480% Havoc burst and hands the incoming
  *  resonator +15% Havoc DMG Bonus for 15s. */
 export const MIDNIGHT_VEIL_2PC = new Sonata2pc({
-  name: "Midnight Veil 2pc", apply: () => addStat(Stat.DmgBonus, 10, Attribute.Havoc),
+  name: "Midnight Veil 2pc",
+  apply: () => addStat(Stat.DmgBonus, 10, Attribute.Havoc),
 });
 export const ACTION_MIDNIGHT_VEIL_BURST = new Action("Outro - Midnight Veil", {
   element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Outro, mv: 480,
@@ -82,6 +86,7 @@ export const MIDNIGHT_VEIL_HANDOFF = new Buff({
 });
 export const MIDNIGHT_VEIL_5PC = new Sonata({
   name: "Midnight Veil 5pc",
+  abbreviation: "Midnight",
   update: () => {
     if (casting(Cast.Outro)) { queue(ACTION_MIDNIGHT_VEIL_BURST); queueOutro(MIDNIGHT_VEIL_HANDOFF); }
   },
@@ -106,6 +111,7 @@ export const TIDEBREAKING_2PC = new Sonata2pc({ name: "Tidebreaking Courage 2pc"
  *  convert() so every ER contribution has already landed this action. */
 export const TIDEBREAKING_5PC = new Sonata({
   name: "Tidebreaking Courage 5pc",
+  abbreviation: "Tide",
   apply: () => addStat(Stat.BonusAtk, 15),
   convert: () => { if (get(Stat.Er) >= 250) addStat(Stat.DmgBonus, 30); },
 });
@@ -135,12 +141,23 @@ export const NM_LAMPY = new Mainslot({
   apply: () => { addStat(Stat.DmgBonus, 12, Attribute.Glacio); addStat(Stat.DmgBonus, 30, Type2.Coordinated); },
 });
 
+
+export const ACTION_HECATE = new Action("Echo - Hecate", { // TODO unsure on hits
+  cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Echo, mv: 	45.59*6, energy: 	0.63*6,
+});
+export const HECATE = new Mainslot({
+  name: "Hecate",
+  action: ACTION_HECATE,
+  apply: () => { addStat(Stat.DmgBonus, 40, Type2.Coordinated); },
+});
+
 /** Empyrean Anthem, Zhezhi's own sonata. 2pc: +10% ER flat. 5pc: +80% Coordinated Attack DMG
  *  Bonus, self only. A Coordinated Attack crit also grants the whole team +20% ATK for 4s,
  *  assumed permanent uptime once one lands (a real source re-triggers well past 21s). */
 export const EMPYREAN_ANTHEM_2PC = new Sonata2pc({ name: "Empyrean Anthem 2pc", apply: () => addStat(Stat.Er, 10) });
 export const EMPYREAN_ANTHEM_5PC = new Sonata({
   name: "Empyrean Anthem 5pc",
+  abbreviation: "Empyrean",
   apply: () => addStat(Stat.DmgBonus, 80, Type2.Coordinated),
   update: () => { if (currentAction().type2 === Type2.Coordinated) applyTeam(EMPYREAN_ANTHEM_TEAM, 1); },
 });
@@ -148,3 +165,44 @@ export const EMPYREAN_ANTHEM_TEAM = new Buff({
   name: "Empyrean Anthem (team)",
   apply: () => { if (currentAction().active) addStat(Stat.BonusAtk, 20); },
 });
+
+/* ------------------------------------------------------------------------------- Ciaccona */
+
+/** Nightmare: Kelpie, Ciaccona's own mainslot echo — flat Glacio/Aero DMG Bonus for whoever wears
+ *  it. The Echo Skill itself is Glacio; switching the wearer out with an Outro summons Kelpie once
+ *  more for the same multiplier as Aero DMG, which is what ACTION_NM_KELPIE_OUTRO below is. */
+export const ACTION_NM_KELPIE = new Action("Echo - Nightmare: Kelpie", {
+  cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Atk, type: Type1.Echo, mv: 405, energy: 2.81,
+});
+export const ACTION_NM_KELPIE_OUTRO = new Action("Echo - Nightmare: Kelpie (outro)", {
+  element: Attribute.Aero, scaling: Scaling.Atk, type: Type1.Echo, mv: 405, energy: 2.81, active: false,
+});
+export const NM_KELPIE = new Mainslot({
+  name: "Nightmare: Kelpie",
+  action: ACTION_NM_KELPIE,
+  apply: () => { addStat(Stat.DmgBonus, 12, Attribute.Glacio); addStat(Stat.DmgBonus, 12, Attribute.Aero); },
+  update: () => { if (casting(Cast.Outro)) queue(ACTION_NM_KELPIE_OUTRO); },
+});
+
+/* ----------------------------------------------------------------------------- Ciaccona, 2.3 */
+
+/** Gusts of Welkin, the Aero Erosion sonata. 2pc: +10% Aero DMG Bonus flat. 5pc: inflicting Aero
+ *  Erosion pays the whole team +15% Aero DMG Bonus and the resonator who inflicted it another 15%,
+ *  20s — so the team half is lost on the applier's own next Intro and the self half on their own
+ *  outro, per the standing duration rules. */
+export const GUSTS_OF_WELKIN_TEAM = new Buff({
+  name: "Gusts of Welkin (team)",
+  apply: () => addStat(Stat.DmgBonus, 15, Attribute.Aero),
+});
+export const GUSTS_OF_WELKIN_SELF = new Buff({
+  name: "Gusts of Welkin",
+  apply: () => addStat(Stat.DmgBonus, 15, Attribute.Aero),
+});
+export const GUSTS_OF_WELKIN_5PC = new Sonata({
+  name: "Gusts of Welkin 5pc",
+  abbreviation: "GoW",
+  update: () => {
+    if (currentAction().erosion > 0) { applyTeam(GUSTS_OF_WELKIN_TEAM, 1); applySelf(GUSTS_OF_WELKIN_SELF, 1); }
+  },
+});
+export const GUSTS_OF_WELKIN_2PC = new Sonata2pc({ name: "Gusts of Welkin 2pc", apply: () => addStat(Stat.DmgBonus, 10, Attribute.Aero) });

@@ -28,12 +28,13 @@
  * Counter have no sheet row at all, so they're still bare (nanoka's own MV only).
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
   applySelf, casting, currentAction, addStat, stacks, revoke, isHeld, forte1, forte2, setForte1, setForte2,
 } from "../kit.js";
 import { LUX_UMBRA } from "../weapons/pistol.js";
+import { NEW_STD_PISTOL, STATIC_MIST } from "../weapons/standard.js";
 import { CLAWPRINT_2PC, CORROSAURUS, FLAMEWING_SHADOW_3PC } from "../echoes/septimont.js";
-import { mainstats } from "../shared/mainstats.js";
+import { mainstatOptions } from "../shared/mainstats.js";
 import { chem } from "../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -52,18 +53,18 @@ export const BA2 = galbrenaAction("Basic - Slayer's Trigger 2", { node: Node.Nor
 export const BA3 = galbrenaAction("Basic - Slayer's Trigger 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 142.98, energy: 2.00, concerto: 2.80, offtune: 6394, forte1: 1852 });
 export const BA4 = galbrenaAction("Basic - Slayer's Trigger 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Echo, mv: 177.86, energy: 2.49, concerto: 3.48, offtune: 7952, forte1: 1481 });
 
-export const DC = galbrenaAction("Basic - Blood for Blood (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Heavy, mv: 205.24 });
+export const DC = galbrenaAction("Basic - Blood for Blood (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Heavy, mv: 205.24, offtune: 6394, concerto: 12.8, energy: 2 });
 export const MA = galbrenaAction("Basic - Ashfall Barrage (Plunge)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 143.15, energy: 2.00, concerto: 2.80, offtune: 6400 });
-export const MASustained = galbrenaAction("Basic - Ashfall Barrage (Sustained Fire)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 26.84 });
+export const MASustained = galbrenaAction("Basic - Ashfall Barrage (Sustained Fire)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 26.84, energy: 0.38, concerto: 0.53, offtune: 1200 });
 
 // Threshold State heavy: Volley of Death, 3 held stages
-export const HA1 = galbrenaAction("Heavy - Volley of Death 1", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 106.60, energy: 1.50, concerto: 2.10, offtune: 4764, forte1: 741 });
+export const HA1 = galbrenaAction("Heavy - Volley of Death 1", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 106.60, energy: 1.50, concerto: 2.10, offtune: 4766, forte1: 741 });
 export const HA2 = galbrenaAction("Heavy - Volley of Death 2", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 69.18, energy: 0.98, concerto: 1.36, offtune: 3094, forte1: 2593 });
 export const HA3 = galbrenaAction("Heavy - Volley of Death 3", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Echo, mv: 167.70, energy: 2.37, concerto: 3.29, offtune: 7499, forte1: 1852 });
 
 // Threshold State resonance skill: Encroach (base), Ascent of Malice (100 Sinflame, opens Demon
 // Hypostasis)
-export const Encroach = galbrenaAction("Skill - Encroach", { node: Node.Skill, cast: Cast.Skill, type: Type1.Heavy, mv: 35.78, energy: 6.59, offtune: 5039, forte1: 1852 });
+export const Encroach = galbrenaAction("Skill - Encroach", { node: Node.Skill, cast: Cast.Skill, type: Type1.Heavy, mv: 35.78, concerto: 2.22, energy: 6.59, offtune: 5039, forte1: 1852 });
 /** Converts Sinflame into Purging Flame — declared as real deltas (forte1: -10000, forte2:
  *  +10000) so they show in the hover trace, but GALBRENA's own update() below first normalizes
  *  each gauge to what these deltas expect to land on 0/10000 from (forte gauges have no floor or
@@ -86,12 +87,12 @@ export const FlamewingVerdict3 = galbrenaAction("Forte Heavy - Flamewing Verdict
 
 export const Ravage = galbrenaAction("Forte Skill - Ravage", { node: Node.Forte, cast: Cast.Skill, type: Type1.Heavy, mv: 35.78, energy: 6.59, concerto: 2.22, offtune: 5039 });
 
-export const Liberation = galbrenaAction("Liberation - Hellfire Absolution", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Echo, mv: 1109.04, concerto: 20, offtune: 84003 });
+export const Liberation = galbrenaAction("Liberation - Hellfire Absolution", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Echo, mv: 1109.04, concerto: 20, offtune: 84003, resetEnergy: true });
 
 export const Intro = galbrenaAction("Intro - Hellflare Overload", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 94.12, energy: 10, concerto: 10, offtune: 4208, forte1: 1111 });
 /** Unlike most outros, this one deals real damage (795% MV) on top of the handoff concerto
  *  reset; `active: false` still marks it "not really her own attack" for lostOnSwap purposes. */
-export const Outro = galbrenaAction("Outro - Ashen Pursuit", { cast: Cast.Outro, type: Type1.Outro, mv: 795, active: false });
+export const Outro = galbrenaAction("Outro - Ashen Pursuit", { cast: Cast.Outro, type: Type1.Outro, mv: 795, offtune: 30326, concerto: 22.32, energy: 10.03, active: false });
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -111,7 +112,7 @@ export const OATHBOUND_HUNT = new Buff({
 });
 export const GB_INHERENT_1 = new Inherent({
   name: "Galbrena: Oathbound Hunt",
-  update: () => { if (!(currentAction().cast === Cast.Echo)) applySelf(OATHBOUND_HUNT, 1); },
+  update: () => { if (!casting(Cast.Echo)) applySelf(OATHBOUND_HUNT, 1); },
 });
 /** No combat-formula effect this engine models, same "still equipped, no stat" treatment
  *  Augusta's own Ruler's Realm shield gets. */
@@ -153,6 +154,7 @@ export const HELLFIRE_WINDOW = new Buff({
 
 export const GALBRENA = new Resonator({
   name: "Galbrena",
+  abbreviation: "Glob",
   element: Attribute.Fusion,
   weapon: WeaponType.Pistols,
   intro: () => Intro,
@@ -194,7 +196,7 @@ export const GALBRENA_TALENTS = new Talent({
 // while it's up, Liberation opens its own +85% window over the tail of it, Outro closes the loop
 // out (and still hits). She's never the team's own lead, so this covers both opener and loop.
 export const GB_ROTATION = [
-  INTRO, ECHO_CAST, HA2, HA3, BA3, BA4,
+  INTRO, ECHO_CAST, HA2, HA3, BA3, BA4, Encroach,
   AscentOfMalice, Liberation,
   SeraphicExecution2, SeraphicExecution3, SeraphicExecution4, SeraphicExecution5,
   SeraphicExecution3, SeraphicExecution4, SeraphicExecution5,
@@ -219,17 +221,35 @@ export const GB_ROTATION_ECHO_FOCUS = [
 
 /* ----------------------------------------------------------------------------------- loadout */
 
-// her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
+// her real 43311 build: resonator + talents + both Inherent Skills, viable weapons, mainslot echo,
 // sonata pieces, mainstat/substat
-export const GB_LOADOUT = new Loadout(
+const GB_WEAPONS = [LUX_UMBRA, NEW_STD_PISTOL, STATIC_MIST];
+const GB_ECHOES = [new EchoLoadout(CORROSAURUS, FLAMEWING_SHADOW_3PC, CLAWPRINT_2PC)];
+export const GLOB_LOADOUT = new Loadout(
   GALBRENA,
+  true,
   GALBRENA_TALENTS,
   GB_INHERENT_1,
   GB_INHERENT_2,
-  LUX_UMBRA,
-  CORROSAURUS,
-  FLAMEWING_SHADOW_3PC,
-  CLAWPRINT_2PC,
-  mainstats("CR", "fusion fusion", "atk atk"),
+  GB_WEAPONS,
+  GB_ECHOES,
+  mainstatOptions(["CR", "CD"], ["atk", "fusion"], ["atk"]),
   chem("atk", "heavy"),
+  GB_ROTATION, GB_ROTATION,
+);
+
+// same gear, the echo-focused rotation variant — genuinely different actions cast (the one that
+// actually triggers a teammate's own Echo Skill DMG buffs), not a weapon/echo-gear choice, so it
+// stays its own Loadout rather than folding into GLOB_LOADOUT's own opener/loop
+export const GLOB_LOADOUT_ECHO_FOCUS = new Loadout(
+  GALBRENA,
+  true,
+  GALBRENA_TALENTS,
+  GB_INHERENT_1,
+  GB_INHERENT_2,
+  GB_WEAPONS,
+  GB_ECHOES,
+  mainstatOptions(["CR", "CD"], ["atk", "fusion"], ["atk"]),
+  chem("atk", "heavy"),
+  GB_ROTATION_ECHO_FOCUS, GB_ROTATION_ECHO_FOCUS,
 );

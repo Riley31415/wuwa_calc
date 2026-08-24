@@ -71,8 +71,20 @@ export enum EnemyStat {
 
 /* ------------------------------------------------------------ scoped stats */
 /** Any stat can be scoped to what the action is (`Dmg Bonus:fusion`) — resolves against element
- *  and damage type only, never `cast`/`scaling`. */
-export const scopedStat = (tag: string, stat: string): string => `${stat}:${tag}`;
+ *  and damage type only, never `cast`/`scaling`.
+ *
+ *  Memoized through a nested Map rather than rebuilt per call: the tag and stat vocabularies are
+ *  both small fixed enums, so the whole product is a few hundred strings that get built once and
+ *  then handed back by reference. A flat `Map` keyed on `tag + "|" + stat` would defeat the point
+ *  — building that key is the same string concatenation this is avoiding — hence two levels. */
+const SCOPED_CACHE = new Map<string, Map<string, string>>();
+export const scopedStat = (tag: string, stat: string): string => {
+  let byStat = SCOPED_CACHE.get(tag);
+  if (byStat === undefined) { byStat = new Map(); SCOPED_CACHE.set(tag, byStat); }
+  let key = byStat.get(stat);
+  if (key === undefined) { key = `${stat}:${tag}`; byStat.set(stat, key); }
+  return key;
+};
 
 /* --- the tag vocabulary: what a conditional, an element field or a type field may say ------ */
 
@@ -114,6 +126,7 @@ export enum Type1 {
   Status = "Negative Status",
   Break = "Tune Break",
   Rupture = "Tune Rupture",
+  Strain = "Tune Strain",
   Hack = "Tune Hack",
   Utility = "Utility",
 }
@@ -122,7 +135,7 @@ export const TYPE1S: Type1[] = [
   Type1.Basic, Type1.Heavy, Type1.Skill, Type1.Liberation,
   Type1.Intro, Type1.Outro, Type1.Echo,
   Type1.Status,
-  Type1.Break, Type1.Rupture, Type1.Hack, Type1.Utility,
+  Type1.Break, Type1.Rupture, Type1.Strain, Type1.Hack, Type1.Utility,
 ];
 
 /** A second, independent damage-type tag some hits carry alongside `type`, scoped the same way. */
