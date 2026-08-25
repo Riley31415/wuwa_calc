@@ -8,7 +8,7 @@
  *                on the action, no manual setForte1 anywhere in this file.
  *   Mingfire     forte2; 100 from liberation, 25 per heavy while lit — that spend, and the +200
  *                Qi refund above 25, both go through `addStat(AddForte1/AddForte2, ...)` inside
- *                Fire of Life's own convert() so both trace back to it in the forte hover.
+ *                Fire of Life's own convertStats() so both trace back to it in the forte hover.
  *   Ghost Shroud stacking buff, max 50; his intro spends it all for Fortune in Disguise.
  *
  * His real two Inherent Skills, confirmed off the page's own "INHERENT SKILLS" section (not the
@@ -26,12 +26,14 @@
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
   applySelf, forte2, setForte2, stacksOf, isHeld, currentAction,
-  currentTeam, queue, revoke, addStat, getStat, stacks,
+  currentTeam, queue, revoke, addStat, getStat, frozenStacks,
 } from "../../kit.js";
+import { applied, applyTeam } from "../../kit.js";
+import { SHIELD } from "../../statuses.js";
 import { JINGRAN_SIG, THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { MYRIAD_SNARE, LAMP_5PC, LAMP_2PC } from "../../echoes/mengzhou.js";
-import { mainstatOptions } from "../../mainstats.js";
+import { mainstatOptions, Mainstat } from "../../mainstats.js";
 import { chem } from "../../substats.js";
 import { COV_3PC } from "../../echoes/septimont.js";
 
@@ -43,48 +45,48 @@ function jingranAction(id: string, def: object): Action {
 
 // --- basics and mid-air. Stages 3/4 restore Qi. Unprefixed = Yang Font's own basic combo
 //     (Devil's Bane); "Drink Soul" is Yin Vessel's.
-export const BA1 = jingranAction("Basic - Devil's Bane 1", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Basic, mv: 39.82, energy: 0.67, concerto: 1.34, offtune: 2136 });
-export const BA2 = jingranAction("Basic - Devil's Bane 2", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Basic, mv: 99.47, energy: 1.68, concerto: 3.35, offtune: 5337 });
-export const BA3 = jingranAction("Basic - Devil's Bane 3", { node: Node.Normal, cast: Cast.Basic, shields: 2, type: Type1.Heavy, mv: 159.1, energy: 2.69, concerto: 5.36, offtune: 8537, forte1: 50 });
-export const BA4 = jingranAction("Basic - Devil's Bane 4", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Heavy, mv: 124.24, energy: 2.09, concerto: 4.18, offtune: 6666, forte1: 50 });
-export const MA = jingranAction("Basic - Edge of Life and Death (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Basic, mv: 92.45, energy: 1.55, concerto: 3.1, offtune: 4960 });
+const BA1 = jingranAction("Basic - Devil's Bane 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 39.82, energy: 0.67, concerto: 1.34, offtune: 2136 });
+const BA2 = jingranAction("Basic - Devil's Bane 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 99.47, energy: 1.68, concerto: 3.35, offtune: 5337 });
+const BA3 = jingranAction("Basic - Devil's Bane 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 159.1, energy: 2.69, concerto: 5.36, offtune: 8537, forte1: 50 });
+const BA4 = jingranAction("Basic - Devil's Bane 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 124.24, energy: 2.09, concerto: 4.18, offtune: 6666, forte1: 50 });
+const MA = jingranAction("Basic - Edge of Life and Death (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 92.45, energy: 1.55, concerto: 3.1, offtune: 4960 });
 
-export const EBA1 = jingranAction("Basic - Drink Soul 1", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Basic, mv: 44.74, energy: 0.75, concerto: 1.5, offtune: 2400 });
-export const EBA2 = jingranAction("Basic - Drink Soul 2", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Basic, mv: 74.56, energy: 1.26, concerto: 2.5, offtune: 4000 });
-export const EBA3 = jingranAction("Basic - Drink Soul 3", { node: Node.Normal, cast: Cast.Basic, shields: 1, type: Type1.Heavy, mv: 109.32, energy: 1.84, concerto: 3.68, offtune: 5864, forte1: 50 });
-export const EBA4 = jingranAction("Basic - Drink Soul 4", { node: Node.Normal, cast: Cast.Basic, shields: 2, type: Type1.Heavy, mv: 153.16, energy: 2.6, concerto: 5.16, offtune: 8218, forte1: 50 });
+const EBA1 = jingranAction("Basic - Drink Soul 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 44.74, energy: 0.75, concerto: 1.5, offtune: 2400 });
+const EBA2 = jingranAction("Basic - Drink Soul 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 74.56, energy: 1.26, concerto: 2.5, offtune: 4000 });
+const EBA3 = jingranAction("Basic - Drink Soul 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 109.32, energy: 1.84, concerto: 3.68, offtune: 5864, forte1: 50 });
+const EBA4 = jingranAction("Basic - Drink Soul 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 153.16, energy: 2.6, concerto: 5.16, offtune: 8218, forte1: 50 });
 
 // --- dodge counters: Light Watch (Yang Font), Nether Dive (Yin Vessel), 100 Qi each
-export const DC = jingranAction("Basic - Light Watch", { node: Node.Normal, cast: Cast.DodgeCounter, shields: 1, type: Type1.Heavy, mv: 198.8, energy: 10, concerto: 6.68, offtune: 8000, forte1: 100 });
-export const EDC = jingranAction("Basic - Nether Dive", { node: Node.Normal, cast: Cast.DodgeCounter, shields: 1, type: Type1.Heavy, mv: 248.57, energy: 4.19, concerto: 18.36, offtune: 13337, forte1: 100 });
+const DC = jingranAction("Basic - Light Watch", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Heavy, mv: 198.8, energy: 10, concerto: 6.68, offtune: 8000, forte1: 100 });
+const EDC = jingranAction("Basic - Nether Dive", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Heavy, mv: 248.57, energy: 4.19, concerto: 18.36, offtune: 13337, forte1: 100 });
 
 // --- resonance skill. Scorching Yang/Afterlife's Guide are Yang Font's own tap+hold pair;
 //     Encroaching Yin/Netherworld Traverse are Yin Vessel's.
-export const Skill1 = jingranAction("Skill - Scorching Yang", { node: Node.Skill, cast: Cast.Skill, shields: 1, type: Type1.Skill, mv: 164.04, energy: 1.75, concerto: 3.5, offtune: 5600 });
-export const ESkill1 = jingranAction("Skill - Encroaching Yin", { node: Node.Skill, cast: Cast.Skill, shields: 1, type: Type1.Skill, mv: 164.04, energy: 1.75, concerto: 3.5, offtune: 5600 });
-export const Skill2 = jingranAction("Skill - Afterlife's Guide", { node: Node.Skill, cast: Cast.Skill, shields: 2, type: Type1.Heavy, mv: 258.47, energy: 3.35, concerto: 5, offtune: 10667, forte1: 100 });
-export const ESkill2 = jingranAction("Skill - Netherworld Traverse", { node: Node.Skill, cast: Cast.Skill, shields: 2, type: Type1.Heavy, mv: 263.48, energy: 3.43, concerto: 5, offtune: 10936, forte1: 100 });
+const Skill1 = jingranAction("Skill - Scorching Yang", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 164.04, energy: 1.75, concerto: 3.5, offtune: 5600 });
+const ESkill1 = jingranAction("Skill - Encroaching Yin", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 164.04, energy: 1.75, concerto: 3.5, offtune: 5600 });
+const Skill2 = jingranAction("Skill - Afterlife's Guide", { node: Node.Skill, cast: Cast.Skill, type: Type1.Heavy, mv: 258.47, energy: 3.35, concerto: 5, offtune: 10667, forte1: 100 });
+const ESkill2 = jingranAction("Skill - Netherworld Traverse", { node: Node.Skill, cast: Cast.Skill, type: Type1.Heavy, mv: 263.48, energy: 3.43, concerto: 5, offtune: 10936, forte1: 100 });
 
-export const Lib = jingranAction("Liberation - Burial of Thousand Souls", {
-  node: Node.Liberation, cast: Cast.Liberation, shields: 2, type: Type1.Heavy, mv: 745.2, // 93.15% x 8
+const Lib = jingranAction("Liberation - Burial of Thousand Souls", {
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 745.2, // 93.15% x 8
   offtune: 168000, forte1: 200, forte2: 100, resetEnergy: true, concerto: 20,
 });
 /** One per heavy attack while Mingfire is up. Node Liberation (attributed to it) but no `cast`:
  *  it's a summon, not a press. */
-export const ACTION_LIB_FUA = jingranAction("Liberation - Chimei Wangliang", { node: Node.Liberation, type: Type1.Heavy, mv: 83.51 });
+const ACTION_LIB_FUA = jingranAction("Liberation - Chimei Wangliang", { node: Node.Liberation, type: Type1.Heavy, mv: 83.51 });
 
-export const Intro = jingranAction("Intro - Question the Tombs", { node: Node.Intro, cast: Cast.Intro, shields: 1, type: Type1.Intro, mv: 198.81, energy: 10, concerto: 10, offtune: 8000, forte1: 100 });
-export const Outro = jingranAction("Outro - Rising Fortune and Ebbing Evil", { cast: Cast.Outro, type: Type1.Outro, mv: 795, active: false });
+const Intro = jingranAction("Intro - Question the Tombs", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81, energy: 10, concerto: 10, offtune: 8000, forte1: 100 });
+const Outro = jingranAction("Outro - Rising Fortune and Ebbing Evil", { cast: Cast.Outro, type: Type1.Outro, mv: 795, active: false });
 
 // --- heavy attacks ("forte skills"). Unprefixed = Yang Font's own (FHA = Stardome Meander,
 //     switches him to Yin Vessel on landing), EFHA (Yin Vessel's own) = Soul Raid.
-export const FHA = jingranAction("Forte - Stardome Meander", { node: Node.Forte, cast: Cast.Heavy, shields: 2, type: Type1.Heavy, mv: 240.38, energy: 8.5, concerto: 13, offtune: 10400, forte1: -300 }); // 24.04%+24.04%+48.08%+144.22%
-export const EFHA = jingranAction("Forte - Soul Raid", { node: Node.Forte, cast: Cast.Heavy, shields: 2, type: Type1.Heavy, mv: 234.29, energy: 8.53, concerto: 13, offtune: 10140, forte1: -300 }); // 16.40%x2+21.09%x3+138.22%
+const FHA = jingranAction("Forte - Stardome Meander", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 240.38, energy: 8.5, concerto: 13, offtune: 10400, forte1: -300 }); // 24.04%+24.04%+48.08%+144.22%
+const EFHA = jingranAction("Forte - Soul Raid", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 234.29, energy: 8.53, concerto: 13, offtune: 10140, forte1: -300 }); // 16.40%x2+21.09%x3+138.22%
 
 /* ------------------------------------------------------------------------------------ buffs */
 
-/** The HP fold every HP-scaled conversion below reads. Only ever accurate from convert(): every
- *  other held Gear's own apply() has to have already run. */
+/** The HP fold every HP-scaled conversion below reads. Only ever accurate from convertStats(): every
+ *  other held Gear's own applyStats() has to have already run. */
 function hp(): number {
   const base = getStat(Stat.BaseHp);
   return base + getStat(Stat.BonusHp) / 100 * base + getStat(Stat.FlatHp);
@@ -100,23 +102,19 @@ function def(): number {
  *  HP ceiling). */
 function hpSteps(): number { return Math.floor(Math.min(hp(), 50000) / 1000); }
 
-/** The breakpoint itself, written the way the game does — "@50k HP" once over the ceiling,
- *  "@37k HP" short of it — for each HP-scaled buff's own display(). */
-function hpThreshold(): string { return `@${hpSteps()}k HP`; }
-
 /** Ghost Shroud — a resource; the stack count *is* the value. His intro spends it. Base kit: +1
  *  a shield whenever *he* gains one of his own (its own 0.5s ICD dropped, per the standing ICD
- *  simplification — granted on JINGRAN's own update() below, not here). Trace the Vestige
+ *  simplification — granted on JINGRAN's own updateBuffs() below, not here). Trace the Vestige
  *  (Inherent Skill) adds a second, separate income on top: +2 a shield on a *teammate's* own
  *  shield, plus a flat +15 more via Fixation — see JR_INHERENT_2 below. */
-export const JINGRAN_GHOST_SHROUD = new Buff({ name: "Jingran: Ghost Shroud", maxStacks: 50 });
+const JINGRAN_GHOST_SHROUD = new Buff({ name: "Jingran: Ghost Shroud", maxStacks: 50 });
 
 /** Granted by Intro Skill, Encroaching Yin, or Scorching Yang. No stat of its own — a do-nothing
  *  marker, present in the resonator popover once one of those three casts, permanent uptime after. */
-export const JINGRAN_EARTH_CHARM = new Buff({ name: "Jingran: Earth Charm" });
-export const JR_INHERENT_1 = new Inherent({
+const JINGRAN_EARTH_CHARM = new Buff({ name: "Jingran: Earth Charm" });
+const JR_INHERENT_1 = new Inherent({
   name: "Jingran: Hark the Dust",
-  update: () => {
+  updateBuffs: () => {
     const a = currentAction();
     if (a === Intro || a === Skill1 || a === ESkill1) applySelf(JINGRAN_EARTH_CHARM, 1);
   },
@@ -125,31 +123,30 @@ export const JR_INHERENT_1 = new Inherent({
 /** Fusion damage scaled off Max HP per stack, own ceiling. The one HP-scaled buff here with a
  *  real stack count (Ghost Shroud converts 1:1 into it on his intro), so its own display()
  *  reproduces "name xN" and appends the HP breakpoint after. */
-export const JINGRAN_FORTUNE = new Buff({
+const JINGRAN_FORTUNE = new Buff({
   name: "Jingran: Fortune in Disguise", maxStacks: 50,
-  display: (): string => `${JINGRAN_FORTUNE.name} x${stacks()} ${hpThreshold()}`,
-  convert: () => {
+  convertStats: () => {
     const steps = hpSteps(); // 0.05% fusion per 1000 Max HP per stack, capped at 2.5%
-    addStat(Stat.DmgBonus, Math.min(2.5, 0.05 * steps) * stacks(), Attribute.Fusion);
+    addStat(Stat.DmgBonus, Math.min(2.5, 0.05 * steps) * frozenStacks(), Attribute.Fusion);
   },
 });
 
 /** A one-shot bonus: the next teammate (not his own) shield after it's granted pays a flat 15
  *  Ghost Shroud more on top of Trace the Vestige's own base 2-a-shield rate, and spends it. */
-export const JINGRAN_FIXATION = new Buff({ name: "Jingran: Fixation" });
-export const JR_INHERENT_2 = new Inherent({
+const JINGRAN_FIXATION = new Buff({ name: "Jingran: Fixation" });
+const JR_INHERENT_2 = new Inherent({
   name: "Jingran: Trace the Vestige",
   combatStart: () => {
     applySelf(JINGRAN_FIXATION, 1); // "upon engaging in combat, Jingran gains Fixation"
     applySelf(JINGRAN_GHOST_SHROUD, 25); // "upon entering combat, tops Ghost Shroud up to 25"
   },
-  update: () => { if (currentAction() === Outro) applySelf(JINGRAN_FIXATION, 1); },
+  updateBuffs: () => { if (currentAction() === Outro) applySelf(JINGRAN_FIXATION, 1); },
   // `currentSlot` is switched to Jingran's own slot for this call regardless of who's actually
   // acting, so `applySelf()`/`isHeld()` below always resolve against him specifically.
   updateGlobal: () => {
     const a = currentAction();
-    if (currentTeam().slot.resonator === JINGRAN || !a.shields) return;
-    applySelf(JINGRAN_GHOST_SHROUD, 2 * a.shields);
+    if (currentTeam().slot.resonator === JINGRAN || !applied(SHIELD)) return;
+    applySelf(JINGRAN_GHOST_SHROUD, 2 * applied(SHIELD));
     if (isHeld(JINGRAN_FIXATION)) { revoke(JINGRAN_FIXATION); applySelf(JINGRAN_GHOST_SHROUD, 15); }
   },
 });
@@ -158,10 +155,9 @@ export const JR_INHERENT_2 = new Inherent({
  *  DEF is fixed at 0, plus two HP -> stat conversions in whole 1000 HP steps: Incoming Healing
  *  Bonus and Fusion DMG Bonus. Self-applied once at JINGRAN's own combatStart (not added to the
  *  loadout) so it keeps its own distinct "@Nk HP" source name in the report's hover trace. */
-export const JINGRAN_HP_TO_FUSION = new Buff({
+const JINGRAN_HP_TO_FUSION = new Buff({
   name: "Jingran: Nether to Light",
-  display: () => `Jingran: Nether to Light ${hpThreshold()}`,
-  convert: () => {
+  convertStats: () => {
     addStat(Stat.FlatDef, -def());
     const steps = hpSteps();
     addStat(Stat.HealingTaken, 6.2 * steps); // 6.2% Incoming Healing Bonus per 1000 HP, capped 310%
@@ -169,10 +165,9 @@ export const JINGRAN_HP_TO_FUSION = new Buff({
   },
 });
 /** Same Forte Circuit page section as Nether to Light above, same unconditional self-applied shape. */
-export const JINGRAN_HP_TO_ATK = new Buff({
+const JINGRAN_HP_TO_ATK = new Buff({
   name: "Jingran: Yang Changes, Yin Unites",
-  display: () => `Jingran: Yang Changes, Yin Unites ${hpThreshold()}`,
-  convert: () => {
+  convertStats: () => {
     const steps = hpSteps();
     addStat(Stat.FlatAtk, 36 * steps); // 36 ATK/1000 HP, capped 1800
   },
@@ -181,13 +176,12 @@ export const JINGRAN_HP_TO_ATK = new Buff({
 /** While Mingfire (forte2) is lit, a heavy attack burns up to 25 of it, summons Chimei
  *  Wangliang, boosts its own motion value off HP above the first 25,000, and — above 25 Mingfire
  *  — refunds 200 Qi. Self-applied the moment a heavy attack catches Mingfire lit, so its
- *  convert() runs this same action, then revokes itself so it doesn't fire again next cast. */
+ *  convertStats() runs this same action, then revokes itself so it doesn't fire again next cast. */
 function fireSteps(): number { return Math.max(0, Math.floor((Math.min(hp(), 50000) - 25000) / 1000)); }
 
-export const JINGRAN_FIRE_OF_LIFE = new Buff({
+const JINGRAN_FIRE_OF_LIFE = new Buff({
   name: "Jingran: Fire of Life",
-  display: () => `Jingran: Fire of Life ${hpThreshold()}`,
-  convert: () => {
+  convertStats: () => {
     const a = currentAction();
     const mingfire = forte2();
     queue(ACTION_LIB_FUA);
@@ -198,7 +192,12 @@ export const JINGRAN_FIRE_OF_LIFE = new Buff({
   },
 });
 
-export const JINGRAN = new Resonator({
+const SHIELDS = new Map<Action, number>([
+  [BA1, 1], [BA2, 1], [BA3, 2], [BA4, 1], [MA, 1], [EBA1, 1], [EBA2, 1], [EBA3, 1], [EBA4, 2],
+  [DC, 1], [EDC, 1], [Skill1, 1], [ESkill1, 1], [Skill2, 2], [ESkill2, 2], [Lib, 2], [Intro, 1], [FHA, 2], [EFHA, 2],
+]);
+
+const JINGRAN = new Resonator({
   name: "Jingran",
   abbreviation: "Jingoat",
   element: Attribute.Fusion,
@@ -214,7 +213,14 @@ export const JINGRAN = new Resonator({
     applySelf(JINGRAN_HP_TO_ATK, 1);
   },
 
-  update: () => {
+  // every cast of his shields — two off the chain closers, both enhanced skills, the Liberation
+  // and both Forte heavies, one off everything else
+  updateDebuffs: () => {
+    const n = SHIELDS.get(currentAction());
+    if (n) applyTeam(SHIELD, n);
+  },
+
+  updateBuffs: () => {
     const a = currentAction();
     if (a === Intro) {
       const shroud = stacksOf(JINGRAN_GHOST_SHROUD);
@@ -223,29 +229,28 @@ export const JINGRAN = new Resonator({
     // base kit: +1 per shield whenever he gains one of his own — checked after the Intro spend
     // above, so a shield Intro itself grants carries into the next cycle rather than being spent
     // by that same cast
-    if (a.shields) applySelf(JINGRAN_GHOST_SHROUD, a.shields);
+    if (applied(SHIELD)) applySelf(JINGRAN_GHOST_SHROUD, applied(SHIELD));
     if (a === Outro) revoke(JINGRAN_FORTUNE);
-    // granted here, not read here — JINGRAN_FIRE_OF_LIFE's own convert() does the spend/queue/
+    // granted here, not read here — JINGRAN_FIRE_OF_LIFE's own convertStats() does the spend/queue/
     // MV-boost/Qi-refund work, this same action
     if ((a === FHA || a === EFHA) && forte2() > 0) applySelf(JINGRAN_FIRE_OF_LIFE, 1);
     if (a === Outro) setForte2(0);
   },
 
-  apply: () => {
+  applyStats: () => {
     addStat(Stat.BaseHp, 15375); addStat(Stat.BaseAtk, 313);
-    addStat(Stat.Er, 100); addStat(Stat.CritRate, 5); addStat(Stat.CritDmg, 150);
   },
 });
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
-export const JINGRAN_TALENTS = new Talent({
+const JINGRAN_TALENTS = new Talent({
   name: "Jingran: Talents",
-  apply: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusHp, 12); }
+  applyStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusHp, 12); }
 });
 
 // Qi economy: intro 100, liberation +200 to 300, each of the four heavy attacks spends 300 and
 // the first three refund 200 while Mingfire is above 25.
-export const JR_ROTATION = [
+const JR_ROTATION = [
   INTRO, Lib, FHA,
   EBA2, EBA3, EBA4, EFHA,
   Skill1, Skill2, FHA,
@@ -257,16 +262,16 @@ export const JR_ROTATION = [
 
 // his real 44111 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
-export const JINGOAT_LOADOUT = new Loadout(
-  JINGRAN,
-  true,
-  JINGRAN_TALENTS,
-  JR_INHERENT_1,
-  JR_INHERENT_2,
-  [JINGRAN_SIG, NEW_STD_BRAUDBLADE, THUNDERFLARE_DOMINION, LUSTROUS_RAZOR, VERDANT_SUMMIT],
-  [new EchoLoadout(MYRIAD_SNARE, LAMP_5PC, LAMP_2PC),
+export const JINGOAT_LOADOUT = new Loadout({
+  resonator: JINGRAN,
+  talent: JINGRAN_TALENTS,
+  inherent1: JR_INHERENT_1,
+  inherent2: JR_INHERENT_2,
+  weapons: [JINGRAN_SIG, NEW_STD_BRAUDBLADE, THUNDERFLARE_DOMINION, LUSTROUS_RAZOR, VERDANT_SUMMIT],
+  echoLoadouts: [new EchoLoadout(MYRIAD_SNARE, LAMP_5PC, LAMP_2PC),
   new EchoLoadout(MYRIAD_SNARE, COV_3PC, LAMP_2PC)],
-  mainstatOptions(["CR", "CD", "HP"], ["atk", "fusion"], ["atk", "hp"]),
-  chem("hp", "heavy"),
-  JR_ROTATION, JR_ROTATION,
-);
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.HP4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1, Mainstat.HP1),
+  substat: chem("hp", "heavy"),
+  opener: JR_ROTATION,
+  loop: JR_ROTATION,
+});

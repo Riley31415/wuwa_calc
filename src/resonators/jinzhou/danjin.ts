@@ -26,12 +26,12 @@
 import {
   Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
   applySelf, applyTeam, applyEnemy, revoke, revokeTeam, revokeEnemy, isHeld, stacksOfEnemy, casting,
-  currentAction, addStat, stacks, queueOutro, lostOnSwap, forte1,
+  currentAction, addStat, frozenStacks, queueOutro, lostOnSwap, forte1,
 } from "../../kit.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { NM_HERON, MIDNIGHT_VEIL_5PC, MIDNIGHT_VEIL_2PC } from "../../echoes/rinascita.js";
-import { mainstatOptions } from "../../mainstats.js";
+import { mainstatOptions, Mainstat } from "../../mainstats.js";
 import { chem } from "../../substats.js";
 import { CROWNLESS, HAVOC_ECLIPSE_2PC, HAVOC_ECLIPSE_5PC, HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC, REJUV_2PC, REJUV_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
@@ -47,86 +47,86 @@ function danjinAction(id: string, def: object): Action {
 // convention Rover Havoc's own file established. A flat listed "Concerto Regen" adds on top of
 // whatever the table's own Elemental DMG column already gives.
 // --- basics, mid-air, dodge counter (Execution)
-export const BA1 = danjinAction("Basic - Execution 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 57.26, energy: 0.9, concerto: 1.08, offtune: 1680 });
-export const BA2 = danjinAction("Basic - Execution 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 58.85, energy: 0.92, concerto: 1.11, offtune: 2960 });
-export const BA3 = danjinAction("Basic - Execution 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.53, energy: 1.25, concerto: 1.5, offtune: 3120 });
+const BA1 = danjinAction("Basic - Execution 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 57.26, energy: 0.9, concerto: 1.08, offtune: 1680 });
+const BA2 = danjinAction("Basic - Execution 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 58.85, energy: 0.92, concerto: 1.11, offtune: 2960 });
+const BA3 = danjinAction("Basic - Execution 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.53, energy: 1.25, concerto: 1.5, offtune: 3120 });
 
-export const MA = danjinAction("Mid-air - Execution", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 0.51, concerto: 1, offtune: 9600 });
-export const HA = danjinAction("Heavy - Execution", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 111.36, energy: 1.74, concerto: 2.1, offtune: 5358 }); // 37.12% x3
+const MA = danjinAction("Mid-air - Execution", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 0.51, concerto: 1, offtune: 9600 });
+const HA = danjinAction("Heavy - Execution", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 111.36, energy: 1.74, concerto: 2.1, offtune: 5358 }); // 37.12% x3
 /** A successful Dodge Counter opens the Skill's own Crimson Erosion form, and grants Crimson Light. */
-export const DC = danjinAction("Dodge Counter - Ruby Shades", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 190.86, energy: 3, concerto: 11.8, offtune: 4800 }); // 63.62% x3
+const DC = danjinAction("Dodge Counter - Ruby Shades", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 190.86, energy: 3, concerto: 11.8, offtune: 4800 }); // 63.62% x3
 
 // three forms depending on the preceding action (see file header)
-export const CarmineGleam = danjinAction("Skill - Carmine Gleam", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 76.36, forte1: 10.5, energy: 1.2, offtune: 2960, concerto: 8 }); // 38.18% x2
-export const CrimsonErosion1 = danjinAction("Skill - Crimson Erosion 1", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 128.84, forte1: 10.5, energy: 2.5, offtune: 4240, concerto: 8 }); // 64.42% x2
-export const CrimsonErosion2 = danjinAction("Skill - Crimson Erosion 2", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 119.30, forte1: 10.5, energy: 2.5, offtune: 4000, concerto: 8 }); // 59.65% x2
+const CarmineGleam = danjinAction("Skill - Carmine Gleam", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 76.36, forte1: 10.5, energy: 1.2, offtune: 2960, concerto: 8 }); // 38.18% x2
+const CrimsonErosion1 = danjinAction("Skill - Crimson Erosion 1", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 128.84, forte1: 10.5, energy: 2.5, offtune: 4240, concerto: 8 }); // 64.42% x2
+const CrimsonErosion2 = danjinAction("Skill - Crimson Erosion 2", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 119.30, forte1: 10.5, energy: 2.5, offtune: 4000, concerto: 8 }); // 59.65% x2
 
 // NOTE 40.5 forte for sanguine pulse 123, not sure on individual
-export const SanguinePulse1 = danjinAction("Skill - Sanguine Pulse 1", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 112.14, forte1: 13.5, energy: 3, offtune: 3760, concerto: 8 }); // 56.07% x2
-export const SanguinePulse2 = danjinAction("Skill - Sanguine Pulse 2", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 128.85, forte1: 13.5, energy: 3, offtune: 4230, concerto: 8 }); // 42.95% x3
-export const SanguinePulse3 = danjinAction("Skill - Sanguine Pulse 3", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 193.26, forte1: 13.5, energy: 3.75, offtune: 6360, concerto: 8 }); // 64.42% x3
+const SanguinePulse1 = danjinAction("Skill - Sanguine Pulse 1", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 112.14, forte1: 13.5, energy: 3, offtune: 3760, concerto: 8 }); // 56.07% x2
+const SanguinePulse2 = danjinAction("Skill - Sanguine Pulse 2", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 128.85, forte1: 13.5, energy: 3, offtune: 4230, concerto: 8 }); // 42.95% x3
+const SanguinePulse3 = danjinAction("Skill - Sanguine Pulse 3", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 193.26, forte1: 13.5, energy: 3.75, offtune: 6360, concerto: 8 }); // 64.42% x3
 
 // Chaoscleave (Heavy Attack DMG, at 60+ Ruby Blossom) into Scatterbloom
-export const Chaoscleave = danjinAction("Heavy - Chaoscleave", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 417.55, forte1: -60, energy: 14, concerto: 50, offtune: 11578, heals: true }); // 59.65% x7
-export const Scatterbloom = danjinAction("Heavy - Scatterbloom", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 178.93, energy: 6, offtune: 5360 });
+const Chaoscleave = danjinAction("Heavy - Chaoscleave", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 417.55, forte1: -60, energy: 14, concerto: 50, offtune: 11578, heals: true }); // 59.65% x7
+const Scatterbloom = danjinAction("Heavy - Scatterbloom", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 178.93, energy: 6, offtune: 5360 });
 /** Full Energy variants, at 120 Ruby Blossom — spends 120 instead of 60. No separate Concerto
  *  Regen is given, so it carries Chaoscleave's own. */
-export const FullChaoscleave = danjinAction("Heavy - Chaoscleave (Full Energy)", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 1002.05, forte1: -120, energy: 14, concerto: 50, offtune: 11578, heals: true }); // 143.15% x7
-export const FullScatterbloom = danjinAction("Heavy - Scatterbloom (Full Energy)", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 429.43, energy: 6, offtune: 5360 });
+const FullChaoscleave = danjinAction("Heavy - Chaoscleave (Full Energy)", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 1002.05, forte1: -120, energy: 14, concerto: 50, offtune: 11578, heals: true }); // 143.15% x7
+const FullScatterbloom = danjinAction("Heavy - Scatterbloom (Full Energy)", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 429.43, energy: 6, offtune: 5360 });
 
 // consecutive attacks plus one Scarlet Burst, lumped into one hit
-export const Liberation = danjinAction("Liberation - Crimson Bloom", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 785.37, concerto: 20, offtune: 61440, resetEnergy: true }); // 49.09%x8+392.65%
+const Liberation = danjinAction("Liberation - Crimson Bloom", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 785.37, concerto: 20, offtune: 61440, resetEnergy: true }); // 49.09%x8+392.65%
 
-export const Intro = danjinAction("Intro - Vindication", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.84, energy: 10, concerto: 10, offtune: 12240 }); // 49.71% x4
-export const Outro = danjinAction("Outro - Duality", { cast: Cast.Outro, active: false });
+const Intro = danjinAction("Intro - Vindication", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.84, energy: 10, concerto: 10, offtune: 12240 }); // 49.71% x4
+const Outro = danjinAction("Outro - Duality", { cast: Cast.Outro, active: false });
 
 /* ------------------------------------------------------------------------------------ buffs */
 
 /** A genuine debuff on the enemy — applied by Crimson Erosion's own second hit, +20% (unscoped)
  *  DMG Bonus to whoever's actually landing the hit. 12s, lost after her own outro action gains stats. */
-export const INCINERATING_WILL = new Debuff({
+const INCINERATING_WILL = new Debuff({
   name: "Danjin: Incinerating Will",
-  apply: () => { if (isHeld(DANJIN)) addStat(Stat.DmgBonus, 20); },
-  convert: () => { if (casting(Cast.Outro) && isHeld(DANJIN)) revokeEnemy(INCINERATING_WILL); },
+  applyStats: () => { if (isHeld(DANJIN)) addStat(Stat.DmgBonus, 20); },
+  convertStats: () => { if (casting(Cast.Outro) && isHeld(DANJIN)) revokeEnemy(INCINERATING_WILL); },
 });
 
 /** Overflow (Inherent Skill): +30% Heavy Attack DMG Bonus, 5s, once granted after Sanguine Pulse —
  *  a real time window, lost after the outro action gains stats, not consumed by the next hit alone. */
-export const OVERFLOW = new Buff({
+const OVERFLOW = new Buff({
   name: "Danjin: Overflow",
-  apply: () => addStat(Stat.DmgBonus, 30, Type1.Heavy),
-  convert: () => { if (casting(Cast.Outro)) revoke(OVERFLOW); },
+  applyStats: () => addStat(Stat.DmgBonus, 30, Type1.Heavy),
+  convertStats: () => { if (casting(Cast.Outro)) revoke(OVERFLOW); },
 });
-export const DJ_INHERENT_OVERFLOW = new Inherent({
+const DJ_INHERENT_OVERFLOW = new Inherent({
   name: "Danjin: Overflow",
-  update: () => { if (currentAction() === SanguinePulse3) applySelf(OVERFLOW, 1); },
+  updateBuffs: () => { if (currentAction() === SanguinePulse3) applySelf(OVERFLOW, 1); },
 });
 
 /** Crimson Light (Inherent Skill): granted the instant Dodge Counter lands. Survives into
  *  whatever comes right after: if that's Crimson Erosion 1, it pays out (+20% unscoped DMG
  *  Bonus, doubles that action's own Ruby Blossom gain via AddForte1); on anything else it
- *  revokes itself in update() before apply() runs that action. */
-export const CRIMSON_LIGHT = new Buff({
+ *  revokes itself in updateBuffs() before applyStats() runs that action. */
+const CRIMSON_LIGHT = new Buff({
   name: "Danjin: Crimson Light",
-  apply: () => {
+  applyStats: () => {
     if (currentAction() === CrimsonErosion1) { addStat(Stat.DmgBonus, 20); addStat(Stat.AddForte1, CrimsonErosion1.forte1); }
   },
-  update: () => { if (currentAction() !== CrimsonErosion1) revoke(CRIMSON_LIGHT); },
+  updateBuffs: () => { if (currentAction() !== CrimsonErosion1) revoke(CRIMSON_LIGHT); },
 });
-export const DJ_INHERENT_CRIMSON_LIGHT = new Inherent({
+const DJ_INHERENT_CRIMSON_LIGHT = new Inherent({
   name: "Danjin: Crimson Light",
-  update: () => { if (currentAction() === DC) applySelf(CRIMSON_LIGHT, 1); },
+  updateBuffs: () => { if (currentAction() === DC) applySelf(CRIMSON_LIGHT, 1); },
 });
 
 /** The window her outro hands the incoming resonator — "or until they are switched out" is
- *  lost-on-swap wording, checked via lostOnSwap() rather than the usual convert(). */
-export const DANJIN_OUTRO = new Buff({
+ *  lost-on-swap wording, checked via lostOnSwap() rather than the usual convertStats(). */
+const DANJIN_OUTRO = new Buff({
   name: "Danjin: Outro",
-  apply: () => addStat(Stat.Amp, 23, Attribute.Havoc),
-  update: () => { lostOnSwap(); },
+  applyStats: () => addStat(Stat.Amp, 23, Attribute.Havoc),
+  updateBuffs: () => { lostOnSwap(); },
 });
 
-export const DANJIN = new Resonator({
+const DANJIN = new Resonator({
   name: "Danjin",
   abbreviation: "Danjin",
   element: Attribute.Havoc,
@@ -136,62 +136,61 @@ export const DANJIN = new Resonator({
   maxEnergy: 100,
   standardCharacter: true,
 
-  update: () => {
+  updateBuffs: () => {
     const a = currentAction();
     if (a === CrimsonErosion2) applyEnemy(INCINERATING_WILL, 1);
     if (a === Outro) queueOutro(DANJIN_OUTRO);
   },
 
-  apply: () => {
+  applyStats: () => {
     addStat(Stat.BaseHp, 9438); addStat(Stat.BaseAtk, 263); addStat(Stat.BaseDef, 1149);
-    addStat(Stat.Er, 100); addStat(Stat.CritRate, 5); addStat(Stat.CritDmg, 150);
   },
 });
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
-export const DANJIN_TALENTS = new Talent({
+const DANJIN_TALENTS = new Talent({
   name: "Danjin: Talents",
-  apply: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Havoc); },
+  applyStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Havoc); },
 });
 
 /* -------------------------------------------------------------------------------- sequences */
 // all six live here as their own always-equipped gear pieces (standardCharacter — see file
-// header); every trigger a sequence needs lives in its own piece, not the central update() above
+// header); every trigger a sequence needs lives in its own piece, not the central updateBuffs() above
 
 /** +5% ATK a stack, up to 6, 6s, on any hit landed while Incinerating Will is up. "Loses 1 stack
  *  each time she takes damage" isn't modelled — no damage-taken tracking here. */
-export const DJ_S1_STACKS = new Buff({
+const DJ_S1_STACKS = new Buff({
   name: "Danjin S1: Crimson Heart of Justice", maxStacks: 6,
-  apply: () => addStat(Stat.BonusAtk, 5 * stacks()),
-  convert: () => { if (casting(Cast.Outro)) revoke(DJ_S1_STACKS); },
+  applyStats: () => addStat(Stat.BonusAtk, 5 * frozenStacks()),
+  convertStats: () => { if (casting(Cast.Outro)) revoke(DJ_S1_STACKS); },
 });
-export const DJ_S1 = new Sequence({
+const DJ_S1 = new Sequence({
   name: "Danjin S1: Crimson Heart of Justice",
-  update: () => { if (stacksOfEnemy(INCINERATING_WILL)) applySelf(DJ_S1_STACKS, 1); },
+  updateBuffs: () => { if (stacksOfEnemy(INCINERATING_WILL)) applySelf(DJ_S1_STACKS, 1); },
 });
 
 /** S2: +20% (unscoped) DMG Bonus on any hit landed while Incinerating Will is up. */
-export const DJ_S2 = new Sequence({
+const DJ_S2 = new Sequence({
   name: "Danjin S2: Dusted Mirror",
-  apply: () => { if (stacksOfEnemy(INCINERATING_WILL)) addStat(Stat.DmgBonus, 20); },
+  applyStats: () => { if (stacksOfEnemy(INCINERATING_WILL)) addStat(Stat.DmgBonus, 20); },
 });
 
 /** S3: flat +30% Resonance Liberation DMG Bonus. */
-export const DJ_S3 = new Sequence({
+const DJ_S3 = new Sequence({
   name: "Danjin S3: Fleeting Blossom",
-  apply: () => addStat(Stat.DmgBonus, 30, Type1.Liberation),
+  applyStats: () => addStat(Stat.DmgBonus, 30, Type1.Liberation),
 });
 
 /** S4: +15% Crit Rate above 60 Ruby Blossom, stated to persist through Chaoscleave/Scatterbloom
  *  even as Chaoscleave itself spends the gauge below 60 — granted whenever forte1 > 60, only
  *  revoked once it's below 60 AND the current action isn't Chaoscleave/Scatterbloom (either form). */
-export const DJ_S4_ACTIVE = new Buff({
+const DJ_S4_ACTIVE = new Buff({
   name: "Danjin S4: Solitary Carnation",
-  apply: () => addStat(Stat.CritRate, 15),
+  applyStats: () => addStat(Stat.CritRate, 15),
 });
-export const DJ_S4 = new Sequence({
+const DJ_S4 = new Sequence({
   name: "Danjin S4: Solitary Carnation",
-  update: () => {
+  updateBuffs: () => {
     const a = currentAction();
     if (forte1() > 60) applySelf(DJ_S4_ACTIVE, 1);
     else if (a !== Chaoscleave && a !== FullChaoscleave && a !== Scatterbloom && a !== FullScatterbloom) revoke(DJ_S4_ACTIVE);
@@ -200,20 +199,20 @@ export const DJ_S4 = new Sequence({
 
 /** S5: +15% Havoc DMG Bonus flat, +15% more below 60% HP — no HP tracking, so the low-HP half is
  *  assumed always true. */
-export const DJ_S5 = new Sequence({
+const DJ_S5 = new Sequence({
   name: "Danjin S5: Reigning Blade",
-  apply: () => addStat(Stat.DmgBonus, 30, Attribute.Havoc),
+  applyStats: () => addStat(Stat.DmgBonus, 30, Attribute.Havoc),
 });
 
 /** S6: Chaoscleave grants the whole team +20% ATK, 20s — lost on her own next Intro. */
-export const DJ_S6_TEAM = new Buff({
+const DJ_S6_TEAM = new Buff({
   name: "Danjin S6: Bloodied Jade (team)",
-  apply: () => addStat(Stat.BonusAtk, 20),
-  convert: () => { if (casting(Cast.Intro) && isHeld(DANJIN)) revokeTeam(DJ_S6_TEAM); },
+  applyStats: () => addStat(Stat.BonusAtk, 20),
+  convertStats: () => { if (casting(Cast.Intro) && isHeld(DANJIN)) revokeTeam(DJ_S6_TEAM); },
 });
-export const DJ_S6 = new Sequence({
+const DJ_S6 = new Sequence({
   name: "Danjin S6: Bloodied Jade",
-  update: () => { if (currentAction() === Chaoscleave || currentAction() === FullChaoscleave) applyTeam(DJ_S6_TEAM, 1); },
+  updateBuffs: () => { if (currentAction() === Chaoscleave || currentAction() === FullChaoscleave) applyTeam(DJ_S6_TEAM, 1); },
 });
 
 // a kit-valid line: Intro is a listed Crimson Erosion trigger, so the Skill press right after
@@ -224,7 +223,7 @@ export const DJ_S6 = new Sequence({
 // really reachable — forcing it would've compounded a shortfall loop over loop, permanently
 // killing S4's threshold after the first pass. She's never the team's own lead, so this covers
 // both opener and loop.
-export const DJ_ROTATION = [
+const DJ_ROTATION = [
   INTRO,
   CrimsonErosion1, CrimsonErosion2,
   Liberation,
@@ -238,15 +237,20 @@ export const DJ_ROTATION = [
 
 // her real build: resonator + talents + both Inherent Skills + every sequence node
 // (standardCharacter — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat
-export const DANJIN_LOADOUT = new Loadout(
-  DANJIN, false, DANJIN_TALENTS, DJ_INHERENT_OVERFLOW, DJ_INHERENT_CRIMSON_LIGHT,
-  [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, EMERALD_SENTENCE],
-  [new EchoLoadout(NM_HERON, MIDNIGHT_VEIL_5PC, MIDNIGHT_VEIL_2PC),
+export const DANJIN_LOADOUT = new Loadout({
+  resonator: DANJIN,
+  talent: DANJIN_TALENTS,
+  inherent1: DJ_INHERENT_OVERFLOW,
+  inherent2: DJ_INHERENT_CRIMSON_LIGHT,
+  weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, EMERALD_SENTENCE],
+  echoLoadouts: [new EchoLoadout(NM_HERON, MIDNIGHT_VEIL_5PC, MIDNIGHT_VEIL_2PC),
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
     new EchoLoadout(FALLACY, REJUV_5PC, REJUV_2PC),
     new EchoLoadout(CROWNLESS, HAVOC_ECLIPSE_5PC, HAVOC_ECLIPSE_2PC),
   ],
-  mainstatOptions(["CR", "CD"], ["atk", "havoc"], ["atk"]), chem("atk", "heavy"),
-  DJ_ROTATION, DJ_ROTATION,
-  DJ_S1, DJ_S2, DJ_S3, DJ_S4, DJ_S5, DJ_S6,
-);
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+  substat: chem("atk", "heavy"),
+  opener: DJ_ROTATION,
+  loop: DJ_ROTATION,
+  sequences: [DJ_S1, DJ_S2, DJ_S3, DJ_S4, DJ_S5, DJ_S6],
+});

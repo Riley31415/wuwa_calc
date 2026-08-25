@@ -31,8 +31,8 @@
      compiles against the new engine unmodified (see kit.ts's own header on those types).
      optimize.ts/run.ts/team.ts (the old CLI/report-building harness for the OLD engine's
      Loadout/ResonatorFactory/Resonator shape) were deleted rather than ported — nothing else in
-     the tree referenced them. tunebreak.ts is gone the same way: off-tune break is the engine's
-     own now (kit.ts's TUNE_BREAK, fired from run()) rather than a buff seeded onto a State. */
+     the tree referenced them. tunebreak.ts is the one that came back: it owns the whole off-tune
+     break mechanic again, registered into the engine rather than seeded onto a State. */
   "exclude": [
     "node_modules", "dist",
   ]

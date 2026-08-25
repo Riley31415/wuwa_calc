@@ -2,10 +2,6 @@
 re add chains, more simple definition,
 make triggered actions from chains move into the correct place after opening the dropdwon
 
-# building swap system
-actions to mark swaps, and swaps that need swapback
-have outro become a triggered action
-
 # echoes
 update transform echoes to be inactive or cancelled
 make transforms not triggered, summons are triggered
@@ -18,26 +14,23 @@ insert hecate ba12 whenever none has been queued for a certain # of actions?
 add the manual hecate attacks too
 moonlit and shorekeeper domain correct action timing
 
-# team generation system
-dps give a list of valid characters for each slot in the team
 
 # rotation compare
 multiple rotations as an axis
-
-# openers
-implement missing openers
-
-# forte decimals
-update fortes in kits to divide by 100 where needed
 
 # substats
 add "er rolls needed" to substats
 create a more in depth substat system
 
 # debuffs
-implement all tune
 implement all statuses
 
 # naming
 standardize action naming
 standardize sequence naming
+
+
+# building swap system
+actions to mark swaps, and swaps that need swapback
+have outro become a triggered action
+implement missing openers

@@ -1,2 +1,5 @@
 node_modules/
 dist/
+serve.log
+tsc-watch.log
+serve8000.log

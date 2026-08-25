@@ -15,8 +15,8 @@
  * There's also no weapon optimizer — each member runs their own file's hardcoded loadout, not
  * whichever weapon scores highest.
  *
- * What lives where, since the build search no longer lives here: this file owns the `TEAMS` table,
- * the filter state, the routing and every last piece of rendering. The search itself and the engine
+ * What lives where, since the build search no longer lives here: this file owns the `TEAMS` table
+ * (expanded from teams.ts), the filter state, the routing and every last piece of rendering. The search itself and the engine
  * run that scores it are solver.ts, which is DOM-free precisely so a pool of Workers can run it —
  * that pass is ~97% of a cold load and every team in it is independent, so it goes wide (see
  * `ensureBestPicks()` and worker.ts). Only the handful of rows the table actually shows are run
@@ -24,179 +24,25 @@
  * cross a postMessage.
  */
 import { Gear, Action, Stat } from "./src/kit.js";
-import { TUNE_BREAK_SLOT } from "./src/tunebreak.js";
+import { TUNE_BREAK_SLOT, TUNE_BREAK_HUE } from "./src/tunebreak.js";
 import type { ChainGroup, HeldBuff, ResolvedSnapshot } from "./src/kit.js";
-import { buildReport, totalsBySlot } from "./src/display.js";
-import type { Report, Column, ReportRow, ReportPart, TraceEntry, InfoEntry } from "./src/display.js";
+import { buildReport, totalsBySlot, columnSources, columnOf } from "./src/display.js";
+import type { Report, Column, ReportRow, ReportPart, TraceEntry, InfoEntry, RawRow } from "./src/display.js";
 import { isPercent, statLabel } from "./src/stats.js";
 import { member, comboOf, runTeam, eligibleWeapons, sequenceLevels, variationsOf, solveTeam } from "./src/solver.js";
 import type { Member, Combo, Pick, Filters, Variation, TeamRun, SolvedVariation, SolveRequest, SolveResponse } from "./src/solver.js";
-// Every loadout, from the one registry that also lets a worker resolve a team by name
-// (loadouts.ts). The list is deliberately the whole roster rather than only what `TEAMS` currently
-// uses, so adding a team below never needs an import edit first.
-import { loadoutName, LOADOUTS,
-  QY_LOADOUT,
-  CANTA_LOADOUT,
-  FROLO_LOADOUT,
-  SK_LOADOUT,
-  UNO_LOADOUT,
-  JINGOAT_LOADOUT,
-  ZZ_LOADOUT,
-  LOTTA_LOADOUT,
-  GEEK_LOADOUT,
-  VERINA_LOADOUT,
-  SANHUA_LOADOUT,
-  HROVER_LOADOUT,
-  EROVER_LOADOUT,
-  AROVER_LOADOUT,
-  SROVER_LOADOUT,
-  CIA_LOADOUT,
-  ROCCIA_LOADOUT,
-  AUGUGU_LOADOUT,
-  LOPA_LOADOUT,
-  GLOB_LOADOUT,
-  GLOB_LOADOUT_ECHO_FOCUS,
-  BRANT_LOADOUT,
-  ENCORE_LOADOUT,
-  CHANGLI_LOADOUT,
-  DANJIN_LOADOUT,
-  CAMMY_LOADOUT,
-  MORT_LOADOUT,
-  BULING_LOADOUT,
-  LUCILLA_LOADOUT,
-  JIYAN_LOADOUT,
-  YINLIN_LOADOUT,
-  XLY_LOADOUT,
-} from "./src/loadouts.js";
+import { loadoutName, LOADOUTS, ALL_TEAMS } from "./src/teams.js";
 
 
 /* ------------------------------------------------------------------------------------ teams */
 
-const TEAMS: Record<string, Member[]> = {
-  froloQyCanta: [member(FROLO_LOADOUT), member(QY_LOADOUT), member(CANTA_LOADOUT)],
-  skIunoJingran: [member(SK_LOADOUT), member(UNO_LOADOUT), member(JINGOAT_LOADOUT)],
-  skZzCarlotta: [member(SK_LOADOUT), member(ZZ_LOADOUT), member(LOTTA_LOADOUT)],
-  skQiuyuanSigrika: [member(SK_LOADOUT), member(QY_LOADOUT), member(GEEK_LOADOUT)],
-  froloRoverVerina: [member(FROLO_LOADOUT), member(HROVER_LOADOUT), member(VERINA_LOADOUT)],
-  froloSkCanta: [member(FROLO_LOADOUT), member(SK_LOADOUT), member(CANTA_LOADOUT)],
-  froloRocciaCanta: [member(FROLO_LOADOUT), member(ROCCIA_LOADOUT), member(CANTA_LOADOUT)],
-  skIunoAugusta: [member(SK_LOADOUT), member(UNO_LOADOUT), member(AUGUGU_LOADOUT)],
-  skQyGalbrena: [
-    member(SK_LOADOUT), member(QY_LOADOUT),
-    // the echo-focus variant — the one that actually casts Echo Skills for Shorekeeper's own
-    // Echo Skill DMG buffs to land on
-    member(GLOB_LOADOUT_ECHO_FOCUS),
-  ],
-  skLupaEncore: [member(SK_LOADOUT), member(LOPA_LOADOUT), member(ENCORE_LOADOUT)],
-  lupaBrantGalbrena: [member(LOPA_LOADOUT), member(BRANT_LOADOUT), member(GLOB_LOADOUT)],
-  lupaBrantChangli: [member(LOPA_LOADOUT), member(BRANT_LOADOUT), member(CHANGLI_LOADOUT)],
-  froloDanjinCanta: [member(FROLO_LOADOUT), member(DANJIN_LOADOUT), member(CANTA_LOADOUT)],
-  froloVerinaDanjin: [member(FROLO_LOADOUT), member(VERINA_LOADOUT), member(DANJIN_LOADOUT)],
-  froloSkDanjin: [member(FROLO_LOADOUT), member(SK_LOADOUT), member(DANJIN_LOADOUT)],
-  froloBulingDanjin: [member(FROLO_LOADOUT), member(BULING_LOADOUT), member(DANJIN_LOADOUT)],
-  skRocciaCamellya: [member(SK_LOADOUT), member(ROCCIA_LOADOUT), member(CAMMY_LOADOUT)],
-  skSanhuaCamellya: [member(SK_LOADOUT), member(SANHUA_LOADOUT), member(CAMMY_LOADOUT)],
-  lupaMortefiJingran: [member(LOPA_LOADOUT), member(MORT_LOADOUT), member(JINGOAT_LOADOUT)],
-  skMortefiAugusta: [member(SK_LOADOUT), member(MORT_LOADOUT), member(AUGUGU_LOADOUT)],
-  froloBulingCanta: [member(FROLO_LOADOUT), member(BULING_LOADOUT), member(CANTA_LOADOUT)],
-  bulingZzCarlotta: [member(BULING_LOADOUT), member(ZZ_LOADOUT), member(LOTTA_LOADOUT)],
-  froloQyLucillaEcho: [member(FROLO_LOADOUT), member(QY_LOADOUT), member(LUCILLA_LOADOUT)],
-  skLucillaSigrika: [member(SK_LOADOUT), member(LUCILLA_LOADOUT), member(GEEK_LOADOUT)],
-  skLucillaGalbrena: [
-    member(SK_LOADOUT), member(LUCILLA_LOADOUT),
-    // the echo-focus variant, same as skQyGalbrena — the one that actually casts Echo Skills for
-    // Shorekeeper/Lucilla's own Echo Skill DMG buffs to land on
-    member(GLOB_LOADOUT_ECHO_FOCUS),
-  ],
-  lupaIunoJingran: [member(LOPA_LOADOUT), member(UNO_LOADOUT), member(JINGOAT_LOADOUT)],
-
-  // Sanhua behind a Basic Attack dealer, Roccia behind a Havoc one.
-  skSanhuaEncore: [member(SK_LOADOUT), member(SANHUA_LOADOUT), member(ENCORE_LOADOUT)],
-  verinaRocciaCamellya: [member(VERINA_LOADOUT), member(ROCCIA_LOADOUT), member(CAMMY_LOADOUT)],
-  verinaSanhuaCamellya: [member(VERINA_LOADOUT), member(SANHUA_LOADOUT), member(CAMMY_LOADOUT)],
-  verinaSanhuaEncore: [member(VERINA_LOADOUT), member(SANHUA_LOADOUT), member(ENCORE_LOADOUT)],
-  // Zhezhi (behind Carlotta only) and Brant, the other 2nd slot Carlotta takes.
-  skBrantCarlotta: [member(SK_LOADOUT), member(BRANT_LOADOUT), member(LOTTA_LOADOUT)],
-  verinaBrantCarlotta: [member(VERINA_LOADOUT), member(BRANT_LOADOUT), member(LOTTA_LOADOUT)],
-  bulingBrantCarlotta: [member(BULING_LOADOUT), member(BRANT_LOADOUT), member(LOTTA_LOADOUT)],
-  verinaZzCarlotta: [member(VERINA_LOADOUT), member(ZZ_LOADOUT), member(LOTTA_LOADOUT)],
-  // Aero Rover behind the one Aero dealer, from the 2nd slot or the 3rd.
-  aroverLucillaSigrika: [member(AROVER_LOADOUT), member(LUCILLA_LOADOUT), member(GEEK_LOADOUT)],
-  aroverQySigrika: [member(AROVER_LOADOUT), member(QY_LOADOUT), member(GEEK_LOADOUT)],
-  aroverCantaSigrika: [member(AROVER_LOADOUT), member(CANTA_LOADOUT), member(GEEK_LOADOUT)],
-  skARoverSigrika: [member(SK_LOADOUT), member(AROVER_LOADOUT), member(GEEK_LOADOUT)],
-  verinaARoverSigrika: [member(VERINA_LOADOUT), member(AROVER_LOADOUT), member(GEEK_LOADOUT)],
-  // Ciaccona, the other Aero buffer, in front of the same dealer.
-  aroverCiacconaSigrika: [member(CIA_LOADOUT), member(AROVER_LOADOUT), member(GEEK_LOADOUT)],
-  ciaQYSigrika: [member(CIA_LOADOUT), member(QY_LOADOUT), member(GEEK_LOADOUT)],
-  skCiaSigrika: [member(SK_LOADOUT), member(CIA_LOADOUT), member(GEEK_LOADOUT)],
-  ArciaSigrika: [member(AROVER_LOADOUT), member(CIA_LOADOUT), member(GEEK_LOADOUT)],
-  qyLucillaSigrika: [member(QY_LOADOUT), member(LUCILLA_LOADOUT), member(GEEK_LOADOUT)],
-  qyLucillaGalb: [member(QY_LOADOUT), member(LUCILLA_LOADOUT), member(GLOB_LOADOUT)],
-  ciacconaLucillaSigrika: [member(CIA_LOADOUT), member(LUCILLA_LOADOUT), member(GEEK_LOADOUT)],
-  // Iuno/Mortefi behind a Heavy Attack dealer.
-  skIunoGalbrena: [member(SK_LOADOUT), member(UNO_LOADOUT), member(GLOB_LOADOUT)],
-  skMortefiGalbrena: [member(SK_LOADOUT), member(MORT_LOADOUT), member(GLOB_LOADOUT)],
-  skMortefiJingran: [member(SK_LOADOUT), member(MORT_LOADOUT), member(JINGOAT_LOADOUT)],
-  verinaIunoAugusta: [member(VERINA_LOADOUT), member(UNO_LOADOUT), member(AUGUGU_LOADOUT)],
-  verinaIunoGalbrena: [member(VERINA_LOADOUT), member(UNO_LOADOUT), member(GLOB_LOADOUT)],
-  verinaIunoJingran: [member(VERINA_LOADOUT), member(UNO_LOADOUT), member(JINGOAT_LOADOUT)],
-  verinaMortefiAugusta: [member(VERINA_LOADOUT), member(MORT_LOADOUT), member(AUGUGU_LOADOUT)],
-  verinaMortefiGalbrena: [member(VERINA_LOADOUT), member(MORT_LOADOUT), member(GLOB_LOADOUT)],
-  verinaMortefiJingran: [member(VERINA_LOADOUT), member(MORT_LOADOUT), member(JINGOAT_LOADOUT)],
-  // Lupa in the 2nd slot: a normal sustain 3rd, a Fusion dealer 1st.
-  skLupaGalbrena: [member(SK_LOADOUT), member(LOPA_LOADOUT), member(GLOB_LOADOUT)],
-  skLupaJingran: [member(SK_LOADOUT), member(LOPA_LOADOUT), member(JINGOAT_LOADOUT)],
-  verinaLupaEncore: [member(VERINA_LOADOUT), member(LOPA_LOADOUT), member(ENCORE_LOADOUT)],
-  verinaLupaGalbrena: [member(VERINA_LOADOUT), member(LOPA_LOADOUT), member(GLOB_LOADOUT)],
-  verinaLupaJingran: [member(VERINA_LOADOUT), member(LOPA_LOADOUT), member(JINGOAT_LOADOUT)],
-  // Lupa in the 3rd slot: Brant or Mortefi 2nd, a Fusion dealer (or Changli) 1st.
-  lupaBrantEncore: [member(LOPA_LOADOUT), member(BRANT_LOADOUT), member(ENCORE_LOADOUT)],
-  lupaBrantJingran: [member(LOPA_LOADOUT), member(BRANT_LOADOUT), member(JINGOAT_LOADOUT)],
-  lupaMortefiEncore: [member(LOPA_LOADOUT), member(MORT_LOADOUT), member(ENCORE_LOADOUT)],
-  lupaMortefiGalbrena: [member(LOPA_LOADOUT), member(MORT_LOADOUT), member(GLOB_LOADOUT)],
-  // Galbrena/Sigrika, who take an echo caster in the 2nd slot (Roccia excepted).
-  skCantaGalbrena: [member(SK_LOADOUT), member(CANTA_LOADOUT), member(GLOB_LOADOUT_ECHO_FOCUS)],
-  verinaLucillaGalbrena: [member(VERINA_LOADOUT), member(LUCILLA_LOADOUT), member(GLOB_LOADOUT_ECHO_FOCUS)],
-  verinaQyGalbrena: [member(VERINA_LOADOUT), member(QY_LOADOUT), member(GLOB_LOADOUT_ECHO_FOCUS)],
-  verinaCantaGalbrena: [member(VERINA_LOADOUT), member(CANTA_LOADOUT), member(GLOB_LOADOUT_ECHO_FOCUS)],
-  skCantaSigrika: [member(SK_LOADOUT), member(CANTA_LOADOUT), member(GEEK_LOADOUT)],
-  verinaLucillaSigrika: [member(VERINA_LOADOUT), member(LUCILLA_LOADOUT), member(GEEK_LOADOUT)],
-  verinaQySigrika: [member(VERINA_LOADOUT), member(QY_LOADOUT), member(GEEK_LOADOUT)],
-  verinaCantaSigrika: [member(VERINA_LOADOUT), member(CANTA_LOADOUT), member(GEEK_LOADOUT)],
-  // Phrolova, who sits in the 3rd slot herself and pushes her two supports up a slot each.
-  froloSkQy: [member(FROLO_LOADOUT), member(SK_LOADOUT), member(QY_LOADOUT)],
-  froloSkLucilla: [member(FROLO_LOADOUT), member(SK_LOADOUT), member(LUCILLA_LOADOUT)],
-  froloBulingQy: [member(FROLO_LOADOUT), member(BULING_LOADOUT), member(QY_LOADOUT)],
-  froloBulingLucilla: [member(FROLO_LOADOUT), member(BULING_LOADOUT), member(LUCILLA_LOADOUT)],
-  froloLucillaCanta: [member(FROLO_LOADOUT), member(LUCILLA_LOADOUT), member(CANTA_LOADOUT)],
-  froloVerinaCanta: [member(FROLO_LOADOUT), member(VERINA_LOADOUT), member(CANTA_LOADOUT)],
-  froloQySk: [member(FROLO_LOADOUT), member(QY_LOADOUT), member(SK_LOADOUT)],
-  froloLucillaSk: [member(FROLO_LOADOUT), member(LUCILLA_LOADOUT), member(SK_LOADOUT)],
-  froloQyVerina: [member(FROLO_LOADOUT), member(VERINA_LOADOUT), member(QY_LOADOUT)],
-  froloLucillaVerina: [member(FROLO_LOADOUT), member(VERINA_LOADOUT), member(LUCILLA_LOADOUT)],
-  froloDanjinVerina: [member(FROLO_LOADOUT), member(DANJIN_LOADOUT), member(VERINA_LOADOUT)],
-  froloDanjinSk: [member(FROLO_LOADOUT), member(DANJIN_LOADOUT), member(SK_LOADOUT)],
-
-  // Yinlin's Judgment Strikes coordinate behind Xiangli Yao, with either sustain up front.
-  skYinlinXly: [member(SK_LOADOUT), member(YINLIN_LOADOUT), member(XLY_LOADOUT)],
-  verinaYinlinXly: [member(VERINA_LOADOUT), member(YINLIN_LOADOUT), member(XLY_LOADOUT)],
-  // Jiyan behind a Heavy Attack buffer (Mortefi/Iuno) or Ciaccona, sustain or an Aero buffer 1st.
-  skMortefiJiyan: [member(SK_LOADOUT), member(MORT_LOADOUT), member(JIYAN_LOADOUT)],
-  skIunoJiyan: [member(SK_LOADOUT), member(UNO_LOADOUT), member(JIYAN_LOADOUT)],
-  skCiaJiyan: [member(SK_LOADOUT), member(CIA_LOADOUT), member(JIYAN_LOADOUT)],
-  verinaMortefiJiyan: [member(VERINA_LOADOUT), member(MORT_LOADOUT), member(JIYAN_LOADOUT)],
-  verinaIunoJiyan: [member(VERINA_LOADOUT), member(UNO_LOADOUT), member(JIYAN_LOADOUT)],
-  verinaCiaJiyan: [member(VERINA_LOADOUT), member(CIA_LOADOUT), member(JIYAN_LOADOUT)],
-  aroverMortefiJiyan: [member(AROVER_LOADOUT), member(MORT_LOADOUT), member(JIYAN_LOADOUT)],
-  aroverIunoJiyan: [member(AROVER_LOADOUT), member(UNO_LOADOUT), member(JIYAN_LOADOUT)],
-  aroverCiaJiyan: [member(AROVER_LOADOUT), member(CIA_LOADOUT), member(JIYAN_LOADOUT)],
-  ciaMortefiJiyan: [member(CIA_LOADOUT), member(MORT_LOADOUT), member(JIYAN_LOADOUT)],
-  ciaIunoJiyan: [member(CIA_LOADOUT), member(UNO_LOADOUT), member(JIYAN_LOADOUT)],
-  // Iuno/Qiuyuan in front of an Aero-adjacent 3rd.
-  iunoQySigrika: [member(UNO_LOADOUT), member(QY_LOADOUT), member(GEEK_LOADOUT)],
-  iunoQyGalbrena: [member(UNO_LOADOUT), member(QY_LOADOUT), member(GLOB_LOADOUT)],
-};
+/** Every team the page compares (teams.ts), keyed by its members' loadout names (`FROLO.QY.CANTA`)
+ *  — a plain identifier with no dash, since a row's key is this plus its per-member combo keys
+ *  (`expandTeam()`), and a team key never carries a dash of its own. */
+const TEAMS: Record<string, Member[]> = Object.fromEntries(ALL_TEAMS.map((team) => [
+  team.map(loadoutName).join("."),
+  team.map(member),
+]));
 
 /** Which way a resonator has been filtered: `include` keeps only the teams that field them,
  *  `exclude` drops every team that does. */
@@ -208,16 +54,18 @@ type ResonatorFilter = "include" | "exclude";
  *  this decides which rows are built rather than hiding rows afterwards, so a narrowed table
  *  never optimizes and runs teams nobody asked to see. Module-level so it survives a re-render.
  *
- *  Verina starts barred: she's a legal 3rd slot on most of the table, so her rows roughly double
- *  it while rarely being the pick anyone is actually comparing. Clicking her chip brings her back. */
-const resonatorFilters = new Map<string, ResonatorFilter>([["Verina", "exclude"]]);
+ *  Verina, both Rovers, Danjin, Encore and Jiyan start barred: legal slots on much of the table, so their
+ *  rows multiply it while rarely being the pick anyone is comparing. Their chips bring them back. */
+const resonatorFilters = new Map<string, ResonatorFilter>(
+  ["Verina", "Havoc Rover", "Danjin", "Encore", "Aero Rover", "Jiyan"].map((name) => [name, "exclude"]),
+);
 
 const filters: Filters = {
   mdpsSequences: false, supportSequences: false,
   mdpsWeapons: false, supportWeapons: false,
   mdpsEchoes: false, supportEchoes: false,
   mdpsMainstats: false, supportMainstats: false,
-  allowR1Mdps: true, allowR1Supports: false,
+  allowR1Mdps: true, allowR1Supports: true,
 };
 
 const bestPicks = new Map<string, Pick[]>();
@@ -337,11 +185,11 @@ const RESONATOR_HUE = new Map(
   Object.values(LOADOUTS).map((l) => [l.resonator.name, l.resonator.color] as const),
 );
 
-/** The bucket a tune break's damage lands in — the engine's own label (kit.ts's `TUNE_BREAK_SLOT`),
- *  aliased here because the whole table refers to it by this short name. */
+/** The bucket a tune break's damage lands in — the mechanic's own label (tunebreak.ts's
+ *  `TUNE_BREAK_SLOT`), aliased here because the whole table refers to it by this short name. */
 const MISC = TUNE_BREAK_SLOT;
-const MISC_HUE = "#8a94a3";
-const FALLBACK_HUE = "#5b9cff";
+const MISC_HUE = TUNE_BREAK_HUE;
+const FALLBACK_HUE = "#ff0000";
 
 /** Kill switch for the resonator popover's "Gear" section — off for now, kept as a single flag
  *  rather than ripping the section's own code out, so turning it back on later is a one-line
@@ -377,9 +225,11 @@ function detailFor(run: TeamRun): { report: Report; rotationReports: Report[] } 
 const esc = (s: unknown): string => String(s)
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-const fmt = (v: number | string | null | undefined, digits = 0, pad = false): string =>
+/** @param group  thousands separators — off for the action table's own rows, whose columns sit
+ *  tight against one another (see display.ts's own `num`, which sizes them). */
+const fmt = (v: number | string | null | undefined, digits = 0, pad = false, group = true): string =>
   typeof v === "number"
-    ? v.toLocaleString("en-US", { maximumFractionDigits: digits, minimumFractionDigits: pad ? digits : 0 })
+    ? v.toLocaleString("en-US", { maximumFractionDigits: digits, minimumFractionDigits: pad ? digits : 0, useGrouping: group })
     : String(v ?? "");
 
 // energy/concerto/offtune always show their own column's full digit count in the action table
@@ -532,12 +382,12 @@ function buffsPopover(member: string, gear: Gear[], local: HeldBuff[], global: H
  *  4-section total and divides by 4, so each bucket reads as the same per-section average
  *  `total`/`grandTotal` already are, not a 4-section sum. */
 function sumByTag(
-  lines: ChainGroup[], slot: string | null, keyOf: (a: Action) => string | null, divisor = 1,
+  lines: ChainGroup[], slot: string, keyOf: (a: Action) => string | null, divisor = 1,
 ): Map<string, number> {
   const by = new Map<string, number>();
   for (const line of lines) {
     const snap = line.snap;
-    if (slot != null && snap.slot !== slot) continue;
+    if (snap.slot !== slot) continue;
     const key = keyOf(snap.action);
     if (key == null) continue;
     by.set(key, (by.get(key) ?? 0) + line.avg);
@@ -560,7 +410,7 @@ function breakdownSection(heading: string, by: Map<string, number>, total: numbe
 /** Node/Type/Type2 breakdown for one damage value — `slot: null` for a row with no one member to
  *  filter to (a Misc or Total row). */
 function damagePopover(
-  lines: ChainGroup[], slot: string | null, total: number, grandTotal: number, divisor = 1,
+  lines: ChainGroup[], slot: string, total: number, grandTotal: number, divisor = 1,
 ): string {
   const body = breakdownSection("Node", sumByTag(lines, slot, (a) => a.node, divisor), total)
     + breakdownSection("Type", sumByTag(lines, slot, (a) => a.type, divisor), total)
@@ -583,17 +433,30 @@ const SECTION_LABELS = ["Opener", "Loop 1", "Loop 2", "Loop 3"];
  *  closed off by a dotted rule the CSS draws for itself (see index.css's own `.pop .gear + tr`)
  *  — a real member's cell is the only hover they have now, so both readings of their column live
  *  in the one panel. Misc and the team Total pass nothing: neither is a loadout. */
-function sectionBreakdownPopover(run: TeamRun, slot: string | null, loadout?: { member: Member; combo: Combo }): string {
-  const sections = slot == null ? run.sectionTotals : run.sectionBySlot.map((by) => by.get(slot) ?? 0);
-  const avg = slot == null ? run.total : (run.bySlot.get(slot) ?? 0);
-  const gear = loadout ? gearRows(loadout.member, loadout.combo) : "";
+function breakdownRows(sections: number[], avg: number, heading?: string): string {
+  const head = heading ? `<tr class="sec"><td colspan="2">${esc(heading)}</td></tr>` : "";
   const body = sections
     .map((v, i) => `<tr><td class="k">${esc(SECTION_LABELS[i])}</td><td class="v">${fmt(v)}</td></tr>`)
     .join("");
   const total = sections.reduce((a, b) => a + b, 0);
-  return `<span class="pop breakdown"><table>${gear}${body}`
+  return head + body
     + `<tr class="sum"><td class="k">Total</td><td class="v">${fmt(total)}</td></tr>`
-    + `<tr class="sum"><td class="k">Avg</td><td class="v">${fmt(avg)}</td></tr>`
+    + `<tr class="sum"><td class="k">Avg</td><td class="v">${fmt(avg)}</td></tr>`;
+}
+
+function sectionBreakdownPopover(run: TeamRun, slot: string | null, loadout?: { member: Member; combo: Combo }): string {
+  const sections = slot == null ? run.sectionTotals : run.sectionBySlot.map((by) => by.get(slot) ?? 0);
+  const avg = slot == null ? run.total : (run.bySlot.get(slot) ?? 0);
+  const gear = loadout ? gearRows(loadout.member, loadout.combo) : "";
+  // The team's own panel opens with Misc's share: the break belongs to no member, so with its
+  // column gone this is the only place its damage is broken down. Both groups get a heading here,
+  // since two stacks of Opener/Loop rows are only readable if each says whose it is; a member's
+  // own panel is one group and needs none.
+  const misc = slot == null
+    ? breakdownRows(run.sectionBySlot.map((by) => by.get(MISC) ?? 0), run.bySlot.get(MISC) ?? 0, MISC)
+    : "";
+  return `<span class="pop breakdown"><table>${gear}${misc}`
+    + breakdownRows(sections, avg, slot == null ? "Team" : undefined)
     + `</table></span>`;
 }
 
@@ -609,11 +472,17 @@ function equippedGear(member: Member, combo: Combo): Gear[] {
 }
 const GEAR_LABELS = ["Inherent", "Inherent", "Weapon", "Mainslot", "Sonata", "2pc", "Mainstats", "Substats"];
 
+/** What a loadout hover actually lists. Both Inherent Skills are dropped: they are fixed for a
+ *  resonator, identical on every row they could ever appear on, so they say nothing about the
+ *  build being hovered — unlike the weapon/echo/main-stat picks, which are the whole point of the
+ *  panel. Index-matched against `GEAR_LABELS`, so the labels are sliced the same way. */
+const HOVER_GEAR_FROM = 2;
+
 /** The resonance chain nodes this row actually holds — S1 up to whatever level its own combo
  *  runs at (see `sequenceLevels()`), each named "<name> S<N>: <title>", listed in their own
  *  section below. */
 function equippedSequences(member: Member, combo: Combo): Gear[] {
-  return member.loadout.sequences().slice(0, combo.sequence);
+  return member.loadout.sequences.slice(0, combo.sequence);
 }
 
 /** Every piece of gear a member's loadout equips, each labelled by slot, with any sequence nodes
@@ -627,7 +496,7 @@ function equippedSequences(member: Member, combo: Combo): Gear[] {
  *  panel this shares with the rotation breakdown (`sectionBreakdownPopover`) has right-aligned
  *  numeric rows sitting directly underneath them. */
 function gearRows(member: Member, combo: Combo): string {
-  const core = equippedGear(member, combo);
+  const core = equippedGear(member, combo).slice(HOVER_GEAR_FROM);
   const sequences = equippedSequences(member, combo);
   // A kit with a resonance mode runs one loadout per mode (Lucilla's Echo and Glacio Chafe builds
   // are two `Loadout`s, see lucilla.ts), so which one a row is on is a real build fact and belongs
@@ -635,7 +504,7 @@ function gearRows(member: Member, combo: Combo): string {
   // `GEAR_LABELS`, and most kits have no mode at all.
   const mode = member.loadout.mode;
   return core
-    .map((g, i) => `<tr class="gear"><td class="k">${esc(GEAR_LABELS[i] ?? "")}</td><td class="v">${esc(g.name)}</td></tr>`)
+    .map((g, i) => `<tr class="gear"><td class="k">${esc(GEAR_LABELS[i + HOVER_GEAR_FROM] ?? "")}</td><td class="v">${esc(g.name)}</td></tr>`)
     .join("")
     + (mode ? `<tr class="gear"><td class="k">Mode</td><td class="v">${esc(mode.name)}</td></tr>` : "")
     + sequences
@@ -771,42 +640,32 @@ function comparisonTable(rows: TeamRow[]): string {
     // where a set filter shows. `data-resonator` stays the resonator's own full name, since that's
     // what the filter keys off; only the visible label is the abbreviated build line. No hover of
     // its own: the loadout it used to show is a section of the DPR cell's own panel now.
-    const memberCell = (m: Member, combo: Combo) =>
-      `<div class="c name res" data-resonator="${esc(m.name)}" style="--mem:${m.color};color:${m.color}">`
+    // The name cell is the whole of a member's column now: it carries their own panel — loadout,
+    // then their Opener/Loop breakdown — where their DPR cell used to. The number itself is in
+    // that panel rather than the table, which keeps a row down to what actually varies between
+    // rows: who is in the team, what the team does, and how that compares.
+    const memberCell = (m: Member, combo: Combo, loadout: { member: Member; combo: Combo }) =>
+      `<div class="c name res has" data-resonator="${esc(m.name)}" style="--mem:${m.color};color:${m.color}">`
       + `<span class="res-label">${esc(memberLabel(m, combo))}</span>`
+      + sectionBreakdownPopover(run, m.name, loadout)
       + `</div>`;
-    // The DPR cell beside a member's own name carries that same member's colour wash (`.memdpr`,
-    // same trick `.name` uses, just its own class so it doesn't inherit the name column's left
-    // bar/full-strength text) and the whole of that member's own panel: their loadout, then their
-    // Opener/Loop breakdown — the same breakdown the Team DPR cell at the end of the row shows
-    // for the whole team.
-    const dmgCell = (slot: string, hue: string, loadout?: { member: Member; combo: Combo }) => {
-      const total = run.bySlot.get(slot) ?? 0;
-      return `<div class="c num memdpr has" style="--mem:${hue}">${fmt(total)}`
-        + `${sectionBreakdownPopover(run, slot, loadout)}</div>`;
-    };
-
-    const memberPairs = run.members
-      .map((m, i) => memberCell(m, run.combo[i]!) + dmgCell(m.name, m.color, { member: m, combo: run.combo[i]! }))
+    const memberCells = run.members
+      .map((m, i) => memberCell(m, run.combo[i]!, { member: m, combo: run.combo[i]! }))
       .join("");
 
     return `<div class="trow" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}"`
       + ` data-members="${esc(memberNames)}" data-total="${grand}">`
-      + memberPairs
-      + dmgCell(MISC, MISC_HUE)
+      + memberCells
       + `<div class="c num total teamdpr gotodetail" data-team="${esc(key)}">${fmt(grand)}<span class="arrow">›</span>${sectionBreakdownPopover(run, null)}</div>`
-      // both the heat tint (`--ratio`, on the row) and the percentage itself are written by
-      // rankRows() — they're relative to the lowest team *currently on the page*, which
-      // this render doesn't know
-      + `<div class="c num total baseline"></div>`
+      // both the hue (`--hue`, on the row) and the percentage itself are written by
+      // rankRows() — they're relative to whichever team is currently the baseline, which this
+      // render doesn't know. Clicking the cell makes that row the baseline (see `setBaseline()`).
+      + `<div class="c num total baseline" data-team="${esc(key)}" title="Click to measure every team against this one"></div>`
       + `</div>`;
   }).join("");
 
   const head = `<div class="trow thead">`
-    + `<div class="c">Member 1</div><div class="c num">Avg DPR 1</div>`
-    + `<div class="c">Member 2</div><div class="c num">Avg DPR 2</div>`
-    + `<div class="c">Member 3</div><div class="c num">Avg DPR 3</div>`
-    + `<div class="c num">Avg DPR Misc</div>`
+    + `<div class="c">Member 1</div><div class="c">Member 2</div><div class="c">Member 3</div>`
     + `<div class="c num">Avg Total DPR</div>`
     + `<div class="c num">% of Baseline</div>`
     + `</div>`;
@@ -827,23 +686,59 @@ function rankRows(): void {
   rankVisible(rows);
 }
 
-/** The baseline column and the heat tint it shares with Team DPR, both measured against the
- *  weakest team *currently on screen* rather than the weakest ever built — filtering the table
- *  down to a few teams re-bases both, so the comparison is always between the rows actually being
- *  looked at. The percentage is that ratio outright (the weakest visible row reads 100.00%); the
- *  tint spreads it across the visible spread, so the weakest lands red and the strongest green
- *  however narrow or wide that spread happens to be. */
+/** Which team every other row is measured against, by its own `data-team` key — null for the
+ *  default, the weakest team currently on screen. Set by clicking a `% of Baseline` cell, and kept
+ *  across re-renders (filters, sorting) so a chosen baseline survives them; a baseline whose row
+ *  is filtered away falls back to the default until it comes back. */
+let baselineTeam: string | null = null;
+
+/** The one ramp the `% of Baseline` column is painted on, as HSL hues: the strongest team, the
+ *  baseline every row is measured from, and the weakest. Monotonic on purpose — red through
+ *  orange and yellow to green at the baseline, then teal, blue and purple below it — so the column
+ *  reads as a single gradient with the baseline inside it rather than as two scales meeting at an
+ *  edge, and the hottest teams actually land on red. */
+const BEST_HUE = 0, BASELINE_HUE = 120, WORST_HUE = 280;
+
+export function setBaseline(team: string | null): void {
+  // clicking the row that's already the baseline puts it back to the weakest visible team
+  baselineTeam = baselineTeam === team ? null : team;
+  rankRows();
+}
+
+/** The baseline column, measured against whichever team is the baseline — by default the weakest
+ *  *currently on screen* rather than the weakest ever built, so filtering the table down re-bases
+ *  it and the comparison is always between the rows actually being looked at; click a cell to pin
+ *  one instead (`setBaseline()`). The percentage is that ratio outright, so the baseline row reads
+ *  100.00%.
+ *
+ *  Colour is one continuous hue ramp across the whole table, written here as `--hue` rather than
+ *  derived in CSS, because a single monotonic scale is the only way it reads smoothly: lime at the
+ *  strongest team, through green at the baseline, into teal, blue and finally purple at the
+ *  weakest. Anything built from separate above/below scales meets at the baseline as a hard edge.
+ *
+ *  Both halves spread the ratio itself, straight: a team's colour is how far along the visible
+ *  spread it actually sits, so the warm end is reached as fast as the damage gets there. (A log
+ *  spread evens the steps out when one runaway team stretches the table, but it also drags every
+ *  middling row toward the baseline's colour, which is the opposite of what the column is for.) */
 function rankVisible(rows: HTMLElement[]): void {
   const totals = rows.map((row) => Number(row.dataset.total));
-  const minTotal = Math.min(...totals);
-  const maxRatio = Math.max(...totals.map((t) => (minTotal ? t / minTotal : 1)));
+  const pinned = baselineTeam == null ? -1 : rows.findIndex((row) => row.dataset.team === baselineTeam);
+  const base = pinned >= 0 ? totals[pinned]! : Math.min(...totals);
+  const maxRatio = Math.max(...totals.map((t) => (base ? t / base : 1)), 1);
+  const minRatio = Math.min(...totals.map((t) => (base ? t / base : 1)), 1);
   rows.forEach((row, i) => {
-    const ratio = minTotal ? totals[i]! / minTotal : 1;
-    // the tint spreads the *log* of the ratio, not the ratio: damage differences are
-    // multiplicative, so a linear spread bunches most of the table into the low end behind one
-    // runaway team. In log space every equal-sized *relative* gap gets an equal-sized step of
-    // colour, which is what makes the gradient read smoothly however far the top row is out.
-    row.style.setProperty("--ratio", String(maxRatio > 1 ? Math.log(ratio) / Math.log(maxRatio) : 1));
+    const ratio = base ? totals[i]! / base : 1;
+    // how far this row sits from the baseline, 0 there and 1 at whichever end it's on
+    const away = ratio >= 1
+      ? (maxRatio > 1 ? (ratio - 1) / (maxRatio - 1) : 0)
+      : (minRatio < 1 ? (1 - ratio) / (1 - minRatio) : 0);
+    // BASELINE_HUE either way, so the two halves meet there rather than butting into each other
+    row.style.setProperty("--hue", String(ratio >= 1
+      ? BASELINE_HUE - away * (BASELINE_HUE - BEST_HUE)
+      : BASELINE_HUE + away * (WORST_HUE - BASELINE_HUE)));
+    // only a row actually clicked is marked as the baseline — it takes its colour from the ramp
+    // like every other row, and the class is just the outline that says which one is pinned
+    row.classList.toggle("isbaseline", pinned >= 0 && i === pinned);
     const cell = row.querySelector<HTMLElement>(".c.baseline");
     if (cell) cell.textContent = `${fmt(ratio * 100, 2, true)}%`;
   });
@@ -851,12 +746,34 @@ function rankVisible(rows: HTMLElement[]): void {
 
 /* --------------------------------------------------------------------- table */
 
+/** The running-total columns — concerto, energy, off-tune and the five forte gauges. A cell in one
+ *  of these is blank when the row didn't move it: the value is what's banked, and repeating the
+ *  same number down twenty rows hides the handful that actually changed it. Concerto, energy and
+ *  the gauges are a member's own, so each is compared against that same member's previous row —
+ *  a teammate's turn in between doesn't make it "changed" — while off-tune is the enemy's shared
+ *  bar and compares against the row directly above, whoever's it was. */
+const RUNNING_COLUMNS = new Set(["concerto", "energy", "offtune"]);
+const isRunning = (key: string): boolean => RUNNING_COLUMNS.has(key) || key.startsWith("gauge:");
+/** The rows a running column compares against: the previous row for off-tune, the acting member's
+ *  own previous row for everything else. */
+interface PrevRows { above: RawRow | null; own: RawRow | null }
+
 function stepRow(
   columns: Column[], row: ReportRow | ReportPart, slotHue: Map<string, string>, gearByMember: Map<string, Gear[]>,
-  { part = false }: { part?: boolean } = {},
+  { part = false, prev = null }: { part?: boolean; prev?: PrevRows | null } = {},
 ): string {
   return columns.map((col, i) => {
     const v = row.raw[col.key];
+    // a running total this row left exactly where its own last row had it — nothing to say. With
+    // no such row (a member's first, or the table's first for off-tune) the comparison is against
+    // 0: every gauge, energy, concerto and the bar all start there, so a 0 on a first row is just
+    // as unmoved as a repeated value further down — a column another member's kit put in the
+    // table shouldn't print a bare 0 on this member's intro.
+    if (isRunning(col.key)) {
+      const against = col.key === "offtune" ? prev?.above : prev?.own;
+      const before = against ? Number(against[col.key]) || 0 : 0;
+      if (Math.abs((Number(v) || 0) - before) < 1e-9) return cell(columns, i, { cls: [], html: "", style: "" });
+    }
     const sources = row.sources[col.key];
     const cls: string[] = [];
     if (col.key === "action") cls.push(part ? "name" : "action");
@@ -875,7 +792,7 @@ function stepRow(
     // Galbrena's own Purging Flame)
     if (col.key.startsWith("gauge:") && typeof v === "number" && v < 0) cls.push("negative");
 
-    const text = esc(fmt(v, col.digits ?? 0, PAD_DIGITS_COLUMNS.has(col.key)))
+    const text = esc(fmt(v, col.digits ?? 0, PAD_DIGITS_COLUMNS.has(col.key), false))
       + (col.percent && typeof v === "number" ? "%" : "");
     let html = sources ? `<span class="has">${text}</span>` : text;
     if (col.key === "action" && !part && "parts" in row && row.parts.length) {
@@ -918,11 +835,17 @@ function rotationTable(report: Report, slotHue: Map<string, string>, gearByMembe
     .map((c, i) => cell(columns, i, { html: esc(c.label) }))
     .join("");
 
+  // each member's own last row so far, for the running columns' "did this move" check (see
+  // stepRow) — keyed on the acting member, so a Tune Break row (slot "Misc", but banking whoever
+  // was on field's own energy/concerto) compares against that member's row like any other
+  const lastOwn = new Map<string, RawRow>();
   const steps = report.rows.map((row, i) => {
     const snap = row.line.snap;
     const hue = slotHue.get(snap.member) ?? FALLBACK_HUE;
     const style = ` style="--m:${hue}"`;
-    const cells = stepRow(columns, row, slotHue, gearByMember);
+    const prev: PrevRows = { above: report.rows[i - 1]?.raw ?? null, own: lastOwn.get(snap.member) ?? null };
+    lastOwn.set(snap.member, row.raw);
+    const cells = stepRow(columns, row, slotHue, gearByMember, { prev });
     const shortCls = row.short ? " short" : "";
     if (!row.parts.length) {
       return `<div class="step"${style}><div class="r${shortCls}">${cells}</div></div>`;
@@ -936,7 +859,7 @@ function rotationTable(report: Report, slotHue: Map<string, string>, gearByMembe
   }).join("");
 
   const totalRow = columns.map((c, i) => cell(columns, i, {
-    html: i === 0 ? "team total" : c.key === "avg" ? fmt(report.total) : "",
+    html: i === 0 ? "team total" : c.key === "avg" ? fmt(report.total, 0, false, false) : "",
   })).join("");
 
   return `<div class="gridwrap"><div class="grid" style="--cols:${cols}">
@@ -968,7 +891,7 @@ function dprTable(run: TeamRun, lines: ChainGroup[][], report: Report, rotationR
     + `<div class="c num">Total</div><div class="c num">Avg</div>`
     + `</div>`;
 
-  const valueCell = (lines: ChainGroup[], slot: string | null, value: number, grand: number, divisor = 1): string =>
+  const valueCell = (lines: ChainGroup[], slot: string, value: number, grand: number, divisor = 1): string =>
     `<div class="c num has">${fmt(value)}${damagePopover(lines, slot, value, grand, divisor)}</div>`;
 
   const dataRow = (slot: string, color: string, hover: string): string => `<div class="rtrow">`
@@ -982,11 +905,14 @@ function dprTable(run: TeamRun, lines: ChainGroup[][], report: Report, rotationR
   // Misc gets the tune-break hue and the same bar/wash as a real member — it isn't a loadout, so
   // it has no gear hover, but it is a damage source and reads as one.
   const miscRow = dataRow(MISC, MISC_HUE, "");
+  // no hover: a whole team's damage split by node is three kits' worth of buckets stacked on top
+  // of each other, which answers nothing the member rows above it don't already
+  const plainCell = (value: number): string => `<div class="c num">${fmt(value)}</div>`;
   const totalRow = `<div class="rtrow total">`
     + `<div class="c name">Total</div>`
-    + lines.map((sec, i) => valueCell(sec, null, rotationReports[i]!.total, rotationReports[i]!.total)).join("")
-    + valueCell(flat, null, report.total, report.total)
-    + valueCell(flat, null, report.total / n, report.total / n, n)
+    + rotationReports.map((r) => plainCell(r.total)).join("")
+    + plainCell(report.total)
+    + plainCell(report.total / n)
     + `</div>`;
 
   return `<div class="rtable dpr">${head}${memberRows}${miscRow}${totalRow}</div>`;
@@ -1035,8 +961,13 @@ function erFallsShort(flat: ChainGroup[], targetIdx: number, member: string, req
  *  column per loop — the opener has no column since its own requirement is always 0 (RealEnergy
  *  starts a fight already filled, see kit.ts). A cell gets a red underline when the member's own
  *  ER stat dipped below the shown requirement on any of their own actions since their last reset —
- *  see `erFallsShort()`. */
-function energyTable(run: TeamRun, lines: ChainGroup[][]): string {
+ *  see `erFallsShort()`.
+ *
+ *  Each cell hovers the ER its requirement is measured against: the same `er` panel the action
+ *  table carries, from the same column definition and the same sources (`columnSources()`), as it
+ *  stood on the Liberation that cell is about. A cell with no such cast reads as a plain dash. */
+function energyTable(run: TeamRun, lines: ChainGroup[][], report: Report, slotHue: Map<string, string>): string {
+  const erCol = columnOf(report, "er");
   const flat = lines.flat();
   // cumulative start index of each of the 4 sections within `flat` — offsets[i] is where section
   // i begins, so section i's own lines span flat[offsets[i], offsets[i + 1])
@@ -1056,7 +987,9 @@ function energyTable(run: TeamRun, lines: ChainGroup[][]): string {
       const req = erRequirementValue(maxEnergy, before);
       const warn = req != null && resetIdx != null && erFallsShort(flat, resetIdx, m.name, req);
       const text = req == null ? "—" : `${fmt(req, 1)}%`;
-      return `<div class="c num${warn ? " er-under" : ""}">${text}</div>`;
+      const snap = resetIdx == null ? null : (flat[resetIdx]!.snap as ResolvedSnapshot);
+      const hover = snap && erCol ? popover(erCol, columnSources(snap, "er"), snap.stat(Stat.Er), slotHue) : "";
+      return `<div class="c num${warn ? " er-under" : ""}${hover ? " has" : ""}">${text}${hover}</div>`;
     }).join("");
     return `<div class="rtrow">`
       + `<div class="c name" style="--mem:${m.color}">${esc(m.name)}${gearPopover(m, run.combo[idx]!)}</div>`
@@ -1083,7 +1016,7 @@ function page(run: TeamRun): string {
     </div>
     <div class="rtable-block">
       <h2 class="summary-label">energy requirements</h2>
-      ${energyTable(run, lines)}
+      ${energyTable(run, lines, report, slotHue)}
     </div>
   </div>
   <h2 class="summary-label">action log</h2>
@@ -1602,6 +1535,11 @@ async function boot(): Promise<void> {
   document.addEventListener("click", (e) => {
     const el = (e.target as Element).closest<HTMLElement>(".gotodetail");
     if (el?.dataset.team) { syncHash(el.dataset.team); route(); }
+  });
+  // clicking a `% of Baseline` cell measures every other team against that one
+  document.addEventListener("click", (e) => {
+    const el = (e.target as Element).closest<HTMLElement>(".c.baseline");
+    if (el?.dataset.team) setBaseline(el.dataset.team);
   });
   // Every filter checkbox but Sequences is a `Filters` key (see `comparisonFilters()`): flip it,
   // then re-expand — which axes are open changes which rows exist, not just which are visible.

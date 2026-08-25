@@ -14,6 +14,7 @@ follow conventions of resonators and gear implemented previously
 all logic for sequences should live in the sequences gear implementation
 inherent skills that only apply to specific actions should be implemented as buffs added and removed just on those actions.
 DO NOT JUST MAKE UP FORTE VALUES IF THEY ARE MISSING. ASK ME TO PROVIDE THEM.
+any forte, concerto, or energy values listed elsewhere in a kit on casting a certain action, add them to that action directly
 
 # wording of buffs
 lost on swap or lost on switching out = lost on inactive action, lostOnSwap method

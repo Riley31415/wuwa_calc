@@ -19,12 +19,10 @@
 import { State, run, withTeam, equip, setTracing, Buff, Loadout, EchoLoadout, Weapon } from "./kit.js";
 import type { Action, ChainGroup, ResolvedSnapshot } from "./kit.js";
 import { damage, mvPercent } from "./damage.js";
-// imported for its own side effect: tunebreak.ts registers the Tune Break resolver with the
-// engine on load, and this is the one file every path that runs a team goes through
-import "./tunebreak.js";
+import { armTuneBreak } from "./tunebreak.js";
 import type { Report } from "./display.js";
-import { LOADOUTS } from "./loadouts.js";
-import type { LoadoutName } from "./loadouts.js";
+import { LOADOUTS } from "./teams.js";
+import type { LoadoutName } from "./teams.js";
 
 export interface Member {
   name: string;
@@ -77,7 +75,7 @@ export const comboOf = (l: Loadout, p: Pick): Combo => ({
  *  is the exception at both ends: their chain comes with the character, so they're only ever run
  *  (and only ever costed) at full. A loadout that declares no nodes has only S0 regardless. */
 export function sequenceLevels(l: Loadout, filters: Filters): number[] {
-  const max = l.sequences().length;
+  const max = l.sequences.length;
   if (!max) return [0];
   // a standard character's chain comes with the character rather than being pulled for, so there's
   // no partial level worth comparing — they only ever run at full, box or no box
@@ -309,7 +307,7 @@ export interface TeamRun {
 }
 
 const toLine = (snap: ResolvedSnapshot): ChainGroup =>
-  ({ id: snap.action.id, isChain: false, parts: [], snap, mv: mvPercent(snap), avg: damage(snap).avg });
+  ({ id: snap.action.name, isChain: false, parts: [], snap, mv: mvPercent(snap), avg: damage(snap).avg });
 
 /** One section's own grand total and per-member sum, read straight off its resolved lines — the
  *  same "no motion value means no damage" rule `display.ts`'s own rowValues() applies (`line.mv`
@@ -320,10 +318,10 @@ function sumSection(lines: ChainGroup[]): { total: number; bySlot: Map<string, n
   let total = 0;
   for (const line of lines) {
     if (line.mv === 0) continue;
-    // `.slot`, not `.member`: they're the same for every ordinary action, but a tune break is
-    // relabeled to its own bucket (kit.ts's own `TUNE_BREAK_SLOT`) so the team's shared bar going
-    // off doesn't land on whichever resonator happened to be on field. display.ts's own
-    // `totalsBySlot()` groups the detail page the same way.
+    // `.slot`, not `.member`: they're the same for every ordinary action, but a tune break carries
+    // its own bucket (tunebreak.ts's own `TUNE_BREAK_SLOT`, declared on the action itself) so the
+    // team's shared bar going off doesn't land on whichever resonator happened to be on field.
+    // display.ts's own `totalsBySlot()` groups the detail page the same way.
     const slot = (line.snap as ResolvedSnapshot).slot;
     bySlot.set(slot, (bySlot.get(slot) ?? 0) + line.avg);
     total += line.avg;
@@ -350,6 +348,10 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
     withTeam(state, () => { for (const g of m.loadout.pieces(combo[i]!.weapon, combo[i]!.echo, combo[i]!.mainstat, combo[i]!.sequence)) equip(g, 1); });
   });
   state.active = 0;
+  // the shared off-tune bar's own watcher, put on the target the same way everyone's gear was just
+  // put on them — it fires the Tune Break itself from there, and is the only thing that knows how
+  // (see tunebreak.ts). This is the one file every path that runs a team goes through.
+  withTeam(state, armTuneBreak);
 
   // Every member's opener runs first, in team order, then every member's loop, three times over
   // — matching how a real run actually goes: the whole team gets set up before anyone starts
@@ -389,7 +391,7 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
 }
 
 
-/** Resolve a team from the loadout names a worker was handed (see loadouts.ts) — a `Loadout` is
+/** Resolve a team from the loadout names a worker was handed (see teams.ts) — a `Loadout` is
  *  closures all the way down, so it can't cross a postMessage; its name can. */
 export const teamFromNames = (names: LoadoutName[]): Member[] =>
   names.map((n) => member(LOADOUTS[n]));

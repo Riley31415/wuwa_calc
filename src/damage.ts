@@ -5,7 +5,9 @@
  * so everything is scaled here. The floors are load-bearing: the TUNETEST sheet's observed
  * in-game numbers only line up with the rounding in place.
  *
- * dot and tune scalings deliberately bypass amplification, damage bonus and crit.
+ * dot and tune scalings deliberately bypass damage bonus, res/def ignore and crit. Dot also
+ * bypasses every amplification but the kind scoped to the Negative Status it is — the whole of
+ * what a status's own damage scales with.
  */
 import type { Action } from "./kit.js";
 import { Stat, EnemyStat, Scaling } from "./stats.js";
@@ -18,6 +20,8 @@ export interface Snapshot {
   hp: number;
   def: number;
   amp: number;
+  /** The part of `amp` that came in scoped to a `Type2` — all a dot hit reads (see `ampFactor`). */
+  type2Amp: number;
   dmgBonus: number;
   /** The enemy's own current resistance to this action's element, and current defence — both
    *  read off `Enemy` at resolve time (base plus whatever debuffs contributed this pass). */
@@ -140,7 +144,11 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
   // motion values are authored in percent, so 307.34 is a 3.0734x multiplier
   const finalMv = mvPercent(snapshot) / 100;
 
-  const ampFactor = 1 + (snapshot.amp / 100) * notDot * notTune;
+  // Amplification is the one thing a dot hit does read (the migrated sheet's own `specialAmp`
+  // column) — but only the part scoped to the Negative Status it is, never plain or element-scoped
+  // amplification. That split can't be made from `amp` here, since every matching scope is already
+  // summed into it, so kit.ts keeps the scoped part alongside (see `type2Amp` there).
+  const ampFactor = 1 + ((notDot ? snapshot.amp : snapshot.type2Amp) / 100) * notTune;
   const bonusFactor = 1 + (snapshot.dmgBonus / 100) * notDot * notTune;
   // Tune break boost multiplies tune damage and nothing else. It is part of the formula rather
   // than something the tune break converts into amplification on itself: the ordinary damage

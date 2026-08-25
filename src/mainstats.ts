@@ -6,53 +6,57 @@
 import { Buff, addStat } from "./kit.js";
 import { Stat, Attribute, scopedStat } from "./stats.js";
 
-/** No physical entry: a 3-cost elemental damage main stat doesn't exist for physical in-game. */
-const ELEMENTS: Attribute[] = [
-  Attribute.Glacio, Attribute.Fusion, Attribute.Electro, Attribute.Aero, Attribute.Spectro, Attribute.Havoc,
-];
+/** Every main stat an echo can roll, one entry per stat *and* cost — ATK/HP/DEF exist at every
+ *  cost, crit only at 4, ER and an element only at 3, and no physical 3-cost exists in-game. The
+ *  trailing digit is the cost, the rest is how the stat prints in a build's name. */
+export enum Mainstat {
+  CR4 = "CR4", CD4 = "CD4", ATK4 = "ATK4", HP4 = "HP4", DEF4 = "DEF4",
+  ER3 = "ER3", ATK3 = "ATK3", HP3 = "HP3", DEF3 = "DEF3",
+  Glacio3 = "Glacio3", Fusion3 = "Fusion3", Electro3 = "Electro3", Aero3 = "Aero3", Spectro3 = "Spectro3", Havoc3 = "Havoc3",
+  ATK1 = "ATK1", HP1 = "HP1", DEF1 = "DEF1",
+}
 
-/** The MAIN keys below that name an element rather than a plain stat. */
-const ELEMENT_KEYS = new Set(ELEMENTS.map((e) => e.toLowerCase()));
+const ELEMENTS: Mainstat[] = [
+  Mainstat.Glacio3, Mainstat.Fusion3, Mainstat.Electro3, Mainstat.Aero3, Mainstat.Spectro3, Mainstat.Havoc3,
+];
 
 /** `[stat, value]`, or `[stat, value, tag]` when the roll only pays on one element or type. */
 type MainEntry = readonly [Stat, number] | readonly [Stat, number, string];
 
-const MAIN: Record<number, Record<string, MainEntry>> = {
-  4: { CR: [Stat.CritRate, 22], CD: [Stat.CritDmg, 44],
-       ATK: [Stat.BonusAtk, 33], HP: [Stat.BonusHp, 33], DEF: [Stat.BonusDef, 41.8] },
-  3: { ER: [Stat.Er, 32], atk: [Stat.BonusAtk, 30], HP: [Stat.BonusHp, 30], DEF: [Stat.BonusDef, 38],
-       glacio:  [Stat.DmgBonus, 30, Attribute.Glacio],
-       fusion:  [Stat.DmgBonus, 30, Attribute.Fusion],
-       electro: [Stat.DmgBonus, 30, Attribute.Electro],
-       aero:    [Stat.DmgBonus, 30, Attribute.Aero],
-       spectro: [Stat.DmgBonus, 30, Attribute.Spectro],
-       havoc:   [Stat.DmgBonus, 30, Attribute.Havoc] },
-  1: { atk: [Stat.BonusAtk, 18], hp: [Stat.BonusHp, 22.8], def: [Stat.BonusDef, 18] },
+const MAIN: Record<Mainstat, MainEntry> = {
+  [Mainstat.CR4]: [Stat.CritRate, 22], [Mainstat.CD4]: [Stat.CritDmg, 44],
+  [Mainstat.ATK4]: [Stat.BonusAtk, 33], [Mainstat.HP4]: [Stat.BonusHp, 33], [Mainstat.DEF4]: [Stat.BonusDef, 41.8],
+  [Mainstat.ER3]: [Stat.Er, 32], [Mainstat.ATK3]: [Stat.BonusAtk, 30],
+  [Mainstat.HP3]: [Stat.BonusHp, 30], [Mainstat.DEF3]: [Stat.BonusDef, 38],
+  [Mainstat.Glacio3]:  [Stat.DmgBonus, 30, Attribute.Glacio],
+  [Mainstat.Fusion3]:  [Stat.DmgBonus, 30, Attribute.Fusion],
+  [Mainstat.Electro3]: [Stat.DmgBonus, 30, Attribute.Electro],
+  [Mainstat.Aero3]:    [Stat.DmgBonus, 30, Attribute.Aero],
+  [Mainstat.Spectro3]: [Stat.DmgBonus, 30, Attribute.Spectro],
+  [Mainstat.Havoc3]:   [Stat.DmgBonus, 30, Attribute.Havoc],
+  [Mainstat.ATK1]: [Stat.BonusAtk, 18], [Mainstat.HP1]: [Stat.BonusHp, 22.8], [Mainstat.DEF1]: [Stat.BonusDef, 18],
 };
 
 /** What a cost gives on top of its main stat. */
 const SECONDARY: Record<number, readonly [Stat, number]> =
   { 4: [Stat.FlatAtk, 150], 3: [Stat.FlatAtk, 100], 1: [Stat.FlatHp, 2280] };
 
+const costOf = (key: Mainstat): number => +key.slice(-1);
+
 /** Five echoes to a build, cost capped at twelve. */
 const SLOTS = 5, COST_CAP = 12;
 
 /**
- * Define one main-stat build from its 4/3/1-cost slots, e.g. `mainstats("CR CD", "", "atk atk
- * atk")` for 44111 double-crit. Returns the `Buff`. The name leads with the cost layout, since
- * ATK/HP/DEF are legal at both cost 4 and cost 3 and would otherwise be ambiguous.
+ * Define one main-stat build from its five echoes in any order, e.g. `mainstats(CR4, CD4, ATK1,
+ * ATK1, ATK1)` for 44111 double-crit. Returns the `Buff`. The name leads with the cost layout and
+ * then names each stat highest cost first, since ATK/HP/DEF are legal at every cost.
  */
-export function mainstats(c4 = "", c3 = "", c1 = ""): Buff {
-  const slots: Array<[number, string]> = ([[4, c4], [3, c3], [1, c1]] as const).flatMap(([cost, spec]) =>
-    spec.split(" ").filter(Boolean).map((key): [number, string] => [cost, key]));
-
-  if (slots.length !== SLOTS) {
-    throw new Error(`mainstats(${c4}|${c3}|${c1}): ${slots.length} echoes, expected ${SLOTS}`);
-  }
-  const cost = slots.reduce((n, [c]) => n + c, 0);
-  if (cost > COST_CAP) {
-    throw new Error(`mainstats(${c4}|${c3}|${c1}): costs ${cost}, over the ${COST_CAP} cap`);
-  }
+export function mainstats(...slots: Mainstat[]): Buff {
+  slots = [...slots].sort((a, b) => costOf(b) - costOf(a));
+  const spec = slots.join(" ");
+  if (slots.length !== SLOTS) throw new Error(`mainstats(${spec}): ${slots.length} echoes, expected ${SLOTS}`);
+  const cost = slots.reduce((n, key) => n + costOf(key), 0);
+  if (cost > COST_CAP) throw new Error(`mainstats(${spec}): costs ${cost}, over the ${COST_CAP} cap`);
 
   const totals = new Map<string, { stat: Stat; tag: string | null; value: number }>();
   const bump = (entry: MainEntry): void => {
@@ -62,50 +66,56 @@ export function mainstats(c4 = "", c3 = "", c1 = ""): Buff {
     if (seen) seen.value += value;
     else totals.set(key, { stat, tag: tag ?? null, value });
   };
-  for (const [c, key] of slots) {
-    const main = MAIN[c]?.[key];
-    if (!main) throw new Error(`no cost-${c} main stat called "${key}"`);
-    bump(main);
-    bump(SECONDARY[c]!);
+  for (const key of slots) {
+    bump(MAIN[key]);
+    bump(SECONDARY[costOf(key)]!);
   }
 
   const entries = [...totals.values()];
-  const layout = slots.map(([c]) => c).join("");
-  const name = `${layout} ${slots.map(([, key]) => key).join(" ")}`;
+  const layout = slots.map(costOf).join("");
+  const label = (key: Mainstat): string => key.slice(0, -1);
+  const name = `${layout} ${slots.map(label).join(" ")}`;
   // the comparison table names a row by what varies on it, and which element a 3-cost rolls never
   // does — it's always this resonator's own — so every element reads as a plain "ele" there
-  const short = slots.map(([, key]) => (ELEMENT_KEYS.has(key) ? "ele" : key)).join(" ");
+  const short = slots.map((key) => (ELEMENTS.includes(key) ? "ele" : label(key))).join(" ");
   return new Buff({
     name,
     abbreviation: `${layout} ${short}`,
-    apply: () => { for (const { stat, tag, value } of entries) addStat(stat, value, tag ?? undefined); },
+    applyStats: () => { for (const { stat, tag, value } of entries) addStat(stat, value, tag ?? undefined); },
   });
 }
 
-/** Every unordered n-slot pick from `keys` — slots of one cost are interchangeable, so "CR CD"
- *  and "CD CR" are the same build and only the first is emitted. */
-const multisets = (keys: string[], n: number): string[] =>
-  (n === 0 ? [""] : keys.flatMap((key, i) =>
-    multisets(keys.slice(i), n - 1).map((rest) => (rest ? `${key} ${rest}` : key))));
+/** Every unordered n-slot pick from `keys` — slots of one cost are interchangeable, so CR CD and
+ *  CD CR are the same build and only the first is emitted. */
+const multisets = <T>(keys: T[], n: number): T[][] =>
+  (n === 0 ? [[]] : keys.flatMap((key, i) => multisets(keys.slice(i), n - 1).map((rest) => [key, ...rest])));
 
 /**
- * Every main-stat build one loadout is willing to run, from its own per-cost option lists — the
- * 43311 layout (one 4-cost, two 3-costs, two 1-costs), the 44111 layout (two 4-costs, three
- * 1-costs), and, for a list that offers HP 1-costs, 41111 as well; each slot drawn from that
- * cost's own list. A loadout names this rather than a single
- * `mainstats()` build; the comparison table runs every one of them (see index.ts's own combos).
+ * Every main-stat build one loadout is willing to run, from one list of the stats it would wear
+ * at each cost — the 43311 layout (one 4-cost, two 3-costs, two 1-costs), the 44111 layout (two
+ * 4-costs, three 1-costs) unless the 3-cost list has ER in it, and, for a list that offers HP
+ * 1-costs, 41111 as well; each slot drawn
+ * from the options of its own cost. A loadout names this rather than a single `mainstats()`
+ * build; the comparison table runs every one of them (see index.ts's own combos).
  */
-export function mainstatOptions(c4: string[], c3: string[], c1: string[]): Buff[] {
+export function mainstatOptions(...options: Mainstat[]): Buff[] {
+  const c4 = options.filter((key) => costOf(key) === 4);
+  const c3 = options.filter((key) => costOf(key) === 3);
+  const c1 = options.filter((key) => costOf(key) === 1);
   const builds: Buff[] = [];
   for (const four of c4) for (const three of multisets(c3, 2)) for (const one of multisets(c1, 2)) {
-    builds.push(mainstats(four, three, one));
+    builds.push(mainstats(four, ...three, ...one));
   }
-  for (const four of multisets(c4, 2)) for (const one of multisets(c1, 3)) builds.push(mainstats(four, "", one));
+  // 44111 gives up both 3-cost slots — a build that offers ER there is one that needs the regen,
+  // so it never runs a layout that can't wear it
+  if (!c3.includes(Mainstat.ER3)) {
+    for (const four of multisets(c4, 2)) for (const one of multisets(c1, 3)) builds.push(mainstats(...four, ...one));
+  }
   // 41111, only for a build that would actually wear HP 1-costs: a 1-cost's 22.8% HP beats what a
   // 3-cost slot is worth to an HP scaler, so four of them can be the real build rather than the
   // cheap end of the list. Nothing else has a 1-cost worth four of, so nothing else generates it.
-  if (c1.includes("hp")) {
-    for (const four of c4) for (const one of multisets(c1, 4)) builds.push(mainstats(four, "", one));
+  if (c1.includes(Mainstat.HP1)) {
+    for (const four of c4) for (const one of multisets(c1, 4)) builds.push(mainstats(four, ...one));
   }
   return builds;
 }
@@ -113,37 +123,37 @@ export function mainstatOptions(c4: string[], c3: string[], c1: string[]): Buff[
 /* --- the builds worth comparing, generated rather than typed out one at a time ------------ */
 
 /** Every way n 1-cost slots split between attack and HP, fewest HP first. */
-const ones = (n: number): string[] => multisets(["atk", "hp"], n);
+const ones = (n: number): Mainstat[][] => multisets([Mainstat.ATK1, Mainstat.HP1], n);
 
-/** Percent stats a 3-cost or 4-cost can roll. */
-const C3_KEYS = ["ele", "ER", "atk"];
-const C4_KEYS = ["CR", "CD", "ATK", "HP"];
+/** Percent stats a 3-cost or 4-cost can roll. `null` in the 3-cost list stands for "an elemental
+ *  damage 3-cost", expanded by `elements()` into one build per element. */
+const C3_KEYS: Array<Mainstat | null> = [null, Mainstat.ER3, Mainstat.ATK3];
+const C4_KEYS = [Mainstat.CR4, Mainstat.CD4, Mainstat.ATK4, Mainstat.HP4];
 
-/** `ele` stands for "an elemental damage 3-cost" — expand into one build per element. Both
- *  3-cost slots take the same element, or half the build would be dead weight. */
-const elements = (spec: string): string[] =>
-  spec.includes("ele") ? ELEMENTS.map((e) => spec.replaceAll("ele", e.toLowerCase())) : [spec];
+/** Both 3-cost slots take the same element, or half the build would be dead weight. */
+const elements = (spec: Array<Mainstat | null>): Mainstat[][] =>
+  spec.includes(null) ? ELEMENTS.map((e) => spec.map((key) => key ?? e)) : [spec as Mainstat[]];
 
 /** Every build worth comparing. A loadout doesn't read this; it's swept over to rank builds. */
 export const ALL_MAINSTATS: Buff[] = [];
-const build = (...args: [string?, string?, string?]): void => { ALL_MAINSTATS.push(mainstats(...args)); };
+const build = (...slots: Mainstat[]): void => { ALL_MAINSTATS.push(mainstats(...slots)); };
 
 /** 43311 and 43111 — the layouts that spend the full cost budget. */
 for (const c4 of C4_KEYS) {
   for (const pair of multisets(C3_KEYS, 2)) {
-    for (const c3 of elements(pair)) for (const c1 of ones(2)) build(c4, c3, c1);
+    for (const c3 of elements(pair)) for (const c1 of ones(2)) build(c4, ...c3, ...c1);
   }
   for (const key of C3_KEYS) {
-    for (const c3 of elements(key)) for (const c1 of ones(3)) build(c4, c3, c1);
+    for (const c3 of elements([key])) for (const c1 of ones(3)) build(c4, ...c3, ...c1);
   }
 }
 
 /** 44111 — two 4-costs and three 1-costs. */
-for (const c4 of multisets(C4_KEYS, 2)) for (const c1 of ones(3)) build(c4, "", c1);
+for (const c4 of multisets(C4_KEYS, 2)) for (const c1 of ones(3)) build(...c4, ...c1);
 
 /** 41111 and 11111 — the cheap end. */
-for (const c4 of C4_KEYS) for (const c1 of ones(4)) build(c4, "", c1);
-for (const c1 of ones(SLOTS)) build("", "", c1);
+for (const c4 of C4_KEYS) for (const c1 of ones(4)) build(c4, ...c1);
+for (const c1 of ones(SLOTS)) build(...c1);
 
 /** DEF scaling, kept short until somebody on the team uses it. */
-for (const c4 of ["CR", "CD", "DEF"]) build(c4, "ER ER", "def def");
+for (const c4 of [Mainstat.CR4, Mainstat.CD4, Mainstat.DEF4]) build(c4, Mainstat.ER3, Mainstat.ER3, Mainstat.DEF1, Mainstat.DEF1);

@@ -30,7 +30,7 @@ import { STRINGMASTER } from "../../weapons/rectifier.js";
 import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { EMPYREAN_ANTHEM_5PC, EMPYREAN_ANTHEM_2PC } from "../../echoes/rinascita.js";
 import { NM_TEMPEST_MEPHIS, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";
-import { mainstatOptions } from "../../mainstats.js";
+import { mainstatOptions, Mainstat } from "../../mainstats.js";
 import { chem } from "../../substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -40,32 +40,32 @@ function yinlinAction(id: string, def: object): Action {
 }
 
 // --- basics, mid-air, dodge counter, heavy (Zapstring's Dance)
-export const BA1 = yinlinAction("Basic - Zapstring's Dance 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 28.81, energy: 0.60, concerto: 2.00, offtune: 3144, forte1: 1 });
-export const BA2 = yinlinAction("Basic - Zapstring's Dance 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 33.82 * 2, energy: 1.50, concerto: 5.00, offtune: 6152, forte1: 1 });
-export const BA3 = yinlinAction("Basic - Zapstring's Dance 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 13.99 * 7, energy: 2.45, concerto: 7.00, offtune: 7147, forte1: 3 });
-export const BA4 = yinlinAction("Basic - Zapstring's Dance 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 75.16, energy: 1.50, concerto: 6.00, offtune: 4976, forte1: 4 });
+const BA1 = yinlinAction("Basic - Zapstring's Dance 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 28.81, energy: 0.60, concerto: 2.00, offtune: 3144, forte1: 1 });
+const BA2 = yinlinAction("Basic - Zapstring's Dance 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 33.82 * 2, energy: 1.50, concerto: 5.00, offtune: 6152, forte1: 1 });
+const BA3 = yinlinAction("Basic - Zapstring's Dance 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 13.99 * 7, energy: 2.45, concerto: 7.00, offtune: 7147, forte1: 3 });
+const BA4 = yinlinAction("Basic - Zapstring's Dance 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 75.16, energy: 1.50, concerto: 6.00, offtune: 4976, forte1: 4 });
 
-export const HA = yinlinAction("Heavy - Zapstring's Dance", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 29.83 * 2, energy: 1.80, concerto: 4.50, offtune: 9392, forte1: 8 });
-export const MA = yinlinAction("Basic - Zapstring's Dance (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.27, energy: 0.51, concerto: 5.00, offtune: 4960, forte1: 2 });
-export const DC = yinlinAction("Basic - Zapstring's Dance (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 24.22 * 7, energy: 3.99, concerto: 17.00, offtune: 11746 });
+const HA = yinlinAction("Heavy - Zapstring's Dance", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 29.83 * 2, energy: 1.80, concerto: 4.50, offtune: 9392, forte1: 8 });
+const MA = yinlinAction("Basic - Zapstring's Dance (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.27, energy: 0.51, concerto: 5.00, offtune: 4960, forte1: 2 });
+const DC = yinlinAction("Basic - Zapstring's Dance (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 24.22 * 7, energy: 3.99, concerto: 17.00, offtune: 11746 });
 
 // Magnetic Roar opens Execution Mode; Lightning Execution is the follow-up Skill press
-export const Skill1 = yinlinAction("Skill - Magnetic Roar", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 59.65 * 3, energy: 15.00, concerto: 10, offtune: 6666, forte1: 12 });
-export const Skill2 = yinlinAction("Skill - Lightning Execution", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 89.47 * 4, energy: 15.00, concerto: 15, offtune: 5328, forte1: 4 });
+const Skill1 = yinlinAction("Skill - Magnetic Roar", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 59.65 * 3, energy: 15.00, concerto: 10, offtune: 6666, forte1: 12 });
+const Skill2 = yinlinAction("Skill - Lightning Execution", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 89.47 * 4, energy: 15.00, concerto: 15, offtune: 5328, forte1: 4 });
 /** One Electromagnetic Blast — queued onto her own slot by EXECUTION_MODE below, once per charge
  *  her Basic/Dodge Counter casts against a Sinner-marked target consume. */
-export const ACTION_BLAST = yinlinAction("Skill - Electromagnetic Blast", { node: Node.Skill, type: Type1.Skill, mv: 19.89, concerto: 5.00 });
+const ACTION_BLAST = yinlinAction("Skill - Electromagnetic Blast", { node: Node.Skill, type: Type1.Skill, mv: 19.89, concerto: 5.00 });
 
-export const Liberation = yinlinAction("Liberation - Thundering Wrath", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 116.56 * 7, concerto: 20, offtune: 36001, resetEnergy: true });
+const Liberation = yinlinAction("Liberation - Thundering Wrath", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 116.56 * 7, concerto: 20, offtune: 36001, resetEnergy: true });
 
 /** Chameleon Cipher: spends every Judgment Point, upgrades Sinner's Mark to Punishment Mark. */
-export const FHA = yinlinAction("Forte Heavy - Chameleon Cipher", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 178.93 * 2, energy: 10.00, concerto: 20.00, offtune: 52000, forte1: -40 });
+const FHA = yinlinAction("Forte Heavy - Chameleon Cipher", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 178.93 * 2, energy: 10.00, concerto: 20.00, offtune: 52000, forte1: -40 });
 /** Punishment Mark's whole 18s window at its 1/s ceiling, lumped — Resonance Skill DMG, queued
  *  off her own Outro while the mark stands (it consumes the mark — see PUNISHMENT_MARK). */
-export const ACTION_JUDGMENT_STRIKES = yinlinAction("Forte - Judgment Strike x18", { node: Node.Forte, type: Type1.Skill, type2: Type2.Coordinated, mv: 78.64 * 18, active: false });
+const ACTION_JUDGMENT_STRIKES = yinlinAction("Forte - Judgment Strike x18", { node: Node.Forte, type: Type1.Skill, type2: Type2.Coordinated, mv: 78.64 * 18, active: false });
 
-export const Intro = yinlinAction("Intro - Raging Storm", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 14.32 * 10, energy: 10.00, concerto: 10, offtune: 9520, forte1: 12 });
-export const Outro = yinlinAction("Outro - Strategist", { cast: Cast.Outro, active: false });
+const Intro = yinlinAction("Intro - Raging Storm", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 14.32 * 10, energy: 10.00, concerto: 10, offtune: 9520, forte1: 12 });
+const Outro = yinlinAction("Outro - Strategist", { cast: Cast.Outro, active: false });
 
 /* ------------------------------------------------------------------------------------ marks */
 
@@ -73,66 +73,66 @@ export const Outro = yinlinAction("Outro - Strategist", { cast: Cast.Outro, acti
  *  Blasts, Deadly Focus and the Cipher upgrade. "Removed when Yinlin is switched out" = removed
  *  on any inactive action of hers (her own lostOnSwap can't carry the check — the mark has to
  *  survive other members' inactive actions, so it tests whose slot is acting itself). */
-export const SINNERS_MARK: Debuff = new Debuff({
+const SINNERS_MARK: Debuff = new Debuff({
   name: "Yinlin: Sinner's Mark",
-  update: () => { if (!currentAction().active && isHeld(YINLIN)) revokeEnemy(SINNERS_MARK); },
+  updateBuffs: () => { if (!currentAction().active && isHeld(YINLIN)) revokeEnemy(SINNERS_MARK); },
 });
 
 /** Punishment Mark: what Chameleon Cipher turns a Sinner's Mark into, 18s. Its Judgment Strike
  *  window is the queued lump above, which consumes the mark once it lands. */
-export const PUNISHMENT_MARK = new Debuff({
+const PUNISHMENT_MARK = new Debuff({
   name: "Yinlin: Punishment Mark",
-  convert: () => { if (currentAction() === ACTION_JUDGMENT_STRIKES) revokeEnemy(PUNISHMENT_MARK); },
+  convertStats: () => { if (currentAction() === ACTION_JUDGMENT_STRIKES) revokeEnemy(PUNISHMENT_MARK); },
 });
 
 /** Execution Mode: 4 Blast charges off Magnetic Roar — each Basic/Dodge Counter cast against a
  *  Sinner-marked target spends one for an Electromagnetic Blast. Whatever's left is lost when
  *  she leaves the field. */
-export const EXECUTION_MODE: Buff = new Buff({
+const EXECUTION_MODE: Buff = new Buff({
   name: "Yinlin: Execution Mode", maxStacks: 4,
-  update: () => {
+  updateBuffs: () => {
     if ((casting(Cast.Basic) || casting(Cast.DodgeCounter)) && stacksOfEnemy(SINNERS_MARK)) {
       queue(ACTION_BLAST);
       removeStack(EXECUTION_MODE, 1);
     }
   },
-  convert: () => { if (casting(Cast.Outro)) revoke(EXECUTION_MODE); },
+  convertStats: () => { if (casting(Cast.Outro)) revoke(EXECUTION_MODE); },
 });
 
 /* ------------------------------------------------------------------------------------ buffs */
 
 /** Pain Immersion (Inherent Skill): +15% Crit Rate for 5s after Magnetic Roar. */
-export const PAIN_IMMERSION = new Buff({
+const PAIN_IMMERSION = new Buff({
   name: "Yinlin: Pain Immersion",
-  apply: () => addStat(Stat.CritRate, 15),
-  convert: () => { if (casting(Cast.Outro)) revoke(PAIN_IMMERSION); },
+  applyStats: () => addStat(Stat.CritRate, 15),
+  convertStats: () => { if (casting(Cast.Outro)) revoke(PAIN_IMMERSION); },
 });
-export const YL_INHERENT_1 = new Inherent({
+const YL_INHERENT_1 = new Inherent({
   name: "Yinlin: Pain Immersion",
-  update: () => { if (currentAction() === Skill1) applySelf(PAIN_IMMERSION, 1); },
+  updateBuffs: () => { if (currentAction() === Skill1) applySelf(PAIN_IMMERSION, 1); },
 });
 
 /** Deadly Focus (Inherent Skill): the +10% ATK half — the +10% on Lightning Execution itself
  *  lives on YL_INHERENT_2's own apply below. Both halves need the target Sinner-marked. */
-export const DEADLY_FOCUS = new Buff({
+const DEADLY_FOCUS = new Buff({
   name: "Yinlin: Deadly Focus",
-  apply: () => addStat(Stat.BonusAtk, 10),
-  convert: () => { if (casting(Cast.Outro)) revoke(DEADLY_FOCUS); },
+  applyStats: () => addStat(Stat.BonusAtk, 10),
+  convertStats: () => { if (casting(Cast.Outro)) revoke(DEADLY_FOCUS); },
 });
-export const YL_INHERENT_2 = new Inherent({
+const YL_INHERENT_2 = new Inherent({
   name: "Yinlin: Deadly Focus",
-  update: () => { if (currentAction() === Skill2 && stacksOfEnemy(SINNERS_MARK)) applySelf(DEADLY_FOCUS, 1); },
-  apply: () => { if (currentAction() === Skill2 && stacksOfEnemy(SINNERS_MARK)) addStat(Stat.DmgBonus, 10); },
+  updateBuffs: () => { if (currentAction() === Skill2 && stacksOfEnemy(SINNERS_MARK)) applySelf(DEADLY_FOCUS, 1); },
+  applyStats: () => { if (currentAction() === Skill2 && stacksOfEnemy(SINNERS_MARK)) addStat(Stat.DmgBonus, 10); },
 });
 
 /** Strategist — the outro handoff: "for 14s or until they are switched out". */
-export const YINLIN_OUTRO = new Buff({
+const YINLIN_OUTRO = new Buff({
   name: "Yinlin: Outro",
-  apply: () => { addStat(Stat.Amp, 20, Attribute.Electro); addStat(Stat.Amp, 25, Type1.Liberation); },
-  update: () => { lostOnSwap(); },
+  applyStats: () => { addStat(Stat.Amp, 20, Attribute.Electro); addStat(Stat.Amp, 25, Type1.Liberation); },
+  updateBuffs: () => { lostOnSwap(); },
 });
 
-export const YINLIN = new Resonator({
+const YINLIN = new Resonator({
   name: "Yinlin",
   abbreviation: "Yinlin",
   element: Attribute.Electro,
@@ -141,7 +141,7 @@ export const YINLIN = new Resonator({
   color: "#a45ee8",
   maxEnergy: 125,
 
-  update: () => {
+  updateBuffs: () => {
     const a = currentAction();
     // this runs ahead of EXECUTION_MODE's own update (equipped gear first), so a Basic's own
     // fresh mark already gates that same cast's Blast
@@ -156,23 +156,22 @@ export const YINLIN = new Resonator({
     }
   },
 
-  apply: () => {
+  applyStats: () => {
     addStat(Stat.BaseHp, 11000); addStat(Stat.BaseAtk, 400); addStat(Stat.BaseDef, 1283.33);
-    addStat(Stat.Er, 100); addStat(Stat.CritRate, 5); addStat(Stat.CritDmg, 150);
   },
 });
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
-export const YINLIN_TALENTS = new Talent({
+const YINLIN_TALENTS = new Talent({
   name: "Yinlin: Talents",
-  apply: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  applyStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
 // the kit-valid line: Magnetic Roar opens Execution Mode, the full combo (marked by its own first
 // hits) fires all 4 Blasts, the Heavy tops the gauge to the 45 that covers Chameleon Cipher's 40,
 // which upgrades the mark for Judgment Strikes off Outro. She's never the team's own lead, so
 // this covers both opener and loop.
-export const YL_ROTATION = [
+const YL_ROTATION = [
   INTRO, 
   Skill1, HA, Liberation, Skill2, FHA,
   ECHO_CAST,
@@ -183,13 +182,18 @@ export const YL_ROTATION = [
 
 // her real 43311 build: resonator + talents + both Inherent Skills, viable weapons, and two real
 // echo choices — Empyrean Anthem behind her Coordinated Judgment Strikes, or Moonlit Clouds
-export const YINLIN_LOADOUT = new Loadout(
-  YINLIN, false, YINLIN_TALENTS, YL_INHERENT_1, YL_INHERENT_2,
-  [STRINGMASTER, VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES],
-  [
+export const YINLIN_LOADOUT = new Loadout({
+  resonator: YINLIN,
+  talent: YINLIN_TALENTS,
+  inherent1: YL_INHERENT_1,
+  inherent2: YL_INHERENT_2,
+  weapons: [STRINGMASTER, VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES],
+  echoLoadouts: [
     new EchoLoadout(NM_TEMPEST_MEPHIS, EMPYREAN_ANTHEM_5PC, EMPYREAN_ANTHEM_2PC),
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
   ],
-  mainstatOptions(["CR", "CD"], ["atk", "electro"], ["atk"]), chem("atk", "skill"),
-  YL_ROTATION, YL_ROTATION,
-);
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
+  substat: chem("atk", "skill"),
+  opener: YL_ROTATION,
+  loop: YL_ROTATION,
+});

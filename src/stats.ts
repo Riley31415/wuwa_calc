@@ -29,8 +29,9 @@ export enum Stat {
   MulMv = "MV multiplier",
 
   /*
-   * Shields are not a stat. An action says how many it grants (`shields` field); a buff that
-   * cares reads it back off the action. Electro Flare (`flare`) is the same shape.
+   * Shields are not a stat. A kit puts up the shield marker (statuses.ts's SHIELD) from its own
+   * updateDebuffs(); a buff that cares reads `applied(SHIELD)` the same action. The elemental
+   * Negative Statuses (Electro Flare, ...) are the same shape, as do-nothing enemy debuffs.
    */
   DmgBonus = "Dmg Bonus",
   Amp = "Amplification",
@@ -52,6 +53,9 @@ export enum Stat {
   AddEnergy = "AddEnergy",
   AddConcerto = "AddConcerto",
   AddOfftune = "AddOfftune",
+  /** Off-tune a kit puts straight onto the bar rather than building (Denia's half-bar surge) —
+   *  unlike AddOfftune, Off-Tune Buildup Rate doesn't scale it. */
+  FillOfftune = "FillOfftune",
   AddForte1 = "AddForte1",
   AddForte2 = "AddForte2",
   AddForte3 = "AddForte3",

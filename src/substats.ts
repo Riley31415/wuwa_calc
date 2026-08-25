@@ -17,8 +17,10 @@ const TYPE_KEYS: Record<string, string> = {
   basic: Type1.Basic, heavy: Type1.Heavy, skill: Type1.Skill, liberation: Type1.Liberation,
 };
 const TYPES = Object.keys(TYPE_KEYS);
+/** The three stats a kit can scale off, each as its percent and flat roll. */
 const SCALER_STATS: Record<string, readonly [string, string]> =
-  { atk: [Stat.BonusAtk, Stat.FlatAtk], hp: [Stat.BonusHp, Stat.FlatHp] };
+  { atk: [Stat.BonusAtk, Stat.FlatAtk], hp: [Stat.BonusHp, Stat.FlatHp], def: [Stat.BonusDef, Stat.FlatDef] };
+const SCALERS = Object.keys(SCALER_STATS);
 
 /** Define one substat spread from a count of rolls per stat; must total 25. */
 export function substats(name: string, counts: Record<string, number>): Buff {
@@ -33,24 +35,23 @@ export function substats(name: string, counts: Record<string, number>): Buff {
   });
   return new Buff({
     name,
-    apply: () => { for (const { stat, tag, value } of entries) addStat(stat, value, tag ?? undefined); },
+    applyStats: () => { for (const { stat, tag, value } of entries) addStat(stat, value, tag ?? undefined); },
   });
 }
 
-/** The "chem" spread: crit first, two rolls into the scaler stat and the leaned-on damage
- *  type, one roll into everything else. ER variant trades crit rate rolls for energy regen. */
+/** The "chem" spread: crit first, two rolls into the scaler stat (ATK, HP or DEF, percent and
+ *  flat) and the leaned-on damage type, one roll into everything else. ER variant trades crit
+ *  rate rolls for energy regen. */
 export function chem(scaler: string, type: string, { er = false }: { er?: boolean } = {}): Buff {
-  const [ownPct, ownFlat] = SCALER_STATS[scaler]!;
-  const [offPct, offFlat] = SCALER_STATS[scaler === "atk" ? "hp" : "atk"]!;
-
+  if (!(scaler in SCALER_STATS)) throw new Error(`chem(): nothing scales off "${scaler}"`);
   const counts: Record<string, number> = {
     [Stat.CritRate]: er ? 2 : 5,
     [Stat.CritDmg]: 5,
     [Stat.Er]: er ? 5 : 2,
-    [ownPct]: 2, [ownFlat]: 2,
-    [offPct]: 1, [offFlat]: 1,
-    [Stat.BonusDef]: 1, [Stat.FlatDef]: 1,
   };
+  for (const [key, [pct, flat]] of Object.entries(SCALER_STATS)) {
+    counts[pct] = counts[flat] = key === scaler ? 2 : 1;
+  }
   for (const [key, tag] of Object.entries(TYPE_KEYS)) {
     counts[scopedStat(tag, Stat.DmgBonus)] = key === type ? 2 : 1;
   }
@@ -60,7 +61,7 @@ export function chem(scaler: string, type: string, { er = false }: { er?: boolea
 
 /** The same catalogue for substats — see ALL_MAINSTATS in mainstats.js. */
 export const ALL_SUBSTATS: Buff[] = [];
-for (const scaler of ["atk", "hp"]) {
+for (const scaler of SCALERS) {
   for (const type of TYPES) {
     ALL_SUBSTATS.push(chem(scaler, type));
     ALL_SUBSTATS.push(chem(scaler, type, { er: true }));

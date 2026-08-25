@@ -333,8 +333,9 @@ main {
    box — the separator, the header's sticky background, the hover wash — moves onto its cells. */
 .tgrid {
   display: grid;
-  /* member name + that member's own DPR, three times over, then Misc DPR, Team DPR, baseline % */
-  grid-template-columns: repeat(3, max-content max-content) repeat(3, max-content);
+  /* the three member names, then Team DPR and the baseline % — a member's own DPR and Misc's
+     both live in a hover now (see index.ts's own `memberCell`/`sectionBreakdownPopover`) */
+  grid-template-columns: repeat(3, max-content) repeat(2, max-content);
   align-items: stretch;
 }
 .trow { display: contents; }
@@ -383,26 +384,20 @@ main {
 .trow .c.name.res { cursor: pointer; display: flex; align-items: center; gap: 7px; }
 .trow .c.name.res .res-label { overflow: hidden; text-overflow: ellipsis; }
 
-/* a member's own DPR cell, right beside their name — same wash, no left bar/full-strength text
-   (the number itself stays plain `.num` ink) so it reads as "this cell belongs to that name"
-   without competing with it. Misc DPR reuses this with the tune-break Misc hue instead. */
-.trow .c.memdpr { background: color-mix(in srgb, var(--mem, transparent) 10%, var(--surface)); }
-.trow:not(.thead):hover .c.memdpr { background: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface)); }
-
-/* Team DPR and the baseline % beside it: a faint green-to-red heat tint off `--ratio` (0 = the
-   worst team currently visible, 1 = the best, spread across the log of the ratio between them —
-   set per row by index.js's own rankVisible(), the only thing that knows what's visible), on top
-   of `.total`'s own bold ink text. Inverted from the usual reading on purpose: red marks the HIGH
-   end here, green the low end. Kept well under the wash the member columns carry — this is a
-   background reading of the number beside it, not something to be read before it. Both cells read
-   the same variable off their shared row. */
-.trow .c.teamdpr,
+/* The `% of Baseline` column: one continuous hue ramp, written per row as `--hue` by
+   `rankVisible()` — red at the strongest team, green at the baseline, purple at the weakest.
+   The hue is computed there rather than here because it is piecewise (two slopes meeting at the
+   baseline), which `calc()` can express only as two rules that then have to agree at the seam. */
 .trow .c.baseline {
-  background: color-mix(in srgb, hsl(calc((1 - var(--ratio, 0)) * 120) 70% 45%) 11%, var(--surface));
+  background: color-mix(in srgb, hsl(var(--hue, 120) 65% 50%) 12%, var(--surface));
+  cursor: pointer;
 }
-.trow:not(.thead):hover .c.teamdpr,
 .trow:not(.thead):hover .c.baseline {
-  background: color-mix(in srgb, hsl(calc((1 - var(--ratio, 0)) * 120) 70% 45%) 18%, var(--surface));
+  background: color-mix(in srgb, hsl(var(--hue, 120) 65% 50%) 20%, var(--surface));
+}
+/* the pinned row: an outline only, since its colour is already the ramp's green */
+.trow.isbaseline .c.baseline {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, hsl(var(--hue, 120) 65% 50%) 55%, transparent);
 }
 
 /* the only clickable cell in the row: a small arrow marker after the number, both of it — and

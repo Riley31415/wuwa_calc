@@ -1,11 +1,11 @@
 /**
  * The engine. Buffs/Gear/Actions are stateless singletons — every mutable fact about a held one
  * (stacks) lives in the engine's own `TeamMember.stacks`, keyed by identity, never on the object
- * itself. `stacks()`/`addStat()`/etc. resolve against "whichever Gear and slot the engine is
+ * itself. `frozenStacks()`/`addStat()`/etc. resolve against "whichever Gear and slot the engine is
  * mid-call for" — safe because evaluation is fully synchronous. Replaces the previous kit.ts/
  * state.ts pair; see TODO_ENGINE.md for the rework this came out of.
  */
-import { Stat, EnemyStat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, scopedStat, TAGS_MATCHED } from "./stats.js";
+import { Stat, EnemyStat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, scopedStat, TAGS_MATCHED, TYPE2S } from "./stats.js";
 export { Stat, EnemyStat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, scopedStat };
 
 /** Attribute/type/type2 only — matches stats.js's own TAGS_MATCHED.
@@ -42,26 +42,46 @@ export interface GearDef {
    *  For anything that happens on entering combat, not on a specific cast (Phrolova's Octet:
    *  10 Aftersound the instant she's on the team, regardless of when she first acts). */
   combatStart?: () => void;
-  /** Same shape as `update` below — grant/revoke/queue/spend, never a stat contribution — but
-   *  runs first, one step ahead of it, and runs for this Gear no matter who actually took the
-   *  action: every slot's own held gear gets its own `updateGlobal()` called every single action,
-   *  not just when this Gear's own holder is the one acting. `update` still only runs when this
+  /** What this cast *inflicts* — the enemy debuffs (Tune Shifting, the elemental Negative
+   *  Statuses) and the shield marker (see statuses.ts) it puts up. Runs first of all, across every
+   *  held Gear, so that by the time anything else looks, `applied()` already answers "did this
+   *  action inflict X" — the same shape as `updateBuffs` (grant/revoke, never a stat), split out
+   *  purely for that ordering. */
+  updateDebuffs?: () => void;
+  /** Same shape as `updateBuffs` below — grant/revoke/queue/spend, never a stat contribution — but
+   *  runs one step ahead of it, and runs for this Gear no matter who actually took the action:
+   *  every slot's own held gear gets its own `updateGlobal()` called every single action, not
+   *  just when this Gear's own holder is the one acting. `updateBuffs` still only runs when this
    *  Gear is actually in the acting slot's own held set (or global) — `updateGlobal` is what a
    *  self-held buff needs to react to a *teammate's* action without being promoted to a real
    *  team-wide buff just to be reachable from their turn (Jingran's Trace the Vestige/Fixation:
-   *  both react to any team member's own shield, but pay out onto his slot specifically). */
+   *  both react to any team member's own shield, but pay out onto his slot specifically). Runs
+   *  after `updateDebuffs`, so a teammate's own Shifting/status/shield from this action is visible. */
   updateGlobal?: () => void;
-  /** Grant/revoke/queue/spend — never a stat contribution. Runs first, across every held Gear. */
-  update?: () => void;
-  /** A flat stat contribution. Runs after every held Gear's own update(). */
-  apply?: () => void;
-  /** Reads a total apply() already built this action (an ER threshold, an HP fold). Runs last. */
-  convert?: () => void;
+  /** Grant/revoke/queue/spend — never a stat contribution. Runs across every held Gear, after
+   *  `updateDebuffs` and `updateGlobal`. */
+  updateBuffs?: () => void;
+  /** A flat stat contribution. Runs after every held Gear's own updateBuffs(). */
+  applyStats?: () => void;
+  /** Reads a total applyStats() already built this action (an ER threshold, an HP fold). */
+  convertStats?: () => void;
+  /** Runs last of all, after this action's own energy/concerto/off-tune/forte have banked — the
+   *  only phase that sees the gauges as the action actually leaves them. For machinery reacting to
+   *  a gauge crossing a threshold rather than to the action itself: tunebreak.ts's own watcher
+   *  fires the break from here, which is why the engine needs no idea the mechanic exists. Grant/
+   *  revoke/queue only, never a stat — stats are long since resolved by now. */
+  afterAction?: () => void;
+  /** Same shape as `convertStats`, one phase later — for a conversion that reads a stat *another*
+   *  gear's convertStats() grants, which it would otherwise race (the roster runs the acting slot's
+   *  own gear before team buffs, so a team buff's grant would land too late). Tune Strain's own
+   *  payout is the case: it scales off Tune Break Boost, which Denia's Etched Colors hands the team
+   *  from its own convertStats(). Runs last of all. */
+  lateConvertStats?: () => void;
   /** How this Gear names itself wherever the report shows it — the source on every stat entry it
    *  contributes, and its row in the resonator popover. Defaults to its `name`, plus " xN" once
    *  it stacks; override for a Gear whose useful name isn't fixed (Shorekeeper's Stellarealm
    *  naming its own stage: "Inner Stellarealm" rather than "Stellarealm x2"; Jingran's HP folds
-   *  naming how many 1000-HP steps they converted). Called with this Gear current, so `stacks()`
+   *  naming how many 1000-HP steps they converted). Called with this Gear current, so `frozenStacks()`
    *  and the stat readers all work inside it.
    *  Named `display`, not `toString`: every plain object already inherits a `toString` from
    *  `Object.prototype`, so `def.toString` is never actually `undefined` when a kit leaves it
@@ -79,10 +99,13 @@ export class Gear {
   abbreviation?: string;
   maxStacks: number;
   combatStartFn?: () => void;
+  updateDebuffsFn?: () => void;
   updateGlobalFn?: () => void;
-  updateFn?: () => void;
-  applyFn?: () => void;
-  convertFn?: () => void;
+  updateBuffsFn?: () => void;
+  applyStatsFn?: () => void;
+  convertStatsFn?: () => void;
+  afterActionFn?: () => void;
+  lateConvertStatsFn?: () => void;
   displayFn?: () => string;
 
   constructor(def: GearDef) {
@@ -90,15 +113,18 @@ export class Gear {
     this.abbreviation = def.abbreviation;
     this.maxStacks = def.maxStacks ?? 1;
     this.combatStartFn = def.combatStart;
+    this.updateDebuffsFn = def.updateDebuffs;
     this.updateGlobalFn = def.updateGlobal;
-    this.updateFn = def.update;
-    this.applyFn = def.apply;
-    this.convertFn = def.convert;
+    this.updateBuffsFn = def.updateBuffs;
+    this.applyStatsFn = def.applyStats;
+    this.convertStatsFn = def.convertStats;
+    this.afterActionFn = def.afterAction;
+    this.lateConvertStatsFn = def.lateConvertStats;
     this.displayFn = def.display;
   }
   toString(): string {
     if (this.displayFn) return this.displayFn();
-    return this.maxStacks > 1 ? `${this.name} x${stacks()}` : this.name;
+    return this.maxStacks > 1 ? `${this.name} x${frozenStacks()}` : this.name;
   }
 }
 
@@ -107,8 +133,8 @@ export class Debuff extends Buff {}
 /** A resonator's own stat-tree Talents bonus — one per kit, always equipped. */
 export class Talent extends Gear {}
 /** One of a resonator's two Inherent Skill slots — an always-equipped piece. A flat unconditional
- *  stat it grants lives directly in its own apply(); a conditional/stacking payout it triggers
- *  stays a separate Buff, granted from this piece's own update(). */
+ *  stat it grants lives directly in its own applyStats(); a conditional/stacking payout it triggers
+ *  stays a separate Buff, granted from this piece's own updateBuffs(). */
 export class Inherent extends Gear {}
 /** One resonance-chain sequence node (S1-S6) — a loadout can carry up to six. */
 export class Sequence extends Gear {}
@@ -136,16 +162,31 @@ export class EchoLoadout {
   pieces(): Gear[] { return [this.mainslot, this.sonata, this.sonata2pc]; }
 }
 
+/** Everything a `Loadout` is built from, labeled — see the class itself for what each field is.
+ *  `sequences` is the resonance chain S1 up, as many nodes as the kit actually declares: six for a
+ *  `standardCharacter`, left unset for most limited kits. `mode` is for the rare kit built around
+ *  a Resonance Mode (Lucilla, Lynae). */
+export interface LoadoutDef {
+  resonator: Resonator;
+  talent: Talent;
+  inherent1: Inherent;
+  inherent2: Inherent;
+  weapons: Weapon[];
+  echoLoadouts: EchoLoadout[];
+  mainstats: Buff[];
+  substat: Buff;
+  opener: Action[];
+  loop: Action[];
+  sequences?: Sequence[];
+  mode?: ResonanceMode;
+}
+
 /** A resonator's real build — every resonator file's own `_LOADOUT` export is one of these, not a
  *  loose array, so a loadout has to actually name its Talent/both Inherent Skills/every viable
- *  weapon and echo choice, not just hand over "some Gear". Every constructor argument is required
- *  except the six trailing sequence nodes: a limited 5-star's own loadout leaves all six unset, a
- *  `standardCharacter`'s own sets as many as its resonance chain actually has (see each resonator
- *  file's own `_S1`-`_S6`). Forte Circuit logic lives directly on each resonator's own Resonator
- *  definition, not a separate loadout slot. Mainstat/substat rolls stay plain `Buff`
- *  (`mainstats()`/`chem()`'s own return type) — no dedicated class was asked for those. `mode`, the
- *  last param, is for the rare kit built around a Resonance Mode (Lucilla) — every other loadout
- *  leaves it unset same as the sequence slots.
+ *  weapon and echo choice, not just hand over "some Gear" (see `LoadoutDef`). Forte Circuit logic
+ *  lives directly on each resonator's own Resonator definition, not a separate loadout slot.
+ *  Mainstat/substat rolls stay plain `Buff` (`mainstats()`/`chem()`'s own return type) — no
+ *  dedicated class was asked for those.
  *
  *  `weapons`/`echoLoadouts`/`mainstats` are lists, not a single pick: the comparison table runs every
  *  combination of them (crossed with every other member's own combinations too — see index.ts's
@@ -155,10 +196,6 @@ export class EchoLoadout {
  *  and every pass after. */
 export class Loadout {
   resonator: Resonator;
-  /** Whether this build is the team's own main damage dealer — the comparison table's own "Show
-   *  MDPS Weapons/Echoes" vs "Show Support Weapons/Echoes" checkboxes key off this to decide which
-   *  member's own combos get expanded by default (see index.ts's own comparisonTable()). */
-  mainDps: boolean;
   talent: Talent;
   inherent1: Inherent;
   inherent2: Inherent;
@@ -171,46 +208,29 @@ export class Loadout {
   substat: Buff;
   opener: Action[];
   loop: Action[];
-  sequence1?: Sequence;
-  sequence2?: Sequence;
-  sequence3?: Sequence;
-  sequence4?: Sequence;
-  sequence5?: Sequence;
-  sequence6?: Sequence;
-  mode?: ResonanceMode;
-
-  constructor(
-    resonator: Resonator, mainDps: boolean, talent: Talent, inherent1: Inherent, inherent2: Inherent,
-    weapons: Weapon[], echoLoadouts: EchoLoadout[], mainstats: Buff[], substat: Buff,
-    opener: Action[], loop: Action[],
-    sequence1?: Sequence, sequence2?: Sequence, sequence3?: Sequence, sequence4?: Sequence, sequence5?: Sequence, sequence6?: Sequence,
-    mode?: ResonanceMode,
-  ) {
-    this.resonator = resonator;
-    this.mainDps = mainDps;
-    this.talent = talent;
-    this.inherent1 = inherent1;
-    this.inherent2 = inherent2;
-    this.weapons = weapons;
-    this.echoLoadouts = echoLoadouts;
-    this.mainstats = mainstats;
-    this.substat = substat;
-    this.opener = opener;
-    this.loop = loop;
-    this.sequence1 = sequence1;
-    this.sequence2 = sequence2;
-    this.sequence3 = sequence3;
-    this.sequence4 = sequence4;
-    this.sequence5 = sequence5;
-    this.sequence6 = sequence6;
-    this.mode = mode;
-  }
-
   /** This loadout's own resonance-chain nodes, S1 first — as many as it actually declares, which
    *  is six for a `standardCharacter` and none for most limited kits. */
-  sequences(): Sequence[] {
-    return [this.sequence1, this.sequence2, this.sequence3, this.sequence4, this.sequence5, this.sequence6]
-      .filter((g): g is Sequence => g != null);
+  sequences: Sequence[];
+  mode?: ResonanceMode;
+  /** Whether this build is a team's own main damage dealer — set by teams.ts, which knows the
+   *  teams, on every loadout that fills a one-loadout slot there. The comparison table's own
+   *  "Show MDPS Weapons/Echoes" vs "Show Support Weapons/Echoes" checkboxes key off this to decide
+   *  which member's own combos get expanded by default (see index.ts's own comparisonTable()). */
+  mainDps = false;
+
+  constructor(def: LoadoutDef) {
+    this.resonator = def.resonator;
+    this.talent = def.talent;
+    this.inherent1 = def.inherent1;
+    this.inherent2 = def.inherent2;
+    this.weapons = def.weapons;
+    this.echoLoadouts = def.echoLoadouts;
+    this.mainstats = def.mainstats;
+    this.substat = def.substat;
+    this.opener = def.opener;
+    this.loop = def.loop;
+    this.sequences = def.sequences ?? [];
+    this.mode = def.mode;
   }
 
   /** Every piece for one specific weapon/echo/main-stat/sequence-level combo, flattened into the
@@ -223,7 +243,7 @@ export class Loadout {
     return [
       this.resonator, this.talent, this.inherent1, this.inherent2,
       weapon, ...echo.pieces(), mainstat, this.substat,
-      ...this.sequences().slice(0, sequenceLevel),
+      ...this.sequences.slice(0, sequenceLevel),
       this.mode,
     ].filter((g): g is Gear => g != null);
   }
@@ -275,6 +295,19 @@ export class Resonator extends Gear {
   constructor(def: ResonatorDef) {
     super({
       ...def,
+      // The four every resonator in the game starts with, applied here so no kit has to restate
+      // them: 5% Crit. Rate, 150% Crit. DMG, 100% Energy Regen and a 100% Off-Tune Buildup Rate.
+      // Off-tune is the one worth spelling out — the rate is a plain multiplier on what a cast
+      // banks (see `evaluate()`), so 100 is the neutral baseline the way 100% ER is, and a kit
+      // granting "+50% Buildup Rate" (Mornye's Syntony Field) adds 50 on top of it for x1.5.
+      // A kit's own applyStats runs after, so its Base HP/ATK/DEF and anything else land on top.
+      applyStats: () => {
+        addStat(Stat.CritRate, 5);
+        addStat(Stat.CritDmg, 150);
+        addStat(Stat.Er, 100);
+        addStat(Stat.OfftuneBuildup, 100);
+        def.applyStats?.();
+      },
       combatStart: () => {
         currentSlot!.resonator = this;
         // RealEnergy (see ActionDef.resetEnergy) starts a fight already filled, unlike the real
@@ -332,7 +365,12 @@ export class Weapon extends Gear {
   }
 }
 
-export interface ActionDef {
+/** An Action is a Gear (see the class below), so every hook `GearDef` declares is available here
+ *  too — an action that *does* something declares it directly instead of a held Gear branching on
+ *  `currentAction() === X`. The two that don't apply: `combatStart` (an Action is cast, never
+ *  equipped, so nothing ever fires it) and `maxStacks` (an Action is never held, so it has no
+ *  stack count). */
+export interface ActionDef extends GearDef {
   element?: Attribute | null;
   type?: Type1 | null;
   type2?: Type2 | null;
@@ -342,24 +380,6 @@ export interface ActionDef {
   node?: Node | null;
   scaling?: Scaling | null;
   mv?: number;
-  /** How much of each element's own proc mechanic this cast inflicts on the enemy — Havoc Bane,
-   *  Glacio Chafe, Electro Flare, Fusion Burst, Aero Erosion, Spectro Frazzle (see Type2 in
-   *  stats.ts) — plus the Tune-side equivalents, Hack/Rupture/Strain. All the same shape as `mv`:
-   *  a plain declared amount, read back off the action (`currentAction().chafe`, `.flare`, ...)
-   *  by whoever's own kit reacts to it. Never modified once declared — no running total, no
-   *  gain-style setter; a buff that cares just reads the number. */
-  bane?: number;
-  chafe?: number;
-  flare?: number;
-  burst?: number;
-  erosion?: number;
-  frazzle?: number;
-  hack?: number;
-  rupture?: number;
-  strain?: number;
-  /** How many shields this cast grants — same shape as `chafe` above. Shields are not a stat,
-   *  see stats.ts. */
-  shields?: number;
   /** Whether this cast heals at all — read back off the action (`currentAction().heals`) by a
    *  kit that reacts to "did a heal happen", never a modified/tracked value. Healing itself is
    *  out of scope for this calculator's own damage math (see stats.ts's own note on
@@ -373,6 +393,10 @@ export interface ActionDef {
   energy?: number;
   concerto?: number;
   offtune?: number;
+  /** The report bucket this action's damage groups under, when it isn't the acting resonator's
+   *  own — the shared Tune Break and every Negative Status's own damage, none of which is anyone's
+   *  turn (`MISC_SLOT`). Defaults to whoever cast it. */
+  slot?: string;
   /** Marks the actual button-press Liberation cast that spends the Energy bar — used only to
    *  reset RealEnergy (see `TeamMember.realEnergy`) back to 0 once it fires. Never set on a
    *  Liberation-tagged follow-up that doesn't itself cost the bar, or on a kit whose Liberation
@@ -390,10 +414,14 @@ export interface ActionDef {
   forte5?: number;
 }
 
-/** Pure data. Anything an action "does" is a `currentAction() === X` / `casting(Y)` check
- *  inside whichever held Gear's own update()/apply() cares. */
-export class Action {
-  id: string;
+/** A cast. Mostly data — element/type/cast tags, its motion value, and the energy/concerto/
+ *  off-tune/forte it banks — but a Gear like any other, so anything an action *does* can live
+ *  directly on it: `evaluate()` runs the acting action's own hooks first in every phase, with the
+ *  "current" pointers aimed at it, so what it grants is attributed to it and every stat it
+ *  contributes is sourced to its own name. Prefer that to a held Gear branching on
+ *  `currentAction() === X`; a `casting(Y)`/`isType(Y)` check that spans a whole *category* of
+ *  actions still belongs on the Gear. */
+export class Action extends Gear {
   element: Attribute | null;
   type: Type1 | null;
   type2: Type2 | null;
@@ -403,20 +431,11 @@ export class Action {
   node: Node | null;
   scaling: Scaling | null;
   mv: number;
-  bane: number;
-  chafe: number;
-  flare: number;
-  burst: number;
-  erosion: number;
-  frazzle: number;
-  hack: number;
-  rupture: number;
-  strain: number;
-  shields: number;
   heals: boolean;
   energy: number;
   concerto: number;
   offtune: number;
+  slot: string | null;
   resetEnergy: boolean;
   forte1: number;
   forte2: number;
@@ -427,8 +446,8 @@ export class Action {
    *  every scoped stat read matches against. Engine-owned; never set by a kit. */
   _tags?: string[];
 
-  constructor(id: string, def: ActionDef = {}) {
-    this.id = id;
+  constructor(name: string, def: ActionDef = {}) {
+    super({ ...def, name });
     this.element = def.element ?? null;
     this.type = def.type ?? null;
     this.type2 = def.type2 ?? null;
@@ -438,20 +457,11 @@ export class Action {
     this.node = def.node ?? null;
     this.scaling = def.scaling ?? null;
     this.mv = def.mv ?? 0;
-    this.bane = def.bane ?? 0;
-    this.chafe = def.chafe ?? 0;
-    this.flare = def.flare ?? 0;
-    this.burst = def.burst ?? 0;
-    this.erosion = def.erosion ?? 0;
-    this.frazzle = def.frazzle ?? 0;
-    this.hack = def.hack ?? 0;
-    this.rupture = def.rupture ?? 0;
-    this.strain = def.strain ?? 0;
-    this.shields = def.shields ?? 0;
     this.heals = def.heals ?? false;
     this.energy = def.energy ?? 0;
     this.concerto = def.concerto ?? 0;
     this.offtune = def.offtune ?? 0;
+    this.slot = def.slot ?? null;
     this.resetEnergy = def.resetEnergy ?? false;
     this.forte1 = def.forte1 ?? 0;
     this.forte2 = def.forte2 ?? 0;
@@ -459,17 +469,18 @@ export class Action {
     this.forte4 = def.forte4 ?? 0;
     this.forte5 = def.forte5 ?? 0;
   }
-  toString(): string { return this.id; }
 }
 
+
+// TODO move to rotation.ts
 /** Rotation marker: "cast the equipped mainslot echo here". Never evaluated itself — `run()`
  *  replaces it with the acting slot's own `Mainslot.action` before it reaches `evaluate()`. */
-export const ECHO_CAST = new Action("Echo Cast");
+export const ECHO_CAST = new Action("Echo Placeholder");
 
 /** Rotation marker: "cast whichever Intro this resonator's own kit calls for right now". Never
  *  evaluated itself — `run()` replaces it with the acting slot's own `Resonator.introFn()`
  *  before it reaches `evaluate()`, same shape as `ECHO_CAST` above. */
-export const INTRO = new Action("Intro");
+export const INTRO = new Action("Intro Placeholder");
 
 
 /* --------------------------------------------------------------- engine-owned per-slot state */
@@ -506,10 +517,22 @@ const capEnergy = (member: TeamMember, value: number): number =>
 const STAT_INDEX = new Map<string, number>(
   [...Object.values(Stat), ...Object.values(EnemyStat)].map((key, i) => [key as string, i]),
 );
-const STAT_COUNT = STAT_INDEX.size;
+
+/** One slot past the real stats, holding the part of `Stat.Amp` that came in scoped to a `Type2`.
+ *  Dot damage is amplified by that part alone — a buff scoped to Aero Erosion pays into an Aero
+ *  Erosion tick, plain or element-scoped amplification does not (see damage.ts's own `ampFactor`)
+ *  — and by the time the formula reads `Stat.Amp` every matching scope has already been summed
+ *  into it, so the split has to happen here, where the tag is still in hand. Not a `Stat` of its
+ *  own: nothing grants it, `pushStat()` derives it from the ordinary `addStat(Stat.Amp, n, tag)`
+ *  a kit already writes. */
+const TYPE2_AMP_INDEX = STAT_INDEX.size;
+const STAT_COUNT = STAT_INDEX.size + 1;
+
+/** The `Type2` tags, as the set `pushStat()` tests a scope against for the above. */
+const TYPE2_TAGS = new Set<string>(TYPE2S);
 
 /** Bumped by every grant/spend/revoke anywhere (local, team-wide, or enemy). `evaluate()` reads it
- *  to tell whether the `update()` phase actually moved anything — when nothing did, which is the
+ *  to tell whether the `updateBuffs()` phase actually moved anything — when nothing did, which is the
  *  common case, the post-update roster is identical to the pre-update one and re-freezing it would
  *  rebuild the same Map for nothing. Cheaper than diffing three maps, and can only ever be
  *  conservative: a mutation that happens to cancel out still counts as a change. */
@@ -554,7 +577,7 @@ export class TeamMember {
   globalHooks = new Set<Gear>();
   /** Whatever was `equip()`-ped onto this member at team setup — their resonator and its talents,
    *  weapon, mainslot echo, sonata pieces, mainstat/substat rolls. Held in `stacks` like anything
-   *  else (that's how their apply() runs), but it's gear, not a buff their kit put up, so the
+   *  else (that's how their applyStats() runs), but it's gear, not a buff their kit put up, so the
    *  report's own "what's on this resonator" panel leaves it out (see `heldLocal` in evaluate()).
    *  `equip()` is the only thing that writes here, and it's the only way gear is ever granted. */
   equipped = new Set<Gear>();
@@ -584,6 +607,7 @@ export class TeamMember {
    * roster byte-for-byte identical, and counting that as a change made `evaluate()` re-freeze the
    * whole held roster on ~70% of actions to rebuild exactly what it already had. */
   addStack(gear: Gear, n = 1): number {
+    recordApplied(gear, n);
     const next = Math.min(gear.maxStacks, this.stacksOf(gear) + n);
     // held-at-`next` already, so the pool is what it would be written to
     if (this.stacks.get(gear) === next) return next;
@@ -607,6 +631,7 @@ export class TeamMember {
     return next;
   }
   setStacks(gear: Gear, n: number): number {
+    recordApplied(gear, n - this.stacksOf(gear));
     const next = Math.max(0, Math.min(gear.maxStacks, n));
     if (next === 0) {
       if (!this.stacks.has(gear)) return 0;
@@ -649,6 +674,11 @@ export class State {
    *  debuff is its own declared maxStacks plus this entry. Independent of `enemyStacks`, so a cap
    *  can be raised before the debuff is ever applied (kits do it at combatStart). */
   enemyMaxIncrease = new Map<Gear, number>(); // TODO change Gear to Debuff
+  /** Which Gear has already paid an increase into `enemyMaxIncrease`, by name and per debuff.
+   *  Every kit that raises a cap says the effect isn't stackable, but the trigger is usually
+   *  "on hit" rather than once — so a source that has already raised this debuff's cap is
+   *  ignored the second time, while a second kit raising the same cap still counts. */
+  enemyMaxSources = new Map<Gear, Set<string>>(); // TODO change Gear to Debuff
   outroQueue: Buff[] = [];
   /** Off-tune buildup — the enemy's own bar, not any one member's, banked automatically by
    *  evaluate() off whichever held Gear contributed AddOfftune this action, same as
@@ -657,7 +687,7 @@ export class State {
   /** Whose kit each piece of Gear ultimately came from, by member name.
    *
    *  Gear equipped at setup is sourced to whoever equipped it. Everything else inherits: a buff
-   *  granted while another Gear's own update() is running is that Gear's doing, so it carries
+   *  granted while another Gear's own updateBuffs() is running is that Gear's doing, so it carries
    *  that Gear's source rather than the name of whichever member happened to be on field when it
    *  landed. Shorekeeper's echo granting "Fallacy of No Return" onto Iuno stays sourced to
    *  Shorekeeper; Iuno's domain stacking Blessing onto Jingran stays sourced to Iuno.
@@ -665,6 +695,12 @@ export class State {
    *  Lives on the State, not the Gear: a Gear is a module-level singleton shared by every team,
    *  so writing to it would leak one team's attribution into another's. */
   sourceOf = new Map<Gear, string>();
+
+  /** A slot for casts that belong to nobody — a Negative Status's own damage (see `unsourced()`).
+   *  Deliberately not one of `slots`: it holds no gear and no resonator, so evaluating on it
+   *  reaches only team-wide and enemy gear, and keeping it out means an Outro can't advance onto
+   *  it and it takes no share of anyone's energy. */
+  misc = new TeamMember(MISC_SLOT);
 
   constructor(names: string[]) { this.slots = names.map((n) => new TeamMember(n)); }
   get slot(): TeamMember { return this.slots[this.active]!; }
@@ -681,6 +717,7 @@ export class State {
 
   stacksOfGlobal(gear: Gear): number { return this.globalStacks.get(gear) ?? 0; }
   addStackGlobal(gear: Gear, n = 1): number {
+    recordApplied(gear, n);
     const next = Math.min(gear.maxStacks, this.stacksOfGlobal(gear) + n);
     if (this.globalStacks.get(gear) === next) return next;
     stackVersion++;
@@ -701,6 +738,7 @@ export class State {
     return next;
   }
   setStacksGlobal(gear: Gear, n: number): number {
+    recordApplied(gear, n - this.stacksOfGlobal(gear));
     const next = Math.max(0, Math.min(gear.maxStacks, n));
     if (next === 0) {
       if (!this.globalStacks.has(gear)) return 0;
@@ -721,10 +759,15 @@ export class State {
 
   stacksOfEnemy(gear: Gear): number { return this.enemyStacks.get(gear) ?? 0; }
   enemyMax(gear: Gear): number { return gear.maxStacks + (this.enemyMaxIncrease.get(gear) ?? 0); }
-  increaseMaxEnemy(gear: Gear, n = 1): void {
+  increaseMaxEnemy(gear: Gear, n: number, source: string): void {
+    let sources = this.enemyMaxSources.get(gear);
+    if (!sources) this.enemyMaxSources.set(gear, (sources = new Set()));
+    if (sources.has(source)) return;
+    sources.add(source);
     this.enemyMaxIncrease.set(gear, (this.enemyMaxIncrease.get(gear) ?? 0) + n);
   }
   addStackEnemy(gear: Gear, n = 1): number {
+    recordApplied(gear, n);
     const next = Math.min(this.enemyMax(gear), this.stacksOfEnemy(gear) + n);
     if (this.enemyStacks.get(gear) === next) return next;
     stackVersion++;
@@ -745,6 +788,7 @@ export class State {
     return next;
   }
   setStacksEnemy(gear: Gear, n: number): number {
+    recordApplied(gear, n - this.stacksOfEnemy(gear));
     const next = Math.max(0, Math.min(this.enemyMax(gear), n));
     if (next === 0) {
       if (!this.enemyStacks.has(gear)) return 0;
@@ -770,55 +814,32 @@ const ENEMY_RES = 20, ENEMY_DEF_LEVEL = 100;
 export const enemyDef = () => 792 + 8 * ENEMY_DEF_LEVEL;
 export const enemyRes = () => ENEMY_RES;
 
-/**
- * How a Tune Break resolves — injected by tunebreak.ts rather than imported from it, because the
- * dependency only runs one way: that file needs `Action`/`Debuff` from here at module-evaluation
- * time, so importing it back would be a cycle whose classes are still in their temporal dead zone.
- * `run()` calls this when the bar fills; the resolver picks which variant the break is and hands
- * back a callback for whatever state it leaves behind, run once the break itself has resolved.
- *
- * Registered by importing tunebreak.ts, which solver.ts does for every path that runs a team.
- */
-export interface TuneBreak { action: Action; slot: string; resolved: () => void }
-
-
-// TODO MOVE ALL THIS INTO tunebreak.ts
-/** The plain break, and the bucket every break's damage groups under. Both live here rather than in
- *  tunebreak.ts so the engine still breaks correctly on its own: the resolver below defaults to
- *  this, and importing tunebreak.ts only *upgrades* it with the variants. Nothing silently stops
- *  happening if a consumer forgets that import. tunebreak.ts re-exports both. */
-export const TUNE_BREAK = new Action("Tune Break", {
-  element: Attribute.Physical, scaling: Scaling.Tune, cast: Cast.TuneBreak, type: Type1.Break, mv: 1600,
-});
-export const TUNE_BREAK_SLOT = "Misc";
-
-const plainTuneBreak = (): TuneBreak =>
-  ({ action: TUNE_BREAK, slot: TUNE_BREAK_SLOT, resolved: () => {} });
-
-let tuneBreakResolver: (state: State) => TuneBreak = plainTuneBreak;
-export function setTuneBreakResolver(fn: (state: State) => TuneBreak): void { tuneBreakResolver = fn; }
-
-/** The off-tune bar's own ceiling, in this engine's units — the migrated sheet's own 39.2, scaled
- *  x10000 exactly like every `offtune` an action declares (see migration/data/config.json's own
- *  `maxOfftune`, and any kit file's own action list). */
-const ENEMY_MAX_OFFTUNE = 392_000;
-
-/** Where the bar lands after a break — below empty on purpose, so there's a dead window of about
- *  three seconds before it can start building again rather than refilling from the next hit. */
-const OFFTUNE_AFTER_BREAK = -30_000;
-
 /* -------------------------------------------------------------------------- the "current" pointers */
 
 let currentState: State | null = null;
 let currentSlot: TeamMember | null = null;
 let currentBuff: Gear | null = null;
 let currentAct: Action | null = null;
+/** Whether the action being evaluated is the report's own "not really this resonator's turn" kind
+ *  — see `triggeredAction()`. Passed in by `run()`, which is the only thing that knows. */
+let currentTriggered = false;
 /** The frozen stack count of whichever Gear is mid-callback, or -1 outside any phase — see
- *  `stacks()`. */
+ *  `frozenStacks()`. */
 let currentStacks = -1;
-/** The tags of the action being evaluated (`tagsOf(currentAct)`), resolved once per action so
- *  `pushStat()` can test a scope against them without rebuilding anything. */
+/** The tags of the action being evaluated (`tagsOf(currentAct)`, or the same list with the
+ *  override types swapped in), resolved once per action so `pushStat()` can test a scope against
+ *  them without rebuilding anything. */
 let currentTags: string[] = [];
+/** What a held Gear assigned for the action being evaluated (see `typeOverride()`) — the engine's
+ *  own "override type1 / override type2", null when nothing did. Cleared by `evaluate()` for every
+ *  action; read by `isType()`, the tag list, and the snapshot. */
+let overrideType1: Type1 | null = null;
+let overrideType2: Type2 | null = null;
+/** Everything applied during the action being evaluated, and how many stacks of it — see
+ *  `applied()`. Module-level rather than on the State so the stack methods (which have no State
+ *  in hand) can record into it; `evaluate()` is never re-entered, so one shared map is safe. */
+let appliedNow = new Map<Gear, number>();
+const recordApplied = (gear: Gear, n: number): void => { if (n > 0) appliedNow.set(gear, (appliedNow.get(gear) ?? 0) + n); };
 
 /** The held roster for the phase being run, as two parallel arrays rather than a Map: which Gear,
  *  and the stack count each was frozen at. Reused across every action instead of reallocated —
@@ -831,6 +852,16 @@ const heldCountBuf: number[] = [];
  *  reason the two above are, and safe for the same reason: `evaluate()` never re-enters itself
  *  (`run()` drives it a step at a time, iteratively). */
 const globalHookBuf: Gear[] = [];
+
+/** The report bucket for damage that is nobody's turn — the shared Tune Break, and every Negative
+ *  Status's own damage. Declared per action through `ActionDef.slot`. */
+export const MISC_SLOT = "Misc";
+
+/** Whether this cast belongs to nobody at all — it evaluates on `State.misc` instead of whoever is
+ *  on field, so no resonator's gear reaches it at all, only team-wide and enemy gear. A Negative
+ *  Status's damage is the target's own doing, not a resonator's. A Tune Break is nobody's *turn*
+ *  but is still the acting resonator's hit, so it is not this: it declares only the report slot. */
+const unsourced = (action: Action): boolean => action.type === Type1.Status;
 
 /** Fill the buffers above with everything held right now — the acting slot's own gear first, then
  *  team-wide, then enemy, each pool skipping whatever an earlier one already claimed ("first pool
@@ -850,6 +881,17 @@ function freezeHeld(slot: TeamMember, state: State): number {
   return n;
 }
 
+/** Run one of the acting Action's own hooks (see the `Action` class), with the "current" pointers
+ *  aimed at the action itself: whatever it grants is attributed through it and every stat it
+ *  contributes is sourced to its own name. Called first in each phase, ahead of every held Gear's
+ *  own hook, so an action's own effect is in place before anything reacting to it looks. */
+function actionHook(fn: (() => void) | undefined): void {
+  if (!fn) return;
+  currentBuff = currentAct;
+  currentStacks = 1;
+  fn();
+}
+
 /** Whether this run is capturing the report's own per-entry trace — every `StatEntry`, the scoped
  *  `totals` behind it, and the held-buff rosters each snapshot carries for the resonator popover.
  *
@@ -863,11 +905,50 @@ let tracing = false;
 export function setTracing(on: boolean): void { tracing = on; }
 
 export const currentAction = (): Action => currentAct!;
+/** Whether the action being evaluated was queued rather than played — an engine-spawned follow-up
+ *  or event, the ECHO_CAST marker, or an outro handoff. The same answer the snapshot reports
+ *  (`ResolvedSnapshot.triggered`), readable mid-action by gear that must not fire off one. */
+export const triggeredAction = (): boolean => currentTriggered;
 export const currentTeam = (): State => currentState!;
 
 /** Is the action being evaluated this cast type — checks both `cast` and `cast2`. */
 export function casting(cast: Cast): boolean {
   return isCast(currentAct!, cast);
+}
+
+/** Assign the action being evaluated a different damage type, for a kit whose state changes what a
+ *  cast *counts as* rather than what it does — Denia's Breakdown Form hits becoming Resonance
+ *  Liberation DMG while she holds Void Particle, Lucilla's Chafe mode making Clear As Day Basic
+ *  Attack DMG. Pass a `Type1` to stand in for the action's own `type`, or a `Type2` for its
+ *  `type2`; the assignment *replaces* that slot, so a Basic hit assigned Liberation is not Basic
+ *  any more, and it lasts the one action (every action starts clean).
+ *
+ *  **Call it from `updateDebuffs()`** — not a debuff, but that is the first phase of the action,
+ *  and everything that could care runs after it: `updateGlobal`/`updateBuffs`, every
+ *  `applyStats`/`convertStats`, every `isType()` anywhere, the tags each scoped stat matches
+ *  against (rebuilt here, so a Liberation-scoped bonus pays on a retagged Basic), and the
+ *  snapshot's own `type`. The one gap is that phase itself: another gear's `updateDebuffs` may
+ *  already have run and asked `isType()` before this call lands, so don't assign from anywhere
+ *  later and don't rely on ordering within it.
+ *
+ *  The Action is never touched — kits compare actions by identity, and a mutated singleton would
+ *  leak across the teams a worker runs. */
+export function typeOverride(type: Type1 | Type2): void {
+  const a = currentAct!;
+  if ((TYPE2S as string[]).includes(type)) overrideType2 = type as Type2;
+  else overrideType1 = type as Type1;
+  // same three tags in the same order as `tagsOf()` (see TAGS_MATCHED), with the assignment
+  // standing in for whichever slot it claimed
+  currentTags = [a.element, overrideType1 ?? a.type, overrideType2 ?? a.type2].filter((v) => v !== null) as string[];
+}
+
+/** Is the action being evaluated this damage type — its own `type` or `type2`, or whichever of
+ *  the two a held Gear's `typeOverride` assigned for this evaluation, which stands in for that
+ *  slot (a Basic hit assigned Liberation answers Liberation, not Basic). Kits ask this, never
+ *  `currentAction().type` directly, so an assignment is seen by every check everywhere. */
+export function isType(type: Type1 | Type2): boolean {
+  const a = currentAct!;
+  return (overrideType1 ?? a.type) === type || (overrideType2 ?? a.type2) === type;
 }
 
 /** The same question about an action that isn't the one being evaluated — a snapshot's own, after
@@ -879,25 +960,25 @@ export function isCast(action: Action, cast: Cast): boolean {
   return action.cast === cast || action.cast2 === cast;
 }
 
-/** Does the action being evaluated inflict any of the six elemental Negative Statuses — Havoc
- *  Bane, Fusion Burst, Glacio Chafe, Electro Flare, Aero Erosion, Spectro Frazzle? Reads the
- *  amounts the action itself declares, so a kit that never declares them never counts as
- *  inflicting one. */
-export function inflictedNegativeStatus(): boolean {
-  const a = currentAct!;
-  return a.bane > 0 || a.burst > 0 || a.chafe > 0 || a.flare > 0 || a.erosion > 0 || a.frazzle > 0;
-}
+/** How many stacks of this Gear were applied *during the action being evaluated* — 0 if none.
+ *  Every grant path (self, team, enemy, an outro handoff adopted at an Intro) records here, before
+ *  any cap or "already held at that count" early-out, so re-inflicting a 1-stack debuff that's
+ *  already on the target still reads as inflicted this action. Cleared at the top of every
+ *  `evaluate()`. This is what a piece of gear reacting to "inflicts Tune Strain - Shifting" /
+ *  "inflicts Fusion Burst" / "gains a shield" reads (see statuses.ts) — the counts, not just a
+ *  yes/no, so a two-shield cast still counts twice. */
+export function applied(gear: Gear): number { return appliedNow.get(gear) ?? 0; }
 
 /** This buff's own stack count — frozen at the start of the phase (see `freezeHeld()`), not a live
- *  re-read. A buff that revokes itself in `update()` still reports its true held count to its own
- *  `apply()` this same action, matching the old engine's `apply(ctx, stacks)` — `stacks` was a
+ *  re-read. A buff that revokes itself in `updateBuffs()` still reports its true held count to its own
+ *  `applyStats()` this same action, matching the old engine's `apply(ctx, stacks)` — `stacks` was a
  *  parameter bound once, never re-read mid-action either.
  *
  *  Carried alongside `currentBuff` rather than looked up in a frozen Map: the engine walks the
  *  held roster one gear at a time and already knows each one's frozen count as it goes, so handing
  *  that count over directly removes the only reason that Map had to exist. -1 means "no phase is
  *  running" — a display() called outside one falls back to the live count. */
-export function stacks(): number {
+export function frozenStacks(): number {
   return currentStacks >= 0 ? currentStacks : currentSlot!.stacksOf(currentBuff!);
 }
 
@@ -918,6 +999,12 @@ function pushStat(stat: string, tag: string | undefined, value: number): void {
   if (tag === undefined || currentTags.includes(tag)) {
     const i = STAT_INDEX.get(stat)!;
     slot.effective[i] = slot.effective[i]! + value;
+    // ...and again into the Negative-Status-scoped subtotal, if that's what this is (see
+    // TYPE2_AMP_INDEX). Only reached by an amplification that carried a scope at all, so the
+    // set lookup costs nothing on the ordinary path.
+    if (stat === Stat.Amp && tag !== undefined && TYPE2_TAGS.has(tag)) {
+      slot.effective[TYPE2_AMP_INDEX] = slot.effective[TYPE2_AMP_INDEX]! + value;
+    }
   }
 
   if (!tracing) return;
@@ -999,7 +1086,7 @@ export function setConcerto(value: number): number { return (currentSlot!.concer
 /** Record whose kit this Gear came from (see `State.sourceOf`). Called by every grant, so a buff
  *  is attributed the moment it lands rather than guessed at from its name later.
  *
- *  Whatever is granting right now is `currentBuff` — the Gear whose own update() is mid-run — so
+ *  Whatever is granting right now is `currentBuff` — the Gear whose own updateBuffs() is mid-run — so
  *  a buff a buff puts up inherits that buff's source. Outside any Gear's update (which is only
  *  ever `equip()` during team setup) there's nothing to inherit from, so it's sourced to the
  *  member being equipped. */
@@ -1023,7 +1110,11 @@ export function equip(gear: Gear, n = 1): number {
   const result = currentSlot!.addStack(gear, n);
   currentSlot!.equipped.add(gear);
   if (gear instanceof Mainslot) currentSlot!.mainslot = gear;
-  gear.combatStartFn?.();
+  // as `currentBuff` for the call, same as every other hook: what combatStart() grants inherits
+  // this gear's own source, and maxStackIncrease() can name it
+  const prevBuff = currentBuff;
+  currentBuff = gear;
+  try { gear.combatStartFn?.(); } finally { currentBuff = prevBuff; }
   return result;
 }
 
@@ -1036,8 +1127,8 @@ export function revoke(buff: Buff): void { currentSlot!.revoke(buff); }
 
 /** Shortcut for a buff whose own kit text says "lost on swap" — revokes itself the moment the
  *  action being evaluated is inactive (the project's own standing convention: lost on swap =
- *  lost on inactive action). Call it from `update()` if it should stop contributing before that
- *  same action's own stats apply, or from `convert()` if it should still pay out on it first —
+ *  lost on inactive action). Call it from `updateBuffs()` if it should stop contributing before that
+ *  same action's own stats apply, or from `convertStats()` if it should still pay out on it first —
  *  same choice as any other revoke, just this one condition spelled out once instead of copied at
  *  every call site. Only correct for a buff whose own holder has no *other* inactive action of
  *  their own (a queued coordinated-attack hit, say) that should leave it standing — one held by a
@@ -1067,10 +1158,14 @@ export function removeStackEnemy(debuff: Debuff, n = 1): number { return current
 export function revokeEnemy(debuff: Debuff): void { currentState!.revokeEnemy(debuff); }
 /** Raise an enemy debuff's cap for the rest of the fight: its effective max becomes its own
  *  declared maxStacks plus every increase granted. Works before the debuff is ever applied, so a
- *  kit can call it from combatStart(). */
-export function maxStackIncrease(debuff: Debuff, n = 1): void { currentState!.increaseMaxEnemy(debuff, n); }
+ *  kit can call it from combatStart(). Deduplicated by whichever Gear is running — one gear only
+ *  ever raises a given debuff's cap once, so an "on hit, not stackable" raise can just be called
+ *  on every hit (see `State.enemyMaxSources`). */
+export function maxStackIncrease(debuff: Debuff, n = 1): void {
+  currentState!.increaseMaxEnemy(debuff, n, currentBuff?.name ?? currentSlot!.name);
+}
 
-/** Grant/spend a Buff on one specific resonator's own local stacks, regardless of whose turn it
+/** Grant/spend a Buff on one specific resonator's own local frozenStacks, regardless of whose turn it
  *  is — for a kit that reacts to the whole team but pays out onto one specific member (Jingran's
  *  Trace the Vestige, feeding his own Ghost Shroud off anyone's shield). Resolved via
  *  `State.memberOf()`, so it throws rather than silently no-opping if that resonator isn't
@@ -1093,7 +1188,7 @@ export function applyOthers(buff: Buff, n = 1): void {
 }
 
 /** Publish a Buff for whoever intros next — adopted automatically the moment an Intro-cast
- *  action is evaluated, before that action's own update()/apply()/convert() run. */
+ *  action is evaluated, before that action's own updateBuffs()/applyStats()/convertStats() run. */
 export function queueOutro(buff: Buff): void {
   // attributed here, at the outro that publishes it — not when the next resonator adopts it,
   // which would credit the buff to whoever received it rather than whoever handed it over
@@ -1102,7 +1197,7 @@ export function queueOutro(buff: Buff): void {
 }
 
 /** Captures which slot queued it — `currentSlot`, not `state.active`: they're the same slot in
- *  every ordinary update()/apply()/convert() call, but they can genuinely differ inside
+ *  every ordinary updateBuffs()/applyStats()/convertStats() call, but they can genuinely differ inside
  *  updateGlobal() (a locally-held gear reacting to a teammate's own turn runs with `currentSlot`
  *  switched to *its own* holder, not whoever's actually acting — see evaluate()'s own updateGlobal
  *  phase). Pinning to `currentSlot` is what lets a follow-up like this still land on its own
@@ -1114,6 +1209,19 @@ export function queueOutro(buff: Buff): void {
 const pendingQueue: { action: Action; slot: number }[] = [];
 export function queue(action: Action): void {
   pendingQueue.push({ action, slot: currentState!.slots.indexOf(currentSlot!) });
+}
+
+/** Queue an action that belongs to nobody — the two ways an engine-level event differs from a
+ *  resonator's own follow-up, which is all the Tune Break needs to be one (tunebreak.ts):
+ *
+ *  - *ahead* of anything this action already queued, because a break fires the instant the bar
+ *    fills, before any coordinated attack the same action spawned — and those follow-ups then bank
+ *    onto the bar it already emptied instead of seeing it still full;
+ *  - *unpinned* (slot -1, exactly like a rotation entry), so it runs on whoever is on field when it
+ *    resolves rather than on whoever queued it. That's the difference on a break that goes off on
+ *    an Outro: the handoff has landed by then, and the break is the incoming resonator's to eat. */
+export function queueEvent(action: Action): void {
+  pendingQueue.unshift({ action, slot: -1 });
 }
 
 /** Same as `queue()`, but attributed to one specific resonator's own slot regardless of whose
@@ -1145,6 +1253,9 @@ export interface Snapshot {
   stat(key: string): number;
   atk: number; hp: number; def: number;
   amp: number; dmgBonus: number;
+  /** The `Type2`-scoped part of `amp` on its own — the only amplification a dot row reads (see
+   *  TYPE2_AMP_INDEX and damage.ts's own `ampFactor`). */
+  type2Amp: number;
   enemyRes: number; enemyDef: number;
 }
 
@@ -1159,6 +1270,10 @@ export interface ResolvedSnapshot extends Snapshot {
   slot: string;
   entries: StatEntry[];
   triggered: boolean;
+  /** The damage type this action was actually evaluated as — its own `type`, unless a held Gear
+   *  called `typeOverride()` on it (`action.type` off a snapshot is always the base type; this is
+   *  the effective one, what `isType()` answered against). */
+  type: Type1 | null;
   /** This slot's own forte gauges 1-5, as they stood once this action resolved. */
   forte: [number, number, number, number, number];
   /** Running totals as they stood once this action resolved — energy/concerto are this slot's
@@ -1201,16 +1316,25 @@ export interface ChainGroup {
 }
 
 /** Evaluate one action on `state`'s active slot: an Intro-cast adopts whatever's queued for it
- *  first; then every held Gear's updateGlobal() runs (every slot's own gear, not just the acting
- *  one — see its own comment below), then every held Gear's update() runs — local (acting slot),
- *  global, and enemy together — then every apply(), then every convert(); an Outro-cast advances
- *  the active slot afterward. */
-export function evaluate(state: State, action: Action): ResolvedSnapshot {
-  const slot = state.slot;
+ *  first; then every held Gear's updateDebuffs() runs — local (acting slot), global, and enemy
+ *  together — so what this cast inflicts is on the target before anything reacts; then every
+ *  held Gear's updateGlobal() (every slot's own gear, not just the acting one — see its own
+ *  comment below); then every held Gear's updateBuffs(); then every applyStats(), then every
+ *  convertStats(), then every lateConvertStats(); an Outro-cast advances the active slot
+ *  afterward. */
+export function evaluate(state: State, action: Action, triggered = false): ResolvedSnapshot {
+  // whoever is on field, unless this cast is nobody's — see `unsourced()` and `State.misc`
+  const slot = unsourced(action) ? state.misc : state.slot;
   currentState = state;
   currentSlot = slot;
   currentAct = action;
+  currentTriggered = triggered;
   currentTags = tagsOf(action);
+  // every action starts on its own type; a held Gear reassigns it from updateDebuffs() below, and
+  // `typeOverride()` rebuilds `currentTags` when one does
+  overrideType1 = null; overrideType2 = null;
+  // a fresh map rather than a clear, same reasoning as `slot.effective` below
+  appliedNow = new Map();
   // Replaced rather than cleared/copied: the snapshot below keeps whichever map this action built,
   // so handing it a fresh one here is what makes that snapshot immutable at zero copying cost (the
   // old code cleared these and then cloned `totals` at the end, paying an O(entries) copy per
@@ -1222,7 +1346,22 @@ export function evaluate(state: State, action: Action): ResolvedSnapshot {
     for (const gear of state.outroQueue.splice(0)) slot.addStack(gear, 1);
   }
 
-  // updateGlobal() runs first, and runs for every slot's own held gear — not just the acting
+  // A phase's own roster and stack counts are frozen before it runs, so nothing a gear does
+  // mid-phase shifts the ground under whatever this engine iterates to next.
+  //
+  // updateDebuffs() first of all: what this cast inflicts (Shifting, Negative Statuses, the shield
+  // marker) goes on the target before anything — updateGlobal() included — looks at `applied()`.
+  let versionBefore = stackVersion;
+  let n = freezeHeld(slot, state);
+  actionHook(action.updateDebuffsFn);
+  for (let i = 0; i < n; i++) {
+    const gear = heldGearBuf[i]!;
+    if (!gear.updateDebuffsFn) continue;
+    currentBuff = gear; currentStacks = heldCountBuf[i]!;
+    gear.updateDebuffsFn();
+  }
+
+  // updateGlobal() runs next, and runs for every slot's own held gear — not just the acting
   // slot's — plus global and enemy gear, regardless of whose turn this actually is. That's what
   // lets a kit react to "any team member's own action" through gear held locally (a self buff)
   // instead of needing the whole thing to live in globalStacks just to be reachable from someone
@@ -1230,7 +1369,8 @@ export function evaluate(state: State, action: Action): ResolvedSnapshot {
   // call (not the slot actually acting) — so `revoke()`/`applySelf()`/`stacksOf()` inside it
   // still resolve against whoever holds it, the same way they would if that holder were the one
   // acting. Global and enemy gear keep the ordinary convention instead: `currentSlot` stays the
-  // real acting slot, matching every other global buff's own update().
+  // real acting slot, matching every other global buff's own updateBuffs().
+  actionHook(action.updateGlobalFn);
   for (const s of state.slots) {
     for (const gear of s.globalHooks) {
       currentSlot = s;
@@ -1252,42 +1392,52 @@ export function evaluate(state: State, action: Action): ResolvedSnapshot {
   }
   currentBuff = null;
 
-  // A phase's own roster and stack counts are frozen before it runs, so nothing a gear does
-  // mid-phase shifts the ground under whatever this engine iterates to next.
-  //
-  // update() decides what's held; it runs over whatever this action started with.
-  const versionBefore = stackVersion;
-  let n = freezeHeld(slot, state);
+  // updateBuffs() decides what's held; it runs over whatever updateDebuffs()/updateGlobal() left —
+  // a debuff those just put up gets its own updateBuffs() this same action.
+  if (stackVersion !== versionBefore) n = freezeHeld(slot, state);
+  versionBefore = stackVersion;
+  actionHook(action.updateBuffsFn);
   for (let i = 0; i < n; i++) {
     const gear = heldGearBuf[i]!;
-    if (!gear.updateFn) continue;
+    if (!gear.updateBuffsFn) continue;
     currentBuff = gear; currentStacks = heldCountBuf[i]!;
-    gear.updateFn();
+    gear.updateBuffsFn();
   }
 
-  // ...then apply()/convert() pay out over what's held *now*, not what was held a moment ago:
-  // a buff update() just granted pays into this same action, and one update() just revoked pays
-  // nothing. Re-frozen at post-update counts, so a buff that gained or spent stacks in update()
-  // reports the count it actually ended on to its own apply() — but only when update() actually
-  // moved something (`stackVersion`); when it didn't, which is most actions, the roster it would
+  // ...then applyStats()/convertStats() pay out over what's held *now*, not what was held a
+  // moment ago: a buff updateBuffs() just granted pays into this same action, and one it just
+  // revoked pays nothing. Re-frozen at post-update counts, so a buff that gained or spent stacks
+  // reports the count it actually ended on to its own applyStats() — but only when something
+  // actually moved (`stackVersion`); when it didn't, which is most actions, the roster it would
   // rebuild is the one already in hand.
   if (stackVersion !== versionBefore) n = freezeHeld(slot, state);
 
+  actionHook(action.applyStatsFn);
   for (let i = 0; i < n; i++) {
     const gear = heldGearBuf[i]!;
-    if (!gear.applyFn) continue;
+    if (!gear.applyStatsFn) continue;
     currentBuff = gear; currentStacks = heldCountBuf[i]!;
-    gear.applyFn();
+    gear.applyStatsFn();
   }
+  actionHook(action.convertStatsFn);
   for (let i = 0; i < n; i++) {
     const gear = heldGearBuf[i]!;
-    if (!gear.convertFn) continue;
+    if (!gear.convertStatsFn) continue;
     currentBuff = gear; currentStacks = heldCountBuf[i]!;
-    gear.convertFn();
+    gear.convertStatsFn();
+  }
+  // ...and one phase later again, for a conversion that reads what another gear's convertStats()
+  // just granted (see GearDef.lateConvertStats).
+  actionHook(action.lateConvertStatsFn);
+  for (let i = 0; i < n; i++) {
+    const gear = heldGearBuf[i]!;
+    if (!gear.lateConvertStatsFn) continue;
+    currentBuff = gear; currentStacks = heldCountBuf[i]!;
+    gear.lateConvertStatsFn();
   }
 
-  // What belongs in the resonator popover is what's held once update() has finished, before
-  // apply()/convert() run. A buff that spends/revokes itself inside its own convert() (Jingran's
+  // What belongs in the resonator popover is what's held once updateBuffs() has finished, before
+  // applyStats()/convertStats() run. A buff that spends/revokes itself inside its own convertStats() (Jingran's
   // Fire of Life: does its one job, then removes itself the same action) still counts as having
   // been present and paid out, so it still belongs in the list — which is why the roster comes off
   // `active`/the pre-convert pools rather than being re-derived here. Buffs only: everything this
@@ -1295,16 +1445,16 @@ export function evaluate(state: State, action: Action): ResolvedSnapshot {
   // name already names all of it. Globals need no such filter — equip() only ever writes to a
   // slot, so nothing equipped can reach globalStacks.
   //
-  // Names are generated only now, after apply()/convert() have both run — a display() reading a
+  // Names are generated only now, after applyStats()/convertStats() have both run — a display() reading a
   // stat one of them just contributed (Jingran's HP-based step counts) needs the final number.
-  // `currentHeldStacks` is still the same frozen map apply()/convert() just used (not re-frozen
+  // `currentHeldStacks` is still the same frozen map applyStats()/convertStats() just used (not re-frozen
   // here), so a buff's own stack-count display still reports the count it actually held at that
-  // point too, not whatever's left once convert() may have spent it down (Fire of Life again — 0
+  // point too, not whatever's left once convertStats() may have spent it down (Fire of Life again — 0
   // stacks by now, were this re-frozen). Trace-only: every one of these is a `Gear.toString()`,
   // and nothing but the detail page's own resonator popover ever reads them (see `tracing`).
   let heldLocal: HeldBuff[] = EMPTY_HELD, heldGlobal: HeldBuff[] = EMPTY_HELD, heldEnemy: HeldBuff[] = EMPTY_HELD;
   if (tracing) {
-    // the counts apply()/convert() just ran with, so a stack-count display still reports what it
+    // the counts applyStats()/convertStats() just ran with, so a stack-count display still reports what it
     // actually held then rather than whatever a live re-read would show now
     const frozen = new Map<Gear, number>();
     for (let i = 0; i < n; i++) frozen.set(heldGearBuf[i]!, heldCountBuf[i]!);
@@ -1313,9 +1463,12 @@ export function evaluate(state: State, action: Action): ResolvedSnapshot {
       currentStacks = frozen.get(g) ?? slot.stacksOf(g);
       return { name: g.toString(), source: state.sourceOf.get(g) ?? "" };
     };
-    heldLocal = [...slot.stacks.keys()].filter((g) => !slot.equipped.has(g)).map(describe);
-    heldGlobal = [...state.globalStacks.keys()].map(describe);
-    heldEnemy = [...state.enemyStacks.keys()].map(describe);
+    // nameless gear is engine machinery someone's setup put there, not a buff a kit put up
+    // (tunebreak.ts's own watcher), so it belongs in no popover — same exclusion equipped gear gets
+    const named = (b: HeldBuff): boolean => b.name !== "";
+    heldLocal = [...slot.stacks.keys()].filter((g) => !slot.equipped.has(g)).map(describe).filter(named);
+    heldGlobal = [...state.globalStacks.keys()].map(describe).filter(named);
+    heldEnemy = [...state.enemyStacks.keys()].map(describe).filter(named);
   }
   currentStacks = -1;
   currentBuff = null;
@@ -1341,11 +1494,12 @@ export function evaluate(state: State, action: Action): ResolvedSnapshot {
   const energyGain = action.energy + stat(Stat.AddEnergy);
   slot.energy = Math.max(0, slot.energy + energyGain);
   slot.concerto = Math.max(0, slot.concerto + action.concerto + stat(Stat.AddConcerto));
-  // Off-Tune Buildup Rate scales whatever an action banks. The floor is the post-break window
-  // rather than 0, since a break deliberately drops the bar below empty (see `run()`); nothing can
-  // reach it from a standing start, so this is the same as the old `max(0, ...)` until one fires.
-  const offtuneGain = (action.offtune + stat(Stat.AddOfftune)) * (1 + stat(Stat.OfftuneBuildup) / 100);
-  state.offtune = Math.max(OFFTUNE_AFTER_BREAK, state.offtune + offtuneGain);
+  // Off-Tune Buildup Rate scales what an action *builds*, never what it takes back off: a drain
+  // (a Tune Break's own declared negative) has to come off in full whatever the team's rate is.
+  // FillOfftune skips the rate either way — that's a kit filling the bar directly, not building it.
+  // Unclamped, unlike energy/concerto: a break can leave the bar below empty (see tunebreak.ts).
+  const built = action.offtune + stat(Stat.AddOfftune);
+  state.offtune += (built < 0 ? built : built * (stat(Stat.OfftuneBuildup) / 100)) + stat(Stat.FillOfftune);
 
 
   // RealEnergy (TeamMember.realEnergy): the same gain as the real Energy bar above, each holder
@@ -1388,20 +1542,34 @@ export function evaluate(state: State, action: Action): ResolvedSnapshot {
   addForte4(action.forte4 + stat(Stat.AddForte4));
   addForte5(action.forte5 + stat(Stat.AddForte5));
 
+  // Everything this action banks is now banked, so afterAction() is the one phase that can read a
+  // gauge as the action actually leaves it — and the last chance to spend one back down before the
+  // snapshot below reports it. Same frozen roster the stat phases just ran on.
+  actionHook(action.afterActionFn);
+  for (let i = 0; i < n; i++) {
+    const gear = heldGearBuf[i]!;
+    if (!gear.afterActionFn) continue;
+    currentBuff = gear;
+    gear.afterActionFn();
+  }
+  currentBuff = null;
+
   const snapshot: ResolvedSnapshot = {
     action,
+    type: overrideType1 ?? action.type,   // the effective type — see ResolvedSnapshot.type
     member: slot.name,
-    slot: slot.name,
+    slot: action.slot ?? slot.name,
     stat,
     atk: base + stat(Stat.BonusAtk) / 100 * base + stat(Stat.FlatAtk),
     hp: baseHp + stat(Stat.BonusHp) / 100 * baseHp + stat(Stat.FlatHp),
     def: baseDef + stat(Stat.BonusDef) / 100 * baseDef + stat(Stat.FlatDef),
     amp: stat(Stat.Amp),
+    type2Amp: effective[TYPE2_AMP_INDEX]!,
     dmgBonus: stat(Stat.DmgBonus),
     enemyRes: enemyRes(),
     enemyDef: enemyDef(),
     entries: slot.entries,
-    triggered: false,
+    triggered,
     // report-only, so copied only when something will actually read it (display.ts's gauge columns)
     forte: tracing ? [...slot.forte] : EMPTY_FORTE,
     energy: slot.energy, concerto: slot.concerto, offtune: state.offtune,
@@ -1451,36 +1619,19 @@ export function run(state: State, rotation: Action[]): ResolvedSnapshot[] {
       action = resonator.introFn();
     }
     pendingQueue.length = 0;
-    const snapshot = evaluate(state, action);
     // "not really this resonator's own turn" rows the report dims: a follow-up the engine itself
     // queued (Phrolova's Hecate procs, Cantarella's Jolt, ...), the rotation marker standing in
     // for whichever mainslot echo is actually equipped, and an outro (a handoff, not an attack).
-    snapshot.triggered = stepSlot >= 0 || wasEchoCast || isCast(action, Cast.Outro);
+    // ...and an engine-level event, which reports under its own bucket rather than any member's
+    // (`ActionDef.slot`) precisely because it is nobody's turn — see `queueEvent`.
+    // Handed to evaluate() rather than stamped on the snapshot after: gear reacting mid-action
+    // needs it too (tunebreak.ts's own watcher won't auto-fire off one) — see triggeredAction().
+    const triggered = stepSlot >= 0 || wasEchoCast || action.slot !== null || isCast(action, Cast.Outro);
+    const snapshot = evaluate(state, action, triggered);
     out.push(snapshot);
     // a queued follow-up's own turn doesn't stick — restore whoever was actually active,
     // unless the follow-up was itself an outro (genuinely advances the team)
     if (stepSlot >= 0 && state.active === stepSlot) state.active = before;
-
-    // The shared off-tune bar reaching its ceiling is the engine's own event: no kit declares it
-    // and no buff watches for it, so this is where it fires. Checked after every action — a queued
-    // follow-up banks off-tune like anything else — and on whoever is actually on field once the
-    // line above has put the active slot back.
-    //
-    // Evaluated inline rather than queued, so the break lands on the row right after the action
-    // that filled the bar, and *before* `pendingQueue` is drained below, so anything the break's
-    // own buffs queue is spliced in the same pass as the filling action's. Emptying the bar here
-    // rather than through a declared `offtune` on the action keeps the drop off the break's own
-    // off-tune column — the row reports the full bar it went off at — and stops it re-triggering
-    // on itself.
-    const tuneBreak = state.offtune >= ENEMY_MAX_OFFTUNE ? tuneBreakResolver(state) : undefined;
-    if (tuneBreak) {
-      const broke = evaluate(state, tuneBreak.action);
-      broke.slot = tuneBreak.slot;
-      broke.triggered = true;   // nobody's turn, so the report dims it like any other follow-up
-      state.offtune = OFFTUNE_AFTER_BREAK;
-      tuneBreak.resolved();     // the Interfered state the break leaves behind (see tunebreak.ts)
-      out.push(broke);
-    }
 
     if (pendingQueue.length) {
       // spliced in right after the action that queued them — i.e. at the read cursor, which is

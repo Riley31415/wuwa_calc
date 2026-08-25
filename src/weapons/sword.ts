@@ -1,27 +1,28 @@
 /** Signature Sword weapons, ported to the new engine. Every piece works if equipped on any
  *  resonator, not just its own. */
-import {
-  Buff, Weapon, WeaponType, Stat, Type1, Cast,
-  addStat, stacks, casting, currentAction, revoke, applySelf, stacksOf, applyTeam, lostOnSwap,
+import { isType,
+  Buff, Weapon, WeaponType, Stat, Attribute, Type1, Cast,
+  addStat, frozenStacks, casting, currentAction, revoke, applySelf, stacksOf, applyTeam, lostOnSwap, applied,
 } from "../kit.js";
+import { TUNE_STRAIN_SHIFTING } from "../tunebreak.js";
 
 /** Changli's sig, R1: Crimson Phoenix. +12% ATK flat. Resonance Skill grants 5 stacks of Searing
  *  Feather outright (up to 14) — the per-hit 0.5s-ICD trickle isn't modelled. */
 export const BLAZING_BRILLIANCE = new Weapon({
   weaponType: WeaponType.Sword,
   name: "Blazing Brilliance",
-  apply: () => {
+  applyStats: () => {
     addStat(Stat.BaseAtk, 587.5);
     addStat(Stat.CritDmg, 48.6);
     addStat(Stat.BonusAtk, 12);
   },
-  update: () => { if (currentAction().type === Type1.Skill) applySelf(SEARING_FEATHER, 5); },
+  updateBuffs: () => { if (isType(Type1.Skill)) applySelf(SEARING_FEATHER, 5); },
 });
 export const SEARING_FEATHER = new Buff({
   name: "Blazing Brilliance: Crimson Phoenix", maxStacks: 14,
-  // pays off current stacks before revoking — apply()'s stacks() would already read 0 otherwise
-  update: () => {
-    addStat(Stat.DmgBonus, 4 * stacks(), Type1.Skill);
+  // pays off current stacks before revoking — applyStats()'s frozenStacks() would already read 0 otherwise
+  updateBuffs: () => {
+    addStat(Stat.DmgBonus, 4 * frozenStacks(), Type1.Skill);
     if (casting(Cast.Outro)) revoke(SEARING_FEATHER);
   },
 });
@@ -32,25 +33,25 @@ export const SEARING_FEATHER = new Buff({
 export const RED_SPRING = new Weapon({
   weaponType: WeaponType.Sword,
   name: "Red Spring",
-  apply: () => {
+  applyStats: () => {
     addStat(Stat.BaseAtk, 587.5);
     addStat(Stat.CritRate, 24.3);
     addStat(Stat.BonusAtk, 12);
   },
-  update: () => {
-    if (currentAction().type === Type1.Basic) applySelf(RED_SPRING_BASIC);
+  updateBuffs: () => {
+    if (isType(Type1.Basic)) applySelf(RED_SPRING_BASIC);
     if (currentAction().concerto < 0) applySelf(RED_SPRING_CONSUME);
   },
 });
 export const RED_SPRING_BASIC = new Buff({
   name: "Red Spring: Beyond the Cycle", maxStacks: 3,
-  apply: () => { addStat(Stat.DmgBonus, 10 * stacks(), Type1.Basic); },
-  convert: () => { if (casting(Cast.Outro)) revoke(RED_SPRING_BASIC); },
+  applyStats: () => { addStat(Stat.DmgBonus, 10 * frozenStacks(), Type1.Basic); },
+  convertStats: () => { if (casting(Cast.Outro)) revoke(RED_SPRING_BASIC); },
 });
 export const RED_SPRING_CONSUME = new Buff({
   name: "Red Spring: Beyond the Cycle (consume)",
-  update: () => { lostOnSwap(); },
-  apply: () => { addStat(Stat.DmgBonus, 40, Type1.Basic); },
+  updateBuffs: () => { lostOnSwap(); },
+  applyStats: () => { addStat(Stat.DmgBonus, 40, Type1.Basic); },
 });
 
 /** Brant's sig, R1: Laughter Prevails. +8% Crit Rate flat. Two independent +24% Basic Attack DMG
@@ -58,25 +59,25 @@ export const RED_SPRING_CONSUME = new Buff({
 export const UNFLICKERING_VALOR = new Weapon({
   weaponType: WeaponType.Sword,
   name: "Unflickering Valor",
-  apply: () => {
+  applyStats: () => {
     addStat(Stat.BaseAtk, 413);
     addStat(Stat.Er, 77.04);
     addStat(Stat.CritRate, 8);
   },
-  update: () => {
+  updateBuffs: () => {
     if (casting(Cast.Liberation)) applySelf(LAUGHTER_PREVAILS_LIB);
-    if (currentAction().type === Type1.Basic) applySelf(LAUGHTER_PREVAILS_BASIC);
+    if (isType(Type1.Basic)) applySelf(LAUGHTER_PREVAILS_BASIC);
   },
 });
 export const LAUGHTER_PREVAILS_LIB = new Buff({
   name: "Unflickering Valor: Laughter Prevails (Liberation)",
-  apply: () => addStat(Stat.DmgBonus, 24, Type1.Basic),
-  convert: () => { if (casting(Cast.Outro)) revoke(LAUGHTER_PREVAILS_LIB); },
+  applyStats: () => addStat(Stat.DmgBonus, 24, Type1.Basic),
+  convertStats: () => { if (casting(Cast.Outro)) revoke(LAUGHTER_PREVAILS_LIB); },
 });
 export const LAUGHTER_PREVAILS_BASIC = new Buff({
   name: "Unflickering Valor: Laughter Prevails (Basic Attack)",
-  apply: () => addStat(Stat.DmgBonus, 24, Type1.Basic),
-  convert: () => { if (casting(Cast.Outro)) revoke(LAUGHTER_PREVAILS_BASIC); },
+  applyStats: () => addStat(Stat.DmgBonus, 24, Type1.Basic),
+  convertStats: () => { if (casting(Cast.Outro)) revoke(LAUGHTER_PREVAILS_BASIC); },
 });
 
 /** Qiuyuan's sig, R1: When A Heart Settles. +12% ATK flat; his Intro grants the team +20% Echo
@@ -86,12 +87,12 @@ export const LAUGHTER_PREVAILS_BASIC = new Buff({
 export const EMERALD_SENTENCE = new Weapon({
   weaponType: WeaponType.Sword,
   name: "Emerald Sentence",
-  apply: () => {
+  applyStats: () => {
     addStat(Stat.BaseAtk, 587.5);
     addStat(Stat.CritRate, 24.3);
     addStat(Stat.BonusAtk, 12);
   },
-  update: () => {
+  updateBuffs: () => {
     if (casting(Cast.Intro)) applyTeam(HEART_SETTLES_TEAM);
     if ((casting(Cast.Intro) || casting(Cast.Basic)) && !stacksOf(BAMBOO_CLEAVER)) {
       applySelf(BAMBOO_CLEAVER);
@@ -100,14 +101,34 @@ export const EMERALD_SENTENCE = new Weapon({
 });
 export const HEART_SETTLES_TEAM = new Buff({
   name: "Emerald Sentence: When A Heart Settles",
-  apply: () => addStat(Stat.DmgBonus, 20, Type1.Echo),
+  applyStats: () => addStat(Stat.DmgBonus, 20, Type1.Echo),
 });
 /** Lost entirely if switched off field, same as Quietude Within. */
 export const BAMBOO_CLEAVER = new Buff({
   name: "Emerald Sentence: Bamboo Cleaver", maxStacks: 3,
-  update: () => {
+  updateBuffs: () => {
     lostOnSwap();
     if (casting(Cast.Echo)) applySelf(BAMBOO_CLEAVER);
   },
-  apply: () => { if (stacks() >= 2) addStat(Stat.DmgBonus, 30 * (stacks() - 1), Type1.Heavy); },
+  applyStats: () => { if (frozenStacks() >= 2) addStat(Stat.DmgBonus, 30 * (frozenStacks() - 1), Type1.Heavy); },
+});
+
+/** Glint of Clouds, Qingxiao's sig, R1: Evil's Scourge. +12% ATK flat. Inflicting Tune Strain -
+ *  Shifting grants +11.2% Aero DMG Bonus a stack, up to 5, 2s each (once per 0.5s) — short, but
+ *  every cast of hers re-inflicts, so it climbs straight to five and stays: at max the window
+ *  becomes 30s (permanent uptime) and her Aero DMG ignores 10% of the target's DEF. Short of
+ *  five it's lost after the outro. */
+export const GLINT_OF_CLOUDS = new Weapon({
+  weaponType: WeaponType.Sword,
+  name: "Glint of Clouds",
+  applyStats: () => { addStat(Stat.BaseAtk, 500); addStat(Stat.CritRate, 36); addStat(Stat.BonusAtk, 12); },
+  updateBuffs: () => { if (applied(TUNE_STRAIN_SHIFTING)) applySelf(EVILS_SCOURGE, 1); },
+});
+export const EVILS_SCOURGE = new Buff({
+  name: "Glint of Clouds: Evil's Scourge", maxStacks: 5,
+  applyStats: () => {
+    addStat(Stat.DmgBonus, 11.2 * frozenStacks(), Attribute.Aero);
+    if (frozenStacks() >= 5) addStat(Stat.DefIgnoreNew, 10, Attribute.Aero);
+  },
+  convertStats: () => { if (casting(Cast.Outro) && frozenStacks() < 5) revoke(EVILS_SCOURGE); },
 });

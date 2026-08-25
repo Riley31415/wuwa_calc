@@ -1,115 +1,110 @@
 /**
- * The Tune Break system: the break itself, its variants, and the two target-side states around it.
- *
- * The shared off-tune bar lives on the engine (`State.offtune`, banked in kit.ts's own
- * `evaluate()`), and `run()` asks this file what happens when it fills. Everything else about the
- * mechanic is here.
- *
- * There are two states, both ordinary enemy `Debuff`s — nothing about them is special-cased in the
- * engine, so a kit reads them with `stacksOfEnemy()` and they show up in the resonator popover's
- * own enemy-debuff section like any other:
- *
- * - **Shifting** is what a kit puts on the target ahead of time, with `applyRupture()` /
- *   `applyStrain()` / `applyHack()`. Only one can be on a target at once — applying one clears the
- *   others — and it is what decides which variant the next break resolves as.
- * - **Interfered** is what the break leaves behind, one stack per break, of whichever variant it
- *   was. Kits are paid off this: Lynae and Mornye both answer Rupture with a follow-up attack and
- *   read Strain's stack count for a damage bonus.
- *
- * The break itself never changes: it is always the same tune-scaled `Type1.Break` hit, whichever
- * Shifting steered it, because a Tune Break scales off Tune Break. What the Shifting decides is
- * only which Interfered state the break leaves behind. The `Type1.Rupture`-style damage types
- * belong to the *responses* a kit fires off that state — Lynae's Spectral Analysis, Mornye's
- * Particle Jet — not to the break.
- *
- * This file registers itself with the engine on import (see `setTuneBreakResolver`); solver.ts
- * imports it so every path that runs a team has it.
+ * The Tune Break: the break itself, and the two enemy states around it. The engine owns nothing but
+ * the off-tune bar as a counter — the rest is here, reaching it as one gear on the target.
  */
 import {
-  Action, Debuff, State, Stat, addStat, applyEnemy, currentAction, getStat, queue, revokeEnemy,
-  setTuneBreakResolver, stacksOfEnemy, TUNE_BREAK, TUNE_BREAK_SLOT,
+  Action, Attribute, Cast, Debuff, Scaling, Stat, Type1, addStat, applied, applyEnemy, currentAction,
+  currentTeam, queue, queueEvent, getStat, revokeEnemy, stacksOfEnemy, triggeredAction,
+  MISC_SLOT,
 } from "./kit.js";
 
-/** The plain break and its bucket are the engine's own (kit.ts), so a run without this file still
- *  breaks — importing this only adds the variants on top. Re-exported so a kit has one place to
- *  import the whole system from. */
-export { TUNE_BREAK, TUNE_BREAK_SLOT };
+/* ---------------------------------------------------------------------------- the break */
 
-/* -------------------------------------------------------------------- shifting and interfered */
+/** A break is nobody's turn, so its damage groups under the shared bucket rather than any
+ *  member's — the same one every Negative Status's own damage reports under. */
+export const TUNE_BREAK_SLOT = MISC_SLOT;
 
-/** What a kit puts on the target to steer the next break. Single-stack: which one is on the target
- *  is the whole of the state. */
-export const TUNE_RUPTURE_SHIFTING = new Debuff({ name: "Tune Rupture - Shifting" });
-export const TUNE_STRAIN_SHIFTING = new Debuff({ name: "Tune Strain - Shifting" });
-export const TUNE_HACK_SHIFTING = new Debuff({ name: "Tune Hack - Shifting" });
+/** Deliberately paler than any resonator's hue: it marks a row as *not* somebody's damage. */
+export const TUNE_BREAK_HUE = "#c9d2de";
 
-/** What a break leaves behind. No cap is enforced here (see CLAUDE.md); a kit that cares reads the
- *  count — and both kits that do also raise the target's own limit by 1, so the cap is theirs. */
+/** The bar's own ceiling, x10000 like every `offtune` an action declares (the sheet's own 39.2). */
+export const ENEMY_MAX_OFFTUNE = 392_000;
+
+/** Where a full bar lands once a break has taken `ENEMY_MAX_OFFTUNE` off it — below empty on
+ *  purpose, so there's a short dead window before the bar can start building again. */
+const OFFTUNE_AFTER_BREAK = -30_000;
+
+/** Always this one tune-scaled hit, whichever Shifting steered it — a Tune Break scales off Tune
+ *  Break, and the Shifting only decides which Interfered it leaves behind. */
+export const TUNE_BREAK = new Action("Tune Break", {
+  element: Attribute.Physical, scaling: Scaling.Tune, cast: Cast.TuneBreak, type: Type1.Break,
+  mv: 1600, offtune: -ENEMY_MAX_OFFTUNE, slot: TUNE_BREAK_SLOT,
+});
+
+/* ------------------------------------------------------------- shifting and interfered */
+
+/** What a break leaves behind. Capped at 1 as declared; a kit that responds to it raises the
+ *  target's own limit with `maxStackIncrease()`, so the real ceiling is whoever is on the team. */
 export const TUNE_RUPTURE_INTERFERED = new Debuff({ name: "Tune Rupture - Interfered", maxStacks: 1 });
 export const TUNE_STRAIN_INTERFERED = new Debuff({ name: "Tune Strain - Interfered", maxStacks: 1 });
 export const TUNE_HACK_INTERFERED = new Debuff({ name: "Tune Hack - Interfered", maxStacks: 1 });
 
-/** Each Shifting to the Interfered state a break under it leaves. Ordered, because the resolver
- *  walks it to find whichever Shifting is actually on the target. */
-const VARIANTS: { shifting: Debuff; interfered: Debuff }[] = [
-  { shifting: TUNE_RUPTURE_SHIFTING, interfered: TUNE_RUPTURE_INTERFERED },
-  { shifting: TUNE_STRAIN_SHIFTING, interfered: TUNE_STRAIN_INTERFERED },
-  { shifting: TUNE_HACK_SHIFTING, interfered: TUNE_HACK_INTERFERED },
-];
+/** What a kit puts on the target to steer the next break — and where every Interfered comes from:
+ *  on the break, the Shifting steering it spends itself and applies its own, through the same
+ *  `applyEnemy()` a kit uses, so `applied()` sees it like any other inflicted debuff. Enemy-pool
+ *  gear runs last in the phase, so a kit adding its own Interfered still sees the Shifting up. */
+function shifting(name: string, interfered: Debuff): Debuff {
+  const self: Debuff = new Debuff({
+    name,
+    updateDebuffs: () => {
+      if (currentAction() !== TUNE_BREAK) return;
+      revokeEnemy(self);
+      applyEnemy(interfered, 1);
+    },
+  });
+  return self;
+}
+export const TUNE_RUPTURE_SHIFTING = shifting("Tune Rupture - Shifting", TUNE_RUPTURE_INTERFERED);
+export const TUNE_STRAIN_SHIFTING = shifting("Tune Strain - Shifting", TUNE_STRAIN_INTERFERED);
+export const TUNE_HACK_SHIFTING = shifting("Tune Hack - Shifting", TUNE_HACK_INTERFERED);
 
-/** Put one Shifting on the target, clearing whichever was there — only one at a time. What a kit
- *  calls; there is no engine-side field behind it, just the debuff. */
+/** Only one Shifting on the target at a time: applying one clears the others. Nothing backs these
+ *  but the debuff itself — there is no engine-side field for which variant is up. */
+const SHIFTINGS = [TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING, TUNE_HACK_SHIFTING];
 function applyShifting(shifting: Debuff): void {
-  for (const v of VARIANTS) if (v.shifting !== shifting) revokeEnemy(v.shifting);
+  for (const other of SHIFTINGS) if (other !== shifting) revokeEnemy(other);
   applyEnemy(shifting, 1);
 }
 export const applyRupture = (): void => applyShifting(TUNE_RUPTURE_SHIFTING);
 export const applyStrain = (): void => applyShifting(TUNE_STRAIN_SHIFTING);
 export const applyHack = (): void => applyShifting(TUNE_HACK_SHIFTING);
 
-/** Queue a kit's answer to the team's break resolving as this variant — called from the kit's own
- *  updateGlobal() so it sees the break whoever is on field (which is also what pins the queued
- *  follow-up to the kit's holder — see kit.ts's own `queue()`). The trigger is the plain break
- *  *plus* the matching Shifting still on the target: the resolver spends it only after the break
- *  has resolved, which is exactly when an updateGlobal runs. */
-function tuneResponse(shifting: Debuff, action: Action): void {
-  if (currentAction() === TUNE_BREAK && stacksOfEnemy(shifting) > 0) queue(action);
-}
-export const tuneRuptureResponse = (action: Action): void => tuneResponse(TUNE_RUPTURE_SHIFTING, action);
-export const tuneHackResponse = (action: Action): void => tuneResponse(TUNE_HACK_SHIFTING, action);
+/** A kit's answer to the break resolving as this variant, queued off the Interfered it just left.
+ *  Call from the kit's own updateGlobal(), which is what pins the follow-up to the kit's holder. */
+export const tuneRuptureResponse = (action: Action): void => { if (applied(TUNE_RUPTURE_INTERFERED)) queue(action); };
+export const tuneHackResponse = (action: Action): void => { if (applied(TUNE_HACK_INTERFERED)) queue(action); };
 
 /** The shared Strain payout: every point of the holder's own Tune Break Boost is +0.12% total
- *  damage per stack of Tune Strain - Interfered on the target. Call it from a gear's convert() —
- *  by then every Tbb contribution (the era's flat 10, kit buffs, gear) has already landed, so the
- *  stat is read live rather than written out by hand. */
+ *  damage per Interfered stack. From a gear's convertStats(), by when every Tbb source has landed. */
 export function tuneStrainBonus(): void {
   const interfered = stacksOfEnemy(TUNE_STRAIN_INTERFERED);
   if (interfered > 0) addStat(Stat.TotalDmg, 0.12 * getStat(Stat.Tbb) * interfered);
 }
 
-/** Whether the target is under any Shifting at all — what a piece of gear that pays out on
- *  inflicting one reads, rather than caring which (Lynae's own Spectrum Blaster). */
-export const isShifted = (): boolean =>
-  VARIANTS.some((v) => stacksOfEnemy(v.shifting) > 0);
+/* --------------------------------------------------------------------------- firing it */
 
-/* ---------------------------------------------------------------------------- the resolution */
-
-setTuneBreakResolver((state: State) => {
-  const variant = VARIANTS.find((v) => state.stacksOfEnemy(v.shifting) > 0);
-  return {
-    // always the plain break: a Tune Break scales off Tune Break itself whatever Shifting steered
-    // it, and the Shifting only decides which Interfered state it leaves. The special damage type
-    // belongs to the *responses* a kit fires off that state, not to the break.
-    action: TUNE_BREAK,
-    slot: TUNE_BREAK_SLOT,
-    resolved: () => {
-      if (!variant) return;
-      // the Shifting is spent steering this break, and the target is left Interfered instead.
-      // Written straight to the pools rather than through `applyEnemy()`, which would attribute
-      // them to whichever buff happened to be current — this is the engine's own doing, the same
-      // way the break itself is nobody's cast.
-      state.revokeEnemy(variant.shifting);
-      state.addStackEnemy(variant.interfered, 1);
-    },
-  };
+/** The whole mechanic, as one gear on the target: a break drops whatever the bar overshot by, then
+ *  the break's own declared `-ENEMY_MAX_OFFTUNE` banks — leaving a full bar at OFFTUNE_AFTER_BREAK
+ *  exactly, and a break somehow fired on a bar that wasn't full properly negative instead. */
+const TUNE_BREAK_WATCHER = new Debuff({
+  // before the drain banks, so the two land in that order — the same `>=` that queues a break below
+  updateDebuffs: () => {
+    const state = currentTeam();
+    if (currentAction() !== TUNE_BREAK) return;
+    if (state.offtune >= ENEMY_MAX_OFFTUNE) state.offtune = ENEMY_MAX_OFFTUNE + OFFTUNE_AFTER_BREAK;
+  },
+  // the only phase that runs after evaluate() banks the action's own off-tune, so the only one that
+  // sees the bar fill in time. Not `queue`: a break jumps ahead of whatever else this action
+  // spawned, and lands on whoever is on field rather than on whoever queued it.
+  // Only a real on-field press can set one off: a queued follow-up or engine event
+  // (`triggeredAction()`, which a break of its own is) and an inactive action both top the bar up
+  // without breaking it. The bar stays full either way, so the next action that *is* one fires it.
+  afterAction: () => {
+    if (triggeredAction() || !currentAction().active) return;
+    if (currentTeam().offtune >= ENEMY_MAX_OFFTUNE) queueEvent(TUNE_BREAK);
+  },
 });
+
+/** Put the bar's own watcher on the target — solver.ts calls this once as it builds a team.
+ *  Nameless on purpose: machinery, not a buff anyone's kit put up, so no popover lists it. */
+export const armTuneBreak = (): void => { applyEnemy(TUNE_BREAK_WATCHER, 1); };
