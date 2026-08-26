@@ -8,11 +8,11 @@
  */
 import { isType,
   Buff, Sonata, Sonata2pc, Mainslot, Action, Stat, Attribute, Type1, Cast, Scaling,
-  addStat, frozenStacks, casting, currentAction, revokeSelf, applySelf, applyTeam, stacksOfTeam, revokeTeam,
-  removeStackTeam, queueOutro, queue, lostOnSwap,
-} from "../kit.js";
-import { applied } from "../kit.js";
-import { HEALS } from "../statuses.js";
+  addStat, frozenStacks, casting, currentAction, revokeSelf, applyCurrent, applyTeam, stacksOfTeam, revokeTeam,
+  removeStackTeam, queueOutro, queue, lostOnSwap, triggeredAction,
+} from "../engine/kit.js";
+import { applied } from "../engine/kit.js";
+import { HEALS } from "../engine/status.js";
 
 /* -------------------------------------------------------------------------- generic, unowned */
 
@@ -88,7 +88,7 @@ export const REJUV_2PC = new Sonata2pc({ name: "Rejuvenating Glow 2pc", constant
 export const MOLTEN_RIFT_2PC = new Sonata2pc({ name: "Molten Rift 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Fusion) });
 export const MOLTEN_RIFT_5PC = new Sonata({
   name: "Molten Rift 5pc",
-  updateBuffs: () => { if (casting(Cast.Skill)) applySelf(MOLTEN_RIFT_BUFF, 1); },
+  updateBuffs: () => { if (casting(Cast.Skill)) applyCurrent(MOLTEN_RIFT_BUFF, 1); },
 });
 export const MOLTEN_RIFT_BUFF = new Buff({
   name: "Molten Rift",
@@ -113,7 +113,7 @@ export const NM_INFERNO_RIDER = new Mainslot({
  *  casting it grants a temporary +12%/+12% Fusion/Basic Attack DMG Bonus window. */
 export const ACTION_INFERNO_RIDER = new Action("Echo - Inferno Rider", {
   cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 252.4 + 282.8 * 2, energy: 3.78 + 4.41 * 2,
-  updateBuffs: () => applySelf(INFERNO_RIDER_WINDOW, 1),
+  updateBuffs: () => applyCurrent(INFERNO_RIDER_WINDOW, 1),
 });
 export const INFERNO_RIDER_WINDOW = new Buff({
   name: "Inferno Rider",
@@ -142,7 +142,7 @@ export const NM_CROWNLESS = new Mainslot({
 
 export const ACTION_CROWNLESS = new Action("Echo - Nightmare: Crownless", {
   cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Echo, mv: 134.08*2, energy: 	2.09*2,
-  updateBuffs: () => applySelf(CROWNLESS_WINDOW, 1),
+  updateBuffs: () => applyCurrent(CROWNLESS_WINDOW, 1),
 });
 export const CROWNLESS_WINDOW = new Buff({
   name: "Crownless",
@@ -161,7 +161,7 @@ export const HAVOC_ECLIPSE_5PC = new Sonata({
   name: "Havoc Eclipse 5pc",
   updateBuffs: () => {
     const a = currentAction();
-    if (isType(Type1.Basic) || isType(Type1.Heavy)) applySelf(HAVOC_ECLIPSE_STACKS, 1);
+    if (isType(Type1.Basic) || isType(Type1.Heavy)) applyCurrent(HAVOC_ECLIPSE_STACKS, 1);
   },
 });
 export const HAVOC_ECLIPSE_STACKS = new Buff({
@@ -177,7 +177,7 @@ export const HAVOC_ECLIPSE_STACKS = new Buff({
  *  15s, up to 3 stacks. Not owned by any resonator implemented yet — exported standalone. */
 export const ACTION_LAMPYLUMEN_MYRIAD = new Action("Echo - Lampylumen Myriad", {
   cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Atk, type: Type1.Echo, mv: 667.20, energy: 3.12 * 2 + 4.17, // 200.16%+200.16%+266.88%
-  updateBuffs: () => applySelf(LAMPYLUMEN_MYRIAD_STACKS, 3),
+  updateBuffs: () => applyCurrent(LAMPYLUMEN_MYRIAD_STACKS, 3),
 });
 export const LAMPYLUMEN_MYRIAD_STACKS = new Buff({
   name: "Lampylumen Myriad", maxStacks: 3,
@@ -196,7 +196,7 @@ export const FREEZING_FROST_5PC = new Sonata({
   name: "Freezing Frost 5pc",
   updateBuffs: () => {
     const a = currentAction();
-    if (isType(Type1.Basic) || isType(Type1.Heavy)) applySelf(FREEZING_FROST_STACKS, 1);
+    if (isType(Type1.Basic) || isType(Type1.Heavy)) applyCurrent(FREEZING_FROST_STACKS, 1);
   },
 });
 export const FREEZING_FROST_STACKS = new Buff({
@@ -221,7 +221,7 @@ export const NM_FEILIAN_BERINGAL = new Mainslot({
 export const SIERRA_GALE_2PC = new Sonata2pc({ name: "Sierra Gale 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Aero) });
 export const SIERRA_GALE_5PC = new Sonata({
   name: "Sierra Gale 5pc",
-  updateBuffs: () => { if (casting(Cast.Intro)) applySelf(SIERRA_GALE_INTRO, 1); },
+  updateBuffs: () => { if (casting(Cast.Intro)) applyCurrent(SIERRA_GALE_INTRO, 1); },
 });
 export const SIERRA_GALE_INTRO = new Buff({
   name: "Sierra Gale",
@@ -235,7 +235,7 @@ export const SIERRA_GALE_INTRO = new Buff({
  *  Skill DMG Bonus (uptime never lost, by explicit instruction). */
 export const ACTION_JUE = new Action("Echo - Jué", {
   cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Echo, mv: 48.64 * 2 + 19.46 * 5, energy: 0.76 * 2 + 0.3 * 5,
-  updateBuffs: () => { applySelf(JUE_BLESSING, 1); queue(ACTION_JUE_BLESSING); },
+  updateBuffs: () => { applyCurrent(JUE_BLESSING, 1); queue(ACTION_JUE_BLESSING); },
 });
 export const ACTION_JUE_BLESSING = new Action("Echo - Jué: Blessing of Time x15", {
   cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Skill, mv: 16 * 15,
@@ -254,7 +254,7 @@ export const JUE = new Mainslot({
 export const CELESTIAL_LIGHT_2PC = new Sonata2pc({ name: "Celestial Light 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Spectro) });
 export const CELESTIAL_LIGHT_5PC = new Sonata({
   name: "Celestial Light 5pc",
-  updateBuffs: () => { if (casting(Cast.Intro)) applySelf(CELESTIAL_LIGHT_INTRO, 1); },
+  updateBuffs: () => { if (casting(Cast.Intro)) applyCurrent(CELESTIAL_LIGHT_INTRO, 1); },
 });
 export const CELESTIAL_LIGHT_INTRO = new Buff({
   name: "Celestial Light",
@@ -267,7 +267,7 @@ export const CELESTIAL_LIGHT_INTRO = new Buff({
  *  stat scope (`Type1.Outro`), not a live lookup. */
 export const ACTION_MECH_ABOMINATION = new Action("Echo - Mech Abomination", {
   cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type1.Echo, mv: 48.64, energy: 0.76,
-  updateBuffs: () => { applySelf(MECH_ABOMINATION_ATK, 1); queue(ACTION_MECH_WASTE); },
+  updateBuffs: () => { applyCurrent(MECH_ABOMINATION_ATK, 1); queue(ACTION_MECH_WASTE); },
 });
 export const ACTION_MECH_WASTE = new Action("Echo - Mech Abomination: Mech Waste", {
   cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type1.Outro, mv: 480, energy: 1.52,
@@ -290,7 +290,10 @@ export const LINGERING_TUNES_2PC = new Sonata2pc({ name: "Lingering Tunes 2pc", 
 export const LINGERING_TUNES_5PC = new Sonata({
   name: "Lingering Tunes 5pc",
   constantStats: () => addStat(Stat.DmgBonus, 60, Type1.Outro),
-  updateBuffs: () => { if (currentAction().active) applySelf(LINGERING_TUNES_STACKS, 1); },
+  // the 1.5s cadence stands in for real on-field presses, so a queued follow-up, a status rung or
+  // the shared Tune Break — active casts on the wearer's slot, but not them acting again — don't
+  // advance it
+  updateBuffs: () => { if (!triggeredAction() && currentAction().active) applyCurrent(LINGERING_TUNES_STACKS, 1); },
 });
 export const LINGERING_TUNES_STACKS = new Buff({
   name: "Lingering Tunes", maxStacks: 8,
@@ -333,7 +336,7 @@ export const VOID_THUNDER_STACKS = new Buff({
 });
 export const VOID_THUNDER_5PC = new Sonata({
   name: "Void Thunder 5pc",
-  updateBuffs: () => { if (casting(Cast.Heavy) || casting(Cast.Skill)) applySelf(VOID_THUNDER_STACKS, 1); },
+  updateBuffs: () => { if (casting(Cast.Heavy) || casting(Cast.Skill)) applyCurrent(VOID_THUNDER_STACKS, 1); },
 });
 
 /** Fallacy, a generic HP-scaling spectro mainslot echo. Its cast puts up a team-wide +10% ATK,

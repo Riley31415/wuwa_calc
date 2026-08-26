@@ -1,10 +1,10 @@
 /** Mainslot echoes and sonatas from Septimont (versions 2.5-2.7). */
 import { isType,
   Buff, Sonata, Sonata2pc, Mainslot, Action, Stat, Attribute, Type1, Cast, Scaling,
-  addStat, frozenStacks, stacksOf, stacksOfTeam, applySelf, applyTeam, casting, currentAction, revokeSelf, maxEnergy, queue,
-} from "../kit.js";
-import { applied } from "../kit.js";
-import { SHIELD } from "../statuses.js";
+  addStat, frozenStacks, stacksOf, stacksOfTeam, applyCurrent, applyTeam, casting, currentAction, revokeSelf, maxEnergy, queue,
+} from "../engine/kit.js";
+import { applied, appliedByMe } from "../engine/kit.js";
+import { SHIELD, HAVOC_BANE } from "../engine/status.js";
 
 /* --------------------------------------------------------------------------------- Phrolova, 2.5 */
 
@@ -45,7 +45,7 @@ export const CROWN_STACKS = new Buff({
 });
 export const COV_3PC = new Sonata({
   name: "Crown of Valor 3pc",
-  updateBuffs: () => { if (applied(SHIELD)) applySelf(CROWN_STACKS, applied(SHIELD)); },
+  updateBuffs: () => { if (applied(SHIELD)) applyCurrent(CROWN_STACKS, applied(SHIELD)); },
 });
 
 /* ------------------------------------------------------------------------------- Iuno, 2.6 */
@@ -85,7 +85,7 @@ export const CLAWPRINT_LIBERATION = new Buff({
 });
 export const CLAWPRINT_5PC = new Sonata({
   name: "Flaming Clawprint 5pc",
-  updateBuffs: () => { if (casting(Cast.Liberation)) { applyTeam(CLAWPRINT_TEAM, 1); applySelf(CLAWPRINT_LIBERATION, 1); } },
+  updateBuffs: () => { if (casting(Cast.Liberation)) { applyTeam(CLAWPRINT_TEAM, 1); applyCurrent(CLAWPRINT_LIBERATION, 1); } },
 });
 export const CLAWPRINT_2PC = new Sonata2pc({ name: "Flaming Clawprint 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Fusion) });
 
@@ -117,8 +117,8 @@ export const FLAMEWING_SHADOW_ECHO = new Buff({
 export const FLAMEWING_SHADOW_3PC = new Sonata({
   name: "Flamewing's Shadow 3pc",
   updateBuffs: () => {
-    if (isType(Type1.Echo)) applySelf(FLAMEWING_SHADOW_HEAVY, 1);
-    if (isType(Type1.Heavy)) applySelf(FLAMEWING_SHADOW_ECHO, 1);
+    if (isType(Type1.Echo)) applyCurrent(FLAMEWING_SHADOW_HEAVY, 1);
+    if (isType(Type1.Heavy)) applyCurrent(FLAMEWING_SHADOW_ECHO, 1);
   },
   applyStats: () => {
     if (stacksOf(FLAMEWING_SHADOW_HEAVY) && stacksOf(FLAMEWING_SHADOW_ECHO)) addStat(Stat.DmgBonus, 16, Attribute.Fusion);
@@ -152,6 +152,45 @@ export const LAW_OF_HARMONY_TEAM = new Buff({
 export const LAW_OF_HARMONY_3PC = new Sonata({
   name: "Law of Harmony 3pc",
   updateBuffs: () => {
-    if (casting(Cast.Echo)) { applySelf(LAW_OF_HARMONY_SELF, 1); applyTeam(LAW_OF_HARMONY_TEAM, 1); }
+    if (casting(Cast.Echo)) { applyCurrent(LAW_OF_HARMONY_SELF, 1); applyTeam(LAW_OF_HARMONY_TEAM, 1); }
   },
+});
+
+/* -------------------------------------------------------------------------------- Chisa, 3.6 */
+
+/** Reminiscence: Threnodian - Leviathan, Chisa's own mainslot echo: a Collapsing Horizon, two
+ *  131.04% Havoc hits. The main-slot wearer also gets a flat +12% Havoc DMG Bonus and +12%
+ *  Resonance Liberation DMG Bonus. Its own passive — Core of Collapse deals another 24.57% Havoc
+ *  hit whenever the active resonator deals damage, on a 0.5s internal cooldown, up to 8 times over
+ *  the summon's 15s — runs on a clock this engine has none of (same call as Wind Erosion/
+ *  Electromagnetic in statuses.ts), so only the direct summon hit is modelled. */
+export const ACTION_THRENODIAN_LEVIATHAN = new Action("Echo - Reminiscence: Threnodian - Leviathan", {
+  cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Echo,
+  mv: 131.04 * 2, energy: 0.91 * 2,
+});
+export const THRENODIAN_LEVIATHAN = new Mainslot({
+  name: "Reminiscence: Threnodian - Leviathan",
+  action: ACTION_THRENODIAN_LEVIATHAN,
+  constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Havoc); addStat(Stat.DmgBonus, 12, Type1.Liberation); },
+});
+
+/** Thread of Severed Fate, Chisa's own sonata — a 3pc-only set (no 5pc of its own), paired with a
+ *  plain 2pc from elsewhere the way Galbrena's Flamewing's Shadow 3pc pairs with Clawprint 2pc.
+ *  3pc: inflicting Havoc Bane grants +20% ATK and +30% Resonance Liberation DMG Bonus for 5s — a
+ *  short self window, lost after the outro like every other one here.
+ *
+ *  updateGlobal rather than updateBuffs, so it still pays out while its wearer is *off* field: a
+ *  marker that keeps inflicting Bane off teammates' casts (Chisa's Unseen Snare) is the wearer's
+ *  own doing wherever they happen to be standing, and updateBuffs only ever runs on the wearer's
+ *  own turn. `appliedByMe` is what keeps that honest — inside updateGlobal a locally-held gear runs
+ *  with `currentSlot` aimed at its own holder, so it grants only when the Bane traces back to that
+ *  holder, and a teammate wearing this set whose swing merely tripped somebody else's marker still
+ *  reads 0. */
+export const THREAD_OF_SEVERED_FATE_3PC = new Sonata({
+  name: "Thread of Severed Fate 3pc",
+  updateGlobal: () => { if (appliedByMe(HAVOC_BANE)) applyCurrent(THREAD_OF_SEVERED_FATE_BUFF, 1); },
+});
+export const THREAD_OF_SEVERED_FATE_BUFF = new Buff({
+  name: "Thread of Severed Fate",
+  applyStats: () => { addStat(Stat.BonusAtk, 20); addStat(Stat.DmgBonus, 30, Type1.Liberation); },
 });

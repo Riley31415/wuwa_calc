@@ -27,5 +27,6 @@ standardize action naming
 standardize sequence naming
 cleanup all (team) (self) (whatever) buffs
 
+
 #
-make buffs also allow constant stats? for example permanent teamwide buffs could be optimized this way
+eventually delete the migrated data

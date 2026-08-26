@@ -1,18 +1,20 @@
 /** Mainslot echoes and sonatas from Lahairoi (versions 2.8-3.4), plus the 3.5-3.6 pieces that
- *  have no region file of their own yet (Hyvatia, Reactor Husk, Spacetrek Explorer, the four
- *  sonatas in the middle, and the Cyberpunk collab echo at the bottom) — split them out when that
+ *  have no region file of their own yet (Hyvatia, Reactor Husk, Spacetrek Explorer, Hiyuki's own
+ *  Voidborne Construct/Glommoth/Wishes of Quiet Snowfall, the sonatas in the middle, and the
+ *  Cyberpunk collab echo at the bottom) — split them out when that
  *  region gets a name. Buling and Lucilla, also
  *  Lahairoi-era, own no mainslot echo/sonata of their own — Lucilla reuses Bell-Borne
  *  Geochelone/Moonlit Clouds from jinzhou.ts and Dream of the Lost from septimont.ts. */
 import { isType,
   Buff, Sonata, Sonata2pc, Mainslot, Action, Stat, Attribute, Type1, Cast, Scaling,
-  addStat, applySelf, applyTeam, casting, currentAction, getStat, queueOutro, revokeSelf, revokeTeam,
-  frozenStacks, stacksOf,
+  addStat, applyCurrent, applyTeam, casting, currentAction, getStat, queueOutro, revokeSelf, revokeTeam,
+  frozenStacks, stacksOf, isHeld,
   lostOnSwap,
-} from "../kit.js";
-import { applied } from "../kit.js";
-import { SHIELD, FUSION_BURST, HEALS } from "../statuses.js";
-import { TUNE_HACK_SHIFTING, TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../tunebreak.js";
+  isCast,
+} from "../engine/kit.js";
+import { applied, appliedByMe } from "../engine/kit.js";
+import { SHIELD, FUSION_BURST, HEALS, GLACIO_CHAFE } from "../engine/status.js";
+import { TUNE_HACK_SHIFTING, TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../engine/tunebreak.js";
 
 /* ------------------------------------------------------------------------------ Sigrika, 3.2 */
 
@@ -38,7 +40,7 @@ export const SOUND_OF_TRUE_NAME_BUFF = new Buff({
 });
 export const SOUND_OF_TRUE_NAME_5PC = new Sonata({
   name: "Sound of True Name 5pc",
-  updateBuffs: () => { if (isType(Type1.Echo)) applySelf(SOUND_OF_TRUE_NAME_BUFF, 1); },
+  updateBuffs: () => { if (isType(Type1.Echo)) applyCurrent(SOUND_OF_TRUE_NAME_BUFF, 1); },
 });
 
 /* -------------------------------------------------------------------------------- Lynae, 3.6 */
@@ -82,11 +84,95 @@ export const REACTOR_HUSK = new Mainslot({
  *  only the cast exists here. Kept because it is a real mainslot option for a sustain build. */
 export const ACTION_SPACETREK = new Action("Echo - Spacetrek Explorer", {
   cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 0,
-  updateDebuffs: () => applySelf(SHIELD, 1),
+  updateDebuffs: () => applyCurrent(SHIELD, 1),
 });
 export const SPACETREK_EXPLORER = new Mainslot({
   name: "Spacetrek Explorer",
   action: ACTION_SPACETREK,
+});
+
+/* ------------------------------------------------------------------------------- Hiyuki, 3.6 */
+
+/** Reminiscence: Threnodian - Voidborne Construct, Hiyuki's own mainslot echo: Aleph-1's Creation
+ *  lands five 21.88% Glacio hits and one 164.16%. The main-slot wearer also gets a flat +12%
+ *  Glacio DMG Bonus and +12% Resonance Liberation DMG Bonus. */
+export const ACTION_VOIDBORNE_CONSTRUCT = new Action("Echo - Reminiscence: Threnodian - Voidborne Construct", {
+  cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Atk, type: Type1.Echo,
+  mv: 21.88 * 5 + 164.16, energy: 0.12 * 5 + 1.36,
+});
+export const VOIDBORNE_CONSTRUCT = new Mainslot({
+  name: "Reminiscence: Threnodian - Voidborne Construct",
+  action: ACTION_VOIDBORNE_CONSTRUCT,
+  constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Glacio); addStat(Stat.DmgBonus, 12, Type1.Liberation); },
+});
+
+/** Glommoth: one 273.6% Glacio stomp, and an Outro within 15s of the summon hands the incoming
+ *  resonator +12% Glacio DMG Bonus for 15s — queued onto the outro rather than tracking the
+ *  window, the same way Hyvatia's own handoff above is. */
+export const ACTION_GLOMMOTH = new Action("Echo - Glommoth", {
+  cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Atk, type: Type1.Echo, mv: 273.6, energy: 3.8,
+  updateBuffs: () => queueOutro(GLOMMOTH_HANDOFF),
+});
+export const GLOMMOTH_HANDOFF = new Buff({
+  name: "Glommoth: Outro",
+  applyStats: () => addStat(Stat.DmgBonus, 12, Attribute.Glacio),
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(GLOMMOTH_HANDOFF); },
+});
+export const GLOMMOTH = new Mainslot({
+  name: "Glommoth",
+  action: ACTION_GLOMMOTH,
+});
+
+/** Wishes of Quiet Snowfall, the Glacio Chafe sonata (paired with either echo above). 2pc: +10%
+ *  Glacio DMG Bonus flat. 5pc: inflicting Glacio Chafe grants +10% Glacio DMG for 15s, and — once
+ *  every 25s — Snowfall, which is then spent one of two ways and one only. Dealing Resonance
+ *  Liberation DMG spends it for +25% Crit. Rate (6s, extended 4s by every Liberation hit after,
+ *  up to six times, so it stands for the rest of the visit); casting an Outro instead spends it
+ *  to hand the incoming resonator +25% Glacio DMG Bonus. The Liberation branch is what actually
+ *  reaches it — the kits that wear this deal Resonance Liberation DMG long before their outro —
+ *  so that is the one modelled, and the outro branch is left out rather than double-counted. The
+ *  25s the grant sits behind carries no stat of its own, so nothing here counts it off. */
+export const QUIET_SNOWFALL_2PC = new Sonata2pc({ name: "Wishes of Quiet Snowfall 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Glacio) });
+export const QUIET_SNOWFALL_5PC = new Sonata({
+  name: "Wishes of Quiet Snowfall 5pc",
+  // `applied`, not `appliedByMe`: a sonata only ever runs on its wearer's own turn, and the one
+  // thing that inflicts Chafe off somebody else's cast (Lucilla's Film Roll) needs that cast to
+  // have inflicted it first — while re-sourcing the debuff to Lucilla as it does
+  updateBuffs: () => {
+    if (applied(GLACIO_CHAFE) && !isHeld(SNOWFALL_CRIT)) { 
+      applyCurrent(QUIET_SNOWFALL_GLACIO, 1); 
+      applyCurrent(SNOWFALL, 1); 
+    }
+  },
+});
+
+export const QUIET_SNOWFALL_GLACIO = new Buff({
+  name: "Wishes of Quiet Snowfall (chafe)",
+  applyStats: () => addStat(Stat.DmgBonus, 10, Attribute.Glacio),
+});
+
+/** The marker itself — carries no stat, it is only ever the thing one of the two branches spends. */
+export const SNOWFALL = new Buff({ 
+  name: "Wishes of Quiet Snowfall: Snowfall" ,
+  updateBuffs: () => {
+    if (casting(Cast.Outro)) {
+      revokeSelf(SNOWFALL); 
+      queueOutro(SNOWFALL_OUTRO);
+    } else if (isType(Type1.Liberation)) { 
+      revokeSelf(SNOWFALL); 
+      applyCurrent(SNOWFALL_CRIT, 1); 
+    }
+  },
+});
+
+export const SNOWFALL_CRIT = new Buff({
+  name: "Wishes of Quiet Snowfall (liberation)",
+  applyStats: () => addStat(Stat.CritRate, 25),
+});
+
+export const SNOWFALL_OUTRO = new Buff({
+  name: "Wishes of Quiet Snowfall (outro)",
+  applyStats: () => addStat(Stat.DmgBonus, 25, Attribute.Glacio),
 });
 
 /* --------------------------------------------------------------------------- 3.5-3.6 sonatas */
@@ -136,7 +222,7 @@ export const STARRY_RADIANCE_TEAM = new Buff({
 export const CHROMATIC_FOAM_2PC = new Sonata2pc({ name: "Chromatic Foam 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Fusion) });
 export const CHROMATIC_FOAM_5PC = new Sonata({
   name: "Chromatic Foam 5pc",
-  updateBuffs: () => { if (applied(FUSION_BURST)) applySelf(CHROMATIC_FOAM_BUFF, 1); },
+  updateBuffs: () => { if (appliedByMe(FUSION_BURST)) applyCurrent(CHROMATIC_FOAM_BUFF, 1); },
 });
 export const CHROMATIC_FOAM_BUFF = new Buff({
   name: "Chromatic Foam",
@@ -159,7 +245,7 @@ export const GILDED_REVELATION_2PC = new Sonata2pc({ name: "Rite of Gilded Revel
 export const GILDED_REVELATION_5PC = new Sonata({
   name: "Rite of Gilded Revelation 5pc",
   updateBuffs: () => {
-    if (isType(Type1.Basic)) applySelf(GILDED_REVELATION_STACKS, 1);
+    if (isType(Type1.Basic)) applyCurrent(GILDED_REVELATION_STACKS, 1);
   },
 });
 export const GILDED_REVELATION_STACKS = new Buff({
@@ -230,7 +316,7 @@ export const VOIDWING_MOTH = new Mainslot({
 export const REEL_2PC = new Sonata2pc({ name: "Reel of Spliced Memories 2pc", constantStats: () => addStat(Stat.BonusAtk, 10) });
 export const REEL_5PC = new Sonata({
   name: "Reel of Spliced Memories 5pc",
-  updateBuffs: () => { if (applied(TUNE_RUPTURE_SHIFTING) || applied(TUNE_STRAIN_SHIFTING)) applyTeam(REEL_TEAM, 1); },
+  updateBuffs: () => { if (appliedByMe(TUNE_RUPTURE_SHIFTING) || appliedByMe(TUNE_STRAIN_SHIFTING)) applyTeam(REEL_TEAM, 1); },
 });
 export const REEL_TEAM = new Buff({ name: "Reel of Spliced Memories (team)", applyStats: () => addStat(Stat.Tbb, 20) });
 
@@ -260,7 +346,7 @@ export const ADAM_SMASHER_LUCY = new Mainslot({
   name: "Reminiscence - Nightmare: Adam Smasher",
   action: ACTION_ADAM_SMASHER_LUCY,
   constantStats: () => addStat(Stat.CritRate, 15),
-  updateBuffs: () => { if (applied(TUNE_HACK_SHIFTING)) applySelf(SHATTERED_DREAMS, 1); },
+  updateBuffs: () => { if (appliedByMe(TUNE_HACK_SHIFTING)) applyCurrent(SHATTERED_DREAMS, 1); },
 });
 
 export const ACTION_ADAM_SMASHER_REBECCA = new Action("Echo - Adam Smasher", {
@@ -271,5 +357,5 @@ export const ADAM_SMASHER_REBECCA = new Mainslot({
   name: "Reminiscence - Nightmare: Adam Smasher",
   action: ACTION_ADAM_SMASHER_REBECCA,
   constantStats: () => addStat(Stat.CritRate, 15),
-  updateBuffs: () => { if (applied(TUNE_HACK_SHIFTING)) applySelf(SHATTERED_DREAMS, 1); },
+  updateBuffs: () => { if (appliedByMe(TUNE_HACK_SHIFTING)) applyCurrent(SHATTERED_DREAMS, 1); },
 });

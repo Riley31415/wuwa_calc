@@ -3,11 +3,11 @@
  *  Resolution (5-star), and the "new standard" 5-star set. */
 import { isType,
   Buff, Weapon, WeaponType, Stat, Type1, Cast, Attribute,
-  addStat, applySelf, isHeld, removeStack, revokeSelf, casting, currentAction, frozenStacks, queueOutro, stacksOfEnemy,
-} from "../kit.js";
-import { applied } from "../kit.js";
-import { HEALS } from "../statuses.js";
-import { TUNE_STRAIN_INTERFERED } from "../tunebreak.js";
+  addStat, applyCurrent, isHeld, removeStack, revokeSelf, casting, currentAction, frozenStacks, queueOutro, stacksOfEnemy,
+} from "../engine/kit.js";
+import { applied } from "../engine/kit.js";
+import { HEALS } from "../engine/status.js";
+import { TUNE_STRAIN_INTERFERED } from "../engine/tunebreak.js";
 
 /* ---------------------------------------------------------------- Ceaseless Aria (4-star, 5) */
 
@@ -18,7 +18,7 @@ function ceaselessAria(name: string): Buff {
   const buff: Buff = new Buff({
     name: `${name}: Ceaseless Aria R5`, maxStacks: 2,
     applyStats: () => {
-      if (frozenStacks() === 1 && casting(Cast.Skill)) { applySelf(buff, 1); addStat(Stat.AddConcerto, 16); }
+      if (frozenStacks() === 1 && casting(Cast.Skill)) { applyCurrent(buff, 1); addStat(Stat.AddConcerto, 16); }
       else if (frozenStacks() === 2 && casting(Cast.Outro)) removeStack(buff, 2);
     },
     display: () => `${name}: Ceaseless Aria R5${frozenStacks() === 1 ? "" : " (cooldown)"}`,
@@ -34,7 +34,7 @@ function concertoWeapon(name: string, weaponType: WeaponType): Weapon {
     standard: true,
     name: `${name} R5`,
     constantStats: () => { addStat(Stat.BaseAtk, 337.5); addStat(Stat.Er, 51.84); },
-    updateBuffs: () => { if (casting(Cast.Skill)) applySelf(aria, 1); },
+    updateBuffs: () => { if (casting(Cast.Skill)) applyCurrent(aria, 1); },
   });
 }
 
@@ -67,7 +67,7 @@ export const EMERALD_OF_GENESIS = new Weapon({
   standard: true,
   name: "Emerald of Genesis",
   constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.Er, 12.8); },
-  updateBuffs: () => { if (casting(Cast.Skill)) applySelf(EOG_STACKS, 1); },
+  updateBuffs: () => { if (casting(Cast.Skill)) applyCurrent(EOG_STACKS, 1); },
 });
 
 export const EOG_STACKS = new Buff({
@@ -82,7 +82,7 @@ export const COSMIC_RIPPLES = new Weapon({
   standard: true,
   name: "Cosmic Ripples",
   constantStats: () => { addStat(Stat.BaseAtk, 500); addStat(Stat.BonusAtk, 54); addStat(Stat.Er, 12.8); },
-  updateBuffs: () => { if (isType(Type1.Basic)) applySelf(COSMIC_RIPPLES_STACKS, 1); },
+  updateBuffs: () => { if (isType(Type1.Basic)) applyCurrent(COSMIC_RIPPLES_STACKS, 1); },
 });
 
 export const COSMIC_RIPPLES_STACKS = new Buff({
@@ -99,8 +99,8 @@ export const ABYSS_SURGES = new Weapon({
   name: "Abyss Surges",
   constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.BonusAtk, 36.45); addStat(Stat.Er, 12.8); },
   updateBuffs: () => {
-    if (isType(Type1.Skill)) applySelf(ABYSS_SKILL_HIT, 1);
-    if (isType(Type1.Basic)) applySelf(ABYSS_BASIC_HIT, 1);
+    if (isType(Type1.Skill)) applyCurrent(ABYSS_SKILL_HIT, 1);
+    if (isType(Type1.Basic)) applyCurrent(ABYSS_BASIC_HIT, 1);
   },
 });
 
@@ -122,7 +122,7 @@ export const LUSTROUS_RAZOR = new Weapon({
   standard: true,
   name: "Lustrous Razor",
   constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.BonusAtk, 36.45); addStat(Stat.Er, 12.8); },
-  updateBuffs: () => { if (casting(Cast.Skill)) applySelf(LUSTROUS_RAZOR_STACKS, 1); },
+  updateBuffs: () => { if (casting(Cast.Skill)) applyCurrent(LUSTROUS_RAZOR_STACKS, 1); },
 });
 
 export const LUSTROUS_RAZOR_STACKS = new Buff({
@@ -150,7 +150,7 @@ export const NEW_STD_BRAUDBLADE = new Weapon({
   standard: true,
   name: "Radiance Cleaver",
   constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.BonusAtk, 12); },
-  updateBuffs: () => { if (hitInterfered()) applySelf(EDGE_BREAKER_BUFF, 1); },
+  updateBuffs: () => { if (hitInterfered()) applyCurrent(EDGE_BREAKER_BUFF, 1); },
 });
 export const EDGE_BREAKER_BUFF = new Buff({
   name: "Radiance Cleaver: Edge Breaker",
@@ -165,7 +165,7 @@ export const NEW_STD_GAUNTLET = new Weapon({
   standard: true,
   name: "Pulsation Bracer",
   constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.BonusAtk, 12); },
-  updateBuffs: () => { if (hitInterfered()) applySelf(BARRIER_BREACHER_STACKS, 1); },
+  updateBuffs: () => { if (hitInterfered()) applyCurrent(BARRIER_BREACHER_STACKS, 1); },
 });
 export const BARRIER_BREACHER_STACKS = new Buff({
   name: "Pulsation Bracer: Barrier Breacher", maxStacks: 4,
@@ -179,7 +179,7 @@ export const NEW_STD_SWORD = new Weapon({
   standard: true,
   name: "Laser Shearer",
   constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.Er, 38.88); addStat(Stat.BonusAtk, 12); },
-  updateBuffs: () => { if (hitInterfered()) applySelf(SIGNAL_CATCHER_BUFF, 1); },
+  updateBuffs: () => { if (hitInterfered()) applyCurrent(SIGNAL_CATCHER_BUFF, 1); },
 });
 export const SIGNAL_CATCHER_BUFF = new Buff({
   name: "Laser Shearer: Signal Catcher",
@@ -197,7 +197,7 @@ export const BLOODPACTS_PLEDGE = new Weapon({
   standard: true,
   name: "Bloodpact's Pledge R5",
   constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.Er, 38.88); },
-  updateBuffs: () => { if (applied(HEALS)) applySelf(HARMONIOUS_VIBRANCY, 1); },
+  updateBuffs: () => { if (applied(HEALS)) applyCurrent(HARMONIOUS_VIBRANCY, 1); },
 });
 
 export const HARMONIOUS_VIBRANCY = new Buff({
@@ -223,7 +223,7 @@ export const NEW_STD_RECTIFIER = new Weapon({
   standard: true,
   name: "Boson Astrolabe",
   constantStats: () => { addStat(Stat.BaseAtk, 525); addStat(Stat.Er, 38.88); addStat(Stat.BonusAtk, 12); },
-  updateGlobal: () => { if (casting(Cast.TuneBreak)) applySelf(PATH_OBSERVER_BUFF, 1); },
+  updateGlobal: () => { if (casting(Cast.TuneBreak)) applyCurrent(PATH_OBSERVER_BUFF, 1); },
 });
 
 export const PATH_OBSERVER_BUFF = new Buff({
@@ -239,7 +239,7 @@ export const NEW_STD_PISTOL = new Weapon({
   standard: true,
   name: "Phasic Homogenizer",
   constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.BonusAtk, 12); },
-  updateGlobal: () => { if (casting(Cast.TuneBreak)) applySelf(INSIGHT_BEARER_BUFF, 1); },
+  updateGlobal: () => { if (casting(Cast.TuneBreak)) applyCurrent(INSIGHT_BEARER_BUFF, 1); },
 });
 
 export const INSIGHT_BEARER_BUFF = new Buff({

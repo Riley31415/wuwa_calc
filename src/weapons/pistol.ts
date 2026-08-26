@@ -1,11 +1,11 @@
 /** Signature Pistols weapons, ported to the new engine. */
 import { isType,
   Buff, Debuff, Weapon, WeaponType, Stat, EnemyStat, Attribute, Type1, Cast,
-  addStat, addEnemyStat, applySelf, applyEnemy, applyTeam, isHeld, casting, currentAction, revokeSelf, frozenStacks,
-} from "../kit.js";
-import { applied } from "../kit.js";
-import { AERO_EROSION } from "../statuses.js";
-import { TUNE_HACK_SHIFTING, TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../tunebreak.js";
+  addStat, addEnemyStat, applyCurrent, applyEnemy, applyTeam, isHeld, casting, currentAction, revokeSelf, frozenStacks,
+} from "../engine/kit.js";
+import { applied, appliedByMe } from "../engine/kit.js";
+import { AERO_EROSION } from "../engine/status.js";
+import { TUNE_HACK_SHIFTING, TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../engine/tunebreak.js";
 
 /** The Last Dance, Carlotta's sig, R1: Silent Eulogy. +12% ATK flat. Intro/Liberation grants
  *  +48% Resonance Skill DMG Bonus for 5s. */
@@ -13,7 +13,7 @@ export const THE_LAST_DANCE = new Weapon({
   weaponType: WeaponType.Pistols,
   name: "The Last Dance",
   constantStats: () => { addStat(Stat.BaseAtk, 500); addStat(Stat.CritDmg, 72); addStat(Stat.BonusAtk, 12); },
-  updateBuffs: () => { if (casting(Cast.Intro) || casting(Cast.Liberation)) applySelf(SILENT_EULOGY, 1); },
+  updateBuffs: () => { if (casting(Cast.Intro) || casting(Cast.Liberation)) applyCurrent(SILENT_EULOGY, 1); },
 });
 export const SILENT_EULOGY = new Buff({
   name: "The Last Dance: Silent Eulogy",
@@ -33,8 +33,8 @@ export const LUX_UMBRA = new Weapon({
   },
   updateBuffs: () => {
     const a = currentAction();
-    if (isType(Type1.Echo)) applySelf(TO_FIRE_SHE_RETURNS_HEAVY, 1);
-    if (isType(Type1.Heavy)) applySelf(TO_FIRE_SHE_RETURNS_ECHO, 1);
+    if (isType(Type1.Echo)) applyCurrent(TO_FIRE_SHE_RETURNS_HEAVY, 1);
+    if (isType(Type1.Heavy)) applyCurrent(TO_FIRE_SHE_RETURNS_ECHO, 1);
   },
 });
 export const TO_FIRE_SHE_RETURNS_HEAVY = new Buff({
@@ -57,7 +57,7 @@ export const WOODLAND_ARIA = new Weapon({
   name: "Woodland Aria",
   constantStats: () => { addStat(Stat.BaseAtk, 500); addStat(Stat.CritRate, 36); addStat(Stat.BonusAtk, 12); },
   updateBuffs: () => {
-    if (applied(AERO_EROSION)) { applySelf(LINGERING_SUMMER_TUNE, 1); applyEnemy(LINGERING_SUMMER_SHRED, 1); }
+    if (appliedByMe(AERO_EROSION)) { applyCurrent(LINGERING_SUMMER_TUNE, 1); applyEnemy(LINGERING_SUMMER_SHRED, 1); }
   },
 });
 export const LINGERING_SUMMER_TUNE = new Buff({
@@ -80,8 +80,8 @@ export const SPECTRUM_BLASTER = new Weapon({
   constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.BonusAtk, 12); },
   updateBuffs: () => {
     const a = currentAction();
-    if (casting(Cast.Intro) || isType(Type1.Basic)) applySelf(ATTENDANCE_EXEMPTION, 1);
-    if (casting(Cast.Basic) && (applied(TUNE_RUPTURE_SHIFTING) || applied(TUNE_STRAIN_SHIFTING))) applyTeam(SPECTRUM_CHORUS, 1);
+    if (casting(Cast.Intro) || isType(Type1.Basic)) applyCurrent(ATTENDANCE_EXEMPTION, 1);
+    if (casting(Cast.Basic) && (appliedByMe(TUNE_RUPTURE_SHIFTING) || appliedByMe(TUNE_STRAIN_SHIFTING))) applyTeam(SPECTRUM_CHORUS, 1);
   },
 });
 export const ATTENDANCE_EXEMPTION = new Buff({
@@ -103,8 +103,8 @@ export const SKULL_THRASHER = new Weapon({
   name: "Skull Thrasher",
   constantStats: () => { addStat(Stat.BaseAtk, 500); addStat(Stat.CritDmg, 72); addStat(Stat.BonusAtk, 12); },
   updateBuffs: () => {
-    if (casting(Cast.Intro)) applySelf(WAKEFUL_LONER_INTRO, 1);
-    if (applied(TUNE_HACK_SHIFTING)) { applySelf(WAKEFUL_LONER_HACK, 1); applyTeam(WAKEFUL_LONER_TEAM, 1); }
+    if (casting(Cast.Intro)) applyCurrent(WAKEFUL_LONER_INTRO, 1);
+    if (appliedByMe(TUNE_HACK_SHIFTING)) { applyCurrent(WAKEFUL_LONER_HACK, 1); applyTeam(WAKEFUL_LONER_TEAM, 1); }
   },
 });
 export const WAKEFUL_LONER_INTRO = new Buff({
@@ -131,8 +131,8 @@ export const SPECTRAL_TRIGGER = new Weapon({
   name: "Spectral Trigger",
   constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.BonusAtk, 12); },
   updateBuffs: () => {
-    if (casting(Cast.Skill)) applySelf(SUNKEN_DREAM_STACKS, 1);
-    if (applied(TUNE_HACK_SHIFTING)) applySelf(SUNKEN_DREAM_HACK, 1);
+    if (casting(Cast.Skill)) applyCurrent(SUNKEN_DREAM_STACKS, 1);
+    if (appliedByMe(TUNE_HACK_SHIFTING)) applyCurrent(SUNKEN_DREAM_HACK, 1);
   },
 });
 export const SUNKEN_DREAM_STACKS = new Buff({

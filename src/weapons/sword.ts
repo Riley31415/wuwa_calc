@@ -1,10 +1,11 @@
 /** Signature Sword weapons, ported to the new engine. Every piece works if equipped on any
  *  resonator, not just its own. */
 import { isType,
-  Buff, Weapon, WeaponType, Stat, Attribute, Type1, Cast,
-  addStat, frozenStacks, casting, currentAction, revokeSelf, applySelf, stacksOf, applyTeam, lostOnSwap, applied,
-} from "../kit.js";
-import { TUNE_STRAIN_SHIFTING } from "../tunebreak.js";
+  Buff, Weapon, WeaponType, Stat, Attribute, Type1, Type2, Cast,
+  addStat, frozenStacks, casting, currentAction, revokeSelf, applyCurrent, stacksOf, applyTeam, lostOnSwap, applied, appliedByMe,
+} from "../engine/kit.js";
+import { TUNE_STRAIN_SHIFTING } from "../engine/tunebreak.js";
+import { GLACIO_CHAFE } from "../engine/status.js";
 
 /** Changli's sig, R1: Crimson Phoenix. +12% ATK flat. Resonance Skill grants 5 stacks of Searing
  *  Feather outright (up to 14) — the per-hit 0.5s-ICD trickle isn't modelled. */
@@ -16,7 +17,7 @@ export const BLAZING_BRILLIANCE = new Weapon({
     addStat(Stat.CritDmg, 48.6);
     addStat(Stat.BonusAtk, 12);
   },
-  updateBuffs: () => { if (isType(Type1.Skill)) applySelf(SEARING_FEATHER, 5); },
+  updateBuffs: () => { if (isType(Type1.Skill)) applyCurrent(SEARING_FEATHER, 5); },
 });
 export const SEARING_FEATHER = new Buff({
   name: "Blazing Brilliance: Crimson Phoenix", maxStacks: 14,
@@ -39,8 +40,8 @@ export const RED_SPRING = new Weapon({
     addStat(Stat.BonusAtk, 12);
   },
   updateBuffs: () => {
-    if (isType(Type1.Basic)) applySelf(RED_SPRING_BASIC);
-    if (currentAction().concerto < 0) applySelf(RED_SPRING_CONSUME);
+    if (isType(Type1.Basic)) applyCurrent(RED_SPRING_BASIC);
+    if (currentAction().concerto < 0) applyCurrent(RED_SPRING_CONSUME);
   },
 });
 export const RED_SPRING_BASIC = new Buff({
@@ -65,8 +66,8 @@ export const UNFLICKERING_VALOR = new Weapon({
     addStat(Stat.CritRate, 8);
   },
   updateBuffs: () => {
-    if (casting(Cast.Liberation)) applySelf(LAUGHTER_PREVAILS_LIB);
-    if (isType(Type1.Basic)) applySelf(LAUGHTER_PREVAILS_BASIC);
+    if (casting(Cast.Liberation)) applyCurrent(LAUGHTER_PREVAILS_LIB);
+    if (isType(Type1.Basic)) applyCurrent(LAUGHTER_PREVAILS_BASIC);
   },
 });
 export const LAUGHTER_PREVAILS_LIB = new Buff({
@@ -95,7 +96,7 @@ export const EMERALD_SENTENCE = new Weapon({
   updateBuffs: () => {
     if (casting(Cast.Intro)) applyTeam(HEART_SETTLES_TEAM);
     if ((casting(Cast.Intro) || casting(Cast.Basic)) && !stacksOf(BAMBOO_CLEAVER)) {
-      applySelf(BAMBOO_CLEAVER);
+      applyCurrent(BAMBOO_CLEAVER);
     }
   },
 });
@@ -108,7 +109,7 @@ export const BAMBOO_CLEAVER = new Buff({
   name: "Emerald Sentence: Bamboo Cleaver", maxStacks: 3,
   updateBuffs: () => {
     lostOnSwap();
-    if (casting(Cast.Echo)) applySelf(BAMBOO_CLEAVER);
+    if (casting(Cast.Echo)) applyCurrent(BAMBOO_CLEAVER);
   },
   applyStats: () => { if (frozenStacks() >= 2) addStat(Stat.DmgBonus, 30 * (frozenStacks() - 1), Type1.Heavy); },
 });
@@ -122,7 +123,7 @@ export const GLINT_OF_CLOUDS = new Weapon({
   weaponType: WeaponType.Sword,
   name: "Glint of Clouds",
   constantStats: () => { addStat(Stat.BaseAtk, 500); addStat(Stat.CritRate, 36); addStat(Stat.BonusAtk, 12); },
-  updateBuffs: () => { if (applied(TUNE_STRAIN_SHIFTING)) applySelf(EVILS_SCOURGE, 1); },
+  updateBuffs: () => { if (appliedByMe(TUNE_STRAIN_SHIFTING)) applyCurrent(EVILS_SCOURGE, 1); },
 });
 export const EVILS_SCOURGE = new Buff({
   name: "Glint of Clouds: Evil's Scourge", maxStacks: 5,
@@ -131,4 +132,32 @@ export const EVILS_SCOURGE = new Buff({
     if (frozenStacks() >= 5) addStat(Stat.DefIgnoreNew, 10, Attribute.Aero);
   },
   convertStats: () => { if (casting(Cast.Outro) && frozenStacks() < 5) revokeSelf(EVILS_SCOURGE); },
+});
+
+/** Frostburn, Hiyuki's sig, R1: Self No More. +12% ATK flat, and two payouts off the wielder's own
+ *  Glacio Chafe. The page states no duration on the first pair, so they stand once granted; the
+ *  Glacio Chafe DMG amplification is a 6s window, so lost after the outro. Both are ordinary self
+ *  buffs — "if the wielder is the active Resonator" needs no check of its own, because a Glacio
+ *  Chafe hit resolves on whoever is on field (kit.ts's own `evaluate()`), so the wielder's own
+ *  amplification reaches it exactly when they are the one holding the field. */
+export const FROSTBURN = new Weapon({
+  weaponType: WeaponType.Sword,
+  name: "Frostburn",
+  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.BonusAtk, 12); },
+  // `applied`, not `appliedByMe`: a weapon only ever runs on its wielder's own turn, and the one
+  // thing that inflicts Chafe off somebody else's cast (Lucilla's Film Roll) needs that cast to
+  // have inflicted it first — while re-sourcing the debuff to Lucilla, which `appliedByMe` would
+  // then read as nobody's
+  updateBuffs: () => {
+    if (applied(GLACIO_CHAFE)) applyCurrent(SELF_NO_MORE, 1);
+  },
+});
+export const SELF_NO_MORE = new Buff({
+  name: "Frostburn: Self No More",
+  applyStats: () => { 
+    addStat(Stat.Amp, 28, Attribute.Glacio); 
+    addStat(Stat.DefIgnoreNew, 10, Type1.Liberation); 
+    if (currentAction().active) addStat(Stat.Amp, 20, Type2.GlacioChafe);
+  },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(SELF_NO_MORE); },
 });

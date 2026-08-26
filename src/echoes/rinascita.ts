@@ -1,11 +1,11 @@
 /** Mainslot echoes and sonatas from Rinascita (versions 2.0-2.4). */
 import { isType,
   Buff, Sonata, Sonata2pc, Mainslot, Action, Stat, Attribute, Type1, Type2, Cast, Scaling,
-  addStat, frozenStacks, applySelf, applyTeam, casting, currentAction, revokeSelf, getStat, queue, queueOutro,
+  addStat, frozenStacks, applyCurrent, applyTeam, casting, currentAction, revokeSelf, getStat, queue, queueOutro,
   revokeTeam,
-} from "../kit.js";
-import { applied } from "../kit.js";
-import { AERO_EROSION } from "../statuses.js";
+} from "../engine/kit.js";
+import { applied, appliedByMe } from "../engine/kit.js";
+import { AERO_EROSION } from "../engine/status.js";
 
 /* ----------------------------------------------------------------------------- Carlotta, 2.0 */
 
@@ -40,8 +40,8 @@ export const FROSTY_RESOLVE_SKILL_DMG = new Buff({
 export const FROSTY_RESOLVE_5PC = new Sonata({
   name: "Frosty Resolve 5pc",
   updateBuffs: () => {
-    if (casting(Cast.Skill)) applySelf(FROSTY_RESOLVE_GLACIO, 1);
-    if (casting(Cast.Liberation)) applySelf(FROSTY_RESOLVE_SKILL_DMG, 1);
+    if (casting(Cast.Skill)) applyCurrent(FROSTY_RESOLVE_GLACIO, 1);
+    if (casting(Cast.Liberation)) applyCurrent(FROSTY_RESOLVE_SKILL_DMG, 1);
   },
 });
 
@@ -199,7 +199,7 @@ export const GUSTS_OF_WELKIN_SELF = new Buff({
 export const GUSTS_OF_WELKIN_5PC = new Sonata({
   name: "Gusts of Welkin 5pc",
   updateBuffs: () => {
-    if (applied(AERO_EROSION)) { applyTeam(GUSTS_OF_WELKIN_TEAM, 1); applySelf(GUSTS_OF_WELKIN_SELF, 1); }
+    if (appliedByMe(AERO_EROSION)) { applyTeam(GUSTS_OF_WELKIN_TEAM, 1); applyCurrent(GUSTS_OF_WELKIN_SELF, 1); }
   },
 });
 export const GUSTS_OF_WELKIN_2PC = new Sonata2pc({ name: "Gusts of Welkin 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Aero) });

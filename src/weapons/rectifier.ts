@@ -2,11 +2,11 @@
  *  standard/permanent-availability) lives here too since it isn't part of any named tier. */
 import { isType,
   Buff, Weapon, WeaponType, Stat, Attribute, Type1, Cast,
-  addStat, frozenStacks, stacksOf, applySelf, applyTeam, revokeSelf, revokeTeam, removeStack, casting, currentAction, lostOnSwap,
-} from "../kit.js";
-import { applied } from "../kit.js";
-import { GLACIO_CHAFE, FUSION_BURST, HEALS } from "../statuses.js";
-import { TUNE_STRAIN_SHIFTING } from "../tunebreak.js";
+  addStat, frozenStacks, stacksOf, applyCurrent, applyTeam, revokeSelf, revokeTeam, removeStack, casting, currentAction, lostOnSwap,
+} from "../engine/kit.js";
+import { applied, appliedByMe } from "../engine/kit.js";
+import { GLACIO_CHAFE, FUSION_BURST, HEALS } from "../engine/status.js";
+import { TUNE_STRAIN_SHIFTING } from "../engine/tunebreak.js";
 
 /** Rime-Draped Sprouts, Zhezhi's sig, R1. +12% ATK flat. On field, Resonance Skill grants +12%
  *  Basic Attack DMG Bonus a stack, up to 3, 6s. At 3+ frozenStacks, her Outro spends them all for
@@ -14,7 +14,7 @@ import { TUNE_STRAIN_SHIFTING } from "../tunebreak.js";
 export const RIME_DRAPED_SPROUTS = new Weapon({
   weaponType: WeaponType.Rectifier,
   name: "Rime-Draped Sprouts",
-  updateBuffs: () => { if (casting(Cast.Skill)) applySelf(PANORAMA_STACKS, 1); },
+  updateBuffs: () => { if (casting(Cast.Skill)) applyCurrent(PANORAMA_STACKS, 1); },
   constantStats: () => {
     addStat(Stat.BaseAtk, 500);
     addStat(Stat.CritDmg, 72);
@@ -27,7 +27,7 @@ export const PANORAMA_STACKS = new Buff({
   // on outro: 3+ stacks convert into the permanent off-field version, short of 3 they're just lost
   updateBuffs: () => {
     if (casting(Cast.Outro)) {
-      if (frozenStacks() >= 3) applySelf(PANORAMA_OFFIELD, 1);
+      if (frozenStacks() >= 3) applyCurrent(PANORAMA_OFFIELD, 1);
       revokeSelf(PANORAMA_STACKS);
     }
   },
@@ -45,7 +45,7 @@ export const PANORAMA_OFFIELD = new Buff({
 export const STRINGMASTER = new Weapon({
   weaponType: WeaponType.Rectifier,
   name: "Stringmaster",
-  updateBuffs: () => { if (isType(Type1.Skill)) applySelf(STRINGMASTER_STACKS, 1); },
+  updateBuffs: () => { if (isType(Type1.Skill)) applyCurrent(STRINGMASTER_STACKS, 1); },
   constantStats: () => {
     addStat(Stat.BaseAtk, 500);
     addStat(Stat.CritRate, 36);
@@ -68,7 +68,7 @@ export const WHISPERS_OF_SIRENS = new Weapon({
   weaponType: WeaponType.Rectifier,
   name: "Whispers of Sirens",
   updateBuffs: () => {
-    if ((casting(Cast.Intro) || casting(Cast.Basic)) && !stacksOf(GENTLE_DREAM)) applySelf(GENTLE_DREAM, 1);
+    if ((casting(Cast.Intro) || casting(Cast.Basic)) && !stacksOf(GENTLE_DREAM)) applyCurrent(GENTLE_DREAM, 1);
   },
   constantStats: () => {
     addStat(Stat.BaseAtk, 500);
@@ -80,7 +80,7 @@ export const GENTLE_DREAM = new Buff({
   name: "Whispers of Sirens: Gentle Dream", maxStacks: 3,
   updateBuffs: () => {
     lostOnSwap();
-    if (casting(Cast.Echo)) applySelf(GENTLE_DREAM, 1);
+    if (casting(Cast.Echo)) applyCurrent(GENTLE_DREAM, 1);
   },
   applyStats: () => {
     const held = frozenStacks();
@@ -96,7 +96,7 @@ export const GENTLE_DREAM = new Buff({
 export const LETHEAN_ELEGY = new Weapon({
   weaponType: WeaponType.Rectifier,
   name: "Lethean Elegy",
-  updateBuffs: () => { if (isType(Type1.Echo)) applySelf(UNDERWORLD_REQUIEM, 1); },
+  updateBuffs: () => { if (isType(Type1.Echo)) applyCurrent(UNDERWORLD_REQUIEM, 1); },
   constantStats: () => {
     addStat(Stat.BaseAtk, 587.5);
     addStat(Stat.CritRate, 24.3);
@@ -118,7 +118,7 @@ export const UNDERWORLD_REQUIEM = new Buff({
 export const FREEZE_FRAME = new Weapon({
   weaponType: WeaponType.Rectifier,
   name: "Freeze Frame",
-  updateBuffs: () => { if (applied(GLACIO_CHAFE)) { applySelf(FREEZE_FRAME_SELF, 1); applyTeam(FREEZE_FRAME_TEAM, 1); } },
+  updateBuffs: () => { if (appliedByMe(GLACIO_CHAFE)) { applyCurrent(FREEZE_FRAME_SELF, 1); applyTeam(FREEZE_FRAME_TEAM, 1); } },
   constantStats: () => {
     addStat(Stat.BaseAtk, 587.5);
     addStat(Stat.CritRate, 24.3);
@@ -141,7 +141,7 @@ export const SK_SIG = new Weapon({
   weaponType: WeaponType.Rectifier,
   name: "Stellar Symphony",
   updateBuffs: () => {
-    if (casting(Cast.Skill) || casting(Cast.Liberation)) applySelf(SK_SIG_CONCERTO, 1);
+    if (casting(Cast.Skill) || casting(Cast.Liberation)) applyCurrent(SK_SIG_CONCERTO, 1);
     if (casting(Cast.Skill) && applied(HEALS)) {
       applyTeam(SK_SIG_TEAM, 1);
     }
@@ -159,7 +159,7 @@ export const SK_SIG_CONCERTO = new Buff({
   name: "Stellar Symphony: Astral Evolvement", maxStacks: 2,
   applyStats: () => {
     if (frozenStacks() === 1 && (casting(Cast.Skill) || casting(Cast.Liberation))) {
-      applySelf(SK_SIG_CONCERTO, 1); addStat(Stat.AddConcerto, 8);
+      applyCurrent(SK_SIG_CONCERTO, 1); addStat(Stat.AddConcerto, 8);
     } else if (frozenStacks() === 2 && casting(Cast.Outro)) removeStack(SK_SIG_CONCERTO, 2);
   },
   display: () => `Stellar Symphony: Astral Evolvement${frozenStacks() === 1 ? "" : " (cooldown)"}`,
@@ -174,7 +174,7 @@ export const FORGED_DWARF_STAR = new Weapon({
   weaponType: WeaponType.Rectifier,
   name: "Forged Dwarf Star",
   constantStats: () => { addStat(Stat.BaseAtk, 500); addStat(Stat.CritRate, 36); addStat(Stat.BonusAtk, 12); },
-  updateBuffs: () => { if (applied(FUSION_BURST) || applied(TUNE_STRAIN_SHIFTING)) applySelf(DISSOLUTION_LIB, 1); },
+  updateBuffs: () => { if (appliedByMe(FUSION_BURST) || appliedByMe(TUNE_STRAIN_SHIFTING)) applyCurrent(DISSOLUTION_LIB, 1); },
 });
 export const DISSOLUTION_LIB = new Buff({
   name: "Forged Dwarf Star: Dissolution",

@@ -1,0 +1,796 @@
+/* =============================================================================
+   Team rotation viewer — dark theme.
+   Committed to dark on purpose: this is a tool you stare at for a long time next
+   to the game, so there is no light palette to swap to.
+
+   Column widths come from display.js's `width` (a character count, since the same
+   report also prints to a terminal), scaled by --cw. Change --cw to loosen or
+   tighten the whole table at once.
+   ============================================================================= */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+:root {
+  color-scheme: dark;
+
+  /* surfaces, lightest on top of darkest */
+  --bg:        #090b0f;
+  --surface:   #12161d;
+  --surface-2: #171c25;
+  --surface-3: #1e2530;
+  --line:      #222a36;
+  --line-2:    #2c3543;
+
+  /* text */
+  --ink:   #e7ebf3;
+  --ink-2: #b3bccb;
+  --dim:   #7c8798;
+  --faint: #57616f;
+
+  /* accents */
+  --accent: #5b9cff;
+  --violet: #a98bff;
+  --amber:  #f0b444;
+  --mint:   #45d6a4;
+
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+
+  /* square corners everywhere on purpose — the two knobs every rounded-corner rule in this
+     file reads from, kept rather than deleted so a future change is one edit, not a hunt. */
+  --r:   0px;
+  --r-s: 0px;
+  --sh-1: 0 1px 2px rgba(0, 0, 0, .5);
+  --sh-2: 0 18px 40px -22px rgba(0, 0, 0, .9), 0 0 0 1px var(--line);
+
+  /* A column's width is its character count from display.js scaled by --cw, plus --cpad for
+     the cell's own horizontal padding — the terminal spelling of the report has no padding to
+     pay for, so the character count alone clips here.
+     One figure for every column, because the table is set in one font (see `.c` below). There
+     used to be a second (`--cwt`, 6.7px) for the columns that were set in the proportional UI
+     font — two metrics meant two column widths for one table, and the tracks no longer lined
+     up with the character counts they were sized from. */
+  --cw: 7.7px;
+  --cpad: 4px;
+  /* Extra breathing room on the leading column only, so the action name is not flush against
+     the table edge. index.js adds it to that column's track width too — the two must agree. */
+  --lead: 10px;
+}
+
+html { background: var(--bg); }
+
+/*
+ * The page itself never scrolls: it is exactly the viewport tall, the summary header keeps its
+ * place at the top, and everything below scrolls inside <main>. That is what lets the column
+ * headers stay put — `position: sticky` resolves against the nearest scrolling ancestor, so the
+ * table can only pin its header row if the scrolling happens somewhere the header lives inside.
+ * The old layout scrolled the table in its own box, which put the header out of reach.
+ */
+body {
+  margin: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--ink);
+  font: 13px/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  background: var(--bg);
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+/* -------------------------------------------------------------------- topbar */
+
+.topbar {
+  flex: none;                       /* stays put; <main> below it is what scrolls */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+  padding: 14px 26px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+.backlink {
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.backlink:hover { color: var(--ink); }
+.backlink[hidden] { display: none; }
+
+/* ------------------------------------------------------------------- loading */
+
+/* An overlay over #app rather than a page in its own right (see index.html): the empty table —
+   filters, header, whatever rows are already cached — is drawn underneath first and stays
+   readable through the blur, so the page has visible structure the whole way through a run
+   instead of a bare centered bar on nothing. The wash over the blur keeps the status line and
+   bar legible against a table that is mostly light-on-dark text. */
+#loading {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 16px;
+  color: var(--dim);
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  backdrop-filter: blur(3px);
+}
+#loading[hidden] { display: none; }
+/* the <p> tags carry the browser's own default margin, which would stack on top of the grid's
+   gap above and give the bar/count an oversized, uneven-looking space above them */
+#loading p { margin: 0; }
+
+/* status text and the X/total count share one line above the bar — the count used to be its own
+   <p> below the track, but an empty-to-filled paragraph there changed the centered block's total
+   height once boot() started writing to it, nudging the bar up a few pixels mid-run. Both spans
+   live in the status line's own line box instead, so the count filling in never changes anything
+   the bar's position depends on. */
+.loading-status {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+/* the progress bar sits under the "running every team's rotation…" line — a fixed-width track
+   so the fill's own width is the only thing that moves as teams finish. Sized and bordered to
+   read as an actual graphic at a glance rather than a thin, easy-to-miss line — the whole run
+   can finish in well under a second, so it has to be unmistakable even in a brief glimpse. */
+.progress-count {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: .3px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.progress-track {
+  width: 320px;
+  height: 14px;
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .35);
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 85%, white), var(--accent));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent);
+  transition: width .15s ease-out;
+}
+
+/* small uppercase section label — above the action log and each of the two rotation tables below
+   it, so it carries its own top margin the way .gridwrap and .eventlog do rather than relying on
+   .top's padding */
+.summary-label {
+  margin: 22px 0 8px;
+  font-size: 10px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .7px;
+  color: var(--dim);
+}
+
+/* -------------------------------------------------------------- rotation tables */
+
+/* Damage per rotation / Energy Requirements, side by side below the action log */
+.rtables {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+.rtable-block { flex: 1; min-width: 0; }
+
+.rtable {
+  border-radius: var(--r);
+  background: var(--surface);
+  box-shadow: var(--sh-2);
+  overflow: hidden;
+}
+.rtable.dpr .rtrow { grid-template-columns: minmax(120px, 1.4fr) repeat(6, minmax(90px, 1fr)); }
+/* The comparison table's own Total DPR hover (index.js's own `dprTable()`, no `lines` passed)
+   drops the Avg column — it's already hovering an average, so the column would just repeat the
+   row's own number back — one fewer track to match. */
+.rtable.dpr.noavg .rtrow { grid-template-columns: minmax(120px, 1.4fr) repeat(5, minmax(90px, 1fr)); }
+.rtable.energy .rtrow { grid-template-columns: repeat(5, minmax(90px, 1fr)); }
+
+.rtrow { display: grid; align-items: stretch; }
+.rtrow + .rtrow { border-top: 1px solid var(--line); }
+.rtrow.rthead { background: var(--surface-3); }
+.rtrow.rthead .c {
+  padding: 9px 10px;
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--dim);
+}
+.rtrow .c {
+  padding: 6px 10px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  line-height: 17px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  position: relative;
+}
+.rtrow .c.num { text-align: right; color: var(--ink); }
+/* the resonator's own name column, in both tables — the same left bar and wash the action table's
+   member column wears (`.c.member`), at the stronger 18% these tables want: they have no hover
+   state to deepen into, so the resting weight is the only weight there is. */
+.rtrow .c.name {
+  background: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface));
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--mem, transparent) 70%, transparent);
+}
+.rtrow.total .c { color: var(--ink); font-weight: 700; }
+
+/* Energy Requirements: the member's own real ER stat dipped below this cell's own shown
+   requirement at some point since their last reset — same red-underline treatment as the action
+   table's own `.negative`/`.underspent`. */
+.rtrow .c.er-under { color: #e5484d; text-decoration: underline dotted #e5484d; text-underline-offset: 3px; }
+
+/* ---------------------------------------------------------------------- main */
+
+/* the one scrolling box on the page, both axes */
+main {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  /* No padding at the top: a sticky header pins to the scrollport edge, so any padding there
+     leaves a band the rows scroll through above it. The gap moves to the table's own margin,
+     which scrolls away like content should. */
+  padding: 0 26px 96px;
+}
+
+/* ---------------------------------------------------------------- comparison table */
+
+/* two rows, one per role: MDPS on top, supports under it (see index.js's own
+   comparisonFilters()), so the same four axes line up column-wise between them */
+.tcfilters {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: 22px;
+  font-size: 12px;
+  color: var(--dim);
+}
+.tcfilter-row { display: flex; flex-wrap: wrap; gap: 18px; }
+/* label first, box after it — the markup order is the visual order, `.tcfilters` being a flex row */
+.tcfilters label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.tcfilters input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* The row-cap warning (index.js's own `rowCapWarning()`), shown in place — no re-render — when a
+   checkbox is refused for pushing the table past `ROW_CAP`. Same signal red as a chip's own "✕"
+   (see `.rchip.exc .box` below): this is a refusal, not a theme colour. */
+.tcwarning {
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, #ff5f56 45%, var(--line-2));
+  background: color-mix(in srgb, #ff5f56 12%, var(--surface-3));
+  color: var(--ink);
+  font-size: 12px;
+}
+.tcwarning[hidden] { display: none; }
+
+/* One chip per resonator filter, under the two rows of boxes (index.js's own resonatorChips()).
+   Rounded and shadowed, unlike everything else in this file — they float over the page rather
+   than sitting in its grid, and the pill shape is what says "this is a token you can dismiss",
+   so they opt out of the square-corner rule at the top on purpose. */
+.tcchips { display: flex; flex-wrap: wrap; gap: 8px; }
+.rchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 11px;
+  /* the whole pill carries that resonator's hue, the same wash-plus-edge their name cell in the
+     table wears (`--mem`, set per chip — see `.trow .c.name`), so a chip is recognisable by colour
+     across the page before it's read */
+  border: 1px solid color-mix(in srgb, var(--mem, transparent) 55%, var(--line-2));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mem, transparent) 14%, var(--surface-3));
+  box-shadow: var(--sh-2);
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.rchip:hover {
+  border-color: color-mix(in srgb, var(--mem, transparent) 80%, var(--faint));
+  background: color-mix(in srgb, var(--mem, transparent) 24%, var(--surface-3));
+}
+/* the tick/cross to the right of the name — the one part that is *not* the resonator's colour:
+   green means "only teams fielding them", red means "no team fielding them", and that reading has
+   to be the same whoever the chip is for. The pill around it says who.
+
+   Plain green and red rather than the palette's own --mint/accent: these two are a signal, not a
+   theme colour, and --mint (#45d6a4) reads as teal next to a red. */
+.rchip .box { font-size: 12px; font-weight: 700; line-height: 1; }
+.rchip.inc .box { color: #4ade5f; }
+.rchip.exc .box { color: #ff5f56; }
+
+/* a plain `hidden` attribute loses to `.trow`'s own `display: contents` on specificity otherwise
+   (an attribute selector and a class selector tie, and author order decides the winner) */
+.trow[hidden] { display: none; }
+
+/* only as wide as the columns actually need, and left-aligned by being narrower than the page
+   rather than by any alignment rule. A build-naming member cell (see index.js's memberLabel())
+   can outgrow the viewport, and that's fine — <main> is the page's own scrollport on both axes. */
+.tcwrap {
+  margin-top: 14px;
+  width: max-content;
+  border-radius: var(--r);
+  background: var(--surface);
+  box-shadow: var(--sh-2);
+  overflow: hidden;
+}
+/* One grid for the whole table, not one per row: `max-content` columns can only line up across
+   rows if every row's cells are tracks of the same grid, which is what `display: contents` on
+   `.trow` buys — the row element keeps its class hooks (hover, [hidden], --ratio, the dataset
+   the filter reads) but stops generating a box of its own. Anything that used to paint on that
+   box — the separator, the header's sticky background, the hover wash — moves onto its cells. */
+.tgrid {
+  display: grid;
+  /* three member names plus Team DPR and the baseline %, the no-options-open default — a member's
+     own DPR and Misc's both live in a hover now (see index.ts's own `memberCell`/
+     `sectionBreakdownPopover`). Overridden by an inline style whenever a Show ... Options box is
+     open (see index.ts's own `comparisonTable()`): the weapon/echo/mainstat columns those add are
+     conditional on the current filters, not something a static rule here can know. */
+  grid-template-columns: repeat(3, max-content) repeat(2, max-content);
+  align-items: stretch;
+}
+.trow { display: contents; }
+.trow + .trow .c { border-top: 1px solid var(--line); }
+.trow.thead .c {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--surface-3);
+  padding: 9px 10px;
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--dim);
+}
+.trow:not(.thead):hover .c { background: var(--surface-2); }
+/* one font, one size, one weight — same reasoning as the rotation table's own `.c` below */
+.trow .c {
+  padding: 6px 10px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  line-height: 17px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  position: relative;
+}
+.trow .c.num { text-align: right; color: var(--ink); }
+/* a member's own name — full-strength text colour, a left bar and a background wash, same trick
+   as the detail table's own member column (`--mem`, see index.js's `gearPopover`/`comparisonTable`) */
+.trow .c.name {
+  background: color-mix(in srgb, var(--mem, transparent) 10%, var(--surface));
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--mem, transparent) 70%, transparent);
+}
+.trow:not(.thead):hover .c.name { background: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface)); }
+.trow .c.total { color: var(--ink); font-weight: 700; }
+
+/* a resonator's own name, clickable: left click filters the table down to teams fielding that
+   name, right click drops every team that fields it — everywhere it appears, not just the row
+   clicked (see index.js's own resonatorFilters). Nothing is drawn in the cell either way; the
+   chips above the table are what show a set filter, and clicking one clears it. */
+.trow .c.name.res { cursor: pointer; display: flex; align-items: center; gap: 7px; }
+.trow .c.name.res .res-label { overflow: hidden; text-overflow: ellipsis; }
+
+/* a weapon/echo/mainstat pick's own column: the same member colour wash as their name cell,
+   `--mem` set alongside it in index.js's own optionCell(), so a pick reads as "this row's member"
+   at a glance the same way the name column does. Clickable exactly like a resonator's own name —
+   left click requires that pick, right click bars it (index.js's own weaponFilters/echoFilters/
+   mainstatFilters) — only when it actually holds one: an empty cell (this member's own role has
+   the axis closed) still carries the wash so the row reads as one colour block, it's just inert. */
+.trow .c.option {
+  background: color-mix(in srgb, var(--mem, transparent) 10%, var(--surface));
+}
+.trow .c.option:not(:empty) { cursor: pointer; }
+.trow:not(.thead):hover .c.option { background: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface)); }
+
+/* The `% of Baseline` column: one continuous hue ramp, written per row as `--hue` by
+   `rankVisible()` — red at the strongest team, green at the baseline, purple at the weakest.
+   The hue is computed there rather than here because it is piecewise (two slopes meeting at the
+   baseline), which `calc()` can express only as two rules that then have to agree at the seam. */
+.trow .c.baseline {
+  background: color-mix(in srgb, hsl(var(--hue, 120) 65% 50%) 12%, var(--surface));
+  cursor: pointer;
+}
+.trow:not(.thead):hover .c.baseline {
+  background: color-mix(in srgb, hsl(var(--hue, 120) 65% 50%) 20%, var(--surface));
+}
+/* the pinned row: an outline only, since its colour is already the ramp's green */
+.trow.isbaseline .c.baseline {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, hsl(var(--hue, 120) 65% 50%) 55%, transparent);
+}
+
+/* the only clickable cell in the row: a small arrow marker after the number, both of it — and
+   the number itself — navigating to that team's own full rotation/event-log page */
+.gotodetail { cursor: pointer; }
+.gotodetail:hover { color: var(--ink); }
+.gotodetail .arrow {
+  display: inline-block;
+  margin-left: 4px;
+  color: var(--faint);
+  transition: color .12s, transform .12s;
+}
+.gotodetail:hover .arrow { color: var(--accent); transform: translateX(2px); }
+
+/* the gear popover's own two-column shell reuses .pop/table/.k/.v wholesale (see below) — no
+   extra rules needed beyond a touch more breathing room since its rows run longer than a stat
+   trace's ever do */
+.pop.gear td.v { padding-left: 14px; }
+.pop .pct { color: var(--dim); font-weight: 400; }
+/* the breakdown popover's own Type/Type 2/Node headings read in normal case — only the
+   pre-existing source-trace panels' BASE/BONUS/FLAT headings shout in the inherited
+   `.pop .sec` uppercase */
+.pop.breakdown .sec td { text-transform: none; letter-spacing: normal; }
+/* Its figures are left-aligned rather than flush right (the `.pop td.v` default every stat-trace
+   panel keeps): each is a figure and its share of the whole ("41,203 (37%)"), so the two read as
+   one column all the way down instead of being pushed apart by their own lengths.
+   `tabular-nums` still lines the digits themselves up, so the numbers stay comparable row to row. */
+.pop.breakdown td.v { text-align: left; }
+
+/* The final-damage panel is a product, not a column of amounts: every row below the leading stat
+   is a multiplier, so its figures read left-aligned — flush right pushed the `x` signs apart and
+   left the factors in a ragged column no one could compare down. `tabular-nums` (inherited from
+   `.pop td.v`) still lines the digits themselves up. */
+.pop.damage td.v { text-align: left; }
+
+/* The action hover is a list of what the cast *is* — Skill, Fusion, Basic — not of figures, so its
+   values read left-aligned against their labels rather than flush right on lengths that mean
+   nothing next to each other. */
+.pop.info td.v { text-align: left; }
+
+/* The comparison table's own Total DPR hover is the detail page's damage-per-rotation table
+   whole, not a panel of rows — so the panel is only the frame around it: no padding of its own,
+   and the radius moved up here onto the box that already carries the border and shadow, with the
+   table inside it flattened and clipped rather than drawing a second card on top of the first. */
+.pop.dpr { padding: 0; border-radius: var(--r); overflow: hidden; }
+.pop.dpr .rtable { border-radius: 0; box-shadow: none; }
+
+/* ---------------------------------------------------------------------- table */
+
+/* No longer a scroll box of its own — <main> scrolls, so the header row can pin to it. */
+.gridwrap {
+  margin-top: 22px;
+  background: var(--surface);
+  box-shadow: var(--sh-2);
+  width: max-content;
+  min-width: 100%;
+}
+main::-webkit-scrollbar { width: 10px; height: 10px; }
+main::-webkit-scrollbar-track { background: transparent; }
+main::-webkit-scrollbar-thumb {
+  background: var(--line-2);
+  border: 3px solid var(--bg);
+}
+main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
+
+.grid { min-width: max-content; }
+
+.r {
+  display: grid;
+  grid-template-columns: var(--cols);
+  align-items: stretch;
+  background: var(--surface);
+}
+
+/* One font, one size, one weight for every cell in the table — the action and member columns
+   used to be set in the proportional --sans while the stat columns were set in --mono, and no
+   amount of matching `font-weight` hid that: --sans renders visibly heavier and wider at the
+   same nominal weight. Nothing below re-declares font-family, font-size, or font-weight; a
+   column differentiates itself with colour and alignment only. */
+.c {
+  padding: 7px 2px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  /* Explicit and whole, not the inherited `line-height: 1.5` ratio, so a row's height is a whole
+     number of pixels and rows can't leave hairline gaps between themselves. */
+  line-height: 19px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  position: relative;
+}
+/* alignment and colour only — the type itself is `.c`'s, same as every other column */
+.num { text-align: right; color: var(--ink); }
+
+/* the lead-in and the matching run-out, paired with the extra track width colWidth() gives the
+   first and last columns — without it the leading action name sits flush against the table's own
+   left edge, and the trailing figure against its right */
+.r > .c:first-child { padding-left: calc(2px + var(--lead)); }
+.r > .c:last-child { padding-right: calc(2px + var(--lead)); }
+
+/* head — pinned to the top of <main> so the column names survive scrolling */
+.head {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--surface-3);
+}
+/* the one place in the table that does re-declare weight — a column heading has to read as a
+   heading. Same family and size as the cells under it, still. */
+.head .c {
+  padding: 9px 2px;
+  /* smaller than the cells below on purpose: uppercase + letter-spacing at the body size would
+     outrun the narrow columns, whose tracks are sized off their values, not their headings */
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--dim);
+  background: var(--surface-3);
+}
+/* body rows. Always positioned, so the hidden expand checkbox has something to anchor to;
+   raised on hover so a source panel opening downward is not painted under the next row. */
+.step { position: relative; border-top: 1px solid var(--line); }
+.step:first-of-type { border-top: 0; }
+
+/* Every row carries a faint wash of its own *action's* colour (white/green for generic gear,
+   otherwise whoever's kit it belongs to) — deliberately faint, since the strong "whose turn is
+   this" signal lives entirely in the member column instead (see below), not competing with it. */
+.step > .r        { background: color-mix(in srgb, var(--m, transparent) 4%, var(--surface)); }
+.step:hover > .r  { background: color-mix(in srgb, var(--m, transparent) 8%, var(--surface)); }
+
+/* the action name reads in plain full-strength white — "whose turn" is entirely the member
+   column's own signal (see below), so the action name doesn't also compete for it. A little
+   breathing room before the name: it isn't column 0 any more, so it no longer picks up the
+   lead-in `.r > .c:first-child` gives the member column beside it. Colour only — the type is
+   `.c`'s, identical to every stat column. */
+.c.action { padding-left: 8px; }
+.c.action, .c.name { color: var(--ink); }
+.c.avg { color: var(--ink); font-weight: 700; }
+
+/* mv/energy/concerto/offtune: a dotted underline when a stat buff actually moved this cell's own
+   value, not just its usual carried/declared trace (see display.ts's own ReportRow.buffed) —
+   white, so it reads as "a buff is in play" without implying anything's wrong the way the
+   concerto-underspend colour below does. */
+.c.buffed { text-decoration: underline dotted #fff; text-underline-offset: 3px; }
+
+/* concerto only: an outro that fired without a full 100-point bar banked — a real "we didn't
+   have enough" case, so it reads as an error rather than the neutral `.buffed` note above. */
+.c.underspent { color: #e5484d; text-decoration: underline dotted #e5484d; text-underline-offset: 3px; }
+
+/* forte gauges only: the gauge itself has gone negative — same red treatment as underspent
+   concerto, since it's the same "ran out" story. */
+.c.negative { color: #e5484d; text-decoration: underline dotted #e5484d; text-underline-offset: 3px; }
+
+/* The member column: its own colour system, sourced from `--mem` (the member's own colour, set
+   inline per cell) rather than `--m` (the row's action colour) — a left bar and a background
+   wash of its own, all independent of whatever the rest of the row is tinted by. Again: colour
+   only. */
+.c.member {
+  background: color-mix(in srgb, var(--mem, transparent) 10%, var(--surface));
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--mem, transparent) 70%, transparent);
+}
+.step:hover .c.member { background: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface)); }
+
+/* total row */
+.totalrow {
+  background: var(--surface-3);
+  border-top: 1px solid var(--line-2);
+}
+.totalrow .c { color: var(--ink); }
+.totalrow .c:first-child { border-bottom-left-radius: var(--r); }
+.totalrow .c:last-child  { border-bottom-right-radius: var(--r); }
+
+/* ------------------------------------------- chains: click a row for its parts */
+
+.chain > .r { cursor: pointer; }
+/* sits after the action name, so the names themselves stay left-aligned down the column */
+.caret {
+  display: inline-block;
+  width: 11px;
+  margin-left: 3px;
+  color: var(--dim);
+  transition: transform .14s ease;
+}
+.tgl { position: absolute; opacity: 0; pointer-events: none; }
+.tgl:checked ~ .r .caret { transform: rotate(90deg); color: var(--accent); }
+.tgl:focus-visible ~ .r { outline: 1px solid var(--accent); outline-offset: -1px; }
+
+.parts { display: none; }
+.tgl:checked ~ .parts { display: block; }
+
+.parts .r {
+  background: color-mix(in srgb, var(--m, transparent) 3%, var(--surface-2));
+  color: var(--dim);
+}
+.parts .r:hover { background: color-mix(in srgb, var(--m, transparent) 6%, var(--surface-2)); }
+.parts .c { padding-top: 4px; padding-bottom: 4px; }
+.parts .name { padding-left: calc(var(--lead) + 18px); }
+
+/* A triggered follow-up, a zero-damage hit, or an outro isn't a rotation beat of its own —
+   thinner and dimmer, so scanning the table isn't slowed reading past them. Opacity rather than
+   a specific colour: it fades every column's own colour by the same amount, avg's mint and the
+   member column's own included, instead of having to restate each one per column. */
+.r.short .c { padding-top: 2px; padding-bottom: 2px; opacity: .5; }
+.parts .r.short .c { padding-top: 1px; padding-bottom: 1px; }
+
+/* ------------------------------------------------------- hover source panels */
+
+.has {
+  cursor: help;
+}
+/*
+ * The panel is laid out against the viewport, not its cell, and index.js puts it in place.
+ *
+ * It cannot be `absolute`: a cell clips its own overflow — that is what gives a long action
+ * name its ellipsis — and the table scrolls inside its own box, so between the two there is no
+ * way for a box anchored to a cell to escape. Both clip on the axis the panel has to grow
+ * along. `fixed` is resolved against the viewport instead and ignores both, at the cost of
+ * needing real coordinates, which is the whole of what the script does.
+ */
+.pop {
+  display: none;
+  position: fixed;
+  /* Above the pinned column header. Nothing between the panel and the page root sets a
+     z-index, so this competes at the top level rather than inside a row's own context. */
+  z-index: 200;
+  padding: 9px 11px;
+  border: 1px solid var(--line-2);
+  /* opaque, not translucent: the table underneath it is dense and shows straight through */
+  background: var(--surface-3);
+  box-shadow: 0 20px 44px -12px rgba(0, 0, 0, .95), 0 0 0 1px rgba(0, 0, 0, .35);
+  white-space: nowrap;
+  text-align: left;
+  /* the exact same font/size/weight the table's own stat columns use (see `.num`/`.c` below) —
+     no separate scale for a popover just because it floats above the table instead of sitting
+     in it. */
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ink-2);
+}
+
+/* No `width: 100%` — that stretched every panel out to `.pop`'s own box (which used to carry a
+   flat `min-width: 250px`, gone now too) rather than letting the table size itself, so a
+   two-column panel's columns weren't each sized to their own longest cell, just proportioned
+   across whatever width the box happened to be. Default `table-layout: auto` with no forced
+   width sizes every column to the widest cell it actually holds, and the panel's own box (no
+   min-width of its own any more) then hugs that. */
+.pop table { border-collapse: collapse; }
+.pop td { padding: 1.5px 0; }
+/* the buff's own name reads full-strength, with a tiny left bar in whoever granted it colour
+   (see `.c.member` above — same trick, --own instead of --mem); the stat it fed sits in the
+   dimmer tone the name itself used to carry */
+.pop td.s {
+  color: var(--ink);
+  padding-left: 6px;
+  padding-right: 14px;
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--own, transparent) 70%, transparent);
+}
+/* label and value differ by colour and alignment only — the type is `.pop`'s, for all three */
+.pop td.k { color: var(--dim); padding-right: 14px; }
+.pop td.v {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.pop tr:first-child.sec td { padding-top: 0; }
+.pop .sum td { padding-top: 5px; border-top: 1px solid var(--line-2); font-weight: 700; }
+.pop .sum td.v { color: var(--ink); }
+
+/* a group heading — base / bonus / flat, a scope ("Basic Dmg Bonus"), or the column's own name on
+   a panel with no groups of its own. A group carries no subtotal of its own, so the heading is the
+   only thing separating one from the next. The first heading in a panel drops its top padding:
+   `.pop`'s own box already sets the gap above it. */
+.pop .sec td {
+  padding: 7px 0 2px;
+  font-size: 10px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .7px;
+  color: var(--dim);
+}
+.pop tr:first-child.sec td { padding-top: 0; }
+/* A loadout row. Its value column is a list of gear names, not numbers — left-aligned so they
+   read down as one column of text rather than being pushed apart by their own lengths. The Avg
+   DPR panel left-aligns its own figures too (see `.pop.breakdown td.v` above), so the two
+   sections share one edge; this rule is what carries the alignment in the detail page's own
+   loadout-only panel, which is not a `.breakdown`. The menu-stats section under it (`.stat`)
+   keeps the same left edge even though its own column is numbers, not names — one popover,
+   one edge for its whole value column. */
+.pop .gear td.v, .pop .stat td.v { text-align: left; }
+/* Closing rule between the loadout section and the menu-stats reading of it that follows —
+   drawn by the first `.stat` row rather than by the last gear row itself, since there's no
+   marker class to put on the last row of a group whose length varies. Nothing to draw when a
+   build's constant stats are all zero and the section is empty. Dotted, so it reads as a divider
+   between two readings of one cell rather than as a total's own rule. */
+.pop .gear + tr:not(.gear) td { padding-top: 6px; border-top: 1px dotted var(--line-2); }
+
+/* The hover on an action's own name: what it scales off, its element, its damage type, every
+ * declared amount it carries — a label/value row apiece, its two columns auto-sized to their own
+ * longest cell exactly like every other panel's (see `.pop table` above). Carries no rules of its
+ * own at all: it is the same box, the same dim `.k` label, and the same white mono `.v` value as
+ * every stat panel above, just with no total row. */
+
+/* -------------------------------------------------------------- event log */
+
+.eventlog {
+  margin-top: 26px;
+  border-radius: var(--r);
+  background: var(--surface);
+  box-shadow: var(--sh-2);
+  overflow: hidden;
+}
+.eventlog h2 {
+  margin: 0;
+  padding: 11px 15px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-3);
+  font-size: 10px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .7px;
+  color: var(--dim);
+}
+.eventlog ol {
+  margin: 0;
+  padding: 10px 16px 12px 38px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.85;
+  color: var(--ink-2);
+}
+.eventlog li::marker { color: var(--faint); font-size: 10px; }
+
+/* ------------------------------------------------------------------- error */
+
+.error {
+  margin: 26px;
+  padding: 16px 18px;
+  border: 1px solid #6b2a2a;
+  border-left: 3px solid #ff6b6b;
+  border-radius: var(--r-s);
+  background: rgba(255, 107, 107, .06);
+}
+.error h2 { margin: 0 0 6px; font-size: 14px; color: #ff8f8f; }
+.error p { margin: 0 0 12px; color: var(--ink-2); }
+.error pre {
+  margin: 0;
+  padding: 12px;
+  border-radius: var(--r-s);
+  background: rgba(0, 0, 0, .4);
+  color: var(--dim);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+.error code {
+  padding: 1px 5px;
+  background: rgba(0, 0, 0, .45);
+  font-family: var(--mono);
+  color: var(--amber);
+}

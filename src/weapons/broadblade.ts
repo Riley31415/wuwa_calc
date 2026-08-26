@@ -2,10 +2,10 @@
  *  resonator, not just its own. */
 import { isType,
   Buff, Weapon, WeaponType, Stat, Attribute, Type1, Cast,
-  addStat, frozenStacks, casting, currentAction, revokeSelf, applySelf, applyTeam, removeStack, lostOnSwap, isHeld,
-} from "../kit.js";
-import { applied } from "../kit.js";
-import { SHIELD, HEALS } from "../statuses.js";
+  addStat, frozenStacks, casting, currentAction, revokeSelf, applyCurrent, applyTeam, removeStack, lostOnSwap, isHeld,
+} from "../engine/kit.js";
+import { applied } from "../engine/kit.js";
+import { SHIELD, HEALS, inflictedNegativeStatus } from "../engine/status.js";
 
 /** Jiyan's sig, R1: Swordsworn. +12% Attribute DMG Bonus flat. Every Intro/Liberation cast
  *  grants +24% Heavy Attack DMG Bonus, up to 2 frozenStacks, 14s. */
@@ -17,7 +17,7 @@ export const VERDANT_SUMMIT = new Weapon({
     addStat(Stat.CritDmg, 48.6);
     addStat(Stat.DmgBonus, 12);
   },
-  updateBuffs: () => { if (casting(Cast.Intro) || casting(Cast.Liberation)) applySelf(SWORDSWORN_STACKS); },
+  updateBuffs: () => { if (casting(Cast.Intro) || casting(Cast.Liberation)) applyCurrent(SWORDSWORN_STACKS); },
 });
 export const SWORDSWORN_STACKS = new Buff({
   name: "Verdant Summit: Swordsworn", maxStacks: 2,
@@ -39,8 +39,8 @@ export const AGES_OF_HARVEST = new Weapon({
     addStat(Stat.DmgBonus, 12);
   },
   updateBuffs: () => {
-    if (casting(Cast.Intro)) applySelf(AGELESS_MARKING);
-    if (casting(Cast.Skill)) applySelf(ETHEREAL_ENDOWMENT);
+    if (casting(Cast.Intro)) applyCurrent(AGELESS_MARKING);
+    if (casting(Cast.Skill)) applyCurrent(ETHEREAL_ENDOWMENT);
   },
 });
 export const AGELESS_MARKING = new Buff({
@@ -65,8 +65,8 @@ export const THUNDERFLARE_DOMINION = new Weapon({
     addStat(Stat.BonusAtk, 12);
   },
   updateBuffs: () => {
-    if (casting(Cast.Intro) || casting(Cast.Skill)) applySelf(THUNDERBLAZE_DMG);
-    if (applied(SHIELD)) applySelf(THUNDERBLAZE_DEF, applied(SHIELD));
+    if (casting(Cast.Intro) || casting(Cast.Skill)) applyCurrent(THUNDERBLAZE_DMG);
+    if (applied(SHIELD)) applyCurrent(THUNDERBLAZE_DEF, applied(SHIELD));
   },
 });
 export const THUNDERBLAZE_DMG = new Buff({
@@ -105,7 +105,7 @@ export const WILDFIRE_MARK = new Weapon({
     addStat(Stat.BonusAtk, 12);
   },
   updateBuffs: () => {
-    if (casting(Cast.Intro) || casting(Cast.Liberation)) { applySelf(WILDFIRE_LIB_DMG, 1); }
+    if (casting(Cast.Intro) || casting(Cast.Liberation)) { applyCurrent(WILDFIRE_LIB_DMG, 1); }
   },
 });
 
@@ -122,8 +122,8 @@ export const JINGRAN_SIG = new Weapon({
     addStat(Stat.DmgBonus, 12);
   },
   updateBuffs: () => {
-    if (casting(Cast.Intro)) { applySelf(NATURES_ORDER); applySelf(CRADLE_OF_LIFE); }
-    else if (applied(SHIELD)) { applySelf(NATURES_ORDER, applied(SHIELD)); applySelf(CRADLE_OF_LIFE, applied(SHIELD)); }
+    if (casting(Cast.Intro)) { applyCurrent(NATURES_ORDER); applyCurrent(CRADLE_OF_LIFE); }
+    else if (applied(SHIELD)) { applyCurrent(NATURES_ORDER, applied(SHIELD)); applyCurrent(CRADLE_OF_LIFE, applied(SHIELD)); }
   },
 });
 export const NATURES_ORDER = new Buff({
@@ -159,7 +159,7 @@ export const STARFIELD_CALIBRATOR = new Weapon({
   name: "Starfield Calibrator",
   constantStats: () => { addStat(Stat.BaseAtk, 412.5); addStat(Stat.Er, 77.04); addStat(Stat.BonusDef, 16); },
   updateBuffs: () => {
-    if (casting(Cast.Skill)) applySelf(DEFINITE_SOLUTION_CONCERTO, 1);
+    if (casting(Cast.Skill)) applyCurrent(DEFINITE_SOLUTION_CONCERTO, 1);
     if (applied(HEALS)) applyTeam(DEFINITE_SOLUTION, 1);
   },
 });
@@ -170,8 +170,41 @@ export const DEFINITE_SOLUTION = new Buff({
 export const DEFINITE_SOLUTION_CONCERTO = new Buff({
   name: "Starfield Calibrator: Definite Solution", maxStacks: 2,
   applyStats: () => {
-    if (frozenStacks() === 1 && casting(Cast.Skill)) { applySelf(DEFINITE_SOLUTION_CONCERTO, 1); addStat(Stat.AddConcerto, 8); }
+    if (frozenStacks() === 1 && casting(Cast.Skill)) { applyCurrent(DEFINITE_SOLUTION_CONCERTO, 1); addStat(Stat.AddConcerto, 8); }
     else if (frozenStacks() === 2 && casting(Cast.Outro)) removeStack(DEFINITE_SOLUTION_CONCERTO, 2);
   },
   display: () => `Starfield Calibrator: Definite Solution${frozenStacks() === 1 ? "" : " (cooldown)"}`,
+});
+
+/** Kumokiri, Chisa's sig, R1: Thread of Fate. +12% ATK flat. Casting her Intro or inflicting a
+ *  Negative Status (Havoc Bane counts) grants a stack of +8% Resonance Liberation DMG Bonus, up to
+ *  3, 15s each — lost after the outro like every short self window here. At 3 frozenStacks the team
+ *  gets +24% All-Attribute DMG Bonus for 15s, "effects of the same name" so it doesn't restack
+ *  itself. */
+export const KUMOKIRI = new Weapon({
+  weaponType: WeaponType.Broadblade,
+  name: "Kumokiri",
+  constantStats: () => {
+    addStat(Stat.BaseAtk, 500);
+    addStat(Stat.CritRate, 36);
+    addStat(Stat.BonusAtk, 12);
+  },
+  updateBuffs: () => { if (casting(Cast.Intro) || inflictedNegativeStatus()) applyCurrent(THREAD_OF_FATE_STACKS, 1); },
+});
+export const THREAD_OF_FATE_STACKS = new Buff({
+  name: "Kumokiri: Thread of Fate", maxStacks: 3,
+  updateGlobal() {
+    if (frozenStacks() >= 3 && inflictedNegativeStatus()) {
+      applyCurrent(THREAD_OF_FATE_TEAM, 1);
+    }
+  },
+  applyStats: () => addStat(Stat.DmgBonus, 8 * frozenStacks(), Type1.Liberation),
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(THREAD_OF_FATE_STACKS); },
+});
+
+/** 15s, but a full loop re-triggers it well before that lapses, so left with permanent uptime like
+ *  every other such team hand-off in this file (Wildfire Mark's own WILDFIRE_TEAM above). */
+export const THREAD_OF_FATE_TEAM = new Buff({
+  name: "Kumokiri: Thread of Fate (team)",
+  applyStats: () => addStat(Stat.DmgBonus, 24),
 });

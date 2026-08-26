@@ -1,11 +1,11 @@
 /** Mainslot echoes and sonatas from Mengzhou (versions 3.5-3.8). */
 import {
   Buff, Sonata, Sonata2pc, Mainslot, Action, Stat, Attribute, Type1, Cast, Scaling,
-  addStat, frozenStacks, applySelf, applyTeam, revokeTeam, currentAction, casting, revokeSelf,
-} from "../kit.js";
-import { applied } from "../kit.js";
-import { SHIELD } from "../statuses.js";
-import { TUNE_STRAIN_SHIFTING } from "../tunebreak.js";
+  addStat, frozenStacks, applyCurrent, applyTeam, revokeTeam, currentAction, casting, revokeSelf,
+} from "../engine/kit.js";
+import { applied, appliedByMe } from "../engine/kit.js";
+import { SHIELD } from "../engine/status.js";
+import { TUNE_STRAIN_SHIFTING } from "../engine/tunebreak.js";
 
 /* ------------------------------------------------------------------------------ Jingran, 3.6 */
 
@@ -34,7 +34,7 @@ export const LAMP_STACKS = new Buff({
 });
 export const LAMP_5PC = new Sonata({
   name: "Lamp of Nether Road 5pc",
-  updateBuffs: () => { if (applied(SHIELD)) applySelf(LAMP_STACKS, applied(SHIELD)); },
+  updateBuffs: () => { if (applied(SHIELD)) applyCurrent(LAMP_STACKS, applied(SHIELD)); },
 });
 export const LAMP_2PC = new Sonata2pc({ name: "Lamp of Nether Road 2pc", constantStats: () => addStat(Stat.BonusHp, 10) });
 
@@ -55,7 +55,7 @@ export const CALAMITY_EFFIGY = new Mainslot({
   name: "Calamity Effigy",
   action: ACTION_CALAMITY_EFFIGY,
   constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Aero),
-  updateBuffs: () => { if (applied(TUNE_STRAIN_SHIFTING)) applySelf(CALAMITY_EFFIGY_STRAIN, 1); },
+  updateBuffs: () => { if (appliedByMe(TUNE_STRAIN_SHIFTING)) applyCurrent(CALAMITY_EFFIGY_STRAIN, 1); },
 });
 
 /** Heart of Evil's Purge, Calamity Effigy's own sonata. 2pc: +10% Aero DMG Bonus flat. 5pc:
@@ -64,7 +64,7 @@ export const CALAMITY_EFFIGY = new Mainslot({
 export const HEART_OF_EVILS_PURGE_2PC = new Sonata2pc({ name: "Heart of Evil's Purge 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Aero) });
 export const HEART_OF_EVILS_PURGE_5PC = new Sonata({
   name: "Heart of Evil's Purge 5pc",
-  updateBuffs: () => { if (applied(TUNE_STRAIN_SHIFTING)) applySelf(HEART_OF_EVILS_PURGE_BUFF, 1); },
+  updateBuffs: () => { if (appliedByMe(TUNE_STRAIN_SHIFTING)) applyCurrent(HEART_OF_EVILS_PURGE_BUFF, 1); },
 });
 export const HEART_OF_EVILS_PURGE_BUFF = new Buff({
   name: "Heart of Evil's Purge",

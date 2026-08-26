@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- `python -m http.server` sends Last-Modified but no Cache-Control and no ETag, so Chrome
+     falls back to heuristic freshness and can serve a stale index.css / dist/index.js off an
+     ordinary reload — which looks exactly like "the edit did nothing". -->
+<meta http-equiv="Cache-Control" content="no-store">
+<title>Riley Calc</title>
+<link rel="stylesheet" href="./index.css">
+</head>
+<body>
+
+<!--
+  The engine is TypeScript now (converted file by file — some of src/ is still plain .js, both
+  compile together via tsc's allowJs). `npm run build` (or `npm run watch`) compiles everything
+  into dist/, mirroring this project one level deeper (dist/index.js, dist/src/kit.js, ...) —
+  that's what actually loads below, so a source edit needs a build pass before a refresh shows
+  it. The page still has to be served rather than opened off disk — browsers block module
+  imports and fetch() on file:// URLs. From this directory:
+
+      npm run build                     ->  compiles src/**/*.ts (+ passthrough .js) into dist/
+      python serve.py                   ->  http://127.0.0.1:8731/  (no-store + hot reload)
+
+  Use 127.0.0.1, not localhost — see serve.py's own header on the ~200ms-per-connection stall
+  "localhost" costs on Windows, paid on every one of the unbundled module fetches below.
+-->
+
+<div id="topbar" class="topbar">
+  <a id="backLink" class="backlink" href="#" hidden>&larr; All teams</a>
+</div>
+
+<script>
+  // Hot reload, serve.py's half: poll its /__livereload endpoint and reload the moment it
+  // reports any watched .html/.css/.js file changed, so a fix on disk (or a `tsc` run finishing)
+  // reaches the screen with no manual refresh. Talks to that one path only, so it's inert under
+  // any other static host — a 404 just means "not on serve.py", not an error worth surfacing.
+  (function poll() {
+    let last = null;
+    setInterval(async () => {
+      try {
+        const res = await fetch("/__livereload", { cache: "no-store" });
+        if (!res.ok) return;
+        const v = await res.text();
+        if (last === null) { last = v; return; } // baseline on first successful poll, not a reload
+        if (v !== last) location.reload();
+      } catch { /* server mid-restart or not serve.py — try again next tick */ }
+    }, 500);
+  })();
+</script>
+
+<div id="app"></div>
+
+<!-- The loading state lives here rather than being written by the script, so it is on screen
+     while the module is still being fetched and parsed. It is an overlay over #app, not a page
+     of its own: boot() draws the empty table (filters, header, no rows) underneath first and
+     this floats above it, blurring it, while the teams actually run. boot() drives the fill and
+     the count in place and hides the whole thing when there is nothing left to run; it never
+     replaces this markup. -->
+<div id="loading">
+  <p class="loading-status">
+    <span class="status-text">Initializing…</span>
+    <span class="progress-count"></span>
+  </p>
+  <div class="progress-track"><div class="progress-fill"></div></div>
+</div>
+
+<script type="module" src="../dist/src/index.js"></script>
+</body>
+</html>

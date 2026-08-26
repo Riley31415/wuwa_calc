@@ -1,11 +1,11 @@
 /** Signature Gauntlets weapons, ported to the new engine. */
 import { isType,
   Buff, Weapon, WeaponType, Stat, Attribute, Type1, Cast,
-  addStat, applySelf, setStacksSelf, casting, currentAction, revokeSelf, frozenStacks,
-} from "../kit.js";
-import { applied } from "../kit.js";
-import { SHIELD } from "../statuses.js";
-import { TUNE_STRAIN_SHIFTING } from "../tunebreak.js";
+  addStat, applyCurrent, setStacksSelf, casting, currentAction, revokeSelf, frozenStacks,
+} from "../engine/kit.js";
+import { applied, appliedByMe } from "../engine/kit.js";
+import { SHIELD } from "../engine/status.js";
+import { TUNE_STRAIN_SHIFTING } from "../engine/tunebreak.js";
 
 /** Verity's Handle, Xiangli Yao's sig, R1: Ad Veritatem. +12% Attribute DMG Bonus flat.
  *  Liberation grants +48% Liberation DMG Bonus for 8s, extended by each Skill cast while up —
@@ -15,7 +15,7 @@ export const VERITYS_HANDLE = new Weapon({
   weaponType: WeaponType.Gauntlets,
   name: "Verity's Handle",
   constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.DmgBonus, 12); },
-  updateBuffs: () => { if (casting(Cast.Liberation) || casting(Cast.Skill)) applySelf(AD_VERITATEM, 1); },
+  updateBuffs: () => { if (casting(Cast.Liberation) || casting(Cast.Skill)) applyCurrent(AD_VERITATEM, 1); },
 });
 export const AD_VERITATEM = new Buff({
   name: "Verity's Handle: Ad Veritatem",
@@ -31,7 +31,7 @@ export const TRAGICOMEDY = new Weapon({
   name: "Tragicomedy",
   constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.BonusAtk, 12); },
   updateBuffs: () => {
-    if (casting(Cast.Basic) || casting(Cast.Intro)) applySelf(FOOLS_WARBLE, 1);
+    if (casting(Cast.Basic) || casting(Cast.Intro)) applyCurrent(FOOLS_WARBLE, 1);
   },
 });
 export const FOOLS_WARBLE = new Buff({
@@ -47,8 +47,8 @@ export const SOLSWORN_CIPHERS = new Weapon({
   name: "Solsworn Ciphers",
   constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.BonusAtk, 12); },
   updateBuffs: () => {
-    if (casting(Cast.Intro) || casting(Cast.Echo)) applySelf(SUNWARD_AMP, 1);
-    if (isType(Type1.Echo)) applySelf(SUNWARD_IGNORE, 1);
+    if (casting(Cast.Intro) || casting(Cast.Echo)) applyCurrent(SUNWARD_AMP, 1);
+    if (isType(Type1.Echo)) applyCurrent(SUNWARD_IGNORE, 1);
   },
 });
 export const SUNWARD_AMP = new Buff({
@@ -74,7 +74,7 @@ export const IUNO_SIG = new Weapon({
   },
   updateBuffs: () => {
     if (casting(Cast.Intro)) setStacksSelf(MOONGAZER_STACKS, 5);
-    else if (applied(SHIELD)) applySelf(MOONGAZER_STACKS, applied(SHIELD));
+    else if (applied(SHIELD)) applyCurrent(MOONGAZER_STACKS, applied(SHIELD));
   },
 });
 export const MOONGAZER_STACKS = new Buff({
@@ -94,8 +94,8 @@ export const DAYBREAKERS_SPINE = new Weapon({
   constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.BonusAtk, 12); },
   updateBuffs: () => {
     const a = currentAction();
-    if (isType(Type1.Basic)) applySelf(SUTURING_DAYLINE_SPECTRO, 1);
-    if (applied(TUNE_STRAIN_SHIFTING)) applySelf(SUTURING_DAYLINE_STRAIN, 1);
+    if (isType(Type1.Basic)) applyCurrent(SUTURING_DAYLINE_SPECTRO, 1);
+    if (appliedByMe(TUNE_STRAIN_SHIFTING)) applyCurrent(SUTURING_DAYLINE_STRAIN, 1);
   },
 });
 export const SUTURING_DAYLINE_SPECTRO = new Buff({
