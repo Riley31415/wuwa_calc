@@ -36,12 +36,11 @@
  * plays one.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO,
-  Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  addBuff, addStat, applySelf, applyTeam, casting, currentAction, currentTeam, isHeld, queue,
-  queueOutro, revoke, forte1, forte2, setForte1, setForte2, frozenStacks,
-  lostOnSwap,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Scaling, addBuff, addStat, applySelf, applyTeam, casting, currentAction, currentTeam, isHeld, queue, queueOutro,
+  revokeSelf, forte1, forte2, setForte1, setForte2, frozenStacks, lostOnSwap, triggeredAction,
 } from "../../kit.js";
+import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { applied } from "../../kit.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING } from "../../tunebreak.js";
 import { SKULL_THRASHER } from "../../weapons/pistol.js";
@@ -77,20 +76,34 @@ const GMA = rebeccaAction("Basic - Guts (Mid-Air)", { node: Node.Normal, cast: C
 const GTD = rebeccaAction("Basic - Tactical Dodge: Guts", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 101.4, energy: 1.5, concerto: 3, offtune: 4800, forte1: 9.73 });
 
 // --- Tactical Tweaks: one Resonance Skill per mode, each ending in the other one.
-const Skill = rebeccaAction("Skill - It's Big Boomin' Time!", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 236.6, energy: 3.52, concerto: 7, offtune: 11200, forte1: 22.72 });
-const ESkill = rebeccaAction("Skill - Come 'n' Get Me!", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 236.6, energy: 3.51, concerto: 7, offtune: 11200, forte1: 22.72 });
+// the mode swap lands in convertStats(), after the cast that made it has already paid out under
+// the old mode
+const TO_GUTS = { convertStats: () => { revokeSelf(HUNTRESS); applySelf(GUTS, 1); } };
+const TO_HUNTRESS = { convertStats: () => { revokeSelf(GUTS); applySelf(HUNTRESS, 1); } };
+const Skill = rebeccaAction("Skill - It's Big Boomin' Time!", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 236.6, energy: 3.52, concerto: 7, offtune: 11200, forte1: 22.72, ...TO_GUTS });
+const ESkill = rebeccaAction("Skill - Come 'n' Get Me!", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 236.6, energy: 3.51, concerto: 7, offtune: 11200, forte1: 22.72, ...TO_HUNTRESS });
 
 // --- Gloves Are Comin' Off!: the Fervor finishers. Both count as Basic Attack DMG, both spend the
 //     whole 120 and restore 40 Hot Hand, and both lay Hack - Shifting.
-const RatTatTat = rebeccaAction("Forte - Rat-tat-tat!: Huntress", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Basic, mv: 397.66, energy: 15, concerto: 20, offtune: 44320, forte1: -120, forte2: 40 });
-const BangBang = rebeccaAction("Forte - Bang-bang-bang!: Guts", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Basic, mv: 278.34, energy: 15, concerto: 20, offtune: 44320, forte1: -120, forte2: 40 });
+// Fervor's own ceiling, applied on the two casts that spend it rather than on every action — so
+// that cast's own delta lands exactly on empty, and everything before it still reports what the
+// gauge really banked. Both hack, too.
+const SPEND_FERVOR = {
+  updateDebuffs: () => applyHack(),
+  updateBuffs: () => { if (forte1() > 120) setForte1(120); },
+};
+const RatTatTat = rebeccaAction("Forte - Rat-tat-tat!: Huntress", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Basic, mv: 397.66, energy: 15, concerto: 20, offtune: 44320, forte1: -120, forte2: 40, ...SPEND_FERVOR });
+const BangBang = rebeccaAction("Forte - Bang-bang-bang!: Guts", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Basic, mv: 278.34, energy: 15, concerto: 20, offtune: 44320, forte1: -120, forte2: 40, ...SPEND_FERVOR });
 
 // --- Party 'til Dawn!: the Liberation opens Mk. 31 HMG mode, which fires itself for 9.5s and
 //     banks Overload as it goes. The three tiers are lumped one action apiece (see the file
 //     comment); the button press itself deals no damage, so its cost and its 20 Concerto Regen
 //     ride the first burst. Every hit of the mode is Basic Attack DMG.
+// Party 'til Dawn! is only the button press; the mode then fires itself through its three
+// firepower tiers, and BOOM! Fireworks! goes off the moment Overload caps
 const Lib1 = rebeccaAction("Liberation - Party 'til Dawn!", {
   node: Node.Liberation, cast: Cast.Liberation, resetEnergy: true,
+  updateBuffs: () => { queue(Lib2); queue(Lib3); queue(Lib4); queue(Boom); },
 });
 const Lib2 = rebeccaAction("Liberation - Mk. 31 HMG x5", {
   node: Node.Liberation, type: Type1.Basic, mv: 24.3 * 5, concerto: 20 + 0.56 * 5, offtune: 1609 * 5,
@@ -103,16 +116,25 @@ const Lib4 = rebeccaAction("Liberation - Mk. 31 HMG 2nd Enhancement x10", {
 });
 const Boom = rebeccaAction("Liberation - BOOM! Fireworks!", {
   node: Node.Liberation, type: Type1.Basic, mv: 636.2, energy: 20, concerto: 10, offtune: 31025, active: false,
+  updateDebuffs: () => applyHack(),
 });
 
 // --- My Turn!: one Intro per mode, each ending in the other one, each worth 50 Fervor through A
 //     Girl Gets What She Wants! (see A_GIRL) rather than on the action itself.
-const Intro = rebeccaAction("Intro - Yo, It's Big Boomin' Time!", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 270.4, energy: 10, concerto: 10, offtune: 12800 });
-const EIntro = rebeccaAction("Intro - Hey, Leadhead, Come 'n' Get Me!", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 202.8, energy: 10, concerto: 10, offtune: 9600 });
+const Intro = rebeccaAction("Intro - Yo, It's Big Boomin' Time!", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 270.4, energy: 10, concerto: 10, offtune: 12800, updateDebuffs: () => applyHack(), ...TO_GUTS });
+const EIntro = rebeccaAction("Intro - Hey, Leadhead, Come 'n' Get Me!", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 202.8, energy: 10, concerto: 10, offtune: 9600, updateDebuffs: () => applyHack(), ...TO_HUNTRESS });
 
 /** Preem Choom (Outro): the turret's own 14s of 2.5% ticks are folded into the outro row — 70
  *  ticks plain, or 20 at +250% once Lucy enhances it, which is the same 175% either way. */
-const Outro = rebeccaAction("Outro - Preem Choom", { cast: Cast.Outro, type: Type1.Outro, mv: 2.5 * 70, active: false });
+// her Outro hands the Bonds over; the 12s+ she then spends off field refills Fervor, which is what
+// arms A Girl Gets What She Wants! on her next Intro
+const Outro = rebeccaAction("Outro - Preem Choom", {
+  cast: Cast.Outro, type: Type1.Outro, mv: 2.5 * 70, active: false,
+  updateBuffs: () => {
+    queueOutro(EDGERUNNER_BONDS);
+    addStat(Stat.AddForte2, 120); // from 12 seconds offfield
+  },
+});
 
 /** Her answer to a Hack break — tune-scaled, so it reads Tune Break Boost and nothing else.
  *  Queued by the break rather than played, and capped in-game at one per target every 8s, which
@@ -144,7 +166,7 @@ const A_GIRL = new Buff({
     const a = currentAction();
     if (a.forte2 > 0) addStat(Stat.AddForte2, -a.forte2);
   },
-  convertStats: () => { if (casting(Cast.Outro)) revoke(A_GIRL); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(A_GIRL); },
 });
 
 /** Tag, You're It! (Inherent Skill), the ATK half: +10% for 12s on triggering A Girl Gets What She
@@ -152,7 +174,7 @@ const A_GIRL = new Buff({
 const TAG_YOURE_IT = new Buff({
   name: "Rebecca: Tag, You're It! (self)", maxStacks: 2,
   applyStats: () => addStat(Stat.BonusAtk, 10 * frozenStacks()),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(TAG_YOURE_IT); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(TAG_YOURE_IT); },
 });
 
 /** The other half: whichever resonator inflicts Hack - Shifting gets +30 Tune Break Boost for 30s
@@ -179,7 +201,7 @@ const EDGERUNNER_BONDS = new Buff({
   updateBuffs: () => {
     lostOnSwap();
     if (isHeld(LUCY)) applySelf(OVERLIMIT, 70);
-    else if (currentAction().active) applySelf(OVERLIMIT, 5); // assume 1 action = 1s
+    else if (!triggeredAction()) applySelf(OVERLIMIT, 5); // assume 1 action = 1s
   },
   applyStats: () => {
     addStat(Stat.Amp, 15);
@@ -219,61 +241,33 @@ const RB_INHERENT_2 = new Inherent({
 
 const REBECCA_TALENTS = new Talent({
   name: "Rebecca: Talents",
-  applyStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
 });
 
 const REBECCA = new Resonator({
   name: "Rebecca",
-  abbreviation: "Rebecca",
   element: Attribute.Electro,
   weapon: WeaponType.Pistols,
   // whichever mode she is in decides which Intro she has; her loop always ends in Huntress
   intro: () => (isHeld(GUTS) ? EIntro : Intro),
+  outro: () => Outro,
   color: "#abebda",
   maxEnergy: 125,
 
   // she starts in Huntress with a full Hot Hand bar
   combatStart: () => { applySelf(HUNTRESS, 1); setForte2(120); },
 
-  updateDebuffs: () => {
-    const a = currentAction();
-    if (a === Intro || a === EIntro || a === RatTatTat || a === BangBang || a === Boom) applyHack();
-  },
   updateGlobal: () => tuneHackResponse(Meltdown),
 
+  // at a full Hot Hand bar, a Resonance Skill or Intro Skill trades it for the 12s window
   updateBuffs: () => {
-    const a = currentAction();
-    // each gauge's own ceiling, applied on the one cast that spends it rather than on every
-    // action — so that cast's own delta lands exactly on empty, and everything before it still
-    // reports what the gauge really banked
-    if ((a === RatTatTat || a === BangBang) && forte1() > 120) setForte1(120);
-
-    // Party 'til Dawn! is only the button press; the mode then fires itself through its three
-    // firepower tiers, and BOOM! Fireworks! goes off the moment Overload caps
-    if (a === Lib1) { queue(Lib2); queue(Lib3); queue(Lib4); queue(Boom); }
-
-    // at a full Hot Hand bar, a Resonance Skill or Intro Skill trades it for the 12s window
-    if (forte2() >= 120 && (casting(Cast.Skill) || casting(Cast.Intro))) { 
-      applySelf(A_GIRL, 1); 
+    if (forte2() >= 120 && (casting(Cast.Skill) || casting(Cast.Intro))) {
+      applySelf(A_GIRL, 1);
       addStat(Stat.AddForte2, -120); // consume 10 per sec for 12s
     }
-
-    // her Outro hands the Bonds over; the 12s+ she then spends off field refills Hot Hand, which
-    // is what arms A Girl Gets What She Wants! on her next Intro
-    if (a === Outro) { 
-      queueOutro(EDGERUNNER_BONDS); 
-      addStat(Stat.AddForte2, 120); // from 12 seconds offfield
-    }
   },
 
-  // the mode swap lands after the cast that made it has already paid out under the old mode
-  convertStats: () => {
-    const a = currentAction();
-    if (a === Intro || a === Skill) { revoke(HUNTRESS); applySelf(GUTS, 1); }
-    if (a === EIntro || a === ESkill) { revoke(GUTS); applySelf(HUNTRESS, 1); }
-  },
-
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 11600); addStat(Stat.BaseAtk, 400); addStat(Stat.BaseDef, 1173.33);
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
     addStat(Stat.Tbb, 10);
@@ -288,14 +282,13 @@ const REBECCA = new Resonator({
  *  the bigger of the two finishers — spends a full bar and lays Hack - Shifting. Echo, then the
  *  Liberation's three firepower tiers into BOOM! Fireworks!, then out. She is never the team's
  *  lead, so this is both opener and loop, and it ends in Huntress ready for the next Intro. */
-const RB_ROTATION = [
-  INTRO,
-  GBA1, GBA2, GBA3,
+
+const RB_ROTATION = new Rotation([
+  INTRO, GBA1, GBA2, GBA3,
   ESkill,
   RatTatTat, ECHO_CAST,
-  Lib1,
-  Outro,
-];
+  Lib1, OUTRO_NEXT,
+]);
 
 /** Adam Smasher carries its own 1pc set, so the other four echoes run two ordinary 2-piece sets
  *  instead of a 5pc — ATK and Electro. The other two builds are the classic handoff sets, which
@@ -315,6 +308,5 @@ export const REBECCA_LOADOUT = new Loadout({
   echoLoadouts: RB_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
   substat: chem("atk", "basic"),
-  opener: RB_ROTATION,
-  loop: RB_ROTATION,
+    rotation: RB_ROTATION,
 });

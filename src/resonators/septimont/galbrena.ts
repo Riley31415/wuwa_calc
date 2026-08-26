@@ -28,9 +28,11 @@
  * Counter have no sheet row at all, so they're still bare (nanoka's own MV only).
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  applySelf, casting, currentAction, addStat, frozenStacks, revoke, isHeld, forte1, forte2, setForte1, setForte2,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Scaling, applySelf, casting, currentAction, addStat, frozenStacks, revokeSelf, isHeld, forte1, forte2, setForte1,
+  setForte2,
 } from "../../kit.js";
+import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { LUX_UMBRA } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { CLAWPRINT_2PC, CORROSAURUS, FLAMEWING_SHADOW_3PC } from "../../echoes/septimont.js";
@@ -64,12 +66,24 @@ const HA3 = galbrenaAction("Heavy - Volley of Death 3", { node: Node.Normal, cas
 
 // Threshold State resonance skill: Encroach (base), Ascent of Malice (100 Sinflame, opens Demon
 // Hypostasis)
-const Encroach = galbrenaAction("Skill - Encroach", { node: Node.Skill, cast: Cast.Skill, type: Type1.Heavy, mv: 35.78, concerto: 2.22, energy: 6.59, offtune: 5039, forte1: 18.52 });
+// the five casts that bank a Burning Drive stack
+const DRIVE = { updateBuffs: () => applySelf(BURNING_DRIVE, 1) };
+const Encroach = galbrenaAction("Skill - Encroach", { node: Node.Skill, cast: Cast.Skill, type: Type1.Heavy, mv: 35.78, concerto: 2.22, energy: 6.59, offtune: 5039, forte1: 18.52, ...DRIVE });
 /** Converts Sinflame into Purging Flame — declared as real deltas (forte1: -100, forte2:
  *  +100) so they show in the hover trace, but GALBRENA's own updateBuffs() below first normalizes
  *  each gauge to what these deltas expect to land on 0/100 from (forte gauges have no floor or
  *  ceiling, so a bare relative delta could land short). */
-const AscentOfMalice = galbrenaAction("Skill - Ascent of Malice", { node: Node.Skill, cast: Cast.Skill, type: Type1.Heavy, mv: 103.14, energy: 14.76, concerto: 10, offtune: 5588, forte1: -100, forte2: 100 });
+const AscentOfMalice = galbrenaAction("Skill - Ascent of Malice", {
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Heavy, mv: 103.14, energy: 14.76, concerto: 10, offtune: 5588, forte1: -100, forte2: 100,
+  updateBuffs: () => {
+    applySelf(BURNING_DRIVE, 1);
+    applySelf(DEMON_HYPOSTASIS, 1);
+    // pre-clamp an overshoot back to exactly 100 so the declared forte1: -100 field above lands
+    // exactly on 0; under 100, leave it alone so it drives negative naturally instead
+    if (forte1() >= 100) setForte1(100);
+    setForte2(0);
+  },
+});
 
 // Demon Hypostasis: Seraphic Execution (Basic), Flamewing Verdict (Heavy), Ravage (Skill) —
 // Mid-air/Dodge Counter enhanced forms aren't placed in the rotation below, kept for
@@ -78,18 +92,24 @@ const AscentOfMalice = galbrenaAction("Skill - Ascent of Malice", { node: Node.S
 const SeraphicExecution1 = galbrenaAction("Forte Basic - Seraphic Execution 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 58.99, energy: 1.00, concerto: 5.54, offtune: 2374, forte2: -4.88 });
 const SeraphicExecution2 = galbrenaAction("Forte Basic - Seraphic Execution 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 139.19, energy: 2.00, concerto: 6.95, offtune: 5600, forte2: -9.76 });
 const SeraphicExecution3 = galbrenaAction("Forte Basic - Seraphic Execution 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 243.17, energy: 3.34, concerto: 8.79, offtune: 9786, forte2: -18.29 });
-const SeraphicExecution4 = galbrenaAction("Forte Basic - Seraphic Execution 4", { node: Node.Forte, cast: Cast.Basic, type: Type1.Echo, mv: 181.47, energy: 2.56, concerto: 7.70, offtune: 7305, forte2: -13.41 });
+const SeraphicExecution4 = galbrenaAction("Forte Basic - Seraphic Execution 4", { node: Node.Forte, cast: Cast.Basic, type: Type1.Echo, mv: 181.47, energy: 2.56, concerto: 7.70, offtune: 7305, forte2: -13.41, ...DRIVE });
 const SeraphicExecution5 = galbrenaAction("Forte Basic - Seraphic Execution 5", { node: Node.Forte, cast: Cast.Basic, type: Type1.Echo, mv: 224.27, energy: 3.08, concerto: 8.46, offtune: 9025, forte2: -19.51 });
 
 const FlamewingVerdict1 = galbrenaAction("Forte Heavy - Flamewing Verdict 1", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 118.44, energy: 1.74, concerto: 6.60, offtune: 4766, forte2: -9.76 });
 const FlamewingVerdict2 = galbrenaAction("Forte Heavy - Flamewing Verdict 2", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 76.70, energy: 1.22, concerto: 5.86, offtune: 3086, forte2: -7.32 });
 const FlamewingVerdict3 = galbrenaAction("Forte Heavy - Flamewing Verdict 3", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Echo, mv: 176.84, energy: 2.49, concerto: 7.64, offtune: 7117, forte2: -14.63 });
 
-const Ravage = galbrenaAction("Forte Skill - Ravage", { node: Node.Forte, cast: Cast.Skill, type: Type1.Heavy, mv: 35.78, energy: 6.59, concerto: 2.22, offtune: 5039 });
+const Ravage = galbrenaAction("Forte Skill - Ravage", {
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Heavy, mv: 35.78, energy: 6.59, concerto: 2.22, offtune: 5039,
+  updateBuffs: () => { applySelf(BURNING_DRIVE, 1); setForte2(0); },
+});
 
-const Liberation = galbrenaAction("Liberation - Hellfire Absolution", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Echo, mv: 1109.04, concerto: 20, offtune: 84003, resetEnergy: true });
+const Liberation = galbrenaAction("Liberation - Hellfire Absolution", {
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Echo, mv: 1109.04, concerto: 20, offtune: 84003, resetEnergy: true,
+  updateBuffs: () => applySelf(HELLFIRE_WINDOW, 1),
+});
 
-const Intro = galbrenaAction("Intro - Hellflare Overload", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 94.12, energy: 10, concerto: 10, offtune: 4208, forte1: 11.11 });
+const Intro = galbrenaAction("Intro - Hellflare Overload", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 94.12, energy: 10, concerto: 10, offtune: 4208, forte1: 11.11, ...DRIVE });
 /** Unlike most outros, this one deals real damage (795% MV) on top of the handoff concerto
  *  reset; `active: false` still marks it "not really her own attack" for lostOnSwap purposes. */
 const Outro = galbrenaAction("Outro - Ashen Pursuit", { cast: Cast.Outro, type: Type1.Outro, mv: 795, offtune: 30326, concerto: 22.32, energy: 10.03, active: false });
@@ -101,14 +121,14 @@ const Outro = galbrenaAction("Outro - Ashen Pursuit", { cast: Cast.Outro, type: 
 const BURNING_DRIVE = new Buff({
   name: "Galbrena: Burning Drive",
   applyStats: () => addStat(Stat.BonusAtk, 20),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(BURNING_DRIVE); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(BURNING_DRIVE); },
 });
 
 /** +5% DMG Dealt a stack, up to 4, 5.5s — granted on any of her own landed attacks. */
 const OATHBOUND_HUNT = new Buff({
   name: "Galbrena: Fated End", maxStacks: 4,
   applyStats: () => addStat(Stat.Amp, 5 * frozenStacks()),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(OATHBOUND_HUNT); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(OATHBOUND_HUNT); },
 });
 const GB_INHERENT_1 = new Inherent({
   name: "Galbrena: Oathbound Hunt",
@@ -122,7 +142,7 @@ const GB_INHERENT_2 = new Inherent({ name: "Galbrena: Sin Feaster" });
  *  Flame runs out, taking Afterflame down with it. */
 const DEMON_HYPOSTASIS = new Buff({
   name: "Galbrena: Demon Hypostasis",
-  updateBuffs: () => { if (forte2() <= 0) { revoke(AFTERFLAME); revoke(DEMON_HYPOSTASIS); } },
+  updateBuffs: () => { if (forte2() <= 0) { revokeSelf(AFTERFLAME); revokeSelf(DEMON_HYPOSTASIS); } },
 });
 
 /** 0-40, +8 on any team member's own Echo Skill cast while she's still in Threshold State (not
@@ -149,15 +169,15 @@ const HELLFIRE_WINDOW = new Buff({
       || a === SeraphicExecution4 || a === SeraphicExecution5
       || a === FlamewingVerdict1 || a === FlamewingVerdict2 || a === FlamewingVerdict3) addStat(Stat.MulMv, 85);
   },
-  convertStats: () => { if (casting(Cast.Outro)) revoke(HELLFIRE_WINDOW); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(HELLFIRE_WINDOW); },
 });
 
 const GALBRENA = new Resonator({
   name: "Galbrena",
-  abbreviation: "Glob",
   element: Attribute.Fusion,
   weapon: WeaponType.Pistols,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#1e3a8a",
   maxEnergy: 125,
 
@@ -165,21 +185,7 @@ const GALBRENA = new Resonator({
   updateGlobal: () => {
     if (casting(Cast.Echo) && !isHeld(DEMON_HYPOSTASIS)) applySelf(AFTERFLAME, 8);
   },
-  updateBuffs: () => {
-    const a = currentAction();
-    if (a === Intro || a === Encroach || a === AscentOfMalice || a === SeraphicExecution4 || a === Ravage) applySelf(BURNING_DRIVE, 1);
-    if (a === Liberation) applySelf(HELLFIRE_WINDOW, 1);
-    if (a === AscentOfMalice) {
-      applySelf(DEMON_HYPOSTASIS, 1);
-      // pre-clamp an overshoot back to exactly 100 so the declared forte1: -100 field below
-      // lands exactly on 0; under 100, leave it alone so it drives negative naturally instead
-      if (forte1() >= 100) setForte1(100);
-      setForte2(0);
-    }
-    if (a === Ravage) setForte2(0);
-  },
-
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 10300); addStat(Stat.BaseAtk, 463); addStat(Stat.BaseDef, 1112);
   },
 });
@@ -187,24 +193,25 @@ const GALBRENA = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const GALBRENA_TALENTS = new Talent({
   name: "Galbrena: Talents",
-  applyStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
 });
 
 // a kit-valid line: Intro, Encroach opens Burning Drive and banks Sinflame, Ascent of Malice
 // spends it all and opens Demon Hypostasis, Seraphic Execution and Flamewing Verdict follow
 // while it's up, Liberation opens its own +85% window over the tail of it, Outro closes the loop
 // out (and still hits). She's never the team's own lead, so this covers both opener and loop.
-const GB_ROTATION = [
+
+const GB_ROTATION = new Rotation([
   INTRO, ECHO_CAST, HA2, HA3, BA3, BA4, Encroach,
   AscentOfMalice, Liberation,
   SeraphicExecution2, SeraphicExecution3, SeraphicExecution4, SeraphicExecution5,
-  SeraphicExecution3, SeraphicExecution4, SeraphicExecution5,
-  Outro
-];
+  SeraphicExecution3, SeraphicExecution4, SeraphicExecution5, OUTRO_NEXT,
+]);
 
 // same shape as GB_ROTATION, echo-focused variant (comment markers are dodge-cancel timing notes
 // from the original build, not placed actions)
-const GB_ROTATION_ECHO_FOCUS = [
+
+const GB_ROTATION_ECHO_FOCUS = new Rotation([
   INTRO, ECHO_CAST, BA2, BA3, BA4, BA2, BA3,
   AscentOfMalice, Liberation,
   // dodge cancel 2  (half)
@@ -214,9 +221,8 @@ const GB_ROTATION_ECHO_FOCUS = [
   // dodge cancel 3
   SeraphicExecution4, SeraphicExecution5,
   // dodge cancel 3 (half)
-  SeraphicExecution4, SeraphicExecution5,
-  Outro
-];
+  SeraphicExecution4, SeraphicExecution5, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -233,8 +239,7 @@ export const GLOB_LOADOUT = new Loadout({
   echoLoadouts: GB_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: chem("atk", "heavy"),
-  opener: GB_ROTATION,
-  loop: GB_ROTATION,
+    rotation: GB_ROTATION,
 });
 
 // same gear, the echo-focused rotation variant — genuinely different actions cast (the one that
@@ -249,6 +254,5 @@ export const GLOB_LOADOUT_ECHO_FOCUS = new Loadout({
   echoLoadouts: GB_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: chem("atk", "heavy"),
-  opener: GB_ROTATION_ECHO_FOCUS,
-  loop: GB_ROTATION_ECHO_FOCUS,
+    rotation: GB_ROTATION_ECHO_FOCUS,
 });

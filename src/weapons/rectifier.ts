@@ -2,10 +2,10 @@
  *  standard/permanent-availability) lives here too since it isn't part of any named tier. */
 import { isType,
   Buff, Weapon, WeaponType, Stat, Attribute, Type1, Cast,
-  addStat, frozenStacks, stacksOf, applySelf, applyTeam, revoke, revokeTeam, removeStack, casting, currentAction, lostOnSwap,
+  addStat, frozenStacks, stacksOf, applySelf, applyTeam, revokeSelf, revokeTeam, removeStack, casting, currentAction, lostOnSwap,
 } from "../kit.js";
 import { applied } from "../kit.js";
-import { GLACIO_CHAFE, FUSION_BURST } from "../statuses.js";
+import { GLACIO_CHAFE, FUSION_BURST, HEALS } from "../statuses.js";
 import { TUNE_STRAIN_SHIFTING } from "../tunebreak.js";
 
 /** Rime-Draped Sprouts, Zhezhi's sig, R1. +12% ATK flat. On field, Resonance Skill grants +12%
@@ -15,7 +15,7 @@ export const RIME_DRAPED_SPROUTS = new Weapon({
   weaponType: WeaponType.Rectifier,
   name: "Rime-Draped Sprouts",
   updateBuffs: () => { if (casting(Cast.Skill)) applySelf(PANORAMA_STACKS, 1); },
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseAtk, 500);
     addStat(Stat.CritDmg, 72);
     addStat(Stat.BonusAtk, 12);
@@ -28,7 +28,7 @@ export const PANORAMA_STACKS = new Buff({
   updateBuffs: () => {
     if (casting(Cast.Outro)) {
       if (frozenStacks() >= 3) applySelf(PANORAMA_OFFIELD, 1);
-      revoke(PANORAMA_STACKS);
+      revokeSelf(PANORAMA_STACKS);
     }
   },
 });
@@ -46,7 +46,7 @@ export const STRINGMASTER = new Weapon({
   weaponType: WeaponType.Rectifier,
   name: "Stringmaster",
   updateBuffs: () => { if (isType(Type1.Skill)) applySelf(STRINGMASTER_STACKS, 1); },
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseAtk, 500);
     addStat(Stat.CritRate, 36);
     addStat(Stat.DmgBonus, 12);
@@ -58,7 +58,7 @@ export const STRINGMASTER_STACKS = new Buff({
     if (!currentAction().active) addStat(Stat.BonusAtk, 12);
     addStat(Stat.BonusAtk, 12 * frozenStacks());
   },
-  convertStats: () => { if (casting(Cast.Outro)) revoke(STRINGMASTER_STACKS); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(STRINGMASTER_STACKS); },
 });
 
 /** Whispers of Sirens, Cantarella's sig, R1: From the Deep. +12% ATK flat. Gentle Dream: an Echo
@@ -70,7 +70,7 @@ export const WHISPERS_OF_SIRENS = new Weapon({
   updateBuffs: () => {
     if ((casting(Cast.Intro) || casting(Cast.Basic)) && !stacksOf(GENTLE_DREAM)) applySelf(GENTLE_DREAM, 1);
   },
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseAtk, 500);
     addStat(Stat.CritDmg, 72);
     addStat(Stat.BonusAtk, 12);
@@ -97,7 +97,7 @@ export const LETHEAN_ELEGY = new Weapon({
   weaponType: WeaponType.Rectifier,
   name: "Lethean Elegy",
   updateBuffs: () => { if (isType(Type1.Echo)) applySelf(UNDERWORLD_REQUIEM, 1); },
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseAtk, 587.5);
     addStat(Stat.CritRate, 24.3);
     addStat(Stat.BonusAtk, 12);
@@ -108,25 +108,7 @@ export const UNDERWORLD_REQUIEM = new Buff({
   applyStats: () => {
     addStat(Stat.DmgBonus, 32, Type1.Skill);
     addStat(Stat.Amp, 32, Type1.Echo);
-    addStat(Stat.DefIgnoreNew, 8);
-  },
-});
-export const LETHEAN_ELEGY_R5 = new Weapon({
-  weaponType: WeaponType.Rectifier,
-  name: "Lethean Elegy R5",
-  updateBuffs: () => { if (isType(Type1.Echo)) applySelf(UNDERWORLD_REQUIEM_R5, 1); },
-  applyStats: () => {
-    addStat(Stat.BaseAtk, 587.5);
-    addStat(Stat.CritRate, 24.3);
-    addStat(Stat.BonusAtk, 24);
-  },
-});
-export const UNDERWORLD_REQUIEM_R5 = new Buff({
-  name: "Lethean Elegy: Underworld Requiem R5",
-  applyStats: () => {
-    addStat(Stat.DmgBonus, 64, Type1.Skill);
-    addStat(Stat.Amp, 64, Type1.Echo);
-    addStat(Stat.DefIgnoreNew, 16);
+    addStat(Stat.DefIgnoreOld, 8);
   },
 });
 
@@ -137,7 +119,7 @@ export const FREEZE_FRAME = new Weapon({
   weaponType: WeaponType.Rectifier,
   name: "Freeze Frame",
   updateBuffs: () => { if (applied(GLACIO_CHAFE)) { applySelf(FREEZE_FRAME_SELF, 1); applyTeam(FREEZE_FRAME_TEAM, 1); } },
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseAtk, 587.5);
     addStat(Stat.CritRate, 24.3);
     addStat(Stat.BonusAtk, 12);
@@ -146,7 +128,7 @@ export const FREEZE_FRAME = new Weapon({
 export const FREEZE_FRAME_SELF = new Buff({
   name: "Freeze Frame: Light's Offering",
   applyStats: () => addStat(Stat.DmgBonus, 30, Attribute.Glacio),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(FREEZE_FRAME_SELF); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(FREEZE_FRAME_SELF); },
 });
 export const FREEZE_FRAME_TEAM = new Buff({
   name: "Freeze Frame: Light's Offering (team)", applyStats: () => addStat(Stat.BonusAtk, 24),
@@ -160,11 +142,11 @@ export const SK_SIG = new Weapon({
   name: "Stellar Symphony",
   updateBuffs: () => {
     if (casting(Cast.Skill) || casting(Cast.Liberation)) applySelf(SK_SIG_CONCERTO, 1);
-    if (casting(Cast.Skill) && currentAction().heals) {
+    if (casting(Cast.Skill) && applied(HEALS)) {
       applyTeam(SK_SIG_TEAM, 1);
     }
   },
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseAtk, 412.5);
     addStat(Stat.Er, 77.04);
     addStat(Stat.BonusHp, 12);
@@ -191,7 +173,7 @@ export const SK_SIG_CONCERTO = new Buff({
 export const FORGED_DWARF_STAR = new Weapon({
   weaponType: WeaponType.Rectifier,
   name: "Forged Dwarf Star",
-  applyStats: () => { addStat(Stat.BaseAtk, 500); addStat(Stat.CritRate, 36); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.BaseAtk, 500); addStat(Stat.CritRate, 36); addStat(Stat.BonusAtk, 12); },
   updateBuffs: () => { if (applied(FUSION_BURST) || applied(TUNE_STRAIN_SHIFTING)) applySelf(DISSOLUTION_LIB, 1); },
 });
 export const DISSOLUTION_LIB = new Buff({

@@ -9,10 +9,11 @@
  * are both real gauges with a damage payout.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  applySelf, applyTeam, isHeld, stacksOfTeam, removeStack, revoke, casting, currentAction, addStat, frozenStacks, getStat,
-  queue, lostOnSwap,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Scaling, applySelf, applyTeam, isHeld, stacksOfTeam, removeStack, revokeSelf, casting, currentAction, addStat,
+  frozenStacks, getStat, queue, lostOnSwap,
 } from "../../kit.js";
+import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { SOLSWORN_CIPHERS } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC, SOUND_OF_TRUE_NAME_2PC } from "../../echoes/lahairoi.js";
@@ -29,7 +30,10 @@ function sigrikaAction(id: string, def: object): Action {
 const BA1 = sigrikaAction("Basic - One, Two, Three 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 52.97, energy: 0.84, concerto: 1.67, offtune: 2664 });
 const BA2 = sigrikaAction("Basic - One, Two, Three 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 100.68, energy: 1.6, concerto: 3.18, offtune: 5064 });
 const BA3 = sigrikaAction("Basic - One, Two, Three 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 111.36, energy: 1.76, concerto: 3.5, offtune: 5600 });
-const BA4 = sigrikaAction("Basic - One, Two, Three 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 206.79, energy: 3.27, concerto: 6.51, offtune: 10400 });
+const BA4 = sigrikaAction("Basic - One, Two, Three 4", {
+  node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 206.79, energy: 3.27, concerto: 6.51, offtune: 10400,
+  updateBuffs: () => applySelf(DECIPHER, 1),
+});
 const MA = sigrikaAction("Basic - One, Two, Three (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960 });
 const MDC = sigrikaAction("Basic - One, Two, Three (Mid-Air Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 206.17, energy: 3.05, concerto: 16.1, offtune: 9920 });
 const DC = sigrikaAction("Basic - One, Two, Three (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 219.70, energy: 3.26, concerto: 16.5, offtune: 10026 });
@@ -52,14 +56,19 @@ const RunicOutburst = sigrikaAction("Forte - Runic Outburst", { node: Node.Forte
 const RunicChainWhip = sigrikaAction("Forte - Runic Chain Whip", { node: Node.Forte, type: Type1.Echo, mv: 397.58, energy: 10.01, concerto: 7.03, offtune: 24802, forte2: 50 });
 const RunicSoliskin = sigrikaAction("Forte - Runic Soliskin", { node: Node.Forte, type: Type1.Echo, mv: 397.54, energy: 10, concerto: 7, offtune: 24800, forte2: 50 });
 
-const FHAoutburst = sigrikaAction("Forte Heavy - Schemata of Runes", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Echo, mv: 132.51, energy: 3.34, concerto: 0.5, offtune: 2664, forte1: -2 });
-const FHAchainwhip = sigrikaAction("Forte Heavy - Schemata of Runes", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Echo, mv: 132.51, energy: 3.34, concerto: 0.5, offtune: 2664, forte1: -2 });
-const FHAsoliskin = sigrikaAction("Forte Heavy - Schemata of Runes", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Echo, mv: 132.51, energy: 3.34, concerto: 0.5, offtune: 2664, forte1: -2 });
+// each Heavy Attack form queues its own Runic follow-up
+const SCHEMATA = { node: Node.Forte, cast: Cast.Heavy, type: Type1.Echo, mv: 132.51, energy: 3.34, concerto: 0.5, offtune: 2664, forte1: -2 };
+const FHAoutburst = sigrikaAction("Forte Heavy - Schemata of Runes", { ...SCHEMATA, updateBuffs: () => queue(RunicOutburst) });
+const FHAchainwhip = sigrikaAction("Forte Heavy - Schemata of Runes", { ...SCHEMATA, updateBuffs: () => queue(RunicChainWhip) });
+const FHAsoliskin = sigrikaAction("Forte Heavy - Schemata of Runes", { ...SCHEMATA, updateBuffs: () => queue(RunicSoliskin) });
 
 /** Learn My True Name: at 100 Full Stop, spends it all. */
 const FSkill = sigrikaAction("Forte Skill - Learn My True Name", { node: Node.Forte, cast: Cast.Skill, type: Type1.Echo, mv: 1211.48, energy: 5.43, concerto: 30, offtune: 101336, forte2: -100 });
 
-const Liberation = sigrikaAction("Liberation - Where Trust Leads Me!", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Echo, mv: 861.43, concerto: 20, offtune: 50400, resetEnergy: true });
+const Liberation = sigrikaAction("Liberation - Where Trust Leads Me!", {
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Echo, mv: 861.43, concerto: 20, offtune: 50400, resetEnergy: true,
+  updateBuffs: () => applySelf(DIVERGENT),
+});
 
 const Intro = sigrikaAction("Intro - Solsworn Etymology", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 163.42, energy: 10, concerto: 10, offtune: 7736 });
 /** In This Very Moment carries no team buff on her own page (unlike most other kits' outros). */
@@ -83,7 +92,6 @@ const BLESSING_OF_RUNES = new Buff({
     }
   },
 });
-
 
 /** True Names Aligned, in full: the ER-to-Echo-DMG conversion above, plus (via updateGlobal(), so
  *  it reacts to any team member's Echo cast) the Blessing of Runes grant that mechanic feeds. */
@@ -112,7 +120,7 @@ const DECIPHER = new Buff({
   updateBuffs: () =>  {
     lostOnSwap();
   },
-  convertStats: () => { if (gainsRune()) revoke(DECIPHER); },
+  convertStats: () => { if (gainsRune()) revokeSelf(DECIPHER); },
 });
 
 /** Convergent/Divergent double or flip-type the next Rune gained; neither doubled rune has a stat
@@ -122,13 +130,13 @@ const DECIPHER = new Buff({
 const CONVERGENT = new Buff({
   name: "Sigrika: Convergent",
   convertStats: () => {
-    if (gainsRune()) { addStat(Stat.AddForte1, 1); revoke(CONVERGENT); }
+    if (gainsRune()) { addStat(Stat.AddForte1, 1); revokeSelf(CONVERGENT); }
   },
 });
 const DIVERGENT = new Buff({
   name: "Sigrika: Divergent",
   convertStats: () => {
-    if (gainsRune() && !isHeld(CONVERGENT)) { addStat(Stat.AddForte1, 1); revoke(DIVERGENT); }
+    if (gainsRune() && !isHeld(CONVERGENT)) { addStat(Stat.AddForte1, 1); revokeSelf(DIVERGENT); }
   },
 });
 
@@ -140,7 +148,7 @@ const INNATE_GIFT = new Buff({
     const a = currentAction();
     if (a === RunicChainWhip || a === RunicOutburst || a === RunicSoliskin || a === FSkill) {
         addStat(Stat.Amp, 30 * frozenStacks(), Type1.Echo);
-        if (a === FSkill) revoke(INNATE_GIFT);
+        if (a === FSkill) revokeSelf(INNATE_GIFT);
     }
   },
   updateBuffs: () => lostOnSwap(),
@@ -177,26 +185,17 @@ const SOLISKIN_VITALITY = new Buff({
  *  own base stat line. */
 const SIGRIKA = new Resonator({
   name: "Sigrika",
-  abbreviation: "Geek",
   element: Attribute.Aero,
   weapon: WeaponType.Gauntlets,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#7ee0c9",
   maxEnergy: 125,
 
-  // Soliskin Vitality's own gain (any team member's Echo cast) plus queueing whichever Runic
-  // follow-up the Heavy Attack form actually cast
+  // Soliskin Vitality's own gain — any team member's Echo cast
   updateGlobal: () => { if (casting(Cast.Echo)) applySelf(SOLISKIN_VITALITY, 10); },
-  updateBuffs: () => {
-    const a = currentAction();
-    if (a === Liberation) applySelf(DIVERGENT);
-    if (a === BA4) applySelf(DECIPHER, 1);
-    if (a === FHAoutburst) queue(RunicOutburst);
-    if (a === FHAchainwhip) queue(RunicChainWhip);
-    if (a === FHAsoliskin) queue(RunicSoliskin);
-  },
 
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 10775); addStat(Stat.BaseAtk, 437.5); addStat(Stat.BaseDef, 1137);
   },
 });
@@ -204,18 +203,18 @@ const SIGRIKA = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const SIGRIKA_TALENTS = new Talent({
   name: "Sigrika: Talents",
-  applyStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
 /** The kit-valid line: Intro opens Decipher-free, basics open Decipher on Stage 4, Elucidated
  *  spends it for a Rune: Trust, BOOMY BOOM! into BIG BOOMY BOOM! banks a Rune: Answer, Schemata of
  *  Runes spends the pair for Runic Outburst, Learn My True Name closes the circuit, Liberation
  *  closes the loop. She's never the team's own lead, so this same rotation covers both. */
-const SR_ROTATION = [
+
+const SR_ROTATION = new Rotation([
   INTRO, ECHO_CAST, BA2, BA3, BA4, EBA, FHAchainwhip, Liberation,
-  BA2, BA3, BA4, EBA, FHAoutburst, FSkill,
-  Outro,
-];
+  BA2, BA3, BA4, EBA, FHAoutburst, FSkill, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -230,6 +229,5 @@ export const GEEK_LOADOUT = new Loadout({
   echoLoadouts: [new EchoLoadout(NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC, SOUND_OF_TRUE_NAME_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
   substat: chem("atk", "basic"),
-  opener: SR_ROTATION,
-  loop: SR_ROTATION,
+    rotation: SR_ROTATION,
 });

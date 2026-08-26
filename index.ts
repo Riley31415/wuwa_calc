@@ -19,16 +19,16 @@
  * (expanded from teams.ts), the filter state, the routing and every last piece of rendering. The search itself and the engine
  * run that scores it are solver.ts, which is DOM-free precisely so a pool of Workers can run it —
  * that pass is ~97% of a cold load and every team in it is independent, so it goes wide (see
- * `ensureBestPicks()` and worker.ts). Only the handful of rows the table actually shows are run
- * back here, because a `TeamRun` carries a whole `State` for the detail page and none of that can
- * cross a postMessage.
+ * `ensureBestPicks()`, and solver.ts's own worker entry at the foot of it). Only the handful of
+ * rows the table actually shows are run back here, because a `TeamRun` carries a whole `State` for
+ * the detail page and none of that can cross a postMessage.
  */
 import { Gear, Action, Stat } from "./src/kit.js";
 import { TUNE_BREAK_SLOT, TUNE_BREAK_HUE } from "./src/tunebreak.js";
 import type { ChainGroup, HeldBuff, ResolvedSnapshot } from "./src/kit.js";
-import { buildReport, totalsBySlot, columnSources, columnOf } from "./src/display.js";
+import { buildReport, columnSources, columnOf } from "./src/display.js";
 import type { Report, Column, ReportRow, ReportPart, TraceEntry, InfoEntry, RawRow } from "./src/display.js";
-import { isPercent, statLabel } from "./src/stats.js";
+import { Scaling, isPercent, statLabel, SCALING_NAME, TAG_NAME, NODE_NAME } from "./src/stats.js";
 import { member, comboOf, runTeam, eligibleWeapons, sequenceLevels, variationsOf, solveTeam } from "./src/solver.js";
 import type { Member, Combo, Pick, Filters, Variation, TeamRun, SolvedVariation, SolveRequest, SolveResponse } from "./src/solver.js";
 import { loadoutName, LOADOUTS, ALL_TEAMS } from "./src/teams.js";
@@ -69,7 +69,10 @@ const filters: Filters = {
 };
 
 const bestPicks = new Map<string, Pick[]>();
-const bestKey = (teamKey: string): string => `${teamKey}|${filters.allowR1Mdps}|${filters.allowR1Supports}`;
+// ...and the two weapons boxes, since a closed one skips the weapon search altogether (see
+// solver.ts's own `eligibleWeapons()`), so opening it is a different search
+const bestKey = (teamKey: string): string =>
+  `${teamKey}|${filters.allowR1Mdps}|${filters.allowR1Supports}|${filters.mdpsWeapons}|${filters.supportWeapons}`;
 
 /** The re-optimized main stat for one variation, memoized across filter flips — same cache key
  *  shape as `bestPicks`, so an R1 change (which moves the build everything is measured against)
@@ -209,14 +212,12 @@ const STICK = 2;
  *  with tracing on to get them back. One team run costs a couple of milliseconds against the
  *  thousands the table already did, and it is deterministic: same loadouts, same rotations, same
  *  numbers. */
-function detailFor(run: TeamRun): { report: Report; rotationReports: Report[] } {
+function detailFor(run: TeamRun): { report: Report } {
   if (run.detail) return run.detail;
   const lines = run.rotationLines
     ?? runTeam(run.teamKey, run.members, run.combo, true).rotationLines!;
   run.rotationLines = lines;
-  const rotationReports = lines.map((l) => buildReport(l));
-  const report = buildReport(lines.flat());
-  run.detail = { report, rotationReports };
+  run.detail = { report: buildReport(lines.flat()) };
   return run.detail;
 }
 
@@ -270,9 +271,11 @@ function cell(columns: Column[], index: number, { cls = [], html = "", style = "
 }
 
 /** Every source that fed one value, revealed on hover. */
-const unit = (r: TraceEntry): string => ((r.percent ?? (r.stat ? isPercent(r.stat) : false)) ? "%" : "");
+const unit = (r: TraceEntry): string => ((r.percent ?? (r.stat !== undefined ? isPercent(r.stat) : false)) ? "%" : "");
 
-const SCALING_LABEL: Record<string, string> = { atk: "ATK", hp: "HP", def: "DEF", dot: "Dot", tune: "Tune" };
+const SCALING_LABEL: Partial<Record<Scaling, string>> = {
+  [Scaling.Atk]: "ATK", [Scaling.Hp]: "HP", [Scaling.Def]: "DEF", [Scaling.Dot]: "Dot", [Scaling.Tune]: "Tune",
+};
 
 const SECTION_ORDER = ["base", "bonus", "flat"];
 const SECTION_RANK = (key: string | null): number => {
@@ -284,14 +287,26 @@ const SECTION_RANK = (key: string | null): number => {
 
 const panelRow = (r: TraceEntry, slotHue: Map<string, string>, { noSource = false }: { noSource?: boolean } = {}): string => {
   const own = r.owner !== undefined ? (slotHue.get(r.owner ?? "") ?? MISC_HUE) : null;
-  return `<tr>${noSource ? "" : `<td class="s"${own ? ` style="--own:${own}"` : ""}>${esc(r.source)}</td>`}`
-  + `<td class="k">${esc(r.label ?? (r.stat ? statLabel(r.stat) : ""))}</td>`
-  + `<td class="v">${r.mult ? `&times;${fmt(r.value, r.digits ?? 4)}` : `${fmt(r.value, r.digits ?? 4)}${unit(r)}`}</td>`
-  + `</tr>`;
+  const label = r.label ?? (r.stat !== undefined ? statLabel(r.stat) : "");
+  const value = `<td class="v">${r.mult ? `&times;${fmt(r.value, r.digits ?? 4)}` : `${fmt(r.value, r.digits ?? 4)}${unit(r)}`}</td>`;
+  // Two columns, never three. The damage panel has no source of its own, so its left column is the
+  // label ("Motion Value"); every other panel dropped the stat column it used to carry — the
+  // heading over the group names the stat now (see `popover()`), and repeating it down every row
+  // was the same word twenty times. A row with no source of its own falls back to that label,
+  // which is the whole of what the atk panel's own "Relative" row is.
+  // A summary row (display.ts's own `Relative`) is not a contribution, so it reads as the panel's
+  // Total does — the same rule above it and the same weight, its label in the left column.
+  if (r.summary) return `<tr class="sum"><td class="k">${esc(label)}</td>${value}</tr>`;
+  return noSource
+    ? `<tr><td class="k">${esc(label)}</td>${value}</tr>`
+    : `<tr><td class="s"${own ? ` style="--own:${own}"` : ""}>${esc(r.source || label)}</td>${value}</tr>`;
 };
 
 function popover(col: Column, rows: TraceEntry[] | undefined, total: number | string | null | undefined, slotHue: Map<string, string>, suffix = ""): string {
-  if (!rows?.length) return "";
+  // An empty list is still a panel — a heading and the value itself, which is what a column
+  // nothing is feeding (0% amplification, an unbuffed crit rate) has to say. Only a column that
+  // was never traced at all (`undefined`) has no panel; see display.ts's own `rowValues()`.
+  if (!rows) return "";
   const noSource = col.key === "avg";
   const row = (r: TraceEntry) => panelRow(r, slotHue, { noSource });
 
@@ -309,20 +324,25 @@ function popover(col: Column, rows: TraceEntry[] | undefined, total: number | st
     .map(([key, group]) => ({ key, rows: group }))
     .sort((a, b) => SECTION_RANK(a.key) - SECTION_RANK(b.key));
 
-  const body = sections.map(({ key, rows: group }) => {
-    const head = key ? `<tr class="sec"><td colspan="3">${esc(key)}</td></tr>` : "";
-    const sub = key
-      ? `<tr class="sub">${noSource ? "" : `<td class="s"></td>`}<td class="k">Total</td>`
-        + `<td class="v">`
-        + `${fmt(group.reduce((n, r) => n + r.value, 0), 4)}${unit(group[0]!)}</td></tr>`
-      : "";
-    return head + group.map(row).join("") + sub;
-  }).join("");
+  // A group is its heading and its rows, and nothing else: no subtotal under any of them. An
+  // unsectioned group heads with the column's own written-out name (display.ts's `Column.full`),
+  // a sectioned one with its own — the same small caps either way.
+  const body = sections.map(({ key, rows: group }) =>
+    `<tr class="sec"><td colspan="2">${esc(key ?? col.full ?? col.label)}</td></tr>`
+    + group.map(row).join("")).join("");
+  // A panel whose every row sits below the total (an unshredded resistance, whose only row is the
+  // factor itself) still opens with the column's own name — the heading is what says which column
+  // is being explained, and it can't come from a group that isn't there.
+  const titled = sections.length ? body : `<tr class="sec"><td colspan="2">${esc(col.full ?? col.label)}</td></tr>`;
 
-  return `<span class="pop"><table>${body}${before.map(row).join("")}`
-    + `<tr class="sum">${noSource ? "" : `<td class="s"></td>`}<td class="k">Total</td>`
-    + `<td class="v">${fmt(total, col.digits ?? 0)}${col.percent ? "%" : ""}${esc(suffix)}</td>`
-    + `</tr>${after.map(row).join("")}</table></span>`;
+  // the damage panel's own figures read left-aligned (see index.css) — every row of it is a
+  // multiplier rather than an amount, and flush-right pushes the `x` signs apart
+  // a column that owns no total of its own (display.ts's own `Column.noTotal`) ends on its last
+  // section instead — see there for why off-tune is one
+  const sum = `<tr class="sum"><td class="k">Total</td>`
+    + `<td class="v">${fmt(total, col.digits ?? 0)}${col.percent ? "%" : ""}${esc(suffix)}</td></tr>`;
+  return `<span class="pop${col.key === "avg" ? " damage" : ""}"><table>${titled}`
+    + `${before.map(row).join("")}${sum}${after.map(row).join("")}</table></span>`;
 }
 
 function infoPopover(info: InfoEntry[] | undefined): string {
@@ -382,9 +402,9 @@ function buffsPopover(member: string, gear: Gear[], local: HeldBuff[], global: H
  *  4-section total and divides by 4, so each bucket reads as the same per-section average
  *  `total`/`grandTotal` already are, not a 4-section sum. */
 function sumByTag(
-  lines: ChainGroup[], slot: string, keyOf: (a: Action) => string | null, divisor = 1,
-): Map<string, number> {
-  const by = new Map<string, number>();
+  lines: ChainGroup[], slot: string, keyOf: (a: Action) => number | null, divisor = 1,
+): Map<number, number> {
+  const by = new Map<number, number>();
   for (const line of lines) {
     const snap = line.snap;
     if (snap.slot !== slot) continue;
@@ -396,10 +416,9 @@ function sumByTag(
   return by;
 }
 
-function breakdownSection(heading: string, by: Map<string, number>, total: number): string {
+function breakdownSection(heading: string, by: Map<number, number>, total: number, label: (k: number) => string): string {
   if (!by.size) return "";
   const rows = [...by].sort((a, b) => b[1] - a[1]);
-  const label = (k: string) => k.charAt(0).toUpperCase() + k.slice(1);
   const body = rows.map(([k, v]) => {
     const pct = total ? Math.round((v / total) * 100) : 0;
     return `<tr><td class="k">${esc(label(k))}</td><td class="v">${fmt(v)} <span class="pct">(${pct}%)</span></td></tr>`;
@@ -412,51 +431,13 @@ function breakdownSection(heading: string, by: Map<string, number>, total: numbe
 function damagePopover(
   lines: ChainGroup[], slot: string, total: number, grandTotal: number, divisor = 1,
 ): string {
-  const body = breakdownSection("Node", sumByTag(lines, slot, (a) => a.node, divisor), total)
-    + breakdownSection("Type", sumByTag(lines, slot, (a) => a.type, divisor), total)
-    + breakdownSection("Type 2", sumByTag(lines, slot, (a) => a.type2, divisor), total);
+  const tagName = (k: number) => TAG_NAME[k as keyof typeof TAG_NAME];
+  const body = breakdownSection("Node", sumByTag(lines, slot, (a) => a.node, divisor), total, (k) => NODE_NAME[k as keyof typeof NODE_NAME])
+    + breakdownSection("Type", sumByTag(lines, slot, (a) => a.type, divisor), total, tagName)
+    + breakdownSection("Type 2", sumByTag(lines, slot, (a) => a.type2, divisor), total, tagName);
   const pct = grandTotal ? Math.round((total / grandTotal) * 100) : 0;
   return `<span class="pop breakdown"><table>${body}`
     + `<tr class="sum"><td class="k">Total</td><td class="v">${fmt(total)} <span class="pct">(${pct}% of team)</span></td></tr>`
-    + `</table></span>`;
-}
-
-const SECTION_LABELS = ["Opener", "Loop 1", "Loop 2", "Loop 3"];
-
-/** The hover behind any Avg DPR cell: each of the 4 sections' own raw total, then their raw sum
- *  (Total, over the full 2-minute rotation) and the mean the cell itself displays (Avg) — same
- *  `.pop.breakdown` shell `damagePopover()` uses, just flat rows with no sections. `slot: null`
- *  for the whole team's own Total column; otherwise that one member's (or Misc's) own share, read
- *  off `sectionBySlot` so a member cell breaks down exactly the way the team cell beside it does.
- *
- *  `loadout` prepends that member's own equipped gear as a section above the rotation rows,
- *  closed off by a dotted rule the CSS draws for itself (see index.css's own `.pop .gear + tr`)
- *  — a real member's cell is the only hover they have now, so both readings of their column live
- *  in the one panel. Misc and the team Total pass nothing: neither is a loadout. */
-function breakdownRows(sections: number[], avg: number, heading?: string): string {
-  const head = heading ? `<tr class="sec"><td colspan="2">${esc(heading)}</td></tr>` : "";
-  const body = sections
-    .map((v, i) => `<tr><td class="k">${esc(SECTION_LABELS[i])}</td><td class="v">${fmt(v)}</td></tr>`)
-    .join("");
-  const total = sections.reduce((a, b) => a + b, 0);
-  return head + body
-    + `<tr class="sum"><td class="k">Total</td><td class="v">${fmt(total)}</td></tr>`
-    + `<tr class="sum"><td class="k">Avg</td><td class="v">${fmt(avg)}</td></tr>`;
-}
-
-function sectionBreakdownPopover(run: TeamRun, slot: string | null, loadout?: { member: Member; combo: Combo }): string {
-  const sections = slot == null ? run.sectionTotals : run.sectionBySlot.map((by) => by.get(slot) ?? 0);
-  const avg = slot == null ? run.total : (run.bySlot.get(slot) ?? 0);
-  const gear = loadout ? gearRows(loadout.member, loadout.combo) : "";
-  // The team's own panel opens with Misc's share: the break belongs to no member, so with its
-  // column gone this is the only place its damage is broken down. Both groups get a heading here,
-  // since two stacks of Opener/Loop rows are only readable if each says whose it is; a member's
-  // own panel is one group and needs none.
-  const misc = slot == null
-    ? breakdownRows(run.sectionBySlot.map((by) => by.get(MISC) ?? 0), run.bySlot.get(MISC) ?? 0, MISC)
-    : "";
-  return `<span class="pop breakdown"><table>${gear}${misc}`
-    + breakdownRows(sections, avg, slot == null ? "Team" : undefined)
     + `</table></span>`;
 }
 
@@ -493,8 +474,7 @@ function equippedSequences(member: Member, combo: Combo): Gear[] {
  *  by `.pop .gear`) — the label column's gray already matches those, and the browser's own table
  *  layout sizes both columns to their own longest cell with no extra CSS. Every row carries
  *  `.gear`, which is what left-aligns the name column: these are names, not numbers, and the
- *  panel this shares with the rotation breakdown (`sectionBreakdownPopover`) has right-aligned
- *  numeric rows sitting directly underneath them. */
+ *  panel is a plain list of names with no numeric column beside it. */
 function gearRows(member: Member, combo: Combo): string {
   const core = equippedGear(member, combo).slice(HOVER_GEAR_FROM);
   const sequences = equippedSequences(member, combo);
@@ -512,8 +492,8 @@ function gearRows(member: Member, combo: Combo): string {
       .join("");
 }
 
-/** The loadout on its own, for the detail page's own member-name hovers — the comparison table
- *  folds the same rows into its Avg DPR panel instead (`sectionBreakdownPopover`). */
+/** The loadout on its own — the only hover a member's own name cell carries, on both the
+ *  comparison table and the detail page's two rotation tables. */
 function gearPopover(member: Member, combo: Combo): string {
   return `<span class="pop gear"><table>${gearRows(member, combo)}</table></span>`;
 }
@@ -526,9 +506,8 @@ function gearPopover(member: Member, combo: Combo): string {
  *
  *  Then, only for an axis whose Show ... Options box is actually open for this member's own role:
  *  their echo set, and their main-stat build. A closed axis is the same pick on every row, so
- *  naming it would just be noise. Both read off `abbreviation` (kit.ts's own `Gear`), which is
- *  the only way they fit in a table cell — and a mainslot without one is left out entirely rather
- *  than printed long, since most of them are damage echoes whose name says nothing about a build. */
+ *  naming it would just be noise. Every one of them reads out under the same name it carries in
+ *  the loadout hover, so a cell and the build behind it never say the same pick two ways. */
 function memberLabel(m: Member, combo: Combo): string {
   const l = m.loadout;
   const mdps = l.mainDps;
@@ -537,7 +516,7 @@ function memberLabel(m: Member, combo: Combo): string {
   // open — and once it is, this is the one thing telling that member's own seven rows apart (see
   // `sequenceLevels()`). And a standard weapon's "R0" says nothing about a build — only a
   // signature earns a rank marker, and only the weapon's own name earns the space R0 wasn't
-  // taking (weapons have no abbreviation; the real name is short enough).
+  // taking.
   const seq = l.resonator.standardCharacter || (mdps ? filters.mdpsSequences : filters.supportSequences)
     ? `S${combo.sequence}`
     : "";
@@ -549,13 +528,13 @@ function memberLabel(m: Member, combo: Combo): string {
   const options: string[] = [];
   if (weapons) options.push(combo.weapon.name);
   if (mdps ? filters.mdpsEchoes : filters.supportEchoes) {
-    const set = [combo.echo.sonata, combo.echo.mainslot].map((g) => g.abbreviation).filter(Boolean).join(" + ");
+    const set = [combo.echo.sonata, combo.echo.mainslot].map((g) => g.name).filter(Boolean).join(" + ");
     // a weapon name is several words with spaces of its own, so the sonata set beside it needs a
     // plus to read as a separate thing — everything else is spaced like the rest of the label
     if (weapons) options[options.length - 1] += ` + ${set}`;
     else options.push(set);
   }
-  if (mdps ? filters.mdpsMainstats : filters.supportMainstats) options.push(combo.mainstat.abbreviation ?? "");
+  if (mdps ? filters.mdpsMainstats : filters.supportMainstats) options.push(combo.mainstat.name);
 
   return [l.resonator.name, `${seq}${rank}`, ...options].filter(Boolean).join(" ");
 }
@@ -638,25 +617,22 @@ function comparisonTable(rows: TeamRow[]): string {
     // Left click requires this resonator, right click bars them — see the handlers in boot() and
     // `resonatorFilters`. Nothing is drawn in the cell either way; the chips above the table are
     // where a set filter shows. `data-resonator` stays the resonator's own full name, since that's
-    // what the filter keys off; only the visible label is the abbreviated build line. No hover of
-    // its own: the loadout it used to show is a section of the DPR cell's own panel now.
-    // The name cell is the whole of a member's column now: it carries their own panel — loadout,
-    // then their Opener/Loop breakdown — where their DPR cell used to. The number itself is in
-    // that panel rather than the table, which keeps a row down to what actually varies between
-    // rows: who is in the team, what the team does, and how that compares.
-    const memberCell = (m: Member, combo: Combo, loadout: { member: Member; combo: Combo }) =>
+    // what the filter keys off; only the visible label is the build line.
+    // The hover is the loadout alone — every per-member damage breakdown that used to live here
+    // is now one row of the DPR table the Total cell opens, which says the same thing about all
+    // three members at once instead of one panel apiece.
+    const memberCell = (m: Member, combo: Combo) =>
       `<div class="c name res has" data-resonator="${esc(m.name)}" style="--mem:${m.color};color:${m.color}">`
       + `<span class="res-label">${esc(memberLabel(m, combo))}</span>`
-      + sectionBreakdownPopover(run, m.name, loadout)
+      + gearPopover(m, combo)
       + `</div>`;
-    const memberCells = run.members
-      .map((m, i) => memberCell(m, run.combo[i]!, { member: m, combo: run.combo[i]! }))
-      .join("");
+    const memberCells = run.members.map((m, i) => memberCell(m, run.combo[i]!)).join("");
 
     return `<div class="trow" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}"`
       + ` data-members="${esc(memberNames)}" data-total="${grand}">`
       + memberCells
-      + `<div class="c num total teamdpr gotodetail" data-team="${esc(key)}">${fmt(grand)}<span class="arrow">›</span>${sectionBreakdownPopover(run, null)}</div>`
+      + `<div class="c num total teamdpr gotodetail" data-team="${esc(key)}">${fmt(grand)}<span class="arrow">›</span>`
+      + `<span class="pop dpr">${dprTable(run)}</span></div>`
       // both the hue (`--hue`, on the row) and the percentage itself are written by
       // rankRows() — they're relative to whichever team is currently the baseline, which this
       // render doesn't know. Clicking the cell makes that row the baseline (see `setBaseline()`).
@@ -794,19 +770,23 @@ function stepRow(
 
     const text = esc(fmt(v, col.digits ?? 0, PAD_DIGITS_COLUMNS.has(col.key), false))
       + (col.percent && typeof v === "number" ? "%" : "");
-    let html = sources ? `<span class="has">${text}</span>` : text;
+    // the help cursor goes on exactly the cells that open a panel below — an empty cell doesn't
+    let html = sources && text ? `<span class="has">${text}</span>` : text;
     if (col.key === "action" && !part && "parts" in row && row.parts.length) {
       html = `${html}<span class="caret">▸</span>`;
     }
-    const suffix = col.key === "mv" && row.scaling
-      ? ` ${SCALING_LABEL[row.scaling] ?? row.scaling}` : "";
+    const suffix = col.key === "mv" && row.scaling !== null
+      ? ` ${SCALING_LABEL[row.scaling] ?? SCALING_NAME[row.scaling]}` : "";
     if (col.key === "action") {
       html += infoPopover("info" in row ? row.info : undefined);
     } else if (col.key === "member" && "line" in row) {
       const gear = gearByMember.get(row.line.snap.member) ?? [];
       html += buffsPopover(row.line.snap.member, gear, row.line.snap.heldLocal, row.line.snap.heldGlobal, row.line.snap.heldEnemy, slotHue);
-    } else {
-      html += popover(col, sources, v, slotHue, suffix);
+    } else if (text) {
+      // `text`: an empty cell gets no panel — hovering nothing and being told about it is worse
+      // than the blank the row means by it. `moved:`: a running counter's panel foots to what this
+      // action moved it by rather than to the balance in the cell (display.ts's own rowValues()).
+      html += popover(col, sources, row.raw[`moved:${col.key}`] ?? v, slotHue, suffix);
     }
 
     const mem = slotHue.get(String(v)) ?? FALLBACK_HUE;
@@ -871,18 +851,21 @@ function rotationTable(report: Report, slotHue: Map<string, string>, gearByMembe
 
 /* ----------------------------------------------------------------- page pieces */
 
-/** Damage per rotation: one row per member (loadout hover on the name cell), then Misc and a
- *  Total row (plain name, nothing to hover — neither is a real loadout). Every damage value in
- *  the table carries its own Node/Type/Type2 breakdown instead (`damagePopover()`, moved here
- *  from the comparison page's own per-member DPR cell) — `slot: null` on the Total row, which has
- *  no one member/Misc to filter to. Opener/Loop 1-3 read each section's own report; Total (2min)
- *  reads the combined 4-section report built by `detailFor()`; Avg is that same total divided
- *  across the 4 sections, matching the comparison page's own Avg Total DPR. */
-function dprTable(run: TeamRun, lines: ChainGroup[][], report: Report, rotationReports: Report[]): string {
-  const sections = rotationReports.map((r) => totalsBySlot(r));
-  const combined = totalsBySlot(report);
-  const flat = lines.flat();
-  const n = rotationReports.length;
+/** Damage per rotation: one row per member, then Misc and a Total row (plain name — neither is a
+ *  real loadout). Opener/Loop 1-3 read each section's own per-slot sum, Total (2min) their sum
+ *  over the whole rotation, and Avg that divided back across the 4 sections, matching the
+ *  comparison page's own Avg Total DPR. Every figure comes off `run` — the four sections the
+ *  solver already keeps (`sectionBySlot`/`sectionTotals`) — so no report, and no traced re-run,
+ *  is needed to draw one.
+ *
+ *  `lines` is the detail page's own extra: with them, each damage value carries its own
+ *  Node/Type/Type2 breakdown (`damagePopover()`) and each member name their loadout. The
+ *  comparison table's own Total DPR hover is this whole table, so it passes none — a panel
+ *  nested inside a panel has no hover of its own to open on. */
+function dprTable(run: TeamRun, lines?: ChainGroup[][]): string {
+  const n = run.sectionTotals.length;
+  const grand = run.sectionTotals.reduce((a, b) => a + b, 0);
+  const flat = lines?.flat();
 
   const head = `<div class="rtrow rthead">`
     + `<div class="c"></div>`
@@ -891,17 +874,24 @@ function dprTable(run: TeamRun, lines: ChainGroup[][], report: Report, rotationR
     + `<div class="c num">Total</div><div class="c num">Avg</div>`
     + `</div>`;
 
-  const valueCell = (lines: ChainGroup[], slot: string, value: number, grand: number, divisor = 1): string =>
-    `<div class="c num has">${fmt(value)}${damagePopover(lines, slot, value, grand, divisor)}</div>`;
+  const valueCell = (sec: ChainGroup[] | undefined, slot: string, value: number, total: number, divisor = 1): string =>
+    (sec
+      ? `<div class="c num has">${fmt(value)}${damagePopover(sec, slot, value, total, divisor)}</div>`
+      : `<div class="c num">${fmt(value)}</div>`);
 
-  const dataRow = (slot: string, color: string, hover: string): string => `<div class="rtrow">`
-    + `<div class="c name" style="--mem:${color}">${esc(slot)}${hover}</div>`
-    + lines.map((sec, i) => valueCell(sec, slot, sections[i]!.get(slot) ?? 0, rotationReports[i]!.total)).join("")
-    + valueCell(flat, slot, combined.get(slot) ?? 0, report.total)
-    + valueCell(flat, slot, (combined.get(slot) ?? 0) / n, report.total / n, n)
-    + `</div>`;
+  const dataRow = (slot: string, color: string, hover: string): string => {
+    const own = run.sectionBySlot.reduce((a, by) => a + (by.get(slot) ?? 0), 0);
+    return `<div class="rtrow">`
+      + `<div class="c name${hover ? " has" : ""}" style="--mem:${color}">${esc(slot)}${hover}</div>`
+      + run.sectionBySlot.map((by, i) => valueCell(lines?.[i], slot, by.get(slot) ?? 0, run.sectionTotals[i]!)).join("")
+      + valueCell(flat, slot, own, grand)
+      + valueCell(flat, slot, own / n, grand / n, n)
+      + `</div>`;
+  };
 
-  const memberRows = run.members.map((m, i) => dataRow(m.name, m.color, gearPopover(m, run.combo[i]!))).join("");
+  const memberRows = run.members
+    .map((m, i) => dataRow(m.name, m.color, lines ? gearPopover(m, run.combo[i]!) : ""))
+    .join("");
   // Misc gets the tune-break hue and the same bar/wash as a real member — it isn't a loadout, so
   // it has no gear hover, but it is a damage source and reads as one.
   const miscRow = dataRow(MISC, MISC_HUE, "");
@@ -910,22 +900,24 @@ function dprTable(run: TeamRun, lines: ChainGroup[][], report: Report, rotationR
   const plainCell = (value: number): string => `<div class="c num">${fmt(value)}</div>`;
   const totalRow = `<div class="rtrow total">`
     + `<div class="c name">Total</div>`
-    + rotationReports.map((r) => plainCell(r.total)).join("")
-    + plainCell(report.total)
-    + plainCell(report.total / n)
+    + run.sectionTotals.map((v) => plainCell(v)).join("")
+    + plainCell(grand)
+    + plainCell(grand / n)
     + `</div>`;
 
   return `<div class="rtable dpr">${head}${memberRows}${miscRow}${totalRow}</div>`;
 }
 
-/** Index of the first `resetEnergy`-marked action `member` casts within `flat[from, to)` — null
- *  if they never cast one in that span (see kit.ts's own `ActionDef.resetEnergy`). */
-function findResetIndex(flat: ChainGroup[], from: number, to: number, member: string): number | null {
+/** Every index at which `member` casts a `resetEnergy`-marked action within `flat[from, to)`, in
+ *  order — empty if they never cast one in that span (see kit.ts's own `ActionDef.resetEnergy`).
+ *  A loop reads the first, the opener the last: see `energyTable()`. */
+function resetIndices(flat: ChainGroup[], from: number, to: number, member: string): number[] {
+  const out: number[] = [];
   for (let i = from; i < to; i++) {
     const snap = flat[i]!.snap as ResolvedSnapshot;
-    if (snap.member === member && snap.action.resetEnergy) return i;
+    if (snap.member === member && snap.action.resetEnergy) out.push(i);
   }
-  return null;
+  return out;
 }
 
 /** How much more ER (as a % of the 100% baseline every declared energy figure already assumes)
@@ -958,10 +950,11 @@ function erFallsShort(flat: ChainGroup[], targetIdx: number, member: string, req
 }
 
 /** Energy Requirements: one row per member (same gear-loadout hover as the DPR table above), one
- *  column per loop — the opener has no column since its own requirement is always 0 (RealEnergy
- *  starts a fight already filled, see kit.ts). A cell gets a red underline when the member's own
- *  ER stat dipped below the shown requirement on any of their own actions since their last reset —
- *  see `erFallsShort()`.
+ *  column per section. The opener's own column is about its *last* Liberation, not its first: a
+ *  fight starts on a full bar (RealEnergy, see kit.ts), so a lone opener cast needs nothing and
+ *  reads 0% — only a second one in the same opener has to be banked for. A cell gets a red
+ *  underline when the member's own ER stat dipped below the shown requirement on any of their own
+ *  actions since their last reset — see `erFallsShort()`.
  *
  *  Each cell hovers the ER its requirement is measured against: the same `er` panel the action
  *  table carries, from the same column definition and the same sources (`columnSources()`), as it
@@ -976,20 +969,31 @@ function energyTable(run: TeamRun, lines: ChainGroup[][], report: Report, slotHu
 
   const head = `<div class="rtrow rthead">`
     + `<div class="c"></div>`
+    + `<div class="c num">Opener</div>`
     + `<div class="c num">Loop 1</div><div class="c num">Loop 2</div><div class="c num">Loop 3</div>`
     + `</div>`;
 
   const rows = run.members.map((m, idx) => {
     const maxEnergy = run.state.slots.find((s) => s.name === m.name)?.resonator?.maxEnergy ?? 0;
-    const cells = [1, 2, 3].map((i) => {
-      const resetIdx = findResetIndex(flat, offsets[i]!, offsets[i + 1]!, m.name);
-      const before = resetIdx == null ? null : (flat[resetIdx]!.snap as ResolvedSnapshot).realEnergyBefore;
-      const req = erRequirementValue(maxEnergy, before);
+    const cell = (resetIdx: number | null, req: number | null): string => {
       const warn = req != null && resetIdx != null && erFallsShort(flat, resetIdx, m.name, req);
       const text = req == null ? "—" : `${fmt(req, 1)}%`;
       const snap = resetIdx == null ? null : (flat[resetIdx]!.snap as ResolvedSnapshot);
       const hover = snap && erCol ? popover(erCol, columnSources(snap, "er"), snap.stat(Stat.Er), slotHue) : "";
       return `<div class="c num${warn ? " er-under" : ""}${hover ? " has" : ""}">${text}${hover}</div>`;
+    };
+
+    // the opener's last cast is the one with something to bank for — the first rode in on the
+    // full bar the fight starts with, so on its own it asks for nothing
+    const opener = resetIndices(flat, offsets[0]!, offsets[1]!, m.name);
+    const openerIdx = opener[opener.length - 1] ?? null;
+    const openerReq = openerIdx == null || opener.length === 1 ? (opener.length ? 0 : null)
+      : erRequirementValue(maxEnergy, (flat[openerIdx]!.snap as ResolvedSnapshot).realEnergyBefore);
+
+    const cells = cell(openerIdx, openerReq) + [1, 2, 3].map((i) => {
+      const resetIdx = resetIndices(flat, offsets[i]!, offsets[i + 1]!, m.name)[0] ?? null;
+      const before = resetIdx == null ? null : (flat[resetIdx]!.snap as ResolvedSnapshot).realEnergyBefore;
+      return cell(resetIdx, erRequirementValue(maxEnergy, before));
     }).join("");
     return `<div class="rtrow">`
       + `<div class="c name" style="--mem:${m.color}">${esc(m.name)}${gearPopover(m, run.combo[idx]!)}</div>`
@@ -1001,7 +1005,7 @@ function energyTable(run: TeamRun, lines: ChainGroup[][], report: Report, slotHu
 }
 
 function page(run: TeamRun): string {
-  const { report, rotationReports } = detailFor(run);
+  const { report } = detailFor(run);
   // detailFor() has just guaranteed these exist (re-running the team traced if need be)
   const lines = run.rotationLines!;
   const { members } = run;
@@ -1012,7 +1016,7 @@ function page(run: TeamRun): string {
   <div class="rtables">
     <div class="rtable-block">
       <h2 class="summary-label">damage per rotation</h2>
-      ${dprTable(run, lines, report, rotationReports)}
+      ${dprTable(run, lines)}
     </div>
     <div class="rtable-block">
       <h2 class="summary-label">energy requirements</h2>
@@ -1355,7 +1359,7 @@ function workerPool(): Worker[] | null {
   const want = Math.max(1, Math.min(WORKER_LIMIT, (navigator.hardwareConcurrency || 4) - 1));
   try {
     pool = Array.from({ length: want }, () =>
-      new Worker(new URL("./src/worker.js", import.meta.url), { type: "module" }));
+      new Worker(new URL("./src/solver.js", import.meta.url), { type: "module" }));
   } catch (err) {
     console.warn("Workers unavailable, optimizing on the main thread instead:", err);
     pool = null;

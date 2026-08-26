@@ -1,219 +1,266 @@
-/** Stat vocabulary. Ratio stats are percent units (36 means 36%), flat stats are flat. Each group
- *  is a string enum — the value is both the wire format and how it reads for a person. */
+/** Stat vocabulary. Ratio stats are percent units (36 means 36%), flat stats are flat.
+ *
+ *  Every enum here is a numeric `const enum`: each member compiles to its bare number wherever it
+ *  is used, there is no enum object at runtime, and how a value reads for a person lives in a
+ *  separate `*_NAME` table beside it. `Stat` and `EnemyStat` share one index space, so the engine's
+ *  per-action totals are a plain array indexed by the stat itself (kit.ts's own `effective`); the
+ *  three tag enums share another, so a scoped stat packs into one integer (see `scopedStat`). */
 
 /* ------------------------------------------------------------------ flat stats */
 
-/** Every stat name, one shared key space (`add(value, stat)`/`scopedStat(tag, stat)`) — flat vs
+/** Every stat, one shared key space (`addStat(stat, value)`/`scopedStat(tag, stat)`) — flat vs
  *  ratio is decided only by membership in `PERCENT_STATS` below. */
-export enum Stat {
-  BaseAtk = "Base ATK",
-  BaseHp = "Base HP",
-  BaseDef = "Base DEF",
+export const enum Stat {
+  BaseAtk,
+  BaseHp,
+  BaseDef,
 
-  FlatAtk = "Flat ATK",
-  FlatHp = "Flat HP",
-  FlatDef = "Flat DEF",
+  FlatAtk,
+  FlatHp,
+  FlatDef,
 
-  BonusAtk = "ATK%",
-  BonusHp = "HP%",
-  BonusDef = "DEF%",
+  BonusAtk,
+  BonusHp,
+  BonusDef,
 
-  CritRate = "Crit Rate",
-  CritDmg = "Crit Dmg",
-  Er = "Energy Regen",
-  Tbb = "Tune Break Boost",
-  OfftuneBuildup = "Off-Tune Buildup Rate",
+  CritRate,
+  CritDmg,
+  Er,
+  Tbb,
+  OfftuneBuildup,
 
   /** Motion value: `(base mv + AddMv) x (1 + MulMv)` — AddMv is inside the parens, MulMv independent. */
-  AddMv = "MV increase",
-  MulMv = "MV multiplier",
+  AddMv,
+  MulMv,
 
   /*
    * Shields are not a stat. A kit puts up the shield marker (statuses.ts's SHIELD) from its own
    * updateDebuffs(); a buff that cares reads `applied(SHIELD)` the same action. The elemental
    * Negative Statuses (Electro Flare, ...) are the same shape, as do-nothing enemy debuffs.
    */
-  DmgBonus = "Dmg Bonus",
-  Amp = "Amplification",
+  DmgBonus,
+  Amp,
 
-  TotalDmg = "Total Damage",
+  TotalDmg,
 
-  ResIgnore = "Res Ignore", // doesnt work on dot
-  DefIgnoreNew = "Def Ignore (new)", // use only on the newest resonators
-  DefIgnoreOld = "Def Ignore (old)", // use on resonators phrolova and older
+  ResIgnore, // doesnt work on dot
+  DefIgnoreNew, // use only on the newest resonators
+  DefIgnoreOld, // use on resonators phrolova and older
 
   /** Healing itself is out of scope for this calculator (see the standing rule) — these two
    *  are tracked purely for kit completeness. Nothing reads either; they never reach a column
    *  or a panel. */
-  HealingBonus = "Healing Bonus",
-  HealingTaken = "Healing Recieved",
+  HealingBonus,
+  HealingTaken,
 
   /** Resource deltas a buff contributes on top of an action's own declared energy/concerto/
    *  offtune/forte — banked into the running counters by evaluate(), not read back by a formula. */
-  AddEnergy = "AddEnergy",
-  AddConcerto = "AddConcerto",
-  AddOfftune = "AddOfftune",
-  /** Off-tune a kit puts straight onto the bar rather than building (Denia's half-bar surge) —
-   *  unlike AddOfftune, Off-Tune Buildup Rate doesn't scale it. */
-  FillOfftune = "FillOfftune",
-  AddForte1 = "AddForte1",
-  AddForte2 = "AddForte2",
-  AddForte3 = "AddForte3",
-  AddForte4 = "AddForte4",
-  AddForte5 = "AddForte5",
+  AddEnergy,
+  AddConcerto,
+  AddOfftune,
+  /** Off-tune that lands on the bar directly rather than being built up — Denia's half-bar
+   *  surge, and the drain a Tune Break takes back off. Unlike AddOfftune, Off-Tune Buildup Rate
+   *  doesn't scale it: it is already the amount the bar moves. */
+  DirectOfftune,
+  AddForte1,
+  AddForte2,
+  AddForte3,
+  AddForte4,
+  AddForte5,
 }
 
 /** Stats that describe the *enemy* itself — a real debuff on the target that every attacker reads
  *  identically, not a personal modifier for whoever's dealing the hit. `Stat.ResIgnore`/
  *  `DefIgnoreNew`/`DefIgnoreOld` stay in `Stat`: those are the attacker's own penetration, not a
  *  change to the enemy's own stat line. Granted/read through `addEnemyStat()`, never `addStat()`,
- *  so a kit can't reach for the wrong pool by mistake. */
-export enum EnemyStat {
-  ResShred = "Res Reduce",
-  DefReduce = "Def Reduce",
+ *  so a kit can't reach for the wrong pool by mistake. Numbered on from `Stat`'s last member so
+ *  the two share one index space (see the header). */
+export const enum EnemyStat {
+  ResShred = Stat.AddForte5 + 1,
+  DefReduce,
 }
 
-/* ------------------------------------------------------------ scoped stats */
-/** Any stat can be scoped to what the action is (`Dmg Bonus:fusion`) — resolves against element
- *  and damage type only, never `cast`/`scaling`.
- *
- *  Memoized through a nested Map rather than rebuilt per call: the tag and stat vocabularies are
- *  both small fixed enums, so the whole product is a few hundred strings that get built once and
- *  then handed back by reference. A flat `Map` keyed on `tag + "|" + stat` would defeat the point
- *  — building that key is the same string concatenation this is avoiding — hence two levels. */
-const SCOPED_CACHE = new Map<string, Map<string, string>>();
-export const scopedStat = (tag: string, stat: string): string => {
-  let byStat = SCOPED_CACHE.get(tag);
-  if (byStat === undefined) { byStat = new Map(); SCOPED_CACHE.set(tag, byStat); }
-  let key = byStat.get(stat);
-  if (key === undefined) { key = `${stat}:${tag}`; byStat.set(stat, key); }
-  return key;
+/** How many slots `Stat` and `EnemyStat` take between them — the size of a per-action total array. */
+export const STAT_COUNT = EnemyStat.DefReduce + 1;
+
+/** How each stat reads for a person — the report's column sources, the hover panels. */
+export const STAT_NAME: Record<Stat | EnemyStat, string> = {
+  [Stat.BaseAtk]: "Base ATK", [Stat.BaseHp]: "Base HP", [Stat.BaseDef]: "Base DEF",
+  [Stat.FlatAtk]: "Flat ATK", [Stat.FlatHp]: "Flat HP", [Stat.FlatDef]: "Flat DEF",
+  [Stat.BonusAtk]: "ATK%", [Stat.BonusHp]: "HP%", [Stat.BonusDef]: "DEF%",
+  [Stat.CritRate]: "Crit Rate", [Stat.CritDmg]: "Crit Dmg", [Stat.Er]: "Energy Regen",
+  [Stat.Tbb]: "Tune Break Boost", [Stat.OfftuneBuildup]: "Buildup",
+  [Stat.AddMv]: "MV increase", [Stat.MulMv]: "MV multiplier",
+  [Stat.DmgBonus]: "Dmg Bonus", [Stat.Amp]: "Amplification", [Stat.TotalDmg]: "Total Damage",
+  [Stat.ResIgnore]: "Res Ignore", [Stat.DefIgnoreNew]: "Def Ignore (new)", [Stat.DefIgnoreOld]: "Def Ignore (old)",
+  [Stat.HealingBonus]: "Healing Bonus", [Stat.HealingTaken]: "Healing Recieved",
+  [Stat.AddEnergy]: "Energy", [Stat.AddConcerto]: "Concerto", [Stat.AddOfftune]: "Offtune",
+  [Stat.DirectOfftune]: "DirectOfftune",
+  [Stat.AddForte1]: "Forte1", [Stat.AddForte2]: "Forte2", [Stat.AddForte3]: "Forte3",
+  [Stat.AddForte4]: "Forte4", [Stat.AddForte5]: "Forte5",
+  [EnemyStat.ResShred]: "Res Reduce", [EnemyStat.DefReduce]: "Def Reduce",
 };
 
 /* --- the tag vocabulary: what a conditional, an element field or a type field may say ------ */
+/* One 32-bit word holds a stat and all three tags, six bits each: the stat in bits 0-5, the
+ * attribute in 6-11, Type1 in 12-17, Type2 in 18-23. The tag enums are numbered *in place* — an
+ * Attribute is already `n << 6`, a Type1 `n << 12` — so a scoped stat is just `stat | tag`
+ * (`scopedStat()`), an action's own element/type/type2 OR together into one word with no shifting
+ * (kit.ts's own `tagWordOf()`), and "does this scope match the action" is that word masked to the
+ * tag's own band and compared. 0 in a band means none: unscoped, or an action with no such tag. */
 
-export enum Attribute {
-  Aero = "Aero",
-  Electro = "Electro",
-  Fusion = "Fusion",
-  Glacio = "Glacio",
-  Spectro = "Spectro",
-  Havoc = "Havoc",
-  Physical = "Physical",
-}
+const STAT_BITS = 0x3f;
+const ATTRIBUTE_BITS = 0x3f << 6;
+const TYPE1_BITS = 0x3f << 12;
+export const TYPE2_BITS = 0x3f << 18;
+const TAG_BITS = ATTRIBUTE_BITS | TYPE1_BITS | TYPE2_BITS;
+if (STAT_COUNT > STAT_BITS + 1) throw new Error("stats.ts: more stats than fit in the six-bit stat field");
 
-export const ATTRIBUTES: Attribute[] = [
-  Attribute.Aero, Attribute.Electro, Attribute.Fusion, Attribute.Glacio,
-  Attribute.Spectro, Attribute.Havoc, Attribute.Physical,
-];
-
-/** Which of the five weapon categories a resonator wields — decides which weapon files
- *  (src/weapons/) their loadout can actually equip. */
-export enum WeaponType {
-  Sword = "Sword",
-  Broadblade = "Broadblade",
-  Pistols = "Pistols",
-  Gauntlets = "Gauntlets",
-  Rectifier = "Rectifier",
+export const enum Attribute {
+  Aero = 1 << 6,
+  Electro = 2 << 6,
+  Fusion = 3 << 6,
+  Glacio = 4 << 6,
+  Spectro = 5 << 6,
+  Havoc = 6 << 6,
+  Physical = 7 << 6,
 }
 
 /** `type`/`cast` share one vocabulary onto two independent fields — they can genuinely disagree
  *  (Jingran's basic stage 3 is `cast: Basic, type: Heavy`). */
-export enum Type1 {
-  Basic = "Basic",
-  Heavy = "Heavy",
-  Skill = "Skill",
-  Liberation = "Liberation",
-  Intro = "Intro",
-  Outro = "Outro",
-  Echo = "Echo",
-  Status = "Negative Status",
-  Break = "Tune Break",
-  Rupture = "Tune Rupture",
-  Strain = "Tune Strain",
-  Hack = "Tune Hack",
-  Utility = "Utility",
+export const enum Type1 {
+  Basic = 1 << 12,
+  Heavy = 2 << 12,
+  Skill = 3 << 12,
+  Liberation = 4 << 12,
+  Intro = 5 << 12,
+  Outro = 6 << 12,
+  Echo = 7 << 12,
+  Status = 8 << 12,
+  Break = 9 << 12,
+  Rupture = 10 << 12,
+  Strain = 11 << 12,
+  Hack = 12 << 12,
+  Utility = 13 << 12,
 }
-
-export const TYPE1S: Type1[] = [
-  Type1.Basic, Type1.Heavy, Type1.Skill, Type1.Liberation,
-  Type1.Intro, Type1.Outro, Type1.Echo,
-  Type1.Status,
-  Type1.Break, Type1.Rupture, Type1.Strain, Type1.Hack, Type1.Utility,
-];
 
 /** A second, independent damage-type tag some hits carry alongside `type`, scoped the same way. */
-export enum Type2 {
-  Coordinated = "Coordinated",
-  SpectroFrazzle = "Spectro Frazzle",
-  AeroErosion = "Aero Erosion",
-  FusionBurst = "Fusion Burst",
-  GlacioChafe = "Glacio Chafe",
-  ElectroFlare = "Electro Flare",
+export const enum Type2 {
+  Coordinated = 1 << 18,
+  SpectroFrazzle = 2 << 18,
+  AeroErosion = 3 << 18,
+  FusionBurst = 4 << 18,
+  GlacioChafe = 5 << 18,
+  ElectroFlare = 6 << 18,
 }
-export const TYPE2S: Type2[] = [
-  Type2.Coordinated,
-  Type2.SpectroFrazzle, Type2.ElectroFlare, Type2.AeroErosion, Type2.FusionBurst, Type2.GlacioChafe, 
-];
+/** Any of the three — what a scoped stat, a conditional or an action's own element/type fields hold. */
+export type Tag = Attribute | Type1 | Type2;
+
+/** The band a tag sits in — the six bits of a word to compare it against. */
+export const tagBand = (tag: Tag): number =>
+  (tag & TYPE2_BITS ? TYPE2_BITS : tag & TYPE1_BITS ? TYPE1_BITS : ATTRIBUTE_BITS);
+
+/** Which band a tag falls in: 1 attribute, 2 Type1, 3 Type2 — the order a hover panel lists
+ *  scopes in, broadest first (see display.ts's own tagRank). */
+export const tagKind = (tag: Tag): 1 | 2 | 3 =>
+  (tag & TYPE2_BITS ? 3 : tag & TYPE1_BITS ? 2 : 1);
+
+export const TAG_NAME: Record<Tag, string> = {
+  [Attribute.Aero]: "Aero", [Attribute.Electro]: "Electro", [Attribute.Fusion]: "Fusion",
+  [Attribute.Glacio]: "Glacio", [Attribute.Spectro]: "Spectro", [Attribute.Havoc]: "Havoc",
+  [Attribute.Physical]: "Physical",
+  [Type1.Basic]: "Basic", [Type1.Heavy]: "Heavy", [Type1.Skill]: "Skill", [Type1.Liberation]: "Liberation",
+  [Type1.Intro]: "Intro", [Type1.Outro]: "Outro", [Type1.Echo]: "Echo", [Type1.Status]: "Negative Status",
+  [Type1.Break]: "Tune Break", [Type1.Rupture]: "Tune Rupture", [Type1.Strain]: "Tune Strain",
+  [Type1.Hack]: "Tune Hack", [Type1.Utility]: "Utility",
+  [Type2.Coordinated]: "Coordinated", [Type2.SpectroFrazzle]: "Spectro Frazzle",
+  [Type2.AeroErosion]: "Aero Erosion", [Type2.FusionBurst]: "Fusion Burst",
+  [Type2.GlacioChafe]: "Glacio Chafe", [Type2.ElectroFlare]: "Electro Flare",
+};
+
+/* ------------------------------------------------------------ scoped stats */
+/** Any stat can be scoped to what the action is (Dmg Bonus on Fusion) — resolves against element
+ *  and damage type only, never `cast`/`scaling`.
+ *
+ *  A key is one integer, the stat and the tag in their own bit fields (see the tag vocabulary
+ *  above) — so a bare stat *is* its own key, and either half comes back with a mask
+ *  (`splitStat`). Nothing to cache, nothing to concatenate. */
+export type StatKey = number;
+export const scopedStat = (tag: Tag, stat: Stat | EnemyStat): StatKey => stat | tag;
+
+/** A key back into its parts: `scopedStat(Attribute.Fusion, Stat.DmgBonus)` ->
+ *  `[Stat.DmgBonus, Attribute.Fusion]`, a bare `Stat.DmgBonus` -> `[Stat.DmgBonus, null]`. */
+export const splitStat = (key: StatKey): [Stat | EnemyStat, Tag | null] =>
+  [(key & STAT_BITS) as Stat, ((key & TAG_BITS) as Tag) || null];
+
+/** Which of the five weapon categories a resonator wields — decides which weapon files
+ *  (src/weapons/) their loadout can actually equip. */
+export const enum WeaponType {
+  Sword,
+  Broadblade,
+  Pistols,
+  Gauntlets,
+  Rectifier,
+}
 
 /** Cast identities with no damage type of their own (a Dodge Counter deals whatever `type` says);
  *  kept out of `Type1` so they can't be reached for `type`/`type2` by mistake. */
-export enum Cast {
-  DodgeCounter = "Dodge Counter",
-  Basic = "Basic",
-  Heavy = "Heavy",
-  Skill = "Skill",
-  Liberation = "Liberation",
-  Intro = "Intro",
-  Outro = "Outro",
-  Echo = "Echo",
-  TuneBreak = "Tune Break"
+export const enum Cast {
+  DodgeCounter,
+  Basic,
+  Heavy,
+  Skill,
+  Liberation,
+  Intro,
+  Outro,
+  Echo,
+  TuneBreak,
 }
 
-export const CASTS: Array<Type1 | Cast> = [
-  Cast.Basic, Cast.Heavy, Cast.Skill, Cast.Liberation,
-  Cast.Intro, Cast.Outro, Cast.Echo, 
-  Cast.TuneBreak,
-  Cast.DodgeCounter
-];
+export const CAST_NAME: Record<Cast, string> = {
+  [Cast.DodgeCounter]: "Dodge Counter", [Cast.Basic]: "Basic", [Cast.Heavy]: "Heavy", [Cast.Skill]: "Skill",
+  [Cast.Liberation]: "Liberation", [Cast.Intro]: "Intro", [Cast.Outro]: "Outro", [Cast.Echo]: "Echo",
+  [Cast.TuneBreak]: "Tune Break",
+};
 
 /** Which branch of the kit a cast comes from (forte circuit vs liberation vs ordinary attacks),
  *  independent of `cast`/`type` — `outro`/`echo` aren't kit branches, so they have no node. */
-export enum Node {
-  Normal = "Normal",
-  Skill = "Skill",
-  Forte = "Forte",
-  Liberation = "Liberation",
-  Intro = "Intro",
+export const enum Node {
+  Normal,
+  Skill,
+  Forte,
+  Liberation,
+  Intro,
 }
+
+export const NODE_NAME: Record<Node, string> = {
+  [Node.Normal]: "Normal", [Node.Skill]: "Skill", [Node.Forte]: "Forte", [Node.Liberation]: "Liberation",
+  [Node.Intro]: "Intro",
+};
 
 /** Which stat a hit reads its final number from. Fixed bypasses all of them — its own mv is the
  *  damage, unconditionally (see damage.ts's own damageFactors()). */
-export enum Scaling {
-  Atk = "ATK",
-  Hp = "HP",
-  Def = "DEF",
-  Dot = "DOT",
-  Tune = "TUNE",
-  Fixed = "FIXED",
+export const enum Scaling {
+  Atk,
+  Hp,
+  Def,
+  Dot,
+  Tune,
+  Fixed,
 }
 
-/** Split a scoped key back into its parts. `Dmg Bonus:fusion` -> `["Dmg Bonus", "fusion"]`. */
-export function splitStat(stat: string): [string, string | null] {
-  const i = stat.indexOf(":");
-  return i === -1 ? [stat, null] : [stat.slice(0, i), stat.slice(i + 1)];
-}
-
-/** What a conditional may name: the action's element or either of its damage types. */
-export const TAGS_MATCHED: string[] = ["element", "type", "type2"];
+export const SCALING_NAME: Record<Scaling, string> = {
+  [Scaling.Atk]: "ATK", [Scaling.Hp]: "HP", [Scaling.Def]: "DEF", [Scaling.Dot]: "DOT", [Scaling.Tune]: "TUNE",
+  [Scaling.Fixed]: "FIXED",
+};
 
 /* ------------------------------------------------------------------- metadata */
 
 /** Ratio stats, held in percent units. Everything else is a flat amount or a count. Covers both
- *  `Stat` and `EnemyStat` values — a scoped key's own string is all `isPercent()` ever looks at,
- *  so one shared set works for either enum. */
-export const PERCENT_STATS: Set<string> = new Set([
+ *  `Stat` and `EnemyStat` values — they share one index space, so one set works for either enum. */
+export const PERCENT_STATS: Set<Stat | EnemyStat> = new Set<Stat | EnemyStat>([
   Stat.BonusAtk, Stat.BonusHp, Stat.BonusDef, Stat.CritRate, Stat.CritDmg, Stat.Er, Stat.Tbb,
+  Stat.OfftuneBuildup,
   Stat.AddMv, Stat.MulMv,
   Stat.DmgBonus, Stat.Amp, Stat.TotalDmg,
   Stat.ResIgnore, Stat.DefIgnoreNew, Stat.DefIgnoreOld,
@@ -222,33 +269,37 @@ export const PERCENT_STATS: Set<string> = new Set([
 ]);
 
 /** A scoped stat is a ratio exactly when the stat it scopes is. */
-export const isPercent = (stat: string): boolean => PERCENT_STATS.has(splitStat(stat)[0]);
+export const isPercent = (key: StatKey): boolean => PERCENT_STATS.has(splitStat(key)[0]);
 
 /* ------------------------------------------------------------------- naming */
 
-/** `Dmg Bonus:Fusion` reads "Fusion Dmg Bonus" — the tag qualifies the stat's own name, which is
- *  already how a person would say it (see `Stat` above), so there's no separate name table to
- *  look it up in. Every tag reaching here is already an `Attribute`/`Type1`/`Type2` enum value
- *  (already Title Case), so no re-capitalizing step is needed. */
-export function statLabel(stat: string): string {
-  const [base, tag] = splitStat(stat);
-  return tag ? `${tag} ${base}` : base;
+/** Dmg Bonus scoped to Fusion reads "Fusion Dmg Bonus" — the tag qualifies the stat's own name,
+ *  which is already how a person would say it. */
+export function statLabel(key: StatKey): string {
+  const [stat, tag] = splitStat(key);
+  return tag === null ? STAT_NAME[stat] : `${TAG_NAME[tag]} ${STAT_NAME[stat]}`;
 }
 
 /* ---------------------------------------------------------------------- counters */
 /** Counters persist across actions — each is a real hardcoded field on `Slot`/`State`/`Resonator`,
  *  not a map a kit could add an entry to by typo. */
-export enum Resource {
+export const enum Resource {
   // TODO move to enemy
-  Offtune = "offtune", // team-wide running total
+  Offtune, // team-wide running total
 
-  Energy = "energy",   // per resonator, running total; ceiling declared on Resonator (unenforced)
-  Concerto = "concerto",
+  Energy,   // per resonator, running total; ceiling declared on Resonator (unenforced)
+  Concerto,
 
   // generic forte gauges — a resonator assigns its own meaning onto whichever fits its kit
-  Forte1 = "forte1",
-  Forte2 = "forte2",
-  Forte3 = "forte3",
-  Forte4 = "forte4",
-  Forte5 = "forte5",
+  Forte1,
+  Forte2,
+  Forte3,
+  Forte4,
+  Forte5,
 }
+
+export const RESOURCE_NAME: Record<Resource, string> = {
+  [Resource.Offtune]: "offtune", [Resource.Energy]: "energy", [Resource.Concerto]: "concerto",
+  [Resource.Forte1]: "forte1", [Resource.Forte2]: "forte2", [Resource.Forte3]: "forte3",
+  [Resource.Forte4]: "forte4", [Resource.Forte5]: "forte5",
+};

@@ -20,14 +20,12 @@
  * https://ww.nanoka.cc/character/1209), read the way CLAUDE.md describes.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO,
-  Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  addStat, applySelf, applyTeam, casting, currentAction, queue, queueOutro, revoke,
-  getStat,
-  stacksOf,
-  maxStackIncrease,
-  Debuff, applyEnemy, revokeEnemy, isHeld, stacksOfEnemy,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Scaling, addStat, applySelf, applyTeam, casting, currentAction, queue, queueOutro, revokeSelf, getStat, stacksOf,
+  maxStackIncrease, Debuff, applyEnemy, revokeEnemy, isHeld, stacksOfEnemy,
 } from "../../kit.js";
+import { Rotation, START_COMBAT, OPENER, INTRO, ECHO_CAST, OUTRO_NEXT, START_COMBAT_NON_OPENER } from "../../rotation.js";
+import { HEALS } from "../../statuses.js";
 import {
   TUNE_BREAK, TUNE_RUPTURE_INTERFERED, TUNE_STRAIN_INTERFERED, tuneRuptureResponse, tuneStrainBonus,
 } from "../../tunebreak.js";
@@ -60,23 +58,51 @@ const WDC = mornyeAction("Basic - Wide Field Observation (Dodge Counter)", { nod
 
 // --- Forte Circuit. Geopotential Shift is what banks Rest Mass Energy into the airborne state;
 //     Inversion is the payoff once Relative Momentum tops out.
-const GeopotentialShift = mornyeAction("Heavy - Geopotential Shift", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 143.16, energy: 3.01, concerto: 9.61, offtune: 9600, forte1: -100 });
-const Inversion = mornyeAction("Heavy - Inversion", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 258.46, energy: 3.25, concerto: 11.96, offtune: 10400, forte2: -100 });
+// her Intro is what puts her airborne, and the field comes up with the state
+const FIELD = { updateBuffs: () => queue(SyntonyFieldHit) };
+const GeopotentialShift = mornyeAction("Heavy - Geopotential Shift", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 143.16, energy: 3.01, concerto: 9.61, offtune: 9600, forte1: -100, ...FIELD });
+const Inversion = mornyeAction("Heavy - Inversion", {
+  node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 258.46, energy: 3.25, concerto: 11.96, offtune: 10400, forte2: -100,
+  updateBuffs: () => applyEnemy(OBSERVATION_MARKER, 1),
+});
 
 /** The field's own opening hit, counted as Resonance Liberation DMG by the kit page. */
-const SyntonyFieldHit = mornyeAction("Forte - Syntony Field", { node: Node.Forte, type: Type1.Liberation, mv: 198.85, active: false });
+const SyntonyFieldHit = mornyeAction("Forte - Syntony Field", {
+  node: Node.Forte, type: Type1.Liberation, mv: 198.85, active: false,
+  updateBuffs: () => applyTeam(SYNTONY_FIELD, 1),
+});
 
-const Skill = mornyeAction("Skill - Optimal Solution", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 179.73, energy: 3.96, concerto: 9.04, offtune: 9040, heals: true, forte1: 100 });
-const DistributedArray = mornyeAction("Skill - Distributed Array", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 159.08, energy: 18.52, concerto: 10, offtune: 8000, heals: true, forte2: 60 });
+// --- Resolution. Expectation Error is the baseline Resonance Skill and does nothing but heal
+//     (94 + 24.94% of her DEF); it carries no motion value, energy, concerto or off-tune of its
+//     own. The Parry state it opens is purely defensive and holds no stat, so it is not modelled —
+//     and being attacked out of it is what casts Optimal Solution, which this calculator has no
+//     incoming attacks to trigger, so a rotation names that directly.
+// updateDebuffs on both skills is her own healing marker, read by every healing sonata and weapon
+// (statuses.ts) — applied to the healer alone, never the team
+const SKILL_HEAL = { updateDebuffs: () => applySelf(HEALS, 1) };
+const Skill = mornyeAction("Skill - Expectation Error", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 0, ...SKILL_HEAL });
+const OptimalSolution = mornyeAction("Skill - Optimal Solution", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 179.73, energy: 3.96, concerto: 9.04, offtune: 9040, forte1: 100 });
+const DistributedArray = mornyeAction("Skill - Distributed Array", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 159.08, energy: 18.52, concerto: 10, offtune: 8000, forte2: 60, ...SKILL_HEAL });
 
 /** Critical Protocol scales off DEF, not ATK. */
 const Liberation = mornyeAction("Liberation - Critical Protocol", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, scaling: Scaling.Def,
   mv: 522.33, concerto: 20, offtune: 72000, resetEnergy: true,
+  // trades the field up, so the plain one goes as the High one lands
+  updateBuffs: () => {
+    applySelf(CRITICAL_PROTOCOL, 1);
+    if (stacksOf(SYNTONY_FIELD)) {
+      revokeSelf(SYNTONY_FIELD);
+      applyTeam(HIGH_SYNTONY_FIELD, 1);
+    }
+  },
 });
 
-const Intro = mornyeAction("Intro - Convergence", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 202.79, energy: 10, concerto: 10, offtune: 13600 });
-const Outro = mornyeAction("Outro - Recursion", { cast: Cast.Outro, type: Type1.Outro, mv: 0, active: false });
+const Intro = mornyeAction("Intro - Convergence", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 202.79, energy: 10, concerto: 10, offtune: 13600, ...FIELD });
+const Outro = mornyeAction("Outro - Recursion", {
+  cast: Cast.Outro, type: Type1.Outro, mv: 0, active: false,
+  updateBuffs: () => applyTeam(RECURSION),
+});
 
 /** Her answer to a Rupture break, queued by the engine's own break (see MORNYE's updateBuffs())
  *  rather than played. An ordinary active cast, like every Tune Break response: it is her own hit,
@@ -121,7 +147,7 @@ const RECURSION = new Buff({
 const CRITICAL_PROTOCOL = new Buff({
   name: "Mornye: Critical Protocol",
   convertStats: () => {
-    revoke(CRITICAL_PROTOCOL);
+    revokeSelf(CRITICAL_PROTOCOL);
     addStat(Stat.CritRate, Math.min(80, 0.5 * (getStat(Stat.Er) - 100)));
     addStat(Stat.CritDmg, Math.min(160, 1 * (getStat(Stat.Er) - 100)));
   }
@@ -144,7 +170,7 @@ const INTERFERED_MARKER = new Debuff({
   applyStats: () => {
     if (stacksOfEnemy(TUNE_RUPTURE_INTERFERED) > 0 || stacksOfEnemy(TUNE_STRAIN_INTERFERED) > 0) addStat(Stat.DmgBonus, 40);
   },
-  convertStats: () => { if (casting(Cast.Outro)) revokeEnemy(INTERFERED_MARKER); },
+  updateGlobal: () => { if (casting(Cast.Outro)) revokeEnemy(INTERFERED_MARKER); },
 });
 
 /* --------------------------------------------------------------------------- kit and loadout */
@@ -153,8 +179,8 @@ const INTERFERED_MARKER = new Debuff({
  *  every 20s, which over a 2-minute rotation is once each per loop. */
 const MO_INHERENT_1 = new Inherent({
   name: "Mornye: Blueprint",
+  constantStats: () => addStat(Stat.Er, 10),
   applyStats: () => {
-    addStat(Stat.Er, 10);
     const a = currentAction();
     if (a === Intro || a === WBA3) addStat(Stat.AddConcerto, 20);
   },
@@ -166,15 +192,15 @@ const MO_INHERENT_2 = new Inherent({ name: "Mornye: Boundedness" });
 
 const MORNYE_TALENTS = new Talent({
   name: "Mornye: Talents",
-  applyStats: () => { addStat(Stat.BonusDef, 15.2); addStat(Stat.HealingBonus, 12); },
+  constantStats: () => { addStat(Stat.BonusDef, 15.2); addStat(Stat.HealingBonus, 12); },
 });
 
 const MORNYE = new Resonator({
   name: "Mornye",
-  abbreviation: "Mornye",
   element: Attribute.Fusion,
   weapon: WeaponType.Broadblade,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#e0714a",
   maxEnergy: 175,
 
@@ -182,24 +208,7 @@ const MORNYE = new Resonator({
   combatStart: () => maxStackIncrease(TUNE_STRAIN_INTERFERED, 1),
   lateConvertStats: () => tuneStrainBonus(),
 
-  updateBuffs: () => {
-    const a = currentAction();
-    // her Intro is what puts her airborne, and the field comes up with the state
-    if (a === Intro || a === GeopotentialShift) { queue(SyntonyFieldHit); }
-    if (a === SyntonyFieldHit) { applyTeam(SYNTONY_FIELD, 1); }
-    // the liberation trades the field up, so the plain one goes as the High one lands
-    if (a === Liberation) { 
-      applySelf(CRITICAL_PROTOCOL, 1); 
-      if (stacksOf(SYNTONY_FIELD)) {
-        revoke(SYNTONY_FIELD); 
-        applyTeam(HIGH_SYNTONY_FIELD, 1); 
-      }
-    }
-    if (a === Outro) applyTeam(RECURSION);
-    if (a === Inversion) applyEnemy(OBSERVATION_MARKER, 1);
-  },
-
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 15375); addStat(Stat.BaseAtk, 287.5); addStat(Stat.BaseDef, 1356.7);
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
     addStat(Stat.Tbb, 10);
@@ -211,19 +220,13 @@ const MORNYE = new Resonator({
 /** Intro straight into Wide Field Observation (which is what raises the Syntony Field), the Wide
  *  Field chain into Inversion, then Distributed Array, the echo and the Liberation to trade the
  *  field up before handing off. She is never the team's lead, so this is both opener and loop. */
-const MO_ROTATION = [
+const MO_ROTATION = new Rotation([
+  START_COMBAT_NON_OPENER, Skill, START_COMBAT_NON_OPENER,
+  OPENER, BA1, BA2, BA3, GeopotentialShift,
   INTRO, Liberation,
   WBA1, WBA2, WBA3, DistributedArray, Inversion, 
-  ECHO_CAST, 
-  Outro,
-];
-
-const MO_OPENER = [
-  BA1, BA2, BA3, GeopotentialShift, Liberation,
-  WBA1, WBA2, WBA3, DistributedArray, Inversion, 
-  ECHO_CAST, 
-  Outro,
-];
+  ECHO_CAST, OUTRO_NEXT,
+]);
 
 /** ER is the build: her Liberation converts everything past 100% into crit, so the sig's 77% and
  *  Reactor Husk's own 10% are both doing real work. */
@@ -241,6 +244,5 @@ export const MORNYE_LOADOUT = new Loadout({
   echoLoadouts: MO_ECHOES,
   mainstats: mainstatOptions(Mainstat.DEF4, Mainstat.ER3, Mainstat.DEF1),
   substat: chem("def", "liberation"),
-  opener: MO_OPENER,
-  loop: MO_ROTATION,
+    rotation: MO_ROTATION,
 });

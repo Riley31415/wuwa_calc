@@ -8,16 +8,16 @@
  * gives a combined row (BA123 = BA1+BA2+BA3, FMA123 = FMA1+FMA2+FMA3, both exact).
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  applySelf, applyTeam, currentAction, casting, queueOutro, revoke, addStat, frozenStacks, lostOnSwap,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Scaling, applySelf, applyTeam, currentAction, casting, queueOutro, revokeSelf, addStat, frozenStacks, lostOnSwap,
+  applied,
 } from "../../kit.js";
-import { applied } from "../../kit.js";
+import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { SHIELD } from "../../statuses.js";
 import { IUNO_SIG, VERITYS_HANDLE } from "../../weapons/gauntlet.js";
 import { MARCATO, NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { MYA, COV_3PC } from "../../echoes/septimont.js";
-import { SIERRA_GALE_2PC, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, REJUV_5PC, REJUV_2PC } from "../../echoes/jinzhou.js";
-import { FALLACY } from "../../echoes/jinzhou.js";
+import { SIERRA_GALE_2PC, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, REJUV_5PC, REJUV_2PC, FALLACY } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../mainstats.js";
 import { chem } from "../../substats.js";
 
@@ -57,6 +57,7 @@ const Intro = iunoAction("Intro - Illuminated Manifestation", {
 });
 const Outro = iunoAction("Outro - From Gloom to Gleam", {
   cast: Cast.Outro, type: Type1.Outro, mv: 100, active: false,
+  updateBuffs: () => queueOutro(IUNO_OUTRO),
 });
 
 // --- forte (jump / Flux) casts, all liberation damage while in Lunar Cycle, same shielding
@@ -68,7 +69,10 @@ const FMA3 = iunoAction("Forte - Enhanced Moonbow 3", { node: Node.Forte, cast: 
 const FMSkill = iunoAction("Forte - Enhanced Arc Beyond the Edge", { node: Node.Forte, cast: Cast.Skill, type: Type1.Liberation, mv: 638.38, energy: 9.36, concerto: 18, offtune: 10720, forte1: -25 });
 
 /** Ends Lunar Cycle and conjures the Full Moon domain. */
-const FHA = iunoAction("Forte - Absolute Fullness", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Liberation, mv: 159.05, energy: 5, offtune: 2400 });
+const FHA = iunoAction("Forte - Absolute Fullness", {
+  node: Node.Forte, cast: Cast.Heavy, type: Type1.Liberation, mv: 159.05, energy: 5, offtune: 2400,
+  updateBuffs: () => applyTeam(IUNO_DOMAIN, 1),
+});
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -107,23 +111,17 @@ const SHIELDING = new Set<Action>([
 
 const IUNO = new Resonator({
   name: "Iuno",
-  abbreviation: "Uno",
   element: Attribute.Aero,
   weapon: WeaponType.Gauntlets,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#2dd4c0",
   maxEnergy: 125,
 
   // every cast of hers but the Outro shields
-  updateDebuffs: () => { if (SHIELDING.has(currentAction())) applyTeam(SHIELD, 1); },
+  updateDebuffs: () => { if (SHIELDING.has(currentAction())) applySelf(SHIELD, 1); },
 
-  updateBuffs: () => {
-    const a = currentAction();
-    if (a === Outro) queueOutro(IUNO_OUTRO);
-    if (a === FHA) applyTeam(IUNO_DOMAIN, 1);
-  },
-
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 10525); addStat(Stat.BaseAtk, 450); addStat(Stat.BaseDef, 1124);
   },
 });
@@ -131,15 +129,15 @@ const IUNO = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const IUNO_TALENTS = new Talent({
   name: "Iuno: Talents",
-  applyStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
 // no separate opener written for her sub-DPS line — reused for both passes
-const IO_ROTATION = [
+
+const IO_ROTATION = new Rotation([
   INTRO, ESkill, ECHO_CAST, Liberation, Jump,
-  FMSkill, FMA1, FMA2, FMA3, FMSkill, FHA,
-  Outro,
-];
+  FMSkill, FMA1, FMA2, FMA3, FMSkill, FHA, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -150,7 +148,7 @@ export const UNO_LOADOUT = new Loadout({
   talent: IUNO_TALENTS,
   inherent1: IO_INHERENT_1,
   inherent2: IO_INHERENT_2,
-  weapons: [IUNO_SIG, MARCATO, NEW_STD_GAUNTLET, ABYSS_SURGES, VERITYS_HANDLE],
+  weapons: [IUNO_SIG, NEW_STD_GAUNTLET, MARCATO, ABYSS_SURGES, VERITYS_HANDLE],
   echoLoadouts: [
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
     new EchoLoadout(FALLACY, REJUV_5PC, REJUV_2PC),
@@ -160,6 +158,5 @@ export const UNO_LOADOUT = new Loadout({
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
   substat: chem("atk", "liberation"),
-  opener: IO_ROTATION,
-  loop: IO_ROTATION,
+    rotation: IO_ROTATION,
 });

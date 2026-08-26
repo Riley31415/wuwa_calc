@@ -1,7 +1,7 @@
 /** Signature Gauntlets weapons, ported to the new engine. */
 import { isType,
   Buff, Weapon, WeaponType, Stat, Attribute, Type1, Cast,
-  addStat, applySelf, setStacksSelf, casting, currentAction, revoke, frozenStacks,
+  addStat, applySelf, setStacksSelf, casting, currentAction, revokeSelf, frozenStacks,
 } from "../kit.js";
 import { applied } from "../kit.js";
 import { SHIELD } from "../statuses.js";
@@ -14,13 +14,13 @@ import { TUNE_STRAIN_SHIFTING } from "../tunebreak.js";
 export const VERITYS_HANDLE = new Weapon({
   weaponType: WeaponType.Gauntlets,
   name: "Verity's Handle",
-  applyStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.DmgBonus, 12); },
+  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.DmgBonus, 12); },
   updateBuffs: () => { if (casting(Cast.Liberation) || casting(Cast.Skill)) applySelf(AD_VERITATEM, 1); },
 });
 export const AD_VERITATEM = new Buff({
   name: "Verity's Handle: Ad Veritatem",
   applyStats: () => addStat(Stat.DmgBonus, 48, Type1.Liberation),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(AD_VERITATEM); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(AD_VERITATEM); },
 });
 
 /** Tragicomedy, Roccia's sig, R1: Fool's Warble. +12% ATK flat. Basic Attack or Intro grants
@@ -29,7 +29,7 @@ export const AD_VERITATEM = new Buff({
 export const TRAGICOMEDY = new Weapon({
   weaponType: WeaponType.Gauntlets,
   name: "Tragicomedy",
-  applyStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.BonusAtk, 12); },
   updateBuffs: () => {
     if (casting(Cast.Basic) || casting(Cast.Intro)) applySelf(FOOLS_WARBLE, 1);
   },
@@ -37,7 +37,7 @@ export const TRAGICOMEDY = new Weapon({
 export const FOOLS_WARBLE = new Buff({
   name: "Tragicomedy: Fool's Warble",
   applyStats: () => addStat(Stat.DmgBonus, 48, Type1.Heavy),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(FOOLS_WARBLE); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(FOOLS_WARBLE); },
 });
 
 /** Solsworn Ciphers, Sigrika's sig, R1: Sunward. +12% ATK flat. Intro/Echo Skill grants +32%
@@ -45,7 +45,7 @@ export const FOOLS_WARBLE = new Buff({
 export const SOLSWORN_CIPHERS = new Weapon({
   weaponType: WeaponType.Gauntlets,
   name: "Solsworn Ciphers",
-  applyStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.BonusAtk, 12); },
   updateBuffs: () => {
     if (casting(Cast.Intro) || casting(Cast.Echo)) applySelf(SUNWARD_AMP, 1);
     if (isType(Type1.Echo)) applySelf(SUNWARD_IGNORE, 1);
@@ -54,12 +54,12 @@ export const SOLSWORN_CIPHERS = new Weapon({
 export const SUNWARD_AMP = new Buff({
   name: "Solsworn Ciphers: Sunward (echo amp)",
   applyStats: () => addStat(Stat.Amp, 32, Type1.Echo),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(SUNWARD_AMP); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(SUNWARD_AMP); },
 });
 export const SUNWARD_IGNORE = new Buff({
   name: "Solsworn Ciphers: Sunward (def ignore)",
   applyStats: () => addStat(Stat.DefIgnoreNew, 10, Attribute.Aero),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(SUNWARD_IGNORE); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(SUNWARD_IGNORE); },
 });
 
 /** Moongazer's Sigil, Iuno's sig, R1. Liberation damage gets a flat bonus and, per shield stack,
@@ -68,7 +68,7 @@ export const SUNWARD_IGNORE = new Buff({
 export const IUNO_SIG = new Weapon({
   weaponType: WeaponType.Gauntlets,
   name: "Moongazer's Sigil",
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseAtk, 500); addStat(Stat.CritRate, 36); addStat(Stat.BonusAtk, 12);
     addStat(Stat.DmgBonus, 20, Type1.Liberation);
   },
@@ -91,7 +91,7 @@ export const MOONGAZER_STACKS = new Buff({
 export const DAYBREAKERS_SPINE = new Weapon({
   weaponType: WeaponType.Gauntlets,
   name: "Daybreaker's Spine",
-  applyStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.BonusAtk, 12); },
   updateBuffs: () => {
     const a = currentAction();
     if (isType(Type1.Basic)) applySelf(SUTURING_DAYLINE_SPECTRO, 1);
@@ -101,10 +101,10 @@ export const DAYBREAKERS_SPINE = new Weapon({
 export const SUTURING_DAYLINE_SPECTRO = new Buff({
   name: "Daybreaker's Spine: Suturing Dayline (spectro)",
   applyStats: () => addStat(Stat.DmgBonus, 20, Attribute.Spectro),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(SUTURING_DAYLINE_SPECTRO); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(SUTURING_DAYLINE_SPECTRO); },
 });
 export const SUTURING_DAYLINE_STRAIN = new Buff({
   name: "Daybreaker's Spine: Suturing Dayline (strain)",
   applyStats: () => { addStat(Stat.Amp, 20, Type1.Basic); addStat(Stat.DefIgnoreNew, 10, Type1.Basic); },
-  convertStats: () => { if (casting(Cast.Outro)) revoke(SUTURING_DAYLINE_STRAIN); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(SUTURING_DAYLINE_STRAIN); },
 });

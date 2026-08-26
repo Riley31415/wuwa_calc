@@ -23,9 +23,10 @@
  * as Jiyan's Discipline; the 2s trigger ICD isn't modelled.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  applySelf, currentAction, casting, revoke, addStat, frozenStacks, removeStack, queueOn, queueOutro,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Scaling, applySelf, currentAction, casting, revokeSelf, addStat, frozenStacks, removeStack, queueOn, queueOutro,
 } from "../../kit.js";
+import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { IUNO_SIG, VERITYS_HANDLE } from "../../weapons/gauntlet.js";
 import { ABYSS_SURGES, NEW_STD_GAUNTLET } from "../../weapons/standard.js";
 import { mainstatOptions, Mainstat } from "../../mainstats.js";
@@ -70,7 +71,11 @@ const FBA = xlyAction("Basic - Revamp (Mid-Air)", { node: Node.Forte, cast: Cast
 
 const Intro = xlyAction("Intro - Principle", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 99.41 * 2, energy: 10.00, concerto: 10, offtune: 11200 });
 /** Chain Rule: no damage of its own, just the handoff — its lasers are ACTION_OUTRO_COORD. */
-const Outro = xlyAction("Outro - Chain Rule", { cast: Cast.Outro, active: false });
+const Outro = xlyAction("Outro - Chain Rule", {
+  cast: Cast.Outro, active: false,
+  // queued three times so the adopter picks the buff up at all three charges
+  updateBuffs: () => { queueOutro(XLY_OUTRO); queueOutro(XLY_OUTRO); queueOutro(XLY_OUTRO); },
+});
 /** One laser beam — queued onto his own slot by XLY_OUTRO below, once per stack the incoming
  *  resonator's Basic casts consume. */
 const ACTION_OUTRO_COORD = xlyAction("Outro - Chain Rule (Laser)", { type: Type1.Outro, mv: 237.63, active: false });
@@ -82,7 +87,7 @@ const ACTION_OUTRO_COORD = xlyAction("Outro - Chain Rule (Laser)", { type: Type1
 const KNOWING = new Buff({
   name: "Xiangli Yao: Knowing", maxStacks: 4,
   applyStats: () => addStat(Stat.DmgBonus, 5 * frozenStacks(), Attribute.Electro),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(KNOWING); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(KNOWING); },
 });
 const XLY_INHERENT_1 = new Inherent({
   name: "Xiangli Yao: Knowing",
@@ -100,24 +105,19 @@ const XLY_OUTRO: Buff = new Buff({
   updateBuffs: () => {
     if (casting(Cast.Basic)) { queueOn(XIANGLI_YAO, ACTION_OUTRO_COORD); removeStack(XLY_OUTRO, 1); }
   },
-  convertStats: () => { if (casting(Cast.Outro)) revoke(XLY_OUTRO); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(XLY_OUTRO); },
 });
 
 const XIANGLI_YAO = new Resonator({
   name: "Xiangli Yao",
-  abbreviation: "XLY",
   element: Attribute.Electro,
   weapon: WeaponType.Gauntlets,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#6b74e8",
   maxEnergy: 125,
 
-  // queued three times so the adopter picks the buff up at all three charges
-  updateBuffs: () => {
-    if (currentAction() === Outro) { queueOutro(XLY_OUTRO); queueOutro(XLY_OUTRO); queueOutro(XLY_OUTRO); }
-  },
-
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 10625); addStat(Stat.BaseAtk, 425); addStat(Stat.BaseDef, 1222.22);
   },
 });
@@ -125,23 +125,22 @@ const XIANGLI_YAO = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
 const XLY_TALENTS = new Talent({
   name: "Xiangli Yao: Talents",
-  applyStats: () => { addStat(Stat.CritDmg, 16); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.CritDmg, 16); addStat(Stat.BonusAtk, 12); },
 });
 
 // Deduction plus the full Probe combo lands exactly on 100 Capacity for Decipher; Cogitation
 // Model opens Intuition, whose three Law of Reigns each spend the 5 Performance Capacity the
 // moves before them bank (pivot combo 1+2+2, then Divergence 2 + Revamp 3, then a second pivot
 // combo). He's never the team's own lead, so this covers both opener and loop.
-const XLY_ROTATION = [
-  INTRO, 
-  Skill, Skill, // TODO swapped
+
+const XLY_ROTATION = new Rotation([
+  INTRO, Skill, Skill, // TODO swapped
   Liberation,
   USkill, FBA, UForte,
   UBA1, UBA2, UBA3, UForte,
   USkill, FBA, UForte,
-  ECHO_CAST,
-  Outro,
-];
+  ECHO_CAST, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -152,10 +151,9 @@ export const XLY_LOADOUT = new Loadout({
   talent: XLY_TALENTS,
   inherent1: XLY_INHERENT_1,
   inherent2: XLY_INHERENT_2,
-  weapons: [VERITYS_HANDLE, ABYSS_SURGES, NEW_STD_GAUNTLET, IUNO_SIG],
+  weapons: [IUNO_SIG, NEW_STD_GAUNTLET, VERITYS_HANDLE, ABYSS_SURGES],
   echoLoadouts: [new EchoLoadout(NM_MEPHIS, VOID_THUNDER_5PC, VOID_THUNDER_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
   substat: chem("atk", "liberation"),
-  opener: XLY_ROTATION,
-  loop: XLY_ROTATION,
+    rotation: XLY_ROTATION,
 });

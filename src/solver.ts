@@ -5,8 +5,9 @@
  * Split out of index.ts for one reason: this is the expensive half of a cold load (~97% of it),
  * every team is independent of every other, and a Worker can only import a module that never
  * touches `document`. index.ts keeps the table, the routing and the rendering; a pool of workers
- * runs `solveTeam()` over the roster in parallel (see worker.ts and index.ts's own
- * `ensureBestPicks()`), falling back to calling it directly where Workers aren't available.
+ * runs `solveTeam()` over the roster in parallel (see index.ts's own `ensureBestPicks()`),
+ * falling back to calling it directly where Workers aren't available. This file is the worker's
+ * own entry point as well as the module the main thread imports — see its foot.
  *
  * `filters` is a parameter here rather than the module-level object it read when this lived in
  * index.ts: a worker has its own copy of this module and no way to see the page's state, so the
@@ -16,8 +17,9 @@
  * repaint the progress bar mid-team; with the work off-thread there is nothing to repaint around,
  * and the fallback path yields between whole teams instead — ~25ms apiece, fine for a bar.
  */
-import { State, run, withTeam, equip, setTracing, Buff, Loadout, EchoLoadout, Weapon } from "./kit.js";
-import type { Action, ChainGroup, ResolvedSnapshot } from "./kit.js";
+import { State, withTeam, equip, setTracing, Buff, Loadout, EchoLoadout, Weapon } from "./kit.js";
+import type { ChainGroup, ResolvedSnapshot } from "./kit.js";
+import { runRotations } from "./rotation.js";
 import { damage, mvPercent } from "./damage.js";
 import { armTuneBreak } from "./tunebreak.js";
 import type { Report } from "./display.js";
@@ -89,10 +91,16 @@ export function sequenceLevels(l: Loadout, filters: Filters): number[] {
  *  allowance is on, standard weapons only when it isn't (weapons/standard.ts, every generation —
  *  see kit.ts's own `Weapon.standard`). A signature is only ever owned at R1, so a role that
  *  hasn't been given that allowance never even simulates one. Empty means the whole team drops
- *  out of the table, same as it always has. */
+ *  out of the table, same as it always has.
+ *
+ *  With that role's weapons box closed, just the first of those: a loadout lists its best
+ *  signature first and its best standard weapon right after (see CLAUDE.md), and a closed box
+ *  takes that on trust rather than searching — the search only runs for a box that will show
+ *  its alternatives. */
 export function eligibleWeapons(l: Loadout, filters: Filters): number[] {
   const allowR1 = l.mainDps ? filters.allowR1Mdps : filters.allowR1Supports;
-  return l.weapons.map((_, i) => i).filter((i) => allowR1 || l.weapons[i]!.standard);
+  const eligible = l.weapons.map((_, i) => i).filter((i) => allowR1 || l.weapons[i]!.standard);
+  return (l.mainDps ? filters.mdpsWeapons : filters.supportWeapons) ? eligible : eligible.slice(0, 1);
 }
 
 /**
@@ -100,9 +108,11 @@ export function eligibleWeapons(l: Loadout, filters: Filters): number[] {
  * "Show ... Options" box is *closed* collapses to, so a closed axis shows the best pick rather
  * than whatever happened to be listed first.
  *
- * Weapons, echoes and main stats are all searched in full for every member, whatever the boxes
- * say — weapons only among the picks that role may actually hold, so a signature stays out of the
- * search entirely until its R1 allowance is given. Sequences are not searched: a chain node is
+ * Echoes and main stats are searched in full for every member, whatever the boxes say. Weapons
+ * are searched only for a role whose weapons box is open, and only among the picks that role may
+ * actually hold (see `eligibleWeapons()`) — a closed box runs the loadout's own presumed best. A
+ * signature stays out of the search entirely until its R1 allowance is given. Sequences are not
+ * searched: a chain node is
  * never a trade-off against anything, so every level simply gets a row of its own (see
  * `sequenceLevels()`), and the search runs at whichever level a closed box would show.
  *
@@ -144,15 +154,58 @@ export function eligibleWeapons(l: Loadout, filters: Filters): number[] {
  */
 let trialCache = new Map<string, TeamRun>();
 
+// team-scoped as well as combo-scoped: the reset is per team, but the same combo string means
+// different loadouts under a different team, so keying on it alone would be a footgun for any
+// future caller that forgets to clear
+const trialKey = (teamKey: string, combo: Combo[]): string => `${teamKey}-${combo.map((c) => c.key).join("-")}`;
+
 function trialRun(teamKey: string, members: Member[], picks: Pick[]): TeamRun {
   const combo = members.map((m, i) => comboOf(m.loadout, picks[i]!));
-  // team-scoped as well as combo-scoped: the reset below is per team, but the same combo string
-  // means different loadouts under a different team, so keying on it alone would be a footgun for
-  // any future caller that forgets to clear
-  const key = `${teamKey}-${combo.map((c) => c.key).join("-")}`;
+  const key = trialKey(teamKey, combo);
   let hit = trialCache.get(key);
   if (!hit) trialCache.set(key, hit = runTeam(teamKey, members, combo));
   return hit;
+}
+
+/**
+ * Every main stat of each member in `who`, scored under `picks`, in one run: the build as picked
+ * is run for real, and every other main stat of those members rides along as a variant the engine
+ * re-scores on that member's own actions alone (kit.ts's own `TeamMember.variants`) — a main stat
+ * only ever feeds its wearer, so nothing else in the fight is different. A whole list costs a
+ * fraction of a run rather than a run apiece, which was 91% of every run this search made.
+ *
+ * Anything the engine can't vouch for (a variant whose hooks would have changed the fight — see
+ * `variantUnsafe`) is scored with a real run instead, so the answer is the one the runs would have
+ * given. Every score is filed into `trialCache` under the build it describes, so the winner is
+ * already scored when the caller moves on to it.
+ *
+ * @returns per member in `who`, a `TeamRun` per main-stat index of theirs
+ */
+function scoreMainstats(teamKey: string, members: Member[], picks: Pick[], who: number[]): Map<number, TeamRun[]> {
+  const alts = members.map((m, i) => (who.includes(i)
+    ? m.loadout.mainstats.map((_, k) => k).filter((k) => k !== picks[i]!.mainstat) : null));
+  const combo = members.map((m, i) => comboOf(m.loadout, picks[i]!));
+  const run = runTeam(teamKey, members, combo, false, alts.map((a, i) => a && a.map((k) => members[i]!.loadout.mainstats[k]!)));
+  trialCache.set(trialKey(teamKey, combo), run);
+  const out = new Map<number, TeamRun[]>();
+  for (const i of who) {
+    const scores: TeamRun[] = [];
+    scores[picks[i]!.mainstat] = run;
+    alts[i]!.forEach((k, v) => {
+      const trial = picks.map((p, j) => (j === i ? { ...p, mainstat: k } : p));
+      const variant = run.variantRuns[i]![v]!;
+      if (variant.unsafe) { scores[k] = trialRun(teamKey, members, trial); return; }
+      const c = members.map((m, j) => comboOf(m.loadout, trial[j]!));
+      const scored: TeamRun = {
+        state: run.state, teamKey, members, combo: c, rotationLines: null, variantRuns: [],
+        total: variant.total, bySlot: variant.bySlot, sectionTotals: variant.sectionTotals, sectionBySlot: variant.sectionBySlot,
+      };
+      trialCache.set(trialKey(teamKey, c), scored);
+      scores[k] = scored;
+    });
+    out.set(i, scores);
+  }
+  return out;
 }
 
 /**
@@ -167,16 +220,14 @@ function trialRun(teamKey: string, members: Member[], picks: Pick[]): TeamRun {
 function bestMainstatFor(
   teamKey: string, members: Member[], picks: Pick[], i: number,
 ): { mainstat: number; total: number } {
-  const l = members[i]!.loadout;
+  const scores = scoreMainstats(teamKey, members, picks, [i]).get(i)!;
   let winner = picks[i]!.mainstat;
   let best = -Infinity;
   let total = 0;
-  for (let m = 0; m < l.mainstats.length; m++) {
-    const trial = picks.map((p, j) => (j === i ? { ...p, mainstat: m } : p));
-    const run = trialRun(teamKey, members, trial);
+  scores.forEach((run, m) => {
     const damage = run.bySlot.get(members[i]!.name) ?? 0;
     if (damage > best) { best = damage; winner = m; total = run.total; }
-  }
+  });
   return { mainstat: winner, total };
 }
 
@@ -188,23 +239,19 @@ export function optimizeTeam(teamKey: string, members: Member[], filters: Filter
   }));
   const run = (): TeamRun => trialRun(teamKey, members, picks);
 
-  /** Every member's own main stats at once — see this function's own header on why that's sound. */
+  /** Every member's own main stats at once, in one run — see this function's own header on why
+   *  that's sound, and `scoreMainstats()` for how. */
   const sweepMainstats = (): boolean => {
-    const best = members.map((m, i) => ({ index: picks[i]!.mainstat, damage: -Infinity, count: m.loadout.mainstats.length }));
-    const rounds = Math.max(...best.map((b) => b.count));
-    for (let r = 0; r < rounds; r++) {
-      // a member whose list is shorter than the longest just re-runs its own last entry
-      members.forEach((m, i) => { picks[i] = { ...picks[i]!, mainstat: Math.min(r, best[i]!.count - 1) }; });
-      const { bySlot } = run();
-      members.forEach((m, i) => {
-        const damage = bySlot.get(m.name) ?? 0;
-        if (damage > best[i]!.damage) { best[i]!.damage = damage; best[i]!.index = picks[i]!.mainstat; }
-      });
-    }
+    const scores = scoreMainstats(teamKey, members, picks, members.map((_, i) => i));
     let changed = false;
     members.forEach((m, i) => {
-      if (picks[i]!.mainstat !== best[i]!.index) changed = true;
-      picks[i] = { ...picks[i]!, mainstat: best[i]!.index };
+      let index = picks[i]!.mainstat, best = -Infinity;
+      scores.get(i)!.forEach((run, k) => {
+        const damage = run.bySlot.get(m.name) ?? 0;
+        if (damage > best) { best = damage; index = k; }
+      });
+      if (picks[i]!.mainstat !== index) changed = true;
+      picks[i] = { ...picks[i]!, mainstat: index };
     });
     return changed;
   };
@@ -233,14 +280,20 @@ export function optimizeTeam(teamKey: string, members: Member[], filters: Filter
     return changed;
   };
 
-  // One cheap simultaneous main-stat pass to start every member off somewhere sane, then the two
-  // cross-member axes — which re-roll as they go, so there's no trailing main-stat pass to run:
-  // whatever weapon and echo a member ends on, they're already wearing that build's own best.
+  // One simultaneous main-stat pass to start every member off somewhere sane, then the two
+  // cross-member axes, which re-roll the member they're sweeping as they go.
+  //
+  // The closing pass is for everyone *else*: a main stat only ever feeds its wearer, but what a
+  // teammate wears still moves which roll is best for them (an ATK% sonata handed over on Outro
+  // shifts a member off ATK and onto their element), and the sweeps above only re-roll whoever's
+  // own axis is being swept. It costs about one run — every member's whole list rides along in it
+  // (see `scoreMainstats()`) — so it runs until nothing moves rather than being skipped.
   sweepMainstats();
   for (let round = 0; round < 3; round++) {
     const weapons = sweepAcross("weapon", (l) => eligibleWeapons(l, filters));
     const echoes = sweepAcross("echo", (l) => l.echoLoadouts.map((_, i) => i));
     if (!weapons && !echoes) break;
+    if (!sweepMainstats()) break;
   }
   return picks;
 }
@@ -300,10 +353,25 @@ export interface TeamRun {
    *  comparison-table row drops its own `rotationLines` (see above), so there is nothing left to
    *  re-sum by the time a member's own Avg DPR cell is hovered. */
   sectionBySlot: Map<string, number>[];
+  /** Per member, per main-stat variant they were run with (see `runTeam()`'s `variants`): the same
+   *  figures as above for the build wearing that main stat instead. Empty for a member run
+   *  without any. */
+  variantRuns: VariantRun[][];
   /** The detail page's own rich report — every row's hover-trace panel data (`buildReport()`, see
    *  display.ts's own rowValues()/tracing()) — built once, the first time this team is actually
    *  opened, and cached here so revisiting it costs nothing. See `detailFor()`. */
-  detail?: { report: Report; rotationReports: Report[] };
+  detail?: { report: Report };
+}
+
+/** One main-stat alternative's own figures out of a run that scored it as a variant — what a
+ *  comparison-table row reads off a `TeamRun`, plus whether the engine could vouch for it (see
+ *  kit.ts's own `TeamMember.variantUnsafe`). */
+export interface VariantRun {
+  total: number;
+  bySlot: Map<string, number>;
+  sectionTotals: number[];
+  sectionBySlot: Map<string, number>[];
+  unsafe: boolean;
 }
 
 const toLine = (snap: ResolvedSnapshot): ChainGroup =>
@@ -312,8 +380,8 @@ const toLine = (snap: ResolvedSnapshot): ChainGroup =>
 /** One section's own grand total and per-member sum, read straight off its resolved lines — the
  *  same "no motion value means no damage" rule `display.ts`'s own rowValues() applies (`line.mv`
  *  is already `mvPercent(snap)`, from `toLine()` above), just without building a whole report to
- *  get there. */
-function sumSection(lines: ChainGroup[]): { total: number; bySlot: Map<string, number> } {
+ *  get there. `avgOf` is which damage a line counts for — its own, or one variant's. */
+function sumSection(lines: ChainGroup[], avgOf: (line: ChainGroup) => number): { total: number; bySlot: Map<string, number> } {
   const bySlot = new Map<string, number>();
   let total = 0;
   for (const line of lines) {
@@ -323,29 +391,57 @@ function sumSection(lines: ChainGroup[]): { total: number; bySlot: Map<string, n
     // team's shared bar going off doesn't land on whichever resonator happened to be on field.
     // display.ts's own `totalsBySlot()` groups the detail page the same way.
     const slot = (line.snap as ResolvedSnapshot).slot;
-    bySlot.set(slot, (bySlot.get(slot) ?? 0) + line.avg);
-    total += line.avg;
+    const avg = avgOf(line);
+    bySlot.set(slot, (bySlot.get(slot) ?? 0) + avg);
+    total += avg;
   }
   return { total, bySlot };
 }
 
+/** The comparison table's own figures over all four sections: the plain mean of each section's
+ *  grand total / per-member total, the opener counting exactly as much as a single loop pass. */
+function sumRun(rotationLines: ChainGroup[][], avgOf: (line: ChainGroup) => number) {
+  let total = 0;
+  const bySlot = new Map<string, number>();
+  const sectionTotals: number[] = [];
+  const sectionBySlot: Map<string, number>[] = [];
+  for (const lines of rotationLines) {
+    const section = sumSection(lines, avgOf);
+    sectionTotals.push(section.total);
+    sectionBySlot.push(section.bySlot);
+    total += section.total / rotationLines.length;
+    for (const [slot, v] of section.bySlot) bySlot.set(slot, (bySlot.get(slot) ?? 0) + v / rotationLines.length);
+  }
+  return { total, bySlot, sectionTotals, sectionBySlot };
+}
+
 /** @param trace  capture the report's own per-entry trace and keep the resolved lines — off for
  *  the comparison table's own bulk pass (see kit.ts's own `setTracing`), on for the single team
- *  whose detail page is being rendered. */
-export function runTeam(teamKey: string, members: Member[], combo: Combo[], trace = false): TeamRun {
+ *  whose detail page is being rendered.
+ *  @param variants  per member, the main-stat Buffs to score as variants of the build in `combo`
+ *  (kit.ts's own `TeamMember.variants`) — see `scoreMainstats()`. Not with `trace`. */
+export function runTeam(teamKey: string, members: Member[], combo: Combo[], trace = false, variants: (Buff[] | null)[] | null = null): TeamRun {
   setTracing(trace);
   try {
-    return runTeamInner(teamKey, members, combo, trace);
+    return runTeamInner(teamKey, members, combo, trace, variants);
   } finally {
     setTracing(false);
   }
 }
 
-function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace: boolean): TeamRun {
+function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace: boolean, variants: (Buff[] | null)[] | null): TeamRun {
   const state = new State(members.map((m) => m.name));
   members.forEach((m, i) => {
     state.active = i;
     withTeam(state, () => { for (const g of m.loadout.pieces(combo[i]!.weapon, combo[i]!.echo, combo[i]!.mainstat, combo[i]!.sequence)) equip(g, 1); });
+    const alts = variants?.[i];
+    if (alts?.length) {
+      const slot = state.slots[i]!;
+      slot.variantOf = combo[i]!.mainstat;
+      slot.variants = alts;
+      slot.variantBase = alts.map(() => new Map());
+      slot.variantUnsafe = alts.map(() => false);
+    }
   });
   state.active = 0;
   // the shared off-tune bar's own watcher, put on the target the same way everyone's gear was just
@@ -353,41 +449,30 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
   // (see tunebreak.ts). This is the one file every path that runs a team goes through.
   withTeam(state, armTuneBreak);
 
-  // Every member's opener runs first, in team order, then every member's loop, three times over
-  // — matching how a real run actually goes: the whole team gets set up before anyone starts
-  // repeating, and a loop-only buff/gauge that hasn't settled by the first pass (still ramping
-  // up, or handed off from the opener) gets the two more passes it needs to reach steady state.
-  // Only the team's own leader (position 0) gets their loadout's own `opener` for that first
-  // pass — everyone else's own `loop` already opens on their own Intro, same as before this was
-  // auto-selected by position instead of hand-picked per team.
-  const runPart = (rotation: Action[]): ChainGroup[] =>
-    rotation.length ? run(state, rotation).map(toLine) : [];
-  const rotationLines = [
-    members.flatMap((m, i) => runPart(i === 0 ? m.loadout.opener : m.loadout.loop)),
-    members.flatMap((m) => runPart(m.loadout.loop)),
-    members.flatMap((m) => runPart(m.loadout.loop)),
-    members.flatMap((m) => runPart(m.loadout.loop)),
-  ];
+  // Four sections: the opener and three loops, exactly what the report's own columns show. The
+  // scheduler runs one continuous fight rather than four separate passes (rotation.ts) and cuts a
+  // section every time the last slot outros — one full trip round the team — so a loop-only
+  // buff/gauge that hasn't settled by the first trip still gets three more to reach steady state.
+  const rotationLines = runRotations(state, members.map((m) => m.loadout.rotation), 4)
+    .map((snaps) => snaps.map(toLine));
 
   // The comparison table (not the detail page's own action table) only ever needs a grand total
-  // and a per-member sum — the plain mean across these four sections rather than any one of them
-  // alone, the opener counting exactly as much as a single loop pass. Read straight off the
-  // resolved lines rather than through buildReport(), which also builds every row's own hover-
-  // trace panel data purely for the detail page — the bulk of a team run's own cost, for data
-  // this table never reads. See `detailFor()` below for where that actually gets built.
-  let total = 0;
-  const bySlot = new Map<string, number>();
-  const sectionTotals: number[] = [];
-  const sectionBySlot: Map<string, number>[] = [];
-  for (const lines of rotationLines) {
-    const section = sumSection(lines);
-    sectionTotals.push(section.total);
-    sectionBySlot.push(section.bySlot);
-    total += section.total / rotationLines.length;
-    for (const [slot, v] of section.bySlot) bySlot.set(slot, (bySlot.get(slot) ?? 0) + v / rotationLines.length);
-  }
+  // and a per-member sum. Read straight off the resolved lines rather than through buildReport(),
+  // which also builds every row's own hover-trace panel data purely for the detail page — the
+  // bulk of a team run's own cost, for data this table never reads. See `detailFor()` below for
+  // where that actually gets built.
+  const { total, bySlot, sectionTotals, sectionBySlot } = sumRun(rotationLines, (line) => line.avg);
+  // ...and the same again per variant, counting a varied member's own actions at that variant's
+  // damage and everyone else's as they were
+  const variantRuns = members.map((m, i) => (variants?.[i] ?? []).map((_, v) => ({
+    ...sumRun(rotationLines, (line) => {
+      const snap = line.snap as ResolvedSnapshot;
+      return snap.member === m.name && snap.variantAvg !== null ? snap.variantAvg[v]! : line.avg;
+    }),
+    unsafe: state.slots[i]!.variantUnsafe[v]!,
+  })));
 
-  return { state, teamKey, members, combo, rotationLines: trace ? rotationLines : null, total, bySlot, sectionTotals, sectionBySlot };
+  return { state, teamKey, members, combo, rotationLines: trace ? rotationLines : null, total, bySlot, sectionTotals, sectionBySlot, variantRuns };
 }
 
 
@@ -426,3 +511,28 @@ export interface SolveRequest { id: number; teamKey: string; loadouts: LoadoutNa
  *  The main thread turns these back into real gear with `comboOf()` and runs the handful of rows the
  *  table actually shows itself. */
 export interface SolveResponse { id: number; picks: Pick[]; variants: SolvedVariation[] }
+
+/**
+ * This module is also the worker entry point itself — index.ts's own `workerPool()` spawns
+ * `src/solver.js`, and on the main thread it imports the very same file. Deliberately thin: all
+ * the actual work is `solveTeam()` above, which the fallback path calls directly here on the main
+ * thread, so there is only one implementation of the search to keep correct.
+ *
+ * `document` is the test rather than anything worker-shaped, because that's the one thing a worker
+ * scope definitively lacks: on the main thread `self` is the window and the handler is simply
+ * never installed, so importing this module can't hand the page a `postMessage` listener it never
+ * asked for.
+ */
+if (typeof document === "undefined") {
+  // `self` is typed as a Window by the DOM lib this project compiles against; inside a worker it
+  // is a DedicatedWorkerGlobalScope, and the two disagree on `postMessage`'s signature. Narrowed
+  // to the two members actually used rather than pulling the WebWorker lib in for the whole project.
+  const ctx = self as unknown as {
+    onmessage: ((e: MessageEvent<SolveRequest>) => void) | null;
+    postMessage: (message: SolveResponse) => void;
+  };
+  ctx.onmessage = ({ data }) => {
+    const { picks, variants } = solveTeam(data.teamKey, teamFromNames(data.loadouts), data.filters);
+    ctx.postMessage({ id: data.id, picks, variants });
+  };
+}

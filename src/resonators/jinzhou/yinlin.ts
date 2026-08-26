@@ -23,10 +23,12 @@
  *    triggered.
  */
 import {
-  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling,
-  applySelf, setStacksSelf, removeStack, applyEnemy, revokeEnemy, stacksOfEnemy, isHeld, currentAction, casting, revoke, addStat, queue, queueOutro, lostOnSwap,
+  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Type2, Cast, Node, Scaling, applySelf, setStacksSelf, removeStack, applyEnemy, revokeEnemy, stacksOfEnemy,
+  isHeld, currentAction, casting, revokeSelf, addStat, queue, queueOutro, lostOnSwap,
 } from "../../kit.js";
-import { STRINGMASTER } from "../../weapons/rectifier.js";
+import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
+import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { EMPYREAN_ANTHEM_5PC, EMPYREAN_ANTHEM_2PC } from "../../echoes/rinascita.js";
 import { NM_TEMPEST_MEPHIS, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";
@@ -50,7 +52,10 @@ const MA = yinlinAction("Basic - Zapstring's Dance (Mid-Air)", { node: Node.Norm
 const DC = yinlinAction("Basic - Zapstring's Dance (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 24.22 * 7, energy: 3.99, concerto: 17.00, offtune: 11746 });
 
 // Magnetic Roar opens Execution Mode; Lightning Execution is the follow-up Skill press
-const Skill1 = yinlinAction("Skill - Magnetic Roar", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 59.65 * 3, energy: 15.00, concerto: 10, offtune: 6666, forte1: 12 });
+const Skill1 = yinlinAction("Skill - Magnetic Roar", {
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 59.65 * 3, energy: 15.00, concerto: 10, offtune: 6666, forte1: 12,
+  updateBuffs: () => setStacksSelf(EXECUTION_MODE, 4),
+});
 const Skill2 = yinlinAction("Skill - Lightning Execution", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 89.47 * 4, energy: 15.00, concerto: 15, offtune: 5328, forte1: 4 });
 /** One Electromagnetic Blast — queued onto her own slot by EXECUTION_MODE below, once per charge
  *  her Basic/Dodge Counter casts against a Sinner-marked target consume. */
@@ -59,13 +64,24 @@ const ACTION_BLAST = yinlinAction("Skill - Electromagnetic Blast", { node: Node.
 const Liberation = yinlinAction("Liberation - Thundering Wrath", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 116.56 * 7, concerto: 20, offtune: 36001, resetEnergy: true });
 
 /** Chameleon Cipher: spends every Judgment Point, upgrades Sinner's Mark to Punishment Mark. */
-const FHA = yinlinAction("Forte Heavy - Chameleon Cipher", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 178.93 * 2, energy: 10.00, concerto: 20.00, offtune: 52000, forte1: -40 });
+const FHA = yinlinAction("Forte Heavy - Chameleon Cipher", {
+  node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 178.93 * 2, energy: 10.00, concerto: 20.00, offtune: 52000, forte1: -40,
+  updateBuffs: () => {
+    if (stacksOfEnemy(SINNERS_MARK)) { revokeEnemy(SINNERS_MARK); applyEnemy(PUNISHMENT_MARK, 1); }
+  },
+});
 /** Punishment Mark's whole 18s window at its 1/s ceiling, lumped — Resonance Skill DMG, queued
  *  off her own Outro while the mark stands (it consumes the mark — see PUNISHMENT_MARK). */
 const ACTION_JUDGMENT_STRIKES = yinlinAction("Forte - Judgment Strike x18", { node: Node.Forte, type: Type1.Skill, type2: Type2.Coordinated, mv: 78.64 * 18, active: false });
 
 const Intro = yinlinAction("Intro - Raging Storm", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 14.32 * 10, energy: 10.00, concerto: 10, offtune: 9520, forte1: 12 });
-const Outro = yinlinAction("Outro - Strategist", { cast: Cast.Outro, active: false });
+const Outro = yinlinAction("Outro - Strategist", {
+  cast: Cast.Outro, active: false,
+  updateBuffs: () => {
+    if (stacksOfEnemy(PUNISHMENT_MARK)) queue(ACTION_JUDGMENT_STRIKES);
+    queueOutro(YINLIN_OUTRO);
+  },
+});
 
 /* ------------------------------------------------------------------------------------ marks */
 
@@ -96,7 +112,7 @@ const EXECUTION_MODE: Buff = new Buff({
       removeStack(EXECUTION_MODE, 1);
     }
   },
-  convertStats: () => { if (casting(Cast.Outro)) revoke(EXECUTION_MODE); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(EXECUTION_MODE); },
 });
 
 /* ------------------------------------------------------------------------------------ buffs */
@@ -105,7 +121,7 @@ const EXECUTION_MODE: Buff = new Buff({
 const PAIN_IMMERSION = new Buff({
   name: "Yinlin: Pain Immersion",
   applyStats: () => addStat(Stat.CritRate, 15),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(PAIN_IMMERSION); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(PAIN_IMMERSION); },
 });
 const YL_INHERENT_1 = new Inherent({
   name: "Yinlin: Pain Immersion",
@@ -117,7 +133,7 @@ const YL_INHERENT_1 = new Inherent({
 const DEADLY_FOCUS = new Buff({
   name: "Yinlin: Deadly Focus",
   applyStats: () => addStat(Stat.BonusAtk, 10),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(DEADLY_FOCUS); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(DEADLY_FOCUS); },
 });
 const YL_INHERENT_2 = new Inherent({
   name: "Yinlin: Deadly Focus",
@@ -134,29 +150,22 @@ const YINLIN_OUTRO = new Buff({
 
 const YINLIN = new Resonator({
   name: "Yinlin",
-  abbreviation: "Yinlin",
   element: Attribute.Electro,
   weapon: WeaponType.Rectifier,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#a45ee8",
   maxEnergy: 125,
 
   updateBuffs: () => {
-    const a = currentAction();
     // this runs ahead of EXECUTION_MODE's own update (equipped gear first), so a Basic's own
     // fresh mark already gates that same cast's Blast
-    if (casting(Cast.Basic) || casting(Cast.DodgeCounter) || casting(Cast.Intro) || a === Liberation) {
+    if (casting(Cast.Basic) || casting(Cast.DodgeCounter) || casting(Cast.Intro) || currentAction() === Liberation) {
       applyEnemy(SINNERS_MARK, 1);
-    }
-    if (a === Skill1) setStacksSelf(EXECUTION_MODE, 4);
-    if (a === FHA && stacksOfEnemy(SINNERS_MARK)) { revokeEnemy(SINNERS_MARK); applyEnemy(PUNISHMENT_MARK, 1); }
-    if (a === Outro) {
-      if (stacksOfEnemy(PUNISHMENT_MARK)) queue(ACTION_JUDGMENT_STRIKES);
-      queueOutro(YINLIN_OUTRO);
     }
   },
 
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 11000); addStat(Stat.BaseAtk, 400); addStat(Stat.BaseDef, 1283.33);
   },
 });
@@ -164,19 +173,18 @@ const YINLIN = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const YINLIN_TALENTS = new Talent({
   name: "Yinlin: Talents",
-  applyStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
 // the kit-valid line: Magnetic Roar opens Execution Mode, the full combo (marked by its own first
 // hits) fires all 4 Blasts, the Heavy tops the gauge to the 45 that covers Chameleon Cipher's 40,
 // which upgrades the mark for Judgment Strikes off Outro. She's never the team's own lead, so
 // this covers both opener and loop.
-const YL_ROTATION = [
-  INTRO, 
-  Skill1, HA, Liberation, Skill2, FHA,
-  ECHO_CAST,
-  Outro,
-];
+
+const YL_ROTATION = new Rotation([
+  INTRO, ECHO_CAST, Skill1, HA, Liberation, Skill2, FHA,
+  OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -187,13 +195,12 @@ export const YINLIN_LOADOUT = new Loadout({
   talent: YINLIN_TALENTS,
   inherent1: YL_INHERENT_1,
   inherent2: YL_INHERENT_2,
-  weapons: [STRINGMASTER, VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES],
+  weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER, NEW_STD_RECTIFIER],
   echoLoadouts: [
     new EchoLoadout(NM_TEMPEST_MEPHIS, EMPYREAN_ANTHEM_5PC, EMPYREAN_ANTHEM_2PC),
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
   substat: chem("atk", "skill"),
-  opener: YL_ROTATION,
-  loop: YL_ROTATION,
+    rotation: YL_ROTATION,
 });

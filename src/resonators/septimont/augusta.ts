@@ -24,11 +24,11 @@
  * Intro while it's up) rides the realm buff itself, see RULERS_REALM.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  applySelf, applyTeam, revoke, revokeBuff, casting, currentAction, currentTeam, addStat,
-  queue, queueOutro,
-  lostOnSwap,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Scaling, applySelf, applyTeam, revokeSelf, revokeBuff, casting, currentAction, currentTeam, addStat, queue,
+  queueOutro, lostOnSwap,
 } from "../../kit.js";
+import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { applied } from "../../kit.js";
 import { SHIELD } from "../../statuses.js";
 import { THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
@@ -66,24 +66,39 @@ const Skill = augustaAction("Skill - Warrior's Blade", { node: Node.Skill, cast:
 const FSkill1 = augustaAction("Forte Skill - Undying Sunlight: Strike", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 278.34, energy: 5, concerto: 7, offtune: 18200, forte2: -5000 });
 const FSkill2 = augustaAction("Forte Skill - Undying Sunlight: Leap", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 278.35, energy: 5, concerto: 7, offtune: 11200 });
 /** Consumes all Ascendancy, counts as Heavy Attack DMG, grants a stack of Majesty. */
-const FSkill3 = augustaAction("Forte Skill - Undying Sunlight: Plunge", { node: Node.Forte, cast: Cast.Skill, type: Type1.Heavy, mv: 865.83, energy: 11, concerto: 7, offtune: 24000 });
+const FSkill3 = augustaAction("Forte Skill - Undying Sunlight: Plunge", {
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Heavy, mv: 865.83, energy: 11, concerto: 7, offtune: 24000,
+  updateBuffs: () => applySelf(MAJESTY, 1),
+});
 
 // liberation: Sword of Eternal Oath, the plain press-and-release cast
 const Lib1 = augustaAction("Liberation - Sword of Eternal Oath", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 1099.48, energy: 4.74, concerto: 20, offtune: 29342, forte2: 2000, resetEnergy: true });
 /** Held instead of released once Majesty reaches 2 — costs both stacks of Majesty rather than
  *  Energy, spent via AUGUSTA's own updateBuffs() below. Nine hits lumped into one action; queues
  *  Everbright Protector itself once the ninth lands. */
-const Lib2 = augustaAction("Liberation - Sublime is the Sun", { node: Node.Liberation, cast: Cast.Liberation, resetEnergy: true });
+const Lib2 = augustaAction("Liberation - Sublime is the Sun", {
+  node: Node.Liberation, cast: Cast.Liberation, resetEnergy: true,
+  updateBuffs: () => { queue(Lib2fua); queue(Lib3); applyTeam(RULERS_REALM, 1); revokeSelf(MAJESTY); },
+});
 
 const Lib2fua = augustaAction("Liberation - Sublime is the Sun: Sunborne x9", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 1073.61, concerto: 18, offtune: 64800 });
 /** The finisher — ends Sworn Allegiance and spends every stack of Crown of Wills. Costs no
  *  Resonance Energy. */
-const Lib3 = augustaAction("Liberation - Sublime is the Sun: Everbright Protector", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 1192.93, energy: 60, concerto: 10, offtune: 50400 });
+const Lib3 = augustaAction("Liberation - Sublime is the Sun: Everbright Protector", {
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 1192.93, energy: 60, concerto: 10, offtune: 50400,
+  updateBuffs: () => {
+    // memberOf() throws on a resonator not on this team, so only reach for it if Phrolova's along
+    if (currentTeam().slots.some((s) => s.resonator === PHROLOVA)) revokeBuff(PHROLOVA, MAESTRO);
+  },
+});
 
 const Intro = augustaAction("Intro - Stride of Goldenflare", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.82, energy: 10, concerto: 10, offtune: 9600, forte1: 660, forte2: 800 });
 /** No damage of its own, just the outro handoff (BATTLESONG) — her own Majesty/Crown of Wills
  *  grant is earned later, off the recipient's own Outro. */
-const Outro = augustaAction("Outro - Battlesong of the Unyielding", { cast: Cast.Outro, active: false });
+const Outro = augustaAction("Outro - Battlesong of the Unyielding", {
+  cast: Cast.Outro, active: false,
+  updateBuffs: () => queueOutro(BATTLESONG),
+});
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -99,7 +114,7 @@ const CROWN_OF_WILLS = new Buff({
   convertStats: () => {
     const a = currentAction();
     if (a === Lib3) {
-      revoke(CROWN_OF_WILLS);
+      revokeSelf(CROWN_OF_WILLS);
     }
   },
 });
@@ -112,7 +127,7 @@ const CROWN_OF_WILLS = new Buff({
  *  already counted by the time this looks, and they don't get a second. */
 const RULERS_REALM = new Buff({
   name: "Augusta: Ruler's Realm",
-  updateDebuffs: () => { if (casting(Cast.Intro) && !applied(SHIELD)) applyTeam(SHIELD, 1); },
+  updateDebuffs: () => { if (casting(Cast.Intro) && !applied(SHIELD)) applySelf(SHIELD, 1); },
 });
 
 /** Hands the incoming resonator +15% DMG Amplification (all attributes) for 14s. */
@@ -133,7 +148,7 @@ const AG_INHERENT_1 = new Inherent({
   name: "Augusta: Glory's Favor",
   updateDebuffs: () => {
     const n = SHIELDS.get(currentAction());
-    if (n) applyTeam(SHIELD, n);
+    if (n) applySelf(SHIELD, n);
   },
 });
 
@@ -148,10 +163,10 @@ const AG_INHERENT_2 = new Inherent({
 
 const AUGUSTA = new Resonator({
   name: "Augusta",
-  abbreviation: "Augugu",
   element: Attribute.Electro,
   weapon: WeaponType.Broadblade,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#d7370f",
   maxEnergy: 125,
 
@@ -164,18 +179,7 @@ const AUGUSTA = new Resonator({
     }
   },
 
-  updateBuffs: () => {
-    const a = currentAction();
-    if (a === Lib2) { queue(Lib2fua); queue(Lib3); applyTeam(RULERS_REALM, 1); revoke(MAJESTY); }
-    if (a === Outro) queueOutro(BATTLESONG);
-    if (a === FSkill3) applySelf(MAJESTY, 1);
-    if (a === Lib3) {
-      // memberOf() throws on a resonator not on this team, so only reach for it if Phrolova's along
-      if (currentTeam().slots.some((s) => s.resonator === PHROLOVA)) revokeBuff(PHROLOVA, MAESTRO);
-    }
-  },
-
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 10300); addStat(Stat.BaseAtk, 463); addStat(Stat.BaseDef, 1112);
   },
 });
@@ -183,16 +187,16 @@ const AUGUSTA = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const AUGUSTA_TALENTS = new Talent({
   name: "Augusta: Talents",
-  applyStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
 // the migrated rotation: the Steelclash->Thunderoar chain twice, Sword of Eternal Oath, the
 // Undying Sunlight chain. She's never the team's own lead, so this covers both opener and loop.
-const AG_ROTATION = [
+
+const AG_ROTATION = new Rotation([
   INTRO, FHA1, FHA2, Skill, FHA1, FHA2, ECHO_CAST, Lib1,
-  FSkill1, FSkill2, FSkill3, Lib2,
-  Outro,
-];
+  FSkill1, FSkill2, FSkill3, Lib2, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -207,6 +211,5 @@ export const AUGUGU_LOADOUT = new Loadout({
   echoLoadouts: [new EchoLoadout(FALSE_SOVEREIGN, COV_3PC, VOID_THUNDER_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
   substat: chem("atk", "heavy"),
-  opener: AG_ROTATION,
-  loop: AG_ROTATION,
+    rotation: AG_ROTATION,
 });

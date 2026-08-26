@@ -10,10 +10,12 @@
  * Damage Data's own Energy/Elemental DMG columns, offtune off Weakness Break DMG x10000).
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, EnemyStat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  applySelf, applyEnemy, revokeEnemy, isHeld, revoke, casting, currentAction, addStat, addEnemyStat,
-  Debuff,
+  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, Stat, EnemyStat, Attribute,
+  WeaponType, Type1, Cast, Node, Scaling, applySelf, applyEnemy, revokeEnemy, isHeld, revokeSelf, casting,
+  currentAction, addStat, addEnemyStat, Debuff,
 } from "../../kit.js";
+import { Rotation, START_COMBAT, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
+import { HEALS } from "../../statuses.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";
 import { NM_CROWNLESS, HAVOC_ECLIPSE_5PC, HAVOC_ECLIPSE_2PC } from "../../echoes/jinzhou.js";
@@ -41,7 +43,10 @@ const HA = roverAction("Heavy - Attack", { node: Node.Normal, cast: Cast.Heavy, 
 
 // --- forte circuit: Devastation, at full Umbra — enters Dark Surge, considered Heavy Attack DMG,
 //     and (S4) shreds the target's own Havoc RES
-const Devastation = roverAction("Forte Heavy - Devastation", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 228.14, energy: 1.7, offtune: 56320, forte1: -100 });
+const Devastation = roverAction("Forte Heavy - Devastation", {
+  node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 228.14, energy: 1.7, offtune: 56320, forte1: -100,
+  updateBuffs: () => applySelf(DARK_SURGE, 1),
+});
 
 // --- Dark Surge: Enhanced Basic 1-5, Enhanced Heavy -> Thwackblade -> re-entry into Enhanced
 //     Basic 3, Enhanced Mid-air/Dodge Counter — all their own base damage types (only the
@@ -50,7 +55,12 @@ const EBA1 = roverAction("Forte Basic - Umbra 1", { node: Node.Forte, cast: Cast
 const EBA2 = roverAction("Forte Basic - Umbra 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 93.94, energy: 0.7, concerto: 1.2, offtune: 2560 });
 const EBA3 = roverAction("Forte Basic - Umbra 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 155.67, energy: 1.16, concerto: 1.98, offtune: 4480 });
 const EBA4 = roverAction("Forte Basic - Umbra 4", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 222.78, energy: 1.64, concerto: 2.83, offtune: 13280 });
-const EBA5 = roverAction("Forte Basic - Umbra 5", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 228.15, energy: 1.7, concerto: 1.81, offtune: 56320, heals: true });
+// updateDebuffs is her own healing marker, read by every healing sonata and weapon (statuses.ts)
+// — applied to the healer alone, never the team
+const EBA5 = roverAction("Forte Basic - Umbra 5", {
+  node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 228.15, energy: 1.7, concerto: 1.81, offtune: 56320,
+  updateDebuffs: () => applySelf(HEALS, 1),
+});
 
 const EMA = roverAction("Forte Basic - Umbra Plunge", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 123.27, energy: 0.41, concerto: 1, offtune: 9600 });
 const EDC = roverAction("Forte Basic - Umbra Dodge Counter", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 316.71, energy: 2.36, concerto: 11.98, offtune: 4640 });
@@ -78,7 +88,7 @@ const Outro = roverAction("Outro - Soundweaver", { cast: Cast.Outro, type: Type1
  *  duration). Metamorph pays its own +20% Havoc DMG Bonus directly, below. */
 const DARK_SURGE = new Buff({
   name: "Havoc Rover: Dark Surge",
-  updateBuffs: () => { if (casting(Cast.Outro)) revoke(DARK_SURGE); },
+  updateBuffs: () => { if (casting(Cast.Outro)) revokeSelf(DARK_SURGE); },
 });
 /** Metamorph (Inherent Skill): +20% Havoc DMG Bonus while Dark Surge is held. */
 const RH_INHERENT_1 = new Inherent({
@@ -108,17 +118,15 @@ const S4_RES_SHRED = new Debuff({
  *  own base stat line. `standardCharacter: true` — see the file header. */
 const ROVER_HAVOC = new Resonator({
   name: "Havoc Rover",
-  abbreviation: "HRover",
   element: Attribute.Havoc,
   weapon: WeaponType.Sword,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#7c6fd6",
   maxEnergy: 125,
   standardCharacter: true,
 
-  updateBuffs: () => { if (currentAction() === Devastation) applySelf(DARK_SURGE, 1); },
-
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 10825); addStat(Stat.BaseAtk, 413); addStat(Stat.BaseDef, 1259);
   },
 });
@@ -126,7 +134,7 @@ const ROVER_HAVOC = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
 const ROVER_TALENTS = new Talent({
   name: "Havoc Rover: Talents",
-  applyStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Havoc); },
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Havoc); },
 });
 
 /* -------------------------------------------------------------------------------- sequences */
@@ -165,13 +173,12 @@ const ROVER_S6 = new Sequence({
   applyStats: () => { if (isHeld(DARK_SURGE)) addStat(Stat.CritRate, 25); },
 });
 
-const RH_ROTATION = [
-  INTRO,
-  BA1, BA2, BA3, BA4, BA5,
+const RH_ROTATION = new Rotation([
+  INTRO, BA1, BA2, BA3, BA4, BA5,
   Skill, Devastation, ESkill,
   EBA1, EBA2, EBA3, EBA4, EBA5,
-  Liberation, ECHO_CAST, Outro,
-];
+  START_COMBAT, Liberation, START_COMBAT, ECHO_CAST, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -182,11 +189,10 @@ export const HROVER_LOADOUT = new Loadout({
   talent: ROVER_TALENTS,
   inherent1: RH_INHERENT_1,
   inherent2: RH_INHERENT_2,
-  weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, RED_SPRING],
+  weapons: [RED_SPRING, EMERALD_OF_GENESIS, BLAZING_BRILLIANCE],
   echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC, HAVOC_ECLIPSE_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: chem("atk", "basic"),
-  opener: RH_ROTATION,
-  loop: RH_ROTATION,
+    rotation: RH_ROTATION,
   sequences: [ROVER_S1, ROVER_S2, ROVER_S3, ROVER_S4, ROVER_S5, ROVER_S6],
 });

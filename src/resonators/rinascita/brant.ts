@@ -15,13 +15,12 @@
  * standing rule; Returned from Ashes' own shield isn't modelled for HP value, only as the marker.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  applySelf, revoke, casting, currentAction, addStat, getStat, isHeld, queueOutro,
-  forte1, setForte1,
-  lostOnSwap,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Scaling, applySelf, revokeSelf, casting, currentAction, addStat, getStat, queueOutro, forte1, setForte1,
+  lostOnSwap, applyTeam,
 } from "../../kit.js";
-import { applyTeam } from "../../kit.js";
-import { SHIELD } from "../../statuses.js";
+import { Rotation, INTRO, OUTRO_NEXT } from "../../rotation.js";
+import { SHIELD, HEALS } from "../../statuses.js";
 import { UNFLICKERING_VALOR } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE } from "../../weapons/standard.js";
 import { DRAGON_OF_DIRGE, TIDEBREAKING_5PC, TIDEBREAKING_2PC } from "../../echoes/rinascita.js";
@@ -37,16 +36,31 @@ function brantAction(id: string, def: object): Action {
 // energy/concerto come off the old reference file's own numbers (÷100 — see file header); no
 // offtune anywhere in it either, so every action below is bare on that front.
 // --- intro / outro
-const Intro = brantAction("Intro - Applaud for Me!", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 253.49, offtune: 12000, concerto: 10, forte1: 25, heals: true });
-const Outro = brantAction("Outro - The Course is Set!", { cast: Cast.Outro, active: false });
+// updateDebuffs is his own healing marker, read by every healing sonata and weapon (statuses.ts)
+// — applied to the healer alone, never the team
+const Intro = brantAction("Intro - Applaud for Me!", {
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 253.49, offtune: 12000, concerto: 10, forte1: 25,
+  updateDebuffs: () => applySelf(HEALS, 1),
+});
+const Outro = brantAction("Outro - The Course is Set!", { cast: Cast.Outro, active: false, updateBuffs: () => queueOutro(BRANT_OUTRO) });
 
 // --- resonance skill: Anchors Aweigh!, and liberation: To the Horizon (opens Aflame)
 const Skill = brantAction("Skill - Anchors Aweigh!", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 333.92, offtune: 10160, energy: 7.18, concerto: 10, forte1: 7.93 });
-const Liberation = brantAction("Liberation - To the Horizon", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 680.45, offtune: 48000, concerto: 20, resetEnergy: true });
+const Liberation = brantAction("Liberation - To the Horizon", {
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 680.45, offtune: 48000, concerto: 20, resetEnergy: true,
+  // Aflame swaps his conversion up to its "My" Moment rate for as long as it lasts
+  updateBuffs: () => { applySelf(AFLAME, 1); revokeSelf(THEATRICAL_MOMENT); applySelf(MY_MOMENT, 1); },
+});
 
 /** At 100 Bravo — considered Basic Attack DMG, spends the whole gauge, and ends Aflame (if up)
- *  once it resolves — see AFLAME's own convertStats() below. */
-const FSkill = brantAction("Forte - Returned from Ashes", { node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 1888.71, offtune: 63200, energy: 30, concerto: 50, forte1: -100 });
+ *  once it resolves — see AFLAME's own convertStats() below. Shields on cast, and pre-clamps an
+ *  overshot Bravo back to exactly 100 so its own declared `forte1: -100` lands exactly on 0;
+ *  under 100, left alone (matches Galbrena's own Purging Flame). */
+const FSkill = brantAction("Forte - Returned from Ashes", {
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 1888.71, offtune: 63200, energy: 30, concerto: 50, forte1: -100,
+  updateDebuffs: () => applySelf(SHIELD, 1),
+  updateBuffs: () => { if (forte1() >= 100) setForte1(100); },
+});
 
 // --- mid-air combo stages (Captain's Rhapsody). forte1 is the base (un-doubled) Bravo gain —
 //     AFLAME doubles it live while held.
@@ -69,21 +83,26 @@ const AFLAME = new Buff({
     const a = currentAction();
     if (a.node === Node.Normal || a.node === Node.Skill) addStat(Stat.AddForte1, a.forte1);
   },
-  convertStats: () => { if (casting(Cast.Outro) || currentAction() === FSkill) revoke(AFLAME); },
+  // ...and hands the conversion back down as it goes. "My" Moment has already paid out this
+  // action by now (the roster was frozen with it held), so this cast still gets the Aflame rate.
+  convertStats: () => {
+    if (!(casting(Cast.Outro) || currentAction() === FSkill)) return;
+    revokeSelf(AFLAME);
+    revokeSelf(MY_MOMENT); applySelf(THEATRICAL_MOMENT, 1);
+  },
 });
 
-/** +12 ATK per 1% Energy Regen over 150%, capped at +1560 (280% ER) — doubled to +20 a point,
- *  capped at +2600, while Aflame is up. Read in convertStats() so every ER source has landed. */
+/** +12 ATK per 1% Energy Regen over 150%, capped at +1560 (280% ER). Read in convertStats() so
+ *  every ER source has landed. One of this and "My" Moment below is always held — Aflame swaps
+ *  them as it comes and goes — so neither has to look at Aflame itself mid-phase. */
 const THEATRICAL_MOMENT = new Buff({
   name: "Brant: Theatrical Moment",
-  display: () => (isHeld(AFLAME) ? "Brant: \"My\" Moment" : "Brant: Theatrical Moment"),
-  convertStats: () => {
-    const aflame = isHeld(AFLAME);
-    const perPoint = aflame ? 20 : 12;
-    const cap = aflame ? 2600 : 1560;
-    const over = Math.max(0, getStat(Stat.Er) - 150);
-    addStat(Stat.FlatAtk, Math.min(cap, perPoint * over));
-  },
+  convertStats: () => addStat(Stat.FlatAtk, Math.min(1560, 12 * Math.max(0, getStat(Stat.Er) - 150))),
+});
+/** The Aflame rate: +20 a point, capped at +2600. */
+const MY_MOMENT = new Buff({
+  name: "Brant: \"My\" Moment",
+  convertStats: () => addStat(Stat.FlatAtk, Math.min(2600, 20 * Math.max(0, getStat(Stat.Er) - 150))),
 });
 
 /** The outro handoff. */
@@ -96,40 +115,27 @@ const BRANT_OUTRO = new Buff({
 /** Trial by Fire and Tide (Inherent Skill) — genuinely unconditional, always equipped. */
 const BR_TRIAL_INHERENT = new Inherent({
   name: "Brant: Trial by Fire and Tide",
-  applyStats: () => addStat(Stat.DmgBonus, 15, Attribute.Fusion),
+  constantStats: () => addStat(Stat.DmgBonus, 15, Attribute.Fusion),
 });
 
 /** Voyager's Blaze (Inherent Skill) — genuinely unconditional, always equipped. */
 const BR_VOYAGE_INHERENT = new Inherent({
   name: "Brant: Voyager's Blaze",
-  applyStats: () => addStat(Stat.HealingBonus, 20),
+  constantStats: () => addStat(Stat.HealingBonus, 20),
 });
 
 const BRANT = new Resonator({
   name: "Brant",
-  abbreviation: "Brant",
   element: Attribute.Fusion,
   weapon: WeaponType.Sword,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#d1257f",
   maxEnergy: 175,
 
   combatStart: () => applySelf(THEATRICAL_MOMENT, 1),
 
-  // Returned from Ashes shields
-  updateDebuffs: () => { if (currentAction() === FSkill) applyTeam(SHIELD, 1); },
-
-  // Forte Circuit (Bravo): pre-clamp an overshoot back to exactly 100 so Returned from Ashes'
-  // own declared forte1: -100 lands exactly on 0; under 100, leave it alone (matches
-  // Galbrena's own Purging Flame).
-  updateBuffs: () => {
-    const a = currentAction();
-    if (a === Liberation) applySelf(AFLAME, 1);
-    if (a === Outro) queueOutro(BRANT_OUTRO);
-    if (a === FSkill && forte1() >= 100) setForte1(100);
-  },
-
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 11675); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1308);
   },
 });
@@ -137,13 +143,14 @@ const BRANT = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
 const BRANT_TALENTS = new Talent({
   name: "Brant: Talents",
-  applyStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
 // he's never the team's own lead, so this same rotation covers both opener and loop
-const BR_ROTATION = [
-  INTRO, Liberation, MA1H, MA2H, MA3, MA4, FSkill, Outro,
-];
+
+const BR_ROTATION = new Rotation([
+  INTRO, Liberation, MA1H, MA2H, MA3, MA4, FSkill, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -158,6 +165,5 @@ export const BRANT_LOADOUT = new Loadout({
   echoLoadouts: [new EchoLoadout(DRAGON_OF_DIRGE, TIDEBREAKING_5PC, TIDEBREAKING_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: chem("atk", "basic"),
-  opener: BR_ROTATION,
-  loop: BR_ROTATION,
+    rotation: BR_ROTATION,
 });

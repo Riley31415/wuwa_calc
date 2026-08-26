@@ -13,17 +13,18 @@
  * the damage dealer, so nothing below enters Apex.
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  applySelf, applyTeam, revokeTeam, isHeld, revoke, casting, currentAction, addStat, queue, queueOutro,
-  forte1, setForte1,
-  lostOnSwap,
+  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Cast, Node, Scaling, applySelf, applyTeam, revokeTeam, isHeld, revokeSelf, casting, currentAction, addStat,
+  queue, queueOutro, forte1, setForte1, lostOnSwap,
 } from "../../kit.js";
+import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { applyEnemy } from "../../kit.js";
-import { ELECTRO_FLARE, inflictedNegativeStatus } from "../../statuses.js";
+import { ELECTRO_FLARE, inflictedNegativeStatus, HEALS } from "../../statuses.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../mainstats.js";
 import { chem } from "../../substats.js";
+import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -45,8 +46,21 @@ const Repel = roverAction("Skill - Basic Attack: Repel", { node: Node.Skill, cas
 // --- forte circuit: Overshock, at full Electric Surge. Press and hold are the same damage and the
 //     same Surge spend, and differ only in what they open — the team ATK buff or Apex Resonance
 //     (which the hold pays 60 Concerto for). `flare` is Decipher's own 10 stacks of Electro Flare.
-const Overshock = roverAction("Forte Skill - Overshock", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 1412.58, energy: 15.15, concerto: 18.33, offtune: 54645, forte1: -100 });
-const OvershockHold = roverAction("Forte Skill - Overshock (Hold)", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 1412.58, energy: 15.15, concerto: 18.33, offtune: 54645, forte1: -100 });
+// Both Overshocks inflict 10 Electro Flare and clear the whole Surge gauge — pre-clamp an
+// overshoot back to exactly 100 so the declared forte1: -100 lands on 0, same pattern as Encore's
+// own Cloudy Frenzy.
+const OVERSHOCK = {
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 1412.58, energy: 15.15, concerto: 18.33, offtune: 54645, forte1: -100,
+  updateDebuffs: () => applyEnemy(ELECTRO_FLARE, 10),
+};
+const Overshock = roverAction("Forte Skill - Overshock", {
+  ...OVERSHOCK,
+  updateBuffs: () => { if (forte1() >= 100) setForte1(100); applyTeam(OVERSHOCK_ATK, 1); },
+});
+const OvershockHold = roverAction("Forte Skill - Overshock (Hold)", {
+  ...OVERSHOCK,
+  updateBuffs: () => { if (forte1() >= 100) setForte1(100); applySelf(APEX_RESONANCE, 1); },
+});
 
 // --- Apex Resonance: Thrum of All Sounds, ground chain then the mid-air chain, each stage its own
 //     element and each restoring Thunder Rage (forte2). Nothing in the sub rotation casts these —
@@ -63,8 +77,8 @@ const ThrumAero = roverAction("Forte Skill - Thrum: Aero", { node: Node.Forte, c
 const ThrumMaHavoc1 = roverAction("Forte Skill - Thrum: Havoc Mid-air 1", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Havoc, mv: 50.63, energy: 0.59, concerto: 2.1, offtune: 4660, forte2: 2.56 });
 const ThrumMaHavoc2 = roverAction("Forte Skill - Thrum: Havoc Mid-air 2", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Havoc, mv: 63.82, energy: 0.67, concerto: 2.41, offtune: 5340, forte2: 2.94 });
 const ThrumMaHavoc3 = roverAction("Forte Skill - Thrum: Havoc Mid-air 3", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Havoc, mv: 277.30, energy: 2.06, concerto: 7.37, offtune: 16348, forte2: 9 });
-const ThrumMaAero1 = roverAction("Forte Skill - Thrum: Aero Mid-air 1", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Aero, mv: 84.61, energy: 0.81, concerto: 2.89, offtune: 6412, forte2: 3.53, heals: true });
-const ThrumMaAero2 = roverAction("Forte Skill - Thrum: Aero Mid-air 2", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Aero, mv: 97.41, energy: 0.89, concerto: 3.19, offtune: 7072, forte2: 3.89, heals: true });
+const ThrumMaAero1 = roverAction("Forte Skill - Thrum: Aero Mid-air 1", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Aero, mv: 84.61, energy: 0.81, concerto: 2.89, offtune: 6412, forte2: 3.53 });
+const ThrumMaAero2 = roverAction("Forte Skill - Thrum: Aero Mid-air 2", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Aero, mv: 97.41, energy: 0.89, concerto: 3.19, offtune: 7072, forte2: 3.89 });
 const ThrumMaAeroPlunge = roverAction("Forte Skill - Thrum: Aero Plunge", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Aero, mv: 282.48, energy: 2.08, concerto: 7.48, offtune: 16613, forte2: 9.14 });
 
 /** Thunder Bane: one per Thrum hit, considered Resonance Skill DMG. Queued by the Thrum actions
@@ -82,7 +96,10 @@ const THRUMS: Action[] = [
 // --- liberation / intro / outro
 const Liberation = roverAction("Liberation - Ultimate Tactics", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1192.86, concerto: 20, offtune: 57600, resetEnergy: true });
 const Intro = roverAction("Intro - Thunderous Fury", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 167.03, energy: 3, concerto: 20.8, offtune: 9600, forte1: 53 });
-const Outro = roverAction("Outro - Rumbling Thunders", { cast: Cast.Outro, type: Type1.Outro, active: false });
+const Outro = roverAction("Outro - Rumbling Thunders", {
+  cast: Cast.Outro, type: Type1.Outro, active: false,
+  updateBuffs: () => queueOutro(ELECTRO_CORE),
+});
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -90,7 +107,7 @@ const Outro = roverAction("Outro - Rumbling Thunders", { cast: Cast.Outro, type:
  *  Outro (which also clears Thunder Rage). No stat of its own — S5 is what pays on it. */
 const APEX_RESONANCE = new Buff({
   name: "Electro Rover: Apex Resonance",
-  updateBuffs: () => { if (casting(Cast.Outro)) revoke(APEX_RESONANCE); },
+  updateBuffs: () => { if (casting(Cast.Outro)) revokeSelf(APEX_RESONANCE); },
 });
 
 /** Overshock, pressed: +10% ATK to the whole team for 20s — lost on his own next Intro. */
@@ -124,7 +141,7 @@ const ELECTRO_CORE = new Buff({
   name: "Electro Rover: Electro Core",
   updateBuffs: () => {
     lostOnSwap();
-    if (inflictedNegativeStatus()) { applySelf(ER_OUTRO, 1); revoke(ELECTRO_CORE); }
+    if (inflictedNegativeStatus()) { applySelf(ER_OUTRO, 1); revokeSelf(ELECTRO_CORE); }
   },
 });
 /** The Outro proper: 25% All DMG Amplification, paid out only once Electro Core has been spent —
@@ -176,32 +193,24 @@ const ER_S6 = new Sequence({
  *  their own base stat line. `standardCharacter: true` — see the file header. */
 const ROVER_ELECTRO = new Resonator({
   name: "Electro Rover",
-  abbreviation: "ERover",
   element: Attribute.Electro,
   weapon: WeaponType.Sword,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#b98ce8",
   maxEnergy: 125,
   standardCharacter: true,
 
-  // both Overshocks inflict 10 Electro Flare
   updateDebuffs: () => {
     const a = currentAction();
-    if (a === Overshock || a === OvershockHold) applyEnemy(ELECTRO_FLARE, 10);
+    // her own healing marker, read by every healing sonata and weapon (statuses.ts) —
+    // applied to the healer alone, never the team
+    if (a === ThrumMaAero1 || a === ThrumMaAero2) applySelf(HEALS, 1);
   },
 
-  // Overshock clears the whole Surge gauge — pre-clamp an overshoot back to exactly 100 so the
-  // declared forte1: -100 lands on 0, same pattern as Encore's own Cloudy Frenzy
-  updateBuffs: () => {
-    const a = currentAction();
-    if ((a === Overshock || a === OvershockHold) && forte1() >= 100) setForte1(100);
-    if (a === Outro) queueOutro(ELECTRO_CORE);
-    if (a === Overshock) applyTeam(OVERSHOCK_ATK, 1);
-    if (a === OvershockHold) applySelf(APEX_RESONANCE, 1);
-    if (THRUMS.includes(a)) queue(ThunderBane);
-  },
+  updateBuffs: () => { if (THRUMS.includes(currentAction())) queue(ThunderBane); },
 
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 10775); addStat(Stat.BaseAtk, 438); addStat(Stat.BaseDef, 1137);
   },
 });
@@ -209,15 +218,16 @@ const ROVER_ELECTRO = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from their kit
 const ROVER_ELECTRO_TALENTS = new Talent({
   name: "Electro Rover: Talents",
-  applyStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
 });
 
 // the migrated sheet's own "erover sub" line: four basics plus Thunderclap into Repel fill Electric
 // Surge, Overshock is pressed (the team ATK buff, not the Apex hold), then Liberation and the echo
 // before handing the Outro off. They're never the team's own lead, so this covers opener and loop both.
-const ER_ROTATION = [
-  INTRO, BA1, BA2, BA3, BA4, Skill, Repel, Overshock, Liberation, ECHO_CAST, Outro,
-];
+
+const ER_ROTATION = new Rotation([
+  INTRO, BA1, BA2, BA3, BA4, Skill, Repel, Overshock, Liberation, ECHO_CAST, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -228,11 +238,10 @@ export const EROVER_LOADOUT = new Loadout({
   talent: ROVER_ELECTRO_TALENTS,
   inherent1: ER_INHERENT_1,
   inherent2: ER_INHERENT_2,
-  weapons: [EMERALD_OF_GENESIS],
+  weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, RED_SPRING],
   echoLoadouts: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
   substat: chem("atk", "skill"),
-  opener: ER_ROTATION,
-  loop: ER_ROTATION,
+    rotation: ER_ROTATION,
   sequences: [ER_S1, ER_S2, ER_S3, ER_S4, ER_S5, ER_S6],
 });

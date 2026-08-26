@@ -43,11 +43,12 @@
  * old migrated sheet predates Chafe mode entirely, so none of it could be cross-checked.
  */
 import {
-  typeOverride,
-  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, ResonanceMode, Action, ECHO_CAST, INTRO, Stat, EnemyStat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling,
-  applied, applySelf, applyTeam, applyEnemy, isHeld, casting, currentAction, currentTeam, addStat, addEnemyStat, frozenStacks, forte1, queue, queueOutro, removeStackTeam, revoke,
-  lostOnSwap,
+  typeOverride, Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, ResonanceMode, Action, Stat,
+  EnemyStat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, applied, applySelf, applyTeam, applyEnemy,
+  isHeld, casting, currentAction, currentTeam, addStat, addEnemyStat, frozenStacks, forte1, queue, queueOutro,
+  removeStackTeam, revokeSelf, lostOnSwap,
 } from "../../kit.js";
+import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { GLACIO_CHAFE } from "../../statuses.js";
 import { FREEZE_FRAME, STRINGMASTER, LETHEAN_ELEGY } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
@@ -68,8 +69,17 @@ function lucillaAction(id: string, def: object): Action {
 // columns straight off each named hit, offtune off its Weakness Break DMG column), not the
 // migrated sheet — that sheet predates offtune entirely and undercounted several figures
 // outright. Liberation costs no Resonance Energy at all (maxEnergy: 0 below), so no energy field.
-const Intro = lucillaAction("Intro - Clip It", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 97.42, energy: 11.75, concerto: 14.13, offtune: 5600, forte1: 100 });
-const Outro = lucillaAction("Outro - Montage", { cast: Cast.Outro, mv: 0, active: false });
+// Clip It and Oblivion (Chafe) each inflict a stack of Glacio Chafe
+const CHAFES = { updateDebuffs: () => applyEnemy(GLACIO_CHAFE, 1) };
+const Intro = lucillaAction("Intro - Clip It", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 97.42, energy: 11.75, concerto: 14.13, offtune: 5600, forte1: 100, ...CHAFES });
+// mutually exclusive: Echo hands off MONTAGE_HANDOFF, Chafe grants MONTAGE_CHAFE team-wide
+const Outro = lucillaAction("Outro - Montage", {
+  cast: Cast.Outro, mv: 0, active: false,
+  updateBuffs: () => {
+    if (isHeld(MODE_CHAFE)) applyTeam(MONTAGE_CHAFE, 1);
+    else queueOutro(MONTAGE_HANDOFF);
+  },
+});
 
 // normal attacks: Basic 1/2, Basic 3 (Focus Ring, always assumed Perfect/Commendable)
 const BA1 = lucillaAction("Basic - Snapshot 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 59.29, energy: 1.07, concerto: 1.71, offtune: 3408 });
@@ -84,17 +94,35 @@ const DC = lucillaAction("Basic - Snapshot (Dodge Counter)", { node: Node.Normal
 const PhantomFrame = lucillaAction("Skill - Phantom Frame", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 39.78, energy: 1.26, concerto: 2.07, offtune: 4002 });
 // also reduces the Resonance Skill's own cooldown by 8s — unmodeled, no CD tracking here
 const Compensate = lucillaAction("Skill - Compensate", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 249.07, energy: 9.31, concerto: 3.08, offtune: 4176, forte1: 25 });
-const Spotlight = lucillaAction("Skill - Spotlight", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 548.98, energy: 27.90, concerto: 6.8, offtune: 9205, forte1: 50 });
+// Spotlight lays a Chafe stack too, but only in Glacio Chafe mode
+const Spotlight = lucillaAction("Skill - Spotlight", {
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 548.98, energy: 27.90, concerto: 6.8, offtune: 9205, forte1: 50,
+  updateDebuffs: () => { if (isHeld(MODE_CHAFE)) applyEnemy(GLACIO_CHAFE, 1); },
+  applyStats: () => { addStat(Stat.AddConcerto, 20); }
+});
 
 // Echo Skill DMG under Echo mode; Chafe mode's own typeOverride makes it Basic Attack DMG instead
 // (see MODE_CHAFE) — one action, not one per mode
-const Liberation = lucillaAction("Liberation - Clear As Day", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Echo, mv: 142.74, concerto: 20, offtune: 38400 });
+const Liberation = lucillaAction("Liberation - Clear As Day", {
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Echo, mv: 142.74, concerto: 20, offtune: 38400,
+  updateBuffs: () => {
+    applySelf(LIB_SELF_DMG, 1);
+    if (isHeld(MODE_CHAFE)) applyTeam(FILM_ROLL, 4); else applyTeam(ZOOM, 1);
+  },
+});
 
 // Reminiscence: Basic Attack - Tracing Forms (unconditionally Basic Attack DMG) and Letting It Go
 // (mode-typed). Stage 3 itself triggers Oblivion once per Photo actually banked (forte1, max 3).
 const UBA1 = lucillaAction("Basic - Tracing Forms 1", { node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 76.59, energy: 1.08, concerto: 2.07, offtune: 3425 });
 const UBA2 = lucillaAction("Basic - Tracing Forms 2", { node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 149.42, energy: 12.09, concerto: 4.93, offtune: 6680 });
-const UBA3 = lucillaAction("Basic - Tracing Forms 3", { node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 416.96, energy: 5.84, concerto: 11.20, offtune: 18640 });
+const UBA3 = lucillaAction("Basic - Tracing Forms 3", {
+  node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 416.96, energy: 5.84, concerto: 11.20, offtune: 18640,
+  updateBuffs: () => {
+    const photos = Math.min(3, Math.floor(forte1() / 50));
+    for (let i = 0; i < photos; i++) queue(isHeld(MODE_CHAFE) ? OblivionChafe : OblivionEcho);
+    queue(LettingGo);
+  },
+});
 
 /** Spends a banked Photo for an extra hit — queued by Stage 3 itself. Under Echo mode this is
  *  Echo Skill DMG and a real Echo cast; under Chafe mode it's Basic Attack DMG and inflicts 1
@@ -103,12 +131,14 @@ const UBA3 = lucillaAction("Basic - Tracing Forms 3", { node: Node.Liberation, c
  *  is a real Echo cast, what "on Echo cast" watchers fire on; Chafe mode's is no cast at all), and
  *  typeOverride only assigns a damage type. */
 const OblivionEcho = lucillaAction("Forte - Oblivion (Echo)", { node: Node.Forte, cast: Cast.Echo, type: Type1.Echo, mv: 285.48, offtune: 9600, forte1: -50 });
-const OblivionChafe = lucillaAction("Forte - Oblivion (Chafe)", { node: Node.Forte, type: Type1.Basic, mv: 285.48, offtune: 9600, forte1: -50 });
+const OblivionChafe = lucillaAction("Forte - Oblivion (Chafe)", { node: Node.Forte, type: Type1.Basic, mv: 285.48, offtune: 9600, forte1: -50, ...CHAFES });
 
 // concerto is 7.88 off its own 3 Damage Data hits, plus a separate flat +20 the page states
 // Letting It Go "additionally restores" — both folded into the one number below.
 // Echo Skill DMG, retagged Basic Attack DMG by Chafe mode the same way the Liberation is
-const LettingGo = lucillaAction("Basic - Letting It Go", { node: Node.Liberation, type: Type1.Echo, mv: 848.07, energy: 3.36, concerto: 7.88, offtune: 36514 });
+const LettingGo = lucillaAction("Basic - Letting It Go", { node: Node.Liberation, type: Type1.Echo, mv: 848.07, energy: 3.36, concerto: 7.88, offtune: 36514,
+  applyStats: () => { addStat(Stat.AddConcerto, 20); }
+ });
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -186,7 +216,7 @@ const LC_INHERENT_2 = new Inherent({
 const LIB_SELF_DMG = new Buff({
   name: "Lucilla: Clear As Day",
   applyStats: () => addStat(Stat.DmgBonus, 30, isHeld(MODE_CHAFE) ? Type1.Basic : Type1.Echo),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(LIB_SELF_DMG); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(LIB_SELF_DMG); },
 });
 
 /** Montage (Outro Skill), Echo mode: the incoming resonator gets +50% Echo Skill DMG
@@ -207,39 +237,14 @@ const MONTAGE_CHAFE = new Buff({
 
 const LUCILLA = new Resonator({
   name: "Lucilla",
-  abbreviation: "Lucilla",
   element: Attribute.Glacio,
   weapon: WeaponType.Rectifier,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#4f74c2",
   maxEnergy: 0,
 
-  // Clip It and Oblivion (Chafe) each inflict a stack of Glacio Chafe, and Spotlight one more —
-  // that one only in Glacio Chafe mode
-  updateDebuffs: () => {
-    const a = currentAction();
-    if (a === Intro || a === OblivionChafe || (a === Spotlight && isHeld(MODE_CHAFE))) applyEnemy(GLACIO_CHAFE, 1);
-  },
-
-  updateBuffs: () => {
-    const a = currentAction();
-    if (a === Liberation) {
-      applySelf(LIB_SELF_DMG, 1);
-      if (isHeld(MODE_CHAFE)) applyTeam(FILM_ROLL, 4); else applyTeam(ZOOM, 1);
-    }
-    if (a === UBA3) {
-      const photos = Math.min(3, Math.floor(forte1() / 50));
-      for (let i = 0; i < photos; i++) queue(isHeld(MODE_CHAFE) ? OblivionChafe : OblivionEcho);
-      queue(LettingGo);
-    }
-    // mutually exclusive: Echo hands off MONTAGE_HANDOFF, Chafe grants MONTAGE_CHAFE team-wide
-    if (a === Outro) {
-      if (isHeld(MODE_CHAFE)) applyTeam(MONTAGE_CHAFE, 1);
-      else queueOutro(MONTAGE_HANDOFF);
-    }
-  },
-
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 12237.5); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1197.8);
   },
 });
@@ -247,14 +252,8 @@ const LUCILLA = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const LUCILLA_TALENTS = new Talent({
   name: "Lucilla: Talents",
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8);
-    // Two flat Concerto grants that live in the skill *text* rather than nanoka's attribute table
-    // (see CLAUDE.md): Phantom Frame's "while casting Spotlight ... restores 20 of Concerto
-    // Energy", and Clear As Day's same line for Letting It Go. Both are base kit and
-    // unconditional, so they ride the always-held talent rather than a state buff of their own.
-    const a = currentAction();
-    if (a === Spotlight || a === LettingGo) addStat(Stat.AddConcerto, 20);
   },
 });
 
@@ -262,10 +261,11 @@ const LUCILLA_TALENTS = new Talent({
 // Reminiscence, the Tracing Forms combo (Stage 3 auto-queues its own Oblivion/Letting It Go
 // hits) closes it out. The mode held decides the typing (and which Oblivion Stage 3 queues), not
 // the rotation. She's never the team's own lead, so this covers both opener and loop.
-const LC_ROTATION = [
+
+const LC_ROTATION = new Rotation([
   INTRO, PhantomFrame, Spotlight, ECHO_CAST, Liberation,
-  UBA1, UBA2, UBA3, Outro,
-];
+  UBA1, UBA2, UBA3, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -292,12 +292,11 @@ export const LUCILLA_LOADOUT = new Loadout({
   talent: LUCILLA_TALENTS,
   inherent1: LC_INHERENT_1,
   inherent2: LC_INHERENT_2,
-  weapons: [FREEZE_FRAME, NEW_STD_RECTIFIER, COSMIC_RIPPLES, STRINGMASTER, LETHEAN_ELEGY],
+  weapons: [FREEZE_FRAME, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY],
   echoLoadouts: LC_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
   substat: chem("atk", "basic"),
-  opener: LC_ROTATION,
-  loop: LC_ROTATION,
+    rotation: LC_ROTATION,
   mode: MODE_ECHO,
 });
 
@@ -307,11 +306,10 @@ export const LUCILLA_LOADOUT_CHAFE = new Loadout({
   talent: LUCILLA_TALENTS,
   inherent1: LC_INHERENT_1,
   inherent2: LC_INHERENT_2,
-  weapons: [FREEZE_FRAME, NEW_STD_RECTIFIER, COSMIC_RIPPLES, STRINGMASTER, LETHEAN_ELEGY],
+  weapons: [FREEZE_FRAME, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY],
   echoLoadouts: LC_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
   substat: chem("atk", "basic"),
-  opener: LC_ROTATION,
-  loop: LC_ROTATION,
+    rotation: LC_ROTATION,
   mode: MODE_CHAFE,
 });

@@ -6,12 +6,12 @@
  *  Geochelone/Moonlit Clouds from jinzhou.ts and Dream of the Lost from septimont.ts. */
 import { isType,
   Buff, Sonata, Sonata2pc, Mainslot, Action, Stat, Attribute, Type1, Cast, Scaling,
-  addStat, applySelf, applyTeam, casting, currentAction, getStat, queueOutro, revoke, revokeTeam,
+  addStat, applySelf, applyTeam, casting, currentAction, getStat, queueOutro, revokeSelf, revokeTeam,
   frozenStacks, stacksOf,
   lostOnSwap,
 } from "../kit.js";
 import { applied } from "../kit.js";
-import { SHIELD, FUSION_BURST } from "../statuses.js";
+import { SHIELD, FUSION_BURST, HEALS } from "../statuses.js";
 import { TUNE_HACK_SHIFTING, TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../tunebreak.js";
 
 /* ------------------------------------------------------------------------------ Sigrika, 3.2 */
@@ -24,21 +24,20 @@ export const ACTION_NAMELESS_EXPLORER = new Action("Echo - Nameless Explorer", {
 export const NAMELESS_EXPLORER = new Mainslot({
   name: "Nameless Explorer",
   action: ACTION_NAMELESS_EXPLORER,
-  applyStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Aero); addStat(Stat.DmgBonus, 20, Type1.Echo); },
+  constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Aero); addStat(Stat.DmgBonus, 20, Type1.Echo); },
 });
 
 /** Sound of True Name, Sigrika's own sonata (paired directly with Nameless Explorer above).
  *  2pc: +10% Aero DMG Bonus flat. 5pc: dealing Echo Skill DMG grants +20% Echo Skill Crit Rate
  *  and +15% Aero DMG Bonus for 5s — short window, lost after the outro action gains stats. */
-export const SOUND_OF_TRUE_NAME_2PC = new Sonata2pc({ name: "Sound of True Name 2pc", applyStats: () => addStat(Stat.DmgBonus, 10, Attribute.Aero) });
+export const SOUND_OF_TRUE_NAME_2PC = new Sonata2pc({ name: "Sound of True Name 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Aero) });
 export const SOUND_OF_TRUE_NAME_BUFF = new Buff({
   name: "Sound of True Name 5pc",
   applyStats: () => { addStat(Stat.CritRate, 20, Type1.Echo); addStat(Stat.DmgBonus, 15, Attribute.Aero); },
-  convertStats: () => { if (casting(Cast.Outro)) revoke(SOUND_OF_TRUE_NAME_BUFF); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(SOUND_OF_TRUE_NAME_BUFF); },
 });
 export const SOUND_OF_TRUE_NAME_5PC = new Sonata({
   name: "Sound of True Name 5pc",
-  abbreviation: "SoTN",
   updateBuffs: () => { if (isType(Type1.Echo)) applySelf(SOUND_OF_TRUE_NAME_BUFF, 1); },
 });
 
@@ -48,6 +47,7 @@ export const SOUND_OF_TRUE_NAME_5PC = new Sonata({
 export const ACTION_HYVATIA = new Action("Echo - Hyvatia", {
   cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Echo,
   mv: 27.36 * 10,
+  updateBuffs: () => queueOutro(HYVATIA_HANDOFF),
 });
 
 /** Its own handoff: an Outro within 15s of the summon hands the next resonator's Intro +10%
@@ -56,14 +56,12 @@ export const ACTION_HYVATIA = new Action("Echo - Hyvatia", {
 export const HYVATIA_HANDOFF = new Buff({
   name: "Hyvatia: Outro",
   applyStats: () => addStat(Stat.DmgBonus, 10),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(HYVATIA_HANDOFF); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(HYVATIA_HANDOFF); },
 });
 
 export const HYVATIA = new Mainslot({
   name: "Hyvatia",
-  abbreviation: "Hyvatia",
   action: ACTION_HYVATIA,
-  updateBuffs: () => { if (currentAction() === ACTION_HYVATIA) queueOutro(HYVATIA_HANDOFF); },
 });
 
 /* ------------------------------------------------------------------------------- Mornye, 3.6 */
@@ -72,25 +70,23 @@ export const HYVATIA = new Mainslot({
  *  which is the reason Mornye wants it, her Liberation turning every point of ER past 100% into
  *  crit. */
 export const ACTION_REACTOR_HUSK = new Action("Echo - Reactor Husk", {
-  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 351,
+  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 351, active: false,
 });
 export const REACTOR_HUSK = new Mainslot({
   name: "Reactor Husk",
-  abbreviation: "Reactor",
   action: ACTION_REACTOR_HUSK,
-  applyStats: () => addStat(Stat.Er, 10),
+  constantStats: () => addStat(Stat.Er, 10),
 });
 
 /** Spacetrek Explorer: a 10%-of-Max-HP team shield and nothing else — no damage of its own, so
  *  only the cast exists here. Kept because it is a real mainslot option for a sustain build. */
 export const ACTION_SPACETREK = new Action("Echo - Spacetrek Explorer", {
   cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 0,
+  updateDebuffs: () => applySelf(SHIELD, 1),
 });
 export const SPACETREK_EXPLORER = new Mainslot({
   name: "Spacetrek Explorer",
-  abbreviation: "Spacetrek",
   action: ACTION_SPACETREK,
-  updateDebuffs: () => { if (currentAction() === ACTION_SPACETREK) applyTeam(SHIELD, 1); },
 });
 
 /* --------------------------------------------------------------------------- 3.5-3.6 sonatas */
@@ -99,10 +95,9 @@ export const SPACETREK_EXPLORER = new Mainslot({
  *  handoff — the incoming resonator gets +15% ATK, plus 0.3% more per point of their own Tune
  *  Break Boost, capped at another +15% (50 points), for 15s or until switched out — the
  *  receiver's own outro is both, so it's the Moonlit Clouds shape. */
-export const NEONLIGHT_LEAP_2PC = new Sonata2pc({ name: "Pact of Neonlight Leap 2pc", applyStats: () => addStat(Stat.DmgBonus, 10, Attribute.Spectro) });
+export const NEONLIGHT_LEAP_2PC = new Sonata2pc({ name: "Pact of Neonlight Leap 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Spectro) });
 export const NEONLIGHT_LEAP_5PC = new Sonata({
   name: "Pact of Neonlight Leap 5pc",
-  abbreviation: "Neon",
   updateBuffs: () => { if (casting(Cast.Outro)) queueOutro(NEONLIGHT_LEAP_HANDOFF); },
 });
 export const NEONLIGHT_LEAP_HANDOFF = new Buff({
@@ -121,12 +116,11 @@ export const NEONLIGHT_LEAP_HANDOFF = new Buff({
  *  teammate grants the whole team ATK, 0.2% per 1% of the healer's own Off-Tune Buildup Rate —
  *  taken at the 25% cap per CLAUDE.md's own-stats rule (125% needed; base 100% plus Mornye's
  *  field's +50 clears it). 4s team window, so lost on the wearer's next intro. */
-export const STARRY_RADIANCE_2PC = new Sonata2pc({ name: "Halo of Starry Radiance 2pc", applyStats: () => addStat(Stat.HealingBonus, 10) });
+export const STARRY_RADIANCE_2PC = new Sonata2pc({ name: "Halo of Starry Radiance 2pc", constantStats: () => addStat(Stat.HealingBonus, 10) });
 export const STARRY_RADIANCE_5PC = new Sonata({
   name: "Halo of Starry Radiance 5pc",
-  abbreviation: "Halo",
   updateBuffs: () => {
-    if (currentAction().heals) applyTeam(STARRY_RADIANCE_TEAM, 1);
+    if (applied(HEALS)) applyTeam(STARRY_RADIANCE_TEAM, 1);
   },
 });
 export const STARRY_RADIANCE_TEAM = new Buff({
@@ -139,22 +133,21 @@ export const STARRY_RADIANCE_TEAM = new Buff({
 /** Chromatic Foam. 2pc: +10% Fusion DMG Bonus flat. 5pc: inflicting Fusion Burst grants +10%
  *  Fusion DMG Bonus for 15s; while that window is up, the wearer's Outro hands the incoming
  *  resonator +25% Fusion DMG Bonus for 15s. */
-export const CHROMATIC_FOAM_2PC = new Sonata2pc({ name: "Chromatic Foam 2pc", applyStats: () => addStat(Stat.DmgBonus, 10, Attribute.Fusion) });
+export const CHROMATIC_FOAM_2PC = new Sonata2pc({ name: "Chromatic Foam 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Fusion) });
 export const CHROMATIC_FOAM_5PC = new Sonata({
   name: "Chromatic Foam 5pc",
-  abbreviation: "Foam",
   updateBuffs: () => { if (applied(FUSION_BURST)) applySelf(CHROMATIC_FOAM_BUFF, 1); },
 });
 export const CHROMATIC_FOAM_BUFF = new Buff({
   name: "Chromatic Foam",
   applyStats: () => addStat(Stat.DmgBonus, 10, Attribute.Fusion),
   updateBuffs: () => { if (casting(Cast.Outro)) queueOutro(CHROMATIC_FOAM_HANDOFF); },
-  convertStats: () => { if (casting(Cast.Outro)) revoke(CHROMATIC_FOAM_BUFF); }, // TODO last a bit longer for denia
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(CHROMATIC_FOAM_BUFF); }, // TODO last a bit longer for denia
 });
 export const CHROMATIC_FOAM_HANDOFF = new Buff({
   name: "Chromatic Foam (outro)",
   applyStats: () => addStat(Stat.DmgBonus, 25, Attribute.Fusion),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(CHROMATIC_FOAM_HANDOFF); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(CHROMATIC_FOAM_HANDOFF); },
 });
 
 /** Rite of Gilded Revelation, Luuk's own sonata. 2pc: +10% Spectro DMG Bonus flat. 5pc: dealing
@@ -162,10 +155,9 @@ export const CHROMATIC_FOAM_HANDOFF = new Buff({
  *  after the outro. At 3 frozenStacks, casting Resonance Liberation grants +40% Basic Attack DMG Bonus;
  *  the page states no duration for it, so it's a short self buff like the frozenStacks, lost after the
  *  outro, and pays into the Liberation itself when that deals Basic Attack DMG. */
-export const GILDED_REVELATION_2PC = new Sonata2pc({ name: "Rite of Gilded Revelation 2pc", applyStats: () => addStat(Stat.DmgBonus, 10, Attribute.Spectro) });
+export const GILDED_REVELATION_2PC = new Sonata2pc({ name: "Rite of Gilded Revelation 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Spectro) });
 export const GILDED_REVELATION_5PC = new Sonata({
   name: "Rite of Gilded Revelation 5pc",
-  abbreviation: "Gilded",
   updateBuffs: () => {
     if (isType(Type1.Basic)) applySelf(GILDED_REVELATION_STACKS, 1);
   },
@@ -176,7 +168,7 @@ export const GILDED_REVELATION_STACKS = new Buff({
     addStat(Stat.DmgBonus, 10 * frozenStacks(), Attribute.Spectro);
     if (frozenStacks() >= 3) addStat(Stat.DmgBonus, 40, Type1.Basic);
   },
-  convertStats: () => { if (casting(Cast.Outro)) revoke(GILDED_REVELATION_STACKS); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(GILDED_REVELATION_STACKS); },
 });
 
 /* --------------------------------------------------------------------------------- Luuk, 3.6 */
@@ -187,13 +179,12 @@ export const GILDED_REVELATION_STACKS = new Buff({
  *  Blade in a second 4-cost slot and the Blade's own hit count, which the page doesn't give — not
  *  modelled; this is the Cannon on its own. */
 export const ACTION_NEBULOUS_CANNON = new Action("Echo - Twin Nova: Nebulous Cannon", {
-  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Echo, mv: 80.51 * 2, energy: 0.55 * 2,
+  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Echo, mv: 80.51 * 2, energy: 0.55 * 2, active: false,
 });
 export const NEBULOUS_CANNON = new Mainslot({
   name: "Twin Nova: Nebulous Cannon",
-  abbreviation: "Twin Nova",
   action: ACTION_NEBULOUS_CANNON,
-  applyStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Spectro); addStat(Stat.DmgBonus, 12, Type1.Basic); },
+  constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Spectro); addStat(Stat.DmgBonus, 12, Type1.Basic); },
 });
 
 /* -------------------------------------------------------------------------------- Denia, 3.6 */
@@ -203,17 +194,16 @@ export const NEBULOUS_CANNON = new Mainslot({
  *  onto the outro the way every other echo handoff here is. Pairs with Chromatic Foam above. */
 export const ACTION_TRICKSTER = new Action("Echo - Trickster", {
   cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 273.6, energy: 3.8,
+  updateBuffs: () => queueOutro(TRICKSTER_HANDOFF),
 });
 export const TRICKSTER_HANDOFF = new Buff({
   name: "Trickster: Outro",
   applyStats: () => addStat(Stat.DmgBonus, 12, Attribute.Fusion),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(TRICKSTER_HANDOFF); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(TRICKSTER_HANDOFF); },
 });
 export const TRICKSTER = new Mainslot({
   name: "Reminiscence: Denia",
-  abbreviation: "Trickster",
   action: ACTION_TRICKSTER,
-  updateBuffs: () => { if (currentAction() === ACTION_TRICKSTER) queueOutro(TRICKSTER_HANDOFF); },
 });
 
 /** Voidwing Moth: a 405% Spectro tap, or held on for twelve more 49.33% hits. The tap is what a
@@ -221,30 +211,25 @@ export const TRICKSTER = new Mainslot({
  *  Outro within 15s hands the incoming resonator +12% ATK for 15s. */
 export const ACTION_VOIDWING_MOTH = new Action("Echo - Voidwing Moth", {
   cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Echo, mv: 405, energy: 5.62,
+  updateBuffs: () => queueOutro(VOIDWING_HANDOFF),
 });
 export const VOIDWING_HANDOFF = new Buff({
   name: "Voidwing Moth: Outro",
   applyStats: () => addStat(Stat.BonusAtk, 12),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(VOIDWING_HANDOFF); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(VOIDWING_HANDOFF); },
 });
 export const VOIDWING_MOTH = new Mainslot({
   name: "Voidwing Moth",
-  abbreviation: "Moth",
   action: ACTION_VOIDWING_MOTH,
-  updateBuffs: () => {
-    const a = currentAction();
-    if (a === ACTION_VOIDWING_MOTH) queueOutro(VOIDWING_HANDOFF);
-  },
 });
 
 /** Reel of Spliced Memories, Voidwing Moth's own sonata. 2pc: +10% ATK flat. 5pc: the wearer
  *  inflicting Tune Rupture/Strain - Shifting grants the
  *  whole team +20 Tune Break Boost for 30s — permanent uptime, same name doesn't stack. The real
  *  stat, so tuneStrainBonus() and the damage formula's own tbbFactor both see it. */
-export const REEL_2PC = new Sonata2pc({ name: "Reel of Spliced Memories 2pc", applyStats: () => addStat(Stat.BonusAtk, 10) });
+export const REEL_2PC = new Sonata2pc({ name: "Reel of Spliced Memories 2pc", constantStats: () => addStat(Stat.BonusAtk, 10) });
 export const REEL_5PC = new Sonata({
   name: "Reel of Spliced Memories 5pc",
-  abbreviation: "Reel",
   updateBuffs: () => { if (applied(TUNE_RUPTURE_SHIFTING) || applied(TUNE_STRAIN_SHIFTING)) applyTeam(REEL_TEAM, 1); },
 });
 export const REEL_TEAM = new Buff({ name: "Reel of Spliced Memories (team)", applyStats: () => addStat(Stat.Tbb, 20) });
@@ -265,7 +250,7 @@ export const REEL_TEAM = new Buff({ name: "Reel of Spliced Memories (team)", app
 export const SHATTERED_DREAMS = new Buff({
   name: "Shadow of Shattered Dreams 1pc",
   applyStats: () => { addStat(Stat.DmgBonus, 35, Type1.Basic); addStat(Stat.DmgBonus, 35, Type1.Heavy); },
-  convertStats: () => { if (casting(Cast.Outro)) revoke(SHATTERED_DREAMS); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(SHATTERED_DREAMS); },
 });
 
 export const ACTION_ADAM_SMASHER_LUCY = new Action("Echo - Adam Smasher", {
@@ -273,9 +258,8 @@ export const ACTION_ADAM_SMASHER_LUCY = new Action("Echo - Adam Smasher", {
 });
 export const ADAM_SMASHER_LUCY = new Mainslot({
   name: "Reminiscence - Nightmare: Adam Smasher",
-  abbreviation: "Adam",
   action: ACTION_ADAM_SMASHER_LUCY,
-  applyStats: () => addStat(Stat.CritRate, 15),
+  constantStats: () => addStat(Stat.CritRate, 15),
   updateBuffs: () => { if (applied(TUNE_HACK_SHIFTING)) applySelf(SHATTERED_DREAMS, 1); },
 });
 
@@ -285,8 +269,7 @@ export const ACTION_ADAM_SMASHER_REBECCA = new Action("Echo - Adam Smasher", {
 });
 export const ADAM_SMASHER_REBECCA = new Mainslot({
   name: "Reminiscence - Nightmare: Adam Smasher",
-  abbreviation: "Adam",
   action: ACTION_ADAM_SMASHER_REBECCA,
-  applyStats: () => addStat(Stat.CritRate, 15),
+  constantStats: () => addStat(Stat.CritRate, 15),
   updateBuffs: () => { if (applied(TUNE_HACK_SHIFTING)) applySelf(SHATTERED_DREAMS, 1); },
 });

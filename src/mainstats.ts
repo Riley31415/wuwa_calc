@@ -4,16 +4,16 @@
  * per element rather than generic, so a mismatched slot doesn't silently pay full price.
  */
 import { Buff, addStat } from "./kit.js";
-import { Stat, Attribute, scopedStat } from "./stats.js";
+import { Stat, Attribute, scopedStat, STAT_NAME, TAG_NAME } from "./stats.js";
+import type { StatKey, Tag } from "./stats.js";
 
 /** Every main stat an echo can roll, one entry per stat *and* cost — ATK/HP/DEF exist at every
- *  cost, crit only at 4, ER and an element only at 3, and no physical 3-cost exists in-game. The
- *  trailing digit is the cost, the rest is how the stat prints in a build's name. */
-export enum Mainstat {
-  CR4 = "CR4", CD4 = "CD4", ATK4 = "ATK4", HP4 = "HP4", DEF4 = "DEF4",
-  ER3 = "ER3", ATK3 = "ATK3", HP3 = "HP3", DEF3 = "DEF3",
-  Glacio3 = "Glacio3", Fusion3 = "Fusion3", Electro3 = "Electro3", Aero3 = "Aero3", Spectro3 = "Spectro3", Havoc3 = "Havoc3",
-  ATK1 = "ATK1", HP1 = "HP1", DEF1 = "DEF1",
+ *  cost, crit only at 4, ER and an element only at 3, and no physical 3-cost exists in-game. */
+export const enum Mainstat {
+  CR4, CD4, ATK4, HP4, DEF4,
+  ER3, ATK3, HP3, DEF3,
+  Glacio3, Fusion3, Electro3, Aero3, Spectro3, Havoc3,
+  ATK1, HP1, DEF1,
 }
 
 const ELEMENTS: Mainstat[] = [
@@ -21,7 +21,7 @@ const ELEMENTS: Mainstat[] = [
 ];
 
 /** `[stat, value]`, or `[stat, value, tag]` when the roll only pays on one element or type. */
-type MainEntry = readonly [Stat, number] | readonly [Stat, number, string];
+type MainEntry = readonly [Stat, number] | readonly [Stat, number, Tag];
 
 const MAIN: Record<Mainstat, MainEntry> = {
   [Mainstat.CR4]: [Stat.CritRate, 22], [Mainstat.CD4]: [Stat.CritDmg, 44],
@@ -41,7 +41,20 @@ const MAIN: Record<Mainstat, MainEntry> = {
 const SECONDARY: Record<number, readonly [Stat, number]> =
   { 4: [Stat.FlatAtk, 150], 3: [Stat.FlatAtk, 100], 1: [Stat.FlatHp, 2280] };
 
-const costOf = (key: Mainstat): number => +key.slice(-1);
+/** The enum runs cost-major, so where a key sits in it is what it costs. */
+const costOf = (key: Mainstat): number => (key <= Mainstat.DEF4 ? 4 : key <= Mainstat.Havoc3 ? 3 : 1);
+
+/** How one echo reads in a build's name: the stat as it's named everywhere else, or just the
+ *  element for a 3-cost that rolls one. The percent sign goes — every main stat here is one — and
+ *  a stat whose name is more than one word reads as its initials, the way players write them
+ *  (Crit Rate -> CR, Energy Regen -> ER). A 1-cost goes lowercase, since ATK/HP/DEF are legal at
+ *  every cost and the case is what tells the cheap slot from the real one. */
+const label = (key: Mainstat): string => {
+  const [stat, , tag] = MAIN[key];
+  const text = tag ? TAG_NAME[tag] : STAT_NAME[stat].replace("%", "");
+  const word = text.includes(" ") ? text.split(" ").map((part) => part[0]).join("") : text;
+  return costOf(key) === 1 ? word.toLowerCase() : word;
+};
 
 /** Five echoes to a build, cost capped at twelve. */
 const SLOTS = 5, COST_CAP = 12;
@@ -53,12 +66,12 @@ const SLOTS = 5, COST_CAP = 12;
  */
 export function mainstats(...slots: Mainstat[]): Buff {
   slots = [...slots].sort((a, b) => costOf(b) - costOf(a));
-  const spec = slots.join(" ");
+  const spec = slots.map((key) => `${label(key)}${costOf(key)}`).join(" ");
   if (slots.length !== SLOTS) throw new Error(`mainstats(${spec}): ${slots.length} echoes, expected ${SLOTS}`);
   const cost = slots.reduce((n, key) => n + costOf(key), 0);
   if (cost > COST_CAP) throw new Error(`mainstats(${spec}): costs ${cost}, over the ${COST_CAP} cap`);
 
-  const totals = new Map<string, { stat: Stat; tag: string | null; value: number }>();
+  const totals = new Map<StatKey, { stat: Stat; tag: Tag | null; value: number }>();
   const bump = (entry: MainEntry): void => {
     const [stat, value, tag] = entry;
     const key = tag ? scopedStat(tag, stat) : stat;
@@ -73,15 +86,9 @@ export function mainstats(...slots: Mainstat[]): Buff {
 
   const entries = [...totals.values()];
   const layout = slots.map(costOf).join("");
-  const label = (key: Mainstat): string => key.slice(0, -1);
-  const name = `${layout} ${slots.map(label).join(" ")}`;
-  // the comparison table names a row by what varies on it, and which element a 3-cost rolls never
-  // does — it's always this resonator's own — so every element reads as a plain "ele" there
-  const short = slots.map((key) => (ELEMENTS.includes(key) ? "ele" : label(key))).join(" ");
   return new Buff({
-    name,
-    abbreviation: `${layout} ${short}`,
-    applyStats: () => { for (const { stat, tag, value } of entries) addStat(stat, value, tag ?? undefined); },
+    name: `${layout} ${slots.map(label).join(" ")}`,
+    constantStats: () => { for (const { stat, tag, value } of entries) addStat(stat, value, tag ?? undefined); },
   });
 }
 

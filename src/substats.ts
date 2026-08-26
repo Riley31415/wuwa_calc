@@ -2,8 +2,9 @@
  *  valued at the mid-tier number below. */
 import { Buff, addStat } from "./kit.js";
 import { Stat, Type1, scopedStat, splitStat } from "./stats.js";
+import type { StatKey, Tag } from "./stats.js";
 
-const ROLL: Record<string, number> = {
+const ROLL: Partial<Record<Stat, number>> = {
   [Stat.CritRate]: 7.5, [Stat.CritDmg]: 15, [Stat.Er]: 8.4,
   [Stat.BonusAtk]: 7.9, [Stat.FlatAtk]: 40,
   [Stat.BonusHp]: 7.9, [Stat.FlatHp]: 430,
@@ -13,29 +14,30 @@ const ROLL: Record<string, number> = {
 
 const ROLLS_PER_BUILD = 25;
 /** The four damage types a substat can roll into, and the tag each scopes to. */
-const TYPE_KEYS: Record<string, string> = {
+const TYPE_KEYS: Record<string, Tag> = {
   basic: Type1.Basic, heavy: Type1.Heavy, skill: Type1.Skill, liberation: Type1.Liberation,
 };
 const TYPES = Object.keys(TYPE_KEYS);
 /** The three stats a kit can scale off, each as its percent and flat roll. */
-const SCALER_STATS: Record<string, readonly [string, string]> =
+const SCALER_STATS: Record<string, readonly [Stat, Stat]> =
   { atk: [Stat.BonusAtk, Stat.FlatAtk], hp: [Stat.BonusHp, Stat.FlatHp], def: [Stat.BonusDef, Stat.FlatDef] };
 const SCALERS = Object.keys(SCALER_STATS);
 
 /** Define one substat spread from a count of rolls per stat; must total 25. */
-export function substats(name: string, counts: Record<string, number>): Buff {
+export function substats(name: string, counts: Record<StatKey, number>): Buff {
   const total = Object.values(counts).reduce((n, c) => n + c, 0);
   if (total !== ROLLS_PER_BUILD) {
     throw new Error(`substats("${name}"): ${total} rolls, a build has ${ROLLS_PER_BUILD}`);
   }
   const entries = Object.entries(counts).map(([key, n]) => {
-    const [stat, tag] = splitStat(key);
-    if (!(stat in ROLL)) throw new Error(`substats("${name}"): nothing rolls "${key}"`);
-    return { stat: stat as Stat, tag, value: ROLL[stat]! * n };
+    const [stat, tag] = splitStat(Number(key));
+    const roll = ROLL[stat as Stat];
+    if (roll === undefined) throw new Error(`substats("${name}"): nothing rolls "${key}"`);
+    return { stat: stat as Stat, tag, value: roll * n };
   });
   return new Buff({
     name,
-    applyStats: () => { for (const { stat, tag, value } of entries) addStat(stat, value, tag ?? undefined); },
+    constantStats: () => { for (const { stat, tag, value } of entries) addStat(stat, value, tag ?? undefined); },
   });
 }
 
@@ -44,7 +46,7 @@ export function substats(name: string, counts: Record<string, number>): Buff {
  *  rate rolls for energy regen. */
 export function chem(scaler: string, type: string, { er = false }: { er?: boolean } = {}): Buff {
   if (!(scaler in SCALER_STATS)) throw new Error(`chem(): nothing scales off "${scaler}"`);
-  const counts: Record<string, number> = {
+  const counts: Record<StatKey, number> = {
     [Stat.CritRate]: er ? 2 : 5,
     [Stat.CritDmg]: 5,
     [Stat.Er]: er ? 5 : 2,

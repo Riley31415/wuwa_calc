@@ -4,11 +4,11 @@
  * see MAESTRO's own comment for how a single stack count carries all three.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  applySelf, stacksOf, currentAction, casting, queue, queueOutro,
-  revoke, addStat, frozenStacks,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Scaling, applySelf, stacksOf, currentAction, casting, queue, queueOutro, revokeSelf, addStat, frozenStacks,
   lostOnSwap, Sequence, applyTeam, isHeld, setForte1,
 } from "../../kit.js";
+import { Rotation, OPENER, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { DREAM_OF_THE_LOST_3PC } from "../../echoes/septimont.js";
@@ -39,28 +39,38 @@ const ScarletCoda = phroAction("Heavy - Scarlet Coda", {
 
 // concerto only — Liberation costs no Resonance Energy (maxEnergy: 0 below). The sheet's separate
 // "Lib2" row (465.22% MV) has no matching action here — a known gap, flagged rather than guessed.
+// Opens Maestro: 1 stack = 0 notes drawn (see MAESTRO).
 const Liberation = phroAction("Liberation - Waltz of Forsaken Depths", {
   node: Node.Liberation, cast: Cast.Liberation, mv: 0, concerto: 20,
+  updateBuffs: () => applySelf(MAESTRO, 1),
 });
 
 const Intro = phroAction("Intro - Suite of Quietus", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 201.52, offtune: 10137, energy: 10, concerto: 10,
 });
 /** Maestro-replaced Intro — used whenever she re-enters with Maestro still open. Playing it is
- *  also what closes Maestro back out (see MAESTRO's own convertStats() below). */
+ *  also what closes Maestro back out. */
 const EIntro = phroAction("Intro - Suite of Immortality", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Skill, mv: 596.43, offtune: 9600, energy: 10, concerto: 10,
+  updateBuffs: () => revokeSelf(MAESTRO),
 });
+/** While Maestro is open the handoff also auto-cycles two more notes, not charge-gated. */
 const Outro = phroAction("Outro - Unfinished Piece", {
   cast: Cast.Outro, mv: 0, active: false,
+  updateBuffs: () => {
+    queueOutro(PHROLOVA_OUTRO);
+    if (stacksOf(MAESTRO)) { drawNote(); drawNote(); }
+  },
 });
 
-function hecateAction(id: string, mv: number): Action {
-  return new Action(id, { element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Echo, active: false, mv });
+function hecateAction(id: string, mv: number, def: object = {}): Action {
+  return new Action(id, { element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Echo, active: false, mv, ...def });
 }
-const EBA_STRINGS = hecateAction("Hecate - Enhanced Strings", 347.93);
-const EBA_WINDS   = hecateAction("Hecate - Enhanced Winds", 330.53);
-const EBA_CADENZA = hecateAction("Hecate - Enhanced Cadenza", 347.93);
+// a played Maestro note is worth an Aftersound stack; Hecate's own plain basics are not
+const NOTE = { updateBuffs: () => applySelf(AFTERSOUND, 1) };
+const EBA_STRINGS = hecateAction("Hecate - Enhanced Strings", 347.93, NOTE);
+const EBA_WINDS   = hecateAction("Hecate - Enhanced Winds", 330.53, NOTE);
+const EBA_CADENZA = hecateAction("Hecate - Enhanced Cadenza", 347.93, NOTE);
 const HBA1 = hecateAction("Hecate - Basic 1", 27.84);
 const HBA2 = hecateAction("Hecate - Basic 2", 27.84);
 
@@ -106,7 +116,6 @@ const AFTERSOUND = new Buff({
  *  real notes-drawn number everywhere below. Ends the moment Suite of Immortality (EIntro) plays. */
 export const MAESTRO = new Buff({
   name: "Phrolova: Maestro", maxStacks: 13,
-  updateBuffs: () => { if (currentAction() === EIntro) revoke(MAESTRO); },
   applyStats: () => addStat(Stat.BonusAtk, 120),
   // Any active Echo Skill cast (hers or a teammate's) spends a charge and draws a note.
   // updateGlobal() forces currentSlot to Phrolova's own slot so drawNote() resolves against her.
@@ -131,7 +140,7 @@ const ACCIDENTAL = new Buff({
   name: "Phrolova: Accidental",
   convertStats: () => {
     const a = currentAction();
-    if (a === BA3 || a === Skill || a === FBA || a === FSkill) revoke(ACCIDENTAL);
+    if (a === BA3 || a === Skill || a === FBA || a === FSkill) revokeSelf(ACCIDENTAL);
   },
 });
 /** Accidental's own trigger — always-equipped Inherent Skill piece. */
@@ -214,27 +223,18 @@ const PH_S6 = new Sequence({
  *  base stat line. */
 export const PHROLOVA = new Resonator({
   name: "Phrolova",
-  abbreviation: "Frolo",
   element: Attribute.Havoc,
   weapon: WeaponType.Rectifier,
   color: "#c6547a",
   // Maestro still open means Suite of Immortality (EIntro) instead of plain Intro
   intro: () => (stacksOf(MAESTRO) ? EIntro : Intro),
+  outro: () => Outro,
   maxEnergy: 0,
 
   // Octet: 10 Aftersound the instant she's on the team, not tied to when she first acts
   combatStart: () => applySelf(AFTERSOUND, 10),
 
-  updateBuffs: () => {
-    const a = currentAction();
-    if (currentAction() === Outro) queueOutro(PHROLOVA_OUTRO);
-    if (a === Liberation) applySelf(MAESTRO, 1); // opens Maestro: 1 stack = 0 notes drawn
-    if (a === EBA_STRINGS || a === EBA_WINDS || a === EBA_CADENZA) applySelf(AFTERSOUND, 1);
-    // outro, while Maestro is open: auto cycle plus 2 more notes, not charge-gated
-    if (a === Outro && stacksOf(MAESTRO)) { drawNote(); drawNote(); }
-  },
-
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 10775); addStat(Stat.BaseAtk, 437.5); addStat(Stat.BaseDef, 1137);
   },
 });
@@ -242,17 +242,16 @@ export const PHROLOVA = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const PHROLOVA_TALENTS = new Talent({
   name: "Phrolova: Talents",
-  applyStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
 // INTRO resolves to plain Intro or EIntro on its own (see her own intro() above)
 // OPENER ROTATIONS DO NOT HAVE AN INTRO
-const PH_OPENER = [
-  BA2, BA3, ECHO_CAST, FBA, Skill, FBA, BA1, BA2, BA3, FBA, ScarletCoda, Liberation, Outro,
-];
-const PH_LOOP = [
-  INTRO, BA3, ECHO_CAST, FBA, Skill, FBA, BA1, BA2, BA3, FBA, ScarletCoda, Liberation, Outro,
-];
+
+const PH_LOOP = new Rotation([
+  OPENER, BA2,
+  INTRO, BA3, ECHO_CAST, FBA, Skill, FBA, BA1, BA2, BA3, FBA, ScarletCoda, Liberation, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -267,7 +266,6 @@ export const FROLO_LOADOUT = new Loadout({
   echoLoadouts: [new EchoLoadout(NM_HECATE, DREAM_OF_THE_LOST_3PC, MIDNIGHT_VEIL_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: chem("atk", "skill"),
-  opener: PH_OPENER,
-  loop: PH_LOOP,
+    rotation: PH_LOOP,
   sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6],
 });

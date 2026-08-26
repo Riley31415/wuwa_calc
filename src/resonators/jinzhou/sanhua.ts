@@ -7,11 +7,11 @@
  * own updateBuffs() reads and consumes.
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  applySelf, applyTeam, revokeTeam, isHeld, stacksOf, removeStack, revoke, casting, currentAction,
-  addStat, frozenStacks, queue, queueOutro,
-  lostOnSwap,
+  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Cast, Node, Scaling, applySelf, applyTeam, revokeTeam, isHeld, stacksOf, removeStack, revokeSelf, casting,
+  currentAction, addStat, frozenStacks, queue, queueOutro, lostOnSwap,
 } from "../../kit.js";
+import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../mainstats.js";
@@ -23,12 +23,26 @@ function sanhuaAction(id: string, def: object): Action {
   return new Action(id, { element: Attribute.Glacio, scaling: Scaling.Atk, ...def });
 }
 
-const Intro = sanhuaAction("Intro - Freezing Thorns", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 139.17, energy: 10, concerto: 10, offtune: 2800 });
-const Outro = sanhuaAction("Outro - Silversnow", { cast: Cast.Outro, active: false });
+// Intro creates Ice Thorn; Skill creates Ice Prism; Liberation creates a Glacier stack (a second
+// under S5) and arms Blade Mastery (S4) — each marker granted by the cast that makes it, for
+// Detonate to spend below.
+const Intro = sanhuaAction("Intro - Freezing Thorns", {
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 139.17, energy: 10, concerto: 10, offtune: 2800,
+  updateBuffs: () => applySelf(THORN_BUFF, 1),
+});
+const Outro = sanhuaAction("Outro - Silversnow", {
+  cast: Cast.Outro, active: false,
+  updateBuffs: () => queueOutro(SANHUA_OUTRO),
+});
 
-// Skill creates Ice Prism; Liberation creates 2 Glacier stacks (S5) and arms Blade Mastery (S4)
-const Skill = sanhuaAction("Skill - Eternal Frost", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 359.85, offtune: 8000, energy: 10, concerto: 15 });
-const Liberation = sanhuaAction("Liberation - Glacial Gaze", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 809.48, offtune: 61440, energy: 10, concerto: 20, resetEnergy: true });
+const Skill = sanhuaAction("Skill - Eternal Frost", {
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 359.85, offtune: 8000, energy: 10, concerto: 15,
+  updateBuffs: () => applySelf(PRISM_BUFF, 1),
+});
+const Liberation = sanhuaAction("Liberation - Glacial Gaze", {
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 809.48, offtune: 61440, energy: 10, concerto: 20, resetEnergy: true,
+  updateBuffs: () => applySelf(GLACIER_BUFF, 1),
+});
 
 const BA1 = sanhuaAction("Basic - Frigid Light 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 48.71, energy: 0.87, concerto: 2, offtune: 2800 });
 const BA2 = sanhuaAction("Basic - Frigid Light 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.76, energy: 1.32, concerto: 4, offtune: 4240 });
@@ -40,7 +54,17 @@ const MA = sanhuaAction("Basic - Frigid Light (Mid-Air)", { node: Node.Normal, c
 
 // Ice Thorn's own burst is a real exception, not a data gap: 0 concerto (every other burst pays
 // 1500), just 200 Energy — kept as given rather than smoothed over.
-const FHA = sanhuaAction("Forte Heavy - Detonate", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 372.58, offtune: 14992, energy: 4.68, concerto: 15 });
+const FHA = sanhuaAction("Forte Heavy - Detonate", {
+  node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 372.58, offtune: 14992, energy: 4.68, concerto: 15,
+  // spends whichever Ice Creations are up and queues the matching burst(s)
+  updateBuffs: () => {
+    if (stacksOf(THORN_BUFF)) { queue(DETONATE_THORN); removeStack(THORN_BUFF, 1); }
+    if (stacksOf(PRISM_BUFF)) { queue(DETONATE_PRISM); removeStack(PRISM_BUFF, 1); }
+    const glaciers = stacksOf(GLACIER_BUFF);
+    for (let i = 0; i < glaciers; i++) queue(DETONATE_GLACIER);
+    if (glaciers) removeStack(GLACIER_BUFF, glaciers);
+  },
+});
 const DETONATE_THORN = sanhuaAction("Forte - Ice Burst (Thorn)", { node: Node.Normal, type: Type1.Skill, mv: 59.65, energy: 2, concerto: 0, active: false });
 const DETONATE_PRISM = sanhuaAction("Forte - Ice Burst (Prism)", { node: Node.Normal, type: Type1.Skill, mv: 79.53, energy: 7, concerto: 15, active: false });
 const DETONATE_GLACIER = sanhuaAction("Forte - Ice Burst (Glacier)", { node: Node.Normal, type: Type1.Skill, mv: 139.17, energy: 7, concerto: 15, active: false });
@@ -51,7 +75,7 @@ const DETONATE_GLACIER = sanhuaAction("Forte - Ice Burst (Glacier)", { node: Nod
 const CONDENSATION = new Buff({
   name: "Sanhua: Condensation",
   applyStats: () => addStat(Stat.DmgBonus, 20, Type1.Skill),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(CONDENSATION); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(CONDENSATION); },
 });
 /** Condensation's own trigger — always-equipped Inherent Skill piece. */
 const SH_INHERENT_1 = new Inherent({
@@ -67,7 +91,7 @@ const AVALANCHE = new Buff({
     const a = currentAction();
     if (a === DETONATE_THORN || a === DETONATE_PRISM || a === DETONATE_GLACIER) addStat(Stat.DmgBonus, 20);
   },
-  convertStats: () => { if (casting(Cast.Outro)) revoke(AVALANCHE); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(AVALANCHE); },
 });
 /** Avalanche's own trigger — always-equipped Inherent Skill piece. */
 const SH_INHERENT_2 = new Inherent({
@@ -79,7 +103,7 @@ const SH_INHERENT_2 = new Inherent({
 const S1_CRIT = new Buff({
   name: "Sanhua S1: Solitude's Embrace",
   applyStats: () => addStat(Stat.CritRate, 15),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(S1_CRIT); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(S1_CRIT); },
 });
 
 /** S4 Blade Mastery: arms a one-shot +120% DMG Bonus for the next Detonate, consumed on landing
@@ -87,7 +111,7 @@ const S1_CRIT = new Buff({
 const S4_WINDOW = new Buff({
   name: "Sanhua S4: Blade Mastery",
   applyStats: () => { if (currentAction() === FHA) addStat(Stat.DmgBonus, 120); },
-  convertStats: () => { if (currentAction() === FHA || casting(Cast.Outro)) revoke(S4_WINDOW); },
+  convertStats: () => { if (currentAction() === FHA || casting(Cast.Outro)) revokeSelf(S4_WINDOW); },
 });
 
 /** S6 Daybreak Radiance: detonating an Ice Prism/Glacier grants the *other* two members +10% ATK,
@@ -101,13 +125,13 @@ const S6_ATK = new Buff({
 /** Ice Creations: one stackable marker each, granted by the cast that makes it and consumed by
  *  Detonate's own updateBuffs() below, which queues the matching burst(s). No stat of their own. */
 const THORN_BUFF = new Buff({
-  name: "Sanhua: Ice Thorn", convertStats: () => { if (casting(Cast.Outro)) revoke(THORN_BUFF); },
+  name: "Sanhua: Ice Thorn", convertStats: () => { if (casting(Cast.Outro)) revokeSelf(THORN_BUFF); },
 });
 const PRISM_BUFF = new Buff({
-  name: "Sanhua: Ice Prism", convertStats: () => { if (casting(Cast.Outro)) revoke(PRISM_BUFF); },
+  name: "Sanhua: Ice Prism", convertStats: () => { if (casting(Cast.Outro)) revokeSelf(PRISM_BUFF); },
 });
 const GLACIER_BUFF = new Buff({
-  name: "Sanhua: Glacier", maxStacks: 2, convertStats: () => { if (casting(Cast.Outro)) revoke(GLACIER_BUFF); },
+  name: "Sanhua: Glacier", maxStacks: 2, convertStats: () => { if (casting(Cast.Outro)) revokeSelf(GLACIER_BUFF); },
 });
 
 const SANHUA_OUTRO = new Buff({
@@ -161,32 +185,15 @@ const SANHUA_S6 = new Sequence({
  *  own base stat line. `standardCharacter: true` — see the file header. */
 const SANHUA = new Resonator({
   name: "Sanhua",
-  abbreviation: "Sanhua",
   element: Attribute.Glacio,
   weapon: WeaponType.Sword,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#5fc9e8",
   maxEnergy: 125,
   standardCharacter: true,
 
-  // grants each Ice Creation marker off the cast that makes it, then Detonate's own updateBuffs()
-  // consumes whichever are up and queues the matching burst(s)
-  updateBuffs: () => {
-    const a = currentAction();
-    if (a === Outro) queueOutro(SANHUA_OUTRO);
-    if (a === Intro) applySelf(THORN_BUFF, 1);
-    if (a === Skill) applySelf(PRISM_BUFF, 1);
-    if (a === Liberation) applySelf(GLACIER_BUFF, 1);
-    if (a === FHA) {
-      if (stacksOf(THORN_BUFF)) { queue(DETONATE_THORN); removeStack(THORN_BUFF, 1); }
-      if (stacksOf(PRISM_BUFF)) { queue(DETONATE_PRISM); removeStack(PRISM_BUFF, 1); }
-      const glaciers = stacksOf(GLACIER_BUFF);
-      for (let i = 0; i < glaciers; i++) queue(DETONATE_GLACIER);
-      if (glaciers) removeStack(GLACIER_BUFF, glaciers);
-    }
-  },
-
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 10063); addStat(Stat.BaseAtk, 275); addStat(Stat.BaseDef, 941);
   },
 });
@@ -194,15 +201,16 @@ const SANHUA = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const SANHUA_TALENTS = new Talent({
   name: "Sanhua: Talents",
-  applyStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Glacio); },
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Glacio); },
 });
 
 // Skill/Liberation first so Condensation (opened by Intro) covers the Skill cast; basics end on
 // Basic 5 so Avalanche/S1 are up for the Detonate that follows. She's never the team's lead, so
 // this same rotation covers both opener and loop.
-const SH_ROTATION = [
-  INTRO, Skill, Liberation, FHA, ECHO_CAST, Outro,
-];
+
+const SH_ROTATION = new Rotation([
+  INTRO, Skill, Liberation, FHA, ECHO_CAST, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -217,7 +225,6 @@ export const SANHUA_LOADOUT = new Loadout({
   echoLoadouts: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
   substat: chem("atk", "skill"),
-  opener: SH_ROTATION,
-  loop: SH_ROTATION,
+    rotation: SH_ROTATION,
   sequences: [SANHUA_S1, SANHUA_S2, SANHUA_S3, SANHUA_S4, SANHUA_S5, SANHUA_S6],
 });

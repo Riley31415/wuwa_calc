@@ -22,11 +22,11 @@
  * Flow is its energy x10), summed per action the same way the MVs are.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO,
-  Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  addStat, applySelf, casting, currentAction, forte1, getStat, maxStackIncrease,
-  queue, revoke, setForte1, frozenStacks, stacksOfEnemy, lostOnSwap,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Scaling, addStat, applySelf, casting, currentAction, forte1, getStat, maxStackIncrease, queue, revokeSelf,
+  setForte1, frozenStacks, stacksOfEnemy, lostOnSwap,
 } from "../../kit.js";
+import { Rotation, START_COMBAT, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { applied } from "../../kit.js";
 import { TUNE_STRAIN_SHIFTING } from "../../tunebreak.js";
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_INTERFERED, tuneStrainBonus } from "../../tunebreak.js";
@@ -59,8 +59,10 @@ const DC = luukAction("Basic - Such is Light (Dodge Counter)", { node: Node.Norm
 const MA1 = luukAction("Basic - Such is Light (Mid-Air) 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 57.46, energy: 0.85, concerto: 1.7, offtune: 2720, forte1: 8.5 });
 const MA2 = luukAction("Basic - Scythe: Dissection 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 94.09, energy: 1.4, concerto: 2.5, offtune: 4000, forte1: 12.5 });
 const MA3 = luukAction("Basic - Scythe: Dissection 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 143.1, energy: 2.73, concerto: 3.96, offtune: 6320, forte1: 19.76 });
-const MA2R = luukAction("Basic - Scythe: Resection 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 100.84, energy: 1.5, concerto: 2.7, offtune: 4320, forte1: 13.5 });
-const MA3R = luukAction("Basic - Scythe: Resection 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 149.84, energy: 2.82, concerto: 4.16, offtune: 6640, forte1: 20.76 });
+// Resection 2/3, Golden Reflux, every Aureole of Execution and his Intro lay Tune Strain - Shifting
+const STRAIN = { updateDebuffs: () => applyStrain() };
+const MA2R = luukAction("Basic - Scythe: Resection 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 100.84, energy: 1.5, concerto: 2.7, offtune: 4320, forte1: 13.5, ...STRAIN });
+const MA3R = luukAction("Basic - Scythe: Resection 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 149.84, energy: 2.82, concerto: 4.16, offtune: 6640, forte1: 20.76, ...STRAIN });
 const MA4 = luukAction("Basic - Such is Light (Mid-Air) 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 1, offtune: 4960, forte1: 15.5 });
 const MDC = luukAction("Basic - Such is Light (Mid-Air Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 256.87, energy: 2.3, concerto: 17.6, offtune: 7360, forte1: 23 });
 
@@ -70,10 +72,10 @@ const MDC = luukAction("Basic - Such is Light (Mid-Air Dodge Counter)", { node: 
 //     Endnote. Ring and Breach reset the mid-air chain and make the next Normal Attack a Golden
 //     Impale; Breach also hurls an Ichor Blade; Glare lays the Ichor Deposit that Gavel of
 //     Earthshaker detonates.
-const Skill = luukAction("Skill - Golden Reflux", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 201.2, energy: 2.3, concerto: 4.6, offtune: 7360, forte1: 23 });
-const Ring = luukAction("Skill - Aureole of Execution: Ring", { node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 221.33, energy: 8, concerto: 10, offtune: 10400, forte1: 32.5 });
-const Breach = luukAction("Skill - Aureole of Execution: Breach", { node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 287.73, energy: 8.01, concerto: 10.02, offtune: 10320, forte1: 32.25 });
-const Glare = luukAction("Skill - Aureole of Execution: Glare", { node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 354.11, energy: 6, concerto: 10, offtune: 7840, forte1: 24.5 });
+const Skill = luukAction("Skill - Golden Reflux", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 201.2, energy: 2.3, concerto: 4.6, offtune: 7360, forte1: 23, ...STRAIN });
+const Ring = luukAction("Skill - Aureole of Execution: Ring", { node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 221.33, energy: 8, concerto: 10, offtune: 10400, forte1: 32.5, ...STRAIN });
+const Breach = luukAction("Skill - Aureole of Execution: Breach", { node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 287.73, energy: 8.01, concerto: 10.02, offtune: 10320, forte1: 32.25, ...STRAIN });
+const Glare = luukAction("Skill - Aureole of Execution: Glare", { node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 354.11, energy: 6, concerto: 10, offtune: 7840, forte1: 24.5, ...STRAIN });
 const GoldenImpale = luukAction("Basic - Golden Impale", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 155.47, energy: 2.3, concerto: 4.6, offtune: 7360, forte1: 23 });
 /** Detonates 5s after Glare lays it, or the moment a Gavel of Earthshaker lands on it — queued
  *  off the Gavel here, since the rotation always follows a Glare with one. */
@@ -81,7 +83,10 @@ const IchorDeposit = luukAction("Skill - Ichor Deposit", { node: Node.Skill, typ
 
 // --- Spark from the Frost. Gavel of Earthshaker is the mid-air slam a Glare opens up; it
 //     detonates the Deposit, and its Concerto is all the flat regen row (the hit itself carries 0).
-const Gavel = luukAction("Forte - Gavel of Earthshaker", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 306.9, energy: 6, concerto: 10, offtune: 8080, forte1: 25.25 });
+const Gavel = luukAction("Forte - Gavel of Earthshaker", {
+  node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 306.9, energy: 6, concerto: 10, offtune: 8080, forte1: 25.25,
+  updateBuffs: () => queue(IchorDeposit),
+});
 
 /** Ichor Blade: 10 flat Spectro DMG every 0.15s for 5s, counted as Basic Attack DMG but immune to
  *  every bonus — Scaling.Fixed, in the same x100 units Roccia's own fixed hit uses. Taken at the
@@ -93,8 +98,14 @@ const Liberation = luukAction("Liberation - Rewritten in Winter's Margins", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Basic, mv: 994.09, concerto: 20, offtune: 67200, resetEnergy: true,
 });
 
-const Intro = luukAction("Intro - Before Injection of Dawn", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 218.01, energy: 10.02, concerto: 10, offtune: 10320, forte1: 100 });
-const Outro = luukAction("Outro - Bow to the Last Light", { cast: Cast.Outro, type: Type1.Outro, mv: 500, active: false });
+const Intro = luukAction("Intro - Before Injection of Dawn", {
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 218.01, energy: 10.02, concerto: 10, offtune: 10320, forte1: 100, ...STRAIN,
+  updateBuffs: () => applySelf(DAWNLIT_KEEP, 1),
+});
+const Outro = luukAction("Outro - Bow to the Last Light", {
+  cast: Cast.Outro, type: Type1.Outro, mv: 500, active: false,
+  updateBuffs: () => applySelf(GOLDEN_RULE),
+});
 
 /** Every form of Aureole of Execution — what banks an Endnote. */
 const isAureole = (a: Action): boolean => a === Ring || a === Breach || a === Glare;
@@ -112,14 +123,16 @@ const AUREATE_JUDGE = new Buff({
   updateBuffs: () => {
     const a = currentAction();
     // a Tune Break landing between the Glare and its Gavel/Deposit isn't his cast, so it can't close it
-    if (forte1() <= 0 && a !== Gavel && a !== IchorDeposit && a !== TUNE_BREAK) revoke(AUREATE_JUDGE);
+    if (forte1() <= 0 && a !== Gavel && a !== IchorDeposit && a !== TUNE_BREAK) revokeSelf(AUREATE_JUDGE);
   },
   applyStats: () => {
-    if (forte1() > 300) setForte1(300);
     const a = currentAction();
     if (a.forte1 > 0) addStat(Stat.AddForte1, -a.forte1);
     if (isAureole(a) || a === Gavel) { addStat(Stat.MulMv, 110); addStat(Stat.AddOfftune, 25200); }
-    if (isAureole(a)) addStat(Stat.AddForte1, -100);
+    if (isAureole(a)) {
+      if (forte1() > 300) setForte1(300);
+      addStat(Stat.AddForte1, -100);
+    }
     if (a === IchorDeposit) addStat(Stat.MulMv, 110);
   },
 });
@@ -129,7 +142,7 @@ const AUREATE_JUDGE = new Buff({
 const ENDNOTES = new Buff({
   name: "Luuk: Endnotes on the Endgame", maxStacks: 3,
   applyStats: () => { if (currentAction() === Liberation) addStat(Stat.MulMv, 25 * frozenStacks()); },
-  convertStats: () => { lostOnSwap(); if (currentAction() === Liberation) revoke(ENDNOTES); },
+  convertStats: () => { lostOnSwap(); if (currentAction() === Liberation) revokeSelf(ENDNOTES); },
 });
 
 /** Golden Rule: a teammate's Outro that brings Luuk in hands him 200 Ichor Flow and 12 Concerto —
@@ -139,7 +152,7 @@ const ENDNOTES = new Buff({
 const GOLDEN_RULE = new Buff({
   name: "Luuk: Golden Rule",
   applyStats: () => { if (casting(Cast.Intro)) { addStat(Stat.AddForte1, 200); addStat(Stat.AddConcerto, 12); } },
-  convertStats: () => { if (casting(Cast.Intro)) revoke(GOLDEN_RULE); },
+  convertStats: () => { if (casting(Cast.Intro)) revokeSelf(GOLDEN_RULE); },
 });
 
 /** Uncaused Diagnosis, the ATK half: any nearby teammate (himself included) inflicting Tune Strain
@@ -181,15 +194,15 @@ const LK_INHERENT_2 = new Inherent({
 
 const LUUK_TALENTS = new Talent({
   name: "Luuk: Talents",
-  applyStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
 });
 
 const LUUK = new Resonator({
   name: "Luuk",
-  abbreviation: "Luuk",
   element: Attribute.Spectro,
   weapon: WeaponType.Gauntlets,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#d9b44a",
   maxEnergy: 125,
 
@@ -198,22 +211,12 @@ const LUUK = new Resonator({
   combatStart: () => { maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applySelf(GOLDEN_RULE, 1); },
   lateConvertStats: () => tuneStrainBonus(),
 
-  // Resection 2/3, Golden Reflux, every Aureole of Execution and his Intro lay Tune Strain - Shifting
-  updateDebuffs: () => {
-    const a = currentAction();
-    if (a === MA2R || a === MA3R || a === Skill || a === Ring || a === Breach || a === Glare || a === Intro) applyStrain();
-  },
-
   updateBuffs: () => {
-    const a = currentAction();
     if (forte1() >= 300) applySelf(AUREATE_JUDGE, 1);
-    if (isAureole(a)) applySelf(ENDNOTES, 1);
-    if (a === Intro) applySelf(DAWNLIT_KEEP, 1);
-    if (a === Gavel) queue(IchorDeposit);
-    if (a === Outro) applySelf(GOLDEN_RULE);
+    if (isAureole(currentAction())) applySelf(ENDNOTES, 1);
   },
 
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 10300); addStat(Stat.BaseAtk, 462.5); addStat(Stat.BaseDef, 1112.2);
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
     addStat(Stat.Tbb, 10);
@@ -227,14 +230,15 @@ const LUUK = new Resonator({
  *  Ring, the mid-air chain, Breach, chain again, Glare, the marked Gavel (which detonates the
  *  marked Deposit), Liberation at three Endnotes, echo, out. He's always the team's main DPS, so
  *  this covers opener and loop. */
-const LK_ROTATION = [
+
+const LK_ROTATION = new Rotation([
+  START_COMBAT, Skill, Liberation, START_COMBAT,
   INTRO, MA2, MA3,
   Ring, MA1, MA2, MA3,
   Breach, MA1, MA2, MA3,
   Glare, Gavel,
-  Liberation, ECHO_CAST, 
-  Outro,
-];
+  Liberation, ECHO_CAST, OUTRO_NEXT,
+]);
 
 const LK_ECHOES = [
   new EchoLoadout(NEBULOUS_CANNON, GILDED_REVELATION_5PC, GILDED_REVELATION_2PC),
@@ -249,6 +253,5 @@ export const LUUK_LOADOUT = new Loadout({
   echoLoadouts: LK_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
   substat: chem("atk", "basic"),
-  opener: LK_ROTATION,
-  loop: LK_ROTATION,
+    rotation: LK_ROTATION,
 });

@@ -15,15 +15,22 @@
  */
 import {
   Action, Attribute, Buff, Debuff, EnemyStat, MISC_SLOT, Scaling, Type1, Type2,
-  addEnemyStat, applied, applyEnemy, currentAction, currentTeam, queue, removeStackEnemy, revoke, revokeEnemy,
+  addEnemyStat, applied, applyEnemy, currentAction, currentTeam, queue, removeStackEnemy, revokeSelf, revokeEnemy,
   frozenStacks, stacksOfEnemy,
 } from "./kit.js";
 
-/** A shield going up, on the caster or the team — one marker either way, `applied()` being how
+/** A shield going up, on the caster never applied to the team `applied()` being how
  *  many this cast granted. Never a stat. */
 export const SHIELD = new Buff({
-    name: "Shield", maxStacks: 99,
-    updateBuffs: ()=> revoke(SHIELD),
+    name: "Shield", maxStacks: 9999,
+    convertStats: ()=> revokeSelf(SHIELD),
+});
+
+/** Healing any resonator in the team never applied to the team only applied on the healer who cast it
+ *  many this cast granted. Never a stat. */
+export const HEALS = new Buff({
+    name: "Healed", maxStacks: 9999,
+    convertStats: ()=> revokeSelf(HEALS),
 });
 
 /** One status's damage ladder: an Action per stack count, indexed by that count. Index 0 is empty

@@ -28,7 +28,11 @@ const OFFTUNE_AFTER_BREAK = -30_000;
  *  Break, and the Shifting only decides which Interfered it leaves behind. */
 export const TUNE_BREAK = new Action("Tune Break", {
   element: Attribute.Physical, scaling: Scaling.Tune, cast: Cast.TuneBreak, type: Type1.Break,
-  mv: 1600, offtune: -ENEMY_MAX_OFFTUNE, slot: TUNE_BREAK_SLOT,
+  mv: 1600, slot: TUNE_BREAK_SLOT,
+  // The whole bar, straight off it: `DirectOfftune` rather than a declared `offtune`, because a
+  // drain is an amount the bar moves by, not something the team's Off-Tune Buildup Rate builds
+  // (see kit.ts's own evaluate()). Sourced to the break itself, so the off-tune panel names it.
+  applyStats: () => { addStat(Stat.DirectOfftune, -ENEMY_MAX_OFFTUNE); },
 });
 
 /* ------------------------------------------------------------- shifting and interfered */
@@ -84,8 +88,9 @@ export function tuneStrainBonus(): void {
 /* --------------------------------------------------------------------------- firing it */
 
 /** The whole mechanic, as one gear on the target: a break drops whatever the bar overshot by, then
- *  the break's own declared `-ENEMY_MAX_OFFTUNE` banks — leaving a full bar at OFFTUNE_AFTER_BREAK
- *  exactly, and a break somehow fired on a bar that wasn't full properly negative instead. */
+ *  the break's own `-ENEMY_MAX_OFFTUNE` DirectOfftune banks — leaving a full bar at
+ *  OFFTUNE_AFTER_BREAK exactly, and a break somehow fired on a bar that wasn't full properly
+ *  negative instead. */
 const TUNE_BREAK_WATCHER = new Debuff({
   // before the drain banks, so the two land in that order — the same `>=` that queues a break below
   updateDebuffs: () => {

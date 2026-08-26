@@ -18,10 +18,12 @@
  * Skill Attributes table throughout; anything not exposed there stays 0, flagged rather than guessed.
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling,
-  applyTeam, revokeTeam, applyEnemy, revokeEnemy, isHeld, casting, currentAction, addStat,
-  queue, applySelf
+  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Type2, Cast, Node, Scaling, applyTeam, revokeTeam, applyEnemy, revokeEnemy, isHeld, casting, currentAction,
+  addStat, queue, applySelf,
 } from "../../kit.js";
+import { Rotation, OPENER, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
+import { HEALS } from "../../statuses.js";
 import { VARIATION } from "../../weapons/standard.js";
 import { REJUV_5PC, REJUV_2PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
@@ -52,26 +54,33 @@ const DC = verinaAction("Basic - Cultivation (Dodge Counter)", { node: Node.Norm
 const Skill = verinaAction("Skill - Botany Experiment", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 178.95, energy: 15, concerto: 30, offtune: 26600, forte1: 1 });
 
 // Starflower Blooms spends 1 Photosynthesis Energy either way, heals
-const StarflowerHeavy = verinaAction("Forte Heavy - Starflower Blooms", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 162.37, energy: 2.91, concerto: 4.66, offtune: 14600, forte1: -1, heals: true });
+const StarflowerHeavy = verinaAction("Forte Heavy - Starflower Blooms", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 162.37, energy: 2.91, concerto: 4.66, offtune: 14600, forte1: -1 });
 // Mid-air Starflower Blooms is its own 3-stage combo (same shape as the MA1-3 chain it replaces);
 // only stage 1 banks the forte spend/heal, since the Forte Gauge is spent once for the whole combo.
 const ForteMidair1 = verinaAction("Forte Basic - Starflower Blooms (Mid-Air) 1",
-    { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 67.64, energy: 1.41, concerto: 4.53, offtune: 11340, forte1: -1, heals: true });
+    { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 67.64, energy: 1.41, concerto: 4.53, offtune: 11340, forte1: -1 });
 const ForteMidair2 = verinaAction("Forte Basic - Starflower Blooms (Mid-Air) 2",
-    { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 63.82, energy: 1.33, concerto: 4.28, offtune: 10700, forte1: -1, heals: true });
+    { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 63.82, energy: 1.33, concerto: 4.28, offtune: 10700, forte1: -1 });
 const ForteMidair3 = verinaAction("Forte Basic - Starflower Blooms (Mid-Air) 3",
-    { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 30.50 * 3, energy: 1.89, concerto: 6.12, offtune: 15342, forte1: -1, heals: true });
+    { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 30.50 * 3, energy: 1.89, concerto: 6.12, offtune: 15342, forte1: -1 });
 
 // Arboreal Flourish places Photosynthesis Mark on the enemy (see file header), heals
-const Liberation = verinaAction("Liberation - Arboreal Flourish", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 198.81, concerto: 20, heals: true, resetEnergy: true });
+const Liberation = verinaAction("Liberation - Arboreal Flourish", {
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 198.81, concerto: 20, resetEnergy: true,
+  updateBuffs: () => applyEnemy(PHOTOSYNTHESIS_MARK, 1),
+});
 /** One Coordinated Attack tick, S6's own single-hit reuse. */
-const PhotosynthesisTick = verinaAction("Liberation - Photosynthesis Mark", { node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 9.95, heals: true });
+const PhotosynthesisTick = verinaAction("Liberation - Photosynthesis Mark", { node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 9.95 });
 /** The full 12-tick window, queued off Photosynthesis Mark's own convertStats() at her own outro. */
-const PhotosynthesisMark = verinaAction("Liberation - Photosynthesis Mark x12", { node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 119.4, offtune: 20000, concerto: 4.04, energy: 1.46, active: false, heals: true });
+const PhotosynthesisMark = verinaAction("Liberation - Photosynthesis Mark x12", { node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 119.4, offtune: 20000, concerto: 4.04, energy: 1.46, active: false });
 
 const Intro = verinaAction("Intro - Verdant Growth", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 99.41, energy: 10, concerto: 10, offtune: 11230, forte1: 1 });
-/** Blossom: no damage of its own, just the Gift of Nature/S4 trigger and (skipped) healing. */
-const Outro = verinaAction("Outro - Blossom", { cast: Cast.Outro, active: false, heals: true });
+/** Blossom: no damage of its own, just the outro handoff, the Gift of Nature/S4 trigger and
+ *  (skipped) healing. */
+const Outro = verinaAction("Outro - Blossom", {
+  cast: Cast.Outro, active: false,
+  updateBuffs: () => applyTeam(VERINA_OUTRO, 1),
+});
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -110,7 +119,7 @@ const STARFLOWER_CONCERTO = new Buff({
 
 /** Blossom's own team-wide DMG Amp — 30s is past the 21s permanent-uptime threshold, so it's
  *  granted once and never revoked. The 19% ATK/s heal to the incoming Resonator is out of scope
- *  for the formula (Outro already carries heals: true). */
+ *  for the formula (her Outro already puts up the HEALS marker). */
 const VERINA_OUTRO = new Buff({
   name: "Verina: Blossom",
   applyStats: () => addStat(Stat.Amp, 15),
@@ -170,21 +179,23 @@ const VERINA_S5 = new Sequence({ name: "Verina S5: Miraculous Blooms" });
  *  own base stat line. `standardCharacter: true` — see the file header. */
 const VERINA = new Resonator({
   name: "Verina",
-  abbreviation: "Verina",
   element: Attribute.Spectro,
   weapon: WeaponType.Rectifier,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#8fe08f",
   maxEnergy: 175, // her own real 175%, not the generic 125% default — matches Shorekeeper's own
 
   standardCharacter: true,
 
-  updateBuffs: () => {
-    if (currentAction() === Liberation) applyEnemy(PHOTOSYNTHESIS_MARK, 1);
-    if (currentAction() === Outro) applyTeam(VERINA_OUTRO, 1);
+  updateDebuffs: () => {
+    const a = currentAction();
+    // her own healing marker, read by every healing sonata and weapon (statuses.ts) —
+    // applied to the healer alone, never the team
+    if (a === StarflowerHeavy || a === ForteMidair1 || a === ForteMidair2 || a === ForteMidair3 || a === Liberation || a === PhotosynthesisTick || a === PhotosynthesisMark || a === Outro) applySelf(HEALS, 1);
   },
 
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 14238); addStat(Stat.BaseAtk, 338); addStat(Stat.BaseDef, 1100);
   },
 });
@@ -193,21 +204,18 @@ const VERINA = new Resonator({
 // completeness only
 const VERINA_TALENTS = new Talent({
   name: "Verina: Talents",
-  applyStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.HealingBonus, 12); },
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.HealingBonus, 12); },
   updateBuffs: () => applySelf(STARFLOWER_CONCERTO, 1),
 });
 
-const VR_OPENER = [
-  Skill, Liberation,
+const VR_LOOP = new Rotation([
+  OPENER, Skill, Liberation,
   ForteMidair1, ForteMidair2,
-  ECHO_CAST, Outro,
-];
-
-const VR_LOOP = [
+  ECHO_CAST, OUTRO_NEXT,
   INTRO, Skill, Liberation,
   ForteMidair1,
-  ECHO_CAST, Outro,
-];
+  ECHO_CAST, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -222,7 +230,6 @@ export const VERINA_LOADOUT = new Loadout({
   echoLoadouts: [new EchoLoadout(FALLACY, REJUV_5PC, REJUV_2PC)],
   mainstats: [mainstats(Mainstat.ATK4, Mainstat.ER3, Mainstat.ER3, Mainstat.ATK1, Mainstat.ATK1)],
   substat: chem("atk", "liberation"),
-  opener: VR_OPENER,
-  loop: VR_LOOP,
+    rotation: VR_LOOP,
   sequences: [VERINA_S1, VERINA_S2, VERINA_S3, VERINA_S4, VERINA_S5, VERINA_S6],
 });

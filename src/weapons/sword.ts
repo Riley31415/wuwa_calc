@@ -2,7 +2,7 @@
  *  resonator, not just its own. */
 import { isType,
   Buff, Weapon, WeaponType, Stat, Attribute, Type1, Cast,
-  addStat, frozenStacks, casting, currentAction, revoke, applySelf, stacksOf, applyTeam, lostOnSwap, applied,
+  addStat, frozenStacks, casting, currentAction, revokeSelf, applySelf, stacksOf, applyTeam, lostOnSwap, applied,
 } from "../kit.js";
 import { TUNE_STRAIN_SHIFTING } from "../tunebreak.js";
 
@@ -11,7 +11,7 @@ import { TUNE_STRAIN_SHIFTING } from "../tunebreak.js";
 export const BLAZING_BRILLIANCE = new Weapon({
   weaponType: WeaponType.Sword,
   name: "Blazing Brilliance",
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseAtk, 587.5);
     addStat(Stat.CritDmg, 48.6);
     addStat(Stat.BonusAtk, 12);
@@ -23,7 +23,7 @@ export const SEARING_FEATHER = new Buff({
   // pays off current stacks before revoking — applyStats()'s frozenStacks() would already read 0 otherwise
   updateBuffs: () => {
     addStat(Stat.DmgBonus, 4 * frozenStacks(), Type1.Skill);
-    if (casting(Cast.Outro)) revoke(SEARING_FEATHER);
+    if (casting(Cast.Outro)) revokeSelf(SEARING_FEATHER);
   },
 });
 
@@ -33,7 +33,7 @@ export const SEARING_FEATHER = new Buff({
 export const RED_SPRING = new Weapon({
   weaponType: WeaponType.Sword,
   name: "Red Spring",
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseAtk, 587.5);
     addStat(Stat.CritRate, 24.3);
     addStat(Stat.BonusAtk, 12);
@@ -46,7 +46,7 @@ export const RED_SPRING = new Weapon({
 export const RED_SPRING_BASIC = new Buff({
   name: "Red Spring: Beyond the Cycle", maxStacks: 3,
   applyStats: () => { addStat(Stat.DmgBonus, 10 * frozenStacks(), Type1.Basic); },
-  convertStats: () => { if (casting(Cast.Outro)) revoke(RED_SPRING_BASIC); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(RED_SPRING_BASIC); },
 });
 export const RED_SPRING_CONSUME = new Buff({
   name: "Red Spring: Beyond the Cycle (consume)",
@@ -59,7 +59,7 @@ export const RED_SPRING_CONSUME = new Buff({
 export const UNFLICKERING_VALOR = new Weapon({
   weaponType: WeaponType.Sword,
   name: "Unflickering Valor",
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseAtk, 413);
     addStat(Stat.Er, 77.04);
     addStat(Stat.CritRate, 8);
@@ -72,12 +72,12 @@ export const UNFLICKERING_VALOR = new Weapon({
 export const LAUGHTER_PREVAILS_LIB = new Buff({
   name: "Unflickering Valor: Laughter Prevails (Liberation)",
   applyStats: () => addStat(Stat.DmgBonus, 24, Type1.Basic),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(LAUGHTER_PREVAILS_LIB); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(LAUGHTER_PREVAILS_LIB); },
 });
 export const LAUGHTER_PREVAILS_BASIC = new Buff({
   name: "Unflickering Valor: Laughter Prevails (Basic Attack)",
   applyStats: () => addStat(Stat.DmgBonus, 24, Type1.Basic),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(LAUGHTER_PREVAILS_BASIC); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(LAUGHTER_PREVAILS_BASIC); },
 });
 
 /** Qiuyuan's sig, R1: When A Heart Settles. +12% ATK flat; his Intro grants the team +20% Echo
@@ -87,7 +87,7 @@ export const LAUGHTER_PREVAILS_BASIC = new Buff({
 export const EMERALD_SENTENCE = new Weapon({
   weaponType: WeaponType.Sword,
   name: "Emerald Sentence",
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseAtk, 587.5);
     addStat(Stat.CritRate, 24.3);
     addStat(Stat.BonusAtk, 12);
@@ -121,7 +121,7 @@ export const BAMBOO_CLEAVER = new Buff({
 export const GLINT_OF_CLOUDS = new Weapon({
   weaponType: WeaponType.Sword,
   name: "Glint of Clouds",
-  applyStats: () => { addStat(Stat.BaseAtk, 500); addStat(Stat.CritRate, 36); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.BaseAtk, 500); addStat(Stat.CritRate, 36); addStat(Stat.BonusAtk, 12); },
   updateBuffs: () => { if (applied(TUNE_STRAIN_SHIFTING)) applySelf(EVILS_SCOURGE, 1); },
 });
 export const EVILS_SCOURGE = new Buff({
@@ -130,5 +130,5 @@ export const EVILS_SCOURGE = new Buff({
     addStat(Stat.DmgBonus, 11.2 * frozenStacks(), Attribute.Aero);
     if (frozenStacks() >= 5) addStat(Stat.DefIgnoreNew, 10, Attribute.Aero);
   },
-  convertStats: () => { if (casting(Cast.Outro) && frozenStacks() < 5) revoke(EVILS_SCOURGE); },
+  convertStats: () => { if (casting(Cast.Outro) && frozenStacks() < 5) revokeSelf(EVILS_SCOURGE); },
 });

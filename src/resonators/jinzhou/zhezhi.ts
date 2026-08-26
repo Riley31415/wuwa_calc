@@ -19,16 +19,18 @@
  * own MV/energy/concerto/offtune/forte1 delta ported from the migrated (old-engine) sheet.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling,
-  applySelf, currentAction, casting, revoke, addStat, frozenStacks, queue, queueOutro,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Type2, Cast,
+  Node, Scaling, applySelf, currentAction, casting, revokeSelf, addStat, frozenStacks, queue, queueOutro,
   lostOnSwap,
 } from "../../kit.js";
-import { RIME_DRAPED_SPROUTS, STRINGMASTER, LETHEAN_ELEGY } from "../../weapons/rectifier.js";
+import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
+import { RIME_DRAPED_SPROUTS, STRINGMASTER, LETHEAN_ELEGY, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { EMPYREAN_ANTHEM_2PC, EMPYREAN_ANTHEM_5PC, NM_LAMPY } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../mainstats.js";
 import { chem } from "../../substats.js";
 import { HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
+import { CANTA_LOADOUT } from "../rinascita/cantarella.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -60,6 +62,7 @@ const FSkill = zhezhiAction("Forte Skill - Stroke of Genius", {
 });
 const FSkill3 = zhezhiAction("Forte Skill - Creation's Zenith", {
   node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 357.87, energy: 7.02, concerto: 13, offtune: 10401,
+  updateBuffs: () => applySelf(IVORY_HERALD, 1),
 });
 
 // opens the Inklit Spirit window, no damage of its own
@@ -74,7 +77,10 @@ const ACTION_LIB_COORDS = zhezhiAction("Liberation - Inklit Spirit x21", {
 const Intro = zhezhiAction("Intro - Radiant Ruin", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 258.48, energy: 10.02, concerto: 10, offtune: 10401, forte1: 45,
 });
-const Outro = zhezhiAction("Outro - Carve and Draw", { cast: Cast.Outro, mv: 0, active: false });
+const Outro = zhezhiAction("Outro - Carve and Draw", {
+  cast: Cast.Outro, mv: 0, active: false,
+  updateBuffs: () => { queue(ACTION_LIB_COORDS); queueOutro(ZHEZHI_OUTRO); },
+});
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -112,7 +118,7 @@ const ZZ_FLOURISH = new Buff({
   name: "Zhezhi: Flourish",
   applyStats: () => {
     addStat(Stat.AddEnergy, 15);
-    revoke(ZZ_FLOURISH);
+    revokeSelf(ZZ_FLOURISH);
   },
 });
 
@@ -127,20 +133,14 @@ const ZZ_INHERENT_2 = new Inherent({
 
 const ZHEZHI = new Resonator({
   name: "Zhezhi",
-  abbreviation: "ZZ",
   element: Attribute.Glacio,
   weapon: WeaponType.Rectifier,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#8fd3e8",
   maxEnergy: 125,
 
-  updateBuffs: () => {
-    const a = currentAction();
-    if (a === FSkill3) applySelf(IVORY_HERALD, 1);
-    if (a === Outro) { queue(ACTION_LIB_COORDS); queueOutro(ZHEZHI_OUTRO); }
-  },
-
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 12250); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1198);
   },
 });
@@ -148,19 +148,19 @@ const ZHEZHI = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const ZHEZHI_TALENTS = new Talent({
   name: "Zhezhi: Talents",
-  applyStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
 // the kit-valid line reconstructed from the old sheet: Intro banks Afflatus, three basics push
 // it to 90+, Skill opens two Imprints, the forte Heavy Attack opens the third, two Strokes of
 // Genius and a Creation's Zenith spend all three, Liberation opens the Coordinated Attack window
 // before Outro closes the loop. She's never the team's own lead, so this covers both opener/loop.
-const ZZ_ROTATION = [
-  INTRO, BA1, BA2, BA3,
+
+const ZZ_ROTATION = new Rotation([
+  INTRO, ECHO_CAST, BA1, BA2, BA3,
   Skill, FHA, FSkill, FSkill, FSkill3,
-  ECHO_CAST, Liberation,
-  Outro,
-];
+  Liberation, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -172,13 +172,12 @@ export const ZZ_LOADOUT = new Loadout({
   talent: ZHEZHI_TALENTS,
   inherent1: ZZ_INHERENT_1,
   inherent2: ZZ_INHERENT_2,
-  weapons: [RIME_DRAPED_SPROUTS, VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES, STRINGMASTER, LETHEAN_ELEGY],
+  weapons: [RIME_DRAPED_SPROUTS, COSMIC_RIPPLES, VARIATION, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY, WHISPERS_OF_SIRENS],
   echoLoadouts: [
     new EchoLoadout(NM_LAMPY, EMPYREAN_ANTHEM_5PC, EMPYREAN_ANTHEM_2PC),
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
   substat: chem("atk", "basic"),
-  opener: ZZ_ROTATION,
-  loop: ZZ_ROTATION,
+    rotation: ZZ_ROTATION,
 });

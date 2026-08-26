@@ -11,7 +11,7 @@
  * `LOADOUTS` is also the page's one loadout registry: a Worker cannot be handed a `Loadout`
  * (postMessage structured-clones, and a Loadout is closures all the way down), so the main thread
  * sends a team as the *names* of its members' loadouts and the worker resolves them here against
- * its own copy of this module. See solver.ts's own `teamFromNames()` and worker.ts.
+ * its own copy of this module. See solver.ts's own `teamFromNames()`.
  */
 import type { Loadout } from "./kit.js";
 import { QY_LOADOUT } from "./resonators/septimont/qiuyuan.js";
@@ -106,12 +106,12 @@ const TEAMS: Loadout[][][] = [
   [[SK, AROVER, CIA, QY, VERINA, MORNYE], [QY, LUCILLA, CANTA, AROVER, CIA, LYN_RUPTURE], [GEEK]],
 
   // luuk: spectro basic, tune strain
-  [[SK, VERINA, MORNYE, SROVER_LOADOUT], [LYN_STRAIN, SANHUA, DENIA_STRAIN, SROVER_LOADOUT], [LUUK]],
+  [[SK, VERINA, MORNYE], [LYN_STRAIN, SANHUA, DENIA_STRAIN, SROVER_LOADOUT], [LUUK]],
 
   // glob fusion echo
   [[SK, VERINA, LOPA, QY, MORNYE], [QY, LUCILLA], [GLOB_ECHO_FOCUS]],
   // glob fusion heavy
-  [[SK, VERINA, LOPA, CANTA, MORNYE, DENIA_BURST], [BRANT, MORT, UNO, LOPA, LYN_RUPTURE, REBECCA], [GLOB]],
+  [[SK, VERINA, LOPA, MORNYE, DENIA_BURST], [BRANT, MORT, UNO, LOPA, LYN_RUPTURE, REBECCA], [GLOB]],
 
   // augusta: electro heavy shielder
   [[SK, VERINA, MORNYE], [UNO, MORT, LYN_RUPTURE, REBECCA], [AUGUGU]],

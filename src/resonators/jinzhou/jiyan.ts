@@ -23,9 +23,11 @@
  * trigger ICD isn't modelled.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling,
-  applySelf, currentAction, casting, revoke, addStat, removeStack, forte1, queue, queueOn, queueOutro,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Type2, Cast,
+  Node, Scaling, applySelf, currentAction, casting, revokeSelf, addStat, removeStack, forte1, queue, queueOn,
+  queueOutro,
 } from "../../kit.js";
+import { Rotation, START_COMBAT, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC, SIERRA_GALE_2PC } from "../../echoes/jinzhou.js";
@@ -60,12 +62,19 @@ const DC = jiyanAction("Basic - Lone Lance (Dodge Counter)", { node: Node.Normal
 // Windqueller's three forms — at 30+ Resolve out of Qingloong Mode it consumes 30 for +20% DMG,
 // below 30 it's the plain cast with neither, inside the mode the +20% is free (the bonus lives on
 // JIYAN's own apply below, on the two boosted forms only)
-const Skill = jiyanAction("Skill - Windqueller", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 106.36 * 4, energy: 9.00, concerto: 16, offtune: 6480, forte1: -30 });
+// Qingloong at War (Forte Circuit): Windqueller +20% DMG — free in-mode, or off the 30 Resolve
+// the out-of-mode action's own forte1 already spends
+const WINDQUELLER = { applyStats: () => addStat(Stat.DmgBonus, 20) };
+const Skill = jiyanAction("Skill - Windqueller", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 106.36 * 4, energy: 9.00, concerto: 16, offtune: 6480, forte1: -30, ...WINDQUELLER });
 const Skill2 = jiyanAction("Skill - Windqueller (Low Resolve)", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 106.36 * 4, energy: 9.00, concerto: 16, offtune: 6480 });
-const USkill = jiyanAction("Skill - Windqueller (Qingloong)", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 106.36 * 4, energy: 9.00, concerto: 16, offtune: 6480 });
+const USkill = jiyanAction("Skill - Windqueller (Qingloong)", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 106.36 * 4, energy: 9.00, concerto: 16, offtune: 6480, ...WINDQUELLER });
 
 /** Emerald Storm - Prelude: no damage of its own, just opens Qingloong Mode. */
-const Liberation = jiyanAction("Liberation - Emerald Storm: Prelude", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, concerto: 20, resetEnergy: true });
+// Prelude releases Finale itself whenever the 30 Resolve it spends is banked
+const Liberation = jiyanAction("Liberation - Emerald Storm: Prelude", {
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, concerto: 20, resetEnergy: true,
+  updateBuffs: () => { if (forte1() >= 30) queue(Finale); },
+});
 /** Emerald Storm - Finale, released by Prelude at 30+ Resolve — considered Heavy Attack DMG. */
 const Finale = jiyanAction("Liberation - Emerald Storm: Finale", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 142.91 * 2 + 428.73, offtune: 107520, forte1: -30 });
 
@@ -76,7 +85,11 @@ const Lance3 = jiyanAction("Heavy - Lance of Qingloong 3", { node: Node.Liberati
 
 const Intro = jiyanAction("Intro - Tactical Strike", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81, energy: 10.00, concerto: 10, offtune: 7416, forte1: 30 });
 /** Discipline: no damage of its own, just the handoff — its lances are ACTION_OUTRO_COORD. */
-const Outro = jiyanAction("Outro - Discipline", { cast: Cast.Outro, active: false });
+const Outro = jiyanAction("Outro - Discipline", {
+  cast: Cast.Outro, active: false,
+  // queued twice so the adopter picks the buff up at both charges
+  updateBuffs: () => { queueOutro(JIYAN_OUTRO); queueOutro(JIYAN_OUTRO); },
+});
 /** One coordinated lance strike — queued onto his own slot by JIYAN_OUTRO below, once per stack
  *  the incoming resonator's Heavy casts consume. */
 const ACTION_OUTRO_COORD = jiyanAction("Outro - Discipline (Coordinated Lance)", { type: Type1.Outro, type2: Type2.Coordinated, mv: 313.40, active: false });
@@ -87,7 +100,7 @@ const ACTION_OUTRO_COORD = jiyanAction("Outro - Discipline (Coordinated Lance)",
 const HEAVENLY_BALANCE = new Buff({
   name: "Jiyan: Heavenly Balance",
   applyStats: () => addStat(Stat.BonusAtk, 10),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(HEAVENLY_BALANCE); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(HEAVENLY_BALANCE); },
 });
 const JY_INHERENT_1 = new Inherent({
   name: "Jiyan: Heavenly Balance",
@@ -99,7 +112,7 @@ const JY_INHERENT_1 = new Inherent({
 const TEMPEST_TAMING = new Buff({
   name: "Jiyan: Tempest Taming",
   applyStats: () => addStat(Stat.CritDmg, 12),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(TEMPEST_TAMING); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(TEMPEST_TAMING); },
 });
 const JY_INHERENT_2 = new Inherent({
   name: "Jiyan: Tempest Taming",
@@ -114,53 +127,41 @@ const JIYAN_OUTRO: Buff = new Buff({
   updateBuffs: () => {
     if (casting(Cast.Heavy)) { queueOn(JIYAN, ACTION_OUTRO_COORD); removeStack(JIYAN_OUTRO, 1); }
   },
-  convertStats: () => { if (casting(Cast.Outro)) revoke(JIYAN_OUTRO); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(JIYAN_OUTRO); },
 });
 
 const JIYAN = new Resonator({
   name: "Jiyan",
-  abbreviation: "Jiyan",
   element: Attribute.Aero,
   weapon: WeaponType.Broadblade,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#4fc98f",
   maxEnergy: 125,
 
-  // Prelude releases Finale itself whenever the 30 Resolve it spends is banked; the outro handoff
-  // is queued twice so the adopter picks the buff up at both charges
-  updateBuffs: () => {
-    const a = currentAction();
-    if (a === Liberation && forte1() >= 30) queue(Finale);
-    if (a === Outro) { queueOutro(JIYAN_OUTRO); queueOutro(JIYAN_OUTRO); }
-  },
-
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 10487.5); addStat(Stat.BaseAtk, 437.5); addStat(Stat.BaseDef, 1185.55);
-    // Qingloong at War (Forte Circuit): Windqueller +20% DMG — free in-mode, or off the 30
-    // Resolve the out-of-mode action's own forte1 already spends
-    const a = currentAction();
-    if (a === Skill || a === USkill) addStat(Stat.DmgBonus, 20);
   },
 });
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
 const JIYAN_TALENTS = new Talent({
   name: "Jiyan: Talents",
-  applyStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
 // Intro banks the 30 Resolve Prelude's auto-queued Finale spends; the lances ride the mode with
 // the free in-mode Windqueller, and the closing Windqueller is the low-Resolve form — the gauge
 // is empty by then, so it neither spends nor boosts. He's never the team's own lead, so this
 // covers both opener and loop.
-const JY_ROTATION = [
+
+const JY_ROTATION = new Rotation([
   INTRO, ECHO_CAST,
   Liberation,
   Lance1, USkill, Lance1, Lance1, Lance1, // dodge cancels
   Lance1, Lance1, Lance1, Lance1,
-  Skill2,
-  Outro,
-];
+  START_COMBAT, Skill2, START_COMBAT, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -175,6 +176,5 @@ export const JIYAN_LOADOUT = new Loadout({
   echoLoadouts: [new EchoLoadout(NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC, SIERRA_GALE_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
   substat: chem("atk", "heavy"),
-  opener: JY_ROTATION,
-  loop: JY_ROTATION,
+    rotation: JY_ROTATION,
 });

@@ -199,7 +199,7 @@ body {
   overflow: hidden;
 }
 .rtable.dpr .rtrow { grid-template-columns: minmax(120px, 1.4fr) repeat(6, minmax(90px, 1fr)); }
-.rtable.energy .rtrow { grid-template-columns: repeat(4, minmax(90px, 1fr)); }
+.rtable.energy .rtrow { grid-template-columns: repeat(5, minmax(90px, 1fr)); }
 
 .rtrow { display: grid; align-items: stretch; }
 .rtrow + .rtrow { border-top: 1px solid var(--line); }
@@ -422,10 +422,28 @@ main {
    `.pop .sec` uppercase */
 .pop.breakdown .sec td { text-transform: none; letter-spacing: normal; }
 /* Its figures are left-aligned rather than flush right (the `.pop td.v` default every stat-trace
-   panel keeps), so an Avg DPR panel reads as one column all the way down — the loadout section
-   above them sets that edge and the rotation totals hold it. `tabular-nums` still lines the
-   digits themselves up, so the numbers stay comparable row to row. */
+   panel keeps): each is a figure and its share of the whole ("41,203 (37%)"), so the two read as
+   one column all the way down instead of being pushed apart by their own lengths.
+   `tabular-nums` still lines the digits themselves up, so the numbers stay comparable row to row. */
 .pop.breakdown td.v { text-align: left; }
+
+/* The final-damage panel is a product, not a column of amounts: every row below the leading stat
+   is a multiplier, so its figures read left-aligned — flush right pushed the `x` signs apart and
+   left the factors in a ragged column no one could compare down. `tabular-nums` (inherited from
+   `.pop td.v`) still lines the digits themselves up. */
+.pop.damage td.v { text-align: left; }
+
+/* The action hover is a list of what the cast *is* — Skill, Fusion, Basic — not of figures, so its
+   values read left-aligned against their labels rather than flush right on lengths that mean
+   nothing next to each other. */
+.pop.info td.v { text-align: left; }
+
+/* The comparison table's own Total DPR hover is the detail page's damage-per-rotation table
+   whole, not a panel of rows — so the panel is only the frame around it: no padding of its own,
+   and the radius moved up here onto the box that already carries the border and shadow, with the
+   table inside it flattened and clipped rather than drawing a second card on top of the first. */
+.pop.dpr { padding: 0; border-radius: var(--r); overflow: hidden; }
+.pop.dpr .rtable { border-radius: 0; box-shadow: none; }
 
 /* ---------------------------------------------------------------------- table */
 
@@ -655,10 +673,14 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
   font-variant-numeric: tabular-nums;
   color: var(--ink);
 }
+.pop tr:first-child.sec td { padding-top: 0; }
 .pop .sum td { padding-top: 5px; border-top: 1px solid var(--line-2); font-weight: 700; }
 .pop .sum td.v { color: var(--ink); }
 
-/* a group heading — base / bonus / flat — and that group's own subtotal */
+/* a group heading — base / bonus / flat, a scope ("Basic Dmg Bonus"), or the column's own name on
+   a panel with no groups of its own. A group carries no subtotal of its own, so the heading is the
+   only thing separating one from the next. The first heading in a panel drops its top padding:
+   `.pop`'s own box already sets the gap above it. */
 .pop .sec td {
   padding: 7px 0 2px;
   font-size: 10px;
@@ -668,12 +690,6 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
   color: var(--dim);
 }
 .pop tr:first-child.sec td { padding-top: 0; }
-/* the section's own subtotal — "Total" in the label column, its value the same white every other
-   row's value reads in. Separated from the detail rows above it by space alone now (no rule) —
-   removed rather than restyled since nothing else in either the table or its panels draws a
-   dotted line anywhere else. */
-.pop .sub td { padding-top: 5px; }
-
 /* A loadout row. Its value column is a list of gear names, not numbers — left-aligned so they
    read down as one column of text rather than being pushed apart by their own lengths. The Avg
    DPR panel left-aligns its own figures too (see `.pop.breakdown td.v` above), so the two

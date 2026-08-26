@@ -22,11 +22,11 @@
  * runs the Kaleidoscopic Parade line she actually plays instead of modelling three gauges.
  */
 import {
-  Buff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO,
-  Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  addStat, applySelf, applyTeam, casting, currentAction, maxStackIncrease, queueOutro, revoke,
-  lostOnSwap,
+  Buff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType,
+  Type1, Cast, Node, Scaling, addStat, applySelf, applyTeam, casting, currentAction, maxStackIncrease, queueOutro,
+  revokeSelf, lostOnSwap,
 } from "../../kit.js";
+import { Rotation, START_COMBAT, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { applyRupture, applyStrain, TUNE_STRAIN_INTERFERED, tuneRuptureResponse, tuneStrainBonus } from "../../tunebreak.js";
 import { SPECTRUM_BLASTER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
@@ -65,7 +65,10 @@ const PolychromeLeap1 = lynaeAction("Forte - Polychrome Leap 1", { node: Node.Fo
 const PolychromeLeap2 = lynaeAction("Forte - Polychrome Leap 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 101.4, energy: 2.28, concerto: 5.4, offtune: 4800, forte2: -40, forte3: 1 });
 const PolychromeLeap3 = lynaeAction("Forte - Polychrome Leap 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 104.8, energy: 2.4, concerto: 5.6, offtune: 4960, forte2: -40, forte3: 1 });
 const IridescentSplash = lynaeAction("Forte - Iridescent Splash", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 304.18, energy: 8.13, concerto: 7.65, offtune: 6800, forte3: -3 });
-const VisualImpact = lynaeAction("Forte - Visual Impact", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 1216.72, energy: 14.05, concerto: 14.58, offtune: 60960, forte3: -3 });
+const VisualImpact = lynaeAction("Forte - Visual Impact", {
+  node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 1216.72, energy: 14.05, concerto: 14.58, offtune: 60960, forte3: -3,
+  updateBuffs: () => applyTeam(SPECTRAL_ANALYSIS_TBB, 1),
+});
 
 const Skill = lynaeAction("Skill - Lynae-Style Palettes", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 278.63, energy: 8.75, concerto: 9.83, offtune: 8722, forte1: 25 });
 const AdditiveColor = lynaeAction("Skill - Additive Color", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 232.62, energy: 6.92, concerto: 8.2, offtune: 7280 });
@@ -73,11 +76,15 @@ const AdditiveColor = lynaeAction("Skill - Additive Color", { node: Node.Skill, 
 const Liberation = lynaeAction("Liberation - Prismatic Overblast", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 874.8,
   concerto: 20, offtune: 48000, resetEnergy: true,
+  updateBuffs: () => applyTeam(PRISMATIC_OVERBLAST, 1),
 });
 const VividTomorrow = lynaeAction("Basic - To a Vivid Tomorrow!", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 201.06, energy: 5.46, concerto: 19.42, offtune: 17128 });
 
 const Intro = lynaeAction("Intro - Time to Show Some Colors!", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 224.8, energy: 13.4, concerto: 22, offtune: 10640,forte1:100 });
-const Outro = lynaeAction("Outro - Let's Hit the Road!", { cast: Cast.Outro, type: Type1.Outro, mv: 100, active: false });
+const Outro = lynaeAction("Outro - Let's Hit the Road!", {
+  cast: Cast.Outro, type: Type1.Outro, mv: 100, active: false,
+  updateBuffs: () => queueOutro(LYNAE_OUTRO),
+});
 
 const SpectralAnalysis = lynaeAction("Tune Rupture Response - Spectral Analysis", {
   node: Node.Forte, type: Type1.Rupture, mv: 1880.75,
@@ -123,7 +130,7 @@ const PRISMATIC_OVERBLAST = new Buff({
 const ADAPTIVE_OPTICS = new Buff({
   name: "Lynae: Adaptive Optics",
   applyStats: () => addStat(Stat.DmgBonus, 25, Attribute.Spectro),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(ADAPTIVE_OPTICS); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(ADAPTIVE_OPTICS); },
 });
 
 /** Her outro hands the incoming resonator +15% All DMG Amplification and +25% Resonance Liberation
@@ -141,7 +148,6 @@ const SPECTRAL_ANALYSIS_TBB = new Buff({
   applyStats: () => addStat(Stat.Tbb, 40),
 });
 
-
 /* --------------------------------------------------------------------------- kit and loadout */
 
 const LY_INHERENT_1 = new Inherent({ name: "Lynae: Colors Never Fade!" });
@@ -152,26 +158,19 @@ const LY_INHERENT_2 = new Inherent({
 
 const LYNAE_TALENTS = new Talent({
   name: "Lynae: Talents",
-  applyStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
 });
 
 const LYNAE = new Resonator({
   name: "Lynae",
-  abbreviation: "Lynae",
   element: Attribute.Spectro,
   weapon: WeaponType.Pistols,
   intro: () => Intro,
-  color: "#e8a0d8",
+  outro: () => Outro,
+  color: "#e8c34a",
   maxEnergy: 125,
 
-  updateBuffs: () => {
-    const a = currentAction();
-    if (a === Liberation) applyTeam(PRISMATIC_OVERBLAST, 1);
-    if (a === Outro) queueOutro(LYNAE_OUTRO);
-    if (a === VisualImpact) applyTeam(SPECTRAL_ANALYSIS_TBB, 1);
-  },
-
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 12237.5); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1197.8);
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
     addStat(Stat.Tbb, 10);
@@ -183,12 +182,12 @@ const LYNAE = new Resonator({
 /** Intro, Spark Collision to open the Parade, her Forte line (which is what lays the Shifting
  *  down), then the liberation and the Parade combo out. Visual Impact's own 25s cooldown means it
  *  lands once. */
-const LY_ROTATION = [
-  INTRO, Liberation, Skill, SparkCollision,
+
+const LY_ROTATION = new Rotation([
+  INTRO, START_COMBAT, Liberation, Skill, START_COMBAT, SparkCollision,
   PolychromeLeap1, PolychromeLeap2, PolychromeLeap3,
-  VisualImpact, ECHO_CAST, 
-  Outro,
-];
+  VisualImpact, ECHO_CAST, OUTRO_NEXT,
+]);
 
 const LY_ECHOES = [
   new EchoLoadout(HYVATIA, NEONLIGHT_LEAP_5PC, NEONLIGHT_LEAP_2PC),
@@ -206,8 +205,7 @@ const build = (mode: ResonanceMode): Loadout => new Loadout({
   echoLoadouts: LY_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
   substat: chem("atk", "basic"),
-  opener: LY_ROTATION,
-  loop: LY_ROTATION,
+    rotation: LY_ROTATION,
   mode,
 });
 

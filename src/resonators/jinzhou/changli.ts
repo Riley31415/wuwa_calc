@@ -11,9 +11,10 @@
  * anywhere in either source, so it's left off entirely rather than guessed at.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  applySelf, revoke, casting, currentAction, addStat, forte1, queueOutro, lostOnSwap,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Scaling, applySelf, revokeSelf, casting, currentAction, addStat, forte1, queueOutro, lostOnSwap,
 } from "../../kit.js";
+import { Rotation, START_COMBAT, INTRO, OUTRO_NEXT } from "../../rotation.js";
 import { BLAZING_BRILLIANCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { NM_INFERNO_RIDER, MOLTEN_RIFT_5PC, MOLTEN_RIFT_2PC } from "../../echoes/jinzhou.js";
@@ -55,11 +56,17 @@ const Skill = changliAction("Skill - Tripartite Flames", { node: Node.Skill, cas
 const FlamingSacrifice = changliAction("Forte Heavy - Flaming Sacrifice", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Skill, mv: 654.10, offtune: 31141, energy: 6.61, concerto: 10.00, forte1: -4 });
 
 // --- liberation: Radiance of Fealty — grants 4 Enflamement outright and opens Fiery Feather
-const Liberation = changliAction("Liberation - Radiance of Fealty", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1212.75, offtune: 100800, concerto: 20, forte1: 4, resetEnergy: true });
+const Liberation = changliAction("Liberation - Radiance of Fealty", {
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1212.75, offtune: 100800, concerto: 20, forte1: 4, resetEnergy: true,
+  updateBuffs: () => applySelf(FIERY_FEATHER, 1),
+});
 
 // --- intro / outro. Intro also opens True Sight.
 const Intro = changliAction("Intro - Obedience of Rules", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 148.34, offtune: 5971, energy: 10, concerto: 10 });
-const Outro = changliAction("Outro - Strategy of Duality", { cast: Cast.Outro, active: false });
+const Outro = changliAction("Outro - Strategy of Duality", {
+  cast: Cast.Outro, active: false,
+  updateBuffs: () => queueOutro(CHANGLI_OUTRO),
+});
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -94,7 +101,7 @@ const CH_INHERENT_2 = new Inherent({
 const FIERY_FEATHER = new Buff({
   name: "Changli: Fiery Feather",
   applyStats: () => { if (currentAction() === FlamingSacrifice) addStat(Stat.BonusAtk, 25); },
-  convertStats: () => { if (currentAction() === FlamingSacrifice) revoke(FIERY_FEATHER); },
+  convertStats: () => { if (currentAction() === FlamingSacrifice) revokeSelf(FIERY_FEATHER); },
 });
 
 /** Strategy of Duality: the outro handoff. */
@@ -106,22 +113,21 @@ const CHANGLI_OUTRO = new Buff({
 
 const CHANGLI = new Resonator({
   name: "Changli",
-  abbreviation: "Changli",
   element: Attribute.Fusion,
   weapon: WeaponType.Sword,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#f38b68",
   maxEnergy: 125,
 
+  // her combo finishers/Skill/Intro arm True Sight; the two Sword-of-Fealty casts spend it
   updateBuffs: () => {
     const a = currentAction();
-    if (a === Liberation) applySelf(FIERY_FEATHER, 1);
-    if (a === Outro) queueOutro(CHANGLI_OUTRO);
     if (a === BA4 || a === MA4 || a === Skill || a === Intro) applySelf(TRUE_SIGHT, 1);
-    if (a === SBA || a === SMA) revoke(TRUE_SIGHT);
+    if (a === SBA || a === SMA) revokeSelf(TRUE_SIGHT);
   },
 
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 12762); addStat(Stat.BaseAtk, 410); addStat(Stat.BaseDef, 1181);
   },
 });
@@ -129,17 +135,17 @@ const CHANGLI = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const CHANGLI_TALENTS = new Talent({
   name: "Changli: Talents",
-  applyStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
-const CH_ROTATION = [
+const CH_ROTATION = new Rotation([
   INTRO, SMA,
   Skill, SBA,
   Skill,
   HA, SMA, // hold plunge + dash
   MA4, SMA, MHA,
-  FlamingSacrifice, Liberation, FlamingSacrifice, Outro,
-];
+  FlamingSacrifice, START_COMBAT, Liberation, FlamingSacrifice, START_COMBAT, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -154,6 +160,5 @@ export const CHANGLI_LOADOUT = new Loadout({
   echoLoadouts: [new EchoLoadout(NM_INFERNO_RIDER, MOLTEN_RIFT_5PC, MOLTEN_RIFT_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: chem("atk", "skill"),
-  opener: CH_ROTATION,
-  loop: CH_ROTATION,
+    rotation: CH_ROTATION,
 });

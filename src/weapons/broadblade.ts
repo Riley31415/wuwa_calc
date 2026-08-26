@@ -2,17 +2,17 @@
  *  resonator, not just its own. */
 import { isType,
   Buff, Weapon, WeaponType, Stat, Attribute, Type1, Cast,
-  addStat, frozenStacks, casting, currentAction, revoke, applySelf, applyTeam, removeStack, lostOnSwap, isHeld,
+  addStat, frozenStacks, casting, currentAction, revokeSelf, applySelf, applyTeam, removeStack, lostOnSwap, isHeld,
 } from "../kit.js";
 import { applied } from "../kit.js";
-import { SHIELD } from "../statuses.js";
+import { SHIELD, HEALS } from "../statuses.js";
 
 /** Jiyan's sig, R1: Swordsworn. +12% Attribute DMG Bonus flat. Every Intro/Liberation cast
  *  grants +24% Heavy Attack DMG Bonus, up to 2 frozenStacks, 14s. */
 export const VERDANT_SUMMIT = new Weapon({
   weaponType: WeaponType.Broadblade,
   name: "Verdant Summit",
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseAtk, 587.5);
     addStat(Stat.CritDmg, 48.6);
     addStat(Stat.DmgBonus, 12);
@@ -23,7 +23,7 @@ export const SWORDSWORN_STACKS = new Buff({
   name: "Verdant Summit: Swordsworn", maxStacks: 2,
   updateBuffs: () => {
     addStat(Stat.DmgBonus, 24 * frozenStacks(), Type1.Heavy);
-    if (casting(Cast.Outro)) revoke(SWORDSWORN_STACKS);
+    if (casting(Cast.Outro)) revokeSelf(SWORDSWORN_STACKS);
   },
 });
 
@@ -33,7 +33,7 @@ export const SWORDSWORN_STACKS = new Buff({
 export const AGES_OF_HARVEST = new Weapon({
   weaponType: WeaponType.Broadblade,
   name: "Ages of Harvest",
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseAtk, 587.5);
     addStat(Stat.CritDmg, 48.6);
     addStat(Stat.DmgBonus, 12);
@@ -46,12 +46,12 @@ export const AGES_OF_HARVEST = new Weapon({
 export const AGELESS_MARKING = new Buff({
   name: "Ages of Harvest: Ageless Marking",
   applyStats: () => addStat(Stat.DmgBonus, 24, Type1.Skill),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(AGELESS_MARKING); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(AGELESS_MARKING); },
 });
 export const ETHEREAL_ENDOWMENT = new Buff({
   name: "Ages of Harvest: Ethereal Endowment",
   applyStats: () => addStat(Stat.DmgBonus, 24, Type1.Skill),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(ETHEREAL_ENDOWMENT); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(ETHEREAL_ENDOWMENT); },
 });
 
 /** Augusta's sig, R1. +12% ATK flat. Intro/Skill cast grants +20% Heavy Attack DMG Bonus for
@@ -59,7 +59,7 @@ export const ETHEREAL_ENDOWMENT = new Buff({
 export const THUNDERFLARE_DOMINION = new Weapon({
   weaponType: WeaponType.Broadblade,
   name: "Thunderflare Dominion",
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseAtk, 675);
     addStat(Stat.CritRate, 12.15);
     addStat(Stat.BonusAtk, 12);
@@ -72,13 +72,13 @@ export const THUNDERFLARE_DOMINION = new Weapon({
 export const THUNDERBLAZE_DMG = new Buff({
   name: "Thunderflare Dominion: Thunderblaze Eminence (heavy)",
   applyStats: () => addStat(Stat.DmgBonus, 20, Type1.Heavy),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(THUNDERBLAZE_DMG); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(THUNDERBLAZE_DMG); },
 });
 export const THUNDERBLAZE_DEF = new Buff({
   name: "Thunderflare Dominion: Thunderblaze Eminence (def ignore)", maxStacks: 5,
   updateBuffs: () => {
     addStat(Stat.DefIgnoreNew, 7.2 * frozenStacks(), Type1.Heavy);
-    if (casting(Cast.Outro)) revoke(THUNDERBLAZE_DEF);
+    if (casting(Cast.Outro)) revokeSelf(THUNDERBLAZE_DEF);
   },
 });
 
@@ -90,7 +90,7 @@ export const WILDFIRE_LIB_DMG = new Buff({
   name: "Wildfire Mark: Blazing Starfire",
   applyStats: () => addStat(Stat.DmgBonus, 24, Type1.Liberation),
   updateBuffs: () => { if (isType(Type1.Heavy)) applyTeam(WILDFIRE_TEAM, 1); },
-  convertStats: () => { if (casting(Cast.Outro)) revoke(WILDFIRE_LIB_DMG); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(WILDFIRE_LIB_DMG); },
 });
 export const WILDFIRE_TEAM = new Buff({
   name: "Wildfire Mark: Blazing Starfire (team)",
@@ -99,7 +99,7 @@ export const WILDFIRE_TEAM = new Buff({
 export const WILDFIRE_MARK = new Weapon({
   weaponType: WeaponType.Broadblade,
   name: "Wildfire Mark",
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseAtk, 587.5);
     addStat(Stat.CritDmg, 48.6);
     addStat(Stat.BonusAtk, 12);
@@ -116,7 +116,7 @@ export const WILDFIRE_MARK = new Weapon({
 export const JINGRAN_SIG = new Weapon({
   weaponType: WeaponType.Broadblade,
   name: "Thousandfold Deliverance",
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseAtk, 413);
     addStat(Stat.BonusHp, 72.2);
     addStat(Stat.DmgBonus, 12);
@@ -157,10 +157,10 @@ export const CRADLE_OF_LIFE = new Buff({
 export const STARFIELD_CALIBRATOR = new Weapon({
   weaponType: WeaponType.Broadblade,
   name: "Starfield Calibrator",
-  applyStats: () => { addStat(Stat.BaseAtk, 412.5); addStat(Stat.Er, 77.04); addStat(Stat.BonusDef, 16); },
+  constantStats: () => { addStat(Stat.BaseAtk, 412.5); addStat(Stat.Er, 77.04); addStat(Stat.BonusDef, 16); },
   updateBuffs: () => {
     if (casting(Cast.Skill)) applySelf(DEFINITE_SOLUTION_CONCERTO, 1);
-    if (currentAction().heals) applyTeam(DEFINITE_SOLUTION, 1);
+    if (applied(HEALS)) applyTeam(DEFINITE_SOLUTION, 1);
   },
 });
 export const DEFINITE_SOLUTION = new Buff({

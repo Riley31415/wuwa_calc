@@ -24,10 +24,11 @@
  * genuinely team-wide buffs just to be reachable from a teammate's turn.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  applySelf, forte2, setForte2, stacksOf, isHeld, currentAction,
-  currentTeam, queue, revoke, addStat, getStat, frozenStacks,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Scaling, applySelf, forte2, setForte2, stacksOf, isHeld, currentAction, currentTeam, queue, revokeSelf, addStat,
+  getStat, frozenStacks,
 } from "../../kit.js";
+import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { applied, applyTeam } from "../../kit.js";
 import { SHIELD } from "../../statuses.js";
 import { JINGRAN_SIG, THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
@@ -75,13 +76,28 @@ const Lib = jingranAction("Liberation - Burial of Thousand Souls", {
  *  it's a summon, not a press. */
 const ACTION_LIB_FUA = jingranAction("Liberation - Chimei Wangliang", { node: Node.Liberation, type: Type1.Heavy, mv: 83.51 });
 
-const Intro = jingranAction("Intro - Question the Tombs", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81, energy: 10, concerto: 10, offtune: 8000, forte1: 100 });
-const Outro = jingranAction("Outro - Rising Fortune and Ebbing Evil", { cast: Cast.Outro, type: Type1.Outro, mv: 795, active: false });
+// his Intro trades every Ghost Shroud held for the same count of Fortune in Disguise — run here,
+// ahead of JINGRAN's own per-shield grant, so a shield the Intro itself grants carries into the
+// next cycle rather than being spent by that same cast
+const Intro = jingranAction("Intro - Question the Tombs", {
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81, energy: 10, concerto: 10, offtune: 8000, forte1: 100,
+  updateBuffs: () => {
+    const shroud = stacksOf(JINGRAN_GHOST_SHROUD);
+    if (shroud) { revokeSelf(JINGRAN_GHOST_SHROUD); applySelf(JINGRAN_FORTUNE, shroud); }
+  },
+});
+const Outro = jingranAction("Outro - Rising Fortune and Ebbing Evil", {
+  cast: Cast.Outro, type: Type1.Outro, mv: 795, active: false,
+  updateBuffs: () => { revokeSelf(JINGRAN_FORTUNE); setForte2(0); },
+});
 
 // --- heavy attacks ("forte skills"). Unprefixed = Yang Font's own (FHA = Stardome Meander,
 //     switches him to Yin Vessel on landing), EFHA (Yin Vessel's own) = Soul Raid.
-const FHA = jingranAction("Forte - Stardome Meander", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 240.38, energy: 8.5, concerto: 13, offtune: 10400, forte1: -300 }); // 24.04%+24.04%+48.08%+144.22%
-const EFHA = jingranAction("Forte - Soul Raid", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 234.29, energy: 8.53, concerto: 13, offtune: 10140, forte1: -300 }); // 16.40%x2+21.09%x3+138.22%
+// granted here, not read here — JINGRAN_FIRE_OF_LIFE's own convertStats() does the spend/queue/
+// MV-boost/Qi-refund work, this same action
+const BURNS_MINGFIRE = { updateBuffs: () => { if (forte2() > 0) applySelf(JINGRAN_FIRE_OF_LIFE, 1); } };
+const FHA = jingranAction("Forte - Stardome Meander", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 240.38, energy: 8.5, concerto: 13, offtune: 10400, forte1: -300, ...BURNS_MINGFIRE }); // 24.04%+24.04%+48.08%+144.22%
+const EFHA = jingranAction("Forte - Soul Raid", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 234.29, energy: 8.53, concerto: 13, offtune: 10140, forte1: -300, ...BURNS_MINGFIRE }); // 16.40%x2+21.09%x3+138.22%
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -147,7 +163,7 @@ const JR_INHERENT_2 = new Inherent({
     const a = currentAction();
     if (currentTeam().slot.resonator === JINGRAN || !applied(SHIELD)) return;
     applySelf(JINGRAN_GHOST_SHROUD, 2 * applied(SHIELD));
-    if (isHeld(JINGRAN_FIXATION)) { revoke(JINGRAN_FIXATION); applySelf(JINGRAN_GHOST_SHROUD, 15); }
+    if (isHeld(JINGRAN_FIXATION)) { revokeSelf(JINGRAN_FIXATION); applySelf(JINGRAN_GHOST_SHROUD, 15); }
   },
 });
 
@@ -188,7 +204,7 @@ const JINGRAN_FIRE_OF_LIFE = new Buff({
     addStat(Stat.AddForte2, -25);
     if (mingfire > 25) addStat(Stat.AddForte1, 200);
     addStat(Stat.AddMv, (a === FHA ? 21.65 : 21.10) * fireSteps()); // 2.17%+2.17%+4.33%+12.98% / 1.48%x2+1.90%x3+12.44%
-    revoke(JINGRAN_FIRE_OF_LIFE);
+    revokeSelf(JINGRAN_FIRE_OF_LIFE);
   },
 });
 
@@ -199,10 +215,10 @@ const SHIELDS = new Map<Action, number>([
 
 const JINGRAN = new Resonator({
   name: "Jingran",
-  abbreviation: "Jingoat",
   element: Attribute.Fusion,
   weapon: WeaponType.Broadblade,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#f2603c",
   maxEnergy: 125,
 
@@ -217,27 +233,13 @@ const JINGRAN = new Resonator({
   // and both Forte heavies, one off everything else
   updateDebuffs: () => {
     const n = SHIELDS.get(currentAction());
-    if (n) applyTeam(SHIELD, n);
+    if (n) applySelf(SHIELD, n);
   },
 
-  updateBuffs: () => {
-    const a = currentAction();
-    if (a === Intro) {
-      const shroud = stacksOf(JINGRAN_GHOST_SHROUD);
-      if (shroud) { revoke(JINGRAN_GHOST_SHROUD); applySelf(JINGRAN_FORTUNE, shroud); }
-    }
-    // base kit: +1 per shield whenever he gains one of his own — checked after the Intro spend
-    // above, so a shield Intro itself grants carries into the next cycle rather than being spent
-    // by that same cast
-    if (applied(SHIELD)) applySelf(JINGRAN_GHOST_SHROUD, applied(SHIELD));
-    if (a === Outro) revoke(JINGRAN_FORTUNE);
-    // granted here, not read here — JINGRAN_FIRE_OF_LIFE's own convertStats() does the spend/queue/
-    // MV-boost/Qi-refund work, this same action
-    if ((a === FHA || a === EFHA) && forte2() > 0) applySelf(JINGRAN_FIRE_OF_LIFE, 1);
-    if (a === Outro) setForte2(0);
-  },
+  // base kit: +1 Ghost Shroud per shield whenever he gains one of his own
+  updateBuffs: () => { if (applied(SHIELD)) applySelf(JINGRAN_GHOST_SHROUD, applied(SHIELD)); },
 
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 15375); addStat(Stat.BaseAtk, 313);
   },
 });
@@ -245,18 +247,19 @@ const JINGRAN = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
 const JINGRAN_TALENTS = new Talent({
   name: "Jingran: Talents",
-  applyStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusHp, 12); }
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusHp, 12); }
 });
 
 // Qi economy: intro 100, liberation +200 to 300, each of the four heavy attacks spends 300 and
 // the first three refund 200 while Mingfire is above 25.
-const JR_ROTATION = [
+
+const JR_ROTATION = new Rotation([
   INTRO, Lib, FHA,
   EBA2, EBA3, EBA4, EFHA,
   Skill1, Skill2, FHA,
   ESkill1, ESkill2, EFHA,
-  ECHO_CAST, Outro,
-];
+  ECHO_CAST, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -270,8 +273,7 @@ export const JINGOAT_LOADOUT = new Loadout({
   weapons: [JINGRAN_SIG, NEW_STD_BRAUDBLADE, THUNDERFLARE_DOMINION, LUSTROUS_RAZOR, VERDANT_SUMMIT],
   echoLoadouts: [new EchoLoadout(MYRIAD_SNARE, LAMP_5PC, LAMP_2PC),
   new EchoLoadout(MYRIAD_SNARE, COV_3PC, LAMP_2PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.HP4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1, Mainstat.HP1),
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.HP4, Mainstat.Fusion3, Mainstat.ATK1, Mainstat.HP1),
   substat: chem("hp", "heavy"),
-  opener: JR_ROTATION,
-  loop: JR_ROTATION,
+    rotation: JR_ROTATION,
 });

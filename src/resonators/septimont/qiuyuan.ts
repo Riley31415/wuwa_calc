@@ -13,10 +13,11 @@
  * isn't either — `evaluate()` empties both bars on an outro itself.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  applySelf, forte1, currentAction, casting, queueOutro, applyTeam, revoke, lostOnSwap,
-  addStat, frozenStacks,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Scaling, applySelf, forte1, currentAction, casting, queueOutro, applyTeam, revokeSelf, lostOnSwap, addStat,
+  frozenStacks,
 } from "../../kit.js";
+import { Rotation, START_COMBAT, OPENER, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { REJUV_2PC, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, SIERRA_GALE_2PC, BELL_BORNE_GEOCHELONE } from "../../echoes/jinzhou.js";
@@ -35,6 +36,9 @@ const BA1 = qiuyuanAction("Basic - Inkwash 1", { node: Node.Normal, cast: Cast.B
 const BA2 = qiuyuanAction("Basic - Inkwash 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 69.6, energy: 1.26, concerto: 4, offtune: 4000 });
 const BA3 = qiuyuanAction("Basic - Inkwash 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 164.25, energy: 2.98, concerto: 9.46, offtune: 9440, forte1: 100 });
 
+// grants no Soliloquy of its own; it exists to chain straight into Inkwash Stage 4
+const HA = qiuyuanAction("Heavy - Inkwash", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 165.61, energy: 2.09, concerto: 6.67, offtune: 6664 });
+
 const EBA1 = qiuyuanAction("Forte - Thus Spoke the Blade: Inkwash 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 119.3, energy: 1.5, concerto: 4.8, offtune: 4800, forte1: 100 });
 const EBA2 = qiuyuanAction("Forte - Thus Spoke the Blade: Inkwash 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 185.5, energy: 2.34, concerto: 7.47, offtune: 7464, forte1: 100 });
 const EBA3 = qiuyuanAction("Forte - Thus Spoke the Blade: Inkwash 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 145.77, energy: 3.69, concerto: 7.07, offtune: 5862, forte1: 100 });
@@ -44,6 +48,7 @@ const Skill = qiuyuanAction("Skill - Through the Groves", { node: Node.Skill, ca
 
 const Liberation = qiuyuanAction("Liberation - Sundering Strike", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Echo, mv: 795.24, concerto: 20, offtune: 96000, resetEnergy: true,
+  updateBuffs: () => applyTeam(SUNDERING_STRIKE_CD, 1),
 });
 
 const Intro = qiuyuanAction("Intro - Attack the Must-Defend", {
@@ -51,6 +56,7 @@ const Intro = qiuyuanAction("Intro - Attack the Must-Defend", {
 });
 const Outro = qiuyuanAction("Outro - Strike Before Ready", {
   cast: Cast.Outro, type: Type1.Echo, mv: 100, active: false,
+  updateBuffs: () => queueOutro(QIUYUAN_OUTRO),
 });
 
 // cast: HEAVY (real heavy-attack identity) plus cast2: ECHO ("considered as performing Echo Skill")
@@ -63,7 +69,7 @@ const FHA3 = qiuyuanAction("Forte - Thus Spoke the Blade: To Sacrifice", { node:
 const FLOWING_PANACEA = new Buff({
   name: "Qiuyuan: Flowing Panacea",
   applyStats: () => addStat(Stat.BonusAtk, 10),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(FLOWING_PANACEA); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(FLOWING_PANACEA); },
 });
 
 // team-wide, permanent once granted at 400 Soliloquy
@@ -113,23 +119,20 @@ const QY_INHERENT_1 = new Inherent({
 
 const QIUYUAN = new Resonator({
   name: "Qiuyuan",
-  abbreviation: "QY",
   element: Attribute.Aero,
   weapon: WeaponType.Sword,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#4fae6b",
   maxEnergy: 125,
   updateBuffs: () => {
-    const a = currentAction();
-    if (a === Outro) queueOutro(QIUYUAN_OUTRO);
-    if (a === Liberation) applyTeam(SUNDERING_STRIKE_CD, 1);
     // forte1() only reflects every *prior* action's own contribution, so what the gauge is about
     // to become (forte1() + a.forte1) is what has to be checked, not what it reads right now
-    const soliloquy = forte1() + a.forte1;
+    const soliloquy = forte1() + currentAction().forte1;
     if (soliloquy >= 400) applyTeam(BAMBOO_SHADE, 1);
   },
 
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 12238); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1198);
   },
 });
@@ -137,10 +140,22 @@ const QIUYUAN = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
 const QIUYUAN_TALENTS = new Talent({
   name: "Qiuyuan: Talents",
-  applyStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
-const QY_ROTATION = [INTRO, EBA3, EBA4, ECHO_CAST, Liberation, Skill, FHA1, FHA2, FHA3, Outro];
+// His Liberation is a team buff, so the opener spends it on a swap-in of its own rather than
+// waiting for his turn — it is the one cast worth being on field for in the fight's first seconds.
+// The rest follows when the field comes back round; no second Liberation, it has already gone.
+
+const QY_ROTATION = new Rotation([
+  OPENER,
+  HA, EBA4, HA, EBA4, ECHO_CAST,
+  EBA1, EBA2, EBA1, EBA2, 
+  FHA1, FHA2, FHA3, 
+  OUTRO_NEXT,
+
+  INTRO, EBA3, EBA4, ECHO_CAST, START_COMBAT, Liberation, START_COMBAT, Skill, FHA1, FHA2, FHA3, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -164,6 +179,5 @@ export const QY_LOADOUT = new Loadout({
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
   substat: chem("atk", "heavy"),
-  opener: QY_ROTATION,
-  loop: QY_ROTATION,
+    rotation: QY_ROTATION,
 });

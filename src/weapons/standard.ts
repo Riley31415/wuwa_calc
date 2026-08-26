@@ -3,8 +3,10 @@
  *  Resolution (5-star), and the "new standard" 5-star set. */
 import { isType,
   Buff, Weapon, WeaponType, Stat, Type1, Cast, Attribute,
-  addStat, applySelf, isHeld, removeStack, revoke, casting, currentAction, frozenStacks, queueOutro, stacksOfEnemy,
+  addStat, applySelf, isHeld, removeStack, revokeSelf, casting, currentAction, frozenStacks, queueOutro, stacksOfEnemy,
 } from "../kit.js";
+import { applied } from "../kit.js";
+import { HEALS } from "../statuses.js";
 import { TUNE_STRAIN_INTERFERED } from "../tunebreak.js";
 
 /* ---------------------------------------------------------------- Ceaseless Aria (4-star, 5) */
@@ -31,7 +33,7 @@ function concertoWeapon(name: string, weaponType: WeaponType): Weapon {
     weaponType,
     standard: true,
     name: `${name} R5`,
-    applyStats: () => { addStat(Stat.BaseAtk, 337.5); addStat(Stat.Er, 51.84); },
+    constantStats: () => { addStat(Stat.BaseAtk, 337.5); addStat(Stat.Er, 51.84); },
     updateBuffs: () => { if (casting(Cast.Skill)) applySelf(aria, 1); },
   });
 }
@@ -49,14 +51,14 @@ export const STATIC_MIST = new Weapon({
   weaponType: WeaponType.Pistols,
   standard: true,
   name: "Static Mist",
-  applyStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.Er, 12.8); },
+  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.Er, 12.8); },
   updateBuffs: () => { if (casting(Cast.Outro)) queueOutro(STATIC_MIST_HANDOFF); },
 });
 
 export const STATIC_MIST_HANDOFF = new Buff({
   name: "Static Mist: Stormy Resolution",
   applyStats: () => addStat(Stat.BonusAtk, 10),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(STATIC_MIST_HANDOFF); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(STATIC_MIST_HANDOFF); },
 });
 
 /** Emerald of Genesis, R1. +12.8% ER flat. Skill DMG stacks ATK twice over (6% a stack). */
@@ -64,14 +66,14 @@ export const EMERALD_OF_GENESIS = new Weapon({
   weaponType: WeaponType.Sword,
   standard: true,
   name: "Emerald of Genesis",
-  applyStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.Er, 12.8); },
+  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.Er, 12.8); },
   updateBuffs: () => { if (casting(Cast.Skill)) applySelf(EOG_STACKS, 1); },
 });
 
 export const EOG_STACKS = new Buff({
   name: "Emerald of Genesis: Stormy Resolution", maxStacks: 2,
   applyStats: () => addStat(Stat.BonusAtk, 6 * frozenStacks()),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(EOG_STACKS); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(EOG_STACKS); },
 });
 
 /** Cosmic Ripples, R1. +12.8% ER flat. Basic Attack DMG stacks Basic DMG Bonus 5x over (3.2% a stack). */
@@ -79,14 +81,14 @@ export const COSMIC_RIPPLES = new Weapon({
   weaponType: WeaponType.Rectifier,
   standard: true,
   name: "Cosmic Ripples",
-  applyStats: () => { addStat(Stat.BaseAtk, 500); addStat(Stat.BonusAtk, 54); addStat(Stat.Er, 12.8); },
+  constantStats: () => { addStat(Stat.BaseAtk, 500); addStat(Stat.BonusAtk, 54); addStat(Stat.Er, 12.8); },
   updateBuffs: () => { if (isType(Type1.Basic)) applySelf(COSMIC_RIPPLES_STACKS, 1); },
 });
 
 export const COSMIC_RIPPLES_STACKS = new Buff({
   name: "Cosmic Ripples: Stormy Resolution", maxStacks: 5,
   applyStats: () => addStat(Stat.DmgBonus, 3.2 * frozenStacks(), Type1.Basic),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(COSMIC_RIPPLES_STACKS); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(COSMIC_RIPPLES_STACKS); },
 });
 
 /** Abyss Surges, R1. +12.8% ER flat. A Skill hit grants Basic DMG Bonus; a Basic hit grants
@@ -95,7 +97,7 @@ export const ABYSS_SURGES = new Weapon({
   weaponType: WeaponType.Gauntlets,
   standard: true,
   name: "Abyss Surges",
-  applyStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.BonusAtk, 36.45); addStat(Stat.Er, 12.8); },
+  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.BonusAtk, 36.45); addStat(Stat.Er, 12.8); },
   updateBuffs: () => {
     if (isType(Type1.Skill)) applySelf(ABYSS_SKILL_HIT, 1);
     if (isType(Type1.Basic)) applySelf(ABYSS_BASIC_HIT, 1);
@@ -105,13 +107,13 @@ export const ABYSS_SURGES = new Weapon({
 export const ABYSS_SKILL_HIT = new Buff({
   name: "Abyss Surges: Stormy Resolution",
   applyStats: () => addStat(Stat.DmgBonus, 10, Type1.Basic),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(ABYSS_SKILL_HIT); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(ABYSS_SKILL_HIT); },
 });
 
 export const ABYSS_BASIC_HIT = new Buff({
   name: "Abyss Surges: Stormy Resolution",
   applyStats: () => addStat(Stat.DmgBonus, 10, Type1.Skill),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(ABYSS_BASIC_HIT); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(ABYSS_BASIC_HIT); },
 });
 
 /** Lustrous Razor, R1. +12.8% ER flat. Skill cast stacks Liberation DMG Bonus 3x over (7% a stack). */
@@ -119,14 +121,14 @@ export const LUSTROUS_RAZOR = new Weapon({
   weaponType: WeaponType.Broadblade,
   standard: true,
   name: "Lustrous Razor",
-  applyStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.BonusAtk, 36.45); addStat(Stat.Er, 12.8); },
+  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.BonusAtk, 36.45); addStat(Stat.Er, 12.8); },
   updateBuffs: () => { if (casting(Cast.Skill)) applySelf(LUSTROUS_RAZOR_STACKS, 1); },
 });
 
 export const LUSTROUS_RAZOR_STACKS = new Buff({
   name: "Lustrous Razor: Stormy Resolution", maxStacks: 3,
   applyStats: () => addStat(Stat.DmgBonus, 7 * frozenStacks(), Type1.Liberation),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(LUSTROUS_RAZOR_STACKS); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(LUSTROUS_RAZOR_STACKS); },
 });
 
 /* ------------------------------------------------------------------- new standard (5-star, 5) */
@@ -147,7 +149,7 @@ export const NEW_STD_BRAUDBLADE = new Weapon({
   weaponType: WeaponType.Broadblade,
   standard: true,
   name: "Radiance Cleaver",
-  applyStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.BonusAtk, 12); },
   updateBuffs: () => { if (hitInterfered()) applySelf(EDGE_BREAKER_BUFF, 1); },
 });
 export const EDGE_BREAKER_BUFF = new Buff({
@@ -162,7 +164,7 @@ export const NEW_STD_GAUNTLET = new Weapon({
   weaponType: WeaponType.Gauntlets,
   standard: true,
   name: "Pulsation Bracer",
-  applyStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.BonusAtk, 12); },
   updateBuffs: () => { if (hitInterfered()) applySelf(BARRIER_BREACHER_STACKS, 1); },
 });
 export const BARRIER_BREACHER_STACKS = new Buff({
@@ -176,7 +178,7 @@ export const NEW_STD_SWORD = new Weapon({
   weaponType: WeaponType.Sword,
   standard: true,
   name: "Laser Shearer",
-  applyStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.Er, 38.88); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.Er, 38.88); addStat(Stat.BonusAtk, 12); },
   updateBuffs: () => { if (hitInterfered()) applySelf(SIGNAL_CATCHER_BUFF, 1); },
 });
 export const SIGNAL_CATCHER_BUFF = new Buff({
@@ -194,14 +196,14 @@ export const BLOODPACTS_PLEDGE = new Weapon({
   weaponType: WeaponType.Sword,
   standard: true,
   name: "Bloodpact's Pledge R5",
-  applyStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.Er, 38.88); },
-  updateBuffs: () => { if (currentAction().heals) applySelf(HARMONIOUS_VIBRANCY, 1); },
+  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.Er, 38.88); },
+  updateBuffs: () => { if (applied(HEALS)) applySelf(HARMONIOUS_VIBRANCY, 1); },
 });
 
 export const HARMONIOUS_VIBRANCY = new Buff({
   name: "Bloodpact's Pledge R5: Harmonious Vibrancy",
   applyStats: () => addStat(Stat.DmgBonus, 26, Type1.Skill),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(HARMONIOUS_VIBRANCY); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(HARMONIOUS_VIBRANCY); },
 });
 
 /** The Unbound Flow half: 26% team Aero Amplification for 30s, so permanent uptime, and only on
@@ -220,14 +222,14 @@ export const NEW_STD_RECTIFIER = new Weapon({
   weaponType: WeaponType.Rectifier,
   standard: true,
   name: "Boson Astrolabe",
-  applyStats: () => { addStat(Stat.BaseAtk, 525); addStat(Stat.Er, 38.88); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.BaseAtk, 525); addStat(Stat.Er, 38.88); addStat(Stat.BonusAtk, 12); },
   updateGlobal: () => { if (casting(Cast.TuneBreak)) applySelf(PATH_OBSERVER_BUFF, 1); },
 });
 
 export const PATH_OBSERVER_BUFF = new Buff({
   name: "Boson Astrolabe: Path Observer",
   applyStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Type1.Basic); },
-  convertStats: () => { if (casting(Cast.Outro)) revoke(PATH_OBSERVER_BUFF); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(PATH_OBSERVER_BUFF); },
 });
 
 /** Phasic Homogenizer, R1: Insight Bearer, +12% ATK flat. Any team member's Tune Break cast grants
@@ -236,12 +238,12 @@ export const NEW_STD_PISTOL = new Weapon({
   weaponType: WeaponType.Pistols,
   standard: true,
   name: "Phasic Homogenizer",
-  applyStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.BonusAtk, 12); },
   updateGlobal: () => { if (casting(Cast.TuneBreak)) applySelf(INSIGHT_BEARER_BUFF, 1); },
 });
 
 export const INSIGHT_BEARER_BUFF = new Buff({
   name: "Phasic Homogenizer: Insight Bearer",
   applyStats: () => addStat(Stat.DmgBonus, 20),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(INSIGHT_BEARER_BUFF); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(INSIGHT_BEARER_BUFF); },
 });

@@ -9,10 +9,11 @@
  * against the migrated (old-engine) sheet's own totals.
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling,
-  applySelf, applyTeam, revokeTeam, stacksOfTeam, isHeld, casting, currentAction, addStat, revoke, queue,
-  queueOutro, lostOnSwap,
+  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Type2, Cast, Node, Scaling, applySelf, applyTeam, revokeTeam, stacksOfTeam, isHeld, casting, currentAction,
+  addStat, revokeSelf, queue, queueOutro, lostOnSwap,
 } from "../../kit.js";
+import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { STATIC_MIST, CADENZA, NEW_STD_PISTOL } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";
 import { NM_HECATE, EMPYREAN_ANTHEM_5PC, EMPYREAN_ANTHEM_2PC, HECATE } from "../../echoes/rinascita.js";
@@ -46,7 +47,10 @@ const FSkill = mortefiAction("Forte Skill - Fury Fugue", { node: Node.Forte, cas
 
 // --- resonance liberation: Violent Finale opens Burning Rhapsody; Marcato's own window is queued
 //     separately off Outro (see ACTION_LIB_COORDS below)
-const Liberation = mortefiAction("Liberation - Violent Finale", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 159.05, concerto: 20, offtune: 96000, resetEnergy: true });
+const Liberation = mortefiAction("Liberation - Violent Finale", {
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 159.05, concerto: 20, offtune: 96000, resetEnergy: true,
+  updateBuffs: () => applyTeam(BURNING_RHAPSODY, 1),
+});
 /** The whole Burning Rhapsody window, lumped: 35 Coordinated Attacks x 2 Marcato = 70 hits, the
  *  migrated sheet's own assumed real-rotation uptime, not a theoretical duration/0.35s max. */
 const ACTION_LIB_COORDS = mortefiAction("Liberation - Marcato x70", { node: Node.Liberation, type: Type1.Liberation, type2: Type2.Coordinated, mv: 31.81 * 70, active: false });
@@ -55,7 +59,11 @@ const ACTION_S5_MARCATO = mortefiAction("Liberation - Marcato x4 (S5 Funerary Qu
 
 // --- intro / outro
 const Intro = mortefiAction("Intro - Dissonance", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 168.99, energy: 10, concerto: 10, offtune: 8000 });
-const Outro = mortefiAction("Outro - Rage Transposition", { cast: Cast.Outro, mv: 0, active: false });
+const Outro = mortefiAction("Outro - Rage Transposition", {
+  cast: Cast.Outro, mv: 0, active: false,
+  // Burning Rhapsody's whole Marcato total lands here, as one lump action
+  updateBuffs: () => { queue(ACTION_LIB_COORDS); queueOutro(MORTEFI_OUTRO); },
+});
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -71,7 +79,7 @@ const BURNING_RHAPSODY = new Buff({
 const HARMONIC_CONTROL = new Buff({
   name: "Mortefi: Harmonic Control",
   applyStats: () => { if (currentAction() === FSkill) addStat(Stat.DmgBonus, 25); },
-  convertStats: () => { if (casting(Cast.Outro)) revoke(HARMONIC_CONTROL); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(HARMONIC_CONTROL); },
 });
 /** Harmonic Control's own trigger — always-equipped Inherent Skill piece. */
 const MO_INHERENT_1 = new Inherent({
@@ -140,21 +148,15 @@ const MORTEFI_S6 = new Sequence({
  *  own base stat line. `standardCharacter: true` — see the file header. */
 const MORTEFI = new Resonator({
   name: "Mortefi",
-  abbreviation: "Mort",
   element: Attribute.Fusion,
   weapon: WeaponType.Pistols,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#e8734f",
   maxEnergy: 125,
   standardCharacter: true,
 
-  updateBuffs: () => {
-    const a = currentAction();
-    if (a === Liberation) applyTeam(BURNING_RHAPSODY, 1);
-    if (a === Outro) { queue(ACTION_LIB_COORDS); queueOutro(MORTEFI_OUTRO); }
-  },
-
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 10025); addStat(Stat.BaseAtk, 250); addStat(Stat.BaseDef, 1137);
   },
 });
@@ -163,22 +165,21 @@ const MORTEFI = new Resonator({
 // as every other resonator's own
 const MORTEFI_TALENTS = new Talent({
   name: "Mortefi: Talents",
-  applyStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Fusion); },
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Fusion); },
 });
 
 /** A kit-valid line: Intro, a full Impromptu Show combo, Passionate Variation, Liberation (opens
  *  Burning Rhapsody — its own Marcato total queued off Outro), a second combo back to 100
  *  Annoyance, Fury Fugue while the window's still open (S5's own real trigger), Outro. */
-const MO_ROTATION = [
-  INTRO,
-  Skill,
+
+const MO_ROTATION = new Rotation([
+  INTRO, Skill,
   BA4, // TODO swap this
   BA1, BA2, BA3, BA4,
   FSkill,
   Liberation,
-  ECHO_CAST,
-  Outro,
-];
+  ECHO_CAST, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -196,7 +197,6 @@ export const MORT_LOADOUT = new Loadout({
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: chem("atk", "basic"),
-  opener: MO_ROTATION,
-  loop: MO_ROTATION,
+    rotation: MO_ROTATION,
   sequences: [MORTEFI_S1, MORTEFI_S2, MORTEFI_S3, MORTEFI_S4, MORTEFI_S5, MORTEFI_S6],
 });

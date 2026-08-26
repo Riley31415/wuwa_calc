@@ -16,11 +16,11 @@
  * Counter has no sheet row at all, so it's still bare (nanoka's own MV only).
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  applySelf, applyTeam, revoke, casting, currentAction, currentTeam, addStat, frozenStacks, getStat,
-  queueOutro, queueOn,
-  lostOnSwap,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Scaling, applySelf, applyTeam, revokeSelf, casting, currentAction, currentTeam, addStat, frozenStacks, getStat,
+  queueOutro, queueOn, lostOnSwap,
 } from "../../kit.js";
+import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { TRAGICOMEDY } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { NM_HERON, MIDNIGHT_VEIL_5PC, MIDNIGHT_VEIL_2PC } from "../../echoes/rinascita.js";
@@ -54,10 +54,16 @@ const FBA2 = rocciaAction("Forte Basic - Real Fantasy 2", { node: Node.Forte, ca
 const FBA3 = rocciaAction("Forte Basic - Real Fantasy 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 357.86, energy: 8, concerto: 25, offtune: 8000, forte1: -100 });
 
 // Resonance Cost 125 (maxEnergy below) is nanoka's own declared cost, not the migrated sheet's 0
-const Liberation = rocciaAction("Liberation - Commedia Improvviso!", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 835.02, concerto: 20, offtune: 96000, resetEnergy: true });
+const Liberation = rocciaAction("Liberation - Commedia Improvviso!", {
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 835.02, concerto: 20, offtune: 96000, resetEnergy: true,
+  updateBuffs: () => applyTeam(COMMEDIA_TEAM_ATK),
+});
 
 const Intro = rocciaAction("Intro - Pero, Help", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 168.99, energy: 10, concerto: 10, offtune: 10824, forte1: 100 });
-const Outro = rocciaAction("Outro - Applause, Please!", { cast: Cast.Outro, active: false });
+const Outro = rocciaAction("Outro - Applause, Please!", {
+  cast: Cast.Outro, active: false,
+  updateBuffs: () => queueOutro(APPLAUSE_HANDOFF),
+});
 
 /** 100 flat Havoc DMG, Utility damage type, DMG-bonus-immune (Scaling.Fixed reads no stat/buff).
  *  Queued once by ROCCIA's own kit on the recipient's own next Intro — see updateGlobal() below. */
@@ -72,7 +78,7 @@ const MAGIC_BOX = rocciaAction("Utility - Super Attractive Magic Box", {
 const IMMERSIVE_PERFORMANCE = new Buff({
   name: "Roccia: Immersive Performance",
   applyStats: () => addStat(Stat.BonusAtk, 20),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(IMMERSIVE_PERFORMANCE); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(IMMERSIVE_PERFORMANCE); },
 });
 const RC_INHERENT_1 = new Inherent({
   name: "Roccia: Immersive Performance",
@@ -107,20 +113,14 @@ const RC_INHERENT_2 = new Inherent({
 
 const ROCCIA = new Resonator({
   name: "Roccia",
-  abbreviation: "Roccia",
   element: Attribute.Havoc,
   weapon: WeaponType.Gauntlets,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#9634b2",
   maxEnergy: 125,
 
-  updateBuffs: () => {
-    const a = currentAction();
-    if (a === Liberation) applyTeam(COMMEDIA_TEAM_ATK);
-    if (a === Outro) queueOutro(APPLAUSE_HANDOFF);
-  },
-
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 12250); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1198);
   },
 });
@@ -128,14 +128,15 @@ const ROCCIA = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const ROCCIA_TALENTS = new Talent({
   name: "Roccia: Talents",
-  applyStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
 });
 
 // she's never the team's own lead, so this same rotation covers both opener and loop
-const RC_ROTATION = [
+
+const RC_ROTATION = new Rotation([
   INTRO, HA, Skill, FBA1, FBA2, FBA3,
-  ECHO_CAST, Liberation, Outro,
-];
+  ECHO_CAST, Liberation, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -155,6 +156,5 @@ export const ROCCIA_LOADOUT = new Loadout({
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: chem("atk", "heavy"),
-  opener: RC_ROTATION,
-  loop: RC_ROTATION,
+    rotation: RC_ROTATION,
 });

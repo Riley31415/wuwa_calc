@@ -7,9 +7,12 @@
  * migrated sheet this was ported from didn't carry it.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  applyTeam, applySelf, addBuff, revokeBuff, stacksOfTeam, currentAction, currentTeam, casting, revokeTeam, addStat,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Scaling, applyTeam, applySelf, addBuff, revokeBuff, stacksOfTeam, currentAction, currentTeam, casting,
+  revokeTeam, addStat,
 } from "../../kit.js";
+import { Rotation, START_COMBAT, OPENER, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
+import { HEALS } from "../../statuses.js";
 import { SK_SIG } from "../../weapons/rectifier.js";
 import { VARIATION } from "../../weapons/standard.js";
 import { REJUV_5PC, REJUV_2PC } from "../../echoes/jinzhou.js";
@@ -34,24 +37,35 @@ const MA = skAction("Basic - Origin Calculus (Mid-Air)", { node: Node.Normal, ca
 
 // Overflowing Quietude (Inherent Skill): +70% Healing Bonus on cast — no duration given, applied
 // same-cast. Healing Bonus is unused by the formula, tracked for completeness.
-const Skill = skAction("Skill - Chaos Theory", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 156.55, heals: true, energy: 10, concerto: 30, offtune: 5250 });
+const Skill = skAction("Skill - Chaos Theory", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 156.55, energy: 10, concerto: 30, offtune: 5250 });
 
 const FHA = skAction("Forte - Illation", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 281.3, energy: 4.95, concerto: 11, offtune: 6360, forte1: -5 });
 
 const Liberation = skAction("Liberation - End Loop", {
-  node: Node.Liberation, cast: Cast.Liberation, mv: 0, heals: true, concerto: 20, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, mv: 0, concerto: 20, resetEnergy: true,
+  updateBuffs: () => applyTeam(SK_REALM, 1),
 });
 
-const Intro = skAction("Intro - Enlightenment", { node: Node.Intro, cast: Cast.Intro, type: Type1.Skill, mv: 226.5, heals: true, energy: 10, concerto: 20, offtune: 11395 });
+const Intro = skAction("Intro - Enlightenment", { node: Node.Intro, cast: Cast.Intro, type: Type1.Skill, mv: 226.5, energy: 10, concerto: 20, offtune: 11395 });
 // replaces plain Intro when SK_REALM is Supernal (see SHOREKEEPER's own intro() below); scales
 // off HP, counts as liberation damage, always crits, and ends the realm on resolving
 const EIntro = skAction("Intro - Discernment", {
-  node: Node.Intro, cast: Cast.Intro, type: Type1.Liberation, scaling: Scaling.Hp, mv: 58.92, heals: true,
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Liberation, scaling: Scaling.Hp, mv: 58.92,
   energy: 10.02, concerto: 20, offtune: 73242,
+  applyStats: () => { addStat(Stat.CritRate, 100); },
+  updateBuffs: () => {
+    revokeTeam(SK_REALM);
+    // doesn't fall off Rover on its own just because the realm ends
+    const rover = currentTeam().slots.find((s) => s.resonator?.name.includes("Rover"))?.resonator;
+    if (rover) revokeBuff(rover, SK_ROVER_GRAVITATION);
+  },
 });
 
 /** Puts Binary Butterfly on the team, so amplification starts with whoever she hands the field to. */
-const Outro = skAction("Outro - Binary Butterfly", { cast: Cast.Outro, active: false, mv: 0 });
+const Outro = skAction("Outro - Binary Butterfly", {
+  cast: Cast.Outro, active: false, mv: 0,
+  updateBuffs: () => applyTeam(SK_OUTRO, 1),
+});
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -76,14 +90,6 @@ const SK_REALM = new Buff({
 const SK_OUTRO = new Buff({
   name: "Shorekeeper: Outro",
   applyStats: () => addStat(Stat.Amp, 15),
-});
-
-/** Discernment always crits — its own Buff so it traces to a distinct source in the report,
- *  self-granted at combat start rather than added to the loadout (so it still shows in the
- *  popover's own buffs list, which excludes equipped gear). */
-const SK_DISCERNMENT = new Buff({
-  name: "Shorekeeper: Discernment",
-  applyStats: () => { if (currentAction() === EIntro) addStat(Stat.CritRate, 100); },
 });
 
 /** Self Gravitation's own extension onto Rover — lives on Rover's own local stack (granted via
@@ -114,29 +120,22 @@ const SK_INHERENT_1 = new Inherent({ name: "Shorekeeper: Life Entwined" }); // r
 
 const SHOREKEEPER = new Resonator({
   name: "Shorekeeper",
-  abbreviation: "SK",
   element: Attribute.Spectro,
   weapon: WeaponType.Rectifier,
   color: "#728cf3",
   maxEnergy: 175,
   // reads SK_REALM's own live stack count, already stepped by the preceding outro
   intro: () => (stacksOfTeam(SK_REALM) >= 3 ? EIntro : Intro),
+  outro: () => Outro,
 
-  combatStart: () => applySelf(SK_DISCERNMENT, 1),
-
-  updateBuffs: () => {
+  updateDebuffs: () => {
     const a = currentAction();
-    if (a === Liberation) applyTeam(SK_REALM, 1);
-    if (a === EIntro) {
-      revokeTeam(SK_REALM);
-      // doesn't fall off Rover on its own just because the realm ends
-      const rover = currentTeam().slots.find((s) => s.resonator?.name.includes("Rover"))?.resonator;
-      if (rover) revokeBuff(rover, SK_ROVER_GRAVITATION);
-    }
-    if (a === Outro) applyTeam(SK_OUTRO, 1);
+    // her own healing marker, read by every healing sonata and weapon (statuses.ts) —
+    // applied to the healer alone, never the team
+    if (a === Skill || a === Liberation || a === Intro || a === EIntro) applySelf(HEALS, 1);
   },
 
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 16712.5); addStat(Stat.BaseAtk, 287.5); addStat(Stat.BaseDef, 1100);
   },
 });
@@ -144,7 +143,7 @@ const SHOREKEEPER = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const SHOREKEEPER_TALENTS = new Talent({
   name: "Shorekeeper: Talents",
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BonusHp, 12);
     addStat(Stat.HealingBonus, 12); // stat-tree Healing Bonus+ nodes — unused by the formula
   },
@@ -153,15 +152,17 @@ const SHOREKEEPER_TALENTS = new Talent({
 // INTRO resolves to plain Intro or Discernment on its own — same marker for opener and loop.
 // The loop is shorter than the opener; it generates just over the 100 concerto the outro spends.
 // OPENER ROTATIONS DO NOT HAVE AN INTRO
-const SK_OPENER = [
-  BA1, BA2, BA3, MA, FHA,
-  Skill, BA2, BA3, BA1, BA2, FHA,
-  ECHO_CAST, Liberation, Outro,
-];
-const SK_LOOP = [
-  INTRO, BA1, BA2, BA3, MA, FHA, Skill,
-  ECHO_CAST, Liberation, Outro,
-];
+
+const SK_LOOP = new Rotation([
+  // Chaos Theory opens the fight on a swap-in of its own and is then on cooldown, so the opener
+  // runs the basics twice over instead — which is the whole of what used to be a separate opener
+  // body. Written inline, that difference is just where the section brackets sit.
+  OPENER, BA2, BA3, // dodge
+  BA1, BA2, FHA,
+  INTRO, BA1, BA2, BA3, MA, FHA,
+  START_COMBAT, Skill, START_COMBAT,
+  ECHO_CAST, Liberation, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -176,6 +177,5 @@ export const SK_LOADOUT = new Loadout({
   echoLoadouts: [new EchoLoadout(FALLACY, REJUV_5PC, REJUV_2PC)],
   mainstats: [mainstats(Mainstat.HP4, Mainstat.ER3, Mainstat.ER3, Mainstat.HP1, Mainstat.HP1)],
   substat: chem("hp", "liberation"),
-  opener: SK_OPENER,
-  loop: SK_LOOP,
+    rotation: SK_LOOP,
 });

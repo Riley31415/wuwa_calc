@@ -10,10 +10,12 @@
  * SRover rows (offtune x10000 into this engine's units). Rotation is the sheet's own "srover 3nf".
  */
 import {
-  Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, EnemyStat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  applySelf, applyEnemy, revokeEnemy, isHeld, revoke, casting, currentAction, addStat, addEnemyStat, queue,
+  Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, Stat, EnemyStat, Attribute,
+  WeaponType, Type1, Cast, Node, Scaling, applySelf, applyEnemy, revokeEnemy, isHeld, revokeSelf, casting,
+  currentAction, addStat, addEnemyStat, queue,
 } from "../../kit.js";
-import { SPECTRO_FRAZZLE } from "../../statuses.js";
+import { Rotation, OPENER, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
+import { SPECTRO_FRAZZLE, HEALS } from "../../statuses.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";
 import { REJUV_5PC, REJUV_2PC, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";
@@ -36,21 +38,29 @@ const BA4 = roverAction("Basic - Vibration Manifestation 4", { node: Node.Normal
 const MA = roverAction("Basic - Mid-air Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 0.51, concerto: 1, offtune: 4960 });
 const DC = roverAction("Basic - Dodge Counter", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 195.34, energy: 2.62, concerto: 13.6, offtune: 3600 });
 
-const HA = roverAction("Heavy - Attack", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 96.35, energy: 1.4, concerto: 4.55, offtune: 22800, forte1: 5 });
-const HAResonance = roverAction("Heavy - Resonance", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 76.05, energy: 1.12, concerto: 3.6, offtune: 3600 });
-const HAAftertune = roverAction("Heavy - Aftertune", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 126.75, energy: 1.87, concerto: 6, offtune: 6000, forte1: 45 });
+const HA1 = roverAction("Heavy - Attack", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 96.35, energy: 1.4, concerto: 4.55, offtune: 22800, forte1: 5 });
+const HA2 = roverAction("Heavy - Resonance", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 76.05, energy: 1.12, concerto: 3.6, offtune: 3600 });
+const HA3 = roverAction("Heavy - Aftertune", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 126.75, energy: 1.87, concerto: 6, offtune: 6000, forte1: 45 });
 
 // --- resonance skill, and the forte circuit that replaces it at 50 Diminutive Sound: Resonating
 //     Spin (two hits, plus the 39.77% Resonating Whirl tick the page lists without describing —
 //     the sheet's own FSkill row is all three together, so Whirl is queued off the Spin) into the
 //     Resonating Echoes follow-up, whose two stages the sheet keeps as one row.
 const Skill = roverAction("Skill - Resonating Slashes", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 236.19, energy: 10, concerto: 10, offtune: 4800 });
-const ResonatingSpin = roverAction("Forte Skill - Resonating Spin", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 258.16, energy: 10, concerto: 20, offtune: 21840, forte1: -50 });
+const FSkill1 = roverAction("Forte Skill - Resonating Spin", {
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 258.16, energy: 10, concerto: 20, offtune: 21840, forte1: -50,
+  updateDebuffs: () => {applyEnemy(SPECTRO_FRAZZLE, 2); queue(ResonatingWhirl); }
+});
 const ResonatingWhirl = roverAction("Forte Skill - Resonating Whirl", { node: Node.Forte, type: Type1.Skill, mv: 39.77, energy: 2 });
-const ResonatingEchoes = roverAction("Forte Basic - Resonating Echoes", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 238.58, energy: 2.5, concerto: 8, offtune: 7200 });
+const FBA = roverAction("Forte Basic - Resonating Echoes", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 238.58, energy: 2.5, concerto: 8, offtune: 7200 });
 
 // --- liberation / intro / outro. Instant is a stasis field only — no damage, no stat.
-const Liberation = roverAction("Liberation - Echoing Orchestra", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 874.77, concerto: 20, offtune: 61441, resetEnergy: true, heals: true });
+// HEALS is her own healing marker, read by every healing sonata and weapon (statuses.ts) —
+// applied to the healer alone, never the team
+const Liberation = roverAction("Liberation - Echoing Orchestra", {
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 874.77, concerto: 20, offtune: 61441, resetEnergy: true,
+  updateDebuffs: () => { applySelf(HEALS, 1); applyEnemy(SPECTRO_FRAZZLE, 6); },
+});
 const Intro = roverAction("Intro - Waveshock", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 168.99, energy: 10, concerto: 10, offtune: 4880, forte1: 50 });
 const Outro = roverAction("Outro - Instant", { cast: Cast.Outro, active: false });
 
@@ -60,25 +70,25 @@ const Outro = roverAction("Outro - Instant", { cast: Cast.Outro, active: false }
  *  straight out of the piece rather than through a buff. */
 const SPR_INHERENT_1 = new Inherent({
   name: "Spectro Rover: Reticence",
-  applyStats: () => { if (currentAction() === ResonatingEchoes) addStat(Stat.DmgBonus, 60); }, // TODO unsure if dmg bonus
+  applyStats: () => { if (currentAction() === FBA) addStat(Stat.DmgBonus, 60); }, // TODO unsure if dmg bonus
 });
 
 /** Silent Listener (Inherent Skill): +15% ATK for 5s off Heavy Attack Resonance. */
 const SILENT_LISTENER = new Buff({
   name: "Spectro Rover: Silent Listener",
   applyStats: () => addStat(Stat.BonusAtk, 15),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(SILENT_LISTENER); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(SILENT_LISTENER); },
 });
 const SPR_INHERENT_2 = new Inherent({
   name: "Spectro Rover: Silent Listener",
-  updateBuffs: () => { if (currentAction() === HAResonance) applySelf(SILENT_LISTENER, 1); },
+  updateBuffs: () => { if (currentAction() === HA2) applySelf(SILENT_LISTENER, 1); },
 });
 
 /** S1 Odyssey of Beginnings: +15% Crit Rate for 7s off either Resonance Skill. Trigger in SPR_S1. */
 const S1_CRIT = new Buff({
   name: "Spectro Rover S1: Odyssey of Beginnings",
   applyStats: () => addStat(Stat.CritRate, 15),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(S1_CRIT); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(S1_CRIT); },
 });
 
 /** S6 Echoes of Wanderlust: a real target-side Spectro RES shred, not a personal ignore — lost on
@@ -97,7 +107,7 @@ const SPR_S1 = new Sequence({
   name: "Spectro Rover S1: Odyssey of Beginnings",
   updateBuffs: () => {
     const a = currentAction();
-    if (a === Skill || a === ResonatingSpin) applySelf(S1_CRIT, 1);
+    if (a === Skill || a === FSkill1) applySelf(S1_CRIT, 1);
   },
 });
 
@@ -124,7 +134,7 @@ const SPR_S6 = new Sequence({
   name: "Spectro Rover S6: Echoes of Wanderlust",
   updateBuffs: () => {
     const a = currentAction();
-    if (a === Skill || a === ResonatingSpin) applyEnemy(S6_RES_SHRED, 1);
+    if (a === Skill || a === FSkill1) applyEnemy(S6_RES_SHRED, 1);
   },
 });
 
@@ -132,22 +142,15 @@ const SPR_S6 = new Sequence({
  *  their own base stat line. `standardCharacter: true` — see the file header. */
 const ROVER_SPECTRO = new Resonator({
   name: "Spectro Rover",
-  abbreviation: "SRover",
   element: Attribute.Spectro,
   weapon: WeaponType.Sword,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#e8d98f",
   maxEnergy: 125,
   standardCharacter: true,
 
-  // Resonating Spin inflicts 2 Spectro Frazzle, Echoing Orchestra 6
-  updateDebuffs: () => {
-    const a = currentAction();
-    if (a === ResonatingSpin) applyEnemy(SPECTRO_FRAZZLE, 2);
-    if (a === Liberation) applyEnemy(SPECTRO_FRAZZLE, 6);
-  },
-
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 11400); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1369);
   },
 });
@@ -155,19 +158,15 @@ const ROVER_SPECTRO = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from their kit
 const ROVER_SPECTRO_TALENTS = new Talent({
   name: "Spectro Rover: Talents",
-  applyStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Spectro); },
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Spectro); },
 });
 
-// the migrated sheet's own "srover 3nf": the Intro's own 50 Diminutive Sound pays for the first
-// Resonating Spin outright, then Basic 2-3 and the Heavy Resonance/Aftertune pair bank the 50 the
-// second one spends. They're never the team's own lead, so this covers opener and loop both.
-const SPR_ROTATION = [
-  INTRO,
-  ResonatingSpin, ResonatingEchoes, BA2, BA3, HAResonance, HAAftertune,
-  Liberation,
-  ResonatingSpin, ResonatingEchoes, BA2, BA3, HAResonance, HAAftertune,
-  ECHO_CAST, Outro,
-];
+const SPR_ROTATION = new Rotation([
+  INTRO, 
+  HA1, HA2, HA3, FSkill1, FBA,
+  HA1, HA2, HA3, FSkill1, Liberation, ECHO_CAST,
+  OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -178,14 +177,13 @@ export const SROVER_LOADOUT = new Loadout({
   talent: ROVER_SPECTRO_TALENTS,
   inherent1: SPR_INHERENT_1,
   inherent2: SPR_INHERENT_2,
-  weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, RED_SPRING],
+  weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, RED_SPRING],
   echoLoadouts: [
     new EchoLoadout(FALLACY, REJUV_5PC, REJUV_2PC),
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
   substat: chem("atk", "liberation"),
-  opener: SPR_ROTATION,
-  loop: SPR_ROTATION,
+    rotation: SPR_ROTATION,
   sequences: [SPR_S1, SPR_S2, SPR_S3, SPR_S4, SPR_S5, SPR_S6],
 });

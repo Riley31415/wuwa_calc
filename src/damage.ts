@@ -15,7 +15,9 @@ import { Stat, EnemyStat, Scaling } from "./stats.js";
 /** A resolved action snapshot, from `State.resolve()` — everything the formula reads off it. */
 export interface Snapshot {
   action: Action;
-  stat(key: string): number;
+  stat(key: Stat | EnemyStat): number;
+  /** `stat()`'s own backing array, indexed by the stat itself — what the formula below reads. */
+  stats: number[];
   atk: number;
   hp: number;
   def: number;
@@ -48,12 +50,12 @@ const LEVEL_90_TUNE = 10027;
  * outright does not have to be re-expressed as a multiplier of whatever the action started at.
  */
 export const mvPercent = (snapshot: Snapshot): number =>
-  (snapshot.action.mv + snapshot.stat(Stat.AddMv))
-  * (1 + snapshot.stat(Stat.MulMv) / 100);
+  (snapshot.action.mv + snapshot.stats[Stat.AddMv]!)
+  * (1 + snapshot.stats[Stat.MulMv]! / 100);
 
 /** Dot damage bypasses ignore and shred; both helpers below need to know. */
 const notDotFor = (snapshot: Snapshot): number =>
-  ((snapshot.action.scaling ?? Scaling.Atk) !== Scaling.Dot ? 1 : 0);
+  (snapshot.action.scaling !== Scaling.Dot ? 1 : 0);
 
 /**
  * The enemy's defence after ignore, reduce and shred, **as a fraction of its base** — 1 means
@@ -61,7 +63,7 @@ const notDotFor = (snapshot: Snapshot): number =>
  * itself (`snapshot.enemyDef`) already carries the enemy's own level and any debuffs on it.
  */
 export function effectiveDef(snapshot: Snapshot): number {
-  const s = (k: string) => snapshot.stat(k) / 100;
+  const s = (k: Stat | EnemyStat) => snapshot.stats[k]! / 100;
   const notDot = notDotFor(snapshot);
   const base = snapshot.enemyDef;
   return ((1 - notDot * s(Stat.DefIgnoreNew))
@@ -70,7 +72,7 @@ export function effectiveDef(snapshot: Snapshot): number {
 
 /** The enemy's resistance after ignore and shred, in percent units. May go negative. */
 export function effectiveRes(snapshot: Snapshot): number {
-  const s = (k: string) => snapshot.stat(k) / 100;
+  const s = (k: Stat | EnemyStat) => snapshot.stats[k]! / 100;
   return (snapshot.enemyRes / 100 - s(Stat.ResIgnore) * notDotFor(snapshot) - s(EnemyStat.ResShred)) * 100;
 }
 
@@ -91,7 +93,7 @@ export function defFactorOf(snapshot: Snapshot): number {
 }
 
 export interface DamageFactors {
-  scaling: string;
+  scaling: Scaling | null;
   finalMv: number;
   finalStat: number;
   ampFactor: number;
@@ -115,8 +117,20 @@ export interface DamageFactors {
  */
 export function damageFactors(snapshot: Snapshot): DamageFactors {
   const { action } = snapshot;
-  const s = (k: string) => snapshot.stat(k) / 100;   // ratio stats
-  const scaling = action.scaling ?? Scaling.Atk;
+  const s = (k: Stat) => snapshot.stats[k]! / 100;   // ratio stats
+  const { scaling } = action;
+
+  // A rotation marker rather than a cast (rotation.ts's own SWAP and friends): no scaling, and
+  // the Action constructor forbids that on anything carrying a motion value, so there is nothing
+  // to multiply and every term is reported as the neutral value it would have been.
+  if (scaling === null) {
+    return {
+      scaling: null, finalMv: 0, finalStat: 0,
+      ampFactor: 1, bonusFactor: 1, tbbFactor: 1, resFactor: 1, defFactor: 1, dealtFactor: 1,
+      critFactor: 1, critMult: 1,
+      noCrit: 0, crit: 0, avg: 0,
+    };
+  }
 
   // Fixed reads no stat and takes no buff — its own mv is the damage, full stop. Every other
   // factor is reported as a neutral 1 so the table still has something to show per term.

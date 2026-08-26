@@ -35,11 +35,13 @@
  *  S6 Heaven, Earth, Mind grants 50% Resonance Skill DMG Bonus instead of 25% — read by THUNDER_SPELL.
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  applyTeam, applySelf, stacksOfTeam, isHeld, casting, currentAction, currentTeam, addStat, queue, revoke, revokeTeam,
+  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Cast, Node, Scaling, applyTeam, applySelf, stacksOfTeam, isHeld, casting, currentAction, currentTeam, addStat,
+  queue, revokeSelf, revokeTeam,
 } from "../../kit.js";
+import { Rotation, OPENER, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { applyEnemy } from "../../kit.js";
-import { ELECTRO_FLARE } from "../../statuses.js";
+import { ELECTRO_FLARE, HEALS } from "../../statuses.js";
 import { COSMIC_RIPPLES, NEW_STD_RECTIFIER, VARIATION } from "../../weapons/standard.js";
 import { REJUV_5PC, REJUV_2PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
@@ -63,25 +65,51 @@ const DC = bulingAction("Basic - Hexagram Calls, Lightning Falls 3 (Dodge Counte
 
 // hold Normal Attack to spend a specific Trigram pair left-to-right for a Minor state. Twin
 // Mountains/Twin Thunders heal only (0 mv, healing out of scope).
-const HA_MOUNTAIN_OVER_THUNDER = bulingAction("Heavy - Mountain Over Thunder", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 178.93, offtune: 8000, energy: 3.00, concerto: 15, forte1: -2 });
-const HA_THUNDER_OVER_MOUNTAIN = bulingAction("Heavy - Thunder Over Mountain", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 89.47, offtune: 8000, energy: 3.00, concerto: 15, forte1: -2 });
-const HA_TWIN_MOUNTAINS = bulingAction("Heavy - Twin Mountains", { node: Node.Normal, cast: Cast.Heavy, mv: 0, heals: true, concerto: 15, forte1: -2 });
-const HA_TWIN_THUNDERS = bulingAction("Heavy - Twin Thunders", { node: Node.Normal, cast: Cast.Heavy, mv: 0, heals: true, concerto: 15, forte1: -2 });
+// The mixed-trigram heavies bank Minor Yang, the paired ones Minor Yin (and heal — her own
+// healing marker, read by every healing sonata and weapon, see statuses.ts); holding both at once
+// trades the pair for Yin-Yang Balance.
+const YANG = { updateBuffs: () => {
+  applySelf(MINOR_YANG, 1);
+  if (isHeld(MINOR_YIN)) { revokeSelf(MINOR_YANG); revokeSelf(MINOR_YIN); applySelf(YIN_YANG_BALANCE, 1); }
+} };
+const YIN = {
+  updateDebuffs: () => applySelf(HEALS, 1),
+  updateBuffs: () => {
+    applySelf(MINOR_YIN, 1);
+    if (isHeld(MINOR_YANG)) { revokeSelf(MINOR_YANG); revokeSelf(MINOR_YIN); applySelf(YIN_YANG_BALANCE, 1); }
+  },
+};
+const HA_MOUNTAIN_OVER_THUNDER = bulingAction("Heavy - Mountain Over Thunder", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 178.93, offtune: 8000, energy: 3.00, concerto: 15, forte1: -2, ...YANG });
+const HA_THUNDER_OVER_MOUNTAIN = bulingAction("Heavy - Thunder Over Mountain", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 89.47, offtune: 8000, energy: 3.00, concerto: 15, forte1: -2, ...YANG });
+const HA_TWIN_MOUNTAINS = bulingAction("Heavy - Twin Mountains", { node: Node.Normal, cast: Cast.Heavy, mv: 0, concerto: 15, forte1: -2, ...YIN });
+const HA_TWIN_THUNDERS = bulingAction("Heavy - Twin Thunders", { node: Node.Normal, cast: Cast.Heavy, mv: 0, concerto: 15, forte1: -2, ...YIN });
 
 // grants a Trigram: Thunder
 const Skill = bulingAction("Skill - In Shadow Thunder Stirs", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 116.8, offtune: 7832, energy: 15.00, concerto: 23, forte1: +1 });
 
 // assumed always cast as Harmony (see file header) — generates the Array, opening/refreshing
 // Thunder Spell at Primordial Qi
-const Liberation = bulingAction("Liberation - Flashing Thunder Spell - Harmony", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 536.79, offtune: 72000, concerto: 20, resetEnergy: true });
+const Liberation = bulingAction("Liberation - Flashing Thunder Spell - Harmony", {
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 536.79, offtune: 72000, concerto: 20, resetEnergy: true,
+  updateBuffs: () => { revokeTeam(THUNDER_SPELL); applyTeam(THUNDER_SPELL, 1); revokeSelf(YIN_YANG_BALANCE); },
+});
 
 /** The migrated sheet's own full 12-tick lifetime total (238.32% mv, 25 energy, 24 Electro
  *  Flare) rather than one representative tick, same lumped-window treatment as Zhezhi's Inklit
  *  Spirit/Cantarella's Diffusion. Nanoka's own single-tick number is 19.89% mv, for reference. */
-const ACTION_FIVE_THUNDERS_ARRAY = bulingAction("Liberation - Five Thunders Spell Array x12", { type: Type1.Liberation, mv: 238.32, energy: 25, active: false });
+const ACTION_FIVE_THUNDERS_ARRAY = bulingAction("Liberation - Five Thunders Spell Array x12", {
+  type: Type1.Liberation, mv: 238.32, energy: 25, active: false,
+  updateDebuffs: () => applyEnemy(ELECTRO_FLARE, 24),
+});
 
-const Intro = bulingAction("Intro - Summon and Smite", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 131.10, offtune: 8792, concerto: 10 });
-const Outro = bulingAction("Outro - Exorcism Spell", { cast: Cast.Outro, mv: 0, active: false });
+const Intro = bulingAction("Intro - Summon and Smite", {
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 131.10, offtune: 8792, concerto: 10,
+  updateDebuffs: () => applyEnemy(ELECTRO_FLARE, 4),
+});
+const Outro = bulingAction("Outro - Exorcism Spell", {
+  cast: Cast.Outro, mv: 0, active: false,
+  updateBuffs: () => { queue(ACTION_FIVE_THUNDERS_ARRAY); applyTeam(BULING_OUTRO, 1); },
+});
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -112,7 +140,8 @@ const MINOR_YIN = new Buff({ name: "Buling: Minor Yin" });
 
 /** Held for exactly the one action that grants it (BULING's own updateBuffs() grants, its own
  *  convertStats() revokes) — the only real reader left is S2's own +25 Energy, between those two. */
-const YIN_YANG_BALANCE = new Buff({ name: "Buling: Yin-Yang Balance" });
+const YIN_YANG_BALANCE = new Buff({ name: "Buling: Yin-Yang Balance" ,
+});
 
 /** +15% (unscoped) DMG Amplification, 30s — permanent uptime once granted. */
 const BULING_OUTRO = new Buff({
@@ -152,38 +181,14 @@ const BL_S6 = new Sequence({ name: "Buling S6" });
 const BULING = new Resonator({
   name: "Buling",
   standardCharacter: true,
-  abbreviation: "Buling",
   element: Attribute.Electro,
   weapon: WeaponType.Rectifier,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#7a6ff0",
   maxEnergy: 150,
 
-  // Electro Flare: 24 off the Five Thunders array, 4 off Summon and Smite
-  updateDebuffs: () => {
-    const a = currentAction();
-    if (a === ACTION_FIVE_THUNDERS_ARRAY) applyEnemy(ELECTRO_FLARE, 24);
-    if (a === Intro) applyEnemy(ELECTRO_FLARE, 4);
-  },
-
-  updateBuffs: () => {
-    const a = currentAction();
-    if (a === HA_MOUNTAIN_OVER_THUNDER || a === HA_THUNDER_OVER_MOUNTAIN) {
-      applySelf(MINOR_YANG, 1);
-      if (isHeld(MINOR_YIN)) { revoke(MINOR_YANG); revoke(MINOR_YIN); applySelf(YIN_YANG_BALANCE, 1); }
-    }
-    if (a === HA_TWIN_MOUNTAINS || a === HA_TWIN_THUNDERS) {
-      applySelf(MINOR_YIN, 1);
-      if (isHeld(MINOR_YANG)) { revoke(MINOR_YANG); revoke(MINOR_YIN); applySelf(YIN_YANG_BALANCE, 1); }
-    }
-    if (a === Liberation) { revokeTeam(THUNDER_SPELL); applyTeam(THUNDER_SPELL, 1); }
-    if (a === Outro) { queue(ACTION_FIVE_THUNDERS_ARRAY); applyTeam(BULING_OUTRO, 1); }
-  },
-  // Yin-Yang Balance is same-action-only — granted above in updateBuffs(), spent here in convertStats(),
-  // once S2's own applyStats() (in between) has had its chance to read it
-  convertStats: () => { if (isHeld(YIN_YANG_BALANCE)) revoke(YIN_YANG_BALANCE); },
-
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 10625); addStat(Stat.BaseAtk, 225); addStat(Stat.BaseDef, 1259);
   },
 });
@@ -192,23 +197,19 @@ const BULING = new Resonator({
 // Healing Bonus+ nodes are unused by the formula (healing out of scope), tracked for completeness.
 const BULING_TALENTS = new Talent({
   name: "Buling: Talents",
-  applyStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.HealingBonus, 12); },
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.HealingBonus, 12); },
 });
 
 // the kit-valid line: Mid-air opens with a Thunder Trigram, Basic 1/2 adds Mountain, Heavy:
 // Thunder Over Mountain spends both for Minor Yang, Skill and Basic 4 each add a fresh Thunder,
 // Heavy: Twin Thunders spends both for Minor Yin — unlocking Harmony for the Liberation after.
 // BL_ROTATION for a non-leading slot (opens on her own Intro); BL_OPENER for a leading one.
-const BL_ROTATION = [
+const BL_ROTATION = new Rotation([
+  OPENER,
   INTRO, MA, BA2, HA_THUNDER_OVER_MOUNTAIN,
   Skill, BA4, HA_TWIN_THUNDERS, ECHO_CAST,
-  Liberation, Outro,
-];
-const BL_OPENER = [
-  MA, BA2, HA_THUNDER_OVER_MOUNTAIN,
-  Skill, BA4, HA_TWIN_THUNDERS, ECHO_CAST,
-  Liberation, Outro,
-];
+  Liberation, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -223,7 +224,6 @@ export const BULING_LOADOUT = new Loadout({
   echoLoadouts: [new EchoLoadout(FALLACY, REJUV_5PC, REJUV_2PC)],
   mainstats: [mainstats(Mainstat.CD4, Mainstat.ER3, Mainstat.ER3, Mainstat.ATK1, Mainstat.ATK1)],
   substat: chem("atk", "liberation", { er: true }),
-  opener: BL_OPENER,
-  loop: BL_ROTATION,
+    rotation: BL_ROTATION,
   sequences: [BL_S1, BL_S2, BL_S3, BL_S4, BL_S5, BL_S6],
 });

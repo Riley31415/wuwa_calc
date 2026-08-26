@@ -23,11 +23,13 @@
  *    Liberation - Glory" text is where Glory (team Fusion RES ignore) actually comes from — not a
  *    bare base-kit Liberation effect (see GLORY's own trigger below).
  */
-import { isType,
-  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  applySelf, applyTeam, applyEnemy, revoke, revokeTeam, revokeEnemy, casting, currentAction, currentTeam, addStat,
-  frozenStacks, stacksOfTeam, queueOn, queueOutro, setForte1, setForte2, lostOnSwap,
+import {
+  isType, Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType,
+  Type1, Cast, Node, Scaling, applySelf, applyTeam, applyEnemy, revokeSelf, revokeTeam, revokeEnemy, casting,
+  currentAction, currentTeam, addStat, frozenStacks, stacksOfTeam, queueOn, queueOutro, setForte1, setForte2,
+  lostOnSwap,
 } from "../../kit.js";
+import { Rotation, OPENER, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { WILDFIRE_MARK } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { LIONESS_OF_GLORY, CLAWPRINT_5PC, CLAWPRINT_2PC } from "../../echoes/septimont.js";
@@ -70,7 +72,10 @@ const EHA3 = lupaAction("Heavy - Flaming Star: Wolf's Gnawing", { node: Node.Nor
 const EMA4 = lupaAction("Heavy - Flaming Star: Wolf's Claw", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 240.5, energy: 3.58, concerto: 10, offtune: 11385, forte1: -50, forte2: 1 });
 
 // Shewolf's Hunt and its Feral Fang follow-up, each restoring 15 Wolflame
-const Skill1 = lupaAction("Skill - Shewolf's Hunt", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 140.77, energy: 2.09, concerto: 4.17, offtune: 6664, forte1: 15 });
+const Skill1 = lupaAction("Skill - Shewolf's Hunt", {
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 140.77, energy: 2.09, concerto: 4.17, offtune: 6664, forte1: 15,
+  updateBuffs: () => applyEnemy(LUPA_MARK, 1),
+});
 /** Feral Fang: +50% DMG Multiplier against the marked target, kept as an explicit MulMv add (see
  *  LUPA's own updateBuffs() below) rather than baked into mv, so the trace shows where it comes from. */
 const Skill2 = lupaAction("Skill - Feral Fang", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 313.61, energy: 13.67, offtune: 5328, forte1: 15 });
@@ -78,15 +83,28 @@ const Skill2 = lupaAction("Skill - Feral Fang", { node: Node.Skill, cast: Cast.S
 /** Foebreaker: consumes every point of Wolflame. Always placed right after Liberation, whose own
  *  updateBuffs() hard-resets Wolflame to exactly 100 first, so forte1: -100 always lands on 0. Opens
  *  Burning Matchpoint (see BURNING_MATCHPOINT below). */
-const USkill = lupaAction("Liberation Skill - Foebreaker", { node: Node.Liberation, cast: Cast.Skill, type: Type1.Skill, mv: 304.46, concerto: 20, offtune: 6448, forte1: -100 });
+const USkill = lupaAction("Liberation Skill - Foebreaker", {
+  node: Node.Liberation, cast: Cast.Skill, type: Type1.Skill, mv: 304.46, concerto: 20, offtune: 6448, forte1: -100,
+  updateBuffs: () => applySelf(BURNING_MATCHPOINT, 1),
+});
 
 // tops Wolflame to 100, spends every point of Wolfaith, opens Pack Hunt/Glory
-const Liberation = lupaAction("Liberation - Fire-Kissed Glory", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 820.44, concerto: 20, offtune: 48000, forte1: 100, resetEnergy: true });
+const Liberation = lupaAction("Liberation - Fire-Kissed Glory", {
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 820.44, concerto: 20, offtune: 48000, forte1: 100, resetEnergy: true,
+  updateBuffs: () => {
+    applyTeam(PACK_HUNT, 1);
+    // "Restores 100 points of Wolflame" is a hard top-off, not additive on top of whatever was
+    // already held: normalize to 0 first, so the action's own declared forte1: 100 lands on 100.
+    setForte1(0); setForte2(0);
+  },
+});
 
 // Dance With the Wolf and its Climax form, each spending every point of Wolfaith (a fixed -2
 // delta — always exactly 2 in this fixed-rotation-line, the only gate that lets either one fire)
-const FSkill = lupaAction("Forte Skill - Dance With the Wolf", { node: Node.Forte, cast: Cast.Skill, type: Type1.Liberation, mv: 560.21, energy: 30, concerto: 15.02, offtune: 16016, forte2: -2 });
-const UFSkill = lupaAction("Forte Skill - Dance With the Wolf: Climax", { node: Node.Forte, cast: Cast.Skill, type: Type1.Liberation, mv: 756.26, energy: 30, concerto: 30, offtune: 54416, forte2: -2 });
+// both Dance With the Wolf forms put Backup Ready on the team
+const BACKUP = { updateBuffs: () => applyTeam(LUPA_BACKUP_READY, 1) };
+const FSkill = lupaAction("Forte Skill - Dance With the Wolf", { node: Node.Forte, cast: Cast.Skill, type: Type1.Liberation, mv: 560.21, energy: 30, concerto: 15.02, offtune: 16016, forte2: -2, ...BACKUP });
+const UFSkill = lupaAction("Forte Skill - Dance With the Wolf: Climax", { node: Node.Forte, cast: Cast.Skill, type: Type1.Liberation, mv: 756.26, energy: 30, concerto: 30, offtune: 54416, forte2: -2, ...BACKUP });
 /** Set the Arena Ablaze — queued by LUPA_BACKUP_READY the moment a teammate's Liberation earns
  *  it, not placed in the rotation directly. */
 const fskillFUA = lupaAction("Forte Skill - Set the Arena Ablaze", { node: Node.Forte, type: Type1.Skill, mv: 211.75, offtune: 9600, active: false });
@@ -96,7 +114,10 @@ const Intro = lupaAction("Intro - Try Focusing, Eh?", { node: Node.Intro, cast: 
  *  selector below, which also ends Pack Hunt/Glory right there, before this hit's own damage). */
 const EIntro = lupaAction("Intro - Nowhere to Run!", { node: Node.Intro, cast: Cast.Intro, type: Type1.Liberation, mv: 991.97, energy: 10, concerto: 10, offtune: 16000 });
 /** Stand by Me, Warrior: no damage of its own, just the outro handoff. */
-const Outro = lupaAction("Outro - Stand by Me, Warrior", { cast: Cast.Outro, active: false });
+const Outro = lupaAction("Outro - Stand by Me, Warrior", {
+  cast: Cast.Outro, active: false,
+  updateBuffs: () => queueOutro(LUPA_OUTRO),
+});
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -140,7 +161,7 @@ const LUPA_OUTRO = new Buff({
 const WILDFIRE_BANNER = new Buff({
   name: "Lupa: Wildfire Banner",
   applyStats: () => addStat(Stat.BonusAtk, 12),
-  convertStats: () => { if (currentAction() === fskillFUA) revoke(WILDFIRE_BANNER); },
+  convertStats: () => { if (currentAction() === fskillFUA) revokeSelf(WILDFIRE_BANNER); },
 });
 
 /** Remember My Name (Inherent Skill): a Sprint state/interrupt resistance passive — see file header. */
@@ -174,7 +195,7 @@ const BURNING_MATCHPOINT = new Buff({
     const a = currentAction();
     if (isType(Type1.Basic)) addStat(Stat.AddForte1, 5 * a.forte1);
   },
-  convertStats: () => { if (currentAction() === FSkill || currentAction() === UFSkill) revoke(BURNING_MATCHPOINT); },
+  convertStats: () => { if (currentAction() === FSkill || currentAction() === UFSkill) revokeSelf(BURNING_MATCHPOINT); },
 });
 
 /** Set the Arena Ablaze: Dance With the Wolf/its Climax form leave this ready on her — whoever
@@ -195,7 +216,6 @@ const LUPA_BACKUP_READY = new Buff({
  *  own base stat line. Sequence-0 only — a limited 5-star, not `standardCharacter`. */
 const LUPA = new Resonator({
   name: "Lupa",
-  abbreviation: "Lopa",
   element: Attribute.Fusion,
   weapon: WeaponType.Broadblade,
   intro: () => {
@@ -204,29 +224,19 @@ const LUPA = new Resonator({
     revokeTeam(GLORY);
     return EIntro;
   },
+  outro: () => Outro,
   color: "#e8483a",
   maxEnergy: 125,
 
-  // Wolflame/Wolfaith management: Liberation's own hard top-off/spend, Foebreaker opening Burning
-  // Matchpoint, Dance With the Wolf/its Climax form arming Set the Arena Ablaze, Wildfire Banner
+  // every cast that arms Set the Arena Ablaze
   updateBuffs: () => {
     const a = currentAction();
-    if (a === Liberation) {
-      applyTeam(PACK_HUNT, 1);
-      // "Restores 100 points of Wolflame" is a hard top-off, not additive on top of whatever was
-      // already held: normalize to 0 first, so the action's own declared forte1: 100 lands on 100.
-      setForte1(0); setForte2(0);
-    }
-    if (a === Skill1) applyEnemy(LUPA_MARK, 1);
-    if (a === Outro) queueOutro(LUPA_OUTRO);
-    if (a === USkill) applySelf(BURNING_MATCHPOINT, 1);
-    if (a === FSkill || a === UFSkill) applyTeam(LUPA_BACKUP_READY, 1);
     if (a === Skill2 || a === EHA3 || a === EMA4 || a === EMA3 || a === Liberation || a === FSkill || a === UFSkill) {
       applySelf(WILDFIRE_BANNER, 1);
     }
   },
 
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 11912.5); addStat(Stat.BaseAtk, 387.5); addStat(Stat.BaseDef, 1186);
   },
 });
@@ -234,15 +244,13 @@ const LUPA = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const LUPA_TALENTS = new Talent({
   name: "Lupa: Talents",
-  applyStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
-const LP_LOOP = [
-  INTRO, Skill1, ECHO_CAST, Liberation, USkill, MA1, MA2, EMA3, EMA4, UFSkill, Outro,
-];
-const LP_OPENER = [
-  Skill1, Skill2, ECHO_CAST, Liberation, USkill, MA1, MA2, EMA3, EMA4, UFSkill, Outro,
-];
+const LP_LOOP = new Rotation([
+  OPENER, Skill1, Skill2, ECHO_CAST, Liberation, USkill, MA1, MA2, EMA3, EMA4, UFSkill, OUTRO_NEXT,
+  INTRO, Skill1, ECHO_CAST, Liberation, USkill, MA1, MA2, EMA3, EMA4, UFSkill, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -260,6 +268,5 @@ export const LOPA_LOADOUT = new Loadout({
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: chem("atk", "liberation"),
-  opener: LP_OPENER,
-  loop: LP_LOOP,
+    rotation: LP_LOOP,
 });

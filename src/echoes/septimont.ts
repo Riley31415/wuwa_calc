@@ -1,7 +1,7 @@
 /** Mainslot echoes and sonatas from Septimont (versions 2.5-2.7). */
 import { isType,
   Buff, Sonata, Sonata2pc, Mainslot, Action, Stat, Attribute, Type1, Cast, Scaling,
-  addStat, frozenStacks, stacksOf, stacksOfTeam, applySelf, applyTeam, casting, currentAction, revoke, maxEnergy, queue,
+  addStat, frozenStacks, stacksOf, stacksOfTeam, applySelf, applyTeam, casting, currentAction, revokeSelf, maxEnergy, queue,
 } from "../kit.js";
 import { applied } from "../kit.js";
 import { SHIELD } from "../statuses.js";
@@ -12,7 +12,6 @@ import { SHIELD } from "../statuses.js";
  *  Energy" is checked for real off the wearer's own `maxEnergy()`. */
 export const DREAM_OF_THE_LOST_3PC = new Sonata({
   name: "Dream of the Lost 3pc",
-  abbreviation: "DotL",
   applyStats: () => {
     if (maxEnergy() !== 0) return;
     addStat(Stat.CritRate, 20);
@@ -35,7 +34,7 @@ export const FALSE_SOVEREIGN = new Mainslot({
   name: "False Sovereign",
   action: ACTION_FALSE_SOVEREIGN,
   updateBuffs: () => { if (casting(Cast.Intro)) queue(ACTION_FALSE_SOVEREIGN_INTRO); },
-  applyStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Electro); addStat(Stat.DmgBonus, 12, Type1.Heavy); },
+  constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Electro); addStat(Stat.DmgBonus, 12, Type1.Heavy); },
 });
 
 /** Crown of Valor, Augusta's own sonata — also reused by Iuno. 3pc: a shield stacks +6% ATK /
@@ -46,7 +45,6 @@ export const CROWN_STACKS = new Buff({
 });
 export const COV_3PC = new Sonata({
   name: "Crown of Valor 3pc",
-  abbreviation: "CoV",
   updateBuffs: () => { if (applied(SHIELD)) applySelf(CROWN_STACKS, applied(SHIELD)); },
 });
 
@@ -60,7 +58,7 @@ export const ACTION_MYA = new Action("Echo - Lady of the Sea", {
 export const MYA = new Mainslot({
   name: "Lady of the Sea",
   action: ACTION_MYA,
-  applyStats: () => { addStat(Stat.DmgBonus, 12, Type1.Liberation); addStat(Stat.DmgBonus, 12, Attribute.Aero); },
+  constantStats: () => { addStat(Stat.DmgBonus, 12, Type1.Liberation); addStat(Stat.DmgBonus, 12, Attribute.Aero); },
 });
 
 /* ----------------------------------------------------------------------------------- Lupa, 2.4 */
@@ -72,7 +70,7 @@ export const ACTION_LIONESS = new Action("Echo - Lioness of Glory", {
 export const LIONESS_OF_GLORY = new Mainslot({
   name: "Lioness of Glory",
   action: ACTION_LIONESS,
-  applyStats: () => { addStat(Stat.DmgBonus, 12, Type1.Liberation); addStat(Stat.DmgBonus, 12, Attribute.Fusion); },
+  constantStats: () => { addStat(Stat.DmgBonus, 12, Type1.Liberation); addStat(Stat.DmgBonus, 12, Attribute.Fusion); },
 });
 
 /** Flaming Clawprint, Lupa's own sonata — also reused by Galbrena. 5pc: Resonance Liberation
@@ -87,10 +85,9 @@ export const CLAWPRINT_LIBERATION = new Buff({
 });
 export const CLAWPRINT_5PC = new Sonata({
   name: "Flaming Clawprint 5pc",
-  abbreviation: "Clawprint",
   updateBuffs: () => { if (casting(Cast.Liberation)) { applyTeam(CLAWPRINT_TEAM, 1); applySelf(CLAWPRINT_LIBERATION, 1); } },
 });
-export const CLAWPRINT_2PC = new Sonata2pc({ name: "Flaming Clawprint 2pc", applyStats: () => addStat(Stat.DmgBonus, 10, Attribute.Fusion) });
+export const CLAWPRINT_2PC = new Sonata2pc({ name: "Flaming Clawprint 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Fusion) });
 
 /* ----------------------------------------------------------------------------- Galbrena, 2.7 */
 
@@ -101,7 +98,7 @@ export const ACTION_CORROSAURUS = new Action("Echo - Corrosaurus", {
 export const CORROSAURUS = new Mainslot({
   name: "Corrosaurus",
   action: ACTION_CORROSAURUS,
-  applyStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Fusion); addStat(Stat.DmgBonus, 20, Type1.Echo); },
+  constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Fusion); addStat(Stat.DmgBonus, 20, Type1.Echo); },
 });
 
 /** Flamewing's Shadow 3pc, Galbrena's own sonata: Echo Skill DMG grants +20% Heavy Attack Crit
@@ -110,18 +107,16 @@ export const CORROSAURUS = new Mainslot({
 export const FLAMEWING_SHADOW_HEAVY = new Buff({
   name: "Flamewing's Shadow 3pc (heavy)",
   applyStats: () => addStat(Stat.CritRate, 20, Type1.Heavy),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(FLAMEWING_SHADOW_HEAVY); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(FLAMEWING_SHADOW_HEAVY); },
 });
 export const FLAMEWING_SHADOW_ECHO = new Buff({
   name: "Flamewing's Shadow 3pc (echo)",
   applyStats: () => addStat(Stat.CritRate, 20, Type1.Echo),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(FLAMEWING_SHADOW_ECHO); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(FLAMEWING_SHADOW_ECHO); },
 });
 export const FLAMEWING_SHADOW_3PC = new Sonata({
   name: "Flamewing's Shadow 3pc",
-  abbreviation: "Flamewing",
   updateBuffs: () => {
-    const a = currentAction();
     if (isType(Type1.Echo)) applySelf(FLAMEWING_SHADOW_HEAVY, 1);
     if (isType(Type1.Heavy)) applySelf(FLAMEWING_SHADOW_ECHO, 1);
   },
@@ -139,7 +134,7 @@ export const ACTION_FENRICO = new Action("Echo - Reminiscence: Fenrico", {
 export const FENRICO = new Mainslot({
   name: "Reminiscence: Fenrico",
   action: ACTION_FENRICO,
-  applyStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Aero); addStat(Stat.DmgBonus, 12, Type1.Heavy); },
+  constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Aero); addStat(Stat.DmgBonus, 12, Type1.Heavy); },
 });
 
 /** Law of Harmony 3pc, Qiuyuan's own sonata: Echo Skill grants the caster +30% Heavy Attack DMG
@@ -148,7 +143,7 @@ export const FENRICO = new Mainslot({
 export const LAW_OF_HARMONY_SELF = new Buff({
   name: "Law of Harmony",
   applyStats: () => addStat(Stat.DmgBonus, 30, Type1.Heavy),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(LAW_OF_HARMONY_SELF); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(LAW_OF_HARMONY_SELF); },
 });
 export const LAW_OF_HARMONY_TEAM = new Buff({
   name: "Law of Harmony", maxStacks: 4,
@@ -156,7 +151,6 @@ export const LAW_OF_HARMONY_TEAM = new Buff({
 });
 export const LAW_OF_HARMONY_3PC = new Sonata({
   name: "Law of Harmony 3pc",
-  abbreviation: "LoH",
   updateBuffs: () => {
     if (casting(Cast.Echo)) { applySelf(LAW_OF_HARMONY_SELF, 1); applyTeam(LAW_OF_HARMONY_TEAM, 1); }
   },

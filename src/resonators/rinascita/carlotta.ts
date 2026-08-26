@@ -36,11 +36,11 @@
  * damage hit, nothing invented.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  applySelf, applyEnemy, revokeEnemy, isHeld, currentAction, casting, revoke, addStat,
-  forte1, forte2, setForte2,
-  Debuff,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Scaling, applySelf, applyEnemy, revokeEnemy, isHeld, currentAction, casting, revokeSelf, addStat, forte1, forte2,
+  setForte2, Debuff,
 } from "../../kit.js";
+import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { THE_LAST_DANCE } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { FROSTY_RESOLVE_2PC, FROSTY_RESOLVE_5PC, SENTRY_CONSTRUCT } from "../../echoes/rinascita.js";
@@ -77,6 +77,8 @@ const Skill1 = carlottaAction("Skill - Art of Violence", {
 });
 const Skill2 = carlottaAction("Skill - Chromatic Splendor", {
   node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 563.64, energy: 3, concerto: 5, offtune: 12000,
+  // the crystal-to-Substance conversion
+  updateBuffs: () => applySelf(CHROMATIC_SPLENDOR_SPEND, 1),
 });
 
 // considered Resonance Skill DMG, spends all Substance
@@ -88,6 +90,13 @@ const FHA = carlottaAction("Heavy - Imminent Oblivion", {
 // Fatal Finale (requires and spends all 4) close it out
 const Lib1 = carlottaAction("Liberation - Era of New Wave", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Skill, mv: 402.71, concerto: 20, offtune: 33600, resetEnergy: true,
+  // reads Substance, opens Twilight Tango, zeroes the gauge
+  updateBuffs: () => {
+    applyEnemy(DECONSTRUCTION, 1);
+    applySelf(TWILIGHT_TANGO, 1);
+    if (forte2() >= 120) applySelf(FINAL_BOW, 1);
+    setForte2(0); // Twilight Tango removes all Substance on opening
+  },
 });
 const DeathKnell = carlottaAction("Liberation - Death Knell", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Skill, mv: 241.64, energy: 5, concerto: 7, offtune: 9600, forte3: 1,
@@ -134,7 +143,7 @@ const CHROMATIC_SPLENDOR_SPEND = new Buff({
     const crystals = forte1();
     addStat(Stat.AddForte1, -crystals);
     addStat(Stat.AddForte2, 10 * crystals);
-    revoke(CHROMATIC_SPLENDOR_SPEND);
+    revokeSelf(CHROMATIC_SPLENDOR_SPEND);
   },
 });
 
@@ -144,7 +153,7 @@ const CHROMATIC_SPLENDOR_SPEND = new Buff({
 const TWILIGHT_TANGO = new Buff({
   name: "Carlotta: Twilight Tango",
   convertStats: () => {
-    if (currentAction() === FatalFinale) revoke(TWILIGHT_TANGO);
+    if (currentAction() === FatalFinale) revokeSelf(TWILIGHT_TANGO);
   },
 });
 
@@ -159,34 +168,20 @@ const FINAL_BOW = new Buff({
     if (a === Lib1 || a === DeathKnell || a === FatalFinale) addStat(Stat.MulMv, 80);
   },
   convertStats: () => {
-    if (!isHeld(TWILIGHT_TANGO) || !currentAction().active) revoke(FINAL_BOW);
+    if (!isHeld(TWILIGHT_TANGO) || !currentAction().active) revokeSelf(FINAL_BOW);
   },
 });
 
 const CARLOTTA = new Resonator({
   name: "Carlotta",
-  abbreviation: "Lotta",
   element: Attribute.Glacio,
   weapon: WeaponType.Pistols,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#8fb3d9",
   maxEnergy: 125,
 
-  // Imminent Oblivion's own Substance spend already lands via its own declared forte2 field —
-  // this is just the rest of the gauge management: Chromatic Splendor's crystal-to-Substance
-  // conversion and Era of New Wave's own "read Substance, open Twilight Tango, zero the gauge".
-  updateBuffs: () => {
-    const a = currentAction();
-    if (a === Skill2) applySelf(CHROMATIC_SPLENDOR_SPEND, 1);
-    if (a === Lib1) {
-      applyEnemy(DECONSTRUCTION, 1);
-      applySelf(TWILIGHT_TANGO, 1);
-      if (forte2() >= 120) applySelf(FINAL_BOW, 1);
-      setForte2(0); // Twilight Tango removes all Substance on opening
-    }
-  },
-
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 12450); addStat(Stat.BaseAtk, 463); addStat(Stat.BaseDef, 1198);
   },
 });
@@ -194,18 +189,19 @@ const CARLOTTA = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const CARLOTTA_TALENTS = new Talent({
   name: "Carlotta: Talents",
-  applyStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
 // reconstructed to actually reach Final Bow: Intro (+30 Substance) into two Art of
 // Violence/Chromatic Splendor pairs (+60, +30) lands exactly on 120 before Liberation opens
 // Twilight Tango — Imminent Oblivion is DPS-negative here so it's left off this line entirely.
 // She's never the team's own lead, so this covers both opener and loop.
-const CL_ROTATION = [
+
+const CL_ROTATION = new Rotation([
   INTRO, Skill1, Skill2, MA1, Skill1, Skill2,
   Lib1, DeathKnell, DeathKnell, DeathKnell, DeathKnell, FatalFinale,
-  Skill1, Skill2, ECHO_CAST, Outro,
-];
+  Skill1, Skill2, ECHO_CAST, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -220,6 +216,5 @@ export const LOTTA_LOADOUT = new Loadout({
   echoLoadouts: [new EchoLoadout(SENTRY_CONSTRUCT, FROSTY_RESOLVE_5PC, FROSTY_RESOLVE_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
   substat: chem("atk", "skill"),
-  opener: CL_ROTATION,
-  loop: CL_ROTATION,
+    rotation: CL_ROTATION,
 });

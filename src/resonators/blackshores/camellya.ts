@@ -42,12 +42,11 @@
  * Outro/Twining's own table gives 0 across the board, a real absence, not an unchecked gap.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  applySelf, revoke, casting, currentAction, addStat, setForte1, isHeld, concerto, setConcerto,
-  stacksOf, frozenStacks,
-  lostOnSwap,
-  forte1,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Scaling, applySelf, revokeSelf, casting, currentAction, addStat, setForte1, isHeld, concerto, setConcerto,
+  stacksOf, frozenStacks, lostOnSwap, forte1,
 } from "../../kit.js";
+import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { NM_CROWNLESS, HAVOC_ECLIPSE_5PC, HAVOC_ECLIPSE_2PC } from "../../echoes/jinzhou.js";
@@ -83,7 +82,10 @@ const HA = camellyaAction("Heavy - Pruning", { node: Node.Normal, cast: Cast.Hea
 
 // Crimson Blossom opens Blossom Mode; Vining Waltz/Blazing Waltz/Vining Ronde/Atonement replace
 // Basic/Dodge Counter/Jump while it's up; Floral Ravage (Skill replacement) ends it.
-const CrimsonBlossom = camellyaAction("Skill - Crimson Blossom", { node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 227.24, concerto: 7, energy: 3.18, offtune: 10160, forte1: -21.1 }); // 113.62% x2
+const CrimsonBlossom = camellyaAction("Skill - Crimson Blossom", {
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 227.24, concerto: 7, energy: 3.18, offtune: 10160, forte1: -21.1, // 113.62% x2
+  updateBuffs: () => applySelf(BLOSSOM_MODE, 1),
+});
 
 const VW1 = camellyaAction("Basic - Vining Waltz 1", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 96.33, energy: 1.43, concerto: 2.85, offtune: 4560, forte1: -9.47 });
 const VW2 = camellyaAction("Basic - Vining Waltz 2", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 91.26, energy: 1.36, concerto: 2.7, offtune: 4320, forte1: -8.98 }); // 45.63% x2
@@ -104,11 +106,26 @@ const FloralRavage = camellyaAction("Skill - Floral Ravage", { node: Node.Skill,
 /** At full Crimson Pistil/Concerto — considered Basic Attack DMG, enters Budding Mode, genuinely
  *  recovers Crimson Pistil to a hard 100, and spends 70 Concerto off a hard-clamped-to-100
  *  starting point (see file header on both pre-clamps in CAMELLYA's own updateBuffs()). */
-const Ephemeral = camellyaAction("Forte - Ephemeral", { node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 1262.45, forte1: 100, concerto: -70, energy: 12, offtune: 60800 });
+/** Requires full Concerto and consumes 70 of it, so the bar is clamped back to 100 first; refills
+ *  the gauge from empty, and folds every Crimson Bud held into the Budding Mode it opens. */
+const Ephemeral = camellyaAction("Forte - Ephemeral", {
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 1262.45, forte1: 100, concerto: -70, energy: 12, offtune: 60800,
+  updateBuffs: () => {
+    setForte1(0);
+    if (concerto() > 100) setConcerto(100);
+    const buds = stacksOf(CRIMSON_BUD);
+    revokeSelf(BUDDING_MODE);
+    applySelf(BUDDING_MODE, 1 + buds);
+    revokeSelf(CRIMSON_BUD);
+  },
+});
 
 const Liberation = camellyaAction("Liberation - Fervor Efflorescent", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1202.81, concerto: 20, offtune: 84000, resetEnergy: true });
 
-const Intro = camellyaAction("Intro - Everblooming", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81, concerto: 10, forte1: 100, energy: 10, offtune: 9600 });
+const Intro = camellyaAction("Intro - Everblooming", {
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81, concerto: 10, forte1: 100, energy: 10, offtune: 9600,
+  updateBuffs: () => setForte1(0),
+});
 /** No handoff buff is described on her own kit page, unlike most other kits' outros — left as a
  *  plain damage hit. The Ephemeral-boosted variant isn't separately placed. */
 const Outro = camellyaAction("Outro - Twining", { cast: Cast.Outro, type: Type1.Outro, mv: 329.24, active: false });
@@ -120,7 +137,7 @@ const Outro = camellyaAction("Outro - Twining", { cast: Cast.Outro, type: Type1.
 const BLOSSOM_MODE = new Buff({
   name: "Camellya: Blossom Mode",
   convertStats: () => {
-    if (currentAction() === FloralRavage || currentAction() === ViningRonde) revoke(BLOSSOM_MODE);
+    if (currentAction() === FloralRavage || currentAction() === ViningRonde) revokeSelf(BLOSSOM_MODE);
   },
 });
 
@@ -142,7 +159,7 @@ const BUDDING_MODE = new Buff({
   // would otherwise be mistaken for "ran out" the instant Budding Mode opens)
   convertStats: () => {
     lostOnSwap();
-    if (currentAction() !== Ephemeral && forte1() <= 0) revoke(BUDDING_MODE);
+    if (currentAction() !== Ephemeral && forte1() <= 0) revokeSelf(BUDDING_MODE);
   },
   display: () => `Camellya: Sweet Dream +${frozenStacks()-1} Buds`,
 });
@@ -152,19 +169,19 @@ const BUDDING_MODE = new Buff({
  *  decides how many of Budding Mode's own 11 stacks get granted. */
 const CRIMSON_BUD = new Buff({
   name: "Camellya: Crimson Bud", maxStacks: 10,
-  convertStats: () => { if (casting(Cast.Outro)) revoke(CRIMSON_BUD); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(CRIMSON_BUD); },
 });
 
 /** Seedbed (Inherent Skill): +15% Havoc DMG Bonus flat — genuinely unconditional. */
 const SEEDBED = new Inherent({
   name: "Camellya: Seedbed",
-  applyStats: () => addStat(Stat.DmgBonus, 15, Attribute.Havoc),
+  constantStats: () => addStat(Stat.DmgBonus, 15, Attribute.Havoc),
 });
 
 /** Epiphyte (Inherent Skill): +15% Basic DMG Bonus flat (interruption-resistance half not modelled). */
 const EPIPHYTE = new Inherent({
   name: "Camellya: Epiphyte",
-  applyStats: () => addStat(Stat.DmgBonus, 15, Type1.Basic),
+  constantStats: () => addStat(Stat.DmgBonus, 15, Type1.Basic),
 });
 
 /** Granted and immediately spent on every action that consumes Crimson Pistils (a negative
@@ -186,33 +203,22 @@ const CONSUME_CRIMSON_PISTIL = new Buff({
     if (isHeld(BUDDING_MODE)) addStat(Stat.AddEnergy, -a.energy);
     else addStat(Stat.AddEnergy, 1.5 * a.energy);
   },
-  convertStats: () => revoke(CONSUME_CRIMSON_PISTIL),
+  convertStats: () => revokeSelf(CONSUME_CRIMSON_PISTIL),
 });
 
 const CAMELLYA = new Resonator({
   name: "Camellya",
-  abbreviation: "Cammy",
   element: Attribute.Havoc,
   weapon: WeaponType.Sword,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#e0507a",
   maxEnergy: 125,
 
-  updateBuffs: () => {
-    const a = currentAction();
-    if (a === Intro || a === Ephemeral) setForte1(0);
-    if (a === Ephemeral && concerto() > 100) setConcerto(100);
-    if (a === Ephemeral) {
-      const buds = stacksOf(CRIMSON_BUD);
-      revoke(BUDDING_MODE);
-      applySelf(BUDDING_MODE, 1 + buds);
-      revoke(CRIMSON_BUD);
-    }
-    if (a === CrimsonBlossom) applySelf(BLOSSOM_MODE, 1);
-    if (a.forte1 < 0) applySelf(CONSUME_CRIMSON_PISTIL, 1);
-  },
+  // any gauge-spending cast of hers is a Crimson Pistil consumption
+  updateBuffs: () => { if (currentAction().forte1 < 0) applySelf(CONSUME_CRIMSON_PISTIL, 1); },
 
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 10325); addStat(Stat.BaseAtk, 450); addStat(Stat.BaseDef, 1161);
   },
 });
@@ -220,22 +226,22 @@ const CAMELLYA = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const CAMELLYA_TALENTS = new Talent({
   name: "Camellya: Talents",
-  applyStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
 });
 
 // a kit-valid line: Intro, the Burgeoning chain, Crimson Blossom opens Blossom Mode, the Vining
 // Waltz chain (with the Blazing Waltz insert) into Floral Ravage closes it, Ephemeral spends the
 // fresh Concerto and opens Budding Mode, Liberation, Outro. She's never the team's own lead, so
 // this covers both opener and loop.
-const CM_ROTATION = [
+
+const CM_ROTATION = new Rotation([
   INTRO, ECHO_CAST, // TODO needs double intro implementation
   CrimsonBlossom,
   FloralRavage, HA, BA4, BA5,
   INTRO, Liberation, Ephemeral,
   CrimsonBlossom, VW1, VW2, VW3, BlazingWaltz, VW4,
-  FloralRavage,
-  Outro,
-];
+  FloralRavage, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -250,6 +256,5 @@ export const CAMMY_LOADOUT = new Loadout({
   echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC, HAVOC_ECLIPSE_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: chem("atk", "basic"),
-  opener: CM_ROTATION,
-  loop: CM_ROTATION,
+    rotation: CM_ROTATION,
 });

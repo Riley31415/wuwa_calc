@@ -33,13 +33,11 @@
  * off-tune) nanoka is what's here.
  */
 import {
-  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO,
-  Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  addStat, applied, applySelf, applyTeam, applyEnemy, currentAction, isHeld, maxStackIncrease,
-  revoke, revokeTeam, stacksOfEnemy, setForte1, setForte2, lostOnSwap,
-  forte1,
-  forte2,
+  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Cast, Node, Scaling, addStat, applied, applySelf, applyTeam, applyEnemy, currentAction, maxStackIncrease,
+  revokeSelf, revokeTeam, stacksOfEnemy, setForte1, setForte2, lostOnSwap, forte1, forte2,
 } from "../../kit.js";
+import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_SHIFTING, TUNE_STRAIN_INTERFERED, tuneStrainBonus } from "../../tunebreak.js";
 import { BLAZING_BRILLIANCE, GLINT_OF_CLOUDS, RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS, NEW_STD_SWORD } from "../../weapons/standard.js";
@@ -67,8 +65,16 @@ const MA3 = qxAction("Basic - Stringblade (Mid-Air) 3", { node: Node.Normal, cas
 const Plunge = qxAction("Basic - Plunging Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.29, energy: 1.55, concerto: 3.10, offtune: 4960 });
 const DC = qxAction("Basic - Stringblade (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 180.92, energy: 3.28, concerto: 16.52, offtune: 10400, forte2: 26.04 });
 
-/** Spends both gauges in full (see QINGXIAO's updateBuffs) and opens Ephemeral Transcendence. */
-const HA = qxAction("Heavy - Stringblade", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 438.41, energy: 5.31, concerto: 10.53, offtune: 16800, forte1: -100, forte2: -100 });
+/** Spends both gauges in full — pre-clamped here so its own declared -100s land exactly on 0 —
+ *  and opens Ephemeral Transcendence. Under Clarity it also arms the enhanced Heaven's Reckoning,
+ *  which is Clarity's own doing (see HEAVENS_CLARITY). */
+const HA = qxAction("Heavy - Stringblade", {
+  node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 438.41, energy: 5.31, concerto: 10.53, offtune: 16800, forte1: -100, forte2: -100,
+  updateBuffs: () => {
+    if (forte1() > 100) setForte1(100);
+    if (forte2() > 100) setForte2(100);
+  },
+});
 
 // --- Severing Note: Judgement banks nothing of its own on the table (the page's "45 Qin Heart
 //     during this skill" isn't there) — only Resonant Chime's 30 after an Intro; Ascendant is the
@@ -80,21 +86,42 @@ const Ascendant = qxAction("Skill - Severing Note: Ascendant", { node: Node.Skil
 //     on the way in) and, while it's short of full, deal double — see EPHEMERAL and QINGXIAO's own
 //     applyStats. Heaven's Reckoning spends it all and ends the state. Stage 1 is the table's own
 //     row (a 22.45% hit more than nanoka's). Both dodge counters carry +10 Concerto (CLAUDE.md).
-const FBA1 = qxAction("Forte - Ephemeral Transcendence 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 112.24, energy: 2.04, concerto: 4.05, offtune: 6450, forte1: 25.55 });
-const FBA2 = qxAction("Forte - Ephemeral Transcendence 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 115.55, energy: 2.10, concerto: 4.15, offtune: 6640, forte1: 26.35 });
-const FBA3 = qxAction("Forte - Ephemeral Transcendence 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 125.28, energy: 2.28, concerto: 4.51, offtune: 7200, forte1: 28.56 });
-const FBA4 = qxAction("Forte - Ephemeral Transcendence 4", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 180.96, energy: 3.27, concerto: 6.50, offtune: 10400, forte1: 41.20 });
-const FDC = qxAction("Forte - Ephemeral Transcendence (Dodge Counter)", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 264.46, energy: 4.77, concerto: 19.50, offtune: 15200, forte1: 60.26 });
-const FHA = qxAction("Forte Heavy - Heaven's Reckoning", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 695.90, energy: 23, concerto: 25, offtune: 8000, forte1: -100 });
+const FBA1 = qxAction("Forte - Ephemeral Transcendence 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 112.24, energy: 2.04, concerto: 4.05, offtune: 6450, forte1: 25.55 ,
+  applyStats: () => { if (forte1() < 100) addStat(Stat.MulMv, 100); }
+});
+const FBA2 = qxAction("Forte - Ephemeral Transcendence 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 115.55, energy: 2.10, concerto: 4.15, offtune: 6640, forte1: 26.35 ,
+applyStats: () => { if (forte1() < 100) addStat(Stat.MulMv, 100); }
+});
+const FBA3 = qxAction("Forte - Ephemeral Transcendence 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 125.28, energy: 2.28, concerto: 4.51, offtune: 7200, forte1: 28.56 ,
+applyStats: () => { if (forte1() < 100) addStat(Stat.MulMv, 100); }
+});
+const FBA4 = qxAction("Forte - Ephemeral Transcendence 4", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 180.96, energy: 3.27, concerto: 6.50, offtune: 10400, forte1: 41.20 ,
+applyStats: () => { if (forte1() < 100) addStat(Stat.MulMv, 100); }
+});
+const FDC = qxAction("Forte - Ephemeral Transcendence (Dodge Counter)", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 264.46, energy: 4.77, concerto: 19.50, offtune: 15200, forte1: 60.26 ,
+applyStats: () => { if (forte1() < 100) addStat(Stat.MulMv, 100); }
+});
+/** Spends all Heart Sword Intent and takes Heaven's Clarity with it. */
+const FHA = qxAction("Forte Heavy - Heaven's Reckoning", {
+  node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 695.90, energy: 23, concerto: 25, offtune: 8000, forte1: -100,
+  updateBuffs: () => {
+    if (forte1() > 100) setForte1(100);
+    revokeSelf(HEAVENS_CLARITY);
+  },
+});
 
 const Liberation = qxAction("Liberation - Billows Beneath Heaven", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1670.11,
   concerto: 20, offtune: 8000, resetEnergy: true,
+  updateBuffs: () => applySelf(HEAVENS_CLARITY, 1),
 });
 
 /** Banks nothing on the table — the page's "restores 30 Sword Cadence" isn't there — and arms
  *  Resonant Chime. */
-const Intro = qxAction("Intro - Tonality Shift", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 132.63, energy: 10, concerto: 10, offtune: 7626, forte2: 30 });
+const Intro = qxAction("Intro - Tonality Shift", {
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 132.63, energy: 10, concerto: 10, offtune: 7626, forte2: 30,
+  updateBuffs: () => applySelf(RESONANT_CHIME, 1),
+});
 /** Lingering Song: a real 800% Aero hit on the way out. */
 const Outro = qxAction("Outro - Lingering Song", { cast: Cast.Outro, type: Type1.Outro, mv: 800, active: false });
 
@@ -110,12 +137,9 @@ const MINDLOCK = new Debuff({ name: "Qingxiao: Mindlock",
   },
 });
 
-/** Ephemeral Transcendence's own casts: they bank Heart Sword Intent and, while it's short of
- *  full, deal double (the table's "before FHA unlock" rows). */
-const EPHEMERAL = new Set<Action>([FBA1, FBA2, FBA3, FBA4, FDC]);
 /** What Mindlock pays on — those five plus Heavy Attack - Stringblade, Heaven's Reckoning and the
  *  Liberation. */
-const MINDLOCK_PAYS = new Set<Action>([HA, ...EPHEMERAL, FHA, Liberation]);
+const MINDLOCK_PAYS = new Set<Action>([HA, FBA1, FBA2, FBA3, FBA4, FDC, FHA, Liberation]);
 
 /** Gathered Mind: 1 stack from combat start (only a kill of a Mindlocked target grows it, which
  *  there's nothing to model against one standing target). It pays out twice, each once per target:
@@ -138,7 +162,7 @@ const GATHERED_MIND = new Buff({
 const RESONANT_CHIME = new Buff({
   name: "Qingxiao: Resonant Chime",
   applyStats: () => { if (currentAction() === Skill) addStat(Stat.AddForte1, 30); },
-  convertStats: () => { if (currentAction() === Skill) revoke(RESONANT_CHIME); },
+  convertStats: () => { if (currentAction() === Skill) revokeSelf(RESONANT_CHIME); },
 });
 
 const CLARITY_FORTE = new Set<Action>([BA1, BA2, BA3, BA4, MA1, MA2, MA3, DC, Ascendant]);
@@ -147,10 +171,8 @@ const CLARITY_FORTE = new Set<Action>([BA1, BA2, BA3, BA4, MA1, MA2, MA3, DC, As
  *  Heavy Attack - Stringblade lays 3 Mindlock and enhances the next Heaven's Reckoning. */
 const HEAVENS_CLARITY = new Buff({
   name: "Qingxiao: Heaven's Clarity",
-  updateDebuffs: ()=> {
-    const a = currentAction();
-    if (a === HA) applyEnemy(MINDLOCK, 3);
-  },
+  updateDebuffs: () => { if (currentAction() === HA) applyEnemy(MINDLOCK, 3); },
+  updateBuffs: () => { if (currentAction() === HA) applySelf(RECKONING_ENHANCED, 1); },
   applyStats: () => {
     const a = currentAction();
     // Sheathed/Drawn stance hits only — Heart Sword Intent rides forte1 as well, and Ephemeral
@@ -168,7 +190,7 @@ const RECKONING_ENHANCED = new Buff({
   name: "Qingxiao: Heaven's Reckoning Enhancement",
   updateBuffs: () => lostOnSwap(),
   applyStats: () => { if (currentAction() === FHA) { addStat(Stat.MulMv, 100); addStat(Stat.AddOfftune, 152000); } },
-  convertStats: () => { if (currentAction() === FHA) revoke(RECKONING_ENHANCED); },
+  convertStats: () => { if (currentAction() === FHA) revokeSelf(RECKONING_ENHANCED); },
 });
 
 /* --------------------------------------------------------------------------- kit and loadout */
@@ -202,15 +224,15 @@ const QX_INHERENT_2 = new Inherent({
 
 const QINGXIAO_TALENTS = new Talent({
   name: "Qingxiao: Talents",
-  applyStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
 });
 
 const QINGXIAO = new Resonator({
   name: "Qingxiao",
-  abbreviation: "QX",
   element: Attribute.Aero,
   weapon: WeaponType.Sword,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#6cc5b0",
   maxEnergy: 125,
 
@@ -236,32 +258,11 @@ const QINGXIAO = new Resonator({
     if (interfered) applyEnemy(MINDLOCK, interfered);
   },
 
-  updateBuffs: () => {
-    const a = currentAction();
-    if (a === Intro) applySelf(RESONANT_CHIME, 1);
-    // Heavy Attack - Stringblade spends both gauges whole and, under Clarity, arms the enhancement
-    if (a === HA) { 
-      if (forte1() > 100) setForte1(100);
-      if (forte2() > 100) setForte2(100); 
-      if (isHeld(HEAVENS_CLARITY)) applySelf(RECKONING_ENHANCED, 1); 
-    }
-    // Heaven's Reckoning spends all Heart Sword Intent and takes Clarity with it
-    if (a === FHA) { 
-      if (forte1() > 100) setForte1(100);
-      revoke(HEAVENS_CLARITY); 
-    }
-    if (a === Liberation) applySelf(HEAVENS_CLARITY, 1);
-  },
-
   lateConvertStats: () => tuneStrainBonus(),
 
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 10300); addStat(Stat.BaseAtk, 462.5); addStat(Stat.BaseDef, 1112.22);
     addStat(Stat.Tbb, 10);
-
-    // Formless Heart Sword: the Ephemeral casts deal double while Heart Sword Intent is short of
-    // full — read before this cast's own bank lands, so the one that crosses 100 still doubles.
-    if (EPHEMERAL.has(currentAction()) && forte1() < 100) addStat(Stat.MulMv, 100);
   },
 });
 
@@ -271,11 +272,12 @@ const QINGXIAO = new Resonator({
  *  Stringblade chain to fill both gauges, Heavy Attack - Stringblade into Ephemeral Transcendence,
  *  its four basics to fill Heart Sword Intent, Heaven's Reckoning (enhanced, off the Heavy), the
  *  Liberation to bring Clarity back, the echo and out. Both opener and loop. */
-const QX_ROTATION = [
+
+const QX_ROTATION = new Rotation([
   INTRO, MA1, MA2, MA3, BA3, BA4, Skill, HA,
   FBA1, FBA2, FBA3, FBA4, FHA,
-  Liberation, ECHO_CAST, Outro,
-];
+  Liberation, ECHO_CAST, OUTRO_NEXT,
+]);
 
 export const QX_LOADOUT = new Loadout({
   resonator: QINGXIAO,
@@ -286,6 +288,5 @@ export const QX_LOADOUT = new Loadout({
   echoLoadouts: [new EchoLoadout(CALAMITY_EFFIGY, HEART_OF_EVILS_PURGE_5PC, HEART_OF_EVILS_PURGE_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
   substat: chem("atk", "heavy"),
-  opener: QX_ROTATION,
-  loop: QX_ROTATION,
+    rotation: QX_ROTATION,
 });

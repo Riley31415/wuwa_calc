@@ -10,10 +10,11 @@
  * skill states its own Concerto Regen outright, which wins.
  */
 import {
-  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  applySelf, applyTeam, applyEnemy, revokeTeam, isHeld, revoke, casting, currentAction, addStat, queue,
-  Type2,
+  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Cast, Node, Scaling, applySelf, applyTeam, applyEnemy, revokeTeam, isHeld, revokeSelf, casting, currentAction,
+  addStat, queue, Type2,
 } from "../../kit.js";
+import { Rotation, OPENER, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { AERO_EROSION, SHIELD } from "../../statuses.js";
 import { WOODLAND_ARIA } from "../../weapons/pistol.js";
 import { NM_KELPIE } from "../../echoes/rinascita.js";
@@ -34,7 +35,12 @@ function ciacconaAction(id: string, def: object): Action {
 const BA1 = ciacconaAction("Basic - Quadruple Time Steps 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 57.06, energy: 0.88, concerto: 2.8, offtune: 2800 });
 const BA2 = ciacconaAction("Basic - Quadruple Time Steps 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 163.04, energy: 2.51, concerto: 8, offtune: 8000 });
 const BA3 = ciacconaAction("Basic - Quadruple Time Steps 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 132.08, energy: 2.04, concerto: 6.48, offtune: 6480 });
-const BA4 = ciacconaAction("Basic - Quadruple Time Steps 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 244.56, energy: 3.76, concerto: 12, offtune: 12000, forte1: 1 });
+// Stage 4, Harmonic Allegro, Quadruple Downbeat and the Intro each lay one Aero Erosion
+const EROSION = { updateDebuffs: () => applyEnemy(AERO_EROSION, 1) };
+const BA4 = ciacconaAction("Basic - Quadruple Time Steps 4", {
+  node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 244.56, energy: 3.76, concerto: 12, offtune: 12000, forte1: 1, ...EROSION,
+  updateBuffs: () => applyTeam(SOLO_CONCERT, 1),
+});
 
 const HA = ciacconaAction("Heavy - Attack", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 107.60, energy: 1.65, concerto: 5.28, offtune: 5280 });
 const AimedShot = ciacconaAction("Heavy - Aimed Shot", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 32.61, energy: 0.5, concerto: 1.6, offtune: 1600 });
@@ -43,17 +49,30 @@ const MA1 = ciacconaAction("Basic - Mid-air Attack 1", { node: Node.Normal, cast
 const MA2 = ciacconaAction("Basic - Mid-air Attack 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 97.84, energy: 1.52, concerto: 4.8, offtune: 4800 });
 const DC = ciacconaAction("Basic - Dodge Counter", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 228.68, energy: 2.04, concerto: 16.48, offtune: 6480 });
 
-const Skill = ciacconaAction("Skill - Harmonic Allegro", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 161.56, energy: 9.6, concerto: 15, offtune: 5000 });
+const Skill = ciacconaAction("Skill - Harmonic Allegro", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 161.56, energy: 9.6, concerto: 15, offtune: 5000, ...EROSION });
 
 /** Forte Circuit: replaces the Heavy Attack at 3 segments and spends all of them. */
-const Downbeat = ciacconaAction("Forte Heavy - Quadruple Downbeat", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 628.13, energy: 14.97, concerto: 25, offtune: 9360, forte1: -3 });
+const Downbeat = ciacconaAction("Forte Heavy - Quadruple Downbeat", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 628.13, energy: 14.97, concerto: 25, offtune: 9360, forte1: -3, ...EROSION });
 
 // --- liberation / intro / outro. The Liberation opens Recital; switching out during Recital
 //     generates a Symphonic Poem Tonic on its own, green by default (see her updateBuffs() below).
-const Liberation = ciacconaAction("Liberation - Singer's Triple Cadenza", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1100.42, concerto: 20, offtune: 48000, resetEnergy: true });
-const GreenTonic = ciacconaAction("Liberation - Symphonic Poem: Tonic (green)", { node: Node.Liberation, type: Type1.Liberation, mv: 122.40, concerto: 10, offtune: 43640, active: false });
-const Intro = ciacconaAction("Intro - Roaming with the Wind", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 189.11, energy: 10, concerto: 10, offtune: 9280, forte1: 1 });
-const Outro = ciacconaAction("Outro - Windcalling Tune", { cast: Cast.Outro, active: false });
+const Liberation = ciacconaAction("Liberation - Singer's Triple Cadenza", {
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1100.42, concerto: 20, offtune: 48000, resetEnergy: true,
+  updateDebuffs: () => applySelf(SHIELD, 1), // Interlude Tune
+  updateBuffs: () => applySelf(RECITAL, 1),
+});
+const GreenTonic = ciacconaAction("Liberation - Symphonic Poem: Tonic (green)", {
+  node: Node.Liberation, type: Type1.Liberation, mv: 122.40, concerto: 10, offtune: 43640, active: false,
+  updateDebuffs: () => applyEnemy(AERO_EROSION, 20),
+});
+const Intro = ciacconaAction("Intro - Roaming with the Wind", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 189.11, energy: 10, concerto: 10, offtune: 9280, forte1: 1, ...EROSION });
+const Outro = ciacconaAction("Outro - Windcalling Tune", {
+  cast: Cast.Outro, active: false,
+  updateBuffs: () => {
+    applyTeam(WINDCALLING_TUNE, 1);
+    if (isHeld(RECITAL)) queue(GreenTonic); // switching out during Recital generates one itself
+  },
+});
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -69,7 +88,7 @@ const SOLO_CONCERT = new Buff({
  *  own — it's what makes the Outro generate a Tonic. */
 const RECITAL = new Buff({
   name: "Ciaccona: Recital",
-  updateBuffs: () => { if (casting(Cast.Intro)) revoke(RECITAL); }, // TODO swap in cancels it
+  updateBuffs: () => { if (casting(Cast.Intro)) revokeSelf(RECITAL); }, // TODO swap in cancels it
 });
 
 /** Interlude Tune (Inherent Skill): a shield off the Liberation — put up as the shield marker from
@@ -95,33 +114,14 @@ const WINDCALLING_TUNE = new Buff({
  *  own base stat line. */
 const CIACCONA = new Resonator({
   name: "Ciaccona",
-  abbreviation: "Cia",
   element: Attribute.Aero,
   weapon: WeaponType.Pistols,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#5ac46b",
   maxEnergy: 125,
 
-  // Aero Erosion off Stage 4, Harmonic Allegro, Quadruple Downbeat and the Intro (one each), 20
-  // off a green Tonic; Interlude Tune's shield off the Liberation
-  updateDebuffs: () => {
-    const a = currentAction();
-    if (a === BA4 || a === Skill || a === Downbeat || a === Intro) applyEnemy(AERO_EROSION, 1);
-    if (a === GreenTonic) applyEnemy(AERO_EROSION, 20);
-    if (a === Liberation) applyTeam(SHIELD, 1);
-  },
-
-  updateBuffs: () => {
-    const a = currentAction();
-    if (a === BA4) applyTeam(SOLO_CONCERT, 1);
-    if (a === Liberation) applySelf(RECITAL, 1);
-    if (a === Outro) {
-      applyTeam(WINDCALLING_TUNE, 1);
-      if (isHeld(RECITAL)) queue(GreenTonic); // switching out during Recital generates one itself
-    }
-  },
-
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 12238); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1198);
   },
 });
@@ -129,19 +129,22 @@ const CIACCONA = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const CIACCONA_TALENTS = new Talent({
   name: "Ciaccona: Talents",
-  applyStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
 });
 
 // Intro plus two Basic Stage 4s are the three Musical Essence Quadruple Downbeat spends; the Skill
 // chains straight back into Basic Stage 2, which is how the second stage-4 comes around without
 // restarting the string. She's never the team's own lead, so this covers opener and loop both.
-const CI_ROTATION = [ // TODO add opener
-  INTRO, 
-  BA3, BA4,
-  Skill, BA2, BA3, BA4,
-  Downbeat, ECHO_CAST,
-  Liberation, Outro,
-];
+
+const CI_ROTATION = new Rotation([
+  OPENER, // midair swapin
+  MA1, MA2, BA4, MA1, MA2, BA4, MA1, MA2, BA4,
+  Skill, Downbeat, Liberation, ECHO_CAST, OUTRO_NEXT,
+
+  INTRO, BA3, BA4, // jump
+  MA1, MA2, BA4,
+  Skill, Downbeat, Liberation, ECHO_CAST, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -152,12 +155,11 @@ export const CIA_LOADOUT = new Loadout({
   talent: CIACCONA_TALENTS,
   inherent1: CI_INHERENT_1,
   inherent2: CI_INHERENT_2,
-  weapons: [WOODLAND_ARIA, STATIC_MIST, NEW_STD_PISTOL],
+  weapons: [WOODLAND_ARIA, NEW_STD_PISTOL, STATIC_MIST],
   echoLoadouts: [new EchoLoadout(NM_KELPIE, GUSTS_OF_WELKIN_5PC, GUSTS_OF_WELKIN_2PC),
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC)
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
   substat: chem("atk", "liberation"),
-  opener: CI_ROTATION,
-  loop: CI_ROTATION,
+    rotation: CI_ROTATION,
 });

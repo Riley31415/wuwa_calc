@@ -1,7 +1,7 @@
 /** Signature Pistols weapons, ported to the new engine. */
 import { isType,
   Buff, Debuff, Weapon, WeaponType, Stat, EnemyStat, Attribute, Type1, Cast,
-  addStat, addEnemyStat, applySelf, applyEnemy, applyTeam, isHeld, casting, currentAction, revoke, frozenStacks,
+  addStat, addEnemyStat, applySelf, applyEnemy, applyTeam, isHeld, casting, currentAction, revokeSelf, frozenStacks,
 } from "../kit.js";
 import { applied } from "../kit.js";
 import { AERO_EROSION } from "../statuses.js";
@@ -12,13 +12,13 @@ import { TUNE_HACK_SHIFTING, TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from 
 export const THE_LAST_DANCE = new Weapon({
   weaponType: WeaponType.Pistols,
   name: "The Last Dance",
-  applyStats: () => { addStat(Stat.BaseAtk, 500); addStat(Stat.CritDmg, 72); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.BaseAtk, 500); addStat(Stat.CritDmg, 72); addStat(Stat.BonusAtk, 12); },
   updateBuffs: () => { if (casting(Cast.Intro) || casting(Cast.Liberation)) applySelf(SILENT_EULOGY, 1); },
 });
 export const SILENT_EULOGY = new Buff({
   name: "The Last Dance: Silent Eulogy",
   applyStats: () => addStat(Stat.DmgBonus, 48, Type1.Skill),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(SILENT_EULOGY); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(SILENT_EULOGY); },
 });
 
 /** Lux & Umbra, Galbrena's sig, R1: To Fire She Returns. +12% ATK flat. Echo Skill DMG grants
@@ -27,8 +27,8 @@ export const SILENT_EULOGY = new Buff({
 export const LUX_UMBRA = new Weapon({
   weaponType: WeaponType.Pistols,
   name: "Lux & Umbra",
+  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.BonusAtk, 12); },
   applyStats: () => {
-    addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.BonusAtk, 12);
     if (isHeld(TO_FIRE_SHE_RETURNS_HEAVY) && isHeld(TO_FIRE_SHE_RETURNS_ECHO)) addStat(Stat.DefIgnoreNew, 8);
   },
   updateBuffs: () => {
@@ -40,12 +40,12 @@ export const LUX_UMBRA = new Weapon({
 export const TO_FIRE_SHE_RETURNS_HEAVY = new Buff({
   name: "Lux & Umbra: To Fire She Returns (heavy)",
   applyStats: () => addStat(Stat.Amp, 24, Type1.Heavy),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(TO_FIRE_SHE_RETURNS_HEAVY); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(TO_FIRE_SHE_RETURNS_HEAVY); },
 });
 export const TO_FIRE_SHE_RETURNS_ECHO = new Buff({
   name: "Lux & Umbra: To Fire She Returns (echo)",
   applyStats: () => addStat(Stat.Amp, 24, Type1.Echo),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(TO_FIRE_SHE_RETURNS_ECHO); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(TO_FIRE_SHE_RETURNS_ECHO); },
 });
 
 /** Woodland Aria, Ciaccona's sig, R1: Lingering Summer Tune. +12% ATK flat. Inflicting Aero
@@ -55,7 +55,7 @@ export const TO_FIRE_SHE_RETURNS_ECHO = new Buff({
 export const WOODLAND_ARIA = new Weapon({
   weaponType: WeaponType.Pistols,
   name: "Woodland Aria",
-  applyStats: () => { addStat(Stat.BaseAtk, 500); addStat(Stat.CritRate, 36); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.BaseAtk, 500); addStat(Stat.CritRate, 36); addStat(Stat.BonusAtk, 12); },
   updateBuffs: () => {
     if (applied(AERO_EROSION)) { applySelf(LINGERING_SUMMER_TUNE, 1); applyEnemy(LINGERING_SUMMER_SHRED, 1); }
   },
@@ -77,7 +77,7 @@ export const LINGERING_SUMMER_SHRED = new Debuff({
 export const SPECTRUM_BLASTER = new Weapon({
   weaponType: WeaponType.Pistols,
   name: "Spectrum Blaster",
-  applyStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.BonusAtk, 12); },
   updateBuffs: () => {
     const a = currentAction();
     if (casting(Cast.Intro) || isType(Type1.Basic)) applySelf(ATTENDANCE_EXEMPTION, 1);
@@ -87,7 +87,7 @@ export const SPECTRUM_BLASTER = new Weapon({
 export const ATTENDANCE_EXEMPTION = new Buff({
   name: "Spectrum Blaster: Attendance Exemption Protocol",
   applyStats: () => addStat(Stat.DmgBonus, 36, Type1.Basic),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(ATTENDANCE_EXEMPTION); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(ATTENDANCE_EXEMPTION); },
 });
 export const SPECTRUM_CHORUS = new Buff({
   name: "Spectrum Blaster: Attendance Exemption Protocol (team)", maxStacks: 3,
@@ -101,7 +101,7 @@ export const SPECTRUM_CHORUS = new Buff({
 export const SKULL_THRASHER = new Weapon({
   weaponType: WeaponType.Pistols,
   name: "Skull Thrasher",
-  applyStats: () => { addStat(Stat.BaseAtk, 500); addStat(Stat.CritDmg, 72); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.BaseAtk, 500); addStat(Stat.CritDmg, 72); addStat(Stat.BonusAtk, 12); },
   updateBuffs: () => {
     if (casting(Cast.Intro)) applySelf(WAKEFUL_LONER_INTRO, 1);
     if (applied(TUNE_HACK_SHIFTING)) { applySelf(WAKEFUL_LONER_HACK, 1); applyTeam(WAKEFUL_LONER_TEAM, 1); }
@@ -110,12 +110,12 @@ export const SKULL_THRASHER = new Weapon({
 export const WAKEFUL_LONER_INTRO = new Buff({
   name: "Skull Thrasher: Wakeful Loner (intro)",
   applyStats: () => addStat(Stat.DmgBonus, 24, Type1.Basic),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(WAKEFUL_LONER_INTRO); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(WAKEFUL_LONER_INTRO); },
 });
 export const WAKEFUL_LONER_HACK = new Buff({
   name: "Skull Thrasher: Wakeful Loner (hack)",
   applyStats: () => addStat(Stat.DmgBonus, 12, Type1.Basic),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(WAKEFUL_LONER_HACK); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(WAKEFUL_LONER_HACK); },
 });
 export const WAKEFUL_LONER_TEAM = new Buff({
   name: "Skull Thrasher: Wakeful Loner (team)",
@@ -129,7 +129,7 @@ export const WAKEFUL_LONER_TEAM = new Buff({
 export const SPECTRAL_TRIGGER = new Weapon({
   weaponType: WeaponType.Pistols,
   name: "Spectral Trigger",
-  applyStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.BonusAtk, 12); },
+  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.BonusAtk, 12); },
   updateBuffs: () => {
     if (casting(Cast.Skill)) applySelf(SUNKEN_DREAM_STACKS, 1);
     if (applied(TUNE_HACK_SHIFTING)) applySelf(SUNKEN_DREAM_HACK, 1);
@@ -138,10 +138,10 @@ export const SPECTRAL_TRIGGER = new Weapon({
 export const SUNKEN_DREAM_STACKS = new Buff({
   name: "Spectral Trigger: Sunken Dream (spectro)", maxStacks: 2,
   applyStats: () => addStat(Stat.DmgBonus, 20 * frozenStacks(), Attribute.Spectro),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(SUNKEN_DREAM_STACKS); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(SUNKEN_DREAM_STACKS); },
 });
 export const SUNKEN_DREAM_HACK = new Buff({
   name: "Spectral Trigger: Sunken Dream (heavy)",
   applyStats: () => { addStat(Stat.Amp, 30, Type1.Heavy); addStat(Stat.DefIgnoreNew, 10, Type1.Heavy); },
-  convertStats: () => { if (casting(Cast.Outro)) revoke(SUNKEN_DREAM_HACK); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(SUNKEN_DREAM_HACK); },
 });

@@ -26,10 +26,11 @@
  * "Nightmare:") — see echoes/jinzhou.ts's own INFERNO_RIDER.
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, ECHO_CAST, INTRO, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling,
-  applySelf, applyTeam, revoke, isHeld, casting, currentAction, addStat, frozenStacks, queueOutro,
-  forte1, setForte1,
+  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Cast, Node, Scaling, applySelf, applyTeam, revokeSelf, isHeld, casting, currentAction, addStat, frozenStacks,
+  queueOutro, forte1, setForte1,
 } from "../../kit.js";
+import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../rotation.js";
 import { STRINGMASTER } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { INFERNO_RIDER, MOLTEN_RIFT_5PC, MOLTEN_RIFT_2PC } from "../../echoes/jinzhou.js";
@@ -59,7 +60,11 @@ const Skill1 = encoreAction("Skill - Flaming Woolies", { node: Node.Skill, cast:
 const Skill2 = encoreAction("Skill - Energetic Welcome", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 339.16, energy: 0.75, concerto: 6.51, offtune: 9072, forte1: 30 });
 
 // Cloudy Frenzy (Threshold), spends the full Mayhem gauge
-const CloudyFrenzy = encoreAction("Heavy - Cloudy Frenzy", { node: Node.Forte, active: false, cast: Cast.Heavy, type: Type1.Liberation, mv: 773.73, concerto: 10.00, offtune: 46709, forte1: -100 });
+// Cloudy Frenzy/Cosmos Rupture each spend the whole Mayhem gauge — pre-clamp an overshoot back to
+// exactly 100 so the declared forte1: -100 lands exactly on 0, same pattern as Galbrena's own
+// Purging Flame/Ascent of Malice.
+const SPEND_MAYHEM = { updateBuffs: () => { if (forte1() >= 100) setForte1(100); } };
+const CloudyFrenzy = encoreAction("Heavy - Cloudy Frenzy", { node: Node.Forte, active: false, cast: Cast.Heavy, type: Type1.Liberation, mv: 773.73, concerto: 10.00, offtune: 46709, forte1: -100, ...SPEND_MAYHEM });
 
 /** No damage of its own, just opens the state. */
 const Liberation = encoreAction("Liberation - Cosmos Rave", { node: Node.Liberation, cast: Cast.Liberation, concerto: 20, resetEnergy: true });
@@ -74,7 +79,7 @@ const UBA4 = encoreAction("Basic - Cosmos: Frolicking 4", { node: Node.Liberatio
 const CosmosHeavy = encoreAction("Heavy - Cosmos: Heavy Attack", { node: Node.Liberation, cast: Cast.Heavy, type: Type1.Heavy, mv: 217.58, energy: 1.60, concerto: 3.21, offtune: 7716, forte1: 9 });
 const USkill = encoreAction("Skill - Cosmos: Rampage", { node: Node.Liberation, cast: Cast.Skill, type: Type1.Skill, mv: 253.28, energy: 6.56, concerto: 8.00, offtune: 6168, forte1: 28 });
 const CosmosDodgeCounter = encoreAction("Basic - Cosmos: Dodge Counter", { node: Node.Liberation, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 263.96, energy: 1.92, concerto: 13.88, offtune: 9360, forte1: 16 });
-const FHA = encoreAction("Forte Heavy - Cosmos Rupture", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Liberation, mv: 773.73, concerto: 10.00, offtune: 46709, forte1: -100, active: false });
+const FHA = encoreAction("Forte Heavy - Cosmos Rupture", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Liberation, mv: 773.73, concerto: 10.00, offtune: 46709, forte1: -100, active: false, ...SPEND_MAYHEM });
 
 const Intro = encoreAction("Intro - Woolies Helpers", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81, energy: 10.00, concerto: 10.00, offtune: 15132, forte1: 40 });
 /** A burn zone, 4 ticks over 6s, lumped into one action same as every other periodic effect
@@ -87,7 +92,7 @@ const Outro = encoreAction("Outro - Thermal Field", { cast: Cast.Outro, type: Ty
 const WOOLIES_CHEER_DANCE = new Buff({
   name: "Encore: Woolies Cheer Dance",
   applyStats: () => addStat(Stat.DmgBonus, 10, Attribute.Fusion),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(WOOLIES_CHEER_DANCE); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(WOOLIES_CHEER_DANCE); },
 });
 const EN_INHERENT_2 = new Inherent({
   name: "Encore: Woolies Cheer Dance",
@@ -99,7 +104,7 @@ const EN_INHERENT_2 = new Inherent({
 const ANGRY_COSMOS = new Buff({
   name: "Encore: Angry Cosmos",
   applyStats: () => addStat(Stat.DmgBonus, 10),
-  convertStats: () => { if (currentAction() === FHA) revoke(ANGRY_COSMOS); },
+  convertStats: () => { if (currentAction() === FHA) revokeSelf(ANGRY_COSMOS); },
 });
 const EN_INHERENT_1 = new Inherent({
   name: "Encore: Angry Cosmos",
@@ -111,7 +116,7 @@ const EN_INHERENT_1 = new Inherent({
 const S1_STACKS = new Buff({
   name: "Encore S1: Wooly's Fairy Tale", maxStacks: 4,
   applyStats: () => addStat(Stat.DmgBonus, 3 * frozenStacks(), Attribute.Fusion),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(S1_STACKS); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(S1_STACKS); },
 });
 const S1 = new Sequence({
   name: "Encore S1",
@@ -147,7 +152,7 @@ const S5 = new Sequence({
 const S6_LOST_LAMB = new Buff({
   name: "Encore S6: Lost Lamb", maxStacks: 5,
   applyStats: () => addStat(Stat.BonusAtk, 5 * frozenStacks()),
-  convertStats: () => { if (casting(Cast.Outro)) revoke(S6_LOST_LAMB); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(S6_LOST_LAMB); },
 });
 const S6 = new Sequence({
   name: "Encore S6",
@@ -157,22 +162,14 @@ const S6 = new Sequence({
 const ENCORE = new Resonator({
   name: "Encore",
   standardCharacter: true,
-  abbreviation: "Encore",
   element: Attribute.Fusion,
   weapon: WeaponType.Rectifier,
   intro: () => Intro,
+  outro: () => Outro,
   color: "#e56b9a",
   maxEnergy: 125,
 
-  // Cloudy Frenzy/Cosmos Rupture each spend the whole Mayhem gauge — pre-clamp an overshoot back
-  // to exactly 100 so the declared forte1: -100 field lands exactly on 0, same pattern as
-  // Galbrena's own Purging Flame/Ascent of Malice.
-  updateBuffs: () => {
-    const a = currentAction();
-    if ((a === CloudyFrenzy || a === FHA) && forte1() >= 100) setForte1(100);
-  },
-
-  applyStats: () => {
+  constantStats: () => {
     addStat(Stat.BaseHp, 10512.5); addStat(Stat.BaseAtk, 425); addStat(Stat.BaseDef, 1247);
   },
 });
@@ -180,26 +177,25 @@ const ENCORE = new Resonator({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const ENCORE_TALENTS = new Talent({
   name: "Encore: Talents",
-  applyStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Fusion); },
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Fusion); },
 });
 
 // a kit-valid line: Intro tops Mayhem partway, Basic 1234 into Wooly Strike, Heavy Attack at 100
 // Mayhem releases Cloudy Frenzy, Liberation opens Cosmos Rave, its own Frolicking combo into
 // Cosmos Rampage, Cosmos Rupture spends the fresh Mayhem it banked. She's never the team's own
 // lead, so this covers both opener and loop.
-const EN_ROTATION = [
-  INTRO,
-  ECHO_CAST,  // would be swapped
-  Skill1, Skill2, // would be swapped
+
+const EN_ROTATION = new Rotation([
+  INTRO, ECHO_CAST,  // would be swapped
+  Skill1, // would be swapped
   Liberation,
   USkill,
   UBA1, UBA2, UBA3, UBA4,
   USkill,
   UBA1, UBA2, UBA3, UBA4,
   USkill,
-  FHA,
-  Outro,
-];
+  FHA, OUTRO_NEXT,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -210,11 +206,10 @@ export const ENCORE_LOADOUT = new Loadout({
   talent: ENCORE_TALENTS,
   inherent1: EN_INHERENT_1,
   inherent2: EN_INHERENT_2,
-  weapons: [STRINGMASTER, NEW_STD_RECTIFIER, COSMIC_RIPPLES],
+  weapons: [STRINGMASTER, COSMIC_RIPPLES, NEW_STD_RECTIFIER],
   echoLoadouts: [new EchoLoadout(INFERNO_RIDER, MOLTEN_RIFT_5PC, MOLTEN_RIFT_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: chem("atk", "basic"),
-  opener: EN_ROTATION,
-  loop: EN_ROTATION,
+    rotation: EN_ROTATION,
   sequences: [S1, S2, S3, S4, S5, S6],
 });
