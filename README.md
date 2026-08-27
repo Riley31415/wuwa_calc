@@ -23,8 +23,8 @@ module files `dist/` ships as.
 | `src/engine/teams.ts` | the `LOADOUTS` registry and every team the comparison table runs (`ALL_TEAMS`) |
 | `src/engine/display.ts` | turns a run into the report/hover-trace data the page renders |
 | `src/engine/mainstats.ts` / `substats.ts` | echo main-stat builds (`mainstats()`/`mainstatOptions()`) and substat spreads (`substats()`/`chem()`) |
-| `src/resonators/v<patch><region>/*.ts` | one folder per region, prefixed with the patch that introduced it so they sort chronologically (`v10jinzhou` … `v35mengzhou`): one file per resonator — actions, buffs, the Resonator itself, talents, inherent skills, sequences, a sample rotation, a loadout |
-| `src/echoes/<region>.ts` | mainslot echoes and sonata sets, one file per region that introduced them (unversioned, unlike the resonator folders; Black Shores' Fallacy lives in `jinzhou.ts`) |
+| `src/resonators/<attribute>/*.ts` | one folder per attribute (`aero`, `electro`, `fusion`, `glacio`, `havoc`, `spectro`): one file per resonator — actions, buffs, the Resonator itself, talents, inherent skills, sequences, a sample rotation, a loadout |
+| `src/echoes/<region>.ts` | mainslot echoes and sonata sets, one file per region that introduced them (grouped by region, unlike the resonator folders; Black Shores' Fallacy lives in `jinzhou.ts`) |
 | `src/weapons/*.ts` | signature and standard weapons, grouped by weapon type |
 | `src/index.ts` | the whole site — the comparison table, the filters, the detail page |
 

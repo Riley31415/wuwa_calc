@@ -22,6 +22,8 @@
 
       npm run build                     ->  compiles src/**/*.ts (+ passthrough .js) into dist/
       python serve.py                   ->  http://127.0.0.1:8731/  (no-store + hot reload)
+      npm run dev                       ->  both at once, and what the logon entry runs, so
+                                            normally this is already up and neither is needed
 
   Use 127.0.0.1, not localhost — see serve.py's own header on the ~200ms-per-connection stall
   "localhost" costs on Windows, paid on every one of the unbundled module fetches below.

@@ -1,8 +1,3 @@
-# cleanup chain system
-re add chains, more simple definition,
-make triggered actions from chains move into the correct place after opening the dropdwon
-cant tune break in middle of chain
-
 # echoes
 update transform echoes to be inactive or cancelled
 make transforms not triggered, summons are triggered
@@ -27,6 +22,5 @@ standardize action naming
 standardize sequence naming
 cleanup all (team) (self) (whatever) buffs
 
-
 #
-eventually delete the migrated data
+add def and res formulas to their hovers

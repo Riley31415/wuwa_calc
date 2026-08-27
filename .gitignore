@@ -4,3 +4,4 @@ serve.log
 tsc-watch.log
 serve8000.log
 serve8731.log
+__pycache__/

@@ -2,10 +2,10 @@
  *  resonator, not just its own. */
 import { isType,
   Buff, Weapon, WeaponType, Stat, Attribute, Type1, Cast,
-  addStat, frozenStacks, casting, currentAction, revokeSelf, applyCurrent, applyTeam, removeStack, lostOnSwap, isHeld,
+  addStat, frozenStacks, casting, currentAction, revokeCurrent, applyCurrent, applyTeam, removeStack, lostOnSwap, isHeld,
 } from "../engine/kit.js";
 import { applied } from "../engine/kit.js";
-import { SHIELD, HEALS, inflictedNegativeStatus } from "../engine/status.js";
+import { SHIELD, HEALS, inflictedNegativeStatus } from "../shared/status.js";
 
 /** Jiyan's sig, R1: Swordsworn. +12% Attribute DMG Bonus flat. Every Intro/Liberation cast
  *  grants +24% Heavy Attack DMG Bonus, up to 2 frozenStacks, 14s. */
@@ -23,7 +23,7 @@ export const SWORDSWORN_STACKS = new Buff({
   name: "Verdant Summit: Swordsworn", maxStacks: 2,
   updateBuffs: () => {
     addStat(Stat.DmgBonus, 24 * frozenStacks(), Type1.Heavy);
-    if (casting(Cast.Outro)) revokeSelf(SWORDSWORN_STACKS);
+    if (casting(Cast.Outro)) revokeCurrent(SWORDSWORN_STACKS);
   },
 });
 
@@ -46,12 +46,12 @@ export const AGES_OF_HARVEST = new Weapon({
 export const AGELESS_MARKING = new Buff({
   name: "Ages of Harvest: Ageless Marking",
   applyStats: () => addStat(Stat.DmgBonus, 24, Type1.Skill),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(AGELESS_MARKING); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(AGELESS_MARKING); },
 });
 export const ETHEREAL_ENDOWMENT = new Buff({
   name: "Ages of Harvest: Ethereal Endowment",
   applyStats: () => addStat(Stat.DmgBonus, 24, Type1.Skill),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(ETHEREAL_ENDOWMENT); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(ETHEREAL_ENDOWMENT); },
 });
 
 /** Augusta's sig, R1. +12% ATK flat. Intro/Skill cast grants +20% Heavy Attack DMG Bonus for
@@ -72,13 +72,13 @@ export const THUNDERFLARE_DOMINION = new Weapon({
 export const THUNDERBLAZE_DMG = new Buff({
   name: "Thunderflare Dominion: Thunderblaze Eminence (heavy)",
   applyStats: () => addStat(Stat.DmgBonus, 20, Type1.Heavy),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(THUNDERBLAZE_DMG); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(THUNDERBLAZE_DMG); },
 });
 export const THUNDERBLAZE_DEF = new Buff({
   name: "Thunderflare Dominion: Thunderblaze Eminence (def ignore)", maxStacks: 5,
   updateBuffs: () => {
     addStat(Stat.DefIgnoreNew, 7.2 * frozenStacks(), Type1.Heavy);
-    if (casting(Cast.Outro)) revokeSelf(THUNDERBLAZE_DEF);
+    if (casting(Cast.Outro)) revokeCurrent(THUNDERBLAZE_DEF);
   },
 });
 
@@ -90,7 +90,7 @@ export const WILDFIRE_LIB_DMG = new Buff({
   name: "Wildfire Mark: Blazing Starfire",
   applyStats: () => addStat(Stat.DmgBonus, 24, Type1.Liberation),
   updateBuffs: () => { if (isType(Type1.Heavy)) applyTeam(WILDFIRE_TEAM, 1); },
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(WILDFIRE_LIB_DMG); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(WILDFIRE_LIB_DMG); },
 });
 export const WILDFIRE_TEAM = new Buff({
   name: "Wildfire Mark: Blazing Starfire (team)",
@@ -193,13 +193,16 @@ export const KUMOKIRI = new Weapon({
 });
 export const THREAD_OF_FATE_STACKS = new Buff({
   name: "Kumokiri: Thread of Fate", maxStacks: 3,
+  // `applyTeam`, not `applyCurrent`: the payout is the *team's* (+24% to everyone), and inside
+  // updateGlobal `currentSlot` is this buff's own holder rather than whoever is acting — so
+  // granting to "current" handed the wielder a team buff nobody else on the team ever saw.
   updateGlobal() {
     if (frozenStacks() >= 3 && inflictedNegativeStatus()) {
-      applyCurrent(THREAD_OF_FATE_TEAM, 1);
+      applyTeam(THREAD_OF_FATE_TEAM, 1);
     }
   },
   applyStats: () => addStat(Stat.DmgBonus, 8 * frozenStacks(), Type1.Liberation),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(THREAD_OF_FATE_STACKS); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(THREAD_OF_FATE_STACKS); },
 });
 
 /** 15s, but a full loop re-triggers it well before that lapses, so left with permanent uptime like

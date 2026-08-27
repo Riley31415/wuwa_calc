@@ -90,7 +90,7 @@ export const SWAP = new Action("Swap", { active: false, triggered: true });
 /** Emitted in SWAP's place when there was nobody to swap to — a marker row to read in the action
  *  table, not a cast. Active, because the swap didn't happen: the resonator never left the field,
  *  so nothing of theirs should drop. They simply carry on into their own next chain. */
-export const FAILED_SWAP = new Action("Failed Swap", { triggered: true });
+export const FAILED_SWAP = new Action("Attempted Swap", { triggered: true });
 
 const EXITS = new Set<Action>([OUTRO_NEXT, OUTRO_LAST]);
 

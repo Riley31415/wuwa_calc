@@ -2,10 +2,10 @@
  *  resonator, not just its own. */
 import { isType,
   Buff, Weapon, WeaponType, Stat, Attribute, Type1, Type2, Cast,
-  addStat, frozenStacks, casting, currentAction, revokeSelf, applyCurrent, stacksOf, applyTeam, lostOnSwap, applied, appliedByMe,
+  addStat, frozenStacks, casting, currentAction, revokeCurrent, applyCurrent, stacksOf, applyTeam, lostOnSwap, applied, appliedByMe,
 } from "../engine/kit.js";
-import { TUNE_STRAIN_SHIFTING } from "../engine/tunebreak.js";
-import { GLACIO_CHAFE } from "../engine/status.js";
+import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
+import { GLACIO_CHAFE, HAVOC_BANE } from "../shared/status.js";
 
 /** Changli's sig, R1: Crimson Phoenix. +12% ATK flat. Resonance Skill grants 5 stacks of Searing
  *  Feather outright (up to 14) — the per-hit 0.5s-ICD trickle isn't modelled. */
@@ -24,7 +24,7 @@ export const SEARING_FEATHER = new Buff({
   // pays off current stacks before revoking — applyStats()'s frozenStacks() would already read 0 otherwise
   updateBuffs: () => {
     addStat(Stat.DmgBonus, 4 * frozenStacks(), Type1.Skill);
-    if (casting(Cast.Outro)) revokeSelf(SEARING_FEATHER);
+    if (casting(Cast.Outro)) revokeCurrent(SEARING_FEATHER);
   },
 });
 
@@ -47,7 +47,7 @@ export const RED_SPRING = new Weapon({
 export const RED_SPRING_BASIC = new Buff({
   name: "Red Spring: Beyond the Cycle", maxStacks: 3,
   applyStats: () => { addStat(Stat.DmgBonus, 10 * frozenStacks(), Type1.Basic); },
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(RED_SPRING_BASIC); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(RED_SPRING_BASIC); },
 });
 export const RED_SPRING_CONSUME = new Buff({
   name: "Red Spring: Beyond the Cycle (consume)",
@@ -73,12 +73,12 @@ export const UNFLICKERING_VALOR = new Weapon({
 export const LAUGHTER_PREVAILS_LIB = new Buff({
   name: "Unflickering Valor: Laughter Prevails (Liberation)",
   applyStats: () => addStat(Stat.DmgBonus, 24, Type1.Basic),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(LAUGHTER_PREVAILS_LIB); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(LAUGHTER_PREVAILS_LIB); },
 });
 export const LAUGHTER_PREVAILS_BASIC = new Buff({
   name: "Unflickering Valor: Laughter Prevails (Basic Attack)",
   applyStats: () => addStat(Stat.DmgBonus, 24, Type1.Basic),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(LAUGHTER_PREVAILS_BASIC); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(LAUGHTER_PREVAILS_BASIC); },
 });
 
 /** Qiuyuan's sig, R1: When A Heart Settles. +12% ATK flat; his Intro grants the team +20% Echo
@@ -131,7 +131,7 @@ export const EVILS_SCOURGE = new Buff({
     addStat(Stat.DmgBonus, 11.2 * frozenStacks(), Attribute.Aero);
     if (frozenStacks() >= 5) addStat(Stat.DefIgnoreNew, 10, Attribute.Aero);
   },
-  convertStats: () => { if (casting(Cast.Outro) && frozenStacks() < 5) revokeSelf(EVILS_SCOURGE); },
+  convertStats: () => { if (casting(Cast.Outro) && frozenStacks() < 5) revokeCurrent(EVILS_SCOURGE); },
 });
 
 /** Frostburn, Hiyuki's sig, R1: Self No More. +12% ATK flat, and two payouts off the wielder's own
@@ -144,12 +144,10 @@ export const FROSTBURN = new Weapon({
   weaponType: WeaponType.Sword,
   name: "Frostburn",
   constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.BonusAtk, 12); },
-  // `applied`, not `appliedByMe`: a weapon only ever runs on its wielder's own turn, and the one
-  // thing that inflicts Chafe off somebody else's cast (Lucilla's Film Roll) needs that cast to
-  // have inflicted it first — while re-sourcing the debuff to Lucilla, which `appliedByMe` would
-  // then read as nobody's
+  // `appliedByMe`: a "when *you* inflict" payout, so the two extra stacks Lucilla's Film Roll
+  // adds to the wielder's own are hers and pay nothing here
   updateBuffs: () => {
-    if (applied(GLACIO_CHAFE)) applyCurrent(SELF_NO_MORE, 1);
+    if (appliedByMe(GLACIO_CHAFE)) applyCurrent(SELF_NO_MORE, 1);
   },
 });
 export const SELF_NO_MORE = new Buff({
@@ -159,5 +157,25 @@ export const SELF_NO_MORE = new Buff({
     addStat(Stat.DefIgnoreNew, 10, Type1.Liberation); 
     if (currentAction().active) addStat(Stat.Amp, 20, Type2.GlacioChafe);
   },
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(SELF_NO_MORE); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(SELF_NO_MORE); },
+});
+
+/** Azure Oath, Yangyang: Xuanling's sig, R1: Unbending. +12% All-Attribute DMG Bonus flat (plain
+ *  Dmg Bonus, no tag), and inflicting Havoc Bane pays the wielder +36% Heavy Attack DMG
+ *  Amplification and 12% Heavy Attack DEF ignore for 8s — a short self window, so lost after the
+ *  outro. `appliedByMe`: a "when *you* inflict" payout, so a stack Chisa's Thread of Bane hands
+ *  out off the wielder's swing is hers and pays nothing here. */
+export const AZURE_OATH = new Weapon({
+  weaponType: WeaponType.Sword,
+  name: "Azure Oath",
+  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.DmgBonus, 12); },
+  updateBuffs: () => { if (appliedByMe(HAVOC_BANE)) applyCurrent(UNBENDING, 1); },
+});
+export const UNBENDING = new Buff({
+  name: "Azure Oath: Unbending",
+  applyStats: () => {
+    addStat(Stat.Amp, 36, Type1.Heavy);
+    addStat(Stat.DefIgnoreNew, 12, Type1.Heavy);
+  },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(UNBENDING); },
 });

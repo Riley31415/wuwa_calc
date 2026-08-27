@@ -2,11 +2,11 @@
  *  standard/permanent-availability) lives here too since it isn't part of any named tier. */
 import { isType,
   Buff, Weapon, WeaponType, Stat, Attribute, Type1, Cast,
-  addStat, frozenStacks, stacksOf, applyCurrent, applyTeam, revokeSelf, revokeTeam, removeStack, casting, currentAction, lostOnSwap,
+  addStat, frozenStacks, stacksOf, isHeld, applyCurrent, applyTeam, revokeCurrent, revokeTeam, removeStack, casting, currentAction, lostOnSwap,
 } from "../engine/kit.js";
 import { applied, appliedByMe } from "../engine/kit.js";
-import { GLACIO_CHAFE, FUSION_BURST, HEALS } from "../engine/status.js";
-import { TUNE_STRAIN_SHIFTING } from "../engine/tunebreak.js";
+import { GLACIO_CHAFE, FUSION_BURST, HEALS } from "../shared/status.js";
+import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 
 /** Rime-Draped Sprouts, Zhezhi's sig, R1. +12% ATK flat. On field, Resonance Skill grants +12%
  *  Basic Attack DMG Bonus a stack, up to 3, 6s. At 3+ frozenStacks, her Outro spends them all for
@@ -28,7 +28,7 @@ export const PANORAMA_STACKS = new Buff({
   updateBuffs: () => {
     if (casting(Cast.Outro)) {
       if (frozenStacks() >= 3) applyCurrent(PANORAMA_OFFIELD, 1);
-      revokeSelf(PANORAMA_STACKS);
+      revokeCurrent(PANORAMA_STACKS);
     }
   },
 });
@@ -58,7 +58,7 @@ export const STRINGMASTER_STACKS = new Buff({
     if (!currentAction().active) addStat(Stat.BonusAtk, 12);
     addStat(Stat.BonusAtk, 12 * frozenStacks());
   },
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(STRINGMASTER_STACKS); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(STRINGMASTER_STACKS); },
 });
 
 /** Whispers of Sirens, Cantarella's sig, R1: From the Deep. +12% ATK flat. Gentle Dream: an Echo
@@ -128,7 +128,7 @@ export const FREEZE_FRAME = new Weapon({
 export const FREEZE_FRAME_SELF = new Buff({
   name: "Freeze Frame: Light's Offering",
   applyStats: () => addStat(Stat.DmgBonus, 30, Attribute.Glacio),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(FREEZE_FRAME_SELF); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(FREEZE_FRAME_SELF); },
 });
 export const FREEZE_FRAME_TEAM = new Buff({
   name: "Freeze Frame: Light's Offering (team)", applyStats: () => addStat(Stat.BonusAtk, 24),
@@ -185,4 +185,41 @@ export const DISSOLUTION_LIB = new Buff({
 });
 export const DISSOLUTION_TEAM = new Buff({
   name: "Forged Dwarf Star: Dissolution (team)", applyStats: () => addStat(Stat.BonusAtk, 24),
+});
+
+/** Firstlight's Herald, Suisui's sig, R1: Spring Wreath. +12% Max HP flat, and 8 Concerto on a
+ *  Resonance Liberation once every 20s — the cooldown works like Stellar Symphony's above: the
+ *  cast arms it and pays, the charge parks on cooldown, and the wielder's own Outro resets it. The
+ *  rest is two 6s marks: inflicting Glacio Chafe leaves Snow Taint, healing leaves Ripples, and
+ *  holding both is +20% ATK for the whole team. Neither mark is revoked here — the wielder's own
+ *  Outro renews both for another 6s, which is what keeps the team's ATK standing across the
+ *  handoff. */
+export const FIRSTLIGHTS_HERALD = new Weapon({
+  weaponType: WeaponType.Rectifier,
+  name: "Firstlight's Herald",
+  updateBuffs: () => {
+    if (casting(Cast.Liberation)) applyCurrent(SPRING_WREATH_CONCERTO, 1);
+    if (appliedByMe(GLACIO_CHAFE)) applyCurrent(SNOW_TAINT, 1);
+    if (applied(HEALS)) applyCurrent(RIPPLES, 1);
+    if (isHeld(SNOW_TAINT) && isHeld(RIPPLES)) applyTeam(SPRING_WREATH_TEAM, 1);
+  },
+  constantStats: () => {
+    addStat(Stat.BaseAtk, 412.5);
+    addStat(Stat.Er, 77.04);
+    addStat(Stat.BonusHp, 12);
+  },
+});
+export const SPRING_WREATH_CONCERTO = new Buff({
+  name: "Firstlight's Herald: Spring Wreath", maxStacks: 2,
+  applyStats: () => {
+    if (frozenStacks() === 1 && casting(Cast.Liberation)) {
+      applyCurrent(SPRING_WREATH_CONCERTO, 1); addStat(Stat.AddConcerto, 8);
+    } else if (frozenStacks() === 2 && casting(Cast.Outro)) removeStack(SPRING_WREATH_CONCERTO, 2);
+  },
+  display: () => `Firstlight's Herald: Spring Wreath${frozenStacks() === 1 ? "" : " (cooldown)"}`,
+});
+export const SNOW_TAINT = new Buff({ name: "Firstlight's Herald: Snow Taint" });
+export const RIPPLES = new Buff({ name: "Firstlight's Herald: Ripples" });
+export const SPRING_WREATH_TEAM = new Buff({
+  name: "Firstlight's Herald: Spring Wreath (team)", applyStats: () => addStat(Stat.BonusAtk, 20),
 });

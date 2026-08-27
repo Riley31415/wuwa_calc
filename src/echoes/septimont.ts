@@ -1,10 +1,11 @@
 /** Mainslot echoes and sonatas from Septimont (versions 2.5-2.7). */
 import { isType,
   Buff, Sonata, Sonata2pc, Mainslot, Action, Stat, Attribute, Type1, Cast, Scaling,
-  addStat, frozenStacks, stacksOf, stacksOfTeam, applyCurrent, applyTeam, casting, currentAction, revokeSelf, maxEnergy, queue,
+  addStat, frozenStacks, stacksOf, stacksOfEnemy, stacksOfTeam, applyCurrent, applyTeam, casting, currentAction,
+  revokeCurrent, maxEnergy, queue, triggeredAction,
 } from "../engine/kit.js";
 import { applied, appliedByMe } from "../engine/kit.js";
-import { SHIELD, HAVOC_BANE } from "../engine/status.js";
+import { SHIELD, HAVOC_BANE } from "../shared/status.js";
 
 /* --------------------------------------------------------------------------------- Phrolova, 2.5 */
 
@@ -107,12 +108,12 @@ export const CORROSAURUS = new Mainslot({
 export const FLAMEWING_SHADOW_HEAVY = new Buff({
   name: "Flamewing's Shadow 3pc (heavy)",
   applyStats: () => addStat(Stat.CritRate, 20, Type1.Heavy),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(FLAMEWING_SHADOW_HEAVY); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(FLAMEWING_SHADOW_HEAVY); },
 });
 export const FLAMEWING_SHADOW_ECHO = new Buff({
   name: "Flamewing's Shadow 3pc (echo)",
   applyStats: () => addStat(Stat.CritRate, 20, Type1.Echo),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(FLAMEWING_SHADOW_ECHO); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(FLAMEWING_SHADOW_ECHO); },
 });
 export const FLAMEWING_SHADOW_3PC = new Sonata({
   name: "Flamewing's Shadow 3pc",
@@ -143,7 +144,7 @@ export const FENRICO = new Mainslot({
 export const LAW_OF_HARMONY_SELF = new Buff({
   name: "Law of Harmony",
   applyStats: () => addStat(Stat.DmgBonus, 30, Type1.Heavy),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(LAW_OF_HARMONY_SELF); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(LAW_OF_HARMONY_SELF); },
 });
 export const LAW_OF_HARMONY_TEAM = new Buff({
   name: "Law of Harmony", maxStacks: 4,
@@ -160,14 +161,30 @@ export const LAW_OF_HARMONY_3PC = new Sonata({
 
 /** Reminiscence: Threnodian - Leviathan, Chisa's own mainslot echo: a Collapsing Horizon, two
  *  131.04% Havoc hits. The main-slot wearer also gets a flat +12% Havoc DMG Bonus and +12%
- *  Resonance Liberation DMG Bonus. Its own passive — Core of Collapse deals another 24.57% Havoc
- *  hit whenever the active resonator deals damage, on a 0.5s internal cooldown, up to 8 times over
- *  the summon's 15s — runs on a clock this engine has none of (same call as Wind Erosion/
- *  Electromagnetic in statuses.ts), so only the direct summon hit is modelled. */
-export const ACTION_THRENODIAN_LEVIATHAN = new Action("Echo - Reminiscence: Threnodian - Leviathan", {
+ *  Resonance Liberation DMG Bonus.
+ *
+ *  Its own passive is Core of Collapse: another 24.57% Havoc hit whenever the active resonator
+ *  deals damage, 0.5s apart, up to 8 times over the summon's 15s, and doubled against a target
+ *  carrying Havoc Bane. The 0.5s cadence runs on a clock this engine has none of, so all eight are
+ *  bundled into one triggered hit — the whole 196.56% at once, on the next real damaging press
+ *  after the summon. That press is nearly always the *next* resonator's (the wearer's rotation
+ *  puts the echo last), which is the point of the echo on a support; the hit still resolves on the
+ *  wearer's own slot and stats, since `queue()` inside updateGlobal pins to the holder rather than
+ *  to whoever is acting. */
+export const ACTION_THRENODIAN_LEVIATHAN = new Action("Echo - Reminiscence: Leviathan", {
   cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Echo,
   mv: 131.04 * 2, energy: 0.91 * 2,
+  updateBuffs: () => queue(ACTION_CORE_OF_COLLAPSE),
 });
+/** The bundle: eight 24.57% hits as one row, with the Havoc Bane doubling as its own Total Damage
+ *  rather than folded into the motion value, so the report names what it is. Carries no energy or
+ *  concerto — nanoka gives the summon one damage row and these hits none of their own. */
+export const ACTION_CORE_OF_COLLAPSE = new Action("Echo - Core of Collapse", {
+  element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Echo,
+  mv: 24.57 * 8,
+  applyStats: () => { if (stacksOfEnemy(HAVOC_BANE) > 0) addStat(Stat.TotalDmg, 100); },
+});
+
 export const THRENODIAN_LEVIATHAN = new Mainslot({
   name: "Reminiscence: Threnodian - Leviathan",
   action: ACTION_THRENODIAN_LEVIATHAN,

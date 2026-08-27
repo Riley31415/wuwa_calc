@@ -441,8 +441,8 @@ export interface ActionDef extends GearDef {
   concerto?: number;
   offtune?: number;
   /** The report bucket this action's damage groups under, when it isn't the acting resonator's
-   *  own — the shared Tune Break and every Negative Status's own damage, none of which is anyone's
-   *  turn (`MISC_SLOT`). Defaults to whoever cast it. */
+   *  own — the shared Tune Break, which is nobody's turn (`TUNE_BREAK_SLOT`). Defaults to whoever
+   *  cast it. */
   slot?: string;
   /** Marks the actual button-press Liberation cast that spends the Energy bar — used only to
    *  reset RealEnergy (see `TeamMember.realEnergy`) back to 0 once it fires. Never set on a
@@ -535,6 +535,24 @@ export class Action extends Gear {
 }
 
 
+/** A run of casts a rotation presses as one beat: `new ActionGroup("Ba123", [BA1, BA2, BA3])`
+ *  wherever a single action would go. Nothing evaluates the group itself — `run()` expands it into
+ *  its members before the first one is reached, so every kit hook, gauge and buff sees exactly the
+ *  casts it always saw, in the same order, with the same follow-ups queued off them. The grouping
+ *  is a *reporting* fact: the report folds the members into one row (display.ts), and the fight is
+ *  unchanged.
+ *
+ *  The one place the engine does treat it as a unit is the off-tune bar: a group is one beat, so a
+ *  Tune Break can only land on its last cast, never part-way through (see `midActionGroup()` and
+ *  tunebreak.ts). The break itself is not part of the group — it is queued behind that last cast
+ *  like any other follow-up. */
+export class ActionGroup extends Action {
+  actions: Action[];
+  constructor(name: string, actions: Action[]) {
+    super(name);
+    this.actions = actions;
+  }
+}
 
 /* --------------------------------------------------------------- engine-owned per-slot state */
 
@@ -1114,7 +1132,56 @@ let overrideType2: Type2 | null = null;
  *  `applied()`. Module-level rather than on the State so the stack methods (which have no State
  *  in hand) can record into it; `evaluate()` is never re-entered, so one shared map is safe. */
 let appliedNow = new Map<Gear, number>();
-const recordApplied = (gear: Gear, n: number): void => { if (n > 0) appliedNow.set(gear, (appliedNow.get(gear) ?? 0) + n); };
+/** The same, split by whose kit is responsible for each stack — what `appliedByMe()` reads.
+ *
+ *  Kept per source rather than as a single "who did it last", because two kits genuinely do
+ *  inflict the same status on one action: Chisa's Thread of Bane hands out Havoc Bane off whoever
+ *  is hitting the marked target, on top of whatever that resonator's own cast just inflicted, and
+ *  Lucilla's Film Roll adds two Glacio Chafe to anyone else's one. Enemy-pool gear runs last in
+ *  `updateDebuffs`, so under last-writer-wins both of those silently took the credit for the
+ *  actor's own stacks and every "when *you* inflict" passive on the actor stopped paying.
+ *
+ *  `sourceOf` is already correct by the time this runs — every grant path calls `attribute()`
+ *  first (see the public `apply*` wrappers) — so the source is read off the Gear rather than
+ *  passed down through six call sites. */
+let appliedBy = new Map<Gear, Map<string, number>>();
+const recordApplied = (gear: Gear, n: number): void => {
+  if (n <= 0) return;
+  appliedNow.set(gear, (appliedNow.get(gear) ?? 0) + n);
+  const source = currentState!.sourceOf.get(gear);
+  if (source === undefined) return;
+  let per = appliedBy.get(gear);
+  if (per === undefined) appliedBy.set(gear, (per = new Map()));
+  per.set(source, (per.get(source) ?? 0) + n);
+};
+
+/** Everything *spent off the target* during the action being evaluated, and how many stacks of it
+ *  — the mirror of `appliedNow` above, and the other half of the picture a kit needs: the stack
+ *  pools record what a cast puts on and nothing at all about what a cast takes back, so before this
+ *  there was no way for "when you consume a Negative Status stack" to be anything but assumed.
+ *
+ *  Filled only by `consume()`, never by `removeStackEnemy()`/`revokeEnemy()`. That is the point of
+ *  the split: most removals are bookkeeping rather than a resonator spending anything — a status
+ *  converting into another (Hiyuki's Chafe into Glacio Bite), a window counting itself down
+ *  (tunebreak.ts's Interfered), a Negative Status paying for its own calculation off the stacks it
+ *  had banked (every ladder in status.ts) — and none of those is a resonator consuming a stack. A
+ *  kit says which it means by which function it calls, and only two do mean it: Xuanling's Sword
+ *  Stance Flow spending a Havoc Bane, and Hiyuki's Frostbind spending ten Glacio Bite. */
+let consumedNow = new Map<Gear, number>();
+/** The same, split by the member who did the spending — what `consumedByMe()` reads. Keyed on the
+ *  slot the consuming gear was running as (`currentSlot`), not on `sourceOf` the way `appliedBy` is:
+ *  a debuff's *source* is whose kit put it on the target, which is exactly the wrong question here.
+ *  What a "when you consume" passive means is who spent it, and that is whoever's hook called
+ *  `consume()`. */
+let consumedBy = new Map<Gear, Map<string, number>>();
+const recordConsumed = (gear: Gear, n: number): void => {
+  if (n <= 0) return;
+  consumedNow.set(gear, (consumedNow.get(gear) ?? 0) + n);
+  const by = currentSlot!.name;
+  let per = consumedBy.get(gear);
+  if (per === undefined) consumedBy.set(gear, (per = new Map()));
+  per.set(by, (per.get(by) ?? 0) + n);
+};
 
 /** The three pools a phase reads — the acting slot's own, then team-wide, then enemy — as the
  *  arrays they held when `capture()` last ran. Three references apiece, nothing copied: a Pool's
@@ -1125,11 +1192,10 @@ const capList: Gear[][] = [[], [], []];
 const capCounts: number[][] = [[], [], []];
 const capHooks: number[][][] = [[], [], []];
 
-/** The report bucket for damage that is nobody's turn — the shared Tune Break, and every Negative
- *  Status's own damage. Both still resolve on whoever is on field (see `evaluate()`); this only
- *  keeps them out of that resonator's own damage column. Declared per action through
- *  `ActionDef.slot`. */
-export const MISC_SLOT = "Misc";
+/** The report bucket for damage that is nobody's turn — the shared Tune Break, which resolves on
+ *  whoever is on field (see `evaluate()`) but is the team's bar going off, not that resonator's
+ *  own damage. Declared per action through `ActionDef.slot`. */
+export const TUNE_BREAK_SLOT = "Tune Break";
 
 /** Take the three pools as they stand right now, for the phases that follow to run on. A Gear is
  *  only ever in one pool — a self buff is local, a team buff global, a debuff on the enemy — so
@@ -1205,6 +1271,14 @@ let tracing = false;
 export function setTracing(on: boolean): void { tracing = on; }
 
 export const currentAction = (): Action => currentAct!;
+
+/** True while the fight is part-way through an `ActionGroup` — set on every member but the last
+ *  (see `run()`), and so still true across any follow-up queued off a mid-group cast. Only
+ *  tunebreak.ts reads it: a group is one beat, so the bar may fill inside one but the break waits
+ *  for the cast that ends it. Module state rather than a snapshot field because it has to answer
+ *  for the action being evaluated *right now*, from inside a hook. */
+let insideGroup = false;
+export const midActionGroup = (): boolean => insideGroup;
 /** Whether the action being evaluated was queued rather than played — an engine-spawned follow-up
  *  or event, the ECHO_CAST marker, or an outro handoff. The same answer the snapshot reports
  *  (`ResolvedSnapshot.triggered`), readable mid-action by gear that must not fire off one. */
@@ -1293,14 +1367,63 @@ export function applied(gear: Gear): number { return appliedNow.get(gear) ?? 0; 
  *
  *  Only meaningful for locally-held gear reading it in `updateBuffs`/`applyStats`, where the acting
  *  slot *is* the wearer. Inside `updateGlobal` a locally-held gear runs with `currentSlot` switched
- *  to its own holder rather than the actor, so anything deliberately watching the whole team's
- *  casts from there wants plain `applied()`. Only the last applier in an action is kept per Gear,
- *  so two kits inflicting the same status on one action credit the later — nothing in the roster
- *  does that today. */
+ *  to its own holder rather than the actor, so this would ask about the holder: a passive watching
+ *  the whole team from there wants plain `applied()` for "did this land at all", or
+ *  `appliedByMember()` below against `currentTeam().slot` for "did the acting slot land it".
+ *
+ *  Returns the acting slot's *own share*, not the action's whole count: when a marker inflicts
+ *  alongside the actor (see `appliedBy`), the two are genuinely different numbers, and the share
+ *  is the one a "when you inflict" passive means. Every caller today only asks whether it is
+ *  nonzero. */
 export function appliedByMe(gear: Gear): number {
-  const n = applied(gear);
-  if (n === 0) return 0;
-  return currentState!.sourceOf.get(gear) === currentSlot!.name ? n : 0;
+  return appliedByMember(gear, currentSlot!);
+}
+
+/** The same question about a *specific* member rather than whoever is current — how many stacks of
+ *  this Gear that member is themselves responsible for on the action being evaluated.
+ *
+ *  `appliedByMe()` is this asked about `currentSlot`, which is the right slot everywhere except
+ *  `updateGlobal`: there a locally-held gear runs as its own *holder* while some teammate is the
+ *  one acting, so a passive watching the whole team for "each resonator who inflicts X" has to name
+ *  the acting slot (`currentTeam().slot`) instead of asking about itself. Hiyuki's Fine Snow, which
+ *  banks one stack of Snow Rust per resonator who lands a Negative Status, is that case. */
+export function appliedByMember(gear: Gear, member: TeamMember): number {
+  return appliedBy.get(gear)?.get(member.name) ?? 0;
+}
+
+/** How many stacks of this Gear were *spent off the target* on the action being evaluated, by
+ *  anyone — `applied()`'s counterpart, and the same per-action lifetime: cleared at the top of
+ *  every `evaluate()`, so it answers "did this cast consume any" and nothing longer.
+ *
+ *  Only counts a spend a kit actually declared as one, through `consume()` (see `consumedNow`).
+ *  Note when in the action a consumption is visible: a cast that spends its stacks in `afterAction`
+ *  — the usual place, so the cast itself still reads the full count — is invisible to any reader
+ *  earlier in that same action, and a passive paying out for it wants `afterAction` too. */
+export function consumed(gear: Gear): number { return consumedNow.get(gear) ?? 0; }
+
+/** Same as `consumed()`, but only the share the member whose turn it is spent themselves. This is
+ *  what a "when *you* consume X" passive means — Suisui's Ceaseless Landscape paying the resonator
+ *  who spends Havoc Bane, not whoever happens to be watching. Same `currentSlot` caveat as
+ *  `appliedByMe()`: inside `updateGlobal` that is the asking gear's own holder rather than the
+ *  actor, so a team-wide watcher there wants `consumedByMember()` against `currentTeam().slot`. */
+export function consumedByMe(gear: Gear): number {
+  return consumedByMember(gear, currentSlot!);
+}
+
+/** The same question about a *specific* member rather than whoever is current. */
+export function consumedByMember(gear: Gear, member: TeamMember): number {
+  return consumedBy.get(gear)?.get(member.name) ?? 0;
+}
+
+/** How many stacks of *anything* were consumed on this action, across every Gear and member — for
+ *  a passive whose text names no particular status ("when they consume Negative Status or Electro
+ *  Rage stacks", Suisui's Undulating Mist). Every `consume()` call site is a Negative Status being
+ *  spent, so the total needs no filtering; a caller wanting one specific status asks `consumed()`
+ *  instead. */
+export function consumedAny(): number {
+  let total = 0;
+  for (const n of consumedNow.values()) total += n;
+  return total;
 }
 
 /** This buff's own stack count — frozen at the start of the phase (see `capture()`), not a live
@@ -1380,7 +1503,7 @@ const ALL_ATTRIBUTES: Attribute[] = [
 ];
 const ALL_TYPE1: Type1[] = [
   Type1.Basic, Type1.Heavy, Type1.Skill, Type1.Liberation, Type1.Intro, Type1.Outro,
-  Type1.Echo, Type1.Status, Type1.Break, Type1.Rupture, Type1.Strain, Type1.Hack, Type1.Utility,
+  Type1.Echo, Type1.Status, Type1.Break, Type1.Rupture, Type1.Hack, Type1.Utility,
 ];
 const ALL_TYPE2: Type2[] = [
   Type2.Coordinated, Type2.SpectroFrazzle, Type2.AeroErosion,
@@ -1514,7 +1637,7 @@ export function setStacksSelf(buff: Buff, n: number): number {
   return currentSlot!.setStacks(buff, n);
 }
 export function removeStack(buff: Buff, n = 1): number { return currentSlot!.removeStack(buff, n); }
-export function revokeSelf(buff: Buff): void { currentSlot!.revoke(buff); }
+export function revokeCurrent(buff: Buff): void { currentSlot!.revoke(buff); }
 
 /** Shortcut for a buff whose own kit text says "lost on swap" — revokes itself the moment the
  *  action being evaluated is inactive (the project's own standing convention: lost on swap =
@@ -1525,7 +1648,7 @@ export function revokeSelf(buff: Buff): void { currentSlot!.revoke(buff); }
  *  their own (a queued coordinated-attack hit, say) that should leave it standing — one held by a
  *  resonator like that still needs its own explicit condition instead. */
 export function lostOnSwap(): void {
-  if (!currentAct!.active) revokeSelf(currentBuff as Buff);
+  if (!currentAct!.active) revokeCurrent(currentBuff as Buff);
 }
 
 // team-wide — one shared copy, ticks on every slot's own turn regardless of who's acting
@@ -1546,6 +1669,19 @@ export function applyEnemy(debuff: Debuff, n = 1): number {
   return currentState!.addStackEnemy(debuff, n);
 }
 export function removeStackEnemy(debuff: Debuff, n = 1): number { return currentState!.removeStackEnemy(debuff, n); }
+/** Spend stacks off the target *and say so*: `removeStackEnemy()` plus the record `consumed()` /
+ *  `consumedByMe()` read (see `consumedNow`). Any kit whose text is "consumes N stacks of X" should
+ *  reach for this rather than the plain remove, so a teammate's "when you consume" passive can see
+ *  it — nothing else in the engine ever notices a stack leaving the target.
+ *
+ *  Logs what actually left, not what was asked for: spending ten off a target holding four records
+ *  four. Returns the target's new count, same as `removeStackEnemy()`. */
+export function consume(debuff: Debuff, n = 1): number {
+  const before = currentState!.stacksOfEnemy(debuff);
+  const after = currentState!.removeStackEnemy(debuff, n);
+  if (!dryRun) recordConsumed(debuff, before - after);
+  return after;
+}
 export function revokeEnemy(debuff: Debuff): void { currentState!.revokeEnemy(debuff); }
 /** Raise an enemy debuff's cap for the rest of the fight: its effective max becomes its own
  *  declared maxStacks plus every increase granted. Works before the debuff is ever applied, so a
@@ -1599,26 +1735,41 @@ export function queueOutro(buff: Buff): void {
  *  original reason this was pinned at all: an Outro right after can advance `state.active` before
  *  this runs, so without pinning to *some* fixed slot, a follow-up would misfire on whoever's turn
  *  it happens to be by then (matches the old engine's `ctx.queue()`). */
-const pendingQueue: { action: Action; slot: number }[] = [];
+const pendingQueue: { action: Action; slot: number; by: HeldBuff | null }[] = [];
+/** Whichever Gear's hook is running right now, as the same `{ name, source }` pair a held buff
+ *  reports itself with — what a follow-up queued from it names as having triggered it
+ *  (`ResolvedSnapshot.triggeredBy`). `currentBuff` is every kind of Gear at once here, which is
+ *  exactly the point: the acting Action is one too, so a hit a cast spawns names that cast, a hit a
+ *  buff spawns names the buff, and one a weapon or sonata spawns names the piece.
+ *
+ *  `.name`, not `toString()`: a stacking buff's "x3" is a fact about this instant, not about what
+ *  did the triggering. `source` is whose kit it belongs to — `sourceOf` for anything that was
+ *  granted, and otherwise the slot it ran on, which is what a plain cast or an equipped piece is
+ *  “from”. Same value `HeldBuff.source` carries, so the report colours it the same way. */
+const queuedBy = (): HeldBuff | null => {
+  const gear = currentBuff;
+  if (!gear?.name) return null;
+  return { name: gear.name, source: currentState!.sourceOf.get(gear) ?? currentSlot!.name };
+};
 export function queue(action: Action): void {
   noteMutation(action.id, 4e6);
   if (dryRun) return;
-  pendingQueue.push({ action, slot: currentState!.slots.indexOf(currentSlot!) });
+  pendingQueue.push({ action, slot: currentState!.slots.indexOf(currentSlot!), by: queuedBy() });
 }
 
 /** Queue an action that belongs to nobody — the two ways an engine-level event differs from a
  *  resonator's own follow-up, which is all the Tune Break needs to be one (tunebreak.ts):
  *
- *  - *ahead* of anything this action already queued, because a break fires the instant the bar
- *    fills, before any coordinated attack the same action spawned — and those follow-ups then bank
- *    onto the bar it already emptied instead of seeing it still full;
+ *  - *behind* everything this action already queued, because a break resolves the press it went
+ *    off on rather than interrupting it: every follow-up that press spawned lands first, banking
+ *    its own off-tune onto the still-full bar, and the break drops the overshoot when it comes;
  *  - *unpinned* (slot -1, exactly like a rotation entry), so it runs on whoever is on field when it
  *    resolves rather than on whoever queued it. That's the difference on a break that goes off on
  *    an Outro: the handoff has landed by then, and the break is the incoming resonator's to eat. */
 export function queueEvent(action: Action): void {
   noteMutation(action.id, 5e6);
   if (dryRun) return;
-  pendingQueue.unshift({ action, slot: -1 });
+  pendingQueue.push({ action, slot: -1, by: queuedBy() });
 }
 
 /** Same as `queue()`, but attributed to one specific resonator's own slot regardless of whose
@@ -1629,7 +1780,7 @@ export function queueEvent(action: Action): void {
 export function queueOn(resonator: Resonator, action: Action): void {
   noteMutation(action.id, 6e6);
   if (dryRun) return;
-  pendingQueue.push({ action, slot: currentState!.slots.indexOf(currentState!.memberOf(resonator)) });
+  pendingQueue.push({ action, slot: currentState!.slots.indexOf(currentState!.memberOf(resonator)), by: queuedBy() });
 }
 
 /** Run `fn` (a resonator's initial grants, before any rotation has evaluated) with the "current"
@@ -1672,18 +1823,44 @@ export interface ResolvedSnapshot extends Snapshot {
   slot: string;
   entries: StatEntry[];
   triggered: boolean;
+  /** The ActionGroup this row was pressed as part of, and whether it is that group's last cast —
+   *  stamped by `run()` as it expands a group, and read by nothing but the report, which folds a
+   *  group's members into one row. Null/false on every action pressed on its own, and on every
+   *  follow-up queued *during* a group: a follow-up is not one of the casts the group names, and
+   *  the report keeps it as a row of its own (after the group when collapsed, back in place when
+   *  opened). */
+  group: ActionGroup | null;
+  groupEnd: boolean;
+  /** What queued this action, when something did: the Gear whose hook called
+   *  `queue()`/`queueOn()`/`queueEvent()` — a buff, a piece of gear, or the cast it followed (an
+   *  Action is a Gear too) — named and attributed exactly like a held buff, so the report can give
+   *  it the same source colour. Null on every action a rotation placed itself, and on the
+   *  `triggered` rows nothing queued: an Outro (a handoff), and the rotation markers that declare
+   *  themselves triggered (ECHO_CAST, the swaps). Trace-only — the action hover names it. */
+  triggeredBy: HeldBuff | null;
   /** The damage type this action was actually evaluated as — its own `type`, unless a held Gear
    *  called `typeOverride()` on it (`action.type` off a snapshot is always the base type; this is
    *  the effective one, what `isType()` answered against). */
   type: Type1 | null;
   /** This slot's own forte gauges 1-5, as they stood once this action resolved. */
   forte: [number, number, number, number, number];
+  /** The same five, as they stood *before* it — what the report compares against to decide whether
+   *  a row actually moved a gauge (index.ts's own running-column blanking), which the traced deltas
+   *  alone can't answer for a kit that sets one outright. Trace-only, same as `forte`. */
+  forteBefore: [number, number, number, number, number];
   /** Running totals as they stood once this action resolved — energy/concerto are this slot's
    *  own (TeamMember.energy/concerto), offtune is the enemy's shared one (State.offtune). All
    *  three are banked automatically by evaluate() itself; see AddEnergy/AddConcerto/AddOfftune. */
   energy: number;
   concerto: number;
   offtune: number;
+  /** The same three, as they stood *before* this action — what the report compares against to
+   *  decide whether a row actually moved one (index.ts's own running-column blanking). Kept here
+   *  rather than read off the previous row, so a row with no previous row of its own — a group's
+   *  own opened members, a member's first cast — still answers it. Trace-only, same as `forte`. */
+  energyBefore: number;
+  concertoBefore: number;
+  offtuneBefore: number;
   /** How much concerto this action's own outro-firing zeroed back out by — 0 on every action
    *  that isn't an outro. Not folded into `concerto` above (that is already the post-reset 0);
    *  it's what the report reads to flag an outro that fired on an underfull bar. */
@@ -1717,6 +1894,16 @@ export interface ChainGroup {
   snap: ResolvedSnapshot;
   mv: number;
   avg: number;
+  /** The parts whose columns actually fold into this row — an ActionGroup's own casts, or every
+   *  repeat of one triggered hit. The rest of `parts` are rows in their own right that merely
+   *  resolved inside the span (a follow-up queued mid-group), and contribute nothing to the folded
+   *  row's motion value, damage or resource totals. Empty on an ordinary single-action line. */
+  members?: ResolvedSnapshot[];
+  /** A follow-up that fired *during* an ActionGroup, and so reads after it while the group is
+   *  collapsed. Still a line of its own — its damage is its own and every total counts it here,
+   *  once — but the report tucks it inside the group's own block so opening the group hides it and
+   *  shows it back in its real place among the members instead (index.ts). */
+  spill?: boolean;
 }
 
 /** Evaluate one action on `state`'s active slot: an Intro-cast adopts whatever's queued for it
@@ -1730,16 +1917,16 @@ export interface ChainGroup {
  *  The action itself is a Gear too, and its own hook for a phase runs first in that phase, ahead
  *  of every held Gear's (see `actionHook`) — so a cast's own effect is in place before anything
  *  reacting to it looks. */
-export function evaluate(state: State, action: Action, triggered = false): ResolvedSnapshot {
+export function evaluate(state: State, action: Action, triggered = false, triggeredBy: HeldBuff | null = null): ResolvedSnapshot {
   // always whoever is on field. A Negative Status's own damage used to be diverted onto a
   // resonator-less slot of its own, which meant no attacker's gear reached it and the one
   // amplification a dot row does read (`Type2`-scoped, see damage.ts) could only ever be granted
   // team-wide. It now resolves on the acting slot exactly the way a Tune Break does — their stats,
-  // their `Type2` amplification — while still reporting under `MISC_SLOT`, which the action itself
-  // declares, so it stays out of anybody's damage column. It is still not their *action*: it is
-  // an ordinary active cast all the same, exactly like a Tune Break — the resonator really is on
-  // field for it — so no "lost on swap" buff mistakes it for its holder leaving. What separates it
-  // from a real press is `triggeredAction()`, which a passive counting those tests instead.
+  // their `Type2` amplification — and, unlike a break, reports in their damage column too: the
+  // status is theirs. It is still not their *action*: it is an ordinary active cast all the same,
+  // exactly like a Tune Break — the resonator really is on field for it — so no "lost on swap"
+  // buff mistakes it for its holder leaving. What separates it from a real press is
+  // `triggeredAction()`, which a passive counting those tests instead.
   const slot = state.slot;
   currentState = state;
   currentSlot = slot;
@@ -1751,11 +1938,22 @@ export function evaluate(state: State, action: Action, triggered = false): Resol
   overrideType1 = null; overrideType2 = null;
   // a fresh map rather than a clear, same reasoning as `slot.effective` below
   appliedNow = new Map();
+  appliedBy = new Map();
+  consumedNow = new Map();
+  consumedBy = new Map();
   // Replaced rather than cleared/copied: the snapshot below keeps whichever array this action built,
   // so handing it a fresh one here is what makes that snapshot immutable at zero copying cost (the
   // old code cleared these and then cloned `totals` at the end, paying an O(entries) copy per
   // action for the same guarantee).
   slot.effective = ZERO_STATS.slice();
+  // What each gauge held coming into this action. The report needs it to tell a row that
+  // moved a gauge from one that merely reports the same balance again, and it cannot be
+  // inferred from the traced deltas: a kit that sets a gauge outright (`setForteN`) moves it
+  // with no delta to trace. Captured here, ahead of every phase, since updateBuffs can already
+  // have set one by the time the declared deltas bank. Trace-only, same as `forte` below.
+  const forteBefore: [number, number, number, number, number] = tracing ? [...slot.forte] : EMPTY_FORTE;
+  // and the same for the three running totals, for the same reason
+  const energyBefore = slot.energy, concertoBefore = slot.concerto, offtuneBefore = state.offtune;
   if (tracing) { slot.entries = []; slot.totals = new Map(); }
 
   if (casting(Cast.Intro) && state.outroQueue.length) {
@@ -1785,6 +1983,12 @@ export function evaluate(state: State, action: Action, triggered = false): Resol
     for (const gear of s.globalHooks) {
       currentSlot = s;
       currentBuff = gear;
+      // -1, not a captured count: this phase walks each slot's live hook set rather than a frozen
+      // roster, so there is no "count at phase start" to hand over and `frozenStacks()` reads the
+      // holder's own live one instead (its documented fallback). Without this it kept whatever the
+      // *previous* phase's last gear happened to hold — a number belonging to another buff
+      // entirely, which silently broke every `frozenStacks()` read in an updateGlobal.
+      currentStacks = -1;
       gear.updateGlobalFn!();
     }
   }
@@ -1947,6 +2151,19 @@ export function evaluate(state: State, action: Action, triggered = false): Resol
   // the real running totals — no kit ever touches these directly, same as forte.
   const energyGain = action.energy + effective[Stat.AddEnergy]!;
   slot.energy = Math.max(0, slot.energy + energyGain);
+  // An outro spends a full Concerto bar to fire and leaves the field with no Energy at all. The
+  // spend is the outro's own declared `concerto: -100` — every outro in the project carries it, so
+  // it banks through the ordinary line below like any other cast's — which leaves only the ceiling
+  // it spends against to settle here: a bar over 100 is capped back to it first, so the declared
+  // -100 empties it exactly rather than leaving whatever it had overrun by. Energy is not a spend
+  // of a known size, so it is simply set to 0. What the bar held on the way in is kept for the
+  // report's underfull-outro flag. Off-tune is the enemy's, not theirs, and carries over.
+  const outro = casting(Cast.Outro);
+  const concertoSpent = outro ? slot.concerto : 0;
+  if (outro) {
+    slot.energy = 0;
+    if (slot.concerto > 100) slot.concerto = 100;
+  }
   slot.concerto = Math.max(0, slot.concerto + action.concerto + effective[Stat.AddConcerto]!);
   // Off-Tune Buildup Rate scales what an action *builds*, never what lands on the bar directly:
   // DirectOfftune (a Tune Break's own drain, Denia's half-bar surge) is already the amount the bar
@@ -1968,19 +2185,6 @@ export function evaluate(state: State, action: Action, triggered = false): Resol
     if (other !== slot) other.realEnergy = capEnergy(other, other.realEnergy + shared);
   }
   if (action.resetEnergy) slot.realEnergy = 0;
-
-  // An outro spends the whole concerto bar to fire, and the liberation that precedes it spends
-  // the energy — so a resonator always leaves the field empty and starts their next turn
-  // rebuilding from zero. Both bars are simply reset here, with no trace row standing for the
-  // spend: the outro row reports 0 for both, which is the point, and its two cells carry no hover
-  // panel at all (display.ts's own rowValues()). What the concerto bar held on the way in is kept
-  // for the report's underfull-outro flag. Off-tune is the enemy's, not theirs, and carries over.
-  let concertoSpent = 0;
-  if (casting(Cast.Outro)) {
-    concertoSpent = slot.concerto;
-    slot.energy = 0;
-    slot.concerto = 0;
-  }
 
   // same shape, for whichever forte gauges this action declares a delta on — a kit assigns its
   // own meaning onto whichever slot fits (Jingran's Qi is forte1, his Mingfire is forte2) — plus
@@ -2054,9 +2258,16 @@ export function evaluate(state: State, action: Action, triggered = false): Resol
     enemyDef: enemyDef(),
     entries: slot.entries,
     triggered,
+    triggeredBy,
+    // stamped by run() the moment this returns — nothing mid-action reads either, unlike
+    // `triggered`, so neither has to be threaded through this call
+    group: null,
+    groupEnd: false,
     // report-only, so copied only when something will actually read it (display.ts's gauge columns)
     forte: tracing ? [...slot.forte] : EMPTY_FORTE,
+    forteBefore,
     energy: slot.energy, concerto: slot.concerto, offtune: state.offtune,
+    energyBefore, concertoBefore, offtuneBefore,
     concertoSpent,
     realEnergyBefore,
     heldLocal, heldGlobal, heldEnemy,
@@ -2082,13 +2293,34 @@ export function run(state: State, rotation: Action[]): ResolvedSnapshot[] {
   // with shift(): shift() is O(n) per step (and splice-at-front the same again), so a rotation
   // that queues follow-ups was quadratic in its own length for no reason. `slots` holds -1 for an
   // ordinary rotation entry — "run on whoever is active when its turn comes".
-  const actions: Action[] = rotation.slice();
-  const slots: number[] = new Array<number>(rotation.length).fill(-1);
+  // An ActionGroup is expanded here, before anything runs: from this point down the queue
+  // machinery only ever sees real casts, and a group survives purely as the `groups`/`ends` tags
+  // the report reads back off each snapshot.
+  const actions: Action[] = [];
+  const slots: number[] = [];
+  // what queued each entry, parallel to `slots` — null for a rotation entry, which nothing did
+  const bys: (HeldBuff | null)[] = [];
+  const groups: (ActionGroup | null)[] = [];
+  const ends: boolean[] = [];
+  for (const entry of rotation) {
+    const members = entry instanceof ActionGroup ? entry.actions : [entry];
+    const group = entry instanceof ActionGroup ? entry : null;
+    members.forEach((a, k) => {
+      actions.push(a); slots.push(-1); bys.push(null);
+      groups.push(group); ends.push(group !== null && k === members.length - 1);
+    });
+  }
+  insideGroup = false;
   let i = 0, guard = 0;
   while (i < actions.length) {
     if (++guard > 10000) throw new Error("action queue did not drain");
-    const stepAction = actions[i]!, stepSlot = slots[i]!;
+    const stepAction = actions[i]!, stepSlot = slots[i]!, stepBy = bys[i]!;
+    const stepGroup = groups[i]!, stepEnd = ends[i]!;
     i++;
+    // A follow-up spliced in between two members is still *inside* the group, so this only moves on
+    // a member's own row: set on every member but the last, cleared by the last. That is what lets
+    // the bar fill part-way through a group and still break only on the cast that ends it.
+    if (stepGroup) insideGroup = !stepEnd;
     const before = state.active;
     if (stepSlot >= 0) state.active = stepSlot;
     let action = stepAction;
@@ -2109,7 +2341,9 @@ export function run(state: State, rotation: Action[]): ResolvedSnapshot[] {
     // Handed to evaluate() rather than stamped on the snapshot after: gear reacting mid-action
     // needs it too (tunebreak.ts's own watcher won't auto-fire off one) — see triggeredAction().
     const triggered = stepSlot >= 0 || stepAction.triggered || action.slot !== null || isCast(action, Cast.Outro);
-    const snapshot = evaluate(state, action, triggered);
+    const snapshot = evaluate(state, action, triggered, stepBy);
+    snapshot.group = stepGroup;
+    snapshot.groupEnd = stepEnd;
     out.push(snapshot);
     // a queued follow-up's own turn doesn't stick — restore whoever was actually active,
     // unless the follow-up was itself an outro (genuinely advances the team)
@@ -2118,10 +2352,14 @@ export function run(state: State, rotation: Action[]): ResolvedSnapshot[] {
     if (pendingQueue.length) {
       // spliced in right after the action that queued them — i.e. at the read cursor, which is
       // exactly where the old shift()-based list spliced at its own front
-      const qa: Action[] = [], qs: number[] = [];
-      for (const p of pendingQueue) { qa.push(p.action); qs.push(p.slot); }
+      const qa: Action[] = [], qs: number[] = [], qb: (HeldBuff | null)[] = [];
+      for (const p of pendingQueue) { qa.push(p.action); qs.push(p.slot); qb.push(p.by); }
       actions.splice(i, 0, ...qa);
       slots.splice(i, 0, ...qs);
+      bys.splice(i, 0, ...qb);
+      // a follow-up is never one of the casts a group names, whatever it was queued from
+      groups.splice(i, 0, ...qa.map(() => null));
+      ends.splice(i, 0, ...qa.map(() => false));
     }
   }
   return out;

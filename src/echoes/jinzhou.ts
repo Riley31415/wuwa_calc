@@ -8,11 +8,11 @@
  */
 import { isType,
   Buff, Sonata, Sonata2pc, Mainslot, Action, Stat, Attribute, Type1, Cast, Scaling,
-  addStat, frozenStacks, casting, currentAction, revokeSelf, applyCurrent, applyTeam, stacksOfTeam, revokeTeam,
+  addStat, frozenStacks, casting, currentAction, revokeCurrent, applyCurrent, applyTeam, stacksOfTeam, revokeTeam,
   removeStackTeam, queueOutro, queue, lostOnSwap, triggeredAction,
 } from "../engine/kit.js";
 import { applied } from "../engine/kit.js";
-import { HEALS } from "../engine/status.js";
+import { HEALS, SHIELD } from "../shared/status.js";
 
 /* -------------------------------------------------------------------------- generic, unowned */
 
@@ -53,7 +53,28 @@ export const HERON_HANDOFF = new Buff({
   name: "Impermanence Heron: Outro",
   applyStats: () => addStat(Stat.DmgBonus, 12),
   // a plain 15s window — checked in convertStats() (after applyStats() pays out), not updateBuffs()
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(HERON_HANDOFF); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(HERON_HANDOFF); },
+});
+
+/** Stonewall Bracer, a generic Elite Class mainslot echo (Huanglong). No equip passive — its own
+ *  cast is a transformation: a 112.64% Physical charge into a 168.96% Physical smash, taken as the
+ *  one cast the rotation presses, and a shield worth 10% of the wearer's own Max HP for 7s. Both
+ *  hits bank Energy and neither banks Concerto or Off-Tune — nanoka's own rows (echo 390077021),
+ *  which is what a Physical echo looks like: no element to resonate with.
+ *
+ *  The shield is why it is worth wearing over Impermanence Heron on a Moonlit Clouds support: it is
+ *  the SHIELD marker every "on gaining a shield" passive in the roster reads (statuses.ts), so a
+ *  teammate's kit pays out for it. The shield's own damage absorption is not modelled — nothing in
+ *  this calculator takes damage. */
+export const ACTION_STONEWALL_BRACER = new Action("Echo - Stonewall Bracer", {
+  cast: Cast.Echo, element: Attribute.Physical, scaling: Scaling.Atk, type: Type1.Echo,
+  mv: 281.60, energy: 4.40,
+  updateDebuffs: () => applyCurrent(SHIELD, 1),
+});
+
+export const STONEWALL_BRACER = new Mainslot({
+  name: "Stonewall Bracer",
+  action: ACTION_STONEWALL_BRACER,
 });
 
 /** Moonlit Clouds, a generic sonata. 2pc: +10% ER flat. 5pc: on Outro, the incoming resonator
@@ -68,7 +89,7 @@ export const MOONLIT_CLOUDS_5PC = new Sonata({
 export const MOONLIT_CLOUDS_HANDOFF = new Buff({
   name: "Moonlit Clouds (outro)",
   applyStats: () => addStat(Stat.BonusAtk, 22.5),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(MOONLIT_CLOUDS_HANDOFF); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(MOONLIT_CLOUDS_HANDOFF); },
 });
 
 /** Rejuvenating Glow, a generic sonata. 5pc: on healing an ally, +15% ATK flat, team-wide,
@@ -93,7 +114,7 @@ export const MOLTEN_RIFT_5PC = new Sonata({
 export const MOLTEN_RIFT_BUFF = new Buff({
   name: "Molten Rift",
   applyStats: () => addStat(Stat.DmgBonus, 30, Attribute.Fusion),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(MOLTEN_RIFT_BUFF); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(MOLTEN_RIFT_BUFF); },
 });
 
 /** Nightmare: Inferno Rider, Changli's own mainslot echo — her Skill DMG is Fusion. Flat
@@ -118,7 +139,7 @@ export const ACTION_INFERNO_RIDER = new Action("Echo - Inferno Rider", {
 export const INFERNO_RIDER_WINDOW = new Buff({
   name: "Inferno Rider",
   applyStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Fusion); addStat(Stat.DmgBonus, 12, Type1.Basic); },
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(INFERNO_RIDER_WINDOW); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(INFERNO_RIDER_WINDOW); },
 });
 export const INFERNO_RIDER = new Mainslot({
   name: "Inferno Rider",
@@ -147,7 +168,7 @@ export const ACTION_CROWNLESS = new Action("Echo - Nightmare: Crownless", {
 export const CROWNLESS_WINDOW = new Buff({
   name: "Crownless",
   applyStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Havoc); addStat(Stat.DmgBonus, 12, Type1.Skill); },
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(CROWNLESS_WINDOW); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(CROWNLESS_WINDOW); },
 });
 export const CROWNLESS = new Mainslot({
   name: "Crownless",
@@ -167,7 +188,7 @@ export const HAVOC_ECLIPSE_5PC = new Sonata({
 export const HAVOC_ECLIPSE_STACKS = new Buff({
   name: "Havoc Eclipse", maxStacks: 4,
   applyStats: () => addStat(Stat.DmgBonus, 7.5 * frozenStacks(), Attribute.Havoc),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(HAVOC_ECLIPSE_STACKS); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(HAVOC_ECLIPSE_STACKS); },
 });
 
 /* --------------------------------------------------------- old Jinzhou sonatas, none in a build */
@@ -182,7 +203,7 @@ export const ACTION_LAMPYLUMEN_MYRIAD = new Action("Echo - Lampylumen Myriad", {
 export const LAMPYLUMEN_MYRIAD_STACKS = new Buff({
   name: "Lampylumen Myriad", maxStacks: 3,
   applyStats: () => { addStat(Stat.DmgBonus, 4 * frozenStacks(), Attribute.Glacio); addStat(Stat.DmgBonus, 4 * frozenStacks(), Type1.Skill); },
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(LAMPYLUMEN_MYRIAD_STACKS); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(LAMPYLUMEN_MYRIAD_STACKS); },
 });
 export const LAMPYLUMEN_MYRIAD = new Mainslot({
   name: "Lampylumen Myriad",
@@ -202,7 +223,7 @@ export const FREEZING_FROST_5PC = new Sonata({
 export const FREEZING_FROST_STACKS = new Buff({
   name: "Freezing Frost", maxStacks: 3,
   applyStats: () => addStat(Stat.DmgBonus, 10 * frozenStacks(), Attribute.Glacio),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(FREEZING_FROST_STACKS); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(FREEZING_FROST_STACKS); },
 });
 
 /** Nightmare: Feilian Beringal — Sierra Gale's own real matching mainslot echo (Iuno just
@@ -226,7 +247,7 @@ export const SIERRA_GALE_5PC = new Sonata({
 export const SIERRA_GALE_INTRO = new Buff({
   name: "Sierra Gale",
   applyStats: () => addStat(Stat.DmgBonus, 30, Attribute.Aero),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(SIERRA_GALE_INTRO); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(SIERRA_GALE_INTRO); },
 });
 
 /** Jué — a Calamity Class Spectro mainslot echo. Its cast also summons Blessing of Time as a
@@ -275,7 +296,7 @@ export const ACTION_MECH_WASTE = new Action("Echo - Mech Abomination: Mech Waste
 export const MECH_ABOMINATION_ATK = new Buff({
   name: "Mech Abomination",
   applyStats: () => addStat(Stat.BonusAtk, 12),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(MECH_ABOMINATION_ATK); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(MECH_ABOMINATION_ATK); },
 });
 export const MECH_ABOMINATION = new Mainslot({
   name: "Mech Abomination",
@@ -332,7 +353,7 @@ export const VOID_THUNDER_2PC = new Sonata2pc({ name: "Void Thunder 2pc", consta
 export const VOID_THUNDER_STACKS = new Buff({
   name: "Void Thunder 5pc: Electro", maxStacks: 2,
   applyStats: () => addStat(Stat.DmgBonus, 15 * frozenStacks(), Attribute.Electro),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(VOID_THUNDER_STACKS); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(VOID_THUNDER_STACKS); },
 });
 export const VOID_THUNDER_5PC = new Sonata({
   name: "Void Thunder 5pc",

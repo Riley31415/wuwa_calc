@@ -18,7 +18,7 @@ import type { Type1, StatKey } from "./stats.js";
 import { isCast } from "./kit.js";
 import { mvPercent, effectiveShred, effectiveRes, damageFactors } from "./damage.js";
 import type { Action, ChainGroup } from "./kit.js";
-import type { ResolvedSnapshot, StatEntry } from "./kit.js";
+import type { ResolvedSnapshot, StatEntry, HeldBuff } from "./kit.js";
 
 /** One line in a source-trace panel — what fed a value, and how to read it. */
 export interface TraceEntry {
@@ -116,8 +116,11 @@ const SECTION_OF: Partial<Record<Stat | EnemyStat, string>> = {
   [Stat.ResIgnore]: "RES Ignore", [EnemyStat.ResShred]: "RES Reduce",
 };
 
-/** One line of the hover on an action's own name — what field it is, and its value. */
-export interface InfoEntry { label: string; value: string; }
+/** One line of the hover on an action's own name — what field it is, and its value. `source` marks
+ *  a row that is not a field/value pair at all but a *name*: what triggered this action, carrying
+ *  whose kit it came from so the renderer can bar it in that member's colour, exactly as the
+ *  resonator popover bars a held buff. */
+export interface InfoEntry { label: string; value: string; source?: string }
 
 /**
  * What an action is, for the hover on its own name — every field it actually carries, not just
@@ -126,7 +129,9 @@ export interface InfoEntry { label: string; value: string; }
  * than a shortened or shouted stand-in for it. Fields that are absent/zero/false are dropped, so
  * an action with nothing unusual about it still reads as a short, plain line.
  */
-const actionInfo = (action: Action, type: Type1 | null): InfoEntry[] => {
+const actionInfo = (
+  action: Action, type: Type1 | null, triggered = false, triggeredBy: HeldBuff | null = null,
+): InfoEntry[] => {
   const info: InfoEntry[] = [];
   const push = (label: string, value: string | null) => { if (value) info.push({ label, value }); };
   // Order runs widest to narrowest: which forte branch the cast lives on, what button pressed it,
@@ -139,6 +144,15 @@ const actionInfo = (action: Action, type: Type1 | null): InfoEntry[] => {
   push("Type", type === null ? null : TAG_NAME[type]);
   push("Type 2", action.type2 === null ? null : TAG_NAME[action.type2]);
   push("Active", String(action.active));
+  // Whether the engine counted this row as a follow-up rather than a rotation beat — the raw flag,
+  // not "did something name itself below": a Tune Break or an ECHO_CAST is triggered with nobody to
+  // credit, and reading false there would misdescribe what the engine actually did.
+  push("Triggered", String(triggered));
+  // ...and last, for a follow-up rather than a press: what spawned it, on a line of its own rather
+  // than squeezed into the value column, since it is a buff/gear/cast name and not a field of the
+  // action at all (kit.ts's own `triggeredBy`). The `Triggered` row above already says one exists,
+  // so the name needs no heading to introduce it.
+  if (triggeredBy) info.push({ label: triggeredBy.name, value: "", source: triggeredBy.source });
   return info;
 };
 
@@ -196,14 +210,23 @@ export function columnSources(snapshot: ResolvedSnapshot, key: string): TraceEnt
  *  still formats its total the way that column would. */
 export const columnOf = (report: Report, key: string): Column | undefined => report.columns.find((c) => c.key === key);
 
-// no thousands separator: the action table's columns sit tight against one another, where a comma
-// reads as one more delimiter rather than as part of the figure. Matches index.ts's own web grid.
-const num = (v: number | null | undefined, digits = 0, pad = false): string =>
-  v == null ? "" : v.toLocaleString("en-US", { maximumFractionDigits: digits, minimumFractionDigits: pad ? digits : 0, useGrouping: false });
+const num = (v: number | null | undefined, digits = 0, pad = false, group = false): string =>
+  v == null ? "" : v.toLocaleString("en-US", { maximumFractionDigits: digits, minimumFractionDigits: pad ? digits : 0, useGrouping: group });
 
-// energy/concerto/offtune always show their own column's full digit count (2/2/4) rather than
-// trimming trailing zeros the way every other column does — matches index.ts's own PAD_DIGITS_COLUMNS.
-const PAD_DIGITS_COLUMNS = new Set(["energy", "concerto", "offtune"]);
+// Columns that always show their own full digit count rather than trimming trailing zeros the way
+// the rest do: the running resources at their own precision (2/2/4), and every stat column from
+// dmg% through shred, plus mv — a column of percentages that each keep or drop their decimal on
+// their own reads as a ragged edge where the point is comparing one row against the next.
+// Matches index.ts's own PAD_DIGITS_COLUMNS.
+const PAD_DIGITS_COLUMNS = new Set([
+  "energy", "concerto", "offtune",
+  "mv", "dmgBonus", "amp", "cr", "cd", "dealt", "effDef",
+]);
+
+// The one column that keeps its thousands separators. Everywhere else the table's columns sit
+// tight against one another and a comma reads as one more delimiter rather than as part of the
+// figure — but the damage column is the figure the whole row is for, and it runs to six digits.
+const GROUPED_COLUMNS = new Set(["avg"]);
 
 /** The five generic forte gauges, shown under their own names rather than a kit's word — real
  *  numbers on the TeamMember itself (kit.ts's own forte1()-forte5()), not stats, so they carry
@@ -239,9 +262,22 @@ export interface RowValues {
  * stats, resources and hover traces as any other row — the only thing a chain changes is that
  * its own row reports the whole chain's motion value and summed damage.
  */
+/** The columns a group row recombines across every one of its members rather than reading off the
+ *  final cast alone: the motion value it summed, and the four kinds of counter an action *moves*
+ *  rather than *has*. Everything else on a group row is the last member's, unchanged. */
+const COMBINED_COLUMNS = ["mv", "energy", "concerto", "offtune",
+  ...FORTE_GAUGES.map((key) => `gauge:${RESOURCE_NAME[key]}`)];
+
+/** Off-tune's panel carries one section that is a *stat* rather than something the action banked:
+ *  the buildup rate its own build multiplies by. On a folded group row that comes from the last
+ *  member alone, like every other stat — laid end to end it would repeat "100%" once per cast and
+ *  foot the section to 300%, describing a multiplier no cast ever went through. */
+const OFFTUNE_RATE = "Buildup Rate";
+
 function rowValues(
   snap: ResolvedSnapshot,
   { mv, avg }: { mv: number; avg: number },
+  members: ResolvedSnapshot[] = [],
 ): RowValues {
   // An action with no motion value deals no damage by definition — an outro handing off a buff,
   // a liberation that only opens a field. Printing "0%" and "0" down those two columns is noise
@@ -287,10 +323,20 @@ function rowValues(
     energy: snap.energy / RESOURCE_SCALE.energy,
     concerto: snap.concerto / RESOURCE_SCALE.concerto,
     offtune: snap.offtune / RESOURCE_SCALE.offtune,
+    // what each held coming in, same scale — the running-column blanking reads these rather than
+    // the previous row, so an opened group's own members blank like any other row (see stepRow)
+    "before:energy": snap.energyBefore / RESOURCE_SCALE.energy,
+    "before:concerto": snap.concertoBefore / RESOURCE_SCALE.concerto,
+    "before:offtune": snap.offtuneBefore / RESOURCE_SCALE.offtune,
     avg: dealsDamage ? avg : null,
   };
   // real numbers straight off the TeamMember, not stats.
-  FORTE_GAUGES.forEach((key, i) => { raw[`gauge:${RESOURCE_NAME[key]}`] = snap.forte[i]!; });
+  FORTE_GAUGES.forEach((key, i) => {
+    raw[`gauge:${RESOURCE_NAME[key]}`] = snap.forte[i]!;
+    // what it held coming in, for the running-column blanking a member's *first* row needs —
+    // there is no previous row of theirs to compare against (see index.ts's own stepRow)
+    raw[`before:gauge:${RESOURCE_NAME[key]}`] = snap.forteBefore[i]!;
+  });
   // Auxiliary, not a shown column — index.ts's own action table reads these to flag the concerto
   // cell red when an outro fired without a full 100-point bar banked (never true off an outro
   // row: concertoSpent only moves on one, see kit.ts's own evaluate()).
@@ -317,22 +363,25 @@ function rowValues(
   // matches each column's own digits (see the `columns` array below) — a /100 value never needs
   // more than 2 decimal places, a /10000 one (offtune) never needs more than 4.
   const RESOURCE_DIGITS = { energy: 2, concerto: 2, offtune: 4 } as const;
-  // An outro zeroes energy and concerto outright (kit.ts's own evaluate()), so those two cells
-  // read 0 with no panel at all: whatever the cast itself banked is wiped in the same breath, and
-  // a list of contributions beside a hard 0 explains nothing. Off-tune is the enemy's bar and
-  // carries over, so it keeps its trace on an outro like on any other row.
-  const zeroed = isCast(snap.action, Cast.Outro);
+  // Energy on an outro is the one that lists nothing: the bar is set straight to 0 there (kit.ts's
+  // own evaluate()) rather than moved by any amount, so nothing contributed to what the cell reads
+  // and the panel opens on a heading and a Total of 0 — naming the gain an outro like Carlotta's
+  // declares would credit a figure the same row has already thrown away. Concerto is not that case
+  // any more: an outro declares its own `concerto: -100`, the spend it fires on, so it traces like
+  // any other cast's. That row is the declared spend, not the distance the bar actually travelled —
+  // the ceiling above it and the floor under it (kit.ts again) absorb whatever the bar had overrun
+  // or fallen short by. Off-tune is the enemy's and carries over.
   for (const key of ["energy", "concerto", "offtune"] as const) {
-    if (zeroed && key !== "offtune") continue;
-    const declared = snap.action[key] / RESOURCE_SCALE[key];
-    const traced = RESOURCE_STAT[key]
+    const wiped = key === "energy" && isCast(snap.action, Cast.Outro);
+    const declared = wiped ? 0 : snap.action[key] / RESOURCE_SCALE[key];
+    const traced = wiped ? [] : RESOURCE_STAT[key]
       .flatMap((st) => tracing(snap, keysFor(snap.action, st)))
       .map((r) => ({ ...r, value: r.value / RESOURCE_SCALE[key] }));
     const rows: TraceEntry[] = [];
     const digits = RESOURCE_DIGITS[key];
     if (declared) rows.push({ source: snap.action.name, value: declared, digits, owner: snap.member });
     rows.push(...traced.map((r) => ({ ...r, digits })));
-    if (rows.length) sources[key] = rows;
+    if (rows.length || wiped) sources[key] = rows;
     if (traced.length) buffed.add(key);
     // What the panel's own Total reads: what *this* action moved the counter by, not the balance
     // it left behind — the column already prints the running figure, and a panel of one action's
@@ -352,7 +401,7 @@ function rowValues(
     const rate = tracing(snap, keysFor(snap.action, Stat.OfftuneBuildup));
     if (rate.length) {
       sources.offtune = [...(sources.offtune ?? []),
-        ...rate.map((r) => ({ ...r, section: "Buildup Rate", digits: 2 }))];
+        ...rate.map((r) => ({ ...r, section: OFFTUNE_RATE, digits: 2 }))];
       // 100 is the neutral baseline, so anything else is a kit really moving what this cast banked
       if (rate.reduce((n, r) => n + r.value, 0) !== 100) buffed.add("offtune");
     }
@@ -435,6 +484,36 @@ function rowValues(
     }];
   }
 
+  // A group row: `snap` is its last member, so everything above is already that cast's own — which
+  // is what every stat column and stat hover on the row should read. Now the accumulating columns
+  // are rebuilt across the whole group, by asking each member for its own rows and laying them end
+  // to end, so the mv panel names all three casts' motion values and the concerto panel every gain
+  // the group banked. Each member is valued on its own (`members: []`, so this doesn't recurse).
+  if (members.length > 1) {
+    const per = members.map((m) => rowValues(m, { mv: mvPercent(m), avg: 0 }));
+    for (const key of COMBINED_COLUMNS) {
+      // a column the folded row doesn't print at all (a group with no motion value) explains nothing
+      if (sources[key] === undefined && key === "mv") continue;
+      const last = per.length - 1;
+      const rows = per.flatMap((p, k) => (p.sources[key] ?? [])
+        .filter((r) => r.section !== OFFTUNE_RATE || k === last));
+      if (rows.length) sources[key] = rows; else delete sources[key];
+      if (per.some((p) => p.buffed.has(key))) buffed.add(key);
+      const moved = `moved:${key}`;
+      if (per.some((p) => p.raw[moved] !== undefined)) {
+        raw[moved] = per.reduce((n, p) => n + (Number(p.raw[moved]) || 0), 0);
+      }
+    }
+    // ...and what each gauge held walking *into* the group, not into its last cast, so the running
+    // columns blank only where the group as a whole left one untouched (index.ts's own stepRow)
+    FORTE_GAUGES.forEach((key, i) => {
+      raw[`before:gauge:${RESOURCE_NAME[key]}`] = members[0]!.forteBefore[i]!;
+    });
+    raw["before:energy"] = members[0]!.energyBefore / RESOURCE_SCALE.energy;
+    raw["before:concerto"] = members[0]!.concertoBefore / RESOURCE_SCALE.concerto;
+    raw["before:offtune"] = members[0]!.offtuneBefore / RESOURCE_SCALE.offtune;
+  }
+
   const f = damageFactors(snap);
 
   // Every term of the damage product. The stat leads rather than the motion value: it is the
@@ -495,6 +574,10 @@ export interface ReportPart extends RowValues {
   scaling: Scaling | null;
   isShown: boolean;
   short: boolean;
+  /** The cast this part reports, for the same resonator hover its own group row carries — a part
+   *  need not be the group's own member (a queued follow-up can land on anybody), so the buffs it
+   *  was actually held under are its own, not the row's. */
+  snap: ResolvedSnapshot;
 }
 
 export interface Report {
@@ -533,11 +616,13 @@ export function buildReport(
     { key: "cr", label: "cr%", digits: 1, percent: true, full: "Crit Rate" },
     { key: "cd", label: "cd%", digits: 1, percent: true, full: "Crit Dmg" },
     { key: "dealt", label: "vuln%", digits: 1, percent: true, full: "Damage Dealt" },
+    // what the hit meets on the enemy's side, kept next to the multipliers it competes with
+    // rather than out past the resonator's own hp/def
+    { key: "effDef", label: "shred", digits: 1, percent: true, full: "Enemy DEF" },
+    { key: "effRes", label: "res", digits: 1, percent: true, full: "Enemy RES" },
     { key: "er", label: "er%", digits: 1, percent: true, full: "Energy Regen" },
     { key: "hp", label: "hp" },
     { key: "def", label: "def" },
-    { key: "effDef", label: "shred", digits: 1, percent: true, full: "Enemy DEF" },
-    { key: "effRes", label: "res", digits: 1, percent: true, full: "Enemy RES" },
 
     // digits matches nanoka's own table precision: energy/concerto never need more than 2 decimal
     // places, offtune's own /10000 scale-down (RESOURCE_SCALE above) never needs more than 4 —
@@ -558,11 +643,13 @@ export function buildReport(
   // own: a follow-up the engine queued rather than something a rotation author placed (an
   // outro-triggered intro included, now that outros trigger them directly). A zero-damage hit
   // is still a real placed action (a healing-only Heavy Attack, say) — full weight, not dimmed.
-  const isShort = (snap: ResolvedSnapshot) => snap.triggered;
+  // A Tune Break is the exception: the engine queues it, but it is an event of the fight's own
+  // rather than somebody's follow-up, so it reads as a beat in its own right.
+  const isShort = (snap: ResolvedSnapshot) => snap.triggered && !isCast(snap.action, Cast.TuneBreak);
 
   const rows: ReportRow[] = lines.map((line) => {
     const { raw, sources, buffed } = rowValues(
-      line.snap as ResolvedSnapshot, { mv: line.mv, avg: line.avg },
+      line.snap as ResolvedSnapshot, { mv: line.mv, avg: line.avg }, line.members ?? [],
     );
     raw.action = name(line.id);
 
@@ -574,7 +661,8 @@ export function buildReport(
       // what the action *is*, for the hover on its name. A chain takes it from the part whose
       // stats it is reporting, the same part every other value on the row comes from.
       // `snap.type`, not `action.type`: the type it was actually evaluated as (kit.ts's typeOverride)
-      info: actionInfo(line.snap.action, (line.snap as ResolvedSnapshot).type),
+      info: actionInfo(line.snap.action, (line.snap as ResolvedSnapshot).type,
+        (line.snap as ResolvedSnapshot).triggered, (line.snap as ResolvedSnapshot).triggeredBy),
       // what the motion value is multiplying, so the mv panel can name its own unit
       scaling: line.snap.action.scaling,
       short: isShort(line.snap as ResolvedSnapshot),
@@ -584,10 +672,13 @@ export function buildReport(
               p.snap as ResolvedSnapshot, { mv: mvPercent(p.snap), avg: p.dmg.avg },
             ) as ReportPart;
             part.raw.action = name(p.snap.action.name);
-            (part as unknown as { info: InfoEntry[] }).info = actionInfo(p.snap.action, (p.snap as ResolvedSnapshot).type);
+            (part as unknown as { info: InfoEntry[] }).info = actionInfo(p.snap.action,
+              (p.snap as ResolvedSnapshot).type,
+              (p.snap as ResolvedSnapshot).triggered, (p.snap as ResolvedSnapshot).triggeredBy);
             part.type = (p.snap as ResolvedSnapshot).type;
             part.scaling = p.snap.action.scaling;
             part.isShown = p.snap === line.snap;
+            part.snap = p.snap as ResolvedSnapshot;
             part.short = isShort(p.snap as ResolvedSnapshot);
             return part;
           })
@@ -610,7 +701,7 @@ export function buildReport(
   const shown = (r: { raw: RawRow }, c: Column): string => {
     const v = r.raw[c.key];
     return typeof v === "number"
-      ? num(v, c.digits ?? 0, PAD_DIGITS_COLUMNS.has(c.key)) + (c.percent ? "%" : "")
+      ? num(v, c.digits ?? 0, PAD_DIGITS_COLUMNS.has(c.key), GROUPED_COLUMNS.has(c.key)) + (c.percent ? "%" : "")
       : String(v ?? "");
   };
   const sized: Column[] = used.map((c) => {
@@ -645,7 +736,7 @@ export function renderReport(report: Report, { showParts = true }: { showParts?:
   const typeName = (type: Type1 | null): string => (type === null ? "" : TAG_NAME[type]);
   const cell = (col: Column, value: unknown): string => {
     const text = typeof value === "number"
-      ? num(value, col.digits ?? 0, PAD_DIGITS_COLUMNS.has(col.key))
+      ? num(value, col.digits ?? 0, PAD_DIGITS_COLUMNS.has(col.key), GROUPED_COLUMNS.has(col.key))
       : String(value ?? "");
     return col.align === "left" ? text.padEnd(col.width ?? 0) : text.padStart(col.width ?? 0);
   };

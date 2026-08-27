@@ -12,6 +12,10 @@ manual refresh needed after a fix lands on disk (or after `npx tsc` finishes reb
     python serve.py            ->  http://127.0.0.1:8731/
     python serve.py 9000       ->  http://127.0.0.1:9000/
 
+This serves; it does not compile. A .ts edit only reaches the browser once something has built
+dist/, so run it beside `npm run watch` — or just use dev.py, which is this plus that compiler as
+one process, and is what the logon entry starts (`python dev.py --install-autostart`).
+
 Use 127.0.0.1, not localhost: this binds IPv4 only, and on Windows "localhost" tries the IPv6
 loopback (::1) first and falls back after a ~200ms stall — paid on *every* connection, which adds
 up fast across the dozen-plus separate module files the unbundled dist/ ships as (see index.ts's

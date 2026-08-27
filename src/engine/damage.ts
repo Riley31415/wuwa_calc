@@ -168,7 +168,9 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
   // Tune break boost multiplies tune damage and nothing else. It is part of the formula rather
   // than something the tune break converts into amplification on itself: the ordinary damage
   // bonus and amplification are both gated off for tune, so this is the multiplier tune has.
-  const tbbFactor = 1 + s(Stat.Tbb) * (1 - notTune);
+  // ...and it divides its own points down rather than going through `s()`: Tune Break Boost is
+  // not a ratio stat (see stats.ts's own PERCENT_STATS), it is a count that happens to buy 1% each.
+  const tbbFactor = 1 + (snapshot.stats[Stat.Tbb]! / 100) * (1 - notTune);
   const resFactor = resFactorOf(snapshot);
   const defFactor = defFactorOf(snapshot);
   // Total Damage joins damage bonus and amplification in what a dot doesn't read — a status's own

@@ -197,11 +197,7 @@ body {
   box-shadow: var(--sh-2);
   overflow: hidden;
 }
-.rtable.dpr .rtrow { grid-template-columns: minmax(120px, 1.4fr) repeat(6, minmax(90px, 1fr)); }
-/* The comparison table's own Total DPR hover (index.js's own `dprTable()`, no `lines` passed)
-   drops the Avg column — it's already hovering an average, so the column would just repeat the
-   row's own number back — one fewer track to match. */
-.rtable.dpr.noavg .rtrow { grid-template-columns: minmax(120px, 1.4fr) repeat(5, minmax(90px, 1fr)); }
+.rtable.dpr .rtrow { grid-template-columns: minmax(120px, 1.4fr) repeat(5, minmax(90px, 1fr)); }
 .rtable.energy .rtrow { grid-template-columns: repeat(5, minmax(90px, 1fr)); }
 
 .rtrow { display: grid; align-items: stretch; }
@@ -349,7 +345,7 @@ main {
 .tgrid {
   display: grid;
   /* three member names plus Team DPR and the baseline %, the no-options-open default — a member's
-     own DPR and Misc's both live in a hover now (see index.ts's own `memberCell`/
+     own DPR and the Tune Break's both live in a hover now (see index.ts's own `memberCell`/
      `sectionBreakdownPopover`). Overridden by an inline style whenever a Show ... Options box is
      open (see index.ts's own `comparisonTable()`): the weapon/echo/mainstat columns those add are
      conditional on the current filters, not something a static rule here can know. */
@@ -457,6 +453,13 @@ main {
    `tabular-nums` still lines the digits themselves up, so the numbers stay comparable row to row. */
 .pop.breakdown td.v { text-align: left; }
 
+/* Actions rides in a table of its own (index.js's own `damagePopover()`) so the longest action
+   name sizes only its own label column, leaving Node/Type/Type 2 and the Total row above at their
+   natural tag widths. */
+.pop.breakdown .acts { margin-top: 6px; }
+.pop.breakdown .acts:empty { display: none; }
+.pop.breakdown .acts .sec td { padding-top: 7px; }
+
 /* The final-damage panel is a product, not a column of amounts: every row below the leading stat
    is a multiplier, so its figures read left-aligned — flush right pushed the `x` signs apart and
    left the factors in a ragged column no one could compare down. `tabular-nums` (inherited from
@@ -553,7 +556,19 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 }
 /* body rows. Always positioned, so the hidden expand checkbox has something to anchor to;
    raised on hover so a source panel opening downward is not painted under the next row. */
-.step { position: relative; border-top: 1px solid var(--line); }
+/* Rows off screen are skipped entirely — no style, no layout, no paint — until they scroll near.
+   An action log runs to hundreds of rows and each carries a column's worth of cells, so this is
+   most of what scrolling one used to cost. Safe for the grid's own width: every row's columns are
+   fixed `calc()` tracks (see colWidth), not content-measured, and the header row is never skipped,
+   so `max-content` still resolves to the same width whatever is currently rendered.
+   `auto` in the intrinsic size means "remember what this row last measured", so the scrollbar
+   settles after a row has been seen once instead of guessing forever. */
+.step {
+  position: relative;
+  border-top: 1px solid var(--line);
+  content-visibility: auto;
+  contain-intrinsic-size: auto 28px;
+}
 .step:first-of-type { border-top: 0; }
 
 /* Every row carries a faint wash of its own *action's* colour (white/green for generic gear,
@@ -622,11 +637,19 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 .parts { display: none; }
 .tgl:checked ~ .parts { display: block; }
 
-.parts .r {
-  background: color-mix(in srgb, var(--m, transparent) 3%, var(--surface-2));
-  color: var(--dim);
-}
-.parts .r:hover { background: color-mix(in srgb, var(--m, transparent) 6%, var(--surface-2)); }
+/* The follow-ups a group's own casts queued, while the group reads as one beat: ordinary rows in
+   every way — same wash, same weight — just sitting after the group instead of inside it. Opening
+   the group hides them here and `.parts` shows them back in the place they actually resolved in,
+   so the same hit is never on screen twice. */
+.tgl:checked ~ .spill { display: none; }
+.spill > .r       { background: color-mix(in srgb, var(--m, transparent) 4%, var(--surface)); }
+.spill > .r:hover { background: color-mix(in srgb, var(--m, transparent) 8%, var(--surface)); }
+
+/* An opened group reads as the rows it always was: the same wash at the same strength as a
+   top-level row, off each row's *own* member colour (see partRows), not the group's and not a
+   flatter surface. Only the indent below marks them as sitting inside the group. */
+.parts > .r       { background: color-mix(in srgb, var(--m, transparent) 4%, var(--surface)); }
+.parts > .r:hover { background: color-mix(in srgb, var(--m, transparent) 8%, var(--surface)); }
 .parts .c { padding-top: 4px; padding-bottom: 4px; }
 .parts .name { padding-left: calc(var(--lead) + 18px); }
 

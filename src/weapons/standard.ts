@@ -3,11 +3,11 @@
  *  Resolution (5-star), and the "new standard" 5-star set. */
 import { isType,
   Buff, Weapon, WeaponType, Stat, Type1, Cast, Attribute,
-  addStat, applyCurrent, isHeld, removeStack, revokeSelf, casting, currentAction, frozenStacks, queueOutro, stacksOfEnemy,
+  addStat, applyCurrent, isHeld, removeStack, revokeCurrent, casting, currentAction, frozenStacks, queueOutro, stacksOfEnemy,
 } from "../engine/kit.js";
 import { applied } from "../engine/kit.js";
-import { HEALS } from "../engine/status.js";
-import { TUNE_STRAIN_INTERFERED } from "../engine/tunebreak.js";
+import { HEALS } from "../shared/status.js";
+import { TUNE_STRAIN_INTERFERED } from "../shared/tunebreak.js";
 
 /* ---------------------------------------------------------------- Ceaseless Aria (4-star, 5) */
 
@@ -58,7 +58,7 @@ export const STATIC_MIST = new Weapon({
 export const STATIC_MIST_HANDOFF = new Buff({
   name: "Static Mist: Stormy Resolution",
   applyStats: () => addStat(Stat.BonusAtk, 10),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(STATIC_MIST_HANDOFF); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(STATIC_MIST_HANDOFF); },
 });
 
 /** Emerald of Genesis, R1. +12.8% ER flat. Skill DMG stacks ATK twice over (6% a stack). */
@@ -73,7 +73,7 @@ export const EMERALD_OF_GENESIS = new Weapon({
 export const EOG_STACKS = new Buff({
   name: "Emerald of Genesis: Stormy Resolution", maxStacks: 2,
   applyStats: () => addStat(Stat.BonusAtk, 6 * frozenStacks()),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(EOG_STACKS); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(EOG_STACKS); },
 });
 
 /** Cosmic Ripples, R1. +12.8% ER flat. Basic Attack DMG stacks Basic DMG Bonus 5x over (3.2% a stack). */
@@ -88,7 +88,7 @@ export const COSMIC_RIPPLES = new Weapon({
 export const COSMIC_RIPPLES_STACKS = new Buff({
   name: "Cosmic Ripples: Stormy Resolution", maxStacks: 5,
   applyStats: () => addStat(Stat.DmgBonus, 3.2 * frozenStacks(), Type1.Basic),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(COSMIC_RIPPLES_STACKS); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(COSMIC_RIPPLES_STACKS); },
 });
 
 /** Abyss Surges, R1. +12.8% ER flat. A Skill hit grants Basic DMG Bonus; a Basic hit grants
@@ -107,13 +107,13 @@ export const ABYSS_SURGES = new Weapon({
 export const ABYSS_SKILL_HIT = new Buff({
   name: "Abyss Surges: Stormy Resolution",
   applyStats: () => addStat(Stat.DmgBonus, 10, Type1.Basic),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(ABYSS_SKILL_HIT); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(ABYSS_SKILL_HIT); },
 });
 
 export const ABYSS_BASIC_HIT = new Buff({
   name: "Abyss Surges: Stormy Resolution",
   applyStats: () => addStat(Stat.DmgBonus, 10, Type1.Skill),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(ABYSS_BASIC_HIT); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(ABYSS_BASIC_HIT); },
 });
 
 /** Lustrous Razor, R1. +12.8% ER flat. Skill cast stacks Liberation DMG Bonus 3x over (7% a stack). */
@@ -128,7 +128,7 @@ export const LUSTROUS_RAZOR = new Weapon({
 export const LUSTROUS_RAZOR_STACKS = new Buff({
   name: "Lustrous Razor: Stormy Resolution", maxStacks: 3,
   applyStats: () => addStat(Stat.DmgBonus, 7 * frozenStacks(), Type1.Liberation),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(LUSTROUS_RAZOR_STACKS); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(LUSTROUS_RAZOR_STACKS); },
 });
 
 /* ------------------------------------------------------------------- new standard (5-star, 5) */
@@ -190,7 +190,7 @@ export const SIGNAL_CATCHER_BUFF = new Buff({
  *  +26% Resonance Skill DMG Bonus for 6s — that half works for anyone, so it lives here. The other
  *  half names Rover: Aero's own Unbound Flow outright, so its trigger lives in their kit file
  *  instead (rover_aero.ts's own updateBuffs(), gated on holding this weapon): importing those two
- *  actions here would make weapons/standard.ts and resonators/rinascita/rover_aero.ts a cycle, and whichever
+ *  actions here would make weapons/standard.ts and resonators/aero/rover_aero.ts a cycle, and whichever
  *  loaded second would read the other's exports before they were initialized. */
 export const BLOODPACTS_PLEDGE = new Weapon({
   weaponType: WeaponType.Sword,
@@ -203,7 +203,7 @@ export const BLOODPACTS_PLEDGE = new Weapon({
 export const HARMONIOUS_VIBRANCY = new Buff({
   name: "Bloodpact's Pledge R5: Harmonious Vibrancy",
   applyStats: () => addStat(Stat.DmgBonus, 26, Type1.Skill),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(HARMONIOUS_VIBRANCY); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(HARMONIOUS_VIBRANCY); },
 });
 
 /** The Unbound Flow half: 26% team Aero Amplification for 30s, so permanent uptime, and only on
@@ -229,7 +229,7 @@ export const NEW_STD_RECTIFIER = new Weapon({
 export const PATH_OBSERVER_BUFF = new Buff({
   name: "Boson Astrolabe: Path Observer",
   applyStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Type1.Basic); },
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(PATH_OBSERVER_BUFF); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(PATH_OBSERVER_BUFF); },
 });
 
 /** Phasic Homogenizer, R1: Insight Bearer, +12% ATK flat. Any team member's Tune Break cast grants
@@ -245,5 +245,5 @@ export const NEW_STD_PISTOL = new Weapon({
 export const INSIGHT_BEARER_BUFF = new Buff({
   name: "Phasic Homogenizer: Insight Bearer",
   applyStats: () => addStat(Stat.DmgBonus, 20),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(INSIGHT_BEARER_BUFF); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(INSIGHT_BEARER_BUFF); },
 });

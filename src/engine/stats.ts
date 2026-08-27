@@ -139,7 +139,6 @@ export const enum Type1 {
   Status = 8 << 12,
   Break = 9 << 12,
   Rupture = 10 << 12,
-  Strain = 11 << 12,
   Hack = 12 << 12,
   Utility = 13 << 12,
 }
@@ -170,8 +169,8 @@ export const TAG_NAME: Record<Tag, string> = {
   [Attribute.Glacio]: "Glacio", [Attribute.Spectro]: "Spectro", [Attribute.Havoc]: "Havoc",
   [Attribute.Physical]: "Physical",
   [Type1.Basic]: "Basic", [Type1.Heavy]: "Heavy", [Type1.Skill]: "Skill", [Type1.Liberation]: "Liberation",
-  [Type1.Intro]: "Intro", [Type1.Outro]: "Outro", [Type1.Echo]: "Echo", [Type1.Status]: "Negative Status",
-  [Type1.Break]: "Tune Break", [Type1.Rupture]: "Tune Rupture", [Type1.Strain]: "Tune Strain",
+  [Type1.Intro]: "Intro", [Type1.Outro]: "Outro", [Type1.Echo]: "Echo", [Type1.Status]: "Status",
+  [Type1.Break]: "Tune Break", [Type1.Rupture]: "Tune Rupture",
   [Type1.Hack]: "Tune Hack", [Type1.Utility]: "Utility",
   [Type2.Coordinated]: "Coordinated", [Type2.SpectroFrazzle]: "Spectro Frazzle",
   [Type2.AeroErosion]: "Aero Erosion", [Type2.FusionBurst]: "Fusion Burst",
@@ -257,9 +256,12 @@ export const SCALING_NAME: Record<Scaling, string> = {
 /* ------------------------------------------------------------------- metadata */
 
 /** Ratio stats, held in percent units. Everything else is a flat amount or a count. Covers both
- *  `Stat` and `EnemyStat` values — they share one index space, so one set works for either enum. */
+ *  `Stat` and `EnemyStat` values — they share one index space, so one set works for either enum.
+ *  Tune Break Boost is deliberately absent: it is a count of points, each worth +0.12% total
+ *  damage per Interfered stack (tunebreak.ts's own `tuneStrainBonus`), so it reads as a bare
+ *  number everywhere. What divides it into a multiplier does so itself (damage.ts's `tbbFactor`). */
 export const PERCENT_STATS: Set<Stat | EnemyStat> = new Set<Stat | EnemyStat>([
-  Stat.BonusAtk, Stat.BonusHp, Stat.BonusDef, Stat.CritRate, Stat.CritDmg, Stat.Er, Stat.Tbb,
+  Stat.BonusAtk, Stat.BonusHp, Stat.BonusDef, Stat.CritRate, Stat.CritDmg, Stat.Er,
   Stat.OfftuneBuildup,
   Stat.AddMv, Stat.MulMv,
   Stat.DmgBonus, Stat.Amp, Stat.TotalDmg,

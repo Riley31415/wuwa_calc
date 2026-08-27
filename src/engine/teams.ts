@@ -14,46 +14,48 @@
  * its own copy of this module. See solver.ts's own `teamFromNames()`.
  */
 import type { Loadout } from "./kit.js";
-import { QY_LOADOUT } from "../resonators/v24septimont/qiuyuan.js";
-import { CANTA_LOADOUT } from "../resonators/v20rinascita/cantarella.js";
-import { FROLO_LOADOUT } from "../resonators/v24septimont/phrolova.js";
-import { SK_LOADOUT } from "../resonators/v14blackshores/shorekeeper.js";
-import { UNO_LOADOUT } from "../resonators/v24septimont/iuno.js";
-import { JINGOAT_LOADOUT } from "../resonators/v35mengzhou/jingran.js";
-import { ZZ_LOADOUT } from "../resonators/v10jinzhou/zhezhi.js";
-import { LOTTA_LOADOUT } from "../resonators/v20rinascita/carlotta.js";
-import { GEEK_LOADOUT } from "../resonators/v30lahairoi/sigrika.js";
-import { VERINA_LOADOUT } from "../resonators/v10jinzhou/verina.js";
-import { SANHUA_LOADOUT } from "../resonators/v10jinzhou/sanhua.js";
-import { HROVER_LOADOUT } from "../resonators/v14blackshores/rover_havoc.js";
-import { EROVER_LOADOUT } from "../resonators/v14blackshores/rover_electro.js";
-import { AROVER_LOADOUT } from "../resonators/v14blackshores/rover_aero.js";
-import { SROVER_LOADOUT } from "../resonators/v14blackshores/rover_spectro.js";
-import { CIA_LOADOUT } from "../resonators/v20rinascita/ciaccona.js";
-import { ROCCIA_LOADOUT } from "../resonators/v20rinascita/roccia.js";
-import { AUGUGU_LOADOUT } from "../resonators/v24septimont/augusta.js";
-import { LOPA_LOADOUT } from "../resonators/v24septimont/lupa.js";
-import { GLOB_LOADOUT, GLOB_LOADOUT_ECHO_FOCUS } from "../resonators/v24septimont/galbrena.js";
-import { BRANT_LOADOUT } from "../resonators/v20rinascita/brant.js";
-import { ENCORE_LOADOUT } from "../resonators/v10jinzhou/encore.js";
-import { CHANGLI_LOADOUT } from "../resonators/v10jinzhou/changli.js";
-import { DANJIN_LOADOUT } from "../resonators/v10jinzhou/danjin.js";
-import { CAMMY_LOADOUT } from "../resonators/v14blackshores/camellya.js";
-import { MORT_LOADOUT } from "../resonators/v10jinzhou/mortefi.js";
-import { BULING_LOADOUT } from "../resonators/v28ashinohara/buling.js";
-import { CHISA_LOADOUT } from "../resonators/v28ashinohara/chisa.js";
-import { HIYUKI_LOADOUT } from "../resonators/v28ashinohara/hiyuki.js";
-import { LUCILLA_LOADOUT, LUCILLA_LOADOUT_CHAFE } from "../resonators/v30lahairoi/lucilla.js";
-import { LYN_RUPTURE, LYN_STRAIN } from "../resonators/v30lahairoi/lynae.js";
-import { MORNYE_LOADOUT } from "../resonators/v30lahairoi/mornye.js";
-import { DENIA_BURST, DENIA_STRAIN } from "../resonators/v30lahairoi/denia.js";
-import { QX_LOADOUT } from "../resonators/v35mengzhou/qingxiao.js";
-import { JIYAN_LOADOUT } from "../resonators/v10jinzhou/jiyan.js";
-import { YINLIN_LOADOUT } from "../resonators/v10jinzhou/yinlin.js";
-import { XLY_LOADOUT } from "../resonators/v10jinzhou/xiangli_yao.js";
-import { LUUK_LOADOUT } from "../resonators/v30lahairoi/luuk.js";
-import { REBECCA_LOADOUT } from "../resonators/v34cyberpunk/rebecca.js";
-import { LUCY_LOADOUT } from "../resonators/v34cyberpunk/lucy.js";
+import { QY_LOADOUT } from "../resonators/aero/qiuyuan.js";
+import { CANTA_LOADOUT } from "../resonators/havoc/cantarella.js";
+import { FROLO_LOADOUT } from "../resonators/havoc/phrolova.js";
+import { SK_LOADOUT } from "../resonators/spectro/shorekeeper.js";
+import { UNO_LOADOUT } from "../resonators/aero/iuno.js";
+import { JINGOAT_LOADOUT } from "../resonators/fusion/jingran.js";
+import { ZZ_LOADOUT } from "../resonators/glacio/zhezhi.js";
+import { LOTTA_LOADOUT } from "../resonators/glacio/carlotta.js";
+import { GEEK_LOADOUT } from "../resonators/aero/sigrika.js";
+import { VERINA_LOADOUT } from "../resonators/spectro/verina.js";
+import { SANHUA_LOADOUT } from "../resonators/glacio/sanhua.js";
+import { HROVER_LOADOUT } from "../resonators/havoc/rover_havoc.js";
+import { EROVER_LOADOUT } from "../resonators/electro/rover_electro.js";
+import { AROVER_LOADOUT } from "../resonators/aero/rover_aero.js";
+import { SROVER_LOADOUT } from "../resonators/spectro/rover_spectro.js";
+import { CIA_LOADOUT } from "../resonators/aero/ciaccona.js";
+import { ROCCIA_LOADOUT } from "../resonators/havoc/roccia.js";
+import { AUGUGU_LOADOUT } from "../resonators/electro/augusta.js";
+import { LOPA_LOADOUT } from "../resonators/fusion/lupa.js";
+import { GLOB_LOADOUT, GLOB_LOADOUT_ECHO_FOCUS } from "../resonators/fusion/galbrena.js";
+import { BRANT_LOADOUT } from "../resonators/fusion/brant.js";
+import { ENCORE_LOADOUT } from "../resonators/fusion/encore.js";
+import { CHANGLI_LOADOUT } from "../resonators/fusion/changli.js";
+import { DANJIN_LOADOUT } from "../resonators/havoc/danjin.js";
+import { CAMMY_LOADOUT } from "../resonators/havoc/camellya.js";
+import { MORT_LOADOUT } from "../resonators/fusion/mortefi.js";
+import { BULING_LOADOUT } from "../resonators/electro/buling.js";
+import { CHISA_LOADOUT } from "../resonators/havoc/chisa.js";
+import { HIYUKI_LOADOUT } from "../resonators/glacio/hiyuki.js";
+import { LUCILLA_LOADOUT, LUCILLA_LOADOUT_CHAFE } from "../resonators/glacio/lucilla.js";
+import { LYN_RUPTURE, LYN_STRAIN } from "../resonators/spectro/lynae.js";
+import { MORNYE_LOADOUT } from "../resonators/fusion/mornye.js";
+import { DENIA_BURST, DENIA_STRAIN } from "../resonators/fusion/denia.js";
+import { QX_LOADOUT } from "../resonators/aero/qingxiao.js";
+import { JIYAN_LOADOUT } from "../resonators/aero/jiyan.js";
+import { YINLIN_LOADOUT } from "../resonators/electro/yinlin.js";
+import { XLY_LOADOUT } from "../resonators/electro/xiangli_yao.js";
+import { LUUK_LOADOUT } from "../resonators/spectro/luuk.js";
+import { REBECCA_LOADOUT } from "../resonators/electro/rebecca.js";
+import { LUCY_LOADOUT } from "../resonators/spectro/lucy.js";
+import { XUANLING_LOADOUT } from "../resonators/havoc/xuanling.js";
+import { SUISUI_LOADOUT } from "../resonators/glacio/suisui.js";
 
 /** Every loadout, by the short name the teams below and a team's own key (`FROLO.QY.CANTA`) use.
  *  Deliberately not typed as `Record<string, Loadout>` — the inferred literal keys are what make
@@ -72,6 +74,7 @@ export const LOADOUTS = {
   JIYAN: JIYAN_LOADOUT, YINLIN: YINLIN_LOADOUT, XLY: XLY_LOADOUT, LUUK: LUUK_LOADOUT,
   REBECCA: REBECCA_LOADOUT, LUCY: LUCY_LOADOUT,
   CHISA: CHISA_LOADOUT, HIYUKI: HIYUKI_LOADOUT, LUCILLA_CHAFE: LUCILLA_LOADOUT_CHAFE,
+  XUANLING: XUANLING_LOADOUT, SUISUI: SUISUI_LOADOUT,
 };
 
 export type LoadoutName = keyof typeof LOADOUTS;
@@ -92,13 +95,17 @@ const {
   QY, CANTA, FROLO, SK, UNO, JINGOAT, ZZ, LOTTA, GEEK, VERINA, SANHUA, HROVER, AROVER, CIA, ROCCIA,
   AUGUGU, LOPA, GLOB, GLOB_ECHO_FOCUS, BRANT, ENCORE, CHANGLI, DANJIN, CAMMY, MORT, BULING, LUCILLA,
   MORNYE, JIYAN, YINLIN, XLY,
-  LUUK, REBECCA, LUCY, CHISA, HIYUKI, LUCILLA_CHAFE,
+  LUUK, REBECCA, LUCY, CHISA, HIYUKI, LUCILLA_CHAFE, XUANLING, SUISUI,
 } = LOADOUTS;
 
 const TEAMS: Loadout[][][] = [
   // hiyuki: glacio chafe/bite — every stack the team lands calculates at the target's own limit,
   // which is why Chisa (+3 to it) and Lucilla's Chafe build stand behind her
-  [[VERINA, SK, MORNYE, CHISA], [LUCILLA_CHAFE, CHISA, LYN_RUPTURE], [HIYUKI]],
+  [[SUISUI, VERINA, SK, MORNYE, CHISA], [LUCILLA_CHAFE, CHISA, LYN_RUPTURE], [HIYUKI]],
+
+  // xuanling: havoc heavy attack on Havoc Bane — Chisa's +3 to every Negative Status cap is what
+  // takes Unbroken Vow off its 3-stack 30% tier onto the 4-6 stack 36% one
+  [[SUISUI, VERINA, SK, MORNYE, CHISA], [CHISA, MORT, REBECCA, LYN_RUPTURE, UNO, FROLO], [XUANLING]],
 
   // lucy: spectro heavy on tune hack, with rebecca feeding her the outro
   [[VERINA, MORNYE, SK], [REBECCA], [LUCY]],
@@ -125,23 +132,25 @@ const TEAMS: Loadout[][][] = [
 
   // phrolova: havoc, echo, skill
   // frolo -> subdps -> subdps
-  [[FROLO], [QY, ROCCIA, DANJIN, LUCILLA, LYN_RUPTURE, LYN_STRAIN], [QY, DANJIN, LUCILLA, CANTA, LYN_RUPTURE, LYN_STRAIN]],
+  [[FROLO], [QY, ROCCIA, DANJIN, LUCILLA, LYN_RUPTURE], [DANJIN, LUCILLA, CANTA, LYN_RUPTURE]],
+
   // frolo -> support -> subdps
-  [[FROLO], [SK, VERINA, BULING, MORNYE], [QY, DANJIN, LUCILLA, CANTA, LYN_RUPTURE, LYN_STRAIN]],
+  [[FROLO], [SK, VERINA, BULING, MORNYE, SUISUI], [QY, DANJIN, LUCILLA, CANTA, LYN_RUPTURE]],
+
   // frolo -> driver -> support
-  [[FROLO], [QY, ROCCIA, DANJIN, HROVER], [SK, VERINA]],
+  [[FROLO], [QY, ROCCIA, DANJIN, HROVER], [SK, VERINA, SUISUI]],
 
   // changli: fusion skill+liberation
   [[LOPA], [BRANT, ENCORE, DENIA_BURST], [CHANGLI]],
 
   // lotta: glacio skill
-  [[SK, BULING, VERINA, MORNYE], [ZZ, BRANT, LYN_RUPTURE, REBECCA], [LOTTA]],
+  [[SK, BULING, VERINA, MORNYE, SUISUI], [ZZ, BRANT, LYN_RUPTURE, REBECCA, LUCILLA_CHAFE], [LOTTA]],
 
   // cammy: havoc basic
-  [[SK, VERINA, MORNYE], [ROCCIA, SANHUA, LYN_RUPTURE, REBECCA], [CAMMY]],
+  [[SK, VERINA, MORNYE, SUISUI], [ROCCIA, SANHUA, LYN_RUPTURE, REBECCA], [CAMMY]],
 
   // XLY: electro liberation
-  [[SK, VERINA, MORNYE], [YINLIN, LYN_RUPTURE], [XLY]],
+  [[SK, VERINA, MORNYE, SUISUI], [YINLIN, LYN_RUPTURE], [XLY]],
 
   // Jiyan: aero heavy
   [[SK, VERINA, AROVER, CIA, MORNYE], [MORT, UNO, CIA, LYN_RUPTURE, REBECCA], [JIYAN]],

@@ -1,11 +1,11 @@
 /** Mainslot echoes and sonatas from Rinascita (versions 2.0-2.4). */
 import { isType,
   Buff, Sonata, Sonata2pc, Mainslot, Action, Stat, Attribute, Type1, Type2, Cast, Scaling,
-  addStat, frozenStacks, applyCurrent, applyTeam, casting, currentAction, revokeSelf, getStat, queue, queueOutro,
-  revokeTeam,
+  addStat, frozenStacks, applyCurrent, applyTeam, casting, currentAction, revokeCurrent, getStat, queue, queueOutro,
+  revokeTeam, stacksOfEnemy,
 } from "../engine/kit.js";
 import { applied, appliedByMe } from "../engine/kit.js";
-import { AERO_EROSION } from "../engine/status.js";
+import { AERO_EROSION } from "../shared/status.js";
 
 /* ----------------------------------------------------------------------------- Carlotta, 2.0 */
 
@@ -30,12 +30,12 @@ export const FROSTY_RESOLVE_2PC = new Sonata2pc({
 export const FROSTY_RESOLVE_GLACIO = new Buff({
   name: "Frosty Resolve 5pc: Glacio",
   applyStats: () => addStat(Stat.DmgBonus, 22.5, Attribute.Glacio),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(FROSTY_RESOLVE_GLACIO); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(FROSTY_RESOLVE_GLACIO); },
 });
 export const FROSTY_RESOLVE_SKILL_DMG = new Buff({
   name: "Frosty Resolve 5pc: Resonance Skill", maxStacks: 2,
   applyStats: () => addStat(Stat.DmgBonus, 18 * frozenStacks(), Type1.Skill),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(FROSTY_RESOLVE_SKILL_DMG); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(FROSTY_RESOLVE_SKILL_DMG); },
 });
 export const FROSTY_RESOLVE_5PC = new Sonata({
   name: "Frosty Resolve 5pc",
@@ -83,7 +83,7 @@ export const ACTION_MIDNIGHT_VEIL_BURST = new Action("Outro - Midnight Veil", {
 export const MIDNIGHT_VEIL_HANDOFF = new Buff({
   name: "Midnight Veil (outro)",
   applyStats: () => addStat(Stat.DmgBonus, 15, Attribute.Havoc),
-  convertStats: () => { if (casting(Cast.Outro)) revokeSelf(MIDNIGHT_VEIL_HANDOFF); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(MIDNIGHT_VEIL_HANDOFF); },
 });
 export const MIDNIGHT_VEIL_5PC = new Sonata({
   name: "Midnight Veil 5pc",
@@ -203,3 +203,19 @@ export const GUSTS_OF_WELKIN_5PC = new Sonata({
   },
 });
 export const GUSTS_OF_WELKIN_2PC = new Sonata2pc({ name: "Gusts of Welkin 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Aero) });
+
+/** Windward Pilgrimage, the other Aero Erosion sonata. 2pc: +10% Aero DMG Bonus flat. 5pc:
+ *  hitting a target that already carries Aero Erosion grants +10% Crit. Rate and +30% Aero DMG
+ *  Bonus for 10s — a short self window, so lost after the outro. Unlike Gusts of Welkin above the
+ *  trigger is the hit, not the inflict: `stacksOfEnemy`, so any hit while the status stands pays,
+ *  including on Erosion a teammate put there. */
+export const WINDWARD_PILGRIMAGE_2PC = new Sonata2pc({ name: "Windward Pilgrimage 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Aero) });
+export const WINDWARD_PILGRIMAGE_5PC = new Sonata({
+  name: "Windward Pilgrimage 5pc",
+  updateBuffs: () => { if (stacksOfEnemy(AERO_EROSION) > 0) applyCurrent(WINDWARD_PILGRIMAGE_BUFF, 1); },
+});
+export const WINDWARD_PILGRIMAGE_BUFF = new Buff({
+  name: "Windward Pilgrimage",
+  applyStats: () => { addStat(Stat.CritRate, 10); addStat(Stat.DmgBonus, 30, Attribute.Aero); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(WINDWARD_PILGRIMAGE_BUFF); },
+});
