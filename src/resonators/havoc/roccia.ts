@@ -1,6 +1,6 @@
 /**
- * Roccia, ported to the new engine — sequence-0 core loop, a limited 5-star (not
- * `standardCharacter`). A havoc gauntlets support/sub-DPS. Imagination (forte1, max 300) builds
+ * Roccia, ported to the new engine — sequence-0 core loop, a limited 5-star
+ * (`Tier.Limited`). A havoc gauntlets support/sub-DPS. Imagination (forte1, max 300) builds
  * off normal attack hits; at 100+ a held Heavy Attack — or Resonance Skill: Acrobatic Trick,
  * unconditionally — launches her into Beyond Imagination, unlocking Basic Attack: Real Fantasy
  * (a 3-stage Heavy Attack DMG combo, spending the 100 Imagination on its own first hit).
@@ -9,7 +9,7 @@
  * Super Attractive Magic Box (Inherent Skill): her Outro swaps the incoming resonator's own Echo
  * Skill for a flat, DMG-bonus-immune "Magic Box" hit for 14s. Full move-replacement needs
  * per-resonator state this engine doesn't have, so it's simplified to one queued cast on the
- * recipient's own next Intro instead, through ROCCIA's own updateGlobal() below.
+ * recipient's own next Intro instead, through ROCCIA_RESONATOR's own updateGlobal() below.
  *
  * Numbers from nanoka.cc (character 1606) for MV. Energy/concerto/offtune/Imagination deltas
  * aren't exposed on nanoka's own page, so those come off the migrated (old-engine) sheet. Dodge
@@ -21,7 +21,8 @@ import {
   queueOutro, queueOn, lostOnSwap,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { matrix } from "../../shared/matrix.js";
+import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { TRAGICOMEDY } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { NM_HERON, MIDNIGHT_VEIL_5PC, MIDNIGHT_VEIL_2PC } from "../../echoes/rinascita.js";
@@ -67,7 +68,7 @@ const Outro = rocciaAction("Outro - Applause, Please!", {
 });
 
 /** 100 flat Havoc DMG, Utility damage type, DMG-bonus-immune (Scaling.Fixed reads no stat/buff).
- *  Queued once by ROCCIA's own kit on the recipient's own next Intro — see updateGlobal() below. */
+ *  Queued once by ROCCIA_RESONATOR's own kit on the recipient's own next Intro — see updateGlobal() below. */
 const MAGIC_BOX = rocciaAction("Utility - Super Attractive Magic Box", {
   cast: Cast.Echo, type: Type1.Utility, scaling: Scaling.Fixed, mv: 10000,
 });
@@ -112,7 +113,7 @@ const RC_INHERENT_2 = new Inherent({
   },
 });
 
-const ROCCIA = new Resonator({
+const ROCCIA_RESONATOR = new Resonator({
   name: "Roccia",
   element: Attribute.Havoc,
   weapon: WeaponType.Gauntlets,
@@ -138,7 +139,7 @@ const FBA123 = new ActionGroup("Forte Basic - Real Fantasy 123", [FBA1, FBA2, FB
 
 const RC_ROTATION = new Rotation([
   INTRO, HA, Skill, FBA123,
-  ECHO_CAST, Liberation, OUTRO_NEXT,
+  ECHO_CANCEL, Liberation, OUTRO_NEXT,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -146,8 +147,18 @@ const RC_ROTATION = new Rotation([
 // her real 43311 build: resonator + talents + both Inherent Skills, viable weapons, and two real
 // echo choices — Midnight Veil or Moonlit Clouds (same mainslot either way) — both automatically
 // iterated (see kit.ts's own EchoLoadout)
-export const ROCCIA_LOADOUT = new Loadout({
-  resonator: ROCCIA,
+/** Matrix: her Liberation grants the team +20% Havoc DMG Bonus for 30s — permanent. */
+const ROCCIA_MATRIX_TEAM = new Buff({
+  name: "Roccia: Matrix (team)",
+  applyStats: () => addStat(Stat.DmgBonus, 20, Attribute.Havoc),
+});
+const ROCCIA_MATRIX = matrix("Roccia", 20, {
+  updateBuffs: () => { if (casting(Cast.Liberation)) applyTeam(ROCCIA_MATRIX_TEAM); },
+});
+
+export const ROCCIA = new Loadout({
+  resonator: ROCCIA_RESONATOR,
+  matrix: ROCCIA_MATRIX,
   talent: ROCCIA_TALENTS,
   inherent1: RC_INHERENT_1,
   inherent2: RC_INHERENT_2,

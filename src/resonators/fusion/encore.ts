@@ -1,8 +1,7 @@
 /**
- * Encore, ported to the new engine — sequence-6 standard 5* character
- * explicit instruction (see [[project_no_resonance_chains]]'s own Encore exception — every other
- * resonator here is sequence-0 only). A fusion rectifier main DPS. Mayhem (forte1, 0-100) builds
- * off nearly every hit; a Heavy Attack at 100 spends it all for Cloudy Frenzy (Threshold state) or
+ * Encore, ported to the new engine — a standard 5-star (`Tier.Standard`), so her build
+ * is costed at S2, with S3-S6 opening rows of their own once that role's Sequences box is. A
+ * fusion rectifier main DPS. Mayhem (forte1, 0-100) builds off nearly every hit; a Heavy Attack at 100 spends it all for Cloudy Frenzy (Threshold state) or
  * Cosmos Rupture (during her own Liberation, Cosmos Rave — her whole kit swaps to Cosmos' own
  * forms: Frolicking/Heavy Attack/Rampage/Dodge Counter, all "considered" the same damage type
  * their Threshold-state counterparts are).
@@ -26,12 +25,12 @@
  * "Nightmare:") — see echoes/jinzhou.ts's own INFERNO_RIDER.
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, applyCurrent, applyTeam, revokeCurrent, isHeld, casting, currentAction, addStat, frozenStacks,
   queueOutro, forte1, setForte1,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, INTRO, ECHO_ONFIELD, OUTRO_NEXT } from "../../engine/rotation.js";
 import { STRINGMASTER } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { INFERNO_RIDER, MOLTEN_RIFT_5PC, MOLTEN_RIFT_2PC } from "../../echoes/jinzhou.js";
@@ -160,9 +159,9 @@ const S6 = new Sequence({
   updateBuffs: () => { if (isHeld(WOOLIES_CHEER_DANCE)) applyCurrent(S6_LOST_LAMB, 1); },
 });
 
-const ENCORE = new Resonator({
+const ENCORE_RESONATOR = new Resonator({
   name: "Encore",
-  standardCharacter: true,
+  tier: Tier.Standard,
   element: Attribute.Fusion,
   weapon: WeaponType.Rectifier,
   intro: () => Intro,
@@ -189,7 +188,7 @@ const ENCORE_TALENTS = new Talent({
 const UBA1234 = new ActionGroup("Basic - Cosmos: Frolicking 1234", [UBA1, UBA2, UBA3, UBA4]);
 
 const EN_ROTATION = new Rotation([
-  INTRO, ECHO_CAST,  // would be swapped
+  INTRO, ECHO_ONFIELD,  // would be swapped
   Skill1, // would be swapped
   Liberation,
   USkill,
@@ -204,8 +203,8 @@ const EN_ROTATION = new Rotation([
 
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat, all six sequences (by explicit instruction — see file header)
-export const ENCORE_LOADOUT = new Loadout({
-  resonator: ENCORE,
+export const ENCORE = new Loadout({
+  resonator: ENCORE_RESONATOR,
   talent: ENCORE_TALENTS,
   inherent1: EN_INHERENT_1,
   inherent2: EN_INHERENT_2,

@@ -1,6 +1,6 @@
 /**
- * Yinlin, ported to the new engine — sequence-0 core loop, a limited 5-star (not
- * `standardCharacter`). An electro rectifier off-field Coordinated Attack sub-DPS, built around
+ * Yinlin, ported to the new engine — sequence-0 core loop, a limited 5-star
+ * (`Tier.Limited`). An electro rectifier off-field Coordinated Attack sub-DPS, built around
  * her marks, all modelled as real enemy debuffs:
  *  - Sinner's Mark: applied on hit by her Basic Attacks (dodge counter included), Liberation and
  *    Intro; removed when she switches out (any inactive action of hers).
@@ -25,9 +25,10 @@
 import {
   Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
   Type2, Cast, Node, Scaling, applyCurrent, setStacksSelf, removeStack, applyEnemy, revokeEnemy, stacksOfEnemy,
-  isHeld, currentAction, casting, revokeCurrent, addStat, queue, queueOutro, lostOnSwap,
+  isHeld, currentAction, casting, revokeCurrent, addStat, queue, queueOutro, lostOnSwap, applyTeam,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { matrix } from "../../shared/matrix.js";
+import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { EMPYREAN_ANTHEM_5PC, EMPYREAN_ANTHEM_2PC } from "../../echoes/rinascita.js";
@@ -91,7 +92,7 @@ const Outro = yinlinAction("Outro - Strategist", {
  *  survive other members' inactive actions, so it tests whose slot is acting itself). */
 const SINNERS_MARK: Debuff = new Debuff({
   name: "Yinlin: Sinner's Mark",
-  updateBuffs: () => { if (!currentAction().active && isHeld(YINLIN)) revokeEnemy(SINNERS_MARK); },
+  updateBuffs: () => { if (!currentAction().active && isHeld(YINLIN_RESONATOR)) revokeEnemy(SINNERS_MARK); },
 });
 
 /** Punishment Mark: what Chameleon Cipher turns a Sinner's Mark into, 18s. Its Judgment Strike
@@ -148,7 +149,7 @@ const YINLIN_OUTRO = new Buff({
   updateBuffs: () => { lostOnSwap(); },
 });
 
-const YINLIN = new Resonator({
+const YINLIN_RESONATOR = new Resonator({
   name: "Yinlin",
   element: Attribute.Electro,
   weapon: WeaponType.Rectifier,
@@ -182,7 +183,7 @@ const YINLIN_TALENTS = new Talent({
 // this covers both opener and loop.
 
 const YL_ROTATION = new Rotation([
-  INTRO, ECHO_CAST, Skill1, HA, Liberation, Skill2, FHA,
+  INTRO, ECHO_CANCEL, Skill1, HA, Liberation, Skill2, FHA,
   OUTRO_NEXT,
 ]);
 
@@ -190,8 +191,18 @@ const YL_ROTATION = new Rotation([
 
 // her real 43311 build: resonator + talents + both Inherent Skills, viable weapons, and two real
 // echo choices — Empyrean Anthem behind her Coordinated Judgment Strikes, or Moonlit Clouds
-export const YINLIN_LOADOUT = new Loadout({
-  resonator: YINLIN,
+/** Matrix: her Liberation grants the team +30% Resonance Liberation DMG Bonus for 30s — permanent. */
+const YINLIN_MATRIX_TEAM = new Buff({
+  name: "Yinlin: Matrix (team)",
+  applyStats: () => addStat(Stat.DmgBonus, 30, Type1.Liberation),
+});
+const YINLIN_MATRIX = matrix("Yinlin", 20, {
+  updateBuffs: () => { if (casting(Cast.Liberation)) applyTeam(YINLIN_MATRIX_TEAM); },
+});
+
+export const YINLIN = new Loadout({
+  resonator: YINLIN_RESONATOR,
+  matrix: YINLIN_MATRIX,
   talent: YINLIN_TALENTS,
   inherent1: YL_INHERENT_1,
   inherent2: YL_INHERENT_2,

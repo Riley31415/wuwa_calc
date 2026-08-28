@@ -46,7 +46,7 @@ import {
   lostOnSwap, getStat,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, START_COMBAT, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, START_COMBAT, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { applied } from "../../engine/kit.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING } from "../../shared/tunebreak.js";
 import { SPECTRAL_TRIGGER } from "../../weapons/pistol.js";
@@ -234,7 +234,7 @@ const COUNTERMEASURE_HANDOFF = new Buff({
 const COUNTERMEASURE_MARKER = new Buff({
   name: "Lucy: Countermeasure Program",
   updateBuffs: () => { 
-    if (applied(TUNE_HACK_SHIFTING) && !isHeld(LUCY)) {
+    if (applied(TUNE_HACK_SHIFTING) && !isHeld(LUCY_RESONATOR)) {
       applyCurrent(COUNTERMEASURE_AMP, 1); 
       // revokeTeam, not revoke: the marker was handed out with applyTeam, so it lives in the
       // team-wide pool and a local revoke would silently do nothing
@@ -264,7 +264,7 @@ const LUCY_TALENTS = new Talent({
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
 });
 
-export const LUCY = new Resonator({
+export const LUCY_RESONATOR = new Resonator({
   name: "Lucy",
   element: Attribute.Spectro,
   weapon: WeaponType.Pistols,
@@ -299,7 +299,7 @@ const LC_ROTATION = new Rotation([
   START_COMBAT, Lib, START_COMBAT,
   INTRO, BA234, Skill1, Skill3,
   Deadlock, EBA234,
-  DualThreading, MultiThreading, ECHO_CAST,
+  DualThreading, MultiThreading, ECHO_CANCEL,
   ELib, OUTRO_NEXT,
 ]);
 
@@ -311,8 +311,8 @@ const LC_ECHOES = [
   new EchoLoadout(ADAM_SMASHER_LUCY, LINGERING_TUNES_2PC, REEL_2PC),
 ];
 
-export const LUCY_LOADOUT = new Loadout({
-  resonator: LUCY,
+export const LUCY = new Loadout({
+  resonator: LUCY_RESONATOR,
   talent: LUCY_TALENTS,
   inherent1: LC_INHERENT_1,
   inherent2: LC_INHERENT_2,

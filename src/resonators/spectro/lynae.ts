@@ -27,7 +27,7 @@ import {
   revokeCurrent, lostOnSwap,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, START_COMBAT, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, START_COMBAT, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { applyRupture, applyStrain, TUNE_STRAIN_INTERFERED, tuneRuptureResponse, tuneStrainBonus } from "../../shared/tunebreak.js";
 import { SPECTRUM_BLASTER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
@@ -88,7 +88,7 @@ const Outro = lynaeAction("Outro - Let's Hit the Road!", {
 });
 
 const SpectralAnalysis = lynaeAction("Tune Rupture Response - Spectral Analysis", {
-  node: Node.Forte, type: Type1.Rupture, mv: 1880.75,
+  node: Node.Forte, type: Type1.Rupture, mv: 1880.75, scaling: Scaling.Tune
 });
 
 /* ------------------------------------------------------------------------------------- modes */
@@ -162,7 +162,7 @@ const LYNAE_TALENTS = new Talent({
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
 });
 
-const LYNAE = new Resonator({
+const LYNAE_RESONATOR = new Resonator({
   name: "Lynae",
   element: Attribute.Spectro,
   weapon: WeaponType.Pistols,
@@ -189,7 +189,7 @@ const PolychromeLeap123 = new ActionGroup("Forte - Polychrome Leap 123", [Polych
 const LY_ROTATION = new Rotation([
   INTRO, START_COMBAT, Liberation, Skill, START_COMBAT, SparkCollision,
   PolychromeLeap123,
-  VisualImpact, ECHO_CAST, OUTRO_NEXT,
+  VisualImpact, ECHO_OUTRO, OUTRO_NEXT,
 ]);
 
 const LY_ECHOES = [
@@ -202,7 +202,7 @@ const LY_ECHOES = [
 /** One loadout per Resonance Mode, the same way Lucilla ships an Echo and a Chafe build — the mode
  *  is the only thing that differs, and it decides which Tune Break variant the team gets. */
 const build = (mode: ResonanceMode): Loadout => new Loadout({
-  resonator: LYNAE,
+  resonator: LYNAE_RESONATOR,
   talent: LYNAE_TALENTS,
   inherent1: LY_INHERENT_1,
   inherent2: LY_INHERENT_2,
@@ -214,5 +214,5 @@ const build = (mode: ResonanceMode): Loadout => new Loadout({
   mode,
 });
 
-export const LYN_RUPTURE = build(MODE_RUPTURE);
-export const LYN_STRAIN = build(MODE_STRAIN);
+export const LYNAE_RUPTURE = build(MODE_RUPTURE);
+export const LYNAE_STRAIN = build(MODE_STRAIN);

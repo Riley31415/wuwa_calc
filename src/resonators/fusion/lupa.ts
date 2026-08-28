@@ -1,6 +1,6 @@
 /**
- * Lupa, ported to the new engine — sequence-0 core loop, a limited 5-star (not
- * `standardCharacter`). A fusion broadblade sub-DPS/support. Wolflame (forte1) gates her enhanced
+ * Lupa, ported to the new engine — sequence-0 core loop, a limited 5-star
+ * (`Tier.Limited`). A fusion broadblade sub-DPS/support. Wolflame (forte1) gates her enhanced
  * Heavy Attacks, each spending 50 Wolflame for a point of Wolfaith (forte2, no live 10s decay
  * tracked). At 2 Wolfaith, Resonance Skill is replaced by Dance With the Wolf. Her own Liberation
  * tops Wolflame to 100, spends every point of Wolfaith, and opens Pack Hunt (team ATK, escalating
@@ -29,7 +29,7 @@ import {
   currentAction, currentTeam, addStat, frozenStacks, stacksOfTeam, queueOn, queueOutro, setForte1, setForte2,
   lostOnSwap,
 } from "../../engine/kit.js";
-import { Rotation, OPENER, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, OPENER, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { WILDFIRE_MARK } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { LIONESS_OF_GLORY, CLAWPRINT_5PC, CLAWPRINT_2PC } from "../../echoes/septimont.js";
@@ -77,7 +77,7 @@ const Skill1 = lupaAction("Skill - Shewolf's Hunt", {
   updateBuffs: () => applyEnemy(LUPA_MARK, 1),
 });
 /** Feral Fang: +50% DMG Multiplier against the marked target, kept as an explicit MulMv add (see
- *  LUPA's own updateBuffs() below) rather than baked into mv, so the trace shows where it comes from. */
+ *  LUPA_RESONATOR's own updateBuffs() below) rather than baked into mv, so the trace shows where it comes from. */
 const Skill2 = lupaAction("Skill - Feral Fang", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 313.61, energy: 13.67, offtune: 5328, forte1: 15 });
 
 /** Foebreaker: consumes every point of Wolflame. Always placed right after Liberation, whose own
@@ -110,7 +110,7 @@ const UFSkill = lupaAction("Forte Skill - Dance With the Wolf: Climax", { node: 
 const fskillFUA = lupaAction("Forte Skill - Set the Arena Ablaze", { node: Node.Forte, type: Type1.Skill, mv: 211.75, offtune: 9600, active: false });
 
 const Intro = lupaAction("Intro - Try Focusing, Eh?", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.4, energy: 10.02, concerto: 10, offtune: 9393 });
-/** Nowhere to Run! — replaces plain Intro once Pack Hunt is maxed (see LUPA's own intro()
+/** Nowhere to Run! — replaces plain Intro once Pack Hunt is maxed (see LUPA_RESONATOR's own intro()
  *  selector below, which also ends Pack Hunt/Glory right there, before this hit's own damage). */
 const EIntro = lupaAction("Intro - Nowhere to Run!", { node: Node.Intro, cast: Cast.Intro, type: Type1.Liberation, mv: 991.97, energy: 10, concerto: 10, offtune: 16000 });
 /** Stand by Me, Warrior: no damage of its own, just the outro handoff. */
@@ -157,7 +157,7 @@ const LUPA_OUTRO = new Buff({
 
 /** Wildfire Banner: +12% ATK for 8s on casting Feral Fang, Wolf's Gnawing/Wolf's Claw/Firestrike,
  *  Fire-Kissed Glory, or Dance With the Wolf/its Climax form — part of her Forte Circuit, not an
- *  Inherent Skill. Just the payout — its trigger lives on LUPA's own updateBuffs() below. */
+ *  Inherent Skill. Just the payout — its trigger lives on LUPA_RESONATOR's own updateBuffs() below. */
 const WILDFIRE_BANNER = new Buff({
   name: "Lupa: Wildfire Banner",
   applyStats: () => addStat(Stat.BonusAtk, 12),
@@ -205,16 +205,16 @@ const BURNING_MATCHPOINT = new Buff({
 const LUPA_BACKUP_READY = new Buff({
     name: "Lupa: Set the Arena Ablaze",
     applyStats: () => {
-        if (casting(Cast.Liberation) && currentTeam().slot.resonator !== LUPA) {
-            queueOn(LUPA, fskillFUA);
+        if (casting(Cast.Liberation) && currentTeam().slot.resonator !== LUPA_RESONATOR) {
+            queueOn(LUPA_RESONATOR, fskillFUA);
             revokeTeam(LUPA_BACKUP_READY);
         }
     }
 });
 
 /** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her
- *  own base stat line. Sequence-0 only — a limited 5-star, not `standardCharacter`. */
-const LUPA = new Resonator({
+ *  own base stat line. Sequence-0 only — a limited 5-star (`Tier.Limited`). */
+const LUPA_RESONATOR = new Resonator({
   name: "Lupa",
   element: Attribute.Fusion,
   weapon: WeaponType.Broadblade,
@@ -248,16 +248,16 @@ const LUPA_TALENTS = new Talent({
 });
 
 const LP_LOOP = new Rotation([
-  OPENER, Skill1, Skill2, ECHO_CAST, Liberation, USkill, MA1, MA2, EMA3, EMA4, UFSkill, OUTRO_NEXT,
-  INTRO, Skill1, ECHO_CAST, Liberation, USkill, MA1, MA2, EMA3, EMA4, UFSkill, OUTRO_NEXT,
+  OPENER, Skill1, Skill2, ECHO_CANCEL, Liberation, USkill, MA1, MA2, EMA3, EMA4, UFSkill, OUTRO_NEXT,
+  INTRO, Skill1, ECHO_CANCEL, Liberation, USkill, MA1, MA2, EMA3, EMA4, UFSkill, OUTRO_NEXT,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
 // her real 43311 build: resonator + talents + both Inherent Skills + Forte Circuit, weapon,
 // mainslot echo, sonata pieces, mainstat/substat
-export const LOPA_LOADOUT = new Loadout({
-  resonator: LUPA,
+export const LUPA = new Loadout({
+  resonator: LUPA_RESONATOR,
   talent: LUPA_TALENTS,
   inherent1: LP_INHERENT_1,
   inherent2: LP_INHERENT_2,

@@ -1,6 +1,6 @@
 /** Mainslot echoes and sonatas from Mengzhou (versions 3.5-3.8). */
 import {
-  Buff, Sonata, Sonata2pc, Mainslot, Action, Stat, Attribute, Type1, Cast, Scaling,
+  Buff, Sonata, Sonata2pc, Mainslot, EchoType, Action, Stat, Attribute, Type1, Cast, Scaling,
   addStat, frozenStacks, applyCurrent, applyTeam, queue, removeStack, revokeTeam, currentAction, casting,
   revokeCurrent, triggeredAction,
 } from "../engine/kit.js";
@@ -18,6 +18,7 @@ export const ACTION_MYRIAD_SNARE = new Action("Echo - Myriad Snare", {
 export const MYRIAD_SNARE = new Mainslot({
   name: "Myriad Snare",
   action: ACTION_MYRIAD_SNARE,
+  echoType: EchoType.SUMMON,
   constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Fusion); addStat(Stat.DmgBonus, 12, Type1.Heavy); },
 });
 
@@ -55,6 +56,7 @@ export const CALAMITY_EFFIGY_STRAIN = new Buff({
 export const CALAMITY_EFFIGY = new Mainslot({
   name: "Calamity Effigy",
   action: ACTION_CALAMITY_EFFIGY,
+  echoType: EchoType.TRANSFORM,
   constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Aero),
   updateBuffs: () => { if (appliedByMe(TUNE_STRAIN_SHIFTING)) applyCurrent(CALAMITY_EFFIGY_STRAIN, 1); },
 });
@@ -92,6 +94,7 @@ export const ACTION_BLADE_OF_THOUSAND_MEMORIES = new Action("Echo - Blade of Tho
 export const THOUSAND_PUPPET_PAVILION = new Mainslot({
   name: "Thousand-Puppet Pavilion",
   action: ACTION_THOUSAND_PUPPET_PAVILION,
+  echoType: EchoType.SUMMON,
   constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Havoc); addStat(Stat.DmgBonus, 12, Type1.Heavy); },
 });
 
@@ -136,5 +139,6 @@ export const ACTION_FORBIDDEN_BASTION = new Action("Echo - Forbidden Bastion", {
 export const FORBIDDEN_BASTION = new Mainslot({
   name: "Forbidden Bastion",
   action: ACTION_FORBIDDEN_BASTION,
+  echoType: EchoType.SUMMON,
   constantStats: () => addStat(Stat.HealingBonus, 10),
 });

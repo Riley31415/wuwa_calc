@@ -27,7 +27,7 @@ import {
   setForte1, frozenStacks, stacksOfEnemy, lostOnSwap,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, START_COMBAT, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, START_COMBAT, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { applied } from "../../engine/kit.js";
 import { TUNE_STRAIN_SHIFTING } from "../../shared/tunebreak.js";
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_INTERFERED, tuneStrainBonus } from "../../shared/tunebreak.js";
@@ -198,7 +198,7 @@ const LUUK_TALENTS = new Talent({
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
 });
 
-const LUUK = new Resonator({
+const LUUK_RESONATOR = new Resonator({
   name: "Luuk",
   element: Attribute.Spectro,
   weapon: WeaponType.Gauntlets,
@@ -240,15 +240,15 @@ const LK_ROTATION = new Rotation([
   Ring, MA123,
   Breach, MA123,
   Glare, Gavel,
-  Liberation, ECHO_CAST, OUTRO_NEXT,
+  Liberation, ECHO_OUTRO, OUTRO_NEXT,
 ]);
 
 const LK_ECHOES = [
   new EchoLoadout(NEBULOUS_CANNON, GILDED_REVELATION_5PC, GILDED_REVELATION_2PC),
 ];
 
-export const LUUK_LOADOUT = new Loadout({
-  resonator: LUUK,
+export const LUUK = new Loadout({
+  resonator: LUUK_RESONATOR,
   talent: LUUK_TALENTS,
   inherent1: LK_INHERENT_1,
   inherent2: LK_INHERENT_2,

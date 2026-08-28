@@ -1,5 +1,5 @@
 /**
- * Sanhua, ported to the new engine. `standardCharacter: true` — a 4-star, so all six sequence
+ * Sanhua, ported to the new engine. `Tier.Free` — a 4-star, so all six sequence
  * nodes (SANHUA_S1-S6) are always-equipped gear pieces folded into her loadout unconditionally,
  * each owning its own trigger logic per the standing "sequence logic lives in the sequence piece"
  * rule. Her Forte Circuit (Detonate) bursts whichever Ice Creations are up — Ice Thorn (Intro),
@@ -7,11 +7,11 @@
  * own updateBuffs() reads and consumes.
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, applyCurrent, applyTeam, revokeTeam, isHeld, stacksOf, removeStack, revokeCurrent, casting,
   currentAction, addStat, frozenStacks, queue, queueOutro, lostOnSwap,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
@@ -65,9 +65,9 @@ const FHA = sanhuaAction("Forte Heavy - Detonate", {
     if (glaciers) removeStack(GLACIER_BUFF, glaciers);
   },
 });
-const DETONATE_THORN = sanhuaAction("Forte - Ice Burst (Thorn)", { node: Node.Normal, type: Type1.Skill, mv: 59.65, energy: 2, concerto: 0, active: false });
-const DETONATE_PRISM = sanhuaAction("Forte - Ice Burst (Prism)", { node: Node.Normal, type: Type1.Skill, mv: 79.53, energy: 7, concerto: 15, active: false });
-const DETONATE_GLACIER = sanhuaAction("Forte - Ice Burst (Glacier)", { node: Node.Normal, type: Type1.Skill, mv: 139.17, energy: 7, concerto: 15, active: false });
+const DETONATE_THORN = sanhuaAction("Forte - Ice Burst (Thorn)", { node: Node.Normal, type: Type1.Skill, mv: 59.65, energy: 2, concerto: 0 });
+const DETONATE_PRISM = sanhuaAction("Forte - Ice Burst (Prism)", { node: Node.Normal, type: Type1.Skill, mv: 79.53, energy: 7, concerto: 15 });
+const DETONATE_GLACIER = sanhuaAction("Forte - Ice Burst (Glacier)", { node: Node.Normal, type: Type1.Skill, mv: 139.17, energy: 7, concerto: 15 });
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -118,8 +118,8 @@ const S4_WINDOW = new Buff({
  *  excluding Sanhua herself. Lost on her own next Intro, same shape as Verina's Gift of Nature. */
 const S6_ATK = new Buff({
   name: "Sanhua S6: Daybreak Radiance", maxStacks: 2,
-  applyStats: () => { if (!isHeld(SANHUA)) addStat(Stat.BonusAtk, 10 * frozenStacks()); },
-  convertStats: () => { if (casting(Cast.Intro) && isHeld(SANHUA)) revokeTeam(S6_ATK); },
+  applyStats: () => { if (!isHeld(SANHUA_RESONATOR)) addStat(Stat.BonusAtk, 10 * frozenStacks()); },
+  convertStats: () => { if (casting(Cast.Intro) && isHeld(SANHUA_RESONATOR)) revokeTeam(S6_ATK); },
 });
 
 /** Ice Creations: one stackable marker each, granted by the cast that makes it and consumed by
@@ -141,7 +141,7 @@ const SANHUA_OUTRO = new Buff({
 });
 
 /* -------------------------------------------------------------------------------- sequences */
-// All six live here as always-equipped gear pieces (standardCharacter — see file header); every
+// All six live here as always-equipped gear pieces (Tier.Free — see file header); every
 // trigger a sequence needs lives in its own piece, not the central Resonator updateBuffs() below.
 
 const SANHUA_S1 = new Sequence({
@@ -182,8 +182,8 @@ const SANHUA_S6 = new Sequence({
 });
 
 /** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her
- *  own base stat line. `standardCharacter: true` — see the file header. */
-const SANHUA = new Resonator({
+ *  own base stat line. `Tier.Free` — see the file header. */
+const SANHUA_RESONATOR = new Resonator({
   name: "Sanhua",
   element: Attribute.Glacio,
   weapon: WeaponType.Sword,
@@ -191,7 +191,7 @@ const SANHUA = new Resonator({
   outro: () => Outro,
   color: "#5fc9e8",
   maxEnergy: 125,
-  standardCharacter: true,
+  tier: Tier.Free,
 
   constantStats: () => {
     addStat(Stat.BaseHp, 10063); addStat(Stat.BaseAtk, 275); addStat(Stat.BaseDef, 941);
@@ -209,15 +209,15 @@ const SANHUA_TALENTS = new Talent({
 // this same rotation covers both opener and loop.
 
 const SH_ROTATION = new Rotation([
-  INTRO, Skill, Liberation, FHA, ECHO_CAST, OUTRO_NEXT,
+  INTRO, Skill, Liberation, FHA, ECHO_OUTRO, OUTRO_NEXT,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
 // her real build: resonator + talents + both Inherent Skills + every sequence node
-// (standardCharacter — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat
-export const SANHUA_LOADOUT = new Loadout({
-  resonator: SANHUA,
+// (Tier.Free — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat
+export const SANHUA = new Loadout({
+  resonator: SANHUA_RESONATOR,
   talent: SANHUA_TALENTS,
   inherent1: SH_INHERENT_1,
   inherent2: SH_INHERENT_2,

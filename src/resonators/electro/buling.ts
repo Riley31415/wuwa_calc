@@ -35,11 +35,11 @@
  *  S6 Heaven, Earth, Mind grants 50% Resonance Skill DMG Bonus instead of 25% — read by THUNDER_SPELL.
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, applyTeam, applyCurrent, stacksOfTeam, isHeld, casting, currentAction, currentTeam, addStat,
   queue, revokeCurrent, revokeTeam,
 } from "../../engine/kit.js";
-import { Rotation, OPENER, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, OPENER, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { applyEnemy } from "../../engine/kit.js";
 import { ELECTRO_FLARE, HEALS } from "../../shared/status.js";
 import { COSMIC_RIPPLES, NEW_STD_RECTIFIER, VARIATION } from "../../weapons/standard.js";
@@ -127,18 +127,18 @@ const THUNDER_SPELL = new Buff({
     else if (stage >= 3) {
       // pays out on whoever's active, not necessarily Buling — S6 is her own local Sequence, so
       // it's read off her own slot specifically, found by resonator identity
-      const buling = currentTeam().slots.find((s) => s.resonator === BULING);
+      const buling = currentTeam().slots.find((s) => s.resonator === BULING_RESONATOR);
       addStat(Stat.DmgBonus, buling?.isHeld(BL_S6) ? 50 : 25, Type1.Skill);
     }
   },
 });
 
 /** Pure state markers, no stat of their own — both are consumed the instant she holds both at
- *  once (see BULING's own updateBuffs()), entering Yin-Yang Balance. */
+ *  once (see BULING_RESONATOR's own updateBuffs()), entering Yin-Yang Balance. */
 const MINOR_YANG = new Buff({ name: "Buling: Minor Yang" });
 const MINOR_YIN = new Buff({ name: "Buling: Minor Yin" });
 
-/** Held for exactly the one action that grants it (BULING's own updateBuffs() grants, its own
+/** Held for exactly the one action that grants it (BULING_RESONATOR's own updateBuffs() grants, its own
  *  convertStats() revokes) — the only real reader left is S2's own +25 Energy, between those two. */
 const YIN_YANG_BALANCE = new Buff({ name: "Buling: Yin-Yang Balance" ,
 });
@@ -178,9 +178,9 @@ const BL_S5 = new Sequence({ name: "Buling S5" });
 
 const BL_S6 = new Sequence({ name: "Buling S6" });
 
-const BULING = new Resonator({
+const BULING_RESONATOR = new Resonator({
   name: "Buling",
-  standardCharacter: true,
+  tier: Tier.Free,
   element: Attribute.Electro,
   weapon: WeaponType.Rectifier,
   intro: () => Intro,
@@ -207,7 +207,7 @@ const BULING_TALENTS = new Talent({
 const BL_ROTATION = new Rotation([
   OPENER,
   INTRO, MA, BA2, HA_THUNDER_OVER_MOUNTAIN,
-  Skill, BA4, HA_TWIN_THUNDERS, ECHO_CAST,
+  Skill, BA4, HA_TWIN_THUNDERS, ECHO_CANCEL,
   Liberation, OUTRO_NEXT,
 ]);
 
@@ -215,8 +215,8 @@ const BL_ROTATION = new Rotation([
 
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat, all six sequences (by explicit instruction — see file header)
-export const BULING_LOADOUT = new Loadout({
-  resonator: BULING,
+export const BULING = new Loadout({
+  resonator: BULING_RESONATOR,
   talent: BULING_TALENTS,
   inherent1: BL_INHERENT_1,
   inherent2: BL_INHERENT_2,

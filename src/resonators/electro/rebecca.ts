@@ -41,7 +41,7 @@ import {
   revokeCurrent, forte1, forte2, setForte1, setForte2, frozenStacks, lostOnSwap, triggeredAction,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { applied } from "../../engine/kit.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING } from "../../shared/tunebreak.js";
 import { SKULL_THRASHER } from "../../weapons/pistol.js";
@@ -50,7 +50,7 @@ import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, LINGER
 import { ADAM_SMASHER_REBECCA, HYVATIA, NEONLIGHT_LEAP_5PC, NEONLIGHT_LEAP_2PC } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
-import { LUCY } from "../spectro/lucy.js";
+import { LUCY_RESONATOR } from "../spectro/lucy.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -204,7 +204,7 @@ const EDGERUNNER_BONDS = new Buff({
   name: "Rebecca: Outro - Edgerunner Bonds",
   updateBuffs: () => {
     lostOnSwap();
-    if (isHeld(LUCY)) applyCurrent(OVERLIMIT, 70);
+    if (isHeld(LUCY_RESONATOR)) applyCurrent(OVERLIMIT, 70);
     else if (!triggeredAction()) applyCurrent(OVERLIMIT, 5); // assume 1 action = 1s
   },
   applyStats: () => {
@@ -248,7 +248,7 @@ const REBECCA_TALENTS = new Talent({
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
 });
 
-const REBECCA = new Resonator({
+const REBECCA_RESONATOR = new Resonator({
   name: "Rebecca",
   element: Attribute.Electro,
   weapon: WeaponType.Pistols,
@@ -291,7 +291,7 @@ const GBA123 = new ActionGroup("Basic - Guts 123", [GBA1, GBA2, GBA3]);
 const RB_ROTATION = new Rotation([
   INTRO, GBA123,
   ESkill,
-  RatTatTat, ECHO_CAST,
+  RatTatTat, ECHO_CANCEL,
   Lib1, OUTRO_NEXT,
 ]);
 
@@ -307,8 +307,8 @@ const RB_ECHOES = [
   new EchoLoadout(STONEWALL_BRACER, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
 ];
 
-export const REBECCA_LOADOUT = new Loadout({
-  resonator: REBECCA,
+export const REBECCA = new Loadout({
+  resonator: REBECCA_RESONATOR,
   talent: REBECCA_TALENTS,
   inherent1: RB_INHERENT_1,
   inherent2: RB_INHERENT_2,

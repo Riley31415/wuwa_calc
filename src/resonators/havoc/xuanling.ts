@@ -49,7 +49,7 @@ import {
   revokeTeam, setForte1, setForte2, stacksOfEnemy, stacksOfTeam,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT, START_COMBAT } from "../../engine/rotation.js";
+import { Rotation, INTRO, ECHO_ONFIELD, OUTRO_NEXT, START_COMBAT, ECHO_OUTRO } from "../../engine/rotation.js";
 import { HAVOC_BANE } from "../../shared/status.js";
 import { AZURE_OATH } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
@@ -268,7 +268,7 @@ const VOICE_UPON_VOICE = new Buff({
 const TONAL_SWITCH = new Buff({
   name: "Xuanling: Tonal Switch",
   updateBuffs: () => {
-    if (currentTeam().slot.resonator === XUANLING) return;
+    if (currentTeam().slot.resonator === XUANLING_RESONATOR) return;
     // `appliedByMe`: the amplification is that resonator's for inflicting it themselves, and
     // Chisa's Unseen Snare hands Havoc Bane out off whoever happens to be hitting her marked
     // target — which the kit text credits to Chisa, not to them
@@ -313,7 +313,7 @@ const XUANLING_TALENTS = new Talent({
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
 });
 
-export const XUANLING = new Resonator({
+export const XUANLING_RESONATOR = new Resonator({
   name: "Xuanling",
   element: Attribute.Havoc,
   weapon: WeaponType.Sword,
@@ -356,8 +356,8 @@ const HiB123 = new ActionGroup("Forte Basic: Havoc in Bloom 123", [HiB1, HiB2, H
 const XUANLING_ROTATION = new Rotation([
   START_COMBAT, SwitchFeather, START_COMBAT, // start in feather stance, so the first cast is a switch to Azure
 
-  INTRO, BA_F1234, FlowAzure, HeavyAzure,
-  Lib, ECHO_CAST, FlowFeather, HeavyFeather, FeatherFall, HiB123,
+  INTRO, BA_F1234, FlowAzure, HeavyAzure, 
+  Lib, FlowFeather, HeavyFeather, FeatherFall, HiB123, ECHO_OUTRO,
   OUTRO_NEXT,
 ]);
 
@@ -365,8 +365,8 @@ const XUANLING_ECHOES = [
   new EchoLoadout(THOUSAND_PUPPET_PAVILION, FEATHERED_TRACE_5PC, FEATHERED_TRACE_2PC),
 ];
 
-export const XUANLING_LOADOUT = new Loadout({
-  resonator: XUANLING,
+export const XUANLING = new Loadout({
+  resonator: XUANLING_RESONATOR,
   talent: XUANLING_TALENTS,
   inherent1: XUANLING_INHERENT_1,
   inherent2: XUANLING_INHERENT_2,

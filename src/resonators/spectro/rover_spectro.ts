@@ -1,6 +1,6 @@
 /**
  * Rover: Spectro, ported to the new engine — a standard/permanent-banner 5-star
- * (`standardCharacter: true`), all six sequence nodes folded into the loadout unconditionally,
+ * (`Tier.Free`), all six sequence nodes folded into the loadout unconditionally,
  * each owning its own trigger. Diminutive Sound (forte1, 0-100) is banked by Normal Attacks,
  * Heavy Attack Aftertune and the Intro, and spent 50 at a time on Resonating Spin — the enhanced
  * Resonance Skill that also opens the Resonating Echoes follow-up.
@@ -10,11 +10,11 @@
  * SRover rows (offtune x10000 into this engine's units). Rotation is the sheet's own "srover 3nf".
  */
 import {
-  Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, Stat, EnemyStat, Attribute,
+  Buff, Debuff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, Stat, EnemyStat, Attribute,
   WeaponType, Type1, Cast, Node, Scaling, applyCurrent, applyEnemy, revokeEnemy, isHeld, revokeCurrent, casting,
   currentAction, addStat, addEnemyStat, queue,
 } from "../../engine/kit.js";
-import { Rotation, OPENER, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, OPENER, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { SPECTRO_FRAZZLE, HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";
@@ -96,11 +96,11 @@ const S1_CRIT = new Buff({
 const S6_RES_SHRED = new Debuff({
   name: "Spectro Rover S6: Echoes of Wanderlust",
   applyStats: () => addEnemyStat(EnemyStat.ResShred, 10, Attribute.Spectro),
-  convertStats: () => { if (casting(Cast.Intro) && isHeld(ROVER_SPECTRO)) revokeEnemy(S6_RES_SHRED); },
+  convertStats: () => { if (casting(Cast.Intro) && isHeld(ROVER_SPECTRO_RESONATOR)) revokeEnemy(S6_RES_SHRED); },
 });
 
 /* -------------------------------------------------------------------------------- sequences */
-// All six live here as their own always-equipped gear pieces (standardCharacter), each owning its
+// All six live here as their own always-equipped gear pieces (Tier.Free), each owning its
 // own trigger rather than the central Resonator updateBuffs() below.
 
 const SPR_S1 = new Sequence({
@@ -139,8 +139,8 @@ const SPR_S6 = new Sequence({
 });
 
 /** Them, as a Resonator: name/element/weapon, every grant/spend/queue rule their kit needs, and
- *  their own base stat line. `standardCharacter: true` — see the file header. */
-const ROVER_SPECTRO = new Resonator({
+ *  their own base stat line. `Tier.Free` — see the file header. */
+const ROVER_SPECTRO_RESONATOR = new Resonator({
   name: "Spectro Rover",
   element: Attribute.Spectro,
   weapon: WeaponType.Sword,
@@ -148,7 +148,7 @@ const ROVER_SPECTRO = new Resonator({
   outro: () => Outro,
   color: "#e8d98f",
   maxEnergy: 125,
-  standardCharacter: true,
+  tier: Tier.Free,
 
   constantStats: () => {
     addStat(Stat.BaseHp, 11400); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1369);
@@ -164,16 +164,16 @@ const ROVER_SPECTRO_TALENTS = new Talent({
 const SPR_ROTATION = new Rotation([
   INTRO, 
   HA1, HA2, HA3, FSkill1, FBA,
-  HA1, HA2, HA3, FSkill1, Liberation, ECHO_CAST,
+  HA1, HA2, HA3, FSkill1, Liberation, ECHO_OUTRO,
   OUTRO_NEXT,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
 // their real build: resonator + talents + both Inherent Skills + every sequence node
-// (standardCharacter — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat
-export const SROVER_LOADOUT = new Loadout({
-  resonator: ROVER_SPECTRO,
+// (Tier.Free — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat
+export const ROVER_SPECTRO = new Loadout({
+  resonator: ROVER_SPECTRO_RESONATOR,
   talent: ROVER_SPECTRO_TALENTS,
   inherent1: SPR_INHERENT_1,
   inherent2: SPR_INHERENT_2,

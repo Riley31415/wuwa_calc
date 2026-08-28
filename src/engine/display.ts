@@ -145,7 +145,7 @@ const actionInfo = (
   push("Type 2", action.type2 === null ? null : TAG_NAME[action.type2]);
   push("Active", String(action.active));
   // Whether the engine counted this row as a follow-up rather than a rotation beat — the raw flag,
-  // not "did something name itself below": a Tune Break or an ECHO_CAST is triggered with nobody to
+  // not "did something name itself below": a Tune Break or a summon echo is triggered with nobody to
   // credit, and reading false there would misdescribe what the engine actually did.
   push("Triggered", String(triggered));
   // ...and last, for a follow-up rather than a press: what spawned it, on a line of its own rather
@@ -272,7 +272,7 @@ const COMBINED_COLUMNS = ["mv", "energy", "concerto", "offtune",
  *  the buildup rate its own build multiplies by. On a folded group row that comes from the last
  *  member alone, like every other stat — laid end to end it would repeat "100%" once per cast and
  *  foot the section to 300%, describing a multiplier no cast ever went through. */
-const OFFTUNE_RATE = "Buildup Rate";
+export const OFFTUNE_RATE = "Buildup Rate";
 
 function rowValues(
   snap: ResolvedSnapshot,
@@ -352,6 +352,10 @@ function rowValues(
     if (key === "energy" || key === "concerto" || key === "offtune") continue; // built separately below
     sources[key] = tracing(snap, feeds(snap.action));
   }
+  // The res column is what the enemy has *left*, and every row feeding it takes some away — the
+  // enemy's own Base Resistance included, held as -20% RES Reduce (tunebreak.ts) — so each row
+  // is shown negated, and the rows then add up to the total the cell prints.
+  sources.effRes = (sources.effRes ?? []).map((r) => ({ ...r, value: -r.value }));
   // energy/concerto/offtune are running totals, so the panel shows what moved them *this* action —
   // the resonator's own declared baseline for this cast, then whatever a buff itself added — not
   // the balance carried in. Scaled the same as the column itself.
@@ -402,8 +406,8 @@ function rowValues(
     if (rate.length) {
       sources.offtune = [...(sources.offtune ?? []),
         ...rate.map((r) => ({ ...r, section: OFFTUNE_RATE, digits: 2 }))];
-      // 100 is the neutral baseline, so anything else is a kit really moving what this cast banked
-      if (rate.reduce((n, r) => n + r.value, 0) !== 100) buffed.add("offtune");
+      // No underline for a buildup-rate buff (Mornye's): the rate scales the whole column the same
+      // way every cast, so marking every row of a rotation as buffed says nothing the panel doesn't.
     }
   }
   // ...and last, under the rate that never touched it: what a kit put on the bar directly (Denia's

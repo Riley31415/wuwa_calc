@@ -4,8 +4,8 @@ import { isType,
   Buff, Weapon, WeaponType, Stat, Attribute, Type1, Type2, Cast,
   addStat, frozenStacks, casting, currentAction, revokeCurrent, applyCurrent, stacksOf, applyTeam, lostOnSwap, applied, appliedByMe,
 } from "../engine/kit.js";
-import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
-import { GLACIO_CHAFE, HAVOC_BANE } from "../shared/status.js";
+import { TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
+import { FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE } from "../shared/status.js";
 
 /** Changli's sig, R1: Crimson Phoenix. +12% ATK flat. Resonance Skill grants 5 stacks of Searing
  *  Feather outright (up to 14) — the per-hit 0.5s-ICD trickle isn't modelled. */
@@ -178,4 +178,23 @@ export const UNBENDING = new Buff({
     addStat(Stat.DefIgnoreNew, 12, Type1.Heavy);
   },
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(UNBENDING); },
+});
+
+/** Everbright Polestar, Aemeath's sig, R1: Starchaser. +12% All-Attribute DMG Bonus flat (plain
+ *  Dmg Bonus, no tag), and inflicting Tune Rupture - Shifting or Fusion Burst has the wielder's
+ *  Resonance Liberation DMG ignore 32% DEF and 10% Fusion RES for 8s — a short self window, so
+ *  lost after the outro. `appliedByMe`: a "when *you* inflict" payout. */
+export const EVERBRIGHT_POLESTAR = new Weapon({
+  weaponType: WeaponType.Sword,
+  name: "Everbright Polestar",
+  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.DmgBonus, 12); },
+  updateBuffs: () => { if (appliedByMe(TUNE_RUPTURE_SHIFTING) || appliedByMe(FUSION_BURST)) applyCurrent(STARCHASER, 1); },
+});
+export const STARCHASER = new Buff({
+  name: "Everbright Polestar: Starchaser",
+  applyStats: () => {
+    addStat(Stat.DefIgnoreNew, 32, Type1.Liberation);
+    addStat(Stat.ResIgnore, 10, Type1.Liberation); // FUSION ONLY
+  },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(STARCHASER); },
 });

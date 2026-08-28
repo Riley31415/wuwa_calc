@@ -51,7 +51,7 @@ import {
   forte2,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, START_COMBAT, OPENER, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, START_COMBAT, OPENER, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import {
   AERO_EROSION, ELECTRO_FLARE, ELECTRO_RAGE, FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE, HEALS, SPECTRO_FRAZZLE,
 } from "../../shared/status.js";
@@ -217,7 +217,7 @@ const ROAMING_TRANSCENDENT = new Buff({
 const TRANSCENDENT_DANCE = new Buff({
   name: "Suisui: Transcendent Dance", maxStacks: 3,
   afterAction: () => {
-    if (currentTeam().slot.resonator === SUISUI) return;
+    if (currentTeam().slot.resonator === SUISUI_RESONATOR) return;
     const left = stacksOfTeam(TRANSCENDENT_DANCE), banked = concerto();
     const due = left === 3 ? (banked >= 100) : left === 2 ? (banked >= 50 && banked < 100) : (banked >= 100);
     if (!due) return;
@@ -281,7 +281,7 @@ const SUISUI_TALENTS = new Talent({
   },
 });
 
-const SUISUI = new Resonator({
+const SUISUI_RESONATOR = new Resonator({
   name: "Suisui",
   element: Attribute.Glacio,
   weapon: WeaponType.Rectifier,
@@ -317,11 +317,11 @@ const SS_ROTATION = new Rotation([
   OPENER, BA123, ESkill,
   INTRO, 
   FSkill, FBA1234, 
-  ECHO_CAST, Liberation, OUTRO_NEXT,
+  ECHO_CANCEL, Liberation, OUTRO_NEXT,
 ]);
 
-export const SUISUI_LOADOUT = new Loadout({
-  resonator: SUISUI,
+export const SUISUI = new Loadout({
+  resonator: SUISUI_RESONATOR,
   talent: SUISUI_TALENTS,
   inherent1: SS_INHERENT_1,
   inherent2: SS_INHERENT_2,

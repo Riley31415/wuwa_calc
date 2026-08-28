@@ -8,7 +8,7 @@
  *   new Rotation([
  *     START_COMBAT, Skill,                                  // the fight's own first seconds
  *     OPENER, BA1, BA2, GeopotentialShift,                  // leading the team, with no Intro to cast
- *     INTRO, Liberation, WBA1, WBA2, ECHO_CAST, OUTRO_NEXT, // every visit after
+ *     INTRO, Liberation, WBA1, WBA2, ECHO_OUTRO, OUTRO_NEXT, // every visit after
  *   ])
  *
  * The OPENER chain runs *through* the INTRO marker without casting it and carries on into the same
@@ -18,12 +18,12 @@
  * opener genuinely isn't its loop.
  *
  * Markers are `Action`s so a kit can keep writing one plain array, but none of them is a cast:
- * INTRO stands for one and resolves through `Action.resolve` at run time, and the rest are read by
- * the compiler here and never reach `evaluate()`. `SWAP`/`FAILED_SWAP` are the exception — the
- * engine emits those itself, and a kit never writes either.
+ * INTRO and the three ECHO_* markers stand for one and resolve through `Action.resolve` at run
+ * time, and the rest are read by the compiler here and never reach `evaluate()`. `SWAP` is the exception — the
+ * engine emits it itself, and a kit never writes it.
  */
 import {
-  Action, State, ResolvedSnapshot, run, currentMember,
+  Action, State, ResolvedSnapshot, EchoType, run, currentMember, queueOnIntro,
 } from "./kit.js";
 
 /* ------------------------------------------------------------------------------- the markers */
@@ -40,12 +40,6 @@ import {
  *  skipped on that member's first visit — they already spent it in the scramble, and it is on
  *  cooldown — and plays as an ordinary part of the rotation every visit after. */
 export const START_COMBAT = new Action("Start of Combat");
-
-/** The same section, for a resonator whose opening cast is only worth spending when somebody else
- *  leads: written by a kit exactly like START_COMBAT, brackets and all, but dead in slot 1. Their
- *  opener already covers the fight's first seconds from the front, so the scramble skips them —
- *  and an inline section, never spent there, plays in full on that first visit like any other cast. */
-export const START_COMBAT_NON_OPENER = new Action("Start of Combat (non-opener)");
 
 /** Chain entry: on field with no Intro to cast, because nobody has outro'd yet — the visit that
  *  starts the rotation cycle. Only the team's own leader can ever use one (everyone else always
@@ -64,14 +58,39 @@ export const INTRO = new Action("Intro Placeholder", {
   },
 });
 
-/** Rotation marker: "cast the equipped mainslot echo here" — every build equips exactly one, so a
- *  rotation names the slot rather than the echo. */
-export const ECHO_CAST = new Action("Echo Placeholder", {
-  triggered: true,
+/** The "cast the equipped mainslot echo here" markers — every build equips exactly one, so a
+ *  rotation names the slot rather than the echo, and says *how* it is pressed. What lands is the
+ *  echo's own business (kit.ts's `Mainslot`, by its `EchoType`): a SUMMON is the same follow-up hit
+ *  under all three, reported as triggered; a TRANSFORM is a press of the resonator's own and the
+ *  three differ — ECHO_ONFIELD is the full cast, ECHO_CANCEL the cast dash-cancelled before it lands
+ *  (its effects, none of its hit), and ECHO_OUTRO the cast made just before swapping out, which
+ *  finishes on the next resonator's time: deferred to behind their Intro, inactive, still on its
+ *  owner's own slot. The plain "cast it in the middle of the rotation" case. */
+export const ECHO_ONFIELD = new Action("Echo Placeholder (on field)", {
   resolve: () => {
     const mainslot = currentMember().mainslot;
-    if (!mainslot) throw new Error(`${currentMember().name} casts ECHO_CAST but has no Mainslot equipped`);
-    return mainslot.action;
+    if (!mainslot) throw new Error(`${currentMember().name} casts ECHO_ONFIELD but has no Mainslot equipped`);
+    return mainslot.onfield;
+  },
+});
+
+/** Written right before the outro — see ECHO_ONFIELD above. */
+export const ECHO_OUTRO = new Action("Echo Placeholder (outro)", {
+  resolve: () => {
+    const mainslot = currentMember().mainslot;
+    if (!mainslot) throw new Error(`${currentMember().name} casts ECHO_OUTRO but has no Mainslot equipped`);
+    if (mainslot.echoType === EchoType.SUMMON) return mainslot.outro;
+    queueOnIntro(mainslot.outro);
+    return null;
+  },
+});
+
+/** The press dash-cancelled — see ECHO_ONFIELD above. */
+export const ECHO_CANCEL = new Action("Echo Placeholder (cancel)", {
+  resolve: () => {
+    const mainslot = currentMember().mainslot;
+    if (!mainslot) throw new Error(`${currentMember().name} casts ECHO_CANCEL but has no Mainslot equipped`);
+    return mainslot.cancel;
   },
 });
 
@@ -86,11 +105,6 @@ export const OUTRO_LAST = new Action("Outro (previous)");
  *  never written by a kit. Zero damage, and inactive, so every "lost on swap" buff the outgoing
  *  resonator holds drops exactly as it would on an Outro (kit.ts's own `lostOnSwap()`). */
 export const SWAP = new Action("Swap", { active: false, triggered: true });
-
-/** Emitted in SWAP's place when there was nobody to swap to — a marker row to read in the action
- *  table, not a cast. Active, because the swap didn't happen: the resonator never left the field,
- *  so nothing of theirs should drop. They simply carry on into their own next chain. */
-export const FAILED_SWAP = new Action("Attempted Swap", { triggered: true });
 
 const EXITS = new Set<Action>([OUTRO_NEXT, OUTRO_LAST]);
 
@@ -113,8 +127,6 @@ export class Rotation {
   /** What the START_COMBAT section holds, wherever it was written — body only, since the section
    *  has no exit marker of its own: leaving is the swap. */
   startCombat: Action[] | null = null;
-  /** Set when the section was written with START_COMBAT_NON_OPENER: skipped entirely in slot 1. */
-  startCombatNonOpener = false;
   opener: Chain | null = null;
   intro: Chain;
 
@@ -123,7 +135,7 @@ export class Rotation {
     const start: Action[] = [], prefix: Action[] = [], loop: Action[] = [];
     // whichever body an inline section's casts belong to as well as to `start` — null while the
     // section stands on its own, ahead of both chains
-    let inStart: Action | null = null, sections = 0, nonOpener = false;
+    let inStart: Action | null = null, sections = 0;
     const body = (): Action[] | null => (phase === "opener" ? prefix : phase === "intro" ? loop : null);
     // set when the OPENER chain ran into the INTRO marker rather than an outro of its own, which
     // is what makes the two share everything from there down
@@ -131,14 +143,12 @@ export class Rotation {
     let openerExit: Action | null = null, introExit: Action | null = null;
 
     for (const action of actions) {
-      if (action === START_COMBAT || action === START_COMBAT_NON_OPENER) {
+      if (action === START_COMBAT) {
         if (inStart) {
-          if (action !== inStart) throw new Error("rotation: a START_COMBAT section is closed by the other marker");
           inStart = null;
         } else {
           if (++sections > 1) throw new Error("rotation: only one START_COMBAT section");
           inStart = action;
-          nonOpener = action === START_COMBAT_NON_OPENER;
         }
         // an inline section stays in its chain's own body, brackets included, so the scheduler can
         // tell where it begins and ends when it comes to skip it
@@ -173,7 +183,7 @@ export class Rotation {
     if (inStart) throw new Error("rotation: the START_COMBAT section is never closed by a second one");
     if (phase !== "none") throw new Error("rotation: a chain is left open with no outro to close it");
     if (!introExit) throw new Error("rotation: every rotation needs an INTRO chain closed by an outro");
-    if (start.length) { this.startCombat = start; this.startCombatNonOpener = nonOpener; }
+    if (start.length) this.startCombat = start;
     if (openerExit || shared) {
       // the shared form runs the prefix and then everything the Intro chain does, minus the Intro
       this.opener = { entry: OPENER, body: shared ? [...prefix, ...loop] : prefix, exit: openerExit ?? introExit };
@@ -207,8 +217,8 @@ export function runRotations(state: State, rotations: Rotation[], sections: numb
   let section = 0;
 
   // whoever has already had a visit — an inline START_COMBAT section plays on every visit but
-  // their first, where the scramble already spent it. A slot-1 START_COMBAT_NON_OPENER section
-  // never runs there, so `scrambled` is who the scramble actually visited, filled in below.
+  // their first, where the scramble already spent it. `scrambled` is who the scramble actually
+  // visited, filled in below.
   const visited = new Set<number>(), scrambled = new Set<number>();
 
   const runChain = (i: number, chain: Chain): void => {
@@ -222,7 +232,7 @@ export function runRotations(state: State, rotations: Rotation[], sections: numb
     const casts: Action[] = [];
     let inStart = false;
     for (const a of chain.body) {
-      if (a === START_COMBAT || a === START_COMBAT_NON_OPENER) { inStart = !inStart; continue; }
+      if (a === START_COMBAT) { inStart = !inStart; continue; }
       if (!(inStart && skipStart)) casts.push(a);
     }
     const list = chain.entry === INTRO ? [INTRO, ...casts, outro] : [...casts, outro];
@@ -240,12 +250,14 @@ export function runRotations(state: State, rotations: Rotation[], sections: numb
   // the fight's own first seconds — everyone who declares a section for them, in team order, each
   // swapping into the next; the last hands over to slot 1, whose opener starts the rotation cycle
   const starters: number[] = [];
-  rotations.forEach((r, i) => { if (r.startCombat && !(r.startCombatNonOpener && i === 0)) starters.push(i); });
+  rotations.forEach((r, i) => { if (r.startCombat) starters.push(i); });
   for (let k = 0; k < starters.length; k++) {
     const i = starters[k]!;
     const next = starters[k + 1] ?? 0;
     state.active = i;
-    out[section]!.push(...run(state, [...rotations[i]!.startCombat!, next === i ? FAILED_SWAP : SWAP]));
+    // nobody to swap to: the resonator carries straight on into their own next chain, no swap row
+    const chain = next === i ? rotations[i]!.startCombat! : [...rotations[i]!.startCombat!, SWAP];
+    out[section]!.push(...run(state, chain));
     state.active = next;
     scrambled.add(i);
   }

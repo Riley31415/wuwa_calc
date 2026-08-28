@@ -1,6 +1,6 @@
 /**
- * Camellya, ported to the new engine — sequence-0 core loop, a limited 5-star (not
- * `standardCharacter`). A havoc sword main DPS built around Blossom Mode and Budding Mode, both
+ * Camellya, ported to the new engine — sequence-0 core loop, a limited 5-star
+ * (`Tier.Limited`). A havoc sword main DPS built around Blossom Mode and Budding Mode, both
  * entered and exited by name rather than tracked as live combo state (same "fixed valid line"
  * treatment as Sigrika's Runes/Buling's Trigram):
  *
@@ -47,7 +47,8 @@ import {
   stacksOf, frozenStacks, lostOnSwap, forte1,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { matrix } from "../../shared/matrix.js";
+import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { NM_CROWNLESS, HAVOC_ECLIPSE_5PC, HAVOC_ECLIPSE_2PC } from "../../echoes/jinzhou.js";
@@ -106,7 +107,7 @@ const FloralRavage = camellyaAction("Skill - Floral Ravage", { node: Node.Skill,
 
 /** At full Crimson Pistil/Concerto — considered Basic Attack DMG, enters Budding Mode, genuinely
  *  recovers Crimson Pistil to a hard 100, and spends 70 Concerto off a hard-clamped-to-100
- *  starting point (see file header on both pre-clamps in CAMELLYA's own updateBuffs()). */
+ *  starting point (see file header on both pre-clamps in CAMELLYA_RESONATOR's own updateBuffs()). */
 /** Requires full Concerto and consumes 70 of it, so the bar is clamped back to 100 first; refills
  *  the gauge from empty, and folds every Crimson Bud held into the Budding Mode it opens. */
 const Ephemeral = camellyaAction("Forte - Ephemeral", {
@@ -144,7 +145,7 @@ const BLOSSOM_MODE = new Buff({
 
 /** Sweet Dream's own DMG Multiplier, on every stage of the Burgeoning combo plus seven other
  *  named actions. An 11-stack buff: 1 base stack (flat +50%) plus 1 more per Crimson Bud held
- *  the moment Ephemeral consumed them (up to 10, +5% each — granted by CAMELLYA's own updateBuffs(),
+ *  the moment Ephemeral consumed them (up to 10, +5% each — granted by CAMELLYA_RESONATOR's own updateBuffs(),
  *  since a Gear's own updateBuffs() only runs once it's already held). 15s, lost after the outro
  *  action gains stats. */
 function inSweetDream(a: Action): boolean {
@@ -207,7 +208,7 @@ const CONSUME_CRIMSON_PISTIL = new Buff({
   convertStats: () => revokeCurrent(CONSUME_CRIMSON_PISTIL),
 });
 
-const CAMELLYA = new Resonator({
+const CAMELLYA_RESONATOR = new Resonator({
   name: "Camellya",
   element: Attribute.Havoc,
   weapon: WeaponType.Sword,
@@ -238,7 +239,7 @@ const CAMELLYA_TALENTS = new Talent({
 const VW123 = new ActionGroup("Basic - Vining Waltz 123", [VW1, VW2, VW3]);
 
 const CM_ROTATION = new Rotation([
-  INTRO, ECHO_CAST, // TODO needs double intro implementation
+  INTRO, ECHO_CANCEL, // TODO needs double intro implementation
   CrimsonBlossom,
   FloralRavage, HA, BA4, BA5,
   INTRO, Liberation, Ephemeral,
@@ -250,8 +251,9 @@ const CM_ROTATION = new Rotation([
 
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
-export const CAMMY_LOADOUT = new Loadout({
-  resonator: CAMELLYA,
+export const CAMELLYA = new Loadout({
+  resonator: CAMELLYA_RESONATOR,
+  matrix: matrix("Camellya", 25),
   talent: CAMELLYA_TALENTS,
   inherent1: SEEDBED,
   inherent2: EPIPHYTE,

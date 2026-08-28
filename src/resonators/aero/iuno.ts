@@ -12,12 +12,15 @@ import {
   Scaling, applyCurrent, applyTeam, currentAction, casting, queueOutro, revokeCurrent, addStat, frozenStacks, lostOnSwap,
   applied,
   ActionGroup,
+  setForte1,
+  forte1,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, INTRO, ECHO_ONFIELD, OUTRO_NEXT, ECHO_CANCEL, ECHO_OUTRO } from "../../engine/rotation.js";
 import { SHIELD } from "../../shared/status.js";
 import { IUNO_SIG, VERITYS_HANDLE } from "../../weapons/gauntlet.js";
 import { MARCATO, NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { MYA, COV_3PC } from "../../echoes/septimont.js";
+import { WINDWARD_5PC, WINDWARD_2PC, NM_KELPIE } from "../../echoes/rinascita.js";
 import { SIERRA_GALE_2PC, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, REJUV_5PC, REJUV_2PC, FALLACY } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
@@ -34,11 +37,15 @@ const BA2 = iunoAction("Basic - Moonring 2", { node: Node.Normal, cast: Cast.Bas
 const BA3 = iunoAction("Basic - Moonring 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 266.61, energy: 3.73, concerto: 3.73, offtune: 11921, forte1: 20 });
 const DC = iunoAction("Basic - Moonring (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 248.73, energy: 2, concerto: 13.97, offtune: 6321, forte1:10 });
 
+const BA123 = new ActionGroup("Basic - Moonring 123", [BA1, BA2, BA3]);
+
 // --- Moonbow basics (Lunar Cycle - New Moon), considered liberation damage; also shield
 const MA1 = iunoAction("Basic - Moonbow 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Liberation, mv: 126.45, energy: 2.33, concerto: 2.65, offtune: 4240 });
 const MA2 = iunoAction("Basic - Moonbow 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Liberation, mv: 167.01, energy: 3.27, concerto: 3.51, offtune: 5601 });
 const MA3 = iunoAction("Basic - Moonbow 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Liberation, mv: 334.02, energy: 6, concerto: 7, offtune: 11200 });
 const MDC = iunoAction("Basic - Moonbow (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Liberation, mv: 310.17, energy: 1.77, concerto: 13.51, offtune: 5601 });
+
+const MA123 = new ActionGroup("Basic - Moonbow 123", [MA1, MA2, MA3]);
 
 // --- resonance skill
 const Skill = iunoAction("Skill - Pulse of Origins", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 261.07, energy: 4.58, concerto: 6, offtune: 8086 });
@@ -68,6 +75,8 @@ const FMA1 = iunoAction("Forte - Enhanced Moonbow 1", { node: Node.Forte, cast: 
 const FMA2 = iunoAction("Forte - Enhanced Moonbow 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Liberation, mv: 286.29, energy: 3.27, concerto: 9.51, offtune: 5601, forte1: -15 });
 const FMA3 = iunoAction("Forte - Enhanced Moonbow 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Liberation, mv: 532.82, energy: 6, concerto: 17, offtune: 11200, forte1: -25 });
 const FMSkill = iunoAction("Forte - Enhanced Arc Beyond the Edge", { node: Node.Forte, cast: Cast.Skill, type: Type1.Liberation, mv: 638.38, energy: 9.36, concerto: 18, offtune: 10720, forte1: -25 });
+
+const FMA123 = new ActionGroup("Forte - Enhanced Moonbow 123", [FMA1, FMA2, FMA3]);
 
 /** Ends Lunar Cycle and conjures the Full Moon domain. */
 const FHA = iunoAction("Forte - Absolute Fullness", {
@@ -110,7 +119,7 @@ const SHIELDING = new Set<Action>([
   Jump, FJump, FMA1, FMA2, FMA3, FMSkill, FHA,
 ]);
 
-const IUNO = new Resonator({
+const IUNO_RESONATOR = new Resonator({
   name: "Iuno",
   element: Attribute.Aero,
   weapon: WeaponType.Gauntlets,
@@ -120,7 +129,11 @@ const IUNO = new Resonator({
   maxEnergy: 125,
 
   // every cast of hers but the Outro shields
-  updateDebuffs: () => { if (SHIELDING.has(currentAction())) applyCurrent(SHIELD, 1); },
+  updateDebuffs: () => { 
+    if (SHIELDING.has(currentAction())) applyCurrent(SHIELD, 1); 
+    if (currentAction().forte1 < 0 && forte1() > 100) setForte1(100); // Lunar Cycle's own forte1 cap
+    if (currentAction().forte1 > 0 && forte1() < 0) setForte1(0); // Lunar Cycle's own forte1 cap
+  },
 
   constantStats: () => {
     addStat(Stat.BaseHp, 10525); addStat(Stat.BaseAtk, 450); addStat(Stat.BaseDef, 1124);
@@ -133,21 +146,19 @@ const IUNO_TALENTS = new Talent({
   constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
-// no separate opener written for her sub-DPS line — reused for both passes
-
-const FMA123 = new ActionGroup("Forte - Enhanced Moonbow 123", [FMA1, FMA2, FMA3]);
 
 const IO_ROTATION = new Rotation([
-  INTRO, ESkill, ECHO_CAST, Liberation, Jump,
-  FMSkill, FMA123, FMSkill, FHA, OUTRO_NEXT,
+  INTRO, ESkill, ECHO_CANCEL,Liberation, Jump,
+  FMSkill, FMA123, FMSkill, 
+  FHA, OUTRO_NEXT,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
-export const UNO_LOADOUT = new Loadout({
-  resonator: IUNO,
+export const IUNO = new Loadout({
+  resonator: IUNO_RESONATOR,
   talent: IUNO_TALENTS,
   inherent1: IO_INHERENT_1,
   inherent2: IO_INHERENT_2,
@@ -164,4 +175,34 @@ export const UNO_LOADOUT = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
   substat: chem("atk", "liberation"),
     rotation: IO_ROTATION,
+});
+
+
+const IO_ROTATION_MDPS = new Rotation([
+  INTRO, Skill, ESkill, // todo swap skill eskill
+  Jump, //FMA1, 
+  FMSkill, 
+  FMA123, Liberation, 
+  FMA123, FMSkill, 
+  MA123, 
+  FHA, ECHO_OUTRO, OUTRO_NEXT,
+]);
+
+/* ----------------------------------------------------------------------------------- loadout */
+
+// her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
+// sonata pieces, mainstat/substat
+export const IUNO_MDPS = new Loadout({
+  resonator: IUNO_RESONATOR,
+  talent: IUNO_TALENTS,
+  inherent1: IO_INHERENT_1,
+  inherent2: IO_INHERENT_2,
+  weapons: [IUNO_SIG, NEW_STD_GAUNTLET, ABYSS_SURGES, VERITYS_HANDLE],
+  echoLoadouts: [
+    new EchoLoadout(MYA, COV_3PC, SIERRA_GALE_2PC),
+    new EchoLoadout(NM_KELPIE, WINDWARD_5PC, WINDWARD_2PC),
+  ],
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
+  substat: chem("atk", "liberation"),
+  rotation: IO_ROTATION_MDPS,
 });

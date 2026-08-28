@@ -28,10 +28,9 @@
  * Core/12s) has nowhere to go in an engine with no clock and isn't modelled — the kit-valid loop
  * reaches three cores through Vestiges of Falsehood plus her Intro regardless.
  *
- * Fusion Burst DMG itself (the status's own damage) has no engine model yet, so everything scoped
- * to `Type2.FusionBurst` here is inert until it does — the same standing as Lucilla's Montage
- * (chafe). Her casts still inflict it, which is what Chromatic Foam and her
- * own weapon react to.
+ * Fusion Burst DMG is the status's own ladder (status.ts): it calculates at the target's cap and
+ * clears — or, beside Aemeath's Fusion Burst mode, past 5 stacks at the cap's rung (aemeath.ts) —
+ * and reads only Fusion-Burst-scoped amplification, which is what her Outro hands the team.
  *
  * MVs and energy/concerto/off-tune off nanoka.cc (character 1211, read the way CLAUDE.md
  * describes — the page is client-rendered, so from the 3.6+365 static JSON it fetches) at skill
@@ -41,13 +40,12 @@
 import {
   typeOverride, Buff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute,
   WeaponType, Type1, Type2, Cast, Node, Scaling, addStat, applyCurrent, applyTeam, casting, currentAction, isHeld,
-  maxStackIncrease, queue, queueOutro, revokeCurrent as revokeCurrent, revokeTeam, frozenStacks, lostOnSwap, forte1,
-  forte3, setForte1, setForte2, setForte3, getStat, forte2,
+  maxStackIncrease, queueOn, queueOutro, revokeCurrent as revokeCurrent, revokeTeam, frozenStacks, lostOnSwap, forte1, triggeredAction,
+  setForte1, setForte2, getStat, forte2,
   stacksOf,
-  addForte2,
   addForte1,
 } from "../../engine/kit.js";
-import { Rotation, START_COMBAT, OPENER, INTRO, ECHO_CAST, OUTRO_NEXT, START_COMBAT_NON_OPENER } from "../../engine/rotation.js";
+import { Rotation, START_COMBAT, OPENER, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { applied, applyEnemy } from "../../engine/kit.js";
 import { FUSION_BURST } from "../../shared/status.js";
 import { ENEMY_MAX_OFFTUNE, TUNE_STRAIN_SHIFTING } from "../../shared/tunebreak.js";
@@ -61,7 +59,7 @@ import {
   NEONLIGHT_LEAP_2PC,
   TRAILBLAZING_STAR_5PC,
   TRAILBLAZING_STAR_2PC,
-  NEBULOUS_CANNON,
+  SIGILLUM,
 } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
@@ -112,17 +110,18 @@ const Banish1 = deniaAction("Skill - Banish 1", { node: Node.Skill, cast: Cast.S
 const Banish2 = deniaAction("Skill - Banish 2", { node: Node.Skill, cast: Cast.Skill, type: Type1.Liberation, mv: 112.01, energy: 2.35, concerto: 14.70, offtune: 7512, forte2: 40 });
 
 // --- Final Act. Stagecraft spends the Energy bar (125); Breakdown spends the full Conformal
-//     Charge and every Void Particle instead (zeroed in DENIA's update — "all", not a fixed
-//     delta), and drops the Erosion Field: seven 136.33% Liberation ticks over its 30s, lumped
-//     like Jué's Blessing of Time and queued off the cast.
+//     Charge and every Void Particle instead (zeroed in DENIA_RESONATOR's update — "all", not a fixed
+//     delta), and drops the Erosion Field: a 136.33% Liberation pull every 4s for 30s — seven
+//     ticks, one every five active presses by anyone (EROSION_FIELD below), each its own cast to
+//     the modes below.
 // the Breakdown shift replaces the Stagecraft one as it lands, and the field comes with it
 // (`applySelf(DARK_CORE)` assumes the 12s have passed)
-const TO_BREAKDOWN = {
-  updateBuffs: () => { revokeCurrent(ENTROPY_STAGECRAFT); applyCurrent(ENTROPY_BREAKDOWN); applyCurrent(DARK_CORE, 1); },
-};
 const Lib1 = deniaAction("Liberation - Final Act (Stagecraft)", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 397.62,
-  concerto: 20, offtune: 48000, resetEnergy: true, ...TO_BREAKDOWN,
+  concerto: 20, offtune: 48000, resetEnergy: true, 
+  updateBuffs: () => { 
+    revokeCurrent(ENTROPY_STAGECRAFT); applyCurrent(ENTROPY_BREAKDOWN); applyCurrent(DARK_CORE, 1); 
+  },
 });
 /** Spends every Void Particle and all the Conformal Charge, and shifts back to Stagecraft. */
 const Lib2 = deniaAction("Liberation - Final Act (Breakdown)", {
@@ -134,10 +133,13 @@ const Lib2 = deniaAction("Liberation - Final Act (Breakdown)", {
     revokeCurrent(ENTROPY_BREAKDOWN);
     applyCurrent(ENTROPY_STAGECRAFT);
     applyCurrent(DARK_CORE, 1); // assume 12 seconds has passed
+    // only one field of hers at a time: a fresh cast starts the clock over
+    revokeTeam(EROSION_FIELD);
+    applyTeam(EROSION_FIELD, 1);
   },
 });
-const ErosionField = deniaAction("Forte - Erosion Field x6", {
-  node: Node.Forte, type: Type1.Liberation, mv: 136.33 * 6, active: false,
+const ErosionField = deniaAction("Forte - Erosion Field", {
+  node: Node.Forte, type: Type1.Liberation, mv: 136.33, active: false,
 });
 
 // --- Intros, one per form. Both bank a Dark Core and 25 Void Particle.
@@ -159,7 +161,6 @@ const EIntro = deniaAction("Intro - Knock Knock", {
 const Outro = deniaAction("Outro - Unfinished Lies", {
   cast: Cast.Outro, concerto: -100, active: false,
   updateBuffs: () => {
-    queue(ErosionField);
     if (isHeld(MODE_BURST)) applyTeam(UNFINISHED_LIES_BURST, 1);
     else queueOutro(UNFINISHED_LIES_STRAIN);
   }
@@ -167,10 +168,11 @@ const Outro = deniaAction("Outro - Unfinished Lies", {
 
 /* ------------------------------------------------------------------------------------- modes */
 
-/** The casts on both modes' lists: the intros, both Final Acts and the field inflict 2 Fusion
- *  Burst (or one Tune Strain - Shifting), the Stage 3/4 basics 1 (or the same Shifting). */
+/** The casts on both modes' lists: the intros, both Final Acts and every field tick inflict 2
+ *  Fusion Burst (or one Tune Strain - Shifting); the Stage 3/4 basics — the Breakdown dodge
+ *  counters are Stage 3 — inflict 1 (or the same Shifting). */
 const inflictsTwo = (a: Action): boolean => a === Intro || a === EIntro || a === Lib1 || a === Lib2 || a === ErosionField;
-const inflictsOne = (a: Action): boolean => a === BA3 || a === BA4 || a === UBA3 || a === UBA4;
+const inflictsOne = (a: Action): boolean => a === BA3 || a === BA4 || a === UBA3 || a === UBA4 || a === UDC || a === UMDC;
 
 /** A loadout equips exactly one; each puts its own thing on the target from updateDebuffs(), so
  *  gear reacting to it (Chromatic Foam, her weapon, Reel of Spliced Memories, the Strain outro)
@@ -221,7 +223,7 @@ const OFFTUNE_SURGE = new Buff({
 const spendsVoid = (a: Action): boolean => a.forte1 < 0 && a.forte2 > 0;
 
 /** Entropy Shift: Breakdown Form — +30% ATK for 12s, granted by Final Act - Stagecraft and Knock
- *  Knock. Replaced outright by Final Act - Breakdown's own Stagecraft shift (see DENIA's update),
+ *  Knock. Replaced outright by Final Act - Breakdown's own Stagecraft shift (see DENIA_RESONATOR's update),
  *  and short enough to come off after her outro otherwise. */
 const ENTROPY_BREAKDOWN = new Buff({
   name: "Entropy Shift: Breakdown Form",
@@ -240,16 +242,35 @@ const ENTROPY_BREAKDOWN = new Buff({
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(ENTROPY_BREAKDOWN); },
 });
 
-const ENTROPY_STAGECRAFT = new Buff({
-  name: "Entropy Shift: Stagecraft Form",
-  applyStats: () => { if (currentAction() === ErosionField) addStat(Stat.AddForte1, 20); } // assume 20 seconds passed
+/** Erosion Field: 30s from Final Act - Breakdown, pulling every 4s — on this clockless engine a
+ *  tick every five active, non-triggered presses by anyone on the team, seven in all. Team-wide so
+ *  it counts everyone's turns; its stacks are the count, the cast itself the first, and the tick
+ *  lands on her own slot (queueOn) since the field is hers whoever is on field. Gone with the
+ *  seventh tick. */
+const EROSION_FIELD = new Buff({
+  name: "Denia: Erosion Field", maxStacks: 35,
+  display: () => "Denia: Erosion Field",
+  updateBuffs: () => {
+    if (triggeredAction() || !currentAction().active) return;
+    const count = applyTeam(EROSION_FIELD, 1);
+    if (count % 5 === 0) queueOn(DENIA_RESONATOR, ErosionField);
+    if (count >= 35) revokeTeam(EROSION_FIELD);
+  },
 });
 
+/** Entropy Shift: Stagecraft Form — 30s from Final Act - Breakdown, so it bridges to the next
+ *  loop. Its 1 Void Particle/s is banked as a flat 20 on her outro: the time she is off field. */
+const ENTROPY_STAGECRAFT = new Buff({
+  name: "Entropy Shift: Stagecraft Form",
+  applyStats: () => { if (casting(Cast.Outro)) addStat(Stat.AddForte1, 20); },
+});
+
+
 /** Etched Colors (Inherent Skill): while either Entropy Shift is up, the whole team gets the
- *  mode's payout. Granted as the first shift lands and never revoked — the Stagecraft shift's 30s
- *  bridges every loop to the next Final Act, so one is always up from then on. One buff a mode,
- *  because a team buff's applyStats() runs on whoever's acting and can't ask isHeld() which mode Denia
- *  holds — DN_INHERENT_2's own updateBuffs() picks. */
+ *  mode's payout. Granted as the first shift lands and never revoked: from then on she is always
+ *  in one — the Stagecraft shift's 30s bridges every loop to the next Final Act. One buff a mode,
+ *  because a team buff's applyStats() runs on whoever's acting and can't ask isHeld() which mode
+ *  Denia holds — DN_INHERENT_2's own updateBuffs() picks. */
 const ETCHED_COLORS_BURST = new Buff({
   name: "Denia: Etched Colors (burst)",
   applyStats: () => addStat(Stat.DmgBonus, 30, Attribute.Fusion),
@@ -260,7 +281,7 @@ const ETCHED_COLORS_BURST = new Buff({
  *  The real stat, so tuneStrainBonus() and the damage formula's own tbbFactor both see it. */
 const ETCHED_COLORS_STRAIN = new Buff({
   name: "Denia: Etched Colors (strain)",
-  convertStats: () => { 
+  convertStats: () => {
     addStat(Stat.Tbb, 10 + Math.min(40, Math.max(0, 8 * (getStat(Stat.OfftuneBuildup) - 100) / 10)));
   },
 });
@@ -288,8 +309,8 @@ const DARK_CORE = new Buff({
 });
 
 /** Unfinished Lies (Outro), Fusion Burst mode: Fusion Burst DMG against targets near the active
- *  resonator is amplified 60% for 30s — team-wide, permanent uptime, active actions only. Scoped
- *  to Type2.FusionBurst, which no action declares yet, so inert for now (see the file comment). */
+ *  resonator is amplified 60% for 30s — team-wide, permanent uptime. Scoped to Type2.FusionBurst,
+ *  which is what every Fusion Burst rung carries (status.ts), and the one amplification a dot reads. */
 const UNFINISHED_LIES_BURST = new Buff({
   name: "Denia: Outro (burst)",
   applyStats: () => { addStat(Stat.Amp, 60, Type2.FusionBurst); },
@@ -310,14 +331,11 @@ const UNFINISHED_LIES_STRAIN = new Buff({
 
 /* --------------------------------------------------------------------------- kit and loadout */
 
-/** Vestiges of Falsehood (Inherent Skill): engaging combat in Stagecraft Form tops Dark Cores up
- *  to 2 and Void Particle up to 20, once every 12s — her Intro, once a loop. Set here, before the
- *  Intro's own +1 core / +25 Void Particle bank, so she opens Banish on all three cores. */
 const DN_INHERENT_1 = new Inherent({
   name: "Denia: Vestiges of Falsehood",
   combatStart: () => {
     applyCurrent(DARK_CORE, 2);
-    if (forte1() < 20) setForte1(20);
+    setForte1(20);
   },
 });
 
@@ -326,7 +344,7 @@ const DENIA_TALENTS = new Talent({
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
 });
 
-const DENIA = new Resonator({
+const DENIA_RESONATOR = new Resonator({
   name: "Denia",
   element: Attribute.Fusion,
   weapon: WeaponType.Rectifier,
@@ -352,25 +370,19 @@ const DENIA = new Resonator({
  *  echo and out. Both opener and loop — Final Act - Breakdown leaves her in Stagecraft Form, where
  *  the next loop's Intro picks up. */
 
-const DN_ROTATION = new Rotation([
-
-
-  OPENER, BA1, Skill, Lib1,
-  UBA1, UBA2, UBA1, UBA2, UBA1, UBA2,
-  Banish1, Banish2, Lib2,
-  ECHO_CAST, OUTRO_NEXT,
-
+const DN_ROTATION_BURST = new Rotation([
+  OPENER, BA1, BA2, BA3,
   INTRO, BA4, Skill, Lib1,
-  UBA1, UBA2, UBA1, UBA2,
-  Banish1, Banish2, Lib2,
-  ECHO_CAST, OUTRO_NEXT,
+  UBA1, UBA2, UBA3, UBA4, 
+  Banish1, Banish2, Lib2, 
+  ECHO_OUTRO, OUTRO_NEXT,
 ]);
 
 /** One loadout per Resonance Mode, each with the echo set built for it: Trickster + Chromatic Foam
  *  rides Fusion Burst (the set triggers off the Burst she inflicts), Voidwing Moth + Reel of
  *  Spliced Memories rides Tune Strain (off her own Shifting). */
 export const DENIA_BURST = new Loadout({
-  resonator: DENIA,
+  resonator: DENIA_RESONATOR,
   talent: DENIA_TALENTS,
   inherent1: DN_INHERENT_1,
   inherent2: DN_INHERENT_2,
@@ -378,16 +390,23 @@ export const DENIA_BURST = new Loadout({
   echoLoadouts: [
     new EchoLoadout(TRICKSTER, CHROMATIC_FOAM_5PC, CHROMATIC_FOAM_2PC),
     new EchoLoadout(LIONESS_OF_GLORY, CLAWPRINT_5PC, CLAWPRINT_2PC),
-    new EchoLoadout(NEBULOUS_CANNON, TRAILBLAZING_STAR_5PC, TRAILBLAZING_STAR_2PC), // TODO fix mainslot
+    new EchoLoadout(SIGILLUM, TRAILBLAZING_STAR_5PC, TRAILBLAZING_STAR_2PC), 
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: chem("atk", "liberation"),
-    rotation: DN_ROTATION,
+    rotation: DN_ROTATION_BURST,
   mode: MODE_BURST,
 });
 
+const DN_ROTATION_STRAIN = new Rotation([
+  INTRO, BA4, Skill, Lib1,
+  UBA1, UBA2, UBA1, UBA2,
+  Banish1, Banish2, Lib2,
+  ECHO_OUTRO, OUTRO_NEXT,
+]);
+
 export const DENIA_STRAIN = new Loadout({
-  resonator: DENIA,
+  resonator: DENIA_RESONATOR,
   talent: DENIA_TALENTS,
   inherent1: DN_INHERENT_1,
   inherent2: DN_INHERENT_2,
@@ -398,6 +417,6 @@ export const DENIA_STRAIN = new Loadout({
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: chem("atk", "liberation"),
-    rotation: DN_ROTATION,
+    rotation: DN_ROTATION_STRAIN,
   mode: MODE_STRAIN,
 });

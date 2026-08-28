@@ -1,6 +1,6 @@
 /**
  * Danjin, ported to the new engine — a havoc sword 4-star sub-DPS, standard/permanent-banner
- * character (`standardCharacter: true`), so her full S1-S6 resonance chain is folded into her
+ * character (`Tier.Free`), so her full S1-S6 resonance chain is folded into her
  * loadout unconditionally, each its own always-equipped gear piece (`DJ_S1`-`DJ_S6`).
  *
  * Ruby Blossom (forte1, 0-120): banked by Resonance Skill casts. At 60+, a held Basic Attack
@@ -24,11 +24,11 @@
  * Resonance Cost (`maxEnergy` below) is her own real 100%, not the generic 125% default.
  */
 import {
-  Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType,
+  Buff, Debuff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType,
   Type1, Cast, Node, Scaling, applyCurrent, applyTeam, applyEnemy, revokeCurrent, revokeTeam, revokeEnemy, isHeld,
   stacksOfEnemy, casting, currentAction, addStat, frozenStacks, queueOutro, lostOnSwap, forte1,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, EMERALD_SENTENCE } from "../../weapons/sword.js";
@@ -102,8 +102,8 @@ const Outro = danjinAction("Outro - Duality", {
  *  DMG Bonus to whoever's actually landing the hit. 12s, lost after her own outro action gains stats. */
 const INCINERATING_WILL = new Debuff({
   name: "Danjin: Incinerating Will",
-  applyStats: () => { if (isHeld(DANJIN)) addStat(Stat.DmgBonus, 20); },
-  convertStats: () => { if (casting(Cast.Outro) && isHeld(DANJIN)) revokeEnemy(INCINERATING_WILL); },
+  applyStats: () => { if (isHeld(DANJIN_RESONATOR)) addStat(Stat.DmgBonus, 20); },
+  convertStats: () => { if (casting(Cast.Outro) && isHeld(DANJIN_RESONATOR)) revokeEnemy(INCINERATING_WILL); },
 });
 
 /** Overflow (Inherent Skill): +30% Heavy Attack DMG Bonus, 5s, once granted after Sanguine Pulse —
@@ -142,7 +142,7 @@ const DANJIN_OUTRO = new Buff({
   updateBuffs: () => { lostOnSwap(); },
 });
 
-const DANJIN = new Resonator({
+const DANJIN_RESONATOR = new Resonator({
   name: "Danjin",
   element: Attribute.Havoc,
   weapon: WeaponType.Sword,
@@ -150,7 +150,7 @@ const DANJIN = new Resonator({
   outro: () => Outro,
   color: "#a83250",
   maxEnergy: 100,
-  standardCharacter: true,
+  tier: Tier.Free,
 
   constantStats: () => {
     addStat(Stat.BaseHp, 9438); addStat(Stat.BaseAtk, 263); addStat(Stat.BaseDef, 1149);
@@ -164,7 +164,7 @@ const DANJIN_TALENTS = new Talent({
 });
 
 /* -------------------------------------------------------------------------------- sequences */
-// all six live here as their own always-equipped gear pieces (standardCharacter — see file
+// all six live here as their own always-equipped gear pieces (Tier.Free — see file
 // header); every trigger a sequence needs lives in its own piece, not the central updateBuffs() above
 
 /** +5% ATK a stack, up to 6, 6s, on any hit landed while Incinerating Will is up. "Loses 1 stack
@@ -218,7 +218,7 @@ const DJ_S5 = new Sequence({
 const DJ_S6_TEAM = new Buff({
   name: "Danjin S6: Bloodied Jade (team)",
   applyStats: () => addStat(Stat.BonusAtk, 20),
-  convertStats: () => { if (casting(Cast.Intro) && isHeld(DANJIN)) revokeTeam(DJ_S6_TEAM); },
+  convertStats: () => { if (casting(Cast.Intro) && isHeld(DANJIN_RESONATOR)) revokeTeam(DJ_S6_TEAM); },
 });
 const DJ_S6 = new Sequence({
   name: "Danjin S6: Bloodied Jade",
@@ -240,15 +240,15 @@ const DJ_ROTATION = new Rotation([
   CarmineGleam, BA2, BA3,
   SanguinePulse1, SanguinePulse2, SanguinePulse3,
   Chaoscleave, Scatterbloom,
-  ECHO_CAST, OUTRO_NEXT,
+  ECHO_OUTRO, OUTRO_NEXT,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
 // her real build: resonator + talents + both Inherent Skills + every sequence node
-// (standardCharacter — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat
-export const DANJIN_LOADOUT = new Loadout({
-  resonator: DANJIN,
+// (Tier.Free — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat
+export const DANJIN = new Loadout({
+  resonator: DANJIN_RESONATOR,
   talent: DANJIN_TALENTS,
   inherent1: DJ_INHERENT_OVERFLOW,
   inherent2: DJ_INHERENT_CRIMSON_LIGHT,

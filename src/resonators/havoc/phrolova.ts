@@ -6,16 +6,17 @@
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, stacksOf, currentAction, casting, queue, queueOutro, revokeCurrent, addStat, frozenStacks,
-  lostOnSwap, Sequence, applyTeam, isHeld, setForte1,
+  lostOnSwap, Sequence, applyTeam, isHeld, setForte1, currentTeam, queueOn, addBuff,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, OPENER, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, OPENER, INTRO, ECHO_ONFIELD, OUTRO_NEXT } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { DREAM_OF_THE_LOST_3PC } from "../../echoes/septimont.js";
 import { NM_HECATE, MIDNIGHT_VEIL_2PC } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
+import { BELL_BORNE_GEOCHELONE, HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -55,13 +56,12 @@ const EIntro = phroAction("Intro - Suite of Immortality", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Skill, mv: 596.43, offtune: 9600, energy: 10, concerto: 10,
   updateBuffs: () => revokeCurrent(MAESTRO),
 });
-/** While Maestro is open the handoff also auto-cycles two more notes, not charge-gated. */
+/** While Maestro is open the handoff also auto-cycles two more notes, not charge-gated — they
+ *  play once the next resonator has intro'd rather than on the Outro itself, so the handoff buff
+ *  this queues is what watches for that (PHROLOVA_OUTRO). */
 const Outro = phroAction("Outro - Unfinished Piece", {
   cast: Cast.Outro, concerto: -100, active: false,
-  updateBuffs: () => {
-    queueOutro(PHROLOVA_OUTRO);
-    if (stacksOf(MAESTRO)) { drawNote(); drawNote(); }
-  }
+  updateBuffs: () => queueOutro(PHROLOVA_OUTRO),
 });
 
 function hecateAction(id: string, mv: number, def: object = {}): Action {
@@ -88,13 +88,15 @@ const NOTE_LABEL = new Map<Action, string>([
   [EBA_CADENZA, "Cadenza"], [EBA_STRINGS, "Strings"], [EBA_WINDS, "Winds"],
 ]);
 
-/** Queue the next undrawn note and advance MAESTRO's own count. S3 turns every note she's
- *  holding when Maestro opens into a Cadenza (Scarlet Coda, its trigger, is always the cast right
- *  before Liberation here), so the first six she plays are Cadenza on that chain. */
+/** Queue the next undrawn note and advance MAESTRO's own count. At S3 every note she plays is a
+ *  Cadenza, whatever SEQUENCE would have drawn. Named against her own slot throughout rather than
+ *  read off whoever is acting: the two her Outro owes are drawn from her handoff buff, which the
+ *  *incoming* resonator is the one holding. */
 function drawNote(): void {
-  const i = Math.min(SEQUENCE.length - 1, stacksOf(MAESTRO) - 1);
-  queue(isHeld(PH_S3) && i < 6 ? EBA_CADENZA : SEQUENCE[i]!);
-  applyCurrent(MAESTRO, 1);
+  const her = currentTeam().memberOf(PHROLOVA_RESONATOR);
+  const i = Math.min(SEQUENCE.length - 1, her.stacksOf(MAESTRO) - 1);
+  queueOn(PHROLOVA_RESONATOR, her.isHeld(PH_S3) ? EBA_CADENZA : SEQUENCE[i]!);
+  addBuff(PHROLOVA_RESONATOR, MAESTRO, 1);
 }
 
 /* ------------------------------------------------------------------------------------ buffs */
@@ -129,7 +131,7 @@ export const MAESTRO = new Buff({
     const justPlayed = NOTE_LABEL.get(currentAction());
     if (justPlayed) return `Maestro: ${justPlayed}`;
     const i = Math.min(SEQUENCE.length - 1, frozenStacks() - 1);
-    const next = isHeld(PH_S3) && i < 6 ? EBA_CADENZA : SEQUENCE[i]!;
+    const next = isHeld(PH_S3) ? EBA_CADENZA : SEQUENCE[i]!;
     return `Maestro: ${NOTE_LABEL.get(next)}`;
   },
 });
@@ -155,7 +157,12 @@ const PH_INHERENT_2 = new Inherent({ name: "Phrolova: Inherent Skill 2" });
 const PHROLOVA_OUTRO = new Buff({
   name: "Phrolova: Outro",
   applyStats: () => { addStat(Stat.Amp, 20, Attribute.Havoc); addStat(Stat.Amp, 25, Type1.Heavy); },
-  updateBuffs: () => { lostOnSwap(); },
+  // Also the two notes her Outro owes: this is adopted on the incoming resonator's own Intro, so
+  // it is the thing that sees the Intro they play — and drawNote() puts them back on her slot.
+  updateBuffs: () => {
+    if (casting(Cast.Intro) && currentTeam().memberOf(PHROLOVA_RESONATOR).stacksOf(MAESTRO)) { drawNote(); drawNote(); }
+    lostOnSwap();
+  },
 });
 
 /* --------------------------------------------------------------------------------- sequences */
@@ -179,8 +186,8 @@ const PH_S2 = new Sequence({
   applyStats: () => { if (currentAction() === ScarletCoda) addStat(Stat.MulMv, 75); },
 });
 
-/** S3: the Cadenza ATK shred isn't modelled (enemy ATK doesn't enter this formula); the note
- *  conversion lives in drawNote() above. */
+/** S3: every note becomes a Cadenza (in drawNote() above); the Cadenza ATK shred isn't modelled
+ *  (enemy ATK doesn't enter this formula). */
 const PH_S3 = new Sequence({
   name: "Phrolova S3: A Dagger to Cut Clean Obsessions",
   applyStats: () => addStat(Stat.Amp, 80, Type1.Echo),
@@ -222,7 +229,7 @@ const PH_S6 = new Sequence({
 
 /** Her, as a Resonator: name/element, every grant/spend/queue rule her kit needs, and her own
  *  base stat line. */
-export const PHROLOVA = new Resonator({
+export const PHROLOVA_RESONATOR = new Resonator({
   name: "Phrolova",
   element: Attribute.Havoc,
   weapon: WeaponType.Rectifier,
@@ -249,19 +256,20 @@ const PHROLOVA_TALENTS = new Talent({
 // INTRO resolves to plain Intro or EIntro on its own (see her own intro() above)
 // OPENER ROTATIONS DO NOT HAVE AN INTRO
 
+const BA123Dash = new ActionGroup("Basic - Movement of Life and Death 123 (Cancel)", [BA1, BA2]);
 const BA123 = new ActionGroup("Basic - Movement of Life and Death 123", [BA1, BA2, BA3]);
 
 const PH_LOOP = new Rotation([
   OPENER, BA2,
-  INTRO, BA3, ECHO_CAST, FBA, Skill, FBA, BA123, FBA, ScarletCoda, Liberation, OUTRO_NEXT,
+  INTRO, BA3, ECHO_ONFIELD, FBA, Skill, FBA, BA123Dash, FBA, BA123Dash, FBA, ScarletCoda, Liberation, OUTRO_NEXT,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
 // her real 43311 build: resonator + talents + both Inherent Skills + Forte Circuit, weapon,
 // mainslot echo, sonata pieces, mainstat/substat
-export const FROLO_LOADOUT = new Loadout({
-  resonator: PHROLOVA,
+export const PHROLOVA = new Loadout({
+  resonator: PHROLOVA_RESONATOR,
   talent: PHROLOVA_TALENTS,
   inherent1: PH_INHERENT_1,
   inherent2: PH_INHERENT_2,
@@ -270,5 +278,30 @@ export const FROLO_LOADOUT = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: chem("atk", "skill"),
     rotation: PH_LOOP,
+  sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6],
+});
+
+
+const PH_LOOP_DUAL_DPS = new Rotation([
+  OPENER, BA2,
+  INTRO, BA3, ECHO_ONFIELD, FBA, Skill, FBA, BA123, FBA, ScarletCoda, Liberation, OUTRO_NEXT,
+]);
+
+export const PHROLOVA_DUAL_DPS = new Loadout({
+  resonator: PHROLOVA_RESONATOR,
+  talent: PHROLOVA_TALENTS,
+  inherent1: PH_INHERENT_1,
+  inherent2: PH_INHERENT_2,
+  weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER],
+  echoLoadouts: [
+    new EchoLoadout(NM_HECATE, DREAM_OF_THE_LOST_3PC, MIDNIGHT_VEIL_2PC),
+    new EchoLoadout(HERON, DREAM_OF_THE_LOST_3PC, MOONLIT_CLOUDS_2PC),
+    new EchoLoadout(BELL_BORNE_GEOCHELONE, DREAM_OF_THE_LOST_3PC, MOONLIT_CLOUDS_2PC),
+    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
+    new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
+  ],
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+  substat: chem("atk", "skill"),
+    rotation: PH_LOOP_DUAL_DPS,
   sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6],
 });

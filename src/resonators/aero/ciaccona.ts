@@ -14,7 +14,7 @@ import {
   Cast, Node, Scaling, applyCurrent, applyTeam, applyEnemy, revokeTeam, isHeld, revokeCurrent, casting, currentAction,
   addStat, queue, Type2,
 } from "../../engine/kit.js";
-import { Rotation, OPENER, INTRO, ECHO_CAST, OUTRO_NEXT, START_COMBAT } from "../../engine/rotation.js";
+import { Rotation, OPENER, INTRO, ECHO_OUTRO, OUTRO_NEXT, START_COMBAT } from "../../engine/rotation.js";
 import { AERO_EROSION, SHIELD } from "../../shared/status.js";
 import { WOODLAND_ARIA } from "../../weapons/pistol.js";
 import { NM_KELPIE } from "../../echoes/rinascita.js";
@@ -92,7 +92,7 @@ const RECITAL = new Buff({
 });
 
 /** Interlude Tune (Inherent Skill): a shield off the Liberation — put up as the shield marker from
- *  CIACCONA's own updateDebuffs(); shields are not a stat, so this piece is held for the name. */
+ *  CIACCONA_RESONATOR's own updateDebuffs(); shields are not a stat, so this piece is held for the name. */
 const CI_INHERENT_1 = new Inherent({ name: "Ciaccona: Interlude Tune" });
 
 /** Winds of Rinascita (Inherent Skill): Quadruple Downbeat deals 30% more DMG — always on, so it
@@ -112,7 +112,7 @@ const WINDCALLING_TUNE = new Buff({
 
 /** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her
  *  own base stat line. */
-const CIACCONA = new Resonator({
+const CIACCONA_RESONATOR = new Resonator({
   name: "Ciaccona",
   element: Attribute.Aero,
   weapon: WeaponType.Pistols,
@@ -141,19 +141,19 @@ const CI_ROTATION = new Rotation([
 
   OPENER, // jump
   MA1, MA2, BA4, MA1, MA2, BA4, MA1, MA2, BA4,
-  Downbeat, Liberation, ECHO_CAST, OUTRO_NEXT,
+  Downbeat, Liberation, ECHO_OUTRO, OUTRO_NEXT,
 
   INTRO, BA3, BA4, // jump
   MA1, MA2, BA4,
-  Skill, Downbeat, Liberation, ECHO_CAST, OUTRO_NEXT,
+  Skill, Downbeat, Liberation, ECHO_OUTRO, OUTRO_NEXT,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
 // her real build: resonator + talents + both Inherent Skills, her own weapon, her own mainslot
 // echo and the one sonata that pays for the Aero Erosion she frozenStacks, mainstat/substat
-export const CIA_LOADOUT = new Loadout({
-  resonator: CIACCONA,
+export const CIACCONA = new Loadout({
+  resonator: CIACCONA_RESONATOR,
   talent: CIACCONA_TALENTS,
   inherent1: CI_INHERENT_1,
   inherent2: CI_INHERENT_2,

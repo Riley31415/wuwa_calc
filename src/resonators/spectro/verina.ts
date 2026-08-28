@@ -1,8 +1,8 @@
 /**
- * Verina, ported to the new engine. `standardCharacter: true` — her sequence nodes are folded in
- * unconditionally, each its own gear piece: S2 Sprouting Reflections, S4 Blossoming Embrace
- * (permanent +15% Spectro DMG once granted), S6 Joyous Harvest (+20% Starflower Blooms DMG plus a
- * Coordinated Attack). S1/S3/S5 are healing-only, no damage-relevant effect — do-nothing pieces.
+ * Verina, ported to the new engine. `Tier.Standard` — a standard 5-star, costed at S2,
+ * with S3-S6 opening rows of their own once that role's Sequences box is. Every node is its own
+ * gear piece: S2 Sprouting Reflections, S4 Blossoming Embrace (permanent +15% Spectro DMG once
+ * granted), S6 Joyous Harvest (+20% Starflower Blooms DMG plus a Coordinated Attack). S1/S3/S5 are healing-only, no damage-relevant effect — do-nothing pieces.
  *
  * Photosynthesis Energy (forte1, max 4) builds off Basic 5/Skill/Intro; a held Heavy or Mid-air
  * Attack at 1+ becomes a Starflower Blooms variant, spending a stack. Liberation places
@@ -18,11 +18,11 @@
  * Skill Attributes table throughout; anything not exposed there stays 0, flagged rather than guessed.
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
   Type2, Cast, Node, Scaling, applyTeam, revokeTeam, applyEnemy, revokeEnemy, isHeld, casting, currentAction,
   addStat, queue, applyCurrent,
 } from "../../engine/kit.js";
-import { Rotation, OPENER, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, OPENER, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { VARIATION } from "../../weapons/standard.js";
 import { REJUV_5PC, REJUV_2PC } from "../../echoes/jinzhou.js";
@@ -54,16 +54,26 @@ const DC = verinaAction("Basic - Cultivation (Dodge Counter)", { node: Node.Norm
 // base gain only — S2's own extra Photosynthesis Energy/Energy is traced separately (VERINA_S2)
 const Skill = verinaAction("Skill - Botany Experiment", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 178.95, energy: 15, concerto: 30, offtune: 26600, forte1: 1 });
 
+/** Starflower Blooms spends a Photosynthesis Energy stack "to recover Concerto Energy" — the
+ *  Forte Circuit's own `"Photosynthesis Energy" Concerto Regen = 12` row, which has no damage row
+ *  of its own to hang off so nanoka's per-hit figures never carry it. Once per Starflower cast,
+ *  not once per mid-air stage: the gauge is spent once for the whole combo (see the actions'
+ *  own note), so only the Heavy and the mid-air's own stage 1 pay out. */
+const STARFLOWER_CONCERTO = { updateDebuffs: () => {
+  addStat(Stat.AddConcerto, 12);
+  applyCurrent(HEALS, 1);
+}};
+
 // Starflower Blooms spends 1 Photosynthesis Energy either way, heals
-const StarflowerHeavy = verinaAction("Forte Heavy - Starflower Blooms", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 162.37, energy: 2.91, concerto: 4.66, offtune: 14600, forte1: -1 });
+const StarflowerHeavy = verinaAction("Forte Heavy - Starflower Blooms", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 162.37, energy: 2.91, concerto: 4.66, offtune: 14600, forte1: -1, ...STARFLOWER_CONCERTO });
 // Mid-air Starflower Blooms is its own 3-stage combo (same shape as the MA1-3 chain it replaces);
 // only stage 1 banks the forte spend/heal, since the Forte Gauge is spent once for the whole combo.
 const ForteMidair1 = verinaAction("Forte Basic - Starflower Blooms (Mid-Air) 1",
-    { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 67.64, energy: 1.41, concerto: 4.53, offtune: 11340, forte1: -1 });
+    { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 67.64, energy: 1.41, concerto: 4.53, offtune: 11340, forte1: -1, ...STARFLOWER_CONCERTO });
 const ForteMidair2 = verinaAction("Forte Basic - Starflower Blooms (Mid-Air) 2",
-    { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 63.82, energy: 1.33, concerto: 4.28, offtune: 10700, forte1: -1 });
+    { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 63.82, energy: 1.33, concerto: 4.28, offtune: 10700, forte1: -1, ...STARFLOWER_CONCERTO });
 const ForteMidair3 = verinaAction("Forte Basic - Starflower Blooms (Mid-Air) 3",
-    { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 30.50 * 3, energy: 1.89, concerto: 6.12, offtune: 15342, forte1: -1 });
+    { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 30.50 * 3, energy: 1.89, concerto: 6.12, offtune: 15342, forte1: -1, ...STARFLOWER_CONCERTO });
 
 // Arboreal Flourish places Photosynthesis Mark on the enemy (see file header), heals
 const Liberation = verinaAction("Liberation - Arboreal Flourish", {
@@ -90,9 +100,9 @@ const Outro = verinaAction("Outro - Blossom", {
 const GIFT_OF_NATURE = new Buff({
   name: "Verina: Gift of Nature",
   applyStats: () => addStat(Stat.BonusAtk, 20),
-  // granted from VERINA's own updateBuffs() below since a global buff's own updateBuffs() can't fire before
+  // granted from VERINA_RESONATOR's own updateBuffs() below since a global buff's own updateBuffs() can't fire before
   // it's held once, and the Resonator itself is always self-held from team setup
-  convertStats: () => { if (casting(Cast.Intro) && isHeld(VERINA)) revokeTeam(GIFT_OF_NATURE); },
+  convertStats: () => { if (casting(Cast.Intro) && isHeld(VERINA_RESONATOR)) revokeTeam(GIFT_OF_NATURE); },
 });
 /** Gift of Nature's own trigger — always-equipped Inherent Skill piece. */
 const VR_INHERENT_1 = new Inherent({
@@ -105,18 +115,6 @@ const VR_INHERENT_1 = new Inherent({
 
 const VR_INHERENT_2 = new Inherent({ name: "Verina: Grace of Life" }); // revive teammate
 
-/** Starflower Blooms spends a Photosynthesis Energy stack "to recover Concerto Energy" — the
- *  Forte Circuit's own `"Photosynthesis Energy" Concerto Regen = 12` row, which has no damage row
- *  of its own to hang off so nanoka's per-hit figures never carry it. Once per Starflower cast,
- *  not once per mid-air stage: the gauge is spent once for the whole combo (see the actions'
- *  own note), so only the Heavy and the mid-air's own stage 1 pay out. */
-const STARFLOWER_CONCERTO = new Buff({
-  name: "Verina: Starflower Blooms Concerto",
-  applyStats: () => {
-    const a = currentAction();
-    if (a === StarflowerHeavy || a === ForteMidair1) addStat(Stat.AddConcerto, 12);
-  },
-});
 
 /** Blossom's own team-wide DMG Amp — 30s is past the 21s permanent-uptime threshold, so it's
  *  granted once and never revoked. The 19% ATK/s heal to the incoming Resonator is out of scope
@@ -131,7 +129,7 @@ const VERINA_OUTRO = new Buff({
 const PHOTOSYNTHESIS_MARK = new Buff({
   name: "Verina: Photosynthesis Mark",
   convertStats: () => {
-    if (!casting(Cast.Outro) || !isHeld(VERINA)) return;
+    if (!casting(Cast.Outro) || !isHeld(VERINA_RESONATOR)) return;
     queue(PhotosynthesisMark);
     revokeEnemy(PHOTOSYNTHESIS_MARK);
   },
@@ -165,9 +163,11 @@ const VERINA_S6 = new Sequence({
   // the DMG boost lands on every Mid-air stage; the Coordinated Attack triggers once per combo
   applyStats: () => {
     const a = currentAction();
-    if (a === StarflowerHeavy || a === ForteMidair1 || a === ForteMidair2 || a === ForteMidair3) addStat(Stat.DmgBonus, 20);
+    if (a === StarflowerHeavy || a === ForteMidair1 || a === ForteMidair2 || a === ForteMidair3) {
+      addStat(Stat.DmgBonus, 20);
+      queue(PhotosynthesisTick); 
+    }
   },
-  updateBuffs: () => { if (currentAction() === StarflowerHeavy || currentAction() === ForteMidair1) queue(PhotosynthesisTick); },
 });
 
 // S1 Moment of Emergence, S3 The Choice to Flourish, S5 Miraculous Blooms — healing-only,
@@ -177,8 +177,8 @@ const VERINA_S3 = new Sequence({ name: "Verina S3: The Choice to Flourish" });
 const VERINA_S5 = new Sequence({ name: "Verina S5: Miraculous Blooms" });
 
 /** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her
- *  own base stat line. `standardCharacter: true` — see the file header. */
-const VERINA = new Resonator({
+ *  own base stat line. `Tier.Standard` — see the file header. */
+const VERINA_RESONATOR = new Resonator({
   name: "Verina",
   element: Attribute.Spectro,
   weapon: WeaponType.Rectifier,
@@ -187,7 +187,7 @@ const VERINA = new Resonator({
   color: "#8fe08f",
   maxEnergy: 175, // her own real 175%, not the generic 125% default — matches Shorekeeper's own
 
-  standardCharacter: true,
+  tier: Tier.Standard,
 
   updateDebuffs: () => {
     const a = currentAction();
@@ -205,25 +205,24 @@ const VERINA = new Resonator({
 // completeness only
 const VERINA_TALENTS = new Talent({
   name: "Verina: Talents",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.HealingBonus, 12); },
-  updateBuffs: () => applyCurrent(STARFLOWER_CONCERTO, 1),
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.HealingBonus, 12); }
 });
 
 const VR_LOOP = new Rotation([
   OPENER, Skill, Liberation,
   ForteMidair1, ForteMidair2,
-  ECHO_CAST, OUTRO_NEXT,
+  ECHO_OUTRO, OUTRO_NEXT,
   INTRO, Skill, Liberation,
   ForteMidair1,
-  ECHO_CAST, OUTRO_NEXT,
+  ECHO_OUTRO, OUTRO_NEXT,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
 // her real support/healer spread rather than the usual 43311 crit build; both Inherent Skills +
-// every sequence node (standardCharacter — see file header) alongside resonator + talents
-export const VERINA_LOADOUT = new Loadout({
-  resonator: VERINA,
+// every sequence node (Tier.Standard — see file header) alongside resonator + talents
+export const VERINA = new Loadout({
+  resonator: VERINA_RESONATOR,
   talent: VERINA_TALENTS,
   inherent1: VR_INHERENT_1,
   inherent2: VR_INHERENT_2,

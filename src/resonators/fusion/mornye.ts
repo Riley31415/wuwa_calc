@@ -21,11 +21,11 @@
  */
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, addStat, applyCurrent, applyTeam, currentAction, queue, queueOutro, revokeCurrent, getStat, stacksOf,
+  Scaling, addStat, applyCurrent, applyTeam, currentAction, queue, queueOutro, revokeCurrent, getStat, stacksOf, stacksOfTeam, frozenStacks,
   maxStackIncrease, Debuff, applyEnemy, revokeEnemy, isHeld, stacksOfEnemy,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, START_COMBAT, OPENER, INTRO, ECHO_CAST, OUTRO_NEXT, START_COMBAT_NON_OPENER } from "../../engine/rotation.js";
+import { Rotation, START_COMBAT, OPENER, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import {
   TUNE_BREAK, TUNE_RUPTURE_INTERFERED, TUNE_STRAIN_INTERFERED, interferedWindow, tuneRuptureResponse,
@@ -70,7 +70,7 @@ const Inversion = mornyeAction("Heavy - Inversion", {
 
 /** The field's own opening hit, counted as Resonance Liberation DMG by the kit page. */
 const SyntonyFieldHit = mornyeAction("Forte - Syntony Field", {
-  node: Node.Forte, type: Type1.Liberation, mv: 198.85, active: false,
+  node: Node.Forte, type: Type1.Liberation, mv: 198.85,
   updateBuffs: () => applyTeam(SYNTONY_FIELD, 1),
 });
 
@@ -90,13 +90,10 @@ const DistributedArray = mornyeAction("Skill - Distributed Array", { node: Node.
 const Liberation = mornyeAction("Liberation - Critical Protocol", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, scaling: Scaling.Def,
   mv: 522.33, concerto: 20, offtune: 72000, resetEnergy: true,
-  // trades the field up, so the plain one goes as the High one lands
+  // trades the field up to its High stage (stack 2), if one is standing
   updateBuffs: () => {
     applyCurrent(CRITICAL_PROTOCOL, 1);
-    if (stacksOf(SYNTONY_FIELD)) {
-      revokeCurrent(SYNTONY_FIELD);
-      applyTeam(HIGH_SYNTONY_FIELD, 1);
-    }
+    if (stacksOfTeam(SYNTONY_FIELD)) applyTeam(SYNTONY_FIELD, 1);
   },
 });
 
@@ -106,12 +103,12 @@ const Outro = mornyeAction("Outro - Recursion", {
   updateBuffs: () => applyTeam(RECURSION)
 });
 
-/** Her answer to a Rupture break, queued by the engine's own break (see MORNYE's updateBuffs())
+/** Her answer to a Rupture break, queued by the engine's own break (see MORNYE_RESONATOR's updateBuffs())
  *  rather than played. An ordinary active cast, like every Tune Break response: it is her own hit,
  *  and marking it inactive would have every "lost on switching out" buff she holds revoke itself
  *  the moment a break went off. */
 const ParticleJet = mornyeAction("Tune Rupture Response - Particle Jet", {
-  node: Node.Forte, type: Type1.Rupture, mv: 298.22,
+  node: Node.Forte, type: Type1.Rupture, mv: 298.22, scaling: Scaling.Tune,
 });
 
 /* ------------------------------------------------------------------------------------- buffs */
@@ -119,20 +116,15 @@ const ParticleJet = mornyeAction("Tune Rupture Response - Particle Jet", {
 /** Syntony Field: 25s, so permanent uptime. The +50% Off-Tune Buildup Rate is the whole point —
  *  it is what makes the team's shared bar fill faster and so lands more Tune Breaks, which is what
  *  both her own halves and any Shifter beside her are paid in. Team-wide but field-bound, so it
- *  only counts for whoever is actually on field. */
+ *  only counts for whoever is actually on field. One buff for both stages: stack 1 is the field,
+ *  stack 2 the High Syntony Field the Liberation trades it up to — the same rate plus +20% team
+ *  DEF — so the two can never stand together, and a field re-raised under a High one leaves it High. */
 const SYNTONY_FIELD = new Buff({
-  name: "Mornye: Syntony Field",
-  applyStats: () => { addStat(Stat.OfftuneBuildup, 50); },
-});
-
-/** The Liberation eats the Syntony Field and leaves this instead: everything above plus +20% team
- *  DEF, same 25s. Modelled as its own buff holding both halves, with the plain field revoked as it
- *  lands, so the two never double up. */
-const HIGH_SYNTONY_FIELD = new Buff({
-  name: "Mornye: High Syntony Field",
+  name: "Mornye: Syntony Field", maxStacks: 2,
+  display: () => (frozenStacks() === 2 ? "Mornye: High Syntony Field" : "Mornye: Syntony Field"),
   applyStats: () => {
     addStat(Stat.OfftuneBuildup, 50);
-    addStat(Stat.BonusDef, 20);
+    if (frozenStacks() === 2) addStat(Stat.BonusDef, 20);
   },
 });
 
@@ -205,7 +197,7 @@ const MORNYE_TALENTS = new Talent({
   constantStats: () => { addStat(Stat.BonusDef, 15.2); addStat(Stat.HealingBonus, 12); },
 });
 
-const MORNYE = new Resonator({
+const MORNYE_RESONATOR = new Resonator({
   name: "Mornye",
   element: Attribute.Fusion,
   weapon: WeaponType.Broadblade,
@@ -234,11 +226,11 @@ const WBA123 = new ActionGroup("Basic - Wide Field Observation 123", [WBA1, WBA2
  *  Field chain into Inversion, then Distributed Array, the echo and the Liberation to trade the
  *  field up before handing off. She is never the team's lead, so this is both opener and loop. */
 const MO_ROTATION = new Rotation([
-  START_COMBAT_NON_OPENER, Skill, START_COMBAT_NON_OPENER,
+  START_COMBAT, Skill, START_COMBAT,
   OPENER, BA123, GeopotentialShift,
   INTRO, Liberation,
   WBA123, DistributedArray, Inversion, 
-  ECHO_CAST, OUTRO_NEXT,
+  ECHO_OUTRO, OUTRO_NEXT,
 ]);
 
 /** ER is the build: her Liberation converts everything past 100% into crit, so the sig's 77% and
@@ -248,8 +240,8 @@ const MO_ECHOES = [
   new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC, STARRY_RADIANCE_2PC),
 ];
 
-export const MORNYE_LOADOUT = new Loadout({
-  resonator: MORNYE,
+export const MORNYE = new Loadout({
+  resonator: MORNYE_RESONATOR,
   talent: MORNYE_TALENTS,
   inherent1: MO_INHERENT_1,
   inherent2: MO_INHERENT_2,

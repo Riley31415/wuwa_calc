@@ -1,6 +1,6 @@
 /**
- * Jiyan, ported to the new engine — sequence-0 core loop, a limited 5-star (not
- * `standardCharacter`). An aero broadblade main DPS. His Liberation (Emerald Storm - Prelude)
+ * Jiyan, ported to the new engine — sequence-0 core loop, a limited 5-star
+ * (`Tier.Limited`). An aero broadblade main DPS. His Liberation (Emerald Storm - Prelude)
  * deals no damage itself but opens Qingloong Mode (10s), replacing his kit with the three-stage
  * Heavy Attack Lance of Qingloong; cast with 30+ Resolve it queues Emerald Storm - Finale itself
  * (considered Heavy Attack DMG), spending the 30 — never placed in a rotation by hand. Windqueller inside the mode gets +20% DMG for
@@ -28,12 +28,14 @@ import {
   triggeredAction,
   queueOutro,
 } from "../../engine/kit.js";
-import { Rotation, START_COMBAT, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { matrix } from "../../shared/matrix.js";
+import { Rotation, START_COMBAT, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC, SIERRA_GALE_2PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
+import { NM_KELPIE, WINDWARD_2PC, WINDWARD_5PC } from "../../echoes/rinascita.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -62,7 +64,7 @@ const DC = jiyanAction("Basic - Lone Lance (Dodge Counter)", { node: Node.Normal
 
 // Windqueller's three forms — at 30+ Resolve out of Qingloong Mode it consumes 30 for +20% DMG,
 // below 30 it's the plain cast with neither, inside the mode the +20% is free (the bonus lives on
-// JIYAN's own apply below, on the two boosted forms only)
+// JIYAN_RESONATOR's own apply below, on the two boosted forms only)
 // Qingloong at War (Forte Circuit): Windqueller +20% DMG — free in-mode, or off the 30 Resolve
 // the out-of-mode action's own forte1 already spends
 const WINDQUELLER = { applyStats: () => addStat(Stat.DmgBonus, 20) };
@@ -128,12 +130,12 @@ const JY_INHERENT_2 = new Inherent({
 const JIYAN_OUTRO: Buff = new Buff({
   name: "Jiyan: Outro", maxStacks: 2,
   updateBuffs: () => {
-    if (casting(Cast.Heavy)) { queueOn(JIYAN, ACTION_OUTRO_COORD); removeStack(JIYAN_OUTRO, 1); }
+    if (casting(Cast.Heavy)) { queueOn(JIYAN_RESONATOR, ACTION_OUTRO_COORD); removeStack(JIYAN_OUTRO, 1); }
   },
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(JIYAN_OUTRO); },
 });
 
-const JIYAN = new Resonator({
+const JIYAN_RESONATOR = new Resonator({
   name: "Jiyan",
   element: Attribute.Aero,
   weapon: WeaponType.Broadblade,
@@ -159,7 +161,7 @@ const JIYAN_TALENTS = new Talent({
 // covers both opener and loop.
 
 const JY_ROTATION = new Rotation([
-  INTRO, ECHO_CAST,
+  INTRO, ECHO_CANCEL,
   Liberation,
   Lance1, USkill, Lance1, Lance1, Lance1, // dodge cancels
   Lance1, Lance1, Lance1, Lance1,
@@ -170,13 +172,15 @@ const JY_ROTATION = new Rotation([
 
 // his real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
-export const JIYAN_LOADOUT = new Loadout({
-  resonator: JIYAN,
+export const JIYAN = new Loadout({
+  resonator: JIYAN_RESONATOR,
+  matrix: matrix("Jiyan", 25),
   talent: JIYAN_TALENTS,
   inherent1: JY_INHERENT_1,
   inherent2: JY_INHERENT_2,
   weapons: [VERDANT_SUMMIT, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR],
-  echoLoadouts: [new EchoLoadout(NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC, SIERRA_GALE_2PC)],
+  echoLoadouts: [new EchoLoadout(NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC, SIERRA_GALE_2PC),
+      new EchoLoadout(NM_KELPIE, WINDWARD_5PC, WINDWARD_2PC),],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
   substat: chem("atk", "heavy"),
     rotation: JY_ROTATION,

@@ -57,8 +57,8 @@ import {
   forte3,
   forte2,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
-import { GLACIO_CHAFE, GLACIO_CHAFE_DMG, HAVOC_BANE } from "../../shared/status.js";
+import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
+import { GLACIO_CHAFE, GLACIO_CHAFE_ACTIONS, HAVOC_BANE } from "../../shared/status.js";
 import { FROSTBURN } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { QUIET_SNOWFALL_2PC, QUIET_SNOWFALL_5PC, VOIDBORNE_CONSTRUCT } from "../../echoes/lahairoi.js";
@@ -294,7 +294,7 @@ const SNOW_RUST = new Buff({
 const SNOWLIGHT_BLESSING = new Buff({
   name: "Hiyuki: Outro",
   applyStats: () => {
-    if (currentTeam().slot.resonator === HIYUKI || stacksOfEnemy(GLACIO_BITE) === 0) return;
+    if (currentTeam().slot.resonator === HIYUKI_RESONATOR || stacksOfEnemy(GLACIO_BITE) === 0) return;
     addStat(Stat.Amp, 20, Attribute.Glacio);
   },
 });
@@ -332,7 +332,7 @@ const HIYUKI_TALENTS = new Talent({
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
 });
 
-export const HIYUKI = new Resonator({
+export const HIYUKI_RESONATOR = new Resonator({
   name: "Hiyuki",
   element: Attribute.Glacio,
   weapon: WeaponType.Sword,
@@ -370,7 +370,7 @@ export const HIYUKI = new Resonator({
     if (inflicted === 0) return;
     revokeEnemy(GLACIO_CHAFE);
     applyEnemy(GLACIO_BITE, inflicted);
-    const rung = GLACIO_CHAFE_DMG[currentTeam().enemyMax(GLACIO_CHAFE)]!;
+    const rung = GLACIO_CHAFE_ACTIONS[currentTeam().enemyMax(GLACIO_CHAFE)]!;
     const applier = currentTeam().slot.resonator!;
     for (let i = 0; i < inflicted; i++) queueOn(applier, rung);
   },
@@ -403,15 +403,15 @@ const HY_ROTATION = new Rotation([
   UHA, FBA2, FBA3,
   UHA, FBA2, FBA3,
   USkill1, USkill2, Iai, Iai, Iai,
-  FHA, ECHO_CAST, Lib2Hold, OUTRO_NEXT,
+  FHA, ECHO_CANCEL, Lib2Hold, OUTRO_NEXT,
 ]);
 
 const HY_ECHOES = [
   new EchoLoadout(VOIDBORNE_CONSTRUCT, QUIET_SNOWFALL_5PC, QUIET_SNOWFALL_2PC),
 ];
 
-export const HIYUKI_LOADOUT = new Loadout({
-  resonator: HIYUKI,
+export const HIYUKI = new Loadout({
+  resonator: HIYUKI_RESONATOR,
   talent: HIYUKI_TALENTS,
   inherent1: HY_INHERENT_1,
   inherent2: HY_INHERENT_2,

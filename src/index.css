@@ -478,6 +478,12 @@ main {
 .pop.dpr { padding: 0; border-radius: var(--r); overflow: hidden; }
 .pop.dpr .rtable { border-radius: 0; box-shadow: none; }
 
+/* The resonator hover's three scopes sit side by side: local (with this member's gear above it),
+   global, then enemy debuffs. Stacked they ran a page tall on a well-buffed member, and the three
+   are separate scopes rather than one running list. Each column is its own table so every name
+   column still sizes to its own longest cell. */
+.pop.buffs .cols { display: flex; align-items: flex-start; gap: 26px; }
+
 /* ---------------------------------------------------------------------- table */
 
 /* No longer a scroll box of its own — <main> scrolls, so the header row can pin to it. */
@@ -488,6 +494,8 @@ main {
   width: max-content;
   min-width: 100%;
 }
+/* under its "action log" label the label's 8px is the gap — the 22px would collapse over it */
+.summary-label + .gridwrap { margin-top: 0; }
 main::-webkit-scrollbar { width: 10px; height: 10px; }
 main::-webkit-scrollbar-track { background: transparent; }
 main::-webkit-scrollbar-thumb {

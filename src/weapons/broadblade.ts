@@ -2,10 +2,10 @@
  *  resonator, not just its own. */
 import { isType,
   Buff, Weapon, WeaponType, Stat, Attribute, Type1, Cast,
-  addStat, frozenStacks, casting, currentAction, revokeCurrent, applyCurrent, applyTeam, removeStack, lostOnSwap, isHeld,
+  addStat, frozenStacks, casting, currentAction, currentTeam, addBuff, revokeCurrent, applyCurrent, applyTeam, removeStack, lostOnSwap, isHeld,
 } from "../engine/kit.js";
 import { applied } from "../engine/kit.js";
-import { SHIELD, HEALS, inflictedNegativeStatus } from "../shared/status.js";
+import { SHIELD, HEALS, inflictedNegativeStatus, inflictedNegativeStatusBy } from "../shared/status.js";
 
 /** Jiyan's sig, R1: Swordsworn. +12% Attribute DMG Bonus flat. Every Intro/Liberation cast
  *  grants +24% Heavy Attack DMG Bonus, up to 2 frozenStacks, 14s. */
@@ -178,9 +178,10 @@ export const DEFINITE_SOLUTION_CONCERTO = new Buff({
 
 /** Kumokiri, Chisa's sig, R1: Thread of Fate. +12% ATK flat. Casting her Intro or inflicting a
  *  Negative Status (Havoc Bane counts) grants a stack of +8% Resonance Liberation DMG Bonus, up to
- *  3, 15s each — lost after the outro like every short self window here. At 3 frozenStacks the team
- *  gets +24% All-Attribute DMG Bonus for 15s, "effects of the same name" so it doesn't restack
- *  itself. */
+ *  3, 15s each — lost after the outro like every short self window here. At 3 stacks, each
+ *  resonator on the team who inflicts a Negative Status gets +24% All-Attribute DMG Bonus for 15s
+ *  — theirs alone, a short self window lost after their own outro; a teammate who never inflicts
+ *  one never has it. "Effects of the same name" so it doesn't restack itself. */
 export const KUMOKIRI = new Weapon({
   weaponType: WeaponType.Broadblade,
   name: "Kumokiri",
@@ -193,21 +194,16 @@ export const KUMOKIRI = new Weapon({
 });
 export const THREAD_OF_FATE_STACKS = new Buff({
   name: "Kumokiri: Thread of Fate", maxStacks: 3,
-  // `applyTeam`, not `applyCurrent`: the payout is the *team's* (+24% to everyone), and inside
-  // updateGlobal `currentSlot` is this buff's own holder rather than whoever is acting — so
-  // granting to "current" handed the wielder a team buff nobody else on the team ever saw.
+  // watched from updateGlobal so a teammate's own cast is seen — where `currentSlot` is this
+  // buff's holder, so the actor is read off the team and the payout put on their slot by name
   updateGlobal() {
-    if (frozenStacks() >= 3 && inflictedNegativeStatus()) {
-      applyTeam(THREAD_OF_FATE_TEAM, 1);
-    }
+    const actor = currentTeam().slot;
+    if (frozenStacks() >= 3 && actor.resonator && inflictedNegativeStatusBy(actor)) addBuff(actor.resonator, THREAD_OF_FATE_BONUS, 1);
   },
   applyStats: () => addStat(Stat.DmgBonus, 8 * frozenStacks(), Type1.Liberation),
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(THREAD_OF_FATE_STACKS); },
 });
 
-/** 15s, but a full loop re-triggers it well before that lapses, so left with permanent uptime like
- *  every other such team hand-off in this file (Wildfire Mark's own WILDFIRE_TEAM above). */
-export const THREAD_OF_FATE_TEAM = new Buff({
+export const THREAD_OF_FATE_BONUS = new Buff({
   name: "Kumokiri: Thread of Fate (team)",
   applyStats: () => addStat(Stat.DmgBonus, 24),
 });

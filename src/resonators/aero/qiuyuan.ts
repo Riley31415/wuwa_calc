@@ -16,8 +16,9 @@ import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, forte1, currentAction, casting, queueOutro, applyTeam, revokeCurrent, lostOnSwap, addStat,
   frozenStacks,
+  ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, START_COMBAT, OPENER, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, START_COMBAT, OPENER, INTRO, ECHO_CANCEL, ECHO_ONFIELD, OUTRO_NEXT } from "../../engine/rotation.js";
 import { EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { REJUV_2PC, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, SIERRA_GALE_2PC, BELL_BORNE_GEOCHELONE } from "../../echoes/jinzhou.js";
@@ -117,7 +118,7 @@ const QY_INHERENT_1 = new Inherent({
   },
 });
 
-const QIUYUAN = new Resonator({
+const QIUYUAN_RESONATOR = new Resonator({
   name: "Qiuyuan",
   element: Attribute.Aero,
   weapon: WeaponType.Sword,
@@ -147,23 +148,25 @@ const QIUYUAN_TALENTS = new Talent({
 // waiting for his turn — it is the one cast worth being on field for in the fight's first seconds.
 // The rest follows when the field comes back round; no second Liberation, it has already gone.
 
+const FHA123 = new ActionGroup("Forte - Thus Spoke the Blade: Heavy 123", [FHA1, FHA2, FHA3]);
+
 const QY_ROTATION = new Rotation([
   OPENER,
-  HA, EBA4, HA, EBA4, ECHO_CAST,
+  HA, EBA4, HA, EBA4,
   EBA1, EBA2, EBA1, EBA2, 
-  FHA1, FHA2, FHA3, 
+  FHA123, ECHO_CANCEL, 
   OUTRO_NEXT,
 
-  INTRO, EBA3, EBA4, ECHO_CAST, START_COMBAT, Liberation, START_COMBAT, Skill, FHA1, FHA2, FHA3, OUTRO_NEXT,
+  INTRO, EBA3, EBA4, START_COMBAT, Liberation, START_COMBAT, Skill, FHA123, ECHO_CANCEL, OUTRO_NEXT,
 ]);
 
-/* ----------------------------------------------------------------------------------- loadout */
+/* ---------------------------------------------------------------------------------- loadout */
 
 // his real 43311 build: resonator + talents + both Inherent Skills, and four real echo choices —
 // Fenrico/Law of Harmony+Sierra Gale, Heron/Law of Harmony+Moonlit, Fallacy/Law of Harmony+Rejuv,
 // or Heron/full Moonlit Clouds — all automatically iterated (see kit.ts's own EchoLoadout)
-export const QY_LOADOUT = new Loadout({
-  resonator: QIUYUAN,
+export const QIUYUAN = new Loadout({
+  resonator: QIUYUAN_RESONATOR,
   talent: QIUYUAN_TALENTS,
   inherent1: QY_INHERENT_1,
   inherent2: QY_INHERENT_2,

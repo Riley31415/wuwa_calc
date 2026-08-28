@@ -23,9 +23,10 @@
  */
 import {
   Action, Attribute, Buff, Debuff, EnemyStat, Scaling, Type1, Type2,
-  addEnemyStat, applied, appliedByMe, applyEnemy, currentAction, currentTeam, queue, removeStackEnemy, revokeCurrent, revokeEnemy,
+  addEnemyStat, applied, appliedByMe, appliedByMember, applyEnemy, currentAction, currentTeam, queue, removeStackEnemy, revokeCurrent, revokeEnemy,
   frozenStacks, stacksOfEnemy,
 } from "../engine/kit.js";
+import type { TeamMember } from "../engine/kit.js";
 
 /** A shield going up, on the caster never applied to the team `applied()` being how
  *  many this cast granted. Never a stat. */
@@ -66,7 +67,7 @@ export const HAVOC_BANE = new Debuff({
  *  off `frozenStacks()`. That is Frost Creep's rule — live Frostbite calculates every gain at the
  *  max-stack rung instead, which is also what Hiyuki's Glacio Bite does with the same ladder: her
  *  own file converts the stacks and fires these rungs itself, and nothing here needs to know. */
-export const GLACIO_CHAFE_DMG = negativeStatusActions("Glacio Chafe", Attribute.Glacio, Type2.GlacioChafe, [
+export const GLACIO_CHAFE_ACTIONS = negativeStatusActions("Glacio Chafe", Attribute.Glacio, Type2.GlacioChafe, [
   24.5, 44.42, 64.34, 84.26, 104.17, 
   124.09, 144.01, 163.93, 183.85, 203.77,
   271.69, 339.61, 407.53, 
@@ -78,14 +79,14 @@ export const GLACIO_CHAFE = new Debuff({
     applyStats: () => { 
         const held = frozenStacks();
         for (let n = Math.max(1, held - applied(GLACIO_CHAFE) + 1); n <= held; n++) {
-            queue(GLACIO_CHAFE_DMG[n]!);
+            queue(GLACIO_CHAFE_ACTIONS[n]!);
         }
     },
 });
 
 /** Implosion: 15s a stack, refreshed on gain, cap 10; reaching the cap calculates in a 3m radius,
  *  0.2s cooldown. */
-export const FUSION_BURST_DMG = negativeStatusActions("Fusion Burst", Attribute.Fusion, Type2.FusionBurst, [
+export const FUSION_BURST_ACTIONS = negativeStatusActions("Fusion Burst", Attribute.Fusion, Type2.FusionBurst, [
   84, 152.29, 220.58, 288.88, 357.17, 
   425.46, 493.75, 562.04, 630.34, 698.63,
   931.5, 1164.38, 1397.26, 
@@ -97,25 +98,25 @@ export const FUSION_BURST = new Debuff({
   // rebuilds from empty. Cap is the fight's, not the declared 10.
   updateBuffs: () => {
     if (frozenStacks() < currentTeam().enemyMax(FUSION_BURST)) return;
-    queue(FUSION_BURST_DMG[frozenStacks()]!);
+    queue(FUSION_BURST_ACTIONS[frozenStacks()]!);
     revokeEnemy(FUSION_BURST);
   },
 });
 
 /** Wind Erosion: 14.8s a stack, refreshed on gain, cap 3; calculates every 3s, spending nothing.
  *  Untriggered — no clock. */
-export const AERO_EROSION_DMG = negativeStatusActions("Aero Erosion", Attribute.Aero, Type2.AeroErosion, [
+export const AERO_EROSION_ACTIONS = negativeStatusActions("Aero Erosion", Attribute.Aero, Type2.AeroErosion, [
   45, 112.5, 225, 
   337.5, 450, 562.5, 
   675, 787.5, 900, 
   1012.5, 1125, 1237.5, 
   1350, 1462.5, 1575,
 ]);
-export const AERO_EROSION = new Debuff({ name: "Aero Erosion", maxStacks: 3 });
+export const AERO_EROSION = new Debuff({ name: "Aero Erosion", maxStacks: 3 }); // todo implement
 
 /** Light Noise: 3s a stack, no refresh on gain, cap 10; calculates every 3s, dropping one stack
  *  each time. Untriggered — no clock. */
-export const SPECTRO_FRAZZLE_DMG = negativeStatusActions("Spectro Frazzle", Attribute.Spectro, Type2.SpectroFrazzle, [
+export const SPECTRO_FRAZZLE_ACTIONS = negativeStatusActions("Spectro Frazzle", Attribute.Spectro, Type2.SpectroFrazzle, [
   30, 54.39, 78.78, 103.17, 127.56, 
   151.95, 176.34, 200.73, 225.12, 249.51,
   332.68, 415.85, 499.02, 
@@ -123,8 +124,7 @@ export const SPECTRO_FRAZZLE_DMG = negativeStatusActions("Spectro Frazzle", Attr
 ]);
 export const SPECTRO_FRAZZLE = new Debuff({
   name: "Spectro Frazzle", maxStacks: 10,
-  convertStats: () => { if (currentAction() === SPECTRO_FRAZZLE_DMG[frozenStacks()]!) removeStackEnemy(SPECTRO_FRAZZLE, 1); },
-});
+});  // todo implement
 
 /** Electromagnetic: 15s a stack, refreshed on gain, cap 10; every 5s it calculates and removes 50%
  *  of the stacks. What lands past the cap banks as Electro Rage. Untriggered — no clock. */
@@ -133,39 +133,18 @@ export const ELECTRO_FLARE_DMG = negativeStatusActions("Electro Flare", Attribut
   253.25, 293.9, 334.55, 375.2, 415.85,
   554.47, 693.08, 831.7, 970.32, 1108.93, 1247.55,
 ]);
-/** Electromagnetic Burst: banked once Flare is at its cap and calculated as its own hit alongside
- *  the next Flare calculation, which consumes all of it. Real cap is 10, but only 6 rungs exist —
- *  the migrated table has no Rage rows of its own, so these are Flare's own increment past its cap
- *  (a flat `flare[10] / 3` a stack, the same rule every status table follows), and that runs out
- *  at Flare's 16th rung. */
-export const ELECTRO_RAGE_DMG = negativeStatusActions("Electro Rage", Attribute.Electro, Type2.ElectroFlare, [
-  138.62, 277.23, 415.85, 554.47, 693.08, 831.7,
+
+export const ELECTRO_RAGE_ACTIONS = negativeStatusActions("Electro Rage", Attribute.Electro, Type2.ElectroFlare, [
+  50, 90.65, 131.3, 171.95, 212.6, 
+  253.25, 293.9, 334.55, 375.2, 415.85,
+  554.47, 693.08, 831.7, 970.32, 1108.93, 1247.55,
 ]);
 export const ELECTRO_RAGE = new Debuff({
-    name: "Electro Rage", maxStacks: 6,
-    convertStats: () => { if (currentAction() === ELECTRO_RAGE_DMG[frozenStacks()]!) revokeEnemy(ELECTRO_RAGE); },
+    name: "Electro Rage", maxStacks: 10,
+    convertStats: () => { if (currentAction() === ELECTRO_RAGE_ACTIONS[frozenStacks()]!) revokeEnemy(ELECTRO_RAGE); },
 })
-export const ELECTRO_FLARE = new Debuff({
+export const ELECTRO_FLARE = new Debuff({  // todo implement
   name: "Electro Flare", maxStacks: 10,
-  // What a cast asked for minus what actually went on is what the cap ate. Only updateDebuffs can
-  // see both: `frozenStacks()` is frozen before the action, while `stacksOfEnemy()` is live and the kits
-  // inflicting have already run (enemy gear is last in this phase). A Flare not already on the
-  // target isn't in that freeze at all, so a cast overshooting the cap from zero banks nothing.
-  updateDebuffs: () => {
-    const before = frozenStacks();
-    const landed = stacksOfEnemy(ELECTRO_FLARE) - before;
-    const overflow = applied(ELECTRO_FLARE) - landed;
-    if (overflow > 0) applyEnemy(ELECTRO_RAGE, overflow);
-  },
-  // a Flare calculation fires whatever Rage is banked as its own hit alongside it...
-  updateBuffs: () => {
-    const rage = stacksOfEnemy(ELECTRO_RAGE);
-    if (rage > 0 && currentAction() === ELECTRO_FLARE_DMG[frozenStacks()]!) queue(ELECTRO_RAGE_DMG[rage]!);
-  },
-  // ...and spends half its own frozenStacks, rounded down. The Rage spends itself on its own hit.
-  convertStats: () => { 
-    if (currentAction() === ELECTRO_FLARE_DMG[frozenStacks()]!) removeStackEnemy(ELECTRO_FLARE, Math.floor(frozenStacks() / 2));
-  },
 });
 
 const NEGATIVE_STATUSES: Debuff[] = [HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, FUSION_BURST, AERO_EROSION, SPECTRO_FRAZZLE];
@@ -176,3 +155,7 @@ const NEGATIVE_STATUSES: Debuff[] = [HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, FU
  *  a marker that inflicts one off a teammate's cast (Chisa's Unseen Snare) is that marker owner's
  *  doing, not the teammate's — their weapon/sonata must not pay out for it. */
 export const inflictedNegativeStatus = (): boolean => NEGATIVE_STATUSES.some((d) => appliedByMe(d) > 0);
+
+/** The same question about one specific member — for a passive watching the whole team from
+ *  updateGlobal (Kumokiri's team half), where "me" is the holder rather than whoever is acting. */
+export const inflictedNegativeStatusBy = (member: TeamMember): boolean => NEGATIVE_STATUSES.some((d) => appliedByMember(d, member) > 0);

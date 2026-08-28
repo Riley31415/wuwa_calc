@@ -1,8 +1,8 @@
 /** Mainslot echoes and sonatas from Rinascita (versions 2.0-2.4). */
 import { isType,
-  Buff, Sonata, Sonata2pc, Mainslot, Action, Stat, Attribute, Type1, Type2, Cast, Scaling,
+  Buff, Sonata, Sonata2pc, Mainslot, EchoType, Action, Stat, Attribute, Type1, Type2, Cast, Scaling,
   addStat, frozenStacks, applyCurrent, applyTeam, casting, currentAction, revokeCurrent, getStat, queue, queueOutro,
-  revokeTeam, stacksOfEnemy,
+  revokeTeam, stacksOfEnemy, currentMember,
 } from "../engine/kit.js";
 import { applied, appliedByMe } from "../engine/kit.js";
 import { AERO_EROSION } from "../shared/status.js";
@@ -16,6 +16,7 @@ export const ACTION_SENTRY_CONSTRUCT = new Action("Echo - Sentry Construct", {
 export const SENTRY_CONSTRUCT = new Mainslot({
   name: "Sentry Construct",
   action: ACTION_SENTRY_CONSTRUCT,
+  echoType: EchoType.TRANSFORM,
   constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Glacio); addStat(Stat.DmgBonus, 12, Type1.Skill); },
 });
 
@@ -55,6 +56,7 @@ export const ACTION_NM_HERON = new Action("Echo - Nightmare: Impermanence Heron"
 export const NM_HERON = new Mainslot({
   name: "Nightmare: Impermanence Heron",
   action: ACTION_NM_HERON,
+  echoType: EchoType.TRANSFORM,
   constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Havoc); addStat(Stat.DmgBonus, 12, Type1.Heavy); },
 });
 
@@ -67,6 +69,7 @@ export const ACTION_LORELEI = new Action("Echo - Lorelei", {
 export const LORELEI = new Mainslot({
   name: "Lorelei",
   action: ACTION_LORELEI,
+  echoType: EchoType.TRANSFORM,
   constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Havoc); addStat(Stat.DmgBonus, 12, Type1.Basic); },
 });
 
@@ -97,11 +100,12 @@ export const MIDNIGHT_VEIL_5PC = new Sonata({
 // TODO check how many hits for real
 /** Dragon of Dirge, Brant's own mainslot echo — flat Fusion/Basic Attack DMG Bonus, no trigger. */
 export const ACTION_DRAGON_OF_DIRGE = new Action("Echo - Dragon of Dirge", {
-  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 36.81 * 8, energy: 0.51 * 8, active: false,
+  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 36.81 * 8, energy: 0.51 * 8,
 });
 export const DRAGON_OF_DIRGE = new Mainslot({
   name: "Dragon of Dirge",
   action: ACTION_DRAGON_OF_DIRGE,
+  echoType: EchoType.TRANSFORM,
   constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Fusion); addStat(Stat.DmgBonus, 12, Type1.Basic); },
 });
 
@@ -124,6 +128,7 @@ export const ACTION_NM_HECATE = new Action("Echo - Nightmare: Hecate", {
 export const NM_HECATE = new Mainslot({
   name: "Nightmare: Hecate",
   action: ACTION_NM_HECATE,
+  echoType: EchoType.TRANSFORM,
   constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Havoc); addStat(Stat.DmgBonus, 20, Type1.Echo); },
 });
 
@@ -137,6 +142,7 @@ export const ACTION_NM_LAMPY = new Action("Echo - Nightmare: Lampylumen Myriad",
 export const NM_LAMPY = new Mainslot({
   name: "Nightmare: Lampylumen Myriad",
   action: ACTION_NM_LAMPY,
+  echoType: EchoType.SUMMON,
   constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Glacio); addStat(Stat.DmgBonus, 30, Type2.Coordinated); },
 });
 
@@ -147,6 +153,7 @@ export const ACTION_HECATE = new Action("Echo - Hecate", { // TODO unsure on hit
 export const HECATE = new Mainslot({
   name: "Hecate",
   action: ACTION_HECATE,
+  echoType: EchoType.SUMMON,
   constantStats: () => { addStat(Stat.DmgBonus, 40, Type2.Coordinated); },
 });
 
@@ -178,6 +185,7 @@ export const ACTION_NM_KELPIE_OUTRO = new Action("Echo - Nightmare: Kelpie (outr
 export const NM_KELPIE = new Mainslot({
   name: "Nightmare: Kelpie",
   action: ACTION_NM_KELPIE,
+  echoType: EchoType.TRANSFORM,
   constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Glacio); addStat(Stat.DmgBonus, 12, Attribute.Aero); },
   updateBuffs: () => { if (casting(Cast.Outro)) queue(ACTION_NM_KELPIE_OUTRO); },
 });
@@ -204,18 +212,40 @@ export const GUSTS_OF_WELKIN_5PC = new Sonata({
 });
 export const GUSTS_OF_WELKIN_2PC = new Sonata2pc({ name: "Gusts of Welkin 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Aero) });
 
+/* --------------------------------------------------------------------------- Cartethyia, 2.4 */
+
+/** Reminiscence: Fleurdelys, the Windcleaver summon: eight 27.36% Aero hits and one 136.8%. The
+ *  main-slot wearer gets +10% Aero DMG Bonus, and another +10% when that wearer is Rover: Aero or
+ *  Cartethyia — of the two only Aero Rover exists in this calculator, so his is the only one
+ *  checked, and by name: importing his own module here would close the cycle his loadout already
+ *  opens by equipping this echo, and the loser of that race is whichever file the loader reaches
+ *  second. */
+export const ACTION_FLEURDELYS = new Action("Echo - Reminiscence: Fleurdelys", {
+  cast: Cast.Echo, element: Attribute.Aero, scaling: Scaling.Atk, type: Type1.Echo,
+  mv: 27.36 * 8 + 136.8, energy: 0.38 * 8 + 1.9,
+});
+export const FLEURDELYS = new Mainslot({
+  name: "Reminiscence: Fleurdelys",
+  action: ACTION_FLEURDELYS,
+  echoType: EchoType.SUMMON,
+  constantStats: () => {
+    addStat(Stat.DmgBonus, 10, Attribute.Aero);
+    if (currentMember().resonator?.name === "Aero Rover") addStat(Stat.DmgBonus, 10, Attribute.Aero);
+  },
+});
+
 /** Windward Pilgrimage, the other Aero Erosion sonata. 2pc: +10% Aero DMG Bonus flat. 5pc:
  *  hitting a target that already carries Aero Erosion grants +10% Crit. Rate and +30% Aero DMG
  *  Bonus for 10s — a short self window, so lost after the outro. Unlike Gusts of Welkin above the
  *  trigger is the hit, not the inflict: `stacksOfEnemy`, so any hit while the status stands pays,
  *  including on Erosion a teammate put there. */
-export const WINDWARD_PILGRIMAGE_2PC = new Sonata2pc({ name: "Windward Pilgrimage 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Aero) });
-export const WINDWARD_PILGRIMAGE_5PC = new Sonata({
+export const WINDWARD_2PC = new Sonata2pc({ name: "Windward Pilgrimage 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Aero) });
+export const WINDWARD_5PC = new Sonata({
   name: "Windward Pilgrimage 5pc",
-  updateBuffs: () => { if (stacksOfEnemy(AERO_EROSION) > 0) applyCurrent(WINDWARD_PILGRIMAGE_BUFF, 1); },
+  updateBuffs: () => { if (stacksOfEnemy(AERO_EROSION) > 0) applyCurrent(WINDWARD_BUFF, 1); },
 });
-export const WINDWARD_PILGRIMAGE_BUFF = new Buff({
+export const WINDWARD_BUFF = new Buff({
   name: "Windward Pilgrimage",
   applyStats: () => { addStat(Stat.CritRate, 10); addStat(Stat.DmgBonus, 30, Attribute.Aero); },
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(WINDWARD_PILGRIMAGE_BUFF); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(WINDWARD_BUFF); },
 });

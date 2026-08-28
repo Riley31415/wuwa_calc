@@ -7,6 +7,7 @@
 - nanoka.cc is the source of truth; `migration/` data is only a sanity check (and a source of action MVs)
 - NEVER invent missing forte values — ask for them
 - forte deltas go on the action (`forte1`..`forte5`), never via manual set calls; they can go negative when spent, so no bounds/maximums
+- a cast that drains a gauge whole ("depletes all", "consumes the whole bar") declares the cap as its negative delta (`forte1: -200`) and clamps the gauge to that cap in its own `updateBuffs` (`if (forte1() > 200) setForte1(200)`) so the delta lands exactly at 0 — never `setForteN(0)`
 - forte/concerto/energy a kit lists elsewhere for a cast go directly on that action
 - an inherent that applies only to specific actions = a buff added and removed on just those actions
 - flat, unconditional equipment stats go in `constantStats`; anything conditional stays in `applyStats`

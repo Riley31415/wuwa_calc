@@ -12,7 +12,7 @@ import {
   revokeTeam, addStat,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, START_COMBAT, OPENER, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, START_COMBAT, OPENER, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { SK_SIG } from "../../weapons/rectifier.js";
 import { VARIATION } from "../../weapons/standard.js";
@@ -49,7 +49,7 @@ const Liberation = skAction("Liberation - End Loop", {
 });
 
 const Intro = skAction("Intro - Enlightenment", { node: Node.Intro, cast: Cast.Intro, type: Type1.Skill, mv: 226.5, energy: 10, concerto: 20, offtune: 11395 });
-// replaces plain Intro when SK_REALM is Supernal (see SHOREKEEPER's own intro() below); scales
+// replaces plain Intro when SK_REALM is Supernal (see SHOREKEEPER_RESONATOR's own intro() below); scales
 // off HP, counts as liberation damage, always crits, and ends the realm on resolving
 const EIntro = skAction("Intro - Discernment", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Liberation, scaling: Scaling.Hp, mv: 58.92,
@@ -73,7 +73,7 @@ const Outro = skAction("Outro - Binary Butterfly", {
 
 /** The realm, as one team-wide buff whose stack count *is* the stage: 1 Outer (heals only, no
  *  stat), 2 Inner (+12.5% Crit Rate), 3 Supernal (also +25% Crit Dmg). Evolves on any outro; ends
- *  only when Discernment plays (see SHOREKEEPER's own updateBuffs() below). */
+ *  only when Discernment plays (see SHOREKEEPER_RESONATOR's own updateBuffs() below). */
 const REALM_STAGE = ["Outer", "Inner", "Supernal"];
 
 const SK_REALM = new Buff({
@@ -111,7 +111,7 @@ const SK_INHERENT_2 = new Inherent({
   },
   updateGlobal: () => {
     // gated on the realm being up, not unconditional — otherwise this would re-grant Rover's
-    // copy right back after SHOREKEEPER's own updateBuffs() revokes it on EIntro
+    // copy right back after SHOREKEEPER_RESONATOR's own updateBuffs() revokes it on EIntro
     if (!stacksOfTeam(SK_REALM)) return;
     const rover = currentTeam().slots.find((s) => s.resonator?.name.includes("Rover"))?.resonator;
     if (rover) addBuff(rover, SK_ROVER_GRAVITATION);
@@ -120,7 +120,7 @@ const SK_INHERENT_2 = new Inherent({
 
 const SK_INHERENT_1 = new Inherent({ name: "Shorekeeper: Life Entwined" }); // revive
 
-const SHOREKEEPER = new Resonator({
+const SHOREKEEPER_RESONATOR = new Resonator({
   name: "Shorekeeper",
   element: Attribute.Spectro,
   weapon: WeaponType.Rectifier,
@@ -165,15 +165,15 @@ const SK_LOOP = new Rotation([
   BA1, BA2, FHA,
   INTRO, BA123, MA, FHA,
   START_COMBAT, Skill, START_COMBAT,
-  ECHO_CAST, Liberation, OUTRO_NEXT,
+  ECHO_CANCEL, Liberation, OUTRO_NEXT,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
-export const SK_LOADOUT = new Loadout({
-  resonator: SHOREKEEPER,
+export const SHOREKEEPER = new Loadout({
+  resonator: SHOREKEEPER_RESONATOR,
   talent: SHOREKEEPER_TALENTS,
   inherent1: SK_INHERENT_1,
   inherent2: SK_INHERENT_2,

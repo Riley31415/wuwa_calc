@@ -17,14 +17,13 @@
  * repaint the progress bar mid-team; with the work off-thread there is nothing to repaint around,
  * and the fallback path yields between whole teams instead — ~25ms apiece, fine for a bar.
  */
-import { State, withTeam, equip, setTracing, Buff, Loadout, EchoLoadout, Weapon } from "./kit.js";
-import type { ChainGroup, ResolvedSnapshot } from "./kit.js";
+import { State, withTeam, equip, equipEnemy, setTracing, Buff, Loadout, EchoLoadout, Weapon, baseSequence } from "./kit.js";
+import type { ChainGroup, ResolvedSnapshot, Matrix } from "./kit.js";
 import { runRotations } from "./rotation.js";
 import { damage, mvPercent } from "./damage.js";
-import { armTuneBreak } from "../shared/tunebreak.js";
+import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
 import type { Report } from "./display.js";
-import { LOADOUTS } from "./teams.js";
-import type { LoadoutName } from "./teams.js";
+import { teamAt } from "./teams.js";
 
 export interface Member {
   name: string;
@@ -46,7 +45,10 @@ export const member = (loadout: Loadout, mainDps = false): Member =>
   ({ name: loadout.resonator.name, color: loadout.resonator.color, loadout, mainDps });
 
 
-export interface Combo { weapon: Weapon; echo: EchoLoadout; mainstat: Buff; sequence: number; key: string; }
+/** `matrix` is the piece actually worn: this loadout's own Matrix when Matrix Mode is on and it
+ *  has one, else null — so a row of a team nobody's Matrix reaches keys and caches exactly as it
+ *  did with the box off. */
+export interface Combo { weapon: Weapon; echo: EchoLoadout; mainstat: Buff; sequence: number; matrix: Matrix | null; key: string; }
 
 /** The comparison table's own filter state — every axis a member's build varies on (weapon, echo,
  *  main stats, sequence level), split by role, plus the two R1 allowances. This decides which
@@ -64,34 +66,40 @@ export interface Filters {
   mdpsEchoes: boolean; supportEchoes: boolean;
   mdpsMainstats: boolean; supportMainstats: boolean;
   allowR1Mdps: boolean; allowR1Supports: boolean;
+  /** Matrix Mode: every loadout that declares a Matrix wears it (shared/matrix.ts). */
+  matrix: boolean;
 }
 
 /** One member's own pick: indices into their loadout's three gear lists, plus how many resonance
- *  chain nodes are held. What `optimizeTeam()` searches over and `comboOf()` turns into real gear
- *  — except `sequence`, which is never searched (see `sequenceLevels()`). */
-export interface Pick { weapon: number; echo: number; mainstat: number; sequence: number; }
+ *  chain nodes are held and whether Matrix Mode is on. What `optimizeTeam()` searches over and
+ *  `comboOf()` turns into real gear — except `sequence` and `matrix`, which are never searched
+ *  (see `sequenceLevels()`; `matrix` is the table's own box, carried so a row keys by it). */
+export interface Pick { weapon: number; echo: number; mainstat: number; sequence: number; matrix: boolean; }
 
-export const comboOf = (l: Loadout, p: Pick): Combo => ({
-  weapon: l.weapons[p.weapon]!, echo: l.echoLoadouts[p.echo]!, mainstat: l.mainstats[p.mainstat]!,
-  sequence: p.sequence, key: `${p.weapon}.${p.echo}.${p.mainstat}.s${p.sequence}`,
-});
+export const comboOf = (l: Loadout, p: Pick): Combo => {
+  const matrix = p.matrix && l.matrix ? l.matrix : null;
+  return {
+    weapon: l.weapons[p.weapon]!, echo: l.echoLoadouts[p.echo]!, mainstat: l.mainstats[p.mainstat]!,
+    sequence: p.sequence, matrix, key: `${p.weapon}.${p.echo}.${p.mainstat}.s${p.sequence}${matrix ? ".m" : ""}`,
+  };
+};
 
-/** Which sequence levels a member's own rows cover. Nothing here is optimized — a chain node is
- *  never a trade-off, it's strictly more kit — so for a limited resonator with that role's
- *  Sequences box open, every level the loadout can reach gets a row of its own, S0 through S6,
- *  purely so the gain from each is readable; with the box closed, S0 alone. A `standardCharacter`
- *  is the exception at both ends: their chain comes with the character, so they're only ever run
- *  (and only ever costed) at full. A loadout that declares no nodes has only S0 regardless. */
+/** Which sequence levels a member's own rows cover, baseline first. Nothing here is optimized — a
+ *  chain node is never a trade-off, it's strictly more kit — so with that role's Sequences box
+ *  open, every level from this resonator's own baseline up to whatever the loadout can reach gets
+ *  a row of its own, purely so the gain from each is readable; with the box closed, the baseline
+ *  alone. The baseline is how hard the resonator is to own (`baseSequence()`): S0 for a limited
+ *  5-star, S2 for a standard one, S6 for a 4-star or Rover — and a `Tier.Free` resonator is at the
+ *  top already, so their chain comes with the character and no level is left to compare. A
+ *  loadout that declares no nodes has only S0 regardless. */
 export function sequenceLevels(m: Member, filters: Filters): number[] {
   const l = m.loadout;
   const max = l.sequences.length;
   if (!max) return [0];
-  // a standard character's chain comes with the character rather than being pulled for, so there's
-  // no partial level worth comparing — they only ever run at full, box or no box
-  if (l.resonator.standardCharacter) return [max];
+  const base = Math.min(baseSequence(l.resonator), max);
   return (m.mainDps ? filters.mdpsSequences : filters.supportSequences)
-    ? Array.from({ length: max + 1 }, (_, i) => i)
-    : [0];
+    ? Array.from({ length: max - base + 1 }, (_, i) => base + i)
+    : [base];
 }
 
 /** Which of a loadout's own weapons this role may actually run right now — everything when its R1
@@ -263,6 +271,7 @@ export function optimizeTeam(teamKey: string, members: Member[], filters: Filter
     weapon: eligibleWeapons(m, filters)[0] ?? 0, echo: 0, mainstat: 0,
     // the level a closed box would show — the search never varies it, the row set does
     sequence: sequenceLevels(m, filters)[0]!,
+    matrix: filters.matrix,
   }));
   const run = (): TeamRun => trialRun(teamKey, members, picks);
 
@@ -472,7 +481,7 @@ function sumSection(lines: ChainGroup[], avgOf: (line: ChainGroup) => number): {
   for (const line of lines) {
     if (line.mv === 0) continue;
     // `.slot`, not `.member`: they're the same for every ordinary action, but a tune break carries
-    // its own bucket (tunebreak.ts's own `TUNE_BREAK_SLOT`, declared on the action itself) so the
+    // its own bucket (the enemy's name, declared on the action itself — tunebreak.ts) so the
     // team's shared bar going off doesn't land on whichever resonator happened to be on field.
     // display.ts's own `totalsBySlot()` groups the detail page the same way.
     const slot = (line.snap as ResolvedSnapshot).slot;
@@ -518,7 +527,7 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
   const state = new State(members.map((m) => m.name));
   members.forEach((m, i) => {
     state.active = i;
-    withTeam(state, () => { for (const g of m.loadout.pieces(combo[i]!.weapon, combo[i]!.echo, combo[i]!.mainstat, combo[i]!.sequence)) equip(g, 1); });
+    withTeam(state, () => { for (const g of m.loadout.pieces(combo[i]!.weapon, combo[i]!.echo, combo[i]!.mainstat, combo[i]!.sequence, combo[i]!.matrix !== null)) equip(g, 1); });
     const alts = variants?.[i];
     if (alts?.length) {
       const slot = state.slots[i]!;
@@ -529,10 +538,10 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
     }
   });
   state.active = 0;
-  // the shared off-tune bar's own watcher, put on the target the same way everyone's gear was just
-  // put on them — it fires the Tune Break itself from there, and is the only thing that knows how
-  // (see tunebreak.ts). This is the one file every path that runs a team goes through.
-  withTeam(state, armTuneBreak);
+  // the enemy, equipped the same way everyone's gear was just put on them: the Tune Break
+  // resonator fires the break itself and puts its own Base Resistance on at start of combat (see
+  // tunebreak.ts). This is the one file every path that runs a team goes through.
+  withTeam(state, () => equipEnemy(TUNE_BREAK_ENEMY));
 
   // Four sections: the opener and three loops, exactly what the report's own columns show. The
   // scheduler runs one continuous fight rather than four separate passes (rotation.ts) and cuts a
@@ -547,11 +556,18 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
   // where that actually gets built.
   const { total, bySlot, sectionTotals, sectionBySlot } = sumRun(rotationLines, (line) => line.avg);
   // ...and the same again per variant, counting a varied member's own actions at that variant's
-  // damage and everyone else's as they were
+  // damage and everyone else's as they were. A grouped line (an ActionGroup, a folded repeat) is
+  // every hit's sum but carries only its last hit's snapshot, so its hits are swapped one by one
+  // out of `parts` — reading `line.snap` alone would drop every hit but the last.
+  const variantAvgOf = (snap: ResolvedSnapshot, avg: number, m: Member, v: number): number =>
+    (snap.member === m.name && snap.variantAvg !== null ? snap.variantAvg[v]! : avg);
   const variantRuns = members.map((m, i) => (variants?.[i] ?? []).map((_, v) => ({
     ...sumRun(rotationLines, (line) => {
-      const snap = line.snap as ResolvedSnapshot;
-      return snap.member === m.name && snap.variantAvg !== null ? snap.variantAvg[v]! : line.avg;
+      if (!line.isChain) return variantAvgOf(line.snap as ResolvedSnapshot, line.avg, m, v);
+      const hits = new Set(line.members ?? []);
+      let avg = line.avg;
+      for (const p of line.parts) if (hits.has(p.snap)) avg += variantAvgOf(p.snap, p.dmg.avg, m, v) - p.dmg.avg;
+      return avg;
     }),
     unsafe: state.slots[i]!.variantUnsafe[v]!,
   })));
@@ -560,12 +576,15 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
 }
 
 
-/** Resolve a team from the loadout names a worker was handed (see teams.ts) — a `Loadout` is
- *  closures all the way down, so it can't cross a postMessage; its name can. `dpsIndex` travels
- *  alongside since which member is the main DPS is a per-team fact (teams.ts's own
- *  `TeamEntry.dpsIndex`), not something the resolved `Loadout` itself carries. */
-export const teamFromNames = (names: LoadoutName[], dpsIndex: number): Member[] =>
-  names.map((n, i) => member(LOADOUTS[n], i === dpsIndex));
+/** Resolve a team from the key a worker was handed (see teams.ts) — a `Loadout` is closures all
+ *  the way down, so it can't cross a postMessage, but where the team sits in `ALL_TEAMS` can, and
+ *  both threads build that list out of the same module. Which member is the main DPS comes back
+ *  with it (teams.ts's own `TeamEntry.dpsIndex`), not something the `Loadout` itself carries. */
+export const teamFromKey = (key: string): Member[] => {
+  const team = teamAt(key);
+  if (!team) throw new Error(`no team is named ${key}`);
+  return team.loadouts.map((l, i) => member(l, i === team.dpsIndex));
+};
 
 /** Every whole-team combo of `lists`' own picks — `lists[0]`'s every entry against `lists[1]`'s
  *  every entry against ..., the plain N-way cartesian product, with no pruning of its own: the
@@ -713,10 +732,9 @@ export function solveTeam(teamKey: string, members: Member[], filters: Filters):
 
 /* ------------------------------------------------------------------ worker protocol */
 
-/** One team handed to a worker. Members travel as loadout *names* (see `teamFromNames()`), and the
- *  filter flags travel with them since a worker can't see the page's own state. `dpsIndex` is that
- *  team's own main-DPS position (teams.ts's own `TeamEntry.dpsIndex`). */
-export interface SolveRequest { id: number; teamKey: string; loadouts: LoadoutName[]; dpsIndex: number; filters: Filters }
+/** One team handed to a worker: the team's own key, which is the whole of what rebuilding it there
+ *  takes (see `teamFromKey()`), plus the filter flags, since a worker can't see the page's state. */
+export interface SolveRequest { id: number; teamKey: string; filters: Filters }
 
 /** One team's solved answer: its best build per member, and the picks for every row the table will
  *  show it as (see `rowPicks()`). */
@@ -747,7 +765,7 @@ if (typeof document === "undefined") {
     postMessage: (message: SolveResponse) => void;
   };
   ctx.onmessage = ({ data }) => {
-    const solved = solveTeam(data.teamKey, teamFromNames(data.loadouts, data.dpsIndex), data.filters);
+    const solved = solveTeam(data.teamKey, teamFromKey(data.teamKey), data.filters);
     ctx.postMessage({ id: data.id, ...solved });
   };
 }

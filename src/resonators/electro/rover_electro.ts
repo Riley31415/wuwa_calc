@@ -1,6 +1,6 @@
 /**
  * Rover: Electro, ported to the new engine — a standard/permanent-banner 5-star
- * (`standardCharacter: true`), all six sequence nodes folded into the loadout unconditionally,
+ * (`Tier.Free`), all six sequence nodes folded into the loadout unconditionally,
  * each owning its own trigger. Electric Surge (forte1, 0-100%) opens Overshock, which either
  * presses for the team ATK buff or holds into Apex Resonance; Thunder Rage (forte2) is what Apex
  * itself burns while Thrum of All Sounds is unlocked.
@@ -13,12 +13,12 @@
  * the damage dealer, so nothing below enters Apex.
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, applyCurrent, applyTeam, revokeTeam, isHeld, revokeCurrent, casting, currentAction, addStat,
   queue, queueOutro, forte1, setForte1, lostOnSwap,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { applyEnemy } from "../../engine/kit.js";
 import { ELECTRO_FLARE, inflictedNegativeStatus, HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
@@ -115,7 +115,7 @@ const APEX_RESONANCE = new Buff({
 const OVERSHOCK_ATK = new Buff({
   name: "Electro Rover: Overshock ATK",
   applyStats: () => addStat(Stat.BonusAtk, 10),
-  convertStats: () => { if (casting(Cast.Intro) && isHeld(ROVER_ELECTRO)) revokeTeam(OVERSHOCK_ATK); },
+  convertStats: () => { if (casting(Cast.Intro) && isHeld(ROVER_ELECTRO_RESONATOR)) revokeTeam(OVERSHOCK_ATK); },
 });
 
 /** Decipher (Inherent Skill): Overshock's own 10 stacks of Electro Flare, declared on both
@@ -154,7 +154,7 @@ const ER_OUTRO = new Buff({
 });
 
 /* -------------------------------------------------------------------------------- sequences */
-// All six live here as their own always-equipped gear pieces (standardCharacter), each owning its
+// All six live here as their own always-equipped gear pieces (Tier.Free), each owning its
 // own trigger rather than the central Resonator updateBuffs() below.
 
 // S1 Celestial Ingenuity: interruption resistance only — a genuine no-op, held for the name
@@ -191,8 +191,8 @@ const ER_S6 = new Sequence({
 });
 
 /** Them, as a Resonator: name/element/weapon, every grant/spend/queue rule their kit needs, and
- *  their own base stat line. `standardCharacter: true` — see the file header. */
-const ROVER_ELECTRO = new Resonator({
+ *  their own base stat line. `Tier.Free` — see the file header. */
+const ROVER_ELECTRO_RESONATOR = new Resonator({
   name: "Electro Rover",
   element: Attribute.Electro,
   weapon: WeaponType.Sword,
@@ -200,7 +200,7 @@ const ROVER_ELECTRO = new Resonator({
   outro: () => Outro,
   color: "#b98ce8",
   maxEnergy: 125,
-  standardCharacter: true,
+  tier: Tier.Free,
 
   updateDebuffs: () => {
     const a = currentAction();
@@ -229,15 +229,15 @@ const ROVER_ELECTRO_TALENTS = new Talent({
 const BA1234 = new ActionGroup("Basic - Deterrence 1234", [BA1, BA2, BA3, BA4]);
 
 const ER_ROTATION = new Rotation([
-  INTRO, BA1234, Skill, Repel, Overshock, Liberation, ECHO_CAST, OUTRO_NEXT,
+  INTRO, BA1234, Skill, Repel, Overshock, Liberation, ECHO_OUTRO, OUTRO_NEXT,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
 // their real build: resonator + talents + both Inherent Skills + every sequence node
-// (standardCharacter — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat
-export const EROVER_LOADOUT = new Loadout({
-  resonator: ROVER_ELECTRO,
+// (Tier.Free — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat
+export const ROVER_ELECTRO = new Loadout({
+  resonator: ROVER_ELECTRO_RESONATOR,
   talent: ROVER_ELECTRO_TALENTS,
   inherent1: ER_INHERENT_1,
   inherent2: ER_INHERENT_2,

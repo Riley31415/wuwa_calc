@@ -38,14 +38,14 @@ import {
   revokeCurrent, revokeTeam, stacksOfEnemy, setForte1, setForte2, lostOnSwap, forte1, forte2,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT, START_COMBAT } from "../../engine/rotation.js";
+import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT, START_COMBAT } from "../../engine/rotation.js";
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_SHIFTING, TUNE_STRAIN_INTERFERED, tuneStrainBonus } from "../../shared/tunebreak.js";
 import { BLAZING_BRILLIANCE, GLINT_OF_CLOUDS, RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS, NEW_STD_SWORD } from "../../weapons/standard.js";
 import { CALAMITY_EFFIGY, HEART_OF_EVILS_PURGE_5PC, HEART_OF_EVILS_PURGE_2PC } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
-import { FROSTY_RESOLVE_SKILL_DMG } from "../../echoes/rinascita.js";
+import { FROSTY_RESOLVE_SKILL_DMG, NM_KELPIE, WINDWARD_2PC, WINDWARD_5PC } from "../../echoes/rinascita.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -84,7 +84,7 @@ const Skill = qxAction("Skill - Severing Note: Judgement", { node: Node.Skill, c
 const Ascendant = qxAction("Skill - Severing Note: Ascendant", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 94.66, energy: 1.71, concerto: 3.40, offtune: 5440, forte2: 9.09 });
 
 // --- Ephemeral Transcendence: the basics bank Heart Sword Intent (forte1, cleared by the Heavy
-//     on the way in) and, while it's short of full, deal double — see EPHEMERAL and QINGXIAO's own
+//     on the way in) and, while it's short of full, deal double — see EPHEMERAL and QINGXIAO_RESONATOR's own
 //     applyStats. Heaven's Reckoning spends it all and ends the state. Stage 1 is the table's own
 //     row (a 22.45% hit more than nanoka's). Both dodge counters carry +10 Concerto (CLAUDE.md).
 const FBA1 = qxAction("Forte - Ephemeral Transcendence 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 112.24, energy: 2.04, concerto: 4.05, offtune: 6450, forte1: 25.55 ,
@@ -207,7 +207,7 @@ const QX_INHERENT_1 = new Inherent({
  *  2% more DMG per stack of Mindlock, and 5% more again per stack for the first seven — and the
  *  Forte Circuit's own Mindlock line amplifies those same casts by the same amount, so both halves
  *  are read off the target here (the migrated sheet's own split: one Amp, one DMG Bonus). The extra
- *  Mindlock per Interfered is inflicted with the break itself, see QINGXIAO's own updateGlobal. */
+ *  Mindlock per Interfered is inflicted with the break itself, see QINGXIAO_RESONATOR's own updateGlobal. */
 const QX_INHERENT_2 = new Inherent({
   name: "Qingxiao: To Know, To Banish",
   // its own Mindlock, on top of the Forte Circuit's: one more per Tune Strain - Interfered the team
@@ -228,7 +228,7 @@ const QINGXIAO_TALENTS = new Talent({
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
 });
 
-const QINGXIAO = new Resonator({
+const QINGXIAO_RESONATOR = new Resonator({
   name: "Qingxiao",
   element: Attribute.Aero,
   weapon: WeaponType.Sword,
@@ -281,16 +281,17 @@ const QX_ROTATION = new Rotation([
   START_COMBAT, Liberation, START_COMBAT,
   INTRO, MA123, BA3, BA4, Skill, HA,
   FBA1234, FHA,
-  Liberation, ECHO_CAST, OUTRO_NEXT,
+  Liberation, ECHO_OUTRO, OUTRO_NEXT,
 ]);
 
-export const QX_LOADOUT = new Loadout({
-  resonator: QINGXIAO,
+export const QINGXIAO = new Loadout({
+  resonator: QINGXIAO_RESONATOR,
   talent: QINGXIAO_TALENTS,
   inherent1: QX_INHERENT_1,
   inherent2: QX_INHERENT_2,
   weapons: [GLINT_OF_CLOUDS, EMERALD_OF_GENESIS, NEW_STD_SWORD, RED_SPRING],
-  echoLoadouts: [new EchoLoadout(CALAMITY_EFFIGY, HEART_OF_EVILS_PURGE_5PC, HEART_OF_EVILS_PURGE_2PC)],
+  echoLoadouts: [new EchoLoadout(CALAMITY_EFFIGY, HEART_OF_EVILS_PURGE_5PC, HEART_OF_EVILS_PURGE_2PC),
+      new EchoLoadout(NM_KELPIE, WINDWARD_5PC, WINDWARD_2PC),],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
   substat: chem("atk", "heavy"),
     rotation: QX_ROTATION,

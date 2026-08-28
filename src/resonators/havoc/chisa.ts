@@ -66,7 +66,7 @@ import {
   setForte1,
   forte1,
 } from "../../engine/kit.js";
-import { Rotation, START_COMBAT_NON_OPENER, OPENER, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, OPENER, INTRO, ECHO_OUTRO, OUTRO_NEXT, START_COMBAT } from "../../engine/rotation.js";
 import {
   HEALS, SHIELD, HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, FUSION_BURST, AERO_EROSION, SPECTRO_FRAZZLE, ELECTRO_RAGE,
   inflictedNegativeStatus,
@@ -276,7 +276,7 @@ const CHISA_TALENTS = new Talent({
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
 });
 
-const CHISA = new Resonator({
+const CHISA_RESONATOR = new Resonator({
   name: "Chisa",
   element: Attribute.Havoc,
   weapon: WeaponType.Broadblade,
@@ -298,15 +298,15 @@ const CHISA = new Resonator({
  *  Serrated Loop's Hold once it's full, and the Blitz Hold chain into Eradication to spend it back
  *  down (saturating RING_CONSUMED's own 100-point cap) and trade the Convergence buff away. */
 const CS_ROTATION = new Rotation([
-  START_COMBAT_NON_OPENER, Skill, START_COMBAT_NON_OPENER,
+  START_COMBAT, Skill, START_COMBAT,
 
-  OPENER, BA1, Skill, BA3, DeathSnip, DeathSnipSpread, ThreadWithdrawn, Liberation,
+  OPENER, BA3, DeathSnipSpread, ThreadWithdrawn, Liberation,
   SerratedLoop, Blitz2Hold, Blitz3Hold, Eradication,
-  ECHO_CAST, OUTRO_NEXT,
+  ECHO_OUTRO, OUTRO_NEXT,
 
-  INTRO, Skill, BA3, DeathSnip, DeathSnipSpread, Liberation,
+  INTRO, Skill, BA3, DeathSnipSpread, Liberation,
   SerratedLoop, Blitz2Hold, Blitz3Hold, Eradication,
-  ECHO_CAST, OUTRO_NEXT,
+  ECHO_OUTRO, OUTRO_NEXT,
 ]);
 
 const CS_ECHOES = [
@@ -319,8 +319,8 @@ const CS_ECHOES = [
   new EchoLoadout(FALLACY, REJUV_5PC, REJUV_2PC),
 ];
 
-export const CHISA_LOADOUT = new Loadout({
-  resonator: CHISA,
+export const CHISA = new Loadout({
+  resonator: CHISA_RESONATOR,
   talent: CHISA_TALENTS,
   inherent1: CS_INHERENT_1,
   inherent2: CS_INHERENT_2,

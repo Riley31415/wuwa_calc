@@ -1,6 +1,6 @@
 /**
  * Rover: Havoc, ported to the new engine — a standard/permanent-banner 5-star
- * (`standardCharacter: true`), all six sequence nodes folded into the loadout unconditionally,
+ * (`Tier.Free`), all six sequence nodes folded into the loadout unconditionally,
  * each owning its own trigger. Umbra (forte1, 0-100) gates Dark Surge: at full, Devastation opens
  * it, re-numbering Basic/Heavy Attack into Enhanced forms and replacing Wingblade with Lifetaker —
  * no stated duration, so lost after the outro action per the standing rule.
@@ -10,12 +10,12 @@
  * Damage Data's own Energy/Elemental DMG columns, offtune off Weakness Break DMG x10000).
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, Stat, EnemyStat, Attribute,
+  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, Stat, EnemyStat, Attribute,
   WeaponType, Type1, Cast, Node, Scaling, applyCurrent, applyEnemy, revokeEnemy, isHeld, revokeCurrent, casting,
   currentAction, addStat, addEnemyStat, Debuff,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, START_COMBAT, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, START_COMBAT, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";
@@ -112,12 +112,12 @@ const RH_INHERENT_2 = new Inherent({
 const S4_RES_SHRED = new Debuff({
   name: "Havoc Rover S4: Annihilated Silence",
   applyStats: () => addEnemyStat(EnemyStat.ResShred, 10, Attribute.Havoc),
-  convertStats: () => { if (casting(Cast.Intro) && isHeld(ROVER_HAVOC)) revokeEnemy(S4_RES_SHRED); },
+  convertStats: () => { if (casting(Cast.Intro) && isHeld(ROVER_HAVOC_RESONATOR)) revokeEnemy(S4_RES_SHRED); },
 });
 
 /** Him, as a Resonator: name/element/weapon, every grant/spend/queue rule his kit needs, and his
- *  own base stat line. `standardCharacter: true` — see the file header. */
-const ROVER_HAVOC = new Resonator({
+ *  own base stat line. `Tier.Free` — see the file header. */
+const ROVER_HAVOC_RESONATOR = new Resonator({
   name: "Havoc Rover",
   element: Attribute.Havoc,
   weapon: WeaponType.Sword,
@@ -125,7 +125,7 @@ const ROVER_HAVOC = new Resonator({
   outro: () => Outro,
   color: "#7c6fd6",
   maxEnergy: 125,
-  standardCharacter: true,
+  tier: Tier.Free,
 
   constantStats: () => {
     addStat(Stat.BaseHp, 10825); addStat(Stat.BaseAtk, 413); addStat(Stat.BaseDef, 1259);
@@ -139,7 +139,7 @@ const ROVER_TALENTS = new Talent({
 });
 
 /* -------------------------------------------------------------------------------- sequences */
-// All six live here as their own always-equipped gear pieces (standardCharacter), each owning
+// All six live here as their own always-equipped gear pieces (Tier.Free), each owning
 // its own trigger rather than the central Resonator updateBuffs() above.
 
 const ROVER_S1 = new Sequence({
@@ -181,15 +181,15 @@ const RH_ROTATION = new Rotation([
   INTRO, BA12345,
   Skill, Devastation, ESkill,
   EBA12345,
-  START_COMBAT, Liberation, START_COMBAT, ECHO_CAST, OUTRO_NEXT,
+  START_COMBAT, Liberation, START_COMBAT, ECHO_OUTRO, OUTRO_NEXT,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
 // his real 43311 build: resonator + talents + both Inherent Skills + Forte Circuit + all six
-// sequence nodes (standardCharacter), weapon, mainslot echo, sonata pieces, mainstat/substat
-export const HROVER_LOADOUT = new Loadout({
-  resonator: ROVER_HAVOC,
+// sequence nodes (Tier.Free), weapon, mainslot echo, sonata pieces, mainstat/substat
+export const ROVER_HAVOC = new Loadout({
+  resonator: ROVER_HAVOC_RESONATOR,
   talent: ROVER_TALENTS,
   inherent1: RH_INHERENT_1,
   inherent2: RH_INHERENT_2,

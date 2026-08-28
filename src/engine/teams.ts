@@ -8,159 +8,142 @@
  * Position matters: whoever is 1st runs their `opener`, and the rotations of the two behind them
  * are built around it — see solver.ts's own `runTeam()`.
  *
- * `LOADOUTS` is also the page's one loadout registry: a Worker cannot be handed a `Loadout`
- * (postMessage structured-clones, and a Loadout is closures all the way down), so the main thread
- * sends a team as the *names* of its members' loadouts and the worker resolves them here against
- * its own copy of this module. See solver.ts's own `teamFromNames()`.
+ * A Worker cannot be handed a team (postMessage structured-clones, and a `Loadout` is closures
+ * all the way down), so what crosses the wire is a team's own *key*: where it sits in
+ * `ALL_TEAMS`, the one list both threads build identically out of this file. See `teamKey()`
+ * and `teamAt()` below, and solver.ts's own `teamFromKey()`.
  */
 import type { Loadout } from "./kit.js";
-import { QY_LOADOUT } from "../resonators/aero/qiuyuan.js";
-import { CANTA_LOADOUT } from "../resonators/havoc/cantarella.js";
-import { FROLO_LOADOUT } from "../resonators/havoc/phrolova.js";
-import { SK_LOADOUT } from "../resonators/spectro/shorekeeper.js";
-import { UNO_LOADOUT } from "../resonators/aero/iuno.js";
-import { JINGOAT_LOADOUT } from "../resonators/fusion/jingran.js";
-import { ZZ_LOADOUT } from "../resonators/glacio/zhezhi.js";
-import { LOTTA_LOADOUT } from "../resonators/glacio/carlotta.js";
-import { GEEK_LOADOUT } from "../resonators/aero/sigrika.js";
-import { VERINA_LOADOUT } from "../resonators/spectro/verina.js";
-import { SANHUA_LOADOUT } from "../resonators/glacio/sanhua.js";
-import { HROVER_LOADOUT } from "../resonators/havoc/rover_havoc.js";
-import { EROVER_LOADOUT } from "../resonators/electro/rover_electro.js";
-import { AROVER_LOADOUT } from "../resonators/aero/rover_aero.js";
-import { SROVER_LOADOUT } from "../resonators/spectro/rover_spectro.js";
-import { CIA_LOADOUT } from "../resonators/aero/ciaccona.js";
-import { ROCCIA_LOADOUT } from "../resonators/havoc/roccia.js";
-import { AUGUGU_LOADOUT } from "../resonators/electro/augusta.js";
-import { LOPA_LOADOUT } from "../resonators/fusion/lupa.js";
-import { GLOB_LOADOUT, GLOB_LOADOUT_ECHO_FOCUS } from "../resonators/fusion/galbrena.js";
-import { BRANT_LOADOUT } from "../resonators/fusion/brant.js";
-import { ENCORE_LOADOUT } from "../resonators/fusion/encore.js";
-import { CHANGLI_LOADOUT } from "../resonators/fusion/changli.js";
-import { DANJIN_LOADOUT } from "../resonators/havoc/danjin.js";
-import { CAMMY_LOADOUT } from "../resonators/havoc/camellya.js";
-import { MORT_LOADOUT } from "../resonators/fusion/mortefi.js";
-import { BULING_LOADOUT } from "../resonators/electro/buling.js";
-import { CHISA_LOADOUT } from "../resonators/havoc/chisa.js";
-import { HIYUKI_LOADOUT } from "../resonators/glacio/hiyuki.js";
-import { LUCILLA_LOADOUT, LUCILLA_LOADOUT_CHAFE } from "../resonators/glacio/lucilla.js";
-import { LYN_RUPTURE, LYN_STRAIN } from "../resonators/spectro/lynae.js";
-import { MORNYE_LOADOUT } from "../resonators/fusion/mornye.js";
+import { CIACCONA } from "../resonators/aero/ciaccona.js";
+import { IUNO, IUNO_MDPS } from "../resonators/aero/iuno.js";
+import { JIANXIN } from "../resonators/aero/jianxin.js";
+import { JIYAN } from "../resonators/aero/jiyan.js";
+import { QINGXIAO } from "../resonators/aero/qingxiao.js";
+import { QIUYUAN } from "../resonators/aero/qiuyuan.js";
+import { ROVER_AERO } from "../resonators/aero/rover_aero.js";
+import { SIGRIKA } from "../resonators/aero/sigrika.js";
+import { AUGUSTA } from "../resonators/electro/augusta.js";
+import { BULING } from "../resonators/electro/buling.js";
+import { REBECCA } from "../resonators/electro/rebecca.js";
+import { ROVER_ELECTRO } from "../resonators/electro/rover_electro.js";
+import { XIANGLI_YAO } from "../resonators/electro/xiangli_yao.js";
+import { YINLIN } from "../resonators/electro/yinlin.js";
+import { AEMEATH_BURST, AEMEATH_RUPTURE } from "../resonators/fusion/aemeath.js";
+import { BRANT } from "../resonators/fusion/brant.js";
+import { CHANGLI } from "../resonators/fusion/changli.js";
 import { DENIA_BURST, DENIA_STRAIN } from "../resonators/fusion/denia.js";
-import { QX_LOADOUT } from "../resonators/aero/qingxiao.js";
-import { JIYAN_LOADOUT } from "../resonators/aero/jiyan.js";
-import { YINLIN_LOADOUT } from "../resonators/electro/yinlin.js";
-import { XLY_LOADOUT } from "../resonators/electro/xiangli_yao.js";
-import { LUUK_LOADOUT } from "../resonators/spectro/luuk.js";
-import { REBECCA_LOADOUT } from "../resonators/electro/rebecca.js";
-import { LUCY_LOADOUT } from "../resonators/spectro/lucy.js";
-import { XUANLING_LOADOUT } from "../resonators/havoc/xuanling.js";
-import { SUISUI_LOADOUT } from "../resonators/glacio/suisui.js";
-
-/** Every loadout, by the short name the teams below and a team's own key (`FROLO.QY.CANTA`) use.
- *  Deliberately not typed as `Record<string, Loadout>` — the inferred literal keys are what make
- *  `LoadoutName` (see tsconfig's own `noUncheckedIndexedAccess`). The whole roster, not just who
- *  the teams field, so a chip can be painted for anyone (index.ts's own `RESONATOR_HUE`). */
-export const LOADOUTS = {
-  QY: QY_LOADOUT, CANTA: CANTA_LOADOUT, FROLO: FROLO_LOADOUT, SK: SK_LOADOUT, UNO: UNO_LOADOUT,
-  JINGOAT: JINGOAT_LOADOUT, ZZ: ZZ_LOADOUT, LOTTA: LOTTA_LOADOUT, GEEK: GEEK_LOADOUT,
-  VERINA: VERINA_LOADOUT, SANHUA: SANHUA_LOADOUT,
-  HROVER: HROVER_LOADOUT, EROVER: EROVER_LOADOUT, AROVER: AROVER_LOADOUT, SROVER: SROVER_LOADOUT,
-  CIA: CIA_LOADOUT, ROCCIA: ROCCIA_LOADOUT, AUGUGU: AUGUGU_LOADOUT, LOPA: LOPA_LOADOUT,
-  GLOB: GLOB_LOADOUT, GLOB_ECHO_FOCUS: GLOB_LOADOUT_ECHO_FOCUS, BRANT: BRANT_LOADOUT,
-  ENCORE: ENCORE_LOADOUT, CHANGLI: CHANGLI_LOADOUT, DANJIN: DANJIN_LOADOUT, CAMMY: CAMMY_LOADOUT,
-  MORT: MORT_LOADOUT, BULING: BULING_LOADOUT, LUCILLA: LUCILLA_LOADOUT,
-  LYN_RUPTURE, LYN_STRAIN, MORNYE: MORNYE_LOADOUT, DENIA_BURST, DENIA_STRAIN, QX: QX_LOADOUT,
-  JIYAN: JIYAN_LOADOUT, YINLIN: YINLIN_LOADOUT, XLY: XLY_LOADOUT, LUUK: LUUK_LOADOUT,
-  REBECCA: REBECCA_LOADOUT, LUCY: LUCY_LOADOUT,
-  CHISA: CHISA_LOADOUT, HIYUKI: HIYUKI_LOADOUT, LUCILLA_CHAFE: LUCILLA_LOADOUT_CHAFE,
-  XUANLING: XUANLING_LOADOUT, SUISUI: SUISUI_LOADOUT,
-};
-
-export type LoadoutName = keyof typeof LOADOUTS;
-
-/** Reverse lookup, so the main thread can name the loadouts a team is made of when it hands that
- *  team to a worker. Built from the table above rather than written out again. */
-const NAME_OF = new Map<Loadout, LoadoutName>(
-  (Object.entries(LOADOUTS) as [LoadoutName, Loadout][]).map(([name, loadout]) => [loadout, name]),
-);
-
-export const loadoutName = (l: Loadout): LoadoutName => {
-  const name = NAME_OF.get(l);
-  if (!name) throw new Error(`loadout is not registered in teams.ts`);
-  return name;
-};
-
-const {
-  QY, CANTA, FROLO, SK, UNO, JINGOAT, ZZ, LOTTA, GEEK, VERINA, SANHUA, HROVER, AROVER, CIA, ROCCIA,
-  AUGUGU, LOPA, GLOB, GLOB_ECHO_FOCUS, BRANT, ENCORE, CHANGLI, DANJIN, CAMMY, MORT, BULING, LUCILLA,
-  MORNYE, JIYAN, YINLIN, XLY,
-  LUUK, REBECCA, LUCY, CHISA, HIYUKI, LUCILLA_CHAFE, XUANLING, SUISUI,
-} = LOADOUTS;
+import { ENCORE } from "../resonators/fusion/encore.js";
+import { GALBRENA, GALBRENA_ECHO_FOCUS } from "../resonators/fusion/galbrena.js";
+import { JINGRAN } from "../resonators/fusion/jingran.js";
+import { LUPA } from "../resonators/fusion/lupa.js";
+import { MORNYE } from "../resonators/fusion/mornye.js";
+import { MORTEFI } from "../resonators/fusion/mortefi.js";
+import { CARLOTTA } from "../resonators/glacio/carlotta.js";
+import { HIYUKI } from "../resonators/glacio/hiyuki.js";
+import { LUCILLA, LUCILLA_CHAFE } from "../resonators/glacio/lucilla.js";
+import { SANHUA } from "../resonators/glacio/sanhua.js";
+import { SUISUI } from "../resonators/glacio/suisui.js";
+import { ZHEZHI } from "../resonators/glacio/zhezhi.js";
+import { CAMELLYA } from "../resonators/havoc/camellya.js";
+import { CANTARELLA } from "../resonators/havoc/cantarella.js";
+import { CHISA } from "../resonators/havoc/chisa.js";
+import { DANJIN } from "../resonators/havoc/danjin.js";
+import { PHROLOVA, PHROLOVA_DUAL_DPS } from "../resonators/havoc/phrolova.js";
+import { ROCCIA } from "../resonators/havoc/roccia.js";
+import { ROVER_HAVOC } from "../resonators/havoc/rover_havoc.js";
+import { XUANLING } from "../resonators/havoc/xuanling.js";
+import { LUCY } from "../resonators/spectro/lucy.js";
+import { LUUK } from "../resonators/spectro/luuk.js";
+import { LYNAE_RUPTURE, LYNAE_STRAIN } from "../resonators/spectro/lynae.js";
+import { ROVER_SPECTRO } from "../resonators/spectro/rover_spectro.js";
+import { SHOREKEEPER } from "../resonators/spectro/shorekeeper.js";
+import { VERINA } from "../resonators/spectro/verina.js";
 
 const TEAMS: Loadout[][][] = [
-  // hiyuki: glacio chafe/bite — every stack the team lands calculates at the target's own limit,
-  // which is why Chisa (+3 to it) and Lucilla's Chafe build stand behind her
-  [[SUISUI, VERINA, SK, MORNYE, CHISA], [LUCILLA_CHAFE, CHISA, LYN_RUPTURE], [HIYUKI]],
+
+  // jingran: fusion heavy shielder
+  [[SHOREKEEPER, LUPA, VERINA, MORNYE], [IUNO, MORTEFI, BRANT, LUPA, LYNAE_RUPTURE, REBECCA], [JINGRAN]],
+
+  // qingxiao: aero heavy/basic/liberation on tune strain
+  [[MORNYE, SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA], [DENIA_STRAIN, LYNAE_STRAIN, ROVER_AERO, CIACCONA, SANHUA, MORTEFI, REBECCA, JIANXIN], [QINGXIAO]],
 
   // xuanling: havoc heavy attack on Havoc Bane — Chisa's +3 to every Negative Status cap is what
   // takes Unbroken Vow off its 3-stack 30% tier onto the 4-6 stack 36% one
-  [[SUISUI, VERINA, SK, MORNYE, CHISA], [CHISA, MORT, REBECCA, LYN_RUPTURE, UNO, FROLO], [XUANLING]],
+  [[SUISUI, VERINA, SHOREKEEPER, MORNYE, CHISA], [CHISA, MORTEFI, REBECCA, LYNAE_RUPTURE, IUNO, PHROLOVA_DUAL_DPS, ROVER_ELECTRO], [XUANLING]],
+
+  // hiyuki: glacio chafe/bite — every stack the team lands calculates at the target's own limit,
+  // which is why Chisa (+3 to it) and Lucilla's Chafe build stand behind her
+  [[SUISUI, VERINA, SHOREKEEPER, MORNYE, CHISA], [LUCILLA_CHAFE, CHISA, LYNAE_RUPTURE, JIANXIN, ROVER_ELECTRO], [HIYUKI]],
 
   // lucy: spectro heavy on tune hack, with rebecca feeding her the outro
-  [[VERINA, MORNYE, SK], [REBECCA], [LUCY]],
-
-  // qingxiao: aero heavy/basic/liberation on tune strain
-  [[MORNYE, SK, VERINA, AROVER, CIA], [DENIA_STRAIN, LYN_STRAIN, AROVER, CIA, SANHUA, MORT, REBECCA], [QX_LOADOUT]],
-
-  // jingran: fusion heavy shielder
-  [[SK, LOPA, VERINA, MORNYE], [UNO, MORT, BRANT, LOPA, LYN_RUPTURE, REBECCA], [JINGOAT]],
+  [[VERINA, MORNYE, SHOREKEEPER], [REBECCA], [LUCY]],
 
   // sigrika: aero + echo
-  [[SK, AROVER, CIA, QY, VERINA, MORNYE], [QY, LUCILLA, CANTA, AROVER, CIA, LYN_RUPTURE], [GEEK]],
+  [[SHOREKEEPER, ROVER_AERO, CIACCONA, QIUYUAN, VERINA, MORNYE], [QIUYUAN, LUCILLA, CANTARELLA, ROVER_AERO, CIACCONA, LYNAE_RUPTURE], [SIGRIKA]],
 
   // luuk: spectro basic, tune strain
-  [[SK, VERINA, MORNYE], [LYN_STRAIN, SANHUA, DENIA_STRAIN, SROVER_LOADOUT], [LUUK]],
+  [[SHOREKEEPER, VERINA, MORNYE], [LYNAE_STRAIN, SANHUA, DENIA_STRAIN, ROVER_SPECTRO], [LUUK]],
 
-  // glob fusion echo
-  [[SK, VERINA, LOPA, QY, MORNYE], [QY, LUCILLA], [GLOB_ECHO_FOCUS]],
-  // glob fusion heavy
-  [[SK, VERINA, LOPA, MORNYE, DENIA_BURST], [BRANT, MORT, UNO, LOPA, LYN_RUPTURE, REBECCA], [GLOB]],
+  // aemeath: fusion liberation on tune rupture — Mornye and Lynae answer the break beside her
+  [[SHOREKEEPER, VERINA, MORNYE, LUPA], [LYNAE_RUPTURE, LUPA, CHANGLI, JIANXIN], [AEMEATH_RUPTURE]],
+  // monofus needs mornye or lupa
+  [[MORNYE, LUPA], [BRANT], [AEMEATH_RUPTURE]],
+  // denia burst mode with real rupture teammates
+  [[DENIA_BURST], [LYNAE_RUPTURE], [AEMEATH_RUPTURE]],
+  [[MORNYE], [DENIA_BURST], [AEMEATH_RUPTURE]],
+
+  // aemeath: fusion liberation on fusion burst — Denia's Burst mode feeds the stacks and amplifies
+  [[SHOREKEEPER, VERINA, MORNYE, LUPA, DENIA_BURST, CHISA, SUISUI], [DENIA_BURST, LUPA, JIANXIN, ROVER_ELECTRO], [AEMEATH_BURST]],
+  // monofus needs lupa or denia
+  [[LUPA, DENIA_BURST], [CHANGLI, BRANT], [AEMEATH_BURST]],
+  // lynae rupture only with denia burst 3rd slot
+  [[DENIA_BURST], [LYNAE_RUPTURE], [AEMEATH_BURST]],
+
+  // galbrena: fusion echo
+  [[SHOREKEEPER, VERINA, LUPA, QIUYUAN, MORNYE], [QIUYUAN, LUCILLA], [GALBRENA_ECHO_FOCUS]],
+  // galbrena: fusion heavy
+  [[SHOREKEEPER, VERINA, LUPA, MORNYE, DENIA_BURST], [BRANT, MORTEFI, IUNO, LUPA, LYNAE_RUPTURE, REBECCA], [GALBRENA]],
+
+  // iuno mdps: aero + echo
+  [[SHOREKEEPER, ROVER_AERO, CIACCONA, VERINA, MORNYE], [ROVER_AERO, CIACCONA, LYNAE_RUPTURE, JIANXIN], [IUNO_MDPS]],
 
   // augusta: electro heavy shielder
-  [[SK, VERINA, MORNYE], [UNO, MORT, LYN_RUPTURE, REBECCA], [AUGUGU]],
+  [[SHOREKEEPER, VERINA, MORNYE], [IUNO, MORTEFI, LYNAE_RUPTURE, REBECCA], [AUGUSTA]],
 
   // phrolova: havoc, echo, skill
-  // frolo -> subdps -> subdps
-  [[FROLO], [QY, ROCCIA, DANJIN, LUCILLA, LYN_RUPTURE], [DANJIN, LUCILLA, CANTA, LYN_RUPTURE]],
+  // phrolova -> subdps -> subdps
+  [[PHROLOVA], [QIUYUAN, ROCCIA, DANJIN, LUCILLA, LYNAE_RUPTURE], [DANJIN, LUCILLA, CANTARELLA, LYNAE_RUPTURE]],
+  // phrolova -> support -> subdps
+  [[PHROLOVA], [SHOREKEEPER, VERINA, BULING, MORNYE, SUISUI], [QIUYUAN, DANJIN, LUCILLA, CANTARELLA, LYNAE_RUPTURE]],
+  // phrolova -> driver -> support
+  [[PHROLOVA], [QIUYUAN, ROCCIA, DANJIN, ROVER_HAVOC], [SHOREKEEPER, VERINA, SUISUI]],
+  // phrolova -> subdps -> dual dps
+  [[PHROLOVA_DUAL_DPS], [QIUYUAN, LUCILLA], [SIGRIKA, GALBRENA]],
+  [[PHROLOVA_DUAL_DPS], [LUCILLA], [HIYUKI]],
+  [[SUISUI], [PHROLOVA_DUAL_DPS], [HIYUKI]],
 
-  // frolo -> support -> subdps
-  [[FROLO], [SK, VERINA, BULING, MORNYE, SUISUI], [QY, DANJIN, LUCILLA, CANTA, LYN_RUPTURE]],
-
-  // frolo -> driver -> support
-  [[FROLO], [QY, ROCCIA, DANJIN, HROVER], [SK, VERINA, SUISUI]],
 
   // changli: fusion skill+liberation
-  [[LOPA], [BRANT, ENCORE, DENIA_BURST], [CHANGLI]],
+  [[LUPA], [BRANT, ENCORE, DENIA_BURST], [CHANGLI]],
 
-  // lotta: glacio skill
-  [[SK, BULING, VERINA, MORNYE, SUISUI], [ZZ, BRANT, LYN_RUPTURE, REBECCA, LUCILLA_CHAFE], [LOTTA]],
+  // carlotta: glacio skill
+  [[SHOREKEEPER, BULING, VERINA, MORNYE, SUISUI], [ZHEZHI, BRANT, LYNAE_RUPTURE, REBECCA, LUCILLA_CHAFE], [CARLOTTA]],
 
-  // cammy: havoc basic
-  [[SK, VERINA, MORNYE, SUISUI], [ROCCIA, SANHUA, LYN_RUPTURE, REBECCA], [CAMMY]],
+  // camellya: havoc basic
+  [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [ROCCIA, SANHUA, LYNAE_RUPTURE, REBECCA], [CAMELLYA]],
 
-  // XLY: electro liberation
-  [[SK, VERINA, MORNYE, SUISUI], [YINLIN, LYN_RUPTURE], [XLY]],
+  // xiangli yao: electro liberation
+  [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [YINLIN, LYNAE_RUPTURE, JIANXIN], [XIANGLI_YAO]],
 
-  // Jiyan: aero heavy
-  [[SK, VERINA, AROVER, CIA, MORNYE], [MORT, UNO, CIA, LYN_RUPTURE, REBECCA], [JIYAN]],
+  // jiyan: aero heavy
+  [[SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA, MORNYE], [MORTEFI, IUNO, CIACCONA, LYNAE_RUPTURE, REBECCA], [JIYAN]],
 
   // encore: fusion basic
-  [[SK, VERINA, MORNYE, DENIA_BURST], [LOPA, SANHUA], [ENCORE]],
+  [[SHOREKEEPER, VERINA, MORNYE, DENIA_BURST], [LUPA, SANHUA], [ENCORE]],
 ];
 
 /** One expanded team: a loadout per slot, plus which position is *this team's* main DPS — the
- *  last one-loadout slot (a team whose supports are also fixed, like LOPA+CHANGLI, can have more
+ *  last one-loadout slot (a team whose supports are also fixed, like LUPA+CHANGLI, can have more
  *  than one such slot; the *last* is the dps, per the doc comment on `TEAMS` above). Computed per
  *  team rather than stamped onto the shared `Loadout` objects themselves (as this used to do),
  *  since the same loadout can be a fixed support in one team and someone's main DPS in another —
@@ -176,3 +159,12 @@ export const ALL_TEAMS: TeamEntry[] = TEAMS.flatMap((slots) => {
   return a!.flatMap((x) => b!.flatMap((y) => c!.map((z) => ({ loadouts: [x, y, z], dpsIndex }))))
     .filter((team) => new Set(team.loadouts.map((l) => l.resonator)).size === team.loadouts.length);
 });
+
+/** A team's own name: its slot in `ALL_TEAMS`. Plain alphanumerics with no dash, since a row's key
+ *  is this plus its per-member combo keys (index.ts's own `expandTeam()`). */
+export const teamKey = (index: number): string => `t${index}`;
+
+/** The team a key names, or `undefined` if it names nothing — a stale bookmark falls back to the
+ *  table rather than throwing (index.ts's own `rowFromKey()`). */
+export const teamAt = (key: string): TeamEntry | undefined =>
+  /^t\d+$/.test(key) ? ALL_TEAMS[Number(key.slice(1))] : undefined;

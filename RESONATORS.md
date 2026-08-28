@@ -1,7 +1,6 @@
 # standard 5 star
 calcharo
 lingyang
-Jianxin 
 
 # 4 star
 yuanwu
@@ -13,11 +12,12 @@ baizhi
 yangyang
 aalto 
 
-# needs full coords impl
-jinhsi https://ww.nanoka.cc/character/1304
-
-# characters that need dot implementation
-cartethiya https://ww.nanoka.cc/character/1409
+# need frazzle and quickswap
 zani https://ww.nanoka.cc/character/1507
 phoebe https://ww.nanoka.cc/character/1506
-aemeath https://ww.nanoka.cc/character/1210
+
+# need erosion
+cartethiya https://ww.nanoka.cc/character/1409
+
+# needs full coords impl
+jinhsi https://ww.nanoka.cc/character/1304

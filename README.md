@@ -106,12 +106,12 @@ single flat array that `Rotation`'s constructor splits apart on its markers:
 new Rotation([
   START_COMBAT_NON_OPENER, Skill, START_COMBAT_NON_OPENER,  // the fight's own first seconds
   OPENER, BA1, BA2,                                         // leading the team, no Intro to cast
-  INTRO, Liberation, ECHO_CAST, OUTRO_NEXT,                 // every visit after
+  INTRO, Liberation, ECHO_OUTRO, OUTRO_NEXT,                 // every visit after
 ]);
 ```
 
 The `OPENER` chain runs *through* the `INTRO` marker without casting it and carries on into the
-same tail, so the body a resonator repeats is written once. `INTRO`/`ECHO_CAST` resolve at run
+same tail, so the body a resonator repeats is written once. `INTRO`/`ECHO_ONFIELD`/`ECHO_OUTRO`/`ECHO_CANCEL` resolve at run
 time against whatever the acting slot actually has equipped; `OUTRO_NEXT`/`OUTRO_LAST` choose
 which way the field is handed on. Only slot 1 can use an `OPENER`.
 
@@ -135,9 +135,13 @@ Every rotation must reach 100 concerto, or its outro can't fire.
   flagged in the file, not guessed at.
 - A resonator's own file is ordered actions, then buffs/talent/inherents/sequences, then the
   `Resonator` itself, then its talent-tree bonus, then a sample rotation, then its loadout(s).
-- Sequence nodes (S1-S6) are out of scope by default — every build is sequence 0 — except a
-  resonator explicitly marked `standardCharacter: true` (a standard-banner pull, trivially
-  farmable to full sequence), which folds all six in as always-equipped `Sequence` pieces.
+- How much of a resonance chain a build holds is set by the resonator's own `tier` (stats.ts's
+  own `Tier`, turned into a level by kit.ts's `baseSequence()`): `Tier.Limited` (the default, a
+  banner-only 5-star) is costed at S0, `Tier.Standard` (Encore, Jianxin, Verina) at S2, and
+  `Tier.Free` (4-stars and the Rovers) at S6, their whole chain. For the first two that level is a baseline, not a ceiling —
+  with that role's Sequences box open every level from it up to S6 gets a row of its own — so a
+  kit above S0 declares its nodes as a `sequences` list of `Sequence` pieces, sliced to the level
+  a row runs at.
 
 ## Adding a resonator
 
@@ -145,7 +149,8 @@ One file in the resonator's own region folder (`src/resonators/v<patch><region>/
 the source of truth; cite the character page in the file header, and where a gauge isn't exposed
 there, note the fallback used. Never invent a missing forte value.
 
-Export a `_LOADOUT` — a `Loadout` naming the resonator, its talent, both inherents, every viable
+Export the `Loadout` as the resonator's bare name (`LUPA`; a mode variant as `LYNAE_RUPTURE`), the
+`Resonator` itself as `LUPA_RESONATOR` — a `Loadout` names the resonator, its talent, both inherents, every viable
 weapon (best signature first, best standard second), the `EchoLoadout` options, the main-stat
 builds, a substat spread, and the `Rotation`. Then register it in `src/engine/teams.ts`: add it
 to `LOADOUTS` (which is also how a Worker resolves a team it was handed by name) and, once it has

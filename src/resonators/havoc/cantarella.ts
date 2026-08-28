@@ -4,7 +4,7 @@
  *
  * Trance (forte1) and Shiver (forte2) are genuine forte gauges — every action that moves either
  * declares its own delta directly. Perception Drain (FSkill) requires a full 3 Shiver, so
- * CANTARELLA's own updateBuffs() hard-resets forte2 to exactly 3 first, landing its declared -3 on 0.
+ * CANTARELLA_RESONATOR's own updateBuffs() hard-resets forte2 to exactly 3 first, landing its declared -3 on 0.
  */
 import {
   isType, Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
@@ -12,7 +12,8 @@ import {
   addStat, frozenStacks, applyTeam, forte1, setForte2, lostOnSwap, currentTeam,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { matrix } from "../../shared/matrix.js";
+import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, STRINGMASTER, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
@@ -46,7 +47,7 @@ const ESkill = cantaAction("Skill - Flickering Reverie", {
   node: Node.Skill, cast: Cast.Skill, cast2: Cast.Echo, type: Type1.Skill, mv: 196.23, energy: 1.65, concerto: 10, offtune: 5264,
   updateBuffs: () => applyCurrent(HAZY_DREAM, 1),
 });
-/** At 3 Shiver — CANTARELLA's own updateBuffs() resets forte2 to 3 first, so -3 lands on 0 exactly. */
+/** At 3 Shiver — CANTARELLA_RESONATOR's own updateBuffs() resets forte2 to 3 first, so -3 lands on 0 exactly. */
 const FSkill = cantaAction("Forte - Perception Drain", {
   node: Node.Forte, cast: Cast.Skill, cast2: Cast.Echo, type: Type1.Basic, mv: 1335.98, energy: 21.1, concerto: 12, offtune: 57864, forte2: -3, // 667.99%x2
   updateBuffs: () => setForte2(3),
@@ -84,7 +85,7 @@ const ABYSSAL_REBIRTH = new Buff({
   updateBuffs: () => {
     if (!casting(Cast.Echo) || frozenStacks() <= 0) return;
     removeStackTeam(ABYSSAL_REBIRTH, 1);
-    currentTeam().memberOf(CANTARELLA).concerto += 6;
+    currentTeam().memberOf(CANTARELLA_RESONATOR).concerto += 6;
   },
 });
 
@@ -122,7 +123,7 @@ const CA_INHERENT_2 = new Inherent({
   updateBuffs: () => { if (casting(Cast.Echo)) applyCurrent(POISON, 1); },
 });
 
-const CANTARELLA = new Resonator({
+const CANTARELLA_RESONATOR = new Resonator({
   name: "Cantarella",
   element: Attribute.Havoc,
   weapon: WeaponType.Rectifier,
@@ -152,7 +153,7 @@ const CANTARELLA_TALENTS = new Talent({
 const FBA123 = new ActionGroup("Forte Basic - Phantom Sting 123", [FBA1, FBA2, FBA3]);
 
 const CA_ROTATION = new Rotation([
-  INTRO, BA3, Skill, ECHO_CAST,
+  INTRO, BA3, Skill, ECHO_CANCEL,
   Liberation, EHA, ESkill, FBA123, FSkill, OUTRO_NEXT,
 ]);
 
@@ -161,8 +162,9 @@ const CA_ROTATION = new Rotation([
 // her real 43311 build: resonator + talents + both Inherent Skills, viable weapons, and three real
 // echo choices sharing Impermanence Heron as mainslot — Midnight Veil, Rejuvenating Glow, Moonlit
 // Clouds — all automatically iterated (see kit.ts's own EchoLoadout)
-export const CANTA_LOADOUT = new Loadout({
-  resonator: CANTARELLA,
+export const CANTARELLA = new Loadout({
+  resonator: CANTARELLA_RESONATOR,
+  matrix: matrix("Cantarella", 25),
   talent: CANTARELLA_TALENTS,
   inherent1: CA_INHERENT_1,
   inherent2: CA_INHERENT_2,

@@ -1,6 +1,6 @@
 /**
- * Xiangli Yao, ported to the new engine — sequence-0 core loop, a limited 5-star (not
- * `standardCharacter`). An electro gauntlets main DPS built around his Liberation: Cogitation
+ * Xiangli Yao, ported to the new engine — sequence-0 core loop, a limited 5-star
+ * (`Tier.Limited`). An electro gauntlets main DPS built around his Liberation: Cogitation
  * Model deals a huge hit and opens Intuition (24s, 3 Hypercubes), swapping his kit for Pivot -
  * Impale basics, Divergence, and Unfathomed — Law of Reigns (5 Performance Capacity, one
  * Hypercube each) and Revamp are the mode's forte payoffs, all considered Resonance Liberation
@@ -27,7 +27,8 @@ import {
   Scaling, applyCurrent, currentAction, casting, revokeCurrent, addStat, frozenStacks, removeStack, queueOn, queueOutro,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { matrix } from "../../shared/matrix.js";
+import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { IUNO_SIG, VERITYS_HANDLE } from "../../weapons/gauntlet.js";
 import { ABYSS_SURGES, NEW_STD_GAUNTLET } from "../../weapons/standard.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
@@ -104,12 +105,12 @@ const XLY_INHERENT_2 = new Inherent({ name: "Xiangli Yao: Focus" });
 const XLY_OUTRO: Buff = new Buff({
   name: "Xiangli Yao: Outro", maxStacks: 3,
   updateBuffs: () => {
-    if (casting(Cast.Basic)) { queueOn(XIANGLI_YAO, ACTION_OUTRO_COORD); removeStack(XLY_OUTRO, 1); }
+    if (casting(Cast.Basic)) { queueOn(XIANGLI_YAO_RESONATOR, ACTION_OUTRO_COORD); removeStack(XLY_OUTRO, 1); }
   },
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(XLY_OUTRO); },
 });
 
-const XIANGLI_YAO = new Resonator({
+const XIANGLI_YAO_RESONATOR = new Resonator({
   name: "Xiangli Yao",
   element: Attribute.Electro,
   weapon: WeaponType.Gauntlets,
@@ -142,15 +143,16 @@ const XLY_ROTATION = new Rotation([
   USkill, FBA, UForte,
   UBA123, UForte,
   USkill, FBA, UForte,
-  ECHO_CAST, OUTRO_NEXT,
+  ECHO_OUTRO, OUTRO_NEXT,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
 // his real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
-export const XLY_LOADOUT = new Loadout({
-  resonator: XIANGLI_YAO,
+export const XIANGLI_YAO = new Loadout({
+  resonator: XIANGLI_YAO_RESONATOR,
+  matrix: matrix("Xiangli Yao", 25),
   talent: XLY_TALENTS,
   inherent1: XLY_INHERENT_1,
   inherent2: XLY_INHERENT_2,

@@ -1,6 +1,6 @@
 /**
- * Galbrena, ported to the new engine — sequence-0 core loop, a limited 5-star (not
- * `standardCharacter`). A fusion pistols main DPS. Threshold State (default) banks Sinflame
+ * Galbrena, ported to the new engine — sequence-0 core loop, a limited 5-star
+ * (`Tier.Limited`). A fusion pistols main DPS. Threshold State (default) banks Sinflame
  * (forte1) off her own hits; at 100, Resonance Skill - Encroach is replaced by Ascent of Malice,
  * which drops her into Demon Hypostasis — Basic/Heavy/Skill are all replaced by their own
  * "enhanced" forms (Seraphic Execution, Flamewing Verdict, Ravage), scaled up by Afterflame.
@@ -15,7 +15,7 @@
  * (Purging Flame) are both on the real 0-100 scale (the migrated sheet's own ×100 numbers ÷100).
  * Afterflame (0-40, +1.5%/point Demon Hypostasis DMG scaling, own
  * ceiling 60%) is a genuine live-tracked gauge on top of that, same "self-held Resonator reacting
- * to any teammate's own Echo cast" shape Sigrika's own Soliskin Vitality uses — GALBRENA's own
+ * to any teammate's own Echo cast" shape Sigrika's own Soliskin Vitality uses — GALBRENA_RESONATOR's own
  * updateGlobal() below grants it, not a forte gauge. "Echoes with the same name can only trigger
  * this effect once" isn't tracked — same simplification tier Soliskin Vitality's own unlimited
  * re-trigger already carries.
@@ -33,7 +33,7 @@ import {
   setForte2,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { LUX_UMBRA } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { CLAWPRINT_2PC, CORROSAURUS, FLAMEWING_SHADOW_3PC } from "../../echoes/septimont.js";
@@ -71,7 +71,7 @@ const HA3 = galbrenaAction("Heavy - Volley of Death 3", { node: Node.Normal, cas
 const DRIVE = { updateBuffs: () => applyCurrent(BURNING_DRIVE, 1) };
 const Encroach = galbrenaAction("Skill - Encroach", { node: Node.Skill, cast: Cast.Skill, type: Type1.Heavy, mv: 35.78, concerto: 2.22, energy: 6.59, offtune: 5039, forte1: 18.52, ...DRIVE });
 /** Converts Sinflame into Purging Flame — declared as real deltas (forte1: -100, forte2:
- *  +100) so they show in the hover trace, but GALBRENA's own updateBuffs() below first normalizes
+ *  +100) so they show in the hover trace, but GALBRENA_RESONATOR's own updateBuffs() below first normalizes
  *  each gauge to what these deltas expect to land on 0/100 from (forte gauges have no floor or
  *  ceiling, so a bare relative delta could land short). */
 const AscentOfMalice = galbrenaAction("Skill - Ascent of Malice", {
@@ -173,7 +173,7 @@ const HELLFIRE_WINDOW = new Buff({
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(HELLFIRE_WINDOW); },
 });
 
-const GALBRENA = new Resonator({
+const GALBRENA_RESONATOR = new Resonator({
   name: "Galbrena",
   element: Attribute.Fusion,
   weapon: WeaponType.Pistols,
@@ -207,7 +207,7 @@ const SeraphicExecution345 = new ActionGroup("Forte Basic - Seraphic Execution 3
 const BA234 = new ActionGroup("Basic - Slayer's Trigger 234", [BA2, BA3, BA4]);
 
 const GB_ROTATION = new Rotation([
-  INTRO, ECHO_CAST, HA2, HA3, BA3, BA4, Encroach,
+  INTRO, ECHO_CANCEL, HA2, HA3, BA3, BA4, Encroach,
   AscentOfMalice, Liberation,
   SeraphicExecution2345,
   SeraphicExecution345, OUTRO_NEXT,
@@ -217,7 +217,7 @@ const GB_ROTATION = new Rotation([
 // from the original build, not placed actions)
 
 const GB_ROTATION_ECHO_FOCUS = new Rotation([
-  INTRO, ECHO_CAST, BA234, BA2, BA3,
+  INTRO, ECHO_CANCEL, BA234, BA2, BA3,
   AscentOfMalice, Liberation,
   // dodge cancel 2  (half)
   // dodge cancel 3
@@ -234,8 +234,8 @@ const GB_ROTATION_ECHO_FOCUS = new Rotation([
 // sonata pieces, mainstat/substat
 const GB_WEAPONS = [LUX_UMBRA, NEW_STD_PISTOL, STATIC_MIST];
 const GB_ECHOES = [new EchoLoadout(CORROSAURUS, FLAMEWING_SHADOW_3PC, CLAWPRINT_2PC)];
-export const GLOB_LOADOUT = new Loadout({
-  resonator: GALBRENA,
+export const GALBRENA = new Loadout({
+  resonator: GALBRENA_RESONATOR,
   talent: GALBRENA_TALENTS,
   inherent1: GB_INHERENT_1,
   inherent2: GB_INHERENT_2,
@@ -248,9 +248,9 @@ export const GLOB_LOADOUT = new Loadout({
 
 // same gear, the echo-focused rotation variant — genuinely different actions cast (the one that
 // actually triggers a teammate's own Echo Skill DMG buffs), not a weapon/echo-gear choice, so it
-// stays its own Loadout rather than folding into GLOB_LOADOUT's own opener/loop
-export const GLOB_LOADOUT_ECHO_FOCUS = new Loadout({
-  resonator: GALBRENA,
+// stays its own Loadout rather than folding into GALBRENA's own opener/loop
+export const GALBRENA_ECHO_FOCUS = new Loadout({
+  resonator: GALBRENA_RESONATOR,
   talent: GALBRENA_TALENTS,
   inherent1: GB_INHERENT_1,
   inherent2: GB_INHERENT_2,

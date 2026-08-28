@@ -1,6 +1,6 @@
 /**
  * Rover: Aero, ported to the new engine — a standard/permanent-banner 5-star
- * (`standardCharacter: true`), all six sequence nodes folded into the loadout unconditionally,
+ * (`Tier.Free`), all six sequence nodes folded into the loadout unconditionally,
  * each owning its own trigger. Windstrings (forte1, 0-120) are spent 60 at a time by Unbound Flow,
  * the enhanced Resonance Skill that replaces Awakening Gale at max gauge.
  *
@@ -12,17 +12,18 @@
  * marker those casts put up (statuses.ts).
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, applyCurrent, applyTeam, applyEnemy, revokeEnemy, stacksOfEnemy, maxStackIncrease, isHeld,
   revokeCurrent, casting, currentAction, addStat,
 } from "../../engine/kit.js";
-import { Rotation, OPENER, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, OPENER, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { AERO_EROSION, SPECTRO_FRAZZLE, HAVOC_BANE, FUSION_BURST, GLACIO_CHAFE, ELECTRO_FLARE, HEALS } from "../../shared/status.js";
 import { BLOODPACTS_PLEDGE, BLOODPACT_AERO_AMP } from "../../weapons/standard.js";
 import { REJUV_5PC, REJUV_2PC, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, BELL_BORNE_SHIELD, BELL_BORNE_GEOCHELONE } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
+import { FLEURDELYS, WINDWARD_2PC, WINDWARD_5PC } from "../../echoes/rinascita.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -112,7 +113,7 @@ const S4_SKILL_BONUS = new Buff({
 });
 
 /* -------------------------------------------------------------------------------- sequences */
-// All six live here as their own always-equipped gear pieces (standardCharacter), each owning its
+// All six live here as their own always-equipped gear pieces (Tier.Free), each owning its
 // own trigger rather than the central Resonator updateBuffs() below.
 
 // S1 Storm Subsides in the Void: interruption resistance only — a genuine no-op, held for the name
@@ -148,8 +149,8 @@ const AR_S6 = new Sequence({
 });
 
 /** Him, as a Resonator: name/element/weapon, every grant/spend/queue rule his kit needs, and his
- *  own base stat line. `standardCharacter: true` — see the file header. */
-const ROVER_AERO = new Resonator({
+ *  own base stat line. `Tier.Free` — see the file header. */
+export const ROVER_AERO_RESONATOR = new Resonator({
   name: "Aero Rover",
   element: Attribute.Aero,
   weapon: WeaponType.Sword,
@@ -157,7 +158,7 @@ const ROVER_AERO = new Resonator({
   outro: () => Outro,
   color: "#6fd6b0",
   maxEnergy: 150,
-  standardCharacter: true,
+  tier: Tier.Free,
 
   updateDebuffs: () => {
     const a = currentAction();
@@ -190,13 +191,13 @@ const ROVER_AERO_TALENTS = new Talent({
 
 const AR_ROTATION = new Rotation([
   OPENER, Skill, Cloudburst1, Cloudburst2, MA, BA4,
-  ECHO_CAST,
+  ECHO_CANCEL,
   Liberation,
   Skill, Cloudburst1, Cloudburst2, MA, BA4,
   UnboundFlow1, UnboundFlow2, OUTRO_NEXT,
 
   INTRO, Cloudburst1, Cloudburst2,
-  ECHO_CAST,
+  ECHO_CANCEL,
   Liberation,
   Skill, Cloudburst1, Cloudburst2, MA,
   UnboundFlow1, UnboundFlow2, OUTRO_NEXT,
@@ -205,10 +206,10 @@ const AR_ROTATION = new Rotation([
 /* ----------------------------------------------------------------------------------- loadout */
 
 // his real build: resonator + talents + both Inherent Skills + every sequence node
-// (standardCharacter — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat.
+// (Tier.Free — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat.
 // Bloodpact's Pledge is the only weapon listed: its own Unbound Flow clause is written for him.
-export const AROVER_LOADOUT = new Loadout({
-  resonator: ROVER_AERO,
+export const ROVER_AERO = new Loadout({
+  resonator: ROVER_AERO_RESONATOR,
   talent: ROVER_AERO_TALENTS,
   inherent1: AR_INHERENT_1,
   inherent2: AR_INHERENT_2,
@@ -218,6 +219,7 @@ export const AROVER_LOADOUT = new Loadout({
     new EchoLoadout(BELL_BORNE_GEOCHELONE, REJUV_5PC, REJUV_2PC),
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
     new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
+    new EchoLoadout(FLEURDELYS, WINDWARD_5PC, WINDWARD_2PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
   substat: chem("atk", "skill"),

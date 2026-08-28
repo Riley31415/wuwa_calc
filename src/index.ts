@@ -23,25 +23,26 @@
  * rows the table actually shows are run back here, because a `TeamRun` carries a whole `State` for
  * the detail page and none of that can cross a postMessage.
  */
-import { Gear, Action, Stat, Attribute, Type1, Type2, scopedStat, menuStats } from "./engine/kit.js";
-import { TUNE_BREAK_SLOT, TUNE_BREAK_HUE } from "./shared/tunebreak.js";
+import { Gear, Action, Stat, Attribute, Type1, Type2, scopedStat, menuStats, baseSequence } from "./engine/kit.js";
+import { TUNE_BREAK_ENEMY } from "./shared/tunebreak.js";
 import type { ChainGroup, HeldBuff, ResolvedSnapshot, Loadout, EchoLoadout } from "./engine/kit.js";
-import { buildReport, columnSources, columnOf } from "./engine/display.js";
+import { buildReport, columnSources, columnOf, OFFTUNE_RATE } from "./engine/display.js";
 import type { Report, Column, ReportRow, ReportPart, TraceEntry, InfoEntry } from "./engine/display.js";
 import { Scaling, isPercent, statLabel, SCALING_NAME, TAG_NAME, NODE_NAME } from "./engine/stats.js";
 import { member, comboOf, runTeam, eligibleWeapons, sequenceLevels, solveTeam, MAINSTAT_ROWS } from "./engine/solver.js";
 import type { Member, Combo, Pick, Filters, TeamRun, Solved, SolveRequest, SolveResponse } from "./engine/solver.js";
-import { loadoutName, LOADOUTS, ALL_TEAMS } from "./engine/teams.js";
+import { teamKey, ALL_TEAMS } from "./engine/teams.js";
 
 
 /* ------------------------------------------------------------------------------------ teams */
 
-/** Every team the page compares (teams.ts), keyed by its members' loadout names (`FROLO.QY.CANTA`)
- *  — a plain identifier with no dash, since a row's key is this plus its per-member combo keys
+/** Every team the page compares (teams.ts), keyed by the name that team answers to — its own slot
+ *  in `ALL_TEAMS` (teams.ts's own `teamKey()`), which is also what a worker is handed to rebuild
+ *  it. A plain identifier with no dash, since a row's key is this plus its per-member combo keys
  *  (`expandTeam()`), and a team key never carries a dash of its own. */
-const TEAMS: Record<string, Member[]> = Object.fromEntries(ALL_TEAMS.map(({ loadouts, dpsIndex }) => [
-  loadouts.map(loadoutName).join("."),
-  loadouts.map((l, i) => member(l, i === dpsIndex)),
+const TEAMS: Record<string, Member[]> = Object.fromEntries(ALL_TEAMS.map(({ loadouts, dpsIndex }, i) => [
+  teamKey(i),
+  loadouts.map((l, j) => member(l, j === dpsIndex)),
 ]));
 
 /** Which way a resonator has been filtered: `include` keeps only the teams that field them,
@@ -72,9 +73,9 @@ const mainstatFilters = new Map<string, ResonatorFilter>();
 /** ...and by the chain length a row runs a resonator at ("Phrolova S5"), which is the one of these
  *  set from the *name* cell rather than a column of its own — sequences open rows, not a column
  *  (see `comparisonTable()`), so their name cell is the only thing on screen carrying the level.
- *  Only ever holds a level of 1 or more, and only for a resonator whose chain is a build choice:
- *  a `standardCharacter` only ever runs at full and S0 is just the resonator, so both go through
- *  `resonatorFilters` instead (see `sequenceTag()`). */
+ *  Only ever holds a level above that resonator's own baseline, and only where the chain is a
+ *  build choice at all: the baseline itself is just the resonator, and a `Tier.Free` one only ever
+ *  runs at full, so both go through `resonatorFilters` instead (see `sequenceTag()`). */
 const sequenceFilters = new Map<string, ResonatorFilter>();
 
 /** Every option-pick filter map, keyed by the `data-kind` its own column/chip carries — what the
@@ -90,6 +91,7 @@ const filters: Filters = {
   mdpsEchoes: false, supportEchoes: false,
   mdpsMainstats: false, supportMainstats: false,
   allowR1Mdps: true, allowR1Supports: true,
+  matrix: false,
 };
 
 /** The whole table's own row-count ceiling: with weapon/echo/mainstat now crossed in full rather
@@ -116,8 +118,12 @@ const bestPicks = new Map<string, Solved>();
 // ...under the whole filter state, not just the R1 allowances: a solve now carries every row the
 // table will open for that team, each re-rolled onto its own best main stats (solver.ts's own
 // `rowPicks()`), and which rows those are is exactly what the option boxes decide.
-const bestKey = (teamKey: string): string =>
-  `${teamKey}|${Object.values(filters).join(",")}`;
+// ...except Matrix Mode, for a team nobody's Matrix reaches: its solve is the same either way,
+// so it keeps the key it had with the box off rather than being solved twice.
+const bestKey = (teamKey: string): string => {
+  const f = { ...filters, matrix: filters.matrix && !!TEAMS[teamKey]?.some((m) => m.loadout.matrix) };
+  return `${teamKey}|${Object.values(f).join(",")}`;
+};
 
 /** File one solved team's own answer away — whether it was solved in a worker or on this thread,
  *  it's the same plain indices either way (see solver.ts's own `SolveResponse`). */
@@ -165,13 +171,13 @@ function echoLabel(l: Loadout, echo: EchoLoadout): string {
 }
 
 /** What a row filters as at one member position when their chain length is a build choice being
- *  shown — "Phrolova S5" — and nothing at all otherwise. S0 is the resonator with no chain, and a
- *  `standardCharacter`'s comes with the character rather than being compared, so both of those are
- *  the plain resonator filter's business; so is any position whose own Sequences box is shut, since
- *  then every row runs the one level and a filter on it would say nothing. */
+ *  shown — "Phrolova S5" — and nothing at all otherwise. A resonator's own baseline level
+ *  (`baseSequence()`) is what every row already runs, so that one is the plain resonator filter's
+ *  business; so is any position whose own Sequences box is shut, since then every row runs the one
+ *  level and a filter on it would say nothing. */
 function sequenceTagAt(m: Member, sequence: number, f: Filters = filters): string | null {
   const open = f[m.mainDps ? "mdpsSequences" : "supportSequences"];
-  if (!open || m.loadout.resonator.standardCharacter || sequence < 1) return null;
+  if (!open || sequence <= baseSequence(m.loadout.resonator)) return null;
   return `${m.name} S${sequence}`;
 }
 const sequenceTag = (m: Member, combo: Combo): string | null => sequenceTagAt(m, combo.sequence);
@@ -271,7 +277,7 @@ function estimatedRowCount(members: Member[], f: Filters = filters): number {
       ? m.loadout.mainstats.map((g) => g.name) : null)), mainstatFilters, MAINSTAT_ROWS);
   // The sequence filter isn't an axis of the cross — a level opens a row of its own instead (see
   // `expandTeam()`) — so it's counted here, row by row: the cross runs every member at the level a
-  // closed box would show (S0 for anyone whose chain is a choice), which carries no tag at all, and
+  // closed box would show (their own baseline), which carries no tag at all, and
   // each extra row carries the one tag of the member whose level it moved.
   const wantsTags = (tags: string[]): boolean =>
     [...sequenceFilters].every(([name, mode]) => tags.includes(name) === (mode === "include"));
@@ -334,20 +340,20 @@ function rowFromKey(key: string): TeamRow | null {
 
   const combo: Combo[] = [];
   for (let i = 0; i < members.length; i++) {
-    const parsed = /^(\d+)\.(\d+)\.(\d+)\.s(\d+)$/.exec(comboKeys[i]!);
+    const parsed = /^(\d+)\.(\d+)\.(\d+)\.s(\d+)(\.m)?$/.exec(comboKeys[i]!);
     if (!parsed) return null;
     const l = members[i]!.loadout;
-    const pick: Pick = { weapon: +parsed[1]!, echo: +parsed[2]!, mainstat: +parsed[3]!, sequence: +parsed[4]! };
-    if (!l.weapons[pick.weapon] || !l.echoLoadouts[pick.echo] || !l.mainstats[pick.mainstat]) return null;
+    const pick: Pick = { weapon: +parsed[1]!, echo: +parsed[2]!, mainstat: +parsed[3]!, sequence: +parsed[4]!, matrix: !!parsed[5] };
+    if (!l.weapons[pick.weapon] || !l.echoLoadouts[pick.echo] || !l.mainstats[pick.mainstat] || (pick.matrix && !l.matrix)) return null;
     combo.push(comboOf(l, pick));
   }
   return { key, teamKey, members, combo };
 }
 
-/** Every resonator's own colour, by name — read off the loadout registry so a chip can be painted
- *  for anyone on the roster, not just whoever a currently-visible team happens to field. */
+/** Every resonator's own colour, by name — read off every team's own loadouts so a chip can be
+ *  painted for anyone the table can field, not just whoever a currently-visible team does. */
 const RESONATOR_HUE = new Map(
-  Object.values(LOADOUTS).map((l) => [l.resonator.name, l.resonator.color] as const),
+  ALL_TEAMS.flatMap((t) => t.loadouts).map((l) => [l.resonator.name, l.resonator.color] as const),
 );
 
 const FALLBACK_HUE = "#ff0000";
@@ -441,7 +447,7 @@ const SECTION_RANK = (key: string | null): number => {
 };
 
 const panelRow = (r: TraceEntry, slotHue: Map<string, string>, { noSource = false }: { noSource?: boolean } = {}): string => {
-  const own = r.owner !== undefined ? (slotHue.get(r.owner ?? "") ?? TUNE_BREAK_HUE) : null;
+  const own = r.owner !== undefined ? (slotHue.get(r.owner ?? "") ?? TUNE_BREAK_ENEMY.color) : null;
   const label = r.label ?? (r.stat !== undefined ? statLabel(r.stat) : "");
   const value = `<td class="v">${r.mult ? `&times;${fmt(r.value, r.digits ?? 4)}` : `${fmt(r.value, r.digits ?? 4)}${unit(r)}`}</td>`;
   // Two columns, never three. The damage panel has no source of its own, so its left column is the
@@ -508,7 +514,7 @@ function infoPopover(info: InfoEntry[] | undefined, slotHue: Map<string, string>
     // sources in (see `buffsPopover`), so "what triggered this" reads the way every other
     // attributed name on the page does
     if (e.source !== undefined) {
-      const hue = slotHue.get(e.source) ?? TUNE_BREAK_HUE;
+      const hue = slotHue.get(e.source) ?? TUNE_BREAK_ENEMY.color;
       return `<tr><td class="s" colspan="2" style="--own:${hue}">${esc(e.label)}</td></tr>`;
     }
     return `<tr><td class="k">${esc(e.label)}</td><td class="v">${esc(e.value)}</td></tr>`;
@@ -551,10 +557,17 @@ function buffsPopover(member: string, gear: Gear[], local: HeldBuff[], global: H
     : "";
   const section = (heading: string, buffs: HeldBuff[]) => (buffs.length
     ? `<tr class="sec"><td>${esc(heading)}</td></tr>`
-      + sorted(buffs).map((b) => row(b.name, slotHue.get(b.source) ?? TUNE_BREAK_HUE)).join("")
+      + sorted(buffs).map((b) => row(b.name, slotHue.get(b.source) ?? TUNE_BREAK_ENEMY.color)).join("")
     : "");
-  return lazyPop(`<span class="pop buffs"><table>`
-    + `${gearSection}${section("Local buffs", local)}${section("Global buffs", global)}${section("Enemy debuffs", enemy)}</table></span>`);
+  // Three columns side by side rather than one stacked list: local, global and enemy are separate
+  // scopes, not a sequence, and stacked they made a member holding a dozen buffs a page-tall panel.
+  // Gear stays above the local buffs — it is this member's own, the same scope that column holds.
+  const columns = [
+    gearSection + section("Local buffs", local),
+    section("Global buffs", global),
+    section("Enemy debuffs", enemy),
+  ].filter(Boolean).map((rows) => `<table>${rows}</table>`).join("");
+  return lazyPop(`<span class="pop buffs"><div class="cols">${columns}</div></span>`);
 }
 
 /* -------------------------------------------------------------- comparison table */
@@ -651,9 +664,10 @@ function damagePopover(
  *  Fixed order, one entry per `GEAR_LABELS` slot below. */
 function equippedGear(member: Member, combo: Combo): Gear[] {
   const l = member.loadout;
-  return [l.inherent1, l.inherent2, combo.weapon, combo.echo.mainslot, combo.echo.sonata, combo.echo.sonata2pc, combo.mainstat, l.substat];
+  return [l.inherent1, l.inherent2, combo.weapon, combo.echo.mainslot, combo.echo.sonata, combo.echo.sonata2pc, combo.mainstat, l.substat,
+    ...(combo.matrix ? [combo.matrix] : [])];
 }
-const GEAR_LABELS = ["Inherent", "Inherent", "Weapon", "Mainslot", "Sonata", "2pc", "Mainstats", "Substats"];
+const GEAR_LABELS = ["Inherent", "Inherent", "Weapon", "Mainslot", "Sonata", "2pc", "Mainstats", "Substats", "Matrix"];
 
 /** What a loadout hover actually lists. Both Inherent Skills are dropped: they are fixed for a
  *  resonator, identical on every row they could ever appear on, so they say nothing about the
@@ -768,20 +782,19 @@ function gearPopover(member: Member, combo: Combo): string {
 }
 
 /** What a member's own name cell reads as: the resonator, then their sequence level and weapon
- *  rank as one token (`S0R1`) — this project never implements S1-S6, so that's S6 for a
- *  `standardCharacter` whose loadout equips its own nodes and S0 for everyone else, and R1 when
- *  this row's weapon is a signature/limited one rather than a standard (see kit.ts's own
+ *  rank as one token (`S0R1`) — the level this row actually runs at (see `sequenceLevels()`), and
+ *  R1 when this row's weapon is a signature/limited one rather than a standard (see kit.ts's own
  *  `Weapon.standard`). Always shown, weapon options box or no: the weapon/echo/mainstat picks
  *  themselves live in their own columns now (see `optionCell()`), not appended here, so there's
  *  nothing left for the rank marker to be redundant with. */
 function memberLabel(m: Member, combo: Combo): string {
   const l = m.loadout;
   const mdps = m.mainDps;
-  // A standard character's own sequence comes with the character, so it's always worth naming; a
-  // limited one's is a build choice, which only exists at all while that role's Sequences box is
-  // open — and once it is, this is the one thing telling that member's own seven rows apart (see
-  // `sequenceLevels()`).
-  const seq = l.resonator.standardCharacter || (mdps ? filters.mdpsSequences : filters.supportSequences)
+  // A chain that comes with the character rather than being pulled for is always worth naming (a
+  // free resonator's S6, a standard 5-star's S2); a limited one's S0 says nothing until that
+  // role's Sequences box is open — and once it is, this is the one thing telling that member's
+  // own rows apart (see `sequenceLevels()`).
+  const seq = baseSequence(l.resonator) > 0 || (mdps ? filters.mdpsSequences : filters.supportSequences)
     ? `S${combo.sequence}`
     : "";
   // Which way the weapon went is worth saying either way — a signature is the build's own biggest
@@ -808,11 +821,10 @@ function optionCell(kind: OptionKind, value: string, color: string): string {
 /** The filter checkboxes above the comparison table, one row per role: MDPS on top, supports
  *  below, each row the same four axes plus that role's own R1 allowance.
  *
- *  Sequences: with no sequence system for limited resonators (this project never implements
- *  S1-S6 for them — every such build is sequence 0) and a `standardCharacter`'s own S1-S6
- *  unconditionally equipped whatever these say, both boxes are kept for parity with the old
- *  page's own dropdown but hide nothing today. They're scoped to non-standard resonators on
- *  purpose: a standard character being S6 isn't a build choice anyone makes.
+ *  Sequences: unchecked, that role's own members each run their resonator's baseline chain level
+ *  and nothing else — S0 for a limited 5-star, S2 for a standard one, S6 for a 4-star or Rover
+ *  (see stats.ts's own `Tier`). Checked, every level from that baseline up to S6 opens a row of
+ *  its own. A `Tier.Free` resonator is already at the top, so the box never adds a row for them.
  *
  *  Weapons/Echoes/Mainstats: unchecked, that role's own members each run their loadout's own
  *  first-listed pick on that axis and nothing else is even simulated; checked, the axis opens to
@@ -843,6 +855,9 @@ function comparisonFilters(): string {
       ${filter("supportMainstats", "Show Support Mainstat Options")}
       ${filter("supportSequences", "Allow Support Sequences")}
     </div>
+    <div class="tcfilter-row">
+      ${filter("matrix", "Enable Matrix Buffs")}
+    </div>
     <div class="tcwarning" id="rowCapWarning" hidden></div>
     ${resonatorChips()}
   </div>`;
@@ -863,7 +878,7 @@ function resonatorChips(): string {
     // tick/cross inside it stays green/red whoever the chip is for, since that's the half that
     // says which way the filter runs (see index.css's own `.rchip`).
     return `<button type="button" class="rchip ${included ? "inc" : "exc"}" data-resonator="${esc(name)}"`
-      + ` style="--mem:${RESONATOR_HUE.get(name) ?? TUNE_BREAK_HUE}"`
+      + ` style="--mem:${RESONATOR_HUE.get(name) ?? TUNE_BREAK_ENEMY.color}"`
       + ` title="${esc(name)} — ${included ? "only teams fielding them" : "no team fielding them"}. Click to clear.">`
       + `${esc(name)}<span class="box">${included ? "✓" : "✕"}</span></button>`;
   }).join("");
@@ -1069,12 +1084,16 @@ function stepRow(
     // no such row (a member's first, or the table's first for off-tune) the comparison is against
     // 0: every gauge, energy, concerto and the bar all start there, so a 0 on a first row is just
     // as unmoved as a repeated value further down — a column another member's kit put in the
-    // table shouldn't print a bare 0 on this member's intro.
+    // table shouldn't print a bare 0 on this member's intro. Unless something *fed* the column
+    // this row — a declared gain and a spend that cancelled, a gauge clamped back to where it was —
+    // in which case the value stands so the panel explaining it can be opened. Off-tune's own
+    // Buildup Rate section doesn't count: the rate is a multiplier on the column, not a feed.
+    const sources = row.sources[col.key];
     if (isRunning(col.key)) {
       const before = Number(row.raw[`before:${col.key}`]) || 0;
-      if (Math.abs((Number(v) || 0) - before) < 1e-9) return cell(columns, i, { cls: [], html: "", style: "" });
+      const fed = (sources ?? []).some((r) => r.section !== OFFTUNE_RATE);
+      if (!fed && Math.abs((Number(v) || 0) - before) < 1e-9) return cell(columns, i, { cls: [], html: "", style: "" });
     }
-    const sources = row.sources[col.key];
     const cls: string[] = [];
     if (col.key === "action") cls.push(part ? "name" : "action");
     if (col.key === "avg") cls.push("avg");
@@ -1231,7 +1250,8 @@ function dprTable(run: TeamRun, lines?: ChainGroup[][]): string {
     .join("");
   // The Tune Break row gets its own hue and the same bar/wash as a real member — it isn't a
   // loadout, so it has no gear hover, but it is a damage source and reads as one.
-  const tuneBreakRow = dataRow(TUNE_BREAK_SLOT, TUNE_BREAK_HUE, "");
+  const enemy = run.state.enemy;
+  const tuneBreakRow = dataRow(enemy.name, enemy.resonator!.color, "");
   // no hover: a whole team's damage split by node is three kits' worth of buckets stacked on top
   // of each other, which answers nothing the member rows above it don't already
   const plainCell = (value: number): string => `<div class="c num">${fmt(value)}</div>`;
@@ -1344,7 +1364,8 @@ function page(run: TeamRun): string {
   // detailFor() has just guaranteed these exist (re-running the team traced if need be)
   const lines = run.rotationLines!;
   const { members } = run;
-  const slotHue = new Map([...members.map((m): [string, string] => [m.name, m.color]), [TUNE_BREAK_SLOT, TUNE_BREAK_HUE]]);
+  const { enemy } = run.state;
+  const slotHue = new Map([...members.map((m): [string, string] => [m.name, m.color]), [enemy.name, enemy.resonator!.color]]);
   const gearByMember = new Map(members.map((m, i): [string, Gear[]] => [m.name, equippedGear(m, run.combo[i]!)]));
 
   return `<main>
@@ -1420,18 +1441,13 @@ function wireSourcePanels(root: HTMLElement): void {
     const tableLeft = (cell.closest(".gridwrap, .tcwrap")?.getBoundingClientRect().left ?? EDGE);
     const minLeft = Math.max(EDGE, tableLeft);
     const left = Math.max(minLeft, Math.min(natural, innerWidth - p.width - EDGE));
-    // The resonator column opens *upward* by default — its rows are read down a column, and a
-    // panel hanging below the hovered name covers the very next cast, so mousing down the list
-    // means fighting the panel. Every other column opens downward, where the value being
-    // explained sits above its own explanation. Either way the other side is taken when the
-    // preferred one has no room, and a panel that fits neither is clamped to the top edge.
+    // Every column opens downward, where the value being explained sits above its own
+    // explanation — the resonator column included, which used to prefer upward. Above is taken
+    // only when there is no room below, and a panel that fits neither is clamped to the top edge.
     const above = c.top - p.height - GAP;
     const below = c.bottom + GAP;
-    const fitsAbove = above >= EDGE;
     const fitsBelow = below + p.height <= innerHeight - EDGE;
-    const top = cell.classList.contains("member")
-      ? (fitsAbove ? above : fitsBelow ? below : Math.max(EDGE, above))
-      : (fitsBelow ? below : Math.max(EDGE, above));
+    const top = fitsBelow ? below : Math.max(EDGE, above);
 
     pop.style.left = `${left}px`;
     pop.style.top = `${top}px`;
@@ -1769,10 +1785,7 @@ function solveOnWorkers(
         e.preventDefault();
         finish(solveTeam(key, members, filters));
       };
-      const request: SolveRequest = {
-        id: id++, teamKey: key, loadouts: members.map((m) => loadoutName(m.loadout)),
-        dpsIndex: members.findIndex((m) => m.mainDps), filters,
-      };
+      const request: SolveRequest = { id: id++, teamKey: key, filters };
       w.postMessage(request);
     };
     // one task per worker to start; each completion pulls the next, so a slow team can't leave the

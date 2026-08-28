@@ -1,34 +1,100 @@
 /**
- * The Tune Break: the break itself, and the two enemy states around it. The engine owns nothing but
- * the off-tune bar as a counter — the rest is here, reaching it as one gear on the target.
+ * The Tune Break: the enemy itself as a dummy resonator, the break, its cooldown, and the two
+ * enemy states around it. The engine owns nothing but the off-tune bar as a counter — the rest is
+ * here, equipped onto `State.enemy` the way a member's own kit is equipped onto them.
  */
 import {
-  Action, Attribute, BuffDef, Cast, Debuff, Scaling, Stat, Type1, addStat, applied, applyEnemy, currentAction,
-  currentTeam, midActionGroup, queue, queueEvent, getStat, revokeEnemy, stacksOfEnemy, triggeredAction,
-  TUNE_BREAK_SLOT,
+  Action, Attribute, BuffDef, Cast, Debuff, EnemyStat, Gear, Resonator, Scaling, Stat, Type1, WeaponType,
+  addEnemyStat, addStat, applied, applyEnemy, currentAction, currentTeam, equip, getStat, midActionGroup,
+  queue, queueEvent, revokeEnemy, stacksOfEnemy, triggeredAction,
 } from "../engine/kit.js";
 
-/* ---------------------------------------------------------------------------- the break */
-
-/** A break is nobody's turn, so its damage groups under its own bucket rather than any member's
- *  (kit.ts declares the label; re-exported here, where the mechanic lives). */
-export { TUNE_BREAK_SLOT };
-
-/** Deliberately paler than any resonator's hue: it marks a row as *not* somebody's damage. */
-export const TUNE_BREAK_HUE = "#c9d2de";
+/* ---------------------------------------------------------------------------- the enemy */
 
 /** The bar's own ceiling, x10000 like every `offtune` an action declares (the sheet's own 39.2). */
 export const ENEMY_MAX_OFFTUNE = 392_000;
 
-/** Where a full bar lands once a break has taken `ENEMY_MAX_OFFTUNE` off it — below empty on
- *  purpose, so there's a short dead window before the bar can start building again. */
-const OFFTUNE_AFTER_BREAK = -30_000;
+/** The enemy's own 20% resistance to every attribute, as seven scoped RES Reduce entries of -20 —
+ *  so the res column's own trace lists it beside every shred and ignore and foots to the total. */
+export const BASE_RESISTANCE = new Gear({
+  name: "Base Resistance",
+  constantStats: () => {
+    for (const attribute of [Attribute.Aero, Attribute.Electro, Attribute.Fusion, Attribute.Glacio, Attribute.Spectro, Attribute.Havoc, Attribute.Physical]) {
+      addEnemyStat(EnemyStat.ResShred, -20, attribute);
+    }
+  },
+});
+
+/** Tune Break Cooldown: on the target from the break, and while it stands every off-tune gain is
+ *  taken straight back off the bar — for the next three active presses by anyone on the team, and
+ *  every triggered action in between. Its stacks are that clock: the break lands the first, each
+ *  active, non-triggered action adds one, and the fourth is the one that finds it full and takes
+ *  it off, a phase ahead of any stat, so that action already builds again. */
+export const TUNE_BREAK_COOLDOWN: Debuff = new Debuff({
+  name: "Tune Break Cooldown", maxStacks: 4,
+  display: () => "Tune Break Cooldown",
+  updateBuffs: () => {
+    if (triggeredAction() || !currentAction().active) return;
+    if (stacksOfEnemy(TUNE_BREAK_COOLDOWN) >= 4) revokeEnemy(TUNE_BREAK_COOLDOWN);
+    else applyEnemy(TUNE_BREAK_COOLDOWN, 1);
+  },
+  // what evaluate() is about to bank of what this action *built*, negated — last of all, once
+  // every AddOfftune source has landed. What a kit puts on the bar directly (DirectOfftune,
+  // Denia's half-bar surge) is not a gain the cooldown holds off.
+  lateConvertStats: () => {
+    const built = currentAction().offtune + getStat(Stat.AddOfftune);
+    if (built > 0) addStat(Stat.DirectOfftune, -built * getStat(Stat.OfftuneBuildup) / 100);
+  },
+});
+
+/** The enemy, as the dummy resonator every fight has: its name is the bucket the break's damage
+ *  reports under (a break is nobody's turn) and its colour the hue that bucket wears, and it holds
+ *  the machinery that fires the break. solver.ts `equipEnemy()`s it onto `State.enemy` as it
+ *  builds a team — never onto a team slot, so it casts no Intro or Outro — and its own start of
+ *  combat puts its Base Resistance on. */
+export const TUNE_BREAK_ENEMY = new Resonator({
+  name: "Tune Break", enemy: true,
+  element: Attribute.Physical, weapon: WeaponType.Sword,
+  // deliberately paler than any resonator's hue: it marks a row as *not* somebody's damage
+  color: "#c9d2de",
+  intro: () => { throw new Error("the enemy casts no Intro"); },
+  outro: () => { throw new Error("the enemy casts no Outro"); },
+  combatStart: () => equip(BASE_RESISTANCE),
+
+  // A break drops whatever the bar overshot by and starts the cooldown, so the break's own
+  // `-ENEMY_MAX_OFFTUNE` DirectOfftune lands it on empty exactly — before the drain banks, the
+  // same `>=` that queues a break below.
+  updateDebuffs: () => {
+    if (currentAction() !== TUNE_BREAK) return;
+    const state = currentTeam();
+    if (state.offtune >= ENEMY_MAX_OFFTUNE) state.offtune = ENEMY_MAX_OFFTUNE;
+    applyEnemy(TUNE_BREAK_COOLDOWN, 1);
+  },
+  // the only phase that runs after evaluate() banks the action's own off-tune, so the only one that
+  // sees the bar fill in time. Not `queue`: a break falls in behind everything else this action
+  // spawned, and lands on whoever is on field rather than on whoever queued it.
+  // Only a real on-field press can set one off: a queued follow-up or engine event
+  // (`triggeredAction()`, which a break of its own is) and an inactive action both top the bar up
+  // without breaking it. The bar stays full either way, so the next action that *is* one fires it.
+  afterAction: () => {
+    if (triggeredAction() || !currentAction().active) return;
+    // ...and not part-way through an ActionGroup, which the rotation presses as one beat: the bar
+    // can fill on any cast in it, but the break lands on the one that ends the group (kit.ts)
+    if (midActionGroup()) return;
+    // and not while the last break's own Rupture/Hack Interfered is still up: a target already
+    // interfered with can't be broken again until that window is out. The bar just stays full
+    // meanwhile, so the break lands on the first action after the window ends.
+    if (stacksOfEnemy(TUNE_RUPTURE_INTERFERED) > 0 || stacksOfEnemy(TUNE_HACK_INTERFERED) > 0) return;
+    if (currentTeam().offtune >= ENEMY_MAX_OFFTUNE) queueEvent(TUNE_BREAK);
+  },
+});
 
 /** Always this one tune-scaled hit, whichever Shifting steered it — a Tune Break scales off Tune
- *  Break, and the Shifting only decides which Interfered it leaves behind. */
+ *  Break, and the Shifting only decides which Interfered it leaves behind. Reports under the
+ *  enemy's own bucket rather than whoever was on field. */
 export const TUNE_BREAK = new Action("Tune Break", {
   element: Attribute.Physical, scaling: Scaling.Tune, cast: Cast.TuneBreak, type: Type1.Break,
-  mv: 1600, slot: TUNE_BREAK_SLOT,
+  mv: 1600, slot: TUNE_BREAK_ENEMY.name,
   // The whole bar, straight off it: `DirectOfftune` rather than a declared `offtune`, because a
   // drain is an amount the bar moves by, not something the team's Off-Tune Buildup Rate builds
   // (see kit.ts's own evaluate()). Sourced to the break itself, so the off-tune panel names it.
@@ -46,7 +112,7 @@ export const TUNE_BREAK = new Action("Tune Break", {
  *  already pays nothing. Its stacks are the clock and nothing else, so it still reports its plain
  *  name rather than "xN".
  *  Nothing here handles a second application: a target already under Rupture/Hack Interfered can't
- *  be broken again until the window is out (the watcher below is what holds the break off), so the
+ *  be broken again until the window is out (the enemy above is what holds the break off), so the
  *  count is only ever started by the one break that inflicted it. A debuff that *can* land again
  *  inside its own window revokes itself first, which is what starts the count over — Mornye's own
  *  Interfered Marker, the other thing on this 8s, is the one kit that has to.  */
@@ -121,39 +187,3 @@ export function tuneStrainBonus(): void {
   const interfered = stacksOfEnemy(TUNE_STRAIN_INTERFERED);
   if (interfered > 0) addStat(Stat.TotalDmg, 0.12 * getStat(Stat.Tbb) * interfered);
 }
-
-/* --------------------------------------------------------------------------- firing it */
-
-/** The whole mechanic, as one gear on the target: a break drops whatever the bar overshot by, then
- *  the break's own `-ENEMY_MAX_OFFTUNE` DirectOfftune banks — leaving a full bar at
- *  OFFTUNE_AFTER_BREAK exactly, and a break somehow fired on a bar that wasn't full properly
- *  negative instead. */
-const TUNE_BREAK_WATCHER = new Debuff({
-  // before the drain banks, so the two land in that order — the same `>=` that queues a break below
-  updateDebuffs: () => {
-    const state = currentTeam();
-    if (currentAction() !== TUNE_BREAK) return;
-    if (state.offtune >= ENEMY_MAX_OFFTUNE) state.offtune = ENEMY_MAX_OFFTUNE + OFFTUNE_AFTER_BREAK;
-  },
-  // the only phase that runs after evaluate() banks the action's own off-tune, so the only one that
-  // sees the bar fill in time. Not `queue`: a break falls in behind everything else this action
-  // spawned, and lands on whoever is on field rather than on whoever queued it.
-  // Only a real on-field press can set one off: a queued follow-up or engine event
-  // (`triggeredAction()`, which a break of its own is) and an inactive action both top the bar up
-  // without breaking it. The bar stays full either way, so the next action that *is* one fires it.
-  afterAction: () => {
-    if (triggeredAction() || !currentAction().active) return;
-    // ...and not part-way through an ActionGroup, which the rotation presses as one beat: the bar
-    // can fill on any cast in it, but the break lands on the one that ends the group (kit.ts)
-    if (midActionGroup()) return;
-    // and not while the last break's own Rupture/Hack Interfered is still up: a target already
-    // interfered with can't be broken again until that window is out. The bar just stays full
-    // meanwhile, so the break lands on the first action after the window ends.
-    if (stacksOfEnemy(TUNE_RUPTURE_INTERFERED) > 0 || stacksOfEnemy(TUNE_HACK_INTERFERED) > 0) return;
-    if (currentTeam().offtune >= ENEMY_MAX_OFFTUNE) queueEvent(TUNE_BREAK);
-  },
-});
-
-/** Put the bar's own watcher on the target — solver.ts calls this once as it builds a team.
- *  Nameless on purpose: machinery, not a buff anyone's kit put up, so no popover lists it. */
-export const armTuneBreak = (): void => { applyEnemy(TUNE_BREAK_WATCHER, 1); };

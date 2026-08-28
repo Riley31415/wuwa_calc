@@ -6,13 +6,15 @@
  *  Lahairoi-era, own no mainslot echo/sonata of their own — Lucilla reuses Bell-Borne
  *  Geochelone/Moonlit Clouds from jinzhou.ts and Dream of the Lost from septimont.ts. */
 import { isType,
-  Buff, Sonata, Sonata2pc, Mainslot, Action, Stat, Attribute, Type1, Cast, Scaling,
+  Buff, Sonata, Sonata2pc, Mainslot, EchoType, Action, Stat, Attribute, Type1, Cast, Scaling,
   addStat, applyCurrent, applyTeam, casting, currentAction, getStat, queue, queueOutro, removeStack, revokeCurrent, revokeTeam,
   frozenStacks, stacksOf, isHeld,
   lostOnSwap,
   isCast,
+  currentMember,
 } from "../engine/kit.js";
 import { applied, appliedByMe } from "../engine/kit.js";
+import { handoff } from "../shared/handoff.js";
 import { SHIELD, FUSION_BURST, HEALS, GLACIO_CHAFE, HAVOC_BANE } from "../shared/status.js";
 import { TUNE_HACK_SHIFTING, TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 
@@ -26,6 +28,7 @@ export const ACTION_NAMELESS_EXPLORER = new Action("Echo - Nameless Explorer", {
 export const NAMELESS_EXPLORER = new Mainslot({
   name: "Nameless Explorer",
   action: ACTION_NAMELESS_EXPLORER,
+  echoType: EchoType.SUMMON,
   constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Aero); addStat(Stat.DmgBonus, 20, Type1.Echo); },
 });
 
@@ -53,17 +56,14 @@ export const ACTION_HYVATIA = new Action("Echo - Hyvatia", {
 });
 
 /** Its own handoff: an Outro within 15s of the summon hands the next resonator's Intro +10%
- *  All-Attribute DMG Bonus for 15s. Modelled the way every other echo handoff here is — queued
- *  onto the outro rather than tracking the 15s window, which a rotation never misses. */
-export const HYVATIA_HANDOFF = new Buff({
-  name: "Hyvatia: Outro",
-  applyStats: () => addStat(Stat.DmgBonus, 10),
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(HYVATIA_HANDOFF); },
-});
+ *  All-Attribute DMG Bonus for 15s — the summon window is one a rotation never misses, and the
+ *  15s it grants runs to the end of the next handoff (shared/handoff.ts). */
+export const HYVATIA_HANDOFF = handoff("Hyvatia: Outro", () => addStat(Stat.DmgBonus, 10));
 
 export const HYVATIA = new Mainslot({
   name: "Hyvatia",
   action: ACTION_HYVATIA,
+  echoType: EchoType.SUMMON,
 });
 
 /* ------------------------------------------------------------------------------- Mornye, 3.6 */
@@ -72,11 +72,12 @@ export const HYVATIA = new Mainslot({
  *  which is the reason Mornye wants it, her Liberation turning every point of ER past 100% into
  *  crit. */
 export const ACTION_REACTOR_HUSK = new Action("Echo - Reactor Husk", {
-  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 351, active: false,
+  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 351,
 });
 export const REACTOR_HUSK = new Mainslot({
   name: "Reactor Husk",
   action: ACTION_REACTOR_HUSK,
+  echoType: EchoType.TRANSFORM,
   constantStats: () => addStat(Stat.Er, 10),
 });
 
@@ -88,6 +89,7 @@ export const ACTION_SPACETREK = new Action("Echo - Spacetrek Explorer", {
 export const SPACETREK_EXPLORER = new Mainslot({
   name: "Spacetrek Explorer",
   action: ACTION_SPACETREK,
+  echoType: EchoType.SUMMON,
 });
 
 /* ------------------------------------------------------------------------------- Hiyuki, 3.6 */
@@ -102,24 +104,21 @@ export const ACTION_VOIDBORNE_CONSTRUCT = new Action("Echo - Reminiscence: Voidb
 export const VOIDBORNE_CONSTRUCT = new Mainslot({
   name: "Reminiscence: Threnodian - Voidborne Construct",
   action: ACTION_VOIDBORNE_CONSTRUCT,
+  echoType: EchoType.SUMMON,
   constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Glacio); addStat(Stat.DmgBonus, 12, Type1.Liberation); },
 });
 
 /** Glommoth: one 273.6% Glacio stomp, and an Outro within 15s of the summon hands the incoming
- *  resonator +12% Glacio DMG Bonus for 15s — queued onto the outro rather than tracking the
- *  window, the same way Hyvatia's own handoff above is. */
+ *  resonator +12% Glacio DMG Bonus for 15s — the same shape as Hyvatia's own handoff above. */
 export const ACTION_GLOMMOTH = new Action("Echo - Glommoth", {
   cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Atk, type: Type1.Echo, mv: 273.6, energy: 3.8,
   updateBuffs: () => queueOutro(GLOMMOTH_HANDOFF),
 });
-export const GLOMMOTH_HANDOFF = new Buff({
-  name: "Glommoth: Outro",
-  applyStats: () => addStat(Stat.DmgBonus, 12, Attribute.Glacio),
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(GLOMMOTH_HANDOFF); },
-});
+export const GLOMMOTH_HANDOFF = handoff("Glommoth: Outro", () => addStat(Stat.DmgBonus, 12, Attribute.Glacio));
 export const GLOMMOTH = new Mainslot({
   name: "Glommoth",
   action: ACTION_GLOMMOTH,
+  echoType: EchoType.SUMMON,
 });
 
 /** Wishes of Quiet Snowfall, the Glacio Chafe sonata (paired with either echo above). 2pc: +10%
@@ -168,10 +167,7 @@ export const SNOWFALL_CRIT = new Buff({
   applyStats: () => addStat(Stat.CritRate, 25),
 });
 
-export const SNOWFALL_OUTRO = new Buff({
-  name: "Wishes of Quiet Snowfall (outro)",
-  applyStats: () => addStat(Stat.DmgBonus, 25, Attribute.Glacio),
-});
+export const SNOWFALL_OUTRO = handoff("Wishes of Quiet Snowfall (outro)", () => addStat(Stat.DmgBonus, 25, Attribute.Glacio));
 
 /* --------------------------------------------------------------------------- 3.5-3.6 sonatas */
 
@@ -279,31 +275,29 @@ export const GILDED_REVELATION_STACKS = new Buff({
  *  Blade in a second 4-cost slot and the Blade's own hit count, which the page doesn't give — not
  *  modelled; this is the Cannon on its own. */
 export const ACTION_NEBULOUS_CANNON = new Action("Echo - Twin Nova: Nebulous Cannon", {
-  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Echo, mv: 80.51 * 2, energy: 0.55 * 2, active: false,
+  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Echo, mv: 80.51 * 2, energy: 0.55 * 2,
 });
 export const NEBULOUS_CANNON = new Mainslot({
   name: "Twin Nova: Nebulous Cannon",
   action: ACTION_NEBULOUS_CANNON,
+  echoType: EchoType.TRANSFORM,
   constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Spectro); addStat(Stat.DmgBonus, 12, Type1.Basic); },
 });
 
 /* -------------------------------------------------------------------------------- Denia, 3.6 */
 
 /** Reminiscence: Denia — "Trickster", her own mainslot echo: one 273.6% Fusion hit, and an Outro
- *  within 15s of the summon hands the incoming resonator +12% Fusion DMG Bonus for 15s — queued
- *  onto the outro the way every other echo handoff here is. Pairs with Chromatic Foam above. */
+ *  within 15s of the summon hands the incoming resonator +12% Fusion DMG Bonus for 15s. Pairs
+ *  with Chromatic Foam above. */
 export const ACTION_TRICKSTER = new Action("Echo - Trickster", {
   cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 273.6, energy: 3.8,
   updateBuffs: () => queueOutro(TRICKSTER_HANDOFF),
 });
-export const TRICKSTER_HANDOFF = new Buff({
-  name: "Trickster: Outro",
-  applyStats: () => addStat(Stat.DmgBonus, 12, Attribute.Fusion),
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(TRICKSTER_HANDOFF); },
-});
+export const TRICKSTER_HANDOFF = handoff("Trickster: Outro", () => addStat(Stat.DmgBonus, 12, Attribute.Fusion));
 export const TRICKSTER = new Mainslot({
   name: "Reminiscence: Denia",
   action: ACTION_TRICKSTER,
+  echoType: EchoType.SUMMON,
 });
 
 /** Voidwing Moth: a 405% Spectro tap, or held on for twelve more 49.33% hits. The tap is what a
@@ -313,14 +307,11 @@ export const ACTION_VOIDWING_MOTH = new Action("Echo - Voidwing Moth", {
   cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Echo, mv: 405, energy: 5.62,
   updateBuffs: () => queueOutro(VOIDWING_HANDOFF),
 });
-export const VOIDWING_HANDOFF = new Buff({
-  name: "Voidwing Moth: Outro",
-  applyStats: () => addStat(Stat.BonusAtk, 12),
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(VOIDWING_HANDOFF); },
-});
+export const VOIDWING_HANDOFF = handoff("Voidwing Moth: Outro", () => addStat(Stat.BonusAtk, 12));
 export const VOIDWING_MOTH = new Mainslot({
   name: "Voidwing Moth",
   action: ACTION_VOIDWING_MOTH,
+  echoType: EchoType.TRANSFORM,
 });
 
 /** Reel of Spliced Memories, Voidwing Moth's own sonata. 2pc: +10% ATK flat. 5pc: the wearer
@@ -359,6 +350,7 @@ export const ACTION_ADAM_SMASHER_LUCY = new Action("Echo - Adam Smasher", {
 export const ADAM_SMASHER_LUCY = new Mainslot({
   name: "Reminiscence - Nightmare: Adam Smasher",
   action: ACTION_ADAM_SMASHER_LUCY,
+  echoType: EchoType.SUMMON,
   constantStats: () => addStat(Stat.CritRate, 15),
   updateBuffs: () => { if (appliedByMe(TUNE_HACK_SHIFTING)) applyCurrent(SHATTERED_DREAMS, 1); },
 });
@@ -370,6 +362,22 @@ export const ACTION_ADAM_SMASHER_REBECCA = new Action("Echo - Adam Smasher", {
 export const ADAM_SMASHER_REBECCA = new Mainslot({
   name: "Reminiscence - Nightmare: Adam Smasher",
   action: ACTION_ADAM_SMASHER_REBECCA,
+  echoType: EchoType.SUMMON,
   constantStats: () => addStat(Stat.CritRate, 15),
   updateBuffs: () => { if (appliedByMe(TUNE_HACK_SHIFTING)) applyCurrent(SHATTERED_DREAMS, 1); },
+});
+
+/* ------------------------------------------------------------------------------ Aemeath, 3.6 */
+
+/** Sigillum, Aemeath's own mainslot echo: two Fusion hits, 68.4% and 205.2%. The +25% Resonance
+ *  Liberation DMG Bonus is "when equipped in the main slot by Aemeath" — only her loadouts list
+ *  it, so it is granted flat here. Pairs with Trailblazing Star above. */
+export const ACTION_SIGILLUM = new Action("Echo - Sigillum", {
+  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 68.4 + 205.2, energy: 0.23 + 2.13,
+});
+export const SIGILLUM = new Mainslot({
+  name: "Sigillum",
+  action: ACTION_SIGILLUM,
+  echoType: EchoType.SUMMON,
+  constantStats: () => { if (currentMember().resonator?.name === "Aemeath") addStat(Stat.DmgBonus, 25, Type1.Liberation); },
 });

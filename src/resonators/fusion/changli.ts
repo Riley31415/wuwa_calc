@@ -1,6 +1,6 @@
 /**
- * Changli, ported to the new engine — sequence-0 core loop, a limited 5-star (not
- * `standardCharacter`). A fusion sword main DPS. True Sight (12s, opened by Basic Attack Stage 4/
+ * Changli, ported to the new engine — sequence-0 core loop, a limited 5-star
+ * (`Tier.Limited`). A fusion sword main DPS. True Sight (12s, opened by Basic Attack Stage 4/
  * Mid-air Attack Stage 4/Resonance Skill/Intro) lets her next Basic Attack — ground or mid-air —
  * become True Sight: Conquest/Charge instead, both Resonance Skill DMG and both banking a stack
  * of Enflamement (max 4, also granted outright x4 by Liberation). Heavy Attack at 4 Enflamement
@@ -14,6 +14,7 @@ import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, revokeCurrent, casting, currentAction, addStat, forte1, queueOutro, lostOnSwap,
 } from "../../engine/kit.js";
+import { matrix } from "../../shared/matrix.js";
 import { Rotation, START_COMBAT, INTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { BLAZING_BRILLIANCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
@@ -111,7 +112,7 @@ const CHANGLI_OUTRO = new Buff({
   updateBuffs: () => { lostOnSwap(); },
 });
 
-const CHANGLI = new Resonator({
+const CHANGLI_RESONATOR = new Resonator({
   name: "Changli",
   element: Attribute.Fusion,
   weapon: WeaponType.Sword,
@@ -151,8 +152,9 @@ const CH_ROTATION = new Rotation([
 
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
-export const CHANGLI_LOADOUT = new Loadout({
-  resonator: CHANGLI,
+export const CHANGLI = new Loadout({
+  resonator: CHANGLI_RESONATOR,
+  matrix: matrix("Changli", 25),
   talent: CHANGLI_TALENTS,
   inherent1: CH_INHERENT_1,
   inherent2: CH_INHERENT_2,

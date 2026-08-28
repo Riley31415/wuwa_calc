@@ -1,5 +1,5 @@
 /**
- * Mortefi, ported to the new engine — a `standardCharacter: true` 4-star, all six sequence nodes
+ * Mortefi, ported to the new engine — a `Tier.Free` 4-star, all six sequence nodes
  * folded into the loadout unconditionally. A fusion Pistols off-field Coordinated Attack support:
  * Burning Rhapsody (Liberation) opens a 10s window where the active resonator's own Basic/Heavy
  * hits trigger Mortefi's own Marcato — lumped into one action queued off his Outro, same shape as
@@ -9,17 +9,18 @@
  * against the migrated (old-engine) sheet's own totals.
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
   Type2, Cast, Node, Scaling, applyCurrent, applyTeam, revokeTeam, stacksOfTeam, isHeld, casting, currentAction,
   addStat, revokeCurrent, queue, queueOutro, lostOnSwap,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { STATIC_MIST, CADENZA, NEW_STD_PISTOL } from "../../weapons/standard.js";
 import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";
 import { NM_HECATE, EMPYREAN_ANTHEM_5PC, EMPYREAN_ANTHEM_2PC, HECATE } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
+import { THE_LAST_DANCE } from "../../weapons/pistol.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -69,10 +70,10 @@ const Outro = mortefiAction("Outro - Rage Transposition", {
 /* ------------------------------------------------------------------------------------ buffs */
 
 /** Burning Rhapsody's own "is the window open" flag — no stat of its own, just what S5 reads.
- *  Team-wide, closed on Mortefi's own Outro specifically (`isHeld(MORTEFI)`). */
+ *  Team-wide, closed on Mortefi's own Outro specifically (`isHeld(MORTEFI_RESONATOR)`). */
 const BURNING_RHAPSODY = new Buff({
   name: "Mortefi: Burning Rhapsody",
-  updateBuffs: () => { if (casting(Cast.Outro) && isHeld(MORTEFI)) revokeTeam(BURNING_RHAPSODY); },
+  updateBuffs: () => { if (casting(Cast.Outro) && isHeld(MORTEFI_RESONATOR)) revokeTeam(BURNING_RHAPSODY); },
 });
 
 /** Harmonic Control (Inherent Skill): +25% Fury Fugue DMG for 8s after Passionate Variation —
@@ -104,7 +105,7 @@ const MORTEFI_OUTRO = new Buff({
 const S6_TEAM_ATK = new Buff({
   name: "Mortefi S6: Apoplectic Instrumental",
   applyStats: () => addStat(Stat.BonusAtk, 20),
-  convertStats: () => { if (casting(Cast.Intro) && isHeld(MORTEFI)) revokeTeam(S6_TEAM_ATK); },
+  convertStats: () => { if (casting(Cast.Intro) && isHeld(MORTEFI_RESONATOR)) revokeTeam(S6_TEAM_ATK); },
 });
 
 /** S1 Solitary Etude: extra Marcato off a teammate's own Resonance Skill cast — depends on their
@@ -146,8 +147,8 @@ const MORTEFI_S6 = new Sequence({
 });
 
 /** Him, as a Resonator: name/element/weapon, every grant/spend/queue rule his kit needs, and his
- *  own base stat line. `standardCharacter: true` — see the file header. */
-const MORTEFI = new Resonator({
+ *  own base stat line. `Tier.Free` — see the file header. */
+const MORTEFI_RESONATOR = new Resonator({
   name: "Mortefi",
   element: Attribute.Fusion,
   weapon: WeaponType.Pistols,
@@ -155,7 +156,7 @@ const MORTEFI = new Resonator({
   outro: () => Outro,
   color: "#e8734f",
   maxEnergy: 125,
-  standardCharacter: true,
+  tier: Tier.Free,
 
   constantStats: () => {
     addStat(Stat.BaseHp, 10025); addStat(Stat.BaseAtk, 250); addStat(Stat.BaseDef, 1137);
@@ -181,19 +182,19 @@ const MO_ROTATION = new Rotation([
   BA1234,
   FSkill,
   Liberation,
-  ECHO_CAST, OUTRO_NEXT,
+  ECHO_OUTRO, OUTRO_NEXT,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
 // his real 5pc Moonlit Clouds + Impermanence Heron build, Static Mist signature-adjacent standard
-// weapon, all six sequence nodes (standardCharacter — see file header)
-export const MORT_LOADOUT = new Loadout({
-  resonator: MORTEFI,
+// weapon, all six sequence nodes (Tier.Free — see file header)
+export const MORTEFI = new Loadout({
+  resonator: MORTEFI_RESONATOR,
   talent: MORTEFI_TALENTS,
   inherent1: MO_INHERENT_1,
   inherent2: MO_INHERENT_2,
-  weapons: [STATIC_MIST, CADENZA, NEW_STD_PISTOL],
+  weapons: [STATIC_MIST, CADENZA, NEW_STD_PISTOL, THE_LAST_DANCE],
   echoLoadouts: [
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
     new EchoLoadout(STONEWALL_BRACER, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),

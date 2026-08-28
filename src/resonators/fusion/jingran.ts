@@ -29,7 +29,7 @@ import {
   getStat, frozenStacks,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { applied, applyTeam } from "../../engine/kit.js";
 import { SHIELD } from "../../shared/status.js";
 import { JINGRAN_SIG, THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
@@ -78,7 +78,7 @@ const Lib = jingranAction("Liberation - Burial of Thousand Souls", {
 const ACTION_LIB_FUA = jingranAction("Liberation - Chimei Wangliang", { node: Node.Liberation, type: Type1.Heavy, mv: 83.51 });
 
 // his Intro trades every Ghost Shroud held for the same count of Fortune in Disguise — run here,
-// ahead of JINGRAN's own per-shield grant, so a shield the Intro itself grants carries into the
+// ahead of JINGRAN_RESONATOR's own per-shield grant, so a shield the Intro itself grants carries into the
 // next cycle rather than being spent by that same cast
 const Intro = jingranAction("Intro - Question the Tombs", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81, energy: 10, concerto: 10, offtune: 8000, forte1: 100,
@@ -121,7 +121,7 @@ function hpSteps(): number { return Math.floor(Math.min(hp(), 50000) / 1000); }
 
 /** Ghost Shroud — a resource; the stack count *is* the value. His intro spends it. Base kit: +1
  *  a shield whenever *he* gains one of his own (its own 0.5s ICD dropped, per the standing ICD
- *  simplification — granted on JINGRAN's own updateBuffs() below, not here). Trace the Vestige
+ *  simplification — granted on JINGRAN_RESONATOR's own updateBuffs() below, not here). Trace the Vestige
  *  (Inherent Skill) adds a second, separate income on top: +2 a shield on a *teammate's* own
  *  shield, plus a flat +15 more via Fixation — see JR_INHERENT_2 below. */
 const JINGRAN_GHOST_SHROUD = new Buff({ name: "Jingran: Ghost Shroud", maxStacks: 50 });
@@ -162,7 +162,7 @@ const JR_INHERENT_2 = new Inherent({
   // acting, so `applySelf()`/`isHeld()` below always resolve against him specifically.
   updateGlobal: () => {
     const a = currentAction();
-    if (currentTeam().slot.resonator === JINGRAN || !applied(SHIELD)) return;
+    if (currentTeam().slot.resonator === JINGRAN_RESONATOR || !applied(SHIELD)) return;
     applyCurrent(JINGRAN_GHOST_SHROUD, 2 * applied(SHIELD));
     if (isHeld(JINGRAN_FIXATION)) { revokeCurrent(JINGRAN_FIXATION); applyCurrent(JINGRAN_GHOST_SHROUD, 15); }
   },
@@ -170,7 +170,7 @@ const JR_INHERENT_2 = new Inherent({
 
 /** Part of his Forte Circuit's own page section ("Qi Modulation"), not an Inherent Skill. His
  *  DEF is fixed at 0, plus two HP -> stat conversions in whole 1000 HP steps: Incoming Healing
- *  Bonus and Fusion DMG Bonus. Self-applied once at JINGRAN's own combatStart (not added to the
+ *  Bonus and Fusion DMG Bonus. Self-applied once at JINGRAN_RESONATOR's own combatStart (not added to the
  *  loadout) so it keeps its own distinct "@Nk HP" source name in the report's hover trace. */
 const JINGRAN_HP_TO_FUSION = new Buff({
   name: "Jingran: Nether to Light",
@@ -214,7 +214,7 @@ const SHIELDS = new Map<Action, number>([
   [DC, 1], [EDC, 1], [Skill1, 1], [ESkill1, 1], [Skill2, 3], [ESkill2, 3], [Lib, 3], [Intro, 1], [FHA, 2], [EFHA, 2],
 ]);
 
-const JINGRAN = new Resonator({
+const JINGRAN_RESONATOR = new Resonator({
   name: "Jingran",
   element: Attribute.Fusion,
   weapon: WeaponType.Broadblade,
@@ -261,15 +261,15 @@ const JR_ROTATION = new Rotation([
   EBA234, EFHA,
   Skill1, Skill2, FHA,
   ESkill1, ESkill2, EFHA,
-  ECHO_CAST, OUTRO_NEXT,
+  ECHO_OUTRO, OUTRO_NEXT,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
 // his real 44111 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
-export const JINGOAT_LOADOUT = new Loadout({
-  resonator: JINGRAN,
+export const JINGRAN = new Loadout({
+  resonator: JINGRAN_RESONATOR,
   talent: JINGRAN_TALENTS,
   inherent1: JR_INHERENT_1,
   inherent2: JR_INHERENT_2,

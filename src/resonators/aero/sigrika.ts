@@ -14,7 +14,7 @@ import {
   frozenStacks, getStat, queue, lostOnSwap,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { SOLSWORN_CIPHERS } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC, SOUND_OF_TRUE_NAME_2PC } from "../../echoes/lahairoi.js";
@@ -79,13 +79,13 @@ const Outro = sigrikaAction("Outro - In This Very Moment", { cast: Cast.Outro, t
 
 /** True Names Aligned (Inherent Skill): a teammate's Echo Skill cast grants the whole team a stack
  *  of Blessing of Runes (up to 6) — +3% Aero/Echo Skill DMG a stack to whoever's active, +30%/+30%
- *  flat more at the full 6 for Sigrika specifically. Granted via `SIGRIKA`'s own `updateGlobal()`
+ *  flat more at the full 6 for Sigrika specifically. Granted via `SIGRIKA_RESONATOR`'s own `updateGlobal()`
  *  (not this buff's own updateBuffs()) since a global buff's updateBuffs() can't fire before it's held once. */
 const BLESSING_OF_RUNES = new Buff({
   name: "Sigrika: Blessing of Runes", maxStacks: 6,
   applyStats: () => {
     const held = stacksOfTeam(BLESSING_OF_RUNES);
-    if (held >= 6 && isHeld(SIGRIKA)) { addStat(Stat.DmgBonus, 30, Attribute.Aero); addStat(Stat.DmgBonus, 30, Type1.Echo); }
+    if (held >= 6 && isHeld(SIGRIKA_RESONATOR)) { addStat(Stat.DmgBonus, 30, Attribute.Aero); addStat(Stat.DmgBonus, 30, Type1.Echo); }
 
     if (currentAction().active) {
         addStat(Stat.DmgBonus, 3 * held, Attribute.Aero);
@@ -156,7 +156,7 @@ const INNATE_GIFT = new Buff({
 });
 
 /** Soliskin Vitality: a genuine 0-60 gauge, +10 whenever any team member casts an Echo Skill
- *  (granted via `SIGRIKA`'s own updateGlobal(), same reasoning as Blessing of Runes above). Spent
+ *  (granted via `SIGRIKA_RESONATOR`'s own updateGlobal(), same reasoning as Blessing of Runes above). Spent
  *  by whichever Runic follow-up fires: 30+ points spends exactly 30 for +50% DMG Multiplier and a
  *  stack of Innate Gift?; under 30 spends everything held for +15% DMG Amplification per 10 points. */
 const SOLISKIN_VITALITY = new Buff({
@@ -184,7 +184,7 @@ const SOLISKIN_VITALITY = new Buff({
 
 /** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her
  *  own base stat line. */
-const SIGRIKA = new Resonator({
+const SIGRIKA_RESONATOR = new Resonator({
   name: "Sigrika",
   element: Attribute.Aero,
   weapon: WeaponType.Gauntlets,
@@ -215,7 +215,7 @@ const SIGRIKA_TALENTS = new Talent({
 const BA234 = new ActionGroup("Basic - One, Two, Three 234", [BA2, BA3, BA4]);
 
 const SR_ROTATION = new Rotation([
-  INTRO, ECHO_CAST, BA234, EBA, FHAchainwhip, Liberation,
+  INTRO, ECHO_CANCEL, BA234, EBA, FHAchainwhip, Liberation,
   BA234, EBA, FHAoutburst, FSkill, OUTRO_NEXT,
 ]);
 
@@ -223,8 +223,8 @@ const SR_ROTATION = new Rotation([
 
 // her real 43311 build: resonator + talents + both Inherent Skills + Forte Circuit, weapon,
 // mainslot echo, sonata pieces, mainstat/substat
-export const GEEK_LOADOUT = new Loadout({
-  resonator: SIGRIKA,
+export const SIGRIKA = new Loadout({
+  resonator: SIGRIKA_RESONATOR,
   talent: SIGRIKA_TALENTS,
   inherent1: SR_INHERENT_1,
   inherent2: SR_INHERENT_2,

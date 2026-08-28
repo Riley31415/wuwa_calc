@@ -15,7 +15,7 @@ export const VERITYS_HANDLE = new Weapon({
   weaponType: WeaponType.Gauntlets,
   name: "Verity's Handle",
   constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.DmgBonus, 12); },
-  updateBuffs: () => { if (casting(Cast.Liberation) || casting(Cast.Skill)) applyCurrent(AD_VERITATEM, 1); },
+  updateBuffs: () => { if (casting(Cast.Liberation)) applyCurrent(AD_VERITATEM, 1); },
 });
 export const AD_VERITATEM = new Buff({
   name: "Verity's Handle: Ad Veritatem",

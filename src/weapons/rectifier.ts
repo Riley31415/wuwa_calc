@@ -135,13 +135,13 @@ export const FREEZE_FRAME_TEAM = new Buff({
 });
 
 /** Stellar Symphony, Shorekeeper's sig, R1: 12% HP to herself, 14% attack to the team, and 8
- *  Concerto on a Skill or Liberation cast, once every 20s — the cooldown works like Variation's
+ *  Concerto on a Liberation cast, once every 20s — the cooldown works like Variation's
  *  Ceaseless Aria: first cast grants it and goes on cooldown, reset by the wielder's Outro. */
 export const SK_SIG = new Weapon({
   weaponType: WeaponType.Rectifier,
   name: "Stellar Symphony",
   updateBuffs: () => {
-    if (casting(Cast.Skill) || casting(Cast.Liberation)) applyCurrent(SK_SIG_CONCERTO, 1);
+    if (casting(Cast.Liberation)) applyCurrent(SK_SIG_CONCERTO, 1);
     if (casting(Cast.Skill) && applied(HEALS)) {
       applyTeam(SK_SIG_TEAM, 1);
     }
@@ -158,7 +158,7 @@ export const SK_SIG_TEAM = new Buff({
 export const SK_SIG_CONCERTO = new Buff({
   name: "Stellar Symphony: Astral Evolvement", maxStacks: 2,
   applyStats: () => {
-    if (frozenStacks() === 1 && (casting(Cast.Skill) || casting(Cast.Liberation))) {
+    if (frozenStacks() === 1 && (casting(Cast.Liberation))) {
       applyCurrent(SK_SIG_CONCERTO, 1); addStat(Stat.AddConcerto, 8);
     } else if (frozenStacks() === 2 && casting(Cast.Outro)) removeStack(SK_SIG_CONCERTO, 2);
   },

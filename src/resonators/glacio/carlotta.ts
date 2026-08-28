@@ -40,7 +40,8 @@ import {
   Scaling, applyCurrent, applyEnemy, revokeEnemy, isHeld, currentAction, casting, revokeCurrent, addStat, forte1, forte2,
   setForte2, Debuff,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { matrix } from "../../shared/matrix.js";
+import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { THE_LAST_DANCE } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { FROSTY_RESOLVE_2PC, FROSTY_RESOLVE_5PC, SENTRY_CONSTRUCT } from "../../echoes/rinascita.js";
@@ -114,12 +115,12 @@ const Outro = carlottaAction("Outro - Closing Remark", { cast: Cast.Outro, type:
 /* ------------------------------------------------------------------------------------ buffs */
 
 /** A genuine debuff on the enemy — permanent uptime once inflicted. Its 18% DEF Shred only lands
- *  while Carlotta herself is the active member, checked by `isHeld(CARLOTTA)`: this buff's own
+ *  while Carlotta herself is the active member, checked by `isHeld(CARLOTTA_RESONATOR)`: this buff's own
  *  applyStats() runs on every member's turn, but `currentSlot` there is always whoever's acting. */
 const DECONSTRUCTION = new Debuff({
   name: "Carlotta: Deconstruction",
-  applyStats: () => { if (isHeld(CARLOTTA)) addStat(Stat.DefIgnoreOld, 18); },
-  convertStats: () => { if (casting(Cast.Outro) && isHeld(CARLOTTA)) revokeEnemy(DECONSTRUCTION); },
+  applyStats: () => { if (isHeld(CARLOTTA_RESONATOR)) addStat(Stat.DefIgnoreOld, 18); },
+  convertStats: () => { if (casting(Cast.Outro) && isHeld(CARLOTTA_RESONATOR)) revokeEnemy(DECONSTRUCTION); },
 });
 
 const CL_INHERENT_1 = new Inherent({
@@ -172,7 +173,7 @@ const FINAL_BOW = new Buff({
   },
 });
 
-const CARLOTTA = new Resonator({
+const CARLOTTA_RESONATOR = new Resonator({
   name: "Carlotta",
   element: Attribute.Glacio,
   weapon: WeaponType.Pistols,
@@ -200,15 +201,16 @@ const CARLOTTA_TALENTS = new Talent({
 const CL_ROTATION = new Rotation([
   INTRO, Skill1, Skill2, MA1, Skill1, Skill2,
   Lib1, DeathKnell, DeathKnell, DeathKnell, DeathKnell, FatalFinale,
-  Skill1, Skill2, ECHO_CAST, OUTRO_NEXT,
+  Skill1, Skill2, ECHO_OUTRO, OUTRO_NEXT,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
-export const LOTTA_LOADOUT = new Loadout({
-  resonator: CARLOTTA,
+export const CARLOTTA = new Loadout({
+  resonator: CARLOTTA_RESONATOR,
+  matrix: matrix("Carlotta", 25),
   talent: CARLOTTA_TALENTS,
   inherent1: CL_INHERENT_1,
   inherent2: CL_INHERENT_2,

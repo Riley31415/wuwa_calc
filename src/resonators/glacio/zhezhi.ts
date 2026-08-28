@@ -21,17 +21,17 @@
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Type2, Cast,
   Node, Scaling, applyCurrent, currentAction, casting, revokeCurrent, addStat, frozenStacks, queue, queueOutro,
-  lostOnSwap,
+  lostOnSwap, applyTeam,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { matrix } from "../../shared/matrix.js";
+import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { RIME_DRAPED_SPROUTS, STRINGMASTER, LETHEAN_ELEGY, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { EMPYREAN_ANTHEM_2PC, EMPYREAN_ANTHEM_5PC, NM_LAMPY } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 import { HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
-import { CANTA_LOADOUT } from "../havoc/cantarella.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -59,10 +59,10 @@ const FHA = zhezhiAction("Forte Heavy - Conjuration", {
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 249.03, energy: 2.1, concerto: 6.69, offtune: 6681, forte1: -30,
 });
 const FSkill = zhezhiAction("Forte Skill - Stroke of Genius", {
-  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 298.22, energy: 7, concerto: 13, offtune: 7736,
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 298.22, energy: 7, concerto: 13, offtune: 7736, forte2: 1,
 });
 const FSkill3 = zhezhiAction("Forte Skill - Creation's Zenith", {
-  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 357.87, energy: 7.02, concerto: 13, offtune: 10401,
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 357.87, energy: 7.02, concerto: 13, offtune: 10401, forte2: -2,
   updateBuffs: () => applyCurrent(IVORY_HERALD, 1),
 });
 
@@ -132,7 +132,7 @@ const ZZ_INHERENT_2 = new Inherent({
   }
 });
 
-const ZHEZHI = new Resonator({
+const ZHEZHI_RESONATOR = new Resonator({
   name: "Zhezhi",
   element: Attribute.Glacio,
   weapon: WeaponType.Rectifier,
@@ -160,7 +160,7 @@ const ZHEZHI_TALENTS = new Talent({
 const BA123 = new ActionGroup("Basic - Dimming Brush 123", [BA1, BA2, BA3]);
 
 const ZZ_ROTATION = new Rotation([
-  INTRO, ECHO_CAST, BA123,
+  INTRO, ECHO_CANCEL, BA123,
   Skill, FHA, FSkill, FSkill, FSkill3,
   Liberation, OUTRO_NEXT,
 ]);
@@ -170,8 +170,18 @@ const ZZ_ROTATION = new Rotation([
 // her real 43311 build: resonator + talents + both Inherent Skills, viable weapons, and two real
 // echo choices — Empyrean Anthem or Moonlit Clouds — both automatically iterated (see kit.ts's
 // own EchoLoadout)
-export const ZZ_LOADOUT = new Loadout({
-  resonator: ZHEZHI,
+/** Matrix: her Liberation grants the team +30% Resonance Skill DMG Bonus for 30s — permanent. */
+const ZHEZHI_MATRIX_TEAM = new Buff({
+  name: "Zhezhi: Matrix (team)",
+  applyStats: () => addStat(Stat.DmgBonus, 30, Type1.Skill),
+});
+const ZHEZHI_MATRIX = matrix("Zhezhi", 20, {
+  updateBuffs: () => { if (casting(Cast.Liberation)) applyTeam(ZHEZHI_MATRIX_TEAM); },
+});
+
+export const ZHEZHI = new Loadout({
+  resonator: ZHEZHI_RESONATOR,
+  matrix: ZHEZHI_MATRIX,
   talent: ZHEZHI_TALENTS,
   inherent1: ZZ_INHERENT_1,
   inherent2: ZZ_INHERENT_2,

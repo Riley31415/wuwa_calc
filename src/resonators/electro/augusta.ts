@@ -1,6 +1,6 @@
 /**
- * Augusta, ported to the new engine — sequence-0 core loop, a limited 5-star (not
- * `standardCharacter`). An electro broadblade DPS. Two gauges gate her chained forms: Prowess
+ * Augusta, ported to the new engine — sequence-0 core loop, a limited 5-star
+ * (`Tier.Limited`). An electro broadblade DPS. Two gauges gate her chained forms: Prowess
  * (forte1, 0-660) lets a full-gauge Heavy Attack - Steelclash become the Thunderoar Backstep ->
  * Spinslash chain instead; Ascendancy (forte2, 0-4000) lets a full-gauge Resonance Skill -
  * Warrior's Blade become the Undying Sunlight Strike -> Leap -> Plunge chain instead. Majesty (2
@@ -28,14 +28,14 @@ import {
   Scaling, applyCurrent, applyTeam, revokeCurrent, revokeBuff, casting, currentAction, currentTeam, addStat, queue,
   queueOutro, lostOnSwap,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { applied } from "../../engine/kit.js";
 import { SHIELD } from "../../shared/status.js";
 import { THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { FALSE_SOVEREIGN, COV_3PC } from "../../echoes/septimont.js";
 import { VOID_THUNDER_2PC } from "../../echoes/jinzhou.js";
-import { PHROLOVA, MAESTRO } from "../havoc/phrolova.js";
+import { PHROLOVA_RESONATOR, MAESTRO } from "../havoc/phrolova.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 
@@ -74,7 +74,7 @@ const FSkill3 = augustaAction("Forte Skill - Undying Sunlight: Plunge", {
 // liberation: Sword of Eternal Oath, the plain press-and-release cast
 const Lib1 = augustaAction("Liberation - Sword of Eternal Oath", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 1099.48, energy: 4.74, concerto: 20, offtune: 29342, forte2: 2000, resetEnergy: true });
 /** Held instead of released once Majesty reaches 2 — costs both stacks of Majesty rather than
- *  Energy, spent via AUGUSTA's own updateBuffs() below. Nine hits lumped into one action; queues
+ *  Energy, spent via AUGUSTA_RESONATOR's own updateBuffs() below. Nine hits lumped into one action; queues
  *  Everbright Protector itself once the ninth lands. */
 const Lib2 = augustaAction("Liberation - Sublime is the Sun", {
   node: Node.Liberation, cast: Cast.Liberation, resetEnergy: true,
@@ -88,7 +88,7 @@ const Lib3 = augustaAction("Liberation - Sublime is the Sun: Everbright Protecto
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 1192.93, energy: 60, concerto: 10, offtune: 50400,
   updateBuffs: () => {
     // memberOf() throws on a resonator not on this team, so only reach for it if Phrolova's along
-    if (currentTeam().slots.some((s) => s.resonator === PHROLOVA)) revokeBuff(PHROLOVA, MAESTRO);
+    if (currentTeam().slots.some((s) => s.resonator === PHROLOVA_RESONATOR)) revokeBuff(PHROLOVA_RESONATOR, MAESTRO);
   },
 });
 
@@ -161,7 +161,7 @@ const AG_INHERENT_2 = new Inherent({
   },
 });
 
-const AUGUSTA = new Resonator({
+const AUGUSTA_RESONATOR = new Resonator({
   name: "Augusta",
   element: Attribute.Electro,
   weapon: WeaponType.Broadblade,
@@ -194,7 +194,7 @@ const AUGUSTA_TALENTS = new Talent({
 // Undying Sunlight chain. She's never the team's own lead, so this covers both opener and loop.
 
 const AG_ROTATION = new Rotation([
-  INTRO, FHA1, FHA2, Skill, FHA1, FHA2, ECHO_CAST, Lib1,
+  INTRO, FHA1, FHA2, Skill, FHA1, FHA2, ECHO_CANCEL, Lib1,
   FSkill1, FSkill2, FSkill3, Lib2, OUTRO_NEXT,
 ]);
 
@@ -202,8 +202,8 @@ const AG_ROTATION = new Rotation([
 
 // her real 43311 build: resonator + talents + both Inherent Skills, viable weapons, mainslot echo,
 // sonata pieces, mainstat/substat
-export const AUGUGU_LOADOUT = new Loadout({
-  resonator: AUGUSTA,
+export const AUGUSTA = new Loadout({
+  resonator: AUGUSTA_RESONATOR,
   talent: AUGUSTA_TALENTS,
   inherent1: AG_INHERENT_1,
   inherent2: AG_INHERENT_2,

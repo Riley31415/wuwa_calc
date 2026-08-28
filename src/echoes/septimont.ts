@@ -1,6 +1,6 @@
 /** Mainslot echoes and sonatas from Septimont (versions 2.5-2.7). */
 import { isType,
-  Buff, Sonata, Sonata2pc, Mainslot, Action, Stat, Attribute, Type1, Cast, Scaling,
+  Buff, Sonata, Sonata2pc, Mainslot, EchoType, Action, Stat, Attribute, Type1, Cast, Scaling,
   addStat, frozenStacks, stacksOf, stacksOfEnemy, stacksOfTeam, applyCurrent, applyTeam, casting, currentAction,
   revokeCurrent, maxEnergy, queue, triggeredAction,
 } from "../engine/kit.js";
@@ -34,6 +34,7 @@ export const ACTION_FALSE_SOVEREIGN_INTRO = new Action("Echo - False Sovereign (
 export const FALSE_SOVEREIGN = new Mainslot({
   name: "False Sovereign",
   action: ACTION_FALSE_SOVEREIGN,
+  echoType: EchoType.TRANSFORM,
   updateBuffs: () => { if (casting(Cast.Intro)) queue(ACTION_FALSE_SOVEREIGN_INTRO); },
   constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Electro); addStat(Stat.DmgBonus, 12, Type1.Heavy); },
 });
@@ -59,6 +60,7 @@ export const ACTION_MYA = new Action("Echo - Lady of the Sea", {
 export const MYA = new Mainslot({
   name: "Lady of the Sea",
   action: ACTION_MYA,
+  echoType: EchoType.SUMMON,
   constantStats: () => { addStat(Stat.DmgBonus, 12, Type1.Liberation); addStat(Stat.DmgBonus, 12, Attribute.Aero); },
 });
 
@@ -71,6 +73,7 @@ export const ACTION_LIONESS = new Action("Echo - Lioness of Glory", {
 export const LIONESS_OF_GLORY = new Mainslot({
   name: "Lioness of Glory",
   action: ACTION_LIONESS,
+  echoType: EchoType.SUMMON,
   constantStats: () => { addStat(Stat.DmgBonus, 12, Type1.Liberation); addStat(Stat.DmgBonus, 12, Attribute.Fusion); },
 });
 
@@ -99,6 +102,7 @@ export const ACTION_CORROSAURUS = new Action("Echo - Corrosaurus", {
 export const CORROSAURUS = new Mainslot({
   name: "Corrosaurus",
   action: ACTION_CORROSAURUS,
+  echoType: EchoType.SUMMON,
   constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Fusion); addStat(Stat.DmgBonus, 20, Type1.Echo); },
 });
 
@@ -135,6 +139,7 @@ export const ACTION_FENRICO = new Action("Echo - Reminiscence: Fenrico", {
 export const FENRICO = new Mainslot({
   name: "Reminiscence: Fenrico",
   action: ACTION_FENRICO,
+  echoType: EchoType.SUMMON,
   constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Aero); addStat(Stat.DmgBonus, 12, Type1.Heavy); },
 });
 
@@ -188,6 +193,7 @@ export const ACTION_CORE_OF_COLLAPSE = new Action("Echo - Core of Collapse", {
 export const THRENODIAN_LEVIATHAN = new Mainslot({
   name: "Reminiscence: Threnodian - Leviathan",
   action: ACTION_THRENODIAN_LEVIATHAN,
+  echoType: EchoType.SUMMON,
   constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Havoc); addStat(Stat.DmgBonus, 12, Type1.Liberation); },
 });
 

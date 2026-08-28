@@ -7,11 +7,12 @@
  * unconditional equip passive goes in the Mainslot's own applyStats().
  */
 import { isType,
-  Buff, Sonata, Sonata2pc, Mainslot, Action, Stat, Attribute, Type1, Cast, Scaling,
+  Buff, Sonata, Sonata2pc, Mainslot, EchoType, Action, Stat, Attribute, Type1, Cast, Scaling,
   addStat, frozenStacks, casting, currentAction, revokeCurrent, applyCurrent, applyTeam, stacksOfTeam, revokeTeam,
   removeStackTeam, queueOutro, queue, lostOnSwap, triggeredAction,
 } from "../engine/kit.js";
 import { applied } from "../engine/kit.js";
+import { handoff } from "../shared/handoff.js";
 import { HEALS, SHIELD } from "../shared/status.js";
 
 /* -------------------------------------------------------------------------- generic, unowned */
@@ -27,6 +28,7 @@ export const ACTION_BELL_BORNE = new Action("Echo - Bell-Borne Geochelone", {
 export const BELL_BORNE_GEOCHELONE = new Mainslot({
   name: "Bell-Borne Geochelone",
   action: ACTION_BELL_BORNE,
+  echoType: EchoType.SUMMON,
 });
 
 export const BELL_BORNE_SHIELD: Buff = new Buff({
@@ -38,7 +40,8 @@ export const BELL_BORNE_SHIELD: Buff = new Buff({
 });
 
 /** Impermanence Heron, a generic mainslot echo. No equip passive — its own cast primes an Outro
- *  handoff: the incoming resonator gets +12% (unscoped) DMG Bonus for 15s. */
+ *  handoff: the incoming resonator gets +12% (unscoped) DMG Bonus for 15s — long enough to outlast
+ *  their own visit, so it runs to the end of the next handoff (shared/handoff.ts). */
 export const ACTION_HERON = new Action("Echo - Impermanence Heron", {
   cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Echo, mv: 310.56, energy: 14.85, // TODO check 10 er on hit
   updateBuffs: () => queueOutro(HERON_HANDOFF),
@@ -47,14 +50,10 @@ export const ACTION_HERON = new Action("Echo - Impermanence Heron", {
 export const HERON = new Mainslot({
   name: "Impermanence Heron",
   action: ACTION_HERON,
+  echoType: EchoType.TRANSFORM,
 });
 
-export const HERON_HANDOFF = new Buff({
-  name: "Impermanence Heron: Outro",
-  applyStats: () => addStat(Stat.DmgBonus, 12),
-  // a plain 15s window — checked in convertStats() (after applyStats() pays out), not updateBuffs()
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(HERON_HANDOFF); },
-});
+export const HERON_HANDOFF = handoff("Impermanence Heron: Outro", () => addStat(Stat.DmgBonus, 12));
 
 /** Stonewall Bracer, a generic Elite Class mainslot echo (Huanglong). No equip passive — its own
  *  cast is a transformation: a 112.64% Physical charge into a 168.96% Physical smash, taken as the
@@ -75,6 +74,7 @@ export const ACTION_STONEWALL_BRACER = new Action("Echo - Stonewall Bracer", {
 export const STONEWALL_BRACER = new Mainslot({
   name: "Stonewall Bracer",
   action: ACTION_STONEWALL_BRACER,
+  echoType: EchoType.TRANSFORM,
 });
 
 /** Moonlit Clouds, a generic sonata. 2pc: +10% ER flat. 5pc: on Outro, the incoming resonator
@@ -86,11 +86,7 @@ export const MOONLIT_CLOUDS_5PC = new Sonata({
   updateBuffs: () => { if (casting(Cast.Outro)) queueOutro(MOONLIT_CLOUDS_HANDOFF); },
 });
 
-export const MOONLIT_CLOUDS_HANDOFF = new Buff({
-  name: "Moonlit Clouds (outro)",
-  applyStats: () => addStat(Stat.BonusAtk, 22.5),
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(MOONLIT_CLOUDS_HANDOFF); },
-});
+export const MOONLIT_CLOUDS_HANDOFF = handoff("Moonlit Clouds (outro)", () => addStat(Stat.BonusAtk, 22.5));
 
 /** Rejuvenating Glow, a generic sonata. 5pc: on healing an ally, +15% ATK flat, team-wide,
  *  permanent uptime once triggered. 2pc: +10% Healing Bonus flat, tracked for completeness only. */
@@ -125,6 +121,7 @@ export const ACTION_NM_INFERNO_RIDER = new Action("Echo - Nightmare: Inferno Rid
 export const NM_INFERNO_RIDER = new Mainslot({
   name: "Nightmare: Inferno Rider",
   action: ACTION_NM_INFERNO_RIDER,
+  echoType: EchoType.TRANSFORM,
   constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Fusion); addStat(Stat.DmgBonus, 12, Type1.Skill); },
 });
 
@@ -144,6 +141,7 @@ export const INFERNO_RIDER_WINDOW = new Buff({
 export const INFERNO_RIDER = new Mainslot({
   name: "Inferno Rider",
   action: ACTION_INFERNO_RIDER,
+  echoType: EchoType.TRANSFORM,
 });
 
 /* ------------------------------------------------------------------ Camellya 1.4 / Rover 1.0 */
@@ -158,6 +156,7 @@ export const ACTION_NM_CROWNLESS = new Action("Echo - Nightmare: Crownless", {
 export const NM_CROWNLESS = new Mainslot({
   name: "Nightmare: Crownless",
   action: ACTION_NM_CROWNLESS,
+  echoType: EchoType.TRANSFORM,
   constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Havoc); addStat(Stat.DmgBonus, 12, Type1.Basic); },
 });
 
@@ -173,6 +172,7 @@ export const CROWNLESS_WINDOW = new Buff({
 export const CROWNLESS = new Mainslot({
   name: "Crownless",
   action: ACTION_CROWNLESS,
+  echoType: EchoType.TRANSFORM,
 });
 
 /** Havoc Eclipse, the matching sonata. 2pc: +10% Havoc DMG Bonus flat. 5pc: +7.5% Havoc DMG
@@ -208,6 +208,7 @@ export const LAMPYLUMEN_MYRIAD_STACKS = new Buff({
 export const LAMPYLUMEN_MYRIAD = new Mainslot({
   name: "Lampylumen Myriad",
   action: ACTION_LAMPYLUMEN_MYRIAD,
+  echoType: EchoType.TRANSFORM,
 });
 
 /** Freezing Frost, Lampylumen Myriad's own matching sonata. 2pc: +10% Glacio DMG Bonus flat.
@@ -234,6 +235,7 @@ export const ACTION_NM_FEILIAN_BERINGAL = new Action("Echo - Nightmare: Feilian 
 export const NM_FEILIAN_BERINGAL = new Mainslot({
   name: "Nightmare: Feilian Beringal",
   action: ACTION_NM_FEILIAN_BERINGAL,
+  echoType: EchoType.SUMMON,
   constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Aero); addStat(Stat.DmgBonus, 12, Type1.Heavy); },
 });
 
@@ -268,6 +270,7 @@ export const JUE_BLESSING = new Buff({
 export const JUE = new Mainslot({
   name: "Jué",
   action: ACTION_JUE,
+  echoType: EchoType.SUMMON,
 });
 
 /** Celestial Light, Jué's own matching sonata. 2pc: +10% Spectro DMG Bonus flat. 5pc: +30%
@@ -301,6 +304,7 @@ export const MECH_ABOMINATION_ATK = new Buff({
 export const MECH_ABOMINATION = new Mainslot({
   name: "Mech Abomination",
   action: ACTION_MECH_ABOMINATION,
+  echoType: EchoType.TRANSFORM,
 });
 
 /** Lingering Tunes, Mech Abomination's own matching sonata. 2pc: +10% ATK flat. 5pc: +60% Outro
@@ -331,6 +335,7 @@ export const ACTION_NM_MEPHIS = new Action("Echo - Nightmare: Thundering Mephis"
 export const NM_MEPHIS = new Mainslot({
   name: "Nightmare: Thundering Mephis",
   action: ACTION_NM_MEPHIS,
+  echoType: EchoType.TRANSFORM,
   constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Electro); addStat(Stat.DmgBonus, 12, Type1.Liberation); },
 });
 
@@ -342,6 +347,7 @@ export const ACTION_NM_TEMPEST_MEPHIS = new Action("Echo - Nightmare: Tempest Me
 export const NM_TEMPEST_MEPHIS = new Mainslot({
   name: "Nightmare: Tempest Mephis",
   action: ACTION_NM_TEMPEST_MEPHIS,
+  echoType: EchoType.TRANSFORM,
   constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Electro); addStat(Stat.DmgBonus, 12, Type1.Skill); },
 });
 
@@ -374,6 +380,7 @@ export const FALLACY_TEAM = new Buff({ name: "Fallacy of No Return (team)", appl
 export const FALLACY = new Mainslot({
   name: "Fallacy of No Return",
   action: ACTION_FALLACY,
+  echoType: EchoType.SUMMON,
   updateBuffs: () => { if (casting(Cast.Intro)) revokeTeam(FALLACY_TEAM); },
   applyStats: () => { if (stacksOfTeam(FALLACY_TEAM)) addStat(Stat.Er, 10); },
 });

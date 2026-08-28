@@ -1,6 +1,6 @@
 /**
- * Brant, ported to the new engine — sequence-0 core loop, a limited 5-star (not
- * `standardCharacter`). A fusion sword support/sub-DPS. Bravo (forte1, max 100) builds off Basic
+ * Brant, ported to the new engine — sequence-0 core loop, a limited 5-star
+ * (`Tier.Limited`). A fusion sword support/sub-DPS. Bravo (forte1, max 100) builds off Basic
  * Attack/Resonance Skill/Intro hits; at 100, Resonance Skill is replaced by Returned from Ashes
  * (spends it all). Liberation opens Aflame (12s): doubles Bravo gain on mid-air combo hits and
  * Resonance Skill specifically (not Intro), and swaps his ATK-from-Energy-Regen conversion
@@ -20,6 +20,7 @@ import {
   lostOnSwap, applyTeam,
   ActionGroup,
 } from "../../engine/kit.js";
+import { matrix } from "../../shared/matrix.js";
 import { Rotation, INTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { SHIELD, HEALS } from "../../shared/status.js";
 import { UNFLICKERING_VALOR } from "../../weapons/sword.js";
@@ -125,7 +126,7 @@ const BR_VOYAGE_INHERENT = new Inherent({
   constantStats: () => addStat(Stat.HealingBonus, 20),
 });
 
-const BRANT = new Resonator({
+const BRANT_RESONATOR = new Resonator({
   name: "Brant",
   element: Attribute.Fusion,
   weapon: WeaponType.Sword,
@@ -159,8 +160,9 @@ const BR_ROTATION = new Rotation([
 
 // his real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
-export const BRANT_LOADOUT = new Loadout({
-  resonator: BRANT,
+export const BRANT = new Loadout({
+  resonator: BRANT_RESONATOR,
+  matrix: matrix("Brant", 25),
   talent: BRANT_TALENTS,
   inherent1: BR_TRIAL_INHERENT,
   inherent2: BR_VOYAGE_INHERENT,

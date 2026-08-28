@@ -49,7 +49,7 @@ import {
   removeStackTeam, revokeCurrent, lostOnSwap,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CAST, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { GLACIO_CHAFE } from "../../shared/status.js";
 import { FREEZE_FRAME, STRINGMASTER, LETHEAN_ELEGY } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
@@ -179,7 +179,7 @@ const LC_INHERENT_1 = new Inherent({
 });
 
 /** Déjà Vu (Forte Circuit, base kit): Liberation grants 1 stack of Zoom under Echo mode, or 4
- *  stacks of Film Roll under Chafe (see LUCILLA's own updateBuffs() for the Echo half, LC_INHERENT_2
+ *  stacks of Film Roll under Chafe (see LUCILLA_RESONATOR's own updateBuffs() for the Echo half, LC_INHERENT_2
  *  for the Chafe half). Zoom is team-wide (lands on whichever teammate is attacking); Film Roll
  *  is hers alone. */
 const ZOOM = new Buff({
@@ -196,7 +196,7 @@ const ZOOM = new Buff({
 const FILM_ROLL: Buff = new Buff({
   name: "Lucilla: Film Roll", maxStacks: 10,
   updateDebuffs: () => {
-    if (!currentAction().active || currentTeam().slot.resonator === LUCILLA) return;
+    if (!currentAction().active || currentTeam().slot.resonator === LUCILLA_RESONATOR) return;
     if (!applied(GLACIO_CHAFE)) return;
     removeStackTeam(FILM_ROLL, 1);
     applyEnemy(GLACIO_CHAFE, 2);
@@ -237,7 +237,7 @@ const MONTAGE_CHAFE = new Buff({
   applyStats: () => addStat(Stat.Amp, 60, Type2.GlacioChafe),
 });
 
-const LUCILLA = new Resonator({
+const LUCILLA_RESONATOR = new Resonator({
   name: "Lucilla",
   element: Attribute.Glacio,
   weapon: WeaponType.Rectifier,
@@ -267,7 +267,7 @@ const LUCILLA_TALENTS = new Talent({
 const UBA123 = new ActionGroup("Basic - Tracing Forms 123", [UBA1, UBA2, UBA3]);
 
 const LC_ROTATION = new Rotation([
-  INTRO, PhantomFrame, Spotlight, ECHO_CAST, Liberation,
+  INTRO, PhantomFrame, Spotlight, ECHO_CANCEL, Liberation,
   UBA123, OUTRO_NEXT,
 ]);
 
@@ -295,8 +295,8 @@ const LC_ECHOES_CHAFE = [
   new EchoLoadout(GLOMMOTH, QUIET_SNOWFALL_5PC, QUIET_SNOWFALL_2PC),
 ];
 
-export const LUCILLA_LOADOUT = new Loadout({
-  resonator: LUCILLA,
+export const LUCILLA = new Loadout({
+  resonator: LUCILLA_RESONATOR,
   talent: LUCILLA_TALENTS,
   inherent1: LC_INHERENT_1,
   inherent2: LC_INHERENT_2,
@@ -309,8 +309,8 @@ export const LUCILLA_LOADOUT = new Loadout({
 });
 
 // same weapons/mainstat/substat/echo choices and rotation, the other Resonance Mode
-export const LUCILLA_LOADOUT_CHAFE = new Loadout({
-  resonator: LUCILLA,
+export const LUCILLA_CHAFE = new Loadout({
+  resonator: LUCILLA_RESONATOR,
   talent: LUCILLA_TALENTS,
   inherent1: LC_INHERENT_1,
   inherent2: LC_INHERENT_2,
