@@ -76,7 +76,7 @@ const TEAMS: Loadout[][][] = [
   [[SUISUI, VERINA, SHOREKEEPER, MORNYE, CHISA], [LUCILLA_CHAFE, CHISA, LYNAE_RUPTURE, JIANXIN, ROVER_ELECTRO], [HIYUKI]],
 
   // lucy: spectro heavy on tune hack, with rebecca feeding her the outro
-  [[VERINA, MORNYE, SHOREKEEPER], [REBECCA], [LUCY]],
+  [[VERINA, MORNYE, SHOREKEEPER], [REBECCA, REBECCA], [LUCY]],
 
   // sigrika: aero + echo
   [[SHOREKEEPER, ROVER_AERO, CIACCONA, QIUYUAN, VERINA, MORNYE], [QIUYUAN, LUCILLA, CANTARELLA, ROVER_AERO, CIACCONA, LYNAE_RUPTURE], [SIGRIKA]],
@@ -87,17 +87,17 @@ const TEAMS: Loadout[][][] = [
   // aemeath: fusion liberation on tune rupture — Mornye and Lynae answer the break beside her
   [[SHOREKEEPER, VERINA, MORNYE, LUPA], [LYNAE_RUPTURE, LUPA, CHANGLI, JIANXIN], [AEMEATH_RUPTURE]],
   // monofus needs mornye or lupa
-  [[MORNYE, LUPA], [BRANT], [AEMEATH_RUPTURE]],
+  [[MORNYE, LUPA], [BRANT, BRANT], [AEMEATH_RUPTURE]],
   // denia burst mode with real rupture teammates
-  [[DENIA_BURST], [LYNAE_RUPTURE], [AEMEATH_RUPTURE]],
-  [[MORNYE], [DENIA_BURST], [AEMEATH_RUPTURE]],
+  [[DENIA_BURST, DENIA_BURST], [LYNAE_RUPTURE, LYNAE_RUPTURE], [AEMEATH_RUPTURE]],
+  [[MORNYE, MORNYE], [DENIA_BURST, DENIA_BURST], [AEMEATH_RUPTURE]],
 
   // aemeath: fusion liberation on fusion burst — Denia's Burst mode feeds the stacks and amplifies
   [[SHOREKEEPER, VERINA, MORNYE, LUPA, DENIA_BURST, CHISA, SUISUI], [DENIA_BURST, LUPA, JIANXIN, ROVER_ELECTRO], [AEMEATH_BURST]],
   // monofus needs lupa or denia
   [[LUPA, DENIA_BURST], [CHANGLI, BRANT], [AEMEATH_BURST]],
   // lynae rupture only with denia burst 3rd slot
-  [[DENIA_BURST], [LYNAE_RUPTURE], [AEMEATH_BURST]],
+  [[DENIA_BURST, DENIA_BURST], [LYNAE_RUPTURE, LYNAE_RUPTURE], [AEMEATH_BURST]],
 
   // galbrena: fusion echo
   [[SHOREKEEPER, VERINA, LUPA, QIUYUAN, MORNYE], [QIUYUAN, LUCILLA], [GALBRENA_ECHO_FOCUS]],
@@ -118,13 +118,14 @@ const TEAMS: Loadout[][][] = [
   // phrolova -> driver -> support
   [[PHROLOVA], [QIUYUAN, ROCCIA, DANJIN, ROVER_HAVOC], [SHOREKEEPER, VERINA, SUISUI]],
   // phrolova -> subdps -> dual dps
-  [[PHROLOVA_DUAL_DPS], [QIUYUAN, LUCILLA], [SIGRIKA, GALBRENA]],
-  [[PHROLOVA_DUAL_DPS], [LUCILLA], [HIYUKI]],
-  [[SUISUI], [PHROLOVA_DUAL_DPS], [HIYUKI]],
+  [[PHROLOVA_DUAL_DPS, PHROLOVA_DUAL_DPS], [QIUYUAN, LUCILLA], [SIGRIKA]],
+  [[PHROLOVA_DUAL_DPS, PHROLOVA_DUAL_DPS], [QIUYUAN, LUCILLA], [GALBRENA]],
+  [[PHROLOVA_DUAL_DPS, PHROLOVA_DUAL_DPS], [LUCILLA, LUCILLA], [HIYUKI]],
+  [[SUISUI, SUISUI], [PHROLOVA_DUAL_DPS, PHROLOVA_DUAL_DPS], [HIYUKI]],
 
 
   // changli: fusion skill+liberation
-  [[LUPA], [BRANT, ENCORE, DENIA_BURST], [CHANGLI]],
+  [[LUPA, LUPA], [BRANT, ENCORE, DENIA_BURST], [CHANGLI]],
 
   // carlotta: glacio skill
   [[SHOREKEEPER, BULING, VERINA, MORNYE, SUISUI], [ZHEZHI, BRANT, LYNAE_RUPTURE, REBECCA, LUCILLA_CHAFE], [CARLOTTA]],
@@ -142,9 +143,10 @@ const TEAMS: Loadout[][][] = [
   [[SHOREKEEPER, VERINA, MORNYE, DENIA_BURST], [LUPA, SANHUA], [ENCORE]],
 ];
 
-/** One expanded team: a loadout per slot, plus which position is *this team's* main DPS — the
- *  last one-loadout slot (a team whose supports are also fixed, like LUPA+CHANGLI, can have more
- *  than one such slot; the *last* is the dps, per the doc comment on `TEAMS` above). Computed per
+/** One expanded team: a loadout per slot, plus which position is *this team's* main DPS — its one
+ *  one-loadout slot. Exactly one, and it is checked (`ALL_TEAMS` throws otherwise): a team whose
+ *  supports are fixed too says so by naming that support twice, which is what keeps the main DPS
+ *  the only slot standing alone rather than leaving it to a tie-break. Computed per
  *  team rather than stamped onto the shared `Loadout` objects themselves (as this used to do),
  *  since the same loadout can be a fixed support in one team and someone's main DPS in another —
  *  a global flag on the loadout would leak whichever team set it last into every other team. */
@@ -152,10 +154,26 @@ export interface TeamEntry { loadouts: Loadout[]; dpsIndex: number }
 
 /** `TEAMS` expanded: every pick of one loadout per slot, minus any that repeats a resonator. */
 export const ALL_TEAMS: TeamEntry[] = TEAMS.flatMap((slots) => {
+  // read off the slots exactly as written, before the dedupe below: naming a loadout twice is how
+  // a slot says it is *not* this team's main DPS (it stops counting as a one-loadout slot), so
+  // collapsing the repeat first would take that back
   const singletons = slots.map((s, i) => (s.length === 1 ? i : -1)).filter((i) => i !== -1);
-  const dpsIndex = singletons.at(-1);
-  if (dpsIndex === undefined) throw new Error(`a team in teams.ts has no one-loadout slot naming its main DPS`);
-  const [a, b, c] = slots;
+  const [dpsIndex] = singletons;
+  // exactly one, either way round: a team with none has named no main DPS, and one with several
+  // has named several — neither is a thing this file can guess at, and a silent tie-break here
+  // would hand the flag to whichever slot happened to come last. A fixed support says it is one
+  // by naming its loadout twice (see the dedupe below, which then drops the repeat).
+  if (dpsIndex === undefined || singletons.length > 1) {
+    const names = slots.map((s) => s.map((l) => l.resonator.name).join("/")).join(", ");
+    throw new Error(singletons.length > 1
+      ? `the team [${names}] has ${singletons.length} one-loadout slots, so more than one resonator is eligible to be its main DPS — name each fixed support twice to rule it out`
+      : `the team [${names}] has no one-loadout slot naming its main DPS`);
+  }
+  // ...and now that it has said so, the repeat is dropped rather than crossed — a slot naming the
+  // same loadout twice would otherwise build every team under it twice over, and the two are the
+  // same row in every way the table can see. Dropped here rather than filtered afterwards so the
+  // duplicates are never built at all.
+  const [a, b, c] = slots.map((s) => [...new Set(s)]);
   return a!.flatMap((x) => b!.flatMap((y) => c!.map((z) => ({ loadouts: [x, y, z], dpsIndex }))))
     .filter((team) => new Set(team.loadouts.map((l) => l.resonator)).size === team.loadouts.length);
 });

@@ -43,11 +43,12 @@ import {
   Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, EnemyStat, Attribute, WeaponType,
   Type1, Cast, Node, Scaling, addStat, addEnemyStat, applyEnemy, applyCurrent, applyTeam, casting, currentAction,
   isHeld, queue, queueOutro, revokeCurrent as revokeCurrent, revokeTeam, forte1, forte2, setForte1, setForte2,
-  lostOnSwap, getStat,
+  getStat,
   ActionGroup,
 } from "../../engine/kit.js";
 import { Rotation, START_COMBAT, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { applied } from "../../engine/kit.js";
+import { lostOnSwap } from "../../shared/helpers.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING } from "../../shared/tunebreak.js";
 import { SPECTRAL_TRIGGER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";

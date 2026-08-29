@@ -35,9 +35,10 @@
 import {
   Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, addStat, applied, applyCurrent, applyTeam, applyEnemy, currentAction, maxStackIncrease,
-  revokeCurrent, revokeTeam, stacksOfEnemy, setForte1, setForte2, lostOnSwap, forte1, forte2,
+  revokeCurrent, revokeTeam, stacksOfEnemy, setForte1, setForte2, forte1, forte2,
   ActionGroup,
 } from "../../engine/kit.js";
+import { lostOnSwap } from "../../shared/helpers.js";
 import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT, START_COMBAT } from "../../engine/rotation.js";
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_SHIFTING, TUNE_STRAIN_INTERFERED, tuneStrainBonus } from "../../shared/tunebreak.js";
 import { BLAZING_BRILLIANCE, GLINT_OF_CLOUDS, RED_SPRING } from "../../weapons/sword.js";

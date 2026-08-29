@@ -24,11 +24,11 @@
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, addStat, applyCurrent, casting, currentAction, forte1, getStat, maxStackIncrease, queue, revokeCurrent,
-  setForte1, frozenStacks, stacksOfEnemy, lostOnSwap,
-  ActionGroup,
+  setForte1, frozenStacks, stacksOfEnemy, ActionGroup,
 } from "../../engine/kit.js";
 import { Rotation, START_COMBAT, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { applied } from "../../engine/kit.js";
+import { lostOnSwap } from "../../shared/helpers.js";
 import { TUNE_STRAIN_SHIFTING } from "../../shared/tunebreak.js";
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_INTERFERED, tuneStrainBonus } from "../../shared/tunebreak.js";
 import { DAYBREAKERS_SPINE } from "../../weapons/gauntlet.js";

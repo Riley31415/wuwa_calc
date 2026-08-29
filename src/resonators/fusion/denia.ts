@@ -40,13 +40,14 @@
 import {
   typeOverride, Buff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute,
   WeaponType, Type1, Type2, Cast, Node, Scaling, addStat, applyCurrent, applyTeam, casting, currentAction, isHeld,
-  maxStackIncrease, queueOn, queueOutro, revokeCurrent as revokeCurrent, revokeTeam, frozenStacks, lostOnSwap, forte1, triggeredAction,
+  maxStackIncrease, queueOn, queueOutro, revokeCurrent as revokeCurrent, revokeTeam, frozenStacks, forte1, triggeredAction,
   setForte1, setForte2, getStat, forte2,
   stacksOf,
   addForte1,
 } from "../../engine/kit.js";
 import { Rotation, START_COMBAT, OPENER, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { applied, applyEnemy } from "../../engine/kit.js";
+import { lostOnSwap } from "../../shared/helpers.js";
 import { FUSION_BURST } from "../../shared/status.js";
 import { ENEMY_MAX_OFFTUNE, TUNE_STRAIN_SHIFTING } from "../../shared/tunebreak.js";
 import { applyStrain, TUNE_STRAIN_INTERFERED, tuneStrainBonus } from "../../shared/tunebreak.js";

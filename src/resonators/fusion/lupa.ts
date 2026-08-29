@@ -27,8 +27,8 @@ import {
   isType, Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType,
   Type1, Cast, Node, Scaling, applyCurrent, applyTeam, applyEnemy, revokeCurrent, revokeTeam, revokeEnemy, casting,
   currentAction, currentTeam, addStat, frozenStacks, stacksOfTeam, queueOn, queueOutro, setForte1, setForte2,
-  lostOnSwap,
-} from "../../engine/kit.js";
+  } from "../../engine/kit.js";
+import { lostOnSwap } from "../../shared/helpers.js";
 import { Rotation, OPENER, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { WILDFIRE_MARK } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";

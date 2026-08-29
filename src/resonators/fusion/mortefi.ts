@@ -11,9 +11,9 @@
 import {
   Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
   Type2, Cast, Node, Scaling, applyCurrent, applyTeam, revokeTeam, stacksOfTeam, isHeld, casting, currentAction,
-  addStat, revokeCurrent, queue, queueOutro, lostOnSwap,
-  ActionGroup,
+  addStat, revokeCurrent, queue, queueOnIntro, queueOutro, ActionGroup,
 } from "../../engine/kit.js";
+import { lostOnSwap } from "../../shared/helpers.js";
 import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { STATIC_MIST, CADENZA, NEW_STD_PISTOL } from "../../weapons/standard.js";
 import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";
@@ -63,8 +63,9 @@ const ACTION_S5_MARCATO = mortefiAction("Liberation - Marcato x4 (S5 Funerary Qu
 const Intro = mortefiAction("Intro - Dissonance", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 168.99, energy: 10, concerto: 10, offtune: 8000 });
 const Outro = mortefiAction("Outro - Rage Transposition", {
   cast: Cast.Outro, concerto: -100, active: false,
-  // Burning Rhapsody's whole Marcato total lands here, as one lump action
-  updateBuffs: () => { queue(ACTION_LIB_COORDS); queueOutro(MORTEFI_OUTRO); }
+  // Burning Rhapsody's whole Marcato total lands as one lump — deferred behind the next
+  // resonator's Intro, since the coordinated attacks keep firing past the swap
+  updateBuffs: () => { queueOnIntro(ACTION_LIB_COORDS); queueOutro(MORTEFI_OUTRO); }
 });
 
 /* ------------------------------------------------------------------------------------ buffs */

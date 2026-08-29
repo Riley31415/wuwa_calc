@@ -37,7 +37,7 @@
 import {
   Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, applyTeam, applyCurrent, stacksOfTeam, isHeld, casting, currentAction, currentTeam, addStat,
-  queue, revokeCurrent, revokeTeam,
+  queueOnIntro, revokeCurrent, revokeTeam,
 } from "../../engine/kit.js";
 import { Rotation, OPENER, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { applyEnemy } from "../../engine/kit.js";
@@ -106,9 +106,10 @@ const Intro = bulingAction("Intro - Summon and Smite", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 131.10, offtune: 8792, concerto: 10,
   updateDebuffs: () => applyEnemy(ELECTRO_FLARE, 4),
 });
+// the Array's whole window as one lump, deferred behind the next Intro: it ticks on past the swap
 const Outro = bulingAction("Outro - Exorcism Spell", {
   cast: Cast.Outro, concerto: -100, active: false,
-  updateBuffs: () => { queue(ACTION_FIVE_THUNDERS_ARRAY); applyTeam(BULING_OUTRO, 1); }
+  updateBuffs: () => { queueOnIntro(ACTION_FIVE_THUNDERS_ARRAY); applyTeam(BULING_OUTRO, 1); }
 });
 
 /* ------------------------------------------------------------------------------------ buffs */

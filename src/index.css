@@ -51,7 +51,7 @@
      font — two metrics meant two column widths for one table, and the tracks no longer lined
      up with the character counts they were sized from. */
   --cw: 7.7px;
-  --cpad: 4px;
+  --cpad: 7px;
   /* Extra breathing room on the leading column only, so the action name is not flush against
      the table edge. index.js adds it to that column's track width too — the two must agree. */
   --lead: 10px;
@@ -354,6 +354,12 @@ main {
 }
 .trow { display: contents; }
 .trow + .trow .c { border-top: 1px solid var(--line); }
+/* Only the rows near the scroll position are in the grid (index.ts's own `drawWindow()`); a spacer
+   stands in for the rest above and below, spanning every track so it takes a whole row's worth of
+   height per row it replaces. The row after the top spacer keeps its separator, so every row in the
+   window has the same pitch as the spacers assume. */
+.tgrid .vspace { grid-column: 1 / -1; }
+.vspace + .trow .c { border-top: 1px solid var(--line); }
 .trow.thead .c {
   position: sticky;
   top: 0;
@@ -410,6 +416,15 @@ main {
 .trow .c.option:not(:empty) { cursor: pointer; }
 .trow:not(.thead):hover .c.option { background: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface)); }
 
+/* The per-slot DPR column, opened by clicking a Slot heading (index.ts's own `dprOpenAt`): the
+   same member wash as that position's option cells, so a member's columns read as one block. */
+.trow .c.slotdpr { background: color-mix(in srgb, var(--mem, transparent) 10%, var(--surface)); }
+.trow:not(.thead):hover .c.slotdpr { background: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface)); }
+.trow.thead .c.slothead { cursor: pointer; }
+.trow.thead .c.slothead:hover { color: var(--ink); }
+/* the marker keeps its own colour rather than the heading's uppercase grey (see `.arrow` below) */
+.trow.thead .c.slothead .arrow { text-transform: none; letter-spacing: 0; font-size: 13px; }
+
 /* The `% of Baseline` column: one continuous hue ramp, written per row as `--hue` by
    `rankVisible()` — red at the strongest team, green at the baseline, purple at the weakest.
    The hue is computed there rather than here because it is piecewise (two slopes meeting at the
@@ -430,13 +445,18 @@ main {
    the number itself — navigating to that team's own full rotation/event-log page */
 .gotodetail { cursor: pointer; }
 .gotodetail:hover { color: var(--ink); }
-.gotodetail .arrow {
+/* ...and the Slot headings, which expand that position's own DPR column rather than navigating —
+   same marker, so both places that open something read the same. Its own transform is a quarter
+   turn while the column is open, so the heading says which way the next click goes. */
+.gotodetail .arrow, .slothead .arrow {
   display: inline-block;
   margin-left: 4px;
   color: var(--faint);
   transition: color .12s, transform .12s;
 }
 .gotodetail:hover .arrow { color: var(--accent); transform: translateX(2px); }
+.slothead:hover .arrow { color: var(--accent); }
+.slothead.open .arrow { transform: rotate(90deg); }
 
 /* the gear popover's own two-column shell reuses .pop/table/.k/.v wholesale (see below) — no
    extra rules needed beyond a touch more breathing room since its rows run longer than a stat
@@ -504,13 +524,35 @@ main::-webkit-scrollbar-thumb {
 }
 main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 
-.grid { min-width: max-content; }
+.grid { min-width: max-content; position: relative; }
+
+/* The white box around a column that has been clicked, or is being dragged: one element laid
+   over the grid rather than an outline on each of the column's own cells (index.js's own
+   columnBox). The cells cannot carry it — a triggered row fades its whole cell, `opacity` taking
+   the box-shadow with it, and the 1px rule between rows crosses the column's two sides — so on
+   them the outline came out dimmed in places and cut into segments down the table. */
+.colbox {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border: 1px solid #fff;
+  pointer-events: none;
+  /* over the pinned heading (z-index 40), so the box closes across it rather than under it */
+  z-index: 41;
+  transition: transform .16s ease;
+}
 
 .r {
   display: grid;
   grid-template-columns: var(--cols);
   align-items: stretch;
   background: var(--surface);
+  /* The table's run-out, so the trailing figure is not flush against its right edge. On the row
+     rather than in the outermost tracks, where it used to be (see index.js's colWidth): a column
+     must not change width by being dragged to or from an end. Nothing matching on the left — the
+     member column's colour bar belongs at the table's own edge, and the two text columns carry an
+     indent of their own below. */
+  padding-right: var(--lead);
 }
 
 /* One font, one size, one weight for every cell in the table — the action and member columns
@@ -519,7 +561,10 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
    same nominal weight. Nothing below re-declares font-family, font-size, or font-weight; a
    column differentiates itself with colour and alignment only. */
 .c {
-  padding: 7px 2px;
+  /* more on the right than the left: every numeric column is right-aligned, so that is the
+     side its digits actually run up against — the table's own right edge, a neighbouring
+     column, and the outline a lifted column is drawn with (see wireColumnDrag) */
+  padding: 7px 5px 7px 2px;
   font-family: var(--mono);
   font-size: 13px;
   font-weight: 400;
@@ -536,12 +581,6 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 /* alignment and colour only — the type itself is `.c`'s, same as every other column */
 .num { text-align: right; color: var(--ink); }
 
-/* the lead-in and the matching run-out, paired with the extra track width colWidth() gives the
-   first and last columns — without it the leading action name sits flush against the table's own
-   left edge, and the trailing figure against its right */
-.r > .c:first-child { padding-left: calc(2px + var(--lead)); }
-.r > .c:last-child { padding-right: calc(2px + var(--lead)); }
-
 /* head — pinned to the top of <main> so the column names survive scrolling */
 .head {
   position: sticky;
@@ -552,7 +591,9 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 /* the one place in the table that does re-declare weight — a column heading has to read as a
    heading. Same family and size as the cells under it, still. */
 .head .c {
-  padding: 9px 2px;
+  /* one more pixel of right padding than the cells below (`.c`), so a heading sitting right
+     against its column's own right edge is not quite as tight as the figures under it */
+  padding: 9px 6px 9px 2px;
   /* smaller than the cells below on purpose: uppercase + letter-spacing at the body size would
      outrun the narrow columns, whose tracks are sized off their values, not their headings */
   font-size: 11px;
@@ -561,7 +602,20 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
   letter-spacing: .6px;
   color: var(--dim);
   background: var(--surface-3);
+  /* a heading picks its whole column up and slides it to a new place — index.js's own
+     wireColumnDrag, which writes the outline and the slide as a stylesheet of its own */
+  cursor: grab;
+  user-select: none;
 }
+/* The action heading takes the same indent as the names under it (`.c.action` below), rather
+   than starting 6px to their left. Keyed off `data-col`, which wireColumnDrag writes onto every
+   heading — the colour is why it can't just wear `.c.action` itself, which would repaint the
+   heading in full-strength ink. */
+.head .c[data-col="action"], .head .c[data-col="member"] { padding-left: 8px; }
+
+/* while a column is up: the grab cursor everywhere, and nothing selectable under the pointer */
+body.coldrag, body.coldrag .head .c { cursor: grabbing; }
+body.coldrag { user-select: none; }
 /* body rows. Always positioned, so the hidden expand checkbox has something to anchor to;
    raised on hover so a source panel opening downward is not painted under the next row. */
 /* Rows off screen are skipped entirely — no style, no layout, no paint — until they scroll near.
@@ -573,11 +627,19 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
    settles after a row has been seen once instead of guessing forever. */
 .step {
   position: relative;
-  border-top: 1px solid var(--line);
   content-visibility: auto;
   contain-intrinsic-size: auto 28px;
 }
-.step:first-of-type { border-top: 0; }
+/* The rule between rows is drawn by the cells rather than across the whole step, so that the
+   member column can sit it out: as one line over the full width it cut that column's colour bar
+   into a dash per row. Transparent rather than absent there, so the cells all keep the same
+   height and their text stays on one line. */
+.step > .r > .c { border-top: 1px solid var(--line); }
+.step:first-of-type > .r > .c { border-top: 0; }
+/* the member column draws its own rule instead (see `.c.member`), so that the one thing it must
+   not cross — that column's colour bar — is left alone */
+.step > .r > .c.member { border-color: transparent; --rule: var(--line); }
+.step:first-of-type > .r > .c.member { --rule: transparent; }
 
 /* Every row carries a faint wash of its own *action's* colour (white/green for generic gear,
    otherwise whoever's kit it belongs to) — deliberately faint, since the strong "whose turn is
@@ -590,7 +652,9 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
    breathing room before the name: it isn't column 0 any more, so it no longer picks up the
    lead-in `.r > .c:first-child` gives the member column beside it. Colour only — the type is
    `.c`'s, identical to every stat column. */
-.c.action { padding-left: 8px; }
+/* Both text columns are indented wherever they sit — the action names have always been, and the
+   member names need it to clear their own colour bar. The headings match (`.head .c[data-col]`). */
+.c.action, .c.member { padding-left: 8px; }
 .c.action, .c.name { color: var(--ink); }
 .c.avg { color: var(--ink); font-weight: 700; }
 
@@ -612,11 +676,24 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
    inline per cell) rather than `--m` (the row's action colour) — a left bar and a background
    wash of its own, all independent of whatever the rest of the row is tinted by. Again: colour
    only. */
+/* The bar is a background rather than an inset shadow: a shadow is drawn inside the padding box,
+   which stops it at the border above, while a background paints out to the border box and so runs
+   straight through it. Colour and wash are set separately so the hover below can restate one
+   without having to repeat the other. */
 .c.member {
-  background: color-mix(in srgb, var(--mem, transparent) 10%, var(--surface));
-  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--mem, transparent) 70%, transparent);
+  background-image:
+    linear-gradient(to bottom, var(--rule, transparent) 1px, transparent 1px),
+    linear-gradient(to right,
+      color-mix(in srgb, var(--mem, transparent) 70%, transparent) 2px, transparent 2px);
+  /* the rule picks up 2px along, past the bar; both layers are measured from the border box, so
+     they cover the 1px the transparent border above reserves for them */
+  background-origin: border-box;
+  background-position: 2px 0, 0 0;
+  background-size: calc(100% - 2px) 100%, auto;
+  background-repeat: no-repeat;
+  background-color: color-mix(in srgb, var(--mem, transparent) 10%, var(--surface));
 }
-.step:hover .c.member { background: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface)); }
+.step:hover .c.member { background-color: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface)); }
 
 /* total row */
 .totalrow {

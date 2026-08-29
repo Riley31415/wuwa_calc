@@ -26,10 +26,10 @@
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, applyTeam, revokeCurrent, revokeBuff, casting, currentAction, currentTeam, addStat, queue,
-  queueOutro, lostOnSwap,
-} from "../../engine/kit.js";
+  queueOutro, } from "../../engine/kit.js";
 import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { applied } from "../../engine/kit.js";
+import { lostOnSwap } from "../../shared/helpers.js";
 import { SHIELD } from "../../shared/status.js";
 import { THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";

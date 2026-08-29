@@ -8,11 +8,11 @@
  */
 import {
   isType, Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
-  Type2, Cast, Node, Scaling, applyCurrent, currentAction, casting, queue, queueOutro, removeStackTeam, revokeCurrent,
-  addStat, frozenStacks, applyTeam, forte1, setForte2, lostOnSwap, currentTeam,
+  Type2, Cast, Node, Scaling, applyCurrent, currentAction, casting, queue, queueOnIntro, queueOutro, removeStackTeam, revokeCurrent,
+  addStat, frozenStacks, applyTeam, forte1, setForte2, currentTeam,
   ActionGroup,
 } from "../../engine/kit.js";
-import { matrix } from "../../shared/matrix.js";
+import { lostOnSwap, matrix } from "../../shared/helpers.js";
 import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, STRINGMASTER, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
@@ -60,9 +60,10 @@ const Intro = cantaAction("Intro - Ripple", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 169, energy: 3.16, concerto: 10, offtune: 10120, forte1: 1, // 42.25%x4
   updateBuffs: () => applyTeam(ABYSSAL_REBIRTH, 6),
 });
+// Diffusion's whole window as one lump, deferred behind the next Intro: it ticks on past the swap
 const Outro = cantaAction("Outro - Gentle Tentacles", {
   cast: Cast.Outro, concerto: -100, active: false,
-  updateBuffs: () => { queue(ACTION_DIFFUSION); queueOutro(CANTARELLA_OUTRO); }
+  updateBuffs: () => { queueOnIntro(ACTION_DIFFUSION); queueOutro(CANTARELLA_OUTRO); }
 });
 
 const ESKILL_JOLT = new Action("Jolt", { node: Node.Skill, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Basic, mv: 198.81 });

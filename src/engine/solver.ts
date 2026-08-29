@@ -169,6 +169,11 @@ export function eligibleWeapons(m: Member, filters: Filters): number[] {
  * within the team it was run for).
  */
 let trialCache = new Map<string, TeamRun>();
+/** `scoreMainstats()`'s own answers, keyed the same way plus which members were scored — the
+ *  search asks the same question twice over: `rowPicks()`'s closed-box echo re-search and settle
+ *  pass back through the very build `optimizeTeam()` just finished on, and each of those was a
+ *  real run with every variant, the most expensive kind. About a third of a default solve. */
+let scoreCache = new Map<string, Map<number, TeamRun[]>>();
 
 // team-scoped as well as combo-scoped: the reset is per team, but the same combo string means
 // different loadouts under a different team, so keying on it alone would be a footgun for any
@@ -198,9 +203,16 @@ function trialRun(teamKey: string, members: Member[], picks: Pick[]): TeamRun {
  * @returns per member in `who`, a `TeamRun` per main-stat index of theirs
  */
 function scoreMainstats(teamKey: string, members: Member[], picks: Pick[], who: number[]): Map<number, TeamRun[]> {
+  const combo = members.map((m, i) => comboOf(m.loadout, picks[i]!));
+  const key = `${trialKey(teamKey, combo)}|${who.join(",")}`;
+  let out = scoreCache.get(key);
+  if (!out) scoreCache.set(key, out = scoreMainstatsRun(teamKey, members, picks, who, combo));
+  return out;
+}
+
+function scoreMainstatsRun(teamKey: string, members: Member[], picks: Pick[], who: number[], combo: Combo[]): Map<number, TeamRun[]> {
   const alts = members.map((m, i) => (who.includes(i)
     ? m.loadout.mainstats.map((_, k) => k).filter((k) => k !== picks[i]!.mainstat) : null));
-  const combo = members.map((m, i) => comboOf(m.loadout, picks[i]!));
   const run = runTeam(teamKey, members, combo, false, alts.map((a, i) => a && a.map((k) => members[i]!.loadout.mainstats[k]!)));
   trialCache.set(trialKey(teamKey, combo), run);
   const out = new Map<number, TeamRun[]>();
@@ -329,7 +341,10 @@ export function optimizeTeam(teamKey: string, members: Member[], filters: Filter
 
 
 export interface TeamRun {
-  state: State;
+  /** The fight this run left behind — null on a row the table merely lists, whose figures came
+   *  back from a worker as plain numbers (see `RowScore`); nothing on the table reads it, and
+   *  `detailFor()` re-runs the one team actually opened. */
+  state: State | null;
   /** Which team composition (`TEAMS` key) this combo belongs to — several `TeamRun`s share one
    *  `teamKey`, one per combo the current filters open for that team's own members. */
   teamKey: string;
@@ -575,6 +590,21 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
   return { state, teamKey, members, combo, rotationLines: trace ? rotationLines : null, total, bySlot, sectionTotals, sectionBySlot, variantRuns };
 }
 
+/** The comparison table's own figures for one row, as plain data a worker can hand back: the
+ *  same four fields a `TeamRun` carries (see there), with the Maps as entry lists. */
+export interface RowScore { total: number; bySlot: [string, number][]; sectionTotals: number[]; sectionBySlot: [string, number][][] }
+
+const scoreOf = (run: TeamRun): RowScore =>
+  ({ total: run.total, bySlot: [...run.bySlot], sectionTotals: run.sectionTotals, sectionBySlot: run.sectionBySlot.map((by) => [...by]) });
+
+/** A row's `TeamRun` rebuilt from the score a worker sent back — everything the table reads,
+ *  and no fight behind it (see `TeamRun.state`). */
+export const runFromScore = (teamKey: string, members: Member[], combo: Combo[], score: RowScore): TeamRun => ({
+  state: null, teamKey, members, combo, rotationLines: null, variantRuns: [],
+  total: score.total, bySlot: new Map(score.bySlot), sectionTotals: score.sectionTotals,
+  sectionBySlot: score.sectionBySlot.map((by) => new Map(by)),
+});
+
 
 /** Resolve a team from the key a worker was handed (see teams.ts) — a `Loadout` is closures all
  *  the way down, so it can't cross a postMessage, but where the team sits in `ALL_TEAMS` can, and
@@ -667,17 +697,22 @@ function rowPicks(teamKey: string, members: Member[], best: Pick[], filters: Fil
   const closedEchoes = members
     .map((m, i) => ((m.mainDps ? filters.mdpsEchoes : filters.supportEchoes) ? -1 : i))
     .filter((i) => i >= 0);
+  //
+  // A member with a single sonata has nothing to re-search — and scoring the incumbent is a
+  // whole main-stat run, which was paid per build for nothing on the half of all loadouts that
+  // list just the one. `settle()` below rolls their main stats regardless.
   const pinEchoes = (picks: Pick[]): Pick[] => {
     let out = picks;
     for (const i of closedEchoes) {
+      if (members[i]!.loadout.echoLoadouts.length < 2) continue;
       const home = out[i]!;
       let winner = home;
-      let best = bestMainstatFor(teamKey, members, out, i).total;
+      let bestTotal = bestMainstatFor(teamKey, members, out, i).total;
       members[i]!.loadout.echoLoadouts.forEach((_, echo) => {
         if (echo === home.echo) return;
         const trial = out.map((p, j) => (j === i ? { ...home, echo } : p));
         const rerolled = bestMainstatFor(teamKey, members, trial, i);
-        if (rerolled.total > best) { best = rerolled.total; winner = { ...home, echo, mainstat: rerolled.mainstat }; }
+        if (rerolled.total > bestTotal) { bestTotal = rerolled.total; winner = { ...home, echo, mainstat: rerolled.mainstat }; }
       });
       out = out.map((p, j) => (j === i ? winner : p));
     }
@@ -722,23 +757,32 @@ function rowPicks(teamKey: string, members: Member[], best: Pick[], filters: Fil
 /** One team's whole optimization pass — the unit of parallel work: the best build per member
  *  (what a closed axis shows), and every row the table will open for it, each already re-rolled
  *  onto the main stats that build wants (see `rowPicks()`). */
-export function solveTeam(teamKey: string, members: Member[], filters: Filters): Solved {
-  trialCache = new Map();
-  const picks = optimizeTeam(teamKey, members, filters);
+/** @param known  this team's best build under these filters, when the caller already has it
+ *  (index.ts's own `picksCache`): the search depends on far fewer of the filter flags than the
+ *  row set does (see `picksKey()` there), so most box flips need only the rows redone. */
+export function solveTeam(teamKey: string, members: Member[], filters: Filters, known: Pick[] | null = null): Solved {
+  trialCache = new Map(); scoreCache = new Map();
+  const picks = known ?? optimizeTeam(teamKey, members, filters);
   const rows = rowPicks(teamKey, members, picks, filters);
-  trialCache = new Map();   // a TeamRun holds a whole State; don't keep 80 of them alive
-  return { picks, rows };
+  // every row was scored on the way to being picked (see `rowPicks()`), so its figures are
+  // already in hand — sent along, so the page never has to run a row the search just ran
+  const scores = rows.map((row) => {
+    const combo = members.map((m, i) => comboOf(m.loadout, row[i]!));
+    return scoreOf(trialCache.get(trialKey(teamKey, combo)) ?? runTeam(teamKey, members, combo));
+  });
+  trialCache = new Map(); scoreCache = new Map();   // a TeamRun holds a whole State; don't keep 80 of them alive
+  return { picks, rows, scores };
 }
 
 /* ------------------------------------------------------------------ worker protocol */
 
 /** One team handed to a worker: the team's own key, which is the whole of what rebuilding it there
  *  takes (see `teamFromKey()`), plus the filter flags, since a worker can't see the page's state. */
-export interface SolveRequest { id: number; teamKey: string; filters: Filters }
+export interface SolveRequest { id: number; teamKey: string; filters: Filters; picks: Pick[] | null }
 
-/** One team's solved answer: its best build per member, and the picks for every row the table will
- *  show it as (see `rowPicks()`). */
-export interface Solved { picks: Pick[]; rows: Pick[][] }
+/** One team's solved answer: its best build per member, the picks for every row the table will
+ *  show it as (see `rowPicks()`), and each of those rows' own figures, in the same order. */
+export interface Solved { picks: Pick[]; rows: Pick[][]; scores: RowScore[] }
 
 /** What comes back — small, plain data: gear *indices*, nothing engine-shaped. The main thread
  *  turns these back into real gear with `comboOf()` and runs the handful of rows the table
@@ -765,7 +809,7 @@ if (typeof document === "undefined") {
     postMessage: (message: SolveResponse) => void;
   };
   ctx.onmessage = ({ data }) => {
-    const solved = solveTeam(data.teamKey, teamFromKey(data.teamKey), data.filters);
+    const solved = solveTeam(data.teamKey, teamFromKey(data.teamKey), data.filters, data.picks);
     ctx.postMessage({ id: data.id, ...solved });
   };
 }

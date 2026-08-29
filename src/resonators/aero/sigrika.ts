@@ -11,9 +11,9 @@
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, applyTeam, isHeld, stacksOfTeam, removeStack, revokeCurrent, casting, currentAction, addStat,
-  frozenStacks, getStat, queue, lostOnSwap,
-  ActionGroup,
+  frozenStacks, getStat, queue, ActionGroup,
 } from "../../engine/kit.js";
+import { lostOnSwap } from "../../shared/helpers.js";
 import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { SOLSWORN_CIPHERS } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";

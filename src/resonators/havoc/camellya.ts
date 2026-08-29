@@ -44,10 +44,10 @@
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, revokeCurrent, casting, currentAction, addStat, setForte1, isHeld, concerto, setConcerto,
-  stacksOf, frozenStacks, lostOnSwap, forte1,
+  stacksOf, frozenStacks, forte1,
   ActionGroup,
 } from "../../engine/kit.js";
-import { matrix } from "../../shared/matrix.js";
+import { lostOnSwap, matrix } from "../../shared/helpers.js";
 import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";

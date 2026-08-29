@@ -19,7 +19,8 @@
  *   combat start and again on her own Outro) and the finisher's own +40 is declared on the action.
  *
  * Overload is not tracked: it only ever gates BOOM! Fireworks!, which the mode fires by itself
- * either way, so the three firepower tiers simply queue it.
+ * either way. It caps late enough that the detonation lands after she has already swapped out, so
+ * BOOM! is deferred behind the next resonator's Intro and is inactive — her hit, not her field time.
  *
  * **Switch Gears!** is the mode pair: Huntress (+30% Crit. DMG) and Guts (15% DEF ignore), swapped
  * by every Resonance Skill and Intro Skill — each of which exists in a Huntress form and a Guts
@@ -37,12 +38,13 @@
  */
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, addBuff, addStat, applyCurrent, applyTeam, casting, currentAction, currentTeam, isHeld, queue, queueOutro,
-  revokeCurrent, forte1, forte2, setForte1, setForte2, frozenStacks, lostOnSwap, triggeredAction,
+  Scaling, addBuff, addStat, applyCurrent, applyTeam, casting, currentAction, currentTeam, isHeld, queue, queueOnIntro, queueOutro,
+  revokeCurrent, forte1, forte2, setForte1, setForte2, frozenStacks, triggeredAction,
   ActionGroup,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT, START_COMBAT } from "../../engine/rotation.js";
 import { applied } from "../../engine/kit.js";
+import { lostOnSwap } from "../../shared/helpers.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING } from "../../shared/tunebreak.js";
 import { SKULL_THRASHER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
@@ -93,18 +95,19 @@ const SPEND_FERVOR = {
   updateDebuffs: () => applyHack(),
   updateBuffs: () => { if (forte1() > 120) setForte1(120); },
 };
-const RatTatTat = rebeccaAction("Forte - Rat-tat-tat!: Huntress", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Basic, mv: 397.66, energy: 15, concerto: 20, offtune: 44320, forte1: -120, forte2: 40, ...SPEND_FERVOR });
-const BangBang = rebeccaAction("Forte - Bang-bang-bang!: Guts", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Basic, mv: 278.34, energy: 15, concerto: 20, offtune: 44320, forte1: -120, forte2: 40, ...SPEND_FERVOR });
+const FHAHunt = rebeccaAction("Forte - Rat-tat-tat!: Huntress", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Basic, mv: 397.66, energy: 15, concerto: 20, offtune: 44320, forte1: -120, forte2: 40, ...SPEND_FERVOR });
+const FHAGuts = rebeccaAction("Forte - Bang-bang-bang!: Guts", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Basic, mv: 278.34, energy: 15, concerto: 20, offtune: 44320, forte1: -120, forte2: 40, ...SPEND_FERVOR });
 
 // --- Party 'til Dawn!: the Liberation opens Mk. 31 HMG mode, which fires itself for 9.5s and
 //     banks Overload as it goes. The three tiers are lumped one action apiece (see the file
 //     comment); the button press itself deals no damage, so its cost and its 20 Concerto Regen
 //     ride the first burst. Every hit of the mode is Basic Attack DMG.
 // Party 'til Dawn! is only the button press; the mode then fires itself through its three
-// firepower tiers, and BOOM! Fireworks! goes off the moment Overload caps
+// firepower tiers, and BOOM! Fireworks! goes off once Overload caps — late enough that it lands
+// on the next resonator's time, so it is deferred behind their Intro (still on Rebecca's slot)
 const Lib1 = rebeccaAction("Liberation - Party 'til Dawn!", {
   node: Node.Liberation, cast: Cast.Liberation, resetEnergy: true, forte3: 90,
-  updateBuffs: () => { queue(Lib2); queue(Lib3); queue(Lib4); queue(Boom); },
+  updateBuffs: () => { queue(Lib2); queue(Lib3); queue(Lib4); queueOnIntro(Boom); },
 });
 const Lib2 = rebeccaAction("Liberation - Mk. 31 HMG x5", {
   node: Node.Liberation, type: Type1.Basic, mv: 24.3 * 5, concerto: 20 + 0.56 * 5, offtune: 1609 * 5, forte3: -10,
@@ -115,6 +118,7 @@ const Lib3 = rebeccaAction("Liberation - Mk. 31 HMG 1st Enhancement x5", {
 const Lib4 = rebeccaAction("Liberation - Mk. 31 HMG 2nd Enhancement x10", {
   node: Node.Liberation, type: Type1.Basic, mv: 72.9 * 10, concerto: 1.67 * 10, offtune: 4826 * 10, forte3: -60,
 });
+// fires behind whoever intros after her, so it is inactive: it is her hit, not her field time
 const Boom = rebeccaAction("Liberation - BOOM! Fireworks!", {
   node: Node.Liberation, type: Type1.Basic, mv: 636.2, energy: 20, concerto: 10, offtune: 31025, active: false,
   updateDebuffs: () => applyHack(),
@@ -234,7 +238,7 @@ const RB_INHERENT_1 = new Inherent({
   },
   updateBuffs: () => {
     const a = currentAction();
-    if (applied(A_GIRL) || a === RatTatTat || a === BangBang) applyCurrent(TAG_YOURE_IT, 1);
+    if (applied(A_GIRL) || a === FHAHunt || a === FHAGuts) applyCurrent(TAG_YOURE_IT, 1);
   },
 });
 
@@ -289,10 +293,13 @@ const REBECCA_RESONATOR = new Resonator({
 const GBA123 = new ActionGroup("Basic - Guts 123", [GBA1, GBA2, GBA3]);
 
 const RB_ROTATION = new Rotation([
-  INTRO, GBA123,
-  ESkill,
-  RatTatTat, ECHO_CANCEL,
-  Lib1, OUTRO_NEXT,
+  START_COMBAT, Skill, START_COMBAT,
+  
+  INTRO, 
+  Skill, 
+  GBA123,
+  FHAGuts, 
+  ECHO_CANCEL,Lib1, OUTRO_NEXT,
 ]);
 
 /** Adam Smasher carries its own 1pc set, so the other four echoes run two ordinary 2-piece sets

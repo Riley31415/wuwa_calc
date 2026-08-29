@@ -27,7 +27,7 @@ import {
   Scaling, applyCurrent, currentAction, casting, revokeCurrent, addStat, frozenStacks, removeStack, queueOn, queueOutro,
   ActionGroup,
 } from "../../engine/kit.js";
-import { matrix } from "../../shared/matrix.js";
+import { matrix } from "../../shared/helpers.js";
 import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { IUNO_SIG, VERITYS_HANDLE } from "../../weapons/gauntlet.js";
 import { ABYSS_SURGES, NEW_STD_GAUNTLET } from "../../weapons/standard.js";

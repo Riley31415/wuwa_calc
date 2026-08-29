@@ -12,7 +12,7 @@
 import {
   Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, applyCurrent, applyTeam, applyEnemy, revokeTeam, isHeld, revokeCurrent, casting, currentAction,
-  addStat, queue, Type2,
+  addStat, queueOnIntro, Type2,
 } from "../../engine/kit.js";
 import { Rotation, OPENER, INTRO, ECHO_OUTRO, OUTRO_NEXT, START_COMBAT } from "../../engine/rotation.js";
 import { AERO_EROSION, SHIELD } from "../../shared/status.js";
@@ -70,7 +70,8 @@ const Outro = ciacconaAction("Outro - Windcalling Tune", {
   cast: Cast.Outro, concerto: -100, active: false,
   updateBuffs: () => {
     applyTeam(WINDCALLING_TUNE, 1);
-    if (isHeld(RECITAL)) queue(GreenTonic); // switching out during Recital generates one itself
+    // switching out during Recital generates one itself, and it lands on the next resonator's time
+    if (isHeld(RECITAL)) queueOnIntro(GreenTonic);
   },
 });
 

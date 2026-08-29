@@ -6,9 +6,10 @@
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, stacksOf, currentAction, casting, queue, queueOutro, revokeCurrent, addStat, frozenStacks,
-  lostOnSwap, Sequence, applyTeam, isHeld, setForte1, currentTeam, queueOn, addBuff,
+  Sequence, applyTeam, isHeld, setForte1, currentTeam, queueOn, addBuff,
   ActionGroup,
 } from "../../engine/kit.js";
+import { lostOnSwap } from "../../shared/helpers.js";
 import { Rotation, OPENER, INTRO, ECHO_ONFIELD, OUTRO_NEXT } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";

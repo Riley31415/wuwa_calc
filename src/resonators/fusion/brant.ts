@@ -17,10 +17,10 @@
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, revokeCurrent, casting, currentAction, addStat, getStat, queueOutro, forte1, setForte1,
-  lostOnSwap, applyTeam,
+  applyTeam,
   ActionGroup,
 } from "../../engine/kit.js";
-import { matrix } from "../../shared/matrix.js";
+import { lostOnSwap, matrix } from "../../shared/helpers.js";
 import { Rotation, INTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { SHIELD, HEALS } from "../../shared/status.js";
 import { UNFLICKERING_VALOR } from "../../weapons/sword.js";

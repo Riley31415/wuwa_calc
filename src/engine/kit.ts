@@ -1720,17 +1720,10 @@ export function setStacksSelf(buff: Buff, n: number): number {
 export function removeStack(buff: Buff, n = 1): number { return currentSlot!.removeStack(buff, n); }
 export function revokeCurrent(buff: Buff): void { currentSlot!.revoke(buff); }
 
-/** Shortcut for a buff whose own kit text says "lost on swap" — revokes itself the moment the
- *  action being evaluated is inactive (the project's own standing convention: lost on swap =
- *  lost on inactive action). Call it from `updateBuffs()` if it should stop contributing before that
- *  same action's own stats apply, or from `convertStats()` if it should still pay out on it first —
- *  same choice as any other revoke, just this one condition spelled out once instead of copied at
- *  every call site. Only correct for a buff whose own holder has no *other* inactive action of
- *  their own (a queued coordinated-attack hit, say) that should leave it standing — one held by a
- *  resonator like that still needs its own explicit condition instead. */
-export function lostOnSwap(): void {
-  if (!currentAct!.active) revokeCurrent(currentBuff as Buff);
-}
+/** The Gear whose hook is running right now. Exported for the kit-authoring shortcuts in
+ *  shared/helpers.ts (`lostOnSwap()`), which are ordinary callers of this API rather than part of
+ *  the engine; nothing inside a kit needs it, since a hook already knows which gear it belongs to. */
+export function currentGear(): Gear { return currentBuff!; }
 
 // team-wide — one shared copy, ticks on every slot's own turn regardless of who's acting
 export function stacksOfTeam(gear: Gear): number { return currentState!.stacksOfGlobal(gear); }

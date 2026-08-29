@@ -2,9 +2,10 @@
  *  resonator, not just its own. */
 import { isType,
   Buff, Weapon, WeaponType, Stat, Attribute, Type1, Cast,
-  addStat, frozenStacks, casting, currentAction, currentTeam, addBuff, revokeCurrent, applyCurrent, applyTeam, removeStack, lostOnSwap, isHeld,
+  addStat, frozenStacks, casting, currentAction, currentTeam, addBuff, revokeCurrent, applyCurrent, applyTeam, removeStack, isHeld,
 } from "../engine/kit.js";
 import { applied } from "../engine/kit.js";
+import { lostOnSwap } from "../shared/helpers.js";
 import { SHIELD, HEALS, inflictedNegativeStatus, inflictedNegativeStatusBy } from "../shared/status.js";
 
 /** Jiyan's sig, R1: Swordsworn. +12% Attribute DMG Bonus flat. Every Intro/Liberation cast

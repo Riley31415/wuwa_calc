@@ -12,9 +12,8 @@
  */
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, applyCurrent, revokeCurrent, casting, currentAction, addStat, forte1, queueOutro, lostOnSwap,
-} from "../../engine/kit.js";
-import { matrix } from "../../shared/matrix.js";
+  Scaling, applyCurrent, revokeCurrent, casting, currentAction, addStat, forte1, queueOutro, } from "../../engine/kit.js";
+import { lostOnSwap, matrix } from "../../shared/helpers.js";
 import { Rotation, START_COMBAT, INTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { BLAZING_BRILLIANCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";

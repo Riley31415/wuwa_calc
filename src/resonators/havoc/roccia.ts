@@ -18,10 +18,9 @@
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, applyTeam, revokeCurrent, casting, currentAction, currentTeam, addStat, frozenStacks, getStat,
-  queueOutro, queueOn, lostOnSwap,
-  ActionGroup,
+  queueOutro, queueOn, ActionGroup,
 } from "../../engine/kit.js";
-import { matrix } from "../../shared/matrix.js";
+import { lostOnSwap, matrix } from "../../shared/helpers.js";
 import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { TRAGICOMEDY } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";

@@ -23,6 +23,7 @@ own header on why there's no bundler here).
 """
 import sys
 import threading
+import zlib
 import time
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -32,7 +33,16 @@ WATCH_EXTS = {".html", ".css", ".js"}
 POLL_SECONDS = 0.4
 
 _version = 0
+# What /__livereload actually reports: a checksum of every watched file's path and mtime, not
+# `_version` — a counter restarts at 0 with the server, so two runs would repeat the same values,
+# and the page keeps a cache of its own solved teams keyed on this (index.ts's own `loadSolves`),
+# which has to survive a restart and still change the moment any source file does.
+_stamp = "0"
 _lock = threading.Lock()
+
+
+def _stamp_of(state: dict) -> str:
+    return str(zlib.crc32(repr(sorted(state.items())).encode()))
 
 
 def _snapshot() -> dict:
@@ -43,6 +53,11 @@ def _snapshot() -> dict:
     for p in root.rglob("*"):
         if p.suffix not in WATCH_EXTS or "node_modules" in p.parts:
             continue
+        # tsc's own output is not what the page loads any more — esbuild re-bundles it into
+        # dist/bundle a moment later (dev.py), and that is the change worth reloading on. Watching
+        # both meant two reloads per edit, the first onto a bundle not yet rebuilt.
+        if "dist" in p.parts and "src" in p.parts:
+            continue
         try:
             state[str(p)] = p.stat().st_mtime
         except OSError:
@@ -51,14 +66,17 @@ def _snapshot() -> dict:
 
 
 def _watch_loop() -> None:
-    global _version
+    global _version, _stamp
     last = _snapshot()
+    with _lock:
+        _stamp = _stamp_of(last)
     while True:
         time.sleep(POLL_SECONDS)
         cur = _snapshot()
         if cur != last:
             with _lock:
                 _version += 1
+                _stamp = _stamp_of(cur)
             last = cur
 
 
@@ -80,7 +98,7 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
         # touches the filesystem itself, just reports whatever the watch thread last saw
         if self.path == "/__livereload":
             with _lock:
-                body = str(_version).encode()
+                body = _stamp.encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/plain")
             self.send_header("Content-Length", str(len(body)))

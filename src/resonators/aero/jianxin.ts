@@ -24,9 +24,9 @@
  */
 import {
   Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, ActionGroup, Stat, Attribute,
-  WeaponType, Type1, Cast, Node, Scaling, addStat, applyCurrent, casting, currentAction, forte1, lostOnSwap,
-  queueOutro, revokeCurrent, setForte1,
+  WeaponType, Type1, Cast, Node, Scaling, addStat, applyCurrent, casting, currentAction, forte1, queueOutro, revokeCurrent, setForte1,
 } from "../../engine/kit.js";
+import { lostOnSwap } from "../../shared/helpers.js";
 import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { HEALS, SHIELD } from "../../shared/status.js";
 import { MARCATO } from "../../weapons/standard.js";

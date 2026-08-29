@@ -40,7 +40,7 @@ import {
   Scaling, applyCurrent, applyEnemy, revokeEnemy, isHeld, currentAction, casting, revokeCurrent, addStat, forte1, forte2,
   setForte2, Debuff,
 } from "../../engine/kit.js";
-import { matrix } from "../../shared/matrix.js";
+import { matrix } from "../../shared/helpers.js";
 import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { THE_LAST_DANCE } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";

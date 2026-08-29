@@ -25,9 +25,9 @@
 import {
   Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
   Type2, Cast, Node, Scaling, applyCurrent, setStacksSelf, removeStack, applyEnemy, revokeEnemy, stacksOfEnemy,
-  isHeld, currentAction, casting, revokeCurrent, addStat, queue, queueOutro, lostOnSwap, applyTeam,
+  isHeld, currentAction, casting, revokeCurrent, addStat, queue, queueOnIntro, queueOutro, applyTeam,
 } from "../../engine/kit.js";
-import { matrix } from "../../shared/matrix.js";
+import { lostOnSwap, matrix } from "../../shared/helpers.js";
 import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
@@ -79,7 +79,8 @@ const Intro = yinlinAction("Intro - Raging Storm", { node: Node.Intro, cast: Cas
 const Outro = yinlinAction("Outro - Strategist", {
   cast: Cast.Outro, concerto: -100, active: false,
   updateBuffs: () => {
-    if (stacksOfEnemy(PUNISHMENT_MARK)) queue(ACTION_JUDGMENT_STRIKES);
+    // the strikes rain down after the handoff, so they land behind the next resonator's Intro
+    if (stacksOfEnemy(PUNISHMENT_MARK)) queueOnIntro(ACTION_JUDGMENT_STRIKES);
     queueOutro(YINLIN_OUTRO);
   },
 });

@@ -5,3 +5,4 @@ tsc-watch.log
 serve8000.log
 serve8731.log
 __pycache__/
+esbuild-watch.log

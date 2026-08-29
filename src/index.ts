@@ -29,7 +29,7 @@ import type { ChainGroup, HeldBuff, ResolvedSnapshot, Loadout, EchoLoadout } fro
 import { buildReport, columnSources, columnOf, OFFTUNE_RATE } from "./engine/display.js";
 import type { Report, Column, ReportRow, ReportPart, TraceEntry, InfoEntry } from "./engine/display.js";
 import { Scaling, isPercent, statLabel, SCALING_NAME, TAG_NAME, NODE_NAME } from "./engine/stats.js";
-import { member, comboOf, runTeam, eligibleWeapons, sequenceLevels, solveTeam, MAINSTAT_ROWS } from "./engine/solver.js";
+import { member, comboOf, runTeam, runFromScore, eligibleWeapons, sequenceLevels, solveTeam, MAINSTAT_ROWS } from "./engine/solver.js";
 import type { Member, Combo, Pick, Filters, TeamRun, Solved, SolveRequest, SolveResponse } from "./engine/solver.js";
 import { teamKey, ALL_TEAMS } from "./engine/teams.js";
 
@@ -125,10 +125,64 @@ const bestKey = (teamKey: string): string => {
   return `${teamKey}|${Object.values(f).join(",")}`;
 };
 
+/** Every team's own best build, under only the flags the *search* reads: the two R1 allowances
+ *  and the weapon boxes (which weapons may be searched — `eligibleWeapons()`) and Matrix Mode.
+ *  The echo and main-stat boxes change which rows a solve opens, never which build wins (both
+ *  axes are searched in full regardless), and the sequence boxes only add un-searched rows — so a
+ *  flip of any of those hands the worker the build it already found and it redoes the rows alone
+ *  (solver.ts's own `solveTeam()`), which is most of a solve skipped. */
+const picksCache = new Map<string, Pick[]>();
+const picksKey = (teamKey: string): string => {
+  const matrix = filters.matrix && !!TEAMS[teamKey]?.some((m) => m.loadout.matrix);
+  return `${teamKey}|${filters.allowR1Mdps},${filters.allowR1Supports},${filters.mdpsWeapons},${filters.supportWeapons},${matrix}`;
+};
+
 /** File one solved team's own answer away — whether it was solved in a worker or on this thread,
  *  it's the same plain indices either way (see solver.ts's own `SolveResponse`). */
 function storeSolved(teamKey: string, solved: Solved): void {
   bestPicks.set(bestKey(teamKey), solved);
+  picksCache.set(picksKey(teamKey), solved.picks);
+  solvesDirty = true;
+}
+
+/* --------------------------------------------------- solves kept across reloads */
+
+/**
+ * Everything solved this session is kept in `localStorage`, and put back on the next load — so a
+ * reload lands on the table with no search at all, and the cold load's whole solve phase is paid
+ * once per build rather than once per visit. Plain indices and figures (`Solved`), so the whole
+ * roster is a few hundred KB.
+ *
+ * Keyed on the build: serve.py's own `/__livereload` reports a checksum of every watched source
+ * file, so an edit to any kit — anything that could move a number — reads as a different build and
+ * the saved solves are simply ignored. No stamp (another host, or no server) means no cache
+ * either way: there is nothing safe to key it on. Over quota, the save is dropped and the next
+ * load solves again; nothing here is ever the only copy of anything.
+ */
+const SOLVES_KEY = "wuwa.solves.v1";
+let buildStamp: string | null = null;
+let solvesDirty = false;
+
+async function loadSolves(): Promise<void> {
+  try {
+    const res = await fetch("/__livereload", { cache: "no-store" });
+    if (!res.ok) return;
+    buildStamp = await res.text();
+    const raw = localStorage.getItem(SOLVES_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw) as { stamp: string; solves: [string, Solved][]; picks: [string, Pick[]][] };
+    if (saved.stamp !== buildStamp) return;
+    for (const [k, v] of saved.solves) bestPicks.set(k, v);
+    for (const [k, v] of saved.picks) picksCache.set(k, v);
+  } catch { /* no server stamp, no storage, or a stale shape — nothing to restore */ }
+}
+
+function saveSolves(): void {
+  if (buildStamp === null || !solvesDirty) return;
+  solvesDirty = false;
+  try {
+    localStorage.setItem(SOLVES_KEY, JSON.stringify({ stamp: buildStamp, solves: [...bestPicks], picks: [...picksCache] }));
+  } catch { /* over quota — solved again next load */ }
 }
 
 /** One team, run under one specific combo for every member — the comparison table's own row unit
@@ -211,11 +265,16 @@ function expandTeam(teamKey: string, members: Member[]): TeamRow[] {
   // keyed, since a sequence variation can reproduce a combo the cross already made, and two rows
   // whose own axes differ only where a closed one sits can settle onto the same main stats
   const rows = new Map<string, TeamRow>();
-  for (const picks of solved.rows) {
+  solved.rows.forEach((picks, r) => {
     const combo = picks.map((p: Pick, i: number) => comboOf(members[i]!.loadout, p));
     const key = `${teamKey}-${combo.map((c: Combo) => c.key).join("-")}`;
-    if (!rows.has(key)) rows.set(key, { key, teamKey, members, combo });
-  }
+    if (rows.has(key)) return;
+    rows.set(key, { key, teamKey, members, combo });
+    // the search scored this row already (solver.ts's own `Solved.scores`), so it's filed as run
+    // here rather than being run again by `runMissing()`
+    const score = solved.scores[r];
+    if (score && !results.has(key)) results.set(key, runFromScore(teamKey, members, combo, score));
+  });
 
   return [...rows.values()].filter(rowWanted);
 }
@@ -387,12 +446,20 @@ function detailFor(run: TeamRun): { report: Report } {
 const esc = (s: unknown): string => String(s)
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
+/** One formatter per (digits, pad, group) shape, made on first use: `toLocaleString` builds a
+ *  fresh Intl.NumberFormat on every call (~22µs), and a table draw makes ~30 calls per row —
+ *  it was half of every redraw. A kept instance formats in under 1µs. */
+const formatters = new Map<string, Intl.NumberFormat>();
+
 /** @param group  thousands separators — off for the action table's own rows, whose columns sit
  *  tight against one another (see display.ts's own `num`, which sizes them). */
-const fmt = (v: number | string | null | undefined, digits = 0, pad = false, group = true): string =>
-  typeof v === "number"
-    ? v.toLocaleString("en-US", { maximumFractionDigits: digits, minimumFractionDigits: pad ? digits : 0, useGrouping: group })
-    : String(v ?? "");
+const fmt = (v: number | string | null | undefined, digits = 0, pad = false, group = true): string => {
+  if (typeof v !== "number") return String(v ?? "");
+  const key = `${digits}${pad ? "p" : ""}${group ? "g" : ""}`;
+  let f = formatters.get(key);
+  if (!f) formatters.set(key, f = new Intl.NumberFormat("en-US", { maximumFractionDigits: digits, minimumFractionDigits: pad ? digits : 0, useGrouping: group }));
+  return f.format(v);
+};
 
 // Columns that always show their own full digit count in the action table rather than trimming
 // trailing zeros the way the rest do — the running resources at their own precision (2/2/4), mv,
@@ -411,29 +478,56 @@ const GROUPED_COLUMNS = new Set(["avg"]);
 const BUFF_UNDERLINE_COLUMNS = new Set(["mv", "energy", "concerto", "offtune"]);
 
 /** One grid track. Columns carry a character `width` (the report also prints to a terminal), so
- *  a track is that count scaled by the CSS --cw, plus the cell's own padding — and, on the two
- *  outermost columns, the extra `--lead` index.css pads them by, so the widened cell doesn't
- *  simply eat into the characters it was sized for. */
-const colWidth = (c: Column, i: number, last: number): string => {
-  const base = `var(--cw) * ${c.width} + var(--cpad)`;
-  return i === 0 || i === last ? `calc(${base} + var(--lead))` : `calc(${base})`;
-};
+ *  a track is that count scaled by the CSS --cw, plus the cell's own padding. The same wherever
+ *  the column sits: the two outermost used to take the table's own run-out (`--lead`) into their
+ *  tracks as well, so a column changed width just by being dragged to or from an end. The run-out
+ *  is the row's own padding now (index.css's `.r`), outside every track. */
+const colWidth = (c: Column): string => `calc(var(--cw) * ${c.width} + var(--cpad))`;
 
-function cell(columns: Column[], index: number, { cls = [], html = "", style = "" }: { cls?: string[]; html?: string; style?: string }): string {
+function cell(columns: Column[], index: number, { cls = [], html = "", pop = "", style = "" }: { cls?: string[]; html?: string; pop?: string; style?: string }): string {
   const classes = ["c", columns[index]!.align === "left" ? "" : "num", ...cls].filter(Boolean).join(" ");
-  return `<span class="${classes}"${style ? ` style="${style}"` : ""}>${html}</span>`;
+  return `<span class="${classes}"${style ? ` style="${style}"` : ""}${pop}>${html}</span>`;
 }
 
-/** A hover panel, parked in a `<template>` rather than built into the page.
+/** A hover panel, parked as its cell's own `data-pop` attribute rather than built into the page.
+ *  Emitted as an attribute, so it goes inside a cell's start tag, not between its tags.
  *
- *  One detail page carries ~5,900 of these between them, and a comparison row's own Total DPR
- *  panel is a whole nested table — together tens of thousands of nodes that exist only for the
- *  handful a person ever hovers. `display: none` still costs: the nodes are parsed, styled and
- *  kept alive, and every hover-driven restyle while scrolling walks past them. A template's
- *  content is a separate inert fragment: not rendered, not styled, not laid out, not matched by
- *  selectors. `wireSourcePanels` swaps one in for the real thing the first time its cell is
- *  hovered, so only panels somebody actually opens ever reach the document. */
-const lazyPop = (html: string): string => (html ? `<template class="pop-src">${html}</template>` : "");
+ *  One detail page carries thousands of these, and a comparison row's Total DPR panel is a whole
+ *  nested table: 1.8MB of the action log's 2MB of markup is panels, nearly none of which anyone
+ *  ever opens. As `<template>`s they were at least inert — not rendered, not styled — but the
+ *  browser still had to parse every one of them into a fragment of real nodes, which cost about
+ *  40ms of the ~45ms it took to put a detail page up. An attribute is just a string hanging off
+ *  the cell: scanned by the parser, never built. `wireSourcePanels` parses one, once, the first
+ *  time its own cell is hovered, so only panels somebody actually opens are ever built at all.
+ *
+ *  Single-quoted, and `<`/`>` left alone: all three are legal inside an attribute value, and the
+ *  panel markup is full of double quotes of its own — delimiting with `"` would turn every one of
+ *  them into `&quot;` and put a megabyte back that the parser then has to decode again. */
+const lazyPop = (html: string): string => (html
+  ? ` data-pop='${html.replace(/&/g, "&amp;").replace(/'/g, "&#39;")}'` : "");
+
+/** A hover panel that isn't even *built* until its cell is first hovered — the attributes a cell
+ *  carries instead of parked markup. `lazyPop` defers the parse; this defers the string too,
+ *  which for the comparison table was the bulk of a draw (a `menuStats()` pass per member and
+ *  two dozen formatted figures per row, for panels almost none of which are ever opened).
+ *  `wireSourcePanels` hands the kind and key to `buildPop()` on first hover. */
+const deferredPop = (kind: string, key: string): string => ` data-pop-kind="${kind}" data-pop-key="${esc(key)}"`;
+
+/** The comparison table's own deferred panels, by kind: a row's Total DPR breakdown, and a member's
+ *  loadout — both read straight out of `results` by the row key the cell carries. */
+function buildPop(kind: string, key: string): string {
+  if (kind === "dpr") {
+    const run = results.get(key);
+    return run ? `<span class="pop dpr">${dprTable(run)}</span>` : "";
+  }
+  if (kind === "gear") {
+    const at = key.lastIndexOf("|");
+    const run = results.get(key.slice(0, at));
+    const src = Number(key.slice(at + 1));
+    return run ? gearPopoverHtml(run.members[src]!, run.combo[src]!) : "";
+  }
+  return "";
+}
 
 /** Every source that fed one value, revealed on hover. */
 const unit = (r: TraceEntry): string => ((r.percent ?? (r.stat !== undefined ? isPercent(r.stat) : false)) ? "%" : "");
@@ -774,12 +868,13 @@ function menuStatRows(member: Member, combo: Combo): { label: string; value: str
  *  comparison table and the detail page's two rotation tables. Its own gear list first, then a
  *  "menu stats" reading of the same build below it (see `.pop .gear + tr:not(.gear)` in
  *  index.css for the divider between the two). */
-function gearPopover(member: Member, combo: Combo): string {
+function gearPopoverHtml(member: Member, combo: Combo): string {
   const stats = menuStatRows(member, combo)
     .map((r) => `<tr class="stat"><td class="k">${esc(r.label)}</td><td class="v">${esc(r.value)}</td></tr>`)
     .join("");
-  return lazyPop(`<span class="pop gear"><table>${gearRows(member, combo)}${stats}</table></span>`);
+  return `<span class="pop gear"><table>${gearRows(member, combo)}${stats}</table></span>`;
 }
+const gearPopover = (member: Member, combo: Combo): string => lazyPop(gearPopoverHtml(member, combo));
 
 /** What a member's own name cell reads as: the resonator, then their sequence level and weapon
  *  rank as one token (`S0R1`) — the level this row actually runs at (see `sequenceLevels()`), and
@@ -898,6 +993,25 @@ function resonatorChips(): string {
   return chips ? `<div class="tcchips">${chips}</div>` : "";
 }
 
+/** Which member positions have their own DPR column open, by column position — 0 is the leftmost
+ *  (Slot 3), 2 the rightmost (Slot 1). Toggled by clicking that position's Slot heading. Purely a
+ *  display column: it opens no rows, so nothing is re-solved and nothing is costed against
+ *  `ROW_CAP` — the table is just redrawn. Module-level so it survives a re-render. */
+const dprOpenAt = [false, false, false];
+
+/** Which member stands at each column of a row, left to right, as indices into `members`. The
+ *  columns are numbered right to left — Slot 1 is the rightmost — and the row is rotated so that
+ *  Slot 1 is the team's own main DPS, the one `teams.ts` named with its single-loadout slot
+ *  (`dpsIndex`), not whoever happened to out-damage them on this combo. A rotation, not a sort:
+ *  members are a cycle (each one's Outro hands to the next one's Intro), so shifting the whole
+ *  ring leaves the real intro/outro order intact and only changes where it is cut. */
+function displayOrder(members: Member[]): number[] {
+  // the main DPS ends up last, so the cut is immediately after them (-1 can't happen — teams.ts
+  // throws on a team with no MDPS slot — and would leave the play order as it stands anyway)
+  const cut = (members.findIndex((m) => m.mainDps) + 1) % members.length;
+  return members.map((_, i) => (cut + i) % members.length);
+}
+
 /** Every row the current filters opened, sorted by team damage — each one's own run read out of
  *  the `results` cache, which `refresh()` has already filled for exactly this row set. */
 function comparisonTable(rows: TeamRow[]): string {
@@ -915,18 +1029,21 @@ function comparisonTable(rows: TeamRow[]): string {
   const weaponOpenAt = [false, false, false];
   const echoOpenAt = [false, false, false];
   const mainstatOpenAt = [false, false, false];
+  // read in each row's own display order (`displayOrder()`), so a column is opened by whoever
+  // actually stands there once the row has been rotated
   for (const row of rows) {
-    row.members.forEach((m, i) => {
-      const mdps = m.mainDps;
-      if (mdps ? filters.mdpsWeapons : filters.supportWeapons) weaponOpenAt[i] = true;
-      if (mdps ? filters.mdpsEchoes : filters.supportEchoes) echoOpenAt[i] = true;
-      if (mdps ? filters.mdpsMainstats : filters.supportMainstats) mainstatOpenAt[i] = true;
+    displayOrder(row.members).forEach((src, pos) => {
+      const mdps = row.members[src]!.mainDps;
+      if (mdps ? filters.mdpsWeapons : filters.supportWeapons) weaponOpenAt[pos] = true;
+      if (mdps ? filters.mdpsEchoes : filters.supportEchoes) echoOpenAt[pos] = true;
+      if (mdps ? filters.mdpsMainstats : filters.supportMainstats) mainstatOpenAt[pos] = true;
     });
   }
 
-  const body = sorted.map(([key, run]) => {
+  const rowHtml = (key: string, run: TeamRun, rank: RowRank): string => {
     const grand = run.total;
-    const memberNames = run.members.map((m) => m.name).join("|");
+    const order = displayOrder(run.members);
+    const memberNames = order.map((src) => run.members[src]!.name).join("|");
 
     // Left click requires this resonator, right click bars them — see the handlers in boot() and
     // `resonatorFilters`. Nothing is drawn in the cell either way; the chips above the table are
@@ -938,14 +1055,15 @@ function comparisonTable(rows: TeamRow[]): string {
     // The hover is the loadout alone — every per-member damage breakdown that used to live here
     // is now one row of the DPR table the Total cell opens, which says the same thing about all
     // three members at once instead of one panel apiece.
-    const memberCell = (m: Member, combo: Combo, i: number) => {
+    const memberCell = (m: Member, combo: Combo, i: number, src: number) => {
       const mdps = m.mainDps;
       const tag = sequenceTag(m, combo);
+      // the loadout hover is built on first hover (see `deferredPop`), keyed by row and member
       const name = `<div class="c name res has" data-resonator="${esc(m.name)}"`
         + (tag ? ` data-sequence="${esc(tag)}"` : "")
+        + deferredPop("gear", `${key}|${src}`)
         + ` style="--mem:${m.color};color:${m.color}">`
         + `<span class="res-label">${esc(memberLabel(m, combo))}</span>`
-        + gearPopover(m, combo)
         + `</div>`;
       // populated only while this axis is open for *this member's own* role — the same gate the
       // label used to apply — even though the column itself exists as soon as this position needs
@@ -953,29 +1071,36 @@ function comparisonTable(rows: TeamRow[]): string {
       const weapon = weaponOpenAt[i] ? optionCell("weapon", (mdps ? filters.mdpsWeapons : filters.supportWeapons) ? combo.weapon.name : "", m.color) : "";
       const echo = echoOpenAt[i] ? optionCell("echo", (mdps ? filters.mdpsEchoes : filters.supportEchoes) ? echoLabel(m.loadout, combo.echo) : "", m.color) : "";
       const mainstat = mainstatOpenAt[i] ? optionCell("mainstat", (mdps ? filters.mdpsMainstats : filters.supportMainstats) ? combo.mainstat.name : "", m.color) : "";
-      return name + weapon + echo + mainstat;
+      // this member's own share of the row's Avg Team DPR — the same mean `run.total` is, so the
+      // three read against each other and against the Total column directly
+      const dpr = dprOpenAt[i]
+        ? `<div class="c num slotdpr" style="--mem:${m.color}">${fmt(run.bySlot.get(m.name) ?? 0)}</div>`
+        : "";
+      return name + weapon + echo + mainstat + dpr;
     };
-    const memberCells = run.members.map((m, i) => memberCell(m, run.combo[i]!, i)).join("");
+    const memberCells = order.map((src, pos) => memberCell(run.members[src]!, run.combo[src]!, pos, src)).join("");
 
-    return `<div class="trow" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}"`
+    // the hue (`--hue`) and the baseline percentage are relative to whichever team is currently
+    // the baseline — ranked in data by `rankAll()` before any row is drawn (see `setBaseline()`)
+    return `<div class="trow${rank.pinned ? " isbaseline" : ""}" style="--hue:${rank.hue}" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}"`
       + ` data-members="${esc(memberNames)}" data-total="${grand}">`
       + memberCells
-      + `<div class="c num total teamdpr gotodetail" data-team="${esc(key)}">${fmt(grand)}<span class="arrow">›</span>`
-      + lazyPop(`<span class="pop dpr">${dprTable(run)}</span>`) + `</div>`
-      // both the hue (`--hue`, on the row) and the percentage itself are written by
-      // rankRows() — they're relative to whichever team is currently the baseline, which this
-      // render doesn't know. Clicking the cell makes that row the baseline (see `setBaseline()`).
-      + `<div class="c num total baseline" data-team="${esc(key)}" title="Click to measure every team against this one"></div>`
+      + `<div class="c num total teamdpr gotodetail" data-team="${esc(key)}"`
+      + deferredPop("dpr", key)
+      + `>${fmt(grand)}<span class="arrow">›</span></div>`
+      // clicking the cell makes that row the baseline (see `setBaseline()`)
+      + `<div class="c num total baseline" data-team="${esc(key)}" title="Click to measure every team against this one">${rank.pct}</div>`
       + `</div>`;
-  }).join("");
+  };
 
-  const memberHead = (n: number, i: number) => `<div class="c">Slot ${n}</div>`
+  const memberHead = (n: number, i: number) => `<div class="c slothead${dprOpenAt[i] ? " open" : ""}" data-pos="${i}" title="Click to show this slot's own DPR">Slot ${n}<span class="arrow">›</span></div>`
     + (weaponOpenAt[i] ? `<div class="c">Weapon ${n}</div>` : "")
     + (echoOpenAt[i] ? `<div class="c">Echo Set ${n}</div>` : "")
-    + (mainstatOpenAt[i] ? `<div class="c">Mainstats ${n}</div>` : "");
+    + (mainstatOpenAt[i] ? `<div class="c">Mainstats ${n}</div>` : "")
+    + (dprOpenAt[i] ? `<div class="c num">DPR ${n}</div>` : "");
   const head = `<div class="trow thead">`
-    + memberHead(1, 0) + memberHead(2, 1) + memberHead(3, 2)
-    + `<div class="c num">Avg Team DPR</div>`
+    + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2)
+    + `<div class="c num">Team DPR</div>`
     + `<div class="c num">% of Baseline</div>`
     + `</div>`;
 
@@ -984,24 +1109,39 @@ function comparisonTable(rows: TeamRow[]): string {
   // Computed here rather than left to a fixed rule in index.css, since both the column count and
   // which position has which now depend on which axes are open and who's actually standing where
   // (see index.css's own `.tgrid` for the no-options-open default this overrides).
-  const posCols = (i: number) => `max-content${weaponOpenAt[i] ? " max-content" : ""}${echoOpenAt[i] ? " max-content" : ""}${mainstatOpenAt[i] ? " max-content" : ""}`;
+  const posCols = (i: number) => `max-content${weaponOpenAt[i] ? " max-content" : ""}${echoOpenAt[i] ? " max-content" : ""}${mainstatOpenAt[i] ? " max-content" : ""}${dprOpenAt[i] ? " max-content" : ""}`;
   const gridStyle = `grid-template-columns:${posCols(0)} ${posCols(1)} ${posCols(2)} max-content max-content`;
 
-  // the count itself is written by `rankRows()`, which is what actually knows how many
-  // rows survive the resonator checkboxes — it runs immediately after every render
-  return `<main>${comparisonFilters()}<h2 class="summary-label" id="teamCount"></h2><div class="tcwrap"><div class="tgrid" style="${gridStyle}">${head}${body}</div></div></main>`;
+  // the rows themselves are drawn by `drawWindow()`, only ever the stretch near the scroll
+  // position — this is the shell around them, head included
+  tableView = { sorted, ranks: rankAll(sorted), head, rowHtml };
+  return `<main>${comparisonFilters()}<h2 class="summary-label" id="teamCount">${fmt(sorted.length)} teams</h2><div class="tcwrap"><div class="tgrid" style="${gridStyle}">${head}</div></div></main>`;
 }
 
-/** No filtering left at the DOM level — every axis, the resonator checkboxes included, decides
- *  which rows *exist* rather than which are hidden, so nothing off-screen is ever optimized, run
- *  or rendered. What's left is the two things that can only be known once the rows are on the
- *  page and is the same either way: how many there are, and how they rank against each other. */
-function rankRows(): void {
-  const rows = [...document.querySelectorAll<HTMLElement>(".trow:not(.thead)")];
-  const label = document.getElementById("teamCount");
-  if (label) label.textContent = `${fmt(rows.length)} teams`;
-  rankVisible(rows);
+/** What the comparison table draws from once `comparisonTable()` has sorted and ranked it: every
+ *  row in order, each one's own rank colouring, and the per-row markup. Only the rows near the
+ *  scroll position are ever in the document (see `drawWindow()`): a thousand rows built into
+ *  markup, parsed and laid out was the largest fixed cost of every redraw, for rows nobody could
+ *  see, and a window of ~100 costs the same whatever the table's size. */
+interface TableView {
+  sorted: (readonly [string, TeamRun])[];
+  ranks: RowRank[];
+  head: string;
+  rowHtml: (key: string, run: TeamRun, rank: RowRank) => string;
 }
+/** One row's place on the `% of Baseline` ramp: its hue, its percentage, and whether it is the
+ *  pinned baseline itself. */
+interface RowRank { hue: number; pct: string; pinned: boolean }
+let tableView: TableView | null = null;
+/** One row's pitch, measured off the first window drawn (every row is one line tall, so the
+ *  spacers standing in for the rows outside the window can be sized without drawing them).
+ *  Re-measured on every render, since the row's font or padding could change with the page. */
+let rowHeight = 30;
+let measured = false;
+/** Rows drawn past either edge of the viewport, so an ordinary scroll lands on rows already there
+ *  and only a long one waits on a redraw — which is one frame anyway. */
+const OVERSCAN = 40;
+let drawnFrom = -1, drawnTo = -1;
 
 /** Which team every other row is measured against, by its own `data-team` key — null for the
  *  default, the weakest team currently on screen. Set by clicking a `% of Baseline` cell, and kept
@@ -1019,7 +1159,8 @@ const BEST_HUE = 0, BASELINE_HUE = 120, WORST_HUE = 280;
 export function setBaseline(team: string | null): void {
   // clicking the row that's already the baseline puts it back to the weakest visible team
   baselineTeam = baselineTeam === team ? null : team;
-  rankRows();
+  // re-ranked in place: the rows, their order and the shell around them are all as they were
+  if (tableView) { tableView.ranks = rankAll(tableView.sorted); drawWindow(true); }
 }
 
 /** The baseline column, measured against whichever team is the baseline — by default the weakest
@@ -1028,37 +1169,85 @@ export function setBaseline(team: string | null): void {
  *  one instead (`setBaseline()`). The percentage is that ratio outright, so the baseline row reads
  *  100.00%.
  *
- *  Colour is one continuous hue ramp across the whole table, written here as `--hue` rather than
- *  derived in CSS, because a single monotonic scale is the only way it reads smoothly: lime at the
- *  strongest team, through green at the baseline, into teal, blue and finally purple at the
+ *  Colour is one continuous hue ramp across the whole table, written as `--hue` on the row rather
+ *  than derived in CSS, because a single monotonic scale is the only way it reads smoothly: lime
+ *  at the strongest team, through green at the baseline, into teal, blue and finally purple at the
  *  weakest. Anything built from separate above/below scales meets at the baseline as a hard edge.
  *
  *  Both halves spread the ratio itself, straight: a team's colour is how far along the visible
  *  spread it actually sits, so the warm end is reached as fast as the damage gets there. (A log
  *  spread evens the steps out when one runaway team stretches the table, but it also drags every
- *  middling row toward the baseline's colour, which is the opposite of what the column is for.) */
-function rankVisible(rows: HTMLElement[]): void {
-  const totals = rows.map((row) => Number(row.dataset.total));
-  const pinned = baselineTeam == null ? -1 : rows.findIndex((row) => row.dataset.team === baselineTeam);
+ *  middling row toward the baseline's colour, which is the opposite of what the column is for.)
+ *
+ *  Ranked over the sorted rows as data, not over the DOM: only a window of the rows is ever in
+ *  the document, and every row's colour depends on the whole table's spread. */
+function rankAll(sorted: TableView["sorted"]): RowRank[] {
+  const totals = sorted.map(([, run]) => run.total);
+  const pinned = baselineTeam == null ? -1 : sorted.findIndex(([key]) => key === baselineTeam);
   const base = pinned >= 0 ? totals[pinned]! : Math.min(...totals);
   const maxRatio = Math.max(...totals.map((t) => (base ? t / base : 1)), 1);
   const minRatio = Math.min(...totals.map((t) => (base ? t / base : 1)), 1);
-  rows.forEach((row, i) => {
-    const ratio = base ? totals[i]! / base : 1;
+  return totals.map((t, i) => {
+    const ratio = base ? t / base : 1;
     // how far this row sits from the baseline, 0 there and 1 at whichever end it's on
     const away = ratio >= 1
       ? (maxRatio > 1 ? (ratio - 1) / (maxRatio - 1) : 0)
       : (minRatio < 1 ? (1 - ratio) / (1 - minRatio) : 0);
     // BASELINE_HUE either way, so the two halves meet there rather than butting into each other
-    row.style.setProperty("--hue", String(ratio >= 1
+    const hue = ratio >= 1
       ? BASELINE_HUE - away * (BASELINE_HUE - BEST_HUE)
-      : BASELINE_HUE + away * (WORST_HUE - BASELINE_HUE)));
+      : BASELINE_HUE + away * (WORST_HUE - BASELINE_HUE);
     // only a row actually clicked is marked as the baseline — it takes its colour from the ramp
     // like every other row, and the class is just the outline that says which one is pinned
-    row.classList.toggle("isbaseline", pinned >= 0 && i === pinned);
-    const cell = row.querySelector<HTMLElement>(".c.baseline");
-    if (cell) cell.textContent = `${fmt(ratio * 100, 2, true)}%`;
+    return { hue, pct: `${fmt(ratio * 100, 2, true)}%`, pinned: i === pinned };
   });
+}
+
+/**
+ * Draw the rows around the scroll position into the table's grid — the head, a spacer standing in
+ * for every row above the window, the window's own rows, and a spacer for every row below — and
+ * nothing else. Called on every scroll of the table's `<main>` (see `renderComparison()`), where
+ * it redraws only once the viewport has eaten into the overscan on either side, so a short scroll
+ * costs nothing and a long one costs one draw of ~100 rows.
+ *
+ * `scrollTop` is where the table is *about* to be, when a render is restoring a position the new
+ * grid can't hold yet (it is head-high until the spacers go in) — the window is drawn for that
+ * position first, and the scroll set after.
+ */
+function drawWindow(force = false, scrollTop?: number): void {
+  const view = tableView;
+  const main = app.querySelector("main");
+  const grid = main?.querySelector<HTMLElement>(".tgrid");
+  if (!view || !main || !grid) return;
+  const n = view.sorted.length;
+  const top = scrollTop ?? main.scrollTop;
+  // where the first row sits in the scroll content: the grid's own offset plus the sticky head
+  const headH = grid.querySelector(".thead .c")?.getBoundingClientRect().height ?? 0;
+  const rowsTop = grid.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop + headH;
+  const seenFrom = Math.max(0, Math.floor((top - rowsTop) / rowHeight));
+  const seenTo = Math.min(n, Math.ceil((top + main.clientHeight - rowsTop) / rowHeight));
+  const inside = seenFrom >= drawnFrom + (drawnFrom > 0 ? OVERSCAN / 2 : 0)
+    && seenTo <= drawnTo - (drawnTo < n ? OVERSCAN / 2 : 0);
+  if (!force && inside) return;
+  const from = Math.max(0, seenFrom - OVERSCAN), to = Math.min(n, seenTo + OVERSCAN);
+
+  const spacer = (rows: number): string => (rows > 0 ? `<div class="vspace" style="height:${rows * rowHeight}px"></div>` : "");
+  let body = "";
+  for (let i = from; i < to; i++) {
+    const [key, run] = view.sorted[i]!;
+    body += view.rowHtml(key, run, view.ranks[i]!);
+  }
+  grid.innerHTML = view.head + spacer(from) + body + spacer(n - to);
+  drawnFrom = from; drawnTo = to;
+
+  // the real pitch, off the rows just drawn — and the spacers redone once if the guess was off
+  if (!measured && to - from >= 2) {
+    measured = true;
+    const cells = grid.querySelectorAll<HTMLElement>(".trow:not(.thead) > .c.teamdpr");
+    const first = cells[0]!.getBoundingClientRect().top, last = cells[cells.length - 1]!.getBoundingClientRect().top;
+    const pitch = (last - first) / (cells.length - 1);
+    if (Math.abs(pitch - rowHeight) > 0.25) { rowHeight = pitch; drawWindow(true, scrollTop); }
+  }
 }
 
 /* --------------------------------------------------------------------- table */
@@ -1120,25 +1309,26 @@ function stepRow(
     }
     const suffix = col.key === "mv" && row.scaling !== null
       ? ` ${SCALING_NAME[row.scaling]}` : "";
+    let pop = "";
     if (col.key === "action") {
-      html += infoPopover("info" in row ? row.info : undefined, slotHue);
+      pop = infoPopover("info" in row ? row.info : undefined, slotHue);
     } else if (col.key === "member") {
       // an opened group's own parts carry their own snapshot, so each reads the buffs that cast
       // was actually held under rather than inheriting the row's (see display.ts's ReportPart)
       const snap = "line" in row ? (row.line.snap as ResolvedSnapshot) : row.snap;
       const gear = gearByMember.get(snap.member) ?? [];
-      html += buffsPopover(snap.member, gear, snap.heldLocal, snap.heldGlobal, snap.heldEnemy, slotHue);
+      pop = buffsPopover(snap.member, gear, snap.heldLocal, snap.heldGlobal, snap.heldEnemy, slotHue);
     } else if (text) {
       // `text`: an empty cell gets no panel — hovering nothing and being told about it is worse
       // than the blank the row means by it. `moved:`: a running counter's panel foots to what this
       // action moved it by rather than to the balance in the cell (display.ts's own rowValues()).
-      html += popover(col, sources, row.raw[`moved:${col.key}`] ?? v, slotHue, suffix);
+      pop = popover(col, sources, row.raw[`moved:${col.key}`] ?? v, slotHue, suffix);
     }
 
     const mem = slotHue.get(String(v)) ?? FALLBACK_HUE;
     const style = col.key === "member" ? `--mem:${mem};color:${mem}` : "";
 
-    return cell(columns, i, { cls, html, style });
+    return cell(columns, i, { cls, html, pop, style });
   }).join("");
 }
 
@@ -1160,7 +1350,7 @@ function partRows(columns: Column[], parts: ReportPart[], slotHue: Map<string, s
  *  kit's own button press (`triggered`, from `run()`). */
 function rotationTable(report: Report, slotHue: Map<string, string>, gearByMember: Map<string, Gear[]>): string {
   const columns = report.columns;
-  const cols = columns.map((c, i) => colWidth(c, i, columns.length - 1)).join(" ");
+  const cols = columns.map(colWidth).join(" ");
 
   const head = columns
     .map((c, i) => cell(columns, i, { html: esc(c.label) }))
@@ -1233,13 +1423,13 @@ function dprTable(run: TeamRun, lines?: ChainGroup[][]): string {
 
   const valueCell = (sec: ChainGroup[] | undefined, slot: string, value: number, total: number): string =>
     (sec
-      ? `<div class="c num has">${fmt(value)}${damagePopover(sec, slot, value, total)}</div>`
+      ? `<div class="c num has"${damagePopover(sec, slot, value, total)}>${fmt(value)}</div>`
       : `<div class="c num">${fmt(value)}</div>`);
 
   const dataRow = (slot: string, color: string, hover: string): string => {
     const own = run.sectionBySlot.reduce((a, by) => a + (by.get(slot) ?? 0), 0);
     return `<div class="rtrow">`
-      + `<div class="c name${hover ? " has" : ""}" style="--mem:${color}">${esc(slot)}${hover}</div>`
+      + `<div class="c name${hover ? " has" : ""}"${hover} style="--mem:${color}">${esc(slot)}</div>`
       + run.sectionBySlot.map((by, i) => valueCell(lines?.[i], slot, by.get(slot) ?? 0, run.sectionTotals[i]!)).join("")
       + valueCell(flat, slot, own, grand)
       + `</div>`;
@@ -1249,9 +1439,9 @@ function dprTable(run: TeamRun, lines?: ChainGroup[][]): string {
     .map((m, i) => dataRow(m.name, m.color, lines ? gearPopover(m, run.combo[i]!) : ""))
     .join("");
   // The Tune Break row gets its own hue and the same bar/wash as a real member — it isn't a
-  // loadout, so it has no gear hover, but it is a damage source and reads as one.
-  const enemy = run.state.enemy;
-  const tuneBreakRow = dataRow(enemy.name, enemy.resonator!.color, "");
+  // loadout, so it has no gear hover, but it is a damage source and reads as one. Named off the
+  // enemy resonator itself, not the run's fight: a table row keeps no fight (`TeamRun.state`).
+  const tuneBreakRow = dataRow(TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color, "");
   // no hover: a whole team's damage split by node is three kits' worth of buckets stacked on top
   // of each other, which answers nothing the member rows above it don't already
   const plainCell = (value: number): string => `<div class="c num">${fmt(value)}</div>`;
@@ -1331,7 +1521,7 @@ function energyTable(run: TeamRun, lines: ChainGroup[][], report: Report, slotHu
     + `</div>`;
 
   const rows = run.members.map((m, idx) => {
-    const maxEnergy = run.state.slots.find((s) => s.name === m.name)?.resonator?.maxEnergy ?? 0;
+    const maxEnergy = m.loadout.resonator.maxEnergy;
     // The fight's very first Liberation rides in on the bar every resonator starts full (kit.ts's
     // own realEnergy), so it asks for no ER at all — it's dropped from the table the same way a
     // section with no Liberation in it is, rather than reading as a requirement of 0%.
@@ -1342,7 +1532,7 @@ function energyTable(run: TeamRun, lines: ChainGroup[][], report: Report, slotHu
       const warn = req != null && erFallsShort(flat, resetIdx!, m.name, req);
       const text = req == null ? "—" : `${fmt(req, 1)}%`;
       const hover = snap && erCol ? popover(erCol, columnSources(snap, "er"), snap.stat(Stat.Er), slotHue) : "";
-      return `<div class="c num${warn ? " er-under" : ""}${hover ? " has" : ""}">${text}${hover}</div>`;
+      return `<div class="c num${warn ? " er-under" : ""}${hover ? " has" : ""}"${hover}>${text}</div>`;
     };
 
     // the opener's last cast is the one with something to bank for — an earlier one in the same
@@ -1351,7 +1541,7 @@ function energyTable(run: TeamRun, lines: ChainGroup[][], report: Report, slotHu
     const cells = cell(opener[opener.length - 1] ?? null)
       + [1, 2, 3].map((i) => cell(resetIndices(flat, offsets[i]!, offsets[i + 1]!, m.name)[0] ?? null)).join("");
     return `<div class="rtrow">`
-      + `<div class="c name" style="--mem:${m.color}">${esc(m.name)}${gearPopover(m, run.combo[idx]!)}</div>`
+      + `<div class="c name"${gearPopover(m, run.combo[idx]!)} style="--mem:${m.color}">${esc(m.name)}</div>`
       + cells
       + `</div>`;
   }).join("");
@@ -1364,8 +1554,7 @@ function page(run: TeamRun): string {
   // detailFor() has just guaranteed these exist (re-running the team traced if need be)
   const lines = run.rotationLines!;
   const { members } = run;
-  const { enemy } = run.state;
-  const slotHue = new Map([...members.map((m): [string, string] => [m.name, m.color]), [enemy.name, enemy.resonator!.color]]);
+  const slotHue = new Map([...members.map((m): [string, string] => [m.name, m.color]), [TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color]]);
   const gearByMember = new Map(members.map((m, i): [string, Gear[]] => [m.name, equippedGear(m, run.combo[i]!)]));
 
   return `<main>
@@ -1412,11 +1601,18 @@ function wireSourcePanels(root: HTMLElement): void {
 
   document.body.querySelectorAll(":scope > .pop").forEach((el) => el.remove());
 
+  /** The panel each cell has had built for it, held out of the document while it is closed.
+   *
+   *  `lazyPop` only ever deferred the cost: a template swapped for a real panel stayed a real
+   *  panel for the life of the page, so a reading session that swept the pointer over a few
+   *  hundred cells left a few hundred panels — thousands of nodes — behind it, every one of
+   *  them still styled and re-invalidated on each pass even though `display: none` keeps them
+   *  off the screen. A detached node costs none of that, so a closed panel is taken back out
+   *  and kept here, and only the open one is ever in the document. */
+  const built = new WeakMap<Element, HTMLElement>();
+
   const close = (): void => {
-    if (open) {
-      open.style.display = "";
-      if (openHome && open.parentElement !== openHome) openHome.appendChild(open);
-    }
+    open?.remove();
     open = null;
     openHome = null;
   };
@@ -1460,10 +1656,20 @@ function wireSourcePanels(root: HTMLElement): void {
     const cell = (target as Element | null)?.closest?.(".c") ?? null;
     if (!cell) return { cell: null, pop: null };
     if (open && openHome === cell) return { cell, pop: open };
-    // first hover on this cell: swap its parked template for the real panel, once (see `lazyPop`)
-    const src = cell.querySelector<HTMLTemplateElement>(":scope > template.pop-src");
-    if (src) { cell.appendChild(src.content.cloneNode(true)); src.remove(); }
-    return { cell, pop: cell.querySelector<HTMLElement>(":scope > .pop") };
+    const kept = built.get(cell);
+    if (kept) return { cell, pop: kept };
+    // first hover on this cell: parse the markup parked on it, once (see `lazyPop`), and drop the
+    // attribute — the panel itself is what's kept from here on
+    // ...or, for a cell carrying only a kind and key, build the markup itself now (`deferredPop`)
+    const data = (cell as HTMLElement).dataset;
+    const markup = data?.pop ?? (data?.popKind ? buildPop(data.popKind, data.popKey ?? "") : undefined);
+    if (!markup) return { cell, pop: null };
+    const box = document.createElement("div");
+    box.innerHTML = markup;
+    cell.removeAttribute("data-pop");
+    const pop = box.firstElementChild as HTMLElement | null;
+    if (pop) built.set(cell, pop);
+    return { cell, pop };
   };
 
   document.addEventListener("mouseover", (e) => {
@@ -1490,6 +1696,388 @@ function wireSourcePanels(root: HTMLElement): void {
 
   addEventListener("scroll", close, true);
   addEventListener("resize", close);
+}
+
+/* ------------------------------------------------- action log: column order */
+
+/** The action log's columns are dragged by their own headings, and the order is kept in
+ *  `localStorage` so it survives a reload — stored as the visual key order of whatever columns
+ *  were on screen when it was last dragged.
+ *
+ *  Nothing is re-rendered to reorder them: the cells stay in the report's own order and a
+ *  generated stylesheet hands each position a grid `order`, so a drop keeps every opened chain
+ *  and the scroll position exactly where they were. */
+const COLUMN_ORDER_KEY = "wuwa.logColumns";
+
+const savedOrder = (): string[] => {
+  try { return JSON.parse(localStorage.getItem(COLUMN_ORDER_KEY) ?? "[]") as string[]; }
+  catch { return []; }
+};
+
+/** This report's column keys in visual order: the saved order for the ones it names, then every
+ *  other column back beside its natural neighbour rather than pushed to the end — a forte gauge
+ *  only some teams move isn't in the saved list at all when it was saved off a team without it. */
+function orderedKeys(columns: Column[]): string[] {
+  const out = savedOrder().filter((k) => columns.some((c) => c.key === k));
+  columns.forEach((c, i) => {
+    if (out.includes(c.key)) return;
+    const prev = columns.slice(0, i).reverse().find((p) => out.includes(p.key));
+    out.splice(prev ? out.indexOf(prev.key) + 1 : 0, 0, c.key);
+  });
+  return out;
+}
+
+/** The action log currently on screen: its columns in DOM order (the report's own), and their
+ *  keys in the visual order the generated stylesheet below puts them in. */
+let logColumns: Column[] = [];
+let logOrder: string[] = [];
+let logStyle: HTMLStyleElement | null = null;
+
+/** Write the current order into the grid: an `order` per column position, and the track list
+ *  re-laid in visual order. Nothing about a column's own width or padding depends on where it
+ *  sits, so there is nothing else to move. */
+function applyColumnOrder(root: HTMLElement): void {
+  const grid = root.querySelector<HTMLElement>(".gridwrap .grid");
+  if (!grid || !logColumns.length) return;
+  const at = new Map(logOrder.map((k, i) => [k, i]));
+  const visual = [...logColumns].sort((a, b) => at.get(a.key)! - at.get(b.key)!);
+  grid.style.setProperty("--cols", visual.map(colWidth).join(" "));
+
+  const rules = logColumns.map((c, i) => `.grid .r>.c:nth-child(${i + 1}){order:${at.get(c.key)}}`);
+
+  if (!logStyle) logStyle = document.head.appendChild(document.createElement("style"));
+  logStyle.textContent = rules.join("");
+}
+
+/** One column mid-drag: everything the pointer maths needs, measured off the heading row the
+ *  moment it was picked up. A width is a grid track's, so it answers for every row at once. */
+interface ColumnDrag {
+  key: string;
+  /** Its `nth-child` position, which never moves — the cells stay in the report's own order. */
+  nth: number;
+  /** The visual order it was lifted out of, and the track width of each key in it. */
+  order: string[];
+  width: Map<string, number>;
+  /** Its own left offset in that order, the table's full width, and the pointer x it started at. */
+  home: number;
+  span: number;
+  startX: number;
+  /** Where it lands if dropped now — an index into `order` with the lifted column taken out. */
+  at: number;
+}
+
+/** Each key's left offset in a given order, so a column's slide is the difference between the
+ *  offset it has now and the one the drop would give it. */
+function offsetsOf(order: string[], width: Map<string, number>): Map<string, number> {
+  const out = new Map<string, number>();
+  let x = 0;
+  for (const key of order) { out.set(key, x); x += width.get(key) ?? 0; }
+  return out;
+}
+
+/** The white box drawn around one whole column, spanning the table from its heading down to its
+ *  total row — one element laid over the grid rather than an outline on each of the column's own
+ *  cells.
+ *
+ *  The cells cannot carry it. A row the engine only triggered is dimmed whole (`.r.short`), and
+ *  `opacity` fades a cell's box-shadow along with its text, so the outline came out pale on
+ *  every such row; and the 1px rule between rows (`.step`'s border-top) crosses the column's two
+ *  sides, cutting them into segments all the way down. One box over the top answers to neither. */
+function columnBox(grid: HTMLElement, left: number, width: number): HTMLElement {
+  const box = grid.appendChild(document.createElement("div"));
+  box.className = "colbox";
+  box.style.left = `${left}px`;
+  box.style.width = `${width}px`;
+  return box;
+}
+
+/** The column a click on its heading has singled out, if any: the same box a dragged column
+ *  wears, without lifting it. Clicking another moves it, clicking the same one again clears it.
+ *  A marker for reading by, so it is not saved and does not outlive the page it was set on. */
+let selected: string | null = null;
+let selBox: HTMLElement | null = null;
+
+/** Where one column's track sits inside the grid, in the grid's own coordinates — read off the
+ *  heading, so it accounts for the row's own padding and for wherever the column has been put. */
+function trackBox(grid: HTMLElement, key: string): { left: number; width: number } | null {
+  const cell = grid.querySelector<HTMLElement>(`:scope > .r.head > .c[data-col="${CSS.escape(key)}"]`);
+  if (!cell) return null;
+  const g = grid.getBoundingClientRect();
+  const c = cell.getBoundingClientRect();
+  return { left: c.left - g.left, width: c.width };
+}
+
+/** Draw the box where the selected column currently sits, or take it away. */
+function paintSelection(root: HTMLElement): void {
+  selBox?.remove();
+  selBox = null;
+  if (!selected) return;
+  const grid = root.querySelector<HTMLElement>(".gridwrap .grid");
+  const track = grid && trackBox(grid, selected);
+  if (grid && track) selBox = columnBox(grid, track.left, track.width);
+}
+
+/** The stylesheet a drag runs on. It goes up once, when the column is picked up, and from then
+ *  on only the transform declarations in it are touched (`liftRule`, `slideRules`) — its text is
+ *  never rewritten.
+ *
+ *  Both of those decide how a drag feels on a table this size. The lifted column used to follow
+ *  a `--dx` custom property set on the grid: custom properties inherit, so each of the ten
+ *  thousand nodes under it — every cell, and every cell's own parked hover panel — was
+ *  re-styled on each of the sixty frames a second a drag spends moving. And every change of
+ *  landing place used to rewrite this sheet's text, which re-matches every rule in it against
+ *  the whole table. A declaration set on one rule that is already there invalidates only what
+ *  that rule's own selector matches: the one column it names. */
+let dragStyle: HTMLStyleElement | null = null;
+let liftRule: CSSStyleRule | null = null;
+let liftBox: HTMLElement | null = null;
+/** The rule that slides each column that is not the one being dragged, by its key. */
+const slideRules = new Map<string, CSSStyleRule>();
+
+/** Where each of those columns is right now, and where it is heading: the slide is eased here,
+ *  frame by frame, rather than left to a CSS transition on the cells.
+ *
+ *  A transition is the obvious way to do it and is what this did first, but a table this size
+ *  cannot afford one. A column is twenty-odd separate cells and none of them can be composited —
+ *  `will-change: transform` and `contain: paint` were both tried and both made it worse — so
+ *  every frame of every slide was a main-thread restyle and repaint of each cell, and three or
+ *  four columns sliding at once took a drag from 17ms a frame to 39ms. Easing here costs one
+ *  declaration per column that actually moved this frame; a column already at its target costs
+ *  nothing at all, which is nearly all of them nearly all of the time. */
+const slideNow = new Map<string, number>();
+const slideTo = new Map<string, number>();
+let slideRaf = 0;
+
+/** Carry every column that isn't there yet a fraction of the way to its target. ~0.3 a frame
+ *  lands within half a pixel in about ten, the same ballpark as the .16s the transition took. */
+function stepSlides(): void {
+  slideRaf = 0;
+  let moving = false;
+  for (const [key, rule] of slideRules) {
+    const to = slideTo.get(key) ?? 0;
+    const at = slideNow.get(key) ?? 0;
+    if (at === to) continue;
+    const next = Math.abs(to - at) < 0.5 ? to : at + (to - at) * 0.3;
+    slideNow.set(key, next);
+    rule.style.transform = `translateX(${next}px)`;
+    if (next !== to) moving = true;
+  }
+  if (moving) slideRaf = requestAnimationFrame(stepSlides);
+}
+
+/** Put the sheet up: the lifted column outlined and raised, and a transform rule standing by for
+ *  every other column. */
+function openDrag(grid: HTMLElement, d: ColumnDrag): void {
+  const nth = (key: string): number => logColumns.findIndex((c) => c.key === key) + 1;
+  const others = d.order.filter((k) => k !== d.key);
+
+  // Lifted out of the table: raised over its neighbours on an opaque surface of its own — the
+  // cells are transparent normally, and a column sliding underneath would otherwise read
+  // straight through it — outlined down both sides, and capped by the heading and total rows.
+  // `transition: none` while it is down, so it tracks the pointer rather than lagging behind it;
+  // dropping it is what lets it slide the last of the way into its slot on release.
+  // The background is the one the cell already has, only painted on the cell instead of showing
+  // through it from the row behind — a lifted column must not read through to whatever slides
+  // under it, and must not change colour on the way up either. `var(--m, var(--surface))` rather
+  // than a `transparent` fallback: mixing with `transparent` leaves the result part-transparent,
+  // which is how the heading and total rows used to go translucent the moment a column was
+  // picked up. They set no `--m` of their own, so they get their own surface below.
+  const rules = [
+    `.grid .r>.c:nth-child(${d.nth}){transform:translateX(0px);transition:none;z-index:6;`
+      + "background-color:color-mix(in srgb, var(--m, var(--surface)) 4%, var(--surface))}",
+    `.grid .r>.c.member:nth-child(${d.nth})`
+      + "{background-color:color-mix(in srgb, var(--mem, var(--surface)) 10%, var(--surface))}",
+    `.grid .r.head>.c:nth-child(${d.nth}),.grid .r.totalrow>.c:nth-child(${d.nth})`
+      + "{background-color:var(--surface-3)}",
+  ];
+  const slideAt = rules.length;
+  for (const key of others) rules.push(`.grid .r>.c:nth-child(${nth(key)}){transform:translateX(0px)}`);
+
+  if (!dragStyle) dragStyle = document.head.appendChild(document.createElement("style"));
+  dragStyle.textContent = rules.join("");
+  const sheet = dragStyle.sheet;
+  liftRule = (sheet?.cssRules[0] as CSSStyleRule | undefined) ?? null;
+  slideRules.clear();
+  slideNow.clear();
+  slideTo.clear();
+  others.forEach((key, i) => {
+    const rule = sheet?.cssRules[slideAt + i] as CSSStyleRule | undefined;
+    if (rule) slideRules.set(key, rule);
+  });
+
+  // no transition while it is down: the box tracks the pointer, like the column under it
+  const track = trackBox(grid, d.key);
+  liftBox = columnBox(grid, track?.left ?? d.home, track?.width ?? d.width.get(d.key)!);
+  liftBox.style.transition = "none";
+  // the dragged column's own box does the drawing if it was also the selected one
+  if (selBox && selected === d.key) selBox.style.display = "none";
+}
+
+/** Aim every other column at the place the drop would now give it — called only when the landing
+ *  place actually changes, not on every pointer move. `stepSlides` walks them there. */
+function slideDrag(d: ColumnDrag): void {
+  const from = offsetsOf(d.order, d.width);
+  const rest = d.order.filter((k) => k !== d.key);
+  rest.splice(d.at, 0, d.key);
+  const to = offsetsOf(rest, d.width);
+  for (const key of slideRules.keys()) slideTo.set(key, to.get(key)! - from.get(key)!);
+  if (!slideRaf) slideRaf = requestAnimationFrame(stepSlides);
+
+  // a selected column that is not the one being dragged slides with the rest of them — one
+  // element, so this one can stay a CSS transition (see `.colbox`)
+  if (selBox && selected && selected !== d.key) {
+    selBox.style.transform = `translateX(${to.get(selected)! - from.get(selected)!}px)`;
+  }
+}
+
+/** Take the sheet back down, and with it everything the drag was painting. */
+function closeDrag(): void {
+  if (slideRaf) cancelAnimationFrame(slideRaf);
+  slideRaf = 0;
+  dragStyle?.remove();
+  dragStyle = null;
+  liftRule = null;
+  liftBox?.remove();
+  liftBox = null;
+  slideRules.clear();
+}
+
+/** Pick a column up by its heading and slide it, within the table's own two edges, to a new
+ *  place — the rest of the table opening the gap it would land in as it goes. */
+function wireColumnDrag(root: HTMLElement, columns: Column[]): void {
+  logColumns = columns;
+  logOrder = orderedKeys(columns);
+  closeDrag();
+  selected = null;
+  selBox = null;
+  applyColumnOrder(root);
+
+  const head = root.querySelector<HTMLElement>(".gridwrap .grid > .r.head");
+  if (!head) return;
+  // the headings are rendered in the report's own order, so the nth cell is the nth column
+  const cells = [...head.querySelectorAll<HTMLElement>(":scope > .c")];
+  cells.forEach((el, i) => { el.dataset.col = columns[i]!.key; });
+
+  // A press arms a drag but does not start one: the column is only picked up once the pointer
+  // has actually travelled, so a press that goes nowhere reads as a click on the heading and
+  // singles the column out instead.
+  let drag: ColumnDrag | null = null;
+  let lifted = false;
+  let settling = false;
+  const LIFT_AT = 3;
+
+  head.addEventListener("pointerdown", (e) => {
+    const cell = (e.target as HTMLElement).closest<HTMLElement>(".c[data-col]");
+    if (e.button !== 0 || drag || settling || !cell) return;
+    e.preventDefault();
+    cell.setPointerCapture(e.pointerId);
+
+    const width = new Map(cells.map((c) => [c.dataset.col!, c.getBoundingClientRect().width]));
+    const key = cell.dataset.col!;
+    const offsets = offsetsOf(logOrder, width);
+    drag = {
+      key,
+      nth: cells.indexOf(cell) + 1,
+      order: logOrder,
+      width,
+      home: offsets.get(key)!,
+      span: [...width.values()].reduce((n, w) => n + w, 0),
+      startX: e.clientX,
+      at: logOrder.indexOf(key),
+    };
+    lifted = false;
+  });
+
+  head.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    if (!lifted) {
+      if (Math.abs(e.clientX - drag.startX) < LIFT_AT) return;
+      lifted = true;
+      document.body.classList.add("coldrag");
+      openDrag(head.parentElement as HTMLElement, drag);
+    }
+    const w = drag.width.get(drag.key)!;
+    // clamped to the table's own two edges: a column slides inside it, never out of it
+    const dx = Math.min(drag.span - w - drag.home, Math.max(-drag.home, e.clientX - drag.startX));
+
+    // It trades places with a neighbour only once it has slid at least halfway across that
+    // neighbour's own width — measured against where the columns are actually sitting, which is
+    // the order it would drop into right now. So a wide column need only be pushed a little way
+    // into a narrow one, and a narrow one has to travel most of the way across a wide one, which
+    // is what "halfway in" looks like from either side. The two tests share their boundary
+    // exactly, so a pointer position reads the same whichever direction it arrived from, and the
+    // loop walks a fast drag through as many columns as it crossed.
+    const { width, key } = drag;
+    const rest = drag.order.filter((k) => k !== key);
+    const edge = drag.home + dx;
+    let at = drag.at;
+    let slot = rest.slice(0, at).reduce((n, k) => n + width.get(k)!, 0);
+    for (;;) {
+      const after = rest[at];
+      if (after !== undefined && edge - slot > width.get(after)! / 2) {
+        slot += width.get(after)!;
+        at++;
+        continue;
+      }
+      const before = rest[at - 1];
+      if (before !== undefined && slot - edge > width.get(before)! / 2) {
+        slot -= width.get(before)!;
+        at--;
+        continue;
+      }
+      break;
+    }
+    if (at !== drag.at) { drag.at = at; slideDrag(drag); }
+    if (liftRule) liftRule.style.transform = `translateX(${dx}px)`;
+    if (liftBox) liftBox.style.transform = `translateX(${dx}px)`;
+  });
+
+  const drop = (): void => {
+    if (!drag) return;
+    const d = drag;
+    drag = null;
+    document.body.classList.remove("coldrag");
+
+    const next = d.order.filter((k) => k !== d.key);
+    next.splice(d.at, 0, d.key);
+    logOrder = next;
+    try { localStorage.setItem(COLUMN_ORDER_KEY, JSON.stringify(next)); } catch { /* no storage */ }
+
+    // Let it slide the last of the way into the gap being held open for it before the real
+    // column order takes over — dropped halfway between two slots it would otherwise jump.
+    const rest = offsetsOf(next, d.width).get(d.key)! - offsetsOf(d.order, d.width).get(d.key)!;
+    // dropping `transition: none` hands it back the .16s slide every other column is using
+    settling = true;
+    if (liftRule) {
+      liftRule.style.transition = "transform .16s ease";
+      liftRule.style.transform = `translateX(${rest}px)`;
+    }
+    if (liftBox) {
+      liftBox.style.transition = "";
+      liftBox.style.transform = `translateX(${rest}px)`;
+    }
+    setTimeout(() => {
+      settling = false;
+      closeDrag();
+      applyColumnOrder(root);
+      // the columns have moved under it, so the selected one's box is redrawn where it now is
+      paintSelection(root);
+    }, 170);
+  };
+
+  head.addEventListener("pointerup", () => {
+    if (!drag) return;
+    if (lifted) { drop(); return; }
+    // never moved: a click. It singles this column out, or gives up the one it already had.
+    selected = selected === drag.key ? null : drag.key;
+    drag = null;
+    paintSelection(root);
+  });
+
+  head.addEventListener("pointercancel", () => {
+    if (lifted) drop();
+    else drag = null;
+  });
 }
 
 /* ----------------------------------------------------------------------- mount */
@@ -1603,15 +2191,36 @@ const routeTeam = (): string | null => {
 
 function renderComparison(): void {
   backLink.hidden = true;
+  // Whatever panel was open when the page was left is parked in <body> (see `place()`), and it
+  // outlives the DOM it belongs to — a fixed, z-index 200 sheet floating over the new page and
+  // eating its pointer events until the next mouseover happens to close it.
+  document.body.querySelectorAll(":scope > .pop").forEach((el) => el.remove());
+  // the position is kept across a redraw (a DPR column, a baseline click) rather than reset to
+  // the top: the window is drawn for it first, since the fresh grid can't be scrolled there yet
+  const scrollTop = app.querySelector("main")?.scrollTop ?? 0;
   app.innerHTML = comparisonTable(visibleRows);
   app.className = "";
-  rankRows();
+  measured = false;
+  drawnFrom = drawnTo = -1;
+  drawWindow(true, scrollTop);
+  const main = app.querySelector("main")!;
+  main.scrollTop = scrollTop;
+  let queued = false;
+  main.addEventListener("scroll", () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; drawWindow(); });
+  }, { passive: true });
 }
 
 function renderDetail(key: string): void {
   backLink.hidden = false;
-  app.innerHTML = page(results.get(key)!);
+  document.body.querySelectorAll(":scope > .pop").forEach((el) => el.remove());
+  const run = results.get(key)!;
+  app.innerHTML = page(run);
   app.className = "";
+  // the report is cached on the run (detailFor), so this is just reading back what page() drew
+  wireColumnDrag(app, detailFor(run).report.columns);
 }
 
 /** Whether the comparison table's own rows have been asked for yet. A `#team=...` cold load never
@@ -1774,18 +2383,19 @@ function solveOnWorkers(
         return;
       }
       const [key, members] = teams[next++]!;
+      const known = picksCache.get(picksKey(key)) ?? null;
       const finish = (solved: Solved): void => {
         storeSolved(key, solved);
         onDone();
         pump(w);
       };
-      w.onmessage = ({ data }: MessageEvent<SolveResponse>) => finish({ picks: data.picks, rows: data.rows });
+      w.onmessage = ({ data }: MessageEvent<SolveResponse>) => finish({ picks: data.picks, rows: data.rows, scores: data.scores });
       w.onerror = (e) => {
         console.warn(`worker failed on ${key}, solving it here:`, e.message);
         e.preventDefault();
-        finish(solveTeam(key, members, filters));
+        finish(solveTeam(key, members, filters, known));
       };
-      const request: SolveRequest = { id: id++, teamKey: key, filters };
+      const request: SolveRequest = { id: id++, teamKey: key, filters, picks: known };
       w.postMessage(request);
     };
     // one task per worker to start; each completion pulls the next, so a slow team can't leave the
@@ -1804,12 +2414,13 @@ function solveOnWorkers(
  *  eventual row count (`estimatedRowCount()`) before either phase starts — so this phase's own
  *  share of the bar is fixed from the first frame instead of being scaled against just the teams,
  *  which would make the bar jump once `runMissing()` starts measuring against the real row count. */
-async function ensureBestPicks(inPlay: [string, Member[]][], workTotal: number): Promise<void> {
+/** @returns whether anything was actually solved — false when every team's answer was in hand. */
+async function ensureBestPicks(inPlay: [string, Member[]][], workTotal: number): Promise<boolean> {
   // `bestKey()` folds in the whole filter state, so flipping any option box is a re-solve: a
   // solve carries the team's own row set with it, each row on the main stats that build wants
   // (solver.ts's own `rowPicks()`), and which rows exist is precisely what the boxes decide.
   const teams = inPlay.filter(([key]) => !bestPicks.has(bestKey(key)));
-  if (!teams.length) return;
+  if (!teams.length) return false;
 
   overlayPhase("Optimizing Echoes...");
   // teams already optimized under an earlier filter state start this partly filled rather than
@@ -1829,7 +2440,7 @@ async function ensureBestPicks(inPlay: [string, Member[]][], workTotal: number):
   if (pool) await solveOnWorkers(pool, solvable, () => { done++; progress(); });
   else {
     for (const [key, members] of solvable) {
-      storeSolved(key, solveTeam(key, members, filters));
+      storeSolved(key, solveTeam(key, members, filters, picksCache.get(picksKey(key)) ?? null));
       done++;
       progress();
       // no worker to hand this to, so the bar can only move if this thread lets go between teams
@@ -1837,6 +2448,7 @@ async function ensureBestPicks(inPlay: [string, Member[]][], workTotal: number):
     }
   }
   await paint();
+  return true;
 }
 
 /**
@@ -1863,36 +2475,44 @@ async function ensureBestPicks(inPlay: [string, Member[]][], workTotal: number):
 async function refresh(): Promise<void> {
   tableRequested = true; // committed, so route()'s own lazy build below doesn't re-enter
   try {
+    const inPlay = Object.entries(TEAMS).filter(([, members]) => teamWanted(members));
     // kicked off before the first render, not after: each worker fetches and parses its own copy of
-    // the engine module graph on the way up, and that overlaps with drawing the empty table
-    workerPool();
+    // the engine module graph on the way up, and that overlaps with drawing the empty table. Only
+    // when there is something to solve, though — a reload with every team's solve kept
+    // (`loadSolves()`) needs no worker, and eight of them each fetching the whole module graph
+    // was the largest thing such a reload did.
+    if (inPlay.some(([key]) => !bestPicks.has(bestKey(key)))) workerPool();
     if (!visibleRows.length) route(); // cold load: the empty table under the overlay, filters and all
 
-    const inPlay = Object.entries(TEAMS).filter(([, members]) => teamWanted(members));
     const solvableInPlay = inPlay.filter(([, members]) => members.every((m) => eligibleWeapons(m, filters).length));
     const rowsTotal = solvableInPlay.reduce((sum, [, members]) => sum + estimatedRowCount(members), 0);
     const workTotal = inPlay.length + rowsTotal || 1; // guard: no team survives the resonator filters
 
-    await ensureBestPicks(inPlay, workTotal);
+    const solved = await ensureBestPicks(inPlay, workTotal);
+    saveSolves();
     const rows = teamRows();
     const cached = rows.filter((row) => results.has(row.key));
-    if (cached.length) {
-      // credited here rather than left for `runMissing()`: when this filter change added no new
-      // rows, that call is a no-op and never touches the bar at all, leaving it at whatever
-      // `ensureBestPicks()` last set — visibly short of full behind a label that says "done". Only
-      // settling when this draw is the last one: otherwise `runMissing()` picks the bar straight
-      // back up a moment later, and the extra wait would just slow down every ordinary filter flip.
+    const missing = cached.length !== rows.length;
+    if (!missing && cached.length) {
+      // This filter change added no new rows, so this draw is the whole table. The bar is
+      // credited here rather than left for `runMissing()`, which is a no-op and never touches it —
+      // it would be left wherever `ensureBestPicks()` put it, visibly short of full behind a
+      // label that says "done" — and settled, since nothing picks it back up afterwards. A bar
+      // that never moved (nothing solved: a reload, a flip onto rows already run) has nothing to
+      // settle, and waiting on it would be most of what such a load costs.
       overlayPhase("Rendering Table…");
       overlayFill.style.width = `${((inPlay.length + cached.length) / workTotal) * 100}%`;
       overlayCount.textContent = `${fmt(cached.length)} / ${fmt(rows.length)}`;
       await paint();
-      if (cached.length === rows.length) await settle();
+      if (solved) await settle();
+      visibleRows = cached;
+      route();
     }
-    visibleRows = cached;
-    route();
+    // Rows still to run are drawn once, after: the cached subset used to be drawn first, under the
+    // overlay, and thrown away moments later — a whole table build that nobody could read through
+    // the blur. Whatever was on screen simply stays there until the full table replaces it.
     await runMissing(rows, workTotal, inPlay.length);
-    // nothing was missing — the draw above was already the whole table, so don't build it twice
-    if (cached.length !== rows.length) {
+    if (missing) {
       overlayPhase("Rendering Table…");
       await paint();
       visibleRows = rows;
@@ -1935,6 +2555,7 @@ async function boot(): Promise<void> {
   // before the first run, not after: the filters decide which rows even exist, so a reloaded URL
   // has to be read while there is still nothing built
   applyHash();
+  await loadSolves();
   if (!await bootDetail()) await refresh();
   // and back out again, so a bare URL (or an old `#team=...` link) picks up the defaults it ran under
   syncHash();
@@ -1961,6 +2582,14 @@ async function boot(): Promise<void> {
   document.addEventListener("click", (e) => {
     const el = (e.target as Element).closest<HTMLElement>(".c.baseline");
     if (el?.dataset.team) setBaseline(el.dataset.team);
+  });
+  // clicking a Slot heading opens or closes that position's own DPR column — a column of figures
+  // the runs already hold, so it redraws the table and nothing else (see `dprOpenAt`)
+  document.addEventListener("click", (e) => {
+    const pos = (e.target as Element).closest<HTMLElement>(".c.slothead")?.dataset.pos;
+    if (pos === undefined) return;
+    dprOpenAt[Number(pos)] = !dprOpenAt[Number(pos)];
+    renderComparison();
   });
   // Every filter checkbox but Sequences is a `Filters` key (see `comparisonFilters()`): flip it,
   // then re-expand — which axes are open changes which rows exist, not just which are visible.

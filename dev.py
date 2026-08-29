@@ -35,6 +35,18 @@ import serve
 ROOT = Path(__file__).resolve().parent
 TSC = ROOT / "node_modules" / "typescript" / "bin" / "tsc"
 TSC_LOG = ROOT / "tsc-watch.log"
+ESBUILD = ROOT / "node_modules" / "esbuild" / "bin" / "esbuild"
+ESBUILD_LOG = ROOT / "esbuild-watch.log"
+# Concatenation only: tsc is still the compiler, this just folds its 68 output modules into the two
+# files the page actually loads (dist/bundle/index.js and the worker's dist/bundle/engine/solver.js,
+# plus a shared chunk) — unbundled, a cold load was ~600 module requests (eight workers each
+# fetching the whole graph) and the workers came up staggered behind the browser's six-connection
+# limit; bundled it is 18, and the search starts ~0.2s sooner. `--outbase` keeps the worker at the
+# same relative path index.js finds it by (`new URL("./engine/solver.js", import.meta.url)`).
+ESBUILD_ARGS = [
+    "dist/src/index.js", "dist/src/engine/solver.js", "--bundle", "--splitting", "--format=esm",
+    "--outdir=dist/bundle", "--outbase=dist/src", "--log-level=warning",
+]
 SERVE_LOG = ROOT / "serve.log"
 DEFAULT_PORT = 8731
 VBS = Path(os.environ["APPDATA"]) / "Microsoft/Windows/Start Menu/Programs/Startup/wuwa-calc-dev.vbs"
@@ -57,6 +69,25 @@ def start_tsc() -> subprocess.Popen | None:
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     return subprocess.Popen(
         ["node", str(TSC), "--watch", "--preserveWatchOutput"],
+        cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, creationflags=flags,
+    )
+
+
+def start_esbuild() -> subprocess.Popen | None:
+    """`esbuild --watch` over tsc's output, re-bundling whenever tsc writes — see ESBUILD_ARGS. Its
+    inputs are tsc's outputs, so on a checkout with no dist/ yet it has nothing to bundle until the
+    first tsc pass lands; esbuild's watch picks that up on its own."""
+    if not ESBUILD.exists():
+        print("no node_modules/esbuild — run `npm install`; serving the unbundled page will not work")
+        return None
+    log = open(ESBUILD_LOG, "w", encoding="utf-8", buffering=1)
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    # `--watch=forever`, not `--watch`: plain watch mode stops itself the moment its stdin closes
+    # (esbuild's guard against outliving a parent), and under pythonw at logon — or a shell that
+    # backgrounded this — there is no stdin to inherit, so it quit before the first edit. This
+    # process terminates it on exit instead (see main()).
+    return subprocess.Popen(
+        ["node", str(ESBUILD), *ESBUILD_ARGS, "--watch=forever"],
         cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, creationflags=flags,
     )
 
@@ -102,18 +133,20 @@ def main() -> int:
         return 0
 
     tsc = start_tsc()
+    esbuild = start_esbuild()
     threading.Thread(target=serve._watch_loop, daemon=True).start()
     handler = partial(serve.NoCacheHandler, directory=str(ROOT))
     httpd = ThreadingHTTPServer(("127.0.0.1", port), handler)
-    print(f"serving http://127.0.0.1:{port}/src/index.html  (tsc --watch + hot reload; ctrl-c to stop)")
+    print(f"serving http://127.0.0.1:{port}/src/index.html  (tsc --watch + esbuild --watch + hot reload; ctrl-c to stop)")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         print("\nstopping")
     finally:
         httpd.server_close()
-        if tsc and tsc.poll() is None:
-            tsc.terminate()
+        for child in (tsc, esbuild):
+            if child and child.poll() is None:
+                child.terminate()
     return 0
 
 

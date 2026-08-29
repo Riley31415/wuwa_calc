@@ -28,7 +28,7 @@ import {
   triggeredAction,
   queueOutro,
 } from "../../engine/kit.js";
-import { matrix } from "../../shared/matrix.js";
+import { matrix } from "../../shared/helpers.js";
 import { Rotation, START_COMBAT, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";

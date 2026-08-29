@@ -26,8 +26,9 @@
 import {
   Buff, Debuff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType,
   Type1, Cast, Node, Scaling, applyCurrent, applyTeam, applyEnemy, revokeCurrent, revokeTeam, revokeEnemy, isHeld,
-  stacksOfEnemy, casting, currentAction, addStat, frozenStacks, queueOutro, lostOnSwap, forte1,
+  stacksOfEnemy, casting, currentAction, addStat, frozenStacks, queueOutro, forte1,
 } from "../../engine/kit.js";
+import { lostOnSwap } from "../../shared/helpers.js";
 import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";

@@ -9,12 +9,12 @@
  */
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, applyCurrent, applyTeam, currentAction, casting, queueOutro, revokeCurrent, addStat, frozenStacks, lostOnSwap,
-  applied,
+  Scaling, applyCurrent, applyTeam, currentAction, casting, queueOutro, revokeCurrent, addStat, frozenStacks, applied,
   ActionGroup,
   setForte1,
   forte1,
 } from "../../engine/kit.js";
+import { lostOnSwap } from "../../shared/helpers.js";
 import { Rotation, INTRO, ECHO_ONFIELD, OUTRO_NEXT, ECHO_CANCEL, ECHO_OUTRO } from "../../engine/rotation.js";
 import { SHIELD } from "../../shared/status.js";
 import { IUNO_SIG, VERITYS_HANDLE } from "../../weapons/gauntlet.js";

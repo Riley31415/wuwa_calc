@@ -20,11 +20,11 @@
  */
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Type2, Cast,
-  Node, Scaling, applyCurrent, currentAction, casting, revokeCurrent, addStat, frozenStacks, queue, queueOutro,
-  lostOnSwap, applyTeam,
+  Node, Scaling, applyCurrent, currentAction, casting, revokeCurrent, addStat, frozenStacks, queueOnIntro, queueOutro,
+  applyTeam,
   ActionGroup,
 } from "../../engine/kit.js";
-import { matrix } from "../../shared/matrix.js";
+import { lostOnSwap, matrix } from "../../shared/helpers.js";
 import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
 import { RIME_DRAPED_SPROUTS, STRINGMASTER, LETHEAN_ELEGY, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
@@ -78,9 +78,11 @@ const ACTION_LIB_COORDS = zhezhiAction("Liberation - Inklit Spirit x21", {
 const Intro = zhezhiAction("Intro - Radiant Ruin", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 258.48, energy: 10.02, concerto: 10, offtune: 10401, forte1: 45,
 });
+// the Inklit Spirits' whole window as one lump, deferred behind the next Intro: they keep
+// striking well past the swap
 const Outro = zhezhiAction("Outro - Carve and Draw", {
   cast: Cast.Outro, concerto: -100, active: false,
-  updateBuffs: () => { queue(ACTION_LIB_COORDS); queueOutro(ZHEZHI_OUTRO); }
+  updateBuffs: () => { queueOnIntro(ACTION_LIB_COORDS); queueOutro(ZHEZHI_OUTRO); }
 });
 
 /* ------------------------------------------------------------------------------------ buffs */

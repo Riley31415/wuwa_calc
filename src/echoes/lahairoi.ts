@@ -9,12 +9,11 @@ import { isType,
   Buff, Sonata, Sonata2pc, Mainslot, EchoType, Action, Stat, Attribute, Type1, Cast, Scaling,
   addStat, applyCurrent, applyTeam, casting, currentAction, getStat, queue, queueOutro, removeStack, revokeCurrent, revokeTeam,
   frozenStacks, stacksOf, isHeld,
-  lostOnSwap,
   isCast,
   currentMember,
 } from "../engine/kit.js";
 import { applied, appliedByMe } from "../engine/kit.js";
-import { handoff } from "../shared/handoff.js";
+import { handoff, lostOnSwap } from "../shared/helpers.js";
 import { SHIELD, FUSION_BURST, HEALS, GLACIO_CHAFE, HAVOC_BANE } from "../shared/status.js";
 import { TUNE_HACK_SHIFTING, TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 

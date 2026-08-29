@@ -9,8 +9,8 @@
 import {
   Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, applyCurrent, applyTeam, revokeTeam, isHeld, stacksOf, removeStack, revokeCurrent, casting,
-  currentAction, addStat, frozenStacks, queue, queueOutro, lostOnSwap,
-} from "../../engine/kit.js";
+  currentAction, addStat, frozenStacks, queue, queueOutro, } from "../../engine/kit.js";
+import { lostOnSwap } from "../../shared/helpers.js";
 import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";

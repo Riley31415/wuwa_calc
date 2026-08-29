@@ -14,10 +14,11 @@
  */
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, applyCurrent, forte1, currentAction, casting, queueOutro, applyTeam, revokeCurrent, lostOnSwap, addStat,
+  Scaling, applyCurrent, forte1, currentAction, casting, queueOutro, applyTeam, revokeCurrent, addStat,
   frozenStacks,
   ActionGroup,
 } from "../../engine/kit.js";
+import { lostOnSwap } from "../../shared/helpers.js";
 import { Rotation, START_COMBAT, OPENER, INTRO, ECHO_CANCEL, ECHO_ONFIELD, OUTRO_NEXT } from "../../engine/rotation.js";
 import { EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";

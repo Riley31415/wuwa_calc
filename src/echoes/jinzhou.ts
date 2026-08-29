@@ -9,10 +9,10 @@
 import { isType,
   Buff, Sonata, Sonata2pc, Mainslot, EchoType, Action, Stat, Attribute, Type1, Cast, Scaling,
   addStat, frozenStacks, casting, currentAction, revokeCurrent, applyCurrent, applyTeam, stacksOfTeam, revokeTeam,
-  removeStackTeam, queueOutro, queue, lostOnSwap, triggeredAction,
+  removeStackTeam, queueOutro, queue, triggeredAction,
 } from "../engine/kit.js";
 import { applied } from "../engine/kit.js";
-import { handoff } from "../shared/handoff.js";
+import { handoff, lostOnSwap } from "../shared/helpers.js";
 import { HEALS, SHIELD } from "../shared/status.js";
 
 /* -------------------------------------------------------------------------- generic, unowned */

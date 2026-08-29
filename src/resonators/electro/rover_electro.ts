@@ -15,11 +15,11 @@
 import {
   Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, applyCurrent, applyTeam, revokeTeam, isHeld, revokeCurrent, casting, currentAction, addStat,
-  queue, queueOutro, forte1, setForte1, lostOnSwap,
-  ActionGroup,
+  queue, queueOutro, forte1, setForte1, ActionGroup,
 } from "../../engine/kit.js";
 import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
 import { applyEnemy } from "../../engine/kit.js";
+import { lostOnSwap } from "../../shared/helpers.js";
 import { ELECTRO_FLARE, inflictedNegativeStatus, HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";

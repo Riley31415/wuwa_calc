@@ -2,9 +2,9 @@
  *  standard/permanent-availability) lives here too since it isn't part of any named tier. */
 import { isType,
   Buff, Weapon, WeaponType, Stat, Attribute, Type1, Cast,
-  addStat, frozenStacks, stacksOf, isHeld, applyCurrent, applyTeam, revokeCurrent, revokeTeam, removeStack, casting, currentAction, lostOnSwap,
-} from "../engine/kit.js";
+  addStat, frozenStacks, stacksOf, isHeld, applyCurrent, applyTeam, revokeCurrent, revokeTeam, removeStack, casting, currentAction, } from "../engine/kit.js";
 import { applied, appliedByMe } from "../engine/kit.js";
+import { lostOnSwap } from "../shared/helpers.js";
 import { GLACIO_CHAFE, FUSION_BURST, HEALS } from "../shared/status.js";
 import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 
