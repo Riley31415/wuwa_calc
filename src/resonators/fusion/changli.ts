@@ -11,10 +11,10 @@
  * anywhere in either source, so it's left off entirely rather than guessed at.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, revokeCurrent, casting, currentAction, addStat, forte1, queueOutro, } from "../../engine/kit.js";
 import { lostOnSwap, matrix } from "../../shared/helpers.js";
-import { Rotation, START_COMBAT, INTRO, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Action, Rotation, START_2, START_3, SWAP, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
 import { BLAZING_BRILLIANCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { NM_INFERNO_RIDER, MOLTEN_RIFT_5PC, MOLTEN_RIFT_2PC } from "../../echoes/jinzhou.js";
@@ -139,12 +139,15 @@ const CHANGLI_TALENTS = new Talent({
 });
 
 const CH_ROTATION = new Rotation([
+  START_3, Liberation, FlamingSacrifice.swap(), SWAP,
+  // TODO get cancels
   INTRO, SMA,
   Skill, SBA,
-  Skill,
-  HA, SMA, // hold plunge + dash
-  MA4, SMA, MHA,
-  FlamingSacrifice, START_COMBAT, Liberation, FlamingSacrifice, START_COMBAT, OUTRO_NEXT,
+  Skill, SBA,
+  BA1, BA2, BA3, BA4, DODGE, SBA,
+  FlamingSacrifice,
+  Liberation, FlamingSacrifice,
+  OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

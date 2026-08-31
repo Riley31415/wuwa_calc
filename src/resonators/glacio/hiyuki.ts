@@ -48,7 +48,7 @@
  * so unlike the tune-break-era cast she carries no flat Tune Break Boost of her own.
  */
 import {
-  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType,
+  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType,
   Type1, Type2, Cast, Node, Scaling, addStat, applied, appliedByMe, appliedByMember, applyCurrent, applyEnemy,
   applyTeam, currentAction, currentTeam, frozenStacks, queue, queueOn, queueOutro, removeStack,
   consume, removeStackEnemy, revokeEnemy, revokeCurrent, revokeTeam, setForte1, setForte2, stacksOf, stacksOfEnemy,
@@ -57,7 +57,7 @@ import {
   forte2,
 } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { GLACIO_CHAFE, GLACIO_CHAFE_ACTIONS, HAVOC_BANE } from "../../shared/status.js";
 import { FROSTBURN } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
@@ -403,7 +403,7 @@ const HY_ROTATION = new Rotation([
   UHA, FBA2, FBA3,
   UHA, FBA2, FBA3,
   USkill1, USkill2, Iai, Iai, Iai,
-  FHA, ECHO_CANCEL, Lib2Hold, OUTRO_NEXT,
+  FHA, ECHO_CANCEL, Lib2Hold, OUTRO,
 ]);
 
 const HY_ECHOES = [

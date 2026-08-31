@@ -23,10 +23,11 @@
  * rows the table actually shows are run back here, because a `TeamRun` carries a whole `State` for
  * the detail page and none of that can cross a postMessage.
  */
-import { Gear, Action, Stat, Attribute, Type1, Type2, scopedStat, menuStats, baseSequence } from "./engine/kit.js";
+import { Gear, Stat, Attribute, Type1, Type2, scopedStat, menuStats, baseSequence } from "./engine/kit.js";
+import { Action } from "./engine/rotation.js";
 import { TUNE_BREAK_ENEMY } from "./shared/tunebreak.js";
 import type { ChainGroup, HeldBuff, ResolvedSnapshot, Loadout, EchoLoadout } from "./engine/kit.js";
-import { buildReport, columnSources, columnOf, OFFTUNE_RATE } from "./engine/display.js";
+import { buildReport, columnSources, columnOf, OFFTUNE_RATE, ENERGY_RATE } from "./engine/display.js";
 import type { Report, Column, ReportRow, ReportPart, TraceEntry, InfoEntry } from "./engine/display.js";
 import { Scaling, isPercent, statLabel, SCALING_NAME, TAG_NAME, NODE_NAME } from "./engine/stats.js";
 import { member, comboOf, runTeam, runFromScore, eligibleWeapons, sequenceLevels, solveTeam, MAINSTAT_ROWS } from "./engine/solver.js";
@@ -51,7 +52,8 @@ type ResonatorFilter = "include" | "exclude";
 
 /** Resonators filtered by name, set from their own name cell in the comparison table — left click
  *  to require one, right click to bar one (see the handlers in `boot()`) — and cleared again by
- *  clicking that name's own chip above the table (`resonatorChips()`). Like the filter boxes,
+ *  either click on a name that already carries one, or by that name's own chip above the table
+ *  (`resonatorChips()`). Like the filter boxes,
  *  this decides which rows are built rather than hiding rows afterwards, so a narrowed table
  *  never optimizes and runs teams nobody asked to see. Module-level so it survives a re-render.
  *
@@ -85,6 +87,11 @@ const OPTION_FILTER_MAPS = {
 } as const;
 type OptionKind = keyof typeof OPTION_FILTER_MAPS;
 
+/** What the search bar under the filter boxes currently holds — module-level so a redraw (every
+ *  filter change rebuilds the whole `<main>`) puts the text back in the fresh input. */
+let searchText = "";
+type SearchKind = "resonator" | OptionKind;
+
 const filters: Filters = {
   mdpsSequences: false, supportSequences: false,
   mdpsWeapons: false, supportWeapons: false,
@@ -103,6 +110,18 @@ const filters: Filters = {
  *  the page try and hang. A `#`-link's own filters are the one way in that isn't costed: it names
  *  a state to restore, not a change to approve. */
 const ROW_CAP = 1_000;
+
+/** Put the caret back in the search bar, at the end of whatever it holds. Called after every
+ *  redraw — each one rebuilds the input, so typing, clicking a result and typing again never needs
+ *  a mouse — and after a search result whose filter change was *refused*, which redraws nothing
+ *  and would otherwise leave focus on the result button, the next keystroke going nowhere and the
+ *  bar reading as though it had closed itself. */
+function focusSearch(): void {
+  const search = document.querySelector<HTMLInputElement>("#optionSearch");
+  if (!search) return;
+  search.focus({ preventScroll: true });
+  search.setSelectionRange(search.value.length, search.value.length);
+}
 
 /** Show/clear the row-cap warning banner (`comparisonFilters()`'s own `#rowCapWarning`) directly,
  *  with no re-render: a refused checkbox change touches no state `refresh()` would need to redraw
@@ -913,6 +932,58 @@ function optionCell(kind: OptionKind, value: string, color: string): string {
   return `<div class="c option" data-kind="${kind}" data-value="${esc(value)}" style="${style}">${esc(value)}</div>`;
 }
 
+/** Every name the search bar can offer: resonators always, plus each gear axis's own picks — but
+ *  only from members whose role has that axis's "Show ... Options" box checked, so the search can
+ *  only set a filter a table cell could also set (and a chip can clear). The strings are exactly
+ *  what the filter maps key on: weapon/mainstat names, `echoLabel()`, `sequenceTagAt()` tags. */
+function searchCandidates(): { kind: SearchKind; value: string }[] {
+  const seen = new Set<string>();
+  const out: { kind: SearchKind; value: string }[] = [];
+  const add = (kind: SearchKind, value: string): void => {
+    if (value && !seen.has(`${kind}|${value}`)) { seen.add(`${kind}|${value}`); out.push({ kind, value }); }
+  };
+  for (const members of Object.values(TEAMS)) {
+    for (const m of members) {
+      add("resonator", m.name);
+      const open = (mdps: keyof Filters, support: keyof Filters): boolean => filters[m.mainDps ? mdps : support];
+      if (open("mdpsWeapons", "supportWeapons")) for (const i of eligibleWeapons(m, filters)) add("weapon", m.loadout.weapons[i]!.name);
+      if (open("mdpsEchoes", "supportEchoes")) for (const e of m.loadout.echoLoadouts) add("echo", echoLabel(m.loadout, e));
+      if (open("mdpsMainstats", "supportMainstats")) for (const g of m.loadout.mainstats) add("mainstat", g.name);
+      // a closed Sequences box collapses sequenceLevels() to the baseline alone, so this adds nothing then
+      for (const level of sequenceLevels(m, filters).slice(1)) {
+        const tag = sequenceTagAt(m, level);
+        if (tag) add("sequence", tag);
+      }
+    }
+  }
+  return out;
+}
+
+/** The top 5 candidates containing the typed text, earliest match first — each one a row that
+ *  filters exactly like the table cell it stands for: left click requires it, right click bars it
+ *  (see the handlers in `boot()`). Empty markup while nothing is typed. */
+function searchResults(): string {
+  const text = searchText.trim().toLowerCase();
+  if (!text) return "";
+  const KIND_LABEL: Record<SearchKind, string> = {
+    resonator: "Resonator", weapon: "Weapon", echo: "Echo", mainstat: "Mainstat", sequence: "Sequence",
+  };
+  const hits = searchCandidates()
+    .map((c) => ({ ...c, at: c.value.toLowerCase().indexOf(text) }))
+    .filter((c) => c.at !== -1)
+    .sort((a, b) => a.at - b.at || a.value.localeCompare(b.value))
+    .slice(0, 5);
+  if (!hits.length) return `<div class="sresult none">no matches</div>`;
+  return hits.map(({ kind, value }) => {
+    const hue = kind === "resonator" ? RESONATOR_HUE.get(value)
+      : kind === "sequence" ? RESONATOR_HUE.get(value.replace(/ S\d+$/, "")) : undefined;
+    return `<button type="button" class="sresult" data-kind="${kind}" data-value="${esc(value)}"`
+      + (hue ? ` style="--mem:${hue}"` : "")
+      + ` title="${esc(value)} — left click: only rows using them; right click: no row using them; either click again to clear.">`
+      + `${esc(value)}<span class="skind">${KIND_LABEL[kind]}</span></button>`;
+  }).join("");
+}
+
 /** The filter checkboxes above the comparison table, one row per role: MDPS on top, supports
  *  below, each row the same four axes plus that role's own R1 allowance.
  *
@@ -953,6 +1024,11 @@ function comparisonFilters(): string {
     <div class="tcfilter-row">
       ${filter("matrix", "Enable Matrix Buffs")}
     </div>
+    <div class="tcsearch">
+      <input id="optionSearch" type="search" placeholder="Search resonators, weapons, echoes…"
+        autocomplete="off" spellcheck="false" value="${esc(searchText)}">
+      <div class="tcsearch-results" id="searchResults">${searchResults()}</div>
+    </div>
     <div class="tcwarning" id="rowCapWarning" hidden></div>
     ${resonatorChips()}
   </div>`;
@@ -960,8 +1036,8 @@ function comparisonFilters(): string {
 
 /** Every filter currently set — resonators plus weapon/echo/mainstat picks — one chip apiece under
  *  the filter boxes: the name, and a box saying which way it's filtered — a green tick for "every
- *  row must use them", a red cross for "no row may". Clicking one clears it (see `boot()`), which
- *  is the only way out other than clicking the same cell again the same way it was set.
+ *  row must use them", a red cross for "no row may". Clicking one clears it (see `boot()`), as
+ *  does either click on that name or pick anywhere else it appears (`setFilter()`).
  *
  *  A `<button>`, not a div: it's a real control, so it gets keyboard focus and Enter/Space for
  *  free. Nothing renders at all when no filter is set, rather than an empty row holding open the
@@ -1280,7 +1356,7 @@ function stepRow(
     const sources = row.sources[col.key];
     if (isRunning(col.key)) {
       const before = Number(row.raw[`before:${col.key}`]) || 0;
-      const fed = (sources ?? []).some((r) => r.section !== OFFTUNE_RATE);
+      const fed = (sources ?? []).some((r) => r.section !== OFFTUNE_RATE && r.section !== ENERGY_RATE);
       if (!fed && Math.abs((Number(v) || 0) - before) < 1e-9) return cell(columns, i, { cls: [], html: "", style: "" });
     }
     const cls: string[] = [];
@@ -2205,6 +2281,9 @@ function renderComparison(): void {
   drawWindow(true, scrollTop);
   const main = app.querySelector("main")!;
   main.scrollTop = scrollTop;
+  // the search bar is live from the first paint — and stays live across every redraw (each one
+  // rebuilds the input), so typing, clicking a result and typing again never needs a mouse
+  focusSearch();
   let queued = false;
   main.addEventListener("scroll", () => {
     if (queued) return;
@@ -2624,8 +2703,9 @@ async function boot(): Promise<void> {
     });
   });
   // A resonator's own name, anywhere in the comparison table: left click requires them, right
-  // click bars them, and either one clicked again clears it. The filter is by name, so it applies
-  // everywhere that name appears rather than only to the row clicked.
+  // click bars them, and either click on a name already filtered clears it (`setFilter()`). The
+  // filter is by name, so it applies everywhere that name appears rather than only to the row
+  // clicked.
   const resonatorName = (e: Event): [Map<string, ResonatorFilter>, string] | undefined => {
     const el = (e.target as Element).closest<HTMLElement>(".c.name.res");
     const sequence = el?.dataset.sequence;
@@ -2661,6 +2741,28 @@ async function boot(): Promise<void> {
     e.preventDefault();
     setFilter(...pick, "exclude");
   });
+  // A search result: the same left click/right click pair as the cell it stands for, keyed by the
+  // same `data-kind`/`data-value` (the "no matches" row carries neither, so it falls through).
+  const searchPick = (e: Event): [Map<string, ResonatorFilter>, string] | undefined => {
+    const el = (e.target as Element).closest<HTMLElement>(".sresult");
+    const kind = el?.dataset.kind as SearchKind | undefined;
+    const value = el?.dataset.value;
+    if (!kind || !value) return undefined;
+    return [kind === "resonator" ? resonatorFilters : OPTION_FILTER_MAPS[kind], value];
+  };
+  document.addEventListener("click", (e) => {
+    const pick = searchPick(e);
+    if (!pick) return;
+    setFilter(...pick, "include");
+    focusSearch();
+  });
+  document.addEventListener("contextmenu", (e) => {
+    const pick = searchPick(e);
+    if (!pick) return;
+    e.preventDefault();
+    setFilter(...pick, "exclude");
+    focusSearch();
+  });
   // A chip above the table: clicking it clears that filter, whichever way it was set — a resonator
   // one by its own `data-resonator`, a pick one by `data-kind`/`data-value` (see `resonatorChips()`).
   document.addEventListener("click", (e) => {
@@ -2679,18 +2781,73 @@ async function boot(): Promise<void> {
   });
 }
 
-/** Set one filter, or clear it if that's already the way it's set — so the same click that set it
- *  undoes it, and the chip above the table is the other way out. Shared by resonator names and
- *  weapon/echo/mainstat picks alike; only the map differs. Costed either way (`withRowCap()`):
- *  clearing one widens the table by exactly what setting it narrowed, and a filter is the usual
- *  way *back* under the cap, so it can as easily be the way over it. */
+/** Set one filter, or clear it if this name already carries one — *whichever way* that one was
+ *  set. "Already filtered" is the state a click toggles, not "already filtered this exact way": a
+ *  left click on a barred resonator used to promote them to a required include, which is never
+ *  what clicking the name you just barred means (and, being an include, it silently ANDed with
+ *  every other include and emptied the table instead of bringing them back). Flipping a filter the
+ *  other way round is two clicks now — clear it, then set the direction you want.
+ *
+ *  Shared by resonator names and weapon/echo/mainstat picks alike; only the map differs. Costed
+ *  either way (`withRowCap()`): clearing one widens the table by exactly what setting it narrowed,
+ *  and a filter is the usual way *back* under the cap, so it can as easily be the way over it. */
 function setFilter(map: Map<string, ResonatorFilter>, name: string, mode: ResonatorFilter): void {
   withRowCap(() => {
     const was = map.get(name);
-    if (was === mode) map.delete(name); else map.set(name, mode);
+    if (was !== undefined) map.delete(name); else map.set(name, mode);
     return () => { if (was === undefined) map.delete(name); else map.set(name, was); };
   });
 }
+
+// The search bar under the boxes: typing redraws only its own results list in place — no table
+// work until a result is actually clicked. Wired here rather than in boot(), whose handlers only
+// land after the initial solve — the bar is focused from the first paint, so typing has to work
+// that early too.
+document.addEventListener("input", (e) => {
+  const input = e.target as HTMLInputElement;
+  if (input.id !== "optionSearch") return;
+  searchText = input.value;
+  const box = document.getElementById("searchResults");
+  if (box) box.innerHTML = searchResults();
+});
+// Clicking or tabbing out of the search hides its results; back in brings them back. A focus move
+// that stays inside `.tcsearch` is spared — hiding on the way to a result button would fire before
+// its click, landing it on a hidden control. The buttons are focusable, so leaving from one hides
+// the list the same as leaving from the input.
+document.addEventListener("focusin", (e) => {
+  if (!(e.target as Element).closest?.(".tcsearch")) return;
+  const box = document.getElementById("searchResults");
+  if (box) box.hidden = false;
+});
+
+/** Whether a pointer press is in flight. Load-bearing: the results list sits in the page flow
+ *  (index.css), so anything below it — the filter chips, the row-cap banner, the table — moves
+ *  when it opens or closes. A press outside the bar moves focus on its *mousedown*, and closing
+ *  the list right then yanks whatever is under the pointer upwards; the browser resolves the click
+ *  against the release point, so the press came out as a click on whatever slid into that spot.
+ *  That is why pressing a chip while the list was open left the chip and its filter sitting there:
+ *  the click reached the table instead. Deferring the close by a task does not help — mousedown
+ *  and click are separate tasks, so the timer still runs first.
+ *
+ *  So a press closes nothing. The click handler below does it, once the event has been delivered
+ *  to what was actually pressed and the layout can move freely. */
+let pressing = false;
+document.addEventListener("pointerdown", () => { pressing = true; }, true);
+document.addEventListener("pointerup", () => { pressing = false; }, true);
+document.addEventListener("click", (e) => {
+  if ((e.target as Element).closest?.(".tcsearch")) return;
+  const box = document.getElementById("searchResults");
+  if (box) box.hidden = true;
+}, true);
+document.addEventListener("focusout", (e) => {
+  if (!(e.target as Element).closest?.(".tcsearch")) return;
+  if ((e.relatedTarget as Element | null)?.closest?.(".tcsearch")) return;
+  // the keyboard path only — a pointer press leaves the list alone and lets the click above close
+  // it (see `pressing`)
+  if (pressing) return;
+  const box = document.getElementById("searchResults");
+  if (box) box.hidden = true;
+});
 
 // back to the table, keeping the filters that got you to this page in the URL
 backLink.addEventListener("click", (e) => { e.preventDefault(); syncHash(null); route(); });

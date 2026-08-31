@@ -9,12 +9,11 @@
  * are both real gauges with a damage payout.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, applyTeam, isHeld, stacksOfTeam, removeStack, revokeCurrent, casting, currentAction, addStat,
-  frozenStacks, getStat, queue, ActionGroup,
-} from "../../engine/kit.js";
+  frozenStacks, getStat, queue, } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_3, SWAP, ECHO_ONFIELD, ECHO_SWAP } from "../../engine/rotation.js";
 import { SOLSWORN_CIPHERS } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC, SOUND_OF_TRUE_NAME_2PC } from "../../echoes/lahairoi.js";
@@ -215,8 +214,9 @@ const SIGRIKA_TALENTS = new Talent({
 const BA234 = new ActionGroup("Basic - One, Two, Three 234", [BA2, BA3, BA4]);
 
 const SR_ROTATION = new Rotation([
-  INTRO, ECHO_CANCEL, BA234, EBA, FHAchainwhip, Liberation,
-  BA234, EBA, FHAoutburst, FSkill, OUTRO_NEXT,
+  START_3, ECHO_ONFIELD, SWAP,
+  INTRO, BA234, EBA, FHAchainwhip, Liberation,
+  BA234, EBA, FHAoutburst, FSkill, ECHO_SWAP, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

@@ -16,6 +16,7 @@ import {
 } from "./stats.js";
 import type { Type1, StatKey } from "./stats.js";
 import { isCast } from "./kit.js";
+import { SWAP, DODGE, JUMP } from "./rotation.js";
 import { mvPercent, effectiveShred, effectiveRes, damageFactors } from "./damage.js";
 import type { Action, ChainGroup } from "./kit.js";
 import type { ResolvedSnapshot, StatEntry, HeldBuff } from "./kit.js";
@@ -273,6 +274,9 @@ const COMBINED_COLUMNS = ["mv", "energy", "concerto", "offtune",
  *  member alone, like every other stat — laid end to end it would repeat "100%" once per cast and
  *  foot the section to 300%, describing a multiplier no cast ever went through. */
 export const OFFTUNE_RATE = "Buildup Rate";
+/** Energy's own counterpart — the Energy Regen Multiplier section its panel carries. Same
+ *  folded-group and blanking treatment as OFFTUNE_RATE everywhere both are read. */
+export const ENERGY_RATE = "Regen Multiplier";
 
 function rowValues(
   snap: ResolvedSnapshot,
@@ -284,6 +288,10 @@ function rowValues(
   // that reads like a result; blank says "this cast was never about damage". Every other column
   // still pays out, because the stat line at that moment is exactly what the row is there for.
   const dealsDamage = mv !== 0;
+  // A filler row — Swap, Dodge, Jump — is nobody's hit: printing the conditional stat columns
+  // there shows buff states that never applied to anything, so only atk/hp/def/er stand (and the
+  // running resource/gauge columns still blank themselves wherever nothing moved).
+  const filler = snap.action === SWAP || snap.action === DODGE || snap.action === JUMP;
   // What a dot or tune hit doesn't read, it doesn't get a cell for: damage bonus and crit on
   // either, amplification on tune, and Damage Dealt on a dot — each gated out of the formula
   // outright (damage.ts's own `damageFactors`), so printing the build's own figure there says a
@@ -303,17 +311,17 @@ function rowValues(
     hp: snap.hp,
     def: snap.def,
     mv: dealsDamage ? mv : null,
-    dmgBonus: special(snap.action) ? null : snap.dmgBonus,
-    amp: snap.action.scaling === Scaling.Tune ? null
+    dmgBonus: filler || special(snap.action) ? null : snap.dmgBonus,
+    amp: filler ? null : snap.action.scaling === Scaling.Tune ? null
       : snap.action.scaling === Scaling.Dot ? snap.type2Amp : snap.amp,
-    cr: special(snap.action) ? null : snap.stat(Stat.CritRate),
-    cd: special(snap.action) ? null : snap.stat(Stat.CritDmg),
-    dealt: snap.action.scaling === Scaling.Dot ? null : snap.stat(Stat.TotalDmg),
+    cr: filler || special(snap.action) ? null : snap.stat(Stat.CritRate),
+    cd: filler || special(snap.action) ? null : snap.stat(Stat.CritDmg),
+    dealt: filler || snap.action.scaling === Scaling.Dot ? null : snap.stat(Stat.TotalDmg),
     // what the hit actually meets: how much of the enemy's defence is stripped away by ignore
     // and reduce (0% = untouched), and the resistance left after ignore and shred — both read
     // straight off the resolved snapshot's own enemyDef/enemyRes.
-    effDef: effectiveShred(snap) * 100,
-    effRes: effectiveRes(snap),
+    effDef: filler ? null : effectiveShred(snap) * 100,
+    effRes: filler ? null : effectiveRes(snap),
     er: snap.stat(Stat.Er),
     // real running totals — kit.ts's own evaluate() banks these every action, off however much
     // AddEnergy/AddConcerto/AddOfftune this action's own held Gear contributed. Energy/concerto
@@ -376,7 +384,7 @@ function rowValues(
   // the ceiling above it and the floor under it (kit.ts again) absorb whatever the bar had overrun
   // or fallen short by. Off-tune is the enemy's and carries over.
   for (const key of ["energy", "concerto", "offtune"] as const) {
-    const wiped = key === "energy" && isCast(snap.action, Cast.Outro);
+    const wiped = key === "energy" && snap.energyWiped;
     const declared = wiped ? 0 : snap.action[key] / RESOURCE_SCALE[key];
     const traced = wiped ? [] : RESOURCE_STAT[key]
       .flatMap((st) => tracing(snap, keysFor(snap.action, st)))
@@ -392,6 +400,16 @@ function rowValues(
     // contributions footed with a carried-over total adds up to nothing anyone can follow.
     // Off-tune's is not this sum (the buildup rate scales part of it); it's overwritten below.
     raw[`moved:${key}`] = rows.reduce((n, r) => n + r.value, 0);
+  }
+  // Energy is scaled on the way in too: `(declared + AddEnergy) x (1 + Energy Regen Multiplier)`
+  // (kit.ts's own evaluate()), so the panel names the multiplier's sources in a section of their
+  // own — same shape as off-tune's buildup rate below — and the Total foots to what actually banked.
+  if (!snap.energyWiped) {
+    const rate = tracing(snap, keysFor(snap.action, Stat.EnergyRegenMult));
+    if (rate.length) {
+      sources.energy = [...(sources.energy ?? []), ...rate.map((r) => ({ ...r, section: ENERGY_RATE, digits: 2 }))];
+      raw["moved:energy"] = (Number(raw["moved:energy"]) || 0) * (1 + snap.stat(Stat.EnergyRegenMult) / 100);
+    }
   }
   // Off-tune alone is scaled on the way in: what an action and its AddOfftune buffs *build* is
   // multiplied by Off-Tune Buildup Rate before it banks (kit.ts's own evaluate()), so the panel
@@ -500,7 +518,7 @@ function rowValues(
       if (sources[key] === undefined && key === "mv") continue;
       const last = per.length - 1;
       const rows = per.flatMap((p, k) => (p.sources[key] ?? [])
-        .filter((r) => r.section !== OFFTUNE_RATE || k === last));
+        .filter((r) => (r.section !== OFFTUNE_RATE && r.section !== ENERGY_RATE) || k === last));
       if (rows.length) sources[key] = rows; else delete sources[key];
       if (per.some((p) => p.buffed.has(key))) buffed.add(key);
       const moved = `moved:${key}`;

@@ -24,10 +24,10 @@
  * Intro while it's up) rides the realm buff itself, see RULERS_REALM.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, applyTeam, revokeCurrent, revokeBuff, casting, currentAction, currentTeam, addStat, queue,
   queueOutro, } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { applied } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { SHIELD } from "../../shared/status.js";
@@ -195,7 +195,7 @@ const AUGUSTA_TALENTS = new Talent({
 
 const AG_ROTATION = new Rotation([
   INTRO, FHA1, FHA2, Skill, FHA1, FHA2, ECHO_CANCEL, Lib1,
-  FSkill1, FSkill2, FSkill3, Lib2, OUTRO_NEXT,
+  FSkill1, FSkill2, FSkill3, Lib2, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

@@ -23,11 +23,11 @@
  *     once in 5s. Kept as its own cast; a rotation that interrupts can name it.
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, ActionGroup, Stat, Attribute,
+  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute,
   WeaponType, Type1, Cast, Node, Scaling, addStat, applyCurrent, casting, currentAction, forte1, queueOutro, revokeCurrent, setForte1,
 } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
 import { HEALS, SHIELD } from "../../shared/status.js";
 import { MARCATO } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";
@@ -208,7 +208,7 @@ const JIANXIN_RESONATOR = new Resonator({
 /** Intro (40 Chi, S1 up), Chi Parry, the basic chain at double Chi, the second Chi Parry (S2), the
  *  Spiral on a full gauge, the Liberation under S4, the echo and out. Never the team's lead. */
 const JX_ROTATION = new Rotation([
-  INTRO, ChiParry, ChiParry, Liberation, FHA, PushingPunch, ECHO_OUTRO, OUTRO_NEXT,
+  INTRO, ChiParry, ChiParry, Liberation, FHA, PushingPunch, ECHO_SWAP, OUTRO,
 ]);
 
 export const JIANXIN = new Loadout({

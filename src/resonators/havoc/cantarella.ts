@@ -7,13 +7,12 @@
  * CANTARELLA_RESONATOR's own updateBuffs() hard-resets forte2 to exactly 3 first, landing its declared -3 on 0.
  */
 import {
-  isType, Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
-  Type2, Cast, Node, Scaling, applyCurrent, currentAction, casting, queue, queueOnIntro, queueOutro, removeStackTeam, revokeCurrent,
-  addStat, frozenStacks, applyTeam, forte1, setForte2, currentTeam,
-  ActionGroup,
-} from "../../engine/kit.js";
+  isType, Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
+  Type2, Cast, Node, Scaling, applyCurrent, currentAction, casting, queue, queueOnIntro, queueOutro, removeStack, revokeCurrent,
+  addStat, frozenStacks, forte1, setForte2, currentTeam, currentMember, concerto, setConcerto,
+  } from "../../engine/kit.js";
 import { lostOnSwap, matrix } from "../../shared/helpers.js";
-import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, STRINGMASTER, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
@@ -58,7 +57,7 @@ const ACTION_DIFFUSION = cantaAction("Liberation - Diffusion x21", { node: Node.
 
 const Intro = cantaAction("Intro - Ripple", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 169, energy: 3.16, concerto: 10, offtune: 10120, forte1: 1, // 42.25%x4
-  updateBuffs: () => applyTeam(ABYSSAL_REBIRTH, 6),
+  updateBuffs: () => applyCurrent(ABYSSAL_REBIRTH, 6),
 });
 // Diffusion's whole window as one lump, deferred behind the next Intro: it ticks on past the swap
 const Outro = cantaAction("Outro - Gentle Tentacles", {
@@ -77,16 +76,18 @@ const POISON = new Buff({
 });
 
 /** Abyssal Rebirth: her Intro opens a window in which *any* team member's own Echo Skill cast
- *  hands **her** 6 Concerto Energy, six times over. Team-wide so it sees everyone's turn, but the
- *  concerto has to land on her rather than on whoever is acting — `Stat.AddConcerto` would credit
- *  the actor, so this writes her own bar directly through `memberOf()`. The six charges are the
- *  stack count, spent as they fire. 25s window on a 25s cooldown, so it never lapses mid-rotation. */
+ *  hands **her** 6 Concerto Energy, six times over. Self-held but watched from updateGlobal(),
+ *  which sees everyone's turn with `currentMember()` pinned to her: on her own cast the 6 goes
+ *  through `Stat.AddConcerto` so the action's row credits it, off-field it's written to her bar
+ *  directly. The six charges are the stack count, spent as they fire. 25s window on a 25s
+ *  cooldown, so it never lapses mid-rotation. */
 const ABYSSAL_REBIRTH = new Buff({
   name: "Cantarella: Abyssal Rebirth", maxStacks: 6,
-  updateBuffs: () => {
+  updateGlobal: () => {
     if (!casting(Cast.Echo) || frozenStacks() <= 0) return;
-    removeStackTeam(ABYSSAL_REBIRTH, 1);
-    currentTeam().memberOf(CANTARELLA_RESONATOR).concerto += 6;
+    removeStack(ABYSSAL_REBIRTH, 1);
+    if (currentTeam().slot === currentMember()) addStat(Stat.AddConcerto, 6);
+    else setConcerto(concerto() + 6);
   },
 });
 
@@ -155,7 +156,7 @@ const FBA123 = new ActionGroup("Forte Basic - Phantom Sting 123", [FBA1, FBA2, F
 
 const CA_ROTATION = new Rotation([
   INTRO, BA3, Skill, ECHO_CANCEL,
-  Liberation, EHA, ESkill, FBA123, FSkill, OUTRO_NEXT,
+  Liberation, EHA, ESkill, FBA123, FSkill, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

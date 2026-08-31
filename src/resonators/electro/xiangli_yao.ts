@@ -23,12 +23,11 @@
  * as Jiyan's Discipline; the 2s trigger ICD isn't modelled.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, currentAction, casting, revokeCurrent, addStat, frozenStacks, removeStack, queueOn, queueOutro,
-  ActionGroup,
-} from "../../engine/kit.js";
+  } from "../../engine/kit.js";
 import { matrix } from "../../shared/helpers.js";
-import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
 import { IUNO_SIG, VERITYS_HANDLE } from "../../weapons/gauntlet.js";
 import { ABYSS_SURGES, NEW_STD_GAUNTLET } from "../../weapons/standard.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
@@ -143,7 +142,7 @@ const XLY_ROTATION = new Rotation([
   USkill, FBA, UForte,
   UBA123, UForte,
   USkill, FBA, UForte,
-  ECHO_OUTRO, OUTRO_NEXT,
+  ECHO_SWAP, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

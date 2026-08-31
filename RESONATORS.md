@@ -18,6 +18,3 @@ phoebe https://ww.nanoka.cc/character/1506
 
 # need erosion
 cartethiya https://ww.nanoka.cc/character/1409
-
-# needs full coords impl
-jinhsi https://ww.nanoka.cc/character/1304

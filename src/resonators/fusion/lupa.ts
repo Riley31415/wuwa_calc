@@ -24,12 +24,12 @@
  *    bare base-kit Liberation effect (see GLORY's own trigger below).
  */
 import {
-  isType, Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType,
+  isType, Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType,
   Type1, Cast, Node, Scaling, applyCurrent, applyTeam, applyEnemy, revokeCurrent, revokeTeam, revokeEnemy, casting,
   currentAction, currentTeam, addStat, frozenStacks, stacksOfTeam, queueOn, queueOutro, setForte1, setForte2,
   } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { Rotation, OPENER, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { WILDFIRE_MARK } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { LIONESS_OF_GLORY, CLAWPRINT_5PC, CLAWPRINT_2PC } from "../../echoes/septimont.js";
@@ -65,11 +65,11 @@ const MA3 = lupaAction("Basic - Flaming Star 3 (Mid-Air)", { node: Node.Normal, 
 // rather than restoring the gauge)
 const HA = lupaAction("Heavy - Flaming Star", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 112.72, energy: 1.68, concerto: 3.34, offtune: 5336 });
 /** Firestrike, at Wolflame 50+. Counts as Heavy Attack DMG. */
-const EMA3 = lupaAction("Heavy - Flaming Star: Firestrike (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 56.96, energy: 0.86, concerto: 1.7, offtune: 2696, forte1: -50, forte2: 1 });
+const EMA3 = lupaAction("Heavy - Firestrike (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 56.96, energy: 0.86, concerto: 10, offtune: 2696, forte1: -50, forte2: 1 });
 /** Wolf's Gnawing, at Wolflame 50+. */
-const EHA3 = lupaAction("Heavy - Flaming Star: Wolf's Gnawing", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 112.22, energy: 1.66, concerto: 10, offtune: 5312, forte1: -50, forte2: 1 });
+const EHA3 = lupaAction("Heavy - Wolf's Gnawing", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 112.22, energy: 1.66, concerto: 10, offtune: 5312, forte1: -50, forte2: 1 });
 /** Wolf's Claw, at Wolflame 50+ and Wolfaith 1+. */
-const EMA4 = lupaAction("Heavy - Flaming Star: Wolf's Claw", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 240.5, energy: 3.58, concerto: 10, offtune: 11385, forte1: -50, forte2: 1 });
+const EHA4 = lupaAction("Heavy - Wolf's Claw", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 240.5, energy: 3.58, concerto: 10, offtune: 11385, forte1: -50, forte2: 1 });
 
 // Shewolf's Hunt and its Feral Fang follow-up, each restoring 15 Wolflame
 const Skill1 = lupaAction("Skill - Shewolf's Hunt", {
@@ -231,7 +231,7 @@ const LUPA_RESONATOR = new Resonator({
   // every cast that arms Set the Arena Ablaze
   updateBuffs: () => {
     const a = currentAction();
-    if (a === Skill2 || a === EHA3 || a === EMA4 || a === EMA3 || a === Liberation || a === FSkill || a === UFSkill) {
+    if (a === Skill2 || a === EHA3 || a === EHA4 || a === EMA3 || a === Liberation || a === FSkill || a === UFSkill) {
       applyCurrent(WILDFIRE_BANNER, 1);
     }
   },
@@ -248,8 +248,8 @@ const LUPA_TALENTS = new Talent({
 });
 
 const LP_LOOP = new Rotation([
-  OPENER, Skill1, Skill2, ECHO_CANCEL, Liberation, USkill, MA1, MA2, EMA3, EMA4, UFSkill, OUTRO_NEXT,
-  INTRO, Skill1, ECHO_CANCEL, Liberation, USkill, MA1, MA2, EMA3, EMA4, UFSkill, OUTRO_NEXT,
+  NOINTRO, Skill1,
+  INTRO, ECHO_CANCEL, Liberation, USkill, MA1, MA2, EMA3, EHA4, UFSkill, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

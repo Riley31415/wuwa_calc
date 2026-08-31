@@ -38,14 +38,14 @@
  * nanoka only names which casts grant them.
  */
 import {
-  typeOverride, Buff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute,
+  typeOverride, Buff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout, Stat, Attribute,
   WeaponType, Type1, Type2, Cast, Node, Scaling, addStat, applyCurrent, applyTeam, casting, currentAction, isHeld,
   maxStackIncrease, queueOn, queueOutro, revokeCurrent as revokeCurrent, revokeTeam, frozenStacks, forte1, triggeredAction,
   setForte1, setForte2, getStat, forte2,
   stacksOf,
   addForte1,
 } from "../../engine/kit.js";
-import { Rotation, START_COMBAT, OPENER, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, JUMP, ActionGroup, DODGE } from "../../engine/rotation.js";
 import { applied, applyEnemy } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { FUSION_BURST } from "../../shared/status.js";
@@ -107,8 +107,8 @@ const UMDC = deniaAction("Basic - Breakdown Form 3 (Mid-Air Dodge Counter)", { n
 //     core for +150% of its base multiplier apiece (see BANISH_CORES) and is Liberation DMG.
 const Skill = deniaAction("Skill - Phantom Bubble", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 104.51, energy: 0.22, concerto: 24.40, offtune: 7008, forte1: 25 });
 const Beckon = deniaAction("Skill - Beckon", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 103.70, energy: 2.21, concerto: 4.36, offtune: 6956, forte2: 13 });
-const Banish1 = deniaAction("Skill - Banish 1", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 104.04, energy: 2.19, concerto: 4.38, offtune: 6978 });
-const Banish2 = deniaAction("Skill - Banish 2", { node: Node.Skill, cast: Cast.Skill, type: Type1.Liberation, mv: 112.01, energy: 2.35, concerto: 14.70, offtune: 7512, forte2: 40 });
+const Banish1 = deniaAction("Forte Skill - Banish 1", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 104.04, energy: 2.19, concerto: 4.38, offtune: 6978 });
+const Banish2 = deniaAction("Forte Skill - Banish 2", { node: Node.Skill, cast: Cast.Skill, type: Type1.Liberation, mv: 112.01, energy: 2.35, concerto: 14.70, offtune: 7512, forte2: 40 });
 
 // --- Final Act. Stagecraft spends the Energy bar (125); Breakdown spends the full Conformal
 //     Charge and every Void Particle instead (zeroed in DENIA_RESONATOR's update — "all", not a fixed
@@ -127,9 +127,9 @@ const Lib1 = deniaAction("Liberation - Final Act (Stagecraft)", {
 /** Spends every Void Particle and all the Conformal Charge, and shifts back to Stagecraft. */
 const Lib2 = deniaAction("Liberation - Final Act (Breakdown)", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 795.24, energy: 30,
-  concerto: 20, offtune: 52528, forte2: -100, 
+  concerto: 20, offtune: 52528, forte2: -100, forte1: -100,
   updateBuffs: () => {
-    addForte1(-forte1());
+    setForte1(100);
     if (forte2() > 100) setForte2(100);
     revokeCurrent(ENTROPY_BREAKDOWN);
     applyCurrent(ENTROPY_STAGECRAFT);
@@ -370,13 +370,20 @@ const DENIA_RESONATOR = new Resonator({
  *  pairs, Banish on all three cores, Final Act - Breakdown (which drops the Erosion Field), the
  *  echo and out. Both opener and loop — Final Act - Breakdown leaves her in Stagecraft Form, where
  *  the next loop's Intro picks up. */
+const UBA1234 = new ActionGroup("Basic - Breakdown Form 1234", [UBA1, UBA2, UBA3, UBA4]);
+const UBA12 = new ActionGroup("Basic - Breakdown Form 12", [UBA1, UBA2]);
+const USkill12 = new ActionGroup("Forte Skill - Banish 12", [Banish1, Banish2]);
 
 const DN_ROTATION_BURST = new Rotation([
-  OPENER, BA1, BA2, BA3,
+  NOINTRO, BA4, Skill, Lib1,
+  UBA12, JUMP, UBA1234, 
+  USkill12, Lib2, 
+  ECHO_SWAP, OUTRO,
+
   INTRO, BA4, Skill, Lib1,
-  UBA1, UBA2, UBA3, UBA4, 
-  Banish1, Banish2, Lib2, 
-  ECHO_OUTRO, OUTRO_NEXT,
+  UBA1234, 
+  USkill12, Lib2, 
+  ECHO_SWAP, OUTRO,
 ]);
 
 /** One loadout per Resonance Mode, each with the echo set built for it: Trickster + Chromatic Foam
@@ -400,10 +407,15 @@ export const DENIA_BURST = new Loadout({
 });
 
 const DN_ROTATION_STRAIN = new Rotation([
+  NOINTRO, Skill, Lib1,
+  UBA12, DODGE, UBA12, JUMP, UBA12,
+  USkill12, Lib2,
+  ECHO_SWAP, OUTRO,
+
   INTRO, BA4, Skill, Lib1,
-  UBA1, UBA2, UBA1, UBA2,
-  Banish1, Banish2, Lib2,
-  ECHO_OUTRO, OUTRO_NEXT,
+  UBA12, JUMP, UBA12,
+  USkill12, Lib2,
+  ECHO_SWAP, OUTRO,
 ]);
 
 export const DENIA_STRAIN = new Loadout({

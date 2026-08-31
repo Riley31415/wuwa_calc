@@ -1,9 +1,10 @@
 /** Mainslot echoes and sonatas from Rinascita (versions 2.0-2.4). */
 import { isType,
-  Buff, Sonata, Sonata2pc, Mainslot, EchoType, Action, Stat, Attribute, Type1, Type2, Cast, Scaling,
+  Buff, Sonata, Sonata2pc, Mainslot, EchoType, Stat, Attribute, Type1, Type2, Cast, Scaling,
   addStat, frozenStacks, applyCurrent, applyTeam, casting, currentAction, revokeCurrent, getStat, queue, queueOutro,
   revokeTeam, stacksOfEnemy, currentMember,
 } from "../engine/kit.js";
+import { Action } from "../engine/rotation.js";
 import { applied, appliedByMe } from "../engine/kit.js";
 import { AERO_EROSION } from "../shared/status.js";
 

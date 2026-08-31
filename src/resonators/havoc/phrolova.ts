@@ -4,20 +4,19 @@
  * see MAESTRO's own comment for how a single stack count carries all three.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, stacksOf, currentAction, casting, queue, queueOutro, revokeCurrent, addStat, frozenStacks,
   Sequence, applyTeam, isHeld, setForte1, currentTeam, queueOn, addBuff,
-  ActionGroup,
-} from "../../engine/kit.js";
+  } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { Rotation, OPENER, INTRO, ECHO_ONFIELD, OUTRO_NEXT } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, NOINTRO, INTRO, ECHO_ONFIELD, OUTRO, DODGE } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { DREAM_OF_THE_LOST_3PC } from "../../echoes/septimont.js";
 import { NM_HECATE, MIDNIGHT_VEIL_2PC } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
-import { BELL_BORNE_GEOCHELONE, HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
+import { BELL_BORNE_GEOCHELONE, HAVOC_ECLIPSE_2PC, HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -255,14 +254,19 @@ const PHROLOVA_TALENTS = new Talent({
 });
 
 // INTRO resolves to plain Intro or EIntro on its own (see her own intro() above)
-// OPENER ROTATIONS DO NOT HAVE AN INTRO
+// NOINTRO ROTATIONS DO NOT HAVE AN INTRO
 
-const BA123Dash = new ActionGroup("Basic - Movement of Life and Death 123 (Cancel)", [BA1, BA2]);
-const BA123 = new ActionGroup("Basic - Movement of Life and Death 123", [BA1, BA2, BA3]);
+const BA123Dash = new ActionGroup("Basic - Movement of Life and Death 123 (Cancel)", [BA1, BA2, BA3.dodgeCancel()]);
+const BA123 = new ActionGroup("Basic - Movement of Life and Death 123", [BA1, BA2, BA3, DODGE]);
 
 const PH_LOOP = new Rotation([
-  OPENER, BA2,
-  INTRO, BA3, ECHO_ONFIELD, FBA, Skill, FBA, BA123Dash, FBA, BA123Dash, FBA, ScarletCoda, Liberation, OUTRO_NEXT,
+  NOINTRO, BA2,
+  INTRO,
+  BA3, ECHO_ONFIELD, 
+  FBA, Skill, FBA, DODGE, 
+  BA123Dash, FBA, DODGE,
+  BA123Dash, FBA, DODGE, 
+  ScarletCoda, Liberation, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -275,7 +279,7 @@ export const PHROLOVA = new Loadout({
   inherent1: PH_INHERENT_1,
   inherent2: PH_INHERENT_2,
   weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER],
-  echoLoadouts: [new EchoLoadout(NM_HECATE, DREAM_OF_THE_LOST_3PC, MIDNIGHT_VEIL_2PC)],
+  echoLoadouts: [new EchoLoadout(NM_HECATE, DREAM_OF_THE_LOST_3PC, HAVOC_ECLIPSE_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: chem("atk", "skill"),
     rotation: PH_LOOP,
@@ -284,8 +288,11 @@ export const PHROLOVA = new Loadout({
 
 
 const PH_LOOP_DUAL_DPS = new Rotation([
-  OPENER, BA2,
-  INTRO, BA3, ECHO_ONFIELD, FBA, Skill, FBA, BA123, FBA, ScarletCoda, Liberation, OUTRO_NEXT,
+  NOINTRO, BA2,
+  INTRO, BA3, ECHO_ONFIELD, 
+  FBA, Skill, FBA, DODGE,
+  BA123, FBA, 
+  ScarletCoda, Liberation, OUTRO,
 ]);
 
 export const PHROLOVA_DUAL_DPS = new Loadout({
@@ -295,7 +302,7 @@ export const PHROLOVA_DUAL_DPS = new Loadout({
   inherent2: PH_INHERENT_2,
   weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER],
   echoLoadouts: [
-    new EchoLoadout(NM_HECATE, DREAM_OF_THE_LOST_3PC, MIDNIGHT_VEIL_2PC),
+    new EchoLoadout(NM_HECATE, DREAM_OF_THE_LOST_3PC, HAVOC_ECLIPSE_2PC),
     new EchoLoadout(HERON, DREAM_OF_THE_LOST_3PC, MOONLIT_CLOUDS_2PC),
     new EchoLoadout(BELL_BORNE_GEOCHELONE, DREAM_OF_THE_LOST_3PC, MOONLIT_CLOUDS_2PC),
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),

@@ -19,13 +19,12 @@
  * own MV/energy/concerto/offtune/forte1 delta ported from the migrated (old-engine) sheet.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Type2, Cast,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Type2, Cast,
   Node, Scaling, applyCurrent, currentAction, casting, revokeCurrent, addStat, frozenStacks, queueOnIntro, queueOutro,
   applyTeam,
-  ActionGroup,
-} from "../../engine/kit.js";
+  } from "../../engine/kit.js";
 import { lostOnSwap, matrix } from "../../shared/helpers.js";
-import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_2, SWAP } from "../../engine/rotation.js";
 import { RIME_DRAPED_SPROUTS, STRINGMASTER, LETHEAN_ELEGY, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { EMPYREAN_ANTHEM_2PC, EMPYREAN_ANTHEM_5PC, NM_LAMPY } from "../../echoes/rinascita.js";
@@ -162,9 +161,9 @@ const ZHEZHI_TALENTS = new Talent({
 const BA123 = new ActionGroup("Basic - Dimming Brush 123", [BA1, BA2, BA3]);
 
 const ZZ_ROTATION = new Rotation([
-  INTRO, ECHO_CANCEL, BA123,
+  INTRO, ECHO_CANCEL, START_2, Liberation, SWAP, BA123,
   Skill, FHA, FSkill, FSkill, FSkill3,
-  Liberation, OUTRO_NEXT,
+  OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

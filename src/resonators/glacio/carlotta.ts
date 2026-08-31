@@ -36,12 +36,12 @@
  * damage hit, nothing invented.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, applyEnemy, revokeEnemy, isHeld, currentAction, casting, revokeCurrent, addStat, forte1, forte2,
   setForte2, Debuff,
-} from "../../engine/kit.js";
+  } from "../../engine/kit.js";
 import { matrix } from "../../shared/helpers.js";
-import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, SWAP, START_3 } from "../../engine/rotation.js";
 import { THE_LAST_DANCE } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { FROSTY_RESOLVE_2PC, FROSTY_RESOLVE_5PC, SENTRY_CONSTRUCT } from "../../echoes/rinascita.js";
@@ -198,10 +198,15 @@ const CARLOTTA_TALENTS = new Talent({
 // Twilight Tango — Imminent Oblivion is DPS-negative here so it's left off this line entirely.
 // She's never the team's own lead, so this covers both opener and loop.
 
+const DeathKnellx4 = new ActionGroup("Liberation - Death Knell x4", [DeathKnell, DeathKnell, DeathKnell, DeathKnell]);
+const Skill12 = new ActionGroup("Skill - Art of Violence + Chromatic Splendor", [Skill1, Skill2]);
+const Skill12Swap = new ActionGroup("Skill - Art of Violence + Chromatic Splendor", [Skill1, Skill2.swap()]);
+
 const CL_ROTATION = new Rotation([
-  INTRO, Skill1, Skill2, MA1, Skill1, Skill2,
-  Lib1, DeathKnell, DeathKnell, DeathKnell, DeathKnell, FatalFinale,
-  Skill1, Skill2, ECHO_OUTRO, OUTRO_NEXT,
+  START_3, Skill12Swap, SWAP,
+  INTRO, Skill12, MA1, FHA,
+  Lib1, DeathKnellx4, FatalFinale,
+  Skill12, ECHO_SWAP, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

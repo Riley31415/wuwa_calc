@@ -13,11 +13,10 @@
  * the damage dealer, so nothing below enters Apex.
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, applyCurrent, applyTeam, revokeTeam, isHeld, revokeCurrent, casting, currentAction, addStat,
-  queue, queueOutro, forte1, setForte1, ActionGroup,
-} from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
+  queue, queueOutro, forte1, setForte1, } from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
 import { applyEnemy } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { ELECTRO_FLARE, inflictedNegativeStatus, HEALS } from "../../shared/status.js";
@@ -229,7 +228,7 @@ const ROVER_ELECTRO_TALENTS = new Talent({
 const BA1234 = new ActionGroup("Basic - Deterrence 1234", [BA1, BA2, BA3, BA4]);
 
 const ER_ROTATION = new Rotation([
-  INTRO, BA1234, Skill, Repel, Overshock, Liberation, ECHO_OUTRO, OUTRO_NEXT,
+  INTRO, BA1234, Skill, Repel, Overshock, Liberation, ECHO_SWAP, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

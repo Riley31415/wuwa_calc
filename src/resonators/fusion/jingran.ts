@@ -24,12 +24,11 @@
  * genuinely team-wide buffs just to be reachable from a teammate's turn.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, forte2, setForte2, stacksOf, isHeld, currentAction, currentTeam, queue, revokeCurrent, addStat,
   getStat, frozenStacks,
-  ActionGroup,
-} from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
+  } from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
 import { applied, applyTeam } from "../../engine/kit.js";
 import { SHIELD } from "../../shared/status.js";
 import { JINGRAN_SIG, THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
@@ -261,7 +260,7 @@ const JR_ROTATION = new Rotation([
   EBA234, EFHA,
   Skill1, Skill2, FHA,
   ESkill1, ESkill2, EFHA,
-  ECHO_OUTRO, OUTRO_NEXT,
+  ECHO_SWAP, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

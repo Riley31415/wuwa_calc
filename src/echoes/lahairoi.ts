@@ -6,12 +6,13 @@
  *  Lahairoi-era, own no mainslot echo/sonata of their own — Lucilla reuses Bell-Borne
  *  Geochelone/Moonlit Clouds from jinzhou.ts and Dream of the Lost from septimont.ts. */
 import { isType,
-  Buff, Sonata, Sonata2pc, Mainslot, EchoType, Action, Stat, Attribute, Type1, Cast, Scaling,
+  Buff, Sonata, Sonata2pc, Mainslot, EchoType, Stat, Attribute, Type1, Cast, Scaling,
   addStat, applyCurrent, applyTeam, casting, currentAction, getStat, queue, queueOutro, removeStack, revokeCurrent, revokeTeam,
   frozenStacks, stacksOf, isHeld,
   isCast,
   currentMember,
 } from "../engine/kit.js";
+import { Action } from "../engine/rotation.js";
 import { applied, appliedByMe } from "../engine/kit.js";
 import { handoff, lostOnSwap } from "../shared/helpers.js";
 import { SHIELD, FUSION_BURST, HEALS, GLACIO_CHAFE, HAVOC_BANE } from "../shared/status.js";
@@ -217,16 +218,19 @@ export const CHROMATIC_FOAM_5PC = new Sonata({
   name: "Chromatic Foam 5pc",
   updateBuffs: () => { if (appliedByMe(FUSION_BURST)) applyCurrent(CHROMATIC_FOAM_BUFF, 1); },
 });
+/** Permanent uptime once triggered — the wearer's off-field inflictions keep it live anyway, so
+ *  no end condition; only the handoff half below is lost on swap. */
 export const CHROMATIC_FOAM_BUFF = new Buff({
   name: "Chromatic Foam",
   applyStats: () => addStat(Stat.DmgBonus, 10, Attribute.Fusion),
   updateBuffs: () => { if (casting(Cast.Outro)) queueOutro(CHROMATIC_FOAM_HANDOFF); },
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(CHROMATIC_FOAM_BUFF); }, // TODO last a bit longer for denia
 });
+/** The receiver's half: lost after their own leaving row — a double-Intro section's swap as much
+ *  as an outro — still paying out on it first (conversion, not updateBuffs). */
 export const CHROMATIC_FOAM_HANDOFF = new Buff({
   name: "Chromatic Foam (outro)",
   applyStats: () => addStat(Stat.DmgBonus, 25, Attribute.Fusion),
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(CHROMATIC_FOAM_HANDOFF); },
+  convertStats: () => lostOnSwap(),
 });
 
 /** Trailblazing Star, the other Fusion sonata of the era. 2pc: +10% Fusion DMG Bonus flat. 5pc:
@@ -292,7 +296,13 @@ export const ACTION_TRICKSTER = new Action("Echo - Trickster", {
   cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 273.6, energy: 3.8,
   updateBuffs: () => queueOutro(TRICKSTER_HANDOFF),
 });
-export const TRICKSTER_HANDOFF = handoff("Trickster: Outro", () => addStat(Stat.DmgBonus, 12, Attribute.Fusion));
+/** Not the usual 15s `handoff()` window: lost after the receiver's own inactive row — outro or
+ *  any swap — the same conversion-phase clause as Chromatic Foam above. */
+export const TRICKSTER_HANDOFF = new Buff({
+  name: "Trickster (outro)",
+  applyStats: () => addStat(Stat.DmgBonus, 12, Attribute.Fusion),
+  convertStats: () => lostOnSwap(),
+});
 export const TRICKSTER = new Mainslot({
   name: "Reminiscence: Denia",
   action: ACTION_TRICKSTER,

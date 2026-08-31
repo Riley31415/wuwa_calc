@@ -37,12 +37,11 @@
  * plays one.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, addBuff, addStat, applyCurrent, applyTeam, casting, currentAction, currentTeam, isHeld, queue, queueOnIntro, queueOutro,
   revokeCurrent, forte1, forte2, setForte1, setForte2, frozenStacks, triggeredAction,
-  ActionGroup,
-} from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT, START_COMBAT } from "../../engine/rotation.js";
+  } from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_2, SWAP, JUMP } from "../../engine/rotation.js";
 import { applied } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING } from "../../shared/tunebreak.js";
@@ -283,23 +282,17 @@ const REBECCA_RESONATOR = new Resonator({
 
 /* ---------------------------------------------------------------------------------- rotation */
 
-/** wuwalab's own verified line (rotation 196). Her Intro is the Huntress one — she starts there —
- *  and leaves her in Guts holding the 50 Fervor A Girl Gets What She Wants! restores; the Guts
- *  chain and Come 'n' Get Me! bank the other 70.5 and put her back in Huntress, so Rat-tat-tat! —
- *  the bigger of the two finishers — spends a full bar and lays Hack - Shifting. Echo, then the
- *  Liberation's three firepower tiers into BOOM! Fireworks!, then out. She is never the team's
- *  lead, so this is both opener and loop, and it ends in Huntress ready for the next Intro. */
-
-const GBA123 = new ActionGroup("Basic - Guts 123", [GBA1, GBA2, GBA3]);
-
 const RB_ROTATION = new Rotation([
-  START_COMBAT, Skill, START_COMBAT,
+  START_2, Skill, SWAP,
   
   INTRO, 
+  JUMP,
+  HMA,
   Skill, 
-  GBA123,
+  GHA, 
   FHAGuts, 
-  ECHO_CANCEL,Lib1, OUTRO_NEXT,
+  GHA,
+  ECHO_CANCEL,Lib1, OUTRO,
 ]);
 
 /** Adam Smasher carries its own 1pc set, so the other four echoes run two ordinary 2-piece sets
@@ -308,7 +301,6 @@ const RB_ROTATION = new Rotation([
 const RB_ECHOES = [
   new EchoLoadout(ADAM_SMASHER_REBECCA, LINGERING_TUNES_2PC, VOID_THUNDER_2PC),
 
-  
   new EchoLoadout(HYVATIA, NEONLIGHT_LEAP_5PC, NEONLIGHT_LEAP_2PC),
   new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
   new EchoLoadout(STONEWALL_BRACER, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),

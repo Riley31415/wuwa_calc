@@ -8,14 +8,13 @@
  * gives a combined row (BA123 = BA1+BA2+BA3, FMA123 = FMA1+FMA2+FMA3, both exact).
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, applyTeam, currentAction, casting, queueOutro, revokeCurrent, addStat, frozenStacks, applied,
-  ActionGroup,
   setForte1,
   forte1,
 } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { Rotation, INTRO, ECHO_ONFIELD, OUTRO_NEXT, ECHO_CANCEL, ECHO_OUTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO, ECHO_CANCEL, ECHO_SWAP } from "../../engine/rotation.js";
 import { SHIELD } from "../../shared/status.js";
 import { IUNO_SIG, VERITYS_HANDLE } from "../../weapons/gauntlet.js";
 import { MARCATO, NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
@@ -150,7 +149,7 @@ const IUNO_TALENTS = new Talent({
 const IO_ROTATION = new Rotation([
   INTRO, ESkill, ECHO_CANCEL,Liberation, Jump,
   FMSkill, FMA123, FMSkill, 
-  FHA, OUTRO_NEXT,
+  FHA, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -185,7 +184,7 @@ const IO_ROTATION_MDPS = new Rotation([
   FMA123, Liberation, 
   FMA123, FMSkill, 
   MA123, 
-  FHA, ECHO_OUTRO, OUTRO_NEXT,
+  FHA, ECHO_SWAP, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

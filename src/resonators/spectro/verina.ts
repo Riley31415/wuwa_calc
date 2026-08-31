@@ -18,11 +18,11 @@
  * Skill Attributes table throughout; anything not exposed there stays 0, flagged rather than guessed.
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
   Type2, Cast, Node, Scaling, applyTeam, revokeTeam, applyEnemy, revokeEnemy, isHeld, casting, currentAction,
   addStat, queue, applyCurrent,
 } from "../../engine/kit.js";
-import { Rotation, OPENER, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, JUMP } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { VARIATION } from "../../weapons/standard.js";
 import { REJUV_5PC, REJUV_2PC } from "../../echoes/jinzhou.js";
@@ -209,12 +209,14 @@ const VERINA_TALENTS = new Talent({
 });
 
 const VR_LOOP = new Rotation([
-  OPENER, Skill, Liberation,
+  NOINTRO, Skill, Liberation,
+  JUMP,
   ForteMidair1, ForteMidair2,
-  ECHO_OUTRO, OUTRO_NEXT,
+  ECHO_SWAP, OUTRO,
   INTRO, Skill, Liberation,
+  JUMP,
   ForteMidair1,
-  ECHO_OUTRO, OUTRO_NEXT,
+  ECHO_SWAP, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

@@ -16,12 +16,11 @@
  * Counter has no sheet row at all, so it's still bare (nanoka's own MV only).
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, applyTeam, revokeCurrent, casting, currentAction, currentTeam, addStat, frozenStacks, getStat,
-  queueOutro, queueOn, ActionGroup,
-} from "../../engine/kit.js";
+  queueOutro, queueOn, } from "../../engine/kit.js";
 import { lostOnSwap, matrix } from "../../shared/helpers.js";
-import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, SWAP, DODGE, NOINTRO, ECHO_SWAP, START_3 } from "../../engine/rotation.js";
 import { TRAGICOMEDY } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { NM_HERON, MIDNIGHT_VEIL_5PC, MIDNIGHT_VEIL_2PC } from "../../echoes/rinascita.js";
@@ -69,7 +68,7 @@ const Outro = rocciaAction("Outro - Applause, Please!", {
 /** 100 flat Havoc DMG, Utility damage type, DMG-bonus-immune (Scaling.Fixed reads no stat/buff).
  *  Queued once by ROCCIA_RESONATOR's own kit on the recipient's own next Intro — see updateGlobal() below. */
 const MAGIC_BOX = rocciaAction("Utility - Super Attractive Magic Box", {
-  cast: Cast.Echo, type: Type1.Utility, scaling: Scaling.Fixed, mv: 10000,
+  cast: Cast.Echo, type: Type1.Utility, scaling: Scaling.Fixed, mv: 100,
 });
 
 /* ------------------------------------------------------------------------------------ buffs */
@@ -132,13 +131,15 @@ const ROCCIA_TALENTS = new Talent({
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
 });
 
-// she's never the team's own lead, so this same rotation covers both opener and loop
-
 const FBA123 = new ActionGroup("Forte Basic - Real Fantasy 123", [FBA1, FBA2, FBA3]);
 
 const RC_ROTATION = new Rotation([
-  INTRO, HA, Skill, FBA123,
-  ECHO_CANCEL, Liberation, OUTRO_NEXT,
+  START_3, Liberation, SWAP,
+  INTRO, BA4, 
+  Liberation, 
+  Skill, FBA123,
+  ECHO_SWAP, 
+  OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

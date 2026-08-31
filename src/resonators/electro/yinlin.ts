@@ -23,12 +23,12 @@
  *    triggered.
  */
 import {
-  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
   Type2, Cast, Node, Scaling, applyCurrent, setStacksSelf, removeStack, applyEnemy, revokeEnemy, stacksOfEnemy,
   isHeld, currentAction, casting, revokeCurrent, addStat, queue, queueOnIntro, queueOutro, applyTeam,
 } from "../../engine/kit.js";
 import { lostOnSwap, matrix } from "../../shared/helpers.js";
-import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { EMPYREAN_ANTHEM_5PC, EMPYREAN_ANTHEM_2PC } from "../../echoes/rinascita.js";
@@ -185,7 +185,7 @@ const YINLIN_TALENTS = new Talent({
 
 const YL_ROTATION = new Rotation([
   INTRO, ECHO_CANCEL, Skill1, HA, Liberation, Skill2, FHA,
-  OUTRO_NEXT,
+  OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

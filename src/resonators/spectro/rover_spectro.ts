@@ -10,11 +10,11 @@
  * SRover rows (offtune x10000 into this engine's units). Rotation is the sheet's own "srover 3nf".
  */
 import {
-  Buff, Debuff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, Stat, EnemyStat, Attribute,
+  Buff, Debuff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, EnemyStat, Attribute,
   WeaponType, Type1, Cast, Node, Scaling, applyCurrent, applyEnemy, revokeEnemy, isHeld, revokeCurrent, casting,
   currentAction, addStat, addEnemyStat, queue,
 } from "../../engine/kit.js";
-import { Rotation, OPENER, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
 import { SPECTRO_FRAZZLE, HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";
@@ -164,8 +164,8 @@ const ROVER_SPECTRO_TALENTS = new Talent({
 const SPR_ROTATION = new Rotation([
   INTRO, 
   HA1, HA2, HA3, FSkill1, FBA,
-  HA1, HA2, HA3, FSkill1, Liberation, ECHO_OUTRO,
-  OUTRO_NEXT,
+  HA1, HA2, HA3, FSkill1, Liberation, ECHO_SWAP,
+  OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

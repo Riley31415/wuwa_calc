@@ -29,11 +29,11 @@ import { ROVER_ELECTRO } from "../resonators/electro/rover_electro.js";
 import { XIANGLI_YAO } from "../resonators/electro/xiangli_yao.js";
 import { YINLIN } from "../resonators/electro/yinlin.js";
 import { AEMEATH_BURST, AEMEATH_RUPTURE } from "../resonators/fusion/aemeath.js";
-import { BRANT } from "../resonators/fusion/brant.js";
+import { BRANT, BRANT_MDPS } from "../resonators/fusion/brant.js";
 import { CHANGLI } from "../resonators/fusion/changli.js";
 import { DENIA_BURST, DENIA_STRAIN } from "../resonators/fusion/denia.js";
 import { ENCORE } from "../resonators/fusion/encore.js";
-import { GALBRENA, GALBRENA_ECHO_FOCUS } from "../resonators/fusion/galbrena.js";
+import { GALBRENA } from "../resonators/fusion/galbrena.js";
 import { JINGRAN } from "../resonators/fusion/jingran.js";
 import { LUPA } from "../resonators/fusion/lupa.js";
 import { MORNYE } from "../resonators/fusion/mornye.js";
@@ -44,7 +44,7 @@ import { LUCILLA, LUCILLA_CHAFE } from "../resonators/glacio/lucilla.js";
 import { SANHUA } from "../resonators/glacio/sanhua.js";
 import { SUISUI } from "../resonators/glacio/suisui.js";
 import { ZHEZHI } from "../resonators/glacio/zhezhi.js";
-import { CAMELLYA } from "../resonators/havoc/camellya.js";
+import { CAMELLYA, CAMELLYA_DOUBLE } from "../resonators/havoc/camellya.js";
 import { CANTARELLA } from "../resonators/havoc/cantarella.js";
 import { CHISA } from "../resonators/havoc/chisa.js";
 import { DANJIN } from "../resonators/havoc/danjin.js";
@@ -52,6 +52,7 @@ import { PHROLOVA, PHROLOVA_DUAL_DPS } from "../resonators/havoc/phrolova.js";
 import { ROCCIA } from "../resonators/havoc/roccia.js";
 import { ROVER_HAVOC } from "../resonators/havoc/rover_havoc.js";
 import { XUANLING } from "../resonators/havoc/xuanling.js";
+import { JINHSI } from "../resonators/spectro/jinhsi.js";
 import { LUCY } from "../resonators/spectro/lucy.js";
 import { LUUK } from "../resonators/spectro/luuk.js";
 import { LYNAE_RUPTURE, LYNAE_STRAIN } from "../resonators/spectro/lynae.js";
@@ -100,7 +101,7 @@ const TEAMS: Loadout[][][] = [
   [[DENIA_BURST, DENIA_BURST], [LYNAE_RUPTURE, LYNAE_RUPTURE], [AEMEATH_BURST]],
 
   // galbrena: fusion echo
-  [[SHOREKEEPER, VERINA, LUPA, QIUYUAN, MORNYE], [QIUYUAN, LUCILLA], [GALBRENA_ECHO_FOCUS]],
+  [[SHOREKEEPER, VERINA, LUPA, QIUYUAN, MORNYE, DENIA_BURST], [QIUYUAN, LUCILLA], [GALBRENA]],
   // galbrena: fusion heavy
   [[SHOREKEEPER, VERINA, LUPA, MORNYE, DENIA_BURST], [BRANT, MORTEFI, IUNO, LUPA, LYNAE_RUPTURE, REBECCA], [GALBRENA]],
 
@@ -123,14 +124,20 @@ const TEAMS: Loadout[][][] = [
   [[PHROLOVA_DUAL_DPS, PHROLOVA_DUAL_DPS], [LUCILLA, LUCILLA], [HIYUKI]],
   [[SUISUI, SUISUI], [PHROLOVA_DUAL_DPS, PHROLOVA_DUAL_DPS], [HIYUKI]],
 
+  // brant: fusion basic
+  [[MORNYE, DENIA_BURST, VERINA, SHOREKEEPER], [SANHUA, LUPA, DENIA_BURST], [BRANT_MDPS]],
 
   // changli: fusion skill+liberation
   [[LUPA, LUPA], [BRANT, ENCORE, DENIA_BURST], [CHANGLI]],
+
+  // jinhsi: spectro skill
+  [[SHOREKEEPER, VERINA, MORNYE, SUISUI, BULING], [ZHEZHI, CANTARELLA, LYNAE_RUPTURE, REBECCA], [JINHSI]],
 
   // carlotta: glacio skill
   [[SHOREKEEPER, BULING, VERINA, MORNYE, SUISUI], [ZHEZHI, BRANT, LYNAE_RUPTURE, REBECCA, LUCILLA_CHAFE], [CARLOTTA]],
 
   // camellya: havoc basic
+  [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [SANHUA, SANHUA], [CAMELLYA_DOUBLE]],
   [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [ROCCIA, SANHUA, LYNAE_RUPTURE, REBECCA], [CAMELLYA]],
 
   // xiangli yao: electro liberation

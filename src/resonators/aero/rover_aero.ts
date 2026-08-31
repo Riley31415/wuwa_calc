@@ -12,11 +12,11 @@
  * marker those casts put up (statuses.ts).
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, applyCurrent, applyTeam, applyEnemy, revokeEnemy, stacksOfEnemy, maxStackIncrease, isHeld,
   revokeCurrent, casting, currentAction, addStat,
 } from "../../engine/kit.js";
-import { Rotation, OPENER, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { AERO_EROSION, SPECTRO_FRAZZLE, HAVOC_BANE, FUSION_BURST, GLACIO_CHAFE, ELECTRO_FLARE, HEALS } from "../../shared/status.js";
 import { BLOODPACTS_PLEDGE, BLOODPACT_AERO_AMP } from "../../weapons/standard.js";
 import { REJUV_5PC, REJUV_2PC, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, BELL_BORNE_SHIELD, BELL_BORNE_GEOCHELONE } from "../../echoes/jinzhou.js";
@@ -190,17 +190,17 @@ const ROVER_AERO_TALENTS = new Talent({
 // never the team's own lead, so this covers opener and loop both.
 
 const AR_ROTATION = new Rotation([
-  OPENER, Skill, Cloudburst1, Cloudburst2, MA, BA4,
+  NOINTRO, Skill, Cloudburst1, Cloudburst2, MA, BA4,
   ECHO_CANCEL,
   Liberation,
   Skill, Cloudburst1, Cloudburst2, MA, BA4,
-  UnboundFlow1, UnboundFlow2, OUTRO_NEXT,
+  UnboundFlow1, UnboundFlow2, OUTRO,
 
   INTRO, Cloudburst1, Cloudburst2,
   ECHO_CANCEL,
   Liberation,
   Skill, Cloudburst1, Cloudburst2, MA,
-  UnboundFlow1, UnboundFlow2, OUTRO_NEXT,
+  UnboundFlow1, UnboundFlow2, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

@@ -20,12 +20,11 @@
  * https://ww.nanoka.cc/character/1209), read the way CLAUDE.md describes.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, addStat, applyCurrent, applyTeam, currentAction, queue, queueOutro, revokeCurrent, getStat, stacksOf, stacksOfTeam, frozenStacks,
   maxStackIncrease, Debuff, applyEnemy, revokeEnemy, isHeld, stacksOfEnemy,
-  ActionGroup,
-} from "../../engine/kit.js";
-import { Rotation, START_COMBAT, OPENER, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
+  } from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, START_1, START_2, SWAP, NOINTRO, INTRO, ECHO_SWAP, OUTRO, START_3 } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import {
   TUNE_BREAK, TUNE_RUPTURE_INTERFERED, TUNE_STRAIN_INTERFERED, interferedWindow, tuneRuptureResponse,
@@ -225,12 +224,14 @@ const WBA123 = new ActionGroup("Basic - Wide Field Observation 123", [WBA1, WBA2
 /** Intro straight into Wide Field Observation (which is what raises the Syntony Field), the Wide
  *  Field chain into Inversion, then Distributed Array, the echo and the Liberation to trade the
  *  field up before handing off. She is never the team's lead, so this is both opener and loop. */
+const SkillSwap = Skill.swap();
+
 const MO_ROTATION = new Rotation([
-  START_COMBAT, Skill, START_COMBAT,
-  OPENER, BA123, GeopotentialShift,
+  START_2, START_3, SkillSwap, SWAP,
+  NOINTRO, BA123, GeopotentialShift,
   INTRO, Liberation,
   WBA123, DistributedArray, Inversion, 
-  ECHO_OUTRO, OUTRO_NEXT,
+  ECHO_SWAP, OUTRO,
 ]);
 
 /** ER is the build: her Liberation converts everything past 100% into crit, so the sig's 77% and

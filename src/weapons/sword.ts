@@ -72,12 +72,12 @@ export const UNFLICKERING_VALOR = new Weapon({
   },
 });
 export const LAUGHTER_PREVAILS_LIB = new Buff({
-  name: "Unflickering Valor: Laughter Prevails (Liberation)",
+  name: "Unflickering Valor: Laughter Prevails (lib)",
   applyStats: () => addStat(Stat.DmgBonus, 24, Type1.Basic),
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(LAUGHTER_PREVAILS_LIB); },
 });
 export const LAUGHTER_PREVAILS_BASIC = new Buff({
-  name: "Unflickering Valor: Laughter Prevails (Basic Attack)",
+  name: "Unflickering Valor: Laughter Prevails (basic)",
   applyStats: () => addStat(Stat.DmgBonus, 24, Type1.Basic),
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(LAUGHTER_PREVAILS_BASIC); },
 });

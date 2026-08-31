@@ -274,6 +274,49 @@ main {
   cursor: pointer;
 }
 
+/* The option search under the boxes (index.js's own `searchResults()`): a plain themed input,
+   with the top matches dropping in as rows directly beneath it. The rows sit in the page flow
+   rather than floating — the chips row below already moves as filters come and go, and a floating
+   list would cover the very chips it pushes down. What that costs is a closing list yanking
+   everything under it upwards mid-press, which index.js closes the list on the completed *click*
+   rather than on the press to stay clear of (see its own `pressing`). */
+.tcsearch { display: flex; flex-direction: column; gap: 6px; max-width: 340px; }
+.tcsearch input {
+  padding: 6px 10px;
+  border: 1px solid var(--line-2);
+  background: var(--surface-3);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 12px;
+}
+.tcsearch input:focus { outline: none; border-color: var(--accent); }
+.tcsearch-results { display: flex; flex-direction: column; gap: 1px; }
+/* `display: flex` above would beat the attribute otherwise (same as `.trow[hidden]` below) */
+.tcsearch-results[hidden] { display: none; }
+/* one row per match — the same hue wash a name cell or chip wears (`--mem`, resonators and
+   sequences only; gear picks have no member colour, same as their chips) */
+.sresult {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 10px;
+  border: 1px solid color-mix(in srgb, var(--mem, transparent) 55%, var(--line-2));
+  background: color-mix(in srgb, var(--mem, transparent) 14%, var(--surface-3));
+  font-family: var(--sans);
+  font-size: 12px;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+}
+.sresult:hover {
+  border-color: color-mix(in srgb, var(--mem, transparent) 80%, var(--faint));
+  background: color-mix(in srgb, var(--mem, transparent) 24%, var(--surface-3));
+}
+/* which axis the match is from, right-aligned and dimmed so the name stays the row */
+.sresult .skind { color: var(--dim); font-size: 11px; }
+.sresult.none { color: var(--dim); cursor: default; }
+
 /* The row-cap warning (index.js's own `rowCapWarning()`), shown in place — no re-render — when a
    checkbox is refused for pushing the table past `ROW_CAP`. Same signal red as a chip's own "✕"
    (see `.rchip.exc .box` below): this is a refusal, not a theme colour. */
@@ -581,12 +624,15 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 /* alignment and colour only — the type itself is `.c`'s, same as every other column */
 .num { text-align: right; color: var(--ink); }
 
-/* head — pinned to the top of <main> so the column names survive scrolling */
+/* head — pinned to the top of <main> so the column names survive scrolling. The 2px border is
+   background paint above the pinned header, so the table's top edge isn't cut flush against the
+   scrollport — opaque, so the rows sliding under stay hidden behind it. */
 .head {
   position: sticky;
   top: 0;
   z-index: 40;
   background: var(--surface-3);
+  border-top: 2px solid var(--bg);
 }
 /* the one place in the table that does re-declare weight — a column heading has to read as a
    heading. Same family and size as the cells under it, still. */

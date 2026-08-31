@@ -24,11 +24,11 @@
  *
  * Concerto Energy: Ephemeral genuinely requires it full (100) and spends 70 — same clamp-then-
  * declared-delta shape as forte1, via concerto()/setConcerto(). "Consuming 10 Crimson Pistils
- * recovers 4 Concerto Energy and obtains 1 Crimson Bud" is checked as every 10-Pistil boundary
- * crossed by *that one hit's own consumption*, read
+ * recovers 4 Concerto Energy and obtains 1 Crimson Bud" is checked as every full 10 consumed
+ * from the 100 top (first at 90 or less) by *that one hit's own consumption*, read
  * off forte1() before vs. after — not a flat 1-per-hit rate — in CONSUME_CRIMSON_PISTIL's own
- * applyStats(), gated off entirely while Budding Mode is held. Its Energy Regen Multiplier is modelled
- * too: +150% outside Budding Mode, 0% (cancelling the action's own base) while it's held.
+ * applyStats(), gated off entirely while Budding Mode is held. Its Energy Regen Multiplier is the
+ * real stat (Stat.EnergyRegenMult): +150% outside Budding Mode, -100 (a x0 factor) while it's held.
  *
  * Seedbed/Epiphyte (Inherent Skills, always assumed known): +15% Havoc DMG Bonus flat; +15%
  * Basic DMG Bonus flat (interruption-resistance half not modelled) — both genuinely
@@ -42,13 +42,12 @@
  * Outro/Twining's own table gives 0 across the board, a real absence, not an unchecked gap.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, revokeCurrent, casting, currentAction, addStat, setForte1, isHeld, concerto, setConcerto,
   stacksOf, frozenStacks, forte1,
-  ActionGroup,
-} from "../../engine/kit.js";
+  } from "../../engine/kit.js";
 import { lostOnSwap, matrix } from "../../shared/helpers.js";
-import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ECHO_ONFIELD, DOUBLE_INTRO, SWAP } from "../../engine/rotation.js";
 import { RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { NM_CROWNLESS, HAVOC_ECLIPSE_5PC, HAVOC_ECLIPSE_2PC } from "../../echoes/jinzhou.js";
@@ -166,9 +165,9 @@ const BUDDING_MODE = new Buff({
   display: () => `Camellya: Sweet Dream +${frozenStacks()-1} Buds`,
 });
 
-/** A stack every 10-Pistil boundary a Sweet-Dream-listed hit crosses outside
- *  Budding Mode, capped at 10. Empty buff — Ephemeral consumes every held stack and it just
- *  decides how many of Budding Mode's own 11 stacks get granted. */
+/** A stack per full 10 Pistils a Sweet-Dream-listed hit consumes (counted from the 100 top)
+ *  outside Budding Mode, capped at 10. Empty buff — Ephemeral consumes every held stack and it
+ *  just decides how many of Budding Mode's own 11 stacks get granted. */
 const CRIMSON_BUD = new Buff({
   name: "Camellya: Crimson Bud", maxStacks: 10,
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(CRIMSON_BUD); },
@@ -189,21 +188,22 @@ const EPIPHYTE = new Inherent({
 /** Granted and immediately spent on every action that consumes Crimson Pistils (a negative
  *  forte1 delta), same one-shot-per-qualifying-action shape as Brant's own Trial by Fire and
  *  Tide. Carries Vegetative Universe's own two effects: Crimson Pistil consumption (banked into
- *  Concerto Energy + Crimson Bud gain, per 10-Pistil boundary crossed by *this hit's own* consumption,
- *  not a flat 1-per-hit rate) and the Energy Regen Multiplier. */
+ *  Concerto Energy + Crimson Bud gain, per full 10 Pistils *this hit's own* consumption takes
+ *  from the 100 top, not a flat 1-per-hit rate) and the Energy Regen Multiplier. */
 const CONSUME_CRIMSON_PISTIL = new Buff({
   name: "Camellya: Consume Crimson Pistil",
   applyStats: () => {
     const a = currentAction();
     const before = forte1();
     const after = before + a.forte1;
-    const buds = Math.floor(before / 10) - Math.floor(after / 10);
+    // a bud per full 10 *consumed* from the 100 top — the first lands at 90 or less, so a
+    // 100 -> 95 hit grants nothing (floor-of-forte would count crossing 100's own decade)
+    const buds = Math.floor((100 - Math.max(0, after)) / 10) - Math.floor((100 - before) / 10);
     if (buds > 0) {
       if (!isHeld(BUDDING_MODE)) applyCurrent(CRIMSON_BUD, buds);
       addStat(Stat.AddConcerto, 4 * buds);
     }
-    if (isHeld(BUDDING_MODE)) addStat(Stat.AddEnergy, -a.energy);
-    else addStat(Stat.AddEnergy, 1.5 * a.energy);
+    addStat(Stat.EnergyRegenMult, isHeld(BUDDING_MODE) ? -100 : 150);
   },
   convertStats: () => revokeCurrent(CONSUME_CRIMSON_PISTIL),
 });
@@ -236,15 +236,15 @@ const CAMELLYA_TALENTS = new Talent({
 // fresh Concerto and opens Budding Mode, Liberation, Outro. She's never the team's own lead, so
 // this covers both opener and loop.
 
-const VW123 = new ActionGroup("Basic - Vining Waltz 123", [VW1, VW2, VW3]);
+const VW1234_16s = new ActionGroup("Basic - Vining Waltz 123H4", [VW1, VW2, VW3, BlazingWaltz.swap(), VW4.swap()]);
+const BA12345 = new ActionGroup("Basic - Burgeoning 1234H5", [BA1, BA2, BA3, BA4, BA5]);
 
 const CM_ROTATION = new Rotation([
-  INTRO, ECHO_CANCEL, // TODO needs double intro implementation
-  CrimsonBlossom,
-  FloralRavage, HA, BA4, BA5,
-  INTRO, Liberation, Ephemeral,
-  CrimsonBlossom, VW123, BlazingWaltz, VW4,
-  FloralRavage, OUTRO_NEXT,
+  INTRO, CrimsonBlossom, 
+  BA12345,
+  Liberation, Ephemeral,
+  VW1234_16s,
+  FloralRavage, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -262,4 +262,34 @@ export const CAMELLYA = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: chem("atk", "basic"),
     rotation: CM_ROTATION,
+});
+
+const VW1234 = new ActionGroup("Basic - Vining Waltz 123H4", [VW1, VW2, VW3, BlazingWaltz, VW4]);
+
+const CM_ROTATION_DOUBLE = new Rotation([
+  DOUBLE_INTRO, ECHO_ONFIELD, CrimsonBlossom, FloralRavage, 
+  HA, BA4, BA5.swap(), SWAP,
+  
+  INTRO,
+  Liberation, Ephemeral,
+  CrimsonBlossom, 
+  VW1234,
+  FloralRavage, OUTRO,
+]);
+
+/* ----------------------------------------------------------------------------------- loadout */
+
+// her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
+// sonata pieces, mainstat/substat
+export const CAMELLYA_DOUBLE = new Loadout({
+  resonator: CAMELLYA_RESONATOR,
+  matrix: matrix("Camellya", 25),
+  talent: CAMELLYA_TALENTS,
+  inherent1: SEEDBED,
+  inherent2: EPIPHYTE,
+  weapons: [RED_SPRING, EMERALD_OF_GENESIS],
+  echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC, HAVOC_ECLIPSE_2PC)],
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+  substat: chem("atk", "basic"),
+    rotation: CM_ROTATION_DOUBLE,
 });

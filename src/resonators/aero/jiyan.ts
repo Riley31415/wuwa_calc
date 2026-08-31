@@ -23,13 +23,13 @@
  * trigger ICD isn't modelled.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Type2, Cast,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Type2, Cast,
   Node, Scaling, applyCurrent, currentAction, casting, revokeCurrent, addStat, removeStack, forte1, queue, queueOn,
   triggeredAction,
   queueOutro,
 } from "../../engine/kit.js";
 import { matrix } from "../../shared/helpers.js";
-import { Rotation, START_COMBAT, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Action, Rotation, START_3, SWAP, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC, SIERRA_GALE_2PC } from "../../echoes/jinzhou.js";
@@ -165,7 +165,7 @@ const JY_ROTATION = new Rotation([
   Liberation,
   Lance1, USkill, Lance1, Lance1, Lance1, // dodge cancels
   Lance1, Lance1, Lance1, Lance1,
-  START_COMBAT, Skill2, START_COMBAT, OUTRO_NEXT,
+  START_3, Skill2, SWAP, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

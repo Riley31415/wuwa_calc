@@ -22,10 +22,11 @@
  * Caps are each Debuff's own `maxStacks`, raised for a fight with `maxStackIncrease()`.
  */
 import {
-  Action, Attribute, Buff, Debuff, EnemyStat, Scaling, Type1, Type2,
+  Attribute, Buff, Debuff, EnemyStat, Scaling, Type1, Type2,
   addEnemyStat, applied, appliedByMe, appliedByMember, applyEnemy, currentAction, currentTeam, queue, removeStackEnemy, revokeCurrent, revokeEnemy,
   frozenStacks, stacksOfEnemy,
 } from "../engine/kit.js";
+import { Action } from "../engine/rotation.js";
 import type { TeamMember } from "../engine/kit.js";
 
 /** A shield going up, on the caster never applied to the team `applied()` being how

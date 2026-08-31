@@ -43,13 +43,12 @@
  * old migrated sheet predates Chafe mode entirely, so none of it could be cross-checked.
  */
 import {
-  typeOverride, Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, ResonanceMode, Action, Stat,
+  typeOverride, Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, ResonanceMode, Stat,
   EnemyStat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, applied, applyCurrent, applyTeam, applyEnemy,
   isHeld, casting, currentAction, currentTeam, addStat, addEnemyStat, frozenStacks, forte1, queue, queueOutro,
-  removeStackTeam, revokeCurrent, ActionGroup,
-} from "../../engine/kit.js";
+  removeStackTeam, revokeCurrent, } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { GLACIO_CHAFE } from "../../shared/status.js";
 import { FREEZE_FRAME, STRINGMASTER, LETHEAN_ELEGY } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
@@ -268,7 +267,7 @@ const UBA123 = new ActionGroup("Basic - Tracing Forms 123", [UBA1, UBA2, UBA3]);
 
 const LC_ROTATION = new Rotation([
   INTRO, PhantomFrame, Spotlight, ECHO_CANCEL, Liberation,
-  UBA123, OUTRO_NEXT,
+  UBA123, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

@@ -40,13 +40,12 @@
  * migrated sheet.
  */
 import {
-  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, EnemyStat, Attribute, WeaponType,
+  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, EnemyStat, Attribute, WeaponType,
   Type1, Cast, Node, Scaling, addStat, addEnemyStat, applyEnemy, applyCurrent, applyTeam, casting, currentAction,
   isHeld, queue, queueOutro, revokeCurrent as revokeCurrent, revokeTeam, forte1, forte2, setForte1, setForte2,
   getStat,
-  ActionGroup,
-} from "../../engine/kit.js";
-import { Rotation, START_COMBAT, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
+  } from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { applied } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING } from "../../shared/tunebreak.js";
@@ -297,11 +296,11 @@ const BA234 = new ActionGroup("Basic - Locked Thread 234", [BA2, BA3, BA4]);
 const EBA234 = new ActionGroup("Basic - Thread Shredding 234", [EBA2, EBA3, EBA4]);
 
 const LC_ROTATION = new Rotation([
-  START_COMBAT, Lib, START_COMBAT,
+  START_3, Lib, SWAP,
   INTRO, BA234, Skill1, Skill3,
   Deadlock, EBA234,
   DualThreading, MultiThreading, ECHO_CANCEL,
-  ELib, OUTRO_NEXT,
+  ELib, OUTRO,
 ]);
 
 /** Adam Smasher carries its own 1pc set, so the other four echoes run two ordinary 2-piece sets

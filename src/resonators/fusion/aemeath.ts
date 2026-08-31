@@ -31,12 +31,12 @@
  * action: a rotation flips form through a Sync Strike, a Duet or a liberation.
  */
 import {
-  Buff, Debuff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout, Action, ActionGroup, Stat,
+  Buff, Debuff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout, Stat,
   Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, addStat, addBuff, revokeBuff, applyCurrent, applyEnemy,
   applied, appliedByMember, casting, currentAction, currentMember, currentTeam, isHeld, frozenStacks, queue, queueOn,
   removeStack, revokeCurrent, revokeEnemy, stacksOf, stacksOfEnemy, forte1, forte2, setForte1, setForte2,
 } from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { TUNE_RUPTURE_SHIFTING, applyRupture, tuneRuptureResponse } from "../../shared/tunebreak.js";
 import { FUSION_BURST, FUSION_BURST_ACTIONS } from "../../shared/status.js";
 import { EVERBRIGHT_POLESTAR } from "../../weapons/sword.js";
@@ -317,7 +317,7 @@ const AE_ROTATION = new Rotation([
   MBA234, MechFSkill,
   ABA234, AmyFSkill,
   MHA2, ECHO_CANCEL, Lib2,
-  OUTRO_NEXT,
+  OUTRO,
 ]);
 
 export const AEMEATH_RUPTURE = new Loadout({

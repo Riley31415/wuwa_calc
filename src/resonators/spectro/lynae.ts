@@ -22,12 +22,11 @@
  * runs the Kaleidoscopic Parade line she actually plays instead of modelling three gauges.
  */
 import {
-  Buff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType,
+  Buff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType,
   Type1, Cast, Node, Scaling, addStat, applyCurrent, applyTeam, casting, currentAction, maxStackIncrease, queueOutro,
-  revokeCurrent, ActionGroup,
-} from "../../engine/kit.js";
+  revokeCurrent, } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { Rotation, START_COMBAT, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, SWAP, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
 import { applyRupture, applyStrain, TUNE_STRAIN_INTERFERED, tuneRuptureResponse, tuneStrainBonus } from "../../shared/tunebreak.js";
 import { SPECTRUM_BLASTER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
@@ -187,9 +186,9 @@ const LYNAE_RESONATOR = new Resonator({
 const PolychromeLeap123 = new ActionGroup("Forte - Polychrome Leap 123", [PolychromeLeap1, PolychromeLeap2, PolychromeLeap3]);
 
 const LY_ROTATION = new Rotation([
-  INTRO, START_COMBAT, Liberation, Skill, START_COMBAT, SparkCollision,
+  INTRO, Liberation, Skill, SparkCollision,
   PolychromeLeap123,
-  VisualImpact, ECHO_OUTRO, OUTRO_NEXT,
+  VisualImpact, ECHO_SWAP, OUTRO,
 ]);
 
 const LY_ECHOES = [

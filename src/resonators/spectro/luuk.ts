@@ -22,11 +22,10 @@
  * Flow is its energy x10), summed per action the same way the MVs are.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, addStat, applyCurrent, casting, currentAction, forte1, getStat, maxStackIncrease, queue, revokeCurrent,
-  setForte1, frozenStacks, stacksOfEnemy, ActionGroup,
-} from "../../engine/kit.js";
-import { Rotation, START_COMBAT, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
+  setForte1, frozenStacks, stacksOfEnemy, } from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, ECHO_SWAP, OUTRO, DODGE } from "../../engine/rotation.js";
 import { applied } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { TUNE_STRAIN_SHIFTING } from "../../shared/tunebreak.js";
@@ -93,7 +92,7 @@ const Gavel = luukAction("Forte - Gavel of Earthshaker", {
  *  every bonus — Scaling.Fixed, in the same x100 units Roccia's own fixed hit uses. Taken at the
  *  table's full 5s (33 ticks); in play it vanishes on his next damaging cast, so this is its
  *  ceiling — at 330 damage a summon, nothing turns on it. Hurled by the Intro and by Breach. */
-const IchorBlade = luukAction("Forte - Ichor Blade", { node: Node.Forte, type: Type1.Basic, scaling: Scaling.Fixed, mv: 1000 * 33 });
+const IchorBlade = luukAction("Forte - Ichor Blade", { node: Node.Forte, type: Type1.Basic, scaling: Scaling.Fixed, mv: 10 * 33 });
 
 const Liberation = luukAction("Liberation - Rewritten in Winter's Margins", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Basic, mv: 994.09, concerto: 20, offtune: 67200, resetEnergy: true,
@@ -232,15 +231,14 @@ const LUUK_RESONATOR = new Resonator({
  *  marked Deposit), Liberation at three Endnotes, echo, out. He's always the team's main DPS, so
  *  this covers opener and loop. */
 
-const MA123 = new ActionGroup("Basic - Such is Light / Scythe: Dissection 123 (Mid-Air)", [MA1, MA2, MA3]);
+const MA123 = new ActionGroup("Basic - Scythe: Dissection 123 (Mid-Air)", [MA1, MA2, MA3]);
 
 const LK_ROTATION = new Rotation([
-  START_COMBAT, Skill, Liberation, START_COMBAT,
-  INTRO, MA2, MA3,
-  Ring, MA123,
-  Breach, MA123,
-  Glare, Gavel,
-  Liberation, ECHO_OUTRO, OUTRO_NEXT,
+  START_3, Skill, Liberation, SWAP,
+  INTRO, MA2, MA3, Ring, GoldenImpale.dodgeCancel(), 
+  MA123, Breach, GoldenImpale.dodgeCancel(), 
+  MA123, Glare, Gavel,
+  Liberation, ECHO_SWAP, OUTRO,
 ]);
 
 const LK_ECHOES = [

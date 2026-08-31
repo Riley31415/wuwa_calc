@@ -28,12 +28,11 @@
  * Counter have no sheet row at all, so they're still bare (nanoka's own MV only).
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, casting, currentAction, addStat, frozenStacks, revokeCurrent, isHeld, forte1, forte2, setForte1,
   setForte2,
-  ActionGroup,
-} from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
+  } from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, DODGE } from "../../engine/rotation.js";
 import { LUX_UMBRA } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { CLAWPRINT_2PC, CORROSAURUS, FLAMEWING_SHADOW_3PC } from "../../echoes/septimont.js";
@@ -209,23 +208,10 @@ const BA234 = new ActionGroup("Basic - Slayer's Trigger 234", [BA2, BA3, BA4]);
 const GB_ROTATION = new Rotation([
   INTRO, ECHO_CANCEL, HA2, HA3, BA3, BA4, Encroach,
   AscentOfMalice, Liberation,
-  SeraphicExecution2345,
-  SeraphicExecution345, OUTRO_NEXT,
-]);
-
-// same shape as GB_ROTATION, echo-focused variant (comment markers are dodge-cancel timing notes
-// from the original build, not placed actions)
-
-const GB_ROTATION_ECHO_FOCUS = new Rotation([
-  INTRO, ECHO_CANCEL, BA234, BA2, BA3,
-  AscentOfMalice, Liberation,
-  // dodge cancel 2  (half)
-  // dodge cancel 3
-  SeraphicExecution345,
-  // dodge cancel 3
-  SeraphicExecution4, SeraphicExecution5,
-  // dodge cancel 3 (half)
-  SeraphicExecution4, SeraphicExecution5, OUTRO_NEXT,
+  SeraphicExecution2345, DODGE,
+  SeraphicExecution345, DODGE, 
+  SeraphicExecution3,
+  OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -244,19 +230,4 @@ export const GALBRENA = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: chem("atk", "heavy"),
     rotation: GB_ROTATION,
-});
-
-// same gear, the echo-focused rotation variant — genuinely different actions cast (the one that
-// actually triggers a teammate's own Echo Skill DMG buffs), not a weapon/echo-gear choice, so it
-// stays its own Loadout rather than folding into GALBRENA's own opener/loop
-export const GALBRENA_ECHO_FOCUS = new Loadout({
-  resonator: GALBRENA_RESONATOR,
-  talent: GALBRENA_TALENTS,
-  inherent1: GB_INHERENT_1,
-  inherent2: GB_INHERENT_2,
-  weapons: GB_WEAPONS,
-  echoLoadouts: GB_ECHOES,
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
-  substat: chem("atk", "heavy"),
-    rotation: GB_ROTATION_ECHO_FOCUS,
 });

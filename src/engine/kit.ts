@@ -8,8 +8,8 @@
 import { Stat, EnemyStat, Attribute, WeaponType, Tier, Type1, Type2, Cast, Node, Scaling, scopedStat, tagBand, STAT_COUNT, TYPE2_BITS } from "./stats.js";
 import type { Tag, StatKey } from "./stats.js";
 // type-only, so nothing at runtime imports rotation.js from here — that module imports *this* one
-// (for Action/State/run), and a real import back would close the cycle.
-import type { Rotation } from "./rotation.js";
+// (for Gear/State/run, and its Action extends Gear), and a real import back would close the cycle.
+import type { Rotation, Action, ActionGroup, ActionDef } from "./rotation.js";
 import { damage } from "./damage.js";
 export { Stat, EnemyStat, Attribute, WeaponType, Tier, Type1, Type2, Cast, Node, Scaling, scopedStat };
 
@@ -335,7 +335,7 @@ export interface ResonatorDef extends GearDef {
    *  stacksOf()/stacksOfTeam() etc. same as any other kit logic. */
   intro: () => Action;
   /** Which Outro-cast action to use right now — the same shape as `intro` above, and resolved the
-   *  same way: a rotation holds an OUTRO_NEXT/OUTRO_LAST marker rather than naming the cast, and
+   *  same way: a rotation holds an OUTRO marker rather than naming the cast, and
    *  the scheduler asks here when it reaches one. Almost every kit has exactly one, so this is
    *  just `() => Outro`. */
   outro: () => Action;
@@ -403,7 +403,7 @@ export class Resonator extends Gear {
 /** How a mainslot echo's skill plays out. A SUMMON calls the creature in beside the resonator,
  *  who carries on — its hit is a follow-up wherever it is pressed. A TRANSFORM turns the resonator
  *  *into* it — a press of their own, and one that can be dash-cancelled or finish after they've
- *  swapped out. rotation.ts's ECHO_ONFIELD/ECHO_CANCEL/ECHO_OUTRO markers key off this. */
+ *  swapped out. rotation.ts's ECHO_ONFIELD/ECHO_CANCEL/ECHO_SWAP markers key off this. */
 export const enum EchoType { SUMMON, TRANSFORM }
 
 export interface MainslotDef extends GearDef {
@@ -418,12 +418,13 @@ export interface MainslotDef extends GearDef {
  *  whichever Mainslot the acting slot actually has equipped, in the form that marker asks for:
  *
  *  - `onfield`: the cast as declared. A SUMMON's is reported as a triggered row — the creature
- *    attacks, not the resonator — and is the one form a summon has, wherever it is pressed.
- *  - `outro`: what ECHO_OUTRO lands, named "… (Swap)". A TRANSFORM pressed just before swapping
- *    out finishes off field, so its copy is inactive and triggered, and rotation.ts defers it to
- *    the next Intro.
- *  - `cancel`: a TRANSFORM dash-cancelled the moment it is pressed — the cast's own effects (its
- *    hooks, its Echo cast tag) with none of its hit: no motion value, type, scaling or resource. */
+ *    attacks, not the resonator — and is the one form a summon has, wherever it is pressed:
+ *    always active, no special name, whichever marker placed it.
+ *  - `outro`: what ECHO_SWAP lands, right where it stands. A TRANSFORM pressed on the way out
+ *    finishes off field, so its copy is `Action.swap()`'s form — named "… (Swap)", inactive and
+ *    triggered. A SUMMON's is just its one form again.
+ *  - `cancel`: a TRANSFORM dash-cancelled the moment it is pressed — `Action.dodgeCancel()`'s form:
+ *    the cast's own effects with none of its hit. */
 export class Mainslot extends Gear {
   action: Action;
   echoType: EchoType;
@@ -436,19 +437,12 @@ export class Mainslot extends Gear {
     this.echoType = def.echoType;
     const a = def.action;
     if (def.echoType === EchoType.SUMMON) {
-      this.onfield = this.cancel = a.variant(a.name, { triggered: true });
-      this.outro = a.variant(`${a.name} (Swap)`, { triggered: true });
+      this.onfield = this.cancel = this.outro = a.variant(a.name, { triggered: true });
       return;
     }
     this.onfield = a;
-    this.outro = a.variant(`${a.name} (Swap)`, { triggered: true, active: false });
-    const d = a.def;
-    this.cancel = new Action(`${a.name} (Cancel)`, {
-      cast: d.cast, cast2: d.cast2, active: d.active,
-      combatStart: d.combatStart, updateDebuffs: d.updateDebuffs, updateGlobal: d.updateGlobal, updateBuffs: d.updateBuffs,
-      applyStats: d.applyStats, convertStats: d.convertStats, afterAction: d.afterAction, lateConvertStats: d.lateConvertStats,
-      display: d.display,
-    });
+    this.outro = a.swap();
+    this.cancel = a.dodgeCancel();
   }
 }
 
@@ -479,149 +473,11 @@ export class Weapon extends Gear {
  *  too — an action that *does* something declares it directly instead of a held Gear branching on
  *  `currentAction() === X`. The one that doesn't apply is `combatStart`: an Action is cast, never
  *  equipped, so nothing ever fires it. */
-export interface ActionDef extends GearDef {
-  element?: Attribute | null;
-  type?: Type1 | null;
-  type2?: Type2 | null;
-  cast?: Cast | null;
-  cast2?: Cast | null;
-  active?: boolean;
-  node?: Node | null;
-  scaling?: Scaling | null;
-  mv?: number;
-  /** How much Resonance Energy/Concerto/Off-tune this resonator's own cast generates — the
-   *  baseline every action carries regardless of any buff, same declared-once shape as `mv`.
-   *  evaluate() banks this into the running total automatically (TeamMember.energy/concerto,
-   *  State.offtune) right alongside whatever AddEnergy/AddConcerto/AddOfftune a held buff
-   *  contributed — a kit never touches these fields itself, only declares them per action. */
-  energy?: number;
-  concerto?: number;
-  offtune?: number;
-  /** The report bucket this action's damage groups under, when it isn't the acting resonator's
-   *  own — the shared Tune Break, which is nobody's turn (`State.enemy`'s name). Defaults to whoever
-   *  cast it. */
-  slot?: string;
-  /** Marks the actual button-press Liberation cast that spends the Energy bar — used only to
-   *  reset RealEnergy (see `TeamMember.realEnergy`) back to 0 once it fires. Never set on a
-   *  Liberation-tagged follow-up that doesn't itself cost the bar, or on a kit whose Liberation
-   *  costs no Resonance Energy at all (`maxEnergy: 0`). */
-  resetEnergy?: boolean;
-  /** How much this cast moves the acting resonator's own forte gauges 1-5 — same declared-once
-   *  shape as `energy`/`concerto` above, and can be negative (a gauge-spending cast, e.g. -500).
-   *  evaluate() banks this into `TeamMember.forte` automatically via addForte1-5, which floor at
-   *  0 but impose no ceiling — a kit never touches its own gauge from inside an action, it just
-   *  declares the delta per action, same as everywhere else in this shape. */
-  forte1?: number;
-  forte2?: number;
-  forte3?: number;
-  forte4?: number;
-  forte5?: number;
-  /** A rotation marker rather than a real cast: `run()` calls this to get whichever action to
-   *  actually evaluate in its place, with the "current" pointers already aimed at the acting slot
-   *  (so it can read `currentMember()` etc. the same as any other kit logic). Every marker in
-   *  rotation.ts that stands for a real cast — INTRO, the ECHO_* markers — is built on this, which
-   *  is why this engine knows nothing about any of them by name. `null` means the marker resolved
-   *  to no cast at all this step (it deferred itself onto a later one, say — see `queueOnIntro()`),
-   *  and `run()` simply moves on. */
-  resolve?: () => Action | null;
-  /** Report this cast as a triggered row even though it came straight off a rotation list — for
-   *  engine bookkeeping a resonator didn't press a button for (rotation.ts's own swap markers).
-   *  Everything else `run()` derives on its own; see its `triggered` local. */
-  triggered?: boolean;
-}
-
-/** A cast. Mostly data — element/type/cast tags, its motion value, and the energy/concerto/
- *  off-tune/forte it banks — but a Gear like any other, so anything an action *does* can live
- *  directly on it: `evaluate()` runs the acting action's own hooks first in every phase, with the
- *  "current" pointers aimed at it, so what it grants is attributed to it and every stat it
- *  contributes is sourced to its own name. Prefer that to a held Gear branching on
- *  `currentAction() === X`; a `casting(Y)`/`isType(Y)` check that spans a whole *category* of
- *  actions still belongs on the Gear. */
-export class Action extends Gear {
-  element: Attribute | null;
-  type: Type1 | null;
-  type2: Type2 | null;
-  cast: Cast | null;
-  cast2: Cast | null;
-  active: boolean;
-  node: Node | null;
-  scaling: Scaling | null;
-  mv: number;
-  energy: number;
-  concerto: number;
-  offtune: number;
-  slot: string | null;
-  resetEnergy: boolean;
-  forte1: number;
-  forte2: number;
-  forte3: number;
-  forte4: number;
-  forte5: number;
-  resolveFn?: () => Action | null;
-  triggered: boolean;
-  /** What this was built from, kept so `variant()` can rebuild it with a change or two. */
-  readonly def: ActionDef;
-  /** Lazily-filled cache for `tagWordOf()` — this action's own element/type/type2, as the one
-   *  word every scoped stat contribution tests against. Engine-owned; never set by a kit. */
-  _tagWord?: number;
-
-  constructor(name: string, def: ActionDef = {}) {
-    super({ ...def, name });
-    this.element = def.element ?? null;
-    this.type = def.type ?? null;
-    this.type2 = def.type2 ?? null;
-    this.cast = def.cast ?? null;
-    this.cast2 = def.cast2 ?? null;
-    this.active = def.active ?? true;
-    this.node = def.node ?? null;
-    this.scaling = def.scaling ?? null;
-    this.mv = def.mv ?? 0;
-    // No default: an action that deals damage says what it multiplies, so a kit that forgets
-    // fails here rather than silently scaling off ATK. Only a rotation marker (rotation.ts's
-    // SWAP and friends), which carries no motion value, is allowed to leave it null.
-    if (this.mv !== 0 && this.scaling === null) throw new Error(`${name}: an action with a motion value must declare its scaling`);
-    this.energy = def.energy ?? 0;
-    this.concerto = def.concerto ?? 0;
-    this.offtune = def.offtune ?? 0;
-    this.slot = def.slot ?? null;
-    this.resetEnergy = def.resetEnergy ?? false;
-    this.forte1 = def.forte1 ?? 0;
-    this.forte2 = def.forte2 ?? 0;
-    this.forte3 = def.forte3 ?? 0;
-    this.forte4 = def.forte4 ?? 0;
-    this.forte5 = def.forte5 ?? 0;
-    this.resolveFn = def.resolve;
-    this.triggered = def.triggered ?? false;
-    this.def = def;
-  }
-
-  /** The same cast again under `overrides` — every hook and number shared, but a new Action, so
-   *  the two are told apart by identity wherever it matters (a Mainslot's off-field copy of its
-   *  own hit, say). */
-  variant(name: string, overrides: ActionDef): Action {
-    return new Action(name, { ...this.def, ...overrides });
-  }
-}
-
-
-/** A run of casts a rotation presses as one beat: `new ActionGroup("Ba123", [BA1, BA2, BA3])`
- *  wherever a single action would go. Nothing evaluates the group itself — `run()` expands it into
- *  its members before the first one is reached, so every kit hook, gauge and buff sees exactly the
- *  casts it always saw, in the same order, with the same follow-ups queued off them. The grouping
- *  is a *reporting* fact: the report folds the members into one row (display.ts), and the fight is
- *  unchanged.
- *
- *  The one place the engine does treat it as a unit is the off-tune bar: a group is one beat, so a
- *  Tune Break can only land on its last cast, never part-way through (see `midActionGroup()` and
- *  tunebreak.ts). The break itself is not part of the group — it is queued behind that last cast
- *  like any other follow-up. */
-export class ActionGroup extends Action {
-  actions: Action[];
-  constructor(name: string, actions: Action[]) {
-    super(name);
-    this.actions = actions;
-  }
-}
+/* Action/ActionGroup/ActionDef live in rotation.ts now, beside the markers and the rotation-
+ * flavoured forms (`cancel()`, `swap()`). Re-exported here as *types only* — that erased import
+ * is what keeps kit.ts free of any runtime edge back into rotation.ts, so rotation.ts (whose
+ * markers construct Actions, whose Action extends Gear) always evaluates after this module. */
+export type { Action, ActionGroup, ActionDef } from "./rotation.js";
 
 /* --------------------------------------------------------------- engine-owned per-slot state */
 
@@ -961,7 +817,7 @@ export class State {
   slots: TeamMember[];
   active = 0;
   /** Which way the next Outro hands the field over: +1 for the ordinary handoff to the next
-   *  resonator in team order, -1 for a rotation's own OUTRO_LAST (rotation.ts). The scheduler
+   *  resonator in team order, -1 for the outro closing a DOUBLE_INTRO section (rotation.ts). The scheduler
    *  sets it right before the outro is evaluated and puts it back to +1 straight after, so a
    *  kit-queued outro — or any other path into `evaluate()` — always advances forward. */
   outroDir: 1 | -1 = 1;
@@ -1198,7 +1054,7 @@ const noteMutation = (id: number, n: number): void => { mutHash = (Math.imul(mut
 /** The stats `evaluate()` banks into the running gauges — a variant that moves any of these would
  *  bank differently, so the real build's fight isn't its fight either. */
 const RESOURCE_STATS: Stat[] = [
-  Stat.AddEnergy, Stat.AddConcerto, Stat.AddOfftune, Stat.DirectOfftune, Stat.OfftuneBuildup,
+  Stat.AddEnergy, Stat.AddConcerto, Stat.AddOfftune, Stat.DirectOfftune, Stat.OfftuneBuildup, Stat.EnergyRegenMult,
   Stat.AddForte1, Stat.AddForte2, Stat.AddForte3, Stat.AddForte4, Stat.AddForte5,
 ];
 /** What a held Gear assigned for the action being evaluated (see `typeOverride()`) — the engine's
@@ -1949,6 +1805,11 @@ export interface ResolvedSnapshot extends Snapshot {
    *  that isn't an outro. Not folded into `concerto` above (that is already the post-reset 0);
    *  it's what the report reads to flag an outro that fired on an underfull bar. */
   concertoSpent: number;
+  /** Whether this action threw the Energy bar away — true on every outro but a double-Intro
+   *  visit's own, which its owner comes straight back from (see `evaluate()`). What the report
+   *  reads to blank the energy cell's own trace panel rather than credit a figure the same row
+   *  discarded (display.ts's own `wiped`). */
+  energyWiped: boolean;
   /** This slot's own RealEnergy (see `TeamMember.realEnergy`) as it stood right before this
    *  action's own gain landed — what the Energy Requirements table reads off a resetEnergy-marked
    *  Liberation's own row to compute that loop's ER requirement. */
@@ -2248,7 +2109,8 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
   // bank this action's own declared energy/concerto/offtune (the resonator's own baseline for
   // performing it) plus whatever AddEnergy/AddConcerto/AddOfftune a held buff contributed, into
   // the real running totals — no kit ever touches these directly, same as forte.
-  const energyGain = action.energy + effective[Stat.AddEnergy]!;
+  // Energy alone carries a multiplier: `(base + AddEnergy) x (1 + Energy Regen Multiplier)`.
+  const energyGain = (action.energy + effective[Stat.AddEnergy]!) * (1 + effective[Stat.EnergyRegenMult]! / 100);
   slot.energy = Math.max(0, slot.energy + energyGain);
   // An outro spends a full Concerto bar to fire and leaves the field with no Energy at all. The
   // spend is the outro's own declared `concerto: -100` — every outro in the project carries it, so
@@ -2257,10 +2119,16 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
   // -100 empties it exactly rather than leaving whatever it had overrun by. Energy is not a spend
   // of a known size, so it is simply set to 0. What the bar held on the way in is kept for the
   // report's underfull-outro flag. Off-tune is the enemy's, not theirs, and carries over.
+  // ...except a double-Intro visit's own outro, which hands the field *backward* (rotation.ts's
+  // own outroDir) and whose owner is coming straight back for their main Intro: that visit is half
+  // of one loop, not the end of one, so the Energy column runs on across both halves and only the
+  // outro that actually ends the loop wipes it. Jinhsi is the case — Unison pays for the first of
+  // her two outros, and her banking is one figure across the pair.
   const outro = casting(Cast.Outro);
   const concertoSpent = outro ? slot.concerto : 0;
+  const energyWiped = outro && state.outroDir > 0;
   if (outro) {
-    slot.energy = 0;
+    if (energyWiped) slot.energy = 0;
     if (slot.concerto > 100) slot.concerto = 100;
   }
   slot.concerto = Math.max(0, slot.concerto + action.concerto + effective[Stat.AddConcerto]!);
@@ -2368,6 +2236,7 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
     energy: slot.energy, concerto: slot.concerto, offtune: state.offtune,
     energyBefore, concertoBefore, offtuneBefore,
     concertoSpent,
+    energyWiped,
     realEnergyBefore,
     heldLocal, heldGlobal, heldEnemy,
     variantAvg,
@@ -2402,8 +2271,10 @@ export function run(state: State, rotation: Action[]): ResolvedSnapshot[] {
   const groups: (ActionGroup | null)[] = [];
   const ends: boolean[] = [];
   for (const entry of rotation) {
-    const members = entry instanceof ActionGroup ? entry.actions : [entry];
-    const group = entry instanceof ActionGroup ? entry : null;
+    // a duck-check rather than `instanceof ActionGroup`: the class lives in rotation.ts, which
+    // this module may only reference as types (see the import note at the top)
+    const group = (entry as ActionGroup).actions !== undefined ? (entry as ActionGroup) : null;
+    const members = group ? group.actions : [entry];
     members.forEach((a, k) => {
       actions.push(a); slots.push(-1); bys.push(null);
       groups.push(group); ends.push(group !== null && k === members.length - 1);
@@ -2442,7 +2313,13 @@ export function run(state: State, rotation: Action[]): ResolvedSnapshot[] {
     // Handed to evaluate() rather than stamped on the snapshot after: gear reacting mid-action
     // needs it too (tunebreak.ts's own watcher won't auto-fire off one) — see triggeredAction().
     const triggered = stepSlot >= 0 || stepAction.triggered || action.triggered || action.slot !== null || isCast(action, Cast.Outro);
-    const snapshot = evaluate(state, action, triggered, stepBy);
+    // A triggered echo form names the equipped mainslot itself as its trigger, so the row's hover
+    // wears the gear's name in its owner's colour. Overrides whatever queueOnIntro() attributed —
+    // during marker resolution `currentBuff` is stale, so the deferred swap copy carried garbage.
+    const ms = state.slot.mainslot;
+    const by = ms && action.triggered && (action === ms.onfield || action === ms.outro || action === ms.cancel)
+      ? { name: ms.name, source: state.sourceOf.get(ms) ?? state.slot.name } : stepBy;
+    const snapshot = evaluate(state, action, triggered, by);
     snapshot.group = stepGroup;
     snapshot.groupEnd = stepEnd;
     out.push(snapshot);

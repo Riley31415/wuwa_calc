@@ -7,15 +7,16 @@
  * own updateBuffs() reads and consumes.
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, applyCurrent, applyTeam, revokeTeam, isHeld, stacksOf, removeStack, revokeCurrent, casting,
   currentAction, addStat, frozenStacks, queue, queueOutro, } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Action, Rotation, INTRO, ECHO_SWAP, OUTRO, NOINTRO } from "../../engine/rotation.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
+import { BLAZING_BRILLIANCE } from "../../weapons/sword.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -209,7 +210,8 @@ const SANHUA_TALENTS = new Talent({
 // this same rotation covers both opener and loop.
 
 const SH_ROTATION = new Rotation([
-  INTRO, Skill, Liberation, FHA, ECHO_OUTRO, OUTRO_NEXT,
+  NOINTRO, FHA,
+  INTRO, Skill, Liberation, FHA, ECHO_SWAP, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -221,7 +223,7 @@ export const SANHUA = new Loadout({
   talent: SANHUA_TALENTS,
   inherent1: SH_INHERENT_1,
   inherent2: SH_INHERENT_2,
-  weapons: [EMERALD_OF_GENESIS, OVERTURE],
+  weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, OVERTURE],
   echoLoadouts: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
   substat: chem("atk", "skill"),

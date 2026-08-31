@@ -43,15 +43,14 @@
  * `weakness_mastery` is 0, so she carries no flat Tune Break Boost.
  */
 import {
-  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType,
+  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType,
   Type1, Type2, Cast, Node, Scaling, addStat, applied, applyCurrent, applyEnemy, applyTeam, casting,
   concerto, consumedAny, consumedByMe, currentAction, currentTeam, isType, maxStackIncrease, queueOn,
   queueOutro, removeStackTeam, revokeCurrent, revokeTeam, setForte1, setForte2, stacksOfTeam,
   frozenStacks,
   forte2,
-  ActionGroup,
-} from "../../engine/kit.js";
-import { Rotation, START_COMBAT, OPENER, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
+  } from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import {
   AERO_EROSION, ELECTRO_FLARE, ELECTRO_RAGE, FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE, HEALS, SPECTRO_FRAZZLE,
 } from "../../shared/status.js";
@@ -307,17 +306,17 @@ const BA123 = new ActionGroup("Basic - Zephyr Stance 123", [BA1, BA2, BA3]);
  *  From there it is one Drizzle chain: the four stages, the Heavy into Swallow's Cut, and the
  *  Drizzle skill — 962 Floral Epistle against the 600 the top Outro tier wants, and comfortably
  *  inside the stance's own 15s at the table's frame counts. The Liberation sits in an inline
- *  START_COMBAT section: she spends the bar she walks into the fight holding in the opening
+ *  start-of-combat section: she spends the bar she walks into the fight holding in the opening
  *  scramble, so the Landscape is up from the first action, and re-casts it every visit after.
  *
  *  Concerto: 135.7 by the opener's Outro (Awakening Spring takes Sky Over Water's +18 there, and
  *  the scramble's Liberation is already banked) and 122.2 every loop after — both well clear of the
  *  100 the Outro spends. */
 const SS_ROTATION = new Rotation([
-  OPENER, BA123, ESkill,
+  NOINTRO, BA123, ESkill,
   INTRO, 
   FSkill, FBA1234, 
-  ECHO_CANCEL, Liberation, OUTRO_NEXT,
+  ECHO_CANCEL, Liberation, OUTRO,
 ]);
 
 export const SUISUI = new Loadout({

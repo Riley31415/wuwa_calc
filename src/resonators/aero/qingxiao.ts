@@ -33,13 +33,12 @@
  * off-tune) nanoka is what's here.
  */
 import {
-  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, addStat, applied, applyCurrent, applyTeam, applyEnemy, currentAction, maxStackIncrease,
   revokeCurrent, revokeTeam, stacksOfEnemy, setForte1, setForte2, forte1, forte2,
-  ActionGroup,
-} from "../../engine/kit.js";
+  } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT, START_COMBAT } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, START_3, SWAP } from "../../engine/rotation.js";
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_SHIFTING, TUNE_STRAIN_INTERFERED, tuneStrainBonus } from "../../shared/tunebreak.js";
 import { BLAZING_BRILLIANCE, GLINT_OF_CLOUDS, RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS, NEW_STD_SWORD } from "../../weapons/standard.js";
@@ -279,10 +278,10 @@ const FBA1234 = new ActionGroup("Forte - Ephemeral Transcendence 1234", [FBA1, F
 const MA123 = new ActionGroup("Basic - Stringblade (Mid-Air) 123", [MA1, MA2, MA3]);
 
 const QX_ROTATION = new Rotation([
-  START_COMBAT, Liberation, START_COMBAT,
+  START_3, Liberation, SWAP,
   INTRO, MA123, BA3, BA4, Skill, HA,
   FBA1234, FHA,
-  Liberation, ECHO_OUTRO, OUTRO_NEXT,
+  Liberation, ECHO_SWAP, OUTRO,
 ]);
 
 export const QINGXIAO = new Loadout({

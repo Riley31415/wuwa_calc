@@ -43,13 +43,12 @@
  * Boost of her own.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType,
   Type1, Cast, Node, Scaling, addStat, applied, appliedByMe, applyCurrent, applyEnemy, applyTeam, casting,
   consume, currentAction, currentTeam, forte1, frozenStacks, isHeld, queue, revokeCurrent,
   revokeTeam, setForte1, setForte2, stacksOfEnemy, stacksOfTeam,
-  ActionGroup,
-} from "../../engine/kit.js";
-import { Rotation, INTRO, ECHO_ONFIELD, OUTRO_NEXT, START_COMBAT, ECHO_OUTRO } from "../../engine/rotation.js";
+  } from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO, START_3, SWAP, ECHO_SWAP } from "../../engine/rotation.js";
 import { HAVOC_BANE } from "../../shared/status.js";
 import { AZURE_OATH } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
@@ -331,7 +330,7 @@ export const XUANLING_RESONATOR = new Resonator({
   combatStart: () => setForte1(100),
 
   applyStats: () => {
-    if (currentAction().node === Node.Normal && forte1() > 0) addStat(Stat.AddEnergy, currentAction().energy * 0.2);
+    if (currentAction().node === Node.Normal && forte1() > 0) addStat(Stat.EnergyRegenMult, 20);
   },
 
   constantStats: () => {
@@ -354,11 +353,11 @@ const HiB123 = new ActionGroup("Forte Basic: Havoc in Bloom 123", [HiB1, HiB2, H
  *  one per Havoc Bane she inflicts, and the four casts that inflict one all come after it. She is
  *  always the team's main DPS, so this covers the loop and there is no opener chain. */
 const XUANLING_ROTATION = new Rotation([
-  START_COMBAT, SwitchFeather, START_COMBAT, // start in feather stance, so the first cast is a switch to Azure
+  START_3, SwitchFeather, SWAP, // start in feather stance, so the first cast is a switch to Azure
 
   INTRO, BA_F1234, FlowAzure, HeavyAzure, 
-  Lib, FlowFeather, HeavyFeather, FeatherFall, HiB123, ECHO_OUTRO,
-  OUTRO_NEXT,
+  Lib, FlowFeather, HeavyFeather, FeatherFall, HiB123, ECHO_SWAP,
+  OUTRO,
 ]);
 
 const XUANLING_ECHOES = [

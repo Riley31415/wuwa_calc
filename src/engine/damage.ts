@@ -137,10 +137,10 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
   // factor is reported as a neutral 1 so the table still has something to show per term.
   if (scaling === Scaling.Fixed) {
     return {
-      scaling, finalMv: action.mv, finalStat: 1,
+      scaling, finalMv: action.mv, finalStat: 100,
       ampFactor: 1, bonusFactor: 1, tbbFactor: 1, resFactor: 1, defFactor: 1, dealtFactor: 1,
       critFactor: 1, critMult: 1,
-      noCrit: action.mv / 100, crit: action.mv / 100, avg: action.mv / 100,
+      noCrit: action.mv, crit: action.mv, avg: action.mv,
     };
   }
 

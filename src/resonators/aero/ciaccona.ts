@@ -10,11 +10,11 @@
  * skill states its own Concerto Regen outright, which wins.
  */
 import {
-  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, applyCurrent, applyTeam, applyEnemy, revokeTeam, isHeld, revokeCurrent, casting, currentAction,
   addStat, queueOnIntro, Type2,
 } from "../../engine/kit.js";
-import { Rotation, OPENER, INTRO, ECHO_OUTRO, OUTRO_NEXT, START_COMBAT } from "../../engine/rotation.js";
+import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, SWAP } from "../../engine/rotation.js";
 import { AERO_EROSION, SHIELD } from "../../shared/status.js";
 import { WOODLAND_ARIA } from "../../weapons/pistol.js";
 import { NM_KELPIE } from "../../echoes/rinascita.js";
@@ -138,15 +138,13 @@ const CIACCONA_TALENTS = new Talent({
 // restarting the string. She's never the team's own lead, so this covers opener and loop both.
 
 const CI_ROTATION = new Rotation([
-  START_COMBAT, Skill, START_COMBAT,
-
-  OPENER, // jump
-  MA1, MA2, BA4, MA1, MA2, BA4, MA1, MA2, BA4,
-  Downbeat, Liberation, ECHO_OUTRO, OUTRO_NEXT,
+  NOINTRO, // jump
+  MA1, MA2, BA4, MA1, MA2, BA4, MA1, MA2, BA4, Skill,
+  Downbeat, Liberation, ECHO_SWAP, OUTRO,
 
   INTRO, BA3, BA4, // jump
   MA1, MA2, BA4,
-  Skill, Downbeat, Liberation, ECHO_OUTRO, OUTRO_NEXT,
+  Skill, Downbeat, Liberation, ECHO_SWAP, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

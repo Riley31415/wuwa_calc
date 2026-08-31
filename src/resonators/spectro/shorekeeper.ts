@@ -7,12 +7,11 @@
  * migrated sheet this was ported from didn't carry it.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyTeam, applyCurrent, addBuff, revokeBuff, stacksOfTeam, currentAction, currentTeam, casting,
   revokeTeam, addStat,
-  ActionGroup,
-} from "../../engine/kit.js";
-import { Rotation, START_COMBAT, OPENER, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
+  } from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, START_1, START_2, START_3, SWAP, NOINTRO, INTRO, ECHO_CANCEL, OUTRO, DODGE, JUMP } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { SK_SIG } from "../../weapons/rectifier.js";
 import { VARIATION } from "../../weapons/standard.js";
@@ -153,19 +152,22 @@ const SHOREKEEPER_TALENTS = new Talent({
 
 // INTRO resolves to plain Intro or Discernment on its own — same marker for opener and loop.
 // The loop is shorter than the opener; it generates just over the 100 concerto the outro spends.
-// OPENER ROTATIONS DO NOT HAVE AN INTRO
+// NOINTRO ROTATIONS DO NOT HAVE AN INTRO
 
 const BA123 = new ActionGroup("Basic - Origin Calculus 123", [BA1, BA2, BA3]);
 
 const SK_LOOP = new Rotation([
-  // Chaos Theory opens the fight on a swap-in of its own and is then on cooldown, so the opener
-  // runs the basics twice over instead — which is the whole of what used to be a separate opener
-  // body. Written inline, that difference is just where the section brackets sit.
-  OPENER, BA2, BA3, // dodge
-  BA1, BA2, FHA,
-  INTRO, BA123, MA, FHA,
-  START_COMBAT, Skill, START_COMBAT,
-  ECHO_CANCEL, Liberation, OUTRO_NEXT,
+  START_3, Skill, ECHO_CANCEL, Liberation, SWAP,
+
+  NOINTRO, 
+  BA123, JUMP, MA, FHA,
+  Skill, BA2, BA3, DODGE,
+  BA1, BA2, FHA, 
+  ECHO_CANCEL, Liberation, OUTRO,
+
+  INTRO, BA123, JUMP, MA, FHA,
+  START_2, Skill, SWAP,
+  ECHO_CANCEL, Liberation, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

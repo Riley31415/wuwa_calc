@@ -59,14 +59,14 @@
  */
 import {
   isType,
-  Buff, Talent, Inherent, Debuff, Resonator, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Buff, Talent, Inherent, Debuff, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, addStat, applyCurrent, applyTeam, revokeTeam, casting, currentAction, revokeCurrent, frozenStacks, applyEnemy,
   stacksOfEnemy, maxStackIncrease,
   setForte2,
   setForte1,
   forte1,
 } from "../../engine/kit.js";
-import { Rotation, OPENER, INTRO, ECHO_OUTRO, OUTRO_NEXT, START_COMBAT } from "../../engine/rotation.js";
+import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, START_1, START_2, SWAP, START_3 } from "../../engine/rotation.js";
 import {
   HEALS, SHIELD, HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, FUSION_BURST, AERO_EROSION, SPECTRO_FRAZZLE, ELECTRO_RAGE,
   inflictedNegativeStatus,
@@ -297,16 +297,17 @@ const CHISA_RESONATOR = new Resonator({
  *  Rending Lunge -> Death Snip -> Thread Withdrawn) to bank the rest of the Ring of Chainsaw,
  *  Serrated Loop's Hold once it's full, and the Blitz Hold chain into Eradication to spend it back
  *  down (saturating RING_CONSUMED's own 100-point cap) and trade the Convergence buff away. */
-const CS_ROTATION = new Rotation([
-  START_COMBAT, Skill, START_COMBAT,
 
-  OPENER, BA3, DeathSnipSpread, ThreadWithdrawn, Liberation,
+const CS_ROTATION = new Rotation([
+  START_2, START_3, Skill, SWAP,
+
+  NOINTRO, Skill, BA3, DeathSnipSpread, ThreadWithdrawn, Liberation,
   SerratedLoop, Blitz2Hold, Blitz3Hold, Eradication,
-  ECHO_OUTRO, OUTRO_NEXT,
+  ECHO_SWAP, OUTRO,
 
   INTRO, Skill, BA3, DeathSnipSpread, Liberation,
   SerratedLoop, Blitz2Hold, Blitz3Hold, Eradication,
-  ECHO_OUTRO, OUTRO_NEXT,
+  ECHO_SWAP, OUTRO,
 ]);
 
 const CS_ECHOES = [

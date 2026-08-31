@@ -28,6 +28,9 @@ export const enum Stat {
   Er,
   Tbb,
   OfftuneBuildup,
+  /** Scales what an action regens: `(base energy + AddEnergy) x (1 + this/100)` — Camellya's
+   *  Vegetative Universe, Yangyang. Percent; 0 means the ordinary x1. */
+  EnergyRegenMult,
 
   /** Motion value: `(base mv + AddMv) x (1 + MulMv)` — AddMv is inside the parens, MulMv independent. */
   AddMv,
@@ -90,6 +93,7 @@ export const STAT_NAME: Record<Stat | EnemyStat, string> = {
   [Stat.BonusAtk]: "ATK%", [Stat.BonusHp]: "HP%", [Stat.BonusDef]: "DEF%",
   [Stat.CritRate]: "Crit Rate", [Stat.CritDmg]: "Crit Dmg", [Stat.Er]: "Energy Regen",
   [Stat.Tbb]: "Tune Break Boost", [Stat.OfftuneBuildup]: "Buildup",
+  [Stat.EnergyRegenMult]: "Energy Regen Multiplier",
   [Stat.AddMv]: "MV increase", [Stat.MulMv]: "MV multiplier",
   [Stat.DmgBonus]: "Dmg Bonus", [Stat.Amp]: "Amplification", [Stat.TotalDmg]: "Total Damage",
   [Stat.ResIgnore]: "Res Ignore", [Stat.DefIgnoreNew]: "Def Ignore (new)", [Stat.DefIgnoreOld]: "Def Ignore (old)",
@@ -279,7 +283,7 @@ export const SCALING_NAME: Record<Scaling, string> = {
  *  number everywhere. What divides it into a multiplier does so itself (damage.ts's `tbbFactor`). */
 export const PERCENT_STATS: Set<Stat | EnemyStat> = new Set<Stat | EnemyStat>([
   Stat.BonusAtk, Stat.BonusHp, Stat.BonusDef, Stat.CritRate, Stat.CritDmg, Stat.Er,
-  Stat.OfftuneBuildup,
+  Stat.OfftuneBuildup, Stat.EnergyRegenMult,
   Stat.AddMv, Stat.MulMv,
   Stat.DmgBonus, Stat.Amp, Stat.TotalDmg,
   Stat.ResIgnore, Stat.DefIgnoreNew, Stat.DefIgnoreOld,

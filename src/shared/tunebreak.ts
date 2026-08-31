@@ -4,10 +4,11 @@
  * here, equipped onto `State.enemy` the way a member's own kit is equipped onto them.
  */
 import {
-  Action, Attribute, BuffDef, Cast, Debuff, EnemyStat, Gear, Resonator, Scaling, Stat, Type1, WeaponType,
+  Attribute, BuffDef, Cast, Debuff, EnemyStat, Gear, Resonator, Scaling, Stat, Type1, WeaponType,
   addEnemyStat, addStat, applied, applyEnemy, currentAction, currentTeam, equip, getStat, midActionGroup,
   queue, queueEvent, revokeEnemy, stacksOfEnemy, triggeredAction,
 } from "../engine/kit.js";
+import { Action } from "../engine/rotation.js";
 
 /* ---------------------------------------------------------------------------- the enemy */
 

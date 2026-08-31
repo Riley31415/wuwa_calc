@@ -7,10 +7,11 @@
  * unconditional equip passive goes in the Mainslot's own applyStats().
  */
 import { isType,
-  Buff, Sonata, Sonata2pc, Mainslot, EchoType, Action, Stat, Attribute, Type1, Cast, Scaling,
+  Buff, Sonata, Sonata2pc, Mainslot, EchoType, Stat, Attribute, Type1, Cast, Scaling,
   addStat, frozenStacks, casting, currentAction, revokeCurrent, applyCurrent, applyTeam, stacksOfTeam, revokeTeam,
   removeStackTeam, queueOutro, queue, triggeredAction,
 } from "../engine/kit.js";
+import { Action } from "../engine/rotation.js";
 import { applied } from "../engine/kit.js";
 import { handoff, lostOnSwap } from "../shared/helpers.js";
 import { HEALS, SHIELD } from "../shared/status.js";
@@ -274,7 +275,8 @@ export const JUE = new Mainslot({
 });
 
 /** Celestial Light, Jué's own matching sonata. 2pc: +10% Spectro DMG Bonus flat. 5pc: +30%
- *  Spectro DMG Bonus after Intro Skill — permanent uptime never lost, by explicit instruction. */
+ *  Spectro DMG Bonus after Intro Skill, lost after the outro pays out — a double-Intro rotation
+ *  (Jinhsi's) re-arms it on each of its two Intros, so both visits run covered. */
 export const CELESTIAL_LIGHT_2PC = new Sonata2pc({ name: "Celestial Light 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Spectro) });
 export const CELESTIAL_LIGHT_5PC = new Sonata({
   name: "Celestial Light 5pc",
@@ -283,6 +285,7 @@ export const CELESTIAL_LIGHT_5PC = new Sonata({
 export const CELESTIAL_LIGHT_INTRO = new Buff({
   name: "Celestial Light",
   applyStats: () => addStat(Stat.DmgBonus, 30, Attribute.Spectro),
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(CELESTIAL_LIGHT_INTRO); },
 });
 
 /** Mech Abomination — an Electro mainslot echo. Its strike also grants +12% ATK for 15s and

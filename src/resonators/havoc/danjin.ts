@@ -24,12 +24,12 @@
  * Resonance Cost (`maxEnergy` below) is her own real 100%, not the generic 125% default.
  */
 import {
-  Buff, Debuff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType,
+  Buff, Debuff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType,
   Type1, Cast, Node, Scaling, applyCurrent, applyTeam, applyEnemy, revokeCurrent, revokeTeam, revokeEnemy, isHeld,
   stacksOfEnemy, casting, currentAction, addStat, frozenStacks, queueOutro, forte1,
 } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { Rotation, INTRO, ECHO_OUTRO, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Action, Rotation, INTRO, ECHO_SWAP, OUTRO, SWAP, START_3 } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, EMERALD_SENTENCE } from "../../weapons/sword.js";
@@ -236,12 +236,13 @@ const DJ_S6 = new Sequence({
 // both opener and loop.
 
 const DJ_ROTATION = new Rotation([
+  START_3, Liberation, SWAP,
   INTRO, CrimsonErosion1, CrimsonErosion2,
   Liberation,
   CarmineGleam, BA2, BA3,
   SanguinePulse1, SanguinePulse2, SanguinePulse3,
   Chaoscleave, Scatterbloom,
-  ECHO_OUTRO, OUTRO_NEXT,
+  ECHO_SWAP, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

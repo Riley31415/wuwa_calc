@@ -35,11 +35,11 @@
  *  S6 Heaven, Earth, Mind grants 50% Resonance Skill DMG Bonus instead of 25% — read by THUNDER_SPELL.
  */
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Action, Stat, Attribute, WeaponType, Type1,
+  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, applyTeam, applyCurrent, stacksOfTeam, isHeld, casting, currentAction, currentTeam, addStat,
   queueOnIntro, revokeCurrent, revokeTeam,
 } from "../../engine/kit.js";
-import { Rotation, OPENER, INTRO, ECHO_CANCEL, OUTRO_NEXT } from "../../engine/rotation.js";
+import { Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { applyEnemy } from "../../engine/kit.js";
 import { ELECTRO_FLARE, HEALS } from "../../shared/status.js";
 import { COSMIC_RIPPLES, NEW_STD_RECTIFIER, VARIATION } from "../../weapons/standard.js";
@@ -206,10 +206,10 @@ const BULING_TALENTS = new Talent({
 // Heavy: Twin Thunders spends both for Minor Yin — unlocking Harmony for the Liberation after.
 // BL_ROTATION for a non-leading slot (opens on her own Intro); BL_OPENER for a leading one.
 const BL_ROTATION = new Rotation([
-  OPENER,
+  NOINTRO,
   INTRO, MA, BA2, HA_THUNDER_OVER_MOUNTAIN,
   Skill, BA4, HA_TWIN_THUNDERS, ECHO_CANCEL,
-  Liberation, OUTRO_NEXT,
+  Liberation, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
