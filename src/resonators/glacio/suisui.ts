@@ -49,8 +49,8 @@ import {
   queueOutro, removeStackTeam, revokeCurrent, revokeTeam, setForte1, setForte2, stacksOfTeam,
   frozenStacks,
   forte2,
-  } from "../../engine/kit.js";
-import { ActionGroup, Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
+  } from "../../kit.js";
+import { ActionGroup, Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../rotation.js";
 import {
   AERO_EROSION, ELECTRO_FLARE, ELECTRO_RAGE, FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE, HEALS, SPECTRO_FRAZZLE,
 } from "../../shared/status.js";

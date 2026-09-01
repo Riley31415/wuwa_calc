@@ -10,10 +10,10 @@ import { isType,
   Buff, Sonata, Sonata2pc, Mainslot, EchoType, Stat, Attribute, Type1, Cast, Scaling,
   addStat, frozenStacks, casting, currentAction, revokeCurrent, applyCurrent, applyTeam, stacksOfTeam, revokeTeam,
   removeStackTeam, queueOutro, queue, triggeredAction,
-} from "../engine/kit.js";
-import { Action } from "../engine/rotation.js";
-import { applied } from "../engine/kit.js";
-import { handoff, lostOnSwap } from "../shared/helpers.js";
+} from "../kit.js";
+import { Action, ActionField } from "../rotation.js";
+import { applied } from "../kit.js";
+import { coordinatedBuff, handoff, lostOnSwap } from "../shared/helpers.js";
 import { HEALS, SHIELD } from "../shared/status.js";
 
 /* -------------------------------------------------------------------------- generic, unowned */
@@ -253,19 +253,23 @@ export const SIERRA_GALE_INTRO = new Buff({
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(SIERRA_GALE_INTRO); },
 });
 
-/** Jué — a Calamity Class Spectro mainslot echo. Its cast also summons Blessing of Time as a
- *  separate triggered action — 15 ticks of 16% Resonance Skill DMG, lumped into one action same
- *  as Zhezhi's Inklit Spirit/Cantarella's Diffusion — and grants a permanent +16% Resonance
- *  Skill DMG Bonus (uptime never lost, by explicit instruction). */
+/** Jué — a Calamity Class Spectro mainslot echo. Its cast grants the wearer Blessing of Time,
+ *  the 15s window as a self-held coordinated countdown (`coordinatedBuff`, owner null — an echo
+ *  has no resonator to name): every active, non-triggered action anywhere lands one 16% tick on
+ *  the wearer's own slot, considered their Resonance Skill DMG, and while any stack remains they
+ *  keep the +16% Resonance Skill DMG Bonus. The echo's own 20s cooldown means a rotation re-banks
+ *  it about once a loop, so the bonus is live for the burst it was pressed for and gone after. */
 export const ACTION_JUE = new Action("Echo - Jué", {
   cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Echo, mv: 48.64 * 2 + 19.46 * 5, energy: 0.76 * 2 + 0.3 * 5,
-  updateBuffs: () => { applyCurrent(JUE_BLESSING, 1); queue(ACTION_JUE_BLESSING); },
+  updateBuffs: () => applyCurrent(JUE_BLESSING, 15),
 });
-export const ACTION_JUE_BLESSING = new Action("Echo - Jué: Blessing of Time x15", {
-  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Skill, mv: 16 * 15,
+/** Blessing of Time's own summon — the field it fires from, named for the report (rotation.ts's
+ *  `ActionField`); JUE_BLESSING below is the buff whose grant puts it out. */
+const JUE_FIELD = new ActionField("Jué: Blessing of Time");
+export const ACTION_JUE_TICK = new Action("Echo - Jué: Blessing of Time", {
+  element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Skill, mv: 16, active: false, field: JUE_FIELD,
 });
-export const JUE_BLESSING = new Buff({
-  name: "Jué: Blessing of Time",
+export const JUE_BLESSING = coordinatedBuff("Jué: Blessing of Time", 15, null, ACTION_JUE_TICK, {
   applyStats: () => addStat(Stat.DmgBonus, 16, Type1.Skill),
 });
 export const JUE = new Mainslot({

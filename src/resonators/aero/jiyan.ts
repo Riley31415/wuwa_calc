@@ -27,9 +27,9 @@ import {
   Node, Scaling, applyCurrent, currentAction, casting, revokeCurrent, addStat, removeStack, forte1, queue, queueOn,
   triggeredAction,
   queueOutro,
-} from "../../engine/kit.js";
+} from "../../kit.js";
 import { matrix } from "../../shared/helpers.js";
-import { Action, Rotation, START_3, SWAP, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
+import { Action, Rotation, START_3, SWAP, INTRO, ECHO_CANCEL, OUTRO, ActionField } from "../../rotation.js";
 import { VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC, SIERRA_GALE_2PC } from "../../echoes/jinzhou.js";
@@ -95,7 +95,8 @@ const Outro = jiyanAction("Outro - Discipline", {
 });
 /** One coordinated lance strike — queued onto his own slot by JIYAN_OUTRO below, once per stack
  *  the incoming resonator's Heavy casts consume. */
-const ACTION_OUTRO_COORD = jiyanAction("Outro - Discipline (Coordinated Lance)", { type: Type1.Outro, type2: Type2.Coordinated, mv: 313.40, active: false });
+const DISCIPLINE_FIELD = new ActionField("Jiyan: Discipline");
+const ACTION_OUTRO_COORD = jiyanAction("Outro - Discipline (Coordinated Lance)", { type: Type1.Outro, type2: Type2.Coordinated, mv: 313.40, active: false, field: DISCIPLINE_FIELD });
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -128,6 +129,7 @@ const JY_INHERENT_2 = new Inherent({
  *  consuming one to fire a coordinated lance on Jiyan's own slot. Whatever's left is lost when
  *  they leave the field. */
 const JIYAN_OUTRO: Buff = new Buff({
+  field: DISCIPLINE_FIELD,
   name: "Jiyan: Outro", maxStacks: 2,
   updateBuffs: () => {
     if (casting(Cast.Heavy)) { queueOn(JIYAN_RESONATOR, ACTION_OUTRO_COORD); removeStack(JIYAN_OUTRO, 1); }

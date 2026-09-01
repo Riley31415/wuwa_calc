@@ -12,9 +12,9 @@ import {
   Scaling, applyCurrent, applyTeam, currentAction, casting, queueOutro, revokeCurrent, addStat, frozenStacks, applied,
   setForte1,
   forte1,
-} from "../../engine/kit.js";
+} from "../../kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO, ECHO_CANCEL, ECHO_SWAP } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO, ECHO_CANCEL, ECHO_SWAP } from "../../rotation.js";
 import { SHIELD } from "../../shared/status.js";
 import { IUNO_SIG, VERITYS_HANDLE } from "../../weapons/gauntlet.js";
 import { MARCATO, NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";

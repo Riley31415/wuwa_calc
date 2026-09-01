@@ -26,9 +26,9 @@
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, applyTeam, revokeCurrent, revokeBuff, casting, currentAction, currentTeam, addStat, queue,
-  queueOutro, } from "../../engine/kit.js";
-import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
-import { applied } from "../../engine/kit.js";
+  queueOutro, } from "../../kit.js";
+import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../rotation.js";
+import { applied } from "../../kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { SHIELD } from "../../shared/status.js";
 import { THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";

@@ -65,8 +65,8 @@ import {
   setForte2,
   setForte1,
   forte1,
-} from "../../engine/kit.js";
-import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, START_1, START_2, SWAP, START_3 } from "../../engine/rotation.js";
+} from "../../kit.js";
+import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, START_1, START_2, SWAP, START_3 } from "../../rotation.js";
 import {
   HEALS, SHIELD, HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, FUSION_BURST, AERO_EROSION, SPECTRO_FRAZZLE, ELECTRO_RAGE,
   inflictedNegativeStatus,

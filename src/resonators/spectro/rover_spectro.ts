@@ -13,8 +13,8 @@ import {
   Buff, Debuff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, EnemyStat, Attribute,
   WeaponType, Type1, Cast, Node, Scaling, applyCurrent, applyEnemy, revokeEnemy, isHeld, revokeCurrent, casting,
   currentAction, addStat, addEnemyStat, queue,
-} from "../../engine/kit.js";
-import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
+} from "../../kit.js";
+import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO } from "../../rotation.js";
 import { SPECTRO_FRAZZLE, HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";

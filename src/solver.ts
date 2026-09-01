@@ -20,8 +20,9 @@
 import { State, withTeam, equip, equipEnemy, setTracing, Buff, Loadout, EchoLoadout, Weapon, baseSequence } from "./kit.js";
 import type { ChainGroup, ResolvedSnapshot, Matrix } from "./kit.js";
 import { runRotations } from "./rotation.js";
+import type { ActionField } from "./rotation.js";
 import { damage, mvPercent } from "./damage.js";
-import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
+import { TUNE_BREAK_ENEMY } from "./shared/tunebreak.js";
 import type { Report } from "./display.js";
 import { teamAt } from "./teams.js";
 
@@ -406,10 +407,11 @@ const toLine = (snap: ResolvedSnapshot): ChainGroup =>
  * resources, the forte gauges) are recombined across every member instead, in display.ts.
  *
  * `parts` is the whole span in the order it actually resolved, members and the follow-ups queued
- * between them alike — that is what the opened group shows. Those follow-ups are *also* emitted as
- * lines of their own, flagged `spill`: they are separate damage and every total has to count them,
- * so they stay lines rather than being folded in, and the report merely tucks them under the group
- * while it is collapsed.
+ * out of them alike — the last member's included, which land after the group has already ended
+ * (kit.ts's own `groupSpill`) and used to trail it as loose rows. That is what the opened group
+ * shows. Those follow-ups are *also* emitted as lines of their own, flagged `spill`: they are
+ * separate damage and every total has to count them, so they stay lines rather than being folded
+ * in, and the report merely tucks them under the group while it is collapsed.
  */
 function toLines(snaps: ResolvedSnapshot[]): ChainGroup[] {
   const lines: ChainGroup[] = [];
@@ -418,18 +420,23 @@ function toLines(snaps: ResolvedSnapshot[]): ChainGroup[] {
     if (!head.group) { lines.push(toLine(head)); i++; continue; }
     const parts: ChainGroup["parts"] = [];
     const members: ResolvedSnapshot[] = [], extras: ResolvedSnapshot[] = [];
-    let mv = 0, avg = 0, j = i;
+    let mv = 0, avg = 0, j = i, ended = false;
     for (; j < snaps.length; j++) {
       const snap = snaps[j]!;
+      // `ended`/`groupEnd`, not "the group changed": a rotation may press the same group twice in
+      // a row, and the flag is what tells the second press from more of the first — which is where
+      // the span stops, however much spill the first press is still trailing.
+      const member = !ended && snap.group === head.group;
+      if (!member && snap.groupSpill !== head.group) break;
       const dmg = damage(snap);
+      // every part stands alone in the opened view — a repeated follow-up folds only as the spill
+      // lines below, where the rows read outside the group while it is collapsed
       parts.push({ snap, dmg });
-      // `groupEnd`, not "the group changed": a rotation may press the same group twice in a row,
-      // and the flag is what tells the second press from more of the first
-      if (snap.group === head.group) {
+      if (member) {
         members.push(snap);
         mv += mvPercent(snap);
         avg += dmg.avg;
-        if (snap.groupEnd) { j++; break; }
+        if (snap.groupEnd) ended = true;
       } else extras.push(snap);
     }
     lines.push({
@@ -461,11 +468,15 @@ function collapseRepeats(lines: ChainGroup[]): ChainGroup[] {
     const head = lines[i]!;
     const snap = head.snap;
     let j = i + 1;
-    if (!head.isChain && snap.triggered) {
+    // a field's own summons are never folded here: the field row above them is already the one
+    // that says "x70", and opening it shows the hits themselves rather than folds of folds
+    if (!head.isChain && snap.triggered && !snap.action.field) {
       while (j < lines.length) {
         const next = lines[j]!;
         if (next.isChain || !next.snap.triggered || !!next.spill !== !!head.spill) break;
-        if (next.snap.action !== snap.action || next.snap.slot !== snap.slot) break;
+        // by name, not identity: a same-named variant is the same cast to the reader (Mortefi's
+        // paired Marcato copies, Verina's S6 reuse of her mark's own hit)
+        if (next.snap.action.name !== snap.action.name || next.snap.slot !== snap.slot) break;
         j++;
       }
     }
@@ -483,6 +494,100 @@ function collapseRepeats(lines: ChainGroup[]): ChainGroup[] {
     });
     i = j;
   }
+  return out;
+}
+
+/**
+ * Gather each field's hits into one row: the whole field — every summon it fired, however
+ * scattered — read as a single beat sitting directly under the cast that
+ * created it, carrying the summed motion value and damage. It reads and opens exactly as an
+ * ActionGroup's own row does; the one difference is where the hits go when it is opened, which is
+ * back into the places they actually fired rather than indented underneath (index.ts renders them
+ * there, which is why they stay lines of their own here).
+ *
+ * Both ends are declared, so nothing here is inferred: a summon's hit names its `ActionField`
+ * (rotation.ts) and so does the Buff whose grant puts the field out, and `evaluate()` stamps every
+ * row that granted one (`ResolvedSnapshot.opensFields`). One row per *opening*: a kit that
+ * re-casts (Mortefi's second Violent Finale) gets a row under each cast, with its own hits under
+ * it. The fold runs over the whole run at once, section cuts and all — a window pressed late in a
+ * loop keeps firing into the next one (Jué's Blessing off a late echo press), and those hits are
+ * still that press's, not a second field's — so a summary lands in whichever section its opening
+ * cast sits in, while its hits stay in their own; the log draws every section into one grid, so
+ * the one row still swaps with all of them. Hits ahead of every opening belong to nothing this
+ * run pressed twice, and their row sits just ahead of the first of them.
+ *
+ * The row is `aggregate`: its damage is the hits' own, already counted on their own rows, so every
+ * sum skips it (display.ts's totals, index.ts's breakdowns) and only the display reads it.
+ * Display-only in the first place — applied to the traced lines the detail page renders, never the
+ * scoring pass.
+ */
+let nextFieldKey = 0;
+
+export function collapseFields(sections: ChainGroup[][]): ChainGroup[][] {
+  const lines = sections.flat();
+  const hitsIn = (l: ChainGroup): ResolvedSnapshot[] =>
+    (l.members?.length ? l.members : [l.snap]) as ResolvedSnapshot[];
+  // each field's hit lines, in the order they fired
+  const fields = new Map<ActionField, number[]>();
+  lines.forEach((l, i) => {
+    const field = l.snap.action.field;
+    if (!field || !hitsIn(l).every((h) => h.action.field === field)) return;
+    const at = fields.get(field);
+    if (at) at.push(i); else fields.set(field, [i]);
+  });
+  if (!fields.size) return sections;
+
+  const keyOf = new Map<number, string>();
+  // where each row goes: under the cast that opened that field, or — for one carried in from an
+  // earlier section — immediately ahead of its first hit
+  const after = new Map<number, ChainGroup[]>(), before = new Map<number, ChainGroup[]>();
+  for (const [field, at] of fields) {
+    const opens = lines.flatMap((l, i) => ((l.snap as ResolvedSnapshot).opensFields.includes(field) ? [i] : []));
+    // a hit belongs to the last opening at or before it; one ahead of them all was fired by a
+    // field opened before this section began
+    const groups = new Map<number, number[]>();
+    for (const i of at) {
+      let open = -1;
+      for (const o of opens) { if (o > i) break; open = o; }
+      (groups.get(open) ?? groups.set(open, []).get(open)!).push(i);
+    }
+    for (const [open, hits] of groups) {
+      // one toggle per opening: two rows of the same field must swap only their own hits, and the
+      // report draws all four sections into one table, so the id has to be unique past this one
+      const key = `f${nextFieldKey++}`;
+      for (const i of hits) keyOf.set(i, key);
+      const parts = hits.flatMap((i) => {
+        const l = lines[i]!;
+        return l.members?.length ? l.parts : [{ snap: l.snap, dmg: { avg: l.avg } }];
+      });
+      const one = parts[0]!.snap.action.name;
+      const summary: ChainGroup = {
+        id: parts.every((p) => p.snap.action.name === one) ? `${one} x${parts.length}` : `${field.name} x${parts.length}`,
+        isChain: true,
+        aggregate: true,
+        fieldKey: key,
+        parts,
+        members: parts.map((p) => p.snap),
+        snap: parts[parts.length - 1]!.snap,
+        mv: hits.reduce((sum, i) => sum + lines[i]!.mv, 0),
+        avg: hits.reduce((sum, i) => sum + lines[i]!.avg, 0),
+      };
+      const map = open >= 0 ? after : before;
+      (map.get(open >= 0 ? open : hits[0]!) ?? map.set(open >= 0 ? open : hits[0]!, []).get(open >= 0 ? open : hits[0]!)!).push(summary);
+    }
+  }
+
+  const out: ChainGroup[][] = sections.map(() => []);
+  let i = 0;
+  sections.forEach((section, sec) => {
+    for (const l of section) {
+      for (const summary of before.get(i) ?? []) out[sec]!.push(summary);
+      const key = keyOf.get(i);
+      out[sec]!.push(key === undefined ? l : { ...l, fieldKey: key });
+      for (const summary of after.get(i) ?? []) out[sec]!.push(summary);
+      i++;
+    }
+  });
   return out;
 }
 
@@ -587,7 +692,8 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
     unsafe: state.slots[i]!.variantUnsafe[v]!,
   })));
 
-  return { state, teamKey, members, combo, rotationLines: trace ? rotationLines : null, total, bySlot, sectionTotals, sectionBySlot, variantRuns };
+  // the detail page's lines get the field fold; the totals above were already summed
+  return { state, teamKey, members, combo, rotationLines: trace ? collapseFields(rotationLines) : null, total, bySlot, sectionTotals, sectionBySlot, variantRuns };
 }
 
 /** The comparison table's own figures for one row, as plain data a worker can hand back: the

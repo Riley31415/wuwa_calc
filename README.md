@@ -1,10 +1,10 @@
 # wuwa_calc
 
 A Wuthering Waves damage calculator. Pure TypeScript, no framework, no bundler — `tsc` compiles
-everything under `src/` into `dist/`, mirrored one level deeper (`src/index.ts` → `dist/src/index.js`).
+everything under `src/` into `dist/`, mirrored one level deeper (`src/kit.ts` → `dist/src/kit.js`).
 
 ```
-python serve.py                # then http://127.0.0.1:8731/src/index.html
+python serve.py                # then http://127.0.0.1:8731/index.html
 npx tsc                        # build; npx tsc --noEmit to just typecheck
 ```
 
@@ -15,20 +15,20 @@ module files `dist/` ships as.
 
 | path | role |
 | --- | --- |
-| `src/engine/kit.ts` | the engine: `Gear`/`Buff`/`Action`/`Loadout`/`State`, `equip()`/`run()`/`evaluate()` |
-| `src/engine/stats.ts` | the stat vocabulary (`Stat`, `Attribute`, `Type1`/`Type2`, `Cast`, `Node`, `Scaling`) |
-| `src/engine/damage.ts` | the damage formula |
-| `src/engine/rotation.ts` | `Rotation` and the scheduler that decides whose turn it is |
-| `src/engine/solver.ts` | the build search and the DOM-free engine run that scores it; also the Worker entry point |
-| `src/engine/teams.ts` | the `LOADOUTS` registry and every team the comparison table runs (`ALL_TEAMS`) |
-| `src/engine/display.ts` | turns a run into the report/hover-trace data the page renders |
-| `src/engine/mainstats.ts` / `substats.ts` | echo main-stat builds (`mainstats()`/`mainstatOptions()`) and substat spreads (`substats()`/`chem()`) |
+| `src/kit.ts` | the engine: `Gear`/`Buff`/`Action`/`Loadout`/`State`, `equip()`/`run()`/`evaluate()` |
+| `src/stats.ts` | the stat vocabulary (`Stat`, `Attribute`, `Type1`/`Type2`, `Cast`, `Node`, `Scaling`) |
+| `src/damage.ts` | the damage formula |
+| `src/rotation.ts` | `Rotation` and the scheduler that decides whose turn it is |
+| `src/solver.ts` | the build search and the DOM-free engine run that scores it; also the Worker entry point |
+| `src/teams.ts` | the `LOADOUTS` registry and every team the comparison table runs (`ALL_TEAMS`) |
+| `src/display.ts` | turns a run into the report/hover-trace data the page renders |
+| `src/shared/mainstats.ts` / `substats.ts` | echo main-stat builds (`mainstats()`/`mainstatOptions()`) and substat spreads (`substats()`/`chem()`) |
 | `src/resonators/<attribute>/*.ts` | one folder per attribute (`aero`, `electro`, `fusion`, `glacio`, `havoc`, `spectro`): one file per resonator — actions, buffs, the Resonator itself, talents, inherent skills, sequences, a sample rotation, a loadout |
 | `src/echoes/<region>.ts` | mainslot echoes and sonata sets, one file per region that introduced them (grouped by region, unlike the resonator folders; Black Shores' Fallacy lives in `jinzhou.ts`) |
 | `src/weapons/*.ts` | signature and standard weapons, grouped by weapon type |
-| `src/index.ts` | the whole site — the comparison table, the filters, the detail page |
+| `index.ts` | the whole site — the comparison table, the filters, the detail page |
 
-`src/index.html` is the page itself and loads `../dist/src/index.js`; `serve.py` serves the repo
+`index.html` is the page itself and loads `./dist/bundle/index.js`; `serve.py` serves the repo
 root, so both the source tree and `dist/` are reachable from it.
 
 ## The engine
@@ -152,7 +152,7 @@ there, note the fallback used. Never invent a missing forte value.
 Export the `Loadout` as the resonator's bare name (`LUPA`; a mode variant as `LYNAE_RUPTURE`), the
 `Resonator` itself as `LUPA_RESONATOR` — a `Loadout` names the resonator, its talent, both inherents, every viable
 weapon (best signature first, best standard second), the `EchoLoadout` options, the main-stat
-builds, a substat spread, and the `Rotation`. Then register it in `src/engine/teams.ts`: add it
+builds, a substat spread, and the `Rotation`. Then register it in `src/teams.ts`: add it
 to `LOADOUTS` (which is also how a Worker resolves a team it was handed by name) and, once it has
 a team to run in, to `TEAMS`. A fully-ported resonator with no team yet is normal, not a stub.
 

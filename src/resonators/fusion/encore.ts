@@ -28,8 +28,8 @@ import {
   Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, applyCurrent, applyTeam, revokeCurrent, isHeld, casting, currentAction, addStat, frozenStacks,
   queueOutro, forte1, setForte1,
-  } from "../../engine/kit.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO } from "../../engine/rotation.js";
+  } from "../../kit.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO } from "../../rotation.js";
 import { STRINGMASTER } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { INFERNO_RIDER, MOLTEN_RIFT_5PC, MOLTEN_RIFT_2PC } from "../../echoes/jinzhou.js";

@@ -4,8 +4,8 @@
 import { isType,
   Buff, Weapon, WeaponType, Stat, Type1, Cast, Attribute,
   addStat, applyCurrent, isHeld, removeStack, revokeCurrent, casting, currentAction, frozenStacks, queueOutro, stacksOfEnemy,
-} from "../engine/kit.js";
-import { applied } from "../engine/kit.js";
+} from "../kit.js";
+import { applied } from "../kit.js";
 import { HEALS } from "../shared/status.js";
 import { TUNE_STRAIN_INTERFERED } from "../shared/tunebreak.js";
 

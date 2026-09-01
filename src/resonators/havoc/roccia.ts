@@ -18,9 +18,9 @@
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, applyTeam, revokeCurrent, casting, currentAction, currentTeam, addStat, frozenStacks, getStat,
-  queueOutro, queueOn, } from "../../engine/kit.js";
+  queueOutro, queueOn, } from "../../kit.js";
 import { lostOnSwap, matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, SWAP, DODGE, NOINTRO, ECHO_SWAP, START_3 } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, SWAP, DODGE, NOINTRO, ECHO_SWAP, START_3 } from "../../rotation.js";
 import { TRAGICOMEDY } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { NM_HERON, MIDNIGHT_VEIL_5PC, MIDNIGHT_VEIL_2PC } from "../../echoes/rinascita.js";

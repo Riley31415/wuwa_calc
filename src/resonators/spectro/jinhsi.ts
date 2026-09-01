@@ -24,31 +24,34 @@
  * grant's 25s limit is what stops the second Illuminous Epiphany handing over a second free one;
  * UNISON_COOLDOWN below carries that, cleared by the bar-paid outro.
  *
- * **Incandescence (her Forte Gauge) is deliberately not implemented yet**, by instruction. Two
- * things wait on it: Eras in Unity (the team's own Attribute/Coordinated DMG feeding her, and her
- * Outro Temporal Bender speeding that up to once a second for 20s), and Stella Glamor's own
- * "+44.54% DMG Multiplier per Incandescence consumed" — so Stella Glamor below is the bare 347.92%
- * and her Outro is a damageless row that grants nothing.
+ * **Incandescence** is a 50-stack buff of her own (not a forte gauge), fed by Eras in Unity (see
+ * ERAS_IN_UNITY below): +1 whenever anyone in the party inflicts Attribute DMG, +2 on a
+ * Coordinated Attack, each rate-limited per attribute — the kit's once-per-3s read as once per 3
+ * *actions* here, since this engine has no clock, and her Outro Temporal Bender's 1s window as
+ * once per action. The stacks pay out on Stella Glamor and are consumed by it: +44.54% DMG
+ * Multiplier apiece on its 347.92% base, more than doubling it off a decently fed bar.
  *
  * MVs and energy/concerto/off-tune off nanoka.cc (character 1304,
  * https://ww.nanoka.cc/character/1304), read the way CLAUDE.md describes. The second, larger row
- * on Purge of Light, Loong's Halo, Solar Flare and Stella Glamor is that same hit re-shown at a
- * sequence tier (S5/S6) — every build here is S0, so only the base row is used. Loong's Halo is
- * the exception that isn't a sequence: its 238.58% row is the base 159.05% with Converged Flash's
- * own +50% already folded in, which is why that inherent contributes the multiplier below instead.
+ * on Purge of Light, Solar Flare and Stella Glamor is that same hit re-shown at its sequence tier,
+ * and the nodes below reproduce each as a multiplier off the base row: 1666.03% x 2.2 = 3665.27%
+ * is S5, 19.89% and 347.92% x 1.45 are S6. Loong's Halo's own second row is not a sequence: its
+ * 238.58% is the base 159.05% with Converged Flash's +50% already folded in, which is why that
+ * inherent contributes the multiplier below instead.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute,
-  WeaponType, Type1, Cast, Node, Scaling, addStat, applyCurrent, casting, currentAction, isHeld,
-  queue, revokeCurrent,
-} from "../../engine/kit.js";
-import { ActionGroup, Action, Rotation, START_3, SWAP, DOUBLE_INTRO, INTRO, ECHO_ONFIELD, OUTRO } from "../../engine/rotation.js";
+  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Stat, Attribute,
+  WeaponType, Type1, Type2, Cast, Node, Scaling, addStat, applyCurrent, applyTeam, casting, currentAction,
+  frozenStacks, isHeld, isType, queue, removeStack, revokeCurrent, revokeTeam, setStacksSelf, stacksOf, triggeredAction,
+} from "../../kit.js";
+import { ActionGroup, Action, Rotation, START_3, SWAP, DOUBLE_INTRO, INTRO, ECHO_ONFIELD, OUTRO } from "../../rotation.js";
 import { AGES_OF_HARVEST } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { JUE, CELESTIAL_LIGHT_5PC, CELESTIAL_LIGHT_2PC } from "../../echoes/jinzhou.js";
 import { VOIDWING_MOTH } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
+import { matrix } from "../../shared/helpers.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -88,8 +91,7 @@ const IncDodge = jinhsiAction("Forte - Incarnation - Dodge Counter", { node: Nod
 const CrescentDivinity = jinhsiAction("Forte - Crescent Divinity", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 503.8, energy: 3.19, concerto: 8, offtune: 10138 });
 
 /** Illuminous Epiphany, the one press: Solar Flare's six taps, with Stella Glamor's detonation
- *  queued behind them. The Incandescence it consumes — up to 50, each worth +44.54% DMG Multiplier
- *  on Stella Glamor — waits on her Forte Gauge (see the file header). */
+ *  queued behind them — the row every Incandescence held pays out on (see INCANDESCENCE below). */
 const SolarFlare = jinhsiAction("Forte - Illuminous Epiphany: Solar Flare", {
   node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 119.34, energy: 1.98, concerto: 20, offtune: 14400,
   updateBuffs: () => {
@@ -102,12 +104,16 @@ const StellaGlamor = jinhsiAction("Forte - Illuminous Epiphany: Stella Glamor", 
 
 const Liberation = jinhsiAction("Liberation - Purge of Light", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1666.03, concerto: 20, offtune: 84000, resetEnergy: true });
 
-const Intro = jinhsiAction("Intro - Loong's Halo", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 159.05, energy: 10, concerto: 10, offtune: 8000 });
-/** Temporal Bender hands the incoming resonator nothing: all it does is speed up her own
- *  Incandescence gain, which is the gauge this file does not model yet. Both of her outros are
- *  this one cast — the first paid for by Unison, the second by the bar. */
+const Intro = jinhsiAction("Intro - Loong's Halo", {
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 159.05, energy: 10, concerto: 10, offtune: 8000,
+});
+/** Temporal Bender hands the incoming resonator nothing of their own: its 20s window is the
+ *  second Eras in Unity stack, under which the channels run at one action instead of three. Both
+ *  of her outros are this one cast — the first paid for by Unison, the second by the bar — and
+ *  with two a rotation the 20s windows overlap end to end, so the stack is permanent once up. */
 const Outro = jinhsiAction("Outro - Temporal Bender", {
-  cast: Cast.Outro, type: Type1.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, active: false,
+  updateBuffs: () => { if ((stacksOf(ERAS_IN_UNITY) & 3) < 2) applyCurrent(ERAS_IN_UNITY, 1); },
   // Unison pays for this one and is spent by it; the outro that has none is the one far enough
   // past the grant's own 25s limit for the next Illuminous Epiphany to hand another over.
   convertStats: () => { if (isHeld(UNISON)) revokeCurrent(UNISON); else revokeCurrent(UNISON_COOLDOWN); },
@@ -133,6 +139,64 @@ const UNISON = new Buff({
  *  Cleared by that second outro (see the Outro action above), which is where the 25s has run out. */
 const UNISON_COOLDOWN = new Buff({ name: "Jinhsi: Unison Cooldown" });
 
+/**
+ * Eras in Unity — the whole Incandescence economy, held on Jinhsi's own slot and watching every
+ * action from updateGlobal() (the Jingran shape: reacting to teammates' turns, paying onto her).
+ * Its stack count is a packed word, the same trick as Hiyuki's Snow Rust, since kit state has to
+ * live in stacks for the engine's own snapshot/restore to see it:
+ *
+ *   bits 0-1   the real stacks: 1 always (from combat start), 2 once Temporal Bender's window
+ *              opens — her first Outro raises it and it never comes off: she outros twice a
+ *              rotation, so the 20s windows overlap end to end (the ≥21s permanence convention)
+ *   bits 2-29  fourteen 2-bit cooldowns, one per (attribute, coordinated?) channel: the actions
+ *              still to wait before that channel pays again, 3..0, at bit 2 + 2*(2*attr + coord)
+ *
+ * Only an active, non-triggered action ticks the channels down one — a queued sub-hit (a turret
+ * shot, a coordinated tick) lands inside its trigger's own second, so it may still pay an open
+ * channel but never passes time, and a DOT tick is ignored outright. A paying action's element
+ * pays +1 Incandescence off its same-attribute channel and a Coordinated Attack pays +2 off its
+ * own channel beside it — both back to cooldown 3, or 1 under the outro window (the kit's own
+ * 1s, which speeds both sides up). The 50 cap is INCANDESCENCE's own maxStacks.
+ */
+const ERAS_IN_UNITY = new Buff({
+  name: "Jinhsi: Eras in Unity", maxStacks: 0x3fffffff,
+  display: () => ((frozenStacks() & 3) === 2 ? "Eras in Unity (outro)" : "Eras in Unity"),
+  updateGlobal: () => {
+    const a = currentAction();
+    // a DOT tick (the Negative Status ladders) is nobody's attack — no time, no pay
+    if (a.scaling === Scaling.Dot) return;
+    let word = stacksOf(ERAS_IN_UNITY);
+    // only a real press passes time: a queued sub-hit (a turret shot, a coordinated tick) lands
+    // inside its trigger's own second, so it may pay an open channel but never advances the clock
+    if (a.active && !triggeredAction()) {
+      for (let shift = 2; shift < 30; shift += 2) {
+        if ((word >> shift) & 3) word -= 1 << shift;
+      }
+    }
+    if (a.element && a.mv > 0) {
+      const shift = 2 + 4 * ((a.element >> 6) - 1);
+      if (!((word >> shift) & 3)) {
+        word |= ((word & 3) === 2 ? 1 : 3) << shift;
+        applyCurrent(INCANDESCENCE, 1);
+      }
+      if (isType(Type2.Coordinated) && !((word >> (shift + 2)) & 3)) {
+        word |= ((word & 3) === 2 ? 1 : 3) << (shift + 2);
+        applyCurrent(INCANDESCENCE, 2);
+      }
+    }
+    setStacksSelf(ERAS_IN_UNITY, word);
+  },
+});
+
+/** Incandescence itself: what Eras in Unity banks, up to 50, with the cap carried by the stacks'
+ *  own ceiling. Every stack held pays +44.54% DMG Multiplier onto Stella Glamor, which consumes
+ *  the lot — the buff's whole payout is that one row of her forte. */
+const INCANDESCENCE = new Buff({
+  name: "Jinhsi: Incandescence", maxStacks: 50,
+  applyStats: () => { if (currentAction() === StellaGlamor) addStat(Stat.AddMv, 44.54 * frozenStacks()); },
+  convertStats: () => { if (currentAction() === StellaGlamor) revokeCurrent(INCANDESCENCE); },
+});
+
 /** Radiant Surge (Inherent Skill): +20% Spectro DMG Bonus, genuinely unconditional. */
 const RADIANT_SURGE = new Inherent({
   name: "Jinhsi: Radiant Surge",
@@ -143,6 +207,86 @@ const RADIANT_SURGE = new Inherent({
 const CONVERGED_FLASH = new Inherent({
   name: "Jinhsi: Converged Flash",
   applyStats: () => { if (currentAction() === Intro) addStat(Stat.MulMv, 50); },
+});
+
+/* --------------------------------------------------------------------------- resonance chain */
+
+/** S1's own stacking buff: one per Incarnation basic or Crescent Divinity, four at most, spent by
+ *  Illuminous Epiphany. Both halves of that press are the one skill, so each stack pays on Solar
+ *  Flare and on the Stella Glamor behind it, and it is Stella Glamor — the last of the pair — that
+ *  consumes the lot, the same way Incandescence does. The 6s never binds: her rotation builds the
+ *  four and spends them inside one burst (BA1-3, Crescent Divinity, BA4, Epiphany). */
+const HERALD_OF_REVIVAL = new Buff({
+  name: "Jinhsi S1: Herald of Revival", maxStacks: 4,
+  applyStats: () => {
+    const a = currentAction();
+    if (a === SolarFlare || a === StellaGlamor) addStat(Stat.DmgBonus, 20 * frozenStacks());
+  },
+  convertStats: () => { if (currentAction() === StellaGlamor) revokeCurrent(HERALD_OF_REVIVAL); },
+});
+
+const JX_S1 = new Sequence({
+  name: "Jinhsi S1: Abyssal Ascension",
+  updateBuffs: () => {
+    const a = currentAction();
+    if (a === IncBA1 || a === IncBA2 || a === IncBA3 || a === IncBA4 || a === CrescentDivinity) {
+      applyCurrent(HERALD_OF_REVIVAL, 1);
+    }
+  },
+});
+
+/** S2: 50 Incandescence back for standing *out of combat* 4s. A rotation here is one unbroken
+ *  fight, so this never fires — the node is held for its name, like Phrolova's own S5. */
+const JX_S2 = new Sequence({ name: "Jinhsi S2: Chronofrost Repose" ,
+  combatStart: () => { applyCurrent(INCANDESCENCE, 50); },
+});
+
+/** S3's stacks: +25% ATK apiece, two at most, one per Intro she casts. Its 20s covers her whole
+ *  double-Intro pair, so the mid-loop outro — the free one Unison pays for, which she comes
+ *  straight back from — keeps them and only the bar-paid outro that ends the loop drops them.
+ *  `isHeld(UNISON)` is what tells those two apart (see the Outro cast above), read from
+ *  updateBuffs because the Outro's own convertStats is what spends the Unison. */
+const IMMORTALS_DESCENDANCY = new Buff({
+  name: "Jinhsi S3: Immortal's Descendancy", maxStacks: 2,
+  applyStats: () => addStat(Stat.BonusAtk, 25 * frozenStacks()),
+});
+
+const JX_S3 = new Sequence({
+  name: "Jinhsi S3: Celestial Incarnate",
+  updateBuffs: () => { if (currentAction() === Intro) applyCurrent(IMMORTALS_DESCENDANCY, 1); },
+});
+
+/** S4: "all nearby Resonators", so it pays on their inactive actions too; "Attribute DMG Bonus"
+ *  with no attribute named, so it goes on untagged. 20s team buff — lost on her own next Intro. */
+const JX_S4_TEAM = new Buff({
+  name: "Jinhsi S4: Benevolent Grace (team)",
+  applyStats: () => addStat(Stat.DmgBonus, 20),
+});
+
+const JX_S4 = new Sequence({
+  name: "Jinhsi S4: Benevolent Grace",
+  // Solar Flare is the press; Stella Glamor is the detonation behind it, not a second cast
+  updateBuffs: () => {
+    const a = currentAction();
+    if (a === Liberation || a === SolarFlare) applyTeam(JX_S4_TEAM, 1);
+  },
+});
+
+/** S5: Purge of Light's own 1666.03% x 2.2, which is nanoka's second row for it. */
+const JX_S5 = new Sequence({
+  name: "Jinhsi S5: Frostfire Illumination",
+  applyStats: () => { if (currentAction() === Liberation) addStat(Stat.MulMv, 120); },
+});
+
+/** S6: the same +45% on both halves of Illuminous Epiphany — and, because a motion value is
+ *  `(base + added) x (1 + multiplier)` (damage.ts), the one multiplier lifts the 44.54% per
+ *  Incandescence stack by 45% too, which is the node's second clause. */
+const JX_S6 = new Sequence({
+  name: "Jinhsi S6: Thawing Triumph",
+  applyStats: () => {
+    const a = currentAction();
+    if (a === SolarFlare || a === StellaGlamor) addStat(Stat.MulMv, 45);
+  },
 });
 
 /* --------------------------------------------------------------------------- kit and loadout */
@@ -160,6 +304,9 @@ const JINHSI_RESONATOR = new Resonator({
   outro: () => Outro,
   color: "#f2c75c",
   maxEnergy: 150,
+
+  // Eras in Unity is hers the moment she is on the team, well before her first turn
+  combatStart: () => applyCurrent(ERAS_IN_UNITY, 1),
 
   constantStats: () => {
     addStat(Stat.BaseHp, 10825); addStat(Stat.BaseAtk, 412.5); addStat(Stat.BaseDef, 1258.9);
@@ -183,11 +330,11 @@ const IncBA123 = new ActionGroup("Basic - Incarnation 123", [IncBA1, IncBA2, Inc
 const JX_ROTATION = new Rotation([
   START_3, Liberation, SWAP,
 
-  DOUBLE_INTRO, ECHO_ONFIELD, ESkill, 
+  DOUBLE_INTRO, ESkill, 
   IncBA123, CrescentDivinity, IncBA4, SolarFlare, Skill.swap(),
   OUTRO,
 
-  INTRO, ESkill, 
+  INTRO, ECHO_ONFIELD, ESkill, 
   IncBA123, CrescentDivinity, IncBA4, SolarFlare, 
   Liberation, Skill.swap(), OUTRO,
 ]);
@@ -203,6 +350,8 @@ export const JINHSI = new Loadout({
   inherent2: CONVERGED_FLASH,
   weapons: [AGES_OF_HARVEST, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR],
   echoLoadouts: JX_ECHOES,
+  matrix: matrix("Jinhsi", 25),
+  sequences: [JX_S1, JX_S2, JX_S3, JX_S4, JX_S5, JX_S6],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
   substat: chem("atk", "skill"),
   rotation: JX_ROTATION,

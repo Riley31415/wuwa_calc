@@ -35,8 +35,8 @@ import {
   Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, addStat, addBuff, revokeBuff, applyCurrent, applyEnemy,
   applied, appliedByMember, casting, currentAction, currentMember, currentTeam, isHeld, frozenStacks, queue, queueOn,
   removeStack, revokeCurrent, revokeEnemy, stacksOf, stacksOfEnemy, forte1, forte2, setForte1, setForte2,
-} from "../../engine/kit.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
+} from "../../kit.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../rotation.js";
 import { TUNE_RUPTURE_SHIFTING, applyRupture, tuneRuptureResponse } from "../../shared/tunebreak.js";
 import { FUSION_BURST, FUSION_BURST_ACTIONS } from "../../shared/status.js";
 import { EVERBRIGHT_POLESTAR } from "../../weapons/sword.js";

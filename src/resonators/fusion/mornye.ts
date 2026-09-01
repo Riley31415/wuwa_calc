@@ -23,8 +23,8 @@ import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, addStat, applyCurrent, applyTeam, currentAction, queue, queueOutro, revokeCurrent, getStat, stacksOf, stacksOfTeam, frozenStacks,
   maxStackIncrease, Debuff, applyEnemy, revokeEnemy, isHeld, stacksOfEnemy,
-  } from "../../engine/kit.js";
-import { ActionGroup, Action, Rotation, START_1, START_2, SWAP, NOINTRO, INTRO, ECHO_SWAP, OUTRO, START_3 } from "../../engine/rotation.js";
+  } from "../../kit.js";
+import { ActionGroup, Action, Rotation, START_1, START_2, SWAP, NOINTRO, INTRO, ECHO_SWAP, OUTRO, START_3 } from "../../rotation.js";
 import { HEALS } from "../../shared/status.js";
 import {
   TUNE_BREAK, TUNE_RUPTURE_INTERFERED, TUNE_STRAIN_INTERFERED, interferedWindow, tuneRuptureResponse,

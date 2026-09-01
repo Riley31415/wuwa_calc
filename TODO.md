@@ -3,6 +3,8 @@ add "er rolls needed" to substats
 create a more in depth substat system
 er requirements enforcement
 allow 44111 with er builds eg for brant
+add individual gear pieces in the substats for each line eg ER 7.9% x2 in hover
+
 
 # naming
 standardize action naming
@@ -18,3 +20,5 @@ public release
 #
 add costs and max cost filter
 
+# inherents
+rename all inherents to Inherent: xyz

@@ -11,9 +11,9 @@ import { isType,
   frozenStacks, stacksOf, isHeld,
   isCast,
   currentMember,
-} from "../engine/kit.js";
-import { Action } from "../engine/rotation.js";
-import { applied, appliedByMe } from "../engine/kit.js";
+} from "../kit.js";
+import { Action } from "../rotation.js";
+import { applied, appliedByMe } from "../kit.js";
 import { handoff, lostOnSwap } from "../shared/helpers.js";
 import { SHIELD, FUSION_BURST, HEALS, GLACIO_CHAFE, HAVOC_BANE } from "../shared/status.js";
 import { TUNE_HACK_SHIFTING, TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";

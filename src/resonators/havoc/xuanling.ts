@@ -47,8 +47,8 @@ import {
   Type1, Cast, Node, Scaling, addStat, applied, appliedByMe, applyCurrent, applyEnemy, applyTeam, casting,
   consume, currentAction, currentTeam, forte1, frozenStacks, isHeld, queue, revokeCurrent,
   revokeTeam, setForte1, setForte2, stacksOfEnemy, stacksOfTeam,
-  } from "../../engine/kit.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO, START_3, SWAP, ECHO_SWAP } from "../../engine/rotation.js";
+  } from "../../kit.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO, START_3, SWAP, ECHO_SWAP } from "../../rotation.js";
 import { HAVOC_BANE } from "../../shared/status.js";
 import { AZURE_OATH } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";

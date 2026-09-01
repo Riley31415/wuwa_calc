@@ -1,15 +1,26 @@
 /**
  * Phrolova, ported to the new engine.
- * Maestro (open/charges/next-note) is one stacking Buff rather than three separate mechanics —
- * see MAESTRO's own comment for how a single stack count carries all three.
+ *
+ * Her Volatile Notes are the real store, packed into one Buff word (NOTES below, same treatment
+ * as Jinhsi's Eras in Unity): six two-bit slots holding which notes she has actually gathered —
+ * Strings off Basic 3 or Movement of Fate and Finality, Winds off Whispers or Murmurs, and a
+ * Cadenza only ever by Accidental turning the next gain into one — plus four bits for the ten
+ * auto-cast chances a Waltz opens with. Hecate plays the store back oldest-first: an active Echo
+ * Skill spends a chance and the note, the two her Outro owes and the manual command spend only
+ * the note's play count. Hecate plays the store back leftmost-first on a 3/2/3/2/3/2 metre: the
+ * front note plays three times before it is removed from the left, its successor twice, and so on
+ * — a full store is up to fifteen plays, though only ten of them can ever be the echo-triggered
+ * kind. Whatever is left unplayed is deleted with the Waltz itself (Suite of Immortality).
+ * Resolving Chord's own "no notes gained" window (Coda to Waltz) is left unmodelled: nothing in a
+ * rotation gains between the two casts anyway.
  */
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, stacksOf, currentAction, casting, queue, queueOutro, revokeCurrent, addStat, frozenStacks,
-  Sequence, applyTeam, isHeld, setForte1, currentTeam, queueOn, addBuff,
-  } from "../../engine/kit.js";
+  Sequence, applyTeam, isHeld, setStacksSelf, currentTeam, queueOn,
+  } from "../../kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, NOINTRO, INTRO, ECHO_ONFIELD, OUTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, NOINTRO, INTRO, ECHO_ONFIELD, OUTRO, DODGE } from "../../rotation.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { DREAM_OF_THE_LOST_3PC } from "../../echoes/septimont.js";
@@ -28,23 +39,26 @@ function phroAction(id: string, def: object): Action {
 // derived by subtraction, cross-checked both ways against BA12 and BA23.
 const BA1 = phroAction("Basic - Movement of Life and Death 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 106.9, offtune: 5376, energy: 1.68, concerto: 3.36 });
 const BA2 = phroAction("Basic - Movement of Life and Death 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 95.43, offtune: 4800, energy: 1.5, concerto: 3 });
-const BA3 = phroAction("Basic - Movement of Life and Death 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 196.14, offtune: 9864, energy: 3.12, concerto: 6.18, forte1: 1 });
+const BA3 = phroAction("Basic - Movement of Life and Death 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 196.14, offtune: 9864, energy: 3.12, concerto: 6.18, updateBuffs: () => gainNote(1) });
 
-const Skill = phroAction("Skill - Whispers in a Fleeting Dream", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 211.94, offtune: 4264, energy: 13.34, concerto: 10, forte1: 1 });
+const Skill = phroAction("Skill - Whispers in a Fleeting Dream", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 211.94, offtune: 4264, energy: 13.34, concerto: 10, updateBuffs: () => gainNote(2) });
 
-const FBA = phroAction("Forte - Movement of Fate and Finality", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 505.01, offtune: 10161, energy: 3.21, concerto: 10.02, forte1: 1 });
-const FSkill = phroAction("Forte - Murmurs in a Haunting Dream", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 464.07, offtune: 9338, energy: 2.95, concerto: 10, forte1: 1 });
+const FBA = phroAction("Forte - Movement of Fate and Finality", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 505.01, offtune: 10161, energy: 3.21, concerto: 10.02, updateBuffs: () => gainNote(1) });
+const FSkill = phroAction("Forte - Murmurs in a Haunting Dream", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 464.07, offtune: 9338, energy: 2.95, concerto: 10, updateBuffs: () => gainNote(2) });
 
 const ScarletCoda = phroAction("Heavy - Scarlet Coda", {
-  node: Node.Normal, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Skill, mv: 660.16, offtune: 166144, energy: 6.93, concerto: 40, forte1: -6,
+  node: Node.Normal, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Skill, mv: 660.16, offtune: 166144, energy: 6.93, concerto: 40,
 });
 
 // concerto only — Liberation costs no Resonance Energy (maxEnergy: 0 below). The sheet's separate
 // "Lib2" row (465.22% MV) has no matching action here — a known gap, flagged rather than guessed.
-// Opens Maestro: 1 stack = 0 notes drawn (see MAESTRO).
+// Opens Maestro and banks the ten auto-cast chances (NOTES' own bits 12-15).
 const Liberation = phroAction("Liberation - Waltz of Forsaken Depths", {
   node: Node.Liberation, cast: Cast.Liberation, concerto: 20,
-  updateBuffs: () => applyCurrent(MAESTRO, 1)
+  updateBuffs: () => {
+    applyCurrent(MAESTRO, 1);
+    setStacksSelf(NOTES, (stacksOf(NOTES) & ~(15 << 12)) | (10 << 12));
+  },
 });
 
 const Intro = phroAction("Intro - Suite of Quietus", {
@@ -54,7 +68,9 @@ const Intro = phroAction("Intro - Suite of Quietus", {
  *  also what closes Maestro back out. */
 const EIntro = phroAction("Intro - Suite of Immortality", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Skill, mv: 596.43, offtune: 9600, energy: 10, concerto: 10,
-  updateBuffs: () => revokeCurrent(MAESTRO),
+  // the Waltz ends here, and everything it was playing through goes with it: the unplayed notes,
+  // the chances left, the front note's play count — the store keeps only its always-set bit
+  updateBuffs: () => { revokeCurrent(MAESTRO); setStacksSelf(NOTES, stacksOf(NOTES) & (1 << 16)); },
 });
 /** While Maestro is open the handoff also auto-cycles two more notes, not charge-gated — they
  *  play once the next resonator has intro'd rather than on the Outro itself, so the handoff buff
@@ -73,30 +89,66 @@ const EBA_STRINGS = hecateAction("Hecate - Enhanced Strings", 347.93, NOTE);
 const EBA_WINDS   = hecateAction("Hecate - Enhanced Winds", 330.53, NOTE);
 const EBA_CADENZA = hecateAction("Hecate - Enhanced Cadenza", 347.93, NOTE);
 const HBA1 = hecateAction("Hecate - Basic 1", 27.84);
-const HBA2 = hecateAction("Hecate - Basic 2", 27.84);
+/** Basic 2 ends the manual command: pressing Hecate's 1-2 by hand finishes on the next gathered
+ *  note as its swap form — a play like any other, but never one of the ten auto-cast chances. */
+const HBA2 = hecateAction("Hecate - Basic 2", 27.84, { updateBuffs: () => drawNote(false, true) });
 
-const SEQUENCE: Action[] = [
-  EBA_CADENZA, EBA_CADENZA, EBA_CADENZA,
-  EBA_STRINGS, EBA_STRINGS,
-  EBA_WINDS, EBA_WINDS,
-  EBA_CADENZA, EBA_CADENZA, EBA_CADENZA,
-  EBA_STRINGS, EBA_STRINGS,
-];
+// the note each two-bit slot value stands for, indexed 1-3; the manual command plays the same
+// hit as its swap form, made on the way out
+const NOTE_ACTIONS = [EBA_STRINGS, EBA_WINDS, EBA_CADENZA];
+const SWAP_NOTES = NOTE_ACTIONS.map((a) => a.swap());
 
-// short name for whichever note SEQUENCE holds — what MAESTRO's own display() names itself after
-const NOTE_LABEL = new Map<Action, string>([
-  [EBA_CADENZA, "Cadenza"], [EBA_STRINGS, "Strings"], [EBA_WINDS, "Winds"],
-]);
+/** Bank one gathered note into the store's first empty slot — 1 Strings, 2 Winds, 3 Cadenza.
+ *  Gated on a landed hit ("hitting a target with..."), so a dodge-cancelled Basic 3 (mv stripped
+ *  by dodgeCancel()) pays nothing and leaves an armed Accidental standing. Accidental is the one
+ *  road to a Cadenza: armed, the next note gained turns into one, whatever the cast would have
+ *  paid. A full store makes room the kit's own way — every note past the leftmost Strings or
+ *  Winds slides down a slot, that note is removed, and the new one takes the last slot; six
+ *  Cadenzas part with nothing, and the gain is lost. */
+function gainNote(note: number): void {
+  if (!currentAction().mv) return;
+  if (isHeld(ACCIDENTAL)) { note = 3; revokeCurrent(ACCIDENTAL); }
+  const word = stacksOf(NOTES);
+  for (let shift = 0; shift < 12; shift += 2) {
+    if ((word >> shift) & 3) continue;
+    setStacksSelf(NOTES, word | (note << shift));
+    return;
+  }
+  for (let shift = 0; shift < 12; shift += 2) {
+    if (((word >> shift) & 3) === 3) continue;
+    const notes = word & 0xfff;
+    setStacksSelf(NOTES, (word & ~0xfff) | (notes & ((1 << shift) - 1)) | (((notes >> (shift + 2)) << shift) & 0xfff) | (note << 10));
+    return;
+  }
+}
 
-/** Queue the next undrawn note and advance MAESTRO's own count. At S3 every note she plays is a
- *  Cadenza, whatever SEQUENCE would have drawn. Named against her own slot throughout rather than
- *  read off whoever is acting: the two her Outro owes are drawn from her handoff buff, which the
- *  *incoming* resonator is the one holding. */
-function drawNote(): void {
+/** Hecate plays the store's front note — three plays and it is removed from the left, the next
+ *  two, alternating (bits 17-18 count the front note's plays, bit 19 whose turn the quota is) —
+ *  and nothing at all off an empty store or a closed Waltz. `charged` is the ten-chance path (an
+ *  active Echo Skill while the Waltz stands): it also spends one of the chances, and plays
+ *  nothing once they are gone. The Outro's two and the manual command spend only the play. At S3
+ *  every note *played* is a Cadenza, whatever was stored. Resolved against her own slot
+ *  throughout rather than whoever is acting: the two her Outro owes are drawn from her handoff
+ *  buff, which the *incoming* resonator is the one holding. */
+function drawNote(charged: boolean, manual = false): void {
   const her = currentTeam().memberOf(PHROLOVA_RESONATOR);
-  const i = Math.min(SEQUENCE.length - 1, her.stacksOf(MAESTRO) - 1);
-  queueOn(PHROLOVA_RESONATOR, her.isHeld(PH_S3) ? EBA_CADENZA : SEQUENCE[i]!);
-  addBuff(PHROLOVA_RESONATOR, MAESTRO, 1);
+  if (!her.stacksOf(MAESTRO)) return;
+  let word = her.stacksOf(NOTES);
+  const note = word & 3;
+  if (!note) return;
+  if (charged) {
+    if (!((word >> 12) & 15)) return;
+    word -= 1 << 12;
+  }
+  const plays = ((word >> 17) & 3) + 1;
+  if (plays < ((word >> 19) & 1 ? 2 : 3)) {
+    word = (word & ~(3 << 17)) | (plays << 17);
+  } else {
+    word = ((word & ~0xfff & ~(3 << 17)) | ((word & 0xfff) >> 2)) ^ (1 << 19);
+  }
+  her.setStacks(NOTES, word);
+  const played = her.isHeld(PH_S3) ? 3 : note;
+  queueOn(PHROLOVA_RESONATOR, (manual ? SWAP_NOTES : NOTE_ACTIONS)[played - 1]!);
 }
 
 /* ------------------------------------------------------------------------------------ buffs */
@@ -114,39 +166,39 @@ const AFTERSOUND = new Buff({
   },
 });
 
-/** Maestro: open/charges/next-note as one stacking buff. Can't be held at 0 frozenStacks, so the count
- *  is notes-drawn-so-far *plus one* (granted at 1, maxing at 13); `stacksOf(MAESTRO) - 1` is the
- *  real notes-drawn number everywhere below. Ends the moment Suite of Immortality (EIntro) plays. */
-export const MAESTRO = new Buff({
-  name: "Phrolova: Maestro", maxStacks: 13,
-  applyStats: () => addStat(Stat.BonusAtk, 120),
-  // Any active Echo Skill cast (hers or a teammate's) spends a charge and draws a note.
-  // updateGlobal() forces currentSlot to Phrolova's own slot so drawNote() resolves against her.
-  updateGlobal: () => {
-    const a = currentAction();
-    if (casting(Cast.Echo) && a.active && frozenStacks() < 11) drawNote();
-  },
-  // the note that just played, or (if this row isn't one of the Hecate notes) the one coming next
+/** The Volatile Note store, one packed word (see the file header): bits 0-11 are six two-bit
+ *  slots oldest-first (1 Strings, 2 Winds, 3 Cadenza), bits 12-15 the auto-cast chances left of a
+ *  Waltz's ten, bit 16 always set so an empty store is still a held buff, bits 17-18 how often
+ *  the front note has been played and bit 19 whether its quota is the three or the two (see
+ *  drawNote()). Hers from combat start; the display reads the slots off as she stands. */
+export const NOTES = new Buff({
+  name: "Phrolova: Volatile Notes", maxStacks: 0xfffff,
   display: (): string => {
-    const justPlayed = NOTE_LABEL.get(currentAction());
-    if (justPlayed) return `Maestro: ${justPlayed}`;
-    const i = Math.min(SEQUENCE.length - 1, frozenStacks() - 1);
-    const next = isHeld(PH_S3) ? EBA_CADENZA : SEQUENCE[i]!;
-    return `Maestro: ${NOTE_LABEL.get(next)}`;
+    let slots = "";
+    for (let shift = 0; shift < 12; shift += 2) slots += "-SWC"[(frozenStacks() >> shift) & 3]!;
+    return `Phrolova: Volatile Notes [${slots}]`;
   },
 });
 
-/** Accidental (Inherent Skill): interrupt resistance/damage-taken reduction on Echo Skill cast —
- *  out of scope for this calculator's formula, so this is a do-nothing presence marker, consumed
- *  the instant one of her +100-forte actions fires. */
-const ACCIDENTAL = new Buff({
-  name: "Phrolova: Accidental",
-  convertStats: () => {
-    const a = currentAction();
-    if (a === BA3 || a === Skill || a === FBA || a === FSkill) revokeCurrent(ACCIDENTAL);
+/** Maestro: the Waltz standing, ended the moment Suite of Immortality (EIntro) plays. The chances
+ *  and the notes it plays through live in NOTES above. */
+export const MAESTRO = new Buff({
+  name: "Phrolova: Maestro",
+  applyStats: () => addStat(Stat.BonusAtk, 120),
+  // Any active Echo Skill cast (hers or a teammate's) spends a chance and plays a note.
+  // updateGlobal() keeps the "current" pointers on her own slot, so drawNote() resolves against her.
+  updateGlobal: () => {
+    if (casting(Cast.Echo) && currentAction().active) drawNote(true);
   },
 });
-/** Accidental's own trigger — always-equipped Inherent Skill piece. */
+
+/** Accidental (Inherent Skill), armed: her next Volatile Note gained turns into a Cadenza —
+ *  which is the only way a Cadenza ever reaches the store. Consumed by that gain (gainNote()
+ *  above), so it waits through anything that doesn't land one. */
+const ACCIDENTAL = new Buff({
+  name: "Phrolova: Accidental",
+});
+/** Accidental's own trigger: casting Suite of Quietus, Suite of Immortality, or an Echo Skill. */
 const PH_INHERENT_1 = new Inherent({
   name: "Phrolova: Accidental",
   updateBuffs: () => { const a = currentAction(); if (a === Intro || a === EIntro || casting(Cast.Echo)) applyCurrent(ACCIDENTAL, 1); },
@@ -160,7 +212,7 @@ const PHROLOVA_OUTRO = new Buff({
   // Also the two notes her Outro owes: this is adopted on the incoming resonator's own Intro, so
   // it is the thing that sees the Intro they play — and drawNote() puts them back on her slot.
   updateBuffs: () => {
-    if (casting(Cast.Intro) && currentTeam().memberOf(PHROLOVA_RESONATOR).stacksOf(MAESTRO)) { drawNote(); drawNote(); }
+    if (casting(Cast.Intro) && currentTeam().memberOf(PHROLOVA_RESONATOR).stacksOf(MAESTRO)) { drawNote(false); drawNote(false); }
     lostOnSwap();
   },
 });
@@ -172,10 +224,11 @@ const PHROLOVA_OUTRO = new Buff({
 const Apparition = phroAction("Hecate - Apparition of Beyond", { type: Type1.Echo, mv: 216.42 });
 
 /** S1: the out-of-combat top-up only ever reads, in a rotation, as opening the fight holding 2
- *  Volatile Notes. */
+ *  Volatile Notes — Cadenza by its own text ("gains Volatile Note - Cadenza until she has at
+ *  least 2"), banked straight into the store's first two slots. */
 const PH_S1 = new Sequence({
   name: "Phrolova S1: A Key to Netherworld's Secrets",
-  combatStart: () => setForte1(2),
+  combatStart: () => applyCurrent(NOTES, 3 | (3 << 2)),
   applyStats: () => { const a = currentAction(); if (a === FBA || a === FSkill) addStat(Stat.MulMv, 80); },
 });
 
@@ -239,8 +292,9 @@ export const PHROLOVA_RESONATOR = new Resonator({
   outro: () => Outro,
   maxEnergy: 0,
 
-  // Octet: 10 Aftersound the instant she's on the team, not tied to when she first acts
-  combatStart: () => applyCurrent(AFTERSOUND, 10),
+  // Octet: 10 Aftersound the instant she's on the team, not tied to when she first acts — and
+  // the note store itself, empty (its always-set bit alone; see NOTES)
+  combatStart: () => { applyCurrent(AFTERSOUND, 10); applyCurrent(NOTES, 1 << 16); },
 
   constantStats: () => {
     addStat(Stat.BaseHp, 10775); addStat(Stat.BaseAtk, 437.5); addStat(Stat.BaseDef, 1137);
@@ -256,7 +310,6 @@ const PHROLOVA_TALENTS = new Talent({
 // INTRO resolves to plain Intro or EIntro on its own (see her own intro() above)
 // NOINTRO ROTATIONS DO NOT HAVE AN INTRO
 
-const BA123Dash = new ActionGroup("Basic - Movement of Life and Death 123 (Cancel)", [BA1, BA2, BA3.dodgeCancel()]);
 const BA123 = new ActionGroup("Basic - Movement of Life and Death 123", [BA1, BA2, BA3, DODGE]);
 
 const PH_LOOP = new Rotation([
@@ -264,9 +317,8 @@ const PH_LOOP = new Rotation([
   INTRO,
   BA3, ECHO_ONFIELD, 
   FBA, Skill, FBA, DODGE, 
-  BA123Dash, FBA, DODGE,
-  BA123Dash, FBA, DODGE, 
-  ScarletCoda, Liberation, OUTRO,
+  BA123, FBA, DODGE,
+  ScarletCoda, Liberation, HBA1, HBA2, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

@@ -25,9 +25,9 @@
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, currentAction, casting, revokeCurrent, addStat, frozenStacks, removeStack, queueOn, queueOutro,
-  } from "../../engine/kit.js";
+  } from "../../kit.js";
 import { matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, ActionField } from "../../rotation.js";
 import { IUNO_SIG, VERITYS_HANDLE } from "../../weapons/gauntlet.js";
 import { ABYSS_SURGES, NEW_STD_GAUNTLET } from "../../weapons/standard.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
@@ -79,7 +79,8 @@ const Outro = xlyAction("Outro - Chain Rule", {
 });
 /** One laser beam — queued onto his own slot by XLY_OUTRO below, once per stack the incoming
  *  resonator's Basic casts consume. */
-const ACTION_OUTRO_COORD = xlyAction("Outro - Chain Rule (Laser)", { type: Type1.Outro, mv: 237.63, active: false });
+const CHAIN_RULE_FIELD = new ActionField("Xiangli Yao: Chain Rule");
+const ACTION_OUTRO_COORD = xlyAction("Outro - Chain Rule (Laser)", { type: Type1.Outro, mv: 237.63, active: false, field: CHAIN_RULE_FIELD });
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -102,6 +103,7 @@ const XLY_INHERENT_2 = new Inherent({ name: "Xiangli Yao: Focus" });
  *  consuming one to fire a laser on Xiangli Yao's own slot. Whatever's left is lost when they
  *  leave the field. */
 const XLY_OUTRO: Buff = new Buff({
+  field: CHAIN_RULE_FIELD,
   name: "Xiangli Yao: Outro", maxStacks: 3,
   updateBuffs: () => {
     if (casting(Cast.Basic)) { queueOn(XIANGLI_YAO_RESONATOR, ACTION_OUTRO_COORD); removeStack(XLY_OUTRO, 1); }

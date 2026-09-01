@@ -24,9 +24,9 @@
 import {
   Buff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType,
   Type1, Cast, Node, Scaling, addStat, applyCurrent, applyTeam, casting, currentAction, maxStackIncrease, queueOutro,
-  revokeCurrent, } from "../../engine/kit.js";
+  revokeCurrent, } from "../../kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, SWAP, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, SWAP, INTRO, ECHO_SWAP, OUTRO } from "../../rotation.js";
 import { applyRupture, applyStrain, TUNE_STRAIN_INTERFERED, tuneRuptureResponse, tuneStrainBonus } from "../../shared/tunebreak.js";
 import { SPECTRUM_BLASTER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";

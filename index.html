@@ -15,7 +15,7 @@
 <!--
   The engine is TypeScript. tsc compiles src/**/*.ts into dist/src/ (mirroring this project one
   level deeper), and esbuild then folds those ~70 modules into the two files that actually load
-  below — dist/bundle/index.js and the worker's dist/bundle/engine/solver.js (see dev.py on why:
+  below — dist/bundle/index.js and the worker's dist/bundle/src/solver.js (see dev.py on why:
   eight workers each fetching the whole module graph was most of a cold load's startup). A
   source edit needs both passes before a refresh shows it. The page still has to be served
   rather than opened off disk — browsers block module imports and fetch() on file:// URLs. From
@@ -69,6 +69,6 @@
   <div class="progress-track"><div class="progress-fill"></div></div>
 </div>
 
-<script type="module" src="../dist/bundle/index.js"></script>
+<script type="module" src="./dist/bundle/index.js"></script>
 </body>
 </html>

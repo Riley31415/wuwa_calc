@@ -6,10 +6,10 @@
  *    Intro; removed when she switches out (any inactive action of hers).
  *  - Execution Mode: opened by Magnetic Roar, 4 charges — each Basic/Dodge Counter cast against
  *    a Sinner-marked target consumes one and fires an Electromagnetic Blast on her own slot.
- *  - Punishment Mark: Chameleon Cipher hitting a Sinner-marked target upgrades the mark, 18s.
- *    While it stands, damage taken calls down Judgment Strikes (Coordinated, Resonance Skill
- *    DMG, up to 1/s) — the whole window lumped into one 18-hit action queued off her Outro and
- *    consumed by it, so no mark means no strikes.
+ *  - Punishment Mark: Chameleon Cipher hitting a Sinner-marked target upgrades the mark — 18
+ *    stacks that are its 18s at the 1/s ceiling (`coordinatedBuff`): every active, non-triggered
+ *    action at the marked target calls down one real Judgment Strike (Coordinated, Resonance
+ *    Skill DMG) on her own slot and spends a stack.
  * Deadly Focus's Lightning Execution bonus is likewise gated on the target actually holding
  * Sinner's Mark rather than assumed.
  *
@@ -25,10 +25,10 @@
 import {
   Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
   Type2, Cast, Node, Scaling, applyCurrent, setStacksSelf, removeStack, applyEnemy, revokeEnemy, stacksOfEnemy,
-  isHeld, currentAction, casting, revokeCurrent, addStat, queue, queueOnIntro, queueOutro, applyTeam,
-} from "../../engine/kit.js";
-import { lostOnSwap, matrix } from "../../shared/helpers.js";
-import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
+  isHeld, currentAction, casting, revokeCurrent, addStat, queue, queueOutro, applyTeam,
+} from "../../kit.js";
+import { coordinatedBuff, lostOnSwap, matrix } from "../../shared/helpers.js";
+import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ActionField } from "../../rotation.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { EMPYREAN_ANTHEM_5PC, EMPYREAN_ANTHEM_2PC } from "../../echoes/rinascita.js";
@@ -68,21 +68,17 @@ const Liberation = yinlinAction("Liberation - Thundering Wrath", { node: Node.Li
 const FHA = yinlinAction("Forte Heavy - Chameleon Cipher", {
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 178.93 * 2, energy: 10.00, concerto: 20.00, offtune: 52000, forte1: -40,
   updateBuffs: () => {
-    if (stacksOfEnemy(SINNERS_MARK)) { revokeEnemy(SINNERS_MARK); applyEnemy(PUNISHMENT_MARK, 1); }
+    if (stacksOfEnemy(SINNERS_MARK)) { revokeEnemy(SINNERS_MARK); applyEnemy(PUNISHMENT_MARK, 18); }
   },
 });
-/** Punishment Mark's whole 18s window at its 1/s ceiling, lumped — Resonance Skill DMG, queued
- *  off her own Outro while the mark stands (it consumes the mark — see PUNISHMENT_MARK). */
-const ACTION_JUDGMENT_STRIKES = yinlinAction("Forte - Judgment Strike x18", { node: Node.Forte, type: Type1.Skill, type2: Type2.Coordinated, mv: 78.64 * 18, active: false });
+/** One Judgment Strike — Resonance Skill DMG, drawn per qualifying action by PUNISHMENT_MARK. */
+const PUNISHMENT_FIELD = new ActionField("Yinlin: Punishment Mark");
+const ACTION_JUDGMENT_STRIKE = yinlinAction("Forte - Judgment Strike", { node: Node.Forte, type: Type1.Skill, type2: Type2.Coordinated, mv: 78.64, active: false, field: PUNISHMENT_FIELD });
 
 const Intro = yinlinAction("Intro - Raging Storm", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 14.32 * 10, energy: 10.00, concerto: 10, offtune: 9520, forte1: 12 });
 const Outro = yinlinAction("Outro - Strategist", {
   cast: Cast.Outro, concerto: -100, active: false,
-  updateBuffs: () => {
-    // the strikes rain down after the handoff, so they land behind the next resonator's Intro
-    if (stacksOfEnemy(PUNISHMENT_MARK)) queueOnIntro(ACTION_JUDGMENT_STRIKES);
-    queueOutro(YINLIN_OUTRO);
-  },
+  updateBuffs: () => queueOutro(YINLIN_OUTRO),
 });
 
 /* ------------------------------------------------------------------------------------ marks */
@@ -96,12 +92,9 @@ const SINNERS_MARK: Debuff = new Debuff({
   updateBuffs: () => { if (!currentAction().active && isHeld(YINLIN_RESONATOR)) revokeEnemy(SINNERS_MARK); },
 });
 
-/** Punishment Mark: what Chameleon Cipher turns a Sinner's Mark into, 18s. Its Judgment Strike
- *  window is the queued lump above, which consumes the mark once it lands. */
-const PUNISHMENT_MARK = new Debuff({
-  name: "Yinlin: Punishment Mark",
-  convertStats: () => { if (currentAction() === ACTION_JUDGMENT_STRIKES) revokeEnemy(PUNISHMENT_MARK); },
-});
+/** Punishment Mark: what Chameleon Cipher turns a Sinner's Mark into — "when a target marked
+ *  with Punishment Mark takes damage, Judgement Strike will fall". */
+const PUNISHMENT_MARK = coordinatedBuff("Yinlin: Punishment Mark", 18, () => YINLIN_RESONATOR, ACTION_JUDGMENT_STRIKE, { enemy: true });
 
 /** Execution Mode: 4 Blast charges off Magnetic Roar — each Basic/Dodge Counter cast against a
  *  Sinner-marked target spends one for an Electromagnetic Blast. Whatever's left is lost when

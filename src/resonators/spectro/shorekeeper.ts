@@ -1,17 +1,21 @@
 /**
- * Shorekeeper, ported to the new engine — sequence-0 core loop only. Her damage barely matters;
- * the Stellarealm is what she's for, giving the team crit rate then crit damage scaled off her
- * own energy regen.
+ * Shorekeeper, ported to the new engine. Her damage barely matters; the Stellarealm is what she's
+ * for, giving the team crit rate then crit damage scaled off her own energy regen.
+ *
+ * The realm's life: End Loop *generates* the Outer Stellarealm — a new one replaces whatever is
+ * standing rather than evolving it — every Intro anyone casts inside it steps it a stage (modelled
+ * on the outro that hands the field over), and Discernment, her replacement Intro at Supernal,
+ * ends it — or, with S1, leaves it standing for her own next End Loop to replace.
  *
  * Numbers from nanoka.cc (character 1505); Base DEF (1100) confirmed there directly, since the
- * migrated sheet this was ported from didn't carry it.
+ * migrated sheet this was ported from didn't carry it. Her resonance chain is below the buffs.
  */
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
+  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyTeam, applyCurrent, addBuff, revokeBuff, stacksOfTeam, currentAction, currentTeam, casting,
-  revokeTeam, addStat,
-  } from "../../engine/kit.js";
-import { ActionGroup, Action, Rotation, START_1, START_2, START_3, SWAP, NOINTRO, INTRO, ECHO_CANCEL, OUTRO, DODGE, JUMP } from "../../engine/rotation.js";
+  isHeld, revokeTeam, addStat,
+  } from "../../kit.js";
+import { ActionGroup, Action, Rotation, START_1, START_2, START_3, SWAP, NOINTRO, INTRO, ECHO_CANCEL, OUTRO, DODGE, JUMP } from "../../rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { SK_SIG } from "../../weapons/rectifier.js";
 import { VARIATION } from "../../weapons/standard.js";
@@ -36,15 +40,19 @@ const BA3 = skAction("Basic - Origin Calculus 3", { node: Node.Normal, cast: Cas
 
 const MA = skAction("Basic - Origin Calculus (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.96, energy: 1.55, concerto: 5, offtune: 4960, forte1: 1 });
 
-// Overflowing Quietude (Inherent Skill): +70% Healing Bonus on cast — no duration given, applied
-// same-cast. Healing Bonus is unused by the formula, tracked for completeness.
 const Skill = skAction("Skill - Chaos Theory", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 156.55, energy: 10, concerto: 30, offtune: 5250 });
 
 const FHA = skAction("Forte - Illation", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 281.3, energy: 4.95, concerto: 11, offtune: 6360, forte1: -5 });
 
 const Liberation = skAction("Liberation - End Loop", {
   node: Node.Liberation, cast: Cast.Liberation, concerto: 20, resetEnergy: true,
-  updateBuffs: () => applyTeam(SK_REALM, 1)
+  // "Generate the Outer Stellarealm": a cast puts up a *new* realm rather than stepping the one
+  // already standing, so whatever stage is up is replaced by Outer — which is what puts the realm
+  // S1 carried through Discernment back at the bottom.
+  updateBuffs: () => {
+    revokeTeam(SK_REALM);
+    applyTeam(SK_REALM, 1);
+  },
 });
 
 const Intro = skAction("Intro - Enlightenment", { node: Node.Intro, cast: Cast.Intro, type: Type1.Skill, mv: 226.5, energy: 10, concerto: 20, offtune: 11395 });
@@ -55,6 +63,13 @@ const EIntro = skAction("Intro - Discernment", {
   energy: 10.02, concerto: 20, offtune: 73242,
   applyStats: () => { addStat(Stat.CritRate, 100); },
   updateBuffs: () => {
+    // One Discernment per Supernal realm generated (its own text), with nothing here to enforce
+    // it: her End Loop stands between any two of her Intros and puts a fresh Outer realm up, so
+    // the stage alone can never still read Supernal by the time she arrives again.
+    // S1: "Casting Intro Skill Discernment no longer ends the existing Stellarealm" — so the realm
+    // stands as it is (Supernal, until her next End Loop replaces it) and Rover keeps the Self
+    // Gravitation that only ever falls off with it
+    if (isHeld(SK_S1)) return;
     revokeTeam(SK_REALM);
     // doesn't fall off Rover on its own just because the realm ends
     const rover = currentTeam().slots.find((s) => s.resonator?.name.includes("Rover"))?.resonator;
@@ -119,6 +134,52 @@ const SK_INHERENT_2 = new Inherent({
 
 const SK_INHERENT_1 = new Inherent({ name: "Shorekeeper: Life Entwined" }); // revive
 
+/* --------------------------------------------------------------------------- resonance chain */
+
+/** S1: the range and the +10s reach nothing this calculator computes. What does is its third
+ *  clause — Discernment no longer ends the Stellarealm, read by EIntro above. */
+const SK_S1 = new Sequence({ name: "Shorekeeper S1: Unspoken Conjecture" });
+
+/** S2: on the *Outer* realm, and every stage above it "has all the effects of the Outer" — so it
+ *  pays whenever any realm stands. Team-wide, so it cannot live on the node itself (a Sequence is
+ *  gear on her own slot and its stats reach only her turns): the node mirrors the realm onto a
+ *  buff of the team's, put up and taken down with it from updateGlobal, which runs whoever acts. */
+const SK_S2_TEAM = new Buff({
+  name: "Shorekeeper S2: Night's Gift and Refusal",
+  applyStats: () => addStat(Stat.BonusAtk, 40),
+});
+
+const SK_S2 = new Sequence({
+  name: "Shorekeeper S2: Night's Gift and Refusal",
+  updateGlobal: () => {
+    if (stacksOfTeam(SK_REALM)) applyTeam(SK_S2_TEAM, 1);
+    else revokeTeam(SK_S2_TEAM);
+  },
+});
+
+const SK_S3 = new Sequence({
+  name: "Shorekeeper S3: Infinity Awaits Me",
+  applyStats: () => {
+    if (currentAction() === Liberation) addStat(Stat.AddConcerto, 20);
+  },
+});
+
+/** S4: Healing Bonus is out of this calculator's formula, so this is tracked for completeness the
+ *  way her talents' own 12% is. Named Overflowing Quietude, which is a chain node and not the
+ *  Inherent Skill an older comment on Chaos Theory called it. */
+const SK_S4 = new Sequence({
+  name: "Shorekeeper S4: Overflowing Quietude",
+  applyStats: () => { if (currentAction() === Skill) addStat(Stat.HealingBonus, 70); },
+});
+
+/** S5: two pull ranges. Nothing here has a range, so this is held for its name alone. */
+const SK_S5 = new Sequence({ name: "Shorekeeper S5: Echoes in Silence" });
+
+const SK_S6 = new Sequence({
+  name: "Shorekeeper S6: To the New World",
+  applyStats: () => { if (currentAction() === EIntro) { addStat(Stat.MulMv, 42); addStat(Stat.CritDmg, 500); } },
+});
+
 const SHOREKEEPER_RESONATOR = new Resonator({
   name: "Shorekeeper",
   element: Attribute.Spectro,
@@ -182,6 +243,7 @@ export const SHOREKEEPER = new Loadout({
   weapons: [SK_SIG, VARIATION],
   echoLoadouts: [new EchoLoadout(FALLACY, REJUV_5PC, REJUV_2PC),
     new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC, STARRY_RADIANCE_2PC),],
+  sequences: [SK_S1, SK_S2, SK_S3, SK_S4, SK_S5, SK_S6],
   mainstats: [mainstats(Mainstat.HP4, Mainstat.ER3, Mainstat.ER3, Mainstat.HP1, Mainstat.HP1)],
   substat: chem("hp", "liberation"),
     rotation: SK_LOOP,

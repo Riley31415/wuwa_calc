@@ -78,6 +78,13 @@ export interface ActionDef extends GearDef {
    *  engine bookkeeping a resonator didn't press a button for (the swap markers below).
    *  Everything else `run()` derives on its own; see its `triggered` local. */
   triggered?: boolean;
+  /** The field this hit belongs to — a summon firing on its own beside the fight (a coordinated
+   *  attack, Denia's Erosion Field, Jué's follow-up, Xiangli Yao's outro laser, Rebecca's turret).
+   *  The same `ActionField` the Buff that opens the field names, which is what pairs a run of hits
+   *  with the cast that created them (see `ActionField` below). A one-off reuse of a field's own
+   *  hit outside it (Mortefi's S5 burst, Verina's S6 proc) leaves it off, or clears it with `null`
+   *  on a variant of a hit that has one. */
+  field?: ActionField | null;
 }
 
 /** A cast. Mostly data — element/type/cast tags, its motion value, and the energy/concerto/
@@ -162,10 +169,12 @@ export class Action extends Gear {
    *  rotation writes only the cancel. */
   dodgeCancel(): Action {
     const d = this.def;
-    return new Action(`${this.name} (Cancel)`, {
+    return new Action(`${this.name} (Cancelled)`, {
       cast: d.cast, cast2: d.cast2, active: d.active,
       combatStart: d.combatStart, updateDebuffs: d.updateDebuffs, updateGlobal: d.updateGlobal,
-      updateBuffs: () => { d.updateBuffs?.(); queue(DODGE); },
+      // the dodge is queued ahead of the hook, so it resolves before anything the cancelled
+      // press itself queues — the dash is what interrupts the cast, not something trailing it
+      updateBuffs: () => { queue(DODGE); d.updateBuffs?.(); },
       applyStats: d.applyStats, convertStats: d.convertStats, afterAction: d.afterAction, lateConvertStats: d.lateConvertStats,
       display: d.display,
     });
@@ -195,6 +204,22 @@ export class ActionGroup extends Action {
     super(name);
     this.actions = actions;
   }
+}
+
+/**
+ * A field: a summon that fires on its own beside the fight for as long as it stands — Mortefi's
+ * Marcato, Zhezhi's Inklit Spirits, Rebecca's turret, Denia's Erosion Field. Named once and
+ * pointed at from both ends: the Buff that opens it (kit.ts's own `GearDef.field`) and every hit
+ * it fires (`ActionDef.field` above). That pairing is the whole point — it is what lets the report
+ * read a field's whole run of hits as one row placed under the cast that created it (solver.ts's
+ * `collapseFields`), with a fresh row each time the field is opened again.
+ *
+ * A declaration, not a cast: unlike `ActionGroup`, which is an Action naming the casts it folds,
+ * a field is never pressed and never evaluated — the summon's own hit action is.
+ */
+export class ActionField {
+  readonly name: string;
+  constructor(name: string) { this.name = name; }
 }
 
 /* ------------------------------------------------------------------------------- the markers */
@@ -481,9 +506,10 @@ export function runRotations(state: State, rotations: Rotation[], sections: numb
       if (at >= 0) { inStart.push(at); continue; }
       // the SWAP closing the section is the scramble's own row, never the loop's
       if (a === SWAP && inStart.length) { inStart = []; continue; }
-      // a section none of whose positions this member is standing in never plays at all; their own
-      // plays every visit but the first, where the scramble already spent it
-      if (inStart.length && (!inStart.includes(i) || skipStart)) continue;
+      // an inline section's casts are the loop's own for everyone — its markers only name whose
+      // opening scramble already spent them, and that member alone skips them, on the one visit
+      // right after the scramble did
+      if (inStart.length && inStart.includes(i) && skipStart) continue;
       casts.push(a);
     }
     const list = chain.entry === INTRO || chain.entry === DOUBLE_INTRO ? [INTRO, ...casts, outro] : [...casts, outro];

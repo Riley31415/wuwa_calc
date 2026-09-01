@@ -27,9 +27,9 @@ import {
   Buff, Debuff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType,
   Type1, Cast, Node, Scaling, applyCurrent, applyTeam, applyEnemy, revokeCurrent, revokeTeam, revokeEnemy, isHeld,
   stacksOfEnemy, casting, currentAction, addStat, frozenStacks, queueOutro, forte1,
-} from "../../engine/kit.js";
+} from "../../kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { Action, Rotation, INTRO, ECHO_SWAP, OUTRO, SWAP, START_3 } from "../../engine/rotation.js";
+import { Action, Rotation, INTRO, ECHO_SWAP, OUTRO, SWAP, START_3 } from "../../rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, EMERALD_SENTENCE } from "../../weapons/sword.js";

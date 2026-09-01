@@ -24,9 +24,9 @@
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, addStat, applyCurrent, casting, currentAction, forte1, getStat, maxStackIncrease, queue, revokeCurrent,
-  setForte1, frozenStacks, stacksOfEnemy, } from "../../engine/kit.js";
-import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, ECHO_SWAP, OUTRO, DODGE } from "../../engine/rotation.js";
-import { applied } from "../../engine/kit.js";
+  setForte1, frozenStacks, stacksOfEnemy, } from "../../kit.js";
+import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, ECHO_SWAP, OUTRO, DODGE } from "../../rotation.js";
+import { applied } from "../../kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { TUNE_STRAIN_SHIFTING } from "../../shared/tunebreak.js";
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_INTERFERED, tuneStrainBonus } from "../../shared/tunebreak.js";

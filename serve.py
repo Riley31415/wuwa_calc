@@ -56,7 +56,7 @@ def _snapshot() -> dict:
         # tsc's own output is not what the page loads any more — esbuild re-bundles it into
         # dist/bundle a moment later (dev.py), and that is the change worth reloading on. Watching
         # both meant two reloads per edit, the first onto a bundle not yet rebuilt.
-        if "dist" in p.parts and "src" in p.parts:
+        if "dist" in p.parts and "bundle" not in p.parts:
             continue
         try:
             state[str(p)] = p.stat().st_mtime

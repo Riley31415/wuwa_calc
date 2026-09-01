@@ -3,9 +3,9 @@
  * alone decides. Values are the 5-star level-25 numbers. A 3-cost's elemental damage is scoped
  * per element rather than generic, so a mismatched slot doesn't silently pay full price.
  */
-import { Buff, addStat } from "../engine/kit.js";
-import { Stat, Attribute, scopedStat, STAT_NAME, TAG_NAME } from "../engine/stats.js";
-import type { StatKey, Tag } from "../engine/stats.js";
+import { Buff, addStat } from "../kit.js";
+import { Stat, Attribute, scopedStat, STAT_NAME, TAG_NAME } from "../stats.js";
+import type { StatKey, Tag } from "../stats.js";
 
 /** Every main stat an echo can roll, one entry per stat *and* cost — ATK/HP/DEF exist at every
  *  cost, crit only at 4, ER and an element only at 3, and no physical 3-cost exists in-game. */

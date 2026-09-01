@@ -1,19 +1,20 @@
 /**
  * Mortefi, ported to the new engine — a `Tier.Free` 4-star, all six sequence nodes
  * folded into the loadout unconditionally. A fusion Pistols off-field Coordinated Attack support:
- * Burning Rhapsody (Liberation) opens a 10s window where the active resonator's own Basic/Heavy
- * hits trigger Mortefi's own Marcato — lumped into one action queued off his Outro, same shape as
- * Zhezhi's Inklit Spirit/Cantarella's Diffusion, rather than live per-hit tracking.
+ * Burning Rhapsody (Liberation) opens a window where the active resonator's own Basic/Heavy/Skill
+ * casts trigger Mortefi's own Marcato — real per-cast coordinated attacks (see BURNING_RHAPSODY
+ * below), each firing on his own slot, with Rhythmic Vibrato ramping them live.
  *
  * Numbers from nanoka.cc (character 1204, https://ww.nanoka.cc/character/1204), cross-checked
  * against the migrated (old-engine) sheet's own totals.
  */
 import {
   Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
-  Type2, Cast, Node, Scaling, applyCurrent, applyTeam, revokeTeam, stacksOfTeam, isHeld, casting, currentAction,
-  addStat, revokeCurrent, queue, queueOnIntro, queueOutro, } from "../../engine/kit.js";
+  Type2, Cast, Node, Scaling, applyCurrent, applyTeam, revokeTeam, stacksOfTeam, removeStackTeam, isHeld,
+  casting, currentAction, triggeredAction, frozenStacks, isType, addStat, revokeCurrent, queue, queueOn,
+  queueOutro, } from "../../kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, ActionField } from "../../rotation.js";
 import { STATIC_MIST, CADENZA, NEW_STD_PISTOL } from "../../weapons/standard.js";
 import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";
 import { NM_HECATE, EMPYREAN_ANTHEM_5PC, EMPYREAN_ANTHEM_2PC, HECATE } from "../../echoes/rinascita.js";
@@ -46,34 +47,76 @@ const Skill = mortefiAction("Skill - Passionate Variation", { node: Node.Skill, 
 // --- forte circuit: Fury Fugue — spends every point of Annoyance, considered Resonance Skill DMG
 const FSkill = mortefiAction("Forte Skill - Fury Fugue", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 326.05, energy: 10, concerto: 18, offtune: 8000, forte1: -100 });
 
-// --- resonance liberation: Violent Finale opens Burning Rhapsody; Marcato's own window is queued
-//     separately off Outro (see ACTION_LIB_COORDS below)
+// --- resonance liberation: Violent Finale opens Burning Rhapsody — 28 coordinated attacks banked
+//     (10s / 0.35s), the window itself and its firing rules in BURNING_RHAPSODY below. A fresh
+//     window is a fresh Rhythmic Vibrato ramp, so the old one is wiped here.
 const Liberation = mortefiAction("Liberation - Violent Finale", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 159.05, concerto: 20, offtune: 96000, resetEnergy: true,
-  updateBuffs: () => applyTeam(BURNING_RHAPSODY, 1),
+  updateBuffs: () => { revokeCurrent(VIBRATO); applyTeam(BURNING_RHAPSODY, 28); },
 });
-/** The whole Burning Rhapsody window, lumped: 35 Coordinated Attacks x 2 Marcato = 70 hits, the
- *  migrated sheet's own assumed real-rotation uptime, not a theoretical duration/0.35s max. */
-const ACTION_LIB_COORDS = mortefiAction("Liberation - Marcato x70", { node: Node.Liberation, type: Type1.Liberation, type2: Type2.Coordinated, mv: 31.81 * 70, active: false });
-/** S5 Funerary Quartet's own real-triggered burst — see `MORTEFI_S5` below. */
-const ACTION_S5_MARCATO = mortefiAction("Liberation - Marcato x4 (S5 Funerary Quartet)", { node: Node.Liberation, type: Type1.Liberation, type2: Type2.Coordinated, mv: 31.81 * 4 * 0.5 });
+/** Burning Rhapsody as the report reads it: the field his Liberation puts out, which every
+ *  Marcato below fires from and BURNING_RHAPSODY's own grant opens. */
+const MARCATO_FIELD = new ActionField("Mortefi: Burning Rhapsody");
+/** One Marcato, every hit its own row so the detail table's field row counts them — this is the
+ *  lead hit of a coordinated attack, which is what carries the Vibrato ramp's +1. */
+const ACTION_MARCATO = mortefiAction("Liberation - Marcato", {
+  node: Node.Liberation, type: Type1.Liberation, type2: Type2.Coordinated, mv: 31.81, active: false, field: MARCATO_FIELD,
+  updateBuffs: () => applyCurrent(VIBRATO, 1),
+});
+/** The second hit of a Heavy/Skill pair — same hit, but inside the lead's 0.35s Vibrato ICD, so
+ *  this copy carries no gain. Same name; the two fold together in the report. */
+const ACTION_MARCATO_PAIRED = ACTION_MARCATO.variant("Liberation - Marcato", { updateBuffs: undefined });
+/** S5 Funerary Quartet's own real-triggered burst, hit by hit — see `MORTEFI_S5` below. The lead
+ *  hit ramps Vibrato once (one 0.35s ICD); the other three carry no gain. His own hit off his own
+ *  press, not the field's — no `field` flag, so it stays out of the report's field grouping. */
+const ACTION_S5_MARCATO = mortefiAction("Liberation - Marcato (S5 Funerary Quartet)", {
+  node: Node.Liberation, type: Type1.Liberation, type2: Type2.Coordinated, mv: 31.81 * 0.5,
+  updateBuffs: () => applyCurrent(VIBRATO, 1),
+});
+const ACTION_S5_MARCATO_PAIRED = ACTION_S5_MARCATO.variant("Liberation - Marcato (S5 Funerary Quartet)", { updateBuffs: undefined });
 
 // --- intro / outro
 const Intro = mortefiAction("Intro - Dissonance", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 168.99, energy: 10, concerto: 10, offtune: 8000 });
 const Outro = mortefiAction("Outro - Rage Transposition", {
   cast: Cast.Outro, concerto: -100, active: false,
-  // Burning Rhapsody's whole Marcato total lands as one lump — deferred behind the next
-  // resonator's Intro, since the coordinated attacks keep firing past the swap
-  updateBuffs: () => { queueOnIntro(ACTION_LIB_COORDS); queueOutro(MORTEFI_OUTRO); }
+  updateBuffs: () => queueOutro(MORTEFI_OUTRO),
 });
 
 /* ------------------------------------------------------------------------------------ buffs */
 
-/** Burning Rhapsody's own "is the window open" flag — no stat of its own, just what S5 reads.
- *  Team-wide, closed on Mortefi's own Outro specifically (`isHeld(MORTEFI_RESONATOR)`). */
+/** Burning Rhapsody as the countdown it is — each stack one 0.35s coordinated-attack slot,
+ *  28 banked by the Liberation (10s) plus S4's own 20 (+7s), spent only by firing. On every
+ *  active, non-triggered cast: a Basic (with a real hit — mv > 0) draws up to three single
+ *  Marcato, a Heavy up to three doubles, each coordinated attack one stack and never more than
+ *  remain; a Resonance Skill draws one free double, spending nothing. Empty is over — it outlives
+ *  his swap (the ticks land on his own slot regardless), unlike the old lumped window. */
 const BURNING_RHAPSODY = new Buff({
   name: "Mortefi: Burning Rhapsody",
-  updateBuffs: () => { if (casting(Cast.Outro) && isHeld(MORTEFI_RESONATOR)) revokeTeam(BURNING_RHAPSODY); },
+  maxStacks: 48,
+  field: MARCATO_FIELD,
+  updateBuffs: () => {
+    if (!currentAction().active || triggeredAction()) return;
+    if (casting(Cast.Skill)) { queueOn(MORTEFI_RESONATOR, ACTION_MARCATO); queueOn(MORTEFI_RESONATOR, ACTION_MARCATO_PAIRED); return; }
+    const heavy = casting(Cast.Heavy);
+    if (!heavy && !(casting(Cast.Basic) && currentAction().mv > 0)) return;
+    const n = Math.min(3, stacksOfTeam(BURNING_RHAPSODY));
+    for (let i = 0; i < n; i++) {
+      queueOn(MORTEFI_RESONATOR, ACTION_MARCATO);
+      if (heavy) queueOn(MORTEFI_RESONATOR, ACTION_MARCATO_PAIRED);
+    }
+    removeStackTeam(BURNING_RHAPSODY, n);
+  },
+});
+
+/** Rhythmic Vibrato (Inherent Skill), live: each coordinated attack's Marcato hit(s) raise the
+ *  next Marcato's DMG by 1.5%, up to 50 — granted by the tick actions themselves, paid out here
+ *  off the frozen count so a tick's own gain lands on the next one, not itself. Reset when the
+ *  window does (the next Violent Finale — see Liberation). */
+const VIBRATO = new Buff({
+  name: "Mortefi: Rhythmic Vibrato",
+  maxStacks: 50,
+  // held by Mortefi alone, so any Coordinated-typed row on his slot is a Marcato
+  applyStats: () => { if (isType(Type2.Coordinated)) addStat(Stat.DmgBonus, 1.5 * frozenStacks()); },
 });
 
 /** Harmonic Control (Inherent Skill): +25% Fury Fugue DMG for 8s after Passionate Variation —
@@ -89,8 +132,8 @@ const MO_INHERENT_1 = new Inherent({
   updateBuffs: () => { if (currentAction() === Skill) applyCurrent(HARMONIC_CONTROL, 1); },
 });
 
-/** Rhythmic Vibrato (Inherent Skill): a live per-Marcato-hit stacking ramp, incompatible with the
- *  lumped single-action window above — held for the name only. */
+/** Rhythmic Vibrato (Inherent Skill) — the name; the live ramp itself is the `VIBRATO` buff
+ *  above, granted by the Marcato tick actions. */
 const MO_INHERENT_2 = new Inherent({ name: "Mortefi: Rhythmic Vibrato" });
 
 /** The window his outro hands the incoming resonator — "or until they are switched out" is
@@ -126,17 +169,24 @@ const MORTEFI_S3 = new Sequence({
   applyStats: () => addStat(Stat.CritDmg, 30, Type2.Coordinated),
 });
 
-/** S4 Cathartic Waltz: extends Burning Rhapsody 10s -> 17s — already folded into
- *  ACTION_LIB_COORDS's own 70-hit total above, so this is a documentary marker only. */
-const MORTEFI_S4 = new Sequence({ name: "Mortefi S4: Cathartic Waltz" });
+/** S4 Cathartic Waltz: extends Burning Rhapsody 10s -> 17s — 20 more 0.35s coordinated-attack
+ *  slots banked on top of the Liberation's own 28. */
+const MORTEFI_S4 = new Sequence({
+  name: "Mortefi S4: Cathartic Waltz",
+  updateBuffs: () => { if (currentAction() === Liberation) applyTeam(BURNING_RHAPSODY, 20); },
+});
 
 /** S5 Funerary Quartet: Mortefi's own Passionate Variation/Fury Fugue hit fires 4 more (half-DMG)
- *  Marcato while Burning Rhapsody is open. */
+ *  Marcato — his own follow-up, not the Liberation window's, so it fires whether or not Burning
+ *  Rhapsody stands. */
 const MORTEFI_S5 = new Sequence({
   name: "Mortefi S5: Funerary Quartet",
   updateBuffs: () => {
     const a = currentAction();
-    if (stacksOfTeam(BURNING_RHAPSODY) && (a === Skill || a === FSkill)) queue(ACTION_S5_MARCATO);
+    if (a === Skill || a === FSkill) {
+      queue(ACTION_S5_MARCATO);
+      for (let i = 0; i < 3; i++) queue(ACTION_S5_MARCATO_PAIRED);
+    }
   },
 });
 
@@ -178,7 +228,7 @@ const BA1234 = new ActionGroup("Basic - Impromptu Show 1234", [BA1, BA2, BA3, BA
 
 const MO_ROTATION = new Rotation([
   INTRO, Skill,
-  BA4, // TODO swap this
+  BA1234, // TODO swap this
   BA1234,
   FSkill,
   Liberation,

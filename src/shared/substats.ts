@@ -1,8 +1,8 @@
 /** An echo build's substats: five echoes, five rolls each, twenty-five total. Every roll is
  *  valued at the mid-tier number below. */
-import { Buff, addStat } from "../engine/kit.js";
-import { Stat, Type1, scopedStat, splitStat } from "../engine/stats.js";
-import type { StatKey, Tag } from "../engine/stats.js";
+import { Buff, addStat } from "../kit.js";
+import { Stat, Type1, scopedStat, splitStat } from "../stats.js";
+import type { StatKey, Tag } from "../stats.js";
 
 const ROLL: Partial<Record<Stat, number>> = {
   [Stat.CritRate]: 7.5, [Stat.CritDmg]: 15, [Stat.Er]: 8.4,

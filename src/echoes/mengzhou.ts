@@ -3,9 +3,9 @@ import {
   Buff, Sonata, Sonata2pc, Mainslot, EchoType, Stat, Attribute, Type1, Cast, Scaling,
   addStat, frozenStacks, applyCurrent, applyTeam, queue, removeStack, revokeTeam, currentAction, casting,
   revokeCurrent, triggeredAction,
-} from "../engine/kit.js";
-import { Action } from "../engine/rotation.js";
-import { applied, appliedByMe } from "../engine/kit.js";
+} from "../kit.js";
+import { Action } from "../rotation.js";
+import { applied, appliedByMe } from "../kit.js";
 import { SHIELD, HAVOC_BANE, GLACIO_CHAFE } from "../shared/status.js";
 import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 

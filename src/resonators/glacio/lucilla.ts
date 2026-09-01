@@ -46,9 +46,9 @@ import {
   typeOverride, Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, ResonanceMode, Stat,
   EnemyStat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, applied, applyCurrent, applyTeam, applyEnemy,
   isHeld, casting, currentAction, currentTeam, addStat, addEnemyStat, frozenStacks, forte1, queue, queueOutro,
-  removeStackTeam, revokeCurrent, } from "../../engine/kit.js";
+  removeStackTeam, revokeCurrent, } from "../../kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../rotation.js";
 import { GLACIO_CHAFE } from "../../shared/status.js";
 import { FREEZE_FRAME, STRINGMASTER, LETHEAN_ELEGY } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";

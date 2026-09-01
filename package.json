@@ -9,7 +9,7 @@
     "watch": "tsc --watch",
     "dev": "python dev.py",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "bundle": "esbuild dist/src/index.js dist/src/engine/solver.js --bundle --splitting --format=esm --outdir=dist/bundle --outbase=dist/src"
+    "bundle": "esbuild dist/index.js dist/src/solver.js --bundle --splitting --format=esm --outdir=dist/bundle --outbase=dist"
   },
   "repository": {
     "type": "git",

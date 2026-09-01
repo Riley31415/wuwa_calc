@@ -45,9 +45,9 @@ import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, revokeCurrent, casting, currentAction, addStat, setForte1, isHeld, concerto, setConcerto,
   stacksOf, frozenStacks, forte1,
-  } from "../../engine/kit.js";
+  } from "../../kit.js";
 import { lostOnSwap, matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ECHO_ONFIELD, DOUBLE_INTRO, SWAP } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ECHO_ONFIELD, DOUBLE_INTRO, SWAP } from "../../rotation.js";
 import { RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { NM_CROWNLESS, HAVOC_ECLIPSE_5PC, HAVOC_ECLIPSE_2PC } from "../../echoes/jinzhou.js";

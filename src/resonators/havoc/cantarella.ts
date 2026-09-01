@@ -8,11 +8,11 @@
  */
 import {
   isType, Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
-  Type2, Cast, Node, Scaling, applyCurrent, currentAction, casting, queue, queueOnIntro, queueOutro, removeStack, revokeCurrent,
+  Type2, Cast, Node, Scaling, applyCurrent, applyTeam, currentAction, casting, queue, queueOutro, removeStack, revokeCurrent,
   addStat, frozenStacks, forte1, setForte2, currentTeam, currentMember, concerto, setConcerto,
-  } from "../../engine/kit.js";
-import { lostOnSwap, matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
+  } from "../../kit.js";
+import { coordinatedBuff, lostOnSwap, matrix } from "../../shared/helpers.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ActionField } from "../../rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, STRINGMASTER, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
@@ -52,22 +52,30 @@ const FSkill = cantaAction("Forte - Perception Drain", {
   updateBuffs: () => setForte2(3),
 });
 
-const Liberation = cantaAction("Liberation - Beneath the Sea", { node: Node.Liberation, cast: Cast.Liberation, cast2: Cast.Echo, type: Type1.Basic, mv: 376, concerto: 20, offtune: 48000, forte1: 3, resetEnergy: true });
-const ACTION_DIFFUSION = cantaAction("Liberation - Diffusion x21", { node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 305.34, active: false }); // 14.54%x21, no energy/concerto/off-tune of its own
+const Liberation = cantaAction("Liberation - Beneath the Sea", {
+  node: Node.Liberation, cast: Cast.Liberation, cast2: Cast.Echo, type: Type1.Basic, mv: 376, concerto: 20, offtune: 48000, forte1: 3, resetEnergy: true,
+  updateBuffs: () => applyTeam(DIFFUSION_WINDOW, 21),
+});
+/** One Diffusion tick — a real Coordinated Attack, summoned one per qualifying action by
+ *  DIFFUSION_WINDOW below, always on her own slot however far the field has moved on. */
+const DIFFUSION_FIELD = new ActionField("Cantarella: Diffusion");
+const ACTION_DIFFUSION = cantaAction("Liberation - Diffusion", { node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 14.54, active: false, field: DIFFUSION_FIELD }); // no energy/concerto/off-tune of its own
 
 const Intro = cantaAction("Intro - Ripple", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 169, energy: 3.16, concerto: 10, offtune: 10120, forte1: 1, // 42.25%x4
   updateBuffs: () => applyCurrent(ABYSSAL_REBIRTH, 6),
 });
-// Diffusion's whole window as one lump, deferred behind the next Intro: it ticks on past the swap
 const Outro = cantaAction("Outro - Gentle Tentacles", {
   cast: Cast.Outro, concerto: -100, active: false,
-  updateBuffs: () => { queueOnIntro(ACTION_DIFFUSION); queueOutro(CANTARELLA_OUTRO); }
+  updateBuffs: () => queueOutro(CANTARELLA_OUTRO),
 });
 
 const ESKILL_JOLT = new Action("Jolt", { node: Node.Skill, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Basic, mv: 198.81 });
 
 /* ------------------------------------------------------------------------------------ buffs */
+
+/** Diffusion: Beneath the Sea banks 21 team-wide, one tick summoned per qualifying action. */
+const DIFFUSION_WINDOW = coordinatedBuff("Cantarella: Diffusion", 21, () => CANTARELLA_RESONATOR, ACTION_DIFFUSION);
 
 const POISON = new Buff({
   name: "Cantarella: Poison", maxStacks: 2,

@@ -40,15 +40,15 @@
  * migrated sheet.
  */
 import {
-  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, EnemyStat, Attribute, WeaponType,
+  Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Stat, EnemyStat, Attribute, WeaponType,
   Type1, Cast, Node, Scaling, addStat, addEnemyStat, applyEnemy, applyCurrent, applyTeam, casting, currentAction,
   isHeld, queue, queueOutro, revokeCurrent as revokeCurrent, revokeTeam, forte1, forte2, setForte1, setForte2,
-  getStat,
-  } from "../../engine/kit.js";
-import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
-import { applied } from "../../engine/kit.js";
-import { lostOnSwap } from "../../shared/helpers.js";
-import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING } from "../../shared/tunebreak.js";
+  getStat, frozenStacks, stacksOfEnemy,
+  } from "../../kit.js";
+import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, ECHO_CANCEL, OUTRO } from "../../rotation.js";
+import { applied } from "../../kit.js";
+import { lostOnSwap, matrix } from "../../shared/helpers.js";
+import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING, TUNE_HACK_INTERFERED } from "../../shared/tunebreak.js";
 import { SPECTRAL_TRIGGER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { CELESTIAL_LIGHT_2PC, LINGERING_TUNES_2PC } from "../../echoes/jinzhou.js";
@@ -174,12 +174,15 @@ const ALGORITHM_COMPACTION = new Buff({
 /** SQL: one stack, banked on entering Algorithm Compaction and spent by the next Multi-threading
  *  for +270% of its own DMG Multiplier — nanoka lists the SQL form as its own rows, at x3.7 the
  *  multiplier with its own energy and off-tune, so those two deltas ride here as well. Without it
- *  the cast instead costs 20% of her current HP, which is no stat. */
+ *  the cast instead costs 20% of her current HP, which is no stat.
+ *
+ *  S2 raises that increase to +560%, and nanoka carries both: the cast is four hits, 220.68% each
+ *  under SQL (x3.7 its own 238.6%) and 393.65% each under S2's (x6.6). */
 const SQL = new Buff({
   name: "Lucy: SQL",
   applyStats: () => {
     if (currentAction() !== MultiThreading) return;
-    addStat(Stat.MulMv, 270);
+    addStat(Stat.MulMv, isHeld(LC_S2) ? 560 : 270);
     addStat(Stat.AddEnergy, 7);
     addStat(Stat.AddOfftune, 57600);
   },
@@ -248,6 +251,84 @@ const COUNTERMEASURE_AMP = new Buff({
   applyStats: () => addStat(Stat.Amp, 20),
 });
 
+/* --------------------------------------------------------------------------- resonance chain */
+
+/** S1: the interrupt immunity is nothing this calculator computes, and the Quick Action is banked
+ *  off the team *defeating* a Spoofing-marked target, which a single-target rotation never does
+ *  (same standing as Function Cracking below). What lands is the Intro's own +20% ATK for 14s,
+ *  which covers the visit it opens and goes with her outro. */
+const LC_S1_ATK = new Buff({
+  name: "Lucy S1: The Moon, a Ticket, and a Dream",
+  applyStats: () => addStat(Stat.BonusAtk, 20),
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(LC_S1_ATK); },
+});
+
+const LC_S1 = new Sequence({
+  name: "Lucy S1: The Moon, a Ticket, and a Dream",
+  updateBuffs: () => { if (currentAction() === Intro) applyCurrent(LC_S1_ATK, 1); },
+});
+
+/** S2's own extra instance behind Pulse Interference: 450% of ATK, Heavy Attack DMG, applying every
+ *  Spoofing Program's *continuous* status on hit — of which the two her Liberation already lays are
+ *  the two that reach this formula (the others are an enemy ATK reduction with nothing to reduce, a
+ *  defensive glitch, and a Common-Class-only conversion). The node's text gives it no energy,
+ *  concerto or off-tune and a chain hit has no row of its own in nanoka's table, so it declares none. */
+const S2Instance = lucyAction("Skill - Pulse Interference (S2 Additional)", {
+  node: Node.Skill, type: Type1.Heavy, mv: 450,
+  updateDebuffs: () => { applyEnemy(CYBERWARE_MALFUNCTION, 1); applyEnemy(BREACH_PROTOCOL, 1); },
+});
+
+/** S2. Its first clause is the starting RAM, 24 up to 32 — which is every Spoofing Program at once
+ *  (2+4+4+5+6+5+6 = 32) rather than the five worth having at 24, and the two it adds are the
+ *  defensive Weapon Glitch and the Common-Class-only Cyberpsychosis, so nothing here changes. Its
+ *  third is the SQL multiplier, which lives on SQL itself above. */
+const LC_S2 = new Sequence({
+  name: "Lucy S2: The Blackwall, the Past, the Escape",
+  updateBuffs: () => { if (currentAction() === Skill3) queue(S2Instance); },
+});
+
+/** S3, all three clauses against nanoka's own second rows: the Override at 1341.97%/2683.94%
+ *  (x1.5), Cripple Movement at 1504.51% and Data Crash at 2256.77% (x1.65 apiece). The Crit. DMG
+ *  is the Override's own, so it is added on that cast rather than held as a buff. */
+const LC_S3 = new Sequence({
+  name: "Lucy S3: Cyberpunk",
+  applyStats: () => {
+    const a = currentAction();
+    if (a === Lib || a === ELib) { addStat(Stat.MulMv, 50); addStat(Stat.CritDmg, 100); }
+    if (a === CrippleMovement || a === DataCrash) addStat(Stat.MulMv, 65);
+  },
+});
+
+/** S4: anyone on the team inflicting Hack - Shifting, not just her, so it is watched from
+ *  updateGlobal — the same `applied()` her own Countermeasure Program reads. 20s team buff, so it
+ *  goes on her own next Intro; "All-Attribute DMG Bonus" is a plain untagged bonus (CLAUDE.md). */
+const LC_S4_TEAM = new Buff({
+  name: "Lucy S4: No Living Legends in Night City",
+  applyStats: () => addStat(Stat.DmgBonus, 20),
+});
+
+const LC_S4 = new Sequence({
+  name: "Lucy S4: No Living Legends in Night City",
+  updateGlobal: () => { if (applied(TUNE_HACK_SHIFTING)) applyTeam(LC_S4_TEAM, 1); },
+});
+
+/** S5: a second Optical Illusion stack and a shield off it. Both are defensive and Ghost Cyberware
+ *  itself holds no stat, so this is held for its name. */
+const LC_S5 = new Sequence({ name: "Lucy S5: A Broken Path to Hell" });
+
+/** S6: her own Heavy and Hack damage against a target carrying Hack - Shifting or sitting in Hack -
+ *  Interfered — damage *taken*, so it goes on as Total Damage the way Cyberware Malfunction's own
+ *  5% does, scoped to the two damage types the node names. Only her gear holds it, so only her
+ *  hits read it. The Stagnation duration is nothing this calculator computes. */
+const LC_S6 = new Sequence({
+  name: "Lucy S6: I Really Want to Stay At Your House",
+  applyStats: () => {
+    if (!stacksOfEnemy(TUNE_HACK_SHIFTING) && !stacksOfEnemy(TUNE_HACK_INTERFERED)) return;
+    addStat(Stat.TotalDmg, 40, Type1.Heavy);
+    addStat(Stat.TotalDmg, 60, Type1.Hack);
+  },
+});
+
 /* --------------------------------------------------------------------------- kit and loadout */
 
 /** Ghost Cyberware (Inherent Skill): Optical Illusion negates one instance of damage taken. Purely
@@ -311,13 +392,38 @@ const LC_ECHOES = [
   new EchoLoadout(ADAM_SMASHER_LUCY, LINGERING_TUNES_2PC, REEL_2PC),
 ];
 
+/** Matrix — Function Cracking: her Resonance Skills mark an Overlord/Calamity target with Botnet
+ *  Mark, and a teammate killing it under that mark hands her **Network Backdoor**. Nothing in this
+ *  engine kills anything, so the trigger is placed where her rotation actually reaches it: one
+ *  stack on her own Liberation, granted to the whole team.
+ *
+ *  Two stacks, 2 min each, so both stand for good once the loop has run twice (see CLAUDE.md's own
+ *  wording rule). Each is +10% All DMG Amplification and +10% additional Hack DMG Multiplier, and
+ *  the second pays a further +5% of each on top of its own — 10/10 at one stack, 25/25 at two. The
+ *  Hack half is a motion-value multiplier scoped to Hack, so it lands on Cripple Movement and Data
+ *  Crash and nothing else. */
+const NETWORK_BACKDOOR = new Buff({
+  name: "Lucy: Network Backdoor", maxStacks: 2,
+  applyStats: () => {
+    const bonus = 10 * frozenStacks() + (frozenStacks() >= 2 ? 5 : 0);
+    addStat(Stat.Amp, bonus);
+    addStat(Stat.MulMv, bonus, Type1.Hack);
+  },
+});
+
+const LUCY_MATRIX = matrix("Lucy", 0, {
+  updateBuffs: () => { if (currentAction() === Lib) applyTeam(NETWORK_BACKDOOR, 1); },
+});
+
 export const LUCY = new Loadout({
   resonator: LUCY_RESONATOR,
+  matrix: LUCY_MATRIX,
   talent: LUCY_TALENTS,
   inherent1: LC_INHERENT_1,
   inherent2: LC_INHERENT_2,
   weapons: [SPECTRAL_TRIGGER, NEW_STD_PISTOL, STATIC_MIST],
   echoLoadouts: LC_ECHOES,
+  sequences: [LC_S1, LC_S2, LC_S3, LC_S4, LC_S5, LC_S6],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
   substat: chem("atk", "heavy"),
     rotation: LC_ROTATION,

@@ -44,10 +44,10 @@ import {
   setForte1, setForte2, getStat, forte2,
   stacksOf,
   addForte1,
-} from "../../engine/kit.js";
-import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, JUMP, ActionGroup, DODGE } from "../../engine/rotation.js";
-import { applied, applyEnemy } from "../../engine/kit.js";
-import { lostOnSwap } from "../../shared/helpers.js";
+} from "../../kit.js";
+import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, JUMP, ActionGroup, DODGE, ActionField } from "../../rotation.js";
+import { applied, applyEnemy } from "../../kit.js";
+import { coordinatedBuff, lostOnSwap } from "../../shared/helpers.js";
 import { FUSION_BURST } from "../../shared/status.js";
 import { ENEMY_MAX_OFFTUNE, TUNE_STRAIN_SHIFTING } from "../../shared/tunebreak.js";
 import { applyStrain, TUNE_STRAIN_INTERFERED, tuneStrainBonus } from "../../shared/tunebreak.js";
@@ -136,11 +136,15 @@ const Lib2 = deniaAction("Liberation - Final Act (Breakdown)", {
     applyCurrent(DARK_CORE, 1); // assume 12 seconds has passed
     // only one field of hers at a time: a fresh cast starts the clock over
     revokeTeam(EROSION_FIELD);
-    applyTeam(EROSION_FIELD, 1);
+    applyTeam(EROSION_FIELD, 35);
   },
 });
+/** Her field, and the one pull of it — the pair sits together the way a status ladder sits with
+ *  its own gear (shared/status.ts): EROSION_FIELD below is the window standing, and granting that
+ *  is what the report reads as her dropping the field. */
+const EROSION = new ActionField("Denia: Erosion Field");
 const ErosionField = deniaAction("Forte - Erosion Field", {
-  node: Node.Forte, type: Type1.Liberation, mv: 136.33, active: false,
+  node: Node.Forte, type: Type1.Liberation, mv: 136.33, active: false, field: EROSION,
 });
 
 // --- Intros, one per form. Both bank a Dark Core and 25 Void Particle.
@@ -243,21 +247,11 @@ const ENTROPY_BREAKDOWN = new Buff({
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(ENTROPY_BREAKDOWN); },
 });
 
-/** Erosion Field: 30s from Final Act - Breakdown, pulling every 4s — on this clockless engine a
- *  tick every five active, non-triggered presses by anyone on the team, seven in all. Team-wide so
- *  it counts everyone's turns; its stacks are the count, the cast itself the first, and the tick
- *  lands on her own slot (queueOn) since the field is hers whoever is on field. Gone with the
- *  seventh tick. */
-const EROSION_FIELD = new Buff({
-  name: "Denia: Erosion Field", maxStacks: 35,
-  display: () => "Denia: Erosion Field",
-  updateBuffs: () => {
-    if (triggeredAction() || !currentAction().active) return;
-    const count = applyTeam(EROSION_FIELD, 1);
-    if (count % 5 === 0) queueOn(DENIA_RESONATOR, ErosionField);
-    if (count >= 35) revokeTeam(EROSION_FIELD);
-  },
-});
+/** Erosion Field: 30s from Final Act - Breakdown, pulling every 4s — on this clockless engine
+ *  thirty-five active, non-triggered presses by anyone on the team, one tick every fifth of them,
+ *  seven in all. The same window every other field is (shared/helpers.ts): team-held so it counts
+ *  everyone's turns, ticking onto her own slot whoever is on field, and gone with the last of them. */
+const EROSION_FIELD = coordinatedBuff("Denia: Erosion Field", 35, () => DENIA_RESONATOR, ErosionField, { every: 5 });
 
 /** Entropy Shift: Stagecraft Form — 30s from Final Act - Breakdown, so it bridges to the next
  *  loop. Its 1 Void Particle/s is banked as a flat 20 on her outro: the time she is off field. */

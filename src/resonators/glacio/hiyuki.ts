@@ -55,9 +55,9 @@ import {
   forte1,
   forte3,
   forte2,
-} from "../../engine/kit.js";
+} from "../../kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
+import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, DODGE } from "../../rotation.js";
 import { GLACIO_CHAFE, GLACIO_CHAFE_ACTIONS, HAVOC_BANE } from "../../shared/status.js";
 import { FROSTBURN } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
@@ -402,8 +402,8 @@ const HY_ROTATION = new Rotation([
   INTRO, BA3, FrostSplinter, Lib1,
   UHA, FBA2, FBA3,
   UHA, FBA2, FBA3,
-  USkill1, USkill2, Iai, Iai, Iai,
-  FHA, ECHO_CANCEL, Lib2Hold, OUTRO,
+  USkill1, USkill2, DODGE, Iai, Iai, Iai, ECHO_CANCEL,
+  FHA, Lib2Hold, OUTRO,
 ]);
 
 const HY_ECHOES = [

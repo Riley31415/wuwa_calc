@@ -2,8 +2,9 @@
  * Zhezhi, ported to the new engine — sequence-0 core loop only. A glacio Coordinated-Attack
  * support/sub-DPS, similar shape to Cantarella: her Liberation (Living Canvas) opens a passive
  * 30s window where Inklit Spirits perform Coordinated Attacks off the *active* resonator's own
- * hits — one lump action for the whole 21-hit window (`ACTION_LIB_COORDS`), queued off her own
- * Outro rather than placed directly in the rotation, same treatment as Cantarella's Diffusion.
+ * hits — real ones now: the Liberation banks a team-wide 21-stack countdown (`INKLIT_SPIRITS`),
+ * and every active, non-triggered action anyone takes summons one spirit and spends one stack,
+ * same treatment as Cantarella's Diffusion.
  *
  * Afflatus (forte1, up to 90) gates her forte chain: at 60+, Resonance Skill (Manifestation)
  * summons Phantasmic Imprint - Left/Right (spending 60); at 30+, the Heavy Attack - Conjuration
@@ -20,11 +21,11 @@
  */
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Type2, Cast,
-  Node, Scaling, applyCurrent, currentAction, casting, revokeCurrent, addStat, frozenStacks, queueOnIntro, queueOutro,
+  Node, Scaling, applyCurrent, currentAction, casting, revokeCurrent, addStat, frozenStacks, queueOutro,
   applyTeam,
-  } from "../../engine/kit.js";
-import { lostOnSwap, matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_2, SWAP } from "../../engine/rotation.js";
+  } from "../../kit.js";
+import { coordinatedBuff, lostOnSwap, matrix } from "../../shared/helpers.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_2, SWAP, ActionField } from "../../rotation.js";
 import { RIME_DRAPED_SPROUTS, STRINGMASTER, LETHEAN_ELEGY, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { EMPYREAN_ANTHEM_2PC, EMPYREAN_ANTHEM_5PC, NM_LAMPY } from "../../echoes/rinascita.js";
@@ -65,26 +66,31 @@ const FSkill3 = zhezhiAction("Forte Skill - Creation's Zenith", {
   updateBuffs: () => applyCurrent(IVORY_HERALD, 1),
 });
 
-// opens the Inklit Spirit window, no damage of its own
+// opens the Inklit Spirit window, no damage of its own — the window itself is INKLIT_SPIRITS below
 const Liberation = zhezhiAction("Liberation - Living Canvas", {
-  node: Node.Liberation, cast: Cast.Liberation, concerto: 20, resetEnergy: true
+  node: Node.Liberation, cast: Cast.Liberation, concerto: 20, resetEnergy: true,
+  updateBuffs: () => applyTeam(INKLIT_SPIRITS, 21),
 });
-/** Up to 21 Coordinated Attack hits over 30s, lumped into one action, queued off her own Outro. */
-const ACTION_LIB_COORDS = zhezhiAction("Liberation - Inklit Spirit x21", {
-  node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 1369.41, offtune: 96012, active: false,
+const INKLIT_FIELD = new ActionField("Zhezhi: Inklit Spirits");
+/** One Inklit Spirit — a real Coordinated Attack, summoned one per qualifying action by
+ *  INKLIT_SPIRITS below, always on her own slot however far the field has moved on. */
+const ACTION_INKLIT = zhezhiAction("Liberation - Inklit Spirit", {
+  node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 65.21, offtune: 4572, active: false, field: INKLIT_FIELD,
 });
 
 const Intro = zhezhiAction("Intro - Radiant Ruin", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 258.48, energy: 10.02, concerto: 10, offtune: 10401, forte1: 45,
 });
-// the Inklit Spirits' whole window as one lump, deferred behind the next Intro: they keep
-// striking well past the swap
 const Outro = zhezhiAction("Outro - Carve and Draw", {
   cast: Cast.Outro, concerto: -100, active: false,
-  updateBuffs: () => { queueOnIntro(ACTION_LIB_COORDS); queueOutro(ZHEZHI_OUTRO); }
+  updateBuffs: () => queueOutro(ZHEZHI_OUTRO),
 });
 
 /* ------------------------------------------------------------------------------------ buffs */
+
+/** The Inklit Spirit window: Living Canvas banks 21 team-wide, one spirit summoned per qualifying
+ *  action — "the active Resonator deals DMG", once a second, read as once an action. */
+const INKLIT_SPIRITS = coordinatedBuff("Zhezhi: Inklit Spirits", 21, () => ZHEZHI_RESONATOR, ACTION_INKLIT);
 
 /** Calligrapher's Touch (Inherent Skill): +6% ATK a stack, up to 3, on Stroke of Genius or
  *  Creation's Zenith — 27s, permanent uptime once granted. */
@@ -161,7 +167,9 @@ const ZHEZHI_TALENTS = new Talent({
 const BA123 = new ActionGroup("Basic - Dimming Brush 123", [BA1, BA2, BA3]);
 
 const ZZ_ROTATION = new Rotation([
-  INTRO, ECHO_CANCEL, START_2, Liberation, SWAP, BA123,
+  INTRO, ECHO_CANCEL, 
+  START_2, Liberation, SWAP,
+  BA123,
   Skill, FHA, FSkill, FSkill, FSkill3,
   OUTRO,
 ]);

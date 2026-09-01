@@ -2,8 +2,8 @@
 import { isType,
   Buff, Debuff, Weapon, WeaponType, Stat, EnemyStat, Attribute, Type1, Cast,
   addStat, addEnemyStat, applyCurrent, applyEnemy, applyTeam, isHeld, casting, currentAction, revokeCurrent, frozenStacks,
-} from "../engine/kit.js";
-import { applied, appliedByMe } from "../engine/kit.js";
+} from "../kit.js";
+import { applied, appliedByMe } from "../kit.js";
 import { AERO_EROSION } from "../shared/status.js";
 import { TUNE_HACK_SHIFTING, TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 

@@ -40,10 +40,10 @@ import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, addBuff, addStat, applyCurrent, applyTeam, casting, currentAction, currentTeam, isHeld, queue, queueOnIntro, queueOutro,
   revokeCurrent, forte1, forte2, setForte1, setForte2, frozenStacks, triggeredAction,
-  } from "../../engine/kit.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_2, SWAP, JUMP } from "../../engine/rotation.js";
-import { applied } from "../../engine/kit.js";
-import { lostOnSwap } from "../../shared/helpers.js";
+  } from "../../kit.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_2, SWAP, JUMP, ActionField } from "../../rotation.js";
+import { applied } from "../../kit.js";
+import { coordinatedBuff, lostOnSwap } from "../../shared/helpers.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING } from "../../shared/tunebreak.js";
 import { SKULL_THRASHER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
@@ -106,20 +106,21 @@ const FHAGuts = rebeccaAction("Forte - Bang-bang-bang!: Guts", { node: Node.Fort
 // on the next resonator's time, so it is deferred behind their Intro (still on Rebecca's slot)
 const Lib1 = rebeccaAction("Liberation - Party 'til Dawn!", {
   node: Node.Liberation, cast: Cast.Liberation, resetEnergy: true, forte3: 90,
-  updateBuffs: () => { queue(Lib2); queue(Lib3); queue(Lib4); queueOnIntro(Boom); },
+  updateBuffs: () => { queueOnIntro(Boom); },
 });
 const Lib2 = rebeccaAction("Liberation - Mk. 31 HMG x5", {
-  node: Node.Liberation, type: Type1.Basic, mv: 24.3 * 5, concerto: 20 + 0.56 * 5, offtune: 1609 * 5, forte3: -10,
+  node: Node.Liberation, type: Type1.Basic, cast: Cast.Liberation, mv: 24.3 * 5, concerto: 20 + 0.56 * 5, offtune: 1609 * 5, forte3: -10,
 });
 const Lib3 = rebeccaAction("Liberation - Mk. 31 HMG 1st Enhancement x5", {
-  node: Node.Liberation, type: Type1.Basic, mv: 48.6 * 5, concerto: 1.12 * 5, offtune: 3218 * 5, forte3: -20,
+  node: Node.Liberation, type: Type1.Basic, cast: Cast.Liberation, mv: 48.6 * 5, concerto: 1.12 * 5, offtune: 3218 * 5, forte3: -20,
 });
 const Lib4 = rebeccaAction("Liberation - Mk. 31 HMG 2nd Enhancement x10", {
-  node: Node.Liberation, type: Type1.Basic, mv: 72.9 * 10, concerto: 1.67 * 10, offtune: 4826 * 10, forte3: -60,
+  node: Node.Liberation, type: Type1.Basic, cast: Cast.Liberation, mv: 72.9 * 10, concerto: 1.67 * 10, offtune: 4826 * 10, forte3: -60,
 });
+const Lib234 = new ActionGroup("Liberation - Mk. 31 HMG", [Lib2, Lib3, Lib4]);
 // fires behind whoever intros after her, so it is inactive: it is her hit, not her field time
 const Boom = rebeccaAction("Liberation - BOOM! Fireworks!", {
-  node: Node.Liberation, type: Type1.Basic, mv: 636.2, energy: 20, concerto: 10, offtune: 31025, active: false,
+  node: Node.Liberation, type: Type1.Basic, cast: Cast.Liberation, mv: 636.2, energy: 20, concerto: 10, offtune: 31025, active: false,
   updateDebuffs: () => applyHack(),
 });
 
@@ -128,17 +129,36 @@ const Boom = rebeccaAction("Liberation - BOOM! Fireworks!", {
 const Intro = rebeccaAction("Intro - Yo, It's Big Boomin' Time!", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 270.4, energy: 10, concerto: 10, offtune: 12800, updateDebuffs: () => applyHack(), ...TO_GUTS });
 const EIntro = rebeccaAction("Intro - Hey, Leadhead, Come 'n' Get Me!", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 202.8, energy: 10, concerto: 10, offtune: 9600, updateDebuffs: () => applyHack(), ...TO_HUNTRESS });
 
-/** Preem Choom (Outro): the turret's own 14s of 2.5% ticks are folded into the outro row — 70
- *  ticks plain, or 20 at +250% once Lucy enhances it, which is the same 175% either way. */
+/** Preem Choom (Outro): the turret is the pair of windows below — the outro row itself deals
+ *  nothing any more. Handing to Lucy, she enhances it: +250% DMG Multiplier at 4s on field
+ *  instead of 14 — a different window with its own boosted tick, the same 175% total either way
+ *  (14 x 12.5, or 4 x 12.5 x 3.5). */
 // her Outro hands the Bonds over; the 12s+ she then spends off field refills Fervor, which is what
 // arms A Girl Gets What She Wants! on her next Intro
 const Outro = rebeccaAction("Outro - Preem Choom", {
-  cast: Cast.Outro, type: Type1.Outro, mv: 2.5 * 70, concerto: -100, active: false,
+  cast: Cast.Outro, type: Type1.Outro, concerto: -100, active: false,
   updateBuffs: () => {
+    // whoever this outro hands the field to is who decides which turret stands — Lucy enhances it
+    const st = currentTeam();
+    const next = st.slots[(st.active + st.outroDir + st.slots.length) % st.slots.length]!;
+    if (next.resonator?.name === "Lucy") applyTeam(REBECCA_TURRET_LUCY, 4);
+    else applyTeam(REBECCA_TURRET, 14);
     queueOutro(EDGERUNNER_BONDS);
     addStat(Stat.AddForte2, 120); // from 12 seconds offfield
   },
 });
+/** One turret shot at 2.5% — five of them per action-second of the turret's fire, each its own
+ *  row so the field grouping counts them — and the Lucy-enhanced shot beside it, the same
+ *  shot at +250% DMG Multiplier. */
+const TURRET_FIELD = new ActionField("Rebecca: Outro Turret");
+const TurretTick = rebeccaAction("Outro - Preem Choom: Turret", { type: Type1.Outro, mv: 2.5, active: false, field: TURRET_FIELD });
+const TurretTickLucy = TurretTick.variant("Outro - Preem Choom: Turret (Enhanced)", {
+  applyStats: () => addStat(Stat.MulMv, 250),
+});
+/** The turret itself: its on-field seconds as team-held stacks, ticking down one per active,
+ *  non-triggered action — hers or anyone's, and never ended by a swap. */
+const REBECCA_TURRET = coordinatedBuff("Rebecca: Outro Turret", 14, () => REBECCA_RESONATOR, TurretTick, { hits: 5 });
+const REBECCA_TURRET_LUCY = coordinatedBuff("Rebecca: Outro Turret (Lucy)", 4, () => REBECCA_RESONATOR, TurretTickLucy, { hits: 5 });
 
 /** Her answer to a Hack break — tune-scaled, so it reads Tune Break Boost and nothing else.
  *  Queued by the break rather than played, and capped in-game at one per target every 8s, which
@@ -292,7 +312,7 @@ const RB_ROTATION = new Rotation([
   GHA, 
   FHAGuts, 
   GHA,
-  ECHO_CANCEL,Lib1, OUTRO,
+  ECHO_CANCEL,Lib1, Lib234, OUTRO,
 ]);
 
 /** Adam Smasher carries its own 1pc set, so the other four echoes run two ordinary 2-piece sets

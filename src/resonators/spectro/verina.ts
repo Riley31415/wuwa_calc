@@ -6,9 +6,9 @@
  *
  * Photosynthesis Energy (forte1, max 4) builds off Basic 5/Skill/Intro; a held Heavy or Mid-air
  * Attack at 1+ becomes a Starflower Blooms variant, spending a stack. Liberation places
- * Photosynthesis Mark on the enemy — rather than tracking live ticks, the mark's own convertStats()
- * waits for her next Outro and queues one lump action for the whole window's 12 ticks at once,
- * same treatment as Zhezhi's Inklit Spirit/Cantarella's Diffusion.
+ * Photosynthesis Mark on the enemy at 12 stacks — the 12s duration *as* the stacks: every active,
+ * non-triggered action anyone takes at the marked target draws one real Coordinated Attack tick
+ * and spends one stack, same treatment as Zhezhi's Inklit Spirit/Cantarella's Diffusion.
  *
  * Gift of Nature (Inherent Skill): +20% ATK, team-wide, on either Starflower Blooms variant,
  * Liberation, or Outro. Real duration 20s, but explicitly lost on her own *next* Intro instead of
@@ -19,10 +19,11 @@
  */
 import {
   Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
-  Type2, Cast, Node, Scaling, applyTeam, revokeTeam, applyEnemy, revokeEnemy, isHeld, casting, currentAction,
+  Type2, Cast, Node, Scaling, applyTeam, revokeTeam, applyEnemy, isHeld, casting, currentAction,
   addStat, queue, applyCurrent,
-} from "../../engine/kit.js";
-import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, JUMP } from "../../engine/rotation.js";
+} from "../../kit.js";
+import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, JUMP, ActionField } from "../../rotation.js";
+import { coordinatedBuff } from "../../shared/helpers.js";
 import { HEALS } from "../../shared/status.js";
 import { VARIATION } from "../../weapons/standard.js";
 import { REJUV_5PC, REJUV_2PC } from "../../echoes/jinzhou.js";
@@ -78,12 +79,19 @@ const ForteMidair3 = verinaAction("Forte Basic - Starflower Blooms (Mid-Air) 3",
 // Arboreal Flourish places Photosynthesis Mark on the enemy (see file header), heals
 const Liberation = verinaAction("Liberation - Arboreal Flourish", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 198.81, concerto: 20, resetEnergy: true,
-  updateBuffs: () => applyEnemy(PHOTOSYNTHESIS_MARK, 1),
+  updateBuffs: () => applyEnemy(PHOTOSYNTHESIS_MARK, 12),
 });
-/** One Coordinated Attack tick, S6's own single-hit reuse. */
-const PhotosynthesisTick = verinaAction("Liberation - Photosynthesis Mark", { node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 9.95 });
-/** The full 12-tick window, queued off Photosynthesis Mark's own convertStats() at her own outro. */
-const PhotosynthesisMark = verinaAction("Liberation - Photosynthesis Mark x12", { node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 119.4, offtune: 20000, concerto: 4.04, energy: 1.46, active: false });
+/** One Coordinated Attack tick — the mark's own per-action proc, and S6's single-hit reuse. It
+ *  banks nothing: nanoka's damage row (1503031013) and wuwalab's per-hit entry both give 0
+ *  energy/concerto/off-tune — the 1.46/4.04/20000 the old x12 lump declared match neither source
+ *  and are dropped, not divided up. Each tick heals: VERINA_RESONATOR's own HEALS list names it. */
+const PHOTOSYNTHESIS_FIELD = new ActionField("Verina: Photosynthesis Mark");
+const PhotosynthesisTick = verinaAction("Liberation - Photosynthesis Mark", {
+  node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 9.95, active: false, field: PHOTOSYNTHESIS_FIELD,
+});
+/** S6's one-off reuse of the same hit — her own follow-up off her own combo, not the mark's, so
+ *  this copy names no field and stays out of the report's field row. */
+const S6Tick = PhotosynthesisTick.variant("Liberation - Photosynthesis Mark", { field: null });
 
 const Intro = verinaAction("Intro - Verdant Growth", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 99.41, energy: 10, concerto: 10, offtune: 11230, forte1: 1 });
 /** Blossom: no damage of its own, just the outro handoff, the Gift of Nature/S4 trigger and
@@ -124,16 +132,9 @@ const VERINA_OUTRO = new Buff({
   applyStats: () => addStat(Stat.Amp, 15),
 });
 
-/** Photosynthesis Mark: a genuine debuff on the enemy, not a self buff — closing out on her own
- *  outro is what pays for the 12-tick window, via the queued follow-up below. */
-const PHOTOSYNTHESIS_MARK = new Buff({
-  name: "Verina: Photosynthesis Mark",
-  convertStats: () => {
-    if (!casting(Cast.Outro) || !isHeld(VERINA_RESONATOR)) return;
-    queue(PhotosynthesisMark);
-    revokeEnemy(PHOTOSYNTHESIS_MARK);
-  },
-});
+/** Photosynthesis Mark: a genuine debuff on the enemy, 12 stacks that are the mark's own 12s —
+ *  one Coordinated tick drawn per qualifying action at the marked target. */
+const PHOTOSYNTHESIS_MARK = coordinatedBuff("Verina: Photosynthesis Mark", 12, () => VERINA_RESONATOR, PhotosynthesisTick, { enemy: true });
 
 /** S2 Sprouting Reflections: Botany Experiment's own +1 Photosynthesis Energy/+10 Energy on top
  *  of its base gain. */
@@ -165,7 +166,7 @@ const VERINA_S6 = new Sequence({
     const a = currentAction();
     if (a === StarflowerHeavy || a === ForteMidair1 || a === ForteMidair2 || a === ForteMidair3) {
       addStat(Stat.DmgBonus, 20);
-      queue(PhotosynthesisTick); 
+      queue(S6Tick);
     }
   },
 });
@@ -193,7 +194,7 @@ const VERINA_RESONATOR = new Resonator({
     const a = currentAction();
     // her own healing marker, read by every healing sonata and weapon (statuses.ts) —
     // applied to the healer alone, never the team
-    if (a === StarflowerHeavy || a === ForteMidair1 || a === ForteMidair2 || a === ForteMidair3 || a === Liberation || a === PhotosynthesisTick || a === PhotosynthesisMark || a === Outro) applyCurrent(HEALS, 1);
+    if (a === StarflowerHeavy || a === ForteMidair1 || a === ForteMidair2 || a === ForteMidair3 || a === Liberation || a === PhotosynthesisTick || a === S6Tick || a === Outro) applyCurrent(HEALS, 1);
   },
 
   constantStats: () => {

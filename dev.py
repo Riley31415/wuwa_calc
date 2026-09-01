@@ -6,7 +6,7 @@ second terminal running `npm run watch` beside it, and the two have to be starte
 session. This starts both, keeps them together, and is what the logon entry runs (see
 `--install-autostart` below), so the site is simply always up at
 
-    http://127.0.0.1:8731/src/index.html
+    http://127.0.0.1:8731/index.html
 
     python dev.py                    ->  run in the foreground, ctrl-c stops both
     python dev.py 9000               ->  ...on another port
@@ -38,14 +38,14 @@ TSC_LOG = ROOT / "tsc-watch.log"
 ESBUILD = ROOT / "node_modules" / "esbuild" / "bin" / "esbuild"
 ESBUILD_LOG = ROOT / "esbuild-watch.log"
 # Concatenation only: tsc is still the compiler, this just folds its 68 output modules into the two
-# files the page actually loads (dist/bundle/index.js and the worker's dist/bundle/engine/solver.js,
+# files the page actually loads (dist/bundle/index.js and the worker's dist/bundle/src/solver.js,
 # plus a shared chunk) — unbundled, a cold load was ~600 module requests (eight workers each
 # fetching the whole graph) and the workers came up staggered behind the browser's six-connection
 # limit; bundled it is 18, and the search starts ~0.2s sooner. `--outbase` keeps the worker at the
-# same relative path index.js finds it by (`new URL("./engine/solver.js", import.meta.url)`).
+# same relative path index.js finds it by (`new URL("./src/solver.js", import.meta.url)`).
 ESBUILD_ARGS = [
-    "dist/src/index.js", "dist/src/engine/solver.js", "--bundle", "--splitting", "--format=esm",
-    "--outdir=dist/bundle", "--outbase=dist/src", "--log-level=warning",
+    "dist/index.js", "dist/src/solver.js", "--bundle", "--splitting", "--format=esm",
+    "--outdir=dist/bundle", "--outbase=dist", "--log-level=warning",
 ]
 SERVE_LOG = ROOT / "serve.log"
 DEFAULT_PORT = 8731
@@ -137,7 +137,7 @@ def main() -> int:
     threading.Thread(target=serve._watch_loop, daemon=True).start()
     handler = partial(serve.NoCacheHandler, directory=str(ROOT))
     httpd = ThreadingHTTPServer(("127.0.0.1", port), handler)
-    print(f"serving http://127.0.0.1:{port}/src/index.html  (tsc --watch + esbuild --watch + hot reload; ctrl-c to stop)")
+    print(f"serving http://127.0.0.1:{port}/index.html  (tsc --watch + esbuild --watch + hot reload; ctrl-c to stop)")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

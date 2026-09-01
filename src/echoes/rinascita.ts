@@ -3,9 +3,9 @@ import { isType,
   Buff, Sonata, Sonata2pc, Mainslot, EchoType, Stat, Attribute, Type1, Type2, Cast, Scaling,
   addStat, frozenStacks, applyCurrent, applyTeam, casting, currentAction, revokeCurrent, getStat, queue, queueOutro,
   revokeTeam, stacksOfEnemy, currentMember,
-} from "../engine/kit.js";
-import { Action } from "../engine/rotation.js";
-import { applied, appliedByMe } from "../engine/kit.js";
+} from "../kit.js";
+import { Action } from "../rotation.js";
+import { applied, appliedByMe } from "../kit.js";
 import { AERO_EROSION } from "../shared/status.js";
 
 /* ----------------------------------------------------------------------------- Carlotta, 2.0 */

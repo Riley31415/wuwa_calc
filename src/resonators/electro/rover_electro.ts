@@ -15,9 +15,9 @@
 import {
   Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, applyCurrent, applyTeam, revokeTeam, isHeld, revokeCurrent, casting, currentAction, addStat,
-  queue, queueOutro, forte1, setForte1, } from "../../engine/kit.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
-import { applyEnemy } from "../../engine/kit.js";
+  queue, queueOutro, forte1, setForte1, } from "../../kit.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../rotation.js";
+import { applyEnemy } from "../../kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { ELECTRO_FLARE, inflictedNegativeStatus, HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";

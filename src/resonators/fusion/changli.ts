@@ -12,9 +12,9 @@
  */
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, applyCurrent, revokeCurrent, casting, currentAction, addStat, forte1, queueOutro, } from "../../engine/kit.js";
+  Scaling, applyCurrent, revokeCurrent, casting, currentAction, addStat, forte1, queueOutro, } from "../../kit.js";
 import { lostOnSwap, matrix } from "../../shared/helpers.js";
-import { Action, Rotation, START_2, START_3, SWAP, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { Action, Rotation, START_2, START_3, SWAP, INTRO, OUTRO, DODGE } from "../../rotation.js";
 import { BLAZING_BRILLIANCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { NM_INFERNO_RIDER, MOLTEN_RIFT_5PC, MOLTEN_RIFT_2PC } from "../../echoes/jinzhou.js";

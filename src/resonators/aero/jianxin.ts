@@ -25,9 +25,9 @@
 import {
   Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute,
   WeaponType, Type1, Cast, Node, Scaling, addStat, applyCurrent, casting, currentAction, forte1, queueOutro, revokeCurrent, setForte1,
-} from "../../engine/kit.js";
+} from "../../kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../rotation.js";
 import { HEALS, SHIELD } from "../../shared/status.js";
 import { MARCATO } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";

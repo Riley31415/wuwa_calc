@@ -5,10 +5,10 @@
  */
 import {
   Attribute, BuffDef, Cast, Debuff, EnemyStat, Gear, Resonator, Scaling, Stat, Type1, WeaponType,
-  addEnemyStat, addStat, applied, applyEnemy, currentAction, currentTeam, equip, getStat, midActionGroup,
+  addEnemyStat, addStat, applied, applyEnemy, currentAction, currentTeam, equip, getStat, isCast, midActionGroup,
   queue, queueEvent, revokeEnemy, stacksOfEnemy, triggeredAction,
-} from "../engine/kit.js";
-import { Action } from "../engine/rotation.js";
+} from "../kit.js";
+import { Action } from "../rotation.js";
 
 /* ---------------------------------------------------------------------------- the enemy */
 
@@ -30,12 +30,14 @@ export const BASE_RESISTANCE = new Gear({
  *  taken straight back off the bar — for the next three active presses by anyone on the team, and
  *  every triggered action in between. Its stacks are that clock: the break lands the first, each
  *  active, non-triggered action adds one, and the fourth is the one that finds it full and takes
- *  it off, a phase ahead of any stat, so that action already builds again. */
+ *  it off, a phase ahead of any stat, so that action already builds again. The break itself is an
+ *  untriggered action now, so it is named outright here — it already laid the first stack down in
+ *  the enemy's own updateDebuffs, and must not count itself off as well. */
 export const TUNE_BREAK_COOLDOWN: Debuff = new Debuff({
   name: "Tune Break Cooldown", maxStacks: 4,
   display: () => "Tune Break Cooldown",
   updateBuffs: () => {
-    if (triggeredAction() || !currentAction().active) return;
+    if (triggeredAction() || currentAction() === TUNE_BREAK || !currentAction().active) return;
     if (stacksOfEnemy(TUNE_BREAK_COOLDOWN) >= 4) revokeEnemy(TUNE_BREAK_COOLDOWN);
     else applyEnemy(TUNE_BREAK_COOLDOWN, 1);
   },
@@ -74,11 +76,11 @@ export const TUNE_BREAK_ENEMY = new Resonator({
   // the only phase that runs after evaluate() banks the action's own off-tune, so the only one that
   // sees the bar fill in time. Not `queue`: a break falls in behind everything else this action
   // spawned, and lands on whoever is on field rather than on whoever queued it.
-  // Only a real on-field press can set one off: a queued follow-up or engine event
-  // (`triggeredAction()`, which a break of its own is) and an inactive action both top the bar up
-  // without breaking it. The bar stays full either way, so the next action that *is* one fires it.
+  // Only a real on-field press can set one off: a queued follow-up (`triggeredAction()`) and an
+  // inactive action both top the bar up without breaking it, and a break never sets off another.
+  // The bar stays full either way, so the next action that *is* one fires it.
   afterAction: () => {
-    if (triggeredAction() || !currentAction().active) return;
+    if (triggeredAction() || currentAction() === TUNE_BREAK || !currentAction().active) return;
     // ...and not part-way through an ActionGroup, which the rotation presses as one beat: the bar
     // can fill on any cast in it, but the break lands on the one that ends the group (kit.ts)
     if (midActionGroup()) return;
@@ -86,6 +88,9 @@ export const TUNE_BREAK_ENEMY = new Resonator({
     // interfered with can't be broken again until that window is out. The bar just stays full
     // meanwhile, so the break lands on the first action after the window ends.
     if (stacksOfEnemy(TUNE_RUPTURE_INTERFERED) > 0 || stacksOfEnemy(TUNE_HACK_INTERFERED) > 0) return;
+    // and never straight off a Liberation or an Intro: those casts' own lock holds the break off,
+    // so a bar one of them filled stays full and breaks on the next action instead.
+    if (isCast(currentAction(), Cast.Liberation) || isCast(currentAction(), Cast.Intro)) return;
     if (currentTeam().offtune >= ENEMY_MAX_OFFTUNE) queueEvent(TUNE_BREAK);
   },
 });
@@ -107,10 +112,11 @@ export const TUNE_BREAK = new Action("Tune Break", {
 /** How long an Interfered lasts: 8s in game, which this clockless engine takes as the next 10
  *  active, non-triggered actions.
  *  A debuff on that clock, counting the window off in its own stacks rather than through anything
- *  beside it: the break that inflicts it lands the first, every active, non-triggered action after
- *  adds one — a break's own queued follow-ups add none — and the action that finds it already full
- *  is the one that revokes it, from updateBuffs, a phase ahead of any applyStats, so that action
- *  already pays nothing. Its stacks are the clock and nothing else, so it still reports its plain
+ *  beside it: the break that inflicts it lands the first (and is skipped by name here, being an
+ *  untriggered action of its own now), every active, non-triggered action after adds one — a
+ *  break's own queued follow-ups add none — and the action that finds it already full is the one
+ *  that revokes it, from updateBuffs, a phase ahead of any applyStats, so that action already pays
+ *  nothing. Its stacks are the clock and nothing else, so it still reports its plain
  *  name rather than "xN".
  *  Nothing here handles a second application: a target already under Rupture/Hack Interfered can't
  *  be broken again until the window is out (the enemy above is what holds the break off), so the
@@ -123,7 +129,7 @@ export function interferedWindow(def: BuffDef): Debuff {
     maxStacks: 11,
     display: () => def.name ?? "",
     updateBuffs: () => {
-      if (triggeredAction() || !currentAction().active) return;
+      if (triggeredAction() || currentAction() === TUNE_BREAK || !currentAction().active) return;
       if (stacksOfEnemy(self) > 10) revokeEnemy(self);
       else applyEnemy(self, 1);
     },

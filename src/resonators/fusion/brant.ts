@@ -18,9 +18,9 @@ import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, revokeCurrent, casting, currentAction, addStat, getStat, queue, queueOutro, forte1, setForte1,
   applyTeam,
-  } from "../../engine/kit.js";
+  } from "../../kit.js";
 import { lostOnSwap, matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, OUTRO, SWAP, DOUBLE_INTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, OUTRO, SWAP, DOUBLE_INTRO } from "../../rotation.js";
 import { SHIELD, HEALS } from "../../shared/status.js";
 import { UNFLICKERING_VALOR } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE } from "../../weapons/standard.js";
