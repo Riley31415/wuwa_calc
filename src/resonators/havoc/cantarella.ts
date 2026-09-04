@@ -6,11 +6,27 @@
  * declares its own delta directly. Perception Drain (FSkill) requires a full 3 Shiver, so
  * CANTARELLA_RESONATOR's own updateBuffs() hard-resets forte2 to exactly 3 first, landing its declared -3 on 0.
  */
+import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  isType, Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
-  Type2, Cast, Node, Scaling, applyCurrent, applyTeam, currentAction, casting, queue, queueOutro, removeStack, revokeCurrent,
-  addStat, frozenStacks, forte1, setForte2, currentTeam, currentMember, concerto, setConcerto,
-  } from "../../engine/kit.js";
+  isType,
+  applyCurrent,
+  applyTeam,
+  currentAction,
+  casting,
+  queue,
+  queueOutro,
+  removeStack,
+  revokeCurrent,
+  addStat,
+  frozenStacks,
+  forte1,
+  setForte2,
+  currentTeam,
+  currentMember,
+  concerto,
+  setConcerto,
+} from "../../engine/context.js";
 import { coordinatedBuff, lostOnSwap, matrix } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ActionField } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
@@ -171,7 +187,7 @@ const CA_ROTATION = new Rotation([
 
 // her real 43311 build: resonator + talents + both Inherent Skills, viable weapons, and three real
 // echo choices sharing Impermanence Heron as mainslot — Midnight Veil, Rejuvenating Glow, Moonlit
-// Clouds — all automatically iterated (see kit.ts's own EchoLoadout)
+// Clouds — all automatically iterated (see gear.ts's own EchoLoadout)
 export const CANTARELLA = new Loadout({
   resonator: CANTARELLA_RESONATOR,
   matrix: matrix("Cantarella", 25),

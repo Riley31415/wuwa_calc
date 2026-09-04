@@ -8,10 +8,22 @@
  * Full Stop (forte1) and Soliskin Vitality (a real 0-60 gauge fed by any team member's Echo cast)
  * are both real gauges with a damage payout.
  */
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, applyCurrent, applyTeam, isHeld, stacksOfTeam, removeStack, revokeCurrent, casting, currentAction, addStat,
-  frozenStacks, getStat, queue, } from "../../engine/kit.js";
+  applyCurrent,
+  applyTeam,
+  isHeld,
+  stacksOfTeam,
+  removeStack,
+  revokeCurrent,
+  casting,
+  currentAction,
+  addStat,
+  frozenStacks,
+  getStat,
+  queue,
+} from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_3, SWAP, ECHO_ONFIELD, ECHO_SWAP } from "../../engine/rotation.js";
 import { SOLSWORN_CIPHERS } from "../../weapons/gauntlet.js";

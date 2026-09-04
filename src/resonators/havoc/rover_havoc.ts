@@ -9,11 +9,19 @@
  * row exists for this character, so this is nanoka's own tables throughout (energy/concerto off
  * Damage Data's own Energy/Elemental DMG columns, offtune off Weakness Break DMG x10000).
  */
+import { Tier, Stat, EnemyStat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Debuff } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, EnemyStat, Attribute,
-  WeaponType, Type1, Cast, Node, Scaling, applyCurrent, applyEnemy, revokeEnemy, isHeld, revokeCurrent, casting,
-  currentAction, addStat, addEnemyStat, Debuff,
-  } from "../../engine/kit.js";
+  applyCurrent,
+  applyEnemy,
+  revokeEnemy,
+  isHeld,
+  revokeCurrent,
+  casting,
+  currentAction,
+  addStat,
+  addEnemyStat,
+} from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, START_2, SWAP, INTRO, ECHO_SWAP, OUTRO, START_3 } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";

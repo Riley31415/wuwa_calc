@@ -23,11 +23,27 @@
  *    Liberation - Glory" text is where Glory (team Fusion RES ignore) actually comes from — not a
  *    bare base-kit Liberation effect (see GLORY's own trigger below).
  */
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  isType, Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType,
-  Type1, Cast, Node, Scaling, applyCurrent, applyTeam, applyEnemy, revokeCurrent, revokeTeam, revokeEnemy, casting,
-  currentAction, currentTeam, addStat, frozenStacks, stacksOfTeam, queueOn, queueOutro, setForte1, setForte2,
-  } from "../../engine/kit.js";
+  isType,
+  applyCurrent,
+  applyTeam,
+  applyEnemy,
+  revokeCurrent,
+  revokeTeam,
+  revokeEnemy,
+  casting,
+  currentAction,
+  currentTeam,
+  addStat,
+  frozenStacks,
+  stacksOfTeam,
+  queueOn,
+  queueOutro,
+  setForte1,
+  setForte2,
+} from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { WILDFIRE_MARK } from "../../weapons/broadblade.js";

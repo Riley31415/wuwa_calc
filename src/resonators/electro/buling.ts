@@ -34,13 +34,23 @@
  *  S5 the Array inflicts 6 more Electro Flare — nothing reads Electro Flare yet, no-op.
  *  S6 Heaven, Earth, Mind grants 50% Resonance Skill DMG Bonus instead of 25% — read by THUNDER_SPELL.
  */
+import { Tier, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
-  Cast, Node, Scaling, applyTeam, applyCurrent, stacksOfTeam, isHeld, casting, currentAction, currentTeam, addStat,
-  queueOnIntro, revokeCurrent, revokeTeam,
-} from "../../engine/kit.js";
+  applyTeam,
+  applyCurrent,
+  stacksOfTeam,
+  isHeld,
+  casting,
+  currentAction,
+  currentTeam,
+  addStat,
+  queueOnIntro,
+  revokeCurrent,
+  revokeTeam,
+} from "../../engine/context.js";
 import { Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
-import { applyEnemy } from "../../engine/kit.js";
+import { applyEnemy } from "../../engine/context.js";
 import { ELECTRO_FLARE, HEALS } from "../../shared/status.js";
 import { COSMIC_RIPPLES, NEW_STD_RECTIFIER, VARIATION } from "../../weapons/standard.js";
 import { REJUV_5PC } from "../../echoes/jinzhou.js";

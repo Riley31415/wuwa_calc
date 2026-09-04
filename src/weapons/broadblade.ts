@@ -1,10 +1,22 @@
 /** Signature Broadblade weapons, ported to the new engine. Every piece works if equipped on any
  *  resonator, not just its own. */
-import { isType,
-  Buff, Weapon, WeaponType, Stat, Attribute, Type1, Cast,
-  addStat, frozenStacks, casting, currentAction, currentTeam, addBuff, revokeCurrent, applyCurrent, applyTeam, removeStack, isHeld,
-} from "../engine/kit.js";
-import { applied } from "../engine/kit.js";
+import { WeaponType, Stat, Attribute, Type1, Cast } from "../engine/stats.js";
+import { Buff, Weapon } from "../engine/gear.js";
+import {
+  isType,
+  addStat,
+  frozenStacks,
+  casting,
+  currentAction,
+  currentTeam,
+  addBuff,
+  revokeCurrent,
+  applyCurrent,
+  applyTeam,
+  removeStack,
+  isHeld,
+} from "../engine/context.js";
+import { applied } from "../engine/context.js";
 import { lostOnSwap } from "../shared/helpers.js";
 import { SHIELD, HEALS, inflictedNegativeStatus, inflictedNegativeStatusBy } from "../shared/status.js";
 

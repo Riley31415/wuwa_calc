@@ -9,12 +9,27 @@
  * - `coordinatedBuff()` — a Coordinated-Attack window as a per-action countdown of summons.
  * - `matrix()` — a Matrix piece, with its total-DMG figure rebased onto Matrix Mode's own +20%.
  */
+import { Cast } from "../engine/stats.js";
+import { Action } from "../engine/rotation.js";
+import { Buff, Matrix, Resonator } from "../engine/gear.js";
 import {
-  Action, Buff, Cast, Matrix, Resonator, addStat, applyCurrent, casting, currentAction, currentGear,
-  currentMember, currentTeam, frozenStacks, queue, queueOn, removeStack, removeStackEnemy,
-  removeStackTeam, revokeCurrent, triggeredAction,
-} from "../engine/kit.js";
-import type { GearDef } from "../engine/kit.js";
+  addStat,
+  applyCurrent,
+  casting,
+  currentAction,
+  currentGear,
+  currentMember,
+  currentTeam,
+  frozenStacks,
+  queue,
+  queueOn,
+  removeStack,
+  removeStackEnemy,
+  removeStackTeam,
+  revokeCurrent,
+  triggeredAction,
+} from "../engine/context.js";
+import type { GearDef } from "../engine/gear.js";
 import { Stat } from "../engine/stats.js";
 
 /* -------------------------------------------------------------------------------- lost on swap */
@@ -140,7 +155,7 @@ export function coordinatedBuff(name: string, stacks: number, owner: (() => Reso
 
 /**
  * Matrices — one optional piece per kit, worn only in Matrix Mode (the comparison table's own
- * box; see kit.ts's `Loadout.matrix`). Matrix Mode itself already hands every resonator a flat
+ * box; see gear.ts's `Loadout.matrix`). Matrix Mode itself already hands every resonator a flat
  * +20% total DMG, so a Matrix's own "deal 25% more total DMG" is worth (1.20 + 0.25) / 1.20 over
  * that baseline, not a full 1.25x — which is `pct / 1.2` as an additive Total Damage stat: 20.83%
  * for a 25% Matrix, 16.67% for a 20% one. Teams without a single Matrix are left exactly as they

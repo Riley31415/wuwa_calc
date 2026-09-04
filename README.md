@@ -1,13 +1,13 @@
 # wuwa_calc
 
 A Wuthering Waves damage calculator. Pure TypeScript, no framework, no bundler — `tsc` compiles
-everything under `src/` into `dist/`, mirrored one level deeper (`src/engine/kit.ts` →
-`dist/src/engine/kit.js`).
+everything under `src/` into `dist/`, mirrored one level deeper (`src/engine/gear.ts` →
+`dist/src/engine/gear.js`).
 
 ```
 python dev.py                  # compilers + server; then http://127.0.0.1:8731/index.html
 npm run build                  # tsc into dist/src/, then esbuild into dist/bundle/
-npm run precompute             # solve every team, write solves.json for the published site
+npm run precompute             # solve every team, write solves/ for the published site
 npx tsc --noEmit               # just typecheck
 ```
 
@@ -17,14 +17,18 @@ first and stalls ~200ms on *every* connection.
 
 | path | role |
 | --- | --- |
-| `src/engine/kit.ts` | the engine: `Gear`/`Buff`/`Action`/`Loadout`/`State`, `equip()`/`run()`/`evaluate()` |
+| `src/engine/gear.ts` | every equippable thing and the containers naming a build: the `Gear` tree, `EchoLoadout`, `Loadout` |
+| `src/engine/state.ts` | the fight's own state — a `Pool` of held gear, `TeamMember`, `State` |
+| `src/engine/runtime.ts` | `ctx`, the ambient "current" pointers and per-action scratch both `context.ts` and `evaluate.ts` write |
+| `src/engine/context.ts` | the kit-facing API a resonator file calls from inside a hook: `addStat`, `applied`, the gauges, every grant/spend, the queues |
+| `src/engine/evaluate.ts` | the phase order, the snapshot an action resolves into, and `run()` |
 | `src/engine/stats.ts` | the stat vocabulary (`Stat`, `Attribute`, `Type1`/`Type2`, `Cast`, `Node`, `Scaling`) |
 | `src/engine/damage.ts` | the damage formula |
 | `src/engine/rotation.ts` | `Rotation` and the scheduler that decides whose turn it is |
 | `src/engine/teams.ts` | the `LOADOUTS` registry and every team the comparison table runs (`ALL_TEAMS`) |
 | `src/solver.ts` | the build search and the DOM-free engine run that scores it; also the Worker entry point |
 | `src/display.ts` | turns a run into the report/hover-trace data the page renders |
-| `src/precompute.ts` | solves the whole roster offline into `solves.json`, so the published site opens with no search |
+| `src/precompute.ts` | solves the whole roster offline into `solves/`, one file per filter state, so the published site opens with no search |
 | `src/shared/mainstats.ts` / `substats.ts` | echo main-stat builds (`mainstats()`/`mainstatOptions()`) and substat spreads (`substats()`/`chem()`) |
 | `src/resonators/<attribute>/*.ts` | one folder per attribute (`aero`, `electro`, `fusion`, `glacio`, `havoc`, `spectro`): one file per resonator — actions, buffs, the Resonator itself, talents, inherent skills, sequences, a sample rotation, a loadout |
 | `src/echoes/<region>.ts` | mainslot echoes and sonata sets, one file per region that introduced them (grouped by region, unlike the resonator folders; Black Shores' Fallacy lives in `jinzhou.ts`) |
@@ -139,7 +143,7 @@ Every rotation must reach 100 concerto, or its outro can't fire.
 - A resonator's own file is ordered actions, then buffs/talent/inherents/sequences, then the
   `Resonator` itself, then its talent-tree bonus, then a sample rotation, then its loadout(s).
 - How much of a resonance chain a build holds is set by the resonator's own `tier` (stats.ts's
-  own `Tier`, turned into a level by kit.ts's `baseSequence()`): `Tier.Limited` (the default, a
+  own `Tier`, turned into a level by gear.ts's `baseSequence()`): `Tier.Limited` (the default, a
   banner-only 5-star) is costed at S0, `Tier.Standard` (Encore, Jianxin, Verina) at S2, and
   `Tier.Free` (4-stars and the Rovers) at S6, their whole chain. For the first two that level is a baseline, not a ceiling —
   with that role's Sequences box open every level from it up to S6 gets a row of its own — so a

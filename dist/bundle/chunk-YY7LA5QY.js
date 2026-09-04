@@ -1,3 +1,88 @@
+// dist/src/engine/runtime.js
+var ctx = {
+  state: null,
+  slot: null,
+  buff: null,
+  act: null,
+  triggered: false,
+  stacks: -1,
+  tagWord: 0,
+  dryRun: false,
+  guarded: false,
+  mutHash: 0,
+  constVersion: 0,
+  overrideType1: null,
+  overrideType2: null,
+  appliedNow: /* @__PURE__ */ new Map(),
+  appliedBy: /* @__PURE__ */ new Map(),
+  consumedNow: /* @__PURE__ */ new Map(),
+  consumedBy: /* @__PURE__ */ new Map(),
+  tracing: false,
+  insideGroup: false
+};
+var tagWord = (element, type, type2) => (element ?? 0) | (type ?? 0) | (type2 ?? 0);
+var tagWordOf = (action) => {
+  let word = action._tagWord;
+  if (word === void 0)
+    action._tagWord = word = tagWord(action.element, action.type, action.type2);
+  return word;
+};
+var dryLog = [];
+function undoDry() {
+  for (let i = dryLog.length - 3; i >= 0; i -= 3) {
+    const target = dryLog[i], gear = dryLog[i + 1], prev = dryLog[i + 2];
+    if (target instanceof Map) {
+      if (prev === void 0)
+        target.delete(gear);
+      else
+        target.set(gear, prev);
+    } else if (prev)
+      target.add(gear);
+    else
+      target.delete(gear);
+  }
+  dryLog.length = 0;
+}
+var noteMutation = (id, n) => {
+  ctx.mutHash = Math.imul(ctx.mutHash ^ id, 2654435761) + n | 0;
+};
+var RESOURCE_STATS = [
+  25,
+  26,
+  27,
+  28,
+  13,
+  14,
+  29,
+  30,
+  31,
+  32,
+  33
+];
+var recordApplied = (gear, n) => {
+  if (n <= 0)
+    return;
+  ctx.appliedNow.set(gear, (ctx.appliedNow.get(gear) ?? 0) + n);
+  const source = ctx.state.sourceOf.get(gear);
+  if (source === void 0)
+    return;
+  let per = ctx.appliedBy.get(gear);
+  if (per === void 0)
+    ctx.appliedBy.set(gear, per = /* @__PURE__ */ new Map());
+  per.set(source, (per.get(source) ?? 0) + n);
+};
+var recordConsumed = (gear, n) => {
+  if (n <= 0)
+    return;
+  ctx.consumedNow.set(gear, (ctx.consumedNow.get(gear) ?? 0) + n);
+  const by = ctx.slot.name;
+  let per = ctx.consumedBy.get(gear);
+  if (per === void 0)
+    ctx.consumedBy.set(gear, per = /* @__PURE__ */ new Map());
+  per.set(by, (per.get(by) ?? 0) + n);
+};
+var pendingQueue = [];
+
 // dist/src/engine/stats.js
 var STAT_COUNT = 35 + 1;
 var STAT_NAME = {
@@ -407,148 +492,865 @@ var RESOURCE_NAME = {
   ]: "forte5"
 };
 
-// dist/src/engine/damage.js
-var RESONATOR_LEVEL = 90;
-var LEVEL_90_DOT = 3674;
-var LEVEL_90_TUNE = 10027;
-var mvPercent = (snapshot) => (snapshot.action.mv + snapshot.stats[
-  15
-  /* Stat.AddMv */
-]) * (1 + snapshot.stats[
-  16
-  /* Stat.MulMv */
-] / 100);
-var notDotFor = (snapshot) => snapshot.action.scaling !== 3 ? 1 : 0;
-function effectiveShred(snapshot) {
-  const s = (k) => snapshot.stats[k] / 100;
-  const notDot = notDotFor(snapshot);
-  const base = snapshot.enemyDef;
-  return 1 - (1 - notDot * s(
-    21
-    /* Stat.DefIgnoreNew */
-  )) * Math.floor(base * (1 - s(
-    35
-    /* EnemyStat.DefReduce */
-  ) - notDot * s(
-    22
-    /* Stat.DefIgnoreOld */
-  ))) / base;
-}
-function effectiveRes(snapshot) {
-  const s = (k) => snapshot.stats[k] / 100;
-  return (snapshot.enemyRes / 100 - s(
-    20
-    /* Stat.ResIgnore */
-  ) * notDotFor(snapshot) - s(
-    34
-    /* EnemyStat.ResReduce */
-  )) * 100;
-}
-function resFactorOf(snapshot) {
-  const finalRes = effectiveRes(snapshot) / 100;
-  return finalRes < 0 ? 1 - finalRes / 2 : finalRes < 0.8 ? 1 - finalRes : 1 / (1 + 5 * finalRes);
-}
-function defFactorOf(snapshot) {
-  const finalDef = (1 - effectiveShred(snapshot)) * snapshot.enemyDef;
-  const ownDef = 800 + RESONATOR_LEVEL * 8;
-  return ownDef / (ownDef + finalDef);
-}
-function damageFactors(snapshot) {
-  const { action } = snapshot;
-  const s = (k) => snapshot.stats[k] / 100;
-  const { scaling } = action;
-  if (scaling === null) {
-    return {
-      scaling: null,
-      finalMv: 0,
-      finalStat: 0,
-      ampFactor: 1,
-      bonusFactor: 1,
-      tbbFactor: 1,
-      resFactor: 1,
-      defFactor: 1,
-      dealtFactor: 1,
-      critFactor: 1,
-      critMult: 1,
-      noCrit: 0,
-      crit: 0,
-      avg: 0
-    };
+// dist/src/engine/state.js
+var EMPTY_HELD = [];
+var EMPTY_FORTE = [0, 0, 0, 0, 0];
+var EMPTY_FIELDS = [];
+var capEnergy = (member2, value) => Math.min(member2.resonator?.maxEnergy ?? 0, Math.max(0, value));
+var TYPE2_AMP_INDEX = STAT_COUNT;
+var ZERO_STATS = new Array(STAT_COUNT + 1).fill(0);
+ZERO_STATS[0] = 0.5;
+ZERO_STATS[0] = 0;
+var Pool = class {
+  /** Every Gear granted here, in the order it was first granted — a Map's own order, so hooks run
+   *  in the same sequence they always did. A dropped Gear *stays in place*: the phase lists stop
+   *  naming its position and `at` forgets it, so nothing reaches it, and its slot is reclaimed by
+   *  `compact()` once the dead outnumber the live. Positions therefore never shift on a drop,
+   *  which is what keeps a drop down to filtering the one or two phase lists the Gear was in. A
+   *  Gear dropped and re-granted goes to the end, as it would in a Map. */
+  list = [];
+  /** The stack count of `list[i]`. */
+  counts = [];
+  /** For each phase (`PHASE_*`, in bit order), the positions in `list` of the live Gear that has
+   *  that hook — so a phase visits the two or three it will actually call rather than probing all
+   *  ~20 for a hook they mostly haven't got. */
+  hooks = Array.from({ length: PHASE_COUNT }, () => []);
+  /** The live Gear here with an `updateGlobalFn`, in order — what `evaluate()`'s updateGlobal
+   *  phase walks for the team-wide and enemy pools. */
+  globalHooks = [];
+  /** Where each live Gear sits in `list`. Written in place — nothing iterates it — except while a
+   *  `snapshot()` is live (`ctx.guarded`), where the first write swaps in a copy (`write()`) so
+   *  `restore()` can put the original back untouched. */
+  at = /* @__PURE__ */ new Map();
+  atCloned = false;
+  /** How many entries of `list` are dropped Gear. */
+  dead = 0;
+  has(gear) {
+    return this.at.has(gear);
   }
-  if (scaling === 5) {
-    return {
-      scaling,
-      finalMv: action.mv,
-      finalStat: 100,
-      ampFactor: 1,
-      bonusFactor: 1,
-      tbbFactor: 1,
-      resFactor: 1,
-      defFactor: 1,
-      dealtFactor: 1,
-      critFactor: 1,
-      critMult: 1,
-      noCrit: action.mv,
-      crit: action.mv,
-      avg: action.mv
-    };
+  /** Everything a dry run can move, by reference — the arrays are never written in place, and
+   *  `at` is cloned before a ctx.guarded write ever touches it — for `restore()` to hand back. */
+  snapshotInto(s) {
+    s.list = this.list;
+    s.counts = this.counts;
+    s.hooks = this.hooks;
+    s.globalHooks = this.globalHooks;
+    s.at = this.at;
+    s.dead = this.dead;
   }
-  const notDot = scaling !== 3 ? 1 : 0;
-  const notTune = scaling !== 4 ? 1 : 0;
-  const finalStat = Math.floor(scaling === 0 ? snapshot.atk : scaling === 1 ? snapshot.hp : scaling === 2 ? snapshot.def : scaling === 3 ? LEVEL_90_DOT : scaling === 4 ? LEVEL_90_TUNE : NaN);
-  const finalMv = mvPercent(snapshot) / 100;
-  const ampFactor = 1 + (notDot ? snapshot.amp : snapshot.type2Amp) / 100 * notTune;
-  const bonusFactor = 1 + snapshot.dmgBonus / 100 * notDot * notTune;
-  const tbbFactor = 1 + snapshot.stats[
-    12
-    /* Stat.Tbb */
-  ] / 100 * (1 - notTune);
-  const resFactor = resFactorOf(snapshot);
-  const defFactor = defFactorOf(snapshot);
-  const dealtFactor = 1 + s(
-    19
-    /* Stat.TotalDmg */
-  ) * notDot;
-  const critMult = notDot * notTune ? s(
-    10
-    /* Stat.CritDmg */
-  ) : 1;
-  const cr = s(
-    9
-    /* Stat.CritRate */
-  );
-  const critFactor = cr >= 1 ? critMult : 1 - cr + critMult * cr;
-  const noCrit = finalMv * finalStat * ampFactor * bonusFactor * tbbFactor * resFactor * defFactor * dealtFactor;
+  restore(s) {
+    this.list = s.list;
+    this.counts = s.counts;
+    this.hooks = s.hooks;
+    this.globalHooks = s.globalHooks;
+    this.at = s.at;
+    this.dead = s.dead;
+    this.atCloned = false;
+  }
+  /** Ahead of a write to `at`. Under a dry run the write is journaled for `undoDry()` to reverse;
+   *  otherwise, while a snapshot is live, the first write swaps in a copy so the snapshot's own
+   *  map stays as it was. */
+  write(gear) {
+    if (ctx.dryRun)
+      dryLog.push(this.at, gear, this.at.get(gear));
+    else if (ctx.guarded && !this.atCloned) {
+      this.at = new Map(this.at);
+      this.atCloned = true;
+    }
+  }
+  get(gear) {
+    const i = this.at.get(gear);
+    return i === void 0 ? void 0 : this.counts[i];
+  }
+  /** Every live Gear, in order — for the report's popover; the phases read `hooks` instead. */
+  gears() {
+    return this.list.filter((g, i) => this.at.get(g) === i);
+  }
+  set(gear, n) {
+    const i = this.at.get(gear);
+    if (i !== void 0) {
+      const counts2 = this.counts.slice();
+      counts2[i] = n;
+      this.counts = counts2;
+      return;
+    }
+    const k = this.list.length;
+    this.write(gear);
+    this.at.set(gear, k);
+    const list = this.list.slice(), counts = this.counts.slice();
+    list.push(gear);
+    counts.push(n);
+    this.list = list;
+    this.counts = counts;
+    if (gear.hookMask) {
+      const hooks = this.hooks.slice();
+      for (let mask = gear.hookMask, p = 0; mask; mask >>= 1, p++) {
+        if (!(mask & 1))
+          continue;
+        const phase = hooks[p].slice();
+        phase.push(k);
+        hooks[p] = phase;
+      }
+      this.hooks = hooks;
+    }
+    if (gear.updateGlobalFn)
+      this.globalHooks = [...this.globalHooks, gear];
+    if (gear.constantStatsFn)
+      ctx.constVersion++;
+  }
+  delete(gear) {
+    const i = this.at.get(gear);
+    if (i === void 0)
+      return;
+    this.write(gear);
+    this.at.delete(gear);
+    if (gear.constantStatsFn)
+      ctx.constVersion++;
+    if (gear.hookMask) {
+      const hooks = this.hooks.slice();
+      for (let mask = gear.hookMask, p = 0; mask; mask >>= 1, p++)
+        if (mask & 1)
+          hooks[p] = hooks[p].filter((k) => k !== i);
+      this.hooks = hooks;
+    }
+    if (gear.updateGlobalFn)
+      this.globalHooks = this.globalHooks.filter((g) => g !== gear);
+    if (++this.dead > 32)
+      this.compact();
+  }
+  /** Squeeze the dropped entries out of `list`/`counts` and renumber everything after them. */
+  compact() {
+    const list = [], counts = [];
+    const hooks = Array.from({ length: PHASE_COUNT }, () => []);
+    for (let i = 0; i < this.list.length; i++) {
+      const gear = this.list[i];
+      if (this.at.get(gear) !== i)
+        continue;
+      const k = list.length;
+      this.write(gear);
+      this.at.set(gear, k);
+      list.push(gear);
+      counts.push(this.counts[i]);
+      for (let mask = gear.hookMask, p = 0; mask; mask >>= 1, p++)
+        if (mask & 1)
+          hooks[p].push(k);
+    }
+    this.list = list;
+    this.counts = counts;
+    this.hooks = hooks;
+    this.dead = 0;
+  }
+};
+var TeamMember = class {
+  name;
+  /** Whichever Resonator is actually equipped here — set once, by Resonator's own combatStart,
+   *  the moment it's equip()-ped. Attribute/energy/name all live on it, not duplicated here; null
+   *  only in the brief window between constructing a State (from bare names) and equip()ping
+   *  each member's own Resonator. */
+  resonator = null;
+  /** Whichever Mainslot echo is equipped here — cached by `equip()` rather than re-found by
+   *  scanning this member's whole held set every time an ECHO_* marker comes up (see
+   *  `run()`). Set once at team setup, like `resonator` above. */
+  mainslot = null;
+  /** Generic forte gauges — a resonator assigns its own meaning onto whichever fits its kit
+   *  (Jingran's Qi is forte 1, his Mingfire is forte 2). Real numeric bars, not stacking Buffs:
+   *  nothing here caps at a Buff's own maxStacks, and there's no revoke-at-0 — a kit clamps its
+   *  own ceiling itself (see `setForte()`/`addForte()`). Five slots, matching stats.ts's own
+   *  Resource.Forte1-5. */
+  forte = [0, 0, 0, 0, 0];
+  /** Running totals, banked automatically by evaluate() itself off however much AddEnergy/
+   *  AddConcerto this action's own held Gear contributed (see `AddEnergy`/`AddConcerto` above) —
+   *  no kit ever adds to these directly, the same way none adds to `forte` by calling addStat(). */
+  energy = 0;
+  concerto = 0;
+  /** A second, parallel energy counter for the ER-requirement estimate (the detail page's own
+   *  Energy Requirements table) — unlike `energy` above, it starts a fight already filled (set to
+   *  `maxEnergy` by Resonator's own combatStart) and only resets on a `resetEnergy`-marked
+   *  Liberation cast, not on every outro. Same gain (and the same maxEnergy ceiling) as `energy`,
+   *  plus half of every *other* member's own gain (see `evaluate()`). */
+  realEnergy = 0;
+  stacks = new Pool();
+  /** Exactly the gear in `stacks` that declares an `updateGlobalFn`, kept in lockstep by the four
+   *  mutators below. `evaluate()` walks every slot's own global hooks on *every* action, and only
+   *  about one gear in twenty-five has one — scanning `stacks` for them meant ~33 iterator steps
+   *  per slot per action to reach one or two. Insertion order matches `stacks`' own (both are
+   *  written in the same call, and neither a re-`set` nor a re-`add` moves an existing entry), so
+   *  the hooks still run in the order they always did. */
+  globalHooks = /* @__PURE__ */ new Set();
+  /** Whatever was `equip()`-ped onto this member at team setup — their resonator and its talents,
+   *  weapon, mainslot echo, sonata pieces, mainstat/substat rolls. Held in `stacks` like anything
+   *  else (that's how their applyStats() runs), but it's gear, not a buff their kit put up, so the
+   *  report's own "what's on this resonator" panel leaves it out (see `heldLocal` in evaluate()).
+   *  `equip()` is the only thing that writes here, and it's the only way gear is ever granted. */
+  equipped = /* @__PURE__ */ new Set();
+  entries = [];
+  /** Running sum per *scoped* stat key ("Dmg Bonus:Fusion" kept apart from "Dmg Bonus"), kept in
+   *  lockstep with `entries` (same push site in `addStat()`, same reset in `evaluate()`). Only the
+   *  report's own trace panels read this, so it's filled on the traced path only — `get()` and the
+   *  damage formula both read `effective` below instead. */
+  totals = /* @__PURE__ */ new Map();
+  /** Running sum per stat with every scope *that matches the action being evaluated* already
+   *  folded in — so `get(Stat.DmgBonus)` on a Fusion Basic Attack is one read, not a re-sum of
+   *  "Dmg Bonus" + "Dmg Bonus:Fusion" + "Dmg Bonus:Basic" behind three freshly-built key strings.
+   *  Written by `pushStat()`, which knows the tag before it's been concatenated into a key and can
+   *  test it against the action's own tags directly. Indexed by `STAT_INDEX`, not keyed by the
+   *  stat string. Replaced (not cleared) each action, so a snapshot can keep the one it was built
+   *  with at zero copying cost. */
+  effective = ZERO_STATS.slice();
+  /** What every held Gear's `constantStats` adds up to for this slot, per action tag word (the
+   *  scopes that match), in `effective`'s own shape — built the first time each tag word is seen
+   *  and added into `effective` in one pass every action after (see `evaluate()`). Cleared when
+   *  `ctx.constVersion` moves on. */
+  constBase = /* @__PURE__ */ new Map();
+  constBaseVersion = -1;
+  /** Main-stat variants to score alongside this member's own build (solver.ts's own
+   *  `scoreMainstats()`): the held main-stat Buff each stands in for, the alternatives, and per
+   *  alternative the same per-tag-word constant base `constBase` keeps for the real one. Every
+   *  action this member takes is then re-scored once per variant (see `evaluate()`) — nothing else
+   *  in the fight changes, since a main stat only ever feeds its wearer. */
+  variantOf = null;
+  variants = [];
+  variantBase = [];
+  /** Set per variant when its dry re-run would have changed the fight — a mutation the real build
+   *  didn't make, or a resource stat that banks differently — so its scores can't be trusted and
+   *  the solver runs it for real instead. */
+  variantUnsafe = [];
+  constructor(name) {
+    this.name = name;
+  }
+  stacksOf(gear) {
+    return this.stacks.get(gear) ?? 0;
+  }
+  isHeld(gear) {
+    return this.stacks.has(gear);
+  }
+  /* The four mutators below write the pool only when it actually ends up different — a Pool
+   * write is a copy (see `Pool`), and a kit that re-grants a buff it already holds at full stacks
+   * (`applySelf(BUFF, 1)` every action, the commonest shape there is) would otherwise copy the
+   * counts for nothing on most actions. */
+  addStack(gear, n = 1) {
+    noteMutation(gear.id, n);
+    if (!ctx.dryRun)
+      recordApplied(gear, n);
+    const next = Math.min(gear.maxStacks, this.stacksOf(gear) + n);
+    if (this.stacks.get(gear) === next)
+      return next;
+    this.stacks.set(gear, next);
+    if (gear.updateGlobalFn) {
+      this.writeHooks(gear);
+      this.globalHooks.add(gear);
+    }
+    return next;
+  }
+  removeStack(gear, n = 1) {
+    noteMutation(gear.id, -n);
+    const next = Math.max(0, this.stacksOf(gear) - n);
+    if (next === 0) {
+      if (!this.stacks.has(gear))
+        return 0;
+      this.stacks.delete(gear);
+      this.writeHooks(gear);
+      this.globalHooks.delete(gear);
+      return 0;
+    }
+    if (this.stacks.get(gear) === next)
+      return next;
+    this.stacks.set(gear, next);
+    return next;
+  }
+  setStacks(gear, n) {
+    noteMutation(gear.id, 1e6 + n);
+    if (!ctx.dryRun)
+      recordApplied(gear, n - this.stacksOf(gear));
+    const next = Math.max(0, Math.min(gear.maxStacks, n));
+    if (next === 0) {
+      if (!this.stacks.has(gear))
+        return 0;
+      this.stacks.delete(gear);
+      this.writeHooks(gear);
+      this.globalHooks.delete(gear);
+      return 0;
+    }
+    if (this.stacks.get(gear) === next)
+      return next;
+    this.stacks.set(gear, next);
+    if (gear.updateGlobalFn) {
+      this.writeHooks(gear);
+      this.globalHooks.add(gear);
+    }
+    return next;
+  }
+  revoke(gear) {
+    noteMutation(gear.id, -1e6);
+    if (!this.stacks.has(gear))
+      return;
+    this.stacks.delete(gear);
+    this.writeHooks(gear);
+    this.globalHooks.delete(gear);
+  }
+  /** `globalHooks` is written in place — except while a snapshot is live (`ctx.guarded`), where the
+   *  first write swaps in a copy so `restore()` can hand the original back (see `Pool.write()`). */
+  hooksCloned = false;
+  writeHooks(gear) {
+    if (ctx.dryRun)
+      dryLog.push(this.globalHooks, gear, this.globalHooks.has(gear));
+    else if (ctx.guarded && !this.hooksCloned) {
+      this.globalHooks = new Set(this.globalHooks);
+      this.hooksCloned = true;
+    }
+  }
+  /** Everything of this member's a dry run can move (see `evaluate()`'s variants). */
+  snapshotInto(s) {
+    this.stacks.snapshotInto(s.pool);
+    s.globalHooks = this.globalHooks;
+    for (let i = 0; i < 5; i++)
+      s.forte[i] = this.forte[i];
+    s.concerto = this.concerto;
+  }
+  restore(s) {
+    this.stacks.restore(s.pool);
+    this.globalHooks = s.globalHooks;
+    this.hooksCloned = false;
+    for (let i = 0; i < 5; i++)
+      this.forte[i] = s.forte[i];
+    this.concerto = s.concerto;
+  }
+  total(stat) {
+    return this.totals.get(stat) ?? 0;
+  }
+};
+var State = class {
+  slots;
+  active = 0;
+  /** Which way the next Outro hands the field over: +1 for the ordinary handoff to the next
+   *  resonator in team order, -1 for the outro closing a DOUBLE_INTRO section (rotation.ts). The scheduler
+   *  sets it right before the outro is evaluated and puts it back to +1 straight after, so a
+   *  kit-queued outro — or any other path into `evaluate()` — always advances forward. */
+  outroDir = 1;
+  globalStacks = new Pool();
+  // use Buff here? how are maxstacks even handled?
+  /** Debuffs placed on the enemy rather than held by any resonator — mechanically identical to
+   *  `globalStacks` (ticks on every slot's own turn regardless of who's acting), kept as its own
+   *  map purely so the resonator popover can bucket it into its own "Enemy debuffs" section
+   *  instead of mixing it into "Global buffs" — a real distinction to the report, not just
+   *  formatting (see `buffsPopover` in index.ts). */
+  /** The enemy itself, as a member of nobody's team: the dummy Tune Break resonator, its Base
+   *  Resistance and the break's own machinery are `equipEnemy()`-ped onto it at setup, the way a
+   *  real member's kit and gear are `equip()`-ped. Its pool *is* `enemyStacks` below, so what is
+   *  equipped here runs in the enemy phase beside every debuff a kit inflicts. */
+  enemy = new TeamMember("");
+  // named by the enemy Resonator as it is equipped
+  enemyStacks = this.enemy.stacks;
+  // TODO change Gear to Debuff
+  /** Raised caps for enemy debuffs, kept beside the stack counts: the effective max of any enemy
+   *  debuff is its own declared maxStacks plus this entry. Independent of `enemyStacks`, so a cap
+   *  can be raised before the debuff is ever applied (kits do it at combatStart). */
+  enemyMaxIncrease = /* @__PURE__ */ new Map();
+  // TODO change Gear to Debuff
+  /** Which Gear has already paid an increase into `enemyMaxIncrease`, by name and per debuff.
+   *  Every kit that raises a cap says the effect isn't stackable, but the trigger is usually
+   *  "on hit" rather than once — so a source that has already raised this debuff's cap is
+   *  ignored the second time, while a second kit raising the same cap still counts. */
+  enemyMaxSources = /* @__PURE__ */ new Map();
+  // TODO change Gear to Debuff
+  outroQueue = [];
+  /** Casts waiting for the next Intro — queued behind it, on the slot that queued them, the
+   *  moment an Intro-cast action is evaluated (see `queueOnIntro()`). */
+  introQueue = [];
+  /** Off-tune buildup — the enemy's own bar, not any one member's, banked automatically by
+   *  evaluate() off whichever held Gear contributed AddOfftune this action, same as
+   *  TeamMember's own energy/concerto. */
+  offtune = 0;
+  /** Whose kit each piece of Gear ultimately came from, by member name.
+   *
+   *  Gear equipped at setup is sourced to whoever equipped it. Everything else inherits: a buff
+   *  granted while another Gear's own updateBuffs() is running is that Gear's doing, so it carries
+   *  that Gear's source rather than the name of whichever member happened to be on field when it
+   *  landed. Shorekeeper's echo granting "Fallacy of No Return" onto Iuno stays sourced to
+   *  Shorekeeper; Iuno's domain stacking Blessing onto Jingran stays sourced to Iuno.
+   *
+   *  Lives on the State, not the Gear: a Gear is a module-level singleton shared by every team,
+   *  so writing to it would leak one team's attribution into another's. */
+  sourceOf = /* @__PURE__ */ new Map();
+  /** The three fight snapshots `evaluate()` takes around a varied action — before the stat phases,
+   *  after them, and after banking — made once, the first time this team needs them. */
+  snapshots = null;
+  constructor(names) {
+    this.slots = names.map((n) => new TeamMember(n));
+  }
+  get slot() {
+    return this.slots[this.active];
+  }
+  slotByName(name) {
+    return this.slots.find((s) => s.name === name);
+  }
+  /** Whichever TeamMember currently holds this Resonator — what addBuff()/removeBuff() resolve
+   *  a resonator reference against. Throws rather than returning undefined: a kit reaching for
+   *  another resonator by reference is asserting they're on this team, and a silent no-op on a
+   *  typo'd or absent one would be a much worse bug to chase than a thrown error. */
+  memberOf(resonator) {
+    const member2 = this.slots.find((s) => s.resonator === resonator);
+    if (!member2)
+      throw new Error(`${resonator.name} is not on this team`);
+    return member2;
+  }
+  stacksOfGlobal(gear) {
+    return this.globalStacks.get(gear) ?? 0;
+  }
+  addStackGlobal(gear, n = 1) {
+    noteMutation(gear.id, n);
+    const next = Math.min(gear.maxStacks, this.stacksOfGlobal(gear) + n);
+    if (!ctx.dryRun)
+      recordApplied(gear, n);
+    if (this.globalStacks.get(gear) === next)
+      return next;
+    this.globalStacks.set(gear, next);
+    return next;
+  }
+  removeStackGlobal(gear, n = 1) {
+    noteMutation(gear.id, -n);
+    const next = Math.max(0, this.stacksOfGlobal(gear) - n);
+    if (next === 0) {
+      if (!this.globalStacks.has(gear))
+        return 0;
+      this.globalStacks.delete(gear);
+      return 0;
+    }
+    if (this.globalStacks.get(gear) === next)
+      return next;
+    this.globalStacks.set(gear, next);
+    return next;
+  }
+  setStacksGlobal(gear, n) {
+    noteMutation(gear.id, 1e6 + n);
+    const next = Math.max(0, Math.min(gear.maxStacks, n));
+    if (!ctx.dryRun)
+      recordApplied(gear, n - this.stacksOfGlobal(gear));
+    if (next === 0) {
+      if (!this.globalStacks.has(gear))
+        return 0;
+      this.globalStacks.delete(gear);
+      return 0;
+    }
+    if (this.globalStacks.get(gear) === next)
+      return next;
+    this.globalStacks.set(gear, next);
+    return next;
+  }
+  revokeGlobal(gear) {
+    noteMutation(gear.id, -1e6);
+    if (!this.globalStacks.has(gear))
+      return;
+    this.globalStacks.delete(gear);
+  }
+  stacksOfEnemy(gear) {
+    return this.enemyStacks.get(gear) ?? 0;
+  }
+  enemyMax(gear) {
+    return gear.maxStacks + (this.enemyMaxIncrease.get(gear) ?? 0);
+  }
+  increaseMaxEnemy(gear, n, source) {
+    noteMutation(gear.id, 2e6 + n);
+    if (ctx.dryRun)
+      return;
+    let sources = this.enemyMaxSources.get(gear);
+    if (!sources)
+      this.enemyMaxSources.set(gear, sources = /* @__PURE__ */ new Set());
+    if (sources.has(source))
+      return;
+    sources.add(source);
+    this.enemyMaxIncrease.set(gear, (this.enemyMaxIncrease.get(gear) ?? 0) + n);
+  }
+  addStackEnemy(gear, n = 1) {
+    noteMutation(gear.id, n);
+    const next = Math.min(this.enemyMax(gear), this.stacksOfEnemy(gear) + n);
+    if (!ctx.dryRun)
+      recordApplied(gear, n);
+    if (this.enemyStacks.get(gear) === next)
+      return next;
+    this.enemyStacks.set(gear, next);
+    return next;
+  }
+  removeStackEnemy(gear, n = 1) {
+    noteMutation(gear.id, -n);
+    const next = Math.max(0, this.stacksOfEnemy(gear) - n);
+    if (next === 0) {
+      if (!this.enemyStacks.has(gear))
+        return 0;
+      this.enemyStacks.delete(gear);
+      return 0;
+    }
+    if (this.enemyStacks.get(gear) === next)
+      return next;
+    this.enemyStacks.set(gear, next);
+    return next;
+  }
+  setStacksEnemy(gear, n) {
+    noteMutation(gear.id, 1e6 + n);
+    const next = Math.max(0, Math.min(this.enemyMax(gear), n));
+    if (!ctx.dryRun)
+      recordApplied(gear, n - this.stacksOfEnemy(gear));
+    if (next === 0) {
+      if (!this.enemyStacks.has(gear))
+        return 0;
+      this.enemyStacks.delete(gear);
+      return 0;
+    }
+    if (this.enemyStacks.get(gear) === next)
+      return next;
+    this.enemyStacks.set(gear, next);
+    return next;
+  }
+  revokeEnemy(gear) {
+    noteMutation(gear.id, -1e6);
+    if (!this.enemyStacks.has(gear))
+      return;
+    this.enemyStacks.delete(gear);
+  }
+};
+var ENEMY_RES = 0;
+var ENEMY_DEF_LEVEL = 100;
+var enemyDef = () => 792 + 8 * ENEMY_DEF_LEVEL;
+var enemyRes = () => ENEMY_RES;
+var FightSnapshot = class {
+  members;
+  global;
+  enemy;
+  offtune = 0;
+  constructor(state) {
+    const pool = () => ({ list: [], counts: [], hooks: [], globalHooks: [], at: /* @__PURE__ */ new Map(), dead: 0 });
+    const member2 = () => ({ pool: pool(), globalHooks: /* @__PURE__ */ new Set(), forte: [0, 0, 0, 0, 0], concerto: 0 });
+    this.members = state.slots.map(member2);
+    this.global = pool();
+    this.enemy = pool();
+  }
+  take(state) {
+    state.slots.forEach((m, i) => m.snapshotInto(this.members[i]));
+    state.globalStacks.snapshotInto(this.global);
+    state.enemyStacks.snapshotInto(this.enemy);
+    this.offtune = state.offtune;
+  }
+  restore(state) {
+    undoDry();
+    state.slots.forEach((m, i) => m.restore(this.members[i]));
+    state.globalStacks.restore(this.global);
+    state.enemyStacks.restore(this.enemy);
+    state.offtune = this.offtune;
+  }
+};
+
+// dist/src/engine/context.js
+function setTracing(on) {
+  ctx.tracing = on;
+}
+var currentAction = () => ctx.act;
+var midActionGroup = () => ctx.insideGroup;
+var triggeredAction = () => ctx.triggered;
+var currentTeam = () => ctx.state;
+var currentMember = () => ctx.slot;
+function casting(cast) {
+  return isCast(ctx.act, cast);
+}
+function typeOverride(type) {
+  const a = ctx.act;
+  if (type & TYPE2_BITS)
+    ctx.overrideType2 = type;
+  else
+    ctx.overrideType1 = type;
+  ctx.tagWord = tagWord(a.element, ctx.overrideType1 ?? a.type, ctx.overrideType2 ?? a.type2);
+}
+function isType(type) {
+  const a = ctx.act;
+  return (ctx.overrideType1 ?? a.type) === type || (ctx.overrideType2 ?? a.type2) === type;
+}
+function isCast(action, cast) {
+  return action.cast === cast || action.cast2 === cast;
+}
+function applied(gear) {
+  return ctx.appliedNow.get(gear) ?? 0;
+}
+function appliedByMe(gear) {
+  return appliedByMember(gear, ctx.slot);
+}
+function appliedByMember(gear, member2) {
+  return ctx.appliedBy.get(gear)?.get(member2.name) ?? 0;
+}
+function consumedByMe(gear) {
+  return consumedByMember(gear, ctx.slot);
+}
+function consumedByMember(gear, member2) {
+  return ctx.consumedBy.get(gear)?.get(member2.name) ?? 0;
+}
+function consumedAny() {
+  let total = 0;
+  for (const n of ctx.consumedNow.values())
+    total += n;
+  return total;
+}
+function frozenStacks() {
+  return ctx.stacks >= 0 ? ctx.stacks : ctx.slot.stacksOf(ctx.buff);
+}
+function pushStat(stat, tag, value) {
+  const slot = ctx.slot;
+  if (tag === void 0 || (ctx.tagWord & tagBand(tag)) === tag) {
+    slot.effective[stat] = slot.effective[stat] + value;
+    if (stat === 18 && tag !== void 0 && (tag & TYPE2_BITS) !== 0) {
+      slot.effective[TYPE2_AMP_INDEX] = slot.effective[TYPE2_AMP_INDEX] + value;
+    }
+  }
+  if (!ctx.tracing)
+    return;
+  const key = tag === void 0 ? stat : scopedStat(tag, stat);
+  slot.entries.push({
+    stat: key,
+    value,
+    source: ctx.buff?.toString() ?? "",
+    owner: (ctx.buff && ctx.state.sourceOf.get(ctx.buff)) ?? slot.name ?? null
+  });
+  slot.totals.set(key, (slot.totals.get(key) ?? 0) + value);
+}
+function addStat(stat, value, tag) {
+  pushStat(stat, tag, value);
+}
+function addEnemyStat(stat, value, tag) {
+  pushStat(stat, tag, value);
+}
+var ALL_ATTRIBUTES = [
+  64,
+  128,
+  192,
+  256,
+  320,
+  384,
+  448
+];
+var ALL_TYPE1 = [
+  4096,
+  8192,
+  12288,
+  16384,
+  20480,
+  24576,
+  28672,
+  32768,
+  36864,
+  40960,
+  49152,
+  53248
+];
+var ALL_TYPE2 = [
+  262144,
+  524288,
+  786432,
+  1048576,
+  1310720,
+  1572864
+];
+function menuStats(gear) {
+  const slot = new TeamMember("");
+  const state = new State([]);
+  const saved = { slot: ctx.slot, state: ctx.state, buff: ctx.buff, stacks: ctx.stacks, tagWord: ctx.tagWord, tracing: ctx.tracing };
+  ctx.slot = slot;
+  ctx.state = state;
+  ctx.stacks = 1;
+  ctx.tracing = true;
+  const passes = ALL_TYPE1.length;
+  for (const g of gear) {
+    if (!g.constantStatsFn)
+      continue;
+    ctx.buff = g;
+    for (let i = 0; i < passes; i++) {
+      ctx.tagWord = (ALL_ATTRIBUTES[i] ?? 0) | ALL_TYPE1[i] | (ALL_TYPE2[i] ?? 0);
+      g.constantStatsFn();
+    }
+  }
+  Object.assign(ctx, saved);
+  const seen = /* @__PURE__ */ new Set();
+  return slot.entries.filter((e) => {
+    const key = `${e.source}\0${e.stat}`;
+    if (seen.has(key))
+      return false;
+    seen.add(key);
+    return true;
+  });
+}
+function getStat(stat) {
+  return ctx.slot.effective[stat];
+}
+function stacksOf(gear) {
+  return ctx.slot.stacksOf(gear);
+}
+function isHeld(gear) {
+  return ctx.slot.isHeld(gear);
+}
+function maxEnergy() {
+  return ctx.slot.resonator?.maxEnergy ?? 0;
+}
+function forteGauge(i) {
   return {
-    scaling,
-    finalMv,
-    finalStat,
-    ampFactor,
-    bonusFactor,
-    tbbFactor,
-    resFactor,
-    defFactor,
-    dealtFactor,
-    critFactor,
-    critMult,
-    noCrit,
-    crit: noCrit * critMult,
-    avg: noCrit * critFactor
+    get: () => ctx.slot.forte[i],
+    set: (value) => {
+      noteMutation(-1 - i, value);
+      return ctx.slot.forte[i] = value;
+    },
+    add: (delta) => {
+      noteMutation(-1 - i, delta);
+      return ctx.slot.forte[i] = ctx.slot.forte[i] + delta;
+    }
   };
 }
-function damage(snapshot) {
-  const { noCrit, crit, avg } = damageFactors(snapshot);
-  return { noCrit, crit, avg };
+var { get: forte1, set: setForte1, add: addForte1 } = forteGauge(0);
+var { get: forte2, set: setForte2, add: addForte2 } = forteGauge(1);
+var { get: forte3, set: setForte3, add: addForte3 } = forteGauge(2);
+var { get: forte4, set: setForte4, add: addForte4 } = forteGauge(3);
+var { get: forte5, set: setForte5, add: addForte5 } = forteGauge(4);
+function concerto() {
+  return ctx.slot.concerto;
+}
+function setConcerto(value) {
+  noteMutation(-10, value);
+  return ctx.slot.concerto = value;
+}
+function attribute(gear) {
+  const inherited = ctx.buff ? ctx.state.sourceOf.get(ctx.buff) : void 0;
+  ctx.state.sourceOf.set(gear, inherited ?? ctx.slot.name);
+}
+function applyCurrent(buff, n = 1) {
+  attribute(buff);
+  return ctx.slot.addStack(buff, n);
+}
+function equip(gear, n = 1) {
+  attribute(gear);
+  const result = ctx.slot.addStack(gear, n);
+  ctx.slot.equipped.add(gear);
+  if (gear instanceof Mainslot)
+    ctx.slot.mainslot = gear;
+  const prevBuff = ctx.buff;
+  ctx.buff = gear;
+  try {
+    gear.combatStartFn?.();
+  } finally {
+    ctx.buff = prevBuff;
+  }
+  return result;
+}
+function equipEnemy(gear, n = 1) {
+  const prev = ctx.slot;
+  ctx.slot = ctx.state.enemy;
+  try {
+    return equip(gear, n);
+  } finally {
+    ctx.slot = prev;
+  }
+}
+function setStacksSelf(buff, n) {
+  attribute(buff);
+  return ctx.slot.setStacks(buff, n);
+}
+function removeStack(buff, n = 1) {
+  return ctx.slot.removeStack(buff, n);
+}
+function revokeCurrent(buff) {
+  ctx.slot.revoke(buff);
+}
+function currentGear() {
+  return ctx.buff;
+}
+function stacksOfTeam(gear) {
+  return ctx.state.stacksOfGlobal(gear);
+}
+function applyTeam(buff, n = 1) {
+  attribute(buff);
+  return ctx.state.addStackGlobal(buff, n);
+}
+function removeStackTeam(buff, n = 1) {
+  return ctx.state.removeStackGlobal(buff, n);
+}
+function revokeTeam(buff) {
+  ctx.state.revokeGlobal(buff);
+}
+function stacksOfEnemy(gear) {
+  return ctx.state.stacksOfEnemy(gear);
+}
+function applyEnemy(debuff, n = 1) {
+  attribute(debuff);
+  return ctx.state.addStackEnemy(debuff, n);
+}
+function removeStackEnemy(debuff, n = 1) {
+  return ctx.state.removeStackEnemy(debuff, n);
+}
+function consume(debuff, n = 1) {
+  const before = ctx.state.stacksOfEnemy(debuff);
+  const after = ctx.state.removeStackEnemy(debuff, n);
+  if (!ctx.dryRun)
+    recordConsumed(debuff, before - after);
+  return after;
+}
+function revokeEnemy(debuff) {
+  ctx.state.revokeEnemy(debuff);
+}
+function maxStackIncrease(debuff, n = 1) {
+  ctx.state.increaseMaxEnemy(debuff, n, ctx.buff?.name ?? ctx.slot.name);
+}
+function addBuff(resonator, buff, n = 1) {
+  attribute(buff);
+  return ctx.state.memberOf(resonator).addStack(buff, n);
+}
+function revokeBuff(resonator, buff) {
+  ctx.state.memberOf(resonator).revoke(buff);
+}
+function queueOutro(buff) {
+  noteMutation(buff.id, 3e6);
+  if (ctx.dryRun)
+    return;
+  attribute(buff);
+  ctx.state.outroQueue.push(buff);
+}
+var queuedBy = () => {
+  const gear = ctx.buff;
+  if (!gear?.name)
+    return null;
+  return { name: gear.name, source: ctx.state.sourceOf.get(gear) ?? ctx.slot.name };
+};
+function queue(action) {
+  noteMutation(action.id, 4e6);
+  if (ctx.dryRun)
+    return;
+  pendingQueue.push({ action, slot: ctx.state.slots.indexOf(ctx.slot), by: queuedBy(), event: false });
+}
+function queueOnIntro(action) {
+  noteMutation(action.id, 7e6);
+  if (ctx.dryRun)
+    return;
+  ctx.state.introQueue.push({ action, slot: ctx.state.slots.indexOf(ctx.slot), by: queuedBy(), event: false });
+}
+function queueEvent(action) {
+  noteMutation(action.id, 5e6);
+  if (ctx.dryRun)
+    return;
+  pendingQueue.push({ action, slot: -1, by: queuedBy(), event: true });
+}
+function queueOn(resonator, action) {
+  noteMutation(action.id, 6e6);
+  if (ctx.dryRun)
+    return;
+  pendingQueue.push({ action, slot: ctx.state.slots.indexOf(ctx.state.memberOf(resonator)), by: queuedBy(), event: false });
+}
+function withTeam(state, fn) {
+  const prevState = ctx.state, prevSlot = ctx.slot, prevBuff = ctx.buff, prevAction = ctx.act;
+  ctx.state = state;
+  ctx.slot = state.slot;
+  try {
+    fn();
+  } finally {
+    ctx.state = prevState;
+    ctx.slot = prevSlot;
+    ctx.buff = prevBuff;
+    ctx.act = prevAction;
+  }
 }
 
-// dist/src/engine/kit.js
-var tagWord = (element, type, type2) => (element ?? 0) | (type ?? 0) | (type2 ?? 0);
-var tagWordOf = (action) => {
-  let word = action._tagWord;
-  if (word === void 0)
-    action._tagWord = word = tagWord(action.element, action.type, action.type2);
-  return word;
-};
+// dist/src/engine/gear.js
 var PHASE_DEBUFFS = 1;
 var PHASE_BUFFS = 2;
 var PHASE_APPLY = 4;
@@ -759,10 +1561,10 @@ var Resonator = class extends Gear {
         def2.constantStats?.();
       },
       combatStart: () => {
-        currentSlot.resonator = this;
+        ctx.slot.resonator = this;
         if (def2.enemy)
-          currentSlot.name = this.name;
-        currentSlot.realEnergy = this.maxEnergy;
+          ctx.slot.name = this.name;
+        ctx.slot.realEnergy = this.maxEnergy;
         def2.combatStart?.();
       }
     });
@@ -804,1005 +1606,159 @@ var Weapon = class extends Gear {
     this.standard = def2.standard ?? false;
   }
 };
-var EMPTY_HELD = [];
-var EMPTY_FORTE = [0, 0, 0, 0, 0];
-var EMPTY_FIELDS = [];
-var capEnergy = (member2, value) => Math.min(member2.resonator?.maxEnergy ?? 0, Math.max(0, value));
-var TYPE2_AMP_INDEX = STAT_COUNT;
-var ZERO_STATS = new Array(STAT_COUNT + 1).fill(0);
-ZERO_STATS[0] = 0.5;
-ZERO_STATS[0] = 0;
-var constVersion = 0;
-var Pool = class {
-  /** Every Gear granted here, in the order it was first granted — a Map's own order, so hooks run
-   *  in the same sequence they always did. A dropped Gear *stays in place*: the phase lists stop
-   *  naming its position and `at` forgets it, so nothing reaches it, and its slot is reclaimed by
-   *  `compact()` once the dead outnumber the live. Positions therefore never shift on a drop,
-   *  which is what keeps a drop down to filtering the one or two phase lists the Gear was in. A
-   *  Gear dropped and re-granted goes to the end, as it would in a Map. */
-  list = [];
-  /** The stack count of `list[i]`. */
-  counts = [];
-  /** For each phase (`PHASE_*`, in bit order), the positions in `list` of the live Gear that has
-   *  that hook — so a phase visits the two or three it will actually call rather than probing all
-   *  ~20 for a hook they mostly haven't got. */
-  hooks = Array.from({ length: PHASE_COUNT }, () => []);
-  /** The live Gear here with an `updateGlobalFn`, in order — what `evaluate()`'s updateGlobal
-   *  phase walks for the team-wide and enemy pools. */
-  globalHooks = [];
-  /** Where each live Gear sits in `list`. Written in place — nothing iterates it — except while a
-   *  `snapshot()` is live (`guarded`), where the first write swaps in a copy (`write()`) so
-   *  `restore()` can put the original back untouched. */
-  at = /* @__PURE__ */ new Map();
-  atCloned = false;
-  /** How many entries of `list` are dropped Gear. */
-  dead = 0;
-  has(gear) {
-    return this.at.has(gear);
-  }
-  /** Everything a dry run can move, by reference — the arrays are never written in place, and
-   *  `at` is cloned before a guarded write ever touches it — for `restore()` to hand back. */
-  snapshotInto(s) {
-    s.list = this.list;
-    s.counts = this.counts;
-    s.hooks = this.hooks;
-    s.globalHooks = this.globalHooks;
-    s.at = this.at;
-    s.dead = this.dead;
-  }
-  restore(s) {
-    this.list = s.list;
-    this.counts = s.counts;
-    this.hooks = s.hooks;
-    this.globalHooks = s.globalHooks;
-    this.at = s.at;
-    this.dead = s.dead;
-    this.atCloned = false;
-  }
-  /** Ahead of a write to `at`. Under a dry run the write is journaled for `undoDry()` to reverse;
-   *  otherwise, while a snapshot is live, the first write swaps in a copy so the snapshot's own
-   *  map stays as it was. */
-  write(gear) {
-    if (dryRun)
-      dryLog.push(this.at, gear, this.at.get(gear));
-    else if (guarded && !this.atCloned) {
-      this.at = new Map(this.at);
-      this.atCloned = true;
-    }
-  }
-  get(gear) {
-    const i = this.at.get(gear);
-    return i === void 0 ? void 0 : this.counts[i];
-  }
-  /** Every live Gear, in order — for the report's popover; the phases read `hooks` instead. */
-  gears() {
-    return this.list.filter((g, i) => this.at.get(g) === i);
-  }
-  set(gear, n) {
-    const i = this.at.get(gear);
-    if (i !== void 0) {
-      const counts2 = this.counts.slice();
-      counts2[i] = n;
-      this.counts = counts2;
-      return;
-    }
-    const k = this.list.length;
-    this.write(gear);
-    this.at.set(gear, k);
-    const list = this.list.slice(), counts = this.counts.slice();
-    list.push(gear);
-    counts.push(n);
-    this.list = list;
-    this.counts = counts;
-    if (gear.hookMask) {
-      const hooks = this.hooks.slice();
-      for (let mask = gear.hookMask, p = 0; mask; mask >>= 1, p++) {
-        if (!(mask & 1))
-          continue;
-        const phase = hooks[p].slice();
-        phase.push(k);
-        hooks[p] = phase;
-      }
-      this.hooks = hooks;
-    }
-    if (gear.updateGlobalFn)
-      this.globalHooks = [...this.globalHooks, gear];
-    if (gear.constantStatsFn)
-      constVersion++;
-  }
-  delete(gear) {
-    const i = this.at.get(gear);
-    if (i === void 0)
-      return;
-    this.write(gear);
-    this.at.delete(gear);
-    if (gear.constantStatsFn)
-      constVersion++;
-    if (gear.hookMask) {
-      const hooks = this.hooks.slice();
-      for (let mask = gear.hookMask, p = 0; mask; mask >>= 1, p++)
-        if (mask & 1)
-          hooks[p] = hooks[p].filter((k) => k !== i);
-      this.hooks = hooks;
-    }
-    if (gear.updateGlobalFn)
-      this.globalHooks = this.globalHooks.filter((g) => g !== gear);
-    if (++this.dead > 32)
-      this.compact();
-  }
-  /** Squeeze the dropped entries out of `list`/`counts` and renumber everything after them. */
-  compact() {
-    const list = [], counts = [];
-    const hooks = Array.from({ length: PHASE_COUNT }, () => []);
-    for (let i = 0; i < this.list.length; i++) {
-      const gear = this.list[i];
-      if (this.at.get(gear) !== i)
-        continue;
-      const k = list.length;
-      this.write(gear);
-      this.at.set(gear, k);
-      list.push(gear);
-      counts.push(this.counts[i]);
-      for (let mask = gear.hookMask, p = 0; mask; mask >>= 1, p++)
-        if (mask & 1)
-          hooks[p].push(k);
-    }
-    this.list = list;
-    this.counts = counts;
-    this.hooks = hooks;
-    this.dead = 0;
-  }
-};
-var TeamMember = class {
-  name;
-  /** Whichever Resonator is actually equipped here — set once, by Resonator's own combatStart,
-   *  the moment it's equip()-ped. Attribute/energy/name all live on it, not duplicated here; null
-   *  only in the brief window between constructing a State (from bare names) and equip()ping
-   *  each member's own Resonator. */
-  resonator = null;
-  /** Whichever Mainslot echo is equipped here — cached by `equip()` rather than re-found by
-   *  scanning this member's whole held set every time an ECHO_* marker comes up (see
-   *  `run()`). Set once at team setup, like `resonator` above. */
-  mainslot = null;
-  /** Generic forte gauges — a resonator assigns its own meaning onto whichever fits its kit
-   *  (Jingran's Qi is forte 1, his Mingfire is forte 2). Real numeric bars, not stacking Buffs:
-   *  nothing here caps at a Buff's own maxStacks, and there's no revoke-at-0 — a kit clamps its
-   *  own ceiling itself (see `setForte()`/`addForte()`). Five slots, matching stats.ts's own
-   *  Resource.Forte1-5. */
-  forte = [0, 0, 0, 0, 0];
-  /** Running totals, banked automatically by evaluate() itself off however much AddEnergy/
-   *  AddConcerto this action's own held Gear contributed (see `AddEnergy`/`AddConcerto` above) —
-   *  no kit ever adds to these directly, the same way none adds to `forte` by calling addStat(). */
-  energy = 0;
-  concerto = 0;
-  /** A second, parallel energy counter for the ER-requirement estimate (the detail page's own
-   *  Energy Requirements table) — unlike `energy` above, it starts a fight already filled (set to
-   *  `maxEnergy` by Resonator's own combatStart) and only resets on a `resetEnergy`-marked
-   *  Liberation cast, not on every outro. Same gain (and the same maxEnergy ceiling) as `energy`,
-   *  plus half of every *other* member's own gain (see `evaluate()`). */
-  realEnergy = 0;
-  stacks = new Pool();
-  /** Exactly the gear in `stacks` that declares an `updateGlobalFn`, kept in lockstep by the four
-   *  mutators below. `evaluate()` walks every slot's own global hooks on *every* action, and only
-   *  about one gear in twenty-five has one — scanning `stacks` for them meant ~33 iterator steps
-   *  per slot per action to reach one or two. Insertion order matches `stacks`' own (both are
-   *  written in the same call, and neither a re-`set` nor a re-`add` moves an existing entry), so
-   *  the hooks still run in the order they always did. */
-  globalHooks = /* @__PURE__ */ new Set();
-  /** Whatever was `equip()`-ped onto this member at team setup — their resonator and its talents,
-   *  weapon, mainslot echo, sonata pieces, mainstat/substat rolls. Held in `stacks` like anything
-   *  else (that's how their applyStats() runs), but it's gear, not a buff their kit put up, so the
-   *  report's own "what's on this resonator" panel leaves it out (see `heldLocal` in evaluate()).
-   *  `equip()` is the only thing that writes here, and it's the only way gear is ever granted. */
-  equipped = /* @__PURE__ */ new Set();
-  entries = [];
-  /** Running sum per *scoped* stat key ("Dmg Bonus:Fusion" kept apart from "Dmg Bonus"), kept in
-   *  lockstep with `entries` (same push site in `addStat()`, same reset in `evaluate()`). Only the
-   *  report's own trace panels read this, so it's filled on the traced path only — `get()` and the
-   *  damage formula both read `effective` below instead. */
-  totals = /* @__PURE__ */ new Map();
-  /** Running sum per stat with every scope *that matches the action being evaluated* already
-   *  folded in — so `get(Stat.DmgBonus)` on a Fusion Basic Attack is one read, not a re-sum of
-   *  "Dmg Bonus" + "Dmg Bonus:Fusion" + "Dmg Bonus:Basic" behind three freshly-built key strings.
-   *  Written by `pushStat()`, which knows the tag before it's been concatenated into a key and can
-   *  test it against the action's own tags directly. Indexed by `STAT_INDEX`, not keyed by the
-   *  stat string. Replaced (not cleared) each action, so a snapshot can keep the one it was built
-   *  with at zero copying cost. */
-  effective = ZERO_STATS.slice();
-  /** What every held Gear's `constantStats` adds up to for this slot, per action tag word (the
-   *  scopes that match), in `effective`'s own shape — built the first time each tag word is seen
-   *  and added into `effective` in one pass every action after (see `evaluate()`). Cleared when
-   *  `constVersion` moves on. */
-  constBase = /* @__PURE__ */ new Map();
-  constBaseVersion = -1;
-  /** Main-stat variants to score alongside this member's own build (solver.ts's own
-   *  `scoreMainstats()`): the held main-stat Buff each stands in for, the alternatives, and per
-   *  alternative the same per-tag-word constant base `constBase` keeps for the real one. Every
-   *  action this member takes is then re-scored once per variant (see `evaluate()`) — nothing else
-   *  in the fight changes, since a main stat only ever feeds its wearer. */
-  variantOf = null;
-  variants = [];
-  variantBase = [];
-  /** Set per variant when its dry re-run would have changed the fight — a mutation the real build
-   *  didn't make, or a resource stat that banks differently — so its scores can't be trusted and
-   *  the solver runs it for real instead. */
-  variantUnsafe = [];
-  constructor(name) {
-    this.name = name;
-  }
-  stacksOf(gear) {
-    return this.stacks.get(gear) ?? 0;
-  }
-  isHeld(gear) {
-    return this.stacks.has(gear);
-  }
-  /* The four mutators below write the pool only when it actually ends up different — a Pool
-   * write is a copy (see `Pool`), and a kit that re-grants a buff it already holds at full stacks
-   * (`applySelf(BUFF, 1)` every action, the commonest shape there is) would otherwise copy the
-   * counts for nothing on most actions. */
-  addStack(gear, n = 1) {
-    noteMutation(gear.id, n);
-    if (!dryRun)
-      recordApplied(gear, n);
-    const next = Math.min(gear.maxStacks, this.stacksOf(gear) + n);
-    if (this.stacks.get(gear) === next)
-      return next;
-    this.stacks.set(gear, next);
-    if (gear.updateGlobalFn) {
-      this.writeHooks(gear);
-      this.globalHooks.add(gear);
-    }
-    return next;
-  }
-  removeStack(gear, n = 1) {
-    noteMutation(gear.id, -n);
-    const next = Math.max(0, this.stacksOf(gear) - n);
-    if (next === 0) {
-      if (!this.stacks.has(gear))
-        return 0;
-      this.stacks.delete(gear);
-      this.writeHooks(gear);
-      this.globalHooks.delete(gear);
-      return 0;
-    }
-    if (this.stacks.get(gear) === next)
-      return next;
-    this.stacks.set(gear, next);
-    return next;
-  }
-  setStacks(gear, n) {
-    noteMutation(gear.id, 1e6 + n);
-    if (!dryRun)
-      recordApplied(gear, n - this.stacksOf(gear));
-    const next = Math.max(0, Math.min(gear.maxStacks, n));
-    if (next === 0) {
-      if (!this.stacks.has(gear))
-        return 0;
-      this.stacks.delete(gear);
-      this.writeHooks(gear);
-      this.globalHooks.delete(gear);
-      return 0;
-    }
-    if (this.stacks.get(gear) === next)
-      return next;
-    this.stacks.set(gear, next);
-    if (gear.updateGlobalFn) {
-      this.writeHooks(gear);
-      this.globalHooks.add(gear);
-    }
-    return next;
-  }
-  revoke(gear) {
-    noteMutation(gear.id, -1e6);
-    if (!this.stacks.has(gear))
-      return;
-    this.stacks.delete(gear);
-    this.writeHooks(gear);
-    this.globalHooks.delete(gear);
-  }
-  /** `globalHooks` is written in place — except while a snapshot is live (`guarded`), where the
-   *  first write swaps in a copy so `restore()` can hand the original back (see `Pool.write()`). */
-  hooksCloned = false;
-  writeHooks(gear) {
-    if (dryRun)
-      dryLog.push(this.globalHooks, gear, this.globalHooks.has(gear));
-    else if (guarded && !this.hooksCloned) {
-      this.globalHooks = new Set(this.globalHooks);
-      this.hooksCloned = true;
-    }
-  }
-  /** Everything of this member's a dry run can move (see `evaluate()`'s variants). */
-  snapshotInto(s) {
-    this.stacks.snapshotInto(s.pool);
-    s.globalHooks = this.globalHooks;
-    for (let i = 0; i < 5; i++)
-      s.forte[i] = this.forte[i];
-    s.concerto = this.concerto;
-  }
-  restore(s) {
-    this.stacks.restore(s.pool);
-    this.globalHooks = s.globalHooks;
-    this.hooksCloned = false;
-    for (let i = 0; i < 5; i++)
-      this.forte[i] = s.forte[i];
-    this.concerto = s.concerto;
-  }
-  total(stat) {
-    return this.totals.get(stat) ?? 0;
-  }
-};
-var State = class {
-  slots;
-  active = 0;
-  /** Which way the next Outro hands the field over: +1 for the ordinary handoff to the next
-   *  resonator in team order, -1 for the outro closing a DOUBLE_INTRO section (rotation.ts). The scheduler
-   *  sets it right before the outro is evaluated and puts it back to +1 straight after, so a
-   *  kit-queued outro — or any other path into `evaluate()` — always advances forward. */
-  outroDir = 1;
-  globalStacks = new Pool();
-  // use Buff here? how are maxstacks even handled?
-  /** Debuffs placed on the enemy rather than held by any resonator — mechanically identical to
-   *  `globalStacks` (ticks on every slot's own turn regardless of who's acting), kept as its own
-   *  map purely so the resonator popover can bucket it into its own "Enemy debuffs" section
-   *  instead of mixing it into "Global buffs" — a real distinction to the report, not just
-   *  formatting (see `buffsPopover` in index.ts). */
-  /** The enemy itself, as a member of nobody's team: the dummy Tune Break resonator, its Base
-   *  Resistance and the break's own machinery are `equipEnemy()`-ped onto it at setup, the way a
-   *  real member's kit and gear are `equip()`-ped. Its pool *is* `enemyStacks` below, so what is
-   *  equipped here runs in the enemy phase beside every debuff a kit inflicts. */
-  enemy = new TeamMember("");
-  // named by the enemy Resonator as it is equipped
-  enemyStacks = this.enemy.stacks;
-  // TODO change Gear to Debuff
-  /** Raised caps for enemy debuffs, kept beside the stack counts: the effective max of any enemy
-   *  debuff is its own declared maxStacks plus this entry. Independent of `enemyStacks`, so a cap
-   *  can be raised before the debuff is ever applied (kits do it at combatStart). */
-  enemyMaxIncrease = /* @__PURE__ */ new Map();
-  // TODO change Gear to Debuff
-  /** Which Gear has already paid an increase into `enemyMaxIncrease`, by name and per debuff.
-   *  Every kit that raises a cap says the effect isn't stackable, but the trigger is usually
-   *  "on hit" rather than once — so a source that has already raised this debuff's cap is
-   *  ignored the second time, while a second kit raising the same cap still counts. */
-  enemyMaxSources = /* @__PURE__ */ new Map();
-  // TODO change Gear to Debuff
-  outroQueue = [];
-  /** Casts waiting for the next Intro — queued behind it, on the slot that queued them, the
-   *  moment an Intro-cast action is evaluated (see `queueOnIntro()`). */
-  introQueue = [];
-  /** Off-tune buildup — the enemy's own bar, not any one member's, banked automatically by
-   *  evaluate() off whichever held Gear contributed AddOfftune this action, same as
-   *  TeamMember's own energy/concerto. */
-  offtune = 0;
-  /** Whose kit each piece of Gear ultimately came from, by member name.
-   *
-   *  Gear equipped at setup is sourced to whoever equipped it. Everything else inherits: a buff
-   *  granted while another Gear's own updateBuffs() is running is that Gear's doing, so it carries
-   *  that Gear's source rather than the name of whichever member happened to be on field when it
-   *  landed. Shorekeeper's echo granting "Fallacy of No Return" onto Iuno stays sourced to
-   *  Shorekeeper; Iuno's domain stacking Blessing onto Jingran stays sourced to Iuno.
-   *
-   *  Lives on the State, not the Gear: a Gear is a module-level singleton shared by every team,
-   *  so writing to it would leak one team's attribution into another's. */
-  sourceOf = /* @__PURE__ */ new Map();
-  /** The three fight snapshots `evaluate()` takes around a varied action — before the stat phases,
-   *  after them, and after banking — made once, the first time this team needs them. */
-  snapshots = null;
-  constructor(names) {
-    this.slots = names.map((n) => new TeamMember(n));
-  }
-  get slot() {
-    return this.slots[this.active];
-  }
-  slotByName(name) {
-    return this.slots.find((s) => s.name === name);
-  }
-  /** Whichever TeamMember currently holds this Resonator — what addBuff()/removeBuff() resolve
-   *  a resonator reference against. Throws rather than returning undefined: a kit reaching for
-   *  another resonator by reference is asserting they're on this team, and a silent no-op on a
-   *  typo'd or absent one would be a much worse bug to chase than a thrown error. */
-  memberOf(resonator) {
-    const member2 = this.slots.find((s) => s.resonator === resonator);
-    if (!member2)
-      throw new Error(`${resonator.name} is not on this team`);
-    return member2;
-  }
-  stacksOfGlobal(gear) {
-    return this.globalStacks.get(gear) ?? 0;
-  }
-  addStackGlobal(gear, n = 1) {
-    noteMutation(gear.id, n);
-    const next = Math.min(gear.maxStacks, this.stacksOfGlobal(gear) + n);
-    if (!dryRun)
-      recordApplied(gear, n);
-    if (this.globalStacks.get(gear) === next)
-      return next;
-    this.globalStacks.set(gear, next);
-    return next;
-  }
-  removeStackGlobal(gear, n = 1) {
-    noteMutation(gear.id, -n);
-    const next = Math.max(0, this.stacksOfGlobal(gear) - n);
-    if (next === 0) {
-      if (!this.globalStacks.has(gear))
-        return 0;
-      this.globalStacks.delete(gear);
-      return 0;
-    }
-    if (this.globalStacks.get(gear) === next)
-      return next;
-    this.globalStacks.set(gear, next);
-    return next;
-  }
-  setStacksGlobal(gear, n) {
-    noteMutation(gear.id, 1e6 + n);
-    const next = Math.max(0, Math.min(gear.maxStacks, n));
-    if (!dryRun)
-      recordApplied(gear, n - this.stacksOfGlobal(gear));
-    if (next === 0) {
-      if (!this.globalStacks.has(gear))
-        return 0;
-      this.globalStacks.delete(gear);
-      return 0;
-    }
-    if (this.globalStacks.get(gear) === next)
-      return next;
-    this.globalStacks.set(gear, next);
-    return next;
-  }
-  revokeGlobal(gear) {
-    noteMutation(gear.id, -1e6);
-    if (!this.globalStacks.has(gear))
-      return;
-    this.globalStacks.delete(gear);
-  }
-  stacksOfEnemy(gear) {
-    return this.enemyStacks.get(gear) ?? 0;
-  }
-  enemyMax(gear) {
-    return gear.maxStacks + (this.enemyMaxIncrease.get(gear) ?? 0);
-  }
-  increaseMaxEnemy(gear, n, source) {
-    noteMutation(gear.id, 2e6 + n);
-    if (dryRun)
-      return;
-    let sources = this.enemyMaxSources.get(gear);
-    if (!sources)
-      this.enemyMaxSources.set(gear, sources = /* @__PURE__ */ new Set());
-    if (sources.has(source))
-      return;
-    sources.add(source);
-    this.enemyMaxIncrease.set(gear, (this.enemyMaxIncrease.get(gear) ?? 0) + n);
-  }
-  addStackEnemy(gear, n = 1) {
-    noteMutation(gear.id, n);
-    const next = Math.min(this.enemyMax(gear), this.stacksOfEnemy(gear) + n);
-    if (!dryRun)
-      recordApplied(gear, n);
-    if (this.enemyStacks.get(gear) === next)
-      return next;
-    this.enemyStacks.set(gear, next);
-    return next;
-  }
-  removeStackEnemy(gear, n = 1) {
-    noteMutation(gear.id, -n);
-    const next = Math.max(0, this.stacksOfEnemy(gear) - n);
-    if (next === 0) {
-      if (!this.enemyStacks.has(gear))
-        return 0;
-      this.enemyStacks.delete(gear);
-      return 0;
-    }
-    if (this.enemyStacks.get(gear) === next)
-      return next;
-    this.enemyStacks.set(gear, next);
-    return next;
-  }
-  setStacksEnemy(gear, n) {
-    noteMutation(gear.id, 1e6 + n);
-    const next = Math.max(0, Math.min(this.enemyMax(gear), n));
-    if (!dryRun)
-      recordApplied(gear, n - this.stacksOfEnemy(gear));
-    if (next === 0) {
-      if (!this.enemyStacks.has(gear))
-        return 0;
-      this.enemyStacks.delete(gear);
-      return 0;
-    }
-    if (this.enemyStacks.get(gear) === next)
-      return next;
-    this.enemyStacks.set(gear, next);
-    return next;
-  }
-  revokeEnemy(gear) {
-    noteMutation(gear.id, -1e6);
-    if (!this.enemyStacks.has(gear))
-      return;
-    this.enemyStacks.delete(gear);
-  }
-};
-var ENEMY_RES = 0;
-var ENEMY_DEF_LEVEL = 100;
-var enemyDef = () => 792 + 8 * ENEMY_DEF_LEVEL;
-var enemyRes = () => ENEMY_RES;
-var currentState = null;
-var currentSlot = null;
-var currentBuff = null;
-var currentAct = null;
-var currentTriggered = false;
-var currentStacks = -1;
-var currentTagWord = 0;
-var dryRun = false;
-var guarded = false;
-var dryLog = [];
-function undoDry() {
-  for (let i = dryLog.length - 3; i >= 0; i -= 3) {
-    const target = dryLog[i], gear = dryLog[i + 1], prev = dryLog[i + 2];
-    if (target instanceof Map) {
-      if (prev === void 0)
-        target.delete(gear);
-      else
-        target.set(gear, prev);
-    } else if (prev)
-      target.add(gear);
-    else
-      target.delete(gear);
-  }
-  dryLog.length = 0;
+
+// dist/src/engine/damage.js
+var RESONATOR_LEVEL = 90;
+var LEVEL_90_DOT = 3674;
+var LEVEL_90_TUNE = 10027;
+var mvPercent = (snapshot) => (snapshot.action.mv + snapshot.stats[
+  15
+  /* Stat.AddMv */
+]) * (1 + snapshot.stats[
+  16
+  /* Stat.MulMv */
+] / 100);
+var notDotFor = (snapshot) => snapshot.action.scaling !== 3 ? 1 : 0;
+function effectiveShred(snapshot) {
+  const s = (k) => snapshot.stats[k] / 100;
+  const notDot = notDotFor(snapshot);
+  const base = snapshot.enemyDef;
+  return 1 - (1 - notDot * s(
+    21
+    /* Stat.DefIgnoreNew */
+  )) * Math.floor(base * (1 - s(
+    35
+    /* EnemyStat.DefReduce */
+  ) - notDot * s(
+    22
+    /* Stat.DefIgnoreOld */
+  ))) / base;
 }
-var FightSnapshot = class {
-  members;
-  global;
-  enemy;
-  offtune = 0;
-  constructor(state) {
-    const pool = () => ({ list: [], counts: [], hooks: [], globalHooks: [], at: /* @__PURE__ */ new Map(), dead: 0 });
-    const member2 = () => ({ pool: pool(), globalHooks: /* @__PURE__ */ new Set(), forte: [0, 0, 0, 0, 0], concerto: 0 });
-    this.members = state.slots.map(member2);
-    this.global = pool();
-    this.enemy = pool();
+function effectiveRes(snapshot) {
+  const s = (k) => snapshot.stats[k] / 100;
+  return (snapshot.enemyRes / 100 - s(
+    20
+    /* Stat.ResIgnore */
+  ) * notDotFor(snapshot) - s(
+    34
+    /* EnemyStat.ResReduce */
+  )) * 100;
+}
+function resFactorOf(snapshot) {
+  const finalRes = effectiveRes(snapshot) / 100;
+  return finalRes < 0 ? 1 - finalRes / 2 : finalRes < 0.8 ? 1 - finalRes : 1 / (1 + 5 * finalRes);
+}
+function defFactorOf(snapshot) {
+  const finalDef = (1 - effectiveShred(snapshot)) * snapshot.enemyDef;
+  const ownDef = 800 + RESONATOR_LEVEL * 8;
+  return ownDef / (ownDef + finalDef);
+}
+function damageFactors(snapshot) {
+  const { action } = snapshot;
+  const s = (k) => snapshot.stats[k] / 100;
+  const { scaling } = action;
+  if (scaling === null) {
+    return {
+      scaling: null,
+      finalMv: 0,
+      finalStat: 0,
+      ampFactor: 1,
+      bonusFactor: 1,
+      tbbFactor: 1,
+      resFactor: 1,
+      defFactor: 1,
+      dealtFactor: 1,
+      critFactor: 1,
+      critMult: 1,
+      noCrit: 0,
+      crit: 0,
+      avg: 0
+    };
   }
-  take(state) {
-    state.slots.forEach((m, i) => m.snapshotInto(this.members[i]));
-    state.globalStacks.snapshotInto(this.global);
-    state.enemyStacks.snapshotInto(this.enemy);
-    this.offtune = state.offtune;
+  if (scaling === 5) {
+    return {
+      scaling,
+      finalMv: action.mv,
+      finalStat: 100,
+      ampFactor: 1,
+      bonusFactor: 1,
+      tbbFactor: 1,
+      resFactor: 1,
+      defFactor: 1,
+      dealtFactor: 1,
+      critFactor: 1,
+      critMult: 1,
+      noCrit: action.mv,
+      crit: action.mv,
+      avg: action.mv
+    };
   }
-  restore(state) {
-    undoDry();
-    state.slots.forEach((m, i) => m.restore(this.members[i]));
-    state.globalStacks.restore(this.global);
-    state.enemyStacks.restore(this.enemy);
-    state.offtune = this.offtune;
-  }
-};
-var mutHash = 0;
-var noteMutation = (id, n) => {
-  mutHash = Math.imul(mutHash ^ id, 2654435761) + n | 0;
-};
-var RESOURCE_STATS = [
-  25,
-  26,
-  27,
-  28,
-  13,
-  14,
-  29,
-  30,
-  31,
-  32,
-  33
-];
-var overrideType1 = null;
-var overrideType2 = null;
-var appliedNow = /* @__PURE__ */ new Map();
-var appliedBy = /* @__PURE__ */ new Map();
-var recordApplied = (gear, n) => {
-  if (n <= 0)
-    return;
-  appliedNow.set(gear, (appliedNow.get(gear) ?? 0) + n);
-  const source = currentState.sourceOf.get(gear);
-  if (source === void 0)
-    return;
-  let per = appliedBy.get(gear);
-  if (per === void 0)
-    appliedBy.set(gear, per = /* @__PURE__ */ new Map());
-  per.set(source, (per.get(source) ?? 0) + n);
-};
-var consumedNow = /* @__PURE__ */ new Map();
-var consumedBy = /* @__PURE__ */ new Map();
-var recordConsumed = (gear, n) => {
-  if (n <= 0)
-    return;
-  consumedNow.set(gear, (consumedNow.get(gear) ?? 0) + n);
-  const by = currentSlot.name;
-  let per = consumedBy.get(gear);
-  if (per === void 0)
-    consumedBy.set(gear, per = /* @__PURE__ */ new Map());
-  per.set(by, (per.get(by) ?? 0) + n);
-};
-var capList = [[], [], []];
-var capCounts = [[], [], []];
-var capHooks = [[], [], []];
-function capture(slot, state) {
-  let pool = slot.stacks;
-  capList[0] = pool.list;
-  capCounts[0] = pool.counts;
-  capHooks[0] = pool.hooks;
-  pool = state.globalStacks;
-  capList[1] = pool.list;
-  capCounts[1] = pool.counts;
-  capHooks[1] = pool.hooks;
-  pool = state.enemyStacks;
-  capList[2] = pool.list;
-  capCounts[2] = pool.counts;
-  capHooks[2] = pool.hooks;
-}
-function constBaseOf(slot, from, to) {
-  const live = slot.effective;
-  slot.effective = ZERO_STATS.slice();
-  for (let q = 0; q < 3; q++) {
-    const list = capList[q], counts = capCounts[q], hooks = capHooks[q][6];
-    for (let i = 0, m = hooks.length; i < m; i++) {
-      const k = hooks[i];
-      const gear = list[k] === from ? to : list[k];
-      currentBuff = gear;
-      currentStacks = counts[k];
-      gear.constantStatsFn();
-    }
-  }
-  const base = slot.effective;
-  slot.effective = live;
-  return base;
-}
-function runPhase(p, withStacks) {
-  for (let q = 0; q < 3; q++) {
-    const list = capList[q], counts = capCounts[q], hooks = capHooks[q][p];
-    for (let i = 0, m = hooks.length; i < m; i++) {
-      const k = hooks[i];
-      const gear = list[k];
-      currentBuff = gear;
-      if (withStacks)
-        currentStacks = counts[k];
-      gear.hookFns[p]();
-    }
-  }
-}
-function actionHook(fn) {
-  if (!fn)
-    return;
-  currentBuff = currentAct;
-  currentStacks = 1;
-  fn();
-}
-var tracing = false;
-function setTracing(on) {
-  tracing = on;
-}
-var currentAction = () => currentAct;
-var insideGroup = false;
-var midActionGroup = () => insideGroup;
-var triggeredAction = () => currentTriggered;
-var currentTeam = () => currentState;
-var currentMember = () => currentSlot;
-function casting(cast) {
-  return isCast(currentAct, cast);
-}
-function typeOverride(type) {
-  const a = currentAct;
-  if (type & TYPE2_BITS)
-    overrideType2 = type;
-  else
-    overrideType1 = type;
-  currentTagWord = tagWord(a.element, overrideType1 ?? a.type, overrideType2 ?? a.type2);
-}
-function isType(type) {
-  const a = currentAct;
-  return (overrideType1 ?? a.type) === type || (overrideType2 ?? a.type2) === type;
-}
-function isCast(action, cast) {
-  return action.cast === cast || action.cast2 === cast;
-}
-function applied(gear) {
-  return appliedNow.get(gear) ?? 0;
-}
-function appliedByMe(gear) {
-  return appliedByMember(gear, currentSlot);
-}
-function appliedByMember(gear, member2) {
-  return appliedBy.get(gear)?.get(member2.name) ?? 0;
-}
-function consumedByMe(gear) {
-  return consumedByMember(gear, currentSlot);
-}
-function consumedByMember(gear, member2) {
-  return consumedBy.get(gear)?.get(member2.name) ?? 0;
-}
-function consumedAny() {
-  let total = 0;
-  for (const n of consumedNow.values())
-    total += n;
-  return total;
-}
-function frozenStacks() {
-  return currentStacks >= 0 ? currentStacks : currentSlot.stacksOf(currentBuff);
-}
-function pushStat(stat, tag, value) {
-  const slot = currentSlot;
-  if (tag === void 0 || (currentTagWord & tagBand(tag)) === tag) {
-    slot.effective[stat] = slot.effective[stat] + value;
-    if (stat === 18 && tag !== void 0 && (tag & TYPE2_BITS) !== 0) {
-      slot.effective[TYPE2_AMP_INDEX] = slot.effective[TYPE2_AMP_INDEX] + value;
-    }
-  }
-  if (!tracing)
-    return;
-  const key = tag === void 0 ? stat : scopedStat(tag, stat);
-  slot.entries.push({
-    stat: key,
-    value,
-    source: currentBuff?.toString() ?? "",
-    owner: (currentBuff && currentState.sourceOf.get(currentBuff)) ?? slot.name ?? null
-  });
-  slot.totals.set(key, (slot.totals.get(key) ?? 0) + value);
-}
-function addStat(stat, value, tag) {
-  pushStat(stat, tag, value);
-}
-function addEnemyStat(stat, value, tag) {
-  pushStat(stat, tag, value);
-}
-var ALL_ATTRIBUTES = [
-  64,
-  128,
-  192,
-  256,
-  320,
-  384,
-  448
-];
-var ALL_TYPE1 = [
-  4096,
-  8192,
-  12288,
-  16384,
-  20480,
-  24576,
-  28672,
-  32768,
-  36864,
-  40960,
-  49152,
-  53248
-];
-var ALL_TYPE2 = [
-  262144,
-  524288,
-  786432,
-  1048576,
-  1310720,
-  1572864
-];
-function menuStats(gear) {
-  const slot = new TeamMember("");
-  const state = new State([]);
-  const saved = { currentSlot, currentState, currentBuff, currentStacks, currentTagWord, tracing };
-  currentSlot = slot;
-  currentState = state;
-  currentStacks = 1;
-  tracing = true;
-  const passes = ALL_TYPE1.length;
-  for (const g of gear) {
-    if (!g.constantStatsFn)
-      continue;
-    currentBuff = g;
-    for (let i = 0; i < passes; i++) {
-      currentTagWord = (ALL_ATTRIBUTES[i] ?? 0) | ALL_TYPE1[i] | (ALL_TYPE2[i] ?? 0);
-      g.constantStatsFn();
-    }
-  }
-  ({ currentSlot, currentState, currentBuff, currentStacks, currentTagWord, tracing } = saved);
-  const seen = /* @__PURE__ */ new Set();
-  return slot.entries.filter((e) => {
-    const key = `${e.source}\0${e.stat}`;
-    if (seen.has(key))
-      return false;
-    seen.add(key);
-    return true;
-  });
-}
-function getStat(stat) {
-  return currentSlot.effective[stat];
-}
-function stacksOf(gear) {
-  return currentSlot.stacksOf(gear);
-}
-function isHeld(gear) {
-  return currentSlot.isHeld(gear);
-}
-function maxEnergy() {
-  return currentSlot.resonator?.maxEnergy ?? 0;
-}
-function forteGauge(i) {
+  const notDot = scaling !== 3 ? 1 : 0;
+  const notTune = scaling !== 4 ? 1 : 0;
+  const finalStat = Math.floor(scaling === 0 ? snapshot.atk : scaling === 1 ? snapshot.hp : scaling === 2 ? snapshot.def : scaling === 3 ? LEVEL_90_DOT : scaling === 4 ? LEVEL_90_TUNE : NaN);
+  const finalMv = mvPercent(snapshot) / 100;
+  const ampFactor = 1 + (notDot ? snapshot.amp : snapshot.type2Amp) / 100 * notTune;
+  const bonusFactor = 1 + snapshot.dmgBonus / 100 * notDot * notTune;
+  const tbbFactor = 1 + snapshot.stats[
+    12
+    /* Stat.Tbb */
+  ] / 100 * (1 - notTune);
+  const resFactor = resFactorOf(snapshot);
+  const defFactor = defFactorOf(snapshot);
+  const dealtFactor = 1 + s(
+    19
+    /* Stat.TotalDmg */
+  ) * notDot;
+  const critMult = notDot * notTune ? s(
+    10
+    /* Stat.CritDmg */
+  ) : 1;
+  const cr = s(
+    9
+    /* Stat.CritRate */
+  );
+  const critFactor = cr >= 1 ? critMult : 1 - cr + critMult * cr;
+  const noCrit = finalMv * finalStat * ampFactor * bonusFactor * tbbFactor * resFactor * defFactor * dealtFactor;
   return {
-    get: () => currentSlot.forte[i],
-    set: (value) => {
-      noteMutation(-1 - i, value);
-      return currentSlot.forte[i] = value;
-    },
-    add: (delta) => {
-      noteMutation(-1 - i, delta);
-      return currentSlot.forte[i] = currentSlot.forte[i] + delta;
-    }
+    scaling,
+    finalMv,
+    finalStat,
+    ampFactor,
+    bonusFactor,
+    tbbFactor,
+    resFactor,
+    defFactor,
+    dealtFactor,
+    critFactor,
+    critMult,
+    noCrit,
+    crit: noCrit * critMult,
+    avg: noCrit * critFactor
   };
 }
-var { get: forte1, set: setForte1, add: addForte1 } = forteGauge(0);
-var { get: forte2, set: setForte2, add: addForte2 } = forteGauge(1);
-var { get: forte3, set: setForte3, add: addForte3 } = forteGauge(2);
-var { get: forte4, set: setForte4, add: addForte4 } = forteGauge(3);
-var { get: forte5, set: setForte5, add: addForte5 } = forteGauge(4);
-function concerto() {
-  return currentSlot.concerto;
+function damage(snapshot) {
+  const { noCrit, crit, avg } = damageFactors(snapshot);
+  return { noCrit, crit, avg };
 }
-function setConcerto(value) {
-  noteMutation(-10, value);
-  return currentSlot.concerto = value;
-}
-function attribute(gear) {
-  const inherited = currentBuff ? currentState.sourceOf.get(currentBuff) : void 0;
-  currentState.sourceOf.set(gear, inherited ?? currentSlot.name);
-}
-function applyCurrent(buff, n = 1) {
-  attribute(buff);
-  return currentSlot.addStack(buff, n);
-}
-function equip(gear, n = 1) {
-  attribute(gear);
-  const result = currentSlot.addStack(gear, n);
-  currentSlot.equipped.add(gear);
-  if (gear instanceof Mainslot)
-    currentSlot.mainslot = gear;
-  const prevBuff = currentBuff;
-  currentBuff = gear;
-  try {
-    gear.combatStartFn?.();
-  } finally {
-    currentBuff = prevBuff;
-  }
-  return result;
-}
-function equipEnemy(gear, n = 1) {
-  const prev = currentSlot;
-  currentSlot = currentState.enemy;
-  try {
-    return equip(gear, n);
-  } finally {
-    currentSlot = prev;
-  }
-}
-function setStacksSelf(buff, n) {
-  attribute(buff);
-  return currentSlot.setStacks(buff, n);
-}
-function removeStack(buff, n = 1) {
-  return currentSlot.removeStack(buff, n);
-}
-function revokeCurrent(buff) {
-  currentSlot.revoke(buff);
-}
-function currentGear() {
-  return currentBuff;
-}
-function stacksOfTeam(gear) {
-  return currentState.stacksOfGlobal(gear);
-}
-function applyTeam(buff, n = 1) {
-  attribute(buff);
-  return currentState.addStackGlobal(buff, n);
-}
-function removeStackTeam(buff, n = 1) {
-  return currentState.removeStackGlobal(buff, n);
-}
-function revokeTeam(buff) {
-  currentState.revokeGlobal(buff);
-}
-function stacksOfEnemy(gear) {
-  return currentState.stacksOfEnemy(gear);
-}
-function applyEnemy(debuff, n = 1) {
-  attribute(debuff);
-  return currentState.addStackEnemy(debuff, n);
-}
-function removeStackEnemy(debuff, n = 1) {
-  return currentState.removeStackEnemy(debuff, n);
-}
-function consume(debuff, n = 1) {
-  const before = currentState.stacksOfEnemy(debuff);
-  const after = currentState.removeStackEnemy(debuff, n);
-  if (!dryRun)
-    recordConsumed(debuff, before - after);
-  return after;
-}
-function revokeEnemy(debuff) {
-  currentState.revokeEnemy(debuff);
-}
-function maxStackIncrease(debuff, n = 1) {
-  currentState.increaseMaxEnemy(debuff, n, currentBuff?.name ?? currentSlot.name);
-}
-function addBuff(resonator, buff, n = 1) {
-  attribute(buff);
-  return currentState.memberOf(resonator).addStack(buff, n);
-}
-function revokeBuff(resonator, buff) {
-  currentState.memberOf(resonator).revoke(buff);
-}
-function queueOutro(buff) {
-  noteMutation(buff.id, 3e6);
-  if (dryRun)
-    return;
-  attribute(buff);
-  currentState.outroQueue.push(buff);
-}
-var pendingQueue = [];
-var queuedBy = () => {
-  const gear = currentBuff;
-  if (!gear?.name)
-    return null;
-  return { name: gear.name, source: currentState.sourceOf.get(gear) ?? currentSlot.name };
-};
-function queue(action) {
-  noteMutation(action.id, 4e6);
-  if (dryRun)
-    return;
-  pendingQueue.push({ action, slot: currentState.slots.indexOf(currentSlot), by: queuedBy(), event: false });
-}
-function queueOnIntro(action) {
-  noteMutation(action.id, 7e6);
-  if (dryRun)
-    return;
-  currentState.introQueue.push({ action, slot: currentState.slots.indexOf(currentSlot), by: queuedBy(), event: false });
-}
-function queueEvent(action) {
-  noteMutation(action.id, 5e6);
-  if (dryRun)
-    return;
-  pendingQueue.push({ action, slot: -1, by: queuedBy(), event: true });
-}
-function queueOn(resonator, action) {
-  noteMutation(action.id, 6e6);
-  if (dryRun)
-    return;
-  pendingQueue.push({ action, slot: currentState.slots.indexOf(currentState.memberOf(resonator)), by: queuedBy(), event: false });
-}
-function withTeam(state, fn) {
-  const prevState = currentState, prevSlot = currentSlot, prevBuff = currentBuff, prevAction = currentAct;
-  currentState = state;
-  currentSlot = state.slot;
-  try {
-    fn();
-  } finally {
-    currentState = prevState;
-    currentSlot = prevSlot;
-    currentBuff = prevBuff;
-    currentAct = prevAction;
-  }
-}
+
+// dist/src/engine/evaluate.js
 function evaluate(state, action, triggered = false, triggeredBy = null) {
   const slot = state.slot;
-  currentState = state;
-  currentSlot = slot;
-  currentAct = action;
-  currentTriggered = triggered;
-  currentTagWord = tagWordOf(action);
-  overrideType1 = null;
-  overrideType2 = null;
-  appliedNow = /* @__PURE__ */ new Map();
-  appliedBy = /* @__PURE__ */ new Map();
-  consumedNow = /* @__PURE__ */ new Map();
-  consumedBy = /* @__PURE__ */ new Map();
+  ctx.state = state;
+  ctx.slot = slot;
+  ctx.act = action;
+  ctx.triggered = triggered;
+  ctx.tagWord = tagWordOf(action);
+  ctx.overrideType1 = null;
+  ctx.overrideType2 = null;
+  ctx.appliedNow = /* @__PURE__ */ new Map();
+  ctx.appliedBy = /* @__PURE__ */ new Map();
+  ctx.consumedNow = /* @__PURE__ */ new Map();
+  ctx.consumedBy = /* @__PURE__ */ new Map();
   slot.effective = ZERO_STATS.slice();
-  const forteBefore = tracing ? [...slot.forte] : EMPTY_FORTE;
+  const forteBefore = ctx.tracing ? [...slot.forte] : EMPTY_FORTE;
   const energyBefore = slot.energy, concertoBefore = slot.concerto, offtuneBefore = state.offtune;
-  if (tracing) {
+  if (ctx.tracing) {
     slot.entries = [];
     slot.totals = /* @__PURE__ */ new Map();
   }
@@ -1820,50 +1776,50 @@ function evaluate(state, action, triggered = false, triggeredBy = null) {
   actionHook(action.updateGlobalFn);
   for (const s of state.slots) {
     for (const gear of s.globalHooks) {
-      currentSlot = s;
-      currentBuff = gear;
-      currentStacks = -1;
+      ctx.slot = s;
+      ctx.buff = gear;
+      ctx.stacks = -1;
       gear.updateGlobalFn();
     }
   }
-  currentSlot = slot;
+  ctx.slot = slot;
   const globalHooks = state.globalStacks.globalHooks, enemyHooks = state.enemyStacks.globalHooks;
   for (let i = 0; i < globalHooks.length; i++) {
-    currentBuff = globalHooks[i];
-    currentBuff.updateGlobalFn();
+    ctx.buff = globalHooks[i];
+    ctx.buff.updateGlobalFn();
   }
   for (let i = 0; i < enemyHooks.length; i++) {
-    currentBuff = enemyHooks[i];
-    currentBuff.updateGlobalFn();
+    ctx.buff = enemyHooks[i];
+    ctx.buff.updateGlobalFn();
   }
-  currentBuff = null;
+  ctx.buff = null;
   capture(slot, state);
   actionHook(action.updateBuffsFn);
   runPhase(1, true);
   capture(slot, state);
-  const heldPools = tracing ? [slot.stacks, state.globalStacks, state.enemyStacks].map((pool) => pool.gears().map((g) => [g, pool.get(g) ?? 0])) : null;
-  const pre = !tracing && slot.variants.length !== 0 ? slot.effective.slice() : null;
-  guarded = pre !== null;
+  const heldPools = ctx.tracing ? [slot.stacks, state.globalStacks, state.enemyStacks].map((pool) => pool.gears().map((g) => [g, pool.get(g) ?? 0])) : null;
+  const pre = !ctx.tracing && slot.variants.length !== 0 ? slot.effective.slice() : null;
+  ctx.guarded = pre !== null;
   const snapshots = pre !== null ? state.snapshots ??= [new FightSnapshot(state), new FightSnapshot(state), new FightSnapshot(state)] : null;
   if (snapshots !== null)
     snapshots[0].take(state);
-  if (tracing)
+  if (ctx.tracing)
     runPhase(6, true);
   else {
-    if (slot.constBaseVersion !== constVersion) {
+    if (slot.constBaseVersion !== ctx.constVersion) {
       slot.constBase.clear();
       for (const m of slot.variantBase)
         m.clear();
-      slot.constBaseVersion = constVersion;
+      slot.constBaseVersion = ctx.constVersion;
     }
-    let base2 = slot.constBase.get(currentTagWord);
+    let base2 = slot.constBase.get(ctx.tagWord);
     if (base2 === void 0)
-      slot.constBase.set(currentTagWord, base2 = constBaseOf(slot, null, null));
+      slot.constBase.set(ctx.tagWord, base2 = constBaseOf(slot, null, null));
     const effective2 = slot.effective;
     for (let i = 0; i < effective2.length; i++)
       effective2[i] = effective2[i] + base2[i];
   }
-  mutHash = 0;
+  ctx.mutHash = 0;
   actionHook(action.applyStatsFn);
   runPhase(2, true);
   actionHook(action.convertStatsFn);
@@ -1872,28 +1828,28 @@ function evaluate(state, action, triggered = false, triggeredBy = null) {
   runPhase(4, true);
   let variantEff = null;
   if (pre !== null && snapshots !== null) {
-    const primaryHash = mutHash, primaryEff = slot.effective;
+    const primaryHash = ctx.mutHash, primaryEff = slot.effective;
     const [before, after] = snapshots;
     after.take(state);
     variantEff = [];
-    dryRun = true;
+    ctx.dryRun = true;
     for (let v = 0; v < slot.variants.length; v++) {
-      let vbase = slot.variantBase[v].get(currentTagWord);
+      let vbase = slot.variantBase[v].get(ctx.tagWord);
       if (vbase === void 0)
-        slot.variantBase[v].set(currentTagWord, vbase = constBaseOf(slot, slot.variantOf, slot.variants[v]));
+        slot.variantBase[v].set(ctx.tagWord, vbase = constBaseOf(slot, slot.variantOf, slot.variants[v]));
       const eff = pre.slice();
       for (let i = 0; i < eff.length; i++)
         eff[i] = eff[i] + vbase[i];
       slot.effective = eff;
       before.restore(state);
-      mutHash = 0;
+      ctx.mutHash = 0;
       actionHook(action.applyStatsFn);
       runPhase(2, true);
       actionHook(action.convertStatsFn);
       runPhase(3, true);
       actionHook(action.lateConvertStatsFn);
       runPhase(4, true);
-      let unsafe = mutHash !== primaryHash;
+      let unsafe = ctx.mutHash !== primaryHash;
       for (const s of RESOURCE_STATS)
         if (eff[s] !== primaryEff[s])
           unsafe = true;
@@ -1901,12 +1857,12 @@ function evaluate(state, action, triggered = false, triggeredBy = null) {
         slot.variantUnsafe[v] = true;
       variantEff.push(eff);
     }
-    dryRun = false;
+    ctx.dryRun = false;
     after.restore(state);
     slot.effective = primaryEff;
   }
   let heldLocal = EMPTY_HELD, heldGlobal = EMPTY_HELD, heldEnemy = EMPTY_HELD;
-  if (tracing) {
+  if (ctx.tracing) {
     const frozen = /* @__PURE__ */ new Map();
     for (let q = 0; q < 3; q++) {
       const list = capList[q], counts = capCounts[q], hooks = capHooks[q];
@@ -1915,8 +1871,8 @@ function evaluate(state, action, triggered = false, triggeredBy = null) {
           frozen.set(list[k], counts[k]);
     }
     const describe = ([g, n]) => {
-      currentBuff = g;
-      currentStacks = frozen.get(g) ?? n;
+      ctx.buff = g;
+      ctx.stacks = frozen.get(g) ?? n;
       return { name: g.toString(), source: state.sourceOf.get(g) ?? "" };
     };
     const named = (b) => b.name !== "";
@@ -1924,11 +1880,11 @@ function evaluate(state, action, triggered = false, triggeredBy = null) {
     heldGlobal = heldPools[1].map(describe).filter(named);
     heldEnemy = heldPools[2].filter(([g]) => !state.enemy.equipped.has(g)).map(describe).filter(named);
   }
-  currentStacks = -1;
-  currentBuff = null;
+  ctx.stacks = -1;
+  ctx.buff = null;
   let opensFields = EMPTY_FIELDS;
-  if (tracing) {
-    for (const [gear] of appliedNow) {
+  if (ctx.tracing) {
+    for (const [gear] of ctx.appliedNow) {
       if (!gear.field)
         continue;
       if (opensFields === EMPTY_FIELDS)
@@ -2022,15 +1978,15 @@ function evaluate(state, action, triggered = false, triggeredBy = null) {
     variantAvg = [];
     const banked = snapshots[2];
     banked.take(state);
-    dryRun = true;
+    ctx.dryRun = true;
     for (let v = 0; v < variantEff.length; v++) {
       const eff = variantEff[v];
       slot.effective = eff;
-      mutHash = 0;
-      currentStacks = -1;
+      ctx.mutHash = 0;
+      ctx.stacks = -1;
       actionHook(action.afterActionFn);
       runPhase(5, false);
-      variantHash.push(mutHash);
+      variantHash.push(ctx.mutHash);
       banked.restore(state);
       const b = eff[
         0
@@ -2080,20 +2036,20 @@ function evaluate(state, action, triggered = false, triggeredBy = null) {
         enemyDef: enemyDef()
       }).avg);
     }
-    dryRun = false;
-    guarded = false;
+    ctx.dryRun = false;
+    ctx.guarded = false;
     slot.effective = effective;
   }
-  mutHash = 0;
+  ctx.mutHash = 0;
   actionHook(action.afterActionFn);
   runPhase(5, false);
-  currentBuff = null;
+  ctx.buff = null;
   for (let v = 0; v < variantHash.length; v++)
-    if (variantHash[v] !== mutHash)
+    if (variantHash[v] !== ctx.mutHash)
       slot.variantUnsafe[v] = true;
   const snapshot = {
     action,
-    type: overrideType1 ?? action.type,
+    type: ctx.overrideType1 ?? action.type,
     // the effective type — see ResolvedSnapshot.type
     member: slot.name,
     slot: action.slot ?? slot.name,
@@ -2140,7 +2096,7 @@ function evaluate(state, action, triggered = false, triggeredBy = null) {
     groupEnd: false,
     groupSpill: null,
     // report-only, so copied only when something will actually read it (display.ts's gauge columns)
-    forte: tracing ? [...slot.forte] : EMPTY_FORTE,
+    forte: ctx.tracing ? [...slot.forte] : EMPTY_FORTE,
     forteBefore,
     energy: slot.energy,
     concerto: slot.concerto,
@@ -2186,7 +2142,7 @@ function run(state, rotation) {
       ends.push(group !== null && k === members.length - 1);
     });
   }
-  insideGroup = false;
+  ctx.insideGroup = false;
   let spillGroup = null;
   let i = 0, guard = 0;
   while (i < actions.length) {
@@ -2197,14 +2153,14 @@ function run(state, rotation) {
     i++;
     spillGroup = stepGroup ?? stepSpill;
     if (stepGroup)
-      insideGroup = !stepEnd;
+      ctx.insideGroup = !stepEnd;
     const before = state.active;
     if (stepSlot >= 0)
       state.active = stepSlot;
     let action = stepAction;
     if (stepAction.resolveFn) {
-      currentState = state;
-      currentSlot = state.slot;
+      ctx.state = state;
+      ctx.slot = state.slot;
       action = stepAction.resolveFn();
       if (!action)
         continue;
@@ -2241,6 +2197,60 @@ function run(state, rotation) {
   }
   return out;
 }
+var capList = [[], [], []];
+var capCounts = [[], [], []];
+var capHooks = [[], [], []];
+function capture(slot, state) {
+  let pool = slot.stacks;
+  capList[0] = pool.list;
+  capCounts[0] = pool.counts;
+  capHooks[0] = pool.hooks;
+  pool = state.globalStacks;
+  capList[1] = pool.list;
+  capCounts[1] = pool.counts;
+  capHooks[1] = pool.hooks;
+  pool = state.enemyStacks;
+  capList[2] = pool.list;
+  capCounts[2] = pool.counts;
+  capHooks[2] = pool.hooks;
+}
+function constBaseOf(slot, from, to) {
+  const live = slot.effective;
+  slot.effective = ZERO_STATS.slice();
+  for (let q = 0; q < 3; q++) {
+    const list = capList[q], counts = capCounts[q], hooks = capHooks[q][6];
+    for (let i = 0, m = hooks.length; i < m; i++) {
+      const k = hooks[i];
+      const gear = list[k] === from ? to : list[k];
+      ctx.buff = gear;
+      ctx.stacks = counts[k];
+      gear.constantStatsFn();
+    }
+  }
+  const base = slot.effective;
+  slot.effective = live;
+  return base;
+}
+function runPhase(p, withStacks) {
+  for (let q = 0; q < 3; q++) {
+    const list = capList[q], counts = capCounts[q], hooks = capHooks[q][p];
+    for (let i = 0, m = hooks.length; i < m; i++) {
+      const k = hooks[i];
+      const gear = list[k];
+      ctx.buff = gear;
+      if (withStacks)
+        ctx.stacks = counts[k];
+      gear.hookFns[p]();
+    }
+  }
+}
+function actionHook(fn) {
+  if (!fn)
+    return;
+  ctx.buff = ctx.act;
+  ctx.stacks = 1;
+  fn();
+}
 
 // dist/src/engine/rotation.js
 var Action = class _Action extends Gear {
@@ -2267,7 +2277,7 @@ var Action = class _Action extends Gear {
   triggered;
   /** What this was built from, kept so `variant()` can rebuild it with a change or two. */
   def;
-  /** Lazily-filled cache for kit.ts's `tagWordOf()` — this action's own element/type/type2, as the
+  /** Lazily-filled cache for runtime.ts's `tagWordOf()` — this action's own element/type/type2, as the
    *  one word every scoped stat contribution tests against. Engine-owned; never set by a kit. */
   _tagWord;
   constructor(name, def2 = {}) {
@@ -2696,7 +2706,7 @@ var TUNE_BREAK = new Action("Tune Break", {
   slot: TUNE_BREAK_ENEMY.name,
   // The whole bar, straight off it: `DirectOfftune` rather than a declared `offtune`, because a
   // drain is an amount the bar moves by, not something the team's Off-Tune Buildup Rate builds
-  // (see kit.ts's own evaluate()). Sourced to the break itself, so the off-tune panel names it.
+  // (see evaluate.ts's own evaluate()). Sourced to the break itself, so the off-tune panel names it.
   applyStats: () => {
     addStat(28, -ENEMY_MAX_OFFTUNE);
   }
@@ -16204,7 +16214,7 @@ var ALL_ENDS_HERE = new Buff({
 var UNSEEN_SNARE = new Debuff({
   name: "Chisa: Unseen Snare",
   // The Bane is hers, not the swinging teammate's: applyEnemy() here inherits this marker's own
-  // source (kit.ts's `attribute()`), so an "on inflicting a Negative Status" passive worn by that
+  // source (context.ts's `attribute()`), so an "on inflicting a Negative Status" passive worn by that
   // teammate — Kumokiri, Thread of Severed Fate — reads 0 for it and doesn't pay out. See
   // `appliedByMe()`, which is what every such passive checks.
   //
@@ -19143,10 +19153,13 @@ function buildsOf(m, home, f) {
   const mdps = m.mainDps;
   const weapons = (mdps ? f.mdpsWeapons : f.supportWeapons) ? eligibleWeapons(m, f) : [home.weapon];
   const echoes = (mdps ? f.mdpsEchoes : f.supportEchoes) ? l.echoLoadouts.map((_, i) => i) : [home.echo];
+  const sequences = sequenceLevels(m, f);
   const picks = [];
   for (const weapon of weapons)
     for (const echo of echoes)
-      picks.push({ ...home, weapon, echo });
+      for (const sequence of sequences) {
+        picks.push({ ...home, weapon, echo, sequence });
+      }
   return picks;
 }
 function rowPicks(teamKey2, members, best, filters) {
@@ -19190,11 +19203,6 @@ function rowPicks(teamKey2, members, best, filters) {
     return out;
   };
   const builds = cartesian(members.map((m, i) => buildsOf(m, best[i], filters)));
-  members.forEach((m, i) => {
-    for (const sequence of sequenceLevels(m, filters)) {
-      builds.push(best.map((p, j) => j === i ? { ...p, sequence } : p));
-    }
-  });
   const seen = /* @__PURE__ */ new Map();
   for (const picks of builds) {
     const key = picks.map((p) => `${p.weapon}.${p.echo}.s${p.sequence}`).join("-");
@@ -19236,10 +19244,10 @@ function solveTeam(teamKey2, members, filters, known = null) {
   return { picks, rows, scores };
 }
 if (typeof document === "undefined" && typeof self !== "undefined") {
-  const ctx = self;
-  ctx.onmessage = ({ data }) => {
+  const ctx2 = self;
+  ctx2.onmessage = ({ data }) => {
     const solved = solveTeam(data.teamKey, teamFromKey(data.teamKey), data.filters, data.picks);
-    ctx.postMessage({ id: data.id, ...solved });
+    ctx2.postMessage({ id: data.id, ...solved });
   };
 }
 
@@ -19254,13 +19262,13 @@ export {
   isPercent,
   statLabel,
   RESOURCE_NAME,
+  isCast,
+  menuStats,
+  baseSequence,
   mvPercent,
   effectiveShred,
   effectiveRes,
   damageFactors,
-  baseSequence,
-  isCast,
-  menuStats,
   SWAP,
   DODGE,
   JUMP,

@@ -1,7 +1,7 @@
 /**
  * Lucilla, ported to the new engine — sequence-0 core loop only. A glacio Rectifier support/sub-
  * DPS built around Resonance Mode: a stance her loadout commits to for the whole fight (see
- * `ResonanceMode` in kit.ts), not something toggled mid-rotation. Chafe mode reworks her into a
+ * `ResonanceMode` in gear.ts), not something toggled mid-rotation. Chafe mode reworks her into a
  * Glacio Chafe applicator; Echo mode reworks her into an Echo Skill enabler/amplifier instead —
  * same animations, different DMG typing and payout. Both modes are implemented: `MODE_ECHO`/
  * `MODE_CHAFE` each get their own loadout/rotation pair sharing every other piece of her kit —
@@ -42,11 +42,27 @@
  * self-buff/RES shred/Film Roll grants) likewise come from that page's own description text — the
  * old migrated sheet predates Chafe mode entirely, so none of it could be cross-checked.
  */
+import { Stat, EnemyStat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, ResonanceMode } from "../../engine/gear.js";
 import {
-  typeOverride, Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, ResonanceMode, Stat,
-  EnemyStat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, applied, applyCurrent, applyTeam, applyEnemy,
-  isHeld, casting, currentAction, currentTeam, addStat, addEnemyStat, frozenStacks, forte1, queue, queueOutro,
-  removeStackTeam, revokeCurrent, } from "../../engine/kit.js";
+  typeOverride,
+  applied,
+  applyCurrent,
+  applyTeam,
+  applyEnemy,
+  isHeld,
+  casting,
+  currentAction,
+  currentTeam,
+  addStat,
+  addEnemyStat,
+  frozenStacks,
+  forte1,
+  queue,
+  queueOutro,
+  removeStackTeam,
+  revokeCurrent,
+} from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { GLACIO_CHAFE } from "../../shared/status.js";
@@ -275,7 +291,7 @@ const LC_ROTATION = new Rotation([
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat, Resonance Mode (Echo). Freeze Frame, her own signature.
 // every echo choice, shared by both her Echo and Chafe mode loadouts — automatically iterated
-// (see kit.ts's own EchoLoadout)
+// (see gear.ts's own EchoLoadout)
 const LC_ECHOES = [
   new EchoLoadout(BELL_BORNE_GEOCHELONE, DREAM_OF_THE_LOST_3PC, MOONLIT_CLOUDS_2PC),
   new EchoLoadout(HERON, DREAM_OF_THE_LOST_3PC, MOONLIT_CLOUDS_2PC),

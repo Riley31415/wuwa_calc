@@ -3,11 +3,25 @@
  * enemy states around it. The engine owns nothing but the off-tune bar as a counter — the rest is
  * here, equipped onto `State.enemy` the way a member's own kit is equipped onto them.
  */
+import { Attribute, Cast, EnemyStat, Scaling, Stat, Type1, WeaponType } from "../engine/stats.js";
+import { BuffDef, Debuff, Gear, Resonator } from "../engine/gear.js";
 import {
-  Attribute, BuffDef, Cast, Debuff, EnemyStat, Gear, Resonator, Scaling, Stat, Type1, WeaponType,
-  addEnemyStat, addStat, applied, applyEnemy, currentAction, currentTeam, equip, getStat, isCast, midActionGroup,
-  queue, queueEvent, revokeEnemy, stacksOfEnemy, triggeredAction,
-} from "../engine/kit.js";
+  addEnemyStat,
+  addStat,
+  applied,
+  applyEnemy,
+  currentAction,
+  currentTeam,
+  equip,
+  getStat,
+  isCast,
+  midActionGroup,
+  queue,
+  queueEvent,
+  revokeEnemy,
+  stacksOfEnemy,
+  triggeredAction,
+} from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
 
 /* ---------------------------------------------------------------------------- the enemy */
@@ -82,7 +96,7 @@ export const TUNE_BREAK_ENEMY = new Resonator({
   afterAction: () => {
     if (triggeredAction() || currentAction() === TUNE_BREAK || !currentAction().active) return;
     // ...and not part-way through an ActionGroup, which the rotation presses as one beat: the bar
-    // can fill on any cast in it, but the break lands on the one that ends the group (kit.ts)
+    // can fill on any cast in it, but the break lands on the one that ends the group (evaluate.ts)
     if (midActionGroup()) return;
     // and not while the last break's own Rupture/Hack Interfered is still up: a target already
     // interfered with can't be broken again until that window is out. The bar just stays full
@@ -103,7 +117,7 @@ export const TUNE_BREAK = new Action("Tune Break", {
   mv: 1600, slot: TUNE_BREAK_ENEMY.name,
   // The whole bar, straight off it: `DirectOfftune` rather than a declared `offtune`, because a
   // drain is an amount the bar moves by, not something the team's Off-Tune Buildup Rate builds
-  // (see kit.ts's own evaluate()). Sourced to the break itself, so the off-tune panel names it.
+  // (see evaluate.ts's own evaluate()). Sourced to the break itself, so the off-tune panel names it.
   applyStats: () => { addStat(Stat.DirectOfftune, -ENEMY_MAX_OFFTUNE); },
 });
 

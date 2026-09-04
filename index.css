@@ -267,15 +267,56 @@ main {
   font-size: 12px;
   color: var(--dim);
 }
-.tcfilter-row { display: flex; flex-wrap: wrap; gap: 18px; }
-/* label first, box after it — the markup order is the visual order, `.tcfilters` being a flex row */
-.tcfilters label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-.tcfilters input[type="checkbox"] {
+/* `flex-start`, so one box opening its description doesn't stretch the others in its row to match */
+.tcfilter-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
+/* One box per option: the name left, its own checkbox hard right, and the description opening
+   under both (index.js's own `comparisonFilters()`). They share a basis so the two role rows still
+   line up column-wise, and cap out rather than stretching to a screen's width on a wide window. */
+.tcopt {
+  /* fixed, not grown: a row of two would otherwise stretch to the width a row of five fills, and
+     the boxes are read down the columns as much as along the rows */
+  flex: 0 0 272px;
+  padding: 7px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  background: var(--surface);
+}
+.tcopt.open { background: var(--surface-2); }
+.tcopt-head { display: flex; align-items: center; gap: 10px; }
+/* the name takes up the slack, which is the whole of what pins the box to the right edge */
+.tcopt-name {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--dim);
+  text-align: left;
+  cursor: pointer;
+}
+.tcopt-name:hover { color: var(--ink); }
+.tcopt input[type="checkbox"] {
+  flex: none;
   width: 15px;
   height: 15px;
   accent-color: var(--accent);
   cursor: pointer;
 }
+/* what the name opens, ruled off from it rather than floating under it */
+.tcopt-desc {
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid var(--line);
+  color: var(--faint);
+  line-height: 1.5;
+}
+.tcopt-desc[hidden] { display: none; }
+.tcopt-desc ul { margin: 0; padding-left: 15px; }
+.tcopt-desc li { margin: 3px 0; }
+
 
 /* The option search (index.js's own `searchResults()`): a plain themed input, with the top matches
    dropping in as rows directly beneath it. The list floats over the page rather than sitting in
@@ -509,7 +550,7 @@ main {
    same marker, so both places that open something read the same. Its own marker points down
    while the column is shut and swings right once it is open, so the heading says which way the
    next click goes. */
-.gotodetail .arrow, .slothead .arrow, .sorthead .arrow {
+.gotodetail .arrow, .slothead .arrow, .sorthead .arrow, .tcopt-name .arrow {
   display: inline-block;
   margin-left: 4px;
   color: var(--faint);
@@ -517,6 +558,10 @@ main {
 }
 .gotodetail:hover .arrow { color: var(--accent); transform: translateX(2px); }
 .slothead:hover .arrow, .sorthead:hover .arrow { color: var(--accent); }
+.tcopt-name:hover .arrow { color: var(--accent); }
+/* same reading as the Slot headings: down while shut, swung right once it is open */
+.tcopt-name .arrow { transform: rotate(90deg); }
+.tcopt.open .tcopt-name .arrow { transform: none; }
 .slothead .arrow { transform: rotate(90deg); }
 .slothead.open .arrow { transform: none; }
 /* the Team DPR heading's own marker points the way the column runs: down for the default
@@ -563,17 +608,10 @@ main {
    table inside it flattened and clipped rather than drawing a second card on top of the first. */
 .pop.dpr { padding: 0; border-radius: var(--r); overflow: hidden; }
 .pop.dpr .rtable { border-radius: 0; box-shadow: none; }
-/* its one line of its own: the hint that the cell underneath is a link, set top right in the
-   same small uppercase the panel section headings use (`.pop .sec` below) */
-.pop.dpr .popnote {
-  padding: 6px 10px 4px;
-  text-align: right;
-  font-size: 10px;
-  font-weight: 650;
-  text-transform: uppercase;
-  letter-spacing: .7px;
-  color: var(--dim);
-}
+/* the hint that the cell underneath is a link rides in the table's own corner cell (index.js's
+   own `dprTable()`), which is empty on the detail page — no row of its own, and it already wears
+   the heading row's small uppercase */
+.pop.dpr .rthead .c:first-child { white-space: nowrap; }
 
 /* The resonator hover's three scopes sit side by side: local (with this member's gear above it),
    global, then enemy debuffs. Stacked they ran a page tall on a well-buffed member, and the three

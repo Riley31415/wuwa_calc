@@ -7,12 +7,21 @@
  * Cycle) deltas come off the migrated (old-engine) sheet instead, cross-checked where it also
  * gives a combined row (BA123 = BA1+BA2+BA3, FMA123 = FMA1+FMA2+FMA3, both exact).
  */
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, applyCurrent, applyTeam, currentAction, casting, queueOutro, revokeCurrent, addStat, frozenStacks, applied,
+  applyCurrent,
+  applyTeam,
+  currentAction,
+  casting,
+  queueOutro,
+  revokeCurrent,
+  addStat,
+  frozenStacks,
+  applied,
   setForte1,
   forte1,
-} from "../../engine/kit.js";
+} from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO, ECHO_CANCEL, ECHO_SWAP } from "../../engine/rotation.js";
 import { SHIELD } from "../../shared/status.js";

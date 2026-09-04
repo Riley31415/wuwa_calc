@@ -42,12 +42,30 @@
  * actions below stand for both. Her `weakness_mastery` is 0, so she carries no flat Tune Break
  * Boost of her own.
  */
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType,
-  Type1, Cast, Node, Scaling, addStat, applied, appliedByMe, applyCurrent, applyEnemy, applyTeam, casting,
-  consume, currentAction, currentTeam, forte1, frozenStacks, isHeld, queue, revokeCurrent,
-  revokeTeam, setForte1, setForte2, stacksOfEnemy, stacksOfTeam,
-  } from "../../engine/kit.js";
+  addStat,
+  applied,
+  appliedByMe,
+  applyCurrent,
+  applyEnemy,
+  applyTeam,
+  casting,
+  consume,
+  currentAction,
+  currentTeam,
+  forte1,
+  frozenStacks,
+  isHeld,
+  queue,
+  revokeCurrent,
+  revokeTeam,
+  setForte1,
+  setForte2,
+  stacksOfEnemy,
+  stacksOfTeam,
+} from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO, START_3, SWAP, ECHO_SWAP } from "../../engine/rotation.js";
 import { HAVOC_BANE } from "../../shared/status.js";
 import { AZURE_OATH } from "../../weapons/sword.js";
@@ -81,7 +99,7 @@ const FLOW = {
   afterAction: () => {
     if (forte1() < 0) setForte1(0);
     // `consume`, not a plain remove: this is the kit spending a stack, and a teammate's own "when
-    // you consume Havoc Bane" passive has no other way to see it (kit.ts's own `consumed()`)
+    // you consume Havoc Bane" passive has no other way to see it (context.ts's own `consumed()`)
     consume(HAVOC_BANE, 1);
   },
 };

@@ -34,7 +34,7 @@ import {
   statLabel,
   tagKind,
   teamKey
-} from "./chunk-EAH2DI6D.js";
+} from "./chunk-YY7LA5QY.js";
 
 // dist/src/display.js
 var keysFor = (action, ...stats) => stats.flatMap((stat) => [
@@ -351,7 +351,7 @@ function rowValues(snap, { mv, avg }, members = []) {
       11
       /* Stat.Er */
     ),
-    // real running totals — kit.ts's own evaluate() banks these every action, off however much
+    // real running totals — evaluate.ts's own evaluate() banks these every action, off however much
     // AddEnergy/AddConcerto/AddOfftune this action's own held Gear contributed. Energy/concerto
     // are already stored at nanoka's own scale; only off-tune's own raw unit runs finer than the
     // game's own displayed off-tune bar (/10000), purely a display scale — RESOURCE_SCALE below
@@ -625,7 +625,7 @@ function buildReport(lines, { strip = null } = {}) {
       buffed,
       // what the action *is*, for the hover on its name. A chain takes it from the part whose
       // stats it is reporting, the same part every other value on the row comes from.
-      // `snap.type`, not `action.type`: the type it was actually evaluated as (kit.ts's typeOverride)
+      // `snap.type`, not `action.type`: the type it was actually evaluated as (evaluate.ts's typeOverride)
       info: actionInfo(line.snap.action, line.snap.type, line.snap.triggered, line.snap.triggeredBy),
       // what the motion value is multiplying, so the mv panel can name its own unit
       scaling: line.snap.action.scaling,
@@ -710,6 +710,34 @@ function storeSolved(teamKey2, solved) {
 var SOLVES_KEY = "wuwa.solves.v1";
 var buildStamp = null;
 var solvesDirty = false;
+var shippedStates = null;
+var shippedFetched = /* @__PURE__ */ new Set();
+var shippedKeys = /* @__PURE__ */ new Set();
+var filterSignature = (f) => Object.values(f).join(",");
+async function loadShipped(f) {
+  const sig = filterSignature(f);
+  if (!shippedStates || shippedFetched.has(sig))
+    return;
+  shippedFetched.add(sig);
+  const file = shippedStates[sig];
+  if (!file)
+    return;
+  try {
+    const res = await fetch(`./solves/${file}`, { cache: "no-store" });
+    if (!res.ok)
+      return;
+    const saved = await res.json();
+    for (const [k, v] of saved.solves)
+      if (!bestPicks.has(k)) {
+        bestPicks.set(k, v);
+        shippedKeys.add(k);
+      }
+    for (const [k, v] of saved.picks)
+      if (!picksCache.has(k))
+        picksCache.set(k, v);
+  } catch {
+  }
+}
 async function loadSolves() {
   const restore = (saved) => {
     if (saved.stamp !== buildStamp)
@@ -724,12 +752,13 @@ async function loadSolves() {
     if (live?.ok)
       buildStamp = await live.text();
     else {
-      const shipped = await fetch("./solves.json", { cache: "no-store" });
-      if (!shipped.ok)
+      const idx = await fetch("./solves/index.json", { cache: "no-store" });
+      if (!idx.ok)
         return;
-      const saved = await shipped.json();
-      buildStamp = saved.stamp;
-      restore(saved);
+      const meta = await idx.json();
+      buildStamp = meta.stamp;
+      shippedStates = meta.states;
+      await loadShipped(filters);
     }
     const raw = localStorage.getItem(SOLVES_KEY);
     if (raw)
@@ -742,7 +771,11 @@ function saveSolves() {
     return;
   solvesDirty = false;
   try {
-    const save = { stamp: buildStamp, solves: [...bestPicks], picks: [...picksCache] };
+    const save = {
+      stamp: buildStamp,
+      solves: [...bestPicks].filter(([k]) => !shippedKeys.has(k)),
+      picks: [...picksCache]
+    };
     localStorage.setItem(SOLVES_KEY, JSON.stringify(save));
   } catch {
   }
@@ -800,10 +833,7 @@ function axisWays(lists, map, cap = Infinity) {
 }
 function estimatedRowCount(members, f = filters) {
   const openFor = (m, mdpsKey, supportKey) => f[m.mainDps ? mdpsKey : supportKey];
-  const crossed = axisWays(members.map((m) => openFor(m, "mdpsWeapons", "supportWeapons") ? eligibleWeapons(m, f).map((i) => m.loadout.weapons[i].name) : null), weaponFilters) * axisWays(members.map((m) => openFor(m, "mdpsEchoes", "supportEchoes") ? m.loadout.echoLoadouts.map((e) => echoLabel(m.loadout, e)) : null), echoFilters) * axisWays(members.map((m) => openFor(m, "mdpsMainstats", "supportMainstats") ? m.loadout.mainstats.map((g) => g.name) : null), mainstatFilters, MAINSTAT_ROWS);
-  const wantsTags = (tags) => [...sequenceFilters].every(([name, mode]) => tags.includes(name) === (mode === "include"));
-  const sequenceExtra = members.reduce((sum, m) => sum + sequenceLevels(m, f).slice(1).filter((level) => wantsTags([sequenceTagAt(m, level, f)].filter((t) => t !== null))).length, 0);
-  return (wantsTags([]) ? crossed : 0) + sequenceExtra;
+  return axisWays(members.map((m) => openFor(m, "mdpsWeapons", "supportWeapons") ? eligibleWeapons(m, f).map((i) => m.loadout.weapons[i].name) : null), weaponFilters) * axisWays(members.map((m) => openFor(m, "mdpsEchoes", "supportEchoes") ? m.loadout.echoLoadouts.map((e) => echoLabel(m.loadout, e)) : null), echoFilters) * axisWays(members.map((m) => openFor(m, "mdpsMainstats", "supportMainstats") ? m.loadout.mainstats.map((g) => g.name) : null), mainstatFilters, MAINSTAT_ROWS) * axisWays(members.map((m) => sequenceLevels(m, f).map((level) => sequenceTagAt(m, level, f) ?? "")), sequenceFilters);
 }
 function prospectiveRows(f = filters) {
   return Object.entries(TEAMS).filter(([, members]) => teamWanted(members)).reduce((sum, [, members]) => sum + estimatedRowCount(members, f), 0);
@@ -886,7 +916,7 @@ var deferredPop = (kind, key) => ` data-pop-kind="${kind}" data-pop-key="${esc(k
 function buildPop(kind, key) {
   if (kind === "dpr") {
     const run = results.get(key);
-    return run ? `<span class="pop dpr"><div class="popnote">Click to view details</div>${dprTable(run)}</span>` : "";
+    return run ? `<span class="pop dpr">${dprTable(run)}</span>` : "";
   }
   if (kind === "gear") {
     const at = key.lastIndexOf("|");
@@ -1245,8 +1275,44 @@ function searchResults() {
     return `<button type="button" class="sresult" data-kind="${kind}" data-value="${esc(value)}"` + (hue ? ` style="--mem:${hue}"` : "") + ` title="${esc(value)} \u2014 left click: only rows using them; right click: no row using them; either click again to clear.">${esc(value)}<span class="skind">${KIND_LABEL[kind]}</span></button>`;
   }).join("");
 }
+var ROLE_HELP = (role) => ({
+  weapons: `Shows every weapon the ${role} can hold, in a column of its own.`,
+  echoes: `Shows every echo set the ${role} can run, in a column of its own.`,
+  mainstats: `Shows every main-stat build the ${role} can run, in a column of its own.`,
+  r1: `Lets the ${role} hold its signature weapons, not just standard ones.`,
+  sequences: `Shows a row for every sequence level the ${role} can reach, up to S6.`
+});
+var MDPS_HELP = ROLE_HELP("main DPS");
+var SUPPORT_HELP = ROLE_HELP("support");
+var FILTER_HELP = {
+  allowR1Mdps: MDPS_HELP.r1,
+  mdpsWeapons: MDPS_HELP.weapons,
+  mdpsEchoes: MDPS_HELP.echoes,
+  mdpsMainstats: MDPS_HELP.mainstats,
+  mdpsSequences: MDPS_HELP.sequences,
+  allowR1Supports: SUPPORT_HELP.r1,
+  supportWeapons: SUPPORT_HELP.weapons,
+  supportEchoes: SUPPORT_HELP.echoes,
+  supportMainstats: SUPPORT_HELP.mainstats,
+  supportSequences: SUPPORT_HELP.sequences,
+  matrix: "Gives every resonator that has a Matrix their own, on top of the rest of the build."
+};
+var STANDARDS = [
+  "123, or simple 1323 double-intro, rotations only.",
+  "A rotation runs about 25-27s, and four of them are performed in two minutes.",
+  "A single boss, level 100, holding the default 20% resistance.",
+  "Resonators and weapons at level 90, with every skill node at level 10."
+];
+var openHelp = /* @__PURE__ */ new Set();
 function comparisonFilters() {
-  const filter = (id, label) => `<label>${esc(label)}<input type="checkbox" id="${id}"${filters[id] ? " checked" : ""}></label>`;
+  const filter = (id, label) => {
+    const open = openHelp.has(id);
+    return `<div class="tcopt${open ? " open" : ""}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="${id}" aria-expanded="${open}">${esc(label)}<span class="arrow">\u203A</span></button><input type="checkbox" id="${id}" aria-label="${esc(label)}" title="${esc(label)}"${filters[id] ? " checked" : ""}></div><div class="tcopt-desc"${open ? "" : " hidden"}>${esc(FILTER_HELP[id])}</div></div>`;
+  };
+  const standards = () => {
+    const open = openHelp.has("standards");
+    return `<div class="tcopt note${open ? " open" : ""}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="standards" aria-expanded="${open}">Standards and Assumptions<span class="arrow">\u203A</span></button></div><div class="tcopt-desc"${open ? "" : " hidden"}><ul>${STANDARDS.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div></div>`;
+  };
   return `<div class="tcfilters">
     <div class="tcfilter-row">
       ${filter("allowR1Mdps", "Allow R1 Main DPS")}
@@ -1264,6 +1330,7 @@ function comparisonFilters() {
     </div>
     <div class="tcfilter-row">
       ${filter("matrix", "Enable Matrix Buffs")}
+      ${standards()}
     </div>
     ${resonatorChips()}
     <div class="tcsearch">
@@ -1549,7 +1616,7 @@ function rotationTable(report, slotHue, gearByMember) {
 function dprTable(run, lines) {
   const grand = run.sectionTotals.reduce((a, b) => a + b, 0);
   const flat = lines?.flat();
-  const head = `<div class="rtrow rthead"><div class="c"></div><div class="c num">Opener</div><div class="c num">Loop 1</div><div class="c num">Loop 2</div><div class="c num">Loop 3</div><div class="c num">Total</div></div>`;
+  const head = `<div class="rtrow rthead"><div class="c">${lines ? "" : "Click to view details"}</div><div class="c num">Opener</div><div class="c num">Loop 1</div><div class="c num">Loop 2</div><div class="c num">Loop 3</div><div class="c num">Total</div></div>`;
   const valueCell = (sec, slot, value, total) => sec ? `<div class="c num has"${damagePopover(sec, slot, value, total)}>${fmt(value)}</div>` : `<div class="c num">${fmt(value)}</div>`;
   const dataRow = (slot, color, hover) => {
     const own = run.sectionBySlot.reduce((a, by) => a + (by.get(slot) ?? 0), 0);
@@ -2274,6 +2341,7 @@ function solveOnWorkers(workers, teams, onDone) {
   });
 }
 async function ensureBestPicks(inPlay, workTotal) {
+  await loadShipped(filters);
   const teams = inPlay.filter(([key, members]) => !bestPicks.has(bestKey(key, members, filters)));
   if (!teams.length)
     return false;
@@ -2397,6 +2465,21 @@ async function boot() {
       return;
     dprOpenAt[Number(pos)] = !dprOpenAt[Number(pos)];
     renderComparison();
+  });
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".tcopt-name");
+    const id = btn?.dataset.help;
+    if (!btn || !id)
+      return;
+    const box = btn.closest(".tcopt");
+    const open = !openHelp.has(id);
+    if (open)
+      openHelp.add(id);
+    else
+      openHelp.delete(id);
+    box.classList.toggle("open", open);
+    btn.setAttribute("aria-expanded", String(open));
+    box.querySelector(".tcopt-desc").hidden = !open;
   });
   document.addEventListener("click", (e) => {
     if (!e.target.closest(".c.sorthead"))

@@ -15,12 +15,14 @@ import {
   TAG_NAME, CAST_NAME, NODE_NAME, SCALING_NAME, RESOURCE_NAME,
 } from "./engine/stats.js";
 import type { Type1, StatKey } from "./engine/stats.js";
-import { isCast } from "./engine/kit.js";
+import { isCast } from "./engine/context.js";
 import { SWAP, DODGE, JUMP } from "./engine/rotation.js";
 import { mvPercent, effectiveShred, effectiveRes, damageFactors } from "./engine/damage.js";
 import { BASE_RESISTANCE } from "./shared/tunebreak.js";
-import type { Action, ChainGroup } from "./engine/kit.js";
-import type { ResolvedSnapshot, StatEntry, HeldBuff } from "./engine/kit.js";
+import type { Action } from "./engine/rotation.js";
+import type { ChainGroup } from "./engine/evaluate.js";
+import type { StatEntry, HeldBuff } from "./engine/state.js";
+import type { ResolvedSnapshot } from "./engine/evaluate.js";
 
 /** One line in a source-trace panel — what fed a value, and how to read it. */
 export interface TraceEntry {
@@ -152,7 +154,7 @@ const actionInfo = (
   push("Triggered", String(triggered));
   // ...and last, for a follow-up rather than a press: what spawned it, on a line of its own rather
   // than squeezed into the value column, since it is a buff/gear/cast name and not a field of the
-  // action at all (kit.ts's own `triggeredBy`). The `Triggered` row above already says one exists,
+  // action at all (evaluate.ts's own `triggeredBy`). The `Triggered` row above already says one exists,
   // so the name needs no heading to introduce it.
   if (triggeredBy) info.push({ label: triggeredBy.name, value: "", source: triggeredBy.source });
   return info;
@@ -234,13 +236,13 @@ const PAD_DIGITS_COLUMNS = new Set([
 const GROUPED_COLUMNS = new Set(["avg"]);
 
 /** The five generic forte gauges, shown under their own names rather than a kit's word — real
- *  numbers on the TeamMember itself (kit.ts's own forte1()-forte5()), not stats, so they carry
+ *  numbers on the TeamMember itself (context.ts's own forte1()-forte5()), not stats, so they carry
  *  no per-entry trace the way FEEDS-driven columns do; the popover just names whose gauge it is. */
 const FORTE_GAUGES = [Resource.Forte1, Resource.Forte2, Resource.Forte3, Resource.Forte4, Resource.Forte5];
 
 /** Off-tune's own raw unit (Weakness Break DMG straight off nanoka's table) runs finer than the
  *  game's own displayed off-tune points, so it alone gets a display-only /10000 — purely a
- *  display scale, nothing upstream (kit.ts, a kit's own numbers) uses it. Energy/concerto are
+ *  display scale, nothing upstream (the engine, a kit's own numbers) uses it. Energy/concerto are
  *  already stored at nanoka's own scale directly, same as the forte gauges: a kit's own
  *  forte1()-forte5() are already whole numbers in the units a kit itself defines (Jingran's Qi
  *  tops out at 300, not 30000), so both show as-is. */
@@ -354,7 +356,7 @@ function rowValues(
     effDef: filler ? null : effectiveShred(snap) * 100,
     effRes: filler ? null : effectiveRes(snap),
     er: snap.stat(Stat.Er),
-    // real running totals — kit.ts's own evaluate() banks these every action, off however much
+    // real running totals — evaluate.ts's own evaluate() banks these every action, off however much
     // AddEnergy/AddConcerto/AddOfftune this action's own held Gear contributed. Energy/concerto
     // are already stored at nanoka's own scale; only off-tune's own raw unit runs finer than the
     // game's own displayed off-tune bar (/10000), purely a display scale — RESOURCE_SCALE below
@@ -379,7 +381,7 @@ function rowValues(
   // Auxiliary, not a shown column — index.ts's own action table reads these to flag the concerto
   // cell red when an outro had less than a full 100 points to spend, counting what landed on the
   // bar this same action (never true off an outro row: concertoSpent only moves on one, see
-  // kit.ts's own evaluate()).
+  // evaluate.ts's own evaluate()).
   raw.concertoSpent = snap.concertoSpent;
   raw.isOutro = isCast(snap.action, Cast.Outro) ? 1 : 0;
 
@@ -407,13 +409,13 @@ function rowValues(
   // matches each column's own digits (see the `columns` array below) — a /100 value never needs
   // more than 2 decimal places, a /10000 one (offtune) never needs more than 4.
   const RESOURCE_DIGITS = { energy: 2, concerto: 2, offtune: 4 } as const;
-  // Energy on an outro is the one that lists nothing: the bar is set straight to 0 there (kit.ts's
+  // Energy on an outro is the one that lists nothing: the bar is set straight to 0 there (evaluate.ts's
   // own evaluate()) rather than moved by any amount, so nothing contributed to what the cell reads
   // and the panel opens on a heading and a Total of 0 — naming the gain an outro like Carlotta's
   // declares would credit a figure the same row has already thrown away. Concerto is not that case
   // any more: an outro declares its own `concerto: -100`, the spend it fires on, so it traces like
   // any other cast's. That row is the declared spend, not the distance the bar actually travelled —
-  // the ceiling above it and the floor under it (kit.ts again) absorb whatever the bar had overrun
+  // the ceiling above it and the floor under it (state.ts) absorb whatever the bar had overrun
   // or fallen short by. Off-tune is the enemy's and carries over.
   for (const key of ["energy", "concerto", "offtune"] as const) {
     const wiped = key === "energy" && snap.energyWiped;
@@ -434,7 +436,7 @@ function rowValues(
     raw[`moved:${key}`] = rows.reduce((n, r) => n + r.value, 0);
   }
   // Energy is scaled on the way in too: `(declared + AddEnergy) x (1 + Energy Regen Multiplier)`
-  // (kit.ts's own evaluate()), so the panel names the multiplier's sources in a section of their
+  // (evaluate.ts's own evaluate()), so the panel names the multiplier's sources in a section of their
   // own — same shape as off-tune's buildup rate below — and the Total foots to what actually banked.
   if (!snap.energyWiped) {
     const rate = tracing(snap, keysFor(snap.action, Stat.EnergyRegenMult));
@@ -444,7 +446,7 @@ function rowValues(
     }
   }
   // Off-tune alone is scaled on the way in: what an action and its AddOfftune buffs *build* is
-  // multiplied by Off-Tune Buildup Rate before it banks (kit.ts's own evaluate()), so the panel
+  // multiplied by Off-Tune Buildup Rate before it banks (evaluate.ts's own evaluate()), so the panel
   // names the rate's own sources — the 100 every resonator starts with, plus whatever a kit stacks
   // on top — in a section of their own, whose Total is the multiplier those rows went through (a
   // DirectOfftune row below it is the exception: it skips the rate). Shown only when
@@ -464,7 +466,7 @@ function rowValues(
   // half-bar surge, the drain a Tune Break takes back off). Its own section, so the panel reads in
   // the order the bar moves — build, scale, then this.
   const direct = tracing(snap, keysFor(snap.action, Stat.DirectOfftune));
-  // ...which is also what the panel's Total foots to: the same arithmetic evaluate() banks (kit.ts)
+  // ...which is also what the panel's Total foots to: the same arithmetic evaluate() banks (evaluate.ts)
   // — what was built, scaled by the rate that applied to it, plus whatever landed on the bar direct.
   raw["moved:offtune"] = ((buildingOfftune < 0
     ? buildingOfftune
@@ -702,7 +704,7 @@ export function buildReport(
   // outro-triggered intro included, now that outros trigger them directly). A zero-damage hit
   // is still a real placed action (a healing-only Heavy Attack, say) — full weight, not dimmed.
   // A Tune Break is not one of these: the engine queues it, but it is an event of the fight's own
-  // rather than somebody's follow-up, so it is untriggered (kit.ts's own `run()`) and reads as a
+  // rather than somebody's follow-up, so it is untriggered (evaluate.ts's own `run()`) and reads as a
   // beat in its own right.
   const isShort = (snap: ResolvedSnapshot) => snap.triggered;
   // A folded row answers for its members, not for whichever one happens to report its stats — a
@@ -727,7 +729,7 @@ export function buildReport(
       buffed,
       // what the action *is*, for the hover on its name. A chain takes it from the part whose
       // stats it is reporting, the same part every other value on the row comes from.
-      // `snap.type`, not `action.type`: the type it was actually evaluated as (kit.ts's typeOverride)
+      // `snap.type`, not `action.type`: the type it was actually evaluated as (evaluate.ts's typeOverride)
       info: actionInfo(line.snap.action, (line.snap as ResolvedSnapshot).type,
         (line.snap as ResolvedSnapshot).triggered, (line.snap as ResolvedSnapshot).triggeredBy),
       // what the motion value is multiplying, so the mv panel can name its own unit
@@ -782,7 +784,7 @@ export function buildReport(
     return { ...c, width: Math.max(...lens) + 1 };
   });
 
-  // a field window's summary row restates damage its own hit rows already carry (kit.ts's
+  // a field window's summary row restates damage its own hit rows already carry (evaluate.ts's
   // `ChainGroup.aggregate`), so the total counts those and skips it
   return {
     columns: sized, rows,

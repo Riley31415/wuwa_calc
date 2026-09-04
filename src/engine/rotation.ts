@@ -23,8 +23,12 @@
  * both: a kit writes it only to close a start-of-combat section, and the engine emits the real swap
  * rows itself.
  */
-import { Gear, run, currentMember, queue } from "./kit.js";
-import type { GearDef, State, ResolvedSnapshot } from "./kit.js";
+import { Gear } from "./gear.js";
+import { run } from "./evaluate.js";
+import { currentMember, queue } from "./context.js";
+import type { GearDef } from "./gear.js";
+import type { State } from "./state.js";
+import type { ResolvedSnapshot } from "./evaluate.js";
 import type { Attribute, Type1, Type2, Cast, Node, Scaling } from "./stats.js";
 
 /* ------------------------------------------------------------------------------- the action */
@@ -95,8 +99,8 @@ export interface ActionDef extends GearDef {
  *  `currentAction() === X`; a `casting(Y)`/`isType(Y)` check that spans a whole *category* of
  *  actions still belongs on the Gear.
  *
- *  Lives here rather than in kit.ts so its rotation-flavoured forms — `dodgeCancel()` queuing DODGE,
- *  `swap()` — sit beside the markers they belong with. kit.ts refers to it strictly through
+ *  Lives here rather than in gear.ts so its rotation-flavoured forms — `dodgeCancel()` queuing DODGE,
+ *  `swap()` — sit beside the markers they belong with. gear.ts refers to it strictly through
  *  `import type`, which is what keeps the two modules from being a load-order cycle. */
 export class Action extends Gear {
   element: Attribute | null;
@@ -122,7 +126,7 @@ export class Action extends Gear {
   triggered: boolean;
   /** What this was built from, kept so `variant()` can rebuild it with a change or two. */
   readonly def: ActionDef;
-  /** Lazily-filled cache for kit.ts's `tagWordOf()` — this action's own element/type/type2, as the
+  /** Lazily-filled cache for runtime.ts's `tagWordOf()` — this action's own element/type/type2, as the
    *  one word every scoped stat contribution tests against. Engine-owned; never set by a kit. */
   _tagWord?: number;
 
@@ -195,7 +199,7 @@ export class Action extends Gear {
  *  unchanged.
  *
  *  The one place the engine does treat it as a unit is the off-tune bar: a group is one beat, so a
- *  Tune Break can only land on its last cast, never part-way through (see kit.ts's
+ *  Tune Break can only land on its last cast, never part-way through (see context.ts's
  *  `midActionGroup()` and tunebreak.ts). The break itself is not part of the group — it is queued
  *  behind that last cast like any other follow-up. */
 export class ActionGroup extends Action {
@@ -209,7 +213,7 @@ export class ActionGroup extends Action {
 /**
  * A field: a summon that fires on its own beside the fight for as long as it stands — Mortefi's
  * Marcato, Zhezhi's Inklit Spirits, Rebecca's turret, Denia's Erosion Field. Named once and
- * pointed at from both ends: the Buff that opens it (kit.ts's own `GearDef.field`) and every hit
+ * pointed at from both ends: the Buff that opens it (gear.ts's own `GearDef.field`) and every hit
  * it fires (`ActionDef.field` above). That pairing is the whole point — it is what lets the report
  * read a field's whole run of hits as one row placed under the cast that created it (solver.ts's
  * `collapseFields`), with a fresh row each time the field is opened again.
@@ -276,7 +280,7 @@ export const INTRO = new Action("Intro Placeholder", {
 
 /** The "cast the equipped mainslot echo here" markers — every build equips exactly one, so a
  *  rotation names the slot rather than the echo, and says *how* it is pressed. What lands is the
- *  echo's own business (kit.ts's `Mainslot`, by its `EchoType`): a SUMMON is the same follow-up hit
+ *  echo's own business (gear.ts's `Mainslot`, by its `EchoType`): a SUMMON is the same follow-up hit
  *  under all three, reported as triggered; a TRANSFORM is a press of the resonator's own and the
  *  three differ — ECHO_ONFIELD is the full cast, ECHO_CANCEL the cast dash-cancelled before it lands
  *  (its effects, none of its hit), and ECHO_SWAP the cast made on the way out: `Action.swap()`'s
@@ -328,7 +332,7 @@ export const OUTRO = new Action("Outro Placeholder");
  *  DOUBLE_INTRO section the scheduler emits it itself; a kit writes it only to close a
  *  start-of-combat section, where the normal loop drops it entirely — the swap is the scramble's,
  *  not the rotation's. Zero damage, and inactive, so every "lost on swap" buff the outgoing
- *  resonator holds drops exactly as it would on an Outro (kit.ts's own `lostOnSwap()`). */
+ *  resonator holds drops exactly as it would on an Outro (context.ts's own `lostOnSwap()`). */
 export const SWAP = new Action("Swap", { active: false, triggered: true });
 
 /** Filler a kit writes into a chain body where the player dodges or jumps mid-rotation: no

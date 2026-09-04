@@ -6,10 +6,23 @@
  * Ice Prism (Skill), Glacier (Liberation, doubled by S5) — each a stackable marker buff Detonate's
  * own updateBuffs() reads and consumes.
  */
+import { Tier, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
-  Cast, Node, Scaling, applyCurrent, applyTeam, revokeTeam, isHeld, stacksOf, removeStack, revokeCurrent, casting,
-  currentAction, addStat, frozenStacks, queue, queueOutro, } from "../../engine/kit.js";
+  applyCurrent,
+  applyTeam,
+  revokeTeam,
+  isHeld,
+  stacksOf,
+  removeStack,
+  revokeCurrent,
+  casting,
+  currentAction,
+  addStat,
+  frozenStacks,
+  queue,
+  queueOutro,
+} from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { Action, Rotation, INTRO, ECHO_SWAP, OUTRO, NOINTRO } from "../../engine/rotation.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";

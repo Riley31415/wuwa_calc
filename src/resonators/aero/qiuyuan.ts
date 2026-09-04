@@ -9,14 +9,22 @@
  * engine's units, same as every other ported kit). The sheet also carries combined rows — BA123,
  * EBA1234, EBA34, FHA123 — which are just their parts summed; this file models the parts, so it
  * reads the individual rows. The Liberation's own -125 Energy spend isn't declared: `resetEnergy`
- * is what expresses it (see kit.ts's own `ActionDef.resetEnergy`), and the Outro's -100 Concerto
+ * is what expresses it (see rotation.ts's own `ActionDef.resetEnergy`), and the Outro's -100 Concerto
  * isn't either — `evaluate()` empties both bars on an outro itself.
  */
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, applyCurrent, forte1, currentAction, casting, queueOutro, applyTeam, revokeCurrent, addStat,
+  applyCurrent,
+  forte1,
+  currentAction,
+  casting,
+  queueOutro,
+  applyTeam,
+  revokeCurrent,
+  addStat,
   frozenStacks,
-  } from "../../engine/kit.js";
+} from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, START_1, START_2, START_3, SWAP, NOINTRO, INTRO, ECHO_CANCEL, ECHO_ONFIELD, OUTRO, DODGE } from "../../engine/rotation.js";
 import { EMERALD_SENTENCE } from "../../weapons/sword.js";
@@ -170,7 +178,7 @@ const QY_ROTATION = new Rotation([
 
 // his real 43311 build: resonator + talents + both Inherent Skills, and four real echo choices —
 // Fenrico/Law of Harmony+Sierra Gale, Heron/Law of Harmony+Moonlit, Fallacy/Law of Harmony+Rejuv,
-// or Heron/full Moonlit Clouds — all automatically iterated (see kit.ts's own EchoLoadout)
+// or Heron/full Moonlit Clouds — all automatically iterated (see gear.ts's own EchoLoadout)
 export const QIUYUAN = new Loadout({
   resonator: QIUYUAN_RESONATOR,
   talent: QIUYUAN_TALENTS,

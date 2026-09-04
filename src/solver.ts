@@ -17,8 +17,11 @@
  * repaint the progress bar mid-team; with the work off-thread there is nothing to repaint around,
  * and the fallback path yields between whole teams instead — ~25ms apiece, fine for a bar.
  */
-import { State, withTeam, equip, equipEnemy, setTracing, Buff, Loadout, EchoLoadout, Weapon, baseSequence } from "./engine/kit.js";
-import type { ChainGroup, ResolvedSnapshot, Matrix } from "./engine/kit.js";
+import { Buff, Loadout, EchoLoadout, Weapon, baseSequence } from "./engine/gear.js";
+import { State } from "./engine/state.js";
+import { withTeam, equip, equipEnemy, setTracing } from "./engine/context.js";
+import type { Matrix } from "./engine/gear.js";
+import type { ChainGroup, ResolvedSnapshot } from "./engine/evaluate.js";
 import { runRotations } from "./engine/rotation.js";
 import type { ActionField } from "./engine/rotation.js";
 import { damage, mvPercent } from "./engine/damage.js";
@@ -40,7 +43,7 @@ export interface Member {
 
 /** name/color both come straight off the loadout's own resonator — nothing here retypes them, and
  *  nothing here needs its own import of the resonator itself, just its loadout. Opener/loop
- *  rotation and weapon/echo choice all live on the loadout itself too (kit.ts's own `Loadout`) —
+ *  rotation and weapon/echo choice all live on the loadout itself too (gear.ts's own `Loadout`) —
  *  see `combosFor()`/`runTeam()` below for how a team is actually assembled and run. */
 export const member = (loadout: Loadout, mainDps = false): Member =>
   ({ name: loadout.resonator.name, color: loadout.resonator.color, loadout, mainDps });
@@ -95,8 +98,8 @@ export const bestKey = (teamKey: string, members: Member[], filters: Filters): s
 /** A team's own best build, under only the flags the *search* reads: the two R1 allowances, the
  *  weapon boxes (which weapons may be searched — `eligibleWeapons()`) and Matrix Mode. The echo
  *  and main-stat boxes change which rows a solve opens, never which build wins (both axes are
- *  searched in full regardless), and the sequence boxes only add un-searched rows — so a flip of
- *  any of those hands `solveTeam()` the build it already found and it redoes the rows alone. */
+ *  searched in full regardless), and the sequence boxes only cross in levels nothing searches — so
+ *  a flip of any of those hands `solveTeam()` the build it already found and it redoes rows alone. */
 export const picksKey = (teamKey: string, members: Member[], filters: Filters): string => {
   const matrix = filters.matrix && members.some((m) => m.loadout.matrix);
   return `${teamKey}|${filters.allowR1Mdps},${filters.allowR1Supports},${filters.mdpsWeapons},${filters.supportWeapons},${matrix}`;
@@ -136,7 +139,7 @@ export function sequenceLevels(m: Member, filters: Filters): number[] {
 
 /** Which of a loadout's own weapons this role may actually run right now — everything when its R1
  *  allowance is on, standard weapons only when it isn't (weapons/standard.ts, every generation —
- *  see kit.ts's own `Weapon.standard`). A signature is only ever owned at R1, so a role that
+ *  see gear.ts's own `Weapon.standard`). A signature is only ever owned at R1, so a role that
  *  hasn't been given that allowance never even simulates one. Empty means the whole team drops
  *  out of the table, same as it always has.
  *
@@ -223,7 +226,7 @@ function trialRun(teamKey: string, members: Member[], picks: Pick[]): TeamRun {
 /**
  * Every main stat of each member in `who`, scored under `picks`, in one run: the build as picked
  * is run for real, and every other main stat of those members rides along as a variant the engine
- * re-scores on that member's own actions alone (kit.ts's own `TeamMember.variants`) — a main stat
+ * re-scores on that member's own actions alone (state.ts's own `TeamMember.variants`) — a main stat
  * only ever feeds its wearer, so nothing else in the fight is different. A whole list costs a
  * fraction of a run rather than a run apiece, which was 91% of every run this search made.
  *
@@ -415,7 +418,7 @@ export interface TeamRun {
 
 /** One main-stat alternative's own figures out of a run that scored it as a variant — what a
  *  comparison-table row reads off a `TeamRun`, plus whether the engine could vouch for it (see
- *  kit.ts's own `TeamMember.variantUnsafe`). */
+ *  state.ts's own `TeamMember.variantUnsafe`). */
 export interface VariantRun {
   total: number;
   bySlot: Map<string, number>;
@@ -429,7 +432,7 @@ const toLine = (snap: ResolvedSnapshot): ChainGroup =>
 
 /**
  * One section's snapshots as the lines the report draws: an ordinary cast is its own line, and an
- * ActionGroup's members fold into one (kit.ts's own `ActionGroup`).
+ * ActionGroup's members fold into one (rotation.ts's own `ActionGroup`).
  *
  * A group line reports the members' summed motion value and summed damage, but carries the *last*
  * member's snapshot: every stat column and every stat hover on it is that final cast's, which is
@@ -439,7 +442,7 @@ const toLine = (snap: ResolvedSnapshot): ChainGroup =>
  *
  * `parts` is the whole span in the order it actually resolved, members and the follow-ups queued
  * out of them alike — the last member's included, which land after the group has already ended
- * (kit.ts's own `groupSpill`) and used to trail it as loose rows. That is what the opened group
+ * (evaluate.ts's own `groupSpill`) and used to trail it as loose rows. That is what the opened group
  * shows. Those follow-ups are *also* emitted as lines of their own, flagged `spill`: they are
  * separate damage and every total has to count them, so they stay lines rather than being folded
  * in, and the report merely tucks them under the group while it is collapsed.
@@ -661,10 +664,10 @@ function sumRun(rotationLines: ChainGroup[][], avgOf: (line: ChainGroup) => numb
 }
 
 /** @param trace  capture the report's own per-entry trace and keep the resolved lines — off for
- *  the comparison table's own bulk pass (see kit.ts's own `setTracing`), on for the single team
+ *  the comparison table's own bulk pass (see context.ts's own `setTracing`), on for the single team
  *  whose detail page is being rendered.
  *  @param variants  per member, the main-stat Buffs to score as variants of the build in `combo`
- *  (kit.ts's own `TeamMember.variants`) — see `scoreMainstats()`. Not with `trace`. */
+ *  (state.ts's own `TeamMember.variants`) — see `scoreMainstats()`. Not with `trace`. */
 export function runTeam(teamKey: string, members: Member[], combo: Combo[], trace = false, variants: (Buff[] | null)[] | null = null): TeamRun {
   setTracing(trace);
   try {
@@ -777,16 +780,24 @@ function buildsOf(m: Member, home: Pick, f: Filters): Pick[] {
   const mdps = m.mainDps;
   const weapons = (mdps ? f.mdpsWeapons : f.supportWeapons) ? eligibleWeapons(m, f) : [home.weapon];
   const echoes = (mdps ? f.mdpsEchoes : f.supportEchoes) ? l.echoLoadouts.map((_, i) => i) : [home.echo];
+  // Sequences cross in like the other two. A closed box's `sequenceLevels()` is the one baseline
+  // level, so a closed axis still contributes exactly one pick — the same shape `weapons`/`echoes`
+  // collapse to above, just read off the loadout rather than off the solved build.
+  const sequences = sequenceLevels(m, f);
   const picks: Pick[] = [];
-  for (const weapon of weapons) for (const echo of echoes) picks.push({ ...home, weapon, echo });
+  for (const weapon of weapons) for (const echo of echoes) for (const sequence of sequences) {
+    picks.push({ ...home, weapon, echo, sequence });
+  }
   return picks;
 }
 
 /**
  * Every row the comparison table will show for this team — the whole-team cross of each member's
- * own weapon/echo candidates, plus one row per sequence level, un-crossed (a chain node is never a
- * trade-off against anything, so it varies on its own while every other axis sits at its best
- * pick) — and then, for each of those builds, the echo and main stats to show it wearing.
+ * own weapon/echo/sequence candidates — and then, for each of those builds, the echo and main
+ * stats to show it wearing. Sequences are crossed in exactly like the other two axes: a level is
+ * still never *searched* (a chain node is never a trade-off against anything, so nothing has to
+ * decide between them), but it varies against every other member's gear rather than only against
+ * the team's own best build.
  *
  * A closed echo box is re-searched per build (`pinEchoes` below) for the same reason a closed
  * main-stat box is: its pick came out of the team's own best build, and the sonata that build
@@ -857,13 +868,8 @@ function rowPicks(teamKey: string, members: Member[], best: Pick[], filters: Fil
   };
 
   const builds = cartesian(members.map((m, i) => buildsOf(m, best[i]!, filters)));
-  members.forEach((m, i) => {
-    for (const sequence of sequenceLevels(m, filters)) {
-      builds.push(best.map((p, j) => (j === i ? { ...p, sequence } : p)));
-    }
-  });
-  // deduped before anything is run: a sequence variation at the level a closed box already shows
-  // is the cross's own build again, and every build below costs at least one run
+  // deduped before anything is run — every build below costs at least one run, and a cross this
+  // wide is cheap to check but expensive to run twice
   const seen = new Map<string, Pick[]>();
   for (const picks of builds) {
     const key = picks.map((p) => `${p.weapon}.${p.echo}.s${p.sequence}`).join("-");

@@ -21,12 +21,24 @@
  * /api/app/characters/luukherssen, `forte_1` per hit in the same x100 units as energy — a hit's
  * Flow is its energy x10), summed per action the same way the MVs are.
  */
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, addStat, applyCurrent, casting, currentAction, forte1, getStat, maxStackIncrease, queue, revokeCurrent,
-  setForte1, frozenStacks, stacksOfEnemy, } from "../../engine/kit.js";
+  addStat,
+  applyCurrent,
+  casting,
+  currentAction,
+  forte1,
+  getStat,
+  maxStackIncrease,
+  queue,
+  revokeCurrent,
+  setForte1,
+  frozenStacks,
+  stacksOfEnemy,
+} from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, ECHO_SWAP, OUTRO, DODGE } from "../../engine/rotation.js";
-import { applied } from "../../engine/kit.js";
+import { applied } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { TUNE_STRAIN_SHIFTING } from "../../shared/tunebreak.js";
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_INTERFERED, tuneStrainBonus } from "../../shared/tunebreak.js";

@@ -1,11 +1,21 @@
 /** Mainslot echoes and sonatas from Mengzhou (versions 3.5-3.8). */
+import { Stat, Attribute, Type1, Cast, Scaling } from "../engine/stats.js";
+import { Buff, Sonata, Sonata2pc, Mainslot, EchoType } from "../engine/gear.js";
 import {
-  Buff, Sonata, Sonata2pc, Mainslot, EchoType, Stat, Attribute, Type1, Cast, Scaling,
-  addStat, frozenStacks, applyCurrent, applyTeam, queue, removeStack, revokeTeam, currentAction, casting,
-  revokeCurrent, triggeredAction,
-} from "../engine/kit.js";
+  addStat,
+  frozenStacks,
+  applyCurrent,
+  applyTeam,
+  queue,
+  removeStack,
+  revokeTeam,
+  currentAction,
+  casting,
+  revokeCurrent,
+  triggeredAction,
+} from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
-import { applied, appliedByMe } from "../engine/kit.js";
+import { applied, appliedByMe } from "../engine/context.js";
 import { SHIELD, HAVOC_BANE, GLACIO_CHAFE } from "../shared/status.js";
 import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 

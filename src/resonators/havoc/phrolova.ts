@@ -14,11 +14,24 @@
  * Resolving Chord's own "no notes gained" window (Coda to Waltz) is left unmodelled: nothing in a
  * rotation gains between the two casts anyway.
  */
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, applyCurrent, stacksOf, currentAction, casting, queue, queueOutro, revokeCurrent, addStat, frozenStacks,
-  Sequence, applyTeam, isHeld, setStacksSelf, currentTeam, queueOn,
-  } from "../../engine/kit.js";
+  applyCurrent,
+  stacksOf,
+  currentAction,
+  casting,
+  queue,
+  queueOutro,
+  revokeCurrent,
+  addStat,
+  frozenStacks,
+  applyTeam,
+  isHeld,
+  setStacksSelf,
+  currentTeam,
+  queueOn,
+} from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, NOINTRO, INTRO, ECHO_ONFIELD, OUTRO, DODGE } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";

@@ -23,11 +23,24 @@
  * "Damage Data" table — see the comment above the action definitions for the column mapping.
  * Resonance Cost (`maxEnergy` below) is her own real 100%, not the generic 125% default.
  */
+import { Tier, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Debuff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType,
-  Type1, Cast, Node, Scaling, applyCurrent, applyTeam, applyEnemy, revokeCurrent, revokeTeam, revokeEnemy, isHeld,
-  stacksOfEnemy, casting, currentAction, addStat, frozenStacks, queueOutro, forte1,
-} from "../../engine/kit.js";
+  applyCurrent,
+  applyTeam,
+  applyEnemy,
+  revokeCurrent,
+  revokeTeam,
+  revokeEnemy,
+  isHeld,
+  stacksOfEnemy,
+  casting,
+  currentAction,
+  addStat,
+  frozenStacks,
+  queueOutro,
+  forte1,
+} from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { Action, Rotation, INTRO, ECHO_SWAP, OUTRO, SWAP, START_3 } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";

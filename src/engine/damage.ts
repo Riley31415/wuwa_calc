@@ -9,7 +9,7 @@
  * bypasses total damage, and every amplification but the kind scoped to the Negative Status it is
  * — that one scope is the whole of what a status's own damage scales with.
  */
-import type { Action } from "./kit.js";
+import type { Action } from "./rotation.js";
 import { Stat, EnemyStat, Scaling } from "./stats.js";
 
 /** A resolved action snapshot, from `State.resolve()` — everything the formula reads off it. */
@@ -162,7 +162,7 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
   // Amplification is the one thing a dot hit does read (the migrated sheet's own `specialAmp`
   // column) — but only the part scoped to the Negative Status it is, never plain or element-scoped
   // amplification. That split can't be made from `amp` here, since every matching scope is already
-  // summed into it, so kit.ts keeps the scoped part alongside (see `type2Amp` there).
+  // summed into it, so evaluate.ts keeps the scoped part alongside (see `type2Amp` there).
   const ampFactor = 1 + ((notDot ? snapshot.amp : snapshot.type2Amp) / 100) * notTune;
   const bonusFactor = 1 + (snapshot.dmgBonus / 100) * notDot * notTune;
   // Tune break boost multiplies tune damage and nothing else. It is part of the formula rather

@@ -22,7 +22,7 @@
  *
  * Gauges: Void Particle is forte1 (0-100), Conformal Charge forte2 (0-100), Dark Cores forte3
  * (0-3). Per-cast gains are declared on the actions; the Void Particle spend and the Liberation
- * retag ride the VOID_PARTICLE buff (kit.ts's typeOverride) rather than a second set of actions
+ * retag ride the VOID_PARTICLE buff (evaluate.ts's typeOverride) rather than a second set of actions
  * — nanoka's enhanced rows are the plain ones at x1.5 MV with identical energy/concerto/off-tune.
  * Only Dark Cores are read back (Banish Stage 2's multiplier). Time-based regen (an Entropy Shift's 1 Void Particle/s and 1 Dark
  * Core/12s) has nowhere to go in an engine with no clock and isn't modelled — the kit-valid loop
@@ -37,16 +37,33 @@
  * level 10. Per-cast Void Particle/Conformal Charge amounts are the migrated sheet's own, since
  * nanoka only names which casts grant them.
  */
+import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  typeOverride, Buff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout, Stat, Attribute,
-  WeaponType, Type1, Type2, Cast, Node, Scaling, addStat, applyCurrent, applyTeam, casting, currentAction, isHeld,
-  maxStackIncrease, queueOn, queueOutro, revokeCurrent as revokeCurrent, revokeTeam, frozenStacks, forte1, triggeredAction,
-  setForte1, setForte2, getStat, forte2,
+  typeOverride,
+  addStat,
+  applyCurrent,
+  applyTeam,
+  casting,
+  currentAction,
+  isHeld,
+  maxStackIncrease,
+  queueOn,
+  queueOutro,
+  revokeCurrent as revokeCurrent,
+  revokeTeam,
+  frozenStacks,
+  forte1,
+  triggeredAction,
+  setForte1,
+  setForte2,
+  getStat,
+  forte2,
   stacksOf,
   addForte1,
-} from "../../engine/kit.js";
+} from "../../engine/context.js";
 import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, JUMP, ActionGroup, DODGE, ActionField } from "../../engine/rotation.js";
-import { applied, applyEnemy } from "../../engine/kit.js";
+import { applied, applyEnemy } from "../../engine/context.js";
 import { coordinatedBuff, lostOnSwap } from "../../shared/helpers.js";
 import { FUSION_BURST } from "../../shared/status.js";
 import { ENEMY_MAX_OFFTUNE, TUNE_STRAIN_SHIFTING } from "../../shared/tunebreak.js";

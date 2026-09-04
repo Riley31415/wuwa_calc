@@ -6,13 +6,26 @@
  * only ever reachable while its own piece is equipped, so it needs no further gate), while a flat
  * unconditional equip passive goes in the Mainslot's own applyStats().
  */
-import { isType,
-  Buff, Sonata, Sonata2pc, Mainslot, EchoType, Stat, Attribute, Type1, Cast, Scaling,
-  addStat, frozenStacks, casting, currentAction, revokeCurrent, applyCurrent, applyTeam, stacksOfTeam, revokeTeam,
-  removeStackTeam, queueOutro, queue, triggeredAction,
-} from "../engine/kit.js";
+import { Stat, Attribute, Type1, Cast, Scaling } from "../engine/stats.js";
+import { Buff, Sonata, Sonata2pc, Mainslot, EchoType } from "../engine/gear.js";
+import {
+  isType,
+  addStat,
+  frozenStacks,
+  casting,
+  currentAction,
+  revokeCurrent,
+  applyCurrent,
+  applyTeam,
+  stacksOfTeam,
+  revokeTeam,
+  removeStackTeam,
+  queueOutro,
+  queue,
+  triggeredAction,
+} from "../engine/context.js";
 import { Action, ActionField } from "../engine/rotation.js";
-import { applied } from "../engine/kit.js";
+import { applied } from "../engine/context.js";
 import { coordinatedBuff, handoff, lostOnSwap } from "../shared/helpers.js";
 import { HEALS, SHIELD } from "../shared/status.js";
 

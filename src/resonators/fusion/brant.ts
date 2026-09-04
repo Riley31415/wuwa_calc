@@ -14,11 +14,21 @@
  * rotation below goes straight from Intro into Liberation. Healing is out of scope, per the
  * standing rule; Returned from Ashes' own shield isn't modelled for HP value, only as the marker.
  */
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, applyCurrent, revokeCurrent, casting, currentAction, addStat, getStat, queue, queueOutro, forte1, setForte1,
+  applyCurrent,
+  revokeCurrent,
+  casting,
+  currentAction,
+  addStat,
+  getStat,
+  queue,
+  queueOutro,
+  forte1,
+  setForte1,
   applyTeam,
-  } from "../../engine/kit.js";
+} from "../../engine/context.js";
 import { lostOnSwap, matrix } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, OUTRO, SWAP, DOUBLE_INTRO } from "../../engine/rotation.js";
 import { SHIELD, HEALS } from "../../shared/status.js";

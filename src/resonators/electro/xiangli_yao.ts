@@ -22,10 +22,19 @@
  * Basic casts consumes a charge to fire one 237.63% laser on Xiangli Yao's own slot — same shape
  * as Jiyan's Discipline; the 2s trigger ICD isn't modelled.
  */
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, applyCurrent, currentAction, casting, revokeCurrent, addStat, frozenStacks, removeStack, queueOn, queueOutro,
-  } from "../../engine/kit.js";
+  applyCurrent,
+  currentAction,
+  casting,
+  revokeCurrent,
+  addStat,
+  frozenStacks,
+  removeStack,
+  queueOn,
+  queueOutro,
+} from "../../engine/context.js";
 import { matrix } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, ActionField } from "../../engine/rotation.js";
 import { IUNO_SIG, VERITYS_HANDLE } from "../../weapons/gauntlet.js";

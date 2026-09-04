@@ -57,15 +57,25 @@
  * at level 10 — both agree everywhere they overlap. weakness_mastery is 0: unlike the tune-break
  * era's resonators, she carries no flat Tbb of her own.
  */
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Debuff, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   isType,
-  Buff, Talent, Inherent, Debuff, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, addStat, applyCurrent, applyTeam, revokeTeam, casting, currentAction, revokeCurrent, frozenStacks, applyEnemy,
-  stacksOfEnemy, maxStackIncrease,
+  addStat,
+  applyCurrent,
+  applyTeam,
+  revokeTeam,
+  casting,
+  currentAction,
+  revokeCurrent,
+  frozenStacks,
+  applyEnemy,
+  stacksOfEnemy,
+  maxStackIncrease,
   setForte2,
   setForte1,
   forte1,
-} from "../../engine/kit.js";
+} from "../../engine/context.js";
 import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, START_1, START_2, SWAP, START_3 } from "../../engine/rotation.js";
 import {
   HEALS, SHIELD, HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, FUSION_BURST, AERO_EROSION, SPECTRO_FRAZZLE, ELECTRO_RAGE,
@@ -217,7 +227,7 @@ const ALL_ENDS_HERE = new Buff({
 const UNSEEN_SNARE = new Debuff({
   name: "Chisa: Unseen Snare",
   // The Bane is hers, not the swinging teammate's: applyEnemy() here inherits this marker's own
-  // source (kit.ts's `attribute()`), so an "on inflicting a Negative Status" passive worn by that
+  // source (context.ts's `attribute()`), so an "on inflicting a Negative Status" passive worn by that
   // teammate — Kumokiri, Thread of Severed Fate — reads 0 for it and doesn't pay out. See
   // `appliedByMe()`, which is what every such passive checks.
   //

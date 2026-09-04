@@ -1,6 +1,7 @@
 /** An echo build's substats: five echoes, five rolls each, twenty-five total. Every roll is
  *  valued at the mid-tier number below. */
-import { Buff, addStat } from "../engine/kit.js";
+import { Buff } from "../engine/gear.js";
+import { addStat } from "../engine/context.js";
 import { Stat, Type1, scopedStat, splitStat } from "../engine/stats.js";
 import type { StatKey, Tag } from "../engine/stats.js";
 

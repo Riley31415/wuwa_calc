@@ -22,11 +22,24 @@
  *  - Deadly Focus: Lightning Execution +10% DMG against Sinner's Mark, and +10% ATK for 4s when
  *    triggered.
  */
+import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
-  Type2, Cast, Node, Scaling, applyCurrent, setStacksSelf, removeStack, applyEnemy, revokeEnemy, stacksOfEnemy,
-  isHeld, currentAction, casting, revokeCurrent, addStat, queue, queueOutro, applyTeam,
-} from "../../engine/kit.js";
+  applyCurrent,
+  setStacksSelf,
+  removeStack,
+  applyEnemy,
+  revokeEnemy,
+  stacksOfEnemy,
+  isHeld,
+  currentAction,
+  casting,
+  revokeCurrent,
+  addStat,
+  queue,
+  queueOutro,
+  applyTeam,
+} from "../../engine/context.js";
 import { coordinatedBuff, lostOnSwap, matrix } from "../../shared/helpers.js";
 import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ActionField } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";

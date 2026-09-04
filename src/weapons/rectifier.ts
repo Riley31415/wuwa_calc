@@ -1,9 +1,22 @@
 /** Signature Rectifier weapons, ported to the new engine. Stringmaster (Encore's own,
  *  standard/permanent-availability) lives here too since it isn't part of any named tier. */
-import { isType,
-  Buff, Weapon, WeaponType, Stat, Attribute, Type1, Cast,
-  addStat, frozenStacks, stacksOf, isHeld, applyCurrent, applyTeam, revokeCurrent, revokeTeam, removeStack, casting, currentAction, } from "../engine/kit.js";
-import { applied, appliedByMe } from "../engine/kit.js";
+import { WeaponType, Stat, Attribute, Type1, Cast } from "../engine/stats.js";
+import { Buff, Weapon } from "../engine/gear.js";
+import {
+  isType,
+  addStat,
+  frozenStacks,
+  stacksOf,
+  isHeld,
+  applyCurrent,
+  applyTeam,
+  revokeCurrent,
+  revokeTeam,
+  removeStack,
+  casting,
+  currentAction,
+} from "../engine/context.js";
+import { applied, appliedByMe } from "../engine/context.js";
 import { lostOnSwap } from "../shared/helpers.js";
 import { GLACIO_CHAFE, FUSION_BURST, HEALS } from "../shared/status.js";
 import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";

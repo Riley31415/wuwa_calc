@@ -23,13 +23,24 @@
  * Both react to *any* team member's shield via updateGlobal(), rather than needing to be
  * genuinely team-wide buffs just to be reachable from a teammate's turn.
  */
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, applyCurrent, forte2, setForte2, stacksOf, isHeld, currentAction, currentTeam, queue, revokeCurrent, addStat,
-  getStat, frozenStacks,
-  } from "../../engine/kit.js";
+  applyCurrent,
+  forte2,
+  setForte2,
+  stacksOf,
+  isHeld,
+  currentAction,
+  currentTeam,
+  queue,
+  revokeCurrent,
+  addStat,
+  getStat,
+  frozenStacks,
+} from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
-import { applied, applyTeam } from "../../engine/kit.js";
+import { applied, applyTeam } from "../../engine/context.js";
 import { SHIELD } from "../../shared/status.js";
 import { JINGRAN_SIG, THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";

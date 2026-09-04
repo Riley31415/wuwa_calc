@@ -35,11 +35,21 @@
  * described on her own page (unlike every other kit so far) — Closing Remark is left as a plain
  * damage hit, nothing invented.
  */
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Debuff } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, applyCurrent, applyEnemy, revokeEnemy, isHeld, currentAction, casting, revokeCurrent, addStat, forte1, forte2,
-  setForte2, Debuff,
-  } from "../../engine/kit.js";
+  applyCurrent,
+  applyEnemy,
+  revokeEnemy,
+  isHeld,
+  currentAction,
+  casting,
+  revokeCurrent,
+  addStat,
+  forte1,
+  forte2,
+  setForte2,
+} from "../../engine/context.js";
 import { matrix } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, SWAP, START_3 } from "../../engine/rotation.js";
 import { THE_LAST_DANCE } from "../../weapons/pistol.js";

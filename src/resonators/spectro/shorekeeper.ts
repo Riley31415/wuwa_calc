@@ -10,11 +10,21 @@
  * Numbers from nanoka.cc (character 1505); Base DEF (1100) confirmed there directly, since the
  * migrated sheet this was ported from didn't carry it. Her resonance chain is below the buffs.
  */
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, applyTeam, applyCurrent, addBuff, revokeBuff, stacksOfTeam, currentAction, currentTeam, casting,
-  isHeld, revokeTeam, addStat,
-  } from "../../engine/kit.js";
+  applyTeam,
+  applyCurrent,
+  addBuff,
+  revokeBuff,
+  stacksOfTeam,
+  currentAction,
+  currentTeam,
+  casting,
+  isHeld,
+  revokeTeam,
+  addStat,
+} from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, START_1, START_2, START_3, SWAP, NOINTRO, INTRO, ECHO_CANCEL, OUTRO, DODGE, JUMP } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { SK_SIG } from "../../weapons/rectifier.js";

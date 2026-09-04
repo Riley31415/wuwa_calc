@@ -9,11 +9,20 @@
  * skill's own Skill Attributes row; energy/concerto/offtune/forte off the migrated sheet's own
  * SRover rows (offtune x10000 into this engine's units). Rotation is the sheet's own "srover 3nf".
  */
+import { Tier, Stat, EnemyStat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Debuff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, EnemyStat, Attribute,
-  WeaponType, Type1, Cast, Node, Scaling, applyCurrent, applyEnemy, revokeEnemy, isHeld, revokeCurrent, casting,
-  currentAction, addStat, addEnemyStat, queue,
-} from "../../engine/kit.js";
+  applyCurrent,
+  applyEnemy,
+  revokeEnemy,
+  isHeld,
+  revokeCurrent,
+  casting,
+  currentAction,
+  addStat,
+  addEnemyStat,
+  queue,
+} from "../../engine/context.js";
 import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
 import { SPECTRO_FRAZZLE, HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";

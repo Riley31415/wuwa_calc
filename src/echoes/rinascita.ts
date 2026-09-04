@@ -1,11 +1,24 @@
 /** Mainslot echoes and sonatas from Rinascita (versions 2.0-2.4). */
-import { isType,
-  Buff, Sonata, Sonata2pc, Mainslot, EchoType, Stat, Attribute, Type1, Type2, Cast, Scaling,
-  addStat, frozenStacks, applyCurrent, applyTeam, casting, currentAction, revokeCurrent, getStat, queue, queueOutro,
-  revokeTeam, stacksOfEnemy, currentMember,
-} from "../engine/kit.js";
+import { Stat, Attribute, Type1, Type2, Cast, Scaling } from "../engine/stats.js";
+import { Buff, Sonata, Sonata2pc, Mainslot, EchoType } from "../engine/gear.js";
+import {
+  isType,
+  addStat,
+  frozenStacks,
+  applyCurrent,
+  applyTeam,
+  casting,
+  currentAction,
+  revokeCurrent,
+  getStat,
+  queue,
+  queueOutro,
+  revokeTeam,
+  stacksOfEnemy,
+  currentMember,
+} from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
-import { applied, appliedByMe } from "../engine/kit.js";
+import { applied, appliedByMe } from "../engine/context.js";
 import { AERO_EROSION } from "../shared/status.js";
 
 /* ----------------------------------------------------------------------------- Carlotta, 2.0 */

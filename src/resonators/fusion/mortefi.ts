@@ -8,11 +8,26 @@
  * Numbers from nanoka.cc (character 1204, https://ww.nanoka.cc/character/1204), cross-checked
  * against the migrated (old-engine) sheet's own totals.
  */
+import { Tier, Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
-  Type2, Cast, Node, Scaling, applyCurrent, applyTeam, revokeTeam, stacksOfTeam, removeStackTeam, isHeld,
-  casting, currentAction, triggeredAction, frozenStacks, isType, addStat, revokeCurrent, queue, queueOn,
-  queueOutro, } from "../../engine/kit.js";
+  applyCurrent,
+  applyTeam,
+  revokeTeam,
+  stacksOfTeam,
+  removeStackTeam,
+  isHeld,
+  casting,
+  currentAction,
+  triggeredAction,
+  frozenStacks,
+  isType,
+  addStat,
+  revokeCurrent,
+  queue,
+  queueOn,
+  queueOutro,
+} from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, ActionField } from "../../engine/rotation.js";
 import { STATIC_MIST, CADENZA, NEW_STD_PISTOL } from "../../weapons/standard.js";

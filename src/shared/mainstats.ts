@@ -3,7 +3,8 @@
  * alone decides. Values are the 5-star level-25 numbers. A 3-cost's elemental damage is scoped
  * per element rather than generic, so a mismatched slot doesn't silently pay full price.
  */
-import { Buff, addStat } from "../engine/kit.js";
+import { Buff } from "../engine/gear.js";
+import { addStat } from "../engine/context.js";
 import { Stat, Attribute, scopedStat, STAT_NAME, TAG_NAME } from "../engine/stats.js";
 import type { StatKey, Tag } from "../engine/stats.js";
 

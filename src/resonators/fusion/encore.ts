@@ -24,11 +24,21 @@
  * relative to this file's own scale. Her mainslot echo is Inferno Rider (plain, not
  * "Nightmare:") — see echoes/jinzhou.ts's own INFERNO_RIDER.
  */
+import { Tier, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
-  Cast, Node, Scaling, applyCurrent, applyTeam, revokeCurrent, isHeld, casting, currentAction, addStat, frozenStacks,
-  queueOutro, forte1, setForte1,
-  } from "../../engine/kit.js";
+  applyCurrent,
+  applyTeam,
+  revokeCurrent,
+  isHeld,
+  casting,
+  currentAction,
+  addStat,
+  frozenStacks,
+  queueOutro,
+  forte1,
+  setForte1,
+} from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO } from "../../engine/rotation.js";
 import { STRINGMASTER } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";

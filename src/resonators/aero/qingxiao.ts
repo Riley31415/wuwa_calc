@@ -32,11 +32,24 @@
  * energy/concerto/off-tune, the Liberation's multiplier, the enhanced Heaven's Reckoning's
  * off-tune) nanoka is what's here.
  */
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
-  Cast, Node, Scaling, addStat, applied, applyCurrent, applyTeam, applyEnemy, currentAction, maxStackIncrease,
-  revokeCurrent, revokeTeam, stacksOfEnemy, setForte1, setForte2, forte1, forte2,
-  } from "../../engine/kit.js";
+  addStat,
+  applied,
+  applyCurrent,
+  applyTeam,
+  applyEnemy,
+  currentAction,
+  maxStackIncrease,
+  revokeCurrent,
+  revokeTeam,
+  stacksOfEnemy,
+  setForte1,
+  setForte2,
+  forte1,
+  forte2,
+} from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, START_3, SWAP } from "../../engine/rotation.js";
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_SHIFTING, TUNE_STRAIN_INTERFERED, tuneStrainBonus } from "../../shared/tunebreak.js";

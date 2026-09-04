@@ -30,12 +30,34 @@
  * given an invented gauge value. Form Switch (no damage, auto-casts the new form's Stage 1) isn't an
  * action: a rotation flips form through a Sync Strike, a Duet or a liberation.
  */
+import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Debuff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Debuff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout, Stat,
-  Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, addStat, addBuff, revokeBuff, applyCurrent, applyEnemy,
-  applied, appliedByMember, casting, currentAction, currentMember, currentTeam, isHeld, frozenStacks, queue, queueOn,
-  removeStack, revokeCurrent, revokeEnemy, stacksOf, stacksOfEnemy, forte1, forte2, setForte1, setForte2,
-} from "../../engine/kit.js";
+  addStat,
+  addBuff,
+  revokeBuff,
+  applyCurrent,
+  applyEnemy,
+  applied,
+  appliedByMember,
+  casting,
+  currentAction,
+  currentMember,
+  currentTeam,
+  isHeld,
+  frozenStacks,
+  queue,
+  queueOn,
+  removeStack,
+  revokeCurrent,
+  revokeEnemy,
+  stacksOf,
+  stacksOfEnemy,
+  forte1,
+  forte2,
+  setForte1,
+  setForte2,
+} from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { TUNE_RUPTURE_SHIFTING, applyRupture, tuneRuptureResponse } from "../../shared/tunebreak.js";
 import { FUSION_BURST, FUSION_BURST_ACTIONS } from "../../shared/status.js";

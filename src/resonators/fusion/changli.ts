@@ -10,9 +10,17 @@
  * old-engine reference file's own numbers (÷100 relative to this file's own scale). No offtune
  * anywhere in either source, so it's left off entirely rather than guessed at.
  */
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, applyCurrent, revokeCurrent, casting, currentAction, addStat, forte1, queueOutro, } from "../../engine/kit.js";
+  applyCurrent,
+  revokeCurrent,
+  casting,
+  currentAction,
+  addStat,
+  forte1,
+  queueOutro,
+} from "../../engine/context.js";
 import { lostOnSwap, matrix } from "../../shared/helpers.js";
 import { Action, Rotation, START_2, START_3, SWAP, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
 import { BLAZING_BRILLIANCE } from "../../weapons/sword.js";

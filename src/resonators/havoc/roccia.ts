@@ -15,10 +15,21 @@
  * aren't exposed on nanoka's own page, so those come off the migrated (old-engine) sheet. Dodge
  * Counter has no sheet row at all, so it's still bare (nanoka's own MV only).
  */
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, applyCurrent, applyTeam, revokeCurrent, casting, currentAction, currentTeam, addStat, frozenStacks, getStat,
-  queueOutro, queueOn, } from "../../engine/kit.js";
+  applyCurrent,
+  applyTeam,
+  revokeCurrent,
+  casting,
+  currentAction,
+  currentTeam,
+  addStat,
+  frozenStacks,
+  getStat,
+  queueOutro,
+  queueOn,
+} from "../../engine/context.js";
 import { lostOnSwap, matrix } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, SWAP, DODGE, NOINTRO, ECHO_SWAP, START_3 } from "../../engine/rotation.js";
 import { TRAGICOMEDY } from "../../weapons/gauntlet.js";
@@ -146,7 +157,7 @@ const RC_ROTATION = new Rotation([
 
 // her real 43311 build: resonator + talents + both Inherent Skills, viable weapons, and two real
 // echo choices — Midnight Veil or Moonlit Clouds (same mainslot either way) — both automatically
-// iterated (see kit.ts's own EchoLoadout)
+// iterated (see gear.ts's own EchoLoadout)
 /** Matrix: her Liberation grants the team +20% Havoc DMG Bonus for 30s — permanent. */
 const ROCCIA_MATRIX_TEAM = new Buff({
   name: "Roccia: Matrix (team)",

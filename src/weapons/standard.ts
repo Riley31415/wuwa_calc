@@ -1,11 +1,22 @@
 /** Standard/f2p weapons, ported to the new engine — no signature character, usable by anyone of
  *  the matching weapon type. Three generations, 5 weapons each: Ceaseless Aria (4-star), Stormy
  *  Resolution (5-star), and the "new standard" 5-star set. */
-import { isType,
-  Buff, Weapon, WeaponType, Stat, Type1, Cast, Attribute,
-  addStat, applyCurrent, isHeld, removeStack, revokeCurrent, casting, currentAction, frozenStacks, queueOutro, stacksOfEnemy,
-} from "../engine/kit.js";
-import { applied } from "../engine/kit.js";
+import { WeaponType, Stat, Type1, Cast, Attribute } from "../engine/stats.js";
+import { Buff, Weapon } from "../engine/gear.js";
+import {
+  isType,
+  addStat,
+  applyCurrent,
+  isHeld,
+  removeStack,
+  revokeCurrent,
+  casting,
+  currentAction,
+  frozenStacks,
+  queueOutro,
+  stacksOfEnemy,
+} from "../engine/context.js";
+import { applied } from "../engine/context.js";
 import { HEALS } from "../shared/status.js";
 import { TUNE_STRAIN_INTERFERED } from "../shared/tunebreak.js";
 

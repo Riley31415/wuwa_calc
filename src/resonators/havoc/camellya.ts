@@ -41,11 +41,22 @@
  * "Damage Data" table — see the comment above the action definitions for the column mapping.
  * Outro/Twining's own table gives 0 across the board, a real absence, not an unchecked gap.
  */
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, applyCurrent, revokeCurrent, casting, currentAction, addStat, setForte1, isHeld, concerto, setConcerto,
-  stacksOf, frozenStacks, forte1,
-  } from "../../engine/kit.js";
+  applyCurrent,
+  revokeCurrent,
+  casting,
+  currentAction,
+  addStat,
+  setForte1,
+  isHeld,
+  concerto,
+  setConcerto,
+  stacksOf,
+  frozenStacks,
+  forte1,
+} from "../../engine/context.js";
 import { lostOnSwap, matrix } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ECHO_ONFIELD, DOUBLE_INTRO, SWAP } from "../../engine/rotation.js";
 import { RED_SPRING } from "../../weapons/sword.js";

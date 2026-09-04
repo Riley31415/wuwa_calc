@@ -39,11 +39,25 @@
  * 238.58% is the base 159.05% with Converged Flash's +50% already folded in, which is why that
  * inherent contributes the multiplier below instead.
  */
+import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Stat, Attribute,
-  WeaponType, Type1, Type2, Cast, Node, Scaling, addStat, applyCurrent, applyTeam, casting, currentAction,
-  frozenStacks, isHeld, isType, queue, removeStack, revokeCurrent, revokeTeam, setStacksSelf, stacksOf, triggeredAction,
-} from "../../engine/kit.js";
+  addStat,
+  applyCurrent,
+  applyTeam,
+  casting,
+  currentAction,
+  frozenStacks,
+  isHeld,
+  isType,
+  queue,
+  removeStack,
+  revokeCurrent,
+  revokeTeam,
+  setStacksSelf,
+  stacksOf,
+  triggeredAction,
+} from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, START_3, SWAP, DOUBLE_INTRO, INTRO, ECHO_ONFIELD, OUTRO } from "../../engine/rotation.js";
 import { AGES_OF_HARVEST } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";

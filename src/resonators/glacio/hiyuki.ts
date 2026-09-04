@@ -47,15 +47,36 @@
  * both agree on every MV/energy/concerto/off-tune figure they share. Her `weakness_mastery` is 0,
  * so unlike the tune-break-era cast she carries no flat Tune Break Boost of her own.
  */
+import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType,
-  Type1, Type2, Cast, Node, Scaling, addStat, applied, appliedByMe, appliedByMember, applyCurrent, applyEnemy,
-  applyTeam, currentAction, currentTeam, frozenStacks, queue, queueOn, queueOutro, removeStack,
-  consume, removeStackEnemy, revokeEnemy, revokeCurrent, revokeTeam, setForte1, setForte2, stacksOf, stacksOfEnemy,
+  addStat,
+  applied,
+  appliedByMe,
+  appliedByMember,
+  applyCurrent,
+  applyEnemy,
+  applyTeam,
+  currentAction,
+  currentTeam,
+  frozenStacks,
+  queue,
+  queueOn,
+  queueOutro,
+  removeStack,
+  consume,
+  removeStackEnemy,
+  revokeEnemy,
+  revokeCurrent,
+  revokeTeam,
+  setForte1,
+  setForte2,
+  stacksOf,
+  stacksOfEnemy,
   forte1,
   forte3,
   forte2,
-} from "../../engine/kit.js";
+} from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, DODGE } from "../../engine/rotation.js";
 import { GLACIO_CHAFE, GLACIO_CHAFE_ACTIONS, HAVOC_BANE } from "../../shared/status.js";
@@ -254,7 +275,7 @@ const snowRust = (): number => {
  *  Bane, capped at 3. All three payouts ride here, on an ordinary buff of her own: +40% Crit. DMG
  *  at 1 stack, the extra fixed-multiplier Bite hit at 2, and +30% Glacio Bite DMG Amplification at
  *  1 rising to +60% at 3. That last one needs no "while Hiyuki is active" check and no team-wide
- *  copy of itself — a Glacio Bite hit resolves on whoever is on field (kit.ts's own `evaluate()`),
+ *  copy of itself — a Glacio Bite hit resolves on whoever is on field (evaluate.ts's own `evaluate()`),
  *  so a buff of hers reaches it exactly when she is the one holding the field.
  *
  *  "Each Resonator can trigger this effect only once" is carried by the stacks themselves: slot 1

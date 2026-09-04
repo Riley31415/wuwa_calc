@@ -36,13 +36,30 @@
  * out: nanoka gives their motion values but no source gives their Fervor, and neither rotation
  * plays one.
  */
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, addBuff, addStat, applyCurrent, applyTeam, casting, currentAction, currentTeam, isHeld, queue, queueOnIntro, queueOutro,
-  revokeCurrent, forte1, forte2, setForte1, setForte2, frozenStacks, triggeredAction,
-  } from "../../engine/kit.js";
+  addBuff,
+  addStat,
+  applyCurrent,
+  applyTeam,
+  casting,
+  currentAction,
+  currentTeam,
+  isHeld,
+  queue,
+  queueOnIntro,
+  queueOutro,
+  revokeCurrent,
+  forte1,
+  forte2,
+  setForte1,
+  setForte2,
+  frozenStacks,
+  triggeredAction,
+} from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_2, SWAP, JUMP, ActionField } from "../../engine/rotation.js";
-import { applied } from "../../engine/kit.js";
+import { applied } from "../../engine/context.js";
 import { coordinatedBuff, lostOnSwap } from "../../shared/helpers.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING } from "../../shared/tunebreak.js";
 import { SKULL_THRASHER } from "../../weapons/pistol.js";

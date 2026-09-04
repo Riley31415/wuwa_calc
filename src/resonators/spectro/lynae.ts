@@ -21,10 +21,18 @@
  * Color decide which basic chain is live rather than scaling anything, so the rotation below just
  * runs the Kaleidoscopic Parade line she actually plays instead of modelling three gauges.
  */
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType,
-  Type1, Cast, Node, Scaling, addStat, applyCurrent, applyTeam, casting, currentAction, maxStackIncrease, queueOutro,
-  revokeCurrent, } from "../../engine/kit.js";
+  addStat,
+  applyCurrent,
+  applyTeam,
+  casting,
+  currentAction,
+  maxStackIncrease,
+  queueOutro,
+  revokeCurrent,
+} from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, SWAP, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
 import { applyRupture, applyStrain, TUNE_STRAIN_INTERFERED, tuneRuptureResponse, tuneStrainBonus } from "../../shared/tunebreak.js";

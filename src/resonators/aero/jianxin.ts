@@ -22,10 +22,18 @@
  *  S6 a Pushing Punch (interrupting Zhoutian early) opens Special Chi Counter, 556.67% Heavy DMG,
  *     once in 5s. Kept as its own cast; a rotation that interrupts can name it.
  */
+import { Tier, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute,
-  WeaponType, Type1, Cast, Node, Scaling, addStat, applyCurrent, casting, currentAction, forte1, queueOutro, revokeCurrent, setForte1,
-} from "../../engine/kit.js";
+  addStat,
+  applyCurrent,
+  casting,
+  currentAction,
+  forte1,
+  queueOutro,
+  revokeCurrent,
+  setForte1,
+} from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
 import { HEALS, SHIELD } from "../../shared/status.js";

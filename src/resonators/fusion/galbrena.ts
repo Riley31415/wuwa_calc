@@ -27,11 +27,21 @@
  * Sinflame come off the migrated (old-engine) sheet. Mid-air Sustained Fire and the Dodge
  * Counter have no sheet row at all, so they're still bare (nanoka's own MV only).
  */
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, applyCurrent, casting, currentAction, addStat, frozenStacks, revokeCurrent, isHeld, forte1, forte2, setForte1,
+  applyCurrent,
+  casting,
+  currentAction,
+  addStat,
+  frozenStacks,
+  revokeCurrent,
+  isHeld,
+  forte1,
+  forte2,
+  setForte1,
   setForte2,
-  } from "../../engine/kit.js";
+} from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, DODGE } from "../../engine/rotation.js";
 import { LUX_UMBRA } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";

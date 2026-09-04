@@ -1,9 +1,20 @@
 /** Signature Pistols weapons, ported to the new engine. */
-import { isType,
-  Buff, Debuff, Weapon, WeaponType, Stat, EnemyStat, Attribute, Type1, Cast,
-  addStat, addEnemyStat, applyCurrent, applyEnemy, applyTeam, isHeld, casting, currentAction, revokeCurrent, frozenStacks,
-} from "../engine/kit.js";
-import { applied, appliedByMe } from "../engine/kit.js";
+import { WeaponType, Stat, EnemyStat, Attribute, Type1, Cast } from "../engine/stats.js";
+import { Buff, Debuff, Weapon } from "../engine/gear.js";
+import {
+  isType,
+  addStat,
+  addEnemyStat,
+  applyCurrent,
+  applyEnemy,
+  applyTeam,
+  isHeld,
+  casting,
+  currentAction,
+  revokeCurrent,
+  frozenStacks,
+} from "../engine/context.js";
+import { applied, appliedByMe } from "../engine/context.js";
 import { AERO_EROSION } from "../shared/status.js";
 import { TUNE_HACK_SHIFTING, TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 

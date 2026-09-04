@@ -22,12 +22,21 @@
  * "queued and owned by the kit that earned it" shape as Lupa's Set the Arena Ablaze; the 1s
  * trigger ICD isn't modelled.
  */
+import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Type2, Cast,
-  Node, Scaling, applyCurrent, currentAction, casting, revokeCurrent, addStat, removeStack, forte1, queue, queueOn,
+  applyCurrent,
+  currentAction,
+  casting,
+  revokeCurrent,
+  addStat,
+  removeStack,
+  forte1,
+  queue,
+  queueOn,
   triggeredAction,
   queueOutro,
-} from "../../engine/kit.js";
+} from "../../engine/context.js";
 import { matrix } from "../../shared/helpers.js";
 import { Action, Rotation, START_3, SWAP, INTRO, ECHO_CANCEL, OUTRO, ActionField } from "../../engine/rotation.js";
 import { VERDANT_SUMMIT } from "../../weapons/broadblade.js";

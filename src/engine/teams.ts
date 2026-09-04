@@ -13,7 +13,7 @@
  * `ALL_TEAMS`, the one list both threads build identically out of this file. See `teamKey()`
  * and `teamAt()` below, and solver.ts's own `teamFromKey()`.
  */
-import type { Loadout } from "./kit.js";
+import type { Loadout } from "./gear.js";
 import { CIACCONA } from "../resonators/aero/ciaccona.js";
 import { IUNO, IUNO_MDPS } from "../resonators/aero/iuno.js";
 import { JIANXIN } from "../resonators/aero/jianxin.js";

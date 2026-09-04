@@ -9,11 +9,20 @@
  * Damage Data's own Energy/Elemental DMG/Weakness Break columns (the last x10000), except where a
  * skill states its own Concerto Regen outright, which wins.
  */
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, Type2 } from "../../engine/stats.js";
+import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
-  Cast, Node, Scaling, applyCurrent, applyTeam, applyEnemy, revokeTeam, isHeld, revokeCurrent, casting, currentAction,
-  addStat, queueOnIntro, Type2,
-} from "../../engine/kit.js";
+  applyCurrent,
+  applyTeam,
+  applyEnemy,
+  revokeTeam,
+  isHeld,
+  revokeCurrent,
+  casting,
+  currentAction,
+  addStat,
+  queueOnIntro,
+} from "../../engine/context.js";
 import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, SWAP } from "../../engine/rotation.js";
 import { AERO_EROSION, SHIELD } from "../../shared/status.js";
 import { WOODLAND_ARIA } from "../../weapons/pistol.js";

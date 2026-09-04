@@ -1,9 +1,20 @@
 /** Signature Sword weapons, ported to the new engine. Every piece works if equipped on any
  *  resonator, not just its own. */
-import { isType,
-  Buff, Weapon, WeaponType, Stat, Attribute, Type1, Type2, Cast,
-  addStat, frozenStacks, casting, currentAction, revokeCurrent, applyCurrent, stacksOf, applyTeam, applied, appliedByMe,
-} from "../engine/kit.js";
+import { WeaponType, Stat, Attribute, Type1, Type2, Cast } from "../engine/stats.js";
+import { Buff, Weapon } from "../engine/gear.js";
+import {
+  isType,
+  addStat,
+  frozenStacks,
+  casting,
+  currentAction,
+  revokeCurrent,
+  applyCurrent,
+  stacksOf,
+  applyTeam,
+  applied,
+  appliedByMe,
+} from "../engine/context.js";
 import { lostOnSwap } from "../shared/helpers.js";
 import { TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 import { FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE } from "../shared/status.js";
@@ -139,7 +150,7 @@ export const EVILS_SCOURGE = new Buff({
  *  Glacio Chafe. The page states no duration on the first pair, so they stand once granted; the
  *  Glacio Chafe DMG amplification is a 6s window, so lost after the outro. Both are ordinary self
  *  buffs — "if the wielder is the active Resonator" needs no check of its own, because a Glacio
- *  Chafe hit resolves on whoever is on field (kit.ts's own `evaluate()`), so the wielder's own
+ *  Chafe hit resolves on whoever is on field (evaluate.ts's own `evaluate()`), so the wielder's own
  *  amplification reaches it exactly when they are the one holding the field. */
 export const FROSTBURN = new Weapon({
   weaponType: WeaponType.Sword,

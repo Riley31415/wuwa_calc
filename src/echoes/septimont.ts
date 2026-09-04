@@ -1,11 +1,24 @@
 /** Mainslot echoes and sonatas from Septimont (versions 2.5-2.7). */
-import { isType,
-  Buff, Sonata, Sonata3pc, Sonata2pc, Mainslot, EchoType, Stat, Attribute, Type1, Cast, Scaling,
-  addStat, frozenStacks, stacksOf, stacksOfEnemy, stacksOfTeam, applyCurrent, applyTeam, casting, currentAction,
-  revokeCurrent, maxEnergy, queue, triggeredAction,
-} from "../engine/kit.js";
+import { Stat, Attribute, Type1, Cast, Scaling } from "../engine/stats.js";
+import { Buff, Sonata, Sonata3pc, Sonata2pc, Mainslot, EchoType } from "../engine/gear.js";
+import {
+  isType,
+  addStat,
+  frozenStacks,
+  stacksOf,
+  stacksOfEnemy,
+  stacksOfTeam,
+  applyCurrent,
+  applyTeam,
+  casting,
+  currentAction,
+  revokeCurrent,
+  maxEnergy,
+  queue,
+  triggeredAction,
+} from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
-import { applied, appliedByMe } from "../engine/kit.js";
+import { applied, appliedByMe } from "../engine/context.js";
 import { SHIELD, HAVOC_BANE } from "../shared/status.js";
 
 /* --------------------------------------------------------------------------------- Phrolova, 2.5 */

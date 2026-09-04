@@ -39,14 +39,31 @@
  * (api.wuwalab.com/api/app/characters/lucy) summed the same way, cross-checked against the
  * migrated sheet.
  */
+import { Stat, EnemyStat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Stat, EnemyStat, Attribute, WeaponType,
-  Type1, Cast, Node, Scaling, addStat, addEnemyStat, applyEnemy, applyCurrent, applyTeam, casting, currentAction,
-  isHeld, queue, queueOutro, revokeCurrent as revokeCurrent, revokeTeam, forte1, forte2, setForte1, setForte2,
-  getStat, frozenStacks, stacksOfEnemy,
-  } from "../../engine/kit.js";
+  addStat,
+  addEnemyStat,
+  applyEnemy,
+  applyCurrent,
+  applyTeam,
+  casting,
+  currentAction,
+  isHeld,
+  queue,
+  queueOutro,
+  revokeCurrent as revokeCurrent,
+  revokeTeam,
+  forte1,
+  forte2,
+  setForte1,
+  setForte2,
+  getStat,
+  frozenStacks,
+  stacksOfEnemy,
+} from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
-import { applied } from "../../engine/kit.js";
+import { applied } from "../../engine/context.js";
 import { lostOnSwap, matrix } from "../../shared/helpers.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING, TUNE_HACK_INTERFERED } from "../../shared/tunebreak.js";
 import { SPECTRAL_TRIGGER } from "../../weapons/pistol.js";

@@ -4,9 +4,9 @@
  * new engine and scoped to the two ported teams: Qiuyuan/Cantarella/Phrolova, and the shield
  * team Shorekeeper/Iuno/Jingran.
  *
- * display.ts is unmodified — kit.ts now exports `ResolvedSnapshot`/`StatEntry`/`ChainGroup` so
+ * display.ts is unmodified — evaluate.ts now exports `ResolvedSnapshot`/`StatEntry`/`ChainGroup` so
  * `buildReport()` compiles and runs against this engine exactly as it did the old one (see
- * kit.ts's own header on those types and on `addStat()`'s automatic source/owner tagging).
+ * context.ts's own header on those types and on `addStat()`'s automatic source/owner tagging).
  *
  * Two things the old page had that this one doesn't, because the new engine doesn't track them
  * yet: a resource/counter system (Energy, Concerto, Off-tune, the forte gauges all read 0 here,
@@ -23,10 +23,14 @@
  * rows the table actually shows are run back here, because a `TeamRun` carries a whole `State` for
  * the detail page and none of that can cross a postMessage.
  */
-import { Gear, Stat, Attribute, Type1, Type2, scopedStat, menuStats, baseSequence } from "./engine/kit.js";
+import { Stat, Attribute, Type1, Type2, scopedStat } from "./engine/stats.js";
+import { Gear, baseSequence } from "./engine/gear.js";
+import { menuStats } from "./engine/context.js";
 import { Action } from "./engine/rotation.js";
 import { TUNE_BREAK_ENEMY } from "./shared/tunebreak.js";
-import type { ChainGroup, HeldBuff, ResolvedSnapshot, Loadout, EchoLoadout } from "./engine/kit.js";
+import type { Loadout, EchoLoadout } from "./engine/gear.js";
+import type { HeldBuff } from "./engine/state.js";
+import type { ChainGroup, ResolvedSnapshot } from "./engine/evaluate.js";
 import { buildReport, columnSources, columnOf, OFFTUNE_RATE, ENERGY_RATE } from "./display.js";
 import type { Report, Column, ReportRow, ReportPart, TraceEntry, InfoEntry } from "./display.js";
 import { Scaling, isPercent, statLabel, SCALING_NAME, TAG_NAME, NODE_NAME } from "./engine/stats.js";
@@ -163,6 +167,36 @@ const SOLVES_KEY = "wuwa.solves.v1";
 let buildStamp: string | null = null;
 let solvesDirty = false;
 
+/** The states precompute.ts shipped, as filter signature -> file, and which of those files have
+ *  been pulled in already. A signature is `Object.values(filters)` joined, the same string on both
+ *  sides, so looking one up is exact rather than a guess at which boxes a file stands for. */
+let shippedStates: Record<string, string> | null = null;
+const shippedFetched = new Set<string>();
+/** Keys that came out of those files rather than out of a solve here. Held apart because the
+ *  localStorage save must not carry them: the shipped set runs to tens of MB, far past the quota,
+ *  and it is already on disk beside the page — re-saving it would evict the solves that aren't. */
+const shippedKeys = new Set<string>();
+
+const filterSignature = (f: Filters): string => Object.values(f).join(",");
+
+/** Pull in the shipped solves for one filter state, if there are any and they aren't in yet. A
+ *  state with no file is remembered too, so a miss costs one lookup rather than a fetch per
+ *  refresh. Never overwrites what this session solved: a live solve is this build's own answer. */
+async function loadShipped(f: Filters): Promise<void> {
+  const sig = filterSignature(f);
+  if (!shippedStates || shippedFetched.has(sig)) return;
+  shippedFetched.add(sig);
+  const file = shippedStates[sig];
+  if (!file) return;
+  try {
+    const res = await fetch(`./solves/${file}`, { cache: "no-store" });
+    if (!res.ok) return;
+    const saved = (await res.json()) as { solves: [string, Solved][]; picks: [string, Pick[]][] };
+    for (const [k, v] of saved.solves) if (!bestPicks.has(k)) { bestPicks.set(k, v); shippedKeys.add(k); }
+    for (const [k, v] of saved.picks) if (!picksCache.has(k)) picksCache.set(k, v);
+  } catch { /* missing, half-written or a stale shape — that state just solves here instead */ }
+}
+
 async function loadSolves(): Promise<void> {
   const restore = (saved: SolveSave): void => {
     if (saved.stamp !== buildStamp) return;
@@ -173,11 +207,13 @@ async function loadSolves(): Promise<void> {
     const live = await fetch("/__livereload", { cache: "no-store" }).catch(() => null);
     if (live?.ok) buildStamp = await live.text();
     else {
-      const shipped = await fetch("./solves.json", { cache: "no-store" });
-      if (!shipped.ok) return;
-      const saved = (await shipped.json()) as SolveSave;
-      buildStamp = saved.stamp;
-      restore(saved);
+      const idx = await fetch("./solves/index.json", { cache: "no-store" });
+      if (!idx.ok) return;
+      const meta = (await idx.json()) as { stamp: string; states: Record<string, string> };
+      buildStamp = meta.stamp;
+      shippedStates = meta.states;
+      // whatever state the page is opening on, which a `#`-link may already have moved off default
+      await loadShipped(filters);
     }
     const raw = localStorage.getItem(SOLVES_KEY);
     if (raw) restore(JSON.parse(raw) as SolveSave);
@@ -188,7 +224,11 @@ function saveSolves(): void {
   if (buildStamp === null || !solvesDirty) return;
   solvesDirty = false;
   try {
-    const save: SolveSave = { stamp: buildStamp, solves: [...bestPicks], picks: [...picksCache] };
+    const save: SolveSave = {
+      stamp: buildStamp,
+      solves: [...bestPicks].filter(([k]) => !shippedKeys.has(k)),
+      picks: [...picksCache],
+    };
     localStorage.setItem(SOLVES_KEY, JSON.stringify(save));
   } catch { /* over quota — solved again next load */ }
 }
@@ -264,11 +304,11 @@ function rowWanted(row: TeamRow): boolean {
  * One team's own rows: every combo its solve opened for it (solver.ts's own `rowPicks()`), turned
  * into real gear and filtered down to what the resonator/weapon/echo/mainstat filters still want.
  *
- * Every open weapon/echo/mainstat box is crossed in full there — a member with more than one open
- * axis gets the full cross of those, and members are crossed against each other the same way,
- * rather than "one member varies while the rest sits at its best". A closed axis contributes the
- * one pick that team's search settled on, and a main-stat axis that is closed is re-rolled per row
- * so a worse weapon is judged wearing the rolls it actually wants, not the winner's.
+ * Every open weapon/echo/sequence/mainstat box is crossed in full there — a member with more than
+ * one open axis gets the full cross of those, and members are crossed against each other the same
+ * way, rather than "one member varies while the rest sits at its best". A closed axis contributes
+ * the one pick that team's search settled on, and a main-stat axis that is closed is re-rolled per
+ * row so a worse weapon is judged wearing the rolls it actually wants, not the winner's.
  */
 function expandTeam(teamKey: string, members: Member[]): TeamRow[] {
   const solved = bestPicks.get(bestKey(teamKey, members, filters));
@@ -328,8 +368,7 @@ function axisWays(
 
 /** How many rows `expandTeam()` will end up building for this team, without solving it first — the
  *  full team-wide cross of every open axis's own candidates, filtered by that axis's own option
- *  filters (see `axisWays()`/`rowWanted()`), plus the sequence variations' own row apiece
- *  (additive, since those aren't crossed in — see `expandTeam()`). Needs no solved build to know,
+ *  filters (see `axisWays()`/`rowWanted()`). Needs no solved build to know,
  *  since every count here is a candidate *count*, not which index is "best" — lets the progress
  *  bar's true total, and the row-cap check in `boot()`, both be known before a single team is
  *  solved, under a hypothetical filter state as easily as the real one (`f` defaults to it but a
@@ -337,25 +376,20 @@ function axisWays(
 function estimatedRowCount(members: Member[], f: Filters = filters): number {
   const openFor = (m: Member, mdpsKey: keyof Filters, supportKey: keyof Filters): boolean =>
     f[m.mainDps ? mdpsKey : supportKey];
-  const crossed =
-    axisWays(members.map((m) => (openFor(m, "mdpsWeapons", "supportWeapons")
+  return axisWays(members.map((m) => (openFor(m, "mdpsWeapons", "supportWeapons")
       ? eligibleWeapons(m, f).map((i) => m.loadout.weapons[i]!.name) : null)), weaponFilters)
     * axisWays(members.map((m) => (openFor(m, "mdpsEchoes", "supportEchoes")
       ? m.loadout.echoLoadouts.map((e) => echoLabel(m.loadout, e)) : null)), echoFilters)
     // an open box shows the best few rolls for each build, not the whole list (solver.ts's own
     // `rowPicks()`) — the count has to match, since this is what the row cap is checked against
     * axisWays(members.map((m) => (openFor(m, "mdpsMainstats", "supportMainstats")
-      ? m.loadout.mainstats.map((g) => g.name) : null)), mainstatFilters, MAINSTAT_ROWS);
-  // The sequence filter isn't an axis of the cross — a level opens a row of its own instead (see
-  // `expandTeam()`) — so it's counted here, row by row: the cross runs every member at the level a
-  // closed box would show (their own baseline), which carries no tag at all, and
-  // each extra row carries the one tag of the member whose level it moved.
-  const wantsTags = (tags: string[]): boolean =>
-    [...sequenceFilters].every(([name, mode]) => tags.includes(name) === (mode === "include"));
-  const sequenceExtra = members.reduce((sum, m) => sum + sequenceLevels(m, f).slice(1)
-    .filter((level) => wantsTags([sequenceTagAt(m, level, f)].filter((t): t is string => t !== null)))
-    .length, 0);
-  return (wantsTags([]) ? crossed : 0) + sequenceExtra;
+      ? m.loadout.mainstats.map((g) => g.name) : null)), mainstatFilters, MAINSTAT_ROWS)
+    // Sequences are an axis of the cross like the rest. Unlike the three above, the level a
+    // *closed* box shows is known without solving anything (the member's own baseline), so this
+    // passes the real list either way rather than the `null` an un-searched axis uses — and the
+    // baseline carries no tag at all, which is what the empty string stands in for.
+    * axisWays(members.map((m) => sequenceLevels(m, f)
+      .map((level) => sequenceTagAt(m, level, f) ?? "")), sequenceFilters);
 }
 
 /** The whole table's own prospective row count, under whatever filter state is live right now (or
@@ -531,7 +565,7 @@ function buildPop(kind: string, key: string): string {
   if (kind === "dpr") {
     const run = results.get(key);
     // the one hover whose cell also navigates (see `.gotodetail`), so it says so, top right
-    return run ? `<span class="pop dpr"><div class="popnote">Click to view details</div>${dprTable(run)}</span>` : "";
+    return run ? `<span class="pop dpr">${dprTable(run)}</span>` : "";
   }
   if (kind === "gear") {
     const at = key.lastIndexOf("|");
@@ -633,9 +667,9 @@ function infoPopover(info: InfoEntry[] | undefined, slotHue: Map<string, string>
 
 /** The hover on a resonator's own name, in the rotation table: every buff actually held once
  *  this action resolved — local (this member's own), global (team-wide), and enemy (debuffs on
- *  the target) kept in their own sections, since that's a real distinction (kit.ts's own
+ *  the target) kept in their own sections, since that's a real distinction (evaluate.ts's own
  *  `heldLocal`/`heldGlobal`/`heldEnemy`), not just a formatting choice. Buffs only: equipped gear
- *  is filtered out engine-side (see kit.ts's own `TeamMember.equipped`) and named by the loadout
+ *  is filtered out engine-side (see state.ts's own `TeamMember.equipped`) and named by the loadout
  *  popover instead.
  *
  *  Sorted and coloured by source — whose kit each buff came from, tracked by the engine as it's
@@ -688,7 +722,7 @@ function buffsPopover(member: string, gear: Gear[], local: HeldBuff[], global: H
 /** Sum one slot's own damage, grouped by whatever tag `keyOf` reads off each hit's own action —
  *  `slot: null` includes every slot instead (the DPR table's own Total row, which has no one
  *  member to filter to). Every line here is a single action (this engine has no chain concept —
- *  see kit.ts's own `ChainGroup`), so it reads `line.snap` directly rather than iterating `parts`.
+ *  see evaluate.ts's own `ChainGroup`), so it reads `line.snap` directly rather than iterating `parts`.
  *
  *  A folded ActionGroup row is the one line that is more than one cast, so it is read through its
  *  own members rather than off the row: the row's action is only the group's *last* cast, and
@@ -706,7 +740,7 @@ function sumByTag(
     by.set(key, (by.get(key) ?? 0) + avg);
   };
   for (const line of lines) {
-    // a field window's summary restates hits that are lines of their own (kit.ts's `aggregate`)
+    // a field window's summary restates hits that are lines of their own (evaluate.ts's `aggregate`)
     if (line.aggregate) continue;
     if (!line.isChain) { add(line.snap, line.avg); continue; }
     const members = new Set(line.members ?? []);
@@ -843,7 +877,7 @@ const OTHER_SCOPES = [
 ];
 
 /** A loadout's own constant/unconditional stats — the "menu stats" the game's own character
- *  screen shows, read off nothing but its equipped gear (kit.ts's own `menuStats()`, the full
+ *  screen shows, read off nothing but its equipped gear (context.ts's own `menuStats()`, the full
  *  piece list including the resonator/talent/inherents that `equippedGear()` above deliberately
  *  drops). HP/ATK/DEF fold base/bonus/flat the same way the resonator's own totals do; Dmg Bonus
  *  collapses down to each scope bucket's single biggest line (see the three arrays above) instead
@@ -902,7 +936,7 @@ const gearPopover = (member: Member, combo: Combo): string => lazyPop(gearPopove
 
 /** What a member's own name cell reads as: the resonator, then their sequence level and weapon
  *  rank as one token (`S0R1`) — the level this row actually runs at (see `sequenceLevels()`), and
- *  R1 when this row's weapon is a signature/limited one rather than a standard (see kit.ts's own
+ *  R1 when this row's weapon is a signature/limited one rather than a standard (see gear.ts's own
  *  `Weapon.standard`). Always shown, weapon options box or no: the weapon/echo/mainstat picks
  *  themselves live in their own columns now (see `optionCell()`), not appended here, so there's
  *  nothing left for the rank marker to be redundant with. */
@@ -1003,16 +1037,78 @@ function searchResults(): string {
  *  first-listed pick on that axis and nothing else is even simulated; checked, the axis opens to
  *  every pick the loadout offers and the newly reachable rows are run right then (see
  *  `Filters`/`refresh()`). Allow R1 restricts that role to `standard` weapons only
- *  (weapons/standard.ts, every generation — see kit.ts's own `Weapon.standard`) when unchecked,
+ *  (weapons/standard.ts, every generation — see gear.ts's own `Weapon.standard`) when unchecked,
  *  on the assumption a signature is only ever owned at R1.
+ *
+ *  Each option is its own box: the name on the left, its own checkbox hard right, and the
+ *  description in `FILTER_HELP` opening under both on a click of the name (`openHelp`).
  *
  *  Every id here is a `Filters` key, which is what the change handler in `boot()` keys off to
  *  update it — no id-to-field mapping table in between. The sequence pair opens no new rows the
  *  way the other three axes do (it drops whole teams instead, see `sequenceLevels()`), but it does
  *  change what every member cell is called, so it belongs to the same state and the same redraw. */
+const ROLE_HELP = (role: string) => ({
+  weapons: `Shows every weapon the ${role} can hold, in a column of its own.`,
+  echoes: `Shows every echo set the ${role} can run, in a column of its own.`,
+  mainstats: `Shows every main-stat build the ${role} can run, in a column of its own.`,
+  r1: `Lets the ${role} hold its signature weapons, not just standard ones.`,
+  sequences: `Shows a row for every sequence level the ${role} can reach, up to S6.`,
+});
+const MDPS_HELP = ROLE_HELP("main DPS"), SUPPORT_HELP = ROLE_HELP("support");
+
+/** What each option's own box opens to say — the label is shorthand, this is what ticking it
+ *  actually changes about what the table runs. */
+const FILTER_HELP: Record<keyof Filters, string> = {
+  allowR1Mdps: MDPS_HELP.r1,
+  mdpsWeapons: MDPS_HELP.weapons,
+  mdpsEchoes: MDPS_HELP.echoes,
+  mdpsMainstats: MDPS_HELP.mainstats,
+  mdpsSequences: MDPS_HELP.sequences,
+  allowR1Supports: SUPPORT_HELP.r1,
+  supportWeapons: SUPPORT_HELP.weapons,
+  supportEchoes: SUPPORT_HELP.echoes,
+  supportMainstats: SUPPORT_HELP.mainstats,
+  supportSequences: SUPPORT_HELP.sequences,
+  matrix: "Gives every resonator that has a Matrix their own, on top of the rest of the build.",
+};
+
+/** What every figure in the table is costed against, whatever the boxes above it are set to —
+ *  the one box that toggles nothing, so it states its terms rather than describing a switch. */
+const STANDARDS = [
+  "123, or simple 1323 double-intro, rotations only.",
+  "A rotation runs about 25-27s, and four of them are performed in two minutes.",
+  "A single boss, level 100, holding the default 20% resistance.",
+  "Resonators and weapons at level 90, with every skill node at level 10.",
+];
+
+/** Which boxes are showing their description — a `Filters` key, or `standards` for the box that
+ *  has no filter behind it. Module-level so a redraw — a box ticked, a chip cleared — leaves them
+ *  open where the reader left them, same as `dprOpenAt`. */
+const openHelp = new Set<string>();
+
 function comparisonFilters(): string {
-  const filter = (id: keyof Filters, label: string) =>
-    `<label>${esc(label)}<input type="checkbox" id="${id}"${filters[id] ? " checked" : ""}></label>`;
+  // The name is a button rather than a `<label>`: clicking it opens the description, so the box
+  // itself is what toggles the filter (`aria-label`/`title` name it for that click).
+  const filter = (id: keyof Filters, label: string) => {
+    const open = openHelp.has(id);
+    return `<div class="tcopt${open ? " open" : ""}">`
+      + `<div class="tcopt-head">`
+      + `<button type="button" class="tcopt-name" data-help="${id}" aria-expanded="${open}">`
+      + `${esc(label)}<span class="arrow">›</span></button>`
+      + `<input type="checkbox" id="${id}" aria-label="${esc(label)}" title="${esc(label)}"`
+      + `${filters[id] ? " checked" : ""}></div>`
+      + `<div class="tcopt-desc"${open ? "" : " hidden"}>${esc(FILTER_HELP[id])}</div>`
+      + `</div>`;
+  };
+  // the same box without a checkbox: it explains the table rather than changing it
+  const standards = () => {
+    const open = openHelp.has("standards");
+    return `<div class="tcopt note${open ? " open" : ""}"><div class="tcopt-head">`
+      + `<button type="button" class="tcopt-name" data-help="standards" aria-expanded="${open}">`
+      + `Standards and Assumptions<span class="arrow">›</span></button></div>`
+      + `<div class="tcopt-desc"${open ? "" : " hidden"}>`
+      + `<ul>${STANDARDS.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div></div>`;
+  };
   return `<div class="tcfilters">
     <div class="tcfilter-row">
       ${filter("allowR1Mdps", "Allow R1 Main DPS")}
@@ -1030,6 +1126,7 @@ function comparisonFilters(): string {
     </div>
     <div class="tcfilter-row">
       ${filter("matrix", "Enable Matrix Buffs")}
+      ${standards()}
     </div>
     ${resonatorChips()}
     <div class="tcsearch">
@@ -1405,7 +1502,7 @@ function stepRow(
     if (col.key === "concerto" && Number(row.raw.isOutro) && Number(row.raw.concertoSpent) < 100) {
       cls.push("underspent");
     }
-    // a forte gauge that's gone negative — kit.ts's own forte gauges have no floor, so a kit
+    // a forte gauge that's gone negative — context.ts's own forte gauges have no floor, so a kit
     // whose declared spend outruns what's actually held really can dip below 0 (see e.g.
     // Galbrena's own Purging Flame)
     if (col.key.startsWith("gauge:") && typeof v === "number" && v < 0) cls.push("negative");
@@ -1465,7 +1562,7 @@ function partRows(
 
 /** The whole team's rotation as one table, in the order they act. A row's own wash is whoever
  *  acted's colour, always — an echo-cast row (the rotation marker standing in for whichever
- *  mainslot echo is equipped, see kit.ts's own `run()`) still belongs to whoever's turn it was
+ *  mainslot echo is equipped, see evaluate.ts's own `run()`) still belongs to whoever's turn it was
  *  and is still shown at full strength here; only its dimmed/short treatment marks it as not a
  *  kit's own button press (`triggered`, from `run()`). */
 function rotationTable(report: Report, slotHue: Map<string, string>, gearByMember: Map<string, Gear[]>): string {
@@ -1594,8 +1691,10 @@ function dprTable(run: TeamRun, lines?: ChainGroup[][]): string {
   const grand = run.sectionTotals.reduce((a, b) => a + b, 0);
   const flat = lines?.flat();
 
+  // With no `lines` this is the comparison table's own Total hover, whose cell also navigates
+  // (see `.gotodetail`) — so the corner cell, empty on the detail page, says so there.
   const head = `<div class="rtrow rthead">`
-    + `<div class="c"></div>`
+    + `<div class="c">${lines ? "" : "Click to view details"}</div>`
     + `<div class="c num">Opener</div><div class="c num">Loop 1</div>`
     + `<div class="c num">Loop 2</div><div class="c num">Loop 3</div>`
     + `<div class="c num">Total</div>`
@@ -1635,7 +1734,7 @@ function dprTable(run: TeamRun, lines?: ChainGroup[][]): string {
 }
 
 /** Every index at which `member` casts a `resetEnergy`-marked action within `flat[from, to)`, in
- *  order — empty if they never cast one in that span (see kit.ts's own `ActionDef.resetEnergy`).
+ *  order — empty if they never cast one in that span (see rotation.ts's own `ActionDef.resetEnergy`).
  *  A loop reads the first, the opener the last: see `energyTable()`. */
 function resetIndices(flat: ChainGroup[], from: number, to: number, member: string): number[] {
   const out: number[] = [];
@@ -1648,7 +1747,7 @@ function resetIndices(flat: ChainGroup[], from: number, to: number, member: stri
 
 /** How much more ER (as a % of the 100% baseline every declared energy figure already assumes)
  *  this member would need for their build to actually have Resonance Liberation up by that loop's
- *  own first cast — maxEnergy ÷ RealEnergy right before it, see kit.ts's own realEnergyBefore.
+ *  own first cast — maxEnergy ÷ RealEnergy right before it, see evaluate.ts's own realEnergyBefore.
  *
  *  A Liberation that costs no Resonance Energy at all (`maxEnergy: 0` — Phrolova and Lucilla) has
  *  nothing to bank, so it is up regardless of the build: that's a requirement of 0, a real answer,
@@ -1679,7 +1778,7 @@ function erFallsShort(flat: ChainGroup[], targetIdx: number, member: string, req
  *  — the energy that went into the last one — or, for a member with no such interval (a kit
  *  whose Liberation costs nothing and so never resets the bar: Phrolova, Lucilla; or one that
  *  only ever cast once), `fallback`, the last loop — their casts still bank energy onto the
- *  *team's* bars (kit.ts's own evaluate() shares half of every gain), so the figure is real
+ *  *team's* bars (evaluate.ts's own evaluate() shares half of every gain), so the figure is real
  *  either way, and a loop is the same steady-state stretch a Liberation interval usually is. */
 function energySpan(flat: ChainGroup[], member: string, fallback: [number, number]): [number, number] {
   const casts = resetIndices(flat, 0, flat.length, member);
@@ -1687,7 +1786,7 @@ function energySpan(flat: ChainGroup[], member: string, fallback: [number, numbe
 }
 
 /** What a member's own actions banked over their `energySpan()`, counting only what they generated
- *  themselves. RealEnergy also carries half of every *other* member's gain (kit.ts's own
+ *  themselves. RealEnergy also carries half of every *other* member's gain (evaluate.ts's own
  *  evaluate()), and that share is not theirs, so this reads each of their own casts instead of
  *  the counter. An outro contributes nothing — the bar is thrown away there rather than moved
  *  (`energyWiped`), so what it declares never banks.
@@ -1751,7 +1850,7 @@ function teamEnergyPopover(sources: TraceEntry[], slotHue: Map<string, string>):
 
 /** Energy Requirements: one row per member (same gear-loadout hover as the DPR table above), one
  *  column per section, and their own Energy Gen last. A section the member casts no Liberation in reads `—`, and so does the one
- *  holding their first: a fight starts on a full bar (RealEnergy, see kit.ts), so that cast is
+ *  holding their first: a fight starts on a full bar (RealEnergy, see state.ts), so that cast is
  *  free and there is no requirement to state. The opener's own column is therefore about its
  *  *last* Liberation — only a second one in the same opener has anything to bank for. A cell gets
  *  a red underline when the member's own ER stat dipped below the shown requirement on any of
@@ -1777,7 +1876,7 @@ function energyTable(run: TeamRun, lines: ChainGroup[][], report: Report, slotHu
 
   const rows = run.members.map((m, idx) => {
     const maxEnergy = m.loadout.resonator.maxEnergy;
-    // The fight's very first Liberation rides in on the bar every resonator starts full (kit.ts's
+    // The fight's very first Liberation rides in on the bar every resonator starts full (state.ts's
     // own realEnergy), so it asks for no ER at all — it's dropped from the table the same way a
     // section with no Liberation in it is, rather than reading as a requirement of 0%.
     const free = resetIndices(flat, 0, flat.length, m.name)[0] ?? null;
@@ -2707,6 +2806,7 @@ async function ensureBestPicks(inPlay: [string, Member[]][], workTotal: number):
   // `bestKey()` folds in the whole filter state, so flipping any option box is a re-solve: a
   // solve carries the team's own row set with it, each row on the main stats that build wants
   // (solver.ts's own `rowPicks()`), and which rows exist is precisely what the boxes decide.
+  await loadShipped(filters);
   const teams = inPlay.filter(([key, members]) => !bestPicks.has(bestKey(key, members, filters)));
   if (!teams.length) return false;
 
@@ -2883,6 +2983,21 @@ async function boot(): Promise<void> {
     if (pos === undefined) return;
     dprOpenAt[Number(pos)] = !dprOpenAt[Number(pos)];
     renderComparison();
+  });
+  // clicking an option's own name opens or closes its description. Toggled in place rather than
+  // through a redraw: it shows text the page already holds, and re-rendering would drop the
+  // scroll position and every open panel with it (`openHelp` keeps it across a real redraw).
+  document.addEventListener("click", (e) => {
+    const btn = (e.target as Element).closest<HTMLElement>(".tcopt-name");
+    const id = btn?.dataset.help;
+    if (!btn || !id) return;
+    const box = btn.closest<HTMLElement>(".tcopt")!;
+    const open = !openHelp.has(id);
+    if (open) openHelp.add(id);
+    else openHelp.delete(id);
+    box.classList.toggle("open", open);
+    btn.setAttribute("aria-expanded", String(open));
+    box.querySelector<HTMLElement>(".tcopt-desc")!.hidden = !open;
   });
   // clicking the Team DPR heading flips the table between strongest-first and weakest-first —
   // again a redraw of figures already held (see `sortAscending`)

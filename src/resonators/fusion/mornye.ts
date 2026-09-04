@@ -19,11 +19,26 @@
  * `related_property` per hit). MVs and energy/concerto/off-tune off nanoka.cc (character 1209,
  * https://ww.nanoka.cc/character/1209), read the way CLAUDE.md describes.
  */
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Debuff } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, addStat, applyCurrent, applyTeam, currentAction, queue, queueOutro, revokeCurrent, getStat, stacksOf, stacksOfTeam, frozenStacks,
-  maxStackIncrease, Debuff, applyEnemy, revokeEnemy, isHeld, stacksOfEnemy,
-  } from "../../engine/kit.js";
+  addStat,
+  applyCurrent,
+  applyTeam,
+  currentAction,
+  queue,
+  queueOutro,
+  revokeCurrent,
+  getStat,
+  stacksOf,
+  stacksOfTeam,
+  frozenStacks,
+  maxStackIncrease,
+  applyEnemy,
+  revokeEnemy,
+  isHeld,
+  stacksOfEnemy,
+} from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, START_1, START_2, SWAP, NOINTRO, INTRO, ECHO_SWAP, OUTRO, START_3 } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import {

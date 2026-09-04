@@ -19,11 +19,18 @@
  * Numbers from nanoka.cc (character 1105) — base stats confirmed there directly; every action's
  * own MV/energy/concerto/offtune/forte1 delta ported from the migrated (old-engine) sheet.
  */
+import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Type2, Cast,
-  Node, Scaling, applyCurrent, currentAction, casting, revokeCurrent, addStat, frozenStacks, queueOutro,
+  applyCurrent,
+  currentAction,
+  casting,
+  revokeCurrent,
+  addStat,
+  frozenStacks,
+  queueOutro,
   applyTeam,
-  } from "../../engine/kit.js";
+} from "../../engine/context.js";
 import { coordinatedBuff, lostOnSwap, matrix } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_2, SWAP, ActionField } from "../../engine/rotation.js";
 import { RIME_DRAPED_SPROUTS, STRINGMASTER, LETHEAN_ELEGY, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
@@ -177,7 +184,7 @@ const ZZ_ROTATION = new Rotation([
 /* ----------------------------------------------------------------------------------- loadout */
 
 // her real 43311 build: resonator + talents + both Inherent Skills, viable weapons, and two real
-// echo choices — Empyrean Anthem or Moonlit Clouds — both automatically iterated (see kit.ts's
+// echo choices — Empyrean Anthem or Moonlit Clouds — both automatically iterated (see gear.ts's
 // own EchoLoadout)
 /** Matrix: her Liberation grants the team +30% Resonance Skill DMG Bonus for 30s — permanent. */
 const ZHEZHI_MATRIX_TEAM = new Buff({

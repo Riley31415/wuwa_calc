@@ -1,9 +1,17 @@
 /** Signature Gauntlets weapons, ported to the new engine. */
-import { isType,
-  Buff, Weapon, WeaponType, Stat, Attribute, Type1, Cast,
-  addStat, applyCurrent, setStacksSelf, casting, currentAction, revokeCurrent, frozenStacks,
-} from "../engine/kit.js";
-import { applied, appliedByMe } from "../engine/kit.js";
+import { WeaponType, Stat, Attribute, Type1, Cast } from "../engine/stats.js";
+import { Buff, Weapon } from "../engine/gear.js";
+import {
+  isType,
+  addStat,
+  applyCurrent,
+  setStacksSelf,
+  casting,
+  currentAction,
+  revokeCurrent,
+  frozenStacks,
+} from "../engine/context.js";
+import { applied, appliedByMe } from "../engine/context.js";
 import { SHIELD } from "../shared/status.js";
 import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 

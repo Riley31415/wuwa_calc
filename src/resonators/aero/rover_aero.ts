@@ -11,11 +11,21 @@
  * Cloudburst Dance/Omega Storm heals, Boundless Winds, S2 — only ever shows up as the HEALS
  * marker those casts put up (statuses.ts).
  */
+import { Tier, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
-  Cast, Node, Scaling, applyCurrent, applyTeam, applyEnemy, revokeEnemy, stacksOfEnemy, maxStackIncrease, isHeld,
-  revokeCurrent, casting, currentAction, addStat,
-} from "../../engine/kit.js";
+  applyCurrent,
+  applyTeam,
+  applyEnemy,
+  revokeEnemy,
+  stacksOfEnemy,
+  maxStackIncrease,
+  isHeld,
+  revokeCurrent,
+  casting,
+  currentAction,
+  addStat,
+} from "../../engine/context.js";
 import { Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { AERO_EROSION, SPECTRO_FRAZZLE, HAVOC_BANE, FUSION_BURST, GLACIO_CHAFE, ELECTRO_FLARE, HEALS } from "../../shared/status.js";
 import { BLOODPACTS_PLEDGE, BLOODPACT_AERO_AMP } from "../../weapons/standard.js";

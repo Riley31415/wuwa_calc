@@ -23,12 +23,22 @@
  * off every action rather than tracking the ICD. Ruler's Realm's own shield (any team member's
  * Intro while it's up) rides the realm buff itself, see RULERS_REALM.
  */
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, applyCurrent, applyTeam, revokeCurrent, revokeBuff, casting, currentAction, currentTeam, addStat, queue,
-  queueOutro, } from "../../engine/kit.js";
+  applyCurrent,
+  applyTeam,
+  revokeCurrent,
+  revokeBuff,
+  casting,
+  currentAction,
+  currentTeam,
+  addStat,
+  queue,
+  queueOutro,
+} from "../../engine/context.js";
 import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
-import { applied } from "../../engine/kit.js";
+import { applied } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { SHIELD } from "../../shared/status.js";
 import { THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
@@ -122,7 +132,7 @@ const CROWN_OF_WILLS = new Buff({
 /** Opens alongside Sublime is the Sun, 30s — permanent uptime once granted. While it's up, any
  *  team member's Intro grants them a shield (650 + 5% of her Max HP, 10s, unstackable) — put up
  *  as one shield marker, but only when that Intro hasn't shielded already: a team buff's own
- *  updateDebuffs() runs after every piece of the actor's equipped gear (kit.ts's freezeHeld walks
+ *  updateDebuffs() runs after every piece of the actor's equipped gear (state.ts's freezeHeld walks
  *  the slot's own gear first, then team buffs), so Iuno's/Jingran's/her own Intro shield is
  *  already counted by the time this looks, and they don't get a second. */
 const RULERS_REALM = new Buff({

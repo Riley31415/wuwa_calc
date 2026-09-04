@@ -3,7 +3,7 @@
  *  Every enum here is a numeric `const enum`: each member compiles to its bare number wherever it
  *  is used, there is no enum object at runtime, and how a value reads for a person lives in a
  *  separate `*_NAME` table beside it. `Stat` and `EnemyStat` share one index space, so the engine's
- *  per-action totals are a plain array indexed by the stat itself (kit.ts's own `effective`); the
+ *  per-action totals are a plain array indexed by the stat itself (state.ts's own `effective`); the
  *  three tag enums share another, so a scoped stat packs into one integer (see `scopedStat`). */
 
 /* ------------------------------------------------------------------ flat stats */
@@ -110,7 +110,7 @@ export const STAT_NAME: Record<Stat | EnemyStat, string> = {
  * attribute in 6-11, Type1 in 12-17, Type2 in 18-23. The tag enums are numbered *in place* — an
  * Attribute is already `n << 6`, a Type1 `n << 12` — so a scoped stat is just `stat | tag`
  * (`scopedStat()`), an action's own element/type/type2 OR together into one word with no shifting
- * (kit.ts's own `tagWordOf()`), and "does this scope match the action" is that word masked to the
+ * (runtime.ts's own `tagWordOf()`), and "does this scope match the action" is that word masked to the
  * tag's own band and compared. 0 in a band means none: unscoped, or an action with no such tag. */
 
 const STAT_BITS = 0x3f;
@@ -207,7 +207,7 @@ export const enum WeaponType {
 }
 
 /** How hard a resonator is to own, which is the only thing deciding how much of their resonance
- *  chain a build is assumed to hold (kit.ts's own `baseSequence()`):
+ *  chain a build is assumed to hold (gear.ts's own `baseSequence()`):
  *
  *  - `Limited` — a limited 5-star, banner-only: S0, one copy is the whole build.
  *  - `Standard` — a standard 5-star, permanently available and pulled into over time (Encore,

@@ -17,11 +17,19 @@
  * Numbers from nanoka.cc (character 1503) — she has no migrated-sheet row, so this is nanoka's own
  * Skill Attributes table throughout; anything not exposed there stays 0, flagged rather than guessed.
  */
+import { Tier, Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
-  Type2, Cast, Node, Scaling, applyTeam, revokeTeam, applyEnemy, isHeld, casting, currentAction,
-  addStat, queue, applyCurrent,
-} from "../../engine/kit.js";
+  applyTeam,
+  revokeTeam,
+  applyEnemy,
+  isHeld,
+  casting,
+  currentAction,
+  addStat,
+  queue,
+  applyCurrent,
+} from "../../engine/context.js";
 import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, JUMP, ActionField } from "../../engine/rotation.js";
 import { coordinatedBuff } from "../../shared/helpers.js";
 import { HEALS } from "../../shared/status.js";

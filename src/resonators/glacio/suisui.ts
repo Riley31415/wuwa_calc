@@ -42,14 +42,33 @@
  * does not expose; the two agree on every MV/energy/concerto/off-tune figure they share. Her
  * `weakness_mastery` is 0, so she carries no flat Tune Break Boost.
  */
+import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType,
-  Type1, Type2, Cast, Node, Scaling, addStat, applied, applyCurrent, applyEnemy, applyTeam, casting,
-  concerto, consumedAny, consumedByMe, currentAction, currentTeam, isType, maxStackIncrease, queueOn,
-  queueOutro, removeStackTeam, revokeCurrent, revokeTeam, setForte1, setForte2, stacksOfTeam,
+  addStat,
+  applied,
+  applyCurrent,
+  applyEnemy,
+  applyTeam,
+  casting,
+  concerto,
+  consumedAny,
+  consumedByMe,
+  currentAction,
+  currentTeam,
+  isType,
+  maxStackIncrease,
+  queueOn,
+  queueOutro,
+  removeStackTeam,
+  revokeCurrent,
+  revokeTeam,
+  setForte1,
+  setForte2,
+  stacksOfTeam,
   frozenStacks,
   forte2,
-  } from "../../engine/kit.js";
+} from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import {
   AERO_EROSION, ELECTRO_FLARE, ELECTRO_RAGE, FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE, HEALS, SPECTRO_FRAZZLE,
@@ -152,7 +171,7 @@ const LANDSCAPE_CAPS: [Debuff, Type2][] = [
  *  updateGlobal the team pool runs behind every slot's own gear, so the very first Chafe of a fight
  *  is still calculated at the unraised cap and everything after it at +3.
  *
- *  The Havoc branch reads the engine's own consumption log (kit.ts's `consume()`/`consumedByMe()`)
+ *  The Havoc branch reads the engine's own consumption log (context.ts's `consume()`/`consumedByMe()`)
  *  rather than the target merely carrying a Bane, and from `afterAction` because that is the phase
  *  a kit spends its stacks in — Xuanling's Sword Stance Flow, the only cast in the roster that
  *  spends any, deliberately waits until then so the cast itself still reads the full count. Against
