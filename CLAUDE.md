@@ -2,7 +2,7 @@
 - do not read TODO.md
 - comments: 1-2 lines max
 - read web pages as a human would; never screenshot them
-- stage changes, commit changes, or push changes to git
+- DO NOT stage changes, commit changes, or push changes to git
 
 # implementing kits
 - nanoka.cc is the source of truth; `migration/` data is only a sanity check (and a source of action MVs)

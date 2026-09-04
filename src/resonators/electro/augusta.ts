@@ -36,8 +36,10 @@ import {
   addStat,
   queue,
   queueOutro,
+  forte2,
+  setForte2,
 } from "../../engine/context.js";
-import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
+import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ECHO_SWAP } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { SHIELD } from "../../shared/status.js";
@@ -66,17 +68,20 @@ const MDC = augustaAction("Dodge Counter - Hunter's Path (Mid-Air)", { node: Nod
 
 // heavy attack: Steelclash, base cast; at full Prowess it's replaced by Backstep -> Spinslash
 const HA = augustaAction("Heavy - Hunter's Path", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 139.17, energy: 1.77, concerto: 3.51, offtune: 5601, forte1: 342, forte2: 255 });
-const FHA1 = augustaAction("Forte Heavy - Thunderoar: Backstep", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 53.68, energy: 0.50, concerto: 1, offtune: 1600, forte1: -660, forte2: 50 });
+const FHA1 = augustaAction("Heavy - Thunderoar: Backstep", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 53.68, energy: 0.50, concerto: 1, offtune: 1600, forte1: -660, forte2: 50 });
 const FHA2 = augustaAction("Heavy - Thunderoar: Spinslash", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 425.16, energy: 4.47, concerto: 8.91, offtune: 14256, forte2: 744 });
-const FJump = augustaAction("Forte Heavy - Thunderoar: Uppercut", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 357.86, energy: 3.76, concerto: 7.50, offtune: 12000, forte1: -660, forte2: 382 });
+const FJump = augustaAction("Heavy - Thunderoar: Uppercut", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 357.86, energy: 3.76, concerto: 7.50, offtune: 12000, forte1: -660, forte2: 382 });
 
 // resonance skill: Warrior's Blade, base cast; at full Ascendancy it's replaced by the Undying
 // Sunlight Strike -> Leap -> Plunge chain instead
 const Skill = augustaAction("Skill - Warrior's Blade", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 656.1, energy: 9, concerto: 10, offtune: 4491, forte1: 660, forte2: 500 });
-const FSkill1 = augustaAction("Forte Skill - Undying Sunlight: Strike", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 278.34, energy: 5, concerto: 7, offtune: 18200, forte2: -5000 });
-const FSkill2 = augustaAction("Skill - Undying Sunlight: Leap", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 278.35, energy: 5, concerto: 7, offtune: 11200 });
+const FSkill1 = augustaAction("Forte Skill - Undying Sunlight: Strike", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 278.34, energy: 5, concerto: 7, offtune: 18200, 
+  forte2: -4000,
+  applyStats: () => { if (forte2() > 4000) setForte2(4000); },
+});
+const FSkill2 = augustaAction("Forte Skill - Undying Sunlight: Leap", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 278.35, energy: 5, concerto: 7, offtune: 11200 });
 /** Consumes all Ascendancy, counts as Heavy Attack DMG, grants a stack of Majesty. */
-const FSkill3 = augustaAction("Skill - Undying Sunlight: Plunge", {
+const FSkill3 = augustaAction("Forte Skill - Undying Sunlight: Plunge", {
   node: Node.Forte, cast: Cast.Skill, type: Type1.Heavy, mv: 865.83, energy: 11, concerto: 7, offtune: 24000,
   updateBuffs: () => applyCurrent(MAJESTY, 1),
 });
@@ -87,7 +92,7 @@ const Lib1 = augustaAction("Liberation - Sword of Eternal Oath", { node: Node.Li
  *  Energy, spent via AUGUSTA_RESONATOR's own updateBuffs() below. Nine hits lumped into one action; queues
  *  Everbright Protector itself once the ninth lands. */
 const Lib2 = augustaAction("Liberation - Sublime is the Sun", {
-  node: Node.Liberation, cast: Cast.Liberation, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation,
   updateBuffs: () => { queue(Lib2fua); queue(Lib3); applyTeam(RULERS_REALM, 1); revokeCurrent(MAJESTY); },
 });
 
@@ -95,7 +100,7 @@ const Lib2fua = augustaAction("Liberation - Sublime is the Sun: Sunborne x9", { 
 /** The finisher — ends Sworn Allegiance and spends every stack of Crown of Wills. Costs no
  *  Resonance Energy. */
 const Lib3 = augustaAction("Liberation - Sublime is the Sun: Everbright Protector", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 1192.93, energy: 60, concerto: 10, offtune: 50400,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 1192.93, concerto: 10, offtune: 50400,
   updateBuffs: () => {
     // memberOf() throws on a resonator not on this team, so only reach for it if Phrolova's along
     if (currentTeam().slots.some((s) => s.resonator === PHROLOVA_RESONATOR)) revokeBuff(PHROLOVA_RESONATOR, MAESTRO);
@@ -204,8 +209,8 @@ const AUGUSTA_TALENTS = new Talent({
 // Undying Sunlight chain. She's never the team's own lead, so this covers both opener and loop.
 
 const AG_ROTATION = new Rotation([
-  INTRO, FHA1, FHA2, Skill, FHA1, FHA2, ECHO_CANCEL, Lib1,
-  FSkill1, FSkill2, FSkill3, Lib2, OUTRO,
+  INTRO, FHA1, FHA2, Skill, Lib1, FHA1, FHA2,
+  FSkill1, FSkill2, FSkill3, Lib2, ECHO_SWAP, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

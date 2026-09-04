@@ -9809,13 +9809,26 @@ var MA7 = augustaAction("Mid-air - Hunter's Path", { node: 0, cast: 2, type: 409
 var DC8 = augustaAction("Dodge Counter - Hunter's Path 2", { node: 0, cast: 0, type: 4096, mv: 134, energy: 1.7, concerto: 13.38, offtune: 5392, forte1: 230, forte2: 172 });
 var MDC3 = augustaAction("Dodge Counter - Hunter's Path (Mid-Air)", { node: 0, cast: 0, type: 4096, mv: 119.3, energy: 1.5, concerto: 12, offtune: 7200, forte1: 50, forte2: 154 });
 var HA8 = augustaAction("Heavy - Hunter's Path", { node: 0, cast: 3, type: 8192, mv: 139.17, energy: 1.77, concerto: 3.51, offtune: 5601, forte1: 342, forte2: 255 });
-var FHA12 = augustaAction("Forte Heavy - Thunderoar: Backstep", { node: 0, cast: 3, type: 8192, mv: 53.68, energy: 0.5, concerto: 1, offtune: 1600, forte1: -660, forte2: 50 });
+var FHA12 = augustaAction("Heavy - Thunderoar: Backstep", { node: 0, cast: 3, type: 8192, mv: 53.68, energy: 0.5, concerto: 1, offtune: 1600, forte1: -660, forte2: 50 });
 var FHA23 = augustaAction("Heavy - Thunderoar: Spinslash", { node: 0, cast: 3, type: 8192, mv: 425.16, energy: 4.47, concerto: 8.91, offtune: 14256, forte2: 744 });
-var FJump2 = augustaAction("Forte Heavy - Thunderoar: Uppercut", { node: 0, cast: 3, type: 8192, mv: 357.86, energy: 3.76, concerto: 7.5, offtune: 12e3, forte1: -660, forte2: 382 });
+var FJump2 = augustaAction("Heavy - Thunderoar: Uppercut", { node: 0, cast: 3, type: 8192, mv: 357.86, energy: 3.76, concerto: 7.5, offtune: 12e3, forte1: -660, forte2: 382 });
 var Skill9 = augustaAction("Skill - Warrior's Blade", { node: 1, cast: 4, type: 12288, mv: 656.1, energy: 9, concerto: 10, offtune: 4491, forte1: 660, forte2: 500 });
-var FSkill1 = augustaAction("Forte Skill - Undying Sunlight: Strike", { node: 2, cast: 4, type: 12288, mv: 278.34, energy: 5, concerto: 7, offtune: 18200, forte2: -5e3 });
-var FSkill22 = augustaAction("Skill - Undying Sunlight: Leap", { node: 2, cast: 4, type: 12288, mv: 278.35, energy: 5, concerto: 7, offtune: 11200 });
-var FSkill3 = augustaAction("Skill - Undying Sunlight: Plunge", {
+var FSkill1 = augustaAction("Forte Skill - Undying Sunlight: Strike", {
+  node: 2,
+  cast: 4,
+  type: 12288,
+  mv: 278.34,
+  energy: 5,
+  concerto: 7,
+  offtune: 18200,
+  forte2: -4e3,
+  applyStats: () => {
+    if (forte2() > 4e3)
+      setForte2(4e3);
+  }
+});
+var FSkill22 = augustaAction("Forte Skill - Undying Sunlight: Leap", { node: 2, cast: 4, type: 12288, mv: 278.35, energy: 5, concerto: 7, offtune: 11200 });
+var FSkill3 = augustaAction("Forte Skill - Undying Sunlight: Plunge", {
   node: 2,
   cast: 4,
   type: 8192,
@@ -9829,7 +9842,6 @@ var Lib1 = augustaAction("Liberation - Sword of Eternal Oath", { node: 3, cast: 
 var Lib2 = augustaAction("Liberation - Sublime is the Sun", {
   node: 3,
   cast: 5,
-  resetEnergy: true,
   updateBuffs: () => {
     queue(Lib2fua);
     queue(Lib3);
@@ -9843,7 +9855,6 @@ var Lib3 = augustaAction("Liberation - Sublime is the Sun: Everbright Protector"
   cast: 5,
   type: 8192,
   mv: 1192.93,
-  energy: 60,
   concerto: 10,
   offtune: 50400,
   updateBuffs: () => {
@@ -9949,14 +9960,14 @@ var AG_ROTATION = new Rotation([
   FHA12,
   FHA23,
   Skill9,
+  Lib1,
   FHA12,
   FHA23,
-  ECHO_CANCEL,
-  Lib1,
   FSkill1,
   FSkill22,
   FSkill3,
   Lib2,
+  ECHO_SWAP,
   OUTRO
 ]);
 var AUGUSTA = new Loadout({
