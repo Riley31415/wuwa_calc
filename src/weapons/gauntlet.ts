@@ -2,8 +2,8 @@
 import { isType,
   Buff, Weapon, WeaponType, Stat, Attribute, Type1, Cast,
   addStat, applyCurrent, setStacksSelf, casting, currentAction, revokeCurrent, frozenStacks,
-} from "../kit.js";
-import { applied, appliedByMe } from "../kit.js";
+} from "../engine/kit.js";
+import { applied, appliedByMe } from "../engine/kit.js";
 import { SHIELD } from "../shared/status.js";
 import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 

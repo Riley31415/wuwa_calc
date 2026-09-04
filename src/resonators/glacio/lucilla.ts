@@ -46,13 +46,13 @@ import {
   typeOverride, Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, ResonanceMode, Stat,
   EnemyStat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, applied, applyCurrent, applyTeam, applyEnemy,
   isHeld, casting, currentAction, currentTeam, addStat, addEnemyStat, frozenStacks, forte1, queue, queueOutro,
-  removeStackTeam, revokeCurrent, } from "../../kit.js";
+  removeStackTeam, revokeCurrent, } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { GLACIO_CHAFE } from "../../shared/status.js";
 import { FREEZE_FRAME, STRINGMASTER, LETHEAN_ELEGY } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
-import { BELL_BORNE_GEOCHELONE, HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC, REJUV_2PC, FREEZING_FROST_2PC } from "../../echoes/jinzhou.js";
+import { BELL_BORNE_GEOCHELONE, HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC, REJUV_2PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { DREAM_OF_THE_LOST_3PC, LAW_OF_HARMONY_3PC } from "../../echoes/septimont.js";
 import { NM_HECATE } from "../../echoes/rinascita.js";
@@ -145,12 +145,12 @@ const LettingGo = lucillaAction("Basic - Letting It Go", { node: Node.Liberation
 
 /** A loadout equips exactly one. Neither carries its own stat line — both are pure markers other
  *  pieces read via `isHeld(MODE_ECHO)`, same as checking a sequence Gear. */
-const MODE_ECHO = new ResonanceMode({ name: "Lucilla: Resonance Mode - Echo" });
+const MODE_ECHO = new ResonanceMode({ name: "Resonance Mode - Echo" });
 /** Chafe mode is also what makes Clear As Day and Letting It Go Basic Attack DMG rather than Echo
  *  Skill DMG — assigned through typeOverride, the first phase of the action, so every scoped stat
  *  and isType() check sees Basic. */
 const MODE_CHAFE = new ResonanceMode({
-  name: "Lucilla: Resonance Mode - Glacio Chafe",
+  name: "Resonance Mode - Glacio Chafe",
   // the retag has to land in the first phase, before anything reads the type (see typeOverride)
   updateDebuffs: () => { const a = currentAction(); if (a === Liberation || a === LettingGo) typeOverride(Type1.Basic); },
 });
@@ -159,17 +159,17 @@ const MODE_CHAFE = new ResonanceMode({
  *  Echo Skill DMG Bonus for 30s — permanent uptime. Team-wide since it lands on whoever's own
  *  turn it currently is, not just Lucilla's own. */
 const SLOW_MOTION_TEAM = new Buff({
-  name: "Lucilla: Slow Motion",
+  name: "Inherent: Slow Motion",
   applyStats: () => addStat(Stat.DmgBonus, 25, Type1.Echo),
 });
 /** Chafe-mode payout: -8% Glacio RES on the target for 30s — a genuine enemy debuff, permanent
  *  uptime once granted. */
 const SLOW_MOTION_CHAFE = new Debuff({
-  name: "Lucilla: Slow Motion",
-  applyStats: () => addEnemyStat(EnemyStat.ResShred, 8, Attribute.Glacio),
+  name: "Inherent: Slow Motion",
+  applyStats: () => addEnemyStat(EnemyStat.ResReduce, 8, Attribute.Glacio),
 });
 const LC_INHERENT_1 = new Inherent({
-  name: "Lucilla: Slow Motion",
+  name: "Inherent: Slow Motion",
   updateBuffs: () => {
     if (currentAction() !== Spotlight) return;
     if (isHeld(MODE_ECHO)) applyTeam(SLOW_MOTION_TEAM, 1);
@@ -205,7 +205,7 @@ const FILM_ROLL: Buff = new Buff({
 /** Remembrance (Inherent Skill): each Photo consumed (each Oblivion cast) grants 1 Zoom under
  *  Echo mode or 2 Film Roll under Chafe — on top of Déjà Vu's own flat Liberation grant. */
 const LC_INHERENT_2 = new Inherent({
-  name: "Lucilla: Remembrance",
+  name: "Inherent: Remembrance",
   updateBuffs: () => {
     const a = currentAction();
     if (a === OblivionEcho) applyTeam(ZOOM, 1);
@@ -284,14 +284,14 @@ const LC_ECHOES = [
   new EchoLoadout(BELL_BORNE_GEOCHELONE, LAW_OF_HARMONY_3PC, MOONLIT_CLOUDS_2PC),
   new EchoLoadout(FALLACY, LAW_OF_HARMONY_3PC, REJUV_2PC),
 
-  new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
-  new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
+  new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
+  new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC),
 ];
 
 const LC_ECHOES_CHAFE = [
   new EchoLoadout(GLOMMOTH, DREAM_OF_THE_LOST_3PC, QUIET_SNOWFALL_2PC),
-  new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
-  new EchoLoadout(GLOMMOTH, QUIET_SNOWFALL_5PC, QUIET_SNOWFALL_2PC),
+  new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
+  new EchoLoadout(GLOMMOTH, QUIET_SNOWFALL_5PC),
 ];
 
 export const LUCILLA = new Loadout({

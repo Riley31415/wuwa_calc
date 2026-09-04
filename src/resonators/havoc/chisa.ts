@@ -65,8 +65,8 @@ import {
   setForte2,
   setForte1,
   forte1,
-} from "../../kit.js";
-import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, START_1, START_2, SWAP, START_3 } from "../../rotation.js";
+} from "../../engine/kit.js";
+import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, START_1, START_2, SWAP, START_3 } from "../../engine/rotation.js";
 import {
   HEALS, SHIELD, HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, FUSION_BURST, AERO_EROSION, SPECTRO_FRAZZLE, ELECTRO_RAGE,
   inflictedNegativeStatus,
@@ -206,7 +206,7 @@ const RING_CONSUMED = new Buff({
 /** All Ends Here (Inherent 2's own stat half): casting Intro or Liberation grants +20% Havoc DMG
  *  Bonus and +20% Healing Bonus for 12s — lost after the outro like every short self window here. */
 const ALL_ENDS_HERE = new Buff({
-  name: "Chisa: All Ends Here",
+  name: "Inherent: All Ends Here",
   applyStats: () => { addStat(Stat.DmgBonus, 20, Attribute.Havoc); addStat(Stat.HealingBonus, 20); },
   convertStats: () => { if (currentAction() === Outro) revokeCurrent(ALL_ENDS_HERE); },
 });
@@ -262,12 +262,12 @@ const THREAD_OF_BANE = new Buff({
 
 /** Inescapable Fate (Inherent 1): resets her Skill's cooldown off an ally's kill on a Snare-marked
  *  target — no engine hook for a "defeat," so this contributes nothing, like Mornye's Boundedness. */
-const CS_INHERENT_1 = new Inherent({ name: "Chisa: Inescapable Fate" });
+const CS_INHERENT_1 = new Inherent({ name: "Inherent: Inescapable Fate" });
 
 /** All Ends Here (Inherent 2): grants ALL_ENDS_HERE above off her own Intro/Liberation. Its second
  *  half — Sight of Unraveling, another on-kill chain — is left out for the same reason as Inherent 1. */
 const CS_INHERENT_2 = new Inherent({
-  name: "Chisa: All Ends Here",
+  name: "Inherent: All Ends Here",
   updateBuffs: () => { if (currentAction() === Intro || currentAction() === Liberation) applyCurrent(ALL_ENDS_HERE, 1); },
 });
 
@@ -315,9 +315,9 @@ const CS_ECHOES = [
   new EchoLoadout(FALLACY, THREAD_OF_SEVERED_FATE_3PC, REJUV_2PC),
   new EchoLoadout(HERON, THREAD_OF_SEVERED_FATE_3PC, MOONLIT_CLOUDS_2PC),
   new EchoLoadout(BELL_BORNE_GEOCHELONE, THREAD_OF_SEVERED_FATE_3PC, MOONLIT_CLOUDS_2PC),
-  new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
-  new EchoLoadout(BELL_BORNE_GEOCHELONE, REJUV_5PC, REJUV_2PC),
-  new EchoLoadout(FALLACY, REJUV_5PC, REJUV_2PC),
+  new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
+  new EchoLoadout(BELL_BORNE_GEOCHELONE, REJUV_5PC),
+  new EchoLoadout(FALLACY, REJUV_5PC),
 ];
 
 export const CHISA = new Loadout({

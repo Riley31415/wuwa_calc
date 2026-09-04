@@ -1,18 +1,18 @@
 /** Mainslot echoes and sonatas from Septimont (versions 2.5-2.7). */
 import { isType,
-  Buff, Sonata, Sonata2pc, Mainslot, EchoType, Stat, Attribute, Type1, Cast, Scaling,
+  Buff, Sonata, Sonata3pc, Sonata2pc, Mainslot, EchoType, Stat, Attribute, Type1, Cast, Scaling,
   addStat, frozenStacks, stacksOf, stacksOfEnemy, stacksOfTeam, applyCurrent, applyTeam, casting, currentAction,
   revokeCurrent, maxEnergy, queue, triggeredAction,
-} from "../kit.js";
-import { Action } from "../rotation.js";
-import { applied, appliedByMe } from "../kit.js";
+} from "../engine/kit.js";
+import { Action } from "../engine/rotation.js";
+import { applied, appliedByMe } from "../engine/kit.js";
 import { SHIELD, HAVOC_BANE } from "../shared/status.js";
 
 /* --------------------------------------------------------------------------------- Phrolova, 2.5 */
 
 /** Dream of the Lost 3pc, Phrolova's own sonata — also reused by Lucilla. "Holding 0 Resonance
  *  Energy" is checked for real off the wearer's own `maxEnergy()`. */
-export const DREAM_OF_THE_LOST_3PC = new Sonata({
+export const DREAM_OF_THE_LOST_3PC = new Sonata3pc({
   name: "Dream of the Lost 3pc",
   applyStats: () => {
     if (maxEnergy() !== 0) return;
@@ -46,7 +46,7 @@ export const CROWN_STACKS = new Buff({
   name: "Crown of Valor", maxStacks: 5,
   applyStats: () => { addStat(Stat.BonusAtk, 6 * frozenStacks()); addStat(Stat.CritDmg, 4 * frozenStacks()); },
 });
-export const COV_3PC = new Sonata({
+export const COV_3PC = new Sonata3pc({
   name: "Crown of Valor 3pc",
   updateBuffs: () => { if (applied(SHIELD)) applyCurrent(CROWN_STACKS, applied(SHIELD)); },
 });
@@ -88,11 +88,12 @@ export const CLAWPRINT_TEAM = new Buff({
 export const CLAWPRINT_LIBERATION = new Buff({
   name: "Flaming Clawprint 5pc", applyStats: () => addStat(Stat.DmgBonus, 20, Type1.Liberation),
 });
+export const CLAWPRINT_2PC = new Sonata2pc({ name: "Flaming Clawprint 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Fusion) });
 export const CLAWPRINT_5PC = new Sonata({
   name: "Flaming Clawprint 5pc",
+  sonata2pc: CLAWPRINT_2PC,
   updateBuffs: () => { if (casting(Cast.Liberation)) { applyTeam(CLAWPRINT_TEAM, 1); applyCurrent(CLAWPRINT_LIBERATION, 1); } },
 });
-export const CLAWPRINT_2PC = new Sonata2pc({ name: "Flaming Clawprint 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Fusion) });
 
 /* ----------------------------------------------------------------------------- Galbrena, 2.7 */
 
@@ -120,7 +121,7 @@ export const FLAMEWING_SHADOW_ECHO = new Buff({
   applyStats: () => addStat(Stat.CritRate, 20, Type1.Echo),
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(FLAMEWING_SHADOW_ECHO); },
 });
-export const FLAMEWING_SHADOW_3PC = new Sonata({
+export const FLAMEWING_SHADOW_3PC = new Sonata3pc({
   name: "Flamewing's Shadow 3pc",
   updateBuffs: () => {
     if (isType(Type1.Echo)) applyCurrent(FLAMEWING_SHADOW_HEAVY, 1);
@@ -156,7 +157,7 @@ export const LAW_OF_HARMONY_TEAM = new Buff({
   name: "Law of Harmony", maxStacks: 4,
   applyStats: () => { addStat(Stat.DmgBonus, 4 * stacksOfTeam(LAW_OF_HARMONY_TEAM), Type1.Echo); },
 });
-export const LAW_OF_HARMONY_3PC = new Sonata({
+export const LAW_OF_HARMONY_3PC = new Sonata3pc({
   name: "Law of Harmony 3pc",
   updateBuffs: () => {
     if (casting(Cast.Echo)) { applyCurrent(LAW_OF_HARMONY_SELF, 1); applyTeam(LAW_OF_HARMONY_TEAM, 1); }
@@ -210,7 +211,7 @@ export const THRENODIAN_LEVIATHAN = new Mainslot({
  *  with `currentSlot` aimed at its own holder, so it grants only when the Bane traces back to that
  *  holder, and a teammate wearing this set whose swing merely tripped somebody else's marker still
  *  reads 0. */
-export const THREAD_OF_SEVERED_FATE_3PC = new Sonata({
+export const THREAD_OF_SEVERED_FATE_3PC = new Sonata3pc({
   name: "Thread of Severed Fate 3pc",
   updateGlobal: () => { if (appliedByMe(HAVOC_BANE)) applyCurrent(THREAD_OF_SEVERED_FATE_BUFF, 1); },
 });

@@ -7,8 +7,8 @@ import {
   Attribute, BuffDef, Cast, Debuff, EnemyStat, Gear, Resonator, Scaling, Stat, Type1, WeaponType,
   addEnemyStat, addStat, applied, applyEnemy, currentAction, currentTeam, equip, getStat, isCast, midActionGroup,
   queue, queueEvent, revokeEnemy, stacksOfEnemy, triggeredAction,
-} from "../kit.js";
-import { Action } from "../rotation.js";
+} from "../engine/kit.js";
+import { Action } from "../engine/rotation.js";
 
 /* ---------------------------------------------------------------------------- the enemy */
 
@@ -21,7 +21,7 @@ export const BASE_RESISTANCE = new Gear({
   name: "Base Resistance",
   constantStats: () => {
     for (const attribute of [Attribute.Aero, Attribute.Electro, Attribute.Fusion, Attribute.Glacio, Attribute.Spectro, Attribute.Havoc, Attribute.Physical]) {
-      addEnemyStat(EnemyStat.ResShred, -20, attribute);
+      addEnemyStat(EnemyStat.ResReduce, -20, attribute);
     }
   },
 });

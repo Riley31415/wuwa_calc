@@ -12,14 +12,14 @@ import {
   Scaling, applyCurrent, applyTeam, currentAction, casting, queueOutro, revokeCurrent, addStat, frozenStacks, applied,
   setForte1,
   forte1,
-} from "../../kit.js";
+} from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO, ECHO_CANCEL, ECHO_SWAP } from "../../rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO, ECHO_CANCEL, ECHO_SWAP } from "../../engine/rotation.js";
 import { SHIELD } from "../../shared/status.js";
 import { IUNO_SIG, VERITYS_HANDLE } from "../../weapons/gauntlet.js";
 import { MARCATO, NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { MYA, COV_3PC } from "../../echoes/septimont.js";
-import { WINDWARD_5PC, WINDWARD_2PC, NM_KELPIE } from "../../echoes/rinascita.js";
+import { WINDWARD_5PC, NM_KELPIE } from "../../echoes/rinascita.js";
 import { SIERRA_GALE_2PC, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, REJUV_5PC, REJUV_2PC, FALLACY } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
@@ -101,10 +101,10 @@ const IUNO_DOMAIN = new Buff({
 });
 
 const IO_INHERENT_2 = new Inherent({
-  name: "Iuno: Derivation",
+  name: "Inherent: Derivation",
   updateBuffs: () => { if (casting(Cast.Intro) || casting(Cast.Liberation)) applyCurrent(IUNO_BLESSING, 5); },
 });
-const IO_INHERENT_1 = new Inherent({ name: "Iuno: Waxing Ascent" }); // gains shields
+const IO_INHERENT_1 = new Inherent({ name: "Inherent: Waxing Ascent" }); // gains shields
 
 /** The window her outro hands the incoming resonator. */
 const IUNO_OUTRO = new Buff({
@@ -165,10 +165,10 @@ export const IUNO = new Loadout({
   echoLoadouts: [
     new EchoLoadout(MYA, COV_3PC, SIERRA_GALE_2PC),
 
-    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
+    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     new EchoLoadout(HERON, COV_3PC, MOONLIT_CLOUDS_2PC),
 
-    new EchoLoadout(FALLACY, REJUV_5PC, REJUV_2PC),
+    new EchoLoadout(FALLACY, REJUV_5PC),
     new EchoLoadout(FALLACY, COV_3PC, REJUV_2PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
@@ -199,7 +199,7 @@ export const IUNO_MDPS = new Loadout({
   weapons: [IUNO_SIG, NEW_STD_GAUNTLET, ABYSS_SURGES, VERITYS_HANDLE],
   echoLoadouts: [
     new EchoLoadout(MYA, COV_3PC, SIERRA_GALE_2PC),
-    new EchoLoadout(NM_KELPIE, WINDWARD_5PC, WINDWARD_2PC),
+    new EchoLoadout(NM_KELPIE, WINDWARD_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
   substat: chem("atk", "liberation"),

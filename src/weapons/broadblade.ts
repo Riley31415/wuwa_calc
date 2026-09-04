@@ -3,8 +3,8 @@
 import { isType,
   Buff, Weapon, WeaponType, Stat, Attribute, Type1, Cast,
   addStat, frozenStacks, casting, currentAction, currentTeam, addBuff, revokeCurrent, applyCurrent, applyTeam, removeStack, isHeld,
-} from "../kit.js";
-import { applied } from "../kit.js";
+} from "../engine/kit.js";
+import { applied } from "../engine/kit.js";
 import { lostOnSwap } from "../shared/helpers.js";
 import { SHIELD, HEALS, inflictedNegativeStatus, inflictedNegativeStatusBy } from "../shared/status.js";
 

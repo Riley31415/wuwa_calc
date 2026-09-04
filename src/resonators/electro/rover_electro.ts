@@ -15,13 +15,13 @@
 import {
   Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, applyCurrent, applyTeam, revokeTeam, isHeld, revokeCurrent, casting, currentAction, addStat,
-  queue, queueOutro, forte1, setForte1, } from "../../kit.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../rotation.js";
-import { applyEnemy } from "../../kit.js";
+  queue, queueOutro, forte1, setForte1, } from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
+import { applyEnemy } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { ELECTRO_FLARE, inflictedNegativeStatus, HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
-import { HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";
+import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";
@@ -120,17 +120,17 @@ const OVERSHOCK_ATK = new Buff({
 /** Decipher (Inherent Skill): Overshock's own 10 stacks of Electro Flare, declared on both
  *  Overshock actions above. Electro Flare's own damage has no trigger yet (statuses.ts), so this
  *  piece is still held only for the name. */
-const ER_INHERENT_1 = new Inherent({ name: "Electro Rover: Decipher" });
+const ER_INHERENT_1 = new Inherent({ name: "Inherent: Decipher" });
 
 /** Regression (Inherent Skill): +20% Resonance Skill DMG Bonus for 20s off a held Overshock,
  *  ended by switching out. */
 const REGRESSION = new Buff({
-  name: "Electro Rover: Regression",
+  name: "Inherent: Regression",
   applyStats: () => addStat(Stat.DmgBonus, 20, Type1.Skill),
   updateBuffs: () => { lostOnSwap(); },
 });
 const ER_INHERENT_2 = new Inherent({
-  name: "Electro Rover: Regression",
+  name: "Inherent: Regression",
   updateBuffs: () => { if (currentAction() === OvershockHold) applyCurrent(REGRESSION, 1); },
 });
 
@@ -241,7 +241,7 @@ export const ROVER_ELECTRO = new Loadout({
   inherent1: ER_INHERENT_1,
   inherent2: ER_INHERENT_2,
   weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, RED_SPRING],
-  echoLoadouts: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC)],
+  echoLoadouts: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
   substat: chem("atk", "skill"),
     rotation: ER_ROTATION,

@@ -17,14 +17,14 @@
  * repaint the progress bar mid-team; with the work off-thread there is nothing to repaint around,
  * and the fallback path yields between whole teams instead — ~25ms apiece, fine for a bar.
  */
-import { State, withTeam, equip, equipEnemy, setTracing, Buff, Loadout, EchoLoadout, Weapon, baseSequence } from "./kit.js";
-import type { ChainGroup, ResolvedSnapshot, Matrix } from "./kit.js";
-import { runRotations } from "./rotation.js";
-import type { ActionField } from "./rotation.js";
-import { damage, mvPercent } from "./damage.js";
+import { State, withTeam, equip, equipEnemy, setTracing, Buff, Loadout, EchoLoadout, Weapon, baseSequence } from "./engine/kit.js";
+import type { ChainGroup, ResolvedSnapshot, Matrix } from "./engine/kit.js";
+import { runRotations } from "./engine/rotation.js";
+import type { ActionField } from "./engine/rotation.js";
+import { damage, mvPercent } from "./engine/damage.js";
 import { TUNE_BREAK_ENEMY } from "./shared/tunebreak.js";
 import type { Report } from "./display.js";
-import { teamAt } from "./teams.js";
+import { teamAt } from "./engine/teams.js";
 
 export interface Member {
   name: string;
@@ -70,6 +70,37 @@ export interface Filters {
   /** Matrix Mode: every loadout that declares a Matrix wears it (shared/matrix.ts). */
   matrix: boolean;
 }
+
+/** What the page opens with, and what precompute.ts solves the roster under — one definition so
+ *  the shipped solves.json lands on exactly the keys a cold load asks for. */
+export const defaultFilters = (): Filters => ({
+  mdpsSequences: false, supportSequences: false,
+  mdpsWeapons: false, supportWeapons: false,
+  mdpsEchoes: false, supportEchoes: false,
+  mdpsMainstats: false, supportMainstats: false,
+  allowR1Mdps: true, allowR1Supports: true,
+  matrix: false,
+});
+
+/** A solved team's cache key: the team under the whole filter state, not just the R1 allowances —
+ *  a solve carries every row the table will open for that team, each re-rolled onto its own best
+ *  main stats (`rowPicks()`), and which rows those are is exactly what the option boxes decide.
+ *  ...except Matrix Mode, for a team nobody's Matrix reaches: its solve is the same either way, so
+ *  it keeps the key it had with the box off rather than being solved twice. */
+export const bestKey = (teamKey: string, members: Member[], filters: Filters): string => {
+  const f = { ...filters, matrix: filters.matrix && members.some((m) => m.loadout.matrix) };
+  return `${teamKey}|${Object.values(f).join(",")}`;
+};
+
+/** A team's own best build, under only the flags the *search* reads: the two R1 allowances, the
+ *  weapon boxes (which weapons may be searched — `eligibleWeapons()`) and Matrix Mode. The echo
+ *  and main-stat boxes change which rows a solve opens, never which build wins (both axes are
+ *  searched in full regardless), and the sequence boxes only add un-searched rows — so a flip of
+ *  any of those hands `solveTeam()` the build it already found and it redoes the rows alone. */
+export const picksKey = (teamKey: string, members: Member[], filters: Filters): string => {
+  const matrix = filters.matrix && members.some((m) => m.loadout.matrix);
+  return `${teamKey}|${filters.allowR1Mdps},${filters.allowR1Supports},${filters.mdpsWeapons},${filters.supportWeapons},${matrix}`;
+};
 
 /** One member's own pick: indices into their loadout's three gear lists, plus how many resonance
  *  chain nodes are held and whether Matrix Mode is on. What `optimizeTeam()` searches over and
@@ -895,18 +926,25 @@ export interface Solved { picks: Pick[]; rows: Pick[][]; scores: RowScore[] }
  *  actually shows itself. */
 export interface SolveResponse extends Solved { id: number }
 
+/** A whole roster's solves at rest — what index.ts keeps in localStorage between visits and what
+ *  precompute.ts ships as solves.json. Entries keyed by `bestKey()`/`picksKey()`; `stamp` names
+ *  the build they were solved under, and a stamp that doesn't match the running one means the
+ *  numbers may have moved, so nothing in it is used. */
+export interface SolveSave { stamp: string; solves: [string, Solved][]; picks: [string, Pick[]][] }
+
 /**
  * This module is also the worker entry point itself — index.ts's own `workerPool()` spawns
- * `src/solver.js`, and on the main thread it imports the very same file. Deliberately thin: all
+ * `./solver.js`, and on the main thread it imports the very same file. Deliberately thin: all
  * the actual work is `solveTeam()` above, which the fallback path calls directly here on the main
  * thread, so there is only one implementation of the search to keep correct.
  *
  * `document` is the test rather than anything worker-shaped, because that's the one thing a worker
  * scope definitively lacks: on the main thread `self` is the window and the handler is simply
  * never installed, so importing this module can't hand the page a `postMessage` listener it never
- * asked for.
+ * asked for. `self` is checked too so node (precompute.ts, the scratch runs) can import this file
+ * — it has neither, and its worker_threads speak parentPort, not this.
  */
-if (typeof document === "undefined") {
+if (typeof document === "undefined" && typeof self !== "undefined") {
   // `self` is typed as a Window by the DOM lib this project compiles against; inside a worker it
   // is a DedicatedWorkerGlobalScope, and the two disagree on `postMessage`'s signature. Narrowed
   // to the two members actually used rather than pulling the WebWorker lib in for the whole project.

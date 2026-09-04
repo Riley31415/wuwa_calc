@@ -23,15 +23,15 @@ import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Type2, Cast,
   Node, Scaling, applyCurrent, currentAction, casting, revokeCurrent, addStat, frozenStacks, queueOutro,
   applyTeam,
-  } from "../../kit.js";
+  } from "../../engine/kit.js";
 import { coordinatedBuff, lostOnSwap, matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_2, SWAP, ActionField } from "../../rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_2, SWAP, ActionField } from "../../engine/rotation.js";
 import { RIME_DRAPED_SPROUTS, STRINGMASTER, LETHEAN_ELEGY, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
-import { EMPYREAN_ANTHEM_2PC, EMPYREAN_ANTHEM_5PC, NM_LAMPY } from "../../echoes/rinascita.js";
+import { EMPYREAN_ANTHEM_5PC, NM_LAMPY } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
-import { HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
+import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -95,11 +95,11 @@ const INKLIT_SPIRITS = coordinatedBuff("Zhezhi: Inklit Spirits", 21, () => ZHEZH
 /** Calligrapher's Touch (Inherent Skill): +6% ATK a stack, up to 3, on Stroke of Genius or
  *  Creation's Zenith — 27s, permanent uptime once granted. */
 const CALLIGRAPHERS_TOUCH = new Buff({
-  name: "Zhezhi: Calligrapher's Touch", maxStacks: 3,
+  name: "Inherent: Calligrapher's Touch", maxStacks: 3,
   applyStats: () => addStat(Stat.BonusAtk, 6 * frozenStacks()),
 });
 const ZZ_INHERENT_1 = new Inherent({
-  name: "Zhezhi: Calligrapher's Touch",
+  name: "Inherent: Calligrapher's Touch",
   updateBuffs: () => { const a = currentAction(); if (a === FSkill || a === FSkill3) applyCurrent(CALLIGRAPHERS_TOUCH, 1); },
 });
 
@@ -123,7 +123,7 @@ const ZHEZHI_OUTRO = new Buff({
 /** Flourish (Inherent Skill): restores 15 Energy to whoever adopts Carve and Draw, paid on their
  *  own Intro. Its own Buff, queued alongside ZHEZHI_OUTRO, so it traces to its own source name. */
 const ZZ_FLOURISH = new Buff({
-  name: "Zhezhi: Flourish",
+  name: "Inherent: Flourish",
   applyStats: () => {
     addStat(Stat.AddEnergy, 15);
     revokeCurrent(ZZ_FLOURISH);
@@ -131,7 +131,7 @@ const ZZ_FLOURISH = new Buff({
 });
 
 const ZZ_INHERENT_2 = new Inherent({
-  name: "Zhezhi: Flourish",
+  name: "Inherent: Flourish",
   updateBuffs: () => {
     if (currentAction() === Outro) {
       queueOutro(ZZ_FLOURISH);
@@ -196,8 +196,8 @@ export const ZHEZHI = new Loadout({
   inherent2: ZZ_INHERENT_2,
   weapons: [RIME_DRAPED_SPROUTS, COSMIC_RIPPLES, VARIATION, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY, WHISPERS_OF_SIRENS],
   echoLoadouts: [
-    new EchoLoadout(NM_LAMPY, EMPYREAN_ANTHEM_5PC, EMPYREAN_ANTHEM_2PC),
-    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
+    new EchoLoadout(NM_LAMPY, EMPYREAN_ANTHEM_5PC),
+    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
   substat: chem("atk", "basic"),

@@ -13,9 +13,9 @@ import {
   Action, Buff, Cast, Matrix, Resonator, addStat, applyCurrent, casting, currentAction, currentGear,
   currentMember, currentTeam, frozenStacks, queue, queueOn, removeStack, removeStackEnemy,
   removeStackTeam, revokeCurrent, triggeredAction,
-} from "../kit.js";
-import type { GearDef } from "../kit.js";
-import { Stat } from "../stats.js";
+} from "../engine/kit.js";
+import type { GearDef } from "../engine/kit.js";
+import { Stat } from "../engine/stats.js";
 
 /* -------------------------------------------------------------------------------- lost on swap */
 

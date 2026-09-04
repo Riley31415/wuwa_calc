@@ -36,16 +36,16 @@ import {
   Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, addStat, applied, applyCurrent, applyTeam, applyEnemy, currentAction, maxStackIncrease,
   revokeCurrent, revokeTeam, stacksOfEnemy, setForte1, setForte2, forte1, forte2,
-  } from "../../kit.js";
+  } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, START_3, SWAP } from "../../rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, START_3, SWAP } from "../../engine/rotation.js";
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_SHIFTING, TUNE_STRAIN_INTERFERED, tuneStrainBonus } from "../../shared/tunebreak.js";
 import { BLAZING_BRILLIANCE, GLINT_OF_CLOUDS, RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS, NEW_STD_SWORD } from "../../weapons/standard.js";
-import { CALAMITY_EFFIGY, HEART_OF_EVILS_PURGE_5PC, HEART_OF_EVILS_PURGE_2PC } from "../../echoes/mengzhou.js";
+import { CALAMITY_EFFIGY, HEART_OF_EVILS_PURGE_5PC } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
-import { FROSTY_RESOLVE_SKILL_DMG, NM_KELPIE, WINDWARD_2PC, WINDWARD_5PC } from "../../echoes/rinascita.js";
+import { FROSTY_RESOLVE_SKILL_DMG, NM_KELPIE, WINDWARD_5PC } from "../../echoes/rinascita.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -199,7 +199,7 @@ const RECKONING_ENHANCED = new Buff({
 /** Sea of Thought, World of Dust — Gathered Mind's own grant, one stack on entering combat, plus
  *  the Mindlock that stack lays on the team's first damaging hit (see GATHERED_MIND). */
 const QX_INHERENT_1 = new Inherent({
-  name: "Qingxiao: Sea of Thought, World of Dust",
+  name: "Inherent: Sea of Thought, World of Dust",
   combatStart: () => { applyTeam(GATHERED_MIND, 1); applyEnemy(MINDLOCK, 1); },
 });
 
@@ -209,7 +209,7 @@ const QX_INHERENT_1 = new Inherent({
  *  are read off the target here (the migrated sheet's own split: one Amp, one DMG Bonus). The extra
  *  Mindlock per Interfered is inflicted with the break itself, see QINGXIAO_RESONATOR's own updateGlobal. */
 const QX_INHERENT_2 = new Inherent({
-  name: "Qingxiao: To Know, To Banish",
+  name: "Inherent: To Know, To Banish",
   // its own Mindlock, on top of the Forte Circuit's: one more per Tune Strain - Interfered the team
   // inflicts, since the target is Overlord/Calamity Class (assumed — this project's is a boss)
   updateGlobal: () => {
@@ -290,8 +290,8 @@ export const QINGXIAO = new Loadout({
   inherent1: QX_INHERENT_1,
   inherent2: QX_INHERENT_2,
   weapons: [GLINT_OF_CLOUDS, EMERALD_OF_GENESIS, NEW_STD_SWORD, RED_SPRING],
-  echoLoadouts: [new EchoLoadout(CALAMITY_EFFIGY, HEART_OF_EVILS_PURGE_5PC, HEART_OF_EVILS_PURGE_2PC),
-      new EchoLoadout(NM_KELPIE, WINDWARD_5PC, WINDWARD_2PC),],
+  echoLoadouts: [new EchoLoadout(CALAMITY_EFFIGY, HEART_OF_EVILS_PURGE_5PC),
+      new EchoLoadout(NM_KELPIE, WINDWARD_5PC),],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
   substat: chem("atk", "heavy"),
     rotation: QX_ROTATION,

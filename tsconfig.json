@@ -5,11 +5,11 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
 
-    /* dist/ mirrors the whole project one level deeper (dist/index.js, dist/src/kit.js, ...).
+    /* dist/ mirrors the whole project one level deeper (dist/src/index.js, dist/src/engine/kit.js, ...).
        Every relative import stays exactly as written — tsc doesn't rewrite specifiers, and the
        mirrored structure means "../kit.js" still finds the right sibling inside dist/ — so the
        only two things that had to change for the move are index.html's own <script src> (now
-       "./dist/index.js") and the CLI scripts' data/*.json resolution (one extra ".." to cross
+       "./dist/bundle/index.js") and the CLI scripts' data/*.json resolution (one extra ".." to cross
        the added nesting level; see team.ts/run.ts). allowJs stays on even though every file is
        now .ts, just so a stray .js dropped in later still gets swept into the build. */
     "outDir": "dist",
@@ -26,7 +26,7 @@
     "sourceMap": true,
     "declaration": false
   },
-  "include": ["index.ts", "src/**/*"],
+  "include": ["src/**/*"],
   /* display.ts is restored — kit.ts now exports ResolvedSnapshot/StatEntry/ChainGroup so it
      compiles against the new engine unmodified (see kit.ts's own header on those types).
      optimize.ts/run.ts/team.ts (the old CLI/report-building harness for the OLD engine's

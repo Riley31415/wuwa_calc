@@ -3,9 +3,9 @@ import {
   Buff, Sonata, Sonata2pc, Mainslot, EchoType, Stat, Attribute, Type1, Cast, Scaling,
   addStat, frozenStacks, applyCurrent, applyTeam, queue, removeStack, revokeTeam, currentAction, casting,
   revokeCurrent, triggeredAction,
-} from "../kit.js";
-import { Action } from "../rotation.js";
-import { applied, appliedByMe } from "../kit.js";
+} from "../engine/kit.js";
+import { Action } from "../engine/rotation.js";
+import { applied, appliedByMe } from "../engine/kit.js";
 import { SHIELD, HAVOC_BANE, GLACIO_CHAFE } from "../shared/status.js";
 import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 
@@ -35,11 +35,12 @@ export const LAMP_STACKS = new Buff({
   },
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(LAMP_STACKS); },
 });
+export const LAMP_2PC = new Sonata2pc({ name: "Lamp of Nether Road 2pc", constantStats: () => addStat(Stat.BonusHp, 10) });
 export const LAMP_5PC = new Sonata({
   name: "Lamp of Nether Road 5pc",
+  sonata2pc: LAMP_2PC,
   updateBuffs: () => { if (applied(SHIELD)) applyCurrent(LAMP_STACKS, applied(SHIELD)); },
 });
-export const LAMP_2PC = new Sonata2pc({ name: "Lamp of Nether Road 2pc", constantStats: () => addStat(Stat.BonusHp, 10) });
 
 /* ----------------------------------------------------------------------------- Qingxiao, 3.6 */
 
@@ -68,6 +69,7 @@ export const CALAMITY_EFFIGY = new Mainslot({
 export const HEART_OF_EVILS_PURGE_2PC = new Sonata2pc({ name: "Heart of Evil's Purge 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Aero) });
 export const HEART_OF_EVILS_PURGE_5PC = new Sonata({
   name: "Heart of Evil's Purge 5pc",
+  sonata2pc: HEART_OF_EVILS_PURGE_2PC,
   updateBuffs: () => { if (appliedByMe(TUNE_STRAIN_SHIFTING)) applyCurrent(HEART_OF_EVILS_PURGE_BUFF, 1); },
 });
 export const HEART_OF_EVILS_PURGE_BUFF = new Buff({
@@ -112,6 +114,7 @@ export const THOUSAND_PUPPET_PAVILION = new Mainslot({
 export const FEATHERED_TRACE_2PC = new Sonata2pc({ name: "Song of Feathered Trace 2pc", constantStats: () => addStat(Stat.Er, 10) });
 export const FEATHERED_TRACE_5PC = new Sonata({
   name: "Song of Feathered Trace 5pc",
+  sonata2pc: FEATHERED_TRACE_2PC,
   updateBuffs: () => {
     if (appliedByMe(HAVOC_BANE)) applyCurrent(XUANLINGS_FEATHER, 1);
     if (appliedByMe(GLACIO_CHAFE)) applyTeam(CHONGMINGS_FEATHER, 1);

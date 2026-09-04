@@ -2,8 +2,8 @@
 import { isType,
   Buff, Debuff, Weapon, WeaponType, Stat, EnemyStat, Attribute, Type1, Cast,
   addStat, addEnemyStat, applyCurrent, applyEnemy, applyTeam, isHeld, casting, currentAction, revokeCurrent, frozenStacks,
-} from "../kit.js";
-import { applied, appliedByMe } from "../kit.js";
+} from "../engine/kit.js";
+import { applied, appliedByMe } from "../engine/kit.js";
 import { AERO_EROSION } from "../shared/status.js";
 import { TUNE_HACK_SHIFTING, TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 
@@ -66,7 +66,7 @@ export const LINGERING_SUMMER_TUNE = new Buff({
 });
 export const LINGERING_SUMMER_SHRED = new Debuff({
   name: "Woodland Aria: Lingering Summer Tune",
-  applyStats: () => addEnemyStat(EnemyStat.ResShred, 10, Attribute.Aero),
+  applyStats: () => addEnemyStat(EnemyStat.ResReduce, 10, Attribute.Aero),
 });
 
 /** Spectrum Blaster, Lynae's sig, R1: Attendance Exemption Protocol. +12% ATK flat. An Intro or

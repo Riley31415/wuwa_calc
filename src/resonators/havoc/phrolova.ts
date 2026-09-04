@@ -18,13 +18,13 @@ import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, stacksOf, currentAction, casting, queue, queueOutro, revokeCurrent, addStat, frozenStacks,
   Sequence, applyTeam, isHeld, setStacksSelf, currentTeam, queueOn,
-  } from "../../kit.js";
+  } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, NOINTRO, INTRO, ECHO_ONFIELD, OUTRO, DODGE } from "../../rotation.js";
+import { ActionGroup, Action, Rotation, NOINTRO, INTRO, ECHO_ONFIELD, OUTRO, DODGE } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { DREAM_OF_THE_LOST_3PC } from "../../echoes/septimont.js";
-import { NM_HECATE, MIDNIGHT_VEIL_2PC } from "../../echoes/rinascita.js";
+import { NM_HECATE } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 import { BELL_BORNE_GEOCHELONE, HAVOC_ECLIPSE_2PC, HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
@@ -43,8 +43,8 @@ const BA3 = phroAction("Basic - Movement of Life and Death 3", { node: Node.Norm
 
 const Skill = phroAction("Skill - Whispers in a Fleeting Dream", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 211.94, offtune: 4264, energy: 13.34, concerto: 10, updateBuffs: () => gainNote(2) });
 
-const FBA = phroAction("Forte - Movement of Fate and Finality", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 505.01, offtune: 10161, energy: 3.21, concerto: 10.02, updateBuffs: () => gainNote(1) });
-const FSkill = phroAction("Forte - Murmurs in a Haunting Dream", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 464.07, offtune: 9338, energy: 2.95, concerto: 10, updateBuffs: () => gainNote(2) });
+const FBA = phroAction("Forte Basic - Movement of Fate and Finality", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 505.01, offtune: 10161, energy: 3.21, concerto: 10.02, updateBuffs: () => gainNote(1) });
+const FSkill = phroAction("Forte Skill - Murmurs in a Haunting Dream", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 464.07, offtune: 9338, energy: 2.95, concerto: 10, updateBuffs: () => gainNote(2) });
 
 const ScarletCoda = phroAction("Heavy - Scarlet Coda", {
   node: Node.Normal, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Skill, mv: 660.16, offtune: 166144, energy: 6.93, concerto: 40,
@@ -85,13 +85,13 @@ function hecateAction(id: string, mv: number, def: object = {}): Action {
 }
 // a played Maestro note is worth an Aftersound stack; Hecate's own plain basics are not
 const NOTE = { updateBuffs: () => applyCurrent(AFTERSOUND, 1) };
-const EBA_STRINGS = hecateAction("Hecate - Enhanced Strings", 347.93, NOTE);
-const EBA_WINDS   = hecateAction("Hecate - Enhanced Winds", 330.53, NOTE);
-const EBA_CADENZA = hecateAction("Hecate - Enhanced Cadenza", 347.93, NOTE);
-const HBA1 = hecateAction("Hecate - Basic 1", 27.84);
+const EBA_STRINGS = hecateAction("Enhanced - Hecate Strings", 347.93, NOTE);
+const EBA_WINDS   = hecateAction("Enhanced - Hecate Winds", 330.53, NOTE);
+const EBA_CADENZA = hecateAction("Enhanced - Hecate Cadenza", 347.93, NOTE);
+const HBA1 = hecateAction("Basic - Hecate 1", 27.84);
 /** Basic 2 ends the manual command: pressing Hecate's 1-2 by hand finishes on the next gathered
  *  note as its swap form — a play like any other, but never one of the ten auto-cast chances. */
-const HBA2 = hecateAction("Hecate - Basic 2", 27.84, { updateBuffs: () => drawNote(false, true) });
+const HBA2 = hecateAction("Basic - Hecate 2", 27.84, { updateBuffs: () => drawNote(false, true) });
 
 // the note each two-bit slot value stands for, indexed 1-3; the manual command plays the same
 // hit as its swap form, made on the way out
@@ -196,15 +196,20 @@ export const MAESTRO = new Buff({
  *  which is the only way a Cadenza ever reaches the store. Consumed by that gain (gainNote()
  *  above), so it waits through anything that doesn't land one. */
 const ACCIDENTAL = new Buff({
-  name: "Phrolova: Accidental",
+  name: "Inherent: Accidental",
 });
 /** Accidental's own trigger: casting Suite of Quietus, Suite of Immortality, or an Echo Skill. */
 const PH_INHERENT_1 = new Inherent({
-  name: "Phrolova: Accidental",
+  name: "Inherent: Accidental",
   updateBuffs: () => { const a = currentAction(); if (a === Intro || a === EIntro || casting(Cast.Echo)) applyCurrent(ACCIDENTAL, 1); },
 });
 /** No combat-formula effect this engine models — still equipped, just doesn't hand out a stat. */
-const PH_INHERENT_2 = new Inherent({ name: "Phrolova: Inherent Skill 2" });
+const PH_INHERENT_2 = new Inherent({ name: "Inherent: Octet" ,
+
+  // Octet: 10 Aftersound the instant she's on the team, not tied to when she first acts — and
+  // the note store itself, empty (its always-set bit alone; see NOTES)
+  combatStart: () => { applyCurrent(AFTERSOUND, 10); },
+});
 
 const PHROLOVA_OUTRO = new Buff({
   name: "Phrolova: Outro",
@@ -292,9 +297,7 @@ export const PHROLOVA_RESONATOR = new Resonator({
   outro: () => Outro,
   maxEnergy: 0,
 
-  // Octet: 10 Aftersound the instant she's on the team, not tied to when she first acts — and
-  // the note store itself, empty (its always-set bit alone; see NOTES)
-  combatStart: () => { applyCurrent(AFTERSOUND, 10); applyCurrent(NOTES, 1 << 16); },
+  combatStart: () => { applyCurrent(NOTES, 1 << 16); }, // initialize notes state
 
   constantStats: () => {
     addStat(Stat.BaseHp, 10775); addStat(Stat.BaseAtk, 437.5); addStat(Stat.BaseDef, 1137);
@@ -357,8 +360,8 @@ export const PHROLOVA_DUAL_DPS = new Loadout({
     new EchoLoadout(NM_HECATE, DREAM_OF_THE_LOST_3PC, HAVOC_ECLIPSE_2PC),
     new EchoLoadout(HERON, DREAM_OF_THE_LOST_3PC, MOONLIT_CLOUDS_2PC),
     new EchoLoadout(BELL_BORNE_GEOCHELONE, DREAM_OF_THE_LOST_3PC, MOONLIT_CLOUDS_2PC),
-    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
-    new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
+    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
+    new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: chem("atk", "skill"),

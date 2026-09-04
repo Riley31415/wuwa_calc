@@ -39,12 +39,12 @@ import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, applyEnemy, revokeEnemy, isHeld, currentAction, casting, revokeCurrent, addStat, forte1, forte2,
   setForte2, Debuff,
-  } from "../../kit.js";
+  } from "../../engine/kit.js";
 import { matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, SWAP, START_3 } from "../../rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, SWAP, START_3 } from "../../engine/rotation.js";
 import { THE_LAST_DANCE } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
-import { FROSTY_RESOLVE_2PC, FROSTY_RESOLVE_5PC, SENTRY_CONSTRUCT } from "../../echoes/rinascita.js";
+import { FROSTY_RESOLVE_5PC, SENTRY_CONSTRUCT } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 
@@ -124,12 +124,12 @@ const DECONSTRUCTION = new Debuff({
 });
 
 const CL_INHERENT_1 = new Inherent({
-  name: "Carlotta: Flawless Purity",
+  name: "Inherent: Flawless Purity",
   // interrupt immune
 });
 
 const CL_INHERENT_2 = new Inherent({
-  name: "Carlotta: Ars Gratia Artis",
+  name: "Inherent: Ars Gratia Artis",
   updateBuffs: () => {
     const a = currentAction();
     if (a === Intro || a === Skill2 || a === DeathKnell || a === FHA) applyEnemy(DECONSTRUCTION, 1);
@@ -220,7 +220,7 @@ export const CARLOTTA = new Loadout({
   inherent1: CL_INHERENT_1,
   inherent2: CL_INHERENT_2,
   weapons: [THE_LAST_DANCE, NEW_STD_PISTOL, STATIC_MIST],
-  echoLoadouts: [new EchoLoadout(SENTRY_CONSTRUCT, FROSTY_RESOLVE_5PC, FROSTY_RESOLVE_2PC)],
+  echoLoadouts: [new EchoLoadout(SENTRY_CONSTRUCT, FROSTY_RESOLVE_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
   substat: chem("atk", "skill"),
     rotation: CL_ROTATION,

@@ -13,13 +13,14 @@ import {
   Stat, EnemyStat, Resource, Scaling, Cast,
   scopedStat, splitStat, statLabel, tagKind,
   TAG_NAME, CAST_NAME, NODE_NAME, SCALING_NAME, RESOURCE_NAME,
-} from "./stats.js";
-import type { Type1, StatKey } from "./stats.js";
-import { isCast } from "./kit.js";
-import { SWAP, DODGE, JUMP } from "./rotation.js";
-import { mvPercent, effectiveShred, effectiveRes, damageFactors } from "./damage.js";
-import type { Action, ChainGroup } from "./kit.js";
-import type { ResolvedSnapshot, StatEntry, HeldBuff } from "./kit.js";
+} from "./engine/stats.js";
+import type { Type1, StatKey } from "./engine/stats.js";
+import { isCast } from "./engine/kit.js";
+import { SWAP, DODGE, JUMP } from "./engine/rotation.js";
+import { mvPercent, effectiveShred, effectiveRes, damageFactors } from "./engine/damage.js";
+import { BASE_RESISTANCE } from "./shared/tunebreak.js";
+import type { Action, ChainGroup } from "./engine/kit.js";
+import type { ResolvedSnapshot, StatEntry, HeldBuff } from "./engine/kit.js";
 
 /** One line in a source-trace panel — what fed a value, and how to read it. */
 export interface TraceEntry {
@@ -71,7 +72,7 @@ const keysFor = (action: Action, ...stats: (Stat | EnemyStat)[]): StatKey[] =>
  *   - tune reads no amplification, and a dot reads only the part scoped to the Negative Status
  *     it is — never plain or element-scoped, so its own trace is that one scoped key;
  *   - a dot reads neither Damage Dealt nor either penetration, which leaves the enemy's own DEF
- *     Reduce and RES Reduce as the whole of what moves the shred and res columns.
+ *     Reduce and RES Reduce as the whole of what moves the ignore and res columns.
  */
 const FEEDS: Record<string, (action: Action) => StatKey[]> = {
   atk: (a) => keysFor(a, Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk),
@@ -89,8 +90,8 @@ const FEEDS: Record<string, (action: Action) => StatKey[]> = {
   // what is being done to the enemy rather than to the resonator
   effDef: (a) => (a.scaling === Scaling.Dot ? keysFor(a, EnemyStat.DefReduce)
     : keysFor(a, Stat.DefIgnoreNew, Stat.DefIgnoreOld, EnemyStat.DefReduce)),
-  effRes: (a) => (a.scaling === Scaling.Dot ? keysFor(a, EnemyStat.ResShred)
-    : keysFor(a, Stat.ResIgnore, EnemyStat.ResShred)),
+  effRes: (a) => (a.scaling === Scaling.Dot ? keysFor(a, EnemyStat.ResReduce)
+    : keysFor(a, Stat.ResIgnore, EnemyStat.ResReduce)),
   // energy/concerto/offtune are NOT built off this — they're running totals, not a per-action
   // sum, so rowValues() builds their own panel by hand further down, off RESOURCE_STAT instead.
 };
@@ -108,13 +109,13 @@ const SECTION_OF: Partial<Record<Stat | EnemyStat, string>> = {
   [Stat.BaseAtk]: "Base ATK", [Stat.BonusAtk]: "Bonus ATK", [Stat.FlatAtk]: "Flat ATK",
   [Stat.BaseHp]: "Base HP", [Stat.BonusHp]: "Bonus HP", [Stat.FlatHp]: "Flat HP",
   [Stat.BaseDef]: "Base DEF", [Stat.BonusDef]: "Bonus DEF", [Stat.FlatDef]: "Flat DEF",
-  // the shred and res panels, split the same way: the attacker's own two penetrations answer to
+  // the ignore and res panels, split the same way: the attacker's own two penetrations answer to
   // different rules from the enemy's own debuff (only the debuff survives a dot, and the two DEF
   // ignores don't even stack the same way), so a panel that ran them together as one list of
   // percentages read as if they did.
   [Stat.DefIgnoreNew]: "DEF Ignore (new)", [Stat.DefIgnoreOld]: "DEF Ignore (old)",
   [EnemyStat.DefReduce]: "DEF Reduce",
-  [Stat.ResIgnore]: "RES Ignore", [EnemyStat.ResShred]: "RES Reduce",
+  [Stat.ResIgnore]: "RES Ignore", [EnemyStat.ResReduce]: "RES Reduce",
 };
 
 /** One line of the hover on an action's own name — what field it is, and its value. `source` marks
@@ -188,9 +189,12 @@ function tracing(snapshot: ResolvedSnapshot, stats: StatKey[]): TraceEntry[] {
       // apart from a Basic-only one. The base/bonus/flat fold keeps its own grouping instead —
       // a scoped ATK% is still bonus ATK, and splitting it out would break the arithmetic.
       const [stat, tag] = splitStat(e.stat);
+      // the enemy's own 20% is held as RES Reduce (tunebreak.ts) but is not a reduction anybody
+      // applied — its own heading, so the panel reads as a baseline and the debuffs that move it
+      const base = e.source === BASE_RESISTANCE.name;
       by.set(key, {
         source: e.source ?? "", stat: e.stat, value: e.value,
-        section: SECTION_OF[stat] ?? (tag === null ? null : statLabel(e.stat)),
+        section: base ? "Base RES" : SECTION_OF[stat] ?? (tag === null ? null : statLabel(e.stat)),
         owner: e.owner ?? null,
       });
     }
@@ -216,7 +220,7 @@ const num = (v: number | null | undefined, digits = 0, pad = false, group = fals
 
 // Columns that always show their own full digit count rather than trimming trailing zeros the way
 // the rest do: the running resources at their own precision (2/2/4), and every stat column from
-// dmg% through shred, plus mv — a column of percentages that each keep or drop their decimal on
+// dmg% through ignore, plus mv — a column of percentages that each keep or drop their decimal on
 // their own reads as a ragged edge where the point is comparing one row against the next.
 // Matches index.ts's own PAD_DIGITS_COLUMNS.
 const PAD_DIGITS_COLUMNS = new Set([
@@ -575,15 +579,17 @@ function rowValues(
   if (dealsDamage) sources.avg = [
     { source: f.scaling === null ? "" : STAT_SOURCE[f.scaling] ?? SCALING_NAME[f.scaling], label: "Final Stat", value: f.finalStat },
     { source: snap.action.name, label: "Motion Value", value: f.finalMv, mult: true },
-    { source: "buffs", label: "Amplification", value: f.ampFactor, mult: true },
     { source: "buffs", label: "Damage Bonus", value: f.bonusFactor, mult: true },
+    { source: "buffs", label: "Amplification", value: f.ampFactor, mult: true },
     // Only tune scaling receives it, and only tune scaling should have to read a row about it.
     ...(f.scaling === Scaling.Tune
       ? [{ source: "buffs", label: "Tune Break Boost", value: f.tbbFactor, mult: true }]
       : []),
+    ...(f.dealtFactor > 1
+      ? [{ source: "buffs", label: "Total Damage", value: f.dealtFactor, mult: true }]
+      : []),
     { source: "enemy", label: "Res Factor", value: f.resFactor, mult: true },
     { source: "enemy", label: "Def Factor", value: f.defFactor, mult: true },
-    { source: "buffs", label: "Damage Dealt", value: f.dealtFactor, mult: true },
     { source: "crit", label: "Average Crit", value: f.critFactor, mult: true },
   ];
 
@@ -665,11 +671,13 @@ export function buildReport(
     { key: "amp", label: "amp%", digits: 1, percent: true, full: "Amplification" },
     { key: "cr", label: "cr%", digits: 1, percent: true, full: "Crit Rate" },
     { key: "cd", label: "cd%", digits: 1, percent: true, full: "Crit Dmg" },
-    { key: "dealt", label: "vuln%", digits: 1, percent: true, full: "Damage Dealt" },
+    { key: "dealt", label: "vuln%", digits: 1, percent: true, full: "Total Damage" },
     // what the hit meets on the enemy's side, kept next to the multipliers it competes with
     // rather than out past the resonator's own hp/def
-    { key: "effDef", label: "shred", digits: 1, percent: true, full: "Enemy DEF" },
-    { key: "effRes", label: "res", digits: 1, percent: true, full: "Enemy RES" },
+    // `full` is the heading its panel opens with when nothing fed the column at all — the
+    // attacker's own penetration is what that answers for, not the enemy's own DEF
+    { key: "effDef", label: "ignore%", digits: 1, percent: true, full: "DEF Ignore" },
+    { key: "effRes", label: "res%", digits: 1, percent: true, full: "Enemy RES" },
     { key: "er", label: "er%", digits: 1, percent: true, full: "Energy Regen" },
     { key: "hp", label: "hp" },
     { key: "def", label: "def" },
@@ -697,6 +705,14 @@ export function buildReport(
   // rather than somebody's follow-up, so it is untriggered (kit.ts's own `run()`) and reads as a
   // beat in its own right.
   const isShort = (snap: ResolvedSnapshot) => snap.triggered;
+  // A folded row answers for its members, not for whichever one happens to report its stats — a
+  // collapsed group's is its last (solver.ts's own `toLines`), so an ActionGroup ending in a
+  // Dodge read as a follow-up and dimmed the whole group. Every member triggered still is one
+  // (that is exactly what a folded run of repeats is), so the test is over all of them.
+  const isShortLine = (line: { snap: unknown; members?: ResolvedSnapshot[] }) =>
+    (line.members?.length
+      ? line.members.every(isShort)
+      : isShort(line.snap as ResolvedSnapshot));
 
   const rows: ReportRow[] = lines.map((line) => {
     const { raw, sources, buffed } = rowValues(
@@ -716,7 +732,7 @@ export function buildReport(
         (line.snap as ResolvedSnapshot).triggered, (line.snap as ResolvedSnapshot).triggeredBy),
       // what the motion value is multiplying, so the mv panel can name its own unit
       scaling: line.snap.action.scaling,
-      short: isShort(line.snap as ResolvedSnapshot),
+      short: isShortLine(line),
       parts: line.isChain
         ? line.parts.map((p): ReportPart => {
             const part = rowValues(

@@ -1,8 +1,8 @@
 /** An echo build's substats: five echoes, five rolls each, twenty-five total. Every roll is
  *  valued at the mid-tier number below. */
-import { Buff, addStat } from "../kit.js";
-import { Stat, Type1, scopedStat, splitStat } from "../stats.js";
-import type { StatKey, Tag } from "../stats.js";
+import { Buff, addStat } from "../engine/kit.js";
+import { Stat, Type1, scopedStat, splitStat } from "../engine/stats.js";
+import type { StatKey, Tag } from "../engine/stats.js";
 
 const ROLL: Partial<Record<Stat, number>> = {
   [Stat.CritRate]: 7.5, [Stat.CritDmg]: 15, [Stat.Er]: 8.4,
@@ -58,7 +58,7 @@ export function chem(scaler: string, type: string, { er = false }: { er?: boolea
     counts[scopedStat(tag, Stat.DmgBonus)] = key === type ? 2 : 1;
   }
 
-  return substats(`Chem Subs:${er ? " ER" : ""} ${scaler} ${type}`, counts);
+  return substats(`Chem Substats -${er ? " ER" : ""} ${scaler} ${type}`, counts);
 }
 
 /** The same catalogue for substats — see ALL_MAINSTATS in mainstats.js. */

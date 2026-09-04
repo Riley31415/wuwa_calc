@@ -55,13 +55,13 @@ import {
   forte1,
   forte3,
   forte2,
-} from "../../kit.js";
+} from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, DODGE } from "../../rotation.js";
+import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, DODGE } from "../../engine/rotation.js";
 import { GLACIO_CHAFE, GLACIO_CHAFE_ACTIONS, HAVOC_BANE } from "../../shared/status.js";
 import { FROSTBURN } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
-import { QUIET_SNOWFALL_2PC, QUIET_SNOWFALL_5PC, VOIDBORNE_CONSTRUCT } from "../../echoes/lahairoi.js";
+import { QUIET_SNOWFALL_5PC, VOIDBORNE_CONSTRUCT } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 import { TUNE_BREAK } from "../../shared/tunebreak.js";
@@ -309,7 +309,7 @@ const SNOWLIGHT_BLESSING = new Buff({
  *  so a stack that a marker put on off somebody's swing (Chisa's Thread of Bane, Lucilla's Film
  *  Roll) banks a bit for its own owner rather than for whoever happened to be hitting. */
 const HY_INHERENT_1 = new Inherent({
-  name: "Hiyuki: Fine Snow",
+  name: "Inherent: Fine Snow",
   updateGlobal: () => {
     const actor = currentTeam().slot;
     if (!appliedByMember(GLACIO_CHAFE, actor) && !appliedByMember(HAVOC_BANE, actor)) return;
@@ -323,7 +323,7 @@ const HY_INHERENT_1 = new Inherent({
 /** Ephemeral Realm (Inherent Skill): restores a Snowforged Blade after 4s out of combat, which is
  *  only ever worth the one point she walks into the fight already holding. */
 const HY_INHERENT_2 = new Inherent({
-  name: "Hiyuki: Ephemeral Realm",
+  name: "Inherent: Ephemeral Realm",
   combatStart: () => applyCurrent(SNOWFORGED_BLADE, 1),
 });
 
@@ -407,7 +407,7 @@ const HY_ROTATION = new Rotation([
 ]);
 
 const HY_ECHOES = [
-  new EchoLoadout(VOIDBORNE_CONSTRUCT, QUIET_SNOWFALL_5PC, QUIET_SNOWFALL_2PC),
+  new EchoLoadout(VOIDBORNE_CONSTRUCT, QUIET_SNOWFALL_5PC),
 ];
 
 export const HIYUKI = new Loadout({

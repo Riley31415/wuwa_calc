@@ -18,13 +18,13 @@
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, applyTeam, revokeCurrent, casting, currentAction, currentTeam, addStat, frozenStacks, getStat,
-  queueOutro, queueOn, } from "../../kit.js";
+  queueOutro, queueOn, } from "../../engine/kit.js";
 import { lostOnSwap, matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, SWAP, DODGE, NOINTRO, ECHO_SWAP, START_3 } from "../../rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, SWAP, DODGE, NOINTRO, ECHO_SWAP, START_3 } from "../../engine/rotation.js";
 import { TRAGICOMEDY } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
-import { NM_HERON, MIDNIGHT_VEIL_5PC, MIDNIGHT_VEIL_2PC } from "../../echoes/rinascita.js";
-import { MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, HERON, BELL_BORNE_GEOCHELONE } from "../../echoes/jinzhou.js";
+import { NM_HERON, MIDNIGHT_VEIL_5PC } from "../../echoes/rinascita.js";
+import { MOONLIT_CLOUDS_5PC, HERON, BELL_BORNE_GEOCHELONE } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 
@@ -76,12 +76,12 @@ const MAGIC_BOX = rocciaAction("Utility - Super Attractive Magic Box", {
 /** Immersive Performance (Inherent Skill): +20% ATK for 12s on Resonance Skill or the base Heavy
  *  Attack specifically — not Real Fantasy, a Basic Attack-button press despite Heavy Attack DMG. */
 const IMMERSIVE_PERFORMANCE = new Buff({
-  name: "Roccia: Immersive Performance",
+  name: "Inherent: Immersive Performance",
   applyStats: () => addStat(Stat.BonusAtk, 20),
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(IMMERSIVE_PERFORMANCE); },
 });
 const RC_INHERENT_1 = new Inherent({
-  name: "Roccia: Immersive Performance",
+  name: "Inherent: Immersive Performance",
   updateBuffs: () => { if (casting(Cast.Skill) || casting(Cast.Heavy)) applyCurrent(IMMERSIVE_PERFORMANCE, 1); },
 });
 
@@ -104,7 +104,7 @@ const APPLAUSE_HANDOFF = new Buff({
  *  is forced to her own holder, so the real actor comes off currentTeam().slot, and queueOn() (not
  *  queue()) lands the follow-up on them. */
 const RC_INHERENT_2 = new Inherent({
-  name: "Roccia: Super Attractive Magic Box",
+  name: "Inherent: Super Attractive Magic Box",
   updateGlobal: () => {
     const acting = currentTeam().slot;
     if (casting(Cast.Intro) && acting.isHeld(APPLAUSE_HANDOFF)) queueOn(acting.resonator!, MAGIC_BOX);
@@ -164,9 +164,9 @@ export const ROCCIA = new Loadout({
   inherent2: RC_INHERENT_2,
   weapons: [TRAGICOMEDY, NEW_STD_GAUNTLET, ABYSS_SURGES],
   echoLoadouts: [
-    new EchoLoadout(NM_HERON, MIDNIGHT_VEIL_5PC, MIDNIGHT_VEIL_2PC),
-    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
-    new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
+    new EchoLoadout(NM_HERON, MIDNIGHT_VEIL_5PC),
+    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
+    new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: chem("atk", "heavy"),

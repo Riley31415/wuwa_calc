@@ -13,12 +13,12 @@ import {
   Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, EnemyStat, Attribute,
   WeaponType, Type1, Cast, Node, Scaling, applyCurrent, applyEnemy, revokeEnemy, isHeld, revokeCurrent, casting,
   currentAction, addStat, addEnemyStat, Debuff,
-  } from "../../kit.js";
-import { ActionGroup, Action, Rotation, START_2, SWAP, INTRO, ECHO_SWAP, OUTRO, START_3 } from "../../rotation.js";
+  } from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, START_2, SWAP, INTRO, ECHO_SWAP, OUTRO, START_3 } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";
-import { NM_CROWNLESS, HAVOC_ECLIPSE_5PC, HAVOC_ECLIPSE_2PC } from "../../echoes/jinzhou.js";
+import { NM_CROWNLESS, HAVOC_ECLIPSE_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 
@@ -92,13 +92,13 @@ const DARK_SURGE = new Buff({
 });
 /** Metamorph (Inherent Skill): +20% Havoc DMG Bonus while Dark Surge is held. */
 const RH_INHERENT_1 = new Inherent({
-  name: "Havoc Rover: Metamorph",
+  name: "Inherent: Metamorph",
   applyStats: () => { if (isHeld(DARK_SURGE)) addStat(Stat.DmgBonus, 20, Attribute.Havoc); },
 });
 /** Bleak Crescendo (Inherent Skill): +1 Energy per Basic Attack hit while in Dark Surge (its own
  *  1/s ICD not modelled, same as every other ICD-gated passive elsewhere). */
 const RH_INHERENT_2 = new Inherent({
-  name: "Havoc Rover: Bleak Crescendo",
+  name: "Inherent: Bleak Crescendo",
   applyStats: () => {
     if (isHeld(DARK_SURGE) && casting(Cast.Basic)) {
       addStat(Stat.AddEnergy, 1);
@@ -110,7 +110,7 @@ const RH_INHERENT_2 = new Inherent({
  *  lost on Rover's own next Intro rather than tracked as permanent. Trigger in `ROVER_S4` below. */
 const S4_RES_SHRED = new Debuff({
   name: "Havoc Rover S4: Annihilated Silence",
-  applyStats: () => addEnemyStat(EnemyStat.ResShred, 10, Attribute.Havoc),
+  applyStats: () => addEnemyStat(EnemyStat.ResReduce, 10, Attribute.Havoc),
   convertStats: () => { if (casting(Cast.Intro) && isHeld(ROVER_HAVOC_RESONATOR)) revokeEnemy(S4_RES_SHRED); },
 });
 
@@ -176,7 +176,6 @@ const ROVER_S6 = new Sequence({
 const BA12345 = new ActionGroup("Basic - Tuneslayer 12345", [BA1, BA2, BA3, BA4, BA5]);
 const EBA12345 = new ActionGroup("Forte Basic - Umbra 12345", [EBA1, EBA2, EBA3, EBA4, EBA5]);
 
-// TODO double intro
 const RH_ROTATION = new Rotation([
   INTRO, BA12345,
   Skill, Devastation, ESkill,
@@ -194,7 +193,7 @@ export const ROVER_HAVOC = new Loadout({
   inherent1: RH_INHERENT_1,
   inherent2: RH_INHERENT_2,
   weapons: [RED_SPRING, EMERALD_OF_GENESIS, BLAZING_BRILLIANCE],
-  echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC, HAVOC_ECLIPSE_2PC)],
+  echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: chem("atk", "basic"),
     rotation: RH_ROTATION,

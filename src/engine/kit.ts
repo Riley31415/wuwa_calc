@@ -208,26 +208,49 @@ export const baseSequence = (r: Resonator): number =>
  *  (Lucilla's Echo/Glacio Chafe split), not something toggled mid-rotation. Other pieces of that
  *  kit read `isHeld()` on the specific mode equipped, same as checking a Sequence. */
 export class ResonanceMode extends Gear {}
-/** An echo sonata set's 5-piece (or main) bonus. */
-export class Sonata extends Gear {}
-/** An echo sonata set's 2-piece bonus. */
-export class Sonata2pc extends Gear {}
+/** An echo sonata set's 2-piece bonus — worn on its own beside a 3pc/1pc set, or carried along by
+ *  its own set's 5pc (see `Sonata`). The `size` literals below are what tell the set shapes apart
+ *  for `EchoLoadout`'s constructor: structurally they would otherwise all be a bare Gear. */
+export class Sonata2pc extends Gear { readonly size = 2 as const; }
+export interface SonataDef extends GearDef {
+  /** The set's own 2-piece bonus — five of a set is always two of it too, so the 5pc equips this
+   *  alongside itself rather than a loadout having to name it separately. */
+  sonata2pc: Sonata2pc;
+}
+/** An echo sonata set's 5-piece bonus, its own 2pc riding along. */
+export class Sonata extends Gear {
+  readonly size = 5 as const;
+  sonata2pc: Sonata2pc;
+  constructor(def: SonataDef) { super(def); this.sonata2pc = def.sonata2pc; }
+}
+/** A 3-piece set (Septimont's) — worn beside one ordinary 2pc. */
+export class Sonata3pc extends Gear { readonly size = 3 as const; }
+/** A 1-piece set (Shadow of Shattered Dreams) — worn beside two ordinary 2pcs. */
+export class Sonata1pc extends Gear { readonly size = 1 as const; }
 /** A resonator's own Matrix — equipped only in Matrix Mode (see shared/matrix.ts). */
 export class Matrix extends Gear {}
 
-/** One echo choice — mainslot + sonata + its own 2pc, as a unit. A `Loadout` names a list of
- *  these (most kits just the one); the comparison table runs every weapon×echo combination its
+/** One echo choice — a mainslot plus one of the three shapes five echoes can make: a 5pc (its
+ *  2pc implied), a 3pc + 2pc, or a 1pc + 2pc + 2pc. `sets` is the shape as a build reads it, one
+ *  entry per set actually named — what the comparison table and gear hover list, a line each —
+ *  while `pieces()` is everything equipped, the 5pc's own 2pc included. A `Loadout` names a list
+ *  of these (most kits just the one); the comparison table runs every weapon×echo combination its
  *  loadout allows (see index.ts's own team runner), not just one hardcoded pick. */
 export class EchoLoadout {
   mainslot: Mainslot;
-  sonata: Sonata;
-  sonata2pc: Sonata2pc;
-  constructor(mainslot: Mainslot, sonata: Sonata, sonata2pc: Sonata2pc) {
+  sonata: Sonata | Sonata3pc | Sonata1pc;
+  sets: Gear[];
+  constructor(mainslot: Mainslot, sonata: Sonata);
+  constructor(mainslot: Mainslot, sonata: Sonata3pc, pc2: Sonata2pc);
+  constructor(mainslot: Mainslot, sonata: Sonata1pc, pc2a: Sonata2pc, pc2b: Sonata2pc);
+  constructor(mainslot: Mainslot, sonata: Sonata | Sonata3pc | Sonata1pc, ...pc2: Sonata2pc[]) {
     this.mainslot = mainslot;
     this.sonata = sonata;
-    this.sonata2pc = sonata2pc;
+    this.sets = [sonata, ...pc2];
   }
-  pieces(): Gear[] { return [this.mainslot, this.sonata, this.sonata2pc]; }
+  pieces(): Gear[] {
+    return [this.mainslot, ...this.sets, ...(this.sonata instanceof Sonata ? [this.sonata.sonata2pc] : [])];
+  }
 }
 
 /** Everything a `Loadout` is built from, labeled — see the class itself for what each field is.

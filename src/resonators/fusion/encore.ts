@@ -28,11 +28,11 @@ import {
   Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, applyCurrent, applyTeam, revokeCurrent, isHeld, casting, currentAction, addStat, frozenStacks,
   queueOutro, forte1, setForte1,
-  } from "../../kit.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO } from "../../rotation.js";
+  } from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO } from "../../engine/rotation.js";
 import { STRINGMASTER } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
-import { INFERNO_RIDER, MOLTEN_RIFT_5PC, MOLTEN_RIFT_2PC } from "../../echoes/jinzhou.js";
+import { INFERNO_RIDER, MOLTEN_RIFT_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 
@@ -89,24 +89,24 @@ const Outro = encoreAction("Outro - Thermal Field", { cast: Cast.Outro, type: Ty
 
 /** +10% Fusion DMG Bonus for 10s on casting Flaming Woolies or Cosmos - Rampage. */
 const WOOLIES_CHEER_DANCE = new Buff({
-  name: "Encore: Woolies Cheer Dance",
+  name: "Inherent: Woolies Cheer Dance",
   applyStats: () => addStat(Stat.DmgBonus, 10, Attribute.Fusion),
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(WOOLIES_CHEER_DANCE); },
 });
 const EN_INHERENT_2 = new Inherent({
-  name: "Encore: Woolies Cheer Dance",
+  name: "Inherent: Woolies Cheer Dance",
   updateBuffs: () => { const a = currentAction(); if (a === Skill1 || a === USkill) applyCurrent(WOOLIES_CHEER_DANCE, 1); },
 });
 
 /** Assumed always true — see file header. Granted/revoked alongside Cosmos Rave itself, so
  *  applyStats() doesn't need to check any particular action. */
 const ANGRY_COSMOS = new Buff({
-  name: "Encore: Angry Cosmos",
+  name: "Inherent: Angry Cosmos",
   applyStats: () => addStat(Stat.DmgBonus, 10),
   convertStats: () => { if (currentAction() === FHA) revokeCurrent(ANGRY_COSMOS); },
 });
 const EN_INHERENT_1 = new Inherent({
-  name: "Encore: Angry Cosmos",
+  name: "Inherent: Angry Cosmos",
   updateBuffs: () => { if (currentAction() === Liberation) applyCurrent(ANGRY_COSMOS, 1); },
 });
 
@@ -208,7 +208,7 @@ export const ENCORE = new Loadout({
   inherent1: EN_INHERENT_1,
   inherent2: EN_INHERENT_2,
   weapons: [STRINGMASTER, COSMIC_RIPPLES, NEW_STD_RECTIFIER],
-  echoLoadouts: [new EchoLoadout(INFERNO_RIDER, MOLTEN_RIFT_5PC, MOLTEN_RIFT_2PC)],
+  echoLoadouts: [new EchoLoadout(INFERNO_RIDER, MOLTEN_RIFT_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: chem("atk", "basic"),
     rotation: EN_ROTATION,

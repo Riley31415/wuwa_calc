@@ -13,12 +13,12 @@ import {
   Buff, Debuff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, EnemyStat, Attribute,
   WeaponType, Type1, Cast, Node, Scaling, applyCurrent, applyEnemy, revokeEnemy, isHeld, revokeCurrent, casting,
   currentAction, addStat, addEnemyStat, queue,
-} from "../../kit.js";
-import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO } from "../../rotation.js";
+} from "../../engine/kit.js";
+import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
 import { SPECTRO_FRAZZLE, HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";
-import { REJUV_5PC, REJUV_2PC, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";
+import { REJUV_5PC, HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
@@ -69,18 +69,18 @@ const Outro = roverAction("Outro - Instant", { cast: Cast.Outro, concerto: -100,
 /** Reticence (Inherent Skill): Resonating Echoes deals 60% more DMG — always on, so it pays
  *  straight out of the piece rather than through a buff. */
 const SPR_INHERENT_1 = new Inherent({
-  name: "Spectro Rover: Reticence",
+  name: "Inherent: Reticence",
   applyStats: () => { if (currentAction() === FBA) addStat(Stat.DmgBonus, 60); }, // TODO unsure if dmg bonus
 });
 
 /** Silent Listener (Inherent Skill): +15% ATK for 5s off Heavy Attack Resonance. */
 const SILENT_LISTENER = new Buff({
-  name: "Spectro Rover: Silent Listener",
+  name: "Inherent: Silent Listener",
   applyStats: () => addStat(Stat.BonusAtk, 15),
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(SILENT_LISTENER); },
 });
 const SPR_INHERENT_2 = new Inherent({
-  name: "Spectro Rover: Silent Listener",
+  name: "Inherent: Silent Listener",
   updateBuffs: () => { if (currentAction() === HA2) applyCurrent(SILENT_LISTENER, 1); },
 });
 
@@ -95,7 +95,7 @@ const S1_CRIT = new Buff({
  *  his own next Intro rather than tracked as permanent, same shape as Havoc Rover's own S4. */
 const S6_RES_SHRED = new Debuff({
   name: "Spectro Rover S6: Echoes of Wanderlust",
-  applyStats: () => addEnemyStat(EnemyStat.ResShred, 10, Attribute.Spectro),
+  applyStats: () => addEnemyStat(EnemyStat.ResReduce, 10, Attribute.Spectro),
   convertStats: () => { if (casting(Cast.Intro) && isHeld(ROVER_SPECTRO_RESONATOR)) revokeEnemy(S6_RES_SHRED); },
 });
 
@@ -179,8 +179,8 @@ export const ROVER_SPECTRO = new Loadout({
   inherent2: SPR_INHERENT_2,
   weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, RED_SPRING],
   echoLoadouts: [
-    new EchoLoadout(FALLACY, REJUV_5PC, REJUV_2PC),
-    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
+    new EchoLoadout(FALLACY, REJUV_5PC),
+    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
   substat: chem("atk", "liberation"),

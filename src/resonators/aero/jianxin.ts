@@ -25,12 +25,12 @@
 import {
   Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute,
   WeaponType, Type1, Cast, Node, Scaling, addStat, applyCurrent, casting, currentAction, forte1, queueOutro, revokeCurrent, setForte1,
-} from "../../kit.js";
+} from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
 import { HEALS, SHIELD } from "../../shared/status.js";
 import { MARCATO } from "../../weapons/standard.js";
-import { HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";
+import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 
@@ -175,12 +175,12 @@ const S6 = new Sequence({ name: "Jianxin S6" });
 
 /** Formless Release: Purification Force Field DMG +20%. */
 const JX_INHERENT_1 = new Inherent({
-  name: "Jianxin: Formless Release",
+  name: "Inherent: Formless Release",
   applyStats: () => { if (currentAction() === Liberation) addStat(Stat.DmgBonus, 20); },
 });
 
 /** Reflection: the Spiral's shield is 20% larger — no damage of its own. */
-const JX_INHERENT_2 = new Inherent({ name: "Jianxin: Reflection" });
+const JX_INHERENT_2 = new Inherent({ name: "Inherent: Reflection" });
 
 const JIANXIN_TALENTS = new Talent({
   name: "Jianxin: Talents",
@@ -217,7 +217,7 @@ export const JIANXIN = new Loadout({
   inherent1: JX_INHERENT_1,
   inherent2: JX_INHERENT_2,
   weapons: [MARCATO],
-  echoLoadouts: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC)],
+  echoLoadouts: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.Aero3, Mainstat.ATK3, Mainstat.ATK1),
   substat: chem("atk", "liberation"),
   rotation: JX_ROTATION,

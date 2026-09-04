@@ -10,9 +10,9 @@ import { isType,
   Buff, Sonata, Sonata2pc, Mainslot, EchoType, Stat, Attribute, Type1, Cast, Scaling,
   addStat, frozenStacks, casting, currentAction, revokeCurrent, applyCurrent, applyTeam, stacksOfTeam, revokeTeam,
   removeStackTeam, queueOutro, queue, triggeredAction,
-} from "../kit.js";
-import { Action, ActionField } from "../rotation.js";
-import { applied } from "../kit.js";
+} from "../engine/kit.js";
+import { Action, ActionField } from "../engine/rotation.js";
+import { applied } from "../engine/kit.js";
 import { coordinatedBuff, handoff, lostOnSwap } from "../shared/helpers.js";
 import { HEALS, SHIELD } from "../shared/status.js";
 
@@ -84,20 +84,21 @@ export const MOONLIT_CLOUDS_2PC = new Sonata2pc({ name: "Moonlit Clouds 2pc", co
 
 export const MOONLIT_CLOUDS_5PC = new Sonata({
   name: "Moonlit Clouds 5pc",
+  sonata2pc: MOONLIT_CLOUDS_2PC,
   updateBuffs: () => { if (casting(Cast.Outro)) queueOutro(MOONLIT_CLOUDS_HANDOFF); },
 });
 
 export const MOONLIT_CLOUDS_HANDOFF = handoff("Moonlit Clouds (outro)", () => addStat(Stat.BonusAtk, 22.5));
 
+export const REJUV_2PC = new Sonata2pc({ name: "Rejuvenating Glow 2pc", constantStats: () => addStat(Stat.HealingBonus, 10) });
 /** Rejuvenating Glow, a generic sonata. 5pc: on healing an ally, +15% ATK flat, team-wide,
  *  permanent uptime once triggered. 2pc: +10% Healing Bonus flat, tracked for completeness only. */
 export const REJUV_5PC = new Sonata({
   name: "Rejuvenating Glow 5pc",
+  sonata2pc: REJUV_2PC,
   updateBuffs: () => { if (applied(HEALS)) applyTeam(REJUV_TEAM, 1); },
 });
 export const REJUV_TEAM = new Buff({ name: "Rejuvenating Glow (team)", applyStats: () => addStat(Stat.BonusAtk, 15) });
-
-export const REJUV_2PC = new Sonata2pc({ name: "Rejuvenating Glow 2pc", constantStats: () => addStat(Stat.HealingBonus, 10) });
 
 /* ------------------------------------------------------------------------------- Changli, 1.1 */
 
@@ -106,6 +107,7 @@ export const REJUV_2PC = new Sonata2pc({ name: "Rejuvenating Glow 2pc", constant
 export const MOLTEN_RIFT_2PC = new Sonata2pc({ name: "Molten Rift 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Fusion) });
 export const MOLTEN_RIFT_5PC = new Sonata({
   name: "Molten Rift 5pc",
+  sonata2pc: MOLTEN_RIFT_2PC,
   updateBuffs: () => { if (casting(Cast.Skill)) applyCurrent(MOLTEN_RIFT_BUFF, 1); },
 });
 export const MOLTEN_RIFT_BUFF = new Buff({
@@ -181,6 +183,7 @@ export const CROWNLESS = new Mainslot({
 export const HAVOC_ECLIPSE_2PC = new Sonata2pc({ name: "Havoc Eclipse 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Havoc) });
 export const HAVOC_ECLIPSE_5PC = new Sonata({
   name: "Havoc Eclipse 5pc",
+  sonata2pc: HAVOC_ECLIPSE_2PC,
   updateBuffs: () => {
     const a = currentAction();
     if (isType(Type1.Basic) || isType(Type1.Heavy)) applyCurrent(HAVOC_ECLIPSE_STACKS, 1);
@@ -217,6 +220,7 @@ export const LAMPYLUMEN_MYRIAD = new Mainslot({
 export const FREEZING_FROST_2PC = new Sonata2pc({ name: "Freezing Frost 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Glacio) });
 export const FREEZING_FROST_5PC = new Sonata({
   name: "Freezing Frost 5pc",
+  sonata2pc: FREEZING_FROST_2PC,
   updateBuffs: () => {
     const a = currentAction();
     if (isType(Type1.Basic) || isType(Type1.Heavy)) applyCurrent(FREEZING_FROST_STACKS, 1);
@@ -245,6 +249,7 @@ export const NM_FEILIAN_BERINGAL = new Mainslot({
 export const SIERRA_GALE_2PC = new Sonata2pc({ name: "Sierra Gale 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Aero) });
 export const SIERRA_GALE_5PC = new Sonata({
   name: "Sierra Gale 5pc",
+  sonata2pc: SIERRA_GALE_2PC,
   updateBuffs: () => { if (casting(Cast.Intro)) applyCurrent(SIERRA_GALE_INTRO, 1); },
 });
 export const SIERRA_GALE_INTRO = new Buff({
@@ -284,6 +289,7 @@ export const JUE = new Mainslot({
 export const CELESTIAL_LIGHT_2PC = new Sonata2pc({ name: "Celestial Light 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Spectro) });
 export const CELESTIAL_LIGHT_5PC = new Sonata({
   name: "Celestial Light 5pc",
+  sonata2pc: CELESTIAL_LIGHT_2PC,
   updateBuffs: () => { if (casting(Cast.Intro)) applyCurrent(CELESTIAL_LIGHT_INTRO, 1); },
 });
 export const CELESTIAL_LIGHT_INTRO = new Buff({
@@ -321,6 +327,7 @@ export const MECH_ABOMINATION = new Mainslot({
 export const LINGERING_TUNES_2PC = new Sonata2pc({ name: "Lingering Tunes 2pc", constantStats: () => addStat(Stat.BonusAtk, 10) });
 export const LINGERING_TUNES_5PC = new Sonata({
   name: "Lingering Tunes 5pc",
+  sonata2pc: LINGERING_TUNES_2PC,
   constantStats: () => addStat(Stat.DmgBonus, 60, Type1.Outro),
   // the 1.5s cadence stands in for real on-field presses, so a queued follow-up, a status rung or
   // the shared Tune Break — active casts on the wearer's slot, but not them acting again — don't
@@ -370,6 +377,7 @@ export const VOID_THUNDER_STACKS = new Buff({
 });
 export const VOID_THUNDER_5PC = new Sonata({
   name: "Void Thunder 5pc",
+  sonata2pc: VOID_THUNDER_2PC,
   updateBuffs: () => { if (casting(Cast.Heavy) || casting(Cast.Skill)) applyCurrent(VOID_THUNDER_STACKS, 1); },
 });
 

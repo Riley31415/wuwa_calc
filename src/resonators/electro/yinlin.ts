@@ -26,13 +26,13 @@ import {
   Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
   Type2, Cast, Node, Scaling, applyCurrent, setStacksSelf, removeStack, applyEnemy, revokeEnemy, stacksOfEnemy,
   isHeld, currentAction, casting, revokeCurrent, addStat, queue, queueOutro, applyTeam,
-} from "../../kit.js";
+} from "../../engine/kit.js";
 import { coordinatedBuff, lostOnSwap, matrix } from "../../shared/helpers.js";
-import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ActionField } from "../../rotation.js";
+import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ActionField } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
-import { EMPYREAN_ANTHEM_5PC, EMPYREAN_ANTHEM_2PC } from "../../echoes/rinascita.js";
-import { NM_TEMPEST_MEPHIS, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";
+import { EMPYREAN_ANTHEM_5PC } from "../../echoes/rinascita.js";
+import { NM_TEMPEST_MEPHIS, HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 
@@ -114,24 +114,24 @@ const EXECUTION_MODE: Buff = new Buff({
 
 /** Pain Immersion (Inherent Skill): +15% Crit Rate for 5s after Magnetic Roar. */
 const PAIN_IMMERSION = new Buff({
-  name: "Yinlin: Pain Immersion",
+  name: "Inherent: Pain Immersion",
   applyStats: () => addStat(Stat.CritRate, 15),
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(PAIN_IMMERSION); },
 });
 const YL_INHERENT_1 = new Inherent({
-  name: "Yinlin: Pain Immersion",
+  name: "Inherent: Pain Immersion",
   updateBuffs: () => { if (currentAction() === Skill1) applyCurrent(PAIN_IMMERSION, 1); },
 });
 
 /** Deadly Focus (Inherent Skill): the +10% ATK half — the +10% on Lightning Execution itself
  *  lives on YL_INHERENT_2's own apply below. Both halves need the target Sinner-marked. */
 const DEADLY_FOCUS = new Buff({
-  name: "Yinlin: Deadly Focus",
+  name: "Inherent: Deadly Focus",
   applyStats: () => addStat(Stat.BonusAtk, 10),
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(DEADLY_FOCUS); },
 });
 const YL_INHERENT_2 = new Inherent({
-  name: "Yinlin: Deadly Focus",
+  name: "Inherent: Deadly Focus",
   updateBuffs: () => { if (currentAction() === Skill2 && stacksOfEnemy(SINNERS_MARK)) applyCurrent(DEADLY_FOCUS, 1); },
   applyStats: () => { if (currentAction() === Skill2 && stacksOfEnemy(SINNERS_MARK)) addStat(Stat.DmgBonus, 10); },
 });
@@ -202,8 +202,8 @@ export const YINLIN = new Loadout({
   inherent2: YL_INHERENT_2,
   weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER, NEW_STD_RECTIFIER],
   echoLoadouts: [
-    new EchoLoadout(NM_TEMPEST_MEPHIS, EMPYREAN_ANTHEM_5PC, EMPYREAN_ANTHEM_2PC),
-    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
+    new EchoLoadout(NM_TEMPEST_MEPHIS, EMPYREAN_ANTHEM_5PC),
+    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
   substat: chem("atk", "skill"),

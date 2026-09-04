@@ -27,16 +27,16 @@ import {
   Buff, Debuff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType,
   Type1, Cast, Node, Scaling, applyCurrent, applyTeam, applyEnemy, revokeCurrent, revokeTeam, revokeEnemy, isHeld,
   stacksOfEnemy, casting, currentAction, addStat, frozenStacks, queueOutro, forte1,
-} from "../../kit.js";
+} from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { Action, Rotation, INTRO, ECHO_SWAP, OUTRO, SWAP, START_3 } from "../../rotation.js";
+import { Action, Rotation, INTRO, ECHO_SWAP, OUTRO, SWAP, START_3 } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, EMERALD_SENTENCE } from "../../weapons/sword.js";
-import { NM_HERON, MIDNIGHT_VEIL_5PC, MIDNIGHT_VEIL_2PC } from "../../echoes/rinascita.js";
+import { NM_HERON, MIDNIGHT_VEIL_5PC } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
-import { CROWNLESS, HAVOC_ECLIPSE_2PC, HAVOC_ECLIPSE_5PC, HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC, REJUV_2PC, REJUV_5PC } from "../../echoes/jinzhou.js";
+import { CROWNLESS, HAVOC_ECLIPSE_5PC, HERON, MOONLIT_CLOUDS_5PC, REJUV_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -110,12 +110,12 @@ const INCINERATING_WILL = new Debuff({
 /** Overflow (Inherent Skill): +30% Heavy Attack DMG Bonus, 5s, once granted after Sanguine Pulse —
  *  a real time window, lost after the outro action gains stats, not consumed by the next hit alone. */
 const OVERFLOW = new Buff({
-  name: "Danjin: Overflow",
+  name: "Inherent: Overflow",
   applyStats: () => addStat(Stat.DmgBonus, 30, Type1.Heavy),
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(OVERFLOW); },
 });
 const DJ_INHERENT_OVERFLOW = new Inherent({
-  name: "Danjin: Overflow",
+  name: "Inherent: Overflow",
   updateBuffs: () => { if (currentAction() === SanguinePulse3) applyCurrent(OVERFLOW, 1); },
 });
 
@@ -124,14 +124,14 @@ const DJ_INHERENT_OVERFLOW = new Inherent({
  *  Bonus, doubles that action's own Ruby Blossom gain via AddForte1); on anything else it
  *  revokes itself in updateBuffs() before applyStats() runs that action. */
 const CRIMSON_LIGHT = new Buff({
-  name: "Danjin: Crimson Light",
+  name: "Inherent: Crimson Light",
   applyStats: () => {
     if (currentAction() === CrimsonErosion1) { addStat(Stat.DmgBonus, 20); addStat(Stat.AddForte1, CrimsonErosion1.forte1); }
   },
   updateBuffs: () => { if (currentAction() !== CrimsonErosion1) revokeCurrent(CRIMSON_LIGHT); },
 });
 const DJ_INHERENT_CRIMSON_LIGHT = new Inherent({
-  name: "Danjin: Crimson Light",
+  name: "Inherent: Crimson Light",
   updateBuffs: () => { if (currentAction() === DC) applyCurrent(CRIMSON_LIGHT, 1); },
 });
 
@@ -255,10 +255,10 @@ export const DANJIN = new Loadout({
   inherent1: DJ_INHERENT_OVERFLOW,
   inherent2: DJ_INHERENT_CRIMSON_LIGHT,
   weapons: [EMERALD_SENTENCE, EMERALD_OF_GENESIS, BLAZING_BRILLIANCE],
-  echoLoadouts: [new EchoLoadout(NM_HERON, MIDNIGHT_VEIL_5PC, MIDNIGHT_VEIL_2PC),
-    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
-    new EchoLoadout(FALLACY, REJUV_5PC, REJUV_2PC),
-    new EchoLoadout(CROWNLESS, HAVOC_ECLIPSE_5PC, HAVOC_ECLIPSE_2PC),
+  echoLoadouts: [new EchoLoadout(NM_HERON, MIDNIGHT_VEIL_5PC),
+    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
+    new EchoLoadout(FALLACY, REJUV_5PC),
+    new EchoLoadout(CROWNLESS, HAVOC_ECLIPSE_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: chem("atk", "heavy"),

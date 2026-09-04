@@ -47,12 +47,12 @@ import {
   Type1, Cast, Node, Scaling, addStat, applied, appliedByMe, applyCurrent, applyEnemy, applyTeam, casting,
   consume, currentAction, currentTeam, forte1, frozenStacks, isHeld, queue, revokeCurrent,
   revokeTeam, setForte1, setForte2, stacksOfEnemy, stacksOfTeam,
-  } from "../../kit.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO, START_3, SWAP, ECHO_SWAP } from "../../rotation.js";
+  } from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO, START_3, SWAP, ECHO_SWAP } from "../../engine/rotation.js";
 import { HAVOC_BANE } from "../../shared/status.js";
 import { AZURE_OATH } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
-import { THOUSAND_PUPPET_PAVILION, FEATHERED_TRACE_5PC, FEATHERED_TRACE_2PC } from "../../echoes/mengzhou.js";
+import { THOUSAND_PUPPET_PAVILION, FEATHERED_TRACE_5PC } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 
@@ -286,7 +286,7 @@ const TONAL_SWITCH_AMP = new Buff({
  *  means. The count is read live rather than frozen: the stacks a cast lands are on the target by
  *  the time it hits, which is the same "on hit" the Liberation's own raise-to-max is written as. */
 const XUANLING_INHERENT_1 = new Inherent({
-  name: "Xuanling: Unbroken Vow",
+  name: "Inherent: Unbroken Vow",
   applyStats: () => {
     const bane = stacksOfEnemy(HAVOC_BANE);
     if (bane === 0) return;
@@ -298,7 +298,7 @@ const XUANLING_INHERENT_1 = new Inherent({
  *  Liberation itself. From `updateGlobal`, so a teammate's own cast is seen; that runs with the
  *  "current" slot already pointed at her, so every read and grant below is hers. */
 const XUANLING_INHERENT_2 = new Inherent({
-  name: "Xuanling: One Life, One Blade",
+  name: "Inherent: One Life, One Blade",
   updateGlobal: () => {
     if (!applied(HAVOC_BANE) || isHeld(ONE_WITH_THE_WIND)) return;
     if (applyCurrent(WINDBOUND, 1) < 6) return;
@@ -361,7 +361,7 @@ const XUANLING_ROTATION = new Rotation([
 ]);
 
 const XUANLING_ECHOES = [
-  new EchoLoadout(THOUSAND_PUPPET_PAVILION, FEATHERED_TRACE_5PC, FEATHERED_TRACE_2PC),
+  new EchoLoadout(THOUSAND_PUPPET_PAVILION, FEATHERED_TRACE_5PC),
 ];
 
 export const XUANLING = new Loadout({

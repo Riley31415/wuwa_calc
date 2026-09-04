@@ -3,7 +3,7 @@
 import { isType,
   Buff, Weapon, WeaponType, Stat, Attribute, Type1, Type2, Cast,
   addStat, frozenStacks, casting, currentAction, revokeCurrent, applyCurrent, stacksOf, applyTeam, applied, appliedByMe,
-} from "../kit.js";
+} from "../engine/kit.js";
 import { lostOnSwap } from "../shared/helpers.js";
 import { TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 import { FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE } from "../shared/status.js";

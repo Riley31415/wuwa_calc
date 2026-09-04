@@ -25,14 +25,14 @@
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, currentAction, casting, revokeCurrent, addStat, frozenStacks, removeStack, queueOn, queueOutro,
-  } from "../../kit.js";
+  } from "../../engine/kit.js";
 import { matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, ActionField } from "../../rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, ActionField } from "../../engine/rotation.js";
 import { IUNO_SIG, VERITYS_HANDLE } from "../../weapons/gauntlet.js";
 import { ABYSS_SURGES, NEW_STD_GAUNTLET } from "../../weapons/standard.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
-import { NM_MEPHIS, VOID_THUNDER_2PC, VOID_THUNDER_5PC } from "../../echoes/jinzhou.js";
+import { NM_MEPHIS, VOID_THUNDER_5PC } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -87,17 +87,17 @@ const ACTION_OUTRO_COORD = xlyAction("Outro - Chain Rule (Laser)", { type: Type1
 /** Knowing (Inherent Skill): +5% Electro DMG Bonus a stack on casting Resonance Skill, up to 4,
  *  8s — held for his whole field window, lost after his outro. */
 const KNOWING = new Buff({
-  name: "Xiangli Yao: Knowing", maxStacks: 4,
+  name: "Inherent: Knowing", maxStacks: 4,
   applyStats: () => addStat(Stat.DmgBonus, 5 * frozenStacks(), Attribute.Electro),
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(KNOWING); },
 });
 const XLY_INHERENT_1 = new Inherent({
-  name: "Xiangli Yao: Knowing",
+  name: "Inherent: Knowing",
   updateBuffs: () => { if (casting(Cast.Skill)) applyCurrent(KNOWING, 1); },
 });
 
 /** Focus (Inherent Skill): interruption resistance during Intuition — see file header. */
-const XLY_INHERENT_2 = new Inherent({ name: "Xiangli Yao: Focus" });
+const XLY_INHERENT_2 = new Inherent({ name: "Inherent: Focus" });
 
 /** Chain Rule — the outro handoff: 3 charges on the incoming resonator, each Basic cast of theirs
  *  consuming one to fire a laser on Xiangli Yao's own slot. Whatever's left is lost when they
@@ -158,7 +158,7 @@ export const XIANGLI_YAO = new Loadout({
   inherent1: XLY_INHERENT_1,
   inherent2: XLY_INHERENT_2,
   weapons: [IUNO_SIG, NEW_STD_GAUNTLET, VERITYS_HANDLE, ABYSS_SURGES],
-  echoLoadouts: [new EchoLoadout(NM_MEPHIS, VOID_THUNDER_5PC, VOID_THUNDER_2PC)],
+  echoLoadouts: [new EchoLoadout(NM_MEPHIS, VOID_THUNDER_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
   substat: chem("atk", "liberation"),
     rotation: XLY_ROTATION,

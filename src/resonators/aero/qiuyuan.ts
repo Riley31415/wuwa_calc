@@ -16,9 +16,9 @@ import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, forte1, currentAction, casting, queueOutro, applyTeam, revokeCurrent, addStat,
   frozenStacks,
-  } from "../../kit.js";
+  } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, START_1, START_2, START_3, SWAP, NOINTRO, INTRO, ECHO_CANCEL, ECHO_ONFIELD, OUTRO, DODGE } from "../../rotation.js";
+import { ActionGroup, Action, Rotation, START_1, START_2, START_3, SWAP, NOINTRO, INTRO, ECHO_CANCEL, ECHO_ONFIELD, OUTRO, DODGE } from "../../engine/rotation.js";
 import { EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { REJUV_2PC, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, SIERRA_GALE_2PC, BELL_BORNE_GEOCHELONE } from "../../echoes/jinzhou.js";
@@ -79,7 +79,7 @@ const BAMBOO_SHADE = new Buff({
 });
 
 const QUIETUDE_WITHIN = new Buff({
-  name: "Qiuyuan: Quietude Within",
+  name: "Inherent: Quietude Within",
   updateBuffs: () => {
     lostOnSwap();
     // TODO needs special handling for double forte
@@ -106,12 +106,12 @@ const QIUYUAN_OUTRO = new Buff({
 });
 
 const QY_INHERENT_2 = new Inherent({
-  name: "Qiuyuan: Drink Away Woes Age-Old",
+  name: "Inherent: Drink Away Woes Age-Old",
   updateBuffs: () => { if (currentAction().forte1 > 0) applyCurrent(FLOWING_PANACEA, 1); },
 });
 
 const QY_INHERENT_1 = new Inherent({
-  name: "Qiuyuan: Quietude Within",
+  name: "Inherent: Quietude Within",
   updateBuffs: () => {
     const soliloquy = forte1() + currentAction().forte1;
     if (soliloquy >= 600) applyCurrent(QUIETUDE_WITHIN, 1);
@@ -160,9 +160,9 @@ const QY_ROTATION = new Rotation([
   FHA123, 
   OUTRO,
 
-  INTRO, EBA3, EBA4,
-  FHA123,
-  ECHO_CANCEL, Liberation, 
+  INTRO, EBA3, EBA4, Skill, Liberation,
+  FHA123, 
+  ECHO_CANCEL, 
   OUTRO,
 ]);
 
@@ -184,8 +184,8 @@ export const QIUYUAN = new Loadout({
     new EchoLoadout(BELL_BORNE_GEOCHELONE, LAW_OF_HARMONY_3PC, MOONLIT_CLOUDS_2PC),
     new EchoLoadout(FALLACY, LAW_OF_HARMONY_3PC, REJUV_2PC),
 
-    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
-    new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
+    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
+    new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
   substat: chem("atk", "heavy"),

@@ -44,9 +44,9 @@ import {
   setForte1, setForte2, getStat, forte2,
   stacksOf,
   addForte1,
-} from "../../kit.js";
-import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, JUMP, ActionGroup, DODGE, ActionField } from "../../rotation.js";
-import { applied, applyEnemy } from "../../kit.js";
+} from "../../engine/kit.js";
+import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, JUMP, ActionGroup, DODGE, ActionField } from "../../engine/rotation.js";
+import { applied, applyEnemy } from "../../engine/kit.js";
 import { coordinatedBuff, lostOnSwap } from "../../shared/helpers.js";
 import { FUSION_BURST } from "../../shared/status.js";
 import { ENEMY_MAX_OFFTUNE, TUNE_STRAIN_SHIFTING } from "../../shared/tunebreak.js";
@@ -54,17 +54,15 @@ import { applyStrain, TUNE_STRAIN_INTERFERED, tuneStrainBonus } from "../../shar
 import { FORGED_DWARF_STAR, STRINGMASTER } from "../../weapons/rectifier.js";
 import { COSMIC_RIPPLES, NEW_STD_RECTIFIER } from "../../weapons/standard.js";
 import {
-  TRICKSTER, CHROMATIC_FOAM_5PC, CHROMATIC_FOAM_2PC, VOIDWING_MOTH, REEL_5PC, REEL_2PC,
+  TRICKSTER, CHROMATIC_FOAM_5PC, VOIDWING_MOTH, REEL_5PC,
   HYVATIA,
   NEONLIGHT_LEAP_5PC,
-  NEONLIGHT_LEAP_2PC,
   TRAILBLAZING_STAR_5PC,
-  TRAILBLAZING_STAR_2PC,
   SIGILLUM,
 } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
-import { CLAWPRINT_2PC, CLAWPRINT_5PC, LIONESS_OF_GLORY } from "../../echoes/septimont.js";
+import { CLAWPRINT_5PC, LIONESS_OF_GLORY } from "../../echoes/septimont.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -185,7 +183,7 @@ const inflictsOne = (a: Action): boolean => a === BA3 || a === BA4 || a === UBA3
  *  (statuses.ts), so nothing here has to fire its damage.
  *  Strain also responds to Strain, and the team's first Shifting fills half the off-tune bar. */
 const MODE_BURST = new ResonanceMode({
-  name: "Denia: Resonance Mode - Fusion Burst",
+  name: "Resonance Mode - Fusion Burst",
   updateDebuffs: () => {
     const a = currentAction();
     if (inflictsTwo(a)) applyEnemy(FUSION_BURST, 2);
@@ -193,7 +191,7 @@ const MODE_BURST = new ResonanceMode({
   },
 });
 const MODE_STRAIN = new ResonanceMode({
-  name: "Denia: Resonance Mode - Tune Strain",
+  name: "Resonance Mode - Tune Strain",
 
   // Shattered Hours: "while Denia is in the team", whichever mode
   combatStart: () => {
@@ -209,7 +207,7 @@ const MODE_STRAIN = new ResonanceMode({
  *  buff's applyStats() runs on whoever is acting, so whichever member's Shifting cast comes first pays
  *  it out on their own action (a locally-held buff only ever sees Denia's turns). Spent as it fires. */
 const OFFTUNE_SURGE = new Buff({
-  name: "Denia: Resonance Mode - Tune Strain",
+  name: "Resonance Mode - Tune Strain",
   applyStats: () => { if (applied(TUNE_STRAIN_SHIFTING)) addStat(Stat.DirectOfftune, ENEMY_MAX_OFFTUNE / 2); },
   convertStats: () => { if (applied(TUNE_STRAIN_SHIFTING)) revokeTeam(OFFTUNE_SURGE); },
 });
@@ -267,7 +265,7 @@ const ENTROPY_STAGECRAFT = new Buff({
  *  because a team buff's applyStats() runs on whoever's acting and can't ask isHeld() which mode
  *  Denia holds — DN_INHERENT_2's own updateBuffs() picks. */
 const ETCHED_COLORS_BURST = new Buff({
-  name: "Denia: Etched Colors (burst)",
+  name: "Inherent: Etched Colors (burst)",
   applyStats: () => addStat(Stat.DmgBonus, 30, Attribute.Fusion),
 });
 
@@ -275,7 +273,7 @@ const ETCHED_COLORS_BURST = new Buff({
  *  up to 40 — taken at the cap per CLAUDE.md's own-stats rule (a Syntony Field alone clears it).
  *  The real stat, so tuneStrainBonus() and the damage formula's own tbbFactor both see it. */
 const ETCHED_COLORS_STRAIN = new Buff({
-  name: "Denia: Etched Colors (strain)",
+  name: "Inherent: Etched Colors (strain)",
   convertStats: () => {
     addStat(Stat.Tbb, 10 + Math.min(40, Math.max(0, 8 * (getStat(Stat.OfftuneBuildup) - 100) / 10)));
   },
@@ -284,7 +282,7 @@ const ETCHED_COLORS_STRAIN = new Buff({
 /** Etched Colors — the grant; the payout is the two team buffs above. Either cast that starts an
  *  Entropy Shift is the moment it comes up. */
 const DN_INHERENT_2 = new Inherent({
-  name: "Denia: Etched Colors",
+  name: "Inherent: Etched Colors",
   updateBuffs: () => {
     const a = currentAction();
     if (a === Lib1 || a === EIntro) applyTeam(isHeld(MODE_BURST) ? ETCHED_COLORS_BURST : ETCHED_COLORS_STRAIN, 1);
@@ -327,7 +325,7 @@ const UNFINISHED_LIES_STRAIN = new Buff({
 /* --------------------------------------------------------------------------- kit and loadout */
 
 const DN_INHERENT_1 = new Inherent({
-  name: "Denia: Vestiges of Falsehood",
+  name: "Inherent: Vestiges of Falsehood",
   combatStart: () => {
     applyCurrent(DARK_CORE, 2);
     setForte1(20);
@@ -390,9 +388,9 @@ export const DENIA_BURST = new Loadout({
   inherent2: DN_INHERENT_2,
   weapons: [FORGED_DWARF_STAR, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER],
   echoLoadouts: [
-    new EchoLoadout(TRICKSTER, CHROMATIC_FOAM_5PC, CHROMATIC_FOAM_2PC),
-    new EchoLoadout(LIONESS_OF_GLORY, CLAWPRINT_5PC, CLAWPRINT_2PC),
-    new EchoLoadout(SIGILLUM, TRAILBLAZING_STAR_5PC, TRAILBLAZING_STAR_2PC), 
+    new EchoLoadout(TRICKSTER, CHROMATIC_FOAM_5PC),
+    new EchoLoadout(LIONESS_OF_GLORY, CLAWPRINT_5PC),
+    new EchoLoadout(SIGILLUM, TRAILBLAZING_STAR_5PC), 
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: chem("atk", "liberation"),
@@ -419,8 +417,8 @@ export const DENIA_STRAIN = new Loadout({
   inherent2: DN_INHERENT_2,
   weapons: [FORGED_DWARF_STAR, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER],
   echoLoadouts: [
-    new EchoLoadout(VOIDWING_MOTH, REEL_5PC, REEL_2PC),
-    new EchoLoadout(HYVATIA, NEONLIGHT_LEAP_5PC, NEONLIGHT_LEAP_2PC),
+    new EchoLoadout(VOIDWING_MOTH, REEL_5PC),
+    new EchoLoadout(HYVATIA, NEONLIGHT_LEAP_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: chem("atk", "liberation"),

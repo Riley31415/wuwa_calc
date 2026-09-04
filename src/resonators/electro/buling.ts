@@ -38,12 +38,12 @@ import {
   Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, applyTeam, applyCurrent, stacksOfTeam, isHeld, casting, currentAction, currentTeam, addStat,
   queueOnIntro, revokeCurrent, revokeTeam,
-} from "../../kit.js";
-import { Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../rotation.js";
-import { applyEnemy } from "../../kit.js";
+} from "../../engine/kit.js";
+import { Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
+import { applyEnemy } from "../../engine/kit.js";
 import { ELECTRO_FLARE, HEALS } from "../../shared/status.js";
 import { COSMIC_RIPPLES, NEW_STD_RECTIFIER, VARIATION } from "../../weapons/standard.js";
-import { REJUV_5PC, REJUV_2PC } from "../../echoes/jinzhou.js";
+import { REJUV_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
@@ -151,10 +151,10 @@ const BULING_OUTRO = new Buff({
 });
 
 /** +25% Healing Bonus while healing an ally under 50% HP — no ally-HP tracking, named marker only. */
-const BL_INHERENT_1 = new Inherent({ name: "Buling: Time Arrives, Evil Declines" });
+const BL_INHERENT_1 = new Inherent({ name: "Inherent: Time Arrives, Evil Declines" });
 
 /** The source of Intro's own 4 Electro Flare stacks (declared on the Intro action). */
-const BL_INHERENT_2 = new Inherent({ name: "Buling: Earthly Immortal is Here!" });
+const BL_INHERENT_2 = new Inherent({ name: "Inherent: Earthly Immortal is Here!" });
 
 /* ------------------------------------------------------------------------------- sequences */
 
@@ -222,7 +222,7 @@ export const BULING = new Loadout({
   inherent1: BL_INHERENT_1,
   inherent2: BL_INHERENT_2,
   weapons: [VARIATION],
-  echoLoadouts: [new EchoLoadout(FALLACY, REJUV_5PC, REJUV_2PC)],
+  echoLoadouts: [new EchoLoadout(FALLACY, REJUV_5PC)],
   mainstats: [mainstats(Mainstat.CD4, Mainstat.ER3, Mainstat.ER3, Mainstat.ATK1, Mainstat.ATK1)],
   substat: chem("atk", "liberation", { er: true }),
     rotation: BL_ROTATION,

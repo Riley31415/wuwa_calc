@@ -14,16 +14,16 @@ import {
   Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyTeam, applyCurrent, addBuff, revokeBuff, stacksOfTeam, currentAction, currentTeam, casting,
   isHeld, revokeTeam, addStat,
-  } from "../../kit.js";
-import { ActionGroup, Action, Rotation, START_1, START_2, START_3, SWAP, NOINTRO, INTRO, ECHO_CANCEL, OUTRO, DODGE, JUMP } from "../../rotation.js";
+  } from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, START_1, START_2, START_3, SWAP, NOINTRO, INTRO, ECHO_CANCEL, OUTRO, DODGE, JUMP } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { SK_SIG } from "../../weapons/rectifier.js";
 import { VARIATION } from "../../weapons/standard.js";
-import { REJUV_5PC, REJUV_2PC } from "../../echoes/jinzhou.js";
+import { REJUV_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
-import { SPACETREK_EXPLORER, STARRY_RADIANCE_2PC, STARRY_RADIANCE_5PC } from "../../echoes/lahairoi.js";
+import { SPACETREK_EXPLORER, STARRY_RADIANCE_5PC } from "../../echoes/lahairoi.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -111,7 +111,7 @@ const SK_OUTRO = new Buff({
 /** Self Gravitation's own extension onto Rover — lives on Rover's own local stack (granted via
  *  addBuff(), see SK_INHERENT_2 below) so the ER still traces to Shorekeeper on Rover's own row. */
 const SK_ROVER_GRAVITATION = new Buff({
-  name: "Shorekeeper: Self Gravitation",
+  name: "Inherent: Self Gravitation",
   applyStats: () => { if (stacksOfTeam(SK_REALM)) addStat(Stat.Er, 10); },
 });
 
@@ -119,7 +119,7 @@ const SK_ROVER_GRAVITATION = new Buff({
  *  once one is up. Also extends to any teammate whose name contains "Rover", via updateGlobal()
  *  so it reaches their turn from turn one regardless of team order. */
 const SK_INHERENT_2 = new Inherent({
-  name: "Shorekeeper: Self Gravitation",
+  name: "Inherent: Self Gravitation",
   applyStats: () => {
     if (stacksOfTeam(SK_REALM)) addStat(Stat.Er, 10);
   },
@@ -132,7 +132,7 @@ const SK_INHERENT_2 = new Inherent({
   },
 });
 
-const SK_INHERENT_1 = new Inherent({ name: "Shorekeeper: Life Entwined" }); // revive
+const SK_INHERENT_1 = new Inherent({ name: "Inherent: Life Entwined" }); // revive
 
 /* --------------------------------------------------------------------------- resonance chain */
 
@@ -241,8 +241,8 @@ export const SHOREKEEPER = new Loadout({
   inherent1: SK_INHERENT_1,
   inherent2: SK_INHERENT_2,
   weapons: [SK_SIG, VARIATION],
-  echoLoadouts: [new EchoLoadout(FALLACY, REJUV_5PC, REJUV_2PC),
-    new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC, STARRY_RADIANCE_2PC),],
+  echoLoadouts: [new EchoLoadout(FALLACY, REJUV_5PC),
+    new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC),],
   sequences: [SK_S1, SK_S2, SK_S3, SK_S4, SK_S5, SK_S6],
   mainstats: [mainstats(Mainstat.HP4, Mainstat.ER3, Mainstat.ER3, Mainstat.HP1, Mainstat.HP1)],
   substat: chem("hp", "liberation"),

@@ -26,9 +26,9 @@
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, applyTeam, revokeCurrent, revokeBuff, casting, currentAction, currentTeam, addStat, queue,
-  queueOutro, } from "../../kit.js";
-import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../rotation.js";
-import { applied } from "../../kit.js";
+  queueOutro, } from "../../engine/kit.js";
+import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
+import { applied } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { SHIELD } from "../../shared/status.js";
 import { THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
@@ -145,7 +145,7 @@ const SHIELDS = new Map<Action, number>([
   ...[BA1, BA2, BA3, BA4, MA, DC, MDC, HA, FHA1, FHA2, FJump, Skill, FSkill1, Lib2, Lib2fua, Lib3, Intro].map((a): [Action, number] => [a, 1]),
 ]);
 const AG_INHERENT_1 = new Inherent({
-  name: "Augusta: Glory's Favor",
+  name: "Inherent: Glory's Favor",
   updateDebuffs: () => {
     const n = SHIELDS.get(currentAction());
     if (n) applyCurrent(SHIELD, n);
@@ -154,7 +154,7 @@ const AG_INHERENT_1 = new Inherent({
 
 /** No combat-formula effect this engine models either, same "still equipped, no stat" treatment. */
 const AG_INHERENT_2 = new Inherent({
-  name: "Augusta: Blazing Valor",
+  name: "Inherent: Blazing Valor",
   combatStart: () => {
     applyCurrent(MAJESTY, 1);
     applyCurrent(CROWN_OF_WILLS, 1);

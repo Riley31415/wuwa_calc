@@ -27,15 +27,15 @@ import {
   Node, Scaling, applyCurrent, currentAction, casting, revokeCurrent, addStat, removeStack, forte1, queue, queueOn,
   triggeredAction,
   queueOutro,
-} from "../../kit.js";
+} from "../../engine/kit.js";
 import { matrix } from "../../shared/helpers.js";
-import { Action, Rotation, START_3, SWAP, INTRO, ECHO_CANCEL, OUTRO, ActionField } from "../../rotation.js";
+import { Action, Rotation, START_3, SWAP, INTRO, ECHO_CANCEL, OUTRO, ActionField } from "../../engine/rotation.js";
 import { VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
-import { NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC, SIERRA_GALE_2PC } from "../../echoes/jinzhou.js";
+import { NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
-import { NM_KELPIE, WINDWARD_2PC, WINDWARD_5PC } from "../../echoes/rinascita.js";
+import { NM_KELPIE, WINDWARD_5PC } from "../../echoes/rinascita.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -102,24 +102,24 @@ const ACTION_OUTRO_COORD = jiyanAction("Outro - Discipline (Coordinated Lance)",
 
 /** Heavenly Balance (Inherent Skill): +10% ATK for 15s after his Intro. */
 const HEAVENLY_BALANCE = new Buff({
-  name: "Jiyan: Heavenly Balance",
+  name: "Inherent: Heavenly Balance",
   applyStats: () => addStat(Stat.BonusAtk, 10),
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(HEAVENLY_BALANCE); },
 });
 const JY_INHERENT_1 = new Inherent({
-  name: "Jiyan: Heavenly Balance",
+  name: "Inherent: Heavenly Balance",
   updateBuffs: () => { if (casting(Cast.Intro)) applyCurrent(HEAVENLY_BALANCE, 1); },
 });
 
 /** Tempest Taming (Inherent Skill): +12% Crit DMG for 8s on hit — held for his whole field
  *  window, lost after his outro. */
 const TEMPEST_TAMING = new Buff({
-  name: "Jiyan: Tempest Taming",
+  name: "Inherent: Tempest Taming",
   applyStats: () => addStat(Stat.CritDmg, 12),
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(TEMPEST_TAMING); },
 });
 const JY_INHERENT_2 = new Inherent({
-  name: "Jiyan: Tempest Taming",
+  name: "Inherent: Tempest Taming",
   // a real on-field press: not a queued follow-up, a status rung or the shared Tune Break, all of
   // which are active casts on his slot but not him swinging again
   updateBuffs: () => { if (!triggeredAction() && currentAction().active) applyCurrent(TEMPEST_TAMING, 1); },
@@ -181,8 +181,8 @@ export const JIYAN = new Loadout({
   inherent1: JY_INHERENT_1,
   inherent2: JY_INHERENT_2,
   weapons: [VERDANT_SUMMIT, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR],
-  echoLoadouts: [new EchoLoadout(NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC, SIERRA_GALE_2PC),
-      new EchoLoadout(NM_KELPIE, WINDWARD_5PC, WINDWARD_2PC),],
+  echoLoadouts: [new EchoLoadout(NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC),
+      new EchoLoadout(NM_KELPIE, WINDWARD_5PC),],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
   substat: chem("atk", "heavy"),
     rotation: JY_ROTATION,

@@ -6,14 +6,14 @@
  *  Lahairoi-era, own no mainslot echo/sonata of their own — Lucilla reuses Bell-Borne
  *  Geochelone/Moonlit Clouds from jinzhou.ts and Dream of the Lost from septimont.ts. */
 import { isType,
-  Buff, Sonata, Sonata2pc, Mainslot, EchoType, Stat, Attribute, Type1, Cast, Scaling,
+  Buff, Sonata, Sonata2pc, Sonata1pc, Mainslot, EchoType, Stat, Attribute, Type1, Cast, Scaling,
   addStat, applyCurrent, applyTeam, casting, currentAction, getStat, queue, queueOutro, removeStack, revokeCurrent, revokeTeam,
   frozenStacks, stacksOf, isHeld,
   isCast,
   currentMember,
-} from "../kit.js";
-import { Action } from "../rotation.js";
-import { applied, appliedByMe } from "../kit.js";
+} from "../engine/kit.js";
+import { Action } from "../engine/rotation.js";
+import { applied, appliedByMe } from "../engine/kit.js";
 import { handoff, lostOnSwap } from "../shared/helpers.js";
 import { SHIELD, FUSION_BURST, HEALS, GLACIO_CHAFE, HAVOC_BANE } from "../shared/status.js";
 import { TUNE_HACK_SHIFTING, TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
@@ -43,6 +43,7 @@ export const SOUND_OF_TRUE_NAME_BUFF = new Buff({
 });
 export const SOUND_OF_TRUE_NAME_5PC = new Sonata({
   name: "Sound of True Name 5pc",
+  sonata2pc: SOUND_OF_TRUE_NAME_2PC,
   updateBuffs: () => { if (isType(Type1.Echo)) applyCurrent(SOUND_OF_TRUE_NAME_BUFF, 1); },
 });
 
@@ -133,6 +134,7 @@ export const GLOMMOTH = new Mainslot({
 export const QUIET_SNOWFALL_2PC = new Sonata2pc({ name: "Wishes of Quiet Snowfall 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Glacio) });
 export const QUIET_SNOWFALL_5PC = new Sonata({
   name: "Wishes of Quiet Snowfall 5pc",
+  sonata2pc: QUIET_SNOWFALL_2PC,
   // `appliedByMe`: a "when *you* inflict" payout, so the two extra stacks Lucilla's Film Roll
   // adds to the wearer's own are hers and pay nothing here
   updateBuffs: () => {
@@ -178,6 +180,7 @@ export const SNOWFALL_OUTRO = handoff("Wishes of Quiet Snowfall (outro)", () => 
 export const NEONLIGHT_LEAP_2PC = new Sonata2pc({ name: "Pact of Neonlight Leap 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Spectro) });
 export const NEONLIGHT_LEAP_5PC = new Sonata({
   name: "Pact of Neonlight Leap 5pc",
+  sonata2pc: NEONLIGHT_LEAP_2PC,
   updateBuffs: () => { if (casting(Cast.Outro)) queueOutro(NEONLIGHT_LEAP_HANDOFF); },
 });
 export const NEONLIGHT_LEAP_HANDOFF = new Buff({
@@ -199,6 +202,7 @@ export const NEONLIGHT_LEAP_HANDOFF = new Buff({
 export const STARRY_RADIANCE_2PC = new Sonata2pc({ name: "Halo of Starry Radiance 2pc", constantStats: () => addStat(Stat.HealingBonus, 10) });
 export const STARRY_RADIANCE_5PC = new Sonata({
   name: "Halo of Starry Radiance 5pc",
+  sonata2pc: STARRY_RADIANCE_2PC,
   updateBuffs: () => {
     if (applied(HEALS)) applyTeam(STARRY_RADIANCE_TEAM, 1);
   },
@@ -216,6 +220,7 @@ export const STARRY_RADIANCE_TEAM = new Buff({
 export const CHROMATIC_FOAM_2PC = new Sonata2pc({ name: "Chromatic Foam 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Fusion) });
 export const CHROMATIC_FOAM_5PC = new Sonata({
   name: "Chromatic Foam 5pc",
+  sonata2pc: CHROMATIC_FOAM_2PC,
   updateBuffs: () => { if (appliedByMe(FUSION_BURST)) applyCurrent(CHROMATIC_FOAM_BUFF, 1); },
 });
 /** Permanent uptime once triggered — the wearer's off-field inflictions keep it live anyway, so
@@ -239,6 +244,7 @@ export const CHROMATIC_FOAM_HANDOFF = new Buff({
 export const TRAILBLAZING_STAR_2PC = new Sonata2pc({ name: "Trailblazing Star 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Fusion) });
 export const TRAILBLAZING_STAR_5PC = new Sonata({
   name: "Trailblazing Star 5pc",
+  sonata2pc: TRAILBLAZING_STAR_2PC,
   updateBuffs: () => {
     if (appliedByMe(FUSION_BURST) || appliedByMe(TUNE_RUPTURE_SHIFTING)) applyCurrent(TRAILBLAZING_STAR_BUFF, 1);
   },
@@ -257,6 +263,7 @@ export const TRAILBLAZING_STAR_BUFF = new Buff({
 export const GILDED_REVELATION_2PC = new Sonata2pc({ name: "Rite of Gilded Revelation 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Spectro) });
 export const GILDED_REVELATION_5PC = new Sonata({
   name: "Rite of Gilded Revelation 5pc",
+  sonata2pc: GILDED_REVELATION_2PC,
   updateBuffs: () => {
     if (isType(Type1.Basic)) applyCurrent(GILDED_REVELATION_STACKS, 1);
   },
@@ -330,6 +337,7 @@ export const VOIDWING_MOTH = new Mainslot({
 export const REEL_2PC = new Sonata2pc({ name: "Reel of Spliced Memories 2pc", constantStats: () => addStat(Stat.BonusAtk, 10) });
 export const REEL_5PC = new Sonata({
   name: "Reel of Spliced Memories 5pc",
+  sonata2pc: REEL_2PC,
   updateBuffs: () => { if (appliedByMe(TUNE_RUPTURE_SHIFTING) || appliedByMe(TUNE_STRAIN_SHIFTING)) applyTeam(REEL_TEAM, 1); },
 });
 export const REEL_TEAM = new Buff({ name: "Reel of Spliced Memories (team)", applyStats: () => addStat(Stat.Tbb, 20) });
@@ -342,15 +350,17 @@ export const REEL_TEAM = new Buff({ name: "Reel of Spliced Memories (team)", app
  *  Action and the two differ in element as well as shape (Lucy's single 273.6% Spectro slam,
  *  Rebecca's 16 x 17.10% Electro missile volley). Both also carry a flat +15% Crit. Rate.
  *
- *  Its sonata, Shadow of Shattered Dreams, has a *one*-piece bonus and nothing else, so it rides on
- *  the mainslot itself (there is no 5pc/2pc pair to equip) and the other four echoes go to two
- *  ordinary 2-piece sets instead — see each resonator's own `echoLoadouts`. Inflicting Hack -
- *  Shifting grants +35% Basic Attack DMG Bonus and +35% Heavy Attack DMG Bonus for 15s — a short
- *  self window, so lost after the outro. */
+ *  Its sonata, Shadow of Shattered Dreams, has a *one*-piece bonus and nothing else, so it is a
+ *  `Sonata1pc` worn beside two ordinary 2-piece sets — see each resonator's own `echoLoadouts`.
+ *  Inflicting Hack - Shifting grants +35% Basic Attack DMG Bonus and +35% Heavy Attack DMG Bonus
+ *  for 15s — a short self window, so lost after the outro. */
 export const SHATTERED_DREAMS = new Buff({
-  name: "Shadow of Shattered Dreams 1pc",
+  name: "Shadow of Shattered Dreams",
   applyStats: () => { addStat(Stat.DmgBonus, 35, Type1.Basic); addStat(Stat.DmgBonus, 35, Type1.Heavy); },
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(SHATTERED_DREAMS); },
+});
+export const SHATTERED_DREAMS_1PC = new Sonata1pc({
+  name: "Shadow of Shattered Dreams 1pc",
+  updateBuffs: () => { if (appliedByMe(TUNE_HACK_SHIFTING)) applyCurrent(SHATTERED_DREAMS, 1); },
 });
 
 export const ACTION_ADAM_SMASHER_LUCY = new Action("Echo - Adam Smasher", {
@@ -361,7 +371,6 @@ export const ADAM_SMASHER_LUCY = new Mainslot({
   action: ACTION_ADAM_SMASHER_LUCY,
   echoType: EchoType.SUMMON,
   constantStats: () => addStat(Stat.CritRate, 15),
-  updateBuffs: () => { if (appliedByMe(TUNE_HACK_SHIFTING)) applyCurrent(SHATTERED_DREAMS, 1); },
 });
 
 export const ACTION_ADAM_SMASHER_REBECCA = new Action("Echo - Adam Smasher", {
@@ -373,7 +382,6 @@ export const ADAM_SMASHER_REBECCA = new Mainslot({
   action: ACTION_ADAM_SMASHER_REBECCA,
   echoType: EchoType.SUMMON,
   constantStats: () => addStat(Stat.CritRate, 15),
-  updateBuffs: () => { if (appliedByMe(TUNE_HACK_SHIFTING)) applyCurrent(SHATTERED_DREAMS, 1); },
 });
 
 /* ------------------------------------------------------------------------------ Aemeath, 3.6 */

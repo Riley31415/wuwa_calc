@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<!-- `python -m http.server` sends Last-Modified but no Cache-Control and no ETag, so Chrome
-     falls back to heuristic freshness and can serve a stale index.css / dist/index.js off an
-     ordinary reload — which looks exactly like "the edit did nothing". -->
+<!-- A plain static host may cache aggressively enough to serve a stale stylesheet or bundle off
+     an ordinary reload — which looks exactly like "the edit did nothing". dev.py sends no-store
+     itself; this covers every other host. -->
 <meta http-equiv="Cache-Control" content="no-store">
 <title>Riley Calc</title>
 <link rel="stylesheet" href="./index.css">
@@ -15,19 +15,19 @@
 <!--
   The engine is TypeScript. tsc compiles src/**/*.ts into dist/src/ (mirroring this project one
   level deeper), and esbuild then folds those ~70 modules into the two files that actually load
-  below — dist/bundle/index.js and the worker's dist/bundle/src/solver.js (see dev.py on why:
+  below — dist/bundle/index.js and the worker's dist/bundle/solver.js (see dev.py on why:
   eight workers each fetching the whole module graph was most of a cold load's startup). A
   source edit needs both passes before a refresh shows it. The page still has to be served
   rather than opened off disk — browsers block module imports and fetch() on file:// URLs. From
   this directory:
 
       npm run build                     ->  tsc into dist/src/, then esbuild into dist/bundle/
-      python serve.py                   ->  http://127.0.0.1:8731/  (no-store + hot reload)
-      npm run dev                       ->  tsc --watch + esbuild --watch + the server, and what
-                                            the logon entry runs, so normally this is already up
+      python dev.py                     ->  tsc --watch + esbuild --watch + a no-store server
+                                            with hot reload, all in one; what the logon entry
+                                            runs, so normally this is already up
 
-  Use 127.0.0.1, not localhost — see serve.py's own header on the ~200ms-per-connection stall
-  "localhost" costs on Windows, paid on every one of the unbundled module fetches below.
+  Use 127.0.0.1, not localhost — see dev.py's own header on the ~200ms-per-connection stall
+  "localhost" costs on Windows, paid on every request.
 -->
 
 <div id="topbar" class="topbar">
@@ -35,20 +35,20 @@
 </div>
 
 <script>
-  // Hot reload, serve.py's half: poll its /__livereload endpoint and reload the moment it
+  // Hot reload, the page's half: poll dev.py's /__livereload endpoint and reload the moment it
   // reports any watched .html/.css/.js file changed, so a fix on disk (or a `tsc` run finishing)
-  // reaches the screen with no manual refresh. Talks to that one path only, so it's inert under
-  // any other static host — a 404 just means "not on serve.py", not an error worth surfacing.
+  // reaches the screen with no manual refresh. Talks to that one path only; the first answer that
+  // isn't a stamp (a 404 off GitHub Pages, say) means "not on dev.py", and the polling stops.
   (function poll() {
     let last = null;
-    setInterval(async () => {
+    const timer = setInterval(async () => {
       try {
         const res = await fetch("/__livereload", { cache: "no-store" });
-        if (!res.ok) return;
+        if (!res.ok) { clearInterval(timer); return; }
         const v = await res.text();
         if (last === null) { last = v; return; } // baseline on first successful poll, not a reload
         if (v !== last) location.reload();
-      } catch { /* server mid-restart or not serve.py — try again next tick */ }
+      } catch { /* server mid-restart — try again next tick */ }
     }, 500);
   })();
 </script>

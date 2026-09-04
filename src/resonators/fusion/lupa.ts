@@ -27,15 +27,15 @@ import {
   isType, Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType,
   Type1, Cast, Node, Scaling, applyCurrent, applyTeam, applyEnemy, revokeCurrent, revokeTeam, revokeEnemy, casting,
   currentAction, currentTeam, addStat, frozenStacks, stacksOfTeam, queueOn, queueOutro, setForte1, setForte2,
-  } from "../../kit.js";
+  } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../rotation.js";
+import { Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { WILDFIRE_MARK } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
-import { LIONESS_OF_GLORY, CLAWPRINT_5PC, CLAWPRINT_2PC } from "../../echoes/septimont.js";
+import { LIONESS_OF_GLORY, CLAWPRINT_5PC } from "../../echoes/septimont.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
-import { HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
+import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -165,10 +165,10 @@ const WILDFIRE_BANNER = new Buff({
 });
 
 /** Remember My Name (Inherent Skill): a Sprint state/interrupt resistance passive — see file header. */
-const LP_INHERENT_1 = new Inherent({ name: "Lupa: Remember My Name" });
+const LP_INHERENT_1 = new Inherent({ name: "Inherent: Remember My Name" });
 /** Applause of Victory (Inherent Skill): Glory's own trigger — see file header. */
 const LP_INHERENT_2 = new Inherent({
-  name: "Lupa: Applause of Victory",
+  name: "Inherent: Applause of Victory",
   updateBuffs: () => {
     if (currentAction() === Liberation) {
       revokeTeam(GLORY);
@@ -263,8 +263,8 @@ export const LUPA = new Loadout({
   inherent2: LP_INHERENT_2,
   weapons: [WILDFIRE_MARK, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR],
   echoLoadouts: [
-    new EchoLoadout(LIONESS_OF_GLORY, CLAWPRINT_5PC, CLAWPRINT_2PC),
-    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
+    new EchoLoadout(LIONESS_OF_GLORY, CLAWPRINT_5PC),
+    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: chem("atk", "liberation"),

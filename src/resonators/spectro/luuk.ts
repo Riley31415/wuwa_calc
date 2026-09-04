@@ -24,16 +24,16 @@
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, addStat, applyCurrent, casting, currentAction, forte1, getStat, maxStackIncrease, queue, revokeCurrent,
-  setForte1, frozenStacks, stacksOfEnemy, } from "../../kit.js";
-import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, ECHO_SWAP, OUTRO, DODGE } from "../../rotation.js";
-import { applied } from "../../kit.js";
+  setForte1, frozenStacks, stacksOfEnemy, } from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, ECHO_SWAP, OUTRO, DODGE } from "../../engine/rotation.js";
+import { applied } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { TUNE_STRAIN_SHIFTING } from "../../shared/tunebreak.js";
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_INTERFERED, tuneStrainBonus } from "../../shared/tunebreak.js";
 import { DAYBREAKERS_SPINE } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import {
-  NEBULOUS_CANNON, GILDED_REVELATION_5PC, GILDED_REVELATION_2PC, VOIDWING_MOTH, REEL_5PC, REEL_2PC,
+  NEBULOUS_CANNON, GILDED_REVELATION_5PC, VOIDWING_MOTH, REEL_5PC,
 } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
@@ -159,7 +159,7 @@ const GOLDEN_RULE = new Buff({
  *  - Shifting or dealing Tune Break DMG gives him +25% ATK for 20s — a short self buff, lost after
  *  his outro. "Nearby", so it lands whether or not he's on field. */
 const UNCAUSED_DIAGNOSIS_ATK = new Buff({
-  name: "Luuk: Uncaused Diagnosis",
+  name: "Inherent: Uncaused Diagnosis",
   applyStats: () => addStat(Stat.BonusAtk, 25),
 });
 
@@ -173,14 +173,14 @@ const DAWNLIT_KEEP = new Buff({ name: "Luuk: Dawnlit Keep", maxStacks: 1 });
  *  targets under Tune Strain - Interfered and spent re-applying those stacks on the next Tune
  *  Break. A single-target rotation never defeats anything, so nothing here can ever fire — the
  *  piece is present for the kit's shape and contributes nothing. */
-const LK_INHERENT_1 = new Inherent({ name: "Luuk: Pulses Under the Snow" });
+const LK_INHERENT_1 = new Inherent({ name: "Inherent: Pulses Under the Snow" });
 
 /** Uncaused Diagnosis (Inherent Skill): against a target under Tune Strain - Interfered, every 10
  *  points of his Tune Break Boost amplifies his own hits by 5%, up to 30% — read live in convertStats()
  *  so every Tbb contribution has landed (the era's flat 10, Reel's +20, ...). The ATK half watches
  *  the whole team's casts from updateGlobal(), see UNCAUSED_DIAGNOSIS_ATK. */
 const LK_INHERENT_2 = new Inherent({
-  name: "Luuk: Uncaused Diagnosis",
+  name: "Inherent: Uncaused Diagnosis",
   updateGlobal: () => {
     const a = currentAction();
     if (applied(TUNE_STRAIN_SHIFTING) || a === TUNE_BREAK) applyCurrent(UNCAUSED_DIAGNOSIS_ATK, 1);
@@ -242,7 +242,7 @@ const LK_ROTATION = new Rotation([
 ]);
 
 const LK_ECHOES = [
-  new EchoLoadout(NEBULOUS_CANNON, GILDED_REVELATION_5PC, GILDED_REVELATION_2PC),
+  new EchoLoadout(NEBULOUS_CANNON, GILDED_REVELATION_5PC),
 ];
 
 export const LUUK = new Loadout({

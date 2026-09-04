@@ -13,16 +13,16 @@ import {
   Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, applyCurrent, applyTeam, applyEnemy, revokeTeam, isHeld, revokeCurrent, casting, currentAction,
   addStat, queueOnIntro, Type2,
-} from "../../kit.js";
-import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, SWAP } from "../../rotation.js";
+} from "../../engine/kit.js";
+import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, SWAP } from "../../engine/rotation.js";
 import { AERO_EROSION, SHIELD } from "../../shared/status.js";
 import { WOODLAND_ARIA } from "../../weapons/pistol.js";
 import { NM_KELPIE } from "../../echoes/rinascita.js";
-import { GUSTS_OF_WELKIN_5PC, GUSTS_OF_WELKIN_2PC } from "../../echoes/rinascita.js";
+import { GUSTS_OF_WELKIN_5PC } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
-import { HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
+import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -94,12 +94,12 @@ const RECITAL = new Buff({
 
 /** Interlude Tune (Inherent Skill): a shield off the Liberation — put up as the shield marker from
  *  CIACCONA_RESONATOR's own updateDebuffs(); shields are not a stat, so this piece is held for the name. */
-const CI_INHERENT_1 = new Inherent({ name: "Ciaccona: Interlude Tune" });
+const CI_INHERENT_1 = new Inherent({ name: "Inherent: Interlude Tune" });
 
 /** Winds of Rinascita (Inherent Skill): Quadruple Downbeat deals 30% more DMG — always on, so it
  *  pays straight out of the piece rather than through a buff. */
 const CI_INHERENT_2 = new Inherent({
-  name: "Ciaccona: Winds of Rinascita",
+  name: "Inherent: Winds of Rinascita",
   applyStats: () => { if (currentAction() === Downbeat) addStat(Stat.DmgBonus, 30); },
 });
 
@@ -157,8 +157,8 @@ export const CIACCONA = new Loadout({
   inherent1: CI_INHERENT_1,
   inherent2: CI_INHERENT_2,
   weapons: [WOODLAND_ARIA, NEW_STD_PISTOL, STATIC_MIST],
-  echoLoadouts: [new EchoLoadout(NM_KELPIE, GUSTS_OF_WELKIN_5PC, GUSTS_OF_WELKIN_2PC),
-    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC)
+  echoLoadouts: [new EchoLoadout(NM_KELPIE, GUSTS_OF_WELKIN_5PC),
+    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
   substat: chem("atk", "liberation"),

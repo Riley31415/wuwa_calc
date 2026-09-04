@@ -79,7 +79,7 @@ export const enum Stat {
  *  so a kit can't reach for the wrong pool by mistake. Numbered on from `Stat`'s last member so
  *  the two share one index space (see the header). */
 export const enum EnemyStat {
-  ResShred = Stat.AddForte5 + 1,
+  ResReduce = Stat.AddForte5 + 1,
   DefReduce,
 }
 
@@ -102,7 +102,7 @@ export const STAT_NAME: Record<Stat | EnemyStat, string> = {
   [Stat.DirectOfftune]: "DirectOfftune",
   [Stat.AddForte1]: "Forte1", [Stat.AddForte2]: "Forte2", [Stat.AddForte3]: "Forte3",
   [Stat.AddForte4]: "Forte4", [Stat.AddForte5]: "Forte5",
-  [EnemyStat.ResShred]: "Res Reduce", [EnemyStat.DefReduce]: "Def Reduce",
+  [EnemyStat.ResReduce]: "Res Reduce", [EnemyStat.DefReduce]: "Def Reduce",
 };
 
 /* --- the tag vocabulary: what a conditional, an element field or a type field may say ------ */
@@ -288,7 +288,7 @@ export const PERCENT_STATS: Set<Stat | EnemyStat> = new Set<Stat | EnemyStat>([
   Stat.DmgBonus, Stat.Amp, Stat.TotalDmg,
   Stat.ResIgnore, Stat.DefIgnoreNew, Stat.DefIgnoreOld,
   Stat.HealingBonus, Stat.HealingTaken,
-  EnemyStat.ResShred, EnemyStat.DefReduce,
+  EnemyStat.ResReduce, EnemyStat.DefReduce,
 ]);
 
 /** A scoped stat is a ratio exactly when the stat it scopes is. */

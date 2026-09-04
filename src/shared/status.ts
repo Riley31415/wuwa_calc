@@ -25,9 +25,9 @@ import {
   Attribute, Buff, Debuff, EnemyStat, Scaling, Type1, Type2,
   addEnemyStat, applied, appliedByMe, appliedByMember, applyEnemy, currentAction, currentTeam, queue, removeStackEnemy, revokeCurrent, revokeEnemy,
   frozenStacks, stacksOfEnemy,
-} from "../kit.js";
-import { Action } from "../rotation.js";
-import type { TeamMember } from "../kit.js";
+} from "../engine/kit.js";
+import { Action } from "../engine/rotation.js";
+import type { TeamMember } from "../engine/kit.js";
 
 /** A shield going up, on the caster never applied to the team `applied()` being how
  *  many this cast granted. Never a stat. */

@@ -40,15 +40,15 @@ import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, addBuff, addStat, applyCurrent, applyTeam, casting, currentAction, currentTeam, isHeld, queue, queueOnIntro, queueOutro,
   revokeCurrent, forte1, forte2, setForte1, setForte2, frozenStacks, triggeredAction,
-  } from "../../kit.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_2, SWAP, JUMP, ActionField } from "../../rotation.js";
-import { applied } from "../../kit.js";
+  } from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_2, SWAP, JUMP, ActionField } from "../../engine/rotation.js";
+import { applied } from "../../engine/kit.js";
 import { coordinatedBuff, lostOnSwap } from "../../shared/helpers.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING } from "../../shared/tunebreak.js";
 import { SKULL_THRASHER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
-import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, LINGERING_TUNES_2PC, VOID_THUNDER_2PC } from "../../echoes/jinzhou.js";
-import { ADAM_SMASHER_REBECCA, HYVATIA, NEONLIGHT_LEAP_5PC, NEONLIGHT_LEAP_2PC } from "../../echoes/lahairoi.js";
+import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC, LINGERING_TUNES_2PC, VOID_THUNDER_2PC } from "../../echoes/jinzhou.js";
+import { ADAM_SMASHER_REBECCA, SHATTERED_DREAMS_1PC, HYVATIA, NEONLIGHT_LEAP_5PC } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 import { LUCY_RESONATOR } from "../spectro/lucy.js";
@@ -199,7 +199,7 @@ const A_GIRL = new Buff({
 /** Tag, You're It! (Inherent Skill), the ATK half: +10% for 12s on triggering A Girl Gets What She
  *  Wants! or casting either Fervor finisher, 2 stacks. */
 const TAG_YOURE_IT = new Buff({
-  name: "Rebecca: Tag, You're It! (self)", maxStacks: 2,
+  name: "Inherent: Tag, You're It! (self)", maxStacks: 2,
   applyStats: () => addStat(Stat.BonusAtk, 10 * frozenStacks()),
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(TAG_YOURE_IT); },
 });
@@ -207,7 +207,7 @@ const TAG_YOURE_IT = new Buff({
 /** The other half: whichever resonator inflicts Hack - Shifting gets +30 Tune Break Boost for 30s
  *  — permanent uptime, and theirs alone rather than the team's (see RB_INHERENT_1 for the watch). */
 const TAG_TBB = new Buff({
-  name: "Rebecca: Tag, You're It! (team)",
+  name: "Inherent: Tag, You're It! (team)",
   applyStats: () => addStat(Stat.Tbb, 30),
 });
 
@@ -215,7 +215,7 @@ const TAG_TBB = new Buff({
  *  30s — permanent uptime, and "nearby" rather than "active", so it pays on inactive actions too.
  *  The interruption-resistance half carries no stat. */
 const LEFT_AN_OPENING = new Buff({
-  name: "Rebecca: Left an Opening! (team)",
+  name: "Inherent: Left an Opening! (team)",
   applyStats: () => addStat(Stat.BonusAtk, 20),
 });
 
@@ -246,7 +246,7 @@ const OVERLIMIT = new Buff({
 /* --------------------------------------------------------------------------- kit and loadout */
 
 const RB_INHERENT_1 = new Inherent({
-  name: "Rebecca: Tag, You're It!",
+  name: "Inherent: Tag, You're It!",
   // Watched from her own inherent rather than through a team-wide marker: the Tune Break Boost is
   // the *inflicter's*, so it has to land on whoever is actually acting — and updateGlobal's own
   // currentSlot is Rebecca (this gear's holder), not them, so it goes through the acting slot's
@@ -262,7 +262,7 @@ const RB_INHERENT_1 = new Inherent({
 });
 
 const RB_INHERENT_2 = new Inherent({
-  name: "Rebecca: Left an Opening!",
+  name: "Inherent: Left an Opening!",
   updateBuffs: () => { if (currentAction() === Lib1) applyTeam(LEFT_AN_OPENING, 1); },
 });
 
@@ -319,11 +319,11 @@ const RB_ROTATION = new Rotation([
  *  instead of a 5pc — ATK and Electro. The other two builds are the classic handoff sets, which
  *  she can run instead since everything she gives Lucy is a handoff anyway. */
 const RB_ECHOES = [
-  new EchoLoadout(ADAM_SMASHER_REBECCA, LINGERING_TUNES_2PC, VOID_THUNDER_2PC),
+  new EchoLoadout(ADAM_SMASHER_REBECCA, SHATTERED_DREAMS_1PC, LINGERING_TUNES_2PC, VOID_THUNDER_2PC),
 
-  new EchoLoadout(HYVATIA, NEONLIGHT_LEAP_5PC, NEONLIGHT_LEAP_2PC),
-  new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
-  new EchoLoadout(STONEWALL_BRACER, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
+  new EchoLoadout(HYVATIA, NEONLIGHT_LEAP_5PC),
+  new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
+  new EchoLoadout(STONEWALL_BRACER, MOONLIT_CLOUDS_5PC),
 ];
 
 export const REBECCA = new Loadout({

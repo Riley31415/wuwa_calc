@@ -11,12 +11,12 @@
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, applyTeam, isHeld, stacksOfTeam, removeStack, revokeCurrent, casting, currentAction, addStat,
-  frozenStacks, getStat, queue, } from "../../kit.js";
+  frozenStacks, getStat, queue, } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_3, SWAP, ECHO_ONFIELD, ECHO_SWAP } from "../../rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_3, SWAP, ECHO_ONFIELD, ECHO_SWAP } from "../../engine/rotation.js";
 import { SOLSWORN_CIPHERS } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
-import { NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC, SOUND_OF_TRUE_NAME_2PC } from "../../echoes/lahairoi.js";
+import { NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 
@@ -96,13 +96,13 @@ const BLESSING_OF_RUNES = new Buff({
 /** True Names Aligned, in full: the ER-to-Echo-DMG conversion above, plus (via updateGlobal(), so
  *  it reacts to any team member's Echo cast) the Blessing of Runes grant that mechanic feeds. */
 const SR_INHERENT_2 = new Inherent({
-  name: "Sigrika: True Names Aligned",
+  name: "Inherent: True Names Aligned",
   updateGlobal: () => { if (casting(Cast.Echo)) applyTeam(BLESSING_OF_RUNES, 1); },
   convertStats: () => addStat(Stat.DmgBonus, Math.min(50, 2 * Math.max(0, Math.floor(getStat(Stat.Er)) - 125)), Type1.Echo),
 });
 /** True Names Invoked (Inherent Skill): casting Intro grants Convergent — the only source of it. */
 const SR_INHERENT_1 = new Inherent({
-  name: "Sigrika: True Names Invoked",
+  name: "Inherent: True Names Invoked",
   updateBuffs: () => { if (currentAction() === Intro) applyCurrent(CONVERGENT, 1); },
 });
 
@@ -214,9 +214,18 @@ const SIGRIKA_TALENTS = new Talent({
 const BA234 = new ActionGroup("Basic - One, Two, Three 234", [BA2, BA3, BA4]);
 
 const SR_ROTATION = new Rotation([
-  START_3, ECHO_ONFIELD, SWAP,
-  INTRO, BA234, EBA, FHAchainwhip, Liberation,
-  BA234, EBA, FHAoutburst, FSkill, ECHO_SWAP, OUTRO,
+  INTRO, ECHO_ONFIELD, 
+  BA234, EBA, FHAchainwhip, Liberation,
+  BA234, EBA, FHAoutburst, FSkill, 
+  Skill, BA3, BA4, EBA,
+  OUTRO,
+]);
+
+const SR_ROTATION_FAST = new Rotation([
+  INTRO, ECHO_ONFIELD, 
+  BA234, EBA, FHAchainwhip, Liberation,
+  BA234, EBA, FHAoutburst, FSkill, 
+  OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -229,8 +238,22 @@ export const SIGRIKA = new Loadout({
   inherent1: SR_INHERENT_1,
   inherent2: SR_INHERENT_2,
   weapons: [SOLSWORN_CIPHERS, NEW_STD_GAUNTLET, ABYSS_SURGES],
-  echoLoadouts: [new EchoLoadout(NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC, SOUND_OF_TRUE_NAME_2PC)],
+  echoLoadouts: [new EchoLoadout(NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ER3, Mainstat.ATK1),
   substat: chem("atk", "basic"),
     rotation: SR_ROTATION,
+});
+
+// her real 43311 build: resonator + talents + both Inherent Skills + Forte Circuit, weapon,
+// mainslot echo, sonata pieces, mainstat/substat
+export const SIGRIKA_FAST = new Loadout({
+  resonator: SIGRIKA_RESONATOR,
+  talent: SIGRIKA_TALENTS,
+  inherent1: SR_INHERENT_1,
+  inherent2: SR_INHERENT_2,
+  weapons: [SOLSWORN_CIPHERS, NEW_STD_GAUNTLET, ABYSS_SURGES],
+  echoLoadouts: [new EchoLoadout(NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC)],
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ER3, Mainstat.ATK1),
+  substat: chem("atk", "basic"),
+    rotation: SR_ROTATION_FAST,
 });

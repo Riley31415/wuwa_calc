@@ -10,15 +10,15 @@ import {
   isType, Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
   Type2, Cast, Node, Scaling, applyCurrent, applyTeam, currentAction, casting, queue, queueOutro, removeStack, revokeCurrent,
   addStat, frozenStacks, forte1, setForte2, currentTeam, currentMember, concerto, setConcerto,
-  } from "../../kit.js";
+  } from "../../engine/kit.js";
 import { coordinatedBuff, lostOnSwap, matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ActionField } from "../../rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ActionField } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, STRINGMASTER, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
-import { HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, REJUV_5PC, REJUV_2PC, NM_CROWNLESS, HAVOC_ECLIPSE_5PC, HAVOC_ECLIPSE_2PC } from "../../echoes/jinzhou.js";
+import { HERON, MOONLIT_CLOUDS_5PC, REJUV_5PC, NM_CROWNLESS, HAVOC_ECLIPSE_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
-import { MIDNIGHT_VEIL_5PC, MIDNIGHT_VEIL_2PC, NM_HECATE, EMPYREAN_ANTHEM_5PC, EMPYREAN_ANTHEM_2PC, NM_HERON, HECATE } from "../../echoes/rinascita.js";
+import { MIDNIGHT_VEIL_5PC, NM_HECATE, EMPYREAN_ANTHEM_5PC, NM_HERON, HECATE } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 
@@ -78,7 +78,7 @@ const ESKILL_JOLT = new Action("Jolt", { node: Node.Skill, element: Attribute.Ha
 const DIFFUSION_WINDOW = coordinatedBuff("Cantarella: Diffusion", 21, () => CANTARELLA_RESONATOR, ACTION_DIFFUSION);
 
 const POISON = new Buff({
-  name: "Cantarella: Poison", maxStacks: 2,
+  name: "Inherent: Poison", maxStacks: 2,
   applyStats: () => addStat(Stat.DmgBonus, 6 * frozenStacks(), Attribute.Havoc),
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(POISON); },
 });
@@ -125,11 +125,11 @@ const CANTARELLA_OUTRO = new Buff({
 // her kit page doesn't name either passive — Poison's own proc (any Echo Skill) and Mirage's own
 // (Delusive Dive) are her two Inherent Skills, each its own trigger piece
 const CA_INHERENT_1 = new Inherent({
-  name: "Cantarella: \"Cure\"",
+  name: "Inherent: \"Cure\"",
   constantStats: () => { addStat(Stat.HealingBonus, 20) }
 });
 const CA_INHERENT_2 = new Inherent({
-  name: "Cantarella: \"Poison\"",
+  name: "Inherent: \"Poison\"",
   updateBuffs: () => { if (casting(Cast.Echo)) applyCurrent(POISON, 1); },
 });
 
@@ -180,11 +180,11 @@ export const CANTARELLA = new Loadout({
   inherent2: CA_INHERENT_2,
   weapons: [WHISPERS_OF_SIRENS, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY, RIME_DRAPED_SPROUTS],
   echoLoadouts: [
-    new EchoLoadout(NM_HERON, MIDNIGHT_VEIL_5PC, MIDNIGHT_VEIL_2PC),
-    new EchoLoadout(FALLACY, REJUV_5PC, REJUV_2PC),
-    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
-    new EchoLoadout(HECATE, EMPYREAN_ANTHEM_5PC, EMPYREAN_ANTHEM_2PC),
-        new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC, HAVOC_ECLIPSE_2PC),
+    new EchoLoadout(NM_HERON, MIDNIGHT_VEIL_5PC),
+    new EchoLoadout(FALLACY, REJUV_5PC),
+    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
+    new EchoLoadout(HECATE, EMPYREAN_ANTHEM_5PC),
+        new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: chem("atk", "basic"),

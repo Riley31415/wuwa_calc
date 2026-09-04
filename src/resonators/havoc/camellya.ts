@@ -45,12 +45,12 @@ import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, revokeCurrent, casting, currentAction, addStat, setForte1, isHeld, concerto, setConcerto,
   stacksOf, frozenStacks, forte1,
-  } from "../../kit.js";
+  } from "../../engine/kit.js";
 import { lostOnSwap, matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ECHO_ONFIELD, DOUBLE_INTRO, SWAP } from "../../rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ECHO_ONFIELD, DOUBLE_INTRO, SWAP } from "../../engine/rotation.js";
 import { RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
-import { NM_CROWNLESS, HAVOC_ECLIPSE_5PC, HAVOC_ECLIPSE_2PC } from "../../echoes/jinzhou.js";
+import { NM_CROWNLESS, HAVOC_ECLIPSE_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 
@@ -175,13 +175,13 @@ const CRIMSON_BUD = new Buff({
 
 /** Seedbed (Inherent Skill): +15% Havoc DMG Bonus flat — genuinely unconditional. */
 const SEEDBED = new Inherent({
-  name: "Camellya: Seedbed",
+  name: "Inherent: Seedbed",
   constantStats: () => addStat(Stat.DmgBonus, 15, Attribute.Havoc),
 });
 
 /** Epiphyte (Inherent Skill): +15% Basic DMG Bonus flat (interruption-resistance half not modelled). */
 const EPIPHYTE = new Inherent({
-  name: "Camellya: Epiphyte",
+  name: "Inherent: Epiphyte",
   constantStats: () => addStat(Stat.DmgBonus, 15, Type1.Basic),
 });
 
@@ -258,7 +258,7 @@ export const CAMELLYA = new Loadout({
   inherent1: SEEDBED,
   inherent2: EPIPHYTE,
   weapons: [RED_SPRING, EMERALD_OF_GENESIS],
-  echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC, HAVOC_ECLIPSE_2PC)],
+  echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: chem("atk", "basic"),
     rotation: CM_ROTATION,
@@ -288,7 +288,7 @@ export const CAMELLYA_DOUBLE = new Loadout({
   inherent1: SEEDBED,
   inherent2: EPIPHYTE,
   weapons: [RED_SPRING, EMERALD_OF_GENESIS],
-  echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC, HAVOC_ECLIPSE_2PC)],
+  echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: chem("atk", "basic"),
     rotation: CM_ROTATION_DOUBLE,

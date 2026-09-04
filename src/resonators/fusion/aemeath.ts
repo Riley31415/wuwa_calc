@@ -35,13 +35,13 @@ import {
   Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, addStat, addBuff, revokeBuff, applyCurrent, applyEnemy,
   applied, appliedByMember, casting, currentAction, currentMember, currentTeam, isHeld, frozenStacks, queue, queueOn,
   removeStack, revokeCurrent, revokeEnemy, stacksOf, stacksOfEnemy, forte1, forte2, setForte1, setForte2,
-} from "../../kit.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../rotation.js";
+} from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { TUNE_RUPTURE_SHIFTING, applyRupture, tuneRuptureResponse } from "../../shared/tunebreak.js";
 import { FUSION_BURST, FUSION_BURST_ACTIONS } from "../../shared/status.js";
 import { EVERBRIGHT_POLESTAR } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
-import { SIGILLUM, TRAILBLAZING_STAR_5PC, TRAILBLAZING_STAR_2PC, CHROMATIC_FOAM_5PC, CHROMATIC_FOAM_2PC } from "../../echoes/lahairoi.js";
+import { SIGILLUM, TRAILBLAZING_STAR_5PC, CHROMATIC_FOAM_5PC } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 
@@ -187,7 +187,7 @@ const INSTANT_RESPONSE = new Buff({
 
 /** Before All Sounds: in Instant Response, both forms' heavies are amplified 200%. */
 const AE_INHERENT_1 = new Inherent({
-  name: "Aemeath: Before All Sounds",
+  name: "Inherent: Before All Sounds",
   applyStats: () => { if (isHeld(INSTANT_RESPONSE) && casting(Cast.Heavy)) addStat(Stat.Amp, 200); },
 });
 
@@ -250,8 +250,8 @@ const betweenTheStars = (): number => {
  *  "Each Resonator can only trigger this effect once" is carried by the stacks themselves: slot 1
  *  banks 1, slot 2 banks 2, slot 3 banks 4, so what is held is the set of who has already paid. */
 const BETWEEN_THE_STARS_RUPTURE = new Buff({
-  name: "Aemeath: Between the Stars (rupture)", maxStacks: 1 + 2 + 4,
-  display: () => `Aemeath: Between the Stars (rupture) x${betweenTheStars()}`,
+  name: "Inherent: Between the Stars (rupture)", maxStacks: 1 + 2 + 4,
+  display: () => `Inherent: Between the Stars (rupture) x${betweenTheStars()}`,
   applyStats: () => {
     addStat(Stat.CritDmg, 20 * betweenTheStars());
     if (betweenTheStars() >= 3 && currentAction() === Lib2) addStat(Stat.Amp, 25);
@@ -262,7 +262,7 @@ const BETWEEN_THE_STARS_RUPTURE = new Buff({
  *  slot pointed at her, so the actor is read off the team (a queued response lands on the slot
  *  that queued it, so Mornye's Particle Jet counts Mornye). */
 const AE_INHERENT_2 = new Inherent({
-  name: "Aemeath: Between the Stars",
+  name: "Inherent: Between the Stars",
   updateGlobal: () => {
     const actor = currentTeam().slot;
     const slot = 1 << currentTeam().active;
@@ -294,7 +294,7 @@ const inflicts = (a: Action): boolean =>
 /** Held on her slot, so its updateGlobal runs as her whoever is acting: the Starburst response and
  *  the Trail are hers. A response is any Rupture-typed hit that isn't her own Duet volley. */
 const MODE_RUPTURE = new ResonanceMode({
-  name: "Aemeath: Resonance Mode - Tune Rupture",
+  name: "Resonance Mode - Tune Rupture",
   updateDebuffs: () => { if (inflicts(currentAction())) applyRupture(); },
   updateGlobal: () => {
     tuneRuptureResponse(Starburst);
@@ -326,7 +326,7 @@ export const AEMEATH_RUPTURE = new Loadout({
   inherent1: AE_INHERENT_1,
   inherent2: AE_INHERENT_2,
   weapons: [EVERBRIGHT_POLESTAR, EMERALD_OF_GENESIS],
-  echoLoadouts: [new EchoLoadout(SIGILLUM, TRAILBLAZING_STAR_5PC, TRAILBLAZING_STAR_2PC)],
+  echoLoadouts: [new EchoLoadout(SIGILLUM, TRAILBLAZING_STAR_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: chem("atk", "liberation"),
   rotation: AE_ROTATION,
@@ -356,8 +356,8 @@ const FUSION_TRAIL = new Debuff({
 /** Between the Stars, Fusion Burst: +30% Crit. DMG the first time each resonator on the team lays
  *  Fusion Burst, cap 2; at 2, Finale is amplified 25%. The same per-slot bits as the Rupture one. */
 const BETWEEN_THE_STARS_BURST = new Buff({
-  name: "Aemeath: Between the Stars (burst)", maxStacks: 1 + 2 + 4,
-  display: () => `Aemeath: Between the Stars (burst) x${Math.min(2, betweenTheStars())}`,
+  name: "Inherent: Between the Stars (burst)", maxStacks: 1 + 2 + 4,
+  display: () => `Inherent: Between the Stars (burst) x${Math.min(2, betweenTheStars())}`,
   applyStats: () => {
     const n = Math.min(2, betweenTheStars());
     addStat(Stat.CritDmg, 30 * n);
@@ -380,7 +380,7 @@ const SILENT_PROTECTION_BURST = new Buff({
  *  status.ts) and clears, and a target left on 0 gets a stack back, hers. The fight opens on that
  *  stack too. A Duet queues its own calculation. */
 const MODE_BURST = new ResonanceMode({
-  name: "Aemeath: Resonance Mode - Fusion Burst",
+  name: "Resonance Mode - Fusion Burst",
   updateDebuffs: () => { if (inflicts(currentAction())) applyEnemy(FUSION_BURST, 1); },
   updateGlobal: () => {
     const team = currentTeam();
@@ -404,7 +404,7 @@ export const AEMEATH_BURST = new Loadout({
   inherent2: AE_INHERENT_2,
   weapons: [EVERBRIGHT_POLESTAR, EMERALD_OF_GENESIS],
   echoLoadouts: [
-    new EchoLoadout(SIGILLUM, TRAILBLAZING_STAR_5PC, TRAILBLAZING_STAR_2PC),
+    new EchoLoadout(SIGILLUM, TRAILBLAZING_STAR_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: chem("atk", "liberation"),

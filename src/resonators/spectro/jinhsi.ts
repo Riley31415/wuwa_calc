@@ -43,11 +43,11 @@ import {
   Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Stat, Attribute,
   WeaponType, Type1, Type2, Cast, Node, Scaling, addStat, applyCurrent, applyTeam, casting, currentAction,
   frozenStacks, isHeld, isType, queue, removeStack, revokeCurrent, revokeTeam, setStacksSelf, stacksOf, triggeredAction,
-} from "../../kit.js";
-import { ActionGroup, Action, Rotation, START_3, SWAP, DOUBLE_INTRO, INTRO, ECHO_ONFIELD, OUTRO } from "../../rotation.js";
+} from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, START_3, SWAP, DOUBLE_INTRO, INTRO, ECHO_ONFIELD, OUTRO } from "../../engine/rotation.js";
 import { AGES_OF_HARVEST } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
-import { JUE, CELESTIAL_LIGHT_5PC, CELESTIAL_LIGHT_2PC } from "../../echoes/jinzhou.js";
+import { JUE, CELESTIAL_LIGHT_5PC } from "../../echoes/jinzhou.js";
 import { VOIDWING_MOTH } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
@@ -199,13 +199,13 @@ const INCANDESCENCE = new Buff({
 
 /** Radiant Surge (Inherent Skill): +20% Spectro DMG Bonus, genuinely unconditional. */
 const RADIANT_SURGE = new Inherent({
-  name: "Jinhsi: Radiant Surge",
+  name: "Inherent: Radiant Surge",
   constantStats: () => addStat(Stat.DmgBonus, 20, Attribute.Spectro),
 });
 
 /** Converged Flash (Inherent Skill): Loong's Halo's own DMG Multiplier +50%. */
 const CONVERGED_FLASH = new Inherent({
-  name: "Jinhsi: Converged Flash",
+  name: "Inherent: Converged Flash",
   applyStats: () => { if (currentAction() === Intro) addStat(Stat.MulMv, 50); },
 });
 
@@ -340,7 +340,7 @@ const JX_ROTATION = new Rotation([
 ]);
 
 const JX_ECHOES = [
-  new EchoLoadout(JUE, CELESTIAL_LIGHT_5PC, CELESTIAL_LIGHT_2PC)
+  new EchoLoadout(JUE, CELESTIAL_LIGHT_5PC)
 ];
 
 export const JINHSI = new Loadout({

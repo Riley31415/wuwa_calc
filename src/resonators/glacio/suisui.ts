@@ -49,15 +49,15 @@ import {
   queueOutro, removeStackTeam, revokeCurrent, revokeTeam, setForte1, setForte2, stacksOfTeam,
   frozenStacks,
   forte2,
-  } from "../../kit.js";
-import { ActionGroup, Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../rotation.js";
+  } from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import {
   AERO_EROSION, ELECTRO_FLARE, ELECTRO_RAGE, FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE, HEALS, SPECTRO_FRAZZLE,
 } from "../../shared/status.js";
 import { FIRSTLIGHTS_HERALD } from "../../weapons/rectifier.js";
 import { VARIATION } from "../../weapons/standard.js";
-import { FORBIDDEN_BASTION, FEATHERED_TRACE_5PC, FEATHERED_TRACE_2PC } from "../../echoes/mengzhou.js";
-import { REJUV_5PC, REJUV_2PC } from "../../echoes/jinzhou.js";
+import { FORBIDDEN_BASTION, FEATHERED_TRACE_5PC } from "../../echoes/mengzhou.js";
+import { REJUV_5PC } from "../../echoes/jinzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 
@@ -258,7 +258,7 @@ const UNDULATING_MIST = new Buff({
 /** Sky Over Water (Inherent Skill): the enhancement above, hers from the first action of a fight.
  *  Spring's Birth, its other half, is a heal-over-time and pays no stat. */
 const SS_INHERENT_1 = new Inherent({
-  name: "Suisui: Sky Over Water",
+  name: "Inherent: Sky Over Water",
   applyStats: () => {
     if (currentAction() !== ESkill && currentAction() !== Intro) return;
     addStat(Stat.AddConcerto, 18);
@@ -270,7 +270,7 @@ const SS_INHERENT_1 = new Inherent({
 });
 
 /** Glimmering Gold (Inherent Skill): a once-per-10-minutes revive, nothing this calculator reads. */
-const SS_INHERENT_2 = new Inherent({ name: "Suisui: Glimmering Gold" });
+const SS_INHERENT_2 = new Inherent({ name: "Inherent: Glimmering Gold" });
 
 const SUISUI_TALENTS = new Talent({
   name: "Suisui: Talents",
@@ -326,7 +326,7 @@ export const SUISUI = new Loadout({
   inherent2: SS_INHERENT_2,
   weapons: [FIRSTLIGHTS_HERALD, VARIATION],
   echoLoadouts: [
-    new EchoLoadout(FORBIDDEN_BASTION, FEATHERED_TRACE_5PC, FEATHERED_TRACE_2PC),
+    new EchoLoadout(FORBIDDEN_BASTION, FEATHERED_TRACE_5PC),
   ],
   mainstats: [mainstats(Mainstat.HP4, Mainstat.ER3, Mainstat.ER3, Mainstat.HP1, Mainstat.HP1)],
   substat: chem("hp", "skill", { er: true }),

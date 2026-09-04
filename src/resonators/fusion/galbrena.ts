@@ -31,8 +31,8 @@ import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, casting, currentAction, addStat, frozenStacks, revokeCurrent, isHeld, forte1, forte2, setForte1,
   setForte2,
-  } from "../../kit.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, DODGE } from "../../rotation.js";
+  } from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, DODGE } from "../../engine/rotation.js";
 import { LUX_UMBRA } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { CLAWPRINT_2PC, CORROSAURUS, FLAMEWING_SHADOW_3PC } from "../../echoes/septimont.js";
@@ -131,12 +131,12 @@ const OATHBOUND_HUNT = new Buff({
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(OATHBOUND_HUNT); },
 });
 const GB_INHERENT_1 = new Inherent({
-  name: "Galbrena: Oathbound Hunt",
+  name: "Inherent: Oathbound Hunt",
   updateBuffs: () => { if (!casting(Cast.Echo)) applyCurrent(OATHBOUND_HUNT, 1); },
 });
 /** No combat-formula effect this engine models, same "still equipped, no stat" treatment
  *  Augusta's own Ruler's Realm shield gets. */
-const GB_INHERENT_2 = new Inherent({ name: "Galbrena: Sin Feaster" });
+const GB_INHERENT_2 = new Inherent({ name: "Inherent: Sin Feaster" });
 
 /** A marker for "has she opened it yet" — set by Ascent of Malice. Ends itself once Purging
  *  Flame runs out, taking Afterflame down with it. */

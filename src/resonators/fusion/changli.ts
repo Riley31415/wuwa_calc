@@ -12,12 +12,12 @@
  */
 import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
-  Scaling, applyCurrent, revokeCurrent, casting, currentAction, addStat, forte1, queueOutro, } from "../../kit.js";
+  Scaling, applyCurrent, revokeCurrent, casting, currentAction, addStat, forte1, queueOutro, } from "../../engine/kit.js";
 import { lostOnSwap, matrix } from "../../shared/helpers.js";
-import { Action, Rotation, START_2, START_3, SWAP, INTRO, OUTRO, DODGE } from "../../rotation.js";
+import { Action, Rotation, START_2, START_3, SWAP, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
 import { BLAZING_BRILLIANCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
-import { NM_INFERNO_RIDER, MOLTEN_RIFT_5PC, MOLTEN_RIFT_2PC } from "../../echoes/jinzhou.js";
+import { NM_INFERNO_RIDER, MOLTEN_RIFT_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 
@@ -79,7 +79,7 @@ const TRUE_SIGHT = new Buff({
 /** Secret Strategist (Inherent Skill): each Enflamement stack held grants +5% Fusion DMG Bonus
  *  on Conquest/Charge specifically — genuinely unconditional. */
 const CH_INHERENT_1 = new Inherent({
-  name: "Changli: Secret Strategist",
+  name: "Inherent: Secret Strategist",
   applyStats: () => {
     const a = currentAction();
     if (a === SBA || a === SMA) addStat(Stat.DmgBonus, 5 * forte1(), Attribute.Fusion);
@@ -89,7 +89,7 @@ const CH_INHERENT_1 = new Inherent({
 /** Sweeping Force (Inherent Skill): +20% Fusion DMG Bonus/15% DEF ignore, intrinsic to Flaming
  *  Sacrifice and Liberation themselves. */
 const CH_INHERENT_2 = new Inherent({
-  name: "Changli: Sweeping Force",
+  name: "Inherent: Sweeping Force",
   applyStats: () => {
     const a = currentAction();
     if (a === FlamingSacrifice || a === Liberation) { addStat(Stat.DmgBonus, 20, Attribute.Fusion); addStat(Stat.DefIgnoreOld, 15); }
@@ -161,7 +161,7 @@ export const CHANGLI = new Loadout({
   inherent1: CH_INHERENT_1,
   inherent2: CH_INHERENT_2,
   weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS],
-  echoLoadouts: [new EchoLoadout(NM_INFERNO_RIDER, MOLTEN_RIFT_5PC, MOLTEN_RIFT_2PC)],
+  echoLoadouts: [new EchoLoadout(NM_INFERNO_RIDER, MOLTEN_RIFT_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: chem("atk", "skill"),
     rotation: CH_ROTATION,

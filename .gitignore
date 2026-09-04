@@ -1,8 +1,8 @@
 node_modules/
-dist/
-serve.log
-tsc-watch.log
-serve8000.log
-serve8731.log
+logs/
 __pycache__/
-esbuild-watch.log
+
+# dist/ is the build. dist/bundle/ is the only part the page loads, and it is committed so
+# GitHub Pages can serve the site straight off the branch with no CI step (see README).
+dist/*
+!dist/bundle/

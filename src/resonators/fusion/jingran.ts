@@ -27,9 +27,9 @@ import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, applyCurrent, forte2, setForte2, stacksOf, isHeld, currentAction, currentTeam, queue, revokeCurrent, addStat,
   getStat, frozenStacks,
-  } from "../../kit.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../rotation.js";
-import { applied, applyTeam } from "../../kit.js";
+  } from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
+import { applied, applyTeam } from "../../engine/kit.js";
 import { SHIELD } from "../../shared/status.js";
 import { JINGRAN_SIG, THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
@@ -129,7 +129,7 @@ const JINGRAN_GHOST_SHROUD = new Buff({ name: "Jingran: Ghost Shroud", maxStacks
  *  marker, present in the resonator popover once one of those three casts, permanent uptime after. */
 const JINGRAN_EARTH_CHARM = new Buff({ name: "Jingran: Earth Charm" });
 const JR_INHERENT_1 = new Inherent({
-  name: "Jingran: Hark the Dust",
+  name: "Inherent: Hark the Dust",
   updateBuffs: () => {
     const a = currentAction();
     if (a === Intro || a === Skill1 || a === ESkill1) applyCurrent(JINGRAN_EARTH_CHARM, 1);
@@ -151,7 +151,7 @@ const JINGRAN_FORTUNE = new Buff({
  *  Ghost Shroud more on top of Trace the Vestige's own base 2-a-shield rate, and spends it. */
 const JINGRAN_FIXATION = new Buff({ name: "Jingran: Fixation" });
 const JR_INHERENT_2 = new Inherent({
-  name: "Jingran: Trace the Vestige",
+  name: "Inherent: Trace the Vestige",
   combatStart: () => {
     applyCurrent(JINGRAN_FIXATION, 1); // "upon engaging in combat, Jingran gains Fixation"
     applyCurrent(JINGRAN_GHOST_SHROUD, 25); // "upon entering combat, tops Ghost Shroud up to 25"
@@ -273,7 +273,7 @@ export const JINGRAN = new Loadout({
   inherent1: JR_INHERENT_1,
   inherent2: JR_INHERENT_2,
   weapons: [JINGRAN_SIG, NEW_STD_BRAUDBLADE, THUNDERFLARE_DOMINION, LUSTROUS_RAZOR, VERDANT_SUMMIT],
-  echoLoadouts: [new EchoLoadout(MYRIAD_SNARE, LAMP_5PC, LAMP_2PC),
+  echoLoadouts: [new EchoLoadout(MYRIAD_SNARE, LAMP_5PC),
   new EchoLoadout(MYRIAD_SNARE, COV_3PC, LAMP_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.HP4, Mainstat.Fusion3, Mainstat.ATK1, Mainstat.HP1),
   substat: chem("hp", "heavy"),

@@ -23,8 +23,8 @@ import {
   Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1, Cast, Node,
   Scaling, addStat, applyCurrent, applyTeam, currentAction, queue, queueOutro, revokeCurrent, getStat, stacksOf, stacksOfTeam, frozenStacks,
   maxStackIncrease, Debuff, applyEnemy, revokeEnemy, isHeld, stacksOfEnemy,
-  } from "../../kit.js";
-import { ActionGroup, Action, Rotation, START_1, START_2, SWAP, NOINTRO, INTRO, ECHO_SWAP, OUTRO, START_3 } from "../../rotation.js";
+  } from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, START_1, START_2, SWAP, NOINTRO, INTRO, ECHO_SWAP, OUTRO, START_3 } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import {
   TUNE_BREAK, TUNE_RUPTURE_INTERFERED, TUNE_STRAIN_INTERFERED, interferedWindow, tuneRuptureResponse,
@@ -32,7 +32,7 @@ import {
 } from "../../shared/tunebreak.js";
 import { STARFIELD_CALIBRATOR } from "../../weapons/broadblade.js";
 import { DISCORD } from "../../weapons/standard.js";
-import { REACTOR_HUSK, SPACETREK_EXPLORER, STARRY_RADIANCE_5PC, STARRY_RADIANCE_2PC } from "../../echoes/lahairoi.js";
+import { REACTOR_HUSK, SPACETREK_EXPLORER, STARRY_RADIANCE_5PC } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 
@@ -179,7 +179,7 @@ const INTERFERED_MARKER = interferedWindow({
 /** Blueprint: +10% ER flat, plus 20 Concerto on her Intro and on Wide Field stage 3 — both once
  *  every 20s, which over a 2-minute rotation is once each per loop. */
 const MO_INHERENT_1 = new Inherent({
-  name: "Mornye: Blueprint",
+  name: "Inherent: Blueprint",
   constantStats: () => addStat(Stat.Er, 10),
   applyStats: () => {
     const a = currentAction();
@@ -189,7 +189,7 @@ const MO_INHERENT_1 = new Inherent({
 
 /** Boundedness is a damage-taken cap and a revive — no damage of its own, so it is here as the
  *  piece of gear it is and contributes nothing. */
-const MO_INHERENT_2 = new Inherent({ name: "Mornye: Boundedness" });
+const MO_INHERENT_2 = new Inherent({ name: "Inherent: Boundedness" });
 
 const MORNYE_TALENTS = new Talent({
   name: "Mornye: Talents",
@@ -237,8 +237,8 @@ const MO_ROTATION = new Rotation([
 /** ER is the build: her Liberation converts everything past 100% into crit, so the sig's 77% and
  *  Reactor Husk's own 10% are both doing real work. */
 const MO_ECHOES = [
-  new EchoLoadout(REACTOR_HUSK, STARRY_RADIANCE_5PC, STARRY_RADIANCE_2PC),
-  new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC, STARRY_RADIANCE_2PC),
+  new EchoLoadout(REACTOR_HUSK, STARRY_RADIANCE_5PC),
+  new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC),
 ];
 
 export const MORNYE = new Loadout({

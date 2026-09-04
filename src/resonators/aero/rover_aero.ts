@@ -15,15 +15,15 @@ import {
   Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, applyCurrent, applyTeam, applyEnemy, revokeEnemy, stacksOfEnemy, maxStackIncrease, isHeld,
   revokeCurrent, casting, currentAction, addStat,
-} from "../../kit.js";
-import { Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../rotation.js";
+} from "../../engine/kit.js";
+import { Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { AERO_EROSION, SPECTRO_FRAZZLE, HAVOC_BANE, FUSION_BURST, GLACIO_CHAFE, ELECTRO_FLARE, HEALS } from "../../shared/status.js";
 import { BLOODPACTS_PLEDGE, BLOODPACT_AERO_AMP } from "../../weapons/standard.js";
-import { REJUV_5PC, REJUV_2PC, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, BELL_BORNE_SHIELD, BELL_BORNE_GEOCHELONE } from "../../echoes/jinzhou.js";
+import { REJUV_5PC, HERON, MOONLIT_CLOUDS_5PC, BELL_BORNE_SHIELD, BELL_BORNE_GEOCHELONE } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
-import { FLEURDELYS, WINDWARD_2PC, WINDWARD_5PC } from "../../echoes/rinascita.js";
+import { FLEURDELYS, WINDWARD_5PC } from "../../echoes/rinascita.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -81,18 +81,18 @@ const Outro = roverAction("Outro - Storm's Echo", {
 
 /** Sand in the Storm (Inherent Skill): +20% ATK for 10s off the Intro. */
 const SAND_IN_THE_STORM = new Buff({
-  name: "Aero Rover: Sand in the Storm",
+  name: "Inherent: Sand in the Storm",
   applyStats: () => addStat(Stat.BonusAtk, 20),
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(SAND_IN_THE_STORM); },
 });
 const AR_INHERENT_1 = new Inherent({
-  name: "Aero Rover: Sand in the Storm",
+  name: "Inherent: Sand in the Storm",
   updateBuffs: () => { if (currentAction() === Intro) applyCurrent(SAND_IN_THE_STORM, 1); },
 });
 /** Boundless Winds (Inherent Skill): +20% healing off Omega Storm — healing is out of scope, so
  *  this piece is held for the name. */
 const AR_INHERENT_2 = new Inherent({ 
-  name: "Aero Rover: Boundless Winds" // 20% healing mv
+  name: "Inherent: Boundless Winds" // 20% healing mv
 });
 
 /** Aeolian Realm (Outro): the whole team holds it, 30s, so permanent uptime. Whoever holds it
@@ -215,11 +215,11 @@ export const ROVER_AERO = new Loadout({
   inherent2: AR_INHERENT_2,
   weapons: [BLOODPACTS_PLEDGE],
   echoLoadouts: [
-    new EchoLoadout(FALLACY, REJUV_5PC, REJUV_2PC),
-    new EchoLoadout(BELL_BORNE_GEOCHELONE, REJUV_5PC, REJUV_2PC),
-    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
-    new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
-    new EchoLoadout(FLEURDELYS, WINDWARD_5PC, WINDWARD_2PC),
+    new EchoLoadout(FALLACY, REJUV_5PC),
+    new EchoLoadout(BELL_BORNE_GEOCHELONE, REJUV_5PC),
+    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
+    new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC),
+    new EchoLoadout(FLEURDELYS, WINDWARD_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
   substat: chem("atk", "skill"),

@@ -21,16 +21,16 @@ import {
   Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
   Type2, Cast, Node, Scaling, applyTeam, revokeTeam, applyEnemy, isHeld, casting, currentAction,
   addStat, queue, applyCurrent,
-} from "../../kit.js";
-import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, JUMP, ActionField } from "../../rotation.js";
+} from "../../engine/kit.js";
+import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, JUMP, ActionField } from "../../engine/rotation.js";
 import { coordinatedBuff } from "../../shared/helpers.js";
 import { HEALS } from "../../shared/status.js";
 import { VARIATION } from "../../weapons/standard.js";
-import { REJUV_5PC, REJUV_2PC } from "../../echoes/jinzhou.js";
+import { REJUV_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
-import { SPACETREK_EXPLORER, STARRY_RADIANCE_2PC, STARRY_RADIANCE_5PC } from "../../echoes/lahairoi.js";
+import { SPACETREK_EXPLORER, STARRY_RADIANCE_5PC } from "../../echoes/lahairoi.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -106,7 +106,7 @@ const Outro = verinaAction("Outro - Blossom", {
 /** Gift of Nature (Inherent Skill) — see the file header for why this ends on her own next Intro
  *  rather than outro. Still pays out on that Intro itself: convertStats() revokes only after applyStats() has. */
 const GIFT_OF_NATURE = new Buff({
-  name: "Verina: Gift of Nature",
+  name: "Inherent: Gift of Nature",
   applyStats: () => addStat(Stat.BonusAtk, 20),
   // granted from VERINA_RESONATOR's own updateBuffs() below since a global buff's own updateBuffs() can't fire before
   // it's held once, and the Resonator itself is always self-held from team setup
@@ -114,14 +114,14 @@ const GIFT_OF_NATURE = new Buff({
 });
 /** Gift of Nature's own trigger — always-equipped Inherent Skill piece. */
 const VR_INHERENT_1 = new Inherent({
-  name: "Verina: Gift of Nature",
+  name: "Inherent: Gift of Nature",
   updateBuffs: () => {
     const a = currentAction();
     if (a === StarflowerHeavy || a === ForteMidair1 || a === Liberation || a === Outro) applyTeam(GIFT_OF_NATURE, 1);
   },
 });
 
-const VR_INHERENT_2 = new Inherent({ name: "Verina: Grace of Life" }); // revive teammate
+const VR_INHERENT_2 = new Inherent({ name: "Inherent: Grace of Life" }); // revive teammate
 
 
 /** Blossom's own team-wide DMG Amp — 30s is past the 21s permanent-uptime threshold, so it's
@@ -230,8 +230,8 @@ export const VERINA = new Loadout({
   inherent1: VR_INHERENT_1,
   inherent2: VR_INHERENT_2,
   weapons: [VARIATION],
-  echoLoadouts: [new EchoLoadout(FALLACY, REJUV_5PC, REJUV_2PC),
-      new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC, STARRY_RADIANCE_2PC),],
+  echoLoadouts: [new EchoLoadout(FALLACY, REJUV_5PC),
+      new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC),],
   mainstats: [mainstats(Mainstat.ATK4, Mainstat.ER3, Mainstat.ER3, Mainstat.ATK1, Mainstat.ATK1)],
   substat: chem("atk", "liberation"),
     rotation: VR_LOOP,

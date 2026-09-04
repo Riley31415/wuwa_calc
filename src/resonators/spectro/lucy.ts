@@ -44,15 +44,15 @@ import {
   Type1, Cast, Node, Scaling, addStat, addEnemyStat, applyEnemy, applyCurrent, applyTeam, casting, currentAction,
   isHeld, queue, queueOutro, revokeCurrent as revokeCurrent, revokeTeam, forte1, forte2, setForte1, setForte2,
   getStat, frozenStacks, stacksOfEnemy,
-  } from "../../kit.js";
-import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, ECHO_CANCEL, OUTRO } from "../../rotation.js";
-import { applied } from "../../kit.js";
+  } from "../../engine/kit.js";
+import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
+import { applied } from "../../engine/kit.js";
 import { lostOnSwap, matrix } from "../../shared/helpers.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING, TUNE_HACK_INTERFERED } from "../../shared/tunebreak.js";
 import { SPECTRAL_TRIGGER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { CELESTIAL_LIGHT_2PC, LINGERING_TUNES_2PC } from "../../echoes/jinzhou.js";
-import { ADAM_SMASHER_LUCY, NEONLIGHT_LEAP_2PC, REEL_2PC } from "../../echoes/lahairoi.js";
+import { ADAM_SMASHER_LUCY, SHATTERED_DREAMS_1PC, NEONLIGHT_LEAP_2PC, REEL_2PC } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 
@@ -333,12 +333,12 @@ const LC_S6 = new Sequence({
 
 /** Ghost Cyberware (Inherent Skill): Optical Illusion negates one instance of damage taken. Purely
  *  defensive, so it holds no stat. */
-const LC_INHERENT_1 = new Inherent({ name: "Lucy: Ghost Cyberware" });
+const LC_INHERENT_1 = new Inherent({ name: "Inherent: Ghost Cyberware" });
 
 /** Function Cracking (Inherent Skill): Network Backdoor is banked off the team *defeating* a
  *  Botnet-marked Overlord/Calamity target, which a single-target rotation never does — nothing here
  *  can ever fire, and the piece is present for the kit's shape. */
-const LC_INHERENT_2 = new Inherent({ name: "Lucy: Function Cracking" });
+const LC_INHERENT_2 = new Inherent({ name: "Inherent: Function Cracking" });
 
 const LUCY_TALENTS = new Talent({
   name: "Lucy: Talents",
@@ -387,9 +387,9 @@ const LC_ROTATION = new Rotation([
 /** Adam Smasher carries its own 1pc set, so the other four echoes run two ordinary 2-piece sets
  *  instead of a 5pc — ATK and Spectro. */
 const LC_ECHOES = [
-  new EchoLoadout(ADAM_SMASHER_LUCY, NEONLIGHT_LEAP_2PC, CELESTIAL_LIGHT_2PC),
-  new EchoLoadout(ADAM_SMASHER_LUCY, LINGERING_TUNES_2PC, CELESTIAL_LIGHT_2PC),
-  new EchoLoadout(ADAM_SMASHER_LUCY, LINGERING_TUNES_2PC, REEL_2PC),
+  new EchoLoadout(ADAM_SMASHER_LUCY, SHATTERED_DREAMS_1PC, NEONLIGHT_LEAP_2PC, CELESTIAL_LIGHT_2PC),
+  new EchoLoadout(ADAM_SMASHER_LUCY, SHATTERED_DREAMS_1PC, LINGERING_TUNES_2PC, CELESTIAL_LIGHT_2PC),
+  new EchoLoadout(ADAM_SMASHER_LUCY, SHATTERED_DREAMS_1PC, LINGERING_TUNES_2PC, REEL_2PC),
 ];
 
 /** Matrix — Function Cracking: her Resonance Skills mark an Overlord/Calamity target with Botnet

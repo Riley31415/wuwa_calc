@@ -429,6 +429,9 @@ main {
   letter-spacing: .6px;
   color: var(--dim);
 }
+/* every heading the same grey, the numeric ones included — `.c.num`/`.c.total` below paint the
+   body's figures in full ink, and would otherwise win over the heading grey by source order */
+.trow.thead .c.num, .trow.thead .c.total { color: var(--dim); font-weight: 650; }
 .trow:not(.thead):hover .c { background: var(--surface-2); }
 /* one font, one size, one weight — same reasoning as the rotation table's own `.c` below */
 .trow .c {
@@ -477,10 +480,10 @@ main {
    same member wash as that position's option cells, so a member's columns read as one block. */
 .trow .c.slotdpr { background: color-mix(in srgb, var(--mem, transparent) 10%, var(--surface)); }
 .trow:not(.thead):hover .c.slotdpr { background: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface)); }
-.trow.thead .c.slothead { cursor: pointer; }
-.trow.thead .c.slothead:hover { color: var(--ink); }
+.trow.thead .c.slothead, .trow.thead .c.sorthead { cursor: pointer; }
+.trow.thead .c.slothead:hover, .trow.thead .c.sorthead:hover { color: var(--ink); }
 /* the marker keeps its own colour rather than the heading's uppercase grey (see `.arrow` below) */
-.trow.thead .c.slothead .arrow { text-transform: none; letter-spacing: 0; font-size: 13px; }
+.trow.thead .c.slothead .arrow, .trow.thead .c.sorthead .arrow { text-transform: none; letter-spacing: 0; font-size: 13px; }
 
 /* The `% of Baseline` column: one continuous hue ramp, written per row as `--hue` by
    `rankVisible()` — red at the strongest team, green at the baseline, purple at the weakest.
@@ -503,17 +506,23 @@ main {
 .gotodetail { cursor: pointer; }
 .gotodetail:hover { color: var(--ink); }
 /* ...and the Slot headings, which expand that position's own DPR column rather than navigating —
-   same marker, so both places that open something read the same. Its own transform is a quarter
-   turn while the column is open, so the heading says which way the next click goes. */
-.gotodetail .arrow, .slothead .arrow {
+   same marker, so both places that open something read the same. Its own marker points down
+   while the column is shut and swings right once it is open, so the heading says which way the
+   next click goes. */
+.gotodetail .arrow, .slothead .arrow, .sorthead .arrow {
   display: inline-block;
   margin-left: 4px;
   color: var(--faint);
   transition: color .12s, transform .12s;
 }
 .gotodetail:hover .arrow { color: var(--accent); transform: translateX(2px); }
-.slothead:hover .arrow { color: var(--accent); }
-.slothead.open .arrow { transform: rotate(90deg); }
+.slothead:hover .arrow, .sorthead:hover .arrow { color: var(--accent); }
+.slothead .arrow { transform: rotate(90deg); }
+.slothead.open .arrow { transform: none; }
+/* the Team DPR heading's own marker points the way the column runs: down for the default
+   strongest-first order, up once a click has flipped it to ascending (see `sortAscending`) */
+.sorthead .arrow { transform: rotate(90deg); }
+.sorthead.asc .arrow { transform: rotate(-90deg); }
 
 /* the gear popover's own two-column shell reuses .pop/table/.k/.v wholesale (see below) — no
    extra rules needed beyond a touch more breathing room since its rows run longer than a stat
@@ -554,6 +563,17 @@ main {
    table inside it flattened and clipped rather than drawing a second card on top of the first. */
 .pop.dpr { padding: 0; border-radius: var(--r); overflow: hidden; }
 .pop.dpr .rtable { border-radius: 0; box-shadow: none; }
+/* its one line of its own: the hint that the cell underneath is a link, set top right in the
+   same small uppercase the panel section headings use (`.pop .sec` below) */
+.pop.dpr .popnote {
+  padding: 6px 10px 4px;
+  text-align: right;
+  font-size: 10px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .7px;
+  color: var(--dim);
+}
 
 /* The resonator hover's three scopes sit side by side: local (with this member's gear above it),
    global, then enemy debuffs. Stacked they ran a page tall on a well-buffed member, and the three

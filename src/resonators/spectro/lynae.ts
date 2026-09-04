@@ -24,14 +24,14 @@
 import {
   Buff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout, Stat, Attribute, WeaponType,
   Type1, Cast, Node, Scaling, addStat, applyCurrent, applyTeam, casting, currentAction, maxStackIncrease, queueOutro,
-  revokeCurrent, } from "../../kit.js";
+  revokeCurrent, } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, SWAP, INTRO, ECHO_SWAP, OUTRO } from "../../rotation.js";
+import { ActionGroup, Action, Rotation, SWAP, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
 import { applyRupture, applyStrain, TUNE_STRAIN_INTERFERED, tuneRuptureResponse, tuneStrainBonus } from "../../shared/tunebreak.js";
 import { SPECTRUM_BLASTER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
-import { HYVATIA, NEONLIGHT_LEAP_5PC, NEONLIGHT_LEAP_2PC, REEL_5PC, VOIDWING_MOTH, REEL_2PC } from "../../echoes/lahairoi.js";
-import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
+import { HYVATIA, NEONLIGHT_LEAP_5PC, REEL_5PC, VOIDWING_MOTH } from "../../echoes/lahairoi.js";
+import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 
@@ -104,12 +104,12 @@ const inflictsFlux = (a: Action): boolean =>
  *  skill (its once-per-8s-per-target limit never binds, a rotation lands about one break a loop),
  *  Strain pays her Tune Break Boost off the Interfered stacks the breaks leave behind. */
 const MODE_RUPTURE = new ResonanceMode({
-  name: "Lynae: Resonance Mode - Tune Rupture",
+  name: "Resonance Mode - Tune Rupture",
   updateDebuffs: () => { if (inflictsFlux(currentAction())) applyRupture(); },
   updateGlobal: () => tuneRuptureResponse(SpectralAnalysis),
 });
 const MODE_STRAIN = new ResonanceMode({
-  name: "Lynae: Resonance Mode - Tune Strain",
+  name: "Resonance Mode - Tune Strain",
   // her kit raises the target's Tune Strain - Interfered limit by 1 on top of the base 1
   updateDebuffs: () => { if (inflictsFlux(currentAction())) applyStrain(); },
   combatStart: () => maxStackIncrease(TUNE_STRAIN_INTERFERED, 1),
@@ -128,7 +128,7 @@ const PRISMATIC_OVERBLAST = new Buff({
 /** Adaptive Optics (Inherent Skill): her Intro gives her +25% Spectro DMG Bonus for 9s — short and
  *  her own, so it comes off on her outro. */
 const ADAPTIVE_OPTICS = new Buff({
-  name: "Lynae: Adaptive Optics",
+  name: "Inherent: Adaptive Optics",
   applyStats: () => addStat(Stat.DmgBonus, 25, Attribute.Spectro),
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(ADAPTIVE_OPTICS); },
 });
@@ -150,9 +150,9 @@ const SPECTRAL_ANALYSIS_TBB = new Buff({
 
 /* --------------------------------------------------------------------------- kit and loadout */
 
-const LY_INHERENT_1 = new Inherent({ name: "Lynae: Colors Never Fade!" });
+const LY_INHERENT_1 = new Inherent({ name: "Inherent: Colors Never Fade!" });
 const LY_INHERENT_2 = new Inherent({
-  name: "Lynae: \"Adaptive Optics: Everyday Applications\"",
+  name: "Inherent: \"Adaptive Optics: Everyday Applications\"",
   updateBuffs: () => { if (currentAction() === Intro) applyCurrent(ADAPTIVE_OPTICS, 1); },
 });
 
@@ -192,10 +192,10 @@ const LY_ROTATION = new Rotation([
 ]);
 
 const LY_ECHOES = [
-    new EchoLoadout(VOIDWING_MOTH, REEL_5PC, REEL_2PC),
-    new EchoLoadout(HYVATIA, NEONLIGHT_LEAP_5PC, NEONLIGHT_LEAP_2PC),
-  new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
-  new EchoLoadout(STONEWALL_BRACER, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
+    new EchoLoadout(VOIDWING_MOTH, REEL_5PC),
+    new EchoLoadout(HYVATIA, NEONLIGHT_LEAP_5PC),
+  new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
+  new EchoLoadout(STONEWALL_BRACER, MOONLIT_CLOUDS_5PC),
 ];
 
 /** One loadout per Resonance Mode, the same way Lucilla ships an Echo and a Chafe build — the mode

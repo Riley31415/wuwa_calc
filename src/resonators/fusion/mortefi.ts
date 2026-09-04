@@ -12,12 +12,12 @@ import {
   Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
   Type2, Cast, Node, Scaling, applyCurrent, applyTeam, revokeTeam, stacksOfTeam, removeStackTeam, isHeld,
   casting, currentAction, triggeredAction, frozenStacks, isType, addStat, revokeCurrent, queue, queueOn,
-  queueOutro, } from "../../kit.js";
+  queueOutro, } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, ActionField } from "../../rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, ActionField } from "../../engine/rotation.js";
 import { STATIC_MIST, CADENZA, NEW_STD_PISTOL } from "../../weapons/standard.js";
-import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";
-import { NM_HECATE, EMPYREAN_ANTHEM_5PC, EMPYREAN_ANTHEM_2PC, HECATE } from "../../echoes/rinascita.js";
+import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
+import { NM_HECATE, EMPYREAN_ANTHEM_5PC, HECATE } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 import { THE_LAST_DANCE } from "../../weapons/pistol.js";
@@ -113,7 +113,7 @@ const BURNING_RHAPSODY = new Buff({
  *  off the frozen count so a tick's own gain lands on the next one, not itself. Reset when the
  *  window does (the next Violent Finale — see Liberation). */
 const VIBRATO = new Buff({
-  name: "Mortefi: Rhythmic Vibrato",
+  name: "Inherent: Rhythmic Vibrato",
   maxStacks: 50,
   // held by Mortefi alone, so any Coordinated-typed row on his slot is a Marcato
   applyStats: () => { if (isType(Type2.Coordinated)) addStat(Stat.DmgBonus, 1.5 * frozenStacks()); },
@@ -122,19 +122,19 @@ const VIBRATO = new Buff({
 /** Harmonic Control (Inherent Skill): +25% Fury Fugue DMG for 8s after Passionate Variation —
  *  short window, lost after the outro action gains stats. */
 const HARMONIC_CONTROL = new Buff({
-  name: "Mortefi: Harmonic Control",
+  name: "Inherent: Harmonic Control",
   applyStats: () => { if (currentAction() === FSkill) addStat(Stat.DmgBonus, 25); },
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(HARMONIC_CONTROL); },
 });
 /** Harmonic Control's own trigger — always-equipped Inherent Skill piece. */
 const MO_INHERENT_1 = new Inherent({
-  name: "Mortefi: Harmonic Control",
+  name: "Inherent: Harmonic Control",
   updateBuffs: () => { if (currentAction() === Skill) applyCurrent(HARMONIC_CONTROL, 1); },
 });
 
 /** Rhythmic Vibrato (Inherent Skill) — the name; the live ramp itself is the `VIBRATO` buff
  *  above, granted by the Marcato tick actions. */
-const MO_INHERENT_2 = new Inherent({ name: "Mortefi: Rhythmic Vibrato" });
+const MO_INHERENT_2 = new Inherent({ name: "Inherent: Rhythmic Vibrato" });
 
 /** The window his outro hands the incoming resonator — "or until they are switched out" is
  *  lost-on-swap wording, checked via lostOnSwap() rather than the usual convertStats(). */
@@ -246,9 +246,9 @@ export const MORTEFI = new Loadout({
   inherent2: MO_INHERENT_2,
   weapons: [STATIC_MIST, CADENZA, NEW_STD_PISTOL, THE_LAST_DANCE],
   echoLoadouts: [
-    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
-    new EchoLoadout(STONEWALL_BRACER, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC),
-    new EchoLoadout(HECATE, EMPYREAN_ANTHEM_5PC, EMPYREAN_ANTHEM_2PC),
+    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
+    new EchoLoadout(STONEWALL_BRACER, MOONLIT_CLOUDS_5PC),
+    new EchoLoadout(HECATE, EMPYREAN_ANTHEM_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: chem("atk", "basic"),

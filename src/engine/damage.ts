@@ -74,7 +74,7 @@ export function effectiveShred(snapshot: Snapshot): number {
 /** The enemy's resistance after ignore and shred, in percent units. May go negative. */
 export function effectiveRes(snapshot: Snapshot): number {
   const s = (k: Stat | EnemyStat) => snapshot.stats[k]! / 100;
-  return (snapshot.enemyRes / 100 - s(Stat.ResIgnore) * notDotFor(snapshot) - s(EnemyStat.ResShred)) * 100;
+  return (snapshot.enemyRes / 100 - s(Stat.ResIgnore) * notDotFor(snapshot) - s(EnemyStat.ResReduce)) * 100;
 }
 
 /** The enemy's resistance turned into the multiplier the formula uses. */

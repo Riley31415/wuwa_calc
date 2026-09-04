@@ -9,11 +9,11 @@
 import {
   Buff, Talent, Inherent, Sequence, Resonator, Tier, Loadout, EchoLoadout, Stat, Attribute, WeaponType, Type1,
   Cast, Node, Scaling, applyCurrent, applyTeam, revokeTeam, isHeld, stacksOf, removeStack, revokeCurrent, casting,
-  currentAction, addStat, frozenStacks, queue, queueOutro, } from "../../kit.js";
+  currentAction, addStat, frozenStacks, queue, queueOutro, } from "../../engine/kit.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { Action, Rotation, INTRO, ECHO_SWAP, OUTRO, NOINTRO } from "../../rotation.js";
+import { Action, Rotation, INTRO, ECHO_SWAP, OUTRO, NOINTRO } from "../../engine/rotation.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
-import { HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC } from "../../echoes/jinzhou.js";
+import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 import { BLAZING_BRILLIANCE } from "../../weapons/sword.js";
@@ -74,20 +74,20 @@ const DETONATE_GLACIER = sanhuaAction("Forte - Ice Burst (Glacier)", { node: Nod
 
 /** Condensation (Inherent Skill): +20% Resonance Skill DMG for 8s after Intro. */
 const CONDENSATION = new Buff({
-  name: "Sanhua: Condensation",
+  name: "Inherent: Condensation",
   applyStats: () => addStat(Stat.DmgBonus, 20, Type1.Skill),
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(CONDENSATION); },
 });
 /** Condensation's own trigger — always-equipped Inherent Skill piece. */
 const SH_INHERENT_1 = new Inherent({
-  name: "Sanhua: Condensation",
+  name: "Inherent: Condensation",
   updateBuffs: () => { if (currentAction() === Intro) applyCurrent(CONDENSATION, 1); },
 });
 
 /** Avalanche (Inherent Skill): +20% Ice Burst DMG for 8s after Basic Attack 5. Scoped by checking
  *  the three Ice Burst actions directly — not Type2.FusionBurst, which is Fusion's own proc type. */
 const AVALANCHE = new Buff({
-  name: "Sanhua: Avalanche",
+  name: "Inherent: Avalanche",
   applyStats: () => {
     const a = currentAction();
     if (a === DETONATE_THORN || a === DETONATE_PRISM || a === DETONATE_GLACIER) addStat(Stat.DmgBonus, 20);
@@ -96,7 +96,7 @@ const AVALANCHE = new Buff({
 });
 /** Avalanche's own trigger — always-equipped Inherent Skill piece. */
 const SH_INHERENT_2 = new Inherent({
-  name: "Sanhua: Avalanche",
+  name: "Inherent: Avalanche",
   updateBuffs: () => { if (currentAction() === BA5) applyCurrent(AVALANCHE, 1); },
 });
 
@@ -224,7 +224,7 @@ export const SANHUA = new Loadout({
   inherent1: SH_INHERENT_1,
   inherent2: SH_INHERENT_2,
   weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, OVERTURE],
-  echoLoadouts: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC)],
+  echoLoadouts: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
   substat: chem("atk", "skill"),
     rotation: SH_ROTATION,

@@ -3,9 +3,9 @@ import { isType,
   Buff, Sonata, Sonata2pc, Mainslot, EchoType, Stat, Attribute, Type1, Type2, Cast, Scaling,
   addStat, frozenStacks, applyCurrent, applyTeam, casting, currentAction, revokeCurrent, getStat, queue, queueOutro,
   revokeTeam, stacksOfEnemy, currentMember,
-} from "../kit.js";
-import { Action } from "../rotation.js";
-import { applied, appliedByMe } from "../kit.js";
+} from "../engine/kit.js";
+import { Action } from "../engine/rotation.js";
+import { applied, appliedByMe } from "../engine/kit.js";
 import { AERO_EROSION } from "../shared/status.js";
 
 /* ----------------------------------------------------------------------------- Carlotta, 2.0 */
@@ -41,6 +41,7 @@ export const FROSTY_RESOLVE_SKILL_DMG = new Buff({
 });
 export const FROSTY_RESOLVE_5PC = new Sonata({
   name: "Frosty Resolve 5pc",
+  sonata2pc: FROSTY_RESOLVE_2PC,
   updateBuffs: () => {
     if (casting(Cast.Skill)) applyCurrent(FROSTY_RESOLVE_GLACIO, 1);
     if (casting(Cast.Liberation)) applyCurrent(FROSTY_RESOLVE_SKILL_DMG, 1);
@@ -91,6 +92,7 @@ export const MIDNIGHT_VEIL_HANDOFF = new Buff({
 });
 export const MIDNIGHT_VEIL_5PC = new Sonata({
   name: "Midnight Veil 5pc",
+  sonata2pc: MIDNIGHT_VEIL_2PC,
   updateBuffs: () => {
     if (casting(Cast.Outro)) { queue(ACTION_MIDNIGHT_VEIL_BURST); queueOutro(MIDNIGHT_VEIL_HANDOFF); }
   },
@@ -116,6 +118,7 @@ export const TIDEBREAKING_2PC = new Sonata2pc({ name: "Tidebreaking Courage 2pc"
  *  convertStats() so every ER contribution has already landed this action. */
 export const TIDEBREAKING_5PC = new Sonata({
   name: "Tidebreaking Courage 5pc",
+  sonata2pc: TIDEBREAKING_2PC,
   constantStats: () => addStat(Stat.BonusAtk, 15),
   convertStats: () => { if (getStat(Stat.Er) >= 250) addStat(Stat.DmgBonus, 30); },
 });
@@ -164,6 +167,7 @@ export const HECATE = new Mainslot({
 export const EMPYREAN_ANTHEM_2PC = new Sonata2pc({ name: "Empyrean Anthem 2pc", constantStats: () => addStat(Stat.Er, 10) });
 export const EMPYREAN_ANTHEM_5PC = new Sonata({
   name: "Empyrean Anthem 5pc",
+  sonata2pc: EMPYREAN_ANTHEM_2PC,
   constantStats: () => addStat(Stat.DmgBonus, 80, Type2.Coordinated),
   updateBuffs: () => { if (isType(Type2.Coordinated)) applyTeam(EMPYREAN_ANTHEM_TEAM, 1); },
 });
@@ -205,13 +209,14 @@ export const GUSTS_OF_WELKIN_SELF = new Buff({
   name: "Gusts of Welkin",
   applyStats: () => addStat(Stat.DmgBonus, 15, Attribute.Aero),
 });
+export const GUSTS_OF_WELKIN_2PC = new Sonata2pc({ name: "Gusts of Welkin 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Aero) });
 export const GUSTS_OF_WELKIN_5PC = new Sonata({
   name: "Gusts of Welkin 5pc",
+  sonata2pc: GUSTS_OF_WELKIN_2PC,
   updateBuffs: () => {
     if (appliedByMe(AERO_EROSION)) { applyTeam(GUSTS_OF_WELKIN_TEAM, 1); applyCurrent(GUSTS_OF_WELKIN_SELF, 1); }
   },
 });
-export const GUSTS_OF_WELKIN_2PC = new Sonata2pc({ name: "Gusts of Welkin 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Aero) });
 
 /* --------------------------------------------------------------------------- Cartethyia, 2.4 */
 
@@ -243,6 +248,7 @@ export const FLEURDELYS = new Mainslot({
 export const WINDWARD_2PC = new Sonata2pc({ name: "Windward Pilgrimage 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Aero) });
 export const WINDWARD_5PC = new Sonata({
   name: "Windward Pilgrimage 5pc",
+  sonata2pc: WINDWARD_2PC,
   updateBuffs: () => { if (stacksOfEnemy(AERO_EROSION) > 0) applyCurrent(WINDWARD_BUFF, 1); },
 });
 export const WINDWARD_BUFF = new Buff({
