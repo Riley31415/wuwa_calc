@@ -63,20 +63,20 @@ const BA2 = luukAction("Basic - Such is Light 2", { node: Node.Normal, cast: Cas
 const BA3 = luukAction("Basic - Such is Light 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 150.6, energy: 2.4, concerto: 4.5, offtune: 7110, forte1: 22.5 });
 const BA4 = luukAction("Basic - Such is Light 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 96.33, energy: 1.43, concerto: 2.85, offtune: 4560, forte1: 14.25 });
 const HA = luukAction("Heavy - Such is Light", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 91.26, energy: 1.35, concerto: 2.7, offtune: 4320, forte1: 13.5 });
-const DC = luukAction("Basic - Such is Light (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 251.8, energy: 2.24, concerto: 17.46, offtune: 7120, forte1: 11.13 });
+const DC = luukAction("Dodge Counter - Such is Light", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 251.8, energy: 2.24, concerto: 17.46, offtune: 7120, forte1: 11.13 });
 
 // --- the mid-air chain. Stage 2 and 3 come in two forms by input: Scythe: Dissection (Normal
 //     Attack) or Scythe: Resection (Jump), the latter inflicting Tune Strain - Shifting. Stage 3
 //     of either is what replaces Resonance Skill with Aureole of Execution.
-const MA1 = luukAction("Basic - Such is Light (Mid-Air) 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 57.46, energy: 0.85, concerto: 1.7, offtune: 2720, forte1: 8.5 });
-const MA2 = luukAction("Basic - Scythe: Dissection 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 94.09, energy: 1.4, concerto: 2.5, offtune: 4000, forte1: 12.5 });
-const MA3 = luukAction("Basic - Scythe: Dissection 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 143.1, energy: 2.73, concerto: 3.96, offtune: 6320, forte1: 19.76 });
+const MA1 = luukAction("Mid-air - Such is Light 1", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 57.46, energy: 0.85, concerto: 1.7, offtune: 2720, forte1: 8.5 });
+const MA2 = luukAction("Mid-air - Scythe: Dissection 2", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 94.09, energy: 1.4, concerto: 2.5, offtune: 4000, forte1: 12.5 });
+const MA3 = luukAction("Mid-air - Scythe: Dissection 3", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 143.1, energy: 2.73, concerto: 3.96, offtune: 6320, forte1: 19.76 });
 // Resection 2/3, Golden Reflux, every Aureole of Execution and his Intro lay Tune Strain - Shifting
 const STRAIN = { updateDebuffs: () => applyStrain() };
-const MA2R = luukAction("Basic - Scythe: Resection 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 100.84, energy: 1.5, concerto: 2.7, offtune: 4320, forte1: 13.5, ...STRAIN });
-const MA3R = luukAction("Basic - Scythe: Resection 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 149.84, energy: 2.82, concerto: 4.16, offtune: 6640, forte1: 20.76, ...STRAIN });
-const MA4 = luukAction("Basic - Such is Light (Mid-Air) 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 1, offtune: 4960, forte1: 15.5 });
-const MDC = luukAction("Basic - Such is Light (Mid-Air Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 256.87, energy: 2.3, concerto: 17.6, offtune: 7360, forte1: 23 });
+const MA2R = luukAction("Mid-air - Scythe: Resection 2", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 100.84, energy: 1.5, concerto: 2.7, offtune: 4320, forte1: 13.5, ...STRAIN });
+const MA3R = luukAction("Mid-air - Scythe: Resection 3", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 149.84, energy: 2.82, concerto: 4.16, offtune: 6640, forte1: 20.76, ...STRAIN });
+const MA4 = luukAction("Mid-air - Such is Light 4", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 1, offtune: 4960, forte1: 15.5 });
+const MDC = luukAction("Dodge Counter - Such is Light (Mid-Air)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 256.87, energy: 2.3, concerto: 17.6, offtune: 7360, forte1: 23 });
 
 // --- Reunion of All the Fallen. Golden Reflux is the plain Resonance Skill (2 charges); after
 //     Basic Stage 4 / Mid-air Stage 3 it becomes Aureole of Execution, cycling Ring -> Breach ->
@@ -95,7 +95,7 @@ const IchorDeposit = luukAction("Skill - Ichor Deposit", { node: Node.Skill, typ
 
 // --- Spark from the Frost. Gavel of Earthshaker is the mid-air slam a Glare opens up; it
 //     detonates the Deposit, and its Concerto is all the flat regen row (the hit itself carries 0).
-const Gavel = luukAction("Forte - Gavel of Earthshaker", {
+const Gavel = luukAction("Basic - Gavel of Earthshaker", {
   node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 306.9, energy: 6, concerto: 10, offtune: 8080, forte1: 25.25,
   updateBuffs: () => queue(IchorDeposit),
 });
@@ -243,7 +243,7 @@ const LUUK_RESONATOR = new Resonator({
  *  marked Deposit), Liberation at three Endnotes, echo, out. He's always the team's main DPS, so
  *  this covers opener and loop. */
 
-const MA123 = new ActionGroup("Basic - Scythe: Dissection 123 (Mid-Air)", [MA1, MA2, MA3]);
+const MA123 = new ActionGroup("Mid-air - Scythe: Dissection 123", [MA1, MA2, MA3]);
 
 const LK_ROTATION = new Rotation([
   START_3, Skill, Liberation, SWAP,

@@ -51,8 +51,8 @@ const BA1 = zhezhiAction("Basic - Dimming Brush 1", { node: Node.Normal, cast: C
 const BA2 = zhezhiAction("Basic - Dimming Brush 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 102.75, energy: 1.85, concerto: 5.95, offtune: 5905, forte1: 15 });
 const BA3 = zhezhiAction("Basic - Dimming Brush 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 133.61, energy: 2.4, concerto: 7.68, offtune: 7680, forte1: 25 });
 
-const MA = zhezhiAction("Basic - Dimming Brush (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 229.53, energy: 3.4, concerto: 10.91, offtune: 10865, forte1: 10 });
-const DC = zhezhiAction("Basic - Dimming Brush (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 145.35, energy: 2.15, concerto: 20, offtune: 6880, forte1: 15 });
+const MA = zhezhiAction("Mid-air - Dimming Brush", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 229.53, energy: 3.4, concerto: 10.91, offtune: 10865, forte1: 10 });
+const DC = zhezhiAction("Dodge Counter - Dimming Brush", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 145.35, energy: 2.15, concerto: 20, offtune: 6880, forte1: 15 });
 const HA = zhezhiAction("Heavy - Dimming Brush", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 112.72, energy: 1.67, concerto: 5.34, offtune: 5336, forte1: 15 });
 
 // spends 60 Afflatus for a pair of Imprints
@@ -65,7 +65,7 @@ const Skill = zhezhiAction("Skill - Manifestation", {
 const FHA = zhezhiAction("Forte Heavy - Conjuration", {
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 249.03, energy: 2.1, concerto: 6.69, offtune: 6681, forte1: -30,
 });
-const FSkill = zhezhiAction("Forte Skill - Stroke of Genius", {
+const FSkill = zhezhiAction("Skill - Stroke of Genius", {
   node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 298.22, energy: 7, concerto: 13, offtune: 7736, forte2: 1,
 });
 const FSkill3 = zhezhiAction("Forte Skill - Creation's Zenith", {

@@ -64,7 +64,7 @@ const BA3 = sanhuaAction("Basic - Frigid Light 3", { node: Node.Normal, cast: Ca
 const BA4 = sanhuaAction("Basic - Frigid Light 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.34, energy: 1.42, concerto: 8, offtune: 4560 });
 const BA5 = sanhuaAction("Basic - Frigid Light 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 233.81, energy: 4.2, concerto: 10, offtune: 13440 });
 const HA = sanhuaAction("Heavy - Frigid Light", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 111.35, energy: 2, concerto: 8, offtune: 8000 });
-const MA = sanhuaAction("Basic - Frigid Light (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.29, energy: 0.51, concerto: 1, offtune: 9520 });
+const MA = sanhuaAction("Mid-air - Frigid Light", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 86.29, energy: 0.51, concerto: 1, offtune: 9520 });
 
 // Ice Thorn's own burst is a real exception, not a data gap: 0 concerto (every other burst pays
 // 1500), just 200 Energy — kept as given rather than smoothed over.

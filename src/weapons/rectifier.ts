@@ -81,7 +81,7 @@ export const WHISPERS_OF_SIRENS = new Weapon({
   weaponType: WeaponType.Rectifier,
   name: "Whispers of Sirens",
   updateBuffs: () => {
-    if ((casting(Cast.Intro) || casting(Cast.Basic)) && !stacksOf(GENTLE_DREAM)) applyCurrent(GENTLE_DREAM, 1);
+    if ((casting(Cast.Intro) || casting(Cast.Basic) || casting(Cast.MidAir)) && !stacksOf(GENTLE_DREAM)) applyCurrent(GENTLE_DREAM, 1);
   },
   constantStats: () => {
     addStat(Stat.BaseAtk, 500);

@@ -8,7 +8,7 @@ import type { Tag, StatKey } from "./stats.js";
 import type { Rotation, Action, ActionGroup, ActionDef, ActionField } from "./rotation.js";
 import { ctx, dryLog, undoDry, noteMutation, recordApplied, recordConsumed, pendingQueue, tagWord, tagWordOf, RESOURCE_STATS } from "./runtime.js";
 import { Gear, Buff, Debuff, Resonator, Loadout, Matrix, Mainslot, Weapon } from "./gear.js";
-import { State, TeamMember, StatEntry, HeldBuff, ZERO_STATS, TYPE2_AMP_INDEX } from "./state.js";
+import { State, TeamMember, StatEntry, HeldBuff, ZERO_STATS, TYPE2_AMP_INDEX, BASIC_DMG_BONUS_INDEX } from "./state.js";
 
 /** The three pools a phase reads — the acting slot's own, then team-wide, then enemy — as the
  *  arrays they held when `capture()` last ran. Three references apiece, nothing copied: a Pool's
@@ -217,6 +217,10 @@ function pushStat(stat: Stat | EnemyStat, tag: Tag | undefined, value: number): 
     if (stat === Stat.Amp && tag !== undefined && (tag & TYPE2_BITS) !== 0) {
       slot.effective[TYPE2_AMP_INDEX] = slot.effective[TYPE2_AMP_INDEX]! + value;
     }
+    // ...and the Basic-scoped part of DMG Bonus into its own (see BASIC_DMG_BONUS_INDEX)
+    if (stat === Stat.DmgBonus && tag === Type1.Basic) {
+      slot.effective[BASIC_DMG_BONUS_INDEX] = slot.effective[BASIC_DMG_BONUS_INDEX]! + value;
+    }
   }
 
   if (!ctx.tracing) return;
@@ -315,6 +319,10 @@ export function getStat(stat: Stat): number {
   return ctx.slot!.effective[stat]!;
 }
 export function pct(stat: Stat): number { return getStat(stat) / 100; }
+/** The Basic Attack DMG Bonus alone — every `addStat(Stat.DmgBonus, n, Type1.Basic)` this action
+ *  counted, and nothing plain or element-scoped. The one scoped subtotal kept outside tracing
+ *  (see state.ts's own BASIC_DMG_BONUS_INDEX); 0 on an action the scope didn't match. */
+export function basicDmgBonus(): number { return ctx.slot!.effective[BASIC_DMG_BONUS_INDEX]!; }
 
 // local — the acting resonator's own held Gear. Read-only, so these still take any Gear
 // (checking whether a Mainslot/Resonator is equipped is legitimate); only the stack-modifying

@@ -33,7 +33,7 @@ export const capEnergy = (member: TeamMember, value: number): number =>
  * `effective` is indexed by the stat itself: `Stat` and `EnemyStat` are numeric and share one index
  * space (stats.ts), so a contribution is one add in place with no lookup at all. `pushStat()`
  * writes the bare stat there and puts the *scoped* key in `totals` instead, so this array is
- * closed and tiny (`STAT_COUNT`, plus the one extra slot below) rather than open-ended.
+ * closed and tiny (`STAT_COUNT`, plus the two extra slots below) rather than open-ended.
  */
 
 /** One slot past the real stats, holding the part of `Stat.Amp` that came in scoped to a `Type2`.
@@ -44,6 +44,11 @@ export const capEnergy = (member: TeamMember, value: number): number =>
  *  own: nothing grants it, `pushStat()` derives it from the ordinary `addStat(Stat.Amp, n, tag)`
  *  a kit already writes. */
 export const TYPE2_AMP_INDEX = STAT_COUNT;
+/** The slot after that: the part of `Stat.DmgBonus` that came in scoped to `Type1.Basic` — what
+ *  a kit means by "Basic Attack DMG Bonus from every source" (Rebecca's S6 converts 40% of it).
+ *  Kept the same way as the amp split above: derived by `pushStat()` off the ordinary tagged
+ *  `addStat`, only on an action the scope actually matched, and never granted directly. */
+export const BASIC_DMG_BONUS_INDEX = STAT_COUNT + 1;
 
 /** What every action's own `effective` starts as — cloned per action with `.slice()`, which is one
  *  memcpy of ~36 doubles. A plain array rather than a `Float64Array`: a typed array is a separate
@@ -51,7 +56,7 @@ export const TYPE2_AMP_INDEX = STAT_COUNT;
  *  line in `evaluate()`. The one fractional write below (and its undo) is deliberate — V8 fixes an
  *  array's element kind once it widens, and a clone inherits it, so every copy is a double array
  *  from the start rather than transitioning from integers on its first real contribution. */
-export const ZERO_STATS: number[] = new Array<number>(STAT_COUNT + 1).fill(0);
+export const ZERO_STATS: number[] = new Array<number>(STAT_COUNT + 2).fill(0);
 ZERO_STATS[0] = 0.5; ZERO_STATS[0] = 0;
 
 /**

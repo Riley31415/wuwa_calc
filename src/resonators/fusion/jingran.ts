@@ -61,7 +61,7 @@ const BA1 = jingranAction("Basic - Devil's Bane 1", { node: Node.Normal, cast: C
 const BA2 = jingranAction("Basic - Devil's Bane 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 99.47, energy: 1.68, concerto: 3.35, offtune: 5337 });
 const BA3 = jingranAction("Basic - Devil's Bane 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 159.1, energy: 2.69, concerto: 5.36, offtune: 8537, forte1: 50 });
 const BA4 = jingranAction("Basic - Devil's Bane 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 124.24, energy: 2.09, concerto: 4.18, offtune: 6666, forte1: 50 });
-const MA = jingranAction("Basic - Edge of Life and Death (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 92.45, energy: 1.55, concerto: 3.1, offtune: 4960 });
+const MA = jingranAction("Mid-air - Edge of Life and Death", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 92.45, energy: 1.55, concerto: 3.1, offtune: 4960 });
 
 const EBA1 = jingranAction("Basic - Drink Soul 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 44.74, energy: 0.75, concerto: 1.5, offtune: 2400 });
 const EBA2 = jingranAction("Basic - Drink Soul 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 74.56, energy: 1.26, concerto: 2.5, offtune: 4000 });
@@ -69,8 +69,8 @@ const EBA3 = jingranAction("Basic - Drink Soul 3", { node: Node.Normal, cast: Ca
 const EBA4 = jingranAction("Basic - Drink Soul 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 153.16, energy: 2.6, concerto: 5.16, offtune: 8218, forte1: 50 });
 
 // --- dodge counters: Light Watch (Yang Font), Nether Dive (Yin Vessel), 100 Qi each
-const DC = jingranAction("Basic - Light Watch", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Heavy, mv: 198.8, energy: 10, concerto: 6.68, offtune: 8000, forte1: 100 });
-const EDC = jingranAction("Basic - Nether Dive", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Heavy, mv: 248.57, energy: 4.19, concerto: 18.36, offtune: 13337, forte1: 100 });
+const DC = jingranAction("Dodge Counter - Light Watch", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Heavy, mv: 198.8, energy: 10, concerto: 6.68, offtune: 8000, forte1: 100 });
+const EDC = jingranAction("Dodge Counter - Nether Dive", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Heavy, mv: 248.57, energy: 4.19, concerto: 18.36, offtune: 13337, forte1: 100 });
 
 // --- resonance skill. Scorching Yang/Afterlife's Guide are Yang Font's own tap+hold pair;
 //     Encroaching Yin/Netherworld Traverse are Yin Vessel's.
@@ -107,8 +107,8 @@ const Outro = jingranAction("Outro - Rising Fortune and Ebbing Evil", {
 // granted here, not read here — JINGRAN_FIRE_OF_LIFE's own convertStats() does the spend/queue/
 // MV-boost/Qi-refund work, this same action
 const BURNS_MINGFIRE = { updateBuffs: () => { if (forte2() > 0) applyCurrent(JINGRAN_FIRE_OF_LIFE, 1); } };
-const FHA = jingranAction("Forte - Stardome Meander", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 240.38, energy: 8.5, concerto: 13, offtune: 10400, forte1: -300, ...BURNS_MINGFIRE }); // 24.04%+24.04%+48.08%+144.22%
-const EFHA = jingranAction("Forte - Soul Raid", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 234.29, energy: 8.53, concerto: 13, offtune: 10140, forte1: -300, ...BURNS_MINGFIRE }); // 16.40%x2+21.09%x3+138.22%
+const FHA = jingranAction("Forte Heavy - Stardome Meander", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 240.38, energy: 8.5, concerto: 13, offtune: 10400, forte1: -300, ...BURNS_MINGFIRE }); // 24.04%+24.04%+48.08%+144.22%
+const EFHA = jingranAction("Forte Heavy - Soul Raid", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 234.29, energy: 8.53, concerto: 13, offtune: 10140, forte1: -300, ...BURNS_MINGFIRE }); // 16.40%x2+21.09%x3+138.22%
 
 /* ------------------------------------------------------------------------------------ buffs */
 

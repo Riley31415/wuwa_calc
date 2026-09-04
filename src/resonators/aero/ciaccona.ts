@@ -54,9 +54,9 @@ const BA4 = ciacconaAction("Basic - Quadruple Time Steps 4", {
 const HA = ciacconaAction("Heavy - Attack", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 107.60, energy: 1.65, concerto: 5.28, offtune: 5280 });
 const AimedShot = ciacconaAction("Heavy - Aimed Shot", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 32.61, energy: 0.5, concerto: 1.6, offtune: 1600 });
 const ChargedShot = ciacconaAction("Heavy - Fully Charged Aimed Shot", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 73.37, energy: 1.13, concerto: 3.6, offtune: 3600 });
-const MA1 = ciacconaAction("Basic - Mid-air Attack 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 110.86, energy: 1.7, concerto: 5.44, offtune: 5440 });
-const MA2 = ciacconaAction("Basic - Mid-air Attack 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 97.84, energy: 1.52, concerto: 4.8, offtune: 4800 });
-const DC = ciacconaAction("Basic - Dodge Counter", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 228.68, energy: 2.04, concerto: 16.48, offtune: 6480 });
+const MA1 = ciacconaAction("Mid-air - Attack 1", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 110.86, energy: 1.7, concerto: 5.44, offtune: 5440 });
+const MA2 = ciacconaAction("Mid-air - Attack 2", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 97.84, energy: 1.52, concerto: 4.8, offtune: 4800 });
+const DC = ciacconaAction("Dodge Counter - Quadruple Time Steps", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 228.68, energy: 2.04, concerto: 16.48, offtune: 6480 });
 
 const Skill = ciacconaAction("Skill - Harmonic Allegro", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 161.56, energy: 9.6, concerto: 15, offtune: 5000, ...EROSION });
 

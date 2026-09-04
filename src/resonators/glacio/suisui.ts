@@ -93,8 +93,8 @@ const BA1 = suisuiAction("Basic - Zephyr Stance 1", { node: Node.Normal, cast: C
 const BA2 = suisuiAction("Basic - Zephyr Stance 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 122.00, energy: 1.92, concerto: 6.14, offtune: 6136, forte1: 46 });
 const BA3 = suisuiAction("Basic - Zephyr Stance 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 139.34, energy: 2.20, concerto: 7.03, offtune: 7010, forte1: 53 });
 const BA4 = suisuiAction("Basic - Zephyr Stance 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 159.08, energy: 2.50, concerto: 8.00, offtune: 8000, forte1: 60 });
-const MA = suisuiAction("Basic - Zephyr Stance (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 70.72, energy: 1.86, concerto: 5.93, offtune: 5928 });
-const DC = suisuiAction("Basic - Zephyr Stance 3 (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 170.67, energy: 2.70, concerto: 18.60, offtune: 8586, forte1: 30 });
+const MA = suisuiAction("Mid-air - Zephyr Stance", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 70.72, energy: 1.86, concerto: 5.93, offtune: 5928 });
+const DC = suisuiAction("Dodge Counter - Zephyr Stance 3", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 170.67, energy: 2.70, concerto: 18.60, offtune: 8586, forte1: 30 });
 const Skill = suisuiAction("Skill - Vernal Screen: Zephyr Stance", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 143.16, energy: 2.28, concerto: 7.20, offtune: 7200, forte1: 40 });
 
 /** Awakening Spring: replaces the Zephyr skill at full Cloud Breath, spends the whole bar and drops
@@ -117,8 +117,8 @@ const FBA4 = suisuiAction("Basic - Drizzle Stance 4", {
   updateDebuffs: () => applyEnemy(GLACIO_CHAFE, 1),
 });
 const FHA = suisuiAction("Heavy - Drizzle Stance", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 238.59, energy: 3.78, concerto: 12.00, offtune: 12000, forte2: 258 });
-const FHA2 = suisuiAction("Forte - Illuminating Dew", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 104.98, energy: 2.75, concerto: 8.80, offtune: 8800 });
-const FMA = suisuiAction("Forte - Swallow's Cut", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 107.65, energy: 2.82, concerto: 9.03, offtune: 9024 });
+const FHA2 = suisuiAction("Basic - Illuminating Dew", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 104.98, energy: 2.75, concerto: 8.80, offtune: 8800 });
+const FMA = suisuiAction("Basic - Swallow's Cut", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 107.65, energy: 2.82, concerto: 9.03, offtune: 9024 });
 const FSkill = suisuiAction("Skill - Vernal Screen: Drizzle Stance", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 143.16, energy: 2.27, concerto: 7.20, offtune: 7200, forte2: 100 });
 
 /** Song of Thoroughfare: no damage of its own, just the Landscape and its 20 Concerto. */

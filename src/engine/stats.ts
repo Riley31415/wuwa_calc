@@ -228,6 +228,7 @@ export const enum Tier {
 export const enum Cast {
   DodgeCounter,
   Basic,
+  MidAir,
   Heavy,
   Skill,
   Liberation,
@@ -238,7 +239,7 @@ export const enum Cast {
 }
 
 export const CAST_NAME: Record<Cast, string> = {
-  [Cast.DodgeCounter]: "Dodge Counter", [Cast.Basic]: "Basic", [Cast.Heavy]: "Heavy", [Cast.Skill]: "Skill",
+  [Cast.DodgeCounter]: "Dodge Counter", [Cast.Basic]: "Basic", [Cast.MidAir]: "Mid-air", [Cast.Heavy]: "Heavy", [Cast.Skill]: "Skill",
   [Cast.Liberation]: "Liberation", [Cast.Intro]: "Intro", [Cast.Outro]: "Outro", [Cast.Echo]: "Echo",
   [Cast.TuneBreak]: "Tune Break",
 };

@@ -80,8 +80,8 @@ const BA2 = jinhsiAction("Basic - Slash of Breaking Dawn 2", { node: Node.Normal
 const BA3 = jinhsiAction("Basic - Slash of Breaking Dawn 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 106.49, energy: 2, concerto: 3.99, offtune: 6349 });
 const BA4 = jinhsiAction("Basic - Slash of Breaking Dawn 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 157.72, energy: 2.95, concerto: 5.89, offtune: 9400 });
 const HA = jinhsiAction("Heavy - Slash of Breaking Dawn", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 238.6, energy: 4, concerto: 8, offtune: 12800 });
-const MA = jinhsiAction("Basic - Slash of Breaking Dawn (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.28, energy: 0.54, concerto: 1, offtune: 4960 });
-const DC = jinhsiAction("Basic - Slash of Breaking Dawn (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 146.78, energy: 2.78, concerto: 15.49, offtune: 8749 });
+const MA = jinhsiAction("Mid-air - Slash of Breaking Dawn", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 123.28, energy: 0.54, concerto: 1, offtune: 4960 });
+const DC = jinhsiAction("Dodge Counter - Slash of Breaking Dawn", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 146.78, energy: 2.78, concerto: 15.49, offtune: 8749 });
 
 // --- Trailing Lights of Eons, and the alternative skill that opens Incarnation
 const Skill = jinhsiAction("Skill - Trailing Lights of Eons", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 155.68, energy: 2.21, concerto: 4.38, offtune: 6960 });
@@ -92,21 +92,21 @@ const ESkill = jinhsiAction("Skill - Overflowing Radiance", {
 
 // --- Forte Circuit (Luminal Synthesis). The Incarnation basic chain is Resonance Skill DMG by its
 //     own text, so it is tagged Skill and cast Basic; the Heavy and the Dodge Counter are not.
-const IncBA1 = jinhsiAction("Forte - Incarnation - Basic Attack 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 88.62, energy: 1.24, concerto: 1.24, offtune: 3960 });
-const IncBA2 = jinhsiAction("Forte - Incarnation - Basic Attack 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 129.95, energy: 1.83, concerto: 1.83, offtune: 5809 });
-const IncBA3 = jinhsiAction("Forte - Incarnation - Basic Attack 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 165.74, energy: 2.32, concerto: 2.32, offtune: 7409 });
+const IncBA1 = jinhsiAction("Basic - Incarnation 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 88.62, energy: 1.24, concerto: 1.24, offtune: 3960 });
+const IncBA2 = jinhsiAction("Basic - Incarnation 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 129.95, energy: 1.83, concerto: 1.83, offtune: 5809 });
+const IncBA3 = jinhsiAction("Basic - Incarnation 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 165.74, energy: 2.32, concerto: 2.32, offtune: 7409 });
 /** Stage 4 ends Incarnation and hands her Ordination Glow, the window Illuminous Epiphany lives in. */
-const IncBA4 = jinhsiAction("Forte - Incarnation - Basic Attack 4", {
+const IncBA4 = jinhsiAction("Forte Basic - Incarnation 4", {
   node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 186.69, energy: 2.67, concerto: 2.67, offtune: 8348,
   updateBuffs: () => { revokeCurrent(INCARNATION); applyCurrent(ORDINATION_GLOW, 1); },
 });
-const IncHeavy = jinhsiAction("Forte - Incarnation - Heavy Attack", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 159.06, energy: 2, concerto: 2, offtune: 6400 });
-const IncDodge = jinhsiAction("Forte - Incarnation - Dodge Counter", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 219.44, concerto: 13.08, offtune: 9810 });
-const CrescentDivinity = jinhsiAction("Forte - Crescent Divinity", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 503.8, energy: 3.19, concerto: 8, offtune: 10138 });
+const IncHeavy = jinhsiAction("Heavy - Incarnation", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 159.06, energy: 2, concerto: 2, offtune: 6400 });
+const IncDodge = jinhsiAction("Dodge Counter - Incarnation", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 219.44, concerto: 13.08, offtune: 9810 });
+const CrescentDivinity = jinhsiAction("Skill - Crescent Divinity", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 503.8, energy: 3.19, concerto: 8, offtune: 10138 });
 
 /** Illuminous Epiphany, the one press: Solar Flare's six taps, with Stella Glamor's detonation
  *  queued behind them — the row every Incandescence held pays out on (see INCANDESCENCE below). */
-const SolarFlare = jinhsiAction("Forte - Illuminous Epiphany: Solar Flare", {
+const SolarFlare = jinhsiAction("Forte Skill - Illuminous Epiphany: Solar Flare", {
   node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 119.34, energy: 1.98, concerto: 20, offtune: 14400,
   updateBuffs: () => {
     revokeCurrent(ORDINATION_GLOW);

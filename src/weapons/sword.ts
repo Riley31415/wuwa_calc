@@ -107,7 +107,7 @@ export const EMERALD_SENTENCE = new Weapon({
   },
   updateBuffs: () => {
     if (casting(Cast.Intro)) applyTeam(HEART_SETTLES_TEAM);
-    if ((casting(Cast.Intro) || casting(Cast.Basic)) && !stacksOf(BAMBOO_CLEAVER)) {
+    if ((casting(Cast.Intro) || casting(Cast.Basic) || casting(Cast.MidAir)) && !stacksOf(BAMBOO_CLEAVER)) {
       applyCurrent(BAMBOO_CLEAVER);
     }
   },

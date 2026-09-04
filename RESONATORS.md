@@ -34,7 +34,6 @@ iuno
 ciaconna
 jiyan
 
-rebecca
 augusta
 xiangli yao
 yinlin
@@ -45,11 +44,8 @@ aemeath
 mornye
 galbrena
 lupa
-brant
-changli
 
 suisui
 lucilla
 hiyuki
-carlotta
 zhezhi

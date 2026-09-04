@@ -92,7 +92,7 @@ export const SPECTRUM_BLASTER = new Weapon({
   updateBuffs: () => {
     const a = currentAction();
     if (casting(Cast.Intro) || isType(Type1.Basic)) applyCurrent(ATTENDANCE_EXEMPTION, 1);
-    if (casting(Cast.Basic) && (appliedByMe(TUNE_RUPTURE_SHIFTING) || appliedByMe(TUNE_STRAIN_SHIFTING))) applyTeam(SPECTRUM_CHORUS, 1);
+    if ((casting(Cast.Basic) || casting(Cast.MidAir)) && (appliedByMe(TUNE_RUPTURE_SHIFTING) || appliedByMe(TUNE_STRAIN_SHIFTING))) applyTeam(SPECTRUM_CHORUS, 1);
   },
 });
 export const ATTENDANCE_EXEMPTION = new Buff({

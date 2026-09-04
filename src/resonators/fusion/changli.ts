@@ -11,9 +11,10 @@
  * anywhere in either source, so it's left off entirely rather than guessed at.
  */
 import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
+import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   applyCurrent,
+  applyTeam,
   revokeCurrent,
   casting,
   currentAction,
@@ -40,20 +41,20 @@ const BA1 = changliAction("Basic - Blazing Enlightenment 1", { node: Node.Normal
 const BA2 = changliAction("Basic - Blazing Enlightenment 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 70.98, offtune: 3360, energy: 1.06, concerto: 2.10 });
 const BA3 = changliAction("Basic - Blazing Enlightenment 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 109.35, offtune: 5178, energy: 1.62, concerto: 3.24 });
 const BA4 = changliAction("Basic - Blazing Enlightenment 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 169.02, offtune: 8000, energy: 2.51, concerto: 5.02 });
-const DC = changliAction("Basic - Blazing Enlightenment 3 (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 247.92, offtune: 9978, energy: 3.12, concerto: 16.24 });
+const DC = changliAction("Dodge Counter - Blazing Enlightenment 3", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 247.92, offtune: 9978, energy: 3.12, concerto: 16.24 });
 const HA = changliAction("Heavy - Blazing Enlightenment", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 124.24, offtune: 5880, energy: 1.85, concerto: 3.69 });
 
 // --- mid-air basics, mid-air heavy — the same combo, airborne. Stage 4 also opens True Sight.
-const MA1 = changliAction("Basic - Blazing Enlightenment 1 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 61.35, offtune: 2904, energy: 0.91, concerto: 1.82 });
-const MA2 = changliAction("Basic - Blazing Enlightenment 2 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 101.74, offtune: 4816, energy: 1.52, concerto: 3.02 });
-const MA3 = changliAction("Basic - Blazing Enlightenment 3 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 132.00, offtune: 6249, energy: 1.98, concerto: 3.93 });
-const MA4 = changliAction("Basic - Blazing Enlightenment 4 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 126.75, offtune: 6000, energy: 1.89, concerto: 3.77 });
+const MA1 = changliAction("Mid-air - Blazing Enlightenment 1", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 61.35, offtune: 2904, energy: 0.91, concerto: 1.82 });
+const MA2 = changliAction("Mid-air - Blazing Enlightenment 2", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 101.74, offtune: 4816, energy: 1.52, concerto: 3.02 });
+const MA3 = changliAction("Mid-air - Blazing Enlightenment 3", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 132.00, offtune: 6249, energy: 1.98, concerto: 3.93 });
+const MA4 = changliAction("Mid-air - Blazing Enlightenment 4", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 126.75, offtune: 6000, energy: 1.89, concerto: 3.77 });
 const MHA = changliAction("Heavy - Blazing Enlightenment (Mid-Air)", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 123.27, offtune: 4960, energy: 1.55, concerto: 1.00 });
 
 // --- True Sight's own finishers: Conquest (ground Basic), Charge (jump/mid-air Basic) — both
 //     Resonance Skill DMG, both bank a stack of Enflamement and end True Sight
-const SBA = changliAction("True Sight - Conquest", { node: Node.Skill, cast: Cast.Basic, type: Type1.Skill, mv: 294.73, offtune: 8985, energy: 4.04, concerto: 7.00, forte1: 1 });
-const SMA = changliAction("True Sight - Charge", { node: Node.Skill, cast: Cast.Basic, type: Type1.Skill, mv: 181.70, offtune: 4353, energy: 2.57, concerto: 6.00, forte1: 1 });
+const SBA = changliAction("Basic - True Sight: Conquest", { node: Node.Skill, cast: Cast.Basic, type: Type1.Skill, mv: 294.73, offtune: 8985, energy: 4.04, concerto: 7.00, forte1: 1 });
+const SMA = changliAction("Basic - True Sight: Charge", { node: Node.Skill, cast: Cast.Basic, type: Type1.Skill, mv: 181.70, offtune: 4353, energy: 2.57, concerto: 6.00, forte1: 1 });
 
 // --- resonance skill: Tripartite Flames — also opens True Sight: Capture (bundled into this
 //     one hit's own total per wuwalab, not a separate press)
@@ -119,6 +120,61 @@ const CHANGLI_OUTRO = new Buff({
   updateBuffs: () => { lostOnSwap(); },
 });
 
+/* --------------------------------------------------------------------------- resonance chain */
+
+// "Resonance Skill Tripartite Flames" is the whole skill entry on nanoka — Conquest and Charge are
+// listed under it as Resonance Skill DMG — so S1 and S6 read it as all three presses
+const tripartite = (a: Action): boolean => a === Skill || a === SBA || a === SMA;
+
+/** S1: Tripartite Flames and Flaming Sacrifice deal +10% DMG. */
+const CH_S1 = new Sequence({
+  name: "Changli S1: Hidden Thoughts",
+  applyStats: () => { const a = currentAction(); if (tripartite(a) || a === FlamingSacrifice) addStat(Stat.DmgBonus, 10); },
+});
+
+/** S2: +25% Crit Rate for 8s on gaining Enflamement. Conquest/Charge/Liberation each bank a stack
+ *  and land within 8s of each other all visit, so it stands until the outro. */
+const PURSUIT_OF_DESIRES = new Buff({
+  name: "Changli S2: Pursuit of Desires",
+  applyStats: () => addStat(Stat.CritRate, 25),
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(PURSUIT_OF_DESIRES); },
+});
+const CH_S2 = new Sequence({
+  name: "Changli S2: Pursuit of Desires",
+  updateBuffs: () => { const a = currentAction(); if (a === SBA || a === SMA || a === Liberation) applyCurrent(PURSUIT_OF_DESIRES, 1); },
+});
+
+/** S3: Radiance of Fealty's DMG +80% — read as DMG dealt, same as S1/S5. */
+const CH_S3 = new Sequence({
+  name: "Changli S3: Learned Secrets",
+  applyStats: () => { if (currentAction() === Liberation) addStat(Stat.DmgBonus, 80); },
+});
+
+/** S4: +20% ATK for the whole team for 30s off her Intro — long enough to be permanent. */
+const POLISHED_WORDS = new Buff({
+  name: "Changli S4: Polished Words (team)",
+  applyStats: () => addStat(Stat.BonusAtk, 20),
+});
+const CH_S4 = new Sequence({
+  name: "Changli S4: Polished Words",
+  updateBuffs: () => { if (currentAction() === Intro) applyTeam(POLISHED_WORDS, 1); },
+});
+
+/** S5: Flaming Sacrifice's multiplier +50% and its DMG dealt +50%. */
+const CH_S5 = new Sequence({
+  name: "Changli S5: Sacrificed Gains",
+  applyStats: () => { if (currentAction() === FlamingSacrifice) { addStat(Stat.MulMv, 50); addStat(Stat.DmgBonus, 50); } },
+});
+
+/** S6: Tripartite Flames, Flaming Sacrifice and Radiance of Fealty ignore a further 40% DEF. */
+const CH_S6 = new Sequence({
+  name: "Changli S6: Realized Plans",
+  applyStats: () => {
+    const a = currentAction();
+    if (tripartite(a) || a === FlamingSacrifice || a === Liberation) addStat(Stat.DefIgnoreOld, 40);
+  },
+});
+
 const CHANGLI_RESONATOR = new Resonator({
   name: "Changli",
   element: Attribute.Fusion,
@@ -168,6 +224,7 @@ export const CHANGLI = new Loadout({
   talent: CHANGLI_TALENTS,
   inherent1: CH_INHERENT_1,
   inherent2: CH_INHERENT_2,
+  sequences: [CH_S1, CH_S2, CH_S3, CH_S4, CH_S5, CH_S6],
   weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS],
   echoLoadouts: [new EchoLoadout(NM_INFERNO_RIDER, MOLTEN_RIFT_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),

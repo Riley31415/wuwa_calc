@@ -105,7 +105,9 @@ body {
   text-decoration: none;
 }
 .backlink:hover { color: var(--ink); }
-.backlink[hidden] { display: none; }
+/* the bar is the back link and nothing else, so the table page has no bar at all rather than
+   an empty strip across the top of it (index.ts's own `renderComparison`/`renderDetail`) */
+.topbar[hidden] { display: none; }
 
 /* ------------------------------------------------------------------- loading */
 
@@ -257,8 +259,9 @@ main {
 
 /* ---------------------------------------------------------------- comparison table */
 
-/* two rows, one per role: MDPS on top, supports under it (see index.js's own
-   comparisonFilters()), so the same four axes line up column-wise between them */
+/* Two groups, one per role — MDPS and supports (see index.js's own comparisonFilters()), each
+   ending with one box belonging to neither. A row apiece up top, so the same axes line up
+   column-wise between them; a column apiece beside the table (see the responsive block below). */
 .tcfilters {
   display: flex;
   flex-direction: column;
@@ -321,7 +324,11 @@ main {
 /* The option search (index.js's own `searchResults()`): a plain themed input, with the top matches
    dropping in as rows directly beneath it. The list floats over the page rather than sitting in
    its flow — in flow, every open and close nudged everything below it down and back up again. */
-.tcsearch { position: relative; display: flex; flex-direction: column; gap: 6px; max-width: 340px; }
+/* The bar keeps its own width and its own place on the line whatever the chips beside it do, so
+   a first chip appearing never steps it down (they wrap under it only when the column is too
+   narrow to hold both). */
+.tcsearchrow { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; }
+.tcsearch { position: relative; display: flex; flex-direction: column; gap: 6px; flex: 0 1 340px; max-width: 340px; }
 .tcsearch input {
   padding: 6px 10px;
   border: 1px solid var(--line-2);
@@ -331,9 +338,8 @@ main {
   font-size: 12px;
 }
 .tcsearch input:focus { outline: none; border-color: var(--accent); }
-/* Absolute, so nothing below moves as it opens and closes. Under the input, where a list of
-   matches belongs — which is why the chips row sits *above* the search bar (index.js's own
-   `comparisonFilters()`): dropped onto the chips, an open list ate the presses meant for them.
+/* Absolute, so nothing below moves as it opens and closes — and nothing is under the input to
+   drop onto, the chips standing beside the bar rather than under it (`.tcsearchrow`).
    Over the pinned table header (z-index 40) rather than under it, same as the column popover. */
 .tcsearch-results {
   position: absolute;
@@ -384,11 +390,12 @@ main {
 }
 .tcwarning[hidden] { display: none; }
 
-/* One chip per resonator filter, under the two rows of boxes (index.js's own resonatorChips()).
+/* One chip per resonator filter, filling the line to the right of the search bar (index.js's own
+   resonatorChips()).
    Rounded and shadowed, unlike everything else in this file — they float over the page rather
    than sitting in its grid, and the pill shape is what says "this is a token you can dismiss",
    so they opt out of the square-corner rule at the top on purpose. */
-.tcchips { display: flex; flex-wrap: wrap; gap: 8px; }
+.tcchips { flex: 1 1 180px; display: flex; flex-wrap: wrap; gap: 8px; }
 .rchip {
   display: inline-flex;
   align-items: center;
@@ -433,7 +440,9 @@ main {
   border-radius: var(--r);
   background: var(--surface);
   box-shadow: var(--sh-2);
-  overflow: hidden;
+  /* `clip`, not `hidden`: `hidden` is a scroll container, and the header sticks to its nearest
+     scrollable ancestor — which would be this box, which never scrolls, rather than <main>. */
+  overflow: clip;
 }
 /* One grid for the whole table, not one per row: `max-content` columns can only line up across
    rows if every row's cells are tracks of the same grid, which is what `display: contents` on
@@ -540,6 +549,20 @@ main {
 /* the pinned row: an outline only, since its colour is already the ramp's green */
 .trow.isbaseline .c.baseline {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, hsl(var(--hue, 120) 65% 50%) 55%, transparent);
+}
+
+/* Every column's own widest cell, in one row that takes no height and is never seen (built by
+   index.ts's own `comparisonTable()`). The tracks are `max-content`, so without it a column would
+   be only as wide as the hundred rows currently drawn need, and the whole table would change
+   width under the reader as a longer cell scrolled into the window. */
+.trow.tghost .c {
+  height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* the only clickable cell in the row: a small arrow marker after the number, both of it — and
@@ -1038,4 +1061,53 @@ body.coldrag { user-select: none; }
   background: rgba(0, 0, 0, .45);
   font-family: var(--mono);
   color: var(--amber);
+}
+
+/* ------------------------------------------------------------------- responsive
+   Last in the file on purpose: every rule here overrides a base one above it, so source
+   order is what decides it — same specificity either way. */
+/* Narrow first: the filters stack above the table and the table has the width to itself — which
+   is also the source order, so a phone and a screen reader get the same reading. From 900px the
+   aside moves to the right of the table as one column of boxes, and from 1180px it holds two.
+   `main` is still the one scrollport on both axes, so the aside sticks to its top-right corner
+   rather than scrolling away from a table taller or wider than the window. */
+.tclayout { display: flex; flex-direction: column; }
+
+@media (min-width: 900px) {
+  .tclayout { flex-direction: row; align-items: flex-start; gap: 20px; }
+  /* the table's own column: `min-width: 0` so a wide table overflows `main` (which scrolls)
+     rather than pushing the aside off the side of it */
+  .tcbody { min-width: 0; }
+  .tcside {
+    order: 1;
+    flex: none;
+    position: sticky;
+    top: 0;
+    right: 0;
+    /* over the table's own pinned header (z-index 5), under the hover panels (200) */
+    z-index: 6;
+    width: 272px;
+    background: var(--bg);
+  }
+  /* A column per role, not one wrapping flow of all twelve: in a flow, a box opening its
+     description made its whole wrap line tall and the boxes after it started below that, leaving
+     a hole beside the short one. In a column, an open box moves only what is under it. */
+  .tcfilters { flex-direction: row; flex-wrap: wrap; gap: 10px; align-items: flex-start; align-content: flex-start; }
+  .tcfilter-row { flex-direction: column; flex: 0 0 272px; align-items: stretch; }
+  /* the boxes' own 272px is a width in the rows up top and would be a *height* down a column */
+  .tcfilter-row > .tcopt { flex: 0 0 auto; }
+  .tcfilters > .tcsearchrow, .tcfilters > .tcwarning { flex: 1 0 100%; }
+  /* ...unless the table is itself too wide to leave room for it, which only the page can know
+     (index.js's own `fitSide()`) — then the aside goes back above the table */
+  .tclayout.stack { flex-direction: column; }
+  .tclayout.stack .tcside { position: static; order: 0; width: auto; background: none; }
+}
+/* wide enough for both role columns side by side */
+@media (min-width: 1180px) { .tcside { width: 554px; } }
+
+/* a phone: one box per line, full width, and less of the page given over to margin */
+@media (max-width: 560px) {
+  main { padding: 0 12px 96px; }
+  .tcopt { flex: 1 1 100%; }
+  .tcsearch { max-width: none; }
 }

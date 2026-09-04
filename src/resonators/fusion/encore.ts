@@ -61,8 +61,8 @@ const BA3 = encoreAction("Basic - Wooly Attack 3", { node: Node.Normal, cast: Ca
 const BA4 = encoreAction("Basic - Wooly Attack 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 153.08, energy: 1.92, concerto: 3.84, offtune: 9240, forte1: 4 });
 const WoolyStrike = encoreAction("Basic - Wooly Strike", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 238.57, energy: 3.00, concerto: 6.00, offtune: 14400, forte1: 25 });
 const HA = encoreAction("Heavy - Wooly Attack", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 187.08, energy: 2.35, concerto: 4.70, offtune: 11292, forte1: 5 });
-const MA = encoreAction("Basic - Wooly Attack (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.26, energy: 0.51, concerto: 1.00, offtune: 14400, forte1: 11 });
-const DC = encoreAction("Basic - Wooly Attack (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 251.88, energy: 3.16, concerto: 13.32, offtune: 8004, forte1: 6 });
+const MA = encoreAction("Mid-air - Wooly Attack", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 123.26, energy: 0.51, concerto: 1.00, offtune: 14400, forte1: 11 });
+const DC = encoreAction("Dodge Counter - Wooly Attack", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 251.88, energy: 3.16, concerto: 13.32, offtune: 8004, forte1: 6 });
 
 // Flaming Woolies, then Energetic Welcome (press again shortly after)
 const Skill1 = encoreAction("Skill - Flaming Woolies", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 612.88, energy: 15.28, concerto: 15.00, offtune: 25600, forte1: 32 });
@@ -73,7 +73,7 @@ const Skill2 = encoreAction("Skill - Energetic Welcome", { node: Node.Skill, cas
 // exactly 100 so the declared forte1: -100 lands exactly on 0, same pattern as Galbrena's own
 // Purging Flame/Ascent of Malice.
 const SPEND_MAYHEM = { updateBuffs: () => { if (forte1() >= 100) setForte1(100); } };
-const CloudyFrenzy = encoreAction("Heavy - Cloudy Frenzy", { node: Node.Forte, active: false, cast: Cast.Heavy, type: Type1.Liberation, mv: 773.73, concerto: 10.00, offtune: 46709, forte1: -100, ...SPEND_MAYHEM });
+const CloudyFrenzy = encoreAction("Forte Heavy - Cloudy Frenzy", { node: Node.Forte, active: false, cast: Cast.Heavy, type: Type1.Liberation, mv: 773.73, concerto: 10.00, offtune: 46709, forte1: -100, ...SPEND_MAYHEM });
 
 /** No damage of its own, just opens the state. */
 const Liberation = encoreAction("Liberation - Cosmos Rave", { node: Node.Liberation, cast: Cast.Liberation, concerto: 20, resetEnergy: true });
@@ -87,7 +87,7 @@ const UBA4 = encoreAction("Basic - Cosmos: Frolicking 4", { node: Node.Liberatio
 
 const CosmosHeavy = encoreAction("Heavy - Cosmos: Heavy Attack", { node: Node.Liberation, cast: Cast.Heavy, type: Type1.Heavy, mv: 217.58, energy: 1.60, concerto: 3.21, offtune: 7716, forte1: 9 });
 const USkill = encoreAction("Skill - Cosmos: Rampage", { node: Node.Liberation, cast: Cast.Skill, type: Type1.Skill, mv: 253.28, energy: 6.56, concerto: 8.00, offtune: 6168, forte1: 28 });
-const CosmosDodgeCounter = encoreAction("Basic - Cosmos: Dodge Counter", { node: Node.Liberation, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 263.96, energy: 1.92, concerto: 13.88, offtune: 9360, forte1: 16 });
+const CosmosDodgeCounter = encoreAction("Dodge Counter - Cosmos", { node: Node.Liberation, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 263.96, energy: 1.92, concerto: 13.88, offtune: 9360, forte1: 16 });
 const FHA = encoreAction("Forte Heavy - Cosmos Rupture", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Liberation, mv: 773.73, concerto: 10.00, offtune: 46709, forte1: -100, ...SPEND_MAYHEM });
 
 const Intro = encoreAction("Intro - Woolies Helpers", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81, energy: 10.00, concerto: 10.00, offtune: 15132, forte1: 40 });
@@ -129,7 +129,7 @@ const S1_STACKS = new Buff({
 });
 const S1 = new Sequence({
   name: "Encore S1",
-  updateBuffs: () => { if (casting(Cast.Basic)) applyCurrent(S1_STACKS, 1); },
+  updateBuffs: () => { if (casting(Cast.Basic) || casting(Cast.MidAir)) applyCurrent(S1_STACKS, 1); },
 });
 
 // 10s ICD isn't modelled, so it pays every cast instead of once per window

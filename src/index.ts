@@ -1116,6 +1116,7 @@ function comparisonFilters(): string {
       ${filter("mdpsEchoes", "Show Main DPS Echo Options")}
       ${filter("mdpsMainstats", "Show Main DPS Mainstat Options")}
       ${filter("mdpsSequences", "Allow Main DPS Sequences")}
+      ${filter("matrix", "Enable Matrix Buffs")}
     </div>
     <div class="tcfilter-row">
       ${filter("allowR1Supports", "Allow R1 Supports")}
@@ -1123,16 +1124,15 @@ function comparisonFilters(): string {
       ${filter("supportEchoes", "Show Support Echo Options")}
       ${filter("supportMainstats", "Show Support Mainstat Options")}
       ${filter("supportSequences", "Allow Support Sequences")}
-    </div>
-    <div class="tcfilter-row">
-      ${filter("matrix", "Enable Matrix Buffs")}
       ${standards()}
     </div>
-    ${resonatorChips()}
-    <div class="tcsearch">
-      <input id="optionSearch" type="search" placeholder="Filter resonators..."
-        autocomplete="off" spellcheck="false" value="${esc(searchText)}">
-      <div class="tcsearch-results" id="searchResults">${searchResults()}</div>
+    <div class="tcsearchrow">
+      <div class="tcsearch">
+        <input id="optionSearch" type="search" placeholder="Filter resonators..."
+          autocomplete="off" spellcheck="false" value="${esc(searchText)}">
+        <div class="tcsearch-results" id="searchResults">${searchResults()}</div>
+      </div>
+      ${resonatorChips()}
     </div>
     <div class="tcwarning" id="rowCapWarning" hidden></div>
   </div>`;
@@ -1142,14 +1142,12 @@ function comparisonFilters(): string {
  *  between the filter boxes and the search bar: the name, and a box saying which way it's filtered
  *  — a green tick for "every row must use them", a red cross for "no row may". Clicking one clears
  *  it (see `boot()`), as does either click on that name or pick anywhere else it appears
- *  (`setFilter()`). Above the search bar rather than under it, which is where they read from: the
- *  results list drops under the input and floats (index.css), so chips below it were chips an open
- *  list covered — and a press meant for one landed on a result row instead.
+ *  (`setFilter()`). Beside the search bar rather than above or below it (index.css's own
+ *  `.tcsearchrow`): above, the bar stepped down the moment a first chip appeared, and below, the
+ *  results list — which floats — dropped straight onto them.
  *
  *  A `<button>`, not a div: it's a real control, so it gets keyboard focus and Enter/Space for
- *  free. Nothing renders at all when no filter is set, rather than an empty row holding open the
- *  gap `.tcfilters` puts between its rows — which is what keeps the search bar still as filters
- *  come and go, rather than stepping down a row's worth the moment the first chip appears. */
+ *  free. */
 function resonatorChips(): string {
   const nameChips = [...resonatorFilters].map(([name, mode]) => {
     const included = mode === "include";
@@ -1288,7 +1286,7 @@ function comparisonTable(rows: TeamRow[]): string {
   const gridStyle = `grid-template-columns:${posCols(0)} ${posCols(1)} ${posCols(2)} max-content max-content`;
 
   // the rows themselves are drawn by `drawWindow()`, only ever the stretch near the scroll
-  // position — this is the shell around them, head included
+  // position — this is the shell around them, head and width-setting ghost row included
   // how many lines tall each row is: the Echo column is the one cell that stacks (a set a line,
   // see `echoLines()`), so a row is as tall as the tallest echo pick it actually shows
   const rowLines = (run: TeamRun): number => Math.max(1, ...run.members.map((m, i) =>
@@ -1296,8 +1294,59 @@ function comparisonTable(rows: TeamRow[]): string {
   const lines = sorted.map(([, run]) => rowLines(run));
   const extra: number[] = [0];
   for (const n of lines) extra.push(extra[extra.length - 1]! + n - 1);
-  tableView = { sorted, ranks: rankAll(sorted), head, rowHtml, lines, extra };
-  return `<main>${comparisonFilters()}<h2 class="summary-label" id="teamCount">${fmt(sorted.length)} teams</h2><div class="tcwrap"><div class="tgrid" style="${gridStyle}">${head}</div></div></main>`;
+  const ranks = rankAll(sorted);
+
+  // The widest cell each column will ever hold, read off every row here rather than off the
+  // hundred `drawWindow()` happens to have drawn: the tracks are `max-content`, so a longer name
+  // scrolling into the window would otherwise widen its column — and the whole table with it —
+  // under the reader. The table is set in --mono (index.css's own `.trow .c`), so the longest
+  // string is the widest one and no measuring is needed to pick it.
+  const widest = (a: string, b: string): string => (b.length > a.length ? b : a);
+  const wide = {
+    name: ["", "", ""], weapon: ["", "", ""], echo: ["", "", ""], mainstat: ["", "", ""],
+    dpr: ["", "", ""], total: "", pct: "",
+  };
+  sorted.forEach(([, run], i) => {
+    run.members.forEach((m, pos) => {
+      const combo = run.combo[pos]!;
+      const mdps = m.mainDps;
+      wide.name[pos] = widest(wide.name[pos]!, memberLabel(m, combo));
+      if (mdps ? filters.mdpsWeapons : filters.supportWeapons) wide.weapon[pos] = widest(wide.weapon[pos]!, combo.weapon.name);
+      // the echo cell stacks a line per set, so it is as wide as its widest single line
+      if (mdps ? filters.mdpsEchoes : filters.supportEchoes) {
+        for (const line of echoLines(m.loadout, combo.echo)) wide.echo[pos] = widest(wide.echo[pos]!, line);
+      }
+      if (mdps ? filters.mdpsMainstats : filters.supportMainstats) wide.mainstat[pos] = widest(wide.mainstat[pos]!, combo.mainstat.name);
+      wide.dpr[pos] = widest(wide.dpr[pos]!, fmt(run.bySlot.get(m.name) ?? 0));
+    });
+    wide.total = widest(wide.total, fmt(run.total));
+    wide.pct = widest(wide.pct, ranks[i]!.pct);
+  });
+  // one row of those, every column at its final width — zero-height, invisible and inert
+  // (index.css's own `.tghost`), so it sizes the tracks and does nothing else. The classes are the
+  // real cells' own, since padding and font are what turn a string into a track width.
+  const ghostPos = (i: number) =>
+    `<div class="c name res"><span class="res-label">${esc(wide.name[i]!)}</span></div>`
+    + (weaponOpenAt[i] ? `<div class="c option">${esc(wide.weapon[i]!)}</div>` : "")
+    + (echoOpenAt[i] ? `<div class="c option">${esc(wide.echo[i]!)}</div>` : "")
+    + (mainstatOpenAt[i] ? `<div class="c option">${esc(wide.mainstat[i]!)}</div>` : "")
+    + (dprOpenAt[i] ? `<div class="c num slotdpr">${esc(wide.dpr[i]!)}</div>` : "");
+  // the Total cell's own class is left off: `drawWindow()` measures the row pitch off `.teamdpr`
+  const ghost = `<div class="trow tghost" aria-hidden="true">`
+    + ghostPos(0) + ghostPos(1) + ghostPos(2)
+    + `<div class="c num total gotodetail">${esc(wide.total)}<span class="arrow">›</span></div>`
+    + `<div class="c num total baseline">${esc(wide.pct)}</div>`
+    + `</div>`;
+  tableView = { sorted, ranks, head, ghost, rowHtml, lines, extra };
+  // Source order is filters then table, which is the reading order once they stack (a narrow
+  // window, a phone). Wide enough and CSS moves the aside to the right of the table instead —
+  // one column of option boxes, or two if there is room for them (index.css's own `.tclayout`).
+  return `<main><div class="tclayout">`
+    + `<aside class="tcside">${comparisonFilters()}</aside>`
+    + `<div class="tcbody">`
+    + `<h2 class="summary-label" id="teamCount">${fmt(sorted.length)} teams</h2>`
+    + `<div class="tcwrap"><div class="tgrid" style="${gridStyle}">${head}${ghost}</div></div>`
+    + `</div></div></main>`;
 }
 
 /** What the comparison table draws from once `comparisonTable()` has sorted and ranked it: every
@@ -1309,6 +1358,7 @@ interface TableView {
   sorted: (readonly [string, TeamRun])[];
   ranks: RowRank[];
   head: string;
+  ghost: string;
   rowHtml: (key: string, run: TeamRun, rank: RowRank) => string;
   /** How many lines tall each row is (its Echo cells stack a line per set, see `echoLines()`),
    *  and the running count of lines *beyond the first* above each row — `extra[i]` for row i,
@@ -1435,7 +1485,7 @@ function drawWindow(force = false, scrollTop?: number): void {
     const [key, run] = view.sorted[i]!;
     body += view.rowHtml(key, run, view.ranks[i]!);
   }
-  grid.innerHTML = view.head + spacer(0, from) + body + spacer(to, n);
+  grid.innerHTML = view.head + view.ghost + spacer(0, from) + body + spacer(to, n);
   drawnFrom = from; drawnTo = to;
 
   // the real pitch, off the rows just drawn — a one-line row's own height, and what each stacked
@@ -2080,6 +2130,9 @@ function wireSourcePanels(root: HTMLElement): void {
 
   addEventListener("scroll", close, true);
   addEventListener("resize", close);
+  // the window's own width decides where the filters sit (see `fitSide()`), and a resize can
+  // cross that line without anything else on the page changing
+  addEventListener("resize", () => { fitSide(); drawWindow(true); });
 }
 
 /* ------------------------------------------------- action log: column order */
@@ -2468,6 +2521,8 @@ function wireColumnDrag(root: HTMLElement, columns: Column[]): void {
 
 const app = document.getElementById("app")!;
 const backLink = document.getElementById("backLink")!;
+// the bar holds the back link and nothing else, so it is shown and hidden with it
+const topbar = document.getElementById("topbar")!;
 
 /** Every combo ever run this session, keyed by its own `TeamRow.key` — the cache the whole lazy
  *  scheme rests on. A row is simulated the first time some checkbox opens it and never again, and
@@ -2573,8 +2628,27 @@ const routeTeam = (): string | null => {
   return key && results.has(key) ? key : null;
 };
 
+/** Whether the filters actually fit beside the table, at the width the table happens to be. The
+ *  media queries can only ask about the window, and a table with every option column open is far
+ *  wider than one with none — beside a table that wide the aside would sit over the columns it
+ *  covers, the same ones at every scroll position. Too wide and it goes back above the table,
+ *  which is where the narrow layout puts it anyway. Re-measured on each redraw and on resize. */
+function fitSide(): void {
+  const layout = app.querySelector<HTMLElement>(".tclayout");
+  const grid = app.querySelector<HTMLElement>(".tgrid");
+  const side = app.querySelector<HTMLElement>(".tcside");
+  if (!layout || !grid || !side) return;
+  // measured beside the table, which is the arrangement the numbers are about
+  layout.classList.remove("stack");
+  if (getComputedStyle(layout).flexDirection !== "row") return;
+  const gap = parseFloat(getComputedStyle(layout).columnGap) || 0;
+  // against the layout's own width, not the scrollport's: <main>'s side padding is not room the
+  // table can stand in, and 52px of it is the whole margin between "fits" and "sits over it"
+  if (grid.scrollWidth + side.offsetWidth + gap > layout.clientWidth) layout.classList.add("stack");
+}
+
 function renderComparison(): void {
-  backLink.hidden = true;
+  topbar.hidden = true;
   // Whatever panel was open when the page was left is parked in <body> (see `place()`), and it
   // outlives the DOM it belongs to — a fixed, z-index 200 sheet floating over the new page and
   // eating its pointer events until the next mouseover happens to close it.
@@ -2586,6 +2660,9 @@ function renderComparison(): void {
   app.className = "";
   measured = false;
   drawnFrom = drawnTo = -1;
+  // before the window is drawn: which side the filters are on decides how wide the table's own
+  // column is, and `drawWindow()` measures against that
+  fitSide();
   drawWindow(true, scrollTop);
   const main = app.querySelector("main")!;
   main.scrollTop = scrollTop;
@@ -2601,7 +2678,7 @@ function renderComparison(): void {
 }
 
 function renderDetail(key: string): void {
-  backLink.hidden = false;
+  topbar.hidden = false;
   document.body.querySelectorAll(":scope > .pop").forEach((el) => el.remove());
   const run = results.get(key)!;
   app.innerHTML = page(run);

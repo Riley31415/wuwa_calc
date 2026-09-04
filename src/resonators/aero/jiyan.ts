@@ -65,11 +65,11 @@ const HA2 = jiyanAction("Heavy - Windborne Strike", { node: Node.Normal, cast: C
 /** Abyssal Slash, releasing Basic during the Heavy Attack. */
 const HA3 = jiyanAction("Heavy - Abyssal Slash", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 81.71, energy: 1.02, concerto: 2.05, offtune: 3288 });
 
-const MA = jiyanAction("Basic - Lone Lance (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.26, energy: 0.51, concerto: 1.00, offtune: 4960 });
-const MA2 = jiyanAction("Basic - Lone Lance (Mid-Air Follow-Up)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 155.66, energy: 1.95, concerto: 3.91, offtune: 6264 });
+const MA = jiyanAction("Mid-air - Lone Lance", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 123.26, energy: 0.51, concerto: 1.00, offtune: 4960 });
+const MA2 = jiyanAction("Mid-air - Lone Lance (Follow-Up)", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 155.66, energy: 1.95, concerto: 3.91, offtune: 6264 });
 /** Banner of Triumph, the mid-air attack after Windborne Strike or a mid-air Windqueller. */
 const MA3 = jiyanAction("Basic - Banner of Triumph", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.52, energy: 1.00, concerto: 2.00, offtune: 3200 });
-const DC = jiyanAction("Basic - Lone Lance (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 125.84 * 2, energy: 3.16, concerto: 13.32, offtune: 5328 });
+const DC = jiyanAction("Dodge Counter - Lone Lance", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 125.84 * 2, energy: 3.16, concerto: 13.32, offtune: 5328 });
 
 // Windqueller's three forms — at 30+ Resolve out of Qingloong Mode it consumes 30 for +20% DMG,
 // below 30 it's the plain cast with neither, inside the mode the +20% is free (the bonus lives on

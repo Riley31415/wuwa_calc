@@ -39,7 +39,7 @@ export const TRAGICOMEDY = new Weapon({
   name: "Tragicomedy",
   constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.BonusAtk, 12); },
   updateBuffs: () => {
-    if (casting(Cast.Basic) || casting(Cast.Intro)) applyCurrent(FOOLS_WARBLE, 1);
+    if (casting(Cast.Basic) || casting(Cast.MidAir) || casting(Cast.Intro)) applyCurrent(FOOLS_WARBLE, 1);
   },
 });
 export const FOOLS_WARBLE = new Buff({

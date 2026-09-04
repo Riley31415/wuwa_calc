@@ -46,15 +46,15 @@ const BA4 = sigrikaAction("Basic - One, Two, Three 4", {
   node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 206.79, energy: 3.27, concerto: 6.51, offtune: 10400,
   updateBuffs: () => applyCurrent(DECIPHER, 1),
 });
-const MA = sigrikaAction("Basic - One, Two, Three (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960 });
-const MDC = sigrikaAction("Basic - One, Two, Three (Mid-Air Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 206.17, energy: 3.05, concerto: 16.1, offtune: 9920 });
-const DC = sigrikaAction("Basic - One, Two, Three (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 219.70, energy: 3.26, concerto: 16.5, offtune: 10026 });
+const MA = sigrikaAction("Mid-air - One, Two, Three", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960 });
+const MDC = sigrikaAction("Dodge Counter - One, Two, Three (Mid-Air)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 206.17, energy: 3.05, concerto: 16.1, offtune: 9920 });
+const DC = sigrikaAction("Dodge Counter - One, Two, Three", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 219.70, energy: 3.26, concerto: 16.5, offtune: 10026 });
 const HA = sigrikaAction("Heavy - One, Two, Three", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 116.28, offtune: 5848, concerto: 3.66, energy: 1.84 });
 
 // --- Decipher-gated finishers: both grant a Rune: Trust and exit Decipher, both Echo Skill DMG
 //     (the migrated sheet only carries one row for the pair — same numbers used for both here)
 const EBA = sigrikaAction("Basic - Elucidated", { node: Node.Normal, cast: Cast.Basic, type: Type1.Echo, mv: 307.79, offtune: 8259, energy: 2.6, concerto: 5.19, forte1: 1 });
-const EDC = sigrikaAction("Basic - Decipher (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Echo, mv: 307.79, offtune: 8259, energy: 2.6, concerto: 15.19, forte1: 1 });
+const EDC = sigrikaAction("Dodge Counter - Decipher", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Echo, mv: 307.79, offtune: 8259, energy: 2.6, concerto: 15.19, forte1: 1 });
 
 // --- resonance skill: BOOMY BOOM! (base), or — while in Decipher — BIG BOOMY BOOM! (grants
 //     Rune: Answer) / Soliskin to the Aid (also spends 50+ Full Stop, likewise grants Rune: Answer)

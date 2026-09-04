@@ -63,21 +63,21 @@ const BA2 = mornyeAction("Basic - Ground State Calibration 2", { node: Node.Norm
 const BA3 = mornyeAction("Basic - Ground State Calibration 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 103.4, energy: 1.67, concerto: 5.2, offtune: 5200, forte1:37 });
 const BA4 = mornyeAction("Basic - Ground State Calibration 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 135.2, energy: 2.13, concerto: 6.8, offtune: 6800, forte1:100 });
 const HA = mornyeAction("Heavy - Ground State Calibration", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 37, energy: 0.79, concerto: 2.5, offtune: 2480, forte1: 20 });
-const MA = mornyeAction("Basic - Ground State Calibration (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 1.55, concerto: 4.96, offtune: 4960 });
-const DC = mornyeAction("Basic - Ground State Calibration (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 162.23, energy: 2.55, concerto: 18.16, offtune: 8160, forte1: 20 });
+const MA = mornyeAction("Mid-air - Ground State Calibration", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 98.61, energy: 1.55, concerto: 4.96, offtune: 4960 });
+const DC = mornyeAction("Dodge Counter - Ground State Calibration", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 162.23, energy: 2.55, concerto: 18.16, offtune: 8160, forte1: 20 });
 
 // --- Wide Field Observation Mode, the airborne state the Syntony Field lives in
 const WBA1 = mornyeAction("Basic - Wide Field Observation 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 55.68, energy: 0.88, concerto: 1.4, offtune: 2800, forte2: 10 });
 const WBA2 = mornyeAction("Basic - Wide Field Observation 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 103.4, energy: 1.64, concerto: 2.56, offtune: 5200, forte2: 12 });
 const WBA3 = mornyeAction("Basic - Wide Field Observation 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 103.42, energy: 1.64, concerto: 2.56, offtune: 5200, forte2: 18 });
-const WDC = mornyeAction("Basic - Wide Field Observation (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 103.4, energy: 1.64, concerto: 12.56, offtune: 5200, forte2: 12 });
+const WDC = mornyeAction("Dodge Counter - Wide Field Observation", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 103.4, energy: 1.64, concerto: 12.56, offtune: 5200, forte2: 12 });
 
 // --- Forte Circuit. Geopotential Shift is what banks Rest Mass Energy into the airborne state;
 //     Inversion is the payoff once Relative Momentum tops out.
 // her Intro is what puts her airborne, and the field comes up with the state
 const FIELD = { updateBuffs: () => queue(SyntonyFieldHit) };
-const GeopotentialShift = mornyeAction("Heavy - Geopotential Shift", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 143.16, energy: 3.01, concerto: 9.61, offtune: 9600, forte1: -100, ...FIELD });
-const Inversion = mornyeAction("Heavy - Inversion", {
+const GeopotentialShift = mornyeAction("Forte Heavy - Geopotential Shift", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 143.16, energy: 3.01, concerto: 9.61, offtune: 9600, forte1: -100, ...FIELD });
+const Inversion = mornyeAction("Forte Heavy - Inversion", {
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 258.46, energy: 3.25, concerto: 11.96, offtune: 10400, forte2: -100,
   updateBuffs: () => applyEnemy(OBSERVATION_MARKER, 1),
 });

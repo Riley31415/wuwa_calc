@@ -87,8 +87,8 @@ const BA3 = camellyaAction("Basic - Burgeoning 3", { node: Node.Normal, cast: Ca
 const BA4 = camellyaAction("Basic - Burgeoning 4 (Hold)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 494.00, energy: 5.4, concerto: 10.8, offtune: 17280, forte1: -36 }); // 24.70% x20
 const BA5 = camellyaAction("Basic - Burgeoning 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 192.68, energy: 2.88, concerto: 5.72, offtune: 9120, forte1: -18.96 }); // 48.17% x4
 
-const MA = camellyaAction("Basic - Mid-air Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 131.22, energy: 1.66, concerto: 3.3, offtune: 5280, forte1: -10.96 }); // 65.61% x2
-const DC = camellyaAction("Basic - Dodge Counter", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 298.20, energy: 2.25, concerto: 14.5, offtune: 7200, forte1: -24.9 }); // 99.40% x3
+const MA = camellyaAction("Mid-air - Attack", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 131.22, energy: 1.66, concerto: 3.3, offtune: 5280, forte1: -10.96 }); // 65.61% x2
+const DC = camellyaAction("Dodge Counter - Burgeoning", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 298.20, energy: 2.25, concerto: 14.5, offtune: 7200, forte1: -24.9 }); // 99.40% x3
 /** Considered Basic Attack DMG per Seedbed's own text. */
 const HA = camellyaAction("Heavy - Pruning", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Basic, mv: 264.42, energy: 3.33, concerto: 6.66, offtune: 10641, forte1: -22.08 }); // 88.14% x3
 
@@ -110,7 +110,7 @@ const VW4 = camellyaAction("Basic - Vining Waltz 4", { node: Node.Skill, cast: C
 /** Jump's own replacement in Blossom Mode, ends it. Never placed in the rotation below (she
  *  never jumps into one there), exported for completeness. */
 const ViningRonde = camellyaAction("Basic - Vining Ronde", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 158.85, energy: 2.37, concerto: 4.71, offtune: 7521, forte1: -15.63 }); // 52.95% x3
-const Atonement = camellyaAction("Basic - Atonement (Dodge Counter)", { node: Node.Skill, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 226.66, energy: 1.36, concerto: 12.7, offtune: 4320, forte1: -18.94 }); // 113.33% x2
+const Atonement = camellyaAction("Dodge Counter - Atonement", { node: Node.Skill, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 226.66, energy: 1.36, concerto: 12.7, offtune: 4320, forte1: -18.94 }); // 113.33% x2
 
 /** The Skill replacement in Blossom Mode, ends it. Considered Basic Attack DMG. */
 const FloralRavage = camellyaAction("Skill - Floral Ravage", { node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 263.05, concerto: 7, energy: 3.7, offtune: 11760, forte1: -24.45 }); // 52.61% x5
@@ -120,7 +120,7 @@ const FloralRavage = camellyaAction("Skill - Floral Ravage", { node: Node.Skill,
  *  starting point (see file header on both pre-clamps in CAMELLYA_RESONATOR's own updateBuffs()). */
 /** Requires full Concerto and consumes 70 of it, so the bar is clamped back to 100 first; refills
  *  the gauge from empty, and folds every Crimson Bud held into the Budding Mode it opens. */
-const Ephemeral = camellyaAction("Forte - Ephemeral", {
+const Ephemeral = camellyaAction("Forte Skill - Ephemeral", {
   node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 1262.45, forte1: 100, concerto: -70, energy: 12, offtune: 60800,
   updateBuffs: () => {
     setForte1(0);

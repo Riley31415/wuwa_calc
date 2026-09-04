@@ -57,8 +57,8 @@ const BA4 = xlyAction("Basic - Probe 4", { node: Node.Normal, cast: Cast.Basic, 
 const BA5 = xlyAction("Basic - Probe 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 198.81, energy: 2.50, concerto: 5.00, offtune: 8000, forte1: 20 });
 
 const HA = xlyAction("Heavy - Probe", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 82.81 * 2, energy: 2.10, concerto: 4.18, offtune: 6664, forte1: 18 });
-const MA = xlyAction("Basic - Probe (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.27, energy: 0.52, concerto: 1.00, offtune: 4960, forte1: 13 });
-const DC = xlyAction("Basic - Probe (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 238.58, energy: 2.75, concerto: 12.50, offtune: 4000, forte1: 26 });
+const MA = xlyAction("Mid-air - Probe", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 123.27, energy: 0.52, concerto: 1.00, offtune: 4960, forte1: 13 });
+const DC = xlyAction("Dodge Counter - Probe", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 238.58, energy: 2.75, concerto: 12.50, offtune: 4000, forte1: 26 });
 
 const Skill = xlyAction("Skill - Deduction", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 198.81, energy: 6.25, concerto: 7, offtune: 4000, forte1: 40 });
 /** Decipher: spends the full 100 Capacity, considered Resonance Liberation DMG. */
@@ -72,12 +72,12 @@ const UBA1 = xlyAction("Basic - Pivot: Impale 1", { node: Node.Liberation, cast:
 const UBA2 = xlyAction("Basic - Pivot: Impale 2", { node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 60.92 * 4, energy: 2.68, concerto: 5.36, offtune: 8536, forte2: 2 });
 const UBA3 = xlyAction("Basic - Pivot: Impale 3", { node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 133.25 * 2, energy: 2.92, concerto: 5.84, offtune: 9336, forte2: 2 });
 const USkill = xlyAction("Skill - Divergence", { node: Node.Liberation, cast: Cast.Skill, type: Type1.Skill, mv: 49.59 * 3 + 173.55 * 2, energy: 9.94, concerto: 15.00, offtune: 9316, forte2: 2 });
-const UDC = xlyAction("Basic - Unfathomed (Dodge Counter)", { node: Node.Liberation, cast: Cast.DodgeCounter, type: Type1.Liberation, mv: 38.83 * 2 + 310.58, energy: 4.00, concerto: 15.00, offtune: 8000, forte2: 2 });
+const UDC = xlyAction("Dodge Counter - Unfathomed", { node: Node.Liberation, cast: Cast.DodgeCounter, type: Type1.Liberation, mv: 38.83 * 2 + 310.58, energy: 4.00, concerto: 15.00, offtune: 8000, forte2: 2 });
 
 /** Law of Reigns: 5 Performance Capacity and a Hypercube a cast, considered Liberation DMG. */
 const UForte = xlyAction("Forte Skill - Law of Reigns", { node: Node.Forte, cast: Cast.Skill, type: Type1.Liberation, mv: 95.73 * 4 + 255.28, energy: 4.78, concerto: 10, offtune: 45600, forte2: -5 });
 /** Revamp, the mid-air follow-up to Decipher/Divergence — considered Liberation DMG. */
-const FBA = xlyAction("Basic - Revamp (Mid-Air)", { node: Node.Forte, cast: Cast.Basic, type: Type1.Liberation, mv: 21.87 * 4 + 65.61 * 2, energy: 2.78, concerto: 5, offtune: 8800, forte2: 3 });
+const FBA = xlyAction("Mid-air - Revamp", { node: Node.Forte, cast: Cast.MidAir, type: Type1.Liberation, mv: 21.87 * 4 + 65.61 * 2, energy: 2.78, concerto: 5, offtune: 8800, forte2: 3 });
 
 const Intro = xlyAction("Intro - Principle", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 99.41 * 2, energy: 10.00, concerto: 10, offtune: 11200 });
 /** Chain Rule: no damage of its own, just the handoff — its lasers are ACTION_OUTRO_COORD. */
@@ -115,7 +115,7 @@ const XLY_OUTRO: Buff = new Buff({
   field: CHAIN_RULE_FIELD,
   name: "Xiangli Yao: Outro", maxStacks: 3,
   updateBuffs: () => {
-    if (casting(Cast.Basic)) { queueOn(XIANGLI_YAO_RESONATOR, ACTION_OUTRO_COORD); removeStack(XLY_OUTRO, 1); }
+    if (casting(Cast.Basic) || casting(Cast.MidAir)) { queueOn(XIANGLI_YAO_RESONATOR, ACTION_OUTRO_COORD); removeStack(XLY_OUTRO, 1); }
   },
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(XLY_OUTRO); },
 });

@@ -21,6 +21,14 @@
 - "all attribute dmg bonus/amp" = plain dmg bonus/amp, no tag
 - a team buff scaled by the applier's own stats: assume the maximum threshold is met
 
+# naming actions
+- an action with a cast is `<Cast> - <name>`: Basic, Mid-air, Heavy, Skill, Liberation, Intro, Outro, Echo, Dodge Counter, Tune Break (the `CAST_NAME` words); the prefix follows `cast`, not `type` (`Dodge Counter - Moonbow` even though it deals Liberation DMG)
+- `Forte <Cast> - <name>` only when the action sits in `Node.Forte` AND spends something (a negative `forteN` on the action, or a revoke/removeStack/setForte in its def); a stance's plain presses stay `Basic - Umbra 1`, `Heavy - Incarnation`
+- mid-air presses are `cast: Cast.MidAir` and `Mid-air - <name>` (no "(Mid-Air)" suffix); mid-air heavies/dodge counters keep their own cast and carry "(Mid-Air)" in the name
+- every dodge counter is `cast: Cast.DodgeCounter`, named `Dodge Counter - <chain name>` (a bare one takes the basic chain's name: `Dodge Counter - Captain's Rhapsody`)
+- extras after the name go in parentheses: `(Charged)`, `(Hold)`, `(Follow-Up)`, `(Swap)`, `(S6 Blast)`; sub-moves after a colon: `Thrum: Aero Plunge`
+- actions with no cast (coordinated hits, ticks, fields, responses) carry the source they belong to instead: `Liberation - Marcato`, `Tune Rupture Response - Starburst`
+
 # nanoka data
 the damage table is client-rendered — read the CDN json, not the html:
 `https://static.nanoka.cc/ww/<ver>/en/character/<id>.json`, `<ver>` from any page's `data-url`

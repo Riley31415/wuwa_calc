@@ -71,17 +71,17 @@ const EBA = lupaAction("Basic - Flaming Star: Starfall", { node: Node.Normal, ca
 /** Wolf's Descent, her plunging attack — never placed in the rotation below, kept for completeness. */
 const MA = lupaAction("Basic - Flaming Star: Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.79, energy: 1.56, concerto: 3.11, offtune: 4960, forte1: 5 });
 /** Flaming Star, her dodge counter — same treatment as `MA` above. */
-const DC = lupaAction("Basic - Flaming Star (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 273.44, energy: 4.07, concerto: 18.13, offtune: 12944 });
+const DC = lupaAction("Dodge Counter - Flaming Star", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 273.44, energy: 4.07, concerto: 18.13, offtune: 12944 });
 
-const MA1 = lupaAction("Basic - Flaming Star 1 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 76.73, energy: 1.14, concerto: 2.27, offtune: 3632, forte1: 7 });
-const MA2 = lupaAction("Basic - Flaming Star 2 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 154.47, energy: 2.31, concerto: 4.61, offtune: 7312, forte1: 13 });
-const MA3 = lupaAction("Basic - Flaming Star 3 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 56.96, energy: 0.86, concerto: 1.70, offtune: 2696 });
+const MA1 = lupaAction("Mid-air - Flaming Star 1", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 76.73, energy: 1.14, concerto: 2.27, offtune: 3632, forte1: 7 });
+const MA2 = lupaAction("Mid-air - Flaming Star 2", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 154.47, energy: 2.31, concerto: 4.61, offtune: 7312, forte1: 13 });
+const MA3 = lupaAction("Mid-air - Flaming Star 3", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 56.96, energy: 0.86, concerto: 1.70, offtune: 2696 });
 
 // base cast, plus three 50-Wolflame-consuming enhanced forms (each earns a point of Wolfaith
 // rather than restoring the gauge)
 const HA = lupaAction("Heavy - Flaming Star", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 112.72, energy: 1.68, concerto: 3.34, offtune: 5336 });
 /** Firestrike, at Wolflame 50+. Counts as Heavy Attack DMG. */
-const EMA3 = lupaAction("Heavy - Firestrike (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 56.96, energy: 0.86, concerto: 10, offtune: 2696, forte1: -50, forte2: 1 });
+const EMA3 = lupaAction("Mid-air - Firestrike", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Heavy, mv: 56.96, energy: 0.86, concerto: 10, offtune: 2696, forte1: -50, forte2: 1 });
 /** Wolf's Gnawing, at Wolflame 50+. */
 const EHA3 = lupaAction("Heavy - Wolf's Gnawing", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 112.22, energy: 1.66, concerto: 10, offtune: 5312, forte1: -50, forte2: 1 });
 /** Wolf's Claw, at Wolflame 50+ and Wolfaith 1+. */
@@ -99,7 +99,7 @@ const Skill2 = lupaAction("Skill - Feral Fang", { node: Node.Skill, cast: Cast.S
 /** Foebreaker: consumes every point of Wolflame. Always placed right after Liberation, whose own
  *  updateBuffs() hard-resets Wolflame to exactly 100 first, so forte1: -100 always lands on 0. Opens
  *  Burning Matchpoint (see BURNING_MATCHPOINT below). */
-const USkill = lupaAction("Liberation Skill - Foebreaker", {
+const USkill = lupaAction("Skill - Foebreaker", {
   node: Node.Liberation, cast: Cast.Skill, type: Type1.Skill, mv: 304.46, concerto: 20, offtune: 6448, forte1: -100,
   updateBuffs: () => applyCurrent(BURNING_MATCHPOINT, 1),
 });

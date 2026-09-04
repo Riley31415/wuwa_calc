@@ -73,11 +73,11 @@ const BA1 = qxAction("Basic - Stringblade 1", { node: Node.Normal, cast: Cast.Ba
 const BA2 = qxAction("Basic - Stringblade 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 74.18, energy: 1.34, concerto: 2.68, offtune: 4264, forte2: 7.12 });
 const BA3 = qxAction("Basic - Stringblade 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 97.44, energy: 1.76, concerto: 3.52, offtune: 5600, forte2: 9.36 });
 const BA4 = qxAction("Basic - Stringblade 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 108.45, energy: 1.96, concerto: 3.92, offtune: 6234, forte1: 17.54 });
-const MA1 = qxAction("Basic - Stringblade (Mid-Air) 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 90.48, energy: 1.63, concerto: 3.25, offtune: 5200, forte2: 8.71 });
-const MA2 = qxAction("Basic - Stringblade (Mid-Air) 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 89.79, energy: 1.63, concerto: 3.24, offtune: 5160, forte2: 8.63 });
-const MA3 = qxAction("Basic - Stringblade (Mid-Air) 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 139.21, energy: 2.50, concerto: 5, offtune: 8000, forte2: 13.37 });
+const MA1 = qxAction("Mid-air - Stringblade 1", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 90.48, energy: 1.63, concerto: 3.25, offtune: 5200, forte2: 8.71 });
+const MA2 = qxAction("Mid-air - Stringblade 2", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 89.79, energy: 1.63, concerto: 3.24, offtune: 5160, forte2: 8.63 });
+const MA3 = qxAction("Mid-air - Stringblade 3", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 139.21, energy: 2.50, concerto: 5, offtune: 8000, forte2: 13.37 });
 const Plunge = qxAction("Basic - Plunging Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.29, energy: 1.55, concerto: 3.10, offtune: 4960 });
-const DC = qxAction("Basic - Stringblade (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 180.92, energy: 3.28, concerto: 16.52, offtune: 10400, forte2: 26.04 });
+const DC = qxAction("Dodge Counter - Stringblade", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 180.92, energy: 3.28, concerto: 16.52, offtune: 10400, forte2: 26.04 });
 
 /** Spends both gauges in full — pre-clamped here so its own declared -100s land exactly on 0 —
  *  and opens Ephemeral Transcendence. Under Clarity it also arms the enhanced Heaven's Reckoning,
@@ -100,19 +100,19 @@ const Ascendant = qxAction("Skill - Severing Note: Ascendant", { node: Node.Skil
 //     on the way in) and, while it's short of full, deal double — see EPHEMERAL and QINGXIAO_RESONATOR's own
 //     applyStats. Heaven's Reckoning spends it all and ends the state. Stage 1 is the table's own
 //     row (a 22.45% hit more than nanoka's). Both dodge counters carry +10 Concerto (CLAUDE.md).
-const FBA1 = qxAction("Forte - Ephemeral Transcendence 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 112.24, energy: 2.04, concerto: 4.05, offtune: 6450, forte1: 25.55 ,
+const FBA1 = qxAction("Basic - Ephemeral Transcendence 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 112.24, energy: 2.04, concerto: 4.05, offtune: 6450, forte1: 25.55 ,
   applyStats: () => { if (forte1() < 100) addStat(Stat.MulMv, 100); }
 });
-const FBA2 = qxAction("Forte - Ephemeral Transcendence 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 115.55, energy: 2.10, concerto: 4.15, offtune: 6640, forte1: 26.35 ,
+const FBA2 = qxAction("Basic - Ephemeral Transcendence 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 115.55, energy: 2.10, concerto: 4.15, offtune: 6640, forte1: 26.35 ,
 applyStats: () => { if (forte1() < 100) addStat(Stat.MulMv, 100); }
 });
-const FBA3 = qxAction("Forte - Ephemeral Transcendence 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 125.28, energy: 2.28, concerto: 4.51, offtune: 7200, forte1: 28.56 ,
+const FBA3 = qxAction("Basic - Ephemeral Transcendence 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 125.28, energy: 2.28, concerto: 4.51, offtune: 7200, forte1: 28.56 ,
 applyStats: () => { if (forte1() < 100) addStat(Stat.MulMv, 100); }
 });
-const FBA4 = qxAction("Forte - Ephemeral Transcendence 4", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 180.96, energy: 3.27, concerto: 6.50, offtune: 10400, forte1: 41.20 ,
+const FBA4 = qxAction("Basic - Ephemeral Transcendence 4", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 180.96, energy: 3.27, concerto: 6.50, offtune: 10400, forte1: 41.20 ,
 applyStats: () => { if (forte1() < 100) addStat(Stat.MulMv, 100); }
 });
-const FDC = qxAction("Forte - Ephemeral Transcendence (Dodge Counter)", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 264.46, energy: 4.77, concerto: 19.50, offtune: 15200, forte1: 60.26 ,
+const FDC = qxAction("Dodge Counter - Ephemeral Transcendence", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 264.46, energy: 4.77, concerto: 19.50, offtune: 15200, forte1: 60.26 ,
 applyStats: () => { if (forte1() < 100) addStat(Stat.MulMv, 100); }
 });
 /** Spends all Heart Sword Intent and takes Heaven's Clarity with it. */
@@ -288,7 +288,7 @@ const QINGXIAO_RESONATOR = new Resonator({
  *  Liberation to bring Clarity back, the echo and out. Both opener and loop. */
 
 const FBA1234 = new ActionGroup("Forte - Ephemeral Transcendence 1234", [FBA1, FBA2, FBA3, FBA4]);
-const MA123 = new ActionGroup("Basic - Stringblade (Mid-Air) 123", [MA1, MA2, MA3]);
+const MA123 = new ActionGroup("Mid-air - Stringblade 123", [MA1, MA2, MA3]);
 
 const QX_ROTATION = new Rotation([
   START_3, Liberation, SWAP,

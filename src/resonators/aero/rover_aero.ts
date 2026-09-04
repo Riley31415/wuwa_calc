@@ -49,8 +49,8 @@ const BA3 = roverAction("Basic - Wind Cutter 3", { node: Node.Normal, cast: Cast
 const BA4 = roverAction("Basic - Wind Cutter 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 76.72, energy: 1.64, concerto: 5.24, offtune: 5232, forte1: 10 });
 const HA = roverAction("Heavy - Wind Cutter", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 53.73, energy: 1.17, concerto: 3.69, offtune: 3666 });
 const RazorWind = roverAction("Heavy - Razor Wind", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 80.83, energy: 1.73, concerto: 5.53, offtune: 5513 });
-const MA = roverAction("Basic - Wind Cutter Mid-air Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 140.76, energy: 0.52, concerto: 9.6, offtune: 9600 });
-const DC = roverAction("Basic - Wind Cutter Dodge Counter", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 175.18, energy: 3.74, concerto: 21.95, offtune: 11944, forte1: 10 });
+const MA = roverAction("Mid-air - Wind Cutter", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 140.76, energy: 0.52, concerto: 9.6, offtune: 9600 });
+const DC = roverAction("Dodge Counter - Wind Cutter", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 175.18, energy: 3.74, concerto: 21.95, offtune: 11944, forte1: 10 });
 
 // --- resonance skill: Awakening Gale on the ground, Skyfall Severance from mid-air, which trades
 //     every other element's own Negative Status on the target for a stack of Aero Erosion each
@@ -74,8 +74,8 @@ const SkyfallSeverance = roverAction("Skill - Skyfall Severance", {
 // --- forte circuit: Cloudburst Dance (a Mid-air Attack considered Resonance Skill DMG, and the
 //     main Windstring source), then Unbound Flow, which replaces Awakening Gale at max gauge and
 //     spends 60 Windstrings a stage.
-const Cloudburst1 = roverAction("Forte - Cloudburst Dance 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 128.80, energy: 0.92, concerto: 2.93, offtune: 2928, forte1: 25 });
-const Cloudburst2 = roverAction("Forte - Cloudburst Dance 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 141.47, energy: 1.01, concerto: 3.22, offtune: 3216, forte1: 25 });
+const Cloudburst1 = roverAction("Basic - Cloudburst Dance 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 128.80, energy: 0.92, concerto: 2.93, offtune: 2928, forte1: 25 });
+const Cloudburst2 = roverAction("Basic - Cloudburst Dance 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 141.47, energy: 1.01, concerto: 3.22, offtune: 3216, forte1: 25 });
 const UnboundFlow1 = roverAction("Forte Skill - Unbound Flow 1", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 171.50, energy: 10, concerto: 20, offtune: 29850, forte1: -60 });
 const UnboundFlow2 = roverAction("Forte Skill - Unbound Flow 2", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 723.03, energy: 20, concerto: 20, offtune: 28288, forte1: -60 });
 

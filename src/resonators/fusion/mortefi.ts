@@ -51,9 +51,9 @@ const BA3 = mortefiAction("Basic - Impromptu Show 3", { node: Node.Normal, cast:
 const BA4 = mortefiAction("Basic - Impromptu Show 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 21.02 * 4 + 126.93, energy: 3.76, concerto: 12.09, offtune: 12080, forte1: 25 });
 
 const HA = mortefiAction("Heavy - Impromptu Show", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 167.01, energy: 2.4, concerto: 7.68, offtune: 9600 });
-const MA1 = mortefiAction("Basic - Impromptu Show 1 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 23.25, energy: 0.41, concerto: 1, offtune: 1360 });
-const MA2 = mortefiAction("Basic - Impromptu Show 2 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 23.25, energy: 0.41, concerto: 1, offtune: 1360 });
-const DC = mortefiAction("Basic - Impromptu Show (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 194.98, energy: 3.5, concerto: 16.4, offtune: 6400 });
+const MA1 = mortefiAction("Mid-air - Impromptu Show 1", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 23.25, energy: 0.41, concerto: 1, offtune: 1360 });
+const MA2 = mortefiAction("Mid-air - Impromptu Show 2", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 23.25, energy: 0.41, concerto: 1, offtune: 1360 });
+const DC = mortefiAction("Dodge Counter - Impromptu Show", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 194.98, energy: 3.5, concerto: 16.4, offtune: 6400 });
 
 // --- resonance skill: Passionate Variation. Elemental DMG reads 0, so concerto is the flat
 //     Concerto Regen (18) instead, same treatment as every other such row.
@@ -113,7 +113,7 @@ const BURNING_RHAPSODY = new Buff({
     if (!currentAction().active || triggeredAction()) return;
     if (casting(Cast.Skill)) { queueOn(MORTEFI_RESONATOR, ACTION_MARCATO); queueOn(MORTEFI_RESONATOR, ACTION_MARCATO_PAIRED); return; }
     const heavy = casting(Cast.Heavy);
-    if (!heavy && !(casting(Cast.Basic) && currentAction().mv > 0)) return;
+    if (!heavy && !((casting(Cast.Basic) || casting(Cast.MidAir)) && currentAction().mv > 0)) return;
     const n = Math.min(3, stacksOfTeam(BURNING_RHAPSODY));
     for (let i = 0; i < n; i++) {
       queueOn(MORTEFI_RESONATOR, ACTION_MARCATO);

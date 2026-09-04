@@ -55,8 +55,8 @@ const BA2 = jianxinAction("Basic - Fengyiquan 2", { node: Node.Normal, cast: Cas
 const BA3 = jianxinAction("Basic - Fengyiquan 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 167, energy: 2.48, concerto: 7.92, offtune: 7920, forte1: 12 });
 const BA4 = jianxinAction("Basic - Fengyiquan 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 113.4, energy: 1.68, concerto: 5.37, offtune: 5360, forte1: 12 });
 const HA = jianxinAction("Heavy - Fengyiquan", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 126.07, energy: 1.87, concerto: 5.96, offtune: 6000, forte1: 9 });
-const MA = jianxinAction("Basic - Fengyiquan (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.27, energy: 0.52, concerto: 1, offtune: 4960, forte1: 6 });
-const DC = jianxinAction("Basic - Fengyiquan (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 244.94, energy: 3.10, concerto: 16.68, offtune: 13143, forte1: 17 });
+const MA = jianxinAction("Mid-air - Fengyiquan", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 123.27, energy: 0.52, concerto: 1, offtune: 4960, forte1: 6 });
+const DC = jianxinAction("Dodge Counter - Fengyiquan", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 244.94, energy: 3.10, concerto: 16.68, offtune: 13143, forte1: 17 });
 
 // --- Calming Air: the Parry Stance (8 Concerto on the cast) ends either as Chi Parry (released)
 //     or Chi Counter (attacked — S3 makes it available after 2.5s regardless); each cast is one
@@ -76,7 +76,7 @@ const Liberation = jianxinAction("Liberation - Purification Force Field", {
 //     progress is its own casts: Chi Strikes (two ahead of each Shock — see the file header) and
 //     the Minor, Major Inner and Major Outer Shocks; the last leaves the Zhoutian 3 shield, the
 //     marker every shield-reading gear watches, and its 6s heal the healing one.
-const FHA = jianxinAction("Heavy - Primordial Chi Spiral", {
+const FHA = jianxinAction("Forte Heavy - Primordial Chi Spiral", {
   node: Node.Forte, cast: Cast.Heavy, forte1: -120,
   updateBuffs: () => { if (forte1() > 120) setForte1(120); },
 });
@@ -148,7 +148,7 @@ const TRANSCENDENCE = new Buff({
  *  whatever Chi the basic itself banks. */
 const S1_BRANCHLET = new Buff({
   name: "Jianxin S1: Verdant Branchlet",
-  applyStats: () => { if (casting(Cast.Basic)) addStat(Stat.AddForte1, currentAction().forte1); },
+  applyStats: () => { if (casting(Cast.Basic) || casting(Cast.MidAir)) addStat(Stat.AddForte1, currentAction().forte1); },
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(S1_BRANCHLET); },
 });
 const S1 = new Sequence({

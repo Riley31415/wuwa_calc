@@ -54,11 +54,11 @@ const BA3 = verinaAction("Basic - Cultivation 3", { node: Node.Normal, cast: Cas
 const BA4 = verinaAction("Basic - Cultivation 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 67.32, energy: 1.69, concerto: 5.41, offtune: 13600 });
 const BA5 = verinaAction("Basic - Cultivation 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 71.62, energy: 1.8, concerto: 5.76, offtune: 14400, forte1: 1 });
 const HA = verinaAction("Heavy - Cultivation", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 99.41, energy: 2.5, concerto: 8, offtune: 20000 });
-const MA1 = verinaAction("Basic - Cultivation 1 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 56.37, energy: 1.41, concerto: 4.53, offtune: 11340 });
-const MA2 = verinaAction("Basic - Cultivation 2 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 53.19, energy: 1.33, concerto: 4.28, offtune: 10700 });
-const MA3 = verinaAction("Basic - Cultivation 3 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 76.26, energy: 1.89, concerto: 6.12, offtune: 15342 });
+const MA1 = verinaAction("Mid-air - Cultivation 1", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 56.37, energy: 1.41, concerto: 4.53, offtune: 11340 });
+const MA2 = verinaAction("Mid-air - Cultivation 2", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 53.19, energy: 1.33, concerto: 4.28, offtune: 10700 });
+const MA3 = verinaAction("Mid-air - Cultivation 3", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 76.26, energy: 1.89, concerto: 6.12, offtune: 15342 });
 const MHA = verinaAction("Heavy - Cultivation (Mid-air)", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 61.64, energy: 0.51, concerto: 1, offtune: 12400 });
-const DC = verinaAction("Basic - Cultivation (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 129.23, energy: 3.25, concerto: 15.6, offtune: 14000 });
+const DC = verinaAction("Dodge Counter - Cultivation", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 129.23, energy: 3.25, concerto: 15.6, offtune: 14000 });
 
 // base gain only — S2's own extra Photosynthesis Energy/Energy is traced separately (VERINA_S2)
 const Skill = verinaAction("Skill - Botany Experiment", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 178.95, energy: 15, concerto: 30, offtune: 26600, forte1: 1 });
@@ -77,12 +77,12 @@ const STARFLOWER_CONCERTO = { updateDebuffs: () => {
 const StarflowerHeavy = verinaAction("Forte Heavy - Starflower Blooms", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 162.37, energy: 2.91, concerto: 4.66, offtune: 14600, forte1: -1, ...STARFLOWER_CONCERTO });
 // Mid-air Starflower Blooms is its own 3-stage combo (same shape as the MA1-3 chain it replaces);
 // only stage 1 banks the forte spend/heal, since the Forte Gauge is spent once for the whole combo.
-const ForteMidair1 = verinaAction("Forte Basic - Starflower Blooms (Mid-Air) 1",
-    { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 67.64, energy: 1.41, concerto: 4.53, offtune: 11340, forte1: -1, ...STARFLOWER_CONCERTO });
-const ForteMidair2 = verinaAction("Forte Basic - Starflower Blooms (Mid-Air) 2",
-    { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 63.82, energy: 1.33, concerto: 4.28, offtune: 10700, forte1: -1, ...STARFLOWER_CONCERTO });
-const ForteMidair3 = verinaAction("Forte Basic - Starflower Blooms (Mid-Air) 3",
-    { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 30.50 * 3, energy: 1.89, concerto: 6.12, offtune: 15342, forte1: -1, ...STARFLOWER_CONCERTO });
+const ForteMidair1 = verinaAction("Forte Mid-air - Starflower Blooms 1",
+    { node: Node.Forte, cast: Cast.MidAir, type: Type1.Basic, mv: 67.64, energy: 1.41, concerto: 4.53, offtune: 11340, forte1: -1, ...STARFLOWER_CONCERTO });
+const ForteMidair2 = verinaAction("Forte Mid-air - Starflower Blooms 2",
+    { node: Node.Forte, cast: Cast.MidAir, type: Type1.Basic, mv: 63.82, energy: 1.33, concerto: 4.28, offtune: 10700, forte1: -1, ...STARFLOWER_CONCERTO });
+const ForteMidair3 = verinaAction("Forte Mid-air - Starflower Blooms 3",
+    { node: Node.Forte, cast: Cast.MidAir, type: Type1.Basic, mv: 30.50 * 3, energy: 1.89, concerto: 6.12, offtune: 15342, forte1: -1, ...STARFLOWER_CONCERTO });
 
 // Arboreal Flourish places Photosynthesis Mark on the enemy (see file header), heals
 const Liberation = verinaAction("Liberation - Arboreal Flourish", {

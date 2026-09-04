@@ -70,8 +70,8 @@ const BA1 = bulingAction("Basic - Hexagram Calls, Lightning Falls 1", { node: No
 const BA2 = bulingAction("Basic - Hexagram Calls, Lightning Falls 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 66.90, offtune: 5384, energy: 1.70, concerto: 5.40, forte1: 1 });
 const BA3 = bulingAction("Basic - Hexagram Calls, Lightning Falls 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 47.02, offtune: 3784, energy: 1.20, concerto: 3.80 });
 const BA4 = bulingAction("Basic - Hexagram Calls, Lightning Falls 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 93.64, offtune: 7536, energy: 2.36, concerto: 7.54, forte1: 1 });
-const MA = bulingAction("Basic - Hexagram Calls, Lightning Falls (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.96, offtune: 4960, energy: 1.24, concerto: 4.96, forte1: 1 });
-const DC = bulingAction("Basic - Hexagram Calls, Lightning Falls 3 (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 47.02, offtune: 3784, energy: 1.20, concerto: 13.80 });
+const MA = bulingAction("Mid-air - Hexagram Calls, Lightning Falls", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 73.96, offtune: 4960, energy: 1.24, concerto: 4.96, forte1: 1 });
+const DC = bulingAction("Dodge Counter - Hexagram Calls, Lightning Falls 3", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 47.02, offtune: 3784, energy: 1.20, concerto: 13.80 });
 
 // hold Normal Attack to spend a specific Trigram pair left-to-right for a Minor state. Twin
 // Mountains/Twin Thunders heal only (0 mv, healing out of scope).

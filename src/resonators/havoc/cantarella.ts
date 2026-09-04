@@ -53,9 +53,9 @@ const EHA = cantaAction("Heavy - Delusive Dive", {
   updateBuffs: () => applyCurrent(MIRAGE, 1),
 });
 
-const FBA1 = cantaAction("Forte - Phantom Sting 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 105.99, energy: 1.35, concerto: 2.67, offtune: 4266, forte1: -1, forte2: 1 }); // 35.33%x3
-const FBA2 = cantaAction("Forte - Phantom Sting 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 125.86, energy: 1.6, concerto: 3.18, offtune: 5064, forte1: -1, forte2: 1 }); // 62.93%x2
-const FBA3 = cantaAction("Forte - Phantom Sting 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, type2: Type2.Coordinated, mv: 258.48, energy: 3.28, concerto: 6.52, offtune: 10400, forte1: -1, forte2: 1 }); // 64.62%x4
+const FBA1 = cantaAction("Forte Basic - Phantom Sting 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 105.99, energy: 1.35, concerto: 2.67, offtune: 4266, forte1: -1, forte2: 1 }); // 35.33%x3
+const FBA2 = cantaAction("Forte Basic - Phantom Sting 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 125.86, energy: 1.6, concerto: 3.18, offtune: 5064, forte1: -1, forte2: 1 }); // 62.93%x2
+const FBA3 = cantaAction("Forte Basic - Phantom Sting 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, type2: Type2.Coordinated, mv: 258.48, energy: 3.28, concerto: 6.52, offtune: 10400, forte1: -1, forte2: 1 }); // 64.62%x4
 
 const Skill = cantaAction("Skill - Graceful Step", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 147.2, energy: 1.56, concerto: 10, offtune: 4936, forte1: 1 }); // 73.60%x2
 const ESkill = cantaAction("Skill - Flickering Reverie", {
@@ -63,7 +63,7 @@ const ESkill = cantaAction("Skill - Flickering Reverie", {
   updateBuffs: () => applyCurrent(HAZY_DREAM, 1),
 });
 /** At 3 Shiver — CANTARELLA_RESONATOR's own updateBuffs() resets forte2 to 3 first, so -3 lands on 0 exactly. */
-const FSkill = cantaAction("Forte - Perception Drain", {
+const FSkill = cantaAction("Forte Skill - Perception Drain", {
   node: Node.Forte, cast: Cast.Skill, cast2: Cast.Echo, type: Type1.Basic, mv: 1335.98, energy: 21.1, concerto: 12, offtune: 57864, forte2: -3, // 667.99%x2
   updateBuffs: () => setForte2(3),
 });

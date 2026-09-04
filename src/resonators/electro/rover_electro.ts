@@ -53,7 +53,7 @@ const BA4 = roverAction("Basic - Deterrence 4", { node: Node.Normal, cast: Cast.
 const Skill = roverAction("Skill - Thunderclap", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 200.40, energy: 11.34, concerto: 9.8, offtune: 4268, forte1: 8.9 });
 /** The Normal Attack follow-up off Thunderclap — considered Basic Attack DMG, and a Surge source
  *  in its own right. */
-const Repel = roverAction("Skill - Basic Attack: Repel", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 140.29, energy: 2.53, concerto: 9.08, offtune: 8065, forte1: 16.8 });
+const Repel = roverAction("Basic - Repel", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 140.29, energy: 2.53, concerto: 9.08, offtune: 8065, forte1: 16.8 });
 
 // --- forte circuit: Overshock, at full Electric Surge. Press and hold are the same damage and the
 //     same Surge spend, and differ only in what they open — the team ATK buff or Apex Resonance
@@ -77,21 +77,21 @@ const OvershockHold = roverAction("Forte Skill - Overshock (Hold)", {
 // --- Apex Resonance: Thrum of All Sounds, ground chain then the mid-air chain, each stage its own
 //     element and each restoring Thunder Rage (forte2). Nothing in the sub rotation casts these —
 //     they're here because S5/S6 pay out on them.
-const ThrumSpectro1 = roverAction("Forte Skill - Thrum: Spectro 1", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Spectro, mv: 99.12, energy: 0.9, concerto: 3.23, offtune: 7160, forte2: 3.94 });
-const ThrumSpectro2 = roverAction("Forte Skill - Thrum: Spectro 2", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Spectro, mv: 163.53, energy: 1.83, concerto: 6.57, offtune: 14580, forte2: 8.03 });
-const ThrumSpectro3 = roverAction("Forte Skill - Thrum: Spectro 3", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Spectro, mv: 255.14, energy: 2.17, concerto: 7.77, offtune: 17254, forte2: 9.5 });
-const ThrumHavoc1 = roverAction("Forte Skill - Thrum: Havoc 1", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Havoc, mv: 149.76, energy: 2, concerto: 7.18, offtune: 15920, forte2: 8.78 });
-const ThrumHavoc2 = roverAction("Forte Skill - Thrum: Havoc 2", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Havoc, mv: 138.30, energy: 2.19, concerto: 7.86, offtune: 17380, forte2: 9.58 });
-const ThrumHavoc3 = roverAction("Forte Skill - Thrum: Havoc 3", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Havoc, mv: 208.38, energy: 2.9, concerto: 10.4, offtune: 23046, forte2: 12.7 });
-const SilencingBlade = roverAction("Forte Skill - Thrum: Silencing Blade", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Aero, mv: 470.68, energy: 4.59, concerto: 16.48, offtune: 36568, forte2: 20.16 });
-const ThrumAero = roverAction("Forte Skill - Thrum: Aero", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Aero, mv: 158.09, energy: 1.28, concerto: 4.59, offtune: 10200, forte2: 5.61 });
+const ThrumSpectro1 = roverAction("Skill - Thrum: Spectro 1", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Spectro, mv: 99.12, energy: 0.9, concerto: 3.23, offtune: 7160, forte2: 3.94 });
+const ThrumSpectro2 = roverAction("Skill - Thrum: Spectro 2", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Spectro, mv: 163.53, energy: 1.83, concerto: 6.57, offtune: 14580, forte2: 8.03 });
+const ThrumSpectro3 = roverAction("Skill - Thrum: Spectro 3", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Spectro, mv: 255.14, energy: 2.17, concerto: 7.77, offtune: 17254, forte2: 9.5 });
+const ThrumHavoc1 = roverAction("Skill - Thrum: Havoc 1", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Havoc, mv: 149.76, energy: 2, concerto: 7.18, offtune: 15920, forte2: 8.78 });
+const ThrumHavoc2 = roverAction("Skill - Thrum: Havoc 2", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Havoc, mv: 138.30, energy: 2.19, concerto: 7.86, offtune: 17380, forte2: 9.58 });
+const ThrumHavoc3 = roverAction("Skill - Thrum: Havoc 3", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Havoc, mv: 208.38, energy: 2.9, concerto: 10.4, offtune: 23046, forte2: 12.7 });
+const SilencingBlade = roverAction("Skill - Thrum: Silencing Blade", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Aero, mv: 470.68, energy: 4.59, concerto: 16.48, offtune: 36568, forte2: 20.16 });
+const ThrumAero = roverAction("Skill - Thrum: Aero", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Aero, mv: 158.09, energy: 1.28, concerto: 4.59, offtune: 10200, forte2: 5.61 });
 
-const ThrumMaHavoc1 = roverAction("Forte Skill - Thrum: Havoc Mid-air 1", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Havoc, mv: 50.63, energy: 0.59, concerto: 2.1, offtune: 4660, forte2: 2.56 });
-const ThrumMaHavoc2 = roverAction("Forte Skill - Thrum: Havoc Mid-air 2", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Havoc, mv: 63.82, energy: 0.67, concerto: 2.41, offtune: 5340, forte2: 2.94 });
-const ThrumMaHavoc3 = roverAction("Forte Skill - Thrum: Havoc Mid-air 3", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Havoc, mv: 277.30, energy: 2.06, concerto: 7.37, offtune: 16348, forte2: 9 });
-const ThrumMaAero1 = roverAction("Forte Skill - Thrum: Aero Mid-air 1", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Aero, mv: 84.61, energy: 0.81, concerto: 2.89, offtune: 6412, forte2: 3.53 });
-const ThrumMaAero2 = roverAction("Forte Skill - Thrum: Aero Mid-air 2", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Aero, mv: 97.41, energy: 0.89, concerto: 3.19, offtune: 7072, forte2: 3.89 });
-const ThrumMaAeroPlunge = roverAction("Forte Skill - Thrum: Aero Plunge", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Aero, mv: 282.48, energy: 2.08, concerto: 7.48, offtune: 16613, forte2: 9.14 });
+const ThrumMaHavoc1 = roverAction("Skill - Thrum: Havoc Mid-air 1", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Havoc, mv: 50.63, energy: 0.59, concerto: 2.1, offtune: 4660, forte2: 2.56 });
+const ThrumMaHavoc2 = roverAction("Skill - Thrum: Havoc Mid-air 2", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Havoc, mv: 63.82, energy: 0.67, concerto: 2.41, offtune: 5340, forte2: 2.94 });
+const ThrumMaHavoc3 = roverAction("Skill - Thrum: Havoc Mid-air 3", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Havoc, mv: 277.30, energy: 2.06, concerto: 7.37, offtune: 16348, forte2: 9 });
+const ThrumMaAero1 = roverAction("Skill - Thrum: Aero Mid-air 1", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Aero, mv: 84.61, energy: 0.81, concerto: 2.89, offtune: 6412, forte2: 3.53 });
+const ThrumMaAero2 = roverAction("Skill - Thrum: Aero Mid-air 2", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Aero, mv: 97.41, energy: 0.89, concerto: 3.19, offtune: 7072, forte2: 3.89 });
+const ThrumMaAeroPlunge = roverAction("Skill - Thrum: Aero Plunge", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, element: Attribute.Aero, mv: 282.48, energy: 2.08, concerto: 7.48, offtune: 16613, forte2: 9.14 });
 
 /** Thunder Bane: one per Thrum hit, considered Resonance Skill DMG. Queued by the Thrum actions
  *  themselves (see the Resonator's own updateBuffs() below), never cast directly. */

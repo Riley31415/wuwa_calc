@@ -34,7 +34,7 @@ import {
   statLabel,
   tagKind,
   teamKey
-} from "./chunk-YY7LA5QY.js";
+} from "./chunk-HJO7AWIC.js";
 
 // dist/src/display.js
 var keysFor = (action, ...stats) => stats.flatMap((stat) => [
@@ -373,7 +373,7 @@ function rowValues(snap, { mv, avg }, members = []) {
   raw.concertoSpent = snap.concertoSpent;
   raw.isOutro = isCast(
     snap.action,
-    6
+    7
     /* Cast.Outro */
   ) ? 1 : 0;
   const sources = {};
@@ -1320,6 +1320,7 @@ function comparisonFilters() {
       ${filter("mdpsEchoes", "Show Main DPS Echo Options")}
       ${filter("mdpsMainstats", "Show Main DPS Mainstat Options")}
       ${filter("mdpsSequences", "Allow Main DPS Sequences")}
+      ${filter("matrix", "Enable Matrix Buffs")}
     </div>
     <div class="tcfilter-row">
       ${filter("allowR1Supports", "Allow R1 Supports")}
@@ -1327,16 +1328,15 @@ function comparisonFilters() {
       ${filter("supportEchoes", "Show Support Echo Options")}
       ${filter("supportMainstats", "Show Support Mainstat Options")}
       ${filter("supportSequences", "Allow Support Sequences")}
-    </div>
-    <div class="tcfilter-row">
-      ${filter("matrix", "Enable Matrix Buffs")}
       ${standards()}
     </div>
-    ${resonatorChips()}
-    <div class="tcsearch">
-      <input id="optionSearch" type="search" placeholder="Filter resonators..."
-        autocomplete="off" spellcheck="false" value="${esc(searchText)}">
-      <div class="tcsearch-results" id="searchResults">${searchResults()}</div>
+    <div class="tcsearchrow">
+      <div class="tcsearch">
+        <input id="optionSearch" type="search" placeholder="Filter resonators..."
+          autocomplete="off" spellcheck="false" value="${esc(searchText)}">
+        <div class="tcsearch-results" id="searchResults">${searchResults()}</div>
+      </div>
+      ${resonatorChips()}
     </div>
     <div class="tcwarning" id="rowCapWarning" hidden></div>
   </div>`;
@@ -1398,8 +1398,39 @@ function comparisonTable(rows) {
   const extra = [0];
   for (const n of lines)
     extra.push(extra[extra.length - 1] + n - 1);
-  tableView = { sorted, ranks: rankAll(sorted), head, rowHtml, lines, extra };
-  return `<main>${comparisonFilters()}<h2 class="summary-label" id="teamCount">${fmt(sorted.length)} teams</h2><div class="tcwrap"><div class="tgrid" style="${gridStyle}">${head}</div></div></main>`;
+  const ranks = rankAll(sorted);
+  const widest = (a, b) => b.length > a.length ? b : a;
+  const wide = {
+    name: ["", "", ""],
+    weapon: ["", "", ""],
+    echo: ["", "", ""],
+    mainstat: ["", "", ""],
+    dpr: ["", "", ""],
+    total: "",
+    pct: ""
+  };
+  sorted.forEach(([, run], i) => {
+    run.members.forEach((m, pos) => {
+      const combo = run.combo[pos];
+      const mdps = m.mainDps;
+      wide.name[pos] = widest(wide.name[pos], memberLabel(m, combo));
+      if (mdps ? filters.mdpsWeapons : filters.supportWeapons)
+        wide.weapon[pos] = widest(wide.weapon[pos], combo.weapon.name);
+      if (mdps ? filters.mdpsEchoes : filters.supportEchoes) {
+        for (const line of echoLines(m.loadout, combo.echo))
+          wide.echo[pos] = widest(wide.echo[pos], line);
+      }
+      if (mdps ? filters.mdpsMainstats : filters.supportMainstats)
+        wide.mainstat[pos] = widest(wide.mainstat[pos], combo.mainstat.name);
+      wide.dpr[pos] = widest(wide.dpr[pos], fmt(run.bySlot.get(m.name) ?? 0));
+    });
+    wide.total = widest(wide.total, fmt(run.total));
+    wide.pct = widest(wide.pct, ranks[i].pct);
+  });
+  const ghostPos = (i) => `<div class="c name res"><span class="res-label">${esc(wide.name[i])}</span></div>` + (weaponOpenAt[i] ? `<div class="c option">${esc(wide.weapon[i])}</div>` : "") + (echoOpenAt[i] ? `<div class="c option">${esc(wide.echo[i])}</div>` : "") + (mainstatOpenAt[i] ? `<div class="c option">${esc(wide.mainstat[i])}</div>` : "") + (dprOpenAt[i] ? `<div class="c num slotdpr">${esc(wide.dpr[i])}</div>` : "");
+  const ghost = `<div class="trow tghost" aria-hidden="true">` + ghostPos(0) + ghostPos(1) + ghostPos(2) + `<div class="c num total gotodetail">${esc(wide.total)}<span class="arrow">\u203A</span></div><div class="c num total baseline">${esc(wide.pct)}</div></div>`;
+  tableView = { sorted, ranks, head, ghost, rowHtml, lines, extra };
+  return `<main><div class="tclayout"><aside class="tcside">${comparisonFilters()}</aside><div class="tcbody"><h2 class="summary-label" id="teamCount">${fmt(sorted.length)} teams</h2><div class="tcwrap"><div class="tgrid" style="${gridStyle}">${head}${ghost}</div></div></div></div></main>`;
 }
 var tableView = null;
 var rowHeight = 30;
@@ -1466,7 +1497,7 @@ function drawWindow(force = false, scrollTop) {
     const [key, run] = view.sorted[i];
     body += view.rowHtml(key, run, view.ranks[i]);
   }
-  grid.innerHTML = view.head + spacer(0, from) + body + spacer(to, n);
+  grid.innerHTML = view.head + view.ghost + spacer(0, from) + body + spacer(to, n);
   drawnFrom = from;
   drawnTo = to;
   if (!measured && to - from >= 2) {
@@ -1869,6 +1900,10 @@ function wireSourcePanels(root) {
   });
   addEventListener("scroll", close, true);
   addEventListener("resize", close);
+  addEventListener("resize", () => {
+    fitSide();
+    drawWindow(true);
+  });
 }
 var COLUMN_ORDER_KEY = "wuwa.logColumns";
 var savedOrder = () => {
@@ -2147,6 +2182,7 @@ function wireColumnDrag(root, columns) {
 }
 var app = document.getElementById("app");
 var backLink = document.getElementById("backLink");
+var topbar = document.getElementById("topbar");
 var results = /* @__PURE__ */ new Map();
 var visibleRows = [];
 var hashParams = () => new URLSearchParams(location.hash.replace(/^#/, ""));
@@ -2205,14 +2241,28 @@ var routeTeam = () => {
   const key = hashParams().get("team");
   return key && results.has(key) ? key : null;
 };
+function fitSide() {
+  const layout = app.querySelector(".tclayout");
+  const grid = app.querySelector(".tgrid");
+  const side = app.querySelector(".tcside");
+  if (!layout || !grid || !side)
+    return;
+  layout.classList.remove("stack");
+  if (getComputedStyle(layout).flexDirection !== "row")
+    return;
+  const gap = parseFloat(getComputedStyle(layout).columnGap) || 0;
+  if (grid.scrollWidth + side.offsetWidth + gap > layout.clientWidth)
+    layout.classList.add("stack");
+}
 function renderComparison() {
-  backLink.hidden = true;
+  topbar.hidden = true;
   document.body.querySelectorAll(":scope > .pop").forEach((el) => el.remove());
   const scrollTop = app.querySelector("main")?.scrollTop ?? 0;
   app.innerHTML = comparisonTable(visibleRows);
   app.className = "";
   measured = false;
   drawnFrom = drawnTo = -1;
+  fitSide();
   drawWindow(true, scrollTop);
   const main = app.querySelector("main");
   main.scrollTop = scrollTop;
@@ -2229,7 +2279,7 @@ function renderComparison() {
   }, { passive: true });
 }
 function renderDetail(key) {
-  backLink.hidden = false;
+  topbar.hidden = false;
   document.body.querySelectorAll(":scope > .pop").forEach((el) => el.remove());
   const run = results.get(key);
   app.innerHTML = page(run);

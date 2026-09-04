@@ -65,7 +65,7 @@ const BA2 = galbrenaAction("Basic - Slayer's Trigger 2", { node: Node.Normal, ca
 const BA3 = galbrenaAction("Basic - Slayer's Trigger 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 142.98, energy: 2.00, concerto: 2.80, offtune: 6394, forte1: 18.52 });
 const BA4 = galbrenaAction("Basic - Slayer's Trigger 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Echo, mv: 177.86, energy: 2.49, concerto: 3.48, offtune: 7952, forte1: 14.81 });
 
-const DC = galbrenaAction("Basic - Blood for Blood (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Heavy, mv: 205.24, offtune: 6394, concerto: 12.8, energy: 2 });
+const DC = galbrenaAction("Dodge Counter - Blood for Blood", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Heavy, mv: 205.24, offtune: 6394, concerto: 12.8, energy: 2 });
 const MA = galbrenaAction("Basic - Ashfall Barrage (Plunge)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 143.15, energy: 2.00, concerto: 2.80, offtune: 6400 });
 const MASustained = galbrenaAction("Basic - Ashfall Barrage (Sustained Fire)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 26.84, energy: 0.38, concerto: 0.53, offtune: 1200 });
 

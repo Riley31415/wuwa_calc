@@ -118,8 +118,8 @@ const FROSTBIND = {
 const BA1 = hiyukiAction("Basic - Present Self 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 75.44, energy: 1.28, concerto: 2.44, offtune: 4336 });
 const BA2 = hiyukiAction("Basic - Present Self 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 90.25, energy: 1.53, concerto: 2.92, offtune: 5188 });
 const BA3 = hiyukiAction("Basic - Present Self 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 122.97, energy: 2.12, concerto: 3.99, offtune: 7070, forte1: 100, ...CHAFE });
-const MA = hiyukiAction("Basic - Present Self (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 128.18, energy: 2.17, concerto: 4.15, offtune: 7368 });
-const DC = hiyukiAction("Basic - Present Self 2 (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 173.75, energy: 2.94, concerto: 15.62, offtune: 9988 });
+const MA = hiyukiAction("Mid-air - Present Self", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 128.18, energy: 2.17, concerto: 4.15, offtune: 7368 });
+const DC = hiyukiAction("Dodge Counter - Present Self 2", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 173.75, energy: 2.94, concerto: 15.62, offtune: 9988 });
 /** Three arrows, considered Resonance Liberation DMG, and what opens Inward Vision. */
 const FrostSplinter = hiyukiAction("Heavy - Frost Splinter: Present Self", {
   node: Node.Normal, cast: Cast.Heavy, type: Type1.Liberation, mv: 317.23, energy: 5.23, concerto: 9.99, offtune: 17728, forte1: -300,
@@ -137,10 +137,10 @@ const FBA2 = hiyukiAction("Basic - Foreclaimed Self 2", { node: Node.Normal, cas
 const FBA3 = hiyukiAction("Basic - Foreclaimed Self 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Liberation, mv: 167.72, energy: 2.86, concerto: 5.45, offtune: 9640, forte2: 32, ...CHAFE });
 const FBA4 = hiyukiAction("Basic - Foreclaimed Self 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Liberation, mv: 149.65, energy: 2.55, concerto: 4.85, offtune: 8600, forte2: 30, ...CHAFE });
 const FBA5 = hiyukiAction("Basic - Foreclaimed Self 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Liberation, mv: 121.64, energy: 2.06, concerto: 3.94, offtune: 6993, forte2: 24, ...CHAFE });
-const FDC = hiyukiAction("Basic - Foreclaimed Self 2 (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Liberation, mv: 163.54, energy: 2.78, concerto: 15.30, offtune: 9400, forte2: 32 });
-const FMA1 = hiyukiAction("Basic - Foreclaimed Self 1 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Liberation, mv: 96.09, energy: 1.63, concerto: 3.13, offtune: 5523, forte2: 19 });
-const FMA2 = hiyukiAction("Basic - Foreclaimed Self 2 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Liberation, mv: 104.36, energy: 1.80, concerto: 3.40, offtune: 6000, forte2: 20, ...CHAFE });
-const FMA3 = hiyukiAction("Basic - Foreclaimed Self 3 (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Liberation, mv: 111.60, energy: 1.89, concerto: 3.61, offtune: 6416, forte2: 22, ...CHAFE });
+const FDC = hiyukiAction("Dodge Counter - Foreclaimed Self 2", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Liberation, mv: 163.54, energy: 2.78, concerto: 15.30, offtune: 9400, forte2: 32 });
+const FMA1 = hiyukiAction("Mid-air - Foreclaimed Self 1", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Liberation, mv: 96.09, energy: 1.63, concerto: 3.13, offtune: 5523, forte2: 19 });
+const FMA2 = hiyukiAction("Mid-air - Foreclaimed Self 2", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Liberation, mv: 104.36, energy: 1.80, concerto: 3.40, offtune: 6000, forte2: 20, ...CHAFE });
+const FMA3 = hiyukiAction("Mid-air - Foreclaimed Self 3", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Liberation, mv: 111.60, energy: 1.89, concerto: 3.61, offtune: 6416, forte2: 22, ...CHAFE });
 /** Hold Breath into the thrust — the Heavy she has before Whiteout Bitterfrost fills. */
 const UHA = hiyukiAction("Heavy - Foreclaimed Self", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Liberation, mv: 107.16, energy: 1.81, concerto: 3.47, offtune: 6160, forte2: 21 });
 /** Bitterfrost: trades all 3 Whiteout for a Snowforged Blade. Restores no Frostheart — the kit

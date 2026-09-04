@@ -48,10 +48,10 @@ const BA3 = qiuyuanAction("Basic - Inkwash 3", { node: Node.Normal, cast: Cast.B
 // grants no Soliloquy of its own; it exists to chain straight into Inkwash Stage 4
 const HA = qiuyuanAction("Heavy - Inkwash", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 165.61, energy: 2.09, concerto: 6.67, offtune: 6664 });
 
-const EBA1 = qiuyuanAction("Forte - Thus Spoke the Blade: Inkwash 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 119.3, energy: 1.5, concerto: 4.8, offtune: 4800, forte1: 100 });
-const EBA2 = qiuyuanAction("Forte - Thus Spoke the Blade: Inkwash 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 185.5, energy: 2.34, concerto: 7.47, offtune: 7464, forte1: 100 });
-const EBA3 = qiuyuanAction("Forte - Thus Spoke the Blade: Inkwash 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 145.77, energy: 3.69, concerto: 7.07, offtune: 5862, forte1: 100 });
-const EBA4 = qiuyuanAction("Forte - Thus Spoke the Blade: Inkwash 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 172.37, energy: 4.34, concerto: 8.33, offtune: 6936, forte1: 100 });
+const EBA1 = qiuyuanAction("Basic - Thus Spoke the Blade: Inkwash 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 119.3, energy: 1.5, concerto: 4.8, offtune: 4800, forte1: 100 });
+const EBA2 = qiuyuanAction("Basic - Thus Spoke the Blade: Inkwash 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 185.5, energy: 2.34, concerto: 7.47, offtune: 7464, forte1: 100 });
+const EBA3 = qiuyuanAction("Basic - Thus Spoke the Blade: Inkwash 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 145.77, energy: 3.69, concerto: 7.07, offtune: 5862, forte1: 100 });
+const EBA4 = qiuyuanAction("Basic - Thus Spoke the Blade: Inkwash 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 172.37, energy: 4.34, concerto: 8.33, offtune: 6936, forte1: 100 });
 
 const Skill = qiuyuanAction("Skill - Through the Groves", { node: Node.Skill, cast: Cast.Skill, type: Type1.Echo, mv: 215.52, energy: 15.09, concerto: 10, offtune: 8673 });
 
@@ -69,9 +69,9 @@ const Outro = qiuyuanAction("Outro - Strike Before Ready", {
 });
 
 // cast: HEAVY (real heavy-attack identity) plus cast2: ECHO ("considered as performing Echo Skill")
-const FHA1 = qiuyuanAction("Forte - Thus Spoke the Blade: To Teach", { node: Node.Forte, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Heavy, mv: 457.2, energy: 7.7, concerto: 14.75, offtune: 12265, forte1: -200 });
-const FHA2 = qiuyuanAction("Forte - Thus Spoke the Blade: To Save", { node: Node.Forte, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Heavy, mv: 209.67, energy: 3.54, concerto: 6.78, offtune: 5625, forte1: -200 });
-const FHA3 = qiuyuanAction("Forte - Thus Spoke the Blade: To Sacrifice", { node: Node.Forte, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Heavy, mv: 217.7, energy: 3.65, concerto: 7.01, offtune: 5840, forte1: -200 });
+const FHA1 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Teach", { node: Node.Forte, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Heavy, mv: 457.2, energy: 7.7, concerto: 14.75, offtune: 12265, forte1: -200 });
+const FHA2 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Save", { node: Node.Forte, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Heavy, mv: 209.67, energy: 3.54, concerto: 6.78, offtune: 5625, forte1: -200 });
+const FHA3 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Sacrifice", { node: Node.Forte, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Heavy, mv: 217.7, energy: 3.65, concerto: 7.01, offtune: 5840, forte1: -200 });
 
 /* ------------------------------------------------------------------------------------ buffs */
 

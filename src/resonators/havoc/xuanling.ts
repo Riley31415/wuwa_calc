@@ -113,8 +113,8 @@ const BA_A4 = yangyangAction("Basic - Azure Sword Stance 4", {
   node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 185.63, energy: 2.94, concerto: 5.85, offtune: 9337, forte1: -48,
   updateDebuffs: () => applyEnemy(HAVOC_BANE, 1),
 });
-const MA_A = yangyangAction("Basic - Azure Sword Stance (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: -12 });
-const DC_A = yangyangAction("Basic - Azure Sword Stance 2 (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 196.13, energy: 3.09, concerto: 16.18, offtune: 9865, forte1: -24 });
+const MA_A = yangyangAction("Mid-air - Azure Sword Stance", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 98.61, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: -12 });
+const DC_A = yangyangAction("Dodge Counter - Azure Sword Stance 2", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 196.13, energy: 3.09, concerto: 16.18, offtune: 9865, forte1: -24 });
 
 const BA_F1 = yangyangAction("Basic - Feather Sword Stance 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.54, energy: 1.26, concerto: 2.50, offtune: 4000, forte1: -12 });
 const BA_F2 = yangyangAction("Basic - Feather Sword Stance 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 100.68, energy: 1.59, concerto: 3.18, offtune: 5064, forte1: -24 });
@@ -123,8 +123,8 @@ const BA_F4 = yangyangAction("Basic - Feather Sword Stance 4", {
   node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 238.59, energy: 3.76, concerto: 7.50, offtune: 12000, forte1: -48,
   updateDebuffs: () => applyEnemy(HAVOC_BANE, 1),
 });
-const MA_F = yangyangAction("Basic - Feather Sword Stance (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: -12 });
-const DC_F = yangyangAction("Basic - Feather Sword Stance 2 (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 196.11, energy: 3.09, concerto: 16.18, offtune: 9864, forte1: -24 });
+const MA_F = yangyangAction("Mid-air - Feather Sword Stance", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 98.61, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: -12 });
+const DC_F = yangyangAction("Dodge Counter - Feather Sword Stance 2", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 196.11, energy: 3.09, concerto: 16.18, offtune: 9864, forte1: -24 });
 
 // --- Feather's Edge: the plain stance switch, castable any time and worth nothing but its own
 //     hit — the Flow forms below replace it the moment Melody empties.
@@ -133,33 +133,33 @@ const SwitchFeather = yangyangAction("Skill - Sword Stance Switch: Feather", { n
 
 // --- The Way of Ten Thousand Voices. Sword Stance Flow refills Melody outright rather than
 //     adding to it, so the refill is a set (the bar is at 0 by the time either is castable).
-const FlowAzure = yangyangAction("Forte Skill - Sword Stance Flow: Azure", {
+const FlowAzure = yangyangAction("Skill - Sword Stance Flow: Azure", {
   node: Node.Forte, cast: Cast.Skill, type: Type1.Heavy, mv: 116.60, energy: 11.61, concerto: 10.02, offtune: 5865, forte2: 1,forte1: 100,
   ...FLOW,
 });
-const FlowFeather = yangyangAction("Forte Skill - Sword Stance Flow: Feather", {
+const FlowFeather = yangyangAction("Skill - Sword Stance Flow: Feather", {
   node: Node.Forte, cast: Cast.Skill, type: Type1.Heavy, mv: 100.68, energy: 11.61, concerto: 10.02, offtune: 5064, forte2: 1, forte1: 100,
   ...FLOW,
 });
 
-const HeavyAzure = yangyangAction("Forte Heavy: Azure Sword Stance", {
+const HeavyAzure = yangyangAction("Forte Heavy - Azure Sword Stance", {
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 450.53, energy: 9.34, concerto: 15.00, offtune: 10666,
   updateDebuffs: () => applyEnemy(HAVOC_BANE, 2),
   updateBuffs: () => applyCurrent(BATED_BREATH, 1),
   afterAction: () => setForte2(0),
 });
-const HeavyFeather = yangyangAction("Forte Heavy: Feather Sword Stance", {
+const HeavyFeather = yangyangAction("Heavy - Feather Sword Stance", {
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 217.05, energy: 1.87, concerto: 4.67, offtune: 7465,
   updateDebuffs: () => applyEnemy(HAVOC_BANE, 2),
   updateBuffs: () => applyCurrent(STREAMING_STORM, 1),
 });
-const FeatherFall = yangyangAction("Forte Mid-air: Feather Fall", {
-  node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 110.97, energy: 1.26, concerto: 3.12, offtune: 4962,
+const FeatherFall = yangyangAction("Forte Mid-air - Feather Fall", {
+  node: Node.Forte, cast: Cast.MidAir, type: Type1.Heavy, mv: 110.97, energy: 1.26, concerto: 3.12, offtune: 4962,
   afterAction: () => setForte2(0),
 });
-const HiB1 = yangyangAction("Forte Basic: Havoc in Bloom 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 119.37, energy: 1.35, concerto: 3.36, offtune: 5337 });
-const HiB2 = yangyangAction("Forte Basic: Havoc in Bloom 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 223.13, energy: 2.50, concerto: 6.26, offtune: 9977 });
-const HiB3 = yangyangAction("Forte Basic: Havoc in Bloom 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 399.59, energy: 2.67, concerto: 12.67, offtune: 10665 });
+const HiB1 = yangyangAction("Basic - Havoc in Bloom 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 119.37, energy: 1.35, concerto: 3.36, offtune: 5337 });
+const HiB2 = yangyangAction("Basic - Havoc in Bloom 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 223.13, energy: 2.50, concerto: 6.26, offtune: 9977 });
+const HiB3 = yangyangAction("Basic - Havoc in Bloom 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 399.59, energy: 2.67, concerto: 12.67, offtune: 10665 });
 
 // --- Hush of a Thousand Voices. Heavy Attack DMG despite the cast, and it ends holding a plume.
 const Lib = yangyangAction("Liberation - Hush of a Thousand Voices", {

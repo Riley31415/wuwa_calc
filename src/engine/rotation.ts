@@ -566,9 +566,9 @@ export function runRotations(state: State, rotations: Rotation[], sections: numb
         runChain(nxt, d); // its outro hands straight back here; fall through to the normal visit
       } else {
         state.active = nxt;
-        // no swap row of the scheduler's own: the section's last cast — a `.swap()` form — is the
-        // leaving row itself
-        out[section]!.push(...run(state, [INTRO, ...d.body]));
+        // the swap back is the scheduler's own row, same as the opening scramble's: a real Swap
+        // row in the table, so whatever the section's last cast queued lands before it
+        out[section]!.push(...run(state, [INTRO, ...d.body, SWAP]));
         state.active = i;
         runChain(i, rotations[i]!.opener!); // the NOINTRO fill; its outro hands forward
         return;

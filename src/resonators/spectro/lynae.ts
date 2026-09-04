@@ -54,8 +54,8 @@ function lynaeAction(id: string, def: object): Action {
 const BA1 = lynaeAction("Basic - Chroma Drift 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.19, energy: 1.28, concerto: 4.59, offtune: 4080, forte1: 12 });
 const BA2 = lynaeAction("Basic - Chroma Drift 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 157.17, energy: 2.34, concerto: 8.37, offtune: 7440, forte1: 21 });
 const BA3 = lynaeAction("Basic - Chroma Drift 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.37, energy: 1.83, concerto: 6.57, offtune: 5840, forte1: 17 });
-const DC = lynaeAction("Basic - Chroma Drift (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 239.97, energy: 2.05, concerto: 17.38, offtune: 6560, forte1: 19 });
-const MA = lynaeAction("Basic - Chroma Drift (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 143.65, energy: 2.14, concerto: 7.66, offtune: 6800, forte1: 20 });
+const DC = lynaeAction("Dodge Counter - Chroma Drift", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 239.97, energy: 2.05, concerto: 17.38, offtune: 6560, forte1: 19 });
+const MA = lynaeAction("Mid-air - Chroma Drift", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 143.65, energy: 2.14, concerto: 7.66, offtune: 6800, forte1: 20 });
 const SparkCollision = lynaeAction("Basic - Spark Collision Lv. 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 555.56, energy: 8.22, concerto: 29.6, offtune: 26300, forte1: -120, forte2: 120 });
 
 // --- Kaleidoscopic Parade, the combo she actually plays
@@ -69,11 +69,11 @@ const GraffitiBlast = lynaeAction("Heavy - Kaleidoscopic Parade: Graffiti Blast"
 
 // --- Forte Circuit. These carry Photochromic Flux, which is what shifts the target (see the two
 //     Resonance Modes below). Visual Impact is the big one, on a 25s cooldown.
-const PolychromeLeap1 = lynaeAction("Forte - Polychrome Leap 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 101.4, energy: 2.25, concerto: 5.4, offtune: 4800, forte2: -40, forte3: 1 });
-const PolychromeLeap2 = lynaeAction("Forte - Polychrome Leap 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 101.4, energy: 2.28, concerto: 5.4, offtune: 4800, forte2: -40, forte3: 1 });
-const PolychromeLeap3 = lynaeAction("Forte - Polychrome Leap 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 104.8, energy: 2.4, concerto: 5.6, offtune: 4960, forte2: -40, forte3: 1 });
-const IridescentSplash = lynaeAction("Forte - Iridescent Splash", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 304.18, energy: 8.13, concerto: 7.65, offtune: 6800, forte3: -3 });
-const VisualImpact = lynaeAction("Forte - Visual Impact", {
+const PolychromeLeap1 = lynaeAction("Forte Basic - Polychrome Leap 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 101.4, energy: 2.25, concerto: 5.4, offtune: 4800, forte2: -40, forte3: 1 });
+const PolychromeLeap2 = lynaeAction("Forte Basic - Polychrome Leap 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 101.4, energy: 2.28, concerto: 5.4, offtune: 4800, forte2: -40, forte3: 1 });
+const PolychromeLeap3 = lynaeAction("Forte Basic - Polychrome Leap 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 104.8, energy: 2.4, concerto: 5.6, offtune: 4960, forte2: -40, forte3: 1 });
+const IridescentSplash = lynaeAction("Forte Basic - Iridescent Splash", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 304.18, energy: 8.13, concerto: 7.65, offtune: 6800, forte3: -3 });
+const VisualImpact = lynaeAction("Forte Basic - Visual Impact", {
   node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 1216.72, energy: 14.05, concerto: 14.58, offtune: 60960, forte3: -3,
   updateBuffs: () => applyTeam(SPECTRAL_ANALYSIS_TBB, 1),
 });

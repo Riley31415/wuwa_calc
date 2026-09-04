@@ -102,8 +102,8 @@ const Outro = lucillaAction("Outro - Montage", {
 const BA1 = lucillaAction("Basic - Snapshot 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 59.29, energy: 1.07, concerto: 1.71, offtune: 3408 });
 const BA2 = lucillaAction("Basic - Snapshot 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 67.23, energy: 1.22, concerto: 1.94, offtune: 3865 });
 const BA3 = lucillaAction("Basic - Snapshot 3 - Commendable", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 235.27, energy: 4.23, concerto: 6.77, offtune: 13524, forte1: 50 });
-const MA = lucillaAction("Basic - Snapshot (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.29, energy: 1.55, concerto: 3.66, offtune: 4960 });
-const DC = lucillaAction("Basic - Snapshot (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 150.73, energy: 2.71, concerto: 16.4, offtune: 8665 });
+const MA = lucillaAction("Mid-air - Snapshot", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 86.29, energy: 1.55, concerto: 3.66, offtune: 4960 });
+const DC = lucillaAction("Dodge Counter - Snapshot", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 150.73, energy: 2.71, concerto: 16.4, offtune: 8665 });
 
 // Phantom Frame (the pull-in dash, held to deploy Focus Ring) into either Compensate (cursor
 // outside Perfect Focus) or Spotlight (cursor within it); the rotation below only places
@@ -147,7 +147,7 @@ const UBA3 = lucillaAction("Basic - Tracing Forms 3", {
  *  unlike the Liberation and Letting It Go below: the modes differ in *cast* here too (Echo mode's
  *  is a real Echo cast, what "on Echo cast" watchers fire on; Chafe mode's is no cast at all), and
  *  typeOverride only assigns a damage type. */
-const OblivionEcho = lucillaAction("Forte - Oblivion (Echo)", { node: Node.Forte, cast: Cast.Echo, type: Type1.Echo, mv: 285.48, offtune: 9600, forte1: -50 });
+const OblivionEcho = lucillaAction("Forte Echo - Oblivion", { node: Node.Forte, cast: Cast.Echo, type: Type1.Echo, mv: 285.48, offtune: 9600, forte1: -50 });
 const OblivionChafe = lucillaAction("Forte - Oblivion (Chafe)", { node: Node.Forte, type: Type1.Basic, mv: 285.48, offtune: 9600, forte1: -50, ...CHAFES });
 
 // concerto is 7.88 off its own 3 Damage Data hits, plus a separate flat +20 the page states

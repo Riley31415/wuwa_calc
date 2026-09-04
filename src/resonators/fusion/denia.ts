@@ -94,8 +94,8 @@ const BA2 = deniaAction("Basic - Stagecraft Form 2", { node: Node.Normal, cast: 
 const BA3 = deniaAction("Basic - Stagecraft Form 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 76.47, energy: 1.62, concerto: 3.21, offtune: 5130, forte1: 9 });
 const BA4 = deniaAction("Basic - Stagecraft Form 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 128, energy: 0.69, concerto: 5.37, offtune: 8584, forte1: 30 });
 const HA = deniaAction("Heavy - Stagecraft Form", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 161.52, energy: 3.40, concerto: 6.78, offtune: 10832, forte1: 20 });
-const MA = deniaAction("Basic - Stagecraft Form (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.97, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: 10 });
-const DC = deniaAction("Basic - Stagecraft Form 3 (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 148.05, energy: 3.12, concerto: 16.21, offtune: 5130, forte1: 18 });
+const MA = deniaAction("Mid-air - Stagecraft Form", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 73.97, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: 10 });
+const DC = deniaAction("Dodge Counter - Stagecraft Form 3", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 148.05, energy: 3.12, concerto: 16.21, offtune: 5130, forte1: 18 });
 
 // --- Breakdown Form: Basic Attack DMG, banking Conformal Charge (forte2). Each also declares the
 //     Void Particle (forte1) it spends when she holds any — the sheet's own figures, declared here
@@ -114,16 +114,16 @@ const UMHA = deniaAction("Heavy - Breakdown Form (Mid-Air)", { node: Node.Normal
 // nothing separates them, so a rotation still says which one it played — the same reason the
 // mid-air chain has its own entries above. nanoka has a single 108.08% "Dodge Counter - Breakdown
 // Form" row instead, matching neither.
-const UDC = deniaAction("Basic - Breakdown Form 3 (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 62.39, energy: 1.31, concerto: 12.62, offtune: 4184, forte1: -30, forte2: 6 });
-const UMDC = deniaAction("Basic - Breakdown Form 3 (Mid-Air Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 62.39, energy: 1.31, concerto: 12.62, offtune: 4184, forte1: -30, forte2: 6 });
+const UDC = deniaAction("Dodge Counter - Breakdown Form 3", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 62.39, energy: 1.31, concerto: 12.62, offtune: 4184, forte1: -30, forte2: 6 });
+const UMDC = deniaAction("Dodge Counter - Breakdown Form 3 (Mid-Air)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 62.39, energy: 1.31, concerto: 12.62, offtune: 4184, forte1: -30, forte2: 6 });
 
 // --- Resonance Skill: Phantom Bubble in Stagecraft (its 24.4 Concerto is what makes her loop),
 //     Beckon in Breakdown, or Banish in its place while a Dark Core is held. Stage 2 spends every
 //     core for +150% of its base multiplier apiece (see BANISH_CORES) and is Liberation DMG.
 const Skill = deniaAction("Skill - Phantom Bubble", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 104.51, energy: 0.22, concerto: 24.40, offtune: 7008, forte1: 25 });
 const Beckon = deniaAction("Skill - Beckon", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 103.70, energy: 2.21, concerto: 4.36, offtune: 6956, forte2: 13 });
-const Banish1 = deniaAction("Forte Skill - Banish 1", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 104.04, energy: 2.19, concerto: 4.38, offtune: 6978 });
-const Banish2 = deniaAction("Forte Skill - Banish 2", { node: Node.Skill, cast: Cast.Skill, type: Type1.Liberation, mv: 112.01, energy: 2.35, concerto: 14.70, offtune: 7512, forte2: 40 });
+const Banish1 = deniaAction("Skill - Banish 1", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 104.04, energy: 2.19, concerto: 4.38, offtune: 6978 });
+const Banish2 = deniaAction("Skill - Banish 2", { node: Node.Skill, cast: Cast.Skill, type: Type1.Liberation, mv: 112.01, energy: 2.35, concerto: 14.70, offtune: 7512, forte2: 40 });
 
 // --- Final Act. Stagecraft spends the Energy bar (125); Breakdown spends the full Conformal
 //     Charge and every Void Particle instead (zeroed in DENIA_RESONATOR's update — "all", not a fixed
@@ -381,7 +381,7 @@ const DENIA_RESONATOR = new Resonator({
  *  the next loop's Intro picks up. */
 const UBA1234 = new ActionGroup("Basic - Breakdown Form 1234", [UBA1, UBA2, UBA3, UBA4]);
 const UBA12 = new ActionGroup("Basic - Breakdown Form 12", [UBA1, UBA2]);
-const USkill12 = new ActionGroup("Forte Skill - Banish 12", [Banish1, Banish2]);
+const USkill12 = new ActionGroup("Skill - Banish 12", [Banish1, Banish2]);
 
 const DN_ROTATION_BURST = new Rotation([
   NOINTRO, BA4, Skill, Lib1,

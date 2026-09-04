@@ -87,8 +87,8 @@ const ABA3 = aemeathAction("Basic - Aemeath 3", { node: Node.Normal, cast: Cast.
 const ABA4 = aemeathAction("Basic - Aemeath 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 134.59, energy: 2.47, concerto: 4.88, offtune: 7737, forte1: 23.31, ...DUO });
 const AHA1 = aemeathAction("Heavy - Aemeath: Charged I", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Liberation, mv: 92.83, energy: 1.68, concerto: 3.34, offtune: 5337 });
 const AHA2 = aemeathAction("Heavy - Aemeath: Charged II", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Liberation, mv: 232, energy: 4.18, concerto: 8.35, offtune: 13337 });
-const AMA = aemeathAction("Basic - Aemeath (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.29, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: 11.71 });
-const ADC = aemeathAction("Basic - Aemeath (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 260.15, energy: 3.19, concerto: 16.37, offtune: 10155, forte1: 28.99 });
+const AMA = aemeathAction("Mid-air - Aemeath", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 86.29, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: 11.71 });
+const ADC = aemeathAction("Dodge Counter - Aemeath", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 260.15, energy: 3.19, concerto: 16.37, offtune: 10155, forte1: 28.99 });
 
 // --- Mech form
 const MBA1 = aemeathAction("Basic - Mech 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 69.60, energy: 1.26, concerto: 2.52, offtune: 4002, forte1: 6.45 });
@@ -97,7 +97,7 @@ const MBA3 = aemeathAction("Basic - Mech 3", { node: Node.Normal, cast: Cast.Bas
 const MBA4 = aemeathAction("Basic - Mech 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 134.59, energy: 2.43, concerto: 4.85, offtune: 7737, forte1: 23.28, ...DUO });
 const MHA1 = aemeathAction("Heavy - Mech: Charged I", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Liberation, mv: 92.83, energy: 1.67, concerto: 3.34, offtune: 5336 });
 const MHA2 = aemeathAction("Heavy - Mech: Charged II", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Liberation, mv: 232, energy: 4.17, concerto: 8.34, offtune: 13336 });
-const MDC = aemeathAction("Basic - Mech (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 283.49, energy: 3.60, concerto: 17.19, offtune: 11502, forte1: 32.20 });
+const MDC = aemeathAction("Dodge Counter - Mech", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 283.49, energy: 3.60, concerto: 17.19, offtune: 11502, forte1: 32.20 });
 
 // --- Resonance Skill: the Sync Strikes, combo follow-ups off Stage 2-4, a heavy or a dodge counter
 const ArmamentMerge = aemeathAction("Skill - Sync Strike: Armament Merge", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 134.59, energy: 2.43, concerto: 4.85, offtune: 7737, forte1: 18.29, ...TO_MECH });

@@ -122,7 +122,7 @@ const BA2 = chisaAction("Basic - Reign of Silence 2", { node: Node.Normal, cast:
 /** Dodge Counter's own Reign of Silence 2 — a bigger single burst than the plain combo stage,
  *  triggered off a successful Dodge rather than chained from Stage 1. Not in the rotation (nothing
  *  here models incoming attacks to dodge), defined for completeness. */
-const DodgeCounterBA2 = chisaAction("Basic - Reign of Silence 2 (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 238.59, energy: 5.00, concerto: 10.00, offtune: 11200, forte1: 23 });
+const DodgeCounterBA2 = chisaAction("Dodge Counter - Reign of Silence 2", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 238.59, energy: 5.00, concerto: 10.00, offtune: 11200, forte1: 23 });
 const BA3 = chisaAction("Basic - Rending Lunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 151.10, energy: 3.19, concerto: 6.37, offtune: 10137, forte1: 20 });
 /** "The skill DMG is considered Resonance Liberation DMG" per the kit page — matches wuwalab's own
  *  damage_type for both hits. */
@@ -132,7 +132,7 @@ const DeathSnipSpread = chisaAction("Basic - Death Snip With Spread", { node: No
 const ThreadWithdrawn = chisaAction("Basic - Thread Withdrawn", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 67.65, energy: 1.44, concerto: 2.85, offtune: 4538, forte1: 16 });
 /** The airborne normal attack — not part of the ground string, chains into Reign of Silence 2 in
  *  mid-air instead. Not in the rotation (nothing here models being airborne), defined for completeness. */
-const ReignOfSilenceMidAir = chisaAction("Basic - Reign of Silence (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.96, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: 9 });
+const ReignOfSilenceMidAir = chisaAction("Mid-air - Reign of Silence", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 73.96, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: 9 });
 
 const HA = chisaAction("Heavy - Reign of Silence", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 71.58, energy: 1.50, concerto: 3.00, offtune: 4800, forte1: 10 });
 /** Heavy Attack's own mid-air follow-up, chaining into Hanging Finality. Not in the rotation. */

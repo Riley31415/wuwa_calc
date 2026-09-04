@@ -67,7 +67,7 @@ const BA1 = danjinAction("Basic - Execution 1", { node: Node.Normal, cast: Cast.
 const BA2 = danjinAction("Basic - Execution 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 58.85, energy: 0.92, concerto: 1.11, offtune: 2960 });
 const BA3 = danjinAction("Basic - Execution 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.53, energy: 1.25, concerto: 1.5, offtune: 3120 });
 
-const MA = danjinAction("Mid-air - Execution", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 0.51, concerto: 1, offtune: 9600 });
+const MA = danjinAction("Mid-air - Execution", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 98.61, energy: 0.51, concerto: 1, offtune: 9600 });
 const HA = danjinAction("Heavy - Execution", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 111.36, energy: 1.74, concerto: 2.1, offtune: 5358 }); // 37.12% x3
 /** A successful Dodge Counter opens the Skill's own Crimson Erosion form, and grants Crimson Light. */
 const DC = danjinAction("Dodge Counter - Ruby Shades", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 190.86, energy: 3, concerto: 11.8, offtune: 4800 }); // 63.62% x3
@@ -88,14 +88,14 @@ const SanguinePulse3 = danjinAction("Skill - Sanguine Pulse 3", { node: Node.Ski
 // Chaoscleave (Heavy Attack DMG, at 60+ Ruby Blossom) into Scatterbloom
 // updateDebuffs on both Chaoscleaves is her own healing marker, read by every healing sonata and
 // weapon (statuses.ts) — applied to the healer alone, never the team
-const Chaoscleave = danjinAction("Heavy - Chaoscleave", {
+const Chaoscleave = danjinAction("Forte Heavy - Chaoscleave", {
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 417.55, forte1: -60, energy: 14, concerto: 50, offtune: 11578, // 59.65% x7
   updateDebuffs: () => applyCurrent(HEALS, 1),
 });
 const Scatterbloom = danjinAction("Heavy - Scatterbloom", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 178.93, energy: 6, offtune: 5360 });
 /** Full Energy variants, at 120 Ruby Blossom — spends 120 instead of 60. No separate Concerto
  *  Regen is given, so it carries Chaoscleave's own. */
-const FullChaoscleave = danjinAction("Heavy - Chaoscleave (Full Energy)", {
+const FullChaoscleave = danjinAction("Forte Heavy - Chaoscleave (Full Energy)", {
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 1002.05, forte1: -120, energy: 14, concerto: 50, offtune: 11578, // 143.15% x7
   updateDebuffs: () => applyCurrent(HEALS, 1),
 });

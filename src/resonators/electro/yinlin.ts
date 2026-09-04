@@ -62,8 +62,8 @@ const BA3 = yinlinAction("Basic - Zapstring's Dance 3", { node: Node.Normal, cas
 const BA4 = yinlinAction("Basic - Zapstring's Dance 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 75.16, energy: 1.50, concerto: 6.00, offtune: 4976, forte1: 4 });
 
 const HA = yinlinAction("Heavy - Zapstring's Dance", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 29.83 * 2, energy: 1.80, concerto: 4.50, offtune: 9392, forte1: 8 });
-const MA = yinlinAction("Basic - Zapstring's Dance (Mid-Air)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.27, energy: 0.51, concerto: 5.00, offtune: 4960, forte1: 2 });
-const DC = yinlinAction("Basic - Zapstring's Dance (Dodge Counter)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 24.22 * 7, energy: 3.99, concerto: 17.00, offtune: 11746 });
+const MA = yinlinAction("Mid-air - Zapstring's Dance", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 123.27, energy: 0.51, concerto: 5.00, offtune: 4960, forte1: 2 });
+const DC = yinlinAction("Dodge Counter - Zapstring's Dance", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 24.22 * 7, energy: 3.99, concerto: 17.00, offtune: 11746 });
 
 // Magnetic Roar opens Execution Mode; Lightning Execution is the follow-up Skill press
 const Skill1 = yinlinAction("Skill - Magnetic Roar", {
@@ -115,7 +115,7 @@ const PUNISHMENT_MARK = coordinatedBuff("Yinlin: Punishment Mark", 18, () => YIN
 const EXECUTION_MODE: Buff = new Buff({
   name: "Yinlin: Execution Mode", maxStacks: 4,
   updateBuffs: () => {
-    if ((casting(Cast.Basic) || casting(Cast.DodgeCounter)) && stacksOfEnemy(SINNERS_MARK)) {
+    if ((casting(Cast.Basic) || casting(Cast.MidAir) || casting(Cast.DodgeCounter)) && stacksOfEnemy(SINNERS_MARK)) {
       queue(ACTION_BLAST);
       removeStack(EXECUTION_MODE, 1);
     }
@@ -168,7 +168,7 @@ const YINLIN_RESONATOR = new Resonator({
   updateBuffs: () => {
     // this runs ahead of EXECUTION_MODE's own update (equipped gear first), so a Basic's own
     // fresh mark already gates that same cast's Blast
-    if (casting(Cast.Basic) || casting(Cast.DodgeCounter) || casting(Cast.Intro) || currentAction() === Liberation) {
+    if (casting(Cast.Basic) || casting(Cast.MidAir) || casting(Cast.DodgeCounter) || casting(Cast.Intro) || currentAction() === Liberation) {
       applyEnemy(SINNERS_MARK, 1);
     }
   },

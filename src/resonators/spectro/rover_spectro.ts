@@ -44,8 +44,8 @@ const BA1 = roverAction("Basic - Vibration Manifestation 1", { node: Node.Normal
 const BA2 = roverAction("Basic - Vibration Manifestation 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 76.05, energy: 1, concerto: 4, offtune: 3600, forte1: 5 });
 const BA3 = roverAction("Basic - Vibration Manifestation 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 76.05, energy: 1.5, concerto: 4, offtune: 3600, forte1: 5 });
 const BA4 = roverAction("Basic - Vibration Manifestation 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 130.13, energy: 2, concerto: 6, offtune: 6160, forte1: 7 });
-const MA = roverAction("Basic - Mid-air Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 0.51, concerto: 1, offtune: 4960 });
-const DC = roverAction("Basic - Dodge Counter", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 195.34, energy: 2.62, concerto: 13.6, offtune: 3600 });
+const MA = roverAction("Mid-air - Attack", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 104.78, energy: 0.51, concerto: 1, offtune: 4960 });
+const DC = roverAction("Dodge Counter - Vibration Manifestation", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 195.34, energy: 2.62, concerto: 13.6, offtune: 3600 });
 
 const HA1 = roverAction("Heavy - Attack", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 96.35, energy: 1.4, concerto: 4.55, offtune: 22800, forte1: 5 });
 const HA2 = roverAction("Heavy - Resonance", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 76.05, energy: 1.12, concerto: 3.6, offtune: 3600 });
@@ -61,7 +61,7 @@ const FSkill1 = roverAction("Forte Skill - Resonating Spin", {
   updateDebuffs: () => {applyEnemy(SPECTRO_FRAZZLE, 2); queue(ResonatingWhirl); }
 });
 const ResonatingWhirl = roverAction("Forte Skill - Resonating Whirl", { node: Node.Forte, type: Type1.Skill, mv: 39.77, energy: 2 });
-const FBA = roverAction("Forte Basic - Resonating Echoes", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 238.58, energy: 2.5, concerto: 8, offtune: 7200 });
+const FBA = roverAction("Basic - Resonating Echoes", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 238.58, energy: 2.5, concerto: 8, offtune: 7200 });
 
 // --- liberation / intro / outro. Instant is a stasis field only — no damage, no stat.
 // HEALS is her own healing marker, read by every healing sonata and weapon (statuses.ts) —
