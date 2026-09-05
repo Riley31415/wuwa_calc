@@ -25,7 +25,7 @@ import {
   revokeTeam,
   addStat,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START_1, START_2, START_3, SWAP, NOINTRO, INTRO, ECHO_CANCEL, OUTRO, DODGE, JUMP } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_1, START_2, START_3, SWAP, NOINTRO, INTRO, ECHO_CANCEL, OUTRO, DODGE, JUMP, ECHO_SWAP } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { SK_SIG } from "../../weapons/rectifier.js";
 import { VARIATION } from "../../weapons/standard.js";
@@ -228,17 +228,30 @@ const SHOREKEEPER_TALENTS = new Talent({
 const BA123 = new ActionGroup("Basic - Origin Calculus 123", [BA1, BA2, BA3]);
 
 const SK_LOOP = new Rotation([
-  START_3, Skill, ECHO_CANCEL, Liberation, SWAP,
+  START_3, Skill, Liberation, ECHO_SWAP, SWAP,
 
   NOINTRO, 
   BA123, JUMP, MA, FHA,
   Skill, BA2, BA3, DODGE,
   BA1, BA2, FHA, 
-  ECHO_CANCEL, Liberation, OUTRO,
+  Liberation, ECHO_SWAP, OUTRO,
 
   INTRO, BA123, JUMP, MA, FHA,
   START_2, Skill, SWAP,
-  ECHO_CANCEL, Liberation, OUTRO,
+  Liberation, ECHO_SWAP, OUTRO,
+]);
+
+const SK_LOOP_S3 = new Rotation([
+  START_3, Skill, Liberation, ECHO_SWAP, SWAP,
+
+  NOINTRO, 
+  BA123, JUMP, MA, FHA,
+  Skill,
+  Liberation, ECHO_SWAP, OUTRO,
+
+  INTRO, BA1,
+  START_2, Skill, SWAP,
+  Liberation, ECHO_SWAP, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -256,5 +269,5 @@ export const SHOREKEEPER = new Loadout({
   sequences: [SK_S1, SK_S2, SK_S3, SK_S4, SK_S5, SK_S6],
   mainstats: [mainstats(Mainstat.HP4, Mainstat.ER3, Mainstat.ER3, Mainstat.HP1, Mainstat.HP1)],
   substat: chem("hp", "liberation"),
-    rotation: SK_LOOP,
+    rotation: [SK_LOOP, SK_LOOP, SK_LOOP, SK_LOOP_S3],
 });

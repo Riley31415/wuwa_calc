@@ -23,7 +23,7 @@ import { TUNE_STRAIN_INTERFERED } from "../shared/tunebreak.js";
 /* ---------------------------------------------------------------- Ceaseless Aria (4-star, 5) */
 
 /** One Ceaseless Aria instance a weapon, so each carries its own name for attribution. Granted
- *  on the wielder's first Resonance Skill cast (restoring Concerto) and promoted to cooldown the
+ *  on the wielder's first Resonance Skill cast (restoring 16 Concerto at R5) and promoted to cooldown the
  *  same action; a repeat cast on cooldown does nothing. Lost entirely on the wielder's Outro. */
 function ceaselessAria(name: string): Buff {
   const buff: Buff = new Buff({

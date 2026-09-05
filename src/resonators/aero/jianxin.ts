@@ -57,7 +57,7 @@ const BA4 = jianxinAction("Basic - Fengyiquan 4", { node: Node.Normal, cast: Cas
 const HA = jianxinAction("Heavy - Fengyiquan", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 126.07, energy: 1.87, concerto: 5.96, offtune: 6000, forte1: 9 });
 const MA = jianxinAction("Mid-air - Fengyiquan", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 123.27, energy: 0.52, concerto: 1, offtune: 4960, forte1: 6 });
 const DC = jianxinAction("Dodge Counter - Fengyiquan", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 244.94, energy: 3.10, concerto: 16.68, offtune: 13143, forte1: 17 });
-
+const BA1234 = new ActionGroup("Basic - Fengyiquan 1234", [BA1, BA2, BA3, BA4]);
 // --- Calming Air: the Parry Stance (8 Concerto on the cast) ends either as Chi Parry (released)
 //     or Chi Counter (attacked — S3 makes it available after 2.5s regardless); each cast is one
 //     press of the skill, so each carries the stance's own 8 plus its own 14.
@@ -80,19 +80,19 @@ const FHA = jianxinAction("Forte Heavy - Primordial Chi Spiral", {
   node: Node.Forte, cast: Cast.Heavy, forte1: -120,
   updateBuffs: () => { if (forte1() > 120) setForte1(120); },
 });
-const ChiStrike = jianxinAction("Heavy - Zhoutian: Chi Strike", { 
+const ChiStrike = jianxinAction("Forte Heavy - Zhoutian: Chi Strike", { 
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, 
   mv: 24.86, energy: 0.3, offtune: 2000 
 });
-const MinorShock = jianxinAction("Heavy - Minor Zhoutian: Shock", { 
+const MinorShock = jianxinAction("Forte Heavy - Minor Zhoutian: Shock", { 
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, 
   mv: 139.17, energy: 2, concerto: 5, offtune: 3920 
 });
-const InnerShock = jianxinAction("Heavy - Major Zhoutian (Inner): Shock", { 
+const InnerShock = jianxinAction("Forte Heavy - Major Zhoutian (Inner): Shock", { 
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy,
    mv: 377.74, energy: 8, concerto: 18, offtune: 5120 
   });
-const OuterShock = jianxinAction("Heavy - Major Zhoutian (Outer): Shock", {
+const OuterShock = jianxinAction("Forte Heavy - Major Zhoutian (Outer): Shock", {
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 516.91, energy: 15.61, concerto: 23, offtune: 7360,
   updateDebuffs: () => { applyCurrent(SHIELD, 1); applyCurrent(HEALS, 1); },
 });
@@ -100,11 +100,11 @@ const OuterShock = jianxinAction("Heavy - Major Zhoutian (Outer): Shock", {
 /** Releasing early: Pushing Punch before Minor Zhoutian, Yielding Pull after it — the Chi is
  *  already spent by the hold, so each is just its hit, and it leaves the shield of the stage
  *  reached (the same marker, and the same 6s heal). */
-const PushingPunch = jianxinAction("Heavy - Pushing Punch", {
+const PushingPunch = jianxinAction("Forte Heavy - Pushing Punch", {
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 248.52, energy: 8, concerto: 10, offtune: 5280,
   updateDebuffs: () => { applyCurrent(SHIELD, 1); applyCurrent(HEALS, 1); },
 });
-const YieldingPull = jianxinAction("Heavy - Yielding Pull", {
+const YieldingPull = jianxinAction("Forte Heavy - Yielding Pull", {
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 218.7, energy: 3, concerto: 7, offtune: 7200,
   updateDebuffs: () => { applyCurrent(SHIELD, 1); applyCurrent(HEALS, 1); },
 });
@@ -113,16 +113,16 @@ const YieldingPull = jianxinAction("Heavy - Yielding Pull", {
  *  Minor Zhoutian (Pushing Punch, level 1), right after Minor (Yielding Pull, 2), right after
  *  Major Inner (Yielding Pull, 3), or run through to Major Outer (4). Two Chi Strikes ahead of
  *  each Shock throughout (see the file header). */
-const ZHOUTIAN_1 = new ActionGroup("Heavy - Primordial Chi Spiral (Zhoutian 1)", [
+const ZHOUTIAN_1 = new ActionGroup("Forte Heavy - Primordial Chi Spiral (Zhoutian 1)", [
   FHA, PushingPunch
 ]);
-const ZHOUTIAN_2 = new ActionGroup("Heavy - Primordial Chi Spiral (Zhoutian 2)", [
+const ZHOUTIAN_2 = new ActionGroup("Forte Heavy - Primordial Chi Spiral (Zhoutian 2)", [
   FHA, MinorShock, YieldingPull // missing chi strikes
 ]);
-const ZHOUTIAN_3 = new ActionGroup("Heavy - Primordial Chi Spiral (Zhoutian 3)", [
+const ZHOUTIAN_3 = new ActionGroup("Forte Heavy - Primordial Chi Spiral (Zhoutian 3)", [
   FHA, MinorShock, InnerShock, YieldingPull, // missing chi strikes
 ]);
-const ZHOUTIAN_4 = new ActionGroup("Heavy - Primordial Chi Spiral (Zhoutian 4)", [
+const ZHOUTIAN_4 = new ActionGroup("Forte Heavy - Primordial Chi Spiral (Zhoutian 4)", [
   FHA, MinorShock, InnerShock, OuterShock, // missing chi strikes
 ]);
 
@@ -216,7 +216,10 @@ const JIANXIN_RESONATOR = new Resonator({
 /** Intro (40 Chi, S1 up), Chi Parry, the basic chain at double Chi, the second Chi Parry (S2), the
  *  Spiral on a full gauge, the Liberation under S4, the echo and out. Never the team's lead. */
 const JX_ROTATION = new Rotation([
-  INTRO, ChiParry, ChiParry, Liberation, FHA, PushingPunch, ECHO_SWAP, OUTRO,
+  INTRO, BA1234, ChiParry, Liberation, ZHOUTIAN_1, ECHO_SWAP, OUTRO,
+]);
+const JX_ROTATION_S2 = new Rotation([
+  INTRO, ChiParry, ChiParry, Liberation, ZHOUTIAN_1, ECHO_SWAP, OUTRO,
 ]);
 
 export const JIANXIN = new Loadout({
@@ -228,6 +231,6 @@ export const JIANXIN = new Loadout({
   echoLoadouts: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.Aero3, Mainstat.ATK3, Mainstat.ATK1),
   substat: chem("atk", "liberation"),
-  rotation: JX_ROTATION,
+  rotation: [JX_ROTATION, JX_ROTATION, JX_ROTATION_S2],
   sequences: [S1, S2, S3, S4, S5, S6],
 });

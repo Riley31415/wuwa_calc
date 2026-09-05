@@ -211,7 +211,7 @@ export const enum WeaponType {
  *
  *  - `Limited` — a limited 5-star, banner-only: S0, one copy is the whole build.
  *  - `Standard` — a standard 5-star, permanently available and pulled into over time (Encore,
- *    Jianxin, Verina): S2.
+ *    Jianxin, Verina): S0, same as a limited one — the chain is still a build choice, not owned.
  *  - `Free` — a 4-star or a Rover, handed out freely: S6, the full chain.
  *
  *  For the first two that level is a *baseline*, not a ceiling — with that role's own Sequences box

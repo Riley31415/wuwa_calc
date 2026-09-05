@@ -70,7 +70,6 @@ POLL_SECONDS = 0.4
 _stamp = "0"
 _lock = threading.Lock()
 
-
 def _snapshot() -> dict:
     """path -> mtime for every watched file. node_modules is excluded (huge, irrelevant, slow to
     walk every 400ms), and so is tsc's own output: what the page loads is esbuild's re-bundle of

@@ -1029,7 +1029,7 @@ function searchResults(): string {
  *  below, each row the same four axes plus that role's own R1 allowance.
  *
  *  Sequences: unchecked, that role's own members each run their resonator's baseline chain level
- *  and nothing else — S0 for a limited 5-star, S2 for a standard one, S6 for a 4-star or Rover
+ *  and nothing else — S0 for a limited or standard 5-star, S6 for a 4-star or Rover
  *  (see stats.ts's own `Tier`). Checked, every level from that baseline up to S6 opens a row of
  *  its own. A `Tier.Free` resonator is already at the top, so the box never adds a row for them.
  *
@@ -1048,13 +1048,13 @@ function searchResults(): string {
  *  way the other three axes do (it drops whole teams instead, see `sequenceLevels()`), but it does
  *  change what every member cell is called, so it belongs to the same state and the same redraw. */
 const ROLE_HELP = (role: string) => ({
-  weapons: `Shows every weapon the ${role} can hold, in a column of its own.`,
-  echoes: `Shows every echo set the ${role} can run, in a column of its own.`,
-  mainstats: `Shows every main-stat build the ${role} can run, in a column of its own.`,
-  r1: `Lets the ${role} hold its signature weapons, not just standard ones.`,
-  sequences: `Shows a row for every sequence level the ${role} can reach, up to S6.`,
+  weapons: `Compare weapon options for ${role}`,
+  echoes: `Compare sonata and mainslot options for ${role}`,
+  mainstats: `Compare echo mainstat combos for ${role}`,
+  r1: `Allow ${role} to use signature weapons`,
+  sequences: `Show ${role} sequences S1-S6 for 5 star standard and limited`,
 });
-const MDPS_HELP = ROLE_HELP("main DPS"), SUPPORT_HELP = ROLE_HELP("support");
+const MDPS_HELP = ROLE_HELP("main DPS"), SUPPORT_HELP = ROLE_HELP("supports");
 
 /** What each option's own box opens to say — the label is shorthand, this is what ticking it
  *  actually changes about what the table runs. */
@@ -1069,16 +1069,22 @@ const FILTER_HELP: Record<keyof Filters, string> = {
   supportEchoes: SUPPORT_HELP.echoes,
   supportMainstats: SUPPORT_HELP.mainstats,
   supportSequences: SUPPORT_HELP.sequences,
-  matrix: "Gives every resonator that has a Matrix their own, on top of the rest of the build.",
+  matrix: "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.",
 };
 
 /** What every figure in the table is costed against, whatever the boxes above it are set to —
  *  the one box that toggles nothing, so it states its terms rather than describing a switch. */
 const STANDARDS = [
-  "123, or simple 1323 double-intro, rotations only.",
-  "A rotation runs about 25-27s, and four of them are performed in two minutes.",
-  "A single boss, level 100, holding the default 20% resistance.",
-  "Resonators and weapons at level 90, with every skill node at level 10.",
+  "Rotations are 123, or 1323 for resonators that need double intro (jinhsi, brant, etc).",
+  "In some cases, a character may use their liberation at the start of the fight for free damage.",
+  "Each rotation is achievable in 25-27 seconds, and we assume 4 rotations in 2 minutes.",
+  "Combat is performed against a single level 100 boss with 20% resistance to all attributes.",
+  "Resonators and weapons are level 90, with all skill nodes at level 10.",
+  "Standard characters are S0, four star resonators and rover are S6 by default.",
+  "Standard 5 star weapons are R1 and four star weapons are R5 by default.",
+  "The simulation uses estimated, not frame exact buff uptimes in some cases to simplify calculations.",
+  "This is to enable large scale automatic team calculations. It will never effect DPR by more than 1-2%.",
+  "If you find an issue in buff timing, stats, builds, etc ping me on discord."
 ];
 
 /** Which boxes are showing their description — a `Filters` key, or `standards` for the box that
@@ -1110,6 +1116,17 @@ function comparisonFilters(): string {
       + `<ul>${STANDARDS.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div></div>`;
   };
   return `<div class="tcfilters">
+    <div class="tcfilter-row note">
+      ${standards()}
+      <div class="tcsearchrow">
+        <div class="tcsearch">
+          <input id="optionSearch" type="search" placeholder="Filter resonators..."
+            autocomplete="off" spellcheck="false" value="${esc(searchText)}">
+          <div class="tcsearch-results" id="searchResults">${searchResults()}</div>
+        </div>
+        ${resonatorChips()}
+      </div>
+    </div>
     <div class="tcfilter-row">
       ${filter("allowR1Mdps", "Allow R1 Main DPS")}
       ${filter("mdpsWeapons", "Show Main DPS Weapon Options")}
@@ -1124,15 +1141,6 @@ function comparisonFilters(): string {
       ${filter("supportEchoes", "Show Support Echo Options")}
       ${filter("supportMainstats", "Show Support Mainstat Options")}
       ${filter("supportSequences", "Allow Support Sequences")}
-      ${standards()}
-    </div>
-    <div class="tcsearchrow">
-      <div class="tcsearch">
-        <input id="optionSearch" type="search" placeholder="Filter resonators..."
-          autocomplete="off" spellcheck="false" value="${esc(searchText)}">
-        <div class="tcsearch-results" id="searchResults">${searchResults()}</div>
-      </div>
-      ${resonatorChips()}
     </div>
     <div class="tcwarning" id="rowCapWarning" hidden></div>
   </div>`;

@@ -327,6 +327,7 @@ const PHROLOVA_TALENTS = new Talent({
 // NOINTRO ROTATIONS DO NOT HAVE AN INTRO
 
 const BA123 = new ActionGroup("Basic - Movement of Life and Death 123", [BA1, BA2, BA3, DODGE]);
+const BA123idash = new ActionGroup("Basic - Movement of Life and Death 123 (Cancelled)", [BA1, BA2, BA3.dodgeCancel()]);
 
 const PH_LOOP = new Rotation([
   NOINTRO, BA2,
@@ -336,6 +337,21 @@ const PH_LOOP = new Rotation([
   BA123, FBA, DODGE,
   ScarletCoda, Liberation, HBA1, HBA2, OUTRO,
 ]);
+
+const PH_LOOP_S2 = new Rotation([
+  NOINTRO, BA2, BA3, ECHO_ONFIELD, 
+  FBA, Skill, FBA,
+  ScarletCoda, Liberation, OUTRO,
+
+
+  INTRO,
+  BA3, ECHO_ONFIELD, 
+  FBA, Skill, FBA, DODGE, 
+  BA123idash, FBA, DODGE,
+  BA123idash, FBA, DODGE,
+  ScarletCoda, Liberation, OUTRO,
+]);
+
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -350,13 +366,25 @@ export const PHROLOVA = new Loadout({
   echoLoadouts: [new EchoLoadout(NM_HECATE, DREAM_OF_THE_LOST_3PC, HAVOC_ECLIPSE_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: chem("atk", "skill"),
-    rotation: PH_LOOP,
+    rotation: [PH_LOOP, PH_LOOP, PH_LOOP_S2],
   sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6],
 });
 
 
 const PH_LOOP_DUAL_DPS = new Rotation([
   NOINTRO, BA2,
+  INTRO, BA3, ECHO_ONFIELD, 
+  FBA, Skill, FBA, DODGE,
+  BA123, FBA, 
+  ScarletCoda, Liberation, OUTRO,
+]);
+
+const PH_LOOP_DUAL_DPS_S2 = new Rotation([
+  NOINTRO, BA2, BA3, ECHO_ONFIELD, 
+  FBA, Skill, FBA,
+  ScarletCoda, Liberation, OUTRO,
+
+
   INTRO, BA3, ECHO_ONFIELD, 
   FBA, Skill, FBA, DODGE,
   BA123, FBA, 
@@ -378,6 +406,6 @@ export const PHROLOVA_DUAL_DPS = new Loadout({
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: chem("atk", "skill"),
-    rotation: PH_LOOP_DUAL_DPS,
+    rotation: [PH_LOOP_DUAL_DPS, PH_LOOP_DUAL_DPS, PH_LOOP_DUAL_DPS_S2],
   sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6],
 });

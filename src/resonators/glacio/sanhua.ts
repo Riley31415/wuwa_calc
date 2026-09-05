@@ -222,9 +222,13 @@ const SANHUA_TALENTS = new Talent({
 // Basic 5 so Avalanche/S1 are up for the Detonate that follows. She's never the team's lead, so
 // this same rotation covers both opener and loop.
 
-const SH_ROTATION = new Rotation([
+const SH_ROTATION_S5 = new Rotation([
   NOINTRO, FHA,
   INTRO, Skill, Liberation, FHA, ECHO_SWAP, OUTRO,
+]);
+const SH_ROTATION = new Rotation([
+  NOINTRO, FHA, Skill, FHA, Liberation, FHA, ECHO_SWAP, OUTRO,
+  INTRO, FHA, Skill, Liberation, FHA, ECHO_SWAP, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -240,6 +244,6 @@ export const SANHUA = new Loadout({
   echoLoadouts: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
   substat: chem("atk", "skill"),
-    rotation: SH_ROTATION,
+    rotation: [SH_ROTATION, SH_ROTATION, SH_ROTATION, SH_ROTATION, SH_ROTATION, SH_ROTATION_S5],
   sequences: [SANHUA_S1, SANHUA_S2, SANHUA_S3, SANHUA_S4, SANHUA_S5, SANHUA_S6],
 });

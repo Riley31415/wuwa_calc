@@ -259,9 +259,10 @@ main {
 
 /* ---------------------------------------------------------------- comparison table */
 
-/* Two groups, one per role — MDPS and supports (see index.js's own comparisonFilters()), each
-   ending with one box belonging to neither. A row apiece up top, so the same axes line up
-   column-wise between them; a column apiece beside the table (see the responsive block below). */
+/* Three groups (see index.js's own comparisonFilters()): first the one holding the box belonging
+   to neither role plus the search bar, then one per role, MDPS and supports. A row apiece up top,
+   so the same axes line up column-wise between the role rows; a column apiece beside the table
+   (see the responsive block below). */
 .tcfilters {
   display: flex;
   flex-direction: column;
@@ -327,6 +328,8 @@ main {
 /* The bar keeps its own width and its own place on the line whatever the chips beside it do, so
    a first chip appearing never steps it down (they wrap under it only when the column is too
    narrow to hold both). */
+/* In the note group with Standards rather than a row of its own under every group: there, any
+   column's boxes opening pushed it down; here only that one box does. */
 .tcsearchrow { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; }
 .tcsearch { position: relative; display: flex; flex-direction: column; gap: 6px; flex: 0 1 340px; max-width: 340px; }
 .tcsearch input {
@@ -1096,14 +1099,16 @@ body.coldrag { user-select: none; }
   .tcfilter-row { flex-direction: column; flex: 0 0 272px; align-items: stretch; }
   /* the boxes' own 272px is a width in the rows up top and would be a *height* down a column */
   .tcfilter-row > .tcopt { flex: 0 0 auto; }
-  .tcfilters > .tcsearchrow, .tcfilters > .tcwarning { flex: 1 0 100%; }
+  .tcfilters > .tcwarning { flex: 1 0 100%; }
   /* ...unless the table is itself too wide to leave room for it, which only the page can know
      (index.js's own `fitSide()`) — then the aside goes back above the table */
   .tclayout.stack { flex-direction: column; }
   .tclayout.stack .tcside { position: static; order: 0; width: auto; background: none; }
 }
-/* wide enough for both role columns side by side */
+/* wide enough for two columns side by side — the note column and MDPS, supports wrapping under
+   the note column — and from 1460px all three */
 @media (min-width: 1180px) { .tcside { width: 554px; } }
+@media (min-width: 1460px) { .tcside { width: 836px; } }
 
 /* a phone: one box per line, full width, and less of the page given over to margin */
 @media (max-width: 560px) {

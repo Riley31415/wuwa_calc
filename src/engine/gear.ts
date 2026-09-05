@@ -186,7 +186,7 @@ export class Sequence extends Gear {}
  *  — the baseline every other level is compared against. See `Tier` for why each is what it is.
  *  Capped by however many nodes the loadout actually declares. */
 export const baseSequence = (r: Resonator): number =>
-  ({ [Tier.Limited]: 0, [Tier.Standard]: 2, [Tier.Free]: 6 })[r.tier];
+  ({ [Tier.Limited]: 0, [Tier.Standard]: 0, [Tier.Free]: 6 })[r.tier];
 
 /** A resonator's own Resonance Mode — a fixed stance a loadout commits to for the whole fight
  *  (Lucilla's Echo/Glacio Chafe split), not something toggled mid-rotation. Other pieces of that
@@ -250,7 +250,9 @@ export interface LoadoutDef {
   echoLoadouts: EchoLoadout[];
   mainstats: Buff[];
   substat: Buff;
-  rotation: Rotation;
+  /** One rotation for every sequence level, or a list of up to seven where the nth is the one the
+   *  build runs at S(n-1); a shorter list's last entry covers every level above it. */
+  rotation: Rotation | Rotation[];
   sequences?: Sequence[];
   mode?: ResonanceMode;
   matrix?: Matrix;
@@ -283,8 +285,9 @@ export class Loadout {
   /** This build's whole rotation, already compiled into the up-to-three action chains the
    *  scheduler schedules — start of combat, opener, and the Intro chain every visit after
    *  (rotation.ts). One field, not an opener/loop pair: the chains share a body, so splitting
-   *  them across two lists only ever duplicated it. */
-  rotation: Rotation;
+   *  them across two lists only ever duplicated it. Indexed by sequence level, S0 first — see
+   *  `rotationAt()`. */
+  rotations: Rotation[];
   /** This loadout's own resonance-chain nodes, S1 first — as many as it actually declares, which
    *  is six for anything a build is costed above S0 at (see `Tier`) and none for most
    *  limited kits. */
@@ -303,10 +306,17 @@ export class Loadout {
     this.echoLoadouts = def.echoLoadouts;
     this.mainstats = def.mainstats;
     this.substat = def.substat;
-    this.rotation = def.rotation;
+    this.rotations = Array.isArray(def.rotation) ? def.rotation : [def.rotation];
+    if (this.rotations.length < 1 || this.rotations.length > 7) throw new Error(`${def.resonator.name}: a loadout lists 1-7 rotations, one per sequence level`);
     this.sequences = def.sequences ?? [];
     this.mode = def.mode;
     this.matrix = def.matrix;
+  }
+
+  /** The rotation a build at `sequenceLevel` runs: its own entry where the list reaches that
+   *  far, else the last one listed. */
+  rotationAt(sequenceLevel: number): Rotation {
+    return this.rotations[Math.min(sequenceLevel, this.rotations.length - 1)]!;
   }
 
   /** Every piece for one specific weapon/echo/main-stat/sequence-level combo, flattened into the

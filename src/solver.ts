@@ -124,7 +124,7 @@ export const comboOf = (l: Loadout, p: Pick): Combo => {
  *  open, every level from this resonator's own baseline up to whatever the loadout can reach gets
  *  a row of its own, purely so the gain from each is readable; with the box closed, the baseline
  *  alone. The baseline is how hard the resonator is to own (`baseSequence()`): S0 for a limited
- *  5-star, S2 for a standard one, S6 for a 4-star or Rover — and a `Tier.Free` resonator is at the
+ *  5-star and a standard one alike, S6 for a 4-star or Rover — and a `Tier.Free` resonator is at the
  *  top already, so their chain comes with the character and no level is left to compare. A
  *  loadout that declares no nodes has only S0 regardless. */
 export function sequenceLevels(m: Member, filters: Filters): number[] {
@@ -701,7 +701,7 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
   // scheduler runs one continuous fight rather than four separate passes (rotation.ts) and cuts a
   // section every time the last slot outros — one full trip round the team — so a loop-only
   // buff/gauge that hasn't settled by the first trip still gets three more to reach steady state.
-  const rotationLines = runRotations(state, members.map((m) => m.loadout.rotation), 4).map(toLines);
+  const rotationLines = runRotations(state, members.map((m, i) => m.loadout.rotationAt(combo[i]!.sequence)), 4).map(toLines);
 
   // The comparison table (not the detail page's own action table) only ever needs a grand total
   // and a per-member sum. Read straight off the resolved lines rather than through buildReport(),

@@ -34,7 +34,7 @@ import {
   statLabel,
   tagKind,
   teamKey
-} from "./chunk-TYUHMBQT.js";
+} from "./chunk-HB734JFS.js";
 
 // dist/src/display.js
 var keysFor = (action, ...stats) => stats.flatMap((stat) => [
@@ -1276,14 +1276,14 @@ function searchResults() {
   }).join("");
 }
 var ROLE_HELP = (role) => ({
-  weapons: `Shows every weapon the ${role} can hold, in a column of its own.`,
-  echoes: `Shows every echo set the ${role} can run, in a column of its own.`,
-  mainstats: `Shows every main-stat build the ${role} can run, in a column of its own.`,
-  r1: `Lets the ${role} hold its signature weapons, not just standard ones.`,
-  sequences: `Shows a row for every sequence level the ${role} can reach, up to S6.`
+  weapons: `Compare weapon options for ${role}`,
+  echoes: `Compare sonata and mainslot options for ${role}`,
+  mainstats: `Compare echo mainstat combos for ${role}`,
+  r1: `Allow ${role} to use signature weapons`,
+  sequences: `Show ${role} sequences S1-S6 for 5 star standard and limited`
 });
 var MDPS_HELP = ROLE_HELP("main DPS");
-var SUPPORT_HELP = ROLE_HELP("support");
+var SUPPORT_HELP = ROLE_HELP("supports");
 var FILTER_HELP = {
   allowR1Mdps: MDPS_HELP.r1,
   mdpsWeapons: MDPS_HELP.weapons,
@@ -1295,13 +1295,19 @@ var FILTER_HELP = {
   supportEchoes: SUPPORT_HELP.echoes,
   supportMainstats: SUPPORT_HELP.mainstats,
   supportSequences: SUPPORT_HELP.sequences,
-  matrix: "Gives every resonator that has a Matrix their own, on top of the rest of the build."
+  matrix: "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent."
 };
 var STANDARDS = [
-  "123, or simple 1323 double-intro, rotations only.",
-  "A rotation runs about 25-27s, and four of them are performed in two minutes.",
-  "A single boss, level 100, holding the default 20% resistance.",
-  "Resonators and weapons at level 90, with every skill node at level 10."
+  "Rotations are 123, or 1323 for resonators that need double intro (jinhsi, brant, etc).",
+  "In some cases, a character may use their liberation at the start of the fight for free damage.",
+  "Each rotation is achievable in 25-27 seconds, and we assume 4 rotations in 2 minutes.",
+  "Combat is performed against a single level 100 boss with 20% resistance to all attributes.",
+  "Resonators and weapons are level 90, with all skill nodes at level 10.",
+  "Standard characters are S0, four star resonators and rover are S6 by default.",
+  "Standard 5 star weapons are R1 and four star weapons are R5 by default.",
+  "The simulation uses estimated, not frame exact buff uptimes in some cases to simplify calculations.",
+  "This is to enable large scale automatic team calculations. It will never effect DPR by more than 1-2%.",
+  "If you find an issue in buff timing, stats, builds, etc ping me on discord."
 ];
 var openHelp = /* @__PURE__ */ new Set();
 function comparisonFilters() {
@@ -1314,6 +1320,17 @@ function comparisonFilters() {
     return `<div class="tcopt note${open ? " open" : ""}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="standards" aria-expanded="${open}">Standards and Assumptions<span class="arrow">\u203A</span></button></div><div class="tcopt-desc"${open ? "" : " hidden"}><ul>${STANDARDS.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div></div>`;
   };
   return `<div class="tcfilters">
+    <div class="tcfilter-row note">
+      ${standards()}
+      <div class="tcsearchrow">
+        <div class="tcsearch">
+          <input id="optionSearch" type="search" placeholder="Filter resonators..."
+            autocomplete="off" spellcheck="false" value="${esc(searchText)}">
+          <div class="tcsearch-results" id="searchResults">${searchResults()}</div>
+        </div>
+        ${resonatorChips()}
+      </div>
+    </div>
     <div class="tcfilter-row">
       ${filter("allowR1Mdps", "Allow R1 Main DPS")}
       ${filter("mdpsWeapons", "Show Main DPS Weapon Options")}
@@ -1328,15 +1345,6 @@ function comparisonFilters() {
       ${filter("supportEchoes", "Show Support Echo Options")}
       ${filter("supportMainstats", "Show Support Mainstat Options")}
       ${filter("supportSequences", "Allow Support Sequences")}
-      ${standards()}
-    </div>
-    <div class="tcsearchrow">
-      <div class="tcsearch">
-        <input id="optionSearch" type="search" placeholder="Filter resonators..."
-          autocomplete="off" spellcheck="false" value="${esc(searchText)}">
-        <div class="tcsearch-results" id="searchResults">${searchResults()}</div>
-      </div>
-      ${resonatorChips()}
     </div>
     <div class="tcwarning" id="rowCapWarning" hidden></div>
   </div>`;

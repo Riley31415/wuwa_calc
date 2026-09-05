@@ -268,9 +268,9 @@ const EBA234 = new ActionGroup("Basic - Drink Soul 234", [EBA2, EBA3, EBA4]);
 
 const JR_ROTATION = new Rotation([
   INTRO, Lib, FHA,
-  EBA234, EFHA,
-  Skill1, Skill2, FHA,
   ESkill1, ESkill2, EFHA,
+  Skill1, Skill2, FHA,
+  EBA234, EFHA,
   ECHO_SWAP, OUTRO,
 ]);
 

@@ -78,17 +78,13 @@ const ACTION_MARCATO = mortefiAction("Liberation - Marcato", {
   node: Node.Liberation, type: Type1.Liberation, type2: Type2.Coordinated, mv: 31.81, active: false, field: MARCATO_FIELD,
   updateBuffs: () => applyCurrent(VIBRATO, 1),
 });
-/** The second hit of a Heavy/Skill pair — same hit, but inside the lead's 0.35s Vibrato ICD, so
- *  this copy carries no gain. Same name; the two fold together in the report. */
-const ACTION_MARCATO_PAIRED = ACTION_MARCATO.variant("Liberation - Marcato", { updateBuffs: undefined });
-/** S5 Funerary Quartet's own real-triggered burst, hit by hit — see `MORTEFI_S5` below. The lead
- *  hit ramps Vibrato once (one 0.35s ICD); the other three carry no gain. His own hit off his own
- *  press, not the field's — no `field` flag, so it stays out of the report's field grouping. */
-const ACTION_S5_MARCATO = mortefiAction("Liberation - Marcato (S5 Funerary Quartet)", {
-  node: Node.Liberation, type: Type1.Liberation, type2: Type2.Coordinated, mv: 31.81 * 0.5,
-  updateBuffs: () => applyCurrent(VIBRATO, 1),
-});
-const ACTION_S5_MARCATO_PAIRED = ACTION_S5_MARCATO.variant("Liberation - Marcato (S5 Funerary Quartet)", { updateBuffs: undefined });
+/** The second hit of a Heavy/Skill pair — inside the lead's 0.35s Vibrato ICD, so no gain. */
+const ACTION_MARCATO_PAIRED = ACTION_MARCATO.paired();
+/** S5 Funerary Quartet's own burst — the same Marcato at -50% DMG Bonus, see `MORTEFI_S5` below.
+ *  His own hit off his own press, not the field's — no `field` flag and its own name, so the
+ *  report never folds it in with the window's. The lead ramps Vibrato once; the rest carry no gain. */
+const ACTION_S5_MARCATO = ACTION_MARCATO.variant("Liberation - Marcato (S5 Funerary Quartet)", { field: null, applyStats: () => addStat(Stat.DmgBonus, -50) });
+const ACTION_S5_MARCATO_PAIRED = ACTION_S5_MARCATO.paired();
 
 // --- intro / outro
 const Intro = mortefiAction("Intro - Dissonance", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 168.99, energy: 10, concerto: 10, offtune: 8000 });
@@ -191,9 +187,9 @@ const MORTEFI_S4 = new Sequence({
   updateBuffs: () => { if (currentAction() === Liberation) applyTeam(BURNING_RHAPSODY, 20); },
 });
 
-/** S5 Funerary Quartet: Mortefi's own Passionate Variation/Fury Fugue hit fires 4 more (half-DMG)
- *  Marcato — his own follow-up, not the Liberation window's, so it fires whether or not Burning
- *  Rhapsody stands. */
+/** S5 Funerary Quartet: Mortefi's own Passionate Variation/Fury Fugue hit fires 4 more Marcato at
+ *  -50% DMG Bonus — his own follow-up, not the Liberation window's, so it fires whether or not
+ *  Burning Rhapsody stands. */
 const MORTEFI_S5 = new Sequence({
   name: "Mortefi S5: Funerary Quartet",
   updateBuffs: () => {

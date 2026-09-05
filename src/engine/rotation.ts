@@ -184,6 +184,12 @@ export class Action extends Gear {
     });
   }
 
+  /** The follow-up hit of a multi-hit coordinated attack — the same hit under the same name,
+   *  but inside the lead's ICD, so it carries none of the lead's grants (no `updateBuffs`). */
+  paired(): Action {
+    return this.variant(this.name, { updateBuffs: undefined });
+  }
+
   /** The same cast made on the way out, named "… (Swap)" — identical in every field, but
    *  inactive (its owner is off field by the time it lands) and reported as triggered. */
   swap(): Action {

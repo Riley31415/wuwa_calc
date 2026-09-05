@@ -30,7 +30,7 @@ import {
   queue,
   applyCurrent,
 } from "../../engine/context.js";
-import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, JUMP, ActionField } from "../../engine/rotation.js";
+import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, JUMP, ActionField, ActionGroup } from "../../engine/rotation.js";
 import { coordinatedBuff } from "../../shared/helpers.js";
 import { HEALS } from "../../shared/status.js";
 import { VARIATION } from "../../weapons/standard.js";
@@ -217,14 +217,25 @@ const VERINA_TALENTS = new Talent({
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.HealingBonus, 12); }
 });
 
+const BA345 = new ActionGroup("Basic - Cultivation 345", [BA3, BA4, BA5]);
+
 const VR_LOOP = new Rotation([
-  NOINTRO, Skill, Liberation,
-  JUMP,
-  ForteMidair1, ForteMidair2,
+  NOINTRO, BA345, Liberation, 
+  Skill, JUMP, ForteMidair1, ForteMidair2,
   ECHO_SWAP, OUTRO,
-  INTRO, Skill, Liberation,
-  JUMP,
-  ForteMidair1,
+
+  INTRO, Liberation,
+  Skill, JUMP, ForteMidair1, ForteMidair2,
+  ECHO_SWAP, OUTRO,
+]);
+
+const VR_S2 = new Rotation([
+  NOINTRO, Liberation, 
+  Skill, JUMP, ForteMidair1, ForteMidair2,
+  ECHO_SWAP, OUTRO,
+
+  INTRO, Liberation,
+  Skill, JUMP, ForteMidair1,
   ECHO_SWAP, OUTRO,
 ]);
 
@@ -242,6 +253,6 @@ export const VERINA = new Loadout({
       new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC),],
   mainstats: [mainstats(Mainstat.ATK4, Mainstat.ER3, Mainstat.ER3, Mainstat.ATK1, Mainstat.ATK1)],
   substat: chem("atk", "liberation"),
-    rotation: VR_LOOP,
+    rotation: [VR_LOOP, VR_LOOP, VR_S2],
   sequences: [VERINA_S1, VERINA_S2, VERINA_S3, VERINA_S4, VERINA_S5, VERINA_S6],
 });
