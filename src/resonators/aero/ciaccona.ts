@@ -4,6 +4,12 @@
  * Intro, and spent all three at once on Heavy Attack - Quadruple Downbeat. Nearly everything she
  * casts inflicts a stack of Aero Erosion, which is what her set and her weapon both key off.
  *
+ * Recital, off the Liberation, is her field: a Symphonic Poem: Tonic every 1.63s (wuwalab's own
+ * frame data — 98 frames apart, twenty of them, ~33s) for 6.12% ATK and one Aero Erosion each,
+ * green by default since nothing is pressed while she is off field. Ended by her own next Intro
+ * (switching back in) or a fresh Liberation. The manual Tonic's own +10 Concerto needs a press
+ * she never makes here, so no Tonic banks any.
+ *
  * Numbers from nanoka.cc (character 1407, https://ww.nanoka.cc/character/1407) — no migrated-sheet
  * row exists for her, so MVs are the Skill Attributes tables and energy/concerto/offtune come off
  * Damage Data's own Energy/Elemental DMG/Weakness Break columns (the last x10000), except where a
@@ -16,14 +22,11 @@ import {
   applyTeam,
   applyEnemy,
   revokeTeam,
-  isHeld,
-  revokeCurrent,
-  casting,
   currentAction,
   addStat,
-  queueOnIntro,
 } from "../../engine/context.js";
-import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, SWAP } from "../../engine/rotation.js";
+import { Action, ActionField, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, SWAP, JUMP } from "../../engine/rotation.js";
+import { coordinatedBuff } from "../../shared/helpers.js";
 import { AERO_EROSION, SHIELD } from "../../shared/status.js";
 import { WOODLAND_ARIA } from "../../weapons/pistol.js";
 import { NM_KELPIE } from "../../echoes/rinascita.js";
@@ -63,25 +66,26 @@ const Skill = ciacconaAction("Skill - Harmonic Allegro", { node: Node.Skill, cas
 /** Forte Circuit: replaces the Heavy Attack at 3 segments and spends all of them. */
 const Downbeat = ciacconaAction("Forte Heavy - Quadruple Downbeat", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 628.13, energy: 14.97, concerto: 25, offtune: 9360, forte1: -3, ...EROSION });
 
-// --- liberation / intro / outro. The Liberation opens Recital; switching out during Recital
-//     generates a Symphonic Poem Tonic on its own, green by default (see her updateBuffs() below).
+// --- liberation / intro / outro. The Liberation opens Recital (see file header); a fresh cast
+//     starts it over, and switching her back in ends it.
 const Liberation = ciacconaAction("Liberation - Singer's Triple Cadenza", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1100.42, concerto: 20, offtune: 48000, resetEnergy: true,
   updateDebuffs: () => applyCurrent(SHIELD, 1), // Interlude Tune
-  updateBuffs: () => applyCurrent(RECITAL, 1),
+  updateBuffs: () => { revokeTeam(RECITAL); applyTeam(RECITAL, 33); },
 });
+/** One Tonic of the twenty (nanoka's "6.12%*20" is the whole Recital), on her own slot whoever
+ *  is on field. Off-tune is the row's 43640 split the same way. */
+const RECITAL_FIELD = new ActionField("Ciaccona: Recital");
 const GreenTonic = ciacconaAction("Liberation - Symphonic Poem: Tonic (green)", {
-  node: Node.Liberation, type: Type1.Liberation, mv: 122.40, concerto: 10, offtune: 43640, active: false,
-  updateDebuffs: () => applyEnemy(AERO_EROSION, 20),
+  node: Node.Liberation, type: Type1.Liberation, mv: 6.12, offtune: 2182, active: false, field: RECITAL_FIELD, ...EROSION,
 });
-const Intro = ciacconaAction("Intro - Roaming with the Wind", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 189.11, energy: 10, concerto: 10, offtune: 9280, forte1: 1, ...EROSION });
+const Intro = ciacconaAction("Intro - Roaming with the Wind", {
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 189.11, energy: 10, concerto: 10, offtune: 9280, forte1: 1, ...EROSION,
+  updateBuffs: () => revokeTeam(RECITAL), // switching back in exits Recital
+});
 const Outro = ciacconaAction("Outro - Windcalling Tune", {
   cast: Cast.Outro, concerto: -100, active: false,
-  updateBuffs: () => {
-    applyTeam(WINDCALLING_TUNE, 1);
-    // switching out during Recital generates one itself, and it lands on the next resonator's time
-    if (isHeld(RECITAL)) queueOnIntro(GreenTonic);
-  },
+  updateBuffs: () => applyTeam(WINDCALLING_TUNE, 1),
 });
 
 /* ------------------------------------------------------------------------------------ buffs */
@@ -94,12 +98,9 @@ const SOLO_CONCERT = new Buff({
   applyStats: () => addStat(Stat.DmgBonus, 24, Attribute.Aero),
 });
 
-/** Recital: opened by the Liberation, held until she's switched back in. Carries no stat of its
- *  own — it's what makes the Outro generate a Tonic. */
-const RECITAL = new Buff({
-  name: "Ciaccona: Recital",
-  updateBuffs: () => { if (casting(Cast.Intro)) revokeCurrent(RECITAL); }, // TODO swap in cancels it
-});
+/** Recital standing: 33 of the engine's seconds, a Tonic every 1.65 of them (helpers.ts's own
+ *  field window), ticking onto her slot however far the field has moved on. */
+const RECITAL = coordinatedBuff("Ciaccona: Recital", 33, () => CIACCONA_RESONATOR, GreenTonic, { every: 1.65 });
 
 /** Interlude Tune (Inherent Skill): a shield off the Liberation — put up as the shield marker from
  *  CIACCONA_RESONATOR's own updateDebuffs(); shields are not a stat, so this piece is held for the name. */
@@ -147,11 +148,13 @@ const CIACCONA_TALENTS = new Talent({
 // restarting the string. She's never the team's own lead, so this covers opener and loop both.
 
 const CI_ROTATION = new Rotation([
-  NOINTRO, // jump
-  MA1, MA2, BA4, MA1, MA2, BA4, MA1, MA2, BA4, Skill,
-  Downbeat, Liberation, ECHO_SWAP, OUTRO,
+  NOINTRO, 
+  JUMP, MA1, MA2, BA4, 
+  JUMP, MA1, MA2, BA4, 
+  JUMP, MA1, MA2, BA4, 
+  Skill, Downbeat, Liberation, ECHO_SWAP, OUTRO,
 
-  INTRO, BA3, BA4, // jump
+  INTRO, BA3, BA4, JUMP,
   MA1, MA2, BA4,
   Skill, Downbeat, Liberation, ECHO_SWAP, OUTRO,
 ]);

@@ -14,10 +14,11 @@ import {
   applyTeam,
   applied,
   appliedByMe,
+  stacksOfEnemy,
 } from "../engine/context.js";
 import { lostOnSwap } from "../shared/helpers.js";
 import { TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
-import { FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE } from "../shared/status.js";
+import { AERO_EROSION, FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE } from "../shared/status.js";
 
 /** Changli's sig, R1: Crimson Phoenix. +12% ATK flat. Resonance Skill grants 5 stacks of Searing
  *  Feather outright (up to 14) — the per-hit 0.5s-ICD trickle isn't modelled. */
@@ -209,4 +210,28 @@ export const STARCHASER = new Buff({
     addStat(Stat.ResIgnore, 10, Type1.Liberation); // FUSION ONLY
   },
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(STARCHASER); },
+});
+
+/** Defier's Thorn, Cartethyia's sig, R1: A Free Knight's Tarantella. +12% Max HP flat. An Intro
+ *  Skill or any Basic Attack DMG opens a 15s window: the wielder's damage ignores 8% of the
+ *  target's DEF, and takes 20% amplification while the target holds at least one Aero Erosion,
+ *  whoever put it there. The Erosion is read live, so that half pays nothing once the stacks
+ *  lapse; the window itself is short, so it is lost after the outro. */
+export const DEFIERS_THORN = new Weapon({
+  weaponType: WeaponType.Sword,
+  name: "Defier's Thorn",
+  constantStats: () => {
+    addStat(Stat.BaseAtk, 413);
+    addStat(Stat.BonusHp, 72.2);
+    addStat(Stat.BonusHp, 12); // A Free Knight's Tarantella's own flat half
+  },
+  updateBuffs: () => { if (casting(Cast.Intro) || isType(Type1.Basic)) applyCurrent(FREE_KNIGHTS_TARANTELLA, 1); },
+});
+export const FREE_KNIGHTS_TARANTELLA = new Buff({
+  name: "Defier's Thorn: A Free Knight's Tarantella",
+  applyStats: () => {
+    addStat(Stat.DefIgnoreOld, 8);
+    if (stacksOfEnemy(AERO_EROSION) > 0) addStat(Stat.Amp, 20);
+  },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(FREE_KNIGHTS_TARANTELLA); },
 });

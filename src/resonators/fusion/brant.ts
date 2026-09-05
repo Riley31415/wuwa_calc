@@ -34,7 +34,7 @@ import {
   triggeredAction,
   isType,
 } from "../../engine/context.js";
-import { lostOnSwap, matrix } from "../../shared/helpers.js";
+import { lostOnSwap, matrix, oneSecondPassed } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, OUTRO, SWAP, DOUBLE_INTRO, ECHO_CANCEL } from "../../engine/rotation.js";
 import { SHIELD, HEALS } from "../../shared/status.js";
 import { UNFLICKERING_VALOR } from "../../weapons/sword.js";
@@ -193,7 +193,7 @@ const COURSE_BLAST = new Buff({
   name: "Brant S2: The Course is Set! (Blast)", maxStacks: 2,
   updateBuffs: () => {
     lostOnSwap();
-    if (!currentAction().active || triggeredAction() || !casting(Cast.Skill)) return;
+    if (!oneSecondPassed() || !casting(Cast.Skill)) return;
     queueOn(BRANT_RESONATOR, CourseBlast); removeStack(COURSE_BLAST, 1);
   },
 });

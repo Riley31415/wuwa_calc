@@ -85,22 +85,30 @@ const FEEDS: Record<string, (action: Action) => StatKey[]> = {
   cd: (a) => (special(a) ? [] : keysFor(a, Stat.CritDmg)),
   er: (a) => keysFor(a, Stat.Er),
   dmgBonus: (a) => (special(a) ? [] : keysFor(a, Stat.DmgBonus)),
-  amp: (a) => (a.scaling === Scaling.Tune ? []
+  amp: (a) => (a.scaling === Scaling.Tune || fixed(a) ? []
     : a.scaling !== Scaling.Dot ? keysFor(a, Stat.Amp)
     : a.type2 === null ? [] : [scopedStat(a.type2, Stat.Amp)]),
-  dealt: (a) => (a.scaling === Scaling.Dot ? [] : keysFor(a, Stat.TotalDmg)),
+  dealt: (a) => (a.scaling === Scaling.Dot || fixed(a) ? [] : keysFor(a, Stat.TotalDmg)),
   // what is being done to the enemy rather than to the resonator
-  effDef: (a) => (a.scaling === Scaling.Dot ? keysFor(a, EnemyStat.DefReduce)
+  effDef: (a) => (fixed(a) ? []
+    : a.scaling === Scaling.Dot ? keysFor(a, EnemyStat.DefReduce)
     : keysFor(a, Stat.DefIgnoreNew, Stat.DefIgnoreOld, EnemyStat.DefReduce)),
   effRes: (a) => (a.scaling === Scaling.Dot ? keysFor(a, EnemyStat.ResReduce)
+    : fixed(a) ? []
     : keysFor(a, Stat.ResIgnore, EnemyStat.ResReduce)),
   // energy/concerto/offtune are NOT built off this — they're running totals, not a per-action
   // sum, so rowValues() builds their own panel by hand further down, off RESOURCE_STAT instead.
 };
 
-/** The two scalings that read a stripped-down formula — see `FEEDS` above and `rowValues()`. */
+/** The scalings that read a stripped-down formula — see `FEEDS` above and `rowValues()`. Dot and
+ *  tune read no damage bonus and never crit; fixed reads nothing at all. */
 const special = (action: Action): boolean =>
-  action.scaling === Scaling.Dot || action.scaling === Scaling.Tune;
+  action.scaling === Scaling.Dot || action.scaling === Scaling.Tune || action.scaling === Scaling.Fixed;
+
+/** Fixed damage *is* its own motion value — no stat, no buff, no enemy term touches it
+ *  (damage.ts's own `damageFactors` reports every factor as a neutral 1), so the only columns it
+ *  keeps are the build's own atk/hp/def/er and whatever the cast banked. */
+const fixed = (action: Action): boolean => action.scaling === Scaling.Fixed;
 
 /**
  * Which heading a traced row files under, for the panels that separate them. `atk`/`hp`/`def` are
@@ -345,16 +353,16 @@ function rowValues(
     def: snap.def,
     mv: dealsDamage ? mv : null,
     dmgBonus: filler || special(snap.action) ? null : snap.dmgBonus,
-    amp: filler ? null : snap.action.scaling === Scaling.Tune ? null
+    amp: filler || fixed(snap.action) ? null : snap.action.scaling === Scaling.Tune ? null
       : snap.action.scaling === Scaling.Dot ? snap.type2Amp : snap.amp,
     cr: filler || special(snap.action) ? null : snap.stat(Stat.CritRate),
     cd: filler || special(snap.action) ? null : snap.stat(Stat.CritDmg),
-    dealt: filler || snap.action.scaling === Scaling.Dot ? null : snap.stat(Stat.TotalDmg),
+    dealt: filler || snap.action.scaling === Scaling.Dot || fixed(snap.action) ? null : snap.stat(Stat.TotalDmg),
     // what the hit actually meets: how much of the enemy's defence is stripped away by ignore
     // and reduce (0% = untouched), and the resistance left after ignore and shred — both read
     // straight off the resolved snapshot's own enemyDef/enemyRes.
-    effDef: filler ? null : effectiveShred(snap) * 100,
-    effRes: filler ? null : effectiveRes(snap),
+    effDef: filler || fixed(snap.action) ? null : effectiveShred(snap) * 100,
+    effRes: filler || fixed(snap.action) ? null : effectiveRes(snap),
     er: snap.stat(Stat.Er),
     // real running totals — evaluate.ts's own evaluate() banks these every action, off however much
     // AddEnergy/AddConcerto/AddOfftune this action's own held Gear contributed. Energy/concerto
@@ -607,6 +615,10 @@ export interface Column {
    *  as a column header but not as a title. Panels whose rows carry sections of their own (atk/
    *  hp/def, base/bonus/flat) never show it: they are already labelled, group by group. */
   full?: string;
+  /** What `full` reads as when nothing at all feeds the column — no sections, just the figure
+   *  itself. The ignore column is the one that needs it: with no penetration on the hit, what it
+   *  prints is the enemy's own shred and calling it DEF Ignore names a stat nobody has. */
+  fullEmpty?: string;
   align?: "left";
   digits?: number;
   percent?: boolean;
@@ -678,7 +690,7 @@ export function buildReport(
     // rather than out past the resonator's own hp/def
     // `full` is the heading its panel opens with when nothing fed the column at all — the
     // attacker's own penetration is what that answers for, not the enemy's own DEF
-    { key: "effDef", label: "ignore%", digits: 1, percent: true, full: "DEF Ignore" },
+    { key: "effDef", label: "ignore%", digits: 1, percent: true, full: "DEF Ignore", fullEmpty: "DEF Shred" },
     { key: "effRes", label: "res%", digits: 1, percent: true, full: "Enemy RES" },
     { key: "er", label: "er%", digits: 1, percent: true, full: "Energy Regen" },
     { key: "hp", label: "hp" },

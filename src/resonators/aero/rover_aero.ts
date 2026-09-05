@@ -25,6 +25,8 @@ import {
   casting,
   currentAction,
   addStat,
+  setForte1,
+  forte1,
 } from "../../engine/context.js";
 import { Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { AERO_EROSION, SPECTRO_FRAZZLE, HAVOC_BANE, FUSION_BURST, GLACIO_CHAFE, ELECTRO_FLARE, HEALS } from "../../shared/status.js";
@@ -76,8 +78,16 @@ const SkyfallSeverance = roverAction("Skill - Skyfall Severance", {
 //     spends 60 Windstrings a stage.
 const Cloudburst1 = roverAction("Basic - Cloudburst Dance 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 128.80, energy: 0.92, concerto: 2.93, offtune: 2928, forte1: 25 });
 const Cloudburst2 = roverAction("Basic - Cloudburst Dance 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 141.47, energy: 1.01, concerto: 3.22, offtune: 3216, forte1: 25 });
-const UnboundFlow1 = roverAction("Forte Skill - Unbound Flow 1", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 171.50, energy: 10, concerto: 20, offtune: 29850, forte1: -60 });
-const UnboundFlow2 = roverAction("Forte Skill - Unbound Flow 2", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 723.03, energy: 20, concerto: 20, offtune: 28288, forte1: -60 });
+const UnboundFlow1 = roverAction("Forte Skill - Unbound Flow 1", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 171.50, energy: 10, concerto: 20, offtune: 29850, forte1: -60 ,
+  applyStats: () => {
+    if (forte1() > 120) setForte1(120);
+  }
+});
+const UnboundFlow2 = roverAction("Forte Skill - Unbound Flow 2", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 723.03, energy: 20, concerto: 20, offtune: 28288, forte1: -60 ,
+  applyStats: () => {
+    if (forte1() > 120) setForte1(120);
+  }
+});
 
 // --- liberation / intro / outro. Storm's Echo hands the whole team Aeolian Realm (see below).
 const Liberation = roverAction("Liberation - Omega Storm", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 536.79, concerto: 20, offtune: 48000, resetEnergy: true });
@@ -200,17 +210,12 @@ const ROVER_AERO_TALENTS = new Talent({
 // never the team's own lead, so this covers opener and loop both.
 
 const AR_ROTATION = new Rotation([
-  NOINTRO, Skill, Cloudburst1, Cloudburst2, MA, BA4,
-  ECHO_CANCEL,
-  Liberation,
-  Skill, Cloudburst1, Cloudburst2, MA, BA4,
-  UnboundFlow1, UnboundFlow2, OUTRO,
-
-  INTRO, Cloudburst1, Cloudburst2,
+  NOINTRO, Skill,
+  INTRO, SkyfallSeverance, Cloudburst1, Cloudburst2, MA, BA4,
   ECHO_CANCEL,
   Liberation,
   Skill, Cloudburst1, Cloudburst2, MA,
-  UnboundFlow1, UnboundFlow2, OUTRO,
+  UnboundFlow1, UnboundFlow2.swap(), OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

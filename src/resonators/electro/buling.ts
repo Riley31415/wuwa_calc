@@ -31,7 +31,7 @@
  *  S2 25 Energy on entering Yin-Yang Balance, every 24s (ICD not modelled).
  *  S3 heals the team below 50% HP — out of scope, no-op.
  *  S4 flat +20% Healing Bonus, unused by the formula, tracked for completeness.
- *  S5 the Array inflicts 6 more Electro Flare — nothing reads Electro Flare yet, no-op.
+ *  S5 the Array inflicts 6 more Electro Flare the moment it is generated.
  *  S6 Heaven, Earth, Mind grants 50% Resonance Skill DMG Bonus instead of 25% — read by THUNDER_SPELL.
  */
 import { Tier, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
@@ -45,13 +45,12 @@ import {
   currentAction,
   currentTeam,
   addStat,
-  queueOnIntro,
   revokeCurrent,
   revokeTeam,
 } from "../../engine/context.js";
-import { Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
-import { applyEnemy } from "../../engine/context.js";
-import { ELECTRO_FLARE, HEALS } from "../../shared/status.js";
+import { Action, ActionField, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
+import { HEALS, inflictElectroFlare } from "../../shared/status.js";
+import { coordinatedBuff } from "../../shared/helpers.js";
 import { COSMIC_RIPPLES, NEW_STD_RECTIFIER, VARIATION } from "../../weapons/standard.js";
 import { REJUV_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
@@ -101,25 +100,29 @@ const Skill = bulingAction("Skill - In Shadow Thunder Stirs", { node: Node.Skill
 // Thunder Spell at Primordial Qi
 const Liberation = bulingAction("Liberation - Flashing Thunder Spell - Harmony", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 536.79, offtune: 72000, concerto: 20, resetEnergy: true,
-  updateBuffs: () => { revokeTeam(THUNDER_SPELL); applyTeam(THUNDER_SPELL, 1); revokeCurrent(YIN_YANG_BALANCE); },
+  updateBuffs: () => {
+    revokeTeam(THUNDER_SPELL); applyTeam(THUNDER_SPELL, 1); revokeCurrent(YIN_YANG_BALANCE);
+    // only one array at a time: a fresh cast starts its 24s over
+    revokeTeam(FIVE_THUNDERS_ARRAY); applyTeam(FIVE_THUNDERS_ARRAY, 24);
+  },
 });
 
-/** The migrated sheet's own full 12-tick lifetime total (238.32% mv, 25 energy, 24 Electro
- *  Flare) rather than one representative tick, same lumped-window treatment as Zhezhi's Inklit
- *  Spirit/Cantarella's Diffusion. Nanoka's own single-tick number is 19.89% mv, for reference. */
-const ACTION_FIVE_THUNDERS_ARRAY = bulingAction("Liberation - Five Thunders Spell Array x12", {
-  type: Type1.Liberation, mv: 238.32, energy: 25, active: false,
-  updateDebuffs: () => applyEnemy(ELECTRO_FLARE, 24),
+/** The Array's own pull: 19.89% mv and 2 Electro Flare every 2s for 24s (nanoka), twelve in all,
+ *  each on her own slot whoever is on field. Energy is the migrated sheet's 25 over the whole
+ *  window, split evenly — nanoka publishes none. */
+const FIVE_THUNDERS = new ActionField("Buling: Five Thunders Spell Array");
+const ArrayTick = bulingAction("Liberation - Five Thunders Spell Array", {
+  type: Type1.Liberation, mv: 19.89, energy: 2.08, active: false, field: FIVE_THUNDERS,
+  updateDebuffs: () => inflictElectroFlare(2),
 });
 
 const Intro = bulingAction("Intro - Summon and Smite", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 131.10, offtune: 8792, concerto: 10,
-  updateDebuffs: () => applyEnemy(ELECTRO_FLARE, 4),
+  updateDebuffs: () => inflictElectroFlare(4),
 });
-// the Array's whole window as one lump, deferred behind the next Intro: it ticks on past the swap
 const Outro = bulingAction("Outro - Exorcism Spell", {
   cast: Cast.Outro, concerto: -100, active: false,
-  updateBuffs: () => { queueOnIntro(ACTION_FIVE_THUNDERS_ARRAY); applyTeam(BULING_OUTRO, 1); }
+  updateBuffs: () => applyTeam(BULING_OUTRO, 1),
 });
 
 /* ------------------------------------------------------------------------------------ buffs */
@@ -130,7 +133,11 @@ const THUNDER_SPELL_STAGE = ["Primordial Qi", "Yin and Yang", "Heaven, Earth, Mi
 const THUNDER_SPELL = new Buff({
   name: "Buling: Thunder Spell", maxStacks: 3,
   display: (): string => `Buling: Thunder Spell - ${THUNDER_SPELL_STAGE[stacksOfTeam(THUNDER_SPELL) - 1]}`,
-  updateGlobal: () => { if (casting(Cast.Intro) && stacksOfTeam(THUNDER_SPELL) < 3) applyTeam(THUNDER_SPELL, 1); },
+  // stands only while the Array does: gone on the first action after its last pull
+  updateGlobal: () => {
+    if (!stacksOfTeam(FIVE_THUNDERS_ARRAY)) { revokeTeam(THUNDER_SPELL); return; }
+    if (casting(Cast.Intro) && stacksOfTeam(THUNDER_SPELL) < 3) applyTeam(THUNDER_SPELL, 1);
+  },
   applyStats: () => {
     if (!currentAction().active) return;
     const stage = stacksOfTeam(THUNDER_SPELL);
@@ -143,6 +150,10 @@ const THUNDER_SPELL = new Buff({
     }
   },
 });
+
+/** The Array standing: 24 of the engine's seconds, one pull every second of them (helpers.ts's
+ *  own field window). Granted by the Liberation, and what Thunder Spell above lives by. */
+const FIVE_THUNDERS_ARRAY = coordinatedBuff("Buling: Five Thunders Spell Array", 24, () => BULING_RESONATOR, ArrayTick, { every: 2 });
 
 /** Pure state markers, no stat of their own — both are consumed the instant she holds both at
  *  once (see BULING_RESONATOR's own updateBuffs()), entering Yin-Yang Balance. */
@@ -185,7 +196,11 @@ const BL_S4 = new Sequence({
   applyStats: () => addStat(Stat.HealingBonus, 20),
 });
 
-const BL_S5 = new Sequence({ name: "Buling S5" });
+/** The Array inflicts 6 more Electro Flare the moment it is generated. */
+const BL_S5 = new Sequence({
+  name: "Buling S5",
+  updateDebuffs: () => { if (currentAction() === Liberation) inflictElectroFlare(6); },
+});
 
 const BL_S6 = new Sequence({ name: "Buling S6" });
 

@@ -29,9 +29,8 @@ import {
   setForte1,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
-import { applyEnemy } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { ELECTRO_FLARE, inflictedNegativeStatus, HEALS } from "../../shared/status.js";
+import { inflictElectroFlare, inflictedNegativeStatus, HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
@@ -57,13 +56,13 @@ const Repel = roverAction("Basic - Repel", { node: Node.Skill, cast: Cast.Basic,
 
 // --- forte circuit: Overshock, at full Electric Surge. Press and hold are the same damage and the
 //     same Surge spend, and differ only in what they open — the team ATK buff or Apex Resonance
-//     (which the hold pays 60 Concerto for). `flare` is Decipher's own 10 stacks of Electro Flare.
-// Both Overshocks inflict 10 Electro Flare and clear the whole Surge gauge — pre-clamp an
-// overshoot back to exactly 100 so the declared forte1: -100 lands on 0, same pattern as Encore's
-// own Cloudy Frenzy.
+//     (which the hold pays 60 Concerto for).
+// Both Overshocks inflict Decipher's 10 Electro Flare and clear the whole Surge gauge — pre-clamp
+// an overshoot back to exactly 100 so the declared forte1: -100 lands on 0, same pattern as
+// Encore's own Cloudy Frenzy.
 const OVERSHOCK = {
   node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 1412.58, energy: 15.15, concerto: 18.33, offtune: 54645, forte1: -100,
-  updateDebuffs: () => applyEnemy(ELECTRO_FLARE, 10),
+  updateDebuffs: () => inflictElectroFlare(10),
 };
 const Overshock = roverAction("Forte Skill - Overshock", {
   ...OVERSHOCK,
@@ -130,8 +129,7 @@ const OVERSHOCK_ATK = new Buff({
 });
 
 /** Decipher (Inherent Skill): Overshock's own 10 stacks of Electro Flare, declared on both
- *  Overshock actions above. Electro Flare's own damage has no trigger yet (statuses.ts), so this
- *  piece is still held only for the name. */
+ *  Overshock actions above — held here for the name. */
 const ER_INHERENT_1 = new Inherent({ name: "Inherent: Decipher" });
 
 /** Regression (Inherent Skill): +20% Resonance Skill DMG Bonus for 20s off a held Overshock,
@@ -171,9 +169,11 @@ const ER_OUTRO = new Buff({
 // S1 Celestial Ingenuity: interruption resistance only — a genuine no-op, held for the name
 const ER_S1 = new Sequence({ name: "Electro Rover S1: Celestial Ingenuity" });
 
-// S2 Thousandfold Artifice: 5 more Electro Flare off Liberation — nothing reads Electro Flare
-// yet, so this is a no-op too (same as Buling's own S5)
-const ER_S2 = new Sequence({ name: "Electro Rover S2: Thousandfold Artifice" });
+// S2 Thousandfold Artifice: 5 more Electro Flare on whatever Ultimate Tactics hits
+const ER_S2 = new Sequence({
+  name: "Electro Rover S2: Thousandfold Artifice",
+  updateDebuffs: () => { if (currentAction() === Liberation) inflictElectroFlare(5); },
+});
 
 const ER_S3 = new Sequence({
   name: "Electro Rover S3: Alchemy of Wonders",

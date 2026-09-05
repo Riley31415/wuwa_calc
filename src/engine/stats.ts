@@ -54,7 +54,7 @@ export const enum Stat {
    *  are tracked purely for kit completeness. Nothing reads either; they never reach a column
    *  or a panel. */
   HealingBonus,
-  HealingTaken,
+  HealingReceived,
 
   /** Resource deltas a buff contributes on top of an action's own declared energy/concerto/
    *  offtune/forte — banked into the running counters by evaluate(), not read back by a formula. */
@@ -97,7 +97,7 @@ export const STAT_NAME: Record<Stat | EnemyStat, string> = {
   [Stat.AddMv]: "MV increase", [Stat.MulMv]: "MV multiplier",
   [Stat.DmgBonus]: "Dmg Bonus", [Stat.Amp]: "Amplification", [Stat.TotalDmg]: "Total Damage",
   [Stat.ResIgnore]: "Res Ignore", [Stat.DefIgnoreNew]: "Def Ignore (new)", [Stat.DefIgnoreOld]: "Def Ignore (old)",
-  [Stat.HealingBonus]: "Healing Bonus", [Stat.HealingTaken]: "Healing Recieved",
+  [Stat.HealingBonus]: "Healing Bonus", [Stat.HealingReceived]: "Healing Received",
   [Stat.AddEnergy]: "Energy", [Stat.AddConcerto]: "Concerto", [Stat.AddOfftune]: "Offtune",
   [Stat.DirectOfftune]: "DirectOfftune",
   [Stat.AddForte1]: "Forte1", [Stat.AddForte2]: "Forte2", [Stat.AddForte3]: "Forte3",
@@ -288,7 +288,7 @@ export const PERCENT_STATS: Set<Stat | EnemyStat> = new Set<Stat | EnemyStat>([
   Stat.AddMv, Stat.MulMv,
   Stat.DmgBonus, Stat.Amp, Stat.TotalDmg,
   Stat.ResIgnore, Stat.DefIgnoreNew, Stat.DefIgnoreOld,
-  Stat.HealingBonus, Stat.HealingTaken,
+  Stat.HealingBonus, Stat.HealingReceived,
   EnemyStat.ResReduce, EnemyStat.DefReduce,
 ]);
 

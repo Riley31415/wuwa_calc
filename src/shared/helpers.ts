@@ -6,6 +6,7 @@
  *
  * - `lostOnSwap()` — the "lost on switching out" clause, spelled out once.
  * - `handoff()` — the 15s Outro→Intro handoffs that outlast the receiver's own visit.
+ * - `oneSecondPassed()` — the engine's second, which every field and status clock counts off.
  * - `coordinatedBuff()` — a Coordinated-Attack window as a per-action countdown of summons.
  * - `matrix()` — a Matrix piece, with its total-DMG figure rebased onto Matrix Mode's own +20%.
  */
@@ -31,6 +32,7 @@ import {
 } from "../engine/context.js";
 import type { GearDef } from "../engine/gear.js";
 import { Stat } from "../engine/stats.js";
+import { TUNE_BREAK } from "./tunebreak.js";
 
 /* -------------------------------------------------------------------------------- lost on swap */
 
@@ -92,6 +94,20 @@ export function handoff(name: string, applyStats: () => void): Buff {
   return buff;
 }
 
+/* ------------------------------------------------------------------------------- the second */
+
+/** The clockless engine's second: one active, non-triggered press. Every timed thing here (a
+ *  field's window, a status's tick clock) counts these off as its seconds.
+ *
+ *  Two presses are no second at all, because the world is frozen for their whole animation
+ *  (wuwalab's frame data: a Liberation's `time_stop` outlasts its cast, a Tune Break's is all of
+ *  it): a Liberation cast and the shared Tune Break. A Liberation-cast press that does take real
+ *  time says so itself (`ActionDef.realTime` — Carlotta's Death Knell, a second a shot). */
+export function oneSecondPassed(): boolean {
+  const a = currentAction();
+  return a.active && !triggeredAction() && (!casting(Cast.Liberation) || a.realTime) && a !== TUNE_BREAK;
+}
+
 /* ------------------------------------------------------------------------- coordinated windows */
 
 /**
@@ -123,17 +139,17 @@ export function handoff(name: string, applyStats: () => void): Buff {
  *
  * `every` spends a stack per qualifying action as usual but only summons on each nth of them —
  * for a field whose own clock is slower than the window it stands for (Denia's Erosion Field, one
- * tick per five presses across thirty-five).
- *
- * A Resonance Liberation never counts: it is a cast of its own rather than the steady stream of
- * presses these windows are counting off, so it neither summons nor spends.
+ * tick per five presses across thirty-five). Fractional for a cadence that is not whole seconds
+ * (Ciaccona's Tonics, one per 1.65s across thirty-three): a summon fires on each press that
+ * carries the seconds spent past the next multiple.
  */
 export function coordinatedBuff(name: string, stacks: number, owner: (() => Resonator) | null, tick: Action, { enemy = false, hits = 1, every = 1, applyStats }: { enemy?: boolean; hits?: number; every?: number; applyStats?: () => void } = {}): Buff {
   const fire = (): void => {
-    if (!currentAction().active || triggeredAction() || casting(Cast.Liberation)) return;
-    // `frozenStacks()` is what stood before this action, so the nth press is the one that leaves a
-    // multiple of `every` behind it
-    const summons = (frozenStacks() - 1) % every === 0 ? hits : 0;
+    if (!oneSecondPassed()) return;
+    // `frozenStacks()` is what stood before this action, so this press is the `spent`th second of
+    // the window — the one that summons when it crosses a multiple of `every`
+    const spent = stacks - frozenStacks() + 1;
+    const summons = Math.floor(spent / every) > Math.floor((spent - 1) / every) ? hits : 0;
     if (owner === null) { for (let k = 0; k < summons; k++) queue(tick); removeStack(buff, 1); }
     else { for (let k = 0; k < summons; k++) queueOn(owner(), tick); (enemy ? removeStackEnemy : removeStackTeam)(buff, 1); }
   };

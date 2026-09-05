@@ -187,7 +187,7 @@ const JINGRAN_HP_TO_FUSION = new Buff({
   convertStats: () => {
     addStat(Stat.FlatDef, -def());
     const steps = hpSteps();
-    addStat(Stat.HealingTaken, 6.2 * steps); // 6.2% Incoming Healing Bonus per 1000 HP, capped 310%
+    addStat(Stat.HealingReceived, 6.2 * steps); // 6.2% Incoming Healing Bonus per 1000 HP, capped 310%
     addStat(Stat.DmgBonus, 1.5 * steps, Attribute.Fusion); // 1.5% fusion per 1000 HP, capped 75%
   },
 });

@@ -273,6 +273,10 @@ main {
 }
 /* `flex-start`, so one box opening its description doesn't stretch the others in its row to match */
 .tcfilter-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
+/* Too narrow for the note column to sit beside the role columns (see the 1180px block below): the
+   standards box and the search bar go under the checkboxes instead of over them, the warning last. */
+.tcfilter-row.note { order: 1; }
+.tcfilters > .tcwarning { order: 2; }
 /* One box per option: the name left, its own checkbox hard right, and the description opening
    under both (index.js's own `comparisonFilters()`). They share a basis so the two role rows still
    line up column-wise, and cap out rather than stretching to a screen's width on a wide window. */
@@ -1107,7 +1111,11 @@ body.coldrag { user-select: none; }
 }
 /* wide enough for two columns side by side — the note column and MDPS, supports wrapping under
    the note column — and from 1460px all three */
-@media (min-width: 1180px) { .tcside { width: 554px; } }
+@media (min-width: 1180px) {
+  .tcside { width: 554px; }
+  /* room for the note column beside the roles now, so it goes back to the front */
+  .tcfilter-row.note { order: 0; }
+}
 @media (min-width: 1460px) { .tcside { width: 836px; } }
 
 /* a phone: one box per line, full width, and less of the page given over to margin */

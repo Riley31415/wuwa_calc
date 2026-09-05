@@ -22,8 +22,8 @@
  * Annihilated Silence. Remembrance (Inherent Skill 2) banks Film Roll under Chafe the same way
  * Déjà Vu/Remembrance bank Zoom under Echo (2 a Photo Oblivion spends, plus 4 more on each
  * Liberation cast). Film Roll fuels a passive Glacio Chafe re-proc off any *other* active
- * teammate's own Chafe hit, but that re-proc deals no damage of its own, so — like Buling's own
- * Electro Flare stacks — only the bank is modelled, not the spend. Montage (Outro Skill) also
+ * teammate's own Chafe hit, but that re-proc deals no damage of its own, so only the bank is
+ * modelled, not the spend. Montage (Outro Skill) also
  * branches: Echo hands the incoming resonator a 14s Echo Skill DMG Amp handoff; Chafe instead
  * grants a permanent +60% Glacio Chafe DMG Amp to whoever's active, which pays into every Glacio
  * Chafe calculation her stacks set off (statuses.ts).

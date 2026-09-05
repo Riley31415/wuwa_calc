@@ -12,6 +12,8 @@ add all sequences and R5 weapons
 #
 add costs and max cost filter
 
+#
+add resource capping helper and show in stats
 
 # naming
 standardize action naming

@@ -23,7 +23,7 @@
  * rows the table actually shows are run back here, because a `TeamRun` carries a whole `State` for
  * the detail page and none of that can cross a postMessage.
  */
-import { Stat, Attribute, Type1, Type2, scopedStat } from "./engine/stats.js";
+import { Stat, Attribute, Type1, Type2, Tier, scopedStat } from "./engine/stats.js";
 import { Gear, baseSequence } from "./engine/gear.js";
 import { menuStats } from "./engine/context.js";
 import { Action } from "./engine/rotation.js";
@@ -118,6 +118,17 @@ function focusSearch(): void {
   if (!search) return;
   search.focus({ preventScroll: true });
   search.setSelectionRange(search.value.length, search.value.length);
+}
+
+/** Empty the search bar — every filter a result sets closes the question it was typed to answer,
+ *  so the text goes with it. State *and* the live DOM: a redraw usually replaces the input with a
+ *  blank one, but a refused filter change (`withRowCap()`) redraws nothing at all. */
+function clearSearch(): void {
+  searchText = "";
+  const input = document.querySelector<HTMLInputElement>("#optionSearch");
+  if (input) input.value = "";
+  const box = document.getElementById("searchResults");
+  if (box) box.innerHTML = "";
 }
 
 /** Show/clear the row-cap warning banner (`comparisonFilters()`'s own `#rowCapWarning`) directly,
@@ -635,7 +646,8 @@ function popover(col: Column, rows: TraceEntry[] | undefined, total: number | st
   // A panel whose every row sits below the total (an unshredded resistance, whose only row is the
   // factor itself) still opens with the column's own name — the heading is what says which column
   // is being explained, and it can't come from a group that isn't there.
-  const titled = sections.length ? body : `<tr class="sec"><td colspan="2">${esc(col.full ?? col.label)}</td></tr>`;
+  const titled = sections.length ? body
+    : `<tr class="sec"><td colspan="2">${esc(col.fullEmpty ?? col.full ?? col.label)}</td></tr>`;
 
   // the damage panel's own figures read left-aligned (see index.css) — every row of it is a
   // multiplier rather than an amount, and flush-right pushes the `x` signs apart
@@ -936,8 +948,8 @@ const gearPopover = (member: Member, combo: Combo): string => lazyPop(gearPopove
 
 /** What a member's own name cell reads as: the resonator, then their sequence level and weapon
  *  rank as one token (`S0R1`) — the level this row actually runs at (see `sequenceLevels()`), and
- *  R1 when this row's weapon is a signature/limited one rather than a standard (see gear.ts's own
- *  `Weapon.standard`). Always shown, weapon options box or no: the weapon/echo/mainstat picks
+ *  the refinement its weapon is costed at, off that weapon's own tier (see gear.ts's own
+ *  `Weapon.tier`). Always shown, weapon options box or no: the weapon/echo/mainstat picks
  *  themselves live in their own columns now (see `optionCell()`), not appended here, so there's
  *  nothing left for the rank marker to be redundant with. */
 function memberLabel(m: Member, combo: Combo): string {
@@ -951,8 +963,13 @@ function memberLabel(m: Member, combo: Combo): string {
     ? `S${combo.sequence}`
     : "";
   // Which way the weapon went is worth saying either way — a signature is the build's own biggest
-  // single lever, so "R0" reading "no signature" is worth as much as "R1" reading it has one.
-  const rank = combo.weapon.standard ? "R0" : "R1";
+  // single lever, so "R0" reading "no signature" is worth as much as "R1" reading it has one. A
+  // 4-star anyone can craft is the third answer: R5, what it is actually being run at — but only
+  // where the R5 is the point. On a limited resonator, whose own weapon is the signature they
+  // didn't take, the craftable is the "no signature" build and reads R0 like any other.
+  const rank = combo.weapon.tier === Tier.Free && l.resonator.tier !== Tier.Limited ? "R5"
+    : combo.weapon.tier === Tier.Limited ? "R1"
+    : "R0";
   return [l.resonator.name, `${seq}${rank}`].filter(Boolean).join(" ");
 }
 
@@ -1000,20 +1017,26 @@ function searchCandidates(): { kind: SearchKind; value: string }[] {
   return out;
 }
 
-/** The top 5 candidates containing the typed text, earliest match first — each one a row that
- *  filters exactly like the table cell it stands for: left click requires it, right click bars it
- *  (see the handlers in `boot()`). Empty markup while nothing is typed. */
-function searchResults(): string {
+/** The top 5 candidates containing the typed text, earliest match first — what the list draws, and
+ *  what Enter in the bar takes its first entry from. Empty while nothing is typed. */
+function searchHits(): { kind: SearchKind; value: string }[] {
   const text = searchText.trim().toLowerCase();
-  if (!text) return "";
-  const KIND_LABEL: Record<SearchKind, string> = {
-    resonator: "Resonator", weapon: "Weapon", echo: "Echo", mainstat: "Mainstat", sequence: "Sequence",
-  };
-  const hits = searchCandidates()
+  if (!text) return [];
+  return searchCandidates()
     .map((c) => ({ ...c, at: c.value.toLowerCase().indexOf(text) }))
     .filter((c) => c.at !== -1)
     .sort((a, b) => a.at - b.at || a.value.localeCompare(b.value))
     .slice(0, 5);
+}
+
+/** `searchHits()` as markup — each one a row that filters exactly like the table cell it stands
+ *  for: left click requires it, right click bars it (see the handlers in `boot()`). */
+function searchResults(): string {
+  if (!searchText.trim()) return "";
+  const KIND_LABEL: Record<SearchKind, string> = {
+    resonator: "Resonator", weapon: "Weapon", echo: "Echo", mainstat: "Mainstat", sequence: "Sequence",
+  };
+  const hits = searchHits();
   if (!hits.length) return `<div class="sresult none">no matches</div>`;
   return hits.map(({ kind, value }) => {
     const hue = kind === "resonator" ? RESONATOR_HUE.get(value)
@@ -1037,7 +1060,7 @@ function searchResults(): string {
  *  first-listed pick on that axis and nothing else is even simulated; checked, the axis opens to
  *  every pick the loadout offers and the newly reachable rows are run right then (see
  *  `Filters`/`refresh()`). Allow R1 restricts that role to `standard` weapons only
- *  (weapons/standard.ts, every generation — see gear.ts's own `Weapon.standard`) when unchecked,
+ *  (weapons/standard.ts, every generation — see gear.ts's own `Weapon.tier`) when unchecked,
  *  on the assumption a signature is only ever owned at R1.
  *
  *  Each option is its own box: the name on the left, its own checkbox hard right, and the
@@ -1554,6 +1577,15 @@ function stepRow(
     // a genuine stat buff moved this cell's own value, not just its usual carried/declared trace
     // (see display.ts's own ReportRow.buffed) — mv, and the three running resources
     if (BUFF_UNDERLINE_COLUMNS.has(col.key) && row.buffed.has(col.key)) cls.push("buffed");
+    // ...and a running counter whose own arithmetic doesn't close: what it held walking in, plus
+    // what this action moved it by, is not what the cell now reads, so something set it outright
+    // rather than adding to it — an outro's own concerto ceiling and energy wipe (evaluate.ts), a
+    // forte gauge a kit clamps back to its cap. The same note: the cell is not the sum of the
+    // panel above it.
+    if (isRunning(col.key) && typeof v === "number"
+      && Math.abs((Number(row.raw[`before:${col.key}`]) || 0) + (Number(row.raw[`moved:${col.key}`]) || 0) - v) > 1e-9) {
+      cls.push("buffed");
+    }
     // an outro fired with less than a full 100-point bar to spend, counting whatever concerto
     // landed on it that same action (Jinhsi's Unison hands over the 100 its outro costs, and is
     // not short) — never true off a non-outro row, concertoSpent only ever moves on one
@@ -3174,6 +3206,7 @@ async function boot(): Promise<void> {
   document.addEventListener("click", (e) => {
     const pick = searchPick(e);
     if (!pick) return;
+    clearSearch();
     setFilter(...pick, "include");
     focusSearch();
   });
@@ -3181,6 +3214,7 @@ async function boot(): Promise<void> {
     const pick = searchPick(e);
     if (!pick) return;
     e.preventDefault();
+    clearSearch();
     setFilter(...pick, "exclude");
     focusSearch();
   });
@@ -3237,6 +3271,18 @@ document.addEventListener("input", (e) => {
   searchText = input.value;
   const box = document.getElementById("searchResults");
   if (box) box.innerHTML = searchResults();
+});
+// Enter in the bar takes the first result, the one the list already has at the top — the same
+// filter clicking it would set. Tabbing onto a result instead makes Enter a plain button press,
+// which the click handler in `boot()` already covers.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" || (e.target as HTMLElement).id !== "optionSearch") return;
+  const first = searchHits()[0];
+  if (!first) return;
+  e.preventDefault();
+  clearSearch();
+  setFilter(first.kind === "resonator" ? resonatorFilters : OPTION_FILTER_MAPS[first.kind], first.value, "include");
+  focusSearch();
 });
 // Clicking or tabbing out of the search hides its results; back in brings them back — the list
 // floats (index.css), so neither move shifts the chips or the table. A focus move that stays

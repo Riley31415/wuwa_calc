@@ -82,6 +82,10 @@ export interface ActionDef extends GearDef {
    *  engine bookkeeping a resonator didn't press a button for (the swap markers below).
    *  Everything else `run()` derives on its own; see its `triggered` local. */
   triggered?: boolean;
+  /** A Liberation-cast press that still takes real world time — no time stop, unlike the
+   *  Liberation cinematic itself (Carlotta's Death Knell, a second a shot) — so the engine's
+   *  second (helpers.ts's `oneSecondPassed()`) counts it like any other press. */
+  realTime?: boolean;
   /** The field this hit belongs to — a summon firing on its own beside the fight (a coordinated
    *  attack, Denia's Erosion Field, Jué's follow-up, Xiangli Yao's outro laser, Rebecca's turret).
    *  The same `ActionField` the Buff that opens the field names, which is what pairs a run of hits
@@ -124,6 +128,7 @@ export class Action extends Gear {
   forte5: number;
   resolveFn?: () => Action | null;
   triggered: boolean;
+  realTime: boolean;
   /** What this was built from, kept so `variant()` can rebuild it with a change or two. */
   readonly def: ActionDef;
   /** Lazily-filled cache for runtime.ts's `tagWordOf()` — this action's own element/type/type2, as the
@@ -157,6 +162,7 @@ export class Action extends Gear {
     this.forte5 = def.forte5 ?? 0;
     this.resolveFn = def.resolve;
     this.triggered = def.triggered ?? false;
+    this.realTime = def.realTime ?? false;
     this.def = def;
   }
 

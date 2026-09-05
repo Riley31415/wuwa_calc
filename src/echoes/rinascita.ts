@@ -235,10 +235,9 @@ export const GUSTS_OF_WELKIN_5PC = new Sonata({
 
 /** Reminiscence: Fleurdelys, the Windcleaver summon: eight 27.36% Aero hits and one 136.8%. The
  *  main-slot wearer gets +10% Aero DMG Bonus, and another +10% when that wearer is Rover: Aero or
- *  Cartethyia — of the two only Aero Rover exists in this calculator, so his is the only one
- *  checked, and by name: importing his own module here would close the cycle his loadout already
- *  opens by equipping this echo, and the loser of that race is whichever file the loader reaches
- *  second. */
+ *  Cartethyia. Both are checked by name: importing either module here would close the cycle their
+ *  own loadouts already open by equipping this echo, and the loser of that race is whichever file
+ *  the loader reaches second. */
 export const ACTION_FLEURDELYS = new Action("Echo - Reminiscence: Fleurdelys", {
   cast: Cast.Echo, element: Attribute.Aero, scaling: Scaling.Atk, type: Type1.Echo,
   mv: 27.36 * 8 + 136.8, energy: 0.38 * 8 + 1.9,
@@ -249,7 +248,8 @@ export const FLEURDELYS = new Mainslot({
   echoType: EchoType.SUMMON,
   constantStats: () => {
     addStat(Stat.DmgBonus, 10, Attribute.Aero);
-    if (currentMember().resonator?.name === "Aero Rover") addStat(Stat.DmgBonus, 10, Attribute.Aero);
+    const worn = currentMember().resonator?.name;
+    if (worn === "Aero Rover" || worn === "Cartethyia") addStat(Stat.DmgBonus, 10, Attribute.Aero);
   },
 });
 

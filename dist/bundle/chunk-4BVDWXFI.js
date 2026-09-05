@@ -184,8 +184,8 @@ var STAT_NAME = {
   ]: "Healing Bonus",
   [
     24
-    /* Stat.HealingTaken */
-  ]: "Healing Recieved",
+    /* Stat.HealingReceived */
+  ]: "Healing Received",
   [
     25
     /* Stat.AddEnergy */
@@ -1215,6 +1215,21 @@ var { get: forte2, set: setForte2, add: addForte2 } = forteGauge(1);
 var { get: forte3, set: setForte3, add: addForte3 } = forteGauge(2);
 var { get: forte4, set: setForte4, add: addForte4 } = forteGauge(3);
 var { get: forte5, set: setForte5, add: addForte5 } = forteGauge(4);
+function enemyGauge(i) {
+  return {
+    get: () => ctx.state.enemy.forte[i],
+    set: (value) => {
+      noteMutation(-6 - i, value);
+      return ctx.state.enemy.forte[i] = value;
+    },
+    add: (delta) => {
+      noteMutation(-6 - i, delta);
+      return ctx.state.enemy.forte[i] = ctx.state.enemy.forte[i] + delta;
+    }
+  };
+}
+var { get: enemyForte1, set: setEnemyForte1, add: addEnemyForte1 } = enemyGauge(0);
+var { get: enemyForte2, set: setEnemyForte2, add: addEnemyForte2 } = enemyGauge(1);
 function concerto() {
   return ctx.slot.concerto;
 }
@@ -1309,6 +1324,12 @@ function addBuff(resonator, buff, n = 1) {
 }
 function revokeBuff(resonator, buff) {
   ctx.state.memberOf(resonator).revoke(buff);
+}
+function applyOthers(buff, n = 1) {
+  attribute(buff);
+  for (const s of ctx.state.slots)
+    if (s !== ctx.slot)
+      s.addStack(buff, n);
 }
 function queueOutro(buff) {
   noteMutation(buff.id, 3e6);
@@ -1618,11 +1639,11 @@ var Mainslot = class extends Gear {
 };
 var Weapon = class extends Gear {
   weaponType;
-  standard;
+  tier;
   constructor(def2) {
     super(def2);
     this.weaponType = def2.weaponType;
-    this.standard = def2.standard ?? false;
+    this.tier = def2.tier ?? 0;
   }
 };
 
@@ -2294,6 +2315,7 @@ var Action = class _Action extends Gear {
   forte5;
   resolveFn;
   triggered;
+  realTime;
   /** What this was built from, kept so `variant()` can rebuild it with a change or two. */
   def;
   /** Lazily-filled cache for runtime.ts's `tagWordOf()` — this action's own element/type/type2, as the
@@ -2324,6 +2346,7 @@ var Action = class _Action extends Gear {
     this.forte5 = def2.forte5 ?? 0;
     this.resolveFn = def2.resolve;
     this.triggered = def2.triggered ?? false;
+    this.realTime = def2.realTime ?? false;
     this.def = def2;
   }
   /** The same cast again under `overrides` — every hook and number shared, but a new Action, so
@@ -2796,6 +2819,85 @@ function tuneStrainBonus() {
     ) * interfered);
 }
 
+// dist/src/shared/helpers.js
+function lostOnSwap() {
+  if (!currentAction().active)
+    revokeCurrent(currentGear());
+}
+function handoffWindow(buff) {
+  const mine = currentTeam().slot === currentMember();
+  if (frozenStacks() < 2) {
+    if (mine && casting(
+      7
+      /* Cast.Outro */
+    ))
+      applyCurrent(buff, 1);
+    return;
+  }
+  if (!mine && !casting(
+    6
+    /* Cast.Intro */
+  ))
+    revokeCurrent(buff);
+}
+function handoff(name, applyStats) {
+  const buff = new Buff({
+    name,
+    maxStacks: 2,
+    applyStats,
+    // the second stack is bookkeeping, not a doubled payout — no "x2" in the report
+    display: () => name,
+    updateGlobal: () => handoffWindow(buff)
+  });
+  return buff;
+}
+function oneSecondPassed() {
+  const a = currentAction();
+  return a.active && !triggeredAction() && (!casting(
+    5
+    /* Cast.Liberation */
+  ) || a.realTime) && a !== TUNE_BREAK;
+}
+function coordinatedBuff(name, stacks, owner, tick, { enemy = false, hits = 1, every = 1, applyStats } = {}) {
+  const fire = () => {
+    if (!oneSecondPassed())
+      return;
+    const spent = stacks - frozenStacks() + 1;
+    const summons = Math.floor(spent / every) > Math.floor((spent - 1) / every) ? hits : 0;
+    if (owner === null) {
+      for (let k = 0; k < summons; k++)
+        queue(tick);
+      removeStack(buff, 1);
+    } else {
+      for (let k = 0; k < summons; k++)
+        queueOn(owner(), tick);
+      (enemy ? removeStackEnemy : removeStackTeam)(buff, 1);
+    }
+  };
+  const buff = new Buff({
+    name,
+    maxStacks: stacks,
+    applyStats,
+    // the window *is* the field standing, so granting it is what the report files the summons
+    // under — named off the tick's own declaration rather than asked for twice
+    field: tick.field,
+    // the count reads as the seconds the field has left, one qualifying press to the second —
+    // `every` spaces the summons out, it doesn't shorten the stand — so Jué's fresh window says
+    // (15s) and Rebecca's turret (14s), not a bare count that means nothing beside them
+    display: () => `${name} (${frozenStacks()}s)`,
+    ...owner === null ? { updateGlobal: fire } : { updateBuffs: fire }
+  });
+  return buff;
+}
+var matrix = (resonator, totalDmg, def2 = {}) => new Matrix({
+  name: `${resonator}: Matrix`,
+  constantStats: () => {
+    if (totalDmg)
+      addStat(19, totalDmg / 1.2);
+  },
+  ...def2
+});
+
 // dist/src/shared/status.js
 var SHIELD = new Buff({
   name: "Shield",
@@ -2814,6 +2916,7 @@ var negativeStatusActions = (name, element, type2, mvs) => [null, ...mvs.map((mv
   scaling: 3,
   mv
 }))];
+var negativeStatusRung = (ladder, held) => held < 1 ? null : ladder[Math.min(held, ladder.length - 1)];
 var HAVOC_BANE = new Debuff({
   name: "Havoc Bane",
   maxStacks: 3,
@@ -2896,7 +2999,18 @@ var AERO_EROSION_ACTIONS = negativeStatusActions("Aero Erosion", 64, 786432, [
   1462.5,
   1575
 ]);
-var AERO_EROSION = new Debuff({ name: "Aero Erosion", maxStacks: 3 });
+var AERO_EROSION = new Debuff({
+  name: "Aero Erosion",
+  maxStacks: 3,
+  display: () => `Aero Erosion x${frozenStacks()} (tick in ${(6 - enemyForte2()) / 2}s)`,
+  updateBuffs: () => {
+    const rung = negativeStatusRung(AERO_EROSION_ACTIONS, stacksOfEnemy(AERO_EROSION));
+    if (!rung || !oneSecondPassed() || addEnemyForte2(2) < 6)
+      return;
+    addEnemyForte2(-6);
+    queueOnApplier(AERO_EROSION, rung);
+  }
+});
 var SPECTRO_FRAZZLE_ACTIONS = negativeStatusActions("Spectro Frazzle", 320, 524288, [
   30,
   54.39,
@@ -2955,47 +3069,636 @@ var ELECTRO_RAGE_ACTIONS = negativeStatusActions("Electro Rage", 128, 1572864, [
   1108.93,
   1247.55
 ]);
-var ELECTRO_RAGE = new Debuff({
-  name: "Electro Rage",
-  maxStacks: 10,
-  convertStats: () => {
-    if (currentAction() === ELECTRO_RAGE_ACTIONS[frozenStacks()])
-      revokeEnemy(ELECTRO_RAGE);
-  }
-});
+var ELECTRO_RAGE = new Debuff({ name: "Electro Rage", maxStacks: 10 });
 var ELECTRO_FLARE = new Debuff({
   name: "Electro Flare",
-  maxStacks: 10
+  maxStacks: 10,
+  display: () => `Electro Flare x${frozenStacks()} (tick in ${5 - enemyForte1()}s)`,
+  updateBuffs: () => {
+    const held = stacksOfEnemy(ELECTRO_FLARE);
+    const rung = negativeStatusRung(ELECTRO_FLARE_DMG, held);
+    if (!rung || !oneSecondPassed() || addEnemyForte1(1) < 5)
+      return;
+    setEnemyForte1(0);
+    queueOnApplier(ELECTRO_FLARE, rung);
+    const rage = negativeStatusRung(ELECTRO_RAGE_ACTIONS, stacksOfEnemy(ELECTRO_RAGE));
+    if (rage) {
+      queueOnApplier(ELECTRO_FLARE, rage);
+      revokeEnemy(ELECTRO_RAGE);
+    }
+    removeStackEnemy(ELECTRO_FLARE, held - Math.floor(held / 2));
+  }
 });
+function inflictElectroFlare(n) {
+  const before = stacksOfEnemy(ELECTRO_FLARE);
+  const over = n - (applyEnemy(ELECTRO_FLARE, n) - before);
+  if (over > 0)
+    applyEnemy(ELECTRO_RAGE, over);
+}
 var NEGATIVE_STATUSES = [HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, FUSION_BURST, AERO_EROSION, SPECTRO_FRAZZLE];
+function queueOnApplier(status, rung) {
+  const source = currentTeam().sourceOf.get(status);
+  const applier = currentTeam().slots.find((s) => s.name === source)?.resonator;
+  if (applier)
+    queueOn(applier, rung);
+  else
+    queue(rung);
+}
 var inflictedNegativeStatus = () => NEGATIVE_STATUSES.some((d) => appliedByMe(d) > 0);
+var hasNegativeStatus = () => NEGATIVE_STATUSES.some((d) => stacksOfEnemy(d) > 0);
 var inflictedNegativeStatusBy = (member2) => NEGATIVE_STATUSES.some((d) => appliedByMember(d, member2) > 0);
 
-// dist/src/weapons/pistol.js
-var THE_LAST_DANCE = new Weapon({
-  weaponType: 2,
-  name: "The Last Dance",
+// dist/src/weapons/sword.js
+var BLAZING_BRILLIANCE = new Weapon({
+  weaponType: 0,
+  name: "Blazing Brilliance",
   constantStats: () => {
-    addStat(0, 500);
-    addStat(10, 72);
+    addStat(0, 587.5);
+    addStat(10, 48.6);
+    addStat(6, 12);
+  },
+  updateBuffs: () => {
+    if (isType(
+      12288
+      /* Type1.Skill */
+    ))
+      applyCurrent(SEARING_FEATHER, 5);
+  }
+});
+var SEARING_FEATHER = new Buff({
+  name: "Blazing Brilliance: Crimson Phoenix",
+  maxStacks: 14,
+  // pays off current stacks before revoking — applyStats()'s frozenStacks() would already read 0 otherwise
+  updateBuffs: () => {
+    addStat(
+      17,
+      4 * frozenStacks(),
+      12288
+      /* Type1.Skill */
+    );
+    if (casting(
+      7
+      /* Cast.Outro */
+    ))
+      revokeCurrent(SEARING_FEATHER);
+  }
+});
+var RED_SPRING = new Weapon({
+  weaponType: 0,
+  name: "Red Spring",
+  constantStats: () => {
+    addStat(0, 587.5);
+    addStat(9, 24.3);
+    addStat(6, 12);
+  },
+  updateBuffs: () => {
+    if (isType(
+      4096
+      /* Type1.Basic */
+    ))
+      applyCurrent(RED_SPRING_BASIC);
+    if (currentAction().concerto < 0)
+      applyCurrent(RED_SPRING_CONSUME);
+  }
+});
+var RED_SPRING_BASIC = new Buff({
+  name: "Red Spring: Beyond the Cycle",
+  maxStacks: 3,
+  applyStats: () => {
+    addStat(
+      17,
+      10 * frozenStacks(),
+      4096
+      /* Type1.Basic */
+    );
+  },
+  convertStats: () => {
+    if (casting(
+      7
+      /* Cast.Outro */
+    ))
+      revokeCurrent(RED_SPRING_BASIC);
+  }
+});
+var RED_SPRING_CONSUME = new Buff({
+  name: "Red Spring: Beyond the Cycle (consume)",
+  updateBuffs: () => {
+    lostOnSwap();
+  },
+  applyStats: () => {
+    addStat(
+      17,
+      40,
+      4096
+      /* Type1.Basic */
+    );
+  }
+});
+var UNFLICKERING_VALOR = new Weapon({
+  weaponType: 0,
+  name: "Unflickering Valor",
+  constantStats: () => {
+    addStat(0, 413);
+    addStat(11, 77.04);
+    addStat(9, 8);
+  },
+  updateBuffs: () => {
+    if (casting(
+      5
+      /* Cast.Liberation */
+    ))
+      applyCurrent(LAUGHTER_PREVAILS_LIB);
+    if (isType(
+      4096
+      /* Type1.Basic */
+    ))
+      applyCurrent(LAUGHTER_PREVAILS_BASIC);
+  }
+});
+var LAUGHTER_PREVAILS_LIB = new Buff({
+  name: "Unflickering Valor: Laughter Prevails (lib)",
+  applyStats: () => addStat(
+    17,
+    24,
+    4096
+    /* Type1.Basic */
+  ),
+  convertStats: () => {
+    if (casting(
+      7
+      /* Cast.Outro */
+    ))
+      revokeCurrent(LAUGHTER_PREVAILS_LIB);
+  }
+});
+var LAUGHTER_PREVAILS_BASIC = new Buff({
+  name: "Unflickering Valor: Laughter Prevails (basic)",
+  applyStats: () => addStat(
+    17,
+    24,
+    4096
+    /* Type1.Basic */
+  ),
+  convertStats: () => {
+    if (casting(
+      7
+      /* Cast.Outro */
+    ))
+      revokeCurrent(LAUGHTER_PREVAILS_BASIC);
+  }
+});
+var EMERALD_SENTENCE = new Weapon({
+  weaponType: 0,
+  name: "Emerald Sentence",
+  constantStats: () => {
+    addStat(0, 587.5);
+    addStat(9, 24.3);
     addStat(6, 12);
   },
   updateBuffs: () => {
     if (casting(
       6
       /* Cast.Intro */
-    ) || casting(
-      5
-      /* Cast.Liberation */
     ))
-      applyCurrent(SILENT_EULOGY, 1);
+      applyTeam(HEART_SETTLES_TEAM);
+    if ((casting(
+      6
+      /* Cast.Intro */
+    ) || casting(
+      1
+      /* Cast.Basic */
+    ) || casting(
+      2
+      /* Cast.MidAir */
+    )) && !stacksOf(BAMBOO_CLEAVER)) {
+      applyCurrent(BAMBOO_CLEAVER);
+    }
   }
 });
-var SILENT_EULOGY = new Buff({
-  name: "The Last Dance: Silent Eulogy",
+var HEART_SETTLES_TEAM = new Buff({
+  name: "Emerald Sentence: When A Heart Settles",
   applyStats: () => addStat(
     17,
-    48,
+    20,
+    28672
+    /* Type1.Echo */
+  )
+});
+var BAMBOO_CLEAVER = new Buff({
+  name: "Emerald Sentence: Bamboo Cleaver",
+  maxStacks: 3,
+  updateBuffs: () => {
+    lostOnSwap();
+    if (casting(
+      8
+      /* Cast.Echo */
+    ))
+      applyCurrent(BAMBOO_CLEAVER);
+  },
+  applyStats: () => {
+    if (frozenStacks() >= 2)
+      addStat(
+        17,
+        30 * (frozenStacks() - 1),
+        8192
+        /* Type1.Heavy */
+      );
+  }
+});
+var GLINT_OF_CLOUDS = new Weapon({
+  weaponType: 0,
+  name: "Glint of Clouds",
+  constantStats: () => {
+    addStat(0, 500);
+    addStat(9, 36);
+    addStat(6, 12);
+  },
+  updateBuffs: () => {
+    if (appliedByMe(TUNE_STRAIN_SHIFTING))
+      applyCurrent(EVILS_SCOURGE, 1);
+  }
+});
+var EVILS_SCOURGE = new Buff({
+  name: "Glint of Clouds: Evil's Scourge",
+  maxStacks: 5,
+  applyStats: () => {
+    addStat(
+      17,
+      11.2 * frozenStacks(),
+      64
+      /* Attribute.Aero */
+    );
+    if (frozenStacks() >= 5)
+      addStat(
+        21,
+        10,
+        64
+        /* Attribute.Aero */
+      );
+  },
+  convertStats: () => {
+    if (casting(
+      7
+      /* Cast.Outro */
+    ) && frozenStacks() < 5)
+      revokeCurrent(EVILS_SCOURGE);
+  }
+});
+var FROSTBURN = new Weapon({
+  weaponType: 0,
+  name: "Frostburn",
+  constantStats: () => {
+    addStat(0, 587.5);
+    addStat(9, 24.3);
+    addStat(6, 12);
+  },
+  // `appliedByMe`: a "when *you* inflict" payout, so the two extra stacks Lucilla's Film Roll
+  // adds to the wielder's own are hers and pay nothing here
+  updateBuffs: () => {
+    if (appliedByMe(GLACIO_CHAFE))
+      applyCurrent(SELF_NO_MORE, 1);
+  }
+});
+var SELF_NO_MORE = new Buff({
+  name: "Frostburn: Self No More",
+  applyStats: () => {
+    addStat(
+      18,
+      28,
+      256
+      /* Attribute.Glacio */
+    );
+    addStat(
+      21,
+      10,
+      16384
+      /* Type1.Liberation */
+    );
+    if (currentAction().active)
+      addStat(
+        18,
+        20,
+        1310720
+        /* Type2.GlacioChafe */
+      );
+  },
+  convertStats: () => {
+    if (casting(
+      7
+      /* Cast.Outro */
+    ))
+      revokeCurrent(SELF_NO_MORE);
+  }
+});
+var AZURE_OATH = new Weapon({
+  weaponType: 0,
+  name: "Azure Oath",
+  constantStats: () => {
+    addStat(0, 587.5);
+    addStat(9, 24.3);
+    addStat(17, 12);
+  },
+  updateBuffs: () => {
+    if (appliedByMe(HAVOC_BANE))
+      applyCurrent(UNBENDING, 1);
+  }
+});
+var UNBENDING = new Buff({
+  name: "Azure Oath: Unbending",
+  applyStats: () => {
+    addStat(
+      18,
+      36,
+      8192
+      /* Type1.Heavy */
+    );
+    addStat(
+      21,
+      12,
+      8192
+      /* Type1.Heavy */
+    );
+  },
+  convertStats: () => {
+    if (casting(
+      7
+      /* Cast.Outro */
+    ))
+      revokeCurrent(UNBENDING);
+  }
+});
+var EVERBRIGHT_POLESTAR = new Weapon({
+  weaponType: 0,
+  name: "Everbright Polestar",
+  constantStats: () => {
+    addStat(0, 587.5);
+    addStat(9, 24.3);
+    addStat(17, 12);
+  },
+  updateBuffs: () => {
+    if (appliedByMe(TUNE_RUPTURE_SHIFTING) || appliedByMe(FUSION_BURST))
+      applyCurrent(STARCHASER, 1);
+  }
+});
+var STARCHASER = new Buff({
+  name: "Everbright Polestar: Starchaser",
+  applyStats: () => {
+    addStat(
+      21,
+      32,
+      16384
+      /* Type1.Liberation */
+    );
+    addStat(
+      20,
+      10,
+      16384
+      /* Type1.Liberation */
+    );
+  },
+  convertStats: () => {
+    if (casting(
+      7
+      /* Cast.Outro */
+    ))
+      revokeCurrent(STARCHASER);
+  }
+});
+var DEFIERS_THORN = new Weapon({
+  weaponType: 0,
+  name: "Defier's Thorn",
+  constantStats: () => {
+    addStat(0, 413);
+    addStat(7, 72.2);
+    addStat(7, 12);
+  },
+  updateBuffs: () => {
+    if (casting(
+      6
+      /* Cast.Intro */
+    ) || isType(
+      4096
+      /* Type1.Basic */
+    ))
+      applyCurrent(FREE_KNIGHTS_TARANTELLA, 1);
+  }
+});
+var FREE_KNIGHTS_TARANTELLA = new Buff({
+  name: "Defier's Thorn: A Free Knight's Tarantella",
+  applyStats: () => {
+    addStat(22, 8);
+    if (stacksOfEnemy(AERO_EROSION) > 0)
+      addStat(18, 20);
+  },
+  convertStats: () => {
+    if (casting(
+      7
+      /* Cast.Outro */
+    ))
+      revokeCurrent(FREE_KNIGHTS_TARANTELLA);
+  }
+});
+
+// dist/src/weapons/standard.js
+function ceaselessAria(name) {
+  const buff = new Buff({
+    name: `${name}: Ceaseless Aria R5`,
+    maxStacks: 2,
+    applyStats: () => {
+      if (frozenStacks() === 1 && casting(
+        4
+        /* Cast.Skill */
+      )) {
+        applyCurrent(buff, 1);
+        addStat(26, 16);
+      } else if (frozenStacks() === 2 && casting(
+        7
+        /* Cast.Outro */
+      ))
+        removeStack(buff, 2);
+    },
+    display: () => `${name}: Ceaseless Aria R5${frozenStacks() === 1 ? "" : " (cooldown)"}`
+  });
+  return buff;
+}
+function concertoWeapon(name, weaponType) {
+  const aria = ceaselessAria(name);
+  return new Weapon({
+    weaponType,
+    tier: 2,
+    name: `${name} R5`,
+    constantStats: () => {
+      addStat(0, 337.5);
+      addStat(11, 51.84);
+    },
+    updateBuffs: () => {
+      if (casting(
+        4
+        /* Cast.Skill */
+      ))
+        applyCurrent(aria, 1);
+    }
+  });
+}
+var VARIATION = concertoWeapon(
+  "Variation",
+  4
+  /* WeaponType.Rectifier */
+);
+var MARCATO = concertoWeapon(
+  "Marcato",
+  3
+  /* WeaponType.Gauntlets */
+);
+var CADENZA = concertoWeapon(
+  "Cadenza",
+  2
+  /* WeaponType.Pistols */
+);
+var OVERTURE = concertoWeapon(
+  "Overture",
+  0
+  /* WeaponType.Sword */
+);
+var DISCORD = concertoWeapon(
+  "Discord",
+  1
+  /* WeaponType.Broadblade */
+);
+var STATIC_MIST = new Weapon({
+  weaponType: 2,
+  tier: 1,
+  name: "Static Mist",
+  constantStats: () => {
+    addStat(0, 587.5);
+    addStat(9, 24.3);
+    addStat(11, 12.8);
+  },
+  updateBuffs: () => {
+    if (casting(
+      7
+      /* Cast.Outro */
+    ))
+      queueOutro(STATIC_MIST_HANDOFF);
+  }
+});
+var STATIC_MIST_HANDOFF = new Buff({
+  name: "Static Mist: Stormy Resolution",
+  applyStats: () => addStat(6, 10),
+  convertStats: () => {
+    if (casting(
+      7
+      /* Cast.Outro */
+    ))
+      revokeCurrent(STATIC_MIST_HANDOFF);
+  }
+});
+var EMERALD_OF_GENESIS = new Weapon({
+  weaponType: 0,
+  tier: 1,
+  name: "Emerald of Genesis",
+  constantStats: () => {
+    addStat(0, 587.5);
+    addStat(9, 24.3);
+    addStat(11, 12.8);
+  },
+  updateBuffs: () => {
+    if (casting(
+      4
+      /* Cast.Skill */
+    ))
+      applyCurrent(EOG_STACKS, 1);
+  }
+});
+var EOG_STACKS = new Buff({
+  name: "Emerald of Genesis: Stormy Resolution",
+  maxStacks: 2,
+  applyStats: () => addStat(6, 6 * frozenStacks()),
+  convertStats: () => {
+    if (casting(
+      7
+      /* Cast.Outro */
+    ))
+      revokeCurrent(EOG_STACKS);
+  }
+});
+var COSMIC_RIPPLES = new Weapon({
+  weaponType: 4,
+  tier: 1,
+  name: "Cosmic Ripples",
+  constantStats: () => {
+    addStat(0, 500);
+    addStat(6, 54);
+    addStat(11, 12.8);
+  },
+  updateBuffs: () => {
+    if (isType(
+      4096
+      /* Type1.Basic */
+    ))
+      applyCurrent(COSMIC_RIPPLES_STACKS, 1);
+  }
+});
+var COSMIC_RIPPLES_STACKS = new Buff({
+  name: "Cosmic Ripples: Stormy Resolution",
+  maxStacks: 5,
+  applyStats: () => addStat(
+    17,
+    3.2 * frozenStacks(),
+    4096
+    /* Type1.Basic */
+  ),
+  convertStats: () => {
+    if (casting(
+      7
+      /* Cast.Outro */
+    ))
+      revokeCurrent(COSMIC_RIPPLES_STACKS);
+  }
+});
+var ABYSS_SURGES = new Weapon({
+  weaponType: 3,
+  tier: 1,
+  name: "Abyss Surges",
+  constantStats: () => {
+    addStat(0, 587.5);
+    addStat(6, 36.45);
+    addStat(11, 12.8);
+  },
+  updateBuffs: () => {
+    if (isType(
+      12288
+      /* Type1.Skill */
+    ))
+      applyCurrent(ABYSS_SKILL_HIT, 1);
+    if (isType(
+      4096
+      /* Type1.Basic */
+    ))
+      applyCurrent(ABYSS_BASIC_HIT, 1);
+  }
+});
+var ABYSS_SKILL_HIT = new Buff({
+  name: "Abyss Surges: Stormy Resolution",
+  applyStats: () => addStat(
+    17,
+    10,
+    4096
+    /* Type1.Basic */
+  ),
+  convertStats: () => {
+    if (casting(
+      7
+      /* Cast.Outro */
+    ))
+      revokeCurrent(ABYSS_SKILL_HIT);
+  }
+});
+var ABYSS_BASIC_HIT = new Buff({
+  name: "Abyss Surges: Stormy Resolution",
+  applyStats: () => addStat(
+    17,
+    10,
     12288
     /* Type1.Skill */
   ),
@@ -3004,254 +3707,181 @@ var SILENT_EULOGY = new Buff({
       7
       /* Cast.Outro */
     ))
-      revokeCurrent(SILENT_EULOGY);
+      revokeCurrent(ABYSS_BASIC_HIT);
   }
 });
-var LUX_UMBRA = new Weapon({
-  weaponType: 2,
-  name: "Lux & Umbra",
+var LUSTROUS_RAZOR = new Weapon({
+  weaponType: 1,
+  tier: 1,
+  name: "Lustrous Razor",
   constantStats: () => {
     addStat(0, 587.5);
-    addStat(10, 48.6);
-    addStat(6, 12);
-  },
-  applyStats: () => {
-    if (isHeld(TO_FIRE_SHE_RETURNS_HEAVY) && isHeld(TO_FIRE_SHE_RETURNS_ECHO))
-      addStat(21, 8);
-  },
-  updateBuffs: () => {
-    const a = currentAction();
-    if (isType(
-      28672
-      /* Type1.Echo */
-    ))
-      applyCurrent(TO_FIRE_SHE_RETURNS_HEAVY, 1);
-    if (isType(
-      8192
-      /* Type1.Heavy */
-    ))
-      applyCurrent(TO_FIRE_SHE_RETURNS_ECHO, 1);
-  }
-});
-var TO_FIRE_SHE_RETURNS_HEAVY = new Buff({
-  name: "Lux & Umbra: To Fire She Returns (heavy)",
-  applyStats: () => addStat(
-    18,
-    24,
-    8192
-    /* Type1.Heavy */
-  ),
-  convertStats: () => {
-    if (casting(
-      7
-      /* Cast.Outro */
-    ))
-      revokeCurrent(TO_FIRE_SHE_RETURNS_HEAVY);
-  }
-});
-var TO_FIRE_SHE_RETURNS_ECHO = new Buff({
-  name: "Lux & Umbra: To Fire She Returns (echo)",
-  applyStats: () => addStat(
-    18,
-    24,
-    28672
-    /* Type1.Echo */
-  ),
-  convertStats: () => {
-    if (casting(
-      7
-      /* Cast.Outro */
-    ))
-      revokeCurrent(TO_FIRE_SHE_RETURNS_ECHO);
-  }
-});
-var WOODLAND_ARIA = new Weapon({
-  weaponType: 2,
-  name: "Woodland Aria",
-  constantStats: () => {
-    addStat(0, 500);
-    addStat(9, 36);
-    addStat(6, 12);
-  },
-  updateBuffs: () => {
-    if (appliedByMe(AERO_EROSION)) {
-      applyCurrent(LINGERING_SUMMER_TUNE, 1);
-      applyEnemy(LINGERING_SUMMER_SHRED, 1);
-    }
-  }
-});
-var LINGERING_SUMMER_TUNE = new Buff({
-  name: "Woodland Aria: Lingering Summer Tune",
-  applyStats: () => addStat(
-    17,
-    24,
-    64
-    /* Attribute.Aero */
-  )
-});
-var LINGERING_SUMMER_SHRED = new Debuff({
-  name: "Woodland Aria: Lingering Summer Tune",
-  applyStats: () => addEnemyStat(
-    34,
-    10,
-    64
-    /* Attribute.Aero */
-  )
-});
-var SPECTRUM_BLASTER = new Weapon({
-  weaponType: 2,
-  name: "Spectrum Blaster",
-  constantStats: () => {
-    addStat(0, 587.5);
-    addStat(9, 24.3);
-    addStat(6, 12);
-  },
-  updateBuffs: () => {
-    const a = currentAction();
-    if (casting(
-      6
-      /* Cast.Intro */
-    ) || isType(
-      4096
-      /* Type1.Basic */
-    ))
-      applyCurrent(ATTENDANCE_EXEMPTION, 1);
-    if ((casting(
-      1
-      /* Cast.Basic */
-    ) || casting(
-      2
-      /* Cast.MidAir */
-    )) && (appliedByMe(TUNE_RUPTURE_SHIFTING) || appliedByMe(TUNE_STRAIN_SHIFTING)))
-      applyTeam(SPECTRUM_CHORUS, 1);
-  }
-});
-var ATTENDANCE_EXEMPTION = new Buff({
-  name: "Spectrum Blaster: Attendance Exemption Protocol",
-  applyStats: () => addStat(
-    17,
-    36,
-    4096
-    /* Type1.Basic */
-  ),
-  convertStats: () => {
-    if (casting(
-      7
-      /* Cast.Outro */
-    ))
-      revokeCurrent(ATTENDANCE_EXEMPTION);
-  }
-});
-var SPECTRUM_CHORUS = new Buff({
-  name: "Spectrum Blaster: Attendance Exemption Protocol (team)",
-  maxStacks: 3,
-  applyStats: () => addStat(17, 8 * frozenStacks())
-});
-var SKULL_THRASHER = new Weapon({
-  weaponType: 2,
-  name: "Skull Thrasher",
-  constantStats: () => {
-    addStat(0, 500);
-    addStat(10, 72);
-    addStat(6, 12);
-  },
-  updateBuffs: () => {
-    if (casting(
-      6
-      /* Cast.Intro */
-    ))
-      applyCurrent(WAKEFUL_LONER_INTRO, 1);
-    if (appliedByMe(TUNE_HACK_SHIFTING)) {
-      applyCurrent(WAKEFUL_LONER_HACK, 1);
-      applyTeam(WAKEFUL_LONER_TEAM, 1);
-    }
-  }
-});
-var WAKEFUL_LONER_INTRO = new Buff({
-  name: "Skull Thrasher: Wakeful Loner (intro)",
-  applyStats: () => addStat(
-    17,
-    24,
-    4096
-    /* Type1.Basic */
-  ),
-  convertStats: () => {
-    if (casting(
-      7
-      /* Cast.Outro */
-    ))
-      revokeCurrent(WAKEFUL_LONER_INTRO);
-  }
-});
-var WAKEFUL_LONER_HACK = new Buff({
-  name: "Skull Thrasher: Wakeful Loner (hack)",
-  applyStats: () => addStat(
-    17,
-    12,
-    4096
-    /* Type1.Basic */
-  ),
-  convertStats: () => {
-    if (casting(
-      7
-      /* Cast.Outro */
-    ))
-      revokeCurrent(WAKEFUL_LONER_HACK);
-  }
-});
-var WAKEFUL_LONER_TEAM = new Buff({
-  name: "Skull Thrasher: Wakeful Loner (team)",
-  applyStats: () => addStat(6, 24)
-});
-var SPECTRAL_TRIGGER = new Weapon({
-  weaponType: 2,
-  name: "Spectral Trigger",
-  constantStats: () => {
-    addStat(0, 587.5);
-    addStat(10, 48.6);
-    addStat(6, 12);
+    addStat(6, 36.45);
+    addStat(11, 12.8);
   },
   updateBuffs: () => {
     if (casting(
       4
       /* Cast.Skill */
     ))
-      applyCurrent(SUNKEN_DREAM_STACKS, 1);
-    if (appliedByMe(TUNE_HACK_SHIFTING))
-      applyCurrent(SUNKEN_DREAM_HACK, 1);
+      applyCurrent(LUSTROUS_RAZOR_STACKS, 1);
   }
 });
-var SUNKEN_DREAM_STACKS = new Buff({
-  name: "Spectral Trigger: Sunken Dream (spectro)",
-  maxStacks: 2,
+var LUSTROUS_RAZOR_STACKS = new Buff({
+  name: "Lustrous Razor: Stormy Resolution",
+  maxStacks: 3,
   applyStats: () => addStat(
     17,
-    20 * frozenStacks(),
-    320
-    /* Attribute.Spectro */
+    7 * frozenStacks(),
+    16384
+    /* Type1.Liberation */
   ),
   convertStats: () => {
     if (casting(
       7
       /* Cast.Outro */
     ))
-      revokeCurrent(SUNKEN_DREAM_STACKS);
+      revokeCurrent(LUSTROUS_RAZOR_STACKS);
   }
 });
-var SUNKEN_DREAM_HACK = new Buff({
-  name: "Spectral Trigger: Sunken Dream (heavy)",
+var hitInterfered = () => currentAction().mv > 0 && stacksOfEnemy(TUNE_STRAIN_INTERFERED) > 0;
+var NEW_STD_BRAUDBLADE = new Weapon({
+  weaponType: 1,
+  tier: 1,
+  name: "Radiance Cleaver",
+  constantStats: () => {
+    addStat(0, 587.5);
+    addStat(10, 48.6);
+    addStat(6, 12);
+  },
+  updateBuffs: () => {
+    if (hitInterfered())
+      applyCurrent(EDGE_BREAKER_BUFF, 1);
+  }
+});
+var EDGE_BREAKER_BUFF = new Buff({
+  name: "Radiance Cleaver: Edge Breaker",
+  applyStats: () => addStat(
+    17,
+    24,
+    16384
+    /* Type1.Liberation */
+  )
+});
+var NEW_STD_GAUNTLET = new Weapon({
+  weaponType: 3,
+  tier: 1,
+  name: "Pulsation Bracer",
+  constantStats: () => {
+    addStat(0, 587.5);
+    addStat(9, 24.3);
+    addStat(6, 12);
+  },
+  updateBuffs: () => {
+    if (hitInterfered())
+      applyCurrent(BARRIER_BREACHER_STACKS, 1);
+  }
+});
+var BARRIER_BREACHER_STACKS = new Buff({
+  name: "Pulsation Bracer: Barrier Breacher",
+  maxStacks: 4,
+  applyStats: () => addStat(
+    17,
+    6 * frozenStacks(),
+    4096
+    /* Type1.Basic */
+  )
+});
+var NEW_STD_SWORD = new Weapon({
+  weaponType: 0,
+  tier: 1,
+  name: "Laser Shearer",
+  constantStats: () => {
+    addStat(0, 587.5);
+    addStat(11, 38.88);
+    addStat(6, 12);
+  },
+  updateBuffs: () => {
+    if (hitInterfered())
+      applyCurrent(SIGNAL_CATCHER_BUFF, 1);
+  }
+});
+var SIGNAL_CATCHER_BUFF = new Buff({
+  name: "Laser Shearer: Signal Catcher",
+  applyStats: () => addStat(
+    17,
+    24,
+    12288
+    /* Type1.Skill */
+  )
+});
+var BLOODPACTS_PLEDGE = new Weapon({
+  weaponType: 0,
+  tier: 2,
+  name: "Bloodpact's Pledge R5",
+  constantStats: () => {
+    addStat(0, 587.5);
+    addStat(11, 38.88);
+  },
+  updateBuffs: () => {
+    if (applied(HEALS))
+      applyCurrent(HARMONIOUS_VIBRANCY, 1);
+  }
+});
+var HARMONIOUS_VIBRANCY = new Buff({
+  name: "Bloodpact's Pledge R5: Harmonious Vibrancy",
+  applyStats: () => addStat(
+    17,
+    26,
+    12288
+    /* Type1.Skill */
+  ),
+  convertStats: () => {
+    if (casting(
+      7
+      /* Cast.Outro */
+    ))
+      revokeCurrent(HARMONIOUS_VIBRANCY);
+  }
+});
+var BLOODPACT_AERO_AMP = new Buff({
+  name: "Bloodpact's Pledge R5: Harmonious Vibrancy (team)",
   applyStats: () => {
+    if (currentAction().active)
+      addStat(
+        18,
+        26,
+        64
+        /* Attribute.Aero */
+      );
+  }
+});
+var NEW_STD_RECTIFIER = new Weapon({
+  weaponType: 4,
+  tier: 1,
+  name: "Boson Astrolabe",
+  constantStats: () => {
+    addStat(0, 525);
+    addStat(11, 38.88);
+    addStat(6, 12);
+  },
+  updateGlobal: () => {
+    if (casting(
+      9
+      /* Cast.TuneBreak */
+    ))
+      applyCurrent(PATH_OBSERVER_BUFF, 1);
+  }
+});
+var PATH_OBSERVER_BUFF = new Buff({
+  name: "Boson Astrolabe: Path Observer",
+  applyStats: () => {
+    addStat(6, 12);
     addStat(
-      18,
-      30,
-      8192
-      /* Type1.Heavy */
-    );
-    addStat(
-      21,
-      10,
-      8192
-      /* Type1.Heavy */
+      17,
+      12,
+      4096
+      /* Type1.Basic */
     );
   },
   convertStats: () => {
@@ -3259,7 +3889,35 @@ var SUNKEN_DREAM_HACK = new Buff({
       7
       /* Cast.Outro */
     ))
-      revokeCurrent(SUNKEN_DREAM_HACK);
+      revokeCurrent(PATH_OBSERVER_BUFF);
+  }
+});
+var NEW_STD_PISTOL = new Weapon({
+  weaponType: 2,
+  tier: 1,
+  name: "Phasic Homogenizer",
+  constantStats: () => {
+    addStat(0, 587.5);
+    addStat(10, 48.6);
+    addStat(6, 12);
+  },
+  updateGlobal: () => {
+    if (casting(
+      9
+      /* Cast.TuneBreak */
+    ))
+      applyCurrent(INSIGHT_BEARER_BUFF, 1);
+  }
+});
+var INSIGHT_BEARER_BUFF = new Buff({
+  name: "Phasic Homogenizer: Insight Bearer",
+  applyStats: () => addStat(17, 20),
+  convertStats: () => {
+    if (casting(
+      7
+      /* Cast.Outro */
+    ))
+      revokeCurrent(INSIGHT_BEARER_BUFF);
   }
 });
 
@@ -3682,7 +4340,8 @@ var FLEURDELYS = new Mainslot({
       64
       /* Attribute.Aero */
     );
-    if (currentMember().resonator?.name === "Aero Rover")
+    const worn = currentMember().resonator?.name;
+    if (worn === "Aero Rover" || worn === "Cartethyia")
       addStat(
         17,
         10,
@@ -4089,206 +4748,402 @@ for (const scaler of SCALERS) {
   }
 }
 
-// dist/src/weapons/standard.js
-function ceaselessAria(name) {
-  const buff = new Buff({
-    name: `${name}: Ceaseless Aria R5`,
-    maxStacks: 2,
-    applyStats: () => {
-      if (frozenStacks() === 1 && casting(
-        4
-        /* Cast.Skill */
-      )) {
-        applyCurrent(buff, 1);
-        addStat(26, 16);
-      } else if (frozenStacks() === 2 && casting(
-        7
-        /* Cast.Outro */
-      ))
-        removeStack(buff, 2);
-    },
-    display: () => `${name}: Ceaseless Aria R5${frozenStacks() === 1 ? "" : " (cooldown)"}`
-  });
-  return buff;
+// dist/src/resonators/aero/cartethyia.js
+function cartethyiaAction(id, def2) {
+  return new Action(id, { element: 64, scaling: 1, ...def2 });
 }
-function concertoWeapon(name, weaponType) {
-  const aria = ceaselessAria(name);
-  return new Weapon({
-    weaponType,
-    standard: true,
-    name: `${name} R5`,
-    constantStats: () => {
-      addStat(0, 337.5);
-      addStat(11, 51.84);
-    },
-    updateBuffs: () => {
-      if (casting(
-        4
-        /* Cast.Skill */
-      ))
-        applyCurrent(aria, 1);
+var erosion = (n) => ({ updateDebuffs: () => applyEnemy(AERO_EROSION, n) });
+var EROSION_BURST = {
+  updateBuffs: () => {
+    const rung = negativeStatusRung(AERO_EROSION_ACTIONS, stacksOfEnemy(AERO_EROSION));
+    if (!rung)
+      return;
+    queue(rung);
+    removeStackEnemy(AERO_EROSION, 1);
+  }
+};
+var BA1 = cartethyiaAction("Basic - Sword to Carve My Forms 1", { node: 0, cast: 1, type: 4096, mv: 4.78, energy: 0.7, concerto: 0.98, offtune: 2240 });
+var BA2 = cartethyiaAction("Basic - Sword to Carve My Forms 2", { node: 0, cast: 1, type: 4096, mv: 13.13, energy: 1.93, concerto: 2.7, offtune: 6146 });
+var BA3 = cartethyiaAction("Basic - Sword to Carve My Forms 3", { node: 0, cast: 1, type: 4096, mv: 17.12, energy: 2.52, concerto: 3.52, offtune: 8016 });
+var BA4 = cartethyiaAction("Basic - Sword to Carve My Forms 4", {
+  node: 0,
+  cast: 1,
+  type: 4096,
+  mv: 15.1,
+  energy: 2.22,
+  concerto: 3.11,
+  offtune: 7073,
+  ...erosion(1),
+  updateBuffs: () => applyCurrent(SWORD_OF_DIVINITY, 1)
+});
+var DC = cartethyiaAction("Dodge Counter - Sword to Carve My Forms", { node: 0, cast: 0, type: 4096, mv: 27.4, energy: 2.52, concerto: 5.64, offtune: 8016 });
+var HA = cartethyiaAction("Heavy - Sword to Carve My Forms", {
+  node: 0,
+  cast: 3,
+  type: 4096,
+  mv: 12.48,
+  energy: 2.51,
+  concerto: 3.52,
+  offtune: 8002,
+  updateBuffs: () => applyCurrent(SWORD_OF_DISCORD, 1)
+});
+var BA234 = new ActionGroup("Basic - Sword to Carve My Forms 234", [BA2, BA3, BA4]);
+var RECALL = {
+  updateBuffs: () => {
+    if (isHeld(SWORD_OF_VIRTUE)) {
+      revokeCurrent(SWORD_OF_VIRTUE);
+      applyCurrent(HEART_OF_VIRTUE, 1);
     }
-  });
-}
-var VARIATION = concertoWeapon(
-  "Variation",
-  4
-  /* WeaponType.Rectifier */
-);
-var MARCATO = concertoWeapon(
-  "Marcato",
-  3
-  /* WeaponType.Gauntlets */
-);
-var CADENZA = concertoWeapon(
-  "Cadenza",
-  2
-  /* WeaponType.Pistols */
-);
-var OVERTURE = concertoWeapon(
-  "Overture",
-  0
-  /* WeaponType.Sword */
-);
-var DISCORD = concertoWeapon(
-  "Discord",
-  1
-  /* WeaponType.Broadblade */
-);
-var STATIC_MIST = new Weapon({
+    if (isHeld(SWORD_OF_DIVINITY)) {
+      revokeCurrent(SWORD_OF_DIVINITY);
+      applyCurrent(MANDATE_OF_DIVINITY, 1);
+    }
+    if (isHeld(SWORD_OF_DISCORD)) {
+      revokeCurrent(SWORD_OF_DISCORD);
+      applyCurrent(POWER_OF_DISCORD, 1);
+    }
+  }
+};
+var PLUNGE = { node: 0, cast: 2, type: 4096, type2: 786432, offtune: 4248, ...RECALL };
+var Plunge = cartethyiaAction("Mid-air - Plunging Attack", { ...PLUNGE, mv: 5.65, energy: 1.33, concerto: 1.86 });
+var Plunge1 = cartethyiaAction("Mid-air - Plunging Attack (1 Sword Shadow)", { ...PLUNGE, mv: 5.65, energy: 1.33, concerto: 1.86 });
+var Plunge2 = cartethyiaAction("Mid-air - Plunging Attack (2 Sword Shadows)", { ...PLUNGE, mv: 9.9, energy: 1.35, concerto: 1.86 });
+var Plunge3 = cartethyiaAction("Mid-air - Plunging Attack (3 Sword Shadows)", { ...PLUNGE, mv: 33.87, energy: 1.35, concerto: 1.86 });
+var Skill = cartethyiaAction("Skill - Sword to Bear Their Names", {
+  node: 1,
+  cast: 4,
+  type: 4096,
+  mv: 29.53,
+  energy: 16.28,
+  concerto: 10,
+  offtune: 7200,
+  ...erosion(2),
+  updateBuffs: () => applyCurrent(SWORD_OF_VIRTUE, 1)
+});
+var Intro = cartethyiaAction("Intro - Sword to Mark Tide's Trace", {
+  node: 4,
+  cast: 6,
+  type: 20480,
+  mv: 12.48,
+  energy: 10.01,
+  concerto: 10,
+  offtune: 7008,
+  ...erosion(2),
+  updateBuffs: () => {
+    revokeTeam(WINDS_DIVINE_BLESSING);
+    applyCurrent(SWORD_OF_DISCORD, 1);
+  }
+});
+var FBA1 = cartethyiaAction("Basic - Tempest 1", { node: 2, cast: 1, type: 4096, mv: 6.49, energy: 0.75, concerto: 1.05, offtune: 2400, forte1: 4 });
+var FBA2 = cartethyiaAction("Basic - Tempest 2", { node: 2, cast: 1, type: 4096, mv: 9.09, energy: 1.94, concerto: 2.69, offtune: 6099, forte1: 14 });
+var FBA3 = cartethyiaAction("Basic - Tempest 3", { node: 2, cast: 1, type: 4096, mv: 10.65, energy: 2.25, concerto: 3.15, offtune: 7200, forte1: 14 });
+var FBA4 = cartethyiaAction("Basic - Tempest 4", { node: 2, cast: 1, type: 4096, mv: 13.7, energy: 2.25, concerto: 3.15, offtune: 7200, forte1: 10 });
+var FBA5 = cartethyiaAction("Basic - Tempest 5", { node: 2, cast: 1, type: 4096, mv: 36, energy: 1.99, concerto: 2.78, offtune: 6337, forte1: 20, ...EROSION_BURST });
+var FDC = cartethyiaAction("Dodge Counter - Tempest", { node: 2, cast: 0, type: 4096, mv: 15.99, energy: 2.25, concerto: 3.15, offtune: 7200, forte1: 14 });
+var UpwardCut = cartethyiaAction("Basic - Tempest Upward Cut", { node: 2, cast: 1, type: 4096, mv: 9.08, energy: 1.52, concerto: 2.12, offtune: 4840, forte1: 8 });
+var FMA1 = cartethyiaAction("Mid-air - Tempest 1", { node: 2, cast: 2, type: 4096, mv: 9.06, energy: 2, concerto: 2.81, offtune: 6385, forte1: 6 });
+var FMA2 = cartethyiaAction("Mid-air - Tempest 2", { node: 2, cast: 2, type: 4096, mv: 29.55, energy: 2.07, concerto: 2.88, offtune: 6576, forte1: 15, ...EROSION_BURST });
+var FMA3 = cartethyiaAction("Mid-air - Tempest 3", { node: 2, cast: 2, type: 4096, mv: 2.2, energy: 0.48, concerto: 0.67, offtune: 1528, forte1: 10 });
+var FHA = cartethyiaAction("Heavy - Tempest", { node: 2, cast: 3, type: 4096, mv: 14.25, energy: 1.76, concerto: 2.46, offtune: 5617, forte1: 8 });
+var FEHA = cartethyiaAction("Heavy - Tempest (Enhanced)", { node: 2, cast: 3, type: 4096, mv: 19.45, energy: 2.4, concerto: 3.38, offtune: 7665, forte1: 24 });
+var FSkill1 = cartethyiaAction("Skill - Sword to Answer Waves' Call", { node: 2, cast: 4, type: 12288, mv: 24.8, energy: 2.33, concerto: 10, offtune: 7340, forte1: 8 });
+var FSkill2 = cartethyiaAction("Skill - May Tempest Break the Tides", { node: 2, cast: 4, type: 12288, mv: 24.81, energy: 8.82, concerto: 10, offtune: 7339, forte1: 28, ...EROSION_BURST });
+var FIntro = cartethyiaAction("Intro - Sword to Call for Freedom", {
+  node: 4,
+  cast: 6,
+  type: 20480,
+  mv: 14.25,
+  energy: 1.76,
+  concerto: 10,
+  offtune: 5617,
+  updateBuffs: () => revokeTeam(WINDS_DIVINE_BLESSING)
+});
+var FBA345 = new ActionGroup("Basic - Tempest 345", [FBA3, FBA4, FBA5]);
+var FBA12345 = new ActionGroup("Basic - Tempest 12345", [FBA1, FBA2, FBA3, FBA4, FBA5]);
+var Liberation = cartethyiaAction("Liberation - A Knight's Heartfelt Prayers", {
+  node: 3,
+  cast: 5,
+  type: 16384,
+  mv: 0,
+  concerto: 20,
+  resetEnergy: true,
+  updateBuffs: () => applyCurrent(MANIFEST, 1)
+});
+var Lib2 = cartethyiaAction("Liberation - Blade of Howling Squall", {
+  node: 3,
+  cast: 5,
+  type: 16384,
+  mv: 91.84,
+  concerto: 20,
+  offtune: 168e3,
+  forte1: -120,
+  // S6 stops the strip but not the payout: the amplification still reads what the target holds
+  applyStats: () => addStat(18, 20 * Math.min(5, stacksOfEnemy(AERO_EROSION))),
+  updateBuffs: () => {
+    if (forte1() > 120)
+      setForte1(120);
+    revokeCurrent(MANIFEST);
+    revokeCurrent(HEART_OF_VIRTUE);
+    revokeCurrent(MANDATE_OF_DIVINITY);
+    revokeCurrent(POWER_OF_DISCORD);
+  },
+  afterAction: () => {
+    if (isHeld(CT_S6))
+      applyEnemy(AERO_EROSION, currentTeam().enemyMax(AERO_EROSION));
+    else
+      revokeEnemy(AERO_EROSION);
+  }
+});
+var Outro = cartethyiaAction("Outro - Wind's Divine Blessing", {
+  cast: 7,
+  concerto: -100,
+  active: false,
+  updateBuffs: () => applyTeam(WINDS_DIVINE_BLESSING, 1)
+});
+var SWORD_OF_DIVINITY = new Buff({ name: "Cartethyia: Sword of Divinity's Shadow" });
+var SWORD_OF_DISCORD = new Buff({ name: "Cartethyia: Sword of Discord's Shadow" });
+var SWORD_OF_VIRTUE = new Buff({ name: "Cartethyia: Sword of Virtue's Shadow" });
+var MANIFEST = new Buff({ name: "Cartethyia: Manifest" });
+var HEART_OF_VIRTUE = new Buff({ name: "Cartethyia: Heart of Virtue" });
+var MANDATE_OF_DIVINITY = new Buff({
+  name: "Cartethyia: Mandate of Divinity",
+  applyStats: () => addStat(
+    18,
+    50,
+    786432
+    /* Type2.AeroErosion */
+  ),
+  updateBuffs: () => {
+    if (oneSecondPassed() && stacksOfEnemy(AERO_EROSION) > 0)
+      addEnemyForte2(2);
+  }
+});
+var POWER_OF_DISCORD = new Buff({ name: "Cartethyia: Power of Discord" });
+var TRUEST_WISHES = new Buff({
+  name: "Inherent: A Heart's Truest Wishes",
+  applyStats: () => {
+    addStat(24, 20);
+    if (casting(
+      5
+      /* Cast.Liberation */
+    ) && currentMember().resonator?.name === "Aero Rover")
+      addStat(29, 25);
+  }
+});
+var CT_INHERENT_1 = new Inherent({
+  name: "Inherent: A Heart's Truest Wishes",
+  updateGlobal: () => applyOthers(TRUEST_WISHES, 1)
+});
+var CT_INHERENT_2 = new Inherent({
+  name: "Inherent: Wind's Indelible Imprint",
+  applyStats: () => {
+    const held = stacksOfEnemy(AERO_EROSION);
+    if (held < 1)
+      return;
+    addStat(18, 30 + 10 * Math.min(3, Math.max(0, held - 3)));
+  }
+});
+var WINDS_DIVINE_BLESSING = new Buff({
+  name: "Cartethyia: Outro",
+  applyStats: () => {
+    if (!currentAction().active || isHeld(CARTETHYIA_RESONATOR) || !hasNegativeStatus())
+      return;
+    addStat(
+      18,
+      17.5,
+      64
+      /* Attribute.Aero */
+    );
+  }
+});
+var CROWN_OF_FATE = new Buff({
+  name: "Cartethyia S1: Crown Destined by Fate",
+  maxStacks: 4,
+  applyStats: () => addStat(10, 25 * stacksOf(CROWN_OF_FATE))
+});
+var CT_S1 = new Sequence({
+  name: "Cartethyia S1: Crown Destined by Fate",
+  // afterAction is the one phase that sees Conviction as the cast actually left it
+  afterAction: () => {
+    if (currentAction() === Lib2) {
+      revokeCurrent(CROWN_OF_FATE);
+      return;
+    }
+    const rungs = Math.min(4, Math.floor(forte1() / 30));
+    if (rungs > stacksOf(CROWN_OF_FATE))
+      setStacksSelf(CROWN_OF_FATE, rungs);
+  }
+});
+var BROKEN_BLADE = new Buff({
+  name: "Cartethyia S2: Blade Broken by Tempest",
+  updateDebuffs: () => {
+    if (currentAction().mv > 0)
+      applyEnemy(AERO_EROSION, 3);
+  },
+  updateBuffs: () => {
+    if (currentAction().mv <= 0)
+      return;
+    const rung = negativeStatusRung(AERO_EROSION_ACTIONS, stacksOfEnemy(AERO_EROSION));
+    if (rung)
+      queue(rung);
+    revokeCurrent(BROKEN_BLADE);
+  }
+});
+var CT_S2 = new Sequence({
+  name: "Cartethyia S2: Blade Broken by Tempest",
+  updateBuffs: () => {
+    if (currentAction() !== Liberation)
+      return;
+    maxStackIncrease(AERO_EROSION, 3);
+    applyCurrent(BROKEN_BLADE, 1);
+  },
+  applyStats: () => {
+    const a = currentAction();
+    if (a.node === 2)
+      return;
+    if (casting(
+      2
+      /* Cast.MidAir */
+    ))
+      addStat(16, 200);
+    else if (casting(
+      1
+      /* Cast.Basic */
+    ) || casting(
+      3
+      /* Cast.Heavy */
+    ) || casting(
+      0
+      /* Cast.DodgeCounter */
+    ) || casting(
+      6
+      /* Cast.Intro */
+    ))
+      addStat(16, 50);
+  }
+});
+var CT_S3 = new Sequence({
+  name: "Cartethyia S3: Prisoner Hanged in the Tower",
+  updateDebuffs: () => {
+    const a = currentAction();
+    if (a === FBA5 || a === FMA2 || a === FEHA || a === FSkill2)
+      applyEnemy(AERO_EROSION, 2);
+  },
+  applyStats: () => {
+    if (currentAction() === Lib2)
+      addStat(16, 100);
+  }
+});
+var SACRIFICE = new Buff({
+  name: "Cartethyia S4: Sacrifice Made for Salvation",
+  applyStats: () => addStat(17, 20)
+});
+var CT_S4 = new Sequence({
+  name: "Cartethyia S4: Sacrifice Made for Salvation",
+  // from updateGlobal "me" is the holder, so the acting slot has to be named (status.ts)
+  updateGlobal: () => {
+    if (inflictedNegativeStatusBy(currentTeam().slot))
+      applyTeam(SACRIFICE, 1);
+  }
+});
+var CT_S5 = new Sequence({ name: "Cartethyia S5: Hope Reshaped in Storms" });
+var CT_S6 = new Sequence({
+  name: "Cartethyia S6: Freedom Found in Storm's Wake",
+  updateGlobal: () => {
+    if (!appliedByMember(AERO_EROSION, currentTeam().slot))
+      return;
+    if (stacksOfEnemy(AERO_EROSION) < currentTeam().enemyMax(AERO_EROSION))
+      return;
+    const rung = negativeStatusRung(AERO_EROSION_ACTIONS, stacksOfEnemy(AERO_EROSION));
+    if (rung)
+      queue(rung);
+  },
+  applyStats: () => {
+    if (isHeld(MANIFEST))
+      addStat(18, 40);
+  }
+});
+var CARTETHYIA_RESONATOR = new Resonator({
+  name: "Cartethyia",
+  tier: 0,
+  element: 64,
+  weapon: 0,
+  intro: () => isHeld(MANIFEST) ? FIntro : Intro,
+  outro: () => Outro,
+  color: "#1d3fff",
+  maxEnergy: 125,
+  constantStats: () => {
+    addStat(1, 14800);
+    addStat(0, 312.5);
+    addStat(2, 611.11);
+  }
+});
+var CARTETHYIA_TALENTS = new Talent({
+  name: "Cartethyia: Talents",
+  constantStats: () => {
+    addStat(9, 8);
+    addStat(7, 12);
+  }
+});
+var CT_ROTATION = new Rotation([
+  INTRO,
+  BA234,
+  Skill,
+  Plunge3,
+  Liberation,
+  FSkill1,
+  FSkill2,
+  FBA345,
+  FBA12345,
+  Lib2,
+  ECHO_SWAP,
+  OUTRO
+]);
+var CARTETHYIA = new Loadout({
+  resonator: CARTETHYIA_RESONATOR,
+  talent: CARTETHYIA_TALENTS,
+  inherent1: CT_INHERENT_1,
+  inherent2: CT_INHERENT_2,
+  sequences: [CT_S1, CT_S2, CT_S3, CT_S4, CT_S5, CT_S6],
+  weapons: [DEFIERS_THORN, EMERALD_OF_GENESIS, RED_SPRING],
+  echoLoadouts: [new EchoLoadout(FLEURDELYS, WINDWARD_5PC)],
+  mainstats: mainstatOptions(
+    0,
+    1,
+    3,
+    12,
+    16
+    /* Mainstat.HP1 */
+  ),
+  substat: chem("hp", "basic"),
+  rotation: CT_ROTATION
+});
+
+// dist/src/weapons/pistol.js
+var THE_LAST_DANCE = new Weapon({
   weaponType: 2,
-  standard: true,
-  name: "Static Mist",
-  constantStats: () => {
-    addStat(0, 587.5);
-    addStat(9, 24.3);
-    addStat(11, 12.8);
-  },
-  updateBuffs: () => {
-    if (casting(
-      7
-      /* Cast.Outro */
-    ))
-      queueOutro(STATIC_MIST_HANDOFF);
-  }
-});
-var STATIC_MIST_HANDOFF = new Buff({
-  name: "Static Mist: Stormy Resolution",
-  applyStats: () => addStat(6, 10),
-  convertStats: () => {
-    if (casting(
-      7
-      /* Cast.Outro */
-    ))
-      revokeCurrent(STATIC_MIST_HANDOFF);
-  }
-});
-var EMERALD_OF_GENESIS = new Weapon({
-  weaponType: 0,
-  standard: true,
-  name: "Emerald of Genesis",
-  constantStats: () => {
-    addStat(0, 587.5);
-    addStat(9, 24.3);
-    addStat(11, 12.8);
-  },
-  updateBuffs: () => {
-    if (casting(
-      4
-      /* Cast.Skill */
-    ))
-      applyCurrent(EOG_STACKS, 1);
-  }
-});
-var EOG_STACKS = new Buff({
-  name: "Emerald of Genesis: Stormy Resolution",
-  maxStacks: 2,
-  applyStats: () => addStat(6, 6 * frozenStacks()),
-  convertStats: () => {
-    if (casting(
-      7
-      /* Cast.Outro */
-    ))
-      revokeCurrent(EOG_STACKS);
-  }
-});
-var COSMIC_RIPPLES = new Weapon({
-  weaponType: 4,
-  standard: true,
-  name: "Cosmic Ripples",
+  name: "The Last Dance",
   constantStats: () => {
     addStat(0, 500);
-    addStat(6, 54);
-    addStat(11, 12.8);
+    addStat(10, 72);
+    addStat(6, 12);
   },
   updateBuffs: () => {
-    if (isType(
-      4096
-      /* Type1.Basic */
-    ))
-      applyCurrent(COSMIC_RIPPLES_STACKS, 1);
-  }
-});
-var COSMIC_RIPPLES_STACKS = new Buff({
-  name: "Cosmic Ripples: Stormy Resolution",
-  maxStacks: 5,
-  applyStats: () => addStat(
-    17,
-    3.2 * frozenStacks(),
-    4096
-    /* Type1.Basic */
-  ),
-  convertStats: () => {
     if (casting(
-      7
-      /* Cast.Outro */
+      6
+      /* Cast.Intro */
+    ) || casting(
+      5
+      /* Cast.Liberation */
     ))
-      revokeCurrent(COSMIC_RIPPLES_STACKS);
+      applyCurrent(SILENT_EULOGY, 1);
   }
 });
-var ABYSS_SURGES = new Weapon({
-  weaponType: 3,
-  standard: true,
-  name: "Abyss Surges",
-  constantStats: () => {
-    addStat(0, 587.5);
-    addStat(6, 36.45);
-    addStat(11, 12.8);
-  },
-  updateBuffs: () => {
-    if (isType(
-      12288
-      /* Type1.Skill */
-    ))
-      applyCurrent(ABYSS_SKILL_HIT, 1);
-    if (isType(
-      4096
-      /* Type1.Basic */
-    ))
-      applyCurrent(ABYSS_BASIC_HIT, 1);
-  }
-});
-var ABYSS_SKILL_HIT = new Buff({
-  name: "Abyss Surges: Stormy Resolution",
+var SILENT_EULOGY = new Buff({
+  name: "The Last Dance: Silent Eulogy",
   applyStats: () => addStat(
     17,
-    10,
-    4096
-    /* Type1.Basic */
-  ),
-  convertStats: () => {
-    if (casting(
-      7
-      /* Cast.Outro */
-    ))
-      revokeCurrent(ABYSS_SKILL_HIT);
-  }
-});
-var ABYSS_BASIC_HIT = new Buff({
-  name: "Abyss Surges: Stormy Resolution",
-  applyStats: () => addStat(
-    17,
-    10,
+    48,
     12288
     /* Type1.Skill */
   ),
@@ -4297,181 +5152,254 @@ var ABYSS_BASIC_HIT = new Buff({
       7
       /* Cast.Outro */
     ))
-      revokeCurrent(ABYSS_BASIC_HIT);
+      revokeCurrent(SILENT_EULOGY);
   }
 });
-var LUSTROUS_RAZOR = new Weapon({
-  weaponType: 1,
-  standard: true,
-  name: "Lustrous Razor",
+var LUX_UMBRA = new Weapon({
+  weaponType: 2,
+  name: "Lux & Umbra",
   constantStats: () => {
     addStat(0, 587.5);
-    addStat(6, 36.45);
-    addStat(11, 12.8);
+    addStat(10, 48.6);
+    addStat(6, 12);
+  },
+  applyStats: () => {
+    if (isHeld(TO_FIRE_SHE_RETURNS_HEAVY) && isHeld(TO_FIRE_SHE_RETURNS_ECHO))
+      addStat(21, 8);
   },
   updateBuffs: () => {
-    if (casting(
-      4
-      /* Cast.Skill */
+    const a = currentAction();
+    if (isType(
+      28672
+      /* Type1.Echo */
     ))
-      applyCurrent(LUSTROUS_RAZOR_STACKS, 1);
+      applyCurrent(TO_FIRE_SHE_RETURNS_HEAVY, 1);
+    if (isType(
+      8192
+      /* Type1.Heavy */
+    ))
+      applyCurrent(TO_FIRE_SHE_RETURNS_ECHO, 1);
   }
 });
-var LUSTROUS_RAZOR_STACKS = new Buff({
-  name: "Lustrous Razor: Stormy Resolution",
-  maxStacks: 3,
+var TO_FIRE_SHE_RETURNS_HEAVY = new Buff({
+  name: "Lux & Umbra: To Fire She Returns (heavy)",
   applyStats: () => addStat(
-    17,
-    7 * frozenStacks(),
-    16384
-    /* Type1.Liberation */
+    18,
+    24,
+    8192
+    /* Type1.Heavy */
   ),
   convertStats: () => {
     if (casting(
       7
       /* Cast.Outro */
     ))
-      revokeCurrent(LUSTROUS_RAZOR_STACKS);
+      revokeCurrent(TO_FIRE_SHE_RETURNS_HEAVY);
   }
 });
-var hitInterfered = () => currentAction().mv > 0 && stacksOfEnemy(TUNE_STRAIN_INTERFERED) > 0;
-var NEW_STD_BRAUDBLADE = new Weapon({
-  weaponType: 1,
-  standard: true,
-  name: "Radiance Cleaver",
+var TO_FIRE_SHE_RETURNS_ECHO = new Buff({
+  name: "Lux & Umbra: To Fire She Returns (echo)",
+  applyStats: () => addStat(
+    18,
+    24,
+    28672
+    /* Type1.Echo */
+  ),
+  convertStats: () => {
+    if (casting(
+      7
+      /* Cast.Outro */
+    ))
+      revokeCurrent(TO_FIRE_SHE_RETURNS_ECHO);
+  }
+});
+var WOODLAND_ARIA = new Weapon({
+  weaponType: 2,
+  name: "Woodland Aria",
+  constantStats: () => {
+    addStat(0, 500);
+    addStat(9, 36);
+    addStat(6, 12);
+  },
+  updateBuffs: () => {
+    if (appliedByMe(AERO_EROSION)) {
+      applyCurrent(LINGERING_SUMMER_TUNE, 1);
+      applyEnemy(LINGERING_SUMMER_SHRED, 1);
+    }
+  }
+});
+var LINGERING_SUMMER_TUNE = new Buff({
+  name: "Woodland Aria: Lingering Summer Tune",
+  applyStats: () => addStat(
+    17,
+    24,
+    64
+    /* Attribute.Aero */
+  )
+});
+var LINGERING_SUMMER_SHRED = new Debuff({
+  name: "Woodland Aria: Lingering Summer Tune",
+  applyStats: () => addEnemyStat(
+    34,
+    10,
+    64
+    /* Attribute.Aero */
+  )
+});
+var SPECTRUM_BLASTER = new Weapon({
+  weaponType: 2,
+  name: "Spectrum Blaster",
+  constantStats: () => {
+    addStat(0, 587.5);
+    addStat(9, 24.3);
+    addStat(6, 12);
+  },
+  updateBuffs: () => {
+    const a = currentAction();
+    if (casting(
+      6
+      /* Cast.Intro */
+    ) || isType(
+      4096
+      /* Type1.Basic */
+    ))
+      applyCurrent(ATTENDANCE_EXEMPTION, 1);
+    if ((casting(
+      1
+      /* Cast.Basic */
+    ) || casting(
+      2
+      /* Cast.MidAir */
+    )) && (appliedByMe(TUNE_RUPTURE_SHIFTING) || appliedByMe(TUNE_STRAIN_SHIFTING)))
+      applyTeam(SPECTRUM_CHORUS, 1);
+  }
+});
+var ATTENDANCE_EXEMPTION = new Buff({
+  name: "Spectrum Blaster: Attendance Exemption Protocol",
+  applyStats: () => addStat(
+    17,
+    36,
+    4096
+    /* Type1.Basic */
+  ),
+  convertStats: () => {
+    if (casting(
+      7
+      /* Cast.Outro */
+    ))
+      revokeCurrent(ATTENDANCE_EXEMPTION);
+  }
+});
+var SPECTRUM_CHORUS = new Buff({
+  name: "Spectrum Blaster: Attendance Exemption Protocol (team)",
+  maxStacks: 3,
+  applyStats: () => addStat(17, 8 * frozenStacks())
+});
+var SKULL_THRASHER = new Weapon({
+  weaponType: 2,
+  name: "Skull Thrasher",
+  constantStats: () => {
+    addStat(0, 500);
+    addStat(10, 72);
+    addStat(6, 12);
+  },
+  updateBuffs: () => {
+    if (casting(
+      6
+      /* Cast.Intro */
+    ))
+      applyCurrent(WAKEFUL_LONER_INTRO, 1);
+    if (appliedByMe(TUNE_HACK_SHIFTING)) {
+      applyCurrent(WAKEFUL_LONER_HACK, 1);
+      applyTeam(WAKEFUL_LONER_TEAM, 1);
+    }
+  }
+});
+var WAKEFUL_LONER_INTRO = new Buff({
+  name: "Skull Thrasher: Wakeful Loner (intro)",
+  applyStats: () => addStat(
+    17,
+    24,
+    4096
+    /* Type1.Basic */
+  ),
+  convertStats: () => {
+    if (casting(
+      7
+      /* Cast.Outro */
+    ))
+      revokeCurrent(WAKEFUL_LONER_INTRO);
+  }
+});
+var WAKEFUL_LONER_HACK = new Buff({
+  name: "Skull Thrasher: Wakeful Loner (hack)",
+  applyStats: () => addStat(
+    17,
+    12,
+    4096
+    /* Type1.Basic */
+  ),
+  convertStats: () => {
+    if (casting(
+      7
+      /* Cast.Outro */
+    ))
+      revokeCurrent(WAKEFUL_LONER_HACK);
+  }
+});
+var WAKEFUL_LONER_TEAM = new Buff({
+  name: "Skull Thrasher: Wakeful Loner (team)",
+  applyStats: () => addStat(6, 24)
+});
+var SPECTRAL_TRIGGER = new Weapon({
+  weaponType: 2,
+  name: "Spectral Trigger",
   constantStats: () => {
     addStat(0, 587.5);
     addStat(10, 48.6);
     addStat(6, 12);
   },
   updateBuffs: () => {
-    if (hitInterfered())
-      applyCurrent(EDGE_BREAKER_BUFF, 1);
+    if (casting(
+      4
+      /* Cast.Skill */
+    ))
+      applyCurrent(SUNKEN_DREAM_STACKS, 1);
+    if (appliedByMe(TUNE_HACK_SHIFTING))
+      applyCurrent(SUNKEN_DREAM_HACK, 1);
   }
 });
-var EDGE_BREAKER_BUFF = new Buff({
-  name: "Radiance Cleaver: Edge Breaker",
+var SUNKEN_DREAM_STACKS = new Buff({
+  name: "Spectral Trigger: Sunken Dream (spectro)",
+  maxStacks: 2,
   applyStats: () => addStat(
     17,
-    24,
-    16384
-    /* Type1.Liberation */
-  )
-});
-var NEW_STD_GAUNTLET = new Weapon({
-  weaponType: 3,
-  standard: true,
-  name: "Pulsation Bracer",
-  constantStats: () => {
-    addStat(0, 587.5);
-    addStat(9, 24.3);
-    addStat(6, 12);
-  },
-  updateBuffs: () => {
-    if (hitInterfered())
-      applyCurrent(BARRIER_BREACHER_STACKS, 1);
-  }
-});
-var BARRIER_BREACHER_STACKS = new Buff({
-  name: "Pulsation Bracer: Barrier Breacher",
-  maxStacks: 4,
-  applyStats: () => addStat(
-    17,
-    6 * frozenStacks(),
-    4096
-    /* Type1.Basic */
-  )
-});
-var NEW_STD_SWORD = new Weapon({
-  weaponType: 0,
-  standard: true,
-  name: "Laser Shearer",
-  constantStats: () => {
-    addStat(0, 587.5);
-    addStat(11, 38.88);
-    addStat(6, 12);
-  },
-  updateBuffs: () => {
-    if (hitInterfered())
-      applyCurrent(SIGNAL_CATCHER_BUFF, 1);
-  }
-});
-var SIGNAL_CATCHER_BUFF = new Buff({
-  name: "Laser Shearer: Signal Catcher",
-  applyStats: () => addStat(
-    17,
-    24,
-    12288
-    /* Type1.Skill */
-  )
-});
-var BLOODPACTS_PLEDGE = new Weapon({
-  weaponType: 0,
-  standard: true,
-  name: "Bloodpact's Pledge R5",
-  constantStats: () => {
-    addStat(0, 587.5);
-    addStat(11, 38.88);
-  },
-  updateBuffs: () => {
-    if (applied(HEALS))
-      applyCurrent(HARMONIOUS_VIBRANCY, 1);
-  }
-});
-var HARMONIOUS_VIBRANCY = new Buff({
-  name: "Bloodpact's Pledge R5: Harmonious Vibrancy",
-  applyStats: () => addStat(
-    17,
-    26,
-    12288
-    /* Type1.Skill */
+    20 * frozenStacks(),
+    320
+    /* Attribute.Spectro */
   ),
   convertStats: () => {
     if (casting(
       7
       /* Cast.Outro */
     ))
-      revokeCurrent(HARMONIOUS_VIBRANCY);
+      revokeCurrent(SUNKEN_DREAM_STACKS);
   }
 });
-var BLOODPACT_AERO_AMP = new Buff({
-  name: "Bloodpact's Pledge R5: Harmonious Vibrancy (team)",
+var SUNKEN_DREAM_HACK = new Buff({
+  name: "Spectral Trigger: Sunken Dream (heavy)",
   applyStats: () => {
-    if (currentAction().active)
-      addStat(
-        18,
-        26,
-        64
-        /* Attribute.Aero */
-      );
-  }
-});
-var NEW_STD_RECTIFIER = new Weapon({
-  weaponType: 4,
-  standard: true,
-  name: "Boson Astrolabe",
-  constantStats: () => {
-    addStat(0, 525);
-    addStat(11, 38.88);
-    addStat(6, 12);
-  },
-  updateGlobal: () => {
-    if (casting(
-      9
-      /* Cast.TuneBreak */
-    ))
-      applyCurrent(PATH_OBSERVER_BUFF, 1);
-  }
-});
-var PATH_OBSERVER_BUFF = new Buff({
-  name: "Boson Astrolabe: Path Observer",
-  applyStats: () => {
-    addStat(6, 12);
     addStat(
-      17,
-      12,
-      4096
-      /* Type1.Basic */
+      18,
+      30,
+      8192
+      /* Type1.Heavy */
+    );
+    addStat(
+      21,
+      10,
+      8192
+      /* Type1.Heavy */
     );
   },
   convertStats: () => {
@@ -4479,110 +5407,8 @@ var PATH_OBSERVER_BUFF = new Buff({
       7
       /* Cast.Outro */
     ))
-      revokeCurrent(PATH_OBSERVER_BUFF);
+      revokeCurrent(SUNKEN_DREAM_HACK);
   }
-});
-var NEW_STD_PISTOL = new Weapon({
-  weaponType: 2,
-  standard: true,
-  name: "Phasic Homogenizer",
-  constantStats: () => {
-    addStat(0, 587.5);
-    addStat(10, 48.6);
-    addStat(6, 12);
-  },
-  updateGlobal: () => {
-    if (casting(
-      9
-      /* Cast.TuneBreak */
-    ))
-      applyCurrent(INSIGHT_BEARER_BUFF, 1);
-  }
-});
-var INSIGHT_BEARER_BUFF = new Buff({
-  name: "Phasic Homogenizer: Insight Bearer",
-  applyStats: () => addStat(17, 20),
-  convertStats: () => {
-    if (casting(
-      7
-      /* Cast.Outro */
-    ))
-      revokeCurrent(INSIGHT_BEARER_BUFF);
-  }
-});
-
-// dist/src/shared/helpers.js
-function lostOnSwap() {
-  if (!currentAction().active)
-    revokeCurrent(currentGear());
-}
-function handoffWindow(buff) {
-  const mine = currentTeam().slot === currentMember();
-  if (frozenStacks() < 2) {
-    if (mine && casting(
-      7
-      /* Cast.Outro */
-    ))
-      applyCurrent(buff, 1);
-    return;
-  }
-  if (!mine && !casting(
-    6
-    /* Cast.Intro */
-  ))
-    revokeCurrent(buff);
-}
-function handoff(name, applyStats) {
-  const buff = new Buff({
-    name,
-    maxStacks: 2,
-    applyStats,
-    // the second stack is bookkeeping, not a doubled payout — no "x2" in the report
-    display: () => name,
-    updateGlobal: () => handoffWindow(buff)
-  });
-  return buff;
-}
-function coordinatedBuff(name, stacks, owner, tick, { enemy = false, hits = 1, every = 1, applyStats } = {}) {
-  const fire = () => {
-    if (!currentAction().active || triggeredAction() || casting(
-      5
-      /* Cast.Liberation */
-    ))
-      return;
-    const summons = (frozenStacks() - 1) % every === 0 ? hits : 0;
-    if (owner === null) {
-      for (let k = 0; k < summons; k++)
-        queue(tick);
-      removeStack(buff, 1);
-    } else {
-      for (let k = 0; k < summons; k++)
-        queueOn(owner(), tick);
-      (enemy ? removeStackEnemy : removeStackTeam)(buff, 1);
-    }
-  };
-  const buff = new Buff({
-    name,
-    maxStacks: stacks,
-    applyStats,
-    // the window *is* the field standing, so granting it is what the report files the summons
-    // under — named off the tick's own declaration rather than asked for twice
-    field: tick.field,
-    // the count reads as the seconds the field has left, one qualifying press to the second —
-    // `every` spaces the summons out, it doesn't shorten the stand — so Jué's fresh window says
-    // (15s) and Rebecca's turret (14s), not a bare count that means nothing beside them
-    display: () => `${name} (${frozenStacks()}s)`,
-    ...owner === null ? { updateGlobal: fire } : { updateBuffs: fire }
-  });
-  return buff;
-}
-var matrix = (resonator, totalDmg, def2 = {}) => new Matrix({
-  name: `${resonator}: Matrix`,
-  constantStats: () => {
-    if (totalDmg)
-      addStat(19, totalDmg / 1.2);
-  },
-  ...def2
 });
 
 // dist/src/echoes/jinzhou.js
@@ -5254,11 +6080,11 @@ var FALLACY = new Mainslot({
 function ciacconaAction(id, def2) {
   return new Action(id, { element: 64, scaling: 0, ...def2 });
 }
-var BA1 = ciacconaAction("Basic - Quadruple Time Steps 1", { node: 0, cast: 1, type: 4096, mv: 57.06, energy: 0.88, concerto: 2.8, offtune: 2800 });
-var BA2 = ciacconaAction("Basic - Quadruple Time Steps 2", { node: 0, cast: 1, type: 4096, mv: 163.04, energy: 2.51, concerto: 8, offtune: 8e3 });
-var BA3 = ciacconaAction("Basic - Quadruple Time Steps 3", { node: 0, cast: 1, type: 4096, mv: 132.08, energy: 2.04, concerto: 6.48, offtune: 6480 });
+var BA12 = ciacconaAction("Basic - Quadruple Time Steps 1", { node: 0, cast: 1, type: 4096, mv: 57.06, energy: 0.88, concerto: 2.8, offtune: 2800 });
+var BA22 = ciacconaAction("Basic - Quadruple Time Steps 2", { node: 0, cast: 1, type: 4096, mv: 163.04, energy: 2.51, concerto: 8, offtune: 8e3 });
+var BA32 = ciacconaAction("Basic - Quadruple Time Steps 3", { node: 0, cast: 1, type: 4096, mv: 132.08, energy: 2.04, concerto: 6.48, offtune: 6480 });
 var EROSION = { updateDebuffs: () => applyEnemy(AERO_EROSION, 1) };
-var BA4 = ciacconaAction("Basic - Quadruple Time Steps 4", {
+var BA42 = ciacconaAction("Basic - Quadruple Time Steps 4", {
   node: 0,
   cast: 1,
   type: 4096,
@@ -5270,15 +6096,15 @@ var BA4 = ciacconaAction("Basic - Quadruple Time Steps 4", {
   ...EROSION,
   updateBuffs: () => applyTeam(SOLO_CONCERT, 1)
 });
-var HA = ciacconaAction("Heavy - Attack", { node: 0, cast: 3, type: 8192, mv: 107.6, energy: 1.65, concerto: 5.28, offtune: 5280 });
+var HA2 = ciacconaAction("Heavy - Attack", { node: 0, cast: 3, type: 8192, mv: 107.6, energy: 1.65, concerto: 5.28, offtune: 5280 });
 var AimedShot = ciacconaAction("Heavy - Aimed Shot", { node: 0, cast: 3, type: 8192, mv: 32.61, energy: 0.5, concerto: 1.6, offtune: 1600 });
 var ChargedShot = ciacconaAction("Heavy - Fully Charged Aimed Shot", { node: 0, cast: 3, type: 8192, mv: 73.37, energy: 1.13, concerto: 3.6, offtune: 3600 });
 var MA1 = ciacconaAction("Mid-air - Attack 1", { node: 0, cast: 2, type: 4096, mv: 110.86, energy: 1.7, concerto: 5.44, offtune: 5440 });
 var MA2 = ciacconaAction("Mid-air - Attack 2", { node: 0, cast: 2, type: 4096, mv: 97.84, energy: 1.52, concerto: 4.8, offtune: 4800 });
-var DC = ciacconaAction("Dodge Counter - Quadruple Time Steps", { node: 0, cast: 0, type: 4096, mv: 228.68, energy: 2.04, concerto: 16.48, offtune: 6480 });
-var Skill = ciacconaAction("Skill - Harmonic Allegro", { node: 1, cast: 4, type: 12288, mv: 161.56, energy: 9.6, concerto: 15, offtune: 5e3, ...EROSION });
+var DC2 = ciacconaAction("Dodge Counter - Quadruple Time Steps", { node: 0, cast: 0, type: 4096, mv: 228.68, energy: 2.04, concerto: 16.48, offtune: 6480 });
+var Skill2 = ciacconaAction("Skill - Harmonic Allegro", { node: 1, cast: 4, type: 12288, mv: 161.56, energy: 9.6, concerto: 15, offtune: 5e3, ...EROSION });
 var Downbeat = ciacconaAction("Forte Heavy - Quadruple Downbeat", { node: 2, cast: 3, type: 8192, mv: 628.13, energy: 14.97, concerto: 25, offtune: 9360, forte1: -3, ...EROSION });
-var Liberation = ciacconaAction("Liberation - Singer's Triple Cadenza", {
+var Liberation2 = ciacconaAction("Liberation - Singer's Triple Cadenza", {
   node: 3,
   cast: 5,
   type: 16384,
@@ -5288,27 +6114,39 @@ var Liberation = ciacconaAction("Liberation - Singer's Triple Cadenza", {
   resetEnergy: true,
   updateDebuffs: () => applyCurrent(SHIELD, 1),
   // Interlude Tune
-  updateBuffs: () => applyCurrent(RECITAL, 1)
+  updateBuffs: () => {
+    revokeTeam(RECITAL);
+    applyTeam(RECITAL, 33);
+  }
 });
+var RECITAL_FIELD = new ActionField("Ciaccona: Recital");
 var GreenTonic = ciacconaAction("Liberation - Symphonic Poem: Tonic (green)", {
   node: 3,
   type: 16384,
-  mv: 122.4,
-  concerto: 10,
-  offtune: 43640,
+  mv: 6.12,
+  offtune: 2182,
   active: false,
-  updateDebuffs: () => applyEnemy(AERO_EROSION, 20)
+  field: RECITAL_FIELD,
+  ...EROSION
 });
-var Intro = ciacconaAction("Intro - Roaming with the Wind", { node: 4, cast: 6, type: 20480, mv: 189.11, energy: 10, concerto: 10, offtune: 9280, forte1: 1, ...EROSION });
-var Outro = ciacconaAction("Outro - Windcalling Tune", {
+var Intro2 = ciacconaAction("Intro - Roaming with the Wind", {
+  node: 4,
+  cast: 6,
+  type: 20480,
+  mv: 189.11,
+  energy: 10,
+  concerto: 10,
+  offtune: 9280,
+  forte1: 1,
+  ...EROSION,
+  updateBuffs: () => revokeTeam(RECITAL)
+  // switching back in exits Recital
+});
+var Outro2 = ciacconaAction("Outro - Windcalling Tune", {
   cast: 7,
   concerto: -100,
   active: false,
-  updateBuffs: () => {
-    applyTeam(WINDCALLING_TUNE, 1);
-    if (isHeld(RECITAL))
-      queueOnIntro(GreenTonic);
-  }
+  updateBuffs: () => applyTeam(WINDCALLING_TUNE, 1)
 });
 var SOLO_CONCERT = new Buff({
   name: "Ciaccona: Solo Concert",
@@ -5319,17 +6157,7 @@ var SOLO_CONCERT = new Buff({
     /* Attribute.Aero */
   )
 });
-var RECITAL = new Buff({
-  name: "Ciaccona: Recital",
-  updateBuffs: () => {
-    if (casting(
-      6
-      /* Cast.Intro */
-    ))
-      revokeCurrent(RECITAL);
-  }
-  // TODO swap in cancels it
-});
+var RECITAL = coordinatedBuff("Ciaccona: Recital", 33, () => CIACCONA_RESONATOR, GreenTonic, { every: 1.65 });
 var CI_INHERENT_1 = new Inherent({ name: "Inherent: Interlude Tune" });
 var CI_INHERENT_2 = new Inherent({
   name: "Inherent: Winds of Rinascita",
@@ -5353,8 +6181,8 @@ var CIACCONA_RESONATOR = new Resonator({
   name: "Ciaccona",
   element: 64,
   weapon: 2,
-  intro: () => Intro,
-  outro: () => Outro,
+  intro: () => Intro2,
+  outro: () => Outro2,
   color: "#5ac46b",
   maxEnergy: 125,
   constantStats: () => {
@@ -5372,31 +6200,33 @@ var CIACCONA_TALENTS = new Talent({
 });
 var CI_ROTATION = new Rotation([
   NOINTRO,
-  // jump
+  JUMP,
   MA1,
   MA2,
-  BA4,
+  BA42,
+  JUMP,
   MA1,
   MA2,
-  BA4,
+  BA42,
+  JUMP,
   MA1,
   MA2,
-  BA4,
-  Skill,
+  BA42,
+  Skill2,
   Downbeat,
-  Liberation,
+  Liberation2,
   ECHO_SWAP,
   OUTRO,
   INTRO,
-  BA3,
-  BA4,
-  // jump
+  BA32,
+  BA42,
+  JUMP,
   MA1,
   MA2,
-  BA4,
-  Skill,
+  BA42,
+  Skill2,
   Downbeat,
-  Liberation,
+  Liberation2,
   ECHO_SWAP,
   OUTRO
 ]);
@@ -6017,20 +6847,20 @@ var THREAD_OF_SEVERED_FATE_BUFF = new Buff({
 function iunoAction(id, def2) {
   return new Action(id, { element: 64, scaling: 0, ...def2 });
 }
-var BA12 = iunoAction("Basic - Moonring 1", { node: 0, cast: 1, type: 4096, mv: 87.68, energy: 1.23, concerto: 1.23, offtune: 3920, forte1: 5 });
-var BA22 = iunoAction("Basic - Moonring 2", { node: 0, cast: 1, type: 4096, mv: 139.58, energy: 1.97, concerto: 1.97, offtune: 6242, forte1: 10 });
-var BA32 = iunoAction("Basic - Moonring 3", { node: 0, cast: 1, type: 4096, mv: 266.61, energy: 3.73, concerto: 3.73, offtune: 11921, forte1: 20 });
-var DC2 = iunoAction("Dodge Counter - Moonring", { node: 0, cast: 0, type: 4096, mv: 248.73, energy: 2, concerto: 13.97, offtune: 6321, forte1: 10 });
-var BA123 = new ActionGroup("Basic - Moonring 123", [BA12, BA22, BA32]);
+var BA13 = iunoAction("Basic - Moonring 1", { node: 0, cast: 1, type: 4096, mv: 87.68, energy: 1.23, concerto: 1.23, offtune: 3920, forte1: 5 });
+var BA23 = iunoAction("Basic - Moonring 2", { node: 0, cast: 1, type: 4096, mv: 139.58, energy: 1.97, concerto: 1.97, offtune: 6242, forte1: 10 });
+var BA33 = iunoAction("Basic - Moonring 3", { node: 0, cast: 1, type: 4096, mv: 266.61, energy: 3.73, concerto: 3.73, offtune: 11921, forte1: 20 });
+var DC3 = iunoAction("Dodge Counter - Moonring", { node: 0, cast: 0, type: 4096, mv: 248.73, energy: 2, concerto: 13.97, offtune: 6321, forte1: 10 });
+var BA123 = new ActionGroup("Basic - Moonring 123", [BA13, BA23, BA33]);
 var MA12 = iunoAction("Basic - Moonbow 1", { node: 0, cast: 1, type: 16384, mv: 126.45, energy: 2.33, concerto: 2.65, offtune: 4240 });
 var MA22 = iunoAction("Basic - Moonbow 2", { node: 0, cast: 1, type: 16384, mv: 167.01, energy: 3.27, concerto: 3.51, offtune: 5601 });
 var MA3 = iunoAction("Basic - Moonbow 3", { node: 0, cast: 1, type: 16384, mv: 334.02, energy: 6, concerto: 7, offtune: 11200 });
 var MDC = iunoAction("Dodge Counter - Moonbow", { node: 0, cast: 0, type: 16384, mv: 310.17, energy: 1.77, concerto: 13.51, offtune: 5601 });
 var MA123 = new ActionGroup("Basic - Moonbow 123", [MA12, MA22, MA3]);
-var Skill2 = iunoAction("Skill - Pulse of Origins", { node: 1, cast: 4, type: 12288, mv: 261.07, energy: 4.58, concerto: 6, offtune: 8086 });
+var Skill3 = iunoAction("Skill - Pulse of Origins", { node: 1, cast: 4, type: 12288, mv: 261.07, energy: 4.58, concerto: 6, offtune: 8086 });
 var ESkill = iunoAction("Skill - Closing Refrain", { node: 1, cast: 4, type: 12288, mv: 426.46, energy: 8.15, concerto: 8, offtune: 13200, forte1: 25 });
 var MSkill = iunoAction("Skill - Arc Beyond the Edge", { node: 1, cast: 4, type: 16384, mv: 439.58, energy: 9.36, concerto: 8, offtune: 10720 });
-var Liberation2 = iunoAction("Liberation - Beneath Lunar Tides", {
+var Liberation3 = iunoAction("Liberation - Beneath Lunar Tides", {
   node: 3,
   cast: 5,
   type: 16384,
@@ -6040,7 +6870,7 @@ var Liberation2 = iunoAction("Liberation - Beneath Lunar Tides", {
   forte1: 60,
   resetEnergy: true
 });
-var Intro2 = iunoAction("Intro - Illuminated Manifestation", {
+var Intro3 = iunoAction("Intro - Illuminated Manifestation", {
   node: 4,
   cast: 6,
   type: 20480,
@@ -6050,7 +6880,7 @@ var Intro2 = iunoAction("Intro - Illuminated Manifestation", {
   offtune: 10400,
   forte1: 40
 });
-var Outro2 = iunoAction("Outro - From Gloom to Gleam", {
+var Outro3 = iunoAction("Outro - From Gloom to Gleam", {
   cast: 7,
   type: 24576,
   mv: 100,
@@ -6060,12 +6890,12 @@ var Outro2 = iunoAction("Outro - From Gloom to Gleam", {
 });
 var Jump = iunoAction("Heavy - Flux: Moonbow", { node: 2, cast: 3, type: 16384, mv: 250.51, energy: 3.5, concerto: 7, offtune: 11200 });
 var FJump = iunoAction("Heavy - Flux: Moonring", { node: 2, cast: 3, type: 16384, mv: 316.72, energy: 4.44, concerto: 8.88, offtune: 14160 });
-var FMA1 = iunoAction("Forte Basic - Enhanced Moonbow 1", { node: 2, cast: 1, type: 16384, mv: 205.97, energy: 2.33, concerto: 6.65, offtune: 4240, forte1: -10 });
-var FMA2 = iunoAction("Forte Basic - Enhanced Moonbow 2", { node: 2, cast: 1, type: 16384, mv: 286.29, energy: 3.27, concerto: 9.51, offtune: 5601, forte1: -15 });
-var FMA3 = iunoAction("Forte Basic - Enhanced Moonbow 3", { node: 2, cast: 1, type: 16384, mv: 532.82, energy: 6, concerto: 17, offtune: 11200, forte1: -25 });
+var FMA12 = iunoAction("Forte Basic - Enhanced Moonbow 1", { node: 2, cast: 1, type: 16384, mv: 205.97, energy: 2.33, concerto: 6.65, offtune: 4240, forte1: -10 });
+var FMA22 = iunoAction("Forte Basic - Enhanced Moonbow 2", { node: 2, cast: 1, type: 16384, mv: 286.29, energy: 3.27, concerto: 9.51, offtune: 5601, forte1: -15 });
+var FMA32 = iunoAction("Forte Basic - Enhanced Moonbow 3", { node: 2, cast: 1, type: 16384, mv: 532.82, energy: 6, concerto: 17, offtune: 11200, forte1: -25 });
 var FMSkill = iunoAction("Forte Skill - Enhanced Arc Beyond the Edge", { node: 2, cast: 4, type: 16384, mv: 638.38, energy: 9.36, concerto: 18, offtune: 10720, forte1: -25 });
-var FMA123 = new ActionGroup("Forte - Enhanced Moonbow 123", [FMA1, FMA2, FMA3]);
-var FHA = iunoAction("Heavy - Absolute Fullness", {
+var FMA123 = new ActionGroup("Forte - Enhanced Moonbow 123", [FMA12, FMA22, FMA32]);
+var FHA2 = iunoAction("Heavy - Absolute Fullness", {
   node: 2,
   cast: 3,
   type: 16384,
@@ -6114,33 +6944,33 @@ var IUNO_OUTRO = new Buff({
   }
 });
 var SHIELDING = /* @__PURE__ */ new Set([
-  BA12,
-  BA22,
-  BA32,
-  DC2,
+  BA13,
+  BA23,
+  BA33,
+  DC3,
   MA12,
   MA22,
   MA3,
   MDC,
-  Skill2,
+  Skill3,
   ESkill,
   MSkill,
-  Liberation2,
-  Intro2,
+  Liberation3,
+  Intro3,
   Jump,
   FJump,
-  FMA1,
-  FMA2,
-  FMA3,
+  FMA12,
+  FMA22,
+  FMA32,
   FMSkill,
-  FHA
+  FHA2
 ]);
 var IUNO_RESONATOR = new Resonator({
   name: "Iuno",
   element: 64,
   weapon: 3,
-  intro: () => Intro2,
-  outro: () => Outro2,
+  intro: () => Intro3,
+  outro: () => Outro3,
   color: "#2dd4c0",
   maxEnergy: 125,
   // every cast of hers but the Outro shields
@@ -6169,12 +6999,12 @@ var IO_ROTATION = new Rotation([
   INTRO,
   ESkill,
   ECHO_CANCEL,
-  Liberation2,
+  Liberation3,
   Jump,
   FMSkill,
   FMA123,
   FMSkill,
-  FHA,
+  FHA2,
   OUTRO
 ]);
 var IUNO = new Loadout({
@@ -6203,18 +7033,18 @@ var IUNO = new Loadout({
 });
 var IO_ROTATION_MDPS = new Rotation([
   INTRO,
-  Skill2,
+  Skill3,
   ESkill,
   // todo swap skill eskill
   Jump,
   //FMA1, 
   FMSkill,
   FMA123,
-  Liberation2,
+  Liberation3,
   FMA123,
   FMSkill,
   MA123,
-  FHA,
+  FHA2,
   ECHO_SWAP,
   OUTRO
 ]);
@@ -6244,17 +7074,17 @@ var IUNO_MDPS = new Loadout({
 function jianxinAction(id, def2) {
   return new Action(id, { element: 64, scaling: 0, ...def2 });
 }
-var BA13 = jianxinAction("Basic - Fengyiquan 1", { node: 0, cast: 1, type: 4096, mv: 69.46, energy: 1.02, concerto: 3.28, offtune: 3280, forte1: 6 });
-var BA23 = jianxinAction("Basic - Fengyiquan 2", { node: 0, cast: 1, type: 4096, mv: 133.18, energy: 1.97, concerto: 6.3, offtune: 6320, forte1: 10 });
-var BA33 = jianxinAction("Basic - Fengyiquan 3", { node: 0, cast: 1, type: 4096, mv: 167, energy: 2.48, concerto: 7.92, offtune: 7920, forte1: 12 });
-var BA42 = jianxinAction("Basic - Fengyiquan 4", { node: 0, cast: 1, type: 4096, mv: 113.4, energy: 1.68, concerto: 5.37, offtune: 5360, forte1: 12 });
-var HA2 = jianxinAction("Heavy - Fengyiquan", { node: 0, cast: 3, type: 8192, mv: 126.07, energy: 1.87, concerto: 5.96, offtune: 6e3, forte1: 9 });
+var BA14 = jianxinAction("Basic - Fengyiquan 1", { node: 0, cast: 1, type: 4096, mv: 69.46, energy: 1.02, concerto: 3.28, offtune: 3280, forte1: 6 });
+var BA24 = jianxinAction("Basic - Fengyiquan 2", { node: 0, cast: 1, type: 4096, mv: 133.18, energy: 1.97, concerto: 6.3, offtune: 6320, forte1: 10 });
+var BA34 = jianxinAction("Basic - Fengyiquan 3", { node: 0, cast: 1, type: 4096, mv: 167, energy: 2.48, concerto: 7.92, offtune: 7920, forte1: 12 });
+var BA43 = jianxinAction("Basic - Fengyiquan 4", { node: 0, cast: 1, type: 4096, mv: 113.4, energy: 1.68, concerto: 5.37, offtune: 5360, forte1: 12 });
+var HA3 = jianxinAction("Heavy - Fengyiquan", { node: 0, cast: 3, type: 8192, mv: 126.07, energy: 1.87, concerto: 5.96, offtune: 6e3, forte1: 9 });
 var MA = jianxinAction("Mid-air - Fengyiquan", { node: 0, cast: 2, type: 4096, mv: 123.27, energy: 0.52, concerto: 1, offtune: 4960, forte1: 6 });
-var DC3 = jianxinAction("Dodge Counter - Fengyiquan", { node: 0, cast: 0, type: 4096, mv: 244.94, energy: 3.1, concerto: 16.68, offtune: 13143, forte1: 17 });
-var BA1234 = new ActionGroup("Basic - Fengyiquan 1234", [BA13, BA23, BA33, BA42]);
+var DC4 = jianxinAction("Dodge Counter - Fengyiquan", { node: 0, cast: 0, type: 4096, mv: 244.94, energy: 3.1, concerto: 16.68, offtune: 13143, forte1: 17 });
+var BA1234 = new ActionGroup("Basic - Fengyiquan 1234", [BA14, BA24, BA34, BA43]);
 var ChiParry = jianxinAction("Skill - Calming Air: Chi Parry", { node: 1, cast: 4, type: 12288, mv: 258.73, energy: 4, concerto: 22, offtune: 12240, forte1: 15 + 25 });
 var ChiCounter = jianxinAction("Skill - Calming Air: Chi Counter", { node: 1, cast: 4, type: 12288, mv: 334.6, energy: 4, concerto: 22, offtune: 5200, forte1: 15 + 25 });
-var Liberation3 = jianxinAction("Liberation - Purification Force Field", {
+var Liberation4 = jianxinAction("Liberation - Purification Force Field", {
   node: 3,
   cast: 5,
   type: 16384,
@@ -6263,7 +7093,7 @@ var Liberation3 = jianxinAction("Liberation - Purification Force Field", {
   offtune: 48e3 + 3200 * 15,
   resetEnergy: true
 });
-var FHA2 = jianxinAction("Forte Heavy - Primordial Chi Spiral", {
+var FHA3 = jianxinAction("Forte Heavy - Primordial Chi Spiral", {
   node: 2,
   cast: 3,
   forte1: -120,
@@ -6338,31 +7168,31 @@ var YieldingPull = jianxinAction("Forte Heavy - Yielding Pull", {
   }
 });
 var ZHOUTIAN_1 = new ActionGroup("Forte Heavy - Primordial Chi Spiral (Zhoutian 1)", [
-  FHA2,
+  FHA3,
   PushingPunch
 ]);
 var ZHOUTIAN_2 = new ActionGroup("Forte Heavy - Primordial Chi Spiral (Zhoutian 2)", [
-  FHA2,
+  FHA3,
   MinorShock,
   YieldingPull
   // missing chi strikes
 ]);
 var ZHOUTIAN_3 = new ActionGroup("Forte Heavy - Primordial Chi Spiral (Zhoutian 3)", [
-  FHA2,
+  FHA3,
   MinorShock,
   InnerShock,
   YieldingPull
   // missing chi strikes
 ]);
 var ZHOUTIAN_4 = new ActionGroup("Forte Heavy - Primordial Chi Spiral (Zhoutian 4)", [
-  FHA2,
+  FHA3,
   MinorShock,
   InnerShock,
   OuterShock
   // missing chi strikes
 ]);
-var Intro3 = jianxinAction("Intro - Essence of Tao", { node: 4, cast: 6, type: 20480, mv: 33.8 * 3 + 67.6, energy: 10, concerto: 10, offtune: 2667 * 3 + 1600, forte1: 40 });
-var Outro3 = jianxinAction("Outro - Transcendence", {
+var Intro4 = jianxinAction("Intro - Essence of Tao", { node: 4, cast: 6, type: 20480, mv: 33.8 * 3 + 67.6, energy: 10, concerto: 10, offtune: 2667 * 3 + 1600, forte1: 40 });
+var Outro4 = jianxinAction("Outro - Transcendence", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -6401,7 +7231,7 @@ var S1_BRANCHLET = new Buff({
 var S1 = new Sequence({
   name: "Jianxin S1: Verdant Branchlet",
   updateBuffs: () => {
-    if (currentAction() === Intro3)
+    if (currentAction() === Intro4)
       applyCurrent(S1_BRANCHLET, 1);
   }
 });
@@ -6410,7 +7240,7 @@ var S3 = new Sequence({ name: "Jianxin S3: Principles of Wuwei" });
 var S4_REFLECTION = new Buff({
   name: "Jianxin S4: Multitide Reflection",
   applyStats: () => {
-    if (currentAction() === Liberation3)
+    if (currentAction() === Liberation4)
       addStat(17, 80);
   },
   convertStats: () => {
@@ -6424,7 +7254,7 @@ var S4_REFLECTION = new Buff({
 var S4 = new Sequence({
   name: "Jianxin S4",
   updateBuffs: () => {
-    if (currentAction() === FHA2)
+    if (currentAction() === FHA3)
       applyCurrent(S4_REFLECTION, 1);
   }
 });
@@ -6443,7 +7273,7 @@ var S6 = new Sequence({ name: "Jianxin S6" });
 var JX_INHERENT_1 = new Inherent({
   name: "Inherent: Formless Release",
   applyStats: () => {
-    if (currentAction() === Liberation3)
+    if (currentAction() === Liberation4)
       addStat(17, 20);
   }
 });
@@ -6460,8 +7290,8 @@ var JIANXIN_RESONATOR = new Resonator({
   tier: 1,
   element: 64,
   weapon: 3,
-  intro: () => Intro3,
-  outro: () => Outro3,
+  intro: () => Intro4,
+  outro: () => Outro4,
   color: "#9fe0c8",
   maxEnergy: 150,
   constantStats: () => {
@@ -6474,7 +7304,7 @@ var JX_ROTATION = new Rotation([
   INTRO,
   BA1234,
   ChiParry,
-  Liberation3,
+  Liberation4,
   ZHOUTIAN_1,
   ECHO_SWAP,
   OUTRO
@@ -6483,7 +7313,7 @@ var JX_ROTATION_S2 = new Rotation([
   INTRO,
   ChiParry,
   ChiParry,
-  Liberation3,
+  Liberation4,
   ZHOUTIAN_1,
   ECHO_SWAP,
   OUTRO
@@ -6846,23 +7676,23 @@ var THREAD_OF_FATE_BONUS = new Buff({
 function jiyanAction(id, def2) {
   return new Action(id, { element: 64, scaling: 0, ...def2 });
 }
-var BA14 = jiyanAction("Basic - Lone Lance 1", { node: 0, cast: 1, type: 4096, mv: 73.16, energy: 0.92, concerto: 1.84, offtune: 2944 });
-var BA24 = jiyanAction("Basic - Lone Lance 2", { node: 0, cast: 1, type: 4096, mv: 43.73, energy: 0.55, concerto: 1.1, offtune: 1760 });
-var BA34 = jiyanAction("Basic - Lone Lance 3", { node: 0, cast: 1, type: 4096, mv: 36.38 * 5, energy: 2.25, concerto: 4.55, offtune: 7320 });
-var BA43 = jiyanAction("Basic - Lone Lance 4", { node: 0, cast: 1, type: 4096, mv: 66.2 * 2, energy: 1.66, concerto: 3.32, offtune: 5328 });
+var BA15 = jiyanAction("Basic - Lone Lance 1", { node: 0, cast: 1, type: 4096, mv: 73.16, energy: 0.92, concerto: 1.84, offtune: 2944 });
+var BA25 = jiyanAction("Basic - Lone Lance 2", { node: 0, cast: 1, type: 4096, mv: 43.73, energy: 0.55, concerto: 1.1, offtune: 1760 });
+var BA35 = jiyanAction("Basic - Lone Lance 3", { node: 0, cast: 1, type: 4096, mv: 36.38 * 5, energy: 2.25, concerto: 4.55, offtune: 7320 });
+var BA44 = jiyanAction("Basic - Lone Lance 4", { node: 0, cast: 1, type: 4096, mv: 66.2 * 2, energy: 1.66, concerto: 3.32, offtune: 5328 });
 var BA5 = jiyanAction("Basic - Lone Lance 5", { node: 0, cast: 1, type: 4096, mv: 23.6 * 7 + 153.45 * 2, energy: 5.87, concerto: 11.83, offtune: 19e3 });
-var HA3 = jiyanAction("Heavy - Lone Lance", { node: 0, cast: 3, type: 8192, mv: 22.2 * 6, energy: 1.62, concerto: 3.3, offtune: 5364 });
+var HA4 = jiyanAction("Heavy - Lone Lance", { node: 0, cast: 3, type: 8192, mv: 22.2 * 6, energy: 1.62, concerto: 3.3, offtune: 5364 });
 var HA22 = jiyanAction("Heavy - Windborne Strike", { node: 0, cast: 3, type: 8192, mv: 105.96, energy: 1.33, concerto: 2.66, offtune: 4264 });
 var HA32 = jiyanAction("Heavy - Abyssal Slash", { node: 0, cast: 3, type: 8192, mv: 81.71, energy: 1.02, concerto: 2.05, offtune: 3288 });
 var MA4 = jiyanAction("Mid-air - Lone Lance", { node: 0, cast: 2, type: 4096, mv: 123.26, energy: 0.51, concerto: 1, offtune: 4960 });
 var MA23 = jiyanAction("Mid-air - Lone Lance (Follow-Up)", { node: 0, cast: 2, type: 4096, mv: 155.66, energy: 1.95, concerto: 3.91, offtune: 6264 });
 var MA32 = jiyanAction("Basic - Banner of Triumph", { node: 0, cast: 1, type: 4096, mv: 79.52, energy: 1, concerto: 2, offtune: 3200 });
-var DC4 = jiyanAction("Dodge Counter - Lone Lance", { node: 0, cast: 0, type: 4096, mv: 125.84 * 2, energy: 3.16, concerto: 13.32, offtune: 5328 });
+var DC5 = jiyanAction("Dodge Counter - Lone Lance", { node: 0, cast: 0, type: 4096, mv: 125.84 * 2, energy: 3.16, concerto: 13.32, offtune: 5328 });
 var WINDQUELLER = { applyStats: () => addStat(17, 20) };
-var Skill3 = jiyanAction("Skill - Windqueller", { node: 1, cast: 4, type: 12288, mv: 106.36 * 4, energy: 9, concerto: 16, offtune: 6480, forte1: -30, ...WINDQUELLER });
+var Skill4 = jiyanAction("Skill - Windqueller", { node: 1, cast: 4, type: 12288, mv: 106.36 * 4, energy: 9, concerto: 16, offtune: 6480, forte1: -30, ...WINDQUELLER });
 var Skill22 = jiyanAction("Skill - Windqueller (Low Resolve)", { node: 1, cast: 4, type: 12288, mv: 106.36 * 4, energy: 9, concerto: 16, offtune: 6480 });
 var USkill = jiyanAction("Skill - Windqueller (Qingloong)", { node: 1, cast: 4, type: 12288, mv: 106.36 * 4, energy: 9, concerto: 16, offtune: 6480, ...WINDQUELLER });
-var Liberation4 = jiyanAction("Liberation - Emerald Storm: Prelude", {
+var Liberation5 = jiyanAction("Liberation - Emerald Storm: Prelude", {
   node: 3,
   cast: 5,
   concerto: 20,
@@ -6876,8 +7706,8 @@ var Finale = jiyanAction("Liberation - Emerald Storm: Finale", { node: 3, cast: 
 var Lance1 = jiyanAction("Heavy - Lance of Qingloong 1", { node: 3, cast: 3, type: 8192, mv: 65.52 * 8, energy: 3.76, concerto: 7.6, offtune: 12272 });
 var Lance2 = jiyanAction("Heavy - Lance of Qingloong 2", { node: 3, cast: 3, type: 8192, mv: 61.55 * 8, energy: 3.6, concerto: 7.2, offtune: 11528 });
 var Lance3 = jiyanAction("Heavy - Lance of Qingloong 3", { node: 3, cast: 3, type: 8192, mv: 66.76 * 8, energy: 3.84, concerto: 7.76, offtune: 12504 });
-var Intro4 = jiyanAction("Intro - Tactical Strike", { node: 4, cast: 6, type: 20480, mv: 198.81, energy: 10, concerto: 10, offtune: 7416, forte1: 30 });
-var Outro4 = jiyanAction("Outro - Discipline", {
+var Intro5 = jiyanAction("Intro - Tactical Strike", { node: 4, cast: 6, type: 20480, mv: 198.81, energy: 10, concerto: 10, offtune: 7416, forte1: 30 });
+var Outro5 = jiyanAction("Outro - Discipline", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -6955,8 +7785,8 @@ var JIYAN_RESONATOR = new Resonator({
   name: "Jiyan",
   element: 64,
   weapon: 1,
-  intro: () => Intro4,
-  outro: () => Outro4,
+  intro: () => Intro5,
+  outro: () => Outro5,
   color: "#4fc98f",
   maxEnergy: 125,
   constantStats: () => {
@@ -6975,7 +7805,7 @@ var JIYAN_TALENTS = new Talent({
 var JY_ROTATION = new Rotation([
   INTRO,
   ECHO_CANCEL,
-  Liberation4,
+  Liberation5,
   Lance1,
   USkill,
   Lance1,
@@ -7012,363 +7842,6 @@ var JIYAN = new Loadout({
   ),
   substat: chem("atk", "heavy"),
   rotation: JY_ROTATION
-});
-
-// dist/src/weapons/sword.js
-var BLAZING_BRILLIANCE = new Weapon({
-  weaponType: 0,
-  name: "Blazing Brilliance",
-  constantStats: () => {
-    addStat(0, 587.5);
-    addStat(10, 48.6);
-    addStat(6, 12);
-  },
-  updateBuffs: () => {
-    if (isType(
-      12288
-      /* Type1.Skill */
-    ))
-      applyCurrent(SEARING_FEATHER, 5);
-  }
-});
-var SEARING_FEATHER = new Buff({
-  name: "Blazing Brilliance: Crimson Phoenix",
-  maxStacks: 14,
-  // pays off current stacks before revoking — applyStats()'s frozenStacks() would already read 0 otherwise
-  updateBuffs: () => {
-    addStat(
-      17,
-      4 * frozenStacks(),
-      12288
-      /* Type1.Skill */
-    );
-    if (casting(
-      7
-      /* Cast.Outro */
-    ))
-      revokeCurrent(SEARING_FEATHER);
-  }
-});
-var RED_SPRING = new Weapon({
-  weaponType: 0,
-  name: "Red Spring",
-  constantStats: () => {
-    addStat(0, 587.5);
-    addStat(9, 24.3);
-    addStat(6, 12);
-  },
-  updateBuffs: () => {
-    if (isType(
-      4096
-      /* Type1.Basic */
-    ))
-      applyCurrent(RED_SPRING_BASIC);
-    if (currentAction().concerto < 0)
-      applyCurrent(RED_SPRING_CONSUME);
-  }
-});
-var RED_SPRING_BASIC = new Buff({
-  name: "Red Spring: Beyond the Cycle",
-  maxStacks: 3,
-  applyStats: () => {
-    addStat(
-      17,
-      10 * frozenStacks(),
-      4096
-      /* Type1.Basic */
-    );
-  },
-  convertStats: () => {
-    if (casting(
-      7
-      /* Cast.Outro */
-    ))
-      revokeCurrent(RED_SPRING_BASIC);
-  }
-});
-var RED_SPRING_CONSUME = new Buff({
-  name: "Red Spring: Beyond the Cycle (consume)",
-  updateBuffs: () => {
-    lostOnSwap();
-  },
-  applyStats: () => {
-    addStat(
-      17,
-      40,
-      4096
-      /* Type1.Basic */
-    );
-  }
-});
-var UNFLICKERING_VALOR = new Weapon({
-  weaponType: 0,
-  name: "Unflickering Valor",
-  constantStats: () => {
-    addStat(0, 413);
-    addStat(11, 77.04);
-    addStat(9, 8);
-  },
-  updateBuffs: () => {
-    if (casting(
-      5
-      /* Cast.Liberation */
-    ))
-      applyCurrent(LAUGHTER_PREVAILS_LIB);
-    if (isType(
-      4096
-      /* Type1.Basic */
-    ))
-      applyCurrent(LAUGHTER_PREVAILS_BASIC);
-  }
-});
-var LAUGHTER_PREVAILS_LIB = new Buff({
-  name: "Unflickering Valor: Laughter Prevails (lib)",
-  applyStats: () => addStat(
-    17,
-    24,
-    4096
-    /* Type1.Basic */
-  ),
-  convertStats: () => {
-    if (casting(
-      7
-      /* Cast.Outro */
-    ))
-      revokeCurrent(LAUGHTER_PREVAILS_LIB);
-  }
-});
-var LAUGHTER_PREVAILS_BASIC = new Buff({
-  name: "Unflickering Valor: Laughter Prevails (basic)",
-  applyStats: () => addStat(
-    17,
-    24,
-    4096
-    /* Type1.Basic */
-  ),
-  convertStats: () => {
-    if (casting(
-      7
-      /* Cast.Outro */
-    ))
-      revokeCurrent(LAUGHTER_PREVAILS_BASIC);
-  }
-});
-var EMERALD_SENTENCE = new Weapon({
-  weaponType: 0,
-  name: "Emerald Sentence",
-  constantStats: () => {
-    addStat(0, 587.5);
-    addStat(9, 24.3);
-    addStat(6, 12);
-  },
-  updateBuffs: () => {
-    if (casting(
-      6
-      /* Cast.Intro */
-    ))
-      applyTeam(HEART_SETTLES_TEAM);
-    if ((casting(
-      6
-      /* Cast.Intro */
-    ) || casting(
-      1
-      /* Cast.Basic */
-    ) || casting(
-      2
-      /* Cast.MidAir */
-    )) && !stacksOf(BAMBOO_CLEAVER)) {
-      applyCurrent(BAMBOO_CLEAVER);
-    }
-  }
-});
-var HEART_SETTLES_TEAM = new Buff({
-  name: "Emerald Sentence: When A Heart Settles",
-  applyStats: () => addStat(
-    17,
-    20,
-    28672
-    /* Type1.Echo */
-  )
-});
-var BAMBOO_CLEAVER = new Buff({
-  name: "Emerald Sentence: Bamboo Cleaver",
-  maxStacks: 3,
-  updateBuffs: () => {
-    lostOnSwap();
-    if (casting(
-      8
-      /* Cast.Echo */
-    ))
-      applyCurrent(BAMBOO_CLEAVER);
-  },
-  applyStats: () => {
-    if (frozenStacks() >= 2)
-      addStat(
-        17,
-        30 * (frozenStacks() - 1),
-        8192
-        /* Type1.Heavy */
-      );
-  }
-});
-var GLINT_OF_CLOUDS = new Weapon({
-  weaponType: 0,
-  name: "Glint of Clouds",
-  constantStats: () => {
-    addStat(0, 500);
-    addStat(9, 36);
-    addStat(6, 12);
-  },
-  updateBuffs: () => {
-    if (appliedByMe(TUNE_STRAIN_SHIFTING))
-      applyCurrent(EVILS_SCOURGE, 1);
-  }
-});
-var EVILS_SCOURGE = new Buff({
-  name: "Glint of Clouds: Evil's Scourge",
-  maxStacks: 5,
-  applyStats: () => {
-    addStat(
-      17,
-      11.2 * frozenStacks(),
-      64
-      /* Attribute.Aero */
-    );
-    if (frozenStacks() >= 5)
-      addStat(
-        21,
-        10,
-        64
-        /* Attribute.Aero */
-      );
-  },
-  convertStats: () => {
-    if (casting(
-      7
-      /* Cast.Outro */
-    ) && frozenStacks() < 5)
-      revokeCurrent(EVILS_SCOURGE);
-  }
-});
-var FROSTBURN = new Weapon({
-  weaponType: 0,
-  name: "Frostburn",
-  constantStats: () => {
-    addStat(0, 587.5);
-    addStat(9, 24.3);
-    addStat(6, 12);
-  },
-  // `appliedByMe`: a "when *you* inflict" payout, so the two extra stacks Lucilla's Film Roll
-  // adds to the wielder's own are hers and pay nothing here
-  updateBuffs: () => {
-    if (appliedByMe(GLACIO_CHAFE))
-      applyCurrent(SELF_NO_MORE, 1);
-  }
-});
-var SELF_NO_MORE = new Buff({
-  name: "Frostburn: Self No More",
-  applyStats: () => {
-    addStat(
-      18,
-      28,
-      256
-      /* Attribute.Glacio */
-    );
-    addStat(
-      21,
-      10,
-      16384
-      /* Type1.Liberation */
-    );
-    if (currentAction().active)
-      addStat(
-        18,
-        20,
-        1310720
-        /* Type2.GlacioChafe */
-      );
-  },
-  convertStats: () => {
-    if (casting(
-      7
-      /* Cast.Outro */
-    ))
-      revokeCurrent(SELF_NO_MORE);
-  }
-});
-var AZURE_OATH = new Weapon({
-  weaponType: 0,
-  name: "Azure Oath",
-  constantStats: () => {
-    addStat(0, 587.5);
-    addStat(9, 24.3);
-    addStat(17, 12);
-  },
-  updateBuffs: () => {
-    if (appliedByMe(HAVOC_BANE))
-      applyCurrent(UNBENDING, 1);
-  }
-});
-var UNBENDING = new Buff({
-  name: "Azure Oath: Unbending",
-  applyStats: () => {
-    addStat(
-      18,
-      36,
-      8192
-      /* Type1.Heavy */
-    );
-    addStat(
-      21,
-      12,
-      8192
-      /* Type1.Heavy */
-    );
-  },
-  convertStats: () => {
-    if (casting(
-      7
-      /* Cast.Outro */
-    ))
-      revokeCurrent(UNBENDING);
-  }
-});
-var EVERBRIGHT_POLESTAR = new Weapon({
-  weaponType: 0,
-  name: "Everbright Polestar",
-  constantStats: () => {
-    addStat(0, 587.5);
-    addStat(9, 24.3);
-    addStat(17, 12);
-  },
-  updateBuffs: () => {
-    if (appliedByMe(TUNE_RUPTURE_SHIFTING) || appliedByMe(FUSION_BURST))
-      applyCurrent(STARCHASER, 1);
-  }
-});
-var STARCHASER = new Buff({
-  name: "Everbright Polestar: Starchaser",
-  applyStats: () => {
-    addStat(
-      21,
-      32,
-      16384
-      /* Type1.Liberation */
-    );
-    addStat(
-      20,
-      10,
-      16384
-      /* Type1.Liberation */
-    );
-  },
-  convertStats: () => {
-    if (casting(
-      7
-      /* Cast.Outro */
-    ))
-      revokeCurrent(STARCHASER);
-  }
 });
 
 // dist/src/echoes/mengzhou.js
@@ -7589,16 +8062,16 @@ var FORBIDDEN_BASTION = new Mainslot({
 function qxAction(id, def2) {
   return new Action(id, { element: 64, scaling: 0, ...def2 });
 }
-var BA15 = qxAction("Basic - Stringblade 1", { node: 0, cast: 1, type: 4096, mv: 60.26, energy: 1.1, concerto: 2.18, offtune: 3464, forte1: 9.74 });
-var BA25 = qxAction("Basic - Stringblade 2", { node: 0, cast: 1, type: 4096, mv: 74.18, energy: 1.34, concerto: 2.68, offtune: 4264, forte2: 7.12 });
-var BA35 = qxAction("Basic - Stringblade 3", { node: 0, cast: 1, type: 4096, mv: 97.44, energy: 1.76, concerto: 3.52, offtune: 5600, forte2: 9.36 });
-var BA44 = qxAction("Basic - Stringblade 4", { node: 0, cast: 1, type: 4096, mv: 108.45, energy: 1.96, concerto: 3.92, offtune: 6234, forte1: 17.54 });
+var BA16 = qxAction("Basic - Stringblade 1", { node: 0, cast: 1, type: 4096, mv: 60.26, energy: 1.1, concerto: 2.18, offtune: 3464, forte1: 9.74 });
+var BA26 = qxAction("Basic - Stringblade 2", { node: 0, cast: 1, type: 4096, mv: 74.18, energy: 1.34, concerto: 2.68, offtune: 4264, forte2: 7.12 });
+var BA36 = qxAction("Basic - Stringblade 3", { node: 0, cast: 1, type: 4096, mv: 97.44, energy: 1.76, concerto: 3.52, offtune: 5600, forte2: 9.36 });
+var BA45 = qxAction("Basic - Stringblade 4", { node: 0, cast: 1, type: 4096, mv: 108.45, energy: 1.96, concerto: 3.92, offtune: 6234, forte1: 17.54 });
 var MA13 = qxAction("Mid-air - Stringblade 1", { node: 0, cast: 2, type: 4096, mv: 90.48, energy: 1.63, concerto: 3.25, offtune: 5200, forte2: 8.71 });
 var MA24 = qxAction("Mid-air - Stringblade 2", { node: 0, cast: 2, type: 4096, mv: 89.79, energy: 1.63, concerto: 3.24, offtune: 5160, forte2: 8.63 });
 var MA33 = qxAction("Mid-air - Stringblade 3", { node: 0, cast: 2, type: 4096, mv: 139.21, energy: 2.5, concerto: 5, offtune: 8e3, forte2: 13.37 });
-var Plunge = qxAction("Basic - Plunging Attack", { node: 0, cast: 1, type: 4096, mv: 86.29, energy: 1.55, concerto: 3.1, offtune: 4960 });
-var DC5 = qxAction("Dodge Counter - Stringblade", { node: 0, cast: 0, type: 4096, mv: 180.92, energy: 3.28, concerto: 16.52, offtune: 10400, forte2: 26.04 });
-var HA4 = qxAction("Heavy - Stringblade", {
+var Plunge4 = qxAction("Basic - Plunging Attack", { node: 0, cast: 1, type: 4096, mv: 86.29, energy: 1.55, concerto: 3.1, offtune: 4960 });
+var DC6 = qxAction("Dodge Counter - Stringblade", { node: 0, cast: 0, type: 4096, mv: 180.92, energy: 3.28, concerto: 16.52, offtune: 10400, forte2: 26.04 });
+var HA5 = qxAction("Heavy - Stringblade", {
   node: 0,
   cast: 3,
   type: 8192,
@@ -7615,9 +8088,9 @@ var HA4 = qxAction("Heavy - Stringblade", {
       setForte2(100);
   }
 });
-var Skill4 = qxAction("Skill - Severing Note: Judgement", { node: 1, cast: 4, type: 12288, mv: 139.18, energy: 2.51, concerto: 5, offtune: 8e3, forte1: 45 });
+var Skill5 = qxAction("Skill - Severing Note: Judgement", { node: 1, cast: 4, type: 12288, mv: 139.18, energy: 2.51, concerto: 5, offtune: 8e3, forte1: 45 });
 var Ascendant = qxAction("Skill - Severing Note: Ascendant", { node: 1, cast: 4, type: 12288, mv: 94.66, energy: 1.71, concerto: 3.4, offtune: 5440, forte2: 9.09 });
-var FBA1 = qxAction("Basic - Ephemeral Transcendence 1", {
+var FBA12 = qxAction("Basic - Ephemeral Transcendence 1", {
   node: 2,
   cast: 1,
   type: 4096,
@@ -7631,7 +8104,7 @@ var FBA1 = qxAction("Basic - Ephemeral Transcendence 1", {
       addStat(16, 100);
   }
 });
-var FBA2 = qxAction("Basic - Ephemeral Transcendence 2", {
+var FBA22 = qxAction("Basic - Ephemeral Transcendence 2", {
   node: 2,
   cast: 1,
   type: 4096,
@@ -7645,7 +8118,7 @@ var FBA2 = qxAction("Basic - Ephemeral Transcendence 2", {
       addStat(16, 100);
   }
 });
-var FBA3 = qxAction("Basic - Ephemeral Transcendence 3", {
+var FBA32 = qxAction("Basic - Ephemeral Transcendence 3", {
   node: 2,
   cast: 1,
   type: 4096,
@@ -7659,7 +8132,7 @@ var FBA3 = qxAction("Basic - Ephemeral Transcendence 3", {
       addStat(16, 100);
   }
 });
-var FBA4 = qxAction("Basic - Ephemeral Transcendence 4", {
+var FBA42 = qxAction("Basic - Ephemeral Transcendence 4", {
   node: 2,
   cast: 1,
   type: 4096,
@@ -7673,7 +8146,7 @@ var FBA4 = qxAction("Basic - Ephemeral Transcendence 4", {
       addStat(16, 100);
   }
 });
-var FDC = qxAction("Dodge Counter - Ephemeral Transcendence", {
+var FDC2 = qxAction("Dodge Counter - Ephemeral Transcendence", {
   node: 2,
   cast: 0,
   type: 4096,
@@ -7687,7 +8160,7 @@ var FDC = qxAction("Dodge Counter - Ephemeral Transcendence", {
       addStat(16, 100);
   }
 });
-var FHA3 = qxAction("Forte Heavy - Heaven's Reckoning", {
+var FHA4 = qxAction("Forte Heavy - Heaven's Reckoning", {
   node: 2,
   cast: 3,
   type: 8192,
@@ -7702,7 +8175,7 @@ var FHA3 = qxAction("Forte Heavy - Heaven's Reckoning", {
     revokeCurrent(HEAVENS_CLARITY);
   }
 });
-var Liberation5 = qxAction("Liberation - Billows Beneath Heaven", {
+var Liberation6 = qxAction("Liberation - Billows Beneath Heaven", {
   node: 3,
   cast: 5,
   type: 16384,
@@ -7712,7 +8185,7 @@ var Liberation5 = qxAction("Liberation - Billows Beneath Heaven", {
   resetEnergy: true,
   updateBuffs: () => applyCurrent(HEAVENS_CLARITY, 1)
 });
-var Intro5 = qxAction("Intro - Tonality Shift", {
+var Intro6 = qxAction("Intro - Tonality Shift", {
   node: 4,
   cast: 6,
   type: 20480,
@@ -7723,7 +8196,7 @@ var Intro5 = qxAction("Intro - Tonality Shift", {
   forte2: 30,
   updateBuffs: () => applyCurrent(RESONANT_CHIME, 1)
 });
-var Outro5 = qxAction("Outro - Lingering Song", { cast: 7, type: 24576, mv: 800, concerto: -100, active: false });
+var Outro6 = qxAction("Outro - Lingering Song", { cast: 7, type: 24576, mv: 800, concerto: -100, active: false });
 var MINDLOCK = new Debuff({
   name: "Qingxiao: Mindlock",
   maxStacks: 15,
@@ -7734,7 +8207,7 @@ var MINDLOCK = new Debuff({
     addStat(18, 2 * n + 5 * Math.min(n, 7));
   }
 });
-var MINDLOCK_PAYS = /* @__PURE__ */ new Set([HA4, FBA1, FBA2, FBA3, FBA4, FDC, FHA3, Liberation5]);
+var MINDLOCK_PAYS = /* @__PURE__ */ new Set([HA5, FBA12, FBA22, FBA32, FBA42, FDC2, FHA4, Liberation6]);
 var GATHERED_MIND = new Buff({
   name: "Qingxiao: Gathered Mind",
   maxStacks: 15,
@@ -7748,23 +8221,23 @@ var GATHERED_MIND = new Buff({
 var RESONANT_CHIME = new Buff({
   name: "Qingxiao: Resonant Chime",
   applyStats: () => {
-    if (currentAction() === Skill4)
+    if (currentAction() === Skill5)
       addStat(29, 30);
   },
   convertStats: () => {
-    if (currentAction() === Skill4)
+    if (currentAction() === Skill5)
       revokeCurrent(RESONANT_CHIME);
   }
 });
-var CLARITY_FORTE = /* @__PURE__ */ new Set([BA15, BA25, BA35, BA44, MA13, MA24, MA33, DC5, Ascendant]);
+var CLARITY_FORTE = /* @__PURE__ */ new Set([BA16, BA26, BA36, BA45, MA13, MA24, MA33, DC6, Ascendant]);
 var HEAVENS_CLARITY = new Buff({
   name: "Qingxiao: Heaven's Clarity",
   updateDebuffs: () => {
-    if (currentAction() === HA4)
+    if (currentAction() === HA5)
       applyEnemy(MINDLOCK, 3);
   },
   updateBuffs: () => {
-    if (currentAction() === HA4)
+    if (currentAction() === HA5)
       applyCurrent(RECKONING_ENHANCED, 1);
   },
   applyStats: () => {
@@ -7781,13 +8254,13 @@ var RECKONING_ENHANCED = new Buff({
   name: "Qingxiao: Heaven's Reckoning Enhancement",
   updateBuffs: () => lostOnSwap(),
   applyStats: () => {
-    if (currentAction() === FHA3) {
+    if (currentAction() === FHA4) {
       addStat(16, 100);
       addStat(27, 152e3);
     }
   },
   convertStats: () => {
-    if (currentAction() === FHA3)
+    if (currentAction() === FHA4)
       revokeCurrent(RECKONING_ENHANCED);
   }
 });
@@ -7825,8 +8298,8 @@ var QINGXIAO_RESONATOR = new Resonator({
   name: "Qingxiao",
   element: 64,
   weapon: 0,
-  intro: () => Intro5,
-  outro: () => Outro5,
+  intro: () => Intro6,
+  outro: () => Outro6,
   color: "#6cc5b0",
   maxEnergy: 125,
   // Draw and Sunder: "while Qingxiao is in the team"; Heaven's Clarity and Formless Heart Sword
@@ -7857,21 +8330,21 @@ var QINGXIAO_RESONATOR = new Resonator({
     addStat(12, 10);
   }
 });
-var FBA1234 = new ActionGroup("Forte - Ephemeral Transcendence 1234", [FBA1, FBA2, FBA3, FBA4]);
+var FBA1234 = new ActionGroup("Forte - Ephemeral Transcendence 1234", [FBA12, FBA22, FBA32, FBA42]);
 var MA1232 = new ActionGroup("Mid-air - Stringblade 123", [MA13, MA24, MA33]);
 var QX_ROTATION = new Rotation([
   START_3,
-  Liberation5,
+  Liberation6,
   SWAP,
   INTRO,
   MA1232,
-  BA35,
-  BA44,
-  Skill4,
-  HA4,
+  BA36,
+  BA45,
+  Skill5,
+  HA5,
   FBA1234,
-  FHA3,
-  Liberation5,
+  FHA4,
+  Liberation6,
   ECHO_SWAP,
   OUTRO
 ]);
@@ -7901,16 +8374,16 @@ var QINGXIAO = new Loadout({
 function qiuyuanAction(id, def2) {
   return new Action(id, { element: 64, scaling: 0, ...def2 });
 }
-var BA16 = qiuyuanAction("Basic - Inkwash 1", { node: 0, cast: 1, type: 4096, mv: 41.76, energy: 0.75, concerto: 2.4, offtune: 2400 });
-var BA26 = qiuyuanAction("Basic - Inkwash 2", { node: 0, cast: 1, type: 4096, mv: 69.6, energy: 1.26, concerto: 4, offtune: 4e3 });
-var BA36 = qiuyuanAction("Basic - Inkwash 3", { node: 0, cast: 1, type: 4096, mv: 164.25, energy: 2.98, concerto: 9.46, offtune: 9440, forte1: 100 });
-var HA5 = qiuyuanAction("Heavy - Inkwash", { node: 0, cast: 3, type: 8192, mv: 165.61, energy: 2.09, concerto: 6.67, offtune: 6664 });
+var BA17 = qiuyuanAction("Basic - Inkwash 1", { node: 0, cast: 1, type: 4096, mv: 41.76, energy: 0.75, concerto: 2.4, offtune: 2400 });
+var BA27 = qiuyuanAction("Basic - Inkwash 2", { node: 0, cast: 1, type: 4096, mv: 69.6, energy: 1.26, concerto: 4, offtune: 4e3 });
+var BA37 = qiuyuanAction("Basic - Inkwash 3", { node: 0, cast: 1, type: 4096, mv: 164.25, energy: 2.98, concerto: 9.46, offtune: 9440, forte1: 100 });
+var HA6 = qiuyuanAction("Heavy - Inkwash", { node: 0, cast: 3, type: 8192, mv: 165.61, energy: 2.09, concerto: 6.67, offtune: 6664 });
 var EBA1 = qiuyuanAction("Basic - Thus Spoke the Blade: Inkwash 1", { node: 0, cast: 1, type: 8192, mv: 119.3, energy: 1.5, concerto: 4.8, offtune: 4800, forte1: 100 });
 var EBA2 = qiuyuanAction("Basic - Thus Spoke the Blade: Inkwash 2", { node: 0, cast: 1, type: 8192, mv: 185.5, energy: 2.34, concerto: 7.47, offtune: 7464, forte1: 100 });
 var EBA3 = qiuyuanAction("Basic - Thus Spoke the Blade: Inkwash 3", { node: 0, cast: 1, type: 8192, mv: 145.77, energy: 3.69, concerto: 7.07, offtune: 5862, forte1: 100 });
 var EBA4 = qiuyuanAction("Basic - Thus Spoke the Blade: Inkwash 4", { node: 0, cast: 1, type: 8192, mv: 172.37, energy: 4.34, concerto: 8.33, offtune: 6936, forte1: 100 });
-var Skill5 = qiuyuanAction("Skill - Through the Groves", { node: 1, cast: 4, type: 28672, mv: 215.52, energy: 15.09, concerto: 10, offtune: 8673 });
-var Liberation6 = qiuyuanAction("Liberation - Sundering Strike", {
+var Skill6 = qiuyuanAction("Skill - Through the Groves", { node: 1, cast: 4, type: 28672, mv: 215.52, energy: 15.09, concerto: 10, offtune: 8673 });
+var Liberation7 = qiuyuanAction("Liberation - Sundering Strike", {
   node: 3,
   cast: 5,
   type: 28672,
@@ -7920,7 +8393,7 @@ var Liberation6 = qiuyuanAction("Liberation - Sundering Strike", {
   resetEnergy: true,
   updateBuffs: () => applyTeam(SUNDERING_STRIKE_CD, 1)
 });
-var Intro6 = qiuyuanAction("Intro - Attack the Must-Defend", {
+var Intro7 = qiuyuanAction("Intro - Attack the Must-Defend", {
   node: 4,
   cast: 6,
   type: 8192,
@@ -7930,7 +8403,7 @@ var Intro6 = qiuyuanAction("Intro - Attack the Must-Defend", {
   offtune: 9600,
   forte1: 400
 });
-var Outro6 = qiuyuanAction("Outro - Strike Before Ready", {
+var Outro7 = qiuyuanAction("Outro - Strike Before Ready", {
   cast: 7,
   type: 28672,
   mv: 100,
@@ -8012,8 +8485,8 @@ var QIUYUAN_RESONATOR = new Resonator({
   name: "Qiuyuan",
   element: 64,
   weapon: 0,
-  intro: () => Intro6,
-  outro: () => Outro6,
+  intro: () => Intro7,
+  outro: () => Outro7,
   color: "#4fae6b",
   maxEnergy: 125,
   updateBuffs: () => {
@@ -8037,15 +8510,15 @@ var QIUYUAN_TALENTS = new Talent({
 var FHA123 = new ActionGroup("Forte - Thus Spoke the Blade: Heavy 123", [FHA1, FHA22, FHA32]);
 var QY_ROTATION = new Rotation([
   START_3,
-  Liberation6,
+  Liberation7,
   SWAP,
   NOINTRO,
-  HA5,
+  HA6,
   EBA4,
-  HA5,
+  HA6,
   EBA4,
   ECHO_CANCEL,
-  Liberation6,
+  Liberation7,
   EBA1,
   EBA2,
   DODGE,
@@ -8056,8 +8529,8 @@ var QY_ROTATION = new Rotation([
   INTRO,
   EBA3,
   EBA4,
-  Skill5,
-  Liberation6,
+  Skill6,
+  Liberation7,
   FHA123,
   ECHO_CANCEL,
   OUTRO
@@ -8092,15 +8565,15 @@ var QIUYUAN = new Loadout({
 function roverAction(id, def2) {
   return new Action(id, { element: 64, scaling: 0, ...def2 });
 }
-var BA17 = roverAction("Basic - Wind Cutter 1", { node: 0, cast: 1, type: 4096, mv: 35.31, energy: 0.76, concerto: 2.41, offtune: 2408 });
-var BA27 = roverAction("Basic - Wind Cutter 2", { node: 0, cast: 1, type: 4096, mv: 86.1, energy: 1.84, concerto: 5.88, offtune: 5872 });
-var BA37 = roverAction("Basic - Wind Cutter 3", { node: 0, cast: 1, type: 4096, mv: 104.8, energy: 2.24, concerto: 7.15, offtune: 7144, forte1: 10 });
-var BA45 = roverAction("Basic - Wind Cutter 4", { node: 0, cast: 1, type: 4096, mv: 76.72, energy: 1.64, concerto: 5.24, offtune: 5232, forte1: 10 });
-var HA6 = roverAction("Heavy - Wind Cutter", { node: 0, cast: 3, type: 8192, mv: 53.73, energy: 1.17, concerto: 3.69, offtune: 3666 });
+var BA18 = roverAction("Basic - Wind Cutter 1", { node: 0, cast: 1, type: 4096, mv: 35.31, energy: 0.76, concerto: 2.41, offtune: 2408 });
+var BA28 = roverAction("Basic - Wind Cutter 2", { node: 0, cast: 1, type: 4096, mv: 86.1, energy: 1.84, concerto: 5.88, offtune: 5872 });
+var BA38 = roverAction("Basic - Wind Cutter 3", { node: 0, cast: 1, type: 4096, mv: 104.8, energy: 2.24, concerto: 7.15, offtune: 7144, forte1: 10 });
+var BA46 = roverAction("Basic - Wind Cutter 4", { node: 0, cast: 1, type: 4096, mv: 76.72, energy: 1.64, concerto: 5.24, offtune: 5232, forte1: 10 });
+var HA7 = roverAction("Heavy - Wind Cutter", { node: 0, cast: 3, type: 8192, mv: 53.73, energy: 1.17, concerto: 3.69, offtune: 3666 });
 var RazorWind = roverAction("Heavy - Razor Wind", { node: 0, cast: 3, type: 8192, mv: 80.83, energy: 1.73, concerto: 5.53, offtune: 5513 });
 var MA5 = roverAction("Mid-air - Wind Cutter", { node: 0, cast: 2, type: 4096, mv: 140.76, energy: 0.52, concerto: 9.6, offtune: 9600 });
-var DC6 = roverAction("Dodge Counter - Wind Cutter", { node: 0, cast: 0, type: 4096, mv: 175.18, energy: 3.74, concerto: 21.95, offtune: 11944, forte1: 10 });
-var Skill6 = roverAction("Skill - Awakening Gale", { node: 1, cast: 4, type: 12288, mv: 166.1, energy: 5, concerto: 10, offtune: 7553 });
+var DC7 = roverAction("Dodge Counter - Wind Cutter", { node: 0, cast: 0, type: 4096, mv: 175.18, energy: 3.74, concerto: 21.95, offtune: 11944, forte1: 10 });
+var Skill7 = roverAction("Skill - Awakening Gale", { node: 1, cast: 4, type: 12288, mv: 166.1, energy: 5, concerto: 10, offtune: 7553 });
 var SkyfallSeverance = roverAction("Skill - Skyfall Severance", {
   node: 1,
   cast: 4,
@@ -8121,11 +8594,37 @@ var SkyfallSeverance = roverAction("Skill - Skyfall Severance", {
 });
 var Cloudburst1 = roverAction("Basic - Cloudburst Dance 1", { node: 2, cast: 1, type: 12288, mv: 128.8, energy: 0.92, concerto: 2.93, offtune: 2928, forte1: 25 });
 var Cloudburst2 = roverAction("Basic - Cloudburst Dance 2", { node: 2, cast: 1, type: 12288, mv: 141.47, energy: 1.01, concerto: 3.22, offtune: 3216, forte1: 25 });
-var UnboundFlow1 = roverAction("Forte Skill - Unbound Flow 1", { node: 2, cast: 4, type: 12288, mv: 171.5, energy: 10, concerto: 20, offtune: 29850, forte1: -60 });
-var UnboundFlow2 = roverAction("Forte Skill - Unbound Flow 2", { node: 2, cast: 4, type: 12288, mv: 723.03, energy: 20, concerto: 20, offtune: 28288, forte1: -60 });
-var Liberation7 = roverAction("Liberation - Omega Storm", { node: 3, cast: 5, type: 16384, mv: 536.79, concerto: 20, offtune: 48e3, resetEnergy: true });
-var Intro7 = roverAction("Intro - Relentless Squall", { node: 4, cast: 6, type: 20480, mv: 198.82, energy: 10, concerto: 10, offtune: 11465, forte1: 20 });
-var Outro7 = roverAction("Outro - Storm's Echo", {
+var UnboundFlow1 = roverAction("Forte Skill - Unbound Flow 1", {
+  node: 2,
+  cast: 4,
+  type: 12288,
+  mv: 171.5,
+  energy: 10,
+  concerto: 20,
+  offtune: 29850,
+  forte1: -60,
+  applyStats: () => {
+    if (forte1() > 120)
+      setForte1(120);
+  }
+});
+var UnboundFlow2 = roverAction("Forte Skill - Unbound Flow 2", {
+  node: 2,
+  cast: 4,
+  type: 12288,
+  mv: 723.03,
+  energy: 20,
+  concerto: 20,
+  offtune: 28288,
+  forte1: -60,
+  applyStats: () => {
+    if (forte1() > 120)
+      setForte1(120);
+  }
+});
+var Liberation8 = roverAction("Liberation - Omega Storm", { node: 3, cast: 5, type: 16384, mv: 536.79, concerto: 20, offtune: 48e3, resetEnergy: true });
+var Intro8 = roverAction("Intro - Relentless Squall", { node: 4, cast: 6, type: 20480, mv: 198.82, energy: 10, concerto: 10, offtune: 11465, forte1: 20 });
+var Outro8 = roverAction("Outro - Storm's Echo", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -8145,7 +8644,7 @@ var SAND_IN_THE_STORM = new Buff({
 var AR_INHERENT_1 = new Inherent({
   name: "Inherent: Sand in the Storm",
   updateBuffs: () => {
-    if (currentAction() === Intro7)
+    if (currentAction() === Intro8)
       applyCurrent(SAND_IN_THE_STORM, 1);
   }
 });
@@ -8198,7 +8697,7 @@ var AR_S4 = new Sequence({
 var AR_S5 = new Sequence({
   name: "Aero Rover S5: Life and Death Intertwine",
   applyStats: () => {
-    if (currentAction() === Liberation7)
+    if (currentAction() === Liberation8)
       addStat(16, 20);
   }
 });
@@ -8214,14 +8713,14 @@ var ROVER_AERO_RESONATOR = new Resonator({
   name: "Aero Rover",
   element: 64,
   weapon: 0,
-  intro: () => Intro7,
-  outro: () => Outro7,
+  intro: () => Intro8,
+  outro: () => Outro8,
   color: "#6fd6b0",
   maxEnergy: 150,
   tier: 2,
   updateDebuffs: () => {
     const a = currentAction();
-    if (a === Cloudburst1 || a === Cloudburst2 || a === UnboundFlow1 || a === UnboundFlow2 || a === Liberation7)
+    if (a === Cloudburst1 || a === Cloudburst2 || a === UnboundFlow1 || a === UnboundFlow2 || a === Liberation8)
       applyCurrent(HEALS, 1);
   },
   // Bloodpact's Pledge names Unbound Flow outright, so that clause's team Aero Amplification is
@@ -8246,32 +8745,21 @@ var ROVER_AERO_TALENTS = new Talent({
 });
 var AR_ROTATION = new Rotation([
   NOINTRO,
-  Skill6,
-  Cloudburst1,
-  Cloudburst2,
-  MA5,
-  BA45,
-  ECHO_CANCEL,
-  Liberation7,
-  Skill6,
-  Cloudburst1,
-  Cloudburst2,
-  MA5,
-  BA45,
-  UnboundFlow1,
-  UnboundFlow2,
-  OUTRO,
+  Skill7,
   INTRO,
+  SkyfallSeverance,
   Cloudburst1,
   Cloudburst2,
+  MA5,
+  BA46,
   ECHO_CANCEL,
-  Liberation7,
-  Skill6,
+  Liberation8,
+  Skill7,
   Cloudburst1,
   Cloudburst2,
   MA5,
   UnboundFlow1,
-  UnboundFlow2,
+  UnboundFlow2.swap(),
   OUTRO
 ]);
 var ROVER_AERO = new Loadout({
@@ -8832,10 +9320,10 @@ var SIGILLUM = new Mainslot({
 function sigrikaAction(id, def2) {
   return new Action(id, { element: 64, scaling: 0, ...def2 });
 }
-var BA18 = sigrikaAction("Basic - One, Two, Three 1", { node: 0, cast: 1, type: 4096, mv: 52.97, energy: 0.84, concerto: 1.67, offtune: 2664 });
-var BA28 = sigrikaAction("Basic - One, Two, Three 2", { node: 0, cast: 1, type: 4096, mv: 100.68, energy: 1.6, concerto: 3.18, offtune: 5064 });
-var BA38 = sigrikaAction("Basic - One, Two, Three 3", { node: 0, cast: 1, type: 4096, mv: 111.36, energy: 1.76, concerto: 3.5, offtune: 5600 });
-var BA46 = sigrikaAction("Basic - One, Two, Three 4", {
+var BA19 = sigrikaAction("Basic - One, Two, Three 1", { node: 0, cast: 1, type: 4096, mv: 52.97, energy: 0.84, concerto: 1.67, offtune: 2664 });
+var BA29 = sigrikaAction("Basic - One, Two, Three 2", { node: 0, cast: 1, type: 4096, mv: 100.68, energy: 1.6, concerto: 3.18, offtune: 5064 });
+var BA39 = sigrikaAction("Basic - One, Two, Three 3", { node: 0, cast: 1, type: 4096, mv: 111.36, energy: 1.76, concerto: 3.5, offtune: 5600 });
+var BA47 = sigrikaAction("Basic - One, Two, Three 4", {
   node: 0,
   cast: 1,
   type: 4096,
@@ -8847,11 +9335,11 @@ var BA46 = sigrikaAction("Basic - One, Two, Three 4", {
 });
 var MA6 = sigrikaAction("Mid-air - One, Two, Three", { node: 0, cast: 2, type: 4096, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960 });
 var MDC2 = sigrikaAction("Dodge Counter - One, Two, Three (Mid-Air)", { node: 0, cast: 0, type: 4096, mv: 206.17, energy: 3.05, concerto: 16.1, offtune: 9920 });
-var DC7 = sigrikaAction("Dodge Counter - One, Two, Three", { node: 0, cast: 0, type: 4096, mv: 219.7, energy: 3.26, concerto: 16.5, offtune: 10026 });
-var HA7 = sigrikaAction("Heavy - One, Two, Three", { node: 0, cast: 3, type: 8192, mv: 116.28, offtune: 5848, concerto: 3.66, energy: 1.84 });
+var DC8 = sigrikaAction("Dodge Counter - One, Two, Three", { node: 0, cast: 0, type: 4096, mv: 219.7, energy: 3.26, concerto: 16.5, offtune: 10026 });
+var HA8 = sigrikaAction("Heavy - One, Two, Three", { node: 0, cast: 3, type: 8192, mv: 116.28, offtune: 5848, concerto: 3.66, energy: 1.84 });
 var EBA = sigrikaAction("Basic - Elucidated", { node: 0, cast: 1, type: 28672, mv: 307.79, offtune: 8259, energy: 2.6, concerto: 5.19, forte1: 1 });
 var EDC = sigrikaAction("Dodge Counter - Decipher", { node: 0, cast: 0, type: 28672, mv: 307.79, offtune: 8259, energy: 2.6, concerto: 15.19, forte1: 1 });
-var Skill7 = sigrikaAction("Skill - BOOMY BOOM!", { node: 1, cast: 4, type: 12288, mv: 143.15, offtune: 7200, energy: 2.25, concerto: 4.5 });
+var Skill8 = sigrikaAction("Skill - BOOMY BOOM!", { node: 1, cast: 4, type: 12288, mv: 143.15, offtune: 7200, energy: 2.25, concerto: 4.5 });
 var ESkill2 = sigrikaAction("Skill - BIG BOOMY BOOM!", { node: 1, cast: 4, type: 28672, mv: 288.09, offtune: 7729, energy: 2.45, concerto: 4.86, forte1: 1 });
 var ESkill50 = sigrikaAction("Skill - Soliskin to the Aid", { node: 1, cast: 4, type: 28672, mv: 278.26, offtune: 7466, energy: 2.36, concerto: 4.68, forte1: 1 });
 var RunicOutburst = sigrikaAction("Forte - Runic Outburst", { node: 2, type: 28672, mv: 117.67 + 205.92 + 264.75, energy: 10, concerto: 7, offtune: 24800, forte2: 50 });
@@ -8862,7 +9350,7 @@ var FHAoutburst = sigrikaAction("Forte Heavy - Schemata of Runes", { ...SCHEMATA
 var FHAchainwhip = sigrikaAction("Forte Heavy - Schemata of Runes", { ...SCHEMATA, updateBuffs: () => queue(RunicChainWhip) });
 var FHAsoliskin = sigrikaAction("Forte Heavy - Schemata of Runes", { ...SCHEMATA, updateBuffs: () => queue(RunicSoliskin) });
 var FSkill = sigrikaAction("Forte Skill - Learn My True Name", { node: 2, cast: 4, type: 28672, mv: 1211.48, energy: 5.43, concerto: 30, offtune: 101336, forte2: -100 });
-var Liberation8 = sigrikaAction("Liberation - Where Trust Leads Me!", {
+var Liberation9 = sigrikaAction("Liberation - Where Trust Leads Me!", {
   node: 3,
   cast: 5,
   type: 28672,
@@ -8872,8 +9360,8 @@ var Liberation8 = sigrikaAction("Liberation - Where Trust Leads Me!", {
   resetEnergy: true,
   updateBuffs: () => applyCurrent(DIVERGENT)
 });
-var Intro8 = sigrikaAction("Intro - Solsworn Etymology", { node: 4, cast: 6, type: 20480, mv: 163.42, energy: 10, concerto: 10, offtune: 7736 });
-var Outro8 = sigrikaAction("Outro - In This Very Moment", { cast: 7, type: 24576, mv: 795, concerto: -100, active: false });
+var Intro9 = sigrikaAction("Intro - Solsworn Etymology", { node: 4, cast: 6, type: 20480, mv: 163.42, energy: 10, concerto: 10, offtune: 7736 });
+var Outro9 = sigrikaAction("Outro - In This Very Moment", { cast: 7, type: 24576, mv: 795, concerto: -100, active: false });
 var BLESSING_OF_RUNES = new Buff({
   name: "Sigrika: Blessing of Runes",
   maxStacks: 6,
@@ -8931,7 +9419,7 @@ var SR_INHERENT_2 = new Inherent({
 var SR_INHERENT_1 = new Inherent({
   name: "Inherent: True Names Invoked",
   updateBuffs: () => {
-    if (currentAction() === Intro8)
+    if (currentAction() === Intro9)
       applyCurrent(CONVERGENT, 1);
   }
 });
@@ -9018,8 +9506,8 @@ var SIGRIKA_RESONATOR = new Resonator({
   name: "Sigrika",
   element: 64,
   weapon: 3,
-  intro: () => Intro8,
-  outro: () => Outro8,
+  intro: () => Intro9,
+  outro: () => Outro9,
   color: "#7ee0c9",
   maxEnergy: 125,
   // Soliskin Vitality's own gain — any team member's Echo cast
@@ -9043,32 +9531,32 @@ var SIGRIKA_TALENTS = new Talent({
     addStat(6, 12);
   }
 });
-var BA234 = new ActionGroup("Basic - One, Two, Three 234", [BA28, BA38, BA46]);
+var BA2342 = new ActionGroup("Basic - One, Two, Three 234", [BA29, BA39, BA47]);
 var SR_ROTATION = new Rotation([
   INTRO,
   ECHO_ONFIELD,
-  BA234,
+  BA2342,
   EBA,
   FHAchainwhip,
-  Liberation8,
-  BA234,
+  Liberation9,
+  BA2342,
   EBA,
   FHAoutburst,
   FSkill,
-  Skill7,
-  BA38,
-  BA46,
+  Skill8,
+  BA39,
+  BA47,
   EBA,
   OUTRO
 ]);
 var SR_ROTATION_FAST = new Rotation([
   INTRO,
   ECHO_ONFIELD,
-  BA234,
+  BA2342,
   EBA,
   FHAchainwhip,
-  Liberation8,
-  BA234,
+  Liberation9,
+  BA2342,
   EBA,
   FHAoutburst,
   FSkill,
@@ -9444,12 +9932,12 @@ var SPRING_WREATH_TEAM = new Buff({
 function phroAction(id, def2) {
   return new Action(id, { element: 384, scaling: 0, ...def2 });
 }
-var BA19 = phroAction("Basic - Movement of Life and Death 1", { node: 0, cast: 1, type: 4096, mv: 106.9, offtune: 5376, energy: 1.68, concerto: 3.36 });
-var BA29 = phroAction("Basic - Movement of Life and Death 2", { node: 0, cast: 1, type: 4096, mv: 95.43, offtune: 4800, energy: 1.5, concerto: 3 });
-var BA39 = phroAction("Basic - Movement of Life and Death 3", { node: 0, cast: 1, type: 4096, mv: 196.14, offtune: 9864, energy: 3.12, concerto: 6.18, updateBuffs: () => gainNote(1) });
-var Skill8 = phroAction("Skill - Whispers in a Fleeting Dream", { node: 1, cast: 4, type: 12288, mv: 211.94, offtune: 4264, energy: 13.34, concerto: 10, updateBuffs: () => gainNote(2) });
+var BA110 = phroAction("Basic - Movement of Life and Death 1", { node: 0, cast: 1, type: 4096, mv: 106.9, offtune: 5376, energy: 1.68, concerto: 3.36 });
+var BA210 = phroAction("Basic - Movement of Life and Death 2", { node: 0, cast: 1, type: 4096, mv: 95.43, offtune: 4800, energy: 1.5, concerto: 3 });
+var BA310 = phroAction("Basic - Movement of Life and Death 3", { node: 0, cast: 1, type: 4096, mv: 196.14, offtune: 9864, energy: 3.12, concerto: 6.18, updateBuffs: () => gainNote(1) });
+var Skill9 = phroAction("Skill - Whispers in a Fleeting Dream", { node: 1, cast: 4, type: 12288, mv: 211.94, offtune: 4264, energy: 13.34, concerto: 10, updateBuffs: () => gainNote(2) });
 var FBA = phroAction("Basic - Movement of Fate and Finality", { node: 2, cast: 1, type: 12288, mv: 505.01, offtune: 10161, energy: 3.21, concerto: 10.02, updateBuffs: () => gainNote(1) });
-var FSkill2 = phroAction("Skill - Murmurs in a Haunting Dream", { node: 2, cast: 4, type: 12288, mv: 464.07, offtune: 9338, energy: 2.95, concerto: 10, updateBuffs: () => gainNote(2) });
+var FSkill3 = phroAction("Skill - Murmurs in a Haunting Dream", { node: 2, cast: 4, type: 12288, mv: 464.07, offtune: 9338, energy: 2.95, concerto: 10, updateBuffs: () => gainNote(2) });
 var ScarletCoda = phroAction("Heavy - Scarlet Coda", {
   node: 0,
   cast: 3,
@@ -9460,7 +9948,7 @@ var ScarletCoda = phroAction("Heavy - Scarlet Coda", {
   energy: 6.93,
   concerto: 40
 });
-var Liberation9 = phroAction("Liberation - Waltz of Forsaken Depths", {
+var Liberation10 = phroAction("Liberation - Waltz of Forsaken Depths", {
   node: 3,
   cast: 5,
   concerto: 20,
@@ -9469,7 +9957,7 @@ var Liberation9 = phroAction("Liberation - Waltz of Forsaken Depths", {
     setStacksSelf(NOTES, stacksOf(NOTES) & ~(15 << 12) | 10 << 12);
   }
 });
-var Intro9 = phroAction("Intro - Suite of Quietus", {
+var Intro10 = phroAction("Intro - Suite of Quietus", {
   node: 4,
   cast: 6,
   type: 20480,
@@ -9493,7 +9981,7 @@ var EIntro = phroAction("Intro - Suite of Immortality", {
     setStacksSelf(NOTES, stacksOf(NOTES) & 1 << 16);
   }
 });
-var Outro9 = phroAction("Outro - Unfinished Piece", {
+var Outro10 = phroAction("Outro - Unfinished Piece", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -9597,7 +10085,7 @@ var PH_INHERENT_1 = new Inherent({
   name: "Inherent: Accidental",
   updateBuffs: () => {
     const a = currentAction();
-    if (a === Intro9 || a === EIntro || casting(
+    if (a === Intro10 || a === EIntro || casting(
       8
       /* Cast.Echo */
     ))
@@ -9647,7 +10135,7 @@ var PH_S1 = new Sequence({
   combatStart: () => applyCurrent(NOTES, 3 | 3 << 2),
   applyStats: () => {
     const a = currentAction();
-    if (a === FBA || a === FSkill2)
+    if (a === FBA || a === FSkill3)
       addStat(16, 80);
   }
 });
@@ -9690,7 +10178,7 @@ var PH_S6 = new Sequence({
   name: "Phrolova S6: A Night to Depart From Eternal Rest",
   updateBuffs: () => {
     const a = currentAction();
-    if (a === FBA || a === FSkill2)
+    if (a === FBA || a === FSkill3)
       queue(Apparition);
     if (a === Apparition)
       applyCurrent(AFTERSOUND, 8);
@@ -9718,8 +10206,8 @@ var PHROLOVA_RESONATOR = new Resonator({
   weapon: 4,
   color: "#a62c57",
   // Maestro still open means Suite of Immortality (EIntro) instead of plain Intro
-  intro: () => stacksOf(MAESTRO) ? EIntro : Intro9,
-  outro: () => Outro9,
+  intro: () => stacksOf(MAESTRO) ? EIntro : Intro10,
+  outro: () => Outro10,
   maxEnergy: 0,
   combatStart: () => {
     applyCurrent(NOTES, 1 << 16);
@@ -9738,43 +10226,43 @@ var PHROLOVA_TALENTS = new Talent({
     addStat(6, 12);
   }
 });
-var BA1232 = new ActionGroup("Basic - Movement of Life and Death 123", [BA19, BA29, BA39, DODGE]);
-var BA123idash = new ActionGroup("Basic - Movement of Life and Death 123 (Cancelled)", [BA19, BA29, BA39.dodgeCancel()]);
+var BA1232 = new ActionGroup("Basic - Movement of Life and Death 123", [BA110, BA210, BA310, DODGE]);
+var BA123idash = new ActionGroup("Basic - Movement of Life and Death 123 (Cancelled)", [BA110, BA210, BA310.dodgeCancel()]);
 var PH_LOOP = new Rotation([
   NOINTRO,
-  BA29,
+  BA210,
   INTRO,
-  BA39,
+  BA310,
   ECHO_ONFIELD,
   FBA,
-  Skill8,
+  Skill9,
   FBA,
   DODGE,
   BA1232,
   FBA,
   DODGE,
   ScarletCoda,
-  Liberation9,
+  Liberation10,
   HBA1,
   HBA2,
   OUTRO
 ]);
 var PH_LOOP_S2 = new Rotation([
   NOINTRO,
-  BA29,
-  BA39,
+  BA210,
+  BA310,
   ECHO_ONFIELD,
   FBA,
-  Skill8,
+  Skill9,
   FBA,
   ScarletCoda,
-  Liberation9,
+  Liberation10,
   OUTRO,
   INTRO,
-  BA39,
+  BA310,
   ECHO_ONFIELD,
   FBA,
-  Skill8,
+  Skill9,
   FBA,
   DODGE,
   BA123idash,
@@ -9784,7 +10272,7 @@ var PH_LOOP_S2 = new Rotation([
   FBA,
   DODGE,
   ScarletCoda,
-  Liberation9,
+  Liberation10,
   OUTRO
 ]);
 var PHROLOVA = new Loadout({
@@ -9808,42 +10296,42 @@ var PHROLOVA = new Loadout({
 });
 var PH_LOOP_DUAL_DPS = new Rotation([
   NOINTRO,
-  BA29,
+  BA210,
   INTRO,
-  BA39,
+  BA310,
   ECHO_ONFIELD,
   FBA,
-  Skill8,
+  Skill9,
   FBA,
   DODGE,
   BA1232,
   FBA,
   ScarletCoda,
-  Liberation9,
+  Liberation10,
   OUTRO
 ]);
 var PH_LOOP_DUAL_DPS_S2 = new Rotation([
   NOINTRO,
-  BA29,
-  BA39,
+  BA210,
+  BA310,
   ECHO_ONFIELD,
   FBA,
-  Skill8,
+  Skill9,
   FBA,
   ScarletCoda,
-  Liberation9,
+  Liberation10,
   OUTRO,
   INTRO,
-  BA39,
+  BA310,
   ECHO_ONFIELD,
   FBA,
-  Skill8,
+  Skill9,
   FBA,
   DODGE,
   BA1232,
   FBA,
   ScarletCoda,
-  Liberation9,
+  Liberation10,
   OUTRO
 ]);
 var PHROLOVA_DUAL_DPS = new Loadout({
@@ -9876,19 +10364,19 @@ var PHROLOVA_DUAL_DPS = new Loadout({
 function augustaAction(id, def2) {
   return new Action(id, { element: 128, scaling: 0, ...def2 });
 }
-var BA110 = augustaAction("Basic - Hunter's Path 1", { node: 0, cast: 1, type: 4096, mv: 57.46, energy: 0.73, concerto: 1.45, offtune: 2312, forte1: 99, forte2: 74 });
-var BA210 = augustaAction("Basic - Hunter's Path 2", { node: 0, cast: 1, type: 4096, mv: 134, energy: 1.7, concerto: 3.38, offtune: 5392, forte1: 230, forte2: 172 });
-var BA310 = augustaAction("Basic - Hunter's Path 3", { node: 0, cast: 1, type: 4096, mv: 196.83, energy: 2.49, concerto: 4.95, offtune: 7920, forte1: 336, forte2: 252 });
-var BA47 = augustaAction("Basic - Hunter's Path 4", { node: 0, cast: 1, type: 4096, mv: 193.89, energy: 2.46, concerto: 4.89, offtune: 7803, forte1: 333, forte2: 249 });
+var BA111 = augustaAction("Basic - Hunter's Path 1", { node: 0, cast: 1, type: 4096, mv: 57.46, energy: 0.73, concerto: 1.45, offtune: 2312, forte1: 99, forte2: 74 });
+var BA211 = augustaAction("Basic - Hunter's Path 2", { node: 0, cast: 1, type: 4096, mv: 134, energy: 1.7, concerto: 3.38, offtune: 5392, forte1: 230, forte2: 172 });
+var BA311 = augustaAction("Basic - Hunter's Path 3", { node: 0, cast: 1, type: 4096, mv: 196.83, energy: 2.49, concerto: 4.95, offtune: 7920, forte1: 336, forte2: 252 });
+var BA48 = augustaAction("Basic - Hunter's Path 4", { node: 0, cast: 1, type: 4096, mv: 193.89, energy: 2.46, concerto: 4.89, offtune: 7803, forte1: 333, forte2: 249 });
 var MA7 = augustaAction("Mid-air - Hunter's Path", { node: 0, cast: 2, type: 4096, mv: 119.3, energy: 1.5, concerto: 2, offtune: 7200, forte1: 50, forte2: 154 });
-var DC8 = augustaAction("Dodge Counter - Hunter's Path 2", { node: 0, cast: 0, type: 4096, mv: 134, energy: 1.7, concerto: 13.38, offtune: 5392, forte1: 230, forte2: 172 });
+var DC9 = augustaAction("Dodge Counter - Hunter's Path 2", { node: 0, cast: 0, type: 4096, mv: 134, energy: 1.7, concerto: 13.38, offtune: 5392, forte1: 230, forte2: 172 });
 var MDC3 = augustaAction("Dodge Counter - Hunter's Path (Mid-Air)", { node: 0, cast: 0, type: 4096, mv: 119.3, energy: 1.5, concerto: 12, offtune: 7200, forte1: 50, forte2: 154 });
-var HA8 = augustaAction("Heavy - Hunter's Path", { node: 0, cast: 3, type: 8192, mv: 139.17, energy: 1.77, concerto: 3.51, offtune: 5601, forte1: 342, forte2: 255 });
+var HA9 = augustaAction("Heavy - Hunter's Path", { node: 0, cast: 3, type: 8192, mv: 139.17, energy: 1.77, concerto: 3.51, offtune: 5601, forte1: 342, forte2: 255 });
 var FHA12 = augustaAction("Heavy - Thunderoar: Backstep", { node: 0, cast: 3, type: 8192, mv: 53.68, energy: 0.5, concerto: 1, offtune: 1600, forte1: -660, forte2: 50 });
 var FHA23 = augustaAction("Heavy - Thunderoar: Spinslash", { node: 0, cast: 3, type: 8192, mv: 425.16, energy: 4.47, concerto: 8.91, offtune: 14256, forte2: 744 });
 var FJump2 = augustaAction("Heavy - Thunderoar: Uppercut", { node: 0, cast: 3, type: 8192, mv: 357.86, energy: 3.76, concerto: 7.5, offtune: 12e3, forte1: -660, forte2: 382 });
-var Skill9 = augustaAction("Skill - Warrior's Blade", { node: 1, cast: 4, type: 12288, mv: 656.1, energy: 9, concerto: 10, offtune: 4491, forte1: 660, forte2: 500 });
-var FSkill1 = augustaAction("Forte Skill - Undying Sunlight: Strike", {
+var Skill10 = augustaAction("Skill - Warrior's Blade", { node: 1, cast: 4, type: 12288, mv: 656.1, energy: 9, concerto: 10, offtune: 4491, forte1: 660, forte2: 500 });
+var FSkill12 = augustaAction("Forte Skill - Undying Sunlight: Strike", {
   node: 2,
   cast: 4,
   type: 12288,
@@ -9903,7 +10391,7 @@ var FSkill1 = augustaAction("Forte Skill - Undying Sunlight: Strike", {
   }
 });
 var FSkill22 = augustaAction("Forte Skill - Undying Sunlight: Leap", { node: 2, cast: 4, type: 12288, mv: 278.35, energy: 5, concerto: 7, offtune: 11200 });
-var FSkill3 = augustaAction("Forte Skill - Undying Sunlight: Plunge", {
+var FSkill32 = augustaAction("Forte Skill - Undying Sunlight: Plunge", {
   node: 2,
   cast: 4,
   type: 8192,
@@ -9914,7 +10402,7 @@ var FSkill3 = augustaAction("Forte Skill - Undying Sunlight: Plunge", {
   updateBuffs: () => applyCurrent(MAJESTY, 1)
 });
 var Lib1 = augustaAction("Liberation - Sword of Eternal Oath", { node: 3, cast: 5, type: 8192, mv: 1099.48, energy: 4.74, concerto: 20, offtune: 29342, forte2: 2e3, resetEnergy: true });
-var Lib2 = augustaAction("Liberation - Sublime is the Sun", {
+var Lib22 = augustaAction("Liberation - Sublime is the Sun", {
   node: 3,
   cast: 5,
   updateBuffs: () => {
@@ -9937,8 +10425,8 @@ var Lib3 = augustaAction("Liberation - Sublime is the Sun: Everbright Protector"
       revokeBuff(PHROLOVA_RESONATOR, MAESTRO);
   }
 });
-var Intro10 = augustaAction("Intro - Stride of Goldenflare", { node: 4, cast: 6, type: 20480, mv: 198.82, energy: 10, concerto: 10, offtune: 9600, forte1: 660, forte2: 800 });
-var Outro10 = augustaAction("Outro - Battlesong of the Unyielding", {
+var Intro11 = augustaAction("Intro - Stride of Goldenflare", { node: 4, cast: 6, type: 20480, mv: 198.82, energy: 10, concerto: 10, offtune: 9600, forte1: 660, forte2: 800 });
+var Outro11 = augustaAction("Outro - Battlesong of the Unyielding", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -9979,9 +10467,9 @@ var BATTLESONG = new Buff({
 });
 var SHIELDS = new Map([
   [FSkill22, 2],
-  [FSkill3, 2],
+  [FSkill32, 2],
   [Lib1, 2],
-  ...[BA110, BA210, BA310, BA47, MA7, DC8, MDC3, HA8, FHA12, FHA23, FJump2, Skill9, FSkill1, Lib2, Lib2fua, Lib3, Intro10].map((a) => [a, 1])
+  ...[BA111, BA211, BA311, BA48, MA7, DC9, MDC3, HA9, FHA12, FHA23, FJump2, Skill10, FSkill12, Lib22, Lib2fua, Lib3, Intro11].map((a) => [a, 1])
 ]);
 var AG_INHERENT_1 = new Inherent({
   name: "Inherent: Glory's Favor",
@@ -10002,8 +10490,8 @@ var AUGUSTA_RESONATOR = new Resonator({
   name: "Augusta",
   element: 128,
   weapon: 1,
-  intro: () => Intro10,
-  outro: () => Outro10,
+  intro: () => Intro11,
+  outro: () => Outro11,
   color: "#d7370f",
   maxEnergy: 125,
   // reacts to *any* team member's own Outro, not just her own — currentSlot is forced to her own
@@ -10034,14 +10522,14 @@ var AG_ROTATION = new Rotation([
   INTRO,
   FHA12,
   FHA23,
-  Skill9,
+  Skill10,
   Lib1,
   FHA12,
   FHA23,
-  FSkill1,
+  FSkill12,
   FSkill22,
-  FSkill3,
-  Lib2,
+  FSkill32,
+  Lib22,
   ECHO_SWAP,
   OUTRO
 ]);
@@ -10068,12 +10556,12 @@ var AUGUSTA = new Loadout({
 function bulingAction(id, def2) {
   return new Action(id, { element: 128, scaling: 0, ...def2 });
 }
-var BA111 = bulingAction("Basic - Hexagram Calls, Lightning Falls 1", { node: 0, cast: 1, type: 4096, mv: 41.46, offtune: 3336, energy: 1.06, concerto: 3.34 });
-var BA211 = bulingAction("Basic - Hexagram Calls, Lightning Falls 2", { node: 0, cast: 1, type: 4096, mv: 66.9, offtune: 5384, energy: 1.7, concerto: 5.4, forte1: 1 });
-var BA311 = bulingAction("Basic - Hexagram Calls, Lightning Falls 3", { node: 0, cast: 1, type: 4096, mv: 47.02, offtune: 3784, energy: 1.2, concerto: 3.8 });
-var BA48 = bulingAction("Basic - Hexagram Calls, Lightning Falls 4", { node: 0, cast: 1, type: 4096, mv: 93.64, offtune: 7536, energy: 2.36, concerto: 7.54, forte1: 1 });
+var BA112 = bulingAction("Basic - Hexagram Calls, Lightning Falls 1", { node: 0, cast: 1, type: 4096, mv: 41.46, offtune: 3336, energy: 1.06, concerto: 3.34 });
+var BA212 = bulingAction("Basic - Hexagram Calls, Lightning Falls 2", { node: 0, cast: 1, type: 4096, mv: 66.9, offtune: 5384, energy: 1.7, concerto: 5.4, forte1: 1 });
+var BA312 = bulingAction("Basic - Hexagram Calls, Lightning Falls 3", { node: 0, cast: 1, type: 4096, mv: 47.02, offtune: 3784, energy: 1.2, concerto: 3.8 });
+var BA49 = bulingAction("Basic - Hexagram Calls, Lightning Falls 4", { node: 0, cast: 1, type: 4096, mv: 93.64, offtune: 7536, energy: 2.36, concerto: 7.54, forte1: 1 });
 var MA8 = bulingAction("Mid-air - Hexagram Calls, Lightning Falls", { node: 0, cast: 2, type: 4096, mv: 73.96, offtune: 4960, energy: 1.24, concerto: 4.96, forte1: 1 });
-var DC9 = bulingAction("Dodge Counter - Hexagram Calls, Lightning Falls 3", { node: 0, cast: 0, type: 4096, mv: 47.02, offtune: 3784, energy: 1.2, concerto: 13.8 });
+var DC10 = bulingAction("Dodge Counter - Hexagram Calls, Lightning Falls 3", { node: 0, cast: 0, type: 4096, mv: 47.02, offtune: 3784, energy: 1.2, concerto: 13.8 });
 var YANG = { updateBuffs: () => {
   applyCurrent(MINOR_YANG, 1);
   if (isHeld(MINOR_YIN)) {
@@ -10097,8 +10585,8 @@ var HA_MOUNTAIN_OVER_THUNDER = bulingAction("Heavy - Mountain Over Thunder", { n
 var HA_THUNDER_OVER_MOUNTAIN = bulingAction("Heavy - Thunder Over Mountain", { node: 0, cast: 3, type: 8192, mv: 89.47, offtune: 8e3, energy: 3, concerto: 15, forte1: -2, ...YANG });
 var HA_TWIN_MOUNTAINS = bulingAction("Heavy - Twin Mountains", { node: 0, cast: 3, concerto: 15, forte1: -2, ...YIN });
 var HA_TWIN_THUNDERS = bulingAction("Heavy - Twin Thunders", { node: 0, cast: 3, concerto: 15, forte1: -2, ...YIN });
-var Skill10 = bulingAction("Skill - In Shadow Thunder Stirs", { node: 1, cast: 4, type: 12288, mv: 116.8, offtune: 7832, energy: 15, concerto: 23, forte1: 1 });
-var Liberation10 = bulingAction("Liberation - Flashing Thunder Spell - Harmony", {
+var Skill11 = bulingAction("Skill - In Shadow Thunder Stirs", { node: 1, cast: 4, type: 12288, mv: 116.8, offtune: 7832, energy: 15, concerto: 23, forte1: 1 });
+var Liberation11 = bulingAction("Liberation - Flashing Thunder Spell - Harmony", {
   node: 3,
   cast: 5,
   type: 16384,
@@ -10110,39 +10598,45 @@ var Liberation10 = bulingAction("Liberation - Flashing Thunder Spell - Harmony",
     revokeTeam(THUNDER_SPELL);
     applyTeam(THUNDER_SPELL, 1);
     revokeCurrent(YIN_YANG_BALANCE);
+    revokeTeam(FIVE_THUNDERS_ARRAY);
+    applyTeam(FIVE_THUNDERS_ARRAY, 24);
   }
 });
-var ACTION_FIVE_THUNDERS_ARRAY = bulingAction("Liberation - Five Thunders Spell Array x12", {
+var FIVE_THUNDERS = new ActionField("Buling: Five Thunders Spell Array");
+var ArrayTick = bulingAction("Liberation - Five Thunders Spell Array", {
   type: 16384,
-  mv: 238.32,
-  energy: 25,
+  mv: 19.89,
+  energy: 2.08,
   active: false,
-  updateDebuffs: () => applyEnemy(ELECTRO_FLARE, 24)
+  field: FIVE_THUNDERS,
+  updateDebuffs: () => inflictElectroFlare(2)
 });
-var Intro11 = bulingAction("Intro - Summon and Smite", {
+var Intro12 = bulingAction("Intro - Summon and Smite", {
   node: 4,
   cast: 6,
   type: 20480,
   mv: 131.1,
   offtune: 8792,
   concerto: 10,
-  updateDebuffs: () => applyEnemy(ELECTRO_FLARE, 4)
+  updateDebuffs: () => inflictElectroFlare(4)
 });
-var Outro11 = bulingAction("Outro - Exorcism Spell", {
+var Outro12 = bulingAction("Outro - Exorcism Spell", {
   cast: 7,
   concerto: -100,
   active: false,
-  updateBuffs: () => {
-    queueOnIntro(ACTION_FIVE_THUNDERS_ARRAY);
-    applyTeam(BULING_OUTRO, 1);
-  }
+  updateBuffs: () => applyTeam(BULING_OUTRO, 1)
 });
 var THUNDER_SPELL_STAGE = ["Primordial Qi", "Yin and Yang", "Heaven, Earth, Mind"];
 var THUNDER_SPELL = new Buff({
   name: "Buling: Thunder Spell",
   maxStacks: 3,
   display: () => `Buling: Thunder Spell - ${THUNDER_SPELL_STAGE[stacksOfTeam(THUNDER_SPELL) - 1]}`,
+  // stands only while the Array does: gone on the first action after its last pull
   updateGlobal: () => {
+    if (!stacksOfTeam(FIVE_THUNDERS_ARRAY)) {
+      revokeTeam(THUNDER_SPELL);
+      return;
+    }
     if (casting(
       6
       /* Cast.Intro */
@@ -10171,6 +10665,7 @@ var THUNDER_SPELL = new Buff({
     }
   }
 });
+var FIVE_THUNDERS_ARRAY = coordinatedBuff("Buling: Five Thunders Spell Array", 24, () => BULING_RESONATOR, ArrayTick, { every: 2 });
 var MINOR_YANG = new Buff({ name: "Buling: Minor Yang" });
 var MINOR_YIN = new Buff({ name: "Buling: Minor Yin" });
 var YIN_YANG_BALANCE = new Buff({
@@ -10185,7 +10680,7 @@ var BL_INHERENT_2 = new Inherent({ name: "Inherent: Earthly Immortal is Here!" }
 var BL_S1 = new Sequence({
   name: "Buling S1",
   applyStats: () => {
-    if (currentAction() == Liberation10)
+    if (currentAction() == Liberation11)
       addStat(9, 20);
   }
 });
@@ -10201,15 +10696,21 @@ var BL_S4 = new Sequence({
   name: "Buling S4",
   applyStats: () => addStat(23, 20)
 });
-var BL_S5 = new Sequence({ name: "Buling S5" });
+var BL_S5 = new Sequence({
+  name: "Buling S5",
+  updateDebuffs: () => {
+    if (currentAction() === Liberation11)
+      inflictElectroFlare(6);
+  }
+});
 var BL_S6 = new Sequence({ name: "Buling S6" });
 var BULING_RESONATOR = new Resonator({
   name: "Buling",
   tier: 2,
   element: 128,
   weapon: 4,
-  intro: () => Intro11,
-  outro: () => Outro11,
+  intro: () => Intro12,
+  outro: () => Outro12,
   color: "#7a6ff0",
   maxEnergy: 150,
   constantStats: () => {
@@ -10229,13 +10730,13 @@ var BL_ROTATION = new Rotation([
   NOINTRO,
   INTRO,
   MA8,
-  BA211,
+  BA212,
   HA_THUNDER_OVER_MOUNTAIN,
-  Skill10,
-  BA48,
+  Skill11,
+  BA49,
   HA_TWIN_THUNDERS,
   ECHO_CANCEL,
-  Liberation10,
+  Liberation11,
   OUTRO
 ]);
 var BULING = new Loadout({
@@ -10262,12 +10763,12 @@ var BULING = new Loadout({
 function lucyAction(id, def2) {
   return new Action(id, { element: 320, scaling: 0, ...def2 });
 }
-var BA112 = lucyAction("Basic - Locked Thread 1", { node: 0, cast: 1, type: 4096, mv: 121.49, energy: 1.9, concerto: 6.17, offtune: 7520, forte1: 16 });
-var BA212 = lucyAction("Basic - Locked Thread 2", { node: 0, cast: 1, type: 4096, mv: 60.76, energy: 0.96, concerto: 3.07, offtune: 3761, forte1: 12 });
-var BA312 = lucyAction("Basic - Locked Thread 3", { node: 0, cast: 1, type: 4096, mv: 120.2, energy: 1.87, concerto: 6.06, offtune: 7440, forte1: 18 });
-var BA49 = lucyAction("Basic - Locked Thread 4", { node: 0, cast: 1, type: 4096, mv: 155.09, energy: 2.4, concerto: 7.8, offtune: 9600, forte1: 26 });
+var BA113 = lucyAction("Basic - Locked Thread 1", { node: 0, cast: 1, type: 4096, mv: 121.49, energy: 1.9, concerto: 6.17, offtune: 7520, forte1: 16 });
+var BA213 = lucyAction("Basic - Locked Thread 2", { node: 0, cast: 1, type: 4096, mv: 60.76, energy: 0.96, concerto: 3.07, offtune: 3761, forte1: 12 });
+var BA313 = lucyAction("Basic - Locked Thread 3", { node: 0, cast: 1, type: 4096, mv: 120.2, energy: 1.87, concerto: 6.06, offtune: 7440, forte1: 18 });
+var BA410 = lucyAction("Basic - Locked Thread 4", { node: 0, cast: 1, type: 4096, mv: 155.09, energy: 2.4, concerto: 7.8, offtune: 9600, forte1: 26 });
 var MA9 = lucyAction("Mid-air - Locked Thread", { node: 0, cast: 2, type: 4096, mv: 116.32, energy: 2.26, concerto: 5.86, offtune: 7200, forte1: 8 });
-var DC10 = lucyAction("Dodge Counter - Locked Thread", { node: 0, cast: 0, type: 4096, mv: 197.73, energy: 3.83, concerto: 19.96, offtune: 12240, forte1: 12 });
+var DC11 = lucyAction("Dodge Counter - Locked Thread", { node: 0, cast: 0, type: 4096, mv: 197.73, energy: 3.83, concerto: 19.96, offtune: 12240, forte1: 12 });
 var HA1 = lucyAction("Heavy - Locked Thread 1", { node: 0, cast: 3, type: 8192, mv: 73.67, energy: 1.43, concerto: 3.73, offtune: 4560, forte1: 10 });
 var HA23 = lucyAction("Heavy - Locked Thread 2", { node: 0, cast: 3, type: 8192, mv: 284.32, energy: 5.51, concerto: 14.32, offtune: 17602, forte1: 20.02 });
 var EBA12 = lucyAction("Basic - Thread Shredding 1", { node: 0, cast: 1, type: 8192, mv: 77.96, energy: 1.12, concerto: 4.48, offtune: 4480, forte2: 16.2 });
@@ -10375,7 +10876,7 @@ var CrippleMovement = lucyAction("Liberation - Spoofing Program: Cripple Movemen
   scaling: 4,
   mv: 911.83
 });
-var Intro12 = lucyAction("Intro - Outdated Hallucination", {
+var Intro13 = lucyAction("Intro - Outdated Hallucination", {
   node: 4,
   cast: 6,
   type: 20480,
@@ -10385,7 +10886,7 @@ var Intro12 = lucyAction("Intro - Outdated Hallucination", {
   offtune: 8560,
   updateBuffs: () => applyCurrent(OUTDATED_HALLUCINATION, 1)
 });
-var Outro12 = lucyAction("Outro - Countermeasure Program", {
+var Outro13 = lucyAction("Outro - Countermeasure Program", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -10409,7 +10910,7 @@ var ALGORITHM_COMPACTION = new Buff({
     /* Attribute.Spectro */
   ),
   convertStats: () => {
-    if (currentAction() === Outro12)
+    if (currentAction() === Outro13)
       revokeCurrent(ALGORITHM_COMPACTION);
   }
 });
@@ -10441,7 +10942,7 @@ var OUTDATED_HALLUCINATION = new Buff({
 var DIGITAL_HANDSHAKE = new Buff({
   name: "Lucy: Digital Handshake",
   applyStats: () => {
-    if (currentAction() === Outro12)
+    if (currentAction() === Outro13)
       addStat(29, 12);
   }
   // approximation
@@ -10492,7 +10993,7 @@ var LC_S1_ATK = new Buff({
 var LC_S1 = new Sequence({
   name: "Lucy S1: The Moon, a Ticket, and a Dream",
   updateBuffs: () => {
-    if (currentAction() === Intro12)
+    if (currentAction() === Intro13)
       applyCurrent(LC_S1_ATK, 1);
   }
 });
@@ -10568,8 +11069,8 @@ var LUCY_RESONATOR = new Resonator({
   name: "Lucy",
   element: 320,
   weapon: 2,
-  intro: () => Intro12,
-  outro: () => Outro12,
+  intro: () => Intro13,
+  outro: () => Outro13,
   color: "#efe8de",
   maxEnergy: 125,
   updateGlobal: () => tuneHackResponse(DataCrash),
@@ -10580,14 +11081,14 @@ var LUCY_RESONATOR = new Resonator({
     addStat(12, 10);
   }
 });
-var BA2342 = new ActionGroup("Basic - Locked Thread 234", [BA212, BA312, BA49]);
+var BA2343 = new ActionGroup("Basic - Locked Thread 234", [BA213, BA313, BA410]);
 var EBA234 = new ActionGroup("Basic - Thread Shredding 234", [EBA22, EBA32, EBA42]);
 var LC_ROTATION = new Rotation([
   START_3,
   Lib,
   SWAP,
   INTRO,
-  BA2342,
+  BA2343,
   Skill1,
   Skill32,
   Deadlock,
@@ -10669,7 +11170,7 @@ var TO_HUNTRESS = { convertStats: () => {
   revokeCurrent(GUTS);
   applyCurrent(HUNTRESS, 1);
 } };
-var Skill11 = rebeccaAction("Skill - It's Big Boomin' Time!", { node: 1, cast: 4, type: 12288, mv: 236.6, energy: 3.52, concerto: 7, offtune: 11200, forte1: 22.72, ...TO_GUTS });
+var Skill12 = rebeccaAction("Skill - It's Big Boomin' Time!", { node: 1, cast: 4, type: 12288, mv: 236.6, energy: 3.52, concerto: 7, offtune: 11200, forte1: 22.72, ...TO_GUTS });
 var ESkill3 = rebeccaAction("Skill - Come 'n' Get Me!", { node: 1, cast: 4, type: 12288, mv: 236.6, energy: 3.51, concerto: 7, offtune: 11200, forte1: 22.72, ...TO_HUNTRESS });
 var SPEND_FERVOR = {
   updateDebuffs: () => applyHack(),
@@ -10689,7 +11190,7 @@ var Lib12 = rebeccaAction("Liberation - Party 'til Dawn!", {
     queueOnIntro(Boom);
   }
 });
-var Lib22 = rebeccaAction("Liberation - Mk. 31 HMG x5", {
+var Lib23 = rebeccaAction("Liberation - Mk. 31 HMG x5", {
   node: 3,
   type: 4096,
   cast: 5,
@@ -10716,7 +11217,7 @@ var Lib4 = rebeccaAction("Liberation - Mk. 31 HMG 2nd Enhancement x10", {
   offtune: 4826 * 10,
   forte3: -60
 });
-var Lib234 = new ActionGroup("Liberation - Mk. 31 HMG", [Lib22, Lib32, Lib4]);
+var Lib234 = new ActionGroup("Liberation - Mk. 31 HMG", [Lib23, Lib32, Lib4]);
 var Boom = rebeccaAction("Liberation - BOOM! Fireworks!", {
   node: 3,
   type: 4096,
@@ -10728,9 +11229,9 @@ var Boom = rebeccaAction("Liberation - BOOM! Fireworks!", {
   active: false,
   updateDebuffs: () => applyHack()
 });
-var Intro13 = rebeccaAction("Intro - Yo, It's Big Boomin' Time!", { node: 4, cast: 6, type: 20480, mv: 270.4, energy: 10, concerto: 10, offtune: 12800, updateDebuffs: () => applyHack(), ...TO_GUTS });
+var Intro14 = rebeccaAction("Intro - Yo, It's Big Boomin' Time!", { node: 4, cast: 6, type: 20480, mv: 270.4, energy: 10, concerto: 10, offtune: 12800, updateDebuffs: () => applyHack(), ...TO_GUTS });
 var EIntro2 = rebeccaAction("Intro - Hey, Leadhead, Come 'n' Get Me!", { node: 4, cast: 6, type: 20480, mv: 202.8, energy: 10, concerto: 10, offtune: 9600, updateDebuffs: () => applyHack(), ...TO_HUNTRESS });
-var Outro13 = rebeccaAction("Outro - Preem Choom", {
+var Outro14 = rebeccaAction("Outro - Preem Choom", {
   cast: 7,
   type: 24576,
   concerto: -100,
@@ -10870,7 +11371,7 @@ var RB_S2 = new Sequence({
   },
   updateBuffs: () => {
     const a = currentAction();
-    if (a === Intro13 || a === EIntro2 || a === Lib12)
+    if (a === Intro14 || a === EIntro2 || a === Lib12)
       applyTeam(OH_HEY_CHOOM_TEAM, 1);
   }
 });
@@ -10878,7 +11379,7 @@ var RB_S3 = new Sequence({
   name: "Rebecca S3: Don't Sweat Your Six!",
   applyStats: () => {
     const a = currentAction();
-    if (a === Lib22 || a === Lib32 || a === Lib4 || a === Boom)
+    if (a === Lib23 || a === Lib32 || a === Lib4 || a === Boom)
       addStat(16, 60);
     if (casting(
       6
@@ -10972,8 +11473,8 @@ var REBECCA_RESONATOR = new Resonator({
   element: 128,
   weapon: 2,
   // whichever mode she is in decides which Intro she has; her loop always ends in Huntress
-  intro: () => isHeld(GUTS) ? EIntro2 : Intro13,
-  outro: () => Outro13,
+  intro: () => isHeld(GUTS) ? EIntro2 : Intro14,
+  outro: () => Outro14,
   color: "#abebda",
   maxEnergy: 125,
   // she starts in Huntress with a full Hot Hand bar
@@ -11003,12 +11504,12 @@ var REBECCA_RESONATOR = new Resonator({
 });
 var RB_ROTATION = new Rotation([
   START_2,
-  Skill11,
+  Skill12,
   SWAP,
   INTRO,
   JUMP,
   HMA,
-  Skill11,
+  Skill12,
   GHA,
   FHAGuts,
   GHA,
@@ -11047,11 +11548,11 @@ var REBECCA = new Loadout({
 function roverAction2(id, def2) {
   return new Action(id, { element: 128, scaling: 0, ...def2 });
 }
-var BA113 = roverAction2("Basic - Deterrence 1", { node: 0, cast: 1, type: 4096, mv: 51.08, energy: 0.92, concerto: 3.31, offtune: 2936, forte1: 6.12 });
-var BA213 = roverAction2("Basic - Deterrence 2", { node: 0, cast: 1, type: 4096, mv: 65, energy: 1.18, concerto: 4.22, offtune: 3737, forte1: 7.8 });
-var BA313 = roverAction2("Basic - Deterrence 3", { node: 0, cast: 1, type: 4096, mv: 92.89, energy: 1.68, concerto: 6.02, offtune: 5341, forte1: 11.16 });
-var BA410 = roverAction2("Basic - Deterrence 4", { node: 0, cast: 1, type: 4096, mv: 182.04, energy: 3.28, concerto: 11.78, offtune: 10465, forte1: 21.82 });
-var Skill12 = roverAction2("Skill - Thunderclap", { node: 1, cast: 4, type: 12288, mv: 200.4, energy: 11.34, concerto: 9.8, offtune: 4268, forte1: 8.9 });
+var BA114 = roverAction2("Basic - Deterrence 1", { node: 0, cast: 1, type: 4096, mv: 51.08, energy: 0.92, concerto: 3.31, offtune: 2936, forte1: 6.12 });
+var BA214 = roverAction2("Basic - Deterrence 2", { node: 0, cast: 1, type: 4096, mv: 65, energy: 1.18, concerto: 4.22, offtune: 3737, forte1: 7.8 });
+var BA314 = roverAction2("Basic - Deterrence 3", { node: 0, cast: 1, type: 4096, mv: 92.89, energy: 1.68, concerto: 6.02, offtune: 5341, forte1: 11.16 });
+var BA411 = roverAction2("Basic - Deterrence 4", { node: 0, cast: 1, type: 4096, mv: 182.04, energy: 3.28, concerto: 11.78, offtune: 10465, forte1: 21.82 });
+var Skill13 = roverAction2("Skill - Thunderclap", { node: 1, cast: 4, type: 12288, mv: 200.4, energy: 11.34, concerto: 9.8, offtune: 4268, forte1: 8.9 });
 var Repel = roverAction2("Basic - Repel", { node: 1, cast: 1, type: 4096, mv: 140.29, energy: 2.53, concerto: 9.08, offtune: 8065, forte1: 16.8 });
 var OVERSHOCK = {
   node: 2,
@@ -11062,7 +11563,7 @@ var OVERSHOCK = {
   concerto: 18.33,
   offtune: 54645,
   forte1: -100,
-  updateDebuffs: () => applyEnemy(ELECTRO_FLARE, 10)
+  updateDebuffs: () => inflictElectroFlare(10)
 };
 var Overshock = roverAction2("Forte Skill - Overshock", {
   ...OVERSHOCK,
@@ -11111,9 +11612,9 @@ var THRUMS = [
   ThrumMaAero2,
   ThrumMaAeroPlunge
 ];
-var Liberation11 = roverAction2("Liberation - Ultimate Tactics", { node: 3, cast: 5, type: 16384, mv: 1192.86, concerto: 20, offtune: 57600, resetEnergy: true });
-var Intro14 = roverAction2("Intro - Thunderous Fury", { node: 4, cast: 6, type: 20480, mv: 167.03, energy: 3, concerto: 20.8, offtune: 9600, forte1: 53 });
-var Outro14 = roverAction2("Outro - Rumbling Thunders", {
+var Liberation12 = roverAction2("Liberation - Ultimate Tactics", { node: 3, cast: 5, type: 16384, mv: 1192.86, concerto: 20, offtune: 57600, resetEnergy: true });
+var Intro15 = roverAction2("Intro - Thunderous Fury", { node: 4, cast: 6, type: 20480, mv: 167.03, energy: 3, concerto: 20.8, offtune: 9600, forte1: 53 });
+var Outro15 = roverAction2("Outro - Rumbling Thunders", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -11178,7 +11679,13 @@ var ER_OUTRO = new Buff({
   }
 });
 var ER_S1 = new Sequence({ name: "Electro Rover S1: Celestial Ingenuity" });
-var ER_S2 = new Sequence({ name: "Electro Rover S2: Thousandfold Artifice" });
+var ER_S2 = new Sequence({
+  name: "Electro Rover S2: Thousandfold Artifice",
+  updateDebuffs: () => {
+    if (currentAction() === Liberation12)
+      inflictElectroFlare(5);
+  }
+});
 var ER_S3 = new Sequence({
   name: "Electro Rover S3: Alchemy of Wonders",
   applyStats: () => {
@@ -11190,7 +11697,7 @@ var ER_S3 = new Sequence({
 var ER_S4 = new Sequence({
   name: "Electro Rover S4: Earthquaking Rumble",
   applyStats: () => {
-    if (currentAction() === Liberation11)
+    if (currentAction() === Liberation12)
       addStat(16, 20);
   }
 });
@@ -11213,8 +11720,8 @@ var ROVER_ELECTRO_RESONATOR = new Resonator({
   name: "Electro Rover",
   element: 128,
   weapon: 0,
-  intro: () => Intro14,
-  outro: () => Outro14,
+  intro: () => Intro15,
+  outro: () => Outro15,
   color: "#b98ce8",
   maxEnergy: 125,
   tier: 2,
@@ -11240,14 +11747,14 @@ var ROVER_ELECTRO_TALENTS = new Talent({
     addStat(9, 8);
   }
 });
-var BA12342 = new ActionGroup("Basic - Deterrence 1234", [BA113, BA213, BA313, BA410]);
+var BA12342 = new ActionGroup("Basic - Deterrence 1234", [BA114, BA214, BA314, BA411]);
 var ER_ROTATION = new Rotation([
   INTRO,
   BA12342,
-  Skill12,
+  Skill13,
   Repel,
   Overshock,
-  Liberation11,
+  Liberation12,
   ECHO_SWAP,
   OUTRO
 ]);
@@ -11275,26 +11782,26 @@ var ROVER_ELECTRO = new Loadout({
 function xlyAction(id, def2) {
   return new Action(id, { element: 128, scaling: 0, ...def2 });
 }
-var BA114 = xlyAction("Basic - Probe 1", { node: 0, cast: 1, type: 4096, mv: 33.11 * 2, energy: 0.84, concerto: 1.68, offtune: 2664, forte1: 8 });
-var BA214 = xlyAction("Basic - Probe 2", { node: 0, cast: 1, type: 4096, mv: 99.61, energy: 1.26, concerto: 2.51, offtune: 4008, forte1: 14 });
-var BA314 = xlyAction("Basic - Probe 3", { node: 0, cast: 1, type: 4096, mv: 39.76 * 3, energy: 1.5, concerto: 3, offtune: 4800, forte1: 15 });
-var BA411 = xlyAction("Basic - Probe 4", { node: 0, cast: 1, type: 4096, mv: 53.05 * 2 + 26.53, energy: 1.68, concerto: 3.35, offtune: 5338, forte1: 18 });
+var BA115 = xlyAction("Basic - Probe 1", { node: 0, cast: 1, type: 4096, mv: 33.11 * 2, energy: 0.84, concerto: 1.68, offtune: 2664, forte1: 8 });
+var BA215 = xlyAction("Basic - Probe 2", { node: 0, cast: 1, type: 4096, mv: 99.61, energy: 1.26, concerto: 2.51, offtune: 4008, forte1: 14 });
+var BA315 = xlyAction("Basic - Probe 3", { node: 0, cast: 1, type: 4096, mv: 39.76 * 3, energy: 1.5, concerto: 3, offtune: 4800, forte1: 15 });
+var BA412 = xlyAction("Basic - Probe 4", { node: 0, cast: 1, type: 4096, mv: 53.05 * 2 + 26.53, energy: 1.68, concerto: 3.35, offtune: 5338, forte1: 18 });
 var BA52 = xlyAction("Basic - Probe 5", { node: 0, cast: 1, type: 4096, mv: 198.81, energy: 2.5, concerto: 5, offtune: 8e3, forte1: 20 });
-var HA9 = xlyAction("Heavy - Probe", { node: 0, cast: 3, type: 8192, mv: 82.81 * 2, energy: 2.1, concerto: 4.18, offtune: 6664, forte1: 18 });
+var HA10 = xlyAction("Heavy - Probe", { node: 0, cast: 3, type: 8192, mv: 82.81 * 2, energy: 2.1, concerto: 4.18, offtune: 6664, forte1: 18 });
 var MA10 = xlyAction("Mid-air - Probe", { node: 0, cast: 2, type: 4096, mv: 123.27, energy: 0.52, concerto: 1, offtune: 4960, forte1: 13 });
-var DC11 = xlyAction("Dodge Counter - Probe", { node: 0, cast: 0, type: 4096, mv: 238.58, energy: 2.75, concerto: 12.5, offtune: 4e3, forte1: 26 });
-var Skill13 = xlyAction("Skill - Deduction", { node: 1, cast: 4, type: 12288, mv: 198.81, energy: 6.25, concerto: 7, offtune: 4e3, forte1: 40 });
+var DC12 = xlyAction("Dodge Counter - Probe", { node: 0, cast: 0, type: 4096, mv: 238.58, energy: 2.75, concerto: 12.5, offtune: 4e3, forte1: 26 });
+var Skill14 = xlyAction("Skill - Deduction", { node: 1, cast: 4, type: 12288, mv: 198.81, energy: 6.25, concerto: 7, offtune: 4e3, forte1: 40 });
 var FSkill4 = xlyAction("Forte Skill - Decipher", { node: 2, cast: 4, type: 16384, mv: 397.82, energy: 1.67, concerto: 7, offtune: 5336, forte1: -100 });
-var Liberation12 = xlyAction("Liberation - Cogitation Model", { node: 3, cast: 5, type: 16384, mv: 1466.06, concerto: 20, offtune: 67200, resetEnergy: true });
+var Liberation13 = xlyAction("Liberation - Cogitation Model", { node: 3, cast: 5, type: 16384, mv: 1466.06, concerto: 20, offtune: 67200, resetEnergy: true });
 var UBA1 = xlyAction("Basic - Pivot: Impale 1", { node: 3, cast: 1, type: 4096, mv: 119.67, energy: 1.31, concerto: 2.62, offtune: 4192, forte2: 1 });
 var UBA2 = xlyAction("Basic - Pivot: Impale 2", { node: 3, cast: 1, type: 4096, mv: 60.92 * 4, energy: 2.68, concerto: 5.36, offtune: 8536, forte2: 2 });
 var UBA3 = xlyAction("Basic - Pivot: Impale 3", { node: 3, cast: 1, type: 4096, mv: 133.25 * 2, energy: 2.92, concerto: 5.84, offtune: 9336, forte2: 2 });
 var USkill2 = xlyAction("Skill - Divergence", { node: 3, cast: 4, type: 12288, mv: 49.59 * 3 + 173.55 * 2, energy: 9.94, concerto: 15, offtune: 9316, forte2: 2 });
 var UDC = xlyAction("Dodge Counter - Unfathomed", { node: 3, cast: 0, type: 16384, mv: 38.83 * 2 + 310.58, energy: 4, concerto: 15, offtune: 8e3, forte2: 2 });
 var UForte = xlyAction("Forte Skill - Law of Reigns", { node: 2, cast: 4, type: 16384, mv: 95.73 * 4 + 255.28, energy: 4.78, concerto: 10, offtune: 45600, forte2: -5 });
-var FBA5 = xlyAction("Mid-air - Revamp", { node: 2, cast: 2, type: 16384, mv: 21.87 * 4 + 65.61 * 2, energy: 2.78, concerto: 5, offtune: 8800, forte2: 3 });
-var Intro15 = xlyAction("Intro - Principle", { node: 4, cast: 6, type: 20480, mv: 99.41 * 2, energy: 10, concerto: 10, offtune: 11200 });
-var Outro15 = xlyAction("Outro - Chain Rule", {
+var FBA6 = xlyAction("Mid-air - Revamp", { node: 2, cast: 2, type: 16384, mv: 21.87 * 4 + 65.61 * 2, energy: 2.78, concerto: 5, offtune: 8800, forte2: 3 });
+var Intro16 = xlyAction("Intro - Principle", { node: 4, cast: 6, type: 20480, mv: 99.41 * 2, energy: 10, concerto: 10, offtune: 11200 });
+var Outro16 = xlyAction("Outro - Chain Rule", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -11363,8 +11870,8 @@ var XIANGLI_YAO_RESONATOR = new Resonator({
   name: "Xiangli Yao",
   element: 128,
   weapon: 3,
-  intro: () => Intro15,
-  outro: () => Outro15,
+  intro: () => Intro16,
+  outro: () => Outro16,
   color: "#6b74e8",
   maxEnergy: 125,
   constantStats: () => {
@@ -11383,17 +11890,17 @@ var XLY_TALENTS = new Talent({
 var UBA123 = new ActionGroup("Basic - Pivot: Impale 123", [UBA1, UBA2, UBA3]);
 var XLY_ROTATION = new Rotation([
   INTRO,
-  Skill13,
-  Skill13,
+  Skill14,
+  Skill14,
   // TODO swapped
-  Liberation12,
+  Liberation13,
   USkill2,
-  FBA5,
+  FBA6,
   UForte,
   UBA123,
   UForte,
   USkill2,
-  FBA5,
+  FBA6,
   UForte,
   ECHO_SWAP,
   OUTRO
@@ -11422,14 +11929,14 @@ var XIANGLI_YAO = new Loadout({
 function yinlinAction(id, def2) {
   return new Action(id, { element: 128, scaling: 0, ...def2 });
 }
-var BA115 = yinlinAction("Basic - Zapstring's Dance 1", { node: 0, cast: 1, type: 4096, mv: 28.81, energy: 0.6, concerto: 2, offtune: 3144, forte1: 1 });
-var BA215 = yinlinAction("Basic - Zapstring's Dance 2", { node: 0, cast: 1, type: 4096, mv: 33.82 * 2, energy: 1.5, concerto: 5, offtune: 6152, forte1: 1 });
-var BA315 = yinlinAction("Basic - Zapstring's Dance 3", { node: 0, cast: 1, type: 4096, mv: 13.99 * 7, energy: 2.45, concerto: 7, offtune: 7147, forte1: 3 });
-var BA412 = yinlinAction("Basic - Zapstring's Dance 4", { node: 0, cast: 1, type: 4096, mv: 75.16, energy: 1.5, concerto: 6, offtune: 4976, forte1: 4 });
-var HA10 = yinlinAction("Heavy - Zapstring's Dance", { node: 0, cast: 3, type: 8192, mv: 29.83 * 2, energy: 1.8, concerto: 4.5, offtune: 9392, forte1: 8 });
+var BA116 = yinlinAction("Basic - Zapstring's Dance 1", { node: 0, cast: 1, type: 4096, mv: 28.81, energy: 0.6, concerto: 2, offtune: 3144, forte1: 1 });
+var BA216 = yinlinAction("Basic - Zapstring's Dance 2", { node: 0, cast: 1, type: 4096, mv: 33.82 * 2, energy: 1.5, concerto: 5, offtune: 6152, forte1: 1 });
+var BA316 = yinlinAction("Basic - Zapstring's Dance 3", { node: 0, cast: 1, type: 4096, mv: 13.99 * 7, energy: 2.45, concerto: 7, offtune: 7147, forte1: 3 });
+var BA413 = yinlinAction("Basic - Zapstring's Dance 4", { node: 0, cast: 1, type: 4096, mv: 75.16, energy: 1.5, concerto: 6, offtune: 4976, forte1: 4 });
+var HA11 = yinlinAction("Heavy - Zapstring's Dance", { node: 0, cast: 3, type: 8192, mv: 29.83 * 2, energy: 1.8, concerto: 4.5, offtune: 9392, forte1: 8 });
 var MA11 = yinlinAction("Mid-air - Zapstring's Dance", { node: 0, cast: 2, type: 4096, mv: 123.27, energy: 0.51, concerto: 5, offtune: 4960, forte1: 2 });
-var DC12 = yinlinAction("Dodge Counter - Zapstring's Dance", { node: 0, cast: 0, type: 4096, mv: 24.22 * 7, energy: 3.99, concerto: 17, offtune: 11746 });
-var Skill14 = yinlinAction("Skill - Magnetic Roar", {
+var DC13 = yinlinAction("Dodge Counter - Zapstring's Dance", { node: 0, cast: 0, type: 4096, mv: 24.22 * 7, energy: 3.99, concerto: 17, offtune: 11746 });
+var Skill15 = yinlinAction("Skill - Magnetic Roar", {
   node: 1,
   cast: 4,
   type: 12288,
@@ -11442,8 +11949,8 @@ var Skill14 = yinlinAction("Skill - Magnetic Roar", {
 });
 var Skill24 = yinlinAction("Skill - Lightning Execution", { node: 1, cast: 4, type: 12288, mv: 89.47 * 4, energy: 15, concerto: 15, offtune: 5328, forte1: 4 });
 var ACTION_BLAST = yinlinAction("Skill - Electromagnetic Blast", { node: 1, type: 12288, mv: 19.89, concerto: 5 });
-var Liberation13 = yinlinAction("Liberation - Thundering Wrath", { node: 3, cast: 5, type: 16384, mv: 116.56 * 7, concerto: 20, offtune: 36001, resetEnergy: true });
-var FHA4 = yinlinAction("Forte Heavy - Chameleon Cipher", {
+var Liberation14 = yinlinAction("Liberation - Thundering Wrath", { node: 3, cast: 5, type: 16384, mv: 116.56 * 7, concerto: 20, offtune: 36001, resetEnergy: true });
+var FHA5 = yinlinAction("Forte Heavy - Chameleon Cipher", {
   node: 2,
   cast: 3,
   type: 8192,
@@ -11461,8 +11968,8 @@ var FHA4 = yinlinAction("Forte Heavy - Chameleon Cipher", {
 });
 var PUNISHMENT_FIELD = new ActionField("Yinlin: Punishment Mark");
 var ACTION_JUDGMENT_STRIKE = yinlinAction("Forte - Judgment Strike", { node: 2, type: 12288, type2: 262144, mv: 78.64, active: false, field: PUNISHMENT_FIELD });
-var Intro16 = yinlinAction("Intro - Raging Storm", { node: 4, cast: 6, type: 20480, mv: 14.32 * 10, energy: 10, concerto: 10, offtune: 9520, forte1: 12 });
-var Outro16 = yinlinAction("Outro - Strategist", {
+var Intro17 = yinlinAction("Intro - Raging Storm", { node: 4, cast: 6, type: 20480, mv: 14.32 * 10, energy: 10, concerto: 10, offtune: 9520, forte1: 12 });
+var Outro17 = yinlinAction("Outro - Strategist", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -11516,7 +12023,7 @@ var PAIN_IMMERSION = new Buff({
 var YL_INHERENT_1 = new Inherent({
   name: "Inherent: Pain Immersion",
   updateBuffs: () => {
-    if (currentAction() === Skill14)
+    if (currentAction() === Skill15)
       applyCurrent(PAIN_IMMERSION, 1);
   }
 });
@@ -11566,8 +12073,8 @@ var YINLIN_RESONATOR = new Resonator({
   name: "Yinlin",
   element: 128,
   weapon: 4,
-  intro: () => Intro16,
-  outro: () => Outro16,
+  intro: () => Intro17,
+  outro: () => Outro17,
   color: "#a45ee8",
   maxEnergy: 125,
   updateBuffs: () => {
@@ -11583,7 +12090,7 @@ var YINLIN_RESONATOR = new Resonator({
     ) || casting(
       6
       /* Cast.Intro */
-    ) || currentAction() === Liberation13) {
+    ) || currentAction() === Liberation14) {
       applyEnemy(SINNERS_MARK, 1);
     }
   },
@@ -11603,11 +12110,11 @@ var YINLIN_TALENTS = new Talent({
 var YL_ROTATION = new Rotation([
   INTRO,
   ECHO_CANCEL,
-  Skill14,
-  HA10,
-  Liberation13,
+  Skill15,
+  HA11,
+  Liberation14,
   Skill24,
-  FHA4,
+  FHA5,
   OUTRO
 ]);
 var YINLIN_MATRIX_TEAM = new Buff({
@@ -11695,7 +12202,7 @@ var Lib13 = aemeathAction("Liberation - Heavenfall Edict: Overdrive", {
     applyCurrent(STARDUST, 2);
   }
 });
-var Lib23 = aemeathAction("Liberation - Heavenfall Edict: Finale", {
+var Lib24 = aemeathAction("Liberation - Heavenfall Edict: Finale", {
   node: 3,
   cast: 5,
   type: 16384,
@@ -11714,9 +12221,9 @@ var Lib23 = aemeathAction("Liberation - Heavenfall Edict: Finale", {
   }
 });
 var INTRO_DEF = { node: 4, cast: 6, type: 20480, energy: 10, concerto: 10, forte1: 40, updateBuffs: () => applyCurrent(STARLUME, 1) };
-var Intro17 = aemeathAction("Intro - Songs Across the Universe", { ...INTRO_DEF, mv: 134.58, offtune: 7737 });
+var Intro18 = aemeathAction("Intro - Songs Across the Universe", { ...INTRO_DEF, mv: 134.58, offtune: 7737 });
 var EIntro3 = aemeathAction("Intro - Debut of Meteoric Radiance", { ...INTRO_DEF, mv: 163.25, offtune: 9385 });
-var Outro17 = aemeathAction("Outro - Silent Protection", {
+var Outro18 = aemeathAction("Outro - Silent Protection", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -11734,7 +12241,7 @@ var MECH_FORM = new Buff({ name: "Aemeath: Mech Form" });
 var SERAPHIC_DUO = new Buff({
   name: "Aemeath: Seraphic Duo",
   updateBuffs: () => {
-    if (currentAction() === Outro17)
+    if (currentAction() === Outro18)
       revokeCurrent(SERAPHIC_DUO);
   }
 });
@@ -11771,7 +12278,7 @@ var STARDUST = new Buff({
 var UNBOUND = new Buff({
   name: "Aemeath: Heavenfall Edict - Unbound",
   convertStats: () => {
-    if (currentAction() === Lib23)
+    if (currentAction() === Lib24)
       revokeCurrent(UNBOUND);
   },
   afterAction: () => {
@@ -11788,7 +12295,7 @@ var INSTANT_RESPONSE = new Buff({
   },
   convertStats: () => {
     const a = currentAction();
-    if (a === AHA2 || a === MHA2 || a === Lib23)
+    if (a === AHA2 || a === MHA2 || a === Lib24)
       revokeCurrent(INSTANT_RESPONSE);
   }
 });
@@ -11813,8 +12320,8 @@ var AEMEATH_RESONATOR = new Resonator({
   name: "Aemeath",
   element: 192,
   weapon: 0,
-  intro: () => stacksOf(MECH_FORM) ? EIntro3 : Intro17,
-  outro: () => Outro17,
+  intro: () => stacksOf(MECH_FORM) ? EIntro3 : Intro18,
+  outro: () => Outro18,
   color: "#ff4680",
   maxEnergy: 125,
   constantStats: () => {
@@ -11867,7 +12374,7 @@ var BETWEEN_THE_STARS_RUPTURE = new Buff({
   display: () => `Inherent: Between the Stars (rupture) x${betweenTheStars()}`,
   applyStats: () => {
     addStat(10, 20 * betweenTheStars());
-    if (betweenTheStars() >= 3 && currentAction() === Lib23)
+    if (betweenTheStars() >= 3 && currentAction() === Lib24)
       addStat(18, 25);
   }
 });
@@ -11899,7 +12406,7 @@ var SILENT_PROTECTION_RUPTURE = new Buff({
   },
   applyStats: () => addStat(18, frozenStacks() === 2 ? 20 : 10)
 });
-var inflicts = (a) => a === ABA3 || a === ABA4 || a === MBA3 || a === MBA4 || a === ArmamentMerge || a === CallOfDawn || a === Intro17 || a === EIntro3;
+var inflicts = (a) => a === ABA3 || a === ABA4 || a === MBA3 || a === MBA4 || a === ArmamentMerge || a === CallOfDawn || a === Intro18 || a === EIntro3;
 var MODE_RUPTURE = new ResonanceMode({
   name: "Resonance Mode - Tune Rupture",
   updateDebuffs: () => {
@@ -11930,7 +12437,7 @@ var AE_ROTATION = new Rotation([
   AmyFSkill,
   MHA2,
   ECHO_CANCEL,
-  Lib23,
+  Lib24,
   OUTRO
 ]);
 var AEMEATH_RUPTURE = new Loadout({
@@ -11979,7 +12486,7 @@ var BETWEEN_THE_STARS_BURST = new Buff({
   applyStats: () => {
     const n = Math.min(2, betweenTheStars());
     addStat(10, 30 * n);
-    if (n >= 2 && currentAction() === Lib23)
+    if (n >= 2 && currentAction() === Lib24)
       addStat(18, 25);
   }
 });
@@ -12043,7 +12550,7 @@ var AEMEATH_BURST = new Loadout({
 function brantAction(id, def2) {
   return new Action(id, { element: 192, scaling: 0, ...def2 });
 }
-var Intro18 = brantAction("Intro - Applaud for Me!", {
+var Intro19 = brantAction("Intro - Applaud for Me!", {
   node: 4,
   cast: 6,
   type: 20480,
@@ -12053,9 +12560,9 @@ var Intro18 = brantAction("Intro - Applaud for Me!", {
   forte1: 25,
   updateDebuffs: () => applyCurrent(HEALS, 1)
 });
-var Outro18 = brantAction("Outro - The Course is Set!", { cast: 7, concerto: -100, active: false, updateBuffs: () => queueOutro(BRANT_OUTRO) });
-var Skill15 = brantAction("Skill - Anchors Aweigh!", { node: 1, cast: 4, type: 12288, mv: 333.92, offtune: 10160, energy: 7.18, concerto: 10, forte1: 15.76 });
-var Liberation14 = brantAction("Liberation - To the Horizon", {
+var Outro19 = brantAction("Outro - The Course is Set!", { cast: 7, concerto: -100, active: false, updateBuffs: () => queueOutro(BRANT_OUTRO) });
+var Skill16 = brantAction("Skill - Anchors Aweigh!", { node: 1, cast: 4, type: 12288, mv: 333.92, offtune: 10160, energy: 7.18, concerto: 10, forte1: 15.76 });
+var Liberation15 = brantAction("Liberation - To the Horizon", {
   node: 3,
   cast: 5,
   type: 16384,
@@ -12085,14 +12592,14 @@ var FSkill5 = brantAction("Forte Skill - Returned from Ashes", {
       setForte1(100);
   }
 });
-var BA116 = brantAction("Basic - Captain's Rhapsody 1", { node: 0, cast: 1, type: 4096, mv: 50.53, energy: 0.75, concerto: 1.5, offtune: 2392, forte1: 2.6 });
-var BA216 = brantAction("Basic - Captain's Rhapsody 2", { node: 0, cast: 1, type: 4096, mv: 101.4, energy: 1.5, concerto: 3, offtune: 4800, forte1: 5.24 });
-var BA316 = brantAction("Basic - Captain's Rhapsody 3", { node: 0, cast: 1, type: 4096, mv: 132.34, energy: 1.97, concerto: 3.94, offtune: 6264, forte1: 6.82 });
-var BA413 = brantAction("Basic - Captain's Rhapsody 4", { node: 0, cast: 1, type: 4096, mv: 140.12, energy: 2.12, concerto: 4.18, offtune: 6631, forte1: 7.24 });
-var HA11 = brantAction("Heavy - Captain's Rhapsody", { node: 0, cast: 3, type: 8192, mv: 197.55, energy: 2.93, concerto: 5.85, offtune: 9352, forte1: 14.5 });
+var BA117 = brantAction("Basic - Captain's Rhapsody 1", { node: 0, cast: 1, type: 4096, mv: 50.53, energy: 0.75, concerto: 1.5, offtune: 2392, forte1: 2.6 });
+var BA217 = brantAction("Basic - Captain's Rhapsody 2", { node: 0, cast: 1, type: 4096, mv: 101.4, energy: 1.5, concerto: 3, offtune: 4800, forte1: 5.24 });
+var BA317 = brantAction("Basic - Captain's Rhapsody 3", { node: 0, cast: 1, type: 4096, mv: 132.34, energy: 1.97, concerto: 3.94, offtune: 6264, forte1: 6.82 });
+var BA414 = brantAction("Basic - Captain's Rhapsody 4", { node: 0, cast: 1, type: 4096, mv: 140.12, energy: 2.12, concerto: 4.18, offtune: 6631, forte1: 7.24 });
+var HA12 = brantAction("Heavy - Captain's Rhapsody", { node: 0, cast: 3, type: 8192, mv: 197.55, energy: 2.93, concerto: 5.85, offtune: 9352, forte1: 14.5 });
 var HARiff = brantAction("Heavy - Rhapsodic Riff", { node: 0, cast: 3, type: 8192, mv: 168.99, energy: 2.5, concerto: 5, offtune: 8e3, forte1: 12.4 });
-var DC13 = brantAction("Dodge Counter - Captain's Rhapsody", { node: 0, cast: 0, type: 4096, mv: 228.17, energy: 3.41, concerto: 16.77, offtune: 10800 });
-var Plunge2 = brantAction("Basic - Plunging Attack", { node: 0, cast: 1, type: 4096, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 7.66 });
+var DC14 = brantAction("Dodge Counter - Captain's Rhapsody", { node: 0, cast: 0, type: 4096, mv: 228.17, energy: 3.41, concerto: 16.77, offtune: 10800 });
+var Plunge5 = brantAction("Basic - Plunging Attack", { node: 0, cast: 1, type: 4096, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 7.66 });
 var MA14 = brantAction("Mid-air - Captain's Rhapsody 1", { node: 0, cast: 2, type: 4096, mv: 122.86, energy: 1.82, concerto: 3.64, offtune: 5816, forte1: 9.02 });
 var MA1C = brantAction("Mid-air - Captain's Rhapsody 1 (Charged)", { node: 0, cast: 2, type: 4096, mv: 332.48, energy: 4.96, concerto: 9.85, offtune: 15736, forte1: 24.46 });
 var MA25 = brantAction("Mid-air - Captain's Rhapsody 2", { node: 0, cast: 2, type: 4096, mv: 169.84, energy: 2.52, concerto: 5.04, offtune: 8040, forte1: 12.48 });
@@ -12189,7 +12696,7 @@ var BR_S1 = new Sequence({
   name: "Brant S1: By Currents and Winds",
   updateBuffs: () => {
     const a = currentAction();
-    if (a === Intro18 || a === MAFlip)
+    if (a === Intro19 || a === MAFlip)
       applyCurrent(BY_CURRENTS, 1);
   }
 });
@@ -12199,7 +12706,7 @@ var COURSE_BLAST = new Buff({
   maxStacks: 2,
   updateBuffs: () => {
     lostOnSwap();
-    if (!currentAction().active || triggeredAction() || !casting(
+    if (!oneSecondPassed() || !casting(
       4
       /* Cast.Skill */
     ))
@@ -12219,7 +12726,7 @@ var BR_S2 = new Sequence({
       addStat(9, 30);
   },
   updateBuffs: () => {
-    if (currentAction() === Outro18) {
+    if (currentAction() === Outro19) {
       queueOutro(COURSE_BLAST);
       queueOutro(COURSE_BLAST);
     }
@@ -12285,8 +12792,8 @@ var BRANT_RESONATOR = new Resonator({
   name: "Brant",
   element: 192,
   weapon: 0,
-  intro: () => Intro18,
-  outro: () => Outro18,
+  intro: () => Intro19,
+  outro: () => Outro19,
   color: "#d1257f",
   maxEnergy: 175,
   combatStart: () => applyCurrent(THEATRICAL_MOMENT, 1),
@@ -12305,7 +12812,7 @@ var BRANT_TALENTS = new Talent({
 });
 var BR_ROTATION = new Rotation([
   INTRO,
-  Liberation14,
+  Liberation15,
   MA14,
   MA1CF,
   MA25,
@@ -12346,7 +12853,7 @@ var BR_ROTATION_MDPS = new Rotation([
   SWAP,
   INTRO,
   FSkill5,
-  Liberation14,
+  Liberation15,
   MA14,
   MA1CF,
   MA25,
@@ -12384,12 +12891,12 @@ var BRANT_MDPS = new Loadout({
 function changliAction(id, def2) {
   return new Action(id, { element: 192, scaling: 0, ...def2 });
 }
-var BA117 = changliAction("Basic - Blazing Enlightenment 1", { node: 0, cast: 1, type: 4096, mv: 58.98, offtune: 2792, energy: 0.88, concerto: 1.76 });
-var BA217 = changliAction("Basic - Blazing Enlightenment 2", { node: 0, cast: 1, type: 4096, mv: 70.98, offtune: 3360, energy: 1.06, concerto: 2.1 });
-var BA317 = changliAction("Basic - Blazing Enlightenment 3", { node: 0, cast: 1, type: 4096, mv: 109.35, offtune: 5178, energy: 1.62, concerto: 3.24 });
-var BA414 = changliAction("Basic - Blazing Enlightenment 4", { node: 0, cast: 1, type: 4096, mv: 169.02, offtune: 8e3, energy: 2.51, concerto: 5.02 });
-var DC14 = changliAction("Dodge Counter - Blazing Enlightenment 3", { node: 0, cast: 0, type: 4096, mv: 247.92, offtune: 9978, energy: 3.12, concerto: 16.24 });
-var HA12 = changliAction("Heavy - Blazing Enlightenment", { node: 0, cast: 3, type: 8192, mv: 124.24, offtune: 5880, energy: 1.85, concerto: 3.69 });
+var BA118 = changliAction("Basic - Blazing Enlightenment 1", { node: 0, cast: 1, type: 4096, mv: 58.98, offtune: 2792, energy: 0.88, concerto: 1.76 });
+var BA218 = changliAction("Basic - Blazing Enlightenment 2", { node: 0, cast: 1, type: 4096, mv: 70.98, offtune: 3360, energy: 1.06, concerto: 2.1 });
+var BA318 = changliAction("Basic - Blazing Enlightenment 3", { node: 0, cast: 1, type: 4096, mv: 109.35, offtune: 5178, energy: 1.62, concerto: 3.24 });
+var BA415 = changliAction("Basic - Blazing Enlightenment 4", { node: 0, cast: 1, type: 4096, mv: 169.02, offtune: 8e3, energy: 2.51, concerto: 5.02 });
+var DC15 = changliAction("Dodge Counter - Blazing Enlightenment 3", { node: 0, cast: 0, type: 4096, mv: 247.92, offtune: 9978, energy: 3.12, concerto: 16.24 });
+var HA13 = changliAction("Heavy - Blazing Enlightenment", { node: 0, cast: 3, type: 8192, mv: 124.24, offtune: 5880, energy: 1.85, concerto: 3.69 });
 var MA15 = changliAction("Mid-air - Blazing Enlightenment 1", { node: 0, cast: 2, type: 4096, mv: 61.35, offtune: 2904, energy: 0.91, concerto: 1.82 });
 var MA26 = changliAction("Mid-air - Blazing Enlightenment 2", { node: 0, cast: 2, type: 4096, mv: 101.74, offtune: 4816, energy: 1.52, concerto: 3.02 });
 var MA35 = changliAction("Mid-air - Blazing Enlightenment 3", { node: 0, cast: 2, type: 4096, mv: 132, offtune: 6249, energy: 1.98, concerto: 3.93 });
@@ -12397,9 +12904,9 @@ var MA43 = changliAction("Mid-air - Blazing Enlightenment 4", { node: 0, cast: 2
 var MHA = changliAction("Heavy - Blazing Enlightenment (Mid-Air)", { node: 0, cast: 3, type: 8192, mv: 123.27, offtune: 4960, energy: 1.55, concerto: 1 });
 var SBA = changliAction("Basic - True Sight: Conquest", { node: 1, cast: 1, type: 12288, mv: 294.73, offtune: 8985, energy: 4.04, concerto: 7, forte1: 1 });
 var SMA = changliAction("Basic - True Sight: Charge", { node: 1, cast: 1, type: 12288, mv: 181.7, offtune: 4353, energy: 2.57, concerto: 6, forte1: 1 });
-var Skill16 = changliAction("Skill - Tripartite Flames", { node: 1, cast: 4, type: 12288, mv: 409.4, offtune: 12480, energy: 8, concerto: 14 });
+var Skill17 = changliAction("Skill - Tripartite Flames", { node: 1, cast: 4, type: 12288, mv: 409.4, offtune: 12480, energy: 8, concerto: 14 });
 var FlamingSacrifice = changliAction("Forte Heavy - Flaming Sacrifice", { node: 2, cast: 3, type: 12288, mv: 654.1, offtune: 31141, energy: 6.61, concerto: 10, forte1: -4 });
-var Liberation15 = changliAction("Liberation - Radiance of Fealty", {
+var Liberation16 = changliAction("Liberation - Radiance of Fealty", {
   node: 3,
   cast: 5,
   type: 16384,
@@ -12410,8 +12917,8 @@ var Liberation15 = changliAction("Liberation - Radiance of Fealty", {
   resetEnergy: true,
   updateBuffs: () => applyCurrent(FIERY_FEATHER, 1)
 });
-var Intro19 = changliAction("Intro - Obedience of Rules", { node: 4, cast: 6, type: 20480, mv: 148.34, offtune: 5971, energy: 10, concerto: 10 });
-var Outro19 = changliAction("Outro - Strategy of Duality", {
+var Intro20 = changliAction("Intro - Obedience of Rules", { node: 4, cast: 6, type: 20480, mv: 148.34, offtune: 5971, energy: 10, concerto: 10 });
+var Outro20 = changliAction("Outro - Strategy of Duality", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -12437,7 +12944,7 @@ var CH_INHERENT_2 = new Inherent({
   name: "Inherent: Sweeping Force",
   applyStats: () => {
     const a = currentAction();
-    if (a === FlamingSacrifice || a === Liberation15) {
+    if (a === FlamingSacrifice || a === Liberation16) {
       addStat(
         17,
         20,
@@ -12479,7 +12986,7 @@ var CHANGLI_OUTRO = new Buff({
     lostOnSwap();
   }
 });
-var tripartite = (a) => a === Skill16 || a === SBA || a === SMA;
+var tripartite = (a) => a === Skill17 || a === SBA || a === SMA;
 var CH_S1 = new Sequence({
   name: "Changli S1: Hidden Thoughts",
   applyStats: () => {
@@ -12503,14 +13010,14 @@ var CH_S2 = new Sequence({
   name: "Changli S2: Pursuit of Desires",
   updateBuffs: () => {
     const a = currentAction();
-    if (a === SBA || a === SMA || a === Liberation15)
+    if (a === SBA || a === SMA || a === Liberation16)
       applyCurrent(PURSUIT_OF_DESIRES, 1);
   }
 });
 var CH_S3 = new Sequence({
   name: "Changli S3: Learned Secrets",
   applyStats: () => {
-    if (currentAction() === Liberation15)
+    if (currentAction() === Liberation16)
       addStat(17, 80);
   }
 });
@@ -12521,7 +13028,7 @@ var POLISHED_WORDS = new Buff({
 var CH_S4 = new Sequence({
   name: "Changli S4: Polished Words",
   updateBuffs: () => {
-    if (currentAction() === Intro19)
+    if (currentAction() === Intro20)
       applyTeam(POLISHED_WORDS, 1);
   }
 });
@@ -12538,7 +13045,7 @@ var CH_S6 = new Sequence({
   name: "Changli S6: Realized Plans",
   applyStats: () => {
     const a = currentAction();
-    if (tripartite(a) || a === FlamingSacrifice || a === Liberation15)
+    if (tripartite(a) || a === FlamingSacrifice || a === Liberation16)
       addStat(22, 40);
   }
 });
@@ -12546,14 +13053,14 @@ var CHANGLI_RESONATOR = new Resonator({
   name: "Changli",
   element: 192,
   weapon: 0,
-  intro: () => Intro19,
-  outro: () => Outro19,
+  intro: () => Intro20,
+  outro: () => Outro20,
   color: "#f38b68",
   maxEnergy: 125,
   // her combo finishers/Skill/Intro arm True Sight; the two Sword-of-Fealty casts spend it
   updateBuffs: () => {
     const a = currentAction();
-    if (a === BA414 || a === MA43 || a === Skill16 || a === Intro19)
+    if (a === BA415 || a === MA43 || a === Skill17 || a === Intro20)
       applyCurrent(TRUE_SIGHT, 1);
     if (a === SBA || a === SMA)
       revokeCurrent(TRUE_SIGHT);
@@ -12573,24 +13080,24 @@ var CHANGLI_TALENTS = new Talent({
 });
 var CH_ROTATION = new Rotation([
   START_3,
-  Liberation15,
+  Liberation16,
   FlamingSacrifice.swap(),
   SWAP,
   // TODO get cancels
   INTRO,
   SMA,
-  Skill16,
+  Skill17,
   SBA,
-  Skill16,
+  Skill17,
   SBA,
-  BA117,
-  BA217,
-  BA317,
-  BA414,
+  BA118,
+  BA218,
+  BA318,
+  BA415,
   DODGE,
   SBA,
   FlamingSacrifice,
-  Liberation15,
+  Liberation16,
   FlamingSacrifice,
   OUTRO
 ]);
@@ -12619,13 +13126,13 @@ var CHANGLI = new Loadout({
 function deniaAction(id, def2) {
   return new Action(id, { element: 192, scaling: 0, ...def2 });
 }
-var BA118 = deniaAction("Basic - Stagecraft Form 1", { node: 0, cast: 1, type: 4096, mv: 32.69, energy: 0.69, concerto: 1.37, offtune: 2192, forte1: 4 });
-var BA218 = deniaAction("Basic - Stagecraft Form 2", { node: 0, cast: 1, type: 4096, mv: 60.36, energy: 1.28, concerto: 2.54, offtune: 4048, forte1: 8 });
-var BA318 = deniaAction("Basic - Stagecraft Form 3", { node: 0, cast: 1, type: 4096, mv: 76.47, energy: 1.62, concerto: 3.21, offtune: 5130, forte1: 9 });
-var BA415 = deniaAction("Basic - Stagecraft Form 4", { node: 0, cast: 1, type: 4096, mv: 128, energy: 0.69, concerto: 5.37, offtune: 8584, forte1: 30 });
-var HA13 = deniaAction("Heavy - Stagecraft Form", { node: 0, cast: 3, type: 8192, mv: 161.52, energy: 3.4, concerto: 6.78, offtune: 10832, forte1: 20 });
+var BA119 = deniaAction("Basic - Stagecraft Form 1", { node: 0, cast: 1, type: 4096, mv: 32.69, energy: 0.69, concerto: 1.37, offtune: 2192, forte1: 4 });
+var BA219 = deniaAction("Basic - Stagecraft Form 2", { node: 0, cast: 1, type: 4096, mv: 60.36, energy: 1.28, concerto: 2.54, offtune: 4048, forte1: 8 });
+var BA319 = deniaAction("Basic - Stagecraft Form 3", { node: 0, cast: 1, type: 4096, mv: 76.47, energy: 1.62, concerto: 3.21, offtune: 5130, forte1: 9 });
+var BA416 = deniaAction("Basic - Stagecraft Form 4", { node: 0, cast: 1, type: 4096, mv: 128, energy: 0.69, concerto: 5.37, offtune: 8584, forte1: 30 });
+var HA14 = deniaAction("Heavy - Stagecraft Form", { node: 0, cast: 3, type: 8192, mv: 161.52, energy: 3.4, concerto: 6.78, offtune: 10832, forte1: 20 });
 var MA16 = deniaAction("Mid-air - Stagecraft Form", { node: 0, cast: 2, type: 4096, mv: 73.97, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 10 });
-var DC15 = deniaAction("Dodge Counter - Stagecraft Form 3", { node: 0, cast: 0, type: 4096, mv: 148.05, energy: 3.12, concerto: 16.21, offtune: 5130, forte1: 18 });
+var DC16 = deniaAction("Dodge Counter - Stagecraft Form 3", { node: 0, cast: 0, type: 4096, mv: 148.05, energy: 3.12, concerto: 16.21, offtune: 5130, forte1: 18 });
 var UBA12 = deniaAction("Basic - Breakdown Form 1", { node: 0, cast: 1, type: 4096, mv: 36.51, energy: 0.77, concerto: 1.53, offtune: 2448, forte1: -18, forte2: 3 });
 var UBA22 = deniaAction("Basic - Breakdown Form 2", { node: 0, cast: 1, type: 4096, mv: 93.79, energy: 1.99, concerto: 3.94, offtune: 6292, forte1: -46, forte2: 12 });
 var UBA32 = deniaAction("Basic - Breakdown Form 3", { node: 0, cast: 1, type: 4096, mv: 62.39, energy: 1.31, concerto: 2.62, offtune: 4184, forte1: -30, forte2: 6 });
@@ -12634,7 +13141,7 @@ var UHA = deniaAction("Heavy - Breakdown Form", { node: 0, cast: 3, type: 8192, 
 var UMHA = deniaAction("Heavy - Breakdown Form (Mid-Air)", { node: 0, cast: 3, type: 8192, mv: 73.97, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: -37, forte2: 7 });
 var UDC2 = deniaAction("Dodge Counter - Breakdown Form 3", { node: 0, cast: 0, type: 4096, mv: 62.39, energy: 1.31, concerto: 12.62, offtune: 4184, forte1: -30, forte2: 6 });
 var UMDC = deniaAction("Dodge Counter - Breakdown Form 3 (Mid-Air)", { node: 0, cast: 0, type: 4096, mv: 62.39, energy: 1.31, concerto: 12.62, offtune: 4184, forte1: -30, forte2: 6 });
-var Skill17 = deniaAction("Skill - Phantom Bubble", { node: 1, cast: 4, type: 12288, mv: 104.51, energy: 0.22, concerto: 24.4, offtune: 7008, forte1: 25 });
+var Skill18 = deniaAction("Skill - Phantom Bubble", { node: 1, cast: 4, type: 12288, mv: 104.51, energy: 0.22, concerto: 24.4, offtune: 7008, forte1: 25 });
 var Beckon = deniaAction("Skill - Beckon", { node: 1, cast: 4, type: 12288, mv: 103.7, energy: 2.21, concerto: 4.36, offtune: 6956, forte2: 13 });
 var Banish1 = deniaAction("Skill - Banish 1", { node: 1, cast: 4, type: 12288, mv: 104.04, energy: 2.19, concerto: 4.38, offtune: 6978 });
 var Banish2 = deniaAction("Skill - Banish 2", { node: 1, cast: 4, type: 16384, mv: 112.01, energy: 2.35, concerto: 14.7, offtune: 7512, forte2: 40 });
@@ -12652,7 +13159,7 @@ var Lib14 = deniaAction("Liberation - Final Act (Stagecraft)", {
     applyCurrent(DARK_CORE, 1);
   }
 });
-var Lib24 = deniaAction("Liberation - Final Act (Breakdown)", {
+var Lib25 = deniaAction("Liberation - Final Act (Breakdown)", {
   node: 3,
   cast: 5,
   type: 16384,
@@ -12681,7 +13188,7 @@ var ErosionField = deniaAction("Forte - Erosion Field", {
   active: false,
   field: EROSION2
 });
-var Intro20 = deniaAction("Intro - It's Been A While!", {
+var Intro21 = deniaAction("Intro - It's Been A While!", {
   node: 4,
   cast: 6,
   type: 20480,
@@ -12708,7 +13215,7 @@ var EIntro4 = deniaAction("Intro - Knock Knock", {
     applyCurrent(DARK_CORE);
   }
 });
-var Outro20 = deniaAction("Outro - Unfinished Lies", {
+var Outro21 = deniaAction("Outro - Unfinished Lies", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -12719,8 +13226,8 @@ var Outro20 = deniaAction("Outro - Unfinished Lies", {
       queueOutro(UNFINISHED_LIES_STRAIN);
   }
 });
-var inflictsTwo = (a) => a === Intro20 || a === EIntro4 || a === Lib14 || a === Lib24 || a === ErosionField;
-var inflictsOne = (a) => a === BA318 || a === BA415 || a === UBA32 || a === UBA4 || a === UDC2 || a === UMDC;
+var inflictsTwo = (a) => a === Intro21 || a === EIntro4 || a === Lib14 || a === Lib25 || a === ErosionField;
+var inflictsOne = (a) => a === BA319 || a === BA416 || a === UBA32 || a === UBA4 || a === UDC2 || a === UMDC;
 var MODE_BURST2 = new ResonanceMode({
   name: "Resonance Mode - Fusion Burst",
   updateDebuffs: () => {
@@ -12871,8 +13378,8 @@ var DENIA_RESONATOR = new Resonator({
   weapon: 4,
   // Final Act - Breakdown always closes her loop back in Stagecraft Form, so It's Been A While!
   // is the Intro she enters with; Knock Knock (the Breakdown-form one) is kept for completeness
-  intro: () => stacksOf(ENTROPY_BREAKDOWN) ? EIntro4 : Intro20,
-  outro: () => Outro20,
+  intro: () => stacksOf(ENTROPY_BREAKDOWN) ? EIntro4 : Intro21,
+  outro: () => Outro21,
   color: "#c9557d",
   maxEnergy: 125,
   constantStats: () => {
@@ -12887,23 +13394,23 @@ var UBA122 = new ActionGroup("Basic - Breakdown Form 12", [UBA12, UBA22]);
 var USkill12 = new ActionGroup("Skill - Banish 12", [Banish1, Banish2]);
 var DN_ROTATION_BURST = new Rotation([
   NOINTRO,
-  BA415,
-  Skill17,
+  BA416,
+  Skill18,
   Lib14,
   UBA122,
   JUMP,
   UBA1234,
   USkill12,
-  Lib24,
+  Lib25,
   ECHO_SWAP,
   OUTRO,
   INTRO,
-  BA415,
-  Skill17,
+  BA416,
+  Skill18,
   Lib14,
   UBA1234,
   USkill12,
-  Lib24,
+  Lib25,
   ECHO_SWAP,
   OUTRO
 ]);
@@ -12932,7 +13439,7 @@ var DENIA_BURST = new Loadout({
 });
 var DN_ROTATION_STRAIN = new Rotation([
   NOINTRO,
-  Skill17,
+  Skill18,
   Lib14,
   UBA122,
   DODGE,
@@ -12940,18 +13447,18 @@ var DN_ROTATION_STRAIN = new Rotation([
   JUMP,
   UBA122,
   USkill12,
-  Lib24,
+  Lib25,
   ECHO_SWAP,
   OUTRO,
   INTRO,
-  BA415,
-  Skill17,
+  BA416,
+  Skill18,
   Lib14,
   UBA122,
   JUMP,
   UBA122,
   USkill12,
-  Lib24,
+  Lib25,
   ECHO_SWAP,
   OUTRO
 ]);
@@ -12982,22 +13489,22 @@ var DENIA_STRAIN = new Loadout({
 function encoreAction(id, def2) {
   return new Action(id, { element: 192, scaling: 0, ...def2 });
 }
-var BA119 = encoreAction("Basic - Wooly Attack 1", { node: 0, cast: 1, type: 4096, mv: 55.66, energy: 0.7, concerto: 1.4, offtune: 3360, forte1: 3 });
-var BA219 = encoreAction("Basic - Wooly Attack 2", { node: 0, cast: 1, type: 4096, mv: 66.2, energy: 0.83, concerto: 1.66, offtune: 3996, forte1: 5 });
-var BA319 = encoreAction("Basic - Wooly Attack 3", { node: 0, cast: 1, type: 4096, mv: 132.6, energy: 1.66, concerto: 3.32, offtune: 8004, forte1: 6 });
-var BA416 = encoreAction("Basic - Wooly Attack 4", { node: 0, cast: 1, type: 4096, mv: 153.08, energy: 1.92, concerto: 3.84, offtune: 9240, forte1: 4 });
+var BA120 = encoreAction("Basic - Wooly Attack 1", { node: 0, cast: 1, type: 4096, mv: 55.66, energy: 0.7, concerto: 1.4, offtune: 3360, forte1: 3 });
+var BA220 = encoreAction("Basic - Wooly Attack 2", { node: 0, cast: 1, type: 4096, mv: 66.2, energy: 0.83, concerto: 1.66, offtune: 3996, forte1: 5 });
+var BA320 = encoreAction("Basic - Wooly Attack 3", { node: 0, cast: 1, type: 4096, mv: 132.6, energy: 1.66, concerto: 3.32, offtune: 8004, forte1: 6 });
+var BA417 = encoreAction("Basic - Wooly Attack 4", { node: 0, cast: 1, type: 4096, mv: 153.08, energy: 1.92, concerto: 3.84, offtune: 9240, forte1: 4 });
 var WoolyStrike = encoreAction("Basic - Wooly Strike", { node: 0, cast: 1, type: 4096, mv: 238.57, energy: 3, concerto: 6, offtune: 14400, forte1: 25 });
-var HA14 = encoreAction("Heavy - Wooly Attack", { node: 0, cast: 3, type: 8192, mv: 187.08, energy: 2.35, concerto: 4.7, offtune: 11292, forte1: 5 });
+var HA15 = encoreAction("Heavy - Wooly Attack", { node: 0, cast: 3, type: 8192, mv: 187.08, energy: 2.35, concerto: 4.7, offtune: 11292, forte1: 5 });
 var MA17 = encoreAction("Mid-air - Wooly Attack", { node: 0, cast: 2, type: 4096, mv: 123.26, energy: 0.51, concerto: 1, offtune: 14400, forte1: 11 });
-var DC16 = encoreAction("Dodge Counter - Wooly Attack", { node: 0, cast: 0, type: 4096, mv: 251.88, energy: 3.16, concerto: 13.32, offtune: 8004, forte1: 6 });
-var Skill18 = encoreAction("Skill - Flaming Woolies", { node: 1, cast: 4, type: 12288, mv: 612.88, energy: 15.28, concerto: 15, offtune: 25600, forte1: 32 });
+var DC17 = encoreAction("Dodge Counter - Wooly Attack", { node: 0, cast: 0, type: 4096, mv: 251.88, energy: 3.16, concerto: 13.32, offtune: 8004, forte1: 6 });
+var Skill19 = encoreAction("Skill - Flaming Woolies", { node: 1, cast: 4, type: 12288, mv: 612.88, energy: 15.28, concerto: 15, offtune: 25600, forte1: 32 });
 var Skill25 = encoreAction("Skill - Energetic Welcome", { node: 1, cast: 4, type: 12288, mv: 339.16, energy: 0.75, concerto: 6.51, offtune: 9072, forte1: 30 });
 var SPEND_MAYHEM = { updateBuffs: () => {
   if (forte1() >= 100)
     setForte1(100);
 } };
 var CloudyFrenzy = encoreAction("Forte Heavy - Cloudy Frenzy", { node: 2, active: false, cast: 3, type: 16384, mv: 773.73, concerto: 10, offtune: 46709, forte1: -100, ...SPEND_MAYHEM });
-var Liberation16 = encoreAction("Liberation - Cosmos Rave", { node: 3, cast: 5, concerto: 20, resetEnergy: true });
+var Liberation17 = encoreAction("Liberation - Cosmos Rave", { node: 3, cast: 5, concerto: 20, resetEnergy: true });
 var UBA13 = encoreAction("Basic - Cosmos: Frolicking 1", { node: 3, cast: 1, type: 4096, mv: 180.36, energy: 1.32, concerto: 2.66, offtune: 6396, forte1: 8 });
 var UBA23 = encoreAction("Basic - Cosmos: Frolicking 2", { node: 3, cast: 1, type: 4096, mv: 169.2, energy: 1.23, concerto: 2.49, offtune: 6e3, forte1: 12 });
 var UBA33 = encoreAction("Basic - Cosmos: Frolicking 3", { node: 3, cast: 1, type: 4096, mv: 263.96, energy: 1.92, concerto: 3.88, offtune: 9360, forte1: 16 });
@@ -13005,9 +13512,9 @@ var UBA42 = encoreAction("Basic - Cosmos: Frolicking 4", { node: 3, cast: 1, typ
 var CosmosHeavy = encoreAction("Heavy - Cosmos: Heavy Attack", { node: 3, cast: 3, type: 8192, mv: 217.58, energy: 1.6, concerto: 3.21, offtune: 7716, forte1: 9 });
 var USkill3 = encoreAction("Skill - Cosmos: Rampage", { node: 3, cast: 4, type: 12288, mv: 253.28, energy: 6.56, concerto: 8, offtune: 6168, forte1: 28 });
 var CosmosDodgeCounter = encoreAction("Dodge Counter - Cosmos", { node: 3, cast: 0, type: 4096, mv: 263.96, energy: 1.92, concerto: 13.88, offtune: 9360, forte1: 16 });
-var FHA5 = encoreAction("Forte Heavy - Cosmos Rupture", { node: 2, cast: 3, type: 16384, mv: 773.73, concerto: 10, offtune: 46709, forte1: -100, ...SPEND_MAYHEM });
-var Intro21 = encoreAction("Intro - Woolies Helpers", { node: 4, cast: 6, type: 20480, mv: 198.81, energy: 10, concerto: 10, offtune: 15132, forte1: 40 });
-var Outro21 = encoreAction("Outro - Thermal Field", { cast: 7, type: 24576, mv: 707.04, concerto: -100, active: false });
+var FHA6 = encoreAction("Forte Heavy - Cosmos Rupture", { node: 2, cast: 3, type: 16384, mv: 773.73, concerto: 10, offtune: 46709, forte1: -100, ...SPEND_MAYHEM });
+var Intro22 = encoreAction("Intro - Woolies Helpers", { node: 4, cast: 6, type: 20480, mv: 198.81, energy: 10, concerto: 10, offtune: 15132, forte1: 40 });
+var Outro22 = encoreAction("Outro - Thermal Field", { cast: 7, type: 24576, mv: 707.04, concerto: -100, active: false });
 var WOOLIES_CHEER_DANCE = new Buff({
   name: "Inherent: Woolies Cheer Dance",
   applyStats: () => addStat(
@@ -13028,7 +13535,7 @@ var EN_INHERENT_2 = new Inherent({
   name: "Inherent: Woolies Cheer Dance",
   updateBuffs: () => {
     const a = currentAction();
-    if (a === Skill18 || a === USkill3)
+    if (a === Skill19 || a === USkill3)
       applyCurrent(WOOLIES_CHEER_DANCE, 1);
   }
 });
@@ -13036,14 +13543,14 @@ var ANGRY_COSMOS = new Buff({
   name: "Inherent: Angry Cosmos",
   applyStats: () => addStat(17, 10),
   convertStats: () => {
-    if (currentAction() === FHA5)
+    if (currentAction() === FHA6)
       revokeCurrent(ANGRY_COSMOS);
   }
 });
 var EN_INHERENT_1 = new Inherent({
   name: "Inherent: Angry Cosmos",
   updateBuffs: () => {
-    if (currentAction() === Liberation16)
+    if (currentAction() === Liberation17)
       applyCurrent(ANGRY_COSMOS, 1);
   }
 });
@@ -13088,7 +13595,7 @@ var S22 = new Sequence({
 var S32 = new Sequence({
   name: "Encore S3",
   applyStats: () => {
-    if (currentAction() === CloudyFrenzy || currentAction() === FHA5)
+    if (currentAction() === CloudyFrenzy || currentAction() === FHA6)
       addStat(16, 40);
   }
 });
@@ -13104,7 +13611,7 @@ var S4_TEAM = new Buff({
 var S42 = new Sequence({
   name: "Encore S4",
   updateBuffs: () => {
-    if (currentAction() === FHA5)
+    if (currentAction() === FHA6)
       applyTeam(S4_TEAM, 1);
   }
 });
@@ -13141,8 +13648,8 @@ var ENCORE_RESONATOR = new Resonator({
   tier: 1,
   element: 192,
   weapon: 4,
-  intro: () => Intro21,
-  outro: () => Outro21,
+  intro: () => Intro22,
+  outro: () => Outro22,
   color: "#e56b9a",
   maxEnergy: 125,
   constantStats: () => {
@@ -13168,15 +13675,15 @@ var EN_ROTATION = new Rotation([
   INTRO,
   ECHO_ONFIELD,
   // would be swapped
-  Skill18,
+  Skill19,
   // would be swapped
-  Liberation16,
+  Liberation17,
   USkill3,
   UBA12342,
   USkill3,
   UBA12342,
   USkill3,
-  FHA5.swap(),
+  FHA6.swap(),
   OUTRO
 ]);
 var ENCORE = new Loadout({
@@ -13203,14 +13710,14 @@ var ENCORE = new Loadout({
 function galbrenaAction(id, def2) {
   return new Action(id, { element: 192, scaling: 0, ...def2 });
 }
-var BA120 = galbrenaAction("Basic - Slayer's Trigger 1", { node: 0, cast: 1, type: 8192, mv: 59.18, energy: 0.83, concerto: 1.16, offtune: 2646, forte1: 7.41 });
-var BA220 = galbrenaAction("Basic - Slayer's Trigger 2", { node: 0, cast: 1, type: 8192, mv: 131.53, energy: 1.85, concerto: 2.59, offtune: 5880, forte1: 18.52 });
-var BA320 = galbrenaAction("Basic - Slayer's Trigger 3", { node: 0, cast: 1, type: 8192, mv: 142.98, energy: 2, concerto: 2.8, offtune: 6394, forte1: 18.52 });
-var BA417 = galbrenaAction("Basic - Slayer's Trigger 4", { node: 0, cast: 1, type: 28672, mv: 177.86, energy: 2.49, concerto: 3.48, offtune: 7952, forte1: 14.81 });
-var DC17 = galbrenaAction("Dodge Counter - Blood for Blood", { node: 0, cast: 0, type: 8192, mv: 205.24, offtune: 6394, concerto: 12.8, energy: 2 });
+var BA121 = galbrenaAction("Basic - Slayer's Trigger 1", { node: 0, cast: 1, type: 8192, mv: 59.18, energy: 0.83, concerto: 1.16, offtune: 2646, forte1: 7.41 });
+var BA221 = galbrenaAction("Basic - Slayer's Trigger 2", { node: 0, cast: 1, type: 8192, mv: 131.53, energy: 1.85, concerto: 2.59, offtune: 5880, forte1: 18.52 });
+var BA321 = galbrenaAction("Basic - Slayer's Trigger 3", { node: 0, cast: 1, type: 8192, mv: 142.98, energy: 2, concerto: 2.8, offtune: 6394, forte1: 18.52 });
+var BA418 = galbrenaAction("Basic - Slayer's Trigger 4", { node: 0, cast: 1, type: 28672, mv: 177.86, energy: 2.49, concerto: 3.48, offtune: 7952, forte1: 14.81 });
+var DC18 = galbrenaAction("Dodge Counter - Blood for Blood", { node: 0, cast: 0, type: 8192, mv: 205.24, offtune: 6394, concerto: 12.8, energy: 2 });
 var MA18 = galbrenaAction("Basic - Ashfall Barrage (Plunge)", { node: 0, cast: 1, type: 8192, mv: 143.15, energy: 2, concerto: 2.8, offtune: 6400 });
 var MASustained = galbrenaAction("Basic - Ashfall Barrage (Sustained Fire)", { node: 0, cast: 1, type: 8192, mv: 26.84, energy: 0.38, concerto: 0.53, offtune: 1200 });
-var HA15 = galbrenaAction("Heavy - Volley of Death 1", { node: 0, cast: 3, type: 8192, mv: 106.6, energy: 1.5, concerto: 2.1, offtune: 4766, forte1: 7.41 });
+var HA16 = galbrenaAction("Heavy - Volley of Death 1", { node: 0, cast: 3, type: 8192, mv: 106.6, energy: 1.5, concerto: 2.1, offtune: 4766, forte1: 7.41 });
 var HA24 = galbrenaAction("Heavy - Volley of Death 2", { node: 0, cast: 3, type: 8192, mv: 69.18, energy: 0.98, concerto: 1.36, offtune: 3094, forte1: 25.93 });
 var HA33 = galbrenaAction("Heavy - Volley of Death 3", { node: 0, cast: 3, type: 28672, mv: 167.7, energy: 2.37, concerto: 3.29, offtune: 7499, forte1: 18.52 });
 var DRIVE = { updateBuffs: () => applyCurrent(BURNING_DRIVE, 1) };
@@ -13254,7 +13761,7 @@ var Ravage = galbrenaAction("Forte Skill - Ravage", {
     setForte2(0);
   }
 });
-var Liberation17 = galbrenaAction("Liberation - Hellfire Absolution", {
+var Liberation18 = galbrenaAction("Liberation - Hellfire Absolution", {
   node: 3,
   cast: 5,
   type: 28672,
@@ -13264,8 +13771,8 @@ var Liberation17 = galbrenaAction("Liberation - Hellfire Absolution", {
   resetEnergy: true,
   updateBuffs: () => applyCurrent(HELLFIRE_WINDOW, 1)
 });
-var Intro22 = galbrenaAction("Intro - Hellflare Overload", { node: 4, cast: 6, type: 20480, mv: 94.12, energy: 10, concerto: 10, offtune: 4208, forte1: 11.11, ...DRIVE });
-var Outro22 = galbrenaAction("Outro - Ashen Pursuit", { cast: 7, type: 24576, mv: 795, offtune: 30326, concerto: -100, energy: 10.03, active: false });
+var Intro23 = galbrenaAction("Intro - Hellflare Overload", { node: 4, cast: 6, type: 20480, mv: 94.12, energy: 10, concerto: 10, offtune: 4208, forte1: 11.11, ...DRIVE });
+var Outro23 = galbrenaAction("Outro - Ashen Pursuit", { cast: 7, type: 24576, mv: 795, offtune: 30326, concerto: -100, energy: 10.03, active: false });
 var BURNING_DRIVE = new Buff({
   name: "Galbrena: Burning Drive",
   applyStats: () => addStat(6, 20),
@@ -13337,8 +13844,8 @@ var GALBRENA_RESONATOR = new Resonator({
   name: "Galbrena",
   element: 192,
   weapon: 2,
-  intro: () => Intro22,
-  outro: () => Outro22,
+  intro: () => Intro23,
+  outro: () => Outro23,
   color: "#1e3a8a",
   maxEnergy: 125,
   // reacts to *any* team member's own Echo cast, not just her own — see AFTERFLAME's own comment
@@ -13364,17 +13871,17 @@ var GALBRENA_TALENTS = new Talent({
 });
 var SeraphicExecution2345 = new ActionGroup("Forte Basic - Seraphic Execution 2345", [SeraphicExecution2, SeraphicExecution3, SeraphicExecution4, SeraphicExecution5]);
 var SeraphicExecution345 = new ActionGroup("Forte Basic - Seraphic Execution 345", [SeraphicExecution3, SeraphicExecution4, SeraphicExecution5]);
-var BA2343 = new ActionGroup("Basic - Slayer's Trigger 234", [BA220, BA320, BA417]);
+var BA2344 = new ActionGroup("Basic - Slayer's Trigger 234", [BA221, BA321, BA418]);
 var GB_ROTATION = new Rotation([
   INTRO,
   ECHO_CANCEL,
   HA24,
   HA33,
-  BA320,
-  BA417,
+  BA321,
+  BA418,
   Encroach,
   AscentOfMalice,
-  Liberation17,
+  Liberation18,
   SeraphicExecution2345,
   DODGE,
   SeraphicExecution345,
@@ -13407,18 +13914,18 @@ var GALBRENA = new Loadout({
 function jingranAction(id, def2) {
   return new Action(id, { element: 192, scaling: 0, ...def2 });
 }
-var BA121 = jingranAction("Basic - Devil's Bane 1", { node: 0, cast: 1, type: 4096, mv: 39.82, energy: 0.67, concerto: 1.34, offtune: 2136 });
-var BA221 = jingranAction("Basic - Devil's Bane 2", { node: 0, cast: 1, type: 4096, mv: 99.47, energy: 1.68, concerto: 3.35, offtune: 5337 });
-var BA321 = jingranAction("Basic - Devil's Bane 3", { node: 0, cast: 1, type: 8192, mv: 159.1, energy: 2.69, concerto: 5.36, offtune: 8537, forte1: 50 });
-var BA418 = jingranAction("Basic - Devil's Bane 4", { node: 0, cast: 1, type: 8192, mv: 124.24, energy: 2.09, concerto: 4.18, offtune: 6666, forte1: 50 });
+var BA122 = jingranAction("Basic - Devil's Bane 1", { node: 0, cast: 1, type: 4096, mv: 39.82, energy: 0.67, concerto: 1.34, offtune: 2136 });
+var BA222 = jingranAction("Basic - Devil's Bane 2", { node: 0, cast: 1, type: 4096, mv: 99.47, energy: 1.68, concerto: 3.35, offtune: 5337 });
+var BA322 = jingranAction("Basic - Devil's Bane 3", { node: 0, cast: 1, type: 8192, mv: 159.1, energy: 2.69, concerto: 5.36, offtune: 8537, forte1: 50 });
+var BA419 = jingranAction("Basic - Devil's Bane 4", { node: 0, cast: 1, type: 8192, mv: 124.24, energy: 2.09, concerto: 4.18, offtune: 6666, forte1: 50 });
 var MA19 = jingranAction("Mid-air - Edge of Life and Death", { node: 0, cast: 2, type: 4096, mv: 92.45, energy: 1.55, concerto: 3.1, offtune: 4960 });
 var EBA13 = jingranAction("Basic - Drink Soul 1", { node: 0, cast: 1, type: 4096, mv: 44.74, energy: 0.75, concerto: 1.5, offtune: 2400 });
 var EBA23 = jingranAction("Basic - Drink Soul 2", { node: 0, cast: 1, type: 4096, mv: 74.56, energy: 1.26, concerto: 2.5, offtune: 4e3 });
 var EBA33 = jingranAction("Basic - Drink Soul 3", { node: 0, cast: 1, type: 8192, mv: 109.32, energy: 1.84, concerto: 3.68, offtune: 5864, forte1: 50 });
 var EBA43 = jingranAction("Basic - Drink Soul 4", { node: 0, cast: 1, type: 8192, mv: 153.16, energy: 2.6, concerto: 5.16, offtune: 8218, forte1: 50 });
-var DC18 = jingranAction("Dodge Counter - Light Watch", { node: 0, cast: 0, type: 8192, mv: 198.8, energy: 10, concerto: 6.68, offtune: 8e3, forte1: 100 });
+var DC19 = jingranAction("Dodge Counter - Light Watch", { node: 0, cast: 0, type: 8192, mv: 198.8, energy: 10, concerto: 6.68, offtune: 8e3, forte1: 100 });
 var EDC3 = jingranAction("Dodge Counter - Nether Dive", { node: 0, cast: 0, type: 8192, mv: 248.57, energy: 4.19, concerto: 18.36, offtune: 13337, forte1: 100 });
-var Skill19 = jingranAction("Skill - Scorching Yang", { node: 1, cast: 4, type: 12288, mv: 164.04, energy: 1.75, concerto: 3.5, offtune: 5600 });
+var Skill110 = jingranAction("Skill - Scorching Yang", { node: 1, cast: 4, type: 12288, mv: 164.04, energy: 1.75, concerto: 3.5, offtune: 5600 });
 var Skill26 = jingranAction("Skill - Afterlife's Guide", { node: 1, cast: 4, type: 8192, mv: 258.47, energy: 3.35, concerto: 5, offtune: 10667, forte1: 100 });
 var ESkill1 = jingranAction("Skill - Encroaching Yin", { node: 1, cast: 4, type: 12288, mv: 164.04, energy: 1.75, concerto: 3.5, offtune: 5600 });
 var ESkill22 = jingranAction("Skill - Netherworld Traverse", { node: 1, cast: 4, type: 8192, mv: 263.48, energy: 3.43, concerto: 5, offtune: 10936, forte1: 100 });
@@ -13435,7 +13942,7 @@ var Lib5 = jingranAction("Liberation - Burial of Thousand Souls", {
   concerto: 20
 });
 var ACTION_LIB_FUA = jingranAction("Liberation - Chimei Wangliang", { node: 3, type: 8192, mv: 83.51 });
-var Intro23 = jingranAction("Intro - Question the Tombs", {
+var Intro24 = jingranAction("Intro - Question the Tombs", {
   node: 4,
   cast: 6,
   type: 20480,
@@ -13452,7 +13959,7 @@ var Intro23 = jingranAction("Intro - Question the Tombs", {
     }
   }
 });
-var Outro23 = jingranAction("Outro - Rising Fortune and Ebbing Evil", {
+var Outro24 = jingranAction("Outro - Rising Fortune and Ebbing Evil", {
   cast: 7,
   type: 24576,
   mv: 795,
@@ -13467,7 +13974,7 @@ var BURNS_MINGFIRE = { updateBuffs: () => {
   if (forte2() > 0)
     applyCurrent(JINGRAN_FIRE_OF_LIFE, 1);
 } };
-var FHA6 = jingranAction("Forte Heavy - Stardome Meander", { node: 2, cast: 3, type: 8192, mv: 240.38, energy: 8.5, concerto: 13, offtune: 10400, forte1: -300, ...BURNS_MINGFIRE });
+var FHA7 = jingranAction("Forte Heavy - Stardome Meander", { node: 2, cast: 3, type: 8192, mv: 240.38, energy: 8.5, concerto: 13, offtune: 10400, forte1: -300, ...BURNS_MINGFIRE });
 var EFHA = jingranAction("Forte Heavy - Soul Raid", { node: 2, cast: 3, type: 8192, mv: 234.29, energy: 8.53, concerto: 13, offtune: 10140, forte1: -300, ...BURNS_MINGFIRE });
 function hp() {
   const base = getStat(
@@ -13504,7 +14011,7 @@ var JR_INHERENT_1 = new Inherent({
   name: "Inherent: Hark the Dust",
   updateBuffs: () => {
     const a = currentAction();
-    if (a === Intro23 || a === Skill19 || a === ESkill1)
+    if (a === Intro24 || a === Skill110 || a === ESkill1)
       applyCurrent(JINGRAN_EARTH_CHARM, 1);
   }
 });
@@ -13529,7 +14036,7 @@ var JR_INHERENT_2 = new Inherent({
     applyCurrent(JINGRAN_GHOST_SHROUD, 25);
   },
   updateBuffs: () => {
-    if (currentAction() === Outro23)
+    if (currentAction() === Outro24)
       applyCurrent(JINGRAN_FIXATION, 1);
   },
   // `currentSlot` is switched to Jingran's own slot for this call regardless of who's actually
@@ -13578,37 +14085,37 @@ var JINGRAN_FIRE_OF_LIFE = new Buff({
     addStat(30, -25);
     if (mingfire > 25)
       addStat(29, 200);
-    addStat(15, (a === FHA6 ? 21.65 : 21.1) * fireSteps());
+    addStat(15, (a === FHA7 ? 21.65 : 21.1) * fireSteps());
     revokeCurrent(JINGRAN_FIRE_OF_LIFE);
   }
 });
 var SHIELDS2 = /* @__PURE__ */ new Map([
-  [BA121, 1],
-  [BA221, 1],
-  [BA321, 2],
-  [BA418, 2],
+  [BA122, 1],
+  [BA222, 1],
+  [BA322, 2],
+  [BA419, 2],
   [MA19, 1],
   [EBA13, 1],
   [EBA23, 1],
   [EBA33, 2],
   [EBA43, 2],
-  [DC18, 1],
+  [DC19, 1],
   [EDC3, 1],
-  [Skill19, 1],
+  [Skill110, 1],
   [ESkill1, 1],
   [Skill26, 3],
   [ESkill22, 3],
   [Lib5, 3],
-  [Intro23, 1],
-  [FHA6, 2],
+  [Intro24, 1],
+  [FHA7, 2],
   [EFHA, 2]
 ]);
 var JINGRAN_RESONATOR = new Resonator({
   name: "Jingran",
   element: 192,
   weapon: 1,
-  intro: () => Intro23,
-  outro: () => Outro23,
+  intro: () => Intro24,
+  outro: () => Outro24,
   color: "#f2603c",
   maxEnergy: 125,
   // Nether to Light/Yang Changes, Yin Unites are Forte Circuit-scoped, not Inherent Skills —
@@ -13645,13 +14152,13 @@ var EBA2342 = new ActionGroup("Basic - Drink Soul 234", [EBA23, EBA33, EBA43]);
 var JR_ROTATION = new Rotation([
   INTRO,
   Lib5,
-  FHA6,
+  FHA7,
   ESkill1,
   ESkill22,
   EFHA,
-  Skill19,
+  Skill110,
   Skill26,
-  FHA6,
+  FHA7,
   EBA2342,
   EFHA,
   ECHO_SWAP,
@@ -13684,21 +14191,21 @@ var JINGRAN = new Loadout({
 function lupaAction(id, def2) {
   return new Action(id, { element: 192, scaling: 0, ...def2 });
 }
-var BA122 = lupaAction("Basic - Flaming Star 1", { node: 0, cast: 1, type: 4096, mv: 90.08, energy: 1.34, concerto: 2.67, offtune: 4264, forte1: 7.5 });
-var BA222 = lupaAction("Basic - Flaming Star 2", { node: 0, cast: 1, type: 4096, mv: 90.08, energy: 1.34, concerto: 2.67, offtune: 4264, forte1: 7.5 });
-var BA322 = lupaAction("Basic - Flaming Star 3", { node: 0, cast: 1, type: 4096, mv: 157.68, energy: 2.37, concerto: 4.68, offtune: 7464, forte1: 12.5 });
-var BA419 = lupaAction("Basic - Flaming Star 4", { node: 0, cast: 1, type: 4096, mv: 246.24, energy: 3.66, concerto: 7.3, offtune: 11656, forte1: 17.5 });
+var BA124 = lupaAction("Basic - Flaming Star 1", { node: 0, cast: 1, type: 4096, mv: 90.08, energy: 1.34, concerto: 2.67, offtune: 4264, forte1: 7.5 });
+var BA223 = lupaAction("Basic - Flaming Star 2", { node: 0, cast: 1, type: 4096, mv: 90.08, energy: 1.34, concerto: 2.67, offtune: 4264, forte1: 7.5 });
+var BA323 = lupaAction("Basic - Flaming Star 3", { node: 0, cast: 1, type: 4096, mv: 157.68, energy: 2.37, concerto: 4.68, offtune: 7464, forte1: 12.5 });
+var BA420 = lupaAction("Basic - Flaming Star 4", { node: 0, cast: 1, type: 4096, mv: 246.24, energy: 3.66, concerto: 7.3, offtune: 11656, forte1: 17.5 });
 var EBA5 = lupaAction("Basic - Flaming Star: Starfall", { node: 0, cast: 1, type: 4096, mv: 168.66, energy: 2.51, concerto: 5.02, offtune: 7985, forte1: 5 });
 var MA20 = lupaAction("Basic - Flaming Star: Plunge", { node: 0, cast: 1, type: 4096, mv: 104.79, energy: 1.56, concerto: 3.11, offtune: 4960, forte1: 5 });
-var DC19 = lupaAction("Dodge Counter - Flaming Star", { node: 0, cast: 0, type: 4096, mv: 273.44, energy: 4.07, concerto: 18.13, offtune: 12944 });
+var DC20 = lupaAction("Dodge Counter - Flaming Star", { node: 0, cast: 0, type: 4096, mv: 273.44, energy: 4.07, concerto: 18.13, offtune: 12944 });
 var MA110 = lupaAction("Mid-air - Flaming Star 1", { node: 0, cast: 2, type: 4096, mv: 76.73, energy: 1.14, concerto: 2.27, offtune: 3632, forte1: 7 });
 var MA27 = lupaAction("Mid-air - Flaming Star 2", { node: 0, cast: 2, type: 4096, mv: 154.47, energy: 2.31, concerto: 4.61, offtune: 7312, forte1: 13 });
 var MA36 = lupaAction("Mid-air - Flaming Star 3", { node: 0, cast: 2, type: 4096, mv: 56.96, energy: 0.86, concerto: 1.7, offtune: 2696 });
-var HA16 = lupaAction("Heavy - Flaming Star", { node: 0, cast: 3, type: 8192, mv: 112.72, energy: 1.68, concerto: 3.34, offtune: 5336 });
+var HA17 = lupaAction("Heavy - Flaming Star", { node: 0, cast: 3, type: 8192, mv: 112.72, energy: 1.68, concerto: 3.34, offtune: 5336 });
 var EMA3 = lupaAction("Mid-air - Firestrike", { node: 0, cast: 2, type: 8192, mv: 56.96, energy: 0.86, concerto: 10, offtune: 2696, forte1: -50, forte2: 1 });
 var EHA3 = lupaAction("Heavy - Wolf's Gnawing", { node: 0, cast: 3, type: 8192, mv: 112.22, energy: 1.66, concerto: 10, offtune: 5312, forte1: -50, forte2: 1 });
 var EHA4 = lupaAction("Heavy - Wolf's Claw", { node: 0, cast: 3, type: 8192, mv: 240.5, energy: 3.58, concerto: 10, offtune: 11385, forte1: -50, forte2: 1 });
-var Skill110 = lupaAction("Skill - Shewolf's Hunt", {
+var Skill111 = lupaAction("Skill - Shewolf's Hunt", {
   node: 1,
   cast: 4,
   type: 12288,
@@ -13720,7 +14227,7 @@ var USkill4 = lupaAction("Skill - Foebreaker", {
   forte1: -100,
   updateBuffs: () => applyCurrent(BURNING_MATCHPOINT, 1)
 });
-var Liberation18 = lupaAction("Liberation - Fire-Kissed Glory", {
+var Liberation19 = lupaAction("Liberation - Fire-Kissed Glory", {
   node: 3,
   cast: 5,
   type: 16384,
@@ -13739,9 +14246,9 @@ var BACKUP = { updateBuffs: () => applyTeam(LUPA_BACKUP_READY, 1) };
 var FSkill6 = lupaAction("Forte Skill - Dance With the Wolf", { node: 2, cast: 4, type: 16384, mv: 560.21, energy: 30, concerto: 15.02, offtune: 16016, forte2: -2, ...BACKUP });
 var UFSkill = lupaAction("Forte Skill - Dance With the Wolf: Climax", { node: 2, cast: 4, type: 16384, mv: 756.26, energy: 30, concerto: 30, offtune: 54416, forte2: -2, ...BACKUP });
 var fskillFUA = lupaAction("Forte Skill - Set the Arena Ablaze", { node: 2, type: 12288, mv: 211.75, offtune: 9600, active: false });
-var Intro24 = lupaAction("Intro - Try Focusing, Eh?", { node: 4, cast: 6, type: 20480, mv: 198.4, energy: 10.02, concerto: 10, offtune: 9393 });
+var Intro25 = lupaAction("Intro - Try Focusing, Eh?", { node: 4, cast: 6, type: 20480, mv: 198.4, energy: 10.02, concerto: 10, offtune: 9393 });
 var EIntro5 = lupaAction("Intro - Nowhere to Run!", { node: 4, cast: 6, type: 16384, mv: 991.97, energy: 10, concerto: 10, offtune: 16e3 });
-var Outro24 = lupaAction("Outro - Stand by Me, Warrior", {
+var Outro25 = lupaAction("Outro - Stand by Me, Warrior", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -13829,7 +14336,7 @@ var LP_INHERENT_1 = new Inherent({ name: "Inherent: Remember My Name" });
 var LP_INHERENT_2 = new Inherent({
   name: "Inherent: Applause of Victory",
   updateBuffs: () => {
-    if (currentAction() === Liberation18) {
+    if (currentAction() === Liberation19) {
       revokeTeam(GLORY);
       applyTeam(GLORY, currentTeam().slots.filter(
         (s) => s.resonator?.element === 192
@@ -13845,7 +14352,7 @@ var LUPA_MARK = new Debuff({
       addStat(16, 50);
   },
   convertStats: () => {
-    if (currentAction() === Skill27 || currentAction() === Liberation18)
+    if (currentAction() === Skill27 || currentAction() === Liberation19)
       revokeEnemy(LUPA_MARK);
   }
 });
@@ -13882,18 +14389,18 @@ var LUPA_RESONATOR = new Resonator({
   weapon: 1,
   intro: () => {
     if (stacksOfTeam(PACK_HUNT) < 3)
-      return Intro24;
+      return Intro25;
     revokeTeam(PACK_HUNT);
     revokeTeam(GLORY);
     return EIntro5;
   },
-  outro: () => Outro24,
+  outro: () => Outro25,
   color: "#e8483a",
   maxEnergy: 125,
   // every cast that arms Set the Arena Ablaze
   updateBuffs: () => {
     const a = currentAction();
-    if (a === Skill27 || a === EHA3 || a === EHA4 || a === EMA3 || a === Liberation18 || a === FSkill6 || a === UFSkill) {
+    if (a === Skill27 || a === EHA3 || a === EHA4 || a === EMA3 || a === Liberation19 || a === FSkill6 || a === UFSkill) {
       applyCurrent(WILDFIRE_BANNER, 1);
     }
   },
@@ -13912,10 +14419,10 @@ var LUPA_TALENTS = new Talent({
 });
 var LP_LOOP = new Rotation([
   NOINTRO,
-  Skill110,
+  Skill111,
   INTRO,
   ECHO_CANCEL,
-  Liberation18,
+  Liberation19,
   USkill4,
   MA110,
   MA27,
@@ -13950,13 +14457,13 @@ var LUPA = new Loadout({
 function mornyeAction(id, def2) {
   return new Action(id, { element: 192, scaling: 0, ...def2 });
 }
-var BA124 = mornyeAction("Basic - Ground State Calibration 1", { node: 0, cast: 1, type: 4096, mv: 55.69, energy: 0.89, concerto: 2.8, offtune: 2800, forte1: 20 });
-var BA223 = mornyeAction("Basic - Ground State Calibration 2", { node: 0, cast: 1, type: 4096, mv: 119.32, energy: 1.92, concerto: 6, offtune: 6e3, forte1: 43 });
-var BA323 = mornyeAction("Basic - Ground State Calibration 3", { node: 0, cast: 1, type: 4096, mv: 103.4, energy: 1.67, concerto: 5.2, offtune: 5200, forte1: 37 });
-var BA420 = mornyeAction("Basic - Ground State Calibration 4", { node: 0, cast: 1, type: 4096, mv: 135.2, energy: 2.13, concerto: 6.8, offtune: 6800, forte1: 100 });
-var HA17 = mornyeAction("Heavy - Ground State Calibration", { node: 0, cast: 3, type: 8192, mv: 37, energy: 0.79, concerto: 2.5, offtune: 2480, forte1: 20 });
+var BA125 = mornyeAction("Basic - Ground State Calibration 1", { node: 0, cast: 1, type: 4096, mv: 55.69, energy: 0.89, concerto: 2.8, offtune: 2800, forte1: 20 });
+var BA224 = mornyeAction("Basic - Ground State Calibration 2", { node: 0, cast: 1, type: 4096, mv: 119.32, energy: 1.92, concerto: 6, offtune: 6e3, forte1: 43 });
+var BA324 = mornyeAction("Basic - Ground State Calibration 3", { node: 0, cast: 1, type: 4096, mv: 103.4, energy: 1.67, concerto: 5.2, offtune: 5200, forte1: 37 });
+var BA421 = mornyeAction("Basic - Ground State Calibration 4", { node: 0, cast: 1, type: 4096, mv: 135.2, energy: 2.13, concerto: 6.8, offtune: 6800, forte1: 100 });
+var HA18 = mornyeAction("Heavy - Ground State Calibration", { node: 0, cast: 3, type: 8192, mv: 37, energy: 0.79, concerto: 2.5, offtune: 2480, forte1: 20 });
 var MA21 = mornyeAction("Mid-air - Ground State Calibration", { node: 0, cast: 2, type: 4096, mv: 98.61, energy: 1.55, concerto: 4.96, offtune: 4960 });
-var DC20 = mornyeAction("Dodge Counter - Ground State Calibration", { node: 0, cast: 0, type: 4096, mv: 162.23, energy: 2.55, concerto: 18.16, offtune: 8160, forte1: 20 });
+var DC21 = mornyeAction("Dodge Counter - Ground State Calibration", { node: 0, cast: 0, type: 4096, mv: 162.23, energy: 2.55, concerto: 18.16, offtune: 8160, forte1: 20 });
 var WBA1 = mornyeAction("Basic - Wide Field Observation 1", { node: 0, cast: 1, type: 4096, mv: 55.68, energy: 0.88, concerto: 1.4, offtune: 2800, forte2: 10 });
 var WBA2 = mornyeAction("Basic - Wide Field Observation 2", { node: 0, cast: 1, type: 4096, mv: 103.4, energy: 1.64, concerto: 2.56, offtune: 5200, forte2: 12 });
 var WBA3 = mornyeAction("Basic - Wide Field Observation 3", { node: 0, cast: 1, type: 4096, mv: 103.42, energy: 1.64, concerto: 2.56, offtune: 5200, forte2: 18 });
@@ -13984,7 +14491,7 @@ var SKILL_HEAL = { updateDebuffs: () => applyCurrent(HEALS, 1) };
 var Skill20 = mornyeAction("Skill - Expectation Error", { node: 1, cast: 4, ...SKILL_HEAL });
 var OptimalSolution = mornyeAction("Skill - Optimal Solution", { node: 1, cast: 4, type: 12288, mv: 179.73, energy: 3.96, concerto: 9.04, offtune: 9040, forte1: 100 });
 var DistributedArray = mornyeAction("Skill - Distributed Array", { node: 1, cast: 4, type: 12288, mv: 159.08, energy: 18.52, concerto: 10, offtune: 8e3, forte2: 60, ...SKILL_HEAL });
-var Liberation19 = mornyeAction("Liberation - Critical Protocol", {
+var Liberation20 = mornyeAction("Liberation - Critical Protocol", {
   node: 3,
   cast: 5,
   type: 16384,
@@ -14000,8 +14507,8 @@ var Liberation19 = mornyeAction("Liberation - Critical Protocol", {
       applyTeam(SYNTONY_FIELD, 1);
   }
 });
-var Intro25 = mornyeAction("Intro - Convergence", { node: 4, cast: 6, type: 20480, mv: 202.79, energy: 10, concerto: 10, offtune: 13600, ...FIELD });
-var Outro25 = mornyeAction("Outro - Recursion", {
+var Intro26 = mornyeAction("Intro - Convergence", { node: 4, cast: 6, type: 20480, mv: 202.79, energy: 10, concerto: 10, offtune: 13600, ...FIELD });
+var Outro26 = mornyeAction("Outro - Recursion", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -14066,7 +14573,7 @@ var MO_INHERENT_1 = new Inherent({
   constantStats: () => addStat(11, 10),
   applyStats: () => {
     const a = currentAction();
-    if (a === Intro25 || a === WBA3)
+    if (a === Intro26 || a === WBA3)
       addStat(26, 20);
   }
 });
@@ -14082,8 +14589,8 @@ var MORNYE_RESONATOR = new Resonator({
   name: "Mornye",
   element: 192,
   weapon: 1,
-  intro: () => Intro25,
-  outro: () => Outro25,
+  intro: () => Intro26,
+  outro: () => Outro26,
   color: "#ecabe3",
   maxEnergy: 175,
   updateGlobal: () => tuneRuptureResponse(ParticleJet),
@@ -14096,7 +14603,7 @@ var MORNYE_RESONATOR = new Resonator({
     addStat(12, 10);
   }
 });
-var BA1233 = new ActionGroup("Basic - Ground State Calibration 123", [BA124, BA223, BA323]);
+var BA1233 = new ActionGroup("Basic - Ground State Calibration 123", [BA125, BA224, BA324]);
 var WBA123 = new ActionGroup("Basic - Wide Field Observation 123", [WBA1, WBA2, WBA3]);
 var SkillSwap = Skill20.swap();
 var MO_ROTATION = new Rotation([
@@ -14108,7 +14615,7 @@ var MO_ROTATION = new Rotation([
   BA1233,
   GeopotentialShift,
   INTRO,
-  Liberation19,
+  Liberation20,
   WBA123,
   DistributedArray,
   Inversion,
@@ -14140,17 +14647,17 @@ var MORNYE = new Loadout({
 function mortefiAction(id, def2) {
   return new Action(id, { element: 192, scaling: 0, ...def2 });
 }
-var BA125 = mortefiAction("Basic - Impromptu Show 1", { node: 0, cast: 1, type: 4096, mv: 48.3, energy: 0.86, concerto: 2.77, offtune: 2800, forte1: 5 });
-var BA224 = mortefiAction("Basic - Impromptu Show 2", { node: 0, cast: 1, type: 4096, mv: 40.78 * 2, energy: 1.46, concerto: 4.68, offtune: 4720, forte1: 10 });
-var BA324 = mortefiAction("Basic - Impromptu Show 3", { node: 0, cast: 1, type: 4096, mv: 107.3, energy: 1.92, concerto: 6.16, offtune: 6160, forte1: 10 });
-var BA421 = mortefiAction("Basic - Impromptu Show 4", { node: 0, cast: 1, type: 4096, mv: 21.02 * 4 + 126.93, energy: 3.76, concerto: 12.09, offtune: 12080, forte1: 25 });
-var HA18 = mortefiAction("Heavy - Impromptu Show", { node: 0, cast: 3, type: 8192, mv: 167.01, energy: 2.4, concerto: 7.68, offtune: 9600 });
+var BA126 = mortefiAction("Basic - Impromptu Show 1", { node: 0, cast: 1, type: 4096, mv: 48.3, energy: 0.86, concerto: 2.77, offtune: 2800, forte1: 5 });
+var BA225 = mortefiAction("Basic - Impromptu Show 2", { node: 0, cast: 1, type: 4096, mv: 40.78 * 2, energy: 1.46, concerto: 4.68, offtune: 4720, forte1: 10 });
+var BA325 = mortefiAction("Basic - Impromptu Show 3", { node: 0, cast: 1, type: 4096, mv: 107.3, energy: 1.92, concerto: 6.16, offtune: 6160, forte1: 10 });
+var BA422 = mortefiAction("Basic - Impromptu Show 4", { node: 0, cast: 1, type: 4096, mv: 21.02 * 4 + 126.93, energy: 3.76, concerto: 12.09, offtune: 12080, forte1: 25 });
+var HA19 = mortefiAction("Heavy - Impromptu Show", { node: 0, cast: 3, type: 8192, mv: 167.01, energy: 2.4, concerto: 7.68, offtune: 9600 });
 var MA111 = mortefiAction("Mid-air - Impromptu Show 1", { node: 0, cast: 2, type: 4096, mv: 23.25, energy: 0.41, concerto: 1, offtune: 1360 });
 var MA28 = mortefiAction("Mid-air - Impromptu Show 2", { node: 0, cast: 2, type: 4096, mv: 23.25, energy: 0.41, concerto: 1, offtune: 1360 });
-var DC21 = mortefiAction("Dodge Counter - Impromptu Show", { node: 0, cast: 0, type: 4096, mv: 194.98, energy: 3.5, concerto: 16.4, offtune: 6400 });
+var DC22 = mortefiAction("Dodge Counter - Impromptu Show", { node: 0, cast: 0, type: 4096, mv: 194.98, energy: 3.5, concerto: 16.4, offtune: 6400 });
 var Skill21 = mortefiAction("Skill - Passionate Variation", { node: 1, cast: 4, type: 12288, mv: 208.76, energy: 10, concerto: 18, offtune: 7200, forte1: 40 });
 var FSkill7 = mortefiAction("Forte Skill - Fury Fugue", { node: 2, cast: 4, type: 12288, mv: 326.05, energy: 10, concerto: 18, offtune: 8e3, forte1: -100 });
-var Liberation20 = mortefiAction("Liberation - Violent Finale", {
+var Liberation21 = mortefiAction("Liberation - Violent Finale", {
   node: 3,
   cast: 5,
   type: 16384,
@@ -14176,8 +14683,8 @@ var ACTION_MARCATO = mortefiAction("Liberation - Marcato", {
 var ACTION_MARCATO_PAIRED = ACTION_MARCATO.paired();
 var ACTION_S5_MARCATO = ACTION_MARCATO.variant("Liberation - Marcato (S5 Funerary Quartet)", { field: null, applyStats: () => addStat(17, -50) });
 var ACTION_S5_MARCATO_PAIRED = ACTION_S5_MARCATO.paired();
-var Intro26 = mortefiAction("Intro - Dissonance", { node: 4, cast: 6, type: 20480, mv: 168.99, energy: 10, concerto: 10, offtune: 8e3 });
-var Outro26 = mortefiAction("Outro - Rage Transposition", {
+var Intro27 = mortefiAction("Intro - Dissonance", { node: 4, cast: 6, type: 20480, mv: 168.99, energy: 10, concerto: 10, offtune: 8e3 });
+var Outro27 = mortefiAction("Outro - Rage Transposition", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -14188,7 +14695,7 @@ var BURNING_RHAPSODY = new Buff({
   maxStacks: 48,
   field: MARCATO_FIELD,
   updateBuffs: () => {
-    if (!currentAction().active || triggeredAction())
+    if (!oneSecondPassed())
       return;
     if (casting(
       4
@@ -14299,7 +14806,7 @@ var MORTEFI_S3 = new Sequence({
 var MORTEFI_S4 = new Sequence({
   name: "Mortefi S4: Cathartic Waltz",
   updateBuffs: () => {
-    if (currentAction() === Liberation20)
+    if (currentAction() === Liberation21)
       applyTeam(BURNING_RHAPSODY, 20);
   }
 });
@@ -14317,7 +14824,7 @@ var MORTEFI_S5 = new Sequence({
 var MORTEFI_S6 = new Sequence({
   name: "Mortefi S6: Apoplectic Instrumental",
   updateBuffs: () => {
-    if (currentAction() === Liberation20)
+    if (currentAction() === Liberation21)
       applyTeam(S6_TEAM_ATK, 1);
   }
 });
@@ -14325,8 +14832,8 @@ var MORTEFI_RESONATOR = new Resonator({
   name: "Mortefi",
   element: 192,
   weapon: 2,
-  intro: () => Intro26,
-  outro: () => Outro26,
+  intro: () => Intro27,
+  outro: () => Outro27,
   color: "#e8734f",
   maxEnergy: 125,
   tier: 2,
@@ -14348,7 +14855,7 @@ var MORTEFI_TALENTS = new Talent({
     );
   }
 });
-var BA12343 = new ActionGroup("Basic - Impromptu Show 1234", [BA125, BA224, BA324, BA421]);
+var BA12343 = new ActionGroup("Basic - Impromptu Show 1234", [BA126, BA225, BA325, BA422]);
 var MO_ROTATION2 = new Rotation([
   INTRO,
   Skill21,
@@ -14356,7 +14863,7 @@ var MO_ROTATION2 = new Rotation([
   // TODO swap this
   BA12343,
   FSkill7,
-  Liberation20,
+  Liberation21,
   ECHO_SWAP,
   OUTRO
 ]);
@@ -14388,15 +14895,15 @@ var MORTEFI = new Loadout({
 function carlottaAction(id, def2) {
   return new Action(id, { element: 256, scaling: 0, ...def2 });
 }
-var BA126 = carlottaAction("Basic - Silent Execution 1", { node: 0, cast: 1, type: 4096, mv: 54.08, energy: 0.8, concerto: 1.6, offtune: 2560 });
-var BA225 = carlottaAction("Basic - Silent Execution 2", { node: 0, cast: 1, type: 4096, mv: 131.83, energy: 1.96, concerto: 3.9, offtune: 6240, forte1: 3 });
+var BA127 = carlottaAction("Basic - Silent Execution 1", { node: 0, cast: 1, type: 4096, mv: 54.08, energy: 0.8, concerto: 1.6, offtune: 2560 });
+var BA226 = carlottaAction("Basic - Silent Execution 2", { node: 0, cast: 1, type: 4096, mv: 131.83, energy: 1.96, concerto: 3.9, offtune: 6240, forte1: 3 });
 var MA112 = carlottaAction("Mid-air - Silent Execution", { node: 0, cast: 2, type: 4096, mv: 104.78, energy: 3, concerto: 6, offtune: 9600 });
 var MA29 = carlottaAction("Basic - Silent Execution: Customary Greetings", { node: 0, cast: 1, type: 4096, mv: 239.98, energy: 2.11, concerto: 4.2, offtune: 6720, forte1: 3 });
-var DC22 = carlottaAction("Dodge Counter - Silent Execution", { node: 0, cast: 0, type: 4096, mv: 241.32, energy: 3.58, concerto: 17.15, offtune: 11425, forte2: 10, forte1: -1 });
+var DC23 = carlottaAction("Dodge Counter - Silent Execution", { node: 0, cast: 0, type: 4096, mv: 241.32, energy: 3.58, concerto: 17.15, offtune: 11425, forte2: 10, forte1: -1 });
 var NM1 = carlottaAction("Basic - Silent Execution: Necessary Measures 1", { node: 0, cast: 1, type: 4096, mv: 65.91, energy: 0.98, concerto: 1.95, offtune: 3120, forte2: 10, forte1: -1 });
 var NM2 = carlottaAction("Basic - Silent Execution: Necessary Measures 2", { node: 0, cast: 1, type: 4096, mv: 133.51, energy: 1.98, concerto: 3.96, offtune: 6320, forte2: 10, forte1: -1 });
 var NM3 = carlottaAction("Basic - Silent Execution: Necessary Measures 3", { node: 0, cast: 1, type: 4096, mv: 233.25, energy: 3.47, concerto: 6.9, offtune: 11040, forte2: 10, forte1: -1 });
-var HA19 = carlottaAction("Heavy - Silent Execution", { node: 0, cast: 3, type: 8192, mv: 152.12, energy: 2.26, concerto: 4.52, offtune: 7200, forte1: 3 });
+var HA20 = carlottaAction("Heavy - Silent Execution", { node: 0, cast: 3, type: 8192, mv: 152.12, energy: 2.26, concerto: 4.52, offtune: 7200, forte1: 3 });
 var EHA2 = carlottaAction("Heavy - Silent Execution: Containment Tactics", {
   node: 0,
   cast: 3,
@@ -14411,7 +14918,7 @@ var EHA2 = carlottaAction("Heavy - Silent Execution: Containment Tactics", {
       setForte2(120);
   }
 });
-var Skill111 = carlottaAction("Skill - Art of Violence", {
+var Skill112 = carlottaAction("Skill - Art of Violence", {
   node: 1,
   cast: 4,
   type: 12288,
@@ -14432,7 +14939,7 @@ var Skill28 = carlottaAction("Skill - Chromatic Splendor", {
   // the crystal-to-Substance conversion
   updateBuffs: () => applyCurrent(CHROMATIC_SPLENDOR_SPEND, 1)
 });
-var FHA7 = carlottaAction("Forte Heavy - Imminent Oblivion", {
+var FHA8 = carlottaAction("Forte Heavy - Imminent Oblivion", {
   node: 2,
   cast: 3,
   type: 12288,
@@ -14454,12 +14961,10 @@ var Lib15 = carlottaAction("Liberation - Era of New Wave", {
   concerto: 20,
   offtune: 33600,
   resetEnergy: true,
-  // reads Substance, opens Twilight Tango, zeroes the gauge
+  // opens Twilight Tango, zeroes the gauge
   updateBuffs: () => {
     applyEnemy(DECONSTRUCTION, 1);
     applyCurrent(TWILIGHT_TANGO, 1);
-    if (forte2() >= 120)
-      applyCurrent(FINAL_BOW, 1);
     setForte2(0);
   }
 });
@@ -14467,6 +14972,7 @@ var DeathKnell = carlottaAction("Liberation - Death Knell", {
   node: 3,
   cast: 5,
   type: 12288,
+  realTime: true,
   mv: 241.64,
   energy: 5,
   concerto: 7,
@@ -14482,7 +14988,7 @@ var FatalFinale = carlottaAction("Liberation - Fatal Finale", {
   offtune: 50400,
   forte3: -4
 });
-var Intro27 = carlottaAction("Intro - Wintertime Aria", {
+var Intro28 = carlottaAction("Intro - Wintertime Aria", {
   node: 4,
   cast: 6,
   type: 20480,
@@ -14493,7 +14999,7 @@ var Intro27 = carlottaAction("Intro - Wintertime Aria", {
   forte2: 30,
   forte1: 3
 });
-var Outro27 = carlottaAction("Outro - Closing Remark", { cast: 7, type: 24576, mv: 794.2, concerto: -100, active: false });
+var Outro28 = carlottaAction("Outro - Closing Remark", { cast: 7, type: 24576, mv: 794.2, concerto: -100, active: false });
 var DECONSTRUCTION = new Debuff({
   name: "Carlotta: Deconstruction",
   applyStats: () => {
@@ -14516,7 +15022,7 @@ var CL_INHERENT_2 = new Inherent({
   name: "Inherent: Ars Gratia Artis",
   updateBuffs: () => {
     const a = currentAction();
-    if (a === Intro27 || a === Skill28 || a === DeathKnell || a === FHA7)
+    if (a === Intro28 || a === Skill28 || a === DeathKnell || a === FHA8)
       applyEnemy(DECONSTRUCTION, 1);
   }
 });
@@ -14544,7 +15050,7 @@ var FINAL_BOW = new Buff({
       addStat(16, 80);
   },
   convertStats: () => {
-    if (!isHeld(TWILIGHT_TANGO) || !currentAction().active)
+    if (isHeld(TWILIGHT_TANGO) && !currentAction().active)
       revokeCurrent(FINAL_BOW);
   }
 });
@@ -14571,11 +15077,11 @@ var CL_S3 = new Sequence({
   name: "Carlotta S3: Adelante, Cortado, Spinning in Grace",
   applyStats: () => {
     const a = currentAction();
-    if (a === Skill111 || a === Skill28)
+    if (a === Skill112 || a === Skill28)
       addStat(16, 93);
   },
   updateBuffs: () => {
-    if (currentAction() === Outro27)
+    if (currentAction() === Outro28)
       queue(Sparks);
   }
 });
@@ -14592,14 +15098,14 @@ var CL_S4 = new Sequence({
   name: "Carlotta S4: Yesterday's Raindrops Make Finest Wine",
   updateBuffs: () => {
     const a = currentAction();
-    if (a === HA19 || a === EHA2 || a === FHA7)
+    if (a === HA20 || a === EHA2 || a === FHA8)
       applyTeam(FINEST_WINE, 1);
   }
 });
 var CL_S5 = new Sequence({
   name: "Carlotta S5: Toast to Past, Today, and Every Day to Come",
   applyStats: () => {
-    if (currentAction() === FHA7)
+    if (currentAction() === FHA8)
       addStat(16, 47);
   }
 });
@@ -14614,10 +15120,16 @@ var CARLOTTA_RESONATOR = new Resonator({
   name: "Carlotta",
   element: 256,
   weapon: 2,
-  intro: () => Intro27,
-  outro: () => Outro27,
+  intro: () => Intro28,
+  outro: () => Outro28,
   color: "#8fb3d9",
   maxEnergy: 125,
+  // Final Bow is a state entered on the gauge filling, so it is read off the gauge as each
+  // action leaves it — the only phase that sees Chromatic Splendor's own conversion banked
+  afterAction: () => {
+    if (forte2() >= 120)
+      applyCurrent(FINAL_BOW, 1);
+  },
   constantStats: () => {
     addStat(1, 12450);
     addStat(0, 463);
@@ -14632,8 +15144,8 @@ var CARLOTTA_TALENTS = new Talent({
   }
 });
 var DeathKnellx4 = new ActionGroup("Liberation - Death Knell x4", [DeathKnell, DeathKnell, DeathKnell, DeathKnell]);
-var Skill122 = new ActionGroup("Skill - Art of Violence + Chromatic Splendor", [Skill111, Skill28]);
-var Skill12Swap = new ActionGroup("Skill - Art of Violence + Chromatic Splendor", [Skill111, Skill28.swap()]);
+var Skill122 = new ActionGroup("Skill - Art of Violence + Chromatic Splendor", [Skill112, Skill28]);
+var Skill12Swap = new ActionGroup("Skill - Art of Violence + Chromatic Splendor", [Skill112, Skill28.swap()]);
 var CL_ROTATION = new Rotation([
   START_3,
   Skill12Swap,
@@ -14641,7 +15153,7 @@ var CL_ROTATION = new Rotation([
   INTRO,
   Skill122,
   MA112,
-  FHA7,
+  FHA8,
   Lib15,
   DeathKnellx4,
   FatalFinale,
@@ -14682,11 +15194,11 @@ var FROSTBIND = {
       consume(GLACIO_BITE, 10);
   }
 };
-var BA127 = hiyukiAction("Basic - Present Self 1", { node: 0, cast: 1, type: 4096, mv: 75.44, energy: 1.28, concerto: 2.44, offtune: 4336 });
-var BA226 = hiyukiAction("Basic - Present Self 2", { node: 0, cast: 1, type: 4096, mv: 90.25, energy: 1.53, concerto: 2.92, offtune: 5188 });
-var BA325 = hiyukiAction("Basic - Present Self 3", { node: 0, cast: 1, type: 4096, mv: 122.97, energy: 2.12, concerto: 3.99, offtune: 7070, forte1: 100, ...CHAFE });
+var BA128 = hiyukiAction("Basic - Present Self 1", { node: 0, cast: 1, type: 4096, mv: 75.44, energy: 1.28, concerto: 2.44, offtune: 4336 });
+var BA227 = hiyukiAction("Basic - Present Self 2", { node: 0, cast: 1, type: 4096, mv: 90.25, energy: 1.53, concerto: 2.92, offtune: 5188 });
+var BA326 = hiyukiAction("Basic - Present Self 3", { node: 0, cast: 1, type: 4096, mv: 122.97, energy: 2.12, concerto: 3.99, offtune: 7070, forte1: 100, ...CHAFE });
 var MA30 = hiyukiAction("Mid-air - Present Self", { node: 0, cast: 2, type: 4096, mv: 128.18, energy: 2.17, concerto: 4.15, offtune: 7368 });
-var DC23 = hiyukiAction("Dodge Counter - Present Self 2", { node: 0, cast: 0, type: 4096, mv: 173.75, energy: 2.94, concerto: 15.62, offtune: 9988 });
+var DC24 = hiyukiAction("Dodge Counter - Present Self 2", { node: 0, cast: 0, type: 4096, mv: 173.75, energy: 2.94, concerto: 15.62, offtune: 9988 });
 var FrostSplinter = hiyukiAction("Heavy - Frost Splinter: Present Self", {
   node: 0,
   cast: 3,
@@ -14705,17 +15217,17 @@ var FrostSplinter = hiyukiAction("Heavy - Frost Splinter: Present Self", {
   },
   ...CHAFE
 });
-var FBA12 = hiyukiAction("Basic - Foreclaimed Self 1", { node: 0, cast: 1, type: 16384, mv: 49.27, energy: 0.84, concerto: 1.6, offtune: 2832, forte2: 10 });
-var FBA22 = hiyukiAction("Basic - Foreclaimed Self 2", { node: 0, cast: 1, type: 16384, mv: 80.04, energy: 1.36, concerto: 2.6, offtune: 4600, forte2: 15 });
-var FBA32 = hiyukiAction("Basic - Foreclaimed Self 3", { node: 0, cast: 1, type: 16384, mv: 167.72, energy: 2.86, concerto: 5.45, offtune: 9640, forte2: 32, ...CHAFE });
-var FBA42 = hiyukiAction("Basic - Foreclaimed Self 4", { node: 0, cast: 1, type: 16384, mv: 149.65, energy: 2.55, concerto: 4.85, offtune: 8600, forte2: 30, ...CHAFE });
+var FBA13 = hiyukiAction("Basic - Foreclaimed Self 1", { node: 0, cast: 1, type: 16384, mv: 49.27, energy: 0.84, concerto: 1.6, offtune: 2832, forte2: 10 });
+var FBA23 = hiyukiAction("Basic - Foreclaimed Self 2", { node: 0, cast: 1, type: 16384, mv: 80.04, energy: 1.36, concerto: 2.6, offtune: 4600, forte2: 15 });
+var FBA33 = hiyukiAction("Basic - Foreclaimed Self 3", { node: 0, cast: 1, type: 16384, mv: 167.72, energy: 2.86, concerto: 5.45, offtune: 9640, forte2: 32, ...CHAFE });
+var FBA43 = hiyukiAction("Basic - Foreclaimed Self 4", { node: 0, cast: 1, type: 16384, mv: 149.65, energy: 2.55, concerto: 4.85, offtune: 8600, forte2: 30, ...CHAFE });
 var FBA52 = hiyukiAction("Basic - Foreclaimed Self 5", { node: 0, cast: 1, type: 16384, mv: 121.64, energy: 2.06, concerto: 3.94, offtune: 6993, forte2: 24, ...CHAFE });
-var FDC2 = hiyukiAction("Dodge Counter - Foreclaimed Self 2", { node: 0, cast: 0, type: 16384, mv: 163.54, energy: 2.78, concerto: 15.3, offtune: 9400, forte2: 32 });
-var FMA12 = hiyukiAction("Mid-air - Foreclaimed Self 1", { node: 0, cast: 2, type: 16384, mv: 96.09, energy: 1.63, concerto: 3.13, offtune: 5523, forte2: 19 });
-var FMA22 = hiyukiAction("Mid-air - Foreclaimed Self 2", { node: 0, cast: 2, type: 16384, mv: 104.36, energy: 1.8, concerto: 3.4, offtune: 6e3, forte2: 20, ...CHAFE });
-var FMA32 = hiyukiAction("Mid-air - Foreclaimed Self 3", { node: 0, cast: 2, type: 16384, mv: 111.6, energy: 1.89, concerto: 3.61, offtune: 6416, forte2: 22, ...CHAFE });
+var FDC3 = hiyukiAction("Dodge Counter - Foreclaimed Self 2", { node: 0, cast: 0, type: 16384, mv: 163.54, energy: 2.78, concerto: 15.3, offtune: 9400, forte2: 32 });
+var FMA13 = hiyukiAction("Mid-air - Foreclaimed Self 1", { node: 0, cast: 2, type: 16384, mv: 96.09, energy: 1.63, concerto: 3.13, offtune: 5523, forte2: 19 });
+var FMA23 = hiyukiAction("Mid-air - Foreclaimed Self 2", { node: 0, cast: 2, type: 16384, mv: 104.36, energy: 1.8, concerto: 3.4, offtune: 6e3, forte2: 20, ...CHAFE });
+var FMA33 = hiyukiAction("Mid-air - Foreclaimed Self 3", { node: 0, cast: 2, type: 16384, mv: 111.6, energy: 1.89, concerto: 3.61, offtune: 6416, forte2: 22, ...CHAFE });
 var UHA2 = hiyukiAction("Heavy - Foreclaimed Self", { node: 0, cast: 3, type: 16384, mv: 107.16, energy: 1.81, concerto: 3.47, offtune: 6160, forte2: 21 });
-var FHA8 = hiyukiAction("Heavy - Bitterfrost: Foreclaimed Self", {
+var FHA9 = hiyukiAction("Heavy - Bitterfrost: Foreclaimed Self", {
   node: 0,
   cast: 3,
   type: 16384,
@@ -14794,7 +15306,7 @@ var Iai = hiyukiAction("Forte Basic - Iai", {
   forte2: -100,
   ...FROSTBIND
 });
-var Intro28 = hiyukiAction("Intro - Frostedge", {
+var Intro29 = hiyukiAction("Intro - Frostedge", {
   node: 4,
   cast: 6,
   type: 16384,
@@ -14808,7 +15320,7 @@ var Intro28 = hiyukiAction("Intro - Frostedge", {
   // than leaving it standing for the fight
   updateBuffs: () => revokeTeam(SNOWLIGHT_BLESSING)
 });
-var Outro28 = hiyukiAction("Outro - Snowlight Blessing", {
+var Outro29 = hiyukiAction("Outro - Snowlight Blessing", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -14857,11 +15369,11 @@ var FROSTBLIGHT_ENHANCED = new Buff({
   name: "Hiyuki: Present Self",
   updateBuffs: () => lostOnSwap(),
   applyStats: () => {
-    if (currentAction() === BA325)
+    if (currentAction() === BA326)
       addStat(29, 100);
   },
   convertStats: () => {
-    if (currentAction() === BA325)
+    if (currentAction() === BA326)
       revokeCurrent(FROSTBLIGHT_ENHANCED);
   }
 });
@@ -14943,8 +15455,8 @@ var HIYUKI_RESONATOR = new Resonator({
   name: "Hiyuki",
   element: 256,
   weapon: 0,
-  intro: () => Intro28,
-  outro: () => Outro28,
+  intro: () => Intro29,
+  outro: () => Outro29,
   color: "#fb6a6f",
   maxEnergy: 125,
   /* Everfrost Dominion's Glacio Bite, the one thing on her that is true of the whole team: while
@@ -14991,21 +15503,21 @@ var HIYUKI_RESONATOR = new Resonator({
     if (currentAction() != TUNE_BREAK)
       return;
     if (forte3() > 0 || forte2() > 0) {
-      queue(FBA32);
+      queue(FBA33);
     }
   }
 });
 var HY_ROTATION = new Rotation([
   INTRO,
-  BA325,
+  BA326,
   FrostSplinter,
   Lib16,
   UHA2,
-  FBA22,
-  FBA32,
+  FBA23,
+  FBA33,
   UHA2,
-  FBA22,
-  FBA32,
+  FBA23,
+  FBA33,
   USkill1,
   USkill22,
   DODGE,
@@ -15013,7 +15525,7 @@ var HY_ROTATION = new Rotation([
   Iai,
   Iai,
   ECHO_CANCEL,
-  FHA8,
+  FHA9,
   Lib2Hold,
   OUTRO
 ]);
@@ -15044,8 +15556,8 @@ function lucillaAction(id, def2) {
   return new Action(id, { element: 256, scaling: 0, ...def2 });
 }
 var CHAFES = { updateDebuffs: () => applyEnemy(GLACIO_CHAFE, 1) };
-var Intro29 = lucillaAction("Intro - Clip It", { node: 4, cast: 6, type: 20480, mv: 97.42, energy: 11.75, concerto: 14.13, offtune: 5600, forte1: 100, ...CHAFES });
-var Outro29 = lucillaAction("Outro - Montage", {
+var Intro30 = lucillaAction("Intro - Clip It", { node: 4, cast: 6, type: 20480, mv: 97.42, energy: 11.75, concerto: 14.13, offtune: 5600, forte1: 100, ...CHAFES });
+var Outro30 = lucillaAction("Outro - Montage", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -15056,11 +15568,11 @@ var Outro29 = lucillaAction("Outro - Montage", {
       queueOutro(MONTAGE_HANDOFF);
   }
 });
-var BA128 = lucillaAction("Basic - Snapshot 1", { node: 0, cast: 1, type: 4096, mv: 59.29, energy: 1.07, concerto: 1.71, offtune: 3408 });
-var BA227 = lucillaAction("Basic - Snapshot 2", { node: 0, cast: 1, type: 4096, mv: 67.23, energy: 1.22, concerto: 1.94, offtune: 3865 });
-var BA326 = lucillaAction("Basic - Snapshot 3 - Commendable", { node: 0, cast: 1, type: 4096, mv: 235.27, energy: 4.23, concerto: 6.77, offtune: 13524, forte1: 50 });
+var BA129 = lucillaAction("Basic - Snapshot 1", { node: 0, cast: 1, type: 4096, mv: 59.29, energy: 1.07, concerto: 1.71, offtune: 3408 });
+var BA228 = lucillaAction("Basic - Snapshot 2", { node: 0, cast: 1, type: 4096, mv: 67.23, energy: 1.22, concerto: 1.94, offtune: 3865 });
+var BA327 = lucillaAction("Basic - Snapshot 3 - Commendable", { node: 0, cast: 1, type: 4096, mv: 235.27, energy: 4.23, concerto: 6.77, offtune: 13524, forte1: 50 });
 var MA31 = lucillaAction("Mid-air - Snapshot", { node: 0, cast: 2, type: 4096, mv: 86.29, energy: 1.55, concerto: 3.66, offtune: 4960 });
-var DC24 = lucillaAction("Dodge Counter - Snapshot", { node: 0, cast: 0, type: 4096, mv: 150.73, energy: 2.71, concerto: 16.4, offtune: 8665 });
+var DC25 = lucillaAction("Dodge Counter - Snapshot", { node: 0, cast: 0, type: 4096, mv: 150.73, energy: 2.71, concerto: 16.4, offtune: 8665 });
 var PhantomFrame = lucillaAction("Skill - Phantom Frame", { node: 1, cast: 4, type: 12288, mv: 39.78, energy: 1.26, concerto: 2.07, offtune: 4002 });
 var Compensate = lucillaAction("Skill - Compensate", { node: 1, cast: 4, type: 12288, mv: 249.07, energy: 9.31, concerto: 3.08, offtune: 4176, forte1: 25 });
 var Spotlight = lucillaAction("Skill - Spotlight", {
@@ -15080,7 +15592,7 @@ var Spotlight = lucillaAction("Skill - Spotlight", {
     addStat(26, 20);
   }
 });
-var Liberation21 = lucillaAction("Liberation - Clear As Day", {
+var Liberation22 = lucillaAction("Liberation - Clear As Day", {
   node: 3,
   cast: 5,
   type: 28672,
@@ -15131,7 +15643,7 @@ var MODE_CHAFE = new ResonanceMode({
   // the retag has to land in the first phase, before anything reads the type (see typeOverride)
   updateDebuffs: () => {
     const a = currentAction();
-    if (a === Liberation21 || a === LettingGo)
+    if (a === Liberation22 || a === LettingGo)
       typeOverride(
         4096
         /* Type1.Basic */
@@ -15243,8 +15755,8 @@ var LUCILLA_RESONATOR = new Resonator({
   name: "Lucilla",
   element: 256,
   weapon: 4,
-  intro: () => Intro29,
-  outro: () => Outro29,
+  intro: () => Intro30,
+  outro: () => Outro30,
   color: "#4f74c2",
   maxEnergy: 0,
   constantStats: () => {
@@ -15266,7 +15778,7 @@ var LC_ROTATION2 = new Rotation([
   PhantomFrame,
   Spotlight,
   ECHO_CANCEL,
-  Liberation21,
+  Liberation22,
   UBA1232,
   OUTRO
 ]);
@@ -15327,7 +15839,7 @@ var LUCILLA_CHAFE = new Loadout({
 function sanhuaAction(id, def2) {
   return new Action(id, { element: 256, scaling: 0, ...def2 });
 }
-var Intro30 = sanhuaAction("Intro - Freezing Thorns", {
+var Intro31 = sanhuaAction("Intro - Freezing Thorns", {
   node: 4,
   cast: 6,
   type: 20480,
@@ -15337,7 +15849,7 @@ var Intro30 = sanhuaAction("Intro - Freezing Thorns", {
   offtune: 2800,
   updateBuffs: () => applyCurrent(THORN_BUFF, 1)
 });
-var Outro30 = sanhuaAction("Outro - Silversnow", {
+var Outro31 = sanhuaAction("Outro - Silversnow", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -15353,7 +15865,7 @@ var Skill30 = sanhuaAction("Skill - Eternal Frost", {
   concerto: 15,
   updateBuffs: () => applyCurrent(PRISM_BUFF, 1)
 });
-var Liberation22 = sanhuaAction("Liberation - Glacial Gaze", {
+var Liberation23 = sanhuaAction("Liberation - Glacial Gaze", {
   node: 3,
   cast: 5,
   type: 16384,
@@ -15364,14 +15876,14 @@ var Liberation22 = sanhuaAction("Liberation - Glacial Gaze", {
   resetEnergy: true,
   updateBuffs: () => applyCurrent(GLACIER_BUFF, 1)
 });
-var BA129 = sanhuaAction("Basic - Frigid Light 1", { node: 0, cast: 1, type: 4096, mv: 48.71, energy: 0.87, concerto: 2, offtune: 2800 });
-var BA228 = sanhuaAction("Basic - Frigid Light 2", { node: 0, cast: 1, type: 4096, mv: 73.76, energy: 1.32, concerto: 4, offtune: 4240 });
-var BA327 = sanhuaAction("Basic - Frigid Light 3", { node: 0, cast: 1, type: 4096, mv: 86.32, energy: 1.52, concerto: 8, offtune: 4960 });
-var BA422 = sanhuaAction("Basic - Frigid Light 4", { node: 0, cast: 1, type: 4096, mv: 79.34, energy: 1.42, concerto: 8, offtune: 4560 });
+var BA130 = sanhuaAction("Basic - Frigid Light 1", { node: 0, cast: 1, type: 4096, mv: 48.71, energy: 0.87, concerto: 2, offtune: 2800 });
+var BA229 = sanhuaAction("Basic - Frigid Light 2", { node: 0, cast: 1, type: 4096, mv: 73.76, energy: 1.32, concerto: 4, offtune: 4240 });
+var BA328 = sanhuaAction("Basic - Frigid Light 3", { node: 0, cast: 1, type: 4096, mv: 86.32, energy: 1.52, concerto: 8, offtune: 4960 });
+var BA423 = sanhuaAction("Basic - Frigid Light 4", { node: 0, cast: 1, type: 4096, mv: 79.34, energy: 1.42, concerto: 8, offtune: 4560 });
 var BA53 = sanhuaAction("Basic - Frigid Light 5", { node: 0, cast: 1, type: 4096, mv: 233.81, energy: 4.2, concerto: 10, offtune: 13440 });
-var HA20 = sanhuaAction("Heavy - Frigid Light", { node: 0, cast: 3, type: 8192, mv: 111.35, energy: 2, concerto: 8, offtune: 8e3 });
+var HA21 = sanhuaAction("Heavy - Frigid Light", { node: 0, cast: 3, type: 8192, mv: 111.35, energy: 2, concerto: 8, offtune: 8e3 });
 var MA37 = sanhuaAction("Mid-air - Frigid Light", { node: 0, cast: 2, type: 4096, mv: 86.29, energy: 0.51, concerto: 1, offtune: 9520 });
-var FHA9 = sanhuaAction("Forte Heavy - Detonate", {
+var FHA10 = sanhuaAction("Forte Heavy - Detonate", {
   node: 0,
   cast: 3,
   type: 8192,
@@ -15418,7 +15930,7 @@ var CONDENSATION = new Buff({
 var SH_INHERENT_1 = new Inherent({
   name: "Inherent: Condensation",
   updateBuffs: () => {
-    if (currentAction() === Intro30)
+    if (currentAction() === Intro31)
       applyCurrent(CONDENSATION, 1);
   }
 });
@@ -15458,11 +15970,11 @@ var S1_CRIT = new Buff({
 var S4_WINDOW = new Buff({
   name: "Sanhua S4: Blade Mastery",
   applyStats: () => {
-    if (currentAction() === FHA9)
+    if (currentAction() === FHA10)
       addStat(17, 120);
   },
   convertStats: () => {
-    if (currentAction() === FHA9 || casting(
+    if (currentAction() === FHA10 || casting(
       7
       /* Cast.Outro */
     ))
@@ -15542,7 +16054,7 @@ var SANHUA_S3 = new Sequence({
 var SANHUA_S4 = new Sequence({
   name: "Sanhua S4: Blade Mastery",
   updateBuffs: () => {
-    if (currentAction() === Liberation22)
+    if (currentAction() === Liberation23)
       applyCurrent(S4_WINDOW, 1);
   }
 });
@@ -15554,7 +16066,7 @@ var SANHUA_S5 = new Sequence({
       addStat(10, 100);
   },
   updateBuffs: () => {
-    if (currentAction() === Liberation22)
+    if (currentAction() === Liberation23)
       applyCurrent(GLACIER_BUFF, 1);
   }
 });
@@ -15569,8 +16081,8 @@ var SANHUA_RESONATOR = new Resonator({
   name: "Sanhua",
   element: 256,
   weapon: 0,
-  intro: () => Intro30,
-  outro: () => Outro30,
+  intro: () => Intro31,
+  outro: () => Outro31,
   color: "#5fc9e8",
   maxEnergy: 125,
   tier: 2,
@@ -15594,28 +16106,28 @@ var SANHUA_TALENTS = new Talent({
 });
 var SH_ROTATION_S5 = new Rotation([
   NOINTRO,
-  FHA9,
+  FHA10,
   INTRO,
   Skill30,
-  Liberation22,
-  FHA9,
+  Liberation23,
+  FHA10,
   ECHO_SWAP,
   OUTRO
 ]);
 var SH_ROTATION = new Rotation([
   NOINTRO,
-  FHA9,
+  FHA10,
   Skill30,
-  FHA9,
-  Liberation22,
-  FHA9,
+  FHA10,
+  Liberation23,
+  FHA10,
   ECHO_SWAP,
   OUTRO,
   INTRO,
-  FHA9,
+  FHA10,
   Skill30,
-  Liberation22,
-  FHA9,
+  Liberation23,
+  FHA10,
   ECHO_SWAP,
   OUTRO
 ]);
@@ -15643,12 +16155,12 @@ var SANHUA = new Loadout({
 function suisuiAction(id, def2) {
   return new Action(id, { element: 256, scaling: 0, ...def2 });
 }
-var BA130 = suisuiAction("Basic - Zephyr Stance 1", { node: 0, cast: 1, type: 4096, mv: 63.15, energy: 1, concerto: 3.18, offtune: 3176, forte1: 24 });
-var BA229 = suisuiAction("Basic - Zephyr Stance 2", { node: 0, cast: 1, type: 4096, mv: 122, energy: 1.92, concerto: 6.14, offtune: 6136, forte1: 46 });
-var BA328 = suisuiAction("Basic - Zephyr Stance 3", { node: 0, cast: 1, type: 4096, mv: 139.34, energy: 2.2, concerto: 7.03, offtune: 7010, forte1: 53 });
-var BA423 = suisuiAction("Basic - Zephyr Stance 4", { node: 0, cast: 1, type: 4096, mv: 159.08, energy: 2.5, concerto: 8, offtune: 8e3, forte1: 60 });
+var BA131 = suisuiAction("Basic - Zephyr Stance 1", { node: 0, cast: 1, type: 4096, mv: 63.15, energy: 1, concerto: 3.18, offtune: 3176, forte1: 24 });
+var BA230 = suisuiAction("Basic - Zephyr Stance 2", { node: 0, cast: 1, type: 4096, mv: 122, energy: 1.92, concerto: 6.14, offtune: 6136, forte1: 46 });
+var BA329 = suisuiAction("Basic - Zephyr Stance 3", { node: 0, cast: 1, type: 4096, mv: 139.34, energy: 2.2, concerto: 7.03, offtune: 7010, forte1: 53 });
+var BA424 = suisuiAction("Basic - Zephyr Stance 4", { node: 0, cast: 1, type: 4096, mv: 159.08, energy: 2.5, concerto: 8, offtune: 8e3, forte1: 60 });
 var MA38 = suisuiAction("Mid-air - Zephyr Stance", { node: 0, cast: 2, type: 4096, mv: 70.72, energy: 1.86, concerto: 5.93, offtune: 5928 });
-var DC25 = suisuiAction("Dodge Counter - Zephyr Stance 3", { node: 0, cast: 0, type: 4096, mv: 170.67, energy: 2.7, concerto: 18.6, offtune: 8586, forte1: 30 });
+var DC26 = suisuiAction("Dodge Counter - Zephyr Stance 3", { node: 0, cast: 0, type: 4096, mv: 170.67, energy: 2.7, concerto: 18.6, offtune: 8586, forte1: 30 });
 var Skill31 = suisuiAction("Skill - Vernal Screen: Zephyr Stance", { node: 1, cast: 4, type: 12288, mv: 143.16, energy: 2.28, concerto: 7.2, offtune: 7200, forte1: 40 });
 var ESkill4 = suisuiAction("Skill - Awakening Spring", {
   node: 1,
@@ -15668,10 +16180,10 @@ var ESkill4 = suisuiAction("Skill - Awakening Spring", {
     setForte2(0);
   }
 });
-var FBA13 = suisuiAction("Basic - Drizzle Stance 1", { node: 2, cast: 1, type: 4096, mv: 78.28, energy: 1.24, concerto: 3.96, offtune: 3936, forte2: 84 });
-var FBA23 = suisuiAction("Basic - Drizzle Stance 2", { node: 2, cast: 1, type: 4096, mv: 159.07, energy: 2.5, concerto: 8, offtune: 8e3, forte2: 170 });
-var FBA33 = suisuiAction("Basic - Drizzle Stance 3", { node: 2, cast: 1, type: 4096, mv: 165.12, energy: 2.64, concerto: 8.4, offtune: 8304, forte2: 180 });
-var FBA43 = suisuiAction("Basic - Drizzle Stance 4", {
+var FBA14 = suisuiAction("Basic - Drizzle Stance 1", { node: 2, cast: 1, type: 4096, mv: 78.28, energy: 1.24, concerto: 3.96, offtune: 3936, forte2: 84 });
+var FBA24 = suisuiAction("Basic - Drizzle Stance 2", { node: 2, cast: 1, type: 4096, mv: 159.07, energy: 2.5, concerto: 8, offtune: 8e3, forte2: 170 });
+var FBA34 = suisuiAction("Basic - Drizzle Stance 3", { node: 2, cast: 1, type: 4096, mv: 165.12, energy: 2.64, concerto: 8.4, offtune: 8304, forte2: 180 });
+var FBA44 = suisuiAction("Basic - Drizzle Stance 4", {
   node: 2,
   cast: 1,
   type: 4096,
@@ -15682,18 +16194,18 @@ var FBA43 = suisuiAction("Basic - Drizzle Stance 4", {
   forte2: 170,
   updateDebuffs: () => applyEnemy(GLACIO_CHAFE, 1)
 });
-var FHA10 = suisuiAction("Heavy - Drizzle Stance", { node: 2, cast: 3, type: 8192, mv: 238.59, energy: 3.78, concerto: 12, offtune: 12e3, forte2: 258 });
+var FHA11 = suisuiAction("Heavy - Drizzle Stance", { node: 2, cast: 3, type: 8192, mv: 238.59, energy: 3.78, concerto: 12, offtune: 12e3, forte2: 258 });
 var FHA24 = suisuiAction("Basic - Illuminating Dew", { node: 2, cast: 1, type: 4096, mv: 104.98, energy: 2.75, concerto: 8.8, offtune: 8800 });
 var FMA = suisuiAction("Basic - Swallow's Cut", { node: 2, cast: 1, type: 4096, mv: 107.65, energy: 2.82, concerto: 9.03, offtune: 9024 });
 var FSkill8 = suisuiAction("Skill - Vernal Screen: Drizzle Stance", { node: 1, cast: 4, type: 12288, mv: 143.16, energy: 2.27, concerto: 7.2, offtune: 7200, forte2: 100 });
-var Liberation23 = suisuiAction("Liberation - Song of Thoroughfare", {
+var Liberation24 = suisuiAction("Liberation - Song of Thoroughfare", {
   node: 3,
   cast: 5,
   concerto: 20,
   resetEnergy: true,
   updateBuffs: () => applyTeam(CEASELESS_LANDSCAPE, 1)
 });
-var Intro31 = suisuiAction("Intro - Tinkling Jade", {
+var Intro32 = suisuiAction("Intro - Tinkling Jade", {
   node: 4,
   cast: 6,
   type: 20480,
@@ -15711,7 +16223,7 @@ var Intro31 = suisuiAction("Intro - Tinkling Jade", {
     setForte2(0);
   }
 });
-var Outro31 = suisuiAction("Outro - Rippling Waters", {
+var Outro32 = suisuiAction("Outro - Rippling Waters", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -15833,7 +16345,7 @@ var UNDULATING_MIST = new Buff({
 var SS_INHERENT_1 = new Inherent({
   name: "Inherent: Sky Over Water",
   applyStats: () => {
-    if (currentAction() !== ESkill4 && currentAction() !== Intro31)
+    if (currentAction() !== ESkill4 && currentAction() !== Intro32)
       return;
     addStat(26, 18);
     addStat(25, 13);
@@ -15859,8 +16371,8 @@ var SUISUI_RESONATOR = new Resonator({
   name: "Suisui",
   element: 256,
   weapon: 4,
-  intro: () => Intro31,
-  outro: () => Outro31,
+  intro: () => Intro32,
+  outro: () => Outro32,
   color: "#e8e6a6",
   maxEnergy: 175,
   constantStats: () => {
@@ -15869,8 +16381,8 @@ var SUISUI_RESONATOR = new Resonator({
     addStat(2, 1100);
   }
 });
-var FBA12342 = new ActionGroup("Basic - Drizzle Stance 1234", [FBA13, FBA23, FBA33, FBA43]);
-var BA1235 = new ActionGroup("Basic - Zephyr Stance 123", [BA130, BA229, BA328]);
+var FBA12342 = new ActionGroup("Basic - Drizzle Stance 1234", [FBA14, FBA24, FBA34, FBA44]);
+var BA1235 = new ActionGroup("Basic - Zephyr Stance 123", [BA131, BA230, BA329]);
 var SS_ROTATION = new Rotation([
   NOINTRO,
   BA1235,
@@ -15879,7 +16391,7 @@ var SS_ROTATION = new Rotation([
   FSkill8,
   FBA12342,
   ECHO_CANCEL,
-  Liberation23,
+  Liberation24,
   OUTRO
 ]);
 var SUISUI = new Loadout({
@@ -15907,12 +16419,12 @@ var SUISUI = new Loadout({
 function zhezhiAction(id, def2) {
   return new Action(id, { element: 256, scaling: 0, ...def2 });
 }
-var BA131 = zhezhiAction("Basic - Dimming Brush 1", { node: 0, cast: 1, type: 4096, mv: 83.52, energy: 1.5, concerto: 4.8, offtune: 4800, forte1: 10 });
-var BA230 = zhezhiAction("Basic - Dimming Brush 2", { node: 0, cast: 1, type: 4096, mv: 102.75, energy: 1.85, concerto: 5.95, offtune: 5905, forte1: 15 });
-var BA329 = zhezhiAction("Basic - Dimming Brush 3", { node: 0, cast: 1, type: 4096, mv: 133.61, energy: 2.4, concerto: 7.68, offtune: 7680, forte1: 25 });
+var BA132 = zhezhiAction("Basic - Dimming Brush 1", { node: 0, cast: 1, type: 4096, mv: 83.52, energy: 1.5, concerto: 4.8, offtune: 4800, forte1: 10 });
+var BA231 = zhezhiAction("Basic - Dimming Brush 2", { node: 0, cast: 1, type: 4096, mv: 102.75, energy: 1.85, concerto: 5.95, offtune: 5905, forte1: 15 });
+var BA330 = zhezhiAction("Basic - Dimming Brush 3", { node: 0, cast: 1, type: 4096, mv: 133.61, energy: 2.4, concerto: 7.68, offtune: 7680, forte1: 25 });
 var MA39 = zhezhiAction("Mid-air - Dimming Brush", { node: 0, cast: 2, type: 4096, mv: 229.53, energy: 3.4, concerto: 10.91, offtune: 10865, forte1: 10 });
-var DC26 = zhezhiAction("Dodge Counter - Dimming Brush", { node: 0, cast: 0, type: 4096, mv: 145.35, energy: 2.15, concerto: 20, offtune: 6880, forte1: 15 });
-var HA21 = zhezhiAction("Heavy - Dimming Brush", { node: 0, cast: 3, type: 8192, mv: 112.72, energy: 1.67, concerto: 5.34, offtune: 5336, forte1: 15 });
+var DC27 = zhezhiAction("Dodge Counter - Dimming Brush", { node: 0, cast: 0, type: 4096, mv: 145.35, energy: 2.15, concerto: 20, offtune: 6880, forte1: 15 });
+var HA25 = zhezhiAction("Heavy - Dimming Brush", { node: 0, cast: 3, type: 8192, mv: 112.72, energy: 1.67, concerto: 5.34, offtune: 5336, forte1: 15 });
 var Skill33 = zhezhiAction("Skill - Manifestation", {
   node: 1,
   cast: 4,
@@ -15923,7 +16435,7 @@ var Skill33 = zhezhiAction("Skill - Manifestation", {
   offtune: 4737,
   forte1: -60
 });
-var FHA11 = zhezhiAction("Forte Heavy - Conjuration", {
+var FHA13 = zhezhiAction("Forte Heavy - Conjuration", {
   node: 2,
   cast: 3,
   type: 8192,
@@ -15943,7 +16455,7 @@ var FSkill9 = zhezhiAction("Skill - Stroke of Genius", {
   offtune: 7736,
   forte2: 1
 });
-var FSkill32 = zhezhiAction("Forte Skill - Creation's Zenith", {
+var FSkill33 = zhezhiAction("Forte Skill - Creation's Zenith", {
   node: 2,
   cast: 4,
   type: 4096,
@@ -15954,7 +16466,7 @@ var FSkill32 = zhezhiAction("Forte Skill - Creation's Zenith", {
   forte2: -2,
   updateBuffs: () => applyCurrent(IVORY_HERALD, 1)
 });
-var Liberation24 = zhezhiAction("Liberation - Living Canvas", {
+var Liberation25 = zhezhiAction("Liberation - Living Canvas", {
   node: 3,
   cast: 5,
   concerto: 20,
@@ -15971,7 +16483,7 @@ var ACTION_INKLIT = zhezhiAction("Liberation - Inklit Spirit", {
   active: false,
   field: INKLIT_FIELD
 });
-var Intro32 = zhezhiAction("Intro - Radiant Ruin", {
+var Intro33 = zhezhiAction("Intro - Radiant Ruin", {
   node: 4,
   cast: 6,
   type: 20480,
@@ -15981,7 +16493,7 @@ var Intro32 = zhezhiAction("Intro - Radiant Ruin", {
   offtune: 10401,
   forte1: 45
 });
-var Outro32 = zhezhiAction("Outro - Carve and Draw", {
+var Outro33 = zhezhiAction("Outro - Carve and Draw", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -15997,7 +16509,7 @@ var ZZ_INHERENT_1 = new Inherent({
   name: "Inherent: Calligrapher's Touch",
   updateBuffs: () => {
     const a = currentAction();
-    if (a === FSkill9 || a === FSkill32)
+    if (a === FSkill9 || a === FSkill33)
       applyCurrent(CALLIGRAPHERS_TOUCH, 1);
   }
 });
@@ -16040,7 +16552,7 @@ var ZZ_FLOURISH = new Buff({
 var ZZ_INHERENT_2 = new Inherent({
   name: "Inherent: Flourish",
   updateBuffs: () => {
-    if (currentAction() === Outro32) {
+    if (currentAction() === Outro33) {
       queueOutro(ZZ_FLOURISH);
     }
   }
@@ -16049,8 +16561,8 @@ var ZHEZHI_RESONATOR = new Resonator({
   name: "Zhezhi",
   element: 256,
   weapon: 4,
-  intro: () => Intro32,
-  outro: () => Outro32,
+  intro: () => Intro33,
+  outro: () => Outro33,
   color: "#8fd3e8",
   maxEnergy: 125,
   constantStats: () => {
@@ -16066,19 +16578,19 @@ var ZHEZHI_TALENTS = new Talent({
     addStat(6, 12);
   }
 });
-var BA1236 = new ActionGroup("Basic - Dimming Brush 123", [BA131, BA230, BA329]);
+var BA1236 = new ActionGroup("Basic - Dimming Brush 123", [BA132, BA231, BA330]);
 var ZZ_ROTATION = new Rotation([
   INTRO,
   ECHO_CANCEL,
   START_2,
-  Liberation24,
+  Liberation25,
   SWAP,
   BA1236,
   Skill33,
-  FHA11,
+  FHA13,
   FSkill9,
   FSkill9,
-  FSkill32,
+  FSkill33,
   OUTRO
 ]);
 var ZHEZHI_MATRIX_TEAM = new Buff({
@@ -16126,14 +16638,14 @@ var ZHEZHI = new Loadout({
 function camellyaAction(id, def2) {
   return new Action(id, { element: 384, scaling: 0, ...def2 });
 }
-var BA132 = camellyaAction("Basic - Burgeoning 1", { node: 0, cast: 1, type: 4096, mv: 62.53, energy: 0.93, concerto: 1.85, offtune: 2960, forte1: -6.15 });
-var BA231 = camellyaAction("Basic - Burgeoning 2", { node: 0, cast: 1, type: 4096, mv: 92.96, energy: 1.38, concerto: 2.76, offtune: 4400, forte1: -9.14 });
-var BA330 = camellyaAction("Basic - Burgeoning 3", { node: 0, cast: 1, type: 4096, mv: 152.1, energy: 2.25, concerto: 4.5, offtune: 7200, forte1: -14.94 });
-var BA424 = camellyaAction("Basic - Burgeoning 4 (Hold)", { node: 0, cast: 1, type: 4096, mv: 494, energy: 5.4, concerto: 10.8, offtune: 17280, forte1: -36 });
+var BA133 = camellyaAction("Basic - Burgeoning 1", { node: 0, cast: 1, type: 4096, mv: 62.53, energy: 0.93, concerto: 1.85, offtune: 2960, forte1: -6.15 });
+var BA232 = camellyaAction("Basic - Burgeoning 2", { node: 0, cast: 1, type: 4096, mv: 92.96, energy: 1.38, concerto: 2.76, offtune: 4400, forte1: -9.14 });
+var BA331 = camellyaAction("Basic - Burgeoning 3", { node: 0, cast: 1, type: 4096, mv: 152.1, energy: 2.25, concerto: 4.5, offtune: 7200, forte1: -14.94 });
+var BA425 = camellyaAction("Basic - Burgeoning 4 (Hold)", { node: 0, cast: 1, type: 4096, mv: 494, energy: 5.4, concerto: 10.8, offtune: 17280, forte1: -36 });
 var BA54 = camellyaAction("Basic - Burgeoning 5", { node: 0, cast: 1, type: 4096, mv: 192.68, energy: 2.88, concerto: 5.72, offtune: 9120, forte1: -18.96 });
 var MA40 = camellyaAction("Mid-air - Attack", { node: 0, cast: 2, type: 4096, mv: 131.22, energy: 1.66, concerto: 3.3, offtune: 5280, forte1: -10.96 });
-var DC27 = camellyaAction("Dodge Counter - Burgeoning", { node: 0, cast: 0, type: 4096, mv: 298.2, energy: 2.25, concerto: 14.5, offtune: 7200, forte1: -24.9 });
-var HA25 = camellyaAction("Heavy - Pruning", { node: 0, cast: 3, type: 4096, mv: 264.42, energy: 3.33, concerto: 6.66, offtune: 10641, forte1: -22.08 });
+var DC28 = camellyaAction("Dodge Counter - Burgeoning", { node: 0, cast: 0, type: 4096, mv: 298.2, energy: 2.25, concerto: 14.5, offtune: 7200, forte1: -24.9 });
+var HA26 = camellyaAction("Heavy - Pruning", { node: 0, cast: 3, type: 4096, mv: 264.42, energy: 3.33, concerto: 6.66, offtune: 10641, forte1: -22.08 });
 var CrimsonBlossom = camellyaAction("Skill - Crimson Blossom", {
   node: 1,
   cast: 4,
@@ -16173,8 +16685,8 @@ var Ephemeral = camellyaAction("Forte Skill - Ephemeral", {
     revokeCurrent(CRIMSON_BUD);
   }
 });
-var Liberation25 = camellyaAction("Liberation - Fervor Efflorescent", { node: 3, cast: 5, type: 16384, mv: 1202.81, concerto: 20, offtune: 84e3, resetEnergy: true });
-var Intro33 = camellyaAction("Intro - Everblooming", {
+var Liberation26 = camellyaAction("Liberation - Fervor Efflorescent", { node: 3, cast: 5, type: 16384, mv: 1202.81, concerto: 20, offtune: 84e3, resetEnergy: true });
+var Intro34 = camellyaAction("Intro - Everblooming", {
   node: 4,
   cast: 6,
   type: 20480,
@@ -16185,7 +16697,7 @@ var Intro33 = camellyaAction("Intro - Everblooming", {
   offtune: 9600,
   updateBuffs: () => setForte1(0)
 });
-var Outro33 = camellyaAction("Outro - Twining", { cast: 7, type: 24576, mv: 329.24, concerto: -100, active: false });
+var Outro34 = camellyaAction("Outro - Twining", { cast: 7, type: 24576, mv: 329.24, concerto: -100, active: false });
 var BLOSSOM_MODE = new Buff({
   name: "Camellya: Blossom Mode",
   convertStats: () => {
@@ -16194,7 +16706,7 @@ var BLOSSOM_MODE = new Buff({
   }
 });
 function inSweetDream(a) {
-  return a === BA132 || a === BA231 || a === BA330 || a === BA424 || a === BA54 || a === VW1 || a === VW2 || a === VW3 || a === VW4 || a === BlazingWaltz || a === ViningRonde || a === Atonement || a === CrimsonBlossom || a === FloralRavage;
+  return a === BA133 || a === BA232 || a === BA331 || a === BA425 || a === BA54 || a === VW1 || a === VW2 || a === VW3 || a === VW4 || a === BlazingWaltz || a === ViningRonde || a === Atonement || a === CrimsonBlossom || a === FloralRavage;
 }
 var BUDDING_MODE = new Buff({
   name: "Camellya: Sweet Dream",
@@ -16262,8 +16774,8 @@ var CAMELLYA_RESONATOR = new Resonator({
   name: "Camellya",
   element: 384,
   weapon: 0,
-  intro: () => Intro33,
-  outro: () => Outro33,
+  intro: () => Intro34,
+  outro: () => Outro34,
   color: "#e0507a",
   maxEnergy: 125,
   // any gauge-spending cast of hers is a Crimson Pistil consumption
@@ -16285,12 +16797,12 @@ var CAMELLYA_TALENTS = new Talent({
   }
 });
 var VW1234_16s = new ActionGroup("Basic - Vining Waltz 123H4", [VW1, VW2, VW3, BlazingWaltz.swap(), VW4.swap()]);
-var BA12345 = new ActionGroup("Basic - Burgeoning 1234H5", [BA132, BA231, BA330, BA424, BA54]);
+var BA12345 = new ActionGroup("Basic - Burgeoning 1234H5", [BA133, BA232, BA331, BA425, BA54]);
 var CM_ROTATION = new Rotation([
   INTRO,
   CrimsonBlossom,
   BA12345,
-  Liberation25,
+  Liberation26,
   Ephemeral,
   VW1234_16s,
   FloralRavage,
@@ -16321,12 +16833,12 @@ var CM_ROTATION_DOUBLE = new Rotation([
   ECHO_ONFIELD,
   CrimsonBlossom,
   FloralRavage,
-  HA25,
-  BA424,
+  HA26,
+  BA425,
   BA54.swap(),
   SWAP,
   INTRO,
-  Liberation25,
+  Liberation26,
   Ephemeral,
   CrimsonBlossom,
   VW1234,
@@ -16357,9 +16869,9 @@ var CAMELLYA_DOUBLE = new Loadout({
 function cantaAction(id, def2) {
   return new Action(id, { element: 384, scaling: 0, ...def2 });
 }
-var BA133 = cantaAction("Basic - Illusion Collapse 1", { node: 0, cast: 1, type: 4096, mv: 79.53, energy: 1, concerto: 2, offtune: 3200 });
-var BA232 = cantaAction("Basic - Illusion Collapse 2", { node: 0, cast: 1, type: 4096, mv: 145.76, energy: 1.84, concerto: 3.68, offtune: 5864 });
-var BA331 = cantaAction("Basic - Illusion Collapse 3", { node: 0, cast: 1, type: 4096, mv: 145.14, energy: 1.84, concerto: 3.66, offtune: 5840, forte1: 1 });
+var BA134 = cantaAction("Basic - Illusion Collapse 1", { node: 0, cast: 1, type: 4096, mv: 79.53, energy: 1, concerto: 2, offtune: 3200 });
+var BA233 = cantaAction("Basic - Illusion Collapse 2", { node: 0, cast: 1, type: 4096, mv: 145.76, energy: 1.84, concerto: 3.68, offtune: 5864 });
+var BA332 = cantaAction("Basic - Illusion Collapse 3", { node: 0, cast: 1, type: 4096, mv: 145.14, energy: 1.84, concerto: 3.66, offtune: 5840, forte1: 1 });
 var EHA5 = cantaAction("Heavy - Delusive Dive", {
   node: 0,
   cast: 3,
@@ -16371,9 +16883,9 @@ var EHA5 = cantaAction("Heavy - Delusive Dive", {
   // 53.05%x2
   updateBuffs: () => applyCurrent(MIRAGE, 1)
 });
-var FBA14 = cantaAction("Forte Basic - Phantom Sting 1", { node: 2, cast: 1, type: 4096, mv: 105.99, energy: 1.35, concerto: 2.67, offtune: 4266, forte1: -1, forte2: 1 });
-var FBA24 = cantaAction("Forte Basic - Phantom Sting 2", { node: 2, cast: 1, type: 4096, mv: 125.86, energy: 1.6, concerto: 3.18, offtune: 5064, forte1: -1, forte2: 1 });
-var FBA34 = cantaAction("Forte Basic - Phantom Sting 3", { node: 2, cast: 1, type: 4096, type2: 262144, mv: 258.48, energy: 3.28, concerto: 6.52, offtune: 10400, forte1: -1, forte2: 1 });
+var FBA15 = cantaAction("Forte Basic - Phantom Sting 1", { node: 2, cast: 1, type: 4096, mv: 105.99, energy: 1.35, concerto: 2.67, offtune: 4266, forte1: -1, forte2: 1 });
+var FBA25 = cantaAction("Forte Basic - Phantom Sting 2", { node: 2, cast: 1, type: 4096, mv: 125.86, energy: 1.6, concerto: 3.18, offtune: 5064, forte1: -1, forte2: 1 });
+var FBA35 = cantaAction("Forte Basic - Phantom Sting 3", { node: 2, cast: 1, type: 4096, type2: 262144, mv: 258.48, energy: 3.28, concerto: 6.52, offtune: 10400, forte1: -1, forte2: 1 });
 var Skill34 = cantaAction("Skill - Graceful Step", { node: 1, cast: 4, type: 12288, mv: 147.2, energy: 1.56, concerto: 10, offtune: 4936, forte1: 1 });
 var ESkill5 = cantaAction("Skill - Flickering Reverie", {
   node: 1,
@@ -16399,7 +16911,7 @@ var FSkill10 = cantaAction("Forte Skill - Perception Drain", {
   // 667.99%x2
   updateBuffs: () => setForte2(3)
 });
-var Liberation26 = cantaAction("Liberation - Beneath the Sea", {
+var Liberation27 = cantaAction("Liberation - Beneath the Sea", {
   node: 3,
   cast: 5,
   cast2: 8,
@@ -16413,7 +16925,7 @@ var Liberation26 = cantaAction("Liberation - Beneath the Sea", {
 });
 var DIFFUSION_FIELD = new ActionField("Cantarella: Diffusion");
 var ACTION_DIFFUSION = cantaAction("Liberation - Diffusion", { node: 3, type: 4096, type2: 262144, mv: 14.54, active: false, field: DIFFUSION_FIELD });
-var Intro34 = cantaAction("Intro - Ripple", {
+var Intro35 = cantaAction("Intro - Ripple", {
   node: 4,
   cast: 6,
   type: 20480,
@@ -16425,7 +16937,7 @@ var Intro34 = cantaAction("Intro - Ripple", {
   // 42.25%x4
   updateBuffs: () => applyCurrent(ABYSSAL_REBIRTH, 6)
 });
-var Outro34 = cantaAction("Outro - Gentle Tentacles", {
+var Outro35 = cantaAction("Outro - Gentle Tentacles", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -16529,13 +17041,13 @@ var CANTARELLA_RESONATOR = new Resonator({
   name: "Cantarella",
   element: 384,
   weapon: 4,
-  intro: () => Intro34,
-  outro: () => Outro34,
+  intro: () => Intro35,
+  outro: () => Outro35,
   color: "#7c6fd6",
   maxEnergy: 125,
   updateDebuffs: () => {
     const a = currentAction();
-    if (a === FBA14 || a === FBA24 || a === FBA34 || a === FSkill10)
+    if (a === FBA15 || a === FBA25 || a === FBA35 || a === FSkill10)
       applyCurrent(HEALS, 1);
   },
   constantStats: () => {
@@ -16551,13 +17063,13 @@ var CANTARELLA_TALENTS = new Talent({
     addStat(6, 12);
   }
 });
-var FBA123 = new ActionGroup("Forte Basic - Phantom Sting 123", [FBA14, FBA24, FBA34]);
+var FBA123 = new ActionGroup("Forte Basic - Phantom Sting 123", [FBA15, FBA25, FBA35]);
 var CA_ROTATION = new Rotation([
   INTRO,
-  BA331,
+  BA332,
   Skill34,
   ECHO_CANCEL,
-  Liberation26,
+  Liberation27,
   EHA5,
   ESkill5,
   FBA123,
@@ -16594,7 +17106,7 @@ var CANTARELLA = new Loadout({
 function chisaAction(id, def2) {
   return new Action(id, { element: 384, scaling: 0, ...def2 });
 }
-var Intro35 = chisaAction("Intro - Reverberance - Return", {
+var Intro36 = chisaAction("Intro - Reverberance - Return", {
   node: 4,
   cast: 6,
   type: 20480,
@@ -16607,7 +17119,7 @@ var Intro35 = chisaAction("Intro - Reverberance - Return", {
   // "lost on the applier's next intro", not left permanent
   updateBuffs: () => revokeTeam(RESONANT_THREAD_OF_CLOSURE)
 });
-var Outro35 = chisaAction("Outro - Unraveling - Law Zero", {
+var Outro36 = chisaAction("Outro - Unraveling - Law Zero", {
   cast: 7,
   active: false,
   concerto: -100,
@@ -16616,15 +17128,15 @@ var Outro35 = chisaAction("Outro - Unraveling - Law Zero", {
 var spendRing = () => ({ updateBuffs: () => applyCurrent(RING_CONSUMED, -currentAction().forte2) });
 var MARK_SNARE = { updateDebuffs: () => applyEnemy(UNSEEN_SNARE, 1) };
 var SNIP_HEAL = { updateDebuffs: () => applyCurrent(HEALS, 1) };
-var BA134 = chisaAction("Basic - Reign of Silence 1", { node: 0, cast: 1, type: 4096, mv: 33.42, energy: 0.7, concerto: 1.4, offtune: 2240, forte1: 4 });
-var BA233 = chisaAction("Basic - Reign of Silence 2", { node: 0, cast: 1, type: 4096, mv: 95.45, energy: 2, concerto: 4, offtune: 6400, forte1: 14 });
+var BA135 = chisaAction("Basic - Reign of Silence 1", { node: 0, cast: 1, type: 4096, mv: 33.42, energy: 0.7, concerto: 1.4, offtune: 2240, forte1: 4 });
+var BA235 = chisaAction("Basic - Reign of Silence 2", { node: 0, cast: 1, type: 4096, mv: 95.45, energy: 2, concerto: 4, offtune: 6400, forte1: 14 });
 var DodgeCounterBA2 = chisaAction("Dodge Counter - Reign of Silence 2", { node: 0, cast: 0, type: 4096, mv: 238.59, energy: 5, concerto: 10, offtune: 11200, forte1: 23 });
-var BA332 = chisaAction("Basic - Rending Lunge", { node: 0, cast: 1, type: 4096, mv: 151.1, energy: 3.19, concerto: 6.37, offtune: 10137, forte1: 20 });
+var BA333 = chisaAction("Basic - Rending Lunge", { node: 0, cast: 1, type: 4096, mv: 151.1, energy: 3.19, concerto: 6.37, offtune: 10137, forte1: 20 });
 var DeathSnip = chisaAction("Basic - Death Snip", { node: 0, cast: 1, type: 16384, mv: 149.06, energy: 2.09, concerto: 4.18, offtune: 6665, forte1: 18, ...SNIP_HEAL });
 var DeathSnipSpread = chisaAction("Basic - Death Snip With Spread", { node: 0, cast: 1, type: 16384, mv: 196.84, energy: 2.76, concerto: 5.52, offtune: 8801, forte1: 27, ...SNIP_HEAL });
 var ThreadWithdrawn = chisaAction("Basic - Thread Withdrawn", { node: 0, cast: 1, type: 4096, mv: 67.65, energy: 1.44, concerto: 2.85, offtune: 4538, forte1: 16 });
 var ReignOfSilenceMidAir = chisaAction("Mid-air - Reign of Silence", { node: 0, cast: 2, type: 4096, mv: 73.96, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 9 });
-var HA26 = chisaAction("Heavy - Reign of Silence", { node: 0, cast: 3, type: 8192, mv: 71.58, energy: 1.5, concerto: 3, offtune: 4800, forte1: 10 });
+var HA27 = chisaAction("Heavy - Reign of Silence", { node: 0, cast: 3, type: 8192, mv: 71.58, energy: 1.5, concerto: 3, offtune: 4800, forte1: 10 });
 var SeveredFacet = chisaAction("Heavy - Severed Facet (Mid-Air)", { node: 0, cast: 3, type: 8192, mv: 89.48, energy: 1.88, concerto: 3.76, offtune: 6e3, forte1: 12 });
 var HangingFinality = chisaAction("Basic - Hanging Finality", { node: 0, cast: 1, type: 4096, mv: 119.3, energy: 2.5, concerto: 5, offtune: 8e3, forte1: 16 });
 var Skill35 = chisaAction("Skill - Eye of Unraveling", { node: 1, cast: 4, type: 12288, mv: 35.79, energy: 0.75, concerto: 1.5, offtune: 2400, forte1: 5, ...MARK_SNARE });
@@ -16638,7 +17150,7 @@ var SERRATED = {
 var SerratedLoop = chisaAction("Skill - Serrated Loop", { node: 1, cast: 4, type: 12288, mv: 139.6, energy: 2.96, concerto: 5.92, offtune: 9360, forte1: -100, forte2: 100, ...SERRATED });
 var SerratedLoopHalfHold = chisaAction("Skill - Serrated Loop (Half Hold)", { node: 1, cast: 4, type: 12288, mv: 199.28, energy: 4.24, concerto: 8.48, offtune: 13368, forte1: -100, forte2: 100, ...SERRATED });
 var SerratedLoopHold = chisaAction("Skill - Serrated Loop (Hold)", { node: 1, cast: 4, type: 12288, mv: 258.96, energy: 5.52, concerto: 11.04, offtune: 17376, forte1: -100, forte2: 100, ...SERRATED });
-var Liberation27 = chisaAction("Liberation - Moment of Nihility", {
+var Liberation28 = chisaAction("Liberation - Moment of Nihility", {
   node: 3,
   cast: 5,
   type: 16384,
@@ -16705,7 +17217,7 @@ var ALL_ENDS_HERE = new Buff({
     addStat(23, 20);
   },
   convertStats: () => {
-    if (currentAction() === Outro35)
+    if (currentAction() === Outro36)
       revokeCurrent(ALL_ENDS_HERE);
   }
 });
@@ -16752,7 +17264,7 @@ var CS_INHERENT_1 = new Inherent({ name: "Inherent: Inescapable Fate" });
 var CS_INHERENT_2 = new Inherent({
   name: "Inherent: All Ends Here",
   updateBuffs: () => {
-    if (currentAction() === Intro35 || currentAction() === Liberation27)
+    if (currentAction() === Intro36 || currentAction() === Liberation28)
       applyCurrent(ALL_ENDS_HERE, 1);
   }
 });
@@ -16767,8 +17279,8 @@ var CHISA_RESONATOR = new Resonator({
   name: "Chisa",
   element: 384,
   weapon: 1,
-  intro: () => Intro35,
-  outro: () => Outro35,
+  intro: () => Intro36,
+  outro: () => Outro36,
   color: "#8a3b47",
   maxEnergy: 125,
   constantStats: () => {
@@ -16784,10 +17296,10 @@ var CS_ROTATION = new Rotation([
   SWAP,
   NOINTRO,
   Skill35,
-  BA332,
+  BA333,
   DeathSnipSpread,
   ThreadWithdrawn,
-  Liberation27,
+  Liberation28,
   SerratedLoop,
   Blitz2Hold,
   Blitz3Hold,
@@ -16796,9 +17308,9 @@ var CS_ROTATION = new Rotation([
   OUTRO,
   INTRO,
   Skill35,
-  BA332,
+  BA333,
   DeathSnipSpread,
-  Liberation27,
+  Liberation28,
   SerratedLoop,
   Blitz2Hold,
   Blitz3Hold,
@@ -16838,12 +17350,12 @@ var CHISA = new Loadout({
 function danjinAction(id, def2) {
   return new Action(id, { element: 384, scaling: 0, ...def2 });
 }
-var BA135 = danjinAction("Basic - Execution 1", { node: 0, cast: 1, type: 4096, mv: 57.26, energy: 0.9, concerto: 1.08, offtune: 1680 });
-var BA235 = danjinAction("Basic - Execution 2", { node: 0, cast: 1, type: 4096, mv: 58.85, energy: 0.92, concerto: 1.11, offtune: 2960 });
-var BA333 = danjinAction("Basic - Execution 3", { node: 0, cast: 1, type: 4096, mv: 79.53, energy: 1.25, concerto: 1.5, offtune: 3120 });
+var BA136 = danjinAction("Basic - Execution 1", { node: 0, cast: 1, type: 4096, mv: 57.26, energy: 0.9, concerto: 1.08, offtune: 1680 });
+var BA236 = danjinAction("Basic - Execution 2", { node: 0, cast: 1, type: 4096, mv: 58.85, energy: 0.92, concerto: 1.11, offtune: 2960 });
+var BA334 = danjinAction("Basic - Execution 3", { node: 0, cast: 1, type: 4096, mv: 79.53, energy: 1.25, concerto: 1.5, offtune: 3120 });
 var MA41 = danjinAction("Mid-air - Execution", { node: 0, cast: 2, type: 4096, mv: 98.61, energy: 0.51, concerto: 1, offtune: 9600 });
-var HA27 = danjinAction("Heavy - Execution", { node: 0, cast: 3, type: 8192, mv: 111.36, energy: 1.74, concerto: 2.1, offtune: 5358 });
-var DC28 = danjinAction("Dodge Counter - Ruby Shades", { node: 0, cast: 0, type: 4096, mv: 190.86, energy: 3, concerto: 11.8, offtune: 4800 });
+var HA28 = danjinAction("Heavy - Execution", { node: 0, cast: 3, type: 8192, mv: 111.36, energy: 1.74, concerto: 2.1, offtune: 5358 });
+var DC29 = danjinAction("Dodge Counter - Ruby Shades", { node: 0, cast: 0, type: 4096, mv: 190.86, energy: 3, concerto: 11.8, offtune: 4800 });
 var CarmineGleam = danjinAction("Skill - Carmine Gleam", { node: 1, cast: 4, type: 12288, mv: 76.36, forte1: 10.5, energy: 1.2, offtune: 2960, concerto: 8 });
 var CrimsonErosion1 = danjinAction("Skill - Crimson Erosion 1", { node: 1, cast: 4, type: 12288, mv: 128.84, forte1: 10.5, energy: 2.5, offtune: 4240, concerto: 8 });
 var CrimsonErosion2 = danjinAction("Skill - Crimson Erosion 2", {
@@ -16887,9 +17399,9 @@ var FullChaoscleave = danjinAction("Forte Heavy - Chaoscleave (Full Energy)", {
   updateDebuffs: () => applyCurrent(HEALS, 1)
 });
 var FullScatterbloom = danjinAction("Heavy - Scatterbloom (Full Energy)", { node: 2, cast: 3, type: 8192, mv: 429.43, energy: 6, offtune: 5360 });
-var Liberation28 = danjinAction("Liberation - Crimson Bloom", { node: 3, cast: 5, type: 16384, mv: 785.37, concerto: 20, offtune: 61440, resetEnergy: true });
-var Intro36 = danjinAction("Intro - Vindication", { node: 4, cast: 6, type: 20480, mv: 198.84, energy: 10, concerto: 10, offtune: 12240 });
-var Outro36 = danjinAction("Outro - Duality", {
+var Liberation29 = danjinAction("Liberation - Crimson Bloom", { node: 3, cast: 5, type: 16384, mv: 785.37, concerto: 20, offtune: 61440, resetEnergy: true });
+var Intro37 = danjinAction("Intro - Vindication", { node: 4, cast: 6, type: 20480, mv: 198.84, energy: 10, concerto: 10, offtune: 12240 });
+var Outro37 = danjinAction("Outro - Duality", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -16948,7 +17460,7 @@ var CRIMSON_LIGHT = new Buff({
 var DJ_INHERENT_CRIMSON_LIGHT = new Inherent({
   name: "Inherent: Crimson Light",
   updateBuffs: () => {
-    if (currentAction() === DC28)
+    if (currentAction() === DC29)
       applyCurrent(CRIMSON_LIGHT, 1);
   }
 });
@@ -16968,8 +17480,8 @@ var DANJIN_RESONATOR = new Resonator({
   name: "Danjin",
   element: 384,
   weapon: 0,
-  intro: () => Intro36,
-  outro: () => Outro36,
+  intro: () => Intro37,
+  outro: () => Outro37,
   color: "#a83250",
   maxEnergy: 100,
   tier: 2,
@@ -17069,15 +17581,15 @@ var DJ_S6 = new Sequence({
 });
 var DJ_ROTATION = new Rotation([
   START_3,
-  Liberation28,
+  Liberation29,
   SWAP,
   INTRO,
   CrimsonErosion1,
   CrimsonErosion2,
-  Liberation28,
+  Liberation29,
   CarmineGleam,
-  BA235,
-  BA333,
+  BA236,
+  BA334,
   SanguinePulse1,
   SanguinePulse2,
   SanguinePulse3,
@@ -17115,18 +17627,18 @@ var DANJIN = new Loadout({
 function rocciaAction(id, def2) {
   return new Action(id, { element: 384, scaling: 0, ...def2 });
 }
-var BA136 = rocciaAction("Basic - Pero, Easy 1", { node: 0, cast: 1, type: 4096, mv: 73.18, energy: 1.09, concerto: 3.47, offtune: 3464, forte1: 19 });
-var BA236 = rocciaAction("Basic - Pero, Easy 2", { node: 0, cast: 1, type: 4096, mv: 114.42, energy: 1.71, concerto: 5.43, offtune: 5418, forte1: 33 });
-var BA334 = rocciaAction("Basic - Pero, Easy 3", { node: 0, cast: 1, type: 4096, mv: 169, energy: 2.5, concerto: 8, offtune: 8e3, forte1: 49 });
-var BA425 = rocciaAction("Basic - Pero, Easy 4", { node: 0, cast: 1, type: 4096, mv: 208.38, energy: 3.1, concerto: 9.88, offtune: 9864, forte1: 100 });
+var BA137 = rocciaAction("Basic - Pero, Easy 1", { node: 0, cast: 1, type: 4096, mv: 73.18, energy: 1.09, concerto: 3.47, offtune: 3464, forte1: 19 });
+var BA237 = rocciaAction("Basic - Pero, Easy 2", { node: 0, cast: 1, type: 4096, mv: 114.42, energy: 1.71, concerto: 5.43, offtune: 5418, forte1: 33 });
+var BA335 = rocciaAction("Basic - Pero, Easy 3", { node: 0, cast: 1, type: 4096, mv: 169, energy: 2.5, concerto: 8, offtune: 8e3, forte1: 49 });
+var BA426 = rocciaAction("Basic - Pero, Easy 4", { node: 0, cast: 1, type: 4096, mv: 208.38, energy: 3.1, concerto: 9.88, offtune: 9864, forte1: 100 });
 var MA44 = rocciaAction("Mid-air - Pero, Easy", { node: 0, cast: 2, type: 4096, mv: 104.78, energy: 1.55, concerto: 4.96, offtune: 4960, forte1: 38 });
-var DC29 = rocciaAction("Dodge Counter - Pero, Easy", { node: 0, cast: 0, type: 4096, mv: 206.7, offtune: 4986, concerto: 15.01, energy: 1.56 });
-var HA28 = rocciaAction("Heavy - Pero, Easy", { node: 0, cast: 3, type: 8192, mv: 168.99, energy: 2.5, concerto: 8, offtune: 8e3, forte1: 100 });
+var DC30 = rocciaAction("Dodge Counter - Pero, Easy", { node: 0, cast: 0, type: 4096, mv: 206.7, offtune: 4986, concerto: 15.01, energy: 1.56 });
+var HA29 = rocciaAction("Heavy - Pero, Easy", { node: 0, cast: 3, type: 8192, mv: 168.99, energy: 2.5, concerto: 8, offtune: 8e3, forte1: 100 });
 var Skill36 = rocciaAction("Skill - Acrobatic Trick", { node: 1, cast: 4, type: 12288, mv: 491.76, energy: 14, concerto: 20, offtune: 10992, forte1: 100 });
-var FBA15 = rocciaAction("Forte Basic - Real Fantasy 1", { node: 2, cast: 1, type: 8192, mv: 322.08, energy: 8, concerto: 10, offtune: 7200, forte1: -100 });
-var FBA25 = rocciaAction("Forte Basic - Real Fantasy 2", { node: 2, cast: 1, type: 8192, mv: 339.97, energy: 8, concerto: 16, offtune: 7600, forte1: -100 });
-var FBA35 = rocciaAction("Forte Basic - Real Fantasy 3", { node: 2, cast: 1, type: 8192, mv: 357.86, energy: 8, concerto: 25, offtune: 8e3, forte1: -100 });
-var Liberation29 = rocciaAction("Liberation - Commedia Improvviso!", {
+var FBA16 = rocciaAction("Forte Basic - Real Fantasy 1", { node: 2, cast: 1, type: 8192, mv: 322.08, energy: 8, concerto: 10, offtune: 7200, forte1: -100 });
+var FBA26 = rocciaAction("Forte Basic - Real Fantasy 2", { node: 2, cast: 1, type: 8192, mv: 339.97, energy: 8, concerto: 16, offtune: 7600, forte1: -100 });
+var FBA36 = rocciaAction("Forte Basic - Real Fantasy 3", { node: 2, cast: 1, type: 8192, mv: 357.86, energy: 8, concerto: 25, offtune: 8e3, forte1: -100 });
+var Liberation30 = rocciaAction("Liberation - Commedia Improvviso!", {
   node: 3,
   cast: 5,
   type: 8192,
@@ -17136,8 +17648,8 @@ var Liberation29 = rocciaAction("Liberation - Commedia Improvviso!", {
   resetEnergy: true,
   updateBuffs: () => applyTeam(COMMEDIA_TEAM_ATK)
 });
-var Intro37 = rocciaAction("Intro - Pero, Help", { node: 4, cast: 6, type: 20480, mv: 168.99, energy: 10, concerto: 10, offtune: 10824, forte1: 100 });
-var Outro37 = rocciaAction("Outro - Applause, Please!", {
+var Intro38 = rocciaAction("Intro - Pero, Help", { node: 4, cast: 6, type: 20480, mv: 168.99, energy: 10, concerto: 10, offtune: 10824, forte1: 100 });
+var Outro38 = rocciaAction("Outro - Applause, Please!", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -17212,8 +17724,8 @@ var ROCCIA_RESONATOR = new Resonator({
   name: "Roccia",
   element: 384,
   weapon: 3,
-  intro: () => Intro37,
-  outro: () => Outro37,
+  intro: () => Intro38,
+  outro: () => Outro38,
   color: "#9634b2",
   maxEnergy: 125,
   constantStats: () => {
@@ -17229,14 +17741,14 @@ var ROCCIA_TALENTS = new Talent({
     addStat(10, 16);
   }
 });
-var FBA1232 = new ActionGroup("Forte Basic - Real Fantasy 123", [FBA15, FBA25, FBA35]);
+var FBA1232 = new ActionGroup("Forte Basic - Real Fantasy 123", [FBA16, FBA26, FBA36]);
 var RC_ROTATION = new Rotation([
   START_3,
-  Liberation29,
+  Liberation30,
   SWAP,
   INTRO,
-  BA425,
-  Liberation29,
+  BA426,
+  Liberation30,
   Skill36,
   FBA1232,
   ECHO_SWAP,
@@ -17288,14 +17800,14 @@ var ROCCIA = new Loadout({
 function roverAction3(id, def2) {
   return new Action(id, { element: 384, scaling: 0, ...def2 });
 }
-var BA137 = roverAction3("Basic - Tuneslayer 1", { node: 0, cast: 1, type: 4096, mv: 56.67, energy: 0.6, concerto: 0.74, offtune: 2400, forte1: 3 });
-var BA237 = roverAction3("Basic - Tuneslayer 2", { node: 0, cast: 1, type: 4096, mv: 113.34, energy: 1.2, concerto: 1.48, offtune: 4800, forte1: 6 });
-var BA335 = roverAction3("Basic - Tuneslayer 3", { node: 0, cast: 1, type: 4096, mv: 85, energy: 0.9, concerto: 1.11, offtune: 2800, forte1: 4 });
-var BA426 = roverAction3("Basic - Tuneslayer 4", { node: 0, cast: 1, type: 4096, mv: 120.9, energy: 1.26, concerto: 1.56, offtune: 5121, forte1: 9 });
+var BA138 = roverAction3("Basic - Tuneslayer 1", { node: 0, cast: 1, type: 4096, mv: 56.67, energy: 0.6, concerto: 0.74, offtune: 2400, forte1: 3 });
+var BA238 = roverAction3("Basic - Tuneslayer 2", { node: 0, cast: 1, type: 4096, mv: 113.34, energy: 1.2, concerto: 1.48, offtune: 4800, forte1: 6 });
+var BA336 = roverAction3("Basic - Tuneslayer 3", { node: 0, cast: 1, type: 4096, mv: 85, energy: 0.9, concerto: 1.11, offtune: 2800, forte1: 4 });
+var BA427 = roverAction3("Basic - Tuneslayer 4", { node: 0, cast: 1, type: 4096, mv: 120.9, energy: 1.26, concerto: 1.56, offtune: 5121, forte1: 9 });
 var BA55 = roverAction3("Basic - Tuneslayer 5", { node: 0, cast: 1, type: 4096, mv: 188.88, energy: 2, concerto: 2.48, offtune: 8e3, forte1: 10 });
 var MA45 = roverAction3("Mid-air - Attack", { node: 0, cast: 2, type: 4096, mv: 117.1, energy: 0.41, concerto: 1, offtune: 9600, forte1: 9 });
-var DC30 = roverAction3("Dodge Counter - Tuneslayer", { node: 0, cast: 0, type: 4096, mv: 179.43, energy: 1.9, concerto: 10.86, offtune: 4640 });
-var HA29 = roverAction3("Heavy - Attack", { node: 0, cast: 3, type: 8192, mv: 95.43, energy: 0.96, concerto: 1.19, offtune: 5360 });
+var DC31 = roverAction3("Dodge Counter - Tuneslayer", { node: 0, cast: 0, type: 4096, mv: 179.43, energy: 1.9, concerto: 10.86, offtune: 4640 });
+var HA30 = roverAction3("Heavy - Attack", { node: 0, cast: 3, type: 8192, mv: 95.43, energy: 0.96, concerto: 1.19, offtune: 5360 });
 var Devastation = roverAction3("Forte Heavy - Devastation", {
   node: 2,
   cast: 3,
@@ -17326,9 +17838,9 @@ var EHA6 = roverAction3("Heavy - Umbra", { node: 2, cast: 3, type: 8192, mv: 128
 var EHA22 = roverAction3("Heavy - Umbra: Thwackblade", { node: 2, cast: 3, type: 8192, mv: 166.45, energy: 1.24, concerto: 2.12, offtune: 8704 });
 var Skill37 = roverAction3("Skill - Wingblade", { node: 1, cast: 4, type: 12288, mv: 572.58, energy: 12, concerto: 15, offtune: 8640, forte1: 39 });
 var ESkill6 = roverAction3("Skill - Umbra: Lifetaker", { node: 2, cast: 4, type: 12288, mv: 592.5, energy: 8, concerto: 15, offtune: 11664, forte1: 39 });
-var Liberation30 = roverAction3("Liberation - Deadening Abyss", { node: 3, cast: 5, type: 16384, mv: 1520.9, concerto: 20, offtune: 53760, resetEnergy: true });
-var Intro38 = roverAction3("Intro - Instant of Annihilation", { node: 4, cast: 6, type: 20480, forte1: 29, mv: 198.81, energy: 10, concerto: 10, offtune: 1867 });
-var Outro38 = roverAction3("Outro - Soundweaver", { cast: 7, type: 24576, mv: 429.9, concerto: -100, active: false });
+var Liberation31 = roverAction3("Liberation - Deadening Abyss", { node: 3, cast: 5, type: 16384, mv: 1520.9, concerto: 20, offtune: 53760, resetEnergy: true });
+var Intro39 = roverAction3("Intro - Instant of Annihilation", { node: 4, cast: 6, type: 20480, forte1: 29, mv: 198.81, energy: 10, concerto: 10, offtune: 1867 });
+var Outro39 = roverAction3("Outro - Soundweaver", { cast: 7, type: 24576, mv: 429.9, concerto: -100, active: false });
 var DARK_SURGE = new Buff({
   name: "Havoc Rover: Dark Surge",
   updateBuffs: () => {
@@ -17385,8 +17897,8 @@ var ROVER_HAVOC_RESONATOR = new Resonator({
   name: "Havoc Rover",
   element: 384,
   weapon: 0,
-  intro: () => Intro38,
-  outro: () => Outro38,
+  intro: () => Intro39,
+  outro: () => Outro39,
   color: "#7c6fd6",
   maxEnergy: 125,
   tier: 2,
@@ -17423,7 +17935,7 @@ var ROVER_S4 = new Sequence({
   name: "Havoc Rover S4: Annihilated Silence",
   updateBuffs: () => {
     const a = currentAction();
-    if (a === Devastation || a === Liberation30)
+    if (a === Devastation || a === Liberation31)
       applyEnemy(S4_RES_SHRED, 1);
   }
 });
@@ -17441,7 +17953,7 @@ var ROVER_S6 = new Sequence({
       addStat(9, 25);
   }
 });
-var BA123452 = new ActionGroup("Basic - Tuneslayer 12345", [BA137, BA237, BA335, BA426, BA55]);
+var BA123452 = new ActionGroup("Basic - Tuneslayer 12345", [BA138, BA238, BA336, BA427, BA55]);
 var EBA12345 = new ActionGroup("Forte Basic - Umbra 12345", [EBA14, EBA24, EBA34, EBA44, EBA52]);
 var RH_ROTATION = new Rotation([
   INTRO,
@@ -17452,7 +17964,7 @@ var RH_ROTATION = new Rotation([
   EBA12345,
   START_3,
   START_2,
-  Liberation30,
+  Liberation31,
   SWAP,
   ECHO_SWAP,
   OUTRO
@@ -17615,7 +18127,7 @@ var Lib6 = yangyangAction("Liberation - Hush of a Thousand Voices", {
   }
 });
 var ShadowOfXuanling = yangyangAction("Liberation - Shadow of Xuanling", { node: 3, type: 8192, mv: 337.98 });
-var Intro39 = yangyangAction("Intro - Skybound Feather", {
+var Intro40 = yangyangAction("Intro - Skybound Feather", {
   node: 4,
   cast: 6,
   type: 20480,
@@ -17626,7 +18138,7 @@ var Intro39 = yangyangAction("Intro - Skybound Feather", {
   forte2: 1,
   updateDebuffs: () => applyEnemy(HAVOC_BANE, 1)
 });
-var Outro39 = yangyangAction("Outro - As the Wind Wills", {
+var Outro40 = yangyangAction("Outro - As the Wind Wills", {
   cast: 7,
   type: 24576,
   mv: 300,
@@ -17753,8 +18265,8 @@ var XUANLING_RESONATOR = new Resonator({
   name: "Xuanling",
   element: 384,
   weapon: 0,
-  intro: () => Intro39,
-  outro: () => Outro39,
+  intro: () => Intro40,
+  outro: () => Outro40,
   color: "#8e05c8",
   maxEnergy: 125,
   /* Feathered Oath is Forte Circuit machinery, which lives on the Resonator rather than a loadout
@@ -17821,13 +18333,13 @@ var XUANLING = new Loadout({
 function jinhsiAction(id, def2) {
   return new Action(id, { element: 320, scaling: 0, ...def2 });
 }
-var BA138 = jinhsiAction("Basic - Slash of Breaking Dawn 1", { node: 0, cast: 1, type: 4096, mv: 66.47, energy: 1.24, concerto: 2.48, offtune: 3960 });
-var BA238 = jinhsiAction("Basic - Slash of Breaking Dawn 2", { node: 0, cast: 1, type: 4096, mv: 97.49, energy: 1.84, concerto: 3.65, offtune: 5810 });
-var BA336 = jinhsiAction("Basic - Slash of Breaking Dawn 3", { node: 0, cast: 1, type: 4096, mv: 106.49, energy: 2, concerto: 3.99, offtune: 6349 });
-var BA427 = jinhsiAction("Basic - Slash of Breaking Dawn 4", { node: 0, cast: 1, type: 4096, mv: 157.72, energy: 2.95, concerto: 5.89, offtune: 9400 });
-var HA30 = jinhsiAction("Heavy - Slash of Breaking Dawn", { node: 0, cast: 3, type: 8192, mv: 238.6, energy: 4, concerto: 8, offtune: 12800 });
+var BA139 = jinhsiAction("Basic - Slash of Breaking Dawn 1", { node: 0, cast: 1, type: 4096, mv: 66.47, energy: 1.24, concerto: 2.48, offtune: 3960 });
+var BA239 = jinhsiAction("Basic - Slash of Breaking Dawn 2", { node: 0, cast: 1, type: 4096, mv: 97.49, energy: 1.84, concerto: 3.65, offtune: 5810 });
+var BA337 = jinhsiAction("Basic - Slash of Breaking Dawn 3", { node: 0, cast: 1, type: 4096, mv: 106.49, energy: 2, concerto: 3.99, offtune: 6349 });
+var BA428 = jinhsiAction("Basic - Slash of Breaking Dawn 4", { node: 0, cast: 1, type: 4096, mv: 157.72, energy: 2.95, concerto: 5.89, offtune: 9400 });
+var HA31 = jinhsiAction("Heavy - Slash of Breaking Dawn", { node: 0, cast: 3, type: 8192, mv: 238.6, energy: 4, concerto: 8, offtune: 12800 });
 var MA46 = jinhsiAction("Mid-air - Slash of Breaking Dawn", { node: 0, cast: 2, type: 4096, mv: 123.28, energy: 0.54, concerto: 1, offtune: 4960 });
-var DC31 = jinhsiAction("Dodge Counter - Slash of Breaking Dawn", { node: 0, cast: 0, type: 4096, mv: 146.78, energy: 2.78, concerto: 15.49, offtune: 8749 });
+var DC32 = jinhsiAction("Dodge Counter - Slash of Breaking Dawn", { node: 0, cast: 0, type: 4096, mv: 146.78, energy: 2.78, concerto: 15.49, offtune: 8749 });
 var Skill38 = jinhsiAction("Skill - Trailing Lights of Eons", { node: 1, cast: 4, type: 12288, mv: 155.68, energy: 2.21, concerto: 4.38, offtune: 6960 });
 var ESkill7 = jinhsiAction("Skill - Overflowing Radiance", {
   node: 1,
@@ -17876,8 +18388,8 @@ var SolarFlare = jinhsiAction("Forte Skill - Illuminous Epiphany: Solar Flare", 
   }
 });
 var StellaGlamor = jinhsiAction("Forte - Illuminous Epiphany: Stella Glamor", { node: 2, type: 12288, mv: 347.92, energy: 5.67, offtune: 42002 });
-var Liberation31 = jinhsiAction("Liberation - Purge of Light", { node: 3, cast: 5, type: 16384, mv: 1666.03, concerto: 20, offtune: 84e3, resetEnergy: true });
-var Intro40 = jinhsiAction("Intro - Loong's Halo", {
+var Liberation32 = jinhsiAction("Liberation - Purge of Light", { node: 3, cast: 5, type: 16384, mv: 1666.03, concerto: 20, offtune: 84e3, resetEnergy: true });
+var Intro41 = jinhsiAction("Intro - Loong's Halo", {
   node: 4,
   cast: 6,
   type: 20480,
@@ -17886,7 +18398,7 @@ var Intro40 = jinhsiAction("Intro - Loong's Halo", {
   concerto: 10,
   offtune: 8e3
 });
-var Outro40 = jinhsiAction("Outro - Temporal Bender", {
+var Outro41 = jinhsiAction("Outro - Temporal Bender", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -17972,7 +18484,7 @@ var RADIANT_SURGE = new Inherent({
 var CONVERGED_FLASH = new Inherent({
   name: "Inherent: Converged Flash",
   applyStats: () => {
-    if (currentAction() === Intro40)
+    if (currentAction() === Intro41)
       addStat(16, 50);
   }
 });
@@ -18012,7 +18524,7 @@ var IMMORTALS_DESCENDANCY = new Buff({
 var JX_S3 = new Sequence({
   name: "Jinhsi S3: Celestial Incarnate",
   updateBuffs: () => {
-    if (currentAction() === Intro40)
+    if (currentAction() === Intro41)
       applyCurrent(IMMORTALS_DESCENDANCY, 1);
   }
 });
@@ -18025,14 +18537,14 @@ var JX_S4 = new Sequence({
   // Solar Flare is the press; Stella Glamor is the detonation behind it, not a second cast
   updateBuffs: () => {
     const a = currentAction();
-    if (a === Liberation31 || a === SolarFlare)
+    if (a === Liberation32 || a === SolarFlare)
       applyTeam(JX_S4_TEAM, 1);
   }
 });
 var JX_S5 = new Sequence({
   name: "Jinhsi S5: Frostfire Illumination",
   applyStats: () => {
-    if (currentAction() === Liberation31)
+    if (currentAction() === Liberation32)
       addStat(16, 120);
   }
 });
@@ -18055,8 +18567,8 @@ var JINHSI_RESONATOR = new Resonator({
   name: "Jinhsi",
   element: 320,
   weapon: 1,
-  intro: () => Intro40,
-  outro: () => Outro40,
+  intro: () => Intro41,
+  outro: () => Outro41,
   color: "#f2c75c",
   maxEnergy: 150,
   // Eras in Unity is hers the moment she is on the team, well before her first turn
@@ -18070,7 +18582,7 @@ var JINHSI_RESONATOR = new Resonator({
 var IncBA123 = new ActionGroup("Basic - Incarnation 123", [IncBA1, IncBA2, IncBA3]);
 var JX_ROTATION2 = new Rotation([
   START_3,
-  Liberation31,
+  Liberation32,
   SWAP,
   DOUBLE_INTRO,
   ESkill7,
@@ -18087,7 +18599,7 @@ var JX_ROTATION2 = new Rotation([
   CrescentDivinity,
   IncBA4,
   SolarFlare,
-  Liberation31,
+  Liberation32,
   Skill38.swap(),
   OUTRO
 ]);
@@ -18119,12 +18631,12 @@ var JINHSI = new Loadout({
 function luukAction(id, def2) {
   return new Action(id, { element: 320, scaling: 0, ...def2 });
 }
-var BA139 = luukAction("Basic - Such is Light 1", { node: 0, cast: 1, type: 4096, mv: 81.12, energy: 1.2, concerto: 2.4, offtune: 3840, forte1: 12 });
-var BA239 = luukAction("Basic - Such is Light 2", { node: 0, cast: 1, type: 4096, mv: 150.4, energy: 2.23, concerto: 4.45, offtune: 7120, forte1: 22.25 });
-var BA337 = luukAction("Basic - Such is Light 3", { node: 0, cast: 1, type: 4096, mv: 150.6, energy: 2.4, concerto: 4.5, offtune: 7110, forte1: 22.5 });
-var BA428 = luukAction("Basic - Such is Light 4", { node: 0, cast: 1, type: 4096, mv: 96.33, energy: 1.43, concerto: 2.85, offtune: 4560, forte1: 14.25 });
-var HA31 = luukAction("Heavy - Such is Light", { node: 0, cast: 3, type: 8192, mv: 91.26, energy: 1.35, concerto: 2.7, offtune: 4320, forte1: 13.5 });
-var DC32 = luukAction("Dodge Counter - Such is Light", { node: 0, cast: 0, type: 4096, mv: 251.8, energy: 2.24, concerto: 17.46, offtune: 7120, forte1: 11.13 });
+var BA140 = luukAction("Basic - Such is Light 1", { node: 0, cast: 1, type: 4096, mv: 81.12, energy: 1.2, concerto: 2.4, offtune: 3840, forte1: 12 });
+var BA240 = luukAction("Basic - Such is Light 2", { node: 0, cast: 1, type: 4096, mv: 150.4, energy: 2.23, concerto: 4.45, offtune: 7120, forte1: 22.25 });
+var BA338 = luukAction("Basic - Such is Light 3", { node: 0, cast: 1, type: 4096, mv: 150.6, energy: 2.4, concerto: 4.5, offtune: 7110, forte1: 22.5 });
+var BA429 = luukAction("Basic - Such is Light 4", { node: 0, cast: 1, type: 4096, mv: 96.33, energy: 1.43, concerto: 2.85, offtune: 4560, forte1: 14.25 });
+var HA34 = luukAction("Heavy - Such is Light", { node: 0, cast: 3, type: 8192, mv: 91.26, energy: 1.35, concerto: 2.7, offtune: 4320, forte1: 13.5 });
+var DC33 = luukAction("Dodge Counter - Such is Light", { node: 0, cast: 0, type: 4096, mv: 251.8, energy: 2.24, concerto: 17.46, offtune: 7120, forte1: 11.13 });
 var MA113 = luukAction("Mid-air - Such is Light 1", { node: 0, cast: 2, type: 4096, mv: 57.46, energy: 0.85, concerto: 1.7, offtune: 2720, forte1: 8.5 });
 var MA210 = luukAction("Mid-air - Scythe: Dissection 2", { node: 0, cast: 2, type: 4096, mv: 94.09, energy: 1.4, concerto: 2.5, offtune: 4e3, forte1: 12.5 });
 var MA310 = luukAction("Mid-air - Scythe: Dissection 3", { node: 0, cast: 2, type: 4096, mv: 143.1, energy: 2.73, concerto: 3.96, offtune: 6320, forte1: 19.76 });
@@ -18151,7 +18663,7 @@ var Gavel = luukAction("Basic - Gavel of Earthshaker", {
   updateBuffs: () => queue(IchorDeposit)
 });
 var IchorBlade = luukAction("Forte - Ichor Blade", { node: 2, type: 4096, scaling: 5, mv: 10 * 33 });
-var Liberation32 = luukAction("Liberation - Rewritten in Winter's Margins", {
+var Liberation33 = luukAction("Liberation - Rewritten in Winter's Margins", {
   node: 3,
   cast: 5,
   type: 4096,
@@ -18160,7 +18672,7 @@ var Liberation32 = luukAction("Liberation - Rewritten in Winter's Margins", {
   offtune: 67200,
   resetEnergy: true
 });
-var Intro41 = luukAction("Intro - Before Injection of Dawn", {
+var Intro42 = luukAction("Intro - Before Injection of Dawn", {
   node: 4,
   cast: 6,
   type: 20480,
@@ -18172,7 +18684,7 @@ var Intro41 = luukAction("Intro - Before Injection of Dawn", {
   ...STRAIN
   // updateBuffs: () => applyCurrent(DAWNLIT_KEEP, 1),  // DAWNLIT_KEEP grants no stat and nothing reads it
 });
-var Outro41 = luukAction("Outro - Bow to the Last Light", {
+var Outro42 = luukAction("Outro - Bow to the Last Light", {
   cast: 7,
   type: 24576,
   mv: 500,
@@ -18209,12 +18721,12 @@ var ENDNOTES = new Buff({
   name: "Luuk: Endnotes on the Endgame",
   maxStacks: 3,
   applyStats: () => {
-    if (currentAction() === Liberation32)
+    if (currentAction() === Liberation33)
       addStat(16, 25 * frozenStacks());
   },
   convertStats: () => {
     lostOnSwap();
-    if (currentAction() === Liberation32)
+    if (currentAction() === Liberation33)
       revokeCurrent(ENDNOTES);
   }
 });
@@ -18271,8 +18783,8 @@ var LUUK_RESONATOR = new Resonator({
   name: "Luuk",
   element: 320,
   weapon: 3,
-  intro: () => Intro41,
-  outro: () => Outro41,
+  intro: () => Intro42,
+  outro: () => Outro42,
   color: "#ddb246",
   maxEnergy: 125,
   // his kit raises the target's Tune Strain - Interfered limit by 1 on top of the base 1; Golden
@@ -18299,7 +18811,7 @@ var MA1233 = new ActionGroup("Mid-air - Scythe: Dissection 123", [MA113, MA210, 
 var LK_ROTATION = new Rotation([
   START_3,
   Skill39,
-  Liberation32,
+  Liberation33,
   SWAP,
   INTRO,
   MA210,
@@ -18312,7 +18824,7 @@ var LK_ROTATION = new Rotation([
   MA1233,
   Glare,
   Gavel,
-  Liberation32,
+  Liberation33,
   ECHO_SWAP,
   OUTRO
 ]);
@@ -18342,10 +18854,10 @@ var LUUK = new Loadout({
 function lynaeAction(id, def2) {
   return new Action(id, { element: 320, scaling: 0, ...def2 });
 }
-var BA140 = lynaeAction("Basic - Chroma Drift 1", { node: 0, cast: 1, type: 4096, mv: 86.19, energy: 1.28, concerto: 4.59, offtune: 4080, forte1: 12 });
-var BA240 = lynaeAction("Basic - Chroma Drift 2", { node: 0, cast: 1, type: 4096, mv: 157.17, energy: 2.34, concerto: 8.37, offtune: 7440, forte1: 21 });
-var BA338 = lynaeAction("Basic - Chroma Drift 3", { node: 0, cast: 1, type: 4096, mv: 123.37, energy: 1.83, concerto: 6.57, offtune: 5840, forte1: 17 });
-var DC33 = lynaeAction("Dodge Counter - Chroma Drift", { node: 0, cast: 0, type: 4096, mv: 239.97, energy: 2.05, concerto: 17.38, offtune: 6560, forte1: 19 });
+var BA141 = lynaeAction("Basic - Chroma Drift 1", { node: 0, cast: 1, type: 4096, mv: 86.19, energy: 1.28, concerto: 4.59, offtune: 4080, forte1: 12 });
+var BA241 = lynaeAction("Basic - Chroma Drift 2", { node: 0, cast: 1, type: 4096, mv: 157.17, energy: 2.34, concerto: 8.37, offtune: 7440, forte1: 21 });
+var BA339 = lynaeAction("Basic - Chroma Drift 3", { node: 0, cast: 1, type: 4096, mv: 123.37, energy: 1.83, concerto: 6.57, offtune: 5840, forte1: 17 });
+var DC34 = lynaeAction("Dodge Counter - Chroma Drift", { node: 0, cast: 0, type: 4096, mv: 239.97, energy: 2.05, concerto: 17.38, offtune: 6560, forte1: 19 });
 var MA48 = lynaeAction("Mid-air - Chroma Drift", { node: 0, cast: 2, type: 4096, mv: 143.65, energy: 2.14, concerto: 7.66, offtune: 6800, forte1: 20 });
 var SparkCollision = lynaeAction("Basic - Spark Collision Lv. 3", { node: 0, cast: 1, type: 4096, mv: 555.56, energy: 8.22, concerto: 29.6, offtune: 26300, forte1: -120, forte2: 120 });
 var KBA1 = lynaeAction("Basic - Kaleidoscopic Parade 1", { node: 0, cast: 1, type: 4096, mv: 82.81, energy: 1.23, concerto: 4.41, offtune: 3920 });
@@ -18372,7 +18884,7 @@ var VisualImpact = lynaeAction("Forte Basic - Visual Impact", {
 });
 var Skill40 = lynaeAction("Skill - Lynae-Style Palettes", { node: 1, cast: 4, type: 12288, mv: 278.63, energy: 8.75, concerto: 9.83, offtune: 8722, forte1: 25 });
 var AdditiveColor = lynaeAction("Skill - Additive Color", { node: 1, cast: 4, type: 12288, mv: 232.62, energy: 6.92, concerto: 8.2, offtune: 7280 });
-var Liberation33 = lynaeAction("Liberation - Prismatic Overblast", {
+var Liberation34 = lynaeAction("Liberation - Prismatic Overblast", {
   node: 3,
   cast: 5,
   type: 16384,
@@ -18383,8 +18895,8 @@ var Liberation33 = lynaeAction("Liberation - Prismatic Overblast", {
   updateBuffs: () => applyTeam(PRISMATIC_OVERBLAST, 1)
 });
 var VividTomorrow = lynaeAction("Basic - To a Vivid Tomorrow!", { node: 0, cast: 1, type: 4096, mv: 201.06, energy: 5.46, concerto: 19.42, offtune: 17128 });
-var Intro42 = lynaeAction("Intro - Time to Show Some Colors!", { node: 4, cast: 6, type: 20480, mv: 224.8, energy: 13.4, concerto: 22, offtune: 10640, forte1: 100 });
-var Outro42 = lynaeAction("Outro - Let's Hit the Road!", {
+var Intro43 = lynaeAction("Intro - Time to Show Some Colors!", { node: 4, cast: 6, type: 20480, mv: 224.8, energy: 13.4, concerto: 22, offtune: 10640, forte1: 100 });
+var Outro43 = lynaeAction("Outro - Let's Hit the Road!", {
   cast: 7,
   type: 24576,
   mv: 100,
@@ -18399,7 +18911,7 @@ var SpectralAnalysis = lynaeAction("Tune Rupture Response - Spectral Analysis", 
   scaling: 4
   /* Scaling.Tune */
 });
-var inflictsFlux = (a) => a === PolychromeLeap1 || a === PolychromeLeap2 || a === PolychromeLeap3 || a === IridescentSplash || a === VisualImpact || a === Intro42;
+var inflictsFlux = (a) => a === PolychromeLeap1 || a === PolychromeLeap2 || a === PolychromeLeap3 || a === IridescentSplash || a === VisualImpact || a === Intro43;
 var MODE_RUPTURE2 = new ResonanceMode({
   name: "Resonance Mode - Tune Rupture",
   updateDebuffs: () => {
@@ -18463,7 +18975,7 @@ var LY_INHERENT_1 = new Inherent({ name: "Inherent: Colors Never Fade!" });
 var LY_INHERENT_2 = new Inherent({
   name: 'Inherent: "Adaptive Optics: Everyday Applications"',
   updateBuffs: () => {
-    if (currentAction() === Intro42)
+    if (currentAction() === Intro43)
       applyCurrent(ADAPTIVE_OPTICS, 1);
   }
 });
@@ -18478,8 +18990,8 @@ var LYNAE_RESONATOR = new Resonator({
   name: "Lynae",
   element: 320,
   weapon: 2,
-  intro: () => Intro42,
-  outro: () => Outro42,
+  intro: () => Intro43,
+  outro: () => Outro43,
   color: "#eae477",
   maxEnergy: 125,
   constantStats: () => {
@@ -18492,7 +19004,7 @@ var LYNAE_RESONATOR = new Resonator({
 var PolychromeLeap123 = new ActionGroup("Forte - Polychrome Leap 123", [PolychromeLeap1, PolychromeLeap2, PolychromeLeap3]);
 var LY_ROTATION = new Rotation([
   INTRO,
-  Liberation33,
+  Liberation34,
   Skill40,
   SparkCollision,
   PolychromeLeap123,
@@ -18532,17 +19044,17 @@ var LYNAE_STRAIN = build2(MODE_STRAIN2);
 function roverAction4(id, def2) {
   return new Action(id, { element: 320, scaling: 0, ...def2 });
 }
-var BA141 = roverAction4("Basic - Vibration Manifestation 1", { node: 0, cast: 1, type: 4096, mv: 59.15, energy: 0.5, concerto: 2, offtune: 2800, forte1: 3 });
-var BA241 = roverAction4("Basic - Vibration Manifestation 2", { node: 0, cast: 1, type: 4096, mv: 76.05, energy: 1, concerto: 4, offtune: 3600, forte1: 5 });
-var BA339 = roverAction4("Basic - Vibration Manifestation 3", { node: 0, cast: 1, type: 4096, mv: 76.05, energy: 1.5, concerto: 4, offtune: 3600, forte1: 5 });
-var BA429 = roverAction4("Basic - Vibration Manifestation 4", { node: 0, cast: 1, type: 4096, mv: 130.13, energy: 2, concerto: 6, offtune: 6160, forte1: 7 });
+var BA142 = roverAction4("Basic - Vibration Manifestation 1", { node: 0, cast: 1, type: 4096, mv: 59.15, energy: 0.5, concerto: 2, offtune: 2800, forte1: 3 });
+var BA242 = roverAction4("Basic - Vibration Manifestation 2", { node: 0, cast: 1, type: 4096, mv: 76.05, energy: 1, concerto: 4, offtune: 3600, forte1: 5 });
+var BA340 = roverAction4("Basic - Vibration Manifestation 3", { node: 0, cast: 1, type: 4096, mv: 76.05, energy: 1.5, concerto: 4, offtune: 3600, forte1: 5 });
+var BA430 = roverAction4("Basic - Vibration Manifestation 4", { node: 0, cast: 1, type: 4096, mv: 130.13, energy: 2, concerto: 6, offtune: 6160, forte1: 7 });
 var MA49 = roverAction4("Mid-air - Attack", { node: 0, cast: 2, type: 4096, mv: 104.78, energy: 0.51, concerto: 1, offtune: 4960 });
-var DC34 = roverAction4("Dodge Counter - Vibration Manifestation", { node: 0, cast: 0, type: 4096, mv: 195.34, energy: 2.62, concerto: 13.6, offtune: 3600 });
+var DC35 = roverAction4("Dodge Counter - Vibration Manifestation", { node: 0, cast: 0, type: 4096, mv: 195.34, energy: 2.62, concerto: 13.6, offtune: 3600 });
 var HA110 = roverAction4("Heavy - Attack", { node: 0, cast: 3, type: 8192, mv: 96.35, energy: 1.4, concerto: 4.55, offtune: 22800, forte1: 5 });
 var HA210 = roverAction4("Heavy - Resonance", { node: 0, cast: 3, type: 8192, mv: 76.05, energy: 1.12, concerto: 3.6, offtune: 3600 });
-var HA34 = roverAction4("Heavy - Aftertune", { node: 0, cast: 3, type: 8192, mv: 126.75, energy: 1.87, concerto: 6, offtune: 6e3, forte1: 45 });
+var HA35 = roverAction4("Heavy - Aftertune", { node: 0, cast: 3, type: 8192, mv: 126.75, energy: 1.87, concerto: 6, offtune: 6e3, forte1: 45 });
 var Skill41 = roverAction4("Skill - Resonating Slashes", { node: 1, cast: 4, type: 12288, mv: 236.19, energy: 10, concerto: 10, offtune: 4800 });
-var FSkill12 = roverAction4("Forte Skill - Resonating Spin", {
+var FSkill13 = roverAction4("Forte Skill - Resonating Spin", {
   node: 2,
   cast: 4,
   type: 12288,
@@ -18557,8 +19069,8 @@ var FSkill12 = roverAction4("Forte Skill - Resonating Spin", {
   }
 });
 var ResonatingWhirl = roverAction4("Forte Skill - Resonating Whirl", { node: 2, type: 12288, mv: 39.77, energy: 2 });
-var FBA6 = roverAction4("Basic - Resonating Echoes", { node: 2, cast: 1, type: 12288, mv: 238.58, energy: 2.5, concerto: 8, offtune: 7200 });
-var Liberation34 = roverAction4("Liberation - Echoing Orchestra", {
+var FBA7 = roverAction4("Basic - Resonating Echoes", { node: 2, cast: 1, type: 12288, mv: 238.58, energy: 2.5, concerto: 8, offtune: 7200 });
+var Liberation35 = roverAction4("Liberation - Echoing Orchestra", {
   node: 3,
   cast: 5,
   type: 16384,
@@ -18571,12 +19083,12 @@ var Liberation34 = roverAction4("Liberation - Echoing Orchestra", {
     applyEnemy(SPECTRO_FRAZZLE, 6);
   }
 });
-var Intro43 = roverAction4("Intro - Waveshock", { node: 4, cast: 6, type: 20480, mv: 168.99, energy: 10, concerto: 10, offtune: 4880, forte1: 50 });
-var Outro43 = roverAction4("Outro - Instant", { cast: 7, concerto: -100, active: false });
+var Intro44 = roverAction4("Intro - Waveshock", { node: 4, cast: 6, type: 20480, mv: 168.99, energy: 10, concerto: 10, offtune: 4880, forte1: 50 });
+var Outro44 = roverAction4("Outro - Instant", { cast: 7, concerto: -100, active: false });
 var SPR_INHERENT_1 = new Inherent({
   name: "Inherent: Reticence",
   applyStats: () => {
-    if (currentAction() === FBA6)
+    if (currentAction() === FBA7)
       addStat(17, 60);
   }
   // TODO unsure if dmg bonus
@@ -18630,7 +19142,7 @@ var SPR_S1 = new Sequence({
   name: "Spectro Rover S1: Odyssey of Beginnings",
   updateBuffs: () => {
     const a = currentAction();
-    if (a === Skill41 || a === FSkill12)
+    if (a === Skill41 || a === FSkill13)
       applyCurrent(S1_CRIT2, 1);
   }
 });
@@ -18661,7 +19173,7 @@ var SPR_S6 = new Sequence({
   name: "Spectro Rover S6: Echoes of Wanderlust",
   updateBuffs: () => {
     const a = currentAction();
-    if (a === Skill41 || a === FSkill12)
+    if (a === Skill41 || a === FSkill13)
       applyEnemy(S6_RES_SHRED, 1);
   }
 });
@@ -18669,8 +19181,8 @@ var ROVER_SPECTRO_RESONATOR = new Resonator({
   name: "Spectro Rover",
   element: 320,
   weapon: 0,
-  intro: () => Intro43,
-  outro: () => Outro43,
+  intro: () => Intro44,
+  outro: () => Outro44,
   color: "#e8d98f",
   maxEnergy: 125,
   tier: 2,
@@ -18696,14 +19208,14 @@ var SPR_ROTATION = new Rotation([
   INTRO,
   HA110,
   HA210,
-  HA34,
-  FSkill12,
-  FBA6,
+  HA35,
+  FSkill13,
+  FBA7,
   HA110,
   HA210,
-  HA34,
-  FSkill12,
-  Liberation34,
+  HA35,
+  FSkill13,
+  Liberation35,
   ECHO_SWAP,
   OUTRO
 ]);
@@ -18734,13 +19246,13 @@ var ROVER_SPECTRO = new Loadout({
 function skAction(id, def2) {
   return new Action(id, { element: 320, scaling: 0, ...def2 });
 }
-var BA142 = skAction("Basic - Origin Calculus 1", { node: 0, cast: 1, type: 4096, mv: 31.78, energy: 0.5, concerto: 1.6, offtune: 2664, forte1: 1 });
-var BA242 = skAction("Basic - Origin Calculus 2", { node: 0, cast: 1, type: 4096, mv: 47.72, energy: 0.76, concerto: 2.4, offtune: 4e3, forte1: 1 });
-var BA340 = skAction("Basic - Origin Calculus 3", { node: 0, cast: 1, type: 4096, mv: 69.96, energy: 1.11, concerto: 3.54, offtune: 5865, forte1: 2 });
+var BA143 = skAction("Basic - Origin Calculus 1", { node: 0, cast: 1, type: 4096, mv: 31.78, energy: 0.5, concerto: 1.6, offtune: 2664, forte1: 1 });
+var BA243 = skAction("Basic - Origin Calculus 2", { node: 0, cast: 1, type: 4096, mv: 47.72, energy: 0.76, concerto: 2.4, offtune: 4e3, forte1: 1 });
+var BA341 = skAction("Basic - Origin Calculus 3", { node: 0, cast: 1, type: 4096, mv: 69.96, energy: 1.11, concerto: 3.54, offtune: 5865, forte1: 2 });
 var MA50 = skAction("Mid-air - Origin Calculus", { node: 0, cast: 2, type: 4096, mv: 73.96, energy: 1.55, concerto: 5, offtune: 4960, forte1: 1 });
 var Skill42 = skAction("Skill - Chaos Theory", { node: 1, cast: 4, type: 12288, mv: 156.55, energy: 10, concerto: 30, offtune: 5250 });
-var FHA13 = skAction("Forte Heavy - Illation", { node: 2, cast: 3, type: 8192, mv: 281.3, energy: 4.95, concerto: 11, offtune: 6360, forte1: -5 });
-var Liberation35 = skAction("Liberation - End Loop", {
+var FHA14 = skAction("Forte Heavy - Illation", { node: 2, cast: 3, type: 8192, mv: 281.3, energy: 4.95, concerto: 11, offtune: 6360, forte1: -5 });
+var Liberation36 = skAction("Liberation - End Loop", {
   node: 3,
   cast: 5,
   concerto: 20,
@@ -18753,7 +19265,7 @@ var Liberation35 = skAction("Liberation - End Loop", {
     applyTeam(SK_REALM, 1);
   }
 });
-var Intro44 = skAction("Intro - Enlightenment", { node: 4, cast: 6, type: 12288, mv: 226.5, energy: 10, concerto: 20, offtune: 11395 });
+var Intro45 = skAction("Intro - Enlightenment", { node: 4, cast: 6, type: 12288, mv: 226.5, energy: 10, concerto: 20, offtune: 11395 });
 var EIntro6 = skAction("Intro - Discernment", {
   node: 4,
   cast: 6,
@@ -18775,7 +19287,7 @@ var EIntro6 = skAction("Intro - Discernment", {
       revokeBuff(rover, SK_ROVER_GRAVITATION);
   }
 });
-var Outro44 = skAction("Outro - Binary Butterfly", {
+var Outro45 = skAction("Outro - Binary Butterfly", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -18845,7 +19357,7 @@ var SK_S2 = new Sequence({
 var SK_S3 = new Sequence({
   name: "Shorekeeper S3: Infinity Awaits Me",
   applyStats: () => {
-    if (currentAction() === Liberation35)
+    if (currentAction() === Liberation36)
       addStat(26, 20);
   }
 });
@@ -18873,11 +19385,11 @@ var SHOREKEEPER_RESONATOR = new Resonator({
   color: "#728cf3",
   maxEnergy: 175,
   // reads SK_REALM's own live stack count, already stepped by the preceding outro
-  intro: () => stacksOfTeam(SK_REALM) >= 3 ? EIntro6 : Intro44,
-  outro: () => Outro44,
+  intro: () => stacksOfTeam(SK_REALM) >= 3 ? EIntro6 : Intro45,
+  outro: () => Outro45,
   updateDebuffs: () => {
     const a = currentAction();
-    if (a === Skill42 || a === Liberation35 || a === Intro44 || a === EIntro6)
+    if (a === Skill42 || a === Liberation36 || a === Intro45 || a === EIntro6)
       applyCurrent(HEALS, 1);
   },
   constantStats: () => {
@@ -18893,61 +19405,61 @@ var SHOREKEEPER_TALENTS = new Talent({
     addStat(23, 12);
   }
 });
-var BA1237 = new ActionGroup("Basic - Origin Calculus 123", [BA142, BA242, BA340]);
+var BA1237 = new ActionGroup("Basic - Origin Calculus 123", [BA143, BA243, BA341]);
 var SK_LOOP = new Rotation([
   START_3,
   Skill42,
-  Liberation35,
+  Liberation36,
   ECHO_SWAP,
   SWAP,
   NOINTRO,
   BA1237,
   JUMP,
   MA50,
-  FHA13,
+  FHA14,
   Skill42,
-  BA242,
-  BA340,
+  BA243,
+  BA341,
   DODGE,
-  BA142,
-  BA242,
-  FHA13,
-  Liberation35,
+  BA143,
+  BA243,
+  FHA14,
+  Liberation36,
   ECHO_SWAP,
   OUTRO,
   INTRO,
   BA1237,
   JUMP,
   MA50,
-  FHA13,
+  FHA14,
   START_2,
   Skill42,
   SWAP,
-  Liberation35,
+  Liberation36,
   ECHO_SWAP,
   OUTRO
 ]);
 var SK_LOOP_S3 = new Rotation([
   START_3,
   Skill42,
-  Liberation35,
+  Liberation36,
   ECHO_SWAP,
   SWAP,
   NOINTRO,
   BA1237,
   JUMP,
   MA50,
-  FHA13,
+  FHA14,
   Skill42,
-  Liberation35,
+  Liberation36,
   ECHO_SWAP,
   OUTRO,
   INTRO,
-  BA142,
+  BA143,
   START_2,
   Skill42,
   SWAP,
-  Liberation35,
+  Liberation36,
   ECHO_SWAP,
   OUTRO
 ]);
@@ -18978,17 +19490,17 @@ var SHOREKEEPER = new Loadout({
 function verinaAction(id, def2) {
   return new Action(id, { element: 320, scaling: 0, ...def2 });
 }
-var BA143 = verinaAction("Basic - Cultivation 1", { node: 0, cast: 1, type: 4096, mv: 37.86, energy: 0.95, concerto: 3.04, offtune: 7600 });
-var BA243 = verinaAction("Basic - Cultivation 2", { node: 0, cast: 1, type: 4096, mv: 51.16, energy: 1.28, concerto: 4.11, offtune: 10200 });
-var BA341 = verinaAction("Basic - Cultivation 3", { node: 0, cast: 1, type: 4096, mv: 51.16, energy: 1.28, concerto: 4.11, offtune: 10200 });
-var BA430 = verinaAction("Basic - Cultivation 4", { node: 0, cast: 1, type: 4096, mv: 67.32, energy: 1.69, concerto: 5.41, offtune: 13600 });
+var BA144 = verinaAction("Basic - Cultivation 1", { node: 0, cast: 1, type: 4096, mv: 37.86, energy: 0.95, concerto: 3.04, offtune: 7600 });
+var BA244 = verinaAction("Basic - Cultivation 2", { node: 0, cast: 1, type: 4096, mv: 51.16, energy: 1.28, concerto: 4.11, offtune: 10200 });
+var BA342 = verinaAction("Basic - Cultivation 3", { node: 0, cast: 1, type: 4096, mv: 51.16, energy: 1.28, concerto: 4.11, offtune: 10200 });
+var BA431 = verinaAction("Basic - Cultivation 4", { node: 0, cast: 1, type: 4096, mv: 67.32, energy: 1.69, concerto: 5.41, offtune: 13600 });
 var BA56 = verinaAction("Basic - Cultivation 5", { node: 0, cast: 1, type: 4096, mv: 71.62, energy: 1.8, concerto: 5.76, offtune: 14400, forte1: 1 });
-var HA35 = verinaAction("Heavy - Cultivation", { node: 0, cast: 3, type: 8192, mv: 99.41, energy: 2.5, concerto: 8, offtune: 2e4 });
+var HA36 = verinaAction("Heavy - Cultivation", { node: 0, cast: 3, type: 8192, mv: 99.41, energy: 2.5, concerto: 8, offtune: 2e4 });
 var MA114 = verinaAction("Mid-air - Cultivation 1", { node: 0, cast: 2, type: 4096, mv: 56.37, energy: 1.41, concerto: 4.53, offtune: 11340 });
 var MA211 = verinaAction("Mid-air - Cultivation 2", { node: 0, cast: 2, type: 4096, mv: 53.19, energy: 1.33, concerto: 4.28, offtune: 10700 });
 var MA311 = verinaAction("Mid-air - Cultivation 3", { node: 0, cast: 2, type: 4096, mv: 76.26, energy: 1.89, concerto: 6.12, offtune: 15342 });
 var MHA3 = verinaAction("Heavy - Cultivation (Mid-air)", { node: 0, cast: 3, type: 8192, mv: 61.64, energy: 0.51, concerto: 1, offtune: 12400 });
-var DC35 = verinaAction("Dodge Counter - Cultivation", { node: 0, cast: 0, type: 4096, mv: 129.23, energy: 3.25, concerto: 15.6, offtune: 14e3 });
+var DC36 = verinaAction("Dodge Counter - Cultivation", { node: 0, cast: 0, type: 4096, mv: 129.23, energy: 3.25, concerto: 15.6, offtune: 14e3 });
 var Skill43 = verinaAction("Skill - Botany Experiment", { node: 1, cast: 4, type: 12288, mv: 178.95, energy: 15, concerto: 30, offtune: 26600, forte1: 1 });
 var STARFLOWER_CONCERTO = { updateDebuffs: () => {
   addStat(26, 12);
@@ -18998,7 +19510,7 @@ var StarflowerHeavy = verinaAction("Forte Heavy - Starflower Blooms", { node: 2,
 var ForteMidair1 = verinaAction("Forte Mid-air - Starflower Blooms 1", { node: 2, cast: 2, type: 4096, mv: 67.64, energy: 1.41, concerto: 4.53, offtune: 11340, forte1: -1, ...STARFLOWER_CONCERTO });
 var ForteMidair2 = verinaAction("Forte Mid-air - Starflower Blooms 2", { node: 2, cast: 2, type: 4096, mv: 63.82, energy: 1.33, concerto: 4.28, offtune: 10700, forte1: -1, ...STARFLOWER_CONCERTO });
 var ForteMidair3 = verinaAction("Forte Mid-air - Starflower Blooms 3", { node: 2, cast: 2, type: 4096, mv: 30.5 * 3, energy: 1.89, concerto: 6.12, offtune: 15342, forte1: -1, ...STARFLOWER_CONCERTO });
-var Liberation36 = verinaAction("Liberation - Arboreal Flourish", {
+var Liberation37 = verinaAction("Liberation - Arboreal Flourish", {
   node: 3,
   cast: 5,
   type: 16384,
@@ -19017,8 +19529,8 @@ var PhotosynthesisTick = verinaAction("Liberation - Photosynthesis Mark", {
   field: PHOTOSYNTHESIS_FIELD
 });
 var S6Tick = PhotosynthesisTick.variant("Liberation - Photosynthesis Mark", { field: null });
-var Intro45 = verinaAction("Intro - Verdant Growth", { node: 4, cast: 6, type: 20480, mv: 99.41, energy: 10, concerto: 10, offtune: 11230, forte1: 1 });
-var Outro45 = verinaAction("Outro - Blossom", {
+var Intro46 = verinaAction("Intro - Verdant Growth", { node: 4, cast: 6, type: 20480, mv: 99.41, energy: 10, concerto: 10, offtune: 11230, forte1: 1 });
+var Outro46 = verinaAction("Outro - Blossom", {
   cast: 7,
   concerto: -100,
   active: false,
@@ -19041,7 +19553,7 @@ var VR_INHERENT_1 = new Inherent({
   name: "Inherent: Gift of Nature",
   updateBuffs: () => {
     const a = currentAction();
-    if (a === StarflowerHeavy || a === ForteMidair1 || a === Liberation36 || a === Outro45)
+    if (a === StarflowerHeavy || a === ForteMidair1 || a === Liberation37 || a === Outro46)
       applyTeam(GIFT_OF_NATURE, 1);
   }
 });
@@ -19064,7 +19576,7 @@ var VERINA_S4 = new Sequence({
   name: "Verina S4: Blossoming Embrace",
   updateBuffs: () => {
     const a = currentAction();
-    if (a === StarflowerHeavy || a === ForteMidair1 || a === Liberation36 || a === Outro45)
+    if (a === StarflowerHeavy || a === ForteMidair1 || a === Liberation37 || a === Outro46)
       applyTeam(S4_TEAM2, 1);
   }
 });
@@ -19095,15 +19607,15 @@ var VERINA_RESONATOR = new Resonator({
   name: "Verina",
   element: 320,
   weapon: 4,
-  intro: () => Intro45,
-  outro: () => Outro45,
+  intro: () => Intro46,
+  outro: () => Outro46,
   color: "#8fe08f",
   maxEnergy: 175,
   // her own real 175%, not the generic 125% default — matches Shorekeeper's own
   tier: 1,
   updateDebuffs: () => {
     const a = currentAction();
-    if (a === StarflowerHeavy || a === ForteMidair1 || a === ForteMidair2 || a === ForteMidair3 || a === Liberation36 || a === PhotosynthesisTick || a === S6Tick || a === Outro45)
+    if (a === StarflowerHeavy || a === ForteMidair1 || a === ForteMidair2 || a === ForteMidair3 || a === Liberation37 || a === PhotosynthesisTick || a === S6Tick || a === Outro46)
       applyCurrent(HEALS, 1);
   },
   constantStats: () => {
@@ -19119,11 +19631,11 @@ var VERINA_TALENTS = new Talent({
     addStat(23, 12);
   }
 });
-var BA345 = new ActionGroup("Basic - Cultivation 345", [BA341, BA430, BA56]);
+var BA345 = new ActionGroup("Basic - Cultivation 345", [BA342, BA431, BA56]);
 var VR_LOOP = new Rotation([
   NOINTRO,
   BA345,
-  Liberation36,
+  Liberation37,
   Skill43,
   JUMP,
   ForteMidair1,
@@ -19131,7 +19643,7 @@ var VR_LOOP = new Rotation([
   ECHO_SWAP,
   OUTRO,
   INTRO,
-  Liberation36,
+  Liberation37,
   Skill43,
   JUMP,
   ForteMidair1,
@@ -19141,7 +19653,7 @@ var VR_LOOP = new Rotation([
 ]);
 var VR_S2 = new Rotation([
   NOINTRO,
-  Liberation36,
+  Liberation37,
   Skill43,
   JUMP,
   ForteMidair1,
@@ -19149,7 +19661,7 @@ var VR_S2 = new Rotation([
   ECHO_SWAP,
   OUTRO,
   INTRO,
-  Liberation36,
+  Liberation37,
   Skill43,
   JUMP,
   ForteMidair1,
@@ -19248,6 +19760,10 @@ var TEAMS = [
   // encore: fusion basic
   [[SHOREKEEPER, VERINA, DENIA_BURST, LUPA], [LUPA, SANHUA, DENIA_BURST], [ENCORE]],
   [[LUPA, LUPA], [ENCORE], [CHANGLI, BRANT]],
+  // cartethyia: aero HP-scaling basic attack on Aero Erosion — Aero Rover and Chisa both raise the
+  // status's own cap, which is what her Erosion ticks and her Blade's amplification both read
+  [[SUISUI, CHISA, SHOREKEEPER, MORNYE, CIACCONA, CHISA], [ROVER_AERO, CHISA], [CARTETHYIA]],
+  [[SUISUI, CHISA, ROVER_AERO, SHOREKEEPER, MORNYE, CIACCONA], [SANHUA, SANHUA], [CARTETHYIA]],
   // havoc rover: havoc, mixed
   [[SHOREKEEPER, VERINA, MORNYE], [ROCCIA, DANJIN, SANHUA, LYNAE_RUPTURE, CANTARELLA], [ROVER_HAVOC]]
 ];
@@ -19309,7 +19825,10 @@ function sequenceLevels(m, filters) {
 function eligibleWeapons(m, filters) {
   const l = m.loadout;
   const allowR1 = m.mainDps ? filters.allowR1Mdps : filters.allowR1Supports;
-  const eligible = l.weapons.map((_, i) => i).filter((i) => allowR1 || l.weapons[i].standard);
+  const eligible = l.weapons.map((_, i) => i).filter(
+    (i) => allowR1 || l.weapons[i].tier !== 0
+    /* Tier.Limited */
+  );
   return (m.mainDps ? filters.mdpsWeapons : filters.supportWeapons) ? eligible : eligible.slice(0, 1);
 }
 var trialCache = /* @__PURE__ */ new Map();

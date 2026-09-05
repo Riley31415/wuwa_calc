@@ -28,7 +28,7 @@ import {
   queueOn,
   queueOutro,
 } from "../../engine/context.js";
-import { lostOnSwap } from "../../shared/helpers.js";
+import { lostOnSwap, oneSecondPassed } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, ActionField } from "../../engine/rotation.js";
 import { STATIC_MIST, CADENZA, NEW_STD_PISTOL } from "../../weapons/standard.js";
 import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
@@ -106,7 +106,7 @@ const BURNING_RHAPSODY = new Buff({
   maxStacks: 48,
   field: MARCATO_FIELD,
   updateBuffs: () => {
-    if (!currentAction().active || triggeredAction()) return;
+    if (!oneSecondPassed()) return;
     if (casting(Cast.Skill)) { queueOn(MORTEFI_RESONATOR, ACTION_MARCATO); queueOn(MORTEFI_RESONATOR, ACTION_MARCATO_PAIRED); return; }
     const heavy = casting(Cast.Heavy);
     if (!heavy && !((casting(Cast.Basic) || casting(Cast.MidAir)) && currentAction().mv > 0)) return;

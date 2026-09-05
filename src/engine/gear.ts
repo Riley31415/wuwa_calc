@@ -474,11 +474,13 @@ export class Mainslot extends Gear {
 export interface WeaponDef extends GearDef {
   /** Which of the five weapon categories this is — must match the wielder's own `Resonator.weapon`. */
   weaponType: WeaponType;
-  /** True for every weapon in weapons/standard.ts (all three generations — Ceaseless Aria,
-   *  Stormy Resolution, and the new standard set), false for a signature/limited one. The
-   *  comparison table's own Allow R1 MDPS/Supports checkboxes key off this: unchecked restricts
-   *  that role to standard weapons only, on the assumption a signature is only ever owned at R1. */
-  standard?: boolean;
+  /** How the weapon is come by, the same three tiers a resonator has (stats.ts's own `Tier`):
+   *  `Limited` a signature, `Standard` one of the permanent 5-stars (Stormy Resolution and the
+   *  new standard set), `Free` a 4-star anyone can craft — Ceaseless Aria, Bloodpact's Pledge —
+   *  which is why those two are written at their real R5. Unset means `Tier.Limited`. The
+   *  comparison table's own Allow R1 MDPS/Supports checkboxes key off it: unchecked restricts
+   *  that role to the non-limited tiers, on the assumption a signature is only ever owned at R1. */
+  tier?: Tier;
 }
 
 /** A weapon: gear that also carries which of the five categories it belongs to. Every top-level
@@ -486,11 +488,11 @@ export interface WeaponDef extends GearDef {
  *  weapon grants (Ad Veritatem, Panorama, etc.) stay plain Buff. */
 export class Weapon extends Gear {
   weaponType: WeaponType;
-  standard: boolean;
+  tier: Tier;
   constructor(def: WeaponDef) {
     super(def);
     this.weaponType = def.weaponType;
-    this.standard = def.standard ?? false;
+    this.tier = def.tier ?? Tier.Limited;
   }
 }
 

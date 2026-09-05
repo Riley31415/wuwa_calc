@@ -14,6 +14,7 @@
  * and `teamAt()` below, and solver.ts's own `teamFromKey()`.
  */
 import type { Loadout } from "./gear.js";
+import { CARTETHYIA } from "../resonators/aero/cartethyia.js";
 import { CIACCONA } from "../resonators/aero/ciaccona.js";
 import { IUNO, IUNO_MDPS } from "../resonators/aero/iuno.js";
 import { JIANXIN } from "../resonators/aero/jianxin.js";
@@ -149,6 +150,11 @@ const TEAMS: Loadout[][][] = [
   // encore: fusion basic
   [[SHOREKEEPER, VERINA, DENIA_BURST, LUPA], [LUPA, SANHUA, DENIA_BURST], [ENCORE]],
   [[LUPA, LUPA], [ENCORE], [CHANGLI, BRANT]],
+
+  // cartethyia: aero HP-scaling basic attack on Aero Erosion — Aero Rover and Chisa both raise the
+  // status's own cap, which is what her Erosion ticks and her Blade's amplification both read
+  [[SUISUI, CHISA, SHOREKEEPER, MORNYE, CIACCONA, CHISA], [ROVER_AERO, CHISA], [CARTETHYIA]],
+  [[SUISUI, CHISA, ROVER_AERO, SHOREKEEPER, MORNYE, CIACCONA], [SANHUA, SANHUA], [CARTETHYIA]],
 
   // havoc rover: havoc, mixed
   [[SHOREKEEPER, VERINA, MORNYE], [ROCCIA, DANJIN, SANHUA, LYNAE_RUPTURE, CANTARELLA], [ROVER_HAVOC]],

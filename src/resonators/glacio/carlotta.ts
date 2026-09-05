@@ -5,13 +5,10 @@
  * two of them are literal Resonance Skill button presses.
  *
  * Substance (forte2, 0-120) gates Heavy Attack - Containment Tactics and Forte Circuit -
- * Imminent Oblivion (both spend it all) and Final Bow: if it's still full the instant Liberation
- * is cast, that hit and the whole Twilight Tango that follows (Death Knell, Fatal Finale) get
- * +80% DMG Multiplier, tracked by its own `TWILIGHT_TANGO` state marker. Read live off forte2()
- * at the Liberation cast, same threshold-check shape as Qiuyuan's Bamboo's Shade/Quietude
- * Within — the rotation below is built to actually land on 120 there. Imminent Oblivion is left
- * off it entirely since spending Substance right before Liberation would forfeit Final Bow for a
- * single Heavy Attack hit.
+ * Imminent Oblivion (both spend it all) and Final Bow: a state entered the moment it fills, held
+ * through any spend after, and ended only by a swap-out while Twilight Tango is up — so Era of
+ * New Wave and the whole Tango that follows (Death Knell, Fatal Finale) get +80% DMG Multiplier.
+ * The rotation below fills it, spends it on Imminent Oblivion, then casts the Liberation.
  *
  * Meta Vector (forte3): each Death Knell grants 1, Fatal Finale requires and spends all 4 — a
  * declarative forte3 delta on those two actions.
@@ -105,19 +102,19 @@ const FHA = carlottaAction("Forte Heavy - Imminent Oblivion", {
 });
 
 // Era of New Wave opens Twilight Tango; Death Knell (up to 4, each granting 1 Meta Vector) then
-// Fatal Finale (requires and spends all 4) close it out
+// Fatal Finale (requires and spends all 4) close it out. Death Knell's shots are real presses of
+// about a second each, not a frozen-world cinematic, so they count as time (helpers.ts's second)
 const Lib1 = carlottaAction("Liberation - Era of New Wave", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Skill, mv: 402.71, concerto: 20, offtune: 33600, resetEnergy: true,
-  // reads Substance, opens Twilight Tango, zeroes the gauge
+  // opens Twilight Tango, zeroes the gauge
   updateBuffs: () => {
     applyEnemy(DECONSTRUCTION, 1);
     applyCurrent(TWILIGHT_TANGO, 1);
-    if (forte2() >= 120) applyCurrent(FINAL_BOW, 1);
     setForte2(0); // Twilight Tango removes all Substance on opening
   },
 });
 const DeathKnell = carlottaAction("Liberation - Death Knell", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Skill, mv: 241.64, energy: 5, concerto: 7, offtune: 9600, forte3: 1,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Skill, realTime: true, mv: 241.64, energy: 5, concerto: 7, offtune: 9600, forte3: 1,
 });
 const FatalFinale = carlottaAction("Liberation - Fatal Finale", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Skill, mv: 644.33, concerto: 10, offtune: 50400, forte3: -4,
@@ -175,10 +172,11 @@ const TWILIGHT_TANGO = new Buff({
   },
 });
 
-/** +80% DMG Multiplier on Era of New Wave, Death Knell and Fatal Finale — granted at the
- *  Liberation cast if Substance was full then, spent by identity check since these three share
- *  `type: Skill` with other hits that shouldn't get it. Ends when Twilight Tango ends, or the
- *  standing "lost on inactive action" rule the instant she's switched off field. */
+/** +80% DMG Multiplier on Era of New Wave, Death Knell and Fatal Finale — entered the moment
+ *  Substance fills (CARLOTTA_RESONATOR's own afterAction), whatever action did it, and spending
+ *  it again (Imminent Oblivion, Containment Tactics) does not end it: only being switched off
+ *  field while Twilight Tango is up does. Identity check since these three share `type: Skill`
+ *  with other hits that shouldn't get it. */
 const FINAL_BOW = new Buff({
   name: "Carlotta: Final Bow",
   applyStats: () => {
@@ -186,7 +184,7 @@ const FINAL_BOW = new Buff({
     if (a === Lib1 || a === DeathKnell || a === FatalFinale) addStat(Stat.MulMv, 80);
   },
   convertStats: () => {
-    if (!isHeld(TWILIGHT_TANGO) || !currentAction().active) revokeCurrent(FINAL_BOW);
+    if (isHeld(TWILIGHT_TANGO) && !currentAction().active) revokeCurrent(FINAL_BOW);
   },
 });
 
@@ -247,6 +245,10 @@ const CARLOTTA_RESONATOR = new Resonator({
   color: "#8fb3d9",
   maxEnergy: 125,
 
+  // Final Bow is a state entered on the gauge filling, so it is read off the gauge as each
+  // action leaves it — the only phase that sees Chromatic Splendor's own conversion banked
+  afterAction: () => { if (forte2() >= 120) applyCurrent(FINAL_BOW, 1); },
+
   constantStats: () => {
     addStat(Stat.BaseHp, 12450); addStat(Stat.BaseAtk, 463); addStat(Stat.BaseDef, 1198);
   },
@@ -258,9 +260,9 @@ const CARLOTTA_TALENTS = new Talent({
   constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
-// reconstructed to actually reach Final Bow: Intro (+30 Substance) into two Art of
-// Violence/Chromatic Splendor pairs (+60, +30) lands exactly on 120 before Liberation opens
-// Twilight Tango — Imminent Oblivion is DPS-negative here so it's left off this line entirely.
+// Intro (+30 Substance, on the 30 the last Chromatic Splendor left) into Art of Violence/Chromatic
+// Splendor (six crystals, +60) fills the gauge — Final Bow — which Imminent Oblivion then spends
+// before Liberation opens Twilight Tango with the state still up.
 // She's never the team's own lead, so this covers both opener and loop.
 
 const DeathKnellx4 = new ActionGroup("Liberation - Death Knell x4", [DeathKnell, DeathKnell, DeathKnell, DeathKnell]);

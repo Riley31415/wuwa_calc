@@ -351,6 +351,20 @@ export const { get: forte3, set: setForte3, add: addForte3 } = forteGauge(2);
 export const { get: forte4, set: setForte4, add: addForte4 } = forteGauge(3);
 export const { get: forte5, set: setForte5, add: addForte5 } = forteGauge(4);
 
+/** The target's own gauges, 1-5 — the same plain numbers as a member's forte, but on the enemy
+ *  (`State.enemy`) rather than whoever is acting, for a debuff that keeps a clock of its own on
+ *  the target (status.ts's Electro Flare and Aero Erosion: seconds to their next tick).
+ *  Never banked by evaluate() — only a kit moves them. */
+function enemyGauge(i: 0 | 1 | 2 | 3 | 4) {
+  return {
+    get: (): number => ctx.state!.enemy.forte[i],
+    set: (value: number): number => { noteMutation(-6 - i, value); return (ctx.state!.enemy.forte[i] = value); },
+    add: (delta: number): number => { noteMutation(-6 - i, delta); return (ctx.state!.enemy.forte[i] = ctx.state!.enemy.forte[i] + delta); },
+  };
+}
+export const { get: enemyForte1, set: setEnemyForte1, add: addEnemyForte1 } = enemyGauge(0);
+export const { get: enemyForte2, set: setEnemyForte2, add: addEnemyForte2 } = enemyGauge(1);
+
 /** The acting resonator's own running Concerto Energy — same "a kit clamps its own gauge's real
  *  bounds itself, by calling this directly" shape as `setForteN` above (Camellya's own Ephemeral:
  *  "requires full Concerto, consumes 70" only makes sense against a clamped-to-100 starting

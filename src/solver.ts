@@ -18,6 +18,7 @@
  * and the fallback path yields between whole teams instead — ~25ms apiece, fine for a bar.
  */
 import { Buff, Loadout, EchoLoadout, Weapon, baseSequence } from "./engine/gear.js";
+import { Tier } from "./engine/stats.js";
 import { State } from "./engine/state.js";
 import { withTeam, equip, equipEnemy, setTracing } from "./engine/context.js";
 import type { Matrix } from "./engine/gear.js";
@@ -138,8 +139,8 @@ export function sequenceLevels(m: Member, filters: Filters): number[] {
 }
 
 /** Which of a loadout's own weapons this role may actually run right now — everything when its R1
- *  allowance is on, standard weapons only when it isn't (weapons/standard.ts, every generation —
- *  see gear.ts's own `Weapon.standard`). A signature is only ever owned at R1, so a role that
+ *  allowance is on, standard and free weapons only when it isn't (weapons/standard.ts, every
+ *  generation — see gear.ts's own `Weapon.tier`). A signature is only ever owned at R1, so a role that
  *  hasn't been given that allowance never even simulates one. Empty means the whole team drops
  *  out of the table, same as it always has.
  *
@@ -150,7 +151,7 @@ export function sequenceLevels(m: Member, filters: Filters): number[] {
 export function eligibleWeapons(m: Member, filters: Filters): number[] {
   const l = m.loadout;
   const allowR1 = m.mainDps ? filters.allowR1Mdps : filters.allowR1Supports;
-  const eligible = l.weapons.map((_, i) => i).filter((i) => allowR1 || l.weapons[i]!.standard);
+  const eligible = l.weapons.map((_, i) => i).filter((i) => allowR1 || l.weapons[i]!.tier !== Tier.Limited);
   return (m.mainDps ? filters.mdpsWeapons : filters.supportWeapons) ? eligible : eligible.slice(0, 1);
 }
 

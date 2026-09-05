@@ -34,7 +34,7 @@ import {
   statLabel,
   tagKind,
   teamKey
-} from "./chunk-HB734JFS.js";
+} from "./chunk-4BVDWXFI.js";
 
 // dist/src/display.js
 var keysFor = (action, ...stats) => stats.flatMap((stat) => [
@@ -89,7 +89,7 @@ var FEEDS = {
     17
     /* Stat.DmgBonus */
   ),
-  amp: (a) => a.scaling === 4 ? [] : a.scaling !== 3 ? keysFor(
+  amp: (a) => a.scaling === 4 || fixed(a) ? [] : a.scaling !== 3 ? keysFor(
     a,
     18
     /* Stat.Amp */
@@ -98,13 +98,13 @@ var FEEDS = {
     18
     /* Stat.Amp */
   )],
-  dealt: (a) => a.scaling === 3 ? [] : keysFor(
+  dealt: (a) => a.scaling === 3 || fixed(a) ? [] : keysFor(
     a,
     19
     /* Stat.TotalDmg */
   ),
   // what is being done to the enemy rather than to the resonator
-  effDef: (a) => a.scaling === 3 ? keysFor(
+  effDef: (a) => fixed(a) ? [] : a.scaling === 3 ? keysFor(
     a,
     35
     /* EnemyStat.DefReduce */
@@ -119,7 +119,7 @@ var FEEDS = {
     a,
     34
     /* EnemyStat.ResReduce */
-  ) : keysFor(
+  ) : fixed(a) ? [] : keysFor(
     a,
     20,
     34
@@ -128,7 +128,8 @@ var FEEDS = {
   // energy/concerto/offtune are NOT built off this — they're running totals, not a per-action
   // sum, so rowValues() builds their own panel by hand further down, off RESOURCE_STAT instead.
 };
-var special = (action) => action.scaling === 3 || action.scaling === 4;
+var special = (action) => action.scaling === 3 || action.scaling === 4 || action.scaling === 5;
+var fixed = (action) => action.scaling === 5;
 var SECTION_OF = {
   [
     0
@@ -329,7 +330,7 @@ function rowValues(snap, { mv, avg }, members = []) {
     def: snap.def,
     mv: dealsDamage ? mv : null,
     dmgBonus: filler || special(snap.action) ? null : snap.dmgBonus,
-    amp: filler ? null : snap.action.scaling === 4 ? null : snap.action.scaling === 3 ? snap.type2Amp : snap.amp,
+    amp: filler || fixed(snap.action) ? null : snap.action.scaling === 4 ? null : snap.action.scaling === 3 ? snap.type2Amp : snap.amp,
     cr: filler || special(snap.action) ? null : snap.stat(
       9
       /* Stat.CritRate */
@@ -338,15 +339,15 @@ function rowValues(snap, { mv, avg }, members = []) {
       10
       /* Stat.CritDmg */
     ),
-    dealt: filler || snap.action.scaling === 3 ? null : snap.stat(
+    dealt: filler || snap.action.scaling === 3 || fixed(snap.action) ? null : snap.stat(
       19
       /* Stat.TotalDmg */
     ),
     // what the hit actually meets: how much of the enemy's defence is stripped away by ignore
     // and reduce (0% = untouched), and the resistance left after ignore and shred — both read
     // straight off the resolved snapshot's own enemyDef/enemyRes.
-    effDef: filler ? null : effectiveShred(snap) * 100,
-    effRes: filler ? null : effectiveRes(snap),
+    effDef: filler || fixed(snap.action) ? null : effectiveShred(snap) * 100,
+    effRes: filler || fixed(snap.action) ? null : effectiveRes(snap),
     er: snap.stat(
       11
       /* Stat.Er */
@@ -593,7 +594,7 @@ function buildReport(lines, { strip = null } = {}) {
     // rather than out past the resonator's own hp/def
     // `full` is the heading its panel opens with when nothing fed the column at all — the
     // attacker's own penetration is what that answers for, not the enemy's own DEF
-    { key: "effDef", label: "ignore%", digits: 1, percent: true, full: "DEF Ignore" },
+    { key: "effDef", label: "ignore%", digits: 1, percent: true, full: "DEF Ignore", fullEmpty: "DEF Shred" },
     { key: "effRes", label: "res%", digits: 1, percent: true, full: "Enemy RES" },
     { key: "er", label: "er%", digits: 1, percent: true, full: "Energy Regen" },
     { key: "hp", label: "hp" },
@@ -691,6 +692,15 @@ function focusSearch() {
     return;
   search.focus({ preventScroll: true });
   search.setSelectionRange(search.value.length, search.value.length);
+}
+function clearSearch() {
+  searchText = "";
+  const input = document.querySelector("#optionSearch");
+  if (input)
+    input.value = "";
+  const box = document.getElementById("searchResults");
+  if (box)
+    box.innerHTML = "";
 }
 function rowCapWarning(total) {
   const el = document.getElementById("rowCapWarning");
@@ -960,7 +970,7 @@ function popover(col, rows, total, slotHue, suffix = "") {
   }
   const sections = [...bySection].map(([key, group]) => ({ key, rows: group })).sort((a, b) => SECTION_RANK(a.key) - SECTION_RANK(b.key));
   const body = sections.map(({ key, rows: group }) => `<tr class="sec"><td colspan="2">${esc(key ?? col.full ?? col.label)}</td></tr>` + group.map(row).join("")).join("");
-  const titled = sections.length ? body : `<tr class="sec"><td colspan="2">${esc(col.full ?? col.label)}</td></tr>`;
+  const titled = sections.length ? body : `<tr class="sec"><td colspan="2">${esc(col.fullEmpty ?? col.full ?? col.label)}</td></tr>`;
   const sum = `<tr class="sum"><td class="k">Total</td><td class="v">${fmt(total, col.digits ?? 0)}${col.percent ? "%" : ""}${esc(suffix)}</td></tr>`;
   return lazyPop(`<span class="pop stat${col.key === "avg" ? " damage" : ""}"><table>${titled}${before.map(row).join("")}${sum}${after.map(row).join("")}</table></span>`);
 }
@@ -1216,7 +1226,7 @@ function memberLabel(m, combo) {
   const l = m.loadout;
   const mdps = m.mainDps;
   const seq = baseSequence(l.resonator) > 0 || (mdps ? filters.mdpsSequences : filters.supportSequences) ? `S${combo.sequence}` : "";
-  const rank = combo.weapon.standard ? "R0" : "R1";
+  const rank = combo.weapon.tier === 2 && l.resonator.tier !== 0 ? "R5" : combo.weapon.tier === 0 ? "R1" : "R0";
   return [l.resonator.name, `${seq}${rank}`].filter(Boolean).join(" ");
 }
 function optionCell(kind, value, color, lines = [value]) {
@@ -1256,9 +1266,14 @@ function searchCandidates() {
   }
   return out;
 }
-function searchResults() {
+function searchHits() {
   const text = searchText.trim().toLowerCase();
   if (!text)
+    return [];
+  return searchCandidates().map((c) => ({ ...c, at: c.value.toLowerCase().indexOf(text) })).filter((c) => c.at !== -1).sort((a, b) => a.at - b.at || a.value.localeCompare(b.value)).slice(0, 5);
+}
+function searchResults() {
+  if (!searchText.trim())
     return "";
   const KIND_LABEL = {
     resonator: "Resonator",
@@ -1267,7 +1282,7 @@ function searchResults() {
     mainstat: "Mainstat",
     sequence: "Sequence"
   };
-  const hits = searchCandidates().map((c) => ({ ...c, at: c.value.toLowerCase().indexOf(text) })).filter((c) => c.at !== -1).sort((a, b) => a.at - b.at || a.value.localeCompare(b.value)).slice(0, 5);
+  const hits = searchHits();
   if (!hits.length)
     return `<div class="sresult none">no matches</div>`;
   return hits.map(({ kind, value }) => {
@@ -1543,6 +1558,9 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
       cls.push("member");
     if (BUFF_UNDERLINE_COLUMNS.has(col.key) && row.buffed.has(col.key))
       cls.push("buffed");
+    if (isRunning(col.key) && typeof v === "number" && Math.abs((Number(row.raw[`before:${col.key}`]) || 0) + (Number(row.raw[`moved:${col.key}`]) || 0) - v) > 1e-9) {
+      cls.push("buffed");
+    }
     if (col.key === "concerto" && Number(row.raw.isOutro) && Number(row.raw.concertoSpent) < 100) {
       cls.push("underspent");
     }
@@ -2627,6 +2645,7 @@ async function boot() {
     const pick = searchPick(e);
     if (!pick)
       return;
+    clearSearch();
     setFilter(...pick, "include");
     focusSearch();
   });
@@ -2635,6 +2654,7 @@ async function boot() {
     if (!pick)
       return;
     e.preventDefault();
+    clearSearch();
     setFilter(...pick, "exclude");
     focusSearch();
   });
@@ -2682,6 +2702,17 @@ document.addEventListener("input", (e) => {
   const box = document.getElementById("searchResults");
   if (box)
     box.innerHTML = searchResults();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" || e.target.id !== "optionSearch")
+    return;
+  const first = searchHits()[0];
+  if (!first)
+    return;
+  e.preventDefault();
+  clearSearch();
+  setFilter(first.kind === "resonator" ? resonatorFilters : OPTION_FILTER_MAPS[first.kind], first.value, "include");
+  focusSearch();
 });
 document.addEventListener("focusin", (e) => {
   if (!e.target.closest?.(".tcsearch"))
