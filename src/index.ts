@@ -36,7 +36,7 @@ import type { Report, Column, ReportRow, ReportPart, TraceEntry, InfoEntry } fro
 import { Scaling, isPercent, statLabel, SCALING_NAME, TAG_NAME, NODE_NAME } from "./engine/stats.js";
 import { member, comboOf, runTeam, runFromScore, eligibleWeapons, sequenceLevels, solveTeam, MAINSTAT_ROWS, defaultFilters, bestKey, picksKey } from "./solver.js";
 import type { Member, Combo, Pick, Filters, TeamRun, Solved, SolveRequest, SolveResponse, SolveSave } from "./solver.js";
-import { teamKey, ALL_TEAMS } from "./teams.js";
+import { teamKey, teamAt, ALL_TEAMS } from "./teams.js";
 
 
 /* ------------------------------------------------------------------------------------ teams */
@@ -306,6 +306,24 @@ const shippedFetched = new Set<string>();
  *  localStorage save must not carry them: the shipped set runs to tens of MB, far past the quota,
  *  and it is already on disk beside the page — re-saving it would evict the solves that aren't. */
 const shippedKeys = new Set<string>();
+/** Whether any solve now held came from outside this session — shipped under `solves/`, or put
+ *  back from localStorage — rather than being computed here. What `discardRestoredSolves()` reads
+ *  to decide whether a failed load has anything to fall back from. */
+let restoredSolves = false;
+
+/** Throw away every solve that wasn't computed in this session, and stop reaching for more, so the
+ *  next `refresh()` solves the roster itself the way a page with no `solves/` at all would. For
+ *  when a restored solve turns out not to fit the code that loaded it — a precompute that trails
+ *  the roster, a stale localStorage shape — and blew up somewhere past `loadShipped()`'s own
+ *  checks. `false` if there was nothing restored to discard, in which case the error was ours. */
+function discardRestoredSolves(): boolean {
+  if (!restoredSolves) return false;
+  restoredSolves = false;
+  bestPicks.clear(); picksCache.clear(); results.clear();
+  shippedKeys.clear(); shippedStates = null;
+  try { localStorage.removeItem(SOLVES_KEY); } catch { /* no storage — nothing to forget */ }
+  return true;
+}
 
 const filterSignature = (f: Filters): string => Object.values(f).join(",");
 
@@ -322,8 +340,22 @@ async function loadShipped(f: Filters): Promise<void> {
     const res = await fetch(`./solves/${file}`, { cache: "no-store" });
     if (!res.ok) return;
     const saved = (await res.json()) as { solves: [string, Solved][]; picks: [string, Pick[]][] };
-    for (const [k, v] of saved.solves) if (!bestPicks.has(k)) { bestPicks.set(k, v); shippedKeys.add(k); }
-    for (const [k, v] of saved.picks) if (!picksCache.has(k)) picksCache.set(k, v);
+    // A shipped solve that no longer fits its team is skipped, and that team solves here instead:
+    // keys are team *indices*, so a team added mid-roster shifts every solve after it onto a team
+    // whose loadouts may list fewer weapons/echoes/main stats than the picks reach for. A
+    // precompute that trails the roster is the ordinary state of the published site between
+    // pushes, so this is a guard, not an error.
+    const fits = (k: string, v: Solved): boolean => {
+      const team = teamAt(k.split("|")[0]!);
+      if (!team) return false;
+      const ok = (picks: Pick[]): boolean => picks.length === team.loadouts.length && picks.every((p, i) => {
+        const l = team.loadouts[i]!;
+        return p.weapon < l.weapons.length && p.echo < l.echoLoadouts.length && p.mainstat < l.mainstats.length;
+      });
+      return ok(v.picks) && v.rows.every(ok);
+    };
+    for (const [k, v] of saved.solves) if (!bestPicks.has(k) && fits(k, v)) { bestPicks.set(k, v); shippedKeys.add(k); restoredSolves = true; }
+    for (const [k, v] of saved.picks) if (!picksCache.has(k)) { picksCache.set(k, v); restoredSolves = true; }
   } catch { /* missing, half-written or a stale shape — that state just solves here instead */ }
 }
 
@@ -332,6 +364,7 @@ async function loadSolves(): Promise<void> {
     if (saved.stamp !== buildStamp) return;
     for (const [k, v] of saved.solves) bestPicks.set(k, v);
     for (const [k, v] of saved.picks) picksCache.set(k, v);
+    if (saved.solves.length || saved.picks.length) restoredSolves = true;
   };
   try {
     const live = await fetch("/__livereload", { cache: "no-store" }).catch(() => null);
@@ -3367,6 +3400,16 @@ async function refresh(): Promise<void> {
       route();
     }
   } catch (err) {
+    // A load running on solves this session didn't compute is retried once without them — a
+    // precompute that no longer matches the roster is the usual way a published page breaks, and
+    // solving here is exactly what the page would have done had there been nothing shipped.
+    // Only an error with nothing restored behind it is ours to show.
+    if (discardRestoredSolves()) {
+      console.warn("restored solves failed to load; solving the roster here instead", err);
+      visibleRows = [];
+      await refresh();
+      return;
+    }
     console.error(err);
     app.innerHTML = errorPage(err);
     app.className = "";
@@ -3404,7 +3447,13 @@ async function boot(): Promise<void> {
   // has to be read while there is still nothing built
   applyHash();
   await loadSolves();
-  if (!await bootDetail()) await refresh();
+  // a direct `#team=` link is served off a restored solve too, so it gets the same one retry
+  const detail = await bootDetail().catch((err: unknown) => {
+    if (!discardRestoredSolves()) throw err;
+    console.warn("restored solves failed to load; solving the roster here instead", err);
+    return false;
+  });
+  if (!detail) await refresh();
   // and back out again, so a bare URL (or an old `#team=...` link) picks up the defaults it ran under
   syncHash();
 

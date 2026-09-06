@@ -33,8 +33,9 @@ import {
   splitStat,
   statLabel,
   tagKind,
+  teamAt,
   teamKey
-} from "./chunk-EFBRJ33T.js";
+} from "./chunk-R2KQM2JA.js";
 
 // dist/src/display.js
 var keysFor = (action, ...stats) => stats.flatMap((stat) => [
@@ -812,6 +813,22 @@ var solvesDirty = false;
 var shippedStates = null;
 var shippedFetched = /* @__PURE__ */ new Set();
 var shippedKeys = /* @__PURE__ */ new Set();
+var restoredSolves = false;
+function discardRestoredSolves() {
+  if (!restoredSolves)
+    return false;
+  restoredSolves = false;
+  bestPicks.clear();
+  picksCache.clear();
+  results.clear();
+  shippedKeys.clear();
+  shippedStates = null;
+  try {
+    localStorage.removeItem(SOLVES_KEY);
+  } catch {
+  }
+  return true;
+}
 var filterSignature = (f) => Object.values(f).join(",");
 async function loadShipped(f) {
   const sig = filterSignature(f);
@@ -826,14 +843,27 @@ async function loadShipped(f) {
     if (!res.ok)
       return;
     const saved = await res.json();
+    const fits = (k, v) => {
+      const team = teamAt(k.split("|")[0]);
+      if (!team)
+        return false;
+      const ok = (picks) => picks.length === team.loadouts.length && picks.every((p, i) => {
+        const l = team.loadouts[i];
+        return p.weapon < l.weapons.length && p.echo < l.echoLoadouts.length && p.mainstat < l.mainstats.length;
+      });
+      return ok(v.picks) && v.rows.every(ok);
+    };
     for (const [k, v] of saved.solves)
-      if (!bestPicks.has(k)) {
+      if (!bestPicks.has(k) && fits(k, v)) {
         bestPicks.set(k, v);
         shippedKeys.add(k);
+        restoredSolves = true;
       }
     for (const [k, v] of saved.picks)
-      if (!picksCache.has(k))
+      if (!picksCache.has(k)) {
         picksCache.set(k, v);
+        restoredSolves = true;
+      }
   } catch {
   }
 }
@@ -845,6 +875,8 @@ async function loadSolves() {
       bestPicks.set(k, v);
     for (const [k, v] of saved.picks)
       picksCache.set(k, v);
+    if (saved.solves.length || saved.picks.length)
+      restoredSolves = true;
   };
   try {
     const live = await fetch("/__livereload", { cache: "no-store" }).catch(() => null);
@@ -2691,6 +2723,12 @@ async function refresh() {
       route();
     }
   } catch (err) {
+    if (discardRestoredSolves()) {
+      console.warn("restored solves failed to load; solving the roster here instead", err);
+      visibleRows = [];
+      await refresh();
+      return;
+    }
     console.error(err);
     app.innerHTML = errorPage(err);
     app.className = "";
@@ -2714,7 +2752,13 @@ async function bootDetail() {
 async function boot() {
   applyHash();
   await loadSolves();
-  if (!await bootDetail())
+  const detail = await bootDetail().catch((err) => {
+    if (!discardRestoredSolves())
+      throw err;
+    console.warn("restored solves failed to load; solving the roster here instead", err);
+    return false;
+  });
+  if (!detail)
     await refresh();
   syncHash();
   addEventListener("hashchange", () => {
