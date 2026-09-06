@@ -327,6 +327,44 @@ function discardRestoredSolves(): boolean {
 
 const filterSignature = (f: Filters): string => Object.values(f).join(",");
 
+/**
+ * Does a solve fit the code that is about to display it? Two things are checked, both cheap and
+ * both things a solve made by other code gets wrong:
+ *
+ * - every pick indexes inside its loadout's own lists (member count, weapon/echo/main stat) — a
+ *   solve keyed by team *index* lands on the wrong team once a team is added mid-roster;
+ * - the rows carry the whole sequence cross the current `sequenceLevels()` opens — a solve made
+ *   before a resonator's chain existed has one level where seven are now expected. Sequences are
+ *   never searched, so the cross is exactly predictable; nothing else about a row set is.
+ *
+ * Run on everything that arrives from outside this session's own main thread: the shipped files,
+ * localStorage, and a worker's answer — the worker's entry (`dist/bundle/solver.js`) keeps its
+ * name across builds, so a browser can hand a worker a stale copy of the engine and it will
+ * happily solve with last week's kits. A solve that fails is simply solved here instead.
+ */
+/** The filter state a `bestKey()` was made under, read back off the key — the same
+ *  `Object.values()` order `filterSignature()` writes, so `FILTER_KEYS` zips straight onto it. */
+function filtersOfKey(key: string): Filters {
+  const flags = (key.split("|")[1] ?? "").split(",").map((v) => v === "true");
+  const f = defaultFilters();
+  FILTER_KEYS.forEach((k, i) => { if (i < flags.length) f[k] = flags[i]!; });
+  return f;
+}
+
+function solveFits(key: string, solved: Solved, f: Filters = filters): boolean {
+  const team = teamAt(key.split("|")[0]!);
+  if (!team) return false;
+  const members = team.loadouts.map((l, i) => member(l, i === team.dpsIndex));
+  const inRange = (picks: Pick[]): boolean => picks.length === team.loadouts.length && picks.every((p, i) => {
+    const l = team.loadouts[i]!;
+    return p.weapon < l.weapons.length && p.echo < l.echoLoadouts.length && p.mainstat < l.mainstats.length;
+  });
+  if (!inRange(solved.picks) || !solved.rows.every(inRange)) return false;
+  const expected = members.reduce((n, m) => n * sequenceLevels(m, f).length, 1);
+  const patterns = new Set(solved.rows.map((r) => r.map((p) => p.sequence).join(".")));
+  return patterns.size === expected;
+}
+
 /** Pull in the shipped solves for one filter state, if there are any and they aren't in yet. A
  *  state with no file is remembered too, so a miss costs one lookup rather than a fetch per
  *  refresh. Never overwrites what this session solved: a live solve is this build's own answer. */
@@ -340,21 +378,10 @@ async function loadShipped(f: Filters): Promise<void> {
     const res = await fetch(`./solves/${file}`, { cache: "no-store" });
     if (!res.ok) return;
     const saved = (await res.json()) as { solves: [string, Solved][]; picks: [string, Pick[]][] };
-    // A shipped solve that no longer fits its team is skipped, and that team solves here instead:
-    // keys are team *indices*, so a team added mid-roster shifts every solve after it onto a team
-    // whose loadouts may list fewer weapons/echoes/main stats than the picks reach for. A
-    // precompute that trails the roster is the ordinary state of the published site between
-    // pushes, so this is a guard, not an error.
-    const fits = (k: string, v: Solved): boolean => {
-      const team = teamAt(k.split("|")[0]!);
-      if (!team) return false;
-      const ok = (picks: Pick[]): boolean => picks.length === team.loadouts.length && picks.every((p, i) => {
-        const l = team.loadouts[i]!;
-        return p.weapon < l.weapons.length && p.echo < l.echoLoadouts.length && p.mainstat < l.mainstats.length;
-      });
-      return ok(v.picks) && v.rows.every(ok);
-    };
-    for (const [k, v] of saved.solves) if (!bestPicks.has(k) && fits(k, v)) { bestPicks.set(k, v); shippedKeys.add(k); restoredSolves = true; }
+    // A shipped solve that no longer fits its team is skipped, and that team solves here instead
+    // (`solveFits()`): a precompute that trails the roster is the ordinary state of the published
+    // site between pushes, so this is a guard, not an error.
+    for (const [k, v] of saved.solves) if (!bestPicks.has(k) && solveFits(k, v, f)) { bestPicks.set(k, v); shippedKeys.add(k); restoredSolves = true; }
     for (const [k, v] of saved.picks) if (!picksCache.has(k)) { picksCache.set(k, v); restoredSolves = true; }
   } catch { /* missing, half-written or a stale shape — that state just solves here instead */ }
 }
@@ -362,9 +389,10 @@ async function loadShipped(f: Filters): Promise<void> {
 async function loadSolves(): Promise<void> {
   const restore = (saved: SolveSave): void => {
     if (saved.stamp !== buildStamp) return;
-    for (const [k, v] of saved.solves) bestPicks.set(k, v);
-    for (const [k, v] of saved.picks) picksCache.set(k, v);
-    if (saved.solves.length || saved.picks.length) restoredSolves = true;
+    // the same stamp is no guarantee the solve was made by this code (see `solveFits()`), so each
+    // one is checked against the filters its own key was saved under
+    for (const [k, v] of saved.solves) if (solveFits(k, v, filtersOfKey(k))) { bestPicks.set(k, v); restoredSolves = true; }
+    for (const [k, v] of saved.picks) { picksCache.set(k, v); restoredSolves = true; }
   };
   try {
     const live = await fetch("/__livereload", { cache: "no-store" }).catch(() => null);
@@ -3030,12 +3058,13 @@ function fitSide(): void {
   // table can stand in, and 52px of it is the whole margin between "fits" and "sits over it"
   let room = layout.clientWidth;
   const beside = room - table - (parseFloat(getComputedStyle(layout).columnGap) || 0);
-  // a column of boxes is 272px wide (index.css's own `.tcopt`); under that the aside can't stand
-  // beside the table at all, and above the table it has the whole width to spend
-  if (getComputedStyle(layout).flexDirection === "row" && beside >= 272) room = beside;
+  // a column of boxes is 272px wide (index.css's own `.tcopt`) plus the 10px the aside always
+  // keeps for its own scrollbar (`.tcside`); under that the aside can't stand beside the table at
+  // all, and above the table it has the whole width to spend
+  if (getComputedStyle(layout).flexDirection === "row" && beside >= 282) room = beside;
   else layout.classList.add("stack");
-  // ...and 10px between two columns, so two want 554 and three 836
-  const cols = room >= 836 ? 3 : room >= 554 ? 2 : 1;
+  // ...and 10px between two columns, so two want 564 and three 846 (index.css's own `.cols2`/`.cols3`)
+  const cols = room >= 846 ? 3 : room >= 564 ? 2 : 1;
   for (const n of [1, 2, 3]) side.classList.toggle(`cols${n}`, n === cols);
   // beside the table the aside is its own scroller (index.css's `.tcside`), no taller than the
   // scrollport it sticks to — `clientHeight` is in the same page px as the style
@@ -3215,8 +3244,11 @@ function workerPool(): Worker[] | null {
   // how fast the main thread can hand out work and file away the answers, not by the search
   const want = Math.max(1, Math.min(WORKER_LIMIT, (navigator.hardwareConcurrency || 4) - 1));
   try {
+    // a query string nothing has cached: the worker's entry keeps its name across builds and the
+    // published site caches for ten minutes (see index.html), and a worker on last build's engine
+    // solves with last build's kits — `solveFits()` would catch that, but only to redo the work here
     pool = Array.from({ length: want }, () =>
-      new Worker(new URL("./solver.js", import.meta.url), { type: "module" }));
+      new Worker(new URL(`./solver.js?v=${Date.now()}`, import.meta.url), { type: "module" }));
   } catch (err) {
     console.warn("Workers unavailable, optimizing on the main thread instead:", err);
     pool = null;
@@ -3249,7 +3281,13 @@ function solveOnWorkers(
         onDone(members);
         pump(w);
       };
-      w.onmessage = ({ data }: MessageEvent<SolveResponse>) => finish({ picks: data.picks, rows: data.rows, scores: data.scores });
+      w.onmessage = ({ data }: MessageEvent<SolveResponse>) => {
+        const solved: Solved = { picks: data.picks, rows: data.rows, scores: data.scores };
+        if (solveFits(bestKey(key, members, filters), solved)) { finish(solved); return; }
+        // a worker running a cached, older engine (see `solveFits()`) — this thread's own is current
+        console.warn(`worker's solve for ${key} does not fit this build; solving it here`);
+        finish(solveTeam(key, members, filters, known));
+      };
       w.onerror = (e) => {
         console.warn(`worker failed on ${key}, solving it here:`, e.message);
         e.preventDefault();

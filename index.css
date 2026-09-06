@@ -1148,8 +1148,9 @@ body.coldrag { user-select: none; }
     right: 0;
     /* over the table's own pinned header (z-index 5), under the hover panels (200) */
     z-index: 6;
-    /* the narrowest of the three, until `fitSide()` has measured which one this table can afford */
-    width: 272px;
+    /* the narrowest of the three, until `fitSide()` has measured which one this table can afford
+       (see `.cols1` below for the 10px) */
+    width: 282px;
     /* the slack beside a table narrower than the room left for it belongs between the two, not to
        the right of the aside: the columns keep the page's own right edge */
     margin-left: auto;
@@ -1158,6 +1159,11 @@ body.coldrag { user-select: none; }
        taller than the window scrolls on its own, and a wheel over it never reaches the table */
     overflow-y: auto;
     overscroll-behavior: contain;
+    /* the scrollbar's 10px is always reserved, scrolling or not: taken out of the content width
+       only when the boxes grow taller than the window, it left the columns 544px to stand in and
+       the second one wrapped under the first — a 272px hole beside the boxes, and a scrollbar at
+       the far side of it */
+    scrollbar-gutter: stable;
   }
   .tcside::-webkit-scrollbar { width: 10px; }
   .tcside::-webkit-scrollbar-track { background: transparent; }
@@ -1165,13 +1171,14 @@ body.coldrag { user-select: none; }
   .tcside::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 }
 /* How wide the aside is, and so how many of the three groups stand side by side: one column of
-   boxes is 272px (`.tcopt` above) and 10px separates two, so two columns want 554 and three 836.
-   Set from `fitSide()`, which hands the aside the widest of the three the table leaves room for —
-   the whole point being that the groups keep their place beside the table down to a single column
+   boxes is 272px (`.tcopt` above) and 10px separates two, so two columns want 554 and three 836 —
+   plus the 10px its own scrollbar always has reserved (`scrollbar-gutter` above). Set from
+   `fitSide()`, which hands the aside the widest of the three the table leaves room for — the
+   whole point being that the groups keep their place beside the table down to a single column
    before they give it up and go above it. */
-.tcside.cols1 { width: 272px; }
-.tcside.cols2 { width: 554px; }
-.tcside.cols3 { width: 836px; }
+.tcside.cols1 { width: 282px; }
+.tcside.cols2 { width: 564px; }
+.tcside.cols3 { width: 846px; }
 /* A column per group, not one wrapping flow of all thirteen boxes: in a flow, a box opening its
    description made its whole wrap line tall and the boxes after it started below that, leaving a
    hole beside the short one. In a column, an open box moves only what is under it. At `.cols1`

@@ -830,6 +830,30 @@ function discardRestoredSolves() {
   return true;
 }
 var filterSignature = (f) => Object.values(f).join(",");
+function filtersOfKey(key) {
+  const flags = (key.split("|")[1] ?? "").split(",").map((v) => v === "true");
+  const f = defaultFilters();
+  FILTER_KEYS.forEach((k, i) => {
+    if (i < flags.length)
+      f[k] = flags[i];
+  });
+  return f;
+}
+function solveFits(key, solved, f = filters) {
+  const team = teamAt(key.split("|")[0]);
+  if (!team)
+    return false;
+  const members = team.loadouts.map((l, i) => member(l, i === team.dpsIndex));
+  const inRange = (picks) => picks.length === team.loadouts.length && picks.every((p, i) => {
+    const l = team.loadouts[i];
+    return p.weapon < l.weapons.length && p.echo < l.echoLoadouts.length && p.mainstat < l.mainstats.length;
+  });
+  if (!inRange(solved.picks) || !solved.rows.every(inRange))
+    return false;
+  const expected = members.reduce((n, m) => n * sequenceLevels(m, f).length, 1);
+  const patterns = new Set(solved.rows.map((r) => r.map((p) => p.sequence).join(".")));
+  return patterns.size === expected;
+}
 async function loadShipped(f) {
   const sig = filterSignature(f);
   if (!shippedStates || shippedFetched.has(sig))
@@ -843,18 +867,8 @@ async function loadShipped(f) {
     if (!res.ok)
       return;
     const saved = await res.json();
-    const fits = (k, v) => {
-      const team = teamAt(k.split("|")[0]);
-      if (!team)
-        return false;
-      const ok = (picks) => picks.length === team.loadouts.length && picks.every((p, i) => {
-        const l = team.loadouts[i];
-        return p.weapon < l.weapons.length && p.echo < l.echoLoadouts.length && p.mainstat < l.mainstats.length;
-      });
-      return ok(v.picks) && v.rows.every(ok);
-    };
     for (const [k, v] of saved.solves)
-      if (!bestPicks.has(k) && fits(k, v)) {
+      if (!bestPicks.has(k) && solveFits(k, v, f)) {
         bestPicks.set(k, v);
         shippedKeys.add(k);
         restoredSolves = true;
@@ -872,11 +886,14 @@ async function loadSolves() {
     if (saved.stamp !== buildStamp)
       return;
     for (const [k, v] of saved.solves)
-      bestPicks.set(k, v);
-    for (const [k, v] of saved.picks)
+      if (solveFits(k, v, filtersOfKey(k))) {
+        bestPicks.set(k, v);
+        restoredSolves = true;
+      }
+    for (const [k, v] of saved.picks) {
       picksCache.set(k, v);
-    if (saved.solves.length || saved.picks.length)
       restoredSolves = true;
+    }
   };
   try {
     const live = await fetch("/__livereload", { cache: "no-store" }).catch(() => null);
@@ -2501,11 +2518,11 @@ function fitSide() {
   const table = rect(last).right - rect(first).left;
   let room = layout.clientWidth;
   const beside = room - table - (parseFloat(getComputedStyle(layout).columnGap) || 0);
-  if (getComputedStyle(layout).flexDirection === "row" && beside >= 272)
+  if (getComputedStyle(layout).flexDirection === "row" && beside >= 282)
     room = beside;
   else
     layout.classList.add("stack");
-  const cols = room >= 836 ? 3 : room >= 554 ? 2 : 1;
+  const cols = room >= 846 ? 3 : room >= 564 ? 2 : 1;
   for (const n of [1, 2, 3])
     side.classList.toggle(`cols${n}`, n === cols);
   const main = app.querySelector("main");
@@ -2607,7 +2624,7 @@ function workerPool() {
   poolTried = true;
   const want = Math.max(1, Math.min(WORKER_LIMIT, (navigator.hardwareConcurrency || 4) - 1));
   try {
-    pool = Array.from({ length: want }, () => new Worker(new URL("./solver.js", import.meta.url), { type: "module" }));
+    pool = Array.from({ length: want }, () => new Worker(new URL(`./solver.js?v=${Date.now()}`, import.meta.url), { type: "module" }));
   } catch (err) {
     console.warn("Workers unavailable, optimizing on the main thread instead:", err);
     pool = null;
@@ -2630,7 +2647,15 @@ function solveOnWorkers(workers, teams, onDone) {
         onDone(members);
         pump(w);
       };
-      w.onmessage = ({ data }) => finish({ picks: data.picks, rows: data.rows, scores: data.scores });
+      w.onmessage = ({ data }) => {
+        const solved = { picks: data.picks, rows: data.rows, scores: data.scores };
+        if (solveFits(bestKey(key, members, filters), solved)) {
+          finish(solved);
+          return;
+        }
+        console.warn(`worker's solve for ${key} does not fit this build; solving it here`);
+        finish(solveTeam(key, members, filters, known));
+      };
       w.onerror = (e) => {
         console.warn(`worker failed on ${key}, solving it here:`, e.message);
         e.preventDefault();

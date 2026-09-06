@@ -79,6 +79,11 @@
   <img class="loading-gif" src="./loading.gif" alt="" width="110" height="79">
 </div>
 
-<script type="module" src="./dist/bundle/index.js"></script>
+<!-- Loaded by hand with a fresh query string rather than a plain src: GitHub Pages serves every
+     file with max-age=600, and a bundle fetched under a name that never changes can be handed
+     back stale for ten minutes after a deploy — half a page on the new engine, half on the old.
+     A string nothing cached, and the chunks the bundle imports carry a content hash of their
+     own. index.ts busts the worker's own entry the same way. -->
+<script type="module">import(`./dist/bundle/index.js?v=${Date.now()}`);</script>
 </body>
 </html>
