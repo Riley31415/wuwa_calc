@@ -34,7 +34,7 @@ import {
   statLabel,
   tagKind,
   teamKey
-} from "./chunk-5ERLYEFN.js";
+} from "./chunk-7UEYI5MZ.js";
 
 // dist/src/display.js
 var keysFor = (action, ...stats) => stats.flatMap((stat) => [
@@ -765,7 +765,7 @@ function parseGearFilter(kind, key, f = filters) {
   const roles = candidateRoles(kind, f).get(key);
   return { name: key, role: roles?.size === 1 ? [...roles][0] : null };
 }
-var ROW_CAP = 1e3;
+var ROW_CAP = 1e4;
 function focusSearch() {
   const search = document.querySelector("#optionSearch");
   if (!search)
@@ -1418,8 +1418,8 @@ var STANDARDS = [
 var README = [
   "All beta calculations are subject to change!",
   "There may be issues during early beta especially with Hsin and Suoming.",
-  "If you find any issues with stats, buffs, or damage seems way off, ping me @rileyy._. on discord.",
-  "Also I'm still working on Hsin flare mode, it will be released soon."
+  "Not all character sequences are implemented, im working on them.",
+  "If you find any issues with stats, buffs, or damage seems way off, ping me @rileyy._. on discord."
 ];
 var BROWSING = [
   "Left click on any resonator (or gear) name to show only teams with them.",
@@ -1648,6 +1648,14 @@ function rankAll(sorted) {
     return { hue, pct: `${fmt(ratio * 100, 2, true)}%`, pinned: i === pinned };
   });
 }
+var zoom = () => {
+  const w = document.body.clientWidth;
+  return w ? document.body.getBoundingClientRect().width / w : 1;
+};
+var rect = (el) => {
+  const r = el.getBoundingClientRect(), z = zoom();
+  return z === 1 ? r : new DOMRect(r.x / z, r.y / z, r.width / z, r.height / z);
+};
 function drawWindow(force = false, scrollTop) {
   const view = tableView;
   const main = app.querySelector("main");
@@ -1656,8 +1664,9 @@ function drawWindow(force = false, scrollTop) {
     return;
   const n = view.sorted.length;
   const top = scrollTop ?? main.scrollTop;
-  const headH = grid.querySelector(".thead .c")?.getBoundingClientRect().height ?? 0;
-  const rowsTop = grid.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop + headH;
+  const headCell = grid.querySelector(".thead .c");
+  const headH = headCell ? rect(headCell).height : 0;
+  const rowsTop = rect(grid).top - rect(main).top + main.scrollTop + headH;
   const rowTop = (i) => i * rowHeight + view.extra[i] * lineHeight;
   const rowAt = (y) => {
     let lo = 0, hi = n;
@@ -1688,7 +1697,7 @@ function drawWindow(force = false, scrollTop) {
   if (!measured && to - from >= 2) {
     measured = true;
     const cells = [...grid.querySelectorAll(".trow:not(.thead) > .c.teamdpr")];
-    const heights = cells.slice(0, -1).map((c, j) => [cells[j + 1].getBoundingClientRect().top - c.getBoundingClientRect().top, view.lines[from + j]]);
+    const heights = cells.slice(0, -1).map((c, j) => [rect(cells[j + 1]).top - rect(c).top, view.lines[from + j]]);
     const single = heights.find(([, k]) => k === 1), stacked = heights.find(([, k]) => k > 1);
     const base = single ? single[0] : stacked ? stacked[0] - lineHeight * (stacked[1] - 1) : rowHeight;
     const perLine = stacked ? (stacked[0] - base) / (stacked[1] - 1) : lineHeight;
@@ -2022,16 +2031,18 @@ function wireSourcePanels(root) {
       document.body.appendChild(pop);
     pop.style.visibility = "hidden";
     pop.style.display = "block";
-    const c = cell2.getBoundingClientRect();
-    const p = pop.getBoundingClientRect();
+    const c = rect(cell2);
+    const p = rect(pop);
+    const winW = innerWidth / zoom(), winH = innerHeight / zoom();
     const onTable = !!cell2.closest(".tcwrap");
     const natural = !onTable && cell2.classList.contains("num") ? c.right - p.width : c.left;
-    const tableLeft = onTable ? EDGE : cell2.closest(".gridwrap")?.getBoundingClientRect().left ?? EDGE;
+    const wrap = onTable ? null : cell2.closest(".gridwrap");
+    const tableLeft = wrap ? rect(wrap).left : EDGE;
     const minLeft = Math.max(EDGE, tableLeft);
-    const left = Math.max(minLeft, Math.min(natural, innerWidth - p.width - EDGE));
+    const left = Math.max(minLeft, Math.min(natural, winW - p.width - EDGE));
     const above = c.top - p.height - GAP;
     const below = c.bottom + GAP;
-    const fitsBelow = below + p.height <= innerHeight - EDGE;
+    const fitsBelow = below + p.height <= winH - EDGE;
     const top = fitsBelow ? below : Math.max(EDGE, above);
     pop.style.left = `${left}px`;
     pop.style.top = `${top}px`;
@@ -2161,8 +2172,8 @@ function trackBox(grid, key) {
   const cell2 = grid.querySelector(`:scope > .r.head > .c[data-col="${CSS.escape(key)}"]`);
   if (!cell2)
     return null;
-  const g = grid.getBoundingClientRect();
-  const c = cell2.getBoundingClientRect();
+  const g = rect(grid);
+  const c = rect(cell2);
   return { left: c.left - g.left, width: c.width };
 }
 function paintSelection(root) {
@@ -2277,7 +2288,7 @@ function wireColumnDrag(root, columns) {
       return;
     e.preventDefault();
     cell2.setPointerCapture(e.pointerId);
-    const width = new Map(cells.map((c) => [c.dataset.col, c.getBoundingClientRect().width]));
+    const width = new Map(cells.map((c) => [c.dataset.col, rect(c).width]));
     const key = cell2.dataset.col;
     const offsets = offsetsOf(logOrder, width);
     drag = {
@@ -2287,7 +2298,7 @@ function wireColumnDrag(root, columns) {
       width,
       home: offsets.get(key),
       span: [...width.values()].reduce((n, w) => n + w, 0),
-      startX: e.clientX,
+      startX: e.clientX / zoom(),
       at: logOrder.indexOf(key)
     };
     lifted = false;
@@ -2296,14 +2307,14 @@ function wireColumnDrag(root, columns) {
     if (!drag)
       return;
     if (!lifted) {
-      if (Math.abs(e.clientX - drag.startX) < LIFT_AT)
+      if (Math.abs(e.clientX / zoom() - drag.startX) < LIFT_AT)
         return;
       lifted = true;
       document.body.classList.add("coldrag");
       openDrag(head.parentElement, drag);
     }
     const w = drag.width.get(drag.key);
-    const dx = Math.min(drag.span - w - drag.home, Math.max(-drag.home, e.clientX - drag.startX));
+    const dx = Math.min(drag.span - w - drag.home, Math.max(-drag.home, e.clientX / zoom() - drag.startX));
     const { width, key } = drag;
     const rest = drag.order.filter((k) => k !== key);
     const edge = drag.home + dx;
@@ -2450,7 +2461,7 @@ function fitSide() {
   if (!layout || !side || !first || !last)
     return;
   layout.classList.remove("stack");
-  const table = last.getBoundingClientRect().right - first.getBoundingClientRect().left;
+  const table = rect(last).right - rect(first).left;
   let room = layout.clientWidth;
   const beside = room - table - (parseFloat(getComputedStyle(layout).columnGap) || 0);
   if (getComputedStyle(layout).flexDirection === "row" && beside >= 272)

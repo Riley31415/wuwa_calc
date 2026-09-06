@@ -24,33 +24,37 @@ import { TUNE_STRAIN_INTERFERED } from "../shared/tunebreak.js";
 /* ---------------------------------------------------------------- Ceaseless Aria (4-star, 5) */
 
 /** One Ceaseless Aria instance a weapon, so each carries its own name for attribution. Granted
- *  on the wielder's first Resonance Skill cast (restoring 16 Concerto at R5) and promoted to cooldown the
- *  same action; a repeat cast on cooldown does nothing. Lost entirely on the wielder's Outro. */
-function ceaselessAria(name: string): Buff {
+ *  on the wielder's first Resonance Skill cast (restoring `concerto` — 16 at R5, 8 at R1) and
+ *  promoted to cooldown the same action; a repeat cast on cooldown does nothing. Lost entirely on
+ *  the wielder's Outro. */
+function ceaselessAria(name: string, concerto: number, rank: string): Buff {
   const buff: Buff = new Buff({
-    name: `${name}: Ceaseless Aria R5`, maxStacks: 2,
+    name: `${name}: Ceaseless Aria${rank}`, maxStacks: 2,
     applyStats: () => {
-      if (frozenStacks() === 1 && casting(Cast.Skill)) { applyCurrent(buff, 1); addStat(Stat.AddConcerto, 16); }
+      if (frozenStacks() === 1 && casting(Cast.Skill)) { applyCurrent(buff, 1); addStat(Stat.AddConcerto, concerto); }
       else if (frozenStacks() === 2 && casting(Cast.Outro)) removeStack(buff, 2);
     },
-    display: () => `${name}: Ceaseless Aria R5${frozenStacks() === 1 ? "" : " (cooldown)"}`,
+    display: () => `${name}: Ceaseless Aria${rank}${frozenStacks() === 1 ? "" : " (cooldown)"}`,
   });
   return buff;
 }
 
-/** The five standard weapons — identical stats and behavior, only the name differs. */
-function concertoWeapon(name: string, weaponType: WeaponType): Weapon {
-  const aria = ceaselessAria(name);
+/** The five 4-star standard weapons — identical stats and behavior, only the name differs. Four
+ *  are the craftable at its real R5 (`Tier.Free`); Variation is run at R1 and as a standard
+ *  weapon, so a build carrying it reads R0 (index.ts's own `memberLabel()`). */
+function concertoWeapon(name: string, weaponType: WeaponType, rank: 1 | 5 = 5): Weapon {
+  const r5 = rank === 5;
+  const aria = ceaselessAria(name, r5 ? 16 : 8, r5 ? " R5" : "");
   return new Weapon({
     weaponType,
-    tier: Tier.Free,
-    name: `${name} R5`,
+    tier: r5 ? Tier.Free : Tier.Standard,
+    name: `${name} R${rank}`,
     constantStats: () => { addStat(Stat.BaseAtk, 337.5); addStat(Stat.Er, 51.84); },
     updateBuffs: () => { if (casting(Cast.Skill)) applyCurrent(aria, 1); },
   });
 }
 
-export const VARIATION = concertoWeapon("Variation", WeaponType.Rectifier);
+export const VARIATION = concertoWeapon("Variation", WeaponType.Rectifier, 1);
 export const MARCATO = concertoWeapon("Marcato", WeaponType.Gauntlets);
 export const CADENZA = concertoWeapon("Cadenza", WeaponType.Pistols);
 export const OVERTURE = concertoWeapon("Overture", WeaponType.Sword);

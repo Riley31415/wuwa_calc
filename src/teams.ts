@@ -66,7 +66,7 @@ import { VERINA } from "./resonators/spectro/verina.js";
 const TEAMS: Loadout[][][] = [
 
   // hsin (Electro Flare mode): electro skill flare
-  //[[SUISUI, BULING, CHISA, SHOREKEEPER], [CHISA, ROVER_ELECTRO], [HSIN_FLARE]],
+  [[SUISUI, BULING, CHISA, SHOREKEEPER], [CHISA, ROVER_ELECTRO], [HSIN_FLARE]],
   // hsin, Unison mode: Suoming or Jinhsi behind her hands over the Unison her Intro answers
   [[SHOREKEEPER, VERINA, BULING, MORNYE], [SUOMING, JINHSI], [HSIN_UNISON]],
 

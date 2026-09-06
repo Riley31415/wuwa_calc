@@ -74,7 +74,7 @@ import { UNISON, UNISON_BOON, UNISON_RESPONDER, UNISON_RESPONSE, respondToUnison
 import {
   ELECTRO_FLARE, ELECTRO_FLARE_DMG, ELECTRO_RAGE, FLEETING_THUNDER, inflictElectroFlare, negativeStatusRung,
 } from "../../shared/status.js";
-import { BLOOMING_JADEHAVEN, LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
+import { BLOOMING_JADEHAVEN, FREEZE_FRAME, LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { COSMIC_RIPPLES, NEW_STD_RECTIFIER } from "../../weapons/standard.js";
 import { STAY_TUNED, SWORN_VIGIL_5PC, ELECTRIC_REFLECTION_5PC } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
@@ -369,11 +369,10 @@ const TIDES_OF_SUCCESSION = new Buff({
   applyStats: () => addStat(Stat.DmgBonus, 25 * Math.min(2, tidesPayers()), Attribute.Electro),
 });
 /** Tides of Succession's Rover clause: Electro Rover's own Intro hands him and Hsin +20% Electro
- *  DMG Bonus for 7s — gone at his Outro, and at her own next Intro. */
+ *  DMG Bonus for 30s — gone at his Outro, and at her own next Intro. */
 const THUNDEROUS_BOND = new Buff({
-  name: "Inherent: Tides of Succession (Thunderous Fury)",
+  name: "Inherent: Tides of Succession (Electro Rover)",
   applyStats: () => addStat(Stat.DmgBonus, 20, Attribute.Electro),
-  updateBuffs: () => { if (casting(Cast.Outro) || (casting(Cast.Intro) && isHeld(HSIN_RESONATOR))) revokeCurrent(THUNDEROUS_BOND); },
 });
 const HS_INHERENT_1 = new Inherent({
   name: "Inherent: Tides of Succession",
@@ -494,7 +493,7 @@ export const HSIN_FLARE = new Loadout({
   talent: HSIN_TALENTS,
   inherent1: HS_INHERENT_1,
   inherent2: HS_INHERENT_2,
-  weapons: [BLOOMING_JADEHAVEN, COSMIC_RIPPLES, STRINGMASTER, LETHEAN_ELEGY],
+  weapons: [BLOOMING_JADEHAVEN, COSMIC_RIPPLES, STRINGMASTER, LETHEAN_ELEGY, FREEZE_FRAME],
   echoLoadouts: [new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC), new EchoLoadout(STAY_TUNED, ELECTRIC_REFLECTION_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
   substat: chem("atk", "skill"),
@@ -507,7 +506,7 @@ export const HSIN_UNISON = new Loadout({
   talent: HSIN_TALENTS,
   inherent1: HS_INHERENT_1,
   inherent2: HS_INHERENT_2,
-  weapons: [BLOOMING_JADEHAVEN, COSMIC_RIPPLES, STRINGMASTER, LETHEAN_ELEGY],
+  weapons: [BLOOMING_JADEHAVEN, COSMIC_RIPPLES, STRINGMASTER, LETHEAN_ELEGY, FREEZE_FRAME],
   echoLoadouts: [new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC), new EchoLoadout(STAY_TUNED, ELECTRIC_REFLECTION_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
   substat: chem("atk", "skill"),

@@ -264,5 +264,8 @@ export const ROVER_ELECTRO = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
   substat: chem("atk", "skill"),
     rotation: ER_ROTATION,
-  sequences: [ER_S1, ER_S2, ER_S3, ER_S4, ER_S5, ER_S6],
+  sequences: [
+    ER_S1, ER_S2, 
+    ER_S3, ER_S4, ER_S5, ER_S6
+  ],
 });

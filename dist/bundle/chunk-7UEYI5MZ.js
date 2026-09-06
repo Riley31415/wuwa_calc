@@ -3705,9 +3705,9 @@ var YEARNING_MIND = new Buff({
 });
 
 // dist/src/weapons/standard.js
-function ceaselessAria(name) {
+function ceaselessAria(name, concerto2, rank) {
   const buff = new Buff({
-    name: `${name}: Ceaseless Aria R5`,
+    name: `${name}: Ceaseless Aria${rank}`,
     maxStacks: 2,
     applyStats: () => {
       if (frozenStacks() === 1 && casting(
@@ -3715,23 +3715,24 @@ function ceaselessAria(name) {
         /* Cast.Skill */
       )) {
         applyCurrent(buff, 1);
-        addStat(26, 16);
+        addStat(26, concerto2);
       } else if (frozenStacks() === 2 && casting(
         7
         /* Cast.Outro */
       ))
         removeStack(buff, 2);
     },
-    display: () => `${name}: Ceaseless Aria R5${frozenStacks() === 1 ? "" : " (cooldown)"}`
+    display: () => `${name}: Ceaseless Aria${rank}${frozenStacks() === 1 ? "" : " (cooldown)"}`
   });
   return buff;
 }
-function concertoWeapon(name, weaponType) {
-  const aria = ceaselessAria(name);
+function concertoWeapon(name, weaponType, rank = 5) {
+  const r5 = rank === 5;
+  const aria = ceaselessAria(name, r5 ? 16 : 8, r5 ? " R5" : "");
   return new Weapon({
     weaponType,
-    tier: 2,
-    name: `${name} R5`,
+    tier: r5 ? 2 : 1,
+    name: `${name} R${rank}`,
     constantStats: () => {
       addStat(0, 337.5);
       addStat(11, 51.84);
@@ -3745,11 +3746,7 @@ function concertoWeapon(name, weaponType) {
     }
   });
 }
-var VARIATION = concertoWeapon(
-  "Variation",
-  4
-  /* WeaponType.Rectifier */
-);
+var VARIATION = concertoWeapon("Variation", 4, 1);
 var MARCATO = concertoWeapon(
   "Marcato",
   3
@@ -11540,23 +11537,13 @@ var TIDES_OF_SUCCESSION = new Buff({
   )
 });
 var THUNDEROUS_BOND = new Buff({
-  name: "Inherent: Tides of Succession (Thunderous Fury)",
+  name: "Inherent: Tides of Succession (Electro Rover)",
   applyStats: () => addStat(
     17,
     20,
     128
     /* Attribute.Electro */
-  ),
-  updateBuffs: () => {
-    if (casting(
-      7
-      /* Cast.Outro */
-    ) || casting(
-      6
-      /* Cast.Intro */
-    ) && isHeld(HSIN_RESONATOR))
-      revokeCurrent(THUNDEROUS_BOND);
-  }
+  )
 });
 var HS_INHERENT_1 = new Inherent({
   name: "Inherent: Tides of Succession",
@@ -11683,7 +11670,7 @@ var HSIN_FLARE = new Loadout({
   talent: HSIN_TALENTS,
   inherent1: HS_INHERENT_1,
   inherent2: HS_INHERENT_2,
-  weapons: [BLOOMING_JADEHAVEN, COSMIC_RIPPLES, STRINGMASTER, LETHEAN_ELEGY],
+  weapons: [BLOOMING_JADEHAVEN, COSMIC_RIPPLES, STRINGMASTER, LETHEAN_ELEGY, FREEZE_FRAME],
   echoLoadouts: [new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC), new EchoLoadout(STAY_TUNED, ELECTRIC_REFLECTION_5PC)],
   mainstats: mainstatOptions(
     0,
@@ -11702,7 +11689,7 @@ var HSIN_UNISON = new Loadout({
   talent: HSIN_TALENTS,
   inherent1: HS_INHERENT_1,
   inherent2: HS_INHERENT_2,
-  weapons: [BLOOMING_JADEHAVEN, COSMIC_RIPPLES, STRINGMASTER, LETHEAN_ELEGY],
+  weapons: [BLOOMING_JADEHAVEN, COSMIC_RIPPLES, STRINGMASTER, LETHEAN_ELEGY, FREEZE_FRAME],
   echoLoadouts: [new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC), new EchoLoadout(STAY_TUNED, ELECTRIC_REFLECTION_5PC)],
   mainstats: mainstatOptions(
     0,
@@ -12738,7 +12725,14 @@ var ROVER_ELECTRO = new Loadout({
   ),
   substat: chem("atk", "skill"),
   rotation: ER_ROTATION,
-  sequences: [ER_S1, ER_S2, ER_S3, ER_S4, ER_S5, ER_S6]
+  sequences: [
+    ER_S1,
+    ER_S2,
+    ER_S3,
+    ER_S4,
+    ER_S5,
+    ER_S6
+  ]
 });
 
 // dist/src/resonators/electro/suoming.js
@@ -20974,7 +20968,7 @@ var VERINA = new Loadout({
 // dist/src/teams.js
 var TEAMS = [
   // hsin (Electro Flare mode): electro skill flare
-  //[[SUISUI, BULING, CHISA, SHOREKEEPER], [CHISA, ROVER_ELECTRO], [HSIN_FLARE]],
+  [[SUISUI, BULING, CHISA, SHOREKEEPER], [CHISA, ROVER_ELECTRO], [HSIN_FLARE]],
   // hsin, Unison mode: Suoming or Jinhsi behind her hands over the Unison her Intro answers
   [[SHOREKEEPER, VERINA, BULING, MORNYE], [SUOMING, JINHSI], [HSIN_UNISON]],
   // suoming mdps, electro basic unison

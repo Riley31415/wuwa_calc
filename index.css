@@ -57,7 +57,11 @@
   --lead: 10px;
 }
 
-html { background: var(--bg); }
+/* The whole page at 110%: `zoom` scales every px length and reflows, so the tables, the option
+   boxes and index.ts's own measurements (clientWidth and friends, all in the same scaled px)
+   agree with each other. The one thing it leaves alone is the viewport unit — 100vh is still the
+   real window — so <body> below divides its own height back out. */
+html { background: var(--bg); zoom: 1.1; }
 
 /*
  * The page itself never scrolls: it is exactly the viewport tall, the summary header keeps its
@@ -68,7 +72,8 @@ html { background: var(--bg); }
  */
 body {
   margin: 0;
-  height: 100vh;
+  /* the real window's height, in the zoomed px everything else here is laid out in (see html) */
+  height: calc(100vh / 1.1);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -170,6 +175,9 @@ body {
   box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent);
   transition: width .15s ease-out;
 }
+/* the gif under the bar: a block, so the grid's own gap spaces it and no inline baseline gap
+   sits beneath it; its width/height attributes hold the slot before the frames arrive */
+.loading-gif { display: block; }
 
 /* small uppercase section label — above the action log and each of the two rotation tables below
    it, so it carries its own top margin the way .gridwrap and .eventlog do rather than relying on
@@ -1156,9 +1164,10 @@ body.coldrag { user-select: none; }
   gap: 10px;
   align-items: flex-start;
   align-content: flex-start;
-  /* above the table the aside has the whole width and the columns only part of it, so they end on
-     the right edge rather than trailing off into it */
-  justify-content: flex-end;
+  /* above the table (`.stack`) the aside has the whole width and the columns only part of it:
+     they start at the left edge, where the table below them starts — beside the table the width
+     is exactly the columns' own, so this decides nothing there */
+  justify-content: flex-start;
 }
 .tcside.cols2 .tcfilter-row, .tcside.cols3 .tcfilter-row {
   flex-direction: column;
@@ -1175,7 +1184,9 @@ body.coldrag { user-select: none; }
 /* Not even one column's worth of room beside the table, which only the page can know
    (index.ts's own `fitSide()`) — so the aside goes above it and spends the full width instead. */
 .tclayout.stack { flex-direction: column; }
-.tclayout.stack .tcside { position: static; order: 0; width: auto; background: none; }
+/* `margin-left: 0` undoes the beside-the-table `auto` above: an auto cross-axis margin would also
+   stop the aside stretching to the column's width, leaving it fit-content and at the right */
+.tclayout.stack .tcside { position: static; order: 0; width: auto; margin-left: 0; background: none; }
 
 /* a phone: one box per line, full width, and less of the page given over to margin */
 @media (max-width: 560px) {

@@ -225,7 +225,7 @@ function parseGearFilter(kind: GearKind, key: string, f: Filters = filters): { n
  *  would cross it is put straight back and warned about (`rowCapWarning()`) rather than letting
  *  the page try and hang. A `#`-link's own filters are the one way in that isn't costed: it names
  *  a state to restore, not a change to approve. */
-const ROW_CAP = 1_000;
+const ROW_CAP = 10_000;
 
 /** Put the caret back in the search bar, at the end of whatever it holds. Called after every
  *  redraw — each one rebuilds the input, so typing, clicking a result and typing again never needs
@@ -1280,8 +1280,8 @@ const STANDARDS = [
 const README = [
   "All beta calculations are subject to change!",
   "There may be issues during early beta especially with Hsin and Suoming.",
+  "Not all character sequences are implemented, im working on them.",
   "If you find any issues with stats, buffs, or damage seems way off, ping me @rileyy._. on discord.",
-  "Also I'm still working on Hsin flare mode, it will be released soon.",
 ];
 
 /** How the table is worked rather than what it assumes — the clicks and the search bar, for a
@@ -1750,6 +1750,23 @@ function rankAll(sorted: TableView["sorted"]): RowRank[] {
   });
 }
 
+/** How many viewport px one page px is under index.css's `zoom` on `html` — measured, not read
+ *  off the style: Chromium reports `getBoundingClientRect()` in viewport px while `clientWidth`,
+ *  `scrollTop`, a pointer's `clientX` and every `style` px are page px, so `<body>`'s own rect is
+ *  its `clientWidth` times the zoom; a browser that hands rects back in page px instead measures
+ *  1 here, and the correction below is then a no-op rather than a second scaling. */
+const zoom = (): number => {
+  const w = document.body.clientWidth;
+  return w ? document.body.getBoundingClientRect().width / w : 1;
+};
+
+/** `getBoundingClientRect()` in the page's own px, so a measurement that meets `clientWidth`,
+ *  `scrollTop`, `clientX` or a `style` px agrees with it (see `zoom`). */
+const rect = (el: Element): DOMRect => {
+  const r = el.getBoundingClientRect(), z = zoom();
+  return z === 1 ? r : new DOMRect(r.x / z, r.y / z, r.width / z, r.height / z);
+};
+
 /**
  * Draw the rows around the scroll position into the table's grid — the head, a spacer standing in
  * for every row above the window, the window's own rows, and a spacer for every row below — and
@@ -1769,8 +1786,9 @@ function drawWindow(force = false, scrollTop?: number): void {
   const n = view.sorted.length;
   const top = scrollTop ?? main.scrollTop;
   // where the first row sits in the scroll content: the grid's own offset plus the sticky head
-  const headH = grid.querySelector(".thead .c")?.getBoundingClientRect().height ?? 0;
-  const rowsTop = grid.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop + headH;
+  const headCell = grid.querySelector(".thead .c");
+  const headH = headCell ? rect(headCell).height : 0;
+  const rowsTop = rect(grid).top - rect(main).top + main.scrollTop + headH;
   // where row i starts below rowsTop: a pitch per row, plus a line for every extra line the rows
   // above it stack (`TableView.extra`) — and, the rows no longer a fixed pitch apart, which row a
   // height lands in is a binary search rather than a division
@@ -1803,7 +1821,7 @@ function drawWindow(force = false, scrollTop?: number): void {
     measured = true;
     const cells = [...grid.querySelectorAll<HTMLElement>(".trow:not(.thead) > .c.teamdpr")];
     const heights = cells.slice(0, -1).map((c, j): [number, number] =>
-      [cells[j + 1]!.getBoundingClientRect().top - c.getBoundingClientRect().top, view.lines[from + j]!]);
+      [rect(cells[j + 1]!).top - rect(c).top, view.lines[from + j]!]);
     const single = heights.find(([, k]) => k === 1), stacked = heights.find(([, k]) => k > 1);
     const base = single ? single[0] : stacked ? stacked[0] - lineHeight * (stacked[1] - 1) : rowHeight;
     const perLine = stacked ? (stacked[0] - base) / (stacked[1] - 1) : lineHeight;
@@ -2364,8 +2382,10 @@ function wireSourcePanels(root: HTMLElement): void {
     if (pop.parentElement !== document.body) document.body.appendChild(pop);
     pop.style.visibility = "hidden";
     pop.style.display = "block";
-    const c = cell.getBoundingClientRect();
-    const p = pop.getBoundingClientRect();
+    const c = rect(cell);
+    const p = rect(pop);
+    // the window's own edges, in the same px (`rect`)
+    const winW = innerWidth / zoom(), winH = innerHeight / zoom();
 
     // On the comparison table every panel opens off its cell's *left* edge, flush with the cell
     // border, and is free to run past the table's own box — only the viewport bounds it. On the
@@ -2376,15 +2396,16 @@ function wireSourcePanels(root: HTMLElement): void {
     // page's margin, since a viewport-relative clamp has no idea where the table itself starts.
     const onTable = !!cell.closest(".tcwrap");
     const natural = !onTable && cell.classList.contains("num") ? c.right - p.width : c.left;
-    const tableLeft = onTable ? EDGE : (cell.closest(".gridwrap")?.getBoundingClientRect().left ?? EDGE);
+    const wrap = onTable ? null : cell.closest(".gridwrap");
+    const tableLeft = wrap ? rect(wrap).left : EDGE;
     const minLeft = Math.max(EDGE, tableLeft);
-    const left = Math.max(minLeft, Math.min(natural, innerWidth - p.width - EDGE));
+    const left = Math.max(minLeft, Math.min(natural, winW - p.width - EDGE));
     // Every column opens downward, where the value being explained sits above its own
     // explanation — the resonator column included, which used to prefer upward. Above is taken
     // only when there is no room below, and a panel that fits neither is clamped to the top edge.
     const above = c.top - p.height - GAP;
     const below = c.bottom + GAP;
-    const fitsBelow = below + p.height <= innerHeight - EDGE;
+    const fitsBelow = below + p.height <= winH - EDGE;
     const top = fitsBelow ? below : Math.max(EDGE, above);
 
     pop.style.left = `${left}px`;
@@ -2570,8 +2591,8 @@ let selBox: HTMLElement | null = null;
 function trackBox(grid: HTMLElement, key: string): { left: number; width: number } | null {
   const cell = grid.querySelector<HTMLElement>(`:scope > .r.head > .c[data-col="${CSS.escape(key)}"]`);
   if (!cell) return null;
-  const g = grid.getBoundingClientRect();
-  const c = cell.getBoundingClientRect();
+  const g = rect(grid);
+  const c = rect(cell);
   return { left: c.left - g.left, width: c.width };
 }
 
@@ -2740,7 +2761,7 @@ function wireColumnDrag(root: HTMLElement, columns: Column[]): void {
     e.preventDefault();
     cell.setPointerCapture(e.pointerId);
 
-    const width = new Map(cells.map((c) => [c.dataset.col!, c.getBoundingClientRect().width]));
+    const width = new Map(cells.map((c) => [c.dataset.col!, rect(c).width]));
     const key = cell.dataset.col!;
     const offsets = offsetsOf(logOrder, width);
     drag = {
@@ -2750,7 +2771,7 @@ function wireColumnDrag(root: HTMLElement, columns: Column[]): void {
       width,
       home: offsets.get(key)!,
       span: [...width.values()].reduce((n, w) => n + w, 0),
-      startX: e.clientX,
+      startX: e.clientX / zoom(),
       at: logOrder.indexOf(key),
     };
     lifted = false;
@@ -2759,14 +2780,14 @@ function wireColumnDrag(root: HTMLElement, columns: Column[]): void {
   head.addEventListener("pointermove", (e) => {
     if (!drag) return;
     if (!lifted) {
-      if (Math.abs(e.clientX - drag.startX) < LIFT_AT) return;
+      if (Math.abs(e.clientX / zoom() - drag.startX) < LIFT_AT) return;
       lifted = true;
       document.body.classList.add("coldrag");
       openDrag(head.parentElement as HTMLElement, drag);
     }
     const w = drag.width.get(drag.key)!;
     // clamped to the table's own two edges: a column slides inside it, never out of it
-    const dx = Math.min(drag.span - w - drag.home, Math.max(-drag.home, e.clientX - drag.startX));
+    const dx = Math.min(drag.span - w - drag.home, Math.max(-drag.home, e.clientX / zoom() - drag.startX));
 
     // It trades places with a neighbour only once it has slid at least halfway across that
     // neighbour's own width — measured against where the columns are actually sitting, which is
@@ -2979,7 +3000,7 @@ function fitSide(): void {
   // the grid is a block, so once the table is narrower than its column `scrollWidth` reports that
   // column's width instead — which is what the aside's width sets, and the measurement would then
   // chase itself. The tracks are `max-content`, so the cells are the table's real width.
-  const table = last.getBoundingClientRect().right - first.getBoundingClientRect().left;
+  const table = rect(last).right - rect(first).left;
   // against the layout's own width, not the scrollport's: <main>'s side padding is not room the
   // table can stand in, and 52px of it is the whole margin between "fits" and "sits over it"
   let room = layout.clientWidth;
