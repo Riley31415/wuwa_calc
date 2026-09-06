@@ -41,7 +41,7 @@ import {
   applyTeam,
 } from "../../engine/context.js";
 import { coordinatedBuff, lostOnSwap, matrix } from "../../shared/helpers.js";
-import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ActionField } from "../../engine/rotation.js";
+import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ActionField, ECHO_SWAP } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { EMPYREAN_ANTHEM_5PC } from "../../echoes/rinascita.js";
@@ -86,11 +86,11 @@ const FHA = yinlinAction("Forte Heavy - Chameleon Cipher", {
 });
 /** One Judgment Strike — Resonance Skill DMG, drawn per qualifying action by PUNISHMENT_MARK. */
 const PUNISHMENT_FIELD = new ActionField("Yinlin: Punishment Mark");
-const ACTION_JUDGMENT_STRIKE = yinlinAction("Forte - Judgment Strike", { node: Node.Forte, type: Type1.Skill, type2: Type2.Coordinated, mv: 78.64, active: false, field: PUNISHMENT_FIELD });
+const ACTION_JUDGMENT_STRIKE = yinlinAction("Forte - Judgment Strike", { node: Node.Forte, type: Type1.Skill, type2: Type2.Coordinated, mv: 78.64, field: PUNISHMENT_FIELD });
 
 const Intro = yinlinAction("Intro - Raging Storm", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 14.32 * 10, energy: 10.00, concerto: 10, offtune: 9520, forte1: 12 });
 const Outro = yinlinAction("Outro - Strategist", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(YINLIN_OUTRO),
 });
 
@@ -102,7 +102,7 @@ const Outro = yinlinAction("Outro - Strategist", {
  *  survive other members' inactive actions, so it tests whose slot is acting itself). */
 const SINNERS_MARK: Debuff = new Debuff({
   name: "Yinlin: Sinner's Mark",
-  updateBuffs: () => { if (!currentAction().active && isHeld(YINLIN_RESONATOR)) revokeEnemy(SINNERS_MARK); },
+  updateBuffs: () => { if (currentAction().swapOut && isHeld(YINLIN_RESONATOR)) revokeEnemy(SINNERS_MARK); },
 });
 
 /** Punishment Mark: what Chameleon Cipher turns a Sinner's Mark into — "when a target marked
@@ -190,7 +190,7 @@ const YINLIN_TALENTS = new Talent({
 // this covers both opener and loop.
 
 const YL_ROTATION = new Rotation([
-  INTRO, ECHO_CANCEL, Skill1, HA, Liberation, Skill2, FHA,
+  INTRO, Skill1, HA, Liberation, Skill2, FHA, ECHO_SWAP,
   OUTRO,
 ]);
 
@@ -200,7 +200,7 @@ const YL_ROTATION = new Rotation([
 // echo choices — Empyrean Anthem behind her Coordinated Judgment Strikes, or Moonlit Clouds
 /** Matrix: her Liberation grants the team +30% Resonance Liberation DMG Bonus for 30s — permanent. */
 const YINLIN_MATRIX_TEAM = new Buff({
-  name: "Yinlin: Matrix (team)",
+  name: "Yinlin: Matrix Buff",
   applyStats: () => addStat(Stat.DmgBonus, 30, Type1.Liberation),
 });
 const YINLIN_MATRIX = matrix("Yinlin", 20, {

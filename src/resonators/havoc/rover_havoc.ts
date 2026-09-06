@@ -88,7 +88,7 @@ const Liberation = roverAction("Liberation - Deadening Abyss", { node: Node.Libe
 const Intro = roverAction("Intro - Instant of Annihilation", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, forte1: 29, mv: 198.81, energy: 10, concerto: 10, offtune: 1867 });
 /** Soundweaver: a Havoc Field, 3 ticks over 6s, lumped into one action. No Skill Attributes/
  *  Damage Data table on the page at all, so energy/concerto/offtune stay 0 — a real absence. */
-const Outro = roverAction("Outro - Soundweaver", { cast: Cast.Outro, type: Type1.Outro, mv: 429.9, concerto: -100, active: false });
+const Outro = roverAction("Outro - Soundweaver", { cast: Cast.Outro, type: Type1.Outro, mv: 429.9, concerto: -100, swapOut: true });
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -130,7 +130,7 @@ const ROVER_HAVOC_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   intro: () => Intro,
   outro: () => Outro,
-  color: "#7c6fd6",
+  color: "#823ac6",
   maxEnergy: 125,
   tier: Tier.Free,
 

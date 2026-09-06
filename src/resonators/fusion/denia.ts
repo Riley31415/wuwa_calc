@@ -17,7 +17,7 @@
  *   Fusion DMG Bonus while an Entropy Shift is up, and her Outro amplifies Fusion Burst DMG 60%
  *   around the active resonator.
  * - **Tune Strain**: the same casts lay Tune Strain - Shifting instead, Etched Colors hands the
- *   team Tune Break Boost, she responds to Strain the way Lynae/Mornye do (tuneStrainBonus), and
+ *   team Tune Break Boost, she responds to Strain the way Lynae/Mornye do (TUNE_STRAIN_RESPONDER), and
  *   her Outro is a 15%/40% All DMG Amp handoff.
  *
  * Gauges: Void Particle is forte1 (0-100), Conformal Charge forte2 (0-100), Dark Cores forte3
@@ -67,7 +67,7 @@ import { applied, applyEnemy } from "../../engine/context.js";
 import { coordinatedBuff, lostOnSwap } from "../../shared/helpers.js";
 import { FUSION_BURST } from "../../shared/status.js";
 import { ENEMY_MAX_OFFTUNE, TUNE_STRAIN_SHIFTING } from "../../shared/tunebreak.js";
-import { applyStrain, TUNE_STRAIN_INTERFERED, tuneStrainBonus } from "../../shared/tunebreak.js";
+import { applyStrain, TUNE_STRAIN_INTERFERED, TUNE_STRAIN_RESPONDER } from "../../shared/tunebreak.js";
 import { FORGED_DWARF_STAR, STRINGMASTER } from "../../weapons/rectifier.js";
 import { COSMIC_RIPPLES, NEW_STD_RECTIFIER } from "../../weapons/standard.js";
 import {
@@ -159,7 +159,7 @@ const Lib2 = deniaAction("Liberation - Final Act (Breakdown)", {
  *  is what the report reads as her dropping the field. */
 const EROSION = new ActionField("Denia: Erosion Field");
 const ErosionField = deniaAction("Forte - Erosion Field", {
-  node: Node.Forte, type: Type1.Liberation, mv: 136.33, active: false, field: EROSION,
+  node: Node.Forte, type: Type1.Liberation, mv: 136.33, field: EROSION,
 });
 
 // --- Intros, one per form. Both bank a Dark Core and 25 Void Particle.
@@ -179,7 +179,7 @@ const EIntro = deniaAction("Intro - Knock Knock", {
 });
 // mutually exclusive: Burst amplifies the team's Fusion Burst, Strain hands off to the incoming
 const Outro = deniaAction("Outro - Unfinished Lies", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => {
     if (isHeld(MODE_BURST)) applyTeam(UNFINISHED_LIES_BURST, 1);
     else queueOutro(UNFINISHED_LIES_STRAIN);
@@ -212,11 +212,10 @@ const MODE_STRAIN = new ResonanceMode({
 
   // Shattered Hours: "while Denia is in the team", whichever mode
   combatStart: () => {
-    maxStackIncrease(TUNE_STRAIN_INTERFERED, 1);
+    maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(TUNE_STRAIN_RESPONDER, 1);
     applyTeam(OFFTUNE_SURGE, 1);
   },
   updateDebuffs: () => { const a = currentAction(); if (inflictsTwo(a) || inflictsOne(a)) applyStrain(); },
-  lateConvertStats: () => tuneStrainBonus(),
 });
 
 /** Strain mode's one-shot: the team's first Tune Strain - Shifting raises the target's Off-Tune
@@ -288,7 +287,7 @@ const ETCHED_COLORS_BURST = new Buff({
 
 /** +10 Tune Break Boost, plus 8 per 10% of each resonator's own Off-Tune Buildup Rate past 100%
  *  up to 40 — taken at the cap per CLAUDE.md's own-stats rule (a Syntony Field alone clears it).
- *  The real stat, so tuneStrainBonus() and the damage formula's own tbbFactor both see it. */
+ *  The real stat, so the Strain payout and the damage formula's own tbbFactor both see it. */
 const ETCHED_COLORS_STRAIN = new Buff({
   name: "Inherent: Etched Colors (strain)",
   convertStats: () => {
@@ -362,7 +361,7 @@ const DENIA_RESONATOR = new Resonator({
   // is the Intro she enters with; Knock Knock (the Breakdown-form one) is kept for completeness
   intro: () => stacksOf(ENTROPY_BREAKDOWN) ? EIntro : Intro,
   outro: () => Outro,
-  color: "#c9557d",
+  color: "#ecabe3",
   maxEnergy: 125,
 
   constantStats: () => {

@@ -71,7 +71,7 @@ const Liberation = roverAction("Liberation - Echoing Orchestra", {
   updateDebuffs: () => { applyCurrent(HEALS, 1); applyEnemy(SPECTRO_FRAZZLE, 6); },
 });
 const Intro = roverAction("Intro - Waveshock", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 168.99, energy: 10, concerto: 10, offtune: 4880, forte1: 50 });
-const Outro = roverAction("Outro - Instant", { cast: Cast.Outro, concerto: -100, active: false });
+const Outro = roverAction("Outro - Instant", { cast: Cast.Outro, concerto: -100, swapOut: true });
 
 /* ------------------------------------------------------------------------------------ buffs */
 

@@ -77,14 +77,14 @@ const Liberation = ciacconaAction("Liberation - Singer's Triple Cadenza", {
  *  is on field. Off-tune is the row's 43640 split the same way. */
 const RECITAL_FIELD = new ActionField("Ciaccona: Recital");
 const GreenTonic = ciacconaAction("Liberation - Symphonic Poem: Tonic (green)", {
-  node: Node.Liberation, type: Type1.Liberation, mv: 6.12, offtune: 2182, active: false, field: RECITAL_FIELD, ...EROSION,
+  node: Node.Liberation, type: Type1.Liberation, mv: 6.12, offtune: 2182, field: RECITAL_FIELD, ...EROSION,
 });
 const Intro = ciacconaAction("Intro - Roaming with the Wind", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 189.11, energy: 10, concerto: 10, offtune: 9280, forte1: 1, ...EROSION,
   updateBuffs: () => revokeTeam(RECITAL), // switching back in exits Recital
 });
 const Outro = ciacconaAction("Outro - Windcalling Tune", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => applyTeam(WINDCALLING_TUNE, 1),
 });
 

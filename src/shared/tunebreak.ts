@@ -4,7 +4,7 @@
  * here, equipped onto `State.enemy` the way a member's own kit is equipped onto them.
  */
 import { Attribute, Cast, EnemyStat, Scaling, Stat, Type1, WeaponType } from "../engine/stats.js";
-import { BuffDef, Debuff, Gear, Resonator } from "../engine/gear.js";
+import { Buff, BuffDef, Debuff, Gear, Resonator } from "../engine/gear.js";
 import {
   addEnemyStat,
   addStat,
@@ -13,14 +13,17 @@ import {
   currentAction,
   currentTeam,
   equip,
+  frozenStacks,
   getStat,
   isCast,
+  isHeld,
   midActionGroup,
   queue,
   queueEvent,
   revokeEnemy,
   stacksOfEnemy,
   triggeredAction,
+  isActive,
 } from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
 
@@ -51,7 +54,7 @@ export const TUNE_BREAK_COOLDOWN: Debuff = new Debuff({
   name: "Tune Break Cooldown", maxStacks: 4,
   display: () => "Tune Break Cooldown",
   updateBuffs: () => {
-    if (triggeredAction() || currentAction() === TUNE_BREAK || !currentAction().active) return;
+    if (triggeredAction() || currentAction() === TUNE_BREAK || !isActive()) return;
     if (stacksOfEnemy(TUNE_BREAK_COOLDOWN) >= 4) revokeEnemy(TUNE_BREAK_COOLDOWN);
     else applyEnemy(TUNE_BREAK_COOLDOWN, 1);
   },
@@ -94,7 +97,7 @@ export const TUNE_BREAK_ENEMY = new Resonator({
   // inactive action both top the bar up without breaking it, and a break never sets off another.
   // The bar stays full either way, so the next action that *is* one fires it.
   afterAction: () => {
-    if (triggeredAction() || currentAction() === TUNE_BREAK || !currentAction().active) return;
+    if (triggeredAction() || currentAction() === TUNE_BREAK || !isActive()) return;
     // ...and not part-way through an ActionGroup, which the rotation presses as one beat: the bar
     // can fill on any cast in it, but the break lands on the one that ends the group (evaluate.ts)
     if (midActionGroup()) return;
@@ -143,7 +146,7 @@ export function interferedWindow(def: BuffDef): Debuff {
     maxStacks: 11,
     display: () => def.name ?? "",
     updateBuffs: () => {
-      if (triggeredAction() || currentAction() === TUNE_BREAK || !currentAction().active) return;
+      if (triggeredAction() || currentAction() === TUNE_BREAK || !isActive()) return;
       if (stacksOfEnemy(self) > 10) revokeEnemy(self);
       else applyEnemy(self, 1);
     },
@@ -157,7 +160,17 @@ export function interferedWindow(def: BuffDef): Debuff {
  *  responds to it raising the target's own limit with `maxStackIncrease()`, so the real ceiling is
  *  whoever is on the team. */
 export const TUNE_RUPTURE_INTERFERED = interferedWindow({ name: "Tune Rupture - Interfered" });
-export const TUNE_STRAIN_INTERFERED = new Debuff({ name: "Tune Strain - Interfered", maxStacks: 1 });
+export const TUNE_STRAIN_INTERFERED = new Debuff({
+  name: "Tune Strain - Interfered", maxStacks: 1,
+  // the Strain payout, to a slot that responds to it: every point of its own Tune Break Boost is
+  // +0.12% total damage a stack. Late, by when every Tbb source has landed.
+  lateConvertStats: () => { if (isHeld(TUNE_STRAIN_RESPONDER)) addStat(Stat.TotalDmg, 0.12 * getStat(Stat.Tbb) * frozenStacks()); },
+});
+/** Held by a kit that responds to Tune Strain — granted from its own combatStart — so the
+ *  Interfered debuff above pays that slot, sourced to itself. No `name`, so it never enters the
+ *  held-buffs list (evaluate.ts's own `named()`): it's bookkeeping for a bonus the Interfered
+ *  debuff's own row already reports, not a second thing to show. */
+export const TUNE_STRAIN_RESPONDER = new Buff({});
 export const TUNE_HACK_INTERFERED = interferedWindow({ name: "Tune Hack - Interfered" });
 
 /** What a kit puts on the target to steer the next break — and where every Interfered comes from:
@@ -201,10 +214,3 @@ export const tuneRuptureResponse = (action: Action): void => {
 export const tuneHackResponse = (action: Action): void => {
   if (currentAction() === TUNE_BREAK && applied(TUNE_HACK_INTERFERED)) queue(action);
 };
-
-/** The shared Strain payout: every point of the holder's own Tune Break Boost is +0.12% total
- *  damage per Interfered stack. From a gear's convertStats(), by when every Tbb source has landed. */
-export function tuneStrainBonus(): void {
-  const interfered = stacksOfEnemy(TUNE_STRAIN_INTERFERED);
-  if (interfered > 0) addStat(Stat.TotalDmg, 0.12 * getStat(Stat.Tbb) * interfered);
-}

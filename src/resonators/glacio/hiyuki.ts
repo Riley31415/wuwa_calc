@@ -76,6 +76,7 @@ import {
   forte1,
   forte3,
   forte2,
+  isActive,
 } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, DODGE } from "../../engine/rotation.js";
@@ -210,7 +211,7 @@ const Intro = hiyukiAction("Intro - Frostedge", {
   updateBuffs: () => revokeTeam(SNOWLIGHT_BLESSING),
 });
 const Outro = hiyukiAction("Outro - Snowlight Blessing", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => applyTeam(SNOWLIGHT_BLESSING, 1)
 });
 
@@ -303,7 +304,7 @@ const SNOW_RUST = new Buff({
     for (let i = appliedByMe(GLACIO_CHAFE); i > 0; i--) queue(FineSnowBite);
   },
   applyStats: () => {
-    if (currentAction().active) {
+    if (isActive()) {
       addStat(Stat.CritDmg, 40);
       addStat(Stat.Amp, snowRust() >= 3 ? 60 : 30, Type2.GlacioChafe);
     }

@@ -96,7 +96,7 @@ export const LIONESS_OF_GLORY = new Mainslot({
  *  permanent uptime once granted (≥21s), so a one-time grant on the first cast, never revoked.
  *  2pc: +10% Fusion DMG Bonus flat. */
 export const CLAWPRINT_TEAM = new Buff({
-  name: "Flaming Clawprint 5pc (team)", applyStats: () => addStat(Stat.DmgBonus, 15, Attribute.Fusion),
+  name: "Flaming Clawprint 5pc", applyStats: () => addStat(Stat.DmgBonus, 15, Attribute.Fusion),
 });
 export const CLAWPRINT_LIBERATION = new Buff({
   name: "Flaming Clawprint 5pc", applyStats: () => addStat(Stat.DmgBonus, 20, Type1.Liberation),

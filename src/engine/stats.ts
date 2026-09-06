@@ -280,7 +280,7 @@ export const SCALING_NAME: Record<Scaling, string> = {
 /** Ratio stats, held in percent units. Everything else is a flat amount or a count. Covers both
  *  `Stat` and `EnemyStat` values — they share one index space, so one set works for either enum.
  *  Tune Break Boost is deliberately absent: it is a count of points, each worth +0.12% total
- *  damage per Interfered stack (tunebreak.ts's own `tuneStrainBonus`), so it reads as a bare
+ *  damage per Interfered stack (tunebreak.ts's own Tune Strain - Interfered payout), so it reads as a bare
  *  number everywhere. What divides it into a multiplier does so itself (damage.ts's `tbbFactor`). */
 export const PERCENT_STATS: Set<Stat | EnemyStat> = new Set<Stat | EnemyStat>([
   Stat.BonusAtk, Stat.BonusHp, Stat.BonusDef, Stat.CritRate, Stat.CritDmg, Stat.Er,

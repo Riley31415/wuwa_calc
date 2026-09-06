@@ -82,14 +82,14 @@ const FBA = xlyAction("Mid-air - Revamp", { node: Node.Forte, cast: Cast.MidAir,
 const Intro = xlyAction("Intro - Principle", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 99.41 * 2, energy: 10.00, concerto: 10, offtune: 11200 });
 /** Chain Rule: no damage of its own, just the handoff — its lasers are ACTION_OUTRO_COORD. */
 const Outro = xlyAction("Outro - Chain Rule", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   // queued three times so the adopter picks the buff up at all three charges
   updateBuffs: () => { queueOutro(XLY_OUTRO); queueOutro(XLY_OUTRO); queueOutro(XLY_OUTRO); },
 });
 /** One laser beam — queued onto his own slot by XLY_OUTRO below, once per stack the incoming
  *  resonator's Basic casts consume. */
 const CHAIN_RULE_FIELD = new ActionField("Xiangli Yao: Chain Rule");
-const ACTION_OUTRO_COORD = xlyAction("Outro - Chain Rule (Laser)", { type: Type1.Outro, mv: 237.63, active: false, field: CHAIN_RULE_FIELD });
+const ACTION_OUTRO_COORD = xlyAction("Outro - Chain Rule (Laser)", { type: Type1.Outro, mv: 237.63, field: CHAIN_RULE_FIELD });
 
 /* ------------------------------------------------------------------------------------ buffs */
 

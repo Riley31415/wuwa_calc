@@ -34,7 +34,7 @@ import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, JUMP, ActionField, 
 import { coordinatedBuff } from "../../shared/helpers.js";
 import { HEALS } from "../../shared/status.js";
 import { VARIATION } from "../../weapons/standard.js";
-import { REJUV_5PC } from "../../echoes/jinzhou.js";
+import { BELL_BORNE_GEOCHELONE, HERON, MOONLIT_CLOUDS_5PC, REJUV_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
@@ -95,7 +95,7 @@ const Liberation = verinaAction("Liberation - Arboreal Flourish", {
  *  and are dropped, not divided up. Each tick heals: VERINA_RESONATOR's own HEALS list names it. */
 const PHOTOSYNTHESIS_FIELD = new ActionField("Verina: Photosynthesis Mark");
 const PhotosynthesisTick = verinaAction("Liberation - Photosynthesis Mark", {
-  node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 9.95, active: false, field: PHOTOSYNTHESIS_FIELD,
+  node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 9.95, field: PHOTOSYNTHESIS_FIELD,
 });
 /** S6's one-off reuse of the same hit — her own follow-up off her own combo, not the mark's, so
  *  this copy names no field and stays out of the report's field row. */
@@ -105,7 +105,7 @@ const Intro = verinaAction("Intro - Verdant Growth", { node: Node.Intro, cast: C
 /** Blossom: no damage of its own, just the outro handoff, the Gift of Nature/S4 trigger and
  *  (skipped) healing. */
 const Outro = verinaAction("Outro - Blossom", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => applyTeam(VERINA_OUTRO, 1),
 });
 
@@ -193,7 +193,7 @@ const VERINA_RESONATOR = new Resonator({
   weapon: WeaponType.Rectifier,
   intro: () => Intro,
   outro: () => Outro,
-  color: "#8fe08f",
+  color: "#cfee7a",
   maxEnergy: 175, // her own real 175%, not the generic 125% default — matches Shorekeeper's own
 
   tier: Tier.Standard,
@@ -249,8 +249,12 @@ export const VERINA = new Loadout({
   inherent1: VR_INHERENT_1,
   inherent2: VR_INHERENT_2,
   weapons: [VARIATION],
-  echoLoadouts: [new EchoLoadout(FALLACY, REJUV_5PC),
-      new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC),],
+  echoLoadouts: [
+    new EchoLoadout(FALLACY, REJUV_5PC),
+    new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC),
+    //new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC),
+    //new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
+    ],
   mainstats: [mainstats(Mainstat.ATK4, Mainstat.ER3, Mainstat.ER3, Mainstat.ATK1, Mainstat.ATK1)],
   substat: chem("atk", "liberation"),
     rotation: [VR_LOOP, VR_LOOP, VR_S2],

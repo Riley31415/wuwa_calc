@@ -72,7 +72,7 @@ const Intro = iunoAction("Intro - Illuminated Manifestation", {
   energy: 10, concerto: 10, offtune: 10400, forte1: 40,
 });
 const Outro = iunoAction("Outro - From Gloom to Gleam", {
-  cast: Cast.Outro, type: Type1.Outro, mv: 100, concerto: -100, active: false,
+  cast: Cast.Outro, type: Type1.Outro, mv: 100, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(IUNO_OUTRO),
 });
 

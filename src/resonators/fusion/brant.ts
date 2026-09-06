@@ -61,7 +61,7 @@ const Intro = brantAction("Intro - Applaud for Me!", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 253.49, offtune: 12000, concerto: 10, forte1: 25,
   updateDebuffs: () => applyCurrent(HEALS, 1),
 });
-const Outro = brantAction("Outro - The Course is Set!", { cast: Cast.Outro, concerto: -100, active: false, updateBuffs: () => queueOutro(BRANT_OUTRO) });
+const Outro = brantAction("Outro - The Course is Set!", { cast: Cast.Outro, concerto: -100, swapOut: true, updateBuffs: () => queueOutro(BRANT_OUTRO) });
 
 // --- resonance skill: Anchors Aweigh!, and liberation: To the Horizon (opens Aflame)
 const Skill = brantAction("Skill - Anchors Aweigh!", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 333.92, offtune: 10160, energy: 7.18, concerto: 10, forte1: 15.76 });
@@ -188,7 +188,7 @@ const BR_S1 = new Sequence({
  *  Skill hits blast the target for 440% of Brant's ATK (Basic Attack DMG), once a second, twice at
  *  most. Handed to the incoming resonator like the outro itself — queued twice, one stack a blast
  *  — and fired onto Brant's own slot off their active Skill casts; gone when they swap out. */
-const CourseBlast = brantAction("Outro - The Course is Set! (S2 Blast)", { node: Node.Normal, type: Type1.Basic, mv: 440, active: false });
+const CourseBlast = brantAction("Outro - The Course is Set! (S2 Blast)", { node: Node.Normal, type: Type1.Basic, mv: 440 });
 const COURSE_BLAST = new Buff({
   name: "Brant S2: The Course is Set! (Blast)", maxStacks: 2,
   updateBuffs: () => {

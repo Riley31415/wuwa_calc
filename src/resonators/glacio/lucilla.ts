@@ -62,6 +62,7 @@ import {
   queueOutro,
   removeStackTeam,
   revokeCurrent,
+  isActive,
 } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
@@ -91,7 +92,7 @@ const CHAFES = { updateDebuffs: () => applyEnemy(GLACIO_CHAFE, 1) };
 const Intro = lucillaAction("Intro - Clip It", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 97.42, energy: 11.75, concerto: 14.13, offtune: 5600, forte1: 100, ...CHAFES });
 // mutually exclusive: Echo hands off MONTAGE_HANDOFF, Chafe grants MONTAGE_CHAFE team-wide
 const Outro = lucillaAction("Outro - Montage", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => {
     if (isHeld(MODE_CHAFE)) applyTeam(MONTAGE_CHAFE, 1);
     else queueOutro(MONTAGE_HANDOFF);
@@ -199,7 +200,7 @@ const LC_INHERENT_1 = new Inherent({
  *  is hers alone. */
 const ZOOM = new Buff({
   name: "Lucilla: Zoom", maxStacks: 4,
-  applyStats: () => { if (currentAction().active) addStat(Stat.CritDmg, 10 * frozenStacks(), Type1.Echo); },
+  applyStats: () => { if (isActive()) addStat(Stat.CritDmg, 10 * frozenStacks(), Type1.Echo); },
 });
 /** Any *other* active resonator inflicting Glacio Chafe spends a stack of this to have Lucilla
  *  inflict two more. Her own casts never trigger it. Cap 10; the real 0.5s cooldown isn't
@@ -211,7 +212,7 @@ const ZOOM = new Buff({
 const FILM_ROLL: Buff = new Buff({
   name: "Lucilla: Film Roll", maxStacks: 10,
   updateDebuffs: () => {
-    if (!currentAction().active || currentTeam().slot.resonator === LUCILLA_RESONATOR) return;
+    if (!isActive() || currentTeam().slot.resonator === LUCILLA_RESONATOR) return;
     if (!applied(GLACIO_CHAFE)) return;
     removeStackTeam(FILM_ROLL, 1);
     applyEnemy(GLACIO_CHAFE, 2);

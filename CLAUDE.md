@@ -15,7 +15,7 @@
 - a loadout's `weapons` list its best signature first and its best standard weapon second — with the weapons box closed the solver runs only that one
 
 # wording of buffs
-- "lost on swap / switching out" = lost on inactive action (`lostOnSwap`)
+- "lost on swap / switching out" = lost on the swap-out action — an Outro, a swap marker, an echo swap form (`lostOnSwap`); "while on field" = `isActive()`
 - ≤20s self buff = lost after outro via conversion; ≤20s team buff = lost on the applier's next intro; ≥21s = permanent
 - "all active resonators" = no stat on inactive actions; "all nearby resonators" = applies even when inactive
 - "all attribute dmg bonus/amp" = plain dmg bonus/amp, no tag

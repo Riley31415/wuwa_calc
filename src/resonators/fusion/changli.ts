@@ -73,7 +73,7 @@ const Liberation = changliAction("Liberation - Radiance of Fealty", {
 // --- intro / outro. Intro also opens True Sight.
 const Intro = changliAction("Intro - Obedience of Rules", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 148.34, offtune: 5971, energy: 10, concerto: 10 });
 const Outro = changliAction("Outro - Strategy of Duality", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(CHANGLI_OUTRO),
 });
 
@@ -152,7 +152,7 @@ const CH_S3 = new Sequence({
 
 /** S4: +20% ATK for the whole team for 30s off her Intro — long enough to be permanent. */
 const POLISHED_WORDS = new Buff({
-  name: "Changli S4: Polished Words (team)",
+  name: "Changli S4: Polished Words",
   applyStats: () => addStat(Stat.BonusAtk, 20),
 });
 const CH_S4 = new Sequence({

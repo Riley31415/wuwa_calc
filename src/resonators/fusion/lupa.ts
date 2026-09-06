@@ -123,7 +123,7 @@ const FSkill = lupaAction("Forte Skill - Dance With the Wolf", { node: Node.Fort
 const UFSkill = lupaAction("Forte Skill - Dance With the Wolf: Climax", { node: Node.Forte, cast: Cast.Skill, type: Type1.Liberation, mv: 756.26, energy: 30, concerto: 30, offtune: 54416, forte2: -2, ...BACKUP });
 /** Set the Arena Ablaze — queued by LUPA_BACKUP_READY the moment a teammate's Liberation earns
  *  it, not placed in the rotation directly. */
-const fskillFUA = lupaAction("Forte Skill - Set the Arena Ablaze", { node: Node.Forte, type: Type1.Skill, mv: 211.75, offtune: 9600, active: false });
+const fskillFUA = lupaAction("Forte Skill - Set the Arena Ablaze", { node: Node.Forte, type: Type1.Skill, mv: 211.75, offtune: 9600 });
 
 const Intro = lupaAction("Intro - Try Focusing, Eh?", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.4, energy: 10.02, concerto: 10, offtune: 9393 });
 /** Nowhere to Run! — replaces plain Intro once Pack Hunt is maxed (see LUPA_RESONATOR's own intro()
@@ -131,7 +131,7 @@ const Intro = lupaAction("Intro - Try Focusing, Eh?", { node: Node.Intro, cast: 
 const EIntro = lupaAction("Intro - Nowhere to Run!", { node: Node.Intro, cast: Cast.Intro, type: Type1.Liberation, mv: 991.97, energy: 10, concerto: 10, offtune: 16000 });
 /** Stand by Me, Warrior: no damage of its own, just the outro handoff. */
 const Outro = lupaAction("Outro - Stand by Me, Warrior", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(LUPA_OUTRO),
 });
 

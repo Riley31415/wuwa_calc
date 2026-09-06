@@ -41,7 +41,7 @@ import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, ECHO_SWAP, OUTRO, 
 import { applied } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { TUNE_STRAIN_SHIFTING } from "../../shared/tunebreak.js";
-import { applyStrain, TUNE_BREAK, TUNE_STRAIN_INTERFERED, tuneStrainBonus } from "../../shared/tunebreak.js";
+import { applyStrain, TUNE_BREAK, TUNE_STRAIN_INTERFERED, TUNE_STRAIN_RESPONDER } from "../../shared/tunebreak.js";
 import { DAYBREAKERS_SPINE } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import {
@@ -115,7 +115,7 @@ const Intro = luukAction("Intro - Before Injection of Dawn", {
   // updateBuffs: () => applyCurrent(DAWNLIT_KEEP, 1),  // DAWNLIT_KEEP grants no stat and nothing reads it
 });
 const Outro = luukAction("Outro - Bow to the Last Light", {
-  cast: Cast.Outro, type: Type1.Outro, mv: 500, concerto: -100, active: false,
+  cast: Cast.Outro, type: Type1.Outro, mv: 500, concerto: -100, swapOut: true,
   updateBuffs: () => applyCurrent(GOLDEN_RULE),
 });
 
@@ -210,7 +210,7 @@ const LUUK_TALENTS = new Talent({
 });
 
 const LUUK_RESONATOR = new Resonator({
-  name: "Luuk",
+  name: "Luuk Herssen",
   element: Attribute.Spectro,
   weapon: WeaponType.Gauntlets,
   intro: () => Intro,
@@ -220,8 +220,7 @@ const LUUK_RESONATOR = new Resonator({
 
   // his kit raises the target's Tune Strain - Interfered limit by 1 on top of the base 1; Golden
   // Rule is armed from the start so his first Intro is brought in the same way every later one is
-  combatStart: () => { maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(GOLDEN_RULE, 1); },
-  lateConvertStats: () => tuneStrainBonus(),
+  combatStart: () => { maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(TUNE_STRAIN_RESPONDER, 1); applyCurrent(GOLDEN_RULE, 1); },
 
   updateBuffs: () => {
     if (forte1() >= 300) applyCurrent(AUREATE_JUDGE, 1);
@@ -247,8 +246,8 @@ const MA123 = new ActionGroup("Mid-air - Scythe: Dissection 123", [MA1, MA2, MA3
 
 const LK_ROTATION = new Rotation([
   START_3, Skill, Liberation, SWAP,
-  INTRO, MA2, MA3, Ring, GoldenImpale.dodgeCancel(), 
-  MA123, Breach, GoldenImpale.dodgeCancel(), 
+  INTRO, MA2, MA3, Ring, GoldenImpale,  // TODO add dodge/jumps
+  MA123, Breach, GoldenImpale, 
   MA123, Glare, Gavel,
   Liberation, ECHO_SWAP, OUTRO,
 ]);

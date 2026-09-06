@@ -13,55 +13,65 @@
  * `ALL_TEAMS`, the one list both threads build identically out of this file. See `teamKey()`
  * and `teamAt()` below, and solver.ts's own `teamFromKey()`.
  */
-import type { Loadout } from "./gear.js";
-import { CARTETHYIA } from "../resonators/aero/cartethyia.js";
-import { CIACCONA } from "../resonators/aero/ciaccona.js";
-import { IUNO, IUNO_MDPS } from "../resonators/aero/iuno.js";
-import { JIANXIN } from "../resonators/aero/jianxin.js";
-import { JIYAN } from "../resonators/aero/jiyan.js";
-import { QINGXIAO } from "../resonators/aero/qingxiao.js";
-import { QIUYUAN } from "../resonators/aero/qiuyuan.js";
-import { ROVER_AERO } from "../resonators/aero/rover_aero.js";
-import { SIGRIKA, SIGRIKA_FAST } from "../resonators/aero/sigrika.js";
-import { AUGUSTA } from "../resonators/electro/augusta.js";
-import { BULING } from "../resonators/electro/buling.js";
-import { REBECCA } from "../resonators/electro/rebecca.js";
-import { ROVER_ELECTRO } from "../resonators/electro/rover_electro.js";
-import { XIANGLI_YAO } from "../resonators/electro/xiangli_yao.js";
-import { YINLIN } from "../resonators/electro/yinlin.js";
-import { AEMEATH_BURST, AEMEATH_RUPTURE } from "../resonators/fusion/aemeath.js";
-import { BRANT, BRANT_MDPS } from "../resonators/fusion/brant.js";
-import { CHANGLI } from "../resonators/fusion/changli.js";
-import { DENIA_BURST, DENIA_STRAIN } from "../resonators/fusion/denia.js";
-import { ENCORE } from "../resonators/fusion/encore.js";
-import { GALBRENA } from "../resonators/fusion/galbrena.js";
-import { JINGRAN } from "../resonators/fusion/jingran.js";
-import { LUPA } from "../resonators/fusion/lupa.js";
-import { MORNYE } from "../resonators/fusion/mornye.js";
-import { MORTEFI } from "../resonators/fusion/mortefi.js";
-import { CARLOTTA } from "../resonators/glacio/carlotta.js";
-import { HIYUKI } from "../resonators/glacio/hiyuki.js";
-import { LUCILLA, LUCILLA_CHAFE } from "../resonators/glacio/lucilla.js";
-import { SANHUA } from "../resonators/glacio/sanhua.js";
-import { SUISUI } from "../resonators/glacio/suisui.js";
-import { ZHEZHI } from "../resonators/glacio/zhezhi.js";
-import { CAMELLYA, CAMELLYA_DOUBLE } from "../resonators/havoc/camellya.js";
-import { CANTARELLA } from "../resonators/havoc/cantarella.js";
-import { CHISA } from "../resonators/havoc/chisa.js";
-import { DANJIN } from "../resonators/havoc/danjin.js";
-import { PHROLOVA, PHROLOVA_DUAL_DPS } from "../resonators/havoc/phrolova.js";
-import { ROCCIA } from "../resonators/havoc/roccia.js";
-import { ROVER_HAVOC } from "../resonators/havoc/rover_havoc.js";
-import { XUANLING } from "../resonators/havoc/xuanling.js";
-import { JINHSI } from "../resonators/spectro/jinhsi.js";
-import { LUCY } from "../resonators/spectro/lucy.js";
-import { LUUK } from "../resonators/spectro/luuk.js";
-import { LYNAE_RUPTURE, LYNAE_STRAIN } from "../resonators/spectro/lynae.js";
-import { ROVER_SPECTRO } from "../resonators/spectro/rover_spectro.js";
-import { SHOREKEEPER } from "../resonators/spectro/shorekeeper.js";
-import { VERINA } from "../resonators/spectro/verina.js";
+import type { Loadout } from "./engine/gear.js";
+import { CARTETHYIA } from "./resonators/aero/cartethyia.js";
+import { CIACCONA } from "./resonators/aero/ciaccona.js";
+import { IUNO, IUNO_MDPS } from "./resonators/aero/iuno.js";
+import { JIANXIN } from "./resonators/aero/jianxin.js";
+import { JIYAN } from "./resonators/aero/jiyan.js";
+import { QINGXIAO } from "./resonators/aero/qingxiao.js";
+import { QIUYUAN } from "./resonators/aero/qiuyuan.js";
+import { ROVER_AERO } from "./resonators/aero/rover_aero.js";
+import { SIGRIKA, SIGRIKA_FAST } from "./resonators/aero/sigrika.js";
+import { AUGUSTA } from "./resonators/electro/augusta.js";
+import { BULING } from "./resonators/electro/buling.js";
+import { HSIN_FLARE, HSIN_UNISON } from "./resonators/electro/hsin.js";
+import { REBECCA } from "./resonators/electro/rebecca.js";
+import { ROVER_ELECTRO } from "./resonators/electro/rover_electro.js";
+import { SUOMING, SUOMING_MDPS } from "./resonators/electro/suoming.js";
+import { XIANGLI_YAO } from "./resonators/electro/xiangli_yao.js";
+import { YINLIN } from "./resonators/electro/yinlin.js";
+import { AEMEATH_BURST, AEMEATH_RUPTURE } from "./resonators/fusion/aemeath.js";
+import { BRANT, BRANT_MDPS } from "./resonators/fusion/brant.js";
+import { CHANGLI } from "./resonators/fusion/changli.js";
+import { DENIA_BURST, DENIA_STRAIN } from "./resonators/fusion/denia.js";
+import { ENCORE } from "./resonators/fusion/encore.js";
+import { GALBRENA } from "./resonators/fusion/galbrena.js";
+import { JINGRAN } from "./resonators/fusion/jingran.js";
+import { LUPA } from "./resonators/fusion/lupa.js";
+import { MORNYE } from "./resonators/fusion/mornye.js";
+import { MORTEFI } from "./resonators/fusion/mortefi.js";
+import { CARLOTTA } from "./resonators/glacio/carlotta.js";
+import { HIYUKI } from "./resonators/glacio/hiyuki.js";
+import { LUCILLA, LUCILLA_CHAFE } from "./resonators/glacio/lucilla.js";
+import { SANHUA } from "./resonators/glacio/sanhua.js";
+import { SUISUI } from "./resonators/glacio/suisui.js";
+import { ZHEZHI } from "./resonators/glacio/zhezhi.js";
+import { CAMELLYA, CAMELLYA_DOUBLE } from "./resonators/havoc/camellya.js";
+import { CANTARELLA } from "./resonators/havoc/cantarella.js";
+import { CHISA } from "./resonators/havoc/chisa.js";
+import { DANJIN } from "./resonators/havoc/danjin.js";
+import { PHROLOVA, PHROLOVA_DUAL_DPS } from "./resonators/havoc/phrolova.js";
+import { ROCCIA } from "./resonators/havoc/roccia.js";
+import { ROVER_HAVOC } from "./resonators/havoc/rover_havoc.js";
+import { XUANLING } from "./resonators/havoc/xuanling.js";
+import { JINHSI } from "./resonators/spectro/jinhsi.js";
+import { LUCY } from "./resonators/spectro/lucy.js";
+import { LUUK } from "./resonators/spectro/luuk.js";
+import { LYNAE_RUPTURE, LYNAE_STRAIN } from "./resonators/spectro/lynae.js";
+import { ROVER_SPECTRO } from "./resonators/spectro/rover_spectro.js";
+import { SHOREKEEPER } from "./resonators/spectro/shorekeeper.js";
+import { VERINA } from "./resonators/spectro/verina.js";
 
 const TEAMS: Loadout[][][] = [
+
+  // hsin (Electro Flare mode): electro skill flare
+  //[[SUISUI, BULING, CHISA, SHOREKEEPER], [CHISA, ROVER_ELECTRO], [HSIN_FLARE]],
+  // hsin, Unison mode: Suoming or Jinhsi behind her hands over the Unison her Intro answers
+  [[SHOREKEEPER, VERINA, BULING, MORNYE], [SUOMING, JINHSI], [HSIN_UNISON]],
+
+  // suoming mdps, electro basic unison
+  [[SHOREKEEPER, VERINA, MORNYE], [SANHUA, LYNAE_RUPTURE, REBECCA], [SUOMING_MDPS]],
 
   // jingran: fusion heavy shielder
   [[SHOREKEEPER, LUPA, VERINA, MORNYE], [IUNO, MORTEFI, BRANT, LUPA, LYNAE_RUPTURE, REBECCA], [JINGRAN]],
@@ -124,6 +134,11 @@ const TEAMS: Loadout[][][] = [
   [[PHROLOVA_DUAL_DPS, PHROLOVA_DUAL_DPS], [LUCILLA, LUCILLA], [HIYUKI]],
   [[SUISUI, SUISUI], [PHROLOVA_DUAL_DPS, PHROLOVA_DUAL_DPS], [HIYUKI]],
 
+  // cartethyia: aero HP-scaling basic attack on Aero Erosion — Aero Rover and Chisa both raise the
+  // status's own cap, which is what her Erosion ticks and her Blade's amplification both read
+  [[SUISUI, CHISA, SHOREKEEPER, MORNYE, CIACCONA, CHISA], [ROVER_AERO, CHISA], [CARTETHYIA]],
+  [[SUISUI, CHISA, ROVER_AERO, SHOREKEEPER, MORNYE, CIACCONA], [SANHUA, SANHUA], [CARTETHYIA]],
+
   // brant: fusion basic
   [[MORNYE, DENIA_BURST, VERINA, SHOREKEEPER], [SANHUA, LUPA, DENIA_BURST], [BRANT_MDPS]],
   [[LUPA, LUPA], [BRANT], [CHANGLI, ENCORE]],
@@ -132,14 +147,14 @@ const TEAMS: Loadout[][][] = [
   [[LUPA, MORNYE, SHOREKEEPER, DENIA_BURST, VERINA], [DENIA_BURST, LYNAE_RUPTURE, LUPA], [CHANGLI]],
 
   // jinhsi: spectro skill
-  [[SHOREKEEPER, VERINA, MORNYE, BULING], [ZHEZHI, CANTARELLA, LYNAE_RUPTURE, REBECCA], [JINHSI]],
+  [[SHOREKEEPER, VERINA, MORNYE, BULING, ZHEZHI], [ZHEZHI, CANTARELLA, LYNAE_RUPTURE, REBECCA, SUOMING, YINLIN], [JINHSI]],
 
   // carlotta: glacio skill
   [[SHOREKEEPER, BULING, VERINA, MORNYE, SUISUI], [ZHEZHI, BRANT, LYNAE_RUPTURE, REBECCA, LUCILLA_CHAFE], [CARLOTTA]],
 
   // camellya: havoc basic
   [[SHOREKEEPER, VERINA], [SANHUA, SANHUA], [CAMELLYA_DOUBLE]],
-  [[SHOREKEEPER, VERINA, MORNYE], [ROCCIA, SANHUA, LYNAE_RUPTURE, REBECCA], [CAMELLYA]],
+  [[SHOREKEEPER, VERINA, MORNYE], [ROCCIA, LYNAE_RUPTURE, REBECCA], [CAMELLYA]],
 
   // xiangli yao: electro liberation
   [[SHOREKEEPER, VERINA, MORNYE], [YINLIN, LYNAE_RUPTURE, JIANXIN], [XIANGLI_YAO]],
@@ -150,11 +165,6 @@ const TEAMS: Loadout[][][] = [
   // encore: fusion basic
   [[SHOREKEEPER, VERINA, DENIA_BURST, LUPA], [LUPA, SANHUA, DENIA_BURST], [ENCORE]],
   [[LUPA, LUPA], [ENCORE], [CHANGLI, BRANT]],
-
-  // cartethyia: aero HP-scaling basic attack on Aero Erosion — Aero Rover and Chisa both raise the
-  // status's own cap, which is what her Erosion ticks and her Blade's amplification both read
-  [[SUISUI, CHISA, SHOREKEEPER, MORNYE, CIACCONA, CHISA], [ROVER_AERO, CHISA], [CARTETHYIA]],
-  [[SUISUI, CHISA, ROVER_AERO, SHOREKEEPER, MORNYE, CIACCONA], [SANHUA, SANHUA], [CARTETHYIA]],
 
   // havoc rover: havoc, mixed
   [[SHOREKEEPER, VERINA, MORNYE], [ROCCIA, DANJIN, SANHUA, LYNAE_RUPTURE, CANTARELLA], [ROVER_HAVOC]],

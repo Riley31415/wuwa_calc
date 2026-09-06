@@ -42,8 +42,7 @@ import {
 import { ActionGroup, Action, Rotation, START_1, START_2, SWAP, NOINTRO, INTRO, ECHO_SWAP, OUTRO, START_3 } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import {
-  TUNE_BREAK, TUNE_RUPTURE_INTERFERED, TUNE_STRAIN_INTERFERED, interferedWindow, tuneRuptureResponse,
-  tuneStrainBonus,
+  TUNE_BREAK, TUNE_RUPTURE_INTERFERED, TUNE_STRAIN_INTERFERED, TUNE_STRAIN_RESPONDER, interferedWindow, tuneRuptureResponse,
 } from "../../shared/tunebreak.js";
 import { STARFIELD_CALIBRATOR } from "../../weapons/broadblade.js";
 import { DISCORD } from "../../weapons/standard.js";
@@ -113,7 +112,7 @@ const Liberation = mornyeAction("Liberation - Critical Protocol", {
 
 const Intro = mornyeAction("Intro - Convergence", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 202.79, energy: 10, concerto: 10, offtune: 13600, ...FIELD });
 const Outro = mornyeAction("Outro - Recursion", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => applyTeam(RECURSION)
 });
 
@@ -217,12 +216,11 @@ const MORNYE_RESONATOR = new Resonator({
   weapon: WeaponType.Broadblade,
   intro: () => Intro,
   outro: () => Outro,
-  color: "#ecabe3",
+  color: "#d2d4ff",
   maxEnergy: 175,
 
   updateGlobal: () => tuneRuptureResponse(ParticleJet),
-  combatStart: () => maxStackIncrease(TUNE_STRAIN_INTERFERED, 1),
-  lateConvertStats: () => tuneStrainBonus(),
+  combatStart: () => { maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(TUNE_STRAIN_RESPONDER, 1); },
 
   constantStats: () => {
     addStat(Stat.BaseHp, 15375); addStat(Stat.BaseAtk, 287.5); addStat(Stat.BaseDef, 1356.7);
@@ -264,6 +262,6 @@ export const MORNYE = new Loadout({
   weapons: [STARFIELD_CALIBRATOR, DISCORD],
   echoLoadouts: MO_ECHOES,
   mainstats: mainstatOptions(Mainstat.DEF4, Mainstat.ER3, Mainstat.DEF1),
-  substat: chem("def", "liberation"),
+  substat: chem("def", "liberation", { er: true }),
     rotation: MO_ROTATION,
 });

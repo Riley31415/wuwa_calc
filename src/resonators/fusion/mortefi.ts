@@ -75,21 +75,24 @@ const MARCATO_FIELD = new ActionField("Mortefi: Burning Rhapsody");
 /** One Marcato, every hit its own row so the detail table's field row counts them — this is the
  *  lead hit of a coordinated attack, which is what carries the Vibrato ramp's +1. */
 const ACTION_MARCATO = mortefiAction("Liberation - Marcato", {
-  node: Node.Liberation, type: Type1.Liberation, type2: Type2.Coordinated, mv: 31.81, active: false, field: MARCATO_FIELD,
+  node: Node.Liberation, type: Type1.Liberation, type2: Type2.Coordinated, mv: 31.81, field: MARCATO_FIELD,
   updateBuffs: () => applyCurrent(VIBRATO, 1),
 });
 /** The second hit of a Heavy/Skill pair — inside the lead's 0.35s Vibrato ICD, so no gain. */
 const ACTION_MARCATO_PAIRED = ACTION_MARCATO.paired();
-/** S5 Funerary Quartet's own burst — the same Marcato at -50% DMG Bonus, see `MORTEFI_S5` below.
- *  His own hit off his own press, not the field's — no `field` flag and its own name, so the
- *  report never folds it in with the window's. The lead ramps Vibrato once; the rest carry no gain. */
-const ACTION_S5_MARCATO = ACTION_MARCATO.variant("Liberation - Marcato (S5 Funerary Quartet)", { field: null, applyStats: () => addStat(Stat.DmgBonus, -50) });
-const ACTION_S5_MARCATO_PAIRED = ACTION_S5_MARCATO.paired();
+/** S5 Funerary Quartet's own burst — the same Marcato at -50% DMG Bonus, four of them, see
+ *  `MORTEFI_S5` below. His own hits off his own press rather than the Liberation window's, so it
+ *  belongs to no field and pairs with nothing: four of the one action, each a lead hit. */
+const ACTION_S5_MARCATO = mortefiAction("Liberation - Marcato (S5 Funerary Quartet)", {
+  node: Node.Liberation, type: Type1.Liberation, type2: Type2.Coordinated, mv: 31.81,
+  updateBuffs: () => applyCurrent(VIBRATO, 1),
+  applyStats: () => addStat(Stat.DmgBonus, -50),
+});
 
 // --- intro / outro
 const Intro = mortefiAction("Intro - Dissonance", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 168.99, energy: 10, concerto: 10, offtune: 8000 });
 const Outro = mortefiAction("Outro - Rage Transposition", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(MORTEFI_OUTRO),
 });
 
@@ -194,10 +197,7 @@ const MORTEFI_S5 = new Sequence({
   name: "Mortefi S5: Funerary Quartet",
   updateBuffs: () => {
     const a = currentAction();
-    if (a === Skill || a === FSkill) {
-      queue(ACTION_S5_MARCATO);
-      for (let i = 0; i < 3; i++) queue(ACTION_S5_MARCATO_PAIRED);
-    }
+    if (a === Skill || a === FSkill) for (let i = 0; i < 4; i++) queue(ACTION_S5_MARCATO);
   },
 });
 

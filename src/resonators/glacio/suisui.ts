@@ -68,6 +68,7 @@ import {
   stacksOfTeam,
   frozenStacks,
   forte2,
+  isActive,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import {
@@ -79,6 +80,7 @@ import { FORBIDDEN_BASTION, FEATHERED_TRACE_5PC } from "../../echoes/mengzhou.js
 import { REJUV_5PC } from "../../echoes/jinzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
+import { lostOnSwap } from "../../shared/helpers.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -141,7 +143,7 @@ const Intro = suisuiAction("Intro - Tinkling Jade", {
  *  declared delta ("consumes all" has no fixed size, and the engine's gauges have no ceiling), and
  *  nothing here tests what it held: 600 consumed — the top tier — is simply taken as read. */
 const Outro = suisuiAction("Outro - Rippling Waters", {
-  cast: Cast.Outro, concerto: -100, active: false, forte2: -600,
+  cast: Cast.Outro, concerto: -100, swapOut: true, forte2: -600,
   updateBuffs: () => {
     if (forte2() > 600) setForte2(600);
     applyTeam(RIPPLING_WATERS, 1);
@@ -217,7 +219,7 @@ const REFLECTING_SHADOWS = new Buff({ name: "Suisui: Reflecting Shadows" });
 const ROAMING_TRANSCENDENT = new Buff({
   name: "Suisui: Roaming Transcendent",
   applyStats: () => {
-    if (currentAction().active) addStat(Stat.DmgBonus, 12);
+    if (isActive()) addStat(Stat.DmgBonus, 12);
   },
 });
 
@@ -267,7 +269,7 @@ const TRANSCENDENT_DANCE = new Buff({
 const UNDULATING_MIST = new Buff({
   name: "Suisui: Undulating Mist", maxStacks: 2,
   display: () => `Suisui: Undulating Mist${frozenStacks() >= 2 ? " (consumed)" : ""}`,
-  updateBuffs: () => { if (!currentAction().active) revokeCurrent(UNDULATING_MIST); },
+  updateBuffs: () => lostOnSwap(),
   applyStats: () => { if (frozenStacks() >= 2) addStat(Stat.BonusAtk, 50); },
   afterAction: () => { if (consumedAny()) applyCurrent(UNDULATING_MIST, 1); },
 });

@@ -93,7 +93,7 @@ const UnboundFlow2 = roverAction("Forte Skill - Unbound Flow 2", { node: Node.Fo
 const Liberation = roverAction("Liberation - Omega Storm", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 536.79, concerto: 20, offtune: 48000, resetEnergy: true });
 const Intro = roverAction("Intro - Relentless Squall", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.82, energy: 10, concerto: 10, offtune: 11465, forte1: 20 });
 const Outro = roverAction("Outro - Storm's Echo", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => applyTeam(AEOLIAN_REALM, 1),
 });
 

@@ -62,6 +62,12 @@ export interface ResolvedSnapshot extends Snapshot {
    *  `triggered` rows nothing queued: an Outro (a handoff), and the rotation markers that declare
    *  themselves triggered (a summon echo's hit, the swaps). Trace-only — the action hover names it. */
   triggeredBy: HeldBuff | null;
+  /** Whether this cast reached the queue mid-fight (`queue()`/`queueOn()`/`queueEvent()`, or the
+   *  Intro queue) rather than standing on the rotation list — stamped by `run()`. Broader than
+   *  `triggeredBy` (an event is queued by nobody) and narrower than `triggered` (a rotation's own
+   *  Dodge is triggered but not queued): it is exactly "spliced in behind something else", which
+   *  is what the scheduler reads to keep an Intro's own follow-ups with it (rotation.ts). */
+  queued: boolean;
   /** The damage type this action was actually evaluated as — its own `type`, unless a held Gear
    *  called `typeOverride()` on it (`action.type` off a snapshot is always the base type; this is
    *  the effective one, what `isType()` answered against). */
@@ -522,7 +528,7 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
 
   const snapshot: ResolvedSnapshot = {
     action,
-    type: ctx.overrideType1 ?? action.type,   // the effective type — see ResolvedSnapshot.type
+    type: ctx.overrideType1 ?? action.type1,   // the effective type — see ResolvedSnapshot.type
     member: slot.name,
     slot: action.slot ?? slot.name,
     stat,
@@ -543,6 +549,7 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
     group: null,
     groupEnd: false,
     groupSpill: null,
+    queued: false,
     // report-only, so copied only when something will actually read it (display.ts's gauge columns)
     forte: ctx.tracing ? [...slot.forte] : EMPTY_FORTE,
     forteBefore,
@@ -586,13 +593,15 @@ export function run(state: State, rotation: Action[]): ResolvedSnapshot[] {
   const ends: boolean[] = [];
   // which group's spill each entry is, parallel to the rest — null for everything a rotation placed
   const spills: (ActionGroup | null)[] = [];
+  // whether each entry was spliced in off the queue — false for everything the rotation placed
+  const queueds: boolean[] = [];
   for (const entry of rotation) {
     // a duck-check rather than `instanceof ActionGroup`: the class lives in rotation.ts, which
     // this module may only reference as types (see the import note at the top)
     const group = (entry as ActionGroup).actions !== undefined ? (entry as ActionGroup) : null;
     const members = group ? group.actions : [entry];
     members.forEach((a, k) => {
-      actions.push(a); slots.push(-1); bys.push(null); spills.push(null);
+      actions.push(a); slots.push(-1); bys.push(null); spills.push(null); queueds.push(false);
       groups.push(group); ends.push(group !== null && k === members.length - 1);
     });
   }
@@ -605,7 +614,7 @@ export function run(state: State, rotation: Action[]): ResolvedSnapshot[] {
   while (i < actions.length) {
     if (++guard > 10000) throw new Error("action queue did not drain");
     const stepAction = actions[i]!, stepSlot = slots[i]!, stepBy = bys[i]!;
-    const stepGroup = groups[i]!, stepEnd = ends[i]!, stepSpill = spills[i]!;
+    const stepGroup = groups[i]!, stepEnd = ends[i]!, stepSpill = spills[i]!, stepQueued = queueds[i]!;
     i++;
     spillGroup = stepGroup ?? stepSpill;
     // A follow-up spliced in between two members is still *inside* the group, so this only moves on
@@ -613,6 +622,7 @@ export function run(state: State, rotation: Action[]): ResolvedSnapshot[] {
     // the bar fill part-way through a group and still break only on the cast that ends it.
     if (stepGroup) ctx.insideGroup = !stepEnd;
     const before = state.active;
+    state.onField = before;
     if (stepSlot >= 0) state.active = stepSlot;
     let action: Action | null = stepAction;
     if (stepAction.resolveFn) {
@@ -645,6 +655,7 @@ export function run(state: State, rotation: Action[]): ResolvedSnapshot[] {
     snapshot.group = stepGroup;
     snapshot.groupEnd = stepEnd;
     snapshot.groupSpill = stepSpill;
+    snapshot.queued = stepQueued;
     out.push(snapshot);
     // a queued follow-up's own turn doesn't stick — restore whoever was actually active,
     // unless the follow-up was itself an outro (genuinely advances the team)
@@ -663,6 +674,7 @@ export function run(state: State, rotation: Action[]): ResolvedSnapshot[] {
       ends.splice(i, 0, ...qa.map(() => false));
       // a follow-up belongs to whatever beat spawned it — an engine event to nobody (`queueEvent`)
       spills.splice(i, 0, ...pendingQueue.map((p) => (p.event ? null : spillGroup)));
+      queueds.splice(i, 0, ...qa.map(() => true));
     }
   }
   return out;

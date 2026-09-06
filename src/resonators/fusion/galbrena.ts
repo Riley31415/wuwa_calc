@@ -121,8 +121,8 @@ const Liberation = galbrenaAction("Liberation - Hellfire Absolution", {
 
 const Intro = galbrenaAction("Intro - Hellflare Overload", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 94.12, energy: 10, concerto: 10, offtune: 4208, forte1: 11.11, ...DRIVE });
 /** Unlike most outros, this one deals real damage (795% MV) on top of the handoff concerto
- *  reset; `active: false` still marks it "not really her own attack" for lostOnSwap purposes. */
-const Outro = galbrenaAction("Outro - Ashen Pursuit", { cast: Cast.Outro, type: Type1.Outro, mv: 795, offtune: 30326, concerto: -100, energy: 10.03, active: false });
+ *  reset; `swapOut` still marks it as her leaving the field for lostOnSwap purposes. */
+const Outro = galbrenaAction("Outro - Ashen Pursuit", { cast: Cast.Outro, type: Type1.Outro, mv: 795, offtune: 30326, concerto: -100, energy: 10.03, swapOut: true });
 
 /* ------------------------------------------------------------------------------------ buffs */
 

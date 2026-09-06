@@ -128,7 +128,7 @@ const ZHOUTIAN_4 = new ActionGroup("Forte Heavy - Primordial Chi Spiral (Zhoutia
 
 const Intro = jianxinAction("Intro - Essence of Tao", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 33.8 * 3 + 67.6, energy: 10, concerto: 10, offtune: 2667 * 3 + 1600, forte1: 40 });
 const Outro = jianxinAction("Outro - Transcendence", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(TRANSCENDENCE),
 });
 

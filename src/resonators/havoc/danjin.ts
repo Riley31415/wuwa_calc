@@ -106,7 +106,7 @@ const Liberation = danjinAction("Liberation - Crimson Bloom", { node: Node.Liber
 
 const Intro = danjinAction("Intro - Vindication", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.84, energy: 10, concerto: 10, offtune: 12240 }); // 49.71% x4
 const Outro = danjinAction("Outro - Duality", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(DANJIN_OUTRO),
 });
 
@@ -230,7 +230,7 @@ const DJ_S5 = new Sequence({
 
 /** S6: Chaoscleave grants the whole team +20% ATK, 20s — lost on her own next Intro. */
 const DJ_S6_TEAM = new Buff({
-  name: "Danjin S6: Bloodied Jade (team)",
+  name: "Danjin S6: Bloodied Jade",
   applyStats: () => addStat(Stat.BonusAtk, 20),
   convertStats: () => { if (casting(Cast.Intro) && isHeld(DANJIN_RESONATOR)) revokeTeam(DJ_S6_TEAM); },
 });

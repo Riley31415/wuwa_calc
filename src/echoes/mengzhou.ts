@@ -13,10 +13,14 @@ import {
   casting,
   revokeCurrent,
   triggeredAction,
+  queueOutro,
+  currentMember,
 } from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
 import { applied, appliedByMe } from "../engine/context.js";
-import { SHIELD, HAVOC_BANE, GLACIO_CHAFE } from "../shared/status.js";
+import { SHIELD, HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, HEALS } from "../shared/status.js";
+import { handoff } from "../shared/helpers.js";
+import { gainedUnison, unisonResponse } from "../shared/unison.js";
 import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 
 /* ------------------------------------------------------------------------------ Jingran, 3.6 */
@@ -155,4 +159,118 @@ export const FORBIDDEN_BASTION = new Mainslot({
   action: ACTION_FORBIDDEN_BASTION,
   echoType: EchoType.SUMMON,
   constantStats: () => addStat(Stat.HealingBonus, 10),
+});
+
+/* ------------------------------------------------------------------------ Suoming and Hsin, 3.7 */
+
+/** "Stay tuned" (encore's placeholder name — the echo has none yet), the 3.7 Electro mainslot:
+ *  4 x 27.36% + 164.16% Electro for anybody, 5 x 13.68% + 232.56% when Hsin wears it — the one
+ *  cast, with the difference added on when the wearer is her. Carries +10% Electro DMG Bonus flat,
+ *  and inflicting Electro Flare, obtaining Unison or triggering Unison Response adds another +10%
+ *  for 30s, so permanent once granted. Summon/transform is unconfirmed — the text says only "Cast
+ *  Echo Skill to deal", the same wording as Nameless Explorer. */
+export const STAY_TUNED_BUFF = new Buff({
+  name: "Stay tuned 4c",
+  applyStats: () => addStat(Stat.DmgBonus, 10, Attribute.Electro),
+});
+export const ACTION_STAY_TUNED = new Action("Echo - Stay tuned", {
+  cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type1.Echo,
+  mv: 27.36 * 4 + 164.16, energy: 0.38 * 4 + 2.28,
+  applyStats: () => {
+    if (currentMember().resonator?.name !== "Hsin") return;
+    addStat(Stat.AddMv, 13.68 * 5 + 232.56 - (27.36 * 4 + 164.16));
+    addStat(Stat.AddEnergy, 0.19 * 5 + 3.23 - (0.38 * 4 + 2.28));
+  },
+});
+export const STAY_TUNED = new Mainslot({
+  name: "Stay tuned 4c",
+  action: ACTION_STAY_TUNED,
+  echoType: EchoType.SUMMON,
+  constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Electro),
+  updateBuffs: () => { if (appliedByMe(ELECTRO_FLARE) || gainedUnison() || unisonResponse()) applyCurrent(STAY_TUNED_BUFF, 1); },
+});
+
+/** Soul of Despair (6000224, the 3-cost "Stay tuned"), Electro Rover's own mainslot: three
+ *  91.18% Electro hits, and the Impermanence Heron shape — its cast primes an Outro handoff, the
+ *  incoming resonator's +12% Electro DMG Bonus for 15s, long enough to outlast their own visit
+ *  (helpers.ts's `handoff`). Text is the CN translation ("conductive" = Electro); encore's own
+ *  data lists the hit once — the three instances are the CN text's. Summon by that text. */
+export const ACTION_SOUL_OF_DESPAIR = new Action("Echo - Soul of Despair", {
+  cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type1.Echo, mv: 91.18 * 3, energy: 1.26 * 3,
+  updateBuffs: () => queueOutro(SOUL_OF_DESPAIR_HANDOFF),
+});
+export const SOUL_OF_DESPAIR = new Mainslot({
+  name: "Soul of Despair",
+  action: ACTION_SOUL_OF_DESPAIR,
+  echoType: EchoType.SUMMON,
+});
+export const SOUL_OF_DESPAIR_HANDOFF = handoff("Soul of Despair: Outro", () => addStat(Stat.DmgBonus, 12, Attribute.Electro));
+
+/** Heart of Sworn Vigil. 2pc: +10% Electro DMG Bonus flat. 5pc: inflicting Electro Flare,
+ *  obtaining Unison or triggering Unison Response grants +15% Crit. Rate and +22.5% Electro DMG
+ *  Bonus for 30s — permanent once granted. `appliedByMe`: a "when *you* inflict" payout, so a
+ *  stack one of the markers adds off the wearer's swing pays nothing here. */
+export const SWORN_VIGIL_2PC = new Sonata2pc({ name: "Heart of Sworn Vigil 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Electro) });
+export const SWORN_VIGIL_5PC = new Sonata({
+  name: "Heart of Sworn Vigil 5pc",
+  sonata2pc: SWORN_VIGIL_2PC,
+  updateBuffs: () => { if (appliedByMe(ELECTRO_FLARE) || gainedUnison() || unisonResponse()) applyCurrent(SWORN_VIGIL_BUFF, 1); },
+});
+export const SWORN_VIGIL_BUFF = new Buff({
+  name: "Heart of Sworn Vigil",
+  applyStats: () => { addStat(Stat.CritRate, 15); addStat(Stat.DmgBonus, 22.5, Attribute.Electro); },
+});
+
+/** Flash of Electric Reflection. 2pc: +10% Electro DMG Bonus flat. 5pc: inflicting Electro Flare
+ *  grants +10% Electro DMG Bonus for 15s — a short self window, lost after the outro — and an
+ *  Outro cast while it stands hands the incoming resonator +25% Electro DMG Bonus for 15s, the
+ *  Impermanence Heron-style handoff that outlasts their own visit. */
+export const ELECTRIC_REFLECTION_2PC = new Sonata2pc({ name: "Flash of Electric Reflection 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Electro) });
+export const ELECTRIC_REFLECTION_5PC = new Sonata({
+  name: "Flash of Electric Reflection 5pc",
+  sonata2pc: ELECTRIC_REFLECTION_2PC,
+  updateBuffs: () => { if (appliedByMe(ELECTRO_FLARE)) applyCurrent(ELECTRIC_REFLECTION_BUFF, 1); },
+});
+export const ELECTRIC_REFLECTION_BUFF = new Buff({
+  name: "Flash of Electric Reflection",
+  applyStats: () => addStat(Stat.DmgBonus, 10, Attribute.Electro),
+  updateBuffs: () => { if (casting(Cast.Outro)) queueOutro(ELECTRIC_REFLECTION_HANDOFF); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(ELECTRIC_REFLECTION_BUFF); },
+});
+export const ELECTRIC_REFLECTION_HANDOFF = handoff("Flash of Electric Reflection (outro)", () => addStat(Stat.DmgBonus, 25, Attribute.Electro));
+
+/** Formless Demon (6000223 — "Sound Remains" in the CN text), the 3.7 healing mainslot: one 273.60%
+ *  Fusion hit ("Molten" DMG in the CN translation — unconfirmed against EN text), and +10% Energy
+ *  Regen for whoever wears it. Pairs with Flower of Tinged Yearning below. Summon by its text
+ *  ("summon the Formless Demon"). */
+export const ACTION_FORMLESS_DEMON = new Action("Echo - Formless Demon", {
+  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 273.6, energy: 3.8,
+});
+export const FORMLESS_DEMON = new Mainslot({
+  name: "Formless Demon",
+  action: ACTION_FORMLESS_DEMON,
+  echoType: EchoType.SUMMON,
+  constantStats: () => addStat(Stat.Er, 10),
+});
+
+/** Flower of Tinged Yearning. 2pc: +10% Healing Bonus flat. 5pc: healing a teammate grants the
+ *  whole team +10% ATK for 30s — permanent uptime, and "effects of the same name cannot be
+ *  stacked" is the one stack. While it stands, *any* member who obtains Unison or triggers Unison
+ *  Response gains a further +15% ATK of their own — watched from the team buff itself, so it
+ *  lands on whoever is acting, not on the wearer; no duration of its own is stated, so it is
+ *  taken as the team effect's — permanent once granted. */
+export const TINGED_YEARNING_2PC = new Sonata2pc({ name: "Flower of Tinged Yearning 2pc", constantStats: () => addStat(Stat.HealingBonus, 10) });
+export const TINGED_YEARNING_5PC = new Sonata({
+  name: "Flower of Tinged Yearning 5pc",
+  sonata2pc: TINGED_YEARNING_2PC,
+  updateBuffs: () => { if (applied(HEALS)) applyTeam(TINGED_YEARNING_TEAM, 1); },
+});
+export const TINGED_YEARNING_TEAM = new Buff({
+  name: "Flower of Tinged Yearning",
+  updateBuffs: () => { if (gainedUnison() || unisonResponse()) applyCurrent(TINGED_YEARNING_UNISON, 1); },
+  applyStats: () => addStat(Stat.BonusAtk, 10),
+});
+export const TINGED_YEARNING_UNISON = new Buff({
+  name: "Flower of Tinged Yearning (unison)",
+  applyStats: () => addStat(Stat.BonusAtk, 15),
 });

@@ -16,6 +16,7 @@ import {
   revokeTeam,
   stacksOfEnemy,
   currentMember,
+  isActive,
 } from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
 import { applied, appliedByMe } from "../engine/context.js";
@@ -185,8 +186,8 @@ export const EMPYREAN_ANTHEM_5PC = new Sonata({
   updateBuffs: () => { if (isType(Type2.Coordinated)) applyTeam(EMPYREAN_ANTHEM_TEAM, 1); },
 });
 export const EMPYREAN_ANTHEM_TEAM = new Buff({
-  name: "Empyrean Anthem (team)",
-  applyStats: () => { if (currentAction().active) addStat(Stat.BonusAtk, 20); },
+  name: "Empyrean Anthem",
+  applyStats: () => { if (isActive()) addStat(Stat.BonusAtk, 20); },
 });
 
 /* ------------------------------------------------------------------------------- Ciaccona */
@@ -198,7 +199,7 @@ export const ACTION_NM_KELPIE = new Action("Echo - Nightmare: Kelpie", {
   cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Atk, type: Type1.Echo, mv: 405, energy: 2.81,
 });
 export const ACTION_NM_KELPIE_OUTRO = new Action("Echo - Nightmare: Kelpie (outro)", {
-  element: Attribute.Aero, scaling: Scaling.Atk, type: Type1.Echo, mv: 405, energy: 2.81, active: false,
+  element: Attribute.Aero, scaling: Scaling.Atk, type: Type1.Echo, mv: 405, energy: 2.81,
 });
 export const NM_KELPIE = new Mainslot({
   name: "Nightmare: Kelpie",
@@ -215,7 +216,7 @@ export const NM_KELPIE = new Mainslot({
  *  20s — so the team half is lost on the applier's own next Intro and the self half on their own
  *  outro, per the standing duration rules. */
 export const GUSTS_OF_WELKIN_TEAM = new Buff({
-  name: "Gusts of Welkin (team)",
+  name: "Gusts of Welkin",
   applyStats: () => addStat(Stat.DmgBonus, 15, Attribute.Aero),
 });
 export const GUSTS_OF_WELKIN_SELF = new Buff({

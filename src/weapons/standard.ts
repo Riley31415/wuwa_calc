@@ -15,6 +15,7 @@ import {
   frozenStacks,
   queueOutro,
   stacksOfEnemy,
+  isActive,
 } from "../engine/context.js";
 import { applied } from "../engine/context.js";
 import { HEALS } from "../shared/status.js";
@@ -221,8 +222,8 @@ export const HARMONIOUS_VIBRANCY = new Buff({
  *  the resonators actually on the field. Applied by Rover: Aero themselves — see the weapon's own
  *  comment above for why the trigger lives there rather than here. */
 export const BLOODPACT_AERO_AMP = new Buff({
-  name: "Bloodpact's Pledge R5: Harmonious Vibrancy (team)",
-  applyStats: () => { if (currentAction().active) addStat(Stat.Amp, 26, Attribute.Aero) },
+  name: "Bloodpact's Pledge R5: Harmonious Vibrancy",
+  applyStats: () => { if (isActive()) addStat(Stat.Amp, 26, Attribute.Aero) },
 });
 
 /** Boson Astrolabe, R1: Path Observer, +12% ATK flat. Any team member's Tune Break cast grants the

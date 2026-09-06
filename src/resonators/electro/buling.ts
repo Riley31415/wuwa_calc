@@ -47,8 +47,9 @@ import {
   addStat,
   revokeCurrent,
   revokeTeam,
+  isActive,
 } from "../../engine/context.js";
-import { Action, ActionField, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
+import { Action, ActionField, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO, JUMP } from "../../engine/rotation.js";
 import { HEALS, inflictElectroFlare } from "../../shared/status.js";
 import { coordinatedBuff } from "../../shared/helpers.js";
 import { COSMIC_RIPPLES, NEW_STD_RECTIFIER, VARIATION } from "../../weapons/standard.js";
@@ -112,7 +113,7 @@ const Liberation = bulingAction("Liberation - Flashing Thunder Spell - Harmony",
  *  window, split evenly — nanoka publishes none. */
 const FIVE_THUNDERS = new ActionField("Buling: Five Thunders Spell Array");
 const ArrayTick = bulingAction("Liberation - Five Thunders Spell Array", {
-  type: Type1.Liberation, mv: 19.89, energy: 2.08, active: false, field: FIVE_THUNDERS,
+  type: Type1.Liberation, mv: 19.89, energy: 2.08, field: FIVE_THUNDERS,
   updateDebuffs: () => inflictElectroFlare(2),
 });
 
@@ -121,7 +122,7 @@ const Intro = bulingAction("Intro - Summon and Smite", {
   updateDebuffs: () => inflictElectroFlare(4),
 });
 const Outro = bulingAction("Outro - Exorcism Spell", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => applyTeam(BULING_OUTRO, 1),
 });
 
@@ -139,7 +140,7 @@ const THUNDER_SPELL = new Buff({
     if (casting(Cast.Intro) && stacksOfTeam(THUNDER_SPELL) < 3) applyTeam(THUNDER_SPELL, 1);
   },
   applyStats: () => {
-    if (!currentAction().active) return;
+    if (!isActive()) return;
     const stage = stacksOfTeam(THUNDER_SPELL);
     if (stage === 2) addStat(Stat.DmgBonus, 10, Type1.Skill);
     else if (stage >= 3) {
@@ -232,7 +233,7 @@ const BULING_TALENTS = new Talent({
 // BL_ROTATION for a non-leading slot (opens on her own Intro); BL_OPENER for a leading one.
 const BL_ROTATION = new Rotation([
   NOINTRO,
-  INTRO, MA, BA2, HA_THUNDER_OVER_MOUNTAIN,
+  INTRO, JUMP, MA, BA2, HA_THUNDER_OVER_MOUNTAIN,
   Skill, BA4, HA_TWIN_THUNDERS, ECHO_CANCEL,
   Liberation, OUTRO,
 ]);

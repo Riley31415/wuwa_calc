@@ -30,7 +30,7 @@ import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { createHash } from "node:crypto";
 import { cpus } from "node:os";
 import { fileURLToPath } from "node:url";
-import { ALL_TEAMS, teamKey } from "./engine/teams.js";
+import { ALL_TEAMS, teamKey } from "./teams.js";
 import { teamFromKey, solveTeam, defaultFilters, bestKey, picksKey } from "./solver.js";
 import type { Filters, Pick, Solved } from "./solver.js";
 

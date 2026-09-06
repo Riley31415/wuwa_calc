@@ -101,7 +101,7 @@ export const ATTENDANCE_EXEMPTION = new Buff({
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(ATTENDANCE_EXEMPTION); },
 });
 export const SPECTRUM_CHORUS = new Buff({
-  name: "Spectrum Blaster: Attendance Exemption Protocol (team)", maxStacks: 3,
+  name: "Spectrum Blaster: Attendance Exemption Protocol", maxStacks: 3,
   applyStats: () => addStat(Stat.DmgBonus, 8 * frozenStacks()),
 });
 
@@ -129,7 +129,7 @@ export const WAKEFUL_LONER_HACK = new Buff({
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(WAKEFUL_LONER_HACK); },
 });
 export const WAKEFUL_LONER_TEAM = new Buff({
-  name: "Skull Thrasher: Wakeful Loner (team)",
+  name: "Skull Thrasher: Wakeful Loner",
   applyStats: () => addStat(Stat.BonusAtk, 24),
 });
 

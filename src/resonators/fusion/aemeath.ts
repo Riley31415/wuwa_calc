@@ -136,7 +136,7 @@ const EIntro = aemeathAction("Intro - Debut of Meteoric Radiance", { ...INTRO_DE
 /** Silent Protection: everyone but her, and "casting this skill resets the effects above" — so a
  *  member's old one comes off before the fresh grant rather than stacking. */
 const Outro = aemeathAction("Outro - Silent Protection", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => {
     const buff = isHeld(MODE_BURST) ? SILENT_PROTECTION_BURST : SILENT_PROTECTION_RUPTURE;
     for (const m of currentTeam().slots) {
@@ -293,7 +293,7 @@ const AE_INHERENT_2 = new Inherent({
       applyCurrent(BETWEEN_THE_STARS_BURST, slot);
       return;
     }
-    if (!appliedByMember(TUNE_RUPTURE_SHIFTING, actor) && currentAction().type !== Type1.Rupture) return;
+    if (!appliedByMember(TUNE_RUPTURE_SHIFTING, actor) && currentAction().type1 !== Type1.Rupture) return;
     if ((stacksOf(BETWEEN_THE_STARS_RUPTURE) & slot) !== 0) return;
     applyCurrent(BETWEEN_THE_STARS_RUPTURE, slot);
   },
@@ -321,7 +321,7 @@ const MODE_RUPTURE = new ResonanceMode({
   updateGlobal: () => {
     tuneRuptureResponse(Starburst);
     const a = currentAction();
-    if (a.type === Type1.Rupture && a !== Volley) applyEnemy(RUPTUROUS_TRAIL, 10);
+    if (a.type1 === Type1.Rupture && a !== Volley) applyEnemy(RUPTUROUS_TRAIL, 10);
   },
   updateBuffs: () => { if (isDuet(currentAction())) queue(Volley); },
 });

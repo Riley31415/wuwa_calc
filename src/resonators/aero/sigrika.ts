@@ -23,6 +23,7 @@ import {
   frozenStacks,
   getStat,
   queue,
+  isActive,
 } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_3, SWAP, ECHO_ONFIELD, ECHO_SWAP } from "../../engine/rotation.js";
@@ -84,7 +85,7 @@ const Liberation = sigrikaAction("Liberation - Where Trust Leads Me!", {
 
 const Intro = sigrikaAction("Intro - Solsworn Etymology", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 163.42, energy: 10, concerto: 10, offtune: 7736 });
 /** In This Very Moment carries no team buff on her own page (unlike most other kits' outros). */
-const Outro = sigrikaAction("Outro - In This Very Moment", { cast: Cast.Outro, type: Type1.Outro, mv: 795, concerto: -100, active: false });
+const Outro = sigrikaAction("Outro - In This Very Moment", { cast: Cast.Outro, type: Type1.Outro, mv: 795, concerto: -100, swapOut: true });
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -98,7 +99,7 @@ const BLESSING_OF_RUNES = new Buff({
     const held = stacksOfTeam(BLESSING_OF_RUNES);
     if (held >= 6 && isHeld(SIGRIKA_RESONATOR)) { addStat(Stat.DmgBonus, 30, Attribute.Aero); addStat(Stat.DmgBonus, 30, Type1.Echo); }
 
-    if (currentAction().active) {
+    if (isActive()) {
         addStat(Stat.DmgBonus, 3 * held, Attribute.Aero);
         addStat(Stat.DmgBonus, 3 * held, Type1.Echo);
     }

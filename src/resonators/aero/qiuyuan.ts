@@ -24,6 +24,7 @@ import {
   revokeCurrent,
   addStat,
   frozenStacks,
+  isActive,
 } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, START_1, START_2, START_3, SWAP, NOINTRO, INTRO, ECHO_CANCEL, ECHO_ONFIELD, OUTRO, DODGE } from "../../engine/rotation.js";
@@ -64,7 +65,7 @@ const Intro = qiuyuanAction("Intro - Attack the Must-Defend", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Heavy, mv: 238.62, energy: 10, concerto: 10, offtune: 9600, forte1: 400,
 });
 const Outro = qiuyuanAction("Outro - Strike Before Ready", {
-  cast: Cast.Outro, type: Type1.Echo, mv: 100, concerto: -100, active: false,
+  cast: Cast.Outro, type: Type1.Echo, mv: 100, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(QIUYUAN_OUTRO),
 });
 
@@ -104,7 +105,7 @@ const QUIETUDE_WITHIN = new Buff({
 // team-wide — "all nearby active Resonators," gated on the acting resonator's own active flag
 const SUNDERING_STRIKE_CD = new Buff({
   name: "Qiuyuan: Sundering Strike",
-  applyStats: () => { if (currentAction().active) addStat(Stat.CritDmg, 30); },
+  applyStats: () => { if (isActive()) addStat(Stat.CritDmg, 30); },
 });
 
 const QIUYUAN_OUTRO = new Buff({

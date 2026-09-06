@@ -31,6 +31,7 @@ import {
   setStacksSelf,
   currentTeam,
   queueOn,
+  isActive,
 } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, NOINTRO, INTRO, ECHO_ONFIELD, OUTRO, DODGE } from "../../engine/rotation.js";
@@ -89,12 +90,12 @@ const EIntro = phroAction("Intro - Suite of Immortality", {
  *  play once the next resonator has intro'd rather than on the Outro itself, so the handoff buff
  *  this queues is what watches for that (PHROLOVA_OUTRO). */
 const Outro = phroAction("Outro - Unfinished Piece", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(PHROLOVA_OUTRO),
 });
 
 function hecateAction(id: string, mv: number, def: object = {}): Action {
-  return new Action(id, { element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Echo, active: false, mv, ...def });
+  return new Action(id, { element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Echo, mv, ...def });
 }
 // a played Maestro note is worth an Aftersound stack; Hecate's own plain basics are not
 const NOTE = { updateBuffs: () => applyCurrent(AFTERSOUND, 1) };
@@ -201,7 +202,7 @@ export const MAESTRO = new Buff({
   // Any active Echo Skill cast (hers or a teammate's) spends a chance and plays a note.
   // updateGlobal() keeps the "current" pointers on her own slot, so drawNote() resolves against her.
   updateGlobal: () => {
-    if (casting(Cast.Echo) && currentAction().active) drawNote(true);
+    if (casting(Cast.Echo) && isActive()) drawNote(true);
   },
 });
 
@@ -267,7 +268,7 @@ const PH_S3 = new Sequence({
 /** S4: 30s, so permanent uptime; untagged per the attribute-bonus rule. Her own Echo Skill casts
  *  are the trigger — Scarlet Coda counts as one (cast2). */
 const PH_S4_TEAM = new Buff({
-  name: "Phrolova S4: A Torch Illuminating the Path (team)",
+  name: "Phrolova S4: A Torch Illuminating the Path",
   applyStats: () => addStat(Stat.DmgBonus, 20),
 });
 const PH_S4 = new Sequence({
@@ -292,7 +293,7 @@ const PH_S6 = new Sequence({
     const a = currentAction();
     if (a === EBA_STRINGS || a === EBA_WINDS || a === EBA_CADENZA) addStat(Stat.MulMv, 24);
     if (stacksOf(MAESTRO)) {
-      if (a.active) addStat(Stat.DmgBonus, 60, Attribute.Havoc);
+      if (isActive()) addStat(Stat.DmgBonus, 60, Attribute.Havoc);
       else addStat(Stat.TotalDmg, 40);
     }
   },

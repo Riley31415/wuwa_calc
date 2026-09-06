@@ -15,8 +15,11 @@ import {
   applied,
   appliedByMe,
   stacksOfEnemy,
+  revokeTeam,
+  isActive,
 } from "../engine/context.js";
 import { lostOnSwap } from "../shared/helpers.js";
+import { consumedConcerto, gainedUnison } from "../shared/unison.js";
 import { TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 import { AERO_EROSION, FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE } from "../shared/status.js";
 
@@ -54,7 +57,7 @@ export const RED_SPRING = new Weapon({
   },
   updateBuffs: () => {
     if (isType(Type1.Basic)) applyCurrent(RED_SPRING_BASIC);
-    if (currentAction().concerto < 0) applyCurrent(RED_SPRING_CONSUME);
+    if (consumedConcerto()) applyCurrent(RED_SPRING_CONSUME);
   },
 });
 export const RED_SPRING_BASIC = new Buff({
@@ -168,7 +171,7 @@ export const SELF_NO_MORE = new Buff({
   applyStats: () => { 
     addStat(Stat.Amp, 28, Attribute.Glacio); 
     addStat(Stat.DefIgnoreNew, 10, Type1.Liberation); 
-    if (currentAction().active) addStat(Stat.Amp, 20, Type2.GlacioChafe);
+    if (isActive()) addStat(Stat.Amp, 20, Type2.GlacioChafe);
   },
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(SELF_NO_MORE); },
 });
@@ -207,7 +210,9 @@ export const STARCHASER = new Buff({
   name: "Everbright Polestar: Starchaser",
   applyStats: () => {
     addStat(Stat.DefIgnoreNew, 32, Type1.Liberation);
-    addStat(Stat.ResIgnore, 10, Type1.Liberation); // FUSION ONLY
+    if (currentAction().type1 === Type1.Liberation) {
+      addStat(Stat.ResIgnore, 10, Attribute.Fusion);
+    }
   },
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(STARCHASER); },
 });
@@ -234,4 +239,33 @@ export const FREE_KNIGHTS_TARANTELLA = new Buff({
     if (stacksOfEnemy(AERO_EROSION) > 0) addStat(Stat.Amp, 20);
   },
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(FREE_KNIGHTS_TARANTELLA); },
+});
+
+/** Unspoken Rue, R1: Locked Thunder, Trapped Rain. +12% ATK flat. Obtaining Unison grants +30%
+ *  Electro DMG Bonus for 30s (permanent once granted) and Binding Mind — the whole team's +24%
+ *  Electro DMG Bonus for 30s, one instance by name — clearing Yearning Mind. Consuming Concerto
+ *  grants Yearning Mind — the wielder's own +40% Electro DMG Bonus for 14s, ended early by
+ *  switching out — clearing Binding Mind. The two replace each other, so whichever the wielder
+ *  did last is the one standing. */
+export const UNSPOKEN_RUE = new Weapon({
+  weaponType: WeaponType.Sword,
+  name: "Unspoken Rue",
+  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.BonusAtk, 12); },
+  updateBuffs: () => {
+    if (gainedUnison()) { applyCurrent(LOCKED_THUNDER, 1); applyTeam(BINDING_MIND, 1); revokeCurrent(YEARNING_MIND); }
+    if (consumedConcerto()) { applyCurrent(YEARNING_MIND, 1); revokeTeam(BINDING_MIND); }
+  },
+});
+export const LOCKED_THUNDER = new Buff({
+  name: "Unspoken Rue: Locked Thunder, Trapped Rain",
+  applyStats: () => addStat(Stat.DmgBonus, 30, Attribute.Electro),
+});
+export const BINDING_MIND = new Buff({
+  name: "Unspoken Rue: Binding Mind",
+  applyStats: () => addStat(Stat.DmgBonus, 24, Attribute.Electro),
+});
+export const YEARNING_MIND = new Buff({
+  name: "Unspoken Rue: Yearning Mind",
+  updateBuffs: () => { lostOnSwap(); },
+  applyStats: () => addStat(Stat.DmgBonus, 40, Attribute.Electro),
 });

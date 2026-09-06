@@ -32,7 +32,7 @@ import {
   applyTeam,
 } from "../../engine/context.js";
 import { coordinatedBuff, lostOnSwap, matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_2, SWAP, ActionField } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_2, SWAP, ActionField, NOINTRO, ECHO_SWAP } from "../../engine/rotation.js";
 import { RIME_DRAPED_SPROUTS, STRINGMASTER, LETHEAN_ELEGY, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { EMPYREAN_ANTHEM_5PC, NM_LAMPY } from "../../echoes/rinascita.js";
@@ -51,7 +51,7 @@ const BA1 = zhezhiAction("Basic - Dimming Brush 1", { node: Node.Normal, cast: C
 const BA2 = zhezhiAction("Basic - Dimming Brush 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 102.75, energy: 1.85, concerto: 5.95, offtune: 5905, forte1: 15 });
 const BA3 = zhezhiAction("Basic - Dimming Brush 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 133.61, energy: 2.4, concerto: 7.68, offtune: 7680, forte1: 25 });
 
-const MA = zhezhiAction("Mid-air - Dimming Brush", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 229.53, energy: 3.4, concerto: 10.91, offtune: 10865, forte1: 10 });
+const MA = zhezhiAction("Mid-air - Dimming Brush", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 229.53, energy: 3.4, concerto: 10.91, offtune: 10865, forte1: 25 });
 const DC = zhezhiAction("Dodge Counter - Dimming Brush", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 145.35, energy: 2.15, concerto: 20, offtune: 6880, forte1: 15 });
 const HA = zhezhiAction("Heavy - Dimming Brush", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 112.72, energy: 1.67, concerto: 5.34, offtune: 5336, forte1: 15 });
 
@@ -82,14 +82,14 @@ const INKLIT_FIELD = new ActionField("Zhezhi: Inklit Spirits");
 /** One Inklit Spirit — a real Coordinated Attack, summoned one per qualifying action by
  *  INKLIT_SPIRITS below, always on her own slot however far the field has moved on. */
 const ACTION_INKLIT = zhezhiAction("Liberation - Inklit Spirit", {
-  node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 65.21, offtune: 4572, active: false, field: INKLIT_FIELD,
+  node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 65.21, offtune: 4572, field: INKLIT_FIELD,
 });
 
 const Intro = zhezhiAction("Intro - Radiant Ruin", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 258.48, energy: 10.02, concerto: 10, offtune: 10401, forte1: 45,
 });
 const Outro = zhezhiAction("Outro - Carve and Draw", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(ZHEZHI_OUTRO),
 });
 
@@ -174,10 +174,10 @@ const ZHEZHI_TALENTS = new Talent({
 const BA123 = new ActionGroup("Basic - Dimming Brush 123", [BA1, BA2, BA3]);
 
 const ZZ_ROTATION = new Rotation([
-  INTRO, ECHO_CANCEL, 
-  START_2, Liberation, SWAP,
-  BA123,
-  Skill, FHA, FSkill, FSkill, FSkill3,
+  NOINTRO, BA123,
+  INTRO,
+  BA123, Liberation,
+  Skill, FHA, FSkill, FSkill, FSkill3, ECHO_SWAP,
   OUTRO,
 ]);
 
@@ -188,7 +188,7 @@ const ZZ_ROTATION = new Rotation([
 // own EchoLoadout)
 /** Matrix: her Liberation grants the team +30% Resonance Skill DMG Bonus for 30s — permanent. */
 const ZHEZHI_MATRIX_TEAM = new Buff({
-  name: "Zhezhi: Matrix (team)",
+  name: "Zhezhi: Matrix Buff",
   applyStats: () => addStat(Stat.DmgBonus, 30, Type1.Skill),
 });
 const ZHEZHI_MATRIX = matrix("Zhezhi", 20, {

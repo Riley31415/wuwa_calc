@@ -117,7 +117,7 @@ export const tagWord = (element: Attribute | null, type: Type1 | null, type2: Ty
   (element ?? 0) | (type ?? 0) | (type2 ?? 0);
 export const tagWordOf = (action: Action): number => {
   let word = action._tagWord;
-  if (word === undefined) action._tagWord = word = tagWord(action.element, action.type, action.type2);
+  if (word === undefined) action._tagWord = word = tagWord(action.element, action.type1, action.type2);
   return word;
 };
 

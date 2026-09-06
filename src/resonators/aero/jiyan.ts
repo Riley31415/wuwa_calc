@@ -36,6 +36,7 @@ import {
   queueOn,
   triggeredAction,
   queueOutro,
+  isActive,
 } from "../../engine/context.js";
 import { matrix } from "../../shared/helpers.js";
 import { Action, Rotation, START_3, SWAP, INTRO, ECHO_CANCEL, OUTRO, ActionField } from "../../engine/rotation.js";
@@ -98,14 +99,14 @@ const Lance3 = jiyanAction("Heavy - Lance of Qingloong 3", { node: Node.Liberati
 const Intro = jiyanAction("Intro - Tactical Strike", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81, energy: 10.00, concerto: 10, offtune: 7416, forte1: 30 });
 /** Discipline: no damage of its own, just the handoff — its lances are ACTION_OUTRO_COORD. */
 const Outro = jiyanAction("Outro - Discipline", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   // queued twice so the adopter picks the buff up at both charges
   updateBuffs: () => { queueOutro(JIYAN_OUTRO); queueOutro(JIYAN_OUTRO); },
 });
 /** One coordinated lance strike — queued onto his own slot by JIYAN_OUTRO below, once per stack
  *  the incoming resonator's Heavy casts consume. */
 const DISCIPLINE_FIELD = new ActionField("Jiyan: Discipline");
-const ACTION_OUTRO_COORD = jiyanAction("Outro - Discipline (Coordinated Lance)", { type: Type1.Outro, type2: Type2.Coordinated, mv: 313.40, active: false, field: DISCIPLINE_FIELD });
+const ACTION_OUTRO_COORD = jiyanAction("Outro - Discipline (Coordinated Lance)", { type: Type1.Outro, type2: Type2.Coordinated, mv: 313.40, field: DISCIPLINE_FIELD });
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -131,7 +132,7 @@ const JY_INHERENT_2 = new Inherent({
   name: "Inherent: Tempest Taming",
   // a real on-field press: not a queued follow-up, a status rung or the shared Tune Break, all of
   // which are active casts on his slot but not him swinging again
-  updateBuffs: () => { if (!triggeredAction() && currentAction().active) applyCurrent(TEMPEST_TAMING, 1); },
+  updateBuffs: () => { if (!triggeredAction() && isActive()) applyCurrent(TEMPEST_TAMING, 1); },
 });
 
 /** Discipline — the outro handoff: 2 charges on the incoming resonator, each Heavy cast of theirs

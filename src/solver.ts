@@ -28,7 +28,7 @@ import type { ActionField } from "./engine/rotation.js";
 import { damage, mvPercent } from "./engine/damage.js";
 import { TUNE_BREAK_ENEMY } from "./shared/tunebreak.js";
 import type { Report } from "./display.js";
-import { teamAt } from "./engine/teams.js";
+import { teamAt } from "./teams.js";
 
 export interface Member {
   name: string;
@@ -700,7 +700,7 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
 
   // Four sections: the opener and three loops, exactly what the report's own columns show. The
   // scheduler runs one continuous fight rather than four separate passes (rotation.ts) and cuts a
-  // section every time the last slot outros — one full trip round the team — so a loop-only
+  // section on the Intro the last slot's outro hands into — one full trip round the team — so a loop-only
   // buff/gauge that hasn't settled by the first trip still gets three more to reach steady state.
   const rotationLines = runRotations(state, members.map((m, i) => m.loadout.rotationAt(combo[i]!.sequence)), 4).map(toLines);
 

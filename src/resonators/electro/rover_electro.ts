@@ -33,6 +33,7 @@ import { lostOnSwap } from "../../shared/helpers.js";
 import { inflictElectroFlare, inflictedNegativeStatus, HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
+import { SOUL_OF_DESPAIR, SWORN_VIGIL_5PC, ELECTRIC_REFLECTION_5PC, STAY_TUNED } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";
@@ -108,7 +109,7 @@ const THRUMS: Action[] = [
 const Liberation = roverAction("Liberation - Ultimate Tactics", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1192.86, concerto: 20, offtune: 57600, resetEnergy: true });
 const Intro = roverAction("Intro - Thunderous Fury", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 167.03, energy: 3, concerto: 20.8, offtune: 9600, forte1: 53 });
 const Outro = roverAction("Outro - Rumbling Thunders", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(ELECTRO_CORE)
 });
 
@@ -253,7 +254,13 @@ export const ROVER_ELECTRO = new Loadout({
   inherent1: ER_INHERENT_1,
   inherent2: ER_INHERENT_2,
   weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, RED_SPRING],
-  echoLoadouts: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)],
+  echoLoadouts: [
+    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
+    new EchoLoadout(STAY_TUNED, ELECTRIC_REFLECTION_5PC),
+    new EchoLoadout(SOUL_OF_DESPAIR, ELECTRIC_REFLECTION_5PC),
+    new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC),
+    new EchoLoadout(SOUL_OF_DESPAIR, SWORN_VIGIL_5PC),
+  ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
   substat: chem("atk", "skill"),
     rotation: ER_ROTATION,

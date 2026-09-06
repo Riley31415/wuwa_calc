@@ -59,6 +59,7 @@ import {
   frozenStacks,
   isType,
   triggeredAction,
+  isActive,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_2, SWAP, JUMP, ActionField } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
@@ -139,7 +140,7 @@ const Lib4 = rebeccaAction("Liberation - Mk. 31 HMG 2nd Enhancement x10", {
 const Lib234 = new ActionGroup("Liberation - Mk. 31 HMG", [Lib2, Lib3, Lib4]);
 // fires behind whoever intros after her, so it is inactive: it is her hit, not her field time
 const Boom = rebeccaAction("Liberation - BOOM! Fireworks!", {
-  node: Node.Liberation, type: Type1.Basic, cast: Cast.Liberation, mv: 636.2, energy: 20, concerto: 10, offtune: 31025, active: false,
+  node: Node.Liberation, type: Type1.Basic, cast: Cast.Liberation, mv: 636.2, energy: 20, concerto: 10, offtune: 31025,
   updateDebuffs: () => applyHack(),
 });
 
@@ -155,7 +156,7 @@ const EIntro = rebeccaAction("Intro - Hey, Leadhead, Come 'n' Get Me!", { node: 
 // her Outro hands the Bonds over; the 12s+ she then spends off field refills Fervor, which is what
 // arms A Girl Gets What She Wants! on her next Intro
 const Outro = rebeccaAction("Outro - Preem Choom", {
-  cast: Cast.Outro, type: Type1.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, type: Type1.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => {
     // whoever this outro hands the field to is who decides which turret stands — Lucy enhances it
     const st = currentTeam();
@@ -170,7 +171,7 @@ const Outro = rebeccaAction("Outro - Preem Choom", {
  *  row so the field grouping counts them — and the Lucy-enhanced shot beside it, the same
  *  shot at +250% DMG Multiplier. */
 const TURRET_FIELD = new ActionField("Rebecca: Outro Turret");
-const TurretTick = rebeccaAction("Outro - Preem Choom: Turret", { type: Type1.Outro, mv: 2.5, active: false, field: TURRET_FIELD });
+const TurretTick = rebeccaAction("Outro - Preem Choom: Turret", { type: Type1.Outro, mv: 2.5, field: TURRET_FIELD });
 const TurretTickLucy = TurretTick.variant("Outro - Preem Choom: Turret (Enhanced)", {
   applyStats: () => addStat(Stat.MulMv, 250),
 });
@@ -231,7 +232,7 @@ const TAG_YOURE_IT = new Buff({
 /** The other half: whichever resonator inflicts Hack - Shifting gets +30 Tune Break Boost for 30s
  *  — permanent uptime, and theirs alone rather than the team's (see RB_INHERENT_1 for the watch). */
 const TAG_TBB = new Buff({
-  name: "Inherent: Tag, You're It! (team)",
+  name: "Inherent: Tag, You're It!",
   applyStats: () => addStat(Stat.Tbb, 30),
 });
 
@@ -239,7 +240,7 @@ const TAG_TBB = new Buff({
  *  30s — permanent uptime, and "nearby" rather than "active", so it pays on inactive actions too.
  *  The interruption-resistance half carries no stat. */
 const LEFT_AN_OPENING = new Buff({
-  name: "Inherent: Left an Opening! (team)",
+  name: "Inherent: Left an Opening!",
   applyStats: () => addStat(Stat.BonusAtk, 20),
 });
 
@@ -285,11 +286,11 @@ const RB_S1 = new Sequence({
  *  Hack - Shifting gets +15% All DMG Amplification for 30s, theirs alone — watched from her own
  *  node the way Tag, You're It! watches for the Tune Break Boost. */
 const OH_HEY_CHOOM_TEAM = new Buff({
-  name: "Rebecca S2: Oh, Hey Choom! (team)",
+  name: "Rebecca S2: Oh, Hey Choom!",
   applyStats: () => addStat(Stat.DmgBonus, 20),
 });
 const OH_HEY_CHOOM_HACK = new Buff({
-  name: "Rebecca S2: Oh, Hey Choom! (Shifting)",
+  name: "Rebecca S2: Oh, Hey Choom!",
   applyStats: () => addStat(Stat.Amp, 15),
 });
 const RB_S2 = new Sequence({
@@ -327,7 +328,7 @@ const DREAMIN_ON_THE_EDGE = new Buff({
 });
 const RB_S5 = new Sequence({
   name: "Rebecca S5: Dreamin' on the Edge",
-  updateBuffs: () => { if (currentAction().active && applied(TUNE_HACK_SHIFTING)) applyCurrent(DREAMIN_ON_THE_EDGE, 1); },
+  updateBuffs: () => { if (isActive() && applied(TUNE_HACK_SHIFTING)) applyCurrent(DREAMIN_ON_THE_EDGE, 1); },
 });
 
 /** S6: her Basic Attack DMG Bonus from every source is 40% higher — a conversion off the

@@ -259,10 +259,10 @@ main {
 
 /* ---------------------------------------------------------------- comparison table */
 
-/* Three groups (see index.js's own comparisonFilters()): first the one holding the box belonging
-   to neither role plus the search bar, then one per role, MDPS and supports. A row apiece up top,
-   so the same axes line up column-wise between the role rows; a column apiece beside the table
-   (see the responsive block below). */
+/* Three groups (see index.js's own comparisonFilters()): first the one holding the boxes belonging
+   to neither role plus the search bar, then one per role, MDPS and supports. How many columns they
+   stand in, and whether they stand beside the table or above it, is measured rather than guessed
+   (see the responsive block below, and index.ts's own `fitSide()`). */
 .tcfilters {
   display: flex;
   flex-direction: column;
@@ -273,9 +273,14 @@ main {
 }
 /* `flex-start`, so one box opening its description doesn't stretch the others in its row to match */
 .tcfilter-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
-/* Too narrow for the note column to sit beside the role columns (see the 1180px block below): the
-   standards box and the search bar go under the checkboxes instead of over them, the warning last. */
-.tcfilter-row.note { order: 1; }
+/* the two role groups travel together: they fold into a single column before the note-and-search
+   group gives up its own (`.cols2` below) */
+.tcroles { display: flex; flex-direction: column; gap: 9px; }
+/* Beside the table the search column leads, since that's the corner the eye starts from; above the
+   table the roles lead and the search column comes last, so the reader passes the boxes on the way
+   down to the table rather than reading the terms of it first. The warning is last either way. */
+.tcfilters > .tcfilter-row.note { order: 0; }
+.tclayout.stack .tcfilters > .tcfilter-row.note { order: 1; }
 .tcfilters > .tcwarning { order: 2; }
 /* One box per option: the name left, its own checkbox hard right, and the description opening
    under both (index.js's own `comparisonFilters()`). They share a basis so the two role rows still
@@ -384,6 +389,11 @@ main {
 /* which axis the match is from, right-aligned and dimmed so the name stays the row */
 .sresult .skind { color: var(--dim); font-size: 11px; }
 .sresult.none { color: var(--dim); cursor: default; }
+
+/* A filter's own (mdps)/(support) marker (index.js's own `roleTagLabel()`) — only shown once a
+   name plays both roles somewhere in the table, so it's dimmed rather than part of the name: it
+   says which of two same-named picks this one is, not a second thing to read. */
+.roletag { color: var(--dim); font-weight: 400; }
 
 /* The row-cap warning (index.js's own `rowCapWarning()`), shown in place — no re-render — when a
    checkbox is refused for pushing the table past `ROW_CAP`. Same signal red as a chip's own "✕"
@@ -533,10 +543,11 @@ main {
 .trow .c.option:not(:empty) { cursor: pointer; }
 .trow:not(.thead):hover .c.option { background: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface)); }
 
-/* The per-slot DPR column, opened by clicking a Slot heading (index.ts's own `dprOpenAt`): the
-   same member wash as that position's option cells, so a member's columns read as one block. */
-.trow .c.slotdpr { background: color-mix(in srgb, var(--mem, transparent) 10%, var(--surface)); }
-.trow:not(.thead):hover .c.slotdpr { background: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface)); }
+/* The per-slot Personal/Compare columns, opened by clicking a Slot heading (index.ts's own
+   `dprOpenAt`): the same member wash as that position's option cells, so a member's columns read
+   as one block. */
+.trow .c.slotdpr, .trow .c.slotcompare { background: color-mix(in srgb, var(--mem, transparent) 10%, var(--surface)); }
+.trow:not(.thead):hover .c.slotdpr, .trow:not(.thead):hover .c.slotcompare { background: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface)); }
 .trow.thead .c.slothead, .trow.thead .c.sorthead { cursor: pointer; }
 .trow.thead .c.slothead:hover, .trow.thead .c.sorthead:hover { color: var(--ink); }
 /* the marker keeps its own colour rather than the heading's uppercase grey (see `.arrow` below) */
@@ -656,8 +667,9 @@ main {
   margin-top: 22px;
   background: var(--surface);
   box-shadow: var(--sh-2);
+  /* exactly its columns' own width (every track is a fixed calc(), see index.js's colWidth) —
+     no stretching to the page, which left the last column trailing a run of empty surface */
   width: max-content;
-  min-width: 100%;
 }
 /* under its "action log" label the label's 8px is the gap — the 22px would collapse over it */
 .summary-label + .gridwrap { margin-top: 0; }
@@ -783,11 +795,35 @@ body.coldrag { user-select: none; }
    into a dash per row. Transparent rather than absent there, so the cells all keep the same
    height and their text stays on one line. */
 .step > .r > .c { border-top: 1px solid var(--line); }
-.step:first-of-type > .r > .c { border-top: 0; }
+/* `.head + .step`, not `:first-of-type`: the header is a div like every step, so it is the first
+   of the type and no step ever was — the rule sat under the header as a hairline gap. */
+.head + .step > .r > .c { border-top: 0; }
+/* Where a loop begins: a bar the full width of the table, ahead of the first row of Loop 1, 2
+   and 3 (index.js's own rotationTable), its name hung off the table's right edge and centred on
+   it. An element of its own rather than a border on the row's cells, so it runs straight across
+   the member column's colour bar — the one line that should — and the row under it drops its own
+   grey rule so the two don't stack. */
+.loopline { position: relative; height: 1px; background: #39ff14; }
+.loopline > span {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 8px;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: #39ff14;
+}
+.loopline + .step > .r > .c { border-top-color: transparent; }
+.loopline + .step > .r > .c.member { --rule: transparent; }
 /* the member column draws its own rule instead (see `.c.member`), so that the one thing it must
    not cross — that column's colour bar — is left alone */
 .step > .r > .c.member { border-color: transparent; --rule: var(--line); }
-.step:first-of-type > .r > .c.member { --rule: transparent; }
+.head + .step > .r > .c.member { --rule: transparent; }
 
 /* Every row carries a faint wash of its own *action's* colour (white/green for generic gear,
    otherwise whoever's kit it belongs to) — deliberately faint, since the strong "whose turn is
@@ -1075,7 +1111,8 @@ body.coldrag { user-select: none; }
    order is what decides it — same specificity either way. */
 /* Narrow first: the filters stack above the table and the table has the width to itself — which
    is also the source order, so a phone and a screen reader get the same reading. From 900px the
-   aside moves to the right of the table as one column of boxes, and from 1180px it holds two.
+   window is wide enough for the aside to stand beside the table at all; whether it actually does,
+   and in how many columns, is then measured against the table (index.ts's own `fitSide()`).
    `main` is still the one scrollport on both axes, so the aside sticks to its top-right corner
    rather than scrolling away from a table taller or wider than the window. */
 .tclayout { display: flex; flex-direction: column; }
@@ -1093,30 +1130,52 @@ body.coldrag { user-select: none; }
     right: 0;
     /* over the table's own pinned header (z-index 5), under the hover panels (200) */
     z-index: 6;
+    /* the narrowest of the three, until `fitSide()` has measured which one this table can afford */
     width: 272px;
+    /* the slack beside a table narrower than the room left for it belongs between the two, not to
+       the right of the aside: the columns keep the page's own right edge */
+    margin-left: auto;
     background: var(--bg);
   }
-  /* A column per role, not one wrapping flow of all twelve: in a flow, a box opening its
-     description made its whole wrap line tall and the boxes after it started below that, leaving
-     a hole beside the short one. In a column, an open box moves only what is under it. */
-  .tcfilters { flex-direction: row; flex-wrap: wrap; gap: 10px; align-items: flex-start; align-content: flex-start; }
-  .tcfilter-row { flex-direction: column; flex: 0 0 272px; align-items: stretch; }
-  /* the boxes' own 272px is a width in the rows up top and would be a *height* down a column */
-  .tcfilter-row > .tcopt { flex: 0 0 auto; }
-  .tcfilters > .tcwarning { flex: 1 0 100%; }
-  /* ...unless the table is itself too wide to leave room for it, which only the page can know
-     (index.js's own `fitSide()`) — then the aside goes back above the table */
-  .tclayout.stack { flex-direction: column; }
-  .tclayout.stack .tcside { position: static; order: 0; width: auto; background: none; }
 }
-/* wide enough for two columns side by side — the note column and MDPS, supports wrapping under
-   the note column — and from 1460px all three */
-@media (min-width: 1180px) {
-  .tcside { width: 554px; }
-  /* room for the note column beside the roles now, so it goes back to the front */
-  .tcfilter-row.note { order: 0; }
+/* How wide the aside is, and so how many of the three groups stand side by side: one column of
+   boxes is 272px (`.tcopt` above) and 10px separates two, so two columns want 554 and three 836.
+   Set from `fitSide()`, which hands the aside the widest of the three the table leaves room for —
+   the whole point being that the groups keep their place beside the table down to a single column
+   before they give it up and go above it. */
+.tcside.cols1 { width: 272px; }
+.tcside.cols2 { width: 554px; }
+.tcside.cols3 { width: 836px; }
+/* A column per group, not one wrapping flow of all thirteen boxes: in a flow, a box opening its
+   description made its whole wrap line tall and the boxes after it started below that, leaving a
+   hole beside the short one. In a column, an open box moves only what is under it. At `.cols1`
+   there is room for one box a line anyway, so the base wrapping row already is that column. */
+.tcside.cols2 .tcfilters, .tcside.cols3 .tcfilters {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
+  align-content: flex-start;
+  /* above the table the aside has the whole width and the columns only part of it, so they end on
+     the right edge rather than trailing off into it */
+  justify-content: flex-end;
 }
-@media (min-width: 1460px) { .tcside { width: 836px; } }
+.tcside.cols2 .tcfilter-row, .tcside.cols3 .tcfilter-row {
+  flex-direction: column;
+  /* a width, not a basis: down a column a basis would be the *height* */
+  flex: none;
+  width: 272px;
+  align-items: stretch;
+}
+.tcside.cols2 .tcopt, .tcside.cols3 .tcopt { flex: none; }
+.tcside.cols2 .tcroles, .tcside.cols3 .tcroles { gap: 10px; }
+/* the roles get a column each only where there's room for all three */
+.tcside.cols3 .tcroles { flex-direction: row; }
+.tcside.cols2 .tcwarning, .tcside.cols3 .tcwarning { flex: 1 0 100%; }
+/* Not even one column's worth of room beside the table, which only the page can know
+   (index.ts's own `fitSide()`) — so the aside goes above it and spends the full width instead. */
+.tclayout.stack { flex-direction: column; }
+.tclayout.stack .tcside { position: static; order: 0; width: auto; background: none; }
 
 /* a phone: one box per line, full width, and less of the page given over to margin */
 @media (max-width: 560px) {

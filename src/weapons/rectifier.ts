@@ -1,6 +1,6 @@
 /** Signature Rectifier weapons, ported to the new engine. Stringmaster (Encore's own,
  *  standard/permanent-availability) lives here too since it isn't part of any named tier. */
-import { WeaponType, Stat, Attribute, Type1, Cast } from "../engine/stats.js";
+import { WeaponType, Stat, Attribute, Type1, Type2, Cast } from "../engine/stats.js";
 import { Buff, Weapon } from "../engine/gear.js";
 import {
   isType,
@@ -15,11 +15,13 @@ import {
   removeStack,
   casting,
   currentAction,
+  isActive,
 } from "../engine/context.js";
 import { applied, appliedByMe } from "../engine/context.js";
 import { lostOnSwap } from "../shared/helpers.js";
-import { GLACIO_CHAFE, FUSION_BURST, HEALS } from "../shared/status.js";
+import { GLACIO_CHAFE, FUSION_BURST, HEALS, ELECTRO_FLARE } from "../shared/status.js";
 import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
+import { unisonResponse } from "../shared/unison.js";
 
 /** Rime-Draped Sprouts, Zhezhi's sig, R1. +12% ATK flat. On field, Resonance Skill grants +12%
  *  Basic Attack DMG Bonus a stack, up to 3, 6s. At 3+ frozenStacks, her Outro spends them all for
@@ -47,7 +49,7 @@ export const PANORAMA_STACKS = new Buff({
 });
 export const PANORAMA_OFFIELD = new Buff({
   name: "Rime-Draped Sprouts: Panorama (off field)", applyStats: () => {
-    if (!currentAction().active) {
+    if (!isActive()) {
       addStat(Stat.DmgBonus, 52, Type1.Basic);
     }
   }
@@ -68,7 +70,7 @@ export const STRINGMASTER = new Weapon({
 export const STRINGMASTER_STACKS = new Buff({
   name: "Stringmaster: Electric Amplification", maxStacks: 2,
   applyStats: () => {
-    if (!currentAction().active) addStat(Stat.BonusAtk, 12);
+    if (!isActive()) addStat(Stat.BonusAtk, 12);
     addStat(Stat.BonusAtk, 12 * frozenStacks());
   },
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(STRINGMASTER_STACKS); },
@@ -144,7 +146,7 @@ export const FREEZE_FRAME_SELF = new Buff({
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(FREEZE_FRAME_SELF); },
 });
 export const FREEZE_FRAME_TEAM = new Buff({
-  name: "Freeze Frame: Light's Offering (team)", applyStats: () => addStat(Stat.BonusAtk, 24),
+  name: "Freeze Frame: Light's Offering", applyStats: () => addStat(Stat.BonusAtk, 24),
 });
 
 /** Stellar Symphony, Shorekeeper's sig, R1: 12% HP to herself, 14% attack to the team, and 8
@@ -166,7 +168,7 @@ export const SK_SIG = new Weapon({
   },
 });
 export const SK_SIG_TEAM = new Buff({
-  name: "Stellar Symphony: Astral Evolvement (team)", applyStats: () => addStat(Stat.BonusAtk, 14),
+  name: "Stellar Symphony: Astral Evolvement", applyStats: () => addStat(Stat.BonusAtk, 14),
 });
 export const SK_SIG_CONCERTO = new Buff({
   name: "Stellar Symphony: Astral Evolvement", maxStacks: 2,
@@ -197,7 +199,7 @@ export const DISSOLUTION_LIB = new Buff({
   updateGlobal: () => { if (applied(FUSION_BURST) || applied(TUNE_STRAIN_SHIFTING)) applyTeam(DISSOLUTION_TEAM, 1); },
 });
 export const DISSOLUTION_TEAM = new Buff({
-  name: "Forged Dwarf Star: Dissolution (team)", applyStats: () => addStat(Stat.BonusAtk, 24),
+  name: "Forged Dwarf Star: Dissolution", applyStats: () => addStat(Stat.BonusAtk, 24),
 });
 
 /** Firstlight's Herald, Suisui's sig, R1: Spring Wreath. +12% Max HP flat, and 8 Concerto on a
@@ -234,5 +236,26 @@ export const SPRING_WREATH_CONCERTO = new Buff({
 export const SNOW_TAINT = new Buff({ name: "Firstlight's Herald: Snow Taint" });
 export const RIPPLES = new Buff({ name: "Firstlight's Herald: Ripples" });
 export const SPRING_WREATH_TEAM = new Buff({
-  name: "Firstlight's Herald: Spring Wreath (team)", applyStats: () => addStat(Stat.BonusAtk, 20),
+  name: "Firstlight's Herald: Spring Wreath", applyStats: () => addStat(Stat.BonusAtk, 20),
+});
+
+/** Blooming Jadehaven, R1: Hundredfold Artifice. +12% All-Attribute DMG Bonus flat (plain Dmg
+ *  Bonus, no tag). Inflicting Electro Flare or triggering Unison Response pays +36% Resonance
+ *  Skill DMG Amplification and 10%
+ *  Electro RES ignore on Skill DMG — no duration stated, so it stands once granted. While the
+ *  wielder is on field, Electro Flare DMG is amplified 30% (30s, permanent uptime): a Flare tick
+ *  resolves on its applier's slot, so `active` is the on-field check. */
+export const BLOOMING_JADEHAVEN = new Weapon({
+  weaponType: WeaponType.Rectifier,
+  name: "Blooming Jadehaven",
+  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.DmgBonus, 12); },
+  updateBuffs: () => { if (appliedByMe(ELECTRO_FLARE) || unisonResponse()) applyCurrent(HUNDREDFOLD_ARTIFICE, 1); },
+});
+export const HUNDREDFOLD_ARTIFICE = new Buff({
+  name: "Blooming Jadehaven: Hundredfold Artifice",
+  applyStats: () => {
+    addStat(Stat.Amp, 36, Type1.Skill);
+    if (currentAction().type1 === Type1.Skill) addStat(Stat.ResIgnore, 10, Attribute.Electro);
+    if (isActive()) addStat(Stat.Amp, 30, Type2.ElectroFlare);
+  },
 });

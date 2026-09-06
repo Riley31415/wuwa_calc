@@ -59,6 +59,7 @@ import {
   setStacksSelf,
   stacksOf,
   stacksOfEnemy,
+  isActive,
 } from "../../engine/context.js";
 import { Action, Rotation, INTRO, ECHO_SWAP, OUTRO, ActionGroup } from "../../engine/rotation.js";
 import { oneSecondPassed } from "../../shared/helpers.js";
@@ -185,7 +186,7 @@ const Lib2 = cartethyiaAction("Liberation - Blade of Howling Squall", {
   },
 });
 const Outro = cartethyiaAction("Outro - Wind's Divine Blessing", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => applyTeam(WINDS_DIVINE_BLESSING, 1),
 });
 
@@ -254,7 +255,7 @@ const CT_INHERENT_2 = new Inherent({
 const WINDS_DIVINE_BLESSING = new Buff({
   name: "Cartethyia: Outro",
   applyStats: () => {
-    if (!currentAction().active || isHeld(CARTETHYIA_RESONATOR) || !hasNegativeStatus()) return;
+    if (!isActive() || isHeld(CARTETHYIA_RESONATOR) || !hasNegativeStatus()) return;
     addStat(Stat.Amp, 17.5, Attribute.Aero);
   },
 });

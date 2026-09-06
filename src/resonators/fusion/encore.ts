@@ -73,7 +73,7 @@ const Skill2 = encoreAction("Skill - Energetic Welcome", { node: Node.Skill, cas
 // exactly 100 so the declared forte1: -100 lands exactly on 0, same pattern as Galbrena's own
 // Purging Flame/Ascent of Malice.
 const SPEND_MAYHEM = { updateBuffs: () => { if (forte1() >= 100) setForte1(100); } };
-const CloudyFrenzy = encoreAction("Forte Heavy - Cloudy Frenzy", { node: Node.Forte, active: false, cast: Cast.Heavy, type: Type1.Liberation, mv: 773.73, concerto: 10.00, offtune: 46709, forte1: -100, ...SPEND_MAYHEM });
+const CloudyFrenzy = encoreAction("Forte Heavy - Cloudy Frenzy", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Liberation, mv: 773.73, concerto: 10.00, offtune: 46709, forte1: -100, ...SPEND_MAYHEM });
 
 /** No damage of its own, just opens the state. */
 const Liberation = encoreAction("Liberation - Cosmos Rave", { node: Node.Liberation, cast: Cast.Liberation, concerto: 20, resetEnergy: true });
@@ -93,7 +93,7 @@ const FHA = encoreAction("Forte Heavy - Cosmos Rupture", { node: Node.Forte, cas
 const Intro = encoreAction("Intro - Woolies Helpers", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81, energy: 10.00, concerto: 10.00, offtune: 15132, forte1: 40 });
 /** A burn zone, 4 ticks over 6s, lumped into one action same as every other periodic effect
  *  elsewhere. No handoff buff is described on her own kit page — left as a plain hit. */
-const Outro = encoreAction("Outro - Thermal Field", { cast: Cast.Outro, type: Type1.Outro, mv: 707.04, concerto: -100, active: false });
+const Outro = encoreAction("Outro - Thermal Field", { cast: Cast.Outro, type: Type1.Outro, mv: 707.04, concerto: -100, swapOut: true });
 
 /* ------------------------------------------------------------------------------------ buffs */
 

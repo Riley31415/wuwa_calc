@@ -1,0 +1,105 @@
+/**
+ * Unison — the shared swap mechanic (Jinhsi's Illuminous Epiphany, Suoming's Umbral Canopy), and
+ * everything a weapon or sonata reads off it.
+ *
+ * A kit grants it with a plain `applyCurrent(UNISON, 1)`; its "once every 25s" is a kit's own
+ * business (Jinhsi's, which grants only on her double-Intro pre-visit — `isDoubleIntro()`).
+ * Swapping out with it spends it in place of the Concerto bar — modelled as the 100 Concerto the outro would otherwise have cost,
+ * handed back on the outro row itself, so every outro keeps its ordinary `concerto: -100`. The
+ * spend is a conversion, so the outro row still lists Unison among what it held, and it publishes
+ * UNISON_INTRO for whoever intros next: that is how the incoming Intro knows the outro it
+ * answers was a Unison one.
+ *
+ * Responding is the responder's own kit's doing, the way a Tune Strain responder pays its
+ * Interfered from a marker it holds (tunebreak.ts): a kit whose Intro has a Unison form picks it
+ * in its `introFn` off `unisonIntro()`, and that Intro action declares `respondToUnison()` in its
+ * updateDebuffs — that is "triggering Unison Response", which every weapon and sonata reads
+ * through `unisonResponse()`. Unison Boon pays only a slot holding UNISON_RESPONDER, which such a
+ * kit grants itself from its own combatStart — so a Jinhsi beside Suoming holds the stacks and
+ * reads nothing from them, as the kit text says, and the payout is sourced to the Boon itself.
+ * Anybody else simply adopts and drops the Intro marker on their Intro row.
+ */
+import { Cast, Stat } from "../engine/stats.js";
+import { Buff, Gear } from "../engine/gear.js";
+import type { TeamMember } from "../engine/state.js";
+import {
+  addStat,
+  applied,
+  applyCurrent,
+  casting,
+  currentAction,
+  currentTeam,
+  frozenStacks,
+  getStat,
+  isHeld,
+  queueOutro,
+  revokeCurrent,
+} from "../engine/context.js";
+
+/** Unison itself: pays the outro's bar back, and is spent by that outro — from convertStats, so
+ *  the outro row still shows it — publishing the handoff the next Intro reads. */
+export const UNISON = new Buff({
+  name: "Unison",
+  applyStats: () => { if (casting(Cast.Outro)) addStat(Stat.AddConcerto, 100); },
+  convertStats: () => { if (casting(Cast.Outro)) { revokeCurrent(UNISON); queueOutro(UNISON_INTRO); } },
+});
+
+/** Is the chain being played a DOUBLE_INTRO pre-visit — the short visit that leaves on a Unison
+ *  outro handing the field *backward* (rotation.ts's own `outroDir`)? What a kit that grants
+ *  Unison once every 25s checks: only the pre-visit's cast grants, the main visit's pays the bar. */
+export const isDoubleIntro = (): boolean => currentTeam().outroDir === -1;
+
+/** "Upon obtaining Unison" — did the action being evaluated grant it? */
+export const gainedUnison = (): boolean => applied(UNISON) > 0;
+
+/** What a Unison outro publishes for the next Intro: adopted at that Intro, read by its own hooks,
+ *  and gone once the Intro row has paid out. */
+export const UNISON_INTRO = new Buff({
+  name: "Unison Intro",
+  convertStats: () => { if (casting(Cast.Intro)) revokeCurrent(UNISON_INTRO); },
+});
+
+/** Is the Intro being resolved or evaluated answering a Unison outro? True from an `introFn` —
+ *  the handoff is still queued then, adopted only once the Intro row itself is evaluated — and
+ *  true on the Intro row's own hooks after that. */
+export function unisonIntro(): boolean {
+  return isHeld(UNISON_INTRO) || currentTeam().outroQueue.includes(UNISON_INTRO);
+}
+
+/** The response itself, for the one Intro row it happens on: put up by the responder's Unison
+ *  Intro in its updateDebuffs, the first phase, so every weapon and sonata's updateBuffs sees it. */
+export const UNISON_RESPONSE = new Buff({
+  name: "Unison Response",
+  convertStats: () => { if (casting(Cast.Intro)) revokeCurrent(UNISON_RESPONSE); },
+});
+
+/** What a responder's Unison Intro form declares — the Intro is adopted ahead of updateDebuffs,
+ *  so the marker is already held here. */
+export function respondToUnison(): void {
+  if (isHeld(UNISON_INTRO)) applyCurrent(UNISON_RESPONSE, 1);
+}
+
+/** "Triggering Unison Response" — is the action being evaluated a responder's Unison Intro? */
+export const unisonResponse = (): boolean => applied(UNISON_RESPONSE) > 0;
+
+/** "When the wielder consumes Concerto Energy" — a cast of their own that spends some, which an
+ *  outro's own bar is not. Reads the declared field plus whatever a held buff's own conditional
+ *  spend (Suoming's Rift Cleaver, Unison held) has already added by this point — the action's own
+ *  updateBuffs runs ahead of every held Gear's in the same phase, so that addition is in `getStat`
+ *  before this is ever checked. */
+export const consumedConcerto = (): boolean =>
+  currentAction().concerto + getStat(Stat.AddConcerto) < 0 && !casting(Cast.Outro);
+
+/** Unison Boon: +3% DMG dealt a stack, two at most — three with Hsin's Gleaning Simple Joys,
+ *  whose own grant is the only thing that ever reaches a third — 30s and refreshed by every grant
+ *  so permanent once up. It pays only a slot holding UNISON_RESPONDER. */
+export const UNISON_BOON = new Buff({
+  name: "Unison Boon", maxStacks: 3,
+  applyStats: () => { if (isHeld(UNISON_RESPONDER)) addStat(Stat.TotalDmg, 3 * frozenStacks()); },
+});
+
+/** A kit that can trigger Unison Response grants itself this from its own combatStart — same
+ *  shape as tunebreak.ts's own TUNE_STRAIN_RESPONDER — so Unison Boon pays that slot, sourced to
+ *  itself. No `name`, so it never enters the held-buffs list (evaluate.ts's own `named()`): it's
+ *  bookkeeping for a bonus the Boon's own row already reports, not a second thing to show. */
+export const UNISON_RESPONDER = new Buff({});

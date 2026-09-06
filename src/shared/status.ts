@@ -187,6 +187,10 @@ export const ELECTRO_RAGE_ACTIONS = negativeStatusActions("Electro Rage", Attrib
  *  cleared by it. Only ever granted through `inflictElectroFlare()` below. */
 export const ELECTRO_RAGE = new Debuff({ name: "Electro Rage", maxStacks: 10 });
 
+/** Hsin's Fleeting Thunder on the target: while it stands a Flare tick spends no stacks. Granted
+ *  and revoked by her own kit (hsin.ts). */
+export const FLEETING_THUNDER = new Debuff({ name: "Hsin: Fleeting Thunder" });
+
 /** Electromagnetic Effect: 15s a stack, refreshed on gain, cap 10. Every 5s it calculates at the
  *  current count and halves the stacks (rounded down); what lands past the cap banks as Electro
  *  Rage (cap 10), which adds its own multiplier onto the next calculation and is spent by it.
@@ -208,7 +212,7 @@ export const ELECTRO_FLARE = new Debuff({
     queueOnApplier(ELECTRO_FLARE, rung);
     const rage = negativeStatusRung(ELECTRO_RAGE_ACTIONS, stacksOfEnemy(ELECTRO_RAGE));
     if (rage) { queueOnApplier(ELECTRO_FLARE, rage); revokeEnemy(ELECTRO_RAGE); }
-    removeStackEnemy(ELECTRO_FLARE, held - Math.floor(held / 2));
+    if (!stacksOfEnemy(FLEETING_THUNDER)) removeStackEnemy(ELECTRO_FLARE, held - Math.floor(held / 2));
   },
 });
 

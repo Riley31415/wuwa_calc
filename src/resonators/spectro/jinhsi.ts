@@ -13,16 +13,15 @@
  * - Incarnation - Basic Attack 4 ends Incarnation and opens **Ordination Glow** (5s), in which the
  *   Resonance Skill is **Illuminous Epiphany**: Solar Flare's six taps, then Stella Glamor's
  *   detonation queued behind them as the delayed hit it is.
- * - Casting Illuminous Epiphany grants **Unison**, once every 25s. Swapping out spends it in place
- *   of the Concerto bar — modelled as the 100 Concerto that outro would otherwise have cost,
- *   handed back on the outro row itself, so the cast keeps its ordinary `concerto: -100`.
+ * - Casting Illuminous Epiphany grants **Unison**, once every 25s (shared/unison.ts — swapping out
+ *   spends it in place of the Concerto bar, handed back on the outro row itself).
  *
  * That free outro is why she visits the field **twice a loop**, written as an outro-form
  * DOUBLE_INTRO section (rotation.ts): the first visit ends on the Unison outro and hands the field
  * *backward*, the resonator behind her plays their own rotation, and their outro brings it round
  * again for her main Intro chain — which ends on a real outro off a genuinely full bar (~116). The
  * grant's 25s limit is what stops the second Illuminous Epiphany handing over a second free one;
- * UNISON_COOLDOWN below carries that, cleared by the bar-paid outro.
+ * `isDoubleIntro()` carries that: only the pre-visit's Epiphany grants.
  *
  * **Incandescence** is a 50-stack buff of her own (not a forte gauge), fed by Eras in Unity (see
  * ERAS_IN_UNITY below): +1 whenever anyone in the party inflicts Attribute DMG, +2 on a
@@ -48,7 +47,6 @@ import {
   casting,
   currentAction,
   frozenStacks,
-  isHeld,
   isType,
   queue,
   removeStack,
@@ -57,6 +55,7 @@ import {
   setStacksSelf,
   stacksOf,
   triggeredAction,
+  isActive,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, START_3, SWAP, DOUBLE_INTRO, INTRO, ECHO_ONFIELD, OUTRO } from "../../engine/rotation.js";
 import { AGES_OF_HARVEST } from "../../weapons/broadblade.js";
@@ -66,6 +65,8 @@ import { VOIDWING_MOTH } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 import { matrix } from "../../shared/helpers.js";
+import { UNISON, isDoubleIntro } from "../../shared/unison.js";
+import { STAY_TUNED, SWORN_VIGIL_5PC } from "../../echoes/mengzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -110,7 +111,7 @@ const SolarFlare = jinhsiAction("Forte Skill - Illuminous Epiphany: Solar Flare"
   node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 119.34, energy: 1.98, concerto: 20, offtune: 14400,
   updateBuffs: () => {
     revokeCurrent(ORDINATION_GLOW);
-    if (!isHeld(UNISON_COOLDOWN)) { applyCurrent(UNISON, 1); applyCurrent(UNISON_COOLDOWN, 1); }
+    if (isDoubleIntro()) applyCurrent(UNISON, 1);
     queue(StellaGlamor);
   },
 });
@@ -126,11 +127,9 @@ const Intro = jinhsiAction("Intro - Loong's Halo", {
  *  of her outros are this one cast — the first paid for by Unison, the second by the bar — and
  *  with two a rotation the 20s windows overlap end to end, so the stack is permanent once up. */
 const Outro = jinhsiAction("Outro - Temporal Bender", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
+  // Unison pays for the pre-visit's outro and is spent by it (its own convertStats)
   updateBuffs: () => { if ((stacksOf(ERAS_IN_UNITY) & 3) < 2) applyCurrent(ERAS_IN_UNITY, 1); },
-  // Unison pays for this one and is spent by it; the outro that has none is the one far enough
-  // past the grant's own 25s limit for the next Illuminous Epiphany to hand another over.
-  convertStats: () => { if (isHeld(UNISON)) revokeCurrent(UNISON); else revokeCurrent(UNISON_COOLDOWN); },
 });
 
 /* ------------------------------------------------------------------------------------- buffs */
@@ -140,18 +139,9 @@ const Outro = jinhsiAction("Outro - Temporal Bender", {
 const INCARNATION = new Buff({ name: "Jinhsi: Incarnation" });
 const ORDINATION_GLOW = new Buff({ name: "Jinhsi: Ordination Glow" });
 
-/** Unison, from Illuminous Epiphany: swapping out consumes it to fire her Outro and the incoming
- *  Intro in place of a full Concerto bar. Modelled as the 100 Concerto that outro would otherwise
- *  have cost, handed back on the outro itself, so the cast keeps its ordinary `concerto: -100`. */
-const UNISON = new Buff({
-  name: "Jinhsi: Unison",
-  applyStats: () => { if (casting(Cast.Outro)) addStat(Stat.AddConcerto, 100); },
-});
-
-/** The grant's own "once every 25s" — longer than the gap between her two visits, so only the
- *  first Illuminous Epiphany of a loop hands a Unison over and the second outro pays the real bar.
- *  Cleared by that second outro (see the Outro action above), which is where the 25s has run out. */
-const UNISON_COOLDOWN = new Buff({ name: "Jinhsi: Unison Cooldown" });
+/* Unison is shared/unison.ts's. Its 25s limit is longer than the gap between her two visits, so
+ * only the first Illuminous Epiphany of a loop — the double-Intro pre-visit's — hands a Unison
+ * over, and the second outro pays the real bar. */
 
 /**
  * Eras in Unity — the whole Incandescence economy, held on Jinhsi's own slot and watching every
@@ -182,7 +172,7 @@ const ERAS_IN_UNITY = new Buff({
     let word = stacksOf(ERAS_IN_UNITY);
     // only a real press passes time: a queued sub-hit (a turret shot, a coordinated tick) lands
     // inside its trigger's own second, so it may pay an open channel but never advances the clock
-    if (a.active && !triggeredAction()) {
+    if (isActive() && !triggeredAction()) {
       for (let shift = 2; shift < 30; shift += 2) {
         if ((word >> shift) & 3) word -= 1 << shift;
       }
@@ -257,9 +247,7 @@ const JX_S2 = new Sequence({ name: "Jinhsi S2: Chronofrost Repose" ,
 
 /** S3's stacks: +25% ATK apiece, two at most, one per Intro she casts. Its 20s covers her whole
  *  double-Intro pair, so the mid-loop outro — the free one Unison pays for, which she comes
- *  straight back from — keeps them and only the bar-paid outro that ends the loop drops them.
- *  `isHeld(UNISON)` is what tells those two apart (see the Outro cast above), read from
- *  updateBuffs because the Outro's own convertStats is what spends the Unison. */
+ *  straight back from — keeps them and only the bar-paid outro that ends the loop drops them. */
 const IMMORTALS_DESCENDANCY = new Buff({
   name: "Jinhsi S3: Immortal's Descendancy", maxStacks: 2,
   applyStats: () => addStat(Stat.BonusAtk, 25 * frozenStacks()),
@@ -273,7 +261,7 @@ const JX_S3 = new Sequence({
 /** S4: "all nearby Resonators", so it pays on their inactive actions too; "Attribute DMG Bonus"
  *  with no attribute named, so it goes on untagged. 20s team buff — lost on her own next Intro. */
 const JX_S4_TEAM = new Buff({
-  name: "Jinhsi S4: Benevolent Grace (team)",
+  name: "Jinhsi S4: Benevolent Grace",
   applyStats: () => addStat(Stat.DmgBonus, 20),
 });
 
@@ -316,7 +304,7 @@ const JINHSI_RESONATOR = new Resonator({
   weapon: WeaponType.Broadblade,
   intro: () => Intro,
   outro: () => Outro,
-  color: "#f2c75c",
+  color: "#c2ecfb",
   maxEnergy: 150,
 
   // Eras in Unity is hers the moment she is on the team, well before her first turn
@@ -354,7 +342,8 @@ const JX_ROTATION = new Rotation([
 ]);
 
 const JX_ECHOES = [
-  new EchoLoadout(JUE, CELESTIAL_LIGHT_5PC)
+  new EchoLoadout(JUE, CELESTIAL_LIGHT_5PC),
+  new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC),
 ];
 
 export const JINHSI = new Loadout({

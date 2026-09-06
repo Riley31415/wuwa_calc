@@ -25,11 +25,12 @@
  */
 import { Gear } from "./gear.js";
 import { run } from "./evaluate.js";
-import { currentMember, queue } from "./context.js";
+import { currentMember, queue, isCast } from "./context.js";
 import type { GearDef } from "./gear.js";
 import type { State } from "./state.js";
 import type { ResolvedSnapshot } from "./evaluate.js";
-import type { Attribute, Type1, Type2, Cast, Node, Scaling } from "./stats.js";
+import { Cast } from "./stats.js";
+import type { Attribute, Type1, Type2, Node, Scaling } from "./stats.js";
 
 /* ------------------------------------------------------------------------------- the action */
 
@@ -39,7 +40,9 @@ export interface ActionDef extends GearDef {
   type2?: Type2 | null;
   cast?: Cast | null;
   cast2?: Cast | null;
-  active?: boolean;
+  /** This cast is the resonator leaving the field — an Outro, the swap markers below, an echo's
+   *  `swap()` form. What `lostOnSwap()` fires on, and never an on-field row for `isActive()`. */
+  swapOut?: boolean;
   node?: Node | null;
   scaling?: Scaling | null;
   mv?: number;
@@ -108,11 +111,11 @@ export interface ActionDef extends GearDef {
  *  `import type`, which is what keeps the two modules from being a load-order cycle. */
 export class Action extends Gear {
   element: Attribute | null;
-  type: Type1 | null;
+  type1: Type1 | null;
   type2: Type2 | null;
   cast: Cast | null;
   cast2: Cast | null;
-  active: boolean;
+  swapOut: boolean;
   node: Node | null;
   scaling: Scaling | null;
   mv: number;
@@ -138,11 +141,11 @@ export class Action extends Gear {
   constructor(name: string, def: ActionDef = {}) {
     super({ ...def, name });
     this.element = def.element ?? null;
-    this.type = def.type ?? null;
+    this.type1 = def.type ?? null;
     this.type2 = def.type2 ?? null;
     this.cast = def.cast ?? null;
     this.cast2 = def.cast2 ?? null;
-    this.active = def.active ?? true;
+    this.swapOut = def.swapOut ?? false;
     this.node = def.node ?? null;
     this.scaling = def.scaling ?? null;
     this.mv = def.mv ?? 0;
@@ -180,7 +183,7 @@ export class Action extends Gear {
   dodgeCancel(): Action {
     const d = this.def;
     return new Action(`${this.name} (Cancelled)`, {
-      cast: d.cast, cast2: d.cast2, active: d.active,
+      cast: d.cast, cast2: d.cast2, swapOut: d.swapOut,
       combatStart: d.combatStart, updateDebuffs: d.updateDebuffs, updateGlobal: d.updateGlobal,
       // the dodge is queued ahead of the hook, so it resolves before anything the cancelled
       // press itself queues — the dash is what interrupts the cast, not something trailing it
@@ -197,9 +200,9 @@ export class Action extends Gear {
   }
 
   /** The same cast made on the way out, named "… (Swap)" — identical in every field, but
-   *  inactive (its owner is off field by the time it lands) and reported as triggered. */
+   *  a swap-out (its owner is leaving the field as it lands) and reported as triggered. */
   swap(): Action {
-    return this.variant(`${this.name} (Swap)`, { triggered: true, active: false });
+    return this.variant(`${this.name} (Swap)`, { triggered: true, swapOut: true });
   }
 }
 
@@ -296,7 +299,7 @@ export const INTRO = new Action("Intro Placeholder", {
  *  under all three, reported as triggered; a TRANSFORM is a press of the resonator's own and the
  *  three differ — ECHO_ONFIELD is the full cast, ECHO_CANCEL the cast dash-cancelled before it lands
  *  (its effects, none of its hit), and ECHO_SWAP the cast made on the way out: `Action.swap()`'s
- *  inactive triggered form, resolved right where it stands rather than deferred anywhere. The
+ *  swap-out triggered form, resolved right where it stands rather than deferred anywhere. The
  *  plain "cast it in the middle of the rotation" case. */
 export const ECHO_ONFIELD = new Action("Echo Placeholder (on field)", {
   resolve: () => {
@@ -343,12 +346,12 @@ export const OUTRO = new Action("Outro Placeholder");
 /** The row a plain swap reports as: between the opening scramble's sections and out of a swap-form
  *  DOUBLE_INTRO section the scheduler emits it itself; a kit writes it only to close a
  *  start-of-combat section, where the normal loop drops it entirely — the swap is the scramble's,
- *  not the rotation's. Zero damage, and inactive, so every "lost on swap" buff the outgoing
+ *  not the rotation's. Zero damage, and a swap-out, so every "lost on swap" buff the outgoing
  *  resonator holds drops exactly as it would on an Outro (context.ts's own `lostOnSwap()`). */
-export const SWAP = new Action("Swap", { active: false, triggered: true });
+export const SWAP = new Action("Swap", { swapOut: true, triggered: true });
 
 /** Filler a kit writes into a chain body where the player dodges or jumps mid-rotation: no
- *  damage, no gauges, still an active row, reported as triggered. DODGE is also what every
+ *  damage, no gauges, an ordinary on-field row, reported as triggered. DODGE is also what every
  *  `Action.dodgeCancel()` form queues behind itself — the dash that cancels the cast. */
 export const DODGE = new Action("Dodge", { triggered: true });
 export const JUMP = new Action("Jump", { triggered: true });
@@ -480,9 +483,10 @@ export class Rotation {
  * chains all the way — an Outro hands the field on, whoever it lands on runs theirs — until every
  * section is filled.
  *
- * A section closes on the *last* slot's own Outro, which is one full trip round the team; anything
- * that resolves after that row (a follow-up the outro itself queued) opens the next section rather
- * than closing this one. `sections` is how many to fill: the report's Opener and Loop 1-3.
+ * A section closes on the Intro the *last* slot's own Outro hands into — one full trip round the
+ * team, ending where the next begins. The outro's own follow-ups, that Intro, and whatever the
+ * Intro itself queued all belong to the section they close; the first rotation cast of the visit
+ * opens the next one. `sections` is how many to fill: the report's Opener and Loop 1-3.
  */
 export function runRotations(state: State, rotations: Rotation[], sections: number): ResolvedSnapshot[][] {
   // a swap-form double Intro bounces to the previous slot's NOINTRO chain — checked up front, per
@@ -502,6 +506,41 @@ export function runRotations(state: State, rotations: Rotation[], sections: numb
   // their first, where the scramble already spent it. `scrambled` is who the scramble actually
   // visited, filled in below.
   const visited = new Set<number>(), scrambled = new Set<number>();
+
+  // The section the last slot has just outro'd out of stays open for the Intro that outro
+  // triggers: `closing` says the next rows to land are that Intro's, and `place()` cuts there —
+  // after the Intro row and every follow-up it queued (evaluate.ts's own `queued`), so the next
+  // section opens on the visit's first rotation cast. A visit that opens on something other than
+  // an Intro (never, in practice) closes the section on the cut it used to: nothing carried over.
+  let closing = false;
+  // How many frames are waiting for the field to come back for a main visit of their own (see
+  // `visit()`), and a section-closing trip that finished while one was. The last slot's own outro
+  // is what ends a trip round the team, but its visit can run *inside* another slot's wait — the
+  // DPS half of a double-Intro pair, whose partner still owes a main visit — and cutting there
+  // would leave that partner's own visit to open the next section. So it is held until the wait
+  // it ran inside is over.
+  let awaiting = 0, closePending = false;
+  // Which slots have had their own visit this trip round the team, and which slot the trip opened
+  // on. A double-Intro pair spends its pre-visits *inside* the trip, so the field can come back to
+  // a slot that is already done with — it steps over that slot rather than giving it a second
+  // visit, and the trip begins again when it reaches the one that opened it.
+  const doubled = new Set<number>(), mained = new Set<number>();
+  let cycleStart = 0;
+  const place = (snaps: ResolvedSnapshot[]): void => {
+    // nothing past the last section: a visit that runs two chains (a double-Intro pre-visit and
+    // then its own) can close the final section on the first and still place the second
+    if (section >= sections) return;
+    if (!closing) { out[section]!.push(...snaps); return; }
+    let cut = 0;
+    if (snaps.length && isCast(snaps[0]!.action, Cast.Intro)) {
+      cut = 1;
+      while (cut < snaps.length && snaps[cut]!.queued) cut++;
+    }
+    out[section]!.push(...snaps.slice(0, cut));
+    section++;
+    closing = false;
+    if (section < sections) out[section]!.push(...snaps.slice(cut));
+  };
 
   const runChain = (i: number, chain: Chain): void => {
     state.active = i;
@@ -528,17 +567,17 @@ export function runRotations(state: State, rotations: Rotation[], sections: numb
       if (inStart.length && inStart.includes(i) && skipStart) continue;
       casts.push(a);
     }
+    // a trip round the team is its members' own visits; a pre-visit is an extra, not one of them
+    if (chain.entry !== DOUBLE_INTRO) { if (!mained.size) cycleStart = i; mained.add(i); }
     const list = chain.entry === INTRO || chain.entry === DOUBLE_INTRO ? [INTRO, ...casts, outro] : [...casts, outro];
     const snaps = run(state, list);
     state.outroDir = 1;
-    // a double-Intro visit never closes a trip round the team — its owner's main outro does
-    if (i !== last || chain.entry === DOUBLE_INTRO) { out[section]!.push(...snaps); return; }
-    // one full trip round the team is done: cut at the outro row itself, so whatever it queued
-    // lands in the section it actually belongs to
-    const cut = snaps.findIndex((s) => s.action === outro) + 1;
-    out[section]!.push(...snaps.slice(0, cut));
-    section++;
-    if (section < sections) out[section]!.push(...snaps.slice(cut));
+    place(snaps);
+    // one full trip round the team is done — the Intro this outro hands into closes the section
+    // (see `place()`). A double-Intro visit never closes one: its owner's main outro does.
+    if (i === last && chain.entry !== DOUBLE_INTRO) {
+      if (awaiting) closePending = true; else closing = true;
+    }
   };
 
   // the fight's own first seconds — everyone who declares a section for them, in team order, each
@@ -562,33 +601,89 @@ export function runRotations(state: State, rotations: Rotation[], sections: numb
   runChain(0, opener);
 
   // Whose double-Intro pre-visit has already run this cycle — set when it plays, cleared by the
-  // owner's own main-Intro visit, so the next cycle round runs it again.
-  const doubled = new Set<number>();
+  // owner's own main-Intro visit, so the next cycle round runs it again. `mained` is the same for
+  // the main visit, and only ever read by the frame that just handed the field away (see below).
+  // Which slot a pre-visit just handed the field back to, for the visit it hands into: what that
+  // visit owes the field back to in turn, if it has a pre-visit of its own (Suoming behind a
+  // double-Intro DPS — his pre-visit hands to her, hers hands straight back to him).
+  let handedBack: number | null = null;
   const visit = (i: number): void => {
+    const from = handedBack;
+    handedBack = null;
     // A double-Intro pre-visit fires on the arrival *before* its owner: the outro that landed
     // here was really theirs. Swap form: their Intro and section casts, a plain swap back, and
     // this slot's NOINTRO chain fills the field until its own outro hands forward for the main
     // Intro. Outro form: their section leaves on a real outro back here, and this slot plays its
     // whole normal visit in between instead.
     const nxt = (i + 1) % rotations.length;
-    const d = rotations[nxt]!.doubleIntro;
+    // Already played this trip: the field passes straight through — its partner in a double-Intro
+    // pair is still owed a visit and is who it is really on its way to. Back at the slot the trip
+    // opened on with every other slot played, the trip is over and the next one starts here.
+    if (mained.has(i)) {
+      if (i !== cycleStart || mained.size < rotations.length) { state.active = nxt; return; }
+      mained.clear();
+    }
+    // Who this visit owes the field back to, if it turns out to be a pre-visit of its own: the
+    // previous slot, whose forward outro is the ordinary way the field arrives here — or the
+    // *next* slot instead, when what arrived was their own pre-visit's backward hand.
+    let giver = from ?? (i + rotations.length - 1) % rotations.length;
+    // Pre-visits belong behind the trip's own opening visit — a fresh trip plays that first, and
+    // only then does the pair fire, from the last slot back (a 3rd member's pre-visit hands to the
+    // 2nd, whose own hands straight back to them).
+    const d = mained.size && !mained.has(nxt) ? rotations[nxt]!.doubleIntro : undefined;
     if (d && !doubled.has(nxt)) {
       doubled.add(nxt);
       if (d.exit === OUTRO) {
         runChain(nxt, d); // its outro hands straight back here; fall through to the normal visit
+        giver = nxt;
       } else {
         state.active = nxt;
         // the swap back is the scheduler's own row, same as the opening scramble's: a real Swap
         // row in the table, so whatever the section's last cast queued lands before it
-        out[section]!.push(...run(state, [INTRO, ...d.body, SWAP]));
+        place(run(state, [INTRO, ...d.body, SWAP]));
         state.active = i;
         runChain(i, rotations[i]!.opener!); // the NOINTRO fill; its outro hands forward
         return;
       }
     }
+    // A pre-visit of this slot's own, still to play — either arrived at directly (the first cycle,
+    // before anyone has arrived *before* them: Jinhsi leading off slot 2 behind a Suoming who
+    // answers her Unison outro), or handed the field by the pre-visit just run above, which is
+    // Suoming's own shape: the slot behind her opens, she leaves on her Unison outro straight
+    // back to them, and their whole visit runs before her main Intro below. Outro form only.
+    const own = mained.size ? rotations[i]!.doubleIntro : undefined;
+    let waited = false;
+    if (own && own.exit === OUTRO && !doubled.has(i)) {
+      doubled.add(i);
+      runChain(i, own);
+      // ...and the field goes back the way it came, whatever direction that is, until it works
+      // its way round to this slot again — which is when the main Intro below is due. The giver's
+      // own visit may bring it straight back (the ordinary Jinhsi shape) or hand it on around the
+      // rest of the team first; either way this waits for it rather than assuming.
+      handedBack = i;
+      state.active = giver;
+      mained.delete(i);
+      awaiting++;
+      waited = true;
+      while (state.active !== i && !mained.has(i) && section < sections) visit(state.active);
+      awaiting--;
+      // the trip round played this slot's own main visit on the way (a DPS whose pre-visit hands
+      // to a sub-DPS: hers hands straight back, and his main visit runs inside her wait) — there
+      // is no second one to play
+      if (mained.has(i)) { closeIfPending(); return; }
+    }
     doubled.delete(i);
     runChain(i, rotations[i]!.intro);
+    if (waited) closeIfPending();
   };
+
+  /** The trip that ended inside this slot's own wait ends here instead, now that its main visit
+   *  has run — the section closes on whoever intros next, as it would have anyway. */
+  function closeIfPending(): void {
+    if (awaiting || !closePending) return;
+    closePending = false;
+    closing = true;
+  }
 
   let guard = 0;
   while (section < sections) {

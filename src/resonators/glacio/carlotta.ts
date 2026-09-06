@@ -124,7 +124,7 @@ const Intro = carlottaAction("Intro - Wintertime Aria", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 298.23, energy: 10, concerto: 10, offtune: 9335, forte2: 30, forte1: 3,
 });
 /** No handoff buff of any kind is described on her own kit page — left as a plain damage hit. */
-const Outro = carlottaAction("Outro - Closing Remark", { cast: Cast.Outro, type: Type1.Outro, mv: 794.2, concerto: -100, active: false });
+const Outro = carlottaAction("Outro - Closing Remark", { cast: Cast.Outro, type: Type1.Outro, mv: 794.2, concerto: -100, swapOut: true });
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -184,7 +184,7 @@ const FINAL_BOW = new Buff({
     if (a === Lib1 || a === DeathKnell || a === FatalFinale) addStat(Stat.MulMv, 80);
   },
   convertStats: () => {
-    if (isHeld(TWILIGHT_TANGO) && !currentAction().active) revokeCurrent(FINAL_BOW);
+    if (isHeld(TWILIGHT_TANGO) && currentAction().swapOut) revokeCurrent(FINAL_BOW);
   },
 });
 
@@ -206,7 +206,7 @@ const CL_S2 = new Sequence({
 
 /** S3: one more strike at the end of Closing Remark — 1032.18% ATK, queued behind the outro on her
  *  own slot — and +93% multiplier on Art of Violence and Chromatic Splendor. */
-const Sparks = carlottaAction("Outro - Kaleidoscope Sparks", { type: Type1.Outro, mv: 1032.18, active: false });
+const Sparks = carlottaAction("Outro - Kaleidoscope Sparks", { type: Type1.Outro, mv: 1032.18 });
 const CL_S3 = new Sequence({
   name: "Carlotta S3: Adelante, Cortado, Spinning in Grace",
   applyStats: () => { const a = currentAction(); if (a === Skill1 || a === Skill2) addStat(Stat.MulMv, 93); },
@@ -216,7 +216,7 @@ const CL_S3 = new Sequence({
 /** S4: any of her three Heavy Attacks gives the whole team +25% Resonance Skill DMG Bonus for 30s —
  *  "all Resonators in the team", so it pays off-field too, and long enough to be permanent. */
 const FINEST_WINE = new Buff({
-  name: "Carlotta S4: Yesterday's Raindrops Make Finest Wine (team)",
+  name: "Carlotta S4: Yesterday's Raindrops Make Finest Wine",
   applyStats: () => addStat(Stat.DmgBonus, 25, Type1.Skill),
 });
 const CL_S4 = new Sequence({

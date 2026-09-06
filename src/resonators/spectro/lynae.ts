@@ -35,7 +35,7 @@ import {
 } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, SWAP, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
-import { applyRupture, applyStrain, TUNE_STRAIN_INTERFERED, tuneRuptureResponse, tuneStrainBonus } from "../../shared/tunebreak.js";
+import { applyRupture, applyStrain, TUNE_STRAIN_INTERFERED, TUNE_STRAIN_RESPONDER, tuneRuptureResponse } from "../../shared/tunebreak.js";
 import { SPECTRUM_BLASTER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { HYVATIA, NEONLIGHT_LEAP_5PC, REEL_5PC, VOIDWING_MOTH } from "../../echoes/lahairoi.js";
@@ -90,7 +90,7 @@ const VividTomorrow = lynaeAction("Basic - To a Vivid Tomorrow!", { node: Node.N
 
 const Intro = lynaeAction("Intro - Time to Show Some Colors!", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 224.8, energy: 13.4, concerto: 22, offtune: 10640,forte1:100 });
 const Outro = lynaeAction("Outro - Let's Hit the Road!", {
-  cast: Cast.Outro, type: Type1.Outro, mv: 100, concerto: -100, active: false,
+  cast: Cast.Outro, type: Type1.Outro, mv: 100, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(LYNAE_OUTRO),
 });
 
@@ -120,8 +120,7 @@ const MODE_STRAIN = new ResonanceMode({
   name: "Resonance Mode - Tune Strain",
   // her kit raises the target's Tune Strain - Interfered limit by 1 on top of the base 1
   updateDebuffs: () => { if (inflictsFlux(currentAction())) applyStrain(); },
-  combatStart: () => maxStackIncrease(TUNE_STRAIN_INTERFERED, 1),
-  lateConvertStats: () => tuneStrainBonus(),
+  combatStart: () => { maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(TUNE_STRAIN_RESPONDER, 1); },
 });
 
 /* ------------------------------------------------------------------------------------- buffs */

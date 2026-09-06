@@ -45,7 +45,7 @@ const Intro = sanhuaAction("Intro - Freezing Thorns", {
   updateBuffs: () => applyCurrent(THORN_BUFF, 1),
 });
 const Outro = sanhuaAction("Outro - Silversnow", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(SANHUA_OUTRO),
 });
 

@@ -183,7 +183,7 @@ const Intro = yangyangAction("Intro - Skybound Feather", {
   updateDebuffs: () => applyEnemy(HAVOC_BANE, 1),
 });
 const Outro = yangyangAction("Outro - As the Wind Wills", {
-  cast: Cast.Outro, type: Type1.Outro, mv: 300, concerto: -100, active: false,
+  cast: Cast.Outro, type: Type1.Outro, mv: 300, concerto: -100, swapOut: true,
   updateBuffs: () => applyTeam(TONAL_SWITCH, 1),
 });
 

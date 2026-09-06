@@ -29,7 +29,7 @@ import { ActionGroup, Action, Rotation, START_1, START_2, START_3, SWAP, NOINTRO
 import { HEALS } from "../../shared/status.js";
 import { SK_SIG } from "../../weapons/rectifier.js";
 import { VARIATION } from "../../weapons/standard.js";
-import { REJUV_5PC } from "../../echoes/jinzhou.js";
+import { BELL_BORNE_GEOCHELONE, HERON, MOONLIT_CLOUDS_5PC, REJUV_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
@@ -89,7 +89,7 @@ const EIntro = skAction("Intro - Discernment", {
 
 /** Puts Binary Butterfly on the team, so amplification starts with whoever she hands the field to. */
 const Outro = skAction("Outro - Binary Butterfly", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => applyTeam(SK_OUTRO, 1),
 });
 
@@ -264,8 +264,12 @@ export const SHOREKEEPER = new Loadout({
   inherent1: SK_INHERENT_1,
   inherent2: SK_INHERENT_2,
   weapons: [SK_SIG, VARIATION],
-  echoLoadouts: [new EchoLoadout(FALLACY, REJUV_5PC),
-    new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC),],
+  echoLoadouts: [
+    new EchoLoadout(FALLACY, REJUV_5PC),
+    new EchoLoadout(SPACETREK_EXPLORER, STARRY_RADIANCE_5PC),
+    //new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC),
+    //new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
+  ],
   sequences: [SK_S1, SK_S2, SK_S3, SK_S4, SK_S5, SK_S6],
   mainstats: [mainstats(Mainstat.HP4, Mainstat.ER3, Mainstat.ER3, Mainstat.HP1, Mainstat.HP1)],
   substat: chem("hp", "liberation"),

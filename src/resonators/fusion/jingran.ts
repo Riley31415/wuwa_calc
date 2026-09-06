@@ -98,7 +98,7 @@ const Intro = jingranAction("Intro - Question the Tombs", {
   },
 });
 const Outro = jingranAction("Outro - Rising Fortune and Ebbing Evil", {
-  cast: Cast.Outro, type: Type1.Outro, mv: 795, concerto: -100, active: false,
+  cast: Cast.Outro, type: Type1.Outro, mv: 795, concerto: -100, swapOut: true,
   updateBuffs: () => { revokeCurrent(JINGRAN_FORTUNE); setForte2(0); },
 });
 
@@ -230,7 +230,7 @@ const JINGRAN_RESONATOR = new Resonator({
   weapon: WeaponType.Broadblade,
   intro: () => Intro,
   outro: () => Outro,
-  color: "#f2603c",
+  color: "#f2c13c",
   maxEnergy: 125,
 
   // Nether to Light/Yang Changes, Yin Unites are Forte Circuit-scoped, not Inherent Skills —

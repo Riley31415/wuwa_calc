@@ -101,7 +101,7 @@ const Intro = chisaAction("Intro - Reverberance - Return", {
   updateBuffs: () => revokeTeam(RESONANT_THREAD_OF_CLOSURE),
 });
 const Outro = chisaAction("Outro - Unraveling - Law Zero", {
-  cast: Cast.Outro, active: false, concerto: -100,
+  cast: Cast.Outro, swapOut: true, concerto: -100,
   updateBuffs: () => applyTeam(RESONANT_THREAD_OF_CLOSURE, 1)
 });
 

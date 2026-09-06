@@ -6,7 +6,7 @@
  * Heart Sword Intent for Heaven's Reckoning, which spends it and ends the state.
  *
  * Every damaging cast of hers lays Tune Strain - Shifting (once per skill per target — once per
- * cast here), she responds to Strain like Lynae/Mornye/Denia (tuneStrainBonus) and raises the
+ * cast here), she responds to Strain like Lynae/Mornye/Denia (TUNE_STRAIN_RESPONDER) and raises the
  * Interfered cap by 1. Mindlock is her own enemy debuff: +1 per Tune Strain - Interfered the team
  * inflicts (+1 more against an Overlord/Calamity target — assumed: the standing target is a boss),
  * +3 off Heavy Attack - Stringblade under Heaven's Clarity, plus Gathered Mind's own opening
@@ -52,7 +52,7 @@ import {
 } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, START_3, SWAP } from "../../engine/rotation.js";
-import { applyStrain, TUNE_BREAK, TUNE_STRAIN_SHIFTING, TUNE_STRAIN_INTERFERED, tuneStrainBonus } from "../../shared/tunebreak.js";
+import { applyStrain, TUNE_BREAK, TUNE_STRAIN_SHIFTING, TUNE_STRAIN_INTERFERED, TUNE_STRAIN_RESPONDER } from "../../shared/tunebreak.js";
 import { BLAZING_BRILLIANCE, GLINT_OF_CLOUDS, RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS, NEW_STD_SWORD } from "../../weapons/standard.js";
 import { CALAMITY_EFFIGY, HEART_OF_EVILS_PURGE_5PC } from "../../echoes/mengzhou.js";
@@ -137,7 +137,7 @@ const Intro = qxAction("Intro - Tonality Shift", {
   updateBuffs: () => applyCurrent(RESONANT_CHIME, 1),
 });
 /** Lingering Song: a real 800% Aero hit on the way out. */
-const Outro = qxAction("Outro - Lingering Song", { cast: Cast.Outro, type: Type1.Outro, mv: 800, concerto: -100, active: false });
+const Outro = qxAction("Outro - Lingering Song", { cast: Cast.Outro, type: Type1.Outro, mv: 800, concerto: -100, swapOut: true });
 
 /* ------------------------------------------------------------------------------------- buffs */
 
@@ -253,7 +253,7 @@ const QINGXIAO_RESONATOR = new Resonator({
   // Draw and Sunder: "while Qingxiao is in the team"; Heaven's Clarity and Formless Heart Sword
   // are up from the first action
   combatStart: () => {
-    maxStackIncrease(TUNE_STRAIN_INTERFERED, 1);
+    maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(TUNE_STRAIN_RESPONDER, 1);
     applyCurrent(HEAVENS_CLARITY, 1);
   },
 
@@ -271,8 +271,6 @@ const QINGXIAO_RESONATOR = new Resonator({
     const interfered = applied(TUNE_STRAIN_INTERFERED);
     if (interfered) applyEnemy(MINDLOCK, interfered);
   },
-
-  lateConvertStats: () => tuneStrainBonus(),
 
   constantStats: () => {
     addStat(Stat.BaseHp, 10300); addStat(Stat.BaseAtk, 462.5); addStat(Stat.BaseDef, 1112.22);

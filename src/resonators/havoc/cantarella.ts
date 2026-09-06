@@ -10,6 +10,7 @@ import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   isType,
+  isHeld,
   applyCurrent,
   applyTeam,
   currentAction,
@@ -28,7 +29,7 @@ import {
   setConcerto,
 } from "../../engine/context.js";
 import { coordinatedBuff, lostOnSwap, matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ActionField } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ActionField, ECHO_SWAP } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, STRINGMASTER, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
@@ -55,7 +56,9 @@ const EHA = cantaAction("Heavy - Delusive Dive", {
 
 const FBA1 = cantaAction("Forte Basic - Phantom Sting 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 105.99, energy: 1.35, concerto: 2.67, offtune: 4266, forte1: -1, forte2: 1 }); // 35.33%x3
 const FBA2 = cantaAction("Forte Basic - Phantom Sting 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 125.86, energy: 1.6, concerto: 3.18, offtune: 5064, forte1: -1, forte2: 1 }); // 62.93%x2
-const FBA3 = cantaAction("Forte Basic - Phantom Sting 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, type2: Type2.Coordinated, mv: 258.48, energy: 3.28, concerto: 6.52, offtune: 10400, forte1: -1, forte2: 1 }); // 64.62%x4
+const FBA3 = cantaAction("Forte Basic - Phantom Sting 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 258.48, energy: 3.28, concerto: 6.52, offtune: 10400, forte1: -1, forte2: 1,
+  updateBuffs: () => dreamweavers(StingDreamweaver),
+}); // 64.62%x4
 
 const Skill = cantaAction("Skill - Graceful Step", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 147.2, energy: 1.56, concerto: 10, offtune: 4936, forte1: 1 }); // 73.60%x2
 const ESkill = cantaAction("Skill - Flickering Reverie", {
@@ -75,14 +78,30 @@ const Liberation = cantaAction("Liberation - Beneath the Sea", {
 /** One Diffusion tick — a real Coordinated Attack, summoned one per qualifying action by
  *  DIFFUSION_WINDOW below, always on her own slot however far the field has moved on. */
 const DIFFUSION_FIELD = new ActionField("Cantarella: Diffusion");
-const ACTION_DIFFUSION = cantaAction("Liberation - Diffusion", { node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 14.54, active: false, field: DIFFUSION_FIELD }); // no energy/concerto/off-tune of its own
+const ACTION_DIFFUSION = cantaAction("Liberation - Diffusion", { node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 14.54, field: DIFFUSION_FIELD }); // no energy/concerto/off-tune of its own
+
+/** The three Coordinated Attacks Tidal Surge and Phantom Sting Stage 3 each set off on hit — one
+ *  Dreamweaver apiece, the same 14.54% the Liberation's own Diffusion summons. They are her own
+ *  press's follow-up rather than that window's, so they carry neither its field nor its stacks;
+ *  one action per trigger, so the report names each run after the cast it came off. */
+const DREAMWEAVER = { type: Type1.Basic, type2: Type2.Coordinated, mv: 14.54 };
+const IntroDreamweaver = cantaAction("Intro - Dreamweaver", { node: Node.Liberation, ...DREAMWEAVER });
+const StingDreamweaver = cantaAction("Basic - Dreamweaver", { node: Node.Liberation, ...DREAMWEAVER });
+function dreamweavers(tick: Action): void { for (let i = 0; i < 3; i++) queue(tick); }
 
 const Intro = cantaAction("Intro - Ripple", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 169, energy: 3.16, concerto: 10, offtune: 10120, forte1: 1, // 42.25%x4
   updateBuffs: () => applyCurrent(ABYSSAL_REBIRTH, 6),
 });
+/** Tidal Surge: the Intro she casts while Mirage still stands. Same motion value as Ripple, and
+ *  three Coordinated Attacks on top. Her Mirage runs 8s and is gone by her own outro, so nothing
+ *  in the loop below actually reaches this — it is what a quicker swap back in would cast. */
+const EIntro = cantaAction("Intro - Tidal Surge", {
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 169, energy: 3.16, concerto: 10, offtune: 10640, forte1: 1, // 16.90%x3+118.30%
+  updateBuffs: () => { applyCurrent(ABYSSAL_REBIRTH, 6); dreamweavers(IntroDreamweaver); },
+});
 const Outro = cantaAction("Outro - Gentle Tentacles", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(CANTARELLA_OUTRO),
 });
 
@@ -153,9 +172,9 @@ const CANTARELLA_RESONATOR = new Resonator({
   name: "Cantarella",
   element: Attribute.Havoc,
   weapon: WeaponType.Rectifier,
-  intro: () => Intro,
+  intro: () => (isHeld(MIRAGE) ? EIntro : Intro),
   outro: () => Outro,
-  color: "#7c6fd6",
+  color: "#896fd6",
   maxEnergy: 125,
 
   updateDebuffs: () => {
@@ -179,8 +198,8 @@ const CANTARELLA_TALENTS = new Talent({
 const FBA123 = new ActionGroup("Forte Basic - Phantom Sting 123", [FBA1, FBA2, FBA3]);
 
 const CA_ROTATION = new Rotation([
-  INTRO, BA3, Skill, ECHO_CANCEL,
-  Liberation, EHA, ESkill, FBA123, FSkill, OUTRO,
+  INTRO, BA3, Skill,
+  Liberation, EHA, ESkill, FBA123, FSkill, ECHO_SWAP, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

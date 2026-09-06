@@ -50,6 +50,15 @@ export function casting(cast: Cast): boolean {
   return isCast(ctx.act!, cast);
 }
 
+/** Is the action being evaluated an on-field one: the member acting is the resonator the scheduler
+ *  has on field (`State.onField`), and the action is not a swap-out (an Outro, a swap marker, an
+ *  echo's swap form). False on a follow-up landing on an off-field slot (a coordinated tick, a
+ *  status rung fired on its applier), true on one landing on the on-field slot's own. The *acting*
+ *  member, so inside updateGlobal it still asks about the action rather than the gear's holder. */
+export function isActive(): boolean {
+  return ctx.state!.slot === ctx.state!.slots[ctx.state!.onField] && !ctx.act!.swapOut;
+}
+
 /** Assign the action being evaluated a different damage type, for a kit whose state changes what a
  *  cast *counts as* rather than what it does — Denia's Breakdown Form hits becoming Resonance
  *  Liberation DMG while she holds Void Particle, Lucilla's Chafe mode making Clear As Day Basic
@@ -73,7 +82,7 @@ export function typeOverride(type: Type1 | Type2): void {
   else ctx.overrideType1 = type as Type1;
   // the same three tags `tagWordOf()` folds, with the assignment standing in for whichever slot
   // it claimed
-  ctx.tagWord = tagWord(a.element, ctx.overrideType1 ?? a.type, ctx.overrideType2 ?? a.type2);
+  ctx.tagWord = tagWord(a.element, ctx.overrideType1 ?? a.type1, ctx.overrideType2 ?? a.type2);
 }
 
 /** Is the action being evaluated this damage type — its own `type` or `type2`, or whichever of
@@ -82,7 +91,7 @@ export function typeOverride(type: Type1 | Type2): void {
  *  `currentAction().type` directly, so an assignment is seen by every check everywhere. */
 export function isType(type: Type1 | Type2): boolean {
   const a = ctx.act!;
-  return (ctx.overrideType1 ?? a.type) === type || (ctx.overrideType2 ?? a.type2) === type;
+  return (ctx.overrideType1 ?? a.type1) === type || (ctx.overrideType2 ?? a.type2) === type;
 }
 
 /** The same question about an action that isn't the one being evaluated — a snapshot's own, after

@@ -165,7 +165,7 @@ const Intro = lucyAction("Intro - Outdated Hallucination", {
   updateBuffs: () => applyCurrent(OUTDATED_HALLUCINATION, 1),
 });
 const Outro = lucyAction("Outro - Countermeasure Program", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => { queueOutro(COUNTERMEASURE_HANDOFF); applyTeam(COUNTERMEASURE_MARKER, 1); }
 });
 

@@ -58,7 +58,7 @@ export type Sources = Record<string, TraceEntry[]>;
 const keysFor = (action: Action, ...stats: (Stat | EnemyStat)[]): StatKey[] =>
   stats.flatMap((stat) => [
     stat,
-    ...[action.element, action.type, action.type2].filter((tag) => tag !== null)
+    ...[action.element, action.type1, action.type2].filter((tag) => tag !== null)
       .map((tag) => scopedStat(tag!, stat)),
   ]);
 
@@ -155,7 +155,7 @@ const actionInfo = (
   push("Scaling", action.scaling === null ? null : SCALING_NAME[action.scaling]);
   push("Type", type === null ? null : TAG_NAME[type]);
   push("Type 2", action.type2 === null ? null : TAG_NAME[action.type2]);
-  push("Active", String(action.active));
+  push("Swap out", String(action.swapOut));
   // Whether the engine counted this row as a follow-up rather than a rotation beat — the raw flag,
   // not "did something name itself below": a Tune Break or a summon echo is triggered with nobody to
   // credit, and reading false there would misdescribe what the engine actually did.
@@ -318,6 +318,10 @@ export const OFFTUNE_RATE = "Buildup Rate";
 /** Energy's own counterpart — the Energy Regen Multiplier section its panel carries. Same
  *  folded-group and blanking treatment as OFFTUNE_RATE everywhere both are read. */
 export const ENERGY_RATE = "Regen Multiplier";
+/** The MV panel's own multiplying half (Stat.MulMv) — Seal Master's own +40%, the Damage
+ *  Multipliers a matrix or a set's own 5pc adds — kept out of the section the base MV and
+ *  Stat.AddMv rows sum in, since the two do not foot to the same number. */
+export const MV_MULTIPLIER = "MV Multiplier";
 
 function rowValues(
   snap: ResolvedSnapshot,
@@ -508,29 +512,32 @@ function rowValues(
   // contribution, but it still deserves the same colour bar every other row in the panel gets.
   if (!raw.mv) delete sources.mv; // a no-motion-value cast prints a blank cell; nothing to explain
   else {
-    // The three parts do not all sum: `(base + added) x (1 + bonus) x (1 + special)`. The two
-    // multiplying halves are sorted after the adding ones so the panel reads in the order the
-    // formula applies and its rows reach the total it prints — but each row still shows its own
-    // raw percent (e.g. "80%"), not the `x1.8` factor it becomes in the formula: `mult: true` is
-    // for the overall damage-factors panel further down, where the value shown really is the
-    // final applied multiplier; here it would just restate the same 80% in a less readable form.
+    // The three parts do not all sum: `(base + added) x (1 + bonus) x (1 + special)`. The
+    // multiplying half gets its own section, under the adding one, so the panel reads in the
+    // order the formula applies without implying the two kinds of row foot to the same number —
+    // but each row still shows its own raw percent (e.g. "80%"), not the `x1.8` factor it
+    // becomes in the formula: `mult: true` is for the overall damage-factors panel further down,
+    // where the value shown really is the final applied multiplier; here it would just restate
+    // the same 80% in a less readable form.
     const isFactor = (r: TraceEntry) => r.stat !== undefined && splitStat(r.stat)[0] === Stat.MulMv;
     const parts = sources.mv ?? [];
     if (parts.length) buffed.add("mv");
     sources.mv = [
       { source: snap.action.name, label: "Base MV", value: snap.action.mv, percent: true, owner: snap.member },
       ...parts.filter((r) => !isFactor(r)),
-      ...parts.filter((r) => isFactor(r)),
+      ...parts.filter(isFactor).map((r) => ({ ...r, section: MV_MULTIPLIER })),
     ];
   }
 
-  // How much the build lifts the bare base stat: (flat + bonus% x base) / base, which is the
-  // same as (total - base) / base. It is the one number that says whether a piece of gear is
-  // worth more than another, and it cannot be read off the three sections separately.
-  for (const [key, [baseStat, bonusStat, flatStat]] of [
-    ["atk", [Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk]],
-    ["hp", [Stat.BaseHp, Stat.BonusHp, Stat.FlatHp]],
-    ["def", [Stat.BaseDef, Stat.BonusDef, Stat.FlatDef]],
+  // Each of the three sections ends on its own Total, and a fourth, "Final ATK", closes the panel
+  // with the stat itself and how far the build lifts it: (flat + bonus% x base) / base, which is
+  // the same as (total - base) / base — the one number that says whether a piece of gear is worth
+  // more than another, and it cannot be read off the three sections separately. The column owns
+  // no Total of its own (`noTotal`): that last section is where it ends.
+  for (const [key, word, [baseStat, bonusStat, flatStat]] of [
+    ["atk", "ATK", [Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk]],
+    ["hp", "HP", [Stat.BaseHp, Stat.BonusHp, Stat.FlatHp]],
+    ["def", "DEF", [Stat.BaseDef, Stat.BonusDef, Stat.FlatDef]],
   ] as const) {
     const traced = sources[key];
     if (!traced) continue;
@@ -539,13 +546,23 @@ function rowValues(
       .reduce((n, r) => n + r.value, 0);
     const base = sum(baseStat);
     if (!base) continue;
-    // `beforeTotal` puts it under the last of the three sections and above the panel's own Total —
-    // where the flat group's subtotal used to sit, and the only line any of the three now ends on.
-    sources[key] = [...traced, {
-      source: "", label: "Relative",
-      value: ((sum(flatStat) + (sum(bonusStat) / 100) * base) / base) * 100,
-      percent: true, place: "beforeTotal", digits: 2, summary: true,
-    }];
+    // a subtotal only under a section that is there: a build with no flat ATK has no Flat ATK
+    // group to close, and a Total of 0 under a heading with nothing above it explains nothing
+    const subtotal = (stat: Stat, percent: boolean): TraceEntry[] => (
+      traced.some((r) => r.stat !== undefined && splitStat(r.stat)[0] === stat)
+        ? [{ source: "", label: "Total", value: sum(stat), section: SECTION_OF[stat], percent, digits: percent ? 2 : 0, summary: true }]
+        : []);
+    const final = `Final ${word}`;
+    sources[key] = [
+      ...traced,
+      ...subtotal(baseStat, false), ...subtotal(bonusStat, true), ...subtotal(flatStat, false),
+      { source: "", label: "Total", value: snap[key], section: final, digits: 0, summary: true },
+      {
+        source: "", label: "Relative",
+        value: ((sum(flatStat) + (sum(bonusStat) / 100) * base) / base) * 100,
+        section: final, percent: true, digits: 2, summary: true,
+      },
+    ];
   }
 
   // A group row: `snap` is its last member, so everything above is already that cast's own — which
@@ -619,6 +636,9 @@ export interface Column {
    *  itself. The ignore column is the one that needs it: with no penetration on the hit, what it
    *  prints is the enemy's own shred and calling it DEF Ignore names a stat nobody has. */
   fullEmpty?: string;
+  /** A column whose panel carries no Total row of its own, ending on its last section instead —
+   *  atk/hp/def, whose "Final" section already closes on the figure (see `rowValues()`). */
+  noTotal?: boolean;
   align?: "left";
   digits?: number;
   percent?: boolean;
@@ -680,7 +700,7 @@ export function buildReport(
     // amount. atk/hp/def are not: they are totals in whole points, even though percent stats
     // fed them — and `def` is the resonator's own, not `effDef`'s enemy-side multiplier.
     { key: "mv", label: "mv%", digits: 2, percent: true, full: "Motion Value" },
-    { key: "atk", label: "atk" },
+    { key: "atk", label: "atk", noTotal: true },
     { key: "dmgBonus", label: "dmg%", digits: 1, percent: true, full: "Dmg Bonus" },
     { key: "amp", label: "amp%", digits: 1, percent: true, full: "Amplification" },
     { key: "cr", label: "cr%", digits: 1, percent: true, full: "Crit Rate" },
@@ -693,8 +713,8 @@ export function buildReport(
     { key: "effDef", label: "ignore%", digits: 1, percent: true, full: "DEF Ignore", fullEmpty: "DEF Shred" },
     { key: "effRes", label: "res%", digits: 1, percent: true, full: "Enemy RES" },
     { key: "er", label: "er%", digits: 1, percent: true, full: "Energy Regen" },
-    { key: "hp", label: "hp" },
-    { key: "def", label: "def" },
+    { key: "hp", label: "hp", noTotal: true },
+    { key: "def", label: "def", noTotal: true },
 
     // digits matches nanoka's own table precision: energy/concerto never need more than 2 decimal
     // places, offtune's own /10000 scale-down (RESOURCE_SCALE above) never needs more than 4 —

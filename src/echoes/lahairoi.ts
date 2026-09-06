@@ -222,7 +222,7 @@ export const STARRY_RADIANCE_5PC = new Sonata({
   },
 });
 export const STARRY_RADIANCE_TEAM = new Buff({
-  name: "Halo of Starry Radiance (team)",
+  name: "Halo of Starry Radiance",
   convertStats: () => {
     addStat(Stat.BonusAtk, Math.min(25, 0.2 * getStat(Stat.OfftuneBuildup)));
   }
@@ -347,14 +347,14 @@ export const VOIDWING_MOTH = new Mainslot({
 /** Reel of Spliced Memories, Voidwing Moth's own sonata. 2pc: +10% ATK flat. 5pc: the wearer
  *  inflicting Tune Rupture/Strain - Shifting grants the
  *  whole team +20 Tune Break Boost for 30s — permanent uptime, same name doesn't stack. The real
- *  stat, so tuneStrainBonus() and the damage formula's own tbbFactor both see it. */
+ *  stat, so the Strain payout and the damage formula's own tbbFactor both see it. */
 export const REEL_2PC = new Sonata2pc({ name: "Reel of Spliced Memories 2pc", constantStats: () => addStat(Stat.BonusAtk, 10) });
 export const REEL_5PC = new Sonata({
   name: "Reel of Spliced Memories 5pc",
   sonata2pc: REEL_2PC,
   updateBuffs: () => { if (appliedByMe(TUNE_RUPTURE_SHIFTING) || appliedByMe(TUNE_STRAIN_SHIFTING)) applyTeam(REEL_TEAM, 1); },
 });
-export const REEL_TEAM = new Buff({ name: "Reel of Spliced Memories (team)", applyStats: () => addStat(Stat.Tbb, 20) });
+export const REEL_TEAM = new Buff({ name: "Reel of Spliced Memories", applyStats: () => addStat(Stat.Tbb, 20) });
 
 /* ---------------------------------------------------------------- Rebecca and Lucy, the collab */
 

@@ -22,6 +22,7 @@ import {
   currentMember,
   currentTeam,
   frozenStacks,
+  isActive,
   queue,
   queueOn,
   removeStack,
@@ -36,16 +37,13 @@ import { TUNE_BREAK } from "./tunebreak.js";
 
 /* -------------------------------------------------------------------------------- lost on swap */
 
-/** Shortcut for a buff whose own kit text says "lost on swap" — revokes itself the moment the
- *  action being evaluated is inactive (the project's own standing convention: lost on swap =
- *  lost on inactive action). Call it from `updateBuffs()` if it should stop contributing before that
- *  same action's own stats apply, or from `convertStats()` if it should still pay out on it first —
- *  same choice as any other revoke, just this one condition spelled out once instead of copied at
- *  every call site. Only correct for a buff whose own holder has no *other* inactive action of
- *  their own (a queued coordinated-attack hit, say) that should leave it standing — one held by a
- *  resonator like that still needs its own explicit condition instead. */
+/** Shortcut for a buff whose own kit text says "lost on swap" — revokes itself on the action that
+ *  takes its holder off the field (`ActionDef.swapOut`: an Outro, a swap marker, an echo's swap
+ *  form). Call it from `updateBuffs()` if it should stop contributing before that same action's own
+ *  stats apply, or from `convertStats()` if it should still pay out on it first — same choice as any
+ *  other revoke, just this one condition spelled out once instead of copied at every call site. */
 export function lostOnSwap(): void {
-  if (!currentAction().active) revokeCurrent(currentGear() as Buff);
+  if (currentAction().swapOut) revokeCurrent(currentGear() as Buff);
 }
 
 /* ------------------------------------------------------------------------------------ handoffs */
@@ -96,7 +94,7 @@ export function handoff(name: string, applyStats: () => void): Buff {
 
 /* ------------------------------------------------------------------------------- the second */
 
-/** The clockless engine's second: one active, non-triggered press. Every timed thing here (a
+/** The clockless engine's second: one on-field, non-triggered press. Every timed thing here (a
  *  field's window, a status's tick clock) counts these off as its seconds.
  *
  *  Two presses are no second at all, because the world is frozen for their whole animation
@@ -105,7 +103,7 @@ export function handoff(name: string, applyStats: () => void): Buff {
  *  time says so itself (`ActionDef.realTime` — Carlotta's Death Knell, a second a shot). */
 export function oneSecondPassed(): boolean {
   const a = currentAction();
-  return a.active && !triggeredAction() && (!casting(Cast.Liberation) || a.realTime) && a !== TUNE_BREAK;
+  return isActive() && !triggeredAction() && (!casting(Cast.Liberation) || a.realTime) && a !== TUNE_BREAK;
 }
 
 /* ------------------------------------------------------------------------- coordinated windows */
@@ -185,7 +183,7 @@ export function coordinatedBuff(name: string, stacks: number, owner: (() => Reso
  *  rather than as a 0 the report would carry a row for. */
 export const matrix = (resonator: string, totalDmg: number, def: Omit<GearDef, "name" | "constantStats"> = {}): Matrix =>
   new Matrix({
-    name: `${resonator}: Matrix`,
+    name: `${resonator}: Matrix Buff`,
     constantStats: () => { if (totalDmg) addStat(Stat.TotalDmg, totalDmg / 1.2); },
     ...def,
   });

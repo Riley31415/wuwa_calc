@@ -23,6 +23,7 @@ import {
   queueOutro,
   queue,
   triggeredAction,
+  isActive,
 } from "../engine/context.js";
 import { Action, ActionField } from "../engine/rotation.js";
 import { applied } from "../engine/context.js";
@@ -111,7 +112,7 @@ export const REJUV_5PC = new Sonata({
   sonata2pc: REJUV_2PC,
   updateBuffs: () => { if (applied(HEALS)) applyTeam(REJUV_TEAM, 1); },
 });
-export const REJUV_TEAM = new Buff({ name: "Rejuvenating Glow (team)", applyStats: () => addStat(Stat.BonusAtk, 15) });
+export const REJUV_TEAM = new Buff({ name: "Rejuvenating Glow", applyStats: () => addStat(Stat.BonusAtk, 15) });
 
 /* ------------------------------------------------------------------------------- Changli, 1.1 */
 
@@ -276,7 +277,9 @@ export const SIERRA_GALE_INTRO = new Buff({
  *  has no resonator to name): every active, non-triggered action anywhere lands one 16% tick on
  *  the wearer's own slot, considered their Resonance Skill DMG, and while any stack remains they
  *  keep the +16% Resonance Skill DMG Bonus. The echo's own 20s cooldown means a rotation re-banks
- *  it about once a loop, so the bonus is live for the burst it was pressed for and gone after. */
+ *  it about once a loop, so the bonus is live for the burst it was pressed for and gone after.
+ *  A tick is an active row: it is the wearer's own hit, not a swap, so none of their "lost on
+ *  switching out" buffs (an outro handoff they just adopted) should drop on it. */
 export const ACTION_JUE = new Action("Echo - Jué", {
   cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Echo, mv: 48.64 * 2 + 19.46 * 5, energy: 0.76 * 2 + 0.3 * 5,
   updateBuffs: () => applyCurrent(JUE_BLESSING, 15),
@@ -285,7 +288,7 @@ export const ACTION_JUE = new Action("Echo - Jué", {
  *  `ActionField`); JUE_BLESSING below is the buff whose grant puts it out. */
 const JUE_FIELD = new ActionField("Jué: Blessing of Time");
 export const ACTION_JUE_TICK = new Action("Echo - Jué: Blessing of Time", {
-  element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Skill, mv: 16, active: false, field: JUE_FIELD,
+  element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Skill, mv: 16, field: JUE_FIELD,
 });
 export const JUE_BLESSING = coordinatedBuff("Jué: Blessing of Time", 15, null, ACTION_JUE_TICK, {
   applyStats: () => addStat(Stat.DmgBonus, 16, Type1.Skill),
@@ -345,7 +348,7 @@ export const LINGERING_TUNES_5PC = new Sonata({
   // the 1.5s cadence stands in for real on-field presses, so a queued follow-up, a status rung or
   // the shared Tune Break — active casts on the wearer's slot, but not them acting again — don't
   // advance it
-  updateBuffs: () => { if (!triggeredAction() && currentAction().active) applyCurrent(LINGERING_TUNES_STACKS, 1); },
+  updateBuffs: () => { if (!triggeredAction() && isActive()) applyCurrent(LINGERING_TUNES_STACKS, 1); },
 });
 export const LINGERING_TUNES_STACKS = new Buff({
   name: "Lingering Tunes", maxStacks: 8,
@@ -403,7 +406,7 @@ export const ACTION_FALLACY = new Action("Echo - Fallacy of No Return", {
   updateBuffs: () => applyTeam(FALLACY_TEAM, 1),
 });
 
-export const FALLACY_TEAM = new Buff({ name: "Fallacy of No Return (team)", applyStats: () => addStat(Stat.BonusAtk, 10) });
+export const FALLACY_TEAM = new Buff({ name: "Fallacy of No Return", applyStats: () => addStat(Stat.BonusAtk, 10) });
 
 export const FALLACY = new Mainslot({
   name: "Fallacy of No Return",

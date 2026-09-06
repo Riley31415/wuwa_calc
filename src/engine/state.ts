@@ -348,6 +348,9 @@ export class TeamMember {
 export class State {
   slots: TeamMember[];
   active = 0;
+  /** Who is really on field for the action being evaluated: `active` as the scheduler set it,
+   *  before `run()` swings `active` onto a queued follow-up's own slot. What `isActive()` reads. */
+  onField = 0;
   /** Which way the next Outro hands the field over: +1 for the ordinary handoff to the next
    *  resonator in team order, -1 for the outro closing a DOUBLE_INTRO section (rotation.ts). The scheduler
    *  sets it right before the outro is evaluated and puts it back to +1 straight after, so a

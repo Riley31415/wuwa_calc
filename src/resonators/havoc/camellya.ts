@@ -140,7 +140,7 @@ const Intro = camellyaAction("Intro - Everblooming", {
 });
 /** No handoff buff is described on her own kit page, unlike most other kits' outros — left as a
  *  plain damage hit. The Ephemeral-boosted variant isn't separately placed. */
-const Outro = camellyaAction("Outro - Twining", { cast: Cast.Outro, type: Type1.Outro, mv: 329.24, concerto: -100, active: false });
+const Outro = camellyaAction("Outro - Twining", { cast: Cast.Outro, type: Type1.Outro, mv: 329.24, concerto: -100, swapOut: true });
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -225,7 +225,7 @@ const CAMELLYA_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   intro: () => Intro,
   outro: () => Outro,
-  color: "#e0507a",
+  color: "#891c2b",
   maxEnergy: 125,
 
   // any gauge-spending cast of hers is a Crimson Pistil consumption
@@ -247,15 +247,26 @@ const CAMELLYA_TALENTS = new Talent({
 // fresh Concerto and opens Budding Mode, Liberation, Outro. She's never the team's own lead, so
 // this covers both opener and loop.
 
-const VW1234_16s = new ActionGroup("Basic - Vining Waltz 123H4", [VW1, VW2, VW3, BlazingWaltz.swap(), VW4.swap()]);
+const VW1234 = new ActionGroup("Basic - Vining Waltz 123H4", [VW1, VW2, VW3, BlazingWaltz, VW4]);
 const BA12345 = new ActionGroup("Basic - Burgeoning 1234H5", [BA1, BA2, BA3, BA4, BA5]);
+
+const CM_ROTATION_DOUBLE = new Rotation([
+  DOUBLE_INTRO, ECHO_ONFIELD,
+  HA, BA4, BA5.swap(), SWAP,
+  
+  INTRO,
+  Liberation, Ephemeral,
+  CrimsonBlossom, 
+  VW1234,
+  FloralRavage, OUTRO,
+]);
 
 const CM_ROTATION = new Rotation([
   INTRO, CrimsonBlossom, 
   BA12345,
   Liberation, Ephemeral,
-  VW1234_16s,
-  FloralRavage, OUTRO,
+  VW1234,
+  FloralRavage.swap(), OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -274,19 +285,6 @@ export const CAMELLYA = new Loadout({
   substat: chem("atk", "basic"),
     rotation: CM_ROTATION,
 });
-
-const VW1234 = new ActionGroup("Basic - Vining Waltz 123H4", [VW1, VW2, VW3, BlazingWaltz, VW4]);
-
-const CM_ROTATION_DOUBLE = new Rotation([
-  DOUBLE_INTRO, ECHO_ONFIELD, CrimsonBlossom, FloralRavage, 
-  HA, BA4, BA5.swap(), SWAP,
-  
-  INTRO,
-  Liberation, Ephemeral,
-  CrimsonBlossom, 
-  VW1234,
-  FloralRavage, OUTRO,
-]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 

@@ -72,7 +72,7 @@ const Liberation = rocciaAction("Liberation - Commedia Improvviso!", {
 
 const Intro = rocciaAction("Intro - Pero, Help", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 168.99, energy: 10, concerto: 10, offtune: 10824, forte1: 100 });
 const Outro = rocciaAction("Outro - Applause, Please!", {
-  cast: Cast.Outro, concerto: -100, active: false,
+  cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(APPLAUSE_HANDOFF),
 });
 
@@ -160,7 +160,7 @@ const RC_ROTATION = new Rotation([
 // iterated (see gear.ts's own EchoLoadout)
 /** Matrix: her Liberation grants the team +20% Havoc DMG Bonus for 30s — permanent. */
 const ROCCIA_MATRIX_TEAM = new Buff({
-  name: "Roccia: Matrix (team)",
+  name: "Roccia: Matrix Buff",
   applyStats: () => addStat(Stat.DmgBonus, 20, Attribute.Havoc),
 });
 const ROCCIA_MATRIX = matrix("Roccia", 20, {

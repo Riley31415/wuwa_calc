@@ -15,6 +15,7 @@ import {
   applyTeam,
   removeStack,
   isHeld,
+  isActive,
 } from "../engine/context.js";
 import { applied } from "../engine/context.js";
 import { lostOnSwap } from "../shared/helpers.js";
@@ -106,7 +107,7 @@ export const WILDFIRE_LIB_DMG = new Buff({
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(WILDFIRE_LIB_DMG); },
 });
 export const WILDFIRE_TEAM = new Buff({
-  name: "Wildfire Mark: Blazing Starfire (team)",
+  name: "Wildfire Mark: Blazing Starfire",
   applyStats: () => addStat(Stat.DmgBonus, 24, Attribute.Fusion),
 });
 export const WILDFIRE_MARK = new Weapon({
@@ -177,8 +178,8 @@ export const STARFIELD_CALIBRATOR = new Weapon({
   },
 });
 export const DEFINITE_SOLUTION = new Buff({
-  name: "Starfield Calibrator: Definite Solution (team)",
-  applyStats: () => { if (currentAction().active) addStat(Stat.CritDmg, 20); },
+  name: "Starfield Calibrator: Definite Solution",
+  applyStats: () => { if (isActive()) addStat(Stat.CritDmg, 20); },
 });
 export const DEFINITE_SOLUTION_CONCERTO = new Buff({
   name: "Starfield Calibrator: Definite Solution", maxStacks: 2,
@@ -217,6 +218,6 @@ export const THREAD_OF_FATE_STACKS = new Buff({
 });
 
 export const THREAD_OF_FATE_BONUS = new Buff({
-  name: "Kumokiri: Thread of Fate (team)",
+  name: "Kumokiri: Thread of Fate",
   applyStats: () => addStat(Stat.DmgBonus, 24),
 });
