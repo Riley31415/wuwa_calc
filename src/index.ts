@@ -3012,6 +3012,10 @@ function fitSide(): void {
   // ...and 10px between two columns, so two want 554 and three 836
   const cols = room >= 836 ? 3 : room >= 554 ? 2 : 1;
   for (const n of [1, 2, 3]) side.classList.toggle(`cols${n}`, n === cols);
+  // beside the table the aside is its own scroller (index.css's `.tcside`), no taller than the
+  // scrollport it sticks to — `clientHeight` is in the same page px as the style
+  const main = app.querySelector<HTMLElement>("main");
+  side.style.maxHeight = layout.classList.contains("stack") || !main ? "" : `${main.clientHeight}px`;
 }
 
 function renderComparison(): void {
@@ -3204,7 +3208,7 @@ function workerPool(): Worker[] | null {
  * listeners, since a worker only ever has one task at a time.
  */
 function solveOnWorkers(
-  workers: Worker[], teams: [string, Member[]][], onDone: () => void,
+  workers: Worker[], teams: [string, Member[]][], onDone: (members: Member[]) => void,
 ): Promise<void> {
   return new Promise((resolve) => {
     let next = 0, live = 0, id = 0;
@@ -3217,7 +3221,7 @@ function solveOnWorkers(
       const known = picksCache.get(picksKey(key, members, filters)) ?? null;
       const finish = (solved: Solved): void => {
         storeSolved(key, solved);
-        onDone();
+        onDone(members);
         pump(w);
       };
       w.onmessage = ({ data }: MessageEvent<SolveResponse>) => finish({ picks: data.picks, rows: data.rows, scores: data.scores });
@@ -3246,7 +3250,7 @@ function solveOnWorkers(
  *  share of the bar is fixed from the first frame instead of being scaled against just the teams,
  *  which would make the bar jump once `runMissing()` starts measuring against the real row count. */
 /** @returns whether anything was actually solved — false when every team's answer was in hand. */
-async function ensureBestPicks(inPlay: [string, Member[]][], workTotal: number): Promise<boolean> {
+async function ensureBestPicks(inPlay: [string, Member[]][], workTotal: number, rowsTotal: number): Promise<boolean> {
   // `bestKey()` folds in the whole filter state, so flipping any option box is a re-solve: a
   // solve carries the team's own row set with it, each row on the main stats that build wants
   // (solver.ts's own `rowPicks()`), and which rows exist is precisely what the boxes decide.
@@ -3258,9 +3262,15 @@ async function ensureBestPicks(inPlay: [string, Member[]][], workTotal: number):
   // teams already optimized under an earlier filter state start this partly filled rather than
   // counting up to a total smaller than the table it lands on
   let done = inPlay.length - teams.length;
+  // The count reads in rows, not teams: a team's solve is worth however many rows it will put in
+  // the table (`estimatedRowCount()`, the same figure `workTotal` was built from), so "4 / 11"
+  // over a long solve reads as the thousands of rows it is actually preparing — the bar's own
+  // width already measured it that way. Teams with no build at all contribute no rows.
+  const rowsOf = (members: Member[]): number => (members.every((m) => eligibleWeapons(m, filters).length) ? estimatedRowCount(members) : 0);
+  let rowsDone = inPlay.filter(([key, members]) => bestPicks.has(bestKey(key, members, filters))).reduce((sum, [, members]) => sum + rowsOf(members), 0);
   const progress = (): void => {
     overlayFill.style.width = `${(done / workTotal) * 100}%`;
-    overlayCount.textContent = `${fmt(done)} / ${fmt(inPlay.length)}`;
+    overlayCount.textContent = `${fmt(rowsDone)} / ${fmt(rowsTotal)}`;
   };
   progress();
 
@@ -3269,11 +3279,12 @@ async function ensureBestPicks(inPlay: [string, Member[]][], workTotal: number):
   done += teams.length - solvable.length;
 
   const pool = workerPool();
-  if (pool) await solveOnWorkers(pool, solvable, () => { done++; progress(); });
+  if (pool) await solveOnWorkers(pool, solvable, (members) => { done++; rowsDone += rowsOf(members); progress(); });
   else {
     for (const [key, members] of solvable) {
       storeSolved(key, solveTeam(key, members, filters, picksCache.get(picksKey(key, members, filters)) ?? null));
       done++;
+      rowsDone += rowsOf(members);
       progress();
       // no worker to hand this to, so the bar can only move if this thread lets go between teams
       await breathe();
@@ -3320,7 +3331,7 @@ async function refresh(): Promise<void> {
     const rowsTotal = solvableInPlay.reduce((sum, [, members]) => sum + estimatedRowCount(members), 0);
     const workTotal = inPlay.length + rowsTotal || 1; // guard: no team survives the resonator filters
 
-    const solved = await ensureBestPicks(inPlay, workTotal);
+    const solved = await ensureBestPicks(inPlay, workTotal, rowsTotal);
     saveSolves();
     const rows = teamRows();
     const cached = rows.filter((row) => results.has(row.key));
@@ -3634,6 +3645,13 @@ document.addEventListener("pointerdown", () => { pressing = true; }, true);
 document.addEventListener("pointerup", () => { pressing = false; }, true);
 document.addEventListener("click", (e) => {
   if ((e.target as Element).closest?.(".tcsearch")) return;
+  const box = document.getElementById("searchResults");
+  if (box) box.hidden = true;
+}, true);
+// beside the table the list is fixed (index.css) and would stay put while the aside scrolled the
+// input away from under it — so the aside scrolling closes it; a scroll doesn't bubble, so capture
+app.addEventListener("scroll", (e) => {
+  if (!(e.target as Element).classList?.contains("tcside")) return;
   const box = document.getElementById("searchResults");
   if (box) box.hidden = true;
 }, true);

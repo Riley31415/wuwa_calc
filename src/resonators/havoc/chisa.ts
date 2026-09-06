@@ -12,8 +12,8 @@
  *   under a different input, not a separate move
  * - likewise every Sawring Blitz "Dodge Counter"/"After Plunge" variant, which reads identically to
  *   the plain tap or the Hold it's a twin of
- * - "S1: Unseen Snare Fixed DMG" (a one-time 618.03% fixed hit) and "Wandering Through the Desolate
- *   Corridors" — both Sequence 1 only, out of scope per this project's sequence-0 baseline
+ * - Sequences 1-6 are modelled from nanoka's released 3.7.0 data — see their own block below; S4
+ *   (a shorter Bane cooldown on the Snare) has nothing to act on, since the Snare keeps no clock
  * - a generic "Tune Break Skill" entry every wuwalab character export carries — her weakness_mastery
  *   is 0 (confirmed against nanoka), so unlike the tune-break-era cast (Mornye, Lucy, ...) this isn't
  *   really *her* kit, the same call rover_havoc.ts already makes
@@ -57,11 +57,12 @@
  * at level 10 — both agree everywhere they overlap. weakness_mastery is 0: unlike the tune-break
  * era's resonators, she carries no flat Tbb of her own.
  */
-import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, Debuff, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
+import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Debuff, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   isType,
   addStat,
+  appliedByMe,
   applyCurrent,
   applyTeam,
   revokeTeam,
@@ -70,7 +71,10 @@ import {
   revokeCurrent,
   frozenStacks,
   applyEnemy,
+  isHeld,
+  queue,
   stacksOfEnemy,
+  stacksOfTeam,
   maxStackIncrease,
   setForte2,
   setForte1,
@@ -223,9 +227,12 @@ const ALL_ENDS_HERE = new Buff({
 
 /** Unseen Snare: an enemy marker, 30s (permanent uptime — Skill/Serrated Loop both refresh it every
  *  loop well inside that). While up, *any* hit that lands — watched globally, so a teammate's own
- *  hit counts too, not just Chisa's — inflicts a stack of the shared Havoc Bane debuff. */
+ *  hit counts too, not just Chisa's — inflicts a stack of the shared Havoc Bane debuff. The kit's
+ *  own once-every-2s on that is not kept (nor S4's once a second): the Bane's cap is reached
+ *  within the first visit either way. */
 const UNSEEN_SNARE = new Debuff({
   name: "Chisa: Unseen Snare",
+  display: () => `Chisa: Unseen Snare${stacksOfEnemy(SNARE_FINALITY) ? " - Finality" : ""}`,
   // The Bane is hers, not the swinging teammate's: applyEnemy() here inherits this marker's own
   // source (context.ts's `attribute()`), so an "on inflicting a Negative Status" passive worn by that
   // teammate — Kumokiri, Thread of Severed Fate — reads 0 for it and doesn't pay out. See
@@ -265,8 +272,87 @@ const RESONANT_THREAD_OF_CLOSURE = new Buff({
  *  Chisa's own specific Outro action, since any ally on the team could end up holding it. */
 const THREAD_OF_BANE = new Buff({
   name: "Chisa: Thread of Bane",
-  applyStats: () => { if (stacksOfEnemy(UNSEEN_SNARE) > 0) addStat(Stat.DefIgnoreNew, 18) },
+  applyStats: () => {
+    if (stacksOfEnemy(UNSEEN_SNARE) > 0) addStat(Stat.DefIgnoreNew, 18);
+    // S2: every holder of the Thread is +50% DMG Bonus while she has it
+    if (stacksOfTeam(WEB_OF_BONDS)) addStat(Stat.DmgBonus, 50);
+  },
 });
+
+/* --------------------------------------------------------------------------------- sequences */
+
+/** S1's own ATK: +30% for 15s off every Unseen Snare she lays — lost after the outro, like every
+ *  short self window here. */
+const DESOLATE_CORRIDORS = new Buff({
+  name: "Chisa S1: Wandering Through the Desolate Corridors",
+  applyStats: () => addStat(Stat.BonusAtk, 30),
+  convertStats: () => { if (currentAction() === Outro) revokeCurrent(DESOLATE_CORRIDORS); },
+});
+/** S1's one-off: 61,803 fixed Havoc DMG, Basic Attack DMG that reads no bonus at all, on the first
+ *  Snare a target ever takes. The 61.8% floor on the target's HP never binds against a boss. */
+const SnareStrike = chisaAction("Basic - Unseen Snare (S1)", { type: Type1.Basic, scaling: Scaling.Fixed, mv: 61803 });
+/** Whether that hit has already landed — once per target, which is once a fight here, so a marker
+ *  on her own slot rather than the target's. No `name`, so it never enters the held-buffs list. */
+const SNARE_STRUCK = new Buff({});
+const CS_S1 = new Sequence({
+  name: "Chisa S1: Wandering Through the Desolate Corridors",
+  updateBuffs: () => {
+    if (!appliedByMe(UNSEEN_SNARE)) return;
+    applyCurrent(DESOLATE_CORRIDORS, 1);
+    if (!isHeld(SNARE_STRUCK)) { applyCurrent(SNARE_STRUCK, 1); queue(SnareStrike); }
+  },
+});
+
+/** S2 on the team: what Thread of Bane reads for its +50% DMG Bonus (above). Her own half is 10%
+ *  Havoc RES ignored on everything she deals. */
+const WEB_OF_BONDS = new Buff({ name: "Chisa S2: Into the Web of Endless Bonds" });
+const CS_S2 = new Sequence({
+  name: "Chisa S2: Into the Web of Endless Bonds",
+  combatStart: () => applyTeam(WEB_OF_BONDS, 1),
+  constantStats: () => addStat(Stat.ResIgnore, 10, Attribute.Havoc),
+});
+
+/** S3: +120% DMG Multiplier on the Blitz chain and Eradication, and another +120% on Eradication
+ *  for the Ring it spends — read as the same flat add the first half is, on top of the per-point
+ *  bonus RING_CONSUMED already pays, since the text gives it as one figure rather than a rate.
+ *  Both stack with Woven Myriad - Convergence, which is simply a third add of its own. The
+ *  Vibration Strength half reaches no formula. */
+const CS_S3 = new Sequence({
+  name: "Chisa S3: Across the Confusion of the Long Night",
+  applyStats: () => {
+    const a = currentAction();
+    if ([Blitz1, Blitz2, Blitz2Discordance, Blitz2Hold, Blitz3, Blitz3Falltone, Blitz3Hold, Eradication].includes(a)) addStat(Stat.MulMv, 120);
+  },
+});
+
+/** S4 halves Unseen Snare's Bane cooldown, 2s to 1s — the Snare keeps no clock here (see above),
+ *  so nothing to change. Held for the name. */
+const CS_S4 = new Sequence({ name: "Chisa S4: Severing the Endless Cycle of Tragic Fate" });
+
+/** S5: +100% DMG Bonus on Moment of Nihility. Glide's cheaper Jetstream reaches no formula. */
+const CS_S5 = new Sequence({
+  name: "Chisa S5: Thousands of Lights to Guide the Way Home",
+  applyStats: () => { if (currentAction() === Liberation) addStat(Stat.DmgBonus, 100); },
+});
+
+/** S6's Unseen Snare - Finality, on the target beside the Snare itself: every Negative Status's
+ *  damage is amplified 30% — scoped to each status's own tag, the only amplification a dot row
+ *  reads — and the target takes 40% more from Chisa. An enemy debuff's applyStats runs on whoever
+ *  is acting, so that half pays only when the acting slot is hers. The last-stand half reaches no
+ *  formula. */
+const SNARE_FINALITY = new Debuff({
+  name: "Chisa S6: Unseen Snare - Finality",
+  applyStats: () => {
+    for (const tag of [Type2.SpectroFrazzle, Type2.FusionBurst, Type2.GlacioChafe, Type2.AeroErosion, Type2.ElectroFlare]) addStat(Stat.Amp, 30, tag);
+    if (isHeld(CHISA_RESONATOR)) addStat(Stat.TotalDmg, 40);
+  },
+});
+const CS_S6 = new Sequence({
+  name: "Chisa S6: Thus, Hope is Rekindled with the Rising Dawn",
+  updateDebuffs: () => { if (stacksOfEnemy(UNSEEN_SNARE) && !stacksOfEnemy(SNARE_FINALITY)) applyEnemy(SNARE_FINALITY, 1); },
+});
+
+const CS_SEQUENCES = [CS_S1, CS_S2, CS_S3, CS_S4, CS_S5, CS_S6];
 
 /* --------------------------------------------------------------------------- kit and loadout */
 
@@ -340,4 +426,5 @@ export const CHISA = new Loadout({
   mainstats: mainstatOptions(Mainstat.CD4, Mainstat.CR4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: chem("atk", "liberation"),
   rotation: CS_ROTATION,
+  sequences: CS_SEQUENCES,
 });

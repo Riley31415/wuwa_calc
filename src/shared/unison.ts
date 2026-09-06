@@ -34,6 +34,7 @@ import {
   isHeld,
   queueOutro,
   revokeCurrent,
+  stacksOfTeam,
 } from "../engine/context.js";
 
 /** Unison itself: pays the outro's bar back, and is spent by that outro — from convertStats, so
@@ -90,13 +91,20 @@ export const unisonResponse = (): boolean => applied(UNISON_RESPONSE) > 0;
 export const consumedConcerto = (): boolean =>
   currentAction().concerto + getStat(Stat.AddConcerto) < 0 && !casting(Cast.Outro);
 
-/** Unison Boon: +3% DMG dealt a stack, two at most — three with Hsin's Gleaning Simple Joys,
- *  whose own grant is the only thing that ever reaches a third — 30s and refreshed by every grant
- *  so permanent once up. It pays only a slot holding UNISON_RESPONDER. */
+/** Unison Boon: +3% DMG dealt a stack, two at most — three with Hsin's Gleaning Simple Joys and
+ *  four with her S6, each of which is both a cap raise and the extra grant that reaches it — 30s
+ *  and refreshed by every grant so permanent once up. It pays only a slot holding
+ *  UNISON_RESPONDER. The cap is declared at its highest here rather than raised at runtime
+ *  (`maxStackIncrease` is enemy-debuff only): without those two pieces nothing grants a third
+ *  stack anyway. */
 export const UNISON_BOON = new Buff({
-  name: "Unison Boon", maxStacks: 3,
-  applyStats: () => { if (isHeld(UNISON_RESPONDER)) addStat(Stat.TotalDmg, 3 * frozenStacks()); },
+  name: "Unison Boon", maxStacks: 4,
+  applyStats: () => { if (isHeld(UNISON_RESPONDER)) addStat(Stat.TotalDmg, (stacksOfTeam(NINE_SHADOWS) ? 4.5 : 3) * frozenStacks()); },
 });
+
+/** Suoming's S6 on the team: every stack of Unison Boon pays half again — +4.5% rather than +3%,
+ *  for every responder, not only her. Put up team-wide by that sequence's own combatStart. */
+export const NINE_SHADOWS = new Buff({ name: "Suoming S6: Nine Shadows at Her Side" });
 
 /** A kit that can trigger Unison Response grants itself this from its own combatStart — same
  *  shape as tunebreak.ts's own TUNE_STRAIN_RESPONDER — so Unison Boon pays that slot, sourced to

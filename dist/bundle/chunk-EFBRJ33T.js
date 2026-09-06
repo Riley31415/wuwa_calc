@@ -503,7 +503,9 @@ var EMPTY_FIELDS = [];
 var capEnergy = (member2, value) => Math.min(member2.resonator?.maxEnergy ?? 0, Math.max(0, value));
 var TYPE2_AMP_INDEX = STAT_COUNT;
 var BASIC_DMG_BONUS_INDEX = STAT_COUNT + 1;
-var ZERO_STATS = new Array(STAT_COUNT + 2).fill(0);
+var TYPE2_CRIT_RATE_INDEX = STAT_COUNT + 2;
+var TYPE2_CRIT_DMG_INDEX = STAT_COUNT + 3;
+var ZERO_STATS = new Array(STAT_COUNT + 4).fill(0);
 ZERO_STATS[0] = 0.5;
 ZERO_STATS[0] = 0;
 var Pool = class {
@@ -1105,8 +1107,13 @@ function pushStat(stat, tag, value) {
   const slot = ctx.slot;
   if (tag === void 0 || (ctx.tagWord & tagBand(tag)) === tag) {
     slot.effective[stat] = slot.effective[stat] + value;
-    if (stat === 18 && tag !== void 0 && (tag & TYPE2_BITS) !== 0) {
-      slot.effective[TYPE2_AMP_INDEX] = slot.effective[TYPE2_AMP_INDEX] + value;
+    if (tag !== void 0 && (tag & TYPE2_BITS) !== 0) {
+      if (stat === 18)
+        slot.effective[TYPE2_AMP_INDEX] = slot.effective[TYPE2_AMP_INDEX] + value;
+      else if (stat === 9)
+        slot.effective[TYPE2_CRIT_RATE_INDEX] = slot.effective[TYPE2_CRIT_RATE_INDEX] + value;
+      else if (stat === 10)
+        slot.effective[TYPE2_CRIT_DMG_INDEX] = slot.effective[TYPE2_CRIT_DMG_INDEX] + value;
     }
     if (stat === 17 && tag === 4096) {
       slot.effective[BASIC_DMG_BONUS_INDEX] = slot.effective[BASIC_DMG_BONUS_INDEX] + value;
@@ -1755,11 +1762,12 @@ function damageFactors(snapshot) {
     19
     /* Stat.TotalDmg */
   ) * notDot;
-  const critMult = notDot * notTune ? s(
+  const special = !(notDot * notTune);
+  const critMult = special ? snapshot.type2CritDmg ? snapshot.type2CritDmg / 100 : 1 : s(
     10
     /* Stat.CritDmg */
-  ) : 1;
-  const cr = s(
+  );
+  const cr = special ? snapshot.type2CritRate / 100 : s(
     9
     /* Stat.CritRate */
   );
@@ -2078,6 +2086,8 @@ function evaluate(state, action, triggered = false, triggeredBy = null) {
           17
           /* Stat.DmgBonus */
         ],
+        type2CritRate: eff[TYPE2_CRIT_RATE_INDEX],
+        type2CritDmg: eff[TYPE2_CRIT_DMG_INDEX],
         enemyRes: enemyRes(),
         enemyDef: enemyDef()
       }).avg);
@@ -2127,6 +2137,8 @@ function evaluate(state, action, triggered = false, triggeredBy = null) {
       /* Stat.Amp */
     ],
     type2Amp: effective[TYPE2_AMP_INDEX],
+    type2CritRate: effective[TYPE2_CRIT_RATE_INDEX],
+    type2CritDmg: effective[TYPE2_CRIT_DMG_INDEX],
     dmgBonus: effective[
       17
       /* Stat.DmgBonus */
@@ -3253,12 +3265,13 @@ var consumedConcerto = () => currentAction().concerto + getStat(
 );
 var UNISON_BOON = new Buff({
   name: "Unison Boon",
-  maxStacks: 3,
+  maxStacks: 4,
   applyStats: () => {
     if (isHeld(UNISON_RESPONDER))
-      addStat(19, 3 * frozenStacks());
+      addStat(19, (stacksOfTeam(NINE_SHADOWS) ? 4.5 : 3) * frozenStacks());
   }
 });
+var NINE_SHADOWS = new Buff({ name: "Suoming S6: Nine Shadows at Her Side" });
 var UNISON_RESPONDER = new Buff({});
 
 // dist/src/weapons/sword.js
@@ -11599,6 +11612,110 @@ var HS_INHERENT_2 = new Inherent({
       applyEnemy(ELECTRO_FLARE, cap - stacksOfEnemy(ELECTRO_FLARE));
   }
 });
+var HS_S1 = new Sequence({
+  name: "Hsin S1: A Boat to Cross the Rising Tide",
+  updateBuffs: () => {
+    if (!isHeld(MODE_FLARE) || !casting(
+      6
+      /* Cast.Intro */
+    ))
+      return;
+    if (stacksOf(HEART_OF_THUNDER) < 50)
+      applyCurrent(HEART_OF_THUNDER, 50 - stacksOf(HEART_OF_THUNDER));
+  },
+  applyStats: () => {
+    const a = currentAction();
+    if (a === ManifoldAnswering || a === ManifoldIllumining)
+      addStat(16, 15 + 10 * Math.min(4, stacksOfTeam(UNISON_BOON)));
+    if (a === ThunderBurst)
+      addStat(16, 60);
+    if (a === ThunderDump)
+      addStat(16, 12 * stacksOf(HEART_OF_THUNDER));
+  }
+});
+var HS_S2 = new Sequence({
+  name: "Hsin S2: To Wake Is to Wonder What I Am",
+  applyStats: () => {
+    const a = currentAction();
+    if (a === RealmWanderer || a === RealmProtector || a === Beholding || a === Stilling)
+      addStat(16, 60);
+    if (casting(
+      6
+      /* Cast.Intro */
+    ) && !isHeld(ILLUMINING_FORM))
+      addStat(29, 100);
+  }
+});
+var PillarsFlare = flareHit("Liberation - Pillars Across Heaven: Electro Flare", () => 1400);
+var HS_S3 = new Sequence({
+  name: "Hsin S3: A Dream of Return Among the Hills",
+  updateBuffs: () => {
+    if (currentAction() === Lib23 && isHeld(MODE_FLARE) && stacksOfEnemy(ELECTRO_FLARE) > 0)
+      queue(PillarsFlare);
+  },
+  applyStats: () => {
+    if (currentAction() !== Lib23)
+      return;
+    addStat(16, 70);
+    if (isHeld(MODE_UNISON))
+      addStat(10, 20 + 15 * Math.min(4, stacksOfTeam(UNISON_BOON)));
+  }
+});
+var RIVER_OF_LANTERNS = new Buff({
+  name: "Hsin S4: A River of Lanterns, a River of Wishes",
+  applyStats: () => addStat(17, 20)
+});
+var HS_S4 = new Sequence({
+  name: "Hsin S4: A River of Lanterns, a River of Wishes",
+  // from updateGlobal "me" is the holder, so the acting slot has to be named (status.ts)
+  updateGlobal: () => {
+    const actor = currentTeam().slot;
+    if (appliedByMember(ELECTRO_FLARE, actor) || appliedByMember(ELECTRO_RAGE, actor) || appliedByMember(UNISON, actor) || appliedByMember(UNISON_RESPONSE, actor))
+      applyTeam(RIVER_OF_LANTERNS, 1);
+  }
+});
+var HS_S5 = new Sequence({ name: "Hsin S5: Forms Turn as the Heart Wills" });
+var HS_BOON_S6 = new Buff({ name: "Hsin: Unison Boon (S6)" });
+var HS_S6 = new Sequence({
+  name: "Hsin S6: The Moon Owes Its Light to the Living",
+  updateGlobal: () => {
+    if (!isHeld(MODE_UNISON) || isHeld(HS_BOON_S6))
+      return;
+    if (appliedByMember(UNISON_RESPONSE, currentTeam().slot)) {
+      applyTeam(UNISON_BOON, 1);
+      applyCurrent(HS_BOON_S6, 1);
+    }
+  },
+  applyStats: () => {
+    addStat(
+      19,
+      40,
+      12288
+      /* Type1.Skill */
+    );
+    addStat(
+      21,
+      20,
+      12288
+      /* Type1.Skill */
+    );
+    if (isHeld(MODE_FLARE)) {
+      addStat(
+        9,
+        80,
+        1572864
+        /* Type2.ElectroFlare */
+      );
+      addStat(
+        10,
+        230,
+        1572864
+        /* Type2.ElectroFlare */
+      );
+    }
+  }
+});
+var HS_SEQUENCES = [HS_S1, HS_S2, HS_S3, HS_S4, HS_S5, HS_S6];
 var HSIN_RESONATOR = new Resonator({
   name: "Hsin",
   tier: 0,
@@ -11682,7 +11799,8 @@ var HSIN_FLARE = new Loadout({
   ),
   substat: chem("atk", "skill"),
   rotation: HS_ROTATION_FLARE,
-  mode: MODE_FLARE
+  mode: MODE_FLARE,
+  sequences: HS_SEQUENCES
 });
 var HSIN_UNISON = new Loadout({
   resonator: HSIN_RESONATOR,
@@ -11701,7 +11819,8 @@ var HSIN_UNISON = new Loadout({
   ),
   substat: chem("atk", "skill"),
   rotation: HS_ROTATION_UNISON,
-  mode: MODE_UNISON
+  mode: MODE_UNISON,
+  sequences: HS_SEQUENCES
 });
 
 // dist/src/resonators/spectro/lucy.js
@@ -12506,22 +12625,26 @@ var OVERSHOCK = {
   energy: 15.15,
   concerto: 18.33,
   offtune: 54645,
-  forte1: -100,
+  forte1: -120,
   updateDebuffs: () => inflictElectroFlare(10)
 };
 var Overshock = roverAction2("Forte Skill - Overshock", {
   ...OVERSHOCK,
   updateBuffs: () => {
-    if (forte1() >= 100)
-      setForte1(100);
+    if (forte1() > 120)
+      setForte1(120);
     applyTeam(OVERSHOCK_ATK, 1);
   }
 });
 var OvershockHold = roverAction2("Forte Skill - Overshock (Hold)", {
   ...OVERSHOCK,
+  concerto: 18.33 - 60,
+  forte2: 100,
   updateBuffs: () => {
-    if (forte1() >= 100)
-      setForte1(100);
+    if (forte1() > 120)
+      setForte1(120);
+    if (forte2() > 0)
+      setForte2(0);
     applyCurrent(APEX_RESONANCE, 1);
   }
 });
@@ -12562,7 +12685,12 @@ var Outro16 = roverAction2("Outro - Rumbling Thunders", {
   cast: 7,
   concerto: -100,
   swapOut: true,
-  updateBuffs: () => queueOutro(ELECTRO_CORE)
+  forte2: -100,
+  updateBuffs: () => {
+    if (forte2() > 100)
+      setForte2(100);
+    queueOutro(ELECTRO_CORE);
+  }
 });
 var APEX_RESONANCE = new Buff({
   name: "Electro Rover: Apex Resonance",
@@ -12702,12 +12830,38 @@ var ER_ROTATION = new Rotation([
   ECHO_SWAP,
   OUTRO
 ]);
+var THRUM_SPECTRO = new ActionGroup("Skill - Thrum: Spectro 123", [
+  ThrumSpectro1,
+  ThrumSpectro2,
+  ThrumSpectro3
+]);
+var THRUM_HAVOC = new ActionGroup("Skill - Thrum: Havoc 123", [
+  ThrumHavoc1,
+  ThrumHavoc2,
+  ThrumHavoc3
+]);
+var ER_ROTATION_MDPS = new Rotation([
+  INTRO,
+  BA12342,
+  Skill14,
+  Repel,
+  OvershockHold,
+  Liberation12,
+  THRUM_SPECTRO,
+  THRUM_HAVOC,
+  SilencingBlade,
+  THRUM_SPECTRO,
+  THRUM_HAVOC,
+  SilencingBlade,
+  ECHO_SWAP,
+  OUTRO
+]);
 var ROVER_ELECTRO = new Loadout({
   resonator: ROVER_ELECTRO_RESONATOR,
   talent: ROVER_ELECTRO_TALENTS,
   inherent1: ER_INHERENT_1,
   inherent2: ER_INHERENT_2,
-  weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, RED_SPRING],
+  weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, RED_SPRING, UNSPOKEN_RUE],
   echoLoadouts: [
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     new EchoLoadout(STAY_TUNED, ELECTRIC_REFLECTION_5PC),
@@ -12733,6 +12887,27 @@ var ROVER_ELECTRO = new Loadout({
     ER_S5,
     ER_S6
   ]
+});
+var ROVER_ELECTRO_MDPS = new Loadout({
+  resonator: ROVER_ELECTRO_RESONATOR,
+  talent: ROVER_ELECTRO_TALENTS,
+  inherent1: ER_INHERENT_1,
+  inherent2: ER_INHERENT_2,
+  weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, RED_SPRING, UNSPOKEN_RUE],
+  echoLoadouts: [
+    new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC)
+  ],
+  mainstats: mainstatOptions(
+    0,
+    1,
+    6,
+    11,
+    15
+    /* Mainstat.ATK1 */
+  ),
+  substat: chem("atk", "skill"),
+  rotation: ER_ROTATION_MDPS,
+  sequences: [ER_S1, ER_S2, ER_S3, ER_S4, ER_S5, ER_S6]
 });
 
 // dist/src/resonators/electro/suoming.js
@@ -12930,6 +13105,75 @@ var ALIGNED_SEALS_HANDOFF = new Buff({
 });
 var BLIGHT_RAIN = coordinatedBuff("Suoming: Blight Rain, Miasmic Thunder", 6, () => SUOMING_RESONATOR, ThunderCrest);
 var BOON_RESPONSE = new Buff({ name: "Suoming: Unison Boon (response)" });
+var SM_S1 = new Sequence({
+  name: "Suoming S1: Into the Blight Rain",
+  applyStats: () => {
+    if (INTROS.includes(currentAction()))
+      addStat(16, 60);
+  }
+});
+var BREAKING_THUNDER_HANDOFF = new Buff({
+  name: "Suoming S2: Outro",
+  updateBuffs: () => lostOnSwap(),
+  applyStats: () => addStat(10, 10 + Math.min(24, 6 * stacksOfTeam(UNISON_BOON)))
+});
+var SM_S2 = new Sequence({
+  name: "Suoming S2: Breaking Thunder, Slaying Evil",
+  constantStats: () => addStat(10, 40),
+  updateBuffs: () => {
+    if (casting(
+      7
+      /* Cast.Outro */
+    ))
+      queueOutro(BREAKING_THUNDER_HANDOFF);
+  }
+});
+var LONE_CANOPY = new Buff({
+  name: "Suoming S3: Lone Canopy, Solitary Road",
+  applyStats: () => addStat(
+    18,
+    30,
+    4096
+    /* Type1.Basic */
+  )
+});
+var SM_S3 = new Sequence({
+  name: "Suoming S3: Lone Canopy, Solitary Road",
+  updateBuffs: () => {
+    const a = currentAction();
+    if ((a === IntroFlashRift || a === IntroThunderRending) && !isHeld(BOON_RESPONSE)) {
+      applyTeam(UNISON_BOON, 1);
+      applyCurrent(BOON_RESPONSE, 1);
+    }
+    if (casting(
+      5
+      /* Cast.Liberation */
+    ))
+      applyCurrent(LONE_CANOPY, 1);
+  }
+});
+var SM_S4 = new Sequence({
+  name: "Suoming S4: Covenant Borne Upon the Heart",
+  constantStats: () => addStat(6, 20)
+});
+var SM_S5 = new Sequence({
+  name: "Suoming S5: Seal Deep, Never Forgotten",
+  applyStats: () => {
+    if (currentAction() === Liberation13)
+      addStat(16, 40);
+  }
+});
+var SM_S6 = new Sequence({
+  name: "Suoming S6: Nine Shadows at Her Side",
+  combatStart: () => applyTeam(NINE_SHADOWS, 1),
+  applyStats: () => {
+    if (currentAction() === EngravedHeart)
+      addStat(16, 50);
+    if (isHeld(SEAL_MASTER))
+      addStat(10, 80);
+  }
+});
+var SM_SEQUENCES = [SM_S1, SM_S2, SM_S3, SM_S4, SM_S5, SM_S6];
 var SUOMING_TALENTS = new Talent({
   name: "Suoming: Talents",
   constantStats: () => {
@@ -13014,6 +13258,7 @@ var SUOMING = new Loadout({
     /* Mainstat.ATK1 */
   ),
   substat: chem("atk", "basic"),
+  sequences: SM_SEQUENCES,
   rotation: SM_ROTATION
 });
 var SUOMING_MDPS = new Loadout({
@@ -13032,6 +13277,7 @@ var SUOMING_MDPS = new Loadout({
     /* Mainstat.ATK1 */
   ),
   substat: chem("atk", "basic"),
+  sequences: SM_SEQUENCES,
   rotation: SM_ROTATION_MDPS
 });
 
@@ -17595,11 +17841,84 @@ var UNDULATING_MIST = new Buff({
     if (frozenStacks() >= 2)
       addStat(6, 50);
   },
+  // S1 widens the trigger to inflicting any Negative Status, or dealing its damage
   afterAction: () => {
-    if (consumedAny())
+    const me = currentTeam().slot;
+    if (consumedAny() || stacksOfTeam(MOUNTAINS_WASHED) && (inflictedNegativeStatusBy(me) || NEGATIVE_STATUS_TAGS.some(isType)))
       applyCurrent(UNDULATING_MIST, 1);
   }
 });
+var TAGGED_STATUSES = [...LANDSCAPE_CAPS, [
+  ELECTRO_FLARE,
+  1572864
+  /* Type2.ElectroFlare */
+]];
+var NEGATIVE_STATUS_TAGS = TAGGED_STATUSES.map(([, tag]) => tag);
+var MOUNTAINS_WASHED = new Buff({ name: "Suisui S1: Mountains Washed Into Paintings" });
+var SS_S1 = new Sequence({
+  name: "Suisui S1: Mountains Washed Into Paintings",
+  combatStart: () => applyTeam(MOUNTAINS_WASHED, 1)
+});
+var CLOUDS_POUR = new Buff({
+  name: "Suisui S2: Clouds Pour Like Molten Gold",
+  applyStats: () => addStat(10, 50)
+});
+var CLOUDS_POUR_WATCH = new Buff({
+  name: "Suisui S2: Clouds Pour Like Molten Gold (watch)",
+  updateGlobal: () => {
+    if (!stacksOfTeam(CEASELESS_LANDSCAPE))
+      return;
+    const actor = currentTeam().slot;
+    if (actor.resonator && TAGGED_STATUSES.some(([status, tag]) => appliedByMember(status, actor) || isType(tag)))
+      addBuff(actor.resonator, CLOUDS_POUR, 1);
+  },
+  afterAction: () => {
+    if (stacksOfTeam(CEASELESS_LANDSCAPE) && consumedByMe(HAVOC_BANE))
+      applyCurrent(CLOUDS_POUR, 1);
+  }
+});
+var SS_S2 = new Sequence({
+  name: "Suisui S2: Clouds Pour Like Molten Gold",
+  combatStart: () => applyTeam(CLOUDS_POUR_WATCH, 1)
+});
+var KINGFISHER = new Buff({
+  name: "Suisui S3: Kingfisher",
+  updateBuffs: () => lostOnSwap(),
+  applyStats: () => {
+    if (currentAction() === FBA45) {
+      addStat(26, 20);
+      addStat(30, 350);
+    }
+  },
+  convertStats: () => {
+    if (currentAction() === FBA45)
+      revokeCurrent(KINGFISHER);
+  }
+});
+var SS_S3 = new Sequence({
+  name: "Suisui S3: Sparse Curtains Invite Evening Glow",
+  updateBuffs: () => {
+    if (currentAction() === FSkill8)
+      applyCurrent(KINGFISHER, 1);
+  }
+});
+var SS_S4 = new Sequence({ name: "Suisui S4: Autumn Mountains in Choir Sing" });
+var SS_S5 = new Sequence({
+  name: "Suisui S5: I Long To Ride The Eastern Wind",
+  applyStats: () => {
+    const a = currentAction();
+    if (a === FBA15 || a === FBA25 || a === FBA35 || a === FBA45 || a === FHA11)
+      addStat(16, 100);
+  }
+});
+var SS_S6 = new Sequence({
+  name: "Suisui S6: Staying True To This Splendid Realm",
+  applyStats: () => {
+    if (currentAction() === Intro33 || currentAction() === ESkill4)
+      addStat(10, 500);
+  }
+});
+var SS_SEQUENCES = [SS_S1, SS_S2, SS_S3, SS_S4, SS_S5, SS_S6];
 var SS_INHERENT_1 = new Inherent({
   name: "Inherent: Sky Over Water",
   applyStats: () => {
@@ -17652,6 +17971,17 @@ var SS_ROTATION = new Rotation([
   Liberation25,
   OUTRO
 ]);
+var SS_ROTATION_S3 = new Rotation([
+  NOINTRO,
+  BA1235,
+  ESkill4,
+  INTRO,
+  FSkill8,
+  FBA45,
+  ECHO_CANCEL,
+  Liberation25,
+  OUTRO
+]);
 var SUISUI = new Loadout({
   resonator: SUISUI_RESONATOR,
   talent: SUISUI_TALENTS,
@@ -17670,7 +18000,8 @@ var SUISUI = new Loadout({
     /* Mainstat.HP1 */
   )],
   substat: chem("hp", "skill", { er: true }),
-  rotation: SS_ROTATION
+  rotation: [SS_ROTATION, SS_ROTATION, SS_ROTATION, SS_ROTATION_S3],
+  sequences: SS_SEQUENCES
 });
 
 // dist/src/resonators/glacio/zhezhi.js
@@ -18510,6 +18841,7 @@ var ALL_ENDS_HERE = new Buff({
 });
 var UNSEEN_SNARE = new Debuff({
   name: "Chisa: Unseen Snare",
+  display: () => `Chisa: Unseen Snare${stacksOfEnemy(SNARE_FINALITY) ? " - Finality" : ""}`,
   // The Bane is hers, not the swinging teammate's: applyEnemy() here inherits this marker's own
   // source (context.ts's `attribute()`), so an "on inflicting a Negative Status" passive worn by that
   // teammate — Kumokiri, Thread of Severed Fate — reads 0 for it and doesn't pay out. See
@@ -18545,8 +18877,83 @@ var THREAD_OF_BANE = new Buff({
   applyStats: () => {
     if (stacksOfEnemy(UNSEEN_SNARE) > 0)
       addStat(21, 18);
+    if (stacksOfTeam(WEB_OF_BONDS))
+      addStat(17, 50);
   }
 });
+var DESOLATE_CORRIDORS = new Buff({
+  name: "Chisa S1: Wandering Through the Desolate Corridors",
+  applyStats: () => addStat(6, 30),
+  convertStats: () => {
+    if (currentAction() === Outro38)
+      revokeCurrent(DESOLATE_CORRIDORS);
+  }
+});
+var SnareStrike = chisaAction("Basic - Unseen Snare (S1)", { type: 4096, scaling: 5, mv: 61803 });
+var SNARE_STRUCK = new Buff({});
+var CS_S1 = new Sequence({
+  name: "Chisa S1: Wandering Through the Desolate Corridors",
+  updateBuffs: () => {
+    if (!appliedByMe(UNSEEN_SNARE))
+      return;
+    applyCurrent(DESOLATE_CORRIDORS, 1);
+    if (!isHeld(SNARE_STRUCK)) {
+      applyCurrent(SNARE_STRUCK, 1);
+      queue(SnareStrike);
+    }
+  }
+});
+var WEB_OF_BONDS = new Buff({ name: "Chisa S2: Into the Web of Endless Bonds" });
+var CS_S2 = new Sequence({
+  name: "Chisa S2: Into the Web of Endless Bonds",
+  combatStart: () => applyTeam(WEB_OF_BONDS, 1),
+  constantStats: () => addStat(
+    20,
+    10,
+    384
+    /* Attribute.Havoc */
+  )
+});
+var CS_S3 = new Sequence({
+  name: "Chisa S3: Across the Confusion of the Long Night",
+  applyStats: () => {
+    const a = currentAction();
+    if ([Blitz1, Blitz2, Blitz2Discordance, Blitz2Hold, Blitz3, Blitz3Falltone, Blitz3Hold, Eradication].includes(a))
+      addStat(16, 120);
+  }
+});
+var CS_S4 = new Sequence({ name: "Chisa S4: Severing the Endless Cycle of Tragic Fate" });
+var CS_S5 = new Sequence({
+  name: "Chisa S5: Thousands of Lights to Guide the Way Home",
+  applyStats: () => {
+    if (currentAction() === Liberation29)
+      addStat(17, 100);
+  }
+});
+var SNARE_FINALITY = new Debuff({
+  name: "Chisa S6: Unseen Snare - Finality",
+  applyStats: () => {
+    for (const tag of [
+      524288,
+      1048576,
+      1310720,
+      786432,
+      1572864
+      /* Type2.ElectroFlare */
+    ])
+      addStat(18, 30, tag);
+    if (isHeld(CHISA_RESONATOR))
+      addStat(19, 40);
+  }
+});
+var CS_S6 = new Sequence({
+  name: "Chisa S6: Thus, Hope is Rekindled with the Rising Dawn",
+  updateDebuffs: () => {
+    if (stacksOfEnemy(UNSEEN_SNARE) && !stacksOfEnemy(SNARE_FINALITY))
+      applyEnemy(SNARE_FINALITY, 1);
+  }
+});
+var CS_SEQUENCES = [CS_S1, CS_S2, CS_S3, CS_S4, CS_S5, CS_S6];
 var CS_INHERENT_1 = new Inherent({ name: "Inherent: Inescapable Fate" });
 var CS_INHERENT_2 = new Inherent({
   name: "Inherent: All Ends Here",
@@ -18630,7 +19037,8 @@ var CHISA = new Loadout({
     /* Mainstat.ATK1 */
   ),
   substat: chem("atk", "liberation"),
-  rotation: CS_ROTATION
+  rotation: CS_ROTATION,
+  sequences: CS_SEQUENCES
 });
 
 // dist/src/resonators/havoc/danjin.js
@@ -20970,9 +21378,11 @@ var TEAMS = [
   // hsin (Electro Flare mode): electro skill flare
   [[SUISUI, BULING, CHISA, SHOREKEEPER], [CHISA, ROVER_ELECTRO], [HSIN_FLARE]],
   // hsin, Unison mode: Suoming or Jinhsi behind her hands over the Unison her Intro answers
-  [[SHOREKEEPER, VERINA, BULING, MORNYE], [SUOMING, JINHSI], [HSIN_UNISON]],
+  [[SHOREKEEPER, VERINA, BULING, MORNYE, SUISUI], [SUOMING, JINHSI], [HSIN_UNISON]],
   // suoming mdps, electro basic unison
   [[SHOREKEEPER, VERINA, MORNYE], [SANHUA, LYNAE_RUPTURE, REBECCA], [SUOMING_MDPS]],
+  // electro rover mdps: Apex Resonance, the Thrum of All Sounds chains
+  [[BULING, CHISA, SHOREKEEPER, VERINA, MORNYE], [LYNAE_RUPTURE, REBECCA], [ROVER_ELECTRO_MDPS]],
   // jingran: fusion heavy shielder
   [[SHOREKEEPER, LUPA, VERINA, MORNYE], [IUNO, MORTEFI, BRANT, LUPA, LYNAE_RUPTURE, REBECCA], [JINGRAN]],
   // qingxiao: aero heavy/basic/liberation on tune strain

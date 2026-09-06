@@ -32,8 +32,8 @@
  * **Unison Response**: a teammate's Unison outro (Jinhsi's) makes her Intro its Unison form,
  * which hands the whole team Unison Boon — one stack from her this way, 30s refreshed, so
  * permanent — and a Unison Intro also pays +10 Concerto (Rain-Soaked Covenant, once every 25s).
- * Each stack is +3% DMG dealt to the team's responders, which is her alone. The resonance chain
- * is not modelled.
+ * Each stack is +3% DMG dealt to the team's responders, which is her alone. Sequences 1-6 are
+ * modelled from nanoka's released 3.7.0 data (character 1312) — see their own block below.
  *
  * Numbers from encore.moe's beta data (character 1312, `?v=Beta`): per-hit MV/energy/concerto/
  * off-tune/Delusion summed per action the way CLAUDE.md describes, each Intro's "Concerto Regen
@@ -45,7 +45,7 @@
  * as a coordinated window (helpers.ts's `coordinatedBuff`).
  */
 import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
+import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   addStat,
   applyCurrent,
@@ -59,7 +59,7 @@ import {
   stacksOfTeam,
 } from "../../engine/context.js";
 import { Action, ActionField, ActionGroup, Rotation, DOUBLE_INTRO, INTRO, OUTRO, ECHO_SWAP } from "../../engine/rotation.js";
-import { UNISON, UNISON_BOON, UNISON_RESPONDER, respondToUnison, unisonIntro, unisonResponse } from "../../shared/unison.js";
+import { NINE_SHADOWS, UNISON, UNISON_BOON, UNISON_RESPONDER, respondToUnison, unisonIntro, unisonResponse } from "../../shared/unison.js";
 import { coordinatedBuff, lostOnSwap } from "../../shared/helpers.js";
 import { RED_SPRING, UNSPOKEN_RUE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
@@ -236,6 +236,71 @@ const BLIGHT_RAIN = coordinatedBuff("Suoming: Blight Rain, Miasmic Thunder", 6, 
  *  way, refreshed after that. The marker is what remembers she already has. */
 const BOON_RESPONSE = new Buff({ name: "Suoming: Unison Boon (response)" });
 
+/* --------------------------------------------------------------------------------- sequences */
+
+/** S1: +60% DMG Multiplier on all four Intros. Unforsaken Mind's interruption immunity is nothing
+ *  the formula reads. */
+const SM_S1 = new Sequence({
+  name: "Suoming S1: Into the Blight Rain",
+  applyStats: () => { if (INTROS.includes(currentAction())) addStat(Stat.MulMv, 60); },
+});
+
+/** S2's handoff: the incoming resonator's Crit. DMG +10%, +6% a Unison Boon stack they hold up to
+ *  +24% — 30s or until switched out, so lost on swap. */
+const BREAKING_THUNDER_HANDOFF = new Buff({
+  name: "Suoming S2: Outro",
+  updateBuffs: () => lostOnSwap(),
+  applyStats: () => addStat(Stat.CritDmg, 10 + Math.min(24, 6 * stacksOfTeam(UNISON_BOON))),
+});
+/** S2: +40% Crit. DMG, and her Outro carries the handoff above on top of Canopy Rumble. */
+const SM_S2 = new Sequence({
+  name: "Suoming S2: Breaking Thunder, Slaying Evil",
+  constantStats: () => addStat(Stat.CritDmg, 40),
+  updateBuffs: () => { if (casting(Cast.Outro)) queueOutro(BREAKING_THUNDER_HANDOFF); },
+});
+
+/** S3's own: +30% Basic Attack DMG Amplification off a Liberation, 25s — permanent. */
+const LONE_CANOPY = new Buff({
+  name: "Suoming S3: Lone Canopy, Solitary Road",
+  applyStats: () => addStat(Stat.Amp, 30, Type1.Basic),
+});
+/** S3: Flash Rift and Thunder Rending — the Intros that are no response — grant the team's Unison
+ *  Boon too, once every 25s. The kit's own clause makes it the one grant she has: a stack she has
+ *  already put up is only refreshed, so it shares the response's marker rather than adding a
+ *  second. And every Liberation opens the amplification above. */
+const SM_S3 = new Sequence({
+  name: "Suoming S3: Lone Canopy, Solitary Road",
+  updateBuffs: () => {
+    const a = currentAction();
+    if ((a === IntroFlashRift || a === IntroThunderRending) && !isHeld(BOON_RESPONSE)) { applyTeam(UNISON_BOON, 1); applyCurrent(BOON_RESPONSE, 1); }
+    if (casting(Cast.Liberation)) applyCurrent(LONE_CANOPY, 1);
+  },
+});
+
+const SM_S4 = new Sequence({
+  name: "Suoming S4: Covenant Borne Upon the Heart",
+  constantStats: () => addStat(Stat.BonusAtk, 20),
+});
+
+const SM_S5 = new Sequence({
+  name: "Suoming S5: Seal Deep, Never Forgotten",
+  applyStats: () => { if (currentAction() === Liberation) addStat(Stat.MulMv, 40); },
+});
+
+/** S6: every Unison Boon stack pays the whole team's responders half again (unison.ts's own
+ *  NINE_SHADOWS, up from the moment the fight starts), Engraved Heart's multiplier +50%, and Seal
+ *  Master's Crit. DMG another +80%. */
+const SM_S6 = new Sequence({
+  name: "Suoming S6: Nine Shadows at Her Side",
+  combatStart: () => applyTeam(NINE_SHADOWS, 1),
+  applyStats: () => {
+    if (currentAction() === EngravedHeart) addStat(Stat.MulMv, 50);
+    if (isHeld(SEAL_MASTER)) addStat(Stat.CritDmg, 80);
+  },
+});
+
+const SM_SEQUENCES = [SM_S1, SM_S2, SM_S3, SM_S4, SM_S5, SM_S6];
+
 /* --------------------------------------------------------------------------- kit and loadout */
 
 const SUOMING_TALENTS = new Talent({
@@ -314,6 +379,7 @@ export const SUOMING = new Loadout({
   echoLoadouts: SM_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
   substat: chem("atk", "basic"),
+  sequences: SM_SEQUENCES,
   rotation: SM_ROTATION,
 });
 
@@ -326,5 +392,6 @@ export const SUOMING_MDPS = new Loadout({
   echoLoadouts: [new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
   substat: chem("atk", "basic"),
+  sequences: SM_SEQUENCES,
   rotation: SM_ROTATION_MDPS,
 });

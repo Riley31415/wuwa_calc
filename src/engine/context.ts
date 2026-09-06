@@ -8,7 +8,7 @@ import type { Tag, StatKey } from "./stats.js";
 import type { Rotation, Action, ActionGroup, ActionDef, ActionField } from "./rotation.js";
 import { ctx, dryLog, undoDry, noteMutation, recordApplied, recordConsumed, pendingQueue, tagWord, tagWordOf, RESOURCE_STATS } from "./runtime.js";
 import { Gear, Buff, Debuff, Resonator, Loadout, Matrix, Mainslot, Weapon } from "./gear.js";
-import { State, TeamMember, StatEntry, HeldBuff, ZERO_STATS, TYPE2_AMP_INDEX, BASIC_DMG_BONUS_INDEX } from "./state.js";
+import { State, TeamMember, StatEntry, HeldBuff, ZERO_STATS, TYPE2_AMP_INDEX, TYPE2_CRIT_RATE_INDEX, TYPE2_CRIT_DMG_INDEX, BASIC_DMG_BONUS_INDEX } from "./state.js";
 
 /** The three pools a phase reads — the acting slot's own, then team-wide, then enemy — as the
  *  arrays they held when `capture()` last ran. Three references apiece, nothing copied: a Pool's
@@ -223,8 +223,11 @@ function pushStat(stat: Stat | EnemyStat, tag: Tag | undefined, value: number): 
     // ...and again into the Negative-Status-scoped subtotal, if that's what this is (see
     // TYPE2_AMP_INDEX). Only reached by an amplification that carried a scope at all, so it
     // costs nothing on the ordinary path.
-    if (stat === Stat.Amp && tag !== undefined && (tag & TYPE2_BITS) !== 0) {
-      slot.effective[TYPE2_AMP_INDEX] = slot.effective[TYPE2_AMP_INDEX]! + value;
+    if (tag !== undefined && (tag & TYPE2_BITS) !== 0) {
+      if (stat === Stat.Amp) slot.effective[TYPE2_AMP_INDEX] = slot.effective[TYPE2_AMP_INDEX]! + value;
+      // ...and the Negative-Status-scoped crit the same way — all a dot/tune row crits off
+      else if (stat === Stat.CritRate) slot.effective[TYPE2_CRIT_RATE_INDEX] = slot.effective[TYPE2_CRIT_RATE_INDEX]! + value;
+      else if (stat === Stat.CritDmg) slot.effective[TYPE2_CRIT_DMG_INDEX] = slot.effective[TYPE2_CRIT_DMG_INDEX]! + value;
     }
     // ...and the Basic-scoped part of DMG Bonus into its own (see BASIC_DMG_BONUS_INDEX)
     if (stat === Stat.DmgBonus && tag === Type1.Basic) {

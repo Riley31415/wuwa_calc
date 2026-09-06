@@ -29,3 +29,6 @@ make some buffs nameless if they dont add stats
 
 #
 use r1 variation where possible
+
+#
+move website stuff to web folder

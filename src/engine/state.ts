@@ -49,6 +49,12 @@ export const TYPE2_AMP_INDEX = STAT_COUNT;
  *  Kept the same way as the amp split above: derived by `pushStat()` off the ordinary tagged
  *  `addStat`, only on an action the scope actually matched, and never granted directly. */
 export const BASIC_DMG_BONUS_INDEX = STAT_COUNT + 1;
+/** Two more after that: the parts of `Stat.CritRate` and `Stat.CritDmg` that came in scoped to a
+ *  `Type2` — the only crit a dot or tune hit reads (Hsin's S6 makes Electro Flare crit at a fixed
+ *  80%/230%; everything else on the resonator's own line leaves those rows uncritting). Derived
+ *  by `pushStat()` the same way as the amp split above. */
+export const TYPE2_CRIT_RATE_INDEX = STAT_COUNT + 2;
+export const TYPE2_CRIT_DMG_INDEX = STAT_COUNT + 3;
 
 /** What every action's own `effective` starts as — cloned per action with `.slice()`, which is one
  *  memcpy of ~36 doubles. A plain array rather than a `Float64Array`: a typed array is a separate
@@ -56,7 +62,7 @@ export const BASIC_DMG_BONUS_INDEX = STAT_COUNT + 1;
  *  line in `evaluate()`. The one fractional write below (and its undo) is deliberate — V8 fixes an
  *  array's element kind once it widens, and a clone inherits it, so every copy is a double array
  *  from the start rather than transitioning from integers on its first real contribution. */
-export const ZERO_STATS: number[] = new Array<number>(STAT_COUNT + 2).fill(0);
+export const ZERO_STATS: number[] = new Array<number>(STAT_COUNT + 4).fill(0);
 ZERO_STATS[0] = 0.5; ZERO_STATS[0] = 0;
 
 /**

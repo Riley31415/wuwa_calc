@@ -34,7 +34,7 @@ import {
   statLabel,
   tagKind,
   teamKey
-} from "./chunk-7UEYI5MZ.js";
+} from "./chunk-EFBRJ33T.js";
 
 // dist/src/display.js
 var keysFor = (action, ...stats) => stats.flatMap((stat) => [
@@ -69,16 +69,25 @@ var FEEDS = {
     16
     /* Stat.MulMv */
   ),
-  cr: (a) => special(a) ? [] : keysFor(
+  // dot and tune crit off the Negative-Status-scoped part alone, the same split as amp below
+  cr: (a) => fixed(a) ? [] : !special(a) ? keysFor(
     a,
     9
     /* Stat.CritRate */
-  ),
-  cd: (a) => special(a) ? [] : keysFor(
+  ) : a.type2 === null ? [] : [scopedStat(
+    a.type2,
+    9
+    /* Stat.CritRate */
+  )],
+  cd: (a) => fixed(a) ? [] : !special(a) ? keysFor(
     a,
     10
     /* Stat.CritDmg */
-  ),
+  ) : a.type2 === null ? [] : [scopedStat(
+    a.type2,
+    10
+    /* Stat.CritDmg */
+  )],
   er: (a) => keysFor(
     a,
     11
@@ -332,11 +341,11 @@ function rowValues(snap, { mv, avg }, members = []) {
     mv: dealsDamage ? mv : null,
     dmgBonus: filler || special(snap.action) ? null : snap.dmgBonus,
     amp: filler || fixed(snap.action) ? null : snap.action.scaling === 4 ? null : snap.action.scaling === 3 ? snap.type2Amp : snap.amp,
-    cr: filler || special(snap.action) ? null : snap.stat(
+    cr: filler || fixed(snap.action) ? null : special(snap.action) ? snap.type2CritRate : snap.stat(
       9
       /* Stat.CritRate */
     ),
-    cd: filler || special(snap.action) ? null : snap.stat(
+    cd: filler || fixed(snap.action) ? null : special(snap.action) ? snap.type2CritDmg : snap.stat(
       10
       /* Stat.CritDmg */
     ),
@@ -2471,6 +2480,8 @@ function fitSide() {
   const cols = room >= 836 ? 3 : room >= 554 ? 2 : 1;
   for (const n of [1, 2, 3])
     side.classList.toggle(`cols${n}`, n === cols);
+  const main = app.querySelector("main");
+  side.style.maxHeight = layout.classList.contains("stack") || !main ? "" : `${main.clientHeight}px`;
 }
 function renderComparison() {
   topbar.hidden = true;
@@ -2588,7 +2599,7 @@ function solveOnWorkers(workers, teams, onDone) {
       const known = picksCache.get(picksKey(key, members, filters)) ?? null;
       const finish = (solved) => {
         storeSolved(key, solved);
-        onDone();
+        onDone(members);
         pump(w);
       };
       w.onmessage = ({ data }) => finish({ picks: data.picks, rows: data.rows, scores: data.scores });
@@ -2608,30 +2619,34 @@ function solveOnWorkers(workers, teams, onDone) {
       resolve();
   });
 }
-async function ensureBestPicks(inPlay, workTotal) {
+async function ensureBestPicks(inPlay, workTotal, rowsTotal) {
   await loadShipped(filters);
   const teams = inPlay.filter(([key, members]) => !bestPicks.has(bestKey(key, members, filters)));
   if (!teams.length)
     return false;
   overlayPhase("Optimizing Echoes...");
   let done = inPlay.length - teams.length;
+  const rowsOf = (members) => members.every((m) => eligibleWeapons(m, filters).length) ? estimatedRowCount(members) : 0;
+  let rowsDone = inPlay.filter(([key, members]) => bestPicks.has(bestKey(key, members, filters))).reduce((sum, [, members]) => sum + rowsOf(members), 0);
   const progress = () => {
     overlayFill.style.width = `${done / workTotal * 100}%`;
-    overlayCount.textContent = `${fmt(done)} / ${fmt(inPlay.length)}`;
+    overlayCount.textContent = `${fmt(rowsDone)} / ${fmt(rowsTotal)}`;
   };
   progress();
   const solvable = teams.filter(([, members]) => members.every((m) => eligibleWeapons(m, filters).length));
   done += teams.length - solvable.length;
   const pool2 = workerPool();
   if (pool2)
-    await solveOnWorkers(pool2, solvable, () => {
+    await solveOnWorkers(pool2, solvable, (members) => {
       done++;
+      rowsDone += rowsOf(members);
       progress();
     });
   else {
     for (const [key, members] of solvable) {
       storeSolved(key, solveTeam(key, members, filters, picksCache.get(picksKey(key, members, filters)) ?? null));
       done++;
+      rowsDone += rowsOf(members);
       progress();
       await breathe();
     }
@@ -2650,7 +2665,7 @@ async function refresh() {
     const solvableInPlay = inPlay.filter(([, members]) => members.every((m) => eligibleWeapons(m, filters).length));
     const rowsTotal = solvableInPlay.reduce((sum, [, members]) => sum + estimatedRowCount(members), 0);
     const workTotal = inPlay.length + rowsTotal || 1;
-    const solved = await ensureBestPicks(inPlay, workTotal);
+    const solved = await ensureBestPicks(inPlay, workTotal, rowsTotal);
     saveSolves();
     const rows = teamRows();
     const cached = rows.filter((row) => results.has(row.key));
@@ -2922,6 +2937,13 @@ document.addEventListener("pointerup", () => {
 }, true);
 document.addEventListener("click", (e) => {
   if (e.target.closest?.(".tcsearch"))
+    return;
+  const box = document.getElementById("searchResults");
+  if (box)
+    box.hidden = true;
+}, true);
+app.addEventListener("scroll", (e) => {
+  if (!e.target.classList?.contains("tcside"))
     return;
   const box = document.getElementById("searchResults");
   if (box)

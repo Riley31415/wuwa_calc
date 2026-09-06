@@ -70,7 +70,8 @@ const keysFor = (action: Action, ...stats: (Stat | EnemyStat)[]): StatKey[] =>
  * Dot and tune hits read a good deal less than an ordinary one does (damage.ts's own
  * `damageFactors`), and a column they never read traces nothing — see `rowValues()`, which
  * blanks the cell itself over the same three cases:
- *   - neither reads damage bonus or crit at all;
+ *   - neither reads damage bonus, and each crits only off the crit scoped to its own Negative
+ *     Status (Hsin's S6) — never the resonator's own line;
  *   - tune reads no amplification, and a dot reads only the part scoped to the Negative Status
  *     it is — never plain or element-scoped, so its own trace is that one scoped key;
  *   - a dot reads neither Damage Dealt nor either penetration, which leaves the enemy's own DEF
@@ -81,8 +82,9 @@ const FEEDS: Record<string, (action: Action) => StatKey[]> = {
   hp: (a) => keysFor(a, Stat.BaseHp, Stat.BonusHp, Stat.FlatHp),
   def: (a) => keysFor(a, Stat.BaseDef, Stat.BonusDef, Stat.FlatDef),
   mv: (a) => keysFor(a, Stat.AddMv, Stat.MulMv),
-  cr: (a) => (special(a) ? [] : keysFor(a, Stat.CritRate)),
-  cd: (a) => (special(a) ? [] : keysFor(a, Stat.CritDmg)),
+  // dot and tune crit off the Negative-Status-scoped part alone, the same split as amp below
+  cr: (a) => (fixed(a) ? [] : !special(a) ? keysFor(a, Stat.CritRate) : a.type2 === null ? [] : [scopedStat(a.type2, Stat.CritRate)]),
+  cd: (a) => (fixed(a) ? [] : !special(a) ? keysFor(a, Stat.CritDmg) : a.type2 === null ? [] : [scopedStat(a.type2, Stat.CritDmg)]),
   er: (a) => keysFor(a, Stat.Er),
   dmgBonus: (a) => (special(a) ? [] : keysFor(a, Stat.DmgBonus)),
   amp: (a) => (a.scaling === Scaling.Tune || fixed(a) ? []
@@ -101,7 +103,8 @@ const FEEDS: Record<string, (action: Action) => StatKey[]> = {
 };
 
 /** The scalings that read a stripped-down formula — see `FEEDS` above and `rowValues()`. Dot and
- *  tune read no damage bonus and never crit; fixed reads nothing at all. */
+ *  tune read no damage bonus and crit only off their own status's scoped crit; fixed reads nothing
+ *  at all. */
 const special = (action: Action): boolean =>
   action.scaling === Scaling.Dot || action.scaling === Scaling.Tune || action.scaling === Scaling.Fixed;
 
@@ -359,8 +362,8 @@ function rowValues(
     dmgBonus: filler || special(snap.action) ? null : snap.dmgBonus,
     amp: filler || fixed(snap.action) ? null : snap.action.scaling === Scaling.Tune ? null
       : snap.action.scaling === Scaling.Dot ? snap.type2Amp : snap.amp,
-    cr: filler || special(snap.action) ? null : snap.stat(Stat.CritRate),
-    cd: filler || special(snap.action) ? null : snap.stat(Stat.CritDmg),
+    cr: filler || fixed(snap.action) ? null : special(snap.action) ? snap.type2CritRate : snap.stat(Stat.CritRate),
+    cd: filler || fixed(snap.action) ? null : special(snap.action) ? snap.type2CritDmg : snap.stat(Stat.CritDmg),
     dealt: filler || snap.action.scaling === Scaling.Dot || fixed(snap.action) ? null : snap.stat(Stat.TotalDmg),
     // what the hit actually meets: how much of the enemy's defence is stripped away by ignore
     // and reduce (0% = untouched), and the resistance left after ignore and shred — both read

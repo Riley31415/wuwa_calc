@@ -348,8 +348,12 @@ main {
 /* In the note group with Standards rather than a row of its own under every group: there, any
    column's boxes opening pushed it down; here only that one box does. */
 .tcsearchrow { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; }
-.tcsearch { position: relative; display: flex; flex-direction: column; gap: 6px; flex: 0 1 340px; max-width: 340px; }
+/* a block, not a flex column: a fixed-position child (the results, beside the table) takes its
+   static position from flow — under the input — where a flex container would put it at the top */
+.tcsearch { position: relative; display: block; flex: 0 1 340px; max-width: 340px; }
 .tcsearch input {
+  display: block;
+  width: 100%;
   padding: 6px 10px;
   border: 1px solid var(--line-2);
   background: var(--surface-3);
@@ -363,7 +367,8 @@ main {
    Over the pinned table header (z-index 40) rather than under it, same as the column popover. */
 .tcsearch-results {
   position: absolute;
-  top: calc(100% + 6px);
+  top: 100%;
+  margin-top: 6px;
   left: 0;
   right: 0;
   z-index: 41;
@@ -374,6 +379,11 @@ main {
 }
 /* `display: flex` above would beat the attribute otherwise (same as `.trow[hidden]` below) */
 .tcsearch-results[hidden] { display: none; }
+/* Beside the table the aside is a scroller (`.tcside` below), and a scroller clips an absolute
+   child hanging under its bottom edge — so there the list is fixed instead: with every offset auto
+   it still sits at its static position under the input, but escapes the clip. A column beside the
+   table is always 272px, the input's own width. Scrolling the aside closes it (index.ts). */
+.tclayout:not(.stack) .tcsearch-results { position: fixed; top: auto; left: auto; right: auto; width: 272px; }
 /* one row per match â€” the same hue wash a name cell or chip wears (`--mem`, resonators and
    sequences only; gear picks have no member colour, same as their chips) */
 .sresult {
@@ -1144,7 +1154,15 @@ body.coldrag { user-select: none; }
        the right of the aside: the columns keep the page's own right edge */
     margin-left: auto;
     background: var(--bg);
+    /* its own scroller, capped at the scrollport's height by `fitSide()`: a column of open boxes
+       taller than the window scrolls on its own, and a wheel over it never reaches the table */
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
+  .tcside::-webkit-scrollbar { width: 10px; }
+  .tcside::-webkit-scrollbar-track { background: transparent; }
+  .tcside::-webkit-scrollbar-thumb { background: var(--line-2); border: 3px solid var(--bg); }
+  .tcside::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 }
 /* How wide the aside is, and so how many of the three groups stand side by side: one column of
    boxes is 272px (`.tcopt` above) and 10px separates two, so two columns want 554 and three 836.
@@ -1186,7 +1204,7 @@ body.coldrag { user-select: none; }
 .tclayout.stack { flex-direction: column; }
 /* `margin-left: 0` undoes the beside-the-table `auto` above: an auto cross-axis margin would also
    stop the aside stretching to the column's width, leaving it fit-content and at the right */
-.tclayout.stack .tcside { position: static; order: 0; width: auto; margin-left: 0; background: none; }
+.tclayout.stack .tcside { position: static; order: 0; width: auto; margin-left: 0; background: none; overflow: visible; }
 
 /* a phone: one box per line, full width, and less of the page given over to margin */
 @media (max-width: 560px) {

@@ -25,8 +25,11 @@
  * the talent tree from the same file. Neither encore nor any other source publishes her per-hit
  * Answering/Illumining Heart gains or what a Mechanism Dominion hit spends, so those deltas are
  * absent here (0) — only the kit text's own flat grants are wired: 60 on the Intro, 150 on the
- * primed Heartlock collapse. The rotation is written as the kit reads and will only gate
- * correctly once those numbers are in. No sequences are modelled.
+ * primed Heartlock collapse, and 100 more on the Intro at S2. The rotation is written as the kit
+ * reads and will only gate correctly once those numbers are in. Everything else was re-checked
+ * against nanoka's released 3.7.0 data for her (character 1311) and matched; the per-hit Heart
+ * gains are still unpublished there. Sequences 1-6 are modelled off that same file — see their
+ * own block below.
  *
  * Unison mode (shared/unison.ts): Formshift grants Unison, and she can trigger Unison Response.
  * Her four Intro forms are the mode's own smaller ones, replaced by the Manifold Unison pair —
@@ -41,7 +44,7 @@
  * brings her back in Illumining Form for Dominion, Stilling and Pillars Across Heaven.
  */
 import { Tier, Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
+import { Buff, Talent, Inherent, ResonanceMode, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   addBuff,
   addStat,
@@ -66,6 +69,7 @@ import {
   setStacksSelf,
   stacksOf,
   stacksOfEnemy,
+  stacksOfTeam,
   isActive,
 } from "../../engine/context.js";
 import { Action, ActionField, ActionGroup, Rotation, DOUBLE_INTRO, INTRO, ECHO_SWAP, OUTRO, ECHO_ONFIELD } from "../../engine/rotation.js";
@@ -426,6 +430,100 @@ const HS_INHERENT_2 = new Inherent({
   },
 });
 
+/* --------------------------------------------------------------------------------- sequences */
+
+/** S1. Unison: both Manifold Unison Intros hit for +15% DMG Multiplier, and +10% more a Unison
+ *  Boon stack the team holds, four at most — a fourth only ever exists at S6, which is what raises
+ *  the Boon's own cap that far. Flare: entering combat floors Heart of Thunder at 50 (its own 4s
+ *  cooldown never binds, she enters once a loop), and the Illumining Skill's Flare instances pay
+ *  260% of the rung a five-stack burst and 52% a stack for the dump, up from 200% and 40% — both
+ *  in as the difference on top of what those hits already carry, since their whole multiplier is
+ *  a MulMv over the rung. Radiance Ward is damage reduction, out of scope. */
+const HS_S1 = new Sequence({
+  name: "Hsin S1: A Boat to Cross the Rising Tide",
+  updateBuffs: () => {
+    if (!isHeld(MODE_FLARE) || !casting(Cast.Intro)) return;
+    if (stacksOf(HEART_OF_THUNDER) < 50) applyCurrent(HEART_OF_THUNDER, 50 - stacksOf(HEART_OF_THUNDER));
+  },
+  applyStats: () => {
+    const a = currentAction();
+    if (a === ManifoldAnswering || a === ManifoldIllumining) addStat(Stat.MulMv, 15 + 10 * Math.min(4, stacksOfTeam(UNISON_BOON)));
+    if (a === ThunderBurst) addStat(Stat.MulMv, 60);
+    // the dump reads the gauge it is about to spend, so the extra 12% a stack rides along with it
+    if (a === ThunderDump) addStat(Stat.MulMv, 12 * stacksOf(HEART_OF_THUNDER));
+  },
+});
+
+/** S2: +60% DMG Multiplier on both Realm forms and both Horizons forms, and entering combat hands
+ *  Answering Form 100 more Answering Heart. Its other half resets the two once-per-25s upgrades'
+ *  cooldowns, which changes nothing here: the rotation already spends Resolution of Wishes and Law
+ *  of Heaven every visit. */
+const HS_S2 = new Sequence({
+  name: "Hsin S2: To Wake Is to Wonder What I Am",
+  applyStats: () => {
+    const a = currentAction();
+    if (a === RealmWanderer || a === RealmProtector || a === Beholding || a === Stilling) addStat(Stat.MulMv, 60);
+    if (casting(Cast.Intro) && !isHeld(ILLUMINING_FORM)) addStat(Stat.AddForte1, 100);
+  },
+});
+
+/** The instance S3 fires off the last stage of Pillars Across Heaven: 1500% of the target's rung. */
+const PillarsFlare = flareHit("Liberation - Pillars Across Heaven: Electro Flare", () => 1400);
+/** S3: +70% DMG Multiplier on Pillars Across Heaven; in Unison mode it also crits 20% harder, plus
+ *  15% a Unison Boon stack, four at most; in Flare mode it fires the instance above. */
+const HS_S3 = new Sequence({
+  name: "Hsin S3: A Dream of Return Among the Hills",
+  updateBuffs: () => {
+    if (currentAction() === Lib2 && isHeld(MODE_FLARE) && stacksOfEnemy(ELECTRO_FLARE) > 0) queue(PillarsFlare);
+  },
+  applyStats: () => {
+    if (currentAction() !== Lib2) return;
+    addStat(Stat.MulMv, 70);
+    if (isHeld(MODE_UNISON)) addStat(Stat.CritDmg, 20 + 15 * Math.min(4, stacksOfTeam(UNISON_BOON)));
+  },
+});
+
+/** S4's payout: +20% DMG Bonus for the whole team, 30s and re-granted constantly — permanent from
+ *  the first action that lays a status or a Unison. */
+const RIVER_OF_LANTERNS = new Buff({
+  name: "Hsin S4: A River of Lanterns, a River of Wishes",
+  applyStats: () => addStat(Stat.DmgBonus, 20),
+});
+const HS_S4 = new Sequence({
+  name: "Hsin S4: A River of Lanterns, a River of Wishes",
+  // from updateGlobal "me" is the holder, so the acting slot has to be named (status.ts)
+  updateGlobal: () => {
+    const actor = currentTeam().slot;
+    if (appliedByMember(ELECTRO_FLARE, actor) || appliedByMember(ELECTRO_RAGE, actor)
+      || appliedByMember(UNISON, actor) || appliedByMember(UNISON_RESPONSE, actor)) applyTeam(RIVER_OF_LANTERNS, 1);
+  },
+});
+
+/** S5 is a damage reduction and a death save — neither reaches the formula. Held for the name. */
+const HS_S5 = new Sequence({ name: "Hsin S5: Forms Turn as the Heart Wills" });
+
+/** S6's own Unison Boon grant, off any member's response — one, refreshed after, like her other two. */
+const HS_BOON_S6 = new Buff({ name: "Hsin: Unison Boon (S6)" });
+/** S6: the target takes 40% more Resonance Skill DMG from her and 20% less of its DEF counts
+ *  against it; in Unison mode the team's Unison Boon reaches a fourth stack (the cap unison.ts
+ *  declares) and any member's response hands everyone one; in Flare mode every Electro Flare hit
+ *  around her crits at a fixed 80% rate for 230% — scoped to the status, which is the only crit a
+ *  dot row reads (damage.ts), so "fixed" needs no override: nothing else ever pays into it. */
+const HS_S6 = new Sequence({
+  name: "Hsin S6: The Moon Owes Its Light to the Living",
+  updateGlobal: () => {
+    if (!isHeld(MODE_UNISON) || isHeld(HS_BOON_S6)) return;
+    if (appliedByMember(UNISON_RESPONSE, currentTeam().slot)) { applyTeam(UNISON_BOON, 1); applyCurrent(HS_BOON_S6, 1); }
+  },
+  applyStats: () => {
+    addStat(Stat.TotalDmg, 40, Type1.Skill);
+    addStat(Stat.DefIgnoreNew, 20, Type1.Skill);
+    if (isHeld(MODE_FLARE)) { addStat(Stat.CritRate, 80, Type2.ElectroFlare); addStat(Stat.CritDmg, 230, Type2.ElectroFlare); }
+  },
+});
+
+const HS_SEQUENCES = [HS_S1, HS_S2, HS_S3, HS_S4, HS_S5, HS_S6];
+
 /* --------------------------------------------------------------------------- kit and loadout */
 
 const HSIN_RESONATOR = new Resonator({
@@ -499,6 +597,7 @@ export const HSIN_FLARE = new Loadout({
   substat: chem("atk", "skill"),
   rotation: HS_ROTATION_FLARE,
   mode: MODE_FLARE,
+  sequences: HS_SEQUENCES,
 });
 
 export const HSIN_UNISON = new Loadout({
@@ -512,4 +611,5 @@ export const HSIN_UNISON = new Loadout({
   substat: chem("atk", "skill"),
   rotation: HS_ROTATION_UNISON,
   mode: MODE_UNISON,
+  sequences: HS_SEQUENCES,
 });

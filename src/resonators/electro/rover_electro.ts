@@ -1,7 +1,7 @@
 /**
  * Rover: Electro, ported to the new engine — a standard/permanent-banner 5-star
  * (`Tier.Free`), all six sequence nodes folded into the loadout unconditionally,
- * each owning its own trigger. Electric Surge (forte1, 0-100%) opens Overshock, which either
+ * each owning its own trigger. Electric Surge (forte1, 0-120%) opens Overshock, which either
  * presses for the team ATK buff or holds into Apex Resonance; Thunder Rage (forte2) is what Apex
  * itself burns while Thrum of All Sounds is unlocked.
  *
@@ -9,8 +9,13 @@
  * skill's own Skill Attributes row; energy/concerto/offtune/forte off the migrated sheet's own
  * ERover rows (offtune x10000 into this engine's units), except Intro/Liberation Concerto, which
  * nanoka states outright. Electric Surge is the sheet's own 0-10000 gauge read back as a percent.
- * The build and the rotation are the sheet's own "erover sub" — they're the swap support here, not
- * the damage dealer, so nothing below enters Apex.
+ * Two loadouts. ROVER_ELECTRO is the sheet's own "erover sub" — the swap support, pressing
+ * Overshock for the team ATK and never entering Apex. ROVER_ELECTRO_MDPS holds Overshock instead
+ * (60 Concerto, Thunder Rage filled, Apex Resonance) and plays Thrum of All Sounds through once as
+ * the kit lays it out: the seven ground stages, the held Aero leap, the six mid-air stages and the
+ * Silencing Blade a press on landing chains into — a Thunder Bane behind every one — before the
+ * Outro ends Apex and clears the Rage. Thunder Rage's 10%/s drain is time, which this engine has
+ * none of, so the bar only fills, gains and clears here.
  */
 import { Tier, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
@@ -26,7 +31,9 @@ import {
   queue,
   queueOutro,
   forte1,
+  forte2,
   setForte1,
+  setForte2,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
 import { lostOnSwap } from "../../shared/helpers.js";
@@ -36,7 +43,7 @@ import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { SOUL_OF_DESPAIR, SWORN_VIGIL_5PC, ELECTRIC_REFLECTION_5PC, STAY_TUNED } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
-import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";
+import { BLAZING_BRILLIANCE, RED_SPRING, UNSPOKEN_RUE } from "../../weapons/sword.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -59,19 +66,26 @@ const Repel = roverAction("Basic - Repel", { node: Node.Skill, cast: Cast.Basic,
 //     same Surge spend, and differ only in what they open — the team ATK buff or Apex Resonance
 //     (which the hold pays 60 Concerto for).
 // Both Overshocks inflict Decipher's 10 Electro Flare and clear the whole Surge gauge — pre-clamp
-// an overshoot back to exactly 100 so the declared forte1: -100 lands on 0, same pattern as
+// an overshoot back to exactly 120 so the declared forte1: -120 lands on 0, same pattern as
 // Encore's own Cloudy Frenzy.
 const OVERSHOCK = {
-  node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 1412.58, energy: 15.15, concerto: 18.33, offtune: 54645, forte1: -100,
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 1412.58, energy: 15.15, concerto: 18.33, offtune: 54645, forte1: -120,
   updateDebuffs: () => inflictElectroFlare(10),
 };
 const Overshock = roverAction("Forte Skill - Overshock", {
   ...OVERSHOCK,
-  updateBuffs: () => { if (forte1() >= 100) setForte1(100); applyTeam(OVERSHOCK_ATK, 1); },
+  updateBuffs: () => { if (forte1() > 120) setForte1(120); applyTeam(OVERSHOCK_ATK, 1); },
 });
+// The hold pays 60 Concerto on top of the hit's own gain, and entering Apex restores Thunder Rage
+// to its 100 — the bar pre-clamped to 0 so the declared +100 lands exactly full, however much a
+// previous Apex left (the Outro clears it, so ordinarily none).
 const OvershockHold = roverAction("Forte Skill - Overshock (Hold)", {
-  ...OVERSHOCK,
-  updateBuffs: () => { if (forte1() >= 100) setForte1(100); applyCurrent(APEX_RESONANCE, 1); },
+  ...OVERSHOCK, concerto: 18.33 - 60, forte2: 100,
+  updateBuffs: () => {
+    if (forte1() > 120) setForte1(120);
+    if (forte2() > 0) setForte2(0);
+    applyCurrent(APEX_RESONANCE, 1);
+  },
 });
 
 // --- Apex Resonance: Thrum of All Sounds, ground chain then the mid-air chain, each stage its own
@@ -108,9 +122,11 @@ const THRUMS: Action[] = [
 // --- liberation / intro / outro
 const Liberation = roverAction("Liberation - Ultimate Tactics", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1192.86, concerto: 20, offtune: 57600, resetEnergy: true });
 const Intro = roverAction("Intro - Thunderous Fury", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 167.03, energy: 3, concerto: 20.8, offtune: 9600, forte1: 53 });
+// ...and clears all Thunder Rage: the cap as its declared delta, the bar clamped to the cap ahead
+// of it so it lands on 0 from wherever the Thrum hits left it (they gain past 100 here)
 const Outro = roverAction("Outro - Rumbling Thunders", {
-  cast: Cast.Outro, concerto: -100, swapOut: true,
-  updateBuffs: () => queueOutro(ELECTRO_CORE)
+  cast: Cast.Outro, concerto: -100, swapOut: true, forte2: -100,
+  updateBuffs: () => { if (forte2() > 100) setForte2(100); queueOutro(ELECTRO_CORE); },
 });
 
 /* ------------------------------------------------------------------------------------ buffs */
@@ -244,6 +260,25 @@ const ER_ROTATION = new Rotation([
   INTRO, BA1234, Skill, Repel, Overshock, Liberation, ECHO_SWAP, OUTRO,
 ]);
 
+// The main-DPS loop: the same fill, the Liberation while the Surge is being built, then Overshock
+// held for Apex and one pass of Thrum of All Sounds as the kit lays it out — seven ground stages,
+// the held Aero leap into the six mid-air stages, and the Silencing Blade a press on landing
+// chains into. Every Thrum hit queues its Thunder Bane (the Resonator's own updateBuffs). Never
+// the team's lead, so this is opener and loop both.
+const THRUM_SPECTRO = new ActionGroup("Skill - Thrum: Spectro 123", [
+  ThrumSpectro1, ThrumSpectro2, ThrumSpectro3, 
+]);
+const THRUM_HAVOC = new ActionGroup("Skill - Thrum: Havoc 123", [
+  ThrumHavoc1, ThrumHavoc2, ThrumHavoc3, 
+]);
+
+const ER_ROTATION_MDPS = new Rotation([
+  INTRO, BA1234, Skill, Repel, OvershockHold, Liberation,
+  THRUM_SPECTRO, THRUM_HAVOC, SilencingBlade,
+  THRUM_SPECTRO, THRUM_HAVOC, SilencingBlade,
+  ECHO_SWAP, OUTRO,
+]);
+
 /* ----------------------------------------------------------------------------------- loadout */
 
 // their real build: resonator + talents + both Inherent Skills + every sequence node
@@ -253,7 +288,7 @@ export const ROVER_ELECTRO = new Loadout({
   talent: ROVER_ELECTRO_TALENTS,
   inherent1: ER_INHERENT_1,
   inherent2: ER_INHERENT_2,
-  weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, RED_SPRING],
+  weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, RED_SPRING, UNSPOKEN_RUE],
   echoLoadouts: [
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     new EchoLoadout(STAY_TUNED, ELECTRIC_REFLECTION_5PC),
@@ -265,7 +300,24 @@ export const ROVER_ELECTRO = new Loadout({
   substat: chem("atk", "skill"),
     rotation: ER_ROTATION,
   sequences: [
-    ER_S1, ER_S2, 
+    ER_S1, ER_S2,
     ER_S3, ER_S4, ER_S5, ER_S6
   ],
+});
+
+// the same kit as the team's damage dealer (see the file header): Apex and the Thrum chains, the
+// Electro sets only — Moonlit Clouds is a support's set
+export const ROVER_ELECTRO_MDPS = new Loadout({
+  resonator: ROVER_ELECTRO_RESONATOR,
+  talent: ROVER_ELECTRO_TALENTS,
+  inherent1: ER_INHERENT_1,
+  inherent2: ER_INHERENT_2,
+  weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, RED_SPRING, UNSPOKEN_RUE],
+  echoLoadouts: [
+    new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC),
+  ],
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
+  substat: chem("atk", "skill"),
+  rotation: ER_ROTATION_MDPS,
+  sequences: [ER_S1, ER_S2, ER_S3, ER_S4, ER_S5, ER_S6],
 });

@@ -27,7 +27,7 @@ import { AUGUSTA } from "./resonators/electro/augusta.js";
 import { BULING } from "./resonators/electro/buling.js";
 import { HSIN_FLARE, HSIN_UNISON } from "./resonators/electro/hsin.js";
 import { REBECCA } from "./resonators/electro/rebecca.js";
-import { ROVER_ELECTRO } from "./resonators/electro/rover_electro.js";
+import { ROVER_ELECTRO, ROVER_ELECTRO_MDPS } from "./resonators/electro/rover_electro.js";
 import { SUOMING, SUOMING_MDPS } from "./resonators/electro/suoming.js";
 import { XIANGLI_YAO } from "./resonators/electro/xiangli_yao.js";
 import { YINLIN } from "./resonators/electro/yinlin.js";
@@ -68,10 +68,13 @@ const TEAMS: Loadout[][][] = [
   // hsin (Electro Flare mode): electro skill flare
   [[SUISUI, BULING, CHISA, SHOREKEEPER], [CHISA, ROVER_ELECTRO], [HSIN_FLARE]],
   // hsin, Unison mode: Suoming or Jinhsi behind her hands over the Unison her Intro answers
-  [[SHOREKEEPER, VERINA, BULING, MORNYE], [SUOMING, JINHSI], [HSIN_UNISON]],
+  [[SHOREKEEPER, VERINA, BULING, MORNYE, SUISUI], [SUOMING, JINHSI], [HSIN_UNISON]],
 
   // suoming mdps, electro basic unison
   [[SHOREKEEPER, VERINA, MORNYE], [SANHUA, LYNAE_RUPTURE, REBECCA], [SUOMING_MDPS]],
+
+  // electro rover mdps: Apex Resonance, the Thrum of All Sounds chains
+  [[BULING, CHISA, SHOREKEEPER, VERINA, MORNYE], [LYNAE_RUPTURE, REBECCA], [ROVER_ELECTRO_MDPS]],
 
   // jingran: fusion heavy shielder
   [[SHOREKEEPER, LUPA, VERINA, MORNYE], [IUNO, MORTEFI, BRANT, LUPA, LYNAE_RUPTURE, REBECCA], [JINGRAN]],

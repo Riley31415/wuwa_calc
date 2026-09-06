@@ -35,6 +35,10 @@
  * for Rejuvenating Glow and her own weapon), Reflecting Shadows' interruption resistance, and
  * Glimmering Gold's once-per-10-minutes revive.
  *
+ * Sequences 1-6 are from nanoka's released 3.7.0 data — see their own block below. S3 changes the
+ * line itself (the Drizzle skill chains into a Kingfisher Stage 4), so the loadout carries a second
+ * rotation for S3 and up.
+ *
  * MVs and energy/concerto/off-tune off nanoka.cc (character 1110, the 3.6+365 static JSON — the
  * page is client-rendered) at skill level 10, per-hit x hit count, with the flat Concerto Regen
  * rows folded in (the Intro's 10, the Liberation's 20) and the hidden +10 on the dodge counter.
@@ -43,10 +47,12 @@
  * `weakness_mastery` is 0, so she carries no flat Tune Break Boost.
  */
 import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
-import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
+import { Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
+  addBuff,
   addStat,
   applied,
+  appliedByMember,
   applyCurrent,
   applyEnemy,
   applyTeam,
@@ -73,6 +79,7 @@ import {
 import { ActionGroup, Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import {
   AERO_EROSION, ELECTRO_FLARE, ELECTRO_RAGE, FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE, HEALS, SPECTRO_FRAZZLE,
+  inflictedNegativeStatusBy,
 } from "../../shared/status.js";
 import { FIRSTLIGHTS_HERALD } from "../../weapons/rectifier.js";
 import { VARIATION } from "../../weapons/standard.js";
@@ -271,8 +278,87 @@ const UNDULATING_MIST = new Buff({
   display: () => `Suisui: Undulating Mist${frozenStacks() >= 2 ? " (consumed)" : ""}`,
   updateBuffs: () => lostOnSwap(),
   applyStats: () => { if (frozenStacks() >= 2) addStat(Stat.BonusAtk, 50); },
-  afterAction: () => { if (consumedAny()) applyCurrent(UNDULATING_MIST, 1); },
+  // S1 widens the trigger to inflicting any Negative Status, or dealing its damage
+  afterAction: () => {
+    const me = currentTeam().slot;
+    if (consumedAny() || (stacksOfTeam(MOUNTAINS_WASHED) && (inflictedNegativeStatusBy(me) || NEGATIVE_STATUS_TAGS.some(isType)))) applyCurrent(UNDULATING_MIST, 1);
+  },
 });
+
+/* --------------------------------------------------------------------------------- sequences */
+
+/** The five Negative Statuses with a damage tag of their own — the Landscape's four and Electro
+ *  Flare. Havoc Bane has none, and is S2's consume branch instead. */
+const TAGGED_STATUSES: [Debuff, Type2][] = [...LANDSCAPE_CAPS, [ELECTRO_FLARE, Type2.ElectroFlare]];
+const NEGATIVE_STATUS_TAGS: Type2[] = TAGGED_STATUSES.map(([, tag]) => tag);
+
+/** S1 on the team: Undulating Mist's ATK also comes off inflicting a Negative Status or dealing its
+ *  damage (read by the Mist itself, above). Reflecting Shadows' longer third step and the
+ *  Drizzle chain's interruption immunity reach no formula. */
+const MOUNTAINS_WASHED = new Buff({ name: "Suisui S1: Mountains Washed Into Paintings" });
+const SS_S1 = new Sequence({
+  name: "Suisui S1: Mountains Washed Into Paintings",
+  combatStart: () => applyTeam(MOUNTAINS_WASHED, 1),
+});
+
+/** S2's payout: +50% Crit. DMG, 30s — permanent once a member has it, but each member earns their
+ *  own by inflicting/dealing/spending a status themselves (the team-wide "all nearby Resonators"
+ *  is who is *eligible*, not who is paid). The "active resonator not in the Landscape" clause never
+ *  binds against a boss standing in it. */
+const CLOUDS_POUR = new Buff({
+  name: "Suisui S2: Clouds Pour Like Molten Gold",
+  applyStats: () => addStat(Stat.CritDmg, 50),
+});
+/** S2's watcher, in the team pool so every member's own turn is seen: inside Ceaseless Landscape,
+ *  the acting member inflicting one of the five tagged statuses or dealing its damage (the
+ *  Landscape's own test), or spending Havoc Bane (its consume branch, from afterAction for the same
+ *  reason), hands that member the payout. */
+const CLOUDS_POUR_WATCH = new Buff({
+  name: "Suisui S2: Clouds Pour Like Molten Gold (watch)",
+  updateGlobal: () => {
+    if (!stacksOfTeam(CEASELESS_LANDSCAPE)) return;
+    const actor = currentTeam().slot;
+    // inflicting Havoc Bane is deliberately not here — only spending it pays, below
+    if (actor.resonator && TAGGED_STATUSES.some(([status, tag]) => appliedByMember(status, actor) || isType(tag))) addBuff(actor.resonator, CLOUDS_POUR, 1);
+  },
+  afterAction: () => { if (stacksOfTeam(CEASELESS_LANDSCAPE) && consumedByMe(HAVOC_BANE)) applyCurrent(CLOUDS_POUR, 1); },
+});
+const SS_S2 = new Sequence({
+  name: "Suisui S2: Clouds Pour Like Molten Gold",
+  combatStart: () => applyTeam(CLOUDS_POUR_WATCH, 1),
+});
+
+/** Kingfisher: granted by the Drizzle skill, spent by the Stage 4 it lets her skip straight to for
+ *  +20 Concerto and +350 Floral Epistle — once every 25s, which one grant a visit already is. Ends
+ *  on switching out. */
+const KINGFISHER = new Buff({
+  name: "Suisui S3: Kingfisher",
+  updateBuffs: () => lostOnSwap(),
+  applyStats: () => { if (currentAction() === FBA4) { addStat(Stat.AddConcerto, 20); addStat(Stat.AddForte2, 350); } },
+  convertStats: () => { if (currentAction() === FBA4) revokeCurrent(KINGFISHER); },
+});
+const SS_S3 = new Sequence({
+  name: "Suisui S3: Sparse Curtains Invite Evening Glow",
+  updateBuffs: () => { if (currentAction() === FSkill) applyCurrent(KINGFISHER, 1); },
+});
+
+/** S4 is +50% on two heals — nothing this calculator reads. */
+const SS_S4 = new Sequence({ name: "Suisui S4: Autumn Mountains in Choir Sing" });
+
+const SS_S5 = new Sequence({
+  name: "Suisui S5: I Long To Ride The Eastern Wind",
+  applyStats: () => {
+    const a = currentAction();
+    if (a === FBA1 || a === FBA2 || a === FBA3 || a === FBA4 || a === FHA) addStat(Stat.MulMv, 100);
+  },
+});
+
+const SS_S6 = new Sequence({
+  name: "Suisui S6: Staying True To This Splendid Realm",
+  applyStats: () => { if (currentAction() === Intro || currentAction() === ESkill) addStat(Stat.CritDmg, 500); },
+});
+
+const SS_SEQUENCES = [SS_S1, SS_S2, SS_S3, SS_S4, SS_S5, SS_S6];
 
 /* --------------------------------------------------------------------------- kit and loadout */
 
@@ -335,8 +421,17 @@ const BA123 = new ActionGroup("Basic - Zephyr Stance 123", [BA1, BA2, BA3]);
  *  100 the Outro spends. */
 const SS_ROTATION = new Rotation([
   NOINTRO, BA123, ESkill,
-  INTRO, 
-  FSkill, FBA1234, 
+  INTRO,
+  FSkill, FBA1234,
+  ECHO_CANCEL, Liberation, OUTRO,
+]);
+
+/** From S3 the Drizzle skill chains straight into a Stage 4 that spends Kingfisher — +20 Concerto
+ *  and +350 Floral Epistle — before the ordinary four-stage chain. */
+const SS_ROTATION_S3 = new Rotation([
+  NOINTRO, BA123, ESkill,
+  INTRO,
+  FSkill, FBA4,
   ECHO_CANCEL, Liberation, OUTRO,
 ]);
 
@@ -351,5 +446,6 @@ export const SUISUI = new Loadout({
   ],
   mainstats: [mainstats(Mainstat.HP4, Mainstat.ER3, Mainstat.ER3, Mainstat.HP1, Mainstat.HP1)],
   substat: chem("hp", "skill", { er: true }),
-  rotation: SS_ROTATION,
+  rotation: [SS_ROTATION, SS_ROTATION, SS_ROTATION, SS_ROTATION_S3],
+  sequences: SS_SEQUENCES,
 });

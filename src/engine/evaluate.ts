@@ -8,7 +8,7 @@ import type { Rotation, Action, ActionGroup, ActionDef, ActionField } from "./ro
 import { ctx, dryLog, undoDry, noteMutation, recordApplied, recordConsumed, pendingQueue, tagWord, tagWordOf, RESOURCE_STATS } from "./runtime.js";
 import { Gear, Buff, Debuff, Resonator, Loadout, Matrix, Mainslot, Weapon, PHASE_COUNT } from "./gear.js";
 import {
-  State, TeamMember, StatEntry, HeldBuff, ZERO_STATS, TYPE2_AMP_INDEX, FightSnapshot, capEnergy,
+  State, TeamMember, StatEntry, HeldBuff, ZERO_STATS, TYPE2_AMP_INDEX, TYPE2_CRIT_RATE_INDEX, TYPE2_CRIT_DMG_INDEX, FightSnapshot, capEnergy,
   EMPTY_HELD, EMPTY_FORTE, EMPTY_FIELDS, enemyDef, enemyRes,
 } from "./state.js";
 import { addStat, getStat, withTeam, currentAction, menuStats, casting, isCast } from "./context.js";
@@ -26,6 +26,7 @@ export interface Snapshot {
   /** The `Type2`-scoped part of `amp` on its own — the only amplification a dot row reads (see
    *  TYPE2_AMP_INDEX and damage.ts's own `ampFactor`). */
   type2Amp: number;
+  type2CritRate: number; type2CritDmg: number;
   enemyRes: number; enemyDef: number;
 }
 
@@ -513,6 +514,7 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
         hp: bh + eff[Stat.BonusHp]! / 100 * bh + eff[Stat.FlatHp]!,
         def: bd + eff[Stat.BonusDef]! / 100 * bd + eff[Stat.FlatDef]!,
         amp: eff[Stat.Amp]!, type2Amp: eff[TYPE2_AMP_INDEX]!, dmgBonus: eff[Stat.DmgBonus]!,
+        type2CritRate: eff[TYPE2_CRIT_RATE_INDEX]!, type2CritDmg: eff[TYPE2_CRIT_DMG_INDEX]!,
         enemyRes: enemyRes(), enemyDef: enemyDef(),
       }).avg);
     }
@@ -538,6 +540,8 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
     def: baseDef + effective[Stat.BonusDef]! / 100 * baseDef + effective[Stat.FlatDef]!,
     amp: effective[Stat.Amp]!,
     type2Amp: effective[TYPE2_AMP_INDEX]!,
+    type2CritRate: effective[TYPE2_CRIT_RATE_INDEX]!,
+    type2CritDmg: effective[TYPE2_CRIT_DMG_INDEX]!,
     dmgBonus: effective[Stat.DmgBonus]!,
     enemyRes: enemyRes(),
     enemyDef: enemyDef(),

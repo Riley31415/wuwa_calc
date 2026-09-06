@@ -24,6 +24,9 @@ export interface Snapshot {
   amp: number;
   /** The part of `amp` that came in scoped to a `Type2` — all a dot hit reads (see `ampFactor`). */
   type2Amp: number;
+  /** The parts of Crit Rate/Crit DMG scoped to a `Type2` — the only crit a dot or tune hit has. */
+  type2CritRate: number;
+  type2CritDmg: number;
   dmgBonus: number;
   /** The enemy's own current resistance to this action's element, and current defence — both
    *  read off `Enemy` at resolve time (base plus whatever debuffs contributed this pass). */
@@ -177,9 +180,10 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
   // damage is the target's, and nothing the attacker stacks onto their own hits carries into it.
   const dealtFactor = 1 + s(Stat.TotalDmg) * notDot;
 
-  // dot and tune never crit, so their crit multiplier is a flat 1
-  const critMult = notDot * notTune ? s(Stat.CritDmg) : 1;
-  const cr = s(Stat.CritRate);
+  // dot and tune crit only off the Negative-Status-scoped crit (Hsin's S6) — with none, a flat 1
+  const special = !(notDot * notTune);
+  const critMult = special ? (snapshot.type2CritDmg ? snapshot.type2CritDmg / 100 : 1) : s(Stat.CritDmg);
+  const cr = special ? snapshot.type2CritRate / 100 : s(Stat.CritRate);
   // what an average hit is worth: every hit crits above 100% rate, otherwise the blend
   const critFactor = cr >= 1 ? critMult : (1 - cr) + critMult * cr;
 
