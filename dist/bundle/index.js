@@ -1223,14 +1223,10 @@ function equippedGear(member2, combo) {
   ];
 }
 var HOVER_GEAR_FROM = 2;
-function equippedSequences(member2, combo) {
-  return member2.loadout.sequences.slice(0, combo.sequence);
-}
 function gearRows(member2, combo) {
   const core = equippedGear(member2, combo).slice(HOVER_GEAR_FROM);
-  const sequences = equippedSequences(member2, combo);
   const mode = member2.loadout.mode;
-  return core.map(([label, g]) => `<tr class="gear"><td class="k">${esc(label)}</td><td class="v">${esc(g.name)}</td></tr>`).join("") + (mode ? `<tr class="gear"><td class="k">Mode</td><td class="v">${esc(mode.name)}</td></tr>` : "") + sequences.map((g, i) => `<tr class="gear"><td class="k">${i === 0 ? "Sequences" : ""}</td><td class="v">${esc(g.name)}</td></tr>`).join("");
+  return core.map(([label, g]) => `<tr class="gear"><td class="k">${esc(label)}</td><td class="v">${esc(g.name)}</td></tr>`).join("") + (mode ? `<tr class="gear"><td class="k">Mode</td><td class="v">${esc(mode.name)}</td></tr>` : "") + (member2.loadout.sequences.length ? `<tr class="gear"><td class="k">Sequences</td><td class="v">${combo.sequence ? Array.from({ length: combo.sequence }, (_, i) => `S${i + 1}`).join(", ") : "S0"}</td></tr>` : "");
 }
 var ATTRIBUTE_SCOPES = [
   64,

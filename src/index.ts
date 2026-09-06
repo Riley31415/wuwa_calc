@@ -1033,25 +1033,17 @@ function equippedGear(member: Member, combo: Combo): [string, Gear][] {
  *  panel. */
 const HOVER_GEAR_FROM = 2;
 
-/** The resonance chain nodes this row actually holds — S1 up to whatever level its own combo
- *  runs at (see `sequenceLevels()`), each named "<name> S<N>: <title>", listed in their own
- *  section below. */
-function equippedSequences(member: Member, combo: Combo): Gear[] {
-  return member.loadout.sequences.slice(0, combo.sequence);
-}
-
-/** Every piece of gear a member's loadout equips, each labelled by slot, with any sequence nodes
- *  listed the same way — full name, no splitting — after the core pieces, under a single
- *  "Sequences" label shared by the whole group: it sits in the first sequence row's own `.k` cell
- *  (S1's), and every row after it (S2-S6) leaves `.k` blank, same shape the sonata sets' own
- *  label column already uses. `.k`/`.v` reused wholesale from the stat-trace panels (see index.css's own note
- *  by `.pop .gear`) — the label column's gray already matches those, and the browser's own table
- *  layout sizes both columns to their own longest cell with no extra CSS. Every row carries
- *  `.gear`, which is what left-aligns the name column: these are names, not numbers, and the
- *  panel is a plain list of names with no numeric column beside it. */
+/** Every piece of gear a member's loadout equips, each labelled by slot, then the resonance chain
+ *  nodes the row holds as one line — "S1, S2, S3", not three rows of full names: which nodes are
+ *  held is the build fact, and their text is fixed for the resonator (the kit's own, read on its
+ *  own page). An S0 row says so. Only where the loadout has a chain at all. `.k`/`.v` reused wholesale
+ *  from the stat-trace panels (see index.css's own note by `.pop .gear`) — the label column's
+ *  gray already matches those, and the browser's own table layout sizes both columns to their own
+ *  longest cell with no extra CSS. Every row carries `.gear`, which is what left-aligns the name
+ *  column: these are names, not numbers, and the panel is a plain list of names with no numeric
+ *  column beside it. */
 function gearRows(member: Member, combo: Combo): string {
   const core = equippedGear(member, combo).slice(HOVER_GEAR_FROM);
-  const sequences = equippedSequences(member, combo);
   // A kit with a resonance mode runs one loadout per mode (Lucilla's Echo and Glacio Chafe builds
   // are two `Loadout`s, see lucilla.ts), so which one a row is on is a real build fact and belongs
   // here. Kept out of `equippedGear()` since most kits have no mode at all.
@@ -1060,9 +1052,9 @@ function gearRows(member: Member, combo: Combo): string {
     .map(([label, g]) => `<tr class="gear"><td class="k">${esc(label)}</td><td class="v">${esc(g.name)}</td></tr>`)
     .join("")
     + (mode ? `<tr class="gear"><td class="k">Mode</td><td class="v">${esc(mode.name)}</td></tr>` : "")
-    + sequences
-      .map((g, i) => `<tr class="gear"><td class="k">${i === 0 ? "Sequences" : ""}</td><td class="v">${esc(g.name)}</td></tr>`)
-      .join("");
+    + (member.loadout.sequences.length
+      ? `<tr class="gear"><td class="k">Sequences</td><td class="v">${combo.sequence ? Array.from({ length: combo.sequence }, (_, i) => `S${i + 1}`).join(", ") : "S0"}</td></tr>`
+      : "");
 }
 
 /** The scope buckets a menu-stat Dmg Bonus line reads from — an attribute's own (Havoc Dmg
