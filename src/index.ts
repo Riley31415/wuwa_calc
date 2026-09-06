@@ -1275,6 +1275,15 @@ const STANDARDS = [
   "If you find an issue in buff timing, stats, builds, etc ping me on discord."
 ];
 
+/** The beta notice — where the numbers stand right now and where to report one that looks wrong.
+ *  Open by default (see `openHelp`): it is the one box a first-time reader has to see. */
+const README = [
+  "All beta calculations are subject to change!",
+  "There may be issues during early beta especially with Hsin and Suoming.",
+  "If you find any issues with stats, buffs, or damage seems way off, ping me @rileyy._. on discord.",
+  "Also I'm still working on Hsin flare mode, it will be released soon.",
+];
+
 /** How the table is worked rather than what it assumes — the clicks and the search bar, for a
  *  reader who has the numbers in front of them and no way of knowing they are filterable. */
 const BROWSING = [
@@ -1288,8 +1297,9 @@ const BROWSING = [
 
 /** Which boxes are showing their description — a `Filters` key, or `standards`/`browsing` for the
  *  boxes that have no filter behind them. Module-level so a redraw — a box ticked, a chip cleared
- *  — leaves them open where the reader left them, same as `dprOpenAt`. */
-const openHelp = new Set<string>();
+ *  — leaves them open where the reader left them, same as `dprOpenAt`. The README starts open;
+ *  a click closes it like any other. */
+const openHelp = new Set<string>(["readme"]);
 
 function comparisonFilters(): string {
   // The name is a button rather than a `<label>`: clicking it opens the description, so the box
@@ -1318,6 +1328,7 @@ function comparisonFilters(): string {
     <div class="tcfilter-row note">
       ${note("standards", "Standards and Assumptions", STANDARDS)}
       ${note("browsing", "How to Browse and Filter", BROWSING)}
+      ${note("readme", "README", README)}
       <div class="tcsearchrow">
         <div class="tcsearch">
           <input id="optionSearch" type="search" placeholder="Filter resonators..."

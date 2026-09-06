@@ -1415,6 +1415,12 @@ var STANDARDS = [
   "This is to enable large scale automatic team calculations. It will never effect DPR by more than 1-2%.",
   "If you find an issue in buff timing, stats, builds, etc ping me on discord."
 ];
+var README = [
+  "All beta calculations are subject to change!",
+  "There may be issues during early beta especially with Hsin and Suoming.",
+  "If you find any issues with stats, buffs, or damage seems way off, ping me @rileyy._. on discord.",
+  "Also I'm still working on Hsin flare mode, it will be released soon."
+];
 var BROWSING = [
   "Left click on any resonator (or gear) name to show only teams with them.",
   "Right click on any resonator (or gear) name to hide teams with them.",
@@ -1423,7 +1429,7 @@ var BROWSING = [
   "Click on the SLOT 1/2/3 column headers to show personal DPR.",
   "Click on a team's damage total to view an expanded action log with their rotations, stats, buffs, damage and forte breakdowns, as well as energy requirements."
 ];
-var openHelp = /* @__PURE__ */ new Set();
+var openHelp = /* @__PURE__ */ new Set(["readme"]);
 function comparisonFilters() {
   const filter = (id, label) => {
     const open = openHelp.has(id);
@@ -1437,6 +1443,7 @@ function comparisonFilters() {
     <div class="tcfilter-row note">
       ${note("standards", "Standards and Assumptions", STANDARDS)}
       ${note("browsing", "How to Browse and Filter", BROWSING)}
+      ${note("readme", "README", README)}
       <div class="tcsearchrow">
         <div class="tcsearch">
           <input id="optionSearch" type="search" placeholder="Filter resonators..."
