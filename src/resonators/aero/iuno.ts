@@ -31,7 +31,7 @@ import { MYA, COV_3PC } from "../../echoes/septimont.js";
 import { WINDWARD_5PC, NM_KELPIE } from "../../echoes/rinascita.js";
 import { SIERRA_GALE_2PC, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, REJUV_5PC, REJUV_2PC, FALLACY } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -180,7 +180,8 @@ export const IUNO = new Loadout({
     new EchoLoadout(FALLACY, COV_3PC, REJUV_2PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
-  substat: chem("atk", "liberation"),
+  substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Liberation, Substat.Er, Substat.FlatAtk),
     rotation: IO_ROTATION,
 });
 
@@ -207,6 +208,7 @@ export const IUNO_MDPS = new Loadout({
     new EchoLoadout(NM_KELPIE, WINDWARD_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
-  substat: chem("atk", "liberation"),
+  substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Er),
   rotation: IO_ROTATION_MDPS,
 });

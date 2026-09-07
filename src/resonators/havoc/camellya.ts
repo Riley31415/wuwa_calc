@@ -62,7 +62,7 @@ import { RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { NM_CROWNLESS, HAVOC_ECLIPSE_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -280,7 +280,8 @@ export const CAMELLYA = new Loadout({
   weapons: [RED_SPRING, EMERALD_OF_GENESIS],
   echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: chem("atk", "basic"),
+  substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Er),
     rotation: CM_ROTATION,
 });
 
@@ -294,6 +295,7 @@ export const CAMELLYA_DOUBLE = new Loadout({
   weapons: [RED_SPRING, EMERALD_OF_GENESIS],
   echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: chem("atk", "basic"),
+  substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Er),
     rotation: CM_ROTATION_DOUBLE,
 });

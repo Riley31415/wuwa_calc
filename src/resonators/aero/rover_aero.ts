@@ -34,7 +34,7 @@ import { BLOODPACTS_PLEDGE, BLOODPACT_AERO_AMP } from "../../weapons/standard.js
 import { REJUV_5PC, HERON, MOONLIT_CLOUDS_5PC, BELL_BORNE_SHIELD, BELL_BORNE_GEOCHELONE } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { FLEURDELYS, WINDWARD_5PC } from "../../echoes/rinascita.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -230,7 +230,8 @@ export const ROVER_AERO = new Loadout({
     new EchoLoadout(FLEURDELYS, WINDWARD_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
-  substat: chem("atk", "skill"),
+  substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Skill, Substat.Er, Substat.FlatAtk),
     rotation: AR_ROTATION,
   sequences: [AR_S1, AR_S2, AR_S3, AR_S4, AR_S5, AR_S6],
 });

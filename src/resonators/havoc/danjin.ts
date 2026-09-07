@@ -48,7 +48,7 @@ import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { NM_HERON, MIDNIGHT_VEIL_5PC } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { CROWNLESS, HAVOC_ECLIPSE_5PC, HERON, MOONLIT_CLOUDS_5PC, REJUV_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 
@@ -275,7 +275,8 @@ export const DANJIN = new Loadout({
     new EchoLoadout(CROWNLESS, HAVOC_ECLIPSE_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: chem("atk", "heavy"),
+  substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.FlatAtk, Substat.Liberation, Substat.Er),
     rotation: DJ_ROTATION,
   sequences: [DJ_S1, DJ_S2, DJ_S3, DJ_S4, DJ_S5, DJ_S6],
 });

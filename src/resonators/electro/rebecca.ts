@@ -70,7 +70,7 @@ import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC, LINGERING_TUNES_2PC, VOID_THUNDER_2PC } from "../../echoes/jinzhou.js";
 import { ADAM_SMASHER_REBECCA, SHATTERED_DREAMS_1PC, HYVATIA, NEONLIGHT_LEAP_5PC } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { LUCY_RESONATOR } from "../spectro/lucy.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -444,6 +444,7 @@ export const REBECCA = new Loadout({
   weapons: [SKULL_THRASHER, NEW_STD_PISTOL, STATIC_MIST],
   echoLoadouts: RB_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: chem("atk", "basic"),
+  substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Er),
     rotation: RB_ROTATION,
 });

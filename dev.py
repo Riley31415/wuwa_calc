@@ -47,7 +47,6 @@ LOGS = ROOT / "logs"
 TSC = ROOT / "node_modules" / "typescript" / "bin" / "tsc"
 ESBUILD = ROOT / "node_modules" / "esbuild" / "bin" / "esbuild"
 DEFAULT_PORT = 8731
-VBS = Path(os.environ["APPDATA"]) / "Microsoft/Windows/Start Menu/Programs/Startup/wuwa-calc-dev.vbs"
 
 # Concatenation only: tsc is still the compiler, this just folds its ~70 output modules into the
 # two files the page actually loads (dist/bundle/index.js and the worker's dist/bundle/solver.js,
@@ -153,42 +152,14 @@ def start_watcher(name: str, bin_path: Path, args: list[str]) -> subprocess.Pope
     )
 
 
-def install_autostart(port: int) -> None:
-    """A .vbs in the Startup folder rather than a scheduled task: it runs as this user with their
-    PATH, needs no elevation, and is removed by deleting one file. WScript's Run with a window
-    style of 0 is what keeps pythonw's own (already console-less) process off the taskbar too."""
-    pythonw = Path(sys.executable).with_name("pythonw.exe")
-    exe = pythonw if pythonw.exists() else Path(sys.executable)
-    VBS.parent.mkdir(parents=True, exist_ok=True)
-    VBS.write_text(
-        'Set sh = CreateObject("WScript.Shell")\n'
-        f'sh.CurrentDirectory = "{ROOT}"\n'
-        f'sh.Run """{exe}"" ""{ROOT / "dev.py"}"" {port}", 0, False\n',
-        encoding="utf-8",
-    )
-    print(f"autostart installed: {VBS}")
-
-
-def remove_autostart() -> None:
-    if VBS.exists():
-        VBS.unlink()
-        print(f"autostart removed: {VBS}")
-    else:
-        print(f"no autostart entry at {VBS}")
 
 
 def main() -> int:
     args = sys.argv[1:]
-    if "--remove-autostart" in args:
-        remove_autostart()
-        return 0
-    install = "--install-autostart" in args
     serve_only = "--serve-only" in args
     positional = [a for a in args if not a.startswith("--")]
     port = int(positional[0]) if positional else DEFAULT_PORT
 
-    if install:
-        install_autostart(port)
     if port_taken(port):
         print(f"already serving on http://127.0.0.1:{port}/ - nothing to do")
         return 0

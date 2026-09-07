@@ -48,7 +48,7 @@ import {
   NEBULOUS_CANNON, GILDED_REVELATION_5PC, VOIDWING_MOTH, REEL_5PC,
 } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -264,6 +264,7 @@ export const LUUK = new Loadout({
   weapons: [DAYBREAKERS_SPINE, NEW_STD_GAUNTLET, ABYSS_SURGES],
   echoLoadouts: LK_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
-  substat: chem("atk", "basic"),
+  substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Er),
     rotation: LK_ROTATION,
 });

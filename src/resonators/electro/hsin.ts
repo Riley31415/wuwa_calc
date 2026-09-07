@@ -81,7 +81,7 @@ import { BLOOMING_JADEHAVEN, FREEZE_FRAME, LETHEAN_ELEGY, STRINGMASTER } from ".
 import { COSMIC_RIPPLES, NEW_STD_RECTIFIER } from "../../weapons/standard.js";
 import { STAY_TUNED, SWORN_VIGIL_5PC, ELECTRIC_REFLECTION_5PC } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -622,7 +622,8 @@ export const HSIN_FLARE = new Loadout({
   weapons: [BLOOMING_JADEHAVEN, COSMIC_RIPPLES, STRINGMASTER, LETHEAN_ELEGY, FREEZE_FRAME],
   echoLoadouts: [new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: chem("atk", "skill"),
+  substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Skill, Substat.Er, Substat.FlatAtk),
   rotation: HS_ROTATION_FLARE,
   mode: MODE_FLARE,
   sequences: HS_SEQUENCES,
@@ -633,7 +634,8 @@ export const HSIN_UNISON = new Loadout({
   weapons: [BLOOMING_JADEHAVEN, COSMIC_RIPPLES, STRINGMASTER, LETHEAN_ELEGY, FREEZE_FRAME],
   echoLoadouts: [new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: chem("atk", "skill"),
+  substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Skill, Substat.Er, Substat.FlatAtk),
   rotation: HS_ROTATION_UNISON,
   mode: MODE_UNISON,
   sequences: HS_SEQUENCES,

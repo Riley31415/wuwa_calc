@@ -40,7 +40,7 @@ import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { DREAM_OF_THE_LOST_3PC } from "../../echoes/septimont.js";
 import { NM_HECATE } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { BELL_BORNE_GEOCHELONE, HAVOC_ECLIPSE_2PC, HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -367,7 +367,8 @@ export const PHROLOVA = new Loadout({
   weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER],
   echoLoadouts: [new EchoLoadout(NM_HECATE, DREAM_OF_THE_LOST_3PC, HAVOC_ECLIPSE_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: chem("atk", "skill"),
+  substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Skill),
     rotation: [PH_LOOP, PH_LOOP, PH_LOOP_S2],
   sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6],
 });
@@ -404,7 +405,8 @@ export const PHROLOVA_DUAL_DPS = new Loadout({
     new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: chem("atk", "skill"),
+  substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Skill),
     rotation: [PH_LOOP_DUAL_DPS, PH_LOOP_DUAL_DPS, PH_LOOP_DUAL_DPS_S2],
   sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6],
 });

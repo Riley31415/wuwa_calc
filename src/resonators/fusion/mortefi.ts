@@ -34,7 +34,7 @@ import { STATIC_MIST, CADENZA, NEW_STD_PISTOL } from "../../weapons/standard.js"
 import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { NM_HECATE, EMPYREAN_ANTHEM_5PC, HECATE } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { THE_LAST_DANCE } from "../../weapons/pistol.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -263,7 +263,8 @@ export const MORTEFI = new Loadout({
     new EchoLoadout(HECATE, EMPYREAN_ANTHEM_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
-  substat: chem("atk", "basic"),
+  substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Liberation, Substat.Er, Substat.FlatAtk),
     rotation: MO_ROTATION,
   sequences: [MORTEFI_S1, MORTEFI_S2, MORTEFI_S3, MORTEFI_S4, MORTEFI_S5, MORTEFI_S6],
 });

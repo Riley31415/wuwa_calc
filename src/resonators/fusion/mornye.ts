@@ -48,7 +48,7 @@ import { STARFIELD_CALIBRATOR } from "../../weapons/broadblade.js";
 import { DISCORD } from "../../weapons/standard.js";
 import { REACTOR_HUSK, SPACETREK_EXPLORER, STARRY_RADIANCE_5PC } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -264,6 +264,7 @@ export const MORNYE = new Loadout({
   weapons: [STARFIELD_CALIBRATOR, DISCORD],
   echoLoadouts: MO_ECHOES,
   mainstats: mainstatOptions(Mainstat.DEF4, Mainstat.ER3, Mainstat.DEF1),
-  substat: chem("def", "liberation", { er: true }),
+  substat: substats(Substat.DefPct, Substat.Liberation, Substat.FlatDef, true),
+  highSubstat: highSubs(Substat.Er, Substat.Liberation, Substat.DefPct, Substat.Liberation),
     rotation: MO_ROTATION,
 });

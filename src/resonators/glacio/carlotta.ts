@@ -56,7 +56,7 @@ import { THE_LAST_DANCE } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { FROSTY_RESOLVE_5PC, SENTRY_CONSTRUCT } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -290,6 +290,7 @@ export const CARLOTTA = new Loadout({
   weapons: [THE_LAST_DANCE, NEW_STD_PISTOL, STATIC_MIST],
   echoLoadouts: [new EchoLoadout(SENTRY_CONSTRUCT, FROSTY_RESOLVE_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
-  substat: chem("atk", "skill"),
+  substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Er),
     rotation: CL_ROTATION,
 });

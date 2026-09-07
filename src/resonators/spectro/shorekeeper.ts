@@ -32,7 +32,7 @@ import { VARIATION } from "../../weapons/standard.js";
 import { BELL_BORNE_GEOCHELONE, HERON, MOONLIT_CLOUDS_5PC, REJUV_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { SPACETREK_EXPLORER, STARRY_RADIANCE_5PC } from "../../echoes/lahairoi.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -273,6 +273,7 @@ export const SHOREKEEPER = new Loadout({
   ],
   sequences: [SK_S1, SK_S2, SK_S3, SK_S4, SK_S5, SK_S6],
   mainstats: [mainstats(Mainstat.HP4, Mainstat.ER3, Mainstat.ER3, Mainstat.HP1, Mainstat.HP1)],
-  substat: chem("hp", "liberation"),
+  substat: substats(Substat.HpPct, Substat.Liberation, Substat.FlatHp),
+  highSubstat: highSubs(Substat.Er, Substat.Liberation, Substat.HpPct, Substat.Liberation),
     rotation: [SK_LOOP, SK_LOOP, SK_LOOP, SK_LOOP_S3],
 });

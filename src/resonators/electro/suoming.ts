@@ -41,8 +41,8 @@
  * the intros (x1.6), Engraved Heart (x1.5) and the Unfurled basics (x1.4) are S1, S6 and Seal
  * Master re-shown — only Seal Master's contributes its multiplier here. Engraved Heart's held form
  * ("hold to continuously attack") has three unlabelled rows and no text of its own — not
- * modelled. Blight Rain's Thunder Crest window is the kit's own once a second, six at most,
- * as a coordinated window (helpers.ts's `coordinatedBuff`).
+ * modelled. Blight Rain's Thunder Crest window is the kit's own six crests over eight presses
+ * as a coordinated window (helpers.ts's `coordinatedBuff`, see BLIGHT_RAIN below).
  */
 import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
@@ -66,7 +66,7 @@ import { RED_SPRING, UNSPOKEN_RUE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { STAY_TUNED, SWORN_VIGIL_5PC, ELECTRIC_REFLECTION_5PC, SOUL_OF_DESPAIR } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -164,7 +164,7 @@ const Outro = suomingAction("Outro - Canopy Rumble", {
     queueOutro(CANOPY_RUMBLE);
     if (isHeld(UNISON)) {
       applyCurrent(ALIGNED_SEALS, 1); revokeCurrent(SEAL_MASTER);
-      applyTeam(BLIGHT_RAIN, 6);
+      applyTeam(BLIGHT_RAIN, 8);
     }
     if (isHeld(ALIGNED_SEALS)) queueOutro(ALIGNED_SEALS_HANDOFF);
   },
@@ -226,9 +226,11 @@ const ALIGNED_SEALS_HANDOFF = new Buff({
   applyStats: () => addStat(Stat.DmgBonus, 30 + Math.min(40, 20 * stacksOfTeam(UNISON_BOON)), Attribute.Electro),
 });
 
-/** Blight Rain, Miasmic Thunder's window: six Thunder Crests, one a second off the active
- *  resonator's own presses, on her slot however far the field has moved on. */
-const BLIGHT_RAIN = coordinatedBuff("Suoming: Blight Rain, Miasmic Thunder", 6, () => SUOMING_RESONATOR, ThunderCrest);
+/** Blight Rain, Miasmic Thunder's window: six Thunder Crests off the active resonator's own
+ *  presses, on her slot however far the field has moved on. The six come over eight presses at
+ *  a 4/3s cadence, the first and fifth skipped (x 1 1 1 x 1 1 1), which is where the crests fall
+ *  against Jinhsi's chain — five before her Stella Glamor, the sixth on the Intro after it. */
+const BLIGHT_RAIN = coordinatedBuff("Suoming: Blight Rain, Miasmic Thunder", 8, () => SUOMING_RESONATOR, ThunderCrest, { every: 4 / 3 });
 
 /** Unison Response: her Unison Intro hands the team one stack of Unison Boon — one from her this
  *  way, refreshed after that. The marker is what remembers she already has. */
@@ -374,8 +376,6 @@ const SM_ROTATION_MDPS = new Rotation([
 
 const SM_ECHOES = [
   new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
-  new EchoLoadout(STAY_TUNED, ELECTRIC_REFLECTION_5PC),
-  new EchoLoadout(SOUL_OF_DESPAIR, ELECTRIC_REFLECTION_5PC),
   new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC),
   new EchoLoadout(SOUL_OF_DESPAIR, SWORN_VIGIL_5PC),
 ];
@@ -385,7 +385,8 @@ export const SUOMING = new Loadout({
   weapons: [UNSPOKEN_RUE, EMERALD_OF_GENESIS, RED_SPRING],
   echoLoadouts: SM_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: chem("atk", "basic"),
+  substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Basic, Substat.Er, Substat.FlatAtk),
   sequences: SM_SEQUENCES,
   rotation: SM_ROTATION,
 });
@@ -395,7 +396,8 @@ export const SUOMING_MDPS = new Loadout({
   weapons: [UNSPOKEN_RUE, EMERALD_OF_GENESIS, RED_SPRING],
   echoLoadouts: [new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: chem("atk", "basic"),
+  substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Er),
   sequences: SM_SEQUENCES,
   rotation: SM_ROTATION_MDPS,
 });

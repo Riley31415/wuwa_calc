@@ -44,7 +44,7 @@ import { VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { NM_KELPIE, WINDWARD_5PC } from "../../echoes/rinascita.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -195,6 +195,7 @@ export const JIYAN = new Loadout({
   echoLoadouts: [new EchoLoadout(NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC),
       new EchoLoadout(NM_KELPIE, WINDWARD_5PC),],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
-  substat: chem("atk", "heavy"),
+  substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Er),
     rotation: JY_ROTATION,
 });

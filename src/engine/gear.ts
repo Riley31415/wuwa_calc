@@ -247,6 +247,8 @@ export interface LoadoutDef {
   echoLoadouts: EchoLoadout[];
   mainstats: Buff[];
   substat: Buff;
+  /** Worn instead of `substat` when that role's High Invest Substats box is on. */
+  highSubstat: Buff;
   /** One rotation for every sequence level, or a list of up to seven where the nth is the one the
    *  build runs at S(n-1); a shorter list's last entry covers every level above it. */
   rotation: Rotation | Rotation[];
@@ -260,7 +262,7 @@ export interface LoadoutDef {
  *  hand over "some Gear" (see `LoadoutDef`). Forte Circuit logic lives directly on each
  *  resonator's own Resonator definition, not a separate loadout slot — and so do the stat-tree
  *  Talents and both Inherent Skills, which are the kit itself rather than anything a build picks.
- *  Mainstat/substat rolls stay plain `Buff` (`mainstats()`/`chem()`'s own return type) — no
+ *  Mainstat/substat rolls stay plain `Buff` (`mainstats()`/`substats()`'s own return type) — no
  *  dedicated class was asked for those.
  *
  *  `weapons`/`echoLoadouts`/`mainstats` are lists, not a single pick: the comparison table runs every
@@ -277,6 +279,7 @@ export class Loadout {
    *  runs one row per combination. A pure support names just the one. */
   mainstats: Buff[];
   substat: Buff;
+  highSubstat: Buff;
   /** This build's whole rotation, already compiled into the up-to-three action chains the
    *  scheduler schedules — start of combat, opener, and the Intro chain every visit after
    *  (rotation.ts). One field, not an opener/loop pair: the chains share a body, so splitting
@@ -298,6 +301,7 @@ export class Loadout {
     this.echoLoadouts = def.echoLoadouts;
     this.mainstats = def.mainstats;
     this.substat = def.substat;
+    this.highSubstat = def.highSubstat;
     this.rotations = Array.isArray(def.rotation) ? def.rotation : [def.rotation];
     if (this.rotations.length < 1 || this.rotations.length > 7) throw new Error(`${def.resonator.name}: a loadout lists 1-7 rotations, one per sequence level`);
     this.sequences = def.sequences ?? [];
@@ -317,12 +321,13 @@ export class Loadout {
    *  sequences, mode). `sequenceLevel` is how many nodes are actually held, S1 up: 0 for a build at
    *  S0, 6 for the full chain — the comparison table runs one row per level so the gain from each
    *  can be read off (see index.ts's own combos). `matrix` is whether Matrix Mode is on — the
-   *  piece only goes on when it is *and* this loadout declares one. */
-  pieces(weapon: Weapon, echo: EchoLoadout, mainstat: Buff, sequenceLevel: number, matrix = false): Gear[] {
+   *  piece only goes on when it is *and* this loadout declares one. `highSubs` swaps the substat
+   *  piece for the high-investment one (that role's own box). */
+  pieces(weapon: Weapon, echo: EchoLoadout, mainstat: Buff, sequenceLevel: number, matrix = false, highSubs = false): Gear[] {
     const r = this.resonator;
     return [
       r, r.talent, r.inherent1, r.inherent2,
-      weapon, ...echo.pieces(), mainstat, this.substat,
+      weapon, ...echo.pieces(), mainstat, highSubs ? this.highSubstat : this.substat,
       ...this.sequences.slice(0, sequenceLevel),
       this.mode,
       matrix ? this.matrix : undefined,

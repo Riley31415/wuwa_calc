@@ -1,27 +1,3 @@
-# substats
-allow 44111 with er builds eg for brant
-add individual stat instances in the substats for each line eg ER 7.9% x2 in hover
-basically each line of substats should be its own instance of gear, but they are static/constant so still optimized
-
-new chem substat constructor:
-
-substats(stat1, stat2, stat3, stat4, stat5)
-stat1 and 2 will get 5 lines (almost all characters use cr, cd)
-stat3,4,5 will get 2 lines (usually atk, dmg%, flat atk)
-
-lets add a new box and checkmark for an option "High Invest Substats" for mdps, and for supports
-this will switch all those resonators to use those substats.
-
-rules for the substats:
-cd =17.4
-cr = 8.7
-dmg = 9.4
-atk = 9.4
-flatatk = 50
-er = 10%
-https://wutheringwaves.fandom.com/wiki/Echo/Stats
-
-they will use 5x cr, 5x cd, 4x dmg%, 4x atk%, 2x flat atk, 2x er
 
 #
 add all sequences and R5 weapons
@@ -34,3 +10,18 @@ standardize action naming
 standardize sequence naming
 cleanup all (team) (self) (whatever) buffs
 make some buffs nameless if they dont add stats
+
+#
+add a new bar right under the ER table labeled OPTIONS 
+(the bottom of the box is the same height as the bottom of the team dpr breakdown table on the left), 
+add a box to the OPTIONS area that says Show stats, Show resources
+
+#
+add frame counts and cancel frame counts to all actions
+make all durations work for all buffs
+estimate rotation times
+
+stage1 add durations to all actions, review rotation times
+stage2 add durations to all weapons, echoes, sonatas
+stage3 add durations to all kit buffs
+stage4 phrolova hecate automation

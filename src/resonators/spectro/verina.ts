@@ -37,7 +37,7 @@ import { VARIATION } from "../../weapons/standard.js";
 import { BELL_BORNE_GEOCHELONE, HERON, MOONLIT_CLOUDS_5PC, REJUV_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { SPACETREK_EXPLORER, STARRY_RADIANCE_5PC } from "../../echoes/lahairoi.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -257,7 +257,8 @@ export const VERINA = new Loadout({
     //new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     ],
   mainstats: [mainstats(Mainstat.ATK4, Mainstat.ER3, Mainstat.ER3, Mainstat.ATK1, Mainstat.ATK1)],
-  substat: chem("atk", "liberation"),
+  substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.Er, Substat.Basic, Substat.AtkPct, Substat.Basic),
     rotation: [VR_LOOP, VR_LOOP, VR_S2],
   sequences: [VERINA_S1, VERINA_S2, VERINA_S3, VERINA_S4, VERINA_S5, VERINA_S6],
 });

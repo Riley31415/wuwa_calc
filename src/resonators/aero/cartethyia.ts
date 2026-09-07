@@ -70,7 +70,7 @@ import { BLAZING_BRILLIANCE, DEFIERS_THORN, RED_SPRING } from "../../weapons/swo
 import { NEW_STD_SWORD, EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { FLEURDELYS, WINDWARD_5PC, GUSTS_OF_WELKIN_5PC } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -401,6 +401,7 @@ export const CARTETHYIA = new Loadout({
   weapons: [DEFIERS_THORN, EMERALD_OF_GENESIS, RED_SPRING],
   echoLoadouts: [new EchoLoadout(FLEURDELYS, WINDWARD_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.HP4, Mainstat.Aero3, Mainstat.HP1),
-  substat: chem("hp", "basic"),
+  substat: substats(Substat.HpPct, Substat.Basic, Substat.FlatHp),
+  highSubstat: highSubs(Substat.HpPct, Substat.FlatHp, Substat.Basic, Substat.Er),
   rotation: CT_ROTATION,
 });

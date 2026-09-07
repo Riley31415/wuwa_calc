@@ -71,7 +71,7 @@ import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { CELESTIAL_LIGHT_2PC, LINGERING_TUNES_2PC } from "../../echoes/jinzhou.js";
 import { ADAM_SMASHER_LUCY, SHATTERED_DREAMS_1PC, NEONLIGHT_LEAP_2PC, REEL_2PC } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -442,6 +442,7 @@ export const LUCY = new Loadout({
   echoLoadouts: LC_ECHOES,
   sequences: [LC_S1, LC_S2, LC_S3, LC_S4, LC_S5, LC_S6],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
-  substat: chem("atk", "heavy"),
+  substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Er),
     rotation: LC_ROTATION,
 });

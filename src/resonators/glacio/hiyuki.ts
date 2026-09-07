@@ -85,7 +85,7 @@ import { FROSTBURN } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { QUIET_SNOWFALL_5PC, VOIDBORNE_CONSTRUCT } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { TUNE_BREAK } from "../../shared/tunebreak.js";
 
 /* ------------------------------------------------------------------------------ glacio bite */
@@ -436,6 +436,7 @@ export const HIYUKI = new Loadout({
   weapons: [FROSTBURN, EMERALD_OF_GENESIS],
   echoLoadouts: HY_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
-  substat: chem("atk", "liberation"),
+  substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Er),
   rotation: HY_ROTATION,
 });

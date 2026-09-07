@@ -40,7 +40,7 @@ import { HEALS, SHIELD } from "../../shared/status.js";
 import { MARCATO } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -230,7 +230,8 @@ export const JIANXIN = new Loadout({
   weapons: [MARCATO],
   echoLoadouts: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.Aero3, Mainstat.ATK3, Mainstat.ATK1),
-  substat: chem("atk", "liberation"),
+  substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.FlatAtk, Substat.Liberation, Substat.Er),
   rotation: [JX_ROTATION, JX_ROTATION, JX_ROTATION_S2],
   sequences: [S1, S2, S3, S4, S5, S6],
 });

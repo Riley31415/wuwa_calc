@@ -53,7 +53,7 @@ export const member = (loadout: Loadout, mainDps = false): Member =>
 /** `matrix` is the piece actually worn: this loadout's own Matrix when Matrix Mode is on and it
  *  has one, else null — so a row of a team nobody's Matrix reaches keys and caches exactly as it
  *  did with the box off. */
-export interface Combo { weapon: Weapon; echo: EchoLoadout; mainstat: Buff; sequence: number; matrix: Matrix | null; key: string; }
+export interface Combo { weapon: Weapon; echo: EchoLoadout; mainstat: Buff; sequence: number; matrix: Matrix | null; highSubs: boolean; key: string; }
 
 /** The comparison table's own filter state — every axis a member's build varies on (weapon, echo,
  *  main stats, sequence level), split by role, plus the two R1 allowances. This decides which
@@ -73,6 +73,9 @@ export interface Filters {
   allowR1Mdps: boolean; allowR1Supports: boolean;
   /** Matrix Mode: every loadout that declares a Matrix wears it (shared/matrix.ts). */
   matrix: boolean;
+  /** High Invest Substats: that role's rows also run on its loadout's `highSubstat`
+   *  (shared/substats.ts), compared against the default spread. */
+  mdpsHighSubs: boolean; supportHighSubs: boolean;
 }
 
 /** What the page opens with, and what precompute.ts solves the roster under — one definition so
@@ -84,6 +87,7 @@ export const defaultFilters = (): Filters => ({
   mdpsMainstats: false, supportMainstats: false,
   allowR1Mdps: true, allowR1Supports: true,
   matrix: false,
+  mdpsHighSubs: false, supportHighSubs: false,
 });
 
 /** A solved team's cache key: the team under the whole filter state, not just the R1 allowances —
@@ -110,13 +114,14 @@ export const picksKey = (teamKey: string, members: Member[], filters: Filters): 
  *  chain nodes are held and whether Matrix Mode is on. What `optimizeTeam()` searches over and
  *  `comboOf()` turns into real gear — except `sequence` and `matrix`, which are never searched
  *  (see `sequenceLevels()`; `matrix` is the table's own box, carried so a row keys by it). */
-export interface Pick { weapon: number; echo: number; mainstat: number; sequence: number; matrix: boolean; }
+export interface Pick { weapon: number; echo: number; mainstat: number; sequence: number; matrix: boolean; highSubs: boolean; }
 
 export const comboOf = (l: Loadout, p: Pick): Combo => {
   const matrix = p.matrix && l.matrix ? l.matrix : null;
   return {
     weapon: l.weapons[p.weapon]!, echo: l.echoLoadouts[p.echo]!, mainstat: l.mainstats[p.mainstat]!,
-    sequence: p.sequence, matrix, key: `${p.weapon}.${p.echo}.${p.mainstat}.s${p.sequence}${matrix ? ".m" : ""}`,
+    sequence: p.sequence, matrix, highSubs: p.highSubs,
+    key: `${p.weapon}.${p.echo}.${p.mainstat}.s${p.sequence}${matrix ? ".m" : ""}${p.highSubs ? ".h" : ""}`,
   };
 };
 
@@ -320,6 +325,8 @@ export function optimizeTeam(teamKey: string, members: Member[], filters: Filter
     // the level a closed box would show — the search never varies it, the row set does
     sequence: sequenceLevels(m, filters)[0]!,
     matrix: filters.matrix,
+    // the search runs on the default spread; the high one is a row beside it (`buildsOf()`)
+    highSubs: false,
   }));
   const run = (): TeamRun => trialRun(teamKey, members, picks);
 
@@ -682,7 +689,7 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
   const state = new State(members.map((m) => m.name));
   members.forEach((m, i) => {
     state.active = i;
-    withTeam(state, () => { for (const g of m.loadout.pieces(combo[i]!.weapon, combo[i]!.echo, combo[i]!.mainstat, combo[i]!.sequence, combo[i]!.matrix !== null)) equip(g, 1); });
+    withTeam(state, () => { for (const g of m.loadout.pieces(combo[i]!.weapon, combo[i]!.echo, combo[i]!.mainstat, combo[i]!.sequence, combo[i]!.matrix !== null, combo[i]!.highSubs)) equip(g, 1); });
     const alts = variants?.[i];
     if (alts?.length) {
       const slot = state.slots[i]!;
@@ -781,13 +788,15 @@ function buildsOf(m: Member, home: Pick, f: Filters): Pick[] {
   const mdps = m.mainDps;
   const weapons = (mdps ? f.mdpsWeapons : f.supportWeapons) ? eligibleWeapons(m, f) : [home.weapon];
   const echoes = (mdps ? f.mdpsEchoes : f.supportEchoes) ? l.echoLoadouts.map((_, i) => i) : [home.echo];
+  // High Invest Substats crosses in the same way: both spreads with the box open, else the home one
+  const subs = (mdps ? f.mdpsHighSubs : f.supportHighSubs) ? [false, true] : [home.highSubs];
   // Sequences cross in like the other two. A closed box's `sequenceLevels()` is the one baseline
   // level, so a closed axis still contributes exactly one pick — the same shape `weapons`/`echoes`
   // collapse to above, just read off the loadout rather than off the solved build.
   const sequences = sequenceLevels(m, f);
   const picks: Pick[] = [];
-  for (const weapon of weapons) for (const echo of echoes) for (const sequence of sequences) {
-    picks.push({ ...home, weapon, echo, sequence });
+  for (const weapon of weapons) for (const echo of echoes) for (const sequence of sequences) for (const highSubs of subs) {
+    picks.push({ ...home, weapon, echo, sequence, highSubs });
   }
   return picks;
 }
@@ -873,7 +882,7 @@ function rowPicks(teamKey: string, members: Member[], best: Pick[], filters: Fil
   // wide is cheap to check but expensive to run twice
   const seen = new Map<string, Pick[]>();
   for (const picks of builds) {
-    const key = picks.map((p) => `${p.weapon}.${p.echo}.s${p.sequence}`).join("-");
+    const key = picks.map((p) => `${p.weapon}.${p.echo}.s${p.sequence}${p.highSubs ? ".h" : ""}`).join("-");
     if (!seen.has(key)) seen.set(key, picks);
   }
 

@@ -101,8 +101,7 @@ const multisets = <T>(keys: T[], n: number): T[][] =>
 /**
  * Every main-stat build one loadout is willing to run, from one list of the stats it would wear
  * at each cost — the 43311 layout (one 4-cost, two 3-costs, two 1-costs), the 44111 layout (two
- * 4-costs, three 1-costs) unless the 3-cost list has ER in it, and, for a list that offers HP
- * 1-costs, 41111 as well; each slot drawn
+ * 4-costs, three 1-costs) and, for a list that offers HP 1-costs, 41111 as well; each slot drawn
  * from the options of its own cost. A loadout names this rather than a single `mainstats()`
  * build; the comparison table runs every one of them (see index.ts's own combos).
  */
@@ -114,11 +113,8 @@ export function mainstatOptions(...options: Mainstat[]): Buff[] {
   for (const four of c4) for (const three of multisets(c3, 2)) for (const one of multisets(c1, 2)) {
     builds.push(mainstats(four, ...three, ...one));
   }
-  // 44111 gives up both 3-cost slots — a build that offers ER there is one that needs the regen,
-  // so it never runs a layout that can't wear it
-  if (!c3.includes(Mainstat.ER3)) {
-    for (const four of multisets(c4, 2)) for (const one of multisets(c1, 3)) builds.push(mainstats(...four, ...one));
-  }
+  // 44111 gives up both 3-cost slots; a build that needs ER can still wear it, on substat rolls
+  for (const four of multisets(c4, 2)) for (const one of multisets(c1, 3)) builds.push(mainstats(...four, ...one));
   // 41111, only for a build that would actually wear HP 1-costs: a 1-cost's 22.8% HP beats what a
   // 3-cost slot is worth to an HP scaler, so four of them can be the real build rather than the
   // cheap end of the list. Nothing else has a 1-cost worth four of, so nothing else generates it.

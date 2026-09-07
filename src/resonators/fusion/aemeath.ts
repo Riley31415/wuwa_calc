@@ -65,7 +65,7 @@ import { EVERBRIGHT_POLESTAR } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { SIGILLUM, TRAILBLAZING_STAR_5PC, CHROMATIC_FOAM_5PC } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* =================================================================================== shared */
 
@@ -345,7 +345,8 @@ export const AEMEATH_RUPTURE = new Loadout({
   weapons: [EVERBRIGHT_POLESTAR, EMERALD_OF_GENESIS],
   echoLoadouts: [new EchoLoadout(SIGILLUM, TRAILBLAZING_STAR_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
-  substat: chem("atk", "liberation"),
+  substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Er),
   rotation: AE_ROTATION,
   mode: MODE_RUPTURE,
 });
@@ -421,7 +422,8 @@ export const AEMEATH_BURST = new Loadout({
     new EchoLoadout(SIGILLUM, TRAILBLAZING_STAR_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
-  substat: chem("atk", "liberation"),
+  substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Er),
   rotation: AE_ROTATION,
   mode: MODE_BURST,
 });

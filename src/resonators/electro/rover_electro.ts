@@ -42,7 +42,7 @@ import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { SOUL_OF_DESPAIR, SWORN_VIGIL_5PC, ELECTRIC_REFLECTION_5PC, STAY_TUNED } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { BLAZING_BRILLIANCE, RED_SPRING, UNSPOKEN_RUE } from "../../weapons/sword.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -294,7 +294,8 @@ export const ROVER_ELECTRO = new Loadout({
     new EchoLoadout(SOUL_OF_DESPAIR, SWORN_VIGIL_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: chem("atk", "skill"),
+  substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Er),
     rotation: ER_ROTATION,
   sequences: [
     ER_S1, ER_S2,
@@ -311,7 +312,8 @@ export const ROVER_ELECTRO_MDPS = new Loadout({
     new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: chem("atk", "skill"),
+  substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Er),
   rotation: ER_ROTATION_MDPS,
   sequences: [ER_S1, ER_S2, ER_S3, ER_S4, ER_S5, ER_S6],
 });

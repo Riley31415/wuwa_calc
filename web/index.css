@@ -201,31 +201,33 @@ body {
 .rtables {
   display: flex;
   flex-wrap: wrap;
-  gap: 18px;
+  /* the two tables sit close, side by side or one under the other; the row's own top margin
+     stands in for the label's, which the blocks' labels give up (below) */
+  gap: 12px 18px;
+  margin-top: 22px;
   align-items: flex-start;
   position: sticky;
   left: 0;
   width: 100%;
   box-sizing: border-box;
 }
-/* The two share the row by how wide their tables want to be, not half each: `flex-basis: auto`
-   makes each block's basis the width its own table wants, and flex hands the slack out � and
-   takes it back � in proportion to that. Two blocks share a line only while both fit on it at
-   that width (`flex-wrap` above), so neither is ever cut down while they stand side by side: the
-   moment they no longer both fit, Energy Requirements wraps to a line of its own and stretches
-   to the full width there. `overflow-x` then only bites in the last case � one table, alone on
-   its line, still wider than the page. */
+/* Each block is exactly as wide as its own table, no slack handed out: side by side the second
+   table sits right after the first rather than out at the far edge. Two blocks share a line only
+   while both fit on it (`flex-wrap` above); the moment they no longer both fit, Energy
+   Requirements wraps under. `overflow-x` bites only for a table wider than the page on its own. */
 .rtable-block {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 100%;
   overflow-x: auto;
 }
+.rtable-block .summary-label { margin-top: 0; }
 
-/* The table is the grid, its rows `display: contents` � one grid for all of them, so a column
+/* The table is the grid, its rows `display: contents` — one grid for all of them, so a column
    is as wide as its own widest cell across every row (a row-per-grid could only line them up on
    fixed tracks, which is what used to cut `Havoc Rover` down to `Havoc Rov...`). No `overflow`
    of its own: clipping the corners would also make this a scroll container, and a track's auto
-   minimum is dropped to zero inside one � the columns would go back to being squeezed under
+   minimum is dropped to zero inside one — the columns would go back to being squeezed under
    their own text. The corner cells carry the radius instead (below). */
 .rtable {
   display: grid;
@@ -234,16 +236,13 @@ body {
   background: var(--surface);
   box-shadow: var(--sh-2);
 }
-/* the name column to its longest name; the five figure columns to their own widest figure, and
-   then sharing whatever the table has over that equally. `minmax(min-content, 1fr)` spelled out
-   rather than a bare `1fr`: a track's own `auto` minimum does not hold the figures here, and the
-   columns went back to being squeezed under their text at a narrow width. */
-.rtable.dpr, .rtable.energy { grid-template-columns: max-content repeat(5, minmax(min-content, 1fr)); }
+/* the name column to its longest name and the five figure columns each to their own widest
+   figure — the table is as wide as its contents, not the page */
+.rtable.dpr, .rtable.energy { grid-template-columns: max-content repeat(5, max-content); width: max-content; }
 
 .rtrow { display: contents; }
-/* the rule between rows and the heading's own band are drawn by the cells, the rows themselves
-   being box-less now */
-.rtrow + .rtrow .c { border-top: 1px solid var(--line); }
+/* the heading's own band is drawn by the cells, the rows themselves being box-less; no rule
+   between rows, same as every other table here */
 /* the four corner cells round with the table, the heading's band and the name column's wash
    being the ones that would otherwise square off over it */
 .rtrow:first-child .c:first-child { border-top-left-radius: var(--r); }
@@ -336,7 +335,7 @@ main {
   border-radius: var(--r);
   background: var(--surface);
 }
-.tcopt.open { background: var(--surface-2); }
+/* an opened box keeps its colour: the arrow alone says it is open */
 .tcopt-head { display: flex; align-items: center; gap: 10px; }
 /* the name takes up the slack, which is the whole of what pins the box to the right edge */
 .tcopt-name {
@@ -386,7 +385,7 @@ main {
    column's boxes opening pushed it down; here only that one box does. */
 .tcsearchrow { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; width: 100%; }
 /* a block, not a flex column: a fixed-position child (the results, beside the table) takes its
-   static position from flow � under the input � where a flex container would put it at the top */
+   static position from flow — under the input — where a flex container would put it at the top */
 .tcsearch { position: relative; display: block; flex: 0 1 360px; max-width: 360px; }
 .tcsearch input {
   display: block;
@@ -417,7 +416,7 @@ main {
 /* `display: flex` above would beat the attribute otherwise (same as `.trow[hidden]` below) */
 .tcsearch-results[hidden] { display: none; }
 /* Beside the table the aside is a scroller (`.tcside` below), and a scroller clips an absolute
-   child hanging under its bottom edge � so there the list is fixed instead: with every offset auto
+   child hanging under its bottom edge — so there the list is fixed instead: with every offset auto
    it still sits at its static position under the input, but escapes the clip. A column beside the
    table is always 360px, the input's own width. Scrolling the aside closes it (index.ts). */
 .tclayout:not(.stack) .tcsearch-results { position: fixed; top: auto; left: auto; right: auto; width: 360px; }
@@ -545,22 +544,19 @@ main {
    box — the separator, the header's sticky background, the hover wash — moves onto its cells. */
 .tgrid {
   display: grid;
-  /* three member names plus Team DPR and the baseline %, the no-options-open default — a member's
+  /* three member names plus Team DPR, the baseline % and the detail link, the no-options-open default — a member's
      own DPR and the Tune Break's both live in a hover now (see index.ts's own `memberCell`/
      `sectionBreakdownPopover`). Overridden by an inline style whenever a Show ... Options box is
      open (see index.ts's own `comparisonTable()`): the weapon/echo/mainstat columns those add are
      conditional on the current filters, not something a static rule here can know. */
-  grid-template-columns: repeat(3, max-content) repeat(2, max-content);
+  grid-template-columns: repeat(3, max-content) repeat(3, max-content);
   align-items: stretch;
 }
 .trow { display: contents; }
-.trow + .trow .c { border-top: 1px solid var(--line); }
 /* Only the rows near the scroll position are in the grid (index.ts's own `drawWindow()`); a spacer
    stands in for the rest above and below, spanning every track so it takes a whole row's worth of
-   height per row it replaces. The row after the top spacer keeps its separator, so every row in the
-   window has the same pitch as the spacers assume. */
+   height per row it replaces. */
 .tgrid .vspace { grid-column: 1 / -1; }
-.vspace + .trow .c { border-top: 1px solid var(--line); }
 .trow.thead .c {
   position: sticky;
   top: 0;
@@ -623,23 +619,26 @@ main {
 /* The per-slot Personal/Compare columns, opened by clicking a Slot heading (index.ts's own
    `dprOpenAt`): the same member wash as that position's option cells, so a member's columns read
    as one block. */
-.trow .c.slotdpr, .trow .c.slotcompare { background: color-mix(in srgb, var(--mem, transparent) 10%, var(--surface)); }
+.trow .c.slotdpr, .trow .c.slotcompare { background: color-mix(in srgb, var(--mem, transparent) 10%, var(--surface)); color: var(--mem, var(--ink)); }
 .trow:not(.thead):hover .c.slotdpr, .trow:not(.thead):hover .c.slotcompare { background: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface)); }
-.trow.thead .c.slothead, .trow.thead .c.sorthead { cursor: pointer; }
-.trow.thead .c.slothead:hover, .trow.thead .c.sorthead:hover { color: var(--ink); }
+.trow.thead .c.slothead, .trow.thead .c.huehead { cursor: pointer; }
+.trow.thead .c.slothead:hover, .trow.thead .c.huehead:hover { color: var(--ink); }
 /* the marker keeps its own colour rather than the heading's uppercase grey (see `.arrow` below) */
-.trow.thead .c.slothead .arrow, .trow.thead .c.sorthead .arrow { text-transform: none; letter-spacing: 0; font-size: 13px; }
+.trow.thead .c.slothead .arrow { text-transform: none; letter-spacing: 0; font-size: 13px; }
 
 /* The `% of Baseline` column: one continuous hue ramp, written per row as `--hue` by
    `rankVisible()` — red at the strongest team, green at the baseline, purple at the weakest.
    The hue is computed there rather than here because it is piecewise (two slopes meeting at the
-   baseline), which `calc()` can express only as two rules that then have to agree at the seam. */
-.trow .c.baseline {
-  background: color-mix(in srgb, hsl(var(--hue, 120) 65% 50%) 12%, var(--surface));
-  cursor: pointer;
+   baseline), which `calc()` can express only as two rules that then have to agree at the seam.
+   Painted only while the grid carries `.hued` — clicking the Team Compare heading (index.ts's own
+   `hueShown`); off by default. */
+.trow .c.baseline { cursor: pointer; }
+.tgrid.hued .trow .c.baseline {
+  background: color-mix(in srgb, hsl(var(--hue, 120) 60% 42%) 12%, var(--surface));
+  color: hsl(var(--hue, 120) 60% 55%);
 }
-.trow:not(.thead):hover .c.baseline {
-  background: color-mix(in srgb, hsl(var(--hue, 120) 65% 50%) 20%, var(--surface));
+.tgrid.hued .trow:not(.thead):hover .c.baseline {
+  background: color-mix(in srgb, hsl(var(--hue, 120) 60% 42%) 20%, var(--surface));
 }
 /* the pinned row: an outline only, since its colour is already the ramp's green */
 .trow.isbaseline .c.baseline {
@@ -660,42 +659,42 @@ main {
   pointer-events: none;
 }
 
-/* the only clickable cell in the row: a small arrow marker after the number, both of it — and
-   the number itself — navigating to that team's own full rotation/event-log page */
+/* the row's own link cell, last in the row: "view rotation" and a small arrow marker,
+   navigating to that team's own full rotation/event-log page */
 .gotodetail { cursor: pointer; }
+/* the comparison table's own link cell reads quiet and lowercase beside the figures */
+.trow .c.gotodetail { color: var(--dim); text-transform: lowercase; }
+/* the Team Avg DPR figure opens its breakdown on a click, not a hover (see `wireSourcePanels`) */
+.c.teamdpr { cursor: pointer; }
 .gotodetail:hover { color: var(--ink); }
 /* ...and the Slot headings, which expand that position's own DPR column rather than navigating —
    same marker, so both places that open something read the same. Its own marker points down
    while the column is shut and swings right once it is open, so the heading says which way the
    next click goes. */
-.gotodetail .arrow, .slothead .arrow, .sorthead .arrow, .tcopt-name .arrow {
+.gotodetail .arrow, .slothead .arrow, .tcopt-name .arrow {
   display: inline-block;
   margin-left: 4px;
   color: var(--faint);
   transition: color .12s, transform .12s;
 }
 .gotodetail:hover .arrow { color: var(--accent); transform: translateX(2px); }
-.slothead:hover .arrow, .sorthead:hover .arrow { color: var(--accent); }
+.slothead:hover .arrow { color: var(--accent); }
 .tcopt-name:hover .arrow { color: var(--accent); }
 /* the ordinary disclosure reading: pointing right at a shut box, swung down once it is open */
 .tcopt-name .arrow { transform: none; }
 .tcopt.open .tcopt-name .arrow { transform: rotate(90deg); }
 .slothead .arrow { transform: rotate(90deg); }
 .slothead.open .arrow { transform: none; }
-/* the Team DPR heading's own marker points the way the column runs: down for the default
-   strongest-first order, up once a click has flipped it to ascending (see `sortAscending`) */
-.sorthead .arrow { transform: rotate(90deg); }
-.sorthead.asc .arrow { transform: rotate(-90deg); }
 
 /* the gear popover's own two-column shell reuses .pop/table/.k/.v wholesale (see below) — no
    extra rules needed beyond a touch more breathing room since its rows run longer than a stat
    trace's ever do */
 .pop.gear td.v { padding-left: 14px; }
+/* the comparison table's loadout panel opens with how its cell is clicked, ruled off from the
+   loadout under it the same way the menu stats are ruled off below (see `.pop .gear + tr`) */
+.pop .hint td { padding-bottom: 6px; border-bottom: 1px dotted var(--line-2); color: var(--dim); white-space: nowrap; }
+.pop .hint + tr td { padding-top: 6px; }
 .pop .pct { color: var(--dim); font-weight: 400; }
-/* the breakdown popover's own Type/Type 2/Node headings read in normal case — only the
-   pre-existing source-trace panels' BASE/BONUS/FLAT headings shout in the inherited
-   `.pop .sec` uppercase */
-.pop.breakdown .sec td { text-transform: none; letter-spacing: normal; }
 /* Its figures are left-aligned rather than flush right (the `.pop td.v` default every stat-trace
    panel keeps): each is a figure and its share of the whole ("41,203 (37%)"), so the two read as
    one column all the way down instead of being pushed apart by their own lengths.
@@ -735,7 +734,13 @@ main {
    global, then enemy debuffs. Stacked they ran a page tall on a well-buffed member, and the three
    are separate scopes rather than one running list. Each column is its own table so every name
    column still sizes to its own longest cell. */
-.pop.buffs .cols { display: flex; align-items: flex-start; gap: 26px; }
+.pop.buffs .cols, .pop.gear .cols { display: flex; align-items: flex-start; gap: 26px; }
+/* the substat column's roll counts, in ink beside their dim stat names — a single roll fades,
+   stat and count both, so the rolls that were actually chosen stand out; the total under them is
+   ruled off like any panel's own foot (see `.pop .sum` below) but keeps the rows' own weight */
+.pop.gear td.n { color: var(--ink); text-align: right; }
+.pop.gear tr.one td { color: var(--faint); }
+.pop.gear .sum td { font-weight: 400; }
 
 /* ---------------------------------------------------------------------- table */
 
@@ -871,10 +876,9 @@ body.coldrag { user-select: none; }
    member column can sit it out: as one line over the full width it cut that column's colour bar
    into a dash per row. Transparent rather than absent there, so the cells all keep the same
    height and their text stays on one line. */
-.step > .r > .c { border-top: 1px solid var(--line); }
-/* `.head + .step`, not `:first-of-type`: the header is a div like every step, so it is the first
-   of the type and no step ever was — the rule sat under the header as a hairline gap. */
-.head + .step > .r > .c { border-top: 0; }
+/* ...and transparent everywhere now: the rows run unruled, the border kept only so every row
+   stays the height the intrinsic size above assumes */
+.step > .r > .c { border-top: 1px solid transparent; }
 /* Where a loop begins: a bar the full width of the table, ahead of the first row of Loop 1, 2
    and 3 (index.js's own rotationTable), its name hung off the table's right edge and centred on
    it. An element of its own rather than a border on the row's cells, so it runs straight across
@@ -897,10 +901,9 @@ body.coldrag { user-select: none; }
 }
 .loopline + .step > .r > .c { border-top-color: transparent; }
 .loopline + .step > .r > .c.member { --rule: transparent; }
-/* the member column draws its own rule instead (see `.c.member`), so that the one thing it must
-   not cross — that column's colour bar — is left alone */
-.step > .r > .c.member { border-color: transparent; --rule: var(--line); }
-.head + .step > .r > .c.member { --rule: transparent; }
+/* the member column's own rule (see `.c.member`) is off like every other row rule now: drawn, it
+   read as a break in the column's colour bar at every row */
+.step > .r > .c.member { border-color: transparent; --rule: transparent; }
 
 /* Every row carries a faint wash of its own *action's* colour (white/green for generic gear,
    otherwise whoever's kit it belongs to) — deliberately faint, since the strong "whose turn is
@@ -918,6 +921,10 @@ body.coldrag { user-select: none; }
 .c.action, .c.member { padding-left: 8px; }
 .c.action, .c.name { color: var(--ink); }
 .c.avg { color: var(--ink); font-weight: 700; }
+/* the Avg column wears the same member wash the member column does (`.c.member` below, minus its
+   colour bar) — a column of totals picked out from the figures that fed it, in whose turn it is */
+.grid .r:not(.head):not(.totalrow) > .c.avg { background-color: color-mix(in srgb, var(--m, transparent) 10%, var(--surface)); }
+.grid .r:not(.head):not(.totalrow):hover > .c.avg { background-color: color-mix(in srgb, var(--m, transparent) 18%, var(--surface)); }
 
 /* mv/energy/concerto/offtune: a dotted underline when a stat buff actually moved this cell's own
    value, not just its usual carried/declared trace (see display.ts's own ReportRow.buffed) —
@@ -1014,10 +1021,12 @@ body.coldrag { user-select: none; }
 .parts .name { padding-left: calc(var(--lead) + 18px); }
 
 /* A triggered follow-up, a zero-damage hit, or an outro isn't a rotation beat of its own —
-   thinner and dimmer, so scanning the table isn't slowed reading past them. Opacity rather than
-   a specific colour: it fades every column's own colour by the same amount, avg's mint and the
-   member column's own included, instead of having to restate each one per column. */
-.r.short .c { padding-top: 2px; padding-bottom: 2px; opacity: .5; }
+   thinner and dimmer, so scanning the table isn't slowed reading past them. Only the text fades:
+   the fill colour is halved off whatever colour each cell already has (the member column's own,
+   avg's ink), so the washes and colour bars behind the text stay at full strength — `opacity`
+   faded those too. Text-fill rather than `color`, since `currentColor` inside `color` would read
+   the parent's colour, not the cell's. */
+.r.short .c { padding-top: 2px; padding-bottom: 2px; -webkit-text-fill-color: color-mix(in srgb, currentColor 50%, transparent); }
 .parts .r.short .c { padding-top: 1px; padding-bottom: 1px; }
 
 /* ------------------------------------------------------- hover source panels */
@@ -1110,12 +1119,6 @@ body.coldrag { user-select: none; }
    keeps the same left edge even though its own column is numbers, not names — one popover,
    one edge for its whole value column. */
 .pop .gear td.v, .pop .stat td.v { text-align: left; }
-/* Closing rule between the loadout section and the menu-stats reading of it that follows —
-   drawn by the first `.stat` row rather than by the last gear row itself, since there's no
-   marker class to put on the last row of a group whose length varies. Nothing to draw when a
-   build's constant stats are all zero and the section is empty. Dotted, so it reads as a divider
-   between two readings of one cell rather than as a total's own rule. */
-.pop .gear + tr:not(.gear) td { padding-top: 6px; border-top: 1px dotted var(--line-2); }
 
 /* The hover on an action's own name: what it scales off, its element, its damage type, every
  * declared amount it carries — a label/value row apiece, its two columns auto-sized to their own

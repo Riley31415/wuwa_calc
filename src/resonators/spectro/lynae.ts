@@ -41,7 +41,7 @@ import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { HYVATIA, NEONLIGHT_LEAP_5PC, REEL_5PC, VOIDWING_MOTH } from "../../echoes/lahairoi.js";
 import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -218,7 +218,8 @@ const build = (mode: ResonanceMode): Loadout => new Loadout({
   weapons: [SPECTRUM_BLASTER, NEW_STD_PISTOL, STATIC_MIST],
   echoLoadouts: LY_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
-  substat: chem("atk", "basic"),
+  substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Er),
     rotation: LY_ROTATION,
   mode,
 });

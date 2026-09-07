@@ -37,7 +37,7 @@ import { HERON, MOONLIT_CLOUDS_5PC, REJUV_5PC, NM_CROWNLESS, HAVOC_ECLIPSE_5PC }
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { MIDNIGHT_VEIL_5PC, NM_HECATE, EMPYREAN_ANTHEM_5PC, NM_HERON, HECATE } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -223,6 +223,7 @@ export const CANTARELLA = new Loadout({
         new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: chem("atk", "basic"),
+  substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Basic),
     rotation: CA_ROTATION,
 });

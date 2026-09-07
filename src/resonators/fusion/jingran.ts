@@ -46,7 +46,7 @@ import { JINGRAN_SIG, THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapon
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { MYRIAD_SNARE, LAMP_5PC, LAMP_2PC } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { COV_3PC } from "../../echoes/septimont.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -273,7 +273,7 @@ const JINGRAN_RESONATOR = new Resonator({
 const EBA234 = new ActionGroup("Basic - Drink Soul 234", [EBA2, EBA3, EBA4]);
 
 const JR_ROTATION = new Rotation([
-  INTRO, Lib, FHA,
+  INTRO, BA2, Lib, FHA,
   EBA234, EFHA,
   Skill1, Skill2, FHA,
   ESkill1, ESkill2, EFHA,
@@ -290,6 +290,7 @@ export const JINGRAN = new Loadout({
   echoLoadouts: [new EchoLoadout(MYRIAD_SNARE, LAMP_5PC),
   new EchoLoadout(MYRIAD_SNARE, COV_3PC, LAMP_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.HP4, Mainstat.Fusion3, Mainstat.ATK1, Mainstat.HP1),
-  substat: chem("hp", "heavy"),
+  substat: substats(Substat.AtkPct, Substat.HpPct, Substat.Heavy),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Heavy, Substat.Er, Substat.HpPct),
     rotation: JR_ROTATION,
 });

@@ -237,7 +237,7 @@ export const ELECTRIC_REFLECTION_BUFF = new Buff({
   updateBuffs: () => { if (casting(Cast.Outro)) queueOutro(ELECTRIC_REFLECTION_HANDOFF); },
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(ELECTRIC_REFLECTION_BUFF); },
 });
-export const ELECTRIC_REFLECTION_HANDOFF = handoff("Flash of Electric Reflection (outro)", () => addStat(Stat.DmgBonus, 25, Attribute.Electro));
+export const ELECTRIC_REFLECTION_HANDOFF = handoff("Flash of Electric Reflection: Outro", () => addStat(Stat.DmgBonus, 25, Attribute.Electro));
 
 /** Formless Demon (6000223 — "Sound Remains" in the CN text), the 3.7 healing mainslot: one 273.60%
  *  Fusion hit ("Molten" DMG in the CN translation — unconfirmed against EN text), and +10% Energy

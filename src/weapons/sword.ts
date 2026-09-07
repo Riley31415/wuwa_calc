@@ -10,6 +10,7 @@ import {
   currentAction,
   revokeCurrent,
   applyCurrent,
+  removeStack,
   stacksOf,
   applyTeam,
   applied,
@@ -18,7 +19,7 @@ import {
   revokeTeam,
   isActive,
 } from "../engine/context.js";
-import { lostOnSwap } from "../shared/helpers.js";
+import { lostOnSwap, oneSecondPassed } from "../shared/helpers.js";
 import { consumedConcerto, gainedUnison } from "../shared/unison.js";
 import { TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 import { AERO_EROSION, FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE } from "../shared/status.js";
@@ -45,8 +46,8 @@ export const SEARING_FEATHER = new Buff({
 });
 
 /** Camellya's sig, R1: Beyond the Cycle. +12% ATK flat. Basic Attack DMG grants +10% Basic DMG
- *  Bonus for 14s, up to 3 stacks (ICD not modelled). The Concerto-consumption half (+40% Basic
- *  DMG for 10s) has no clean trigger here — Concerto isn't spent per-action — left unmodelled. */
+ *  Bonus for 14s, up to 3 stacks (ICD not modelled). Consuming Concerto grants +40% Basic DMG
+ *  Bonus for 10s — ten engine seconds, counted down a stack apiece and refreshed by every spend. */
 export const RED_SPRING = new Weapon({
   weaponType: WeaponType.Sword,
   name: "Red Spring",
@@ -57,7 +58,7 @@ export const RED_SPRING = new Weapon({
   },
   updateBuffs: () => {
     if (isType(Type1.Basic)) applyCurrent(RED_SPRING_BASIC);
-    if (consumedConcerto()) applyCurrent(RED_SPRING_CONSUME);
+    if (consumedConcerto()) applyCurrent(RED_SPRING_CONSUME, 10);
   },
 });
 export const RED_SPRING_BASIC = new Buff({
@@ -66,9 +67,12 @@ export const RED_SPRING_BASIC = new Buff({
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(RED_SPRING_BASIC); },
 });
 export const RED_SPRING_CONSUME = new Buff({
-  name: "Red Spring: Beyond the Cycle (consume)",
-  updateBuffs: () => { lostOnSwap(); },
+  name: "Red Spring: Beyond the Cycle", maxStacks: 10,
+  // the stacks are its 10s, not a multiplied payout — one spent per engine second, gone at zero
+  display: () => `Red Spring: Beyond the Cycle (${frozenStacks()}s)`,
+  updateBuffs: () => { if (oneSecondPassed()) removeStack(RED_SPRING_CONSUME, 1); },
   applyStats: () => { addStat(Stat.DmgBonus, 40, Type1.Basic); },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(RED_SPRING_CONSUME); },
 });
 
 /** Brant's sig, R1: Laughter Prevails. +8% Crit Rate flat. Two independent +24% Basic Attack DMG

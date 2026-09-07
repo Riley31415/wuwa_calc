@@ -74,7 +74,7 @@ import { FALLACY } from "../../echoes/jinzhou.js";
 import { DREAM_OF_THE_LOST_3PC, LAW_OF_HARMONY_3PC } from "../../echoes/septimont.js";
 import { NM_HECATE } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { GLOMMOTH, QUIET_SNOWFALL_2PC, QUIET_SNOWFALL_5PC } from "../../echoes/lahairoi.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -320,7 +320,8 @@ export const LUCILLA = new Loadout({
   weapons: [FREEZE_FRAME, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY],
   echoLoadouts: LC_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
-  substat: chem("atk", "basic"),
+  substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Basic),
   rotation: LC_ROTATION,
   mode: MODE_ECHO,
 });
@@ -331,7 +332,8 @@ export const LUCILLA_CHAFE = new Loadout({
   weapons: [FREEZE_FRAME, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER],
   echoLoadouts: LC_ECHOES_CHAFE,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
-  substat: chem("atk", "basic"),
+  substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Basic),
   rotation: LC_ROTATION,
   mode: MODE_CHAFE,
 });

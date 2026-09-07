@@ -31,10 +31,11 @@ import {
   solveTeam,
   splitStat,
   statLabel,
+  substatLines,
   tagKind,
   teamAt,
   teamKey
-} from "./chunk-PCBGT23A.js";
+} from "./chunk-JYOJFSG5.js";
 
 // dist/src/display.js
 var keysFor = (action, ...stats) => stats.flatMap((stat) => [
@@ -723,6 +724,12 @@ function roleTagLabel(key) {
   return role ? `${esc(name)} <span class="roletag">(${role})</span>` : esc(key);
 }
 var resonatorFilterKey = (name, mdps) => roleTagged(name, mdps, RESONATOR_ROLE.get(name) === "both");
+var RESONATOR_KEY_BY_COMPACT = /* @__PURE__ */ new Map();
+for (const name of RESONATOR_ROLE.keys()) {
+  for (const key of [name, resonatorFilterKey(name, true), resonatorFilterKey(name, false)]) {
+    RESONATOR_KEY_BY_COMPACT.set(key.replace(/ /g, ""), key);
+  }
+}
 function parseResonatorFilter(key) {
   const tag = explicitRoleTag(key);
   if (tag.role)
@@ -787,7 +794,7 @@ function parseGearFilter(kind, key, f = filters) {
   const roles = candidateRoles(kind, f).get(key);
   return { name: key, role: roles?.size === 1 ? [...roles][0] : null };
 }
-var ROW_CAP = 1e4;
+var ROW_CAP = 3e3;
 function focusSearch() {
   const search = document.querySelector("#optionSearch");
   if (!search)
@@ -1040,11 +1047,11 @@ function rowFromKey(key) {
     return null;
   const combo = [];
   for (let i = 0; i < members.length; i++) {
-    const parsed = /^(\d+)\.(\d+)\.(\d+)\.s(\d+)(\.m)?$/.exec(comboKeys[i]);
+    const parsed = /^(\d+)\.(\d+)\.(\d+)\.s(\d+)(\.m)?(\.h)?$/.exec(comboKeys[i]);
     if (!parsed)
       return null;
     const l = members[i].loadout;
-    const pick = { weapon: +parsed[1], echo: +parsed[2], mainstat: +parsed[3], sequence: +parsed[4], matrix: !!parsed[5] };
+    const pick = { weapon: +parsed[1], echo: +parsed[2], mainstat: +parsed[3], sequence: +parsed[4], matrix: !!parsed[5], highSubs: !!parsed[6] };
     if (!l.weapons[pick.weapon] || !l.echoLoadouts[pick.echo] || !l.mainstats[pick.mainstat] || pick.matrix && !l.matrix)
       return null;
     combo.push(comboOf(l, pick));
@@ -1246,7 +1253,7 @@ function actionSection(lines, slot, total) {
 }
 function damagePopover(lines, slot, total, grandTotal) {
   const tagName = (k) => TAG_NAME[k];
-  const body = breakdownSection("Node", sumByTag(lines, slot, (a) => a.node), total, (k) => NODE_NAME[k]) + breakdownSection("Type", sumByTag(lines, slot, (a) => a.type1), total, tagName) + breakdownSection("Type 2", sumByTag(lines, slot, (a) => a.type2), total, tagName);
+  const body = breakdownSection("Node", sumByTag(lines, slot, (a) => a.node), total, (k) => NODE_NAME[k]) + breakdownSection("Type 1", sumByTag(lines, slot, (a) => a.type1), total, tagName) + breakdownSection("Type 2", sumByTag(lines, slot, (a) => a.type2), total, tagName);
   const pct = grandTotal ? Math.round(total / grandTotal * 100) : 0;
   return lazyPop(`<span class="pop breakdown"><table>${body}<tr class="sum"><td class="k">Total</td><td class="v">${fmt(total)} <span class="pct">(${pct}% of team)</span></td></tr></table><table class="acts">${actionSection(lines, slot, total)}</table></span>`);
 }
@@ -1260,7 +1267,7 @@ function equippedGear(member2, combo) {
     ["Mainslot", combo.echo.mainslot],
     ...combo.echo.sets.map((g, i) => [i === 0 ? "Sonata" : "", g]),
     ["Mainstats", combo.mainstat],
-    ["Substats", l.substat]
+    ["Substats", combo.highSubs ? l.highSubstat : l.substat]
   ];
 }
 var HOVER_GEAR_FROM = 2;
@@ -1303,7 +1310,7 @@ var OTHER_SCOPES = [
 ];
 function menuStatRows(member2, combo) {
   const l = member2.loadout;
-  const entries = menuStats(l.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence));
+  const entries = menuStats(l.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs));
   const totals = /* @__PURE__ */ new Map();
   for (const e of entries)
     totals.set(e.stat, (totals.get(e.stat) ?? 0) + e.value);
@@ -1386,9 +1393,15 @@ function menuStatRows(member2, combo) {
   pushBest(OTHER_SCOPES);
   return rows;
 }
+var subsLabel = (combo) => combo.highSubs ? "CN Subs" : "ChemX32";
 function gearPopoverHtml(member2, combo, withStats) {
-  const stats = withStats ? menuStatRows(member2, combo).map((r) => `<tr class="stat"><td class="k">${esc(r.label)}</td><td class="v">${esc(r.value)}</td></tr>`).join("") : "";
-  return `<span class="pop gear"><table>${gearRows(member2, combo)}${stats}</table></span>`;
+  const head = withStats ? "" : `<tr class="hint"><td colspan="2">Left Click to filter, Right Click to exclude</td></tr><tr class="gear"><td class="k">Resonator</td><td class="v">${esc(member2.name)}</td></tr>`;
+  if (!withStats)
+    return `<span class="pop gear"><table>${head}${gearRows(member2, combo)}</table></span>`;
+  const stats = menuStatRows(member2, combo).map((r) => `<tr class="stat"><td class="k">${esc(r.label)}</td><td class="v">${esc(r.value)}</td></tr>`).join("");
+  const lines = substatLines(combo.highSubs ? member2.loadout.highSubstat : member2.loadout.substat);
+  const rolls = lines.map((l) => `<tr class="stat${l.rolls === 1 ? " one" : ""}"><td class="k">${esc(l.text)}</td><td class="v n">${l.rolls}</td></tr>`).join("") + `<tr class="sum"><td class="k">Total</td><td class="v n">${lines.reduce((n, l) => n + l.rolls, 0)}</td></tr>`;
+  return `<span class="pop gear"><div class="cols"><table><tr class="sec"><td colspan="2">Loadout</td></tr>${gearRows(member2, combo)}<tr class="sec"><td colspan="2">Menu Stats</td></tr>${stats}</table><table><tr class="sec"><td colspan="2">Substats</td></tr>${rolls}</table></div></span>`;
 }
 var gearPopover = (member2, combo) => lazyPop(gearPopoverHtml(member2, combo, true));
 function memberLabel(m, combo) {
@@ -1494,6 +1507,13 @@ var PAIRS = [
     mdps: "mdpsMainstats",
     support: "supportMainstats",
     help: "Compare echo mainstat combos for that role"
+  },
+  {
+    id: "highsubs",
+    label: "Show Substat Gains",
+    mdps: "mdpsHighSubs",
+    support: "supportHighSubs",
+    help: "Display high investment substat gains. Otherwise, only show ChemX32 standard substats."
   }
 ];
 var MATRIX_HELP = "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.";
@@ -1516,12 +1536,12 @@ var README = [
   "If you find any issues with stats, buffs, or damage seems way off, ping me @rileyy._. on discord."
 ];
 var BROWSING = [
-  "Left click on any resonator (or gear) name to show only teams with them.",
-  "Right click on any resonator (or gear) name to hide teams with them.",
-  "Use the search bar to quickly find resonators to filter, you can press enter to auto filter the top result.",
-  "What is gear? weapons, sonata sets, mainslot echoes, and echo mainstats can all be filtered as long as the respective option Show X is already enabled.",
-  "Click on the SLOT 1/2/3 column headers to show personal DPR.",
-  "Click on a team's damage total to view an expanded action log with their rotations, stats, buffs, damage and forte breakdowns, as well as energy requirements."
+  "Left click a resonator or gear name to show only teams with it, right click to hide them.",
+  "Search bar: type a resonator, enter filters the top result.",
+  "Gear (weapons, sonatas, mainslot echoes, mainstats) filters once its Compare box is on. Substats show but don't filter.",
+  "Slot 1/2/3 headers: personal DPR and Compare % vs that slot's baseline build.",
+  "Team Compare %: click to set the baseline team. Click the header to toggle the colouring.",
+  "view rotation: the full action log with rotations, stats, buffs, damage and energy."
 ];
 var openHelp = /* @__PURE__ */ new Set(["readme"]);
 function comparisonFilters() {
@@ -1573,9 +1593,9 @@ function resonatorChips() {
   return chips ? `<div class="tcchips">${chips}</div>` : "";
 }
 var dprOpenAt = [false, false, false];
-var sortAscending = false;
+var hueShown = true;
 function comparisonTable(rows) {
-  const sorted = rows.map((row) => [row.key, results.get(row.key)]).sort((a, b) => sortAscending ? a[1].total - b[1].total : b[1].total - a[1].total);
+  const sorted = rows.map((row) => [row.key, results.get(row.key)]).sort((a, b) => b[1].total - a[1].total);
   const twins = /* @__PURE__ */ new Map();
   const setupKey = (m, c) => {
     const echoes = m.mainDps ? filters.mdpsEchoes : filters.supportEchoes;
@@ -1600,13 +1620,16 @@ function comparisonTable(rows) {
     const weaponOpen = mdps ? filters.mdpsWeapons : filters.supportWeapons;
     const echoOpen = mdps ? filters.mdpsEchoes : filters.supportEchoes;
     const mainstatOpen = mdps ? filters.mdpsMainstats : filters.supportMainstats;
-    if (!seqOpen && !weaponOpen && !echoOpen && !mainstatOpen)
+    const subsOpen = mdps ? filters.mdpsHighSubs : filters.supportHighSubs;
+    if (!seqOpen && !weaponOpen && !echoOpen && !mainstatOpen && !subsOpen)
       return { text, pct: "" };
     const floor = sequenceLevels(m, filters)[0];
     let base = -Infinity;
     for (const t of twins.get(twinKey(run.teamKey, run.members, run.combo, pos)) ?? []) {
       const c = t.combo;
       if (c.matrix !== own.matrix)
+        continue;
+      if (subsOpen ? c.highSubs : c.highSubs !== own.highSubs)
         continue;
       if (seqOpen ? c.sequence !== floor : c.sequence !== own.sequence)
         continue;
@@ -1617,11 +1640,12 @@ function comparisonTable(rows) {
     }
     if (!(base > 0))
       return { text, pct: "" };
-    return { text, pct: `${fmt(dpr / base * 100, 2, true)}%` };
+    return { text, pct: `${fmt(dpr / base * 100, 1, true)}%` };
   };
   const weaponOpenAt = [false, false, false];
   const echoOpenAt = [false, false, false];
   const mainstatOpenAt = [false, false, false];
+  const subsOpenAt = [false, false, false];
   const compareOpenAt = [false, false, false];
   for (const row of rows) {
     row.members.forEach((m, pos) => {
@@ -1632,7 +1656,9 @@ function comparisonTable(rows) {
         echoOpenAt[pos] = true;
       if (mdps ? filters.mdpsMainstats : filters.supportMainstats)
         mainstatOpenAt[pos] = true;
-      if (weaponOpenAt[pos] || echoOpenAt[pos] || mainstatOpenAt[pos] || (mdps ? filters.mdpsSequences : filters.supportSequences))
+      if (mdps ? filters.mdpsHighSubs : filters.supportHighSubs)
+        subsOpenAt[pos] = true;
+      if (weaponOpenAt[pos] || echoOpenAt[pos] || mainstatOpenAt[pos] || subsOpenAt[pos] || (mdps ? filters.mdpsSequences : filters.supportSequences))
         compareOpenAt[pos] = true;
     });
   }
@@ -1649,18 +1675,19 @@ function comparisonTable(rows) {
       const echo = echoOpenAt[i] ? optionCell("echo", showEcho ? gearFilterKey("echo", echoLabel(m.loadout, combo.echo), mdps) : "", m.color, showEcho ? echoLines(m.loadout, combo.echo) : []) : "";
       const mainstatPick = (mdps ? filters.mdpsMainstats : filters.supportMainstats) ? combo.mainstat.name : "";
       const mainstat = mainstatOpenAt[i] ? optionCell("mainstat", mainstatPick && gearFilterKey("mainstat", mainstatPick, mdps), m.color, [mainstatPick]) : "";
+      const subs = subsOpenAt[i] ? `<div class="c option" style="--mem:${m.color}">${(mdps ? filters.mdpsHighSubs : filters.supportHighSubs) ? esc(subsLabel(combo)) : ""}</div>` : "";
       const { text: dprText, pct: comparePct } = dprOpenAt[i] ? slotDpr(run, i) : { text: "", pct: "" };
       const dpr = dprOpenAt[i] ? `<div class="c num slotdpr" style="--mem:${m.color}">${dprText}</div>` + (compareOpenAt[i] ? `<div class="c num slotcompare" style="--mem:${m.color}">${comparePct}</div>` : "") : "";
-      return name + weapon + echo + mainstat + dpr;
+      return name + weapon + echo + mainstat + subs + dpr;
     };
     const memberCells = run.members.map((m, i) => memberCell(m, run.combo[i], i)).join("");
-    return `<div class="trow${rank.pinned ? " isbaseline" : ""}" style="--hue:${rank.hue}" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}" data-members="${esc(memberNames)}" data-total="${grand}">` + memberCells + `<div class="c num total teamdpr gotodetail" data-team="${esc(key)}"` + deferredPop("dpr", key) + `>${fmt(grand)}<span class="arrow">\u203A</span></div><div class="c num total baseline" data-team="${esc(key)}" title="Click to measure every team against this one">${rank.pct}</div></div>`;
+    return `<div class="trow${rank.pinned ? " isbaseline" : ""}" style="--hue:${rank.hue}" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}" data-members="${esc(memberNames)}" data-total="${grand}">` + memberCells + `<div class="c num total teamdpr" title="Click to view the team's damage breakdown"${deferredPop("dpr", key)}>${fmt(grand)}</div><div class="c num total baseline" data-team="${esc(key)}" title="Click to measure every team against this one">${rank.pct}</div><div class="c gotodetail" data-team="${esc(key)}">view rotation<span class="arrow">\u203A</span></div></div>`;
   };
   const slotHead = (i, label) => `<div class="c slothead${dprOpenAt[i] ? " open" : ""}" data-pos="${i}" title="Click to show this slot's own DPR">${label}<span class="arrow">\u203A</span></div>`;
-  const memberHead = (n, i) => slotHead(i, `Slot ${n}`) + (weaponOpenAt[i] ? slotHead(i, `Weapon ${n}`) : "") + (echoOpenAt[i] ? slotHead(i, `Echo Set ${n}`) : "") + (mainstatOpenAt[i] ? slotHead(i, `Mainstats ${n}`) : "") + (dprOpenAt[i] ? `<div class="c num">Personal</div>` : "") + (dprOpenAt[i] && compareOpenAt[i] ? `<div class="c num">Compare</div>` : "");
-  const head = `<div class="trow thead">` + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2) + `<div class="c num sorthead${sortAscending ? " asc" : ""}" title="Click to flip the sort">Team Avg DPR<span class="arrow">\u203A</span></div><div class="c num">Team Compare</div></div>`;
-  const posCols = (i) => `max-content${weaponOpenAt[i] ? " max-content" : ""}${echoOpenAt[i] ? " max-content" : ""}${mainstatOpenAt[i] ? " max-content" : ""}${dprOpenAt[i] ? " max-content" : ""}${dprOpenAt[i] && compareOpenAt[i] ? " max-content" : ""}`;
-  const gridStyle = `grid-template-columns:${posCols(0)} ${posCols(1)} ${posCols(2)} max-content max-content`;
+  const memberHead = (n, i) => slotHead(i, `Slot ${n}`) + (weaponOpenAt[i] ? slotHead(i, `Weapon ${n}`) : "") + (echoOpenAt[i] ? slotHead(i, `Echo Set ${n}`) : "") + (mainstatOpenAt[i] ? slotHead(i, `Mainstats ${n}`) : "") + (subsOpenAt[i] ? slotHead(i, `Substats ${n}`) : "") + (dprOpenAt[i] ? `<div class="c num">Personal</div>` : "") + (dprOpenAt[i] && compareOpenAt[i] ? `<div class="c num">Compare</div>` : "");
+  const head = `<div class="trow thead">` + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2) + `<div class="c num">Team Avg DPR</div><div class="c num huehead" title="Click to colour the column by rank">Team Compare</div><div class="c"></div></div>`;
+  const posCols = (i) => `max-content${weaponOpenAt[i] ? " max-content" : ""}${echoOpenAt[i] ? " max-content" : ""}${mainstatOpenAt[i] ? " max-content" : ""}${subsOpenAt[i] ? " max-content" : ""}${dprOpenAt[i] ? " max-content" : ""}${dprOpenAt[i] && compareOpenAt[i] ? " max-content" : ""}`;
+  const gridStyle = `grid-template-columns:${posCols(0)} ${posCols(1)} ${posCols(2)} max-content max-content max-content`;
   const rowLines = (run) => Math.max(1, ...run.members.map((m, i) => echoOpenAt[i] && (m.mainDps ? filters.mdpsEchoes : filters.supportEchoes) ? run.combo[i].echo.sets.length : 1));
   const lines = sorted.map(([, run]) => rowLines(run));
   const extra = [0];
@@ -1673,6 +1700,7 @@ function comparisonTable(rows) {
     weapon: ["", "", ""],
     echo: ["", "", ""],
     mainstat: ["", "", ""],
+    subs: ["", "", ""],
     dpr: ["", "", ""],
     compare: ["", "", ""],
     total: "",
@@ -1691,6 +1719,8 @@ function comparisonTable(rows) {
       }
       if (mdps ? filters.mdpsMainstats : filters.supportMainstats)
         wide.mainstat[pos] = widest(wide.mainstat[pos], combo.mainstat.name);
+      if (mdps ? filters.mdpsHighSubs : filters.supportHighSubs)
+        wide.subs[pos] = widest(wide.subs[pos], subsLabel(combo));
       const { text, pct } = slotDpr(run, pos);
       wide.dpr[pos] = widest(wide.dpr[pos], text);
       wide.compare[pos] = widest(wide.compare[pos], pct);
@@ -1698,10 +1728,10 @@ function comparisonTable(rows) {
     wide.total = widest(wide.total, fmt(run.total));
     wide.pct = widest(wide.pct, ranks[i].pct);
   });
-  const ghostPos = (i) => `<div class="c name res"><span class="res-label">${esc(wide.name[i])}</span></div>` + (weaponOpenAt[i] ? `<div class="c option">${esc(wide.weapon[i])}</div>` : "") + (echoOpenAt[i] ? `<div class="c option">${esc(wide.echo[i])}</div>` : "") + (mainstatOpenAt[i] ? `<div class="c option">${esc(wide.mainstat[i])}</div>` : "") + (dprOpenAt[i] ? `<div class="c num slotdpr">${esc(wide.dpr[i])}</div>` : "") + (dprOpenAt[i] && compareOpenAt[i] ? `<div class="c num slotcompare">${esc(wide.compare[i])}</div>` : "");
-  const ghost = `<div class="trow tghost" aria-hidden="true">` + ghostPos(0) + ghostPos(1) + ghostPos(2) + `<div class="c num total gotodetail">${esc(wide.total)}<span class="arrow">\u203A</span></div><div class="c num total baseline">${esc(wide.pct)}</div></div>`;
+  const ghostPos = (i) => `<div class="c name res"><span class="res-label">${esc(wide.name[i])}</span></div>` + (weaponOpenAt[i] ? `<div class="c option">${esc(wide.weapon[i])}</div>` : "") + (echoOpenAt[i] ? `<div class="c option">${esc(wide.echo[i])}</div>` : "") + (mainstatOpenAt[i] ? `<div class="c option">${esc(wide.mainstat[i])}</div>` : "") + (subsOpenAt[i] ? `<div class="c option">${esc(wide.subs[i])}</div>` : "") + (dprOpenAt[i] ? `<div class="c num slotdpr">${esc(wide.dpr[i])}</div>` : "") + (dprOpenAt[i] && compareOpenAt[i] ? `<div class="c num slotcompare">${esc(wide.compare[i])}</div>` : "");
+  const ghost = `<div class="trow tghost" aria-hidden="true">` + ghostPos(0) + ghostPos(1) + ghostPos(2) + `<div class="c num total">${esc(wide.total)}</div><div class="c num total baseline">${esc(wide.pct)}</div><div class="c gotodetail">view rotation<span class="arrow">\u203A</span></div></div>`;
   tableView = { sorted, ranks, head, ghost, rowHtml, lines, extra };
-  return `<main><div class="tclayout"><aside class="tcside">${comparisonFilters()}</aside><div class="tcbody"><h2 class="summary-label" id="teamCount">${fmt(sorted.length)} teams</h2><div class="tcwrap"><div class="tgrid" style="${gridStyle}">${head}${ghost}</div></div></div></div></main>`;
+  return `<main><div class="tclayout"><aside class="tcside">${comparisonFilters()}</aside><div class="tcbody"><h2 class="summary-label" id="teamCount">${fmt(sorted.length)} teams</h2><div class="tcwrap"><div class="tgrid${hueShown ? " hued" : ""}" style="${gridStyle}">${head}${ghost}</div></div></div></div></main>`;
 }
 var tableView = null;
 var rowHeight = 30;
@@ -1731,7 +1761,7 @@ function rankAll(sorted) {
     const ratio = base ? t / base : 1;
     const away = ratio >= 1 ? maxRatio > 1 ? (ratio - 1) / (maxRatio - 1) : 0 : minRatio < 1 ? (1 - ratio) / (1 - minRatio) : 0;
     const hue = ratio >= 1 ? BASELINE_HUE - away * (BASELINE_HUE - BEST_HUE) : BASELINE_HUE + away * (WORST_HUE - BASELINE_HUE);
-    return { hue, pct: `${fmt(ratio * 100, 2, true)}%`, pinned: i === pinned };
+    return { hue, pct: `${fmt(ratio * 100, 1, true)}%`, pinned: i === pinned };
   });
 }
 var zoom = () => {
@@ -1842,7 +1872,7 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
       pop = popover(col, sources, row.raw[`moved:${col.key}`] ?? v, slotHue, suffix);
     }
     const mem = slotHue.get(String(v)) ?? FALLBACK_HUE;
-    const style = col.key === "member" ? `--mem:${mem};color:${mem}` : "";
+    const style = col.key === "member" ? `--mem:${mem};color:${mem}` : col.key === "avg" ? `--mem:${slotHue.get(String(row.raw["member"] ?? "")) ?? FALLBACK_HUE}` : "";
     return cell(columns, i, { cls, html, pop, style });
   }).join("");
 }
@@ -1936,7 +1966,7 @@ function rotationTable(report, slotHue, gearByMember, starts) {
 function dprTable(run, lines) {
   const grand = run.sectionTotals.reduce((a, b) => a + b, 0);
   const flat = lines?.flat();
-  const head = `<div class="rtrow rthead"><div class="c">${lines ? "" : "Click to view details"}</div><div class="c num">Opener</div><div class="c num">Loop 1</div><div class="c num">Loop 2</div><div class="c num">Loop 3</div><div class="c num">Total</div></div>`;
+  const head = `<div class="rtrow rthead"><div class="c"></div><div class="c num">Opener</div><div class="c num">Loop 1</div><div class="c num">Loop 2</div><div class="c num">Loop 3</div><div class="c num">Total</div></div>`;
   const valueCell = (sec, slot, value, total) => sec ? `<div class="c num has"${damagePopover(sec, slot, value, total)}>${fmt(value)}</div>` : `<div class="c num">${fmt(value)}</div>`;
   const dataRow = (slot, color, hover) => {
     const own = run.sectionBySlot.reduce((a, by) => a + (by.get(slot) ?? 0), 0);
@@ -2106,12 +2136,14 @@ function wireSourcePanels(root) {
   const GAP = 4, EDGE = 6;
   let open = null;
   let openHome = null;
+  let pinned = false;
   document.body.querySelectorAll(":scope > .pop").forEach((el) => el.remove());
   const built = /* @__PURE__ */ new WeakMap();
   const close = () => {
     open?.remove();
     open = null;
     openHome = null;
+    pinned = false;
   };
   const place = (cell2, pop) => {
     if (pop.parentElement !== document.body)
@@ -2158,8 +2190,10 @@ function wireSourcePanels(root) {
       built.set(cell2, pop);
     return { cell: cell2, pop };
   };
-  const isAction = (cell2) => !!cell2.closest(".grid") && (cell2.classList.contains("action") || cell2.classList.contains("name"));
+  const isAction = (cell2) => !!cell2.closest(".grid") && (cell2.classList.contains("action") || cell2.classList.contains("name")) || cell2.classList.contains("teamdpr");
   document.addEventListener("mouseover", (e) => {
+    if (pinned)
+      return;
     if (open && open.contains(e.target))
       return;
     const hovered = e.target?.closest?.(".c") ?? null;
@@ -2176,12 +2210,22 @@ function wireSourcePanels(root) {
       place(cell2, pop);
   });
   document.addEventListener("mouseout", (e) => {
+    if (pinned)
+      return;
     const to = e.relatedTarget;
     if (to && (root.contains(to) || open && open.contains(to)))
       return;
     close();
   });
   addEventListener("click", (e) => {
+    if (pinned) {
+      if (open?.contains(e.target))
+        return;
+      const onHome = !!openHome?.contains(e.target);
+      close();
+      if (onHome)
+        return;
+    }
     const { cell: cell2, pop } = panelIn(e.target);
     if (!cell2)
       return;
@@ -2190,8 +2234,10 @@ function wireSourcePanels(root) {
       e.preventDefault();
       const same = openHome === cell2;
       close();
-      if (!same)
+      if (!same) {
         place(cell2, pop);
+        pinned = cell2.classList.contains("teamdpr");
+      }
       return;
     }
     if (cell2.querySelector(":scope > .caret"))
@@ -2486,6 +2532,21 @@ var results = /* @__PURE__ */ new Map();
 var visibleRows = [];
 var hashParams = () => new URLSearchParams(location.hash.replace(/^#/, ""));
 var FILTER_KEYS = Object.keys(filters);
+var FILTER_CODE = {
+  mdpsSequences: "ms",
+  supportSequences: "ss",
+  mdpsWeapons: "mw",
+  supportWeapons: "sw",
+  mdpsEchoes: "me",
+  supportEchoes: "se",
+  mdpsMainstats: "mm",
+  supportMainstats: "sm",
+  allowR1Mdps: "m1",
+  allowR1Supports: "s1",
+  matrix: "x",
+  mdpsHighSubs: "mh",
+  supportHighSubs: "sh"
+};
 var FILTER_GROUPS = [
   { include: "r", exclude: "x", map: resonatorFilters },
   { include: "wr", exclude: "wx", map: weaponFilters },
@@ -2500,16 +2561,18 @@ function applyHash() {
   if (f !== null) {
     const on = new Set(f.split(",").filter(Boolean));
     for (const key of FILTER_KEYS) {
-      if (filters[key] === on.has(key))
+      const set = on.has(FILTER_CODE[key]) || on.has(key);
+      if (filters[key] === set)
         continue;
-      filters[key] = on.has(key);
+      filters[key] = set;
       changed = true;
     }
   }
   if (params.has("f")) {
-    const named = (v, mode) => (v ?? "").split(",").filter(Boolean).map((name) => [name, mode]);
+    const named = (v, mode, resonators) => (v ?? "").split(",").filter(Boolean).map((name) => [resonators ? RESONATOR_KEY_BY_COMPACT.get(name) ?? name : name, mode]);
     for (const { include, exclude, map } of FILTER_GROUPS) {
-      const next = new Map([...named(params.get(exclude), "exclude"), ...named(params.get(include), "include")]);
+      const resonators = map === resonatorFilters;
+      const next = new Map([...named(params.get(exclude), "exclude", resonators), ...named(params.get(include), "include", resonators)]);
       if (next.size !== map.size || [...next].some(([n, m]) => map.get(n) !== m)) {
         map.clear();
         for (const [name, mode] of next)
@@ -2521,8 +2584,8 @@ function applyHash() {
   return changed;
 }
 function syncHash(team = hashParams().get("team")) {
-  const named = (map, mode) => [...map].filter(([, m]) => m === mode).map(([name]) => encodeURIComponent(name)).join(",");
-  const parts = [`f=${FILTER_KEYS.filter((k) => filters[k]).join(",")}`];
+  const named = (map, mode) => [...map].filter(([, m]) => m === mode).map(([name]) => encodeURIComponent(map === resonatorFilters ? name.replace(/ /g, "") : name)).join(",");
+  const parts = [`f=${FILTER_KEYS.filter((k) => filters[k]).map((k) => FILTER_CODE[k]).join(",")}`];
   for (const { include, exclude, map } of FILTER_GROUPS) {
     if (named(map, "include"))
       parts.push(`${include}=${named(map, "include")}`);
@@ -2540,6 +2603,12 @@ var routeTeam = () => {
   const key = hashParams().get("team");
   return key && results.has(key) ? key : null;
 };
+var sideFit = new ResizeObserver((entries) => {
+  for (const e of entries) {
+    const el = e.target;
+    el.style.marginBottom = el.closest(".tclayout")?.classList.contains("stack") ? "" : `-${el.offsetHeight}px`;
+  }
+});
 function fitSide() {
   const layout = app.querySelector(".tclayout");
   const side = app.querySelector(".tcside");
@@ -2569,6 +2638,9 @@ function fitSide() {
   side.style.maxHeight = stacked ? "" : `${main.clientHeight}px`;
   if (!stacked)
     side.style.width = "";
+  side.style.marginBottom = stacked ? "" : `-${side.offsetHeight}px`;
+  sideFit.disconnect();
+  sideFit.observe(side);
 }
 function renderComparison() {
   topbar.hidden = true;
@@ -2637,14 +2709,14 @@ function overlayHide() {
   overlayTimer = void 0;
   overlay.hidden = true;
 }
-async function runMissing(rows, workTotal, teamsOffset) {
+async function runMissing(rows) {
   const missing = rows.filter((row) => !results.has(row.key));
   if (!missing.length)
     return;
   overlayPhase("Running Rotations\u2026");
   const cached = rows.length - missing.length;
   const progress = (done) => {
-    overlayFill.style.width = `${(teamsOffset + done) / workTotal * 100}%`;
+    overlayFill.style.width = `${done / rows.length * 100}%`;
     overlayCount.textContent = `${fmt(done)} / ${fmt(rows.length)}`;
   };
   progress(cached);
@@ -2725,7 +2797,7 @@ function solveOnWorkers(workers, teams, onDone) {
       resolve();
   });
 }
-async function ensureBestPicks(inPlay, workTotal, rowsTotal) {
+async function ensureBestPicks(inPlay, rowsTotal) {
   await loadShipped(filters);
   const teams = inPlay.filter(([key, members]) => !bestPicks.has(bestKey(key, members, filters)));
   if (!teams.length)
@@ -2735,7 +2807,7 @@ async function ensureBestPicks(inPlay, workTotal, rowsTotal) {
   const rowsOf = (members) => members.every((m) => eligibleWeapons(m, filters).length) ? estimatedRowCount(members) : 0;
   let rowsDone = inPlay.filter(([key, members]) => bestPicks.has(bestKey(key, members, filters))).reduce((sum, [, members]) => sum + rowsOf(members), 0);
   const progress = () => {
-    overlayFill.style.width = `${done / workTotal * 100}%`;
+    overlayFill.style.width = `${rowsDone / (rowsTotal || 1) * 100}%`;
     overlayCount.textContent = `${fmt(rowsDone)} / ${fmt(rowsTotal)}`;
   };
   progress();
@@ -2770,15 +2842,14 @@ async function refresh() {
       route();
     const solvableInPlay = inPlay.filter(([, members]) => members.every((m) => eligibleWeapons(m, filters).length));
     const rowsTotal = solvableInPlay.reduce((sum, [, members]) => sum + estimatedRowCount(members), 0);
-    const workTotal = inPlay.length + rowsTotal || 1;
-    const solved = await ensureBestPicks(inPlay, workTotal, rowsTotal);
+    const solved = await ensureBestPicks(inPlay, rowsTotal);
     saveSolves();
     const rows = teamRows();
     const cached = rows.filter((row) => results.has(row.key));
     const missing = cached.length !== rows.length;
     if (!missing && cached.length) {
       overlayPhase("Rendering Table\u2026");
-      overlayFill.style.width = `${(inPlay.length + cached.length) / workTotal * 100}%`;
+      overlayFill.style.width = "100%";
       overlayCount.textContent = `${fmt(cached.length)} / ${fmt(rows.length)}`;
       await paint();
       if (solved)
@@ -2789,7 +2860,7 @@ async function refresh() {
       visibleRows = [];
       route();
     }
-    await runMissing(rows, workTotal, inPlay.length);
+    await runMissing(rows);
     if (missing) {
       overlayPhase("Rendering Table\u2026");
       await paint();
@@ -2883,10 +2954,10 @@ async function boot() {
     box.querySelector(".tcopt-desc").hidden = !open;
   });
   document.addEventListener("click", (e) => {
-    if (!e.target.closest(".c.sorthead"))
+    if (!e.target.closest(".c.huehead"))
       return;
-    sortAscending = !sortAscending;
-    renderComparison();
+    hueShown = !hueShown;
+    document.querySelector(".tgrid")?.classList.toggle("hued", hueShown);
   });
   const AXIS_MAP = {
     mdpsSequences: sequenceFilters,

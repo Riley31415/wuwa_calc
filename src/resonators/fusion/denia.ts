@@ -78,7 +78,7 @@ import {
   SIGILLUM,
 } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { CLAWPRINT_5PC, LIONESS_OF_GLORY } from "../../echoes/septimont.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -409,7 +409,8 @@ export const DENIA_BURST = new Loadout({
     new EchoLoadout(SIGILLUM, TRAILBLAZING_STAR_5PC), 
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
-  substat: chem("atk", "liberation"),
+  substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Liberation, Substat.Er, Substat.FlatAtk),
     rotation: DN_ROTATION_BURST,
   mode: MODE_BURST,
 });
@@ -434,7 +435,8 @@ export const DENIA_STRAIN = new Loadout({
     new EchoLoadout(HYVATIA, NEONLIGHT_LEAP_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
-  substat: chem("atk", "liberation"),
+  substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Liberation, Substat.Er, Substat.FlatAtk),
     rotation: DN_ROTATION_STRAIN,
   mode: MODE_STRAIN,
 });

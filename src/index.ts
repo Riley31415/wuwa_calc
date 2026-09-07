@@ -26,6 +26,7 @@
 import { Stat, Attribute, Type1, Type2, Tier, scopedStat } from "./engine/stats.js";
 import { Gear, baseSequence } from "./engine/gear.js";
 import { menuStats } from "./engine/context.js";
+import { substatLines } from "./shared/substats.js";
 import { Action } from "./engine/rotation.js";
 import { TUNE_BREAK_ENEMY } from "./shared/tunebreak.js";
 import type { Loadout, EchoLoadout } from "./engine/gear.js";
@@ -105,6 +106,15 @@ function roleTagLabel(key: string): string {
 
 const resonatorFilterKey = (name: string, mdps: boolean): string =>
   roleTagged(name, mdps, RESONATOR_ROLE.get(name) === "both");
+
+/** A resonator filter key back from its spaceless form — how the hash writes them (`syncHash()`:
+ *  `ElectroRover(mdps)`), every key either role could produce, plus the bare names. */
+const RESONATOR_KEY_BY_COMPACT = new Map<string, string>();
+for (const name of RESONATOR_ROLE.keys()) {
+  for (const key of [name, resonatorFilterKey(name, true), resonatorFilterKey(name, false)]) {
+    RESONATOR_KEY_BY_COMPACT.set(key.replace(/ /g, ""), key);
+  }
+}
 
 /** A resonator filter key's own name and role — an explicit tag if it carries one, else looked up
  *  in `RESONATOR_ROLE`: an untagged name has exactly one role unless it's one of the rare "both"
@@ -225,7 +235,7 @@ function parseGearFilter(kind: GearKind, key: string, f: Filters = filters): { n
  *  would cross it is put straight back and warned about (`rowCapWarning()`) rather than letting
  *  the page try and hang. A `#`-link's own filters are the one way in that isn't costed: it names
  *  a state to restore, not a change to approve. */
-const ROW_CAP = 10_000;
+const ROW_CAP = 3_000;
 
 /** Put the caret back in the search bar, at the end of whatever it holds. Called after every
  *  redraw — each one rebuilds the input, so typing, clicking a result and typing again never needs
@@ -690,10 +700,10 @@ function rowFromKey(key: string): TeamRow | null {
 
   const combo: Combo[] = [];
   for (let i = 0; i < members.length; i++) {
-    const parsed = /^(\d+)\.(\d+)\.(\d+)\.s(\d+)(\.m)?$/.exec(comboKeys[i]!);
+    const parsed = /^(\d+)\.(\d+)\.(\d+)\.s(\d+)(\.m)?(\.h)?$/.exec(comboKeys[i]!);
     if (!parsed) return null;
     const l = members[i]!.loadout;
-    const pick: Pick = { weapon: +parsed[1]!, echo: +parsed[2]!, mainstat: +parsed[3]!, sequence: +parsed[4]!, matrix: !!parsed[5] };
+    const pick: Pick = { weapon: +parsed[1]!, echo: +parsed[2]!, mainstat: +parsed[3]!, sequence: +parsed[4]!, matrix: !!parsed[5], highSubs: !!parsed[6] };
     if (!l.weapons[pick.weapon] || !l.echoLoadouts[pick.echo] || !l.mainstats[pick.mainstat] || (pick.matrix && !l.matrix)) return null;
     combo.push(comboOf(l, pick));
   }
@@ -809,7 +819,6 @@ const deferredPop = (kind: string, key: string): string => ` data-pop-kind="${ki
 function buildPop(kind: string, key: string): string {
   if (kind === "dpr") {
     const run = results.get(key);
-    // the one hover whose cell also navigates (see `.gotodetail`), so it says so, top right
     return run ? `<span class="pop dpr">${dprTable(run)}</span>` : "";
   }
   if (kind === "gear") {
@@ -1045,7 +1054,7 @@ function damagePopover(
 ): string {
   const tagName = (k: number) => TAG_NAME[k as keyof typeof TAG_NAME];
   const body = breakdownSection("Node", sumByTag(lines, slot, (a) => a.node), total, (k) => NODE_NAME[k as keyof typeof NODE_NAME])
-    + breakdownSection("Type", sumByTag(lines, slot, (a) => a.type1), total, tagName)
+    + breakdownSection("Type 1", sumByTag(lines, slot, (a) => a.type1), total, tagName)
     + breakdownSection("Type 2", sumByTag(lines, slot, (a) => a.type2), total, tagName);
   const pct = grandTotal ? Math.round((total / grandTotal) * 100) : 0;
   // the Actions list is a table of its own so an action name — far longer than any tag above it —
@@ -1070,7 +1079,7 @@ function equippedGear(member: Member, combo: Combo): [string, Gear][] {
     ...(r.inherent2 ? [["Inherent", r.inherent2] as [string, Gear]] : []),
     ["Weapon", combo.weapon], ["Mainslot", combo.echo.mainslot],
     ...combo.echo.sets.map((g, i): [string, Gear] => [i === 0 ? "Sonata" : "", g]),
-    ["Mainstats", combo.mainstat], ["Substats", l.substat]];
+    ["Mainstats", combo.mainstat], ["Substats", combo.highSubs ? l.highSubstat : l.substat]];
 }
 
 /** What a loadout hover actually lists. Both Inherent Skills are dropped: they are fixed for a
@@ -1130,7 +1139,7 @@ const OTHER_SCOPES = [
  *  line here. */
 function menuStatRows(member: Member, combo: Combo): { label: string; value: string }[] {
   const l = member.loadout;
-  const entries = menuStats(l.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence));
+  const entries = menuStats(l.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs));
   const totals = new Map<number, number>();
   for (const e of entries) totals.set(e.stat, (totals.get(e.stat) ?? 0) + e.value);
   const get = (key: number) => totals.get(key) ?? 0;
@@ -1166,15 +1175,34 @@ function menuStatRows(member: Member, combo: Combo): { label: string; value: str
   return rows;
 }
 
+/** What the Substats column calls a row's spread: the piece's own prefix, the part before the
+ *  stats it leans on (shared/substats.ts's `substats()`/`highSubs()`). */
+const subsLabel = (combo: Combo): string => (combo.highSubs ? "CN Subs" : "ChemX32");
+
 /** The loadout on its own — the only hover a member's own name cell carries, on both the
  *  comparison table and the detail page's two rotation tables. Its own gear list first, then —
  *  on the detail page only — a "menu stats" reading of the same build below it (see
  *  `.pop .gear + tr:not(.gear)` in index.css for the divider between the two). */
 function gearPopoverHtml(member: Member, combo: Combo, withStats: boolean): string {
-  const stats = withStats ? menuStatRows(member, combo)
+  // the comparison table's own panel opens on a cell that filters: it says so first, then names
+  // the resonator, since the cell under it is the one thing on the row the loadout isn't
+  const head = withStats ? "" : `<tr class="hint"><td colspan="2">Left Click to filter, Right Click to exclude</td></tr>`
+    + `<tr class="gear"><td class="k">Resonator</td><td class="v">${esc(member.name)}</td></tr>`;
+  if (!withStats) return `<span class="pop gear"><table>${head}${gearRows(member, combo)}</table></span>`;
+  // the detail page's: the loadout and its menu-stats reading in one labelled column, and the
+  // substat piece's own rolls beside them — every stat's line, how many rolls it got in a
+  // column of its own, and the twenty-five they add up to
+  const stats = menuStatRows(member, combo)
     .map((r) => `<tr class="stat"><td class="k">${esc(r.label)}</td><td class="v">${esc(r.value)}</td></tr>`)
-    .join("") : "";
-  return `<span class="pop gear"><table>${gearRows(member, combo)}${stats}</table></span>`;
+    .join("");
+  const lines = substatLines(combo.highSubs ? member.loadout.highSubstat : member.loadout.substat);
+  const rolls = lines.map((l) => `<tr class="stat${l.rolls === 1 ? " one" : ""}"><td class="k">${esc(l.text)}</td><td class="v n">${l.rolls}</td></tr>`).join("")
+    + `<tr class="sum"><td class="k">Total</td><td class="v n">${lines.reduce((n, l) => n + l.rolls, 0)}</td></tr>`;
+  return `<span class="pop gear"><div class="cols">`
+    + `<table><tr class="sec"><td colspan="2">Loadout</td></tr>${gearRows(member, combo)}`
+    + `<tr class="sec"><td colspan="2">Menu Stats</td></tr>${stats}</table>`
+    + `<table><tr class="sec"><td colspan="2">Substats</td></tr>${rolls}</table>`
+    + `</div></span>`;
 }
 const gearPopover = (member: Member, combo: Combo): string => lazyPop(gearPopoverHtml(member, combo, true));
 
@@ -1323,6 +1351,8 @@ const PAIRS: { id: string; label: string; mdps: keyof Filters; support: keyof Fi
     help: "Compare sonata and mainslot echo options for that role" },
   { id: "mainstats", label: "Compare Mainstats", mdps: "mdpsMainstats", support: "supportMainstats",
     help: "Compare echo mainstat combos for that role" },
+  { id: "highsubs", label: "Show Substat Gains", mdps: "mdpsHighSubs", support: "supportHighSubs",
+    help: "Display high investment substat gains. Otherwise, only show ChemX32 standard substats." },
 ];
 const MATRIX_HELP = "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.";
 
@@ -1353,12 +1383,12 @@ const README = [
 /** How the table is worked rather than what it assumes — the clicks and the search bar, for a
  *  reader who has the numbers in front of them and no way of knowing they are filterable. */
 const BROWSING = [
-  "Left click on any resonator (or gear) name to show only teams with them.",
-  "Right click on any resonator (or gear) name to hide teams with them.",
-  "Use the search bar to quickly find resonators to filter, you can press enter to auto filter the top result.",
-  "What is gear? weapons, sonata sets, mainslot echoes, and echo mainstats can all be filtered as long as the respective option Show X is already enabled.",
-  "Click on the SLOT 1/2/3 column headers to show personal DPR.",
-  "Click on a team's damage total to view an expanded action log with their rotations, stats, buffs, damage and forte breakdowns, as well as energy requirements."
+  "Left click a resonator or gear name to show only teams with it, right click to hide them.",
+  "Search bar: type a resonator, enter filters the top result.",
+  "Gear (weapons, sonatas, mainslot echoes, mainstats) filters once its Compare box is on. Substats show but don't filter.",
+  "Slot 1/2/3 headers: personal DPR and Compare % vs that slot's baseline build.",
+  "Team Compare %: click to set the baseline team. Click the header to toggle the colouring.",
+  "view rotation: the full action log with rotations, stats, buffs, damage and energy."
 ];
 
 /** Which boxes are showing their description — a `Filters` key, or `standards`/`browsing` for the
@@ -1469,16 +1499,16 @@ function resonatorChips(): string {
  *  `ROW_CAP` — the table is just redrawn. Module-level so it survives a re-render. */
 const dprOpenAt = [false, false, false];
 
-/** Which way the table runs: strongest team first by default, flipped by clicking the Team DPR
- *  heading. Purely a display order, same as `dprOpenAt` — nothing is re-solved, the ranks and
- *  the baseline are computed off the totals themselves, so the table is just redrawn. */
-let sortAscending = false;
+/** Whether the Team Compare column paints its hue ramp (see index.css's own `.tgrid.hued`),
+ *  toggled by clicking that heading — on to begin with. Purely display: the ranks and hues are
+ *  written on every row regardless, this only decides whether they show. */
+let hueShown = true;
 
 /** Every row the current filters opened, sorted by team damage — each one's own run read out of
  *  the `results` cache, which `refresh()` has already filled for exactly this row set. */
 function comparisonTable(rows: TeamRow[]): string {
   const sorted = rows.map((row) => [row.key, results.get(row.key)!] as const)
-    .sort((a, b) => (sortAscending ? a[1].total - b[1].total : b[1].total - a[1].total));
+    .sort((a, b) => b[1].total - a[1].total);
 
   // What a slot's own DPR is measured against for the Compare% it carries while any of that role's
   // comparison boxes is open: the best build of *that member alone* — the team and every
@@ -1521,7 +1551,8 @@ function comparisonTable(rows: TeamRow[]): string {
     const weaponOpen = mdps ? filters.mdpsWeapons : filters.supportWeapons;
     const echoOpen = mdps ? filters.mdpsEchoes : filters.supportEchoes;
     const mainstatOpen = mdps ? filters.mdpsMainstats : filters.supportMainstats;
-    if (!seqOpen && !weaponOpen && !echoOpen && !mainstatOpen) return { text, pct: "" };
+    const subsOpen = mdps ? filters.mdpsHighSubs : filters.supportHighSubs;
+    if (!seqOpen && !weaponOpen && !echoOpen && !mainstatOpen && !subsOpen) return { text, pct: "" };
     // echo and main stat go unconstrained either way: open, they are what is being compared and
     // the best option is the baseline; closed, they are the search's own re-pick for each build
     const floor = sequenceLevels(m, filters)[0]!;
@@ -1529,6 +1560,8 @@ function comparisonTable(rows: TeamRow[]): string {
     for (const t of twins.get(twinKey(run.teamKey, run.members, run.combo, pos)) ?? []) {
       const c = t.combo;
       if (c.matrix !== own.matrix) continue;
+      // the baseline wears the default spread; closed, the row's own
+      if (subsOpen ? c.highSubs : c.highSubs !== own.highSubs) continue;
       if (seqOpen ? c.sequence !== floor : c.sequence !== own.sequence) continue;
       if (weaponOpen ? c.weapon.tier === Tier.Limited : c.weapon !== own.weapon) continue;
       if (t.dpr > base) base = t.dpr;
@@ -1537,7 +1570,7 @@ function comparisonTable(rows: TeamRow[]): string {
     // the figure alone, and no Compare% to show
     if (!(base > 0)) return { text, pct: "" };
     // as a share of the baseline, which reads 100.00% — not a signed gain over it
-    return { text, pct: `${fmt((dpr / base) * 100, 2, true)}%` };
+    return { text, pct: `${fmt((dpr / base) * 100, 1, true)}%` };
   };
 
   // Whether each axis has a column at member position 0/1/2 — read off the rows actually on
@@ -1551,6 +1584,7 @@ function comparisonTable(rows: TeamRow[]): string {
   const weaponOpenAt = [false, false, false];
   const echoOpenAt = [false, false, false];
   const mainstatOpenAt = [false, false, false];
+  const subsOpenAt = [false, false, false];
   // The Compare column beside a position's Personal one, on the same rule: only where some visible
   // row has a member there with any of their role's comparison boxes checked — Sequences included,
   // since a sequence baseline is a comparison too (`slotDpr`). With none, there is nothing to
@@ -1563,7 +1597,8 @@ function comparisonTable(rows: TeamRow[]): string {
       if (mdps ? filters.mdpsWeapons : filters.supportWeapons) weaponOpenAt[pos] = true;
       if (mdps ? filters.mdpsEchoes : filters.supportEchoes) echoOpenAt[pos] = true;
       if (mdps ? filters.mdpsMainstats : filters.supportMainstats) mainstatOpenAt[pos] = true;
-      if (weaponOpenAt[pos] || echoOpenAt[pos] || mainstatOpenAt[pos]
+      if (mdps ? filters.mdpsHighSubs : filters.supportHighSubs) subsOpenAt[pos] = true;
+      if (weaponOpenAt[pos] || echoOpenAt[pos] || mainstatOpenAt[pos] || subsOpenAt[pos]
         || (mdps ? filters.mdpsSequences : filters.supportSequences)) compareOpenAt[pos] = true;
     });
   }
@@ -1605,6 +1640,8 @@ function comparisonTable(rows: TeamRow[]): string {
       const echo = echoOpenAt[i] ? optionCell("echo", showEcho ? gearFilterKey("echo", echoLabel(m.loadout, combo.echo), mdps) : "", m.color, showEcho ? echoLines(m.loadout, combo.echo) : []) : "";
       const mainstatPick = (mdps ? filters.mdpsMainstats : filters.supportMainstats) ? combo.mainstat.name : "";
       const mainstat = mainstatOpenAt[i] ? optionCell("mainstat", mainstatPick && gearFilterKey("mainstat", mainstatPick, mdps), m.color, [mainstatPick]) : "";
+      // plain text, no filter behind it: which spread a row wears is read, never clicked
+      const subs = subsOpenAt[i] ? `<div class="c option" style="--mem:${m.color}">${(mdps ? filters.mdpsHighSubs : filters.supportHighSubs) ? esc(subsLabel(combo)) : ""}</div>` : "";
       // this member's own share of the row's Avg Team DPR — the same mean `run.total` is, so the
       // three read against each other and against the Total column directly — and, with any of
       // their comparison boxes open, how far it sits from their own baseline build (`slotDpr`)
@@ -1613,7 +1650,7 @@ function comparisonTable(rows: TeamRow[]): string {
         ? `<div class="c num slotdpr" style="--mem:${m.color}">${dprText}</div>`
           + (compareOpenAt[i] ? `<div class="c num slotcompare" style="--mem:${m.color}">${comparePct}</div>` : "")
         : "";
-      return name + weapon + echo + mainstat + dpr;
+      return name + weapon + echo + mainstat + subs + dpr;
     };
     const memberCells = run.members.map((m, i) => memberCell(m, run.combo[i]!, i)).join("");
 
@@ -1622,11 +1659,11 @@ function comparisonTable(rows: TeamRow[]): string {
     return `<div class="trow${rank.pinned ? " isbaseline" : ""}" style="--hue:${rank.hue}" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}"`
       + ` data-members="${esc(memberNames)}" data-total="${grand}">`
       + memberCells
-      + `<div class="c num total teamdpr gotodetail" data-team="${esc(key)}"`
-      + deferredPop("dpr", key)
-      + `>${fmt(grand)}<span class="arrow">›</span></div>`
+      + `<div class="c num total teamdpr" title="Click to view the team's damage breakdown"${deferredPop("dpr", key)}>${fmt(grand)}</div>`
       // clicking the cell makes that row the baseline (see `setBaseline()`)
       + `<div class="c num total baseline" data-team="${esc(key)}" title="Click to measure every team against this one">${rank.pct}</div>`
+      // the one cell that navigates: the team's own detail page (see `.gotodetail`)
+      + `<div class="c gotodetail" data-team="${esc(key)}">view rotation<span class="arrow">›</span></div>`
       + `</div>`;
   };
 
@@ -1640,13 +1677,15 @@ function comparisonTable(rows: TeamRow[]): string {
     + (weaponOpenAt[i] ? slotHead(i, `Weapon ${n}`) : "")
     + (echoOpenAt[i] ? slotHead(i, `Echo Set ${n}`) : "")
     + (mainstatOpenAt[i] ? slotHead(i, `Mainstats ${n}`) : "")
+    + (subsOpenAt[i] ? slotHead(i, `Substats ${n}`) : "")
     // no slot number on either — the position is already said by which Slot heading opened them
     + (dprOpenAt[i] ? `<div class="c num">Personal</div>` : "")
     + (dprOpenAt[i] && compareOpenAt[i] ? `<div class="c num">Compare</div>` : "");
   const head = `<div class="trow thead">`
     + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2)
-    + `<div class="c num sorthead${sortAscending ? " asc" : ""}" title="Click to flip the sort">Team Avg DPR<span class="arrow">›</span></div>`
-    + `<div class="c num">Team Compare</div>`
+    + `<div class="c num">Team Avg DPR</div>`
+    + `<div class="c num huehead" title="Click to colour the column by rank">Team Compare</div>`
+    + `<div class="c"></div>`
     + `</div>`;
 
   // one grid track per column actually rendered above, position by position — a member's name
@@ -1654,8 +1693,8 @@ function comparisonTable(rows: TeamRow[]): string {
   // Computed here rather than left to a fixed rule in index.css, since both the column count and
   // which position has which now depend on which axes are open and who's actually standing where
   // (see index.css's own `.tgrid` for the no-options-open default this overrides).
-  const posCols = (i: number) => `max-content${weaponOpenAt[i] ? " max-content" : ""}${echoOpenAt[i] ? " max-content" : ""}${mainstatOpenAt[i] ? " max-content" : ""}${dprOpenAt[i] ? " max-content" : ""}${dprOpenAt[i] && compareOpenAt[i] ? " max-content" : ""}`;
-  const gridStyle = `grid-template-columns:${posCols(0)} ${posCols(1)} ${posCols(2)} max-content max-content`;
+  const posCols = (i: number) => `max-content${weaponOpenAt[i] ? " max-content" : ""}${echoOpenAt[i] ? " max-content" : ""}${mainstatOpenAt[i] ? " max-content" : ""}${subsOpenAt[i] ? " max-content" : ""}${dprOpenAt[i] ? " max-content" : ""}${dprOpenAt[i] && compareOpenAt[i] ? " max-content" : ""}`;
+  const gridStyle = `grid-template-columns:${posCols(0)} ${posCols(1)} ${posCols(2)} max-content max-content max-content`;
 
   // the rows themselves are drawn by `drawWindow()`, only ever the stretch near the scroll
   // position — this is the shell around them, head and width-setting ghost row included
@@ -1675,7 +1714,7 @@ function comparisonTable(rows: TeamRow[]): string {
   // string is the widest one and no measuring is needed to pick it.
   const widest = (a: string, b: string): string => (b.length > a.length ? b : a);
   const wide = {
-    name: ["", "", ""], weapon: ["", "", ""], echo: ["", "", ""], mainstat: ["", "", ""],
+    name: ["", "", ""], weapon: ["", "", ""], echo: ["", "", ""], mainstat: ["", "", ""], subs: ["", "", ""],
     dpr: ["", "", ""], compare: ["", "", ""], total: "", pct: "",
   };
   sorted.forEach(([, run], i) => {
@@ -1689,6 +1728,7 @@ function comparisonTable(rows: TeamRow[]): string {
         for (const line of echoLines(m.loadout, combo.echo)) wide.echo[pos] = widest(wide.echo[pos]!, line);
       }
       if (mdps ? filters.mdpsMainstats : filters.supportMainstats) wide.mainstat[pos] = widest(wide.mainstat[pos]!, combo.mainstat.name);
+      if (mdps ? filters.mdpsHighSubs : filters.supportHighSubs) wide.subs[pos] = widest(wide.subs[pos]!, subsLabel(combo));
       const { text, pct } = slotDpr(run, pos);
       wide.dpr[pos] = widest(wide.dpr[pos]!, text);
       wide.compare[pos] = widest(wide.compare[pos]!, pct);
@@ -1704,13 +1744,15 @@ function comparisonTable(rows: TeamRow[]): string {
     + (weaponOpenAt[i] ? `<div class="c option">${esc(wide.weapon[i]!)}</div>` : "")
     + (echoOpenAt[i] ? `<div class="c option">${esc(wide.echo[i]!)}</div>` : "")
     + (mainstatOpenAt[i] ? `<div class="c option">${esc(wide.mainstat[i]!)}</div>` : "")
+    + (subsOpenAt[i] ? `<div class="c option">${esc(wide.subs[i]!)}</div>` : "")
     + (dprOpenAt[i] ? `<div class="c num slotdpr">${esc(wide.dpr[i]!)}</div>` : "")
     + (dprOpenAt[i] && compareOpenAt[i] ? `<div class="c num slotcompare">${esc(wide.compare[i]!)}</div>` : "");
   // the Total cell's own class is left off: `drawWindow()` measures the row pitch off `.teamdpr`
   const ghost = `<div class="trow tghost" aria-hidden="true">`
     + ghostPos(0) + ghostPos(1) + ghostPos(2)
-    + `<div class="c num total gotodetail">${esc(wide.total)}<span class="arrow">›</span></div>`
+    + `<div class="c num total">${esc(wide.total)}</div>`
     + `<div class="c num total baseline">${esc(wide.pct)}</div>`
+    + `<div class="c gotodetail">view rotation<span class="arrow">›</span></div>`
     + `</div>`;
   tableView = { sorted, ranks, head, ghost, rowHtml, lines, extra };
   // Source order is filters then table, which is the reading order once they stack (a narrow
@@ -1720,7 +1762,7 @@ function comparisonTable(rows: TeamRow[]): string {
     + `<aside class="tcside">${comparisonFilters()}</aside>`
     + `<div class="tcbody">`
     + `<h2 class="summary-label" id="teamCount">${fmt(sorted.length)} teams</h2>`
-    + `<div class="tcwrap"><div class="tgrid" style="${gridStyle}">${head}${ghost}</div></div>`
+    + `<div class="tcwrap"><div class="tgrid${hueShown ? " hued" : ""}" style="${gridStyle}">${head}${ghost}</div></div>`
     + `</div></div></main>`;
 }
 
@@ -1813,7 +1855,7 @@ function rankAll(sorted: TableView["sorted"]): RowRank[] {
       : BASELINE_HUE + away * (WORST_HUE - BASELINE_HUE);
     // only a row actually clicked is marked as the baseline — it takes its colour from the ramp
     // like every other row, and the class is just the outline that says which one is pinned
-    return { hue, pct: `${fmt(ratio * 100, 2, true)}%`, pinned: i === pinned };
+    return { hue, pct: `${fmt(ratio * 100, 1, true)}%`, pinned: i === pinned };
   });
 }
 
@@ -1988,7 +2030,10 @@ function stepRow(
     }
 
     const mem = slotHue.get(String(v)) ?? FALLBACK_HUE;
-    const style = col.key === "member" ? `--mem:${mem};color:${mem}` : "";
+    // the Avg column wears the row's member wash too (index.css's own `.c.avg`), read off the
+    // row's member rather than this cell's own value
+    const style = col.key === "member" ? `--mem:${mem};color:${mem}`
+      : col.key === "avg" ? `--mem:${slotHue.get(String(row.raw["member"] ?? "")) ?? FALLBACK_HUE}` : "";
 
     return cell(columns, i, { cls, html, pop, style });
   }).join("");
@@ -2149,10 +2194,8 @@ function dprTable(run: TeamRun, lines?: ChainGroup[][]): string {
   const grand = run.sectionTotals.reduce((a, b) => a + b, 0);
   const flat = lines?.flat();
 
-  // With no `lines` this is the comparison table's own Total hover, whose cell also navigates
-  // (see `.gotodetail`) — so the corner cell, empty on the detail page, says so there.
   const head = `<div class="rtrow rthead">`
-    + `<div class="c">${lines ? "" : "Click to view details"}</div>`
+    + `<div class="c"></div>`
     + `<div class="c num">Opener</div><div class="c num">Loop 1</div>`
     + `<div class="c num">Loop 2</div><div class="c num">Loop 3</div>`
     + `<div class="c num">Total</div>`
@@ -2428,6 +2471,9 @@ function wireSourcePanels(root: HTMLElement): void {
   const GAP = 4, EDGE = 6;
   let open: HTMLElement | null = null;
   let openHome: Element | null = null;
+  /** The comparison table's Team Avg DPR panel stays up once clicked — pinned until a click lands
+   *  somewhere else — so its breakdown table can be read and hovered over at leisure. */
+  let pinned = false;
 
   document.body.querySelectorAll(":scope > .pop").forEach((el) => el.remove());
 
@@ -2445,6 +2491,7 @@ function wireSourcePanels(root: HTMLElement): void {
     open?.remove();
     open = null;
     openHome = null;
+    pinned = false;
   };
 
   const place = (cell: Element, pop: HTMLElement): void => {
@@ -2504,13 +2551,16 @@ function wireSourcePanels(root: HTMLElement): void {
     return { cell, pop };
   };
 
-  /** An action name in the log, which opens on a click of its own rather than on hover — the one
-   *  column whose panel is read rather than glanced at, and the one whose rows move under the
-   *  pointer as groups open. `name` is what the column is called on an opened group's own parts. */
-  const isAction = (cell: Element): boolean => !!cell.closest(".grid")
-    && (cell.classList.contains("action") || cell.classList.contains("name"));
+  /** A cell whose panel opens on a click of its own rather than on hover: an action name in the
+   *  log — the one column whose panel is read rather than glanced at, and the one whose rows move
+   *  under the pointer as groups open (`name` is what the column is called on an opened group's
+   *  own parts) — and the comparison table's Team Avg DPR, whose panel is a whole breakdown table. */
+  const isAction = (cell: Element): boolean => (!!cell.closest(".grid")
+    && (cell.classList.contains("action") || cell.classList.contains("name")))
+    || cell.classList.contains("teamdpr");
 
   document.addEventListener("mouseover", (e) => {
+    if (pinned) return;
     if (open && open.contains(e.target as Node)) return;
     const hovered = (e.target as Element | null)?.closest?.(".c") ?? null;
     // hovering an action name opens nothing, and hovering *away* from one closes whatever its own
@@ -2523,6 +2573,7 @@ function wireSourcePanels(root: HTMLElement): void {
   });
 
   document.addEventListener("mouseout", (e) => {
+    if (pinned) return;
     const to = e.relatedTarget as Node | null;
     if (to && (root.contains(to) || (open && open.contains(to)))) return;
     close();
@@ -2534,6 +2585,13 @@ function wireSourcePanels(root: HTMLElement): void {
   // the row's own label, so it doesn't also open the group), while the caret beside it still
   // belongs to the row and expands it as before.
   addEventListener("click", (e) => {
+    // a pinned panel closes on any click outside itself; on its own cell that's the whole click
+    if (pinned) {
+      if (open?.contains(e.target as Node)) return;
+      const onHome = !!openHome?.contains(e.target as Node);
+      close();
+      if (onHome) return;
+    }
     const { cell, pop } = panelIn(e.target);
     if (!cell) return;
     const onCaret = !!(e.target as Element | null)?.closest?.(".caret");
@@ -2543,7 +2601,7 @@ function wireSourcePanels(root: HTMLElement): void {
       e.preventDefault();
       const same = openHome === cell;
       close();
-      if (!same) place(cell, pop);
+      if (!same) { place(cell, pop); pinned = cell.classList.contains("teamdpr"); }
       return;
     }
     if (cell.querySelector(":scope > .caret")) close();
@@ -2970,6 +3028,18 @@ let visibleRows: TeamRow[] = [];
 const hashParams = (): URLSearchParams => new URLSearchParams(location.hash.replace(/^#/, ""));
 
 const FILTER_KEYS = Object.keys(filters) as (keyof Filters)[];
+/** Each box's own two-letter code in the hash's `f=` list, so a link stays short: the role's
+ *  initial and the axis's. The full key name is still read back (`applyHash()`), so an older
+ *  link keeps working. */
+const FILTER_CODE: Record<keyof Filters, string> = {
+  mdpsSequences: "ms", supportSequences: "ss",
+  mdpsWeapons: "mw", supportWeapons: "sw",
+  mdpsEchoes: "me", supportEchoes: "se",
+  mdpsMainstats: "mm", supportMainstats: "sm",
+  allowR1Mdps: "m1", allowR1Supports: "s1",
+  matrix: "x",
+  mdpsHighSubs: "mh", supportHighSubs: "sh",
+};
 
 /** Every filter map the hash round-trips, each under its own pair of one/two-letter query keys —
  *  `r`/`x` stayed bare for resonators since those predate the other axes; `wr`/`wx`, `er`/`ex`,
@@ -2993,8 +3063,9 @@ function applyHash(): boolean {
   if (f !== null) {
     const on = new Set(f.split(",").filter(Boolean));
     for (const key of FILTER_KEYS) {
-      if (filters[key] === on.has(key)) continue;
-      filters[key] = on.has(key);
+      const set = on.has(FILTER_CODE[key]) || on.has(key);
+      if (filters[key] === set) continue;
+      filters[key] = set;
       changed = true;
     }
   }
@@ -3003,10 +3074,12 @@ function applyHash(): boolean {
   // which makes a missing `r`/`x` (etc.) there mean "nothing filtered" rather than "say nothing
   // about it". Without it (an old bare `#team=...` link) the defaults stand, Verina's bar included.
   if (params.has("f")) {
-    const named = (v: string | null, mode: ResonatorFilter): [string, ResonatorFilter][] =>
-      (v ?? "").split(",").filter(Boolean).map((name) => [name, mode]);
+    // a resonator's name comes back off its spaceless form (an older link's spaced one still reads)
+    const named = (v: string | null, mode: ResonatorFilter, resonators: boolean): [string, ResonatorFilter][] =>
+      (v ?? "").split(",").filter(Boolean).map((name) => [resonators ? RESONATOR_KEY_BY_COMPACT.get(name) ?? name : name, mode]);
     for (const { include, exclude, map } of FILTER_GROUPS) {
-      const next = new Map([...named(params.get(exclude), "exclude"), ...named(params.get(include), "include")]);
+      const resonators = map === resonatorFilters;
+      const next = new Map([...named(params.get(exclude), "exclude", resonators), ...named(params.get(include), "include", resonators)]);
       if (next.size !== map.size || [...next].some(([n, m]) => map.get(n) !== m)) {
         map.clear();
         for (const [name, mode] of next) map.set(name, mode);
@@ -3029,8 +3102,10 @@ function applyHash(): boolean {
  *  itself — see the handler in `boot()`, which now only ever sees a real navigation. */
 function syncHash(team: string | null = hashParams().get("team")): void {
   const named = (map: Map<string, ResonatorFilter>, mode: ResonatorFilter): string => [...map]
-    .filter(([, m]) => m === mode).map(([name]) => encodeURIComponent(name)).join(",");
-  const parts = [`f=${FILTER_KEYS.filter((k) => filters[k]).join(",")}`];
+    // a resonator's spaces are simply dropped (`ElectroRover(mdps)`) and put back on the way in
+    // (`RESONATOR_KEY_BY_COMPACT`); gear names keep theirs, their spaces being part of the name
+    .filter(([, m]) => m === mode).map(([name]) => encodeURIComponent(map === resonatorFilters ? name.replace(/ /g, "") : name)).join(",");
+  const parts = [`f=${FILTER_KEYS.filter((k) => filters[k]).map((k) => FILTER_CODE[k]).join(",")}`];
   for (const { include, exclude, map } of FILTER_GROUPS) {
     if (named(map, "include")) parts.push(`${include}=${named(map, "include")}`);
     if (named(map, "exclude")) parts.push(`${exclude}=${named(map, "exclude")}`);
@@ -3057,6 +3132,19 @@ const routeTeam = (): string | null => {
  *  queries can only ask about the window, and a table with every option column open is far wider
  *  than one with none, so the width that decides it is measured here. Re-measured on each redraw
  *  and on resize. */
+/** Beside the table the aside must not set the page's height — only the table does. A flex row
+ *  is as tall as its tallest item, so a column of open boxes taller than a short table would
+ *  push the scrollport's bottom padding down and put a page scrollbar up for nothing. Its own
+ *  height is taken back off as a negative bottom margin, so its margin box is zero-height and
+ *  the table alone decides; the aside itself still scrolls in place (`.tcside`'s own scroller,
+ *  capped at the scrollport's height in `fitSide()`). Kept in step as boxes open and close. */
+const sideFit = new ResizeObserver((entries) => {
+  for (const e of entries) {
+    const el = e.target as HTMLElement;
+    el.style.marginBottom = el.closest(".tclayout")?.classList.contains("stack") ? "" : `-${el.offsetHeight}px`;
+  }
+});
+
 function fitSide(): void {
   const layout = app.querySelector<HTMLElement>(".tclayout");
   const side = app.querySelector<HTMLElement>(".tcside");
@@ -3102,6 +3190,9 @@ function fitSide(): void {
   // scrollport it sticks to — `clientHeight` is in the same page px as the style
   side.style.maxHeight = stacked ? "" : `${main.clientHeight}px`;
   if (!stacked) side.style.width = "";
+  side.style.marginBottom = stacked ? "" : `-${side.offsetHeight}px`;
+  sideFit.disconnect();
+  sideFit.observe(side);
 }
 
 function renderComparison(): void {
@@ -3214,7 +3305,7 @@ function overlayHide(): void {
  * see its own comment), so yielding unconditionally would let paint()'s own two-frame wait
  * (~33ms) dominate the whole loop.
  */
-async function runMissing(rows: TeamRow[], workTotal: number, teamsOffset: number): Promise<void> {
+async function runMissing(rows: TeamRow[]): Promise<void> {
   const missing = rows.filter((row) => !results.has(row.key));
   if (!missing.length) return;
 
@@ -3224,14 +3315,12 @@ async function runMissing(rows: TeamRow[], workTotal: number, teamsOffset: numbe
 
   // The bar measures the whole table, not just the part of it being run: rows already cached from
   // an earlier filter state start it partly filled rather than counting up to a total that turns
-  // out to be smaller than the table it lands on. Only the missing rows are actually run.
-  //
-  // The bar's own width is scaled against `workTotal` — the echo-optimizing phase's teams plus
-  // this phase's rows, fixed before either phase started (see `refresh()`) — continuing on from
-  // `teamsOffset` rather than restarting at 0%, so it never resets partway through a load.
+  // out to be smaller than the table it lands on. Only the missing rows are actually run. Rows
+  // are the bar's unit in this phase and the last (`ensureBestPicks()`), so the two read alike:
+  // a solve hands over its rows already scored, which is why this phase is usually a blink.
   const cached = rows.length - missing.length;
   const progress = (done: number): void => {
-    overlayFill.style.width = `${((teamsOffset + done) / workTotal) * 100}%`;
+    overlayFill.style.width = `${(done / rows.length) * 100}%`;
     overlayCount.textContent = `${fmt(done)} / ${fmt(rows.length)}`;
   };
 
@@ -3352,12 +3441,12 @@ function solveOnWorkers(
  *  collapses to a member's own best pick. Cached per team, so this only runs on a cold load or
  *  after an R1 box changes which weapons a role may hold.
  *
- *  `inPlay` and `workTotal` come from `refresh()`, which already knows both the team count and the
+ *  `inPlay` and `rowsTotal` come from `refresh()`, which already knows both the team count and the
  *  eventual row count (`estimatedRowCount()`) before either phase starts — so this phase's own
  *  share of the bar is fixed from the first frame instead of being scaled against just the teams,
  *  which would make the bar jump once `runMissing()` starts measuring against the real row count. */
 /** @returns whether anything was actually solved — false when every team's answer was in hand. */
-async function ensureBestPicks(inPlay: [string, Member[]][], workTotal: number, rowsTotal: number): Promise<boolean> {
+async function ensureBestPicks(inPlay: [string, Member[]][], rowsTotal: number): Promise<boolean> {
   // `bestKey()` folds in the whole filter state, so flipping any option box is a re-solve: a
   // solve carries the team's own row set with it, each row on the main stats that build wants
   // (solver.ts's own `rowPicks()`), and which rows exist is precisely what the boxes decide.
@@ -3369,14 +3458,14 @@ async function ensureBestPicks(inPlay: [string, Member[]][], workTotal: number, 
   // teams already optimized under an earlier filter state start this partly filled rather than
   // counting up to a total smaller than the table it lands on
   let done = inPlay.length - teams.length;
-  // The count reads in rows, not teams: a team's solve is worth however many rows it will put in
-  // the table (`estimatedRowCount()`, the same figure `workTotal` was built from), so "4 / 11"
-  // over a long solve reads as the thousands of rows it is actually preparing — the bar's own
-  // width already measured it that way. Teams with no build at all contribute no rows.
+  // The bar and the count both read in rows, not teams: a team's solve is worth however many
+  // rows it will put in the table (`estimatedRowCount()`, the figure `rowsTotal` was built from),
+  // so "4 / 11" over a long solve reads as the thousands of rows it is actually preparing and the
+  // bar sits at exactly that fraction. Teams with no build at all contribute no rows.
   const rowsOf = (members: Member[]): number => (members.every((m) => eligibleWeapons(m, filters).length) ? estimatedRowCount(members) : 0);
   let rowsDone = inPlay.filter(([key, members]) => bestPicks.has(bestKey(key, members, filters))).reduce((sum, [, members]) => sum + rowsOf(members), 0);
   const progress = (): void => {
-    overlayFill.style.width = `${(done / workTotal) * 100}%`;
+    overlayFill.style.width = `${(rowsDone / (rowsTotal || 1)) * 100}%`;
     overlayCount.textContent = `${fmt(rowsDone)} / ${fmt(rowsTotal)}`;
   };
   progress();
@@ -3436,9 +3525,8 @@ async function refresh(): Promise<void> {
 
     const solvableInPlay = inPlay.filter(([, members]) => members.every((m) => eligibleWeapons(m, filters).length));
     const rowsTotal = solvableInPlay.reduce((sum, [, members]) => sum + estimatedRowCount(members), 0);
-    const workTotal = inPlay.length + rowsTotal || 1; // guard: no team survives the resonator filters
 
-    const solved = await ensureBestPicks(inPlay, workTotal, rowsTotal);
+    const solved = await ensureBestPicks(inPlay, rowsTotal);
     saveSolves();
     const rows = teamRows();
     const cached = rows.filter((row) => results.has(row.key));
@@ -3451,7 +3539,7 @@ async function refresh(): Promise<void> {
       // that never moved (nothing solved: a reload, a flip onto rows already run) has nothing to
       // settle, and waiting on it would be most of what such a load costs.
       overlayPhase("Rendering Table…");
-      overlayFill.style.width = `${((inPlay.length + cached.length) / workTotal) * 100}%`;
+      overlayFill.style.width = "100%";
       overlayCount.textContent = `${fmt(cached.length)} / ${fmt(rows.length)}`;
       await paint();
       if (solved) await settle();
@@ -3466,7 +3554,7 @@ async function refresh(): Promise<void> {
     // Rows still to run are drawn once, after: the cached subset used to be drawn first, under the
     // overlay, and thrown away moments later — a whole table build that nobody could read through
     // the blur. Whatever was on screen simply stays there until the full table replaces it.
-    await runMissing(rows, workTotal, inPlay.length);
+    await runMissing(rows);
     if (missing) {
       overlayPhase("Rendering Table…");
       await paint();
@@ -3577,12 +3665,12 @@ async function boot(): Promise<void> {
     btn.setAttribute("aria-expanded", String(open));
     box.querySelector<HTMLElement>(".tcopt-desc")!.hidden = !open;
   });
-  // clicking the Team DPR heading flips the table between strongest-first and weakest-first —
-  // again a redraw of figures already held (see `sortAscending`)
+  // clicking the Team Compare heading shows or hides the column's hue ramp (see `hueShown`) — a
+  // class flip on the grid, nothing redrawn
   document.addEventListener("click", (e) => {
-    if (!(e.target as Element).closest(".c.sorthead")) return;
-    sortAscending = !sortAscending;
-    renderComparison();
+    if (!(e.target as Element).closest(".c.huehead")) return;
+    hueShown = !hueShown;
+    document.querySelector(".tgrid")?.classList.toggle("hued", hueShown);
   });
   // Every filter checkbox but Sequences is a `Filters` key (see `comparisonFilters()`): flip it,
   // then re-expand — which axes are open changes which rows exist, not just which are visible.

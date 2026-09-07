@@ -51,7 +51,7 @@ import { FALSE_SOVEREIGN, COV_3PC } from "../../echoes/septimont.js";
 import { VOID_THUNDER_2PC } from "../../echoes/jinzhou.js";
 import { PHROLOVA_RESONATOR, MAESTRO } from "../havoc/phrolova.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -223,6 +223,7 @@ export const AUGUSTA = new Loadout({
   weapons: [THUNDERFLARE_DOMINION, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR, VERDANT_SUMMIT],
   echoLoadouts: [new EchoLoadout(FALSE_SOVEREIGN, COV_3PC, VOID_THUNDER_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: chem("atk", "heavy"),
+  substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Er),
     rotation: AG_ROTATION,
 });

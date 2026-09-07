@@ -102,7 +102,7 @@ export const MOONLIT_CLOUDS_5PC = new Sonata({
   updateBuffs: () => { if (casting(Cast.Outro)) queueOutro(MOONLIT_CLOUDS_HANDOFF); },
 });
 
-export const MOONLIT_CLOUDS_HANDOFF = handoff("Moonlit Clouds (outro)", () => addStat(Stat.BonusAtk, 22.5));
+export const MOONLIT_CLOUDS_HANDOFF = handoff("Moonlit Clouds", () => addStat(Stat.BonusAtk, 22.5));
 
 export const REJUV_2PC = new Sonata2pc({ name: "Rejuvenating Glow 2pc", constantStats: () => addStat(Stat.HealingBonus, 10) });
 /** Rejuvenating Glow, a generic sonata. 5pc: on healing an ally, +15% ATK flat, team-wide,

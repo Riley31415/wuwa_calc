@@ -183,7 +183,7 @@ export const SNOWFALL_CRIT = new Buff({
   applyStats: () => addStat(Stat.CritRate, 25),
 });
 
-export const SNOWFALL_OUTRO = handoff("Wishes of Quiet Snowfall (outro)", () => addStat(Stat.DmgBonus, 25, Attribute.Glacio));
+export const SNOWFALL_OUTRO = handoff("Wishes of Quiet Snowfall: Outro", () => addStat(Stat.DmgBonus, 25, Attribute.Glacio));
 
 /* --------------------------------------------------------------------------- 3.5-3.6 sonatas */
 
@@ -198,7 +198,7 @@ export const NEONLIGHT_LEAP_5PC = new Sonata({
   updateBuffs: () => { if (casting(Cast.Outro)) queueOutro(NEONLIGHT_LEAP_HANDOFF); },
 });
 export const NEONLIGHT_LEAP_HANDOFF = new Buff({
-  name: "Pact of Neonlight Leap (outro)",
+  name: "Pact of Neonlight Leap: Outro",
   updateBuffs: () => lostOnSwap(),
   applyStats: () => addStat(Stat.BonusAtk, 15),
   // the TBB half is read late so every contribution has landed this action — the era's flat 10,
@@ -247,7 +247,7 @@ export const CHROMATIC_FOAM_BUFF = new Buff({
 /** The receiver's half: lost after their own leaving row — a double-Intro section's swap as much
  *  as an outro — still paying out on it first (conversion, not updateBuffs). */
 export const CHROMATIC_FOAM_HANDOFF = new Buff({
-  name: "Chromatic Foam (outro)",
+  name: "Chromatic Foam: Outro",
   applyStats: () => addStat(Stat.DmgBonus, 25, Attribute.Fusion),
   convertStats: () => lostOnSwap(),
 });
@@ -320,7 +320,7 @@ export const ACTION_TRICKSTER = new Action("Echo - Trickster", {
 /** Not the usual 15s `handoff()` window: lost after the receiver's own inactive row — outro or
  *  any swap — the same conversion-phase clause as Chromatic Foam above. */
 export const TRICKSTER_HANDOFF = new Buff({
-  name: "Trickster (outro)",
+  name: "Trickster: Outro",
   applyStats: () => addStat(Stat.DmgBonus, 12, Attribute.Fusion),
   convertStats: () => lostOnSwap(),
 });

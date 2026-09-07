@@ -100,7 +100,7 @@ export const ACTION_MIDNIGHT_VEIL_BURST = new Action("Outro - Midnight Veil", {
   element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Outro, mv: 480,
 });
 export const MIDNIGHT_VEIL_HANDOFF = new Buff({
-  name: "Midnight Veil (outro)",
+  name: "Midnight Veil: Outro",
   applyStats: () => addStat(Stat.DmgBonus, 15, Attribute.Havoc),
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(MIDNIGHT_VEIL_HANDOFF); },
 });
@@ -198,7 +198,7 @@ export const EMPYREAN_ANTHEM_TEAM = new Buff({
 export const ACTION_NM_KELPIE = new Action("Echo - Nightmare: Kelpie", {
   cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Atk, type: Type1.Echo, mv: 405, energy: 2.81,
 });
-export const ACTION_NM_KELPIE_OUTRO = new Action("Echo - Nightmare: Kelpie (outro)", {
+export const ACTION_NM_KELPIE_OUTRO = new Action("Echo - Nightmare: Kelpie Outro", {
   element: Attribute.Aero, scaling: Scaling.Atk, type: Type1.Echo, mv: 405, energy: 2.81,
 });
 export const NM_KELPIE = new Mainslot({

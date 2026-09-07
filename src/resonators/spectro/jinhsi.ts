@@ -62,7 +62,7 @@ import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { JUE, CELESTIAL_LIGHT_5PC } from "../../echoes/jinzhou.js";
 import { VOIDWING_MOTH } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { matrix, oneSecondPassed } from "../../shared/helpers.js";
 import { UNISON, isDoubleIntro, unisonOutro } from "../../shared/unison.js";
 import { STAY_TUNED, SWORN_VIGIL_5PC } from "../../echoes/mengzhou.js";
@@ -152,7 +152,8 @@ const ORDINATION_GLOW = new Buff({ name: "Jinhsi: Ordination Glow" });
  *   bits 0-1   the real stacks: 1 always (from combat start), 2 once Temporal Bender's window
  *              opens — her first Outro raises it and it never comes off: she outros twice a
  *              rotation, so the 20s windows overlap end to end (the ≥21s permanence convention)
- *   bits 2-29  fourteen 2-bit cooldowns, one per (attribute, coordinated?) channel: the actions
+ *   bits 2-25  twelve 2-bit cooldowns, one per (attribute, coordinated?) channel — the six
+ *              attributes, Physical (the Tune Break) being no Attribute DMG: the actions
  *              still to wait before that channel pays again, 3..0, at bit 2 + 2*(2*attr + coord)
  *
  * Only a press that is the engine's second (helpers.ts) ticks the channels down one — a queued
@@ -164,8 +165,8 @@ const ORDINATION_GLOW = new Buff({ name: "Jinhsi: Ordination Glow" });
  * 1s, which speeds both sides up). The 50 cap is INCANDESCENCE's own maxStacks.
  */
 const ERAS_IN_UNITY = new Buff({
-  name: "Jinhsi: Eras in Unity", maxStacks: 0x3fffffff,
-  display: () => ((frozenStacks() & 3) === 2 ? "Eras in Unity (outro)" : "Eras in Unity"),
+  name: "Jinhsi: Eras in Unity", maxStacks: 0x3ffffff,
+  display: () => ((frozenStacks() & 3) === 2 ? "Eras in Unity (Outro)" : "Eras in Unity"),
   updateGlobal: () => {
     const a = currentAction();
     // a DOT tick (the Negative Status ladders) is nobody's attack — no time, no pay
@@ -174,11 +175,12 @@ const ERAS_IN_UNITY = new Buff({
     // only the engine's second passes time: a queued sub-hit lands inside its trigger's own
     // second and a cutscene freezes the world, so either may pay an open channel but not advance it
     if (oneSecondPassed()) {
-      for (let shift = 2; shift < 30; shift += 2) {
+      for (let shift = 2; shift < 26; shift += 2) {
         if ((word >> shift) & 3) word -= 1 << shift;
       }
     }
-    if (a.element && a.mv > 0) {
+    // the six attributes only: a Physical hit (the Tune Break) is no Attribute DMG
+    if (a.element && a.element !== Attribute.Physical && a.mv > 0) {
       const shift = 2 + 4 * ((a.element >> 6) - 1);
       if (!((word >> shift) & 3)) {
         word |= ((word & 3) === 2 ? 1 : 3) << shift;
@@ -359,6 +361,7 @@ export const JINHSI = new Loadout({
   matrix: matrix("Jinhsi", 25),
   sequences: [JX_S1, JX_S2, JX_S3, JX_S4, JX_S5, JX_S6],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
-  substat: chem("atk", "skill"),
+  substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Er),
   rotation: JX_ROTATION,
 });

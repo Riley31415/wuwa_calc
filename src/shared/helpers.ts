@@ -136,7 +136,8 @@ export function oneSecondPassed(): boolean {
  * for a field whose own clock is slower than the window it stands for (Denia's Erosion Field, one
  * tick per five presses across thirty-five). Fractional for a cadence that is not whole seconds
  * (Ciaccona's Tonics, one per 1.65s across thirty-three): a summon fires on each press that
- * carries the seconds spent past the next multiple.
+ * carries the seconds spent past the next multiple (Suoming's Blight Rain: six crests over eight
+ * presses at 4/3s, the 1st and 5th skipped).
  */
 export function coordinatedBuff(name: string, stacks: number, owner: (() => Resonator) | null, tick: Action, { enemy = false, hits = 1, every = 1, applyStats }: { enemy?: boolean; hits?: number; every?: number; applyStats?: () => void } = {}): Buff {
   const fire = (): void => {

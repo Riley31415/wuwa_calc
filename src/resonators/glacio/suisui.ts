@@ -86,7 +86,7 @@ import { VARIATION } from "../../weapons/standard.js";
 import { FORBIDDEN_BASTION, FEATHERED_TRACE_5PC } from "../../echoes/mengzhou.js";
 import { REJUV_5PC } from "../../echoes/jinzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -444,7 +444,8 @@ export const SUISUI = new Loadout({
     new EchoLoadout(FORBIDDEN_BASTION, FEATHERED_TRACE_5PC),
   ],
   mainstats: [mainstats(Mainstat.HP4, Mainstat.ER3, Mainstat.ER3, Mainstat.HP1, Mainstat.HP1)],
-  substat: chem("hp", "skill", { er: true }),
+  substat: substats(Substat.HpPct, Substat.Skill, Substat.FlatHp, true),
+  highSubstat: highSubs(Substat.Er, Substat.HpPct, Substat.FlatHp, Substat.HpPct),
   rotation: [SS_ROTATION, SS_ROTATION, SS_ROTATION, SS_ROTATION_S3],
   sequences: SS_SEQUENCES,
 });

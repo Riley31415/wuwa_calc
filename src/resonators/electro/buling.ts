@@ -58,7 +58,7 @@ import { COSMIC_RIPPLES, NEW_STD_RECTIFIER, VARIATION } from "../../weapons/stan
 import { REJUV_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
-import { chem } from "../../shared/substats.js";
+import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -312,9 +312,12 @@ const BL_ROTATION = new Rotation([
 export const BULING = new Loadout({
   resonator: BULING_RESONATOR,
   weapons: [VARIATION],
-  echoLoadouts: [new EchoLoadout(FALLACY, REJUV_5PC)],
+  echoLoadouts: [
+    new EchoLoadout(FALLACY, REJUV_5PC),
+  ],
   mainstats: [mainstats(Mainstat.CD4, Mainstat.ER3, Mainstat.ER3, Mainstat.ATK1, Mainstat.ATK1)],
-  substat: chem("atk", "liberation", { er: true }),
+  substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, true),
+  highSubstat: highSubs(Substat.Er, Substat.Liberation, Substat.AtkPct, Substat.Liberation),
     rotation: BL_ROTATION,
   sequences: [BL_S1, BL_S2, BL_S3, BL_S4, BL_S5, BL_S6],
 });
