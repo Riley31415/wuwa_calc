@@ -61,7 +61,7 @@ import {
   triggeredAction,
   isActive,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_2, SWAP, JUMP, ActionField } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_2, SWAP, JUMP, ActionField, FIRST_INTRO, DODGE } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
 import { coordinatedBuff, lostOnSwap } from "../../shared/helpers.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING } from "../../shared/tunebreak.js";
@@ -88,6 +88,9 @@ const HHA = rebeccaAction("Heavy - Huntress", { node: Node.Normal, cast: Cast.He
 const EatLead = rebeccaAction("Heavy - Eat Lead!: Huntress", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 121.68, energy: 1.8, concerto: 3.6, offtune: 5760, forte1: 11.68 });
 const HMA = rebeccaAction("Mid-air - Huntress", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 136.04, energy: 2.02, concerto: 4.03, offtune: 6440, forte1: 13.05 });
 const HTD = rebeccaAction("Basic - Tactical Dodge: Huntress", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 84.5, energy: 1.25, concerto: 2.5, offtune: 4000, forte1: 8.95 });
+// the somersault: no damage row of its own on nanoka and no gauges anywhere, and the one thing it
+// grants — the Heavy Attack - Huntress held out of it costing no STA — is stamina, which is unmodelled
+const CominInHot = rebeccaAction("Basic - Comin' in Hot!: Huntress", { node: Node.Normal, cast: Cast.Basic });
 
 // --- the Guts half: fewer, heavier shots, and its Heavy Attack is a real Heavy.
 const GBA1 = rebeccaAction("Basic - Guts 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.38, energy: 1.84, concerto: 3.66, offtune: 5840, forte1: 13.62 });
@@ -203,6 +206,8 @@ const A_GIRL = new Buff({
   applyStats: () => {
     if (forte2() >= 120 && (casting(Cast.Skill) || casting(Cast.Intro))) {
       addStat(Stat.AddForte2, -120); // consume 10 per sec for 12s
+      // the Fervor rides on the trigger itself, not on any Intro cast while the window is up
+      if (casting(Cast.Intro)) addStat(Stat.AddForte1, 50);
     }
     // both modes' bonuses at once — and at S4 each at 160% of itself, so the mode she is already
     // in gains the other 60% on top of its own
@@ -211,7 +216,6 @@ const A_GIRL = new Buff({
     else if (k > 1) addStat(Stat.CritDmg, 30 * (k - 1));
     if (!isHeld(GUTS)) addStat(Stat.DefIgnoreNew, 15 * k);
     else if (k > 1) addStat(Stat.DefIgnoreNew, 15 * (k - 1));
-    if (casting(Cast.Intro)) addStat(Stat.AddForte1, 50);
     const a = currentAction();
     if (a.forte2 > 0) addStat(Stat.AddForte2, -a.forte2);
   },
@@ -415,12 +419,15 @@ const REBECCA_RESONATOR = new Resonator({
 /* ---------------------------------------------------------------------------------- rotation */
 
 const RB_ROTATION = new Rotation([
-  START_2, Skill, SWAP,
-  
-  INTRO, 
-  JUMP,
-  HMA,
-  Skill, 
+  FIRST_INTRO, GBA1, DODGE, GTD, GBA1,
+  GHA,
+  GHA, 
+  FHAGuts, 
+  GHA,
+  ECHO_CANCEL,Lib1, Lib234, OUTRO,
+
+  INTRO, HMA,
+  Skill, DODGE,
   GHA, 
   FHAGuts, 
   GHA,

@@ -353,7 +353,7 @@ const SM_ROTATION = new Rotation([
   NOINTRO, BA123, BA123, SealedDelusion,
   DOUBLE_INTRO, Liberation, OUTRO,
 
-  INTRO, UHA2, RiftCleaver, UBA3, UBA4,
+  INTRO, UHA2, UBA12,
   UnforsakenMind, EngravedHeart, ECHO_SWAP, OUTRO,
 ]);
 

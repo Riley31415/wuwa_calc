@@ -34,11 +34,13 @@ import { ALL_TEAMS, teamKey } from "./teams.js";
 import { teamFromKey, solveTeam, defaultFilters, bestKey, picksKey } from "./solver.js";
 import type { Filters, Pick, Solved } from "./solver.js";
 
+/** The states the site ships: the default page with each Signature Weapons box on or off, four
+ *  in all, named by which is off. Anything else solves in the browser. */
 const STATES: Record<string, Partial<Filters>> = {
   default: {},
-  sequences: { mdpsSequences: true, supportSequences: true },
-  echoes: { mdpsEchoes: true, supportEchoes: true },
-  weapons: { mdpsWeapons: true, supportWeapons: true },
+  "nor1-mdps": { allowR1Mdps: false },
+  "nor1-support": { allowR1Supports: false },
+  "nor1": { allowR1Mdps: false, allowR1Supports: false },
 };
 
 const filtersFor = (state: string): Filters => ({ ...defaultFilters(), ...STATES[state] });

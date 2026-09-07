@@ -350,6 +350,14 @@ export const ECHO_CANCEL = new Action("Echo Placeholder (cancel)", {
  *  NOINTRO chain is needed. */
 export const DOUBLE_INTRO = new Action("Double Intro");
 
+/** Chain entry: the Intro chain this resonator plays the *first* time they arrive on an Outro,
+ *  standing in for the INTRO chain below on that one visit — the opening burst a kit can only
+ *  afford once, a bar it walked into the fight holding. Written as its own chain, closed by an
+ *  OUTRO of its own, and cast exactly like an INTRO chain; every visit after is the ordinary INTRO
+ *  chain. For everyone but the team's leader that first arrival is the Opener section; a leader
+ *  opens on their NOINTRO chain instead, so theirs falls on the visit after it. */
+export const FIRST_INTRO = new Action("First Intro");
+
 /** Chain exit: leave by Outro, handing the field (and whatever `queueOutro()` published) to the
  *  next resonator in team order — except closing a DOUBLE_INTRO section, where it hands to the
  *  *previous* one (see the marker above). Resolved against the acting slot's own
@@ -406,10 +414,12 @@ export class Rotation {
   /** The DOUBLE_INTRO section: `exit` is SWAP for the swap-back form (it ran into the INTRO
    *  marker) or OUTRO for the outro-back form. */
   doubleIntro: Chain | null = null;
+  /** The FIRST_INTRO chain, played in place of `intro` on this resonator's first arrival. */
+  firstIntro: Chain | null = null;
 
   constructor(actions: Action[]) {
-    let phase: "none" | "opener" | "double" | "intro" = "none";
-    const prefix: Action[] = [], loop: Action[] = [], dbl: Action[] = [];
+    let phase: "none" | "opener" | "double" | "intro" | "first" = "none";
+    const prefix: Action[] = [], loop: Action[] = [], dbl: Action[] = [], first: Action[] = [];
     // whichever body an inline section's casts belong to as well as to `start` — null while the
     // section stands on its own, ahead of the chains
     // which positions' start-of-combat sections are open — more than one where the markers were
@@ -418,13 +428,13 @@ export class Rotation {
     let inStart: number[] = [];
     const starts: (Action[] | null)[] = [null, null, null];
     const body = (): Action[] | null =>
-      (phase === "opener" ? prefix : phase === "intro" ? loop : phase === "double" ? dbl : null);
+      (phase === "opener" ? prefix : phase === "intro" ? loop : phase === "double" ? dbl : phase === "first" ? first : null);
     // set when the NOINTRO chain ran into the INTRO marker rather than an outro of its own, which
     // is what makes the two share everything from there down
     let shared = false;
     // ...and the same for a NOINTRO chain that ran into DOUBLE_INTRO instead (see that branch)
     let sharedDouble = false;
-    let openerExit: Action | null = null, introExit: Action | null = null, doubleExit: Action | null = null;
+    let openerExit: Action | null = null, introExit: Action | null = null, doubleExit: Action | null = null, firstExit: Action | null = null;
 
     for (const action of actions) {
       if (startPosition(action) >= 0) {
@@ -456,6 +466,10 @@ export class Rotation {
         if (phase === "opener") sharedDouble = true;
         else if (phase !== "none") throw new Error("rotation: DOUBLE_INTRO opens a chain while one is still open");
         phase = "double";
+      } else if (action === FIRST_INTRO) {
+        if (firstExit || first.length) throw new Error("rotation: only one FIRST_INTRO chain");
+        if (phase !== "none") throw new Error("rotation: FIRST_INTRO opens a chain while one is still open");
+        phase = "first";
       } else if (action === INTRO) {
         // INTRO is the one marker that also stands for a real cast, so a second one inside the
         // already-open Intro chain is a cast, not a chain boundary — Camellya's double Intro
@@ -474,6 +488,7 @@ export class Rotation {
         if (phase === "opener") { openerExit = action; phase = "none"; }
         else if (phase === "intro") { introExit = action; phase = "none"; }
         else if (phase === "double") { doubleExit = action; phase = "none"; }
+        else if (phase === "first") { firstExit = action; phase = "none"; }
         else throw new Error(`rotation: ${action.name} closes a chain that was never opened`);
       } else {
         const into = body();
@@ -497,6 +512,9 @@ export class Rotation {
       throw new Error("rotation: the NOINTRO chain is closed by neither an outro nor an INTRO");
     }
     if (doubleExit) this.doubleIntro = { entry: DOUBLE_INTRO, body: dbl, exit: doubleExit };
+    // entry INTRO, not FIRST_INTRO: it is an Intro chain in every way the scheduler cares about,
+    // and only which visit plays it differs
+    if (firstExit) this.firstIntro = { entry: INTRO, body: first, exit: firstExit };
     this.intro = { entry: INTRO, body: loop, exit: introExit };
   }
 }
@@ -578,6 +596,14 @@ export function runRotations(state: State, rotations: Rotation[], sections: numb
     if (section < sections) out[section]!.push(...snaps.slice(cut));
   };
 
+  // Which slots have already played an Intro chain — a FIRST_INTRO chain stands in for the
+  // ordinary one until they have (see that marker).
+  const introed = new Set<number>();
+  const introChain = (i: number): Chain => {
+    const r = rotations[i]!;
+    return !introed.has(i) && r.firstIntro ? r.firstIntro : r.intro;
+  };
+
   const runChain = (i: number, chain: Chain): void => {
     state.active = i;
     if (!state.slots[i]!.resonator) throw new Error(`${state.slots[i]!.name} outros but has no Resonator equipped`);
@@ -586,6 +612,7 @@ export function runRotations(state: State, rotations: Rotation[], sections: numb
     state.outroDir = chain.entry === DOUBLE_INTRO ? -1 : 1;
     const skipStart = !visited.has(i) && scrambled.has(i);
     visited.add(i);
+    if (chain.entry === INTRO) introed.add(i);
     const casts: Action[] = [];
     // which positions' start-of-combat sections the walk is inside — more than one where their
     // markers were written back to back (see the Rotation constructor)
@@ -718,7 +745,7 @@ export function runRotations(state: State, rotations: Rotation[], sections: numb
       if (mained.has(i)) { closeIfPending(); return; }
     }
     doubled.delete(i);
-    runChain(i, rotations[i]!.intro);
+    runChain(i, introChain(i));
     if (waited) closeIfPending();
   };
 
@@ -746,7 +773,7 @@ export function runRotations(state: State, rotations: Rotation[], sections: numb
         if (d) runChain(i, d);
       }
       first = false;
-      for (let i = 0; i < rotations.length && section < sections; i++) runChain(i, rotations[i]!.intro);
+      for (let i = 0; i < rotations.length && section < sections; i++) runChain(i, introChain(i));
     }
     return out;
   }

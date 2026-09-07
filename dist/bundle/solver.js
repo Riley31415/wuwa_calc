@@ -13,7 +13,7 @@ import {
   sequenceLevels,
   solveTeam,
   teamFromKey
-} from "./chunk-JYOJFSG5.js";
+} from "./chunk-UCJQRVJS.js";
 export {
   MAINSTAT_ROWS,
   bestKey,
