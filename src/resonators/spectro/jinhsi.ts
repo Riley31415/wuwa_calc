@@ -58,7 +58,7 @@ import {
   triggeredAction,
   isActive,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START_3, SWAP, DOUBLE_INTRO, INTRO, ECHO_ONFIELD, OUTRO, START_2 } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_3, SWAP, DOUBLE_INTRO, INTRO, ECHO_ONFIELD, OUTRO, START_2, NOINTRO } from "../../engine/rotation.js";
 import { AGES_OF_HARVEST } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { JUE, CELESTIAL_LIGHT_5PC } from "../../echoes/jinzhou.js";
@@ -98,7 +98,7 @@ const IncBA1 = jinhsiAction("Basic - Incarnation 1", { node: Node.Forte, cast: C
 const IncBA2 = jinhsiAction("Basic - Incarnation 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 129.95, energy: 1.83, concerto: 1.83, offtune: 5809 });
 const IncBA3 = jinhsiAction("Basic - Incarnation 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 165.74, energy: 2.32, concerto: 2.32, offtune: 7409 });
 /** Stage 4 ends Incarnation and hands her Ordination Glow, the window Illuminous Epiphany lives in. */
-const IncBA4 = jinhsiAction("Forte Basic - Incarnation 4", {
+const IncBA4 = jinhsiAction("Basic - Incarnation 4", {
   node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 186.69, energy: 2.67, concerto: 2.67, offtune: 8348,
   updateBuffs: () => { revokeCurrent(INCARNATION); applyCurrent(ORDINATION_GLOW, 1); },
 });
@@ -109,7 +109,7 @@ const CrescentDivinity = jinhsiAction("Skill - Crescent Divinity", { node: Node.
 /** Illuminous Epiphany, the one press: Solar Flare's six taps, with Stella Glamor's detonation
  *  queued behind them — the row every Incandescence held pays out on (see INCANDESCENCE below). */
 const SolarFlare = jinhsiAction("Forte Skill - Illuminous Epiphany: Solar Flare", {
-  node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 119.34, energy: 1.98, concerto: 20, offtune: 14400,
+  node: Node.Forte, cast: Cast.Skill, cutscene: true, type: Type1.Skill, mv: 119.34, energy: 1.98, concerto: 20, offtune: 14400,
   updateBuffs: () => {
     revokeCurrent(ORDINATION_GLOW);
     if (isDoubleIntro()) applyCurrent(UNISON, 1);
@@ -118,7 +118,7 @@ const SolarFlare = jinhsiAction("Forte Skill - Illuminous Epiphany: Solar Flare"
 });
 const StellaGlamor = jinhsiAction("Forte - Illuminous Epiphany: Stella Glamor", { node: Node.Forte, type: Type1.Skill, mv: 347.92, energy: 5.67, offtune: 42002 });
 
-const Liberation = jinhsiAction("Liberation - Purge of Light", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1666.03, concerto: 20, offtune: 84000, resetEnergy: true });
+const Liberation = jinhsiAction("Liberation - Purge of Light", { node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 1666.03, concerto: 20, offtune: 84000, resetEnergy: true });
 
 const Intro = jinhsiAction("Intro - Loong's Halo", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 159.05, energy: 10, concerto: 10, offtune: 8000,
@@ -332,18 +332,20 @@ const JINHSI_RESONATOR = new Resonator({
  *  leaving it to the end is what makes the Energy Requirements table measure the whole loop's
  *  banking. Trailing Lights of Eons is pressed only in the opening scramble: on every visit after,
  *  the Intro's own 5s window means the Resonance Skill button is Overflowing Radiance. */
-const IncBA123 = new ActionGroup("Basic - Incarnation 123", [IncBA1, IncBA2, IncBA3]);
+const BA1234 = new ActionGroup("Basic - Slash of Breaking Dawn 1234", [BA1, BA2, BA3, BA4]);
 
 const JX_ROTATION = new Rotation([
-  START_2, START_3, Liberation, SWAP,
 
+  START_3, Liberation, ECHO_ONFIELD, SWAP,
+
+  NOINTRO, BA1234,
   DOUBLE_INTRO, ESkill, 
-  IncBA123, CrescentDivinity, IncBA4, SolarFlare, Skill.swap(),
+  IncBA1, IncBA2, CrescentDivinity, IncBA3, IncBA4, SolarFlare,
   OUTRO,
 
   INTRO, ECHO_ONFIELD, ESkill, 
-  IncBA123, CrescentDivinity, IncBA4, SolarFlare, 
-  Liberation, Skill.swap(), OUTRO,
+  IncBA1, IncBA2, CrescentDivinity, IncBA3, IncBA4, SolarFlare, 
+  Liberation, OUTRO,
 ]);
 
 const JX_ECHOES = [

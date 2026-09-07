@@ -107,7 +107,7 @@ const Gavel = luukAction("Basic - Gavel of Earthshaker", {
 const IchorBlade = luukAction("Forte - Ichor Blade", { node: Node.Forte, type: Type1.Basic, scaling: Scaling.Fixed, mv: 10 * 33 });
 
 const Liberation = luukAction("Liberation - Rewritten in Winter's Margins", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Basic, mv: 994.09, concerto: 20, offtune: 67200, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Basic, mv: 994.09, concerto: 20, offtune: 67200, resetEnergy: true,
 });
 
 const Intro = luukAction("Intro - Before Injection of Dawn", {

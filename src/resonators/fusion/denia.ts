@@ -133,7 +133,7 @@ const Banish2 = deniaAction("Skill - Banish 2", { node: Node.Skill, cast: Cast.S
 // the Breakdown shift replaces the Stagecraft one as it lands, and the field comes with it
 // (`applySelf(DARK_CORE)` assumes the 12s have passed)
 const Lib1 = deniaAction("Liberation - Final Act (Stagecraft)", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 397.62,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 397.62,
   concerto: 20, offtune: 48000, resetEnergy: true, 
   updateBuffs: () => { 
     revokeCurrent(ENTROPY_STAGECRAFT); applyCurrent(ENTROPY_BREAKDOWN); applyCurrent(DARK_CORE, 1); 
@@ -141,7 +141,7 @@ const Lib1 = deniaAction("Liberation - Final Act (Stagecraft)", {
 });
 /** Spends every Void Particle and all the Conformal Charge, and shifts back to Stagecraft. */
 const Lib2 = deniaAction("Liberation - Final Act (Breakdown)", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 795.24, energy: 30,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 795.24, energy: 30,
   concerto: 20, offtune: 52528, resetForte1: true, resetForte2: true,
   updateBuffs: () => {
     revokeCurrent(ENTROPY_BREAKDOWN);

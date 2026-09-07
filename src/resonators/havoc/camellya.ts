@@ -129,7 +129,7 @@ const Ephemeral = camellyaAction("Forte Skill - Ephemeral", {
   },
 });
 
-const Liberation = camellyaAction("Liberation - Fervor Efflorescent", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1202.81, concerto: 20, offtune: 84000, resetEnergy: true });
+const Liberation = camellyaAction("Liberation - Fervor Efflorescent", { node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 1202.81, concerto: 20, offtune: 84000, resetEnergy: true });
 
 const Intro = camellyaAction("Intro - Everblooming", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81, concerto: 10, forte1: 100, resetForte1: true, energy: 10, offtune: 9600,

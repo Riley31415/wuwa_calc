@@ -86,7 +86,7 @@ const ForteMidair3 = verinaAction("Forte Mid-air - Starflower Blooms 3",
 
 // Arboreal Flourish places Photosynthesis Mark on the enemy (see file header), heals
 const Liberation = verinaAction("Liberation - Arboreal Flourish", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 198.81, concerto: 20, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 198.81, concerto: 20, resetEnergy: true,
   updateBuffs: () => applyEnemy(PHOTOSYNTHESIS_MARK, 12),
 });
 /** One Coordinated Attack tick — the mark's own per-action proc, and S6's single-hit reuse. It

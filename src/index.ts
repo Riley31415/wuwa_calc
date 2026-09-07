@@ -360,6 +360,11 @@ function solveFits(key: string, solved: Solved, f: Filters = filters): boolean {
     return p.weapon < l.weapons.length && p.echo < l.echoLoadouts.length && p.mainstat < l.mainstats.length;
   });
   if (!inRange(solved.picks) || !solved.rows.every(inRange)) return false;
+  // every score must be this team's: a solve keyed by index that landed on another team's
+  // slot carries that team's names (and its DPS missing — the Personal column reads 0)
+  const names = new Set([...members.map((m) => m.name), TUNE_BREAK_ENEMY.name]);
+  const dps = members[team.dpsIndex]!.name;
+  if (!solved.scores.every((s) => s.bySlot.every(([n]) => names.has(n)) && s.bySlot.some(([n]) => n === dps))) return false;
   const expected = members.reduce((n, m) => n * sequenceLevels(m, f).length, 1);
   const patterns = new Set(solved.rows.map((r) => r.map((p) => p.sequence).join(".")));
   return patterns.size === expected;
@@ -1633,7 +1638,7 @@ function comparisonTable(rows: TeamRow[]): string {
     + (dprOpenAt[i] && compareOpenAt[i] ? `<div class="c num">Compare</div>` : "");
   const head = `<div class="trow thead">`
     + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2)
-    + `<div class="c num sorthead${sortAscending ? " asc" : ""}" title="Click to flip the sort">Team DPR<span class="arrow">›</span></div>`
+    + `<div class="c num sorthead${sortAscending ? " asc" : ""}" title="Click to flip the sort">Team Avg DPR<span class="arrow">›</span></div>`
     + `<div class="c num">Team Compare</div>`
     + `</div>`;
 
@@ -1805,11 +1810,12 @@ function rankAll(sorted: TableView["sorted"]): RowRank[] {
   });
 }
 
-/** How many viewport px one page px is under index.css's `zoom` on `html` — measured, not read
- *  off the style: Chromium reports `getBoundingClientRect()` in viewport px while `clientWidth`,
- *  `scrollTop`, a pointer's `clientX` and every `style` px are page px, so `<body>`'s own rect is
- *  its `clientWidth` times the zoom; a browser that hands rects back in page px instead measures
- *  1 here, and the correction below is then a no-op rather than a second scaling. */
+/** How many viewport px one page px is — measured, not read off the style. It matters under a
+ *  `zoom` on `html`: Chromium reports `getBoundingClientRect()` in viewport px while
+ *  `clientWidth`, `scrollTop`, a pointer's `clientX` and every `style` px are page px, so
+ *  `<body>`'s own rect is its `clientWidth` times the zoom. index.css sets no zoom any more, so
+ *  this reads 1 and every correction below is a no-op — measured rather than assumed, so a zoom
+ *  put back there (or a browser that hands rects back in page px) needs no change here. */
 const zoom = (): number => {
   const w = document.body.clientWidth;
   return w ? document.body.getBoundingClientRect().width / w : 1;

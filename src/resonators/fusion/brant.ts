@@ -66,7 +66,7 @@ const Outro = brantAction("Outro - The Course is Set!", { cast: Cast.Outro, conc
 // --- resonance skill: Anchors Aweigh!, and liberation: To the Horizon (opens Aflame)
 const Skill = brantAction("Skill - Anchors Aweigh!", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 333.92, offtune: 10160, energy: 7.18, concerto: 10, forte1: 15.76 });
 const Liberation = brantAction("Liberation - To the Horizon", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 680.45, offtune: 48000, concerto: 20, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 680.45, offtune: 48000, concerto: 20, resetEnergy: true,
   // Aflame swaps his conversion up to its "My" Moment rate for as long as it lasts
   updateBuffs: () => { applyCurrent(AFLAME, 1); revokeCurrent(THEATRICAL_MOMENT); applyCurrent(MY_MOMENT, 1); },
 });

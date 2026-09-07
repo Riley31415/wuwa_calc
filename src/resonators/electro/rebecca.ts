@@ -122,22 +122,22 @@ const FHAGuts = rebeccaAction("Forte Heavy - Bang-bang-bang!: Guts", { node: Nod
 // firepower tiers, and BOOM! Fireworks! goes off once Overload caps — late enough that it lands
 // on the next resonator's time, so it is deferred behind their Intro (still on Rebecca's slot)
 const Lib1 = rebeccaAction("Liberation - Party 'til Dawn!", {
-  node: Node.Liberation, cast: Cast.Liberation, resetEnergy: true, forte3: 90,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, resetEnergy: true, forte3: 90,
   updateBuffs: () => { queueOnIntro(Boom); },
 });
 const Lib2 = rebeccaAction("Liberation - Mk. 31 HMG x5", {
-  node: Node.Liberation, type: Type1.Basic, cast: Cast.Liberation, mv: 24.3 * 5, concerto: 20 + 0.56 * 5, offtune: 1609 * 5, forte3: -10,
+  node: Node.Liberation, type: Type1.Basic, cast: Cast.Liberation, cutscene: true, mv: 24.3 * 5, concerto: 20 + 0.56 * 5, offtune: 1609 * 5, forte3: -10,
 });
 const Lib3 = rebeccaAction("Liberation - Mk. 31 HMG 1st Enhancement x5", {
-  node: Node.Liberation, type: Type1.Basic, cast: Cast.Liberation, mv: 48.6 * 5, concerto: 1.12 * 5, offtune: 3218 * 5, forte3: -20,
+  node: Node.Liberation, type: Type1.Basic, cast: Cast.Liberation, cutscene: true, mv: 48.6 * 5, concerto: 1.12 * 5, offtune: 3218 * 5, forte3: -20,
 });
 const Lib4 = rebeccaAction("Liberation - Mk. 31 HMG 2nd Enhancement x10", {
-  node: Node.Liberation, type: Type1.Basic, cast: Cast.Liberation, mv: 72.9 * 10, concerto: 1.67 * 10, offtune: 4826 * 10, forte3: -60,
+  node: Node.Liberation, type: Type1.Basic, cast: Cast.Liberation, cutscene: true, mv: 72.9 * 10, concerto: 1.67 * 10, offtune: 4826 * 10, forte3: -60,
 });
 const Lib234 = new ActionGroup("Liberation - Mk. 31 HMG", [Lib2, Lib3, Lib4]);
 // fires behind whoever intros after her, so it is inactive: it is her hit, not her field time
 const Boom = rebeccaAction("Liberation - BOOM! Fireworks!", {
-  node: Node.Liberation, type: Type1.Basic, cast: Cast.Liberation, mv: 636.2, energy: 20, concerto: 10, offtune: 31025,
+  node: Node.Liberation, type: Type1.Basic, cast: Cast.Liberation, cutscene: true, mv: 636.2, energy: 20, concerto: 10, offtune: 31025,
   updateDebuffs: () => applyHack(),
 });
 

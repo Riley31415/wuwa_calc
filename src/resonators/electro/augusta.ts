@@ -87,19 +87,19 @@ const FSkill3 = augustaAction("Forte Skill - Undying Sunlight: Plunge", {
 });
 
 // liberation: Sword of Eternal Oath, the plain press-and-release cast
-const Lib1 = augustaAction("Liberation - Sword of Eternal Oath", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 1099.48, energy: 4.74, concerto: 20, offtune: 29342, forte2: 2000, resetEnergy: true });
+const Lib1 = augustaAction("Liberation - Sword of Eternal Oath", { node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Heavy, mv: 1099.48, energy: 4.74, concerto: 20, offtune: 29342, forte2: 2000, resetEnergy: true });
 /** Held instead of released once Majesty (forte3) reaches 2 — costs both stacks rather than
  *  Energy. Nine hits lumped into one action; queues Everbright Protector itself once the ninth lands. */
 const Lib2 = augustaAction("Liberation - Sublime is the Sun", {
-  node: Node.Liberation, cast: Cast.Liberation, forte3: -2,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, forte3: -2,
   updateBuffs: () => { queue(Lib2fua); queue(Lib3); applyTeam(RULERS_REALM, 1); },
 });
 
-const Lib2fua = augustaAction("Liberation - Sublime is the Sun: Sunborne x9", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 1073.61, concerto: 18, offtune: 64800 });
+const Lib2fua = augustaAction("Liberation - Sublime is the Sun: Sunborne x9", { node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Heavy, mv: 1073.61, concerto: 18, offtune: 64800 });
 /** The finisher — ends Sworn Allegiance and spends every stack of Crown of Wills. Costs no
  *  Resonance Energy. */
 const Lib3 = augustaAction("Liberation - Sublime is the Sun: Everbright Protector", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 1192.93, concerto: 10, offtune: 50400,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Heavy, mv: 1192.93, concerto: 10, offtune: 50400,
   updateBuffs: () => {
     // memberOf() throws on a resonator not on this team, so only reach for it if Phrolova's along
     if (currentTeam().slots.some((s) => s.resonator === PHROLOVA_RESONATOR)) revokeBuff(PHROLOVA_RESONATOR, MAESTRO);

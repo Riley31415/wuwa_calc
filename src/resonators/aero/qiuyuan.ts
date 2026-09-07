@@ -57,7 +57,7 @@ const EBA4 = qiuyuanAction("Basic - Thus Spoke the Blade: Inkwash 4", { node: No
 const Skill = qiuyuanAction("Skill - Through the Groves", { node: Node.Skill, cast: Cast.Skill, type: Type1.Echo, mv: 215.52, energy: 15.09, concerto: 10, offtune: 8673 });
 
 const Liberation = qiuyuanAction("Liberation - Sundering Strike", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Echo, mv: 795.24, concerto: 20, offtune: 96000, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Echo, mv: 795.24, concerto: 20, offtune: 96000, resetEnergy: true,
   updateBuffs: () => applyTeam(SUNDERING_STRIKE_CD, 1),
 });
 

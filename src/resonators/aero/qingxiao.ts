@@ -118,7 +118,7 @@ const FHA = qxAction("Forte Heavy - Heaven's Reckoning", {
 });
 
 const Liberation = qxAction("Liberation - Billows Beneath Heaven", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1670.11,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 1670.11,
   concerto: 20, offtune: 8000, resetEnergy: true,
   updateBuffs: () => applyCurrent(HEAVENS_CLARITY, 1),
 });

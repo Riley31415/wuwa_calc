@@ -66,7 +66,7 @@ const FSkill = mortefiAction("Forte Skill - Fury Fugue", { node: Node.Forte, cas
 //     (10s / 0.35s), the window itself and its firing rules in BURNING_RHAPSODY below. A fresh
 //     window is a fresh Rhythmic Vibrato ramp, so the old one is wiped here.
 const Liberation = mortefiAction("Liberation - Violent Finale", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 159.05, concerto: 20, offtune: 96000, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 159.05, concerto: 20, offtune: 96000, resetEnergy: true,
   updateBuffs: () => { revokeCurrent(VIBRATO); applyTeam(BURNING_RHAPSODY, 28); },
 });
 /** Burning Rhapsody as the report reads it: the field his Liberation puts out, which every

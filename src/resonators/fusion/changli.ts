@@ -66,7 +66,7 @@ const FlamingSacrifice = changliAction("Forte Heavy - Flaming Sacrifice", { node
 
 // --- liberation: Radiance of Fealty — grants 4 Enflamement outright and opens Fiery Feather
 const Liberation = changliAction("Liberation - Radiance of Fealty", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1212.75, offtune: 100800, concerto: 20, forte1: 4, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 1212.75, offtune: 100800, concerto: 20, forte1: 4, resetEnergy: true,
   updateBuffs: () => applyCurrent(FIERY_FEATHER, 1),
 });
 

@@ -116,7 +116,7 @@ export const TUNE_BREAK_ENEMY = new Resonator({
  *  Break, and the Shifting only decides which Interfered it leaves behind. Reports under the
  *  enemy's own bucket rather than whoever was on field. */
 export const TUNE_BREAK = new Action("Tune Break", {
-  element: Attribute.Physical, scaling: Scaling.Tune, cast: Cast.TuneBreak, type: Type1.Break,
+  element: Attribute.Physical, scaling: Scaling.Tune, cast: Cast.TuneBreak, cutscene: true, type: Type1.Break,
   mv: 1600, slot: TUNE_BREAK_ENEMY.name,
   // The whole bar, straight off it: `DirectOfftune` rather than a declared `offtune`, because a
   // drain is an amount the bar moves by, not something the team's Off-Tune Buildup Rate builds

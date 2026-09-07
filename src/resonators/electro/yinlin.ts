@@ -75,7 +75,7 @@ const Skill2 = yinlinAction("Skill - Lightning Execution", { node: Node.Skill, c
  *  her Basic/Dodge Counter casts against a Sinner-marked target consume. */
 const ACTION_BLAST = yinlinAction("Skill - Electromagnetic Blast", { node: Node.Skill, type: Type1.Skill, mv: 19.89, concerto: 5.00 });
 
-const Liberation = yinlinAction("Liberation - Thundering Wrath", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 116.56 * 7, concerto: 20, offtune: 36001, resetEnergy: true });
+const Liberation = yinlinAction("Liberation - Thundering Wrath", { node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 116.56 * 7, concerto: 20, offtune: 36001, resetEnergy: true });
 
 /** Chameleon Cipher: spends every Judgment Point, upgrades Sinner's Mark to Punishment Mark. */
 const FHA = yinlinAction("Forte Heavy - Chameleon Cipher", {

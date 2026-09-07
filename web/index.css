@@ -57,11 +57,7 @@
   --lead: 10px;
 }
 
-/* The whole page at 110%: `zoom` scales every px length and reflows, so the tables, the option
-   boxes and index.ts's own measurements (clientWidth and friends, all in the same scaled px)
-   agree with each other. The one thing it leaves alone is the viewport unit — 100vh is still the
-   real window — so <body> below divides its own height back out. */
-html { background: var(--bg); zoom: 1.1; }
+html { background: var(--bg); }
 
 /*
  * The page itself never scrolls: it is exactly the viewport tall, the summary header keeps its
@@ -72,8 +68,7 @@ html { background: var(--bg); zoom: 1.1; }
  */
 body {
   margin: 0;
-  /* the real window's height, in the zoomed px everything else here is laid out in (see html) */
-  height: calc(100vh / 1.1);
+  height: 100vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -682,9 +677,9 @@ main {
 .gotodetail:hover .arrow { color: var(--accent); transform: translateX(2px); }
 .slothead:hover .arrow, .sorthead:hover .arrow { color: var(--accent); }
 .tcopt-name:hover .arrow { color: var(--accent); }
-/* same reading as the Slot headings: down while shut, swung right once it is open */
-.tcopt-name .arrow { transform: rotate(90deg); }
-.tcopt.open .tcopt-name .arrow { transform: none; }
+/* the ordinary disclosure reading: pointing right at a shut box, swung down once it is open */
+.tcopt-name .arrow { transform: none; }
+.tcopt.open .tcopt-name .arrow { transform: rotate(90deg); }
 .slothead .arrow { transform: rotate(90deg); }
 .slothead.open .arrow { transform: none; }
 /* the Team DPR heading's own marker points the way the column runs: down for the default

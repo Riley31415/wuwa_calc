@@ -166,7 +166,7 @@ const USkill2 = hiyukiAction("Skill - Frostblight: Petalfall", { node: Node.Skil
  *  removes Dedication *and* Frostheart before restoring 50 of the latter, hence the reset ahead
  *  of its own declared +50. */
 const Lib1 = hiyukiAction("Liberation - Foreclaiming: Inward Vision", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 397.62, concerto: 20, offtune: 84000,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 397.62, concerto: 20, offtune: 84000,
   forte2: 50, resetForte1: true, resetForte2: true,
   updateDebuffs: () => applyEnemy(GLACIO_CHAFE, 4),
   updateBuffs: () => applyCurrent(FROSTHARDEN_IAI, 3),
@@ -175,13 +175,13 @@ const Lib1 = hiyukiAction("Liberation - Foreclaiming: Inward Vision", {
 /** Held rather than tapped (see the file header), so it spends whatever Snowforged Blade is
  *  banked, at +795.24% on its own multiplier apiece. */
 const Lib2Tap = hiyukiAction("Liberation - Foreclaiming: Blade Liberation", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 994.05, concerto: 20, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 994.05, concerto: 20, resetEnergy: true,
   // everything it ends the form by removing: Dedication, Frostheart, and every Snowforged Blade
   // the multiplier above just cashed
   resetForte1: true, resetForte2: true,
 });
 const Lib2Hold = hiyukiAction("Liberation - Foreclaiming: Blade Liberation", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 994.05, concerto: 20, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 994.05, concerto: 20, resetEnergy: true,
   // everything it ends the form by removing: Dedication, Frostheart, and every Snowforged Blade
   // the multiplier above just cashed
   resetForte1: true, resetForte2: true,

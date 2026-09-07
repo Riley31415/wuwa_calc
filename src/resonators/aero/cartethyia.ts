@@ -165,14 +165,14 @@ const FBA12345 = new ActionGroup("Basic - Tempest 12345", [FBA1, FBA2, FBA3, FBA
 
 // --- the two Liberations: the transform, then the Blade once Conviction is full
 const Liberation = cartethyiaAction("Liberation - A Knight's Heartfelt Prayers", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 0, concerto: 20, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 0, concerto: 20, resetEnergy: true,
   updateBuffs: () => applyCurrent(MANIFEST, 1),
 });
 /** Blade of Howling Squall: spends every Conviction, ends Manifest, and strips the target's Aero
  *  Erosion — 20% amplification on this one hit per stack taken, five at most. The strip waits for
  *  `afterAction` so the hit itself still reads the count it is paid for. */
 const Lib2 = cartethyiaAction("Liberation - Blade of Howling Squall", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 91.84, concerto: 20, offtune: 168000, forte1: -120,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 91.84, concerto: 20, offtune: 168000, forte1: -120,
   // S6 stops the strip but not the payout: the amplification still reads what the target holds
   applyStats: () => addStat(Stat.Amp, 20 * Math.min(5, stacksOfEnemy(AERO_EROSION))),
   updateBuffs: () => {

@@ -32,7 +32,7 @@ import {
   applyTeam,
 } from "../../engine/context.js";
 import { coordinatedBuff, lostOnSwap, matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_2, SWAP, ActionField, NOINTRO, ECHO_SWAP } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_2, SWAP, ActionField, NOINTRO, ECHO_SWAP, START_3 } from "../../engine/rotation.js";
 import { RIME_DRAPED_SPROUTS, STRINGMASTER, LETHEAN_ELEGY, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { EMPYREAN_ANTHEM_5PC, NM_LAMPY } from "../../echoes/rinascita.js";
@@ -75,7 +75,7 @@ const FSkill3 = zhezhiAction("Forte Skill - Creation's Zenith", {
 
 // opens the Inklit Spirit window, no damage of its own — the window itself is INKLIT_SPIRITS below
 const Liberation = zhezhiAction("Liberation - Living Canvas", {
-  node: Node.Liberation, cast: Cast.Liberation, concerto: 20, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, concerto: 20, resetEnergy: true,
   updateBuffs: () => applyTeam(INKLIT_SPIRITS, 21),
 });
 const INKLIT_FIELD = new ActionField("Zhezhi: Inklit Spirits");
@@ -179,7 +179,10 @@ const ZHEZHI_RESONATOR = new Resonator({
 const BA123 = new ActionGroup("Basic - Dimming Brush 123", [BA1, BA2, BA3]);
 
 const ZZ_ROTATION = new Rotation([
+  START_3, Liberation, SWAP,
+
   NOINTRO, BA123,
+
   INTRO,
   BA123, Liberation,
   Skill, FHA, FSkill, FSkill, FSkill3, ECHO_SWAP,

@@ -15,7 +15,8 @@
  * tail, so the body a resonator repeats is written once — the opener is that body plus whatever
  * prefix it declares, minus the Intro nobody could have handed them at the start of a fight. Give
  * the opener its own OUTRO before the INTRO instead and the two stop sharing, for a kit whose
- * opener genuinely isn't its loop.
+ * opener genuinely isn't its loop. A NOINTRO chain that runs into a DOUBLE_INTRO section shares
+ * *that* instead: leading, the opener is the prefix and then the pre-visit's casts and outro.
  *
  * Markers are `Action`s so a kit can keep writing one plain array, but none of them is a cast:
  * INTRO and the three ECHO_* markers stand for one and resolve through `Action.resolve` at run
@@ -95,10 +96,10 @@ export interface ActionDef extends GearDef {
    *  engine bookkeeping a resonator didn't press a button for (the swap markers below).
    *  Everything else `run()` derives on its own; see its `triggered` local. */
   triggered?: boolean;
-  /** A Liberation-cast press that still takes real world time — no time stop, unlike the
-   *  Liberation cinematic itself (Carlotta's Death Knell, a second a shot) — so the engine's
-   *  second (helpers.ts's `oneSecondPassed()`) counts it like any other press. */
-  realTime?: boolean;
+  /** A press whose whole animation freezes the world — a Liberation cinematic, the Tune Break,
+   *  Jinhsi's Illuminous Epiphany — so the engine's second (helpers.ts's `oneSecondPassed()`)
+   *  does not count it. */
+  cutscene?: boolean;
   /** The field this hit belongs to — a summon firing on its own beside the fight (a coordinated
    *  attack, Denia's Erosion Field, Jué's follow-up, Xiangli Yao's outro laser, Rebecca's turret).
    *  The same `ActionField` the Buff that opens the field names, which is what pairs a run of hits
@@ -143,7 +144,7 @@ export class Action extends Gear {
   resetForte: [boolean, boolean, boolean, boolean, boolean];
   resolveFn?: () => Action | null;
   triggered: boolean;
-  realTime: boolean;
+  cutscene: boolean;
   /** What this was built from, kept so `variant()` can rebuild it with a change or two. */
   readonly def: ActionDef;
   /** Lazily-filled cache for runtime.ts's `tagWordOf()` — this action's own element/type/type2, as the
@@ -178,7 +179,7 @@ export class Action extends Gear {
     this.resetForte = [!!def.resetForte1, !!def.resetForte2, !!def.resetForte3, !!def.resetForte4, !!def.resetForte5];
     this.resolveFn = def.resolve;
     this.triggered = def.triggered ?? false;
-    this.realTime = def.realTime ?? false;
+    this.cutscene = def.cutscene ?? false;
     this.def = def;
   }
 
@@ -421,6 +422,8 @@ export class Rotation {
     // set when the NOINTRO chain ran into the INTRO marker rather than an outro of its own, which
     // is what makes the two share everything from there down
     let shared = false;
+    // ...and the same for a NOINTRO chain that ran into DOUBLE_INTRO instead (see that branch)
+    let sharedDouble = false;
     let openerExit: Action | null = null, introExit: Action | null = null, doubleExit: Action | null = null;
 
     for (const action of actions) {
@@ -443,12 +446,15 @@ export class Rotation {
         for (const at of inStart) starts[at]!.push(action);
         body()?.push(action);
       } else if (action === NOINTRO) {
-        if (openerExit || prefix.length || shared) throw new Error("rotation: only one NOINTRO chain");
+        if (openerExit || prefix.length || shared || sharedDouble) throw new Error("rotation: only one NOINTRO chain");
         if (phase !== "none") throw new Error("rotation: NOINTRO opens a chain while one is still open");
         phase = "opener";
       } else if (action === DOUBLE_INTRO) {
         if (doubleExit || dbl.length) throw new Error("rotation: only one DOUBLE_INTRO section");
-        if (phase !== "none") throw new Error("rotation: DOUBLE_INTRO opens a chain while one is still open");
+        // a NOINTRO chain running into DOUBLE_INTRO shares the section: leading, the opener is the
+        // prefix and then the pre-visit's own casts, leaving on the pre-visit's outro
+        if (phase === "opener") sharedDouble = true;
+        else if (phase !== "none") throw new Error("rotation: DOUBLE_INTRO opens a chain while one is still open");
         phase = "double";
       } else if (action === INTRO) {
         // INTRO is the one marker that also stands for a real cast, so a second one inside the
@@ -480,7 +486,11 @@ export class Rotation {
     if (phase !== "none") throw new Error("rotation: a chain is left open with no outro to close it");
     if (!introExit) throw new Error("rotation: every rotation needs an INTRO chain closed by an outro");
     this.startCombat = starts.map((cast) => (cast && cast.length ? cast : null));
-    if (openerExit || shared) {
+    if (sharedDouble) {
+      // the swap-back form hands to the previous slot's NOINTRO chain, and a leader has none to hand to
+      if (doubleExit !== OUTRO) throw new Error("rotation: a NOINTRO chain shared with a DOUBLE_INTRO section needs that section closed by an OUTRO, not run into INTRO");
+      this.opener = { entry: NOINTRO, body: [...prefix, ...dbl], exit: doubleExit };
+    } else if (openerExit || shared) {
       // the shared form runs the prefix and then everything the Intro chain does, minus the Intro
       this.opener = { entry: NOINTRO, body: shared ? [...prefix, ...loop] : prefix, exit: openerExit ?? introExit };
     } else if (prefix.length) {
@@ -504,6 +514,10 @@ export class Rotation {
  * chain, since nobody has outro'd yet and so nobody has an Intro to cast. From there it is Intro
  * chains all the way — an Outro hands the field on, whoever it lands on runs theirs — until every
  * section is filled.
+ *
+ * A leader with a DOUBLE_INTRO section of their own changes the trip's shape: every pre-visit in
+ * team order, then every main visit in team order (Suoming > Hsin > Jinhsi reads Suo1 Hsin1 Jin1
+ * Suo2 Hsin2 Jin2), the opener standing in for the leader's first pre-visit.
  *
  * A section closes on the Intro the *last* slot's own Outro hands into — one full trip round the
  * team, ending where the next begins. The outro's own follow-ups, that Intro, and whatever the
@@ -714,6 +728,27 @@ export function runRotations(state: State, rotations: Rotation[], sections: numb
     if (awaiting || !closePending) return;
     closePending = false;
     closing = true;
+  }
+
+  // A leader with a double Intro of their own: pre-visits in team order, then main visits in team
+  // order (see the header). Outro-form sections only — a swap-back form leans on the previous
+  // slot's NOINTRO fill, which this shape has no place for.
+  if (rotations[0]!.doubleIntro) {
+    rotations.forEach((r, i) => {
+      if (r.doubleIntro?.exit === SWAP) throw new Error(`${state.slots[i]!.name}: a swap-form double Intro can't play in a team whose leader has a double Intro`);
+    });
+    let first = true, trips = 0;
+    while (section < sections) {
+      if (++trips > 100) throw new Error("rotation scheduler did not fill every section");
+      // the opener already stood in for the leader's first pre-visit
+      for (let i = first ? 1 : 0; i < rotations.length && section < sections; i++) {
+        const d = rotations[i]!.doubleIntro;
+        if (d) runChain(i, d);
+      }
+      first = false;
+      for (let i = 0; i < rotations.length && section < sections; i++) runChain(i, rotations[i]!.intro);
+    }
+    return out;
   }
 
   let guard = 0;

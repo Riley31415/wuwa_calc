@@ -125,7 +125,7 @@ const Skill = bulingAction("Skill - In Shadow Thunder Stirs", { node: Node.Skill
 // Thunder Spell at Primordial Qi — and the plain Flashing Thunder Spell otherwise, which does
 // neither. Resolved on its row, the way the Heavy is.
 const Harmony = bulingAction("Liberation - Flashing Thunder Spell - Harmony", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 536.79, offtune: 72000, concerto: 20, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 536.79, offtune: 72000, concerto: 20, resetEnergy: true,
   updateBuffs: () => {
     revokeTeam(THUNDER_SPELL); applyTeam(THUNDER_SPELL, 1); revokeCurrent(YIN_YANG_BALANCE);
     // only one array at a time: a fresh cast starts its 24s over
@@ -133,7 +133,7 @@ const Harmony = bulingAction("Liberation - Flashing Thunder Spell - Harmony", {
   },
 });
 const FlashingThunderSpell = bulingAction("Liberation - Flashing Thunder Spell", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 357.86, offtune: 36000, concerto: 20, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 357.86, offtune: 36000, concerto: 20, resetEnergy: true,
 });
 const Liberation = new Action("Liberation - Flashing Thunder Spell (either)", {
   resolve: () => (isHeld(YIN_YANG_BALANCE) ? Harmony : FlashingThunderSpell),

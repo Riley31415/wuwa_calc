@@ -71,7 +71,7 @@ const FSkill = cantaAction("Forte Skill - Perception Drain", {
 });
 
 const Liberation = cantaAction("Liberation - Beneath the Sea", {
-  node: Node.Liberation, cast: Cast.Liberation, cast2: Cast.Echo, type: Type1.Basic, mv: 376, concerto: 20, offtune: 48000, forte1: 3, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, cast2: Cast.Echo, type: Type1.Basic, mv: 376, concerto: 20, offtune: 48000, forte1: 3, resetEnergy: true,
   updateBuffs: () => applyTeam(DIFFUSION_WINDOW, 21),
 });
 /** One Diffusion tick — a real Coordinated Attack, summoned one per qualifying action by

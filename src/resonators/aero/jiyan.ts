@@ -85,11 +85,11 @@ const USkill = jiyanAction("Skill - Windqueller (Qingloong)", { node: Node.Skill
 /** Emerald Storm - Prelude: no damage of its own, just opens Qingloong Mode. */
 // Prelude releases Finale itself whenever the 30 Resolve it spends is banked
 const Liberation = jiyanAction("Liberation - Emerald Storm: Prelude", {
-  node: Node.Liberation, cast: Cast.Liberation, concerto: 20, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, concerto: 20, resetEnergy: true,
   updateBuffs: () => { if (forte1() >= 30) queue(Finale); }
 });
 /** Emerald Storm - Finale, released by Prelude at 30+ Resolve — considered Heavy Attack DMG. */
-const Finale = jiyanAction("Liberation - Emerald Storm: Finale", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 142.91 * 2 + 428.73, offtune: 107520, forte1: -30 });
+const Finale = jiyanAction("Liberation - Emerald Storm: Finale", { node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Heavy, mv: 142.91 * 2 + 428.73, offtune: 107520, forte1: -30 });
 
 // Lance of Qingloong, the mode's own three-stage Heavy Attack — 8 hits a stage
 const Lance1 = jiyanAction("Heavy - Lance of Qingloong 1", { node: Node.Liberation, cast: Cast.Heavy, type: Type1.Heavy, mv: 65.52 * 8, energy: 3.76, concerto: 7.60, offtune: 12272 });

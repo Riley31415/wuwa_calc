@@ -59,7 +59,7 @@ import {
   setForte1,
   stacksOfTeam,
 } from "../../engine/context.js";
-import { Action, ActionField, ActionGroup, Rotation, DOUBLE_INTRO, INTRO, OUTRO, ECHO_SWAP, DODGE } from "../../engine/rotation.js";
+import { Action, ActionField, ActionGroup, Rotation, DOUBLE_INTRO, INTRO, OUTRO, ECHO_SWAP, DODGE, NOINTRO } from "../../engine/rotation.js";
 import { NINE_SHADOWS, UNISON, UNISON_BOON, UNISON_RESPONDER, respondToUnison, unisonIntro, unisonOutro, unisonResponse } from "../../shared/unison.js";
 import { coordinatedBuff, lostOnSwap } from "../../shared/helpers.js";
 import { RED_SPRING, UNSPOKEN_RUE } from "../../weapons/sword.js";
@@ -87,8 +87,8 @@ const UBA1 = suomingAction("Basic - Unfurled Canopy 1", { node: Node.Normal, cas
 const UBA2 = suomingAction("Basic - Unfurled Canopy 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 114.4 + 38.14 * 3, energy: 2.77 + 0.93 * 3, concerto: 2 + 0.67 * 3, offtune: 5705 + 1902 * 3, forte1: 80 + 27 * 3 });
 const UBA3 = suomingAction("Basic - Unfurled Canopy 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 58.64 * 4, energy: 1.42 * 4, concerto: 3.75 * 4, offtune: 3540 * 4, forte1: 45 * 4 });
 const UBA4 = suomingAction("Basic - Unfurled Canopy 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 107.25 * 2 + 143, energy: 2.59 * 2 + 3.46, concerto: 4.5 * 2 + 6, offtune: 6474 * 2 + 8632, forte1: 54 * 2 + 72 });
-const UBA2H1 = suomingAction("Heavy - Unfurled Canopy: Whirling Thunder 1", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Basic, mv: 73.32 * 3 + 36.66 * 2, energy: 1.77 * 3 + 0.89 * 2, concerto: 3.75 * 3 + 1.88 * 2, offtune: 4425 * 3 + 2213 * 2, forte1: 45 * 3 + 23 * 2 });
-const UBA2H2 = suomingAction("Heavy - Unfurled Canopy: Whirling Thunder 2", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Basic, mv: 56.69 * 5, energy: 1.37 * 5, concerto: 3 * 5, offtune: 3422 * 5, forte1: 36 * 5 });
+const UHA1 = suomingAction("Heavy - Unfurled Canopy: Whirling Thunder 1", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Basic, mv: 73.32 * 3 + 36.66 * 2, energy: 1.77 * 3 + 0.89 * 2, concerto: 3.75 * 3 + 1.88 * 2, offtune: 4425 * 3 + 2213 * 2, forte1: 45 * 3 + 23 * 2 });
+const UHA2 = suomingAction("Heavy - Unfurled Canopy: Whirling Thunder 2", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Basic, mv: 56.69 * 5, energy: 1.37 * 5, concerto: 3 * 5, offtune: 3422 * 5, forte1: 36 * 5 });
 const UDC = suomingAction("Dodge Counter - Unfurled Canopy", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 174.04 + 58.02 * 3, energy: 4.21 + 1.41 * 3, concerto: 3.94 + 1.32 * 3 + 10, offtune: 7004 + 2335 * 3, forte1: 80 + 27 * 3 });
 
 // --- Rift Cleaver, the plain Resonance Skill in either state. Holding Unison additionally spends
@@ -109,7 +109,7 @@ const CrimsonGleamParry = suomingAction("Skill - Unfurled Canopy: Crimson Gleam"
 
 // --- Umbral Canopy: Miasma Lock, Deep Mind only; grants Unison and 200 Delusion
 const Liberation = suomingAction("Liberation - Umbral Canopy: Miasma Lock", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 69.59 * 7 + 208.76, concerto: 20, offtune: 8400 * 7 + 25200, forte1: 200, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 69.59 * 7 + 208.76, concerto: 20, offtune: 8400 * 7 + 25200, forte1: 200, resetEnergy: true,
   updateBuffs: () => { applyCurrent(UNISON, 1); },
 });
 /** Blight Rain, Miasmic Thunder: the Thunder Crest, one a second off the active resonator's own
@@ -150,7 +150,7 @@ const SealedDelusion = suomingAction("Forte Skill - Furled Canopy: Sealed Delusi
 const UnforsakenMind = suomingAction("Skill - Unfurled Canopy: Unforsaken Mind", { node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 152.67, offtune: 8776 });
 /** Calamity Mind for its own duration, Awakened Mind once it ends: Deep Mind is simply over. */
 const EngravedHeart = suomingAction("Forte Basic - Umbral Canopy: Engraved Heart", {
-  node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 155.14 * 3 + 77.57 * 4, energy: 2.05 * 3 + 1.03 * 4, concerto: 2.5 * 3 + 1.25 * 4, offtune: 2602 * 3 + 1301 * 4,
+  node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 1939.29, energy: 20.49, concerto: 25, offtune: 26016,
   forte1: -800,
   updateBuffs: () => revokeCurrent(DEEP_MIND),
 });
@@ -197,7 +197,7 @@ const SEAL_MASTER = new Buff({
   updateBuffs: () => { lostOnSwap(); if (isHeld(UNISON) && casting(Cast.Liberation)) revokeCurrent(SEAL_MASTER); },
   applyStats: () => {
     const a = currentAction();
-    if (a === UBA1 || a === UBA2 || a === UBA3 || a === UBA4 || a === UBA2H1 || a === UBA2H2) addStat(Stat.MulMv, 40);
+    if (a === UBA1 || a === UBA2 || a === UBA3 || a === UBA4 || a === UHA1 || a === UHA2) addStat(Stat.MulMv, 40);
     addStat(Stat.CritDmg, 80);
   },
 });
@@ -345,11 +345,14 @@ const UBA234 = new ActionGroup("Basic - Unfurled Canopy 234", [UBA2, UBA3, UBA4]
 const UBA34 = new ActionGroup("Basic - Unfurled Canopy 34", [UBA3, UBA4]);
 const UBA12 = new ActionGroup("Basic - Unfurled Canopy 12", [UBA1, UBA2]);
 const UBA1234 = new ActionGroup("Basic - Unfurled Canopy 1234", [UBA1, UBA2, UBA3, UBA4]);
+const BA123 = new ActionGroup("Basic - Furled Canopy 123", [BA1, BA2, BA3]);
 
 const SM_ROTATION = new Rotation([
+  NOINTRO, BA123, BA123, SealedDelusion,
   DOUBLE_INTRO, Liberation, OUTRO,
 
-  INTRO, UBA234, UnforsakenMind, EngravedHeart, ECHO_SWAP, OUTRO,
+  INTRO, UHA2, RiftCleaver, UBA3, UBA4,
+  UnforsakenMind, EngravedHeart, ECHO_SWAP, OUTRO,
 ]);
 
 /** The Seal Master main-DPS loop, the kit's other way to spend a Unison. Her Intro drops her into
@@ -360,6 +363,7 @@ const SM_ROTATION = new Rotation([
  *  Engraved Heart spends the bar and leaves her in Awakened Mind, which is the state the next
  *  loop's Flash Rift is written for. */
 const SM_ROTATION_MDPS = new Rotation([
+
   INTRO, Liberation, 
   RiftCleaver, UBA34, DODGE,
   UBA1234, DODGE,

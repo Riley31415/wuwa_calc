@@ -54,7 +54,7 @@ const Skill = sanhuaAction("Skill - Eternal Frost", {
   updateBuffs: () => applyCurrent(PRISM_BUFF, 1),
 });
 const Liberation = sanhuaAction("Liberation - Glacial Gaze", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 809.48, offtune: 61440, energy: 10, concerto: 20, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 809.48, offtune: 61440, energy: 10, concerto: 20, resetEnergy: true,
   updateBuffs: () => applyCurrent(GLACIER_BUFF, 1),
 });
 

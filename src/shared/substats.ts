@@ -59,7 +59,7 @@ export function chem(scaler: string, type: string, { er = false }: { er?: boolea
     counts[scopedStat(tag, Stat.DmgBonus)] = key === type ? 2 : 1;
   }
 
-  return substats(`Chem Substats -${er ? " ER" : ""} ${scaler} ${type}`, counts);
+  return substats(`Chem Substats: ${er ? " ER" : ""} ${scaler} ${type}`, counts);
 }
 
 /** The same catalogue for substats — see ALL_MAINSTATS in mainstats.js. */

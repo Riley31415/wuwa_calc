@@ -2347,7 +2347,7 @@ var Action = class _Action extends Gear {
   resetForte;
   resolveFn;
   triggered;
-  realTime;
+  cutscene;
   /** What this was built from, kept so `variant()` can rebuild it with a change or two. */
   def;
   /** Lazily-filled cache for runtime.ts's `tagWordOf()` — this action's own element/type/type2, as the
@@ -2379,7 +2379,7 @@ var Action = class _Action extends Gear {
     this.resetForte = [!!def2.resetForte1, !!def2.resetForte2, !!def2.resetForte3, !!def2.resetForte4, !!def2.resetForte5];
     this.resolveFn = def2.resolve;
     this.triggered = def2.triggered ?? false;
-    this.realTime = def2.realTime ?? false;
+    this.cutscene = def2.cutscene ?? false;
     this.def = def2;
   }
   /** The same cast again under `overrides` — every hook and number shared, but a new Action, so
@@ -2508,6 +2508,7 @@ var Rotation = class {
     const starts = [null, null, null];
     const body = () => phase === "opener" ? prefix : phase === "intro" ? loop : phase === "double" ? dbl : null;
     let shared = false;
+    let sharedDouble = false;
     let openerExit = null, introExit = null, doubleExit = null;
     for (const action of actions) {
       if (startPosition(action) >= 0) {
@@ -2531,7 +2532,7 @@ var Rotation = class {
           starts[at].push(action);
         body()?.push(action);
       } else if (action === NOINTRO) {
-        if (openerExit || prefix.length || shared)
+        if (openerExit || prefix.length || shared || sharedDouble)
           throw new Error("rotation: only one NOINTRO chain");
         if (phase !== "none")
           throw new Error("rotation: NOINTRO opens a chain while one is still open");
@@ -2539,7 +2540,9 @@ var Rotation = class {
       } else if (action === DOUBLE_INTRO) {
         if (doubleExit || dbl.length)
           throw new Error("rotation: only one DOUBLE_INTRO section");
-        if (phase !== "none")
+        if (phase === "opener")
+          sharedDouble = true;
+        else if (phase !== "none")
           throw new Error("rotation: DOUBLE_INTRO opens a chain while one is still open");
         phase = "double";
       } else if (action === INTRO) {
@@ -2581,7 +2584,11 @@ var Rotation = class {
     if (!introExit)
       throw new Error("rotation: every rotation needs an INTRO chain closed by an outro");
     this.startCombat = starts.map((cast) => cast && cast.length ? cast : null);
-    if (openerExit || shared) {
+    if (sharedDouble) {
+      if (doubleExit !== OUTRO)
+        throw new Error("rotation: a NOINTRO chain shared with a DOUBLE_INTRO section needs that section closed by an OUTRO, not run into INTRO");
+      this.opener = { entry: NOINTRO, body: [...prefix, ...dbl], exit: doubleExit };
+    } else if (openerExit || shared) {
       this.opener = { entry: NOINTRO, body: shared ? [...prefix, ...loop] : prefix, exit: openerExit ?? introExit };
     } else if (prefix.length) {
       throw new Error("rotation: the NOINTRO chain is closed by neither an outro nor an INTRO");
@@ -2747,6 +2754,26 @@ function runRotations(state, rotations, sections) {
     closePending = false;
     closing = true;
   }
+  if (rotations[0].doubleIntro) {
+    rotations.forEach((r, i) => {
+      if (r.doubleIntro?.exit === SWAP)
+        throw new Error(`${state.slots[i].name}: a swap-form double Intro can't play in a team whose leader has a double Intro`);
+    });
+    let first = true, trips = 0;
+    while (section < sections) {
+      if (++trips > 100)
+        throw new Error("rotation scheduler did not fill every section");
+      for (let i = first ? 1 : 0; i < rotations.length && section < sections; i++) {
+        const d = rotations[i].doubleIntro;
+        if (d)
+          runChain(i, d);
+      }
+      first = false;
+      for (let i = 0; i < rotations.length && section < sections; i++)
+        runChain(i, rotations[i].intro);
+    }
+    return out;
+  }
   let guard = 0;
   while (section < sections) {
     if (++guard > 100)
@@ -2858,6 +2885,7 @@ var TUNE_BREAK = new Action("Tune Break", {
   element: 448,
   scaling: 4,
   cast: 9,
+  cutscene: true,
   type: 36864,
   mv: 1600,
   slot: TUNE_BREAK_ENEMY.name,
@@ -2967,11 +2995,7 @@ function handoff(name, applyStats) {
   return buff;
 }
 function oneSecondPassed() {
-  const a = currentAction();
-  return isActive() && !triggeredAction() && (!casting(
-    5
-    /* Cast.Liberation */
-  ) || a.realTime) && a !== TUNE_BREAK;
+  return isActive() && !triggeredAction() && !currentAction().cutscene;
 }
 function coordinatedBuff(name, stacks, owner, tick, { enemy = false, hits = 1, every = 1, applyStats } = {}) {
   const fire = () => {
@@ -4976,7 +5000,7 @@ function chem(scaler, type, { er = false } = {}) {
       /* Stat.DmgBonus */
     )] = key === type ? 2 : 1;
   }
-  return substats(`Chem Substats -${er ? " ER" : ""} ${scaler} ${type}`, counts);
+  return substats(`Chem Substats: ${er ? " ER" : ""} ${scaler} ${type}`, counts);
 }
 var ALL_SUBSTATS = [];
 for (const scaler of SCALERS) {
@@ -5101,6 +5125,7 @@ var FBA12345 = new ActionGroup("Basic - Tempest 12345", [FBA1, FBA2, FBA3, FBA4,
 var Liberation = cartethyiaAction("Liberation - A Knight's Heartfelt Prayers", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 0,
   concerto: 20,
@@ -5110,6 +5135,7 @@ var Liberation = cartethyiaAction("Liberation - A Knight's Heartfelt Prayers", {
 var Lib2 = cartethyiaAction("Liberation - Blade of Howling Squall", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 91.84,
   concerto: 20,
@@ -6343,6 +6369,7 @@ var Downbeat = ciacconaAction("Forte Heavy - Quadruple Downbeat", { node: 2, cas
 var Liberation2 = ciacconaAction("Liberation - Singer's Triple Cadenza", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 1100.42,
   concerto: 20,
@@ -7099,6 +7126,7 @@ var MSkill = iunoAction("Skill - Arc Beyond the Edge", { node: 1, cast: 4, type:
 var Liberation3 = iunoAction("Liberation - Beneath Lunar Tides", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 1093.46,
   concerto: 20,
@@ -7317,6 +7345,7 @@ var ChiCounter = jianxinAction("Skill - Calming Air: Chi Counter", { node: 1, ca
 var Liberation4 = jianxinAction("Liberation - Purification Force Field", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 636.2 + 29.83 * 15,
   concerto: 20,
@@ -7922,6 +7951,7 @@ var USkill = jiyanAction("Skill - Windqueller (Qingloong)", { node: 1, cast: 4, 
 var Liberation5 = jiyanAction("Liberation - Emerald Storm: Prelude", {
   node: 3,
   cast: 5,
+  cutscene: true,
   concerto: 20,
   resetEnergy: true,
   updateBuffs: () => {
@@ -7929,7 +7959,7 @@ var Liberation5 = jiyanAction("Liberation - Emerald Storm: Prelude", {
       queue(Finale);
   }
 });
-var Finale = jiyanAction("Liberation - Emerald Storm: Finale", { node: 3, cast: 5, type: 8192, mv: 142.91 * 2 + 428.73, offtune: 107520, forte1: -30 });
+var Finale = jiyanAction("Liberation - Emerald Storm: Finale", { node: 3, cast: 5, cutscene: true, type: 8192, mv: 142.91 * 2 + 428.73, offtune: 107520, forte1: -30 });
 var Lance1 = jiyanAction("Heavy - Lance of Qingloong 1", { node: 3, cast: 3, type: 8192, mv: 65.52 * 8, energy: 3.76, concerto: 7.6, offtune: 12272 });
 var Lance2 = jiyanAction("Heavy - Lance of Qingloong 2", { node: 3, cast: 3, type: 8192, mv: 61.55 * 8, energy: 3.6, concerto: 7.2, offtune: 11528 });
 var Lance3 = jiyanAction("Heavy - Lance of Qingloong 3", { node: 3, cast: 3, type: 8192, mv: 66.76 * 8, energy: 3.84, concerto: 7.76, offtune: 12504 });
@@ -8558,6 +8588,7 @@ var FHA4 = qxAction("Forte Heavy - Heaven's Reckoning", {
 var Liberation6 = qxAction("Liberation - Billows Beneath Heaven", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 1670.11,
   concerto: 20,
@@ -8768,6 +8799,7 @@ var Skill6 = qiuyuanAction("Skill - Through the Groves", { node: 1, cast: 4, typ
 var Liberation7 = qiuyuanAction("Liberation - Sundering Strike", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 28672,
   mv: 795.24,
   concerto: 20,
@@ -8979,7 +9011,7 @@ var Cloudburst1 = roverAction("Basic - Cloudburst Dance 1", { node: 2, cast: 1, 
 var Cloudburst2 = roverAction("Basic - Cloudburst Dance 2", { node: 2, cast: 1, type: 12288, mv: 141.47, energy: 1.01, concerto: 3.22, offtune: 3216, forte1: 25 });
 var UnboundFlow1 = roverAction("Forte Skill - Unbound Flow 1", { node: 2, cast: 4, type: 12288, mv: 171.5, energy: 10, concerto: 20, offtune: 29850, forte1: -60 });
 var UnboundFlow2 = roverAction("Forte Skill - Unbound Flow 2", { node: 2, cast: 4, type: 12288, mv: 723.03, energy: 20, concerto: 20, offtune: 28288, forte1: -60 });
-var Liberation8 = roverAction("Liberation - Omega Storm", { node: 3, cast: 5, type: 16384, mv: 536.79, concerto: 20, offtune: 48e3, resetEnergy: true });
+var Liberation8 = roverAction("Liberation - Omega Storm", { node: 3, cast: 5, cutscene: true, type: 16384, mv: 536.79, concerto: 20, offtune: 48e3, resetEnergy: true });
 var Intro8 = roverAction("Intro - Relentless Squall", { node: 4, cast: 6, type: 20480, mv: 198.82, energy: 10, concerto: 10, offtune: 11465, forte1: 20 });
 var Outro8 = roverAction("Outro - Storm's Echo", {
   cast: 7,
@@ -9722,6 +9754,7 @@ var FSkill = sigrikaAction("Forte Skill - Learn My True Name", { node: 2, cast: 
 var Liberation9 = sigrikaAction("Liberation - Where Trust Leads Me!", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 28672,
   mv: 861.43,
   concerto: 20,
@@ -10391,6 +10424,7 @@ var ScarletCoda = phroAction("Heavy - Scarlet Coda", {
 var Liberation10 = phroAction("Liberation - Waltz of Forsaken Depths", {
   node: 3,
   cast: 5,
+  cutscene: true,
   concerto: 20,
   resetForte1: true,
   updateBuffs: () => {
@@ -10840,10 +10874,11 @@ var FSkill32 = augustaAction("Forte Skill - Undying Sunlight: Plunge", {
   offtune: 24e3,
   forte3: 1
 });
-var Lib1 = augustaAction("Liberation - Sword of Eternal Oath", { node: 3, cast: 5, type: 8192, mv: 1099.48, energy: 4.74, concerto: 20, offtune: 29342, forte2: 2e3, resetEnergy: true });
+var Lib1 = augustaAction("Liberation - Sword of Eternal Oath", { node: 3, cast: 5, cutscene: true, type: 8192, mv: 1099.48, energy: 4.74, concerto: 20, offtune: 29342, forte2: 2e3, resetEnergy: true });
 var Lib22 = augustaAction("Liberation - Sublime is the Sun", {
   node: 3,
   cast: 5,
+  cutscene: true,
   forte3: -2,
   updateBuffs: () => {
     queue(Lib2fua);
@@ -10851,10 +10886,11 @@ var Lib22 = augustaAction("Liberation - Sublime is the Sun", {
     applyTeam(RULERS_REALM, 1);
   }
 });
-var Lib2fua = augustaAction("Liberation - Sublime is the Sun: Sunborne x9", { node: 3, cast: 5, type: 8192, mv: 1073.61, concerto: 18, offtune: 64800 });
+var Lib2fua = augustaAction("Liberation - Sublime is the Sun: Sunborne x9", { node: 3, cast: 5, cutscene: true, type: 8192, mv: 1073.61, concerto: 18, offtune: 64800 });
 var Lib3 = augustaAction("Liberation - Sublime is the Sun: Everbright Protector", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 8192,
   mv: 1192.93,
   concerto: 10,
@@ -11050,6 +11086,7 @@ var Skill11 = bulingAction("Skill - In Shadow Thunder Stirs", { node: 1, cast: 4
 var Harmony = bulingAction("Liberation - Flashing Thunder Spell - Harmony", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 536.79,
   offtune: 72e3,
@@ -11066,6 +11103,7 @@ var Harmony = bulingAction("Liberation - Flashing Thunder Spell - Harmony", {
 var FlashingThunderSpell = bulingAction("Liberation - Flashing Thunder Spell", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 357.86,
   offtune: 36e3,
@@ -11368,6 +11406,7 @@ var FBA33 = hsinAction("Basic - Illumining Form: Pillars Aligned 3", { node: 2, 
 var FBA43 = hsinAction("Basic - Illumining Form: Pillars Aligned 4", { node: 2, cast: 1, type: 4096, mv: 166.38, energy: 4.38, concerto: 4.8, offtune: 9560, forte2: -113.68, ...PILLAR_FLARE });
 var FADC = hsinAction("Dodge Counter - Illumining Form: Pillars Aligned", { node: 2, cast: 0, type: 4096, mv: 114.69, energy: 2.97, concerto: 13.3, offtune: 6594, ...PILLAR_FLARE });
 var FBA12342 = new ActionGroup("Basic - Illumining Form: Pillars Aligned 1234", [FBA13, FBA23, FBA33, FBA43]);
+var BA12342 = new ActionGroup("Basic - Answering Form 1234", [BA113, BA213, BA313, BA410]);
 var HORIZONS = {
   node: 2,
   cast: 3,
@@ -11391,6 +11430,7 @@ var Stilling = hsinAction("Forte Heavy - Illumining Form: Stilling All Horizons"
 var Lib12 = hsinAction("Liberation - Formshift", {
   node: 3,
   cast: 5,
+  cutscene: true,
   concerto: 20,
   resetForte2: true,
   updateDebuffs: () => {
@@ -11414,6 +11454,7 @@ var Lib12 = hsinAction("Liberation - Formshift", {
 var Lib23 = hsinAction("Liberation - Pillars Across Heaven", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 12288,
   mv: 2012.67,
   concerto: 20,
@@ -11425,6 +11466,7 @@ var Lib23 = hsinAction("Liberation - Pillars Across Heaven", {
     revokeCurrent(HEART_MANIFEST);
     revokeCurrent(THUNDERGLOW);
     revokeCurrent(PILLAR_CHARGES);
+    revokeEnemy(FLEETING_THUNDER);
     applyCurrent(NIGHTGLOW, 1);
   }
 });
@@ -11706,6 +11748,7 @@ var HS_INHERENT_2 = new Inherent({
       const inflicted = actor.isHeld(HSIN_RESONATOR) ? 0 : appliedByMember(ELECTRO_FLARE, actor);
       if (inflicted > 0)
         applyCurrent(THUNDERGLOW, inflicted);
+      return;
     }
     if (!stacksOfEnemy(FLEETING_THUNDER))
       return;
@@ -11865,6 +11908,15 @@ var HS_ROTATION_FLARE = new Rotation([
   OUTRO
 ]);
 var HS_ROTATION_UNISON = new Rotation([
+  NOINTRO,
+  JUMP,
+  ReignHold,
+  ReignPlunge,
+  Skill12,
+  BA410,
+  RealmProtector,
+  Lib12,
+  OUTRO,
   DOUBLE_INTRO,
   BA313,
   BA410,
@@ -12000,6 +12052,7 @@ var OVERRIDE = {
 var Lib = lucyAction("Liberation - Netrunner: Override", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 8192,
   mv: 894.65,
   concerto: 20,
@@ -12010,6 +12063,7 @@ var Lib = lucyAction("Liberation - Netrunner: Override", {
 var ELib = lucyAction("Liberation - Old Net Deep Dive: Override", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 8192,
   mv: 1789.29,
   concerto: 20,
@@ -12329,6 +12383,7 @@ var FHAGuts = rebeccaAction("Forte Heavy - Bang-bang-bang!: Guts", { node: 2, ca
 var Lib13 = rebeccaAction("Liberation - Party 'til Dawn!", {
   node: 3,
   cast: 5,
+  cutscene: true,
   resetEnergy: true,
   forte3: 90,
   updateBuffs: () => {
@@ -12339,6 +12394,7 @@ var Lib24 = rebeccaAction("Liberation - Mk. 31 HMG x5", {
   node: 3,
   type: 4096,
   cast: 5,
+  cutscene: true,
   mv: 24.3 * 5,
   concerto: 20 + 0.56 * 5,
   offtune: 1609 * 5,
@@ -12348,6 +12404,7 @@ var Lib32 = rebeccaAction("Liberation - Mk. 31 HMG 1st Enhancement x5", {
   node: 3,
   type: 4096,
   cast: 5,
+  cutscene: true,
   mv: 48.6 * 5,
   concerto: 1.12 * 5,
   offtune: 3218 * 5,
@@ -12357,6 +12414,7 @@ var Lib4 = rebeccaAction("Liberation - Mk. 31 HMG 2nd Enhancement x10", {
   node: 3,
   type: 4096,
   cast: 5,
+  cutscene: true,
   mv: 72.9 * 10,
   concerto: 1.67 * 10,
   offtune: 4826 * 10,
@@ -12367,6 +12425,7 @@ var Boom = rebeccaAction("Liberation - BOOM! Fireworks!", {
   node: 3,
   type: 4096,
   cast: 5,
+  cutscene: true,
   mv: 636.2,
   energy: 20,
   concerto: 10,
@@ -12754,7 +12813,7 @@ var THRUMS = [
   ThrumMaAero2,
   ThrumMaAeroPlunge
 ];
-var Liberation12 = roverAction2("Liberation - Ultimate Tactics", { node: 3, cast: 5, type: 16384, mv: 1192.86, concerto: 20, offtune: 57600, resetEnergy: true });
+var Liberation12 = roverAction2("Liberation - Ultimate Tactics", { node: 3, cast: 5, cutscene: true, type: 16384, mv: 1192.86, concerto: 20, offtune: 57600, resetEnergy: true });
 var Intro16 = roverAction2("Intro - Thunderous Fury", { node: 4, cast: 6, type: 20480, mv: 167.03, energy: 3, concerto: 20.8, offtune: 9600, forte1: 53 });
 var Outro16 = roverAction2("Outro - Rumbling Thunders", {
   cast: 7,
@@ -12895,10 +12954,10 @@ var ROVER_ELECTRO_RESONATOR = new Resonator({
     addStat(2, 1137);
   }
 });
-var BA12342 = new ActionGroup("Basic - Deterrence 1234", [BA115, BA215, BA315, BA412]);
+var BA12343 = new ActionGroup("Basic - Deterrence 1234", [BA115, BA215, BA315, BA412]);
 var ER_ROTATION = new Rotation([
   INTRO,
-  BA12342,
+  BA12343,
   Skill14,
   Repel,
   Overshock,
@@ -12918,7 +12977,7 @@ var THRUM_HAVOC = new ActionGroup("Skill - Thrum: Havoc 123", [
 ]);
 var ER_ROTATION_MDPS = new Rotation([
   INTRO,
-  BA12342,
+  BA12343,
   Skill14,
   Repel,
   OvershockHold,
@@ -12993,8 +13052,8 @@ var UBA1 = suomingAction("Basic - Unfurled Canopy 1", { node: 0, cast: 1, type: 
 var UBA2 = suomingAction("Basic - Unfurled Canopy 2", { node: 0, cast: 1, type: 4096, mv: 114.4 + 38.14 * 3, energy: 2.77 + 0.93 * 3, concerto: 2 + 0.67 * 3, offtune: 5705 + 1902 * 3, forte1: 80 + 27 * 3 });
 var UBA3 = suomingAction("Basic - Unfurled Canopy 3", { node: 0, cast: 1, type: 4096, mv: 58.64 * 4, energy: 1.42 * 4, concerto: 3.75 * 4, offtune: 3540 * 4, forte1: 45 * 4 });
 var UBA4 = suomingAction("Basic - Unfurled Canopy 4", { node: 0, cast: 1, type: 4096, mv: 107.25 * 2 + 143, energy: 2.59 * 2 + 3.46, concerto: 4.5 * 2 + 6, offtune: 6474 * 2 + 8632, forte1: 54 * 2 + 72 });
-var UBA2H1 = suomingAction("Heavy - Unfurled Canopy: Whirling Thunder 1", { node: 0, cast: 3, type: 4096, mv: 73.32 * 3 + 36.66 * 2, energy: 1.77 * 3 + 0.89 * 2, concerto: 3.75 * 3 + 1.88 * 2, offtune: 4425 * 3 + 2213 * 2, forte1: 45 * 3 + 23 * 2 });
-var UBA2H2 = suomingAction("Heavy - Unfurled Canopy: Whirling Thunder 2", { node: 0, cast: 3, type: 4096, mv: 56.69 * 5, energy: 1.37 * 5, concerto: 3 * 5, offtune: 3422 * 5, forte1: 36 * 5 });
+var UHA1 = suomingAction("Heavy - Unfurled Canopy: Whirling Thunder 1", { node: 0, cast: 3, type: 4096, mv: 73.32 * 3 + 36.66 * 2, energy: 1.77 * 3 + 0.89 * 2, concerto: 3.75 * 3 + 1.88 * 2, offtune: 4425 * 3 + 2213 * 2, forte1: 45 * 3 + 23 * 2 });
+var UHA2 = suomingAction("Heavy - Unfurled Canopy: Whirling Thunder 2", { node: 0, cast: 3, type: 4096, mv: 56.69 * 5, energy: 1.37 * 5, concerto: 3 * 5, offtune: 3422 * 5, forte1: 36 * 5 });
 var UDC = suomingAction("Dodge Counter - Unfurled Canopy", { node: 0, cast: 0, type: 4096, mv: 174.04 + 58.02 * 3, energy: 4.21 + 1.41 * 3, concerto: 3.94 + 1.32 * 3 + 10, offtune: 7004 + 2335 * 3, forte1: 80 + 27 * 3 });
 var RiftCleaver = suomingAction("Skill - Furled Canopy: Rift Cleaver", {
   node: 1,
@@ -13018,6 +13077,7 @@ var CrimsonGleamParry = suomingAction("Skill - Unfurled Canopy: Crimson Gleam", 
 var Liberation13 = suomingAction("Liberation - Umbral Canopy: Miasma Lock", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 69.59 * 7 + 208.76,
   concerto: 20,
@@ -13067,10 +13127,10 @@ var EngravedHeart = suomingAction("Forte Basic - Umbral Canopy: Engraved Heart",
   node: 2,
   cast: 1,
   type: 4096,
-  mv: 155.14 * 3 + 77.57 * 4,
-  energy: 2.05 * 3 + 1.03 * 4,
-  concerto: 2.5 * 3 + 1.25 * 4,
-  offtune: 2602 * 3 + 1301 * 4,
+  mv: 1939.29,
+  energy: 20.49,
+  concerto: 25,
+  offtune: 26016,
   forte1: -800,
   updateBuffs: () => revokeCurrent(DEEP_MIND)
 });
@@ -13124,7 +13184,7 @@ var SEAL_MASTER = new Buff({
   },
   applyStats: () => {
     const a = currentAction();
-    if (a === UBA1 || a === UBA2 || a === UBA3 || a === UBA4 || a === UBA2H1 || a === UBA2H2)
+    if (a === UBA1 || a === UBA2 || a === UBA3 || a === UBA4 || a === UHA1 || a === UHA2)
       addStat(16, 40);
     addStat(10, 80);
   }
@@ -13271,12 +13331,20 @@ var UBA234 = new ActionGroup("Basic - Unfurled Canopy 234", [UBA2, UBA3, UBA4]);
 var UBA34 = new ActionGroup("Basic - Unfurled Canopy 34", [UBA3, UBA4]);
 var UBA12 = new ActionGroup("Basic - Unfurled Canopy 12", [UBA1, UBA2]);
 var UBA1234 = new ActionGroup("Basic - Unfurled Canopy 1234", [UBA1, UBA2, UBA3, UBA4]);
+var BA1233 = new ActionGroup("Basic - Furled Canopy 123", [BA116, BA216, BA316]);
 var SM_ROTATION = new Rotation([
+  NOINTRO,
+  BA1233,
+  BA1233,
+  SealedDelusion,
   DOUBLE_INTRO,
   Liberation13,
   OUTRO,
   INTRO,
-  UBA234,
+  UHA2,
+  RiftCleaver,
+  UBA3,
+  UBA4,
   UnforsakenMind,
   EngravedHeart,
   ECHO_SWAP,
@@ -13350,7 +13418,7 @@ var MA14 = xlyAction("Mid-air - Probe", { node: 0, cast: 2, type: 4096, mv: 123.
 var DC14 = xlyAction("Dodge Counter - Probe", { node: 0, cast: 0, type: 4096, mv: 238.58, energy: 2.75, concerto: 12.5, offtune: 4e3, forte1: 26 });
 var Skill15 = xlyAction("Skill - Deduction", { node: 1, cast: 4, type: 12288, mv: 198.81, energy: 6.25, concerto: 7, offtune: 4e3, forte1: 40 });
 var FSkill4 = xlyAction("Forte Skill - Decipher", { node: 2, cast: 4, type: 16384, mv: 397.82, energy: 1.67, concerto: 7, offtune: 5336, forte1: -100 });
-var Liberation14 = xlyAction("Liberation - Cogitation Model", { node: 3, cast: 5, type: 16384, mv: 1466.06, concerto: 20, offtune: 67200, resetEnergy: true });
+var Liberation14 = xlyAction("Liberation - Cogitation Model", { node: 3, cast: 5, cutscene: true, type: 16384, mv: 1466.06, concerto: 20, offtune: 67200, resetEnergy: true });
 var UBA13 = xlyAction("Basic - Pivot: Impale 1", { node: 3, cast: 1, type: 4096, mv: 119.67, energy: 1.31, concerto: 2.62, offtune: 4192, forte2: 1 });
 var UBA22 = xlyAction("Basic - Pivot: Impale 2", { node: 3, cast: 1, type: 4096, mv: 60.92 * 4, energy: 2.68, concerto: 5.36, offtune: 8536, forte2: 2 });
 var UBA32 = xlyAction("Basic - Pivot: Impale 3", { node: 3, cast: 1, type: 4096, mv: 133.25 * 2, energy: 2.92, concerto: 5.84, offtune: 9336, forte2: 2 });
@@ -13509,7 +13577,7 @@ var Skill16 = yinlinAction("Skill - Magnetic Roar", {
 });
 var Skill24 = yinlinAction("Skill - Lightning Execution", { node: 1, cast: 4, type: 12288, mv: 89.47 * 4, energy: 15, concerto: 15, offtune: 5328, forte1: 4 });
 var ACTION_BLAST = yinlinAction("Skill - Electromagnetic Blast", { node: 1, type: 12288, mv: 19.89, concerto: 5 });
-var Liberation15 = yinlinAction("Liberation - Thundering Wrath", { node: 3, cast: 5, type: 16384, mv: 116.56 * 7, concerto: 20, offtune: 36001, resetEnergy: true });
+var Liberation15 = yinlinAction("Liberation - Thundering Wrath", { node: 3, cast: 5, cutscene: true, type: 16384, mv: 116.56 * 7, concerto: 20, offtune: 36001, resetEnergy: true });
 var FHA6 = yinlinAction("Forte Heavy - Chameleon Cipher", {
   node: 2,
   cast: 3,
@@ -13753,6 +13821,7 @@ var isDuet = (a) => a === AmyFSkill || a === MechFSkill;
 var Lib14 = aemeathAction("Liberation - Heavenfall Edict: Overdrive", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 1004.02,
   concerto: 20,
@@ -13769,6 +13838,7 @@ var Lib14 = aemeathAction("Liberation - Heavenfall Edict: Overdrive", {
 var Lib25 = aemeathAction("Liberation - Heavenfall Edict: Finale", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 1789.29,
   energy: 20,
@@ -14115,6 +14185,7 @@ var Skill17 = brantAction("Skill - Anchors Aweigh!", { node: 1, cast: 4, type: 1
 var Liberation16 = brantAction("Liberation - To the Horizon", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 680.45,
   offtune: 48e3,
@@ -14453,6 +14524,7 @@ var FlamingSacrifice = changliAction("Forte Heavy - Flaming Sacrifice", { node: 
 var Liberation17 = changliAction("Liberation - Radiance of Fealty", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 1212.75,
   offtune: 100800,
@@ -14693,6 +14765,7 @@ var Banish2 = deniaAction("Skill - Banish 2", { node: 1, cast: 4, type: 16384, m
 var Lib15 = deniaAction("Liberation - Final Act (Stagecraft)", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 397.62,
   concerto: 20,
@@ -14707,6 +14780,7 @@ var Lib15 = deniaAction("Liberation - Final Act (Stagecraft)", {
 var Lib26 = deniaAction("Liberation - Final Act (Breakdown)", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 795.24,
   energy: 30,
@@ -15041,7 +15115,7 @@ var Skill110 = encoreAction("Skill - Flaming Woolies", { node: 1, cast: 4, type:
 var Skill25 = encoreAction("Skill - Energetic Welcome", { node: 1, cast: 4, type: 12288, mv: 339.16, energy: 0.75, concerto: 6.51, offtune: 9072, forte1: 30 });
 var SPEND_MAYHEM = { forte1: -100 };
 var CloudyFrenzy = encoreAction("Forte Heavy - Cloudy Frenzy", { node: 2, cast: 3, type: 16384, mv: 773.73, concerto: 10, offtune: 46709, ...SPEND_MAYHEM });
-var Liberation18 = encoreAction("Liberation - Cosmos Rave", { node: 3, cast: 5, concerto: 20, resetEnergy: true });
+var Liberation18 = encoreAction("Liberation - Cosmos Rave", { node: 3, cast: 5, cutscene: true, concerto: 20, resetEnergy: true });
 var UBA15 = encoreAction("Basic - Cosmos: Frolicking 1", { node: 3, cast: 1, type: 4096, mv: 180.36, energy: 1.32, concerto: 2.66, offtune: 6396, forte1: 8 });
 var UBA24 = encoreAction("Basic - Cosmos: Frolicking 2", { node: 3, cast: 1, type: 4096, mv: 169.2, energy: 1.23, concerto: 2.49, offtune: 6e3, forte1: 12 });
 var UBA35 = encoreAction("Basic - Cosmos: Frolicking 3", { node: 3, cast: 1, type: 4096, mv: 263.96, energy: 1.92, concerto: 3.88, offtune: 9360, forte1: 16 });
@@ -15300,6 +15374,7 @@ var Ravage = galbrenaAction("Forte Skill - Ravage", {
 var Liberation19 = galbrenaAction("Liberation - Hellfire Absolution", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 28672,
   mv: 1109.04,
   concerto: 20,
@@ -15470,6 +15545,7 @@ var ESkill22 = jingranAction("Skill - Netherworld Traverse", { node: 1, cast: 4,
 var Lib5 = jingranAction("Liberation - Burial of Thousand Souls", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 8192,
   mv: 745.2,
   // 93.15% x 8
@@ -15639,12 +15715,12 @@ var SHIELDS2 = /* @__PURE__ */ new Map([
   [EDC3, 1],
   [Skill111, 1],
   [ESkill1, 1],
-  [Skill26, 3],
-  [ESkill22, 3],
-  [Lib5, 3],
+  [Skill26, 2],
+  [ESkill22, 2],
+  [Lib5, 1],
   [Intro25, 1],
-  [FHA8, 2],
-  [EFHA, 2]
+  [FHA8, 1],
+  [EFHA, 1]
 ]);
 var JINGRAN_TALENTS = new Talent({
   name: "Talents: Jingran",
@@ -15694,13 +15770,13 @@ var JR_ROTATION = new Rotation([
   INTRO,
   Lib5,
   FHA8,
-  ESkill1,
-  ESkill22,
+  EBA2342,
   EFHA,
   Skill111,
   Skill26,
   FHA8,
-  EBA2342,
+  ESkill1,
+  ESkill22,
   EFHA,
   ECHO_SWAP,
   OUTRO
@@ -15768,6 +15844,7 @@ var USkill4 = lupaAction("Skill - Foebreaker", {
 var Liberation20 = lupaAction("Liberation - Fire-Kissed Glory", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 820.44,
   concerto: 20,
@@ -16034,6 +16111,7 @@ var DistributedArray = mornyeAction("Skill - Distributed Array", { node: 1, cast
 var Liberation21 = mornyeAction("Liberation - Critical Protocol", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   scaling: 2,
   mv: 522.33,
@@ -16150,7 +16228,7 @@ var MORNYE_RESONATOR = new Resonator({
     addStat(12, 10);
   }
 });
-var BA1233 = new ActionGroup("Basic - Ground State Calibration 123", [BA127, BA226, BA326]);
+var BA1235 = new ActionGroup("Basic - Ground State Calibration 123", [BA127, BA226, BA326]);
 var WBA123 = new ActionGroup("Basic - Wide Field Observation 123", [WBA1, WBA2, WBA3]);
 var SkillSwap = Skill20.swap();
 var MO_ROTATION = new Rotation([
@@ -16159,7 +16237,7 @@ var MO_ROTATION = new Rotation([
   SkillSwap,
   SWAP,
   NOINTRO,
-  BA1233,
+  BA1235,
   GeopotentialShift,
   INTRO,
   Liberation21,
@@ -16204,6 +16282,7 @@ var FSkill7 = mortefiAction("Forte Skill - Fury Fugue", { node: 2, cast: 4, type
 var Liberation22 = mortefiAction("Liberation - Violent Finale", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 159.05,
   concerto: 20,
@@ -16406,13 +16485,13 @@ var MORTEFI_RESONATOR = new Resonator({
     addStat(2, 1137);
   }
 });
-var BA12343 = new ActionGroup("Basic - Impromptu Show 1234", [BA128, BA227, BA327, BA423]);
+var BA12344 = new ActionGroup("Basic - Impromptu Show 1234", [BA128, BA227, BA327, BA423]);
 var MO_ROTATION2 = new Rotation([
   INTRO,
   Skill21,
-  BA12343,
+  BA12344,
   // TODO swap this
-  BA12343,
+  BA12344,
   FSkill7,
   Liberation22,
   ECHO_SWAP,
@@ -16496,6 +16575,7 @@ var FHA9 = carlottaAction("Forte Heavy - Imminent Oblivion", {
 var Lib16 = carlottaAction("Liberation - Era of New Wave", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 12288,
   mv: 402.71,
   concerto: 20,
@@ -16512,7 +16592,6 @@ var DeathKnell = carlottaAction("Liberation - Death Knell", {
   node: 3,
   cast: 5,
   type: 12288,
-  realTime: true,
   mv: 241.64,
   energy: 5,
   concerto: 7,
@@ -16522,6 +16601,7 @@ var DeathKnell = carlottaAction("Liberation - Death Knell", {
 var FatalFinale = carlottaAction("Liberation - Fatal Finale", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 12288,
   mv: 644.33,
   concerto: 10,
@@ -16764,7 +16844,7 @@ var FDC3 = hiyukiAction("Dodge Counter - Foreclaimed Self 2", { node: 0, cast: 0
 var FMA13 = hiyukiAction("Mid-air - Foreclaimed Self 1", { node: 0, cast: 2, type: 16384, mv: 96.09, energy: 1.63, concerto: 3.13, offtune: 5523, forte2: 19 });
 var FMA23 = hiyukiAction("Mid-air - Foreclaimed Self 2", { node: 0, cast: 2, type: 16384, mv: 104.36, energy: 1.8, concerto: 3.4, offtune: 6e3, forte2: 20, ...CHAFE });
 var FMA33 = hiyukiAction("Mid-air - Foreclaimed Self 3", { node: 0, cast: 2, type: 16384, mv: 111.6, energy: 1.89, concerto: 3.61, offtune: 6416, forte2: 22, ...CHAFE });
-var UHA2 = hiyukiAction("Heavy - Foreclaimed Self", { node: 0, cast: 3, type: 16384, mv: 107.16, energy: 1.81, concerto: 3.47, offtune: 6160, forte2: 21 });
+var UHA3 = hiyukiAction("Heavy - Foreclaimed Self", { node: 0, cast: 3, type: 16384, mv: 107.16, energy: 1.81, concerto: 3.47, offtune: 6160, forte2: 21 });
 var FHA10 = hiyukiAction("Heavy - Bitterfrost: Foreclaimed Self", {
   node: 0,
   cast: 3,
@@ -16792,6 +16872,7 @@ var USkill22 = hiyukiAction("Skill - Frostblight: Petalfall", { node: 1, cast: 4
 var Lib17 = hiyukiAction("Liberation - Foreclaiming: Inward Vision", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 397.62,
   concerto: 20,
@@ -16806,6 +16887,7 @@ var Lib17 = hiyukiAction("Liberation - Foreclaiming: Inward Vision", {
 var Lib2Tap = hiyukiAction("Liberation - Foreclaiming: Blade Liberation", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 994.05,
   concerto: 20,
@@ -16818,6 +16900,7 @@ var Lib2Tap = hiyukiAction("Liberation - Foreclaiming: Blade Liberation", {
 var Lib2Hold = hiyukiAction("Liberation - Foreclaiming: Blade Liberation", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 994.05,
   concerto: 20,
@@ -17050,10 +17133,10 @@ var HY_ROTATION = new Rotation([
   BA328,
   FrostSplinter,
   Lib17,
-  UHA2,
+  UHA3,
   FBA24,
   FBA34,
-  UHA2,
+  UHA3,
   FBA24,
   FBA34,
   USkill1,
@@ -17130,6 +17213,7 @@ var Spotlight = lucillaAction("Skill - Spotlight", {
 var Liberation23 = lucillaAction("Liberation - Clear As Day", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 28672,
   mv: 142.74,
   concerto: 20,
@@ -17401,6 +17485,7 @@ var Skill30 = sanhuaAction("Skill - Eternal Frost", {
 var Liberation24 = sanhuaAction("Liberation - Glacial Gaze", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 809.48,
   offtune: 61440,
@@ -17732,6 +17817,7 @@ var FSkill8 = suisuiAction("Skill - Vernal Screen: Drizzle Stance", { node: 1, c
 var Liberation25 = suisuiAction("Liberation - Song of Thoroughfare", {
   node: 3,
   cast: 5,
+  cutscene: true,
   concerto: 20,
   resetEnergy: true,
   updateBuffs: () => applyTeam(CEASELESS_LANDSCAPE, 1)
@@ -17984,10 +18070,10 @@ var SUISUI_RESONATOR = new Resonator({
   }
 });
 var FBA12343 = new ActionGroup("Basic - Drizzle Stance 1234", [FBA15, FBA25, FBA35, FBA45]);
-var BA1235 = new ActionGroup("Basic - Zephyr Stance 123", [BA133, BA232, BA331]);
+var BA1236 = new ActionGroup("Basic - Zephyr Stance 123", [BA133, BA232, BA331]);
 var SS_ROTATION = new Rotation([
   NOINTRO,
-  BA1235,
+  BA1236,
   ESkill4,
   INTRO,
   FSkill8,
@@ -17998,7 +18084,7 @@ var SS_ROTATION = new Rotation([
 ]);
 var SS_ROTATION_S3 = new Rotation([
   NOINTRO,
-  BA1235,
+  BA1236,
   ESkill4,
   INTRO,
   FSkill8,
@@ -18080,6 +18166,7 @@ var FSkill33 = zhezhiAction("Forte Skill - Creation's Zenith", {
 var Liberation26 = zhezhiAction("Liberation - Living Canvas", {
   node: 3,
   cast: 5,
+  cutscene: true,
   concerto: 20,
   resetEnergy: true,
   updateBuffs: () => applyTeam(INKLIT_SPIRITS, 21)
@@ -18193,12 +18280,15 @@ var ZHEZHI_RESONATOR = new Resonator({
     addStat(2, 1198);
   }
 });
-var BA1236 = new ActionGroup("Basic - Dimming Brush 123", [BA134, BA233, BA332]);
+var BA1237 = new ActionGroup("Basic - Dimming Brush 123", [BA134, BA233, BA332]);
 var ZZ_ROTATION = new Rotation([
+  START_3,
+  Liberation26,
+  SWAP,
   NOINTRO,
-  BA1236,
+  BA1237,
   INTRO,
-  BA1236,
+  BA1237,
   Liberation26,
   Skill33,
   FHA14,
@@ -18295,7 +18385,7 @@ var Ephemeral = camellyaAction("Forte Skill - Ephemeral", {
     revokeCurrent(CRIMSON_BUD);
   }
 });
-var Liberation27 = camellyaAction("Liberation - Fervor Efflorescent", { node: 3, cast: 5, type: 16384, mv: 1202.81, concerto: 20, offtune: 84e3, resetEnergy: true });
+var Liberation27 = camellyaAction("Liberation - Fervor Efflorescent", { node: 3, cast: 5, cutscene: true, type: 16384, mv: 1202.81, concerto: 20, offtune: 84e3, resetEnergy: true });
 var Intro35 = camellyaAction("Intro - Everblooming", {
   node: 4,
   cast: 6,
@@ -18532,6 +18622,7 @@ var FSkill10 = cantaAction("Forte Skill - Perception Drain", {
 var Liberation28 = cantaAction("Liberation - Beneath the Sea", {
   node: 3,
   cast: 5,
+  cutscene: true,
   cast2: 8,
   type: 4096,
   mv: 376,
@@ -18789,6 +18880,7 @@ var SerratedLoopHold = chisaAction("Skill - Serrated Loop (Hold)", { node: 1, ca
 var Liberation29 = chisaAction("Liberation - Moment of Nihility", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   resetEnergy: true,
   mv: 954.29,
@@ -19112,7 +19204,7 @@ var FullChaoscleave = danjinAction("Forte Heavy - Chaoscleave (Full Energy)", {
   updateDebuffs: () => applyCurrent(HEALS, 1)
 });
 var FullScatterbloom = danjinAction("Heavy - Scatterbloom (Full Energy)", { node: 2, cast: 3, type: 8192, mv: 429.43, energy: 6, offtune: 5360 });
-var Liberation30 = danjinAction("Liberation - Crimson Bloom", { node: 3, cast: 5, type: 16384, mv: 785.37, concerto: 20, offtune: 61440, resetEnergy: true });
+var Liberation30 = danjinAction("Liberation - Crimson Bloom", { node: 3, cast: 5, cutscene: true, type: 16384, mv: 785.37, concerto: 20, offtune: 61440, resetEnergy: true });
 var Intro38 = danjinAction("Intro - Vindication", { node: 4, cast: 6, type: 20480, mv: 198.84, energy: 10, concerto: 10, offtune: 12240 });
 var Outro39 = danjinAction("Outro - Duality", {
   cast: 7,
@@ -19355,6 +19447,7 @@ var FBA37 = rocciaAction("Forte Basic - Real Fantasy 3", { node: 2, cast: 1, typ
 var Liberation31 = rocciaAction("Liberation - Commedia Improvviso!", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 8192,
   mv: 835.02,
   concerto: 20,
@@ -19553,7 +19646,7 @@ var EHA6 = roverAction3("Heavy - Umbra", { node: 2, cast: 3, type: 8192, mv: 128
 var EHA22 = roverAction3("Heavy - Umbra: Thwackblade", { node: 2, cast: 3, type: 8192, mv: 166.45, energy: 1.24, concerto: 2.12, offtune: 8704 });
 var Skill37 = roverAction3("Skill - Wingblade", { node: 1, cast: 4, type: 12288, mv: 572.58, energy: 12, concerto: 15, offtune: 8640, forte1: 39 });
 var ESkill6 = roverAction3("Skill - Umbra: Lifetaker", { node: 2, cast: 4, type: 12288, mv: 592.5, energy: 8, concerto: 15, offtune: 11664, forte1: 39 });
-var Liberation32 = roverAction3("Liberation - Deadening Abyss", { node: 3, cast: 5, type: 16384, mv: 1520.9, concerto: 20, offtune: 53760, resetEnergy: true });
+var Liberation32 = roverAction3("Liberation - Deadening Abyss", { node: 3, cast: 5, cutscene: true, type: 16384, mv: 1520.9, concerto: 20, offtune: 53760, resetEnergy: true });
 var Intro40 = roverAction3("Intro - Instant of Annihilation", { node: 4, cast: 6, type: 20480, forte1: 29, mv: 198.81, energy: 10, concerto: 10, offtune: 1867 });
 var Outro41 = roverAction3("Outro - Soundweaver", { cast: 7, type: 24576, mv: 429.9, concerto: -100, swapOut: true });
 var DARK_SURGE = new Buff({
@@ -19832,6 +19925,7 @@ var HiB3 = yangyangAction("Basic - Havoc in Bloom 3", { node: 2, cast: 1, type: 
 var Lib6 = yangyangAction("Liberation - Hush of a Thousand Voices", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 8192,
   mv: 1988.1,
   concerto: 20,
@@ -19988,7 +20082,7 @@ var XUANLING_RESONATOR = new Resonator({
   weapon: 0,
   intro: () => Intro41,
   outro: () => Outro42,
-  color: "#8e05c8",
+  color: "#4f29e6",
   maxEnergy: 125,
   maxForte1: 100,
   maxForte2: 2,
@@ -20074,7 +20168,7 @@ var ESkill7 = jinhsiAction("Skill - Overflowing Radiance", {
 var IncBA1 = jinhsiAction("Basic - Incarnation 1", { node: 2, cast: 1, type: 12288, mv: 88.62, energy: 1.24, concerto: 1.24, offtune: 3960 });
 var IncBA2 = jinhsiAction("Basic - Incarnation 2", { node: 2, cast: 1, type: 12288, mv: 129.95, energy: 1.83, concerto: 1.83, offtune: 5809 });
 var IncBA3 = jinhsiAction("Basic - Incarnation 3", { node: 2, cast: 1, type: 12288, mv: 165.74, energy: 2.32, concerto: 2.32, offtune: 7409 });
-var IncBA4 = jinhsiAction("Forte Basic - Incarnation 4", {
+var IncBA4 = jinhsiAction("Basic - Incarnation 4", {
   node: 2,
   cast: 1,
   type: 12288,
@@ -20093,6 +20187,7 @@ var CrescentDivinity = jinhsiAction("Skill - Crescent Divinity", { node: 2, cast
 var SolarFlare = jinhsiAction("Forte Skill - Illuminous Epiphany: Solar Flare", {
   node: 2,
   cast: 4,
+  cutscene: true,
   type: 12288,
   mv: 119.34,
   energy: 1.98,
@@ -20106,7 +20201,7 @@ var SolarFlare = jinhsiAction("Forte Skill - Illuminous Epiphany: Solar Flare", 
   }
 });
 var StellaGlamor = jinhsiAction("Forte - Illuminous Epiphany: Stella Glamor", { node: 2, type: 12288, mv: 347.92, energy: 5.67, offtune: 42002 });
-var Liberation33 = jinhsiAction("Liberation - Purge of Light", { node: 3, cast: 5, type: 16384, mv: 1666.03, concerto: 20, offtune: 84e3, resetEnergy: true });
+var Liberation33 = jinhsiAction("Liberation - Purge of Light", { node: 3, cast: 5, cutscene: true, type: 16384, mv: 1666.03, concerto: 20, offtune: 84e3, resetEnergy: true });
 var Intro42 = jinhsiAction("Intro - Loong's Halo", {
   node: 4,
   cast: 6,
@@ -20282,29 +20377,33 @@ var JINHSI_RESONATOR = new Resonator({
     addStat(2, 1258.9);
   }
 });
-var IncBA123 = new ActionGroup("Basic - Incarnation 123", [IncBA1, IncBA2, IncBA3]);
+var BA12346 = new ActionGroup("Basic - Slash of Breaking Dawn 1234", [BA141, BA241, BA339, BA429]);
 var JX_ROTATION2 = new Rotation([
-  START_2,
   START_3,
   Liberation33,
+  ECHO_ONFIELD,
   SWAP,
+  NOINTRO,
+  BA12346,
   DOUBLE_INTRO,
   ESkill7,
-  IncBA123,
+  IncBA1,
+  IncBA2,
   CrescentDivinity,
+  IncBA3,
   IncBA4,
   SolarFlare,
-  Skill38.swap(),
   OUTRO,
   INTRO,
   ECHO_ONFIELD,
   ESkill7,
-  IncBA123,
+  IncBA1,
+  IncBA2,
   CrescentDivinity,
+  IncBA3,
   IncBA4,
   SolarFlare,
   Liberation33,
-  Skill38.swap(),
   OUTRO
 ]);
 var JX_ECHOES = [
@@ -20368,6 +20467,7 @@ var IchorBlade = luukAction("Forte - Ichor Blade", { node: 2, type: 4096, scalin
 var Liberation34 = luukAction("Liberation - Rewritten in Winter's Margins", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 4096,
   mv: 994.09,
   concerto: 20,
@@ -20589,6 +20689,7 @@ var AdditiveColor = lynaeAction("Skill - Additive Color", { node: 1, cast: 4, ty
 var Liberation35 = lynaeAction("Liberation - Prismatic Overblast", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 874.8,
   concerto: 20,
@@ -20780,6 +20881,7 @@ var FBA7 = roverAction4("Basic - Resonating Echoes", { node: 2, cast: 1, type: 1
 var Liberation36 = roverAction4("Liberation - Echoing Orchestra", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 874.77,
   concerto: 20,
@@ -20963,6 +21065,7 @@ var FHA15 = skAction("Forte Heavy - Illation", { node: 2, cast: 3, type: 8192, m
 var Liberation37 = skAction("Liberation - End Loop", {
   node: 3,
   cast: 5,
+  cutscene: true,
   concerto: 20,
   resetEnergy: true,
   // "Generate the Outer Stellarealm": a cast puts up a *new* realm rather than stepping the one
@@ -21117,7 +21220,7 @@ var SHOREKEEPER_RESONATOR = new Resonator({
     addStat(2, 1100);
   }
 });
-var BA1237 = new ActionGroup("Basic - Origin Calculus 123", [BA145, BA245, BA343]);
+var BA1238 = new ActionGroup("Basic - Origin Calculus 123", [BA145, BA245, BA343]);
 var SK_LOOP = new Rotation([
   START_3,
   Skill42,
@@ -21125,7 +21228,7 @@ var SK_LOOP = new Rotation([
   ECHO_SWAP,
   SWAP,
   NOINTRO,
-  BA1237,
+  BA1238,
   JUMP,
   MA50,
   FHA15,
@@ -21140,7 +21243,7 @@ var SK_LOOP = new Rotation([
   ECHO_SWAP,
   OUTRO,
   INTRO,
-  BA1237,
+  BA1238,
   JUMP,
   MA50,
   FHA15,
@@ -21158,7 +21261,7 @@ var SK_LOOP_S3 = new Rotation([
   ECHO_SWAP,
   SWAP,
   NOINTRO,
-  BA1237,
+  BA1238,
   JUMP,
   MA50,
   FHA15,
@@ -21224,6 +21327,7 @@ var ForteMidair3 = verinaAction("Forte Mid-air - Starflower Blooms 3", { node: 2
 var Liberation38 = verinaAction("Liberation - Arboreal Flourish", {
   node: 3,
   cast: 5,
+  cutscene: true,
   type: 16384,
   mv: 198.81,
   concerto: 20,
@@ -21407,16 +21511,20 @@ var VERINA = new Loadout({
 // dist/src/teams.js
 var TEAMS = [
   // suoming mdps, electro basic unison
-  [[SHOREKEEPER, VERINA, MORNYE], [SANHUA, LYNAE_RUPTURE, REBECCA], [SUOMING_MDPS]],
+  [[SHOREKEEPER, VERINA, MORNYE], [SANHUA, LYNAE_RUPTURE, REBECCA, ROCCIA], [SUOMING_MDPS]],
   //[[SHOREKEEPER, VERINA, MORNYE, BULING, ZHEZHI], [JINHSI,JINHSI], [SUOMING]],
   //[[SHOREKEEPER, VERINA, BULING, MORNYE, SUISUI], [HSIN_UNISON,HSIN_UNISON], [SUOMING]],
   // hsin (Electro Flare mode): electro skill flare
-  [[SUISUI, BULING, CHISA, SHOREKEEPER], [CHISA, ROVER_ELECTRO], [HSIN_FLARE]],
+  [[SUISUI, BULING, CHISA, SHOREKEEPER, MORNYE], [CHISA, ROVER_ELECTRO, LYNAE_RUPTURE, REBECCA], [HSIN_FLARE]],
   // hsin, Unison mode: Suoming or Jinhsi behind her hands over the Unison her Intro answers
   [[SHOREKEEPER, VERINA, BULING, MORNYE, SUISUI], [SUOMING, SUOMING], [HSIN_UNISON]],
+  [[HSIN_UNISON], [JINHSI, JINHSI], [SUOMING, SUOMING]],
+  [[SUOMING, SUOMING], [HSIN_UNISON], [JINHSI, JINHSI]],
+  [[JINHSI, JINHSI], [SUOMING, SUOMING], [HSIN_UNISON]],
   //[[SHOREKEEPER, VERINA, BULING, MORNYE, SUISUI], [JINHSI, JINHSI], [HSIN_UNISON]],
   // jinhsi: spectro skill
   [[SHOREKEEPER, VERINA, MORNYE, BULING, ZHEZHI, SUISUI], [ZHEZHI, YINLIN, CANTARELLA, LYNAE_RUPTURE, REBECCA, SUOMING, HSIN_UNISON], [JINHSI]],
+  //[[SHOREKEEPER, VERINA, MORNYE, BULING, ZHEZHI, SUISUI], [JINHSI], [SUOMING, HSIN_UNISON]],
   // electro rover mdps: Apex Resonance, the Thrum of All Sounds chains
   [[BULING, CHISA, SHOREKEEPER, VERINA, MORNYE], [LYNAE_RUPTURE, REBECCA], [ROVER_ELECTRO_MDPS]],
   // jingran: fusion heavy shielder

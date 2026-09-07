@@ -67,7 +67,7 @@ const ChiCounter = jianxinAction("Skill - Calming Air: Chi Counter", { node: Nod
 // --- Purification Force Field: the 3.12s field's 29.83% ticks (15 — see the file header) and the
 //     636.20% explosion as it collapses, as one cast. Spends the Energy bar (150).
 const Liberation = jianxinAction("Liberation - Purification Force Field", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 636.2 + 29.83 * 15, concerto: 20,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 636.2 + 29.83 * 15, concerto: 20,
   offtune: 48000 + 3200 * 15, resetEnergy: true,
 });
 

@@ -106,7 +106,7 @@ const USkill = lupaAction("Skill - Foebreaker", {
 
 // tops Wolflame to 100, spends every point of Wolfaith, opens Pack Hunt/Glory
 const Liberation = lupaAction("Liberation - Fire-Kissed Glory", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 820.44, concerto: 20, offtune: 48000, forte1: 100, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 820.44, concerto: 20, offtune: 48000, forte1: 100, resetEnergy: true,
   // "Restores 100 points of Wolflame" is a hard top-off, not additive on top of whatever was
   // already held, and every point of Wolfaith goes: both reset ahead of the declared +100
   resetForte1: true, resetForte2: true,

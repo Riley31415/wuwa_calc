@@ -69,7 +69,7 @@ const Downbeat = ciacconaAction("Forte Heavy - Quadruple Downbeat", { node: Node
 // --- liberation / intro / outro. The Liberation opens Recital (see file header); a fresh cast
 //     starts it over, and switching her back in ends it.
 const Liberation = ciacconaAction("Liberation - Singer's Triple Cadenza", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1100.42, concerto: 20, offtune: 48000, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 1100.42, concerto: 20, offtune: 48000, resetEnergy: true,
   updateDebuffs: () => applyCurrent(SHIELD, 1), // Interlude Tune
   updateBuffs: () => { revokeTeam(RECITAL); applyTeam(RECITAL, 33); },
 });

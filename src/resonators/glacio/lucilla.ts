@@ -122,7 +122,7 @@ const Spotlight = lucillaAction("Skill - Spotlight", {
 // Echo Skill DMG under Echo mode; Chafe mode's own typeOverride makes it Basic Attack DMG instead
 // (see MODE_CHAFE) — one action, not one per mode
 const Liberation = lucillaAction("Liberation - Clear As Day", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Echo, mv: 142.74, concerto: 20, offtune: 38400,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Echo, mv: 142.74, concerto: 20, offtune: 38400,
   updateBuffs: () => {
     applyCurrent(LIB_SELF_DMG, 1);
     if (isHeld(MODE_CHAFE)) applyTeam(FILM_ROLL, 4); else applyTeam(ZOOM, 1);

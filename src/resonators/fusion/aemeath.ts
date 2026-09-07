@@ -115,12 +115,12 @@ const isDuet = (a: Action): boolean => a === AmyFSkill || a === MechFSkill;
 //     spends both gauges whole — the caps as its deltas, clamped to them first so it lands on 0;
 //     what it closes, each buff closes itself. Both carry their flat 20 Concerto Regen.
 const Lib1 = aemeathAction("Liberation - Heavenfall Edict: Overdrive", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1004.02, concerto: 20, offtune: 84000,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 1004.02, concerto: 20, offtune: 84000,
   resetEnergy: true, forte1: 30, forte2: 1,
   updateBuffs: () => { applyCurrent(MECH_FORM, 1); applyCurrent(UNBOUND, 1); applyCurrent(STARDUST, 2); },
 });
 const Lib2 = aemeathAction("Liberation - Heavenfall Edict: Finale", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1789.29, energy: 20, concerto: 20, offtune: 84000, forte1: -200, forte2: -4,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 1789.29, energy: 20, concerto: 20, offtune: 84000, forte1: -200, forte2: -4,
   updateBuffs: () => revokeCurrent(MECH_FORM),
 });
 

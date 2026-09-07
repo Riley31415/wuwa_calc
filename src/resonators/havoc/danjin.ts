@@ -102,7 +102,7 @@ const FullChaoscleave = danjinAction("Forte Heavy - Chaoscleave (Full Energy)", 
 const FullScatterbloom = danjinAction("Heavy - Scatterbloom (Full Energy)", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 429.43, energy: 6, offtune: 5360 });
 
 // consecutive attacks plus one Scarlet Burst, lumped into one hit
-const Liberation = danjinAction("Liberation - Crimson Bloom", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 785.37, concerto: 20, offtune: 61440, resetEnergy: true }); // 49.09%x8+392.65%
+const Liberation = danjinAction("Liberation - Crimson Bloom", { node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 785.37, concerto: 20, offtune: 61440, resetEnergy: true }); // 49.09%x8+392.65%
 
 const Intro = danjinAction("Intro - Vindication", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.84, energy: 10, concerto: 10, offtune: 12240 }); // 49.71% x4
 const Outro = danjinAction("Outro - Duality", {

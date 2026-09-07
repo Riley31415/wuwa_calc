@@ -67,7 +67,7 @@ const FBA = roverAction("Basic - Resonating Echoes", { node: Node.Forte, cast: C
 // HEALS is her own healing marker, read by every healing sonata and weapon (statuses.ts) —
 // applied to the healer alone, never the team
 const Liberation = roverAction("Liberation - Echoing Orchestra", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 874.77, concerto: 20, offtune: 61441, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 874.77, concerto: 20, offtune: 61441, resetEnergy: true,
   updateDebuffs: () => { applyCurrent(HEALS, 1); applyEnemy(SPECTRO_FRAZZLE, 6); },
 });
 const Intro = roverAction("Intro - Waveshock", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 168.99, energy: 10, concerto: 10, offtune: 4880, forte1: 50 });

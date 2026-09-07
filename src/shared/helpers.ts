@@ -33,7 +33,6 @@ import {
 } from "../engine/context.js";
 import type { GearDef } from "../engine/gear.js";
 import { Stat } from "../engine/stats.js";
-import { TUNE_BREAK } from "./tunebreak.js";
 
 /* -------------------------------------------------------------------------------- lost on swap */
 
@@ -97,13 +96,11 @@ export function handoff(name: string, applyStats: () => void): Buff {
 /** The clockless engine's second: one on-field, non-triggered press. Every timed thing here (a
  *  field's window, a status's tick clock) counts these off as its seconds.
  *
- *  Two presses are no second at all, because the world is frozen for their whole animation
+ *  A cutscene press is no second at all, because the world is frozen for its whole animation
  *  (wuwalab's frame data: a Liberation's `time_stop` outlasts its cast, a Tune Break's is all of
- *  it): a Liberation cast and the shared Tune Break. A Liberation-cast press that does take real
- *  time says so itself (`ActionDef.realTime` — Carlotta's Death Knell, a second a shot). */
+ *  it) — the press says so itself (`ActionDef.cutscene`). */
 export function oneSecondPassed(): boolean {
-  const a = currentAction();
-  return isActive() && !triggeredAction() && (!casting(Cast.Liberation) || a.realTime) && a !== TUNE_BREAK;
+  return isActive() && !triggeredAction() && !currentAction().cutscene;
 }
 
 /* ------------------------------------------------------------------------- coordinated windows */

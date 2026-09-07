@@ -101,9 +101,9 @@ const FHA = carlottaAction("Forte Heavy - Imminent Oblivion", {
 
 // Era of New Wave opens Twilight Tango; Death Knell (up to 4, each granting 1 Meta Vector) then
 // Fatal Finale (requires and spends all 4) close it out. Death Knell's shots are real presses of
-// about a second each, not a frozen-world cinematic, so they count as time (helpers.ts's second)
+// about a second each, not a frozen-world cinematic, so they carry no `cutscene` and count as time
 const Lib1 = carlottaAction("Liberation - Era of New Wave", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Skill, mv: 402.71, concerto: 20, offtune: 33600, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Skill, mv: 402.71, concerto: 20, offtune: 33600, resetEnergy: true,
   resetForte2: true, // Twilight Tango removes all Substance on opening
   updateBuffs: () => {
     applyEnemy(DECONSTRUCTION, 1);
@@ -111,10 +111,10 @@ const Lib1 = carlottaAction("Liberation - Era of New Wave", {
   },
 });
 const DeathKnell = carlottaAction("Liberation - Death Knell", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Skill, realTime: true, mv: 241.64, energy: 5, concerto: 7, offtune: 9600, forte3: 1,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Skill, mv: 241.64, energy: 5, concerto: 7, offtune: 9600, forte3: 1,
 });
 const FatalFinale = carlottaAction("Liberation - Fatal Finale", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Skill, mv: 644.33, concerto: 10, offtune: 50400, forte3: -4,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Skill, mv: 644.33, concerto: 10, offtune: 50400, forte3: -4,
 });
 
 const Intro = carlottaAction("Intro - Wintertime Aria", {

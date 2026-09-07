@@ -82,7 +82,7 @@ const Skill = lynaeAction("Skill - Lynae-Style Palettes", { node: Node.Skill, ca
 const AdditiveColor = lynaeAction("Skill - Additive Color", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 232.62, energy: 6.92, concerto: 8.2, offtune: 7280 });
 
 const Liberation = lynaeAction("Liberation - Prismatic Overblast", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 874.8,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 874.8,
   concerto: 20, offtune: 48000, resetEnergy: true,
   updateBuffs: () => applyTeam(PRISMATIC_OVERBLAST, 1),
 });

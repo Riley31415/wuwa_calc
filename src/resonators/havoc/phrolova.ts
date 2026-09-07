@@ -68,7 +68,7 @@ const ScarletCoda = phroAction("Heavy - Scarlet Coda", {
 // "Lib2" row (465.22% MV) has no matching action here — a known gap, flagged rather than guessed.
 // Opens Maestro and banks the ten auto-cast chances (NOTES' own bits 12-15).
 const Liberation = phroAction("Liberation - Waltz of Forsaken Depths", {
-  node: Node.Liberation, cast: Cast.Liberation, concerto: 20, resetForte1: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, concerto: 20, resetForte1: true,
   updateBuffs: () => {
     applyCurrent(MAESTRO, 1);
     setStacksSelf(NOTES, (stacksOf(NOTES) & ~(15 << 12)) | (10 << 12));

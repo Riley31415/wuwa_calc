@@ -34,7 +34,7 @@ import {
   tagKind,
   teamAt,
   teamKey
-} from "./chunk-NREJGSWB.js";
+} from "./chunk-W5FISKCS.js";
 
 // dist/src/display.js
 var keysFor = (action, ...stats) => stats.flatMap((stat) => [
@@ -862,6 +862,10 @@ function solveFits(key, solved, f = filters) {
   });
   if (!inRange(solved.picks) || !solved.rows.every(inRange))
     return false;
+  const names = /* @__PURE__ */ new Set([...members.map((m) => m.name), TUNE_BREAK_ENEMY.name]);
+  const dps = members[team.dpsIndex].name;
+  if (!solved.scores.every((s) => s.bySlot.every(([n]) => names.has(n)) && s.bySlot.some(([n]) => n === dps)))
+    return false;
   const expected = members.reduce((n, m) => n * sequenceLevels(m, f).length, 1);
   const patterns = new Set(solved.rows.map((r) => r.map((p) => p.sequence).join(".")));
   return patterns.size === expected;
@@ -1648,7 +1652,7 @@ function comparisonTable(rows) {
   };
   const slotHead = (i, label) => `<div class="c slothead${dprOpenAt[i] ? " open" : ""}" data-pos="${i}" title="Click to show this slot's own DPR">${label}<span class="arrow">\u203A</span></div>`;
   const memberHead = (n, i) => slotHead(i, `Slot ${n}`) + (weaponOpenAt[i] ? slotHead(i, `Weapon ${n}`) : "") + (echoOpenAt[i] ? slotHead(i, `Echo Set ${n}`) : "") + (mainstatOpenAt[i] ? slotHead(i, `Mainstats ${n}`) : "") + (dprOpenAt[i] ? `<div class="c num">Personal</div>` : "") + (dprOpenAt[i] && compareOpenAt[i] ? `<div class="c num">Compare</div>` : "");
-  const head = `<div class="trow thead">` + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2) + `<div class="c num sorthead${sortAscending ? " asc" : ""}" title="Click to flip the sort">Team DPR<span class="arrow">\u203A</span></div><div class="c num">Team Compare</div></div>`;
+  const head = `<div class="trow thead">` + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2) + `<div class="c num sorthead${sortAscending ? " asc" : ""}" title="Click to flip the sort">Team Avg DPR<span class="arrow">\u203A</span></div><div class="c num">Team Compare</div></div>`;
   const posCols = (i) => `max-content${weaponOpenAt[i] ? " max-content" : ""}${echoOpenAt[i] ? " max-content" : ""}${mainstatOpenAt[i] ? " max-content" : ""}${dprOpenAt[i] ? " max-content" : ""}${dprOpenAt[i] && compareOpenAt[i] ? " max-content" : ""}`;
   const gridStyle = `grid-template-columns:${posCols(0)} ${posCols(1)} ${posCols(2)} max-content max-content`;
   const rowLines = (run) => Math.max(1, ...run.members.map((m, i) => echoOpenAt[i] && (m.mainDps ? filters.mdpsEchoes : filters.supportEchoes) ? run.combo[i].echo.sets.length : 1));

@@ -159,7 +159,7 @@ const SerratedLoopHold = chisaAction("Skill - Serrated Loop (Hold)", { node: Nod
 /** Moment of Nihility: 954.29% Havoc, heals the team, banks 40 Ring of Chainsaw and hands herself
  *  Woven Myriad - Convergence (+120% MV to Blitz/Eradication until Eradication resolves it). */
 const Liberation = chisaAction("Liberation - Moment of Nihility", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, resetEnergy: true,
   mv: 954.29, concerto: 20, offtune: 96000, forte1: 40,
   updateDebuffs: () => applyCurrent(HEALS, 1),
   updateBuffs: () => applyCurrent(WOVEN_MYRIAD_CONVERGENCE, 1),

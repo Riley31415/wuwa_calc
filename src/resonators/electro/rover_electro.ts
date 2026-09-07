@@ -116,7 +116,7 @@ const THRUMS: Action[] = [
 ];
 
 // --- liberation / intro / outro
-const Liberation = roverAction("Liberation - Ultimate Tactics", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1192.86, concerto: 20, offtune: 57600, resetEnergy: true });
+const Liberation = roverAction("Liberation - Ultimate Tactics", { node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 1192.86, concerto: 20, offtune: 57600, resetEnergy: true });
 const Intro = roverAction("Intro - Thunderous Fury", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 167.03, energy: 3, concerto: 20.8, offtune: 9600, forte1: 53 });
 // ...and clears all Thunder Rage, from wherever the Thrum hits left it (they gain past 100 here)
 const Outro = roverAction("Outro - Rumbling Thunders", {

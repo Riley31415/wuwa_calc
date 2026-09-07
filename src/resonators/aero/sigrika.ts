@@ -89,7 +89,7 @@ const FHA = sigrikaAction("Forte Heavy - Schemata of Runes", {
 const FSkill = sigrikaAction("Forte Skill - Learn My True Name", { node: Node.Forte, cast: Cast.Skill, type: Type1.Echo, mv: 1211.48, energy: 5.43, concerto: 30, offtune: 101336, forte2: -100 });
 
 const Liberation = sigrikaAction("Liberation - Where Trust Leads Me!", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Echo, mv: 861.43, concerto: 20, offtune: 50400, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Echo, mv: 861.43, concerto: 20, offtune: 50400, resetEnergy: true,
   updateBuffs: () => applyCurrent(DIVERGENT),
 });
 

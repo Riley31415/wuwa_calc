@@ -144,10 +144,10 @@ const OVERRIDE = {
   },
 };
 const Lib = lucyAction("Liberation - Netrunner: Override", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 894.65, concerto: 20, offtune: 43200, resetEnergy: true, ...OVERRIDE,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Heavy, mv: 894.65, concerto: 20, offtune: 43200, resetEnergy: true, ...OVERRIDE,
 });
 const ELib = lucyAction("Liberation - Old Net Deep Dive: Override", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 1789.29, concerto: 20, offtune: 86400, resetEnergy: true, ...OVERRIDE,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Heavy, mv: 1789.29, concerto: 20, offtune: 86400, resetEnergy: true, ...OVERRIDE,
 });
 // queued off the Liberation rather than played, but active casts all the same — she fires them from
 // inside her own Protocol Interface, on field, and marking them inactive would have her drop every

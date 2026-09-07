@@ -80,7 +80,7 @@ const ESkill1 = jingranAction("Skill - Encroaching Yin", { node: Node.Skill, cas
 const ESkill2 = jingranAction("Skill - Netherworld Traverse", { node: Node.Skill, cast: Cast.Skill, type: Type1.Heavy, mv: 263.48, energy: 3.43, concerto: 5, offtune: 10936, forte1: 100 });
 
 const Lib = jingranAction("Liberation - Burial of Thousand Souls", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 745.2, // 93.15% x 8
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Heavy, mv: 745.2, // 93.15% x 8
   offtune: 168000, forte1: 200, forte2: 100, resetEnergy: true, concerto: 20,
 });
 /** One per heavy attack while Mingfire is up. Node Liberation (attributed to it) but no `cast`:
@@ -222,7 +222,7 @@ const JINGRAN_FIRE_OF_LIFE = new Buff({
 
 const SHIELDS = new Map<Action, number>([
   [BA1, 1], [BA2, 1], [BA3, 2], [BA4, 2], [MA, 1], [EBA1, 1], [EBA2, 1], [EBA3, 2], [EBA4, 2],
-  [DC, 1], [EDC, 1], [Skill1, 1], [ESkill1, 1], [Skill2, 3], [ESkill2, 3], [Lib, 3], [Intro, 1], [FHA, 2], [EFHA, 2],
+  [DC, 1], [EDC, 1], [Skill1, 1], [ESkill1, 1], [Skill2, 2], [ESkill2, 2], [Lib, 1], [Intro, 1], [FHA, 1], [EFHA, 1],
 ]);
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
@@ -274,9 +274,9 @@ const EBA234 = new ActionGroup("Basic - Drink Soul 234", [EBA2, EBA3, EBA4]);
 
 const JR_ROTATION = new Rotation([
   INTRO, Lib, FHA,
-  ESkill1, ESkill2, EFHA,
-  Skill1, Skill2, FHA,
   EBA234, EFHA,
+  Skill1, Skill2, FHA,
+  ESkill1, ESkill2, EFHA,
   ECHO_SWAP, OUTRO,
 ]);
 

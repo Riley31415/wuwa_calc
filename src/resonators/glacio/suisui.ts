@@ -131,7 +131,7 @@ const FSkill = suisuiAction("Skill - Vernal Screen: Drizzle Stance", { node: Nod
 
 /** Song of Thoroughfare: no damage of its own, just the Landscape and its 20 Concerto. */
 const Liberation = suisuiAction("Liberation - Song of Thoroughfare", {
-  node: Node.Liberation, cast: Cast.Liberation, concerto: 20, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, concerto: 20, resetEnergy: true,
   updateBuffs: () => applyTeam(CEASELESS_LANDSCAPE, 1)
 });
 

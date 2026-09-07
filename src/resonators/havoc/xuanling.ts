@@ -165,7 +165,7 @@ const HiB3 = yangyangAction("Basic - Havoc in Bloom 3", { node: Node.Forte, cast
 
 // --- Hush of a Thousand Voices. Heavy Attack DMG despite the cast, and it ends holding a plume.
 const Lib = yangyangAction("Liberation - Hush of a Thousand Voices", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 1988.10, concerto: 20, offtune: 136400, resetForte1: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Heavy, mv: 1988.10, concerto: 20, offtune: 136400, resetForte1: true,
   forte2: 1, resetEnergy: true,
   // One Life, One Blade's own first line: the hit raises Havoc Bane to the target's limit, which
   // is the fight's rather than the declared 3 (Chisa's +3 to every Negative Status cap)
@@ -338,7 +338,7 @@ export const XUANLING_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   intro: () => Intro,
   outro: () => Outro,
-  color: "#8e05c8",
+  color: "#4f29e6",
   maxEnergy: 125,
   maxForte1: 100,
   maxForte2: 2,

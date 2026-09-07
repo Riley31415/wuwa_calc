@@ -66,7 +66,7 @@ const FBA3 = rocciaAction("Forte Basic - Real Fantasy 3", { node: Node.Forte, ca
 
 // Resonance Cost 125 (maxEnergy below) is nanoka's own declared cost, not the migrated sheet's 0
 const Liberation = rocciaAction("Liberation - Commedia Improvviso!", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 835.02, concerto: 20, offtune: 96000, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Heavy, mv: 835.02, concerto: 20, offtune: 96000, resetEnergy: true,
   updateBuffs: () => applyTeam(COMMEDIA_TEAM_ATK),
 });
 

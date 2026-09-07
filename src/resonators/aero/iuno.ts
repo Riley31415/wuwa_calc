@@ -62,7 +62,7 @@ const MSkill = iunoAction("Skill - Arc Beyond the Edge", { node: Node.Skill, cas
 
 // --- liberation: shields and grants Blessing
 const Liberation = iunoAction("Liberation - Beneath Lunar Tides", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1093.46, concerto: 20,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 1093.46, concerto: 20,
   offtune: 96000, forte1: 60, resetEnergy: true,
 });
 

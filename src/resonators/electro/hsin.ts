@@ -15,9 +15,9 @@
  * (cap 100) and is taken off the target; Skill - Illumining Form spends it five at a time for
  * Electro Flare DMG at 200% of the current rung, then dumps the rest at 40% a stack. Thunderglow
  * (one a stack teammates inflict, cap 10, while she is out of Heart Manifest) arms Fleeting
- * Thunder in her first Manifest, and that mark never comes off: from there the target's Flare is
- * pinned at its cap (16 at most), no tick ever spends it, and every Flare anyone lands after that
- * overflows straight into Electro Rage for her Heart of Thunder.
+ * Thunder in each Manifest: while it stands the target's Flare is pinned at its cap (16 at most),
+ * no tick spends it, and every Flare anyone lands overflows straight into Electro Rage for her
+ * Heart of Thunder. Pillars Across Heaven ends Manifest and takes the mark with it.
  *
  * Numbers from encore.moe's beta data (character 1311, `?v=Beta`) at skill level 10: motion
  * values, energy, concerto (per-hit ElementPower plus the flat Concerto Regen rows) and off-tune
@@ -73,7 +73,7 @@ import {
   forte2,
   setForte2,
 } from "../../engine/context.js";
-import { Action, ActionField, ActionGroup, Rotation, DOUBLE_INTRO, INTRO, ECHO_SWAP, OUTRO, ECHO_ONFIELD } from "../../engine/rotation.js";
+import { Action, ActionField, ActionGroup, Rotation, DOUBLE_INTRO, INTRO, ECHO_SWAP, OUTRO, ECHO_ONFIELD, NOINTRO, DODGE, JUMP } from "../../engine/rotation.js";
 import { coordinatedBuff, lostOnSwap } from "../../shared/helpers.js";
 import { UNISON, UNISON_BOON, UNISON_RESPONDER, UNISON_RESPONSE, respondToUnison, unisonIntro, unisonOutro, unisonResponse } from "../../shared/unison.js";
 import { ELECTRO_FLARE, ELECTRO_RAGE, FLEETING_THUNDER, inflictElectroFlare } from "../../shared/status.js";
@@ -185,6 +185,7 @@ const FBA3 = hsinAction("Basic - Illumining Form: Pillars Aligned 3", { node: No
 const FBA4 = hsinAction("Basic - Illumining Form: Pillars Aligned 4", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 166.38, energy: 4.38, concerto: 4.80, offtune: 9560, forte2: -113.68, ...PILLAR_FLARE });
 const FADC = hsinAction("Dodge Counter - Illumining Form: Pillars Aligned", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 114.69, energy: 2.97, concerto: 13.30, offtune: 6594, ...PILLAR_FLARE });
 const FBA1234 = new ActionGroup("Basic - Illumining Form: Pillars Aligned 1234", [FBA1, FBA2, FBA3, FBA4]);
+const BA1234 = new ActionGroup("Basic - Answering Form 1234", [BA1, BA2, BA3, BA4]);
 
 // --- Illumining Form: Beholding All Horizons once the Heart is spent, Stilling when Law of Heaven
 //     (once per 25s — every visit) is spent on it. Both end Dominion and unlock Pillars Across Heaven.
@@ -200,7 +201,7 @@ const Stilling = hsinAction("Forte Heavy - Illumining Form: Stilling All Horizon
 
 // --- the two Liberations: Formshift into Illumining Form, Pillars Across Heaven back out of it
 const Lib1 = hsinAction("Liberation - Formshift", {
-  node: Node.Liberation, cast: Cast.Liberation, concerto: 20, resetForte2: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, concerto: 20, resetForte2: true,
   updateDebuffs: () => { if (isHeld(MODE_FLARE)) inflictElectroFlare(5); },
   updateBuffs: () => {
     if (isHeld(MODE_UNISON)) applyCurrent(UNISON, 1);
@@ -212,10 +213,10 @@ const Lib1 = hsinAction("Liberation - Formshift", {
 });
 /** The Sanctum comes down as Resonance Skill DMG: 125 Energy, and the end of Heart Manifest. */
 const Lib2 = hsinAction("Liberation - Pillars Across Heaven", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Skill, mv: 2012.67, concerto: 20, offtune: 115200, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Skill, mv: 2012.67, concerto: 20, offtune: 115200, resetEnergy: true,
   updateBuffs: () => {
     revokeCurrent(PILLARS_UNLOCKED); revokeCurrent(ILLUMINING_FORM); revokeCurrent(HEART_MANIFEST);
-    revokeCurrent(THUNDERGLOW); revokeCurrent(PILLAR_CHARGES);
+    revokeCurrent(THUNDERGLOW); revokeCurrent(PILLAR_CHARGES); revokeEnemy(FLEETING_THUNDER);
     applyCurrent(NIGHTGLOW, 1);
   },
 });
@@ -425,9 +426,8 @@ const HS_INHERENT_1 = new Inherent({
  *  (the shared buff's own cap), and any member's Unison Response hands everyone one — once from
  *  this, refreshed after. Flare mode: Thunderglow a stack per Flare teammates inflict out of
  *  Heart Manifest; in it, a bare target is given 1 Flare, and full Thunderglow lays Fleeting
- *  Thunder. Only Manifest can lay it; the mark itself stands until the target leaves her range,
- *  which never happens here, so from then on the target's Flare is pinned at its cap (16 at most)
- *  and no tick ever spends it again. */
+ *  Thunder, which pins the target's Flare at its cap (16 at most) and stops the tick spending it.
+ *  Leaving Manifest (Pillars Across Heaven) removes the mark with the rest. */
 const HS_INHERENT_2 = new Inherent({
   name: "Inherent: Gleaning Simple Joys",
   updateGlobal: () => {
@@ -444,9 +444,8 @@ const HS_INHERENT_2 = new Inherent({
       const inflicted = actor.isHeld(HSIN_RESONATOR) ? 0 : appliedByMember(ELECTRO_FLARE, actor);
       // guarded: a 0-stack grant would still put an empty entry in the pool
       if (inflicted > 0) applyCurrent(THUNDERGLOW, inflicted);
+      return;
     }
-    // laying it is Manifest's, but the mark itself only goes when the target leaves her range —
-    // never, here — so the top-up and the tick's own spend-nothing rule outlive Manifest
     if (!stacksOfEnemy(FLEETING_THUNDER)) return;
     const cap = Math.min(16, currentTeam().enemyMax(ELECTRO_FLARE));
     if (stacksOfEnemy(ELECTRO_FLARE) < cap) applyEnemy(ELECTRO_FLARE, cap - stacksOfEnemy(ELECTRO_FLARE));
@@ -599,7 +598,12 @@ const HS_ROTATION_FLARE = new Rotation([
 // 4, Realm Protector spends the Heart and Formshift's Unison pays the outro that hands the field
 // back. Her return is in Illumining Form: that Intro lands her in Dominion at 300 Heart, its four
 // stages spend it, Stilling closes Dominion and Pillars Across Heaven ends the visit on a real bar.
+// Leading, the Intro's 68 Answering Heart and its stages 1-2 are a full chain and then Stage 1-2
+// again, so the section's own Stage 3-4 continue it: 126 Heart into Realm Protector's 100.
 const HS_ROTATION_UNISON = new Rotation([
+  NOINTRO, JUMP, ReignHold, ReignPlunge, Skill, BA4,
+  RealmProtector, Lib1, OUTRO,
+
   DOUBLE_INTRO, BA3, BA4, Skill, 
   RealmProtector, Lib1, OUTRO,
 

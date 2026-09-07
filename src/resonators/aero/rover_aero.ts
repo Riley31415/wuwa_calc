@@ -82,7 +82,7 @@ const UnboundFlow1 = roverAction("Forte Skill - Unbound Flow 1", { node: Node.Fo
 const UnboundFlow2 = roverAction("Forte Skill - Unbound Flow 2", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 723.03, energy: 20, concerto: 20, offtune: 28288, forte1: -60 });
 
 // --- liberation / intro / outro. Storm's Echo hands the whole team Aeolian Realm (see below).
-const Liberation = roverAction("Liberation - Omega Storm", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 536.79, concerto: 20, offtune: 48000, resetEnergy: true });
+const Liberation = roverAction("Liberation - Omega Storm", { node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 536.79, concerto: 20, offtune: 48000, resetEnergy: true });
 const Intro = roverAction("Intro - Relentless Squall", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.82, energy: 10, concerto: 10, offtune: 11465, forte1: 20 });
 const Outro = roverAction("Outro - Storm's Echo", {
   cast: Cast.Outro, concerto: -100, swapOut: true,

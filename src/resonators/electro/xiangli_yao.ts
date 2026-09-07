@@ -64,7 +64,7 @@ const Skill = xlyAction("Skill - Deduction", { node: Node.Skill, cast: Cast.Skil
 /** Decipher: spends the full 100 Capacity, considered Resonance Liberation DMG. */
 const FSkill = xlyAction("Forte Skill - Decipher", { node: Node.Forte, cast: Cast.Skill, type: Type1.Liberation, mv: 397.82, energy: 1.67, concerto: 7, offtune: 5336, forte1: -100 });
 
-const Liberation = xlyAction("Liberation - Cogitation Model", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1466.06, concerto: 20, offtune: 67200, resetEnergy: true });
+const Liberation = xlyAction("Liberation - Cogitation Model", { node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 1466.06, concerto: 20, offtune: 67200, resetEnergy: true });
 
 // Intuition's own moveset — Pivot - Impale basics, Divergence, Unfathomed; Performance Capacity
 // (forte2) deltas are the kit text's own numbers

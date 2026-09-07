@@ -115,7 +115,7 @@ const Ravage = galbrenaAction("Forte Skill - Ravage", {
 });
 
 const Liberation = galbrenaAction("Liberation - Hellfire Absolution", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Echo, mv: 1109.04, concerto: 20, offtune: 84003, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Echo, mv: 1109.04, concerto: 20, offtune: 84003, resetEnergy: true,
   updateBuffs: () => applyCurrent(HELLFIRE_WINDOW, 1),
 });
 

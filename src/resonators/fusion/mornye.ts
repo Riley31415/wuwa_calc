@@ -101,7 +101,7 @@ const DistributedArray = mornyeAction("Skill - Distributed Array", { node: Node.
 
 /** Critical Protocol scales off DEF, not ATK. */
 const Liberation = mornyeAction("Liberation - Critical Protocol", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, scaling: Scaling.Def,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, scaling: Scaling.Def,
   mv: 522.33, concerto: 20, offtune: 72000, resetEnergy: true,
   // trades the field up to its High stage (stack 2), if one is standing
   updateBuffs: () => {

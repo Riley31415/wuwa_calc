@@ -76,7 +76,7 @@ const SPEND_MAYHEM = { forte1: -100 };
 const CloudyFrenzy = encoreAction("Forte Heavy - Cloudy Frenzy", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Liberation, mv: 773.73, concerto: 10.00, offtune: 46709, ...SPEND_MAYHEM });
 
 /** No damage of its own, just opens the state. */
-const Liberation = encoreAction("Liberation - Cosmos Rave", { node: Node.Liberation, cast: Cast.Liberation, concerto: 20, resetEnergy: true });
+const Liberation = encoreAction("Liberation - Cosmos Rave", { node: Node.Liberation, cast: Cast.Liberation, cutscene: true, concerto: 20, resetEnergy: true });
 
 // Cosmos Rave's own moveset: Frolicking (Basic), Cosmos Heavy Attack, Cosmos - Rampage (Skill),
 // Cosmos Dodge Counter, Cosmos Rupture (Forte) — all "considered" their Threshold-state damage type

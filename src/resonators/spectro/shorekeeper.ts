@@ -55,7 +55,7 @@ const Skill = skAction("Skill - Chaos Theory", { node: Node.Skill, cast: Cast.Sk
 const FHA = skAction("Forte Heavy - Illation", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 281.3, energy: 4.95, concerto: 11, offtune: 6360, forte1: -5 });
 
 const Liberation = skAction("Liberation - End Loop", {
-  node: Node.Liberation, cast: Cast.Liberation, concerto: 20, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, concerto: 20, resetEnergy: true,
   // "Generate the Outer Stellarealm": a cast puts up a *new* realm rather than stepping the one
   // already standing, so whatever stage is up is replaced by Outer — which is what puts the realm
   // S1 carried through Discernment back at the bottom.

@@ -82,7 +82,7 @@ const Skill = roverAction("Skill - Wingblade", { node: Node.Skill, cast: Cast.Sk
 const ESkill = roverAction("Skill - Umbra: Lifetaker", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 592.50, energy: 8, concerto: 15, offtune: 11664, forte1: 39 });
 
 // --- liberation: Deadening Abyss — also shreds the target's own Havoc RES (S4)
-const Liberation = roverAction("Liberation - Deadening Abyss", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1520.90, concerto: 20, offtune: 53760, resetEnergy: true });
+const Liberation = roverAction("Liberation - Deadening Abyss", { node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 1520.90, concerto: 20, offtune: 53760, resetEnergy: true });
 
 // --- intro / outro
 const Intro = roverAction("Intro - Instant of Annihilation", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, forte1: 29, mv: 198.81, energy: 10, concerto: 10, offtune: 1867 });
