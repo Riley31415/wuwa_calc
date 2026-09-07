@@ -151,12 +151,7 @@ const Skill = chisaAction("Skill - Eye of Unraveling", { node: Node.Skill, cast:
 /** The plain tap — released immediately. Not in the rotation; the Hold below reaches Chainsaw Mode
  *  with more hits at no extra cost this engine models, so it's the strictly better pick here. */
 
-const SERRATED = { 
-  applyStats: () => {
-    if (forte1()>100) setForte1(100);
-  }, 
-  updateDebuffs: () => applyEnemy(UNSEEN_SNARE, 1),
-};
+const SERRATED = { updateDebuffs: () => applyEnemy(UNSEEN_SNARE, 1) };
 const SerratedLoop = chisaAction("Skill - Serrated Loop", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 139.60, energy: 2.96, concerto: 5.92, offtune: 9360, forte1: -100, forte2: 100,...SERRATED });
 const SerratedLoopHalfHold = chisaAction("Skill - Serrated Loop (Half Hold)", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 199.28, energy: 4.24, concerto: 8.48, offtune: 13368, forte1: -100,forte2: 100,...SERRATED });
 const SerratedLoopHold = chisaAction("Skill - Serrated Loop (Hold)", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 258.96, energy: 5.52, concerto: 11.04, offtune: 17376, forte1: -100, forte2: 100,...SERRATED });
@@ -189,10 +184,8 @@ const Blitz3Hold = chisaAction("Forte - Sawring Blitz 3 (Hold)", { node: Node.Fo
 /** Consumes whatever Ring of Chainsaw remains and ends Chainsaw Mode; shields the team. */
 const Eradication = chisaAction("Forte - Sawring Eradication", {
   node: Node.Forte, type: Type1.Liberation, mv: 257.67, energy: 22.40, concerto: 49.80, offtune: 7680,
-  updateDebuffs: () => {
-    applyCurrent(SHIELD, 1);
-    setForte2(0);
-  }
+  resetForte2: true,
+  updateDebuffs: () => applyCurrent(SHIELD, 1),
 });
 
 /* ------------------------------------------------------------------------------------- buffs */
@@ -368,18 +361,23 @@ const CS_INHERENT_2 = new Inherent({
 });
 
 const CHISA_TALENTS = new Talent({
-  name: "Chisa: Talents",
+  name: "Talents: Chisa",
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
 });
 
 const CHISA_RESONATOR = new Resonator({
   name: "Chisa",
+  talent: CHISA_TALENTS,
+  inherent1: CS_INHERENT_1,
+  inherent2: CS_INHERENT_2,
   element: Attribute.Havoc,
   weapon: WeaponType.Broadblade,
   intro: () => Intro,
   outro: () => Outro,
   color: "#8a3b47",
   maxEnergy: 125,
+  maxForte1: 100,
+  maxForte2: 100,
 
   constantStats: () => {
     addStat(Stat.BaseHp, 10775); addStat(Stat.BaseAtk, 437.5); addStat(Stat.BaseDef, 1136.6646);
@@ -418,9 +416,6 @@ const CS_ECHOES = [
 
 export const CHISA = new Loadout({
   resonator: CHISA_RESONATOR,
-  talent: CHISA_TALENTS,
-  inherent1: CS_INHERENT_1,
-  inherent2: CS_INHERENT_2,
   weapons: [KUMOKIRI, LUSTROUS_RAZOR, NEW_STD_BRAUDBLADE, DISCORD, WILDFIRE_MARK],
   echoLoadouts: CS_ECHOES,
   mainstats: mainstatOptions(Mainstat.CD4, Mainstat.CR4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),

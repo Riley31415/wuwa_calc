@@ -74,18 +74,14 @@ const OVERSHOCK = {
 };
 const Overshock = roverAction("Forte Skill - Overshock", {
   ...OVERSHOCK,
-  updateBuffs: () => { if (forte1() > 120) setForte1(120); applyTeam(OVERSHOCK_ATK, 1); },
+  updateBuffs: () => applyTeam(OVERSHOCK_ATK, 1),
 });
 // The hold pays 60 Concerto on top of the hit's own gain, and entering Apex restores Thunder Rage
-// to its 100 — the bar pre-clamped to 0 so the declared +100 lands exactly full, however much a
+// to its 100 — a reset ahead of the declared +100, so it lands exactly full however much a
 // previous Apex left (the Outro clears it, so ordinarily none).
 const OvershockHold = roverAction("Forte Skill - Overshock (Hold)", {
-  ...OVERSHOCK, concerto: 18.33 - 60, forte2: 100,
-  updateBuffs: () => {
-    if (forte1() > 120) setForte1(120);
-    if (forte2() > 0) setForte2(0);
-    applyCurrent(APEX_RESONANCE, 1);
-  },
+  ...OVERSHOCK, concerto: 18.33 - 60, forte2: 100, resetForte2: true,
+  updateBuffs: () => applyCurrent(APEX_RESONANCE, 1),
 });
 
 // --- Apex Resonance: Thrum of All Sounds, ground chain then the mid-air chain, each stage its own
@@ -122,11 +118,10 @@ const THRUMS: Action[] = [
 // --- liberation / intro / outro
 const Liberation = roverAction("Liberation - Ultimate Tactics", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1192.86, concerto: 20, offtune: 57600, resetEnergy: true });
 const Intro = roverAction("Intro - Thunderous Fury", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 167.03, energy: 3, concerto: 20.8, offtune: 9600, forte1: 53 });
-// ...and clears all Thunder Rage: the cap as its declared delta, the bar clamped to the cap ahead
-// of it so it lands on 0 from wherever the Thrum hits left it (they gain past 100 here)
+// ...and clears all Thunder Rage, from wherever the Thrum hits left it (they gain past 100 here)
 const Outro = roverAction("Outro - Rumbling Thunders", {
-  cast: Cast.Outro, concerto: -100, swapOut: true, forte2: -100,
-  updateBuffs: () => { if (forte2() > 100) setForte2(100); queueOutro(ELECTRO_CORE); },
+  cast: Cast.Outro, concerto: -100, swapOut: true, resetForte2: true,
+  updateBuffs: () => queueOutro(ELECTRO_CORE),
 });
 
 /* ------------------------------------------------------------------------------------ buffs */
@@ -218,16 +213,27 @@ const ER_S6 = new Sequence({
   },
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from their kit
+const ROVER_ELECTRO_TALENTS = new Talent({
+  name: "Talents: Electro Rover",
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
+});
+
 /** Them, as a Resonator: name/element/weapon, every grant/spend/queue rule their kit needs, and
  *  their own base stat line. `Tier.Free` — see the file header. */
 const ROVER_ELECTRO_RESONATOR = new Resonator({
   name: "Electro Rover",
+  talent: ROVER_ELECTRO_TALENTS,
+  inherent1: ER_INHERENT_1,
+  inherent2: ER_INHERENT_2,
   element: Attribute.Electro,
   weapon: WeaponType.Sword,
   intro: () => Intro,
   outro: () => Outro,
   color: "#b98ce8",
   maxEnergy: 125,
+  maxForte1: 120,
+  maxForte2: 100,
   tier: Tier.Free,
 
   updateDebuffs: () => {
@@ -242,12 +248,6 @@ const ROVER_ELECTRO_RESONATOR = new Resonator({
   constantStats: () => {
     addStat(Stat.BaseHp, 10775); addStat(Stat.BaseAtk, 438); addStat(Stat.BaseDef, 1137);
   },
-});
-
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from their kit
-const ROVER_ELECTRO_TALENTS = new Talent({
-  name: "Electro Rover: Talents",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
 });
 
 // the migrated sheet's own "erover sub" line: four basics plus Thunderclap into Repel fill Electric
@@ -285,10 +285,7 @@ const ER_ROTATION_MDPS = new Rotation([
 // (Tier.Free — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat
 export const ROVER_ELECTRO = new Loadout({
   resonator: ROVER_ELECTRO_RESONATOR,
-  talent: ROVER_ELECTRO_TALENTS,
-  inherent1: ER_INHERENT_1,
-  inherent2: ER_INHERENT_2,
-  weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, RED_SPRING, UNSPOKEN_RUE],
+  weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, RED_SPRING, UNSPOKEN_RUE],
   echoLoadouts: [
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     new EchoLoadout(STAY_TUNED, ELECTRIC_REFLECTION_5PC),
@@ -309,9 +306,6 @@ export const ROVER_ELECTRO = new Loadout({
 // Electro sets only — Moonlit Clouds is a support's set
 export const ROVER_ELECTRO_MDPS = new Loadout({
   resonator: ROVER_ELECTRO_RESONATOR,
-  talent: ROVER_ELECTRO_TALENTS,
-  inherent1: ER_INHERENT_1,
-  inherent2: ER_INHERENT_2,
   weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, RED_SPRING, UNSPOKEN_RUE],
   echoLoadouts: [
     new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC),

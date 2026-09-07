@@ -123,11 +123,10 @@ const MA = hiyukiAction("Mid-air - Present Self", { node: Node.Normal, cast: Cas
 const DC = hiyukiAction("Dodge Counter - Present Self 2", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 173.75, energy: 2.94, concerto: 15.62, offtune: 9988 });
 /** Three arrows, considered Resonance Liberation DMG, and what opens Inward Vision. */
 const FrostSplinter = hiyukiAction("Heavy - Frost Splinter: Present Self", {
-  node: Node.Normal, cast: Cast.Heavy, type: Type1.Liberation, mv: 317.23, energy: 5.23, concerto: 9.99, offtune: 17728, forte1: -300,
-  // the last arrow spends the whole bar — a clear, not a -300 delta: Inward Vision and Blade
-  // Liberation each say they remove 300 too, and by then Dedication is already empty, so declared
-  // deltas would drive the gauge hundreds negative (nothing in the engine floors one)
-  updateBuffs: () => { if (forte1() > 300) setForte1(300); },
+  node: Node.Normal, cast: Cast.Heavy, type: Type1.Liberation, mv: 317.23, energy: 5.23, concerto: 9.99, offtune: 17728,
+  // only fires at 300 Dedication, and the last arrow spends the whole bar: maxForte1 (300 below)
+  // clamps an overrun back to the cap before this lands exactly on 0
+  forte1: -300,
   ...CHAFE,
 });
 
@@ -164,34 +163,28 @@ const USkill2 = hiyukiAction("Skill - Frostblight: Petalfall", { node: Node.Skil
 
 // --- Foreclaiming, both halves.
 /** Inward Vision costs no Resonance Energy at all — only Blade Liberation spends the bar. It
- *  removes Dedication *and* Frostheart before restoring 50 of the latter, hence the setForte2(0)
- *  ahead of its own declared +50. */
+ *  removes Dedication *and* Frostheart before restoring 50 of the latter, hence the reset ahead
+ *  of its own declared +50. */
 const Lib1 = hiyukiAction("Liberation - Foreclaiming: Inward Vision", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 397.62, concerto: 20, offtune: 84000,
-  forte2: 50,
+  forte2: 50, resetForte1: true, resetForte2: true,
   updateDebuffs: () => applyEnemy(GLACIO_CHAFE, 4),
-  updateBuffs: () => { setForte1(0); setForte2(0); applyCurrent(FROSTHARDEN_IAI, 3); },
+  updateBuffs: () => applyCurrent(FROSTHARDEN_IAI, 3),
   ...FROSTBIND,
 });
 /** Held rather than tapped (see the file header), so it spends whatever Snowforged Blade is
  *  banked, at +795.24% on its own multiplier apiece. */
 const Lib2Tap = hiyukiAction("Liberation - Foreclaiming: Blade Liberation", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 994.05, concerto: 20, resetEnergy: true,
-  // everything it ends the form by removing, once the cast has banked: Dedication, Frostheart, and
-  // every Snowforged Blade the multiplier above just cashed
-  afterAction: () => { 
-    setForte1(0); 
-    setForte2(0);     
-  },
+  // everything it ends the form by removing: Dedication, Frostheart, and every Snowforged Blade
+  // the multiplier above just cashed
+  resetForte1: true, resetForte2: true,
 });
 const Lib2Hold = hiyukiAction("Liberation - Foreclaiming: Blade Liberation", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 994.05, concerto: 20, resetEnergy: true,
-  // everything it ends the form by removing, once the cast has banked: Dedication, Frostheart, and
-  // every Snowforged Blade the multiplier above just cashed
-  afterAction: () => { 
-    setForte1(0); 
-    setForte2(0);
-  },
+  // everything it ends the form by removing: Dedication, Frostheart, and every Snowforged Blade
+  // the multiplier above just cashed
+  resetForte1: true, resetForte2: true,
 });
 
 /** Iai: 100 Frostheart a cast. With a point of Frostharden left it also spends that for 3 stacks
@@ -350,18 +343,24 @@ const HY_INHERENT_2 = new Inherent({
 });
 
 const HIYUKI_TALENTS = new Talent({
-  name: "Hiyuki: Talents",
+  name: "Talents: Hiyuki",
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
 });
 
 export const HIYUKI_RESONATOR = new Resonator({
   name: "Hiyuki",
+  talent: HIYUKI_TALENTS,
+  inherent1: HY_INHERENT_1,
+  inherent2: HY_INHERENT_2,
   element: Attribute.Glacio,
   weapon: WeaponType.Sword,
   intro: () => Intro,
   outro: () => Outro,
   color: "#fb6a6f",
   maxEnergy: 125,
+  maxForte1: 300,
+  maxForte2: 300,
+  maxForte3: 3,
 
   /* Everfrost Dominion's Glacio Bite, the one thing on her that is true of the whole team: while
    * she is in it, every stack of Glacio Chafe *anyone* inflicts is converted, and each converted
@@ -434,9 +433,6 @@ const HY_ECHOES = [
 
 export const HIYUKI = new Loadout({
   resonator: HIYUKI_RESONATOR,
-  talent: HIYUKI_TALENTS,
-  inherent1: HY_INHERENT_1,
-  inherent2: HY_INHERENT_2,
   weapons: [FROSTBURN, EMERALD_OF_GENESIS],
   echoLoadouts: HY_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),

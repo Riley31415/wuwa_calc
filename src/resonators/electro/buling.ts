@@ -1,17 +1,16 @@
 /**
  * Buling, ported to the new engine — sequence-0 core loop, except sequences 1-6 (see below). An
- * electro Rectifier support/healer built around Trigram (Mountain/Thunder, up to 4 held, FIFO):
- * Basic Attack Stage 2 grants Mountain, Stage 4/Mid-air/Resonance Skill grant Thunder, and a
- * Heavy Attack spends a specific pair for Minor Yang (Mountain+Thunder) or Minor Yin (two of the
- * same) — both real Buffs, consumed the instant she holds both at once, entering Yin-Yang
- * Balance. Holding both Minors upgrades Liberation to Flashing Thunder Spell: Harmony (assumed
- * always the case, since nothing tracks a live 4-slot Trigram queue — same "fixed valid line, no
- * live queue" treatment as Zhezhi's Imprints/Sigrika's Runes). Yin-Yang Balance itself is held
- * for exactly the one action that grants it (real kit text keeps it until the following
- * Liberation, but nothing else here reads it that late), long enough for S2's own +25 Energy to
- * see it from its own applyStats(). The rotation hand-places one kit-valid Trigram/Minor sequence
- * rather than a runtime state machine. Healing is out of scope, so both healing-only Heavy
- * Attacks carry 0 mv, not a missing number.
+ * electro Rectifier support/healer built around Trigram, a real store (TRIGRAMS below, Phrolova's
+ * Volatile Notes shape): four two-bit slots oldest-first, 1 Mountain and 2 Thunder, a gain at
+ * capacity shifting the rest left and dropping the leftmost. Basic Attack Stage 2 hits bank
+ * Mountain, Stage 4 and Mid-air hits and the Resonance Skill bank Thunder, and the held Heavy is
+ * one press that resolves off the two leftmost: Mountain then Thunder is Mountain Over Thunder,
+ * Thunder then Mountain is Thunder Over Mountain (both Minor Yang), two of a kind Twin Mountains
+ * or Twin Thunders (Minor Yin, healing only, 0 mv), fewer than two Ghost Gate Omen (the failed
+ * divination — no hit, every Trigram lost). forte1 is the count the store holds (cap 4), so a
+ * Heavy pressed short reads red. Holding both Minors trades them for Yin-Yang Balance, kept until
+ * the Liberation, which is Flashing Thunder Spell: Harmony under it and the plain Flashing
+ * Thunder Spell otherwise — the Array, and Thunder Spell with it, only come off Harmony.
  *
  * Thunder Spell: opened (Primordial Qi, stack 1) when Liberation generates the Array; the first
  * Intro Skill cast from *any* team member while held escalates everyone to Yin and Yang (stack 2,
@@ -48,6 +47,9 @@ import {
   revokeCurrent,
   revokeTeam,
   isActive,
+  setStacksSelf,
+  stacksOf,
+  frozenStacks,
 } from "../../engine/context.js";
 import { Action, ActionField, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO, JUMP } from "../../engine/rotation.js";
 import { HEALS, inflictElectroFlare } from "../../shared/status.js";
@@ -64,27 +66,33 @@ function bulingAction(id: string, def: object): Action {
   return new Action(id, { element: Attribute.Electro, scaling: Scaling.Atk, ...def });
 }
 
-// --- basics, mid-air, dodge counter (Hexagram Calls, Lightning Falls) — Stage 2 grants Trigram:
-//     Mountain, Stage 4/Mid-air grant Trigram: Thunder (fixed valid line, not enforced here)
+// a hit that banks a Trigram (gainTrigram() below): the store takes the kind, forte1 the count
+const MOUNTAIN = { updateBuffs: () => gainTrigram(1) };
+const THUNDER = { updateBuffs: () => gainTrigram(2) };
+
+// --- basics, mid-air, dodge counter (Hexagram Calls, Lightning Falls) — Stage 2 banks Trigram:
+//     Mountain, Stage 4 and Mid-air bank Trigram: Thunder
 const BA1 = bulingAction("Basic - Hexagram Calls, Lightning Falls 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 41.46, offtune: 3336, energy: 1.06, concerto: 3.34 });
-const BA2 = bulingAction("Basic - Hexagram Calls, Lightning Falls 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 66.90, offtune: 5384, energy: 1.70, concerto: 5.40, forte1: 1 });
+const BA2 = bulingAction("Basic - Hexagram Calls, Lightning Falls 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 66.90, offtune: 5384, energy: 1.70, concerto: 5.40, ...MOUNTAIN });
 const BA3 = bulingAction("Basic - Hexagram Calls, Lightning Falls 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 47.02, offtune: 3784, energy: 1.20, concerto: 3.80 });
-const BA4 = bulingAction("Basic - Hexagram Calls, Lightning Falls 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 93.64, offtune: 7536, energy: 2.36, concerto: 7.54, forte1: 1 });
-const MA = bulingAction("Mid-air - Hexagram Calls, Lightning Falls", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 73.96, offtune: 4960, energy: 1.24, concerto: 4.96, forte1: 1 });
+const BA4 = bulingAction("Basic - Hexagram Calls, Lightning Falls 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 93.64, offtune: 7536, energy: 2.36, concerto: 7.54, ...THUNDER });
+const MA = bulingAction("Mid-air - Hexagram Calls, Lightning Falls", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 73.96, offtune: 4960, energy: 1.24, concerto: 4.96, ...THUNDER });
 const DC = bulingAction("Dodge Counter - Hexagram Calls, Lightning Falls 3", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 47.02, offtune: 3784, energy: 1.20, concerto: 13.80 });
 
-// hold Normal Attack to spend a specific Trigram pair left-to-right for a Minor state. Twin
-// Mountains/Twin Thunders heal only (0 mv, healing out of scope).
-// The mixed-trigram heavies bank Minor Yang, the paired ones Minor Yin (and heal — her own
-// healing marker, read by every healing sonata and weapon, see statuses.ts); holding both at once
-// trades the pair for Yin-Yang Balance.
+// The held Heavy spends the two leftmost Trigrams (spendTrigrams(), which every form runs first)
+// and is whichever form that pair makes — see HA below. Twin Mountains/Twin Thunders heal only
+// (0 mv, healing out of scope). The mixed pair banks Minor Yang, the matched one Minor Yin (and
+// heals — her own healing marker, read by every healing sonata and weapon, see statuses.ts);
+// holding both at once trades the pair for Yin-Yang Balance.
 const YANG = { updateBuffs: () => {
+  spendTrigrams();
   applyCurrent(MINOR_YANG, 1);
   if (isHeld(MINOR_YIN)) { revokeCurrent(MINOR_YANG); revokeCurrent(MINOR_YIN); applyCurrent(YIN_YANG_BALANCE, 1); }
 } };
 const YIN = {
   updateDebuffs: () => applyCurrent(HEALS, 1),
   updateBuffs: () => {
+    spendTrigrams();
     applyCurrent(MINOR_YIN, 1);
     if (isHeld(MINOR_YANG)) { revokeCurrent(MINOR_YANG); revokeCurrent(MINOR_YIN); applyCurrent(YIN_YANG_BALANCE, 1); }
   },
@@ -93,19 +101,42 @@ const HA_MOUNTAIN_OVER_THUNDER = bulingAction("Heavy - Mountain Over Thunder", {
 const HA_THUNDER_OVER_MOUNTAIN = bulingAction("Heavy - Thunder Over Mountain", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 89.47, offtune: 8000, energy: 3.00, concerto: 15, forte1: -2, ...YANG });
 const HA_TWIN_MOUNTAINS = bulingAction("Heavy - Twin Mountains", { node: Node.Normal, cast: Cast.Heavy, concerto: 15, forte1: -2, ...YIN });
 const HA_TWIN_THUNDERS = bulingAction("Heavy - Twin Thunders", { node: Node.Normal, cast: Cast.Heavy, concerto: 15, forte1: -2, ...YIN });
+/** The failed divination — held with fewer than two Trigrams: no hit, and every Trigram lost
+ *  (the 20% HP it costs is out of scope). */
+const GhostGateOmen = bulingAction("Heavy - Ghost Gate Omen", {
+  node: Node.Normal, cast: Cast.Heavy, resetForte1: true,
+  updateBuffs: () => setStacksSelf(TRIGRAMS, 1 << 8),
+});
+/** The one Heavy a rotation writes: resolved off the store's two leftmost Trigrams when the row
+ *  is reached, the way an Intro is. */
+const HA = new Action("Heavy - Trigram", {
+  resolve: () => {
+    const word = stacksOf(TRIGRAMS), a = word & 3, b = (word >> 2) & 3;
+    if (!a || !b) return GhostGateOmen;
+    if (a === b) return a === 1 ? HA_TWIN_MOUNTAINS : HA_TWIN_THUNDERS;
+    return a === 1 ? HA_MOUNTAIN_OVER_THUNDER : HA_THUNDER_OVER_MOUNTAIN;
+  },
+});
 
-// grants a Trigram: Thunder
-const Skill = bulingAction("Skill - In Shadow Thunder Stirs", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 116.8, offtune: 7832, energy: 15.00, concerto: 23, forte1: +1 });
+// banks a Trigram: Thunder on cast
+const Skill = bulingAction("Skill - In Shadow Thunder Stirs", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 116.8, offtune: 7832, energy: 15.00, concerto: 23, ...THUNDER });
 
-// assumed always cast as Harmony (see file header) — generates the Array, opening/refreshing
-// Thunder Spell at Primordial Qi
-const Liberation = bulingAction("Liberation - Flashing Thunder Spell - Harmony", {
+// The Liberation is Harmony under Yin-Yang Balance — generating the Array, opening/refreshing
+// Thunder Spell at Primordial Qi — and the plain Flashing Thunder Spell otherwise, which does
+// neither. Resolved on its row, the way the Heavy is.
+const Harmony = bulingAction("Liberation - Flashing Thunder Spell - Harmony", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 536.79, offtune: 72000, concerto: 20, resetEnergy: true,
   updateBuffs: () => {
     revokeTeam(THUNDER_SPELL); applyTeam(THUNDER_SPELL, 1); revokeCurrent(YIN_YANG_BALANCE);
     // only one array at a time: a fresh cast starts its 24s over
     revokeTeam(FIVE_THUNDERS_ARRAY); applyTeam(FIVE_THUNDERS_ARRAY, 24);
   },
+});
+const FlashingThunderSpell = bulingAction("Liberation - Flashing Thunder Spell", {
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 357.86, offtune: 36000, concerto: 20, resetEnergy: true,
+});
+const Liberation = new Action("Liberation - Flashing Thunder Spell (either)", {
+  resolve: () => (isHeld(YIN_YANG_BALANCE) ? Harmony : FlashingThunderSpell),
 });
 
 /** The Array's own pull: 19.89% mv and 2 Electro Flare every 2s for 24s (nanoka), twelve in all,
@@ -157,14 +188,44 @@ const THUNDER_SPELL = new Buff({
 const FIVE_THUNDERS_ARRAY = coordinatedBuff("Buling: Five Thunders Spell Array", 24, () => BULING_RESONATOR, ArrayTick, { every: 2 });
 
 /** Pure state markers, no stat of their own — both are consumed the instant she holds both at
- *  once (see BULING_RESONATOR's own updateBuffs()), entering Yin-Yang Balance. */
+ *  once (the Heavy forms' own updateBuffs), entering Yin-Yang Balance. */
 const MINOR_YANG = new Buff({ name: "Buling: Minor Yang" });
 const MINOR_YIN = new Buff({ name: "Buling: Minor Yin" });
 
-/** Held for exactly the one action that grants it (BULING_RESONATOR's own updateBuffs() grants, its own
- *  convertStats() revokes) — the only real reader left is S2's own +25 Energy, between those two. */
-const YIN_YANG_BALANCE = new Buff({ name: "Buling: Yin-Yang Balance" ,
+/** Held from the Heavy that completes the pair until the Liberation, which it upgrades to Harmony
+ *  (the Liberation resolver above) — and which spends it. S2's own +25 Energy reads it too. */
+const YIN_YANG_BALANCE = new Buff({ name: "Buling: Yin-Yang Balance" });
+
+/** The Trigram store, one packed word: bits 0-7 are four two-bit slots oldest-first (1 Mountain,
+ *  2 Thunder), bit 8 always set so an empty store is still a held buff. Hers from combat start;
+ *  the display reads the slots off as she stands. */
+const TRIGRAMS = new Buff({
+  name: "Buling: Trigrams", maxStacks: 0x1ff,
+  display: (): string => {
+    let slots = "";
+    for (let shift = 0; shift < 8; shift += 2) slots += "-MT"[(frozenStacks() >> shift) & 3]!;
+    return `Buling: Trigrams [${slots}]`;
+  },
 });
+
+/** Bank one Trigram — 1 Mountain, 2 Thunder — into the store's first empty slot, and the count
+ *  into forte1. Gated on a landed hit ("obtained when ... deals damage"; the Skill's is on cast,
+ *  and it hits anyway). At four held, every Trigram shifts left, the leftmost is dropped and the
+ *  new one takes the last slot — the count stands. */
+function gainTrigram(kind: number): void {
+  if (!currentAction().mv) return;
+  const word = stacksOf(TRIGRAMS);
+  let trigrams = word & 0xff, n = 0;
+  while (n < 4 && (trigrams >> (2 * n)) & 3) n++;
+  if (n === 4) { trigrams >>= 2; n = 3; } else addStat(Stat.AddForte1, 1);
+  setStacksSelf(TRIGRAMS, (word & ~0xff) | trigrams | (kind << (2 * n)));
+}
+
+/** A Heavy form spends the store's two leftmost Trigrams — the pair HA resolved it from. */
+function spendTrigrams(): void {
+  const word = stacksOf(TRIGRAMS);
+  setStacksSelf(TRIGRAMS, (word & ~0xff) | ((word & 0xff) >> 4));
+}
 
 /** +15% (unscoped) DMG Amplification, 30s — permanent uptime once granted. */
 const BULING_OUTRO = new Buff({
@@ -182,7 +243,7 @@ const BL_INHERENT_2 = new Inherent({ name: "Inherent: Earthly Immortal is Here!"
 
 const BL_S1 = new Sequence({
   name: "Buling S1",
-  applyStats: () => { if (currentAction() == Liberation) addStat(Stat.CritRate, 20); }
+  applyStats: () => { if (currentAction() === Harmony) addStat(Stat.CritRate, 20); }
 });
 
 const BL_S2 = new Sequence({
@@ -200,13 +261,23 @@ const BL_S4 = new Sequence({
 /** The Array inflicts 6 more Electro Flare the moment it is generated. */
 const BL_S5 = new Sequence({
   name: "Buling S5",
-  updateDebuffs: () => { if (currentAction() === Liberation) inflictElectroFlare(6); },
+  updateDebuffs: () => { if (currentAction() === Harmony) inflictElectroFlare(6); },
 });
 
 const BL_S6 = new Sequence({ name: "Buling S6" });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit.
+// Healing Bonus+ nodes are unused by the formula (healing out of scope), tracked for completeness.
+const BULING_TALENTS = new Talent({
+  name: "Talents: Buling",
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.HealingBonus, 12); },
+});
+
 const BULING_RESONATOR = new Resonator({
   name: "Buling",
+  talent: BULING_TALENTS,
+  inherent1: BL_INHERENT_1,
+  inherent2: BL_INHERENT_2,
   tier: Tier.Free,
   element: Attribute.Electro,
   weapon: WeaponType.Rectifier,
@@ -214,27 +285,23 @@ const BULING_RESONATOR = new Resonator({
   outro: () => Outro,
   color: "#7a6ff0",
   maxEnergy: 150,
+  maxForte1: 4,
+
+  // the Trigram store, empty (its always-set bit alone; see TRIGRAMS)
+  combatStart: () => applyCurrent(TRIGRAMS, 1 << 8),
 
   constantStats: () => {
     addStat(Stat.BaseHp, 10625); addStat(Stat.BaseAtk, 225); addStat(Stat.BaseDef, 1259);
   },
 });
 
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit.
-// Healing Bonus+ nodes are unused by the formula (healing out of scope), tracked for completeness.
-const BULING_TALENTS = new Talent({
-  name: "Buling: Talents",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.HealingBonus, 12); },
-});
-
-// the kit-valid line: Mid-air opens with a Thunder Trigram, Basic 1/2 adds Mountain, Heavy:
-// Thunder Over Mountain spends both for Minor Yang, Skill and Basic 4 each add a fresh Thunder,
-// Heavy: Twin Thunders spends both for Minor Yin — unlocking Harmony for the Liberation after.
-// BL_ROTATION for a non-leading slot (opens on her own Intro); BL_OPENER for a leading one.
+// the kit-valid line: Mid-air banks Thunder, Basic 2 Mountain, and the Heavy reads [T, M] as
+// Thunder Over Mountain for Minor Yang; Skill and Basic 4 bank two Thunders and the Heavy reads
+// [T, T] as Twin Thunders for Minor Yin — Yin-Yang Balance, so the Liberation resolves to Harmony.
 const BL_ROTATION = new Rotation([
   NOINTRO,
-  INTRO, JUMP, MA, BA2, HA_THUNDER_OVER_MOUNTAIN,
-  Skill, BA4, HA_TWIN_THUNDERS, ECHO_CANCEL,
+  INTRO, JUMP, MA, BA2, HA,
+  Skill, BA4, HA, ECHO_CANCEL,
   Liberation, OUTRO,
 ]);
 
@@ -244,9 +311,6 @@ const BL_ROTATION = new Rotation([
 // sonata pieces, mainstat/substat, all six sequences (by explicit instruction — see file header)
 export const BULING = new Loadout({
   resonator: BULING_RESONATOR,
-  talent: BULING_TALENTS,
-  inherent1: BL_INHERENT_1,
-  inherent2: BL_INHERENT_2,
   weapons: [VARIATION],
   echoLoadouts: [new EchoLoadout(FALLACY, REJUV_5PC)],
   mainstats: [mainstats(Mainstat.CD4, Mainstat.ER3, Mainstat.ER3, Mainstat.ATK1, Mainstat.ATK1)],

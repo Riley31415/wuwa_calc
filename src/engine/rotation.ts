@@ -73,6 +73,16 @@ export interface ActionDef extends GearDef {
   forte3?: number;
   forte4?: number;
   forte5?: number;
+  /** This cast empties the gauge — a Liberation that spends the whole bar, a form switch that
+   *  clears it — whatever it held, without the kit having to declare the cap as a negative delta
+   *  and clamp to it first. The gauge is set to 0 *ahead of* this cast's own `forteN` (and any
+   *  AddForteN a buff adds), so a bare reset lands on 0 and a reset declaring `forte1: 200`
+   *  lands on 200 (Suoming's Flash Rift: clear all Delusion, then the 200 it grants). */
+  resetForte1?: boolean;
+  resetForte2?: boolean;
+  resetForte3?: boolean;
+  resetForte4?: boolean;
+  resetForte5?: boolean;
   /** A rotation marker rather than a real cast: `run()` calls this to get whichever action to
    *  actually evaluate in its place, with the "current" pointers already aimed at the acting slot
    *  (so it can read `currentMember()` etc. the same as any other kit logic). Every marker below
@@ -129,6 +139,8 @@ export class Action extends Gear {
   forte3: number;
   forte4: number;
   forte5: number;
+  /** `resetForte1`-`resetForte5` as one array, indexed the way `TeamMember.forte` is. */
+  resetForte: [boolean, boolean, boolean, boolean, boolean];
   resolveFn?: () => Action | null;
   triggered: boolean;
   realTime: boolean;
@@ -163,6 +175,7 @@ export class Action extends Gear {
     this.forte3 = def.forte3 ?? 0;
     this.forte4 = def.forte4 ?? 0;
     this.forte5 = def.forte5 ?? 0;
+    this.resetForte = [!!def.resetForte1, !!def.resetForte2, !!def.resetForte3, !!def.resetForte4, !!def.resetForte5];
     this.resolveFn = def.resolve;
     this.triggered = def.triggered ?? false;
     this.realTime = def.realTime ?? false;
@@ -341,7 +354,16 @@ export const DOUBLE_INTRO = new Action("Double Intro");
  *  *previous* one (see the marker above). Resolved against the acting slot's own
  *  `Resonator.outroFn()`, same as INTRO above. Every chain ends on it, and a start-of-combat
  *  section that runs to the end of one is closed by it too. */
-export const OUTRO = new Action("Outro Placeholder");
+export const OUTRO = new Action("Outro Placeholder", {
+  // resolved when the row is reached, not when the visit opens: a kit whose outro has a Unison
+  // form (shared/unison.ts's `unisonOutro`) only holds Unison once the visit's own Liberation has
+  // granted it, so the pick has to wait for the swap itself
+  resolve: () => {
+    const resonator = currentMember().resonator;
+    if (!resonator) throw new Error(`${currentMember().name} outros but has no Resonator equipped`);
+    return resonator.outroFn();
+  },
+});
 
 /** The row a plain swap reports as: between the opening scramble's sections and out of a swap-form
  *  DOUBLE_INTRO section the scheduler emits it itself; a kit writes it only to close a
@@ -544,9 +566,7 @@ export function runRotations(state: State, rotations: Rotation[], sections: numb
 
   const runChain = (i: number, chain: Chain): void => {
     state.active = i;
-    const resonator = state.slots[i]!.resonator;
-    if (!resonator) throw new Error(`${state.slots[i]!.name} outros but has no Resonator equipped`);
-    const outro = resonator.outroFn();
+    if (!state.slots[i]!.resonator) throw new Error(`${state.slots[i]!.name} outros but has no Resonator equipped`);
     // a DOUBLE_INTRO section's own outro hands the field *backward*, to whoever plays while its
     // owner waits on their main Intro; every other outro advances
     state.outroDir = chain.entry === DOUBLE_INTRO ? -1 : 1;
@@ -569,7 +589,9 @@ export function runRotations(state: State, rotations: Rotation[], sections: numb
     }
     // a trip round the team is its members' own visits; a pre-visit is an extra, not one of them
     if (chain.entry !== DOUBLE_INTRO) { if (!mained.size) cycleStart = i; mained.add(i); }
-    const list = chain.entry === INTRO || chain.entry === DOUBLE_INTRO ? [INTRO, ...casts, outro] : [...casts, outro];
+    // the outro is the OUTRO marker itself, resolved on its own row (see it): a kit's Unison form
+    // depends on what the visit granted by then
+    const list = chain.entry === INTRO || chain.entry === DOUBLE_INTRO ? [INTRO, ...casts, OUTRO] : [...casts, OUTRO];
     const snaps = run(state, list);
     state.outroDir = 1;
     place(snaps);
@@ -627,10 +649,17 @@ export function runRotations(state: State, rotations: Rotation[], sections: numb
     // previous slot, whose forward outro is the ordinary way the field arrives here — or the
     // *next* slot instead, when what arrived was their own pre-visit's backward hand.
     let giver = from ?? (i + rotations.length - 1) % rotations.length;
+    // A slot still owing an outro-form pre-visit this trip round.
+    const preVisitDue = (at: number): boolean =>
+      !mained.has(at) && !doubled.has(at) && rotations[at]!.doubleIntro?.exit === OUTRO;
+    // Both halves of a pair owe one: they fire in team order, this slot's first (see the `own`
+    // block below, which hands the field *forward* to the partner rather than back the way it
+    // came). The look-ahead stands down for it — the partner runs theirs on their own arrival.
+    const paired = !!mained.size && preVisitDue(i) && preVisitDue(nxt);
     // Pre-visits belong behind the trip's own opening visit — a fresh trip plays that first, and
-    // only then does the pair fire, from the last slot back (a 3rd member's pre-visit hands to the
-    // 2nd, whose own hands straight back to them).
-    const d = mained.size && !mained.has(nxt) ? rotations[nxt]!.doubleIntro : undefined;
+    // only then does the pair fire. A lone one still fires from the slot ahead (a 3rd member's
+    // pre-visit hands to the 2nd, whose whole visit runs before the 3rd's main Intro).
+    const d = mained.size && !mained.has(nxt) && !paired ? rotations[nxt]!.doubleIntro : undefined;
     if (d && !doubled.has(nxt)) {
       doubled.add(nxt);
       if (d.exit === OUTRO) {
@@ -656,12 +685,14 @@ export function runRotations(state: State, rotations: Rotation[], sections: numb
     if (own && own.exit === OUTRO && !doubled.has(i)) {
       doubled.add(i);
       runChain(i, own);
-      // ...and the field goes back the way it came, whatever direction that is, until it works
-      // its way round to this slot again — which is when the main Intro below is due. The giver's
-      // own visit may bring it straight back (the ordinary Jinhsi shape) or hand it on around the
-      // rest of the team first; either way this waits for it rather than assuming.
+      // ...and the field goes to whoever plays while this slot waits: the partner ahead when they
+      // owe a pre-visit of their own, since the pair fires in team order and theirs is next, else
+      // back the way it came. Either way it works its way round to this slot again — which is when
+      // the main Intro below is due. The giver's own visit may bring it straight back (the
+      // ordinary Jinhsi shape) or hand it on around the rest of the team first; this waits for it
+      // rather than assuming.
       handedBack = i;
-      state.active = giver;
+      state.active = paired ? nxt : giver;
       mained.delete(i);
       awaiting++;
       waited = true;

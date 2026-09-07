@@ -105,7 +105,6 @@ const HACKS = { updateDebuffs: () => applyHack() };
 // the gauge really banked
 const DualThreading = lucyAction("Heavy - Dual Threading", {
   node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 167.05, energy: 3, concerto: 8, offtune: 6720, forte2: -100,
-  updateBuffs: () => { if (forte2() > 100) setForte2(100); },
 });
 /** Multi-threading, at its bare values — the SQL form is the same cast with SQL's own additions on
  *  top (see SQL below), which is how nanoka lists it. */
@@ -127,7 +126,6 @@ const Skill3 = lucyAction("Skill - Pulse Interference", {
 const Deadlock = lucyAction("Skill - Deadlock", {
   node: Node.Skill, cast: Cast.Skill, type: Type1.Heavy, mv: 258.47, energy: 10, concerto: 8, forte1: -100, ...HACKS,
   updateBuffs: () => {
-    if (forte1() > 100) setForte1(100);
     // enters Algorithm Compaction with one SQL; casting it again inside the state grants neither
     if (!isHeld(ALGORITHM_COMPACTION)) { applyCurrent(ALGORITHM_COMPACTION, 1); applyCurrent(SQL, 1); }
   },
@@ -138,8 +136,8 @@ const Deadlock = lucyAction("Skill - Deadlock", {
 // either Liberation clears TCP and fires the three damaging Spoofing Programs; ending Algorithm
 // Compaction is the buff's own job, one phase later, so the Override still pays under it
 const OVERRIDE = {
+  resetForte1: true,
   updateBuffs: () => {
-    setForte1(0);
     applyEnemy(CYBERWARE_MALFUNCTION, 1);
     applyEnemy(BREACH_PROTOCOL, 1);
     queue(Ping); queue(SynapseBurnout); queue(CrippleMovement);
@@ -358,18 +356,23 @@ const LC_INHERENT_1 = new Inherent({ name: "Inherent: Ghost Cyberware" });
 const LC_INHERENT_2 = new Inherent({ name: "Inherent: Function Cracking" });
 
 const LUCY_TALENTS = new Talent({
-  name: "Lucy: Talents",
+  name: "Talents: Lucy",
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
 });
 
 export const LUCY_RESONATOR = new Resonator({
   name: "Lucy",
+  talent: LUCY_TALENTS,
+  inherent1: LC_INHERENT_1,
+  inherent2: LC_INHERENT_2,
   element: Attribute.Spectro,
   weapon: WeaponType.Pistols,
   intro: () => Intro,
   outro: () => Outro,
   color: "#efe8de",
   maxEnergy: 125,
+  maxForte1: 100,
+  maxForte2: 100,
 
   updateGlobal: () => tuneHackResponse(DataCrash),
 
@@ -435,9 +438,6 @@ const LUCY_MATRIX = matrix("Lucy", 0, {
 export const LUCY = new Loadout({
   resonator: LUCY_RESONATOR,
   matrix: LUCY_MATRIX,
-  talent: LUCY_TALENTS,
-  inherent1: LC_INHERENT_1,
-  inherent2: LC_INHERENT_2,
   weapons: [SPECTRAL_TRIGGER, NEW_STD_PISTOL, STATIC_MIST],
   echoLoadouts: LC_ECHOES,
   sequences: [LC_S1, LC_S2, LC_S3, LC_S4, LC_S5, LC_S6],

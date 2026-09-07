@@ -175,14 +175,24 @@ const CH_S6 = new Sequence({
   },
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
+const CHANGLI_TALENTS = new Talent({
+  name: "Talents: Changli",
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+});
+
 const CHANGLI_RESONATOR = new Resonator({
   name: "Changli",
+  talent: CHANGLI_TALENTS,
+  inherent1: CH_INHERENT_1,
+  inherent2: CH_INHERENT_2,
   element: Attribute.Fusion,
   weapon: WeaponType.Sword,
   intro: () => Intro,
   outro: () => Outro,
   color: "#f38b68",
   maxEnergy: 125,
+  maxForte1: 4,
 
   // her combo finishers/Skill/Intro arm True Sight; the two Sword-of-Fealty casts spend it
   updateBuffs: () => {
@@ -194,12 +204,6 @@ const CHANGLI_RESONATOR = new Resonator({
   constantStats: () => {
     addStat(Stat.BaseHp, 12762); addStat(Stat.BaseAtk, 410); addStat(Stat.BaseDef, 1181);
   },
-});
-
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
-const CHANGLI_TALENTS = new Talent({
-  name: "Changli: Talents",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
 const CH_ROTATION = new Rotation([
@@ -221,9 +225,6 @@ const CH_ROTATION = new Rotation([
 export const CHANGLI = new Loadout({
   resonator: CHANGLI_RESONATOR,
   matrix: matrix("Changli", 25),
-  talent: CHANGLI_TALENTS,
-  inherent1: CH_INHERENT_1,
-  inherent2: CH_INHERENT_2,
   sequences: [CH_S1, CH_S2, CH_S3, CH_S4, CH_S5, CH_S6],
   weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS],
   echoLoadouts: [new EchoLoadout(NM_INFERNO_RIDER, MOLTEN_RIFT_5PC)],

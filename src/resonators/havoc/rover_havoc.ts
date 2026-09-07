@@ -122,27 +122,31 @@ const S4_RES_SHRED = new Debuff({
   convertStats: () => { if (casting(Cast.Intro) && isHeld(ROVER_HAVOC_RESONATOR)) revokeEnemy(S4_RES_SHRED); },
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
+const ROVER_TALENTS = new Talent({
+  name: "Talents: Havoc Rover",
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Havoc); },
+});
+
 /** Him, as a Resonator: name/element/weapon, every grant/spend/queue rule his kit needs, and his
  *  own base stat line. `Tier.Free` — see the file header. */
 const ROVER_HAVOC_RESONATOR = new Resonator({
   name: "Havoc Rover",
+  talent: ROVER_TALENTS,
+  inherent1: RH_INHERENT_1,
+  inherent2: RH_INHERENT_2,
   element: Attribute.Havoc,
   weapon: WeaponType.Sword,
   intro: () => Intro,
   outro: () => Outro,
   color: "#823ac6",
   maxEnergy: 125,
+  maxForte1: 100,
   tier: Tier.Free,
 
   constantStats: () => {
     addStat(Stat.BaseHp, 10825); addStat(Stat.BaseAtk, 413); addStat(Stat.BaseDef, 1259);
   },
-});
-
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
-const ROVER_TALENTS = new Talent({
-  name: "Havoc Rover: Talents",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Havoc); },
 });
 
 /* -------------------------------------------------------------------------------- sequences */
@@ -185,10 +189,12 @@ const BA12345 = new ActionGroup("Basic - Tuneslayer 12345", [BA1, BA2, BA3, BA4,
 const EBA12345 = new ActionGroup("Forte Basic - Umbra 12345", [EBA1, EBA2, EBA3, EBA4, EBA5]);
 
 const RH_ROTATION = new Rotation([
+  START_3, START_2, Liberation, ECHO_SWAP, SWAP,
+
   INTRO, BA12345,
   Skill, Devastation, ESkill,
-  EBA12345,
-  START_3, START_2, Liberation, SWAP, ECHO_SWAP, OUTRO,
+  EBA12345, EBA12345, EBA1,
+  Liberation, Skill, ECHO_SWAP, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -197,9 +203,6 @@ const RH_ROTATION = new Rotation([
 // sequence nodes (Tier.Free), weapon, mainslot echo, sonata pieces, mainstat/substat
 export const ROVER_HAVOC = new Loadout({
   resonator: ROVER_HAVOC_RESONATOR,
-  talent: ROVER_TALENTS,
-  inherent1: RH_INHERENT_1,
-  inherent2: RH_INHERENT_2,
   weapons: [RED_SPRING, EMERALD_OF_GENESIS, BLAZING_BRILLIANCE],
   echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),

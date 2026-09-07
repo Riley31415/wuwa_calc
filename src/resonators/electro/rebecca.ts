@@ -110,10 +110,7 @@ const ESkill = rebeccaAction("Skill - Come 'n' Get Me!", { node: Node.Skill, cas
 // Fervor's own ceiling, applied on the two casts that spend it rather than on every action — so
 // that cast's own delta lands exactly on empty, and everything before it still reports what the
 // gauge really banked. Both hack, too.
-const SPEND_FERVOR = {
-  updateDebuffs: () => applyHack(),
-  updateBuffs: () => { if (forte1() > 120) setForte1(120); },
-};
+const SPEND_FERVOR = { updateDebuffs: () => applyHack() };
 const FHAHunt = rebeccaAction("Forte Heavy - Rat-tat-tat!: Huntress", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Basic, mv: 397.66, energy: 15, concerto: 20, offtune: 44320, forte1: -120, forte2: 40, ...SPEND_FERVOR });
 const FHAGuts = rebeccaAction("Forte Heavy - Bang-bang-bang!: Guts", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Basic, mv: 278.34, energy: 15, concerto: 20, offtune: 44320, forte1: -120, forte2: 40, ...SPEND_FERVOR });
 
@@ -376,12 +373,15 @@ const RB_INHERENT_2 = new Inherent({
 });
 
 const REBECCA_TALENTS = new Talent({
-  name: "Rebecca: Talents",
+  name: "Talents: Rebecca",
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
 });
 
 const REBECCA_RESONATOR = new Resonator({
   name: "Rebecca",
+  talent: REBECCA_TALENTS,
+  inherent1: RB_INHERENT_1,
+  inherent2: RB_INHERENT_2,
   element: Attribute.Electro,
   weapon: WeaponType.Pistols,
   // whichever mode she is in decides which Intro she has; her loop always ends in Huntress
@@ -389,6 +389,9 @@ const REBECCA_RESONATOR = new Resonator({
   outro: () => Outro,
   color: "#abebda",
   maxEnergy: 125,
+  maxForte1: 120,
+  maxForte2: 120,
+  maxForte3: 90,
 
   // she starts in Huntress with a full Hot Hand bar
   combatStart: () => { applyCurrent(HUNTRESS, 1); setForte2(120); },
@@ -437,9 +440,6 @@ const RB_ECHOES = [
 
 export const REBECCA = new Loadout({
   resonator: REBECCA_RESONATOR,
-  talent: REBECCA_TALENTS,
-  inherent1: RB_INHERENT_1,
-  inherent2: RB_INHERENT_2,
   sequences: [RB_S1, RB_S2, RB_S3, RB_S4, RB_S5, RB_S6],
   weapons: [SKULL_THRASHER, NEW_STD_PISTOL, STATIC_MIST],
   echoLoadouts: RB_ECHOES,

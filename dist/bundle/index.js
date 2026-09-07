@@ -19,7 +19,6 @@ import {
   effectiveRes,
   effectiveShred,
   eligibleWeapons,
-  isCast,
   isPercent,
   member,
   menuStats,
@@ -35,7 +34,7 @@ import {
   tagKind,
   teamAt,
   teamKey
-} from "./chunk-R2KQM2JA.js";
+} from "./chunk-NREJGSWB.js";
 
 // dist/src/display.js
 var keysFor = (action, ...stats) => stats.flatMap((stat) => [
@@ -247,29 +246,32 @@ function tagRank(key) {
   const tag = splitStat(key)[1];
   return tag === null ? 0 : tagKind(tag);
 }
-function tracing(snapshot, stats) {
+function tracing(snapshot, stats, merge = true) {
   const wanted = new Set(stats);
   const by = /* @__PURE__ */ new Map();
+  const rows = [];
   for (const e of snapshot.entries) {
     if (!wanted.has(e.stat))
       continue;
     const key = `${e.source} ${e.stat}`;
-    const seen = by.get(key);
+    const seen = merge ? by.get(key) : void 0;
     if (seen)
       seen.value += e.value;
     else {
       const [stat, tag] = splitStat(e.stat);
       const base = e.source === BASE_RESISTANCE.name;
-      by.set(key, {
+      const row = {
         source: e.source ?? "",
         stat: e.stat,
         value: e.value,
         section: base ? "Base RES" : SECTION_OF[stat] ?? (tag === null ? null : statLabel(e.stat)),
         owner: e.owner ?? null
-      });
+      };
+      by.set(key, row);
+      rows.push(row);
     }
   }
-  return [...by.values()].sort((a, b) => tagRank(a.stat ?? 0) - tagRank(b.stat ?? 0));
+  return rows.sort((a, b) => tagRank(a.stat ?? 0) - tagRank(b.stat ?? 0));
 }
 function columnSources(snapshot, key) {
   const feeds = FEEDS[key];
@@ -277,6 +279,10 @@ function columnSources(snapshot, key) {
 }
 var columnOf = (report, key) => report.columns.find((c) => c.key === key);
 var num = (v, digits = 0, pad = false, group = false) => v == null ? "" : v.toLocaleString("en-US", { maximumFractionDigits: digits, minimumFractionDigits: pad ? digits : 0, useGrouping: group });
+var gaugeSuffix = (raw, key) => {
+  const cap = raw[`max:${key}`];
+  return typeof cap === "number" ? `/${num(cap)}` : "";
+};
 var PAD_DIGITS_COLUMNS = /* @__PURE__ */ new Set([
   "energy",
   "concerto",
@@ -308,6 +314,7 @@ var COMBINED_COLUMNS = [
   "offtune",
   ...FORTE_GAUGES.map((key) => `gauge:${RESOURCE_NAME[key]}`)
 ];
+var wentThrough = (row) => row.mult === true || row.section === MV_MULTIPLIER;
 function foldDuplicates(rows) {
   const out = [];
   const at = /* @__PURE__ */ new Map();
@@ -316,14 +323,15 @@ function foldDuplicates(rows) {
     const seen = at.get(key);
     if (!seen) {
       const copy = { ...row };
-      at.set(key, { row: copy, n: 1 });
+      at.set(key, { row: copy, n: row.count ?? 1 });
       out.push(copy);
       continue;
     }
-    seen.n++;
-    if (!row.mult)
-      seen.row.value += row.value;
-    seen.row.source = `${row.source} x${seen.n}`;
+    seen.n += row.count ?? 1;
+    if (wentThrough(row))
+      continue;
+    seen.row.value += row.value;
+    seen.row.count = seen.n;
   }
   return out;
 }
@@ -381,13 +389,13 @@ function rowValues(snap, { mv, avg }, members = []) {
   FORTE_GAUGES.forEach((key, i) => {
     raw[`gauge:${RESOURCE_NAME[key]}`] = snap.forte[i];
     raw[`before:gauge:${RESOURCE_NAME[key]}`] = snap.forteBefore[i];
+    if (snap.maxForte[i])
+      raw[`max:gauge:${RESOURCE_NAME[key]}`] = snap.maxForte[i];
   });
-  raw.concertoSpent = snap.concertoSpent;
-  raw.isOutro = isCast(
-    snap.action,
-    7
-    /* Cast.Outro */
-  ) ? 1 : 0;
+  raw["short:concerto"] = snap.concertoShort ? 1 : 0;
+  FORTE_GAUGES.forEach((key, i) => {
+    raw[`short:gauge:${RESOURCE_NAME[key]}`] = snap.forteShort[i] ? 1 : 0;
+  });
   const sources = {};
   for (const [key, feeds] of Object.entries(FEEDS)) {
     if (key === "energy" || key === "concerto" || key === "offtune")
@@ -413,14 +421,15 @@ function rowValues(snap, { mv, avg }, members = []) {
   for (const key of ["energy", "concerto", "offtune"]) {
     const wiped = key === "energy" && snap.energyWiped;
     const declared = wiped ? 0 : snap.action[key] / RESOURCE_SCALE[key];
-    const traced = wiped ? [] : RESOURCE_STAT[key].flatMap((st) => tracing(snap, keysFor(snap.action, st))).map((r) => ({ ...r, value: r.value / RESOURCE_SCALE[key] }));
+    const traced = wiped ? [] : RESOURCE_STAT[key].flatMap((st) => tracing(snap, keysFor(snap.action, st), false)).map((r) => ({ ...r, value: r.value / RESOURCE_SCALE[key] }));
     const rows = [];
     const digits = RESOURCE_DIGITS[key];
     if (declared)
       rows.push({ source: snap.action.name, value: declared, digits, owner: snap.member });
     rows.push(...traced.map((r) => ({ ...r, digits })));
-    if (rows.length || wiped)
-      sources[key] = rows;
+    const folded = foldDuplicates(rows);
+    if (folded.length || wiped)
+      sources[key] = folded;
     if (traced.length)
       buffed.add(key);
     raw[`moved:${key}`] = rows.reduce((n, r) => n + r.value, 0);
@@ -503,7 +512,7 @@ function rowValues(snap, { mv, avg }, members = []) {
     if (parts.length)
       buffed.add("mv");
     sources.mv = [
-      { source: snap.action.name, label: "Base MV", value: snap.action.mv, percent: true, owner: snap.member },
+      ...snap.action.mv ? [{ source: snap.action.name, label: "Base MV", value: snap.action.mv, percent: true, owner: snap.member }] : [],
       ...parts.filter((r) => !isFactor(r)),
       ...parts.filter(isFactor).map((r) => ({ ...r, section: MV_MULTIPLIER }))
     ];
@@ -556,6 +565,9 @@ function rowValues(snap, { mv, avg }, members = []) {
   }
   if (members.length > 1) {
     const per = members.map((m) => rowValues(m, { mv: mvPercent(m), avg: 0 }));
+    for (const key of ["short:concerto", ...FORTE_GAUGES.map((k) => `short:gauge:${RESOURCE_NAME[k]}`)]) {
+      raw[key] = per.some((p) => Number(p.raw[key])) ? 1 : 0;
+    }
     for (const key of COMBINED_COLUMNS) {
       if (sources[key] === void 0 && key === "mv")
         continue;
@@ -668,7 +680,7 @@ function buildReport(lines, { strip = null } = {}) {
   const used = columns.filter((c) => !c.hideIfZero || rows.some((r) => moved(r, c.key) || r.parts.some((p) => moved(p, c.key))));
   const shown = (r, c) => {
     const v = r.raw[c.key];
-    return typeof v === "number" ? num(v, c.digits ?? 0, PAD_DIGITS_COLUMNS.has(c.key), GROUPED_COLUMNS.has(c.key)) + (c.percent ? "%" : "") : String(v ?? "");
+    return typeof v === "number" ? num(v, c.digits ?? 0, PAD_DIGITS_COLUMNS.has(c.key), GROUPED_COLUMNS.has(c.key)) + (c.percent ? "%" : "") + gaugeSuffix(r.raw, c.key) : String(v ?? "");
   };
   const sized = used.map((c) => {
     const lens = [c.label.length, ...c.key === "action" ? [TOTAL_LABEL.length] : []];
@@ -1097,10 +1109,11 @@ var SECTION_RANK = (key) => {
 var panelRow = (r, slotHue, { noSource = false } = {}) => {
   const own = r.owner !== void 0 ? slotHue.get(r.owner ?? "") ?? TUNE_BREAK_ENEMY.color : null;
   const label = r.label ?? (r.stat !== void 0 ? statLabel(r.stat) : "");
+  const source = (r.count ?? 1) > 1 ? `${r.source} x${r.count}` : r.source;
   const value = `<td class="v">${r.mult ? `&times;${fmt(r.value, r.digits ?? 4)}` : `${fmt(r.value, r.digits ?? 4)}${unit(r)}`}</td>`;
   if (r.summary)
     return `<tr class="sum"><td class="k">${esc(label)}</td>${value}</tr>`;
-  return noSource ? `<tr><td class="k">${esc(label)}</td>${value}</tr>` : `<tr><td class="s"${own ? ` style="--own:${own}"` : ""}>${esc(r.source || label)}</td>${value}</tr>`;
+  return noSource ? `<tr><td class="k">${esc(label)}</td>${value}</tr>` : `<tr><td class="s"${own ? ` style="--own:${own}"` : ""}>${esc(source || label)}</td>${value}</tr>`;
 };
 function popover(col, rows, total, slotHue, suffix = "") {
   if (!rows)
@@ -1229,9 +1242,10 @@ function damagePopover(lines, slot, total, grandTotal) {
 }
 function equippedGear(member2, combo) {
   const l = member2.loadout;
+  const r = l.resonator;
   return [
-    ["Inherent", l.inherent1],
-    ["Inherent", l.inherent2],
+    ...r.inherent1 ? [["Inherent", r.inherent1]] : [],
+    ...r.inherent2 ? [["Inherent", r.inherent2]] : [],
     ["Weapon", combo.weapon],
     ["Mainslot", combo.echo.mainslot],
     ...combo.echo.sets.map((g, i) => [i === 0 ? "Sonata" : "", g]),
@@ -1431,32 +1445,48 @@ function searchResults() {
   if (!hits.length)
     return `<div class="sresult none">no matches</div>`;
   return hits.map(({ kind, value }) => {
-    const hue = kind === "resonator" ? RESONATOR_HUE.get(baseName(value)) : kind === "sequence" ? RESONATOR_HUE.get(value.replace(/ S\d+$/, "")) : void 0;
-    return `<button type="button" class="sresult" data-kind="${kind}" data-value="${esc(value)}"` + (hue ? ` style="--mem:${hue}"` : "") + ` title="${esc(value)} \u2014 left click: only rows using them; right click: no row using them; either click again to clear.">${roleTagLabel(value)}<span class="skind">${KIND_LABEL[kind]}</span></button>`;
+    const hue = (kind === "resonator" ? RESONATOR_HUE.get(baseName(value)) : kind === "sequence" ? RESONATOR_HUE.get(value.replace(/ S\d+$/, "")) : void 0) ?? TUNE_BREAK_ENEMY.color;
+    return `<button type="button" class="sresult" data-kind="${kind}" data-value="${esc(value)}" style="--mem:${hue}" title="${esc(value)} \u2014 include: only rows using them; exclude (or right click): no row using them; either again to clear."><span class="sact inc"><span class="sname">${roleTagLabel(value)}<span class="skind">${KIND_LABEL[kind]}</span></span><span class="slabel">include <span class="box">\u2713</span></span></span><span class="sact exc"><span class="slabel">exclude <span class="box">\u2715</span></span></span></button>`;
   }).join("");
 }
-var ROLE_HELP = (role) => ({
-  weapons: `Compare weapon options for ${role}`,
-  echoes: `Compare sonata and mainslot options for ${role}`,
-  mainstats: `Compare echo mainstat combos for ${role}`,
-  r1: `Allow ${role} to use signature weapons`,
-  sequences: `Show ${role} sequences S1-S6 for 5 star standard and limited`
-});
-var MDPS_HELP = ROLE_HELP("main DPS");
-var SUPPORT_HELP = ROLE_HELP("supports");
-var FILTER_HELP = {
-  allowR1Mdps: MDPS_HELP.r1,
-  mdpsWeapons: MDPS_HELP.weapons,
-  mdpsEchoes: MDPS_HELP.echoes,
-  mdpsMainstats: MDPS_HELP.mainstats,
-  mdpsSequences: MDPS_HELP.sequences,
-  allowR1Supports: SUPPORT_HELP.r1,
-  supportWeapons: SUPPORT_HELP.weapons,
-  supportEchoes: SUPPORT_HELP.echoes,
-  supportMainstats: SUPPORT_HELP.mainstats,
-  supportSequences: SUPPORT_HELP.sequences,
-  matrix: "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent."
-};
+var PAIRS = [
+  {
+    id: "r1",
+    label: "Signature Weapons",
+    mdps: "allowR1Mdps",
+    support: "allowR1Supports",
+    help: "Allow that role to use signature weapons (R1), otherwise they run standard and 4* weapons only"
+  },
+  {
+    id: "sequences",
+    label: "Show Sequences",
+    mdps: "mdpsSequences",
+    support: "supportSequences",
+    help: "Show sequences S1-S6 for 5 star standard and limited resonators"
+  },
+  {
+    id: "weapons",
+    label: "Compare Weapons",
+    mdps: "mdpsWeapons",
+    support: "supportWeapons",
+    help: "Compare weapon options for that role, enable R1 weapons to see signature options"
+  },
+  {
+    id: "echoes",
+    label: "Compare Sonatas",
+    mdps: "mdpsEchoes",
+    support: "supportEchoes",
+    help: "Compare sonata and mainslot echo options for that role"
+  },
+  {
+    id: "mainstats",
+    label: "Compare Mainstats",
+    mdps: "mdpsMainstats",
+    support: "supportMainstats",
+    help: "Compare echo mainstat combos for that role"
+  }
+];
+var MATRIX_HELP = "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.";
 var STANDARDS = [
   "Rotations are 123, or 1323 for resonators that need double intro (jinhsi, brant, etc).",
   "In some cases, a character may use their liberation at the start of the fight for free damage.",
@@ -1487,7 +1517,12 @@ var openHelp = /* @__PURE__ */ new Set(["readme"]);
 function comparisonFilters() {
   const filter = (id, label) => {
     const open = openHelp.has(id);
-    return `<div class="tcopt${open ? " open" : ""}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="${id}" aria-expanded="${open}">${esc(label)}<span class="arrow">\u203A</span></button><input type="checkbox" id="${id}" aria-label="${esc(label)}" title="${esc(label)}"${filters[id] ? " checked" : ""}></div><div class="tcopt-desc"${open ? "" : " hidden"}>${esc(FILTER_HELP[id])}</div></div>`;
+    return `<div class="tcopt${open ? " open" : ""}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="${id}" aria-expanded="${open}">${esc(label)}<span class="arrow">\u203A</span></button><input type="checkbox" id="${id}" aria-label="${esc(label)}" title="${esc(label)}"${filters[id] ? " checked" : ""}></div><div class="tcopt-desc"${open ? "" : " hidden"}>${esc(MATRIX_HELP)}</div></div>`;
+  };
+  const pair = ({ id, label, mdps, support, help }) => {
+    const open = openHelp.has(id);
+    const role = (key, name) => `<label class="tcopt-role">${name}<input type="checkbox" id="${key}" title="${esc(label)} ${name}"${filters[key] ? " checked" : ""}></label>`;
+    return `<div class="tcopt pair${open ? " open" : ""}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="${id}" aria-expanded="${open}">${esc(label)}<span class="arrow">\u203A</span></button>` + role(mdps, "mdps") + role(support, "support") + `</div><div class="tcopt-desc"${open ? "" : " hidden"}>${esc(help)}</div></div>`;
   };
   const note = (id, label, lines) => {
     const open = openHelp.has(id);
@@ -1495,9 +1530,9 @@ function comparisonFilters() {
   };
   return `<div class="tcfilters">
     <div class="tcfilter-row note">
+      ${note("readme", "README", README)}
       ${note("standards", "Standards and Assumptions", STANDARDS)}
       ${note("browsing", "How to Browse and Filter", BROWSING)}
-      ${note("readme", "README", README)}
       <div class="tcsearchrow">
         <div class="tcsearch">
           <input id="optionSearch" type="search" placeholder="Filter resonators..."
@@ -1507,22 +1542,9 @@ function comparisonFilters() {
         ${resonatorChips()}
       </div>
     </div>
-    <div class="tcroles">
-      <div class="tcfilter-row">
-        ${filter("allowR1Mdps", "Allow R1 Main DPS")}
-        ${filter("mdpsWeapons", "Show Main DPS Weapon Options")}
-        ${filter("mdpsEchoes", "Show Main DPS Echo Options")}
-        ${filter("mdpsMainstats", "Show Main DPS Mainstat Options")}
-        ${filter("mdpsSequences", "Allow Main DPS Sequences")}
-        ${filter("matrix", "Enable Matrix Buffs")}
-      </div>
-      <div class="tcfilter-row">
-        ${filter("allowR1Supports", "Allow R1 Supports")}
-        ${filter("supportWeapons", "Show Support Weapon Options")}
-        ${filter("supportEchoes", "Show Support Echo Options")}
-        ${filter("supportMainstats", "Show Support Mainstat Options")}
-        ${filter("supportSequences", "Allow Support Sequences")}
-      </div>
+    <div class="tcfilter-row tcroles">
+      ${PAIRS.map(pair).join("")}
+      ${filter("matrix", "Enable Matrix Buffs")}
     </div>
     <div class="tcwarning" id="rowCapWarning" hidden></div>
   </div>`;
@@ -1788,12 +1810,11 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
     if (isRunning(col.key) && typeof v === "number" && Math.abs((Number(row.raw[`before:${col.key}`]) || 0) + (Number(row.raw[`moved:${col.key}`]) || 0) - v) > 1e-9) {
       cls.push("buffed");
     }
-    if (col.key === "concerto" && Number(row.raw.isOutro) && Number(row.raw.concertoSpent) < 100) {
+    if (col.key === "concerto" && Number(row.raw["short:concerto"]))
       cls.push("underspent");
-    }
-    if (col.key.startsWith("gauge:") && typeof v === "number" && v < 0)
+    if (col.key.startsWith("gauge:") && Number(row.raw[`short:${col.key}`]))
       cls.push("negative");
-    const text = esc(fmt(v, col.digits ?? 0, PAD_DIGITS_COLUMNS2.has(col.key), GROUPED_COLUMNS2.has(col.key))) + (col.percent && typeof v === "number" ? "%" : "");
+    const text = esc(fmt(v, col.digits ?? 0, PAD_DIGITS_COLUMNS2.has(col.key), GROUPED_COLUMNS2.has(col.key))) + (col.percent && typeof v === "number" ? "%" : "") + gaugeSuffix(row.raw, col.key);
     let html = sources && text ? `<span class="has">${text}</span>` : text;
     if (col.key === "action" && caret && !part && "parts" in row && row.parts.length) {
       html = `${html}<span class="caret">\u25B8</span>`;
@@ -1987,8 +2008,10 @@ function teamEnergySources(flat, rows, member2, fallback) {
       const key = `${r.source}\0${r.section ?? ""}`;
       const seen = by.get(key);
       if (seen) {
-        if (!r.mult && r.section !== ENERGY_RATE)
+        if (!r.mult && r.section !== ENERGY_RATE) {
           seen.value += r.value;
+          seen.count = (seen.count ?? 1) + (r.count ?? 1);
+        }
       } else
         by.set(key, { ...r });
     }
@@ -2512,21 +2535,30 @@ function fitSide() {
   const side = app.querySelector(".tcside");
   const head = app.querySelector(".tgrid .trow.thead");
   const first = head?.firstElementChild, last = head?.lastElementChild;
-  if (!layout || !side || !first || !last)
+  const main = app.querySelector("main");
+  if (!layout || !side || !first || !last || !main)
     return;
   layout.classList.remove("stack");
+  main.classList.remove("stack");
   const table = rect(last).right - rect(first).left;
   let room = layout.clientWidth;
   const beside = room - table - (parseFloat(getComputedStyle(layout).columnGap) || 0);
-  if (getComputedStyle(layout).flexDirection === "row" && beside >= 282)
+  const stacked = !(getComputedStyle(layout).flexDirection === "row" && beside >= 370);
+  if (!stacked)
     room = beside;
-  else
+  else {
     layout.classList.add("stack");
-  const cols = room >= 846 ? 3 : room >= 564 ? 2 : 1;
-  for (const n of [1, 2, 3])
+    main.classList.add("stack");
+    const cs = getComputedStyle(main);
+    room = main.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    side.style.width = `${room}px`;
+  }
+  const cols = room >= (stacked ? 600 : 740) ? 2 : 1;
+  for (const n of [1, 2])
     side.classList.toggle(`cols${n}`, n === cols);
-  const main = app.querySelector("main");
-  side.style.maxHeight = layout.classList.contains("stack") || !main ? "" : `${main.clientHeight}px`;
+  side.style.maxHeight = stacked ? "" : `${main.clientHeight}px`;
+  if (!stacked)
+    side.style.width = "";
 }
 function renderComparison() {
   topbar.hidden = true;
@@ -2579,10 +2611,21 @@ var overlay = document.getElementById("loading");
 var overlayStatus = overlay.querySelector(".status-text");
 var overlayCount = overlay.querySelector(".progress-count");
 var overlayFill = overlay.querySelector(".progress-fill");
+var overlayTimer;
 function overlayPhase(text, count = "") {
   overlayStatus.textContent = text;
   overlayCount.textContent = count;
-  overlay.hidden = false;
+  if (!overlay.hidden || overlayTimer !== void 0)
+    return;
+  overlayTimer = setTimeout(() => {
+    overlayTimer = void 0;
+    overlay.hidden = false;
+  }, 100);
+}
+function overlayHide() {
+  clearTimeout(overlayTimer);
+  overlayTimer = void 0;
+  overlay.hidden = true;
 }
 async function runMissing(rows, workTotal, teamsOffset) {
   const missing = rows.filter((row) => !results.has(row.key));
@@ -2754,7 +2797,7 @@ async function refresh() {
     app.innerHTML = errorPage(err);
     app.className = "";
   }
-  overlay.hidden = true;
+  overlayHide();
 }
 async function bootDetail() {
   const key = hashParams().get("team");
@@ -2767,7 +2810,7 @@ async function bootDetail() {
   await paint();
   results.set(key, runTeam(row.teamKey, row.members, row.combo, true));
   renderDetail(key);
-  overlay.hidden = true;
+  overlayHide();
   return true;
 }
 async function boot() {
@@ -2917,8 +2960,9 @@ async function boot() {
     const pick = searchPick(e);
     if (!pick)
       return;
+    const exclude = !!e.target.closest(".sact.exc");
     clearSearch();
-    setFilter(...pick, "include");
+    setFilter(...pick, exclude ? "exclude" : "include");
     focusSearch();
   });
   document.addEventListener("contextmenu", (e) => {

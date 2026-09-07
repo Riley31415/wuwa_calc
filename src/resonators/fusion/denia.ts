@@ -142,10 +142,8 @@ const Lib1 = deniaAction("Liberation - Final Act (Stagecraft)", {
 /** Spends every Void Particle and all the Conformal Charge, and shifts back to Stagecraft. */
 const Lib2 = deniaAction("Liberation - Final Act (Breakdown)", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 795.24, energy: 30,
-  concerto: 20, offtune: 52528, forte2: -100, forte1: -100,
+  concerto: 20, offtune: 52528, resetForte1: true, resetForte2: true,
   updateBuffs: () => {
-    setForte1(100);
-    if (forte2() > 100) setForte2(100);
     revokeCurrent(ENTROPY_BREAKDOWN);
     applyCurrent(ENTROPY_STAGECRAFT);
     applyCurrent(DARK_CORE, 1); // assume 12 seconds has passed
@@ -349,12 +347,15 @@ const DN_INHERENT_1 = new Inherent({
 });
 
 const DENIA_TALENTS = new Talent({
-  name: "Denia: Talents",
+  name: "Talents: Denia",
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
 });
 
 const DENIA_RESONATOR = new Resonator({
   name: "Denia",
+  talent: DENIA_TALENTS,
+  inherent1: DN_INHERENT_1,
+  inherent2: DN_INHERENT_2,
   element: Attribute.Fusion,
   weapon: WeaponType.Rectifier,
   // Final Act - Breakdown always closes her loop back in Stagecraft Form, so It's Been A While!
@@ -363,6 +364,8 @@ const DENIA_RESONATOR = new Resonator({
   outro: () => Outro,
   color: "#ecabe3",
   maxEnergy: 125,
+  maxForte1: 100,
+  maxForte2: 100,
 
   constantStats: () => {
     addStat(Stat.BaseHp, 11025); addStat(Stat.BaseAtk, 425); addStat(Stat.BaseDef, 1148.89);
@@ -399,9 +402,6 @@ const DN_ROTATION_BURST = new Rotation([
  *  Spliced Memories rides Tune Strain (off her own Shifting). */
 export const DENIA_BURST = new Loadout({
   resonator: DENIA_RESONATOR,
-  talent: DENIA_TALENTS,
-  inherent1: DN_INHERENT_1,
-  inherent2: DN_INHERENT_2,
   weapons: [FORGED_DWARF_STAR, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER],
   echoLoadouts: [
     new EchoLoadout(TRICKSTER, CHROMATIC_FOAM_5PC),
@@ -428,9 +428,6 @@ const DN_ROTATION_STRAIN = new Rotation([
 
 export const DENIA_STRAIN = new Loadout({
   resonator: DENIA_RESONATOR,
-  talent: DENIA_TALENTS,
-  inherent1: DN_INHERENT_1,
-  inherent2: DN_INHERENT_2,
   weapons: [FORGED_DWARF_STAR, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER],
   echoLoadouts: [
     new EchoLoadout(VOIDWING_MOTH, REEL_5PC),

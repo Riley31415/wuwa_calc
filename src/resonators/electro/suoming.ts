@@ -52,14 +52,15 @@ import {
   applyTeam,
   casting,
   currentAction,
+  forte1,
   isHeld,
   queueOutro,
   revokeCurrent,
   setForte1,
   stacksOfTeam,
 } from "../../engine/context.js";
-import { Action, ActionField, ActionGroup, Rotation, DOUBLE_INTRO, INTRO, OUTRO, ECHO_SWAP } from "../../engine/rotation.js";
-import { NINE_SHADOWS, UNISON, UNISON_BOON, UNISON_RESPONDER, respondToUnison, unisonIntro, unisonResponse } from "../../shared/unison.js";
+import { Action, ActionField, ActionGroup, Rotation, DOUBLE_INTRO, INTRO, OUTRO, ECHO_SWAP, DODGE } from "../../engine/rotation.js";
+import { NINE_SHADOWS, UNISON, UNISON_BOON, UNISON_RESPONDER, respondToUnison, unisonIntro, unisonOutro, unisonResponse } from "../../shared/unison.js";
 import { coordinatedBuff, lostOnSwap } from "../../shared/helpers.js";
 import { RED_SPRING, UNSPOKEN_RUE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
@@ -73,15 +74,6 @@ import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 function suomingAction(id: string, def: object): Action {
   return new Action(id, { element: Attribute.Electro, scaling: Scaling.Atk, ...def });
 }
-
-/** A cast that clears all Delusion, however much stands: the cap as its negative delta, the gauge
- *  set to the cap ahead of it so the delta lands exactly at 0 — from any level, not only a full
- *  bar, since Flash Rift and the Unison Rift Cleaver clear a bar that is rarely full. */
-const CLEAR_DELUSION = { forte1: -800 };
-/** Flash Rift and Sealed Delusion (Unison) don't land at 0: the skill table's own F1 shows +200
- *  net regardless of the bar they left, so this is the same clamp-then-declared-delta shape as
- *  CLEAR_DELUSION, just -600 off the cap instead of -800. */
-const CLEAR_DELUSION_TO_200 = { forte1: -600 };
 
 // --- Furled Canopy, the Awakened Mind chain
 const BA1 = suomingAction("Basic - Furled Canopy 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 31.55, energy: 1.91, concerto: 1.79, offtune: 3174, forte1: 120 });
@@ -130,32 +122,37 @@ const ThunderCrest = suomingAction("Liberation - Blight Rain, Miasmic Thunder", 
 // --- the four Intros, all Basic Attack DMG: Furled forms from Awakened Mind (into Deep Mind,
 //     Delusion cleared), Unfurled forms from Deep Mind (+200 Delusion); the (Unison) pair answer a
 //     Unison outro and are what triggers Unison Response
-const INTRO_FURLED = { node: Node.Intro, cast: Cast.Intro, type: Type1.Basic, mv: 110.89 * 2 + 36.97 * 4, energy: 3 * 2 + 1 * 4, concerto: 1.5 * 2 + 0.5 * 4 + 10, offtune: 5578 * 2 + 1860 * 4 };
-const INTRO_UNFURLED = { node: Node.Intro, cast: Cast.Intro, type: Type1.Basic, mv: 131.43 * 3 + 65.72 * 2, energy: 2.5 * 3 + 1.25 * 2, concerto: 10, offtune: 4407 * 3 + 2204 * 2, forte1: 200 };
+const INTRO_FURLED = { node: Node.Intro, cast: Cast.Intro, resetForte1: true, type: Type1.Basic, mv: 110.89 * 2 + 36.97 * 4, energy: 3 * 2 + 1 * 4, concerto: 1.5 * 2 + 0.5 * 4 + 10, offtune: 5578 * 2 + 1860 * 4 };
 const IntroFlashRift = suomingAction("Intro - Furled Canopy: Flash Rift", {
-  ...INTRO_FURLED, ...CLEAR_DELUSION_TO_200,
-  updateBuffs: () => { setForte1(800); applyCurrent(DEEP_MIND, 1); },
+  ...INTRO_FURLED,
+  updateBuffs: () => applyCurrent(DEEP_MIND, 1),
 });
-const IntroThunderRending = suomingAction("Intro - Unfurled Canopy: Thunder Rending", INTRO_UNFURLED);
 const IntroSealedDelusion = suomingAction("Intro - Furled Canopy: Sealed Delusion (Unison)", {
-  ...INTRO_FURLED, ...CLEAR_DELUSION_TO_200, updateDebuffs: respondToUnison,
-  updateBuffs: () => { setForte1(800); applyCurrent(DEEP_MIND, 1); },
+  ...INTRO_FURLED, updateDebuffs: respondToUnison,
+  updateBuffs: () => applyCurrent(DEEP_MIND, 1),
 });
+
+const INTRO_UNFURLED = { node: Node.Intro, cast: Cast.Intro, type: Type1.Basic, mv: 131.43 * 3 + 65.72 * 2, energy: 2.5 * 3 + 1.25 * 2, concerto: 10, offtune: 4407 * 3 + 2204 * 2, forte1: 200 };
+const IntroThunderRending = suomingAction("Intro - Unfurled Canopy: Thunder Rending", INTRO_UNFURLED);
 const IntroWhirlingThunder = suomingAction("Intro - Unfurled Canopy: Whirling Thunder (Unison)", { ...INTRO_UNFURLED, updateDebuffs: respondToUnison });
+
+
 const INTROS = [IntroFlashRift, IntroThunderRending, IntroSealedDelusion, IntroWhirlingThunder];
 
 // --- Forte Circuit: the two full-bar skills and Engraved Heart behind them, all Basic Attack DMG
 const SealedDelusion = suomingAction("Forte Skill - Furled Canopy: Sealed Delusion", {
   node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 62.78 * 2 + 31.39 * 4, energy: 2.17 * 2 + 1.09 * 4, concerto: 2.03 * 2 + 1.02 * 4, offtune: 3609 * 2 + 1805 * 4,
-  ...CLEAR_DELUSION,
-  updateBuffs: () => { setForte1(800); applyCurrent(DEEP_MIND, 1); },
+  // only fires at a full 800 Delusion — maxForte1 (800) clamps an overrun back to the cap before
+  // this lands exactly on 0, same as Engraved Heart's own -800
+  forte1: -800,
+  updateBuffs: () => applyCurrent(DEEP_MIND, 1),
 });
 const UnforsakenMind = suomingAction("Skill - Unfurled Canopy: Unforsaken Mind", { node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 152.67, offtune: 8776 });
 /** Calamity Mind for its own duration, Awakened Mind once it ends: Deep Mind is simply over. */
 const EngravedHeart = suomingAction("Forte Basic - Umbral Canopy: Engraved Heart", {
   node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 155.14 * 3 + 77.57 * 4, energy: 2.05 * 3 + 1.03 * 4, concerto: 2.5 * 3 + 1.25 * 4, offtune: 2602 * 3 + 1301 * 4,
-  ...CLEAR_DELUSION,
-  updateBuffs: () => { setForte1(800); revokeCurrent(DEEP_MIND); },
+  forte1: -800,
+  updateBuffs: () => revokeCurrent(DEEP_MIND),
 });
 
 /** Canopy Rumble. With Unison still held this is the Unison outro: Aligned Seals, the Crest
@@ -172,6 +169,7 @@ const Outro = suomingAction("Outro - Canopy Rumble", {
     if (isHeld(ALIGNED_SEALS)) queueOutro(ALIGNED_SEALS_HANDOFF);
   },
 });
+const OutroUnison = unisonOutro(Outro);
 
 /* ------------------------------------------------------------------------------------- buffs */
 
@@ -304,12 +302,15 @@ const SM_SEQUENCES = [SM_S1, SM_S2, SM_S3, SM_S4, SM_S5, SM_S6];
 /* --------------------------------------------------------------------------- kit and loadout */
 
 const SUOMING_TALENTS = new Talent({
-  name: "Suoming: Talents",
+  name: "Talents: Suoming",
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
 });
 
 const SUOMING_RESONATOR = new Resonator({
   name: "Suoming",
+  talent: SUOMING_TALENTS,
+  inherent1: RAIN_SOAKED_INHERENT,
+  inherent2: SUNKEN_SEAL,
   element: Attribute.Electro,
   weapon: WeaponType.Sword,
   // which state she is in, and whether the outro she answers was a Unison one — read off the
@@ -317,9 +318,10 @@ const SUOMING_RESONATOR = new Resonator({
   intro: () => (isHeld(DEEP_MIND)
     ? (unisonIntro() ? IntroWhirlingThunder : IntroThunderRending)
     : (unisonIntro() ? IntroSealedDelusion : IntroFlashRift)),
-  outro: () => Outro,
+  outro: () => (isHeld(UNISON) ? OutroUnison : Outro),
   color: "#ea5d64",
   maxEnergy: 125,
+  maxForte1: 800,
   // Unison Response: the team's Unison Boon, one stack from her, refreshed after the first
   updateBuffs: () => {
     if (unisonResponse() && !isHeld(BOON_RESPONSE)) { applyTeam(UNISON_BOON, 1); applyCurrent(BOON_RESPONSE, 1); }
@@ -340,11 +342,14 @@ const SUOMING_RESONATOR = new Resonator({
  *  answers carried one) banks 200 Delusion in Deep Mind, the Unfurled chain carries it past 800
  *  for Unforsaken Mind, and Engraved Heart spends the lot. */
 const UBA234 = new ActionGroup("Basic - Unfurled Canopy 234", [UBA2, UBA3, UBA4]);
+const UBA34 = new ActionGroup("Basic - Unfurled Canopy 34", [UBA3, UBA4]);
+const UBA12 = new ActionGroup("Basic - Unfurled Canopy 12", [UBA1, UBA2]);
+const UBA1234 = new ActionGroup("Basic - Unfurled Canopy 1234", [UBA1, UBA2, UBA3, UBA4]);
 
 const SM_ROTATION = new Rotation([
-  DOUBLE_INTRO, Liberation, ECHO_SWAP, OUTRO,
+  DOUBLE_INTRO, Liberation, OUTRO,
 
-  INTRO, UBA234, UnforsakenMind, EngravedHeart, OUTRO,
+  INTRO, UBA234, UnforsakenMind, EngravedHeart, ECHO_SWAP, OUTRO,
 ]);
 
 /** The Seal Master main-DPS loop, the kit's other way to spend a Unison. Her Intro drops her into
@@ -356,8 +361,9 @@ const SM_ROTATION = new Rotation([
  *  loop's Flash Rift is written for. */
 const SM_ROTATION_MDPS = new Rotation([
   INTRO, Liberation, 
-  RiftCleaver, UBA3, UBA4, 
-  UBA2, UBA2H1, UBA2H2, UBA3, UBA4, //UBA2H1, UBA2H2,
+  RiftCleaver, UBA34, DODGE,
+  UBA1234, DODGE,
+  UBA12,
   UnforsakenMind, EngravedHeart,
   ECHO_SWAP, OUTRO,
 ]);
@@ -372,9 +378,6 @@ const SM_ECHOES = [
 
 export const SUOMING = new Loadout({
   resonator: SUOMING_RESONATOR,
-  talent: SUOMING_TALENTS,
-  inherent1: RAIN_SOAKED_INHERENT,
-  inherent2: SUNKEN_SEAL,
   weapons: [UNSPOKEN_RUE, EMERALD_OF_GENESIS, RED_SPRING],
   echoLoadouts: SM_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
@@ -385,9 +388,6 @@ export const SUOMING = new Loadout({
 
 export const SUOMING_MDPS = new Loadout({
   resonator: SUOMING_RESONATOR,
-  talent: SUOMING_TALENTS,
-  inherent1: RAIN_SOAKED_INHERENT,
-  inherent2: SUNKEN_SEAL,
   weapons: [UNSPOKEN_RUE, EMERALD_OF_GENESIS, RED_SPRING],
   echoLoadouts: [new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),

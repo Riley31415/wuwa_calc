@@ -120,24 +120,29 @@ const XLY_OUTRO: Buff = new Buff({
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(XLY_OUTRO); },
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
+const XLY_TALENTS = new Talent({
+  name: "Talents: Xiangli Yao",
+  constantStats: () => { addStat(Stat.CritDmg, 16); addStat(Stat.BonusAtk, 12); },
+});
+
 const XIANGLI_YAO_RESONATOR = new Resonator({
   name: "Xiangli Yao",
+  talent: XLY_TALENTS,
+  inherent1: XLY_INHERENT_1,
+  inherent2: XLY_INHERENT_2,
   element: Attribute.Electro,
   weapon: WeaponType.Gauntlets,
   intro: () => Intro,
   outro: () => Outro,
   color: "#6b74e8",
   maxEnergy: 125,
+  maxForte1: 100,
+  maxForte2: 5,
 
   constantStats: () => {
     addStat(Stat.BaseHp, 10625); addStat(Stat.BaseAtk, 425); addStat(Stat.BaseDef, 1222.22);
   },
-});
-
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
-const XLY_TALENTS = new Talent({
-  name: "Xiangli Yao: Talents",
-  constantStats: () => { addStat(Stat.CritDmg, 16); addStat(Stat.BonusAtk, 12); },
 });
 
 // Deduction plus the full Probe combo lands exactly on 100 Capacity for Decipher; Cogitation
@@ -163,9 +168,6 @@ const XLY_ROTATION = new Rotation([
 export const XIANGLI_YAO = new Loadout({
   resonator: XIANGLI_YAO_RESONATOR,
   matrix: matrix("Xiangli Yao", 25),
-  talent: XLY_TALENTS,
-  inherent1: XLY_INHERENT_1,
-  inherent2: XLY_INHERENT_2,
   weapons: [IUNO_SIG, NEW_STD_GAUNTLET, VERITYS_HANDLE, ABYSS_SURGES],
   echoLoadouts: [new EchoLoadout(NM_MEPHIS, VOID_THUNDER_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),

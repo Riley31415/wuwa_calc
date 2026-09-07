@@ -207,28 +207,32 @@ const MORTEFI_S6 = new Sequence({
   updateBuffs: () => { if (currentAction() === Liberation) applyTeam(S6_TEAM_ATK, 1); },
 });
 
+// stat-tree bonus alone, spread across four skill nodes (Fusion DMG + ATK), same +12%/+12% shape
+// as every other resonator's own
+const MORTEFI_TALENTS = new Talent({
+  name: "Talents: Mortefi",
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Fusion); },
+});
+
 /** Him, as a Resonator: name/element/weapon, every grant/spend/queue rule his kit needs, and his
  *  own base stat line. `Tier.Free` — see the file header. */
 const MORTEFI_RESONATOR = new Resonator({
   name: "Mortefi",
+  talent: MORTEFI_TALENTS,
+  inherent1: MO_INHERENT_1,
+  inherent2: MO_INHERENT_2,
   element: Attribute.Fusion,
   weapon: WeaponType.Pistols,
   intro: () => Intro,
   outro: () => Outro,
   color: "#e8734f",
   maxEnergy: 125,
+  maxForte1: 100,
   tier: Tier.Free,
 
   constantStats: () => {
     addStat(Stat.BaseHp, 10025); addStat(Stat.BaseAtk, 250); addStat(Stat.BaseDef, 1137);
   },
-});
-
-// stat-tree bonus alone, spread across four skill nodes (Fusion DMG + ATK), same +12%/+12% shape
-// as every other resonator's own
-const MORTEFI_TALENTS = new Talent({
-  name: "Mortefi: Talents",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Fusion); },
 });
 
 /** A kit-valid line: Intro, a full Impromptu Show combo, Passionate Variation, Liberation (opens
@@ -252,9 +256,6 @@ const MO_ROTATION = new Rotation([
 // weapon, all six sequence nodes (Tier.Free — see file header)
 export const MORTEFI = new Loadout({
   resonator: MORTEFI_RESONATOR,
-  talent: MORTEFI_TALENTS,
-  inherent1: MO_INHERENT_1,
-  inherent2: MO_INHERENT_2,
   weapons: [STATIC_MIST, CADENZA, NEW_STD_PISTOL, THE_LAST_DANCE],
   echoLoadouts: [
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),

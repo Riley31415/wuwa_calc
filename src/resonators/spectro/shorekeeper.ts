@@ -190,12 +190,25 @@ const SK_S6 = new Sequence({
   applyStats: () => { if (currentAction() === EIntro) { addStat(Stat.MulMv, 42); addStat(Stat.CritDmg, 500); } },
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
+const SHOREKEEPER_TALENTS = new Talent({
+  name: "Talents: Shorekeeper",
+  constantStats: () => {
+    addStat(Stat.BonusHp, 12);
+    addStat(Stat.HealingBonus, 12); // stat-tree Healing Bonus+ nodes — unused by the formula
+  },
+});
+
 const SHOREKEEPER_RESONATOR = new Resonator({
   name: "Shorekeeper",
+  talent: SHOREKEEPER_TALENTS,
+  inherent1: SK_INHERENT_1,
+  inherent2: SK_INHERENT_2,
   element: Attribute.Spectro,
   weapon: WeaponType.Rectifier,
   color: "#728cf3",
   maxEnergy: 175,
+  maxForte1: 5,
   // reads SK_REALM's own live stack count, already stepped by the preceding outro
   intro: () => (stacksOfTeam(SK_REALM) >= 3 ? EIntro : Intro),
   outro: () => Outro,
@@ -209,15 +222,6 @@ const SHOREKEEPER_RESONATOR = new Resonator({
 
   constantStats: () => {
     addStat(Stat.BaseHp, 16712.5); addStat(Stat.BaseAtk, 287.5); addStat(Stat.BaseDef, 1100);
-  },
-});
-
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
-const SHOREKEEPER_TALENTS = new Talent({
-  name: "Shorekeeper: Talents",
-  constantStats: () => {
-    addStat(Stat.BonusHp, 12);
-    addStat(Stat.HealingBonus, 12); // stat-tree Healing Bonus+ nodes — unused by the formula
   },
 });
 
@@ -260,9 +264,6 @@ const SK_LOOP_S3 = new Rotation([
 // sonata pieces, mainstat/substat
 export const SHOREKEEPER = new Loadout({
   resonator: SHOREKEEPER_RESONATOR,
-  talent: SHOREKEEPER_TALENTS,
-  inherent1: SK_INHERENT_1,
-  inherent2: SK_INHERENT_2,
   weapons: [SK_SIG, VARIATION],
   echoLoadouts: [
     new EchoLoadout(FALLACY, REJUV_5PC),

@@ -185,16 +185,27 @@ const VERINA_S1 = new Sequence({ name: "Verina S1: Moment of Emergence" });
 const VERINA_S3 = new Sequence({ name: "Verina S3: The Choice to Flourish" });
 const VERINA_S5 = new Sequence({ name: "Verina S5: Miraculous Blooms" });
 
+// stat-tree bonus alone — Healing Bonus+ unused by the formula (healing out of scope), kept for
+// completeness only
+const VERINA_TALENTS = new Talent({
+  name: "Talents: Verina",
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.HealingBonus, 12); }
+});
+
 /** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her
  *  own base stat line. `Tier.Standard` — see the file header. */
 const VERINA_RESONATOR = new Resonator({
   name: "Verina",
+  talent: VERINA_TALENTS,
+  inherent1: VR_INHERENT_1,
+  inherent2: VR_INHERENT_2,
   element: Attribute.Spectro,
   weapon: WeaponType.Rectifier,
   intro: () => Intro,
   outro: () => Outro,
   color: "#cfee7a",
   maxEnergy: 175, // her own real 175%, not the generic 125% default — matches Shorekeeper's own
+  maxForte1: 4,
 
   tier: Tier.Standard,
 
@@ -208,13 +219,6 @@ const VERINA_RESONATOR = new Resonator({
   constantStats: () => {
     addStat(Stat.BaseHp, 14238); addStat(Stat.BaseAtk, 338); addStat(Stat.BaseDef, 1100);
   },
-});
-
-// stat-tree bonus alone — Healing Bonus+ unused by the formula (healing out of scope), kept for
-// completeness only
-const VERINA_TALENTS = new Talent({
-  name: "Verina: Talents",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.HealingBonus, 12); }
 });
 
 const BA345 = new ActionGroup("Basic - Cultivation 345", [BA3, BA4, BA5]);
@@ -245,9 +249,6 @@ const VR_S2 = new Rotation([
 // every sequence node (Tier.Standard — see file header) alongside resonator + talents
 export const VERINA = new Loadout({
   resonator: VERINA_RESONATOR,
-  talent: VERINA_TALENTS,
-  inherent1: VR_INHERENT_1,
-  inherent2: VR_INHERENT_2,
   weapons: [VARIATION],
   echoLoadouts: [
     new EchoLoadout(FALLACY, REJUV_5PC),

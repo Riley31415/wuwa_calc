@@ -85,13 +85,12 @@ const Encroach = galbrenaAction("Skill - Encroach", { node: Node.Skill, cast: Ca
  *  ceiling, so a bare relative delta could land short). */
 const AscentOfMalice = galbrenaAction("Skill - Ascent of Malice", {
   node: Node.Skill, cast: Cast.Skill, type: Type1.Heavy, mv: 103.14, energy: 14.76, concerto: 10, offtune: 5588, forte1: -100, forte2: 100,
+  // the conversion is a top-off, not a top-up: Purging Flame is emptied ahead of the +100 above,
+  // so it lands on exactly 100 from wherever the enhanced chain left it
+  resetForte2: true,
   updateBuffs: () => {
     applyCurrent(BURNING_DRIVE, 1);
     applyCurrent(DEMON_HYPOSTASIS, 1);
-    // pre-clamp an overshoot back to exactly 100 so the declared forte1: -100 field above lands
-    // exactly on 0; under 100, leave it alone so it drives negative naturally instead
-    if (forte1() >= 100) setForte1(100);
-    setForte2(0);
   },
 });
 
@@ -111,7 +110,8 @@ const FlamewingVerdict3 = galbrenaAction("Forte Heavy - Flamewing Verdict 3", { 
 
 const Ravage = galbrenaAction("Forte Skill - Ravage", {
   node: Node.Forte, cast: Cast.Skill, type: Type1.Heavy, mv: 35.78, energy: 6.59, concerto: 2.22, offtune: 5039,
-  updateBuffs: () => { applyCurrent(BURNING_DRIVE, 1); setForte2(0); },
+  resetForte2: true,
+  updateBuffs: () => applyCurrent(BURNING_DRIVE, 1),
 });
 
 const Liberation = galbrenaAction("Liberation - Hellfire Absolution", {
@@ -182,14 +182,25 @@ const HELLFIRE_WINDOW = new Buff({
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(HELLFIRE_WINDOW); },
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
+const GALBRENA_TALENTS = new Talent({
+  name: "Talents: Galbrena",
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
+});
+
 const GALBRENA_RESONATOR = new Resonator({
   name: "Galbrena",
+  talent: GALBRENA_TALENTS,
+  inherent1: GB_INHERENT_1,
+  inherent2: GB_INHERENT_2,
   element: Attribute.Fusion,
   weapon: WeaponType.Pistols,
   intro: () => Intro,
   outro: () => Outro,
   color: "#1e3a8a",
   maxEnergy: 125,
+  maxForte1: 100,
+  maxForte2: 100,
 
   // reacts to *any* team member's own Echo cast, not just her own — see AFTERFLAME's own comment
   updateGlobal: () => {
@@ -198,12 +209,6 @@ const GALBRENA_RESONATOR = new Resonator({
   constantStats: () => {
     addStat(Stat.BaseHp, 10300); addStat(Stat.BaseAtk, 463); addStat(Stat.BaseDef, 1112);
   },
-});
-
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
-const GALBRENA_TALENTS = new Talent({
-  name: "Galbrena: Talents",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
 });
 
 // a kit-valid line: Intro, Encroach opens Burning Drive and banks Sinflame, Ascent of Malice
@@ -232,9 +237,6 @@ const GB_WEAPONS = [LUX_UMBRA, NEW_STD_PISTOL, STATIC_MIST];
 const GB_ECHOES = [new EchoLoadout(CORROSAURUS, FLAMEWING_SHADOW_3PC, CLAWPRINT_2PC)];
 export const GALBRENA = new Loadout({
   resonator: GALBRENA_RESONATOR,
-  talent: GALBRENA_TALENTS,
-  inherent1: GB_INHERENT_1,
-  inherent2: GB_INHERENT_2,
   weapons: GB_WEAPONS,
   echoLoadouts: GB_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),

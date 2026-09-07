@@ -78,7 +78,6 @@ const Liberation = brantAction("Liberation - To the Horizon", {
 const FSkill = brantAction("Forte Skill - Returned from Ashes", {
   node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 1888.71, offtune: 63200, energy: 30, concerto: 50, forte1: -100,
   updateDebuffs: () => applyCurrent(SHIELD, 1),
-  updateBuffs: () => { if (forte1() >= 100) setForte1(100); },
 });
 
 // --- ground Captain's Rhapsody: the 4-stage Basic chain, both Heavy Attacks (the table's only
@@ -240,26 +239,30 @@ const BR_S6 = new Sequence({
   updateBuffs: () => { if (currentAction() === FSkill) queue(AshesBlast); },
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
+const BRANT_TALENTS = new Talent({
+  name: "Talents: Brant",
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+});
+
 const BRANT_RESONATOR = new Resonator({
   name: "Brant",
+  talent: BRANT_TALENTS,
+  inherent1: BR_TRIAL_INHERENT,
+  inherent2: BR_VOYAGE_INHERENT,
   element: Attribute.Fusion,
   weapon: WeaponType.Sword,
   intro: () => Intro,
   outro: () => Outro,
   color: "#d1257f",
   maxEnergy: 175,
+  maxForte1: 100,
 
   combatStart: () => applyCurrent(THEATRICAL_MOMENT, 1),
 
   constantStats: () => {
     addStat(Stat.BaseHp, 11675); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1308);
   },
-});
-
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
-const BRANT_TALENTS = new Talent({
-  name: "Brant: Talents",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
 // he's never the team's own lead, so this same rotation covers both opener and loop
@@ -275,9 +278,6 @@ const BR_ROTATION = new Rotation([
 export const BRANT = new Loadout({
   resonator: BRANT_RESONATOR,
   matrix: matrix("Brant", 25),
-  talent: BRANT_TALENTS,
-  inherent1: BR_TRIAL_INHERENT,
-  inherent2: BR_VOYAGE_INHERENT,
   sequences: [BR_S1, BR_S2, BR_S3, BR_S4, BR_S5, BR_S6],
   weapons: [UNFLICKERING_VALOR, EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE],
   echoLoadouts: [
@@ -301,9 +301,6 @@ const BR_ROTATION_MDPS = new Rotation([
 export const BRANT_MDPS = new Loadout({
   resonator: BRANT_RESONATOR,
   matrix: matrix("Brant", 25),
-  talent: BRANT_TALENTS,
-  inherent1: BR_TRIAL_INHERENT,
-  inherent2: BR_VOYAGE_INHERENT,
   sequences: [BR_S1, BR_S2, BR_S3, BR_S4, BR_S5, BR_S6],
   weapons: [UNFLICKERING_VALOR, EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE],
   echoLoadouts: [

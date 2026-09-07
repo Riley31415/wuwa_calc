@@ -31,7 +31,7 @@ import { TUNE_BREAK_ENEMY } from "./shared/tunebreak.js";
 import type { Loadout, EchoLoadout } from "./engine/gear.js";
 import type { HeldBuff } from "./engine/state.js";
 import type { ChainGroup, ResolvedSnapshot } from "./engine/evaluate.js";
-import { buildReport, columnSources, columnOf, OFFTUNE_RATE, ENERGY_RATE } from "./display.js";
+import { buildReport, columnSources, columnOf, gaugeSuffix, OFFTUNE_RATE, ENERGY_RATE } from "./display.js";
 import type { Report, Column, ReportRow, ReportPart, TraceEntry, InfoEntry } from "./display.js";
 import { Scaling, isPercent, statLabel, SCALING_NAME, TAG_NAME, NODE_NAME } from "./engine/stats.js";
 import { member, comboOf, runTeam, runFromScore, eligibleWeapons, sequenceLevels, solveTeam, MAINSTAT_ROWS, defaultFilters, bestKey, picksKey } from "./solver.js";
@@ -823,6 +823,9 @@ const SECTION_RANK = (key: string | null): number => {
 const panelRow = (r: TraceEntry, slotHue: Map<string, string>, { noSource = false }: { noSource?: boolean } = {}): string => {
   const own = r.owner !== undefined ? (slotHue.get(r.owner ?? "") ?? TUNE_BREAK_ENEMY.color) : null;
   const label = r.label ?? (r.stat !== undefined ? statLabel(r.stat) : "");
+  // the same `xN` a stacked buff wears, for a source that granted more than once (display.ts's
+  // own `foldDuplicates`) — the row's value is the sum of those grants
+  const source = (r.count ?? 1) > 1 ? `${r.source} x${r.count}` : r.source;
   const value = `<td class="v">${r.mult ? `&times;${fmt(r.value, r.digits ?? 4)}` : `${fmt(r.value, r.digits ?? 4)}${unit(r)}`}</td>`;
   // Two columns, never three. The damage panel has no source of its own, so its left column is the
   // label ("Motion Value"); every other panel dropped the stat column it used to carry — the
@@ -834,7 +837,7 @@ const panelRow = (r: TraceEntry, slotHue: Map<string, string>, { noSource = fals
   if (r.summary) return `<tr class="sum"><td class="k">${esc(label)}</td>${value}</tr>`;
   return noSource
     ? `<tr><td class="k">${esc(label)}</td>${value}</tr>`
-    : `<tr><td class="s"${own ? ` style="--own:${own}"` : ""}>${esc(r.source || label)}</td>${value}</tr>`;
+    : `<tr><td class="s"${own ? ` style="--own:${own}"` : ""}>${esc(source || label)}</td>${value}</tr>`;
 };
 
 function popover(col: Column, rows: TraceEntry[] | undefined, total: number | string | null | undefined, slotHue: Map<string, string>, suffix = ""): string {
@@ -1050,7 +1053,10 @@ function damagePopover(
  *  left out too: it is the table's own box, on or off for every row alike, not a build pick. */
 function equippedGear(member: Member, combo: Combo): [string, Gear][] {
   const l = member.loadout;
-  return [["Inherent", l.inherent1], ["Inherent", l.inherent2], ["Weapon", combo.weapon], ["Mainslot", combo.echo.mainslot],
+  const r = l.resonator;
+  return [...(r.inherent1 ? [["Inherent", r.inherent1] as [string, Gear]] : []),
+    ...(r.inherent2 ? [["Inherent", r.inherent2] as [string, Gear]] : []),
+    ["Weapon", combo.weapon], ["Mainslot", combo.echo.mainslot],
     ...combo.echo.sets.map((g, i): [string, Gear] => [i === 0 ? "Sonata" : "", g]),
     ["Mainstats", combo.mainstat], ["Substats", l.substat]];
 }
@@ -1247,8 +1253,10 @@ function searchHits(): { kind: SearchKind; value: string }[] {
     .slice(0, 10);
 }
 
-/** `searchHits()` as markup — each one a row that filters exactly like the table cell it stands
- *  for: left click requires it, right click bars it (see the handlers in `boot()`). */
+/** `searchHits()` as markup — each one a row split in two by a rule: the name (and which axis it
+ *  is from) with "include" at its right on the left side, "exclude" on the right side. A left
+ *  click on the exclude side bars it, a left click on the include side or Enter requires it, and
+ *  a right click anywhere on the row bars it (see the handlers in `boot()`). */
 function searchResults(): string {
   if (!searchText.trim()) return "";
   const KIND_LABEL: Record<SearchKind, string> = {
@@ -1257,17 +1265,20 @@ function searchResults(): string {
   const hits = searchHits();
   if (!hits.length) return `<div class="sresult none">no matches</div>`;
   return hits.map(({ kind, value }) => {
-    const hue = kind === "resonator" ? RESONATOR_HUE.get(baseName(value))
-      : kind === "sequence" ? RESONATOR_HUE.get(value.replace(/ S\d+$/, "")) : undefined;
+    // gear has no member of its own, so it wears the Tune Break's colour, same as its chip
+    const hue = (kind === "resonator" ? RESONATOR_HUE.get(baseName(value))
+      : kind === "sequence" ? RESONATOR_HUE.get(value.replace(/ S\d+$/, "")) : undefined) ?? TUNE_BREAK_ENEMY.color;
     return `<button type="button" class="sresult" data-kind="${kind}" data-value="${esc(value)}"`
-      + (hue ? ` style="--mem:${hue}"` : "")
-      + ` title="${esc(value)} — left click: only rows using them; right click: no row using them; either click again to clear.">`
-      + `${roleTagLabel(value)}<span class="skind">${KIND_LABEL[kind]}</span></button>`;
+      + ` style="--mem:${hue}"`
+      + ` title="${esc(value)} — include: only rows using them; exclude (or right click): no row using them; either again to clear.">`
+      + `<span class="sact inc"><span class="sname">${roleTagLabel(value)}<span class="skind">${KIND_LABEL[kind]}</span></span>`
+      + `<span class="slabel">include <span class="box">✓</span></span></span>`
+      + `<span class="sact exc"><span class="slabel">exclude <span class="box">✕</span></span></span></button>`;
   }).join("");
 }
 
-/** The filter checkboxes above the comparison table, one row per role: MDPS on top, supports
- *  below, each row the same four axes plus that role's own R1 allowance.
+/** The filter checkboxes above the comparison table: one box per axis, with a checkbox for each
+ *  role in it — main DPS on the left, supports on the right — plus the matrix box on its own.
  *
  *  Sequences: unchecked, that role's own members each run their resonator's baseline chain level
  *  and nothing else — S0 for a limited or standard 5-star, S6 for a 4-star or Rover
@@ -1281,37 +1292,27 @@ function searchResults(): string {
  *  (weapons/standard.ts, every generation — see gear.ts's own `Weapon.tier`) when unchecked,
  *  on the assumption a signature is only ever owned at R1.
  *
- *  Each option is its own box: the name on the left, its own checkbox hard right, and the
- *  description in `FILTER_HELP` opening under both on a click of the name (`openHelp`).
+ *  Each axis is its own box: the name on the left, the two role checkboxes hard right, and the
+ *  description opening under both on a click of the name (`openHelp`).
  *
- *  Every id here is a `Filters` key, which is what the change handler in `boot()` keys off to
- *  update it — no id-to-field mapping table in between. The sequence pair opens no new rows the
- *  way the other three axes do (it drops whole teams instead, see `sequenceLevels()`), but it does
- *  change what every member cell is called, so it belongs to the same state and the same redraw. */
-const ROLE_HELP = (role: string) => ({
-  weapons: `Compare weapon options for ${role}`,
-  echoes: `Compare sonata and mainslot options for ${role}`,
-  mainstats: `Compare echo mainstat combos for ${role}`,
-  r1: `Allow ${role} to use signature weapons`,
-  sequences: `Show ${role} sequences S1-S6 for 5 star standard and limited`,
-});
-const MDPS_HELP = ROLE_HELP("main DPS"), SUPPORT_HELP = ROLE_HELP("supports");
-
-/** What each option's own box opens to say — the label is shorthand, this is what ticking it
- *  actually changes about what the table runs. */
-const FILTER_HELP: Record<keyof Filters, string> = {
-  allowR1Mdps: MDPS_HELP.r1,
-  mdpsWeapons: MDPS_HELP.weapons,
-  mdpsEchoes: MDPS_HELP.echoes,
-  mdpsMainstats: MDPS_HELP.mainstats,
-  mdpsSequences: MDPS_HELP.sequences,
-  allowR1Supports: SUPPORT_HELP.r1,
-  supportWeapons: SUPPORT_HELP.weapons,
-  supportEchoes: SUPPORT_HELP.echoes,
-  supportMainstats: SUPPORT_HELP.mainstats,
-  supportSequences: SUPPORT_HELP.sequences,
-  matrix: "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.",
-};
+ *  Every checkbox id here is a `Filters` key, which is what the change handler in `boot()` keys
+ *  off to update it — no id-to-field mapping table in between. The sequence pair opens no new
+ *  rows the way the other three axes do (it drops whole teams instead, see `sequenceLevels()`),
+ *  but it does change what every member cell is called, so it belongs to the same state and the
+ *  same redraw. */
+const PAIRS: { id: string; label: string; mdps: keyof Filters; support: keyof Filters; help: string }[] = [
+  { id: "r1", label: "Signature Weapons", mdps: "allowR1Mdps", support: "allowR1Supports",
+    help: "Allow that role to use signature weapons (R1), otherwise they run standard and 4* weapons only" },
+  { id: "sequences", label: "Show Sequences", mdps: "mdpsSequences", support: "supportSequences",
+    help: "Show sequences S1-S6 for 5 star standard and limited resonators" },
+  { id: "weapons", label: "Compare Weapons", mdps: "mdpsWeapons", support: "supportWeapons",
+    help: "Compare weapon options for that role, enable R1 weapons to see signature options" },
+  { id: "echoes", label: "Compare Sonatas", mdps: "mdpsEchoes", support: "supportEchoes",
+    help: "Compare sonata and mainslot echo options for that role" },
+  { id: "mainstats", label: "Compare Mainstats", mdps: "mdpsMainstats", support: "supportMainstats",
+    help: "Compare echo mainstat combos for that role" },
+];
+const MATRIX_HELP = "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.";
 
 /** What every figure in the table is costed against, whatever the boxes above it are set to —
  *  the one box that toggles nothing, so it states its terms rather than describing a switch. */
@@ -1365,7 +1366,21 @@ function comparisonFilters(): string {
       + `${esc(label)}<span class="arrow">›</span></button>`
       + `<input type="checkbox" id="${id}" aria-label="${esc(label)}" title="${esc(label)}"`
       + `${filters[id] ? " checked" : ""}></div>`
-      + `<div class="tcopt-desc"${open ? "" : " hidden"}>${esc(FILTER_HELP[id])}</div>`
+      + `<div class="tcopt-desc"${open ? "" : " hidden"}>${esc(MATRIX_HELP)}</div>`
+      + `</div>`;
+  };
+  // one box per axis: the name, then a labelled checkbox per role, each its own `Filters` key
+  const pair = ({ id, label, mdps, support, help }: typeof PAIRS[number]) => {
+    const open = openHelp.has(id);
+    const role = (key: keyof Filters, name: string) =>
+      `<label class="tcopt-role">${name}<input type="checkbox" id="${key}"`
+      + ` title="${esc(label)} ${name}"${filters[key] ? " checked" : ""}></label>`;
+    return `<div class="tcopt pair${open ? " open" : ""}">`
+      + `<div class="tcopt-head">`
+      + `<button type="button" class="tcopt-name" data-help="${id}" aria-expanded="${open}">`
+      + `${esc(label)}<span class="arrow">›</span></button>`
+      + role(mdps, "mdps") + role(support, "support") + `</div>`
+      + `<div class="tcopt-desc"${open ? "" : " hidden"}>${esc(help)}</div>`
       + `</div>`;
   };
   // the same box without a checkbox: these explain the table rather than changing it
@@ -1379,9 +1394,9 @@ function comparisonFilters(): string {
   };
   return `<div class="tcfilters">
     <div class="tcfilter-row note">
+      ${note("readme", "README", README)}
       ${note("standards", "Standards and Assumptions", STANDARDS)}
       ${note("browsing", "How to Browse and Filter", BROWSING)}
-      ${note("readme", "README", README)}
       <div class="tcsearchrow">
         <div class="tcsearch">
           <input id="optionSearch" type="search" placeholder="Filter resonators..."
@@ -1391,22 +1406,9 @@ function comparisonFilters(): string {
         ${resonatorChips()}
       </div>
     </div>
-    <div class="tcroles">
-      <div class="tcfilter-row">
-        ${filter("allowR1Mdps", "Allow R1 Main DPS")}
-        ${filter("mdpsWeapons", "Show Main DPS Weapon Options")}
-        ${filter("mdpsEchoes", "Show Main DPS Echo Options")}
-        ${filter("mdpsMainstats", "Show Main DPS Mainstat Options")}
-        ${filter("mdpsSequences", "Allow Main DPS Sequences")}
-        ${filter("matrix", "Enable Matrix Buffs")}
-      </div>
-      <div class="tcfilter-row">
-        ${filter("allowR1Supports", "Allow R1 Supports")}
-        ${filter("supportWeapons", "Show Support Weapon Options")}
-        ${filter("supportEchoes", "Show Support Echo Options")}
-        ${filter("supportMainstats", "Show Support Mainstat Options")}
-        ${filter("supportSequences", "Allow Support Sequences")}
-      </div>
+    <div class="tcfilter-row tcroles">
+      ${PAIRS.map(pair).join("")}
+      ${filter("matrix", "Enable Matrix Buffs")}
     </div>
     <div class="tcwarning" id="rowCapWarning" hidden></div>
   </div>`;
@@ -1937,19 +1939,15 @@ function stepRow(
       && Math.abs((Number(row.raw[`before:${col.key}`]) || 0) + (Number(row.raw[`moved:${col.key}`]) || 0) - v) > 1e-9) {
       cls.push("buffed");
     }
-    // an outro fired with less than a full 100-point bar to spend, counting whatever concerto
-    // landed on it that same action (Jinhsi's Unison hands over the 100 its outro costs, and is
-    // not short) — never true off a non-outro row, concertoSpent only ever moves on one
-    if (col.key === "concerto" && Number(row.raw.isOutro) && Number(row.raw.concertoSpent) < 100) {
-      cls.push("underspent");
-    }
-    // a forte gauge that's gone negative — context.ts's own forte gauges have no floor, so a kit
-    // whose declared spend outruns what's actually held really can dip below 0 (see e.g.
-    // Galbrena's own Purging Flame)
-    if (col.key.startsWith("gauge:") && typeof v === "number" && v < 0) cls.push("negative");
+    // a cast that spent Concerto its bar didn't hold — an outro on an underfull bar (a Unison
+    // outro declares no spend, and is never short)
+    if (col.key === "concerto" && Number(row.raw["short:concerto"])) cls.push("underspent");
+    // a forte gauge a cast left below 0, or a count-down gauge refilled while it still held some —
+    // both flagged by the engine's own banking (evaluate.ts), which knows each gauge's kind
+    if (col.key.startsWith("gauge:") && Number(row.raw[`short:${col.key}`])) cls.push("negative");
 
     const text = esc(fmt(v, col.digits ?? 0, PAD_DIGITS_COLUMNS.has(col.key), GROUPED_COLUMNS.has(col.key)))
-      + (col.percent && typeof v === "number" ? "%" : "");
+      + (col.percent && typeof v === "number" ? "%" : "") + gaugeSuffix(row.raw, col.key);
     // the help cursor goes on exactly the cells that open a panel below — an empty cell doesn't
     let html = sources && text ? `<span class="has">${text}</span>` : text;
     if (col.key === "action" && caret && !part && "parts" in row && row.parts.length) {
@@ -2279,7 +2277,12 @@ function teamEnergySources(flat: ChainGroup[], rows: ReportRow[], member: string
       const key = `${r.source} ${r.section ?? ""}`;
       const seen = by.get(key);
       // a rate is the multiplier every cast in the span went through, not something to add up
-      if (seen) { if (!r.mult && r.section !== ENERGY_RATE) seen.value += r.value; }
+      if (seen) {
+        if (!r.mult && r.section !== ENERGY_RATE) {
+          seen.value += r.value;
+          seen.count = (seen.count ?? 1) + (r.count ?? 1);
+        }
+      }
       else by.set(key, { ...r });
     }
   }
@@ -3046,9 +3049,11 @@ function fitSide(): void {
   const side = app.querySelector<HTMLElement>(".tcside");
   const head = app.querySelector<HTMLElement>(".tgrid .trow.thead");
   const first = head?.firstElementChild, last = head?.lastElementChild;
-  if (!layout || !side || !first || !last) return;
+  const main = app.querySelector<HTMLElement>("main");
+  if (!layout || !side || !first || !last || !main) return;
   // measured beside the table, which is the arrangement the numbers are about
   layout.classList.remove("stack");
+  main.classList.remove("stack");
   // the table's own width, off its header row's outer cells rather than the grid's `scrollWidth`:
   // the grid is a block, so once the table is narrower than its column `scrollWidth` reports that
   // column's width instead — which is what the aside's width sets, and the measurement would then
@@ -3058,18 +3063,32 @@ function fitSide(): void {
   // table can stand in, and 52px of it is the whole margin between "fits" and "sits over it"
   let room = layout.clientWidth;
   const beside = room - table - (parseFloat(getComputedStyle(layout).columnGap) || 0);
-  // a column of boxes is 272px wide (index.css's own `.tcopt`) plus the 10px the aside always
+  // a column of boxes is 360px wide (index.css's own `.tcopt`) plus the 10px the aside always
   // keeps for its own scrollbar (`.tcside`); under that the aside can't stand beside the table at
   // all, and above the table it has the whole width to spend
-  if (getComputedStyle(layout).flexDirection === "row" && beside >= 282) room = beside;
-  else layout.classList.add("stack");
-  // ...and 10px between two columns, so two want 564 and three 846 (index.css's own `.cols2`/`.cols3`)
-  const cols = room >= 846 ? 3 : room >= 564 ? 2 : 1;
-  for (const n of [1, 2, 3]) side.classList.toggle(`cols${n}`, n === cols);
+  const stacked = !(getComputedStyle(layout).flexDirection === "row" && beside >= 370);
+  if (!stacked) room = beside;
+  else {
+    layout.classList.add("stack");
+    main.classList.add("stack");
+    // above the table the aside sticks to the scrollport's left (index.css's `.stack .tcside`),
+    // which only works while it is no wider than the scrollport's inner width: a wide table would
+    // otherwise stretch it to the table's width and it would scroll off with the table. That
+    // width — the scrollport's, inside `main`'s own stacked padding — is also what the columns
+    // share (index.css's `.stack .tcfilter-row`), so it is what decides how many there are.
+    const cs = getComputedStyle(main);
+    room = main.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    side.style.width = `${room}px`;
+  }
+  // beside the table a column is the fixed 360px plus 10px between two, so two want 740
+  // (index.css's own `.cols2`); above it the columns stretch, and two only need room for the
+  // widest box head to stand in each — under 300px, and the 10px between
+  const cols = room >= (stacked ? 600 : 740) ? 2 : 1;
+  for (const n of [1, 2]) side.classList.toggle(`cols${n}`, n === cols);
   // beside the table the aside is its own scroller (index.css's `.tcside`), no taller than the
   // scrollport it sticks to — `clientHeight` is in the same page px as the style
-  const main = app.querySelector<HTMLElement>("main");
-  side.style.maxHeight = layout.classList.contains("stack") || !main ? "" : `${main.clientHeight}px`;
+  side.style.maxHeight = stacked ? "" : `${main.clientHeight}px`;
+  if (!stacked) side.style.width = "";
 }
 
 function renderComparison(): void {
@@ -3149,11 +3168,23 @@ const overlayFill = overlay.querySelector<HTMLElement>(".progress-fill")!;
 
 /** Put the overlay up (or move it to a new phase) and show one line of status under the bar's own
  *  progress. `paint()`ing after is the caller's job — a phase label that never reaches the screen
- *  before the blocking work starts is the same as not setting it. */
+ *  before the blocking work starts is the same as not setting it.
+ *
+ *  Up only once a run has been going 100ms: a small filter — one box ticked, a few rows to run —
+ *  is over in less than that, and an overlay that flashes up and straight back down for it reads
+ *  as a flicker. A run already on screen stays up across its phases; the first load is on screen
+ *  from parse time (index.html) and stays too. */
+let overlayTimer: ReturnType<typeof setTimeout> | undefined;
 function overlayPhase(text: string, count = ""): void {
   overlayStatus.textContent = text;
   overlayCount.textContent = count;
-  overlay.hidden = false;
+  if (!overlay.hidden || overlayTimer !== undefined) return;
+  overlayTimer = setTimeout(() => { overlayTimer = undefined; overlay.hidden = false; }, 100);
+}
+function overlayHide(): void {
+  clearTimeout(overlayTimer);
+  overlayTimer = undefined;
+  overlay.hidden = true;
 }
 
 /**
@@ -3444,7 +3475,7 @@ async function refresh(): Promise<void> {
     app.innerHTML = errorPage(err);
     app.className = "";
   }
-  overlay.hidden = true;
+  overlayHide();
 }
 
 /**
@@ -3468,7 +3499,7 @@ async function bootDetail(): Promise<boolean> {
   await paint();
   results.set(key, runTeam(row.teamKey, row.members, row.combo, true));
   renderDetail(key);
-  overlay.hidden = true;
+  overlayHide();
   return true;
 }
 
@@ -3611,8 +3642,9 @@ async function boot(): Promise<void> {
     e.preventDefault();
     setFilter(...pick, "exclude");
   });
-  // A search result: the same left click/right click pair as the cell it stands for, keyed by the
-  // same `data-kind`/`data-value` (the "no matches" row carries neither, so it falls through).
+  // A search result: keyed by the same `data-kind`/`data-value` as the cell it stands for (the
+  // "no matches" row carries neither, so it falls through). A left click includes unless it lands
+  // on the row's own exclude part; a right click anywhere on the row excludes.
   const searchPick = (e: Event): [Map<string, ResonatorFilter>, string] | undefined => {
     const el = (e.target as Element).closest<HTMLElement>(".sresult");
     const kind = el?.dataset.kind as SearchKind | undefined;
@@ -3623,8 +3655,9 @@ async function boot(): Promise<void> {
   document.addEventListener("click", (e) => {
     const pick = searchPick(e);
     if (!pick) return;
+    const exclude = !!(e.target as Element).closest(".sact.exc");
     clearSearch();
-    setFilter(...pick, "include");
+    setFilter(...pick, exclude ? "exclude" : "include");
     focusSearch();
   });
   document.addEventListener("contextmenu", (e) => {

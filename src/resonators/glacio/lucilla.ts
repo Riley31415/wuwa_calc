@@ -253,25 +253,29 @@ const MONTAGE_CHAFE = new Buff({
   applyStats: () => addStat(Stat.Amp, 60, Type2.GlacioChafe),
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
+const LUCILLA_TALENTS = new Talent({
+  name: "Talents: Lucilla",
+  constantStats: () => {
+    addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8);
+  },
+});
+
 const LUCILLA_RESONATOR = new Resonator({
   name: "Lucilla",
+  talent: LUCILLA_TALENTS,
+  inherent1: LC_INHERENT_1,
+  inherent2: LC_INHERENT_2,
   element: Attribute.Glacio,
   weapon: WeaponType.Rectifier,
   intro: () => Intro,
   outro: () => Outro,
   color: "#4f74c2",
   maxEnergy: 0,
+  maxForte1: 150,
 
   constantStats: () => {
     addStat(Stat.BaseHp, 12237.5); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1197.8);
-  },
-});
-
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
-const LUCILLA_TALENTS = new Talent({
-  name: "Lucilla: Talents",
-  constantStats: () => {
-    addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8);
   },
 });
 
@@ -313,9 +317,6 @@ const LC_ECHOES_CHAFE = [
 
 export const LUCILLA = new Loadout({
   resonator: LUCILLA_RESONATOR,
-  talent: LUCILLA_TALENTS,
-  inherent1: LC_INHERENT_1,
-  inherent2: LC_INHERENT_2,
   weapons: [FREEZE_FRAME, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY],
   echoLoadouts: LC_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
@@ -327,9 +328,6 @@ export const LUCILLA = new Loadout({
 // same weapons/mainstat/substat/echo choices and rotation, the other Resonance Mode
 export const LUCILLA_CHAFE = new Loadout({
   resonator: LUCILLA_RESONATOR,
-  talent: LUCILLA_TALENTS,
-  inherent1: LC_INHERENT_1,
-  inherent2: LC_INHERENT_2,
   weapons: [FREEZE_FRAME, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER],
   echoLoadouts: LC_ECHOES_CHAFE,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),

@@ -2,11 +2,16 @@
  * Sigrika, ported to the new engine — an aero gauntlets DPS built around Echo Skill DMG: most of
  * her real kit tags `type: Echo` even though most casts (Elucidated, BIG BOOMY BOOM!, etc.) aren't
  * literal Echo casts.
- * No live 4-slot Rune queue is tracked (same "fixed valid line" treatment as Zhezhi's Imprints) —
- * instead of one Schemata action reading bank state, three separate Runic follow-up variants exist
- * below; only Runic Outburst is placed in the rotation, the others kept for completeness.
- * Full Stop (forte1) and Soliskin Vitality (a real 0-60 gauge fed by any team member's Echo cast)
- * are both real gauges with a damage payout.
+ * Her Runes are a real store (RUNES below, Phrolova's Volatile Notes shape): four two-bit slots
+ * oldest-first, 1 Trust and 2 Answer — two of them without Full Stop, all four from 50. A Rune
+ * gained at capacity shifts the rest left and drops the leftmost. Elucidated and Dodge Counter -
+ * Decipher hits bank Trust, BIG BOOMY BOOM! and Soliskin to the Aid hits bank Answer; Convergent
+ * (Intro) doubles the next gain and Divergent (Liberation) mirrors it, neither at 100 Full Stop.
+ * Schemata of Runes is one press: it spends the two leftmost and its follow-up is theirs — Trust
+ * and Answer for Runic Outburst, two Trusts for Chain Whip, two Answers for Soliskin. forte1 is
+ * the count the store holds (cap 4), so a Schemata pressed without a pair reads red; Full Stop is
+ * forte2 (cap 100, +50 a Schemata, all of it for Learn My True Name), and Soliskin Vitality a real
+ * 0-60 gauge fed by any team member's Echo cast.
  */
 import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
@@ -24,6 +29,9 @@ import {
   getStat,
   queue,
   isActive,
+  setStacksSelf,
+  stacksOf,
+  forte2,
 } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_3, SWAP, ECHO_ONFIELD, ECHO_SWAP } from "../../engine/rotation.js";
@@ -38,6 +46,10 @@ import { chem } from "../../shared/substats.js";
 function sigrikaAction(id: string, def: object): Action {
   return new Action(id, { element: Attribute.Aero, scaling: Scaling.Atk, ...def });
 }
+
+// a hit that banks a Rune (gainRune() below): the store takes the kind, forte1 the count
+const RUNE_TRUST = { updateBuffs: () => gainRune(1) };
+const RUNE_ANSWER = { updateBuffs: () => gainRune(2) };
 
 // --- basics, mid-air, dodge counter (One, Two, Three) — Stage 4 opens Decipher
 const BA1 = sigrikaAction("Basic - One, Two, Three 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 52.97, energy: 0.84, concerto: 1.67, offtune: 2664 });
@@ -54,26 +66,24 @@ const HA = sigrikaAction("Heavy - One, Two, Three", { node: Node.Normal, cast: C
 
 // --- Decipher-gated finishers: both grant a Rune: Trust and exit Decipher, both Echo Skill DMG
 //     (the migrated sheet only carries one row for the pair — same numbers used for both here)
-const EBA = sigrikaAction("Basic - Elucidated", { node: Node.Normal, cast: Cast.Basic, type: Type1.Echo, mv: 307.79, offtune: 8259, energy: 2.6, concerto: 5.19, forte1: 1 });
-const EDC = sigrikaAction("Dodge Counter - Decipher", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Echo, mv: 307.79, offtune: 8259, energy: 2.6, concerto: 15.19, forte1: 1 });
+const EBA = sigrikaAction("Basic - Elucidated", { node: Node.Normal, cast: Cast.Basic, type: Type1.Echo, mv: 307.79, offtune: 8259, energy: 2.6, concerto: 5.19, ...RUNE_TRUST });
+const EDC = sigrikaAction("Dodge Counter - Decipher", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Echo, mv: 307.79, offtune: 8259, energy: 2.6, concerto: 15.19, ...RUNE_TRUST });
 
-// --- resonance skill: BOOMY BOOM! (base), or — while in Decipher — BIG BOOMY BOOM! (grants
-//     Rune: Answer) / Soliskin to the Aid (also spends 50+ Full Stop, likewise grants Rune: Answer)
+// --- resonance skill: BOOMY BOOM! (base), or — while in Decipher — BIG BOOMY BOOM! / Soliskin to
+//     the Aid (the latter needs 50 Full Stop held, spends none), both banking a Rune: Answer
 const Skill = sigrikaAction("Skill - BOOMY BOOM!", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 143.15, offtune: 7200, energy: 2.25, concerto: 4.5 });
-const ESkill = sigrikaAction("Skill - BIG BOOMY BOOM!", { node: Node.Skill, cast: Cast.Skill, type: Type1.Echo, mv: 288.09, offtune: 7729, energy: 2.45, concerto: 4.86, forte1: 1 });
-const ESkill50 = sigrikaAction("Skill - Soliskin to the Aid", { node: Node.Skill, cast: Cast.Skill, type: Type1.Echo, mv: 278.26, offtune: 7466, energy: 2.36, concerto: 4.68, forte1: 1 });
+const ESkill = sigrikaAction("Skill - BIG BOOMY BOOM!", { node: Node.Skill, cast: Cast.Skill, type: Type1.Echo, mv: 288.09, offtune: 7729, energy: 2.45, concerto: 4.86, ...RUNE_ANSWER });
+const ESkill50 = sigrikaAction("Skill - Soliskin to the Aid", { node: Node.Skill, cast: Cast.Skill, type: Type1.Echo, mv: 278.26, offtune: 7466, energy: 2.36, concerto: 4.68, ...RUNE_ANSWER });
 
-// --- forte circuit: Schemata of Runes always lands its own base hit (+50 Full Stop), then queues
-//     one of three Runic follow-ups depending on which pair of Runes it spends (see file header)
-const RunicOutburst = sigrikaAction("Forte - Runic Outburst", { node: Node.Forte, type: Type1.Echo, mv: 117.67+205.92+264.75, energy: 10, concerto: 7, offtune: 24800, forte2: 50 });
-const RunicChainWhip = sigrikaAction("Forte - Runic Chain Whip", { node: Node.Forte, type: Type1.Echo, mv: 397.58, energy: 10.01, concerto: 7.03, offtune: 24802, forte2: 50 });
-const RunicSoliskin = sigrikaAction("Forte - Runic Soliskin", { node: Node.Forte, type: Type1.Echo, mv: 397.54, energy: 10, concerto: 7, offtune: 24800, forte2: 50 });
-
-// each Heavy Attack form queues its own Runic follow-up
-const SCHEMATA = { node: Node.Forte, cast: Cast.Heavy, type: Type1.Echo, mv: 132.51, energy: 3.34, concerto: 0.5, offtune: 2664, forte1: -2 };
-const FHAoutburst = sigrikaAction("Forte Heavy - Schemata of Runes", { ...SCHEMATA, updateBuffs: () => queue(RunicOutburst) });
-const FHAchainwhip = sigrikaAction("Forte Heavy - Schemata of Runes", { ...SCHEMATA, updateBuffs: () => queue(RunicChainWhip) });
-const FHAsoliskin = sigrikaAction("Forte Heavy - Schemata of Runes", { ...SCHEMATA, updateBuffs: () => queue(RunicSoliskin) });
+// --- forte circuit: Schemata of Runes lands its own hit and banks 50 Full Stop, spends the two
+//     leftmost Runes, and its follow-up is whichever pair they were (spendRunes() below)
+const RunicOutburst = sigrikaAction("Forte - Runic Outburst", { node: Node.Forte, type: Type1.Echo, mv: 117.67 + 205.92 + 264.75, energy: 10, concerto: 7, offtune: 24800 });
+const RunicChainWhip = sigrikaAction("Forte - Runic Chain Whip", { node: Node.Forte, type: Type1.Echo, mv: 397.58, energy: 10.01, concerto: 7.03, offtune: 24802 });
+const RunicSoliskin = sigrikaAction("Forte - Runic Soliskin", { node: Node.Forte, type: Type1.Echo, mv: 397.54, energy: 10, concerto: 7, offtune: 24800 });
+const FHA = sigrikaAction("Forte Heavy - Schemata of Runes", {
+  node: Node.Forte, cast: Cast.Heavy, type: Type1.Echo, mv: 132.51, energy: 3.34, concerto: 0.5, offtune: 2664, forte1: -2, forte2: 50,
+  updateBuffs: spendRunes,
+});
 
 /** Learn My True Name: at 100 Full Stop, spends it all. */
 const FSkill = sigrikaAction("Forte Skill - Learn My True Name", { node: Node.Forte, cast: Cast.Skill, type: Type1.Echo, mv: 1211.48, energy: 5.43, concerto: 30, offtune: 101336, forte2: -100 });
@@ -136,22 +146,57 @@ const DECIPHER = new Buff({
   convertStats: () => { if (gainsRune()) revokeCurrent(DECIPHER); },
 });
 
-/** Convergent/Divergent double or flip-type the next Rune gained; neither doubled rune has a stat
- *  of its own to double, but taking effect is still worth +25 Full Stop. Convergent is granted only
- *  by Inherent Skill 1 on Intro; Divergent has no trigger in this kit yet, kept for completeness.
- *  If both are held, Convergent takes priority and Divergent stays held for its own next gain. */
-const CONVERGENT = new Buff({
-  name: "Sigrika: Convergent",
-  convertStats: () => {
-    if (gainsRune()) { addStat(Stat.AddForte1, 1); revokeCurrent(CONVERGENT); }
+/** Convergent (Intro, 20s) doubles the next Rune gained, Divergent (Liberation, 20s) adds one of
+ *  the opposite kind; Convergent takes priority when both stand, and neither takes effect at 100
+ *  Full Stop. Both are read and spent by gainRune() below. */
+const CONVERGENT = new Buff({ name: "Sigrika: Convergent" });
+const DIVERGENT = new Buff({ name: "Sigrika: Divergent" });
+
+/** The Rune store, one packed word: bits 0-7 are four two-bit slots oldest-first (1 Trust,
+ *  2 Answer), bit 8 always set so an empty store is still a held buff. Hers from combat start;
+ *  the display reads the slots off as she stands. */
+const RUNES = new Buff({
+  name: "Sigrika: Runes", maxStacks: 0x1ff,
+  display: (): string => {
+    let slots = "";
+    for (let shift = 0; shift < 8; shift += 2) slots += "-TA"[(frozenStacks() >> shift) & 3]!;
+    return `Sigrika: Runes [${slots}]`;
   },
 });
-const DIVERGENT = new Buff({
-  name: "Sigrika: Divergent",
-  convertStats: () => {
-    if (gainsRune() && !isHeld(CONVERGENT)) { addStat(Stat.AddForte1, 1); revokeCurrent(DIVERGENT); }
-  },
-});
+
+/** Bank one Rune — 1 Trust, 2 Answer — into the store's first empty slot, and the count into
+ *  forte1. Gated on a landed hit ("hitting a target directly with..."). Capacity is two Runes
+ *  without Full Stop and four from 50: a gain at capacity shifts every Rune left, dropping the
+ *  leftmost, and takes the last slot — the count stands. Convergent/Divergent, unless Full Stop is
+ *  at 100, make the gain two: the same kind again, or the opposite. */
+function gainRune(kind: number): void {
+  if (!currentAction().mv) return;
+  let extra = 0;
+  if (forte2() < 100) {
+    if (isHeld(CONVERGENT)) { extra = kind; revokeCurrent(CONVERGENT); }
+    else if (isHeld(DIVERGENT)) { extra = 3 - kind; revokeCurrent(DIVERGENT); }
+  }
+  pushRune(kind);
+  if (extra) pushRune(extra);
+}
+function pushRune(kind: number): void {
+  const cap = forte2() >= 50 ? 4 : 2;
+  const word = stacksOf(RUNES);
+  let runes = word & 0xff, n = 0;
+  while (n < 4 && (runes >> (2 * n)) & 3) n++;
+  if (n >= cap) { runes >>= 2; n--; } else addStat(Stat.AddForte1, 1);
+  setStacksSelf(RUNES, (word & ~0xff) | runes | (kind << (2 * n)));
+}
+
+/** Schemata of Runes spends the two leftmost Runes and plays the follow-up they make: Trust and
+ *  Answer for Runic Outburst, two Trusts for Chain Whip, two Answers for Soliskin. Without a pair
+ *  nothing follows, and the action's own -2 leaves forte1 red. */
+function spendRunes(): void {
+  const word = stacksOf(RUNES), a = word & 3, b = (word >> 2) & 3;
+  setStacksSelf(RUNES, (word & ~0xff) | ((word & 0xff) >> 4));
+  if (!a || !b) return;
+  queue(a !== b ? RunicOutburst : a === 1 ? RunicChainWhip : RunicSoliskin);
+}
 
 /** Innate Gift?: up to 2 frozenStacks, each +30% Echo Skill DMG Amplification — granted when a Runic
  *  follow-up spends a full 30 Soliskin Vitality. Ends after Learn My True Name, or on swap-off. */
@@ -194,17 +239,30 @@ const SOLISKIN_VITALITY = new Buff({
   },
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
+const SIGRIKA_TALENTS = new Talent({
+  name: "Talents: Sigrika",
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+});
+
 /** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her
  *  own base stat line. */
 const SIGRIKA_RESONATOR = new Resonator({
   name: "Sigrika",
+  talent: SIGRIKA_TALENTS,
+  inherent1: SR_INHERENT_1,
+  inherent2: SR_INHERENT_2,
   element: Attribute.Aero,
   weapon: WeaponType.Gauntlets,
   intro: () => Intro,
   outro: () => Outro,
   color: "#7ee0c9",
   maxEnergy: 125,
+  maxForte1: 4,
+  maxForte2: 100,
 
+  // the Rune store, empty (its always-set bit alone; see RUNES)
+  combatStart: () => applyCurrent(RUNES, 1 << 8),
   // Soliskin Vitality's own gain — any team member's Echo cast
   updateGlobal: () => { if (casting(Cast.Echo)) applyCurrent(SOLISKIN_VITALITY, 10); },
 
@@ -213,31 +271,26 @@ const SIGRIKA_RESONATOR = new Resonator({
   },
 });
 
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
-const SIGRIKA_TALENTS = new Talent({
-  name: "Sigrika: Talents",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
-});
-
-/** The kit-valid line: Intro opens Decipher-free, basics open Decipher on Stage 4, Elucidated
- *  spends it for a Rune: Trust, BOOMY BOOM! into BIG BOOMY BOOM! banks a Rune: Answer, Schemata of
- *  Runes spends the pair for Runic Outburst, Learn My True Name closes the circuit, Liberation
- *  closes the loop. She's never the team's own lead, so this same rotation covers both. */
+/** The kit-valid line: the Intro's Convergent makes the first Elucidated two Trusts, which the
+ *  first Schemata spends for Chain Whip and 50 Full Stop; the Liberation's Divergent makes the
+ *  second Elucidated a Trust and an Answer, which the second Schemata spends for Runic Outburst
+ *  and the 100 Full Stop Learn My True Name takes. She's never the team's own lead, so this same
+ *  rotation covers both. */
 
 const BA234 = new ActionGroup("Basic - One, Two, Three 234", [BA2, BA3, BA4]);
 
 const SR_ROTATION = new Rotation([
   INTRO, ECHO_ONFIELD, 
-  BA234, EBA, FHAchainwhip, Liberation,
-  BA234, EBA, FHAoutburst, FSkill, 
+  BA234, EBA, FHA, Liberation,
+  BA234, EBA, FHA, FSkill,
   Skill, BA3, BA4, EBA,
   OUTRO,
 ]);
 
 const SR_ROTATION_FAST = new Rotation([
   INTRO, ECHO_ONFIELD, 
-  BA234, EBA, FHAchainwhip, Liberation,
-  BA234, EBA, FHAoutburst, FSkill, 
+  BA234, EBA, FHA, Liberation,
+  BA234, EBA, FHA, FSkill,
   OUTRO,
 ]);
 
@@ -247,9 +300,6 @@ const SR_ROTATION_FAST = new Rotation([
 // mainslot echo, sonata pieces, mainstat/substat
 export const SIGRIKA = new Loadout({
   resonator: SIGRIKA_RESONATOR,
-  talent: SIGRIKA_TALENTS,
-  inherent1: SR_INHERENT_1,
-  inherent2: SR_INHERENT_2,
   weapons: [SOLSWORN_CIPHERS, NEW_STD_GAUNTLET, ABYSS_SURGES],
   echoLoadouts: [new EchoLoadout(NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ER3, Mainstat.ATK1),
@@ -261,9 +311,6 @@ export const SIGRIKA = new Loadout({
 // mainslot echo, sonata pieces, mainstat/substat
 export const SIGRIKA_FAST = new Loadout({
   resonator: SIGRIKA_RESONATOR,
-  talent: SIGRIKA_TALENTS,
-  inherent1: SR_INHERENT_1,
-  inherent2: SR_INHERENT_2,
   weapons: [SOLSWORN_CIPHERS, NEW_STD_GAUNTLET, ABYSS_SURGES],
   echoLoadouts: [new EchoLoadout(NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ER3, Mainstat.ATK1),

@@ -206,18 +206,23 @@ const MO_INHERENT_1 = new Inherent({
 const MO_INHERENT_2 = new Inherent({ name: "Inherent: Boundedness" });
 
 const MORNYE_TALENTS = new Talent({
-  name: "Mornye: Talents",
+  name: "Talents: Mornye",
   constantStats: () => { addStat(Stat.BonusDef, 15.2); addStat(Stat.HealingBonus, 12); },
 });
 
 const MORNYE_RESONATOR = new Resonator({
   name: "Mornye",
+  talent: MORNYE_TALENTS,
+  inherent1: MO_INHERENT_1,
+  inherent2: MO_INHERENT_2,
   element: Attribute.Fusion,
   weapon: WeaponType.Broadblade,
   intro: () => Intro,
   outro: () => Outro,
   color: "#d2d4ff",
   maxEnergy: 175,
+  maxForte1: 100,
+  maxForte2: 100,
 
   updateGlobal: () => tuneRuptureResponse(ParticleJet),
   combatStart: () => { maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(TUNE_STRAIN_RESPONDER, 1); },
@@ -256,9 +261,6 @@ const MO_ECHOES = [
 
 export const MORNYE = new Loadout({
   resonator: MORNYE_RESONATOR,
-  talent: MORNYE_TALENTS,
-  inherent1: MO_INHERENT_1,
-  inherent2: MO_INHERENT_2,
   weapons: [STARFIELD_CALIBRATOR, DISCORD],
   echoLoadouts: MO_ECHOES,
   mainstats: mainstatOptions(Mainstat.DEF4, Mainstat.ER3, Mainstat.DEF1),

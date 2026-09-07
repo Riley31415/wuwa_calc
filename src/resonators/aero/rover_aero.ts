@@ -78,16 +78,8 @@ const SkyfallSeverance = roverAction("Skill - Skyfall Severance", {
 //     spends 60 Windstrings a stage.
 const Cloudburst1 = roverAction("Basic - Cloudburst Dance 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 128.80, energy: 0.92, concerto: 2.93, offtune: 2928, forte1: 25 });
 const Cloudburst2 = roverAction("Basic - Cloudburst Dance 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 141.47, energy: 1.01, concerto: 3.22, offtune: 3216, forte1: 25 });
-const UnboundFlow1 = roverAction("Forte Skill - Unbound Flow 1", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 171.50, energy: 10, concerto: 20, offtune: 29850, forte1: -60 ,
-  applyStats: () => {
-    if (forte1() > 120) setForte1(120);
-  }
-});
-const UnboundFlow2 = roverAction("Forte Skill - Unbound Flow 2", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 723.03, energy: 20, concerto: 20, offtune: 28288, forte1: -60 ,
-  applyStats: () => {
-    if (forte1() > 120) setForte1(120);
-  }
-});
+const UnboundFlow1 = roverAction("Forte Skill - Unbound Flow 1", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 171.50, energy: 10, concerto: 20, offtune: 29850, forte1: -60 });
+const UnboundFlow2 = roverAction("Forte Skill - Unbound Flow 2", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 723.03, energy: 20, concerto: 20, offtune: 28288, forte1: -60 });
 
 // --- liberation / intro / outro. Storm's Echo hands the whole team Aeolian Realm (see below).
 const Liberation = roverAction("Liberation - Omega Storm", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 536.79, concerto: 20, offtune: 48000, resetEnergy: true });
@@ -168,16 +160,26 @@ const AR_S6 = new Sequence({
   },
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
+const ROVER_AERO_TALENTS = new Talent({
+  name: "Talents: Aero Rover",
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.HealingBonus, 12); },
+});
+
 /** Him, as a Resonator: name/element/weapon, every grant/spend/queue rule his kit needs, and his
  *  own base stat line. `Tier.Free` — see the file header. */
 export const ROVER_AERO_RESONATOR = new Resonator({
   name: "Aero Rover",
+  talent: ROVER_AERO_TALENTS,
+  inherent1: AR_INHERENT_1,
+  inherent2: AR_INHERENT_2,
   element: Attribute.Aero,
   weapon: WeaponType.Sword,
   intro: () => Intro,
   outro: () => Outro,
   color: "#6fd6b0",
   maxEnergy: 150,
+  maxForte1: 120,
   tier: Tier.Free,
 
   updateDebuffs: () => {
@@ -199,12 +201,6 @@ export const ROVER_AERO_RESONATOR = new Resonator({
   },
 });
 
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
-const ROVER_AERO_TALENTS = new Talent({
-  name: "Aero Rover: Talents",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.HealingBonus, 12); },
-});
-
 // the migrated sheet's own "arover 123": two Awakening Gale into Cloudburst Dance cycles bank the
 // 120 Windstrings both Unbound Flow stages spend, with Liberation and the echo in between. He's
 // never the team's own lead, so this covers opener and loop both.
@@ -214,7 +210,7 @@ const AR_ROTATION = new Rotation([
   INTRO, SkyfallSeverance, Cloudburst1, Cloudburst2, MA, BA4,
   ECHO_CANCEL,
   Liberation,
-  Skill, Cloudburst1, Cloudburst2, MA,
+  Skill, Cloudburst1, Cloudburst2, MA, BA4,
   UnboundFlow1, UnboundFlow2.swap(), OUTRO,
 ]);
 
@@ -225,9 +221,6 @@ const AR_ROTATION = new Rotation([
 // Bloodpact's Pledge is the only weapon listed: its own Unbound Flow clause is written for him.
 export const ROVER_AERO = new Loadout({
   resonator: ROVER_AERO_RESONATOR,
-  talent: ROVER_AERO_TALENTS,
-  inherent1: AR_INHERENT_1,
-  inherent2: AR_INHERENT_2,
   weapons: [BLOODPACTS_PLEDGE],
   echoLoadouts: [
     new EchoLoadout(FALLACY, REJUV_5PC),

@@ -142,7 +142,6 @@ const AUREATE_JUDGE = new Buff({
     if (a.forte1 > 0) addStat(Stat.AddForte1, -a.forte1);
     if (isAureole(a) || a === Gavel) { addStat(Stat.MulMv, 110); addStat(Stat.AddOfftune, 25200); }
     if (isAureole(a)) {
-      if (forte1() > 300) setForte1(300);
       addStat(Stat.AddForte1, -100);
     }
     if (a === IchorDeposit) addStat(Stat.MulMv, 110);
@@ -205,18 +204,22 @@ const LK_INHERENT_2 = new Inherent({
 });
 
 const LUUK_TALENTS = new Talent({
-  name: "Luuk: Talents",
+  name: "Talents: Luuk",
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
 });
 
 const LUUK_RESONATOR = new Resonator({
   name: "Luuk Herssen",
+  talent: LUUK_TALENTS,
+  inherent1: LK_INHERENT_1,
+  inherent2: LK_INHERENT_2,
   element: Attribute.Spectro,
   weapon: WeaponType.Gauntlets,
   intro: () => Intro,
   outro: () => Outro,
   color: "#ddb246",
   maxEnergy: 125,
+  maxForte1: 300,
 
   // his kit raises the target's Tune Strain - Interfered limit by 1 on top of the base 1; Golden
   // Rule is armed from the start so his first Intro is brought in the same way every later one is
@@ -258,9 +261,6 @@ const LK_ECHOES = [
 
 export const LUUK = new Loadout({
   resonator: LUUK_RESONATOR,
-  talent: LUUK_TALENTS,
-  inherent1: LK_INHERENT_1,
-  inherent2: LK_INHERENT_2,
   weapons: [DAYBREAKERS_SPINE, NEW_STD_GAUNTLET, ABYSS_SURGES],
   echoLoadouts: LK_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),

@@ -91,13 +91,11 @@ const FLOW = {
     revokeCurrent(ONE_WITH_THE_WIND);
   },
   updateBuffs: () => {
-    if (forte1() < 0) setForte1(0);
     if (!isHeld(VOICE_UPON_VOICE)) return;
     queue(ShadowOfXuanling);
     revokeCurrent(VOICE_UPON_VOICE);
   },
   afterAction: () => {
-    if (forte1() < 0) setForte1(0);
     // `consume`, not a plain remove: this is the kit spending a stack, and a teammate's own "when
     // you consume Havoc Bane" passive has no other way to see it (context.ts's own `consumed()`)
     consume(HAVOC_BANE, 1);
@@ -146,7 +144,9 @@ const HeavyAzure = yangyangAction("Forte Heavy - Azure Sword Stance", {
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 450.53, energy: 9.34, concerto: 15.00, offtune: 10666,
   updateDebuffs: () => applyEnemy(HAVOC_BANE, 2),
   updateBuffs: () => applyCurrent(BATED_BREATH, 1),
-  afterAction: () => setForte2(0),
+  // only opens at 2 Azure Plume, and spends it outright: maxForte2 (2 below) clamps an overrun
+  // back to the cap before this lands exactly on 0
+  forte2: -2,
 });
 const HeavyFeather = yangyangAction("Heavy - Feather Sword Stance", {
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 217.05, energy: 1.87, concerto: 4.67, offtune: 7465,
@@ -155,7 +155,9 @@ const HeavyFeather = yangyangAction("Heavy - Feather Sword Stance", {
 });
 const FeatherFall = yangyangAction("Forte Mid-air - Feather Fall", {
   node: Node.Forte, cast: Cast.MidAir, type: Type1.Heavy, mv: 110.97, energy: 1.26, concerto: 3.12, offtune: 4962,
-  afterAction: () => setForte2(0),
+  // Feather Sword Stance itself spends none — this auto-cast follow-up is what actually spends
+  // the 2 Azure Plume that opened it
+  forte2: -2,
 });
 const HiB1 = yangyangAction("Basic - Havoc in Bloom 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 119.37, energy: 1.35, concerto: 3.36, offtune: 5337 });
 const HiB2 = yangyangAction("Basic - Havoc in Bloom 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 223.13, energy: 2.50, concerto: 6.26, offtune: 9977 });
@@ -163,15 +165,12 @@ const HiB3 = yangyangAction("Basic - Havoc in Bloom 3", { node: Node.Forte, cast
 
 // --- Hush of a Thousand Voices. Heavy Attack DMG despite the cast, and it ends holding a plume.
 const Lib = yangyangAction("Liberation - Hush of a Thousand Voices", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 1988.10, concerto: 20, offtune: 136400, forte1: -100,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 1988.10, concerto: 20, offtune: 136400, resetForte1: true,
   forte2: 1, resetEnergy: true,
   // One Life, One Blade's own first line: the hit raises Havoc Bane to the target's limit, which
   // is the fight's rather than the declared 3 (Chisa's +3 to every Negative Status cap)
   updateDebuffs: () => applyEnemy(HAVOC_BANE, currentTeam().enemyMax(HAVOC_BANE)),
   updateBuffs: () => applyCurrent(VOICE_UPON_VOICE, 1),
-  applyStats: () => {
-    setForte1(100);
-  }
 });
 /** Voice upon Voice cashed on the next Sword Stance Flow. A summon, so it is queued rather than
  *  named by the rotation. */
@@ -326,18 +325,23 @@ const XUANLING_INHERENT_2 = new Inherent({
 });
 
 const XUANLING_TALENTS = new Talent({
-  name: "Xuanling: Talents",
+  name: "Talents: Xuanling",
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
 });
 
 export const XUANLING_RESONATOR = new Resonator({
   name: "Xuanling",
+  talent: XUANLING_TALENTS,
+  inherent1: XUANLING_INHERENT_1,
+  inherent2: XUANLING_INHERENT_2,
   element: Attribute.Havoc,
   weapon: WeaponType.Sword,
   intro: () => Intro,
   outro: () => Outro,
   color: "#8e05c8",
   maxEnergy: 125,
+  maxForte1: 100,
+  maxForte2: 2,
 
   /* Feathered Oath is Forte Circuit machinery, which lives on the Resonator rather than a loadout
    * slot of its own. Same trigger as Windbound above and the same `updateGlobal` reason: it counts
@@ -384,9 +388,6 @@ const XUANLING_ECHOES = [
 
 export const XUANLING = new Loadout({
   resonator: XUANLING_RESONATOR,
-  talent: XUANLING_TALENTS,
-  inherent1: XUANLING_INHERENT_1,
-  inherent2: XUANLING_INHERENT_2,
   weapons: [AZURE_OATH, EMERALD_OF_GENESIS],
   echoLoadouts: XUANLING_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),

@@ -243,9 +243,6 @@ export class EchoLoadout {
  *  for the rare kit built around a Resonance Mode (Lucilla, Lynae). */
 export interface LoadoutDef {
   resonator: Resonator;
-  talent: Talent;
-  inherent1: Inherent;
-  inherent2: Inherent;
   weapons: Weapon[];
   echoLoadouts: EchoLoadout[];
   mainstats: Buff[];
@@ -259,9 +256,10 @@ export interface LoadoutDef {
 }
 
 /** A resonator's real build — every resonator file's own `_LOADOUT` export is one of these, not a
- *  loose array, so a loadout has to actually name its Talent/both Inherent Skills/every viable
- *  weapon and echo choice, not just hand over "some Gear" (see `LoadoutDef`). Forte Circuit logic
- *  lives directly on each resonator's own Resonator definition, not a separate loadout slot.
+ *  loose array, so a loadout has to actually name every viable weapon and echo choice, not just
+ *  hand over "some Gear" (see `LoadoutDef`). Forte Circuit logic lives directly on each
+ *  resonator's own Resonator definition, not a separate loadout slot — and so do the stat-tree
+ *  Talents and both Inherent Skills, which are the kit itself rather than anything a build picks.
  *  Mainstat/substat rolls stay plain `Buff` (`mainstats()`/`chem()`'s own return type) — no
  *  dedicated class was asked for those.
  *
@@ -272,9 +270,6 @@ export interface LoadoutDef {
  *  decides whose turn it is (rotation.ts). */
 export class Loadout {
   resonator: Resonator;
-  talent: Talent;
-  inherent1: Inherent;
-  inherent2: Inherent;
   weapons: Weapon[];
   echoLoadouts: EchoLoadout[];
   /** Every main-stat build this loadout is willing to run (see mainstats.ts's own
@@ -299,9 +294,6 @@ export class Loadout {
 
   constructor(def: LoadoutDef) {
     this.resonator = def.resonator;
-    this.talent = def.talent;
-    this.inherent1 = def.inherent1;
-    this.inherent2 = def.inherent2;
     this.weapons = def.weapons;
     this.echoLoadouts = def.echoLoadouts;
     this.mainstats = def.mainstats;
@@ -327,8 +319,9 @@ export class Loadout {
    *  can be read off (see index.ts's own combos). `matrix` is whether Matrix Mode is on — the
    *  piece only goes on when it is *and* this loadout declares one. */
   pieces(weapon: Weapon, echo: EchoLoadout, mainstat: Buff, sequenceLevel: number, matrix = false): Gear[] {
+    const r = this.resonator;
     return [
-      this.resonator, this.talent, this.inherent1, this.inherent2,
+      r, r.talent, r.inherent1, r.inherent2,
       weapon, ...echo.pieces(), mainstat, this.substat,
       ...this.sequences.slice(0, sequenceLevel),
       this.mode,
@@ -339,6 +332,14 @@ export class Loadout {
 
 export interface ResonatorDef extends GearDef {
   element: Attribute;
+  /** This kit's own stat-tree Talents bonus and both Inherent Skills — part of the resonator
+   *  rather than of any one build, since every build runs the same three. Each stays its own piece
+   *  of Gear so the report can trace a stat back to which of them granted it. Optional only for
+   *  the enemy dummy (`enemy` below), which is no kit; every real resonator names all three, and
+   *  the constructor throws if one is missing. */
+  talent?: Talent;
+  inherent1?: Inherent;
+  inherent2?: Inherent;
   /** Which of the five weapon categories this resonator wields — decides which weapon files
    *  (src/weapons/) their loadout can actually equip. */
   weapon: WeaponType;
@@ -347,6 +348,15 @@ export interface ResonatorDef extends GearDef {
    *  itself (TODO_ENGINE.md). 0, the default, is for a kit whose Liberation genuinely costs no
    *  Resonance Energy at all (Phrolova, Lucilla), not "not yet filled in". */
   maxEnergy?: number;
+  /** The cap on each forte gauge — Suoming's 800 Delusion, Hsin's 100 Answering Heart — declared
+   *  once here, like `maxEnergy`. A gauge banks past it freely; the cap only bites when a cast
+   *  spends from it, which starts from the cap rather than the overrun (evaluate.ts). Below 0
+   *  after a spend is flagged red in the report. Every gauge a kit uses declares one. */
+  maxForte1?: number;
+  maxForte2?: number;
+  maxForte3?: number;
+  maxForte4?: number;
+  maxForte5?: number;
   /** This resonator's own colour — the comparison table's member column, row wash, and gear/
    *  damage popovers all key off it, read straight off the Resonator rather than re-declared per
    *  team in index.ts. */
@@ -374,13 +384,20 @@ export interface ResonatorDef extends GearDef {
 }
 
 /** A resonator: a Gear like any other (TODO_ENGINE.md — "Resonator extends Gear"), plus its own
- *  name/element/weapon type/colour/intro-choice. The stat-tree talent bonus is not special-cased
- *  here — each resonator file exports its own separate `Buff` for it (e.g. `"Phrolova:
- *  Talents"`), just another piece of that resonator's loadout alongside its weapon/echoes. */
+ *  name/element/weapon type/colour/intro-choice, and the three pieces every build of it runs
+ *  regardless — the stat-tree Talents (e.g. `"Talents: Phrolova"`) and both Inherent Skills. Each
+ *  of those stays a separate piece of Gear rather than being folded into this one's own
+ *  `constantStats`, so the report still names which of them a stat came from. */
 export class Resonator extends Gear {
   element: Attribute;
   weapon: WeaponType;
+  /** Undefined only on the enemy dummy — see `ResonatorDef`. */
+  talent?: Talent;
+  inherent1?: Inherent;
+  inherent2?: Inherent;
   maxEnergy: number;
+  /** `maxForte1`-`maxForte5` as one array, indexed the way `TeamMember.forte` is. */
+  maxForte: [number, number, number, number, number];
   color: string;
   introFn: () => Action;
   outroFn: () => Action;
@@ -417,7 +434,14 @@ export class Resonator extends Gear {
     });
     this.element = def.element;
     this.weapon = def.weapon;
+    if (!def.enemy && (!def.talent || !def.inherent1 || !def.inherent2)) {
+      throw new Error(`${def.name}: a resonator names its Talents and both Inherent Skills`);
+    }
+    this.talent = def.talent;
+    this.inherent1 = def.inherent1;
+    this.inherent2 = def.inherent2;
     this.maxEnergy = def.maxEnergy ?? 0;
+    this.maxForte = [def.maxForte1 ?? 0, def.maxForte2 ?? 0, def.maxForte3 ?? 0, def.maxForte4 ?? 0, def.maxForte5 ?? 0];
     this.color = def.color;
     this.introFn = def.intro;
     this.outroFn = def.outro;

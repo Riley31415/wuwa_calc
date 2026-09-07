@@ -22,8 +22,9 @@
  * the real kit text — same "always applies" simplification the MV/energy/concerto/offtune
  * columns already carry for these same actions.
  *
- * Concerto Energy: Ephemeral genuinely requires it full (100) and spends 70 — same clamp-then-
- * declared-delta shape as forte1, via concerto()/setConcerto(). "Consuming 10 Crimson Pistils
+ * Concerto Energy: Ephemeral genuinely requires it full (100) and spends 70 — its declared -70
+ * is spent against the bar's own 100 ceiling by the engine (evaluate.ts), and flagged red when
+ * the bar held less. "Consuming 10 Crimson Pistils
  * recovers 4 Concerto Energy and obtains 1 Crimson Bud" is checked as every full 10 consumed
  * from the 100 top (first at 90 or less) by *that one hit's own consumption*, read
  * off forte1() before vs. after — not a flat 1-per-hit rate — in CONSUME_CRIMSON_PISTIL's own
@@ -51,8 +52,6 @@ import {
   addStat,
   setForte1,
   isHeld,
-  concerto,
-  setConcerto,
   stacksOf,
   frozenStacks,
   forte1,
@@ -121,10 +120,8 @@ const FloralRavage = camellyaAction("Skill - Floral Ravage", { node: Node.Skill,
 /** Requires full Concerto and consumes 70 of it, so the bar is clamped back to 100 first; refills
  *  the gauge from empty, and folds every Crimson Bud held into the Budding Mode it opens. */
 const Ephemeral = camellyaAction("Forte Skill - Ephemeral", {
-  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 1262.45, forte1: 100, concerto: -70, energy: 12, offtune: 60800,
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 1262.45, forte1: 100, resetForte1: true, concerto: -70, energy: 12, offtune: 60800,
   updateBuffs: () => {
-    setForte1(0);
-    if (concerto() > 100) setConcerto(100);
     const buds = stacksOf(CRIMSON_BUD);
     revokeCurrent(BUDDING_MODE);
     applyCurrent(BUDDING_MODE, 1 + buds);
@@ -135,8 +132,7 @@ const Ephemeral = camellyaAction("Forte Skill - Ephemeral", {
 const Liberation = camellyaAction("Liberation - Fervor Efflorescent", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1202.81, concerto: 20, offtune: 84000, resetEnergy: true });
 
 const Intro = camellyaAction("Intro - Everblooming", {
-  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81, concerto: 10, forte1: 100, energy: 10, offtune: 9600,
-  updateBuffs: () => setForte1(0),
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81, concerto: 10, forte1: 100, resetForte1: true, energy: 10, offtune: 9600,
 });
 /** No handoff buff is described on her own kit page, unlike most other kits' outros — left as a
  *  plain damage hit. The Ephemeral-boosted variant isn't separately placed. */
@@ -212,21 +208,33 @@ const CONSUME_CRIMSON_PISTIL = new Buff({
     const buds = Math.floor((100 - Math.max(0, after)) / 10) - Math.floor((100 - before) / 10);
     if (buds > 0) {
       if (!isHeld(BUDDING_MODE)) applyCurrent(CRIMSON_BUD, buds);
-      addStat(Stat.AddConcerto, 4 * buds);
+      for (let i = 0; i < buds; i++) {
+        addStat(Stat.AddConcerto, 4);
+      }
     }
     addStat(Stat.EnergyRegenMult, isHeld(BUDDING_MODE) ? -100 : 150);
   },
   convertStats: () => revokeCurrent(CONSUME_CRIMSON_PISTIL),
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
+const CAMELLYA_TALENTS = new Talent({
+  name: "Talents: Camellya",
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
+});
+
 const CAMELLYA_RESONATOR = new Resonator({
   name: "Camellya",
+  talent: CAMELLYA_TALENTS,
+  inherent1: SEEDBED,
+  inherent2: EPIPHYTE,
   element: Attribute.Havoc,
   weapon: WeaponType.Sword,
   intro: () => Intro,
   outro: () => Outro,
   color: "#891c2b",
   maxEnergy: 125,
+  maxForte1: 100,
 
   // any gauge-spending cast of hers is a Crimson Pistil consumption
   updateBuffs: () => { if (currentAction().forte1 < 0) applyCurrent(CONSUME_CRIMSON_PISTIL, 1); },
@@ -234,12 +242,6 @@ const CAMELLYA_RESONATOR = new Resonator({
   constantStats: () => {
     addStat(Stat.BaseHp, 10325); addStat(Stat.BaseAtk, 450); addStat(Stat.BaseDef, 1161);
   },
-});
-
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
-const CAMELLYA_TALENTS = new Talent({
-  name: "Camellya: Talents",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
 });
 
 // a kit-valid line: Intro, the Burgeoning chain, Crimson Blossom opens Blossom Mode, the Vining
@@ -251,12 +253,11 @@ const VW1234 = new ActionGroup("Basic - Vining Waltz 123H4", [VW1, VW2, VW3, Bla
 const BA12345 = new ActionGroup("Basic - Burgeoning 1234H5", [BA1, BA2, BA3, BA4, BA5]);
 
 const CM_ROTATION_DOUBLE = new Rotation([
-  DOUBLE_INTRO, ECHO_ONFIELD,
+  DOUBLE_INTRO, BA1, ECHO_ONFIELD, 
   HA, BA4, BA5.swap(), SWAP,
   
-  INTRO,
+  INTRO, CrimsonBlossom, 
   Liberation, Ephemeral,
-  CrimsonBlossom, 
   VW1234,
   FloralRavage, OUTRO,
 ]);
@@ -266,7 +267,7 @@ const CM_ROTATION = new Rotation([
   BA12345,
   Liberation, Ephemeral,
   VW1234,
-  FloralRavage.swap(), OUTRO,
+  FloralRavage, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -276,9 +277,6 @@ const CM_ROTATION = new Rotation([
 export const CAMELLYA = new Loadout({
   resonator: CAMELLYA_RESONATOR,
   matrix: matrix("Camellya", 25),
-  talent: CAMELLYA_TALENTS,
-  inherent1: SEEDBED,
-  inherent2: EPIPHYTE,
   weapons: [RED_SPRING, EMERALD_OF_GENESIS],
   echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
@@ -293,9 +291,6 @@ export const CAMELLYA = new Loadout({
 export const CAMELLYA_DOUBLE = new Loadout({
   resonator: CAMELLYA_RESONATOR,
   matrix: matrix("Camellya", 25),
-  talent: CAMELLYA_TALENTS,
-  inherent1: SEEDBED,
-  inherent2: EPIPHYTE,
   weapons: [RED_SPRING, EMERALD_OF_GENESIS],
   echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),

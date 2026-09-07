@@ -65,13 +65,20 @@ import { VERINA } from "./resonators/spectro/verina.js";
 
 const TEAMS: Loadout[][][] = [
 
-  // hsin (Electro Flare mode): electro skill flare
-  [[SUISUI, BULING, CHISA, SHOREKEEPER], [CHISA, ROVER_ELECTRO], [HSIN_FLARE]],
-  // hsin, Unison mode: Suoming or Jinhsi behind her hands over the Unison her Intro answers
-  [[SHOREKEEPER, VERINA, BULING, MORNYE, SUISUI], [SUOMING, JINHSI], [HSIN_UNISON]],
-
   // suoming mdps, electro basic unison
   [[SHOREKEEPER, VERINA, MORNYE], [SANHUA, LYNAE_RUPTURE, REBECCA], [SUOMING_MDPS]],
+  //[[SHOREKEEPER, VERINA, MORNYE, BULING, ZHEZHI], [JINHSI,JINHSI], [SUOMING]],
+  //[[SHOREKEEPER, VERINA, BULING, MORNYE, SUISUI], [HSIN_UNISON,HSIN_UNISON], [SUOMING]],
+
+  // hsin (Electro Flare mode): electro skill flare
+  [[SUISUI, BULING, CHISA, SHOREKEEPER], [CHISA, ROVER_ELECTRO], [HSIN_FLARE]],
+
+  // hsin, Unison mode: Suoming or Jinhsi behind her hands over the Unison her Intro answers
+  [[SHOREKEEPER, VERINA, BULING, MORNYE, SUISUI], [SUOMING, SUOMING], [HSIN_UNISON]],
+  //[[SHOREKEEPER, VERINA, BULING, MORNYE, SUISUI], [JINHSI, JINHSI], [HSIN_UNISON]],
+
+  // jinhsi: spectro skill
+  [[SHOREKEEPER, VERINA, MORNYE, BULING, ZHEZHI, SUISUI], [ZHEZHI, YINLIN, CANTARELLA, LYNAE_RUPTURE, REBECCA, SUOMING, HSIN_UNISON], [JINHSI]],
 
   // electro rover mdps: Apex Resonance, the Thrum of All Sounds chains
   [[BULING, CHISA, SHOREKEEPER, VERINA, MORNYE], [LYNAE_RUPTURE, REBECCA], [ROVER_ELECTRO_MDPS]],
@@ -148,9 +155,6 @@ const TEAMS: Loadout[][][] = [
 
   // changli: fusion skill+liberation
   [[LUPA, MORNYE, SHOREKEEPER, DENIA_BURST, VERINA], [DENIA_BURST, LYNAE_RUPTURE, LUPA], [CHANGLI]],
-
-  // jinhsi: spectro skill
-  [[SHOREKEEPER, VERINA, MORNYE, BULING, ZHEZHI], [ZHEZHI, CANTARELLA, LYNAE_RUPTURE, REBECCA, SUOMING, YINLIN], [JINHSI]],
 
   // carlotta: glacio skill
   [[SHOREKEEPER, BULING, VERINA, MORNYE, SUISUI], [ZHEZHI, BRANT, LYNAE_RUPTURE, REBECCA, LUCILLA_CHAFE], [CARLOTTA]],

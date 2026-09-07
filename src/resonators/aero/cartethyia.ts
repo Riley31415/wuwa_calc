@@ -176,7 +176,6 @@ const Lib2 = cartethyiaAction("Liberation - Blade of Howling Squall", {
   // S6 stops the strip but not the payout: the amplification still reads what the target holds
   applyStats: () => addStat(Stat.Amp, 20 * Math.min(5, stacksOfEnemy(AERO_EROSION))),
   updateBuffs: () => {
-    if (forte1() > 120) setForte1(120); // the declared -120 lands the gauge on exactly 0
     revokeCurrent(MANIFEST); revokeCurrent(HEART_OF_VIRTUE);
     revokeCurrent(MANDATE_OF_DIVINITY); revokeCurrent(POWER_OF_DISCORD);
   },
@@ -351,10 +350,19 @@ const CT_S6 = new Sequence({
 
 /* --------------------------------------------------------------------------- kit and loadout */
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
+const CARTETHYIA_TALENTS = new Talent({
+  name: "Talents: Cartethyia",
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusHp, 12); },
+});
+
 /** Her, as a Resonator: name/element/weapon, and her own base stat line. The Intro resolves by
  *  form — Manifest survives a swap, so a visit begun mid-Manifest opens as Fleurdelys. */
 const CARTETHYIA_RESONATOR = new Resonator({
   name: "Cartethyia",
+  talent: CARTETHYIA_TALENTS,
+  inherent1: CT_INHERENT_1,
+  inherent2: CT_INHERENT_2,
   tier: Tier.Limited,
   element: Attribute.Aero,
   weapon: WeaponType.Sword,
@@ -362,16 +370,11 @@ const CARTETHYIA_RESONATOR = new Resonator({
   outro: () => Outro,
   color: "#1d3fff",
   maxEnergy: 125,
+  maxForte1: 120,
 
   constantStats: () => {
     addStat(Stat.BaseHp, 14800); addStat(Stat.BaseAtk, 312.5); addStat(Stat.BaseDef, 611.11);
   },
-});
-
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
-const CARTETHYIA_TALENTS = new Talent({
-  name: "Cartethyia: Talents",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusHp, 12); },
 });
 
 // The line the kit asks for: her Intro plants a Discord shadow and chains into Stage 2, the Skill
@@ -394,9 +397,6 @@ const CT_ROTATION = new Rotation([
 // two Aero Erosion sonatas, mainstat/substat
 export const CARTETHYIA = new Loadout({
   resonator: CARTETHYIA_RESONATOR,
-  talent: CARTETHYIA_TALENTS,
-  inherent1: CT_INHERENT_1,
-  inherent2: CT_INHERENT_2,
   sequences: [CT_S1, CT_S2, CT_S3, CT_S4, CT_S5, CT_S6],
   weapons: [DEFIERS_THORN, EMERALD_OF_GENESIS, RED_SPRING],
   echoLoadouts: [new EchoLoadout(FLEURDELYS, WINDWARD_5PC)],

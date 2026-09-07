@@ -156,25 +156,29 @@ const DANJIN_OUTRO = new Buff({
   updateBuffs: () => { lostOnSwap(); },
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
+const DANJIN_TALENTS = new Talent({
+  name: "Talents: Danjin",
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Havoc); },
+});
+
 const DANJIN_RESONATOR = new Resonator({
   name: "Danjin",
+  talent: DANJIN_TALENTS,
+  inherent1: DJ_INHERENT_OVERFLOW,
+  inherent2: DJ_INHERENT_CRIMSON_LIGHT,
   element: Attribute.Havoc,
   weapon: WeaponType.Sword,
   intro: () => Intro,
   outro: () => Outro,
   color: "#a83250",
   maxEnergy: 100,
+  maxForte1: 120,
   tier: Tier.Free,
 
   constantStats: () => {
     addStat(Stat.BaseHp, 9438); addStat(Stat.BaseAtk, 263); addStat(Stat.BaseDef, 1149);
   },
-});
-
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
-const DANJIN_TALENTS = new Talent({
-  name: "Danjin: Talents",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Havoc); },
 });
 
 /* -------------------------------------------------------------------------------- sequences */
@@ -264,9 +268,6 @@ const DJ_ROTATION = new Rotation([
 // (Tier.Free — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat
 export const DANJIN = new Loadout({
   resonator: DANJIN_RESONATOR,
-  talent: DANJIN_TALENTS,
-  inherent1: DJ_INHERENT_OVERFLOW,
-  inherent2: DJ_INHERENT_CRIMSON_LIGHT,
   weapons: [EMERALD_SENTENCE, EMERALD_OF_GENESIS, BLAZING_BRILLIANCE],
   echoLoadouts: [new EchoLoadout(NM_HERON, MIDNIGHT_VEIL_5PC),
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),

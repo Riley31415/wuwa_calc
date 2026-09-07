@@ -78,7 +78,6 @@ const Liberation = jianxinAction("Liberation - Purification Force Field", {
 //     marker every shield-reading gear watches, and its 6s heal the healing one.
 const FHA = jianxinAction("Forte Heavy - Primordial Chi Spiral", {
   node: Node.Forte, cast: Cast.Heavy, forte1: -120,
-  updateBuffs: () => { if (forte1() > 120) setForte1(120); },
 });
 const ChiStrike = jianxinAction("Forte Heavy - Zhoutian: Chi Strike", { 
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, 
@@ -191,12 +190,15 @@ const JX_INHERENT_1 = new Inherent({
 const JX_INHERENT_2 = new Inherent({ name: "Inherent: Reflection" });
 
 const JIANXIN_TALENTS = new Talent({
-  name: "Jianxin: Talents",
+  name: "Talents: Jianxin",
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
 });
 
 const JIANXIN_RESONATOR = new Resonator({
   name: "Jianxin",
+  talent: JIANXIN_TALENTS,
+  inherent1: JX_INHERENT_1,
+  inherent2: JX_INHERENT_2,
   tier: Tier.Standard,
   element: Attribute.Aero,
   weapon: WeaponType.Gauntlets,
@@ -204,6 +206,7 @@ const JIANXIN_RESONATOR = new Resonator({
   outro: () => Outro,
   color: "#9fe0c8",
   maxEnergy: 150,
+  maxForte1: 120,
 
   constantStats: () => {
     addStat(Stat.BaseHp, 14112.5); addStat(Stat.BaseAtk, 337.5); addStat(Stat.BaseDef, 1124.44);
@@ -224,9 +227,6 @@ const JX_ROTATION_S2 = new Rotation([
 
 export const JIANXIN = new Loadout({
   resonator: JIANXIN_RESONATOR,
-  talent: JIANXIN_TALENTS,
-  inherent1: JX_INHERENT_1,
-  inherent2: JX_INHERENT_2,
   weapons: [MARCATO],
   echoLoadouts: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.Aero3, Mainstat.ATK3, Mainstat.ATK1),

@@ -127,14 +127,24 @@ const QY_INHERENT_1 = new Inherent({
   },
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
+const QIUYUAN_TALENTS = new Talent({
+  name: "Talents: Qiuyuan",
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+});
+
 const QIUYUAN_RESONATOR = new Resonator({
   name: "Qiuyuan",
+  talent: QIUYUAN_TALENTS,
+  inherent1: QY_INHERENT_1,
+  inherent2: QY_INHERENT_2,
   element: Attribute.Aero,
   weapon: WeaponType.Sword,
   intro: () => Intro,
   outro: () => Outro,
   color: "#4fae6b",
   maxEnergy: 125,
+  maxForte1: 600,
   updateBuffs: () => {
     // forte1() only reflects every *prior* action's own contribution, so what the gauge is about
     // to become (forte1() + a.forte1) is what has to be checked, not what it reads right now
@@ -145,12 +155,6 @@ const QIUYUAN_RESONATOR = new Resonator({
   constantStats: () => {
     addStat(Stat.BaseHp, 12238); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1198);
   },
-});
-
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
-const QIUYUAN_TALENTS = new Talent({
-  name: "Qiuyuan: Talents",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
 // His Liberation is a team buff, so the opener spends it on a swap-in of its own rather than
@@ -182,9 +186,6 @@ const QY_ROTATION = new Rotation([
 // or Heron/full Moonlit Clouds — all automatically iterated (see gear.ts's own EchoLoadout)
 export const QIUYUAN = new Loadout({
   resonator: QIUYUAN_RESONATOR,
-  talent: QIUYUAN_TALENTS,
-  inherent1: QY_INHERENT_1,
-  inherent2: QY_INHERENT_2,
   weapons: [EMERALD_SENTENCE, EMERALD_OF_GENESIS],
   echoLoadouts: [
     new EchoLoadout(FENRICO, LAW_OF_HARMONY_3PC, SIERRA_GALE_2PC),

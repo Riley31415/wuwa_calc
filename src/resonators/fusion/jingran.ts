@@ -99,7 +99,8 @@ const Intro = jingranAction("Intro - Question the Tombs", {
 });
 const Outro = jingranAction("Outro - Rising Fortune and Ebbing Evil", {
   cast: Cast.Outro, type: Type1.Outro, mv: 795, concerto: -100, swapOut: true,
-  updateBuffs: () => { revokeCurrent(JINGRAN_FORTUNE); setForte2(0); },
+  resetForte2: true,
+  updateBuffs: () => revokeCurrent(JINGRAN_FORTUNE),
 });
 
 // --- heavy attacks ("forte skills"). Unprefixed = Yang Font's own (FHA = Stardome Meander,
@@ -224,14 +225,25 @@ const SHIELDS = new Map<Action, number>([
   [DC, 1], [EDC, 1], [Skill1, 1], [ESkill1, 1], [Skill2, 3], [ESkill2, 3], [Lib, 3], [Intro, 1], [FHA, 2], [EFHA, 2],
 ]);
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
+const JINGRAN_TALENTS = new Talent({
+  name: "Talents: Jingran",
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusHp, 12); }
+});
+
 const JINGRAN_RESONATOR = new Resonator({
   name: "Jingran",
+  talent: JINGRAN_TALENTS,
+  inherent1: JR_INHERENT_1,
+  inherent2: JR_INHERENT_2,
   element: Attribute.Fusion,
   weapon: WeaponType.Broadblade,
   intro: () => Intro,
   outro: () => Outro,
   color: "#f2c13c",
   maxEnergy: 125,
+  maxForte1: 300,
+  maxForte2: 100,
 
   // Nether to Light/Yang Changes, Yin Unites are Forte Circuit-scoped, not Inherent Skills —
   // self-applied here so they keep their own distinct source name.
@@ -255,12 +267,6 @@ const JINGRAN_RESONATOR = new Resonator({
   },
 });
 
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
-const JINGRAN_TALENTS = new Talent({
-  name: "Jingran: Talents",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusHp, 12); }
-});
-
 // Qi economy: intro 100, liberation +200 to 300, each of the four heavy attacks spends 300 and
 // the first three refund 200 while Mingfire is above 25.
 
@@ -280,9 +286,6 @@ const JR_ROTATION = new Rotation([
 // sonata pieces, mainstat/substat
 export const JINGRAN = new Loadout({
   resonator: JINGRAN_RESONATOR,
-  talent: JINGRAN_TALENTS,
-  inherent1: JR_INHERENT_1,
-  inherent2: JR_INHERENT_2,
   weapons: [JINGRAN_SIG, NEW_STD_BRAUDBLADE, THUNDERFLARE_DOMINION, LUSTROUS_RAZOR, VERDANT_SUMMIT],
   echoLoadouts: [new EchoLoadout(MYRIAD_SNARE, LAMP_5PC),
   new EchoLoadout(MYRIAD_SNARE, COV_3PC, LAMP_2PC)],

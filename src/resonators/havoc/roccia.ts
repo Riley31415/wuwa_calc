@@ -122,24 +122,28 @@ const RC_INHERENT_2 = new Inherent({
   },
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
+const ROCCIA_TALENTS = new Talent({
+  name: "Talents: Roccia",
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
+});
+
 const ROCCIA_RESONATOR = new Resonator({
   name: "Roccia",
+  talent: ROCCIA_TALENTS,
+  inherent1: RC_INHERENT_1,
+  inherent2: RC_INHERENT_2,
   element: Attribute.Havoc,
   weapon: WeaponType.Gauntlets,
   intro: () => Intro,
   outro: () => Outro,
   color: "#9634b2",
   maxEnergy: 125,
+  maxForte1: 300,
 
   constantStats: () => {
     addStat(Stat.BaseHp, 12250); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1198);
   },
-});
-
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
-const ROCCIA_TALENTS = new Talent({
-  name: "Roccia: Talents",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
 });
 
 const FBA123 = new ActionGroup("Forte Basic - Real Fantasy 123", [FBA1, FBA2, FBA3]);
@@ -170,9 +174,6 @@ const ROCCIA_MATRIX = matrix("Roccia", 20, {
 export const ROCCIA = new Loadout({
   resonator: ROCCIA_RESONATOR,
   matrix: ROCCIA_MATRIX,
-  talent: ROCCIA_TALENTS,
-  inherent1: RC_INHERENT_1,
-  inherent2: RC_INHERENT_2,
   weapons: [TRAGICOMEDY, NEW_STD_GAUNTLET, ABYSS_SURGES],
   echoLoadouts: [
     new EchoLoadout(NM_HERON, MIDNIGHT_VEIL_5PC),

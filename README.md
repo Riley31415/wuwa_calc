@@ -34,9 +34,11 @@ first and stalls ~200ms on *every* connection.
 | `src/echoes/<region>.ts` | mainslot echoes and sonata sets, one file per region that introduced them (grouped by region, unlike the resonator folders; Black Shores' Fallacy lives in `jinzhou.ts`) |
 | `src/weapons/*.ts` | signature and standard weapons, grouped by weapon type |
 | `src/index.ts` | the whole site — the comparison table, the filters, the detail page |
+| `web/` | everything the page loads that isn't code: `index.css`, `favicon.png`, `loading.gif`, `preview.jpg` |
 
-`index.html` is the page itself and loads `./dist/bundle/index.js`; `dev.py` serves the repo
-root, so both the source tree and `dist/` are reachable from it.
+`index.html` is the page itself and loads `./dist/bundle/index.js` plus its stylesheet and
+images out of `web/`; `dev.py` serves the repo root, so the source tree, `dist/` and `web/`
+are all reachable from it.
 
 ## The engine
 

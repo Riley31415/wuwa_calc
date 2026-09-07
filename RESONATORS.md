@@ -14,9 +14,6 @@ aalto
 zani https://ww.nanoka.cc/character/1507
 phoebe https://ww.nanoka.cc/character/1506
 
-# need erosion
-cartethiya https://ww.nanoka.cc/character/1409
-
 # sequences
 luuk
 lynae
@@ -25,7 +22,6 @@ xuanling
 canta
 roccia
 camellya
-chisa
 
 qingxiao
 sigrika
@@ -45,7 +41,6 @@ mornye
 galbrena
 lupa
 
-suisui
 lucilla
 hiyuki
 zhezhi

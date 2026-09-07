@@ -22,16 +22,18 @@
  *
  * Caps are each Debuff's own `maxStacks`, raised for a fight with `maxStackIncrease()`.
  */
-import { Attribute, EnemyStat, Scaling, Type1, Type2 } from "../engine/stats.js";
+import { Attribute, EnemyStat, Scaling, Stat, Type1, Type2 } from "../engine/stats.js";
 import { Buff, Debuff } from "../engine/gear.js";
 import {
   addEnemyStat,
+  addStat,
   applied,
   appliedByMe,
   appliedByMember,
   applyEnemy,
   currentAction,
   currentTeam,
+  isType,
   queue,
   removeStackEnemy,
   revokeCurrent,
@@ -204,6 +206,13 @@ export const FLEETING_THUNDER = new Debuff({ name: "Hsin: Fleeting Thunder" });
 export const ELECTRO_FLARE = new Debuff({
   name: "Electro Flare", maxStacks: 10,
   display: () => `Electro Flare x${frozenStacks()} (tick in ${5 - enemyForte1()}s)`,
+  // A kit's own Electro Flare DMG instance carries no motion value of its own (Hsin's Heart of
+  // Thunder hits): what it is worth is the rung the target is standing on, and the kit's own
+  // percentage multiplies that. Added from here so the value is sourced to this status.
+  applyStats: () => {
+    if (!isType(Type2.ElectroFlare) || currentAction().mv !== 0) return;
+    addStat(Stat.AddMv, negativeStatusRung(ELECTRO_FLARE_DMG, frozenStacks())?.mv ?? 0);
+  },
   updateBuffs: () => {
     const held = stacksOfEnemy(ELECTRO_FLARE);
     const rung = negativeStatusRung(ELECTRO_FLARE_DMG, held);

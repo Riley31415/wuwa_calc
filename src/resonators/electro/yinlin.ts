@@ -156,14 +156,24 @@ const YINLIN_OUTRO = new Buff({
   updateBuffs: () => { lostOnSwap(); },
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
+const YINLIN_TALENTS = new Talent({
+  name: "Talents: Yinlin",
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+});
+
 const YINLIN_RESONATOR = new Resonator({
   name: "Yinlin",
+  talent: YINLIN_TALENTS,
+  inherent1: YL_INHERENT_1,
+  inherent2: YL_INHERENT_2,
   element: Attribute.Electro,
   weapon: WeaponType.Rectifier,
   intro: () => Intro,
   outro: () => Outro,
   color: "#a45ee8",
   maxEnergy: 125,
+  maxForte1: 40,
 
   updateBuffs: () => {
     // this runs ahead of EXECUTION_MODE's own update (equipped gear first), so a Basic's own
@@ -178,19 +188,13 @@ const YINLIN_RESONATOR = new Resonator({
   },
 });
 
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
-const YINLIN_TALENTS = new Talent({
-  name: "Yinlin: Talents",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
-});
-
 // the kit-valid line: Magnetic Roar opens Execution Mode, the full combo (marked by its own first
 // hits) fires all 4 Blasts, the Heavy tops the gauge to the 45 that covers Chameleon Cipher's 40,
 // which upgrades the mark for Judgment Strikes off Outro. She's never the team's own lead, so
 // this covers both opener and loop.
 
 const YL_ROTATION = new Rotation([
-  INTRO, Skill1, HA, Liberation, Skill2, FHA, ECHO_SWAP,
+  INTRO, Skill1, BA1, BA2, BA3, HA, Liberation, Skill2, FHA, ECHO_SWAP,
   OUTRO,
 ]);
 
@@ -210,9 +214,6 @@ const YINLIN_MATRIX = matrix("Yinlin", 20, {
 export const YINLIN = new Loadout({
   resonator: YINLIN_RESONATOR,
   matrix: YINLIN_MATRIX,
-  talent: YINLIN_TALENTS,
-  inherent1: YL_INHERENT_1,
-  inherent2: YL_INHERENT_2,
   weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER, NEW_STD_RECTIFIER],
   echoLoadouts: [
     new EchoLoadout(NM_TEMPEST_MEPHIS, EMPYREAN_ANTHEM_5PC),

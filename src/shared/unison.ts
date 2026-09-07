@@ -4,11 +4,11 @@
  *
  * A kit grants it with a plain `applyCurrent(UNISON, 1)`; its "once every 25s" is a kit's own
  * business (Jinhsi's, which grants only on her double-Intro pre-visit — `isDoubleIntro()`).
- * Swapping out with it spends it in place of the Concerto bar — modelled as the 100 Concerto the outro would otherwise have cost,
- * handed back on the outro row itself, so every outro keeps its ordinary `concerto: -100`. The
- * spend is a conversion, so the outro row still lists Unison among what it held, and it publishes
- * UNISON_INTRO for whoever intros next: that is how the incoming Intro knows the outro it
- * answers was a Unison one.
+ * Swapping out with it spends it in place of the Concerto bar: the kit's `outro` fn resolves to
+ * the Unison form of its Outro (`unisonOutro()`), the same cast declaring no spend, so the bar
+ * carries over into the owner's next visit. The Unison spend itself is a conversion, so the outro
+ * row still lists Unison among what it held, and it publishes UNISON_INTRO for whoever intros
+ * next: that is how the incoming Intro knows the outro it answers was a Unison one.
  *
  * Responding is the responder's own kit's doing, the way a Tune Strain responder pays its
  * Interfered from a marker it holds (tunebreak.ts): a kit whose Intro has a Unison form picks it
@@ -21,6 +21,7 @@
  */
 import { Cast, Stat } from "../engine/stats.js";
 import { Buff, Gear } from "../engine/gear.js";
+import type { Action } from "../engine/rotation.js";
 import type { TeamMember } from "../engine/state.js";
 import {
   addStat,
@@ -37,13 +38,21 @@ import {
   stacksOfTeam,
 } from "../engine/context.js";
 
-/** Unison itself: pays the outro's bar back, and is spent by that outro — from convertStats, so
- *  the outro row still shows it — publishing the handoff the next Intro reads. */
+/** Unison itself: spent by the outro it pays for — from convertStats, so the outro row still shows
+ *  it — publishing the handoff the next Intro reads. The bar it stands in for is not paid back
+ *  here: the outro a kit resolves to while this is held is its Unison form (`unisonOutro()`),
+ *  which declares no spend at all. */
 export const UNISON = new Buff({
   name: "Unison",
-  applyStats: () => { if (casting(Cast.Outro)) addStat(Stat.AddConcerto, 100); },
   convertStats: () => { if (casting(Cast.Outro)) { revokeCurrent(UNISON); queueOutro(UNISON_INTRO); } },
 });
+
+/** The Unison form of a kit's Outro: the same cast declaring no Concerto spend, since Unison pays
+ *  for the swap in the bar's place — so the bar carries over into the owner's next visit, and the
+ *  outro is never short whatever it held. A Unison-capable kit builds one off its plain Outro and
+ *  its `outro` fn picks it while Unison is held (`isHeld(UNISON)`), the way an Intro fn picks its
+ *  Unison form off `unisonIntro()`. */
+export const unisonOutro = (outro: Action): Action => outro.variant(`${outro.name} (Unison)`, { concerto: 0 });
 
 /** Is the chain being played a DOUBLE_INTRO pre-visit — the short visit that leaves on a Unison
  *  outro handing the field *backward* (rotation.ts's own `outroDir`)? What a kit that grants

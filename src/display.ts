@@ -42,6 +42,9 @@ export interface TraceEntry {
   /** Read this row as a total rather than a contribution: same rule above it, same weight, and its
    *  label in the left column instead of indented in among the sources. */
   summary?: boolean;
+  /** How many identical contributions folded into this one (`foldDuplicates`) — the `xN` the
+   *  panel prints after the source name. Absent or 1 is a single contribution. */
+  count?: number;
 }
 
 /** The raw (already-formatted-ready) values for one row, keyed by column. */
@@ -187,14 +190,19 @@ function tagRank(key: StatKey): number {
 }
 
 /** Every entry that fed `stats`, summed per source and sorted broadest-scope-first (see
- *  `tagRank`) — a stable sort, so same-scope rows keep the order the buffs contributed them. */
-function tracing(snapshot: ResolvedSnapshot, stats: StatKey[]): TraceEntry[] {
+ *  `tagRank`) — a stable sort, so same-scope rows keep the order the buffs contributed them.
+ *  `merge: false` keeps every contribution its own row instead: a stat is one running percentage
+ *  however many calls built it, but a resource is a series of separate grants (Camellya's own
+ *  4 Concerto per Crimson Bud, one `addStat` a bud), and summing those hides how many there
+ *  were. Only the resource panels ask for it — see `rowValues()`. */
+function tracing(snapshot: ResolvedSnapshot, stats: StatKey[], merge = true): TraceEntry[] {
   const wanted = new Set(stats);
   const by = new Map<string, TraceEntry>();
+  const rows: TraceEntry[] = [];
   for (const e of snapshot.entries) {
     if (!wanted.has(e.stat)) continue;
     const key = `${e.source} ${e.stat}`;
-    const seen = by.get(key);
+    const seen = merge ? by.get(key) : undefined;
     if (seen) seen.value += e.value;
     else {
       // A scoped contribution heads its own section, named as it reads ("Fusion Dmg Bonus"):
@@ -205,14 +213,16 @@ function tracing(snapshot: ResolvedSnapshot, stats: StatKey[]): TraceEntry[] {
       // the enemy's own 20% is held as RES Reduce (tunebreak.ts) but is not a reduction anybody
       // applied — its own heading, so the panel reads as a baseline and the debuffs that move it
       const base = e.source === BASE_RESISTANCE.name;
-      by.set(key, {
+      const row = {
         source: e.source ?? "", stat: e.stat, value: e.value,
         section: base ? "Base RES" : SECTION_OF[stat] ?? (tag === null ? null : statLabel(e.stat)),
         owner: e.owner ?? null,
-      });
+      };
+      by.set(key, row);
+      rows.push(row);
     }
   }
-  return [...by.values()].sort((a, b) => tagRank(a.stat ?? 0) - tagRank(b.stat ?? 0));
+  return rows.sort((a, b) => tagRank(a.stat ?? 0) - tagRank(b.stat ?? 0));
 }
 
 /** The very rows one column's own hover panel carries, for a single action — so a table outside
@@ -230,6 +240,14 @@ export const columnOf = (report: Report, key: string): Column | undefined => rep
 
 const num = (v: number | null | undefined, digits = 0, pad = false, group = false): string =>
   v == null ? "" : v.toLocaleString("en-US", { maximumFractionDigits: digits, minimumFractionDigits: pad ? digits : 0, useGrouping: group });
+
+/** A gauge cell's own "/cap" — the Resonator's declared `maxForteN` this row's raw carries
+ *  alongside it (`max:${key}`, set only where a gauge actually has one — see `rowValues()`),
+ *  so a count-up gauge reads "80/200" and a count-down one (no cap) reads bare. */
+export const gaugeSuffix = (raw: RawRow, key: string): string => {
+  const cap = raw[`max:${key}`];
+  return typeof cap === "number" ? `/${num(cap)}` : "";
+};
 
 // Columns that always show their own full digit count rather than trimming trailing zeros the way
 // the rest do: the running resources at their own precision (2/2/4), and every stat column from
@@ -286,13 +304,22 @@ export interface RowValues {
 const COMBINED_COLUMNS = ["mv", "energy", "concerto", "offtune",
   ...FORTE_GAUGES.map((key) => `gauge:${RESOURCE_NAME[key]}`)];
 
+/** A row saying what a hit went *through* rather than what it banked: the MV panel's own
+ *  multiplying half, and anything already reduced to a factor. Seventy summons all went through
+ *  the same +40% — not through +2800%, and not through it seventy separate times — so one of
+ *  these neither sums nor counts (see `foldDuplicates`). */
+const wentThrough = (row: TraceEntry): boolean => row.mult === true || row.section === MV_MULTIPLIER;
+
 /**
  * The same source, once, with what it added: a group row lays every member's own panel rows end to
  * end, and a field's is seventy summons of one action saying the identical thing seventy times.
  * Rows that match in every respect but their amount fold into one reading `Name x70`, footed with
- * the sum — which is the figure the column itself prints, so the panel adds up to the row again. A
- * multiplier keeps its own value rather than summing (seventy hits at x1.5 went through x1.5, not
- * x105); everything else here is an amount banked, so it sums.
+ * the sum — which is the figure the column itself prints, so the panel adds up to the row again.
+ * The count rides in `count` rather than being written into the name, so a fold over already
+ * folded rows (a group of members whose own panels each folded) counts the grants, not the rows.
+ * A multiplier is not an amount banked, so it folds the other way (`wentThrough`): it keeps its
+ * own value and drops the count too, leaving one row per multiplier that stood over any cast in
+ * the group — the same list, reading the same way, as a single cast's own panel.
  */
 function foldDuplicates(rows: TraceEntry[]): TraceEntry[] {
   const out: TraceEntry[] = [];
@@ -302,13 +329,14 @@ function foldDuplicates(rows: TraceEntry[]): TraceEntry[] {
     const seen = at.get(key);
     if (!seen) {
       const copy = { ...row };
-      at.set(key, { row: copy, n: 1 });
+      at.set(key, { row: copy, n: row.count ?? 1 });
       out.push(copy);
       continue;
     }
-    seen.n++;
-    if (!row.mult) seen.row.value += row.value;
-    seen.row.source = `${row.source} x${seen.n}`;
+    seen.n += row.count ?? 1;
+    if (wentThrough(row)) continue;
+    seen.row.value += row.value;
+    seen.row.count = seen.n;
   }
   return out;
 }
@@ -392,13 +420,15 @@ function rowValues(
     // what it held coming in, for the running-column blanking a member's *first* row needs —
     // there is no previous row of theirs to compare against (see index.ts's own stepRow)
     raw[`before:gauge:${RESOURCE_NAME[key]}`] = snap.forteBefore[i]!;
+    // this resonator's own declared cap, for the cell's "/max" suffix (gaugeSuffix below) — 0
+    // where a gauge has none (a count-down gauge, or one nobody capped), which prints no suffix.
+    if (snap.maxForte[i]) raw[`max:gauge:${RESOURCE_NAME[key]}`] = snap.maxForte[i];
   });
-  // Auxiliary, not a shown column — index.ts's own action table reads these to flag the concerto
-  // cell red when an outro had less than a full 100 points to spend, counting what landed on the
-  // bar this same action (never true off an outro row: concertoSpent only moves on one, see
-  // evaluate.ts's own evaluate()).
-  raw.concertoSpent = snap.concertoSpent;
-  raw.isOutro = isCast(snap.action, Cast.Outro) ? 1 : 0;
+  // Auxiliary, not shown columns — index.ts's own action table reads these to flag a cell red:
+  // a cast that spent Concerto its bar didn't hold, and a gauge a cast left below 0 or refilled
+  // while it still held some (evaluate.ts's own forte banking).
+  raw["short:concerto"] = snap.concertoShort ? 1 : 0;
+  FORTE_GAUGES.forEach((key, i) => { raw[`short:gauge:${RESOURCE_NAME[key]}`] = snap.forteShort[i] ? 1 : 0; });
 
   // where each value came from, for the hover panels
   const sources: Sources = {};
@@ -436,13 +466,16 @@ function rowValues(
     const wiped = key === "energy" && snap.energyWiped;
     const declared = wiped ? 0 : snap.action[key] / RESOURCE_SCALE[key];
     const traced = wiped ? [] : RESOURCE_STAT[key]
-      .flatMap((st) => tracing(snap, keysFor(snap.action, st)))
+      .flatMap((st) => tracing(snap, keysFor(snap.action, st), false))
       .map((r) => ({ ...r, value: r.value / RESOURCE_SCALE[key] }));
     const rows: TraceEntry[] = [];
     const digits = RESOURCE_DIGITS[key];
     if (declared) rows.push({ source: snap.action.name, value: declared, digits, owner: snap.member });
     rows.push(...traced.map((r) => ({ ...r, digits })));
-    if (rows.length || wiped) sources[key] = rows;
+    // one action can bank the same grant more than once (a Crimson Bud each per 10 Pistils it
+    // consumed): those read as one `xN` row here, the same fold a group row gets
+    const folded = foldDuplicates(rows);
+    if (folded.length || wiped) sources[key] = folded;
     if (traced.length) buffed.add(key);
     // What the panel's own Total reads: what *this* action moved the counter by, not the balance
     // it left behind — the column already prints the running figure, and a panel of one action's
@@ -525,8 +558,11 @@ function rowValues(
     const isFactor = (r: TraceEntry) => r.stat !== undefined && splitStat(r.stat)[0] === Stat.MulMv;
     const parts = sources.mv ?? [];
     if (parts.length) buffed.add("mv");
+    // ...and no Base MV row at all for a hit that declares none of its own — a status instance
+    // whose whole value is the rung its own status adds (shared/status.ts): a "Base MV 0%" row
+    // above the number that actually stands there explains nothing.
     sources.mv = [
-      { source: snap.action.name, label: "Base MV", value: snap.action.mv, percent: true, owner: snap.member },
+      ...(snap.action.mv ? [{ source: snap.action.name, label: "Base MV", value: snap.action.mv, percent: true, owner: snap.member }] : []),
       ...parts.filter((r) => !isFactor(r)),
       ...parts.filter(isFactor).map((r) => ({ ...r, section: MV_MULTIPLIER })),
     ];
@@ -575,6 +611,10 @@ function rowValues(
   // the group banked. Each member is valued on its own (`members: []`, so this doesn't recurse).
   if (members.length > 1) {
     const per = members.map((m) => rowValues(m, { mv: mvPercent(m), avg: 0 }));
+    // a short anywhere in the group is the group's — the folded row is what the table shows
+    for (const key of ["short:concerto", ...FORTE_GAUGES.map((k) => `short:gauge:${RESOURCE_NAME[k]}`)]) {
+      raw[key] = per.some((p) => Number(p.raw[key])) ? 1 : 0;
+    }
     for (const key of COMBINED_COLUMNS) {
       // a column the folded row doesn't print at all (a group with no motion value) explains nothing
       if (sources[key] === undefined && key === "mv") continue;
@@ -805,7 +845,7 @@ export function buildReport(
   const shown = (r: { raw: RawRow }, c: Column): string => {
     const v = r.raw[c.key];
     return typeof v === "number"
-      ? num(v, c.digits ?? 0, PAD_DIGITS_COLUMNS.has(c.key), GROUPED_COLUMNS.has(c.key)) + (c.percent ? "%" : "")
+      ? num(v, c.digits ?? 0, PAD_DIGITS_COLUMNS.has(c.key), GROUPED_COLUMNS.has(c.key)) + (c.percent ? "%" : "") + gaugeSuffix(r.raw, c.key)
       : String(v ?? "");
   };
   const sized: Column[] = used.map((c) => {
@@ -849,9 +889,9 @@ export function totalsBySlot(report: Report): Map<string, number> {
 export function renderReport(report: Report, { showParts = true }: { showParts?: boolean } = {}): string {
   const { columns, rows, total } = report;
   const typeName = (type: Type1 | null): string => (type === null ? "" : TAG_NAME[type]);
-  const cell = (col: Column, value: unknown): string => {
+  const cell = (col: Column, value: unknown, suffix = ""): string => {
     const text = typeof value === "number"
-      ? num(value, col.digits ?? 0, PAD_DIGITS_COLUMNS.has(col.key), GROUPED_COLUMNS.has(col.key))
+      ? num(value, col.digits ?? 0, PAD_DIGITS_COLUMNS.has(col.key), GROUPED_COLUMNS.has(col.key)) + suffix
       : String(value ?? "");
     return col.align === "left" ? text.padEnd(col.width ?? 0) : text.padStart(col.width ?? 0);
   };
@@ -862,13 +902,13 @@ export function renderReport(report: Report, { showParts = true }: { showParts?:
   out.push("-".repeat(width));
 
   for (const row of rows) {
-    out.push(columns.map((c) => cell(c, row.raw[c.key])).join(""));
+    out.push(columns.map((c) => cell(c, row.raw[c.key], gaugeSuffix(row.raw, c.key))).join(""));
     // a part is a full row like any other, only indented and marked with its damage type
     if (showParts && row.parts.length) {
       for (const p of row.parts) {
         out.push(columns.map((c) => (c.key === "action"
           ? cell(c, `${PART_PREFIX}${p.raw.action}`)
-          : cell(c, p.raw[c.key]))).join("")
+          : cell(c, p.raw[c.key], gaugeSuffix(p.raw, c.key)))).join("")
           + (p.isShown ? `  <- stats shown on the chain (${typeName(p.type)})` : `  ${typeName(p.type)}`));
       }
     }

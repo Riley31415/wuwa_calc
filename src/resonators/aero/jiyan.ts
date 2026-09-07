@@ -147,24 +147,28 @@ const JIYAN_OUTRO: Buff = new Buff({
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(JIYAN_OUTRO); },
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
+const JIYAN_TALENTS = new Talent({
+  name: "Talents: Jiyan",
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+});
+
 const JIYAN_RESONATOR = new Resonator({
   name: "Jiyan",
+  talent: JIYAN_TALENTS,
+  inherent1: JY_INHERENT_1,
+  inherent2: JY_INHERENT_2,
   element: Attribute.Aero,
   weapon: WeaponType.Broadblade,
   intro: () => Intro,
   outro: () => Outro,
   color: "#4fc98f",
   maxEnergy: 125,
+  maxForte1: 30,
 
   constantStats: () => {
     addStat(Stat.BaseHp, 10487.5); addStat(Stat.BaseAtk, 437.5); addStat(Stat.BaseDef, 1185.55);
   },
-});
-
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
-const JIYAN_TALENTS = new Talent({
-  name: "Jiyan: Talents",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
 // Intro banks the 30 Resolve Prelude's auto-queued Finale spends; the lances ride the mode with
@@ -187,9 +191,6 @@ const JY_ROTATION = new Rotation([
 export const JIYAN = new Loadout({
   resonator: JIYAN_RESONATOR,
   matrix: matrix("Jiyan", 25),
-  talent: JIYAN_TALENTS,
-  inherent1: JY_INHERENT_1,
-  inherent2: JY_INHERENT_2,
   weapons: [VERDANT_SUMMIT, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR],
   echoLoadouts: [new EchoLoadout(NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC),
       new EchoLoadout(NM_KELPIE, WINDWARD_5PC),],

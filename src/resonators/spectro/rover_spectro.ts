@@ -147,27 +147,31 @@ const SPR_S6 = new Sequence({
   },
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from their kit
+const ROVER_SPECTRO_TALENTS = new Talent({
+  name: "Talents: Spectro Rover",
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Spectro); },
+});
+
 /** Them, as a Resonator: name/element/weapon, every grant/spend/queue rule their kit needs, and
  *  their own base stat line. `Tier.Free` — see the file header. */
 const ROVER_SPECTRO_RESONATOR = new Resonator({
   name: "Spectro Rover",
+  talent: ROVER_SPECTRO_TALENTS,
+  inherent1: SPR_INHERENT_1,
+  inherent2: SPR_INHERENT_2,
   element: Attribute.Spectro,
   weapon: WeaponType.Sword,
   intro: () => Intro,
   outro: () => Outro,
   color: "#e8d98f",
   maxEnergy: 125,
+  maxForte1: 100,
   tier: Tier.Free,
 
   constantStats: () => {
     addStat(Stat.BaseHp, 11400); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1369);
   },
-});
-
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from their kit
-const ROVER_SPECTRO_TALENTS = new Talent({
-  name: "Spectro Rover: Talents",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Spectro); },
 });
 
 const SPR_ROTATION = new Rotation([
@@ -183,9 +187,6 @@ const SPR_ROTATION = new Rotation([
 // (Tier.Free — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat
 export const ROVER_SPECTRO = new Loadout({
   resonator: ROVER_SPECTRO_RESONATOR,
-  talent: ROVER_SPECTRO_TALENTS,
-  inherent1: SPR_INHERENT_1,
-  inherent2: SPR_INHERENT_2,
   weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, RED_SPRING],
   echoLoadouts: [
     new EchoLoadout(FALLACY, REJUV_5PC),

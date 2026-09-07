@@ -53,22 +53,22 @@ function phroAction(id: string, def: object): Action {
 // derived by subtraction, cross-checked both ways against BA12 and BA23.
 const BA1 = phroAction("Basic - Movement of Life and Death 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 106.9, offtune: 5376, energy: 1.68, concerto: 3.36 });
 const BA2 = phroAction("Basic - Movement of Life and Death 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 95.43, offtune: 4800, energy: 1.5, concerto: 3 });
-const BA3 = phroAction("Basic - Movement of Life and Death 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 196.14, offtune: 9864, energy: 3.12, concerto: 6.18, updateBuffs: () => gainNote(1) });
+const BA3 = phroAction("Basic - Movement of Life and Death 3", { forte1: 1, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 196.14, offtune: 9864, energy: 3.12, concerto: 6.18, updateBuffs: () => gainNote(1) });
 
-const Skill = phroAction("Skill - Whispers in a Fleeting Dream", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 211.94, offtune: 4264, energy: 13.34, concerto: 10, updateBuffs: () => gainNote(2) });
+const Skill = phroAction("Skill - Whispers in a Fleeting Dream", { forte1: 1, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 211.94, offtune: 4264, energy: 13.34, concerto: 10, updateBuffs: () => gainNote(2) });
 
-const FBA = phroAction("Basic - Movement of Fate and Finality", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 505.01, offtune: 10161, energy: 3.21, concerto: 10.02, updateBuffs: () => gainNote(1) });
-const FSkill = phroAction("Skill - Murmurs in a Haunting Dream", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 464.07, offtune: 9338, energy: 2.95, concerto: 10, updateBuffs: () => gainNote(2) });
+const FBA = phroAction("Basic - Movement of Fate and Finality", { forte1: 1, node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 505.01, offtune: 10161, energy: 3.21, concerto: 10.02, updateBuffs: () => gainNote(1) });
+const FSkill = phroAction("Skill - Murmurs in a Haunting Dream", {forte1: 1, node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 464.07, offtune: 9338, energy: 2.95, concerto: 10, updateBuffs: () => gainNote(2) });
 
 const ScarletCoda = phroAction("Heavy - Scarlet Coda", {
-  node: Node.Normal, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Skill, mv: 660.16, offtune: 166144, energy: 6.93, concerto: 40,
+  node: Node.Normal, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Skill, forte1: -6,  mv: 660.16, offtune: 166144, energy: 6.93, concerto: 40,
 });
 
 // concerto only — Liberation costs no Resonance Energy (maxEnergy: 0 below). The sheet's separate
 // "Lib2" row (465.22% MV) has no matching action here — a known gap, flagged rather than guessed.
 // Opens Maestro and banks the ten auto-cast chances (NOTES' own bits 12-15).
 const Liberation = phroAction("Liberation - Waltz of Forsaken Depths", {
-  node: Node.Liberation, cast: Cast.Liberation, concerto: 20,
+  node: Node.Liberation, cast: Cast.Liberation, concerto: 20, resetForte1: true,
   updateBuffs: () => {
     applyCurrent(MAESTRO, 1);
     setStacksSelf(NOTES, (stacksOf(NOTES) & ~(15 << 12)) | (10 << 12));
@@ -81,7 +81,7 @@ const Intro = phroAction("Intro - Suite of Quietus", {
 /** Maestro-replaced Intro — used whenever she re-enters with Maestro still open. Playing it is
  *  also what closes Maestro back out. */
 const EIntro = phroAction("Intro - Suite of Immortality", {
-  node: Node.Intro, cast: Cast.Intro, type: Type1.Skill, mv: 596.43, offtune: 9600, energy: 10, concerto: 10,
+  node: Node.Intro, cast: Cast.Intro, type: Type1.Skill, mv: 596.43, offtune: 9600, energy: 10, concerto: 10,resetForte1: true,
   // the Waltz ends here, and everything it was playing through goes with it: the unplayed notes,
   // the chances left, the front note's play count — the store keeps only its always-set bit
   updateBuffs: () => { revokeCurrent(MAESTRO); setStacksSelf(NOTES, stacksOf(NOTES) & (1 << 16)); },
@@ -299,10 +299,19 @@ const PH_S6 = new Sequence({
   },
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
+const PHROLOVA_TALENTS = new Talent({
+  name: "Talents: Phrolova",
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+});
+
 /** Her, as a Resonator: name/element, every grant/spend/queue rule her kit needs, and her own
  *  base stat line. */
 export const PHROLOVA_RESONATOR = new Resonator({
   name: "Phrolova",
+  talent: PHROLOVA_TALENTS,
+  inherent1: PH_INHERENT_1,
+  inherent2: PH_INHERENT_2,
   element: Attribute.Havoc,
   weapon: WeaponType.Rectifier,
   color: "#a62c57",
@@ -310,6 +319,7 @@ export const PHROLOVA_RESONATOR = new Resonator({
   intro: () => (stacksOf(MAESTRO) ? EIntro : Intro),
   outro: () => Outro,
   maxEnergy: 0,
+  maxForte1: 6,
 
   combatStart: () => { applyCurrent(NOTES, 1 << 16); }, // initialize notes state
 
@@ -318,16 +328,10 @@ export const PHROLOVA_RESONATOR = new Resonator({
   },
 });
 
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
-const PHROLOVA_TALENTS = new Talent({
-  name: "Phrolova: Talents",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
-});
-
 // INTRO resolves to plain Intro or EIntro on its own (see her own intro() above)
 // NOINTRO ROTATIONS DO NOT HAVE AN INTRO
 
-const BA123 = new ActionGroup("Basic - Movement of Life and Death 123", [BA1, BA2, BA3, DODGE]);
+const BA123 = new ActionGroup("Basic - Movement of Life and Death 123", [BA1, BA2, BA3]);
 const BA123idash = new ActionGroup("Basic - Movement of Life and Death 123 (Cancelled)", [BA1, BA2, BA3.dodgeCancel()]);
 
 const PH_LOOP = new Rotation([
@@ -335,7 +339,7 @@ const PH_LOOP = new Rotation([
   INTRO,
   BA3, ECHO_ONFIELD, 
   FBA, Skill, FBA, DODGE, 
-  BA123, FBA, DODGE,
+  BA123, DODGE, FBA, DODGE,
   ScarletCoda, Liberation, HBA1, HBA2, OUTRO,
 ]);
 
@@ -360,9 +364,6 @@ const PH_LOOP_S2 = new Rotation([
 // mainslot echo, sonata pieces, mainstat/substat
 export const PHROLOVA = new Loadout({
   resonator: PHROLOVA_RESONATOR,
-  talent: PHROLOVA_TALENTS,
-  inherent1: PH_INHERENT_1,
-  inherent2: PH_INHERENT_2,
   weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER],
   echoLoadouts: [new EchoLoadout(NM_HECATE, DREAM_OF_THE_LOST_3PC, HAVOC_ECLIPSE_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
@@ -376,7 +377,7 @@ const PH_LOOP_DUAL_DPS = new Rotation([
   NOINTRO, BA2,
   INTRO, BA3, ECHO_ONFIELD, 
   FBA, Skill, FBA, DODGE,
-  BA123, FBA, 
+  BA123, DODGE, FBA, 
   ScarletCoda, Liberation, OUTRO,
 ]);
 
@@ -388,15 +389,12 @@ const PH_LOOP_DUAL_DPS_S2 = new Rotation([
 
   INTRO, BA3, ECHO_ONFIELD, 
   FBA, Skill, FBA, DODGE,
-  BA123, FBA, 
+  BA123, DODGE, FBA, 
   ScarletCoda, Liberation, OUTRO,
 ]);
 
 export const PHROLOVA_DUAL_DPS = new Loadout({
   resonator: PHROLOVA_RESONATOR,
-  talent: PHROLOVA_TALENTS,
-  inherent1: PH_INHERENT_1,
-  inherent2: PH_INHERENT_2,
   weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER],
   echoLoadouts: [
     new EchoLoadout(NM_HECATE, DREAM_OF_THE_LOST_3PC, HAVOC_ECLIPSE_2PC),

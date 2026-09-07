@@ -107,12 +107,10 @@ const USkill = lupaAction("Skill - Foebreaker", {
 // tops Wolflame to 100, spends every point of Wolfaith, opens Pack Hunt/Glory
 const Liberation = lupaAction("Liberation - Fire-Kissed Glory", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 820.44, concerto: 20, offtune: 48000, forte1: 100, resetEnergy: true,
-  updateBuffs: () => {
-    applyTeam(PACK_HUNT, 1);
-    // "Restores 100 points of Wolflame" is a hard top-off, not additive on top of whatever was
-    // already held: normalize to 0 first, so the action's own declared forte1: 100 lands on 100.
-    setForte1(0); setForte2(0);
-  },
+  // "Restores 100 points of Wolflame" is a hard top-off, not additive on top of whatever was
+  // already held, and every point of Wolfaith goes: both reset ahead of the declared +100
+  resetForte1: true, resetForte2: true,
+  updateBuffs: () => applyTeam(PACK_HUNT, 1),
 });
 
 // Dance With the Wolf and its Climax form, each spending every point of Wolfaith (a fixed -2
@@ -228,10 +226,19 @@ const LUPA_BACKUP_READY = new Buff({
     }
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
+const LUPA_TALENTS = new Talent({
+  name: "Talents: Lupa",
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+});
+
 /** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her
  *  own base stat line. Sequence-0 only — a limited 5-star (`Tier.Limited`). */
 const LUPA_RESONATOR = new Resonator({
   name: "Lupa",
+  talent: LUPA_TALENTS,
+  inherent1: LP_INHERENT_1,
+  inherent2: LP_INHERENT_2,
   element: Attribute.Fusion,
   weapon: WeaponType.Broadblade,
   intro: () => {
@@ -243,6 +250,8 @@ const LUPA_RESONATOR = new Resonator({
   outro: () => Outro,
   color: "#e8483a",
   maxEnergy: 125,
+  maxForte1: 100,
+  maxForte2: 2,
 
   // every cast that arms Set the Arena Ablaze
   updateBuffs: () => {
@@ -257,12 +266,6 @@ const LUPA_RESONATOR = new Resonator({
   },
 });
 
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
-const LUPA_TALENTS = new Talent({
-  name: "Lupa: Talents",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
-});
-
 const LP_LOOP = new Rotation([
   NOINTRO, Skill1,
   INTRO, ECHO_CANCEL, Liberation, USkill, MA1, MA2, EMA3, EHA4, UFSkill, OUTRO,
@@ -274,9 +277,6 @@ const LP_LOOP = new Rotation([
 // mainslot echo, sonata pieces, mainstat/substat
 export const LUPA = new Loadout({
   resonator: LUPA_RESONATOR,
-  talent: LUPA_TALENTS,
-  inherent1: LP_INHERENT_1,
-  inherent2: LP_INHERENT_2,
   weapons: [WILDFIRE_MARK, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR],
   echoLoadouts: [
     new EchoLoadout(LIONESS_OF_GLORY, CLAWPRINT_5PC),

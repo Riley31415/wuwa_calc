@@ -124,7 +124,12 @@ body {
 #loading {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  /* over everything: the pinned headers (40), the search results and popovers (41), the stacked
+     aside (41) and the hover panels (200) all paint under a run in progress. Paints over them
+     only: clicks and keys go through to the page, so the boxes and the search bar keep working
+     mid-run (typing only redraws its own list, see index.ts) rather than waiting on the solve */
+  z-index: 300;
+  pointer-events: none;
   display: grid;
   place-content: center;
   justify-items: center;
@@ -193,29 +198,67 @@ body {
 
 /* -------------------------------------------------------------- rotation tables */
 
-/* Damage per rotation / Energy Requirements, side by side below the action log */
+/* Damage per rotation / Energy Requirements, side by side below the action log.
+   Pinned to the left of <main>'s own sideways scroll: the action log below is wider than the
+   scrollport and scrolls the page sideways, and these two would otherwise slide off with it.
+   `width: 100%` is the scrollport rather than that scrolled-out width, so they stay in view and
+   do their own scrolling instead. */
 .rtables {
   display: flex;
+  flex-wrap: wrap;
   gap: 18px;
   align-items: flex-start;
+  position: sticky;
+  left: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
-.rtable-block { flex: 1; min-width: 0; }
+/* The two share the row by how wide their tables want to be, not half each: `flex-basis: auto`
+   makes each block's basis the width its own table wants, and flex hands the slack out — and
+   takes it back — in proportion to that. Two blocks share a line only while both fit on it at
+   that width (`flex-wrap` above), so neither is ever cut down while they stand side by side: the
+   moment they no longer both fit, Energy Requirements wraps to a line of its own and stretches
+   to the full width there. `overflow-x` then only bites in the last case — one table, alone on
+   its line, still wider than the page. */
+.rtable-block {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+}
 
+/* The table is the grid, its rows `display: contents` — one grid for all of them, so a column
+   is as wide as its own widest cell across every row (a row-per-grid could only line them up on
+   fixed tracks, which is what used to cut `Havoc Rover` down to `Havoc Rov...`). No `overflow`
+   of its own: clipping the corners would also make this a scroll container, and a track's auto
+   minimum is dropped to zero inside one — the columns would go back to being squeezed under
+   their own text. The corner cells carry the radius instead (below). */
 .rtable {
+  display: grid;
+  min-width: min-content;
   border-radius: var(--r);
   background: var(--surface);
   box-shadow: var(--sh-2);
-  overflow: hidden;
 }
-.rtable.dpr .rtrow { grid-template-columns: minmax(120px, 1.4fr) repeat(5, minmax(90px, 1fr)); }
-.rtable.energy .rtrow { grid-template-columns: repeat(6, minmax(90px, 1fr)); }
+/* the name column to its longest name; the five figure columns to their own widest figure, and
+   then sharing whatever the table has over that equally. `minmax(min-content, 1fr)` spelled out
+   rather than a bare `1fr`: a track's own `auto` minimum does not hold the figures here, and the
+   columns went back to being squeezed under their text at a narrow width. */
+.rtable.dpr, .rtable.energy { grid-template-columns: max-content repeat(5, minmax(min-content, 1fr)); }
 
-.rtrow { display: grid; align-items: stretch; }
-.rtrow + .rtrow { border-top: 1px solid var(--line); }
-.rtrow.rthead { background: var(--surface-3); }
+.rtrow { display: contents; }
+/* the rule between rows and the heading's own band are drawn by the cells, the rows themselves
+   being box-less now */
+.rtrow + .rtrow .c { border-top: 1px solid var(--line); }
+/* the four corner cells round with the table, the heading's band and the name column's wash
+   being the ones that would otherwise square off over it */
+.rtrow:first-child .c:first-child { border-top-left-radius: var(--r); }
+.rtrow:first-child .c:last-child { border-top-right-radius: var(--r); }
+.rtrow:last-child .c:first-child { border-bottom-left-radius: var(--r); }
+.rtrow:last-child .c:last-child { border-bottom-right-radius: var(--r); }
 /* Thinner than the rows under it â€” a heading is a label, not a row of its own, and these two
    tables are read for the figures. Its own line-height, not `.rtrow .c`'s 17px. */
 .rtrow.rthead .c {
+  background: var(--surface-3);
   padding: 3px 10px;
   line-height: 15px;
   font-size: 11px;
@@ -230,10 +273,7 @@ body {
   font-size: 13px;
   font-variant-numeric: tabular-nums;
   line-height: 17px;
-  min-width: 0;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   position: relative;
 }
 .rtrow .c.num { text-align: right; color: var(--ink); }
@@ -262,7 +302,7 @@ main {
   /* No padding at the top: a sticky header pins to the scrollport edge, so any padding there
      leaves a band the rows scroll through above it. The gap moves to the table's own margin,
      which scrolls away like content should. */
-  padding: 0 26px 96px;
+  padding: 0 26px 420px;
 }
 
 /* ---------------------------------------------------------------- comparison table */
@@ -281,22 +321,21 @@ main {
 }
 /* `flex-start`, so one box opening its description doesn't stretch the others in its row to match */
 .tcfilter-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
-/* the two role groups travel together: they fold into a single column before the note-and-search
-   group gives up its own (`.cols2` below) */
-.tcroles { display: flex; flex-direction: column; gap: 9px; }
-/* Beside the table the search column leads, since that's the corner the eye starts from; above the
-   table the roles lead and the search column comes last, so the reader passes the boxes on the way
-   down to the table rather than reading the terms of it first. The warning is last either way. */
+/* the role boxes are one group, a column of their own beside the note-and-search one (`.cols2` below) */
+/* The note-and-search column leads wherever it stands: beside the table it is the corner the eye
+   starts from, and above the table the search bar is the first thing on the page, ahead of the
+   README and the role boxes (the `.tcsearchrow` order below). The warning is last either way. */
 .tcfilters > .tcfilter-row.note { order: 0; }
-.tclayout.stack .tcfilters > .tcfilter-row.note { order: 1; }
+/* above the table the search bar leads its column, so it is the first thing on the page rather
+   than the last thing before the table */
+.tclayout.stack .tcsearchrow { order: -1; }
 .tcfilters > .tcwarning { order: 2; }
-/* One box per option: the name left, its own checkbox hard right, and the description opening
-   under both (index.js's own `comparisonFilters()`). They share a basis so the two role rows still
-   line up column-wise, and cap out rather than stretching to a screen's width on a wide window. */
+/* One box per axis: the name left, a labelled checkbox per role hard right, and the description
+   opening under both (index.js's own `comparisonFilters()`). They share a basis so the boxes line
+   up column-wise, and cap out rather than stretching to a screen's width on a wide window. */
 .tcopt {
-  /* fixed, not grown: a row of two would otherwise stretch to the width a row of five fills, and
-     the boxes are read down the columns as much as along the rows */
-  flex: 0 0 272px;
+  /* fixed, not grown: the boxes are read down the columns as much as along the rows */
+  flex: 0 0 360px;
   padding: 7px 10px;
   border: 1px solid var(--line-2);
   border-radius: var(--r);
@@ -319,6 +358,9 @@ main {
   cursor: pointer;
 }
 .tcopt-name:hover { color: var(--ink); }
+/* a role's own checkbox with its name at its left, the pair sitting hard right of the axis name */
+.tcopt-role { display: flex; align-items: center; gap: 5px; color: var(--dim); cursor: pointer; white-space: nowrap; }
+.tcopt-role:hover { color: var(--ink); }
 .tcopt input[type="checkbox"] {
   flex: none;
   width: 15px;
@@ -347,10 +389,10 @@ main {
    narrow to hold both). */
 /* In the note group with Standards rather than a row of its own under every group: there, any
    column's boxes opening pushed it down; here only that one box does. */
-.tcsearchrow { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; }
+.tcsearchrow { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; width: 100%; }
 /* a block, not a flex column: a fixed-position child (the results, beside the table) takes its
    static position from flow — under the input — where a flex container would put it at the top */
-.tcsearch { position: relative; display: block; flex: 0 1 340px; max-width: 340px; }
+.tcsearch { position: relative; display: block; flex: 0 1 360px; max-width: 360px; }
 .tcsearch input {
   display: block;
   width: 100%;
@@ -382,17 +424,18 @@ main {
 /* Beside the table the aside is a scroller (`.tcside` below), and a scroller clips an absolute
    child hanging under its bottom edge — so there the list is fixed instead: with every offset auto
    it still sits at its static position under the input, but escapes the clip. A column beside the
-   table is always 272px, the input's own width. Scrolling the aside closes it (index.ts). */
-.tclayout:not(.stack) .tcsearch-results { position: fixed; top: auto; left: auto; right: auto; width: 272px; }
-/* one row per match â€” the same hue wash a name cell or chip wears (`--mem`, resonators and
-   sequences only; gear picks have no member colour, same as their chips) */
+   table is always 360px, the input's own width. Scrolling the aside closes it (index.ts). */
+.tclayout:not(.stack) .tcsearch-results { position: fixed; top: auto; left: auto; right: auto; width: 360px; }
+/* one row per match: the same hue wash and 2px left marker a name cell wears (`--mem`; gear
+   picks wear the Tune Break's colour, same as their chips), no border of its own */
 .sresult {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 5px 10px;
-  border: 1px solid color-mix(in srgb, var(--mem, transparent) 55%, var(--line-2));
+  gap: 0;
+  padding: 0;
+  border: 0;
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--mem, transparent) 70%, transparent);
   background: color-mix(in srgb, var(--mem, transparent) 14%, var(--surface-3));
   font-family: var(--sans);
   font-size: 12px;
@@ -400,13 +443,34 @@ main {
   color: var(--ink);
   cursor: pointer;
 }
-.sresult:hover {
-  border-color: color-mix(in srgb, var(--mem, transparent) 80%, var(--faint));
-  background: color-mix(in srgb, var(--mem, transparent) 24%, var(--surface-3));
+/* no wash on the row itself: the half under the pointer is what lights up (`.sact:hover` below) */
+/* The row is two click targets split by a rule, each the row's full height: the include side is
+   the name, which axis the match is from dimmed after it, and "include" hard right; the exclude
+   side is just "exclude". The tick/cross are the same green/red as a chip's (`.rchip .box`
+   below) so the reading carries over. */
+.sresult .sact { display: flex; align-items: center; align-self: stretch; padding: 5px 10px; color: var(--ink); }
+.sresult .sact.inc { flex: 1; justify-content: space-between; gap: 12px; min-width: 0; }
+/* the rule between the two: the labels' own grey a touch heavier, and shorter than the row so it
+   reads as a divider between the labels rather than a second box */
+.sresult .sact.exc { position: relative; flex: none; }
+.sresult .sact.exc::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 25%;
+  height: 50%;
+  width: 1.5px;
+  background: var(--dim);
 }
-/* which axis the match is from, right-aligned and dimmed so the name stays the row */
+.sresult .sact:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.sresult .sname { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .sresult .skind { color: var(--dim); font-size: 11px; }
-.sresult.none { color: var(--dim); cursor: default; }
+.sresult .slabel { display: flex; align-items: center; gap: 4px; color: var(--dim); white-space: nowrap; }
+.sresult .sact:hover .slabel { color: var(--ink); }
+.sresult .slabel .box { font-size: 12px; font-weight: 700; line-height: 1; }
+.sresult .sact.inc .box { color: #4ade5f; }
+.sresult .sact.exc .box { color: #ff5f56; }
+.sresult.none { padding: 5px 10px; color: var(--dim); cursor: default; }
 
 /* A filter's own (mdps)/(support) marker (index.js's own `roleTagLabel()`) â€” only shown once a
    name plays both roles somewhere in the table, so it's dimmed rather than part of the name: it
@@ -1150,7 +1214,7 @@ body.coldrag { user-select: none; }
     z-index: 6;
     /* the narrowest of the three, until `fitSide()` has measured which one this table can afford
        (see `.cols1` below for the 10px) */
-    width: 282px;
+    width: 370px;
     /* the slack beside a table narrower than the room left for it belongs between the two, not to
        the right of the aside: the columns keep the page's own right edge */
     margin-left: auto;
@@ -1161,7 +1225,7 @@ body.coldrag { user-select: none; }
     overscroll-behavior: contain;
     /* the scrollbar's 10px is always reserved, scrolling or not: taken out of the content width
        only when the boxes grow taller than the window, it left the columns 544px to stand in and
-       the second one wrapped under the first â€” a 272px hole beside the boxes, and a scrollbar at
+       the second one wrapped under the first â€” a 360px hole beside the boxes, and a scrollbar at
        the far side of it */
     scrollbar-gutter: stable;
   }
@@ -1170,20 +1234,19 @@ body.coldrag { user-select: none; }
   .tcside::-webkit-scrollbar-thumb { background: var(--line-2); border: 3px solid var(--bg); }
   .tcside::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 }
-/* How wide the aside is, and so how many of the three groups stand side by side: one column of
-   boxes is 272px (`.tcopt` above) and 10px separates two, so two columns want 554 and three 836 â€”
-   plus the 10px its own scrollbar always has reserved (`scrollbar-gutter` above). Set from
-   `fitSide()`, which hands the aside the widest of the three the table leaves room for â€” the
-   whole point being that the groups keep their place beside the table down to a single column
-   before they give it up and go above it. */
-.tcside.cols1 { width: 282px; }
-.tcside.cols2 { width: 564px; }
-.tcside.cols3 { width: 846px; }
-/* A column per group, not one wrapping flow of all thirteen boxes: in a flow, a box opening its
+/* How wide the aside is, and so whether the two groups stand side by side: one column of boxes
+   is 360px (`.tcopt` above) and 10px separates two, so two columns want 730, plus the 10px its
+   own scrollbar always has reserved (`scrollbar-gutter` above). Set from `fitSide()`, which hands
+   the aside the wider of the two the table leaves room for, the whole point being that the
+   groups keep their place beside the table down to a single column before they give it up and go
+   above it. */
+.tcside.cols1 { width: 370px; }
+.tcside.cols2 { width: 740px; }
+/* A column per group, not one wrapping flow of all the boxes: in a flow, a box opening its
    description made its whole wrap line tall and the boxes after it started below that, leaving a
    hole beside the short one. In a column, an open box moves only what is under it. At `.cols1`
    there is room for one box a line anyway, so the base wrapping row already is that column. */
-.tcside.cols2 .tcfilters, .tcside.cols3 .tcfilters {
+.tcside.cols2 .tcfilters {
   flex-direction: row;
   flex-wrap: wrap;
   gap: 10px;
@@ -1194,28 +1257,54 @@ body.coldrag { user-select: none; }
      is exactly the columns' own, so this decides nothing there */
   justify-content: flex-start;
 }
-.tcside.cols2 .tcfilter-row, .tcside.cols3 .tcfilter-row {
+.tcside.cols2 .tcfilter-row {
   flex-direction: column;
   /* a width, not a basis: down a column a basis would be the *height* */
   flex: none;
-  width: 272px;
+  width: 360px;
   align-items: stretch;
 }
-.tcside.cols2 .tcopt, .tcside.cols3 .tcopt { flex: none; }
-.tcside.cols2 .tcroles, .tcside.cols3 .tcroles { gap: 10px; }
-/* the roles get a column each only where there's room for all three */
-.tcside.cols3 .tcroles { flex-direction: row; }
-.tcside.cols2 .tcwarning, .tcside.cols3 .tcwarning { flex: 1 0 100%; }
+.tcside.cols2 .tcopt { flex: none; }
+.tcside.cols2 .tcwarning { flex: 1 0 100%; }
 /* Not even one column's worth of room beside the table, which only the page can know
    (index.ts's own `fitSide()`) â€” so the aside goes above it and spends the full width instead. */
-.tclayout.stack { flex-direction: column; }
+/* as wide as the table rather than the scrollport: a sticky aside can only slide within its own
+   containing block, and one exactly the aside's width leaves it nowhere to go */
+.tclayout.stack { flex-direction: column; width: max-content; min-width: 100%; }
 /* `margin-left: 0` undoes the beside-the-table `auto` above: an auto cross-axis margin would also
-   stop the aside stretching to the column's width, leaving it fit-content and at the right */
-.tclayout.stack .tcside { position: static; order: 0; width: auto; margin-left: 0; background: none; overflow: visible; }
+   stop the aside stretching to the column's width, leaving it fit-content and at the right.
+   Sticky to the scrollport's left rather than static: above a table wider than the window (a
+   phone) `main` scrolls sideways, and the boxes would ride off the left edge with the table's
+   first columns. They stay put instead, no wider than the scrollport (`fitSide()` sets the cap,
+   which is what leaves the aside room to stick in). */
+.tclayout.stack .tcside {
+  position: sticky;
+  left: 0;
+  top: auto;
+  right: auto;
+  order: 0;
+  align-self: flex-start;
+  width: auto;
+  margin-left: 0;
+  background: none;
+  overflow: visible;
+  /* sticky is a stacking context, so the search results' own z-index (41) only counts inside
+     it: the aside itself has to clear the pinned table header (40) for the list to land on top */
+  z-index: 41;
+}
+/* Above the table the boxes fill the width rather than standing in fixed 360px columns: the
+   aside is the scrollport's width (`fitSide()` sets it), its edge gap the phone's 12px rather
+   than the desktop 26px, and its one or two columns share that width equally. Which it is comes
+   from `fitSide()` against the width the columns actually need, not the fixed-column figure. */
+main.stack { padding: 0 12px 420px; }
+.tclayout.stack .tcopt { flex: 1 1 100%; }
+.tclayout.stack .tcsearch { flex: 1 1 100%; max-width: none; }
+.tclayout.stack .tcside.cols2 .tcfilter-row { flex: 1 1 0; width: auto; min-width: 0; }
+.tclayout.stack .tcside.cols2 .tcopt { flex: none; }
 
 /* a phone: one box per line, full width, and less of the page given over to margin */
 @media (max-width: 560px) {
-  main { padding: 0 12px 96px; }
+  main { padding: 0 12px 420px; }
   .tcopt { flex: 1 1 100%; }
   .tcsearch { max-width: none; }
 }

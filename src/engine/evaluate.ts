@@ -79,6 +79,11 @@ export interface ResolvedSnapshot extends Snapshot {
    *  a row actually moved a gauge (index.ts's own running-column blanking), which the traced deltas
    *  alone can't answer for a kit that sets one outright. Trace-only, same as `forte`. */
   forteBefore: [number, number, number, number, number];
+  /** This slot's Resonator's own declared caps (`maxForte1`-`maxForte5`, gear.ts), 0 where a gauge
+   *  has none (a count-down gauge, or one nobody capped) — what the report prints a gauge cell's
+   *  own cap against (display.ts's own `gaugeSuffix`). Already a fixed array on the Resonator
+   *  itself, so unlike `forte` it needs no per-action copy or `ctx.tracing` gate. */
+  maxForte: [number, number, number, number, number];
   /** Running totals as they stood once this action resolved — energy/concerto are this slot's
    *  own (TeamMember.energy/concerto), offtune is the enemy's shared one (State.offtune). All
    *  three are banked automatically by evaluate() itself; see AddEnergy/AddConcerto/AddOfftune. */
@@ -92,13 +97,14 @@ export interface ResolvedSnapshot extends Snapshot {
   energyBefore: number;
   concertoBefore: number;
   offtuneBefore: number;
-  /** What this action's own outro had to spend: the bar it walked in on plus whatever concerto
-   *  landed on it this same action — 0 on every action that isn't an outro. The added half is
-   *  what pays for an outro a full bar didn't (Jinhsi's Unison, which hands the outro back the
-   *  100 it costs), so a bar the cast never needed doesn't read as short. Not folded into
-   *  `concerto` above (that is already the post-spend figure); it's what the report reads to flag
-   *  an outro that fired on an underfull bar. */
-  concertoSpent: number;
+  /** This action spent Concerto it didn't have: it declares a negative `concerto` (an outro's
+   *  -100) and the bar walked in holding less than that. A Unison outro declares no spend at all
+   *  (shared/unison.ts), so it is never short whatever the bar held. What the report reads to
+   *  flag the concerto cell red. */
+  concertoShort: boolean;
+  /** Per gauge, this action left it below 0 — it spent more than the gauge held (see the forte
+   *  banking in `evaluate()`). What the report reads to flag the cell red. */
+  forteShort: [boolean, boolean, boolean, boolean, boolean];
   /** Whether this action threw the Energy bar away — true on every outro but a double-Intro
    *  visit's own, which its owner comes straight back from (see `evaluate()`). What the report
    *  reads to blank the energy cell's own trace panel rather than credit a figure the same row
@@ -430,27 +436,26 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
   // Energy alone carries a multiplier: `(base + AddEnergy) x (1 + Energy Regen Multiplier)`.
   const energyGain = (action.energy + effective[Stat.AddEnergy]!) * (1 + effective[Stat.EnergyRegenMult]! / 100);
   slot.energy = Math.max(0, slot.energy + energyGain);
-  // An outro spends a full Concerto bar to fire and leaves the field with no Energy at all. The
-  // spend is the outro's own declared `concerto: -100` — every outro in the project carries it, so
-  // it banks through the ordinary line below like any other cast's — which leaves only the ceiling
-  // it spends against to settle here: a bar over 100 is capped back to it first, so the declared
-  // -100 empties it exactly rather than leaving whatever it had overrun by. Energy is not a spend
-  // of a known size, so it is simply set to 0. What the bar held on the way in is kept for the
-  // report's underfull-outro flag. Off-tune is the enemy's, not theirs, and carries over.
-  // ...except a double-Intro visit's own outro, which hands the field *backward* (rotation.ts's
-  // own outroDir) and whose owner is coming straight back for their main Intro: that visit is half
-  // of one loop, not the end of one, so the Energy column runs on across both halves and only the
-  // outro that actually ends the loop wipes it. Jinhsi is the case — Unison pays for the first of
-  // her two outros, and her banking is one figure across the pair.
+  // An outro leaves the field with no Energy at all — not a spend of a known size, so it is simply
+  // set to 0. ...except a double-Intro visit's own outro, which hands the field *backward*
+  // (rotation.ts's own outroDir) and whose owner is coming straight back for their main Intro:
+  // that visit is half of one loop, not the end of one, so the Energy column runs on across both
+  // halves and only the outro that actually ends the loop wipes it. Jinhsi is the case — Unison
+  // pays for the first of her two outros, and her banking is one figure across the pair.
   const outro = casting(Cast.Outro);
-  // AddConcerto included: it lands on the bar in the same line the outro's own -100 does, so an
-  // outro handed the 100 it costs (Unison again) was never short, whatever the bar itself held.
-  const concertoSpent = outro ? slot.concerto + effective[Stat.AddConcerto]! : 0;
   const energyWiped = outro && state.outroDir > 0;
-  if (outro) {
-    if (energyWiped) slot.energy = 0;
-    if (slot.concerto > 100) slot.concerto = 100;
-  }
+  if (outro && energyWiped) slot.energy = 0;
+  // A cast that spends Concerto outright — the `concerto: -100` every real outro declares — spends
+  // it against the bar's own 100 ceiling: a bar that overran it is capped back first, so the
+  // declared -100 empties it exactly rather than leaving the overrun behind; and a bar holding
+  // less than the spend is short, which the report flags. A Unison outro declares no spend
+  // (shared/unison.ts) and goes through neither. A buff's own AddConcerto spend (Suoming's Rift
+  // Cleaver, -20 while Unison is held) is a stat, not a declared cost, and is left to the kit.
+  // An outro still caps the bar at 100 either way — a bar cannot hold more than that into the
+  // next visit, spent or not. Off-tune is the enemy's, not theirs, and carries over.
+  const spend = action.concerto < 0 ? -action.concerto : 0;
+  const concertoShort = spend > 0 && slot.concerto < spend;
+  if ((spend > 0 || outro) && slot.concerto > 100) slot.concerto = 100;
   slot.concerto = Math.max(0, slot.concerto + action.concerto + effective[Stat.AddConcerto]!);
   // Off-Tune Buildup Rate scales what an action *builds*, never what lands on the bar directly:
   // DirectOfftune (a Tune Break's own drain, Denia's half-bar surge) is already the amount the bar
@@ -476,14 +481,24 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
   // own meaning onto whichever slot fits (Jingran's Qi is forte1, his Mingfire is forte2) — plus
   // whatever AddForte1-5 a held buff contributed (Jingran's Fire of Life refunding Qi off its own
   // Mingfire spend, rather than reaching for setForte1 directly and leaving no trace of who paid
-  // it). Unconditional now, not gated on the action's own declared amount being nonzero — a buff
-  // can contribute here even on an action that declares nothing itself.
-  const forte = slot.forte;
-  forte[0] += action.forte1 + effective[Stat.AddForte1]!;
-  forte[1] += action.forte2 + effective[Stat.AddForte2]!;
-  forte[2] += action.forte3 + effective[Stat.AddForte3]!;
-  forte[3] += action.forte4 + effective[Stat.AddForte4]!;
-  forte[4] += action.forte5 + effective[Stat.AddForte5]!;
+  // it). Unconditional, not gated on the action's own declared amount being nonzero — a buff can
+  // contribute here even on an action that declares nothing itself.
+  //
+  // Every gauge fills freely past its Resonator's `maxForteN`, and a spend from it starts at the
+  // cap rather than the overrun — the bar never really held more. Below 0 after a spend is a
+  // spend the bar couldn't cover, and the row is flagged. A `resetForteN` cast (rotation.ts's own
+  // ActionDef) empties the gauge ahead of its own delta.
+  const forte = slot.forte, forteShort: [boolean, boolean, boolean, boolean, boolean] = [false, false, false, false, false];
+  const declared = [action.forte1, action.forte2, action.forte3, action.forte4, action.forte5];
+  const added = [Stat.AddForte1, Stat.AddForte2, Stat.AddForte3, Stat.AddForte4, Stat.AddForte5];
+  for (let i = 0; i < 5; i++) {
+    const cap = slot.resonator?.maxForte[i] ?? 0;
+    const delta = declared[i]! + effective[added[i]!]!;
+    if (action.resetForte[i]) forte[i] = 0;
+    if (cap > 0 && delta < 0 && forte[i]! > cap) forte[i] = cap;
+    forte[i] = forte[i]! + delta;
+    if (forte[i]! < 0) forteShort[i] = true;
+  }
 
   // Everything this action banks is now banked, so afterAction() is the one phase that can read a
   // gauge as the action actually leaves it — and the last chance to spend one back down before the
@@ -557,9 +572,11 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
     // report-only, so copied only when something will actually read it (display.ts's gauge columns)
     forte: ctx.tracing ? [...slot.forte] : EMPTY_FORTE,
     forteBefore,
+    maxForte: slot.resonator?.maxForte ?? EMPTY_FORTE,
     energy: slot.energy, concerto: slot.concerto, offtune: state.offtune,
     energyBefore, concertoBefore, offtuneBefore,
-    concertoSpent,
+    concertoShort,
+    forteShort,
     energyWiped,
     realEnergyBefore,
     heldLocal, heldGlobal, heldEnemy,

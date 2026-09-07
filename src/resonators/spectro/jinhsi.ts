@@ -47,6 +47,7 @@ import {
   casting,
   currentAction,
   frozenStacks,
+  isHeld,
   isType,
   queue,
   removeStack,
@@ -57,7 +58,7 @@ import {
   triggeredAction,
   isActive,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START_3, SWAP, DOUBLE_INTRO, INTRO, ECHO_ONFIELD, OUTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_3, SWAP, DOUBLE_INTRO, INTRO, ECHO_ONFIELD, OUTRO, START_2 } from "../../engine/rotation.js";
 import { AGES_OF_HARVEST } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { JUE, CELESTIAL_LIGHT_5PC } from "../../echoes/jinzhou.js";
@@ -65,7 +66,7 @@ import { VOIDWING_MOTH } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
 import { matrix } from "../../shared/helpers.js";
-import { UNISON, isDoubleIntro } from "../../shared/unison.js";
+import { UNISON, isDoubleIntro, unisonOutro } from "../../shared/unison.js";
 import { STAY_TUNED, SWORN_VIGIL_5PC } from "../../echoes/mengzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -124,13 +125,14 @@ const Intro = jinhsiAction("Intro - Loong's Halo", {
 });
 /** Temporal Bender hands the incoming resonator nothing of their own: its 20s window is the
  *  second Eras in Unity stack, under which the channels run at one action instead of three. Both
- *  of her outros are this one cast — the first paid for by Unison, the second by the bar — and
- *  with two a rotation the 20s windows overlap end to end, so the stack is permanent once up. */
+ *  of her outros are this one cast — the first its Unison form, paid for by Unison, the second by
+ *  the bar — and with two a rotation the 20s windows overlap end to end, so the stack is permanent
+ *  once up. */
 const Outro = jinhsiAction("Outro - Temporal Bender", {
   cast: Cast.Outro, concerto: -100, swapOut: true,
-  // Unison pays for the pre-visit's outro and is spent by it (its own convertStats)
   updateBuffs: () => { if ((stacksOf(ERAS_IN_UNITY) & 3) < 2) applyCurrent(ERAS_IN_UNITY, 1); },
 });
+const OutroUnison = unisonOutro(Outro);
 
 /* ------------------------------------------------------------------------------------- buffs */
 
@@ -294,16 +296,19 @@ const JX_S6 = new Sequence({
 /* --------------------------------------------------------------------------- kit and loadout */
 
 const JINHSI_TALENTS = new Talent({
-  name: "Jinhsi: Talents",
+  name: "Talents: Jinhsi",
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
 });
 
 const JINHSI_RESONATOR = new Resonator({
   name: "Jinhsi",
+  talent: JINHSI_TALENTS,
+  inherent1: RADIANT_SURGE,
+  inherent2: CONVERGED_FLASH,
   element: Attribute.Spectro,
   weapon: WeaponType.Broadblade,
   intro: () => Intro,
-  outro: () => Outro,
+  outro: () => (isHeld(UNISON) ? OutroUnison : Outro),
   color: "#c2ecfb",
   maxEnergy: 150,
 
@@ -330,7 +335,7 @@ const JINHSI_RESONATOR = new Resonator({
 const IncBA123 = new ActionGroup("Basic - Incarnation 123", [IncBA1, IncBA2, IncBA3]);
 
 const JX_ROTATION = new Rotation([
-  START_3, Liberation, SWAP,
+  START_2, START_3, Liberation, SWAP,
 
   DOUBLE_INTRO, ESkill, 
   IncBA123, CrescentDivinity, IncBA4, SolarFlare, Skill.swap(),
@@ -348,9 +353,6 @@ const JX_ECHOES = [
 
 export const JINHSI = new Loadout({
   resonator: JINHSI_RESONATOR,
-  talent: JINHSI_TALENTS,
-  inherent1: RADIANT_SURGE,
-  inherent2: CONVERGED_FLASH,
   weapons: [AGES_OF_HARVEST, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR],
   echoLoadouts: JX_ECHOES,
   matrix: matrix("Jinhsi", 25),

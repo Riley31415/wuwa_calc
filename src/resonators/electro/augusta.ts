@@ -1,13 +1,14 @@
 /**
  * Augusta, ported to the new engine — sequence-0 core loop, a limited 5-star
- * (`Tier.Limited`). An electro broadblade DPS. Two gauges gate her chained forms: Prowess
+ * (`Tier.Limited`). An electro broadblade DPS. Three forte gauges gate her chained forms: Prowess
  * (forte1, 0-660) lets a full-gauge Heavy Attack - Steelclash become the Thunderoar Backstep ->
  * Spinslash chain instead; Ascendancy (forte2, 0-4000) lets a full-gauge Resonance Skill -
- * Warrior's Blade become the Undying Sunlight Strike -> Leap -> Plunge chain instead. Majesty (2
- * stacks) — from her own Plunge, or a teammate's Outro cast while under her own Outro buff —
- * unlocks a second Liberation: Sublime is the Sun (Sunborne x9, then Everbright Protector). No
- * live Prowess/Ascendancy/Majesty gate is enforced — the rotation below places both liberations
- * and both chains by hand, same "fixed valid line" shape as every other kit here.
+ * Warrior's Blade become the Undying Sunlight Strike -> Leap -> Plunge chain instead; Majesty
+ * (forte3, 0-2) — from her own Plunge, or a teammate's Outro cast while under her own Outro buff —
+ * unlocks a second Liberation: Sublime is the Sun (Sunborne x9, then Everbright Protector), which
+ * spends both stacks. No live Prowess/Ascendancy/Majesty gate is enforced — the rotation below
+ * places both liberations and both chains by hand, same "fixed valid line" shape as every other
+ * kit here.
  *
  * Numbers from nanoka.cc (character 1306) for every named hit's MV, cross-checked against the
  * migrated (old-engine) sheet's own multi-hit totals. Energy/concerto/offtune/Prowess/Ascendancy
@@ -38,6 +39,7 @@ import {
   queueOutro,
   forte2,
   setForte2,
+  addForte3,
 } from "../../engine/context.js";
 import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ECHO_SWAP } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
@@ -77,23 +79,20 @@ const FJump = augustaAction("Heavy - Thunderoar: Uppercut", { node: Node.Normal,
 const Skill = augustaAction("Skill - Warrior's Blade", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 656.1, energy: 9, concerto: 10, offtune: 4491, forte1: 660, forte2: 500 });
 const FSkill1 = augustaAction("Forte Skill - Undying Sunlight: Strike", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 278.34, energy: 5, concerto: 7, offtune: 18200, 
   forte2: -4000,
-  applyStats: () => { if (forte2() > 4000) setForte2(4000); },
 });
 const FSkill2 = augustaAction("Forte Skill - Undying Sunlight: Leap", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 278.35, energy: 5, concerto: 7, offtune: 11200 });
-/** Consumes all Ascendancy, counts as Heavy Attack DMG, grants a stack of Majesty. */
+/** Consumes all Ascendancy, counts as Heavy Attack DMG, grants a stack of Majesty (forte3). */
 const FSkill3 = augustaAction("Forte Skill - Undying Sunlight: Plunge", {
-  node: Node.Forte, cast: Cast.Skill, type: Type1.Heavy, mv: 865.83, energy: 11, concerto: 7, offtune: 24000,
-  updateBuffs: () => applyCurrent(MAJESTY, 1),
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Heavy, mv: 865.83, energy: 11, concerto: 7, offtune: 24000, forte3: 1,
 });
 
 // liberation: Sword of Eternal Oath, the plain press-and-release cast
 const Lib1 = augustaAction("Liberation - Sword of Eternal Oath", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 1099.48, energy: 4.74, concerto: 20, offtune: 29342, forte2: 2000, resetEnergy: true });
-/** Held instead of released once Majesty reaches 2 — costs both stacks of Majesty rather than
- *  Energy, spent via AUGUSTA_RESONATOR's own updateBuffs() below. Nine hits lumped into one action; queues
- *  Everbright Protector itself once the ninth lands. */
+/** Held instead of released once Majesty (forte3) reaches 2 — costs both stacks rather than
+ *  Energy. Nine hits lumped into one action; queues Everbright Protector itself once the ninth lands. */
 const Lib2 = augustaAction("Liberation - Sublime is the Sun", {
-  node: Node.Liberation, cast: Cast.Liberation,
-  updateBuffs: () => { queue(Lib2fua); queue(Lib3); applyTeam(RULERS_REALM, 1); revokeCurrent(MAJESTY); },
+  node: Node.Liberation, cast: Cast.Liberation, forte3: -2,
+  updateBuffs: () => { queue(Lib2fua); queue(Lib3); applyTeam(RULERS_REALM, 1); },
 });
 
 const Lib2fua = augustaAction("Liberation - Sublime is the Sun: Sunborne x9", { node: Node.Liberation, cast: Cast.Liberation, type: Type1.Heavy, mv: 1073.61, concerto: 18, offtune: 64800 });
@@ -116,10 +115,6 @@ const Outro = augustaAction("Outro - Battlesong of the Unyielding", {
 });
 
 /* ------------------------------------------------------------------------------------ buffs */
-
-/** Up to 2 stacks — Undying Sunlight: Plunge grants one outright; a teammate's own Outro cast,
- *  while Augusta's own Outro buff is up on them, grants the other. No live gate spends it. */
-const MAJESTY = new Buff({ name: "Augusta: Majesty", maxStacks: 2 });
 
 /** +15% Electro DMG Bonus, one stack only — granted alongside Majesty's own second stack, spent
  *  entirely when Everbright Protector ends Sworn Allegiance. */
@@ -171,25 +166,37 @@ const AG_INHERENT_1 = new Inherent({
 const AG_INHERENT_2 = new Inherent({
   name: "Inherent: Blazing Valor",
   combatStart: () => {
-    applyCurrent(MAJESTY, 1);
+    addForte3(1);
     applyCurrent(CROWN_OF_WILLS, 1);
   },
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
+const AUGUSTA_TALENTS = new Talent({
+  name: "Talents: Augusta",
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+});
+
 const AUGUSTA_RESONATOR = new Resonator({
   name: "Augusta",
+  talent: AUGUSTA_TALENTS,
+  inherent1: AG_INHERENT_1,
+  inherent2: AG_INHERENT_2,
   element: Attribute.Electro,
   weapon: WeaponType.Broadblade,
   intro: () => Intro,
   outro: () => Outro,
   color: "#d7370f",
   maxEnergy: 125,
+  maxForte1: 660,
+  maxForte2: 4000,
+  maxForte3: 2,
 
   // reacts to *any* team member's own Outro, not just her own — currentSlot is forced to her own
   // holder for this call, so the real actor's own held gear comes off currentTeam().slot instead
   updateGlobal: () => {
     if (casting(Cast.Outro) && currentTeam().slot.isHeld(BATTLESONG)) {
-      applyCurrent(MAJESTY, 1);
+      addForte3(1);
       applyCurrent(CROWN_OF_WILLS, 1);
     }
   },
@@ -197,12 +204,6 @@ const AUGUSTA_RESONATOR = new Resonator({
   constantStats: () => {
     addStat(Stat.BaseHp, 10300); addStat(Stat.BaseAtk, 463); addStat(Stat.BaseDef, 1112);
   },
-});
-
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
-const AUGUSTA_TALENTS = new Talent({
-  name: "Augusta: Talents",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
 // the migrated rotation: the Steelclash->Thunderoar chain twice, Sword of Eternal Oath, the
@@ -219,9 +220,6 @@ const AG_ROTATION = new Rotation([
 // sonata pieces, mainstat/substat
 export const AUGUSTA = new Loadout({
   resonator: AUGUSTA_RESONATOR,
-  talent: AUGUSTA_TALENTS,
-  inherent1: AG_INHERENT_1,
-  inherent2: AG_INHERENT_2,
   weapons: [THUNDERFLARE_DOMINION, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR, VERDANT_SUMMIT],
   echoLoadouts: [new EchoLoadout(FALSE_SOVEREIGN, COV_3PC, VOID_THUNDER_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),

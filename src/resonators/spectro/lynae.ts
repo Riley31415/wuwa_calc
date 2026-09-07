@@ -164,18 +164,24 @@ const LY_INHERENT_2 = new Inherent({
 });
 
 const LYNAE_TALENTS = new Talent({
-  name: "Lynae: Talents",
+  name: "Talents: Lynae",
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
 });
 
 const LYNAE_RESONATOR = new Resonator({
   name: "Lynae",
+  talent: LYNAE_TALENTS,
+  inherent1: LY_INHERENT_1,
+  inherent2: LY_INHERENT_2,
   element: Attribute.Spectro,
   weapon: WeaponType.Pistols,
   intro: () => Intro,
   outro: () => Outro,
   color: "#eae477",
   maxEnergy: 125,
+  maxForte1: 120,
+  maxForte2: 120,
+  maxForte3: 3,
 
   constantStats: () => {
     addStat(Stat.BaseHp, 12237.5); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1197.8);
@@ -209,9 +215,6 @@ const LY_ECHOES = [
  *  is the only thing that differs, and it decides which Tune Break variant the team gets. */
 const build = (mode: ResonanceMode): Loadout => new Loadout({
   resonator: LYNAE_RESONATOR,
-  talent: LYNAE_TALENTS,
-  inherent1: LY_INHERENT_1,
-  inherent2: LY_INHERENT_2,
   weapons: [SPECTRUM_BLASTER, NEW_STD_PISTOL, STATIC_MIST],
   echoLoadouts: LY_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),

@@ -195,10 +195,19 @@ const SANHUA_S6 = new Sequence({
   },
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
+const SANHUA_TALENTS = new Talent({
+  name: "Talents: Sanhua",
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Glacio); },
+});
+
 /** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her
  *  own base stat line. `Tier.Free` — see the file header. */
 const SANHUA_RESONATOR = new Resonator({
   name: "Sanhua",
+  talent: SANHUA_TALENTS,
+  inherent1: SH_INHERENT_1,
+  inherent2: SH_INHERENT_2,
   element: Attribute.Glacio,
   weapon: WeaponType.Sword,
   intro: () => Intro,
@@ -210,12 +219,6 @@ const SANHUA_RESONATOR = new Resonator({
   constantStats: () => {
     addStat(Stat.BaseHp, 10063); addStat(Stat.BaseAtk, 275); addStat(Stat.BaseDef, 941);
   },
-});
-
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
-const SANHUA_TALENTS = new Talent({
-  name: "Sanhua: Talents",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Glacio); },
 });
 
 // Skill/Liberation first so Condensation (opened by Intro) covers the Skill cast; basics end on
@@ -237,9 +240,6 @@ const SH_ROTATION = new Rotation([
 // (Tier.Free — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat
 export const SANHUA = new Loadout({
   resonator: SANHUA_RESONATOR,
-  talent: SANHUA_TALENTS,
-  inherent1: SH_INHERENT_1,
-  inherent2: SH_INHERENT_2,
   weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, OVERTURE],
   echoLoadouts: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),

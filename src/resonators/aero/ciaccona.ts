@@ -121,26 +121,30 @@ const WINDCALLING_TUNE = new Buff({
   applyStats: () => { addStat(Stat.Amp, 100, Type2.AeroErosion)}
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
+const CIACCONA_TALENTS = new Talent({
+  name: "Talents: Ciaccona",
+  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
+});
+
 /** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her
  *  own base stat line. */
 const CIACCONA_RESONATOR = new Resonator({
   name: "Ciaccona",
+  talent: CIACCONA_TALENTS,
+  inherent1: CI_INHERENT_1,
+  inherent2: CI_INHERENT_2,
   element: Attribute.Aero,
   weapon: WeaponType.Pistols,
   intro: () => Intro,
   outro: () => Outro,
   color: "#5ac46b",
   maxEnergy: 125,
+  maxForte1: 3,
 
   constantStats: () => {
     addStat(Stat.BaseHp, 12238); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1198);
   },
-});
-
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
-const CIACCONA_TALENTS = new Talent({
-  name: "Ciaccona: Talents",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
 });
 
 // Intro plus two Basic Stage 4s are the three Musical Essence Quadruple Downbeat spends; the Skill
@@ -165,9 +169,6 @@ const CI_ROTATION = new Rotation([
 // echo and the one sonata that pays for the Aero Erosion she frozenStacks, mainstat/substat
 export const CIACCONA = new Loadout({
   resonator: CIACCONA_RESONATOR,
-  talent: CIACCONA_TALENTS,
-  inherent1: CI_INHERENT_1,
-  inherent2: CI_INHERENT_2,
   weapons: [WOODLAND_ARIA, NEW_STD_PISTOL, STATIC_MIST],
   echoLoadouts: [new EchoLoadout(NM_KELPIE, GUSTS_OF_WELKIN_5PC),
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)

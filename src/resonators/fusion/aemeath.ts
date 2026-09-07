@@ -121,11 +121,7 @@ const Lib1 = aemeathAction("Liberation - Heavenfall Edict: Overdrive", {
 });
 const Lib2 = aemeathAction("Liberation - Heavenfall Edict: Finale", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, mv: 1789.29, energy: 20, concerto: 20, offtune: 84000, forte1: -200, forte2: -4,
-  updateBuffs: () => { 
-    if (forte1() > 200) setForte1(200); 
-    if (forte2() > 4) setForte2(4); 
-    revokeCurrent(MECH_FORM); 
-  },
+  updateBuffs: () => revokeCurrent(MECH_FORM),
 });
 
 // --- Intros, one per form: 40 Synchronization Rate and Starlume Acceleration
@@ -214,28 +210,49 @@ const AE_INHERENT_1 = new Inherent({
 });
 
 const AEMEATH_TALENTS = new Talent({
-  name: "Aemeath: Talents",
+  name: "Talents: Aemeath",
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
+});
+
+/** Between the Stars' own grant, from `updateGlobal` so a teammate's own cast is seen — which runs
+ *  with the "current" slot pointed at her, so the actor is read off the team (a queued response
+ *  lands on the slot that queued it, so Mornye's Particle Jet counts Mornye). Both modes' payout
+ *  buffs are declared further down; only this hook's own body reads them, so it never runs before
+ *  they exist. */
+const AE_INHERENT_2 = new Inherent({
+  name: "Inherent: Between the Stars",
+  updateGlobal: () => {
+    const actor = currentTeam().slot;
+    const slot = 1 << currentTeam().active;
+    if (isHeld(MODE_BURST)) {
+      if (!appliedByMember(FUSION_BURST, actor) || (stacksOf(BETWEEN_THE_STARS_BURST) & slot) !== 0) return;
+      applyCurrent(BETWEEN_THE_STARS_BURST, slot);
+      return;
+    }
+    if (!appliedByMember(TUNE_RUPTURE_SHIFTING, actor) && currentAction().type1 !== Type1.Rupture) return;
+    if ((stacksOf(BETWEEN_THE_STARS_RUPTURE) & slot) !== 0) return;
+    applyCurrent(BETWEEN_THE_STARS_RUPTURE, slot);
+  },
 });
 
 export const AEMEATH_RESONATOR = new Resonator({
   name: "Aemeath",
+  talent: AEMEATH_TALENTS,
+  inherent1: AE_INHERENT_1,
+  inherent2: AE_INHERENT_2,
   element: Attribute.Fusion,
   weapon: WeaponType.Sword,
   intro: () => (stacksOf(MECH_FORM) ? EIntro : Intro),
   outro: () => Outro,
   color: "#ff4680",
   maxEnergy: 125,
+  maxForte1: 200,
+  maxForte2: 4,
 
   constantStats: () => {
     addStat(Stat.BaseHp, 11025); addStat(Stat.BaseAtk, 425); addStat(Stat.BaseDef, 1148.88);
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
     addStat(Stat.Tbb, 10);
-  },
-  // the two gauge caps — the engine floors a gauge at 0 but leaves the ceiling to the kit
-  afterAction: () => {
-    if (forte1() > 200) setForte1(200);
-    if (forte2() > 4) setForte2(4);
   },
 });
 
@@ -277,25 +294,6 @@ const BETWEEN_THE_STARS_RUPTURE = new Buff({
   applyStats: () => {
     addStat(Stat.CritDmg, 20 * betweenTheStars());
     if (betweenTheStars() >= 3 && currentAction() === Lib2) addStat(Stat.Amp, 25);
-  },
-});
-
-/** Its grant, from `updateGlobal` so a teammate's own cast is seen — which runs with the "current"
- *  slot pointed at her, so the actor is read off the team (a queued response lands on the slot
- *  that queued it, so Mornye's Particle Jet counts Mornye). */
-const AE_INHERENT_2 = new Inherent({
-  name: "Inherent: Between the Stars",
-  updateGlobal: () => {
-    const actor = currentTeam().slot;
-    const slot = 1 << currentTeam().active;
-    if (isHeld(MODE_BURST)) {
-      if (!appliedByMember(FUSION_BURST, actor) || (stacksOf(BETWEEN_THE_STARS_BURST) & slot) !== 0) return;
-      applyCurrent(BETWEEN_THE_STARS_BURST, slot);
-      return;
-    }
-    if (!appliedByMember(TUNE_RUPTURE_SHIFTING, actor) && currentAction().type1 !== Type1.Rupture) return;
-    if ((stacksOf(BETWEEN_THE_STARS_RUPTURE) & slot) !== 0) return;
-    applyCurrent(BETWEEN_THE_STARS_RUPTURE, slot);
   },
 });
 
@@ -344,9 +342,6 @@ const AE_ROTATION = new Rotation([
 
 export const AEMEATH_RUPTURE = new Loadout({
   resonator: AEMEATH_RESONATOR,
-  talent: AEMEATH_TALENTS,
-  inherent1: AE_INHERENT_1,
-  inherent2: AE_INHERENT_2,
   weapons: [EVERBRIGHT_POLESTAR, EMERALD_OF_GENESIS],
   echoLoadouts: [new EchoLoadout(SIGILLUM, TRAILBLAZING_STAR_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
@@ -421,9 +416,6 @@ const MODE_BURST = new ResonanceMode({
 
 export const AEMEATH_BURST = new Loadout({
   resonator: AEMEATH_RESONATOR,
-  talent: AEMEATH_TALENTS,
-  inherent1: AE_INHERENT_1,
-  inherent2: AE_INHERENT_2,
   weapons: [EVERBRIGHT_POLESTAR, EMERALD_OF_GENESIS],
   echoLoadouts: [
     new EchoLoadout(SIGILLUM, TRAILBLAZING_STAR_5PC),

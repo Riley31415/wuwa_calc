@@ -111,9 +111,8 @@ const Skill = suisuiAction("Skill - Vernal Screen: Zephyr Stance", { node: Node.
  *  two casts Sky Over Water enhances. */
 const ESkill = suisuiAction("Skill - Awakening Spring", {
   node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, scaling: Scaling.Hp,
-  mv: 28.63, energy: 5.00, concerto: 9.60, offtune: 9600,
+  mv: 28.63, energy: 5.00, concerto: 9.60, offtune: 9600, forte1: -120, resetForte2: true,
   updateDebuffs: () => { applyEnemy(GLACIO_CHAFE, 1); applyCurrent(HEALS, 1); },
-  updateBuffs: () => { setForte1(0); setForte2(0); },
 });
 
 // --- Drizzle Stance: the same buttons, banking Floral Epistle (forte2) for the Outro. Illuminating
@@ -140,9 +139,8 @@ const Liberation = suisuiAction("Liberation - Song of Thoroughfare", {
  *  — it spends whatever Cloud Breath she is holding whether or not the bar is full. */
 const Intro = suisuiAction("Intro - Tinkling Jade", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, scaling: Scaling.Hp,
-  mv: 28.63, energy: 10, concerto: 19.60, offtune: 9600,
+  mv: 28.63, energy: 10, concerto: 19.60, offtune: 9600, resetForte1: true, resetForte2: true,
   updateDebuffs: () => { applyEnemy(GLACIO_CHAFE, 1); applyCurrent(HEALS, 1); },
-  updateBuffs: () => { setForte1(0); setForte2(0); },
 });
 
 /** Rippling Waters: the team's 25% amplification, every Floral Epistle tier, and the three-step
@@ -150,9 +148,8 @@ const Intro = suisuiAction("Intro - Tinkling Jade", {
  *  declared delta ("consumes all" has no fixed size, and the engine's gauges have no ceiling), and
  *  nothing here tests what it held: 600 consumed — the top tier — is simply taken as read. */
 const Outro = suisuiAction("Outro - Rippling Waters", {
-  cast: Cast.Outro, concerto: -100, swapOut: true, forte2: -600,
+  cast: Cast.Outro, concerto: -100, swapOut: true, resetForte2: true,
   updateBuffs: () => {
-    if (forte2() > 600) setForte2(600);
     applyTeam(RIPPLING_WATERS, 1);
     applyTeam(ROAMING_TRANSCENDENT, 1);
     // a fresh dance, not a top-up: a step the last one never got round to goes with it
@@ -380,7 +377,7 @@ const SS_INHERENT_1 = new Inherent({
 const SS_INHERENT_2 = new Inherent({ name: "Inherent: Glimmering Gold" });
 
 const SUISUI_TALENTS = new Talent({
-  name: "Suisui: Talents",
+  name: "Talents: Suisui",
   constantStats: () => {
     addStat(Stat.BonusHp, 12);
     addStat(Stat.HealingBonus, 12); // stat-tree Healing Bonus+ nodes — unused by the formula
@@ -389,12 +386,17 @@ const SUISUI_TALENTS = new Talent({
 
 const SUISUI_RESONATOR = new Resonator({
   name: "Suisui",
+  talent: SUISUI_TALENTS,
+  inherent1: SS_INHERENT_1,
+  inherent2: SS_INHERENT_2,
   element: Attribute.Glacio,
   weapon: WeaponType.Rectifier,
   intro: () => Intro,
   outro: () => Outro,
   color: "#e8e6a6",
   maxEnergy: 175,
+  maxForte1: 120,
+  maxForte2: 600,
 
   constantStats: () => {
     addStat(Stat.BaseHp, 16712.5); addStat(Stat.BaseAtk, 287.5); addStat(Stat.BaseDef, 1100);
@@ -437,9 +439,6 @@ const SS_ROTATION_S3 = new Rotation([
 
 export const SUISUI = new Loadout({
   resonator: SUISUI_RESONATOR,
-  talent: SUISUI_TALENTS,
-  inherent1: SS_INHERENT_1,
-  inherent2: SS_INHERENT_2,
   weapons: [FIRSTLIGHTS_HERALD, VARIATION],
   echoLoadouts: [
     new EchoLoadout(FORBIDDEN_BASTION, FEATHERED_TRACE_5PC),

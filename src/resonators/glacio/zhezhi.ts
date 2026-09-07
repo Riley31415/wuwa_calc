@@ -146,24 +146,29 @@ const ZZ_INHERENT_2 = new Inherent({
   }
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
+const ZHEZHI_TALENTS = new Talent({
+  name: "Talents: Zhezhi",
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+});
+
 const ZHEZHI_RESONATOR = new Resonator({
   name: "Zhezhi",
+  talent: ZHEZHI_TALENTS,
+  inherent1: ZZ_INHERENT_1,
+  inherent2: ZZ_INHERENT_2,
   element: Attribute.Glacio,
   weapon: WeaponType.Rectifier,
   intro: () => Intro,
   outro: () => Outro,
   color: "#8fd3e8",
   maxEnergy: 125,
+  maxForte1: 90,
+  maxForte2: 2,
 
   constantStats: () => {
     addStat(Stat.BaseHp, 12250); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1198);
   },
-});
-
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
-const ZHEZHI_TALENTS = new Talent({
-  name: "Zhezhi: Talents",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
 // the kit-valid line reconstructed from the old sheet: Intro banks Afflatus, three basics push
@@ -198,9 +203,6 @@ const ZHEZHI_MATRIX = matrix("Zhezhi", 20, {
 export const ZHEZHI = new Loadout({
   resonator: ZHEZHI_RESONATOR,
   matrix: ZHEZHI_MATRIX,
-  talent: ZHEZHI_TALENTS,
-  inherent1: ZZ_INHERENT_1,
-  inherent2: ZZ_INHERENT_2,
   weapons: [RIME_DRAPED_SPROUTS, COSMIC_RIPPLES, VARIATION, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY, WHISPERS_OF_SIRENS],
   echoLoadouts: [
     new EchoLoadout(NM_LAMPY, EMPYREAN_ANTHEM_5PC),

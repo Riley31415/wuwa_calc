@@ -84,10 +84,6 @@ const DC = qxAction("Dodge Counter - Stringblade", { node: Node.Normal, cast: Ca
  *  which is Clarity's own doing (see HEAVENS_CLARITY). */
 const HA = qxAction("Heavy - Stringblade", {
   node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 438.41, energy: 5.31, concerto: 10.53, offtune: 16800, forte1: -100, forte2: -100,
-  updateBuffs: () => {
-    if (forte1() > 100) setForte1(100);
-    if (forte2() > 100) setForte2(100);
-  },
 });
 
 // --- Severing Note: Judgement banks nothing of its own on the table (the page's "45 Qin Heart
@@ -118,10 +114,7 @@ applyStats: () => { if (forte1() < 100) addStat(Stat.MulMv, 100); }
 /** Spends all Heart Sword Intent and takes Heaven's Clarity with it. */
 const FHA = qxAction("Forte Heavy - Heaven's Reckoning", {
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 695.90, energy: 23, concerto: 25, offtune: 8000, forte1: -100,
-  updateBuffs: () => {
-    if (forte1() > 100) setForte1(100);
-    revokeCurrent(HEAVENS_CLARITY);
-  },
+  updateBuffs: () => revokeCurrent(HEAVENS_CLARITY),
 });
 
 const Liberation = qxAction("Liberation - Billows Beneath Heaven", {
@@ -237,18 +230,23 @@ const QX_INHERENT_2 = new Inherent({
 });
 
 const QINGXIAO_TALENTS = new Talent({
-  name: "Qingxiao: Talents",
+  name: "Talents: Qingxiao",
   constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
 });
 
 const QINGXIAO_RESONATOR = new Resonator({
   name: "Qingxiao",
+  talent: QINGXIAO_TALENTS,
+  inherent1: QX_INHERENT_1,
+  inherent2: QX_INHERENT_2,
   element: Attribute.Aero,
   weapon: WeaponType.Sword,
   intro: () => Intro,
   outro: () => Outro,
   color: "#6cc5b0",
   maxEnergy: 125,
+  maxForte1: 100,
+  maxForte2: 100,
 
   // Draw and Sunder: "while Qingxiao is in the team"; Heaven's Clarity and Formless Heart Sword
   // are up from the first action
@@ -297,9 +295,6 @@ const QX_ROTATION = new Rotation([
 
 export const QINGXIAO = new Loadout({
   resonator: QINGXIAO_RESONATOR,
-  talent: QINGXIAO_TALENTS,
-  inherent1: QX_INHERENT_1,
-  inherent2: QX_INHERENT_2,
   weapons: [GLINT_OF_CLOUDS, EMERALD_OF_GENESIS, NEW_STD_SWORD, RED_SPRING],
   echoLoadouts: [new EchoLoadout(CALAMITY_EFFIGY, HEART_OF_EVILS_PURGE_5PC),
       new EchoLoadout(NM_KELPIE, WINDWARD_5PC),],

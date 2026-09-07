@@ -81,7 +81,6 @@ const NM3 = carlottaAction("Basic - Silent Execution: Necessary Measures 3", { n
 const HA = carlottaAction("Heavy - Silent Execution", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 152.12, energy: 2.26, concerto: 4.52, offtune: 7200, forte1: 3 });
 const EHA = carlottaAction("Heavy - Silent Execution: Containment Tactics", {
   node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 228.18, energy: 2.26, concerto: 15, offtune: 7200, forte2: -120,
-  updateBuffs: () => { if (forte2() > 120) setForte2(120); },
 });
 
 // Art of Violence, then Chromatic Splendor (press again shortly after) — Chromatic Splendor's
@@ -98,7 +97,6 @@ const Skill2 = carlottaAction("Skill - Chromatic Splendor", {
 // considered Resonance Skill DMG, spends all Substance
 const FHA = carlottaAction("Forte Heavy - Imminent Oblivion", {
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Skill, mv: 835.36, energy: 17, concerto: 15, offtune: 97361, forte2: -120,
-  updateBuffs: () => { if (forte2() > 120) setForte2(120); },
 });
 
 // Era of New Wave opens Twilight Tango; Death Knell (up to 4, each granting 1 Meta Vector) then
@@ -106,11 +104,10 @@ const FHA = carlottaAction("Forte Heavy - Imminent Oblivion", {
 // about a second each, not a frozen-world cinematic, so they count as time (helpers.ts's second)
 const Lib1 = carlottaAction("Liberation - Era of New Wave", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type1.Skill, mv: 402.71, concerto: 20, offtune: 33600, resetEnergy: true,
-  // opens Twilight Tango, zeroes the gauge
+  resetForte2: true, // Twilight Tango removes all Substance on opening
   updateBuffs: () => {
     applyEnemy(DECONSTRUCTION, 1);
     applyCurrent(TWILIGHT_TANGO, 1);
-    setForte2(0); // Twilight Tango removes all Substance on opening
   },
 });
 const DeathKnell = carlottaAction("Liberation - Death Knell", {
@@ -236,14 +233,26 @@ const CL_S6 = new Sequence({
   applyStats: () => { if (currentAction() === DeathKnell) addStat(Stat.MulMv, 186.6); },
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
+const CARLOTTA_TALENTS = new Talent({
+  name: "Talents: Carlotta",
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+});
+
 const CARLOTTA_RESONATOR = new Resonator({
   name: "Carlotta",
+  talent: CARLOTTA_TALENTS,
+  inherent1: CL_INHERENT_1,
+  inherent2: CL_INHERENT_2,
   element: Attribute.Glacio,
   weapon: WeaponType.Pistols,
   intro: () => Intro,
   outro: () => Outro,
   color: "#8fb3d9",
   maxEnergy: 125,
+  maxForte1: 6,
+  maxForte2: 120,
+  maxForte3: 4,
 
   // Final Bow is a state entered on the gauge filling, so it is read off the gauge as each
   // action leaves it — the only phase that sees Chromatic Splendor's own conversion banked
@@ -252,12 +261,6 @@ const CARLOTTA_RESONATOR = new Resonator({
   constantStats: () => {
     addStat(Stat.BaseHp, 12450); addStat(Stat.BaseAtk, 463); addStat(Stat.BaseDef, 1198);
   },
-});
-
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
-const CARLOTTA_TALENTS = new Talent({
-  name: "Carlotta: Talents",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
 // Intro (+30 Substance, on the 30 the last Chromatic Splendor left) into Art of Violence/Chromatic
@@ -283,9 +286,6 @@ const CL_ROTATION = new Rotation([
 export const CARLOTTA = new Loadout({
   resonator: CARLOTTA_RESONATOR,
   matrix: matrix("Carlotta", 25),
-  talent: CARLOTTA_TALENTS,
-  inherent1: CL_INHERENT_1,
-  inherent2: CL_INHERENT_2,
   sequences: [CL_S1, CL_S2, CL_S3, CL_S4, CL_S5, CL_S6],
   weapons: [THE_LAST_DANCE, NEW_STD_PISTOL, STATIC_MIST],
   echoLoadouts: [new EchoLoadout(SENTRY_CONSTRUCT, FROSTY_RESOLVE_5PC)],

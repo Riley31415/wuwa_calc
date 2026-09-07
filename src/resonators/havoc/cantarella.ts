@@ -3,8 +3,9 @@
  * the old engine — "Cure" and Trance-consuming heals are left out entirely.
  *
  * Trance (forte1) and Shiver (forte2) are genuine forte gauges — every action that moves either
- * declares its own delta directly. Perception Drain (FSkill) requires a full 3 Shiver, so
- * CANTARELLA_RESONATOR's own updateBuffs() hard-resets forte2 to exactly 3 first, landing its declared -3 on 0.
+ * declares its own delta directly. Perception Drain (FSkill) requires a full 3 Shiver, so its own
+ * `forte2: -3` (maxForte2 below) is the whole cost: the engine clamps an overrun back to that cap
+ * before the spend lands, same as Electro Rover's own Overshock.
  */
 import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
@@ -22,7 +23,6 @@ import {
   addStat,
   frozenStacks,
   forte1,
-  setForte2,
   currentTeam,
   currentMember,
   concerto,
@@ -65,10 +65,9 @@ const ESkill = cantaAction("Skill - Flickering Reverie", {
   node: Node.Skill, cast: Cast.Skill, cast2: Cast.Echo, type: Type1.Skill, mv: 196.23, energy: 1.65, concerto: 10, offtune: 5264,
   updateBuffs: () => applyCurrent(HAZY_DREAM, 1),
 });
-/** At 3 Shiver — CANTARELLA_RESONATOR's own updateBuffs() resets forte2 to 3 first, so -3 lands on 0 exactly. */
+/** At 3 Shiver, spending all of it. */
 const FSkill = cantaAction("Forte Skill - Perception Drain", {
   node: Node.Forte, cast: Cast.Skill, cast2: Cast.Echo, type: Type1.Basic, mv: 1335.98, energy: 21.1, concerto: 12, offtune: 57864, forte2: -3, // 667.99%x2
-  updateBuffs: () => setForte2(3),
 });
 
 const Liberation = cantaAction("Liberation - Beneath the Sea", {
@@ -168,14 +167,25 @@ const CA_INHERENT_2 = new Inherent({
   updateBuffs: () => { if (casting(Cast.Echo)) applyCurrent(POISON, 1); },
 });
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
+const CANTARELLA_TALENTS = new Talent({
+  name: "Talents: Cantarella",
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+});
+
 const CANTARELLA_RESONATOR = new Resonator({
   name: "Cantarella",
+  talent: CANTARELLA_TALENTS,
+  inherent1: CA_INHERENT_1,
+  inherent2: CA_INHERENT_2,
   element: Attribute.Havoc,
   weapon: WeaponType.Rectifier,
   intro: () => (isHeld(MIRAGE) ? EIntro : Intro),
   outro: () => Outro,
   color: "#896fd6",
   maxEnergy: 125,
+  maxForte1: 15,
+  maxForte2: 3,
 
   updateDebuffs: () => {
     const a = currentAction();
@@ -187,12 +197,6 @@ const CANTARELLA_RESONATOR = new Resonator({
   constantStats: () => {
     addStat(Stat.BaseHp, 11600); addStat(Stat.BaseAtk, 400); addStat(Stat.BaseDef, 1100);
   },
-});
-
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
-const CANTARELLA_TALENTS = new Talent({
-  name: "Cantarella: Talents",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
 const FBA123 = new ActionGroup("Forte Basic - Phantom Sting 123", [FBA1, FBA2, FBA3]);
@@ -210,9 +214,6 @@ const CA_ROTATION = new Rotation([
 export const CANTARELLA = new Loadout({
   resonator: CANTARELLA_RESONATOR,
   matrix: matrix("Cantarella", 25),
-  talent: CANTARELLA_TALENTS,
-  inherent1: CA_INHERENT_1,
-  inherent2: CA_INHERENT_2,
   weapons: [WHISPERS_OF_SIRENS, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY, RIME_DRAPED_SPROUTS],
   echoLoadouts: [
     new EchoLoadout(NM_HERON, MIDNIGHT_VEIL_5PC),

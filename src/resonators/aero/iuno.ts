@@ -127,31 +127,33 @@ const SHIELDING = new Set<Action>([
   Jump, FJump, FMA1, FMA2, FMA3, FMSkill, FHA,
 ]);
 
+// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
+const IUNO_TALENTS = new Talent({
+  name: "Talents: Iuno",
+  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+});
+
 const IUNO_RESONATOR = new Resonator({
   name: "Iuno",
+  talent: IUNO_TALENTS,
+  inherent1: IO_INHERENT_1,
+  inherent2: IO_INHERENT_2,
   element: Attribute.Aero,
   weapon: WeaponType.Gauntlets,
   intro: () => Intro,
   outro: () => Outro,
   color: "#2dd4c0",
   maxEnergy: 125,
+  maxForte1: 100,
 
   // every cast of hers but the Outro shields
   updateDebuffs: () => { 
     if (SHIELDING.has(currentAction())) applyCurrent(SHIELD, 1); 
-    if (currentAction().forte1 < 0 && forte1() > 100) setForte1(100); // Lunar Cycle's own forte1 cap
-    if (currentAction().forte1 > 0 && forte1() < 0) setForte1(0); // Lunar Cycle's own forte1 cap
   },
 
   constantStats: () => {
     addStat(Stat.BaseHp, 10525); addStat(Stat.BaseAtk, 450); addStat(Stat.BaseDef, 1124);
   },
-});
-
-// stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
-const IUNO_TALENTS = new Talent({
-  name: "Iuno: Talents",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
 });
 
 
@@ -167,9 +169,6 @@ const IO_ROTATION = new Rotation([
 // sonata pieces, mainstat/substat
 export const IUNO = new Loadout({
   resonator: IUNO_RESONATOR,
-  talent: IUNO_TALENTS,
-  inherent1: IO_INHERENT_1,
-  inherent2: IO_INHERENT_2,
   weapons: [IUNO_SIG, NEW_STD_GAUNTLET, MARCATO, ABYSS_SURGES, VERITYS_HANDLE],
   echoLoadouts: [
     new EchoLoadout(MYA, COV_3PC, SIERRA_GALE_2PC),
@@ -202,9 +201,6 @@ const IO_ROTATION_MDPS = new Rotation([
 // sonata pieces, mainstat/substat
 export const IUNO_MDPS = new Loadout({
   resonator: IUNO_RESONATOR,
-  talent: IUNO_TALENTS,
-  inherent1: IO_INHERENT_1,
-  inherent2: IO_INHERENT_2,
   weapons: [IUNO_SIG, NEW_STD_GAUNTLET, ABYSS_SURGES, VERITYS_HANDLE],
   echoLoadouts: [
     new EchoLoadout(MYA, COV_3PC, SIERRA_GALE_2PC),
