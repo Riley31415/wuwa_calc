@@ -50,9 +50,9 @@ const BA3 = skAction("Basic - Origin Calculus 3", { node: Node.Normal, cast: Cas
 
 const MA = skAction("Mid-air - Origin Calculus", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 73.96, energy: 1.55, concerto: 5, offtune: 4960, forte1: 1 });
 
-const Skill = skAction("Skill - Chaos Theory", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 156.55, energy: 10, concerto: 30, offtune: 5250 });
+const Skill = skAction("Skill - Chaos Theory", { node: Node.Skill, cast: Cast.Skill, cutscene: true, type: Type1.Skill, mv: 156.55, energy: 10, concerto: 30, offtune: 5250 });
 
-const FHA = skAction("Forte Heavy - Illation", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 281.3, energy: 4.95, concerto: 11, offtune: 6360, forte1: -5 });
+const FHA = skAction("Forte Heavy - Illation", { node: Node.Forte, cast: Cast.Heavy, cutscene: true, type: Type1.Heavy, mv: 281.3, energy: 4.95, concerto: 11, offtune: 6360, forte1: -5 });
 
 const Liberation = skAction("Liberation - End Loop", {
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, concerto: 20, resetEnergy: true,

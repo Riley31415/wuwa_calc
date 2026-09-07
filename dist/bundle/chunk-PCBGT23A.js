@@ -20232,7 +20232,7 @@ var ERAS_IN_UNITY = new Buff({
     if (a.scaling === 3)
       return;
     let word = stacksOf(ERAS_IN_UNITY);
-    if (isActive() && !triggeredAction()) {
+    if (oneSecondPassed()) {
       for (let shift = 2; shift < 30; shift += 2) {
         if (word >> shift & 3)
           word -= 1 << shift;
@@ -20392,10 +20392,10 @@ var JX_ROTATION2 = new Rotation([
   CrescentDivinity,
   IncBA3,
   IncBA4,
+  ECHO_ONFIELD,
   SolarFlare,
   OUTRO,
   INTRO,
-  ECHO_ONFIELD,
   ESkill7,
   IncBA1,
   IncBA2,
@@ -21060,8 +21060,8 @@ var BA145 = skAction("Basic - Origin Calculus 1", { node: 0, cast: 1, type: 4096
 var BA245 = skAction("Basic - Origin Calculus 2", { node: 0, cast: 1, type: 4096, mv: 47.72, energy: 0.76, concerto: 2.4, offtune: 4e3, forte1: 1 });
 var BA343 = skAction("Basic - Origin Calculus 3", { node: 0, cast: 1, type: 4096, mv: 69.96, energy: 1.11, concerto: 3.54, offtune: 5865, forte1: 2 });
 var MA50 = skAction("Mid-air - Origin Calculus", { node: 0, cast: 2, type: 4096, mv: 73.96, energy: 1.55, concerto: 5, offtune: 4960, forte1: 1 });
-var Skill42 = skAction("Skill - Chaos Theory", { node: 1, cast: 4, type: 12288, mv: 156.55, energy: 10, concerto: 30, offtune: 5250 });
-var FHA15 = skAction("Forte Heavy - Illation", { node: 2, cast: 3, type: 8192, mv: 281.3, energy: 4.95, concerto: 11, offtune: 6360, forte1: -5 });
+var Skill42 = skAction("Skill - Chaos Theory", { node: 1, cast: 4, cutscene: true, type: 12288, mv: 156.55, energy: 10, concerto: 30, offtune: 5250 });
+var FHA15 = skAction("Forte Heavy - Illation", { node: 2, cast: 3, cutscene: true, type: 8192, mv: 281.3, energy: 4.95, concerto: 11, offtune: 6360, forte1: -5 });
 var Liberation37 = skAction("Liberation - End Loop", {
   node: 3,
   cast: 5,

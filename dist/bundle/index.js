@@ -34,7 +34,7 @@ import {
   tagKind,
   teamAt,
   teamKey
-} from "./chunk-W5FISKCS.js";
+} from "./chunk-PCBGT23A.js";
 
 // dist/src/display.js
 var keysFor = (action, ...stats) => stats.flatMap((stat) => [
@@ -851,16 +851,21 @@ function filtersOfKey(key) {
   });
   return f;
 }
+function picksFit(key, picks) {
+  const team = teamAt(key.split("|")[0]);
+  if (!team)
+    return false;
+  return picks.length === team.loadouts.length && picks.every((p, i) => {
+    const l = team.loadouts[i];
+    return p.weapon < l.weapons.length && p.echo < l.echoLoadouts.length && p.mainstat < l.mainstats.length;
+  });
+}
 function solveFits(key, solved, f = filters) {
   const team = teamAt(key.split("|")[0]);
   if (!team)
     return false;
   const members = team.loadouts.map((l, i) => member(l, i === team.dpsIndex));
-  const inRange = (picks) => picks.length === team.loadouts.length && picks.every((p, i) => {
-    const l = team.loadouts[i];
-    return p.weapon < l.weapons.length && p.echo < l.echoLoadouts.length && p.mainstat < l.mainstats.length;
-  });
-  if (!inRange(solved.picks) || !solved.rows.every(inRange))
+  if (!picksFit(key, solved.picks) || !solved.rows.every((r) => picksFit(key, r)))
     return false;
   const names = /* @__PURE__ */ new Set([...members.map((m) => m.name), TUNE_BREAK_ENEMY.name]);
   const dps = members[team.dpsIndex].name;
@@ -890,7 +895,7 @@ async function loadShipped(f) {
         restoredSolves = true;
       }
     for (const [k, v] of saved.picks)
-      if (!picksCache.has(k)) {
+      if (!picksCache.has(k) && picksFit(k, v)) {
         picksCache.set(k, v);
         restoredSolves = true;
       }
@@ -906,10 +911,11 @@ async function loadSolves() {
         bestPicks.set(k, v);
         restoredSolves = true;
       }
-    for (const [k, v] of saved.picks) {
-      picksCache.set(k, v);
-      restoredSolves = true;
-    }
+    for (const [k, v] of saved.picks)
+      if (picksFit(k, v)) {
+        picksCache.set(k, v);
+        restoredSolves = true;
+      }
   };
   try {
     const live = await fetch("/__livereload", { cache: "no-store" }).catch(() => null);
@@ -1097,7 +1103,7 @@ function buildPop(kind, key) {
     const at = key.lastIndexOf("|");
     const run = results.get(key.slice(0, at));
     const src = Number(key.slice(at + 1));
-    return run ? gearPopoverHtml(run.members[src], run.combo[src]) : "";
+    return run ? gearPopoverHtml(run.members[src], run.combo[src], false) : "";
   }
   return "";
 }
@@ -1261,7 +1267,7 @@ var HOVER_GEAR_FROM = 2;
 function gearRows(member2, combo) {
   const core = equippedGear(member2, combo).slice(HOVER_GEAR_FROM);
   const mode = member2.loadout.mode;
-  return core.map(([label, g]) => `<tr class="gear"><td class="k">${esc(label)}</td><td class="v">${esc(g.name)}</td></tr>`).join("") + (mode ? `<tr class="gear"><td class="k">Mode</td><td class="v">${esc(mode.name)}</td></tr>` : "") + (member2.loadout.sequences.length ? `<tr class="gear"><td class="k">Sequences</td><td class="v">${combo.sequence ? Array.from({ length: combo.sequence }, (_, i) => `S${i + 1}`).join(", ") : "S0"}</td></tr>` : "");
+  return (mode ? `<tr class="gear"><td class="k">Mode</td><td class="v">${esc(mode.name)}</td></tr>` : "") + core.map(([label, g]) => `<tr class="gear"><td class="k">${esc(label)}</td><td class="v">${esc(g.name)}</td></tr>`).join("") + (member2.loadout.sequences.length ? `<tr class="gear"><td class="k">Sequences</td><td class="v">${combo.sequence ? Array.from({ length: combo.sequence }, (_, i) => `S${i + 1}`).join(", ") : "S0"}</td></tr>` : "");
 }
 var ATTRIBUTE_SCOPES = [
   64,
@@ -1380,11 +1386,11 @@ function menuStatRows(member2, combo) {
   pushBest(OTHER_SCOPES);
   return rows;
 }
-function gearPopoverHtml(member2, combo) {
-  const stats = menuStatRows(member2, combo).map((r) => `<tr class="stat"><td class="k">${esc(r.label)}</td><td class="v">${esc(r.value)}</td></tr>`).join("");
+function gearPopoverHtml(member2, combo, withStats) {
+  const stats = withStats ? menuStatRows(member2, combo).map((r) => `<tr class="stat"><td class="k">${esc(r.label)}</td><td class="v">${esc(r.value)}</td></tr>`).join("") : "";
   return `<span class="pop gear"><table>${gearRows(member2, combo)}${stats}</table></span>`;
 }
-var gearPopover = (member2, combo) => lazyPop(gearPopoverHtml(member2, combo));
+var gearPopover = (member2, combo) => lazyPop(gearPopoverHtml(member2, combo, true));
 function memberLabel(m, combo) {
   const l = m.loadout;
   const mdps = m.mainDps;

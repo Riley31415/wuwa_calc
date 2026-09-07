@@ -55,8 +55,6 @@ import {
   revokeTeam,
   setStacksSelf,
   stacksOf,
-  triggeredAction,
-  isActive,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, START_3, SWAP, DOUBLE_INTRO, INTRO, ECHO_ONFIELD, OUTRO, START_2, NOINTRO } from "../../engine/rotation.js";
 import { AGES_OF_HARVEST } from "../../weapons/broadblade.js";
@@ -65,7 +63,7 @@ import { JUE, CELESTIAL_LIGHT_5PC } from "../../echoes/jinzhou.js";
 import { VOIDWING_MOTH } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { chem } from "../../shared/substats.js";
-import { matrix } from "../../shared/helpers.js";
+import { matrix, oneSecondPassed } from "../../shared/helpers.js";
 import { UNISON, isDoubleIntro, unisonOutro } from "../../shared/unison.js";
 import { STAY_TUNED, SWORN_VIGIL_5PC } from "../../echoes/mengzhou.js";
 
@@ -157,9 +155,10 @@ const ORDINATION_GLOW = new Buff({ name: "Jinhsi: Ordination Glow" });
  *   bits 2-29  fourteen 2-bit cooldowns, one per (attribute, coordinated?) channel: the actions
  *              still to wait before that channel pays again, 3..0, at bit 2 + 2*(2*attr + coord)
  *
- * Only an active, non-triggered action ticks the channels down one — a queued sub-hit (a turret
- * shot, a coordinated tick) lands inside its trigger's own second, so it may still pay an open
- * channel but never passes time, and a DOT tick is ignored outright. A paying action's element
+ * Only a press that is the engine's second (helpers.ts) ticks the channels down one — a queued
+ * sub-hit (a turret shot, a coordinated tick) lands inside its trigger's own second, and a
+ * cutscene freezes the world, so either may still pay an open channel but never passes time; a
+ * DOT tick is ignored outright. A paying action's element
  * pays +1 Incandescence off its same-attribute channel and a Coordinated Attack pays +2 off its
  * own channel beside it — both back to cooldown 3, or 1 under the outro window (the kit's own
  * 1s, which speeds both sides up). The 50 cap is INCANDESCENCE's own maxStacks.
@@ -172,9 +171,9 @@ const ERAS_IN_UNITY = new Buff({
     // a DOT tick (the Negative Status ladders) is nobody's attack — no time, no pay
     if (a.scaling === Scaling.Dot) return;
     let word = stacksOf(ERAS_IN_UNITY);
-    // only a real press passes time: a queued sub-hit (a turret shot, a coordinated tick) lands
-    // inside its trigger's own second, so it may pay an open channel but never advances the clock
-    if (isActive() && !triggeredAction()) {
+    // only the engine's second passes time: a queued sub-hit lands inside its trigger's own
+    // second and a cutscene freezes the world, so either may pay an open channel but not advance it
+    if (oneSecondPassed()) {
       for (let shift = 2; shift < 30; shift += 2) {
         if ((word >> shift) & 3) word -= 1 << shift;
       }
@@ -340,10 +339,10 @@ const JX_ROTATION = new Rotation([
 
   NOINTRO, BA1234,
   DOUBLE_INTRO, ESkill, 
-  IncBA1, IncBA2, CrescentDivinity, IncBA3, IncBA4, SolarFlare,
+  IncBA1, IncBA2, CrescentDivinity, IncBA3, IncBA4, ECHO_ONFIELD, SolarFlare,
   OUTRO,
 
-  INTRO, ECHO_ONFIELD, ESkill, 
+  INTRO, ESkill, 
   IncBA1, IncBA2, CrescentDivinity, IncBA3, IncBA4, SolarFlare, 
   Liberation, OUTRO,
 ]);

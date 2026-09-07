@@ -351,15 +351,22 @@ function filtersOfKey(key: string): Filters {
   return f;
 }
 
+/** A saved build's indices all land inside the team the key now names — a roster that shifted
+ *  under a saved pick would otherwise hand `solveTeam()` an echo/weapon that isn't there. */
+function picksFit(key: string, picks: Pick[]): boolean {
+  const team = teamAt(key.split("|")[0]!);
+  if (!team) return false;
+  return picks.length === team.loadouts.length && picks.every((p, i) => {
+    const l = team.loadouts[i]!;
+    return p.weapon < l.weapons.length && p.echo < l.echoLoadouts.length && p.mainstat < l.mainstats.length;
+  });
+}
+
 function solveFits(key: string, solved: Solved, f: Filters = filters): boolean {
   const team = teamAt(key.split("|")[0]!);
   if (!team) return false;
   const members = team.loadouts.map((l, i) => member(l, i === team.dpsIndex));
-  const inRange = (picks: Pick[]): boolean => picks.length === team.loadouts.length && picks.every((p, i) => {
-    const l = team.loadouts[i]!;
-    return p.weapon < l.weapons.length && p.echo < l.echoLoadouts.length && p.mainstat < l.mainstats.length;
-  });
-  if (!inRange(solved.picks) || !solved.rows.every(inRange)) return false;
+  if (!picksFit(key, solved.picks) || !solved.rows.every((r) => picksFit(key, r))) return false;
   // every score must be this team's: a solve keyed by index that landed on another team's
   // slot carries that team's names (and its DPS missing — the Personal column reads 0)
   const names = new Set([...members.map((m) => m.name), TUNE_BREAK_ENEMY.name]);
@@ -387,7 +394,7 @@ async function loadShipped(f: Filters): Promise<void> {
     // (`solveFits()`): a precompute that trails the roster is the ordinary state of the published
     // site between pushes, so this is a guard, not an error.
     for (const [k, v] of saved.solves) if (!bestPicks.has(k) && solveFits(k, v, f)) { bestPicks.set(k, v); shippedKeys.add(k); restoredSolves = true; }
-    for (const [k, v] of saved.picks) if (!picksCache.has(k)) { picksCache.set(k, v); restoredSolves = true; }
+    for (const [k, v] of saved.picks) if (!picksCache.has(k) && picksFit(k, v)) { picksCache.set(k, v); restoredSolves = true; }
   } catch { /* missing, half-written or a stale shape — that state just solves here instead */ }
 }
 
@@ -397,7 +404,7 @@ async function loadSolves(): Promise<void> {
     // the same stamp is no guarantee the solve was made by this code (see `solveFits()`), so each
     // one is checked against the filters its own key was saved under
     for (const [k, v] of saved.solves) if (solveFits(k, v, filtersOfKey(k))) { bestPicks.set(k, v); restoredSolves = true; }
-    for (const [k, v] of saved.picks) { picksCache.set(k, v); restoredSolves = true; }
+    for (const [k, v] of saved.picks) if (picksFit(k, v)) { picksCache.set(k, v); restoredSolves = true; }
   };
   try {
     const live = await fetch("/__livereload", { cache: "no-store" }).catch(() => null);
@@ -809,7 +816,7 @@ function buildPop(kind: string, key: string): string {
     const at = key.lastIndexOf("|");
     const run = results.get(key.slice(0, at));
     const src = Number(key.slice(at + 1));
-    return run ? gearPopoverHtml(run.members[src]!, run.combo[src]!) : "";
+    return run ? gearPopoverHtml(run.members[src]!, run.combo[src]!, false) : "";
   }
   return "";
 }
@@ -1087,10 +1094,10 @@ function gearRows(member: Member, combo: Combo): string {
   // are two `Loadout`s, see lucilla.ts), so which one a row is on is a real build fact and belongs
   // here. Kept out of `equippedGear()` since most kits have no mode at all.
   const mode = member.loadout.mode;
-  return core
-    .map(([label, g]) => `<tr class="gear"><td class="k">${esc(label)}</td><td class="v">${esc(g.name)}</td></tr>`)
-    .join("")
-    + (mode ? `<tr class="gear"><td class="k">Mode</td><td class="v">${esc(mode.name)}</td></tr>` : "")
+  return (mode ? `<tr class="gear"><td class="k">Mode</td><td class="v">${esc(mode.name)}</td></tr>` : "")
+    + core
+      .map(([label, g]) => `<tr class="gear"><td class="k">${esc(label)}</td><td class="v">${esc(g.name)}</td></tr>`)
+      .join("")
     + (member.loadout.sequences.length
       ? `<tr class="gear"><td class="k">Sequences</td><td class="v">${combo.sequence ? Array.from({ length: combo.sequence }, (_, i) => `S${i + 1}`).join(", ") : "S0"}</td></tr>`
       : "");
@@ -1160,16 +1167,16 @@ function menuStatRows(member: Member, combo: Combo): { label: string; value: str
 }
 
 /** The loadout on its own — the only hover a member's own name cell carries, on both the
- *  comparison table and the detail page's two rotation tables. Its own gear list first, then a
- *  "menu stats" reading of the same build below it (see `.pop .gear + tr:not(.gear)` in
- *  index.css for the divider between the two). */
-function gearPopoverHtml(member: Member, combo: Combo): string {
-  const stats = menuStatRows(member, combo)
+ *  comparison table and the detail page's two rotation tables. Its own gear list first, then —
+ *  on the detail page only — a "menu stats" reading of the same build below it (see
+ *  `.pop .gear + tr:not(.gear)` in index.css for the divider between the two). */
+function gearPopoverHtml(member: Member, combo: Combo, withStats: boolean): string {
+  const stats = withStats ? menuStatRows(member, combo)
     .map((r) => `<tr class="stat"><td class="k">${esc(r.label)}</td><td class="v">${esc(r.value)}</td></tr>`)
-    .join("");
+    .join("") : "";
   return `<span class="pop gear"><table>${gearRows(member, combo)}${stats}</table></span>`;
 }
-const gearPopover = (member: Member, combo: Combo): string => lazyPop(gearPopoverHtml(member, combo));
+const gearPopover = (member: Member, combo: Combo): string => lazyPop(gearPopoverHtml(member, combo, true));
 
 /** What a member's own name cell reads as: the resonator, then their sequence level and weapon
  *  rank as one token (`S0R1`) — the level this row actually runs at (see `sequenceLevels()`), and
