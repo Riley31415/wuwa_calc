@@ -41,7 +41,7 @@ import {
   applyTeam,
 } from "../../engine/context.js";
 import { coordinatedBuff, lostOnSwap, matrix } from "../../shared/helpers.js";
-import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ActionField, ECHO_SWAP } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ActionField, ECHO_SWAP } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { EMPYREAN_ANTHEM_5PC } from "../../echoes/rinascita.js";
@@ -193,8 +193,10 @@ const YINLIN_RESONATOR = new Resonator({
 // which upgrades the mark for Judgment Strikes off Outro. She's never the team's own lead, so
 // this covers both opener and loop.
 
+const BA123 = new ActionGroup("Basic - Zapstring's Dance 123", [BA1, BA2, BA3]);
+
 const YL_ROTATION = new Rotation([
-  INTRO, Skill1, BA1, BA2, BA3, HA, Liberation, Skill2, FHA, ECHO_SWAP,
+  INTRO, Skill1, BA123, HA, Liberation, Skill2, FHA, ECHO_SWAP,
   OUTRO,
 ]);
 

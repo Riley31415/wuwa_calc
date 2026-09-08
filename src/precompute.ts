@@ -31,16 +31,18 @@ import { createHash } from "node:crypto";
 import { cpus } from "node:os";
 import { fileURLToPath } from "node:url";
 import { ALL_TEAMS, teamKey } from "./teams.js";
-import { teamFromKey, solveTeam, defaultFilters, bestKey, picksKey } from "./solver.js";
+import { teamFromKey, solveTeam, defaultFilters, bestKey, picksKey, filterSignature } from "./solver.js";
 import type { Filters, Pick, Solved } from "./solver.js";
 
-/** The states the site ships: the default page with each Signature Weapons box on or off, four
- *  in all, named by which is off. Anything else solves in the browser. */
+/** The states the site ships: the default page at each of the three Team Costs, and the same
+ *  three with Matrix on. Anything else — a compare set on any resonator — solves in the browser. */
 const STATES: Record<string, Partial<Filters>> = {
   default: {},
-  "nor1-mdps": { allowR1Mdps: false },
-  "nor1-support": { allowR1Supports: false },
-  "nor1": { allowR1Mdps: false, allowR1Supports: false },
+  "s0r1mdps": { cost: "s0r1mdps" },
+  "s0r0": { cost: "s0r0" },
+  matrix: { matrix: true },
+  "s0r1mdps+matrix": { cost: "s0r1mdps", matrix: true },
+  "s0r0+matrix": { cost: "s0r0", matrix: true },
 };
 
 const filtersFor = (state: string): Filters => ({ ...defaultFilters(), ...STATES[state] });
@@ -103,7 +105,7 @@ if (!isMainThread) {
   const sizes: [string, number][] = [];
   for (const state of Object.keys(STATES)) {
     const file = `${state}.json`;
-    index.states[Object.values(filtersFor(state)).join(",")] = file;
+    index.states[filterSignature(filtersFor(state))] = file;
     const path = new URL(file, dir);
     writeFileSync(path, JSON.stringify({ solves: [...solves.get(state)!], picks: [...picks.get(state)!] }));
     sizes.push([state, readFileSync(path).length]);

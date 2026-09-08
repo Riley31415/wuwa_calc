@@ -65,49 +65,61 @@ export interface Combo { weapon: Weapon; echo: EchoLoadout; mainstat: Buff; sequ
  *  Held here rather than read off the DOM because the checkboxes live inside the table's own
  *  markup, which `renderComparison()` rebuilds from scratch — this survives that, the inputs
  *  don't. */
+/** The five things a resonator's rows can be opened up on — a "compare" set from the table's own
+ *  right-click menu (index.ts): every option of that axis gets a row of its own for them. */
+export type Axis = "weapons" | "echoes" | "mainstats" | "substats" | "sequences";
+export const AXES: Axis[] = ["weapons", "echoes", "mainstats", "substats", "sequences"];
+
+/** What a team is costed at (the Team Cost box): every limited resonator on their best standard
+ *  or 4* weapon (`s0r0`), the same plus one signature at R1 for whichever member gains the most
+ *  from it (`s0r1mdps`), or every limited resonator on their signature (`s0r1`). Rovers and 4*
+ *  resonators are S6 and on standard or 4* weapons throughout. A weapons compare adds the
+ *  signatures as rows under any of the three. */
+export type TeamCost = "s0r0" | "s0r1mdps" | "s0r1";
+
 export interface Filters {
-  mdpsSequences: boolean; supportSequences: boolean;
-  mdpsWeapons: boolean; supportWeapons: boolean;
-  mdpsEchoes: boolean; supportEchoes: boolean;
-  mdpsMainstats: boolean; supportMainstats: boolean;
-  allowR1Mdps: boolean; allowR1Supports: boolean;
   /** Matrix Mode: every loadout that declares a Matrix wears it (shared/matrix.ts). */
   matrix: boolean;
-  /** High Invest Substats: that role's rows also run on its loadout's `highSubstat`
-   *  (shared/substats.ts), compared against the default spread. */
-  mdpsHighSubs: boolean; supportHighSubs: boolean;
+  cost: TeamCost;
+  /** Per axis, the resonators (by name, in any role) whose rows compare it: their weapons,
+   *  sonatas and mainslot echoes, main stats, the two substat spreads (shared/substats.ts), or
+   *  their whole resonance chain. Everyone else runs their best pick on that axis alone. */
+  weapons: string[]; echoes: string[]; mainstats: string[]; substats: string[]; sequences: string[];
 }
 
 /** What the page opens with, and what precompute.ts solves the roster under — one definition so
  *  the shipped solves.json lands on exactly the keys a cold load asks for. */
 export const defaultFilters = (): Filters => ({
-  mdpsSequences: false, supportSequences: false,
-  mdpsWeapons: false, supportWeapons: false,
-  mdpsEchoes: false, supportEchoes: false,
-  mdpsMainstats: false, supportMainstats: false,
-  allowR1Mdps: true, allowR1Supports: true,
-  matrix: false,
-  mdpsHighSubs: false, supportHighSubs: false,
+  matrix: false, cost: "s0r1", weapons: [], echoes: [], mainstats: [], substats: [], sequences: [],
 });
 
-/** A solved team's cache key: the team under the whole filter state, not just the R1 allowances —
- *  a solve carries every row the table will open for that team, each re-rolled onto its own best
- *  main stats (`rowPicks()`), and which rows those are is exactly what the option boxes decide.
- *  ...except Matrix Mode, for a team nobody's Matrix reaches: its solve is the same either way, so
- *  it keeps the key it had with the box off rather than being solved twice. */
+/** Whether this member's rows compare `axis` — their resonator is in that axis's set. */
+export const axisOpen = (m: Member, filters: Filters, axis: Axis): boolean =>
+  filters[axis].includes(m.loadout.resonator.name);
+
+/** The whole filter state as one string, for the shipped solves index (precompute.ts writes it
+ *  by the same function) and the page's own caches. */
+export const filterSignature = (f: Filters): string =>
+  [f.matrix, f.cost, ...AXES.map((a) => [...f[a]].sort().join("+"))].join(",");
+
+/** A solved team's cache key: the team under exactly what touches it — Matrix Mode, for a team
+ *  somebody's Matrix reaches, and which axes each member compares (five bits apiece, in `AXES`
+ *  order). A solve carries every row the table will open for that team, each re-rolled onto its
+ *  own best main stats (`rowPicks()`), and which rows those are is exactly what those decide;
+ *  a compare set on a resonator who isn't in this team changes nothing here. */
 export const bestKey = (teamKey: string, members: Member[], filters: Filters): string => {
-  const f = { ...filters, matrix: filters.matrix && members.some((m) => m.loadout.matrix) };
-  return `${teamKey}|${Object.values(f).join(",")}`;
+  const matrix = filters.matrix && members.some((m) => m.loadout.matrix);
+  return `${teamKey}|${matrix}|${filters.cost}|${members.map((m) => AXES.map((a) => (axisOpen(m, filters, a) ? "1" : "0")).join("")).join(",")}`;
 };
 
-/** A team's own best build, under only the flags the *search* reads: the two R1 allowances, the
- *  weapon boxes (which weapons may be searched — `eligibleWeapons()`) and Matrix Mode. The echo
- *  and main-stat boxes change which rows a solve opens, never which build wins (both axes are
- *  searched in full regardless), and the sequence boxes only cross in levels nothing searches — so
- *  a flip of any of those hands `solveTeam()` the build it already found and it redoes rows alone. */
+/** A team's own best build, under only what the *search* reads: which members compare weapons
+ *  (which weapons may be searched — `eligibleWeapons()`) and Matrix Mode. The other axes change
+ *  which rows a solve opens, never which build wins (echoes and main stats are searched in full
+ *  regardless, sequences and substats only cross in) — so a change to any of those hands
+ *  `solveTeam()` the build it already found and it redoes rows alone. */
 export const picksKey = (teamKey: string, members: Member[], filters: Filters): string => {
   const matrix = filters.matrix && members.some((m) => m.loadout.matrix);
-  return `${teamKey}|${filters.allowR1Mdps},${filters.allowR1Supports},${filters.mdpsWeapons},${filters.supportWeapons},${matrix}`;
+  return `${teamKey}|${matrix}|${filters.cost}|${members.map((m) => (axisOpen(m, filters, "weapons") ? "1" : "0")).join("")}`;
 };
 
 /** One member's own pick: indices into their loadout's three gear lists, plus how many resonance
@@ -138,26 +150,48 @@ export function sequenceLevels(m: Member, filters: Filters): number[] {
   const max = l.sequences.length;
   if (!max) return [0];
   const base = Math.min(baseSequence(l.resonator), max);
-  return (m.mainDps ? filters.mdpsSequences : filters.supportSequences)
-    ? Array.from({ length: max - base + 1 }, (_, i) => base + i)
-    : [base];
+  if (!axisOpen(m, filters, "sequences")) return [base];
+  // a free resonator (a 4-star, a Rover — `Tier.Free`) is costed at S6 with the box shut, so
+  // there is nothing above that to open: their box shows the whole chain from S0 instead
+  const from = l.resonator.tier === Tier.Free ? 0 : base;
+  return Array.from({ length: max - from + 1 }, (_, i) => from + i);
 }
 
-/** Which of a loadout's own weapons this role may actually run right now — everything when its R1
- *  allowance is on, standard and free weapons only when it isn't (weapons/standard.ts, every
- *  generation — see gear.ts's own `Weapon.tier`). A signature is only ever owned at R1, so a role that
- *  hasn't been given that allowance never even simulates one. Empty means the whole team drops
- *  out of the table, same as it always has.
- *
- *  With that role's weapons box closed, just the first of those: a loadout lists its best
- *  signature first and its best standard weapon right after (see CLAUDE.md), and a closed box
- *  takes that on trust rather than searching — the search only runs for a box that will show
- *  its alternatives. */
-export function eligibleWeapons(m: Member, filters: Filters): number[] {
+/** A weapon's own tier says whether it is a signature (`Tier.Limited`) — the one thing the Team
+ *  Cost box rations — and a loadout's best non-signature is the first weapon after its
+ *  signatures (a loadout lists its best signature first, its best standard right after, see
+ *  CLAUDE.md); a loadout with no signature at all runs its first weapon either way. */
+export const isSignature = (l: Loadout, i: number): boolean => l.weapons[i]!.tier === Tier.Limited;
+export const standardWeapon = (l: Loadout): number => Math.max(0, l.weapons.findIndex((w) => w.tier !== Tier.Limited));
+
+/** Which of a loadout's own weapons this member may run: comparing weapons, every one of them —
+ *  a compare shows the signatures as rows under any Team Cost — and not comparing, just the one
+ *  the cost sets: the signature where one is theirs to wear (`sig` — the Team Cost, and under
+ *  `s0r1mdps` whether they are the team's one holder), else their best standard. The closed axis
+ *  takes the loadout's own order on trust rather than searching. Never empty. */
+export function weaponOptions(m: Member, filters: Filters, sig: boolean): number[] {
   const l = m.loadout;
-  const allowR1 = m.mainDps ? filters.allowR1Mdps : filters.allowR1Supports;
-  const eligible = l.weapons.map((_, i) => i).filter((i) => allowR1 || l.weapons[i]!.tier !== Tier.Limited);
-  return (m.mainDps ? filters.mdpsWeapons : filters.supportWeapons) ? eligible : eligible.slice(0, 1);
+  if (axisOpen(m, filters, "weapons")) return l.weapons.map((_, i) => i);
+  return [sig ? 0 : standardWeapon(l)];
+}
+
+/** Whether member `i` may wear a signature: always at `s0r1`, never at `s0r0`, and at
+ *  `s0r1mdps` only as the team's one holder (`sigHolder()`). */
+export const sigAllowed = (i: number, holder: number | null, cost: TeamCost): boolean =>
+  cost === "s0r1" || (cost === "s0r1mdps" && i === holder);
+
+/** Which member of a solved build wears a signature, if any — the `s0r1mdps` holder, read back
+ *  off the build itself so a row set knows who may keep theirs. */
+export const sigHolder = (members: Member[], picks: Pick[]): number | null => {
+  const i = picks.findIndex((p, k) => isSignature(members[k]!.loadout, p.weapon));
+  return i < 0 ? null : i;
+};
+
+/** The page's own reading of `weaponOptions()`, with no holder to hand: every weapon while
+ *  comparing, the closed pick as the cost sets it otherwise — what the search bar offers and the
+ *  row count is estimated from. */
+export function eligibleWeapons(m: Member, filters: Filters): number[] {
+  return weaponOptions(m, filters, filters.cost === "s0r1");
 }
 
 /**
@@ -320,8 +354,11 @@ function bestMainstatFor(
 }
 
 export function optimizeTeam(teamKey: string, members: Member[], filters: Filters): Pick[] {
+  // the search runs with signatures as the cost allows outright: everyone's at `s0r1`, nobody's
+  // at `s0r0` and, at `s0r1mdps`, nobody's either — the one signature is handed out afterwards
+  const sig = filters.cost === "s0r1";
   const picks: Pick[] = members.map((m) => ({
-    weapon: eligibleWeapons(m, filters)[0] ?? 0, echo: 0, mainstat: 0,
+    weapon: weaponOptions(m, filters, sig)[0] ?? 0, echo: 0, mainstat: 0,
     // the level a closed box would show — the search never varies it, the row set does
     sequence: sequenceLevels(m, filters)[0]!,
     matrix: filters.matrix,
@@ -373,10 +410,26 @@ export function optimizeTeam(teamKey: string, members: Member[], filters: Filter
   // (see `scoreMainstats()`) — so it runs until nothing moves rather than being skipped.
   sweepMainstats();
   for (let round = 0; round < 3; round++) {
-    const weapons = sweepAcross("weapon", (m) => eligibleWeapons(m, filters));
+    const weapons = sweepAcross("weapon", (m) => weaponOptions(m, filters, sig));
     const echoes = sweepAcross("echo", (m) => m.loadout.echoLoadouts.map((_, i) => i));
     if (!weapons && !echoes) break;
     if (!sweepMainstats()) break;
+  }
+  // `s0r1mdps`: the one signature goes to whichever member gains the team the most from theirs,
+  // each tried on the standard team with their own main stats re-rolled for it — usually the main
+  // DPS, but a team with two is not shortcut. Their signature is the loadout's first weapon.
+  if (filters.cost === "s0r1mdps") {
+    let best = run().total, winner: Pick[] | null = null;
+    members.forEach((m, i) => {
+      if (!isSignature(m.loadout, 0)) return;
+      const trial = picks.map((p, j) => (j === i ? { ...p, weapon: 0 } : p));
+      const rerolled = bestMainstatFor(teamKey, members, trial, i);
+      if (rerolled.total > best) { best = rerolled.total; winner = trial.map((p, j) => (j === i ? { ...p, mainstat: rerolled.mainstat } : p)); }
+    });
+    if (winner) {
+      (winner as Pick[]).forEach((p, i) => { picks[i] = p; });
+      sweepMainstats();
+    }
   }
   return picks;
 }
@@ -761,7 +814,7 @@ export const runFromScore = (teamKey: string, members: Member[], combo: Combo[],
 export const teamFromKey = (key: string): Member[] => {
   const team = teamAt(key);
   if (!team) throw new Error(`no team is named ${key}`);
-  return team.loadouts.map((l, i) => member(l, i === team.dpsIndex));
+  return team.loadouts.map((l, i) => member(l, team.mdps[i]!));
 };
 
 /** Every whole-team combo of `lists`' own picks — `lists[0]`'s every entry against `lists[1]`'s
@@ -783,13 +836,12 @@ export const MAINSTAT_ROWS = 9;
  *  index on one that's closed. Neither main stat nor sequence is here: main stats are picked per
  *  build once the cross is known, and sequence stays a separate, un-crossed variation (both in
  *  `rowPicks()`), same as neither getting crossed into the table's own columns. */
-function buildsOf(m: Member, home: Pick, f: Filters): Pick[] {
+function buildsOf(m: Member, home: Pick, f: Filters, sig: boolean): Pick[] {
   const l = m.loadout;
-  const mdps = m.mainDps;
-  const weapons = (mdps ? f.mdpsWeapons : f.supportWeapons) ? eligibleWeapons(m, f) : [home.weapon];
-  const echoes = (mdps ? f.mdpsEchoes : f.supportEchoes) ? l.echoLoadouts.map((_, i) => i) : [home.echo];
-  // High Invest Substats crosses in the same way: both spreads with the box open, else the home one
-  const subs = (mdps ? f.mdpsHighSubs : f.supportHighSubs) ? [false, true] : [home.highSubs];
+  const weapons = axisOpen(m, f, "weapons") ? weaponOptions(m, f, sig) : [home.weapon];
+  const echoes = axisOpen(m, f, "echoes") ? l.echoLoadouts.map((_, i) => i) : [home.echo];
+  // substats cross in the same way: both spreads while compared, else the home one
+  const subs = axisOpen(m, f, "substats") ? [false, true] : [home.highSubs];
   // Sequences cross in like the other two. A closed box's `sequenceLevels()` is the one baseline
   // level, so a closed axis still contributes exactly one pick — the same shape `weapons`/`echoes`
   // collapse to above, just read off the loadout rather than off the solved build.
@@ -825,9 +877,12 @@ function buildsOf(m: Member, home: Pick, f: Filters): Pick[] {
  *   them is what keeps a couple of open boxes from multiplying a whole list into every other
  *   member's whole list.
  */
-function rowPicks(teamKey: string, members: Member[], best: Pick[], filters: Filters): Pick[][] {
-  const boxOpen = (i: number): boolean =>
-    (members[i]!.mainDps ? filters.mdpsMainstats : filters.supportMainstats);
+function rowPicks(teamKey: string, members: Member[], best: Pick[], filters: Filters): { rows: Pick[][]; hidden: Pick[][] } {
+  // the sonata re-search's losing candidates, each on its own best main stat (`pinEchoes`
+  // below): scored on the way, and kept as rows the table never shows so a gear compare can
+  // measure against a build whose teammate wore a different set (index.ts's own `gearCompare`)
+  const hidden: Pick[][] = [];
+  const boxOpen = (i: number): boolean => axisOpen(members[i]!, filters, "mainstats");
   const open = members.map((_, i) => i).filter(boxOpen);
   const closed = members.map((_, i) => i).filter((i) => !boxOpen(i));
 
@@ -853,7 +908,7 @@ function rowPicks(teamKey: string, members: Member[], best: Pick[], filters: Fil
   // onto its own best main stat and scored on the team total: `sweepAcross()`'s own pass, run
   // again inside a build the search itself never visited.
   const closedEchoes = members
-    .map((m, i) => ((m.mainDps ? filters.mdpsEchoes : filters.supportEchoes) ? -1 : i))
+    .map((m, i) => (axisOpen(m, filters, "echoes") ? -1 : i))
     .filter((i) => i >= 0);
   //
   // A member with a single sonata has nothing to re-search — and scoring the incumbent is a
@@ -870,14 +925,20 @@ function rowPicks(teamKey: string, members: Member[], best: Pick[], filters: Fil
         if (echo === home.echo) return;
         const trial = out.map((p, j) => (j === i ? { ...home, echo } : p));
         const rerolled = bestMainstatFor(teamKey, members, trial, i);
+        hidden.push(trial.map((p, j) => (j === i ? { ...p, mainstat: rerolled.mainstat } : p)));
         if (rerolled.total > bestTotal) { bestTotal = rerolled.total; winner = { ...home, echo, mainstat: rerolled.mainstat }; }
       });
+      // the incumbent too, on its own best roll: the row goes on to `settle()` and may leave it
+      hidden.push(out.map((p, j) => (j === i ? { ...home, mainstat: bestMainstatFor(teamKey, members, out, i).mainstat } : p)));
       out = out.map((p, j) => (j === i ? winner : p));
     }
     return out;
   };
 
-  const builds = cartesian(members.map((m, i) => buildsOf(m, best[i]!, filters)));
+  // under `s0r1mdps` the build's own holder is the one member whose weapons compare may include
+  // their signature; everyone else's rows stay on standards
+  const holder = sigHolder(members, best);
+  const builds = cartesian(members.map((m, i) => buildsOf(m, best[i]!, filters, sigAllowed(i, holder, filters.cost))));
   // deduped before anything is run — every build below costs at least one run, and a cross this
   // wide is cheap to check but expensive to run twice
   const seen = new Map<string, Pick[]>();
@@ -904,7 +965,7 @@ function rowPicks(teamKey: string, members: Member[], best: Pick[], filters: Fil
       rows.push(settled.map((p, i) => ({ ...p, mainstat: mainstats[i]! })));
     }
   }
-  return rows;
+  return { rows, hidden };
 }
 
 /** One team's whole optimization pass — the unit of parallel work: the best build per member
@@ -916,15 +977,17 @@ function rowPicks(teamKey: string, members: Member[], best: Pick[], filters: Fil
 export function solveTeam(teamKey: string, members: Member[], filters: Filters, known: Pick[] | null = null): Solved {
   trialCache = new Map(); scoreCache = new Map();
   const picks = known ?? optimizeTeam(teamKey, members, filters);
-  const rows = rowPicks(teamKey, members, picks, filters);
+  const { rows, hidden } = rowPicks(teamKey, members, picks, filters);
   // every row was scored on the way to being picked (see `rowPicks()`), so its figures are
   // already in hand — sent along, so the page never has to run a row the search just ran
-  const scores = rows.map((row) => {
+  const score = (row: Pick[]): RowScore => {
     const combo = members.map((m, i) => comboOf(m.loadout, row[i]!));
     return scoreOf(trialCache.get(trialKey(teamKey, combo)) ?? runTeam(teamKey, members, combo));
-  });
+  };
+  const scores = rows.map(score);
+  const hiddenScores = hidden.map(score);
   trialCache = new Map(); scoreCache = new Map();   // a TeamRun holds a whole State; don't keep 80 of them alive
-  return { picks, rows, scores };
+  return { picks, rows, scores, hidden, hiddenScores };
 }
 
 /* ------------------------------------------------------------------ worker protocol */
@@ -935,7 +998,9 @@ export interface SolveRequest { id: number; teamKey: string; filters: Filters; p
 
 /** One team's solved answer: its best build per member, the picks for every row the table will
  *  show it as (see `rowPicks()`), and each of those rows' own figures, in the same order. */
-export interface Solved { picks: Pick[]; rows: Pick[][]; scores: RowScore[] }
+/** `hidden`/`hiddenScores`: the sonata re-search's other candidates (`rowPicks()`), rows the
+ *  table never shows but the gear compares read; absent on a solve saved before they existed. */
+export interface Solved { picks: Pick[]; rows: Pick[][]; scores: RowScore[]; hidden?: Pick[][]; hiddenScores?: RowScore[] }
 
 /** What comes back — small, plain data: gear *indices*, nothing engine-shaped. The main thread
  *  turns these back into real gear with `comboOf()` and runs the handful of rows the table

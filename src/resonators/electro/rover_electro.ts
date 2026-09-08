@@ -307,7 +307,7 @@ export const ROVER_ELECTRO = new Loadout({
 // Electro sets only — Moonlit Clouds is a support's set
 export const ROVER_ELECTRO_MDPS = new Loadout({
   resonator: ROVER_ELECTRO_RESONATOR,
-  weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, RED_SPRING, UNSPOKEN_RUE],
+  weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, RED_SPRING, UNSPOKEN_RUE],
   echoLoadouts: [
     new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC),
   ],

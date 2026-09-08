@@ -25,7 +25,7 @@ import {
   currentAction,
   addStat,
 } from "../../engine/context.js";
-import { Action, ActionField, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, SWAP, JUMP } from "../../engine/rotation.js";
+import { ActionGroup, Action, ActionField, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, SWAP, JUMP } from "../../engine/rotation.js";
 import { coordinatedBuff } from "../../shared/helpers.js";
 import { AERO_EROSION, SHIELD } from "../../shared/status.js";
 import { WOODLAND_ARIA } from "../../weapons/pistol.js";
@@ -151,15 +151,18 @@ const CIACCONA_RESONATOR = new Resonator({
 // chains straight back into Basic Stage 2, which is how the second stage-4 comes around without
 // restarting the string. She's never the team's own lead, so this covers opener and loop both.
 
+const MA12 = new ActionGroup("Mid-air - Attack 12", [MA1, MA2]);
+const BA34 = new ActionGroup("Basic - Quadruple Time Steps 34", [BA3, BA4]);
+
 const CI_ROTATION = new Rotation([
   NOINTRO, 
-  JUMP, MA1, MA2, BA4, 
-  JUMP, MA1, MA2, BA4, 
-  JUMP, MA1, MA2, BA4, 
+  JUMP, MA12, BA4, 
+  JUMP, MA12, BA4, 
+  JUMP, MA12, BA4, 
   Skill, Downbeat, Liberation, ECHO_SWAP, OUTRO,
 
-  INTRO, BA3, BA4, JUMP,
-  MA1, MA2, BA4,
+  INTRO, BA34, JUMP,
+  MA12, BA4,
   Skill, Downbeat, Liberation, ECHO_SWAP, OUTRO,
 ]);
 

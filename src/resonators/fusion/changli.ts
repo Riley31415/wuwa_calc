@@ -23,7 +23,7 @@ import {
   queueOutro,
 } from "../../engine/context.js";
 import { lostOnSwap, matrix } from "../../shared/helpers.js";
-import { Action, Rotation, START_2, START_3, SWAP, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_2, START_3, SWAP, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
 import { BLAZING_BRILLIANCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { NM_INFERNO_RIDER, MOLTEN_RIFT_5PC } from "../../echoes/jinzhou.js";
@@ -206,13 +206,15 @@ const CHANGLI_RESONATOR = new Resonator({
   },
 });
 
+const BA1234 = new ActionGroup("Basic - Blazing Enlightenment 1234", [BA1, BA2, BA3, BA4]);
+
 const CH_ROTATION = new Rotation([
   START_3, Liberation, FlamingSacrifice.swap(), SWAP,
   // TODO get cancels
   INTRO, SMA,
   Skill, SBA,
   Skill, SBA,
-  BA1, BA2, BA3, BA4, DODGE, SBA,
+  BA1234, DODGE, SBA,
   FlamingSacrifice,
   Liberation, FlamingSacrifice,
   OUTRO,

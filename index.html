@@ -77,7 +77,33 @@
   <div class="progress-track"><div class="progress-fill"></div></div>
   <!-- the sticker the favicon is cut from, whole, at its own size -->
   <img class="loading-gif" src="./web/loading.gif" alt="" width="110" height="79">
+  <!-- anything that goes wrong while the page loads lands here, in full, rather than only in a
+       console nobody has open (the handlers below) -->
+  <pre class="loading-error" hidden></pre>
 </div>
+
+<script>
+  // Every error on the way up — a chunk that failed to fetch, a kit that threw at import, the
+  // boot itself — is written onto the loading screen, which is put back up if it had gone.
+  // Wired here, ahead of the module, so the module failing to load at all is caught too.
+  (function () {
+    function show(text) {
+      var box = document.querySelector("#loading .loading-error");
+      if (!box) return;
+      box.hidden = false;
+      box.textContent += (box.textContent ? "\n\n" : "") + text;
+      document.getElementById("loading").hidden = false;
+    }
+    addEventListener("error", function (e) {
+      var err = e.error;
+      show(err && err.stack ? err.stack : e.message ? e.message + (e.filename ? " (" + e.filename + ":" + e.lineno + ")" : "") : String(e));
+    });
+    addEventListener("unhandledrejection", function (e) {
+      var r = e.reason;
+      show(r && r.stack ? r.stack : String(r));
+    });
+  })();
+</script>
 
 <!-- Loaded by hand with a fresh query string rather than a plain src: GitHub Pages serves every
      file with max-age=600, and a bundle fetched under a name that never changes can be handed

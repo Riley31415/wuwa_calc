@@ -225,7 +225,7 @@ const MORTEFI_RESONATOR = new Resonator({
   weapon: WeaponType.Pistols,
   intro: () => Intro,
   outro: () => Outro,
-  color: "#e8734f",
+  color: "#d7370f",
   maxEnergy: 125,
   maxForte1: 100,
   tier: Tier.Free,

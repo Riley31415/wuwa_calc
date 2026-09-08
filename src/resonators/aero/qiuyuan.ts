@@ -163,18 +163,23 @@ const QIUYUAN_RESONATOR = new Resonator({
 
 const FHA123 = new ActionGroup("Forte - Thus Spoke the Blade: Heavy 123", [FHA1, FHA2, FHA3]);
 
+const EBA12 = new ActionGroup("Basic - Thus Spoke the Blade: Inkwash 12", [EBA1, EBA2]);
+const EBA34 = new ActionGroup("Basic - Thus Spoke the Blade: Inkwash 34", [EBA3, EBA4]);
+
 const QY_ROTATION = new Rotation([
-  START_3, Liberation, SWAP,
 
   NOINTRO,
   HA, EBA4, HA, EBA4, 
   ECHO_CANCEL, Liberation,
-  EBA1, EBA2, DODGE, EBA1, EBA2, 
+  EBA12, DODGE, EBA12, 
   FHA123, 
   OUTRO,
 
-  INTRO, EBA3, EBA4, Skill, Liberation,
-  FHA123, 
+
+  START_3, Liberation, SWAP,
+
+  INTRO, EBA34, Skill,
+  FHA123, Liberation, 
   ECHO_CANCEL, 
   OUTRO,
 ]);

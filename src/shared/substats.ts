@@ -45,10 +45,10 @@ const HIGH: Record<Substat, number> = {
   [Substat.Basic]: 9.4, [Substat.Heavy]: 9.4, [Substat.Skill]: 9.4, [Substat.Liberation]: 9.4,
 };
 
-/** A build's twenty-five rolls: five each into Crit Rate and Crit Dmg and three into ER (an ER
- *  build swaps that to three Crit Rate, five ER), two into each of the three stats the kit leans
- *  on, and one into six of the seven left over — the one dropped is Flat DEF, or Flat HP when
- *  Flat DEF was actually asked for. One `Buff`, named after the three (a scaler's percent and
+/** A build's twenty-five rolls: five each into Crit Rate and Crit Dmg and three into ER, two
+ *  into each of the three stats the kit leans on, and one into six of the seven left over — the
+ *  one dropped is Flat DEF, or Flat HP when Flat DEF was actually asked for. An ER build gives up
+ *  three Crit Rate rolls: two go to ER, and the last to the stat that would have been dropped. One `Buff`, named after the three (a scaler's percent and
  *  flat rolls read as the one stat), plus ER on an ER build. */
 export function substats(sub1: Substat, sub2: Substat, sub3: Substat, er = false): Buff {
   const leaned = [sub1, sub2, sub3];
@@ -57,13 +57,13 @@ export function substats(sub1: Substat, sub2: Substat, sub3: Substat, er = false
   }
   const dropped = leaned.includes(Substat.FlatDef) ? Substat.FlatHp : Substat.FlatDef;
   const counts = new Map<Substat, number>([
-    [Substat.CritRate, er ? 3 : 5], [Substat.CritDmg, 5], [Substat.Er, er ? 5 : 3],
+    [Substat.CritRate, er ? 2 : 5], [Substat.CritDmg, 5], [Substat.Er, er ? 5 : 3],
   ]);
   for (const s of leaned) counts.set(s, 2);
-  for (let s = Substat.AtkPct; s <= Substat.Liberation; s++) if (!counts.has(s) && s !== dropped) counts.set(s, 1);
+  for (let s = Substat.AtkPct; s <= Substat.Liberation; s++) if (!counts.has(s) && (er || s !== dropped)) counts.set(s, 1);
   const named = [...new Set(leaned.map((s) => ROLL[s].label)), ...(er ? ["ER"] : [])];
   const piece = new Buff({
-    name: `ChemX32: ${named.join(" ")}`,
+    name: `ChemX32 - ${named.join(" ")}`,
     constantStats: () => { for (const [s, n] of counts) addStat(ROLL[s].stat, ROLL[s].value * n, ROLL[s].tag); },
   });
   LINES.set(piece, linesOf(counts, (s) => ROLL[s].value));
@@ -97,7 +97,7 @@ export function highSubs(sub1: Substat, sub2: Substat, sub3: Substat, sub4: Subs
   // ER is named only past the default three rolls — as `sub1`, that is
   const named = [...new Set(leaned.filter((s) => s !== Substat.Er || counts.get(s)! > 3).map((s) => ROLL[s].label))];
   const piece = new Buff({
-    name: `CN Subs: ${named.join(" ")}`,
+    name: `High Invest - ${named.join(" ")}`,
     constantStats: () => { for (const [s, n] of counts) addStat(ROLL[s].stat, HIGH[s] * n, ROLL[s].tag); },
   });
   LINES.set(piece, linesOf(counts, (s) => HIGH[s]));

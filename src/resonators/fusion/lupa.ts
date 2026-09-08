@@ -45,7 +45,7 @@ import {
   setForte2,
 } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { WILDFIRE_MARK } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { LIONESS_OF_GLORY, CLAWPRINT_5PC } from "../../echoes/septimont.js";
@@ -266,9 +266,11 @@ const LUPA_RESONATOR = new Resonator({
   },
 });
 
+const MA12 = new ActionGroup("Mid-air - Flaming Star 12", [MA1, MA2]);
+
 const LP_LOOP = new Rotation([
   NOINTRO, Skill1,
-  INTRO, ECHO_CANCEL, Liberation, USkill, MA1, MA2, EMA3, EHA4, UFSkill, OUTRO,
+  INTRO, ECHO_CANCEL, Liberation, USkill, MA12, EMA3, EHA4, UFSkill, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

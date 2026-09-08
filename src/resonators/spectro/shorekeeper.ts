@@ -34,6 +34,7 @@ import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { SPACETREK_EXPLORER, STARRY_RADIANCE_5PC } from "../../echoes/lahairoi.js";
+import { TUNE_BREAK } from "../../shared/tunebreak.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -231,13 +232,16 @@ const SHOREKEEPER_RESONATOR = new Resonator({
 
 const BA123 = new ActionGroup("Basic - Origin Calculus 123", [BA1, BA2, BA3]);
 
+const BA23 = new ActionGroup("Basic - Origin Calculus 23", [BA2, BA3]);
+const BA12 = new ActionGroup("Basic - Origin Calculus 12", [BA1, BA2]);
+
 const SK_LOOP = new Rotation([
   START_3, Skill, Liberation, ECHO_SWAP, SWAP,
 
   NOINTRO, 
   BA123, JUMP, MA, FHA,
-  Skill, BA2, BA3, DODGE,
-  BA1, BA2, FHA, 
+  Skill, BA23, DODGE,
+  BA12, FHA, 
   Liberation, ECHO_SWAP, OUTRO,
 
   INTRO, BA123, JUMP, MA, FHA,
@@ -273,7 +277,7 @@ export const SHOREKEEPER = new Loadout({
   ],
   sequences: [SK_S1, SK_S2, SK_S3, SK_S4, SK_S5, SK_S6],
   mainstats: [mainstats(Mainstat.HP4, Mainstat.ER3, Mainstat.ER3, Mainstat.HP1, Mainstat.HP1)],
-  substat: substats(Substat.HpPct, Substat.Liberation, Substat.FlatHp),
+  substat: substats(Substat.HpPct, Substat.Liberation, Substat.FlatHp, true),
   highSubstat: highSubs(Substat.Er, Substat.Liberation, Substat.HpPct, Substat.Liberation),
     rotation: [SK_LOOP, SK_LOOP, SK_LOOP, SK_LOOP_S3],
 });

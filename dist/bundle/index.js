@@ -1,5 +1,6 @@
 import {
   ALL_TEAMS,
+  AXES,
   BASE_RESISTANCE,
   CAST_NAME,
   DODGE,
@@ -11,6 +12,7 @@ import {
   SWAP,
   TAG_NAME,
   TUNE_BREAK_ENEMY,
+  axisOpen,
   baseSequence,
   bestKey,
   comboOf,
@@ -19,6 +21,7 @@ import {
   effectiveRes,
   effectiveShred,
   eligibleWeapons,
+  filterSignature,
   isPercent,
   member,
   menuStats,
@@ -35,7 +38,7 @@ import {
   tagKind,
   teamAt,
   teamKey
-} from "./chunk-UCJQRVJS.js";
+} from "./chunk-UZ3K6DIE.js";
 
 // dist/src/display.js
 var keysFor = (action, ...stats) => stats.flatMap((stat) => [
@@ -273,10 +276,6 @@ function tracing(snapshot, stats, merge = true) {
     }
   }
   return rows.sort((a, b) => tagRank(a.stat ?? 0) - tagRank(b.stat ?? 0));
-}
-function columnSources(snapshot, key) {
-  const feeds = FEEDS[key];
-  return feeds ? tracing(snapshot, feeds(snapshot.action)) : [];
 }
 var columnOf = (report, key) => report.columns.find((c) => c.key === key);
 var num = (v, digits = 0, pad = false, group = false) => v == null ? "" : v.toLocaleString("en-US", { maximumFractionDigits: digits, minimumFractionDigits: pad ? digits : 0, useGrouping: group });
@@ -701,9 +700,9 @@ function buildReport(lines, { strip = null } = {}) {
 }
 
 // dist/src/index.js
-var TEAMS = Object.fromEntries(ALL_TEAMS.map(({ loadouts, dpsIndex }, i) => [
+var TEAMS = Object.fromEntries(ALL_TEAMS.map(({ loadouts, mdps }, i) => [
   teamKey(i),
-  loadouts.map((l, j) => member(l, j === dpsIndex))
+  loadouts.map((l, j) => member(l, mdps[j]))
 ]));
 var RESONATOR_ROLE = /* @__PURE__ */ new Map();
 for (const members of Object.values(TEAMS)) {
@@ -713,29 +712,25 @@ for (const members of Object.values(TEAMS)) {
     RESONATOR_ROLE.set(m.name, seen && seen !== role ? "both" : seen ?? role);
   }
 }
-var baseName = (key) => key.replace(/ \((?:mdps|support)\)$/, "");
-function explicitRoleTag(key) {
+var roleKey = (name, mdps) => RESONATOR_ROLE.get(name) === "both" ? `${name} (${mdps ? "mdps" : "support"})` : name;
+function parseRoleKey(key) {
   const m = /^(.*) \((mdps|support)\)$/.exec(key);
-  return m ? { name: m[1], role: m[2] } : { name: key, role: null };
-}
-var roleTagged = (name, mdps, ambiguous) => ambiguous ? `${name} (${mdps ? "mdps" : "support"})` : name;
-function roleTagLabel(key) {
-  const { name, role } = explicitRoleTag(key);
-  return role ? `${esc(name)} <span class="roletag">(${role})</span>` : esc(key);
-}
-var resonatorFilterKey = (name, mdps) => roleTagged(name, mdps, RESONATOR_ROLE.get(name) === "both");
-var RESONATOR_KEY_BY_COMPACT = /* @__PURE__ */ new Map();
-for (const name of RESONATOR_ROLE.keys()) {
-  for (const key of [name, resonatorFilterKey(name, true), resonatorFilterKey(name, false)]) {
-    RESONATOR_KEY_BY_COMPACT.set(key.replace(/ /g, ""), key);
-  }
-}
-function parseResonatorFilter(key) {
-  const tag = explicitRoleTag(key);
-  if (tag.role)
-    return tag;
+  if (m)
+    return { name: m[1], role: m[2] };
   const role = RESONATOR_ROLE.get(key);
   return { name: key, role: role === "both" ? null : role ?? null };
+}
+function roleTagLabel(key) {
+  const m = /^(.*) \((mdps|support)\)$/.exec(key);
+  return m ? `${esc(m[1])} <span class="roletag">(${m[2]})</span>` : esc(key);
+}
+var RESONATOR_KEY_BY_COMPACT = /* @__PURE__ */ new Map();
+for (const members of Object.values(TEAMS)) {
+  for (const m of members) {
+    const key = roleKey(m.name, m.mainDps);
+    for (const form of [m.name, key, `${m.name} (${m.mainDps ? "mdps" : "support"})`])
+      RESONATOR_KEY_BY_COMPACT.set(form.replace(/ /g, ""), key);
+  }
 }
 var resonatorFilters = new Map([].map((name) => [name, "exclude"]));
 var weaponFilters = /* @__PURE__ */ new Map();
@@ -750,49 +745,27 @@ var OPTION_FILTER_MAPS = {
 };
 var searchText = "";
 var filters = defaultFilters();
-var gearRoleCache = null;
-function candidateRoles(kind, f = filters) {
-  const sig = [
-    f.mdpsWeapons,
-    f.supportWeapons,
-    f.mdpsEchoes,
-    f.supportEchoes,
-    f.mdpsMainstats,
-    f.supportMainstats,
-    f.allowR1Mdps,
-    f.allowR1Supports
-  ].join(",");
-  if (gearRoleCache?.sig !== sig) {
-    const roles = { weapon: /* @__PURE__ */ new Map(), echo: /* @__PURE__ */ new Map(), mainstat: /* @__PURE__ */ new Map() };
-    const add = (k, name, role) => roles[k].set(name, (roles[k].get(name) ?? /* @__PURE__ */ new Set()).add(role));
+var gearCache = null;
+function offeredGear(kind, f = filters) {
+  const sig = filterSignature(f);
+  if (gearCache?.sig !== sig) {
+    const offered = { weapon: /* @__PURE__ */ new Set(), echo: /* @__PURE__ */ new Set(), mainstat: /* @__PURE__ */ new Set() };
     for (const members of Object.values(TEAMS)) {
       for (const m of members) {
-        const role = m.mainDps ? "mdps" : "support";
-        if (m.mainDps ? f.mdpsWeapons : f.supportWeapons) {
+        if (axisOpen(m, f, "weapons"))
           for (const i of eligibleWeapons(m, f))
-            add("weapon", m.loadout.weapons[i].name, role);
-        }
-        if (m.mainDps ? f.mdpsEchoes : f.supportEchoes) {
+            offered.weapon.add(m.loadout.weapons[i].name);
+        if (axisOpen(m, f, "echoes"))
           for (const e of m.loadout.echoLoadouts)
-            add("echo", echoLabel(m.loadout, e), role);
-        }
-        if (m.mainDps ? f.mdpsMainstats : f.supportMainstats) {
+            offered.echo.add(echoLabel(m.loadout, e));
+        if (axisOpen(m, f, "mainstats"))
           for (const g of m.loadout.mainstats)
-            add("mainstat", g.name, role);
-        }
+            offered.mainstat.add(g.name);
       }
     }
-    gearRoleCache = { sig, roles };
+    gearCache = { sig, offered };
   }
-  return gearRoleCache.roles[kind];
-}
-var gearFilterKey = (kind, name, mdps, f = filters) => roleTagged(name, mdps, candidateRoles(kind, f).get(name)?.size === 2);
-function parseGearFilter(kind, key, f = filters) {
-  const tag = explicitRoleTag(key);
-  if (tag.role)
-    return tag;
-  const roles = candidateRoles(kind, f).get(key);
-  return { name: key, role: roles?.size === 1 ? [...roles][0] : null };
+  return gearCache.offered[kind];
 }
 var ROW_CAP = 3e3;
 function focusSearch() {
@@ -848,13 +821,19 @@ function discardRestoredSolves() {
   }
   return true;
 }
-var filterSignature = (f) => Object.values(f).join(",");
-function filtersOfKey(key) {
-  const flags = (key.split("|")[1] ?? "").split(",").map((v) => v === "true");
+function filtersOfKey(key, members) {
+  const [, matrix, cost, bits] = key.split("|");
   const f = defaultFilters();
-  FILTER_KEYS.forEach((k, i) => {
-    if (i < flags.length)
-      f[k] = flags[i];
+  f.matrix = matrix === "true";
+  f.cost = cost;
+  (bits ?? "").split(",").forEach((b, i) => {
+    const m = members[i];
+    if (!m)
+      return;
+    AXES.forEach((a, k) => {
+      if (b[k] === "1")
+        f[a].push(m.loadout.resonator.name);
+    });
   });
   return f;
 }
@@ -867,16 +846,17 @@ function picksFit(key, picks) {
     return p.weapon < l.weapons.length && p.echo < l.echoLoadouts.length && p.mainstat < l.mainstats.length;
   });
 }
-function solveFits(key, solved, f = filters) {
+function solveFits(key, solved, f) {
   const team = teamAt(key.split("|")[0]);
   if (!team)
     return false;
-  const members = team.loadouts.map((l, i) => member(l, i === team.dpsIndex));
-  if (!picksFit(key, solved.picks) || !solved.rows.every((r) => picksFit(key, r)))
+  const members = team.loadouts.map((l, i) => member(l, team.mdps[i]));
+  f ??= filtersOfKey(key, members);
+  if (!picksFit(key, solved.picks) || !solved.rows.every((r) => picksFit(key, r)) || !(solved.hidden ?? []).every((r) => picksFit(key, r)))
     return false;
   const names = /* @__PURE__ */ new Set([...members.map((m) => m.name), TUNE_BREAK_ENEMY.name]);
-  const dps = members[team.dpsIndex].name;
-  if (!solved.scores.every((s) => s.bySlot.every(([n]) => names.has(n)) && s.bySlot.some(([n]) => n === dps)))
+  const dps = members.filter((m) => m.mainDps).map((m) => m.name);
+  if (!solved.scores.every((s) => s.bySlot.every(([n]) => names.has(n)) && dps.every((d) => s.bySlot.some(([n]) => n === d))))
     return false;
   const expected = members.reduce((n, m) => n * sequenceLevels(m, f).length, 1);
   const patterns = new Set(solved.rows.map((r) => r.map((p) => p.sequence).join(".")));
@@ -914,7 +894,7 @@ async function loadSolves() {
     if (saved.stamp !== buildStamp)
       return;
     for (const [k, v] of saved.solves)
-      if (solveFits(k, v, filtersOfKey(k))) {
+      if (solveFits(k, v)) {
         bestPicks.set(k, v);
         restoredSolves = true;
       }
@@ -957,36 +937,31 @@ function saveSolves() {
   } catch {
   }
 }
-function roleFilterHolds(map, occurrences, parseKey) {
-  if (!map.size)
-    return true;
-  const parsed = [...map].map(([key, mode]) => ({ ...parseKey(key), mode }));
-  const holds = (name, role) => occurrences.some((o) => o.name === name && (role === null || o.mdps === (role === "mdps")));
-  const mdpsIncludes = parsed.filter((f) => f.mode === "include" && f.role === "mdps");
-  if (mdpsIncludes.length && !mdpsIncludes.some((f) => holds(f.name, f.role)))
+var namesHold = (map, names) => [...map].every(([name, mode]) => names.includes(name) === (mode === "include"));
+function teamWanted(members) {
+  const holds = (name, role) => members.some((m) => m.name === name && (role === null || m.mainDps === (role === "mdps")));
+  const parsed = [...resonatorFilters].map(([key, mode]) => ({ ...parseRoleKey(key), mode }));
+  const ors = parsed.filter((f) => f.mode === "include" && f.role === "mdps");
+  if (ors.length && !ors.some((f) => holds(f.name, f.role)))
     return false;
   return parsed.every((f) => f.mode === "include" && f.role === "mdps" || holds(f.name, f.role) === (f.mode === "include"));
 }
-var teamWanted = (members) => roleFilterHolds(resonatorFilters, members.map((m) => ({ name: m.name, mdps: m.mainDps })), parseResonatorFilter);
 function echoLines(l, echo) {
   const showMainslot = l.echoLoadouts.some((e) => e.sonata === echo.sonata && e.mainslot !== echo.mainslot);
   const lines = echo.sets.map((g) => g.name);
   if (showMainslot)
-    lines[0] = `${lines[0]} (${echo.mainslot.name})`;
+    lines.push(echo.mainslot.name);
   return lines;
 }
 var echoLabel = (l, echo) => echoLines(l, echo).join(" + ");
 function sequenceTagAt(m, sequence, f = filters) {
-  const open = f[m.mainDps ? "mdpsSequences" : "supportSequences"];
-  if (!open || sequence <= baseSequence(m.loadout.resonator))
+  if (!axisOpen(m, f, "sequences") || sequence <= baseSequence(m.loadout.resonator))
     return null;
   return `${m.name} S${sequence}`;
 }
 var sequenceTag = (m, combo) => sequenceTagAt(m, combo.sequence);
 function rowWanted(row) {
-  const named = (map, names) => [...map].every(([name, mode]) => names.includes(name) === (mode === "include"));
-  const occurrences = (name) => row.members.map((m, i) => ({ name: name(i), mdps: m.mainDps }));
-  return roleFilterHolds(weaponFilters, occurrences((i) => row.combo[i].weapon.name), (k) => parseGearFilter("weapon", k)) && roleFilterHolds(echoFilters, occurrences((i) => echoLabel(row.members[i].loadout, row.combo[i].echo)), (k) => parseGearFilter("echo", k)) && roleFilterHolds(mainstatFilters, occurrences((i) => row.combo[i].mainstat.name), (k) => parseGearFilter("mainstat", k)) && named(sequenceFilters, row.combo.flatMap((c, i) => sequenceTag(row.members[i], c) ?? []));
+  return namesHold(weaponFilters, row.combo.map((c) => c.weapon.name)) && namesHold(echoFilters, row.combo.map((c, i) => echoLabel(row.members[i].loadout, c.echo))) && namesHold(mainstatFilters, row.combo.map((c) => c.mainstat.name)) && namesHold(sequenceFilters, row.combo.flatMap((c, i) => sequenceTag(row.members[i], c) ?? []));
 }
 function expandTeam(teamKey2, members) {
   const solved = bestPicks.get(bestKey(teamKey2, members, filters));
@@ -1003,15 +978,22 @@ function expandTeam(teamKey2, members) {
     if (score && !results.has(key))
       results.set(key, runFromScore(teamKey2, members, combo, score));
   });
+  (solved.hidden ?? []).forEach((picks, r) => {
+    const combo = picks.map((p, i) => comboOf(members[i].loadout, p));
+    const key = `${teamKey2}-${combo.map((c) => c.key).join("-")}`;
+    const score = solved.hiddenScores?.[r];
+    if (score && !results.has(key))
+      results.set(key, runFromScore(teamKey2, members, combo, score));
+  });
   return [...rows.values()].filter(rowWanted);
 }
 var teamRows = () => Object.entries(TEAMS).flatMap(([key, members]) => expandTeam(key, members));
-function axisWays(lists, map, cap = Infinity, kind, f = filters) {
+function axisWays(lists, map, cap = Infinity) {
   const excluded = [...map].filter(([, mode]) => mode === "exclude").map(([n]) => n);
   const sizes = (drop) => lists.map((l) => l === null ? 1 : l.filter((n) => !drop.includes(n)).length);
   const product = (drop) => sizes(drop).reduce((p, n) => p * Math.min(cap, n), 1);
   const untestable = lists.includes(null) || sizes(excluded).some((n) => n > cap);
-  const included = untestable ? [] : [...map].filter(([n, mode]) => mode === "include" && !(kind && parseGearFilter(kind, n, f).role === "mdps")).map(([n]) => n);
+  const included = untestable ? [] : [...map].filter(([, mode]) => mode === "include").map(([n]) => n);
   let total = 0;
   for (let mask = 0; mask < 1 << included.length; mask++) {
     const banned = included.filter((_, k) => mask & 1 << k);
@@ -1020,8 +1002,7 @@ function axisWays(lists, map, cap = Infinity, kind, f = filters) {
   return total;
 }
 function estimatedRowCount(members, f = filters) {
-  const openFor = (m, mdpsKey, supportKey) => f[m.mainDps ? mdpsKey : supportKey];
-  return axisWays(members.map((m) => openFor(m, "mdpsWeapons", "supportWeapons") ? eligibleWeapons(m, f).map((i) => m.loadout.weapons[i].name) : null), weaponFilters, Infinity, "weapon", f) * axisWays(members.map((m) => openFor(m, "mdpsEchoes", "supportEchoes") ? m.loadout.echoLoadouts.map((e) => echoLabel(m.loadout, e)) : null), echoFilters, Infinity, "echo", f) * axisWays(members.map((m) => openFor(m, "mdpsMainstats", "supportMainstats") ? m.loadout.mainstats.map((g) => g.name) : null), mainstatFilters, MAINSTAT_ROWS, "mainstat", f) * axisWays(members.map((m) => sequenceLevels(m, f).map((level) => sequenceTagAt(m, level, f) ?? "")), sequenceFilters);
+  return axisWays(members.map((m) => axisOpen(m, f, "weapons") ? eligibleWeapons(m, f).map((i) => m.loadout.weapons[i].name) : null), weaponFilters) * axisWays(members.map((m) => axisOpen(m, f, "echoes") ? m.loadout.echoLoadouts.map((e) => echoLabel(m.loadout, e)) : null), echoFilters) * axisWays(members.map((m) => axisOpen(m, f, "mainstats") ? m.loadout.mainstats.map((g) => g.name) : null), mainstatFilters, MAINSTAT_ROWS) * axisWays(members.map((m) => sequenceLevels(m, f).map((level) => sequenceTagAt(m, level, f) ?? "")), sequenceFilters) * members.reduce((n, m) => n * (axisOpen(m, f, "substats") ? 2 : 1), 1);
 }
 function prospectiveRows(f = filters) {
   return Object.entries(TEAMS).filter(([, members]) => teamWanted(members)).reduce((sum, [, members]) => sum + estimatedRowCount(members, f), 0);
@@ -1105,12 +1086,6 @@ function buildPop(kind, key) {
   if (kind === "dpr") {
     const run = results.get(key);
     return run ? `<span class="pop dpr">${dprTable(run)}</span>` : "";
-  }
-  if (kind === "gear") {
-    const at = key.lastIndexOf("|");
-    const run = results.get(key.slice(0, at));
-    const src = Number(key.slice(at + 1));
-    return run ? gearPopoverHtml(run.members[src], run.combo[src], false) : "";
   }
   return "";
 }
@@ -1393,23 +1368,21 @@ function menuStatRows(member2, combo) {
   pushBest(OTHER_SCOPES);
   return rows;
 }
-var subsLabel = (combo) => combo.highSubs ? "CN Subs" : "ChemX32";
-function gearPopoverHtml(member2, combo, withStats) {
-  const head = withStats ? "" : `<tr class="hint"><td colspan="2">Left Click to filter, Right Click to exclude</td></tr><tr class="gear"><td class="k">Resonator</td><td class="v">${esc(member2.name)}</td></tr>`;
-  if (!withStats)
-    return `<span class="pop gear"><table>${head}${gearRows(member2, combo)}</table></span>`;
+var subsLabel = (combo) => combo.highSubs ? "High Invest" : "ChemX32";
+function gearPopoverHtml(member2, combo) {
   const stats = menuStatRows(member2, combo).map((r) => `<tr class="stat"><td class="k">${esc(r.label)}</td><td class="v">${esc(r.value)}</td></tr>`).join("");
   const lines = substatLines(combo.highSubs ? member2.loadout.highSubstat : member2.loadout.substat);
   const rolls = lines.map((l) => `<tr class="stat${l.rolls === 1 ? " one" : ""}"><td class="k">${esc(l.text)}</td><td class="v n">${l.rolls}</td></tr>`).join("") + `<tr class="sum"><td class="k">Total</td><td class="v n">${lines.reduce((n, l) => n + l.rolls, 0)}</td></tr>`;
   return `<span class="pop gear"><div class="cols"><table><tr class="sec"><td colspan="2">Loadout</td></tr>${gearRows(member2, combo)}<tr class="sec"><td colspan="2">Menu Stats</td></tr>${stats}</table><table><tr class="sec"><td colspan="2">Substats</td></tr>${rolls}</table></div></span>`;
 }
-var gearPopover = (member2, combo) => lazyPop(gearPopoverHtml(member2, combo, true));
+var gearPopover = (member2, combo) => lazyPop(gearPopoverHtml(member2, combo));
 function memberLabel(m, combo) {
   const l = m.loadout;
   const mdps = m.mainDps;
-  const seq = baseSequence(l.resonator) > 0 || (mdps ? filters.mdpsSequences : filters.supportSequences) ? `S${combo.sequence}` : "";
+  const seq = baseSequence(l.resonator) > 0 || axisOpen(m, filters, "sequences") ? `S${combo.sequence}` : "";
   const rank = combo.weapon.tier === 2 && l.resonator.tier !== 0 ? "R5" : combo.weapon.tier === 0 ? "R1" : "R0";
-  return [l.resonator.name, `${seq}${rank}`].filter(Boolean).join(" ");
+  const name = l.mode ? `${l.resonator.name} (${l.mode.abbr})` : l.resonator.name;
+  return [name, `${seq}${rank}`].filter(Boolean).join(" ");
 }
 function optionCell(kind, value, color, lines = [value]) {
   const style = `--mem:${color}`;
@@ -1428,17 +1401,16 @@ function searchCandidates() {
   };
   for (const members of Object.values(TEAMS)) {
     for (const m of members) {
-      add("resonator", resonatorFilterKey(m.name, m.mainDps));
-      const open = (mdps, support) => filters[m.mainDps ? mdps : support];
-      if (open("mdpsWeapons", "supportWeapons"))
+      add("resonator", roleKey(m.name, m.mainDps));
+      if (axisOpen(m, filters, "weapons"))
         for (const i of eligibleWeapons(m, filters))
-          add("weapon", gearFilterKey("weapon", m.loadout.weapons[i].name, m.mainDps));
-      if (open("mdpsEchoes", "supportEchoes"))
+          add("weapon", m.loadout.weapons[i].name);
+      if (axisOpen(m, filters, "echoes"))
         for (const e of m.loadout.echoLoadouts)
-          add("echo", gearFilterKey("echo", echoLabel(m.loadout, e), m.mainDps));
-      if (open("mdpsMainstats", "supportMainstats"))
+          add("echo", echoLabel(m.loadout, e));
+      if (axisOpen(m, filters, "mainstats"))
         for (const g of m.loadout.mainstats)
-          add("mainstat", gearFilterKey("mainstat", g.name, m.mainDps));
+          add("mainstat", g.name);
       for (const level of sequenceLevels(m, filters).slice(1)) {
         const tag = sequenceTagAt(m, level);
         if (tag)
@@ -1468,91 +1440,48 @@ function searchResults() {
   if (!hits.length)
     return `<div class="sresult none">no matches</div>`;
   return hits.map(({ kind, value }) => {
-    const hue = (kind === "resonator" ? RESONATOR_HUE.get(baseName(value)) : kind === "sequence" ? RESONATOR_HUE.get(value.replace(/ S\d+$/, "")) : void 0) ?? TUNE_BREAK_ENEMY.color;
-    return `<button type="button" class="sresult" data-kind="${kind}" data-value="${esc(value)}" style="--mem:${hue}" title="${esc(value)} \u2014 include: only rows using them; exclude (or right click): no row using them; either again to clear."><span class="sact inc"><span class="sname">${roleTagLabel(value)}<span class="skind">${KIND_LABEL[kind]}</span></span><span class="slabel">include <span class="box">\u2713</span></span></span><span class="sact exc"><span class="slabel">exclude <span class="box">\u2715</span></span></span></button>`;
+    const hue = (kind === "resonator" ? RESONATOR_HUE.get(parseRoleKey(value).name) : kind === "sequence" ? RESONATOR_HUE.get(value.replace(/ S\d+$/, "")) : void 0) ?? TUNE_BREAK_ENEMY.color;
+    return `<button type="button" class="sresult" data-kind="${kind}" data-value="${esc(value)}" style="--mem:${hue}" title="${esc(value)} \u2014 show: teams with them; hide (or right click): no team with them. Either again to clear."><span class="sact inc"><span class="sname">${roleTagLabel(value)}<span class="skind">${KIND_LABEL[kind]}</span></span><span class="slabel">show</span></span><span class="sact exc"><span class="slabel">hide</span></span></button>`;
   }).join("");
 }
-var PAIRS = [
-  {
-    id: "r1",
-    label: "Signature Weapons",
-    mdps: "allowR1Mdps",
-    support: "allowR1Supports",
-    help: "Allow that role to use signature weapons (R1), otherwise they run standard and 4* weapons only"
-  },
-  {
-    id: "sequences",
-    label: "Show Sequences",
-    mdps: "mdpsSequences",
-    support: "supportSequences",
-    help: "Show sequences S1-S6 for 5 star standard and limited resonators"
-  },
-  {
-    id: "weapons",
-    label: "Compare Weapons",
-    mdps: "mdpsWeapons",
-    support: "supportWeapons",
-    help: "Compare weapon options for that role, enable R1 weapons to see signature options"
-  },
-  {
-    id: "echoes",
-    label: "Compare Sonatas",
-    mdps: "mdpsEchoes",
-    support: "supportEchoes",
-    help: "Compare sonata and mainslot echo options for that role"
-  },
-  {
-    id: "mainstats",
-    label: "Compare Mainstats",
-    mdps: "mdpsMainstats",
-    support: "supportMainstats",
-    help: "Compare echo mainstat combos for that role"
-  },
-  {
-    id: "highsubs",
-    label: "Show Substat Gains",
-    mdps: "mdpsHighSubs",
-    support: "supportHighSubs",
-    help: "Display high investment substat gains. Otherwise, only show ChemX32 standard substats."
-  }
+var COST_HELP = [
+  "Full S0R0 - Limited resonators are S0 and use the best standard or 4* weapon available at R1. Rover and 4* resonators are S6.",
+  "S0R1 mdps - Each team gets a single signature weapon at R1 that gives the best DPR increase, in most cases the team's main DPS. Dual DPS teams still only get one signature weapon.",
+  "S0R1 all - All limited resonators get their best signature weapon, while Rover and 4* supports may still use standard or 4* weapons."
 ];
 var MATRIX_HELP = "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.";
 var STANDARDS = [
-  "Rotations are 123, or 1323 for resonators that need double intro (jinhsi, brant, etc).",
-  "In some cases, a character may use their liberation at the start of the fight for free damage.",
-  "Each rotation is achievable in 25-27 seconds, and we assume 4 rotations in 2 minutes.",
+  "Rotations are 123, 1323, or 12323 for double intro and unison (jinhsi, brant, hsin, etc).",
+  "A resonator may use their liberation at the start of the fight for free damage or buffs.",
+  "Each rotation is achievable in 25-28 seconds, and we assume 4 rotations in 2 minutes.",
   "Combat is performed against a single level 100 boss with 20% resistance to all attributes.",
-  "Resonators and weapons are level 90, with all skill nodes at level 10.",
-  "Standard characters are S0, four star resonators and rover are S6 by default.",
-  "Standard 5 star weapons are R1 and four star weapons are R5 by default.",
-  "The simulation uses estimated, not frame exact buff uptimes in some cases to simplify calculations.",
-  "This is to enable large scale automatic team calculations. It will never effect DPR by more than 1-2%.",
-  "If you find an issue in buff timing, stats, builds, etc ping me on discord."
+  "Resonators and weapons are level 90, with all skill nodes at level 10."
 ];
 var README = [
   "All beta calculations are subject to change!",
-  "There may be issues during early beta especially with Hsin and Suoming.",
-  "Not all character sequences are implemented, im working on them.",
-  "If you find any issues with stats, buffs, or damage seems way off, ping me @rileyy._. on discord."
+  "Not all character sequences are implemented YET.",
+  "Jingran DPR went down due to over estimated shield counts in the old calculations.",
+  "Hsin Unison DPR went down because we found out Unison Boon gives 3% amp, not 3% vuln.",
+  "If you find an issue in rotations, buffs, stats, builds, or abnormal damage ping me on discord @rileyy._."
 ];
 var BROWSING = [
-  "Left click a resonator or gear name to show only teams with it, right click to hide them.",
-  "Search bar: type a resonator, enter filters the top result.",
-  "Gear (weapons, sonatas, mainslot echoes, mainstats) filters once its Compare box is on. Substats show but don't filter.",
-  "Slot 1/2/3 headers: personal DPR and Compare % vs that slot's baseline build.",
-  "Team Compare %: click to set the baseline team. Click the header to toggle the colouring.",
-  "view rotation: the full action log with rotations, stats, buffs, damage and energy."
+  "Click on the Slot 1/2/3 header to show Personal DPR",
+  "Click a resonator or gear name to open a filter and gear comparison menu",
+  "The menu shows or hides teams with that name, or compares that resonator's weapons, sonatas, mainstats, substats or sequences.",
+  "Right click a name to filter and show teams with it straight away.",
+  "Click on a teams DPR avg total to view a table with contribution and rotation breakdown.",
+  "Use view rotation to see the full action log with rotations, stats, buffs, resources, and energy requirements."
 ];
 var openHelp = /* @__PURE__ */ new Set(["readme"]);
 function comparisonFilters() {
+  const costBox = () => {
+    const open = openHelp.has("cost");
+    const option = (value, label) => `<option value="${value}"${filters.cost === value ? " selected" : ""}>${label}</option>`;
+    return `<div class="tcopt${open ? " open" : ""}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="cost" aria-expanded="${open}">Team Cost<span class="arrow">\u203A</span></button><select id="cost" class="tcselect" aria-label="Team Cost" title="Team Cost">` + option("s0r0", "Full S0R0") + option("s0r1mdps", "S0R1 mdps only") + option("s0r1", "Full S0R1") + `</select></div><div class="tcopt-desc"${open ? "" : " hidden"}><ul>${COST_HELP.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div></div>`;
+  };
   const filter = (id, label) => {
     const open = openHelp.has(id);
     return `<div class="tcopt${open ? " open" : ""}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="${id}" aria-expanded="${open}">${esc(label)}<span class="arrow">\u203A</span></button><input type="checkbox" id="${id}" aria-label="${esc(label)}" title="${esc(label)}"${filters[id] ? " checked" : ""}></div><div class="tcopt-desc"${open ? "" : " hidden"}>${esc(MATRIX_HELP)}</div></div>`;
-  };
-  const pair = ({ id, label, mdps, support, help }) => {
-    const open = openHelp.has(id);
-    const role = (key, name) => `<label class="tcopt-role">${name}<input type="checkbox" id="${key}" title="${esc(label)} ${name}"${filters[key] ? " checked" : ""}></label>`;
-    return `<div class="tcopt pair${open ? " open" : ""}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="${id}" aria-expanded="${open}">${esc(label)}<span class="arrow">\u203A</span></button>` + role(mdps, "mdps") + role(support, "support") + `</div><div class="tcopt-desc"${open ? "" : " hidden"}>${esc(help)}</div></div>`;
   };
   const note = (id, label, lines) => {
     const open = openHelp.has(id);
@@ -1563,6 +1492,8 @@ function comparisonFilters() {
       ${note("readme", "README", README)}
       ${note("standards", "Standards and Assumptions", STANDARDS)}
       ${note("browsing", "How to Browse and Filter", BROWSING)}
+      ${costBox()}
+      ${filter("matrix", "Enable Matrix Buffs")}
       <div class="tcsearchrow">
         <div class="tcsearch">
           <input id="optionSearch" type="search" placeholder="Filter resonators..."
@@ -1572,163 +1503,201 @@ function comparisonFilters() {
         ${resonatorChips()}
       </div>
     </div>
-    <div class="tcfilter-row tcroles">
-      ${PAIRS.map(pair).join("")}
-      ${filter("matrix", "Enable Matrix Buffs")}
-    </div>
     <div class="tcwarning" id="rowCapWarning" hidden></div>
   </div>`;
 }
+var AXIS_LABEL = {
+  weapons: "Weapons",
+  echoes: "Sonatas",
+  mainstats: "Mainstats",
+  substats: "Substats",
+  sequences: "Sequences"
+};
 function resonatorChips() {
-  const nameChips = [...resonatorFilters].map(([name, mode]) => {
-    const included = mode === "include";
-    return `<button type="button" class="rchip ${included ? "inc" : "exc"}" data-resonator="${esc(name)}" style="--mem:${RESONATOR_HUE.get(baseName(name)) ?? TUNE_BREAK_ENEMY.color}" title="${esc(name)} \u2014 ${included ? "only teams fielding them" : "no team fielding them"}. Click to clear.">${roleTagLabel(name)}<span class="box">${included ? "\u2713" : "\u2715"}</span></button>`;
-  }).join("");
-  const pickChips = Object.entries(OPTION_FILTER_MAPS).flatMap(([kind, map]) => [...map].map(([name, mode]) => {
-    const included = mode === "include";
-    const hue = kind === "sequence" ? RESONATOR_HUE.get(name.replace(/ S\d+$/, "")) : void 0;
-    return `<button type="button" class="rchip ${included ? "inc" : "exc"}" data-kind="${kind}" data-value="${esc(name)}"` + (hue ? ` style="--mem:${hue}"` : "") + ` title="${esc(name)} \u2014 ${included ? "only rows using them" : "no row using them"}. Click to clear.">${roleTagLabel(name)}<span class="box">${included ? "\u2713" : "\u2715"}</span></button>`;
-  })).join("");
-  const chips = nameChips + pickChips;
-  return chips ? `<div class="tcchips">${chips}</div>` : "";
+  const inc = [], exc = [];
+  const bucket = (mode) => mode === "include" ? inc : exc;
+  const MODE_TITLE = { include: "these", exclude: "none of these" };
+  for (const [name, mode] of resonatorFilters) {
+    bucket(mode).push(`<button type="button" class="rchip" data-resonator="${esc(name)}" style="--mem:${RESONATOR_HUE.get(parseRoleKey(name).name) ?? TUNE_BREAK_ENEMY.color}" title="${esc(name)} \u2014 teams fielding ${MODE_TITLE[mode]}. Click to remove.">${roleTagLabel(name)}</button>`);
+  }
+  for (const [kind, map] of Object.entries(OPTION_FILTER_MAPS)) {
+    for (const [name, mode] of map) {
+      const hue = kind === "sequence" ? RESONATOR_HUE.get(name.replace(/ S\d+$/, "")) : void 0;
+      bucket(mode).push(`<button type="button" class="rchip" data-kind="${kind}" data-value="${esc(name)}"` + (hue ? ` style="--mem:${hue}"` : "") + ` title="${esc(name)} \u2014 rows using ${MODE_TITLE[mode]}. Click to remove.">${esc(name)}</button>`);
+    }
+  }
+  for (const axis of AXES) {
+    for (const name of filters[axis]) {
+      inc.push(`<button type="button" class="rchip" data-axis="${axis}" data-resonator="${esc(name)}" style="--mem:${RESONATOR_HUE.get(name) ?? TUNE_BREAK_ENEMY.color}" title="Comparing ${esc(name)}'s ${AXIS_LABEL[axis].toLowerCase()}. Click to remove.">${esc(name)} ${AXIS_LABEL[axis]}</button>`);
+    }
+  }
+  const section = (label, chips2) => chips2.length ? `<div class="chipsec"><span class="chiplabel">${label}</span><div class="chiprow">${chips2.join("")}</div></div>` : "";
+  const chips = section("Shown", inc) + section("Hidden", exc);
+  return chips ? `<div class="tcchips">${chips}<button type="button" class="clearall"><span>Clear Filters</span></button></div>` : "";
+}
+function comparable(name, axis) {
+  for (const members of Object.values(TEAMS)) {
+    for (const m of members) {
+      if (m.name !== name)
+        continue;
+      const l = m.loadout;
+      const n = axis === "weapons" ? l.weapons.length : axis === "echoes" ? l.echoLoadouts.length : axis === "mainstats" ? l.mainstats.length : axis === "substats" ? 2 : l.sequences.length ? l.resonator.tier === 2 ? l.sequences.length + 1 : l.sequences.length - Math.min(baseSequence(l.resonator), l.sequences.length) + 1 : 1;
+      if (n > 1)
+        return true;
+    }
+  }
+  return false;
+}
+function setCompare(name, axis) {
+  withRowCap(() => {
+    const list = filters[axis];
+    const was = list.includes(name);
+    if (was)
+      list.splice(list.indexOf(name), 1);
+    else
+      list.push(name);
+    const kept = Object.values(OPTION_FILTER_MAPS).map((map) => [...map]);
+    if (was)
+      pruneGearFilters();
+    return () => {
+      if (was)
+        list.push(name);
+      else
+        list.splice(list.indexOf(name), 1);
+      Object.values(OPTION_FILTER_MAPS).forEach((map, i) => {
+        map.clear();
+        for (const [n, mode] of kept[i])
+          map.set(n, mode);
+      });
+    };
+  });
+}
+function pruneGearFilters() {
+  for (const kind of ["weapon", "echo", "mainstat"]) {
+    const offered = offeredGear(kind);
+    for (const key of [...OPTION_FILTER_MAPS[kind].keys()])
+      if (!offered.has(key))
+        OPTION_FILTER_MAPS[kind].delete(key);
+  }
+  for (const key of [...sequenceFilters.keys()]) {
+    if (!filters.sequences.includes(key.replace(/ S\d+$/, "")))
+      sequenceFilters.delete(key);
+  }
 }
 var dprOpenAt = [false, false, false];
 var hueShown = true;
 function comparisonTable(rows) {
-  const sorted = rows.map((row) => [row.key, results.get(row.key)]).sort((a, b) => b[1].total - a[1].total);
-  const twins = /* @__PURE__ */ new Map();
-  const setupKey = (m, c) => {
-    const echoes = m.mainDps ? filters.mdpsEchoes : filters.supportEchoes;
-    const mainstats = m.mainDps ? filters.mdpsMainstats : filters.supportMainstats;
-    return c.key.split(".").filter((_, k) => k === 1 ? echoes : k === 2 ? mainstats : true).join(".");
+  const seq = (run) => run.combo.reduce((n, c) => n + c.sequence, 0);
+  const sorted = rows.map((row) => [row.key, results.get(row.key)]).sort((a, b) => b[1].total - a[1].total || seq(b[1]) - seq(a[1]));
+  const GEAR_AXES = ["weapons", "echoes", "mainstats", "substats"];
+  const CMP_AXES = [...GEAR_AXES, "sequences"];
+  const AXIS_HEAD = { weapons: "Weapon", echoes: "Echo Set", mainstats: "Mainstats", substats: "Substats" };
+  const gearKey = (c, axis) => {
+    const [w, e, , seq2, ...rest] = c.key.split(".");
+    return [axis === "weapons" ? "*" : w, axis === "echoes" ? "*" : e, "*", axis === "sequences" ? "*" : seq2, rest.includes("m"), axis === "substats" || axis === null ? "*" : rest.includes("h")].join("|");
   };
-  const twinKey = (teamKey2, members, combo, pos) => `${teamKey2}|${pos}|${combo.map((c, j) => j === pos ? "" : setupKey(members[j], c)).join("-")}`;
+  const twinKey = (run, pos, axis) => `${run.teamKey}|${pos}|${axis}|${run.combo.map((c, k) => gearKey(c, k === pos ? axis : null)).join("-")}`;
+  const twins = /* @__PURE__ */ new Map();
   for (const run of results.values()) {
     run.members.forEach((m, pos) => {
-      const key = twinKey(run.teamKey, run.members, run.combo, pos);
-      const list = twins.get(key) ?? [];
-      list.push({ combo: run.combo[pos], dpr: run.bySlot.get(m.name) ?? 0 });
-      twins.set(key, list);
+      for (const axis of CMP_AXES) {
+        const key = twinKey(run, pos, axis);
+        const list = twins.get(key) ?? [];
+        list.push({ combo: run.combo[pos], dpr: run.bySlot.get(m.name) ?? 0 });
+        twins.set(key, list);
+      }
     });
   }
-  const slotDpr = (run, pos) => {
-    const m = run.members[pos], own = run.combo[pos];
-    const dpr = run.bySlot.get(m.name) ?? 0;
-    const text = fmt(dpr);
-    const mdps = m.mainDps;
-    const seqOpen = mdps ? filters.mdpsSequences : filters.supportSequences;
-    const weaponOpen = mdps ? filters.mdpsWeapons : filters.supportWeapons;
-    const echoOpen = mdps ? filters.mdpsEchoes : filters.supportEchoes;
-    const mainstatOpen = mdps ? filters.mdpsMainstats : filters.supportMainstats;
-    const subsOpen = mdps ? filters.mdpsHighSubs : filters.supportHighSubs;
-    if (!seqOpen && !weaponOpen && !echoOpen && !mainstatOpen && !subsOpen)
-      return { text, pct: "" };
-    const floor = sequenceLevels(m, filters)[0];
+  const gearRatio = (run, pos, axis) => {
+    const dpr = run.bySlot.get(run.members[pos].name) ?? 0;
     let base = -Infinity;
-    for (const t of twins.get(twinKey(run.teamKey, run.members, run.combo, pos)) ?? []) {
-      const c = t.combo;
-      if (c.matrix !== own.matrix)
+    for (const t of twins.get(twinKey(run, pos, axis)) ?? []) {
+      if (axis === "weapons" && t.combo.weapon.tier === 0)
         continue;
-      if (subsOpen ? c.highSubs : c.highSubs !== own.highSubs)
+      if (axis === "substats" && t.combo.highSubs)
         continue;
-      if (seqOpen ? c.sequence !== floor : c.sequence !== own.sequence)
-        continue;
-      if (weaponOpen ? c.weapon.tier === 0 : c.weapon !== own.weapon)
+      if (axis === "sequences" && t.combo.sequence !== sequenceLevels(run.members[pos], filters)[0])
         continue;
       if (t.dpr > base)
         base = t.dpr;
     }
-    if (!(base > 0))
-      return { text, pct: "" };
-    return { text, pct: `${fmt(dpr / base * 100, 1, true)}%` };
+    return base > 0 ? dpr / base : null;
   };
-  const weaponOpenAt = [false, false, false];
-  const echoOpenAt = [false, false, false];
-  const mainstatOpenAt = [false, false, false];
-  const subsOpenAt = [false, false, false];
-  const compareOpenAt = [false, false, false];
+  const gearCompare = (run, pos, axis) => {
+    const ratio = gearRatio(run, pos, axis);
+    return ratio == null ? "" : `${fmt(ratio * 100, 1, true)}%`;
+  };
+  const openAt = { weapons: [false, false, false], echoes: [false, false, false], mainstats: [false, false, false], substats: [false, false, false], sequences: [false, false, false] };
   for (const row of rows) {
     row.members.forEach((m, pos) => {
-      const mdps = m.mainDps;
-      if (mdps ? filters.mdpsWeapons : filters.supportWeapons)
-        weaponOpenAt[pos] = true;
-      if (mdps ? filters.mdpsEchoes : filters.supportEchoes)
-        echoOpenAt[pos] = true;
-      if (mdps ? filters.mdpsMainstats : filters.supportMainstats)
-        mainstatOpenAt[pos] = true;
-      if (mdps ? filters.mdpsHighSubs : filters.supportHighSubs)
-        subsOpenAt[pos] = true;
-      if (weaponOpenAt[pos] || echoOpenAt[pos] || mainstatOpenAt[pos] || subsOpenAt[pos] || (mdps ? filters.mdpsSequences : filters.supportSequences))
-        compareOpenAt[pos] = true;
+      for (const axis of CMP_AXES)
+        if (axisOpen(m, filters, axis))
+          openAt[axis][pos] = true;
     });
   }
+  const seqCmpAt = (i) => !!dprOpenAt[i] && !!openAt.sequences[i];
   const rowHtml = (key, run, rank) => {
     const grand = run.total;
     const memberNames = run.members.map((m) => m.name).join("|");
     const memberCell = (m, combo, i) => {
-      const mdps = m.mainDps;
       const tag = sequenceTag(m, combo);
-      const name = `<div class="c name res has" data-resonator="${esc(resonatorFilterKey(m.name, mdps))}"` + (tag ? ` data-sequence="${esc(tag)}"` : "") + deferredPop("gear", `${key}|${i}`) + ` style="--mem:${m.color};color:${m.color}"><span class="res-label">${esc(memberLabel(m, combo))}</span></div>`;
-      const weaponPick = (mdps ? filters.mdpsWeapons : filters.supportWeapons) ? combo.weapon.name : "";
-      const weapon = weaponOpenAt[i] ? optionCell("weapon", weaponPick && gearFilterKey("weapon", weaponPick, mdps), m.color, [weaponPick]) : "";
-      const showEcho = mdps ? filters.mdpsEchoes : filters.supportEchoes;
-      const echo = echoOpenAt[i] ? optionCell("echo", showEcho ? gearFilterKey("echo", echoLabel(m.loadout, combo.echo), mdps) : "", m.color, showEcho ? echoLines(m.loadout, combo.echo) : []) : "";
-      const mainstatPick = (mdps ? filters.mdpsMainstats : filters.supportMainstats) ? combo.mainstat.name : "";
-      const mainstat = mainstatOpenAt[i] ? optionCell("mainstat", mainstatPick && gearFilterKey("mainstat", mainstatPick, mdps), m.color, [mainstatPick]) : "";
-      const subs = subsOpenAt[i] ? `<div class="c option" style="--mem:${m.color}">${(mdps ? filters.mdpsHighSubs : filters.supportHighSubs) ? esc(subsLabel(combo)) : ""}</div>` : "";
-      const { text: dprText, pct: comparePct } = dprOpenAt[i] ? slotDpr(run, i) : { text: "", pct: "" };
-      const dpr = dprOpenAt[i] ? `<div class="c num slotdpr" style="--mem:${m.color}">${dprText}</div>` + (compareOpenAt[i] ? `<div class="c num slotcompare" style="--mem:${m.color}">${comparePct}</div>` : "") : "";
-      return name + weapon + echo + mainstat + subs + dpr;
+      const name = `<div class="c name res" data-resonator="${esc(roleKey(m.name, m.mainDps))}"` + (tag ? ` data-sequence="${esc(tag)}"` : "") + ` style="--mem:${m.color};color:${m.color}"><span class="res-label">${esc(memberLabel(m, combo))}</span></div>`;
+      const dpr = dprOpenAt[i] ? `<div class="c num slotdpr" style="--mem:${m.color}">${fmt(run.bySlot.get(m.name) ?? 0)}</div>` : "";
+      const seqCmp = seqCmpAt(i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${axisOpen(m, filters, "sequences") ? gearCompare(run, i, "sequences") : ""}</div>` : "";
+      const gear = GEAR_AXES.map((axis) => {
+        if (!openAt[axis][i])
+          return "";
+        const open = axisOpen(m, filters, axis);
+        const cell2 = axis === "weapons" ? optionCell("weapon", open ? combo.weapon.name : "", m.color, [combo.weapon.name]) : axis === "echoes" ? optionCell("echo", open ? echoLabel(m.loadout, combo.echo) : "", m.color, open ? echoLines(m.loadout, combo.echo) : []) : axis === "mainstats" ? optionCell("mainstat", open ? combo.mainstat.name : "", m.color, [combo.mainstat.name]) : `<div class="c option" style="--mem:${m.color}">${open ? esc(subsLabel(combo)) : ""}</div>`;
+        return cell2 + `<div class="c num slotcompare" style="--mem:${m.color}">${open ? gearCompare(run, i, axis) : ""}</div>`;
+      }).join("");
+      return name + dpr + seqCmp + gear;
     };
     const memberCells = run.members.map((m, i) => memberCell(m, run.combo[i], i)).join("");
     return `<div class="trow${rank.pinned ? " isbaseline" : ""}" style="--hue:${rank.hue}" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}" data-members="${esc(memberNames)}" data-total="${grand}">` + memberCells + `<div class="c num total teamdpr" title="Click to view the team's damage breakdown"${deferredPop("dpr", key)}>${fmt(grand)}</div><div class="c num total baseline" data-team="${esc(key)}" title="Click to measure every team against this one">${rank.pct}</div><div class="c gotodetail" data-team="${esc(key)}">view rotation<span class="arrow">\u203A</span></div></div>`;
   };
   const slotHead = (i, label) => `<div class="c slothead${dprOpenAt[i] ? " open" : ""}" data-pos="${i}" title="Click to show this slot's own DPR">${label}<span class="arrow">\u203A</span></div>`;
-  const memberHead = (n, i) => slotHead(i, `Slot ${n}`) + (weaponOpenAt[i] ? slotHead(i, `Weapon ${n}`) : "") + (echoOpenAt[i] ? slotHead(i, `Echo Set ${n}`) : "") + (mainstatOpenAt[i] ? slotHead(i, `Mainstats ${n}`) : "") + (subsOpenAt[i] ? slotHead(i, `Substats ${n}`) : "") + (dprOpenAt[i] ? `<div class="c num">Personal</div>` : "") + (dprOpenAt[i] && compareOpenAt[i] ? `<div class="c num">Compare</div>` : "");
-  const head = `<div class="trow thead">` + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2) + `<div class="c num">Team Avg DPR</div><div class="c num huehead" title="Click to colour the column by rank">Team Compare</div><div class="c"></div></div>`;
-  const posCols = (i) => `max-content${weaponOpenAt[i] ? " max-content" : ""}${echoOpenAt[i] ? " max-content" : ""}${mainstatOpenAt[i] ? " max-content" : ""}${subsOpenAt[i] ? " max-content" : ""}${dprOpenAt[i] ? " max-content" : ""}${dprOpenAt[i] && compareOpenAt[i] ? " max-content" : ""}`;
+  const memberHead = (n, i) => slotHead(i, `Slot ${n}`) + (dprOpenAt[i] ? `<div class="c num">Personal</div>` : "") + (seqCmpAt(i) ? `<div class="c num">Compare</div>` : "") + GEAR_AXES.map((axis) => openAt[axis][i] ? `<div class="c">${AXIS_HEAD[axis]} ${n}</div><div class="c num">Compare</div>` : "").join("");
+  const head = `<div class="trow thead">` + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2) + `<div class="c num">Team Avg DPR</div><div class="c num huehead" title="Click to colour the column by rank">Compare</div><div class="c"></div></div>`;
+  const posCols = (i) => `max-content${dprOpenAt[i] ? " max-content" : ""}${seqCmpAt(i) ? " max-content" : ""}${GEAR_AXES.map((axis) => openAt[axis][i] ? " max-content max-content" : "").join("")}`;
   const gridStyle = `grid-template-columns:${posCols(0)} ${posCols(1)} ${posCols(2)} max-content max-content max-content`;
-  const rowLines = (run) => Math.max(1, ...run.members.map((m, i) => echoOpenAt[i] && (m.mainDps ? filters.mdpsEchoes : filters.supportEchoes) ? run.combo[i].echo.sets.length : 1));
+  const rowLines = (run) => Math.max(1, ...run.members.map((m, i) => openAt.echoes[i] && axisOpen(m, filters, "echoes") ? echoLines(m.loadout, run.combo[i].echo).length : 1));
   const lines = sorted.map(([, run]) => rowLines(run));
   const extra = [0];
   for (const n of lines)
     extra.push(extra[extra.length - 1] + n - 1);
   const ranks = rankAll(sorted);
   const widest = (a, b) => b.length > a.length ? b : a;
+  const blank = () => ["", "", ""];
   const wide = {
-    name: ["", "", ""],
-    weapon: ["", "", ""],
-    echo: ["", "", ""],
-    mainstat: ["", "", ""],
-    subs: ["", "", ""],
-    dpr: ["", "", ""],
-    compare: ["", "", ""],
+    name: blank(),
+    dpr: blank(),
+    seqcmp: blank(),
     total: "",
-    pct: ""
+    pct: "",
+    gear: { weapons: blank(), echoes: blank(), mainstats: blank(), substats: blank() },
+    cmp: { weapons: blank(), echoes: blank(), mainstats: blank(), substats: blank() }
   };
   sorted.forEach(([, run], i) => {
     run.members.forEach((m, pos) => {
       const combo = run.combo[pos];
-      const mdps = m.mainDps;
       wide.name[pos] = widest(wide.name[pos], memberLabel(m, combo));
-      if (mdps ? filters.mdpsWeapons : filters.supportWeapons)
-        wide.weapon[pos] = widest(wide.weapon[pos], combo.weapon.name);
-      if (mdps ? filters.mdpsEchoes : filters.supportEchoes) {
-        for (const line of echoLines(m.loadout, combo.echo))
-          wide.echo[pos] = widest(wide.echo[pos], line);
+      wide.dpr[pos] = widest(wide.dpr[pos], fmt(run.bySlot.get(m.name) ?? 0));
+      if (axisOpen(m, filters, "sequences"))
+        wide.seqcmp[pos] = widest(wide.seqcmp[pos], gearCompare(run, pos, "sequences"));
+      for (const axis of GEAR_AXES) {
+        if (!axisOpen(m, filters, axis))
+          continue;
+        const text = axis === "weapons" ? [combo.weapon.name] : axis === "echoes" ? echoLines(m.loadout, combo.echo) : axis === "mainstats" ? [combo.mainstat.name] : [subsLabel(combo)];
+        for (const line of text)
+          wide.gear[axis][pos] = widest(wide.gear[axis][pos], line);
+        wide.cmp[axis][pos] = widest(wide.cmp[axis][pos], gearCompare(run, pos, axis));
       }
-      if (mdps ? filters.mdpsMainstats : filters.supportMainstats)
-        wide.mainstat[pos] = widest(wide.mainstat[pos], combo.mainstat.name);
-      if (mdps ? filters.mdpsHighSubs : filters.supportHighSubs)
-        wide.subs[pos] = widest(wide.subs[pos], subsLabel(combo));
-      const { text, pct } = slotDpr(run, pos);
-      wide.dpr[pos] = widest(wide.dpr[pos], text);
-      wide.compare[pos] = widest(wide.compare[pos], pct);
     });
     wide.total = widest(wide.total, fmt(run.total));
     wide.pct = widest(wide.pct, ranks[i].pct);
   });
-  const ghostPos = (i) => `<div class="c name res"><span class="res-label">${esc(wide.name[i])}</span></div>` + (weaponOpenAt[i] ? `<div class="c option">${esc(wide.weapon[i])}</div>` : "") + (echoOpenAt[i] ? `<div class="c option">${esc(wide.echo[i])}</div>` : "") + (mainstatOpenAt[i] ? `<div class="c option">${esc(wide.mainstat[i])}</div>` : "") + (subsOpenAt[i] ? `<div class="c option">${esc(wide.subs[i])}</div>` : "") + (dprOpenAt[i] ? `<div class="c num slotdpr">${esc(wide.dpr[i])}</div>` : "") + (dprOpenAt[i] && compareOpenAt[i] ? `<div class="c num slotcompare">${esc(wide.compare[i])}</div>` : "");
+  const ghostPos = (i) => `<div class="c name res"><span class="res-label">${esc(wide.name[i])}</span></div>` + (dprOpenAt[i] ? `<div class="c num slotdpr">${esc(wide.dpr[i])}</div>` : "") + (seqCmpAt(i) ? `<div class="c num slotcompare">${esc(wide.seqcmp[i])}</div>` : "") + GEAR_AXES.map((axis) => openAt[axis][i] ? `<div class="c option">${esc(wide.gear[axis][i])}</div><div class="c num slotcompare">${esc(wide.cmp[axis][i])}</div>` : "").join("");
   const ghost = `<div class="trow tghost" aria-hidden="true">` + ghostPos(0) + ghostPos(1) + ghostPos(2) + `<div class="c num total">${esc(wide.total)}</div><div class="c num total baseline">${esc(wide.pct)}</div><div class="c gotodetail">view rotation<span class="arrow">\u203A</span></div></div>`;
   tableView = { sorted, ranks, head, ghost, rowHtml, lines, extra };
   return `<main><div class="tclayout"><aside class="tcside">${comparisonFilters()}</aside><div class="tcbody"><h2 class="summary-label" id="teamCount">${fmt(sorted.length)} teams</h2><div class="tcwrap"><div class="tgrid${hueShown ? " hued" : ""}" style="${gridStyle}">${head}${ghost}</div></div></div></div></main>`;
@@ -1987,27 +1956,40 @@ function resetIndices(flat, from, to, member2) {
   }
   return out;
 }
-function erRequirementValue(maxEnergy, before) {
+function erRequirement(flat, resetIdx, member2, maxEnergy, constant) {
   if (!maxEnergy)
     return 0;
-  if (before == null || before <= 0)
+  const before = flat[resetIdx].snap.realEnergyBefore;
+  if (before <= 0)
     return null;
-  return maxEnergy / before * 100;
-}
-function erFallsShort(flat, targetIdx, member2, requirement) {
-  for (let i = targetIdx; i >= 0; i--) {
-    const snap = flat[i].snap;
-    if (snap.member !== member2)
+  let buffed = 0;
+  walk: for (let i = resetIdx - 1; i >= 0; i--) {
+    const line = flat[i];
+    if (line.aggregate)
       continue;
-    if (i !== targetIdx && snap.action.resetEnergy)
-      break;
-    if (snap.stat(
-      11
-      /* Stat.Er */
-    ) < requirement)
-      return true;
+    const snaps = line.members?.length ? line.members : [line.snap];
+    for (let k = snaps.length - 1; k >= 0; k--) {
+      const s = snaps[k];
+      if (s.member !== member2)
+        continue;
+      if (s.action.resetEnergy)
+        break walk;
+      if (s.energyWiped)
+        continue;
+      const gain = (s.action.energy + s.stat(
+        25
+        /* Stat.AddEnergy */
+      )) * (1 + s.stat(
+        14
+        /* Stat.EnergyRegenMult */
+      ) / 100);
+      buffed += gain * (s.stat(
+        11
+        /* Stat.Er */
+      ) - constant);
+    }
   }
-  return false;
+  return (maxEnergy * 100 - buffed) / before;
 }
 function energySpan(flat, member2, fallback) {
   const casts = resetIndices(flat, 0, flat.length, member2);
@@ -2071,17 +2053,21 @@ function energyTable(run, lines, report, slotHue) {
   const head = `<div class="rtrow rthead"><div class="c"></div><div class="c num">Opener</div><div class="c num">Loop 1</div><div class="c num">Loop 2</div><div class="c num">Loop 3</div><div class="c num">Energy Gen</div></div>`;
   const rows = run.members.map((m, idx) => {
     const maxEnergy = m.loadout.resonator.maxEnergy;
+    const combo = run.combo[idx];
+    const constantSources = menuStats(m.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs)).filter(
+      (e) => e.stat === 11
+      /* Stat.Er */
+    );
+    const constant = constantSources.reduce((n, e) => n + e.value, 0);
     const free = resetIndices(flat, 0, flat.length, m.name)[0] ?? null;
     const cell2 = (resetIdx) => {
       const snap = resetIdx == null || resetIdx === free ? null : flat[resetIdx].snap;
-      const req = snap == null ? null : erRequirementValue(maxEnergy, snap.realEnergyBefore);
-      const warn = req != null && erFallsShort(flat, resetIdx, m.name, req);
+      const req = snap == null ? null : erRequirement(flat, resetIdx, m.name, maxEnergy, constant);
+      const missing = req == null ? 0 : Math.max(0, req - constant);
       const text = req == null ? "\u2014" : `${fmt(req, 1)}%`;
-      const hover = snap && erCol ? popover(erCol, columnSources(snap, "er"), snap.stat(
-        11
-        /* Stat.Er */
-      ), slotHue) : "";
-      return `<div class="c num${warn ? " er-under" : ""}${hover ? " has" : ""}"${hover}>${text}</div>`;
+      const sources = constantSources.map((e) => ({ source: e.source, value: e.value, percent: true, digits: 1, owner: e.owner || m.name }));
+      const hover = snap && erCol ? popover({ ...erCol, full: "Base Energy Regen" }, sources, constant, slotHue) : "";
+      return `<div class="c num${missing > 0 ? " er-under" : ""}${hover ? " has" : ""}"${hover}>${text}</div>`;
     };
     const opener = resetIndices(flat, offsets[0], offsets[1], m.name);
     const lastLoop = [offsets[3], offsets[4]];
@@ -2531,22 +2517,10 @@ var topbar = document.getElementById("topbar");
 var results = /* @__PURE__ */ new Map();
 var visibleRows = [];
 var hashParams = () => new URLSearchParams(location.hash.replace(/^#/, ""));
-var FILTER_KEYS = Object.keys(filters);
-var FILTER_CODE = {
-  mdpsSequences: "ms",
-  supportSequences: "ss",
-  mdpsWeapons: "mw",
-  supportWeapons: "sw",
-  mdpsEchoes: "me",
-  supportEchoes: "se",
-  mdpsMainstats: "mm",
-  supportMainstats: "sm",
-  allowR1Mdps: "m1",
-  allowR1Supports: "s1",
-  matrix: "x",
-  mdpsHighSubs: "mh",
-  supportHighSubs: "sh"
-};
+var FILTER_KEYS = ["matrix"];
+var FILTER_CODE = { matrix: "x" };
+var COMPARE_PARAM = { weapons: "cw", echoes: "ce", mainstats: "cm", substats: "cb", sequences: "cq" };
+var COST_CODE = { s0r0: "r0", s0r1mdps: "r1m", s0r1: "r1" };
 var FILTER_GROUPS = [
   { include: "r", exclude: "x", map: resonatorFilters },
   { include: "wr", exclude: "wx", map: weaponFilters },
@@ -2568,7 +2542,21 @@ function applyHash() {
       changed = true;
     }
   }
-  if (params.has("f")) {
+  {
+    const code = params.get("tc");
+    const cost = Object.keys(COST_CODE).find((c) => COST_CODE[c] === code) ?? "s0r1";
+    if (filters.cost !== cost) {
+      filters.cost = cost;
+      changed = true;
+    }
+    for (const axis of AXES) {
+      const next = (params.get(COMPARE_PARAM[axis]) ?? "").split(",").filter(Boolean).map((n) => RESONATOR_KEY_BY_COMPACT.get(n) ?? n);
+      const cur = filters[axis];
+      if (next.length !== cur.length || next.some((n) => !cur.includes(n))) {
+        filters[axis] = next;
+        changed = true;
+      }
+    }
     const named = (v, mode, resonators) => (v ?? "").split(",").filter(Boolean).map((name) => [resonators ? RESONATOR_KEY_BY_COMPACT.get(name) ?? name : name, mode]);
     for (const { include, exclude, map } of FILTER_GROUPS) {
       const resonators = map === resonatorFilters;
@@ -2585,7 +2573,14 @@ function applyHash() {
 }
 function syncHash(team = hashParams().get("team")) {
   const named = (map, mode) => [...map].filter(([, m]) => m === mode).map(([name]) => encodeURIComponent(map === resonatorFilters ? name.replace(/ /g, "") : name)).join(",");
-  const parts = [`f=${FILTER_KEYS.filter((k) => filters[k]).map((k) => FILTER_CODE[k]).join(",")}`];
+  const flags = FILTER_KEYS.filter((k) => filters[k]).map((k) => FILTER_CODE[k]).join(",");
+  const parts = flags ? [`f=${flags}`] : [];
+  if (filters.cost !== "s0r1")
+    parts.push(`tc=${COST_CODE[filters.cost]}`);
+  for (const axis of AXES) {
+    if (filters[axis].length)
+      parts.push(`${COMPARE_PARAM[axis]}=${filters[axis].map((n) => encodeURIComponent(n.replace(/ /g, ""))).join(",")}`);
+  }
   for (const { include, exclude, map } of FILTER_GROUPS) {
     if (named(map, "include"))
       parts.push(`${include}=${named(map, "include")}`);
@@ -2594,10 +2589,10 @@ function syncHash(team = hashParams().get("team")) {
   }
   if (team)
     parts.push(`team=${team}`);
-  const next = `#${parts.join("&")}`;
+  const next = parts.length ? `#${parts.join("&")}` : "";
   if (next === location.hash)
     return;
-  history.replaceState(null, "", next);
+  history.replaceState(null, "", `${location.pathname}${location.search}${next}`);
 }
 var routeTeam = () => {
   const key = hashParams().get("team");
@@ -2632,9 +2627,6 @@ function fitSide() {
     room = main.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     side.style.width = `${room}px`;
   }
-  const cols = room >= (stacked ? 600 : 740) ? 2 : 1;
-  for (const n of [1, 2])
-    side.classList.toggle(`cols${n}`, n === cols);
   side.style.maxHeight = stacked ? "" : `${main.clientHeight}px`;
   if (!stacked)
     side.style.width = "";
@@ -2645,7 +2637,7 @@ function fitSide() {
 function renderComparison() {
   topbar.hidden = true;
   document.body.querySelectorAll(":scope > .pop").forEach((el) => el.remove());
-  const scrollTop = app.querySelector("main")?.scrollTop ?? 0;
+  const scrollTop = app.querySelector(".tgrid") ? app.querySelector("main")?.scrollTop ?? 0 : tableScrollTop;
   app.innerHTML = comparisonTable(visibleRows);
   app.className = "";
   measured = false;
@@ -2666,7 +2658,10 @@ function renderComparison() {
     });
   }, { passive: true });
 }
+var tableScrollTop = 0;
 function renderDetail(key) {
+  if (app.querySelector(".tgrid"))
+    tableScrollTop = app.querySelector("main")?.scrollTop ?? 0;
   topbar.hidden = false;
   document.body.querySelectorAll(":scope > .pop").forEach((el) => el.remove());
   const run = results.get(key);
@@ -2773,7 +2768,7 @@ function solveOnWorkers(workers, teams, onDone) {
         pump(w);
       };
       w.onmessage = ({ data }) => {
-        const solved = { picks: data.picks, rows: data.rows, scores: data.scores };
+        const solved = { picks: data.picks, rows: data.rows, scores: data.scores, hidden: data.hidden ?? [], hiddenScores: data.hiddenScores ?? [] };
         if (solveFits(bestKey(key, members, filters), solved)) {
           finish(solved);
           return;
@@ -2802,7 +2797,7 @@ async function ensureBestPicks(inPlay, rowsTotal) {
   const teams = inPlay.filter(([key, members]) => !bestPicks.has(bestKey(key, members, filters)));
   if (!teams.length)
     return false;
-  overlayPhase("Optimizing Echoes...");
+  overlayPhase("Running Calculations...");
   let done = inPlay.length - teams.length;
   const rowsOf = (members) => members.every((m) => eligibleWeapons(m, filters).length) ? estimatedRowCount(members) : 0;
   let rowsDone = inPlay.filter(([key, members]) => bestPicks.has(bestKey(key, members, filters))).reduce((sum, [, members]) => sum + rowsOf(members), 0);
@@ -2848,7 +2843,7 @@ async function refresh() {
     const cached = rows.filter((row) => results.has(row.key));
     const missing = cached.length !== rows.length;
     if (!missing && cached.length) {
-      overlayPhase("Rendering Table\u2026");
+      overlayPhase("Rendering Table...");
       overlayFill.style.width = "100%";
       overlayCount.textContent = `${fmt(cached.length)} / ${fmt(rows.length)}`;
       await paint();
@@ -2959,36 +2954,29 @@ async function boot() {
     hueShown = !hueShown;
     document.querySelector(".tgrid")?.classList.toggle("hued", hueShown);
   });
-  const AXIS_MAP = {
-    mdpsSequences: sequenceFilters,
-    supportSequences: sequenceFilters,
-    mdpsWeapons: weaponFilters,
-    supportWeapons: weaponFilters,
-    mdpsEchoes: echoFilters,
-    supportEchoes: echoFilters,
-    mdpsMainstats: mainstatFilters,
-    supportMainstats: mainstatFilters
-  };
   document.addEventListener("change", (e) => {
-    const input = e.target;
-    const key = input.id;
-    if (!(key in filters))
+    const select = e.target;
+    if (select.id !== "cost")
       return;
     withRowCap(() => {
-      const was = filters[key];
-      const map = AXIS_MAP[key];
-      const kept = map ? [...map] : null;
-      filters[key] = input.checked;
-      if (!input.checked)
-        map?.clear();
+      const was = filters.cost;
+      filters.cost = select.value;
       return () => {
-        filters[key] = was;
+        filters.cost = was;
+        select.value = was;
+      };
+    });
+  });
+  document.addEventListener("change", (e) => {
+    const input = e.target;
+    if (input.id !== "matrix")
+      return;
+    withRowCap(() => {
+      const was = filters.matrix;
+      filters.matrix = input.checked;
+      return () => {
+        filters.matrix = was;
         input.checked = was;
-        if (map && kept) {
-          map.clear();
-          for (const [n, mode] of kept)
-            map.set(n, mode);
-        }
       };
     });
   });
@@ -2999,17 +2987,53 @@ async function boot() {
       return [sequenceFilters, sequence];
     return el?.dataset.resonator ? [resonatorFilters, el.dataset.resonator] : void 0;
   };
-  document.addEventListener("click", (e) => {
-    const target = resonatorName(e);
-    if (target)
-      setFilter(...target, "include");
-  });
   document.addEventListener("contextmenu", (e) => {
     const target = resonatorName(e);
     if (!target)
       return;
     e.preventDefault();
-    setFilter(...target, "exclude");
+    setFilter(...target, "include");
+  });
+  const openNameMenu = (el, x, y) => {
+    const sequence = el.dataset.sequence;
+    const [map, key] = sequence ? [sequenceFilters, sequence] : [resonatorFilters, el.dataset.resonator ?? ""];
+    const resonator = parseRoleKey(el.dataset.resonator ?? "").name;
+    const items = [
+      { label: `Show teams with ${key}`, run: () => setFilter(map, key, "include") },
+      { label: `Hide teams with ${key}`, run: () => setFilter(map, key, "exclude") },
+      // only the axes this resonator actually has more than one option on
+      ...AXES.filter((axis) => comparable(resonator, axis)).map((axis) => ({
+        label: `${filters[axis].includes(resonator) ? "Stop comparing" : "Compare"} ${resonator} ${AXIS_LABEL[axis].toLowerCase()}`,
+        run: () => setCompare(resonator, axis)
+      }))
+    ];
+    showMenu(x, y, items);
+  };
+  document.addEventListener("click", (e) => {
+    const el = e.target.closest(".c.name.res");
+    if (el?.dataset.resonator)
+      openNameMenu(el, e.clientX, e.clientY);
+  });
+  let hoverTimer;
+  let hoverAt = [0, 0];
+  document.addEventListener("mousemove", (e) => {
+    hoverAt = [e.clientX, e.clientY];
+  });
+  document.addEventListener("mouseover", (e) => {
+    const el = e.target.closest(".c.name.res");
+    if (!el?.dataset.resonator || el.contains(e.relatedTarget))
+      return;
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(() => {
+      if (document.querySelector(".ctxmenu") || !el.matches(":hover"))
+        return;
+      openNameMenu(el, hoverAt[0], hoverAt[1]);
+    }, 1e3);
+  });
+  document.addEventListener("mouseout", (e) => {
+    const el = e.target.closest(".c.name.res");
+    if (el && !el.contains(e.relatedTarget))
+      clearTimeout(hoverTimer);
   });
   const optionPick = (e) => {
     const el = e.target.closest(".c.option");
@@ -3017,17 +3041,22 @@ async function boot() {
     const value = el?.dataset.value;
     return kind && value ? [OPTION_FILTER_MAPS[kind], value] : void 0;
   };
-  document.addEventListener("click", (e) => {
-    const pick = optionPick(e);
-    if (pick)
-      setFilter(...pick, "include");
-  });
   document.addEventListener("contextmenu", (e) => {
     const pick = optionPick(e);
     if (!pick)
       return;
     e.preventDefault();
-    setFilter(...pick, "exclude");
+    setFilter(...pick, "include");
+  });
+  document.addEventListener("click", (e) => {
+    const pick = optionPick(e);
+    if (!pick)
+      return;
+    const [map, key] = pick;
+    showMenu(e.clientX, e.clientY, [
+      { label: `Show teams with ${key}`, run: () => setFilter(map, key, "include") },
+      { label: `Hide teams with ${key}`, run: () => setFilter(map, key, "exclude") }
+    ]);
   });
   const searchPick = (e) => {
     const el = e.target.closest(".sresult");
@@ -3059,10 +3088,16 @@ async function boot() {
     if (e.target.closest?.(".rchip"))
       e.preventDefault();
   });
-  document.addEventListener("click", (e) => {
+  const removeChip = (e) => {
     const chip = e.target.closest(".rchip");
     if (!chip)
       return;
+    e.preventDefault();
+    const axis = chip.dataset.axis;
+    if (axis) {
+      setCompare(chip.dataset.resonator ?? "", axis);
+      return;
+    }
     const name = chip.dataset.resonator;
     const kind = chip.dataset.kind;
     const map = name ? resonatorFilters : kind ? OPTION_FILTER_MAPS[kind] : void 0;
@@ -3074,12 +3109,74 @@ async function boot() {
       map.delete(key);
       return () => map.set(key, was);
     });
+  };
+  document.addEventListener("click", removeChip);
+  document.addEventListener("contextmenu", removeChip);
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".clearall"))
+      return;
+    withRowCap(() => {
+      const maps = [resonatorFilters, ...Object.values(OPTION_FILTER_MAPS)];
+      const kept = maps.map((map) => [...map]);
+      const compares = AXES.map((axis) => [...filters[axis]]);
+      for (const map of maps)
+        map.clear();
+      for (const axis of AXES)
+        filters[axis] = [];
+      return () => {
+        maps.forEach((map, i) => {
+          for (const [n, mode] of kept[i])
+            map.set(n, mode);
+        });
+        AXES.forEach((axis, i) => {
+          filters[axis] = compares[i];
+        });
+      };
+    });
+  });
+}
+function showMenu(x, y, items) {
+  document.querySelector(".ctxmenu")?.remove();
+  const menu = document.createElement("div");
+  menu.className = "ctxmenu";
+  menu.innerHTML = items.map((it, i) => `<button type="button" class="ctxitem" data-i="${i}">${esc(it.label)}</button>`).join("");
+  document.body.appendChild(menu);
+  const r = menu.getBoundingClientRect();
+  menu.style.left = `${Math.min(x, innerWidth - r.width - 6)}px`;
+  menu.style.top = `${Math.min(y, innerHeight - r.height - 6)}px`;
+  const close = () => {
+    menu.remove();
+    removeEventListener("click", onClick, true);
+    removeEventListener("contextmenu", onClick, true);
+    removeEventListener("keydown", onKey, true);
+    removeEventListener("scroll", close, true);
+  };
+  const onClick = (e) => {
+    const item = e.target.closest(".ctxitem");
+    if (item && menu.contains(item)) {
+      e.stopPropagation();
+      e.preventDefault();
+      close();
+      items[Number(item.dataset.i)].run();
+      return;
+    }
+    close();
+  };
+  const onKey = (e) => {
+    if (e.key === "Escape")
+      close();
+  };
+  setTimeout(() => {
+    addEventListener("click", onClick, true);
+    addEventListener("contextmenu", onClick, true);
+    addEventListener("keydown", onKey, true);
+    addEventListener("scroll", close, true);
   });
 }
 function setFilter(map, name, mode) {
   withRowCap(() => {
     const was = map.get(name);
-    if (was !== void 0)
+    if (was === mode)
       map.delete(name);
     else
       map.set(name, mode);
@@ -3159,7 +3256,14 @@ boot().catch((err) => {
   console.error(err);
   app.innerHTML = errorPage(err);
   app.className = "";
+  const box = overlay.querySelector(".loading-error");
+  if (box) {
+    box.hidden = false;
+    box.textContent += `${box.textContent ? "\n\n" : ""}${err instanceof Error ? err.stack ?? err.message : String(err)}`;
+    overlay.hidden = false;
+  }
 });
 export {
+  RESONATOR_ROLE,
   setBaseline
 };

@@ -112,12 +112,12 @@ const inflictsFlux = (a: Action): boolean =>
  *  skill (its once-per-8s-per-target limit never binds, a rotation lands about one break a loop),
  *  Strain pays her Tune Break Boost off the Interfered stacks the breaks leave behind. */
 const MODE_RUPTURE = new ResonanceMode({
-  name: "Resonance Mode - Tune Rupture",
+  name: "Resonance Mode - Tune Rupture", abbr: "Rupture",
   updateDebuffs: () => { if (inflictsFlux(currentAction())) applyRupture(); },
   updateGlobal: () => tuneRuptureResponse(SpectralAnalysis),
 });
 const MODE_STRAIN = new ResonanceMode({
-  name: "Resonance Mode - Tune Strain",
+  name: "Resonance Mode - Tune Strain", abbr: "Strain",
   // her kit raises the target's Tune Strain - Interfered limit by 1 on top of the base 1
   updateDebuffs: () => { if (inflictsFlux(currentAction())) applyStrain(); },
   combatStart: () => { maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(TUNE_STRAIN_RESPONDER, 1); },

@@ -247,9 +247,11 @@ const LUUK_RESONATOR = new Resonator({
 
 const MA123 = new ActionGroup("Mid-air - Scythe: Dissection 123", [MA1, MA2, MA3]);
 
+const MA23 = new ActionGroup("Mid-air - Scythe: Dissection 23", [MA2, MA3]);
+
 const LK_ROTATION = new Rotation([
   START_3, Skill, Liberation, SWAP,
-  INTRO, MA2, MA3, Ring, GoldenImpale,  // TODO add dodge/jumps
+  INTRO, MA23, Ring, GoldenImpale,  // TODO add dodge/jumps
   MA123, Breach, GoldenImpale, 
   MA123, Glare, Gavel,
   Liberation, ECHO_SWAP, OUTRO,

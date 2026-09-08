@@ -187,7 +187,7 @@ const SPR_ROTATION = new Rotation([
 // (Tier.Free — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat
 export const ROVER_SPECTRO = new Loadout({
   resonator: ROVER_SPECTRO_RESONATOR,
-  weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, RED_SPRING],
+  weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, RED_SPRING],
   echoLoadouts: [
     new EchoLoadout(FALLACY, REJUV_5PC),
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),

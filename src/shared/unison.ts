@@ -108,7 +108,7 @@ export const consumedConcerto = (): boolean =>
  *  stack anyway. */
 export const UNISON_BOON = new Buff({
   name: "Unison Boon", maxStacks: 4,
-  applyStats: () => { if (isHeld(UNISON_RESPONDER)) addStat(Stat.TotalDmg, (stacksOfTeam(NINE_SHADOWS) ? 4.5 : 3) * frozenStacks()); },
+  applyStats: () => { if (isHeld(UNISON_RESPONDER)) addStat(Stat.Amp, (stacksOfTeam(NINE_SHADOWS) ? 4.5 : 3) * frozenStacks()); },
 });
 
 /** Suoming's S6 on the team: every stack of Unison Boon pays half again — +4.5% rather than +3%,

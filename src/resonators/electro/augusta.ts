@@ -186,7 +186,7 @@ const AUGUSTA_RESONATOR = new Resonator({
   weapon: WeaponType.Broadblade,
   intro: () => Intro,
   outro: () => Outro,
-  color: "#d7370f",
+  color: "#e8734f",
   maxEnergy: 125,
   maxForte1: 660,
   maxForte2: 4000,
@@ -210,8 +210,8 @@ const AUGUSTA_RESONATOR = new Resonator({
 // Undying Sunlight chain. She's never the team's own lead, so this covers both opener and loop.
 
 const AG_ROTATION = new Rotation([
-  INTRO, FHA1, FHA2, Skill, Lib1, FHA1, FHA2,
-  FSkill1, FSkill2, FSkill3, Lib2, ECHO_SWAP, OUTRO,
+  INTRO, FHA1, FHA2, Skill, FHA1, FHA2, HA, Lib1, HA, 
+  FSkill1, FSkill2, FSkill3, Lib2, FJump, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

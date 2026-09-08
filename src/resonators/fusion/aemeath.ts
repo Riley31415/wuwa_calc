@@ -314,7 +314,7 @@ const inflicts = (a: Action): boolean =>
 /** Held on her slot, so its updateGlobal runs as her whoever is acting: the Starburst response and
  *  the Trail are hers. A response is any Rupture-typed hit that isn't her own Duet volley. */
 const MODE_RUPTURE = new ResonanceMode({
-  name: "Resonance Mode - Tune Rupture",
+  name: "Resonance Mode - Tune Rupture", abbr: "Rupture",
   updateDebuffs: () => { if (inflicts(currentAction())) applyRupture(); },
   updateGlobal: () => {
     tuneRuptureResponse(Starburst);
@@ -332,8 +332,10 @@ const MBA234 = new ActionGroup("Basic - Mech 234", [MBA2, MBA3, MBA4]);
 /** Intro (+40 Rate, Starlume) into Stage 3-4, Overdrive (Rate 2 with Starlume — Unbound, Stardust),
  *  the Mech chain into the free Encore, the Aemeath chain into Overture (Rate 4, Instant Response),
  *  the Charged II to refill the gauge, the echo, Finale and out. Never the team's lead. */
+const ABA34 = new ActionGroup("Basic - Aemeath 34", [ABA3, ABA4]);
+
 const AE_ROTATION = new Rotation([
-  INTRO, ABA3, ABA4, Lib1,
+  INTRO, ABA34, Lib1,
   MBA234, MechFSkill,
   ABA234, AmyFSkill,
   MHA2, ECHO_CANCEL, Lib2,
@@ -398,7 +400,7 @@ const SILENT_PROTECTION_BURST = new Buff({
  *  status.ts) and clears, and a target left on 0 gets a stack back, hers. The fight opens on that
  *  stack too. A Duet queues its own calculation. */
 const MODE_BURST = new ResonanceMode({
-  name: "Resonance Mode - Fusion Burst",
+  name: "Resonance Mode - Fusion Burst", abbr: "Burst",
   updateDebuffs: () => { if (inflicts(currentAction())) applyEnemy(FUSION_BURST, 1); },
   updateGlobal: () => {
     const team = currentTeam();

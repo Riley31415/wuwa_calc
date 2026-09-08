@@ -1,32 +1,48 @@
 import {
+  AXES,
   MAINSTAT_ROWS,
+  axisOpen,
   bestKey,
   collapseFields,
   comboOf,
   defaultFilters,
   eligibleWeapons,
+  filterSignature,
+  isSignature,
   member,
   optimizeTeam,
   picksKey,
   runFromScore,
   runTeam,
   sequenceLevels,
+  sigAllowed,
+  sigHolder,
   solveTeam,
-  teamFromKey
-} from "./chunk-UCJQRVJS.js";
+  standardWeapon,
+  teamFromKey,
+  weaponOptions
+} from "./chunk-UZ3K6DIE.js";
 export {
+  AXES,
   MAINSTAT_ROWS,
+  axisOpen,
   bestKey,
   collapseFields,
   comboOf,
   defaultFilters,
   eligibleWeapons,
+  filterSignature,
+  isSignature,
   member,
   optimizeTeam,
   picksKey,
   runFromScore,
   runTeam,
   sequenceLevels,
+  sigAllowed,
+  sigHolder,
   solveTeam,
-  teamFromKey
+  standardWeapon,
+  teamFromKey,
+  weaponOptions
 };

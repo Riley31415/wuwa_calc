@@ -273,7 +273,8 @@ const JINGRAN_RESONATOR = new Resonator({
 const EBA234 = new ActionGroup("Basic - Drink Soul 234", [EBA2, EBA3, EBA4]);
 
 const JR_ROTATION = new Rotation([
-  INTRO, BA2, Lib, FHA,
+  INTRO, BA2,
+  Lib, FHA,
   EBA234, EFHA,
   Skill1, Skill2, FHA,
   ESkill1, ESkill2, EFHA,

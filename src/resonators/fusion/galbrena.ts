@@ -220,8 +220,10 @@ const SeraphicExecution2345 = new ActionGroup("Forte Basic - Seraphic Execution 
 const SeraphicExecution345 = new ActionGroup("Forte Basic - Seraphic Execution 345", [SeraphicExecution3, SeraphicExecution4, SeraphicExecution5]);
 const BA234 = new ActionGroup("Basic - Slayer's Trigger 234", [BA2, BA3, BA4]);
 
+const BA34 = new ActionGroup("Basic - Slayer's Trigger 34", [BA3, BA4]);
+
 const GB_ROTATION = new Rotation([
-  INTRO, ECHO_CANCEL, HA2, HA3, BA3, BA4, Encroach,
+  INTRO, ECHO_CANCEL, HA2, HA3, BA34, Encroach,
   AscentOfMalice, Liberation,
   SeraphicExecution2345, DODGE,
   SeraphicExecution345, DODGE, 

@@ -198,7 +198,7 @@ const inflictsOne = (a: Action): boolean => a === BA3 || a === BA4 || a === UBA3
  *  (statuses.ts), so nothing here has to fire its damage.
  *  Strain also responds to Strain, and the team's first Shifting fills half the off-tune bar. */
 const MODE_BURST = new ResonanceMode({
-  name: "Resonance Mode - Fusion Burst",
+  name: "Resonance Mode - Fusion Burst", abbr: "Burst",
   updateDebuffs: () => {
     const a = currentAction();
     if (inflictsTwo(a)) applyEnemy(FUSION_BURST, 2);
@@ -206,7 +206,7 @@ const MODE_BURST = new ResonanceMode({
   },
 });
 const MODE_STRAIN = new ResonanceMode({
-  name: "Resonance Mode - Tune Strain",
+  name: "Resonance Mode - Tune Strain", abbr: "Strain",
 
   // Shattered Hours: "while Denia is in the team", whichever mode
   combatStart: () => {

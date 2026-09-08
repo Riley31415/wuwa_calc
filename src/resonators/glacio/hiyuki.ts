@@ -79,7 +79,7 @@ import {
   isActive,
 } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, DODGE } from "../../engine/rotation.js";
 import { GLACIO_CHAFE, GLACIO_CHAFE_ACTIONS, HAVOC_BANE } from "../../shared/status.js";
 import { FROSTBURN } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
@@ -419,10 +419,12 @@ export const HIYUKI_RESONATOR = new Resonator({
  *  exactly the 3 Whiteout Bitterfrost spends. Echo, then the held Blade Liberation cashes the
  *  Snowforged Blade and ends the form, leaving her back in Present Self for the next Intro. She is
  *  always the team's main DPS, so this covers the loop and there is no opener chain to write. */
+const FBA23 = new ActionGroup("Basic - Foreclaimed Self 23", [FBA2, FBA3]);
+
 const HY_ROTATION = new Rotation([
   INTRO, BA3, FrostSplinter, Lib1,
-  UHA, FBA2, FBA3,
-  UHA, FBA2, FBA3,
+  UHA, FBA23,
+  UHA, FBA23,
   USkill1, USkill2, DODGE, Iai, Iai, Iai, ECHO_CANCEL,
   FHA, Lib2Hold, OUTRO,
 ]);

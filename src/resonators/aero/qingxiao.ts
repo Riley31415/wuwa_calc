@@ -286,9 +286,11 @@ const QINGXIAO_RESONATOR = new Resonator({
 const FBA1234 = new ActionGroup("Forte - Ephemeral Transcendence 1234", [FBA1, FBA2, FBA3, FBA4]);
 const MA123 = new ActionGroup("Mid-air - Stringblade 123", [MA1, MA2, MA3]);
 
+const BA34 = new ActionGroup("Basic - Stringblade 34", [BA3, BA4]);
+
 const QX_ROTATION = new Rotation([
   START_3, Liberation, SWAP,
-  INTRO, MA123, BA3, BA4, Skill, HA,
+  INTRO, MA123, BA34, Skill, HA,
   FBA1234, FHA,
   Liberation, ECHO_SWAP, OUTRO,
 ]);

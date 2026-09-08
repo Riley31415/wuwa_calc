@@ -85,7 +85,7 @@ const DC = jinhsiAction("Dodge Counter - Slash of Breaking Dawn", { node: Node.N
 
 // --- Trailing Lights of Eons, and the alternative skill that opens Incarnation
 const Skill = jinhsiAction("Skill - Trailing Lights of Eons", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 155.68, energy: 2.21, concerto: 4.38, offtune: 6960 });
-const ESkill = jinhsiAction("Skill - Overflowing Radiance", {
+const Skill2 = jinhsiAction("Skill - Overflowing Radiance", {
   node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 197.29, energy: 1.29, concerto: 4, offtune: 3974,
   updateBuffs: () => applyCurrent(INCARNATION, 1),
 });
@@ -102,11 +102,11 @@ const IncBA4 = jinhsiAction("Basic - Incarnation 4", {
 });
 const IncHeavy = jinhsiAction("Heavy - Incarnation", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 159.06, energy: 2, concerto: 2, offtune: 6400 });
 const IncDodge = jinhsiAction("Dodge Counter - Incarnation", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 219.44, concerto: 13.08, offtune: 9810 });
-const CrescentDivinity = jinhsiAction("Skill - Crescent Divinity", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 503.8, energy: 3.19, concerto: 8, offtune: 10138 });
+const Skill3 = jinhsiAction("Skill - Crescent Divinity", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 503.8, energy: 3.19, concerto: 8, offtune: 10138 });
 
 /** Illuminous Epiphany, the one press: Solar Flare's six taps, with Stella Glamor's detonation
  *  queued behind them — the row every Incandescence held pays out on (see INCANDESCENCE below). */
-const SolarFlare = jinhsiAction("Forte Skill - Illuminous Epiphany: Solar Flare", {
+const Skill4 = jinhsiAction("Forte Skill - Illuminous Epiphany: Solar Flare", {
   node: Node.Forte, cast: Cast.Skill, cutscene: true, type: Type1.Skill, mv: 119.34, energy: 1.98, concerto: 20, offtune: 14400,
   updateBuffs: () => {
     revokeCurrent(ORDINATION_GLOW);
@@ -114,7 +114,7 @@ const SolarFlare = jinhsiAction("Forte Skill - Illuminous Epiphany: Solar Flare"
     queue(StellaGlamor);
   },
 });
-const StellaGlamor = jinhsiAction("Forte - Illuminous Epiphany: Stella Glamor", { node: Node.Forte, type: Type1.Skill, mv: 347.92, energy: 5.67, offtune: 42002 });
+const StellaGlamor = jinhsiAction("Forte Skill - Illuminous Epiphany: Stella Glamor", { node: Node.Forte, type: Type1.Skill, mv: 347.92, energy: 5.67, offtune: 42002 });
 
 const Liberation = jinhsiAction("Liberation - Purge of Light", { node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 1666.03, concerto: 20, offtune: 84000, resetEnergy: true });
 
@@ -227,7 +227,7 @@ const HERALD_OF_REVIVAL = new Buff({
   name: "Jinhsi S1: Herald of Revival", maxStacks: 4,
   applyStats: () => {
     const a = currentAction();
-    if (a === SolarFlare || a === StellaGlamor) addStat(Stat.DmgBonus, 20 * frozenStacks());
+    if (a === Skill4 || a === StellaGlamor) addStat(Stat.DmgBonus, 20 * frozenStacks());
   },
   convertStats: () => { if (currentAction() === StellaGlamor) revokeCurrent(HERALD_OF_REVIVAL); },
 });
@@ -236,7 +236,7 @@ const JX_S1 = new Sequence({
   name: "Jinhsi S1: Abyssal Ascension",
   updateBuffs: () => {
     const a = currentAction();
-    if (a === IncBA1 || a === IncBA2 || a === IncBA3 || a === IncBA4 || a === CrescentDivinity) {
+    if (a === IncBA1 || a === IncBA2 || a === IncBA3 || a === IncBA4 || a === Skill3) {
       applyCurrent(HERALD_OF_REVIVAL, 1);
     }
   },
@@ -273,7 +273,7 @@ const JX_S4 = new Sequence({
   // Solar Flare is the press; Stella Glamor is the detonation behind it, not a second cast
   updateBuffs: () => {
     const a = currentAction();
-    if (a === Liberation || a === SolarFlare) applyTeam(JX_S4_TEAM, 1);
+    if (a === Liberation || a === Skill4) applyTeam(JX_S4_TEAM, 1);
   },
 });
 
@@ -290,7 +290,7 @@ const JX_S6 = new Sequence({
   name: "Jinhsi S6: Thawing Triumph",
   applyStats: () => {
     const a = currentAction();
-    if (a === SolarFlare || a === StellaGlamor) addStat(Stat.MulMv, 45);
+    if (a === Skill4 || a === StellaGlamor) addStat(Stat.MulMv, 45);
   },
 });
 
@@ -335,17 +335,20 @@ const JINHSI_RESONATOR = new Resonator({
  *  the Intro's own 5s window means the Resonance Skill button is Overflowing Radiance. */
 const BA1234 = new ActionGroup("Basic - Slash of Breaking Dawn 1234", [BA1, BA2, BA3, BA4]);
 
+const IncBA12 = new ActionGroup("Basic - Incarnation 12", [IncBA1, IncBA2]);
+const IncBA34 = new ActionGroup("Basic - Incarnation 34", [IncBA3, IncBA4]);
+
 const JX_ROTATION = new Rotation([
 
-  START_3, Liberation, ECHO_ONFIELD, SWAP,
+  START_3, Liberation, SWAP,
 
   NOINTRO, BA1234,
-  DOUBLE_INTRO, ESkill, 
-  IncBA1, IncBA2, CrescentDivinity, IncBA3, IncBA4, ECHO_ONFIELD, SolarFlare,
+  DOUBLE_INTRO, Skill2.dodgeCancel(), 
+  IncBA12, Skill3, IncBA34, ECHO_ONFIELD, Skill4,
   OUTRO,
 
-  INTRO, ESkill, 
-  IncBA1, IncBA2, CrescentDivinity, IncBA3, IncBA4, SolarFlare, 
+  INTRO, Skill2.dodgeCancel(),
+  IncBA12, Skill3, IncBA34, Skill4, 
   Liberation, OUTRO,
 ]);
 

@@ -279,11 +279,13 @@ const SIGRIKA_RESONATOR = new Resonator({
 
 const BA234 = new ActionGroup("Basic - One, Two, Three 234", [BA2, BA3, BA4]);
 
+const BA34 = new ActionGroup("Basic - One, Two, Three 34", [BA3, BA4]);
+
 const SR_ROTATION = new Rotation([
   INTRO, ECHO_ONFIELD, 
   BA234, EBA, FHA, Liberation,
   BA234, EBA, FHA, FSkill,
-  Skill, BA3, BA4, EBA,
+  Skill, BA34, EBA,
   OUTRO,
 ]);
 

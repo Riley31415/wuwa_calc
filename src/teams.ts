@@ -14,6 +14,7 @@
  * and `teamAt()` below, and solver.ts's own `teamFromKey()`.
  */
 import type { Loadout } from "./engine/gear.js";
+import { teamPlayable } from "./engine/rotation.js";
 import { CARTETHYIA } from "./resonators/aero/cartethyia.js";
 import { CIACCONA } from "./resonators/aero/ciaccona.js";
 import { IUNO, IUNO_MDPS } from "./resonators/aero/iuno.js";
@@ -66,23 +67,23 @@ import { VERINA } from "./resonators/spectro/verina.js";
 const TEAMS: Loadout[][][] = [
 
   // suoming mdps, electro basic unison
-  [[SHOREKEEPER, VERINA, MORNYE], [SANHUA, LYNAE_RUPTURE, REBECCA], [SUOMING_MDPS]],
-  //[[SHOREKEEPER, VERINA, MORNYE, BULING, ZHEZHI], [JINHSI,JINHSI], [SUOMING]],
-  //[[SHOREKEEPER, VERINA, BULING, MORNYE, SUISUI], [HSIN_UNISON,HSIN_UNISON], [SUOMING]],
-
-  // hsin (Electro Flare mode): electro skill flare
-  [[SUISUI, BULING, CHISA, SHOREKEEPER, MORNYE], [CHISA, ROVER_ELECTRO, LYNAE_RUPTURE, REBECCA], [HSIN_FLARE]],
+  [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [SANHUA, LYNAE_RUPTURE, REBECCA], [SUOMING_MDPS]],
+  // dual dps long rot
+  // [[SHOREKEEPER, VERINA, BULING, MORNYE, SUISUI], [SUOMING_MDPS], [JINHSI]],
 
   // hsin, Unison mode: Suoming or Jinhsi behind her hands over the Unison her Intro answers
   [[SHOREKEEPER, VERINA, BULING, MORNYE, SUISUI], [SUOMING, SUOMING], [HSIN_UNISON]],
-  [[HSIN_UNISON], [JINHSI, JINHSI], [SUOMING, SUOMING], ],
-  [[SUOMING, SUOMING], [HSIN_UNISON], [JINHSI, JINHSI], ],
-  [[JINHSI, JINHSI], [SUOMING, SUOMING], [HSIN_UNISON], ],
-  //[[SHOREKEEPER, VERINA, BULING, MORNYE, SUISUI], [JINHSI, JINHSI], [HSIN_UNISON]],
+  [[HSIN_UNISON], [JINHSI], [SUOMING, SUOMING], ],
+  [[SUOMING, SUOMING], [HSIN_UNISON], [JINHSI], ],
+  [[JINHSI], [SUOMING, SUOMING], [HSIN_UNISON], ],
 
   // jinhsi: spectro skill
   [[SHOREKEEPER, VERINA, MORNYE, BULING, ZHEZHI, SUISUI], [ZHEZHI, YINLIN, CANTARELLA, LYNAE_RUPTURE, REBECCA, SUOMING, HSIN_UNISON], [JINHSI]],
-  //[[SHOREKEEPER, VERINA, MORNYE, BULING, ZHEZHI, SUISUI], [JINHSI], [SUOMING, HSIN_UNISON]],
+  // both worse with jinhsi first
+  // [[SHOREKEEPER, VERINA, MORNYE, BULING, ZHEZHI, SUISUI], [JINHSI], [SUOMING, HSIN_UNISON]],
+
+  // hsin (Electro Flare mode): electro skill flare
+  [[SUISUI, BULING, CHISA, SHOREKEEPER, MORNYE], [CHISA, ROVER_ELECTRO, LYNAE_RUPTURE, REBECCA], [HSIN_FLARE]],
 
   // electro rover mdps: Apex Resonance, the Thrum of All Sounds chains
   [[BULING, CHISA, SHOREKEEPER, VERINA, MORNYE], [LYNAE_RUPTURE, REBECCA], [ROVER_ELECTRO_MDPS]],
@@ -100,12 +101,16 @@ const TEAMS: Loadout[][][] = [
   // hiyuki: glacio chafe/bite — every stack the team lands calculates at the target's own limit,
   // which is why Chisa (+3 to it) and Lucilla's Chafe build stand behind her
   [[SUISUI, VERINA, SHOREKEEPER, MORNYE, CHISA], [LUCILLA_CHAFE, CHISA, LYNAE_RUPTURE, JIANXIN, ROVER_ELECTRO], [HIYUKI]],
+  [[PHROLOVA_DUAL_DPS], [LUCILLA, LUCILLA], [HIYUKI]],
+  [[SUISUI, SUISUI], [PHROLOVA_DUAL_DPS], [HIYUKI]],
 
   // lucy: spectro heavy on tune hack, with rebecca feeding her the outro
   [[VERINA, MORNYE, SHOREKEEPER], [REBECCA, REBECCA], [LUCY]],
 
   // sigrika: aero + echo
-  [[SHOREKEEPER, ROVER_AERO, CIACCONA, QIUYUAN, VERINA, MORNYE], [QIUYUAN, LUCILLA, CANTARELLA, ROVER_AERO, CIACCONA, LYNAE_RUPTURE], [SIGRIKA]],
+  [[SHOREKEEPER, CIACCONA, VERINA, MORNYE], [QIUYUAN, LUCILLA, CANTARELLA, ROVER_AERO, CIACCONA, LYNAE_RUPTURE], [SIGRIKA]],
+  [[QIUYUAN, ROVER_AERO], [QIUYUAN, LUCILLA], [SIGRIKA_FAST]],
+  [[PHROLOVA_DUAL_DPS], [QIUYUAN, LUCILLA], [SIGRIKA_FAST]],
 
   // luuk: spectro basic, tune strain
   [[SHOREKEEPER, VERINA, MORNYE], [LYNAE_STRAIN, SANHUA, DENIA_STRAIN, ROVER_SPECTRO], [LUUK]],
@@ -113,7 +118,7 @@ const TEAMS: Loadout[][][] = [
   // aemeath: fusion liberation on tune rupture — Mornye and Lynae answer the break beside her
   [[SHOREKEEPER, VERINA, MORNYE, LUPA], [LYNAE_RUPTURE, LUPA, CHANGLI, JIANXIN], [AEMEATH_RUPTURE]],
   // monofus needs mornye or lupa
-  [[MORNYE, LUPA], [BRANT, BRANT], [AEMEATH_RUPTURE]],
+  [[MORNYE, LUPA], [BRANT], [AEMEATH_RUPTURE]],
   // denia burst mode with real rupture teammates
   [[DENIA_BURST, DENIA_BURST], [LYNAE_RUPTURE, LYNAE_RUPTURE], [AEMEATH_RUPTURE]],
   [[MORNYE, MORNYE], [DENIA_BURST, DENIA_BURST], [AEMEATH_RUPTURE]],
@@ -135,6 +140,7 @@ const TEAMS: Loadout[][][] = [
 
   // augusta: electro heavy shielder
   [[SHOREKEEPER, VERINA, MORNYE], [IUNO, MORTEFI, LYNAE_RUPTURE, REBECCA], [AUGUSTA]],
+  // add phrolo subdps?
 
   // phrolova: havoc, echo, skill
   // phrolova -> subdps -> subdps
@@ -143,10 +149,6 @@ const TEAMS: Loadout[][][] = [
   [[PHROLOVA], [SHOREKEEPER, VERINA, BULING, MORNYE, SUISUI], [QIUYUAN, DANJIN, LUCILLA, CANTARELLA, LYNAE_RUPTURE]],
   // phrolova -> driver -> support
   [[PHROLOVA], [QIUYUAN, ROCCIA, DANJIN, ROVER_HAVOC], [SHOREKEEPER, VERINA, SUISUI]],
-  // phrolova -> subdps -> dual dps
-  [[PHROLOVA_DUAL_DPS, PHROLOVA_DUAL_DPS], [QIUYUAN, LUCILLA], [SIGRIKA_FAST]],
-  [[PHROLOVA_DUAL_DPS, PHROLOVA_DUAL_DPS], [LUCILLA, LUCILLA], [HIYUKI]],
-  [[SUISUI, SUISUI], [PHROLOVA_DUAL_DPS, PHROLOVA_DUAL_DPS], [HIYUKI]],
 
   // cartethyia: aero HP-scaling basic attack on Aero Erosion — Aero Rover and Chisa both raise the
   // status's own cap, which is what her Erosion ticks and her Blade's amplification both read
@@ -188,33 +190,51 @@ const TEAMS: Loadout[][][] = [
  *  team rather than stamped onto the shared `Loadout` objects themselves (as this used to do),
  *  since the same loadout can be a fixed support in one team and someone's main DPS in another —
  *  a global flag on the loadout would leak whichever team set it last into every other team. */
-export interface TeamEntry { loadouts: Loadout[]; dpsIndex: number }
+/** `mdps[i]` — whether slot i is one of the team's main DPS; a team may field more than one. */
+export interface TeamEntry { loadouts: Loadout[]; mdps: boolean[] }
 
 /** `TEAMS` expanded: every pick of one loadout per slot, minus any that repeats a resonator. */
+/** The teams the list above names that the scheduler can't play, and why. Never silently
+ *  dropped: the module throws on them (below), so the page shows the roster's mistake on its
+ *  loading screen rather than either failing on every solve or quietly listing fewer teams. */
+export const UNPLAYABLE_TEAMS: { names: string[]; why: string }[] = [];
+
 export const ALL_TEAMS: TeamEntry[] = TEAMS.flatMap((slots) => {
   // read off the slots exactly as written, before the dedupe below: naming a loadout twice is how
   // a slot says it is *not* this team's main DPS (it stops counting as a one-loadout slot), so
   // collapsing the repeat first would take that back
-  const singletons = slots.map((s, i) => (s.length === 1 ? i : -1)).filter((i) => i !== -1);
-  const [dpsIndex] = singletons;
-  // exactly one, either way round: a team with none has named no main DPS, and one with several
-  // has named several — neither is a thing this file can guess at, and a silent tie-break here
-  // would hand the flag to whichever slot happened to come last. A fixed support says it is one
-  // by naming its loadout twice (see the dedupe below, which then drops the repeat).
-  if (dpsIndex === undefined || singletons.length > 1) {
+  // every one-loadout slot is a main DPS — a team may field two or three of them — and a fixed
+  // support says it is one by naming its loadout twice (see the dedupe below, which then drops
+  // the repeat). A team with no one-loadout slot has named no main DPS at all, which this file
+  // can't guess at.
+  const mdps = slots.map((s) => s.length === 1);
+  if (!mdps.some(Boolean)) {
     const names = slots.map((s) => s.map((l) => l.resonator.name).join("/")).join(", ");
-    throw new Error(singletons.length > 1
-      ? `the team [${names}] has ${singletons.length} one-loadout slots, so more than one resonator is eligible to be its main DPS — name each fixed support twice to rule it out`
-      : `the team [${names}] has no one-loadout slot naming its main DPS`);
+    throw new Error(`the team [${names}] has no one-loadout slot naming its main DPS`);
   }
   // ...and now that it has said so, the repeat is dropped rather than crossed — a slot naming the
   // same loadout twice would otherwise build every team under it twice over, and the two are the
   // same row in every way the table can see. Dropped here rather than filtered afterwards so the
   // duplicates are never built at all.
   const [a, b, c] = slots.map((s) => [...new Set(s)]);
-  return a!.flatMap((x) => b!.flatMap((y) => c!.map((z) => ({ loadouts: [x, y, z], dpsIndex }))))
-    .filter((team) => new Set(team.loadouts.map((l) => l.resonator)).size === team.loadouts.length);
+  return a!.flatMap((x) => b!.flatMap((y) => c!.map((z) => ({ loadouts: [x, y, z], mdps }))))
+    .filter((team) => new Set(team.loadouts.map((l) => l.resonator)).size === team.loadouts.length)
+    // ...checking each against the scheduler, at every chain level its members declare rotations
+    // for (rotation.ts's own `teamPlayable()`) — the ones it can't play are collected and thrown
+    // on below
+    .filter((team) => {
+      const names = team.loadouts.map((l) => l.resonator.name);
+      const [x, y, z] = team.loadouts.map((l) => l.rotations);
+      let why: string | null = null;
+      for (const rx of x!) for (const ry of y!) for (const rz of z!) why ??= teamPlayable([rx, ry, rz], names);
+      if (why) UNPLAYABLE_TEAMS.push({ names, why });
+      return why === null;
+    });
 });
+if (UNPLAYABLE_TEAMS.length) {
+  throw new Error(`teams.ts lists ${UNPLAYABLE_TEAMS.length} team(s) the scheduler can't play:\n`
+    + UNPLAYABLE_TEAMS.map((t) => `  ${t.names.join(" / ")} — ${t.why}`).join("\n"));
+}
 
 /** A team's own name: its slot in `ALL_TEAMS`. Plain alphanumerics with no dash, since a row's key
  *  is this plus its per-member combo keys (index.ts's own `expandTeam()`). */

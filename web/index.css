@@ -148,6 +148,23 @@ body {
   align-items: baseline;
   gap: 8px;
 }
+/* what went wrong on the way up (index.html's own handlers), in full under the bar */
+.loading-error {
+  margin: 18px 0 0;
+  max-width: min(720px, 90vw);
+  max-height: 40vh;
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid #ff5f56;
+  border-radius: var(--r);
+  background: color-mix(in srgb, #ff5f56 10%, var(--surface));
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  text-align: left;
+}
 
 /* the progress bar sits under the "running every team's rotation…" line — a fixed-width track
    so the fill's own width is the only thing that moves as teams finish. Sized and bordered to
@@ -253,8 +270,10 @@ body {
    tables are read for the figures. Its own line-height, not `.rtrow .c`'s 17px. */
 .rtrow.rthead .c {
   background: var(--surface-3);
-  padding: 3px 10px;
-  line-height: 15px;
+  /* the action log's heading band (`.head .c`), which carries no row border */
+  padding: 9px 10px;
+  border-top: 0;
+  line-height: 19px;
   font-size: 11px;
   font-weight: 650;
   text-transform: uppercase;
@@ -262,15 +281,20 @@ body {
   color: var(--dim);
 }
 .rtrow .c {
-  padding: 6px 10px;
+  /* the action log's own row pitch (`.c` below: 7px + 19px + its 1px border), so the three
+     tables read in one rhythm */
+  padding: 7px 10px;
+  border-top: 1px solid transparent;
   font-family: var(--mono);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
-  line-height: 17px;
+  line-height: 19px;
   white-space: nowrap;
   position: relative;
 }
 .rtrow .c.num { text-align: right; color: var(--ink); }
+/* ...but a heading over a figure column stays the heading grey, like the action log's own */
+.rtrow.rthead .c.num { color: var(--dim); }
 /* the resonator's own name column, in both tables — the same left bar and wash the action table's
    member column wears (`.c.member`), at the stronger 18% these tables want: they have no hover
    state to deepen into, so the resting weight is the only weight there is. */
@@ -282,8 +306,8 @@ body {
 
 /* Energy Requirements: the member's own real ER stat dipped below this cell's own shown
    requirement at some point since their last reset — same red-underline treatment as the action
-   table's own `.negative`/`.underspent`. */
-.rtrow .c.er-under { color: #e5484d; text-decoration: underline dotted #e5484d; text-underline-offset: 3px; }
+   table's own `.negative`/`.underspent`: red where the build falls short of it. */
+.rtrow .c.er-under { color: #e5484d; }
 
 /* ---------------------------------------------------------------------- main */
 
@@ -315,14 +339,17 @@ main {
 }
 /* `flex-start`, so one box opening its description doesn't stretch the others in its row to match */
 .tcfilter-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
-/* the role boxes are one group, a column of their own beside the note-and-search one (`.cols2` below) */
 /* The note-and-search column leads wherever it stands: beside the table it is the corner the eye
    starts from, and above the table the search bar is the first thing on the page, ahead of the
    README and the role boxes (the `.tcsearchrow` order below). The warning is last either way. */
 .tcfilters > .tcfilter-row.note { order: 0; }
-/* above the table the search bar leads its column, so it is the first thing on the page rather
-   than the last thing before the table */
-.tclayout.stack .tcsearchrow { order: -1; }
+/* Above the table the boxes stand in a column of their own at the left, one under the other,
+   and the search bar with its filter chips takes the column beside them: a grid, the boxes
+   auto-placed down the first track and the search row pinned to the second for the height of
+   them all — four boxes, so four rows: spanning more opened a row gap for each empty row. */
+.tclayout.stack .tcfilter-row.note { display: grid; grid-template-columns: 360px 1fr; gap: 10px; align-items: start; }
+.tclayout.stack .tcsearchrow { grid-column: 2; grid-row: 1 / span 4; width: auto; }
+.tclayout.stack .tcfilter-row.note > .tcopt { grid-column: 1; }
 .tcfilters > .tcwarning { order: 2; }
 /* One box per axis: the name left, a labelled checkbox per role hard right, and the description
    opening under both (index.js's own `comparisonFilters()`). They share a basis so the boxes line
@@ -337,6 +364,11 @@ main {
 }
 /* an opened box keeps its colour: the arrow alone says it is open */
 .tcopt-head { display: flex; align-items: center; gap: 10px; }
+/* the Team Cost dropdown, hard right where a box's checkbox sits */
+.tcselect {
+  padding: 2px 6px; border: 1px solid var(--line-2); border-radius: 4px;
+  background: var(--surface-3); color: var(--ink); font-family: var(--sans); font-size: 12px;
+}
 /* the name takes up the slack, which is the whole of what pins the box to the right edge */
 .tcopt-name {
   flex: 1;
@@ -383,10 +415,14 @@ main {
    narrow to hold both). */
 /* In the note group with Standards rather than a row of its own under every group: there, any
    column's boxes opening pushed it down; here only that one box does. */
-.tcsearchrow { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; width: 100%; }
+/* the search bar, and the filter chips under it — the results list floats over the chips while
+   the bar is in use (`.tcsearch-results`) */
+.tcsearchrow { display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: 100%; }
 /* a block, not a flex column: a fixed-position child (the results, beside the table) takes its
    static position from flow — under the input — where a flex container would put it at the top */
-.tcsearch { position: relative; display: block; flex: 0 1 360px; max-width: 360px; }
+/* `flex: none`: the row is a column now (`.tcsearchrow`), where a 360px basis would be a *height*
+   and stood the chips a bar's worth of empty space below it */
+.tcsearch { position: relative; display: block; flex: none; width: 100%; max-width: 360px; }
 .tcsearch input {
   display: block;
   width: 100%;
@@ -439,9 +475,8 @@ main {
 }
 /* no wash on the row itself: the half under the pointer is what lights up (`.sact:hover` below) */
 /* The row is two click targets split by a rule, each the row's full height: the include side is
-   the name, which axis the match is from dimmed after it, and "include" hard right; the exclude
-   side is just "exclude". The tick/cross are the same green/red as a chip's (`.rchip .box`
-   below) so the reading carries over. */
+   the name, which axis the match is from dimmed after it, and "show" hard right; the hide side
+   is just "hide". */
 .sresult .sact { display: flex; align-items: center; align-self: stretch; padding: 5px 10px; color: var(--ink); }
 .sresult .sact.inc { flex: 1; justify-content: space-between; gap: 12px; min-width: 0; }
 /* the rule between the two: the labels' own grey a touch heavier, and shorter than the row so it
@@ -461,15 +496,8 @@ main {
 .sresult .skind { color: var(--dim); font-size: 11px; }
 .sresult .slabel { display: flex; align-items: center; gap: 4px; color: var(--dim); white-space: nowrap; }
 .sresult .sact:hover .slabel { color: var(--ink); }
-.sresult .slabel .box { font-size: 12px; font-weight: 700; line-height: 1; }
-.sresult .sact.inc .box { color: #4ade5f; }
-.sresult .sact.exc .box { color: #ff5f56; }
 .sresult.none { padding: 5px 10px; color: var(--dim); cursor: default; }
 
-/* A filter's own (mdps)/(support) marker (index.js's own `roleTagLabel()`) — only shown once a
-   name plays both roles somewhere in the table, so it's dimmed rather than part of the name: it
-   says which of two same-named picks this one is, not a second thing to read. */
-.roletag { color: var(--dim); font-weight: 400; }
 
 /* The row-cap warning (index.js's own `rowCapWarning()`), shown in place — no re-render — when a
    checkbox is refused for pushing the table past `ROW_CAP`. Same signal red as a chip's own "✕"
@@ -488,7 +516,27 @@ main {
    Rounded and shadowed, unlike everything else in this file — they float over the page rather
    than sitting in its grid, and the pill shape is what says "this is a token you can dismiss",
    so they opt out of the square-corner rule at the top on purpose. */
-.tcchips { flex: 1 1 180px; display: flex; flex-wrap: wrap; gap: 8px; }
+.tcchips { display: flex; flex-direction: column; gap: 8px; }
+/* the two sections the chips stand in — Include and Exclude — each its label and then its chips,
+   wrapping; which way a filter runs is said here rather than inside the chip */
+.chipsec { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.chiprow { display: flex; flex-wrap: wrap; gap: 8px; }
+/* the one-line "Clear Filters" under the chips: plain underlined grey text, no button about it.
+   The underline goes on the inner span: a button's own text-decoration doesn't reach its text in
+   every browser (Firefox drops it). */
+.clearall {
+  /* the 4px under the text is where the underline sits: the aside is a scroll container and
+     clips whatever paints past a child's own box, which a 3px-offset underline on a box that ends
+     at the text does */
+  align-self: flex-start; padding: 0 0 4px; border: 0; background: none; cursor: pointer;
+  font-family: var(--sans); font-size: 12px; color: var(--dim);
+}
+.clearall span { text-decoration: underline; text-underline-offset: 3px; }
+.clearall:hover { color: var(--ink); }
+.chiplabel {
+  font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: .7px;
+  color: var(--dim);
+}
 .rchip {
   display: inline-flex;
   align-items: center;
@@ -506,19 +554,26 @@ main {
   color: var(--ink);
   cursor: pointer;
 }
+/* a filter's own (mdps)/(support) tag (index.ts's own `roleTagLabel()`), dimmed rather than part
+   of the name: it says which of a resonator's roles the filter is on */
+.roletag { color: var(--dim); font-weight: 400; }
 .rchip:hover {
   border-color: color-mix(in srgb, var(--mem, transparent) 80%, var(--faint));
   background: color-mix(in srgb, var(--mem, transparent) 24%, var(--surface-3));
 }
-/* the tick/cross to the right of the name — the one part that is *not* the resonator's colour:
-   green means "only teams fielding them", red means "no team fielding them", and that reading has
-   to be the same whoever the chip is for. The pill around it says who.
-
-   Plain green and red rather than the palette's own --mint/accent: these two are a signal, not a
-   theme colour, and --mint (#45d6a4) reads as teal next to a red. */
-.rchip .box { font-size: 12px; font-weight: 700; line-height: 1; }
-.rchip.inc .box { color: #4ade5f; }
-.rchip.exc .box { color: #ff5f56; }
+/* the right-click menu over a table cell (index.ts's own `showMenu()`): a small card of rows,
+   over everything but the hover panels */
+.ctxmenu {
+  position: fixed; z-index: 150; min-width: 180px;
+  border-radius: var(--r); overflow: hidden;
+  background: var(--surface-3); box-shadow: var(--sh-2);
+  display: flex; flex-direction: column;
+}
+.ctxitem {
+  padding: 4px 12px; border: 0; background: none; text-align: left;
+  font-family: var(--sans); font-size: 12px; color: var(--ink); cursor: pointer;
+}
+.ctxitem:hover { background: color-mix(in srgb, var(--ink) 8%, var(--surface-3)); }
 
 /* a plain `hidden` attribute loses to `.trow`'s own `display: contents` on specificity otherwise
    (an attribute selector and a class selector tie, and author order decides the winner) */
@@ -586,6 +641,9 @@ main {
   overflow: hidden;
   text-overflow: ellipsis;
   position: relative;
+  /* every cell reads from the top: a row is as tall as its tallest echo pick (a line per set),
+     and the rest of the row lines up with that pick's first line */
+  align-content: start;
 }
 .trow .c.num { text-align: right; color: var(--ink); }
 /* a member's own name — full-strength text colour, a left bar and a background wash, same trick
@@ -601,7 +659,8 @@ main {
    name, right click drops every team that fields it — everywhere it appears, not just the row
    clicked (see index.js's own resonatorFilters). Nothing is drawn in the cell either way; the
    chips above the table are what show a set filter, and clicking one clears it. */
-.trow .c.name.res { cursor: pointer; display: flex; align-items: center; gap: 7px; }
+/* `flex-start`, not `center`: the name reads from the top of a tall row like every other cell */
+.trow .c.name.res { cursor: pointer; display: flex; align-items: flex-start; gap: 7px; }
 .trow .c.name.res .res-label { overflow: hidden; text-overflow: ellipsis; }
 
 /* a weapon/echo/mainstat pick's own column: the same member colour wash as their name cell,
@@ -690,10 +749,6 @@ main {
    extra rules needed beyond a touch more breathing room since its rows run longer than a stat
    trace's ever do */
 .pop.gear td.v { padding-left: 14px; }
-/* the comparison table's loadout panel opens with how its cell is clicked, ruled off from the
-   loadout under it the same way the menu stats are ruled off below (see `.pop .gear + tr`) */
-.pop .hint td { padding-bottom: 6px; border-bottom: 1px dotted var(--line-2); color: var(--dim); white-space: nowrap; }
-.pop .hint + tr td { padding-top: 6px; }
 .pop .pct { color: var(--dim); font-weight: 400; }
 /* Its figures are left-aligned rather than flush right (the `.pop td.v` default every stat-trace
    panel keeps): each is a figure and its share of the whole ("41,203 (37%)"), so the two read as
@@ -737,10 +792,9 @@ main {
 .pop.buffs .cols, .pop.gear .cols { display: flex; align-items: flex-start; gap: 26px; }
 /* the substat column's roll counts, in ink beside their dim stat names — a single roll fades,
    stat and count both, so the rolls that were actually chosen stand out; the total under them is
-   ruled off like any panel's own foot (see `.pop .sum` below) but keeps the rows' own weight */
+   ruled off like any panel's own foot (see `.pop .sum` below) */
 .pop.gear td.n { color: var(--ink); text-align: right; }
 .pop.gear tr.one td { color: var(--faint); }
-.pop.gear .sum td { font-weight: 400; }
 
 /* ---------------------------------------------------------------------- table */
 
@@ -884,7 +938,9 @@ body.coldrag { user-select: none; }
    it. An element of its own rather than a border on the row's cells, so it runs straight across
    the member column's colour bar — the one line that should — and the row under it drops its own
    grey rule so the two don't stack. */
-.loopline { position: relative; height: 1px; background: #39ff14; }
+/* over the rows (which stack in source order, so the row after would otherwise paint across its
+   label), under the pinned heading (40) and the hover panels (200) */
+.loopline { position: relative; z-index: 10; height: 1px; background: #39ff14; }
 .loopline > span {
   position: absolute;
   left: 100%;
@@ -909,7 +965,9 @@ body.coldrag { user-select: none; }
    otherwise whoever's kit it belongs to) — deliberately faint, since the strong "whose turn is
    this" signal lives entirely in the member column instead (see below), not competing with it. */
 .step > .r        { background: color-mix(in srgb, var(--m, transparent) 4%, var(--surface)); }
-.step:hover > .r  { background: color-mix(in srgb, var(--m, transparent) 8%, var(--surface)); }
+/* the row under the pointer, not the whole group: inside an opened group the label row would
+   otherwise stay lit while its parts are read, a band above them */
+.step > .r:hover  { background: color-mix(in srgb, var(--m, transparent) 8%, var(--surface)); }
 
 /* the action name reads in plain full-strength white — "whose turn" is entirely the member
    column's own signal (see below), so the action name doesn't also compete for it. A little
@@ -933,12 +991,15 @@ body.coldrag { user-select: none; }
 .c.buffed { text-decoration: underline dotted #fff; text-underline-offset: 3px; }
 
 /* concerto only: an outro that fired without a full 100-point bar banked — a real "we didn't
-   have enough" case, so it reads as an error rather than the neutral `.buffed` note above. */
-.c.underspent { color: #e5484d; text-decoration: underline dotted #e5484d; text-underline-offset: 3px; }
+   have enough" case, so it reads as an error, in red. The colour alone: the underline stays the
+   `.buffed` note's, drawn only when a buff moved the cell, and takes the red with it then. */
+.c.underspent { color: #e5484d; }
 
 /* forte gauges only: the gauge itself has gone negative — same red treatment as underspent
    concerto, since it's the same "ran out" story. */
-.c.negative { color: #e5484d; text-decoration: underline dotted #e5484d; text-underline-offset: 3px; }
+.c.negative { color: #e5484d; }
+
+.c.buffed.underspent, .c.buffed.negative { text-decoration-color: currentColor; }
 
 /* The member column: its own colour system, sourced from `--mem` (the member's own colour, set
    inline per cell) rather than `--m` (the row's action colour) — a left bar and a background
@@ -961,7 +1022,7 @@ body.coldrag { user-select: none; }
   background-repeat: no-repeat;
   background-color: color-mix(in srgb, var(--mem, transparent) 10%, var(--surface));
 }
-.step:hover .c.member { background-color: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface)); }
+.step .r:hover .c.member { background-color: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface)); }
 
 /* total row */
 .totalrow {
@@ -1095,7 +1156,8 @@ body.coldrag { user-select: none; }
   color: var(--ink);
 }
 .pop tr:first-child.sec td { padding-top: 0; }
-.pop .sum td { padding-top: 5px; border-top: 1px solid var(--line-2); font-weight: 700; }
+/* the rule is what marks a total or a summary row; the text keeps the rows' own weight and size */
+.pop .sum td { padding-top: 5px; border-top: 1px solid var(--line-2); }
 .pop .sum td.v { color: var(--ink); }
 
 /* a group heading — base / bonus / flat, a scope ("Basic Dmg Bonus"), or the column's own name on
@@ -1211,7 +1273,7 @@ body.coldrag { user-select: none; }
     /* over the table's own pinned header (z-index 5), under the hover panels (200) */
     z-index: 6;
     /* the narrowest of the three, until `fitSide()` has measured which one this table can afford
-       (see `.cols1` below for the 10px) */
+       (the 10px for its own scrollbar) */
     width: 370px;
     /* the slack beside a table narrower than the room left for it belongs between the two, not to
        the right of the aside: the columns keep the page's own right edge */
@@ -1232,38 +1294,8 @@ body.coldrag { user-select: none; }
   .tcside::-webkit-scrollbar-thumb { background: var(--line-2); border: 3px solid var(--bg); }
   .tcside::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 }
-/* How wide the aside is, and so whether the two groups stand side by side: one column of boxes
-   is 360px (`.tcopt` above) and 10px separates two, so two columns want 730, plus the 10px its
-   own scrollbar always has reserved (`scrollbar-gutter` above). Set from `fitSide()`, which hands
-   the aside the wider of the two the table leaves room for, the whole point being that the
-   groups keep their place beside the table down to a single column before they give it up and go
-   above it. */
-.tcside.cols1 { width: 370px; }
-.tcside.cols2 { width: 740px; }
-/* A column per group, not one wrapping flow of all the boxes: in a flow, a box opening its
-   description made its whole wrap line tall and the boxes after it started below that, leaving a
-   hole beside the short one. In a column, an open box moves only what is under it. At `.cols1`
-   there is room for one box a line anyway, so the base wrapping row already is that column. */
-.tcside.cols2 .tcfilters {
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: flex-start;
-  align-content: flex-start;
-  /* above the table (`.stack`) the aside has the whole width and the columns only part of it:
-     they start at the left edge, where the table below them starts — beside the table the width
-     is exactly the columns' own, so this decides nothing there */
-  justify-content: flex-start;
-}
-.tcside.cols2 .tcfilter-row {
-  flex-direction: column;
-  /* a width, not a basis: down a column a basis would be the *height* */
-  flex: none;
-  width: 360px;
-  align-items: stretch;
-}
-.tcside.cols2 .tcopt { flex: none; }
-.tcside.cols2 .tcwarning { flex: 1 0 100%; }
+/* One column of boxes, 360px (`.tcopt` above) plus the 10px its own scrollbar always has
+   reserved (`scrollbar-gutter` above), against the page's right edge (`margin-left: auto`). */
 /* Not even one column's worth of room beside the table, which only the page can know
    (index.ts's own `fitSide()`) — so the aside goes above it and spends the full width instead. */
 /* as wide as the table rather than the scrollport: a sticky aside can only slide within its own
@@ -1290,19 +1322,20 @@ body.coldrag { user-select: none; }
      it: the aside itself has to clear the pinned table header (40) for the list to land on top */
   z-index: 41;
 }
-/* Above the table the boxes fill the width rather than standing in fixed 360px columns: the
-   aside is the scrollport's width (`fitSide()` sets it), its edge gap the phone's 12px rather
-   than the desktop 26px, and its one or two columns share that width equally. Which it is comes
-   from `fitSide()` against the width the columns actually need, not the fixed-column figure. */
+/* Above the table the boxes keep their 360px and stand at the left, one under the other, rather
+   than stretching to the aside's width (the scrollport's, which `fitSide()` sets); the edge gap
+   is the phone's 12px rather than the desktop 26px. */
 main.stack { padding: 0 12px 420px; }
-.tclayout.stack .tcopt { flex: 1 1 100%; }
-.tclayout.stack .tcsearch { flex: 1 1 100%; max-width: none; }
-.tclayout.stack .tcside.cols2 .tcfilter-row { flex: 1 1 0; width: auto; min-width: 0; }
-.tclayout.stack .tcside.cols2 .tcopt { flex: none; }
+.tclayout.stack .tcopt { flex: 0 1 360px; max-width: 100%; }
 
 /* a phone: one box per line, full width, and less of the page given over to margin */
 @media (max-width: 560px) {
   main { padding: 0 12px 420px; }
+  /* no room for two columns: one, the search bar first, every box the full width (`flex: none`,
+     since down a column the 360px basis above would be a *height*) */
+  .tclayout.stack .tcfilter-row.note { display: flex; flex-direction: column; }
+  .tclayout.stack .tcsearchrow { order: -1; width: 100%; }
+  .tclayout.stack .tcopt { flex: none; width: 100%; }
   .tcopt { flex: 1 1 100%; }
   .tcsearch { max-width: none; }
 }

@@ -185,6 +185,8 @@ const FBA3 = hsinAction("Basic - Illumining Form: Pillars Aligned 3", { node: No
 const FBA4 = hsinAction("Basic - Illumining Form: Pillars Aligned 4", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 166.38, energy: 4.38, concerto: 4.80, offtune: 9560, forte2: -113.68, ...PILLAR_FLARE });
 const FADC = hsinAction("Dodge Counter - Illumining Form: Pillars Aligned", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 114.69, energy: 2.97, concerto: 13.30, offtune: 6594, ...PILLAR_FLARE });
 const FBA1234 = new ActionGroup("Basic - Illumining Form: Pillars Aligned 1234", [FBA1, FBA2, FBA3, FBA4]);
+const FBA123 = new ActionGroup("Basic - Illumining Form: Pillars Aligned 123", [FBA1, FBA2, FBA3]);
+const FBA12 = new ActionGroup("Basic - Illumining Form: Pillars Aligned 12", [FBA1, FBA2]);
 const BA1234 = new ActionGroup("Basic - Answering Form 1234", [BA1, BA2, BA3, BA4]);
 
 // --- Illumining Form: Beholding All Horizons once the Heart is spent, Stilling when Law of Heaven
@@ -194,7 +196,7 @@ const HORIZONS = {
   updateBuffs: () => { revokeCurrent(MECHANISM_DOMINION); applyCurrent(PILLARS_UNLOCKED, 1); },
 };
 const Beholding = hsinAction("Forte Heavy - Illumining Form: Beholding All Horizons", { ...HORIZONS, mv: 410.78 });
-const Stilling = hsinAction("Forte Heavy - Illumining Form: Stilling All Horizons", {
+const FHA = hsinAction("Forte Heavy - Illumining Form: Stilling All Horizons", {
   ...HORIZONS, mv: 1081.69, offtune: 20160,
   updateDebuffs: () => { if (isHeld(MODE_FLARE)) inflictElectroFlare(5); },
 });
@@ -277,7 +279,7 @@ const OutroUnison = unisonOutro(Outro);
 /* ------------------------------------------------------------------------------------ buffs */
 
 /** The two Resonance Modes, one loadout each. Every mode-bound branch reads its own. */
-const MODE_FLARE = new ResonanceMode({ name: "Resonance Mode - Electro Flare" ,
+const MODE_FLARE = new ResonanceMode({ name: "Resonance Mode - Electro Flare", abbr: "Flare",
   // Forms Turn, Heart Abides, Flare mode: every Electro Rage the team inflicts is hers, and comes
   // off the target — watched from her own slot on every action, so a teammate's overflow lands on her
   updateGlobal: () => {
@@ -292,7 +294,7 @@ const MODE_FLARE = new ResonanceMode({ name: "Resonance Mode - Electro Flare" ,
  *  refreshed after) and, as a responder, the Boon pays her; a teammate who gains a Unison of
  *  their own takes Shared Light, watched from her slot on every action. */
 const MODE_UNISON = new ResonanceMode({
-  name: "Resonance Mode - Unison",
+  name: "Resonance Mode - Unison", abbr: "Unison",
   combatStart: () => applyCurrent(UNISON_RESPONDER, 1),
   updateBuffs: () => { if (unisonResponse() && !isHeld(HS_BOON_RESPONSE)) { applyTeam(UNISON_BOON, 1); applyCurrent(HS_BOON_RESPONSE, 1); } },
   updateGlobal: () => {
@@ -481,7 +483,7 @@ const HS_S2 = new Sequence({
   name: "Hsin S2: To Wake Is to Wonder What I Am",
   applyStats: () => {
     const a = currentAction();
-    if (a === RealmWanderer || a === RealmProtector || a === Beholding || a === Stilling) addStat(Stat.MulMv, 60);
+    if (a === RealmWanderer || a === RealmProtector || a === Beholding || a === FHA) addStat(Stat.MulMv, 60);
     if (casting(Cast.Intro) && !isHeld(ILLUMINING_FORM)) addStat(Stat.AddForte1, 100);
   },
 });
@@ -581,15 +583,18 @@ const HSIN_RESONATOR = new Resonator({
 // Heartlock, Pillars Aligned opens Dominion, its four stages lay the Flare charges, the Skill
 // spends the Heart of Thunder they overflowed into, Stilling closes Dominion and Pillars Across
 // Heaven ends the visit. She is never the team's lead, so this covers opener and loop both.
+const IBA12 = new ActionGroup("Basic - Illumining Form 12", [IBA1, IBA2]);
+const BA34 = new ActionGroup("Basic - Answering Form 34", [BA3, BA4]);
+
 const HS_ROTATION_FLARE = new Rotation([
-  INTRO, BA4, Skill, BA4,
+  INTRO, BA4, Skill,
   ECHO_ONFIELD, 
   RealmProtector, Lib1, 
   
-  IBA1, IBA2, ISkill,
+  IBA12, ISkill,
 
   PillarsAligned, 
-  FBA1234, Stilling,
+  FBA123, DODGE, FBA12, FHA,
   Lib2, OUTRO,
 ]);
 
@@ -604,12 +609,12 @@ const HS_ROTATION_UNISON = new Rotation([
   NOINTRO, JUMP, ReignHold, ReignPlunge, Skill, BA4,
   RealmProtector, Lib1, OUTRO,
 
-  DOUBLE_INTRO, BA3, BA4, Skill, 
+  DOUBLE_INTRO, BA34, Skill, 
   RealmProtector, Lib1, OUTRO,
 
   INTRO, 
   ECHO_ONFIELD, 
-  FBA1234, Stilling,
+  FBA123, DODGE, FBA12, FHA,
   Lib2, OUTRO,
 ]);
 

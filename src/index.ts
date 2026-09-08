@@ -35,8 +35,8 @@ import type { ChainGroup, ResolvedSnapshot } from "./engine/evaluate.js";
 import { buildReport, columnSources, columnOf, gaugeSuffix, OFFTUNE_RATE, ENERGY_RATE } from "./display.js";
 import type { Report, Column, ReportRow, ReportPart, TraceEntry, InfoEntry } from "./display.js";
 import { Scaling, isPercent, statLabel, SCALING_NAME, TAG_NAME, NODE_NAME } from "./engine/stats.js";
-import { member, comboOf, runTeam, runFromScore, eligibleWeapons, sequenceLevels, solveTeam, MAINSTAT_ROWS, defaultFilters, bestKey, picksKey } from "./solver.js";
-import type { Member, Combo, Pick, Filters, TeamRun, Solved, SolveRequest, SolveResponse, SolveSave } from "./solver.js";
+import { member, comboOf, runTeam, runFromScore, eligibleWeapons, sequenceLevels, solveTeam, MAINSTAT_ROWS, defaultFilters, bestKey, picksKey, axisOpen, filterSignature, AXES } from "./solver.js";
+import type { Member, Combo, Pick, Filters, TeamRun, Solved, SolveRequest, SolveResponse, SolveSave, Axis, TeamCost } from "./solver.js";
 import { teamKey, teamAt, ALL_TEAMS } from "./teams.js";
 
 
@@ -46,26 +46,22 @@ import { teamKey, teamAt, ALL_TEAMS } from "./teams.js";
  *  in `ALL_TEAMS` (teams.ts's own `teamKey()`), which is also what a worker is handed to rebuild
  *  it. A plain identifier with no dash, since a row's key is this plus its per-member combo keys
  *  (`expandTeam()`), and a team key never carries a dash of its own. */
-const TEAMS: Record<string, Member[]> = Object.fromEntries(ALL_TEAMS.map(({ loadouts, dpsIndex }, i) => [
+const TEAMS: Record<string, Member[]> = Object.fromEntries(ALL_TEAMS.map(({ loadouts, mdps }, i) => [
   teamKey(i),
-  loadouts.map((l, j) => member(l, j === dpsIndex)),
+  loadouts.map((l, j) => member(l, mdps[j]!)),
 ]));
 
 /** Which way a resonator has been filtered: `include` keeps only the teams that field them,
  *  `exclude` drops every team that does. */
 type ResonatorFilter = "include" | "exclude";
 
-/** The one role a member plays wherever they're worth naming apart from their name — main DPS or
- *  support — and the key into every filter map that tells the two same-name picks apart once a
- *  name plays both (`roleTagged()`/`parseRoleTag()` below). */
-type Role = "mdps" | "support";
 type GearKind = "weapon" | "echo" | "mainstat";
 
-/** Whether a resonator ever fields as main DPS, support, or (rarely) both across `TEAMS` — a team
- *  composition is fixed, so this needs computing only once. A resonator who is ever both is the
- *  one whose filter needs the (mdps)/(support) marker at all (`roleTagged()`): a bare name would
- *  otherwise leave which of their two appearances a click or a search hit even means unsettled. */
-const RESONATOR_ROLE = new Map<string, Role | "both">();
+/** The role a member plays on a team — main DPS or support — and which of the two (or both)
+ *  each resonator ever fields as across `TEAMS`, computed once since a team composition is
+ *  fixed. */
+type Role = "mdps" | "support";
+export const RESONATOR_ROLE = new Map<string, Role | "both">();
 for (const members of Object.values(TEAMS)) {
   for (const m of members) {
     const role: Role = m.mainDps ? "mdps" : "support";
@@ -74,57 +70,38 @@ for (const members of Object.values(TEAMS)) {
   }
 }
 
-/** A name's own role marker stripped back off (`RESONATOR_HUE`/`sequenceTag` and friends all key
- *  by the bare name), or the name unchanged if it never carried one. */
-const baseName = (key: string): string => key.replace(/ \((?:mdps|support)\)$/, "");
-
-/** Pulls a role back off a filter key that may carry one — `${name} (mdps)`/`${name} (support)`,
- *  written by `roleTagged()` below and never anything else, so a plain regex round-trips it
- *  exactly. `null` means "no explicit tag", not "no role": the caller still has to ask whether the
- *  name has one only one role could ever mean (`parseResonatorFilter()`/`parseGearFilter()`). */
-function explicitRoleTag(key: string): { name: string; role: Role | null } {
+/** A resonator filter key: the name, tagged with the role it is filtered at — `Suoming (mdps)`,
+ *  `Suoming (support)` — only for a resonator who plays both somewhere in the roster
+ *  (`RESONATOR_ROLE`); one who only ever plays the one role is keyed by the bare name, which
+ *  says everything a tag would. Written by `roleKey()` and never anything else, so a plain regex
+ *  reads it back: an untagged key's role is the one role that resonator has, or either for one
+ *  who plays both (an old link). */
+const roleKey = (name: string, mdps: boolean): string =>
+  (RESONATOR_ROLE.get(name) === "both" ? `${name} (${mdps ? "mdps" : "support"})` : name);
+function parseRoleKey(key: string): { name: string; role: Role | null } {
   const m = /^(.*) \((mdps|support)\)$/.exec(key);
-  return m ? { name: m[1]!, role: m[2] as Role } : { name: key, role: null };
-}
-
-/** The filter key one occurrence of a name (at this role) should be stored/matched under: tagged
- *  with which role this is only when the name plays both somewhere in the table (`ambiguous`) —
- *  otherwise a bare name says everything a tag would, and every filter set before this feature
- *  existed still reads back the same way. Shared by resonators (`ambiguous` off `RESONATOR_ROLE`)
- *  and weapon/echo/mainstat picks (`ambiguous` off `candidateRoles()`). */
-const roleTagged = (name: string, mdps: boolean, ambiguous: boolean): string =>
-  ambiguous ? `${name} (${mdps ? "mdps" : "support"})` : name;
-
-/** A filter key as markup, its own role marker (if any) grayed out in place rather than read as
- *  part of the name — it says which of two same-named picks this one is, not part of what to call
- *  either. Every place a filter key reaches the screen — a chip, a search hit — draws through this
- *  instead of a plain `esc()`. */
-function roleTagLabel(key: string): string {
-  const { name, role } = explicitRoleTag(key);
-  return role ? `${esc(name)} <span class="roletag">(${role})</span>` : esc(key);
-}
-
-const resonatorFilterKey = (name: string, mdps: boolean): string =>
-  roleTagged(name, mdps, RESONATOR_ROLE.get(name) === "both");
-
-/** A resonator filter key back from its spaceless form — how the hash writes them (`syncHash()`:
- *  `ElectroRover(mdps)`), every key either role could produce, plus the bare names. */
-const RESONATOR_KEY_BY_COMPACT = new Map<string, string>();
-for (const name of RESONATOR_ROLE.keys()) {
-  for (const key of [name, resonatorFilterKey(name, true), resonatorFilterKey(name, false)]) {
-    RESONATOR_KEY_BY_COMPACT.set(key.replace(/ /g, ""), key);
-  }
-}
-
-/** A resonator filter key's own name and role — an explicit tag if it carries one, else looked up
- *  in `RESONATOR_ROLE`: an untagged name has exactly one role unless it's one of the rare "both"
- *  ones, and those are never stored untagged in the first place (`resonatorFilterKey()`), so `null`
- *  there only ever means a stale link from before this feature existed. */
-function parseResonatorFilter(key: string): { name: string; role: Role | null } {
-  const tag = explicitRoleTag(key);
-  if (tag.role) return tag;
+  if (m) return { name: m[1]!, role: m[2] as Role };
   const role = RESONATOR_ROLE.get(key);
   return { name: key, role: role === "both" ? null : role ?? null };
+}
+/** A filter key as markup, its role tag dimmed in place: it says which of a resonator's two
+ *  roles this filter is on, not part of the name. Every place a key reaches the screen — a chip,
+ *  a search hit, the menu — draws through this. */
+function roleTagLabel(key: string): string {
+  // the tag only where the key itself carries one — a single-role name is shown bare
+  const m = /^(.*) \((mdps|support)\)$/.exec(key);
+  return m ? `${esc(m[1]!)} <span class="roletag">(${m[2]})</span>` : esc(key);
+}
+
+/** A resonator filter key back from its spaceless form — how the hash writes them (`syncHash()`:
+ *  `ElectroRover(mdps)`): every key a member's roles produce, the bare name too, and a tagged
+ *  form of a single-role name (a link from when every key was tagged) landing on the bare key. */
+const RESONATOR_KEY_BY_COMPACT = new Map<string, string>();
+for (const members of Object.values(TEAMS)) {
+  for (const m of members) {
+    const key = roleKey(m.name, m.mainDps);
+    for (const form of [m.name, key, `${m.name} (${m.mainDps ? "mdps" : "support"})`]) RESONATOR_KEY_BY_COMPACT.set(form.replace(/ /g, ""), key);
+  }
 }
 
 /** Resonators filtered by name, set from their own name cell in the comparison table — left click
@@ -134,12 +111,8 @@ function parseResonatorFilter(key: string): { name: string; role: Role | null } 
  *  this decides which rows are built rather than hiding rows afterwards, so a narrowed table
  *  never optimizes and runs teams nobody asked to see. Module-level so it survives a re-render.
  *
- *  A key is a bare resonator name, or `${name} (mdps)`/`${name} (support)` for the rare one who
- *  plays both somewhere in the table (`resonatorFilterKey()`/`RESONATOR_ROLE`) — a bare name always
- *  means every appearance for one who only ever plays the one role. Multiple mdps-scoped includes
- *  OR together instead of ANDing (`roleFilterHolds()`): a team fields exactly one main DPS, so
- *  requiring two different ones would just empty the table, and OR is what "either of these as
- *  main DPS" actually means.
+ *  A key is the resonator's name, whichever role they play: every include must be fielded, no
+ *  exclude may be (`namesHold()`).
  *
  *  Verina, both Rovers, Danjin, Encore and Jiyan start barred: legal slots on much of the table, so their
  *  rows multiply it while rarely being the pick anyone is comparing. Their chips bring them back. */
@@ -178,53 +151,26 @@ type SearchKind = "resonator" | OptionKind;
 
 const filters: Filters = defaultFilters();
 
-/** Every weapon/echo/mainstat pick's own candidate roles, under a given filter state — a pick is a
- *  candidate for a role at all only while that role's own Show ... Options box is open (same gate
- *  `searchCandidates()` uses, since this is what decides whether a filterable cell or search entry
- *  for it exists), so this can only grow as boxes open and has to be recomputed whenever one does.
- *  Cached against the handful of booleans it actually depends on rather than every redraw, since
- *  every gear filter check (`rowWanted()`, one per row, run for the whole table on most redraws)
- *  asks it. `f` lets `estimatedRowCount()` ask against a filter state that hasn't been committed
- *  yet (`withRowCap()`), same as `eligibleWeapons()` already does. */
-let gearRoleCache: { sig: string; roles: Record<GearKind, Map<string, Set<Role>>> } | null = null;
-function candidateRoles(kind: GearKind, f: Filters = filters): Map<string, Set<Role>> {
-  const sig = [f.mdpsWeapons, f.supportWeapons, f.mdpsEchoes, f.supportEchoes,
-    f.mdpsMainstats, f.supportMainstats, f.allowR1Mdps, f.allowR1Supports].join(",");
-  if (gearRoleCache?.sig !== sig) {
-    const roles: Record<GearKind, Map<string, Set<Role>>> = { weapon: new Map(), echo: new Map(), mainstat: new Map() };
-    const add = (k: GearKind, name: string, role: Role) =>
-      roles[k].set(name, (roles[k].get(name) ?? new Set()).add(role));
+/** Every weapon/echo/mainstat pick on offer under a filter state — one is on offer only while
+ *  some member comparing that axis can run it (the same gate `optionCell()`/`searchCandidates()`
+ *  use, since this is what decides whether a filterable cell or search entry for it exists), so
+ *  this has to be recomputed whenever a compare changes. Cached against the filter signature
+ *  rather than every redraw, since `pruneGearFilters()` and the search both ask. */
+let gearCache: { sig: string; offered: Record<GearKind, Set<string>> } | null = null;
+function offeredGear(kind: GearKind, f: Filters = filters): Set<string> {
+  const sig = filterSignature(f);
+  if (gearCache?.sig !== sig) {
+    const offered: Record<GearKind, Set<string>> = { weapon: new Set(), echo: new Set(), mainstat: new Set() };
     for (const members of Object.values(TEAMS)) {
       for (const m of members) {
-        const role: Role = m.mainDps ? "mdps" : "support";
-        if (m.mainDps ? f.mdpsWeapons : f.supportWeapons) {
-          for (const i of eligibleWeapons(m, f)) add("weapon", m.loadout.weapons[i]!.name, role);
-        }
-        if (m.mainDps ? f.mdpsEchoes : f.supportEchoes) {
-          for (const e of m.loadout.echoLoadouts) add("echo", echoLabel(m.loadout, e), role);
-        }
-        if (m.mainDps ? f.mdpsMainstats : f.supportMainstats) {
-          for (const g of m.loadout.mainstats) add("mainstat", g.name, role);
-        }
+        if (axisOpen(m, f, "weapons")) for (const i of eligibleWeapons(m, f)) offered.weapon.add(m.loadout.weapons[i]!.name);
+        if (axisOpen(m, f, "echoes")) for (const e of m.loadout.echoLoadouts) offered.echo.add(echoLabel(m.loadout, e));
+        if (axisOpen(m, f, "mainstats")) for (const g of m.loadout.mainstats) offered.mainstat.add(g.name);
       }
     }
-    gearRoleCache = { sig, roles };
+    gearCache = { sig, offered };
   }
-  return gearRoleCache.roles[kind];
-}
-const gearFilterKey = (kind: GearKind, name: string, mdps: boolean, f: Filters = filters): string =>
-  roleTagged(name, mdps, candidateRoles(kind, f).get(name)?.size === 2);
-
-/** Same idea as `parseResonatorFilter()`, but for a weapon/echo/mainstat key: an untagged one has
- *  exactly one candidate role right now unless it's genuinely offered under both — which, unlike a
- *  resonator's roles, can change as boxes open and close, so a stale untagged key caught mid-change
- *  reads as `null` (match wherever it turns up, the same as every filter here read before roles
- *  existed) rather than joining a role bucket it may not belong in. */
-function parseGearFilter(kind: GearKind, key: string, f: Filters = filters): { name: string; role: Role | null } {
-  const tag = explicitRoleTag(key);
-  if (tag.role) return tag;
-  const roles = candidateRoles(kind, f).get(key);
-  return { name: key, role: roles?.size === 1 ? [...roles][0]! : null };
+  return gearCache.offered[kind];
 }
 
 /** The whole table's own row-count ceiling: with weapon/echo/mainstat now crossed in full rather
@@ -335,7 +281,6 @@ function discardRestoredSolves(): boolean {
   return true;
 }
 
-const filterSignature = (f: Filters): string => Object.values(f).join(",");
 
 /**
  * Does a solve fit the code that is about to display it? Two things are checked, both cheap and
@@ -352,12 +297,18 @@ const filterSignature = (f: Filters): string => Object.values(f).join(",");
  * name across builds, so a browser can hand a worker a stale copy of the engine and it will
  * happily solve with last week's kits. A solve that fails is simply solved here instead.
  */
-/** The filter state a `bestKey()` was made under, read back off the key — the same
- *  `Object.values()` order `filterSignature()` writes, so `FILTER_KEYS` zips straight onto it. */
-function filtersOfKey(key: string): Filters {
-  const flags = (key.split("|")[1] ?? "").split(",").map((v) => v === "true");
+/** The filter state a `bestKey()` was made under, read back off the key — Matrix and each
+ *  member's own compare bits, in the order `bestKey()` writes them. */
+function filtersOfKey(key: string, members: Member[]): Filters {
+  const [, matrix, cost, bits] = key.split("|");
   const f = defaultFilters();
-  FILTER_KEYS.forEach((k, i) => { if (i < flags.length) f[k] = flags[i]!; });
+  f.matrix = matrix === "true";
+  f.cost = cost as TeamCost;
+  (bits ?? "").split(",").forEach((b, i) => {
+    const m = members[i];
+    if (!m) return;
+    AXES.forEach((a, k) => { if (b[k] === "1") f[a].push(m.loadout.resonator.name); });
+  });
   return f;
 }
 
@@ -372,16 +323,17 @@ function picksFit(key: string, picks: Pick[]): boolean {
   });
 }
 
-function solveFits(key: string, solved: Solved, f: Filters = filters): boolean {
+function solveFits(key: string, solved: Solved, f?: Filters): boolean {
   const team = teamAt(key.split("|")[0]!);
   if (!team) return false;
-  const members = team.loadouts.map((l, i) => member(l, i === team.dpsIndex));
-  if (!picksFit(key, solved.picks) || !solved.rows.every((r) => picksFit(key, r))) return false;
+  const members = team.loadouts.map((l, i) => member(l, team.mdps[i]!));
+  f ??= filtersOfKey(key, members);
+  if (!picksFit(key, solved.picks) || !solved.rows.every((r) => picksFit(key, r)) || !(solved.hidden ?? []).every((r) => picksFit(key, r))) return false;
   // every score must be this team's: a solve keyed by index that landed on another team's
   // slot carries that team's names (and its DPS missing — the Personal column reads 0)
   const names = new Set([...members.map((m) => m.name), TUNE_BREAK_ENEMY.name]);
-  const dps = members[team.dpsIndex]!.name;
-  if (!solved.scores.every((s) => s.bySlot.every(([n]) => names.has(n)) && s.bySlot.some(([n]) => n === dps))) return false;
+  const dps = members.filter((m) => m.mainDps).map((m) => m.name);
+  if (!solved.scores.every((s) => s.bySlot.every(([n]) => names.has(n)) && dps.every((d) => s.bySlot.some(([n]) => n === d)))) return false;
   const expected = members.reduce((n, m) => n * sequenceLevels(m, f).length, 1);
   const patterns = new Set(solved.rows.map((r) => r.map((p) => p.sequence).join(".")));
   return patterns.size === expected;
@@ -413,7 +365,7 @@ async function loadSolves(): Promise<void> {
     if (saved.stamp !== buildStamp) return;
     // the same stamp is no guarantee the solve was made by this code (see `solveFits()`), so each
     // one is checked against the filters its own key was saved under
-    for (const [k, v] of saved.solves) if (solveFits(k, v, filtersOfKey(k))) { bestPicks.set(k, v); restoredSolves = true; }
+    for (const [k, v] of saved.solves) if (solveFits(k, v)) { bestPicks.set(k, v); restoredSolves = true; }
     for (const [k, v] of saved.picks) if (picksFit(k, v)) { picksCache.set(k, v); restoredSolves = true; }
   };
   try {
@@ -467,49 +419,35 @@ interface TeamRow { key: string; teamKey: string; members: Member[]; combo: Comb
  * before it lands if it would push the *whole table's* row count past `ROW_CAP` (see
  * `withRowCap()`), rather than silently trying to run it.
  */
-/** One occurrence of a filterable name in a team/row: what it's named, and whether it's playing
- *  main DPS there. What `roleFilterHolds()` checks a filter map's own keys against. */
-type Occurrence = { name: string; mdps: boolean };
+/** Whether a name/mode filter map is satisfied by the names a team or row actually fields on
+ *  that axis: every included name is among them, no excluded name is. Nothing filtered lets
+ *  everything through. */
+const namesHold = (map: Map<string, ResonatorFilter>, names: string[]): boolean =>
+  [...map].every(([name, mode]) => names.includes(name) === (mode === "include"));
 
-/** Whether a name/mode filter map is satisfied by what a team or row actually has — `occurrences`
- *  is every (name, role) pair it fields on this axis, `parseKey` reads a stored key back into a
- *  name and the role it's scoped to (`null` for "any role", see `parseResonatorFilter()`/
- *  `parseGearFilter()`).
- *
- *  An include tagged mdps joins every other mdps include in one OR group instead of each being its
- *  own AND term the way every other include still is: a team fields exactly one main DPS, so two
- *  different required ones can never both hold, and OR is the only reading of "pick either" that
- *  isn't simply impossible. Excludes stay ANDed regardless of role — each is its own "not this",
- *  and those can all hold at once same as always. */
-function roleFilterHolds(
-  map: Map<string, ResonatorFilter>, occurrences: Occurrence[],
-  parseKey: (key: string) => { name: string; role: Role | null },
-): boolean {
-  if (!map.size) return true;
-  const parsed = [...map].map(([key, mode]) => ({ ...parseKey(key), mode }));
+/** Whether a team survives the resonator filters, each keyed by name and role (`roleKey()`): an
+ *  include tagged mdps is an OR with every other mdps include — "either of these as a main DPS"
+ *  — while a support include is an AND, a teammate the team has to field; an untagged key (an
+ *  old link) matches either role and ANDs. Excludes bar whichever way they are tagged. */
+function teamWanted(members: Member[]): boolean {
   const holds = (name: string, role: Role | null): boolean =>
-    occurrences.some((o) => o.name === name && (role === null || o.mdps === (role === "mdps")));
-  const mdpsIncludes = parsed.filter((f) => f.mode === "include" && f.role === "mdps");
-  if (mdpsIncludes.length && !mdpsIncludes.some((f) => holds(f.name, f.role))) return false;
+    members.some((m) => m.name === name && (role === null || m.mainDps === (role === "mdps")));
+  const parsed = [...resonatorFilters].map(([key, mode]) => ({ ...parseRoleKey(key), mode }));
+  const ors = parsed.filter((f) => f.mode === "include" && f.role === "mdps");
+  if (ors.length && !ors.some((f) => holds(f.name, f.role))) return false;
   return parsed.every((f) => (f.mode === "include" && f.role === "mdps") || holds(f.name, f.role) === (f.mode === "include"));
 }
 
-/** Whether a team survives the resonator filters: it must field every included name — requiring
- *  two asks for teams that play both together, not teams that play either, except mdps-scoped
- *  includes, which OR together instead (`roleFilterHolds()`) — and none of the excluded ones.
- *  Nothing filtered lets every team through. */
-const teamWanted = (members: Member[]): boolean =>
-  roleFilterHolds(resonatorFilters, members.map((m) => ({ name: m.name, mdps: m.mainDps })), parseResonatorFilter);
-
 /** What a member's own echo pick reads as, one line per set named (`EchoLoadout.sets`): a 5pc
- *  alone, a 3pc and its 2pc, a 1pc and its two 2pcs. The mainslot only joins — on the first line
- *  — when this loadout has another echo option sharing the same sonata but a different mainslot
+ *  alone, a 3pc and its 2pc, a 1pc and its two 2pcs. The mainslot only joins — on a line of its
+ *  own, last — when this loadout has another echo option sharing the same sonata but a different mainslot
  *  (see CLAUDE.md's own note on the wording of echo comparisons); otherwise the sets alone
  *  already tell every option apart. */
 function echoLines(l: Loadout, echo: EchoLoadout): string[] {
   const showMainslot = l.echoLoadouts.some((e) => e.sonata === echo.sonata && e.mainslot !== echo.mainslot);
   const lines = echo.sets.map((g) => g.name);
-  if (showMainslot) lines[0] = `${lines[0]} (${echo.mainslot.name})`;
+  // on a line of its own under the sets, the way a 2pc stands under its 3pc
+  if (showMainslot) lines.push(echo.mainslot.name);
   return lines;
 }
 /** The same pick as the one string the comparison table's Echo column and the option filters that
@@ -522,8 +460,7 @@ const echoLabel = (l: Loadout, echo: EchoLoadout): string => echoLines(l, echo).
  *  business; so is any position whose own Sequences box is shut, since then every row runs the one
  *  level and a filter on it would say nothing. */
 function sequenceTagAt(m: Member, sequence: number, f: Filters = filters): string | null {
-  const open = f[m.mainDps ? "mdpsSequences" : "supportSequences"];
-  if (!open || sequence <= baseSequence(m.loadout.resonator)) return null;
+  if (!axisOpen(m, f, "sequences") || sequence <= baseSequence(m.loadout.resonator)) return null;
   return `${m.name} S${sequence}`;
 }
 const sequenceTag = (m: Member, combo: Combo): string | null => sequenceTagAt(m, combo.sequence);
@@ -532,17 +469,10 @@ const sequenceTag = (m: Member, combo: Combo): string | null => sequenceTagAt(m,
  *  but per row rather than per team composition: the pick these key off only exists once a row's
  *  own combo is known. */
 function rowWanted(row: TeamRow): boolean {
-  // sequences carry no role marker (out of scope: a chain level is already scoped to one
-  // resonator by name, and nobody picks two different levels of two different mdps at once), so
-  // this stays a plain AND same as every filter here read before roles existed
-  const named = (map: Map<string, ResonatorFilter>, names: string[]): boolean =>
-    [...map].every(([name, mode]) => names.includes(name) === (mode === "include"));
-  const occurrences = (name: (i: number) => string): Occurrence[] =>
-    row.members.map((m, i) => ({ name: name(i), mdps: m.mainDps }));
-  return roleFilterHolds(weaponFilters, occurrences((i) => row.combo[i]!.weapon.name), (k) => parseGearFilter("weapon", k))
-    && roleFilterHolds(echoFilters, occurrences((i) => echoLabel(row.members[i]!.loadout, row.combo[i]!.echo)), (k) => parseGearFilter("echo", k))
-    && roleFilterHolds(mainstatFilters, occurrences((i) => row.combo[i]!.mainstat.name), (k) => parseGearFilter("mainstat", k))
-    && named(sequenceFilters, row.combo.flatMap((c, i) => sequenceTag(row.members[i]!, c) ?? []));
+  return namesHold(weaponFilters, row.combo.map((c) => c.weapon.name))
+    && namesHold(echoFilters, row.combo.map((c, i) => echoLabel(row.members[i]!.loadout, c.echo)))
+    && namesHold(mainstatFilters, row.combo.map((c) => c.mainstat.name))
+    && namesHold(sequenceFilters, row.combo.flatMap((c, i) => sequenceTag(row.members[i]!, c) ?? []));
 }
 
 /**
@@ -572,6 +502,14 @@ function expandTeam(teamKey: string, members: Member[]): TeamRow[] {
     const score = solved.scores[r];
     if (score && !results.has(key)) results.set(key, runFromScore(teamKey, members, combo, score));
   });
+  // the hidden rows are filed as run too, for the gear compares (see `comparisonTable()`), and
+  // never listed — a solve from before they existed simply has none
+  (solved.hidden ?? []).forEach((picks, r) => {
+    const combo = picks.map((p: Pick, i: number) => comboOf(members[i]!.loadout, p));
+    const key = `${teamKey}-${combo.map((c: Combo) => c.key).join("-")}`;
+    const score = solved.hiddenScores?.[r];
+    if (score && !results.has(key)) results.set(key, runFromScore(teamKey, members, combo, score));
+  });
 
   return [...rows.values()].filter(rowWanted);
 }
@@ -592,17 +530,8 @@ const teamRows = (): TeamRow[] => Object.entries(TEAMS).flatMap(([key, members])
  * survive isn't known until each build is scored (main stats, see solver.ts's own `rowPicks()`).
  * Dropping them can only overcount, which is the safe direction for a cap.
  *
- * `kind`, when given, lets an mdps-scoped include (`roleFilterHolds()`'s own OR group) be dropped
- * from the inclusion-exclusion the same way an untestable name already is: this formula counts "all
- * of these appear", which isn't what two ORed names mean, and counting it as "all" anyway would
- * undercount past what's actually onscreen. Dropping it instead only widens the estimate, the same
- * safe direction as everywhere else here. `f` is threaded through to `parseGearFilter()` for the
- * same not-yet-committed-state reason `estimatedRowCount()` takes one.
  */
-function axisWays(
-  lists: (string[] | null)[], map: Map<string, ResonatorFilter>, cap = Infinity,
-  kind?: GearKind, f: Filters = filters,
-): number {
+function axisWays(lists: (string[] | null)[], map: Map<string, ResonatorFilter>, cap = Infinity): number {
   const excluded = [...map].filter(([, mode]) => mode === "exclude").map(([n]) => n);
   const sizes = (drop: string[]): number[] =>
     lists.map((l) => (l === null ? 1 : l.filter((n) => !drop.includes(n)).length));
@@ -610,9 +539,7 @@ function axisWays(
     sizes(drop).reduce((p, n) => p * Math.min(cap, n), 1);
 
   const untestable = lists.includes(null) || sizes(excluded).some((n) => n > cap);
-  const included = untestable ? [] : [...map]
-    .filter(([n, mode]) => mode === "include" && !(kind && parseGearFilter(kind, n, f).role === "mdps"))
-    .map(([n]) => n);
+  const included = untestable ? [] : [...map].filter(([, mode]) => mode === "include").map(([n]) => n);
   let total = 0;
   for (let mask = 0; mask < (1 << included.length); mask++) {
     const banned = included.filter((_, k) => mask & (1 << k));
@@ -629,22 +556,22 @@ function axisWays(
  *  solved, under a hypothetical filter state as easily as the real one (`f` defaults to it but a
  *  caller can pass one that hasn't been committed yet — see `ROW_CAP`). */
 function estimatedRowCount(members: Member[], f: Filters = filters): number {
-  const openFor = (m: Member, mdpsKey: keyof Filters, supportKey: keyof Filters): boolean =>
-    f[m.mainDps ? mdpsKey : supportKey];
-  return axisWays(members.map((m) => (openFor(m, "mdpsWeapons", "supportWeapons")
-      ? eligibleWeapons(m, f).map((i) => m.loadout.weapons[i]!.name) : null)), weaponFilters, Infinity, "weapon", f)
-    * axisWays(members.map((m) => (openFor(m, "mdpsEchoes", "supportEchoes")
-      ? m.loadout.echoLoadouts.map((e) => echoLabel(m.loadout, e)) : null)), echoFilters, Infinity, "echo", f)
+  return axisWays(members.map((m) => (axisOpen(m, f, "weapons")
+      ? eligibleWeapons(m, f).map((i) => m.loadout.weapons[i]!.name) : null)), weaponFilters)
+    * axisWays(members.map((m) => (axisOpen(m, f, "echoes")
+      ? m.loadout.echoLoadouts.map((e) => echoLabel(m.loadout, e)) : null)), echoFilters)
     // an open box shows the best few rolls for each build, not the whole list (solver.ts's own
     // `rowPicks()`) — the count has to match, since this is what the row cap is checked against
-    * axisWays(members.map((m) => (openFor(m, "mdpsMainstats", "supportMainstats")
-      ? m.loadout.mainstats.map((g) => g.name) : null)), mainstatFilters, MAINSTAT_ROWS, "mainstat", f)
+    * axisWays(members.map((m) => (axisOpen(m, f, "mainstats")
+      ? m.loadout.mainstats.map((g) => g.name) : null)), mainstatFilters, MAINSTAT_ROWS)
     // Sequences are an axis of the cross like the rest. Unlike the three above, the level a
     // *closed* box shows is known without solving anything (the member's own baseline), so this
     // passes the real list either way rather than the `null` an un-searched axis uses — and the
     // baseline carries no tag at all, which is what the empty string stands in for.
     * axisWays(members.map((m) => sequenceLevels(m, f)
-      .map((level) => sequenceTagAt(m, level, f) ?? "")), sequenceFilters);
+      .map((level) => sequenceTagAt(m, level, f) ?? "")), sequenceFilters)
+    // ...and the substat spreads, two rows per member comparing them, with no filter of their own
+    * members.reduce((n, m) => n * (axisOpen(m, f, "substats") ? 2 : 1), 1);
 }
 
 /** The whole table's own prospective row count, under whatever filter state is live right now (or
@@ -820,12 +747,6 @@ function buildPop(kind: string, key: string): string {
   if (kind === "dpr") {
     const run = results.get(key);
     return run ? `<span class="pop dpr">${dprTable(run)}</span>` : "";
-  }
-  if (kind === "gear") {
-    const at = key.lastIndexOf("|");
-    const run = results.get(key.slice(0, at));
-    const src = Number(key.slice(at + 1));
-    return run ? gearPopoverHtml(run.members[src]!, run.combo[src]!, false) : "";
   }
   return "";
 }
@@ -1177,19 +1098,14 @@ function menuStatRows(member: Member, combo: Combo): { label: string; value: str
 
 /** What the Substats column calls a row's spread: the piece's own prefix, the part before the
  *  stats it leans on (shared/substats.ts's `substats()`/`highSubs()`). */
-const subsLabel = (combo: Combo): string => (combo.highSubs ? "CN Subs" : "ChemX32");
+const subsLabel = (combo: Combo): string => (combo.highSubs ? "High Invest" : "ChemX32");
 
 /** The loadout on its own — the only hover a member's own name cell carries, on both the
  *  comparison table and the detail page's two rotation tables. Its own gear list first, then —
  *  on the detail page only — a "menu stats" reading of the same build below it (see
  *  `.pop .gear + tr:not(.gear)` in index.css for the divider between the two). */
-function gearPopoverHtml(member: Member, combo: Combo, withStats: boolean): string {
-  // the comparison table's own panel opens on a cell that filters: it says so first, then names
-  // the resonator, since the cell under it is the one thing on the row the loadout isn't
-  const head = withStats ? "" : `<tr class="hint"><td colspan="2">Left Click to filter, Right Click to exclude</td></tr>`
-    + `<tr class="gear"><td class="k">Resonator</td><td class="v">${esc(member.name)}</td></tr>`;
-  if (!withStats) return `<span class="pop gear"><table>${head}${gearRows(member, combo)}</table></span>`;
-  // the detail page's: the loadout and its menu-stats reading in one labelled column, and the
+function gearPopoverHtml(member: Member, combo: Combo): string {
+  // the loadout and its menu-stats reading in one labelled column, and the
   // substat piece's own rolls beside them — every stat's line, how many rolls it got in a
   // column of its own, and the twenty-five they add up to
   const stats = menuStatRows(member, combo)
@@ -1204,7 +1120,7 @@ function gearPopoverHtml(member: Member, combo: Combo, withStats: boolean): stri
     + `<table><tr class="sec"><td colspan="2">Substats</td></tr>${rolls}</table>`
     + `</div></span>`;
 }
-const gearPopover = (member: Member, combo: Combo): string => lazyPop(gearPopoverHtml(member, combo, true));
+const gearPopover = (member: Member, combo: Combo): string => lazyPop(gearPopoverHtml(member, combo));
 
 /** What a member's own name cell reads as: the resonator, then their sequence level and weapon
  *  rank as one token (`S0R1`) — the level this row actually runs at (see `sequenceLevels()`), and
@@ -1219,7 +1135,7 @@ function memberLabel(m: Member, combo: Combo): string {
   // free resonator's S6, a standard 5-star's S2); a limited one's S0 says nothing until that
   // role's Sequences box is open — and once it is, this is the one thing telling that member's
   // own rows apart (see `sequenceLevels()`).
-  const seq = baseSequence(l.resonator) > 0 || (mdps ? filters.mdpsSequences : filters.supportSequences)
+  const seq = baseSequence(l.resonator) > 0 || axisOpen(m, filters, "sequences")
     ? `S${combo.sequence}`
     : "";
   // Which way the weapon went is worth saying either way — a signature is the build's own biggest
@@ -1230,7 +1146,9 @@ function memberLabel(m: Member, combo: Combo): string {
   const rank = combo.weapon.tier === Tier.Free && l.resonator.tier !== Tier.Limited ? "R5"
     : combo.weapon.tier === Tier.Limited ? "R1"
     : "R0";
-  return [l.resonator.name, `${seq}${rank}`].filter(Boolean).join(" ");
+  // a kit run in a Resonance Mode says which, in the mode's own word (`ResonanceMode.abbr`)
+  const name = l.mode ? `${l.resonator.name} (${l.mode.abbr})` : l.resonator.name;
+  return [name, `${seq}${rank}`].filter(Boolean).join(" ");
 }
 
 /** One member's own weapon/echo/mainstat pick, rendered as its own column cell to the right of
@@ -1266,11 +1184,10 @@ function searchCandidates(): { kind: SearchKind; value: string }[] {
   };
   for (const members of Object.values(TEAMS)) {
     for (const m of members) {
-      add("resonator", resonatorFilterKey(m.name, m.mainDps));
-      const open = (mdps: keyof Filters, support: keyof Filters): boolean => filters[m.mainDps ? mdps : support];
-      if (open("mdpsWeapons", "supportWeapons")) for (const i of eligibleWeapons(m, filters)) add("weapon", gearFilterKey("weapon", m.loadout.weapons[i]!.name, m.mainDps));
-      if (open("mdpsEchoes", "supportEchoes")) for (const e of m.loadout.echoLoadouts) add("echo", gearFilterKey("echo", echoLabel(m.loadout, e), m.mainDps));
-      if (open("mdpsMainstats", "supportMainstats")) for (const g of m.loadout.mainstats) add("mainstat", gearFilterKey("mainstat", g.name, m.mainDps));
+      add("resonator", roleKey(m.name, m.mainDps));
+      if (axisOpen(m, filters, "weapons")) for (const i of eligibleWeapons(m, filters)) add("weapon", m.loadout.weapons[i]!.name);
+      if (axisOpen(m, filters, "echoes")) for (const e of m.loadout.echoLoadouts) add("echo", echoLabel(m.loadout, e));
+      if (axisOpen(m, filters, "mainstats")) for (const g of m.loadout.mainstats) add("mainstat", g.name);
       // a closed Sequences box collapses sequenceLevels() to the baseline alone, so this adds nothing then
       for (const level of sequenceLevels(m, filters).slice(1)) {
         const tag = sequenceTagAt(m, level);
@@ -1294,9 +1211,9 @@ function searchHits(): { kind: SearchKind; value: string }[] {
 }
 
 /** `searchHits()` as markup — each one a row split in two by a rule: the name (and which axis it
- *  is from) with "include" at its right on the left side, "exclude" on the right side. A left
- *  click on the exclude side bars it, a left click on the include side or Enter requires it, and
- *  a right click anywhere on the row bars it (see the handlers in `boot()`). */
+ *  is from) with "show" at its right on the left side, "hide" on the right side. A left click on
+ *  the hide side bars it, a left click on the show side or Enter includes it, and a right click
+ *  anywhere on the row bars it (see the handlers in `boot()`). */
 function searchResults(): string {
   if (!searchText.trim()) return "";
   const KIND_LABEL: Record<SearchKind, string> = {
@@ -1306,14 +1223,14 @@ function searchResults(): string {
   if (!hits.length) return `<div class="sresult none">no matches</div>`;
   return hits.map(({ kind, value }) => {
     // gear has no member of its own, so it wears the Tune Break's colour, same as its chip
-    const hue = (kind === "resonator" ? RESONATOR_HUE.get(baseName(value))
+    const hue = (kind === "resonator" ? RESONATOR_HUE.get(parseRoleKey(value).name)
       : kind === "sequence" ? RESONATOR_HUE.get(value.replace(/ S\d+$/, "")) : undefined) ?? TUNE_BREAK_ENEMY.color;
     return `<button type="button" class="sresult" data-kind="${kind}" data-value="${esc(value)}"`
       + ` style="--mem:${hue}"`
-      + ` title="${esc(value)} — include: only rows using them; exclude (or right click): no row using them; either again to clear.">`
+      + ` title="${esc(value)} — show: teams with them; hide (or right click): no team with them. Either again to clear.">`
       + `<span class="sact inc"><span class="sname">${roleTagLabel(value)}<span class="skind">${KIND_LABEL[kind]}</span></span>`
-      + `<span class="slabel">include <span class="box">✓</span></span></span>`
-      + `<span class="sact exc"><span class="slabel">exclude <span class="box">✕</span></span></span></button>`;
+      + `<span class="slabel">show</span></span>`
+      + `<span class="sact exc"><span class="slabel">hide</span></span></button>`;
   }).join("");
 }
 
@@ -1340,55 +1257,43 @@ function searchResults(): string {
  *  rows the way the other three axes do (it drops whole teams instead, see `sequenceLevels()`),
  *  but it does change what every member cell is called, so it belongs to the same state and the
  *  same redraw. */
-const PAIRS: { id: string; label: string; mdps: keyof Filters; support: keyof Filters; help: string }[] = [
-  { id: "r1", label: "Signature Weapons", mdps: "allowR1Mdps", support: "allowR1Supports",
-    help: "Allow that role to use signature weapons (R1), otherwise they run standard and 4* weapons only" },
-  { id: "sequences", label: "Show Sequences", mdps: "mdpsSequences", support: "supportSequences",
-    help: "Show sequences S1-S6 for 5 star standard and limited resonators" },
-  { id: "weapons", label: "Compare Weapons", mdps: "mdpsWeapons", support: "supportWeapons",
-    help: "Compare weapon options for that role, enable R1 weapons to see signature options" },
-  { id: "echoes", label: "Compare Sonatas", mdps: "mdpsEchoes", support: "supportEchoes",
-    help: "Compare sonata and mainslot echo options for that role" },
-  { id: "mainstats", label: "Compare Mainstats", mdps: "mdpsMainstats", support: "supportMainstats",
-    help: "Compare echo mainstat combos for that role" },
-  { id: "highsubs", label: "Show Substat Gains", mdps: "mdpsHighSubs", support: "supportHighSubs",
-    help: "Display high investment substat gains. Otherwise, only show ChemX32 standard substats." },
+/** What each Team Cost setting means, under the box's own name (`costBox()`). */
+const COST_HELP = [
+  "Full S0R0 - Limited resonators are S0 and use the best standard or 4* weapon available at R1. Rover and 4* resonators are S6.",
+  "S0R1 mdps - Each team gets a single signature weapon at R1 that gives the best DPR increase, in most cases the team's main DPS. Dual DPS teams still only get one signature weapon.",
+  "S0R1 all - All limited resonators get their best signature weapon, while Rover and 4* supports may still use standard or 4* weapons.",
 ];
 const MATRIX_HELP = "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.";
 
 /** What every figure in the table is costed against, whatever the boxes above it are set to —
  *  the one box that toggles nothing, so it states its terms rather than describing a switch. */
 const STANDARDS = [
-  "Rotations are 123, or 1323 for resonators that need double intro (jinhsi, brant, etc).",
-  "In some cases, a character may use their liberation at the start of the fight for free damage.",
-  "Each rotation is achievable in 25-27 seconds, and we assume 4 rotations in 2 minutes.",
+  "Rotations are 123, 1323, or 12323 for double intro and unison (jinhsi, brant, hsin, etc).",
+  "A resonator may use their liberation at the start of the fight for free damage or buffs.",
+  "Each rotation is achievable in 25-28 seconds, and we assume 4 rotations in 2 minutes.",
   "Combat is performed against a single level 100 boss with 20% resistance to all attributes.",
   "Resonators and weapons are level 90, with all skill nodes at level 10.",
-  "Standard characters are S0, four star resonators and rover are S6 by default.",
-  "Standard 5 star weapons are R1 and four star weapons are R5 by default.",
-  "The simulation uses estimated, not frame exact buff uptimes in some cases to simplify calculations.",
-  "This is to enable large scale automatic team calculations. It will never effect DPR by more than 1-2%.",
-  "If you find an issue in buff timing, stats, builds, etc ping me on discord."
 ];
 
 /** The beta notice — where the numbers stand right now and where to report one that looks wrong.
  *  Open by default (see `openHelp`): it is the one box a first-time reader has to see. */
 const README = [
   "All beta calculations are subject to change!",
-  "There may be issues during early beta especially with Hsin and Suoming.",
-  "Not all character sequences are implemented, im working on them.",
-  "If you find any issues with stats, buffs, or damage seems way off, ping me @rileyy._. on discord.",
+  "Not all character sequences are implemented YET.",
+  "Jingran DPR went down due to over estimated shield counts in the old calculations.",
+  "Hsin Unison DPR went down because we found out Unison Boon gives 3% amp, not 3% vuln.",
+  "If you find an issue in rotations, buffs, stats, builds, or abnormal damage ping me on discord @rileyy._."
 ];
 
 /** How the table is worked rather than what it assumes — the clicks and the search bar, for a
  *  reader who has the numbers in front of them and no way of knowing they are filterable. */
 const BROWSING = [
-  "Left click a resonator or gear name to show only teams with it, right click to hide them.",
-  "Search bar: type a resonator, enter filters the top result.",
-  "Gear (weapons, sonatas, mainslot echoes, mainstats) filters once its Compare box is on. Substats show but don't filter.",
-  "Slot 1/2/3 headers: personal DPR and Compare % vs that slot's baseline build.",
-  "Team Compare %: click to set the baseline team. Click the header to toggle the colouring.",
-  "view rotation: the full action log with rotations, stats, buffs, damage and energy."
+  "Click on the Slot 1/2/3 header to show Personal DPR",
+  "Click a resonator or gear name to open a filter and gear comparison menu",
+  "The menu shows or hides teams with that name, or compares that resonator's weapons, sonatas, mainstats, substats or sequences.",
+  "Right click a name to filter and show teams with it straight away.",
+  "Click on a teams DPR avg total to view a table with contribution and rotation breakdown.",
+  "Use view rotation to see the full action log with rotations, stats, buffs, resources, and energy requirements.",
 ];
 
 /** Which boxes are showing their description — a `Filters` key, or `standards`/`browsing` for the
@@ -1400,7 +1305,20 @@ const openHelp = new Set<string>(["readme"]);
 function comparisonFilters(): string {
   // The name is a button rather than a `<label>`: clicking it opens the description, so the box
   // itself is what toggles the filter (`aria-label`/`title` name it for that click).
-  const filter = (id: keyof Filters, label: string) => {
+  // the Team Cost box: a dropdown rather than a checkbox, its three settings explained under it
+  const costBox = (): string => {
+    const open = openHelp.has("cost");
+    const option = (value: TeamCost, label: string) => `<option value="${value}"${filters.cost === value ? " selected" : ""}>${label}</option>`;
+    return `<div class="tcopt${open ? " open" : ""}">`
+      + `<div class="tcopt-head">`
+      + `<button type="button" class="tcopt-name" data-help="cost" aria-expanded="${open}">Team Cost<span class="arrow">›</span></button>`
+      + `<select id="cost" class="tcselect" aria-label="Team Cost" title="Team Cost">`
+      + option("s0r0", "Full S0R0") + option("s0r1mdps", "S0R1 mdps only") + option("s0r1", "Full S0R1")
+      + `</select></div>`
+      + `<div class="tcopt-desc"${open ? "" : " hidden"}><ul>${COST_HELP.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div>`
+      + `</div>`;
+  };
+  const filter = (id: "matrix", label: string) => {
     const open = openHelp.has(id);
     return `<div class="tcopt${open ? " open" : ""}">`
       + `<div class="tcopt-head">`
@@ -1409,20 +1327,6 @@ function comparisonFilters(): string {
       + `<input type="checkbox" id="${id}" aria-label="${esc(label)}" title="${esc(label)}"`
       + `${filters[id] ? " checked" : ""}></div>`
       + `<div class="tcopt-desc"${open ? "" : " hidden"}>${esc(MATRIX_HELP)}</div>`
-      + `</div>`;
-  };
-  // one box per axis: the name, then a labelled checkbox per role, each its own `Filters` key
-  const pair = ({ id, label, mdps, support, help }: typeof PAIRS[number]) => {
-    const open = openHelp.has(id);
-    const role = (key: keyof Filters, name: string) =>
-      `<label class="tcopt-role">${name}<input type="checkbox" id="${key}"`
-      + ` title="${esc(label)} ${name}"${filters[key] ? " checked" : ""}></label>`;
-    return `<div class="tcopt pair${open ? " open" : ""}">`
-      + `<div class="tcopt-head">`
-      + `<button type="button" class="tcopt-name" data-help="${id}" aria-expanded="${open}">`
-      + `${esc(label)}<span class="arrow">›</span></button>`
-      + role(mdps, "mdps") + role(support, "support") + `</div>`
-      + `<div class="tcopt-desc"${open ? "" : " hidden"}>${esc(help)}</div>`
       + `</div>`;
   };
   // the same box without a checkbox: these explain the table rather than changing it
@@ -1439,6 +1343,8 @@ function comparisonFilters(): string {
       ${note("readme", "README", README)}
       ${note("standards", "Standards and Assumptions", STANDARDS)}
       ${note("browsing", "How to Browse and Filter", BROWSING)}
+      ${costBox()}
+      ${filter("matrix", "Enable Matrix Buffs")}
       <div class="tcsearchrow">
         <div class="tcsearch">
           <input id="optionSearch" type="search" placeholder="Filter resonators..."
@@ -1447,10 +1353,6 @@ function comparisonFilters(): string {
         </div>
         ${resonatorChips()}
       </div>
-    </div>
-    <div class="tcfilter-row tcroles">
-      ${PAIRS.map(pair).join("")}
-      ${filter("matrix", "Enable Matrix Buffs")}
     </div>
     <div class="tcwarning" id="rowCapWarning" hidden></div>
   </div>`;
@@ -1466,31 +1368,100 @@ function comparisonFilters(): string {
  *
  *  A `<button>`, not a div: it's a real control, so it gets keyboard focus and Enter/Space for
  *  free. */
+/** What each compare axis is called on its bubble and in the right-click menu. */
+const AXIS_LABEL: Record<Axis, string> = {
+  weapons: "Weapons", echoes: "Sonatas", mainstats: "Mainstats", substats: "Substats", sequences: "Sequences",
+};
+
 function resonatorChips(): string {
-  const nameChips = [...resonatorFilters].map(([name, mode]) => {
-    const included = mode === "include";
-    // The pill wears that resonator's own hue the way their name cell in the table does; the
-    // tick/cross inside it stays green/red whoever the chip is for, since that's the half that
-    // says which way the filter runs (see index.css's own `.rchip`).
-    return `<button type="button" class="rchip ${included ? "inc" : "exc"}" data-resonator="${esc(name)}"`
-      + ` style="--mem:${RESONATOR_HUE.get(baseName(name)) ?? TUNE_BREAK_ENEMY.color}"`
-      + ` title="${esc(name)} — ${included ? "only teams fielding them" : "no team fielding them"}. Click to clear.">`
-      + `${roleTagLabel(name)}<span class="box">${included ? "✓" : "✕"}</span></button>`;
-  }).join("");
+  const inc: string[] = [], exc: string[] = [];
+  const bucket = (mode: ResonatorFilter): string[] => (mode === "include" ? inc : exc);
+  const MODE_TITLE: Record<ResonatorFilter, string> = { include: "these", exclude: "none of these" };
+  // The pill wears that resonator's own hue the way their name cell in the table does; which way
+  // the filter runs is said by the section it stands in, not by anything inside it.
+  for (const [name, mode] of resonatorFilters) {
+    bucket(mode).push(`<button type="button" class="rchip" data-resonator="${esc(name)}"`
+      + ` style="--mem:${RESONATOR_HUE.get(parseRoleKey(name).name) ?? TUNE_BREAK_ENEMY.color}"`
+      + ` title="${esc(name)} — teams fielding ${MODE_TITLE[mode]}. Click to remove.">`
+      + `${roleTagLabel(name)}</button>`);
+  }
   // no hue of their own — these key off a pick, not a member, so there's no colour to wear. The
   // exception is a sequence chip, which is a resonator and a level ("Phrolova S5"): it's set from
   // that member's own name cell, so it wears their hue the way the cell and its name chip do.
-  const pickChips = (Object.entries(OPTION_FILTER_MAPS) as [OptionKind, Map<string, ResonatorFilter>][])
-    .flatMap(([kind, map]) => [...map].map(([name, mode]) => {
-      const included = mode === "include";
+  for (const [kind, map] of Object.entries(OPTION_FILTER_MAPS) as [OptionKind, Map<string, ResonatorFilter>][]) {
+    for (const [name, mode] of map) {
       const hue = kind === "sequence" ? RESONATOR_HUE.get(name.replace(/ S\d+$/, "")) : undefined;
-      return `<button type="button" class="rchip ${included ? "inc" : "exc"}" data-kind="${kind}" data-value="${esc(name)}"`
+      bucket(mode).push(`<button type="button" class="rchip" data-kind="${kind}" data-value="${esc(name)}"`
         + (hue ? ` style="--mem:${hue}"` : "")
-        + ` title="${esc(name)} — ${included ? "only rows using them" : "no row using them"}. Click to clear.">`
-        + `${roleTagLabel(name)}<span class="box">${included ? "✓" : "✕"}</span></button>`;
-    })).join("");
-  const chips = nameChips + pickChips;
-  return chips ? `<div class="tcchips">${chips}</div>` : "";
+        + ` title="${esc(name)} — rows using ${MODE_TITLE[mode]}. Click to remove.">`
+        + `${esc(name)}</button>`);
+    }
+  }
+  // a compare bubble — "Iuno Weapons" — is an include in spirit: it opens rows rather than
+  // narrowing them, and stands with the includes
+  for (const axis of AXES) {
+    for (const name of filters[axis]) {
+      inc.push(`<button type="button" class="rchip" data-axis="${axis}" data-resonator="${esc(name)}"`
+        + ` style="--mem:${RESONATOR_HUE.get(name) ?? TUNE_BREAK_ENEMY.color}"`
+        + ` title="Comparing ${esc(name)}'s ${AXIS_LABEL[axis].toLowerCase()}. Click to remove.">`
+        + `${esc(name)} ${AXIS_LABEL[axis]}</button>`);
+    }
+  }
+  const section = (label: string, chips: string[]): string =>
+    (chips.length ? `<div class="chipsec"><span class="chiplabel">${label}</span><div class="chiprow">${chips.join("")}</div></div>` : "");
+  const chips = section("Shown", inc) + section("Hidden", exc);
+  // ...and one link under them that clears the lot (see the handler in `boot()`)
+  return chips ? `<div class="tcchips">${chips}<button type="button" class="clearall"><span>Clear Filters</span></button></div>` : "";
+}
+
+/** Whether a resonator has anything to compare on an axis at all — more than one weapon, sonata
+ *  or main-stat build across their loadouts, a chain with a level above their baseline (a free
+ *  resonator's whole chain, see `sequenceLevels()`), and always the two substat spreads. */
+function comparable(name: string, axis: Axis): boolean {
+  for (const members of Object.values(TEAMS)) {
+    for (const m of members) {
+      if (m.name !== name) continue;
+      const l = m.loadout;
+      const n = axis === "weapons" ? l.weapons.length : axis === "echoes" ? l.echoLoadouts.length
+        : axis === "mainstats" ? l.mainstats.length : axis === "substats" ? 2
+        : (l.sequences.length ? (l.resonator.tier === Tier.Free ? l.sequences.length + 1 : l.sequences.length - Math.min(baseSequence(l.resonator), l.sequences.length) + 1) : 1);
+      if (n > 1) return true;
+    }
+  }
+  return false;
+}
+
+/** Turn one resonator's compare on one axis on or off — costed like any other filter
+ *  (`withRowCap()`), since it opens rows. Turning one off also drops any gear filter that only
+ *  that compare could have set, the way closing a box used to clear its own gear filters: a chip
+ *  with no cell left to clear it from would otherwise be stranded. */
+function setCompare(name: string, axis: Axis): void {
+  withRowCap(() => {
+    const list = filters[axis];
+    const was = list.includes(name);
+    if (was) list.splice(list.indexOf(name), 1); else list.push(name);
+    const kept = (Object.values(OPTION_FILTER_MAPS) as Map<string, ResonatorFilter>[]).map((map) => [...map]);
+    if (was) pruneGearFilters();
+    return () => {
+      if (was) list.push(name); else list.splice(list.indexOf(name), 1);
+      (Object.values(OPTION_FILTER_MAPS) as Map<string, ResonatorFilter>[]).forEach((map, i) => {
+        map.clear();
+        for (const [n, mode] of kept[i]!) map.set(n, mode);
+      });
+    };
+  });
+}
+
+/** Drop every gear filter no open compare offers any more — a weapon nobody compares weapons on,
+ *  a sequence level of a resonator whose chain is closed. */
+function pruneGearFilters(): void {
+  for (const kind of ["weapon", "echo", "mainstat"] as const) {
+    const offered = offeredGear(kind);
+    for (const key of [...OPTION_FILTER_MAPS[kind].keys()]) if (!offered.has(key)) OPTION_FILTER_MAPS[kind].delete(key);
+  }
+  for (const key of [...sequenceFilters.keys()]) {
+    if (!filters.sequences.includes(key.replace(/ S\d+$/, ""))) sequenceFilters.delete(key);
+  }
 }
 
 /** Which member positions have their own DPR column open, by column position — 0 is the leftmost
@@ -1507,150 +1478,128 @@ let hueShown = true;
 /** Every row the current filters opened, sorted by team damage — each one's own run read out of
  *  the `results` cache, which `refresh()` has already filled for exactly this row set. */
 function comparisonTable(rows: TeamRow[]): string {
+  // a tie — a chain node that added nothing — reads with the higher sequence first
+  const seq = (run: TeamRun): number => run.combo.reduce((n, c) => n + c.sequence, 0);
   const sorted = rows.map((row) => [row.key, results.get(row.key)!] as const)
-    .sort((a, b) => b[1].total - a[1].total);
+    .sort((a, b) => b[1].total - a[1].total || seq(b[1]) - seq(a[1]));
 
-  // What a slot's own DPR is measured against for the Compare% it carries while any of that role's
-  // comparison boxes is open: the best build of *that member alone* — the team and every
-  // teammate's gear held exactly as the row has them, and only the open axes free to move: the
-  // lowest sequence level with Sequences open, any non-limited weapon (a standard, or a free R5)
-  // with Weapons open, any echo / main-stat option with theirs open. A closed axis stays at the
-  // row's own pick, so a row differing from its baseline only on what the boxes compare reads as
-  // exactly that gain. A *closed* echo or main-stat axis is the exception: the search re-picks
-  // it per build, for every member — Iuno's best echo moves with her own weapon, and with her
-  // teammate's — so it is the solver's answer for that row rather than gear anyone chose, and it
-  // is left out of what has to match, on the teammates and on the member alike. Indexed once per
-  // draw off every run solved so far, keyed by team, position and the *other* positions' setups,
-  // so a cell is one lookup and a filter, not a scan.
-  const twins = new Map<string, { combo: Combo; dpr: number }[]>();
-  // a Combo's own key is `weapon.echo.mainstat.sN[.m]` (solver.ts's comboOf): the echo and
-  // main-stat fields count only while that member's own box has them open
-  const setupKey = (m: Member, c: Combo): string => {
-    const echoes = m.mainDps ? filters.mdpsEchoes : filters.supportEchoes;
-    const mainstats = m.mainDps ? filters.mdpsMainstats : filters.supportMainstats;
-    return c.key.split(".").filter((_, k) => (k === 1 ? echoes : k === 2 ? mainstats : true)).join(".");
+  // The gear axes a position can show a column for, in column order — each with a Compare column
+  // of its own beside it. Sequences aren't here: they open rows, not a column, and read off the
+  // name cell (`memberLabel()`).
+  const GEAR_AXES = ["weapons", "echoes", "mainstats", "substats"] as const;
+  type GearAxis = typeof GEAR_AXES[number];
+  // ...plus sequences, which compare too — against the member's lowest level — in a column beside
+  // the Personal one rather than beside a gear column of their own
+  type CmpAxis = GearAxis | "sequences";
+  const CMP_AXES: readonly CmpAxis[] = [...GEAR_AXES, "sequences"];
+  const AXIS_HEAD: Record<GearAxis, string> = { weapons: "Weapon", echoes: "Echo Set", mainstats: "Mainstats", substats: "Substats" };
+
+  // Every solved row, indexed for the gear compares: per team, position and axis, the rows whose
+  // gear is identical on every member but for the main stats — everyone's — and, on the member
+  // compared, that one axis. The main stats are the solver's own re-pick for each build, for
+  // every member whose main stats aren't themselves being compared (solver.ts's `rowPicks()`),
+  // so a baseline is free to wear different ones from the row it measures, teammates included:
+  // the best standard weapon's own best main stats, and the teammates' own best beside it,
+  // against the signature's. Holding the teammates' main stats would leave a row with nobody
+  // but itself to measure against, reading 100% for no reason. `dpr` is the member's own share.
+  // A Combo's key is `weapon.echo.mainstat.sN[.m][.h]` (`comboOf()`).
+  // A teammate's sonata is held, not freed: a set can buff the compared member, so two rows on
+  // different sets measure two things at once. The row to measure against need not be one the
+  // table shows: the solver's own sonata re-search scores every closed set per build, and those
+  // are kept as hidden rows (`Solved.hidden`) exactly so a compare can find its baseline among
+  // them. A teammate's substat spread *is* free: constant stats on themselves alone, reaching
+  // nobody else. `axis` is null for a teammate.
+  const gearKey = (c: Combo, axis: CmpAxis | null): string => {
+    const [w, e, , seq, ...rest] = c.key.split(".");
+    return [axis === "weapons" ? "*" : w, axis === "echoes" ? "*" : e, "*", axis === "sequences" ? "*" : seq, rest.includes("m"), axis === "substats" || axis === null ? "*" : rest.includes("h")].join("|");
   };
-  const twinKey = (teamKey: string, members: Member[], combo: Combo[], pos: number): string =>
-    `${teamKey}|${pos}|${combo.map((c, j) => (j === pos ? "" : setupKey(members[j]!, c))).join("-")}`;
+  const twinKey = (run: TeamRun, pos: number, axis: CmpAxis): string =>
+    `${run.teamKey}|${pos}|${axis}|${run.combo.map((c, k) => gearKey(c, k === pos ? axis : null)).join("-")}`;
+  const twins = new Map<string, { combo: Combo; dpr: number }[]>();
   for (const run of results.values()) {
     run.members.forEach((m, pos) => {
-      const key = twinKey(run.teamKey, run.members, run.combo, pos);
-      const list = twins.get(key) ?? [];
-      list.push({ combo: run.combo[pos]!, dpr: run.bySlot.get(m.name) ?? 0 });
-      twins.set(key, list);
+      for (const axis of CMP_AXES) {
+        const key = twinKey(run, pos, axis);
+        const list = twins.get(key) ?? [];
+        list.push({ combo: run.combo[pos]!, dpr: run.bySlot.get(m.name) ?? 0 });
+        twins.set(key, list);
+      }
     });
   }
-  // The Personal figure and its Compare% share one search (the twin lookup below), so they come
-  // back together rather than the caller running it twice for two adjacent columns.
-  const slotDpr = (run: TeamRun, pos: number): { text: string; pct: string } => {
-    const m = run.members[pos]!, own = run.combo[pos]!;
-    const dpr = run.bySlot.get(m.name) ?? 0;
-    const text = fmt(dpr);
-    const mdps = m.mainDps;
-    const seqOpen = mdps ? filters.mdpsSequences : filters.supportSequences;
-    const weaponOpen = mdps ? filters.mdpsWeapons : filters.supportWeapons;
-    const echoOpen = mdps ? filters.mdpsEchoes : filters.supportEchoes;
-    const mainstatOpen = mdps ? filters.mdpsMainstats : filters.supportMainstats;
-    const subsOpen = mdps ? filters.mdpsHighSubs : filters.supportHighSubs;
-    if (!seqOpen && !weaponOpen && !echoOpen && !mainstatOpen && !subsOpen) return { text, pct: "" };
-    // echo and main stat go unconstrained either way: open, they are what is being compared and
-    // the best option is the baseline; closed, they are the search's own re-pick for each build
-    const floor = sequenceLevels(m, filters)[0]!;
+  // What a gear cell's Compare measures its row against: the best of those twins wearing the
+  // axis's own baseline — any non-limited weapon (a standard, or a free R5), any sonata, any main
+  // stat, the default substat spread — on whatever main stats that build wanted. As a share of the
+  // baseline, so the baseline itself reads 100% and everything else against it. Nothing while the
+  // baseline build hasn't been solved (a filter can hide it before it was ever run).
+  const gearRatio = (run: TeamRun, pos: number, axis: CmpAxis): number | null => {
+    const dpr = run.bySlot.get(run.members[pos]!.name) ?? 0;
     let base = -Infinity;
-    for (const t of twins.get(twinKey(run.teamKey, run.members, run.combo, pos)) ?? []) {
-      const c = t.combo;
-      if (c.matrix !== own.matrix) continue;
-      // the baseline wears the default spread; closed, the row's own
-      if (subsOpen ? c.highSubs : c.highSubs !== own.highSubs) continue;
-      if (seqOpen ? c.sequence !== floor : c.sequence !== own.sequence) continue;
-      if (weaponOpen ? c.weapon.tier === Tier.Limited : c.weapon !== own.weapon) continue;
+    for (const t of twins.get(twinKey(run, pos, axis)) ?? []) {
+      if (axis === "weapons" && t.combo.weapon.tier === Tier.Limited) continue;
+      if (axis === "substats" && t.combo.highSubs) continue;
+      // a chain's baseline is its lowest level on show (`sequenceLevels()`)
+      if (axis === "sequences" && t.combo.sequence !== sequenceLevels(run.members[pos]!, filters)[0]) continue;
       if (t.dpr > base) base = t.dpr;
     }
-    // no baseline build solved yet (a filter can hide the R0 rows before they were ever run):
-    // the figure alone, and no Compare% to show
-    if (!(base > 0)) return { text, pct: "" };
-    // as a share of the baseline, which reads 100.00% — not a signed gain over it
-    return { text, pct: `${fmt((dpr / base) * 100, 1, true)}%` };
+    return base > 0 ? dpr / base : null;
+  };
+  const gearCompare = (run: TeamRun, pos: number, axis: CmpAxis): string => {
+    const ratio = gearRatio(run, pos, axis);
+    return ratio == null ? "" : `${fmt(ratio * 100, 1, true)}%`;
   };
 
   // Whether each axis has a column at member position 0/1/2 — read off the rows actually on
-  // screen rather than the boxes alone, since which position is MDPS varies team to team
+  // screen rather than the compares alone, since who stands where varies team to team
   // (teams.ts's own `dpsIndex`). A position only earns a Weapon column, say, if some visible row
-  // actually has an MDPS there with "Show MDPS Weapon Options" checked, or a support there with
-  // its own box checked — not just because the box is checked somewhere else in the table. A
-  // position with neither never gets the column at all, rather than a permanently-empty one.
-  // Sequences aren't here: they open new rows (`sequenceLevels()`), not a column, per CLAUDE.md's
-  // own note.
-  const weaponOpenAt = [false, false, false];
-  const echoOpenAt = [false, false, false];
-  const mainstatOpenAt = [false, false, false];
-  const subsOpenAt = [false, false, false];
-  // The Compare column beside a position's Personal one, on the same rule: only where some visible
-  // row has a member there with any of their role's comparison boxes checked — Sequences included,
-  // since a sequence baseline is a comparison too (`slotDpr`). With none, there is nothing to
-  // compare against and the column would be a blank one.
-  const compareOpenAt = [false, false, false];
-  // members stand in their team's own slot order (teams.ts), left to right
+  // has a member there comparing weapons; a position with none never gets the column at all,
+  // rather than a permanently-empty one.
+  const openAt: Record<CmpAxis, boolean[]> = { weapons: [false, false, false], echoes: [false, false, false], mainstats: [false, false, false], substats: [false, false, false], sequences: [false, false, false] };
   for (const row of rows) {
     row.members.forEach((m, pos) => {
-      const mdps = m.mainDps;
-      if (mdps ? filters.mdpsWeapons : filters.supportWeapons) weaponOpenAt[pos] = true;
-      if (mdps ? filters.mdpsEchoes : filters.supportEchoes) echoOpenAt[pos] = true;
-      if (mdps ? filters.mdpsMainstats : filters.supportMainstats) mainstatOpenAt[pos] = true;
-      if (mdps ? filters.mdpsHighSubs : filters.supportHighSubs) subsOpenAt[pos] = true;
-      if (weaponOpenAt[pos] || echoOpenAt[pos] || mainstatOpenAt[pos] || subsOpenAt[pos]
-        || (mdps ? filters.mdpsSequences : filters.supportSequences)) compareOpenAt[pos] = true;
+      for (const axis of CMP_AXES) if (axisOpen(m, filters, axis)) openAt[axis][pos] = true;
     });
   }
+  // the sequence Compare column: beside a position's Personal one, only while that is open and
+  // some member there compares sequences
+  const seqCmpAt = (i: number): boolean => !!dprOpenAt[i] && !!openAt.sequences[i];
 
   const rowHtml = (key: string, run: TeamRun, rank: RowRank): string => {
     const grand = run.total;
     const memberNames = run.members.map((m) => m.name).join("|");
 
-    // Left click requires this resonator, right click bars them — see the handlers in boot() and
+    // A click on the name opens the menu, a right click includes — see the handlers in boot() and
     // `resonatorFilters`. Nothing is drawn in the cell either way; the chips above the table are
-    // where a set filter shows. `data-resonator` carries the resonator's own name, role-tagged
-    // (`resonatorFilterKey()`) when they play both somewhere in the table — this cell's own row
-    // says which one, so a click always lands on the right side of an ambiguous name even though
-    // nothing here reads any differently; only the visible label is the build line. With Sequences
+    // where a set filter shows. `data-resonator` carries the resonator's own name. With Sequences
     // open, a row running a chain that was actually chosen carries `data-sequence` too ("Phrolova
     // S5"), and the handlers prefer it: at that point the rows differ by level, so the name alone
     // would filter to something the click didn't point at (see `sequenceTagAt()`).
-    // The hover is the loadout alone — every per-member damage breakdown that used to live here
-    // is now one row of the DPR table the Total cell opens, which says the same thing about all
-    // three members at once instead of one panel apiece.
     const memberCell = (m: Member, combo: Combo, i: number) => {
-      const mdps = m.mainDps;
       const tag = sequenceTag(m, combo);
-      // the loadout hover is built on first hover (see `deferredPop`), keyed by row and member
-      const name = `<div class="c name res has" data-resonator="${esc(resonatorFilterKey(m.name, mdps))}"`
+      // `data-resonator` is the filter key: the name at the role this member plays on the row
+      const name = `<div class="c name res" data-resonator="${esc(roleKey(m.name, m.mainDps))}"`
         + (tag ? ` data-sequence="${esc(tag)}"` : "")
-        + deferredPop("gear", `${key}|${i}`)
         + ` style="--mem:${m.color};color:${m.color}">`
         + `<span class="res-label">${esc(memberLabel(m, combo))}</span>`
         + `</div>`;
-      // populated only while this axis is open for *this member's own* role — the same gate the
-      // label used to apply — even though the column itself exists as soon as this position needs
-      // it for anyone (see `weaponOpenAt` above). The cell's own filter key is role-tagged the same
-      // way the name cell's is (`gearFilterKey()`) when this weapon shows up on both roles
-      // somewhere; the displayed text stays the bare weapon name either way.
-      const weaponPick = (mdps ? filters.mdpsWeapons : filters.supportWeapons) ? combo.weapon.name : "";
-      const weapon = weaponOpenAt[i] ? optionCell("weapon", weaponPick && gearFilterKey("weapon", weaponPick, mdps), m.color, [weaponPick]) : "";
-      const showEcho = mdps ? filters.mdpsEchoes : filters.supportEchoes;
-      const echo = echoOpenAt[i] ? optionCell("echo", showEcho ? gearFilterKey("echo", echoLabel(m.loadout, combo.echo), mdps) : "", m.color, showEcho ? echoLines(m.loadout, combo.echo) : []) : "";
-      const mainstatPick = (mdps ? filters.mdpsMainstats : filters.supportMainstats) ? combo.mainstat.name : "";
-      const mainstat = mainstatOpenAt[i] ? optionCell("mainstat", mainstatPick && gearFilterKey("mainstat", mainstatPick, mdps), m.color, [mainstatPick]) : "";
-      // plain text, no filter behind it: which spread a row wears is read, never clicked
-      const subs = subsOpenAt[i] ? `<div class="c option" style="--mem:${m.color}">${(mdps ? filters.mdpsHighSubs : filters.supportHighSubs) ? esc(subsLabel(combo)) : ""}</div>` : "";
       // this member's own share of the row's Avg Team DPR — the same mean `run.total` is, so the
-      // three read against each other and against the Total column directly — and, with any of
-      // their comparison boxes open, how far it sits from their own baseline build (`slotDpr`)
-      const { text: dprText, pct: comparePct } = dprOpenAt[i] ? slotDpr(run, i) : { text: "", pct: "" };
-      const dpr = dprOpenAt[i]
-        ? `<div class="c num slotdpr" style="--mem:${m.color}">${dprText}</div>`
-          + (compareOpenAt[i] ? `<div class="c num slotcompare" style="--mem:${m.color}">${comparePct}</div>` : "")
-        : "";
-      return name + weapon + echo + mainstat + subs + dpr;
+      // three read against each other and against the Total column directly — right after the
+      // name, ahead of whatever gear the position shows
+      const dpr = dprOpenAt[i] ? `<div class="c num slotdpr" style="--mem:${m.color}">${fmt(run.bySlot.get(m.name) ?? 0)}</div>` : "";
+      const seqCmp = seqCmpAt(i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${axisOpen(m, filters, "sequences") ? gearCompare(run, i, "sequences") : ""}</div>` : "";
+      // each gear column populated only while *this member* compares the axis, even though the
+      // column itself exists as soon as this position needs it for anyone (see `openAt` above),
+      // and each followed by its own Compare (`gearCompare()`). The substat cell is plain text with
+      // no filter behind it: which spread a row wears is read, never clicked.
+      const gear = GEAR_AXES.map((axis) => {
+        if (!openAt[axis][i]) return "";
+        const open = axisOpen(m, filters, axis);
+        const cell = axis === "weapons" ? optionCell("weapon", open ? combo.weapon.name : "", m.color, [combo.weapon.name])
+          : axis === "echoes" ? optionCell("echo", open ? echoLabel(m.loadout, combo.echo) : "", m.color, open ? echoLines(m.loadout, combo.echo) : [])
+          : axis === "mainstats" ? optionCell("mainstat", open ? combo.mainstat.name : "", m.color, [combo.mainstat.name])
+          : `<div class="c option" style="--mem:${m.color}">${open ? esc(subsLabel(combo)) : ""}</div>`;
+        return cell + `<div class="c num slotcompare" style="--mem:${m.color}">${open ? gearCompare(run, i, axis) : ""}</div>`;
+      }).join("");
+      return name + dpr + seqCmp + gear;
     };
     const memberCells = run.members.map((m, i) => memberCell(m, run.combo[i]!, i)).join("");
 
@@ -1667,33 +1616,29 @@ function comparisonTable(rows: TeamRow[]): string {
       + `</div>`;
   };
 
-  // every column belonging to a position opens that position's DPR, not just its name column: the
-  // reader's eye is on whichever of them they came to compare, and one arrow three columns left is
-  // easy to miss (the handler keys off `data-pos`, so they are all the same control)
+  // the Slot heading alone opens that position's Personal column (the handler keys off
+  // `data-pos`); the gear headings beside it are plain
   const slotHead = (i: number, label: string) =>
     `<div class="c slothead${dprOpenAt[i] ? " open" : ""}" data-pos="${i}"`
     + ` title="Click to show this slot's own DPR">${label}<span class="arrow">›</span></div>`;
   const memberHead = (n: number, i: number) => slotHead(i, `Slot ${n}`)
-    + (weaponOpenAt[i] ? slotHead(i, `Weapon ${n}`) : "")
-    + (echoOpenAt[i] ? slotHead(i, `Echo Set ${n}`) : "")
-    + (mainstatOpenAt[i] ? slotHead(i, `Mainstats ${n}`) : "")
-    + (subsOpenAt[i] ? slotHead(i, `Substats ${n}`) : "")
-    // no slot number on either — the position is already said by which Slot heading opened them
+    // no slot number: the position is already said by which Slot heading opened it
     + (dprOpenAt[i] ? `<div class="c num">Personal</div>` : "")
-    + (dprOpenAt[i] && compareOpenAt[i] ? `<div class="c num">Compare</div>` : "");
+    + (seqCmpAt(i) ? `<div class="c num">Compare</div>` : "")
+    + GEAR_AXES.map((axis) => (openAt[axis][i] ? `<div class="c">${AXIS_HEAD[axis]} ${n}</div><div class="c num">Compare</div>` : "")).join("");
   const head = `<div class="trow thead">`
     + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2)
     + `<div class="c num">Team Avg DPR</div>`
-    + `<div class="c num huehead" title="Click to colour the column by rank">Team Compare</div>`
+    + `<div class="c num huehead" title="Click to colour the column by rank">Compare</div>`
     + `<div class="c"></div>`
     + `</div>`;
 
-  // one grid track per column actually rendered above, position by position — a member's name
-  // plus however many of the three option columns that position earned, then Total and Baseline%.
-  // Computed here rather than left to a fixed rule in index.css, since both the column count and
-  // which position has which now depend on which axes are open and who's actually standing where
-  // (see index.css's own `.tgrid` for the no-options-open default this overrides).
-  const posCols = (i: number) => `max-content${weaponOpenAt[i] ? " max-content" : ""}${echoOpenAt[i] ? " max-content" : ""}${mainstatOpenAt[i] ? " max-content" : ""}${subsOpenAt[i] ? " max-content" : ""}${dprOpenAt[i] ? " max-content" : ""}${dprOpenAt[i] && compareOpenAt[i] ? " max-content" : ""}`;
+  // one grid track per column actually rendered above, position by position — a member's name,
+  // their Personal column if open, then a gear column and its Compare for each axis the position
+  // earned, then Total, Baseline% and the link. Computed here rather than left to a fixed rule in
+  // index.css, since both the column count and which position has which depend on which axes are
+  // open and who's actually standing where (see index.css's own `.tgrid` for the default).
+  const posCols = (i: number) => `max-content${dprOpenAt[i] ? " max-content" : ""}${seqCmpAt(i) ? " max-content" : ""}${GEAR_AXES.map((axis) => (openAt[axis][i] ? " max-content max-content" : "")).join("")}`;
   const gridStyle = `grid-template-columns:${posCols(0)} ${posCols(1)} ${posCols(2)} max-content max-content max-content`;
 
   // the rows themselves are drawn by `drawWindow()`, only ever the stretch near the scroll
@@ -1701,7 +1646,7 @@ function comparisonTable(rows: TeamRow[]): string {
   // how many lines tall each row is: the Echo column is the one cell that stacks (a set a line,
   // see `echoLines()`), so a row is as tall as the tallest echo pick it actually shows
   const rowLines = (run: TeamRun): number => Math.max(1, ...run.members.map((m, i) =>
-    (echoOpenAt[i] && (m.mainDps ? filters.mdpsEchoes : filters.supportEchoes)) ? run.combo[i]!.echo.sets.length : 1));
+    (openAt.echoes[i] && axisOpen(m, filters, "echoes")) ? echoLines(m.loadout, run.combo[i]!.echo).length : 1));
   const lines = sorted.map(([, run]) => rowLines(run));
   const extra: number[] = [0];
   for (const n of lines) extra.push(extra[extra.length - 1]! + n - 1);
@@ -1713,25 +1658,26 @@ function comparisonTable(rows: TeamRow[]): string {
   // under the reader. The table is set in --mono (index.css's own `.trow .c`), so the longest
   // string is the widest one and no measuring is needed to pick it.
   const widest = (a: string, b: string): string => (b.length > a.length ? b : a);
+  const blank = (): string[] => ["", "", ""];
   const wide = {
-    name: ["", "", ""], weapon: ["", "", ""], echo: ["", "", ""], mainstat: ["", "", ""], subs: ["", "", ""],
-    dpr: ["", "", ""], compare: ["", "", ""], total: "", pct: "",
+    name: blank(), dpr: blank(), seqcmp: blank(), total: "", pct: "",
+    gear: { weapons: blank(), echoes: blank(), mainstats: blank(), substats: blank() } as Record<GearAxis, string[]>,
+    cmp: { weapons: blank(), echoes: blank(), mainstats: blank(), substats: blank() } as Record<GearAxis, string[]>,
   };
   sorted.forEach(([, run], i) => {
     run.members.forEach((m, pos) => {
       const combo = run.combo[pos]!;
-      const mdps = m.mainDps;
       wide.name[pos] = widest(wide.name[pos]!, memberLabel(m, combo));
-      if (mdps ? filters.mdpsWeapons : filters.supportWeapons) wide.weapon[pos] = widest(wide.weapon[pos]!, combo.weapon.name);
-      // the echo cell stacks a line per set, so it is as wide as its widest single line
-      if (mdps ? filters.mdpsEchoes : filters.supportEchoes) {
-        for (const line of echoLines(m.loadout, combo.echo)) wide.echo[pos] = widest(wide.echo[pos]!, line);
+      wide.dpr[pos] = widest(wide.dpr[pos]!, fmt(run.bySlot.get(m.name) ?? 0));
+      if (axisOpen(m, filters, "sequences")) wide.seqcmp[pos] = widest(wide.seqcmp[pos]!, gearCompare(run, pos, "sequences"));
+      for (const axis of GEAR_AXES) {
+        if (!axisOpen(m, filters, axis)) continue;
+        // the echo cell stacks a line per set, so it is as wide as its widest single line
+        const text = axis === "weapons" ? [combo.weapon.name] : axis === "echoes" ? echoLines(m.loadout, combo.echo)
+          : axis === "mainstats" ? [combo.mainstat.name] : [subsLabel(combo)];
+        for (const line of text) wide.gear[axis][pos] = widest(wide.gear[axis][pos]!, line);
+        wide.cmp[axis][pos] = widest(wide.cmp[axis][pos]!, gearCompare(run, pos, axis));
       }
-      if (mdps ? filters.mdpsMainstats : filters.supportMainstats) wide.mainstat[pos] = widest(wide.mainstat[pos]!, combo.mainstat.name);
-      if (mdps ? filters.mdpsHighSubs : filters.supportHighSubs) wide.subs[pos] = widest(wide.subs[pos]!, subsLabel(combo));
-      const { text, pct } = slotDpr(run, pos);
-      wide.dpr[pos] = widest(wide.dpr[pos]!, text);
-      wide.compare[pos] = widest(wide.compare[pos]!, pct);
     });
     wide.total = widest(wide.total, fmt(run.total));
     wide.pct = widest(wide.pct, ranks[i]!.pct);
@@ -1741,12 +1687,10 @@ function comparisonTable(rows: TeamRow[]): string {
   // real cells' own, since padding and font are what turn a string into a track width.
   const ghostPos = (i: number) =>
     `<div class="c name res"><span class="res-label">${esc(wide.name[i]!)}</span></div>`
-    + (weaponOpenAt[i] ? `<div class="c option">${esc(wide.weapon[i]!)}</div>` : "")
-    + (echoOpenAt[i] ? `<div class="c option">${esc(wide.echo[i]!)}</div>` : "")
-    + (mainstatOpenAt[i] ? `<div class="c option">${esc(wide.mainstat[i]!)}</div>` : "")
-    + (subsOpenAt[i] ? `<div class="c option">${esc(wide.subs[i]!)}</div>` : "")
     + (dprOpenAt[i] ? `<div class="c num slotdpr">${esc(wide.dpr[i]!)}</div>` : "")
-    + (dprOpenAt[i] && compareOpenAt[i] ? `<div class="c num slotcompare">${esc(wide.compare[i]!)}</div>` : "");
+    + (seqCmpAt(i) ? `<div class="c num slotcompare">${esc(wide.seqcmp[i]!)}</div>` : "")
+    + GEAR_AXES.map((axis) => (openAt[axis][i]
+      ? `<div class="c option">${esc(wide.gear[axis][i]!)}</div><div class="c num slotcompare">${esc(wide.cmp[axis][i]!)}</div>` : "")).join("");
   // the Total cell's own class is left off: `drawWindow()` measures the row pitch off `.teamdpr`
   const ghost = `<div class="trow tghost" aria-hidden="true">`
     + ghostPos(0) + ghostPos(1) + ghostPos(2)
@@ -2254,25 +2198,41 @@ function resetIndices(flat: ChainGroup[], from: number, to: number, member: stri
  *  nothing to bank, so it is up regardless of the build: that's a requirement of 0, a real answer,
  *  not the absent one a `—` reads as. Null is kept for the case that genuinely has no answer —
  *  a cast that comes in on an empty RealEnergy counter. */
-function erRequirementValue(maxEnergy: number, before: number | null): number | null {
+/**
+ * The *constant* Energy Regen a member needs — from main stats, substats, weapon and whatever
+ * else is always on — for the bar to be full at one of their own reset casts (`resetIdx`), given
+ * the ER buffs that were actually standing on each of their casts on the way there.
+ *
+ * The engine banks RealEnergy at a flat rate (evaluate.ts's own `energyGain` reads no ER), so
+ * `realEnergyBefore` is what the window generated at 100%. Every part of it scales with the
+ * member's own ER when it lands; an own cast's ER is its constant part plus whatever buff was
+ * up (`stat(Er) - constant`), a teammate's share reaches them on the constant alone. So with a
+ * constant of C, the bar holds `before * C/100 + sum(own gain * buff)/100`, and the C that makes
+ * that `maxEnergy` is what the cell shows. The buffs are walked back from the reset cast over the
+ * member's own casts to their previous reset (excluded — its own gain was wiped with it), an
+ * outro contributing nothing (`energyWiped`).
+ *
+ * `null` where nothing was banked (a bar that never moved), 0 where the kit has no bar at all.
+ */
+function erRequirement(flat: ChainGroup[], resetIdx: number, member: string, maxEnergy: number, constant: number): number | null {
   if (!maxEnergy) return 0;
-  if (before == null || before <= 0) return null;
-  return (maxEnergy / before) * 100;
-}
-
-/** Whether `member`'s own real ER stat ever fell short of `requirement` on one of *their own*
- *  actions since their last RealEnergy reset (a teammate's action in between doesn't count — it
- *  only ever moves RealEnergy via the flat team-share, never this member's own ER) — walking
- *  backward from `targetIdx` (this loop's own reset cast, included) and stopping at the previous
- *  occurrence of member's own `resetEnergy` cast (excluded — that one belongs to the prior window). */
-function erFallsShort(flat: ChainGroup[], targetIdx: number, member: string, requirement: number): boolean {
-  for (let i = targetIdx; i >= 0; i--) {
-    const snap = flat[i]!.snap as ResolvedSnapshot;
-    if (snap.member !== member) continue;
-    if (i !== targetIdx && snap.action.resetEnergy) break;
-    if (snap.stat(Stat.Er) < requirement) return true;
+  const before = (flat[resetIdx]!.snap as ResolvedSnapshot).realEnergyBefore;
+  if (before <= 0) return null;
+  let buffed = 0;
+  walk: for (let i = resetIdx - 1; i >= 0; i--) {
+    const line = flat[i]!;
+    if (line.aggregate) continue;
+    const snaps = (line.members?.length ? line.members : [line.snap]) as ResolvedSnapshot[];
+    for (let k = snaps.length - 1; k >= 0; k--) {
+      const s = snaps[k]!;
+      if (s.member !== member) continue;
+      if (s.action.resetEnergy) break walk;
+      if (s.energyWiped) continue;
+      const gain = (s.action.energy + s.stat(Stat.AddEnergy)) * (1 + s.stat(Stat.EnergyRegenMult) / 100);
+      buffed += gain * (s.stat(Stat.Er) - constant);
+    }
   }
-  return false;
+  return (maxEnergy * 100 - buffed) / before;
 }
 
 /** The span of `flat` a member's Energy Gen is summed over: between their last two Liberations
@@ -2358,9 +2318,9 @@ function teamEnergyPopover(sources: TraceEntry[], slotHue: Map<string, string>):
  *  column per section, and their own Energy Gen last. A section the member casts no Liberation in reads `—`, and so does the one
  *  holding their first: a fight starts on a full bar (RealEnergy, see state.ts), so that cast is
  *  free and there is no requirement to state. The opener's own column is therefore about its
- *  *last* Liberation — only a second one in the same opener has anything to bank for. A cell gets
- *  a red underline when the member's own ER stat dipped below the shown requirement on any of
- *  their own actions since their last reset — see `erFallsShort()`.
+ *  *last* Liberation — only a second one in the same opener has anything to bank for. The figure
+ *  is the constant ER the build needs (`erRequirement()`), red where its own constant ER falls
+ *  short of it; the hover lists the build's constant ER by source.
  *
  *  Each cell hovers the ER its requirement is measured against: the same `er` panel the action
  *  table carries, from the same column definition and the same sources (`columnSources()`), as it
@@ -2382,17 +2342,28 @@ function energyTable(run: TeamRun, lines: ChainGroup[][], report: Report, slotHu
 
   const rows = run.members.map((m, idx) => {
     const maxEnergy = m.loadout.resonator.maxEnergy;
+    // the member's constant ER — the loadout's own always-on stats (context.ts's `menuStats()`),
+    // which is what the requirement is measured against
+    const combo = run.combo[idx]!;
+    const constantSources = menuStats(m.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs))
+      .filter((e) => e.stat === Stat.Er);
+    const constant = constantSources.reduce((n, e) => n + e.value, 0);
     // The fight's very first Liberation rides in on the bar every resonator starts full (state.ts's
     // own realEnergy), so it asks for no ER at all — it's dropped from the table the same way a
     // section with no Liberation in it is, rather than reading as a requirement of 0%.
     const free = resetIndices(flat, 0, flat.length, m.name)[0] ?? null;
     const cell = (resetIdx: number | null): string => {
       const snap = resetIdx == null || resetIdx === free ? null : (flat[resetIdx]!.snap as ResolvedSnapshot);
-      const req = snap == null ? null : erRequirementValue(maxEnergy, snap.realEnergyBefore);
-      const warn = req != null && erFallsShort(flat, resetIdx!, m.name, req);
+      const req = snap == null ? null : erRequirement(flat, resetIdx!, m.name, maxEnergy, constant);
+      // what the build is short by, over its constant ER — the red
+      const missing = req == null ? 0 : Math.max(0, req - constant);
       const text = req == null ? "—" : `${fmt(req, 1)}%`;
-      const hover = snap && erCol ? popover(erCol, columnSources(snap, "er"), snap.stat(Stat.Er), slotHue) : "";
-      return `<div class="c num${warn ? " er-under" : ""}${hover ? " has" : ""}"${hover}>${text}</div>`;
+      // the build's constant ER, source by source (`menuStats()` runs on a nameless stand-in, so
+      // its owner is blank: the gear is this member's)
+      const sources = constantSources.map((e): TraceEntry => ({ source: e.source, value: e.value, percent: true, digits: 1, owner: e.owner || m.name }));
+      const hover = snap && erCol ? popover({ ...erCol, full: "Base Energy Regen" }, sources, constant, slotHue) : "";
+      // red where the build's constant ER falls short of the requirement
+      return `<div class="c num${missing > 0 ? " er-under" : ""}${hover ? " has" : ""}"${hover}>${text}</div>`;
     };
 
     // the opener's last cast is the one with something to bank for — an earlier one in the same
@@ -3027,19 +2998,14 @@ let visibleRows: TeamRow[] = [];
  */
 const hashParams = (): URLSearchParams => new URLSearchParams(location.hash.replace(/^#/, ""));
 
-const FILTER_KEYS = Object.keys(filters) as (keyof Filters)[];
-/** Each box's own two-letter code in the hash's `f=` list, so a link stays short: the role's
- *  initial and the axis's. The full key name is still read back (`applyHash()`), so an older
- *  link keeps working. */
-const FILTER_CODE: Record<keyof Filters, string> = {
-  mdpsSequences: "ms", supportSequences: "ss",
-  mdpsWeapons: "mw", supportWeapons: "sw",
-  mdpsEchoes: "me", supportEchoes: "se",
-  mdpsMainstats: "mm", supportMainstats: "sm",
-  allowR1Mdps: "m1", allowR1Supports: "s1",
-  matrix: "x",
-  mdpsHighSubs: "mh", supportHighSubs: "sh",
-};
+/** The one box left, and its code in the hash's `f=` list (`x`); the full name still reads. */
+const FILTER_KEYS = ["matrix"] as const;
+const FILTER_CODE: Record<typeof FILTER_KEYS[number], string> = { matrix: "x" };
+/** Each compare axis's own hash param, listing the resonators compared on it (spaceless, the way
+ *  the resonator filters are written — see `syncHash()`). */
+const COMPARE_PARAM: Record<Axis, string> = { weapons: "cw", echoes: "ce", mainstats: "cm", substats: "cb", sequences: "cq" };
+/** The Team Cost's own hash param and its codes; the default (`s0r1`) is left off the link. */
+const COST_CODE: Record<TeamCost, string> = { s0r0: "r0", s0r1mdps: "r1m", s0r1: "r1" };
 
 /** Every filter map the hash round-trips, each under its own pair of one/two-letter query keys —
  *  `r`/`x` stayed bare for resonators since those predate the other axes; `wr`/`wx`, `er`/`ex`,
@@ -3070,10 +3036,18 @@ function applyHash(): boolean {
     }
   }
 
-  // `f` is written on every sync, so its presence is what marks a URL as one this page wrote —
-  // which makes a missing `r`/`x` (etc.) there mean "nothing filtered" rather than "say nothing
-  // about it". Without it (an old bare `#team=...` link) the defaults stand, Verina's bar included.
-  if (params.has("f")) {
+  // a missing param means "nothing filtered" — the defaults are exactly that, so a bare
+  // `#team=...` link and a cleared page read the same
+  {
+    const code = params.get("tc");
+    const cost = (Object.keys(COST_CODE) as TeamCost[]).find((c) => COST_CODE[c] === code) ?? "s0r1";
+    if (filters.cost !== cost) { filters.cost = cost; changed = true; }
+    for (const axis of AXES) {
+      const next = (params.get(COMPARE_PARAM[axis]) ?? "").split(",").filter(Boolean)
+        .map((n) => RESONATOR_KEY_BY_COMPACT.get(n) ?? n);
+      const cur = filters[axis];
+      if (next.length !== cur.length || next.some((n) => !cur.includes(n))) { filters[axis] = next; changed = true; }
+    }
     // a resonator's name comes back off its spaceless form (an older link's spaced one still reads)
     const named = (v: string | null, mode: ResonatorFilter, resonators: boolean): [string, ResonatorFilter][] =>
       (v ?? "").split(",").filter(Boolean).map((name) => [resonators ? RESONATOR_KEY_BY_COMPACT.get(name) ?? name : name, mode]);
@@ -3102,18 +3076,24 @@ function applyHash(): boolean {
  *  itself — see the handler in `boot()`, which now only ever sees a real navigation. */
 function syncHash(team: string | null = hashParams().get("team")): void {
   const named = (map: Map<string, ResonatorFilter>, mode: ResonatorFilter): string => [...map]
-    // a resonator's spaces are simply dropped (`ElectroRover(mdps)`) and put back on the way in
+    // a resonator's spaces are simply dropped (`ElectroRover`) and put back on the way in
     // (`RESONATOR_KEY_BY_COMPACT`); gear names keep theirs, their spaces being part of the name
     .filter(([, m]) => m === mode).map(([name]) => encodeURIComponent(map === resonatorFilters ? name.replace(/ /g, "") : name)).join(",");
-  const parts = [`f=${FILTER_KEYS.filter((k) => filters[k]).map((k) => FILTER_CODE[k]).join(",")}`];
+  // only what is set: nothing set is a bare URL, not a `#f=`
+  const flags = FILTER_KEYS.filter((k) => filters[k]).map((k) => FILTER_CODE[k]).join(",");
+  const parts = flags ? [`f=${flags}`] : [];
+  if (filters.cost !== "s0r1") parts.push(`tc=${COST_CODE[filters.cost]}`);
+  for (const axis of AXES) {
+    if (filters[axis].length) parts.push(`${COMPARE_PARAM[axis]}=${filters[axis].map((n) => encodeURIComponent(n.replace(/ /g, ""))).join(",")}`);
+  }
   for (const { include, exclude, map } of FILTER_GROUPS) {
     if (named(map, "include")) parts.push(`${include}=${named(map, "include")}`);
     if (named(map, "exclude")) parts.push(`${exclude}=${named(map, "exclude")}`);
   }
   if (team) parts.push(`team=${team}`);
-  const next = `#${parts.join("&")}`;
+  const next = parts.length ? `#${parts.join("&")}` : "";
   if (next === location.hash) return;
-  history.replaceState(null, "", next);
+  history.replaceState(null, "", `${location.pathname}${location.search}${next}`);
 }
 
 /** `TEAMS` only names team compositions, not the individual combo rows the table actually renders
@@ -3181,11 +3161,6 @@ function fitSide(): void {
     room = main.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     side.style.width = `${room}px`;
   }
-  // beside the table a column is the fixed 360px plus 10px between two, so two want 740
-  // (index.css's own `.cols2`); above it the columns stretch, and two only need room for the
-  // widest box head to stand in each — under 300px, and the 10px between
-  const cols = room >= (stacked ? 600 : 740) ? 2 : 1;
-  for (const n of [1, 2]) side.classList.toggle(`cols${n}`, n === cols);
   // beside the table the aside is its own scroller (index.css's `.tcside`), no taller than the
   // scrollport it sticks to — `clientHeight` is in the same page px as the style
   side.style.maxHeight = stacked ? "" : `${main.clientHeight}px`;
@@ -3202,8 +3177,10 @@ function renderComparison(): void {
   // eating its pointer events until the next mouseover happens to close it.
   document.body.querySelectorAll(":scope > .pop").forEach((el) => el.remove());
   // the position is kept across a redraw (a DPR column, a baseline click) rather than reset to
-  // the top: the window is drawn for it first, since the fresh grid can't be scrolled there yet
-  const scrollTop = app.querySelector("main")?.scrollTop ?? 0;
+  // the top: the window is drawn for it first, since the fresh grid can't be scrolled there yet.
+  // Coming back from a detail page, it is the table's own last position (`tableScrollTop`), not
+  // the action log's.
+  const scrollTop = app.querySelector(".tgrid") ? (app.querySelector("main")?.scrollTop ?? 0) : tableScrollTop;
   app.innerHTML = comparisonTable(visibleRows);
   app.className = "";
   measured = false;
@@ -3225,7 +3202,14 @@ function renderComparison(): void {
   }, { passive: true });
 }
 
+/** Where the comparison table was scrolled to when a detail page replaced it, so Back lands on
+ *  the same rows rather than at the top — or wherever the detail page happened to be scrolled. */
+let tableScrollTop = 0;
+
 function renderDetail(key: string): void {
+  // leaving the table: remember its own scroll, not the detail page's (this can be called from
+  // one detail page to another, when there is no table on screen to read)
+  if (app.querySelector(".tgrid")) tableScrollTop = app.querySelector("main")?.scrollTop ?? 0;
   topbar.hidden = false;
   document.body.querySelectorAll(":scope > .pop").forEach((el) => el.remove());
   const run = results.get(key)!;
@@ -3415,7 +3399,7 @@ function solveOnWorkers(
         pump(w);
       };
       w.onmessage = ({ data }: MessageEvent<SolveResponse>) => {
-        const solved: Solved = { picks: data.picks, rows: data.rows, scores: data.scores };
+        const solved: Solved = { picks: data.picks, rows: data.rows, scores: data.scores, hidden: data.hidden ?? [], hiddenScores: data.hiddenScores ?? [] };
         if (solveFits(bestKey(key, members, filters), solved)) { finish(solved); return; }
         // a worker running a cached, older engine (see `solveFits()`) — this thread's own is current
         console.warn(`worker's solve for ${key} does not fit this build; solving it here`);
@@ -3454,7 +3438,7 @@ async function ensureBestPicks(inPlay: [string, Member[]][], rowsTotal: number):
   const teams = inPlay.filter(([key, members]) => !bestPicks.has(bestKey(key, members, filters)));
   if (!teams.length) return false;
 
-  overlayPhase("Optimizing Echoes...");
+  overlayPhase("Running Calculations...");
   // teams already optimized under an earlier filter state start this partly filled rather than
   // counting up to a total smaller than the table it lands on
   let done = inPlay.length - teams.length;
@@ -3538,7 +3522,7 @@ async function refresh(): Promise<void> {
       // label that says "done" — and settled, since nothing picks it back up afterwards. A bar
       // that never moved (nothing solved: a reload, a flip onto rows already run) has nothing to
       // settle, and waiting on it would be most of what such a load costs.
-      overlayPhase("Rendering Table…");
+      overlayPhase("Rendering Table...");
       overlayFill.style.width = "100%";
       overlayCount.textContent = `${fmt(cached.length)} / ${fmt(rows.length)}`;
       await paint();
@@ -3672,35 +3656,27 @@ async function boot(): Promise<void> {
     hueShown = !hueShown;
     document.querySelector(".tgrid")?.classList.toggle("hued", hueShown);
   });
-  // Every filter checkbox but Sequences is a `Filters` key (see `comparisonFilters()`): flip it,
-  // then re-expand — which axes are open changes which rows exist, not just which are visible.
-  // Unchecking a weapon/echo/mainstat box drops its own column, so any filter set by clicking a
-  // cell in it would otherwise be left behind with no cell left to clear it from — cleared here
-  // instead, the moment the column that could set it disappears.
-  const AXIS_MAP: Partial<Record<keyof Filters, Map<string, ResonatorFilter>>> = {
-    mdpsSequences: sequenceFilters, supportSequences: sequenceFilters,
-    mdpsWeapons: weaponFilters, supportWeapons: weaponFilters,
-    mdpsEchoes: echoFilters, supportEchoes: echoFilters,
-    mdpsMainstats: mainstatFilters, supportMainstats: mainstatFilters,
-  };
+  // the Team Cost dropdown (see `costBox()`): every team re-solves under the new cost
+  document.addEventListener("change", (e) => {
+    const select = e.target as HTMLSelectElement;
+    if (select.id !== "cost") return;
+    withRowCap(() => {
+      const was = filters.cost;
+      filters.cost = select.value as TeamCost;
+      return () => { filters.cost = was; select.value = was; };
+    });
+  });
+  // The Matrix box (see `comparisonFilters()`): flip it, then re-expand — every team somebody's
+  // Matrix reaches re-solves under it. Costed like any change (`withRowCap()`).
   document.addEventListener("change", (e) => {
     const input = e.target as HTMLInputElement;
-    const key = input.id as keyof Filters;
-    if (!(key in filters)) return;
-
-    // Both directions are costed, not just the box being checked: unchecking one clears that
-    // axis's own gear filters with it, and a table that was only inside the cap because those
-    // filters were narrowing it grows the moment they go (see `withRowCap()`).
+    if (input.id !== "matrix") return;
     withRowCap(() => {
-      const was = filters[key];
-      const map = AXIS_MAP[key];
-      const kept = map ? [...map] : null;
-      filters[key] = input.checked;
-      if (!input.checked) map?.clear();
+      const was = filters.matrix;
+      filters.matrix = input.checked;
       return () => {
-        filters[key] = was;
+        filters.matrix = was;
         input.checked = was;   // the box itself, or it reads as set while nothing behind it is
-        if (map && kept) { map.clear(); for (const [n, mode] of kept) map.set(n, mode); }
       };
     });
   });
@@ -3714,15 +3690,54 @@ async function boot(): Promise<void> {
     if (sequence) return [sequenceFilters, sequence];
     return el?.dataset.resonator ? [resonatorFilters, el.dataset.resonator] : undefined;
   };
-  document.addEventListener("click", (e) => {
-    const target = resonatorName(e);
-    if (target) setFilter(...target, "include");
-  });
+  // A right click files the name straight away as an include — an OR among main DPS, an AND
+  // among supports (`teamWanted()`). A left click opens the menu: include or exclude what was
+  // clicked, and for a resonator, which of their axes to compare — each a toggle, so the menu
+  // also says which are on.
   document.addEventListener("contextmenu", (e) => {
     const target = resonatorName(e);
     if (!target) return;
     e.preventDefault(); // the browser menu would bury the table under itself otherwise
-    setFilter(...target, "exclude");
+    setFilter(...target, "include");
+  });
+  // the name cell's menu, at a point on screen: opened by a click, or by the pointer resting on
+  // the cell for a second (below)
+  const openNameMenu = (el: HTMLElement, x: number, y: number): void => {
+    const sequence = el.dataset.sequence;
+    const [map, key]: [Map<string, ResonatorFilter>, string] = sequence ? [sequenceFilters, sequence] : [resonatorFilters, el.dataset.resonator ?? ""];
+    const resonator = parseRoleKey(el.dataset.resonator ?? "").name;
+    const items: MenuItem[] = [
+      { label: `Show teams with ${key}`, run: () => setFilter(map, key, "include") },
+      { label: `Hide teams with ${key}`, run: () => setFilter(map, key, "exclude") },
+      // only the axes this resonator actually has more than one option on
+      ...AXES.filter((axis) => comparable(resonator, axis)).map((axis): MenuItem => ({
+        label: `${filters[axis].includes(resonator) ? "Stop comparing" : "Compare"} ${resonator} ${AXIS_LABEL[axis].toLowerCase()}`,
+        run: () => setCompare(resonator, axis),
+      })),
+    ];
+    showMenu(x, y, items);
+  };
+  document.addEventListener("click", (e) => {
+    const el = (e.target as Element).closest<HTMLElement>(".c.name.res");
+    if (el?.dataset.resonator) openNameMenu(el, e.clientX, e.clientY);
+  });
+  // ...and after a second's hover, where the pointer is by then; leaving the cell first cancels
+  // it, and a menu already up (or one just closed under the same pointer) isn't put up again
+  let hoverTimer: ReturnType<typeof setTimeout> | undefined;
+  let hoverAt: [number, number] = [0, 0];
+  document.addEventListener("mousemove", (e) => { hoverAt = [e.clientX, e.clientY]; });
+  document.addEventListener("mouseover", (e) => {
+    const el = (e.target as Element).closest<HTMLElement>(".c.name.res");
+    if (!el?.dataset.resonator || el.contains(e.relatedTarget as Node | null)) return;
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(() => {
+      if (document.querySelector(".ctxmenu") || !el.matches(":hover")) return;
+      openNameMenu(el, hoverAt[0], hoverAt[1]);
+    }, 1000);
+  });
+  document.addEventListener("mouseout", (e) => {
+    const el = (e.target as Element).closest<HTMLElement>(".c.name.res");
+    if (el && !el.contains(e.relatedTarget as Node | null)) clearTimeout(hoverTimer);
   });
   // A weapon/echo/mainstat pick's own cell, anywhere in the table: same left click/right click
   // pair as a resonator's name, just keyed by `data-kind`/`data-value` instead of `data-resonator`
@@ -3733,15 +3748,20 @@ async function boot(): Promise<void> {
     const value = el?.dataset.value;
     return kind && value ? [OPTION_FILTER_MAPS[kind], value] : undefined;
   };
-  document.addEventListener("click", (e) => {
-    const pick = optionPick(e);
-    if (pick) setFilter(...pick, "include");
-  });
   document.addEventListener("contextmenu", (e) => {
     const pick = optionPick(e);
     if (!pick) return;
     e.preventDefault();
-    setFilter(...pick, "exclude");
+    setFilter(...pick, "include");
+  });
+  document.addEventListener("click", (e) => {
+    const pick = optionPick(e);
+    if (!pick) return;
+    const [map, key] = pick;
+    showMenu(e.clientX, e.clientY, [
+      { label: `Show teams with ${key}`, run: () => setFilter(map, key, "include") },
+      { label: `Hide teams with ${key}`, run: () => setFilter(map, key, "exclude") },
+    ]);
   });
   // A search result: keyed by the same `data-kind`/`data-value` as the cell it stands for (the
   // "no matches" row carries neither, so it falls through). A left click includes unless it lands
@@ -3778,9 +3798,12 @@ async function boot(): Promise<void> {
   });
   // A chip above the table: clicking it clears that filter, whichever way it was set — a resonator
   // one by its own `data-resonator`, a pick one by `data-kind`/`data-value` (see `resonatorChips()`).
-  document.addEventListener("click", (e) => {
+  const removeChip = (e: Event): void => {
     const chip = (e.target as Element).closest<HTMLElement>(".rchip");
     if (!chip) return;
+    e.preventDefault();
+    const axis = chip.dataset.axis as Axis | undefined;
+    if (axis) { setCompare(chip.dataset.resonator ?? "", axis); return; }
     const name = chip.dataset.resonator;
     const kind = chip.dataset.kind as OptionKind | undefined;
     const map = name ? resonatorFilters : kind ? OPTION_FILTER_MAPS[kind] : undefined;
@@ -3791,23 +3814,73 @@ async function boot(): Promise<void> {
       map.delete(key);
       return () => map.set(key, was);
     });
+  };
+  document.addEventListener("click", removeChip);
+  document.addEventListener("contextmenu", removeChip);
+  // "Clear Filters" under the chips: every name filter and every compare, in one costed change
+  document.addEventListener("click", (e) => {
+    if (!(e.target as Element).closest(".clearall")) return;
+    withRowCap(() => {
+      const maps = [resonatorFilters, ...(Object.values(OPTION_FILTER_MAPS) as Map<string, ResonatorFilter>[])];
+      const kept = maps.map((map) => [...map]);
+      const compares = AXES.map((axis) => [...filters[axis]]);
+      for (const map of maps) map.clear();
+      for (const axis of AXES) filters[axis] = [];
+      return () => {
+        maps.forEach((map, i) => { for (const [n, mode] of kept[i]!) map.set(n, mode); });
+        AXES.forEach((axis, i) => { filters[axis] = compares[i]!; });
+      };
+    });
   });
 }
 
-/** Set one filter, or clear it if this name already carries one — *whichever way* that one was
- *  set. "Already filtered" is the state a click toggles, not "already filtered this exact way": a
- *  left click on a barred resonator used to promote them to a required include, which is never
- *  what clicking the name you just barred means (and, being an include, it silently ANDed with
- *  every other include and emptied the table instead of bringing them back). Flipping a filter the
- *  other way round is two clicks now — clear it, then set the direction you want.
- *
- *  Shared by resonator names and weapon/echo/mainstat picks alike; only the map differs. Costed
- *  either way (`withRowCap()`): clearing one widens the table by exactly what setting it narrowed,
- *  and a filter is the usual way *back* under the cap, so it can as easily be the way over it. */
+/** One entry of the table's right-click menu. */
+interface MenuItem { label: string; run: () => void }
+
+/** Put the right-click menu up at the pointer, one row per item; a click on a row runs it, any
+ *  other click, a scroll, or Escape takes the menu down. One menu at a time. */
+function showMenu(x: number, y: number, items: MenuItem[]): void {
+  document.querySelector(".ctxmenu")?.remove();
+  const menu = document.createElement("div");
+  menu.className = "ctxmenu";
+  menu.innerHTML = items.map((it, i) => `<button type="button" class="ctxitem" data-i="${i}">${esc(it.label)}</button>`).join("");
+  document.body.appendChild(menu);
+  // inside the window: flipped up or left where it would run off the edge
+  const r = menu.getBoundingClientRect();
+  menu.style.left = `${Math.min(x, innerWidth - r.width - 6)}px`;
+  menu.style.top = `${Math.min(y, innerHeight - r.height - 6)}px`;
+  const close = (): void => {
+    menu.remove();
+    removeEventListener("click", onClick, true);
+    removeEventListener("contextmenu", onClick, true);
+    removeEventListener("keydown", onKey, true);
+    removeEventListener("scroll", close, true);
+  };
+  const onClick = (e: Event): void => {
+    const item = (e.target as Element).closest<HTMLElement>(".ctxitem");
+    if (item && menu.contains(item)) { e.stopPropagation(); e.preventDefault(); close(); items[Number(item.dataset.i)]!.run(); return; }
+    close();
+  };
+  const onKey = (e: KeyboardEvent): void => { if (e.key === "Escape") close(); };
+  // deferred, or the contextmenu that opened it would close it in the same tick
+  setTimeout(() => {
+    addEventListener("click", onClick, true);
+    addEventListener("contextmenu", onClick, true);
+    addEventListener("keydown", onKey, true);
+    addEventListener("scroll", close, true);
+  });
+}
+
+/** Set one filter: a name already carrying this same mode is cleared (the click toggles it), and
+ *  one carrying a different mode switches to this one — excluding a required resonator excludes
+ *  them, it doesn't merely clear the require. Shared by resonator names and weapon/echo/mainstat
+ *  picks alike; only the map differs. Costed either way (`withRowCap()`): clearing one widens the
+ *  table by exactly what setting it narrowed, and a filter is the usual way *back* under the cap,
+ *  so it can as easily be the way over it. */
 function setFilter(map: Map<string, ResonatorFilter>, name: string, mode: ResonatorFilter): void {
   withRowCap(() => {
     const was = map.get(name);
-    if (was !== undefined) map.delete(name); else map.set(name, mode);
+    if (was === mode) map.delete(name); else map.set(name, mode);
     return () => { if (was === undefined) map.delete(name); else map.set(name, was); };
   });
 }
@@ -3888,4 +3961,12 @@ boot().catch((err: unknown) => {
   console.error(err);
   app.innerHTML = errorPage(err);
   app.className = "";
+  // ...and on the loading screen too, where a reader who never opens the console will see it
+  // (index.html's own handlers do the same for anything thrown outside `boot()`)
+  const box = overlay.querySelector<HTMLElement>(".loading-error");
+  if (box) {
+    box.hidden = false;
+    box.textContent += `${box.textContent ? "\n\n" : ""}${err instanceof Error ? err.stack ?? err.message : String(err)}`;
+    overlay.hidden = false;
+  }
 });

@@ -57,10 +57,10 @@ const BA3 = phroAction("Basic - Movement of Life and Death 3", { forte1: 1, node
 
 const Skill = phroAction("Skill - Whispers in a Fleeting Dream", { forte1: 1, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 211.94, offtune: 4264, energy: 13.34, concerto: 10, updateBuffs: () => gainNote(2) });
 
-const FBA = phroAction("Basic - Movement of Fate and Finality", { forte1: 1, node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 505.01, offtune: 10161, energy: 3.21, concerto: 10.02, updateBuffs: () => gainNote(1) });
-const FSkill = phroAction("Skill - Murmurs in a Haunting Dream", {forte1: 1, node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 464.07, offtune: 9338, energy: 2.95, concerto: 10, updateBuffs: () => gainNote(2) });
+const FBA = phroAction("Forte Basic - Movement of Fate and Finality", { forte1: 1, node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 505.01, offtune: 10161, energy: 3.21, concerto: 10.02, updateBuffs: () => gainNote(1) });
+const FSkill = phroAction("Forte Skill - Murmurs in a Haunting Dream", {forte1: 1, node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 464.07, offtune: 9338, energy: 2.95, concerto: 10, updateBuffs: () => gainNote(2) });
 
-const ScarletCoda = phroAction("Heavy - Scarlet Coda", {
+const ScarletCoda = phroAction("Forte Heavy - Scarlet Coda", {
   node: Node.Normal, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Skill, forte1: -6,  mv: 660.16, offtune: 166144, energy: 6.93, concerto: 40,
 });
 
@@ -334,17 +334,20 @@ export const PHROLOVA_RESONATOR = new Resonator({
 const BA123 = new ActionGroup("Basic - Movement of Life and Death 123", [BA1, BA2, BA3]);
 const BA123idash = new ActionGroup("Basic - Movement of Life and Death 123 (Cancelled)", [BA1, BA2, BA3.dodgeCancel()]);
 
+const HBA12 = new ActionGroup("Basic - Hecate 12", [HBA1, HBA2]);
+const BA23 = new ActionGroup("Basic - Movement of Life and Death 23", [BA2, BA3]);
+
 const PH_LOOP = new Rotation([
   NOINTRO, BA2,
   INTRO,
   BA3, ECHO_ONFIELD, 
   FBA, Skill, FBA, DODGE, 
   BA123, DODGE, FBA, DODGE,
-  ScarletCoda, Liberation, HBA1, HBA2, OUTRO,
+  ScarletCoda, Liberation, HBA12, OUTRO,
 ]);
 
 const PH_LOOP_S2 = new Rotation([
-  NOINTRO, BA2, BA3, ECHO_ONFIELD, 
+  NOINTRO, BA23, ECHO_ONFIELD, 
   FBA, Skill, FBA,
   ScarletCoda, Liberation, OUTRO,
 
@@ -383,7 +386,7 @@ const PH_LOOP_DUAL_DPS = new Rotation([
 ]);
 
 const PH_LOOP_DUAL_DPS_S2 = new Rotation([
-  NOINTRO, BA2, BA3, ECHO_ONFIELD, 
+  NOINTRO, BA23, ECHO_ONFIELD, 
   FBA, Skill, FBA,
   ScarletCoda, Liberation, OUTRO,
 

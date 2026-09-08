@@ -172,12 +172,8 @@ export const IUNO = new Loadout({
   weapons: [IUNO_SIG, NEW_STD_GAUNTLET, MARCATO, ABYSS_SURGES, VERITYS_HANDLE],
   echoLoadouts: [
     new EchoLoadout(MYA, COV_3PC, SIERRA_GALE_2PC),
-
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
-    new EchoLoadout(HERON, COV_3PC, MOONLIT_CLOUDS_2PC),
-
     new EchoLoadout(FALLACY, REJUV_5PC),
-    new EchoLoadout(FALLACY, COV_3PC, REJUV_2PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),

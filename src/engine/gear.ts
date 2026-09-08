@@ -191,7 +191,14 @@ export const baseSequence = (r: Resonator): number =>
 /** A resonator's own Resonance Mode — a fixed stance a loadout commits to for the whole fight
  *  (Lucilla's Echo/Glacio Chafe split), not something toggled mid-rotation. Other pieces of that
  *  kit read `isHeld()` on the specific mode equipped, same as checking a Sequence. */
-export class ResonanceMode extends Gear {}
+export class ResonanceMode extends Gear {
+  /** The one word the comparison table tags the resonator's name with — "Chafe", "Unison". */
+  abbr: string;
+  constructor(def: GearDef & { abbr: string }) {
+    super(def);
+    this.abbr = def.abbr;
+  }
+}
 /** An echo sonata set's 2-piece bonus — worn on its own beside a 3pc/1pc set, or carried along by
  *  its own set's 5pc (see `Sonata`). The `size` literals below are what tell the set shapes apart
  *  for `EchoLoadout`'s constructor: structurally they would otherwise all be a bare Gear. */

@@ -65,7 +65,7 @@ import {
   isActive,
 } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_3, SWAP, ECHO_SWAP, INTRO_3 } from "../../engine/rotation.js";
 import { GLACIO_CHAFE } from "../../shared/status.js";
 import { FREEZE_FRAME, STRINGMASTER, LETHEAN_ELEGY } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
@@ -122,7 +122,8 @@ const Spotlight = lucillaAction("Skill - Spotlight", {
 // Echo Skill DMG under Echo mode; Chafe mode's own typeOverride makes it Basic Attack DMG instead
 // (see MODE_CHAFE) — one action, not one per mode
 const Liberation = lucillaAction("Liberation - Clear As Day", {
-  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Echo, mv: 142.74, concerto: 20, offtune: 38400,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Echo, mv: 142.74, concerto: 20, offtune: 38400, forte1: -150,
+  applyStats: () => { addStat(Stat.AddForte1, 150); },
   updateBuffs: () => {
     applyCurrent(LIB_SELF_DMG, 1);
     if (isHeld(MODE_CHAFE)) applyTeam(FILM_ROLL, 4); else applyTeam(ZOOM, 1);
@@ -162,12 +163,12 @@ const LettingGo = lucillaAction("Basic - Letting It Go", { node: Node.Liberation
 
 /** A loadout equips exactly one. Neither carries its own stat line — both are pure markers other
  *  pieces read via `isHeld(MODE_ECHO)`, same as checking a sequence Gear. */
-const MODE_ECHO = new ResonanceMode({ name: "Resonance Mode - Echo" });
+const MODE_ECHO = new ResonanceMode({ name: "Resonance Mode - Echo", abbr: "Echo" });
 /** Chafe mode is also what makes Clear As Day and Letting It Go Basic Attack DMG rather than Echo
  *  Skill DMG — assigned through typeOverride, the first phase of the action, so every scoped stat
  *  and isType() check sees Basic. */
 const MODE_CHAFE = new ResonanceMode({
-  name: "Resonance Mode - Glacio Chafe",
+  name: "Resonance Mode - Glacio Chafe", abbr: "Chafe",
   // the retag has to land in the first phase, before anything reads the type (see typeOverride)
   updateDebuffs: () => { const a = currentAction(); if (a === Liberation || a === LettingGo) typeOverride(Type1.Basic); },
 });
@@ -287,8 +288,14 @@ const LUCILLA_RESONATOR = new Resonator({
 const UBA123 = new ActionGroup("Basic - Tracing Forms 123", [UBA1, UBA2, UBA3]);
 
 const LC_ROTATION = new Rotation([
-  INTRO, PhantomFrame, Spotlight, ECHO_CANCEL, Liberation,
-  UBA123, OUTRO,
+  INTRO, PhantomFrame, Spotlight, Liberation,
+  UBA123, ECHO_SWAP, OUTRO,
+
+  START_3, PhantomFrame, Spotlight, SWAP,
+
+  INTRO_3, ECHO_CANCEL, Liberation, UBA123, 
+  PhantomFrame, Spotlight, 
+  OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
