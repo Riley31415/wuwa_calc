@@ -2,24 +2,9 @@
 import { Stat, Attribute, Type1, Type2, Cast, Scaling } from "../engine/stats.js";
 import { Buff, Sonata, Sonata2pc, Mainslot, EchoType } from "../engine/gear.js";
 import {
-  isType,
-  addStat,
-  frozenStacks,
-  applyCurrent,
-  applyTeam,
-  casting,
-  currentAction,
-  revokeCurrent,
-  getStat,
-  queue,
-  queueOutro,
-  revokeTeam,
-  stacksOfEnemy,
-  currentMember,
-  isActive,
+  addStat, casting, getStat, queue, queueOutro, stacksOfEnemy, currentMember, isActive, onCast, onType, onInflict,
 } from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
-import { applied, appliedByMe } from "../engine/context.js";
 import { AERO_EROSION } from "../shared/status.js";
 
 /* ----------------------------------------------------------------------------- Carlotta, 2.0 */
@@ -32,34 +17,29 @@ export const SENTRY_CONSTRUCT = new Mainslot({
   name: "Sentry Construct",
   action: ACTION_SENTRY_CONSTRUCT,
   echoType: EchoType.TRANSFORM,
-  constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Glacio); addStat(Stat.DmgBonus, 12, Type1.Skill); },
+  stats: [[Stat.DmgBonus, 12, Attribute.Glacio], [Stat.DmgBonus, 12, Type1.Skill]],
 });
 
 /** Frosty Resolve, Carlotta's own sonata (also carried by Empyrean Anthem's Overlord-class
  *  echoes). 2pc: +12% Resonance Skill DMG Bonus flat. 5pc: Resonance Skill grants +22.5% Glacio
  *  DMG Bonus for 15s; Resonance Liberation grants +18% Resonance Skill DMG Bonus for 5s, up to
  *  2 stacks. */
-export const FROSTY_RESOLVE_2PC = new Sonata2pc({
-  name: "Frosty Resolve 2pc",
-  constantStats: () => addStat(Stat.DmgBonus, 12, Type1.Skill),
-});
+export const FROSTY_RESOLVE_2PC = new Sonata2pc({ name: "Frosty Resolve 2pc", stats: [[Stat.DmgBonus, 12, Type1.Skill]] });
 export const FROSTY_RESOLVE_GLACIO = new Buff({
   name: "Frosty Resolve 5pc: Glacio",
-  applyStats: () => addStat(Stat.DmgBonus, 22.5, Attribute.Glacio),
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(FROSTY_RESOLVE_GLACIO); },
+  stats: [[Stat.DmgBonus, 22.5, Attribute.Glacio]], until: "outro",
 });
 export const FROSTY_RESOLVE_SKILL_DMG = new Buff({
   name: "Frosty Resolve 5pc: Resonance Skill", maxStacks: 2,
-  applyStats: () => addStat(Stat.DmgBonus, 18 * frozenStacks(), Type1.Skill),
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(FROSTY_RESOLVE_SKILL_DMG); },
+  stats: [[Stat.DmgBonus, 18, Type1.Skill]], perStack: true, until: "outro",
 });
 export const FROSTY_RESOLVE_5PC = new Sonata({
   name: "Frosty Resolve 5pc",
   sonata2pc: FROSTY_RESOLVE_2PC,
-  updateBuffs: () => {
-    if (casting(Cast.Skill)) applyCurrent(FROSTY_RESOLVE_GLACIO, 1);
-    if (casting(Cast.Liberation)) applyCurrent(FROSTY_RESOLVE_SKILL_DMG, 1);
-  },
+  grants: [
+    { on: onCast(Cast.Skill), buff: FROSTY_RESOLVE_GLACIO },
+    { on: onCast(Cast.Liberation), buff: FROSTY_RESOLVE_SKILL_DMG },
+  ],
 });
 
 /* ------------------------------------------------------------------------------- Roccia, 2.0 */
@@ -73,7 +53,7 @@ export const NM_HERON = new Mainslot({
   name: "Nightmare: Impermanence Heron",
   action: ACTION_NM_HERON,
   echoType: EchoType.TRANSFORM,
-  constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Havoc); addStat(Stat.DmgBonus, 12, Type1.Heavy); },
+  stats: [[Stat.DmgBonus, 12, Attribute.Havoc], [Stat.DmgBonus, 12, Type1.Heavy]],
 });
 
 /* ---------------------------------------------------------------------------- Cantarella, 2.2 */
@@ -86,23 +66,19 @@ export const LORELEI = new Mainslot({
   name: "Lorelei",
   action: ACTION_LORELEI,
   echoType: EchoType.TRANSFORM,
-  constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Havoc); addStat(Stat.DmgBonus, 12, Type1.Basic); },
+  stats: [[Stat.DmgBonus, 12, Attribute.Havoc], [Stat.DmgBonus, 12, Type1.Basic]],
 });
 
 /** Midnight Veil, Cantarella's own sonata — also reused by Roccia and Phrolova. 2pc: +10% Havoc
  *  DMG Bonus flat. 5pc: her outro also fires a 480% Havoc burst and hands the incoming
  *  resonator +15% Havoc DMG Bonus for 15s. */
-export const MIDNIGHT_VEIL_2PC = new Sonata2pc({
-  name: "Midnight Veil 2pc",
-  constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Havoc),
-});
+export const MIDNIGHT_VEIL_2PC = new Sonata2pc({ name: "Midnight Veil 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Havoc]] });
 export const ACTION_MIDNIGHT_VEIL_BURST = new Action("Outro - Midnight Veil", {
   element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Outro, mv: 480,
 });
 export const MIDNIGHT_VEIL_HANDOFF = new Buff({
   name: "Midnight Veil: Outro",
-  applyStats: () => addStat(Stat.DmgBonus, 15, Attribute.Havoc),
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(MIDNIGHT_VEIL_HANDOFF); },
+  stats: [[Stat.DmgBonus, 15, Attribute.Havoc]], until: "outro",
 });
 export const MIDNIGHT_VEIL_5PC = new Sonata({
   name: "Midnight Veil 5pc",
@@ -123,17 +99,17 @@ export const DRAGON_OF_DIRGE = new Mainslot({
   name: "Dragon of Dirge",
   action: ACTION_DRAGON_OF_DIRGE,
   echoType: EchoType.TRANSFORM,
-  constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Fusion); addStat(Stat.DmgBonus, 12, Type1.Basic); },
+  stats: [[Stat.DmgBonus, 12, Attribute.Fusion], [Stat.DmgBonus, 12, Type1.Basic]],
 });
 
-export const TIDEBREAKING_2PC = new Sonata2pc({ name: "Tidebreaking Courage 2pc", constantStats: () => addStat(Stat.Er, 10) });
+export const TIDEBREAKING_2PC = new Sonata2pc({ name: "Tidebreaking Courage 2pc", stats: [[Stat.Er, 10]] });
 
 /** +15% ATK flat, and +30% (unscoped) DMG Bonus once Energy Regen reaches 250% — read via
  *  convertStats() so every ER contribution has already landed this action. */
 export const TIDEBREAKING_5PC = new Sonata({
   name: "Tidebreaking Courage 5pc",
   sonata2pc: TIDEBREAKING_2PC,
-  constantStats: () => addStat(Stat.BonusAtk, 15),
+  stats: [[Stat.BonusAtk, 15]],
   convertStats: () => { if (getStat(Stat.Er) >= 250) addStat(Stat.DmgBonus, 30); },
 });
 
@@ -147,7 +123,7 @@ export const NM_HECATE = new Mainslot({
   name: "Nightmare: Hecate",
   action: ACTION_NM_HECATE,
   echoType: EchoType.TRANSFORM,
-  constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Havoc); addStat(Stat.DmgBonus, 20, Type1.Echo); },
+  stats: [[Stat.DmgBonus, 12, Attribute.Havoc], [Stat.DmgBonus, 20, Type1.Echo]],
 });
 
 /* ------------------------------------------------------------------------------------ Zhezhi */
@@ -161,7 +137,7 @@ export const NM_LAMPY = new Mainslot({
   name: "Nightmare: Lampylumen Myriad",
   action: ACTION_NM_LAMPY,
   echoType: EchoType.SUMMON,
-  constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Glacio); addStat(Stat.DmgBonus, 30, Type2.Coordinated); },
+  stats: [[Stat.DmgBonus, 12, Attribute.Glacio], [Stat.DmgBonus, 30, Type2.Coordinated]],
 });
 
 
@@ -172,22 +148,22 @@ export const HECATE = new Mainslot({
   name: "Hecate",
   action: ACTION_HECATE,
   echoType: EchoType.SUMMON,
-  constantStats: () => { addStat(Stat.DmgBonus, 40, Type2.Coordinated); },
+  stats: [[Stat.DmgBonus, 40, Type2.Coordinated]],
 });
 
 /** Empyrean Anthem, Zhezhi's own sonata. 2pc: +10% ER flat. 5pc: +80% Coordinated Attack DMG
  *  Bonus, self only. A Coordinated Attack crit also grants the whole team +20% ATK for 4s,
  *  assumed permanent uptime once one lands (a real source re-triggers well past 21s). */
-export const EMPYREAN_ANTHEM_2PC = new Sonata2pc({ name: "Empyrean Anthem 2pc", constantStats: () => addStat(Stat.Er, 10) });
+export const EMPYREAN_ANTHEM_2PC = new Sonata2pc({ name: "Empyrean Anthem 2pc", stats: [[Stat.Er, 10]] });
 export const EMPYREAN_ANTHEM_5PC = new Sonata({
   name: "Empyrean Anthem 5pc",
   sonata2pc: EMPYREAN_ANTHEM_2PC,
-  constantStats: () => addStat(Stat.DmgBonus, 80, Type2.Coordinated),
-  updateBuffs: () => { if (isType(Type2.Coordinated)) applyTeam(EMPYREAN_ANTHEM_TEAM, 1); },
+  stats: [[Stat.DmgBonus, 80, Type2.Coordinated]],
+  grants: [{ on: onType(Type2.Coordinated), buff: () => EMPYREAN_ANTHEM_TEAM, to: "team" }],
 });
 export const EMPYREAN_ANTHEM_TEAM = new Buff({
   name: "Empyrean Anthem",
-  applyStats: () => { if (isActive()) addStat(Stat.BonusAtk, 20); },
+  stats: [[Stat.BonusAtk, 20]], when: isActive,
 });
 
 /* ------------------------------------------------------------------------------- Ciaccona */
@@ -205,7 +181,7 @@ export const NM_KELPIE = new Mainslot({
   name: "Nightmare: Kelpie",
   action: ACTION_NM_KELPIE,
   echoType: EchoType.TRANSFORM,
-  constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Glacio); addStat(Stat.DmgBonus, 12, Attribute.Aero); },
+  stats: [[Stat.DmgBonus, 12, Attribute.Glacio], [Stat.DmgBonus, 12, Attribute.Aero]],
   updateBuffs: () => { if (casting(Cast.Outro)) queue(ACTION_NM_KELPIE_OUTRO); },
 });
 
@@ -217,19 +193,20 @@ export const NM_KELPIE = new Mainslot({
  *  outro, per the standing duration rules. */
 export const GUSTS_OF_WELKIN_TEAM = new Buff({
   name: "Gusts of Welkin",
-  applyStats: () => addStat(Stat.DmgBonus, 15, Attribute.Aero),
+  stats: [[Stat.DmgBonus, 15, Attribute.Aero]],
 });
 export const GUSTS_OF_WELKIN_SELF = new Buff({
   name: "Gusts of Welkin",
-  applyStats: () => addStat(Stat.DmgBonus, 15, Attribute.Aero),
+  stats: [[Stat.DmgBonus, 15, Attribute.Aero]],
 });
-export const GUSTS_OF_WELKIN_2PC = new Sonata2pc({ name: "Gusts of Welkin 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Aero) });
+export const GUSTS_OF_WELKIN_2PC = new Sonata2pc({ name: "Gusts of Welkin 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Aero]] });
 export const GUSTS_OF_WELKIN_5PC = new Sonata({
   name: "Gusts of Welkin 5pc",
   sonata2pc: GUSTS_OF_WELKIN_2PC,
-  updateBuffs: () => {
-    if (appliedByMe(AERO_EROSION)) { applyTeam(GUSTS_OF_WELKIN_TEAM, 1); applyCurrent(GUSTS_OF_WELKIN_SELF, 1); }
-  },
+  grants: [
+    { on: onInflict(AERO_EROSION), buff: GUSTS_OF_WELKIN_TEAM, to: "team" },
+    { on: onInflict(AERO_EROSION), buff: GUSTS_OF_WELKIN_SELF },
+  ],
 });
 
 /* --------------------------------------------------------------------------- Cartethyia, 2.4 */
@@ -259,14 +236,13 @@ export const FLEURDELYS = new Mainslot({
  *  Bonus for 10s — a short self window, so lost after the outro. Unlike Gusts of Welkin above the
  *  trigger is the hit, not the inflict: `stacksOfEnemy`, so any hit while the status stands pays,
  *  including on Erosion a teammate put there. */
-export const WINDWARD_2PC = new Sonata2pc({ name: "Windward Pilgrimage 2pc", constantStats: () => addStat(Stat.DmgBonus, 10, Attribute.Aero) });
+export const WINDWARD_2PC = new Sonata2pc({ name: "Windward Pilgrimage 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Aero]] });
 export const WINDWARD_5PC = new Sonata({
   name: "Windward Pilgrimage 5pc",
   sonata2pc: WINDWARD_2PC,
-  updateBuffs: () => { if (stacksOfEnemy(AERO_EROSION) > 0) applyCurrent(WINDWARD_BUFF, 1); },
+  grants: [{ on: () => stacksOfEnemy(AERO_EROSION) > 0, buff: () => WINDWARD_BUFF }],
 });
 export const WINDWARD_BUFF = new Buff({
   name: "Windward Pilgrimage",
-  applyStats: () => { addStat(Stat.CritRate, 10); addStat(Stat.DmgBonus, 30, Attribute.Aero); },
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(WINDWARD_BUFF); },
+  stats: [[Stat.CritRate, 10], [Stat.DmgBonus, 30, Attribute.Aero]], until: "outro",
 });

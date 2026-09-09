@@ -10,7 +10,21 @@ import type { Rotation, Action, ActionGroup, ActionDef, ActionField } from "./ro
 import { ctx } from "./runtime.js";
 // the one edge back up the stack: a Resonator's own combatStart banks its base stats through
 // the ordinary API. Both names are function declarations, so the import cycle is inert at load.
-import { addStat, frozenStacks } from "./context.js";
+import { addStat, frozenStacks, casting, currentAction, applyCurrent, applyTeam, applyEnemy, queueOutro, revokeCurrent } from "./context.js";
+
+/** One stat line as a kit writes it: `[stat, value]`, or `[stat, value, tag]` scoped to an
+ *  element or damage type. On a piece of gear these are its constant stats; on a `Buff` they are
+ *  what it contributes while held (see `BuffDef.stats`). */
+export type StatLine = readonly [Stat | EnemyStat, number] | readonly [Stat | EnemyStat, number, Tag];
+/** A condition read off the action being evaluated — `onCast(Cast.Skill)`, `onType(Type1.Basic)`,
+ *  `onInflict(STATUS)` (context.ts), or any predicate over the kit API. */
+export type Trigger = () => boolean;
+/** "On `on`, grant `stacks` of `buff`": to the wielder (`self`, the default), the team, the enemy
+ *  (a `Debuff`), or `next` — published for whoever intros next (`queueOutro`). `stacks` may read
+ *  the action (`() => applied(SHIELD)`). `buff` left out means the declaring Buff itself — a buff
+ *  that stacks itself up on a trigger; a thunk (`() => LATER_BUFF`) reaches one declared further
+ *  down the file. */
+export interface Grant { on: Trigger; buff?: Buff | (() => Buff); stacks?: number | (() => number); to?: "self" | "team" | "enemy" | "next" }
 
 export interface GearDef {
   /** Optional only because `toString` can cover for it entirely — a Gear whose display name is
@@ -82,6 +96,12 @@ export interface GearDef {
    *  the report files the field's whole run of hits under. The hits name the same field on their
    *  own action. Nothing else in the engine reads it — a field is a report grouping, not a rule. */
   field?: ActionField | null;
+  /** Flat, unconditional stat lines — the data form of `constantStats` (on a `Buff`, of
+   *  `applyStats`, since a buff comes and goes). Both may be given; the lines land first. */
+  stats?: StatLine[];
+  /** What this Gear grants, and when — the data form of `updateBuffs`. Runs after any closure
+   *  `updateBuffs` the same def declares. */
+  grants?: Grant[];
 }
 
 /** The six per-action phases a `Pool` sorts a held Gear's hooks into, in the order
@@ -121,13 +141,13 @@ export class Gear {
    *  fixed here since the hooks themselves are — a `Pool` reads this one field to sort a
    *  held Gear into its phase lists, rather than `evaluate()` probing six optional properties on
    *  every held Gear every action. */
-  hookMask: number;
+  hookMask = 0;
   /** A small integer unique to this Gear — what a variant dry run hashes a mutation by, to tell
    *  whether it would have changed the fight (see `noteMutation()`). */
   id: number;
   /** The same six hooks by phase index (bit order of `PHASE_*`), for `runPhase()` to call one
    *  phase's hook without naming the field — only the phases set in `hookMask` are ever read. */
-  hookFns: ((() => void) | undefined)[];
+  hookFns: ((() => void) | undefined)[] = [];
 
   constructor(def: GearDef) {
     this.id = nextGearId++;
@@ -143,11 +163,39 @@ export class Gear {
     this.afterActionFn = def.afterAction;
     this.lateConvertStatsFn = def.lateConvertStats;
     this.displayFn = def.display;
-    this.hookMask = (def.updateDebuffs ? PHASE_DEBUFFS : 0) | (def.updateBuffs ? PHASE_BUFFS : 0)
-      | (def.applyStats ? PHASE_APPLY : 0) | (def.convertStats ? PHASE_CONVERT : 0)
-      | (def.lateConvertStats ? PHASE_LATE : 0) | (def.afterAction ? PHASE_AFTER : 0)
-      | (def.constantStats ? PHASE_CONST : 0);
-    this.hookFns = [def.updateDebuffs, def.updateBuffs, def.applyStats, def.convertStats, def.lateConvertStats, def.afterAction, def.constantStats];
+    this.decl = { stats: def.stats ?? [], grants: def.grants ?? [] };
+    // the data half compiles into the same hook slots the closures use, so the engine runs both alike
+    if (def.stats?.length && !(this instanceof Buff)) {
+      const lines = def.stats, own = def.constantStats;
+      this.constantStatsFn = () => { for (const line of lines) addStat(line[0] as Stat, line[1], line[2]); own?.(); };
+    }
+    if (def.grants?.length) {
+      const grants = def.grants, own = def.updateBuffs;
+      this.updateBuffsFn = () => {
+        own?.();
+        for (const g of grants) {
+          if (!g.on()) continue;
+          const n = typeof g.stacks === "function" ? g.stacks() : g.stacks ?? 1;
+          if (n <= 0) continue;
+          const buff = typeof g.buff === "function" ? g.buff() : g.buff ?? (this as Buff);
+          if (g.to === "team") applyTeam(buff, n);
+          else if (g.to === "enemy") applyEnemy(buff as Debuff, n);
+          else if (g.to === "next") queueOutro(buff);
+          else applyCurrent(buff, n);
+        }
+      };
+    }
+    this.wire();
+  }
+  /** What the data half of this Gear's def declared — kept for the engine to introspect. */
+  decl: { stats: StatLine[]; grants: Grant[] };
+  /** `hookMask`/`hookFns` off whatever hooks stand now — called once every compiled hook is in place. */
+  protected wire(): void {
+    this.hookMask = (this.updateDebuffsFn ? PHASE_DEBUFFS : 0) | (this.updateBuffsFn ? PHASE_BUFFS : 0)
+      | (this.applyStatsFn ? PHASE_APPLY : 0) | (this.convertStatsFn ? PHASE_CONVERT : 0)
+      | (this.lateConvertStatsFn ? PHASE_LATE : 0) | (this.afterActionFn ? PHASE_AFTER : 0)
+      | (this.constantStatsFn ? PHASE_CONST : 0);
+    this.hookFns = [this.updateDebuffsFn, this.updateBuffsFn, this.applyStatsFn, this.convertStatsFn, this.lateConvertStatsFn, this.afterActionFn, this.constantStatsFn];
   }
   toString(): string {
     if (this.displayFn) return this.displayFn();
@@ -164,12 +212,46 @@ export interface BuffDef extends GearDef {
    *  `Debuff` this is only the *base* ceiling — a kit can raise it for the fight with
    *  `maxStackIncrease()` (see `State.enemyMax`). */
   maxStacks?: number;
+  /** `stats` multiplied by the held stack count. */
+  perStack?: boolean;
+  /** `stats` pay only while this holds (`() => isActive()`, say). */
+  when?: Trigger;
+  /** `stats` pay in the updateBuffs phase, off the stack count held *coming into* the action —
+   *  so the cast that grants stacks pays for those it held already, not the ones it just added.
+   *  The default (applyStats) pays the count after this action's grants. */
+  early?: boolean;
+  /** When the buff goes: `outro` — revoked on the holder's Outro after paying on it (the usual
+   *  "short self buff, lost after the outro"); `swap` — revoked on the action that takes the holder
+   *  off field, before it pays ("lost on switching out"); `afterSwap` — the same action, after it
+   *  pays (a handoff that still counts on the leaving row). Unset is permanent. */
+  until?: "outro" | "swap" | "afterSwap";
 }
 
 export class Buff extends Gear {
   constructor(def: BuffDef) {
     super(def);
     this.maxStacks = def.maxStacks ?? 1;
+    if (def.stats?.length) {
+      const lines = def.stats, when = def.when, perStack = def.perStack;
+      const pay = (): void => {
+        if (when && !when()) return;
+        const n = perStack ? frozenStacks() : 1;
+        for (const line of lines) addStat(line[0] as Stat, perStack ? line[1] * n : line[1], line[2]);
+      };
+      if (def.early) { const own = this.updateBuffsFn; this.updateBuffsFn = () => { pay(); own?.(); }; }
+      else { const own = def.applyStats; this.applyStatsFn = () => { pay(); own?.(); }; }
+    }
+    if (def.until === "outro") {
+      const own = def.convertStats;
+      this.convertStatsFn = () => { own?.(); if (casting(Cast.Outro)) revokeCurrent(this); };
+    } else if (def.until === "swap") {
+      const own = this.updateBuffsFn;
+      this.updateBuffsFn = () => { if (currentAction().swapOut) revokeCurrent(this); own?.(); };
+    } else if (def.until === "afterSwap") {
+      const own = def.convertStats;
+      this.convertStatsFn = () => { own?.(); if (currentAction().swapOut) revokeCurrent(this); };
+    }
+    this.wire();
   }
 }
 export class Debuff extends Buff {}
@@ -191,14 +273,7 @@ export const baseSequence = (r: Resonator): number =>
 /** A resonator's own Resonance Mode — a fixed stance a loadout commits to for the whole fight
  *  (Lucilla's Echo/Glacio Chafe split), not something toggled mid-rotation. Other pieces of that
  *  kit read `isHeld()` on the specific mode equipped, same as checking a Sequence. */
-export class ResonanceMode extends Gear {
-  /** The one word the comparison table tags the resonator's name with — "Chafe", "Unison". */
-  abbr: string;
-  constructor(def: GearDef & { abbr: string }) {
-    super(def);
-    this.abbr = def.abbr;
-  }
-}
+export class ResonanceMode extends Gear {}
 /** An echo sonata set's 2-piece bonus — worn on its own beside a 3pc/1pc set, or carried along by
  *  its own set's 5pc (see `Sonata`). The `size` literals below are what tell the set shapes apart
  *  for `EchoLoadout`'s constructor: structurally they would otherwise all be a bare Gear. */
@@ -250,7 +325,10 @@ export class EchoLoadout {
  *  for the rare kit built around a Resonance Mode (Lucilla, Lynae). */
 export interface LoadoutDef {
   resonator: Resonator;
-  weapons: Weapon[];
+  /** Each entry is either a weapon's whole five-refinement list (see `refinements()`) — run at R1
+   *  unless that resonator's Refines are compared, when every rank gets a row — or one rank
+   *  picked out of it (`MARCATO[4]`), which is then the only rank the build ever runs. */
+  weapons: (Weapon | Weapon[])[];
   echoLoadouts: EchoLoadout[];
   mainstats: Buff[];
   substat: Buff;
@@ -261,7 +339,6 @@ export interface LoadoutDef {
   rotation: Rotation | Rotation[];
   sequences?: Sequence[];
   mode?: ResonanceMode;
-  matrix?: Matrix;
 }
 
 /** A resonator's real build — every resonator file's own `_LOADOUT` export is one of these, not a
@@ -279,7 +356,11 @@ export interface LoadoutDef {
  *  decides whose turn it is (rotation.ts). */
 export class Loadout {
   resonator: Resonator;
+  /** The rank of each listed weapon this build runs by default — the first of its `refinements`
+   *  entry: R1 for a whole list, the one rank given for a single weapon. */
   weapons: Weapon[];
+  /** Per listed weapon, every rank a Refines compare may run it at (`LoadoutDef.weapons`). */
+  refinements: Weapon[][];
   echoLoadouts: EchoLoadout[];
   /** Every main-stat build this loadout is willing to run (see mainstats.ts's own
    *  `mainstatOptions()`) — a list for the same reason `weapons`/`echoLoadouts` are, the table
@@ -298,13 +379,11 @@ export class Loadout {
    *  limited kits. */
   sequences: Sequence[];
   mode?: ResonanceMode;
-  /** This kit's Matrix, if it has one — worn only when the table's Matrix Mode box is on, and
-   *  only by loadouts that declare one (see `pieces()`). */
-  matrix?: Matrix;
 
   constructor(def: LoadoutDef) {
     this.resonator = def.resonator;
-    this.weapons = def.weapons;
+    this.refinements = def.weapons.map((w) => (Array.isArray(w) ? w : [w]));
+    this.weapons = this.refinements.map((w) => w[0]!);
     this.echoLoadouts = def.echoLoadouts;
     this.mainstats = def.mainstats;
     this.substat = def.substat;
@@ -313,7 +392,6 @@ export class Loadout {
     if (this.rotations.length < 1 || this.rotations.length > 7) throw new Error(`${def.resonator.name}: a loadout lists 1-7 rotations, one per sequence level`);
     this.sequences = def.sequences ?? [];
     this.mode = def.mode;
-    this.matrix = def.matrix;
   }
 
   /** The rotation a build at `sequenceLevel` runs: its own entry where the list reaches that
@@ -328,7 +406,7 @@ export class Loadout {
    *  sequences, mode). `sequenceLevel` is how many nodes are actually held, S1 up: 0 for a build at
    *  S0, 6 for the full chain — the comparison table runs one row per level so the gain from each
    *  can be read off (see index.ts's own combos). `matrix` is whether Matrix Mode is on — the
-   *  piece only goes on when it is *and* this loadout declares one. `highSubs` swaps the substat
+   *  piece only goes on when it is *and* this resonator has one. `highSubs` swaps the substat
    *  piece for the high-investment one (that role's own box). */
   pieces(weapon: Weapon, echo: EchoLoadout, mainstat: Buff, sequenceLevel: number, matrix = false, highSubs = false): Gear[] {
     const r = this.resonator;
@@ -337,12 +415,13 @@ export class Loadout {
       weapon, ...echo.pieces(), mainstat, highSubs ? this.highSubstat : this.substat,
       ...this.sequences.slice(0, sequenceLevel),
       this.mode,
-      matrix ? this.matrix : undefined,
+      matrix ? r.matrix : undefined,
     ].filter((g): g is Gear => g != null);
   }
 }
 
 export interface ResonatorDef extends GearDef {
+  matrix?: Matrix;
   element: Attribute;
   /** This kit's own stat-tree Talents bonus and both Inherent Skills — part of the resonator
    *  rather than of any one build, since every build runs the same three. Each stays its own piece
@@ -397,7 +476,7 @@ export interface ResonatorDef extends GearDef {
 
 /** A resonator: a Gear like any other (TODO_ENGINE.md — "Resonator extends Gear"), plus its own
  *  name/element/weapon type/colour/intro-choice, and the three pieces every build of it runs
- *  regardless — the stat-tree Talents (e.g. `"Talents: Phrolova"`) and both Inherent Skills. Each
+ *  regardless — the stat-tree Talents (e.g. `"Phrolova: Talents"`) and both Inherent Skills. Each
  *  of those stays a separate piece of Gear rather than being folded into this one's own
  *  `constantStats`, so the report still names which of them a stat came from. */
 export class Resonator extends Gear {
@@ -407,6 +486,9 @@ export class Resonator extends Gear {
   talent?: Talent;
   inherent1?: Inherent;
   inherent2?: Inherent;
+  /** This kit's Matrix, if it has one — worn only when the table's Matrix Mode box is on
+   *  (`Loadout.pieces()`), and the resonator's own the way their Talents are. */
+  matrix?: Matrix;
   maxEnergy: number;
   /** `maxForte1`-`maxForte5` as one array, indexed the way `TeamMember.forte` is. */
   maxForte: [number, number, number, number, number];
@@ -450,6 +532,7 @@ export class Resonator extends Gear {
       throw new Error(`${def.name}: a resonator names its Talents and both Inherent Skills`);
     }
     this.talent = def.talent;
+    this.matrix = def.matrix;
     this.inherent1 = def.inherent1;
     this.inherent2 = def.inherent2;
     this.maxEnergy = def.maxEnergy ?? 0;
@@ -512,11 +595,21 @@ export interface WeaponDef extends GearDef {
   weaponType: WeaponType;
   /** How the weapon is come by, the same three tiers a resonator has (stats.ts's own `Tier`):
    *  `Limited` a signature, `Standard` one of the permanent 5-stars (Stormy Resolution and the
-   *  new standard set), `Free` a 4-star anyone can craft — Ceaseless Aria, Bloodpact's Pledge —
-   *  which is why those two are written at their real R5. Unset means `Tier.Limited`. The
-   *  comparison table's own Allow R1 MDPS/Supports checkboxes key off it: unchecked restricts
+   *  new standard set), `Free` a 4-star anyone can craft — Ceaseless Aria, Bloodpact's Pledge.
+   *  Every tier runs at R1 unless a loadout names a higher rank outright (`LoadoutDef.weapons`).
+   *  Unset means `Tier.Limited`.
+   *  The comparison table's own Allow R1 MDPS/Supports checkboxes key off it: unchecked restricts
    *  that role to the non-limited tiers, on the assumption a signature is only ever owned at R1. */
   tier?: Tier;
+}
+
+/** All five refinements of one weapon, R1 first. `build` is called once per rank with `r` 0-4 and
+ *  reads its own numbers off five-entry lists (`[12, 15, 18, 21, 24][r]`); every buff the weapon
+ *  grants is built inside the same call, so each rank carries its own instances and a team buff
+ *  pays the applier's rank. `rank` is the " R3" every name in that call ends with, weapon and
+ *  buffs alike, so the table and the buff lists say which rank is being run. */
+export function refinements(build: (r: number, rank: string) => Weapon): Weapon[] {
+  return [0, 1, 2, 3, 4].map((r) => { const w = build(r, ` R${r + 1}`); w.refinement = r + 1; return w; });
 }
 
 /** A weapon: gear that also carries which of the five categories it belongs to. Every top-level
@@ -525,6 +618,8 @@ export interface WeaponDef extends GearDef {
 export class Weapon extends Gear {
   weaponType: WeaponType;
   tier: Tier;
+  /** Which rank this instance is, 1-5 — stamped by `refinements()`. */
+  refinement = 1;
   constructor(def: WeaponDef) {
     super(def);
     this.weaponType = def.weaponType;

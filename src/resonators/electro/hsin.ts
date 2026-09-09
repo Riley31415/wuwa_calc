@@ -46,6 +46,7 @@
 import { Tier, Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, ResonanceMode, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
+  removeStackTeam,
   addBuff,
   addStat,
   applied,
@@ -72,6 +73,7 @@ import {
   forte3,
   forte2,
   setForte2,
+  addForte1,
 } from "../../engine/context.js";
 import { Action, ActionField, ActionGroup, Rotation, DOUBLE_INTRO, INTRO, ECHO_SWAP, OUTRO, ECHO_ONFIELD, NOINTRO, DODGE, JUMP } from "../../engine/rotation.js";
 import { coordinatedBuff, lostOnSwap } from "../../shared/helpers.js";
@@ -135,32 +137,19 @@ const UpwardCut = hsinAction("Basic - Illumining Form: Upward Cut", { node: Node
 const IMA = hsinAction("Mid-air - Illumining Form", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 22.45, energy: 0.59, concerto: 0.65, offtune: 2080, forte2: 10.22 });
 const IDC = hsinAction("Dodge Counter - Illumining Form", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 191.36, energy: 4.96, concerto: 15.50, offtune: 11000, forte2: 73.98, ...COLLAPSE });
 
-/** One Heart of Thunder instance, named for the stacks it spends and spending them itself: 40% of
- *  the target's rung apiece, 52% at S1. Five of them is the kit text's own 200%, and the dump is
- *  worth 40% a stack rather than 40% each — the count is in the multiplier, not the hit count.
- *  One cached action per count, so the name carries it and two hits of the same size group as one. */
-const THUNDER_HITS = new Map<number, Action>();
-const thunderHit = (n: number): Action => {
-  let hit = THUNDER_HITS.get(n);
-  if (!hit) {
-    hit = flareHit(`Heart of Thunder - ${n} Stack${n > 1 ? "s" : ""}`,
-      () => (isHeld(HS_S1) ? 52 : 40) * n - 100, { convertStats: () => removeStack(HEART_OF_THUNDER, n) });
-    THUNDER_HITS.set(n, hit);
-  }
-  return hit;
-};
+/** One Heart of Thunder instance, a single stack apiece — 40% of the target's rung, 52% at S1 —
+ *  spending its own stack on landing. The kit text's 200% instance is five of these; one row per
+ *  stack is a deliberate simplification, so a cast holding 21 queues 21 that group as x21. */
+const ThunderHit = flareHit("Skill - Illumining Form: Heart of Thunder",
+  () => (isHeld(HS_S1) ? 52 : 40) - 100, { convertStats: () => removeStackTeam(HEART_OF_THUNDER, 1) });
 
-/** Skill - Illumining Form: a Flare instance for 5 Heart of Thunder when she holds that many, then
- *  every stack left over spent at once as one more. Both read the gauge as it stands at the cast —
- *  each hit takes its own on landing — so the second is named for what the first will leave. Also
- *  a collapse. */
+/** Skill - Illumining Form: every Heart of Thunder she holds spent as a Flare instance of its own
+ *  (see ThunderHit). Also a collapse. */
 const ISkill = hsinAction("Skill - Illumining Form", {
   node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 222.69, energy: 5.79, concerto: 6.40, offtune: 12800, forte2: 114.49,
   updateBuffs: () => {
     collapseHeartlock();
-    const held = stacksOf(HEART_OF_THUNDER);
-    if (held >= 5) queue(thunderHit(5));
-    if (held > 6) queue(thunderHit(held - 5));
+    for (let left = stacksOfTeam(HEART_OF_THUNDER); left > 0; left--) queue(ThunderHit);
   },
 });
 
@@ -174,14 +163,14 @@ const pillarFlare = (): void => {
 };
 const PILLAR_FLARE = { updateDebuffs: pillarFlare };
 const PillarsAligned = hsinAction("Skill - Illumining Form: Pillars Aligned", {
-  node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 897.17, energy: 8.37, concerto: 13.17, offtune: 16268,
+  node: Node.Forte, cutscene: true, cast: Cast.Skill, type: Type1.Skill, mv: 897.17, energy: 8.37, concerto: 13.17, offtune: 16268,
   applyStats: () => { setForte2(300); },
   updateDebuffs: () => { if (isHeld(MODE_FLARE)) inflictElectroFlare(5); pillarFlare(); },
   updateBuffs: () => applyCurrent(MECHANISM_DOMINION, 1),
 });
 const FBA1 = hsinAction("Basic - Illumining Form: Pillars Aligned 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 86.58, energy: 2.25, concerto: 2.49, offtune: 4977, forte2: -59.16, ...PILLAR_FLARE });
 const FBA2 = hsinAction("Basic - Illumining Form: Pillars Aligned 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 114.69, energy: 2.97, concerto: 3.30, offtune: 6594, forte2: -78.36, ...PILLAR_FLARE });
-const FBA3 = hsinAction("Basic - Illumining Form: Pillars Aligned 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 106.75, energy: 2.80, concerto: 3.10, offtune: 6140, forte2: -72.95, ...PILLAR_FLARE });
+const FBA3 = hsinAction("Basic - Illumining Form: Pillars Aligned 3", { cutscene: true, node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 106.75, energy: 2.80, concerto: 3.10, offtune: 6140, forte2: -72.95, ...PILLAR_FLARE });
 const FBA4 = hsinAction("Basic - Illumining Form: Pillars Aligned 4", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 166.38, energy: 4.38, concerto: 4.80, offtune: 9560, forte2: -113.68, ...PILLAR_FLARE });
 const FADC = hsinAction("Dodge Counter - Illumining Form: Pillars Aligned", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 114.69, energy: 2.97, concerto: 13.30, offtune: 6594, ...PILLAR_FLARE });
 const FBA1234 = new ActionGroup("Basic - Illumining Form: Pillars Aligned 1234", [FBA1, FBA2, FBA3, FBA4]);
@@ -192,7 +181,7 @@ const BA1234 = new ActionGroup("Basic - Answering Form 1234", [BA1, BA2, BA3, BA
 // --- Illumining Form: Beholding All Horizons once the Heart is spent, Stilling when Law of Heaven
 //     (once per 25s — every visit) is spent on it. Both end Dominion and unlock Pillars Across Heaven.
 const HORIZONS = {
-  node: Node.Forte, cast: Cast.Heavy, type: Type1.Skill, energy: 8.73,
+  node: Node.Forte, cast: Cast.Heavy, type: Type1.Skill, energy: 8.73, cutscene: true, 
   updateBuffs: () => { revokeCurrent(MECHANISM_DOMINION); applyCurrent(PILLARS_UNLOCKED, 1); },
 };
 const Beholding = hsinAction("Forte Heavy - Illumining Form: Beholding All Horizons", { ...HORIZONS, mv: 410.78 });
@@ -204,7 +193,17 @@ const FHA = hsinAction("Forte Heavy - Illumining Form: Stilling All Horizons", {
 // --- the two Liberations: Formshift into Illumining Form, Pillars Across Heaven back out of it
 const Lib1 = hsinAction("Liberation - Formshift", {
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, concerto: 20, resetForte2: true,
-  updateDebuffs: () => { if (isHeld(MODE_FLARE)) inflictElectroFlare(5); },
+  // Flare mode: the Heart Manifest it opens pins the target's Flare at the cap, and forces it up
+  // there the moment it starts — so her own 5 Flare all overflow into Electro Rage and bank as
+  // Heart of Thunder through Forms Turn, Heart Abides (MODE_FLARE): 6 Flare, Formshift, 13 Flare
+  // and +5 Heart. Filled here, ahead of the inflict, since the Manifest itself only goes up in
+  // updateBuffs below.
+  updateDebuffs: () => {
+    if (!isHeld(MODE_FLARE)) return;
+    const room = currentTeam().enemyMax(ELECTRO_FLARE) - stacksOfEnemy(ELECTRO_FLARE);
+    if (room > 0) applyEnemy(ELECTRO_FLARE, room);
+    inflictElectroFlare(5);
+  },
   updateBuffs: () => {
     if (isHeld(MODE_UNISON)) applyCurrent(UNISON, 1);
     revokeCurrent(FORMSHIFT_UNLOCKED);
@@ -218,7 +217,7 @@ const Lib2 = hsinAction("Liberation - Pillars Across Heaven", {
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Skill, mv: 2012.67, concerto: 20, offtune: 115200, resetEnergy: true,
   updateBuffs: () => {
     revokeCurrent(PILLARS_UNLOCKED); revokeCurrent(ILLUMINING_FORM); revokeCurrent(HEART_MANIFEST);
-    revokeCurrent(THUNDERGLOW); revokeCurrent(PILLAR_CHARGES); revokeEnemy(FLEETING_THUNDER);
+    revokeTeam(THUNDERGLOW); revokeCurrent(PILLAR_CHARGES); revokeEnemy(FLEETING_THUNDER);
     applyCurrent(NIGHTGLOW, 1);
   },
 });
@@ -267,25 +266,44 @@ const Outro = hsinAction("Outro - Herself a Thousand Lanterns", {
   cast: Cast.Outro, type: Type1.Outro, mv: 100, concerto: -100, swapOut: true,
   updateBuffs: () => {
     if (!isHeld(NIGHTGLOW)) return;
-    if (isHeld(MODE_FLARE)) { revokeCurrent(NIGHTGLOW); applyTeam(LANTERNS, 1); }
+    revokeCurrent(NIGHTGLOW); 
+    if (isHeld(MODE_FLARE)) { 
+      applyTeam(OUTRO_FLARE, 1); 
+    }
     if (isHeld(MODE_UNISON)) {
-      revokeCurrent(NIGHTGLOW);
-      for (const s of currentTeam().slots) if (s.resonator && s.isHeld(SHARED_LIGHT)) addBuff(s.resonator, SHARED_LIGHT_AMP, 1);
+      applyTeam(OUTRO_UNISON, 1); 
     }
   },
 });
 const OutroUnison = unisonOutro(Outro);
 
+/** Nightglow: banked by Pillars Across Heaven, spent by her Outro. */
+const NIGHTGLOW = new Buff({ name: "Hsin: Nightglow" });
+
+/** Outro, Flare mode: +20% Electro DMG Amplification for everyone but her, 20s — a team buff that
+ *  short is lost on her own next Intro. */
+const OUTRO_FLARE = new Buff({
+  name: "Hsin: Outro",
+  applyStats: () => { if (isActive() && !isHeld(HSIN_RESONATOR)) addStat(Stat.Amp, 20, Attribute.Electro); },
+});
+
+/** Shared Light: a teammate who gained a Unison of their own carries it, and her Nightglow Outro
+ *  turns it into +20% All DMG Amplification for 30s — permanent once granted. */
+const SHARED_LIGHT = new Buff({ name: "Hsin: Shared Light" });
+const OUTRO_UNISON = new Buff({ 
+  name: "Hsin: Outro", applyStats: () => { if(isHeld(SHARED_LIGHT)) addStat(Stat.Amp, 20); }
+});
+
 /* ------------------------------------------------------------------------------------ buffs */
 
 /** The two Resonance Modes, one loadout each. Every mode-bound branch reads its own. */
-const MODE_FLARE = new ResonanceMode({ name: "Resonance Mode - Electro Flare", abbr: "Flare",
+const MODE_FLARE = new ResonanceMode({ name: "Resonance Mode - Electro Flare",
   // Forms Turn, Heart Abides, Flare mode: every Electro Rage the team inflicts is hers, and comes
   // off the target — watched from her own slot on every action, so a teammate's overflow lands on her
   updateGlobal: () => {
     if (!isHeld(MODE_FLARE)) return;
     const rage = applied(ELECTRO_RAGE);
-    if (rage > 0) applyCurrent(HEART_OF_THUNDER, rage);
+    if (rage > 0) applyTeam(HEART_OF_THUNDER, rage);
     if (stacksOfEnemy(ELECTRO_RAGE) > 0) consume(ELECTRO_RAGE, stacksOfEnemy(ELECTRO_RAGE));
   },
 });
@@ -294,7 +312,7 @@ const MODE_FLARE = new ResonanceMode({ name: "Resonance Mode - Electro Flare", a
  *  refreshed after) and, as a responder, the Boon pays her; a teammate who gains a Unison of
  *  their own takes Shared Light, watched from her slot on every action. */
 const MODE_UNISON = new ResonanceMode({
-  name: "Resonance Mode - Unison", abbr: "Unison",
+  name: "Resonance Mode - Unison",
   combatStart: () => applyCurrent(UNISON_RESPONDER, 1),
   updateBuffs: () => { if (unisonResponse() && !isHeld(HS_BOON_RESPONSE)) { applyTeam(UNISON_BOON, 1); applyCurrent(HS_BOON_RESPONSE, 1); } },
   updateGlobal: () => {
@@ -308,11 +326,6 @@ const MODE_UNISON = new ResonanceMode({
 /** Source Intent: banked by a Unison Response, spent by the next Intro that is no response to
  *  make it a Manifold Unison one all the same. */
 const SOURCE_INTENT = new Buff({ name: "Hsin: Source Intent" });
-
-/** Shared Light: a teammate who gained a Unison of their own carries it, and her Nightglow Outro
- *  turns it into +20% All DMG Amplification for 30s — permanent once granted. */
-const SHARED_LIGHT = new Buff({ name: "Hsin: Shared Light" });
-const SHARED_LIGHT_AMP = new Buff({ name: "Hsin: Outro (Shared Light)", applyStats: () => addStat(Stat.Amp, 20) });
 
 /** Her own two Unison Boon grants — one each, refreshed after: her Unison Response (the shared
  *  rule) and Gleaning Simple Joys' off anybody's response. */
@@ -356,25 +369,17 @@ const EDICT = coordinatedBuff("Hsin: Edict", 21, () => HSIN_RESONATOR, SoaringPi
 const PILLAR_CHARGES = new Buff({ name: "Hsin: Pillars Aligned Flare Charges", maxStacks: 5 });
 
 /** Heart of Thunder: the team's Electro Rage, taken off the target and banked on her, 100 at most.
- *  Spent by Skill - Illumining Form. */
+ *  Spent by Skill - Illumining Form. Held team-wide so the count reads on every row of the log,
+ *  though only her own casts ever read or spend it. */
 const HEART_OF_THUNDER = new Buff({ name: "Hsin: Heart of Thunder", maxStacks: 100 });
 
 /** Thunderglow: one per stack of Electro Flare a teammate inflicts while she is out of Heart
  *  Manifest, cap 10 — full, her next Manifest carries Fleeting Thunder. Overflow past the target's
  *  own cap counts too: it was still inflicted, it just banked as Electro Rage (status.ts).
- *  Cleared when Manifest ends. */
+ *  Cleared when Manifest ends. Held team-wide so the count reads on every row of the log; only
+ *  her own Manifest ever reads it. */
 const THUNDERGLOW = new Buff({ name: "Hsin: Thunderglow", maxStacks: 10 });
 
-/** Nightglow: banked by Pillars Across Heaven, spent by her Outro. */
-const NIGHTGLOW = new Buff({ name: "Hsin: Nightglow" });
-
-/** Outro, Flare mode: +20% Electro DMG Amplification for everyone but her, 20s — a team buff that
- *  short is lost on her own next Intro. */
-const LANTERNS = new Buff({
-  name: "Hsin: Outro",
-  applyStats: () => { if (isActive() && !isHeld(HSIN_RESONATOR)) addStat(Stat.Amp, 20, Attribute.Electro); },
-  updateBuffs: () => { if (casting(Cast.Intro) && isHeld(HSIN_RESONATOR)) revokeTeam(LANTERNS); },
-});
 
 /** How many *distinct* team slots have inflicted Electro Flare — Tides of Succession holds one bit
  *  per slot rather than a plain count (Hiyuki's Snow Rust shape), so this is how many of its three
@@ -388,7 +393,7 @@ const tidesPayers = (): number => {
 const TIDES_UNISON = new Buff({
   name: "Inherent: Tides of Succession (Manifold Unison)",
   updateBuffs: () => lostOnSwap(),
-  applyStats: () => addStat(Stat.DmgBonus, 40, Attribute.Electro),
+  stats: [[Stat.DmgBonus, 40, Attribute.Electro]],
 });
 /** Tides of Succession, Flare mode: +25% Electro DMG Bonus per resonator on the team who has
  *  inflicted Electro Flare, two at most. One bit a slot, so a resonator's second inflict pays
@@ -402,7 +407,7 @@ const TIDES_OF_SUCCESSION = new Buff({
  *  DMG Bonus for 30s — gone at his Outro, and at her own next Intro. */
 const THUNDEROUS_BOND = new Buff({
   name: "Inherent: Tides of Succession (Electro Rover)",
-  applyStats: () => addStat(Stat.DmgBonus, 20, Attribute.Electro),
+  stats: [[Stat.DmgBonus, 20, Attribute.Electro]],
 });
 const HS_INHERENT_1 = new Inherent({
   name: "Inherent: Tides of Succession",
@@ -441,11 +446,11 @@ const HS_INHERENT_2 = new Inherent({
     if (!isHeld(MODE_FLARE)) return;
     if (isHeld(HEART_MANIFEST)) {
       if (stacksOfEnemy(ELECTRO_FLARE) === 0) inflictElectroFlare(1);
-      if (stacksOf(THUNDERGLOW) >= 10) applyEnemy(FLEETING_THUNDER, 1);
+      if (stacksOfTeam(THUNDERGLOW) >= 10) applyEnemy(FLEETING_THUNDER, 1);
     } else {
       const inflicted = actor.isHeld(HSIN_RESONATOR) ? 0 : appliedByMember(ELECTRO_FLARE, actor);
       // guarded: a 0-stack grant would still put an empty entry in the pool
-      if (inflicted > 0) applyCurrent(THUNDERGLOW, inflicted);
+      if (inflicted > 0) applyTeam(THUNDERGLOW, inflicted);
       return;
     }
     if (!stacksOfEnemy(FLEETING_THUNDER)) return;
@@ -465,9 +470,8 @@ const HS_INHERENT_2 = new Inherent({
  *  Radiance Ward is damage reduction, out of scope. */
 const HS_S1 = new Sequence({
   name: "Hsin S1: A Boat to Cross the Rising Tide",
-  updateBuffs: () => {
-    if (!isHeld(MODE_FLARE) || !casting(Cast.Intro)) return;
-    if (stacksOf(HEART_OF_THUNDER) < 50) applyCurrent(HEART_OF_THUNDER, 50 - stacksOf(HEART_OF_THUNDER));
+  combatStart: () => {
+    applyTeam(HEART_OF_THUNDER, 50);
   },
   applyStats: () => {
     const a = currentAction();
@@ -481,10 +485,12 @@ const HS_S1 = new Sequence({
  *  of Heaven every visit. */
 const HS_S2 = new Sequence({
   name: "Hsin S2: To Wake Is to Wonder What I Am",
+  combatStart: () => {
+    addForte1(100);
+  },
   applyStats: () => {
     const a = currentAction();
     if (a === RealmWanderer || a === RealmProtector || a === Beholding || a === FHA) addStat(Stat.MulMv, 60);
-    if (casting(Cast.Intro) && !isHeld(ILLUMINING_FORM)) addStat(Stat.AddForte1, 100);
   },
 });
 
@@ -508,7 +514,7 @@ const HS_S3 = new Sequence({
  *  the first action that lays a status or a Unison. */
 const RIVER_OF_LANTERNS = new Buff({
   name: "Hsin S4: A River of Lanterns, a River of Wishes",
-  applyStats: () => addStat(Stat.DmgBonus, 20),
+  stats: [[Stat.DmgBonus, 20]],
 });
 const HS_S4 = new Sequence({
   name: "Hsin S4: A River of Lanterns, a River of Wishes",
@@ -548,8 +554,8 @@ const HS_SEQUENCES = [HS_S1, HS_S2, HS_S3, HS_S4, HS_S5, HS_S6];
 /* --------------------------------------------------------------------------- kit and loadout */
 
 const HSIN_TALENTS = new Talent({
-  name: "Talents: Hsin",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  name: "Hsin: Talents",
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
 });
 
 const HSIN_RESONATOR = new Resonator({
@@ -591,9 +597,9 @@ const HS_ROTATION_FLARE = new Rotation([
   ECHO_ONFIELD, 
   RealmProtector, Lib1, 
   
-  IBA12, ISkill,
-
+  ISkill,IBA12, 
   PillarsAligned, 
+  
   FBA123, DODGE, FBA12, FHA,
   Lib2, OUTRO,
 ]);

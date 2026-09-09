@@ -51,7 +51,7 @@ import {
   setForte2,
 } from "../../engine/context.js";
 import { matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, SWAP, START_3 } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, SWAP, START_3, START_2 } from "../../engine/rotation.js";
 import { THE_LAST_DANCE } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { FROSTY_RESOLVE_5PC, SENTRY_CONSTRUCT } from "../../echoes/rinascita.js";
@@ -91,7 +91,11 @@ const Skill1 = carlottaAction("Skill - Art of Violence", {
 const Skill2 = carlottaAction("Skill - Chromatic Splendor", {
   node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 563.64, energy: 3, concerto: 5, offtune: 12000,
   // the crystal-to-Substance conversion
-  updateBuffs: () => applyCurrent(CHROMATIC_SPLENDOR_SPEND, 1),
+  convertStats: () => {
+    const crystals = Math.min(6, forte1());
+    addStat(Stat.AddForte1, -crystals);
+    addStat(Stat.AddForte2, 10 * crystals);
+  },
 });
 
 // considered Resonance Skill DMG, spends all Substance
@@ -144,18 +148,6 @@ const CL_INHERENT_2 = new Inherent({
   updateBuffs: () => {
     const a = currentAction();
     if (a === Intro || a === Skill2 || a === DeathKnell || a === FHA) applyEnemy(DECONSTRUCTION, 1);
-  },
-});
-
-/** Consumes every crystal currently held and converts each into 10 Substance — self-applied on
- *  Skill2, its own convertStats() reads forte1() before zeroing it, same shape as Jingran's Fire of Life. */
-const CHROMATIC_SPLENDOR_SPEND = new Buff({
-  name: "Carlotta: Chromatic Splendor",
-  convertStats: () => {
-    const crystals = forte1();
-    addStat(Stat.AddForte1, -crystals);
-    addStat(Stat.AddForte2, 10 * crystals);
-    revokeCurrent(CHROMATIC_SPLENDOR_SPEND);
   },
 });
 
@@ -214,7 +206,7 @@ const CL_S3 = new Sequence({
  *  "all Resonators in the team", so it pays off-field too, and long enough to be permanent. */
 const FINEST_WINE = new Buff({
   name: "Carlotta S4: Yesterday's Raindrops Make Finest Wine",
-  applyStats: () => addStat(Stat.DmgBonus, 25, Type1.Skill),
+  stats: [[Stat.DmgBonus, 25, Type1.Skill]],
 });
 const CL_S4 = new Sequence({
   name: "Carlotta S4: Yesterday's Raindrops Make Finest Wine",
@@ -235,12 +227,13 @@ const CL_S6 = new Sequence({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const CARLOTTA_TALENTS = new Talent({
-  name: "Talents: Carlotta",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  name: "Carlotta: Talents",
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
 });
 
 const CARLOTTA_RESONATOR = new Resonator({
   name: "Carlotta",
+  matrix: matrix("Carlotta", 25),
   talent: CARLOTTA_TALENTS,
   inherent1: CL_INHERENT_1,
   inherent2: CL_INHERENT_2,
@@ -271,8 +264,10 @@ const CARLOTTA_RESONATOR = new Resonator({
 const DeathKnellx4 = new ActionGroup("Liberation - Death Knell x4", [DeathKnell, DeathKnell, DeathKnell, DeathKnell]);
 const Skill12 = new ActionGroup("Skill - Art of Violence + Chromatic Splendor", [Skill1, Skill2]);
 const Skill12Swap = new ActionGroup("Skill - Art of Violence + Chromatic Splendor", [Skill1, Skill2.swap()]);
+const NM123 = new ActionGroup("Silent Execution: Necessary Measures 123", [NM1, NM2, NM3]);
 
 const CL_ROTATION = new Rotation([
+  START_2, HA, NM123, SWAP,
   START_3, Skill12Swap, SWAP,
   INTRO, Skill12, MA1, FHA,
   Lib1, DeathKnellx4, FatalFinale,
@@ -285,7 +280,6 @@ const CL_ROTATION = new Rotation([
 // sonata pieces, mainstat/substat
 export const CARLOTTA = new Loadout({
   resonator: CARLOTTA_RESONATOR,
-  matrix: matrix("Carlotta", 25),
   sequences: [CL_S1, CL_S2, CL_S3, CL_S4, CL_S5, CL_S6],
   weapons: [THE_LAST_DANCE, NEW_STD_PISTOL, STATIC_MIST],
   echoLoadouts: [new EchoLoadout(SENTRY_CONSTRUCT, FROSTY_RESOLVE_5PC)],

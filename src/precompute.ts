@@ -1,29 +1,16 @@
 /**
- * Solve the roster offline and write it out under `solves/`, so the published site (GitHub Pages
- * — no dev server, no workers' worth of waiting) opens straight onto a full table and stays
- * instant through the filter flips people actually make. index.ts's own `loadSolves()` reads these
- * back keyed by the same `bestKey()`/`picksKey()` it caches under itself, so every team a cold
- * load asks for is already answered.
+ * Solve the roster offline into `tests/solves/` (one file per state plus index.json), so the published
+ * site opens onto a full table. Run after the bundle: the stamp is a hash of dist/bundle/, and a
+ * stamp that doesn't match the running page means the files are ignored. Fan-out is
+ * worker_threads over this same file. Only one box is open per state on purpose — rows are the
+ * cross of every open axis. Row counts: default 486 | sequences 3.5k | echoes 4.8k | weapons 9.7k.
  *
- *     npm run build && npm run precompute      ->  solves/ beside index.html
+ * Every key is solved once. `bestKey()`/`picksKey()` fold Matrix Mode away for a team whose members
+ * own no Matrix, so each of the three matrix states asks for the very same keys as its non-matrix
+ * twin on about two thirds of the roster; those are solved and written by whichever state reaches
+ * them first, and `index.json` sends a state to each file its own keys landed in.
  *
- * Runs after the bundle, not before: the stamp is a hash of dist/bundle/, the very code the page
- * loads, so a rebuild that moves any number is a new stamp and the old files are ignored rather
- * than trusted. Node has no `self`, so solver.ts's own browser-worker entry stays out of the way
- * (see its foot); the fan-out here is worker_threads over this same file, one team in flight per
- * thread, mirroring index.ts's own `solveOnWorkers()`.
- *
- * One file per state plus an index naming them, rather than one big file: the page fetches the
- * index and whichever state it opens on, and reaches for another only when a filter flip actually
- * wants it, so nobody downloads the weapons roster to look at the default table.
- *
- * `STATES` is the whole of what to precompute — a state that isn't listed simply solves in the
- * browser the first time someone opens it, exactly as it did before any of this existed. Only one
- * box is open per entry on purpose: rows are the cross of every open axis (solver.ts's own
- * `rowPicks()`), so two boxes open at once is not twice the work but the product of it. Roster row
- * counts, which is what the file sizes track:
- *
- *     default 486 | sequences 3.5k | echoes 4.8k | weapons 9.7k | weapons+echoes 111k
+ *     npm run build && npm run precompute
  */
 import { isMainThread, parentPort, Worker } from "node:worker_threads";
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -34,8 +21,7 @@ import { ALL_TEAMS, teamKey } from "./teams.js";
 import { teamFromKey, solveTeam, defaultFilters, bestKey, picksKey, filterSignature } from "./solver.js";
 import type { Filters, Pick, Solved } from "./solver.js";
 
-/** The states the site ships: the default page at each of the three Team Costs, and the same
- *  three with Matrix on. Anything else — a compare set on any resonator — solves in the browser. */
+/** The states the site ships; anything else solves in the browser. */
 const STATES: Record<string, Partial<Filters>> = {
   default: {},
   "s0r1mdps": { cost: "s0r1mdps" },
@@ -62,10 +48,31 @@ if (!isMainThread) {
   const stamp = hash.digest("hex").slice(0, 16);
 
   const keys = ALL_TEAMS.map((_, i) => teamKey(i));
-  const tasks: Task[] = Object.keys(STATES).flatMap((state) => keys.map((key) => ({ key, state })));
+  const membersOf = new Map(keys.map((key) => [key, teamFromKey(key)]));
   const solves = new Map(Object.keys(STATES).map((s) => [s, new Map<string, Solved>()]));
   const picks = new Map(Object.keys(STATES).map((s) => [s, new Map<string, Pick[]>()]));
   const rows: Record<string, number> = {};
+
+  // which state solves each key, and so which files a state has to be sent to
+  const owner = new Map<string, string>();
+  const needs = new Map<string, Set<string>>();
+  const tasks: Task[] = [];
+  for (const state of Object.keys(STATES)) {
+    const f = filtersFor(state);
+    const files = new Set<string>();
+    for (const key of keys) {
+      const members = membersOf.get(key)!;
+      for (const k of [bestKey(key, members, f), picksKey(key, members, f)]) {
+        const at = owner.get(k);
+        if (at !== undefined) { files.add(at); continue; }
+        owner.set(k, state);
+        files.add(state);
+      }
+      if (owner.get(bestKey(key, members, f)) === state) tasks.push({ key, state });
+    }
+    needs.set(state, files);
+  }
+  const repeats = keys.length * Object.keys(STATES).length - tasks.length;
 
   const started = Date.now();
   let next = 0, done = 0;
@@ -80,10 +87,11 @@ if (!isMainThread) {
     };
     for (const w of workers) {
       w.on("message", ({ key, state, solved }: Done) => {
-        const members = teamFromKey(key);
+        const members = membersOf.get(key)!;
         const f = filtersFor(state);
         solves.get(state)!.set(bestKey(key, members, f), solved);
-        picks.get(state)!.set(picksKey(key, members, f), solved.picks);
+        const pk = picksKey(key, members, f);
+        if (owner.get(pk) === state) picks.get(state)!.set(pk, solved.picks);
         rows[state] = (rows[state] ?? 0) + solved.rows.length;
         if (++done % 100 === 0 || done === tasks.length) {
           process.stdout.write(`\r${done}/${tasks.length} solves  ${((Date.now() - started) / 1000).toFixed(0)}s   `);
@@ -95,17 +103,15 @@ if (!isMainThread) {
     }
   });
 
-  // Keyed by the state's whole filter signature, which is exactly what index.ts computes off its
-  // own live filters to look one up. Rebuilt from scratch each run so a state dropped from
-  // `STATES` leaves no orphan file behind for the index to not mention.
-  const dir = new URL("../../solves/", import.meta.url);
+  // keyed by filter signature, the same string the page looks up; rebuilt from scratch each run
+  const dir = new URL("../../tests/solves/", import.meta.url);
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
-  const index: { stamp: string; states: Record<string, string> } = { stamp, states: {} };
+  const index: { stamp: string; states: Record<string, string[]> } = { stamp, states: {} };
   const sizes: [string, number][] = [];
   for (const state of Object.keys(STATES)) {
     const file = `${state}.json`;
-    index.states[filterSignature(filtersFor(state))] = file;
+    index.states[filterSignature(filtersFor(state))] = [...needs.get(state)!].map((s) => `${s}.json`);
     const path = new URL(file, dir);
     writeFileSync(path, JSON.stringify({ solves: [...solves.get(state)!], picks: [...picks.get(state)!] }));
     sizes.push([state, readFileSync(path).length]);
@@ -113,9 +119,10 @@ if (!isMainThread) {
   writeFileSync(new URL("index.json", dir), JSON.stringify(index));
 
   const mb = (n: number): string => `${(n / 1024 / 1024).toFixed(1)} MB`;
-  console.log(`\n\nwrote ${fileURLToPath(dir)}  —  stamp ${stamp}, ${keys.length} teams per state`);
+  console.log(`\n\nwrote ${fileURLToPath(dir)}  —  stamp ${stamp}, ${keys.length} teams per state, ${repeats} repeats skipped`);
   for (const [state, bytes] of sizes) {
-    console.log(`  ${state.padEnd(10)} ${String(rows[state] ?? 0).padStart(7)} rows  ${mb(bytes).padStart(9)}`);
+    const also = [...needs.get(state)!].filter((s) => s !== state);
+    console.log(`  ${state.padEnd(16)} ${String(solves.get(state)!.size).padStart(4)} solves ${String(rows[state] ?? 0).padStart(6)} rows  ${mb(bytes).padStart(9)}${also.length ? `   + ${also.join(", ")}` : ""}`);
   }
   const total = sizes.reduce((s, [, b]) => s + b, 0);
   console.log(`  ${"total".padEnd(10)} ${String(Object.values(rows).reduce((a, b) => a + b, 0)).padStart(7)} rows  ${mb(total).padStart(9)}`);

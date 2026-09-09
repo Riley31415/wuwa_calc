@@ -88,7 +88,7 @@ const MAGIC_BOX = rocciaAction("Utility - Super Attractive Magic Box", {
  *  Attack specifically — not Real Fantasy, a Basic Attack-button press despite Heavy Attack DMG. */
 const IMMERSIVE_PERFORMANCE = new Buff({
   name: "Inherent: Immersive Performance",
-  applyStats: () => addStat(Stat.BonusAtk, 20),
+  stats: [[Stat.BonusAtk, 20]],
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(IMMERSIVE_PERFORMANCE); },
 });
 const RC_INHERENT_1 = new Inherent({
@@ -100,14 +100,14 @@ const RC_INHERENT_1 = new Inherent({
  *  replacing rather than stacking. 30s, so permanent uptime once granted. */
 const COMMEDIA_TEAM_ATK = new Buff({
   name: "Roccia: Commedia Improvviso!",
-  applyStats: () => addStat(Stat.FlatAtk, 200),
+  stats: [[Stat.FlatAtk, 200]],
 });
 
 /** The window her outro hands the incoming resonator — just the stat grant, the Magic Box
  *  follow-up is queued separately (see RC_INHERENT_2 below). */
 const APPLAUSE_HANDOFF = new Buff({
   name: "Roccia: Outro",
-  applyStats: () => { addStat(Stat.Amp, 20, Attribute.Havoc); addStat(Stat.Amp, 25, Type1.Basic); },
+  stats: [[Stat.Amp, 20, Attribute.Havoc], [Stat.Amp, 25, Type1.Basic]],
   updateBuffs: () => { lostOnSwap(); },
 });
 
@@ -124,12 +124,17 @@ const RC_INHERENT_2 = new Inherent({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const ROCCIA_TALENTS = new Talent({
-  name: "Talents: Roccia",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
+  name: "Roccia: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.CritDmg, 16]],
+});
+
+const ROCCIA_MATRIX = matrix("Roccia", 20, {
+  updateBuffs: () => { if (casting(Cast.Liberation)) applyTeam(ROCCIA_MATRIX_TEAM); },
 });
 
 const ROCCIA_RESONATOR = new Resonator({
   name: "Roccia",
+  matrix: ROCCIA_MATRIX,
   talent: ROCCIA_TALENTS,
   inherent1: RC_INHERENT_1,
   inherent2: RC_INHERENT_2,
@@ -165,15 +170,11 @@ const RC_ROTATION = new Rotation([
 /** Matrix: her Liberation grants the team +20% Havoc DMG Bonus for 30s — permanent. */
 const ROCCIA_MATRIX_TEAM = new Buff({
   name: "Roccia: Matrix Buff",
-  applyStats: () => addStat(Stat.DmgBonus, 20, Attribute.Havoc),
-});
-const ROCCIA_MATRIX = matrix("Roccia", 20, {
-  updateBuffs: () => { if (casting(Cast.Liberation)) applyTeam(ROCCIA_MATRIX_TEAM); },
+  stats: [[Stat.DmgBonus, 20, Attribute.Havoc]],
 });
 
 export const ROCCIA = new Loadout({
   resonator: ROCCIA_RESONATOR,
-  matrix: ROCCIA_MATRIX,
   weapons: [TRAGICOMEDY, NEW_STD_GAUNTLET, ABYSS_SURGES],
   echoLoadouts: [
     new EchoLoadout(NM_HERON, MIDNIGHT_VEIL_5PC),

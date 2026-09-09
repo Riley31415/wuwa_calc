@@ -210,7 +210,7 @@ const HEART_OF_VIRTUE = new Buff({ name: "Cartethyia: Heart of Virtue" });
  *  hers hands it two more (shared/status.ts). */
 const MANDATE_OF_DIVINITY = new Buff({
   name: "Cartethyia: Mandate of Divinity",
-  applyStats: () => addStat(Stat.Amp, 50, Type2.AeroErosion),
+  stats: [[Stat.Amp, 50, Type2.AeroErosion]],
   updateBuffs: () => { if (oneSecondPassed() && stacksOfEnemy(AERO_EROSION) > 0) addEnemyForte2(2); },
 });
 
@@ -321,7 +321,7 @@ const CT_S3 = new Sequence({
  *  20s — permanent uptime in practice, since her own line lays Aero Erosion every visit. */
 const SACRIFICE = new Buff({
   name: "Cartethyia S4: Sacrifice Made for Salvation",
-  applyStats: () => addStat(Stat.DmgBonus, 20),
+  stats: [[Stat.DmgBonus, 20]],
 });
 const CT_S4 = new Sequence({
   name: "Cartethyia S4: Sacrifice Made for Salvation",
@@ -352,8 +352,8 @@ const CT_S6 = new Sequence({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const CARTETHYIA_TALENTS = new Talent({
-  name: "Talents: Cartethyia",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusHp, 12); },
+  name: "Cartethyia: Talents",
+  stats: [[Stat.CritRate, 8], [Stat.BonusHp, 12]],
 });
 
 /** Her, as a Resonator: name/element/weapon, and her own base stat line. The Intro resolves by

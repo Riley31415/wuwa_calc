@@ -3,7 +3,8 @@
  * everything a weapon or sonata reads off it.
  *
  * A kit grants it with a plain `applyCurrent(UNISON, 1)`; its "once every 25s" is a kit's own
- * business (Jinhsi's, which grants only on her double-Intro pre-visit — `isDoubleIntro()`).
+ * business (Jinhsi's, which grants on her first Illuminous Epiphany of a rotation and re-arms on
+ * her Liberation).
  * Swapping out with it spends it in place of the Concerto bar: the kit's `outro` fn resolves to
  * the Unison form of its Outro (`unisonOutro()`), the same cast declaring no spend, so the bar
  * carries over into the owner's next visit. The Unison spend itself is a conversion, so the outro
@@ -65,7 +66,7 @@ export const gainedUnison = (): boolean => applied(UNISON) > 0;
 /** What a Unison outro publishes for the next Intro: adopted at that Intro, read by its own hooks,
  *  and gone once the Intro row has paid out. */
 export const UNISON_INTRO = new Buff({
-  name: "Unison Intro",
+  //name: "Unison Intro",
   convertStats: () => { if (casting(Cast.Intro)) revokeCurrent(UNISON_INTRO); },
 });
 
@@ -79,7 +80,7 @@ export function unisonIntro(): boolean {
 /** The response itself, for the one Intro row it happens on: put up by the responder's Unison
  *  Intro in its updateDebuffs, the first phase, so every weapon and sonata's updateBuffs sees it. */
 export const UNISON_RESPONSE = new Buff({
-  name: "Unison Response",
+  //name: "Unison Response",
   convertStats: () => { if (casting(Cast.Intro)) revokeCurrent(UNISON_RESPONSE); },
 });
 

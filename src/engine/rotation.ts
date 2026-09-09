@@ -29,7 +29,7 @@ import { run } from "./evaluate.js";
 import { currentMember, queue, isCast } from "./context.js";
 import type { GearDef } from "./gear.js";
 import type { State } from "./state.js";
-import type { ResolvedSnapshot } from "./evaluate.js";
+import type { Result } from "./evaluate.js";
 import { Cast } from "./stats.js";
 import type { Attribute, Type1, Type2, Node, Scaling } from "./stats.js";
 
@@ -118,7 +118,7 @@ export interface ActionDef extends GearDef {
  *  actions still belongs on the Gear.
  *
  *  Lives here rather than in gear.ts so its rotation-flavoured forms — `dodgeCancel()` queuing DODGE,
- *  `swap()` — sit beside the markers they belong with. gear.ts refers to it strictly through
+ *  `jumpCancel()` queuing JUMP, `swap()` — sit beside the markers they belong with. gear.ts refers to it strictly through
  *  `import type`, which is what keeps the two modules from being a load-order cycle. */
 export class Action extends Gear {
   element: Attribute | null;
@@ -136,6 +136,8 @@ export class Action extends Gear {
   slot: string | null;
   resetEnergy: boolean;
   forte1: number;
+  /** forte1-5 as one array, for evaluate()'s banking loop. */
+  forteDeltas: number[];
   forte2: number;
   forte3: number;
   forte4: number;
@@ -176,6 +178,7 @@ export class Action extends Gear {
     this.forte3 = def.forte3 ?? 0;
     this.forte4 = def.forte4 ?? 0;
     this.forte5 = def.forte5 ?? 0;
+    this.forteDeltas = [this.forte1, this.forte2, this.forte3, this.forte4, this.forte5];
     this.resetForte = [!!def.resetForte1, !!def.resetForte2, !!def.resetForte3, !!def.resetForte4, !!def.resetForte5];
     this.resolveFn = def.resolve;
     this.triggered = def.triggered ?? false;
@@ -202,6 +205,18 @@ export class Action extends Gear {
       // the dodge is queued ahead of the hook, so it resolves before anything the cancelled
       // press itself queues — the dash is what interrupts the cast, not something trailing it
       updateBuffs: () => { queue(DODGE); d.updateBuffs?.(); },
+      applyStats: d.applyStats, convertStats: d.convertStats, afterAction: d.afterAction, lateConvertStats: d.lateConvertStats,
+      display: d.display,
+    });
+  }
+
+  /** The same, cancelled by a jump rather than a dash — the JUMP marker in the DODGE's place. */
+  jumpCancel(): Action {
+    const d = this.def;
+    return new Action(`${this.name} (Cancelled)`, {
+      cast: d.cast, cast2: d.cast2, swapOut: d.swapOut,
+      combatStart: d.combatStart, updateDebuffs: d.updateDebuffs, updateGlobal: d.updateGlobal,
+      updateBuffs: () => { queue(JUMP); d.updateBuffs?.(); },
       applyStats: d.applyStats, convertStats: d.convertStats, afterAction: d.afterAction, lateConvertStats: d.lateConvertStats,
       display: d.display,
     });
@@ -641,13 +656,13 @@ export function teamPlayable(rotations: Rotation[], names: string[]): string | n
   return null;
 }
 
-export function runRotations(state: State, rotations: Rotation[], sections: number): ResolvedSnapshot[][] {
+export function runRotations(state: State, rotations: Rotation[], sections: number): Result[][] {
   const why = teamPlayable(rotations, state.slots.map((s) => s.name));
   if (why) throw new Error(why);
   // a slot's own no-Intro chain: the one written for the position it stands in, else the plain one
   const openerChain = (i: number): Chain | null => rotations[i]!.openers[i] ?? rotations[i]!.opener;
   const last = state.slots.length - 1;
-  const out: ResolvedSnapshot[][] = Array.from({ length: sections }, (): ResolvedSnapshot[] => []);
+  const out: Result[][] = Array.from({ length: sections }, (): Result[] => []);
   let section = 0;
 
   // whoever has already had a visit — an inline start-of-combat section plays on every visit but
@@ -674,7 +689,7 @@ export function runRotations(state: State, rotations: Rotation[], sections: numb
   // visit, and the trip begins again when it reaches the one that opened it.
   const doubled = new Set<number>(), mained = new Set<number>();
   let cycleStart = 0;
-  const place = (snaps: ResolvedSnapshot[]): void => {
+  const place = (snaps: Result[]): void => {
     // nothing past the last section: a visit that runs two chains (a double-Intro pre-visit and
     // then its own) can close the final section on the first and still place the second
     if (section >= sections) return;

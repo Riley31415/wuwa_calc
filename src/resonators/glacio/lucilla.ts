@@ -43,7 +43,7 @@
  * old migrated sheet predates Chafe mode entirely, so none of it could be cross-checked.
  */
 import { Stat, EnemyStat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
-import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, ResonanceMode } from "../../engine/gear.js";
+import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, ResonanceMode, Sequence } from "../../engine/gear.js";
 import {
   typeOverride,
   applied,
@@ -163,12 +163,12 @@ const LettingGo = lucillaAction("Basic - Letting It Go", { node: Node.Liberation
 
 /** A loadout equips exactly one. Neither carries its own stat line — both are pure markers other
  *  pieces read via `isHeld(MODE_ECHO)`, same as checking a sequence Gear. */
-const MODE_ECHO = new ResonanceMode({ name: "Resonance Mode - Echo", abbr: "Echo" });
+const MODE_ECHO = new ResonanceMode({ name: "Resonance Mode - Echo" });
 /** Chafe mode is also what makes Clear As Day and Letting It Go Basic Attack DMG rather than Echo
  *  Skill DMG — assigned through typeOverride, the first phase of the action, so every scoped stat
  *  and isType() check sees Basic. */
 const MODE_CHAFE = new ResonanceMode({
-  name: "Resonance Mode - Glacio Chafe", abbr: "Chafe",
+  name: "Resonance Mode - Glacio Chafe",
   // the retag has to land in the first phase, before anything reads the type (see typeOverride)
   updateDebuffs: () => { const a = currentAction(); if (a === Liberation || a === LettingGo) typeOverride(Type1.Basic); },
 });
@@ -178,7 +178,7 @@ const MODE_CHAFE = new ResonanceMode({
  *  turn it currently is, not just Lucilla's own. */
 const SLOW_MOTION_TEAM = new Buff({
   name: "Inherent: Slow Motion",
-  applyStats: () => addStat(Stat.DmgBonus, 25, Type1.Echo),
+  stats: [[Stat.DmgBonus, 25, Type1.Echo]],
 });
 /** Chafe-mode payout: -8% Glacio RES on the target for 30s — a genuine enemy debuff, permanent
  *  uptime once granted. */
@@ -242,7 +242,7 @@ const LIB_SELF_DMG = new Buff({
  *  Amplification for 14s. */
 const MONTAGE_HANDOFF = new Buff({
   name: "Lucilla: Outro (echo)",
-  applyStats: () => addStat(Stat.Amp, 50, Type1.Echo),
+  stats: [[Stat.Amp, 50, Type1.Echo]],
   updateBuffs: () => { lostOnSwap(); },
 });
 
@@ -251,12 +251,12 @@ const MONTAGE_HANDOFF = new Buff({
  *  `Type2.GlacioChafe`, the one amplification a dot hit reads (damage.ts). */
 const MONTAGE_CHAFE = new Buff({
   name: "Lucilla: Outro (chafe)",
-  applyStats: () => addStat(Stat.Amp, 60, Type2.GlacioChafe),
+  stats: [[Stat.Amp, 60, Type2.GlacioChafe]],
 });
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const LUCILLA_TALENTS = new Talent({
-  name: "Talents: Lucilla",
+  name: "Lucilla: Talents",
   constantStats: () => {
     addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8);
   },
@@ -298,6 +298,90 @@ const LC_ROTATION = new Rotation([
   OUTRO,
 ]);
 
+/* --------------------------------------------------------------------------------- sequences */
+
+/** S1: +20% Crit. Rate for 10s off Spotlight — a short self buff, so it is gone by her next visit
+ *  (CLAUDE.md's own window rule). Its Perfect Focus auto-fill only saves the aim her rows already
+ *  assume, and the interrupt immunity is no stat. */
+const DISTANT_NOON = new Buff({
+  name: "Lucilla S1: Distant Noon",
+  stats: [[Stat.CritRate, 20]],
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(DISTANT_NOON); },
+});
+const LC_S1 = new Sequence({
+  name: "Lucilla S1: Distant Noon",
+  updateBuffs: () => { if (currentAction() === Spotlight) applyCurrent(DISTANT_NOON, 1); },
+});
+
+/** S2, off Clear As Day and branching on the mode she is committed to: Chafe amplifies every
+ *  Glacio Chafe around the active resonator by 80% (`Type2.GlacioChafe`, the one amp a dot hit
+ *  reads), Echo hands the team +40% Echo Skill DMG Bonus. Both stand for the whole of Reminiscence
+ *  and 30s past it, so both are permanent — and one team buff each, since a teammate holds neither
+ *  her mode nor this node to branch on. */
+const SLUMBERING_CHAFE = new Buff({
+  name: "Lucilla S2: Slumbering Moonlight (chafe)",
+  stats: [[Stat.Amp, 80, Type2.GlacioChafe]],
+});
+const SLUMBERING_ECHO = new Buff({
+  name: "Lucilla S2: Slumbering Moonlight (echo)",
+  stats: [[Stat.DmgBonus, 40, Type1.Echo]],
+});
+const LC_S2 = new Sequence({
+  name: "Lucilla S2: Slumbering Moonlight",
+  updateBuffs: () => {
+    if (currentAction() !== Liberation) return;
+    applyTeam(isHeld(MODE_CHAFE) ? SLUMBERING_CHAFE : SLUMBERING_ECHO, 1);
+  },
+});
+
+/** S3: +100% DMG Multiplier on Letting It Go. */
+const LC_S3 = new Sequence({
+  name: "Lucilla S3: Days Fade Unheard",
+  applyStats: () => { if (currentAction() === LettingGo) addStat(Stat.MulMv, 100); },
+});
+
+/** S4: +10% ATK a stack off each Oblivion, up to 3 — 6s, so the three Photos Stage 3 spends and
+ *  the Letting It Go behind them are the whole of it. The damage reduction is out of scope. */
+const PAST_FADES = new Buff({
+  name: "Lucilla S4: The Past Fades Into Silence", maxStacks: 3,
+  stats: [[Stat.BonusAtk, 10]], perStack: true,
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(PAST_FADES); },
+});
+const LC_S4 = new Sequence({
+  name: "Lucilla S4: The Past Fades Into Silence",
+  updateBuffs: () => {
+    const a = currentAction();
+    if (a === OblivionEcho || a === OblivionChafe) applyCurrent(PAST_FADES, 1);
+  },
+});
+
+/** S5: +50% DMG Multiplier on Oblivion, either form. */
+const LC_S5 = new Sequence({
+  name: "Lucilla S5: Time is Like a Stream",
+  applyStats: () => {
+    const a = currentAction();
+    if (a === OblivionEcho || a === OblivionChafe) addStat(Stat.MulMv, 50);
+  },
+});
+
+/** S6: a Remembrance stack per Photo spent, up to 3, each +200% DMG on Letting It Go — which then
+ *  spends the lot, so the count it pays on is whatever the Oblivions ahead of it banked. Its
+ *  Longing half only refills Trace out of combat. */
+const REMEMBRANCE_S6 = new Buff({
+  name: "Lucilla S6: Remembrance", maxStacks: 3,
+  applyStats: () => { if (currentAction() === LettingGo) addStat(Stat.DmgBonus, 200 * frozenStacks()); },
+  convertStats: () => { if (currentAction() === LettingGo) revokeCurrent(REMEMBRANCE_S6); },
+});
+const LC_S6 = new Sequence({
+  name: "Lucilla S6: Gazing In the Mist of Time",
+  updateBuffs: () => {
+    const a = currentAction();
+    if (a === OblivionEcho || a === OblivionChafe) applyCurrent(REMEMBRANCE_S6, 1);
+  },
+});
+
+const LC_SEQUENCES = [LC_S1, LC_S2, LC_S3, LC_S4, LC_S5, LC_S6];
+
 /* ----------------------------------------------------------------------------------- loadout */
 
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
@@ -330,6 +414,7 @@ export const LUCILLA = new Loadout({
   substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Basic),
   rotation: LC_ROTATION,
+  sequences: LC_SEQUENCES,
   mode: MODE_ECHO,
 });
 
@@ -342,5 +427,6 @@ export const LUCILLA_CHAFE = new Loadout({
   substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Basic),
   rotation: LC_ROTATION,
+  sequences: LC_SEQUENCES,
   mode: MODE_CHAFE,
 });

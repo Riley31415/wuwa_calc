@@ -138,7 +138,7 @@ const Outro = jianxinAction("Outro - Transcendence", {
 const TRANSCENDENCE = new Buff({
   name: "Jianxin: Outro",
   updateBuffs: () => lostOnSwap(),
-  applyStats: () => addStat(Stat.Amp, 38, Type1.Liberation),
+  stats: [[Stat.Amp, 38, Type1.Liberation]],
 });
 
 /* ------------------------------------------------------------------------------- sequences */
@@ -190,8 +190,8 @@ const JX_INHERENT_1 = new Inherent({
 const JX_INHERENT_2 = new Inherent({ name: "Inherent: Reflection" });
 
 const JIANXIN_TALENTS = new Talent({
-  name: "Talents: Jianxin",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
+  name: "Jianxin: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
 });
 
 const JIANXIN_RESONATOR = new Resonator({
@@ -227,7 +227,7 @@ const JX_ROTATION_S2 = new Rotation([
 
 export const JIANXIN = new Loadout({
   resonator: JIANXIN_RESONATOR,
-  weapons: [MARCATO],
+  weapons: [MARCATO[4]!], // the craftable at its real R5, the one rank she is ever run at
   echoLoadouts: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.Aero3, Mainstat.ATK3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),

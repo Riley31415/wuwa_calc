@@ -113,7 +113,7 @@ const DIFFUSION_WINDOW = coordinatedBuff("Cantarella: Diffusion", 21, () => CANT
 
 const POISON = new Buff({
   name: "Inherent: Poison", maxStacks: 2,
-  applyStats: () => addStat(Stat.DmgBonus, 6 * frozenStacks(), Attribute.Havoc),
+  stats: [[Stat.DmgBonus, 6, Attribute.Havoc]], perStack: true,
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(POISON); },
 });
 
@@ -152,7 +152,7 @@ const HAZY_DREAM = new Buff({
 
 const CANTARELLA_OUTRO = new Buff({
   name: "Cantarella: Outro",
-  applyStats: () => { addStat(Stat.Amp, 20, Attribute.Havoc); addStat(Stat.Amp, 25, Type1.Skill); },
+  stats: [[Stat.Amp, 20, Attribute.Havoc], [Stat.Amp, 25, Type1.Skill]],
   updateBuffs: () => { lostOnSwap(); },
 });
 
@@ -169,12 +169,13 @@ const CA_INHERENT_2 = new Inherent({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const CANTARELLA_TALENTS = new Talent({
-  name: "Talents: Cantarella",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  name: "Cantarella: Talents",
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
 });
 
 const CANTARELLA_RESONATOR = new Resonator({
   name: "Cantarella",
+  matrix: matrix("Cantarella", 25),
   talent: CANTARELLA_TALENTS,
   inherent1: CA_INHERENT_1,
   inherent2: CA_INHERENT_2,
@@ -213,7 +214,6 @@ const CA_ROTATION = new Rotation([
 // Clouds — all automatically iterated (see gear.ts's own EchoLoadout)
 export const CANTARELLA = new Loadout({
   resonator: CANTARELLA_RESONATOR,
-  matrix: matrix("Cantarella", 25),
   weapons: [WHISPERS_OF_SIRENS, COSMIC_RIPPLES, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY, RIME_DRAPED_SPROUTS],
   echoLoadouts: [
     new EchoLoadout(NM_HERON, MIDNIGHT_VEIL_5PC),

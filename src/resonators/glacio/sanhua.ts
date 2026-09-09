@@ -88,7 +88,7 @@ const DETONATE_GLACIER = sanhuaAction("Forte - Ice Burst (Glacier)", { node: Nod
 /** Condensation (Inherent Skill): +20% Resonance Skill DMG for 8s after Intro. */
 const CONDENSATION = new Buff({
   name: "Inherent: Condensation",
-  applyStats: () => addStat(Stat.DmgBonus, 20, Type1.Skill),
+  stats: [[Stat.DmgBonus, 20, Type1.Skill]],
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(CONDENSATION); },
 });
 /** Condensation's own trigger — always-equipped Inherent Skill piece. */
@@ -116,7 +116,7 @@ const SH_INHERENT_2 = new Inherent({
 /** S1 Solitude's Embrace: Basic Attack 5 grants +15% Crit Rate, 10s. Trigger lives in SANHUA_S1. */
 const S1_CRIT = new Buff({
   name: "Sanhua S1: Solitude's Embrace",
-  applyStats: () => addStat(Stat.CritRate, 15),
+  stats: [[Stat.CritRate, 15]],
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(S1_CRIT); },
 });
 
@@ -150,7 +150,7 @@ const GLACIER_BUFF = new Buff({
 
 const SANHUA_OUTRO = new Buff({
   name: "Sanhua: Outro",
-  applyStats: () => addStat(Stat.Amp, 38, Type1.Basic),
+  stats: [[Stat.Amp, 38, Type1.Basic]],
   updateBuffs: () => { lostOnSwap(); },
 });
 
@@ -197,8 +197,8 @@ const SANHUA_S6 = new Sequence({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const SANHUA_TALENTS = new Talent({
-  name: "Talents: Sanhua",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Glacio); },
+  name: "Sanhua: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.DmgBonus, 12, Attribute.Glacio]],
 });
 
 /** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her

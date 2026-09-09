@@ -113,7 +113,7 @@ const ACTION_OUTRO_COORD = jiyanAction("Outro - Discipline (Coordinated Lance)",
 /** Heavenly Balance (Inherent Skill): +10% ATK for 15s after his Intro. */
 const HEAVENLY_BALANCE = new Buff({
   name: "Inherent: Heavenly Balance",
-  applyStats: () => addStat(Stat.BonusAtk, 10),
+  stats: [[Stat.BonusAtk, 10]],
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(HEAVENLY_BALANCE); },
 });
 const JY_INHERENT_1 = new Inherent({
@@ -125,7 +125,7 @@ const JY_INHERENT_1 = new Inherent({
  *  window, lost after his outro. */
 const TEMPEST_TAMING = new Buff({
   name: "Inherent: Tempest Taming",
-  applyStats: () => addStat(Stat.CritDmg, 12),
+  stats: [[Stat.CritDmg, 12]],
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(TEMPEST_TAMING); },
 });
 const JY_INHERENT_2 = new Inherent({
@@ -149,12 +149,13 @@ const JIYAN_OUTRO: Buff = new Buff({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
 const JIYAN_TALENTS = new Talent({
-  name: "Talents: Jiyan",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  name: "Jiyan: Talents",
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
 });
 
 const JIYAN_RESONATOR = new Resonator({
   name: "Jiyan",
+  matrix: matrix("Jiyan", 25),
   talent: JIYAN_TALENTS,
   inherent1: JY_INHERENT_1,
   inherent2: JY_INHERENT_2,
@@ -190,7 +191,6 @@ const JY_ROTATION = new Rotation([
 // sonata pieces, mainstat/substat
 export const JIYAN = new Loadout({
   resonator: JIYAN_RESONATOR,
-  matrix: matrix("Jiyan", 25),
   weapons: [VERDANT_SUMMIT, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR],
   echoLoadouts: [new EchoLoadout(NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC),
       new EchoLoadout(NM_KELPIE, WINDWARD_5PC),],

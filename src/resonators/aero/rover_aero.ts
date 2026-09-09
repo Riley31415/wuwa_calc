@@ -94,7 +94,7 @@ const Outro = roverAction("Outro - Storm's Echo", {
 /** Sand in the Storm (Inherent Skill): +20% ATK for 10s off the Intro. */
 const SAND_IN_THE_STORM = new Buff({
   name: "Inherent: Sand in the Storm",
-  applyStats: () => addStat(Stat.BonusAtk, 20),
+  stats: [[Stat.BonusAtk, 20]],
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(SAND_IN_THE_STORM); },
 });
 const AR_INHERENT_1 = new Inherent({
@@ -120,7 +120,7 @@ const AEOLIAN_REALM = new Buff({
  *  Dance. Trigger lives in AR_S4. */
 const S4_SKILL_BONUS = new Buff({
   name: "Aero Rover S4: Boundaries Shatter in an Instant",
-  applyStats: () => addStat(Stat.DmgBonus, 15, Type1.Skill),
+  stats: [[Stat.DmgBonus, 15, Type1.Skill]],
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(S4_SKILL_BONUS); },
 });
 
@@ -136,7 +136,7 @@ const AR_S2 = new Sequence({ name: "Aero Rover S2: Glimmers Fade into the Dark" 
 
 const AR_S3 = new Sequence({
   name: "Aero Rover S3: Illusions Collapse in a Grip",
-  applyStats: () => addStat(Stat.DmgBonus, 15, Attribute.Aero),
+  stats: [[Stat.DmgBonus, 15, Attribute.Aero]],
 });
 
 const AR_S4 = new Sequence({
@@ -162,8 +162,8 @@ const AR_S6 = new Sequence({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
 const ROVER_AERO_TALENTS = new Talent({
-  name: "Talents: Aero Rover",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.HealingBonus, 12); },
+  name: "Aero Rover: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.HealingBonus, 12]],
 });
 
 /** Him, as a Resonator: name/element/weapon, every grant/spend/queue rule his kit needs, and his
@@ -193,7 +193,9 @@ export const ROVER_AERO_RESONATOR = new Resonator({
   // triggered from here rather than from the weapon — see the weapon's own comment for why
   updateBuffs: () => {
     const a = currentAction();
-    if ((a === UnboundFlow1 || a === UnboundFlow2) && isHeld(BLOODPACTS_PLEDGE)) applyTeam(BLOODPACT_AERO_AMP, 1);
+    // the held rank's own amp — the five refinements and their amp buffs line up by index
+    const rank = BLOODPACTS_PLEDGE.findIndex((w) => isHeld(w));
+    if ((a === UnboundFlow1 || a === UnboundFlow2) && rank >= 0) applyTeam(BLOODPACT_AERO_AMP[rank]!, 1);
   },
 
   constantStats: () => {
@@ -221,7 +223,7 @@ const AR_ROTATION = new Rotation([
 // Bloodpact's Pledge is the only weapon listed: its own Unbound Flow clause is written for him.
 export const ROVER_AERO = new Loadout({
   resonator: ROVER_AERO_RESONATOR,
-  weapons: [BLOODPACTS_PLEDGE],
+  weapons: [BLOODPACTS_PLEDGE[4]!], // the craftable at its real R5, the one rank they are ever run at
   echoLoadouts: [
     new EchoLoadout(FALLACY, REJUV_5PC),
     new EchoLoadout(BELL_BORNE_GEOCHELONE, REJUV_5PC),

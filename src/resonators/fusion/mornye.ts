@@ -20,7 +20,7 @@
  * https://ww.nanoka.cc/character/1209), read the way CLAUDE.md describes.
  */
 import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Debuff } from "../../engine/gear.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Debuff, Sequence } from "../../engine/gear.js";
 import {
   addStat,
   applyCurrent,
@@ -38,11 +38,15 @@ import {
   revokeEnemy,
   isHeld,
   stacksOfEnemy,
+  triggeredAction,
+  isActive,
+  currentTeam,
+  addForte2,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, START_1, START_2, SWAP, NOINTRO, INTRO, ECHO_SWAP, OUTRO, START_3 } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import {
-  TUNE_BREAK, TUNE_RUPTURE_INTERFERED, TUNE_STRAIN_INTERFERED, TUNE_STRAIN_RESPONDER, interferedWindow, tuneRuptureResponse,
+  TUNE_BREAK, TUNE_RUPTURE_INTERFERED, TUNE_STRAIN_INTERFERED, TUNE_STRAIN_RESPONDER, tuneRuptureResponse,
 } from "../../shared/tunebreak.js";
 import { STARFIELD_CALIBRATOR } from "../../weapons/broadblade.js";
 import { DISCORD } from "../../weapons/standard.js";
@@ -138,13 +142,15 @@ const SYNTONY_FIELD = new Buff({
   applyStats: () => {
     addStat(Stat.OfftuneBuildup, 50);
     if (frozenStacks() === 2) addStat(Stat.BonusDef, 20);
+    // S2's own +20% on top, read off her slot: the node is her local gear, this pays the team
+    if (currentTeam().slots.find((m) => m.resonator === MORNYE_RESONATOR)?.isHeld(MO_S2)) addStat(Stat.OfftuneBuildup, 20);
   },
 });
 
 /** Recursion (Outro): +25% All DMG Amplification to the team for 30s. */
 const RECURSION = new Buff({
   name: "Mornye: Outro",
-  applyStats: () => addStat(Stat.Amp, 25),
+  stats: [[Stat.Amp, 25]],
 });
 
 /** Critical Protocol's own conversion: every 1% of ER past 100% is +0.5% Crit. Rate (cap 80) and
@@ -180,13 +186,82 @@ const OBSERVATION_MARKER = new Debuff({
 /** Interfered Marker: while the target is under Tune Rupture/Strain - Interfered, whoever's on
  *  field deals +0.25% DMG per 1% of Mornye's ER past 100%, up to 40% — taken at the cap, same
  *  260%-ER build call as Critical Protocol above. 8s, the same window every Interfered runs on
- *  (tunebreak.ts) rather than a clock of its own, refreshed by every break the marker answers. */
-const INTERFERED_MARKER = interferedWindow({
-  name: "Mornye: Interfered Marker",
+ *  (tunebreak.ts, counted off in actions) rather than a clock of its own, refreshed by every break
+ *  the marker answers — written out here instead of through `interferedWindow()` because S1 both
+ *  stretches that window to 20s and drops the Interfered requirement. */
+const INTERFERED_MARKER: Debuff = new Debuff({
+  name: "Mornye: Interfered Marker", maxStacks: 26,
+  display: () => "Mornye: Interfered Marker",
+  updateBuffs: () => {
+    if (triggeredAction() || currentAction() === TUNE_BREAK || !isActive()) return;
+    const s1 = currentTeam().slots.find((m) => m.resonator === MORNYE_RESONATOR)?.isHeld(MO_S1);
+    if (stacksOfEnemy(INTERFERED_MARKER) > (s1 ? 25 : 10)) revokeEnemy(INTERFERED_MARKER);
+    else applyEnemy(INTERFERED_MARKER, 1);
+  },
+  // pays out on whoever's active; both sequences are her own local gear, so they are read off her
+  // own slot specifically, found by resonator identity
   applyStats: () => {
-    if (stacksOfEnemy(TUNE_RUPTURE_INTERFERED) > 0 || stacksOfEnemy(TUNE_STRAIN_INTERFERED) > 0) addStat(Stat.DmgBonus, 40);
+    const her = currentTeam().slots.find((m) => m.resonator === MORNYE_RESONATOR);
+    if (her?.isHeld(MO_S1) || stacksOfEnemy(TUNE_RUPTURE_INTERFERED) > 0 || stacksOfEnemy(TUNE_STRAIN_INTERFERED) > 0) addStat(Stat.DmgBonus, 40);
+    if (her?.isHeld(MO_S2)) addStat(Stat.CritDmg, 32);
   },
 });
+
+/* --------------------------------------------------------------------------------- sequences */
+
+/** S1: the Interfered Marker lasts 20s instead of 8 and pays whether or not the target is actually
+ *  under an Interfered — both read off this node by the marker itself — and Inversion's Observation
+ *  Marker now lays the Interfered Marker with it rather than waiting for a break. */
+const MO_S1 = new Sequence({
+  name: "Mornye S1: The Silent Observer",
+  updateBuffs: () => {
+    if (currentAction() !== Inversion) return;
+    revokeEnemy(INTERFERED_MARKER);
+    applyEnemy(INTERFERED_MARKER, 1);
+  },
+});
+
+/** S2: +0.2% Crit. DMG per 1% of her ER past 100% against a marked target, capped at 32% — taken
+ *  at the cap, the same 260%-ER build call as the marker — and +20% more Off-Tune Buildup Rate on
+ *  top of whichever stage of the field is standing. Both are team-wide, so neither can pay out of
+ *  this node (a Sequence's own stats reach only her turns): the marker and the field each read it
+ *  off her slot and pay it themselves. */
+const MO_S2 = new Sequence({ name: "Mornye S2: Morning Star of Entropy" });
+
+/** S3: Distributed Array also hands her 25 Concerto and a full 100 Relative Momentum, once every
+ *  25s — once a loop, so it fires on every cast the rotation makes. The Momentum is what pays for
+ *  Inversion on its own, which is why the S3 rotation drops the Wide Field chain entirely. */
+const MO_S3 = new Sequence({
+  name: "Mornye S3: Blueprint of Recursion",
+  applyStats: () => {
+     if (currentAction() === DistributedArray) {
+      addStat(Stat.AddConcerto, 25); 
+      addStat(Stat.AddForte2, 100); 
+     }
+  },
+});
+
+/** S4 is healing only — held for the name. */
+const MO_S4 = new Sequence({ name: "Mornye S4: Latent Variables of the Cosmos" });
+
+/** S5: +40% DMG Multiplier on Critical Protocol, +160% on Particle Jet. */
+const MO_S5 = new Sequence({
+  name: "Mornye S5: Time Dilation Effect",
+  applyStats: () => {
+    const a = currentAction();
+    if (a === Liberation) addStat(Stat.MulMv, 40);
+    if (a === ParticleJet) addStat(Stat.MulMv, 160);
+  },
+});
+
+/** S6: Critical Protocol deals 400% more DMG. Its other half refills her Resonance Energy while
+ *  she is off field, which changes nothing here — she already casts the Liberation every loop. */
+const MO_S6 = new Sequence({
+  name: "Mornye S6: To the Far Shores of the Stars",
+  applyStats: () => { if (currentAction() === Liberation) addStat(Stat.DmgBonus, 400); },
+});
+
+const MO_SEQUENCES = [MO_S1, MO_S2, MO_S3, MO_S4, MO_S5, MO_S6];
 
 /* --------------------------------------------------------------------------- kit and loadout */
 
@@ -194,7 +269,7 @@ const INTERFERED_MARKER = interferedWindow({
  *  every 20s, which over a 2-minute rotation is once each per loop. */
 const MO_INHERENT_1 = new Inherent({
   name: "Inherent: Blueprint",
-  constantStats: () => addStat(Stat.Er, 10),
+  stats: [[Stat.Er, 10]],
   applyStats: () => {
     const a = currentAction();
     if (a === Intro || a === WBA3) addStat(Stat.AddConcerto, 20);
@@ -206,8 +281,8 @@ const MO_INHERENT_1 = new Inherent({
 const MO_INHERENT_2 = new Inherent({ name: "Inherent: Boundedness" });
 
 const MORNYE_TALENTS = new Talent({
-  name: "Talents: Mornye",
-  constantStats: () => { addStat(Stat.BonusDef, 15.2); addStat(Stat.HealingBonus, 12); },
+  name: "Mornye: Talents",
+  stats: [[Stat.BonusDef, 15.2], [Stat.HealingBonus, 12]],
 });
 
 const MORNYE_RESONATOR = new Resonator({
@@ -247,8 +322,19 @@ const SkillSwap = Skill.swap();
 const MO_ROTATION = new Rotation([
   START_2, START_3, SkillSwap, SWAP,
   NOINTRO, BA123, GeopotentialShift,
-  INTRO, Liberation,
-  WBA123, DistributedArray, Inversion, 
+  INTRO, WBA123, 
+  DistributedArray, Inversion, Liberation,
+  ECHO_SWAP, OUTRO,
+]);
+
+/** From S3 on, Distributed Array alone fills Relative Momentum, so every loop drops the Wide Field
+ *  chain and goes straight from it into Inversion — the Concerto that chain carried comes back off
+ *  S3. The opener alone ends 1.4 Concerto short of its Outro — it has no Intro paying it 30. */
+const MO_ROTATION_S3 = new Rotation([
+  START_2, START_3, SkillSwap, SWAP,
+  NOINTRO, BA123, GeopotentialShift, WBA1, WBA2,
+  INTRO, 
+  DistributedArray, Inversion, Liberation,
   ECHO_SWAP, OUTRO,
 ]);
 
@@ -266,5 +352,6 @@ export const MORNYE = new Loadout({
   mainstats: mainstatOptions(Mainstat.DEF4, Mainstat.ER3, Mainstat.DEF1),
   substat: substats(Substat.DefPct, Substat.Liberation, Substat.FlatDef, true),
   highSubstat: highSubs(Substat.Er, Substat.Liberation, Substat.DefPct, Substat.Liberation),
-    rotation: MO_ROTATION,
+  rotation: [MO_ROTATION, MO_ROTATION, MO_ROTATION, MO_ROTATION_S3],
+  sequences: MO_SEQUENCES,
 });

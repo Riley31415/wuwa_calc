@@ -112,12 +112,12 @@ const inflictsFlux = (a: Action): boolean =>
  *  skill (its once-per-8s-per-target limit never binds, a rotation lands about one break a loop),
  *  Strain pays her Tune Break Boost off the Interfered stacks the breaks leave behind. */
 const MODE_RUPTURE = new ResonanceMode({
-  name: "Resonance Mode - Tune Rupture", abbr: "Rupture",
+  name: "Resonance Mode - Tune Rupture",
   updateDebuffs: () => { if (inflictsFlux(currentAction())) applyRupture(); },
   updateGlobal: () => tuneRuptureResponse(SpectralAnalysis),
 });
 const MODE_STRAIN = new ResonanceMode({
-  name: "Resonance Mode - Tune Strain", abbr: "Strain",
+  name: "Resonance Mode - Tune Strain",
   // her kit raises the target's Tune Strain - Interfered limit by 1 on top of the base 1
   updateDebuffs: () => { if (inflictsFlux(currentAction())) applyStrain(); },
   combatStart: () => { maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(TUNE_STRAIN_RESPONDER, 1); },
@@ -129,14 +129,14 @@ const MODE_STRAIN = new ResonanceMode({
  *  uptime, and on the active resonator only ("all nearby Resonators", see CLAUDE.md). */
 const PRISMATIC_OVERBLAST = new Buff({
   name: "Lynae: Prismatic Overblast",
-  applyStats: () => { addStat(Stat.DmgBonus, 24); },
+  stats: [[Stat.DmgBonus, 24]],
 });
 
 /** Adaptive Optics (Inherent Skill): her Intro gives her +25% Spectro DMG Bonus for 9s — short and
  *  her own, so it comes off on her outro. */
 const ADAPTIVE_OPTICS = new Buff({
   name: "Inherent: Adaptive Optics",
-  applyStats: () => addStat(Stat.DmgBonus, 25, Attribute.Spectro),
+  stats: [[Stat.DmgBonus, 25, Attribute.Spectro]],
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(ADAPTIVE_OPTICS); },
 });
 
@@ -144,7 +144,7 @@ const ADAPTIVE_OPTICS = new Buff({
  *  DMG Amplification for 14s. */
 const LYNAE_OUTRO = new Buff({
   name: "Lynae: Let's Hit the Road!",
-  applyStats: () => { addStat(Stat.Amp, 15); addStat(Stat.Amp, 25, Type1.Liberation); },
+  stats: [[Stat.Amp, 15], [Stat.Amp, 25, Type1.Liberation]],
   convertStats: () => { lostOnSwap(); },
 });
 
@@ -152,7 +152,7 @@ const LYNAE_OUTRO = new Buff({
  *  formula's own `tbbFactor` (damage.ts) both see it. */
 const SPECTRAL_ANALYSIS_TBB = new Buff({
   name: "Lynae: Visual Impact",
-  applyStats: () => addStat(Stat.Tbb, 40),
+  stats: [[Stat.Tbb, 40]],
 });
 
 /* --------------------------------------------------------------------------- kit and loadout */
@@ -164,8 +164,8 @@ const LY_INHERENT_2 = new Inherent({
 });
 
 const LYNAE_TALENTS = new Talent({
-  name: "Talents: Lynae",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
+  name: "Lynae: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
 });
 
 const LYNAE_RESONATOR = new Resonator({

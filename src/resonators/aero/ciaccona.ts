@@ -95,7 +95,7 @@ const Outro = ciacconaAction("Outro - Windcalling Tune", {
  *  lost on her own next Intro like every other team buff here. */
 const SOLO_CONCERT = new Buff({
   name: "Ciaccona: Solo Concert",
-  applyStats: () => addStat(Stat.DmgBonus, 24, Attribute.Aero),
+  stats: [[Stat.DmgBonus, 24, Attribute.Aero]],
 });
 
 /** Recital standing: 33 of the engine's seconds, a Tonic every 1.65 of them (helpers.ts's own
@@ -123,8 +123,8 @@ const WINDCALLING_TUNE = new Buff({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const CIACCONA_TALENTS = new Talent({
-  name: "Talents: Ciaccona",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
+  name: "Ciaccona: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.CritDmg, 16]],
 });
 
 /** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her

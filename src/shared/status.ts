@@ -46,6 +46,7 @@ import {
   addEnemyForte1,
   enemyForte2,
   addEnemyForte2,
+  asSource,
 } from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
 import type { TeamMember } from "../engine/state.js";
@@ -126,6 +127,17 @@ export const FUSION_BURST_ACTIONS = negativeStatusActions("Fusion Burst", Attrib
 ]);
 export const FUSION_BURST = new Debuff({
   name: "Fusion Burst", maxStacks: 10,
+  // A kit's own Fusion Burst DMG instance carries no motion value of its own (Aemeath's Seraphic
+  // Duet): what it is worth is the cap rung — a Fusion Burst only ever calculates at the cap,
+  // unlike Electro Flare's ticks at the current count (below) — and the kit's own percentage
+  // multiplies that. Added from here, sourced to the rung itself ("Fusion Burst - 10 Stacks"),
+  // which is where the number comes from; the cap is the fight's (Chisa raises it), not the
+  // declared 10.
+  applyStats: () => {
+    if (!isType(Type2.FusionBurst) || currentAction().mv !== 0) return;
+    const rung = FUSION_BURST_ACTIONS[currentTeam().enemyMax(FUSION_BURST)];
+    if (rung) asSource(rung, () => addStat(Stat.AddMv, rung.mv));
+  },
   // the burst takes the stacks with it and whatever landed past the cap is lost, so the target
   // rebuilds from empty. Cap is the fight's, not the declared 10.
   updateBuffs: () => {
@@ -207,11 +219,14 @@ export const ELECTRO_FLARE = new Debuff({
   name: "Electro Flare", maxStacks: 10,
   display: () => `Electro Flare x${frozenStacks()} (tick in ${5 - enemyForte1()}s)`,
   // A kit's own Electro Flare DMG instance carries no motion value of its own (Hsin's Heart of
-  // Thunder hits): what it is worth is the rung the target is standing on, and the kit's own
-  // percentage multiplies that. Added from here so the value is sourced to this status.
+  // Thunder hits): what it is worth is the cap rung — a kit's own instance calculates at the cap,
+  // unlike the status's own ticks below, which fire at the count they find — and the kit's own
+  // percentage multiplies that. Added from here, sourced to the rung itself ("Electro Flare - 10
+  // Stacks"), which is where the number comes from; the cap is the fight's, not the declared 10.
   applyStats: () => {
     if (!isType(Type2.ElectroFlare) || currentAction().mv !== 0) return;
-    addStat(Stat.AddMv, negativeStatusRung(ELECTRO_FLARE_DMG, frozenStacks())?.mv ?? 0);
+    const rung = negativeStatusRung(ELECTRO_FLARE_DMG, currentTeam().enemyMax(ELECTRO_FLARE));
+    if (rung) asSource(rung, () => addStat(Stat.AddMv, rung.mv));
   },
   updateBuffs: () => {
     const held = stacksOfEnemy(ELECTRO_FLARE);

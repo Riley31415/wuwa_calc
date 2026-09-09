@@ -128,7 +128,7 @@ const EXECUTION_MODE: Buff = new Buff({
 /** Pain Immersion (Inherent Skill): +15% Crit Rate for 5s after Magnetic Roar. */
 const PAIN_IMMERSION = new Buff({
   name: "Inherent: Pain Immersion",
-  applyStats: () => addStat(Stat.CritRate, 15),
+  stats: [[Stat.CritRate, 15]],
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(PAIN_IMMERSION); },
 });
 const YL_INHERENT_1 = new Inherent({
@@ -140,7 +140,7 @@ const YL_INHERENT_1 = new Inherent({
  *  lives on YL_INHERENT_2's own apply below. Both halves need the target Sinner-marked. */
 const DEADLY_FOCUS = new Buff({
   name: "Inherent: Deadly Focus",
-  applyStats: () => addStat(Stat.BonusAtk, 10),
+  stats: [[Stat.BonusAtk, 10]],
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(DEADLY_FOCUS); },
 });
 const YL_INHERENT_2 = new Inherent({
@@ -152,18 +152,23 @@ const YL_INHERENT_2 = new Inherent({
 /** Strategist — the outro handoff: "for 14s or until they are switched out". */
 const YINLIN_OUTRO = new Buff({
   name: "Yinlin: Outro",
-  applyStats: () => { addStat(Stat.Amp, 20, Attribute.Electro); addStat(Stat.Amp, 25, Type1.Liberation); },
+  stats: [[Stat.Amp, 20, Attribute.Electro], [Stat.Amp, 25, Type1.Liberation]],
   updateBuffs: () => { lostOnSwap(); },
 });
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const YINLIN_TALENTS = new Talent({
-  name: "Talents: Yinlin",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  name: "Yinlin: Talents",
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
+});
+
+const YINLIN_MATRIX = matrix("Yinlin", 20, {
+  updateBuffs: () => { if (casting(Cast.Liberation)) applyTeam(YINLIN_MATRIX_TEAM); },
 });
 
 const YINLIN_RESONATOR = new Resonator({
   name: "Yinlin",
+  matrix: YINLIN_MATRIX,
   talent: YINLIN_TALENTS,
   inherent1: YL_INHERENT_1,
   inherent2: YL_INHERENT_2,
@@ -207,15 +212,11 @@ const YL_ROTATION = new Rotation([
 /** Matrix: her Liberation grants the team +30% Resonance Liberation DMG Bonus for 30s — permanent. */
 const YINLIN_MATRIX_TEAM = new Buff({
   name: "Yinlin: Matrix Buff",
-  applyStats: () => addStat(Stat.DmgBonus, 30, Type1.Liberation),
-});
-const YINLIN_MATRIX = matrix("Yinlin", 20, {
-  updateBuffs: () => { if (casting(Cast.Liberation)) applyTeam(YINLIN_MATRIX_TEAM); },
+  stats: [[Stat.DmgBonus, 30, Type1.Liberation]],
 });
 
 export const YINLIN = new Loadout({
   resonator: YINLIN_RESONATOR,
-  matrix: YINLIN_MATRIX,
   weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER, NEW_STD_RECTIFIER],
   echoLoadouts: [
     new EchoLoadout(NM_TEMPEST_MEPHIS, EMPYREAN_ANTHEM_5PC),

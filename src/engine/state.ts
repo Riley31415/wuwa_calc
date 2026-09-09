@@ -6,7 +6,7 @@
 import { Stat, EnemyStat, Attribute, WeaponType, Tier, Type1, Type2, Cast, Node, Scaling, scopedStat, tagBand, STAT_COUNT, TYPE2_BITS } from "./stats.js";
 import type { Tag, StatKey } from "./stats.js";
 import type { Rotation, Action, ActionGroup, ActionDef, ActionField } from "./rotation.js";
-import { ctx, dryLog, undoDry, noteMutation, recordApplied, recordConsumed } from "./runtime.js";
+import { ctx, dryLog, undoDry, noteMutation, recordApplied, recordConsumed, MEMBERS } from "./runtime.js";
 import { Gear, Buff, Debuff, Resonator, Loadout, Matrix, Mainslot, Weapon, PHASE_COUNT } from "./gear.js";
 
 /** One stat contribution, tagged with what granted it and who was acting — `addStat()` fills
@@ -82,6 +82,10 @@ ZERO_STATS[0] = 0.5; ZERO_STATS[0] = 0;
  *  and then essentially never — so every slot's `constBase` cache can tell it is stale. */
 
 export interface PoolSnapshot { list: Gear[]; counts: number[]; hooks: number[][]; globalHooks: Gear[]; at: Map<Gear, number>; dead: number }
+/** A slot's main-stat variants' constant bases for one action tag word, and per variant the
+ *  indices where that base differs from the real build's — the only stats a variant's row can
+ *  differ in (see `evaluate()`). */
+export interface VariantAt { bases: number[][]; diffs: number[][] }
 export interface MemberSnapshot { pool: PoolSnapshot; globalHooks: Set<Gear>; forte: number[]; concerto: number }
 
 class Pool {
@@ -196,6 +200,8 @@ class Pool {
 /** Where every Gear's mutable facts actually live — never on the Gear itself. */
 export class TeamMember {
   name: string;
+  /** Position on the team — the enemy is last (`MEMBERS - 1`). What the grant records credit by. */
+  index = 0;
   /** Whichever Resonator is actually equipped here — set once, by Resonator's own combatStart,
    *  the moment it's equip()-ped. Attribute/energy/name all live on it, not duplicated here; null
    *  only in the brief window between constructing a State (from bare names) and equip()ping
@@ -263,11 +269,19 @@ export class TeamMember {
    *  in the fight changes, since a main stat only ever feeds its wearer. */
   variantOf: Gear | null = null;
   variants: Gear[] = [];
-  variantBase: Map<number, number[]>[] = [];
+  variantAt = new Map<number, VariantAt>();
   /** Set per variant when its dry re-run would have changed the fight — a mutation the real build
    *  didn't make, or a resource stat that banks differently — so its scores can't be trusted and
    *  the solver runs it for real instead. */
   variantUnsafe: boolean[] = [];
+  /** Scratch for a varied action, reused rather than allocated per action: the stats as the phases
+   *  before the constant base left them, and each variant's own working copy. */
+  pre: number[] = ZERO_STATS.slice();
+  post2: number[] = ZERO_STATS.slice();
+  post4: number[] = ZERO_STATS.slice();
+  variantEff: number[][] = [];
+  /** Per variant, whether the action being evaluated re-ran its conversions dry (see `evaluate()`). */
+  variantDry: boolean[] = [];
 
   constructor(name: string) { this.name = name; }
 
@@ -405,9 +419,21 @@ export class State {
 
   /** The three fight snapshots `evaluate()` takes around a varied action — before the stat phases,
    *  after them, and after banking — made once, the first time this team needs them. */
-  snapshots: [FightSnapshot, FightSnapshot, FightSnapshot] | null = null;
+  snapshots: [FightSnapshot, FightSnapshot, FightSnapshot, FightSnapshot] | null = null;
 
-  constructor(names: string[]) { this.slots = names.map((n) => new TeamMember(n)); }
+  constructor(names: string[]) {
+    this.slots = names.map((n, i) => { const m = new TeamMember(n); m.index = i; return m; });
+    this.enemy.index = names.length;
+    if (names.length >= MEMBERS) throw new Error("state.ts: more members than the grant records index");
+  }
+  /** Whose kit `gear` came from, as a member index (`TeamMember.index`) — -1 when unattributed. */
+  sourceIndexOf(gear: Gear): number {
+    const name = this.sourceOf.get(gear);
+    if (name === undefined) return -1;
+    if (name === this.enemy.name) return this.enemy.index;
+    for (let i = 0; i < this.slots.length; i++) if (this.slots[i]!.name === name) return i;
+    return -1;
+  }
   get slot(): TeamMember { return this.slots[this.active]!; }
   slotByName(name: string): TeamMember | undefined { return this.slots.find((s) => s.name === name); }
   /** Whichever TeamMember currently holds this Resonator — what addBuff()/removeBuff() resolve
@@ -533,13 +559,15 @@ export class FightSnapshot {
     this.global = pool(); this.enemy = pool();
   }
   take(state: State): void {
-    state.slots.forEach((m, i) => m.snapshotInto(this.members[i]!));
+    const slots = state.slots;
+    for (let i = 0; i < slots.length; i++) slots[i]!.snapshotInto(this.members[i]!);
     state.globalStacks.snapshotInto(this.global); state.enemyStacks.snapshotInto(this.enemy);
     this.offtune = state.offtune;
   }
   restore(state: State): void {
     undoDry();
-    state.slots.forEach((m, i) => m.restore(this.members[i]!));
+    const slots = state.slots;
+    for (let i = 0; i < slots.length; i++) slots[i]!.restore(this.members[i]!);
     state.globalStacks.restore(this.global); state.enemyStacks.restore(this.enemy);
     state.offtune = this.offtune;
   }

@@ -165,7 +165,7 @@ const GLORY = new Buff({
  *  own outro (see echoes/jinzhou.ts's HERON_HANDOFF). */
 const LUPA_OUTRO = new Buff({
   name: "Lupa: Outro",
-  applyStats: () => { addStat(Stat.Amp, 20, Attribute.Fusion); addStat(Stat.Amp, 25, Type1.Basic); },
+  stats: [[Stat.Amp, 20, Attribute.Fusion], [Stat.Amp, 25, Type1.Basic]],
   updateBuffs: () => { lostOnSwap(); },
 });
 
@@ -174,7 +174,7 @@ const LUPA_OUTRO = new Buff({
  *  Inherent Skill. Just the payout — its trigger lives on LUPA_RESONATOR's own updateBuffs() below. */
 const WILDFIRE_BANNER = new Buff({
   name: "Lupa: Wildfire Banner",
-  applyStats: () => addStat(Stat.BonusAtk, 12),
+  stats: [[Stat.BonusAtk, 12]],
   convertStats: () => { if (currentAction() === fskillFUA) revokeCurrent(WILDFIRE_BANNER); },
 });
 
@@ -228,8 +228,8 @@ const LUPA_BACKUP_READY = new Buff({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const LUPA_TALENTS = new Talent({
-  name: "Talents: Lupa",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  name: "Lupa: Talents",
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
 });
 
 /** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her

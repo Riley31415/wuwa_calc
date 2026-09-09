@@ -124,7 +124,7 @@ const INCINERATING_WILL = new Debuff({
  *  a real time window, lost after the outro action gains stats, not consumed by the next hit alone. */
 const OVERFLOW = new Buff({
   name: "Inherent: Overflow",
-  applyStats: () => addStat(Stat.DmgBonus, 30, Type1.Heavy),
+  stats: [[Stat.DmgBonus, 30, Type1.Heavy]],
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(OVERFLOW); },
 });
 const DJ_INHERENT_OVERFLOW = new Inherent({
@@ -152,14 +152,14 @@ const DJ_INHERENT_CRIMSON_LIGHT = new Inherent({
  *  lost-on-swap wording, checked via lostOnSwap() rather than the usual convertStats(). */
 const DANJIN_OUTRO = new Buff({
   name: "Danjin: Outro",
-  applyStats: () => addStat(Stat.Amp, 23, Attribute.Havoc),
+  stats: [[Stat.Amp, 23, Attribute.Havoc]],
   updateBuffs: () => { lostOnSwap(); },
 });
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const DANJIN_TALENTS = new Talent({
-  name: "Talents: Danjin",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Havoc); },
+  name: "Danjin: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.DmgBonus, 12, Attribute.Havoc]],
 });
 
 const DANJIN_RESONATOR = new Resonator({
@@ -189,7 +189,7 @@ const DANJIN_RESONATOR = new Resonator({
  *  each time she takes damage" isn't modelled — no damage-taken tracking here. */
 const DJ_S1_STACKS = new Buff({
   name: "Danjin S1: Crimson Heart of Justice", maxStacks: 6,
-  applyStats: () => addStat(Stat.BonusAtk, 5 * frozenStacks()),
+  stats: [[Stat.BonusAtk, 5]], perStack: true,
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(DJ_S1_STACKS); },
 });
 const DJ_S1 = new Sequence({
@@ -206,7 +206,7 @@ const DJ_S2 = new Sequence({
 /** S3: flat +30% Resonance Liberation DMG Bonus. */
 const DJ_S3 = new Sequence({
   name: "Danjin S3: Fleeting Blossom",
-  applyStats: () => addStat(Stat.DmgBonus, 30, Type1.Liberation),
+  stats: [[Stat.DmgBonus, 30, Type1.Liberation]],
 });
 
 /** S4: +15% Crit Rate above 60 Ruby Blossom, stated to persist through Chaoscleave/Scatterbloom
@@ -214,7 +214,7 @@ const DJ_S3 = new Sequence({
  *  revoked once it's below 60 AND the current action isn't Chaoscleave/Scatterbloom (either form). */
 const DJ_S4_ACTIVE = new Buff({
   name: "Danjin S4: Solitary Carnation",
-  applyStats: () => addStat(Stat.CritRate, 15),
+  stats: [[Stat.CritRate, 15]],
 });
 const DJ_S4 = new Sequence({
   name: "Danjin S4: Solitary Carnation",
@@ -229,13 +229,13 @@ const DJ_S4 = new Sequence({
  *  assumed always true. */
 const DJ_S5 = new Sequence({
   name: "Danjin S5: Reigning Blade",
-  applyStats: () => addStat(Stat.DmgBonus, 30, Attribute.Havoc),
+  stats: [[Stat.DmgBonus, 30, Attribute.Havoc]],
 });
 
 /** S6: Chaoscleave grants the whole team +20% ATK, 20s — lost on her own next Intro. */
 const DJ_S6_TEAM = new Buff({
   name: "Danjin S6: Bloodied Jade",
-  applyStats: () => addStat(Stat.BonusAtk, 20),
+  stats: [[Stat.BonusAtk, 20]],
   convertStats: () => { if (casting(Cast.Intro) && isHeld(DANJIN_RESONATOR)) revokeTeam(DJ_S6_TEAM); },
 });
 const DJ_S6 = new Sequence({

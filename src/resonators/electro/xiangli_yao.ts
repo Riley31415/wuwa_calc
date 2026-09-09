@@ -97,7 +97,7 @@ const ACTION_OUTRO_COORD = xlyAction("Outro - Chain Rule (Laser)", { type: Type1
  *  8s — held for his whole field window, lost after his outro. */
 const KNOWING = new Buff({
   name: "Inherent: Knowing", maxStacks: 4,
-  applyStats: () => addStat(Stat.DmgBonus, 5 * frozenStacks(), Attribute.Electro),
+  stats: [[Stat.DmgBonus, 5, Attribute.Electro]], perStack: true,
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(KNOWING); },
 });
 const XLY_INHERENT_1 = new Inherent({
@@ -122,12 +122,13 @@ const XLY_OUTRO: Buff = new Buff({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
 const XLY_TALENTS = new Talent({
-  name: "Talents: Xiangli Yao",
-  constantStats: () => { addStat(Stat.CritDmg, 16); addStat(Stat.BonusAtk, 12); },
+  name: "Xiangli Yao: Talents",
+  stats: [[Stat.CritDmg, 16], [Stat.BonusAtk, 12]],
 });
 
 const XIANGLI_YAO_RESONATOR = new Resonator({
   name: "Xiangli Yao",
+  matrix: matrix("Xiangli Yao", 25),
   talent: XLY_TALENTS,
   inherent1: XLY_INHERENT_1,
   inherent2: XLY_INHERENT_2,
@@ -167,7 +168,6 @@ const XLY_ROTATION = new Rotation([
 // sonata pieces, mainstat/substat
 export const XIANGLI_YAO = new Loadout({
   resonator: XIANGLI_YAO_RESONATOR,
-  matrix: matrix("Xiangli Yao", 25),
   weapons: [IUNO_SIG, NEW_STD_GAUNTLET, VERITYS_HANDLE, ABYSS_SURGES],
   echoLoadouts: [new EchoLoadout(NM_MEPHIS, VOID_THUNDER_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),

@@ -115,7 +115,7 @@ const Outro = verinaAction("Outro - Blossom", {
  *  rather than outro. Still pays out on that Intro itself: convertStats() revokes only after applyStats() has. */
 const GIFT_OF_NATURE = new Buff({
   name: "Inherent: Gift of Nature",
-  applyStats: () => addStat(Stat.BonusAtk, 20),
+  stats: [[Stat.BonusAtk, 20]],
   // granted from VERINA_RESONATOR's own updateBuffs() below since a global buff's own updateBuffs() can't fire before
   // it's held once, and the Resonator itself is always self-held from team setup
   convertStats: () => { if (casting(Cast.Intro) && isHeld(VERINA_RESONATOR)) revokeTeam(GIFT_OF_NATURE); },
@@ -137,7 +137,7 @@ const VR_INHERENT_2 = new Inherent({ name: "Inherent: Grace of Life" }); // revi
  *  for the formula (her Outro already puts up the HEALS marker). */
 const VERINA_OUTRO = new Buff({
   name: "Verina: Blossom",
-  applyStats: () => addStat(Stat.Amp, 15),
+  stats: [[Stat.Amp, 15]],
 });
 
 /** Photosynthesis Mark: a genuine debuff on the enemy, 12 stacks that are the mark's own 12s —
@@ -188,8 +188,8 @@ const VERINA_S5 = new Sequence({ name: "Verina S5: Miraculous Blooms" });
 // stat-tree bonus alone — Healing Bonus+ unused by the formula (healing out of scope), kept for
 // completeness only
 const VERINA_TALENTS = new Talent({
-  name: "Talents: Verina",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.HealingBonus, 12); }
+  name: "Verina: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.HealingBonus, 12]],
 });
 
 /** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her

@@ -293,7 +293,7 @@ const TONAL_SWITCH = new Buff({
 });
 const TONAL_SWITCH_AMP = new Buff({
   name: "Xuanling: Outro",
-  applyStats: () => addStat(Stat.Amp, 20, Attribute.Havoc),
+  stats: [[Stat.Amp, 20, Attribute.Havoc]],
 });
 
 /* --------------------------------------------------------------------------- kit and loadout */
@@ -325,8 +325,8 @@ const XUANLING_INHERENT_2 = new Inherent({
 });
 
 const XUANLING_TALENTS = new Talent({
-  name: "Talents: Xuanling",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
+  name: "Xuanling: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
 });
 
 export const XUANLING_RESONATOR = new Resonator({
@@ -377,8 +377,14 @@ const HiB123 = new ActionGroup("Forte Basic: Havoc in Bloom 123", [HiB1, HiB2, H
 const XUANLING_ROTATION = new Rotation([
   START_3, SwitchFeather, SWAP, // start in feather stance, so the first cast is a switch to Azure
 
-  INTRO, BA_F1234, FlowAzure, HeavyAzure, 
-  Lib, FlowFeather, HeavyFeather, FeatherFall, HiB123, ECHO_SWAP,
+  INTRO, BA_F1234, FlowAzure, ECHO_ONFIELD, HeavyAzure, 
+  Lib, FlowFeather, HeavyFeather, FeatherFall, HiB123,
+  OUTRO,
+]);
+
+const XUANLING_ROTATION_2F = new Rotation([
+  INTRO, FlowFeather, ECHO_ONFIELD, HeavyFeather, FeatherFall, HiB123, SwitchAzure,
+  Lib, FlowFeather, HeavyFeather, FeatherFall, HiB123,
   OUTRO,
 ]);
 
@@ -394,4 +400,14 @@ export const XUANLING = new Loadout({
   substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Er),
   rotation: XUANLING_ROTATION,
+});
+
+export const XUANLING_2F = new Loadout({
+  resonator: XUANLING_RESONATOR,
+  weapons: [AZURE_OATH, EMERALD_OF_GENESIS],
+  echoLoadouts: XUANLING_ECHOES,
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+  substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Er),
+  rotation: XUANLING_ROTATION_2F,
 });

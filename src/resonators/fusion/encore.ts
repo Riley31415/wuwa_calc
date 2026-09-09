@@ -100,7 +100,7 @@ const Outro = encoreAction("Outro - Thermal Field", { cast: Cast.Outro, type: Ty
 /** +10% Fusion DMG Bonus for 10s on casting Flaming Woolies or Cosmos - Rampage. */
 const WOOLIES_CHEER_DANCE = new Buff({
   name: "Inherent: Woolies Cheer Dance",
-  applyStats: () => addStat(Stat.DmgBonus, 10, Attribute.Fusion),
+  stats: [[Stat.DmgBonus, 10, Attribute.Fusion]],
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(WOOLIES_CHEER_DANCE); },
 });
 const EN_INHERENT_2 = new Inherent({
@@ -112,7 +112,7 @@ const EN_INHERENT_2 = new Inherent({
  *  applyStats() doesn't need to check any particular action. */
 const ANGRY_COSMOS = new Buff({
   name: "Inherent: Angry Cosmos",
-  applyStats: () => addStat(Stat.DmgBonus, 10),
+  stats: [[Stat.DmgBonus, 10]],
   convertStats: () => { if (currentAction() === FHA) revokeCurrent(ANGRY_COSMOS); },
 });
 const EN_INHERENT_1 = new Inherent({
@@ -124,7 +124,7 @@ const EN_INHERENT_1 = new Inherent({
 
 const S1_STACKS = new Buff({
   name: "Encore S1: Wooly's Fairy Tale", maxStacks: 4,
-  applyStats: () => addStat(Stat.DmgBonus, 3 * frozenStacks(), Attribute.Fusion),
+  stats: [[Stat.DmgBonus, 3, Attribute.Fusion]], perStack: true,
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(S1_STACKS); },
 });
 const S1 = new Sequence({
@@ -146,7 +146,7 @@ const S3 = new Sequence({
 /** Permanent uptime once granted, per the standing duration rule (30s). */
 const S4_TEAM = new Buff({
   name: "Encore S4: Adventure? Let's go!",
-  applyStats: () => addStat(Stat.DmgBonus, 20, Attribute.Fusion),
+  stats: [[Stat.DmgBonus, 20, Attribute.Fusion]],
 });
 const S4 = new Sequence({
   name: "Encore S4",
@@ -155,12 +155,12 @@ const S4 = new Sequence({
 
 const S5 = new Sequence({
   name: "Encore S5",
-  applyStats: () => addStat(Stat.DmgBonus, 35, Type1.Skill),
+  stats: [[Stat.DmgBonus, 35, Type1.Skill]],
 });
 
 const S6_LOST_LAMB = new Buff({
   name: "Encore S6: Lost Lamb", maxStacks: 5,
-  applyStats: () => addStat(Stat.BonusAtk, 5 * frozenStacks()),
+  stats: [[Stat.BonusAtk, 5]], perStack: true,
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(S6_LOST_LAMB); },
 });
 const S6 = new Sequence({
@@ -170,8 +170,8 @@ const S6 = new Sequence({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const ENCORE_TALENTS = new Talent({
-  name: "Talents: Encore",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Fusion); },
+  name: "Encore: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.DmgBonus, 12, Attribute.Fusion]],
 });
 
 const ENCORE_RESONATOR = new Resonator({

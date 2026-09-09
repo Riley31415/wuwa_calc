@@ -7,7 +7,7 @@ everything under `src/` into `dist/`, mirrored one level deeper (`src/engine/gea
 ```
 python dev.py                  # compilers + server; then http://127.0.0.1:8731/index.html
 npm run build                  # tsc into dist/src/, then esbuild into dist/bundle/
-npm run precompute             # solve every team, write solves/ for the published site
+npm run precompute             # solve every team, write tests/solves/ for the published site
 npx tsc --noEmit               # just typecheck
 ```
 
@@ -26,14 +26,20 @@ first and stalls ~200ms on *every* connection.
 | `src/engine/damage.ts` | the damage formula |
 | `src/engine/rotation.ts` | `Rotation` and the scheduler that decides whose turn it is |
 | `src/teams.ts` | the `LOADOUTS` registry and every team the comparison table runs (`ALL_TEAMS`) |
-| `src/solver.ts` | the build search and the DOM-free engine run that scores it; also the Worker entry point |
+| `src/solver.ts` | the filter/pick vocabulary and the build search; also the Worker entry point |
+| `src/teamrun.ts` | the DOM-free engine run the search scores (`runTeam`) and the lines/totals read off it |
 | `src/display.ts` | turns a run into the report/hover-trace data the page renders |
-| `src/precompute.ts` | solves the whole roster offline into `solves/`, one file per filter state, so the published site opens with no search |
+| `src/precompute.ts` | solves the whole roster offline into `tests/solves/`, one file per filter state, so the published site opens with no search; each key is solved once and `index.json` names the files a state needs |
 | `src/shared/mainstats.ts` / `substats.ts` | echo main-stat builds (`mainstats()`/`mainstatOptions()`) and substat spreads (`substats()`/`chem()`) |
 | `src/resonators/<attribute>/*.ts` | one folder per attribute (`aero`, `electro`, `fusion`, `glacio`, `havoc`, `spectro`): one file per resonator — actions, buffs, the Resonator itself, talents, inherent skills, sequences, a sample rotation, a loadout |
 | `src/echoes/<region>.ts` | mainslot echoes and sonata sets, one file per region that introduced them (grouped by region, unlike the resonator folders; Black Shores' Fallacy lives in `jinzhou.ts`) |
 | `src/weapons/*.ts` | signature and standard weapons, grouped by weapon type |
-| `src/index.ts` | the whole site — the comparison table, the filters, the detail page |
+| `src/index.ts` | the page's entry: boot, routing, the loading overlay, the solve/run passes |
+| `src/page/model.ts` | page state with no DOM: teams, filter maps, which rows exist, caches, saved solves, the URL hash |
+| `src/page/panels.ts` | hover-panel markup (stat traces, buffs, breakdowns, loadouts, the DPR table) and their wiring |
+| `src/page/filterbar.ts` | the filter aside: option/help boxes, chips, the search bar |
+| `src/page/table.ts` | the comparison table, its scroll window, and every filter/menu handler |
+| `src/page/detail.ts` | the detail page: DPR/energy tables, the action log, column drag |
 | `web/` | everything the page loads that isn't code: `index.css`, `favicon.png`, `loading.gif`, `preview.jpg` |
 
 `index.html` is the page itself and loads `./dist/bundle/index.js` plus its stylesheet and
@@ -51,12 +57,19 @@ that also carries element/weapon type/base stats/`maxEnergy`/color.
 export const THRENODIAN_LEVIATHAN = new Mainslot({
   name: "Reminiscence: Threnodian - Leviathan",
   action: ACTION_THRENODIAN_LEVIATHAN,
-  constantStats: () => { addStat(Stat.DmgBonus, 12, Attribute.Havoc); addStat(Stat.DmgBonus, 12, Type1.Liberation); },
+  stats: [[Stat.DmgBonus, 12, Attribute.Havoc], [Stat.DmgBonus, 12, Type1.Liberation]],
 });
 ```
 
-Each piece of `GearDef` runs at a different point in `evaluate()`, for whichever Gear is
-actually held (locally, globally, or on the enemy) when an action resolves. In order:
+Most gear is declared as data and compiled into the hooks below (`gear.ts`): `stats` (flat lines;
+on a `Buff` they pay while held, `perStack`, gated by `when`, `early` to pay in `updateBuffs`),
+`until: "outro" | "swap" | "afterSwap"` (when a Buff is revoked), and `grants` (`{ on, buff, stacks,
+to }` — a trigger from `context.ts`'s `onCast`/`onType`/`onInflict`/`onApplied`/`either`/`both`,
+the Buff to grant — the declaring Buff itself when left out, or a thunk for one declared further
+down — and `to: "team" | "enemy" | "next"` for a team buff, a debuff, or an outro handoff).
+Whatever the form doesn't fit stays a closure on one of these hooks, which run at different points
+in `evaluate()`, for whichever Gear is actually held (locally, globally, or on the enemy) when an
+action resolves. In order:
 
 - `combatStart` — once, at `equip()` time, never mid-fight (a resonator's own base stats).
 - `updateDebuffs` — what this cast *inflicts* (a Negative Status, a Shifting, the shield/heal
@@ -134,7 +147,7 @@ Every rotation must reach 100 concerto, or its outro can't fire.
   `convertStats()`, after `applyStats()` has already paid out); a team buff is lost on the
   applier's own next intro. A window ≥21s is permanent uptime once granted, never revoked. A
   buff whose text says "lost on swap" is checked with `lostOnSwap()` in `updateBuffs()` instead.
-- Flat, unconditional equipment stats go in `constantStats`; anything conditional stays in
+- Flat, unconditional equipment stats go in `stats: [...]`; anything conditional stays in
   `applyStats`.
 - ICD-gated passives ("triggers once every 0.5s") fire on every qualifying action instead —
   there's no real-time clock here.

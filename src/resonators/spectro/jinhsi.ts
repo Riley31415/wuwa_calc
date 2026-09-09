@@ -20,8 +20,9 @@
  * DOUBLE_INTRO section (rotation.ts): the first visit ends on the Unison outro and hands the field
  * *backward*, the resonator behind her plays their own rotation, and their outro brings it round
  * again for her main Intro chain — which ends on a real outro off a genuinely full bar (~116). The
- * grant's 25s limit is what stops the second Illuminous Epiphany handing over a second free one;
- * `isDoubleIntro()` carries that: only the pre-visit's Epiphany grants.
+ * grant's 25s limit is what stops the second Illuminous Epiphany handing over a second free one:
+ * her first Epiphany of a rotation grants, and JX_UNISON_SPENT below holds the rest off until her
+ * Liberation — the once-a-rotation cast — comes round again.
  *
  * **Incandescence** is a 50-stack buff of her own (not a forte gauge), fed by Eras in Unity (see
  * ERAS_IN_UNITY below): +1 whenever anyone in the party inflicts Attribute DMG, +2 on a
@@ -64,7 +65,7 @@ import { VOIDWING_MOTH } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { matrix, oneSecondPassed } from "../../shared/helpers.js";
-import { UNISON, isDoubleIntro, unisonOutro } from "../../shared/unison.js";
+import { UNISON, unisonOutro } from "../../shared/unison.js";
 import { STAY_TUNED, SWORN_VIGIL_5PC } from "../../echoes/mengzhou.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -110,13 +111,17 @@ const Skill4 = jinhsiAction("Forte Skill - Illuminous Epiphany: Solar Flare", {
   node: Node.Forte, cast: Cast.Skill, cutscene: true, type: Type1.Skill, mv: 119.34, energy: 1.98, concerto: 20, offtune: 14400,
   updateBuffs: () => {
     revokeCurrent(ORDINATION_GLOW);
-    if (isDoubleIntro()) applyCurrent(UNISON, 1);
+    if (!isHeld(JX_UNISON_SPENT)) { applyCurrent(UNISON, 1); applyCurrent(JX_UNISON_SPENT, 1); }
     queue(StellaGlamor);
   },
 });
 const StellaGlamor = jinhsiAction("Forte Skill - Illuminous Epiphany: Stella Glamor", { node: Node.Forte, type: Type1.Skill, mv: 347.92, energy: 5.67, offtune: 42002 });
 
-const Liberation = jinhsiAction("Liberation - Purge of Light", { node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 1666.03, concerto: 20, offtune: 84000, resetEnergy: true });
+const Liberation = jinhsiAction("Liberation - Purge of Light", {
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 1666.03, concerto: 20, offtune: 84000, resetEnergy: true,
+  // the once-a-rotation cast, so it is what re-arms the Unison grant (see JX_UNISON_SPENT)
+  updateBuffs: () => revokeCurrent(JX_UNISON_SPENT),
+});
 
 const Intro = jinhsiAction("Intro - Loong's Halo", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 159.05, energy: 10, concerto: 10, offtune: 8000,
@@ -139,9 +144,15 @@ const OutroUnison = unisonOutro(Outro);
 const INCARNATION = new Buff({ name: "Jinhsi: Incarnation" });
 const ORDINATION_GLOW = new Buff({ name: "Jinhsi: Ordination Glow" });
 
-/* Unison is shared/unison.ts's. Its 25s limit is longer than the gap between her two visits, so
- * only the first Illuminous Epiphany of a loop — the double-Intro pre-visit's — hands a Unison
- * over, and the second outro pays the real bar. */
+/** Unison is shared/unison.ts's; this is its "once every 25s", which is longer than a rotation.
+ *  Her first Illuminous Epiphany of a rotation hands a Unison over and sets this, every Epiphany
+ *  after it hands over nothing, and her Liberation clears it — one cast a rotation whichever of her
+ *  rotations is being run, so the next one grants again. Written this way rather than off the
+ *  double-Intro pre-visit, which not every rotation of hers has. */
+const JX_UNISON_SPENT = new Buff({ name: "Jinhsi: Illuminous Epiphany (Unison spent)" });
+
+/* Unison itself is shared/unison.ts's: whichever of her outros holds it is the free one, and the
+ * other pays the real bar. */
 
 /**
  * Eras in Unity — the whole Incandescence economy, held on Jinhsi's own slot and watching every
@@ -184,11 +195,11 @@ const ERAS_IN_UNITY = new Buff({
       const shift = 2 + 4 * ((a.element >> 6) - 1);
       if (!((word >> shift) & 3)) {
         word |= ((word & 3) === 2 ? 1 : 3) << shift;
-        applyCurrent(INCANDESCENCE, 1);
+        applyTeam(INCANDESCENCE, 1);
       }
       if (isType(Type2.Coordinated) && !((word >> (shift + 2)) & 3)) {
         word |= ((word & 3) === 2 ? 1 : 3) << (shift + 2);
-        applyCurrent(INCANDESCENCE, 2);
+        applyTeam(INCANDESCENCE, 2);
       }
     }
     setStacksSelf(ERAS_IN_UNITY, word);
@@ -197,17 +208,18 @@ const ERAS_IN_UNITY = new Buff({
 
 /** Incandescence itself: what Eras in Unity banks, up to 50, with the cap carried by the stacks'
  *  own ceiling. Every stack held pays +44.54% DMG Multiplier onto Stella Glamor, which consumes
- *  the lot — the buff's whole payout is that one row of her forte. */
+ *  the lot — the buff's whole payout is that one row of her forte. Held team-wide so the count
+ *  reads on every row of the log; the Stella Glamor gate keeps the payout hers alone. */
 const INCANDESCENCE = new Buff({
   name: "Jinhsi: Incandescence", maxStacks: 50,
   applyStats: () => { if (currentAction() === StellaGlamor) addStat(Stat.AddMv, 44.54 * frozenStacks()); },
-  convertStats: () => { if (currentAction() === StellaGlamor) revokeCurrent(INCANDESCENCE); },
+  convertStats: () => { if (currentAction() === StellaGlamor) revokeTeam(INCANDESCENCE); },
 });
 
 /** Radiant Surge (Inherent Skill): +20% Spectro DMG Bonus, genuinely unconditional. */
 const RADIANT_SURGE = new Inherent({
   name: "Inherent: Radiant Surge",
-  constantStats: () => addStat(Stat.DmgBonus, 20, Attribute.Spectro),
+  stats: [[Stat.DmgBonus, 20, Attribute.Spectro]],
 });
 
 /** Converged Flash (Inherent Skill): Loong's Halo's own DMG Multiplier +50%. */
@@ -245,7 +257,7 @@ const JX_S1 = new Sequence({
 /** S2: 50 Incandescence back for standing *out of combat* 4s. A rotation here is one unbroken
  *  fight, so this never fires — the node is held for its name, like Phrolova's own S5. */
 const JX_S2 = new Sequence({ name: "Jinhsi S2: Chronofrost Repose" ,
-  combatStart: () => { applyCurrent(INCANDESCENCE, 50); },
+  combatStart: () => { applyTeam(INCANDESCENCE, 50); },
 });
 
 /** S3's stacks: +25% ATK apiece, two at most, one per Intro she casts. Its 20s covers her whole
@@ -253,7 +265,7 @@ const JX_S2 = new Sequence({ name: "Jinhsi S2: Chronofrost Repose" ,
  *  straight back from — keeps them and only the bar-paid outro that ends the loop drops them. */
 const IMMORTALS_DESCENDANCY = new Buff({
   name: "Jinhsi S3: Immortal's Descendancy", maxStacks: 2,
-  applyStats: () => addStat(Stat.BonusAtk, 25 * frozenStacks()),
+  stats: [[Stat.BonusAtk, 25]], perStack: true,
 });
 
 const JX_S3 = new Sequence({
@@ -265,7 +277,7 @@ const JX_S3 = new Sequence({
  *  with no attribute named, so it goes on untagged. 20s team buff — lost on her own next Intro. */
 const JX_S4_TEAM = new Buff({
   name: "Jinhsi S4: Benevolent Grace",
-  applyStats: () => addStat(Stat.DmgBonus, 20),
+  stats: [[Stat.DmgBonus, 20]],
 });
 
 const JX_S4 = new Sequence({
@@ -297,12 +309,13 @@ const JX_S6 = new Sequence({
 /* --------------------------------------------------------------------------- kit and loadout */
 
 const JINHSI_TALENTS = new Talent({
-  name: "Talents: Jinhsi",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
+  name: "Jinhsi: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
 });
 
 const JINHSI_RESONATOR = new Resonator({
   name: "Jinhsi",
+  matrix: matrix("Jinhsi", 25),
   talent: JINHSI_TALENTS,
   inherent1: RADIANT_SURGE,
   inherent2: CONVERGED_FLASH,
@@ -339,17 +352,31 @@ const IncBA12 = new ActionGroup("Basic - Incarnation 12", [IncBA1, IncBA2]);
 const IncBA34 = new ActionGroup("Basic - Incarnation 34", [IncBA3, IncBA4]);
 
 const JX_ROTATION = new Rotation([
-
   START_3, Liberation, SWAP,
 
-  NOINTRO, BA1234,
+  NOINTRO, BA1234, Skill2.dodgeCancel(), ECHO_ONFIELD, 
+  IncBA1, IncBA2.jumpCancel(), IncBA3.jumpCancel(), IncBA4, 
+  Skill4, OUTRO,
+
   DOUBLE_INTRO, Skill2.dodgeCancel(), 
-  IncBA12, Skill3, IncBA34, ECHO_ONFIELD, Skill4,
-  OUTRO,
+  IncBA12, Skill3, IncBA34,
+  ECHO_ONFIELD, Skill4, OUTRO,
 
   INTRO, Skill2.dodgeCancel(),
-  IncBA12, Skill3, IncBA34, Skill4, 
-  Liberation, OUTRO,
+  IncBA12, Skill3, IncBA34,
+  Skill4, Liberation, OUTRO,
+]);
+
+const JX_ROTATION_SUPPORT = new Rotation([
+  START_3, Liberation, SWAP,
+
+  NOINTRO, BA1234, Skill2.dodgeCancel(), ECHO_ONFIELD, 
+  IncBA1, IncBA2.jumpCancel(), IncBA3.jumpCancel(), IncBA4, 
+  Skill4, Liberation, OUTRO,
+
+  INTRO, Skill2.dodgeCancel(), ECHO_ONFIELD, 
+  IncBA12, Skill3, IncBA34,
+  Skill4, Liberation, OUTRO,
 ]);
 
 const JX_ECHOES = [
@@ -361,10 +388,20 @@ export const JINHSI = new Loadout({
   resonator: JINHSI_RESONATOR,
   weapons: [AGES_OF_HARVEST, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR],
   echoLoadouts: JX_ECHOES,
-  matrix: matrix("Jinhsi", 25),
   sequences: [JX_S1, JX_S2, JX_S3, JX_S4, JX_S5, JX_S6],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Er),
   rotation: JX_ROTATION,
+});
+
+export const JINHSI_SUPPORT = new Loadout({
+  resonator: JINHSI_RESONATOR,
+  weapons: [AGES_OF_HARVEST, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR],
+  echoLoadouts: JX_ECHOES,
+  sequences: [JX_S1, JX_S2, JX_S3, JX_S4, JX_S5, JX_S6],
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
+  substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Er),
+  rotation: JX_ROTATION_SUPPORT,
 });

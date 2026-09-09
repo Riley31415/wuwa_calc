@@ -1,60 +1,43 @@
-/** Standard/f2p weapons, ported to the new engine — no signature character, usable by anyone of
- *  the matching weapon type. Three generations, 5 weapons each: Ceaseless Aria (4-star), Stormy
- *  Resolution (5-star), and the "new standard" 5-star set. */
+/** Standard/f2p weapons — no signature character, usable by anyone of the matching weapon type.
+ *  Three generations, 5 weapons each: Ceaseless Aria (4-star), Stormy Resolution (5-star), and
+ *  the "new standard" 5-star set. Each export is the weapon's five refinements, R1 first
+ *  (gear.ts's own `refinements()`); a number that grows with rank is written as its five values. */
 import { WeaponType, Stat, Type1, Cast, Attribute, Tier } from "../engine/stats.js";
-import { Buff, Weapon } from "../engine/gear.js";
+import { Buff, Weapon, refinements } from "../engine/gear.js";
 import {
-  isType,
-  addStat,
-  applyCurrent,
-  isHeld,
-  removeStack,
-  revokeCurrent,
-  casting,
-  currentAction,
-  frozenStacks,
-  queueOutro,
-  stacksOfEnemy,
-  isActive,
+  addStat, applyCurrent, removeStack, casting, currentAction, frozenStacks, stacksOfEnemy, isActive, applied,
+  onCast, onType, onApplied,
 } from "../engine/context.js";
-import { applied } from "../engine/context.js";
 import { HEALS } from "../shared/status.js";
 import { TUNE_STRAIN_INTERFERED } from "../shared/tunebreak.js";
 
 /* ---------------------------------------------------------------- Ceaseless Aria (4-star, 5) */
 
-/** One Ceaseless Aria instance a weapon, so each carries its own name for attribution. Granted
- *  on the wielder's first Resonance Skill cast (restoring `concerto` — 16 at R5, 8 at R1) and
- *  promoted to cooldown the same action; a repeat cast on cooldown does nothing. Lost entirely on
- *  the wielder's Outro. */
-function ceaselessAria(name: string, concerto: number, rank: string): Buff {
-  const buff: Buff = new Buff({
-    name: `${name}: Ceaseless Aria${rank}`, maxStacks: 2,
-    applyStats: () => {
-      if (frozenStacks() === 1 && casting(Cast.Skill)) { applyCurrent(buff, 1); addStat(Stat.AddConcerto, concerto); }
-      else if (frozenStacks() === 2 && casting(Cast.Outro)) removeStack(buff, 2);
-    },
-    display: () => `${name}: Ceaseless Aria${rank}${frozenStacks() === 1 ? "" : " (cooldown)"}`,
-  });
-  return buff;
-}
-
 /** The five 4-star standard weapons — identical stats and behavior, only the name differs. Four
- *  are the craftable at its real R5 (`Tier.Free`); Variation is run at R1 and as a standard
- *  weapon, so a build carrying it reads R0 (index.ts's own `memberLabel()`). */
-function concertoWeapon(name: string, weaponType: WeaponType, rank: 1 | 5 = 5): Weapon {
-  const r5 = rank === 5;
-  const aria = ceaselessAria(name, r5 ? 16 : 8, r5 ? " R5" : "");
-  return new Weapon({
-    weaponType,
-    tier: r5 ? Tier.Free : Tier.Standard,
-    name: `${name} R${rank}`,
-    constantStats: () => { addStat(Stat.BaseAtk, 337.5); addStat(Stat.Er, 51.84); },
-    updateBuffs: () => { if (casting(Cast.Skill)) applyCurrent(aria, 1); },
+ *  are the craftable (`Tier.Free`, so a loadout runs them at R5); Variation is a standard weapon,
+ *  so a loadout runs it at R1 and a build carrying it reads R0 (page/table.ts's `memberLabel()`).
+ *  Ceaseless Aria is granted on the wielder's first Resonance Skill cast (restoring `concerto` —
+ *  8 at R1, 16 at R5) and promoted to cooldown the same action; a repeat cast on cooldown does
+ *  nothing. Lost entirely on the wielder's Outro. */
+function concertoWeapon(name: string, weaponType: WeaponType, tier: Tier = Tier.Free): Weapon[] {
+  return refinements((r, rank) => {
+    const aria: Buff = new Buff({
+      name: `${name}: Ceaseless Aria${rank}`, maxStacks: 2,
+      applyStats: () => {
+        if (frozenStacks() === 1 && casting(Cast.Skill)) { applyCurrent(aria, 1); addStat(Stat.AddConcerto, [8, 10, 12, 14, 16][r]!); }
+        else if (frozenStacks() === 2 && casting(Cast.Outro)) removeStack(aria, 2);
+      },
+      display: () => `${name}: Ceaseless Aria${rank}${frozenStacks() === 1 ? "" : " (cooldown)"}`,
+    });
+    return new Weapon({
+      weaponType, tier, name: `${name}${rank}`,
+      stats: [[Stat.BaseAtk, 337.5], [Stat.Er, 51.84]],
+      grants: [{ on: onCast(Cast.Skill), buff: aria }],
+    });
   });
 }
 
-export const VARIATION = concertoWeapon("Variation", WeaponType.Rectifier, 1);
+export const VARIATION = concertoWeapon("Variation", WeaponType.Rectifier, Tier.Standard);
 export const MARCATO = concertoWeapon("Marcato", WeaponType.Gauntlets);
 export const CADENZA = concertoWeapon("Cadenza", WeaponType.Pistols);
 export const OVERTURE = concertoWeapon("Overture", WeaponType.Sword);
@@ -62,89 +45,77 @@ export const DISCORD = concertoWeapon("Discord", WeaponType.Broadblade);
 
 /* --------------------------------------------------------------- Stormy Resolution (5-star, 5) */
 
-/** Static Mist, R1. +12.8% ER flat. On the wielder's own Outro, hands the incoming resonator +10% ATK. */
-export const STATIC_MIST = new Weapon({
-  weaponType: WeaponType.Pistols,
-  tier: Tier.Standard,
-  name: "Static Mist",
-  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.Er, 12.8); },
-  updateBuffs: () => { if (casting(Cast.Outro)) queueOutro(STATIC_MIST_HANDOFF); },
+/** Static Mist. +12.8% ER flat. On the wielder's own Outro, hands the incoming resonator +10% ATK. */
+export const STATIC_MIST = refinements((r, rank) => {
+  const STATIC_MIST_HANDOFF = new Buff({
+    name: `Static Mist: Stormy Resolution${rank}`,
+    stats: [[Stat.BonusAtk, [10, 12.5, 15, 17.5, 20][r]!]], until: "outro",
+  });
+  return new Weapon({
+    weaponType: WeaponType.Pistols, tier: Tier.Standard, name: `Static Mist${rank}`,
+    stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.Er, [12.8, 16, 19.2, 22.4, 25.6][r]!]],
+    grants: [{ on: onCast(Cast.Outro), buff: STATIC_MIST_HANDOFF, to: "next" }],
+  });
 });
 
-export const STATIC_MIST_HANDOFF = new Buff({
-  name: "Static Mist: Stormy Resolution",
-  applyStats: () => addStat(Stat.BonusAtk, 10),
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(STATIC_MIST_HANDOFF); },
+/** Emerald of Genesis. +12.8% ER flat. Skill DMG stacks ATK twice over (6% a stack). */
+export const EMERALD_OF_GENESIS = refinements((r, rank) => {
+  const EOG_STACKS = new Buff({
+    name: `Emerald of Genesis: Stormy Resolution${rank}`, maxStacks: 2,
+    stats: [[Stat.BonusAtk, [6, 7.5, 9, 10.5, 12][r]!]], perStack: true, until: "outro",
+  });
+  return new Weapon({
+    weaponType: WeaponType.Sword, tier: Tier.Standard, name: `Emerald of Genesis${rank}`,
+    stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.Er, [12.8, 16, 19.2, 22.4, 25.6][r]!]],
+    grants: [{ on: onCast(Cast.Skill), buff: EOG_STACKS }],
+  });
 });
 
-/** Emerald of Genesis, R1. +12.8% ER flat. Skill DMG stacks ATK twice over (6% a stack). */
-export const EMERALD_OF_GENESIS = new Weapon({
-  weaponType: WeaponType.Sword,
-  tier: Tier.Standard,
-  name: "Emerald of Genesis",
-  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.Er, 12.8); },
-  updateBuffs: () => { if (casting(Cast.Skill)) applyCurrent(EOG_STACKS, 1); },
+/** Cosmic Ripples. +12.8% ER flat. Basic Attack DMG stacks Basic DMG Bonus 5x over (3.2% a stack). */
+export const COSMIC_RIPPLES = refinements((r, rank) => {
+  const COSMIC_RIPPLES_STACKS = new Buff({
+    name: `Cosmic Ripples: Stormy Resolution${rank}`, maxStacks: 5,
+    stats: [[Stat.DmgBonus, [3.2, 4, 4.8, 5.6, 6.4][r]!, Type1.Basic]], perStack: true, until: "outro",
+  });
+  return new Weapon({
+    weaponType: WeaponType.Rectifier, tier: Tier.Standard, name: `Cosmic Ripples${rank}`,
+    stats: [[Stat.BaseAtk, 500], [Stat.BonusAtk, 54], [Stat.Er, [12.8, 16, 19.2, 22.4, 25.6][r]!]],
+    grants: [{ on: onType(Type1.Basic), buff: COSMIC_RIPPLES_STACKS }],
+  });
 });
 
-export const EOG_STACKS = new Buff({
-  name: "Emerald of Genesis: Stormy Resolution", maxStacks: 2,
-  applyStats: () => addStat(Stat.BonusAtk, 6 * frozenStacks()),
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(EOG_STACKS); },
-});
-
-/** Cosmic Ripples, R1. +12.8% ER flat. Basic Attack DMG stacks Basic DMG Bonus 5x over (3.2% a stack). */
-export const COSMIC_RIPPLES = new Weapon({
-  weaponType: WeaponType.Rectifier,
-  tier: Tier.Standard,
-  name: "Cosmic Ripples",
-  constantStats: () => { addStat(Stat.BaseAtk, 500); addStat(Stat.BonusAtk, 54); addStat(Stat.Er, 12.8); },
-  updateBuffs: () => { if (isType(Type1.Basic)) applyCurrent(COSMIC_RIPPLES_STACKS, 1); },
-});
-
-export const COSMIC_RIPPLES_STACKS = new Buff({
-  name: "Cosmic Ripples: Stormy Resolution", maxStacks: 5,
-  applyStats: () => addStat(Stat.DmgBonus, 3.2 * frozenStacks(), Type1.Basic),
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(COSMIC_RIPPLES_STACKS); },
-});
-
-/** Abyss Surges, R1. +12.8% ER flat. A Skill hit grants Basic DMG Bonus; a Basic hit grants
+/** Abyss Surges. +12.8% ER flat. A Skill hit grants Basic DMG Bonus; a Basic hit grants
  *  Skill DMG Bonus. */
-export const ABYSS_SURGES = new Weapon({
-  weaponType: WeaponType.Gauntlets,
-  tier: Tier.Standard,
-  name: "Abyss Surges",
-  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.BonusAtk, 36.45); addStat(Stat.Er, 12.8); },
-  updateBuffs: () => {
-    if (isType(Type1.Skill)) applyCurrent(ABYSS_SKILL_HIT, 1);
-    if (isType(Type1.Basic)) applyCurrent(ABYSS_BASIC_HIT, 1);
-  },
+export const ABYSS_SURGES = refinements((r, rank) => {
+  const ABYSS_SKILL_HIT = new Buff({
+    name: `Abyss Surges: Stormy Resolution${rank}`,
+    stats: [[Stat.DmgBonus, [10, 12.5, 15, 17.5, 20][r]!, Type1.Basic]], until: "outro",
+  });
+  const ABYSS_BASIC_HIT = new Buff({
+    name: `Abyss Surges: Stormy Resolution${rank}`,
+    stats: [[Stat.DmgBonus, [10, 12.5, 15, 17.5, 20][r]!, Type1.Skill]], until: "outro",
+  });
+  return new Weapon({
+    weaponType: WeaponType.Gauntlets, tier: Tier.Standard, name: `Abyss Surges${rank}`,
+    stats: [[Stat.BaseAtk, 587.5], [Stat.BonusAtk, 36.45], [Stat.Er, [12.8, 16, 19.2, 22.4, 25.6][r]!]],
+    grants: [
+      { on: onType(Type1.Skill), buff: ABYSS_SKILL_HIT },
+      { on: onType(Type1.Basic), buff: ABYSS_BASIC_HIT },
+    ],
+  });
 });
 
-export const ABYSS_SKILL_HIT = new Buff({
-  name: "Abyss Surges: Stormy Resolution",
-  applyStats: () => addStat(Stat.DmgBonus, 10, Type1.Basic),
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(ABYSS_SKILL_HIT); },
-});
-
-export const ABYSS_BASIC_HIT = new Buff({
-  name: "Abyss Surges: Stormy Resolution",
-  applyStats: () => addStat(Stat.DmgBonus, 10, Type1.Skill),
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(ABYSS_BASIC_HIT); },
-});
-
-/** Lustrous Razor, R1. +12.8% ER flat. Skill cast stacks Liberation DMG Bonus 3x over (7% a stack). */
-export const LUSTROUS_RAZOR = new Weapon({
-  weaponType: WeaponType.Broadblade,
-  tier: Tier.Standard,
-  name: "Lustrous Razor",
-  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.BonusAtk, 36.45); addStat(Stat.Er, 12.8); },
-  updateBuffs: () => { if (casting(Cast.Skill)) applyCurrent(LUSTROUS_RAZOR_STACKS, 1); },
-});
-
-export const LUSTROUS_RAZOR_STACKS = new Buff({
-  name: "Lustrous Razor: Stormy Resolution", maxStacks: 3,
-  applyStats: () => addStat(Stat.DmgBonus, 7 * frozenStacks(), Type1.Liberation),
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(LUSTROUS_RAZOR_STACKS); },
+/** Lustrous Razor. +12.8% ER flat. Skill cast stacks Liberation DMG Bonus 3x over (7% a stack). */
+export const LUSTROUS_RAZOR = refinements((r, rank) => {
+  const LUSTROUS_RAZOR_STACKS = new Buff({
+    name: `Lustrous Razor: Stormy Resolution${rank}`, maxStacks: 3,
+    stats: [[Stat.DmgBonus, [7, 8.75, 10.5, 12.25, 14][r]!, Type1.Liberation]], perStack: true, until: "outro",
+  });
+  return new Weapon({
+    weaponType: WeaponType.Broadblade, tier: Tier.Standard, name: `Lustrous Razor${rank}`,
+    stats: [[Stat.BaseAtk, 587.5], [Stat.BonusAtk, 36.45], [Stat.Er, [12.8, 16, 19.2, 22.4, 25.6][r]!]],
+    grants: [{ on: onCast(Cast.Skill), buff: LUSTROUS_RAZOR_STACKS }],
+  });
 });
 
 /* ------------------------------------------------------------------- new standard (5-star, 5) */
@@ -159,107 +130,102 @@ export const LUSTROUS_RAZOR_STACKS = new Buff({
  *  target — what Radiance Cleaver, Laser Shearer and Pulsation Bracer all trigger on. */
 const hitInterfered = (): boolean => currentAction().mv > 0 && stacksOfEnemy(TUNE_STRAIN_INTERFERED) > 0;
 
-/** Radiance Cleaver, R1: Edge Breaker, +12% ATK flat. Hitting a Tune Strain - Interfered target
+/** Radiance Cleaver: Edge Breaker, +12% ATK flat. Hitting a Tune Strain - Interfered target
  *  grants +24% Resonance Liberation DMG Bonus for 3s, retriggered by every hit. */
-export const NEW_STD_BRAUDBLADE = new Weapon({
-  weaponType: WeaponType.Broadblade,
-  tier: Tier.Standard,
-  name: "Radiance Cleaver",
-  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.BonusAtk, 12); },
-  updateBuffs: () => { if (hitInterfered()) applyCurrent(EDGE_BREAKER_BUFF, 1); },
-});
-export const EDGE_BREAKER_BUFF = new Buff({
-  name: "Radiance Cleaver: Edge Breaker",
-  applyStats: () => addStat(Stat.DmgBonus, 24, Type1.Liberation),
+export const NEW_STD_BRAUDBLADE = refinements((r, rank) => {
+  const EDGE_BREAKER_BUFF = new Buff({
+    name: `Radiance Cleaver: Edge Breaker${rank}`,
+    stats: [[Stat.DmgBonus, [24, 27, 30, 33, 36][r]!, Type1.Liberation]],
+  });
+  return new Weapon({
+    weaponType: WeaponType.Broadblade, tier: Tier.Standard, name: `Radiance Cleaver${rank}`,
+    stats: [[Stat.BaseAtk, 587.5], [Stat.CritDmg, 48.6], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
+    grants: [{ on: hitInterfered, buff: EDGE_BREAKER_BUFF }],
+  });
 });
 
-/** Pulsation Bracer, R1: Barrier Breacher, +12% ATK flat. Hitting a Tune Strain - Interfered target
+/** Pulsation Bracer: Barrier Breacher, +12% ATK flat. Hitting a Tune Strain - Interfered target
  *  grants +6% Basic Attack DMG Bonus a stack, up to 4, 3s, retriggered by every hit — the once-per-
  *  0.5s limit is one stack per action here. */
-export const NEW_STD_GAUNTLET = new Weapon({
-  weaponType: WeaponType.Gauntlets,
-  tier: Tier.Standard,
-  name: "Pulsation Bracer",
-  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritRate, 24.3); addStat(Stat.BonusAtk, 12); },
-  updateBuffs: () => { if (hitInterfered()) applyCurrent(BARRIER_BREACHER_STACKS, 1); },
-});
-export const BARRIER_BREACHER_STACKS = new Buff({
-  name: "Pulsation Bracer: Barrier Breacher", maxStacks: 4,
-  applyStats: () => addStat(Stat.DmgBonus, 6 * frozenStacks(), Type1.Basic),
+export const NEW_STD_GAUNTLET = refinements((r, rank) => {
+  const BARRIER_BREACHER_STACKS = new Buff({
+    name: `Pulsation Bracer: Barrier Breacher${rank}`, maxStacks: 4,
+    stats: [[Stat.DmgBonus, [6, 6.7, 7.5, 8.2, 9][r]!, Type1.Basic]], perStack: true,
+  });
+  return new Weapon({
+    weaponType: WeaponType.Gauntlets, tier: Tier.Standard, name: `Pulsation Bracer${rank}`,
+    stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
+    grants: [{ on: hitInterfered, buff: BARRIER_BREACHER_STACKS }],
+  });
 });
 
-/** Laser Shearer, R1: Signal Catcher, +12% ATK flat. Hitting a Tune Strain - Interfered target
+/** Laser Shearer: Signal Catcher, +12% ATK flat. Hitting a Tune Strain - Interfered target
  *  grants +24% Resonance Skill DMG Bonus for 3s, retriggered by every hit. */
-export const NEW_STD_SWORD = new Weapon({
-  weaponType: WeaponType.Sword,
-  tier: Tier.Standard,
-  name: "Laser Shearer",
-  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.Er, 38.88); addStat(Stat.BonusAtk, 12); },
-  updateBuffs: () => { if (hitInterfered()) applyCurrent(SIGNAL_CATCHER_BUFF, 1); },
-});
-export const SIGNAL_CATCHER_BUFF = new Buff({
-  name: "Laser Shearer: Signal Catcher",
-  applyStats: () => addStat(Stat.DmgBonus, 24, Type1.Skill),
-});
-
-/** Bloodpact's Pledge R5: Harmonious Vibrancy. +38.88% ER flat. Providing healing pays the wielder
- *  +26% Resonance Skill DMG Bonus for 6s — that half works for anyone, so it lives here. The other
- *  half names Rover: Aero's own Unbound Flow outright, so its trigger lives in their kit file
- *  instead (rover_aero.ts's own updateBuffs(), gated on holding this weapon): importing those two
- *  actions here would make weapons/standard.ts and resonators/aero/rover_aero.ts a cycle, and whichever
- *  loaded second would read the other's exports before they were initialized. */
-export const BLOODPACTS_PLEDGE = new Weapon({
-  weaponType: WeaponType.Sword,
-  tier: Tier.Free,
-  name: "Bloodpact's Pledge R5",
-  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.Er, 38.88); },
-  updateBuffs: () => { if (applied(HEALS)) applyCurrent(HARMONIOUS_VIBRANCY, 1); },
+export const NEW_STD_SWORD = refinements((r, rank) => {
+  const SIGNAL_CATCHER_BUFF = new Buff({
+    name: `Laser Shearer: Signal Catcher${rank}`,
+    stats: [[Stat.DmgBonus, [24, 27, 30, 33, 36][r]!, Type1.Skill]],
+  });
+  return new Weapon({
+    weaponType: WeaponType.Sword, tier: Tier.Standard, name: `Laser Shearer${rank}`,
+    stats: [[Stat.BaseAtk, 587.5], [Stat.Er, 38.88], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
+    grants: [{ on: hitInterfered, buff: SIGNAL_CATCHER_BUFF }],
+  });
 });
 
-export const HARMONIOUS_VIBRANCY = new Buff({
-  name: "Bloodpact's Pledge R5: Harmonious Vibrancy",
-  applyStats: () => addStat(Stat.DmgBonus, 26, Type1.Skill),
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(HARMONIOUS_VIBRANCY); },
+/** Bloodpact's Pledge: Harmonious Vibrancy. +38.88% ER flat. Providing healing pays the wielder
+ *  +26% Resonance Skill DMG Bonus (at R5) for 6s — that half works for anyone, so it lives here.
+ *  The other half names Rover: Aero's own Unbound Flow outright, so its trigger lives in their kit
+ *  file instead (rover_aero.ts's own updateBuffs(), gated on holding this weapon): importing those
+ *  two actions here would make weapons/standard.ts and resonators/aero/rover_aero.ts a cycle, and
+ *  whichever loaded second would read the other's exports before they were initialized. */
+export const BLOODPACTS_PLEDGE = refinements((r, rank) => {
+  const HARMONIOUS_VIBRANCY = new Buff({
+    name: `Bloodpact's Pledge: Harmonious Vibrancy${rank}`,
+    stats: [[Stat.DmgBonus, [10, 14, 18, 22, 26][r]!, Type1.Skill]], until: "outro",
+  });
+  return new Weapon({
+    weaponType: WeaponType.Sword, tier: Tier.Free, name: `Bloodpact's Pledge${rank}`,
+    stats: [[Stat.BaseAtk, 587.5], [Stat.Er, 38.88]],
+    grants: [{ on: onApplied(HEALS), buff: HARMONIOUS_VIBRANCY }],
+  });
 });
 
-/** The Unbound Flow half: 26% team Aero Amplification for 30s, so permanent uptime, and only on
- *  the resonators actually on the field. Applied by Rover: Aero themselves — see the weapon's own
+/** The Unbound Flow half, one buff per refinement in step with `BLOODPACTS_PLEDGE`: 26% team Aero
+ *  Amplification at R5 for 30s, so permanent uptime, and only on the resonators actually on the
+ *  field. Applied by Rover: Aero themselves off whichever rank they hold — see the weapon's own
  *  comment above for why the trigger lives there rather than here. */
-export const BLOODPACT_AERO_AMP = new Buff({
-  name: "Bloodpact's Pledge R5: Harmonious Vibrancy",
-  applyStats: () => { if (isActive()) addStat(Stat.Amp, 26, Attribute.Aero) },
-});
+export const BLOODPACT_AERO_AMP: Buff[] = [10, 14, 18, 22, 26].map((amp, r) => new Buff({
+  name: `Bloodpact's Pledge: Harmonious Vibrancy R${r + 1}`,
+  stats: [[Stat.Amp, amp, Attribute.Aero]], when: isActive,
+}));
 
-/** Boson Astrolabe, R1: Path Observer, +12% ATK flat. Any team member's Tune Break cast grants the
+/** Boson Astrolabe: Path Observer, +12% ATK flat. Any team member's Tune Break cast grants the
  *  wielder +12% ATK and +12% Basic Attack DMG Bonus for 14s — watched from updateGlobal() so a
  *  break on a teammate's turn counts, landing on the wielder's own slot; a short self buff, lost
  *  after the wielder's outro. */
-export const NEW_STD_RECTIFIER = new Weapon({
-  weaponType: WeaponType.Rectifier,
-  tier: Tier.Standard,
-  name: "Boson Astrolabe",
-  constantStats: () => { addStat(Stat.BaseAtk, 525); addStat(Stat.Er, 38.88); addStat(Stat.BonusAtk, 12); },
-  updateGlobal: () => { if (casting(Cast.TuneBreak)) applyCurrent(PATH_OBSERVER_BUFF, 1); },
+export const NEW_STD_RECTIFIER = refinements((r, rank) => {
+  const PATH_OBSERVER_BUFF = new Buff({
+    name: `Boson Astrolabe: Path Observer${rank}`, until: "outro",
+    stats: [[Stat.BonusAtk, [12, 13.5, 15, 16.5, 18][r]!], [Stat.DmgBonus, [12, 13.5, 15, 16.5, 18][r]!, Type1.Basic]],
+  });
+  return new Weapon({
+    weaponType: WeaponType.Rectifier, tier: Tier.Standard, name: `Boson Astrolabe${rank}`,
+    stats: [[Stat.BaseAtk, 525], [Stat.Er, 38.88], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
+    updateGlobal: () => { if (casting(Cast.TuneBreak)) applyCurrent(PATH_OBSERVER_BUFF, 1); },
+  });
 });
 
-export const PATH_OBSERVER_BUFF = new Buff({
-  name: "Boson Astrolabe: Path Observer",
-  applyStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Type1.Basic); },
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(PATH_OBSERVER_BUFF); },
-});
-
-/** Phasic Homogenizer, R1: Insight Bearer, +12% ATK flat. Any team member's Tune Break cast grants
+/** Phasic Homogenizer: Insight Bearer, +12% ATK flat. Any team member's Tune Break cast grants
  *  the wielder +20% All-Attribute DMG Bonus for 14s — same shape as Boson Astrolabe above. */
-export const NEW_STD_PISTOL = new Weapon({
-  weaponType: WeaponType.Pistols,
-  tier: Tier.Standard,
-  name: "Phasic Homogenizer",
-  constantStats: () => { addStat(Stat.BaseAtk, 587.5); addStat(Stat.CritDmg, 48.6); addStat(Stat.BonusAtk, 12); },
-  updateGlobal: () => { if (casting(Cast.TuneBreak)) applyCurrent(INSIGHT_BEARER_BUFF, 1); },
-});
-
-export const INSIGHT_BEARER_BUFF = new Buff({
-  name: "Phasic Homogenizer: Insight Bearer",
-  applyStats: () => addStat(Stat.DmgBonus, 20),
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(INSIGHT_BEARER_BUFF); },
+export const NEW_STD_PISTOL = refinements((r, rank) => {
+  const INSIGHT_BEARER_BUFF = new Buff({
+    name: `Phasic Homogenizer: Insight Bearer${rank}`, until: "outro",
+    stats: [[Stat.DmgBonus, [20, 22.5, 25, 27.5, 30][r]!]],
+  });
+  return new Weapon({
+    weaponType: WeaponType.Pistols, tier: Tier.Standard, name: `Phasic Homogenizer${rank}`,
+    stats: [[Stat.BaseAtk, 587.5], [Stat.CritDmg, 48.6], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
+    updateGlobal: () => { if (casting(Cast.TuneBreak)) applyCurrent(INSIGHT_BEARER_BUFF, 1); },
+  });
 });

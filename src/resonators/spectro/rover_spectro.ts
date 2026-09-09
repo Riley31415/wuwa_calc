@@ -85,7 +85,7 @@ const SPR_INHERENT_1 = new Inherent({
 /** Silent Listener (Inherent Skill): +15% ATK for 5s off Heavy Attack Resonance. */
 const SILENT_LISTENER = new Buff({
   name: "Inherent: Silent Listener",
-  applyStats: () => addStat(Stat.BonusAtk, 15),
+  stats: [[Stat.BonusAtk, 15]],
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(SILENT_LISTENER); },
 });
 const SPR_INHERENT_2 = new Inherent({
@@ -96,7 +96,7 @@ const SPR_INHERENT_2 = new Inherent({
 /** S1 Odyssey of Beginnings: +15% Crit Rate for 7s off either Resonance Skill. Trigger in SPR_S1. */
 const S1_CRIT = new Buff({
   name: "Spectro Rover S1: Odyssey of Beginnings",
-  applyStats: () => addStat(Stat.CritRate, 15),
+  stats: [[Stat.CritRate, 15]],
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(S1_CRIT); },
 });
 
@@ -122,12 +122,12 @@ const SPR_S1 = new Sequence({
 
 const SPR_S2 = new Sequence({
   name: "Spectro Rover S2: Microcosmic Murmurs",
-  applyStats: () => addStat(Stat.DmgBonus, 20, Attribute.Spectro),
+  stats: [[Stat.DmgBonus, 20, Attribute.Spectro]],
 });
 
 const SPR_S3 = new Sequence({
   name: "Spectro Rover S3: Visages of Dust",
-  applyStats: () => addStat(Stat.Er, 20),
+  stats: [[Stat.Er, 20]],
 });
 
 // S4 Resonating Lamella: a heal over time off Liberation — out of scope, a no-op held for the name
@@ -135,7 +135,7 @@ const SPR_S4 = new Sequence({ name: "Spectro Rover S4: Resonating Lamella" });
 
 const SPR_S5 = new Sequence({
   name: "Spectro Rover S5: Temporal Virtuoso",
-  applyStats: () => addStat(Stat.DmgBonus, 40, Type1.Liberation),
+  stats: [[Stat.DmgBonus, 40, Type1.Liberation]],
 });
 
 // S6 Echoes of Wanderlust's own trigger — payout lives in S6_RES_SHRED above
@@ -149,8 +149,8 @@ const SPR_S6 = new Sequence({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from their kit
 const ROVER_SPECTRO_TALENTS = new Talent({
-  name: "Talents: Spectro Rover",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Spectro); },
+  name: "Spectro Rover: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.DmgBonus, 12, Attribute.Spectro]],
 });
 
 /** Them, as a Resonator: name/element/weapon, every grant/spend/queue rule their kit needs, and

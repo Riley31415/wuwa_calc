@@ -52,7 +52,7 @@ function roverAction(id: string, def: object): Action {
 }
 
 // --- basics (Deterrence) and Resonance Skill, all Electric Surge (forte1) generators
-const BA1 = roverAction("Basic - Deterrence 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 51.08, energy: 0.92, concerto: 3.31, offtune: 2936, forte1: 6.12 });
+const BA1 = roverAction("Basic - Deterrence 1", { node: Node.Normal, cutscene: true, cast: Cast.Basic, type: Type1.Basic, mv: 51.08, energy: 0.92, concerto: 3.31, offtune: 2936, forte1: 6.12 });
 const BA2 = roverAction("Basic - Deterrence 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 65.00, energy: 1.18, concerto: 4.22, offtune: 3737, forte1: 7.8 });
 const BA3 = roverAction("Basic - Deterrence 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 92.89, energy: 1.68, concerto: 6.02, offtune: 5341, forte1: 11.16 });
 const BA4 = roverAction("Basic - Deterrence 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 182.04, energy: 3.28, concerto: 11.78, offtune: 10465, forte1: 21.82 });
@@ -72,9 +72,9 @@ const OVERSHOCK = {
   node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 1412.58, energy: 15.15, concerto: 18.33, offtune: 54645, forte1: -120,
   updateDebuffs: () => inflictElectroFlare(10),
 };
-const Overshock = roverAction("Forte Skill - Overshock", {
+const Overshock = roverAction("Forte Skill - Overshock",{
   ...OVERSHOCK,
-  updateBuffs: () => applyTeam(OVERSHOCK_ATK, 1),
+  updateBuffs: () => applyTeam(OVERSHOCK_ATK, 1),  cutscene: true, 
 });
 // The hold pays 60 Concerto on top of the hit's own gain, and entering Apex restores Thunder Rage
 // to its 100 — a reset ahead of the declared +100, so it lands exactly full however much a
@@ -136,7 +136,7 @@ const APEX_RESONANCE = new Buff({
 /** Overshock, pressed: +10% ATK to the whole team for 20s — lost on his own next Intro. */
 const OVERSHOCK_ATK = new Buff({
   name: "Electro Rover: Overshock ATK",
-  applyStats: () => addStat(Stat.BonusAtk, 10),
+  stats: [[Stat.BonusAtk, 10]],
   convertStats: () => { if (casting(Cast.Intro) && isHeld(ROVER_ELECTRO_RESONATOR)) revokeTeam(OVERSHOCK_ATK); },
 });
 
@@ -148,7 +148,7 @@ const ER_INHERENT_1 = new Inherent({ name: "Inherent: Decipher" });
  *  ended by switching out. */
 const REGRESSION = new Buff({
   name: "Inherent: Regression",
-  applyStats: () => addStat(Stat.DmgBonus, 20, Type1.Skill),
+  stats: [[Stat.DmgBonus, 20, Type1.Skill]],
   updateBuffs: () => { lostOnSwap(); },
 });
 const ER_INHERENT_2 = new Inherent({
@@ -170,7 +170,7 @@ const ELECTRO_CORE = new Buff({
  *  so it starts on the action after the one that inflicted the Negative Status. */
 const ER_OUTRO = new Buff({
   name: "Electro Rover: Outro",
-  applyStats: () => addStat(Stat.Amp, 25),
+  stats: [[Stat.Amp, 25]],
   updateBuffs: () => { lostOnSwap(); },
 });
 
@@ -215,8 +215,8 @@ const ER_S6 = new Sequence({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from their kit
 const ROVER_ELECTRO_TALENTS = new Talent({
-  name: "Talents: Electro Rover",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
+  name: "Electro Rover: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
 });
 
 /** Them, as a Resonator: name/element/weapon, every grant/spend/queue rule their kit needs, and
@@ -285,13 +285,13 @@ const ER_ROTATION_MDPS = new Rotation([
 // (Tier.Free — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat
 export const ROVER_ELECTRO = new Loadout({
   resonator: ROVER_ELECTRO_RESONATOR,
-  weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, RED_SPRING, UNSPOKEN_RUE],
+  weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, RED_SPRING, UNSPOKEN_RUE],
   echoLoadouts: [
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
-    new EchoLoadout(STAY_TUNED, ELECTRIC_REFLECTION_5PC),
+    //new EchoLoadout(STAY_TUNED, ELECTRIC_REFLECTION_5PC),
     new EchoLoadout(SOUL_OF_DESPAIR, ELECTRIC_REFLECTION_5PC),
     new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC),
-    new EchoLoadout(SOUL_OF_DESPAIR, SWORN_VIGIL_5PC),
+    //new EchoLoadout(SOUL_OF_DESPAIR, SWORN_VIGIL_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
@@ -307,7 +307,7 @@ export const ROVER_ELECTRO = new Loadout({
 // Electro sets only — Moonlit Clouds is a support's set
 export const ROVER_ELECTRO_MDPS = new Loadout({
   resonator: ROVER_ELECTRO_RESONATOR,
-  weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, RED_SPRING, UNSPOKEN_RUE],
+  weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, RED_SPRING, UNSPOKEN_RUE],
   echoLoadouts: [
     new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC),
   ],

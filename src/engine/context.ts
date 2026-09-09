@@ -6,8 +6,9 @@
 import { Stat, EnemyStat, Attribute, WeaponType, Tier, Type1, Type2, Cast, Node, Scaling, scopedStat, tagBand, STAT_COUNT, TYPE2_BITS } from "./stats.js";
 import type { Tag, StatKey } from "./stats.js";
 import type { Rotation, Action, ActionGroup, ActionDef, ActionField } from "./rotation.js";
-import { ctx, dryLog, undoDry, noteMutation, recordApplied, recordConsumed, pendingQueue, tagWord, tagWordOf, RESOURCE_STATS } from "./runtime.js";
+import { ctx, dryLog, undoDry, noteMutation, recordApplied, recordConsumed, pendingQueue, tagWord, tagWordOf, RESOURCE_STATS, recordWrite, recordRead, applied as appliedRecord, consumed as consumedRecord } from "./runtime.js";
 import { Gear, Buff, Debuff, Resonator, Loadout, Matrix, Mainslot, Weapon } from "./gear.js";
+import type { Trigger } from "./gear.js";
 import { State, TeamMember, StatEntry, HeldBuff, ZERO_STATS, TYPE2_AMP_INDEX, TYPE2_CRIT_RATE_INDEX, TYPE2_CRIT_DMG_INDEX, BASIC_DMG_BONUS_INDEX } from "./state.js";
 
 /** The three pools a phase reads — the acting slot's own, then team-wide, then enemy — as the
@@ -85,6 +86,18 @@ export function typeOverride(type: Type1 | Type2): void {
   ctx.tagWord = tagWord(a.element, ctx.overrideType1 ?? a.type1, ctx.overrideType2 ?? a.type2);
 }
 
+/* ---------------------------------------------------------------------------------- triggers */
+
+/** The conditions a `Grant` fires on (gear.ts's `Trigger`) — the same questions the closures ask,
+ *  as values a def can hold. `onInflict` is "when *you* inflict" (`appliedByMe`), `onApplied` any
+ *  application this action; `either` ORs any of them. */
+export const onCast = (...casts: Cast[]): Trigger => () => casts.some((c) => casting(c));
+export const onType = (...types: (Type1 | Type2)[]): Trigger => () => types.some((t) => isType(t));
+export const onInflict = (...gears: Gear[]): Trigger => () => gears.some((g) => appliedByMe(g) > 0);
+export const onApplied = (...gears: Gear[]): Trigger => () => gears.some((g) => applied(g) > 0);
+export const either = (...triggers: Trigger[]): Trigger => () => triggers.some((t) => t());
+export const both = (...triggers: Trigger[]): Trigger => () => triggers.every((t) => t());
+
 /** Is the action being evaluated this damage type — its own `type` or `type2`, or whichever of
  *  the two a held Gear's `typeOverride` assigned for this evaluation, which stands in for that
  *  slot (a Basic hit assigned Liberation answers Liberation, not Basic). Kits ask this, never
@@ -110,7 +123,7 @@ export function isCast(action: Action, cast: Cast): boolean {
  *  `evaluate()`. This is what a piece of gear reacting to "inflicts Tune Strain - Shifting" /
  *  "inflicts Fusion Burst" / "gains a shield" reads (see statuses.ts) — the counts, not just a
  *  yes/no, so a two-shield cast still counts twice. */
-export function applied(gear: Gear): number { return ctx.appliedNow.get(gear) ?? 0; }
+export function applied(gear: Gear): number { return appliedRecord.get(gear); }
 
 /** Same as `applied()`, but only counting it when *the resonator whose turn it is* is what put it
  *  on — 0 when it landed on this action off somebody else's kit.
@@ -137,7 +150,7 @@ export function applied(gear: Gear): number { return ctx.appliedNow.get(gear) ??
  *  `appliedByMember()` below against `currentTeam().slot` for "did the acting slot land it".
  *
  *  Returns the acting slot's *own share*, not the action's whole count: when a marker inflicts
- *  alongside the actor (see `ctx.appliedBy`), the two are genuinely different numbers, and the share
+ *  alongside the actor (see runtime.ts's `GrantRecord`), the two are genuinely different numbers, and the share
  *  is the one a "when you inflict" passive means. Every caller today only asks whether it is
  *  nonzero. */
 export function appliedByMe(gear: Gear): number {
@@ -153,18 +166,18 @@ export function appliedByMe(gear: Gear): number {
  *  the acting slot (`currentTeam().slot`) instead of asking about itself. Hiyuki's Fine Snow, which
  *  banks one stack of Snow Rust per resonator who lands a Negative Status, is that case. */
 export function appliedByMember(gear: Gear, member: TeamMember): number {
-  return ctx.appliedBy.get(gear)?.get(member.name) ?? 0;
+  return appliedRecord.getBy(gear, member.index);
 }
 
 /** How many stacks of this Gear were *spent off the target* on the action being evaluated, by
  *  anyone — `applied()`'s counterpart, and the same per-action lifetime: cleared at the top of
  *  every `evaluate()`, so it answers "did this cast consume any" and nothing longer.
  *
- *  Only counts a spend a kit actually declared as one, through `consume()` (see `ctx.consumedNow`).
+ *  Only counts a spend a kit actually declared as one, through `consume()` (see runtime.ts's `consumed`).
  *  Note when in the action a consumption is visible: a cast that spends its stacks in `afterAction`
  *  — the usual place, so the cast itself still reads the full count — is invisible to any reader
  *  earlier in that same action, and a passive paying out for it wants `afterAction` too. */
-export function consumed(gear: Gear): number { return ctx.consumedNow.get(gear) ?? 0; }
+export function consumed(gear: Gear): number { return consumedRecord.get(gear); }
 
 /** Same as `consumed()`, but only the share the member whose turn it is spent themselves. This is
  *  what a "when *you* consume X" passive means — Suisui's Ceaseless Landscape paying the resonator
@@ -177,7 +190,7 @@ export function consumedByMe(gear: Gear): number {
 
 /** The same question about a *specific* member rather than whoever is current. */
 export function consumedByMember(gear: Gear, member: TeamMember): number {
-  return ctx.consumedBy.get(gear)?.get(member.name) ?? 0;
+  return consumedRecord.getBy(gear, member.index);
 }
 
 /** How many stacks of *anything* were consumed on this action, across every Gear and member — for
@@ -187,7 +200,8 @@ export function consumedByMember(gear: Gear, member: TeamMember): number {
  *  instead. */
 export function consumedAny(): number {
   let total = 0;
-  for (const n of ctx.consumedNow.values()) total += n;
+  const { gears, length } = consumedRecord.list();
+  for (let i = 0; i < length; i++) total += consumedRecord.get(gears[i]!);
   return total;
 }
 
@@ -211,6 +225,13 @@ export function frozenStacks(): number {
  *  terse as before, but the report can still trace every value back to what granted it and colour
  *  it by that kit. Falls back to whoever's actually acting only if this Gear was somehow never
  *  attributed (shouldn't happen — every grant path calls `attribute()`). */
+/** One addition into `effective`, journaled while the applyStats phase is being recorded. */
+function write(effective: number[], index: number, value: number): void {
+  effective[index] = effective[index]! + value;
+  ctx.wrote++;
+  if (ctx.recording) recordWrite(index, value);
+}
+
 function pushStat(stat: Stat | EnemyStat, tag: Tag | undefined, value: number): void {
   const slot = ctx.slot!;
 
@@ -219,20 +240,18 @@ function pushStat(stat: Stat | EnemyStat, tag: Tag | undefined, value: number): 
   // tag itself. Folding that test in here is what lets `get()` and the snapshot's own `stat()`
   // be a single read rather than a re-sum over every scope.
   if (tag === undefined || (ctx.tagWord & tagBand(tag)) === tag) {
-    slot.effective[stat] = slot.effective[stat]! + value;
+    write(slot.effective, stat, value);
     // ...and again into the Negative-Status-scoped subtotal, if that's what this is (see
     // TYPE2_AMP_INDEX). Only reached by an amplification that carried a scope at all, so it
     // costs nothing on the ordinary path.
     if (tag !== undefined && (tag & TYPE2_BITS) !== 0) {
-      if (stat === Stat.Amp) slot.effective[TYPE2_AMP_INDEX] = slot.effective[TYPE2_AMP_INDEX]! + value;
+      if (stat === Stat.Amp) write(slot.effective, TYPE2_AMP_INDEX, value);
       // ...and the Negative-Status-scoped crit the same way — all a dot/tune row crits off
-      else if (stat === Stat.CritRate) slot.effective[TYPE2_CRIT_RATE_INDEX] = slot.effective[TYPE2_CRIT_RATE_INDEX]! + value;
-      else if (stat === Stat.CritDmg) slot.effective[TYPE2_CRIT_DMG_INDEX] = slot.effective[TYPE2_CRIT_DMG_INDEX]! + value;
+      else if (stat === Stat.CritRate) write(slot.effective, TYPE2_CRIT_RATE_INDEX, value);
+      else if (stat === Stat.CritDmg) write(slot.effective, TYPE2_CRIT_DMG_INDEX, value);
     }
     // ...and the Basic-scoped part of DMG Bonus into its own (see BASIC_DMG_BONUS_INDEX)
-    if (stat === Stat.DmgBonus && tag === Type1.Basic) {
-      slot.effective[BASIC_DMG_BONUS_INDEX] = slot.effective[BASIC_DMG_BONUS_INDEX]! + value;
-    }
+    if (stat === Stat.DmgBonus && tag === Type1.Basic) write(slot.effective, BASIC_DMG_BONUS_INDEX, value);
   }
 
   if (!ctx.tracing) return;
@@ -328,13 +347,14 @@ export function menuStats(gear: Gear[]): StatEntry[] {
 /** Running total for the action being evaluated, including any scoped variant matching it — one
  *  lookup, since `pushStat()` already folded every matching scope in as it was written. */
 export function getStat(stat: Stat): number {
+  if (ctx.recording) recordRead(stat);
   return ctx.slot!.effective[stat]!;
 }
 export function pct(stat: Stat): number { return getStat(stat) / 100; }
 /** The Basic Attack DMG Bonus alone — every `addStat(Stat.DmgBonus, n, Type1.Basic)` this action
  *  counted, and nothing plain or element-scoped. The one scoped subtotal kept outside tracing
  *  (see state.ts's own BASIC_DMG_BONUS_INDEX); 0 on an action the scope didn't match. */
-export function basicDmgBonus(): number { return ctx.slot!.effective[BASIC_DMG_BONUS_INDEX]!; }
+export function basicDmgBonus(): number { if (ctx.recording) recordRead(BASIC_DMG_BONUS_INDEX); return ctx.slot!.effective[BASIC_DMG_BONUS_INDEX]!; }
 
 // local — the acting resonator's own held Gear. Read-only, so these still take any Gear
 // (checking whether a Mainslot/Resonator is equipped is legitimate); only the stack-modifying
@@ -444,6 +464,17 @@ export function revokeCurrent(buff: Buff): void { ctx.slot!.revoke(buff); }
  *  the engine; nothing inside a kit needs it, since a hook already knows which gear it belongs to. */
 export function currentGear(): Gear { return ctx.buff!; }
 
+/** Run `fn` with its stats sourced to `gear` rather than to the Gear whose hook is running — for
+ *  a value a status contributes on another Gear's behalf, where the source that reads is the one
+ *  the number came off (a Negative Status ladder's own rung, "Electro Flare - 13 Stacks", rather
+ *  than the status entry itself; see status.ts). Only the attribution moves: what `fn` grants,
+ *  spends and reads is the caller's as it always was. */
+export function asSource<T>(gear: Gear, fn: () => T): T {
+  const prev = ctx.buff;
+  ctx.buff = gear;
+  try { return fn(); } finally { ctx.buff = prev; }
+}
+
 // team-wide — one shared copy, ticks on every slot's own turn regardless of who's acting
 export function stacksOfTeam(gear: Gear): number { return ctx.state!.stacksOfGlobal(gear); }
 export function applyTeam(buff: Buff, n = 1): number {
@@ -463,7 +494,7 @@ export function applyEnemy(debuff: Debuff, n = 1): number {
 }
 export function removeStackEnemy(debuff: Debuff, n = 1): number { return ctx.state!.removeStackEnemy(debuff, n); }
 /** Spend stacks off the target *and say so*: `removeStackEnemy()` plus the record `consumed()` /
- *  `consumedByMe()` read (see `ctx.consumedNow`). Any kit whose text is "consumes N stacks of X" should
+ *  `consumedByMe()` read (see runtime.ts's `consumed`). Any kit whose text is "consumes N stacks of X" should
  *  reach for this rather than the plain remove, so a teammate's "when you consume" passive can see
  *  it — nothing else in the engine ever notices a stack leaving the target.
  *

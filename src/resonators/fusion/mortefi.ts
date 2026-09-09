@@ -154,14 +154,14 @@ const MO_INHERENT_2 = new Inherent({ name: "Inherent: Rhythmic Vibrato" });
  *  lost-on-swap wording, checked via lostOnSwap() rather than the usual convertStats(). */
 const MORTEFI_OUTRO = new Buff({
   name: "Mortefi: Outro",
-  applyStats: () => addStat(Stat.Amp, 38, Type1.Heavy),
+  stats: [[Stat.Amp, 38, Type1.Heavy]],
   updateBuffs: () => { lostOnSwap(); },
 });
 
 /** S6 Apoplectic Instrumental: team-wide +20% ATK, 20s — lost on the applier's own next Intro. */
 const S6_TEAM_ATK = new Buff({
   name: "Mortefi S6: Apoplectic Instrumental",
-  applyStats: () => addStat(Stat.BonusAtk, 20),
+  stats: [[Stat.BonusAtk, 20]],
   convertStats: () => { if (casting(Cast.Intro) && isHeld(MORTEFI_RESONATOR)) revokeTeam(S6_TEAM_ATK); },
 });
 
@@ -180,7 +180,7 @@ const MORTEFI_S2 = new Sequence({
  *  both the base window and S5's own burst below). */
 const MORTEFI_S3 = new Sequence({
   name: "Mortefi S3: Flaming Recitativo",
-  applyStats: () => addStat(Stat.CritDmg, 30, Type2.Coordinated),
+  stats: [[Stat.CritDmg, 30, Type2.Coordinated]],
 });
 
 /** S4 Cathartic Waltz: extends Burning Rhapsody 10s -> 17s — 20 more 0.35s coordinated-attack
@@ -210,8 +210,8 @@ const MORTEFI_S6 = new Sequence({
 // stat-tree bonus alone, spread across four skill nodes (Fusion DMG + ATK), same +12%/+12% shape
 // as every other resonator's own
 const MORTEFI_TALENTS = new Talent({
-  name: "Talents: Mortefi",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Fusion); },
+  name: "Mortefi: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.DmgBonus, 12, Attribute.Fusion]],
 });
 
 /** Him, as a Resonator: name/element/weapon, every grant/spend/queue rule his kit needs, and his
@@ -240,11 +240,12 @@ const MORTEFI_RESONATOR = new Resonator({
  *  Annoyance, Fury Fugue while the window's still open (S5's own real trigger), Outro. */
 
 const BA1234 = new ActionGroup("Basic - Impromptu Show 1234", [BA1, BA2, BA3, BA4]);
+const BA123 = new ActionGroup("Basic - Impromptu Show 123", [BA1, BA2, BA3]);
 
 const MO_ROTATION = new Rotation([
   INTRO, Skill,
-  BA1234, // TODO swap this
   BA1234,
+  BA123,
   FSkill,
   Liberation,
   ECHO_SWAP, OUTRO,

@@ -20,7 +20,7 @@
  * own MV/energy/concerto/offtune/forte1 delta ported from the migrated (old-engine) sheet.
  */
 import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   applyCurrent,
   currentAction,
@@ -30,6 +30,9 @@ import {
   frozenStacks,
   queueOutro,
   applyTeam,
+  isHeld,
+  queue,
+  stacksOfTeam,
 } from "../../engine/context.js";
 import { coordinatedBuff, lostOnSwap, matrix } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_2, SWAP, ActionField, NOINTRO, ECHO_SWAP, START_3 } from "../../engine/rotation.js";
@@ -76,13 +79,24 @@ const FSkill3 = zhezhiAction("Forte Skill - Creation's Zenith", {
 // opens the Inklit Spirit window, no damage of its own — the window itself is INKLIT_SPIRITS below
 const Liberation = zhezhiAction("Liberation - Living Canvas", {
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, concerto: 20, resetEnergy: true,
-  updateBuffs: () => applyTeam(INKLIT_SPIRITS, 21),
+  updateBuffs: () => applyTeam(INKLIT_SPIRITS, isHeld(ZZ_S2) ? 27 : 21),
 });
 const INKLIT_FIELD = new ActionField("Zhezhi: Inklit Spirits");
 /** One Inklit Spirit — a real Coordinated Attack, summoned one per qualifying action by
  *  INKLIT_SPIRITS below, always on her own slot however far the field has moved on. */
 const ACTION_INKLIT = zhezhiAction("Liberation - Inklit Spirit", {
   node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 65.21, offtune: 4572, field: INKLIT_FIELD,
+});
+
+/** S5's extra spirit: 140% of one Inklit Spirit, its own row on the kit page (91.30%, and no
+ *  off-tune of its own) — Basic Attack DMG, and it never summons a spirit of its own. */
+const ACTION_INKLIT_S5 = zhezhiAction("Liberation - Inklit Spirit (S5)", {
+  node: Node.Liberation, type: Type1.Basic, type2: Type2.Coordinated, mv: 91.30, field: INKLIT_FIELD,
+});
+/** S6's extra Herald: 120% of Stroke of Genius, likewise its own row (357.86%, no energy, concerto
+ *  or off-tune) — Basic Attack DMG, summoned rather than cast. */
+const ACTION_HERALD_S6 = zhezhiAction("Skill - Ivory Herald (S6)", {
+  node: Node.Forte, type: Type1.Basic, mv: 357.86,
 });
 
 const Intro = zhezhiAction("Intro - Radiant Ruin", {
@@ -96,14 +110,15 @@ const Outro = zhezhiAction("Outro - Carve and Draw", {
 /* ------------------------------------------------------------------------------------ buffs */
 
 /** The Inklit Spirit window: Living Canvas banks 21 team-wide, one spirit summoned per qualifying
- *  action — "the active Resonator deals DMG", once a second, read as once an action. */
-const INKLIT_SPIRITS = coordinatedBuff("Zhezhi: Inklit Spirits", 21, () => ZHEZHI_RESONATOR, ACTION_INKLIT);
+ *  action — "the active Resonator deals DMG", once a second, read as once an action. Declared at
+ *  S2's own 27, the ceiling that node raises it to; the Liberation grants the count it actually has. */
+const INKLIT_SPIRITS = coordinatedBuff("Zhezhi: Inklit Spirits", 27, () => ZHEZHI_RESONATOR, ACTION_INKLIT);
 
 /** Calligrapher's Touch (Inherent Skill): +6% ATK a stack, up to 3, on Stroke of Genius or
  *  Creation's Zenith — 27s, permanent uptime once granted. */
 const CALLIGRAPHERS_TOUCH = new Buff({
   name: "Inherent: Calligrapher's Touch", maxStacks: 3,
-  applyStats: () => addStat(Stat.BonusAtk, 6 * frozenStacks()),
+  stats: [[Stat.BonusAtk, 6]], perStack: true,
 });
 const ZZ_INHERENT_1 = new Inherent({
   name: "Inherent: Calligrapher's Touch",
@@ -114,7 +129,7 @@ const ZZ_INHERENT_1 = new Inherent({
  *  Stroke of Genius. */
 const IVORY_HERALD = new Buff({
   name: "Zhezhi: Ivory Herald",
-  applyStats: () => addStat(Stat.DmgBonus, 18, Type1.Basic),
+  stats: [[Stat.DmgBonus, 18, Type1.Basic]],
 });
 
 /** The window her outro hands the incoming resonator. */
@@ -148,12 +163,17 @@ const ZZ_INHERENT_2 = new Inherent({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const ZHEZHI_TALENTS = new Talent({
-  name: "Talents: Zhezhi",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  name: "Zhezhi: Talents",
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
+});
+
+const ZHEZHI_MATRIX = matrix("Zhezhi", 20, {
+  updateBuffs: () => { if (casting(Cast.Liberation)) applyTeam(ZHEZHI_MATRIX_TEAM); },
 });
 
 const ZHEZHI_RESONATOR = new Resonator({
   name: "Zhezhi",
+  matrix: ZHEZHI_MATRIX,
   talent: ZHEZHI_TALENTS,
   inherent1: ZZ_INHERENT_1,
   inherent2: ZZ_INHERENT_2,
@@ -189,6 +209,69 @@ const ZZ_ROTATION = new Rotation([
   OUTRO,
 ]);
 
+/* --------------------------------------------------------------------------------- sequences */
+
+/** S1: Creation's Zenith restores 15 Energy and grants +10% Crit. Rate for 27s — permanent uptime
+ *  once the loop's own Zenith lands. */
+const BRUSHWORKS_FINISH = new Buff({
+  name: "Zhezhi S1: Brushwork's Finish",
+  stats: [[Stat.CritRate, 10]],
+});
+const ZZ_S1 = new Sequence({
+  name: "Zhezhi S1: Brushwork's Finish",
+  applyStats: () => { if (currentAction() === FSkill3) addStat(Stat.AddEnergy, 15); },
+  updateBuffs: () => { if (currentAction() === FSkill3) applyCurrent(BRUSHWORKS_FINISH, 1); },
+});
+
+/** S2: six more Inklit Spirits off Living Canvas — read off this node by the Liberation itself,
+ *  which is what grants the window. */
+const ZZ_S2 = new Sequence({ name: "Zhezhi S2: Vivid Strokes" });
+
+/** S3: +15% ATK a stack, up to 3, off Manifestation/Stroke of Genius/Creation's Zenith — 27s, so
+ *  permanent uptime, and the loop casts four of them. */
+const REFLECTIONS_GRACE = new Buff({
+  name: "Zhezhi S3: Reflection's Grace", maxStacks: 3,
+  stats: [[Stat.BonusAtk, 15]], perStack: true,
+});
+const ZZ_S3 = new Sequence({
+  name: "Zhezhi S3: Reflection's Grace",
+  updateBuffs: () => {
+    const a = currentAction();
+    if (a === Skill || a === FSkill || a === FSkill3) applyCurrent(REFLECTIONS_GRACE, 1);
+  },
+});
+
+/** S4: +20% team ATK off Living Canvas for 30s — permanent uptime. */
+const HUES_SPECTRUM = new Buff({
+  name: "Zhezhi S4: Hue's Spectrum",
+  stats: [[Stat.BonusAtk, 20]],
+});
+const ZZ_S4 = new Sequence({
+  name: "Zhezhi S4: Hue's Spectrum",
+  updateBuffs: () => { if (currentAction() === Liberation) applyTeam(HUES_SPECTRUM, 1); },
+});
+
+/** S5: one extra spirit every third one summoned. The window's stacks are that count — it runs
+ *  down one a spirit, and both counts it starts from are multiples of three — and the spirit
+ *  itself lands on her slot, so this node is read off it directly. */
+const ZZ_S5 = new Sequence({
+  name: "Zhezhi S5: Composition's Clue",
+  updateBuffs: () => {
+    if (currentAction() === ACTION_INKLIT && stacksOfTeam(INKLIT_SPIRITS) % 3 === 0) queue(ACTION_INKLIT_S5);
+  },
+});
+
+/** S6: an extra Ivory Herald off either forte Skill. */
+const ZZ_S6 = new Sequence({
+  name: "Zhezhi S6: Infinite Legacy",
+  updateBuffs: () => {
+    const a = currentAction();
+    if (a === FSkill || a === FSkill3) queue(ACTION_HERALD_S6);
+  },
+});
+
+const ZZ_SEQUENCES = [ZZ_S1, ZZ_S2, ZZ_S3, ZZ_S4, ZZ_S5, ZZ_S6];
+
 /* ----------------------------------------------------------------------------------- loadout */
 
 // her real 43311 build: resonator + talents + both Inherent Skills, viable weapons, and two real
@@ -197,15 +280,11 @@ const ZZ_ROTATION = new Rotation([
 /** Matrix: her Liberation grants the team +30% Resonance Skill DMG Bonus for 30s — permanent. */
 const ZHEZHI_MATRIX_TEAM = new Buff({
   name: "Zhezhi: Matrix Buff",
-  applyStats: () => addStat(Stat.DmgBonus, 30, Type1.Skill),
-});
-const ZHEZHI_MATRIX = matrix("Zhezhi", 20, {
-  updateBuffs: () => { if (casting(Cast.Liberation)) applyTeam(ZHEZHI_MATRIX_TEAM); },
+  stats: [[Stat.DmgBonus, 30, Type1.Skill]],
 });
 
 export const ZHEZHI = new Loadout({
   resonator: ZHEZHI_RESONATOR,
-  matrix: ZHEZHI_MATRIX,
   weapons: [RIME_DRAPED_SPROUTS, COSMIC_RIPPLES, VARIATION, NEW_STD_RECTIFIER, STRINGMASTER, LETHEAN_ELEGY, WHISPERS_OF_SIRENS],
   echoLoadouts: [
     new EchoLoadout(NM_LAMPY, EMPYREAN_ANTHEM_5PC),
@@ -214,5 +293,6 @@ export const ZHEZHI = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.Basic, Substat.Er, Substat.FlatAtk),
-    rotation: ZZ_ROTATION,
+  rotation: ZZ_ROTATION,
+  sequences: ZZ_SEQUENCES,
 });

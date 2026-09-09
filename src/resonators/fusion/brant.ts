@@ -153,20 +153,20 @@ const MY_MOMENT = new Buff({
 /** The outro handoff. */
 const BRANT_OUTRO = new Buff({
   name: "Brant: Outro",
-  applyStats: () => { addStat(Stat.Amp, 20, Attribute.Fusion); addStat(Stat.Amp, 25, Type1.Skill); },
+  stats: [[Stat.Amp, 20, Attribute.Fusion], [Stat.Amp, 25, Type1.Skill]],
     updateBuffs: () => { lostOnSwap(); },
 });
 
 /** Trial by Fire and Tide (Inherent Skill) — genuinely unconditional, always equipped. */
 const BR_TRIAL_INHERENT = new Inherent({
   name: "Inherent: Trial by Fire and Tide",
-  constantStats: () => addStat(Stat.DmgBonus, 15, Attribute.Fusion),
+  stats: [[Stat.DmgBonus, 15, Attribute.Fusion]],
 });
 
 /** Voyager's Blaze (Inherent Skill) — genuinely unconditional, always equipped. */
 const BR_VOYAGE_INHERENT = new Inherent({
   name: "Inherent: Voyager's Blaze",
-  constantStats: () => addStat(Stat.HealingBonus, 20),
+  stats: [[Stat.HealingBonus, 20]],
 });
 
 /* --------------------------------------------------------------------------- resonance chain */
@@ -175,7 +175,7 @@ const BR_VOYAGE_INHERENT = new Inherent({
  *  re-ups on each Flip through the chain, so it stands until the outro. */
 const BY_CURRENTS = new Buff({
   name: "Brant S1: By Currents and Winds", maxStacks: 3,
-  applyStats: () => addStat(Stat.DmgBonus, 20 * frozenStacks()),
+  stats: [[Stat.DmgBonus, 20]], perStack: true,
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(BY_CURRENTS); },
 });
 const BR_S1 = new Sequence({
@@ -221,7 +221,7 @@ const BR_S4 = new Sequence({
  *  stands until the outro. */
 const ACTORS_STAGE = new Buff({
   name: "Brant S5: All the World's an Actor's Stage",
-  applyStats: () => addStat(Stat.DmgBonus, 15, Type1.Basic),
+  stats: [[Stat.DmgBonus, 15, Type1.Basic]],
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(ACTORS_STAGE); },
 });
 const BR_S5 = new Sequence({
@@ -241,12 +241,13 @@ const BR_S6 = new Sequence({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
 const BRANT_TALENTS = new Talent({
-  name: "Talents: Brant",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  name: "Brant: Talents",
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
 });
 
 const BRANT_RESONATOR = new Resonator({
   name: "Brant",
+  matrix: matrix("Brant", 25),
   talent: BRANT_TALENTS,
   inherent1: BR_TRIAL_INHERENT,
   inherent2: BR_VOYAGE_INHERENT,
@@ -277,9 +278,8 @@ const BR_ROTATION = new Rotation([
 // sonata pieces, mainstat/substat
 export const BRANT = new Loadout({
   resonator: BRANT_RESONATOR,
-  matrix: matrix("Brant", 25),
   sequences: [BR_S1, BR_S2, BR_S3, BR_S4, BR_S5, BR_S6],
-  weapons: [UNFLICKERING_VALOR, EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE],
+  weapons: [UNFLICKERING_VALOR, EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE[4]!], // the craftable at its real R5
   echoLoadouts: [
     new EchoLoadout(DRAGON_OF_DIRGE, TIDEBREAKING_5PC),
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
@@ -301,9 +301,8 @@ const BR_ROTATION_MDPS = new Rotation([
 // sonata pieces, mainstat/substat
 export const BRANT_MDPS = new Loadout({
   resonator: BRANT_RESONATOR,
-  matrix: matrix("Brant", 25),
   sequences: [BR_S1, BR_S2, BR_S3, BR_S4, BR_S5, BR_S6],
-  weapons: [UNFLICKERING_VALOR, EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE],
+  weapons: [UNFLICKERING_VALOR, EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE[4]!], // the craftable at its real R5
   echoLoadouts: [
     new EchoLoadout(DRAGON_OF_DIRGE, TIDEBREAKING_5PC),
   ],

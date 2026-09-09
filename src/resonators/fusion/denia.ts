@@ -92,7 +92,7 @@ function deniaAction(id: string, def: object): Action {
 const BA1 = deniaAction("Basic - Stagecraft Form 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 32.69, energy: 0.69, concerto: 1.37, offtune: 2192, forte1: 4 });
 const BA2 = deniaAction("Basic - Stagecraft Form 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 60.36, energy: 1.28, concerto: 2.54, offtune: 4048, forte1: 8 });
 const BA3 = deniaAction("Basic - Stagecraft Form 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 76.47, energy: 1.62, concerto: 3.21, offtune: 5130, forte1: 9 });
-const BA4 = deniaAction("Basic - Stagecraft Form 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 128, energy: 0.69, concerto: 5.37, offtune: 8584, forte1: 30 });
+const BA4 = deniaAction("Basic - Stagecraft Form 4", { cutscene: true,node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 128, energy: 0.69, concerto: 5.37, offtune: 8584, forte1: 30 });
 const HA = deniaAction("Heavy - Stagecraft Form", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 161.52, energy: 3.40, concerto: 6.78, offtune: 10832, forte1: 20 });
 const MA = deniaAction("Mid-air - Stagecraft Form", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 73.97, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: 10 });
 const DC = deniaAction("Dodge Counter - Stagecraft Form 3", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 148.05, energy: 3.12, concerto: 16.21, offtune: 5130, forte1: 18 });
@@ -120,10 +120,10 @@ const UMDC = deniaAction("Dodge Counter - Breakdown Form 3 (Mid-Air)", { node: N
 // --- Resonance Skill: Phantom Bubble in Stagecraft (its 24.4 Concerto is what makes her loop),
 //     Beckon in Breakdown, or Banish in its place while a Dark Core is held. Stage 2 spends every
 //     core for +150% of its base multiplier apiece (see BANISH_CORES) and is Liberation DMG.
-const Skill = deniaAction("Skill - Phantom Bubble", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 104.51, energy: 0.22, concerto: 24.40, offtune: 7008, forte1: 25 });
-const Beckon = deniaAction("Skill - Beckon", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 103.70, energy: 2.21, concerto: 4.36, offtune: 6956, forte2: 13 });
-const Banish1 = deniaAction("Skill - Banish 1", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 104.04, energy: 2.19, concerto: 4.38, offtune: 6978 });
-const Banish2 = deniaAction("Skill - Banish 2", { node: Node.Skill, cast: Cast.Skill, type: Type1.Liberation, mv: 112.01, energy: 2.35, concerto: 14.70, offtune: 7512, forte2: 40 });
+const Skill = deniaAction("Skill - Phantom Bubble", { cutscene: true,node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 104.51, energy: 0.22, concerto: 24.40, offtune: 7008, forte1: 25 });
+const Beckon = deniaAction("Skill - Beckon", { cutscene: true,node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 103.70, energy: 2.21, concerto: 4.36, offtune: 6956, forte2: 13 });
+const Banish1 = deniaAction("Skill - Banish 1", { cutscene: true,node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 104.04, energy: 2.19, concerto: 4.38, offtune: 6978 });
+const Banish2 = deniaAction("Skill - Banish 2", { cutscene: true,node: Node.Skill, cast: Cast.Skill, type: Type1.Liberation, mv: 112.01, energy: 2.35, concerto: 14.70, offtune: 7512, forte2: 40 });
 
 // --- Final Act. Stagecraft spends the Energy bar (125); Breakdown spends the full Conformal
 //     Charge and every Void Particle instead (zeroed in DENIA_RESONATOR's update — "all", not a fixed
@@ -198,7 +198,7 @@ const inflictsOne = (a: Action): boolean => a === BA3 || a === BA4 || a === UBA3
  *  (statuses.ts), so nothing here has to fire its damage.
  *  Strain also responds to Strain, and the team's first Shifting fills half the off-tune bar. */
 const MODE_BURST = new ResonanceMode({
-  name: "Resonance Mode - Fusion Burst", abbr: "Burst",
+  name: "Resonance Mode - Fusion Burst",
   updateDebuffs: () => {
     const a = currentAction();
     if (inflictsTwo(a)) applyEnemy(FUSION_BURST, 2);
@@ -206,7 +206,7 @@ const MODE_BURST = new ResonanceMode({
   },
 });
 const MODE_STRAIN = new ResonanceMode({
-  name: "Resonance Mode - Tune Strain", abbr: "Strain",
+  name: "Resonance Mode - Tune Strain",
 
   // Shattered Hours: "while Denia is in the team", whichever mode
   combatStart: () => {
@@ -280,7 +280,7 @@ const ENTROPY_STAGECRAFT = new Buff({
  *  Denia holds — DN_INHERENT_2's own updateBuffs() picks. */
 const ETCHED_COLORS_BURST = new Buff({
   name: "Inherent: Etched Colors (burst)",
-  applyStats: () => addStat(Stat.DmgBonus, 30, Attribute.Fusion),
+  stats: [[Stat.DmgBonus, 30, Attribute.Fusion]],
 });
 
 /** +10 Tune Break Boost, plus 8 per 10% of each resonator's own Off-Tune Buildup Rate past 100%
@@ -320,7 +320,7 @@ const DARK_CORE = new Buff({
  *  which is what every Fusion Burst rung carries (status.ts), and the one amplification a dot reads. */
 const UNFINISHED_LIES_BURST = new Buff({
   name: "Denia: Outro (burst)",
-  applyStats: () => { addStat(Stat.Amp, 60, Type2.FusionBurst); },
+  stats: [[Stat.Amp, 60, Type2.FusionBurst]],
 });
 
 /** Unfinished Lies, Tune Strain mode: the incoming resonator's All DMG is amplified 15% for 16s —
@@ -347,8 +347,8 @@ const DN_INHERENT_1 = new Inherent({
 });
 
 const DENIA_TALENTS = new Talent({
-  name: "Talents: Denia",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
+  name: "Denia: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.CritDmg, 16]],
 });
 
 const DENIA_RESONATOR = new Resonator({

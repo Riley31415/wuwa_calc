@@ -201,12 +201,14 @@ body {
    .top's padding */
 .summary-label {
   margin: 22px 0 8px;
-  font-size: 10px;
-  font-weight: 650;
-  text-transform: uppercase;
-  letter-spacing: .7px;
+  font-size: 12px;
+  font-weight: 500;
   color: var(--dim);
 }
+/* the count's own aside, pushed to the far end of the heading's line: a sentence rather than a
+   label, so it drops the uppercase the heading wears and reads a size up */
+.summary-label:has(.hint) { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.summary-label .hint { text-align: right; }
 
 /* -------------------------------------------------------------- rotation tables */
 
@@ -255,7 +257,8 @@ body {
 }
 /* the name column to its longest name and the five figure columns each to their own widest
    figure — the table is as wide as its contents, not the page */
-.rtable.dpr, .rtable.energy { grid-template-columns: max-content repeat(5, max-content); width: max-content; }
+.rtable.dpr { grid-template-columns: max-content repeat(5, max-content); width: max-content; }
+.rtable.energy { grid-template-columns: max-content repeat(6, max-content); width: max-content; }
 
 .rtrow { display: contents; }
 /* the heading's own band is drawn by the cells, the rows themselves being box-less; no rule
@@ -350,7 +353,6 @@ main {
 .tclayout.stack .tcfilter-row.note { display: grid; grid-template-columns: 360px 1fr; gap: 10px; align-items: start; }
 .tclayout.stack .tcsearchrow { grid-column: 2; grid-row: 1 / span 4; width: auto; }
 .tclayout.stack .tcfilter-row.note > .tcopt { grid-column: 1; }
-.tcfilters > .tcwarning { order: 2; }
 /* One box per axis: the name left, a labelled checkbox per role hard right, and the description
    opening under both (index.js's own `comparisonFilters()`). They share a basis so the boxes line
    up column-wise, and cap out rather than stretching to a screen's width on a wide window. */
@@ -379,11 +381,11 @@ main {
   border: 0;
   background: none;
   font: inherit;
-  color: var(--dim);
+  color: var(--ink);
   text-align: left;
   cursor: pointer;
 }
-.tcopt-name:hover { color: var(--ink); }
+.tcopt-name:hover { color: var(--accent); }
 /* a role's own checkbox with its name at its left, the pair sitting hard right of the axis name */
 .tcopt-role { display: flex; align-items: center; gap: 5px; color: var(--dim); cursor: pointer; white-space: nowrap; }
 .tcopt-role:hover { color: var(--ink); }
@@ -399,7 +401,7 @@ main {
   margin-top: 7px;
   padding-top: 7px;
   border-top: 1px solid var(--line);
-  color: var(--faint);
+  color: var(--dim);
   line-height: 1.5;
 }
 .tcopt-desc[hidden] { display: none; }
@@ -428,19 +430,24 @@ main {
   width: 100%;
   padding: 6px 10px;
   border: 1px solid var(--line-2);
-  background: var(--surface-3);
+  border-radius: var(--r);
+  background: var(--surface);
   color: var(--ink);
   font-family: var(--sans);
   font-size: 12px;
 }
-.tcsearch input:focus { outline: none; border-color: var(--accent); }
+/* the same mark a walked-to suggestion wears (`.sresult.sel`): a 1px accent ring on the pixel
+   outside the box, with nothing else about the box changing */
+.tcsearch input:focus { outline: 1px solid var(--accent); outline-offset: 0; }
 /* Absolute, so nothing below moves as it opens and closes — and nothing is under the input to
    drop onto, the chips standing beside the bar rather than under it (`.tcsearchrow`).
    Over the pinned table header (z-index 40) rather than under it, same as the column popover. */
 .tcsearch-results {
   position: absolute;
   top: 100%;
-  margin-top: 6px;
+  /* flush under the box's own border, not over it: the border stays whole and the list starts on
+     the first pixel after it */
+  margin-top: 0;
   left: 0;
   right: 0;
   z-index: 41;
@@ -463,9 +470,9 @@ main {
   align-items: center;
   justify-content: space-between;
   gap: 0;
+  position: relative;
   padding: 0;
   border: 0;
-  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--mem, transparent) 70%, transparent);
   background: color-mix(in srgb, var(--mem, transparent) 14%, var(--surface-3));
   font-family: var(--sans);
   font-size: 12px;
@@ -473,43 +480,45 @@ main {
   color: var(--ink);
   cursor: pointer;
 }
-/* no wash on the row itself: the half under the pointer is what lights up (`.sact:hover` below) */
-/* The row is two click targets split by a rule, each the row's full height: the include side is
-   the name, which axis the match is from dimmed after it, and "show" hard right; the hide side
-   is just "hide". */
-.sresult .sact { display: flex; align-items: center; align-self: stretch; padding: 5px 10px; color: var(--ink); }
-.sresult .sact.inc { flex: 1; justify-content: space-between; gap: 12px; min-width: 0; }
-/* the rule between the two: the labels' own grey a touch heavier, and shorter than the row so it
-   reads as a divider between the labels rather than a second box */
-.sresult .sact.exc { position: relative; flex: none; }
-.sresult .sact.exc::before {
+/* the 2px marker a name cell wears, flush into the row's own corner so the two colours meet with
+   nothing between them. Over the halves, which paint their hover background at static level. */
+.sresult::before {
   content: "";
   position: absolute;
-  left: 0;
-  top: 25%;
-  height: 50%;
-  width: 1.5px;
-  background: var(--dim);
+  inset: 0 auto 0 0;
+  z-index: 1;
+  width: 2px;
+  background: color-mix(in srgb, var(--mem, transparent) 70%, transparent);
 }
+/* no wash on the row itself: the half under the pointer is what lights up (`.sact:hover` below).
+   The one Tab has walked to is outlined instead — the same mark focus used to leave on it, so the
+   list's own colours stay as they read untouched. */
+/* drawn on the pixel outside the row, not over its first one: the marker keeps the whole of its
+   own corner and the ring goes round the outside of everything */
+.sresult.sel { outline: 1px solid var(--accent); outline-offset: 0; }
+/* The row is one click target: the name, which axis the match is from dimmed after it, and "add"
+   hard right. */
+.sresult .sact { display: flex; align-items: center; align-self: stretch; padding: 5px 10px; color: var(--ink); }
+.sresult .sact.inc { flex: 1; justify-content: space-between; gap: 12px; min-width: 0; }
 .sresult .sact:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); }
 .sresult .sname { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .sresult .skind { color: var(--dim); font-size: 11px; }
-.sresult .slabel { display: flex; align-items: center; gap: 4px; color: var(--dim); white-space: nowrap; }
-.sresult .sact:hover .slabel { color: var(--ink); }
 .sresult.none { padding: 5px 10px; color: var(--dim); cursor: default; }
 
 
-/* The row-cap warning (index.js's own `rowCapWarning()`), shown in place — no re-render — when a
-   checkbox is refused for pushing the table past `ROW_CAP`. Same signal red as a chip's own "✕"
-   (see `.rchip.exc .box` below): this is a refusal, not a theme colour. */
-.tcwarning {
+/* The row-cap refusal (table.js's own `rowCapWarning()`), popped at the pointer like a menu when a
+   change is refused for pushing the table past `ROW_CAP`. Same signal red as a chip's own "✕"
+   (see `.rchip.exc .box` below): this is a refusal, not a theme colour. Its width is capped so a
+   sentence wraps rather than running off a narrow screen — `placeInView` does the rest. */
+.ctxmenu.rowcap {
+  max-width: min(320px, calc(100vw - 12px));
   padding: 8px 12px;
   border: 1px solid color-mix(in srgb, #ff5f56 45%, var(--line-2));
   background: color-mix(in srgb, #ff5f56 12%, var(--surface-3));
   color: var(--ink);
   font-size: 12px;
+  line-height: 1.45;
 }
-.tcwarning[hidden] { display: none; }
 
 /* One chip per resonator filter, filling the line to the right of the search bar (index.js's own
    resonatorChips()).
@@ -554,9 +563,6 @@ main {
   color: var(--ink);
   cursor: pointer;
 }
-/* a filter's own (mdps)/(support) tag (index.ts's own `roleTagLabel()`), dimmed rather than part
-   of the name: it says which of a resonator's roles the filter is on */
-.roletag { color: var(--dim); font-weight: 400; }
 .rchip:hover {
   border-color: color-mix(in srgb, var(--mem, transparent) 80%, var(--faint));
   background: color-mix(in srgb, var(--mem, transparent) 24%, var(--surface-3));
@@ -673,17 +679,17 @@ main {
   background: color-mix(in srgb, var(--mem, transparent) 10%, var(--surface));
 }
 .trow .c.option:not(:empty) { cursor: pointer; }
+/* the level and rank read inside the name cell (index.ts's own `memberLabel`), so no cell of
+   their own */
 .trow:not(.thead):hover .c.option { background: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface)); }
 
-/* The per-slot Personal/Compare columns, opened by clicking a Slot heading (index.ts's own
-   `dprOpenAt`): the same member wash as that position's option cells, so a member's columns read
+/* The per-slot Personal/Compare columns, shown wherever that position compares anything (table.ts's
+   own `dprAt`): the same member wash as that position's option cells, so a member's columns read
    as one block. */
 .trow .c.slotdpr, .trow .c.slotcompare { background: color-mix(in srgb, var(--mem, transparent) 10%, var(--surface)); color: var(--mem, var(--ink)); }
 .trow:not(.thead):hover .c.slotdpr, .trow:not(.thead):hover .c.slotcompare { background: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface)); }
-.trow.thead .c.slothead, .trow.thead .c.huehead { cursor: pointer; }
-.trow.thead .c.slothead:hover, .trow.thead .c.huehead:hover { color: var(--ink); }
-/* the marker keeps its own colour rather than the heading's uppercase grey (see `.arrow` below) */
-.trow.thead .c.slothead .arrow { text-transform: none; letter-spacing: 0; font-size: 13px; }
+.trow.thead .c.huehead { cursor: pointer; }
+.trow.thead .c.huehead:hover { color: var(--ink); }
 
 /* The `% of Baseline` column: one continuous hue ramp, written per row as `--hue` by
    `rankVisible()` — red at the strongest team, green at the baseline, purple at the weakest.
@@ -730,20 +736,17 @@ main {
    same marker, so both places that open something read the same. Its own marker points down
    while the column is shut and swings right once it is open, so the heading says which way the
    next click goes. */
-.gotodetail .arrow, .slothead .arrow, .tcopt-name .arrow {
+.gotodetail .arrow, .tcopt-name .arrow {
   display: inline-block;
   margin-left: 4px;
   color: var(--faint);
   transition: color .12s, transform .12s;
 }
 .gotodetail:hover .arrow { color: var(--accent); transform: translateX(2px); }
-.slothead:hover .arrow { color: var(--accent); }
 .tcopt-name:hover .arrow { color: var(--accent); }
 /* the ordinary disclosure reading: pointing right at a shut box, swung down once it is open */
 .tcopt-name .arrow { transform: none; }
 .tcopt.open .tcopt-name .arrow { transform: rotate(90deg); }
-.slothead .arrow { transform: rotate(90deg); }
-.slothead.open .arrow { transform: none; }
 
 /* the gear popover's own two-column shell reuses .pop/table/.k/.v wholesale (see below) — no
    extra rules needed beyond a touch more breathing room since its rows run longer than a stat
@@ -925,7 +928,18 @@ body.coldrag { user-select: none; }
   position: relative;
   content-visibility: auto;
   contain-intrinsic-size: auto 28px;
+  /* Each step paints its own wash (the same `--m` its row reads, see rotationTable) and starts
+     1px up inside the step before it, cells and all. At a fractional zoom the rows land on
+     subpixel edges, and an edge blended against whatever lay behind — the near-black page, or a
+     wash a shade off the cell's own — came out as a dark hairline between rows, a notch in the
+     member column's colour bar at every row; overlapping, the later row's cells cover the boundary
+     pixel outright. A step's paint containment (content-visibility) clips anything a *cell* could
+     reach up with, so the step's own box is the one thing that can overlap. */
+  background: color-mix(in srgb, var(--m, transparent) 4%, var(--surface));
+  margin-top: -1px;
 }
+/* ...but not over the heading, nor over the 1px loop bar (`.loopline`), which it would cover */
+.step:first-child, .loopline + .step { margin-top: 0; }
 /* The rule between rows is drawn by the cells rather than across the whole step, so that the
    member column can sit it out: as one line over the full width it cut that column's colour bar
    into a dash per row. Transparent rather than absent there, so the cells all keep the same
@@ -1331,10 +1345,13 @@ main.stack { padding: 0 12px 420px; }
 /* a phone: one box per line, full width, and less of the page given over to margin */
 @media (max-width: 560px) {
   main { padding: 0 12px 420px; }
-  /* no room for two columns: one, the search bar first, every box the full width (`flex: none`,
-     since down a column the 360px basis above would be a *height*) */
+  /* no room for two columns: one, every box the full width (`flex: none`, since down a column the
+     360px basis above would be a *height*), and the search bar with its chips last of all — under
+     Enable Matrix Buffs, where the thumb is, rather than at the top of a column of boxes nobody
+     scrolled past yet. Its own DOM order is already last, so nothing has to be ordered here; up
+     top it also lost the first pixel of its focus ring to `main`'s own clip. */
   .tclayout.stack .tcfilter-row.note { display: flex; flex-direction: column; }
-  .tclayout.stack .tcsearchrow { order: -1; width: 100%; }
+  .tclayout.stack .tcsearchrow { width: 100%; }
   .tclayout.stack .tcopt { flex: none; width: 100%; }
   .tcopt { flex: 1 1 100%; }
   .tcsearch { max-width: none; }

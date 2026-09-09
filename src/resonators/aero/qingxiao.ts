@@ -230,8 +230,8 @@ const QX_INHERENT_2 = new Inherent({
 });
 
 const QINGXIAO_TALENTS = new Talent({
-  name: "Talents: Qingxiao",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
+  name: "Qingxiao: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.CritDmg, 16]],
 });
 
 const QINGXIAO_RESONATOR = new Resonator({

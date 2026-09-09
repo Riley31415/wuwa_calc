@@ -11,7 +11,7 @@
 - a cast that drains a gauge whole ("depletes all", "consumes the whole bar") declares the cap as its negative delta (`forte1: -200`) and clamps the gauge to that cap in its own `updateBuffs` (`if (forte1() > 200) setForte1(200)`) so the delta lands exactly at 0 — never `setForteN(0)`
 - forte/concerto/energy a kit lists elsewhere for a cast go directly on that action
 - an inherent that applies only to specific actions = a buff added and removed on just those actions
-- flat, unconditional equipment stats go in `constantStats`; anything conditional stays in `applyStats`
+- flat, unconditional equipment stats go in `stats: [[Stat.X, n, tag?], ...]` (a Buff's `stats` pay while held; `perStack`, `when`, `until: "outro" | "swap" | "afterSwap"`); a trigger that grants a buff is `grants: [{ on: onCast(...) | onType(...) | onInflict(...) | onApplied(...), buff, stacks?, to?: "team" | "enemy" | "next" }]`; anything the form doesn't fit stays a closure (`applyStats`, `updateBuffs`, ...)
 - a loadout's `weapons` list its best signature first and its best standard weapon second — with the weapons box closed the solver runs only that one
 
 # wording of buffs
@@ -20,6 +20,7 @@
 - "all active resonators" = no stat on inactive actions; "all nearby resonators" = applies even when inactive
 - "all attribute dmg bonus/amp" = plain dmg bonus/amp, no tag
 - a team buff scaled by the applier's own stats: assume the maximum threshold is met
+- "when X enters combat, ... (cooldowns reset / gauge restored). This effect can be triggered once every Ns" = a start-of-combat effect (`combatStart`), fired once — never again on a loop or an intro; ignore the cooldown
 
 # naming actions
 - an action with a cast is `<Cast> - <name>`: Basic, Mid-air, Heavy, Skill, Liberation, Intro, Outro, Echo, Dodge Counter, Tune Break (the `CAST_NAME` words); the prefix follows `cast`, not `type` (`Dodge Counter - Moonbow` even though it deals Liberation DMG)

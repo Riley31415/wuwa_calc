@@ -209,7 +209,7 @@ const VOID_TIDE = new Buff({
 /** Rippling Waters' own 25% All DMG Amplification — 30s, so permanent once granted. */
 const RIPPLING_WATERS = new Buff({
   name: "Suisui: Outro",
-  applyStats: () => addStat(Stat.Amp, 25),
+  stats: [[Stat.Amp, 25]],
 });
 
 /** Reflecting Shadows: 6s to the whole team off every Plume Step, and what the 400-Epistle tier
@@ -266,20 +266,25 @@ const TRANSCENDENT_DANCE = new Buff({
  *  the ATK with it — and because the panel then reads as one line that says which of the two it is.
  *
  *  Its trigger names no particular status — any Negative Status or Electro Rage stack — so it reads
- *  `consumedAny()`, and from `afterAction`, the phase a kit spends its stacks in (see the Havoc
- *  branch above). Held locally, so that phase only ever runs on its own holder's turn and the only
- *  member who could have spent anything is them. `applyStats` reads the count frozen before that,
- *  so the cast that does the consuming is not itself paid — the ATK starts on the next one. */
+ *  `consumedAny()`. Held locally, so it only ever runs on its own holder's turn and the only member
+ *  who could have spent anything is them.
+ *
+ *  Watched twice, because a kit declares its spend in whichever phase suits it. `updateBuffs` is
+ *  the last phase before the count `applyStats` reads is frozen, so a cast that spends there
+ *  (Hiyuki's Frostbind, on the Iai that does the spending) is paid for its own hits; `afterAction`,
+ *  the usual place, is past that freeze, so those casts start being paid from the next one. */
+function mistEarned(): boolean {
+  // S1 widens the trigger to inflicting any Negative Status, or dealing its damage
+  const me = currentTeam().slot;
+  return consumedAny() > 0
+    || (stacksOfTeam(MOUNTAINS_WASHED) > 0 && (inflictedNegativeStatusBy(me) || NEGATIVE_STATUS_TAGS.some(isType)));
+}
 const UNDULATING_MIST = new Buff({
   name: "Suisui: Undulating Mist", maxStacks: 2,
   display: () => `Suisui: Undulating Mist${frozenStacks() >= 2 ? " (consumed)" : ""}`,
-  updateBuffs: () => lostOnSwap(),
+  updateBuffs: () => { lostOnSwap(); if (mistEarned()) applyCurrent(UNDULATING_MIST, 1); },
   applyStats: () => { if (frozenStacks() >= 2) addStat(Stat.BonusAtk, 50); },
-  // S1 widens the trigger to inflicting any Negative Status, or dealing its damage
-  afterAction: () => {
-    const me = currentTeam().slot;
-    if (consumedAny() || (stacksOfTeam(MOUNTAINS_WASHED) && (inflictedNegativeStatusBy(me) || NEGATIVE_STATUS_TAGS.some(isType)))) applyCurrent(UNDULATING_MIST, 1);
-  },
+  afterAction: () => { if (mistEarned()) applyCurrent(UNDULATING_MIST, 1); },
 });
 
 /* --------------------------------------------------------------------------------- sequences */
@@ -304,7 +309,7 @@ const SS_S1 = new Sequence({
  *  binds against a boss standing in it. */
 const CLOUDS_POUR = new Buff({
   name: "Suisui S2: Clouds Pour Like Molten Gold",
-  applyStats: () => addStat(Stat.CritDmg, 50),
+  stats: [[Stat.CritDmg, 50]],
 });
 /** S2's watcher, in the team pool so every member's own turn is seen: inside Ceaseless Landscape,
  *  the acting member inflicting one of the five tagged statuses or dealing its damage (the
@@ -377,7 +382,7 @@ const SS_INHERENT_1 = new Inherent({
 const SS_INHERENT_2 = new Inherent({ name: "Inherent: Glimmering Gold" });
 
 const SUISUI_TALENTS = new Talent({
-  name: "Talents: Suisui",
+  name: "Suisui: Talents",
   constantStats: () => {
     addStat(Stat.BonusHp, 12);
     addStat(Stat.HealingBonus, 12); // stat-tree Healing Bonus+ nodes — unused by the formula

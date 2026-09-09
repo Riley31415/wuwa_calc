@@ -227,8 +227,8 @@ const SHIELDS = new Map<Action, number>([
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
 const JINGRAN_TALENTS = new Talent({
-  name: "Talents: Jingran",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusHp, 12); }
+  name: "Jingran: Talents",
+  stats: [[Stat.CritRate, 8], [Stat.BonusHp, 12]],
 });
 
 const JINGRAN_RESONATOR = new Resonator({

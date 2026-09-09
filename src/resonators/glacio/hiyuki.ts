@@ -79,7 +79,7 @@ import {
   isActive,
 } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, DODGE, NOINTRO, JUMP } from "../../engine/rotation.js";
 import { GLACIO_CHAFE, GLACIO_CHAFE_ACTIONS, HAVOC_BANE } from "../../shared/status.js";
 import { FROSTBURN } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
@@ -108,11 +108,15 @@ function hiyukiAction(id: string, def: object): Action {
 const CHAFE = { updateDebuffs: () => applyEnemy(GLACIO_CHAFE, 1) };
 /** Inward Vision and the Iai both spend 10 Glacio Bite stacks to Frostbind the target, if it has
  *  them. Purely a lockdown — no damage, and under Bite the rung is the cap rather than the count,
- *  so spending them costs nothing either. In `afterAction`, the last phase of the cast: statuses.ts
- *  has by then already queued the exact ladder rung each stack calculates at, so taking ten back
- *  can't retroactively change what this cast's own hits are worth. */
+ *  so spending them costs nothing either.
+ *
+ *  In `updateBuffs`, which is after the conversion below has both taken this cast's Chafe stacks
+ *  and queued the cap rung each of them calculates at (`updateGlobal`), so taking ten back can't
+ *  change what these hits are worth — and still before the buff counts `applyStats` pays over are
+ *  frozen, so a "when you consume" payout can reach the very cast that consumed. That is what buys
+ *  Suisui's Undulating Mist its ATK on the first Iai rather than the second. */
 const FROSTBIND = {
-  afterAction: () => { if (stacksOfEnemy(GLACIO_BITE) >= 10) consume(GLACIO_BITE, 10); },
+  updateBuffs: () => { if (stacksOfEnemy(GLACIO_BITE) >= 10) consume(GLACIO_BITE, 10); },
 };
 
 // --- Present Self: the chain she opens from, and the only ordinary Basic Attack DMG she has.
@@ -169,8 +173,9 @@ const Lib1 = hiyukiAction("Liberation - Foreclaiming: Inward Vision", {
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 397.62, concerto: 20, offtune: 84000,
   forte2: 50, resetForte1: true, resetForte2: true,
   updateDebuffs: () => applyEnemy(GLACIO_CHAFE, 4),
-  updateBuffs: () => applyCurrent(FROSTHARDEN_IAI, 3),
-  ...FROSTBIND,
+  // its own three points, then Frostbind's spend — the same phase, so spread by hand rather than
+  // through `...FROSTBIND`
+  updateBuffs: () => { applyCurrent(FROSTHARDEN_IAI, 3); FROSTBIND.updateBuffs(); },
 });
 /** Held rather than tapped (see the file header), so it spends whatever Snowforged Blade is
  *  banked, at +795.24% on its own multiplier apiece. */
@@ -343,8 +348,8 @@ const HY_INHERENT_2 = new Inherent({
 });
 
 const HIYUKI_TALENTS = new Talent({
-  name: "Talents: Hiyuki",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
+  name: "Hiyuki: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
 });
 
 export const HIYUKI_RESONATOR = new Resonator({
@@ -420,12 +425,17 @@ export const HIYUKI_RESONATOR = new Resonator({
  *  Snowforged Blade and ends the form, leaving her back in Present Self for the next Intro. She is
  *  always the team's main DPS, so this covers the loop and there is no opener chain to write. */
 const FBA23 = new ActionGroup("Basic - Foreclaimed Self 23", [FBA2, FBA3]);
+const BA123 = new ActionGroup("Basic - Present Self 123", [BA1, BA2, BA3]);
 
 const HY_ROTATION = new Rotation([
+  NOINTRO, BA123, Skill,
+
   INTRO, BA3, FrostSplinter, Lib1,
   UHA, FBA23,
-  UHA, FBA23,
-  USkill1, USkill2, DODGE, Iai, Iai, Iai, ECHO_CANCEL,
+  UHA, FBA23, DODGE, Iai, 
+  JUMP, USkill2, DODGE, Iai, 
+  JUMP, USkill2, DODGE, Iai,
+  ECHO_CANCEL,
   FHA, Lib2Hold, OUTRO,
 ]);
 

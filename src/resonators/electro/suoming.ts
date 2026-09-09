@@ -181,7 +181,7 @@ const DEEP_MIND = new Buff({ name: "Suoming: Deep Mind" });
 const RAIN_SOAKED_COVENANT = new Buff({
   name: "Suoming: Rain-Soaked Covenant",
   updateBuffs: () => lostOnSwap(),
-  applyStats: () => addStat(Stat.DmgBonus, 50, Attribute.Electro),
+  stats: [[Stat.DmgBonus, 50, Attribute.Electro]],
 });
 const RAIN_SOAKED_INHERENT = new Inherent({
   name: "Inherent: Rain-Soaked Covenant",
@@ -255,14 +255,14 @@ const BREAKING_THUNDER_HANDOFF = new Buff({
 /** S2: +40% Crit. DMG, and her Outro carries the handoff above on top of Canopy Rumble. */
 const SM_S2 = new Sequence({
   name: "Suoming S2: Breaking Thunder, Slaying Evil",
-  constantStats: () => addStat(Stat.CritDmg, 40),
+  stats: [[Stat.CritDmg, 40]],
   updateBuffs: () => { if (casting(Cast.Outro)) queueOutro(BREAKING_THUNDER_HANDOFF); },
 });
 
 /** S3's own: +30% Basic Attack DMG Amplification off a Liberation, 25s — permanent. */
 const LONE_CANOPY = new Buff({
   name: "Suoming S3: Lone Canopy, Solitary Road",
-  applyStats: () => addStat(Stat.Amp, 30, Type1.Basic),
+  stats: [[Stat.Amp, 30, Type1.Basic]],
 });
 /** S3: Flash Rift and Thunder Rending — the Intros that are no response — grant the team's Unison
  *  Boon too, once every 25s. The kit's own clause makes it the one grant she has: a stack she has
@@ -279,7 +279,7 @@ const SM_S3 = new Sequence({
 
 const SM_S4 = new Sequence({
   name: "Suoming S4: Covenant Borne Upon the Heart",
-  constantStats: () => addStat(Stat.BonusAtk, 20),
+  stats: [[Stat.BonusAtk, 20]],
 });
 
 const SM_S5 = new Sequence({
@@ -304,8 +304,8 @@ const SM_SEQUENCES = [SM_S1, SM_S2, SM_S3, SM_S4, SM_S5, SM_S6];
 /* --------------------------------------------------------------------------- kit and loadout */
 
 const SUOMING_TALENTS = new Talent({
-  name: "Talents: Suoming",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
+  name: "Suoming: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
 });
 
 const SUOMING_RESONATOR = new Resonator({
@@ -377,7 +377,7 @@ const SM_ROTATION_MDPS = new Rotation([
 const SM_ECHOES = [
   new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
   new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC),
-  new EchoLoadout(SOUL_OF_DESPAIR, SWORN_VIGIL_5PC),
+  //new EchoLoadout(SOUL_OF_DESPAIR, SWORN_VIGIL_5PC),
 ];
 
 export const SUOMING = new Loadout({

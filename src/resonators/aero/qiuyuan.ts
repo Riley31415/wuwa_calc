@@ -78,7 +78,7 @@ const FHA3 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Sacrifice", {
 
 const FLOWING_PANACEA = new Buff({
   name: "Qiuyuan: Flowing Panacea",
-  applyStats: () => addStat(Stat.BonusAtk, 10),
+  stats: [[Stat.BonusAtk, 10]],
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(FLOWING_PANACEA); },
 });
 
@@ -110,7 +110,7 @@ const SUNDERING_STRIKE_CD = new Buff({
 
 const QIUYUAN_OUTRO = new Buff({
   name: "Qiuyuan: Outro",
-  applyStats: () => addStat(Stat.Amp, 50, Type1.Echo),
+  stats: [[Stat.Amp, 50, Type1.Echo]],
   updateBuffs: () => { lostOnSwap(); },
 });
 
@@ -129,8 +129,8 @@ const QY_INHERENT_1 = new Inherent({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
 const QIUYUAN_TALENTS = new Talent({
-  name: "Talents: Qiuyuan",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  name: "Qiuyuan: Talents",
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
 });
 
 const QIUYUAN_RESONATOR = new Resonator({

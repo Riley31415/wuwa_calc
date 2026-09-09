@@ -5,14 +5,15 @@
 import { Stat, EnemyStat, Attribute, WeaponType, Tier, Type1, Type2, Cast, Node, Scaling, scopedStat, tagBand, STAT_COUNT, TYPE2_BITS } from "./stats.js";
 import type { Tag, StatKey } from "./stats.js";
 import type { Rotation, Action, ActionGroup, ActionDef, ActionField } from "./rotation.js";
-import { ctx, dryLog, undoDry, noteMutation, recordApplied, recordConsumed, pendingQueue, tagWord, tagWordOf, RESOURCE_STATS } from "./runtime.js";
+import { ctx, dryLog, undoDry, noteMutation, recordApplied, recordConsumed, pendingQueue, tagWord, tagWordOf, RESOURCE_STATS, replay, readAny, READ_APPLY, READ_CONVERT, READ_AFTER, applied as appliedRecord } from "./runtime.js";
 import { Gear, Buff, Debuff, Resonator, Loadout, Matrix, Mainslot, Weapon, PHASE_COUNT } from "./gear.js";
+import type { VariantAt } from "./state.js";
 import {
   State, TeamMember, StatEntry, HeldBuff, ZERO_STATS, TYPE2_AMP_INDEX, TYPE2_CRIT_RATE_INDEX, TYPE2_CRIT_DMG_INDEX, FightSnapshot, capEnergy,
   EMPTY_HELD, EMPTY_FORTE, EMPTY_FIELDS, enemyDef, enemyRes,
 } from "./state.js";
 import { addStat, getStat, withTeam, currentAction, menuStats, casting, isCast } from "./context.js";
-import { damage } from "./damage.js";
+import { damageAvgOf } from "./damage.js";
 
 export interface Snapshot {
   action: Action;
@@ -30,16 +31,13 @@ export interface Snapshot {
   enemyRes: number; enemyDef: number;
 }
 
-/** A snapshot with everything the old report/display layer also wants: the raw per-entry trace
- *  (`entries`), a `slot` alias for `member` (display.ts's own field name), and resource counters
- *  — always empty here, since this engine folds Energy/Concerto/Offtune into Stat's own space
- *  rather than tracking a running counter (see `AddEnergy` above); a column fed entirely by
- *  zeroes is dropped by `buildReport()` itself, so this degrades to "not shown" rather than
- *  lying with a fake number. `triggered` is set by `run()`, not here — only it knows whether an
- *  action came off the rotation list or was queued mid-fight. */
-export interface ResolvedSnapshot extends Snapshot {
+/** What one evaluated action leaves for the search and the report's own grouping: who cast
+ *  what, how the row folds, and its damage. All an untraced run builds; a traced one returns
+ *  the full `ResolvedSnapshot` below, which extends it. */
+export interface Result {
+  action: Action;
+  member: string;
   slot: string;
-  entries: StatEntry[];
   triggered: boolean;
   /** The ActionGroup this row was pressed as part of, and whether it is that group's last cast —
    *  stamped by `run()` as it expands a group, and read by nothing but the report, which folds a
@@ -69,6 +67,26 @@ export interface ResolvedSnapshot extends Snapshot {
    *  Dodge is triggered but not queued): it is exactly "spliced in behind something else", which
    *  is what the scheduler reads to keep an Intro's own follow-ups with it (rotation.ts). */
   queued: boolean;
+  /** This action's own average damage under each of the acting member's main-stat variants (see
+   *  `TeamMember.variants`), in their order — `null` on every action of a member without any, and
+   *  on every traced run. solver.ts sums these the way it sums the real `avg`. */
+  variantAvg: number[] | null;
+  /** This action's motion value and average damage, computed here so an untraced run never
+   *  builds the stat snapshot the report reads them back from (damage.ts's `mvPercent`/`damageAvg`
+   *  give the same numbers off a traced one). */
+  mv: number;
+  avg: number;
+}
+
+/** A snapshot with everything the old report/display layer also wants: the raw per-entry trace
+ *  (`entries`), a `slot` alias for `member` (display.ts's own field name), and resource counters
+ *  — always empty here, since this engine folds Energy/Concerto/Offtune into Stat's own space
+ *  rather than tracking a running counter (see `AddEnergy` above); a column fed entirely by
+ *  zeroes is dropped by `buildReport()` itself, so this degrades to "not shown" rather than
+ *  lying with a fake number. `triggered` is set by `run()`, not here — only it knows whether an
+ *  action came off the rotation list or was queued mid-fight. */
+export interface ResolvedSnapshot extends Result, Snapshot {
+  entries: StatEntry[];
   /** The damage type this action was actually evaluated as — its own `type`, unless a held Gear
    *  called `typeOverride()` on it (`action.type` off a snapshot is always the base type; this is
    *  the effective one, what `isType()` answered against). */
@@ -127,28 +145,24 @@ export interface ResolvedSnapshot extends Snapshot {
    *  files a field's whole run of summons under the cast that created it, and what starts a fresh
    *  row each time one is opened again (solver.ts's `collapseFields`). Report-only. */
   opensFields: ActionField[];
-  /** This action's own average damage under each of the acting member's main-stat variants (see
-   *  `TeamMember.variants`), in their order — `null` on every action of a member without any, and
-   *  on every traced run. solver.ts sums these the way it sums the real `avg`. */
-  variantAvg: number[] | null;
 }
 
 /** One rendered line in the report: this engine has no multi-hit chain concept (a queued
  *  follow-up is already its own top-level row — see `run()`), so every group is a single action,
  *  never collapsed. Kept only so display.ts's own `buildReport(lines: ChainGroup[])` — otherwise
  *  unmodified — still has something to consume. */
-export interface ChainGroup {
+export interface ChainGroup<S extends Result = ResolvedSnapshot> {
   id: string;
   isChain: boolean;
-  parts: { snap: ResolvedSnapshot; dmg: { avg: number } }[];
-  snap: ResolvedSnapshot;
+  parts: { snap: S; dmg: { avg: number } }[];
+  snap: S;
   mv: number;
   avg: number;
   /** The parts whose columns actually fold into this row — an ActionGroup's own casts, or every
    *  repeat of one triggered hit. The rest of `parts` are rows in their own right that merely
    *  resolved inside the span (a follow-up queued mid-group), and contribute nothing to the folded
    *  row's motion value, damage or resource totals. Empty on an ordinary single-action line. */
-  members?: ResolvedSnapshot[];
+  members?: S[];
   /** A follow-up that fired *during* an ActionGroup, and so reads after it while the group is
    *  collapsed. Still a line of its own — its damage is its own and every total counts it here,
    *  once — but the report tucks it inside the group's own block so opening the group hides it and
@@ -175,7 +189,7 @@ export interface ChainGroup {
  *  The action itself is a Gear too, and its own hook for a phase runs first in that phase, ahead
  *  of every held Gear's (see `actionHook`) — so a cast's own effect is in place before anything
  *  reacting to it looks. */
-export function evaluate(state: State, action: Action, triggered = false, triggeredBy: HeldBuff | null = null): ResolvedSnapshot {
+export function evaluate(state: State, action: Action, triggered = false, triggeredBy: HeldBuff | null = null): Result {
   // always whoever is on field. A Negative Status's own damage used to be diverted onto a
   // resonator-less slot of its own, which meant no attacker's gear reached it and the one
   // amplification a dot row does read (`Type2`-scoped, see damage.ts) could only ever be granted
@@ -194,16 +208,16 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
   // every action starts on its own type; a held Gear reassigns it from updateDebuffs() below, and
   // `typeOverride()` rebuilds `ctx.tagWord` when one does
   ctx.overrideType1 = null; ctx.overrideType2 = null;
-  // a fresh map rather than a clear, same reasoning as `slot.effective` below
-  ctx.appliedNow = new Map();
-  ctx.appliedBy = new Map();
-  ctx.consumedNow = new Map();
-  ctx.consumedBy = new Map();
+  // what this action grants and spends is recorded under this stamp (see runtime.ts's `applied`)
+  ctx.actionStamp++;
   // Replaced rather than cleared/copied: the snapshot below keeps whichever array this action built,
   // so handing it a fresh one here is what makes that snapshot immutable at zero copying cost (the
   // old code cleared these and then cloned `totals` at the end, paying an O(entries) copy per
   // action for the same guarantee).
-  slot.effective = ZERO_STATS.slice();
+  // ...untraced, nothing keeps the array past this action, so it is cleared in place instead
+  if (ctx.tracing) slot.effective = ZERO_STATS.slice();
+  else slot.effective.fill(0);
+  ctx.wrote = 0;
   // What each gauge held coming into this action. The report needs it to tell a row that
   // moved a gauge from one that merely reports the same balance again, and it cannot be
   // inferred from the traced deltas: a kit that sets a gauge outright (`setForteN`) moves it
@@ -290,10 +304,16 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
   // this action's tag word lands in one pass — built by running them just once (see `constBase`).
   // ...and what the acting member's main-stat variants (if any) start from: everything the phases
   // so far contributed, before the real build's constant base goes in
-  const pre = !ctx.tracing && slot.variants.length !== 0 ? slot.effective.slice() : null;
+  // (all zeroes when the grant phases wrote no stat, the usual case — then `ZERO_STATS` itself,
+  // read-only, and the base below is copied in rather than added onto zeroes)
+  let pre: number[] | null = null;
+  if (!ctx.tracing && slot.variants.length !== 0) {
+    if (ctx.wrote === 0) pre = ZERO_STATS;
+    else { pre = slot.pre; for (let i = 0; i < pre.length; i++) pre[i] = slot.effective[i]!; }
+  }
   // ...and the fight as it stands going into them, for each variant to start from
   ctx.guarded = pre !== null;
-  const snapshots = pre !== null ? (state.snapshots ??= [new FightSnapshot(state), new FightSnapshot(state), new FightSnapshot(state)]) : null;
+  const snapshots = pre !== null ? (state.snapshots ??= [new FightSnapshot(state), new FightSnapshot(state), new FightSnapshot(state), new FightSnapshot(state)]) : null;
   if (snapshots !== null) snapshots[0].take(state);
   if (ctx.tracing) runPhase(6, true);
   else {
@@ -304,47 +324,83 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
     // happened.
     if (slot.constBaseVersion !== ctx.constVersion) {
       slot.constBase.clear();
-      for (const m of slot.variantBase) m.clear();
+      slot.variantAt.clear();
       slot.constBaseVersion = ctx.constVersion;
     }
     let base = slot.constBase.get(ctx.tagWord);
     if (base === undefined) slot.constBase.set(ctx.tagWord, base = constBaseOf(slot, null, null));
     const effective = slot.effective;
-    for (let i = 0; i < effective.length; i++) effective[i] = effective[i]! + base[i]!;
+    if (ctx.wrote === 0) for (let i = 0; i < effective.length; i++) effective[i] = base[i]!;
+    else for (let i = 0; i < effective.length; i++) effective[i] = effective[i]! + base[i]!;
   }
+  // The stat phases are journaled while variants are in play (see `replay`/`reads`): a variant
+  // whose main-stat piece moves no index a phase read would have run that phase's hooks down the
+  // very same path, so the journaled writes stand for it (bit-identical, same order) and nothing
+  // is re-run. Only a variant that moves an index a hook actually read runs the conversions again.
   ctx.mutHash = 0;
+  ctx.recording = pre !== null;
+  ctx.readStamp++;
+  ctx.readPhase = READ_APPLY;
+  replay.length = 0;
   actionHook(action.applyStatsFn);
   runPhase(2, true);
+  // the applyStats journal alone, and whether the phase moved anything, for a variant that must
+  // still re-run the conversions: a replayed applyStats can stand in only if it moved nothing,
+  // since its dry run starts from the fight as it stood before it
+  const replay2 = replay.length, applyMoved = ctx.mutHash !== 0;
+  // ...and the real build's row as applyStats left it, the same variant's own starting point
+  if (pre !== null) { const post2 = slot.post2; for (let i = 0; i < post2.length; i++) post2[i] = slot.effective[i]!; }
+  ctx.readPhase = READ_CONVERT;
   actionHook(action.convertStatsFn);
   runPhase(3, true);
   // ...and one phase later again, for a conversion that reads what another gear's convertStats()
   // just granted (see GearDef.lateConvertStats).
   actionHook(action.lateConvertStatsFn);
   runPhase(4, true);
+  ctx.recording = false;
 
-  // Each variant now: the same three phases again on the same captured roster, from the same
-  // starting point plus its own base, with the fight rolled back to what the real build left
-  // after each (`ctx.dryRun`/`restoreFight`) — so every hook reads exactly what it read in the real
-  // build, live reads included. A variant whose hooks would have granted/spent/queued anything
-  // different, or whose resource stats would bank differently, is marked unsafe: its fight would
-  // not have been this fight.
+  // A variant's row differs from the real build's only where its main-stat piece differs from the
+  // held one (`variantDiff`): it is the real build's row copied, with those indices recomputed
+  // from the same operands in the same order — the variant's own base, then the journaled writes
+  // to them. Pure through here, that happens after afterAction below, off the finished row. An
+  // impure variant runs the conversion phases again now, dry, on the same captured roster, with
+  // the fight rolled back to what the real build left after each (`ctx.dryRun`/`restoreFight`) —
+  // so every hook reads exactly what it read in the real build, live reads included. A variant
+  // whose hooks would have granted/spent/queued anything different, or whose resource stats would
+  // bank differently, is marked unsafe: its fight would not have been this fight.
   let variantEff: number[][] | null = null;
+  let variantAt: VariantAt | null = null;
+  let anyDry = false;
   if (pre !== null && snapshots !== null) {
+    variantEff = [];
     const primaryHash = ctx.mutHash, primaryEff = slot.effective;
     const [before, after] = snapshots;
-    after.take(state);
-    variantEff = [];
-    ctx.dryRun = true;
+    let at = slot.variantAt.get(ctx.tagWord);
+    if (at === undefined) {
+      const base = slot.constBase.get(ctx.tagWord)!;
+      at = { bases: [], diffs: [] };
+      for (let v = 0; v < slot.variants.length; v++) {
+        const vbase = constBaseOf(slot, slot.variantOf, slot.variants[v]!), diff: number[] = [];
+        for (let i = 0; i < vbase.length; i++) if (vbase[i] !== base[i]) diff.push(i);
+        at.bases.push(vbase); at.diffs.push(diff);
+      }
+      slot.variantAt.set(ctx.tagWord, at);
+    }
+    variantAt = at;
     for (let v = 0; v < slot.variants.length; v++) {
-      let vbase = slot.variantBase[v]!.get(ctx.tagWord);
-      if (vbase === undefined) slot.variantBase[v]!.set(ctx.tagWord, vbase = constBaseOf(slot, slot.variantOf, slot.variants[v]!));
-      const eff = pre.slice();
-      for (let i = 0; i < eff.length; i++) eff[i] = eff[i]! + vbase[i]!;
+      const eff = slot.variantEff[v] ??= ZERO_STATS.slice();
+      variantEff.push(eff);
+      const diff = at.diffs[v]!, vbase = at.bases[v]!;
+      slot.variantDry[v] = readAny(diff, READ_APPLY | READ_CONVERT);
+      if (!slot.variantDry[v]) continue;
+      if (!anyDry) { anyDry = true; after.take(state); ctx.dryRun = true; }
+      const replayable = !applyMoved && !readAny(diff, READ_APPLY);
+      if (replayable) sparseRow(diff, vbase, eff, slot.post2, pre, 0, replay2);
+      else for (let i = 0; i < eff.length; i++) eff[i] = pre[i]! + vbase[i]!;
       slot.effective = eff;
       before.restore(state);
       ctx.mutHash = 0;
-      actionHook(action.applyStatsFn);
-      runPhase(2, true);
+      if (!replayable) { actionHook(action.applyStatsFn); runPhase(2, true); }
       actionHook(action.convertStatsFn);
       runPhase(3, true);
       actionHook(action.lateConvertStatsFn);
@@ -352,13 +408,9 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
       let unsafe = ctx.mutHash !== primaryHash;
       for (const s of RESOURCE_STATS) if (eff[s] !== primaryEff[s]) unsafe = true;
       if (unsafe) slot.variantUnsafe[v] = true;
-      variantEff.push(eff);
     }
-    ctx.dryRun = false;
-    after.restore(state);
-    slot.effective = primaryEff;
+    if (anyDry) { ctx.dryRun = false; after.restore(state); slot.effective = primaryEff; }
   }
-
   // What belongs in the resonator popover is what's held once updateBuffs() has finished, before
   // applyStats()/convertStats() run. A buff that spends/revokes itself inside its own convertStats() (Jingran's
   // Fire of Life: does its one job, then removes itself the same action) still counts as having
@@ -411,7 +463,9 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
   // so every path counts (a team grant, a mark on the enemy, an outro handoff adopted at an Intro)
   let opensFields: ActionField[] = EMPTY_FIELDS;
   if (ctx.tracing) {
-    for (const [gear] of ctx.appliedNow) {
+    const { gears, length } = appliedRecord.list();
+    for (let i = 0; i < length; i++) {
+      const gear = gears[i]!;
       if (!gear.field) continue;
       if (opensFields === EMPTY_FIELDS) opensFields = [];
       opensFields.push(gear.field);
@@ -489,11 +543,9 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
   // spend the bar couldn't cover, and the row is flagged. A `resetForteN` cast (rotation.ts's own
   // ActionDef) empties the gauge ahead of its own delta.
   const forte = slot.forte, forteShort: [boolean, boolean, boolean, boolean, boolean] = [false, false, false, false, false];
-  const declared = [action.forte1, action.forte2, action.forte3, action.forte4, action.forte5];
-  const added = [Stat.AddForte1, Stat.AddForte2, Stat.AddForte3, Stat.AddForte4, Stat.AddForte5];
   for (let i = 0; i < 5; i++) {
     const cap = slot.resonator?.maxForte[i] ?? 0;
-    const delta = declared[i]! + effective[added[i]!]!;
+    const delta = action.forteDeltas[i]! + effective[ADD_FORTE[i]!]!;
     if (action.resetForte[i]) forte[i] = 0;
     if (cap > 0 && delta < 0 && forte[i]! > cap) forte[i] = cap;
     forte[i] = forte[i]! + delta;
@@ -506,53 +558,89 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
   //
   // The variants' own afterAction runs first, dry, so each sees the roster and gauges exactly as
   // the real build's is about to — and each variant's damage is read here, off its own totals.
+  const avgOf = (eff: number[]): number => {
+    const b = eff[Stat.BaseAtk]!, bh = eff[Stat.BaseHp]!, bd = eff[Stat.BaseDef]!;
+    return damageAvgOf(
+      action, eff,
+      b + eff[Stat.BonusAtk]! / 100 * b + eff[Stat.FlatAtk]!,
+      bh + eff[Stat.BonusHp]! / 100 * bh + eff[Stat.FlatHp]!,
+      bd + eff[Stat.BonusDef]! / 100 * bd + eff[Stat.FlatDef]!,
+      eff[Stat.Amp]!, eff[TYPE2_AMP_INDEX]!, eff[Stat.DmgBonus]!,
+      eff[TYPE2_CRIT_RATE_INDEX]!, eff[TYPE2_CRIT_DMG_INDEX]!,
+      enemyRes(), enemyDef(),
+    );
+  };
+  // The real build's afterAction runs first, journaled, from the banked fight. A variant still pure
+  // through it is the finished row with its own indices recomputed over the whole journal; any
+  // other re-runs afterAction dry from the banked fight, on the row as afterAction found it — one
+  // it already re-ran the conversions into, or the real build's with its indices recomputed — and
+  // the real build's own result is put back after.
   let variantAvg: number[] | null = null;
-  const variantHash: number[] = [];
   if (variantEff !== null && snapshots !== null) {
-    variantAvg = [];
-    const banked = snapshots[2];
+    const [, , banked, done] = snapshots;
+    const replay4 = replay.length;
+    const post4 = slot.post4;
+    for (let i = 0; i < post4.length; i++) post4[i] = effective[i]!;
     banked.take(state);
-    ctx.dryRun = true;
+    ctx.mutHash = 0;
+    ctx.recording = true;
+    ctx.readPhase = READ_AFTER;
+    actionHook(action.afterActionFn);
+    runPhase(5, false);
+    ctx.recording = false;
+    ctx.buff = null;
+    const primaryHash = ctx.mutHash;
+    variantAvg = [];
+    let anyDone = false;
     for (let v = 0; v < variantEff.length; v++) {
       const eff = variantEff[v]!;
-      slot.effective = eff;
-      ctx.mutHash = 0;
-      ctx.stacks = -1;
-      actionHook(action.afterActionFn);
-      runPhase(5, false);
-      variantHash.push(ctx.mutHash);
-      banked.restore(state);
-      const b = eff[Stat.BaseAtk]!, bh = eff[Stat.BaseHp]!, bd = eff[Stat.BaseDef]!;
-      variantAvg.push(damage({
-        action, stat: (k) => eff[k]!, stats: eff,
-        atk: b + eff[Stat.BonusAtk]! / 100 * b + eff[Stat.FlatAtk]!,
-        hp: bh + eff[Stat.BonusHp]! / 100 * bh + eff[Stat.FlatHp]!,
-        def: bd + eff[Stat.BonusDef]! / 100 * bd + eff[Stat.FlatDef]!,
-        amp: eff[Stat.Amp]!, type2Amp: eff[TYPE2_AMP_INDEX]!, dmgBonus: eff[Stat.DmgBonus]!,
-        type2CritRate: eff[TYPE2_CRIT_RATE_INDEX]!, type2CritDmg: eff[TYPE2_CRIT_DMG_INDEX]!,
-        enemyRes: enemyRes(), enemyDef: enemyDef(),
-      }).avg);
+      const diff = variantAt!.diffs[v]!, vbase = variantAt!.bases[v]!;
+      const dry = slot.variantDry[v]!;
+      if (!dry && !readAny(diff, READ_AFTER)) {
+        sparseRow(diff, vbase, eff, effective, pre!, 0, replay.length);
+        if (resourceMoved(diff, eff, effective)) slot.variantUnsafe[v] = true;
+      } else {
+        if (!dry) {
+          sparseRow(diff, vbase, eff, post4, pre!, 0, replay4);
+          if (resourceMoved(diff, eff, post4)) slot.variantUnsafe[v] = true;
+        }
+        if (!anyDone) { anyDone = true; done.take(state); ctx.dryRun = true; }
+        slot.effective = eff;
+        banked.restore(state);
+        ctx.mutHash = 0;
+        ctx.stacks = -1;
+        actionHook(action.afterActionFn);
+        runPhase(5, false);
+        if (ctx.mutHash !== primaryHash) slot.variantUnsafe[v] = true;
+      }
+      variantAvg.push(avgOf(eff));
     }
-    ctx.dryRun = false;
+    if (anyDone) { ctx.dryRun = false; done.restore(state); ctx.buff = null; slot.effective = effective; }
     ctx.guarded = false;
-    slot.effective = effective;
+  } else {
+    ctx.mutHash = 0;
+    actionHook(action.afterActionFn);
+    runPhase(5, false);
+    ctx.buff = null;
   }
-  ctx.mutHash = 0;
-  actionHook(action.afterActionFn);
-  runPhase(5, false);
-  ctx.buff = null;
-  for (let v = 0; v < variantHash.length; v++) if (variantHash[v] !== ctx.mutHash) slot.variantUnsafe[v] = true;
-
-  const snapshot: ResolvedSnapshot = {
-    action,
+  const atk = base + effective[Stat.BonusAtk]! / 100 * base + effective[Stat.FlatAtk]!;
+  const hp = baseHp + effective[Stat.BonusHp]! / 100 * baseHp + effective[Stat.FlatHp]!;
+  const def = baseDef + effective[Stat.BonusDef]! / 100 * baseDef + effective[Stat.FlatDef]!;
+  const mv = (action.mv + effective[Stat.AddMv]!) * (1 + effective[Stat.MulMv]! / 100);
+  const avg = damageAvgOf(
+    action, effective, atk, hp, def, effective[Stat.Amp]!, effective[TYPE2_AMP_INDEX]!, effective[Stat.DmgBonus]!,
+    effective[TYPE2_CRIT_RATE_INDEX]!, effective[TYPE2_CRIT_DMG_INDEX]!, enemyRes(), enemyDef(),
+  );
+  // `group`/`groupEnd`/`groupSpill`/`queued` are stamped by run() the moment this returns — nothing
+  // mid-action reads them, unlike `triggered`, so none has to be threaded through this call
+  const result: Result = {
+    action, member: slot.name, slot: action.slot ?? slot.name, triggered, triggeredBy,
+    group: null, groupEnd: false, groupSpill: null, queued: false, mv, avg, variantAvg,
+  };
+  const snapshot: ResolvedSnapshot | null = !ctx.tracing ? null : {
+    ...result,
     type: ctx.overrideType1 ?? action.type1,   // the effective type — see ResolvedSnapshot.type
-    member: slot.name,
-    slot: action.slot ?? slot.name,
-    stat,
-    stats: effective,
-    atk: base + effective[Stat.BonusAtk]! / 100 * base + effective[Stat.FlatAtk]!,
-    hp: baseHp + effective[Stat.BonusHp]! / 100 * baseHp + effective[Stat.FlatHp]!,
-    def: baseDef + effective[Stat.BonusDef]! / 100 * baseDef + effective[Stat.FlatDef]!,
+    stat, stats: effective, atk, hp, def,
     amp: effective[Stat.Amp]!,
     type2Amp: effective[TYPE2_AMP_INDEX]!,
     type2CritRate: effective[TYPE2_CRIT_RATE_INDEX]!,
@@ -561,16 +649,7 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
     enemyRes: enemyRes(),
     enemyDef: enemyDef(),
     entries: slot.entries,
-    triggered,
-    triggeredBy,
-    // stamped by run() the moment this returns — nothing mid-action reads either, unlike
-    // `triggered`, so neither has to be threaded through this call
-    group: null,
-    groupEnd: false,
-    groupSpill: null,
-    queued: false,
-    // report-only, so copied only when something will actually read it (display.ts's gauge columns)
-    forte: ctx.tracing ? [...slot.forte] : EMPTY_FORTE,
+    forte: [...slot.forte],
     forteBefore,
     maxForte: slot.resonator?.maxForte ?? EMPTY_FORTE,
     energy: slot.energy, concerto: slot.concerto, offtune: state.offtune,
@@ -581,14 +660,13 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
     realEnergyBefore,
     heldLocal, heldGlobal, heldEnemy,
     opensFields,
-    variantAvg,
   };
 
   if (casting(Cast.Outro)) {
     const n = state.slots.length;
     state.active = (state.active + state.outroDir + n) % n;
   }
-  return snapshot;
+  return snapshot ?? result;
 }
 
 /** Run a rotation across `state`, splicing in anything queue()d right after the action that
@@ -597,34 +675,21 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
  *  follow-up runs on its own caller's slot even if the active slot has since moved on (e.g. an
  *  Outro evaluated between the queue() call and the follow-up actually running); a plain
  *  rotation entry always runs on whichever slot is active when its turn comes. */
-export function run(state: State, rotation: Action[]): ResolvedSnapshot[] {
-  const out: ResolvedSnapshot[] = [];
-  // Two parallel arrays walked by index rather than a list of `{action, slot}` objects drained
-  // with shift(): shift() is O(n) per step (and splice-at-front the same again), so a rotation
-  // that queues follow-ups was quadratic in its own length for no reason. `slots` holds -1 for an
-  // ordinary rotation entry — "run on whoever is active when its turn comes".
-  // An ActionGroup is expanded here, before anything runs: from this point down the queue
-  // machinery only ever sees real casts, and a group survives purely as the `groups`/`ends` tags
-  // the report reads back off each snapshot.
-  const actions: Action[] = [];
-  const slots: number[] = [];
-  // what queued each entry, parallel to `slots` — null for a rotation entry, which nothing did
-  const bys: (HeldBuff | null)[] = [];
-  const groups: (ActionGroup | null)[] = [];
-  const ends: boolean[] = [];
-  // which group's spill each entry is, parallel to the rest — null for everything a rotation placed
-  const spills: (ActionGroup | null)[] = [];
-  // whether each entry was spliced in off the queue — false for everything the rotation placed
-  const queueds: boolean[] = [];
+export function run(state: State, rotation: Action[]): Result[] {
+  const out: Result[] = [];
+  // One list of steps walked by index rather than drained with shift() (O(n) per step). A step is
+  // a rotation entry (`slot` -1: run on whoever is active when its turn comes) or a queued
+  // follow-up spliced in right behind whatever queued it. An ActionGroup is expanded here, before
+  // anything runs: from this point down only real casts exist, and a group survives purely as the
+  // `group`/`end` tags the report reads back off each result.
+  interface Step { action: Action; slot: number; by: HeldBuff | null; group: ActionGroup | null; end: boolean; spill: ActionGroup | null; queued: boolean }
+  const steps: Step[] = [];
   for (const entry of rotation) {
     // a duck-check rather than `instanceof ActionGroup`: the class lives in rotation.ts, which
     // this module may only reference as types (see the import note at the top)
     const group = (entry as ActionGroup).actions !== undefined ? (entry as ActionGroup) : null;
     const members = group ? group.actions : [entry];
-    members.forEach((a, k) => {
-      actions.push(a); slots.push(-1); bys.push(null); spills.push(null); queueds.push(false);
-      groups.push(group); ends.push(group !== null && k === members.length - 1);
-    });
+    members.forEach((a, k) => steps.push({ action: a, slot: -1, by: null, group, end: group !== null && k === members.length - 1, spill: null, queued: false }));
   }
   ctx.insideGroup = false;
   // The group whose beat is still resolving — its own members, then the follow-ups they queued,
@@ -632,26 +697,24 @@ export function run(state: State, rotation: Action[]): ResolvedSnapshot[] {
   // the next rotation entry (or an engine event) clears it.
   let spillGroup: ActionGroup | null = null;
   let i = 0, guard = 0;
-  while (i < actions.length) {
+  while (i < steps.length) {
     if (++guard > 10000) throw new Error("action queue did not drain");
-    const stepAction = actions[i]!, stepSlot = slots[i]!, stepBy = bys[i]!;
-    const stepGroup = groups[i]!, stepEnd = ends[i]!, stepSpill = spills[i]!, stepQueued = queueds[i]!;
-    i++;
-    spillGroup = stepGroup ?? stepSpill;
+    const step = steps[i++]!;
+    spillGroup = step.group ?? step.spill;
     // A follow-up spliced in between two members is still *inside* the group, so this only moves on
     // a member's own row: set on every member but the last, cleared by the last. That is what lets
     // the bar fill part-way through a group and still break only on the cast that ends it.
-    if (stepGroup) ctx.insideGroup = !stepEnd;
+    if (step.group) ctx.insideGroup = !step.end;
     const before = state.active;
     state.onField = before;
-    if (stepSlot >= 0) state.active = stepSlot;
-    let action: Action | null = stepAction;
-    if (stepAction.resolveFn) {
+    if (step.slot >= 0) state.active = step.slot;
+    let action: Action | null = step.action;
+    if (step.action.resolveFn) {
       // a marker reads state via the "current" pointers, same as any other kit logic — evaluate()
       // sets them again immediately after anyway, so no save/restore needed here
       ctx.state = state;
       ctx.slot = state.slot;
-      action = stepAction.resolveFn();
+      action = step.action.resolveFn();
       // resolved to no cast at all this step (deferred onto a later one — see `queueOnIntro()`)
       if (!action) continue;
     }
@@ -663,43 +726,62 @@ export function run(state: State, rotation: Action[]): ResolvedSnapshot[] {
     // An engine-level event is *not* one, though it reports under its own bucket rather than any
     // member's (`ActionDef.slot`): a Tune Break is a beat of the fight's own, so it counts off
     // every per-action clock and stands as a row in its own right — see `queueEvent`.
-    // Handed to evaluate() rather than stamped on the snapshot after: gear reacting mid-action
+    // Handed to evaluate() rather than stamped on the result after: gear reacting mid-action
     // needs it too (tunebreak.ts's own watcher won't auto-fire off one) — see triggeredAction().
-    const triggered = stepSlot >= 0 || stepAction.triggered || action.triggered || isCast(action, Cast.Outro);
+    const triggered = step.slot >= 0 || step.action.triggered || action.triggered || isCast(action, Cast.Outro);
     // A triggered echo form names the equipped mainslot itself as its trigger, so the row's hover
     // wears the gear's name in its owner's colour. Overrides whatever queueOnIntro() attributed —
     // during marker resolution `ctx.buff` is stale, so the deferred swap copy carried garbage.
     const ms = state.slot.mainslot;
     const by = ms && action.triggered && (action === ms.onfield || action === ms.outro || action === ms.cancel)
-      ? { name: ms.name, source: state.sourceOf.get(ms) ?? state.slot.name } : stepBy;
-    const snapshot = evaluate(state, action, triggered, by);
-    snapshot.group = stepGroup;
-    snapshot.groupEnd = stepEnd;
-    snapshot.groupSpill = stepSpill;
-    snapshot.queued = stepQueued;
-    out.push(snapshot);
+      ? { name: ms.name, source: state.sourceOf.get(ms) ?? state.slot.name } : step.by;
+    const result = evaluate(state, action, triggered, by);
+    result.group = step.group;
+    result.groupEnd = step.end;
+    result.groupSpill = step.spill;
+    result.queued = step.queued;
+    out.push(result);
     // a queued follow-up's own turn doesn't stick — restore whoever was actually active,
     // unless the follow-up was itself an outro (genuinely advances the team)
-    if (stepSlot >= 0 && state.active === stepSlot) state.active = before;
+    if (step.slot >= 0 && state.active === step.slot) state.active = before;
 
     if (pendingQueue.length) {
-      // spliced in right after the action that queued them — i.e. at the read cursor, which is
-      // exactly where the old shift()-based list spliced at its own front
-      const qa: Action[] = [], qs: number[] = [], qb: (HeldBuff | null)[] = [];
-      for (const p of pendingQueue) { qa.push(p.action); qs.push(p.slot); qb.push(p.by); }
-      actions.splice(i, 0, ...qa);
-      slots.splice(i, 0, ...qs);
-      bys.splice(i, 0, ...qb);
-      // a follow-up is never one of the casts a group names, whatever it was queued from
-      groups.splice(i, 0, ...qa.map(() => null));
-      ends.splice(i, 0, ...qa.map(() => false));
-      // a follow-up belongs to whatever beat spawned it — an engine event to nobody (`queueEvent`)
-      spills.splice(i, 0, ...pendingQueue.map((p) => (p.event ? null : spillGroup)));
-      queueds.splice(i, 0, ...qa.map(() => true));
+      // spliced in right after the action that queued them, i.e. at the read cursor. A follow-up
+      // is never one of the casts a group names, whatever it was queued from; it belongs to
+      // whatever beat spawned it — an engine event to nobody (`queueEvent`)
+      const queued: Step[] = [];
+      for (const p of pendingQueue) queued.push({ action: p.action, slot: p.slot, by: p.by, group: null, end: false, spill: p.event ? null : spillGroup, queued: true });
+      steps.splice(i, 0, ...queued);
     }
   }
   return out;
 }
+
+/** Build a variant's row for the action being evaluated: `from` copied, then every index its
+ *  main-stat piece moves (`diff`, see `VariantAt`) recomputed from `pre` plus the variant's own base, plus the
+ *  journaled writes `[k0, k1)` to that index in order — exactly the additions a run wearing it makes. */
+function sparseRow(diff: number[], vbase: number[], eff: number[], from: number[], pre: number[], k0: number, k1: number): void {
+  for (let i = 0; i < eff.length; i++) eff[i] = from[i]!;
+  const index = replay.index, value = replay.value;
+  for (let d = 0; d < diff.length; d++) {
+    const i = diff[d]!;
+    let x = pre[i]! + vbase[i]!;
+    for (let k = k0; k < k1; k++) if (index[k] === i) x = x + value[k]!;
+    eff[i] = x;
+  }
+}
+
+/** Whether a variant's row banks a resource differently from the real build's `from` — only its
+ *  own moved indices (`diff`) can, every other one being a copy. */
+function resourceMoved(diff: number[], eff: number[], from: number[]): boolean {
+  for (let d = 0; d < diff.length; d++) { const i = diff[d]!; if (RESOURCE_MASK[i] && eff[i] !== from[i]) return true; }
+  return false;
+}
+
+const RESOURCE_MASK: boolean[] = ZERO_STATS.map(() => false);
+for (const s of RESOURCE_STATS) RESOURCE_MASK[s] = true;
+
+const ADD_FORTE = [Stat.AddForte1, Stat.AddForte2, Stat.AddForte3, Stat.AddForte4, Stat.AddForte5];
 
 const capList: Gear[][] = [[], [], []];
 const capCounts: number[][] = [[], [], []];

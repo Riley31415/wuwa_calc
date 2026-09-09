@@ -230,7 +230,7 @@ function spendTrigrams(): void {
 /** +15% (unscoped) DMG Amplification, 30s — permanent uptime once granted. */
 const BULING_OUTRO = new Buff({
   name: "Buling: Outro",
-  applyStats: () => addStat(Stat.Amp, 15),
+  stats: [[Stat.Amp, 15]],
 });
 
 /** +25% Healing Bonus while healing an ally under 50% HP — no ally-HP tracking, named marker only. */
@@ -255,7 +255,7 @@ const BL_S3 = new Sequence({ name: "Buling S3" });
 
 const BL_S4 = new Sequence({
   name: "Buling S4",
-  applyStats: () => addStat(Stat.HealingBonus, 20),
+  stats: [[Stat.HealingBonus, 20]],
 });
 
 /** The Array inflicts 6 more Electro Flare the moment it is generated. */
@@ -269,8 +269,8 @@ const BL_S6 = new Sequence({ name: "Buling S6" });
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit.
 // Healing Bonus+ nodes are unused by the formula (healing out of scope), tracked for completeness.
 const BULING_TALENTS = new Talent({
-  name: "Talents: Buling",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.HealingBonus, 12); },
+  name: "Buling: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.HealingBonus, 12]],
 });
 
 const BULING_RESONATOR = new Resonator({

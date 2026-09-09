@@ -116,7 +116,7 @@ const FIERY_FEATHER = new Buff({
 /** Strategy of Duality: the outro handoff. */
 const CHANGLI_OUTRO = new Buff({
   name: "Changli: Outro",
-  applyStats: () => { addStat(Stat.Amp, 20, Attribute.Fusion); addStat(Stat.Amp, 25, Type1.Liberation); },
+  stats: [[Stat.Amp, 20, Attribute.Fusion], [Stat.Amp, 25, Type1.Liberation]],
   updateBuffs: () => { lostOnSwap(); },
 });
 
@@ -136,7 +136,7 @@ const CH_S1 = new Sequence({
  *  and land within 8s of each other all visit, so it stands until the outro. */
 const PURSUIT_OF_DESIRES = new Buff({
   name: "Changli S2: Pursuit of Desires",
-  applyStats: () => addStat(Stat.CritRate, 25),
+  stats: [[Stat.CritRate, 25]],
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(PURSUIT_OF_DESIRES); },
 });
 const CH_S2 = new Sequence({
@@ -153,7 +153,7 @@ const CH_S3 = new Sequence({
 /** S4: +20% ATK for the whole team for 30s off her Intro — long enough to be permanent. */
 const POLISHED_WORDS = new Buff({
   name: "Changli S4: Polished Words",
-  applyStats: () => addStat(Stat.BonusAtk, 20),
+  stats: [[Stat.BonusAtk, 20]],
 });
 const CH_S4 = new Sequence({
   name: "Changli S4: Polished Words",
@@ -177,12 +177,13 @@ const CH_S6 = new Sequence({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const CHANGLI_TALENTS = new Talent({
-  name: "Talents: Changli",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  name: "Changli: Talents",
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
 });
 
 const CHANGLI_RESONATOR = new Resonator({
   name: "Changli",
+  matrix: matrix("Changli", 25),
   talent: CHANGLI_TALENTS,
   inherent1: CH_INHERENT_1,
   inherent2: CH_INHERENT_2,
@@ -226,7 +227,6 @@ const CH_ROTATION = new Rotation([
 // sonata pieces, mainstat/substat
 export const CHANGLI = new Loadout({
   resonator: CHANGLI_RESONATOR,
-  matrix: matrix("Changli", 25),
   sequences: [CH_S1, CH_S2, CH_S3, CH_S4, CH_S5, CH_S6],
   weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS],
   echoLoadouts: [new EchoLoadout(NM_INFERNO_RIDER, MOLTEN_RIFT_5PC)],

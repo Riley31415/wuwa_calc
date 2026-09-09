@@ -60,6 +60,21 @@ export const mvPercent = (snapshot: Snapshot): number =>
 const notDotFor = (snapshot: Snapshot): number =>
   (snapshot.action.scaling !== Scaling.Dot ? 1 : 0);
 
+/** The scalar forms of the enemy-side terms, off the figures alone: `damageAvgOf()` (the search's
+ *  per-variant path, which has no Snapshot object) and the Snapshot forms below share them, so the
+ *  two can't drift. */
+const shredOf = (stats: number[], notDot: number, base: number): number =>
+  1 - ((1 - notDot * stats[Stat.DefIgnoreNew]! / 100)
+    * Math.floor(base * (1 - stats[EnemyStat.DefReduce]! / 100 - notDot * stats[Stat.DefIgnoreOld]! / 100))) / base;
+const resOf = (stats: number[], notDot: number, enemyRes: number): number =>
+  (enemyRes / 100 - stats[Stat.ResIgnore]! / 100 * notDot - stats[EnemyStat.ResReduce]! / 100) * 100;
+const resFactorFrom = (finalRes: number): number =>
+  (finalRes < 0 ? 1 - finalRes / 2
+    : finalRes < 0.8 ? 1 - finalRes
+    : 1 / (1 + 5 * finalRes));
+const OWN_DEF = 800 + RESONATOR_LEVEL * 8;
+const defFactorFrom = (finalDef: number): number => OWN_DEF / (OWN_DEF + finalDef);
+
 /**
  * How much of the enemy's defence ignore, reduce and shred strip away, **as a fraction of its
  * base** — 0 means untouched, 0.3 means it is defending with 30% less than it started the fight
@@ -67,33 +82,23 @@ const notDotFor = (snapshot: Snapshot): number =>
  * debuffs on it.
  */
 export function effectiveShred(snapshot: Snapshot): number {
-  const s = (k: Stat | EnemyStat) => snapshot.stats[k]! / 100;
-  const notDot = notDotFor(snapshot);
-  const base = snapshot.enemyDef;
-  return 1 - ((1 - notDot * s(Stat.DefIgnoreNew))
-    * Math.floor(base * (1 - s(EnemyStat.DefReduce) - notDot * s(Stat.DefIgnoreOld)))) / base;
+  return shredOf(snapshot.stats, notDotFor(snapshot), snapshot.enemyDef);
 }
 
 /** The enemy's resistance after ignore and shred, in percent units. May go negative. */
 export function effectiveRes(snapshot: Snapshot): number {
-  const s = (k: Stat | EnemyStat) => snapshot.stats[k]! / 100;
-  return (snapshot.enemyRes / 100 - s(Stat.ResIgnore) * notDotFor(snapshot) - s(EnemyStat.ResReduce)) * 100;
+  return resOf(snapshot.stats, notDotFor(snapshot), snapshot.enemyRes);
 }
 
 /** The enemy's resistance turned into the multiplier the formula uses. */
 export function resFactorOf(snapshot: Snapshot): number {
-  const finalRes = effectiveRes(snapshot) / 100;
-  return finalRes < 0 ? 1 - finalRes / 2
-    : finalRes < 0.8 ? 1 - finalRes
-    : 1 / (1 + 5 * finalRes);
+  return resFactorFrom(effectiveRes(snapshot) / 100);
 }
 
 /** The enemy's defence turned into the multiplier the formula uses. */
 export function defFactorOf(snapshot: Snapshot): number {
   // the ratio the table shows, back out to the absolute defence the formula divides by
-  const finalDef = (1 - effectiveShred(snapshot)) * snapshot.enemyDef;
-  const ownDef = 800 + RESONATOR_LEVEL * 8;
-  return ownDef / (ownDef + finalDef);
+  return defFactorFrom((1 - effectiveShred(snapshot)) * snapshot.enemyDef);
 }
 
 export interface DamageFactors {
@@ -198,6 +203,46 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
     avg: noCrit * critFactor,
   };
 }
+
+/** `damageFactors().avg` alone, off the figures rather than a Snapshot — the same expressions in
+ *  the same order, with nothing allocated. The search calls this once per variant per action. */
+export function damageAvgOf(
+  action: Action, stats: number[], atk: number, hp: number, def: number,
+  amp: number, type2Amp: number, dmgBonus: number, type2CritRate: number, type2CritDmg: number,
+  enemyRes: number, enemyDef: number,
+): number {
+  const { scaling } = action;
+  if (scaling === null) return 0;
+  if (scaling === Scaling.Fixed) return action.mv;
+  const notDot = scaling !== Scaling.Dot ? 1 : 0;
+  const notTune = scaling !== Scaling.Tune ? 1 : 0;
+  const finalStat = Math.floor(
+    scaling === Scaling.Atk ? atk
+    : scaling === Scaling.Hp ? hp
+    : scaling === Scaling.Def ? def
+    : scaling === Scaling.Dot ? LEVEL_90_DOT
+    : scaling === Scaling.Tune ? LEVEL_90_TUNE
+    : NaN
+  );
+  const finalMv = (action.mv + stats[Stat.AddMv]!) * (1 + stats[Stat.MulMv]! / 100) / 100;
+  const ampFactor = 1 + ((notDot ? amp : type2Amp) / 100) * notTune;
+  const bonusFactor = 1 + (dmgBonus / 100) * notDot * notTune;
+  const tbbFactor = 1 + (stats[Stat.Tbb]! / 100) * (1 - notTune);
+  const resFactor = resFactorFrom(resOf(stats, notDot, enemyRes) / 100);
+  const defFactor = defFactorFrom((1 - shredOf(stats, notDot, enemyDef)) * enemyDef);
+  const dealtFactor = 1 + stats[Stat.TotalDmg]! / 100 * notDot;
+  const special = !(notDot * notTune);
+  const critMult = special ? (type2CritDmg ? type2CritDmg / 100 : 1) : stats[Stat.CritDmg]! / 100;
+  const cr = special ? type2CritRate / 100 : stats[Stat.CritRate]! / 100;
+  const critFactor = cr >= 1 ? critMult : (1 - cr) + critMult * cr;
+  const noCrit = finalMv * finalStat * ampFactor * bonusFactor * tbbFactor
+    * resFactor * defFactor * dealtFactor;
+  return noCrit * critFactor;
+}
+
+export const damageAvg = (s: Snapshot): number => damageAvgOf(
+  s.action, s.stats, s.atk, s.hp, s.def, s.amp, s.type2Amp, s.dmgBonus, s.type2CritRate, s.type2CritDmg, s.enemyRes, s.enemyDef,
+);
 
 export interface Damage {
   noCrit: number;

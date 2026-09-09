@@ -241,8 +241,8 @@ const SOLISKIN_VITALITY = new Buff({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const SIGRIKA_TALENTS = new Talent({
-  name: "Talents: Sigrika",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  name: "Sigrika: Talents",
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
 });
 
 /** Her, as a Resonator: name/element/weapon, every grant/spend/queue rule her kit needs, and her

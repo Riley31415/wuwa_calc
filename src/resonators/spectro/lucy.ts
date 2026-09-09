@@ -182,7 +182,7 @@ const DataCrash = lucyAction("Tune Hack Response - Data Crash", {
  *  Liberation ends it — which is the same beat, her loop spending the state in one pass. */
 const ALGORITHM_COMPACTION = new Buff({
   name: "Lucy: Algorithm Compaction",
-  applyStats: () => addStat(Stat.DmgBonus, 65, Attribute.Spectro),
+  stats: [[Stat.DmgBonus, 65, Attribute.Spectro]],
   convertStats: () => { if (currentAction() === Outro) revokeCurrent(ALGORITHM_COMPACTION); },
 });
 
@@ -228,7 +228,7 @@ const DIGITAL_HANDSHAKE = new Buff({
  *  every attacker reads the identical 5%. */
 const CYBERWARE_MALFUNCTION = new Debuff({
   name: "Spoofing Program: Cyberware Malfunction",
-  applyStats: () => addStat(Stat.TotalDmg, 5),
+  stats: [[Stat.TotalDmg, 5]],
 });
 
 /** Spoofing Program: Breach Protocol — marked targets' DEF reduced 5% for 30s, permanent uptime. */
@@ -242,7 +242,7 @@ const BREACH_PROTOCOL = new Debuff({
 const COUNTERMEASURE_HANDOFF = new Buff({
   name: "Lucy: Outro",
   updateBuffs: () => lostOnSwap(),
-  applyStats: () => addStat(Stat.Amp, 25, Type1.Basic),
+  stats: [[Stat.Amp, 25, Type1.Basic]],
 });
 
 /** The team half: a 25s marker on everyone, during which an active resonator *other than Lucy*
@@ -263,7 +263,7 @@ const COUNTERMEASURE_MARKER = new Buff({
 const COUNTERMEASURE_AMP = new Buff({
   name: "Lucy: Countermeasure Program",
   updateBuffs: () => lostOnSwap(),
-  applyStats: () => addStat(Stat.Amp, 20),
+  stats: [[Stat.Amp, 20]],
 });
 
 /* --------------------------------------------------------------------------- resonance chain */
@@ -274,7 +274,7 @@ const COUNTERMEASURE_AMP = new Buff({
  *  which covers the visit it opens and goes with her outro. */
 const LC_S1_ATK = new Buff({
   name: "Lucy S1: The Moon, a Ticket, and a Dream",
-  applyStats: () => addStat(Stat.BonusAtk, 20),
+  stats: [[Stat.BonusAtk, 20]],
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(LC_S1_ATK); },
 });
 
@@ -319,7 +319,7 @@ const LC_S3 = new Sequence({
  *  goes on her own next Intro; "All-Attribute DMG Bonus" is a plain untagged bonus (CLAUDE.md). */
 const LC_S4_TEAM = new Buff({
   name: "Lucy S4: No Living Legends in Night City",
-  applyStats: () => addStat(Stat.DmgBonus, 20),
+  stats: [[Stat.DmgBonus, 20]],
 });
 
 const LC_S4 = new Sequence({
@@ -356,12 +356,17 @@ const LC_INHERENT_1 = new Inherent({ name: "Inherent: Ghost Cyberware" });
 const LC_INHERENT_2 = new Inherent({ name: "Inherent: Function Cracking" });
 
 const LUCY_TALENTS = new Talent({
-  name: "Talents: Lucy",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
+  name: "Lucy: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
+});
+
+const LUCY_MATRIX = matrix("Lucy", 0, {
+  updateBuffs: () => { if (currentAction() === Lib) applyTeam(NETWORK_BACKDOOR, 1); },
 });
 
 export const LUCY_RESONATOR = new Resonator({
   name: "Lucy",
+  matrix: LUCY_MATRIX,
   talent: LUCY_TALENTS,
   inherent1: LC_INHERENT_1,
   inherent2: LC_INHERENT_2,
@@ -431,13 +436,9 @@ const NETWORK_BACKDOOR = new Buff({
   },
 });
 
-const LUCY_MATRIX = matrix("Lucy", 0, {
-  updateBuffs: () => { if (currentAction() === Lib) applyTeam(NETWORK_BACKDOOR, 1); },
-});
 
 export const LUCY = new Loadout({
   resonator: LUCY_RESONATOR,
-  matrix: LUCY_MATRIX,
   weapons: [SPECTRAL_TRIGGER, NEW_STD_PISTOL, STATIC_MIST],
   echoLoadouts: LC_ECHOES,
   sequences: [LC_S1, LC_S2, LC_S3, LC_S4, LC_S5, LC_S6],

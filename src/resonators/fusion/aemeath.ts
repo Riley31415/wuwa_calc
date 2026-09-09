@@ -210,8 +210,8 @@ const AE_INHERENT_1 = new Inherent({
 });
 
 const AEMEATH_TALENTS = new Talent({
-  name: "Talents: Aemeath",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
+  name: "Aemeath: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
 });
 
 /** Between the Stars' own grant, from `updateGlobal` so a teammate's own cast is seen — which runs
@@ -314,7 +314,7 @@ const inflicts = (a: Action): boolean =>
 /** Held on her slot, so its updateGlobal runs as her whoever is acting: the Starburst response and
  *  the Trail are hers. A response is any Rupture-typed hit that isn't her own Duet volley. */
 const MODE_RUPTURE = new ResonanceMode({
-  name: "Resonance Mode - Tune Rupture", abbr: "Rupture",
+  name: "Resonance Mode - Tune Rupture",
   updateDebuffs: () => { if (inflicts(currentAction())) applyRupture(); },
   updateGlobal: () => {
     tuneRuptureResponse(Starburst);
@@ -356,12 +356,12 @@ export const AEMEATH_RUPTURE = new Loadout({
 /* ======================================================================= Fusion Burst mode */
 
 /** The Duet's own Fusion Burst: the status calculated at the target's max-stack rung without
- *  spending the stacks — a dot hit like the ladder's own (status.ts), reading that rung's
- *  multiplier at cast since the cap is the fight's (Chisa raises it). The Trail and Stardust
- *  multiply it from their own buffs. */
+ *  spending the stacks — a dot hit like the ladder's own, carrying no motion value of its own; the
+ *  rung is added by the status itself (status.ts's own FUSION_BURST, so the value is sourced to
+ *  it and reads the fight's cap), the way Hsin's Heart of Thunder reads Electro Flare. The Trail
+ *  and Stardust multiply it from their own buffs. */
 const DuetBurst = new Action("Forte - Seraphic Duet: Fusion Burst", {
   element: Attribute.Fusion, type: Type1.Status, type2: Type2.FusionBurst, scaling: Scaling.Dot, mv: 0,
-  applyStats: () => addStat(Stat.AddMv, FUSION_BURST_ACTIONS[currentTeam().enemyMax(FUSION_BURST)]!.mv),
 });
 
 /** Fusion Trail: a stack for every Fusion Burst stack anyone on the team lands, cap 30, 30s
@@ -400,7 +400,7 @@ const SILENT_PROTECTION_BURST = new Buff({
  *  status.ts) and clears, and a target left on 0 gets a stack back, hers. The fight opens on that
  *  stack too. A Duet queues its own calculation. */
 const MODE_BURST = new ResonanceMode({
-  name: "Resonance Mode - Fusion Burst", abbr: "Burst",
+  name: "Resonance Mode - Fusion Burst",
   updateDebuffs: () => { if (inflicts(currentAction())) applyEnemy(FUSION_BURST, 1); },
   updateGlobal: () => {
     const team = currentTeam();

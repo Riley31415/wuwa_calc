@@ -116,7 +116,7 @@ const SK_REALM = new Buff({
 /** Team-wide amplification her outro puts up — permanent uptime once granted, not a handoff. */
 const SK_OUTRO = new Buff({
   name: "Shorekeeper: Outro",
-  applyStats: () => addStat(Stat.Amp, 15),
+  stats: [[Stat.Amp, 15]],
 });
 
 /** Self Gravitation's own extension onto Rover — lives on Rover's own local stack (granted via
@@ -157,7 +157,7 @@ const SK_S1 = new Sequence({ name: "Shorekeeper S1: Unspoken Conjecture" });
  *  buff of the team's, put up and taken down with it from updateGlobal, which runs whoever acts. */
 const SK_S2_TEAM = new Buff({
   name: "Shorekeeper S2: Night's Gift and Refusal",
-  applyStats: () => addStat(Stat.BonusAtk, 40),
+  stats: [[Stat.BonusAtk, 40]],
 });
 
 const SK_S2 = new Sequence({
@@ -193,7 +193,7 @@ const SK_S6 = new Sequence({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const SHOREKEEPER_TALENTS = new Talent({
-  name: "Talents: Shorekeeper",
+  name: "Shorekeeper: Talents",
   constantStats: () => {
     addStat(Stat.BonusHp, 12);
     addStat(Stat.HealingBonus, 12); // stat-tree Healing Bonus+ nodes — unused by the formula

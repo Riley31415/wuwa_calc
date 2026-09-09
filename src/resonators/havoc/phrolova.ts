@@ -198,7 +198,7 @@ export const NOTES = new Buff({
  *  and the notes it plays through live in NOTES above. */
 export const MAESTRO = new Buff({
   name: "Phrolova: Maestro",
-  applyStats: () => addStat(Stat.BonusAtk, 120),
+  stats: [[Stat.BonusAtk, 120]],
   // Any active Echo Skill cast (hers or a teammate's) spends a chance and plays a note.
   // updateGlobal() keeps the "current" pointers on her own slot, so drawNote() resolves against her.
   updateGlobal: () => {
@@ -227,7 +227,7 @@ const PH_INHERENT_2 = new Inherent({ name: "Inherent: Octet" ,
 
 const PHROLOVA_OUTRO = new Buff({
   name: "Phrolova: Outro",
-  applyStats: () => { addStat(Stat.Amp, 20, Attribute.Havoc); addStat(Stat.Amp, 25, Type1.Heavy); },
+  stats: [[Stat.Amp, 20, Attribute.Havoc], [Stat.Amp, 25, Type1.Heavy]],
   // Also the two notes her Outro owes: this is adopted on the incoming resonator's own Intro, so
   // it is the thing that sees the Intro they play — and drawNote() puts them back on her slot.
   updateBuffs: () => {
@@ -262,14 +262,14 @@ const PH_S2 = new Sequence({
  *  (enemy ATK doesn't enter this formula). */
 const PH_S3 = new Sequence({
   name: "Phrolova S3: A Dagger to Cut Clean Obsessions",
-  applyStats: () => addStat(Stat.Amp, 80, Type1.Echo),
+  stats: [[Stat.Amp, 80, Type1.Echo]],
 });
 
 /** S4: 30s, so permanent uptime; untagged per the attribute-bonus rule. Her own Echo Skill casts
  *  are the trigger — Scarlet Coda counts as one (cast2). */
 const PH_S4_TEAM = new Buff({
   name: "Phrolova S4: A Torch Illuminating the Path",
-  applyStats: () => addStat(Stat.DmgBonus, 20),
+  stats: [[Stat.DmgBonus, 20]],
 });
 const PH_S4 = new Sequence({
   name: "Phrolova S4: A Torch Illuminating the Path",
@@ -301,8 +301,8 @@ const PH_S6 = new Sequence({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const PHROLOVA_TALENTS = new Talent({
-  name: "Talents: Phrolova",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  name: "Phrolova: Talents",
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
 });
 
 /** Her, as a Resonator: name/element, every grant/spend/queue rule her kit needs, and her own

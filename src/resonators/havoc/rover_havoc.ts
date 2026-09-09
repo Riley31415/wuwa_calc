@@ -124,8 +124,8 @@ const S4_RES_SHRED = new Debuff({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
 const ROVER_TALENTS = new Talent({
-  name: "Talents: Havoc Rover",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.DmgBonus, 12, Attribute.Havoc); },
+  name: "Havoc Rover: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.DmgBonus, 12, Attribute.Havoc]],
 });
 
 /** Him, as a Resonator: name/element/weapon, every grant/spend/queue rule his kit needs, and his

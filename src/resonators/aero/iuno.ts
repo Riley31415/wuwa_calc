@@ -98,7 +98,7 @@ const FHA = iunoAction("Heavy - Absolute Fullness", {
  *  term. Lost entirely if switched off field. */
 const IUNO_BLESSING = new Buff({
   name: "Iuno: Blessing of the Wan Light", maxStacks: 10,
-  applyStats: () => addStat(Stat.Amp, 4 * frozenStacks()),
+  stats: [[Stat.Amp, 4]], perStack: true,
   updateBuffs: () => lostOnSwap(),
 });
 
@@ -118,7 +118,7 @@ const IO_INHERENT_1 = new Inherent({ name: "Inherent: Waxing Ascent" }); // gain
 /** The window her outro hands the incoming resonator. */
 const IUNO_OUTRO = new Buff({
   name: "Iuno: Outro",
-  applyStats: () => addStat(Stat.Amp, 50, Type1.Heavy),
+  stats: [[Stat.Amp, 50, Type1.Heavy]],
   updateBuffs: () => { lostOnSwap(); },
 });
 
@@ -129,8 +129,8 @@ const SHIELDING = new Set<Action>([
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const IUNO_TALENTS = new Talent({
-  name: "Talents: Iuno",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  name: "Iuno: Talents",
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
 });
 
 const IUNO_RESONATOR = new Resonator({

@@ -171,7 +171,7 @@ const GOLDEN_RULE = new Buff({
  *  his outro. "Nearby", so it lands whether or not he's on field. */
 const UNCAUSED_DIAGNOSIS_ATK = new Buff({
   name: "Inherent: Uncaused Diagnosis",
-  applyStats: () => addStat(Stat.BonusAtk, 25),
+  stats: [[Stat.BonusAtk, 25]],
 });
 
 /** Dawnlit Keep: one stack, granted by his Intro (or 4s out of combat), spent on taking a hit for
@@ -204,8 +204,8 @@ const LK_INHERENT_2 = new Inherent({
 });
 
 const LUUK_TALENTS = new Talent({
-  name: "Talents: Luuk",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
+  name: "Luuk: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
 });
 
 const LUUK_RESONATOR = new Resonator({

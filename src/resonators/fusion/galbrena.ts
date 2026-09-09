@@ -130,14 +130,14 @@ const Outro = galbrenaAction("Outro - Ashen Pursuit", { cast: Cast.Outro, type: 
  *  Ravage (Hellstride isn't implemented, see file header, so it's dropped from this list too). */
 const BURNING_DRIVE = new Buff({
   name: "Galbrena: Burning Drive",
-  applyStats: () => addStat(Stat.BonusAtk, 20),
+  stats: [[Stat.BonusAtk, 20]],
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(BURNING_DRIVE); },
 });
 
 /** +5% DMG Dealt a stack, up to 4, 5.5s — granted on any of her own landed attacks. */
 const OATHBOUND_HUNT = new Buff({
   name: "Galbrena: Fated End", maxStacks: 4,
-  applyStats: () => addStat(Stat.Amp, 5 * frozenStacks()),
+  stats: [[Stat.Amp, 5]], perStack: true,
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(OATHBOUND_HUNT); },
 });
 const GB_INHERENT_1 = new Inherent({
@@ -184,8 +184,8 @@ const HELLFIRE_WINDOW = new Buff({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const GALBRENA_TALENTS = new Talent({
-  name: "Talents: Galbrena",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
+  name: "Galbrena: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.CritDmg, 16]],
 });
 
 const GALBRENA_RESONATOR = new Resonator({
@@ -197,7 +197,7 @@ const GALBRENA_RESONATOR = new Resonator({
   weapon: WeaponType.Pistols,
   intro: () => Intro,
   outro: () => Outro,
-  color: "#1e3a8a",
+  color: "#3454ac",
   maxEnergy: 125,
   maxForte1: 100,
   maxForte2: 100,

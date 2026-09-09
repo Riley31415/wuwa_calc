@@ -226,7 +226,7 @@ const A_GIRL = new Buff({
  *  Wants! or casting either Fervor finisher, 2 stacks. */
 const TAG_YOURE_IT = new Buff({
   name: "Inherent: Tag, You're It! (self)", maxStacks: 2,
-  applyStats: () => addStat(Stat.BonusAtk, 10 * frozenStacks()),
+  stats: [[Stat.BonusAtk, 10]], perStack: true,
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(TAG_YOURE_IT); },
 });
 
@@ -234,7 +234,7 @@ const TAG_YOURE_IT = new Buff({
  *  — permanent uptime, and theirs alone rather than the team's (see RB_INHERENT_1 for the watch). */
 const TAG_TBB = new Buff({
   name: "Inherent: Tag, You're It!",
-  applyStats: () => addStat(Stat.Tbb, 30),
+  stats: [[Stat.Tbb, 30]],
 });
 
 /** Left an Opening! (Inherent Skill): her Liberation gives every nearby resonator +20% ATK for
@@ -242,7 +242,7 @@ const TAG_TBB = new Buff({
  *  The interruption-resistance half carries no stat. */
 const LEFT_AN_OPENING = new Buff({
   name: "Inherent: Left an Opening!",
-  applyStats: () => addStat(Stat.BonusAtk, 20),
+  stats: [[Stat.BonusAtk, 20]],
 });
 
 /** Preem Choom (Outro): the incoming resonator gets Edgerunner Bonds, +15% All DMG Amplification
@@ -288,11 +288,11 @@ const RB_S1 = new Sequence({
  *  node the way Tag, You're It! watches for the Tune Break Boost. */
 const OH_HEY_CHOOM_TEAM = new Buff({
   name: "Rebecca S2: Oh, Hey Choom!",
-  applyStats: () => addStat(Stat.DmgBonus, 20),
+  stats: [[Stat.DmgBonus, 20]],
 });
 const OH_HEY_CHOOM_HACK = new Buff({
   name: "Rebecca S2: Oh, Hey Choom!",
-  applyStats: () => addStat(Stat.Amp, 15),
+  stats: [[Stat.Amp, 15]],
 });
 const RB_S2 = new Sequence({
   name: "Rebecca S2: Oh, Hey Choom!",
@@ -324,7 +324,7 @@ const RB_S4 = new Sequence({ name: "Rebecca S4: Got Ya Covered!" });
  *  lost after her outro. */
 const DREAMIN_ON_THE_EDGE = new Buff({
   name: "Rebecca S5: Dreamin' on the Edge",
-  applyStats: () => addStat(Stat.DmgBonus, 20, Type1.Basic),
+  stats: [[Stat.DmgBonus, 20, Type1.Basic]],
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(DREAMIN_ON_THE_EDGE); },
 });
 const RB_S5 = new Sequence({
@@ -377,8 +377,8 @@ const RB_INHERENT_2 = new Inherent({
 });
 
 const REBECCA_TALENTS = new Talent({
-  name: "Talents: Rebecca",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
+  name: "Rebecca: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
 });
 
 const REBECCA_RESONATOR = new Resonator({

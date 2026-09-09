@@ -183,13 +183,13 @@ const CRIMSON_BUD = new Buff({
 /** Seedbed (Inherent Skill): +15% Havoc DMG Bonus flat — genuinely unconditional. */
 const SEEDBED = new Inherent({
   name: "Inherent: Seedbed",
-  constantStats: () => addStat(Stat.DmgBonus, 15, Attribute.Havoc),
+  stats: [[Stat.DmgBonus, 15, Attribute.Havoc]],
 });
 
 /** Epiphyte (Inherent Skill): +15% Basic DMG Bonus flat (interruption-resistance half not modelled). */
 const EPIPHYTE = new Inherent({
   name: "Inherent: Epiphyte",
-  constantStats: () => addStat(Stat.DmgBonus, 15, Type1.Basic),
+  stats: [[Stat.DmgBonus, 15, Type1.Basic]],
 });
 
 /** Granted and immediately spent on every action that consumes Crimson Pistils (a negative
@@ -219,12 +219,13 @@ const CONSUME_CRIMSON_PISTIL = new Buff({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const CAMELLYA_TALENTS = new Talent({
-  name: "Talents: Camellya",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritDmg, 16); },
+  name: "Camellya: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.CritDmg, 16]],
 });
 
 const CAMELLYA_RESONATOR = new Resonator({
   name: "Camellya",
+  matrix: matrix("Camellya", 25),
   talent: CAMELLYA_TALENTS,
   inherent1: SEEDBED,
   inherent2: EPIPHYTE,
@@ -276,7 +277,6 @@ const CM_ROTATION = new Rotation([
 // sonata pieces, mainstat/substat
 export const CAMELLYA = new Loadout({
   resonator: CAMELLYA_RESONATOR,
-  matrix: matrix("Camellya", 25),
   weapons: [RED_SPRING, EMERALD_OF_GENESIS],
   echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
@@ -291,7 +291,6 @@ export const CAMELLYA = new Loadout({
 // sonata pieces, mainstat/substat
 export const CAMELLYA_DOUBLE = new Loadout({
   resonator: CAMELLYA_RESONATOR,
-  matrix: matrix("Camellya", 25),
   weapons: [RED_SPRING, EMERALD_OF_GENESIS],
   echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),

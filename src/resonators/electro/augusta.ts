@@ -120,7 +120,7 @@ const Outro = augustaAction("Outro - Battlesong of the Unyielding", {
  *  entirely when Everbright Protector ends Sworn Allegiance. */
 const CROWN_OF_WILLS = new Buff({
   name: "Augusta: Crown of Wills",
-  applyStats: () => addStat(Stat.DmgBonus, 15, Attribute.Electro),
+  stats: [[Stat.DmgBonus, 15, Attribute.Electro]],
   convertStats: () => {
     const a = currentAction();
     if (a === Lib3) {
@@ -144,7 +144,7 @@ const RULERS_REALM = new Buff({
 const BATTLESONG = new Buff({
   name: "Augusta: Outro",
   updateBuffs: () => { lostOnSwap(); },
-  applyStats: () => addStat(Stat.Amp, 15),
+  stats: [[Stat.Amp, 15]],
 });
 
 /** A shield on every damaging hit — the shield marker off every one of her casts (two off Undying
@@ -173,8 +173,8 @@ const AG_INHERENT_2 = new Inherent({
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const AUGUSTA_TALENTS = new Talent({
-  name: "Talents: Augusta",
-  constantStats: () => { addStat(Stat.CritRate, 8); addStat(Stat.BonusAtk, 12); },
+  name: "Augusta: Talents",
+  stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
 });
 
 const AUGUSTA_RESONATOR = new Resonator({

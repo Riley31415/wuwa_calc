@@ -214,7 +214,7 @@ const RING_CONSUMED = new Buff({
  *  Bonus and +20% Healing Bonus for 12s — lost after the outro like every short self window here. */
 const ALL_ENDS_HERE = new Buff({
   name: "Inherent: All Ends Here",
-  applyStats: () => { addStat(Stat.DmgBonus, 20, Attribute.Havoc); addStat(Stat.HealingBonus, 20); },
+  stats: [[Stat.DmgBonus, 20, Attribute.Havoc], [Stat.HealingBonus, 20]],
   convertStats: () => { if (currentAction() === Outro) revokeCurrent(ALL_ENDS_HERE); },
 });
 
@@ -278,7 +278,7 @@ const THREAD_OF_BANE = new Buff({
  *  short self window here. */
 const DESOLATE_CORRIDORS = new Buff({
   name: "Chisa S1: Wandering Through the Desolate Corridors",
-  applyStats: () => addStat(Stat.BonusAtk, 30),
+  stats: [[Stat.BonusAtk, 30]],
   convertStats: () => { if (currentAction() === Outro) revokeCurrent(DESOLATE_CORRIDORS); },
 });
 /** S1's one-off: 61,803 fixed Havoc DMG, Basic Attack DMG that reads no bonus at all, on the first
@@ -302,7 +302,7 @@ const WEB_OF_BONDS = new Buff({ name: "Chisa S2: Into the Web of Endless Bonds" 
 const CS_S2 = new Sequence({
   name: "Chisa S2: Into the Web of Endless Bonds",
   combatStart: () => applyTeam(WEB_OF_BONDS, 1),
-  constantStats: () => addStat(Stat.ResIgnore, 10, Attribute.Havoc),
+  stats: [[Stat.ResIgnore, 10, Attribute.Havoc]],
 });
 
 /** S3: +120% DMG Multiplier on the Blitz chain and Eradication, and another +120% on Eradication
@@ -361,8 +361,8 @@ const CS_INHERENT_2 = new Inherent({
 });
 
 const CHISA_TALENTS = new Talent({
-  name: "Talents: Chisa",
-  constantStats: () => { addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8); },
+  name: "Chisa: Talents",
+  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
 });
 
 const CHISA_RESONATOR = new Resonator({

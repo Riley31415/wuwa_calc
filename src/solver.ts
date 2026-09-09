@@ -1,258 +1,179 @@
 /**
- * The build search, and the engine run it scores with — everything needed to decide what a team's
- * best build *is*, with no DOM anywhere in it.
- *
- * Split out of index.ts for one reason: this is the expensive half of a cold load (~97% of it),
- * every team is independent of every other, and a Worker can only import a module that never
- * touches `document`. index.ts keeps the table, the routing and the rendering; a pool of workers
- * runs `solveTeam()` over the roster in parallel (see index.ts's own `ensureBestPicks()`),
- * falling back to calling it directly where Workers aren't available. This file is the worker's
- * own entry point as well as the module the main thread imports — see its foot.
- *
- * `filters` is a parameter here rather than the module-level object it read when this lived in
- * index.ts: a worker has its own copy of this module and no way to see the page's state, so the
- * flags travel with the request.
- *
- * Nothing here yields. It used to `await breathe()` between trials so the main thread could
- * repaint the progress bar mid-team; with the work off-thread there is nothing to repaint around,
- * and the fallback path yields between whole teams instead — ~25ms apiece, fine for a bar.
+ * The build search: the filter/pick vocabulary the page and precompute share, `optimizeTeam`,
+ * the row set a solve opens, and `solveTeam`. DOM-free so a pool of Workers can run it — this file
+ * is also the worker's own entry point (see the foot). The engine run it scores with is teamrun.ts.
  */
 import { Buff, Loadout, EchoLoadout, Weapon, baseSequence } from "./engine/gear.js";
 import { Tier } from "./engine/stats.js";
-import { State } from "./engine/state.js";
-import { withTeam, equip, equipEnemy, setTracing } from "./engine/context.js";
 import type { Matrix } from "./engine/gear.js";
-import type { ChainGroup, ResolvedSnapshot } from "./engine/evaluate.js";
-import { runRotations } from "./engine/rotation.js";
-import type { ActionField } from "./engine/rotation.js";
-import { damage, mvPercent } from "./engine/damage.js";
-import { TUNE_BREAK_ENEMY } from "./shared/tunebreak.js";
-import type { Report } from "./display.js";
+import { runTeam, scoreOf } from "./teamrun.js";
+import type { TeamRun, RowScore } from "./teamrun.js";
 import { teamAt } from "./teams.js";
 
 export interface Member {
   name: string;
   color: string;
   loadout: Loadout;
-  /** Whether this member is *this team's* main damage dealer — the "Show MDPS Weapons/Echoes" vs
-   *  "Show Support Weapons/Echoes" checkboxes key off this to decide which member's own combos
-   *  get expanded by default (index.ts's own comparisonTable()). Set per team from teams.ts's own
-   *  `TeamEntry.dpsIndex`, not stamped onto the shared `Loadout` — the same loadout can be a fixed
-   *  support in one team and someone's main DPS in another. */
+  /** This team's main DPS — per team (teams.ts's `TeamEntry.mdps`), never stamped on the shared Loadout. */
   mainDps: boolean;
 }
 
-/** name/color both come straight off the loadout's own resonator — nothing here retypes them, and
- *  nothing here needs its own import of the resonator itself, just its loadout. Opener/loop
- *  rotation and weapon/echo choice all live on the loadout itself too (gear.ts's own `Loadout`) —
- *  see `combosFor()`/`runTeam()` below for how a team is actually assembled and run. */
 export const member = (loadout: Loadout, mainDps = false): Member =>
   ({ name: loadout.resonator.name, color: loadout.resonator.color, loadout, mainDps });
 
-
-/** `matrix` is the piece actually worn: this loadout's own Matrix when Matrix Mode is on and it
- *  has one, else null — so a row of a team nobody's Matrix reaches keys and caches exactly as it
- *  did with the box off. */
+/** `matrix` is the piece worn: the loadout's Matrix under Matrix Mode, else null. */
 export interface Combo { weapon: Weapon; echo: EchoLoadout; mainstat: Buff; sequence: number; matrix: Matrix | null; highSubs: boolean; key: string; }
 
-/** The comparison table's own filter state — every axis a member's build varies on (weapon, echo,
- *  main stats, sequence level), split by role, plus the two R1 allowances. This decides which
- *  rows *exist*, not just which are visible: an axis whose box is off contributes only that
- *  member's own best pick on it (see `optimizeTeam()`), so nothing off-screen is ever built into
- *  a row. Ticking a box opens that axis and the rows it reaches are run then, once, and cached
- *  (see `refresh()`/`expandTeam()`).
- *
- *  Held here rather than read off the DOM because the checkboxes live inside the table's own
- *  markup, which `renderComparison()` rebuilds from scratch — this survives that, the inputs
- *  don't. */
-/** The five things a resonator's rows can be opened up on — a "compare" set from the table's own
- *  right-click menu (index.ts): every option of that axis gets a row of its own for them. */
-export type Axis = "weapons" | "echoes" | "mainstats" | "substats" | "sequences";
-export const AXES: Axis[] = ["weapons", "echoes", "mainstats", "substats", "sequences"];
+/** The axes a resonator's rows can be opened up on. */
+export type Axis = "weapons" | "echoes" | "mainstats" | "substats" | "sequences" | "refines";
+// the order every compare list is written and read in, and the order the table's own menus offer
+// them — the substat spread last, being the one axis that is a whole build's investment rather
+// than a pick (the columns order it their own way, see table.ts's own `GEAR_AXES`)
+export const AXES: Axis[] = ["weapons", "echoes", "mainstats", "sequences", "refines", "substats"];
 
-/** What a team is costed at (the Team Cost box): every limited resonator on their best standard
- *  or 4* weapon (`s0r0`), the same plus one signature at R1 for whichever member gains the most
- *  from it (`s0r1mdps`), or every limited resonator on their signature (`s0r1`). Rovers and 4*
- *  resonators are S6 and on standard or 4* weapons throughout. A weapons compare adds the
- *  signatures as rows under any of the three. */
+/** Team Cost: no signatures (`s0r0`), one R1 signature to whoever gains most (`s0r1mdps`), or
+ *  every limited resonator on theirs (`s0r1`). Rovers and 4* are S6 on standard/4* weapons throughout. */
 export type TeamCost = "s0r0" | "s0r1mdps" | "s0r1";
 
 export interface Filters {
-  /** Matrix Mode: every loadout that declares a Matrix wears it (shared/matrix.ts). */
   matrix: boolean;
   cost: TeamCost;
-  /** Per axis, the resonators (by name, in any role) whose rows compare it: their weapons,
-   *  sonatas and mainslot echoes, main stats, the two substat spreads (shared/substats.ts), or
-   *  their whole resonance chain. Everyone else runs their best pick on that axis alone. */
-  weapons: string[]; echoes: string[]; mainstats: string[]; substats: string[]; sequences: string[];
+  /** Per axis, the resonators (by name) whose rows compare it; everyone else runs their best pick. */
+  weapons: string[]; echoes: string[]; mainstats: string[]; substats: string[]; sequences: string[]; refines: string[];
+  scoped: ScopedCompare[];
 }
 
-/** What the page opens with, and what precompute.ts solves the roster under — one definition so
- *  the shipped solves.json lands on exactly the keys a cold load asks for. */
+/** An axis compared on one pick of a resonator's alone: `on` gates it, `value` is the pick as its
+ *  cell reads (a level or rank number, a weapon name with or without rank, an `echoLabel()`). */
+export interface ScopedCompare { resonator: string; on: "sequence" | "refine" | "weapon" | "weaponRank" | "echo"; value: string; axis: "refines" | "echoes" | "mainstats" }
+export const scopedKey = (s: ScopedCompare): string => `${s.resonator}~${s.on}~${s.value}~${s.axis}`;
+
+export const weaponBase = (w: Weapon): string => w.name.replace(/ R\d$/, "");
+
+export interface Gate { weapon: Weapon; sequence: number; echo: EchoLoadout }
+// the rank the pick actually runs, not the loadout's default: a compare scoped to a weapon at one
+// rank ("Blooming Jadehaven R5") has nothing to match otherwise
+export const gateOf = (l: Loadout, p: Pick): Gate => ({ weapon: l.refinements[p.weapon]![p.refine]!, sequence: p.sequence, echo: l.echoLoadouts[p.echo]! });
+
+export function scopedOpen(m: Member, f: Filters, axis: Axis, gate: Gate): boolean {
+  const l = m.loadout;
+  return f.scoped.some((s) => s.resonator === l.resonator.name && s.axis === axis && (
+    s.on === "sequence" ? +s.value === gate.sequence
+    : s.on === "refine" ? gate.weapon.refinement === +s.value
+    : s.on === "weapon" ? weaponBase(gate.weapon) === s.value
+    : s.on === "weaponRank" ? gate.weapon.name === s.value
+    : echoLabel(l, gate.echo) === s.value));
+}
+/** Whether `axis` is compared on any of this member's rows (a column exists). */
+export const axisUsed = (m: Member, f: Filters, axis: Axis): boolean =>
+  axisOpen(m, f, axis) || f.scoped.some((s) => s.resonator === m.loadout.resonator.name && s.axis === axis);
+/** Whether `axis` is compared on this member's row wearing `gate`. */
+export const compares = (m: Member, f: Filters, axis: Axis, gate: Gate): boolean =>
+  axisOpen(m, f, axis) || scopedOpen(m, f, axis, gate);
+
+/** An echo pick's lines: its set names, plus the mainslot only where another option shares the
+ *  sonata with a different mainslot. */
+export function echoLines(l: Loadout, echo: EchoLoadout): string[] {
+  const showMainslot = l.echoLoadouts.some((e) => e.sonata === echo.sonata && e.mainslot !== echo.mainslot);
+  const lines = echo.sets.map((g) => g.name);
+  if (showMainslot) lines.push(echo.mainslot.name);
+  return lines;
+}
+export const echoLabel = (l: Loadout, echo: EchoLoadout): string => echoLines(l, echo).join(" + ");
+
+/** The page's opening state and what precompute.ts solves under — one definition so shipped keys match. */
 export const defaultFilters = (): Filters => ({
-  matrix: false, cost: "s0r1", weapons: [], echoes: [], mainstats: [], substats: [], sequences: [],
+  matrix: false, cost: "s0r1", weapons: [], echoes: [], mainstats: [], substats: [], sequences: [], refines: [], scoped: [],
 });
 
-/** Whether this member's rows compare `axis` — their resonator is in that axis's set. */
 export const axisOpen = (m: Member, filters: Filters, axis: Axis): boolean =>
   filters[axis].includes(m.loadout.resonator.name);
 
-/** The whole filter state as one string, for the shipped solves index (precompute.ts writes it
- *  by the same function) and the page's own caches. */
 export const filterSignature = (f: Filters): string =>
-  [f.matrix, f.cost, ...AXES.map((a) => [...f[a]].sort().join("+"))].join(",");
+  [f.matrix, f.cost, ...AXES.map((a) => [...f[a]].sort().join("+")), f.scoped.map(scopedKey).sort().join("+")].join(",");
 
-/** A solved team's cache key: the team under exactly what touches it — Matrix Mode, for a team
- *  somebody's Matrix reaches, and which axes each member compares (five bits apiece, in `AXES`
- *  order). A solve carries every row the table will open for that team, each re-rolled onto its
- *  own best main stats (`rowPicks()`), and which rows those are is exactly what those decide;
- *  a compare set on a resonator who isn't in this team changes nothing here. */
+/** A solve's cache key: the team under everything that changes its row set — matrix, cost, each
+ *  member's six axis bits plus their scoped compares. */
 export const bestKey = (teamKey: string, members: Member[], filters: Filters): string => {
-  const matrix = filters.matrix && members.some((m) => m.loadout.matrix);
-  return `${teamKey}|${matrix}|${filters.cost}|${members.map((m) => AXES.map((a) => (axisOpen(m, filters, a) ? "1" : "0")).join("")).join(",")}`;
+  const matrix = filters.matrix && members.some((m) => m.loadout.resonator.matrix);
+  const scoped = (m: Member): string => {
+    const own = filters.scoped.filter((s) => s.resonator === m.loadout.resonator.name).map((s) => `${s.on}~${s.value}~${s.axis}`).sort();
+    return own.length ? `:${own.join(";")}` : "";
+  };
+  return `${teamKey}|${matrix}|${filters.cost}|${members.map((m) => AXES.map((a) => (axisOpen(m, filters, a) ? "1" : "0")).join("") + scoped(m)).join(",")}`;
 };
 
-/** A team's own best build, under only what the *search* reads: which members compare weapons
- *  (which weapons may be searched — `eligibleWeapons()`) and Matrix Mode. The other axes change
- *  which rows a solve opens, never which build wins (echoes and main stats are searched in full
- *  regardless, sequences and substats only cross in) — so a change to any of those hands
- *  `solveTeam()` the build it already found and it redoes rows alone. */
+/** The best build's key: only what the *search* reads (weapons compared, matrix, cost) — every other
+ *  axis changes which rows open, never which build wins. */
 export const picksKey = (teamKey: string, members: Member[], filters: Filters): string => {
-  const matrix = filters.matrix && members.some((m) => m.loadout.matrix);
+  const matrix = filters.matrix && members.some((m) => m.loadout.resonator.matrix);
   return `${teamKey}|${matrix}|${filters.cost}|${members.map((m) => (axisOpen(m, filters, "weapons") ? "1" : "0")).join("")}`;
 };
 
-/** One member's own pick: indices into their loadout's three gear lists, plus how many resonance
- *  chain nodes are held and whether Matrix Mode is on. What `optimizeTeam()` searches over and
- *  `comboOf()` turns into real gear — except `sequence` and `matrix`, which are never searched
- *  (see `sequenceLevels()`; `matrix` is the table's own box, carried so a row keys by it). */
-export interface Pick { weapon: number; echo: number; mainstat: number; sequence: number; matrix: boolean; highSubs: boolean; }
+/** Indices into a loadout's gear lists plus chain level, rank (into `Loadout.refinements[weapon]`),
+ *  matrix and substat spread. Only weapon/echo/mainstat are ever searched. */
+export interface Pick { weapon: number; echo: number; mainstat: number; sequence: number; refine: number; matrix: boolean; highSubs: boolean; }
 
 export const comboOf = (l: Loadout, p: Pick): Combo => {
-  const matrix = p.matrix && l.matrix ? l.matrix : null;
+  const matrix = p.matrix && l.resonator.matrix ? l.resonator.matrix : null;
   return {
-    weapon: l.weapons[p.weapon]!, echo: l.echoLoadouts[p.echo]!, mainstat: l.mainstats[p.mainstat]!,
+    weapon: l.refinements[p.weapon]![p.refine]!, echo: l.echoLoadouts[p.echo]!, mainstat: l.mainstats[p.mainstat]!,
     sequence: p.sequence, matrix, highSubs: p.highSubs,
-    key: `${p.weapon}.${p.echo}.${p.mainstat}.s${p.sequence}${matrix ? ".m" : ""}${p.highSubs ? ".h" : ""}`,
+    key: `${p.weapon}.${p.echo}.${p.mainstat}.s${p.sequence}.r${p.refine}${matrix ? ".m" : ""}${p.highSubs ? ".h" : ""}`,
   };
 };
 
-/** Which sequence levels a member's own rows cover, baseline first. Nothing here is optimized — a
- *  chain node is never a trade-off, it's strictly more kit — so with that role's Sequences box
- *  open, every level from this resonator's own baseline up to whatever the loadout can reach gets
- *  a row of its own, purely so the gain from each is readable; with the box closed, the baseline
- *  alone. The baseline is how hard the resonator is to own (`baseSequence()`): S0 for a limited
- *  5-star and a standard one alike, S6 for a 4-star or Rover — and a `Tier.Free` resonator is at the
- *  top already, so their chain comes with the character and no level is left to compare. A
- *  loadout that declares no nodes has only S0 regardless. */
+/** Ranks a row at `p` runs its weapon at: every listed rank while refines are compared there, else the default. */
+export function refineLevels(m: Member, filters: Filters, p: Pick): number[] {
+  if (!compares(m, filters, "refines", gateOf(m.loadout, p))) return [0];
+  return m.loadout.refinements[p.weapon]!.map((_, i) => i);
+}
+
+/** Chain levels a member's rows cover, baseline first. Never searched — a node is strictly more kit —
+ *  so an open box is a row per level from the baseline up; a `Tier.Free` resonator opens from S0. */
 export function sequenceLevels(m: Member, filters: Filters): number[] {
   const l = m.loadout;
   const max = l.sequences.length;
   if (!max) return [0];
   const base = Math.min(baseSequence(l.resonator), max);
   if (!axisOpen(m, filters, "sequences")) return [base];
-  // a free resonator (a 4-star, a Rover — `Tier.Free`) is costed at S6 with the box shut, so
-  // there is nothing above that to open: their box shows the whole chain from S0 instead
   const from = l.resonator.tier === Tier.Free ? 0 : base;
   return Array.from({ length: max - from + 1 }, (_, i) => from + i);
 }
 
-/** A weapon's own tier says whether it is a signature (`Tier.Limited`) — the one thing the Team
- *  Cost box rations — and a loadout's best non-signature is the first weapon after its
- *  signatures (a loadout lists its best signature first, its best standard right after, see
- *  CLAUDE.md); a loadout with no signature at all runs its first weapon either way. */
 export const isSignature = (l: Loadout, i: number): boolean => l.weapons[i]!.tier === Tier.Limited;
+/** A loadout lists its best signature first and its best standard right after (CLAUDE.md). */
 export const standardWeapon = (l: Loadout): number => Math.max(0, l.weapons.findIndex((w) => w.tier !== Tier.Limited));
 
-/** Which of a loadout's own weapons this member may run: comparing weapons, every one of them —
- *  a compare shows the signatures as rows under any Team Cost — and not comparing, just the one
- *  the cost sets: the signature where one is theirs to wear (`sig` — the Team Cost, and under
- *  `s0r1mdps` whether they are the team's one holder), else their best standard. The closed axis
- *  takes the loadout's own order on trust rather than searching. Never empty. */
+/** Every weapon while comparing; otherwise the one the cost allows (`sig`: may wear a signature). */
 export function weaponOptions(m: Member, filters: Filters, sig: boolean): number[] {
   const l = m.loadout;
   if (axisOpen(m, filters, "weapons")) return l.weapons.map((_, i) => i);
   return [sig ? 0 : standardWeapon(l)];
 }
 
-/** Whether member `i` may wear a signature: always at `s0r1`, never at `s0r0`, and at
- *  `s0r1mdps` only as the team's one holder (`sigHolder()`). */
 export const sigAllowed = (i: number, holder: number | null, cost: TeamCost): boolean =>
   cost === "s0r1" || (cost === "s0r1mdps" && i === holder);
 
-/** Which member of a solved build wears a signature, if any — the `s0r1mdps` holder, read back
- *  off the build itself so a row set knows who may keep theirs. */
+/** Which member of a build wears a signature — the `s0r1mdps` holder, read off the build. */
 export const sigHolder = (members: Member[], picks: Pick[]): number | null => {
   const i = picks.findIndex((p, k) => isSignature(members[k]!.loadout, p.weapon));
   return i < 0 ? null : i;
 };
 
-/** The page's own reading of `weaponOptions()`, with no holder to hand: every weapon while
- *  comparing, the closed pick as the cost sets it otherwise — what the search bar offers and the
- *  row count is estimated from. */
+/** `weaponOptions()` with no holder to hand — what the page offers and estimates rows from. */
 export function eligibleWeapons(m: Member, filters: Filters): number[] {
   return weaponOptions(m, filters, filters.cost === "s0r1");
 }
 
-/**
- * Every team's own best build per member, found once and cached — this is what an axis whose
- * "Show ... Options" box is *closed* collapses to, so a closed axis shows the best pick rather
- * than whatever happened to be listed first.
- *
- * Echoes and main stats are searched in full for every member, whatever the boxes say. Weapons
- * are searched only for a role whose weapons box is open, and only among the picks that role may
- * actually hold (see `eligibleWeapons()`) — a closed box runs the loadout's own presumed best. A
- * signature stays out of the search entirely until its R1 allowance is given. Sequences are not
- * searched: a chain node is
- * never a trade-off against anything, so every level simply gets a row of its own (see
- * `sequenceLevels()`), and the search runs at whichever level a closed box would show.
- *
- * The two axes are searched differently, because they behave differently:
- *
- * - **Main stats only ever feed their own wearer.** No kit buffs a teammate off a main stat (a
- *   team buff that keys off the granter's own stats is modelled at its cap — see CLAUDE.md), so
- *   one member's roll can't move another member's damage, and the best roll for each member is
- *   the same whoever else is wearing what. That makes the whole team searchable *at once*: every
- *   member cycles through their own list in the same runs, and each is scored on their own damage
- *   out of `bySlot` rather than the team total. A team costs `max` of its members' own option
- *   counts — 51 runs for a Jingran team, where one-at-a-time would be 69 and the full cross
- *   product 4,131.
- * - **Weapons and echoes do cross members** — half the sonatas, and a good few weapons, hand the
- *   next resonator a buff on Outro — so they get coordinate descent instead: one member's list at
- *   a time, the rest of the team held still, scored on the team total.
- *
- * All three interact (an ER weapon, an ER sonata and an ER main stat all trade off), so every
- * weapon and echo candidate is re-rolled onto its own best main stat before it's scored, and the
- * two sweeps alternate until neither moves, three rounds at most. That re-roll is what the whole
- * search hangs on: judged in the incumbent's rolls, a weapon that wants a different build reads as
- * worse than it is and never gets picked. Cached per team under the two R1 allowances, since those decide
- * which weapon the rest of the build is measured against.
- */
-/**
- * One team's own trial runs, memoized for the length of that team's optimization pass.
- *
- * A trial is a pure function of the picks it runs — same loadouts, same rotations, same numbers
- * (see `detailFor()`) — and this pass asks for the same combos over and over: every `sweepAcross`
- * opens by scoring whatever the previous sweep settled on, every option it rejects puts the
- * incumbent back before the next is tried, and each of `fillVariations()`'s own per-variation
- * main-stat sweeps passes back through the build the variation was measured against. Keyed by the
- * same combo string a row is named after, so a repeat costs a Map lookup instead of a rotation:
- * about one run in eight with every options box closed, one in six with the echo boxes open.
- *
- * Reset per team by `ensureBestPicks()` rather than kept for the whole table — a `TeamRun` holds a
- * whole `State`, and there is nothing to gain across teams anyway (a run is only ever comparable
- * within the team it was run for).
- */
+/* ------------------------------------------------------------------------- the search */
+
+/** Trial runs memoized per team (reset by `solveTeam`): the sweeps re-score the same combos over
+ *  and over, and a `TeamRun` holds a whole State, so nothing is kept across teams. */
 let trialCache = new Map<string, TeamRun>();
-/** `scoreMainstats()`'s own answers, keyed the same way plus which members were scored — the
- *  search asks the same question twice over: `rowPicks()`'s closed-box echo re-search and settle
- *  pass back through the very build `optimizeTeam()` just finished on, and each of those was a
- *  real run with every variant, the most expensive kind. About a third of a default solve. */
+/** `scoreMainstats()` answers, keyed the same plus which members were scored. */
 let scoreCache = new Map<string, Map<number, TeamRun[]>>();
 
-// team-scoped as well as combo-scoped: the reset is per team, but the same combo string means
-// different loadouts under a different team, so keying on it alone would be a footgun for any
-// future caller that forgets to clear
 const trialKey = (teamKey: string, combo: Combo[]): string => `${teamKey}-${combo.map((c) => c.key).join("-")}`;
 
 function trialRun(teamKey: string, members: Member[], picks: Pick[]): TeamRun {
@@ -264,18 +185,10 @@ function trialRun(teamKey: string, members: Member[], picks: Pick[]): TeamRun {
 }
 
 /**
- * Every main stat of each member in `who`, scored under `picks`, in one run: the build as picked
- * is run for real, and every other main stat of those members rides along as a variant the engine
- * re-scores on that member's own actions alone (state.ts's own `TeamMember.variants`) — a main stat
- * only ever feeds its wearer, so nothing else in the fight is different. A whole list costs a
- * fraction of a run rather than a run apiece, which was 91% of every run this search made.
- *
- * Anything the engine can't vouch for (a variant whose hooks would have changed the fight — see
- * `variantUnsafe`) is scored with a real run instead, so the answer is the one the runs would have
- * given. Every score is filed into `trialCache` under the build it describes, so the winner is
- * already scored when the caller moves on to it.
- *
- * @returns per member in `who`, a `TeamRun` per main-stat index of theirs
+ * Every main stat of each member in `who` scored in one run: the build as picked runs for real and
+ * the other main stats ride along as engine variants (a main stat only feeds its wearer). A variant
+ * the engine can't vouch for (`unsafe`) is scored with a real run instead.
+ * @returns per member in `who`, a `TeamRun` per main-stat index
  */
 function scoreMainstats(teamKey: string, members: Member[], picks: Pick[], who: number[]): Map<number, TeamRun[]> {
   const combo = members.map((m, i) => comboOf(m.loadout, picks[i]!));
@@ -311,64 +224,45 @@ function scoreMainstatsRun(teamKey: string, members: Member[], picks: Pick[], wh
   return out;
 }
 
-/**
- * Each of `who`'s own best main stat under `picks`, everyone else's left exactly as given — one
- * run for the whole set (see `scoreMainstats()`), each member scored on their own damage out of
- * `bySlot` rather than the team total, which is what makes one member's answer independent of the
- * rest (see `optimizeTeam()`).
- */
+/** Member `i`'s main stats ranked by their own damage out of `bySlot`, best first. */
+function rankedMainstats(scores: TeamRun[], m: Member): { mainstat: number; damage: number; total: number }[] {
+  const ranked: { mainstat: number; damage: number; total: number }[] = [];
+  scores.forEach((run, k) => ranked.push({ mainstat: k, damage: run.bySlot.get(m.name) ?? 0, total: run.total }));
+  return ranked.sort((a, b) => b.damage - a.damage);
+}
+
+/** Each of `who`'s best main stat under `picks`, everyone else's as given — one run for the set. */
 function bestMainstats(teamKey: string, members: Member[], picks: Pick[], who: number[]): Pick[] {
   const scores = scoreMainstats(teamKey, members, picks, who);
   return picks.map((p, i) => {
     if (!who.includes(i)) return p;
-    let index = p.mainstat, best = -Infinity;
-    scores.get(i)!.forEach((run, k) => {
-      const damage = run.bySlot.get(members[i]!.name) ?? 0;
-      if (damage > best) { best = damage; index = k; }
-    });
+    const index = rankedMainstats(scores.get(i)!, members[i]!)[0]?.mainstat ?? p.mainstat;
     return index === p.mainstat ? p : { ...p, mainstat: index };
   });
 }
 
-/**
- * The best main stat for one member under one specific build of theirs — the rest of `picks` is
- * left exactly as given, and the score is that member's own damage out of `bySlot` rather than the
- * team total, which is what makes this answer independent of everyone else (see `optimizeTeam()`).
- *
- * Hands back the team total of the winning run too. Nobody else's damage moves with this member's
- * main stat, so the run that maximises their own damage is the same run that maximises the team's
- * — which lets a caller comparing whole builds score one without running it a second time.
- */
-function bestMainstatFor(
-  teamKey: string, members: Member[], picks: Pick[], i: number,
-): { mainstat: number; total: number } {
-  const scores = scoreMainstats(teamKey, members, picks, [i]).get(i)!;
-  let winner = picks[i]!.mainstat;
-  let best = -Infinity;
-  let total = 0;
-  scores.forEach((run, m) => {
-    const damage = run.bySlot.get(members[i]!.name) ?? 0;
-    if (damage > best) { best = damage; winner = m; total = run.total; }
-  });
-  return { mainstat: winner, total };
+/** One member's best main stat under one build, and the team total of that run — nobody else's
+ *  damage moves with it, so that run is also the team's best under this build. */
+function bestMainstatFor(teamKey: string, members: Member[], picks: Pick[], i: number): { mainstat: number; total: number } {
+  const best = rankedMainstats(scoreMainstats(teamKey, members, picks, [i]).get(i)!, members[i]!)[0];
+  return best ? { mainstat: best.mainstat, total: best.total } : { mainstat: picks[i]!.mainstat, total: 0 };
 }
 
+/**
+ * Main stats are searched for every member at once (they only feed their wearer); weapons and
+ * echoes cross members (Outro buffs), so they get coordinate descent scored on the team total, with
+ * every candidate re-rolled onto its own best main stat before it's judged. Sequences are never
+ * searched. The sweeps alternate until nothing moves, three rounds at most.
+ */
 export function optimizeTeam(teamKey: string, members: Member[], filters: Filters): Pick[] {
-  // the search runs with signatures as the cost allows outright: everyone's at `s0r1`, nobody's
-  // at `s0r0` and, at `s0r1mdps`, nobody's either — the one signature is handed out afterwards
+  // `s0r1mdps` searches on standards and hands the one signature out afterwards
   const sig = filters.cost === "s0r1";
   const picks: Pick[] = members.map((m) => ({
     weapon: weaponOptions(m, filters, sig)[0] ?? 0, echo: 0, mainstat: 0,
-    // the level a closed box would show — the search never varies it, the row set does
-    sequence: sequenceLevels(m, filters)[0]!,
-    matrix: filters.matrix,
-    // the search runs on the default spread; the high one is a row beside it (`buildsOf()`)
-    highSubs: false,
+    sequence: sequenceLevels(m, filters)[0]!, refine: 0, matrix: filters.matrix, highSubs: false,
   }));
   const run = (): TeamRun => trialRun(teamKey, members, picks);
 
-  /** Every member's own main stats at once, in one run — see this function's own header on why
-   *  that's sound, and `scoreMainstats()` for how. */
   const sweepMainstats = (): boolean => {
     const next = bestMainstats(teamKey, members, picks, members.map((_, i) => i));
     const changed = next.some((p, i) => p.mainstat !== picks[i]!.mainstat);
@@ -376,9 +270,6 @@ export function optimizeTeam(teamKey: string, members: Member[], filters: Filter
     return changed;
   };
 
-  /** One member's own list at a time on a cross-member axis, the rest of the team held still,
-   *  scored on the team total — `options` is that member's own candidates, `axis` which field of
-   *  their `Pick` each one sets. */
   const sweepAcross = (axis: "weapon" | "echo", options: (m: Member) => number[]): boolean => {
     let changed = false;
     let best = run().total;
@@ -386,11 +277,7 @@ export function optimizeTeam(teamKey: string, members: Member[], filters: Filter
       const home = picks[i]!;
       let winner = home;
       for (const option of options(members[i]!)) {
-        if (option === home[axis]) continue; // already scored, it's the incumbent
-        // An option is only worth what it's worth *at its own best main stat* — an ER weapon and
-        // an ER roll trade off, an HP sonata moves what an HP scaler wants — so each candidate is
-        // re-rolled before it's judged. Scoring them all in the incumbent's rolls measures every
-        // alternative in gear picked for something else, and picks the wrong one.
+        if (option === home[axis]) continue;
         const rerolled = bestMainstatFor(teamKey, members, picks.map((p, j) => (j === i ? { ...home, [axis]: option } : p)), i);
         picks[i] = { ...home, [axis]: option, mainstat: rerolled.mainstat };
         if (rerolled.total > best) { best = rerolled.total; winner = picks[i]!; changed = true; }
@@ -400,24 +287,18 @@ export function optimizeTeam(teamKey: string, members: Member[], filters: Filter
     return changed;
   };
 
-  // One simultaneous main-stat pass to start every member off somewhere sane, then the two
-  // cross-member axes, which re-roll the member they're sweeping as they go.
-  //
-  // The closing pass is for everyone *else*: a main stat only ever feeds its wearer, but what a
-  // teammate wears still moves which roll is best for them (an ATK% sonata handed over on Outro
-  // shifts a member off ATK and onto their element), and the sweeps above only re-roll whoever's
-  // own axis is being swept. It costs about one run — every member's whole list rides along in it
-  // (see `scoreMainstats()`) — so it runs until nothing moves rather than being skipped.
+  // until a whole round of cross-member sweeps moves nothing: a member swept early in a round was
+  // judged against teammates who then changed, so an unchanged main-stat pass is not convergence
+  const converge = (weapons: boolean): void => {
+    for (let round = 0; round < 8; round++) {
+      const w = weapons && sweepAcross("weapon", (m) => weaponOptions(m, filters, sig));
+      const e = sweepAcross("echo", (m) => m.loadout.echoLoadouts.map((_, i) => i));
+      if (!w && !e) break;
+      sweepMainstats();
+    }
+  };
   sweepMainstats();
-  for (let round = 0; round < 3; round++) {
-    const weapons = sweepAcross("weapon", (m) => weaponOptions(m, filters, sig));
-    const echoes = sweepAcross("echo", (m) => m.loadout.echoLoadouts.map((_, i) => i));
-    if (!weapons && !echoes) break;
-    if (!sweepMainstats()) break;
-  }
-  // `s0r1mdps`: the one signature goes to whichever member gains the team the most from theirs,
-  // each tried on the standard team with their own main stats re-rolled for it — usually the main
-  // DPS, but a team with two is not shortcut. Their signature is the loadout's first weapon.
+  converge(true);
   if (filters.cost === "s0r1mdps") {
     let best = run().total, winner: Pick[] | null = null;
     members.forEach((m, i) => {
@@ -429,467 +310,61 @@ export function optimizeTeam(teamKey: string, members: Member[], filters: Filter
     if (winner) {
       (winner as Pick[]).forEach((p, i) => { picks[i] = p; });
       sweepMainstats();
+      // the signature changes what the sonatas are worth; weapons stay as handed out
+      converge(false);
     }
   }
   return picks;
 }
 
+/* ------------------------------------------------------------------------- the row set */
 
-
-export interface TeamRun {
-  /** The fight this run left behind — null on a row the table merely lists, whose figures came
-   *  back from a worker as plain numbers (see `RowScore`); nothing on the table reads it, and
-   *  `detailFor()` re-runs the one team actually opened. */
-  state: State | null;
-  /** Which team composition (`TEAMS` key) this combo belongs to — several `TeamRun`s share one
-   *  `teamKey`, one per combo the current filters open for that team's own members. */
-  teamKey: string;
-  members: Member[];
-  /** Which weapon/echo/main-stat combo each member above actually ran under — same order as
-   *  `members`. */
-  combo: Combo[];
-  /** The 4 sections' own raw lines, in order [opener, loop 1, loop 2, loop 3] — everything the
-   *  detail page is built from (`detailFor()`, the DPR table, the Energy Requirements table).
-   *  `null` on a row the comparison table merely listed: nothing on that table reads a line any
-   *  more, and retaining ~190 snapshots apiece across every weapon x echo x main-stat combo would
-   *  dwarf everything else this page holds. `detailFor()` re-runs the one team that actually gets
-   *  opened to fill this in. */
-  rotationLines: ChainGroup[][] | null;
-  /** The comparison table's own figures: the plain mean across all 4 sections' own grand total /
-   *  per-member total, each section weighted equally — see `runTeam()`'s own comment. */
-  total: number;
-  bySlot: Map<string, number>;
-  /** Each of the 4 sections' own raw grand total [opener, loop 1, loop 2, loop 3] — `total` above
-   *  is their mean; read by the comparison table's own Team DPR hover breakdown. */
-  sectionTotals: number[];
-  /** The same four sections split per member — `bySlot` above is their mean, the way
-   *  `sectionTotals` is `total`'s. Kept alongside rather than derived on demand because a
-   *  comparison-table row drops its own `rotationLines` (see above), so there is nothing left to
-   *  re-sum by the time a member's own Avg DPR cell is hovered. */
-  sectionBySlot: Map<string, number>[];
-  /** Per member, per main-stat variant they were run with (see `runTeam()`'s `variants`): the same
-   *  figures as above for the build wearing that main stat instead. Empty for a member run
-   *  without any. */
-  variantRuns: VariantRun[][];
-  /** The detail page's own rich report — every row's hover-trace panel data (`buildReport()`, see
-   *  display.ts's own rowValues()/tracing()) — built once, the first time this team is actually
-   *  opened, and cached here so revisiting it costs nothing. See `detailFor()`. */
-  detail?: { report: Report };
-}
-
-/** One main-stat alternative's own figures out of a run that scored it as a variant — what a
- *  comparison-table row reads off a `TeamRun`, plus whether the engine could vouch for it (see
- *  state.ts's own `TeamMember.variantUnsafe`). */
-export interface VariantRun {
-  total: number;
-  bySlot: Map<string, number>;
-  sectionTotals: number[];
-  sectionBySlot: Map<string, number>[];
-  unsafe: boolean;
-}
-
-const toLine = (snap: ResolvedSnapshot): ChainGroup =>
-  ({ id: snap.action.name, isChain: false, parts: [], snap, mv: mvPercent(snap), avg: damage(snap).avg });
-
-/**
- * One section's snapshots as the lines the report draws: an ordinary cast is its own line, and an
- * ActionGroup's members fold into one (rotation.ts's own `ActionGroup`).
- *
- * A group line reports the members' summed motion value and summed damage, but carries the *last*
- * member's snapshot: every stat column and every stat hover on it is that final cast's, which is
- * the one honest answer — a stat line is a moment, and summing or averaging three of them would
- * describe no moment the fight ever had. The columns that genuinely do accumulate (mv, the three
- * resources, the forte gauges) are recombined across every member instead, in display.ts.
- *
- * `parts` is the whole span in the order it actually resolved, members and the follow-ups queued
- * out of them alike — the last member's included, which land after the group has already ended
- * (evaluate.ts's own `groupSpill`) and used to trail it as loose rows. That is what the opened group
- * shows. Those follow-ups are *also* emitted as lines of their own, flagged `spill`: they are
- * separate damage and every total has to count them, so they stay lines rather than being folded
- * in, and the report merely tucks them under the group while it is collapsed.
- */
-function toLines(snaps: ResolvedSnapshot[]): ChainGroup[] {
-  const lines: ChainGroup[] = [];
-  for (let i = 0; i < snaps.length;) {
-    const head = snaps[i]!;
-    if (!head.group) { lines.push(toLine(head)); i++; continue; }
-    const parts: ChainGroup["parts"] = [];
-    const members: ResolvedSnapshot[] = [], extras: ResolvedSnapshot[] = [];
-    let mv = 0, avg = 0, j = i, ended = false;
-    for (; j < snaps.length; j++) {
-      const snap = snaps[j]!;
-      // `ended`/`groupEnd`, not "the group changed": a rotation may press the same group twice in
-      // a row, and the flag is what tells the second press from more of the first — which is where
-      // the span stops, however much spill the first press is still trailing.
-      const member = !ended && snap.group === head.group;
-      if (!member && snap.groupSpill !== head.group) break;
-      const dmg = damage(snap);
-      // every part stands alone in the opened view — a repeated follow-up folds only as the spill
-      // lines below, where the rows read outside the group while it is collapsed
-      parts.push({ snap, dmg });
-      if (member) {
-        members.push(snap);
-        mv += mvPercent(snap);
-        avg += dmg.avg;
-        if (snap.groupEnd) ended = true;
-      } else extras.push(snap);
-    }
-    lines.push({
-      id: head.group.name, isChain: true, parts, members,
-      snap: members[members.length - 1]!, mv, avg,
-    });
-    for (const snap of extras) lines.push({ ...toLine(snap), spill: true });
-    i = j;
-  }
-  return collapseRepeats(lines);
-}
-
-/**
- * Fold a run of the same triggered hit into one row: ten Glacio Chafe rungs off a single cast read
- * as `Glacio Chafe - 13 Stacks x10` rather than ten rows that say the same thing.
- *
- * Only ever *triggered* rows, and only ones that are genuinely the same cast on the same slot,
- * back to back — a rotation beat is never folded away, and two different rungs of a ramping status
- * stay apart because they really are different multipliers. The folded row is triggered itself, so
- * it keeps the dimmed, thin treatment its members had.
- *
- * Everything else works exactly as an ActionGroup's row does: summed motion value and damage, the
- * last member's stat line, every member's resource rows laid end to end, and the individual hits
- * still there under the caret. A line already folded (an ActionGroup) is left alone.
- */
-function collapseRepeats(lines: ChainGroup[]): ChainGroup[] {
-  const out: ChainGroup[] = [];
-  for (let i = 0; i < lines.length;) {
-    const head = lines[i]!;
-    const snap = head.snap;
-    let j = i + 1;
-    // a field's own summons are never folded here: the field row above them is already the one
-    // that says "x70", and opening it shows the hits themselves rather than folds of folds
-    if (!head.isChain && snap.triggered && !snap.action.field) {
-      while (j < lines.length) {
-        const next = lines[j]!;
-        if (next.isChain || !next.snap.triggered || !!next.spill !== !!head.spill) break;
-        // by name, not identity: a same-named variant is the same cast to the reader (Mortefi's
-        // paired Marcato copies, Verina's S6 reuse of her mark's own hit)
-        if (next.snap.action.name !== snap.action.name || next.snap.slot !== snap.slot) break;
-        j++;
-      }
-    }
-    if (j - i < 2) { out.push(head); i++; continue; }
-    const run = lines.slice(i, j);
-    out.push({
-      id: `${snap.action.name} x${run.length}`,
-      isChain: true,
-      parts: run.map((l) => ({ snap: l.snap, dmg: { avg: l.avg } })),
-      members: run.map((l) => l.snap),
-      snap: run[run.length - 1]!.snap,
-      mv: run.reduce((n, l) => n + l.mv, 0),
-      avg: run.reduce((n, l) => n + l.avg, 0),
-      spill: head.spill,
-    });
-    i = j;
-  }
-  return out;
-}
-
-/**
- * Gather each field's hits into one row: the whole field — every summon it fired, however
- * scattered — read as a single beat sitting directly under the cast that
- * created it, carrying the summed motion value and damage. It reads and opens exactly as an
- * ActionGroup's own row does; the one difference is where the hits go when it is opened, which is
- * back into the places they actually fired rather than indented underneath (index.ts renders them
- * there, which is why they stay lines of their own here).
- *
- * Both ends are declared, so nothing here is inferred: a summon's hit names its `ActionField`
- * (rotation.ts) and so does the Buff whose grant puts the field out, and `evaluate()` stamps every
- * row that granted one (`ResolvedSnapshot.opensFields`). One row per *opening*: a kit that
- * re-casts (Mortefi's second Violent Finale) gets a row under each cast, with its own hits under
- * it. The fold runs over the whole run at once, section cuts and all — a window pressed late in a
- * loop keeps firing into the next one (Jué's Blessing off a late echo press), and those hits are
- * still that press's, not a second field's — so a summary lands in whichever section its opening
- * cast sits in, while its hits stay in their own; the log draws every section into one grid, so
- * the one row still swaps with all of them. Hits ahead of every opening belong to nothing this
- * run pressed twice, and their row sits just ahead of the first of them.
- *
- * The row is `aggregate`: its damage is the hits' own, already counted on their own rows, so every
- * sum skips it (display.ts's totals, index.ts's breakdowns) and only the display reads it.
- * Display-only in the first place — applied to the traced lines the detail page renders, never the
- * scoring pass.
- */
-let nextFieldKey = 0;
-
-export function collapseFields(sections: ChainGroup[][]): ChainGroup[][] {
-  const lines = sections.flat();
-  const hitsIn = (l: ChainGroup): ResolvedSnapshot[] =>
-    (l.members?.length ? l.members : [l.snap]) as ResolvedSnapshot[];
-  // each field's hit lines, in the order they fired
-  const fields = new Map<ActionField, number[]>();
-  lines.forEach((l, i) => {
-    const field = l.snap.action.field;
-    if (!field || !hitsIn(l).every((h) => h.action.field === field)) return;
-    const at = fields.get(field);
-    if (at) at.push(i); else fields.set(field, [i]);
-  });
-  if (!fields.size) return sections;
-
-  const keyOf = new Map<number, string>();
-  // where each row goes: under the cast that opened that field, or — for one carried in from an
-  // earlier section — immediately ahead of its first hit
-  const after = new Map<number, ChainGroup[]>(), before = new Map<number, ChainGroup[]>();
-  for (const [field, at] of fields) {
-    const opens = lines.flatMap((l, i) => ((l.snap as ResolvedSnapshot).opensFields.includes(field) ? [i] : []));
-    // a hit belongs to the last opening at or before it; one ahead of them all was fired by a
-    // field opened before this section began
-    const groups = new Map<number, number[]>();
-    for (const i of at) {
-      let open = -1;
-      for (const o of opens) { if (o > i) break; open = o; }
-      (groups.get(open) ?? groups.set(open, []).get(open)!).push(i);
-    }
-    for (const [open, hits] of groups) {
-      // one toggle per opening: two rows of the same field must swap only their own hits, and the
-      // report draws all four sections into one table, so the id has to be unique past this one
-      const key = `f${nextFieldKey++}`;
-      for (const i of hits) keyOf.set(i, key);
-      const parts = hits.flatMap((i) => {
-        const l = lines[i]!;
-        return l.members?.length ? l.parts : [{ snap: l.snap, dmg: { avg: l.avg } }];
-      });
-      const one = parts[0]!.snap.action.name;
-      const summary: ChainGroup = {
-        id: parts.every((p) => p.snap.action.name === one) ? `${one} x${parts.length}` : `${field.name} x${parts.length}`,
-        isChain: true,
-        aggregate: true,
-        fieldKey: key,
-        parts,
-        members: parts.map((p) => p.snap),
-        snap: parts[parts.length - 1]!.snap,
-        mv: hits.reduce((sum, i) => sum + lines[i]!.mv, 0),
-        avg: hits.reduce((sum, i) => sum + lines[i]!.avg, 0),
-      };
-      const map = open >= 0 ? after : before;
-      (map.get(open >= 0 ? open : hits[0]!) ?? map.set(open >= 0 ? open : hits[0]!, []).get(open >= 0 ? open : hits[0]!)!).push(summary);
-    }
-  }
-
-  const out: ChainGroup[][] = sections.map(() => []);
-  let i = 0;
-  sections.forEach((section, sec) => {
-    for (const l of section) {
-      for (const summary of before.get(i) ?? []) out[sec]!.push(summary);
-      const key = keyOf.get(i);
-      out[sec]!.push(key === undefined ? l : { ...l, fieldKey: key });
-      for (const summary of after.get(i) ?? []) out[sec]!.push(summary);
-      i++;
-    }
-  });
-  return out;
-}
-
-/** One section's own grand total and per-member sum, read straight off its resolved lines — the
- *  same "no motion value means no damage" rule `display.ts`'s own rowValues() applies (`line.mv`
- *  is already `mvPercent(snap)`, from `toLine()` above), just without building a whole report to
- *  get there. `avgOf` is which damage a line counts for — its own, or one variant's. */
-function sumSection(lines: ChainGroup[], avgOf: (line: ChainGroup) => number): { total: number; bySlot: Map<string, number> } {
-  const bySlot = new Map<string, number>();
-  let total = 0;
-  for (const line of lines) {
-    if (line.mv === 0) continue;
-    // `.slot`, not `.member`: they're the same for every ordinary action, but a tune break carries
-    // its own bucket (the enemy's name, declared on the action itself — tunebreak.ts) so the
-    // team's shared bar going off doesn't land on whichever resonator happened to be on field.
-    // display.ts's own `totalsBySlot()` groups the detail page the same way.
-    const slot = (line.snap as ResolvedSnapshot).slot;
-    const avg = avgOf(line);
-    bySlot.set(slot, (bySlot.get(slot) ?? 0) + avg);
-    total += avg;
-  }
-  return { total, bySlot };
-}
-
-/** The comparison table's own figures over all four sections: the plain mean of each section's
- *  grand total / per-member total, the opener counting exactly as much as a single loop pass. */
-function sumRun(rotationLines: ChainGroup[][], avgOf: (line: ChainGroup) => number) {
-  let total = 0;
-  const bySlot = new Map<string, number>();
-  const sectionTotals: number[] = [];
-  const sectionBySlot: Map<string, number>[] = [];
-  for (const lines of rotationLines) {
-    const section = sumSection(lines, avgOf);
-    sectionTotals.push(section.total);
-    sectionBySlot.push(section.bySlot);
-    total += section.total / rotationLines.length;
-    for (const [slot, v] of section.bySlot) bySlot.set(slot, (bySlot.get(slot) ?? 0) + v / rotationLines.length);
-  }
-  return { total, bySlot, sectionTotals, sectionBySlot };
-}
-
-/** @param trace  capture the report's own per-entry trace and keep the resolved lines — off for
- *  the comparison table's own bulk pass (see context.ts's own `setTracing`), on for the single team
- *  whose detail page is being rendered.
- *  @param variants  per member, the main-stat Buffs to score as variants of the build in `combo`
- *  (state.ts's own `TeamMember.variants`) — see `scoreMainstats()`. Not with `trace`. */
-export function runTeam(teamKey: string, members: Member[], combo: Combo[], trace = false, variants: (Buff[] | null)[] | null = null): TeamRun {
-  setTracing(trace);
-  try {
-    return runTeamInner(teamKey, members, combo, trace, variants);
-  } finally {
-    setTracing(false);
-  }
-}
-
-function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace: boolean, variants: (Buff[] | null)[] | null): TeamRun {
-  const state = new State(members.map((m) => m.name));
-  members.forEach((m, i) => {
-    state.active = i;
-    withTeam(state, () => { for (const g of m.loadout.pieces(combo[i]!.weapon, combo[i]!.echo, combo[i]!.mainstat, combo[i]!.sequence, combo[i]!.matrix !== null, combo[i]!.highSubs)) equip(g, 1); });
-    const alts = variants?.[i];
-    if (alts?.length) {
-      const slot = state.slots[i]!;
-      slot.variantOf = combo[i]!.mainstat;
-      slot.variants = alts;
-      slot.variantBase = alts.map(() => new Map());
-      slot.variantUnsafe = alts.map(() => false);
-    }
-  });
-  state.active = 0;
-  // the enemy, equipped the same way everyone's gear was just put on them: the Tune Break
-  // resonator fires the break itself and puts its own Base Resistance on at start of combat (see
-  // tunebreak.ts). This is the one file every path that runs a team goes through.
-  withTeam(state, () => equipEnemy(TUNE_BREAK_ENEMY));
-
-  // Four sections: the opener and three loops, exactly what the report's own columns show. The
-  // scheduler runs one continuous fight rather than four separate passes (rotation.ts) and cuts a
-  // section on the Intro the last slot's outro hands into — one full trip round the team — so a loop-only
-  // buff/gauge that hasn't settled by the first trip still gets three more to reach steady state.
-  const rotationLines = runRotations(state, members.map((m, i) => m.loadout.rotationAt(combo[i]!.sequence)), 4).map(toLines);
-
-  // The comparison table (not the detail page's own action table) only ever needs a grand total
-  // and a per-member sum. Read straight off the resolved lines rather than through buildReport(),
-  // which also builds every row's own hover-trace panel data purely for the detail page — the
-  // bulk of a team run's own cost, for data this table never reads. See `detailFor()` below for
-  // where that actually gets built.
-  const { total, bySlot, sectionTotals, sectionBySlot } = sumRun(rotationLines, (line) => line.avg);
-  // ...and the same again per variant, counting a varied member's own actions at that variant's
-  // damage and everyone else's as they were. A grouped line (an ActionGroup, a folded repeat) is
-  // every hit's sum but carries only its last hit's snapshot, so its hits are swapped one by one
-  // out of `parts` — reading `line.snap` alone would drop every hit but the last.
-  const variantAvgOf = (snap: ResolvedSnapshot, avg: number, m: Member, v: number): number =>
-    (snap.member === m.name && snap.variantAvg !== null ? snap.variantAvg[v]! : avg);
-  const variantRuns = members.map((m, i) => (variants?.[i] ?? []).map((_, v) => ({
-    ...sumRun(rotationLines, (line) => {
-      if (!line.isChain) return variantAvgOf(line.snap as ResolvedSnapshot, line.avg, m, v);
-      const hits = new Set(line.members ?? []);
-      let avg = line.avg;
-      for (const p of line.parts) if (hits.has(p.snap)) avg += variantAvgOf(p.snap, p.dmg.avg, m, v) - p.dmg.avg;
-      return avg;
-    }),
-    unsafe: state.slots[i]!.variantUnsafe[v]!,
-  })));
-
-  // the detail page's lines get the field fold; the totals above were already summed
-  return { state, teamKey, members, combo, rotationLines: trace ? collapseFields(rotationLines) : null, total, bySlot, sectionTotals, sectionBySlot, variantRuns };
-}
-
-/** The comparison table's own figures for one row, as plain data a worker can hand back: the
- *  same four fields a `TeamRun` carries (see there), with the Maps as entry lists. */
-export interface RowScore { total: number; bySlot: [string, number][]; sectionTotals: number[]; sectionBySlot: [string, number][][] }
-
-const scoreOf = (run: TeamRun): RowScore =>
-  ({ total: run.total, bySlot: [...run.bySlot], sectionTotals: run.sectionTotals, sectionBySlot: run.sectionBySlot.map((by) => [...by]) });
-
-/** A row's `TeamRun` rebuilt from the score a worker sent back — everything the table reads,
- *  and no fight behind it (see `TeamRun.state`). */
-export const runFromScore = (teamKey: string, members: Member[], combo: Combo[], score: RowScore): TeamRun => ({
-  state: null, teamKey, members, combo, rotationLines: null, variantRuns: [],
-  total: score.total, bySlot: new Map(score.bySlot), sectionTotals: score.sectionTotals,
-  sectionBySlot: score.sectionBySlot.map((by) => new Map(by)),
-});
-
-
-/** Resolve a team from the key a worker was handed (see teams.ts) — a `Loadout` is closures all
- *  the way down, so it can't cross a postMessage, but where the team sits in `ALL_TEAMS` can, and
- *  both threads build that list out of the same module. Which member is the main DPS comes back
- *  with it (teams.ts's own `TeamEntry.dpsIndex`), not something the `Loadout` itself carries. */
 export const teamFromKey = (key: string): Member[] => {
   const team = teamAt(key);
   if (!team) throw new Error(`no team is named ${key}`);
   return team.loadouts.map((l, i) => member(l, team.mdps[i]!));
 };
 
-/** Every whole-team combo of `lists`' own picks — `lists[0]`'s every entry against `lists[1]`'s
- *  every entry against ..., the plain N-way cartesian product, with no pruning of its own: the
- *  page's own row cap is what keeps this from running away (index.ts's own `ROW_CAP`). */
 function cartesian<T>(lists: T[][]): T[][] {
   return lists.reduce<T[][]>((acc, list) => acc.flatMap((picked) => list.map((item) => [...picked, item])), [[]]);
 }
 
-/** How many main-stat rows an open box actually opens per build: the best few for that build, not
- *  the whole list. A loadout carries every roll worth simulating, but the tail of that list is
- *  rolls the build plainly doesn't want — rows nobody reads, crossed against every other member's
- *  own tail. The cut is per build, not per team, so a weapon that wants a different roll still
- *  shows it (see `rowPicks()`). */
+/** Main-stat rows an open box shows per build — the best few, not the whole list. */
 export const MAINSTAT_ROWS = 9;
 
-/** One member's own weapon/echo pick indices to cross into the team-wide product below — every
- *  option on an axis whose box is open for this member's own role, just their best pick's own
- *  index on one that's closed. Neither main stat nor sequence is here: main stats are picked per
- *  build once the cross is known, and sequence stays a separate, un-crossed variation (both in
- *  `rowPicks()`), same as neither getting crossed into the table's own columns. */
+/** One member's weapon/sequence/refine/echo/substat picks to cross into the team-wide product:
+ *  every option on an open axis, the home pick on a closed one. Main stats are picked per build. */
 function buildsOf(m: Member, home: Pick, f: Filters, sig: boolean): Pick[] {
   const l = m.loadout;
   const weapons = axisOpen(m, f, "weapons") ? weaponOptions(m, f, sig) : [home.weapon];
-  const echoes = axisOpen(m, f, "echoes") ? l.echoLoadouts.map((_, i) => i) : [home.echo];
-  // substats cross in the same way: both spreads while compared, else the home one
   const subs = axisOpen(m, f, "substats") ? [false, true] : [home.highSubs];
-  // Sequences cross in like the other two. A closed box's `sequenceLevels()` is the one baseline
-  // level, so a closed axis still contributes exactly one pick — the same shape `weapons`/`echoes`
-  // collapse to above, just read off the loadout rather than off the solved build.
   const sequences = sequenceLevels(m, f);
   const picks: Pick[] = [];
-  for (const weapon of weapons) for (const echo of echoes) for (const sequence of sequences) for (const highSubs of subs) {
-    picks.push({ ...home, weapon, echo, sequence, highSubs });
+  for (const weapon of weapons) for (const sequence of sequences) {
+    const at = { ...home, weapon, sequence };
+    const echoes = compares(m, f, "echoes", gateOf(l, at)) ? l.echoLoadouts.map((_, i) => i) : [home.echo];
+    for (const refine of refineLevels(m, f, at)) for (const echo of echoes) for (const highSubs of subs) {
+      picks.push({ ...at, refine, echo, highSubs });
+    }
   }
   return picks;
 }
 
 /**
- * Every row the comparison table will show for this team — the whole-team cross of each member's
- * own weapon/echo/sequence candidates — and then, for each of those builds, the echo and main
- * stats to show it wearing. Sequences are crossed in exactly like the other two axes: a level is
- * still never *searched* (a chain node is never a trade-off against anything, so nothing has to
- * decide between them), but it varies against every other member's gear rather than only against
- * the team's own best build.
- *
- * A closed echo box is re-searched per build (`pinEchoes` below) for the same reason a closed
- * main-stat box is: its pick came out of the team's own best build, and the sonata that build
- * wanted need not be what a different weapon wants.
- *
- * Main stats are answered per build rather than crossed in blind, because they are the one axis
- * whose whole list can be scored in a single run (see `scoreMainstats()`):
- *
- * - **Box closed** — the build shows one roll, and the only honest one is the one it actually
- *   wants. Judging a worse weapon in the *winner's* rolls measures it wearing gear picked for
- *   something else and reports it as worse than it is, the same reason `sweepAcross()` re-rolls
- *   every candidate before scoring it.
- * - **Box open** — the build's own best `MAINSTAT_ROWS` get a row each, crossed against whoever
- *   else has their box open. The rest of the list is rolls that build doesn't want, and dropping
- *   them is what keeps a couple of open boxes from multiplying a whole list into every other
- *   member's whole list.
+ * Every row the table shows for this team: the cross of each member's candidates, then per build
+ * a closed echo box re-searched (`pinEchoes`) and closed main stats settled — a worse weapon judged
+ * in the winner's rolls reads worse than it is. Open main stats get the build's best `MAINSTAT_ROWS`.
+ * `hidden`: the sonata re-search's losing candidates, kept so a gear compare has its baseline.
  */
 function rowPicks(teamKey: string, members: Member[], best: Pick[], filters: Filters): { rows: Pick[][]; hidden: Pick[][] } {
-  // the sonata re-search's losing candidates, each on its own best main stat (`pinEchoes`
-  // below): scored on the way, and kept as rows the table never shows so a gear compare can
-  // measure against a build whose teammate wore a different set (index.ts's own `gearCompare`)
   const hidden: Pick[][] = [];
-  const boxOpen = (i: number): boolean => axisOpen(members[i]!, filters, "mainstats");
-  const open = members.map((_, i) => i).filter(boxOpen);
-  const closed = members.map((_, i) => i).filter((i) => !boxOpen(i));
+  const mainstatsOpen = (picks: Pick[]): number[] =>
+    members.map((_, i) => i).filter((i) => compares(members[i]!, filters, "mainstats", gateOf(members[i]!.loadout, picks[i]!)));
 
-  // A closed box settles rather than sweeping once: nobody's main stat moves anyone else's damage,
-  // but what a *teammate* rolls changes the buffs they hand over, so one member landing somewhere
-  // new can move the next. Three rounds at most, the same ceiling the search itself uses.
+  // a teammate's roll changes the buffs they hand over, so closed members settle over rounds
   const settle = (picks: Pick[]): Pick[] => {
+    const open = mainstatsOpen(picks);
+    const closed = members.map((_, i) => i).filter((i) => !open.includes(i));
     if (!closed.length) return picks;
     let out = picks;
     for (let round = 0; round < 3; round++) {
@@ -901,65 +376,61 @@ function rowPicks(teamKey: string, members: Member[], best: Pick[], filters: Fil
     return out;
   };
 
-  // A closed echo box has the same problem a closed main-stat box does, one axis up: its pick is
-  // whatever the team's own best build settled on, and the best sonata for *that* weapon need not
-  // be the best one for this build's. So each build re-searches it — every echo of every member
-  // whose box is closed, one member at a time with the rest held still, each candidate re-rolled
-  // onto its own best main stat and scored on the team total: `sweepAcross()`'s own pass, run
-  // again inside a build the search itself never visited.
-  const closedEchoes = members
-    .map((m, i) => (axisOpen(m, filters, "echoes") ? -1 : i))
-    .filter((i) => i >= 0);
-  //
-  // A member with a single sonata has nothing to re-search — and scoring the incumbent is a
-  // whole main-stat run, which was paid per build for nothing on the half of all loadouts that
-  // list just the one. `settle()` below rolls their main stats regardless.
+  const compared = members.some((m) => AXES.some((a) => axisUsed(m, filters, a)));
   const pinEchoes = (picks: Pick[]): Pick[] => {
     let out = picks;
+    const closedEchoes = members.map((_, i) => i).filter((i) => !compares(members[i]!, filters, "echoes", gateOf(members[i]!.loadout, picks[i]!)));
+    // with a compare open somewhere every closed member is re-rolled per trial (hidden rows are
+    // then compare baselines); otherwise only the wearer, a third the cost
+    const reroll = (trial: Pick[], i: number): { picks: Pick[]; total: number } => {
+      if (!compared) {
+        const one = bestMainstatFor(teamKey, members, trial, i);
+        return { picks: trial.map((p, j) => (j === i ? { ...p, mainstat: one.mainstat } : p)), total: one.total };
+      }
+      const rolled = bestMainstats(teamKey, members, trial, members.map((_, k) => k).filter((k) => !mainstatsOpen(trial).includes(k)));
+      return { picks: rolled, total: trialRun(teamKey, members, rolled).total };
+    };
     for (const i of closedEchoes) {
       if (members[i]!.loadout.echoLoadouts.length < 2) continue;
       const home = out[i]!;
+      const incumbent = reroll(out, i);
       let winner = home;
-      let bestTotal = bestMainstatFor(teamKey, members, out, i).total;
+      let bestTotal = incumbent.total;
       members[i]!.loadout.echoLoadouts.forEach((_, echo) => {
         if (echo === home.echo) return;
-        const trial = out.map((p, j) => (j === i ? { ...home, echo } : p));
-        const rerolled = bestMainstatFor(teamKey, members, trial, i);
-        hidden.push(trial.map((p, j) => (j === i ? { ...p, mainstat: rerolled.mainstat } : p)));
-        if (rerolled.total > bestTotal) { bestTotal = rerolled.total; winner = { ...home, echo, mainstat: rerolled.mainstat }; }
+        const trial = reroll(out.map((p, j) => (j === i ? { ...home, echo } : p)), i);
+        hidden.push(trial.picks);
+        if (trial.total > bestTotal) { bestTotal = trial.total; winner = trial.picks[i]!; }
       });
-      // the incumbent too, on its own best roll: the row goes on to `settle()` and may leave it
-      hidden.push(out.map((p, j) => (j === i ? { ...home, mainstat: bestMainstatFor(teamKey, members, out, i).mainstat } : p)));
+      hidden.push(incumbent.picks);
       out = out.map((p, j) => (j === i ? winner : p));
     }
     return out;
   };
 
-  // under `s0r1mdps` the build's own holder is the one member whose weapons compare may include
-  // their signature; everyone else's rows stay on standards
   const holder = sigHolder(members, best);
   const builds = cartesian(members.map((m, i) => buildsOf(m, best[i]!, filters, sigAllowed(i, holder, filters.cost))));
-  // deduped before anything is run — every build below costs at least one run, and a cross this
-  // wide is cheap to check but expensive to run twice
   const seen = new Map<string, Pick[]>();
   for (const picks of builds) {
-    const key = picks.map((p) => `${p.weapon}.${p.echo}.s${p.sequence}${p.highSubs ? ".h" : ""}`).join("-");
+    const key = picks.map((p) => `${p.weapon}.${p.echo}.s${p.sequence}.r${p.refine}${p.highSubs ? ".h" : ""}`).join("-");
     if (!seen.has(key)) seen.set(key, picks);
   }
 
+  // with nothing compared the hidden rows are never read, and the one build is the search's own
+  // converged answer: re-searching its sonatas would only repeat the sweep that just settled it
+  const isBest = (build: Pick[]): boolean => build.every((p, i) => {
+    const b = best[i]!;
+    return p.weapon === b.weapon && p.echo === b.echo && p.sequence === b.sequence && p.refine === b.refine && p.highSubs === b.highSubs;
+  });
   const rows: Pick[][] = [];
   for (const build of seen.values()) {
-    const settled = settle(pinEchoes(build));
+    const settled = settle(!compared && isBest(build) ? build : pinEchoes(build));
+    const open = mainstatsOpen(settled);
     if (!open.length) { rows.push(settled); continue; }
-    // one run scores every open member's whole list at once, so the cut costs no more than
-    // knowing the single best would have
     const scores = scoreMainstats(teamKey, members, settled, open);
     const top = new Map<number, number[]>();
     for (const i of open) {
-      const ranked: { mainstat: number; damage: number }[] = [];
-      scores.get(i)!.forEach((run, k) => ranked.push({ mainstat: k, damage: run.bySlot.get(members[i]!.name) ?? 0 }));
-      ranked.sort((a, b) => b.damage - a.damage);
-      top.set(i, ranked.slice(0, MAINSTAT_ROWS).map((r) => r.mainstat));
+      top.set(i, rankedMainstats(scores.get(i)!, members[i]!).slice(0, MAINSTAT_ROWS).map((r) => r.mainstat));
     }
     for (const mainstats of cartesian(members.map((_, i) => top.get(i) ?? [settled[i]!.mainstat]))) {
       rows.push(settled.map((p, i) => ({ ...p, mainstat: mainstats[i]! })));
@@ -968,67 +439,36 @@ function rowPicks(teamKey: string, members: Member[], best: Pick[], filters: Fil
   return { rows, hidden };
 }
 
-/** One team's whole optimization pass — the unit of parallel work: the best build per member
- *  (what a closed axis shows), and every row the table will open for it, each already re-rolled
- *  onto the main stats that build wants (see `rowPicks()`). */
-/** @param known  this team's best build under these filters, when the caller already has it
- *  (index.ts's own `picksCache`): the search depends on far fewer of the filter flags than the
- *  row set does (see `picksKey()` there), so most box flips need only the rows redone. */
+/** One team's whole solve — the unit of parallel work. `known`: the best build when the caller
+ *  already has it (most box flips change rows, not the build). */
 export function solveTeam(teamKey: string, members: Member[], filters: Filters, known: Pick[] | null = null): Solved {
   trialCache = new Map(); scoreCache = new Map();
   const picks = known ?? optimizeTeam(teamKey, members, filters);
   const { rows, hidden } = rowPicks(teamKey, members, picks, filters);
-  // every row was scored on the way to being picked (see `rowPicks()`), so its figures are
-  // already in hand — sent along, so the page never has to run a row the search just ran
   const score = (row: Pick[]): RowScore => {
     const combo = members.map((m, i) => comboOf(m.loadout, row[i]!));
     return scoreOf(trialCache.get(trialKey(teamKey, combo)) ?? runTeam(teamKey, members, combo));
   };
   const scores = rows.map(score);
   const hiddenScores = hidden.map(score);
-  trialCache = new Map(); scoreCache = new Map();   // a TeamRun holds a whole State; don't keep 80 of them alive
+  trialCache = new Map(); scoreCache = new Map();
   return { picks, rows, scores, hidden, hiddenScores };
 }
 
 /* ------------------------------------------------------------------ worker protocol */
 
-/** One team handed to a worker: the team's own key, which is the whole of what rebuilding it there
- *  takes (see `teamFromKey()`), plus the filter flags, since a worker can't see the page's state. */
 export interface SolveRequest { id: number; teamKey: string; filters: Filters; picks: Pick[] | null }
 
-/** One team's solved answer: its best build per member, the picks for every row the table will
- *  show it as (see `rowPicks()`), and each of those rows' own figures, in the same order. */
-/** `hidden`/`hiddenScores`: the sonata re-search's other candidates (`rowPicks()`), rows the
- *  table never shows but the gear compares read; absent on a solve saved before they existed. */
+/** `hidden`/`hiddenScores` are absent on a solve saved before they existed. */
 export interface Solved { picks: Pick[]; rows: Pick[][]; scores: RowScore[]; hidden?: Pick[][]; hiddenScores?: RowScore[] }
 
-/** What comes back — small, plain data: gear *indices*, nothing engine-shaped. The main thread
- *  turns these back into real gear with `comboOf()` and runs the handful of rows the table
- *  actually shows itself. */
 export interface SolveResponse extends Solved { id: number }
 
-/** A whole roster's solves at rest — what index.ts keeps in localStorage between visits and what
- *  precompute.ts ships as solves.json. Entries keyed by `bestKey()`/`picksKey()`; `stamp` names
- *  the build they were solved under, and a stamp that doesn't match the running one means the
- *  numbers may have moved, so nothing in it is used. */
+/** A roster's solves at rest (localStorage, tests/solves/*.json). A `stamp` that doesn't match the running build means nothing in it is used. */
 export interface SolveSave { stamp: string; solves: [string, Solved][]; picks: [string, Pick[]][] }
 
-/**
- * This module is also the worker entry point itself — index.ts's own `workerPool()` spawns
- * `./solver.js`, and on the main thread it imports the very same file. Deliberately thin: all
- * the actual work is `solveTeam()` above, which the fallback path calls directly here on the main
- * thread, so there is only one implementation of the search to keep correct.
- *
- * `document` is the test rather than anything worker-shaped, because that's the one thing a worker
- * scope definitively lacks: on the main thread `self` is the window and the handler is simply
- * never installed, so importing this module can't hand the page a `postMessage` listener it never
- * asked for. `self` is checked too so node (precompute.ts, the scratch runs) can import this file
- * — it has neither, and its worker_threads speak parentPort, not this.
- */
+// Worker entry: `document` is what a worker scope lacks; `self` keeps node (precompute) out.
 if (typeof document === "undefined" && typeof self !== "undefined") {
-  // `self` is typed as a Window by the DOM lib this project compiles against; inside a worker it
-  // is a DedicatedWorkerGlobalScope, and the two disagree on `postMessage`'s signature. Narrowed
-  // to the two members actually used rather than pulling the WebWorker lib in for the whole project.
   const ctx = self as unknown as {
     onmessage: ((e: MessageEvent<SolveRequest>) => void) | null;
     postMessage: (message: SolveResponse) => void;

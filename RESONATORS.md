@@ -37,10 +37,7 @@ yinlin
 jingran
 denia
 aemeath
-mornye
 galbrena
 lupa
 
-lucilla
 hiyuki
-zhezhi
