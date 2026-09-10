@@ -32,7 +32,7 @@ import {
   revokeCurrent,
   isHeld,
   casting,
-  currentAction,
+  runningAction,
   addStat,
   frozenStacks,
   queueOutro,
@@ -61,7 +61,7 @@ const BA3 = encoreAction("Basic - Wooly Attack 3", { node: Node.Normal, cast: Ca
 const BA4 = encoreAction("Basic - Wooly Attack 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 153.08, energy: 1.92, concerto: 3.84, offtune: 9240, forte1: 4 });
 const WoolyStrike = encoreAction("Basic - Wooly Strike", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 238.57, energy: 3.00, concerto: 6.00, offtune: 14400, forte1: 25 });
 const HA = encoreAction("Heavy - Wooly Attack", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 187.08, energy: 2.35, concerto: 4.70, offtune: 11292, forte1: 5 });
-const MA = encoreAction("Mid-air - Wooly Attack", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 123.26, energy: 0.51, concerto: 1.00, offtune: 14400, forte1: 11 });
+const MA = encoreAction("Mid-air - Wooly Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.26, energy: 0.51, concerto: 1.00, offtune: 14400, forte1: 11 });
 const DC = encoreAction("Dodge Counter - Wooly Attack", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 251.88, energy: 3.16, concerto: 13.32, offtune: 8004, forte1: 6 });
 
 // Flaming Woolies, then Energetic Welcome (press again shortly after)
@@ -105,7 +105,7 @@ const WOOLIES_CHEER_DANCE = new Buff({
 });
 const EN_INHERENT_2 = new Inherent({
   name: "Inherent: Woolies Cheer Dance",
-  updateBuffs: () => { const a = currentAction(); if (a === Skill1 || a === USkill) applyCurrent(WOOLIES_CHEER_DANCE, 1); },
+  updateBuffs: () => { if (runningAction(Skill1) || runningAction(USkill)) applyCurrent(WOOLIES_CHEER_DANCE, 1); },
 });
 
 /** Assumed always true — see file header. Granted/revoked alongside Cosmos Rave itself, so
@@ -113,11 +113,11 @@ const EN_INHERENT_2 = new Inherent({
 const ANGRY_COSMOS = new Buff({
   name: "Inherent: Angry Cosmos",
   stats: [[Stat.DmgBonus, 10]],
-  convertStats: () => { if (currentAction() === FHA) revokeCurrent(ANGRY_COSMOS); },
+  convertStats: () => { if (runningAction(FHA)) revokeCurrent(ANGRY_COSMOS); },
 });
 const EN_INHERENT_1 = new Inherent({
   name: "Inherent: Angry Cosmos",
-  updateBuffs: () => { if (currentAction() === Liberation) applyCurrent(ANGRY_COSMOS, 1); },
+  updateBuffs: () => { if (runningAction(Liberation)) applyCurrent(ANGRY_COSMOS, 1); },
 });
 
 /* ------------------------------------------------------------------------------- sequences */
@@ -129,18 +129,18 @@ const S1_STACKS = new Buff({
 });
 const S1 = new Sequence({
   name: "Encore S1",
-  updateBuffs: () => { if (casting(Cast.Basic) || casting(Cast.MidAir)) applyCurrent(S1_STACKS, 1); },
+  updateBuffs: () => { if (casting(Cast.Basic)) applyCurrent(S1_STACKS, 1); },
 });
 
 // 10s ICD isn't modelled, so it pays every cast instead of once per window
 const S2 = new Sequence({
   name: "Encore S2", // note removed ba5 trigger to model 10s cooldown
-  updateBuffs: () => { if (currentAction() === Skill2) addStat(Stat.AddEnergy, 10); },
+  updateBuffs: () => { if (runningAction(Skill2)) addStat(Stat.AddEnergy, 10); },
 });
 
 const S3 = new Sequence({
   name: "Encore S3",
-  applyStats: () => { if (currentAction() === CloudyFrenzy || currentAction() === FHA) addStat(Stat.MulMv, 40); },
+  applyStats: () => { if (runningAction(CloudyFrenzy) || runningAction(FHA)) addStat(Stat.MulMv, 40); },
 });
 
 /** Permanent uptime once granted, per the standing duration rule (30s). */
@@ -150,7 +150,7 @@ const S4_TEAM = new Buff({
 });
 const S4 = new Sequence({
   name: "Encore S4",
-  updateBuffs: () => { if (currentAction() === FHA) applyTeam(S4_TEAM, 1); },
+  updateBuffs: () => { if (runningAction(FHA)) applyTeam(S4_TEAM, 1); },
 });
 
 const S5 = new Sequence({

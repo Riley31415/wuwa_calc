@@ -48,8 +48,9 @@
  * so unlike the tune-break-era cast she carries no flat Tune Break Boost of her own.
  */
 import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
-import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
+import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
+  asSource,
   addStat,
   applied,
   appliedByMe,
@@ -58,9 +59,11 @@ import {
   applyEnemy,
   applyTeam,
   currentAction,
+  runningAction,
   currentTeam,
   frozenStacks,
   queue,
+  queueEvent,
   queueOn,
   queueOutro,
   removeStack,
@@ -77,10 +80,12 @@ import {
   forte3,
   forte2,
   isActive,
+  isHeld,
+  currentMember,
 } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, DODGE, NOINTRO, JUMP } from "../../engine/rotation.js";
-import { GLACIO_CHAFE, GLACIO_CHAFE_ACTIONS, HAVOC_BANE } from "../../shared/status.js";
+import { ActionGroup, Action, ActionField, Rotation, INTRO, FIRST_INTRO, ECHO_CANCEL, OUTRO, DODGE, NOINTRO, NOINTRO_FIRST, JUMP } from "../../engine/rotation.js";
+import { GLACIO_CHAFE, GLACIO_CHAFE_ACTIONS, HAVOC_BANE, HEALS } from "../../shared/status.js";
 import { FROSTBURN } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { QUIET_SNOWFALL_5PC, VOIDBORNE_CONSTRUCT } from "../../echoes/lahairoi.js";
@@ -89,6 +94,18 @@ import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { TUNE_BREAK } from "../../shared/tunebreak.js";
 
 /* ------------------------------------------------------------------------------ glacio bite */
+
+/** Her two windows: every converted stack's own rung, and every Fine Snow hit the Snow Rust tier
+ *  fires. A visit lands dozens of both, so each reads as one row under the Intro that opened the
+ *  window rather than a line apiece — and only what lands while she is on field goes in one. The rungs are the shared ladder's (status.ts) filed under her
+ *  field — the same hits, named the same, with somewhere of hers to sit. */
+const GLACIO_BITE_FIELD = new ActionField("Hiyuki: Glacio Bite");
+const FINE_SNOW = new ActionField("Hiyuki: Fine Snow");
+const BITE_RUNGS: (Action | null)[] = GLACIO_CHAFE_ACTIONS.map((a) => a?.variant(a.name, { field: GLACIO_BITE_FIELD }) ?? null);
+/** What opens them: nameless, so neither shows in the held list — a window is what the report
+ *  reads them by, not something of hers to display. */
+const GLACIO_BITE_WINDOW = new Buff({ field: GLACIO_BITE_FIELD });
+const FINE_SNOW_WINDOW = new Buff({ field: FINE_SNOW });
 
 /** What the team's Glacio Chafe becomes while she is on the team — laid by the conversion on her
  *  Resonator below, which is also what fires the damage; this carries no rule of its own. It
@@ -123,7 +140,7 @@ const FROSTBIND = {
 const BA1 = hiyukiAction("Basic - Present Self 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 75.44, energy: 1.28, concerto: 2.44, offtune: 4336 });
 const BA2 = hiyukiAction("Basic - Present Self 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 90.25, energy: 1.53, concerto: 2.92, offtune: 5188 });
 const BA3 = hiyukiAction("Basic - Present Self 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 122.97, energy: 2.12, concerto: 3.99, offtune: 7070, forte1: 100, ...CHAFE });
-const MA = hiyukiAction("Mid-air - Present Self", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 128.18, energy: 2.17, concerto: 4.15, offtune: 7368 });
+const MA = hiyukiAction("Mid-air - Present Self", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 128.18, energy: 2.17, concerto: 4.15, offtune: 7368 });
 const DC = hiyukiAction("Dodge Counter - Present Self 2", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 173.75, energy: 2.94, concerto: 15.62, offtune: 9988 });
 /** Three arrows, considered Resonance Liberation DMG, and what opens Inward Vision. */
 const FrostSplinter = hiyukiAction("Heavy - Frost Splinter: Present Self", {
@@ -142,9 +159,9 @@ const FBA3 = hiyukiAction("Basic - Foreclaimed Self 3", { node: Node.Normal, cas
 const FBA4 = hiyukiAction("Basic - Foreclaimed Self 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Liberation, mv: 149.65, energy: 2.55, concerto: 4.85, offtune: 8600, forte2: 30, ...CHAFE });
 const FBA5 = hiyukiAction("Basic - Foreclaimed Self 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Liberation, mv: 121.64, energy: 2.06, concerto: 3.94, offtune: 6993, forte2: 24, ...CHAFE });
 const FDC = hiyukiAction("Dodge Counter - Foreclaimed Self 2", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Liberation, mv: 163.54, energy: 2.78, concerto: 15.30, offtune: 9400, forte2: 32 });
-const FMA1 = hiyukiAction("Mid-air - Foreclaimed Self 1", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Liberation, mv: 96.09, energy: 1.63, concerto: 3.13, offtune: 5523, forte2: 19 });
-const FMA2 = hiyukiAction("Mid-air - Foreclaimed Self 2", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Liberation, mv: 104.36, energy: 1.80, concerto: 3.40, offtune: 6000, forte2: 20, ...CHAFE });
-const FMA3 = hiyukiAction("Mid-air - Foreclaimed Self 3", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Liberation, mv: 111.60, energy: 1.89, concerto: 3.61, offtune: 6416, forte2: 22, ...CHAFE });
+const FMA1 = hiyukiAction("Mid-air - Foreclaimed Self 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Liberation, mv: 96.09, energy: 1.63, concerto: 3.13, offtune: 5523, forte2: 19 });
+const FMA2 = hiyukiAction("Mid-air - Foreclaimed Self 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Liberation, mv: 104.36, energy: 1.80, concerto: 3.40, offtune: 6000, forte2: 20, ...CHAFE });
+const FMA3 = hiyukiAction("Mid-air - Foreclaimed Self 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Liberation, mv: 111.60, energy: 1.89, concerto: 3.61, offtune: 6416, forte2: 22, ...CHAFE });
 /** Hold Breath into the thrust — the Heavy she has before Whiteout Bitterfrost fills. */
 const UHA = hiyukiAction("Heavy - Foreclaimed Self", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Liberation, mv: 107.16, energy: 1.81, concerto: 3.47, offtune: 6160, forte2: 21 });
 /** Bitterfrost: trades all 3 Whiteout for a Snowforged Blade. Restores no Frostheart — the kit
@@ -205,8 +222,12 @@ const Intro = hiyukiAction("Intro - Frostedge", {
   forte1: 200,
   updateDebuffs: () => applyEnemy(GLACIO_CHAFE, 1),
   // Snowlight Blessing is a 20s team buff, so CLAUDE.md's own wording rule ends it here rather
-  // than leaving it standing for the fight
-  updateBuffs: () => revokeTeam(SNOWLIGHT_BLESSING),
+  // than leaving it standing for the fight; the two windows above open on the same cast
+  updateBuffs: () => {
+    revokeTeam(SNOWLIGHT_BLESSING);
+    applyCurrent(GLACIO_BITE_WINDOW, 1);
+    applyCurrent(FINE_SNOW_WINDOW, 1);
+  },
 });
 const Outro = hiyukiAction("Outro - Snowlight Blessing", {
   cast: Cast.Outro, concerto: -100, swapOut: true,
@@ -219,7 +240,7 @@ const Outro = hiyukiAction("Outro - Snowlight Blessing", {
  *  reading only Negative-Status-scoped amplification. */
 const FineSnowBite = new Action("Glacio Bite - Fine Snow", {
   element: Attribute.Glacio, type: Type1.Status, type2: Type2.GlacioChafe, scaling: Scaling.Dot,
-  mv: 102,
+  mv: 102, field: FINE_SNOW,
 });
 
 /* ------------------------------------------------------------------------------------- buffs */
@@ -233,19 +254,18 @@ const FineSnowBite = new Action("Glacio Bite - Fine Snow", {
 const FROSTHARDEN_IAI = new Buff({ name: "Hiyuki: Frostharden Iai", maxStacks: 3 ,
   // a point of Frostharden buys the 3 Chafe stacks and the Whiteout; all three phases read the
   // count untouched, and the spend itself lands last so none of them races it
-  updateDebuffs: () => { if (currentAction() === Iai) applyEnemy(GLACIO_CHAFE, 3); },
-  applyStats: () => { if (currentAction() === Iai) addStat(Stat.AddForte3, 1); },
-  convertStats: () => { if (currentAction() === Iai) removeStack(FROSTHARDEN_IAI, 1); },
+  updateDebuffs: () => { if (runningAction(Iai)) applyEnemy(GLACIO_CHAFE, 3); },
+  applyStats: () => { if (runningAction(Iai)) addStat(Stat.AddForte3, 1); },
+  convertStats: () => { if (runningAction(Iai)) removeStack(FROSTHARDEN_IAI, 1); },
 });
 
 
 const SNOWFORGED_BLADE = new Buff({ name: "Hiyuki: Snowforged Blade", maxStacks: 3 ,
   applyStats: () => {
-    const a = currentAction();
-    if (a === Lib2Hold || (a === Lib2Tap && frozenStacks() >= 3)) {
+    if (runningAction(Lib2Hold) || (runningAction(Lib2Tap) && frozenStacks() >= 3)) {
       addStat(Stat.AddMv, 795.24 * frozenStacks());
       revokeCurrent(SNOWFORGED_BLADE);
-    } else if (a === Lib2Tap) {
+    } else if (runningAction(Lib2Tap)) {
       addStat(Stat.AddMv, 795.24);
       removeStack(SNOWFORGED_BLADE, 1);
     }
@@ -258,16 +278,19 @@ const SNOWFORGED_BLADE = new Buff({ name: "Hiyuki: Snowforged Blade", maxStacks:
 const FROSTBLIGHT_ENHANCED = new Buff({
   name: "Hiyuki: Present Self",
   updateBuffs: () => lostOnSwap(),
-  applyStats: () => { if (currentAction() === BA3) addStat(Stat.AddForte1, 100); },
-  convertStats: () => { if (currentAction() === BA3) revokeCurrent(FROSTBLIGHT_ENHANCED); },
+  applyStats: () => { if (runningAction(BA3)) addStat(Stat.AddForte1, 100); },
+  convertStats: () => { if (runningAction(BA3)) revokeCurrent(FROSTBLIGHT_ENHANCED); },
 });
 
 /** How many *distinct* team slots have banked Snow Rust — the tier every payout below keys off.
  *  Snow Rust holds one bit per slot rather than a plain count (see below), so the tier is how many
- *  of the three bits are up: 2 alone is one payer, 1+4 is two, 1+2+4 is three. */
+ *  of the bits are up: 2 alone is one payer, 1+4 is two, 1+2+4 is three. The fourth bit is the
+ *  stack S3 hands her outright, which belongs to no slot. */
 const snowRust = (): number => {
   const slots = frozenStacks();
-  return (slots & 1) + ((slots >> 1) & 1) + ((slots >> 2) & 1);
+  // capped at the kit's own 3: S3's free bit reaches that tier off two payers rather than adding
+  // a fourth
+  return Math.min(3, (slots & 1) + ((slots >> 1) & 1) + ((slots >> 2) & 1) + ((slots >> 3) & 1));
 };
 
 /** Snow Rust: one stack the first time each resonator on the team inflicts Glacio Chafe or Havoc
@@ -283,7 +306,7 @@ const snowRust = (): number => {
  *  reads the total as a count: every payout goes through `snowRust()`, and so does the display, so
  *  it still reads "x1".."x3" the way the kit page counts it. */
 const SNOW_RUST = new Buff({
-  name: "Hiyuki: Snow Rust", maxStacks: 1 + 2 + 4,
+  name: "Hiyuki: Snow Rust", maxStacks: 1 + 2 + 4 + 8,
   display: () => `Hiyuki: Snow Rust x${snowRust()}`,
   // At 2 stacks, one fixed-multiplier Bite hit per stack of Chafe *she* applies, and only while
   // she is the one on field. Held locally, so it runs on the acting slot's own turn and no other;
@@ -299,13 +322,20 @@ const SNOW_RUST = new Buff({
   // `appliedByMe` is a record of what this action applied, not of what is still on the target.
   updateBuffs: () => {
     if (snowRust() < 2) return;
-    for (let i = appliedByMe(GLACIO_CHAFE); i > 0; i--) queue(FineSnowBite);
+    // S6 widens the trigger from the Chafe *she* applies to the team's, which on her own turn is
+    // what a marker of somebody else's lands off her swing (Lucilla's Film Roll)
+    for (let i = isHeld(HY_S6) ? applied(GLACIO_CHAFE) : appliedByMe(GLACIO_CHAFE); i > 0; i--) queue(FineSnowBite);
   },
   applyStats: () => {
-    if (isActive()) {
-      addStat(Stat.CritDmg, 40);
-      addStat(Stat.Amp, snowRust() >= 3 ? 60 : 30, Type2.GlacioChafe);
-    }
+    if (!isActive()) return;
+    addStat(Stat.CritDmg, 40);
+    addStat(Stat.Amp, snowRust() >= 3 ? 60 : 30, Type2.GlacioChafe);
+    // S6's own two tiers, paid from here since this is where the count lives
+    if (isHeld(HY_S6) && snowRust() >= 2) asSource(HY_S6, () => addStat(Stat.CritDmg, 40));
+    if (isHeld(HY_S6) && snowRust() >= 3) asSource(HY_S6, () => addStat(Stat.DamageTaken, 25, Type2.GlacioChafe));
+    // S3: the fixed-multiplier Bite hit at x5.88 (no second row on the page — taken the way every
+    // other "DMG Multiplier is increased by" on this kit reads, which all four verify as)
+    if (isHeld(HY_S3) && runningAction(FineSnowBite)) asSource(HY_S3, () => addStat(Stat.MulMv, 488));
   },
 });
 /** Snowlight Blessing (Outro Skill): +20% Glacio DMG Amplification for every *other* resonator in
@@ -396,7 +426,13 @@ export const HIYUKI_RESONATOR = new Resonator({
     if (inflicted === 0) return;
     revokeEnemy(GLACIO_CHAFE);
     applyEnemy(GLACIO_BITE, inflicted);
-    const rung = GLACIO_CHAFE_ACTIONS[currentTeam().enemyMax(GLACIO_CHAFE)]!;
+    // Filed under her own window only while she is the one on field — `isActive()` asks about
+    // whoever is acting, which on a teammate's own visit is them, so the field is read off the
+    // scheduler directly. A stack laid on their visit is their hit on their turn, in no window
+    // of hers.
+    const cap = currentTeam().enemyMax(GLACIO_CHAFE);
+    const hers = currentTeam().slots[currentTeam().onField] === currentMember();
+    const rung = (hers ? BITE_RUNGS[cap] : GLACIO_CHAFE_ACTIONS[cap])!;
     const applier = currentTeam().slot.resonator!;
     for (let i = 0; i < inflicted; i++) queueOn(applier, rung);
   },
@@ -405,14 +441,93 @@ export const HIYUKI_RESONATOR = new Resonator({
     addStat(Stat.BaseHp, 10300); addStat(Stat.BaseAtk, 462.5); addStat(Stat.BaseDef, 1112.22);
   },
 
+  // the Stage 3 a Tune Break of hers rolls into — `queueEvent`, not `queue`, so it lands as a
+  // press of her own rather than a follow-up pinned to the break (evaluate.ts's own `triggered`)
   afterAction: () => {
-    // uba3 follow of tunebreak
-    if (currentAction() != TUNE_BREAK) return;
-    if (forte3() > 0 || forte2() > 0) {
-      queue(FBA3);
-    }
+    if (currentAction() !== TUNE_BREAK) return;
+    if (forte3() > 0 || forte2() > 0) queueEvent(FBA3);
   }
 });
+
+/* --------------------------------------------------------------------------------- sequences */
+
+/** S1: the whole Foreclaimed Self moveset at x2.2 — multiplicative, nanoka's own second rows
+ *  (108.39% against 49.27% on Stage 1, 235.75% against 107.16% on the Heavy) — and Inward Vision
+ *  leaves the next Stage 1 and 2 inflicting a stack of Chafe apiece. Bitterfrost is S3's, not this
+ *  one's: the node names the plain Heavy Attack - Foreclaimed Self. */
+const FORECLAIMED_HITS = new Set<Action>([FBA1, FBA2, FBA3, FBA4, FBA5, UHA, FMA1, FMA2, FMA3, FDC]);
+/** What Inward Vision leaves on the next Stage 1 and 2 — spent on Stage 2, the later of the two. */
+const SPRINGLESS = new Buff({
+  name: "Hiyuki S1: Springless",
+  updateDebuffs: () => { if (runningAction(FBA1) || runningAction(FBA2)) applyEnemy(GLACIO_CHAFE, 1); },
+  convertStats: () => { if (runningAction(FBA2)) revokeCurrent(SPRINGLESS); },
+});
+const HY_S1 = new Sequence({
+  name: "Hiyuki S1: Springless",
+  applyStats: () => { if (FORECLAIMED_HITS.has(currentAction())) addStat(Stat.MulMv, 120); },
+  updateBuffs: () => { if (runningAction(Lib1)) applyCurrent(SPRINGLESS, 1); },
+});
+
+/** What S2 leaves standing from being out of combat: the next two Frostblight casts of the
+ *  Foreclaimed Self form hand back another 50 Frostheart apiece. */
+const FROSTHEART_SURGE = new Buff({
+  name: "Hiyuki S2: To Burn Cold in Silence", maxStacks: 2,
+  applyStats: () => { if (runningAction(USkill1) || runningAction(USkill2)) addStat(Stat.AddForte2, 50); },
+  convertStats: () => { if (runningAction(USkill1) || runningAction(USkill2)) removeStack(FROSTHEART_SURGE, 1); },
+});
+/** S2: the Iai at x2.25 — multiplicative, its own second rows (638.59%+106.44%x4 against
+ *  283.82%+47.31%x4) — and Ephemeral Realm's one Snowforged Blade becomes three. The Frostharden
+ *  restore is for Foreclaimed Self, which she is not in at the opening; the cooldown resets have
+ *  nothing to reset. */
+const HY_S2 = new Sequence({
+  name: "Hiyuki S2: To Burn Cold in Silence",
+  combatStart: () => { applyCurrent(SNOWFORGED_BLADE, 3); applyCurrent(FROSTHEART_SURGE, 2); },
+  applyStats: () => { if (runningAction(Iai)) addStat(Stat.MulMv, 125); },
+});
+
+/** S3: a stack of Snow Rust from the off (`snowRust()`'s fourth bit, which belongs to no slot),
+ *  both named Heavies at x2.6 — multiplicative, their own second rows (824.75% against 317.23%,
+ *  1602.49% against 616.33%) — and the fixed-multiplier Bite hit raised, paid inside Snow Rust
+ *  where that hit is fired. */
+const HY_S3 = new Sequence({
+  name: "Hiyuki S3: No Self, No Bound",
+  combatStart: () => applyCurrent(SNOW_RUST, 8),
+  applyStats: () => { if (runningAction(FrostSplinter) || runningAction(FHA)) addStat(Stat.MulMv, 160); },
+});
+
+/** S4: every Frostblight form hands the team +20% DMG for 30s — she casts one a visit, so it never
+ *  lapses. The heal is out of scope. */
+const LIKE_REEDS_ON_TIDES = new Buff({ name: "Hiyuki S4: Like Reeds on Tides", stats: [[Stat.DmgBonus, 20]] });
+const HY_S4 = new Sequence({
+  name: "Hiyuki S4: Like Reeds on Tides",
+  updateBuffs: () => {
+    if (runningAction(Skill) || runningAction(USkill1) || runningAction(USkill2)) {
+      applyTeam(LIKE_REEDS_ON_TIDES, 1);
+      applyCurrent(HEALS, 1);
+    }
+  },
+});
+
+/** S5: all three Frostblight forms at x1.8 — multiplicative, their own second rows (352.72%
+ *  against 195.98%, 475.24% against 264.04%, 576.20% against 320.10%). */
+const HY_S5 = new Sequence({
+  name: "Hiyuki S5: Vessel of Thousand Wishes",
+  applyStats: () => {
+    if (runningAction(Skill) || runningAction(USkill1) || runningAction(USkill2)) addStat(Stat.MulMv, 80);
+  },
+});
+
+/** S6: +500% Crit. DMG on both halves of Foreclaiming. Its three Snow Rust tiers — the wider Bite
+ *  trigger, the second +40% Crit. DMG and the target's +25% Glacio Bite vulnerability — are paid
+ *  inside Snow Rust, which is where the count they read lives. */
+const HY_S6 = new Sequence({
+  name: "Hiyuki S6: Into a Night Without End",
+  applyStats: () => {
+    if (runningAction(Lib1) || runningAction(Lib2Tap) || runningAction(Lib2Hold)) addStat(Stat.CritDmg, 500);
+  },
+});
+
+const HY_SEQUENCES = [HY_S1, HY_S2, HY_S3, HY_S4, HY_S5, HY_S6];
 
 /* ---------------------------------------------------------------------------------- rotation */
 
@@ -435,8 +550,40 @@ const HY_ROTATION = new Rotation([
   UHA, FBA23, DODGE, Iai, 
   JUMP, USkill2, DODGE, Iai, 
   JUMP, USkill2, DODGE, Iai,
-  ECHO_CANCEL,
-  FHA, Lib2Hold, OUTRO,
+  ECHO_CANCEL, FHA, Lib2Hold, OUTRO,
+]);
+
+/** From S2 on, the first visit alone has the Frostheart for a fourth Iai: the two Frostblight casts
+ *  it enhances hand back 100 between them, which is exactly one more. It comes in ahead of
+ *  Bitterfrost, and carries no Frostharden of its own — the three Inward Vision granted are spent
+ *  by then, so it is the bare hit. Every later visit runs the ordinary line. */
+const HY_ROTATION_S2 = new Rotation([
+  NOINTRO, BA123, Skill,
+
+  INTRO, BA3, FrostSplinter, Lib1,
+  UHA, FBA23,
+  UHA, FBA23, DODGE, Iai,
+  JUMP, USkill2, DODGE, Iai,
+  JUMP, USkill2, DODGE, Iai,
+  ECHO_CANCEL, FHA, Lib2Hold, OUTRO,
+
+  FIRST_INTRO, BA3, FrostSplinter, Lib1,
+  UHA, FBA23,
+  UHA, FBA23, DODGE, Iai,
+  JUMP, USkill2, DODGE, Iai,
+  JUMP, USkill2, DODGE, Iai,
+  Iai,
+  ECHO_CANCEL, FHA, Lib2Hold, OUTRO,
+
+  // the same visit with her leading, where there is no Intro to arrive on
+  NOINTRO_FIRST, BA123, Skill,
+  BA3, FrostSplinter, Lib1,
+  UHA, FBA23,
+  UHA, FBA23, DODGE, Iai,
+  JUMP, USkill2, DODGE, Iai,
+  JUMP, USkill2, DODGE, Iai,
+  Iai,
+  ECHO_CANCEL, FHA, Lib2Hold, OUTRO,
 ]);
 
 const HY_ECHOES = [
@@ -450,5 +597,6 @@ export const HIYUKI = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Er),
-  rotation: HY_ROTATION,
+  rotation: { 0: HY_ROTATION, 2: HY_ROTATION_S2 },
+  sequences: HY_SEQUENCES,
 });

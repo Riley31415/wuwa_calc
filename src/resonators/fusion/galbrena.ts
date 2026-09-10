@@ -28,11 +28,13 @@
  * Counter have no sheet row at all, so they're still bare (nanoka's own MV only).
  */
 import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
+  asSource,
   applyCurrent,
+  applyTeam,
   casting,
-  currentAction,
+  runningAction,
   addStat,
   frozenStacks,
   revokeCurrent,
@@ -130,7 +132,12 @@ const Outro = galbrenaAction("Outro - Ashen Pursuit", { cast: Cast.Outro, type: 
  *  Ravage (Hellstride isn't implemented, see file header, so it's dropped from this list too). */
 const BURNING_DRIVE = new Buff({
   name: "Galbrena: Burning Drive",
-  stats: [[Stat.BonusAtk, 20]],
+  // S2: 350% more of the bonus, so 20% becomes 90%
+  applyStats: () => {
+    addStat(Stat.BonusAtk, 20);
+    // S2 takes it to 90% of ATK — the 70 over the base is the node's own
+    if (isHeld(GB_S2)) asSource(GB_S2, () => addStat(Stat.BonusAtk, 70));
+  },
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(BURNING_DRIVE); },
 });
 
@@ -161,11 +168,19 @@ const DEMON_HYPOSTASIS = new Buff({
 const AFTERFLAME = new Buff({
   name: "Galbrena: Afterflame", maxStacks: 40,
   applyStats: () => {
-    const a = currentAction();
-    if (a === SeraphicExecution1 || a === SeraphicExecution2 || a === SeraphicExecution3
-      || a === SeraphicExecution4 || a === SeraphicExecution5
-      || a === FlamewingVerdict1 || a === FlamewingVerdict2 || a === FlamewingVerdict3
-      || a === Ravage) addStat(Stat.TotalDmg, Math.min(60, 1.5 * frozenStacks()));
+    if (runningAction(SeraphicExecution1) || runningAction(SeraphicExecution2) || runningAction(SeraphicExecution3)
+      || runningAction(SeraphicExecution4) || runningAction(SeraphicExecution5)
+      || runningAction(FlamewingVerdict1) || runningAction(FlamewingVerdict2) || runningAction(FlamewingVerdict3)
+      || runningAction(Ravage)) {
+      addStat(Stat.TotalDmg, Math.min(60, 1.5 * frozenStacks()));
+      // S1 reads the same count as Crit. DMG, S6 as Fusion amplification — both snapshot at Ascent
+      // of Malice, which is the same number: Afterflame only ever builds outside Demon Hypostasis
+      // the count is read out here: inside `asSource` the "current" gear is the node, whose own
+      // stacks are not what these scale on
+      const flame = frozenStacks();
+      if (isHeld(GB_S1)) asSource(GB_S1, () => addStat(Stat.CritDmg, Math.min(80, 2 * flame)));
+      if (isHeld(GB_S6)) asSource(GB_S6, () => addStat(Stat.Amp, Math.min(35, 0.875 * flame), Attribute.Fusion));
+    }
   },
 });
 
@@ -174,13 +189,66 @@ const AFTERFLAME = new Buff({
 const HELLFIRE_WINDOW = new Buff({
   name: "Galbrena: Hellfire Absolution",
   applyStats: () => {
-    const a = currentAction();
-    if (a === SeraphicExecution1 || a === SeraphicExecution2 || a === SeraphicExecution3
-      || a === SeraphicExecution4 || a === SeraphicExecution5
-      || a === FlamewingVerdict1 || a === FlamewingVerdict2 || a === FlamewingVerdict3) addStat(Stat.MulMv, 85);
+    if (runningAction(SeraphicExecution1) || runningAction(SeraphicExecution2) || runningAction(SeraphicExecution3)
+      || runningAction(SeraphicExecution4) || runningAction(SeraphicExecution5)
+      || runningAction(FlamewingVerdict1) || runningAction(FlamewingVerdict2) || runningAction(FlamewingVerdict3)) addStat(Stat.MulMv, 85);
   },
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(HELLFIRE_WINDOW); },
 });
+
+/* --------------------------------------------------------------------------------- sequences */
+
+/** S1: 2% Crit. DMG a point of Afterflame to the enhanced casts, 80% at its own 40-point cap —
+ *  paid by Afterflame itself, which is what holds the count. The interrupt immunity is no stat. */
+const GB_S1 = new Sequence({ name: "Galbrena S1: Heart of Defiance Ever Ablaze" });
+
+/** S2: Burning Drive's +20% ATK becomes +90% — paid by Burning Drive itself. */
+const GB_S2 = new Sequence({ name: "Galbrena S2: Hellbound Dive of Fire and Abyss" });
+
+/** S3: the Liberation at x2.3 — nanoka's second rows (255.07% and 208.69% against 110.90% and
+ *  90.74%), and nothing else multiplies it, so a plain multiplier reaches exactly that. */
+const GB_S3 = new Sequence({
+  name: "Galbrena S3: Hunter's Blood Oath Rekindled",
+  applyStats: () => { if (runningAction(Liberation)) addStat(Stat.MulMv, 130); },
+});
+
+/** S4: +20% All-Attribute DMG Bonus to the team off any member's Echo Skill, 20s — re-granted by
+ *  every echo the team casts, so it stands for the fight. */
+const CARRY_FORTH = new Buff({
+  name: "Galbrena S4: Carry Forth This Fading Spark",
+  stats: [[Stat.DmgBonus, 20]],
+});
+const GB_S4 = new Sequence({
+  name: "Galbrena S4: Carry Forth This Fading Spark",
+  updateGlobal: () => { if (casting(Cast.Echo)) applyTeam(CARRY_FORTH, 1); },
+});
+
+/** S5: Encroach, Ascent of Malice and Ravage at x2.5 — nanoka's second rows (26.83%+62.60% and
+ *  128.93%), and none of the three carries another multiplier, so this lands on exactly that. */
+const GB_S5 = new Sequence({
+  name: "Galbrena S5: Though Light Fades, Torment Consumes",
+  applyStats: () => {
+    if (runningAction(Encroach) || runningAction(AscentOfMalice) || runningAction(Ravage)) addStat(Stat.MulMv, 150);
+  },
+});
+
+/** S6: Eternal Hypostasis keeps everything Demon Hypostasis had and puts every Seraphic Execution
+ *  and Flamewing Verdict at x1.6 — over the Hellfire window rather than beside it, which nanoka's
+ *  rows settle: 174.61% is 58.99% x 1.85 x 1.6. Multipliers sum in one bracket here, so the share
+ *  this contributes is 60% of whatever already stands. Its Afterflame amplification is paid by
+ *  Afterflame above. */
+const GB_S6 = new Sequence({
+  name: "Galbrena S6: I Remain Who I am, Eternal My Flame",
+  applyStats: () => {
+    if (runningAction(SeraphicExecution1) || runningAction(SeraphicExecution2) || runningAction(SeraphicExecution3)
+      || runningAction(SeraphicExecution4) || runningAction(SeraphicExecution5)
+      || runningAction(FlamewingVerdict1) || runningAction(FlamewingVerdict2) || runningAction(FlamewingVerdict3)) {
+      addStat(Stat.MulMv, isHeld(HELLFIRE_WINDOW) ? 60 * 1.85 : 60);
+    }
+  },
+});
+
+const GB_SEQUENCES = [GB_S1, GB_S2, GB_S3, GB_S4, GB_S5, GB_S6];
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const GALBRENA_TALENTS = new Talent({
@@ -244,5 +312,6 @@ export const GALBRENA = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.FlatAtk, Substat.Heavy, Substat.Er),
-    rotation: GB_ROTATION,
+  rotation: { 0: GB_ROTATION },
+  sequences: GB_SEQUENCES,
 });

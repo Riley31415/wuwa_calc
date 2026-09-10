@@ -1,12 +1,11 @@
 /** Signature Sword weapons. Every piece works if equipped on any resonator, not just its own.
  *  Each export is the weapon's five refinements, R1 first (gear.ts's own `refinements()`); a
  *  number that grows with rank is written as its five values. */
-import { WeaponType, Stat, Attribute, Type1, Type2, Cast } from "../engine/stats.js";
+import { WeaponType, Stat, Attribute, Type1, Type2, Cast, LifeTime, BuffTarget } from "../engine/stats.js";
 import { Buff, Weapon, refinements } from "../engine/gear.js";
 import {
   addStat, frozenStacks, casting, currentAction, revokeCurrent, applyCurrent, removeStack, stacksOf,
-  applyTeam, stacksOfEnemy, revokeTeam, isActive, onCast, onType, onInflict, either,
-} from "../engine/context.js";
+  applyTeam, stacksOfEnemy, revokeTeam, isActive, onCast, onType, onInflict, either, isHeld } from "../engine/context.js";
 import { lostOnSwap, oneSecondPassed } from "../shared/helpers.js";
 import { consumedConcerto, gainedUnison } from "../shared/unison.js";
 import { TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
@@ -17,7 +16,7 @@ import { AERO_EROSION, FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE } from "../shared/
 export const BLAZING_BRILLIANCE = refinements((r, rank) => {
   const SEARING_FEATHER = new Buff({
     name: `Blazing Brilliance: Crimson Phoenix${rank}`, maxStacks: 14,
-    stats: [[Stat.DmgBonus, [4, 5, 6, 7, 8][r]!, Type1.Skill]], perStack: true, early: true, until: "outro",
+    stats: [[Stat.DmgBonus, [4, 5, 6, 7, 8][r]!, Type1.Skill]], perStack: true, early: true, until: LifeTime.Outro,
   });
   return new Weapon({
     weaponType: WeaponType.Sword, name: `Blazing Brilliance${rank}`,
@@ -32,14 +31,14 @@ export const BLAZING_BRILLIANCE = refinements((r, rank) => {
 export const RED_SPRING = refinements((r, rank) => {
   const RED_SPRING_BASIC = new Buff({
     name: `Red Spring: Beyond the Cycle${rank}`, maxStacks: 3,
-    stats: [[Stat.DmgBonus, [10, 12.5, 15, 17.5, 20][r]!, Type1.Basic]], perStack: true, until: "outro",
+    stats: [[Stat.DmgBonus, [10, 12.5, 15, 17.5, 20][r]!, Type1.Basic]], perStack: true, until: LifeTime.Outro,
   });
   const RED_SPRING_CONSUME: Buff = new Buff({
     name: `Red Spring: Beyond the Cycle${rank}`, maxStacks: 10,
     // the stacks are its 10s, not a multiplied payout — one spent per engine second, gone at zero
     display: () => `Red Spring: Beyond the Cycle${rank} (${frozenStacks()}s)`,
     updateBuffs: () => { if (oneSecondPassed()) removeStack(RED_SPRING_CONSUME, 1); },
-    stats: [[Stat.DmgBonus, [40, 50, 60, 70, 80][r]!, Type1.Basic]], until: "outro",
+    stats: [[Stat.DmgBonus, [40, 50, 60, 70, 80][r]!, Type1.Basic]], until: LifeTime.Outro,
   });
   return new Weapon({
     weaponType: WeaponType.Sword, name: `Red Spring${rank}`,
@@ -56,11 +55,11 @@ export const RED_SPRING = refinements((r, rank) => {
 export const UNFLICKERING_VALOR = refinements((r, rank) => {
   const LAUGHTER_PREVAILS_LIB = new Buff({
     name: `Unflickering Valor: Laughter Prevails (lib)${rank}`,
-    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type1.Basic]], until: "outro",
+    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type1.Basic]], until: LifeTime.Outro,
   });
   const LAUGHTER_PREVAILS_BASIC = new Buff({
     name: `Unflickering Valor: Laughter Prevails (basic)${rank}`,
-    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type1.Basic]], until: "outro",
+    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type1.Basic]], until: LifeTime.Outro,
   });
   return new Weapon({
     weaponType: WeaponType.Sword, name: `Unflickering Valor${rank}`,
@@ -74,25 +73,28 @@ export const UNFLICKERING_VALOR = refinements((r, rank) => {
 
 /** Qiuyuan's sig: When A Heart Settles. +12% ATK flat; his Intro grants the team +20% Echo
  *  Skill DMG Bonus, permanent once granted. Bamboo Cleaver: an Echo Skill cast within 10s of an
- *  Intro/Basic grants a stack (up to two) — no literal timer, so it stays ready until something
- *  else happens. One buff stores all three states: stack 1 is "ready" (no bonus), 2-3 are real. */
+ *  Intro/Basic grants a stack, up to two — no literal timer here, so the window an Intro or Basic
+ *  opens simply stands until he leaves the field. */
 export const EMERALD_SENTENCE = refinements((r, rank) => {
   const HEART_SETTLES_TEAM = new Buff({
     name: `Emerald Sentence: When A Heart Settles${rank}`,
     stats: [[Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Type1.Echo]],
   });
+  /** The window an Intro or Basic opens for the next Echo Skills — nameless, so it stays out of
+   *  the held list: it says only that the stacks below can be earned, and pays nothing itself. */
+  const BAMBOO_READY = new Buff({ until: LifeTime.Swap });
   /** Lost entirely if switched off field, same as Quietude Within. */
   const BAMBOO_CLEAVER: Buff = new Buff({
-    name: `Emerald Sentence: Bamboo Cleaver${rank}`, maxStacks: 3, until: "swap",
-    grants: [{ on: onCast(Cast.Echo) }],
-    applyStats: () => { if (frozenStacks() >= 2) addStat(Stat.DmgBonus, [30, 37.5, 45, 52.5, 60][r]! * (frozenStacks() - 1), Type1.Heavy); },
+    name: `Emerald Sentence: Bamboo Cleaver${rank}`, maxStacks: 2, until: LifeTime.Swap,
+    stats: [[Stat.DmgBonus, [30, 37.5, 45, 52.5, 60][r]!, Type1.Heavy]], perStack: true,
   });
   return new Weapon({
     weaponType: WeaponType.Sword, name: `Emerald Sentence${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [
-      { on: onCast(Cast.Intro), buff: HEART_SETTLES_TEAM, to: "team" },
-      { on: () => (casting(Cast.Intro) || casting(Cast.Basic) || casting(Cast.MidAir)) && !stacksOf(BAMBOO_CLEAVER), buff: BAMBOO_CLEAVER },
+      { on: onCast(Cast.Intro), buff: HEART_SETTLES_TEAM, to: BuffTarget.Team },
+      { on: () => casting(Cast.Intro) || casting(Cast.Basic), buff: BAMBOO_READY },
+      { on: () => casting(Cast.Echo) && isHeld(BAMBOO_READY), buff: BAMBOO_CLEAVER },
     ],
   });
 });
@@ -124,7 +126,7 @@ export const GLINT_OF_CLOUDS = refinements((r, rank) => {
  *  amplification reaches it exactly when they are the one holding the field. */
 export const FROSTBURN = refinements((r, rank) => {
   const SELF_NO_MORE = new Buff({
-    name: `Frostburn: Self No More${rank}`, until: "outro",
+    name: `Frostburn: Self No More${rank}`, until: LifeTime.Outro,
     stats: [[Stat.Amp, [28, 35, 42, 49, 56][r]!, Attribute.Glacio], [Stat.DefIgnoreNew, [10, 12.5, 15, 17.5, 20][r]!, Type1.Liberation]],
     applyStats: () => { if (isActive()) addStat(Stat.Amp, [20, 25, 30, 35, 40][r]!, Type2.GlacioChafe); },
   });
@@ -144,7 +146,7 @@ export const FROSTBURN = refinements((r, rank) => {
  *  out off the wielder's swing is hers and pays nothing here. */
 export const AZURE_OATH = refinements((r, rank) => {
   const UNBENDING = new Buff({
-    name: `Azure Oath: Unbending${rank}`, until: "outro",
+    name: `Azure Oath: Unbending${rank}`, until: LifeTime.Outro,
     stats: [[Stat.Amp, [36, 45, 54, 63, 72][r]!, Type1.Heavy], [Stat.DefIgnoreNew, [12, 15, 18, 21, 24][r]!, Type1.Heavy]],
   });
   return new Weapon({
@@ -160,7 +162,7 @@ export const AZURE_OATH = refinements((r, rank) => {
  *  lost after the outro. `onInflict`: a "when *you* inflict" payout. */
 export const EVERBRIGHT_POLESTAR = refinements((r, rank) => {
   const STARCHASER = new Buff({
-    name: `Everbright Polestar: Starchaser${rank}`, until: "outro",
+    name: `Everbright Polestar: Starchaser${rank}`, until: LifeTime.Outro,
     stats: [[Stat.DefIgnoreNew, [32, 40, 48, 56, 64][r]!, Type1.Liberation]],
     applyStats: () => { if (currentAction().type1 === Type1.Liberation) addStat(Stat.ResIgnore, [10, 15, 20, 25, 30][r]!, Attribute.Fusion); },
   });
@@ -178,7 +180,7 @@ export const EVERBRIGHT_POLESTAR = refinements((r, rank) => {
  *  lapse; the window itself is short, so it is lost after the outro. */
 export const DEFIERS_THORN = refinements((r, rank) => {
   const FREE_KNIGHTS_TARANTELLA = new Buff({
-    name: `Defier's Thorn: A Free Knight's Tarantella${rank}`, until: "outro",
+    name: `Defier's Thorn: A Free Knight's Tarantella${rank}`, until: LifeTime.Outro,
     stats: [[Stat.DefIgnoreOld, [8, 10, 12, 14, 16][r]!]],
     applyStats: () => { if (stacksOfEnemy(AERO_EROSION) > 0) addStat(Stat.Amp, [20, 25, 30, 35, 40][r]!); },
   });
@@ -206,7 +208,7 @@ export const UNSPOKEN_RUE = refinements((r, rank) => {
     stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Attribute.Electro]],
   });
   const YEARNING_MIND = new Buff({
-    name: `Unspoken Rue: Yearning Mind${rank}`, until: "swap",
+    name: `Unspoken Rue: Yearning Mind${rank}`, until: LifeTime.Swap,
     stats: [[Stat.DmgBonus, [40, 50, 60, 70, 80][r]!, Attribute.Electro]],
   });
   return new Weapon({

@@ -45,6 +45,7 @@ import {
   addEnemyForte2,
   casting,
   currentAction,
+  runningAction,
   currentMember,
   currentTeam,
   forte1,
@@ -118,7 +119,7 @@ const RECALL = {
     if (isHeld(SWORD_OF_DISCORD)) { revokeCurrent(SWORD_OF_DISCORD); applyCurrent(POWER_OF_DISCORD, 1); }
   },
 };
-const PLUNGE = { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, type2: Type2.AeroErosion, offtune: 4248, ...RECALL };
+const PLUNGE = { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, type2: Type2.AeroErosion, offtune: 4248, ...RECALL };
 const Plunge = cartethyiaAction("Mid-air - Plunging Attack", { ...PLUNGE, mv: 5.65, energy: 1.33, concerto: 1.86 });
 const Plunge1 = cartethyiaAction("Mid-air - Plunging Attack (1 Sword Shadow)", { ...PLUNGE, mv: 5.65, energy: 1.33, concerto: 1.86 });
 const Plunge2 = cartethyiaAction("Mid-air - Plunging Attack (2 Sword Shadows)", { ...PLUNGE, mv: 9.90, energy: 1.35, concerto: 1.86 });
@@ -145,9 +146,9 @@ const FBA4 = cartethyiaAction("Basic - Tempest 4", { node: Node.Forte, cast: Cas
 const FBA5 = cartethyiaAction("Basic - Tempest 5", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 36.00, energy: 1.99, concerto: 2.78, offtune: 6337, forte1: 20, ...EROSION_BURST });
 const FDC = cartethyiaAction("Dodge Counter - Tempest", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 15.99, energy: 2.25, concerto: 3.15, offtune: 7200, forte1: 14 });
 const UpwardCut = cartethyiaAction("Basic - Tempest Upward Cut", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 9.08, energy: 1.52, concerto: 2.12, offtune: 4840, forte1: 8 });
-const FMA1 = cartethyiaAction("Mid-air - Tempest 1", { node: Node.Forte, cast: Cast.MidAir, type: Type1.Basic, mv: 9.06, energy: 2.00, concerto: 2.81, offtune: 6385, forte1: 6 });
-const FMA2 = cartethyiaAction("Mid-air - Tempest 2", { node: Node.Forte, cast: Cast.MidAir, type: Type1.Basic, mv: 29.55, energy: 2.07, concerto: 2.88, offtune: 6576, forte1: 15, ...EROSION_BURST });
-const FMA3 = cartethyiaAction("Mid-air - Tempest 3", { node: Node.Forte, cast: Cast.MidAir, type: Type1.Basic, mv: 2.20, energy: 0.48, concerto: 0.67, offtune: 1528, forte1: 10 });
+const FMA1 = cartethyiaAction("Mid-air - Tempest 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 9.06, energy: 2.00, concerto: 2.81, offtune: 6385, forte1: 6 });
+const FMA2 = cartethyiaAction("Mid-air - Tempest 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 29.55, energy: 2.07, concerto: 2.88, offtune: 6576, forte1: 15, ...EROSION_BURST });
+const FMA3 = cartethyiaAction("Mid-air - Tempest 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 2.20, energy: 0.48, concerto: 0.67, offtune: 1528, forte1: 10 });
 const FHA = cartethyiaAction("Heavy - Tempest", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Basic, mv: 14.25, energy: 1.76, concerto: 2.46, offtune: 5617, forte1: 8 });
 const FEHA = cartethyiaAction("Heavy - Tempest (Enhanced)", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Basic, mv: 19.45, energy: 2.40, concerto: 3.38, offtune: 7665, forte1: 24 });
 const FSkill1 = cartethyiaAction("Skill - Sword to Answer Waves' Call", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 24.80, energy: 2.33, concerto: 10, offtune: 7340, forte1: 8 });
@@ -271,7 +272,7 @@ const CT_S1 = new Sequence({
   name: "Cartethyia S1: Crown Destined by Fate",
   // afterAction is the one phase that sees Conviction as the cast actually left it
   afterAction: () => {
-    if (currentAction() === Lib2) { revokeCurrent(CROWN_OF_FATE); return; }
+    if (runningAction(Lib2)) { revokeCurrent(CROWN_OF_FATE); return; }
     const rungs = Math.min(4, Math.floor(forte1() / 30));
     if (rungs > stacksOf(CROWN_OF_FATE)) setStacksSelf(CROWN_OF_FATE, rungs);
   },
@@ -294,14 +295,14 @@ const BROKEN_BLADE = new Buff({
 const CT_S2 = new Sequence({
   name: "Cartethyia S2: Blade Broken by Tempest",
   updateBuffs: () => {
-    if (currentAction() !== Liberation) return;
+    if (!runningAction(Liberation)) return;
     maxStackIncrease(AERO_EROSION, 3);
     applyCurrent(BROKEN_BLADE, 1);
   },
   applyStats: () => {
     const a = currentAction();
     if (a.node === Node.Forte) return;
-    if (casting(Cast.MidAir)) addStat(Stat.MulMv, 200);
+    if (runningAction(Plunge) || runningAction(Plunge1) || runningAction(Plunge2) || runningAction(Plunge3)) addStat(Stat.MulMv, 200);
     else if (casting(Cast.Basic) || casting(Cast.Heavy) || casting(Cast.DodgeCounter) || casting(Cast.Intro)) addStat(Stat.MulMv, 50);
   },
 });
@@ -311,10 +312,9 @@ const CT_S2 = new Sequence({
 const CT_S3 = new Sequence({
   name: "Cartethyia S3: Prisoner Hanged in the Tower",
   updateDebuffs: () => {
-    const a = currentAction();
-    if (a === FBA5 || a === FMA2 || a === FEHA || a === FSkill2) applyEnemy(AERO_EROSION, 2);
+    if (runningAction(FBA5) || runningAction(FMA2) || runningAction(FEHA) || runningAction(FSkill2)) applyEnemy(AERO_EROSION, 2);
   },
-  applyStats: () => { if (currentAction() === Lib2) addStat(Stat.MulMv, 100); },
+  applyStats: () => { if (runningAction(Lib2)) addStat(Stat.MulMv, 100); },
 });
 
 /** S4: anyone on the team inflicting a Negative Status hands the whole team +20% DMG Bonus for

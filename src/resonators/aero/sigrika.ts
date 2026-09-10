@@ -14,8 +14,9 @@
  * 0-60 gauge fed by any team member's Echo cast.
  */
 import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
+  asSource,
   applyCurrent,
   applyTeam,
   isHeld,
@@ -24,6 +25,7 @@ import {
   revokeCurrent,
   casting,
   currentAction,
+  runningAction,
   addStat,
   frozenStacks,
   getStat,
@@ -59,7 +61,7 @@ const BA4 = sigrikaAction("Basic - One, Two, Three 4", {
   node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 206.79, energy: 3.27, concerto: 6.51, offtune: 10400,
   updateBuffs: () => applyCurrent(DECIPHER, 1),
 });
-const MA = sigrikaAction("Mid-air - One, Two, Three", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960 });
+const MA = sigrikaAction("Mid-air - One, Two, Three", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960 });
 const MDC = sigrikaAction("Dodge Counter - One, Two, Three (Mid-Air)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 206.17, energy: 3.05, concerto: 16.1, offtune: 9920 });
 const DC = sigrikaAction("Dodge Counter - One, Two, Three", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 219.70, energy: 3.26, concerto: 16.5, offtune: 10026 });
 const HA = sigrikaAction("Heavy - One, Two, Three", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 116.28, offtune: 5848, concerto: 3.66, energy: 1.84 });
@@ -86,7 +88,9 @@ const FHA = sigrikaAction("Forte Heavy - Schemata of Runes", {
 });
 
 /** Learn My True Name: at 100 Full Stop, spends it all. */
-const FSkill = sigrikaAction("Forte Skill - Learn My True Name", { node: Node.Forte, cast: Cast.Skill, type: Type1.Echo, mv: 1211.48, energy: 5.43, concerto: 30, offtune: 101336, forte2: -100 });
+const FSkill = sigrikaAction("Forte Skill - Learn My True Name", {
+   node: Node.Forte, cast: Cast.Skill, type: Type1.Echo, mv: 1211.48, energy: 5.43, concerto: 30, offtune: 101336, forte2: -100 
+});
 
 const Liberation = sigrikaAction("Liberation - Where Trust Leads Me!", {
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Echo, mv: 861.43, concerto: 20, offtune: 50400, resetEnergy: true,
@@ -126,14 +130,13 @@ const SR_INHERENT_2 = new Inherent({
 /** True Names Invoked (Inherent Skill): casting Intro grants Convergent — the only source of it. */
 const SR_INHERENT_1 = new Inherent({
   name: "Inherent: True Names Invoked",
-  updateBuffs: () => { if (currentAction() === Intro) applyCurrent(CONVERGENT, 1); },
+  updateBuffs: () => { if (runningAction(Intro)) applyCurrent(CONVERGENT, 1); },
 });
 
 /** Whether the current action grants Sigrika a Rune — Elucidated/Decipher's own Dodge Counter
  *  variant (Trust), or BIG BOOMY BOOM!/Soliskin to the Aid (Answer). */
 function gainsRune(): boolean {
-  const a = currentAction();
-  return a === EBA || a === EDC || a === ESkill || a === ESkill50;
+  return runningAction(EBA) || runningAction(EDC) || runningAction(ESkill) || runningAction(ESkill50);
 }
 
 /** Decipher: opened by Basic Attack Stage 4, closed by whichever finisher next grants a Rune.
@@ -198,18 +201,23 @@ function spendRunes(): void {
   queue(a !== b ? RunicOutburst : a === 1 ? RunicChainWhip : RunicSoliskin);
 }
 
-/** Innate Gift?: up to 2 frozenStacks, each +30% Echo Skill DMG Amplification — granted when a Runic
- *  follow-up spends a full 30 Soliskin Vitality. Ends after Learn My True Name, or on swap-off. */
+/** Innate Gift?: up to 2 frozenStacks (4 from S3), each +30% Echo Skill DMG Amplification — granted
+ *  when a Runic follow-up spends a full 30 Soliskin Vitality. Ends after Learn My True Name, or on
+ *  swap-off, until S3 keeps it through both. S6 adds a stack's worth of Amplification and DEF ignore
+ *  on the Runic follow-ups and Learn My True Name, each to its own cap. */
 const INNATE_GIFT = new Buff({
-  name: "Sigrika: Innate Gift?", maxStacks: 2,
+  name: "Sigrika: Innate Gift?", maxStacks: 4,
   applyStats: () => {
-    const a = currentAction();
-    if (a === RunicChainWhip || a === RunicOutburst || a === RunicSoliskin || a === FSkill) {
-        addStat(Stat.Amp, 30 * frozenStacks(), Type1.Echo);
-        if (a === FSkill) revokeCurrent(INNATE_GIFT);
+    if (runningAction(RunicChainWhip) || runningAction(RunicOutburst) || runningAction(RunicSoliskin) || runningAction(FSkill)) {
+        const n = frozenStacks();
+        addStat(Stat.Amp, 30 * n, Type1.Echo);
+        if (isHeld(SR_S6)) {
+          asSource(SR_S6, () => { addStat(Stat.Amp, Math.min(60, 15 * n)); addStat(Stat.DefIgnoreNew, Math.min(30, 7.5 * n)); });
+        }
+        if (runningAction(FSkill) && !isHeld(SR_S3)) revokeCurrent(INNATE_GIFT);
     }
   },
-  updateBuffs: () => lostOnSwap(),
+  updateBuffs: () => { if (!isHeld(SR_S3)) lostOnSwap(); },
 });
 
 /** Soliskin Vitality: a genuine 0-60 gauge, +10 whenever any team member casts an Echo Skill
@@ -219,21 +227,19 @@ const INNATE_GIFT = new Buff({
 const SOLISKIN_VITALITY = new Buff({
   name: "Sigrika: Soliskin Vitality", maxStacks: 60,
   updateBuffs: () => {
-    const a = currentAction();
-    if (a !== RunicOutburst && a !== RunicChainWhip && a !== RunicSoliskin) return;
+    if (!runningAction(RunicOutburst) && !runningAction(RunicChainWhip) && !runningAction(RunicSoliskin)) return;
     const held = frozenStacks();
-    if (held >= 30) { applyCurrent(INNATE_GIFT, 1); }
+    // two stacks at most until S3 (the buff's own cap is S3's four)
+    if (held >= 30 && (isHeld(SR_S3) || stacksOf(INNATE_GIFT) < 2)) applyCurrent(INNATE_GIFT, 1);
   },
   applyStats: () => {
-    const a = currentAction();
-    if (a !== RunicOutburst && a !== RunicChainWhip && a !== RunicSoliskin) return;
+    if (!runningAction(RunicOutburst) && !runningAction(RunicChainWhip) && !runningAction(RunicSoliskin)) return;
     const held = frozenStacks();
     if (held >= 30) { addStat(Stat.MulMv, 50); }
     else if (held > 0) addStat(Stat.Amp, 15 * Math.floor(held / 10));
   },
   convertStats: () => {
-    const a = currentAction();
-    if (a === RunicOutburst || a === RunicChainWhip || a === RunicSoliskin) {
+    if (runningAction(RunicOutburst) || runningAction(RunicChainWhip) || runningAction(RunicSoliskin)) {
       removeStack(SOLISKIN_VITALITY, Math.min(frozenStacks(), 30));
     }
   },
@@ -271,6 +277,50 @@ const SIGRIKA_RESONATOR = new Resonator({
   },
 });
 
+/* --------------------------------------------------------------------------------- sequences */
+
+/** S1: Elucidated, Decipher, BIG BOOMY BOOM! and Soliskin to the Aid deal x1.7 — multiplicative,
+ *  nanoka's own S1 rows (104.64% against 61.56%). The interrupt immunity and the Encapsulated
+ *  stagnation stacks are no stat. */
+const SR_S1 = new Sequence({
+  name: "Sigrika S1: The Gleam Meant for Radiance",
+  applyStats: () => {
+    if (runningAction(EBA) || runningAction(EDC) || runningAction(ESkill) || runningAction(ESkill50)) addStat(Stat.MulMv, 70);
+  },
+});
+
+/** S2: Learn My True Name x2.2 (666.31% against 302.87%), and Divergent from having been out of
+ *  combat — held from the start, so the first Rune gain after the Intro's Convergent doubles too. */
+const SR_S2 = new Sequence({
+  name: "Sigrika S2: The Bitterness Steeped in Hope",
+  combatStart: () => applyCurrent(DIVERGENT, 1),
+  applyStats: () => { if (runningAction(FSkill)) addStat(Stat.MulMv, 120); },
+});
+
+/** S3: Innate Gift? stacks to 4 (SOLISKIN_VITALITY's grant) and survives Learn My True Name and
+ *  the swap (INNATE_GIFT). */
+const SR_S3 = new Sequence({ name: "Sigrika S3: I Flee, Yet I Seek" });
+
+/** S4: +20% ATK to the team for 20s off any member's Echo Skill cast — every visit casts one, so
+ *  it never lapses. */
+const I_LOSE_YET_I_GAIN = new Buff({ name: "Sigrika S4: I Lose, Yet I Gain", stats: [[Stat.BonusAtk, 20]] });
+const SR_S4 = new Sequence({
+  name: "Sigrika S4: I Lose, Yet I Gain",
+  updateGlobal: () => { if (casting(Cast.Echo)) applyTeam(I_LOSE_YET_I_GAIN, 1); },
+});
+
+/** S5: Where Trust Leads Me! x1.3 (1119.86% against 861.43%). */
+const SR_S5 = new Sequence({
+  name: "Sigrika S5: Until Submerged by the Dark",
+  applyStats: () => { if (runningAction(Liberation)) addStat(Stat.MulMv, 30); },
+});
+
+/** S6: the target takes 30% more from her, and Innate Gift?'s extra Amplification and DEF ignore
+ *  per stack (in INNATE_GIFT). */
+const SR_S6 = new Sequence({ name: "Sigrika S6: True Names Resurfaced, Rising in Light", stats: [[Stat.DamageTaken, 30]] });
+
+const SR_SEQUENCES = [SR_S1, SR_S2, SR_S3, SR_S4, SR_S5, SR_S6];
+
 /** The kit-valid line: the Intro's Convergent makes the first Elucidated two Trusts, which the
  *  first Schemata spends for Chain Whip and 50 Full Stop; the Liberation's Divergent makes the
  *  second Elucidated a Trust and an Answer, which the second Schemata spends for Runic Outburst
@@ -307,7 +357,8 @@ export const SIGRIKA = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ER3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
   highSubstat: highSubs(Substat.Er, Substat.FlatAtk, Substat.AtkPct, Substat.FlatAtk),
-    rotation: SR_ROTATION,
+  rotation: SR_ROTATION,
+  sequences: SR_SEQUENCES,
 });
 
 // her real 43311 build: resonator + talents + both Inherent Skills + Forte Circuit, weapon,
@@ -319,5 +370,6 @@ export const SIGRIKA_FAST = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ER3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
   highSubstat: highSubs(Substat.Er, Substat.FlatAtk, Substat.AtkPct, Substat.FlatAtk),
-    rotation: SR_ROTATION_FAST,
+  rotation: SR_ROTATION_FAST,
+  sequences: SR_SEQUENCES,
 });

@@ -27,6 +27,7 @@ import {
   revokeCurrent,
   casting,
   currentAction,
+  runningAction,
   addStat,
   queue,
   queueOutro,
@@ -153,7 +154,7 @@ const REGRESSION = new Buff({
 });
 const ER_INHERENT_2 = new Inherent({
   name: "Inherent: Regression",
-  updateBuffs: () => { if (currentAction() === OvershockHold) applyCurrent(REGRESSION, 1); },
+  updateBuffs: () => { if (runningAction(OvershockHold)) applyCurrent(REGRESSION, 1); },
 });
 
 /** Electro Core: what the Outro actually hands the incoming resonator — no stat of its own, just
@@ -184,20 +185,19 @@ const ER_S1 = new Sequence({ name: "Electro Rover S1: Celestial Ingenuity" });
 // S2 Thousandfold Artifice: 5 more Electro Flare on whatever Ultimate Tactics hits
 const ER_S2 = new Sequence({
   name: "Electro Rover S2: Thousandfold Artifice",
-  updateDebuffs: () => { if (currentAction() === Liberation) inflictElectroFlare(5); },
+  updateDebuffs: () => { if (runningAction(Liberation)) inflictElectroFlare(5); },
 });
 
 const ER_S3 = new Sequence({
   name: "Electro Rover S3: Alchemy of Wonders",
   applyStats: () => {
-    const a = currentAction();
-    if (a === Overshock || a === OvershockHold) addStat(Stat.MulMv, 20);
+    if (runningAction(Overshock) || runningAction(OvershockHold)) addStat(Stat.MulMv, 20);
   },
 });
 
 const ER_S4 = new Sequence({
   name: "Electro Rover S4: Earthquaking Rumble",
-  applyStats: () => { if (currentAction() === Liberation) addStat(Stat.MulMv, 20); },
+  applyStats: () => { if (runningAction(Liberation)) addStat(Stat.MulMv, 20); },
 });
 
 const ER_S5 = new Sequence({
@@ -209,7 +209,7 @@ const ER_S6 = new Sequence({
   name: "Electro Rover S6: Mind's Depths in a Casket",
   applyStats: () => {
     const a = currentAction();
-    if (a === ThunderBane || THRUMS.includes(a)) addStat(Stat.MulMv, 20);
+    if (runningAction(ThunderBane) || THRUMS.includes(a)) addStat(Stat.MulMv, 20);
   },
 });
 
@@ -237,10 +237,9 @@ const ROVER_ELECTRO_RESONATOR = new Resonator({
   tier: Tier.Free,
 
   updateDebuffs: () => {
-    const a = currentAction();
     // her own healing marker, read by every healing sonata and weapon (statuses.ts) —
     // applied to the healer alone, never the team
-    if (a === ThrumMaAero1 || a === ThrumMaAero2) applyCurrent(HEALS, 1);
+    if (runningAction(ThrumMaAero1) || runningAction(ThrumMaAero2)) applyCurrent(HEALS, 1);
   },
 
   updateBuffs: () => { if (THRUMS.includes(currentAction())) queue(ThunderBane); },

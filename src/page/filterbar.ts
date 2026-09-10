@@ -3,9 +3,9 @@
  * Filter *actions* (what a search hit or chip does) live in table.ts beside the table's handlers.
  */
 import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
-import { eligibleWeapons, sequenceLevels, scopedKey, axisUsed, weaponBase, echoLabel, axisOpen, AXES } from "../solver.js";
+import { eligibleWeapons, scopedKey, axisUsed, weaponBase, echoLabel, axisOpen, AXES } from "../solver.js";
 import type { Axis, TeamCost, ScopedCompare } from "../solver.js";
-import { TEAMS, RESONATOR_HUE, filters, resonatorFilters, OPTION_FILTER_MAPS, sequenceTagAt } from "./model.js";
+import { TEAMS, RESONATOR_HUE, filters, resonatorFilters, OPTION_FILTER_MAPS, sequenceTagsOf, tagOwner, comparable } from "./model.js";
 import type { ResonatorFilter, OptionKind } from "./model.js";
 import { esc } from "./panels.js";
 
@@ -17,7 +17,10 @@ let searchText = "";
 /** Which hit Tab has walked to, an index into `searchHits()` — -1 while none has been, where the
  *  first is what Enter takes anyway. Reset by every keystroke, since the list is rebuilt. */
 let searchAt = -1;
-export type SearchKind = "resonator" | OptionKind;
+export type SearchKind = "resonator" | OptionKind | "compare";
+/** One offer in the list. `axis`/`resonator` are the compares' own — what `setCompare` needs, since
+ *  their `value` is the chip's wording ("Qingxiao Sequences") rather than anything to filter on. */
+export interface SearchHit { kind: SearchKind; value: string; axis?: Axis; resonator?: string }
 
 export function focusSearch(): void {
   const search = document.querySelector<HTMLInputElement>("#optionSearch");
@@ -35,12 +38,13 @@ export function clearSearch(): void {
   if (box) box.innerHTML = "";
 }
 
-/** Every name the search can offer — only picks a table cell could also set. */
-function searchCandidates(): { kind: SearchKind; value: string }[] {
+/** Every name the search can offer — picks a table cell could also set, plus the compares a name
+ *  menu would open for whoever is already shown. */
+function searchCandidates(): SearchHit[] {
   const seen = new Set<string>();
-  const out: { kind: SearchKind; value: string }[] = [];
-  const add = (kind: SearchKind, value: string): void => {
-    if (value && !seen.has(`${kind}|${value}`)) { seen.add(`${kind}|${value}`); out.push({ kind, value }); }
+  const out: SearchHit[] = [];
+  const add = (kind: SearchKind, value: string, rest: Partial<SearchHit> = {}): void => {
+    if (value && !seen.has(`${kind}|${value}`)) { seen.add(`${kind}|${value}`); out.push({ kind, value, ...rest }); }
   };
   for (const members of Object.values(TEAMS)) {
     for (const m of members) {
@@ -55,10 +59,19 @@ function searchCandidates(): { kind: SearchKind; value: string }[] {
       }
       if (axisUsed(m, filters, "refines")) for (const i of eligibleWeapons(m, filters)) for (const w of m.loadout.refinements[i]!) add("refine", `${m.name} R${w.refinement}`);
       if (axisOpen(m, filters, "echoes")) for (const e of m.loadout.echoLoadouts) add("echo", echoLabel(m.loadout, e));
-      for (const level of sequenceLevels(m, filters).slice(1)) {
-        const tag = sequenceTagAt(m, level);
-        if (tag) add("sequence", tag);
-      }
+      // every level the open compare shows, the baseline and the max-rank row included; nothing
+      // at all when closed
+      for (const tag of sequenceTagsOf(m, filters)) if (tag) add("sequence", tag);
+    }
+  }
+  // a shown resonator also offers every compare their own name menu would, worded as the chip it
+  // makes ("Qingxiao Sequences") — one already open is left to that chip to close
+  for (const [name, mode] of resonatorFilters) {
+    if (mode !== "include") continue;
+    for (const axis of AXES) {
+      // refines are the Weapon column's own, opened from a weapon cell rather than by name
+      if (axis === "refines" || filters[axis].includes(name) || !comparable(name, axis)) continue;
+      add("compare", `${name} ${AXIS_LABEL[axis]}`, { axis, resonator: name });
     }
   }
   return out;
@@ -85,7 +98,7 @@ function searchRank(value: string, text: string): [number, number, number] | nul
   return hit < 2 ? null : [1, text.length - hit, to - from];
 }
 
-export function searchHits(): { kind: SearchKind; value: string }[] {
+export function searchHits(): SearchHit[] {
   const text = searchText.trim().toLowerCase();
   if (!text) return [];
   return searchCandidates()
@@ -107,7 +120,7 @@ export function cycleSearch(step: number): void {
 }
 
 /** The hit Enter acts on: whichever Tab walked to, else the first. */
-export const searchChoice = (): { kind: SearchKind; value: string } | undefined =>
+export const searchChoice = (): SearchHit | undefined =>
   searchHits()[searchAt < 0 ? 0 : searchAt];
 
 export function drawSearch(): void {
@@ -119,17 +132,20 @@ function searchResults(): string {
   if (!searchText.trim()) return "";
   const KIND_LABEL: Record<SearchKind, string> = {
     resonator: "Resonator", weapon: "Weapon", echo: "Echo", sequence: "Sequence", refine: "Refine",
+    compare: "Compare",
   };
   const hits = searchHits();
   if (!hits.length) return `<div class="sresult none">no matches</div>`;
-  return hits.map(({ kind, value }, i) => {
+  return hits.map(({ kind, value, axis, resonator }, i) => {
     const hue = (kind === "resonator" ? RESONATOR_HUE.get(value)
-      : kind === "sequence" ? RESONATOR_HUE.get(value.replace(/ S\d+$/, "")) : undefined) ?? TUNE_BREAK_ENEMY.color;
+      : kind === "compare" ? RESONATOR_HUE.get(resonator ?? "")
+      : kind === "sequence" ? RESONATOR_HUE.get(tagOwner(value)) : undefined) ?? TUNE_BREAK_ENEMY.color;
     // one target, not two halves: a result is only ever added to the pool, and the chip it makes
     // is where it is taken back off
     return `<button type="button" class="sresult${i === searchAt ? " sel" : ""}" data-kind="${kind}" data-value="${esc(value)}"`
+      + (axis ? ` data-axis="${axis}" data-resonator="${esc(resonator ?? "")}"` : "")
       + ` style="--mem:${hue}"`
-      + ` title="Add ${esc(value)} to the filters. The chip it makes is where it comes back off.">`
+      + ` title="${kind === "compare" ? `Compare ${esc(resonator ?? "")}'s ${esc(AXIS_LABEL[axis!].toLowerCase())}` : `Add ${esc(value)} to the filters`}. The chip it makes is where it comes back off.">`
       + `<span class="sact inc"><span class="sname">${esc(value)}<span class="skind">${KIND_LABEL[kind]}</span></span></span></button>`;
   }).join("");
 }
@@ -143,6 +159,10 @@ const COST_HELP = [
   "Full S0R0 - Limited resonators are S0 and use the best standard or 4* weapon available at R1. Rover and 4* resonators are S6.",
   "S0R1 mdps - Each team gets a single signature weapon at R1 that gives the best DPR increase, in most cases the team's main DPS. Dual DPS teams still only get one signature weapon.",
   "S0R1 all - All limited resonators get their best signature weapon, while Rover and 4* supports may still use standard or 4* weapons.",
+  "S1R1 / S2R1 / S3R1 / S6R1 mdps - One resonator per team runs that many sequence nodes, whichever gives the best DPR increase, in most cases the team's main DPS. Everyone else stays S0R1.",
+  "S6R5 mdps - That one resonator is S6 and runs their weapon at R5; everyone else is still S0R1.",
+  "Full S6R5 - Every resonator is S6 with their best weapon at R5.",
+  "A kit whose sequences are not implemented yet stays at S0 in every mode above.",
 ];
 const MATRIX_HELP = "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.";
 const STANDARDS = [
@@ -180,6 +200,8 @@ export function comparisonFilters(): string {
       + `<button type="button" class="tcopt-name" data-help="cost" aria-expanded="${open}">Team Cost<span class="arrow">›</span></button>`
       + `<select id="cost" class="tcselect" aria-label="Team Cost" title="Team Cost">`
       + option("s0r0", "Full S0R0") + option("s0r1mdps", "S0R1 mdps only") + option("s0r1", "Full S0R1")
+      + option("s1r1mdps", "S1R1 mdps") + option("s2r1mdps", "S2R1 mdps") + option("s3r1mdps", "S3R1 mdps")
+      + option("s6r1mdps", "S6R1 mdps") + option("s6r5mdps", "S6R5 mdps") + option("s6r5", "Full S6R5")
       + `</select></div>`
       + `<div class="tcopt-desc"${open ? "" : " hidden"}><ul>${COST_HELP.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div>`
       + `</div>`;
@@ -243,7 +265,7 @@ function resonatorChips(): string {
   }
   for (const [kind, map] of Object.entries(OPTION_FILTER_MAPS) as [OptionKind, Map<string, ResonatorFilter>][]) {
     for (const [name, mode] of map) {
-      const hue = kind === "sequence" || kind === "refine" ? RESONATOR_HUE.get(name.replace(/ [SR]\d+$/, "")) : undefined;
+      const hue = kind === "sequence" || kind === "refine" ? RESONATOR_HUE.get(tagOwner(name)) : undefined;
       bucket(mode).push(`<button type="button" class="rchip" data-kind="${kind}" data-value="${esc(name)}"`
         + (hue ? ` style="--mem:${hue}"` : "")
         + ` title="${esc(name)} — rows using ${MODE_TITLE[mode]}. Click to remove.">`

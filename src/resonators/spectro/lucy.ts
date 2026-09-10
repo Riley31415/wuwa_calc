@@ -48,7 +48,7 @@ import {
   applyCurrent,
   applyTeam,
   casting,
-  currentAction,
+  runningAction,
   isHeld,
   queue,
   queueOutro,
@@ -84,7 +84,7 @@ const BA1 = lucyAction("Basic - Locked Thread 1", { node: Node.Normal, cast: Cas
 const BA2 = lucyAction("Basic - Locked Thread 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 60.76, energy: 0.96, concerto: 3.07, offtune: 3761, forte1: 12 });
 const BA3 = lucyAction("Basic - Locked Thread 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 120.2, energy: 1.87, concerto: 6.06, offtune: 7440, forte1: 18 });
 const BA4 = lucyAction("Basic - Locked Thread 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 155.09, energy: 2.4, concerto: 7.8, offtune: 9600, forte1: 26 });
-const MA = lucyAction("Mid-air - Locked Thread", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 116.32, energy: 2.26, concerto: 5.86, offtune: 7200, forte1: 8 });
+const MA = lucyAction("Mid-air - Locked Thread", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 116.32, energy: 2.26, concerto: 5.86, offtune: 7200, forte1: 8 });
 const DC = lucyAction("Dodge Counter - Locked Thread", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 197.73, energy: 3.83, concerto: 19.96, offtune: 12240, forte1: 12 });
 const HA1 = lucyAction("Heavy - Locked Thread 1", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 73.67, energy: 1.43, concerto: 3.73, offtune: 4560, forte1: 10 });
 const HA2 = lucyAction("Heavy - Locked Thread 2", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 284.32, energy: 5.51, concerto: 14.32, offtune: 17602, forte1: 20.02 });
@@ -95,7 +95,7 @@ const EBA1 = lucyAction("Basic - Thread Shredding 1", { node: Node.Normal, cast:
 const EBA2 = lucyAction("Basic - Thread Shredding 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 111.35, energy: 1.6, concerto: 6.4, offtune: 6400, forte2: 29.55 });
 const EBA3 = lucyAction("Basic - Thread Shredding 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 140.6, energy: 2.05, concerto: 8.1, offtune: 8080, forte2: 37.3 });
 const EBA4 = lucyAction("Basic - Thread Shredding 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 125.3, energy: 1.8, concerto: 7.2, offtune: 7200, forte2: 33.25 });
-const EMA = lucyAction("Mid-air - Algorithm Compaction", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 125.26, energy: 2.26, concerto: 5.86, offtune: 7200, forte2: 33.22 });
+const EMA = lucyAction("Mid-air - Algorithm Compaction", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 125.26, energy: 2.26, concerto: 5.86, offtune: 7200, forte2: 33.22 });
 const EDC = lucyAction("Dodge Counter - Algorithm Compaction", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 194.85, energy: 3.5, concerto: 21.2, offtune: 11200, forte2: 29.55 });
 const EHA = lucyAction("Heavy - Single Threading", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 116.95, energy: 1.7, concerto: 6.75, offtune: 6720, forte2: 31 });
 // Payload's charge, Deadlock and Multi-threading each land a Tune Hack
@@ -183,7 +183,7 @@ const DataCrash = lucyAction("Tune Hack Response - Data Crash", {
 const ALGORITHM_COMPACTION = new Buff({
   name: "Lucy: Algorithm Compaction",
   stats: [[Stat.DmgBonus, 65, Attribute.Spectro]],
-  convertStats: () => { if (currentAction() === Outro) revokeCurrent(ALGORITHM_COMPACTION); },
+  convertStats: () => { if (runningAction(Outro)) revokeCurrent(ALGORITHM_COMPACTION); },
 });
 
 /** SQL: one stack, banked on entering Algorithm Compaction and spent by the next Multi-threading
@@ -196,12 +196,12 @@ const ALGORITHM_COMPACTION = new Buff({
 const SQL = new Buff({
   name: "Lucy: SQL",
   applyStats: () => {
-    if (currentAction() !== MultiThreading) return;
+    if (!runningAction(MultiThreading)) return;
     addStat(Stat.MulMv, isHeld(LC_S2) ? 560 : 270);
     addStat(Stat.AddEnergy, 7);
     addStat(Stat.AddOfftune, 57600);
   },
-  convertStats: () => { if (currentAction() === MultiThreading) revokeCurrent(SQL); },
+  convertStats: () => { if (runningAction(MultiThreading)) revokeCurrent(SQL); },
 });
 
 /** Outdated Hallucination arms it: after her Intro, the *next* Pulse Interference grants 20.6 TCP on
@@ -209,8 +209,8 @@ const SQL = new Buff({
  *  next Intro gets nothing. */
 const OUTDATED_HALLUCINATION = new Buff({
   name: "Lucy: Outdated Hallucination",
-  applyStats: () => { if (currentAction() === Skill3) addStat(Stat.AddForte1, 20.60); },
-  convertStats: () => { if (currentAction() === Skill3) revokeCurrent(OUTDATED_HALLUCINATION); },
+  applyStats: () => { if (runningAction(Skill3)) addStat(Stat.AddForte1, 20.60); },
+  convertStats: () => { if (runningAction(Skill3)) revokeCurrent(OUTDATED_HALLUCINATION); },
 });
 
 /** Digital Handshake: granted by Pulse Interference, and while she is on field and out of
@@ -219,16 +219,15 @@ const OUTDATED_HALLUCINATION = new Buff({
  *  end it (reaching 100 TCP, or either Liberation) has anything to end, so it simply stands. */
 const DIGITAL_HANDSHAKE = new Buff({ 
   name: "Lucy: Digital Handshake",
-  applyStats: () => { if (currentAction() === Outro) addStat(Stat.AddForte1, 12); }, // approximation
+  applyStats: () => { if (runningAction(Outro)) addStat(Stat.AddForte1, 12); }, // approximation
 });
 
 /** Spoofing Program: Cyberware Malfunction — marked targets take 5% more DMG for 30s, so permanent
- *  uptime. There is no target-side "damage taken" stat here (EnemyStat is res and def only), so it
- *  lands as Total Damage from the target itself: enemy-pool gear runs through whoever is acting, so
- *  every attacker reads the identical 5%. */
+ *  uptime. Damage Taken rather than Total Damage, being the target's own vulnerability: enemy-pool
+ *  gear runs through whoever is acting, so every attacker reads the identical 5%. */
 const CYBERWARE_MALFUNCTION = new Debuff({
   name: "Spoofing Program: Cyberware Malfunction",
-  stats: [[Stat.TotalDmg, 5]],
+  stats: [[Stat.DamageTaken, 5]],
 });
 
 /** Spoofing Program: Breach Protocol — marked targets' DEF reduced 5% for 30s, permanent uptime. */
@@ -280,7 +279,7 @@ const LC_S1_ATK = new Buff({
 
 const LC_S1 = new Sequence({
   name: "Lucy S1: The Moon, a Ticket, and a Dream",
-  updateBuffs: () => { if (currentAction() === Intro) applyCurrent(LC_S1_ATK, 1); },
+  updateBuffs: () => { if (runningAction(Intro)) applyCurrent(LC_S1_ATK, 1); },
 });
 
 /** S2's own extra instance behind Pulse Interference: 450% of ATK, Heavy Attack DMG, applying every
@@ -299,7 +298,7 @@ const S2Instance = lucyAction("Skill - Pulse Interference (S2 Additional)", {
  *  third is the SQL multiplier, which lives on SQL itself above. */
 const LC_S2 = new Sequence({
   name: "Lucy S2: The Blackwall, the Past, the Escape",
-  updateBuffs: () => { if (currentAction() === Skill3) queue(S2Instance); },
+  updateBuffs: () => { if (runningAction(Skill3)) queue(S2Instance); },
 });
 
 /** S3, all three clauses against nanoka's own second rows: the Override at 1341.97%/2683.94%
@@ -308,9 +307,8 @@ const LC_S2 = new Sequence({
 const LC_S3 = new Sequence({
   name: "Lucy S3: Cyberpunk",
   applyStats: () => {
-    const a = currentAction();
-    if (a === Lib || a === ELib) { addStat(Stat.MulMv, 50); addStat(Stat.CritDmg, 100); }
-    if (a === CrippleMovement || a === DataCrash) addStat(Stat.MulMv, 65);
+    if (runningAction(Lib) || runningAction(ELib)) { addStat(Stat.MulMv, 50); addStat(Stat.CritDmg, 100); }
+    if (runningAction(CrippleMovement) || runningAction(DataCrash)) addStat(Stat.MulMv, 65);
   },
 });
 
@@ -332,15 +330,15 @@ const LC_S4 = new Sequence({
 const LC_S5 = new Sequence({ name: "Lucy S5: A Broken Path to Hell" });
 
 /** S6: her own Heavy and Hack damage against a target carrying Hack - Shifting or sitting in Hack -
- *  Interfered — damage *taken*, so it goes on as Total Damage the way Cyberware Malfunction's own
+ *  Interfered — damage *taken*, so it goes on as Damage Taken the way Cyberware Malfunction's own
  *  5% does, scoped to the two damage types the node names. Only her gear holds it, so only her
  *  hits read it. The Stagnation duration is nothing this calculator computes. */
 const LC_S6 = new Sequence({
   name: "Lucy S6: I Really Want to Stay At Your House",
   applyStats: () => {
     if (!stacksOfEnemy(TUNE_HACK_SHIFTING) && !stacksOfEnemy(TUNE_HACK_INTERFERED)) return;
-    addStat(Stat.TotalDmg, 40, Type1.Heavy);
-    addStat(Stat.TotalDmg, 60, Type1.Hack);
+    addStat(Stat.DamageTaken, 40, Type1.Heavy);
+    addStat(Stat.DamageTaken, 60, Type1.Hack);
   },
 });
 
@@ -361,7 +359,7 @@ const LUCY_TALENTS = new Talent({
 });
 
 const LUCY_MATRIX = matrix("Lucy", 0, {
-  updateBuffs: () => { if (currentAction() === Lib) applyTeam(NETWORK_BACKDOOR, 1); },
+  updateBuffs: () => { if (runningAction(Lib)) applyTeam(NETWORK_BACKDOOR, 1); },
 });
 
 export const LUCY_RESONATOR = new Resonator({

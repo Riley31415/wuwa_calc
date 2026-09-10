@@ -148,8 +148,12 @@ body {
   align-items: baseline;
   gap: 8px;
 }
-/* what went wrong on the way up (index.html's own handlers), in full under the bar */
+/* what went wrong on the way up (index.html's own handlers), in full under the bar — the one
+   part of the overlay that takes the pointer, so the text can be selected and copied */
 .loading-error {
+  pointer-events: auto;
+  user-select: text;
+  cursor: text;
   margin: 18px 0 0;
   max-width: min(720px, 90vw);
   max-height: 40vh;
@@ -424,7 +428,11 @@ main {
    static position from flow — under the input — where a flex container would put it at the top */
 /* `flex: none`: the row is a column now (`.tcsearchrow`), where a 360px basis would be a *height*
    and stood the chips a bar's worth of empty space below it */
-.tcsearch { position: relative; display: block; flex: none; width: 100%; max-width: 360px; }
+/* 1px of padding all round: the box and every row of its list are inset a pixel, which is where
+   the focus ring (drawn on the pixel outside whichever of them wears it) lands — inside this
+   element rather than on a neighbour's edge, so no scroller or clip ever cuts it. The 362px keeps
+   the box itself at the 360px a column beside the table is. */
+.tcsearch { position: relative; display: block; flex: none; width: 100%; max-width: 362px; padding: 1px; }
 .tcsearch input {
   display: block;
   width: 100%;
@@ -436,24 +444,30 @@ main {
   font-family: var(--sans);
   font-size: 12px;
 }
-/* the same mark a walked-to suggestion wears (`.sresult.sel`): a 1px accent ring on the pixel
-   outside the box, with nothing else about the box changing */
-.tcsearch input:focus { outline: 1px solid var(--accent); outline-offset: 0; }
+/* One ring, one rule: the focused box wears it until a row of its list is walked to (`.sresult.sel`,
+   filterbar.ts), and then that row wears it instead — the box keeps focus and the typing, only the
+   ring moves. `:focus-within` rather than `:focus`, so a row holding focus still counts as the bar's. */
+.tcsearch input:focus { outline: none; }
+/* ...and whichever wears it stands over the other: the box over its list (z-index 41 below) while
+   it is ringed, a ringed row over the rows beside it and, its list being above the unringed box,
+   over the box — so the ring is whole either way, on pixels the neighbour would otherwise paint */
+.tcsearch:focus-within:not(:has(.sresult.sel)) input,
+.sresult.sel { outline: 1px solid var(--accent); outline-offset: 0; position: relative; z-index: 42; }
 /* Absolute, so nothing below moves as it opens and closes — and nothing is under the input to
    drop onto, the chips standing beside the bar rather than under it (`.tcsearchrow`).
    Over the pinned table header (z-index 40) rather than under it, same as the column popover. */
 .tcsearch-results {
   position: absolute;
-  top: 100%;
-  /* flush under the box's own border, not over it: the border stays whole and the list starts on
-     the first pixel after it */
+  /* flush under the box, inside the same 1px gutter it sits in (`.tcsearch`'s padding), and
+     unbordered: the ring only ever sits on the box or on one row, never round the list */
+  top: calc(100% - 1px);
   margin-top: 0;
-  left: 0;
-  right: 0;
+  left: 1px;
+  right: 1px;
   z-index: 41;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 0;
   background: var(--surface-3);
 }
 /* `display: flex` above would beat the attribute otherwise (same as `.trow[hidden]` below) */
@@ -461,8 +475,9 @@ main {
 /* Beside the table the aside is a scroller (`.tcside` below), and a scroller clips an absolute
    child hanging under its bottom edge — so there the list is fixed instead: with every offset auto
    it still sits at its static position under the input, but escapes the clip. A column beside the
-   table is always 360px, the input's own width. Scrolling the aside closes it (index.ts). */
-.tclayout:not(.stack) .tcsearch-results { position: fixed; top: auto; left: auto; right: auto; width: 360px; }
+   table is always 360px, so the box inside its 1px gutter is 358px, and so is the list. Scrolling
+   the aside closes it (index.ts). */
+.tclayout:not(.stack) .tcsearch-results { position: fixed; top: auto; left: auto; right: auto; width: 358px; }
 /* one row per match: the same hue wash and 2px left marker a name cell wears (`--mem`; gear
    picks wear the Tune Break's colour, same as their chips), no border of its own */
 .sresult {
@@ -493,9 +508,8 @@ main {
 /* no wash on the row itself: the half under the pointer is what lights up (`.sact:hover` below).
    The one Tab has walked to is outlined instead — the same mark focus used to leave on it, so the
    list's own colours stay as they read untouched. */
-/* drawn on the pixel outside the row, not over its first one: the marker keeps the whole of its
-   own corner and the ring goes round the outside of everything */
-.sresult.sel { outline: 1px solid var(--accent); outline-offset: 0; }
+/* the ring itself is the box's own rule above, shared: drawn on the pixel outside the row, not over
+   its first one, so the marker keeps the whole of its own corner */
 /* The row is one click target: the name, which axis the match is from dimmed after it, and "add"
    hard right. */
 .sresult .sact { display: flex; align-items: center; align-self: stretch; padding: 5px 10px; color: var(--ink); }
@@ -659,7 +673,9 @@ main {
   box-shadow: inset 2px 0 0 color-mix(in srgb, var(--mem, transparent) 70%, transparent);
 }
 .trow:not(.thead):hover .c.name { background: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface)); }
-.trow .c.total { color: var(--ink); font-weight: 700; }
+/* full-strength ink, but the table's own 400 like every other cell: these two are what a row
+   is read down, and they carry that on colour and the hue ramp rather than on weight */
+.trow .c.total { color: var(--ink); }
 
 /* a resonator's own name, clickable: left click filters the table down to teams fielding that
    name, right click drops every team that fields it — everywhere it appears, not just the row
@@ -690,6 +706,12 @@ main {
 .trow:not(.thead):hover .c.slotdpr, .trow:not(.thead):hover .c.slotcompare { background: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface)); }
 .trow.thead .c.huehead { cursor: pointer; }
 .trow.thead .c.huehead:hover { color: var(--ink); }
+/* each DPR header toggles its own column between exact and abbreviated figures (table.ts's own
+   `dprExact`); a column opens on the exact figure, so abbreviating is the marked state, in full ink */
+.trow.thead .c.dprhead { cursor: pointer; }
+.trow.thead .c.dprhead:hover,
+.tgrid:not(.personalexact) .trow.thead .c.dprhead[data-dpr="personal"],
+.tgrid:not(.teamexact) .trow.thead .c.dprhead[data-dpr="team"] { color: var(--ink); }
 
 /* The `% of Baseline` column: one continuous hue ramp, written per row as `--hue` by
    `rankVisible()` — red at the strongest team, green at the baseline, purple at the weakest.
@@ -999,9 +1021,10 @@ body.coldrag { user-select: none; }
 .grid .r:not(.head):not(.totalrow):hover > .c.avg { background-color: color-mix(in srgb, var(--m, transparent) 18%, var(--surface)); }
 
 /* mv/energy/concerto/offtune: a dotted underline when a stat buff actually moved this cell's own
-   value, not just its usual carried/declared trace (see display.ts's own ReportRow.buffed) —
-   white, so it reads as "a buff is in play" without implying anything's wrong the way the
-   concerto-underspend colour below does. */
+   value, not just its usual carried/declared trace (see display.ts's own ReportRow.buffed) — and
+   on a forte gauge, when this cast wiped the bar before its own delta landed, which is the CLEAR
+   row its panel carries. White, so it reads as "something other than the plain figure is in play"
+   without implying anything's wrong the way the concerto-underspend colour below does. */
 .c.buffed { text-decoration: underline dotted #fff; text-underline-offset: 3px; }
 
 /* concerto only: an outro that fired without a full 100-point bar banked — a real "we didn't

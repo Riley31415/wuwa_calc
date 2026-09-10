@@ -29,6 +29,7 @@ import {
   applyCurrent,
   casting,
   currentAction,
+  runningAction,
   forte1,
   queueOutro,
   revokeCurrent,
@@ -55,7 +56,7 @@ const BA2 = jianxinAction("Basic - Fengyiquan 2", { node: Node.Normal, cast: Cas
 const BA3 = jianxinAction("Basic - Fengyiquan 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 167, energy: 2.48, concerto: 7.92, offtune: 7920, forte1: 12 });
 const BA4 = jianxinAction("Basic - Fengyiquan 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 113.4, energy: 1.68, concerto: 5.37, offtune: 5360, forte1: 12 });
 const HA = jianxinAction("Heavy - Fengyiquan", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 126.07, energy: 1.87, concerto: 5.96, offtune: 6000, forte1: 9 });
-const MA = jianxinAction("Mid-air - Fengyiquan", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 123.27, energy: 0.52, concerto: 1, offtune: 4960, forte1: 6 });
+const MA = jianxinAction("Mid-air - Fengyiquan", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.27, energy: 0.52, concerto: 1, offtune: 4960, forte1: 6 });
 const DC = jianxinAction("Dodge Counter - Fengyiquan", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 244.94, energy: 3.10, concerto: 16.68, offtune: 13143, forte1: 17 });
 const BA1234 = new ActionGroup("Basic - Fengyiquan 1234", [BA1, BA2, BA3, BA4]);
 // --- Calming Air: the Parry Stance (8 Concerto on the cast) ends either as Chi Parry (released)
@@ -147,12 +148,12 @@ const TRANSCENDENCE = new Buff({
  *  whatever Chi the basic itself banks. */
 const S1_BRANCHLET = new Buff({
   name: "Jianxin S1: Verdant Branchlet",
-  applyStats: () => { if (casting(Cast.Basic) || casting(Cast.MidAir)) addStat(Stat.AddForte1, currentAction().forte1); },
+  applyStats: () => { if (casting(Cast.Basic)) addStat(Stat.AddForte1, currentAction().forte1); },
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(S1_BRANCHLET); },
 });
 const S1 = new Sequence({
   name: "Jianxin S1: Verdant Branchlet",
-  updateBuffs: () => { if (currentAction() === Intro) applyCurrent(S1_BRANCHLET, 1); },
+  updateBuffs: () => { if (runningAction(Intro)) applyCurrent(S1_BRANCHLET, 1); },
 });
 const S2 = new Sequence({ name: "Jianxin S2: Tao Seeker's Journey" }); // allow 2 skills
 const S3 = new Sequence({ name: "Jianxin S3: Principles of Wuwei" });
@@ -160,12 +161,12 @@ const S3 = new Sequence({ name: "Jianxin S3: Principles of Wuwei" });
 /** S4 Multitide Reflection: +80% Purification Force Field DMG for 14s after Primordial Chi Spiral. */
 const S4_REFLECTION = new Buff({
   name: "Jianxin S4: Multitide Reflection",
-  applyStats: () => { if (currentAction() === Liberation) addStat(Stat.DmgBonus, 80); },
+  applyStats: () => { if (runningAction(Liberation)) addStat(Stat.DmgBonus, 80); },
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(S4_REFLECTION); },
 });
 const S4 = new Sequence({
   name: "Jianxin S4",
-  updateBuffs: () => { if (currentAction() === FHA) applyCurrent(S4_REFLECTION, 1); },
+  updateBuffs: () => { if (runningAction(FHA)) applyCurrent(S4_REFLECTION, 1); },
 });
 const S5 = new Sequence({ name: "Jianxin S5" });
 
@@ -183,7 +184,7 @@ const S6 = new Sequence({ name: "Jianxin S6" });
 /** Formless Release: Purification Force Field DMG +20%. */
 const JX_INHERENT_1 = new Inherent({
   name: "Inherent: Formless Release",
-  applyStats: () => { if (currentAction() === Liberation) addStat(Stat.DmgBonus, 20); },
+  applyStats: () => { if (runningAction(Liberation)) addStat(Stat.DmgBonus, 20); },
 });
 
 /** Reflection: the Spiral's shield is 20% larger — no damage of its own. */
@@ -232,6 +233,6 @@ export const JIANXIN = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.Aero3, Mainstat.ATK3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.FlatAtk, Substat.Liberation, Substat.Er),
-  rotation: [JX_ROTATION, JX_ROTATION, JX_ROTATION_S2],
+  rotation: { 0: JX_ROTATION, 2: JX_ROTATION_S2 },
   sequences: [S1, S2, S3, S4, S5, S6],
 });

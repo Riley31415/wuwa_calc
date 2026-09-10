@@ -60,7 +60,7 @@ import {
   concerto,
   consumedAny,
   consumedByMe,
-  currentAction,
+  runningAction,
   currentTeam,
   isType,
   maxStackIncrease,
@@ -102,7 +102,7 @@ const BA1 = suisuiAction("Basic - Zephyr Stance 1", { node: Node.Normal, cast: C
 const BA2 = suisuiAction("Basic - Zephyr Stance 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 122.00, energy: 1.92, concerto: 6.14, offtune: 6136, forte1: 46 });
 const BA3 = suisuiAction("Basic - Zephyr Stance 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 139.34, energy: 2.20, concerto: 7.03, offtune: 7010, forte1: 53 });
 const BA4 = suisuiAction("Basic - Zephyr Stance 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 159.08, energy: 2.50, concerto: 8.00, offtune: 8000, forte1: 60 });
-const MA = suisuiAction("Mid-air - Zephyr Stance", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 70.72, energy: 1.86, concerto: 5.93, offtune: 5928 });
+const MA = suisuiAction("Mid-air - Zephyr Stance", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 70.72, energy: 1.86, concerto: 5.93, offtune: 5928 });
 const DC = suisuiAction("Dodge Counter - Zephyr Stance 3", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 170.67, energy: 2.70, concerto: 18.60, offtune: 8586, forte1: 30 });
 const Skill = suisuiAction("Skill - Vernal Screen: Zephyr Stance", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 143.16, energy: 2.28, concerto: 7.20, offtune: 7200, forte1: 40 });
 
@@ -336,12 +336,12 @@ const SS_S2 = new Sequence({
 const KINGFISHER = new Buff({
   name: "Suisui S3: Kingfisher",
   updateBuffs: () => lostOnSwap(),
-  applyStats: () => { if (currentAction() === FBA4) { addStat(Stat.AddConcerto, 20); addStat(Stat.AddForte2, 350); } },
-  convertStats: () => { if (currentAction() === FBA4) revokeCurrent(KINGFISHER); },
+  applyStats: () => { if (runningAction(FBA4)) { addStat(Stat.AddConcerto, 20); addStat(Stat.AddForte2, 350); } },
+  convertStats: () => { if (runningAction(FBA4)) revokeCurrent(KINGFISHER); },
 });
 const SS_S3 = new Sequence({
   name: "Suisui S3: Sparse Curtains Invite Evening Glow",
-  updateBuffs: () => { if (currentAction() === FSkill) applyCurrent(KINGFISHER, 1); },
+  updateBuffs: () => { if (runningAction(FSkill)) applyCurrent(KINGFISHER, 1); },
 });
 
 /** S4 is +50% on two heals — nothing this calculator reads. */
@@ -350,14 +350,13 @@ const SS_S4 = new Sequence({ name: "Suisui S4: Autumn Mountains in Choir Sing" }
 const SS_S5 = new Sequence({
   name: "Suisui S5: I Long To Ride The Eastern Wind",
   applyStats: () => {
-    const a = currentAction();
-    if (a === FBA1 || a === FBA2 || a === FBA3 || a === FBA4 || a === FHA) addStat(Stat.MulMv, 100);
+    if (runningAction(FBA1) || runningAction(FBA2) || runningAction(FBA3) || runningAction(FBA4) || runningAction(FHA)) addStat(Stat.MulMv, 100);
   },
 });
 
 const SS_S6 = new Sequence({
   name: "Suisui S6: Staying True To This Splendid Realm",
-  applyStats: () => { if (currentAction() === Intro || currentAction() === ESkill) addStat(Stat.CritDmg, 500); },
+  applyStats: () => { if (runningAction(Intro) || runningAction(ESkill)) addStat(Stat.CritDmg, 500); },
 });
 
 const SS_SEQUENCES = [SS_S1, SS_S2, SS_S3, SS_S4, SS_S5, SS_S6];
@@ -369,7 +368,7 @@ const SS_SEQUENCES = [SS_S1, SS_S2, SS_S3, SS_S4, SS_S5, SS_S6];
 const SS_INHERENT_1 = new Inherent({
   name: "Inherent: Sky Over Water",
   applyStats: () => {
-    if (currentAction() !== ESkill && currentAction() !== Intro) return;
+    if (!runningAction(ESkill) && !runningAction(Intro)) return;
     addStat(Stat.AddConcerto, 18);
     addStat(Stat.AddEnergy, 13);
     addStat(Stat.CritRate, 80);
@@ -451,6 +450,6 @@ export const SUISUI = new Loadout({
   mainstats: [mainstats(Mainstat.HP4, Mainstat.ER3, Mainstat.ER3, Mainstat.HP1, Mainstat.HP1)],
   substat: substats(Substat.HpPct, Substat.Skill, Substat.FlatHp, true),
   highSubstat: highSubs(Substat.Er, Substat.HpPct, Substat.FlatHp, Substat.HpPct),
-  rotation: [SS_ROTATION, SS_ROTATION, SS_ROTATION, SS_ROTATION_S3],
+  rotation: { 0: SS_ROTATION, 3: SS_ROTATION_S3 },
   sequences: SS_SEQUENCES,
 });

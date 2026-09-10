@@ -42,13 +42,16 @@
  * "Damage Data" table — see the comment above the action definitions for the column mapping.
  * Outro/Twining's own table gives 0 across the board, a real absence, not an unchecked gap.
  */
-import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
+  asSource,
   applyCurrent,
+  applyTeam,
   revokeCurrent,
   casting,
   currentAction,
+  runningAction,
   addStat,
   setForte1,
   isHeld,
@@ -86,7 +89,7 @@ const BA3 = camellyaAction("Basic - Burgeoning 3", { node: Node.Normal, cast: Ca
 const BA4 = camellyaAction("Basic - Burgeoning 4 (Hold)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 494.00, energy: 5.4, concerto: 10.8, offtune: 17280, forte1: -36 }); // 24.70% x20
 const BA5 = camellyaAction("Basic - Burgeoning 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 192.68, energy: 2.88, concerto: 5.72, offtune: 9120, forte1: -18.96 }); // 48.17% x4
 
-const MA = camellyaAction("Mid-air - Attack", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 131.22, energy: 1.66, concerto: 3.3, offtune: 5280, forte1: -10.96 }); // 65.61% x2
+const MA = camellyaAction("Mid-air - Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 131.22, energy: 1.66, concerto: 3.3, offtune: 5280, forte1: -10.96 }); // 65.61% x2
 const DC = camellyaAction("Dodge Counter - Burgeoning", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 298.20, energy: 2.25, concerto: 14.5, offtune: 7200, forte1: -24.9 }); // 99.40% x3
 /** Considered Basic Attack DMG per Seedbed's own text. */
 const HA = camellyaAction("Heavy - Pruning", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Basic, mv: 264.42, energy: 3.33, concerto: 6.66, offtune: 10641, forte1: -22.08 }); // 88.14% x3
@@ -117,14 +120,30 @@ const FloralRavage = camellyaAction("Skill - Floral Ravage", { node: Node.Skill,
 /** At full Crimson Pistil/Concerto — considered Basic Attack DMG, enters Budding Mode, genuinely
  *  recovers Crimson Pistil to a hard 100, and spends 70 Concerto off a hard-clamped-to-100
  *  starting point (see file header on both pre-clamps in CAMELLYA_RESONATOR's own updateBuffs()). */
-/** Requires full Concerto and consumes 70 of it, so the bar is clamped back to 100 first; refills
- *  the gauge from empty, and folds every Crimson Bud held into the Budding Mode it opens. */
+/** Requires full Concerto and consumes 70 of it: declared as the whole bar, so a bar under 100
+ *  reads short, with the 30 it keeps handed back as a stat; refills the gauge from empty, and folds
+ *  every Crimson Bud held into the Budding Mode it opens. */
 const Ephemeral = camellyaAction("Forte Skill - Ephemeral", {
-  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 1262.45, forte1: 100, resetForte1: true, concerto: -70, energy: 12, offtune: 60800,
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 1262.45, forte1: 100, resetForte1: true, concerto: -100, energy: 12, offtune: 60800,
+  applyStats: () => addStat(Stat.AddConcerto, 30),
   updateBuffs: () => {
     const buds = stacksOf(CRIMSON_BUD);
     revokeCurrent(BUDDING_MODE);
     applyCurrent(BUDDING_MODE, 1 + buds);
+    revokeCurrent(CRIMSON_BUD);
+  },
+});
+
+/** S6: the Skill within 15s of Ephemeral at full Concerto — 100% of Ephemeral's DMG (so S2's
+ *  boost too), Basic DMG, spends 50 Concerto (declared as the whole bar the way Ephemeral is, the
+ *  other 50 handed back), refunds 50 Pistils, drops every Bud and re-opens Budding Mode at Sweet
+ *  Dream's 250% cap. No row of its own on nanoka: no energy/off-tune. */
+const Perennial = camellyaAction("Forte Skill - Perennial (S6)", {
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 1262.45, forte1: 50, concerto: -100,
+  applyStats: () => addStat(Stat.AddConcerto, 50),
+  updateBuffs: () => {
+    revokeCurrent(BUDDING_MODE);
+    applyCurrent(BUDDING_MODE, 11);
     revokeCurrent(CRIMSON_BUD);
   },
 });
@@ -145,7 +164,7 @@ const Outro = camellyaAction("Outro - Twining", { cast: Cast.Outro, type: Type1.
 const BLOSSOM_MODE = new Buff({
   name: "Camellya: Blossom Mode",
   convertStats: () => {
-    if (currentAction() === FloralRavage || currentAction() === ViningRonde) revokeCurrent(BLOSSOM_MODE);
+    if (runningAction(FloralRavage) || runningAction(ViningRonde)) revokeCurrent(BLOSSOM_MODE);
   },
 });
 
@@ -154,20 +173,28 @@ const BLOSSOM_MODE = new Buff({
  *  the moment Ephemeral consumed them (up to 10, +5% each — granted by CAMELLYA_RESONATOR's own updateBuffs(),
  *  since a Gear's own updateBuffs() only runs once it's already held). 15s, lost after the outro
  *  action gains stats. */
-function inSweetDream(a: Action): boolean {
-  return a === BA1 || a === BA2 || a === BA3 || a === BA4 || a === BA5
-    || a === VW1 || a === VW2 || a === VW3 || a === VW4 || a === BlazingWaltz
-    || a === ViningRonde || a === Atonement || a === CrimsonBlossom || a === FloralRavage;
+function inSweetDream(): boolean {
+  return runningAction(BA1) || runningAction(BA2) || runningAction(BA3) || runningAction(BA4) || runningAction(BA5)
+    || runningAction(VW1) || runningAction(VW2) || runningAction(VW3) || runningAction(VW4) || runningAction(BlazingWaltz)
+    || runningAction(ViningRonde) || runningAction(Atonement) || runningAction(CrimsonBlossom) || runningAction(FloralRavage);
 }
 const BUDDING_MODE = new Buff({
   name: "Camellya: Sweet Dream", maxStacks: 11,
-  applyStats: () => { if (inSweetDream(currentAction())) addStat(Stat.MulMv, 45 + 5 * frozenStacks()); },
+  // S6 lifts the flat 50 to 200 (Perennial's 11 stacks land on the 250 cap); S3 is +58% ATK while held
+  applyStats: () => {
+    if (isHeld(CM_S3)) asSource(CM_S3, () => addStat(Stat.BonusAtk, 58));
+    if (!inSweetDream()) return;
+    addStat(Stat.MulMv, 45 + 5 * frozenStacks());
+    // S6 lifts the flat half from 45 to 195 — the 150 it adds is the node's own
+    if (isHeld(CM_S6)) asSource(CM_S6, () => addStat(Stat.MulMv, 150));
+  },
   // two real end conditions: switched off field, and "all Crimson Pistils consumed" — checked
-  // after applyStats() already paid out, excluding Ephemeral itself (whose own forte1 pre-clamp to 0
-  // would otherwise be mistaken for "ran out" the instant Budding Mode opens)
+  // after applyStats() already paid out, with this action's own drain (not banked yet) counted in,
+  // excluding the two casts that open it (their own pre-clamp to 0 would read as "ran out")
   convertStats: () => {
     lostOnSwap();
-    if (currentAction() !== Ephemeral && forte1() <= 0) revokeCurrent(BUDDING_MODE);
+    const a = currentAction();
+    if (!runningAction(Ephemeral) && !runningAction(Perennial) && forte1() + a.forte1 <= 0) revokeCurrent(BUDDING_MODE);
   },
   display: () => `Camellya: Sweet Dream +${frozenStacks()-1} Buds`,
 });
@@ -245,6 +272,59 @@ const CAMELLYA_RESONATOR = new Resonator({
   },
 });
 
+/* --------------------------------------------------------------------------------- sequences */
+
+/** S1: +28% Crit. DMG for 18s off Everblooming — until her Outro. The interrupt immunity is no stat. */
+const SOMEWHERE_NO_ONE_TRAVELLED = new Buff({
+  name: "Camellya S1: Somewhere No One Travelled",
+  stats: [[Stat.CritDmg, 28]], until: LifeTime.Outro,
+});
+const CM_S1 = new Sequence({
+  name: "Camellya S1: Somewhere No One Travelled",
+  updateBuffs: () => { if (runningAction(Intro)) applyCurrent(SOMEWHERE_NO_ONE_TRAVELLED, 1); },
+});
+
+/** S2: Ephemeral at x2.2 of its multiplier — nanoka's second row (2777.38% against 1262.45%), so
+ *  multiplicative — and Perennial with it, being 100% of Ephemeral's DMG. */
+const CM_S2 = new Sequence({
+  name: "Camellya S2: Calling Upon the Silent Rose",
+  applyStats: () => { if (runningAction(Ephemeral) || runningAction(Perennial)) addStat(Stat.MulMv, 120); },
+});
+
+/** S3: Fervor Efflorescent at x1.5 (row 1804.21% against 1202.81%, multiplicative); the +58% ATK
+ *  in Budding Mode is paid by Sweet Dream itself. */
+const CM_S3 = new Sequence({
+  name: "Camellya S3: A Bud Adorned by Thorns",
+  applyStats: () => { if (runningAction(Liberation)) addStat(Stat.MulMv, 50); },
+});
+
+/** S4: +25% Basic Attack DMG Bonus to the team off Everblooming, 30s — permanent. */
+const ROOTS_SET_DEEP = new Buff({
+  name: "Camellya S4: Roots Set Deep In Eternity",
+  stats: [[Stat.DmgBonus, 25, Type1.Basic]],
+});
+const CM_S4 = new Sequence({
+  name: "Camellya S4: Roots Set Deep In Eternity",
+  updateBuffs: () => { if (runningAction(Intro)) applyTeam(ROOTS_SET_DEEP, 1); },
+});
+
+/** S5: Everblooming at x4.03 (row 801.21%) and Twining at x1.68 (row 553.11%) — both multiplicative. */
+const CM_S5 = new Sequence({
+  name: "Camellya S5: Infinity Held in Your Palm",
+  applyStats: () => {
+    if (runningAction(Intro)) addStat(Stat.MulMv, 303);
+    if (runningAction(Outro)) addStat(Stat.MulMv, 68);
+  },
+});
+
+/** S6: Sweet Dream's flat 50% becomes 200% (read off this node by Sweet Dream itself), and
+ *  Perennial — the extra cast the S6 rotation makes. */
+const CM_S6 = new Sequence({ name: "Camellya S6: Bloom For You Thousand Times Over" });
+
+const CM_SEQUENCES = [CM_S1, CM_S2, CM_S3, CM_S4, CM_S5, CM_S6];
+
+/* ---------------------------------------------------------------------------------- rotation */
+
 // a kit-valid line: Intro, the Burgeoning chain, Crimson Blossom opens Blossom Mode, the Vining
 // Waltz chain (with the Blazing Waltz insert) into Floral Ravage closes it, Ephemeral spends the
 // fresh Concerto and opens Budding Mode, Liberation, Outro. She's never the team's own lead, so
@@ -254,37 +334,22 @@ const VW1234 = new ActionGroup("Basic - Vining Waltz 123H4", [VW1, VW2, VW3, Bla
 const BA12345 = new ActionGroup("Basic - Burgeoning 1234H5", [BA1, BA2, BA3, BA4, BA5]);
 
 const CM_ROTATION_DOUBLE = new Rotation([
-  DOUBLE_INTRO, BA1, ECHO_ONFIELD, 
-  HA, BA4, BA5.swap(), SWAP,
+  DOUBLE_INTRO, CrimsonBlossom, ECHO_CANCEL,
+  HA, BA4.swap(), SWAP,
   
-  INTRO, CrimsonBlossom, 
-  Liberation, Ephemeral,
-  VW1234,
-  FloralRavage, OUTRO,
+  INTRO, Liberation, Ephemeral, CrimsonBlossom,
+  VW1234, FloralRavage,
+  OUTRO,
 ]);
 
-const CM_ROTATION = new Rotation([
-  INTRO, CrimsonBlossom, 
-  BA12345,
-  Liberation, Ephemeral,
-  VW1234,
-  FloralRavage, OUTRO,
+const CM_ROTATION_DOUBLE_S6 = new Rotation([
+  DOUBLE_INTRO, CrimsonBlossom, ECHO_CANCEL,
+  HA, BA4, FloralRavage.swap(), SWAP,
+
+  INTRO, Liberation, Ephemeral, CrimsonBlossom,
+  VW1234, FloralRavage, Perennial,
+  SWAP,
 ]);
-
-/* ----------------------------------------------------------------------------------- loadout */
-
-// her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
-// sonata pieces, mainstat/substat
-export const CAMELLYA = new Loadout({
-  resonator: CAMELLYA_RESONATOR,
-  weapons: [RED_SPRING, EMERALD_OF_GENESIS],
-  echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Er),
-    rotation: CM_ROTATION,
-});
-
 /* ----------------------------------------------------------------------------------- loadout */
 
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
@@ -296,5 +361,6 @@ export const CAMELLYA_DOUBLE = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Er),
-    rotation: CM_ROTATION_DOUBLE,
+  rotation: { 0: CM_ROTATION_DOUBLE, 6: CM_ROTATION_DOUBLE_S6 },
+  sequences: CM_SEQUENCES,
 });

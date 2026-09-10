@@ -4,7 +4,7 @@
  *  Cyberpunk collab echo at the bottom) — split them out when that region gets a name. Buling and
  *  Lucilla, also Lahairoi-era, own no mainslot echo/sonata of their own — Lucilla reuses
  *  Bell-Borne Geochelone/Moonlit Clouds from jinzhou.ts and Dream of the Lost from septimont.ts. */
-import { Stat, Attribute, Type1, Cast, Scaling } from "../engine/stats.js";
+import { Stat, Attribute, Type1, Cast, Scaling, LifeTime, BuffTarget } from "../engine/stats.js";
 import { Buff, Sonata, Sonata2pc, Sonata1pc, Mainslot, EchoType } from "../engine/gear.js";
 import {
   isType, addStat, applyCurrent, casting, getStat, queueOutro, revokeCurrent, frozenStacks, isHeld, currentMember,
@@ -35,7 +35,7 @@ export const NAMELESS_EXPLORER = new Mainslot({
 export const SOUND_OF_TRUE_NAME_2PC = new Sonata2pc({ name: "Sound of True Name 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Aero]] });
 export const SOUND_OF_TRUE_NAME_BUFF = new Buff({
   name: "Sound of True Name 5pc",
-  stats: [[Stat.CritRate, 20, Type1.Echo], [Stat.DmgBonus, 15, Attribute.Aero]], until: "outro",
+  stats: [[Stat.CritRate, 20, Type1.Echo], [Stat.DmgBonus, 15, Attribute.Aero]], until: LifeTime.Outro,
 });
 export const SOUND_OF_TRUE_NAME_5PC = new Sonata({
   name: "Sound of True Name 5pc",
@@ -140,13 +140,13 @@ export const QUIET_SNOWFALL_5PC = new Sonata({
 });
 
 export const QUIET_SNOWFALL_GLACIO = new Buff({
-  name: "Wishes of Quiet Snowfall (chafe)",
+  name: "Wishes of Quiet Snowfall 5pc (chafe)",
   stats: [[Stat.DmgBonus, 10, Attribute.Glacio]],
 });
 
 /** The marker itself — carries no stat, it is only ever the thing one of the two branches spends. */
 export const SNOWFALL = new Buff({
-  name: "Wishes of Quiet Snowfall: Snowfall",
+  name: "Wishes of Quiet Snowfall 5pc: Snowfall",
   updateBuffs: () => {
     if (casting(Cast.Outro)) {
       revokeCurrent(SNOWFALL);
@@ -159,11 +159,11 @@ export const SNOWFALL = new Buff({
 });
 
 export const SNOWFALL_CRIT = new Buff({
-  name: "Wishes of Quiet Snowfall (liberation)",
+  name: "Wishes of Quiet Snowfall 5pc (liberation)",
   stats: [[Stat.CritRate, 25]],
 });
 
-export const SNOWFALL_OUTRO = handoff("Wishes of Quiet Snowfall: Outro", () => addStat(Stat.DmgBonus, 25, Attribute.Glacio));
+export const SNOWFALL_OUTRO = handoff("Wishes of Quiet Snowfall 5pc (outro)", () => addStat(Stat.DmgBonus, 25, Attribute.Glacio));
 
 /* --------------------------------------------------------------------------- 3.5-3.6 sonatas */
 
@@ -175,10 +175,10 @@ export const NEONLIGHT_LEAP_2PC = new Sonata2pc({ name: "Pact of Neonlight Leap 
 export const NEONLIGHT_LEAP_5PC = new Sonata({
   name: "Pact of Neonlight Leap 5pc",
   sonata2pc: NEONLIGHT_LEAP_2PC,
-  grants: [{ on: onCast(Cast.Outro), buff: () => NEONLIGHT_LEAP_HANDOFF, to: "next" }],
+  grants: [{ on: onCast(Cast.Outro), buff: () => NEONLIGHT_LEAP_HANDOFF, to: BuffTarget.Next }],
 });
 export const NEONLIGHT_LEAP_HANDOFF = new Buff({
-  name: "Pact of Neonlight Leap: Outro", until: "swap",
+  name: "Pact of Neonlight Leap 5pc (outro)", until: LifeTime.Swap,
   stats: [[Stat.BonusAtk, 15]],
   // the TBB half is read late so every contribution has landed this action — the era's flat 10,
   // Reel of Spliced Memories' +20, and Denia's Etched Colors, which grants from its own
@@ -196,10 +196,10 @@ export const STARRY_RADIANCE_2PC = new Sonata2pc({ name: "Halo of Starry Radianc
 export const STARRY_RADIANCE_5PC = new Sonata({
   name: "Halo of Starry Radiance 5pc",
   sonata2pc: STARRY_RADIANCE_2PC,
-  grants: [{ on: onApplied(HEALS), buff: () => STARRY_RADIANCE_TEAM, to: "team" }],
+  grants: [{ on: onApplied(HEALS), buff: () => STARRY_RADIANCE_TEAM, to: BuffTarget.Team }],
 });
 export const STARRY_RADIANCE_TEAM = new Buff({
-  name: "Halo of Starry Radiance",
+  name: "Halo of Starry Radiance 5pc",
   convertStats: () => {
     addStat(Stat.BonusAtk, Math.min(25, 0.2 * getStat(Stat.OfftuneBuildup)));
   }
@@ -217,15 +217,15 @@ export const CHROMATIC_FOAM_5PC = new Sonata({
 /** Permanent uptime once triggered — the wearer's off-field inflictions keep it live anyway, so
  *  no end condition; only the handoff half below is lost on swap. */
 export const CHROMATIC_FOAM_BUFF = new Buff({
-  name: "Chromatic Foam",
+  name: "Chromatic Foam 5pc",
   stats: [[Stat.DmgBonus, 10, Attribute.Fusion]],
-  grants: [{ on: onCast(Cast.Outro), buff: () => CHROMATIC_FOAM_HANDOFF, to: "next" }],
+  grants: [{ on: onCast(Cast.Outro), buff: () => CHROMATIC_FOAM_HANDOFF, to: BuffTarget.Next }],
 });
 /** The receiver's half: lost after their own leaving row — a double-Intro section's swap as much
  *  as an outro — still paying out on it first. */
 export const CHROMATIC_FOAM_HANDOFF = new Buff({
-  name: "Chromatic Foam: Outro",
-  stats: [[Stat.DmgBonus, 25, Attribute.Fusion]], until: "afterSwap",
+  name: "Chromatic Foam 5pc (outro)",
+  stats: [[Stat.DmgBonus, 25, Attribute.Fusion]], until: LifeTime.AfterSwap,
 });
 
 /** Trailblazing Star, the other Fusion sonata of the era. 2pc: +10% Fusion DMG Bonus flat. 5pc:
@@ -238,8 +238,8 @@ export const TRAILBLAZING_STAR_5PC = new Sonata({
   grants: [{ on: onInflict(FUSION_BURST, TUNE_RUPTURE_SHIFTING), buff: () => TRAILBLAZING_STAR_BUFF }],
 });
 export const TRAILBLAZING_STAR_BUFF = new Buff({
-  name: "Trailblazing Star",
-  stats: [[Stat.CritRate, 20], [Stat.DmgBonus, 20, Attribute.Fusion]], until: "outro",
+  name: "Trailblazing Star 5pc",
+  stats: [[Stat.CritRate, 20], [Stat.DmgBonus, 20, Attribute.Fusion]], until: LifeTime.Outro,
 });
 
 /** Rite of Gilded Revelation, Luuk's own sonata. 2pc: +10% Spectro DMG Bonus flat. 5pc: dealing
@@ -254,8 +254,8 @@ export const GILDED_REVELATION_5PC = new Sonata({
   grants: [{ on: onType(Type1.Basic), buff: () => GILDED_REVELATION_STACKS }],
 });
 export const GILDED_REVELATION_STACKS = new Buff({
-  name: "Rite of Gilded Revelation", maxStacks: 3,
-  stats: [[Stat.DmgBonus, 10, Attribute.Spectro]], perStack: true, until: "outro",
+  name: "Rite of Gilded Revelation 5pc", maxStacks: 3,
+  stats: [[Stat.DmgBonus, 10, Attribute.Spectro]], perStack: true, until: LifeTime.Outro,
   applyStats: () => { if (frozenStacks() >= 3 && casting(Cast.Liberation)) addStat(Stat.DmgBonus, 40, Type1.Basic); },
 });
 
@@ -289,7 +289,7 @@ export const ACTION_TRICKSTER = new Action("Echo - Trickster", {
  *  any swap — still paying on it, the same clause as Chromatic Foam above. */
 export const TRICKSTER_HANDOFF = new Buff({
   name: "Trickster: Outro",
-  stats: [[Stat.DmgBonus, 12, Attribute.Fusion]], until: "afterSwap",
+  stats: [[Stat.DmgBonus, 12, Attribute.Fusion]], until: LifeTime.AfterSwap,
 });
 export const TRICKSTER = new Mainslot({
   name: "Reminiscence: Denia",
@@ -319,9 +319,9 @@ export const REEL_2PC = new Sonata2pc({ name: "Reel of Spliced Memories 2pc", st
 export const REEL_5PC = new Sonata({
   name: "Reel of Spliced Memories 5pc",
   sonata2pc: REEL_2PC,
-  grants: [{ on: onInflict(TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING), buff: () => REEL_TEAM, to: "team" }],
+  grants: [{ on: onInflict(TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING), buff: () => REEL_TEAM, to: BuffTarget.Team }],
 });
-export const REEL_TEAM = new Buff({ name: "Reel of Spliced Memories", stats: [[Stat.Tbb, 20]] });
+export const REEL_TEAM = new Buff({ name: "Reel of Spliced Memories 5pc", stats: [[Stat.Tbb, 20]] });
 
 /* ---------------------------------------------------------------- Rebecca and Lucy, the collab */
 

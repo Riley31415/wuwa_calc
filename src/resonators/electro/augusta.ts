@@ -1,5 +1,5 @@
 /**
- * Augusta, ported to the new engine — sequence-0 core loop, a limited 5-star
+ * Augusta, ported to the new engine — Sequences 1-6 in their own block below, a limited 5-star
  * (`Tier.Limited`). An electro broadblade DPS. Three forte gauges gate her chained forms: Prowess
  * (forte1, 0-660) lets a full-gauge Heavy Attack - Steelclash become the Thunderoar Backstep ->
  * Spinslash chain instead; Ascendancy (forte2, 0-4000) lets a full-gauge Resonance Skill -
@@ -25,14 +25,16 @@
  * Intro while it's up) rides the realm buff itself, see RULERS_REALM.
  */
 import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
+  asSource,
   applyCurrent,
   applyTeam,
   revokeCurrent,
   revokeBuff,
   casting,
   currentAction,
+  runningAction,
   currentTeam,
   addStat,
   queue,
@@ -40,6 +42,10 @@ import {
   forte2,
   setForte2,
   addForte3,
+  frozenStacks,
+  getStat,
+  isHeld,
+  stacksOf,
 } from "../../engine/context.js";
 import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ECHO_SWAP } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
@@ -64,7 +70,7 @@ const BA1 = augustaAction("Basic - Hunter's Path 1", { node: Node.Normal, cast: 
 const BA2 = augustaAction("Basic - Hunter's Path 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 134, energy: 1.70, concerto: 3.38, offtune: 5392, forte1: 230, forte2: 172 });
 const BA3 = augustaAction("Basic - Hunter's Path 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 196.83, energy: 2.49, concerto: 4.95, offtune: 7920, forte1: 336, forte2: 252 });
 const BA4 = augustaAction("Basic - Hunter's Path 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 193.89, energy: 2.46, concerto: 4.89, offtune: 7803, forte1: 333, forte2: 249 });
-const MA = augustaAction("Mid-air - Hunter's Path", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 119.3, energy: 1.5, concerto: 2, offtune: 7200, forte1: 50, forte2: 154 });
+const MA = augustaAction("Mid-air - Hunter's Path", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 119.3, energy: 1.5, concerto: 2, offtune: 7200, forte1: 50, forte2: 154 });
 const DC = augustaAction("Dodge Counter - Hunter's Path 2", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 134, energy: 1.7, concerto: 13.38, offtune: 5392, forte1: 230, forte2: 172 });
 const MDC = augustaAction("Dodge Counter - Hunter's Path (Mid-Air)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 119.3, energy: 1.5, concerto: 12, offtune: 7200, forte1: 50, forte2: 154 });
 
@@ -106,6 +112,10 @@ const Lib3 = augustaAction("Liberation - Sublime is the Sun: Everbright Protecto
   },
 });
 
+/** S6's Thunder Rage: two instances of 100% of her ATK at the spot, Heavy Attack DMG, whenever she
+ *  casts Spinslash or Uppercut. Not a row on the kit page, so no energy, concerto or off-tune. */
+const ThunderRage = augustaAction("Heavy - Thunder Rage (S6)", { node: Node.Forte, type: Type1.Heavy, mv: 200 });
+
 const Intro = augustaAction("Intro - Stride of Goldenflare", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.82, energy: 10, concerto: 10, offtune: 9600, forte1: 660, forte2: 800 });
 /** No damage of its own, just the outro handoff (BATTLESONG) — her own Majesty/Crown of Wills
  *  grant is earned later, off the recipient's own Outro. */
@@ -116,18 +126,24 @@ const Outro = augustaAction("Outro - Battlesong of the Unyielding", {
 
 /* ------------------------------------------------------------------------------------ buffs */
 
-/** +15% Electro DMG Bonus, one stack only — granted alongside Majesty's own second stack, spent
- *  entirely when Everbright Protector ends Sworn Allegiance. */
+/** +15% Electro DMG Bonus a stack — granted alongside Majesty's own second stack, spent entirely
+ *  when Everbright Protector ends Sworn Allegiance. One stack until S1 lifts the cap to 2 and S6 to
+ *  4; S1 adds Crit. DMG a stack on top and S2 Crit. Rate. */
 const CROWN_OF_WILLS = new Buff({
-  name: "Augusta: Crown of Wills",
-  stats: [[Stat.DmgBonus, 15, Attribute.Electro]],
-  convertStats: () => {
-    const a = currentAction();
-    if (a === Lib3) {
-      revokeCurrent(CROWN_OF_WILLS);
-    }
+  name: "Augusta: Crown of Wills", maxStacks: 4,
+  stats: [[Stat.DmgBonus, 15, Attribute.Electro]], perStack: true,
+  applyStats: () => {
+    const n = frozenStacks();
+    if (isHeld(AG_S1)) asSource(AG_S1, () => addStat(Stat.CritDmg, 15 * n));
+    if (isHeld(AG_S2)) asSource(AG_S2, () => addStat(Stat.CritRate, 20 * n));
   },
+  convertStats: () => { if (runningAction(Lib3)) revokeCurrent(CROWN_OF_WILLS); },
 });
+/** A gain against the cap her nodes set, since the buff's own is the highest of the three. */
+function gainCrown(n: number): void {
+  const room = (isHeld(AG_S6) ? 4 : isHeld(AG_S1) ? 2 : 1) - stacksOf(CROWN_OF_WILLS);
+  if (room > 0) applyCurrent(CROWN_OF_WILLS, Math.min(n, room));
+}
 
 /** Opens alongside Sublime is the Sun, 30s — permanent uptime once granted. While it's up, any
  *  team member's Intro grants them a shield (650 + 5% of her Max HP, 10s, unstackable) — put up
@@ -167,7 +183,7 @@ const AG_INHERENT_2 = new Inherent({
   name: "Inherent: Blazing Valor",
   combatStart: () => {
     addForte3(1);
-    applyCurrent(CROWN_OF_WILLS, 1);
+    gainCrown(4); // "fully restore Crown of Wills" — to whatever cap her nodes allow
   },
 });
 
@@ -197,7 +213,7 @@ const AUGUSTA_RESONATOR = new Resonator({
   updateGlobal: () => {
     if (casting(Cast.Outro) && currentTeam().slot.isHeld(BATTLESONG)) {
       addForte3(1);
-      applyCurrent(CROWN_OF_WILLS, 1);
+      gainCrown(1);
     }
   },
 
@@ -205,6 +221,58 @@ const AUGUSTA_RESONATOR = new Resonator({
     addStat(Stat.BaseHp, 10300); addStat(Stat.BaseAtk, 463); addStat(Stat.BaseDef, 1112);
   },
 });
+
+/* --------------------------------------------------------------------------------- sequences */
+
+/** S1: Crown of Wills holds 2 and pays +15% Crit. DMG a stack (both in the buff itself), and her
+ *  Intro banks one. The Undying Sunlight interrupt immunity is no stat. */
+const AG_S1 = new Sequence({
+  name: "Augusta S1: Stained in Scorched Earth",
+  updateBuffs: () => { if (runningAction(Intro)) gainCrown(1); },
+});
+
+/** S2: +20% Crit. Rate a stack of Crown of Wills (in the buff), and every point of Crit. Rate past
+ *  100 turned into 2 points of Crit. DMG, up to 100 — read late, once every source has landed,
+ *  since it is the build's finished Crit. Rate the node converts. */
+const AG_S2 = new Sequence({
+  name: "Augusta S2: Cleansed in Crimson War",
+  lateConvertStats: () => addStat(Stat.CritDmg, Math.min(100, Math.max(0, (getStat(Stat.CritRate) - 100) * 2))),
+});
+
+/** S3: the four Thunderoar hits, Undying Sunlight's Plunge, Sunborne and Everbright Protector at
+ *  x1.25 — multiplicative, nanoka's own S3 rows (Backstep 67.1% against 53.68%, Sunborne 149.11%
+ *  against 119.29%). */
+const AG_S3_HITS = new Set<Action>([FHA1, FHA2, FJump, FSkill3, Lib2fua, Lib3]);
+const AG_S3 = new Sequence({
+  name: "Augusta S3: Forged in Rot and Ruin",
+  applyStats: () => { if (AG_S3_HITS.has(currentAction())) addStat(Stat.MulMv, 25); },
+});
+
+/** S4: her Intro hands the team +20% ATK for 30s — every visit casts one, so it never lapses. */
+const STRIDE_OF_GOLDENFLARE = new Buff({ name: "Augusta S4: Ascent in Sun and Glory", stats: [[Stat.BonusAtk, 20]] });
+const AG_S4 = new Sequence({
+  name: "Augusta S4: Ascent in Sun and Glory",
+  updateBuffs: () => { if (runningAction(Intro)) applyTeam(STRIDE_OF_GOLDENFLARE, 1); },
+});
+
+/** S5: Glory's Favor shields for half as much again — shields are no stat here. */
+const AG_S5 = new Sequence({ name: "Augusta S5: Unshaken in Wrathful Tides" });
+
+/** S6: Crown of Wills holds 4 (`gainCrown()`), Spinslash and Uppercut bank 2 of them and fire
+ *  Thunder Rage, and a second conversion band picks up where S2's leaves off — every point of Crit.
+ *  Rate past 150 for 2 more Crit. DMG, up to 50. The 1s gate on the Crown gain is no clock here;
+ *  neither cast comes round twice in a second. */
+const AG_S6 = new Sequence({
+  name: "Augusta S6: Engraved in Radiant Light",
+  updateBuffs: () => {
+    if (!runningAction(FHA2) && !runningAction(FJump)) return;
+    gainCrown(2);
+    queue(ThunderRage);
+  },
+  lateConvertStats: () => addStat(Stat.CritDmg, Math.min(50, Math.max(0, (getStat(Stat.CritRate) - 150) * 2))),
+});
+
+const AG_SEQUENCES = [AG_S1, AG_S2, AG_S3, AG_S4, AG_S5, AG_S6];
 
 // the migrated rotation: the Steelclash->Thunderoar chain twice, Sword of Eternal Oath, the
 // Undying Sunlight chain. She's never the team's own lead, so this covers both opener and loop.
@@ -225,5 +293,6 @@ export const AUGUSTA = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Er),
-    rotation: AG_ROTATION,
+  rotation: AG_ROTATION,
+  sequences: AG_SEQUENCES,
 });

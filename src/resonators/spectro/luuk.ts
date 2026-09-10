@@ -22,12 +22,13 @@
  * Flow is its energy x10), summed per action the same way the MVs are.
  */
 import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   addStat,
   applyCurrent,
   casting,
   currentAction,
+  runningAction,
   forte1,
   getStat,
   maxStackIncrease,
@@ -36,6 +37,10 @@ import {
   setForte1,
   frozenStacks,
   stacksOfEnemy,
+  applyEnemy,
+  applyTeam,
+  isHeld,
+  stacksOf,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, ECHO_SWAP, OUTRO, DODGE } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
@@ -68,14 +73,14 @@ const DC = luukAction("Dodge Counter - Such is Light", { node: Node.Normal, cast
 // --- the mid-air chain. Stage 2 and 3 come in two forms by input: Scythe: Dissection (Normal
 //     Attack) or Scythe: Resection (Jump), the latter inflicting Tune Strain - Shifting. Stage 3
 //     of either is what replaces Resonance Skill with Aureole of Execution.
-const MA1 = luukAction("Mid-air - Such is Light 1", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 57.46, energy: 0.85, concerto: 1.7, offtune: 2720, forte1: 8.5 });
-const MA2 = luukAction("Mid-air - Scythe: Dissection 2", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 94.09, energy: 1.4, concerto: 2.5, offtune: 4000, forte1: 12.5 });
-const MA3 = luukAction("Mid-air - Scythe: Dissection 3", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 143.1, energy: 2.73, concerto: 3.96, offtune: 6320, forte1: 19.76 });
+const MA1 = luukAction("Mid-air - Such is Light 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 57.46, energy: 0.85, concerto: 1.7, offtune: 2720, forte1: 8.5 });
+const MA2 = luukAction("Mid-air - Scythe: Dissection 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 94.09, energy: 1.4, concerto: 2.5, offtune: 4000, forte1: 12.5 });
+const MA3 = luukAction("Mid-air - Scythe: Dissection 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 143.1, energy: 2.73, concerto: 3.96, offtune: 6320, forte1: 19.76 });
 // Resection 2/3, Golden Reflux, every Aureole of Execution and his Intro lay Tune Strain - Shifting
 const STRAIN = { updateDebuffs: () => applyStrain() };
-const MA2R = luukAction("Mid-air - Scythe: Resection 2", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 100.84, energy: 1.5, concerto: 2.7, offtune: 4320, forte1: 13.5, ...STRAIN });
-const MA3R = luukAction("Mid-air - Scythe: Resection 3", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 149.84, energy: 2.82, concerto: 4.16, offtune: 6640, forte1: 20.76, ...STRAIN });
-const MA4 = luukAction("Mid-air - Such is Light 4", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 1, offtune: 4960, forte1: 15.5 });
+const MA2R = luukAction("Mid-air - Scythe: Resection 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 100.84, energy: 1.5, concerto: 2.7, offtune: 4320, forte1: 13.5, ...STRAIN });
+const MA3R = luukAction("Mid-air - Scythe: Resection 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 149.84, energy: 2.82, concerto: 4.16, offtune: 6640, forte1: 20.76, ...STRAIN });
+const MA4 = luukAction("Mid-air - Such is Light 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 1, offtune: 4960, forte1: 15.5 });
 const MDC = luukAction("Dodge Counter - Such is Light (Mid-Air)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 256.87, energy: 2.3, concerto: 17.6, offtune: 7360, forte1: 23 });
 
 // --- Reunion of All the Fallen. Golden Reflux is the plain Resonance Skill (2 charges); after
@@ -120,7 +125,7 @@ const Outro = luukAction("Outro - Bow to the Last Light", {
 });
 
 /** Every form of Aureole of Execution — what banks an Endnote. */
-const isAureole = (a: Action): boolean => a === Ring || a === Breach || a === Glare;
+const isAureole = (): boolean => runningAction(Ring) || runningAction(Breach) || runningAction(Glare);
 
 /* ------------------------------------------------------------------------------------- buffs */
 
@@ -135,16 +140,16 @@ const AUREATE_JUDGE = new Buff({
   updateBuffs: () => {
     const a = currentAction();
     // a Tune Break landing between the Glare and its Gavel/Deposit isn't his cast, so it can't close it
-    if (forte1() <= 0 && a !== Gavel && a !== IchorDeposit && a !== TUNE_BREAK) revokeCurrent(AUREATE_JUDGE);
+    if (forte1() <= 0 && !runningAction(Gavel) && !runningAction(IchorDeposit) && !runningAction(TUNE_BREAK)) revokeCurrent(AUREATE_JUDGE);
   },
   applyStats: () => {
     const a = currentAction();
     if (a.forte1 > 0) addStat(Stat.AddForte1, -a.forte1);
-    if (isAureole(a) || a === Gavel) { addStat(Stat.MulMv, 110); addStat(Stat.AddOfftune, 25200); }
-    if (isAureole(a)) {
+    if (isAureole() || runningAction(Gavel)) { addStat(Stat.MulMv, 110); addStat(Stat.AddOfftune, 25200); }
+    if (isAureole()) {
       addStat(Stat.AddForte1, -100);
     }
-    if (a === IchorDeposit) addStat(Stat.MulMv, 110);
+    if (runningAction(IchorDeposit)) addStat(Stat.MulMv, 110);
   },
 });
 
@@ -152,8 +157,8 @@ const AUREATE_JUDGE = new Buff({
  *  own DMG Multiplier; the Liberation spends them all, and switching out drops them. */
 const ENDNOTES = new Buff({
   name: "Luuk: Endnotes on the Endgame", maxStacks: 3,
-  applyStats: () => { if (currentAction() === Liberation) addStat(Stat.MulMv, 25 * frozenStacks()); },
-  convertStats: () => { lostOnSwap(); if (currentAction() === Liberation) revokeCurrent(ENDNOTES); },
+  applyStats: () => { if (runningAction(Liberation)) addStat(Stat.MulMv, 25 * frozenStacks()); },
+  convertStats: () => { lostOnSwap(); if (runningAction(Liberation)) revokeCurrent(ENDNOTES); },
 });
 
 /** Golden Rule: a teammate's Outro that brings Luuk in hands him 200 Ichor Flow and 12 Concerto —
@@ -193,8 +198,7 @@ const LK_INHERENT_1 = new Inherent({ name: "Inherent: Pulses Under the Snow" });
 const LK_INHERENT_2 = new Inherent({
   name: "Inherent: Uncaused Diagnosis",
   updateGlobal: () => {
-    const a = currentAction();
-    if (applied(TUNE_STRAIN_SHIFTING) || a === TUNE_BREAK) applyCurrent(UNCAUSED_DIAGNOSIS_ATK, 1);
+    if (applied(TUNE_STRAIN_SHIFTING) || runningAction(TUNE_BREAK)) applyCurrent(UNCAUSED_DIAGNOSIS_ATK, 1);
   },
   // late, like every Tune Break Boost read — a team's own Tbb can arrive from another gear's
   // convertStats (Denia's Etched Colors), which an ordinary convertStats here would race
@@ -227,7 +231,7 @@ const LUUK_RESONATOR = new Resonator({
 
   updateBuffs: () => {
     if (forte1() >= 300) applyCurrent(AUREATE_JUDGE, 1);
-    if (isAureole(currentAction())) applyCurrent(ENDNOTES, 1);
+    if (isAureole()) applyCurrent(ENDNOTES, 1);
   },
 
   constantStats: () => {
@@ -236,6 +240,88 @@ const LUUK_RESONATOR = new Resonator({
     addStat(Stat.Tbb, 10);
   },
 });
+
+/* --------------------------------------------------------------------------------- sequences */
+
+/** Every cast the kit calls a Mid-air Attack — the chain, both Scythe forms, and the Gavel, which
+ *  its own page names one even though this file files it under the Forte node. */
+const midAir = (): boolean => runningAction(MA1) || runningAction(MA2) || runningAction(MA3)
+  || runningAction(MA2R) || runningAction(MA3R) || runningAction(MA4) || runningAction(Gavel);
+
+/** S1: +150% Mid-air Attack DMG Bonus. The Dawnlit Keep half is a shield charge — no stat here,
+ *  and nothing reads the buff. */
+const LK_S1 = new Sequence({
+  name: "Luuk S1: Gold Kindled in Ash",
+  applyStats: () => { if (midAir()) addStat(Stat.DmgBonus, 150); },
+});
+
+/** S2: the Liberation +60% multiplier — additive with Endnotes' own, which the node says outright
+ *  and nanoka's rows confirm (1839.00% at one Endnote against 994.09% base, so 1 + 0.6 + 0.25) —
+ *  and Uncaused Diagnosis doubled: 10% a 10 points of Tune Break Boost to a 60% cap, which is the
+ *  base reading again on top of itself. */
+const LK_S2 = new Sequence({
+  name: "Luuk S2: Avalanche Roaring in Eyes",
+  applyStats: () => { if (runningAction(Liberation)) addStat(Stat.MulMv, 60); },
+  lateConvertStats: () => {
+    if (stacksOfEnemy(TUNE_STRAIN_INTERFERED) > 0) addStat(Stat.Amp, Math.min(30, 5 * Math.floor(getStat(Stat.Tbb) / 10)));
+  },
+});
+
+/** S3: +136% multiplier on every Aureole form in Aureate Judge, and on the Gavel and Ichor Deposit
+ *  a Glare marks — additive with the state's own +110%, which nanoka's third row for each hit gives
+ *  exactly (Ring 766.90% against 221.33%, so x3.46). Perpetuating Daytime never fires here. */
+const LK_S3 = new Sequence({
+  name: "Luuk S3: Spine Tempered by Golden Rain",
+  applyStats: () => {
+    if (!isHeld(AUREATE_JUDGE)) return;
+    if (isAureole() || runningAction(Gavel) || runningAction(IchorDeposit)) addStat(Stat.MulMv, 136);
+  },
+});
+
+/** S4: +20% DMG to the whole team for 20s off any member's Tune Break — one lands every loop, so
+ *  it never lapses. */
+const PULSE_UNDER_RIME = new Buff({ name: "Luuk S4: Pulse Thrumming Under Rime", stats: [[Stat.DmgBonus, 20]] });
+const LK_S4 = new Sequence({
+  name: "Luuk S4: Pulse Thrumming Under Rime",
+  updateGlobal: () => { if (runningAction(TUNE_BREAK)) applyTeam(PULSE_UNDER_RIME, 1); },
+});
+
+/** S5: +80% DMG Bonus on his Intro and Outro, and Golden Reflux at x1.5 — multiplicative, its own
+ *  second row (301.80% against 201.20%), and nothing else multiplies it. The extra charge and the
+ *  shorter cooldown buy no press this line doesn't already make. */
+const LK_S5 = new Sequence({
+  name: "Luuk S5: Through the Stillness of Snowstorm",
+  applyStats: () => {
+    if (runningAction(Intro) || runningAction(Outro)) addStat(Stat.DmgBonus, 80);
+    if (runningAction(Skill)) addStat(Stat.MulMv, 50);
+  },
+});
+
+/** What a team Tune Break leaves for S6: 25s in which the target takes 30% more from every Aureole
+ *  form, the Ichor Deposit and the Gavel. One break a loop, so it stands. */
+const DAWN_UNFURLING = new Buff({
+  name: "Luuk S6: Dawn Unfurling over Frostlands",
+  applyStats: () => {
+    if (isAureole() || runningAction(IchorDeposit) || runningAction(Gavel)) addStat(Stat.DamageTaken, 30); // unknown if it stacks with strain?
+  },
+});
+/** S6: that window, +40% Liberation DMG Bonus an Endnote to a 120% cap, and two more Tune Strain -
+ *  Interfered on the target off every hit of his that lands on one. "Ignores the max stack limit"
+ *  has no engine form — the cap is raised by the two it adds instead, which holds the target at
+ *  four rather than letting every cast pile on without end. */
+const LK_S6 = new Sequence({
+  name: "Luuk S6: Dawn Unfurling over Frostlands",
+  combatStart: () => maxStackIncrease(TUNE_STRAIN_INTERFERED, 2),
+  updateGlobal: () => { if (runningAction(TUNE_BREAK)) applyCurrent(DAWN_UNFURLING, 1); },
+  updateDebuffs: () => {
+    if (currentAction().mv > 0 && stacksOfEnemy(TUNE_STRAIN_INTERFERED) > 0) applyEnemy(TUNE_STRAIN_INTERFERED, 2);
+  },
+  applyStats: () => {
+    if (runningAction(Liberation)) addStat(Stat.DmgBonus, Math.min(120, 40 * stacksOf(ENDNOTES)));
+  },
+});
+
+const LK_SEQUENCES = [LK_S1, LK_S2, LK_S3, LK_S4, LK_S5, LK_S6];
 
 /* ---------------------------------------------------------------------------------- rotation */
 
@@ -268,5 +354,6 @@ export const LUUK = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Er),
-    rotation: LK_ROTATION,
+  rotation: LK_ROTATION,
+  sequences: LK_SEQUENCES,
 });

@@ -12,7 +12,7 @@ import {
   State, TeamMember, StatEntry, HeldBuff, ZERO_STATS, TYPE2_AMP_INDEX, TYPE2_CRIT_RATE_INDEX, TYPE2_CRIT_DMG_INDEX, FightSnapshot, capEnergy,
   EMPTY_HELD, EMPTY_FORTE, EMPTY_FIELDS, enemyDef, enemyRes,
 } from "./state.js";
-import { addStat, getStat, withTeam, currentAction, menuStats, casting, isCast } from "./context.js";
+import { addStat, getStat, withTeam, menuStats, casting, isCast } from "./context.js";
 import { damageAvgOf } from "./damage.js";
 
 export interface Snapshot {
@@ -540,14 +540,16 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
   //
   // Every gauge fills freely past its Resonator's `maxForteN`, and a spend from it starts at the
   // cap rather than the overrun — the bar never really held more. Below 0 after a spend is a
-  // spend the bar couldn't cover, and the row is flagged. A `resetForteN` cast (rotation.ts's own
-  // ActionDef) empties the gauge ahead of its own delta.
+  // spend the bar couldn't cover, and the row is flagged; the bar never really went below empty
+  // either, so the next gain starts from 0 rather than paying the shortfall off. A `resetForteN`
+  // cast (rotation.ts's own ActionDef) empties the gauge ahead of its own delta.
   const forte = slot.forte, forteShort: [boolean, boolean, boolean, boolean, boolean] = [false, false, false, false, false];
   for (let i = 0; i < 5; i++) {
     const cap = slot.resonator?.maxForte[i] ?? 0;
     const delta = action.forteDeltas[i]! + effective[ADD_FORTE[i]!]!;
     if (action.resetForte[i]) forte[i] = 0;
     if (cap > 0 && delta < 0 && forte[i]! > cap) forte[i] = cap;
+    if (delta > 0 && forte[i]! < 0) forte[i] = 0;
     forte[i] = forte[i]! + delta;
     if (forte[i]! < 0) forteShort[i] = true;
   }

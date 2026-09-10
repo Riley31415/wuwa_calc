@@ -23,7 +23,7 @@ import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   applyCurrent,
-  currentAction,
+  runningAction,
   casting,
   revokeCurrent,
   addStat,
@@ -54,7 +54,7 @@ const BA1 = zhezhiAction("Basic - Dimming Brush 1", { node: Node.Normal, cast: C
 const BA2 = zhezhiAction("Basic - Dimming Brush 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 102.75, energy: 1.85, concerto: 5.95, offtune: 5905, forte1: 15 });
 const BA3 = zhezhiAction("Basic - Dimming Brush 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 133.61, energy: 2.4, concerto: 7.68, offtune: 7680, forte1: 25 });
 
-const MA = zhezhiAction("Mid-air - Dimming Brush", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 229.53, energy: 3.4, concerto: 10.91, offtune: 10865, forte1: 25 });
+const MA = zhezhiAction("Mid-air - Dimming Brush", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 229.53, energy: 3.4, concerto: 10.91, offtune: 10865, forte1: 25 });
 const DC = zhezhiAction("Dodge Counter - Dimming Brush", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 145.35, energy: 2.15, concerto: 20, offtune: 6880, forte1: 15 });
 const HA = zhezhiAction("Heavy - Dimming Brush", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 112.72, energy: 1.67, concerto: 5.34, offtune: 5336, forte1: 15 });
 
@@ -122,7 +122,7 @@ const CALLIGRAPHERS_TOUCH = new Buff({
 });
 const ZZ_INHERENT_1 = new Inherent({
   name: "Inherent: Calligrapher's Touch",
-  updateBuffs: () => { const a = currentAction(); if (a === FSkill || a === FSkill3) applyCurrent(CALLIGRAPHERS_TOUCH, 1); },
+  updateBuffs: () => { if (runningAction(FSkill) || runningAction(FSkill3)) applyCurrent(CALLIGRAPHERS_TOUCH, 1); },
 });
 
 /** +18% Basic Attack DMG Bonus, 27s, permanent uptime — only Creation's Zenith grants this, not
@@ -155,7 +155,7 @@ const ZZ_FLOURISH = new Buff({
 const ZZ_INHERENT_2 = new Inherent({
   name: "Inherent: Flourish",
   updateBuffs: () => {
-    if (currentAction() === Outro) {
+    if (runningAction(Outro)) {
       queueOutro(ZZ_FLOURISH);
     }
   }
@@ -219,8 +219,8 @@ const BRUSHWORKS_FINISH = new Buff({
 });
 const ZZ_S1 = new Sequence({
   name: "Zhezhi S1: Brushwork's Finish",
-  applyStats: () => { if (currentAction() === FSkill3) addStat(Stat.AddEnergy, 15); },
-  updateBuffs: () => { if (currentAction() === FSkill3) applyCurrent(BRUSHWORKS_FINISH, 1); },
+  applyStats: () => { if (runningAction(FSkill3)) addStat(Stat.AddEnergy, 15); },
+  updateBuffs: () => { if (runningAction(FSkill3)) applyCurrent(BRUSHWORKS_FINISH, 1); },
 });
 
 /** S2: six more Inklit Spirits off Living Canvas — read off this node by the Liberation itself,
@@ -236,8 +236,7 @@ const REFLECTIONS_GRACE = new Buff({
 const ZZ_S3 = new Sequence({
   name: "Zhezhi S3: Reflection's Grace",
   updateBuffs: () => {
-    const a = currentAction();
-    if (a === Skill || a === FSkill || a === FSkill3) applyCurrent(REFLECTIONS_GRACE, 1);
+    if (runningAction(Skill) || runningAction(FSkill) || runningAction(FSkill3)) applyCurrent(REFLECTIONS_GRACE, 1);
   },
 });
 
@@ -248,7 +247,7 @@ const HUES_SPECTRUM = new Buff({
 });
 const ZZ_S4 = new Sequence({
   name: "Zhezhi S4: Hue's Spectrum",
-  updateBuffs: () => { if (currentAction() === Liberation) applyTeam(HUES_SPECTRUM, 1); },
+  updateBuffs: () => { if (runningAction(Liberation)) applyTeam(HUES_SPECTRUM, 1); },
 });
 
 /** S5: one extra spirit every third one summoned. The window's stacks are that count — it runs
@@ -257,7 +256,7 @@ const ZZ_S4 = new Sequence({
 const ZZ_S5 = new Sequence({
   name: "Zhezhi S5: Composition's Clue",
   updateBuffs: () => {
-    if (currentAction() === ACTION_INKLIT && stacksOfTeam(INKLIT_SPIRITS) % 3 === 0) queue(ACTION_INKLIT_S5);
+    if (runningAction(ACTION_INKLIT) && stacksOfTeam(INKLIT_SPIRITS) % 3 === 0) queue(ACTION_INKLIT_S5);
   },
 });
 
@@ -265,8 +264,7 @@ const ZZ_S5 = new Sequence({
 const ZZ_S6 = new Sequence({
   name: "Zhezhi S6: Infinite Legacy",
   updateBuffs: () => {
-    const a = currentAction();
-    if (a === FSkill || a === FSkill3) queue(ACTION_HERALD_S6);
+    if (runningAction(FSkill) || runningAction(FSkill3)) queue(ACTION_HERALD_S6);
   },
 });
 

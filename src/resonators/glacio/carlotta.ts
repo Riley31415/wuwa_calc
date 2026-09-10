@@ -43,6 +43,7 @@ import {
   queue,
   isHeld,
   currentAction,
+  runningAction,
   casting,
   revokeCurrent,
   addStat,
@@ -67,7 +68,7 @@ function carlottaAction(id: string, def: object): Action {
 // --- basics, mid-air, dodge counter (Silent Execution)
 const BA1 = carlottaAction("Basic - Silent Execution 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 54.08, energy: 0.8, concerto: 1.6, offtune: 2560 });
 const BA2 = carlottaAction("Basic - Silent Execution 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 131.83, energy: 1.96, concerto: 3.9, offtune: 6240, forte1: 3 });
-const MA1 = carlottaAction("Mid-air - Silent Execution", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 104.78, energy: 3, concerto: 6, offtune: 9600 });
+const MA1 = carlottaAction("Mid-air - Silent Execution", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 3, concerto: 6, offtune: 9600 });
 const MA2 = carlottaAction("Basic - Silent Execution: Customary Greetings", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 239.98, energy: 2.11, concerto: 4.2, offtune: 6720, forte1: 3 });
 const DC = carlottaAction("Dodge Counter - Silent Execution", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 241.32, energy: 3.58, concerto: 17.15, offtune: 11425, forte2: 10, forte1: -1 });
 
@@ -146,8 +147,7 @@ const CL_INHERENT_1 = new Inherent({
 const CL_INHERENT_2 = new Inherent({
   name: "Inherent: Ars Gratia Artis",
   updateBuffs: () => {
-    const a = currentAction();
-    if (a === Intro || a === Skill2 || a === DeathKnell || a === FHA) applyEnemy(DECONSTRUCTION, 1);
+    if (runningAction(Intro) || runningAction(Skill2) || runningAction(DeathKnell) || runningAction(FHA)) applyEnemy(DECONSTRUCTION, 1);
   },
 });
 
@@ -157,7 +157,7 @@ const CL_INHERENT_2 = new Inherent({
 const TWILIGHT_TANGO = new Buff({
   name: "Carlotta: Twilight Tango",
   convertStats: () => {
-    if (currentAction() === FatalFinale) revokeCurrent(TWILIGHT_TANGO);
+    if (runningAction(FatalFinale)) revokeCurrent(TWILIGHT_TANGO);
   },
 });
 
@@ -169,8 +169,7 @@ const TWILIGHT_TANGO = new Buff({
 const FINAL_BOW = new Buff({
   name: "Carlotta: Final Bow",
   applyStats: () => {
-    const a = currentAction();
-    if (a === Lib1 || a === DeathKnell || a === FatalFinale) addStat(Stat.MulMv, 80);
+    if (runningAction(Lib1) || runningAction(DeathKnell) || runningAction(FatalFinale)) addStat(Stat.MulMv, 80);
   },
   convertStats: () => {
     if (isHeld(TWILIGHT_TANGO) && currentAction().swapOut) revokeCurrent(FINAL_BOW);
@@ -184,13 +183,13 @@ const FINAL_BOW = new Buff({
 const CL_S1 = new Sequence({
   name: "Carlotta S1: Beauty Blazes Brightest Before It Fades",
   applyStats: () => { if (stacksOfEnemy(DECONSTRUCTION) > 0) addStat(Stat.CritRate, 12.5); },
-  convertStats: () => { if (currentAction() === Skill2) addStat(Stat.AddForte2, 30); },
+  convertStats: () => { if (runningAction(Skill2)) addStat(Stat.AddForte2, 30); },
 });
 
 /** S2: Fatal Finale's multiplier +126%. */
 const CL_S2 = new Sequence({
   name: "Carlotta S2: Fallen Petals Give Life to New Blooms",
-  applyStats: () => { if (currentAction() === FatalFinale) addStat(Stat.MulMv, 126); },
+  applyStats: () => { if (runningAction(FatalFinale)) addStat(Stat.MulMv, 126); },
 });
 
 /** S3: one more strike at the end of Closing Remark — 1032.18% ATK, queued behind the outro on her
@@ -198,8 +197,8 @@ const CL_S2 = new Sequence({
 const Sparks = carlottaAction("Outro - Kaleidoscope Sparks", { type: Type1.Outro, mv: 1032.18 });
 const CL_S3 = new Sequence({
   name: "Carlotta S3: Adelante, Cortado, Spinning in Grace",
-  applyStats: () => { const a = currentAction(); if (a === Skill1 || a === Skill2) addStat(Stat.MulMv, 93); },
-  updateBuffs: () => { if (currentAction() === Outro) queue(Sparks); },
+  applyStats: () => { if (runningAction(Skill1) || runningAction(Skill2)) addStat(Stat.MulMv, 93); },
+  updateBuffs: () => { if (runningAction(Outro)) queue(Sparks); },
 });
 
 /** S4: any of her three Heavy Attacks gives the whole team +25% Resonance Skill DMG Bonus for 30s —
@@ -210,19 +209,19 @@ const FINEST_WINE = new Buff({
 });
 const CL_S4 = new Sequence({
   name: "Carlotta S4: Yesterday's Raindrops Make Finest Wine",
-  updateBuffs: () => { const a = currentAction(); if (a === HA || a === EHA || a === FHA) applyTeam(FINEST_WINE, 1); },
+  updateBuffs: () => { if (runningAction(HA) || runningAction(EHA) || runningAction(FHA)) applyTeam(FINEST_WINE, 1); },
 });
 
 /** S5: Imminent Oblivion's multiplier +47%. */
 const CL_S5 = new Sequence({
   name: "Carlotta S5: Toast to Past, Today, and Every Day to Come",
-  applyStats: () => { if (currentAction() === FHA) addStat(Stat.MulMv, 47); },
+  applyStats: () => { if (runningAction(FHA)) addStat(Stat.MulMv, 47); },
 });
 
 /** S6: Death Knell's shots hit harder and double up — +186.6% multiplier in total. */
 const CL_S6 = new Sequence({
   name: "Carlotta S6: As the Curtain Falls, I Remain What I Am",
-  applyStats: () => { if (currentAction() === DeathKnell) addStat(Stat.MulMv, 186.6); },
+  applyStats: () => { if (runningAction(DeathKnell)) addStat(Stat.MulMv, 186.6); },
 });
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit

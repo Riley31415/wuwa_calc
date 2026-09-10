@@ -42,6 +42,7 @@ import {
   isHeld,
   casting,
   currentAction,
+  runningAction,
   currentTeam,
   addStat,
   revokeCurrent,
@@ -76,7 +77,7 @@ const BA1 = bulingAction("Basic - Hexagram Calls, Lightning Falls 1", { node: No
 const BA2 = bulingAction("Basic - Hexagram Calls, Lightning Falls 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 66.90, offtune: 5384, energy: 1.70, concerto: 5.40, ...MOUNTAIN });
 const BA3 = bulingAction("Basic - Hexagram Calls, Lightning Falls 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 47.02, offtune: 3784, energy: 1.20, concerto: 3.80 });
 const BA4 = bulingAction("Basic - Hexagram Calls, Lightning Falls 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 93.64, offtune: 7536, energy: 2.36, concerto: 7.54, ...THUNDER });
-const MA = bulingAction("Mid-air - Hexagram Calls, Lightning Falls", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 73.96, offtune: 4960, energy: 1.24, concerto: 4.96, ...THUNDER });
+const MA = bulingAction("Mid-air - Hexagram Calls, Lightning Falls", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.96, offtune: 4960, energy: 1.24, concerto: 4.96, ...THUNDER });
 const DC = bulingAction("Dodge Counter - Hexagram Calls, Lightning Falls 3", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 47.02, offtune: 3784, energy: 1.20, concerto: 13.80 });
 
 // The held Heavy spends the two leftmost Trigrams (spendTrigrams(), which every form runs first)
@@ -243,7 +244,7 @@ const BL_INHERENT_2 = new Inherent({ name: "Inherent: Earthly Immortal is Here!"
 
 const BL_S1 = new Sequence({
   name: "Buling S1",
-  applyStats: () => { if (currentAction() === Harmony) addStat(Stat.CritRate, 20); }
+  applyStats: () => { if (runningAction(Harmony)) addStat(Stat.CritRate, 20); }
 });
 
 const BL_S2 = new Sequence({
@@ -261,7 +262,7 @@ const BL_S4 = new Sequence({
 /** The Array inflicts 6 more Electro Flare the moment it is generated. */
 const BL_S5 = new Sequence({
   name: "Buling S5",
-  updateDebuffs: () => { if (currentAction() === Harmony) inflictElectroFlare(6); },
+  updateDebuffs: () => { if (runningAction(Harmony)) inflictElectroFlare(6); },
 });
 
 const BL_S6 = new Sequence({ name: "Buling S6" });

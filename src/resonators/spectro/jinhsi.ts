@@ -47,6 +47,7 @@ import {
   applyTeam,
   casting,
   currentAction,
+  runningAction,
   frozenStacks,
   isHeld,
   isType,
@@ -81,7 +82,7 @@ const BA2 = jinhsiAction("Basic - Slash of Breaking Dawn 2", { node: Node.Normal
 const BA3 = jinhsiAction("Basic - Slash of Breaking Dawn 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 106.49, energy: 2, concerto: 3.99, offtune: 6349 });
 const BA4 = jinhsiAction("Basic - Slash of Breaking Dawn 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 157.72, energy: 2.95, concerto: 5.89, offtune: 9400 });
 const HA = jinhsiAction("Heavy - Slash of Breaking Dawn", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 238.6, energy: 4, concerto: 8, offtune: 12800 });
-const MA = jinhsiAction("Mid-air - Slash of Breaking Dawn", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 123.28, energy: 0.54, concerto: 1, offtune: 4960 });
+const MA = jinhsiAction("Mid-air - Slash of Breaking Dawn", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.28, energy: 0.54, concerto: 1, offtune: 4960 });
 const DC = jinhsiAction("Dodge Counter - Slash of Breaking Dawn", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 146.78, energy: 2.78, concerto: 15.49, offtune: 8749 });
 
 // --- Trailing Lights of Eons, and the alternative skill that opens Incarnation
@@ -212,8 +213,8 @@ const ERAS_IN_UNITY = new Buff({
  *  reads on every row of the log; the Stella Glamor gate keeps the payout hers alone. */
 const INCANDESCENCE = new Buff({
   name: "Jinhsi: Incandescence", maxStacks: 50,
-  applyStats: () => { if (currentAction() === StellaGlamor) addStat(Stat.AddMv, 44.54 * frozenStacks()); },
-  convertStats: () => { if (currentAction() === StellaGlamor) revokeTeam(INCANDESCENCE); },
+  applyStats: () => { if (runningAction(StellaGlamor)) addStat(Stat.AddMv, 44.54 * frozenStacks()); },
+  convertStats: () => { if (runningAction(StellaGlamor)) revokeTeam(INCANDESCENCE); },
 });
 
 /** Radiant Surge (Inherent Skill): +20% Spectro DMG Bonus, genuinely unconditional. */
@@ -225,7 +226,7 @@ const RADIANT_SURGE = new Inherent({
 /** Converged Flash (Inherent Skill): Loong's Halo's own DMG Multiplier +50%. */
 const CONVERGED_FLASH = new Inherent({
   name: "Inherent: Converged Flash",
-  applyStats: () => { if (currentAction() === Intro) addStat(Stat.MulMv, 50); },
+  applyStats: () => { if (runningAction(Intro)) addStat(Stat.MulMv, 50); },
 });
 
 /* --------------------------------------------------------------------------- resonance chain */
@@ -238,17 +239,15 @@ const CONVERGED_FLASH = new Inherent({
 const HERALD_OF_REVIVAL = new Buff({
   name: "Jinhsi S1: Herald of Revival", maxStacks: 4,
   applyStats: () => {
-    const a = currentAction();
-    if (a === Skill4 || a === StellaGlamor) addStat(Stat.DmgBonus, 20 * frozenStacks());
+    if (runningAction(Skill4) || runningAction(StellaGlamor)) addStat(Stat.DmgBonus, 20 * frozenStacks());
   },
-  convertStats: () => { if (currentAction() === StellaGlamor) revokeCurrent(HERALD_OF_REVIVAL); },
+  convertStats: () => { if (runningAction(StellaGlamor)) revokeCurrent(HERALD_OF_REVIVAL); },
 });
 
 const JX_S1 = new Sequence({
   name: "Jinhsi S1: Abyssal Ascension",
   updateBuffs: () => {
-    const a = currentAction();
-    if (a === IncBA1 || a === IncBA2 || a === IncBA3 || a === IncBA4 || a === Skill3) {
+    if (runningAction(IncBA1) || runningAction(IncBA2) || runningAction(IncBA3) || runningAction(IncBA4) || runningAction(Skill3)) {
       applyCurrent(HERALD_OF_REVIVAL, 1);
     }
   },
@@ -270,7 +269,7 @@ const IMMORTALS_DESCENDANCY = new Buff({
 
 const JX_S3 = new Sequence({
   name: "Jinhsi S3: Celestial Incarnate",
-  updateBuffs: () => { if (currentAction() === Intro) applyCurrent(IMMORTALS_DESCENDANCY, 1); },
+  updateBuffs: () => { if (runningAction(Intro)) applyCurrent(IMMORTALS_DESCENDANCY, 1); },
 });
 
 /** S4: "all nearby Resonators", so it pays on their inactive actions too; "Attribute DMG Bonus"
@@ -284,15 +283,14 @@ const JX_S4 = new Sequence({
   name: "Jinhsi S4: Benevolent Grace",
   // Solar Flare is the press; Stella Glamor is the detonation behind it, not a second cast
   updateBuffs: () => {
-    const a = currentAction();
-    if (a === Liberation || a === Skill4) applyTeam(JX_S4_TEAM, 1);
+    if (runningAction(Liberation) || runningAction(Skill4)) applyTeam(JX_S4_TEAM, 1);
   },
 });
 
 /** S5: Purge of Light's own 1666.03% x 2.2, which is nanoka's second row for it. */
 const JX_S5 = new Sequence({
   name: "Jinhsi S5: Frostfire Illumination",
-  applyStats: () => { if (currentAction() === Liberation) addStat(Stat.MulMv, 120); },
+  applyStats: () => { if (runningAction(Liberation)) addStat(Stat.MulMv, 120); },
 });
 
 /** S6: the same +45% on both halves of Illuminous Epiphany — and, because a motion value is
@@ -301,8 +299,7 @@ const JX_S5 = new Sequence({
 const JX_S6 = new Sequence({
   name: "Jinhsi S6: Thawing Triumph",
   applyStats: () => {
-    const a = currentAction();
-    if (a === Skill4 || a === StellaGlamor) addStat(Stat.MulMv, 45);
+    if (runningAction(Skill4) || runningAction(StellaGlamor)) addStat(Stat.MulMv, 45);
   },
 });
 

@@ -32,8 +32,11 @@ export type Axis = "weapons" | "echoes" | "mainstats" | "substats" | "sequences"
 export const AXES: Axis[] = ["weapons", "echoes", "mainstats", "sequences", "refines", "substats"];
 
 /** Team Cost: no signatures (`s0r0`), one R1 signature to whoever gains most (`s0r1mdps`), or
- *  every limited resonator on theirs (`s0r1`). Rovers and 4* are S6 on standard/4* weapons throughout. */
-export type TeamCost = "s0r0" | "s0r1mdps" | "s0r1";
+ *  every limited resonator on theirs (every other mode). The `sN`/`rN` in the name is the chain
+ *  level and weapon rank on top of that — the team's main DPS's alone where the name ends in
+ *  `mdps`, everyone's where it doesn't. Rovers and 4* are S6 on standard/4* weapons throughout. */
+export type TeamCost = "s0r0" | "s0r1mdps" | "s0r1"
+  | "s1r1mdps" | "s2r1mdps" | "s3r1mdps" | "s6r1mdps" | "s6r5mdps" | "s6r5";
 
 export interface Filters {
   matrix: boolean;
@@ -123,23 +126,79 @@ export const comboOf = (l: Loadout, p: Pick): Combo => {
   };
 };
 
-/** Ranks a row at `p` runs its weapon at: every listed rank while refines are compared there, else the default. */
+/** What a cost hands out on top of its signatures, read straight off the mode's name: the chain
+ *  level, and the weapon rank as an index into a `Loadout.refinements` list. `holds` is whether
+ *  this member is the one getting it — a mode ending in `mdps` lifts exactly one, whichever the
+ *  team gains most from (`optimizeTeam` hands it out the way it hands out the one signature). */
+const costGrant = (cost: TeamCost, holds: boolean): { sequence: number; refine: number } => {
+  const [, sequence, rank, mdps] = /^s(\d)r(\d)(mdps)?$/.exec(cost)!;
+  return mdps && !holds ? { sequence: 0, refine: 0 } : { sequence: +sequence!, refine: Math.max(0, +rank! - 1) };
+};
+
+/** Whether the grant goes to one member the search picks rather than to the whole team. */
+export const grantToOne = (cost: TeamCost): boolean => cost.endsWith("mdps");
+
+/** The level a member runs with their Sequences box shut: their own baseline, lifted by the cost's
+ *  grant where they hold it. Null where the build declares no rotation that low (`minSequence`).
+ *  Read the same whether or not the box is open — the search settles who holds the grant, and
+ *  `picksKey()` does not carry the chain boxes, so opening one must not move it. */
+function costLevel(m: Member, cost: TeamCost, holds: boolean): number | null {
+  const l = m.loadout;
+  const max = l.sequences.length;
+  if (!max) return l.minSequence ? null : 0;
+  const at = Math.min(Math.max(Math.min(baseSequence(l.resonator), max), costGrant(cost, holds).sequence), max);
+  return at < l.minSequence ? null : at;
+}
+
+/** The rank index a lifted member runs `weapon` at: the cost's, capped by the ranks that weapon
+ *  actually lists (a loadout may pin one rank rather than the whole five). */
+const costRefine = (m: Member, weapon: number, cost: TeamCost, holds: boolean): number =>
+  Math.min(costGrant(cost, holds).refine, m.loadout.refinements[weapon]!.length - 1);
+
+/** The extra rank an open Sequences box runs its top chain level at — the S6R5 row that stands
+ *  beside S6R1 as a level of its own, the S7 the chain hasn't got. Null where there is none: a
+ *  weapon listing one rank, a kit with no chain, or a rank column on screen (`axisUsed`), where S6
+ *  at R5 is just a cell of the cross and says so on its own. */
+export function topRank(m: Member, filters: Filters, weapon: number): number | null {
+  if (m.loadout.refinements[weapon]!.length < 2 || !m.loadout.sequences.length) return null;
+  if (!axisOpen(m, filters, "sequences") || axisUsed(m, filters, "refines")) return null;
+  return m.loadout.refinements[weapon]!.length - 1;
+}
+
+/** Ranks a row at `p` runs its weapon at: every listed rank while refines are compared there, else
+ *  the build's own — joined, on the top level of an open Sequences box, by `topRank()`. An open box
+ *  runs its whole ladder at R1 whatever the cost hands out, so the levels read against each other
+ *  and the rank the cost paid for is the max-rank row on top. */
 export function refineLevels(m: Member, filters: Filters, p: Pick): number[] {
-  if (!compares(m, filters, "refines", gateOf(m.loadout, p))) return [0];
-  return m.loadout.refinements[p.weapon]!.map((_, i) => i);
+  const ranks = m.loadout.refinements[p.weapon]!;
+  if (compares(m, filters, "refines", gateOf(m.loadout, p))) return ranks.map((_, i) => i);
+  const home = axisOpen(m, filters, "sequences") ? 0 : Math.min(p.refine, ranks.length - 1);
+  const extra = p.sequence === m.loadout.sequences.length ? topRank(m, filters, p.weapon) : null;
+  return extra === null ? [home] : [home, extra];
 }
 
 /** Chain levels a member's rows cover, baseline first. Never searched — a node is strictly more kit —
- *  so an open box is a row per level from the baseline up; a `Tier.Free` resonator opens from S0. */
-export function sequenceLevels(m: Member, filters: Filters): number[] {
+ *  so an open box is a row per level from the baseline up; a `Tier.Free` resonator opens from S0.
+ *  The cost's own level lifts the *closed* box alone (an open one still opens from the resonator's
+ *  baseline, or the compare beside it would have nothing to measure against).
+ *  Empty where the build declares no rotation at any level in reach (`Loadout.minSequence`): a
+ *  closed box below it has no row, and its teams drop out (`hasBuild()`). */
+export function sequenceLevels(m: Member, filters: Filters, holds = true): number[] {
   const l = m.loadout;
   const max = l.sequences.length;
-  if (!max) return [0];
+  if (!axisOpen(m, filters, "sequences") || !max) {
+    const at = costLevel(m, filters.cost, holds);
+    return at === null ? [] : [at];
+  }
   const base = Math.min(baseSequence(l.resonator), max);
-  if (!axisOpen(m, filters, "sequences")) return [base];
-  const from = l.resonator.tier === Tier.Free ? 0 : base;
+  const from = Math.max(l.minSequence, l.resonator.tier === Tier.Free ? 0 : base);
   return Array.from({ length: max - from + 1 }, (_, i) => from + i);
 }
+
+/** Whether a member has any build under these filters: a weapon it may hold and a chain level
+ *  its rotation covers. A team with a member that has none is not shown. */
+export const hasBuild = (m: Member, filters: Filters): boolean =>
+  eligibleWeapons(m, filters).length > 0 && sequenceLevels(m, filters, !grantToOne(filters.cost)).length > 0;
 
 export const isSignature = (l: Loadout, i: number): boolean => l.weapons[i]!.tier === Tier.Limited;
 /** A loadout lists its best signature first and its best standard right after (CLAUDE.md). */
@@ -152,8 +211,12 @@ export function weaponOptions(m: Member, filters: Filters, sig: boolean): number
   return [sig ? 0 : standardWeapon(l)];
 }
 
+/** Whether every limited resonator wears their signature: `s0r0` gives nobody one and `s0r1mdps`
+ *  hands out exactly one, so only those two search on standards. */
+export const sigForAll = (cost: TeamCost): boolean => cost !== "s0r0" && cost !== "s0r1mdps";
+
 export const sigAllowed = (i: number, holder: number | null, cost: TeamCost): boolean =>
-  cost === "s0r1" || (cost === "s0r1mdps" && i === holder);
+  sigForAll(cost) || (cost === "s0r1mdps" && i === holder);
 
 /** Which member of a build wears a signature — the `s0r1mdps` holder, read off the build. */
 export const sigHolder = (members: Member[], picks: Pick[]): number | null => {
@@ -163,7 +226,7 @@ export const sigHolder = (members: Member[], picks: Pick[]): number | null => {
 
 /** `weaponOptions()` with no holder to hand — what the page offers and estimates rows from. */
 export function eligibleWeapons(m: Member, filters: Filters): number[] {
-  return weaponOptions(m, filters, filters.cost === "s0r1");
+  return weaponOptions(m, filters, sigForAll(filters.cost));
 }
 
 /* ------------------------------------------------------------------------- the search */
@@ -251,16 +314,23 @@ function bestMainstatFor(teamKey: string, members: Member[], picks: Pick[], i: n
 /**
  * Main stats are searched for every member at once (they only feed their wearer); weapons and
  * echoes cross members (Outro buffs), so they get coordinate descent scored on the team total, with
- * every candidate re-rolled onto its own best main stat before it's judged. Sequences are never
- * searched. The sweeps alternate until nothing moves, three rounds at most.
+ * every candidate re-rolled onto its own best main stat before it's judged. A chain level is never
+ * searched for its own sake — a node is strictly more kit — but a cost that pays for one member's
+ * is, since which member that is decides the team's damage. The sweeps alternate until nothing
+ * moves, three rounds at most.
  */
 export function optimizeTeam(teamKey: string, members: Member[], filters: Filters): Pick[] {
-  // `s0r1mdps` searches on standards and hands the one signature out afterwards
-  const sig = filters.cost === "s0r1";
-  const picks: Pick[] = members.map((m) => ({
-    weapon: weaponOptions(m, filters, sig)[0] ?? 0, echo: 0, mainstat: 0,
-    sequence: sequenceLevels(m, filters)[0]!, refine: 0, matrix: filters.matrix, highSubs: false,
-  }));
+  // `s0r1mdps` searches on standards and hands the one signature out afterwards; a `mdps` chain or
+  // rank grant is handed out the same way, so the search opens with nobody holding it
+  const sig = sigForAll(filters.cost);
+  const holds = !grantToOne(filters.cost);
+  const picks: Pick[] = members.map((m) => {
+    const weapon = weaponOptions(m, filters, sig)[0] ?? 0;
+    return {
+      weapon, echo: 0, mainstat: 0, sequence: sequenceLevels(m, filters, holds)[0]!,
+      refine: costRefine(m, weapon, filters.cost, holds), matrix: filters.matrix, highSubs: false,
+    };
+  });
   const run = (): TeamRun => trialRun(teamKey, members, picks);
 
   const sweepMainstats = (): boolean => {
@@ -278,8 +348,12 @@ export function optimizeTeam(teamKey: string, members: Member[], filters: Filter
       let winner = home;
       for (const option of options(members[i]!)) {
         if (option === home[axis]) continue;
-        const rerolled = bestMainstatFor(teamKey, members, picks.map((p, j) => (j === i ? { ...home, [axis]: option } : p)), i);
-        picks[i] = { ...home, [axis]: option, mainstat: rerolled.mainstat };
+        // a weapon carries its own rank list, so the rank this member runs is capped to each one
+        const at = axis === "weapon"
+          ? { ...home, weapon: option, refine: Math.min(home.refine, members[i]!.loadout.refinements[option]!.length - 1) }
+          : { ...home, echo: option };
+        const rerolled = bestMainstatFor(teamKey, members, picks.map((p, j) => (j === i ? at : p)), i);
+        picks[i] = { ...at, mainstat: rerolled.mainstat };
         if (rerolled.total > best) { best = rerolled.total; winner = picks[i]!; changed = true; }
       }
       picks[i] = winner;
@@ -303,7 +377,7 @@ export function optimizeTeam(teamKey: string, members: Member[], filters: Filter
     let best = run().total, winner: Pick[] | null = null;
     members.forEach((m, i) => {
       if (!isSignature(m.loadout, 0)) return;
-      const trial = picks.map((p, j) => (j === i ? { ...p, weapon: 0 } : p));
+      const trial = picks.map((p, j) => (j === i ? { ...p, weapon: 0, refine: Math.min(p.refine, m.loadout.refinements[0]!.length - 1) } : p));
       const rerolled = bestMainstatFor(teamKey, members, trial, i);
       if (rerolled.total > best) { best = rerolled.total; winner = trial.map((p, j) => (j === i ? { ...p, mainstat: rerolled.mainstat } : p)); }
     });
@@ -312,6 +386,29 @@ export function optimizeTeam(teamKey: string, members: Member[], filters: Filter
       sweepMainstats();
       // the signature changes what the sonatas are worth; weapons stay as handed out
       converge(false);
+    }
+  }
+  // the chain/rank grant goes to one member too: lift each in turn and keep whoever the team gains
+  // most from. Their own weapon is re-swept after — a rank the grant paid for can be worth more on
+  // a weapon the R1 sweep passed over. `s0r1mdps` lifts nobody, so its loop finds nothing to try.
+  if (grantToOne(filters.cost)) {
+    let best = run().total, winner: Pick[] | null = null;
+    members.forEach((m, i) => {
+      const home = picks[i]!;
+      const level = costLevel(m, filters.cost, true);
+      const lifted = {
+        ...home, sequence: level === null ? home.sequence : Math.max(level, home.sequence),
+        refine: costRefine(m, home.weapon, filters.cost, true),
+      };
+      if (lifted.sequence === home.sequence && lifted.refine === home.refine) return;
+      const trial = picks.map((p, j) => (j === i ? lifted : p));
+      const rerolled = bestMainstatFor(teamKey, members, trial, i);
+      if (rerolled.total > best) { best = rerolled.total; winner = trial.map((p, j) => (j === i ? { ...lifted, mainstat: rerolled.mainstat } : p)); }
+    });
+    if (winner) {
+      (winner as Pick[]).forEach((p, i) => { picks[i] = p; });
+      sweepMainstats();
+      converge(true);
     }
   }
   return picks;
@@ -338,10 +435,13 @@ function buildsOf(m: Member, home: Pick, f: Filters, sig: boolean): Pick[] {
   const l = m.loadout;
   const weapons = axisOpen(m, f, "weapons") ? weaponOptions(m, f, sig) : [home.weapon];
   const subs = axisOpen(m, f, "substats") ? [false, true] : [home.highSubs];
-  const sequences = sequenceLevels(m, f);
+  // a shut box runs the level the build settled on — a `mdps` cost lifted one member and the search
+  // is where that answer lives, so it is read back off the picks rather than derived again
+  const sequences = axisOpen(m, f, "sequences") ? sequenceLevels(m, f) : [home.sequence];
   const picks: Pick[] = [];
+  // the rank rides with the weapon: a pinned one-rank entry has no index for a higher rank
   for (const weapon of weapons) for (const sequence of sequences) {
-    const at = { ...home, weapon, sequence };
+    const at = { ...home, weapon, sequence, refine: Math.min(home.refine, l.refinements[weapon]!.length - 1) };
     const echoes = compares(m, f, "echoes", gateOf(l, at)) ? l.echoLoadouts.map((_, i) => i) : [home.echo];
     for (const refine of refineLevels(m, f, at)) for (const echo of echoes) for (const highSubs of subs) {
       picks.push({ ...at, refine, echo, highSubs });
@@ -356,7 +456,9 @@ function buildsOf(m: Member, home: Pick, f: Filters, sig: boolean): Pick[] {
  * in the winner's rolls reads worse than it is. Open main stats get the build's best `MAINSTAT_ROWS`.
  * `hidden`: the sonata re-search's losing candidates, kept so a gear compare has its baseline.
  */
-function rowPicks(teamKey: string, members: Member[], best: Pick[], filters: Filters): { rows: Pick[][]; hidden: Pick[][] } {
+function rowPicks(
+  teamKey: string, members: Member[], best: Pick[], filters: Filters, onProgress?: (share: number) => void,
+): { rows: Pick[][]; hidden: Pick[][] } {
   const hidden: Pick[][] = [];
   const mainstatsOpen = (picks: Pick[]): number[] =>
     members.map((_, i) => i).filter((i) => compares(members[i]!, filters, "mainstats", gateOf(members[i]!.loadout, picks[i]!)));
@@ -423,7 +525,9 @@ function rowPicks(teamKey: string, members: Member[], best: Pick[], filters: Fil
     return p.weapon === b.weapon && p.echo === b.echo && p.sequence === b.sequence && p.refine === b.refine && p.highSubs === b.highSubs;
   });
   const rows: Pick[][] = [];
+  let built = 0;
   for (const build of seen.values()) {
+    onProgress?.(built++ / seen.size);
     const settled = settle(!compared && isBest(build) ? build : pinEchoes(build));
     const open = mainstatsOpen(settled);
     if (!open.length) { rows.push(settled); continue; }
@@ -440,16 +544,25 @@ function rowPicks(teamKey: string, members: Member[], best: Pick[], filters: Fil
 }
 
 /** One team's whole solve — the unit of parallel work. `known`: the best build when the caller
- *  already has it (most box flips change rows, not the build). */
-export function solveTeam(teamKey: string, members: Member[], filters: Filters, known: Pick[] | null = null): Solved {
+ *  already has it (most box flips change rows, not the build). `onProgress` reports how far in it
+ *  is, 0 to 1: a team with every axis compared is thousands of rows of work in one unit, and the
+ *  bar has nothing else to move on until the whole thing lands. The two passes take half apiece —
+ *  expanding the builds, then scoring the rows they opened. */
+export function solveTeam(
+  teamKey: string, members: Member[], filters: Filters, known: Pick[] | null = null,
+  onProgress?: (share: number) => void,
+): Solved {
   trialCache = new Map(); scoreCache = new Map();
   const picks = known ?? optimizeTeam(teamKey, members, filters);
-  const { rows, hidden } = rowPicks(teamKey, members, picks, filters);
+  const { rows, hidden } = rowPicks(teamKey, members, picks, filters, (s) => onProgress?.(s / 2));
   const score = (row: Pick[]): RowScore => {
     const combo = members.map((m, i) => comboOf(m.loadout, row[i]!));
     return scoreOf(trialCache.get(trialKey(teamKey, combo)) ?? runTeam(teamKey, members, combo));
   };
-  const scores = rows.map(score);
+  const scores = rows.map((row, i) => {
+    onProgress?.(0.5 + i / 2 / rows.length);
+    return score(row);
+  });
   const hiddenScores = hidden.map(score);
   trialCache = new Map(); scoreCache = new Map();
   return { picks, rows, scores, hidden, hiddenScores };
@@ -463,6 +576,9 @@ export interface SolveRequest { id: number; teamKey: string; filters: Filters; p
 export interface Solved { picks: Pick[]; rows: Pick[][]; scores: RowScore[]; hidden?: Pick[][]; hiddenScores?: RowScore[] }
 
 export interface SolveResponse extends Solved { id: number }
+/** A half-finished solve saying how far in it is — `share` is 0 to 1 of that one team's work. */
+export interface SolveProgress { id: number; share: number }
+export const isProgress = (m: SolveResponse | SolveProgress): m is SolveProgress => "share" in m;
 
 /** A roster's solves at rest (localStorage, tests/solves/*.json). A `stamp` that doesn't match the running build means nothing in it is used. */
 export interface SolveSave { stamp: string; solves: [string, Solved][]; picks: [string, Pick[]][] }
@@ -471,10 +587,17 @@ export interface SolveSave { stamp: string; solves: [string, Solved][]; picks: [
 if (typeof document === "undefined" && typeof self !== "undefined") {
   const ctx = self as unknown as {
     onmessage: ((e: MessageEvent<SolveRequest>) => void) | null;
-    postMessage: (message: SolveResponse) => void;
+    postMessage: (message: SolveResponse | SolveProgress) => void;
   };
   ctx.onmessage = ({ data }) => {
-    const solved = solveTeam(data.teamKey, teamFromKey(data.teamKey), data.filters, data.picks);
+    // a message a percent, not one a row: the bar can't show finer than that and the port is the
+    // one thing both threads share
+    let sent = 0;
+    const solved = solveTeam(data.teamKey, teamFromKey(data.teamKey), data.filters, data.picks, (share) => {
+      if (share - sent < 0.01) return;
+      sent = share;
+      ctx.postMessage({ id: data.id, share });
+    });
     ctx.postMessage({ id: data.id, ...solved });
   };
 }

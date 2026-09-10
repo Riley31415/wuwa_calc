@@ -10,8 +10,9 @@ import { CARTETHYIA } from "./resonators/aero/cartethyia.js";
 import { CIACCONA } from "./resonators/aero/ciaccona.js";
 import { IUNO, IUNO_MDPS } from "./resonators/aero/iuno.js";
 import { JIANXIN } from "./resonators/aero/jianxin.js";
+import { JIYAN } from "./resonators/aero/jiyan.js";
 import { QINGXIAO } from "./resonators/aero/qingxiao.js";
-import { QIUYUAN } from "./resonators/aero/qiuyuan.js";
+import { QIUYUAN, QIUYUAN_MDPS } from "./resonators/aero/qiuyuan.js";
 import { ROVER_AERO } from "./resonators/aero/rover_aero.js";
 import { SIGRIKA, SIGRIKA_FAST } from "./resonators/aero/sigrika.js";
 import { AUGUSTA } from "./resonators/electro/augusta.js";
@@ -38,12 +39,12 @@ import { LUCILLA, LUCILLA_CHAFE } from "./resonators/glacio/lucilla.js";
 import { SANHUA } from "./resonators/glacio/sanhua.js";
 import { SUISUI } from "./resonators/glacio/suisui.js";
 import { ZHEZHI } from "./resonators/glacio/zhezhi.js";
-import { CAMELLYA, CAMELLYA_DOUBLE } from "./resonators/havoc/camellya.js";
-import { CANTARELLA } from "./resonators/havoc/cantarella.js";
+import {  CAMELLYA_DOUBLE } from "./resonators/havoc/camellya.js";
+import { CANTARELLA, CANTARELLA_MDPS } from "./resonators/havoc/cantarella.js";
 import { CHISA } from "./resonators/havoc/chisa.js";
 import { DANJIN } from "./resonators/havoc/danjin.js";
 import { PHROLOVA, PHROLOVA_DUAL_DPS } from "./resonators/havoc/phrolova.js";
-import { ROCCIA } from "./resonators/havoc/roccia.js";
+import { ROCCIA, ROCCIA_MDPS } from "./resonators/havoc/roccia.js";
 import { ROVER_HAVOC } from "./resonators/havoc/rover_havoc.js";
 import { XUANLING, XUANLING_2F } from "./resonators/havoc/xuanling.js";
 import { JINHSI, JINHSI_SUPPORT } from "./resonators/spectro/jinhsi.js";
@@ -128,6 +129,10 @@ const TEAMS: Loadout[][][] = [
   // lynae rupture only with denia burst 3rd slot
   [[DENIA_BURST, DENIA_BURST], [LYNAE_RUPTURE, LYNAE_RUPTURE], [AEMEATH_BURST]],
 
+  // qiuyuan: aero heavy echo
+  [[SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA, MORNYE], [MORTEFI, IUNO, CIACCONA, LYNAE_RUPTURE, REBECCA, ROVER_AERO], [QIUYUAN_MDPS]],
+  [[SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA, MORNYE], [PHROLOVA_DUAL_DPS, LUCILLA], [QIUYUAN_MDPS]],
+
   // galbrena: fusion echo
   [[SHOREKEEPER, VERINA, LUPA, QIUYUAN, MORNYE, DENIA_BURST], [QIUYUAN, LUCILLA], [GALBRENA]],
   [[PHROLOVA_DUAL_DPS], [QIUYUAN, LUCILLA], [GALBRENA], ],
@@ -160,22 +165,28 @@ const TEAMS: Loadout[][][] = [
   [[LUPA, LUPA], [BRANT], [CHANGLI]],
   [[LUPA, LUPA], [BRANT], [ENCORE]],
 
-  // changli: fusion skill+liberation
-  [[LUPA, MORNYE, SHOREKEEPER, DENIA_BURST, VERINA], [DENIA_BURST, LYNAE_RUPTURE, LUPA], [CHANGLI]],
+  // cantarella: havoc basic, echo
+  [[SHOREKEEPER, VERINA, MORNYE], [SANHUA, ROCCIA, LYNAE_RUPTURE, REBECCA], [CANTARELLA_MDPS]],
 
   // carlotta: glacio skill
   [[SHOREKEEPER, BULING, VERINA, MORNYE, SUISUI], [BRANT, LYNAE_RUPTURE, REBECCA, LUCILLA_CHAFE], [CARLOTTA]],
-  [[SHOREKEEPER, BULING, VERINA, MORNYE, SUISUI, JINHSI_SUPPORT], [ZHEZHI, ZHEZHI], [CARLOTTA]],
+  [[SHOREKEEPER, BULING, VERINA, MORNYE, SUISUI, JINHSI_SUPPORT], [ZHEZHI, CANTARELLA], [CARLOTTA]],
+
+  // roccia: havoc heavy
+  [[SHOREKEEPER, VERINA, MORNYE], [MORTEFI, IUNO, LYNAE_RUPTURE, REBECCA], [ROCCIA_MDPS]],
+  [[SHOREKEEPER, VERINA, MORNYE], [PHROLOVA_DUAL_DPS], [ROCCIA_MDPS]],
 
   // camellya: havoc basic
-  [[SHOREKEEPER, VERINA], [SANHUA, SANHUA], [CAMELLYA_DOUBLE]],
-  [[SHOREKEEPER, VERINA, MORNYE], [ROCCIA, LYNAE_RUPTURE, REBECCA], [CAMELLYA]],
+  [[SHOREKEEPER, VERINA], [SANHUA, ROCCIA], [CAMELLYA_DOUBLE]],
 
   // xiangli yao: electro liberation
   [[SHOREKEEPER, VERINA, MORNYE], [YINLIN, LYNAE_RUPTURE, JIANXIN], [XIANGLI_YAO]],
 
+  // changli: fusion skill+liberation
+  [[LUPA, MORNYE, SHOREKEEPER, DENIA_BURST, VERINA], [DENIA_BURST, LYNAE_RUPTURE, LUPA], [CHANGLI]],
+
   // jiyan: aero heavy
-  //[[SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA, MORNYE], [MORTEFI, IUNO, CIACCONA, LYNAE_RUPTURE, REBECCA], [JIYAN]],
+  [[SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA, MORNYE], [MORTEFI, IUNO, CIACCONA, LYNAE_RUPTURE, REBECCA, PHROLOVA_DUAL_DPS, ROVER_AERO], [JIYAN]],
 
   // encore: fusion basic
   //[[SHOREKEEPER, VERINA, DENIA_BURST, LUPA], [LUPA, SANHUA, DENIA_BURST], [ENCORE]],

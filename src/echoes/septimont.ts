@@ -1,5 +1,5 @@
 /** Mainslot echoes and sonatas from Septimont (versions 2.5-2.7). */
-import { Stat, Attribute, Type1, Cast, Scaling } from "../engine/stats.js";
+import { Stat, Attribute, Type1, Cast, Scaling, LifeTime, BuffTarget } from "../engine/stats.js";
 import { Buff, Sonata, Sonata3pc, Sonata2pc, Mainslot, EchoType } from "../engine/gear.js";
 import {
   addStat, stacksOf, stacksOfEnemy, stacksOfTeam, applyCurrent, casting, maxEnergy, queue, applied, appliedByMe,
@@ -89,7 +89,7 @@ export const CLAWPRINT_5PC = new Sonata({
   name: "Flaming Clawprint 5pc",
   sonata2pc: CLAWPRINT_2PC,
   grants: [
-    { on: onCast(Cast.Liberation), buff: CLAWPRINT_TEAM, to: "team" },
+    { on: onCast(Cast.Liberation), buff: CLAWPRINT_TEAM, to: BuffTarget.Team },
     { on: onCast(Cast.Liberation), buff: CLAWPRINT_LIBERATION },
   ],
 });
@@ -112,11 +112,11 @@ export const CORROSAURUS = new Mainslot({
  *  Fusion DMG Bonus. */
 export const FLAMEWING_SHADOW_HEAVY = new Buff({
   name: "Flamewing's Shadow 3pc (heavy)",
-  stats: [[Stat.CritRate, 20, Type1.Heavy]], until: "outro",
+  stats: [[Stat.CritRate, 20, Type1.Heavy]], until: LifeTime.Outro,
 });
 export const FLAMEWING_SHADOW_ECHO = new Buff({
   name: "Flamewing's Shadow 3pc (echo)",
-  stats: [[Stat.CritRate, 20, Type1.Echo]], until: "outro",
+  stats: [[Stat.CritRate, 20, Type1.Echo]], until: LifeTime.Outro,
 });
 export const FLAMEWING_SHADOW_3PC = new Sonata3pc({
   name: "Flamewing's Shadow 3pc",
@@ -147,7 +147,7 @@ export const FENRICO = new Mainslot({
  *  distinct named Echo (every cast assumed unique). */
 export const LAW_OF_HARMONY_SELF = new Buff({
   name: "Law of Harmony",
-  stats: [[Stat.DmgBonus, 30, Type1.Heavy]], until: "outro",
+  stats: [[Stat.DmgBonus, 30, Type1.Heavy]], until: LifeTime.Outro,
 });
 export const LAW_OF_HARMONY_TEAM = new Buff({
   name: "Law of Harmony", maxStacks: 4,
@@ -157,7 +157,7 @@ export const LAW_OF_HARMONY_3PC = new Sonata3pc({
   name: "Law of Harmony 3pc",
   grants: [
     { on: onCast(Cast.Echo), buff: LAW_OF_HARMONY_SELF },
-    { on: onCast(Cast.Echo), buff: LAW_OF_HARMONY_TEAM, to: "team" },
+    { on: onCast(Cast.Echo), buff: LAW_OF_HARMONY_TEAM, to: BuffTarget.Team },
   ],
 });
 
@@ -180,13 +180,14 @@ export const ACTION_THRENODIAN_LEVIATHAN = new Action("Echo - Reminiscence: Levi
   mv: 131.04 * 2, energy: 0.91 * 2,
   updateBuffs: () => queue(ACTION_CORE_OF_COLLAPSE),
 });
-/** The bundle: eight 24.57% hits as one row, with the Havoc Bane doubling as its own Total Damage
- *  rather than folded into the motion value, so the report names what it is. Carries no energy or
+/** The bundle: eight 24.57% hits as one row, with the Havoc Bane doubling as its own Damage Taken
+ *  ("Enemies with Havoc Bane take 100% more DMG from this effect") rather than folded into the
+ *  motion value, so the report names what it is. Carries no energy or
  *  concerto — nanoka gives the summon one damage row and these hits none of their own. */
 export const ACTION_CORE_OF_COLLAPSE = new Action("Echo - Core of Collapse", {
   element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Echo,
   mv: 24.57 * 8,
-  applyStats: () => { if (stacksOfEnemy(HAVOC_BANE) > 0) addStat(Stat.TotalDmg, 100); },
+  applyStats: () => { if (stacksOfEnemy(HAVOC_BANE) > 0) addStat(Stat.DamageTaken, 100); },
 });
 
 export const THRENODIAN_LEVIATHAN = new Mainslot({

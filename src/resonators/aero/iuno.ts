@@ -1,5 +1,5 @@
 /**
- * Iuno, ported to the new engine — sequence-0 core loop only. An aero support: shields herself
+ * Iuno, ported to the new engine — Sequences 1-6 in their own block below. An aero support: shields herself
  * and the team almost every action (Waxing Ascent); her intro/outro hand off a big Heavy Attack
  * amplification window (From Gloom to Gleam).
  *
@@ -8,11 +8,14 @@
  * gives a combined row (BA123 = BA1+BA2+BA3, FMA123 = FMA1+FMA2+FMA3, both exact).
  */
 import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
+  asSource,
+  stacksOfTeam,
   applyCurrent,
   applyTeam,
   currentAction,
+  runningAction,
   casting,
   queueOutro,
   revokeCurrent,
@@ -21,8 +24,11 @@ import {
   applied,
   setForte1,
   forte1,
+  currentTeam,
+  applyOthers,
+  isHeld,
 } from "../../engine/context.js";
-import { lostOnSwap } from "../../shared/helpers.js";
+import { lostOnSwap, oneSecondPassed } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO, ECHO_CANCEL, ECHO_SWAP } from "../../engine/rotation.js";
 import { SHIELD } from "../../shared/status.js";
 import { IUNO_SIG, VERITYS_HANDLE } from "../../weapons/gauntlet.js";
@@ -77,7 +83,7 @@ const Outro = iunoAction("Outro - From Gloom to Gleam", {
 });
 
 // --- forte (jump / Flux) casts, all liberation damage while in Lunar Cycle, same shielding
-const Jump = iunoAction("Heavy - Flux: Moonbow", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Liberation, mv: 250.51, energy: 3.5, concerto: 7, offtune: 11200 });
+const JumpHeavy = iunoAction("Heavy - Flux: Moonbow", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Liberation, mv: 250.51, energy: 3.5, concerto: 7, offtune: 11200 });
 const FJump = iunoAction("Heavy - Flux: Moonring", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Liberation, mv: 316.72, energy: 4.44, concerto: 8.88, offtune: 14160 });
 const FMA1 = iunoAction("Forte Basic - Enhanced Moonbow 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Liberation, mv: 205.97, energy: 2.33, concerto: 6.65, offtune: 4240, forte1: -10 });
 const FMA2 = iunoAction("Forte Basic - Enhanced Moonbow 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Liberation, mv: 286.29, energy: 3.27, concerto: 9.51, offtune: 5601, forte1: -15 });
@@ -95,10 +101,16 @@ const FHA = iunoAction("Heavy - Absolute Fullness", {
 /* ------------------------------------------------------------------------------------ buffs */
 
 /** 4% all-damage amplification a stack, ten stacks — amp, not bonus, so it multiplies its own
- *  term. Lost entirely if switched off field. */
+ *  term. Lost entirely if switched off field. S2 pays a full ten stacks 40% more, read off her
+ *  own slot: the node is her local gear and this buff sits on whoever was shielded. */
 const IUNO_BLESSING = new Buff({
   name: "Iuno: Blessing of the Wan Light", maxStacks: 10,
-  stats: [[Stat.Amp, 4]], perStack: true,
+  applyStats: () => {
+    addStat(Stat.Amp, 4 * frozenStacks());
+    if (frozenStacks() >= 10 && currentTeam().slots.find((m) => m.resonator === IUNO_RESONATOR)?.isHeld(IO_S2)) {
+      asSource(IO_S2, () => addStat(Stat.Amp, 40));
+    }
+  },
   updateBuffs: () => lostOnSwap(),
 });
 
@@ -107,6 +119,7 @@ const IUNO_BLESSING = new Buff({
 const IUNO_DOMAIN = new Buff({
   name: "Iuno: Full Moon Domain",
   updateBuffs: () => { if (applied(SHIELD)) applyCurrent(IUNO_BLESSING, applied(SHIELD)); },
+  // S1's own point of Energy a second is paid by that node (it reads this domain instead)
 });
 
 const IO_INHERENT_2 = new Inherent({
@@ -122,9 +135,17 @@ const IUNO_OUTRO = new Buff({
   updateBuffs: () => { lostOnSwap(); },
 });
 
+/** Her casts inside Lunar Cycle — Flux either way, everything Moonbow, and Absolute Fullness, which
+ *  is what ends it. Moonring presses can also land inside it (Half Moon), but no rotation here makes
+ *  one there, so the state is read off the action rather than tracked. */
+const LUNAR_CYCLE = new Set<Action>([JumpHeavy, FJump, MA1, MA2, MA3, MDC, MSkill, FMA1, FMA2, FMA3, FMSkill, FHA]);
+/** The three S3 names: Moonbow - Basic Attack, Arc Beyond the Edge and Moonbow - Dodge Counter —
+ *  the Sentience-spending forms are the same skills enhanced, so they count. */
+const MOONBOW = new Set<Action>([MA1, MA2, MA3, MDC, MSkill, FMA1, FMA2, FMA3, FMSkill]);
+
 const SHIELDING = new Set<Action>([
   BA1, BA2, BA3, DC, MA1, MA2, MA3, MDC, Skill, ESkill, MSkill, Liberation, Intro,
-  Jump, FJump, FMA1, FMA2, FMA3, FMSkill, FHA,
+  JumpHeavy, FJump, FMA1, FMA2, FMA3, FMSkill, FHA,
 ]);
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
@@ -157,10 +178,76 @@ const IUNO_RESONATOR = new Resonator({
 });
 
 
+/* --------------------------------------------------------------------------------- sequences */
+
+/** S1: +40% ATK while in Lunar Cycle; the point of Energy a second inside the domain is paid by
+ *  the domain itself (above). The interrupt immunity is no stat. */
+const IO_S1 = new Sequence({
+  name: "Iuno S1: Wax or Wane, All Gild the Bough",
+  applyStats: () => {
+    if (LUNAR_CYCLE.has(currentAction())) addStat(Stat.BonusAtk, 40);
+    // a point of Energy a second while she herself stands in her own Full Moon Domain — this hook
+    // runs on her turns alone, which is that condition
+    if (stacksOfTeam(IUNO_DOMAIN) > 0 && oneSecondPassed()) addStat(Stat.AddEnergy, 1);
+  },
+});
+
+/** S2: +40% all DMG Amplification on top for anyone at ten Blessing stacks — paid by the Blessing
+ *  itself (above). */
+const IO_S2 = new Sequence({ name: "Iuno S2: Day or Night, Let This Be Eternal" });
+
+/** S3: Moonbow presses, Arc Beyond the Edge and the Moonbow Dodge Counter amplified 65% while in
+ *  Lunar Cycle. Its cycle-keeping half is control flow, not a stat. */
+const IO_S3 = new Sequence({
+  name: "Iuno S3: I Drink Deep of Their Forgetting",
+  applyStats: () => { if (MOONBOW.has(currentAction())) addStat(Stat.Amp, 65); },
+});
+
+/** S4: Absolute Fullness shields the whole team, and a shield gained inside the domain it conjures
+ *  is a Blessing stack — she gains her own off that cast already, so the others get theirs here. */
+const IO_S4 = new Sequence({
+  name: "Iuno S4: Rainy Season Dwell in My Eyes",
+  updateBuffs: () => { if (runningAction(FHA)) applyOthers(IUNO_BLESSING, 1); },
+});
+
+/** S5: +20% Resonance Liberation DMG Bonus. */
+const IO_S5 = new Sequence({
+  name: "Iuno S5: A Thousand Futile Glimpses",
+  stats: [[Stat.DmgBonus, 20, Type1.Liberation]],
+});
+
+/** S6: Absolute Fullness gains 1600% of ATK on its multiplier — additive, nanoka's own S6 row is
+ *  1759.05% against the plain 159.05% — and casting it puts her straight back into New Moon with a
+ *  full 100 Sentience and both Arc charges: the second Moonbow string the S6 rotations press after it. */
+const IO_S6 = new Sequence({
+  name: "Iuno S6: I Am the Constant in the Chaos",
+  applyStats: () => { if (runningAction(FHA)) { addStat(Stat.AddMv, 1600); addStat(Stat.AddForte1, 100); } },
+});
+
+const IO_SEQUENCES = [IO_S1, IO_S2, IO_S3, IO_S4, IO_S5, IO_S6];
+
 const IO_ROTATION = new Rotation([
-  INTRO, ESkill, ECHO_CANCEL,Liberation, Jump,
+  INTRO, ECHO_CANCEL, Liberation, JumpHeavy,
   FMSkill, FMA123, FMSkill, 
   FHA, OUTRO,
+]);
+
+const IO_ROTATION_MDPS = new Rotation([
+  INTRO, ESkill, // todo swap skill
+  JumpHeavy,
+  FMSkill, 
+  FMA123, Liberation, 
+  FMA123, FMSkill, 
+  MA123, 
+  FHA, ECHO_SWAP, OUTRO,
+]);
+
+/** The same at S6 — see IO_ROTATION_S6. */
+const IO_ROTATION_MDPS_S6 = new Rotation([
+  INTRO, Liberation, JumpHeavy,
+  FMSkill, FMA123, FMSkill,
+  FHA, 
+  FMSkill, FMA123, FMSkill, ECHO_SWAP, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -178,19 +265,9 @@ export const IUNO = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.Liberation, Substat.Er, Substat.FlatAtk),
-    rotation: IO_ROTATION,
+  rotation: IO_ROTATION,
+  sequences: IO_SEQUENCES,
 });
-
-
-const IO_ROTATION_MDPS = new Rotation([
-  INTRO, Skill, ESkill, // todo swap skill eskill
-  Jump, //FMA1, 
-  FMSkill, 
-  FMA123, Liberation, 
-  FMA123, FMSkill, 
-  MA123, 
-  FHA, ECHO_SWAP, OUTRO,
-]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -206,5 +283,6 @@ export const IUNO_MDPS = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Er),
-  rotation: IO_ROTATION_MDPS,
+  rotation: { 0: IO_ROTATION_MDPS, 6: IO_ROTATION_MDPS_S6 },
+  sequences: IO_SEQUENCES,
 });

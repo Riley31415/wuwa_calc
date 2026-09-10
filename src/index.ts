@@ -8,8 +8,8 @@
  *   solver.ts       the build search (also the Worker entry); teamrun.ts the engine run it scores
  */
 import { fmt } from "./display.js";
-import { eligibleWeapons, solveTeam, bestKey, picksKey } from "./solver.js";
-import type { Member, Solved, SolveRequest, SolveResponse } from "./solver.js";
+import { hasBuild, solveTeam, bestKey, picksKey, isProgress } from "./solver.js";
+import type { Member, Solved, SolveRequest, SolveResponse, SolveProgress } from "./solver.js";
 import { runTeam } from "./teamrun.js";
 import {
   TEAMS, filters, results, bestPicks, picksCache, storeSolved, teamWanted, teamRows, estimatedRowCount, rowFromKey,
@@ -43,20 +43,27 @@ function overlayPhase(text: string, now = false): void {
   if (now) { clearTimeout(overlayTimer); overlayTimer = undefined; overlay.hidden = false; return; }
   if (overlayTimer === undefined) overlayTimer = setTimeout(() => { overlayTimer = undefined; overlay.hidden = false; }, 100);
 }
+/** Put a phase up and let the browser actually draw it: `overlayPhase()` only sets the flag, and a
+ *  phase that blocks the thread on the next line never gives the 100ms timer a frame to fire in —
+ *  which is why a long render used to run behind a page that simply froze. `rows` is how much work
+ *  is coming: a redraw small enough to be over before the overlay would have shown keeps the
+ *  delayed form and doesn't flash. */
+const OVERLAY_ROWS = 200;
+async function overlayNow(text: string, rows = Infinity): Promise<void> {
+  overlayPhase(text, rows >= OVERLAY_ROWS);
+  await paint();
+}
 function overlayHide(): void {
   clearTimeout(overlayTimer);
   overlayTimer = undefined;
   overlay.hidden = true;
 }
 
-/** The bar only ever moves forward within one refresh: its two phases count in different units
- *  (estimated rows, then actual rows), so a phase-2 total that comes in under phase 1's estimate
- *  must not pull it back. */
-let barAt = 0;
-function barReset(): void { barAt = 0; overlayFill.style.width = "0%"; overlayCount.textContent = ""; }
+/** The bar counts teams while they solve and rows while they run — two phases, two units, so it
+ *  fills once per phase rather than carrying a ratio across the change. */
+function barReset(): void { overlayFill.style.width = "0%"; overlayCount.textContent = ""; }
 function barProgress(done: number, total: number): void {
-  barAt = Math.max(barAt, total ? done / total : 1);
-  overlayFill.style.width = `${barAt * 100}%`;
+  overlayFill.style.width = `${total ? (done / total) * 100 : 100}%`;
   overlayCount.textContent = `${fmt(done)} / ${fmt(total)}`;
 }
 
@@ -110,7 +117,8 @@ function workerPool(): Worker[] | null {
 /** Hand `teams` across the pool, one in flight per worker. A worker that throws or answers with a
  *  solve that doesn't fit this build is redone on this thread, so the table is always complete. */
 function solveOnWorkers(
-  workers: Worker[], teams: [string, Member[]][], onDone: (members: Member[]) => void,
+  workers: Worker[], teams: [string, Member[]][],
+  onDone: (members: Member[]) => void, onShare?: (members: Member[], share: number) => void,
 ): Promise<void> {
   return new Promise((resolve) => {
     let next = 0, live = 0, id = 0;
@@ -126,7 +134,8 @@ function solveOnWorkers(
         onDone(members);
         pump(w);
       };
-      w.onmessage = ({ data }: MessageEvent<SolveResponse>) => {
+      w.onmessage = ({ data }: MessageEvent<SolveResponse | SolveProgress>) => {
+        if (isProgress(data)) { onShare?.(members, data.share); return; }
         const solved: Solved = { picks: data.picks, rows: data.rows, scores: data.scores, hidden: data.hidden ?? [], hiddenScores: data.hiddenScores ?? [] };
         if (solveFits(bestKey(key, members, filters), solved)) { finish(solved); return; }
         console.warn(`worker's solve for ${key} does not fit this build; solving it here`);
@@ -145,30 +154,50 @@ function solveOnWorkers(
   });
 }
 
-/** Solve every team in play whose answer isn't in hand. The bar reads in rows (`estimatedRowCount`),
- *  so it shares one total with `runMissing()`. @returns whether anything was solved. */
-async function ensureBestPicks(inPlay: [string, Member[]][], rowsTotal: number): Promise<boolean> {
+/** Solve every team in play whose answer isn't in hand — the bar counts the rows this phase is
+ *  opening, the same unit `runMissing()` then counts. @returns whether anything was solved. */
+async function ensureBestPicks(inPlay: [string, Member[]][]): Promise<boolean> {
   await loadShipped(filters);
   const teams = inPlay.filter(([key, members]) => !bestPicks.has(bestKey(key, members, filters)));
   if (!teams.length) return false;
 
-  overlayPhase("Running Calculations...", true);
-  const rowsOf = (members: Member[]): number => (members.every((m) => eligibleWeapons(m, filters).length) ? estimatedRowCount(members) : 0);
-  let rowsDone = inPlay.filter(([key, members]) => bestPicks.has(bestKey(key, members, filters))).reduce((sum, [, members]) => sum + rowsOf(members), 0);
-  const progress = (): void => barProgress(rowsDone, rowsTotal);
+  // a role with no weapon it may hold, or no chain level its rotation covers, has no build, and
+  // its teams drop out; the heaviest teams (most rows to open) go first so the pool's tail isn't
+  // one worker on a 5x team
+  const rowsOf = (members: Member[]): number => (members.every((m) => hasBuild(m, filters)) ? estimatedRowCount(members) : 0);
+  const solvable = teams.filter(([, members]) => members.every((m) => hasBuild(m, filters)))
+    .map((t) => [t, rowsOf(t[1])] as const).sort((a, b) => b[1] - a[1]).map(([t]) => t);
+  if (!solvable.length) return false;
+
+  // the rows these teams are about to open, not the teams themselves: one team with every axis
+  // compared is a thousand rows of work and "0 / 1" says nothing about it. A team's own share
+  // lands when its solve comes back, so the bar steps by whatever that team was worth.
+  const total = solvable.reduce((n, [, members]) => n + rowsOf(members), 0);
+  await overlayNow("Running Calculations...");
+  let done = 0;
+  const progress = (): void => barProgress(done, total);
   progress();
 
-  // a role with no weapon it may hold has no build, and its teams drop out; the heaviest teams
-  // (most rows to open) go first so the pool's tail isn't one worker on a 5x team
-  const solvable = teams.filter(([, members]) => members.every((m) => eligibleWeapons(m, filters).length))
-    .map((t) => [t, rowsOf(t[1])] as const).sort((a, b) => b[1] - a[1]).map(([t]) => t);
+  // A team's own share of the bar, filled in as its solve reports how far in it is — one team with
+  // every axis compared is the whole phase, and without this the bar sits at zero for all of it.
+  // Counted per team so a report can only ever move that team's own part forward.
+  const counted = new Map<Member[], number>();
+  const share = (members: Member[], part: number): void => {
+    const at = Math.min(rowsOf(members), Math.round(rowsOf(members) * part));
+    const was = counted.get(members) ?? 0;
+    if (at <= was) return;
+    counted.set(members, at);
+    done += at - was;
+    progress();
+  };
+
   const pool = workerPool();
-  if (pool) await solveOnWorkers(pool, solvable, (members) => { rowsDone += rowsOf(members); progress(); });
+  if (pool) await solveOnWorkers(pool, solvable, (members) => share(members, 1), share);
   else {
     for (const [key, members] of solvable) {
-      storeSolved(key, solveTeam(key, members, filters, picksCache.get(picksKey(key, members, filters)) ?? null));
-      rowsDone += rowsOf(members);
-      progress();
+      const known = picksCache.get(picksKey(key, members, filters)) ?? null;
+      storeSolved(key, solveTeam(key, members, filters, known, (part) => share(members, part)));
+      share(members, 1);
       await breathe();
     }
   }
@@ -187,9 +216,9 @@ const route = (): void => {
 };
 
 /**
- * Re-expand every team under the current filters, solve and run whatever that opened, redraw.
- * The bar's total is fixed before either phase runs (`estimatedRowCount` needs no solve). A
- * change that opened nothing new still redraws under the overlay — building the markup isn't free.
+ * Re-expand every team under the current filters, solve and run whatever that opened, redraw. A
+ * change that opened nothing new still redraws under the overlay — building the markup isn't free,
+ * and every phase here blocks the thread, so the overlay is painted before each one starts.
  */
 async function refresh(): Promise<void> {
   tableRequested = true;
@@ -200,18 +229,14 @@ async function refresh(): Promise<void> {
     if (inPlay.some(([key, members]) => !bestPicks.has(bestKey(key, members, filters)))) workerPool();
     if (!visibleRows.length) route();
 
-    const solvableInPlay = inPlay.filter(([, members]) => members.every((m) => eligibleWeapons(m, filters).length));
-    const rowsTotal = solvableInPlay.reduce((sum, [, members]) => sum + estimatedRowCount(members), 0);
-
-    await ensureBestPicks(inPlay, rowsTotal);
+    await ensureBestPicks(inPlay);
     saveSolves();
     const rows = teamRows();
     const cached = rows.filter((row) => results.has(row.key));
     const missing = cached.length !== rows.length;
     if (!missing && cached.length) {
-      overlayPhase("Rendering Table...");
+      await overlayNow("Rendering Table...", rows.length);
       barProgress(rows.length, rows.length);
-      await paint();
       setVisibleRows(cached);
       route();
     } else if (!missing) {
@@ -220,8 +245,7 @@ async function refresh(): Promise<void> {
     }
     await runMissing(rows);
     if (missing) {
-      overlayPhase("Rendering Table…");
-      await paint();
+      await overlayNow("Rendering Table…", rows.length);
       setVisibleRows(rows);
       route();
     }
@@ -265,6 +289,10 @@ async function boot(): Promise<void> {
   });
   if (!detail) await refresh();
   syncHash();
+  // the pool the first compare would otherwise wait on, brought up once the table is on screen
+  // (a roster served whole from the shipped solves never asks for it during boot)
+  const idle = globalThis.requestIdleCallback ?? ((fn: () => void) => setTimeout(fn, 500));
+  idle(() => { workerPool(); });
 
   // only a real navigation gets here — `syncHash()` writes fire nothing
   addEventListener("hashchange", () => {

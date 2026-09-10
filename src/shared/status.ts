@@ -268,6 +268,11 @@ function queueOnApplier(status: Debuff, rung: Action): void {
 
 export const inflictedNegativeStatus = (): boolean => NEGATIVE_STATUSES.some((d) => appliedByMe(d) > 0);
 
+/** Did *anyone* put one of the six on the target this action — what a passive keyed to the whole
+ *  team's inflicts reads rather than to its own holder's (Xuanling's Still as Withered Wood), and
+ *  the one that survives a marker re-sourcing the status onto its own owner. */
+export const anyNegativeStatusInflicted = (): boolean => NEGATIVE_STATUSES.some((d) => applied(d) > 0);
+
 /** Does the target carry any of the six *right now* — what a passive keyed to the target's own
  *  state reads, rather than to what the action being evaluated just put on (Cartethyia's Outro). */
 export const hasNegativeStatus = (): boolean => NEGATIVE_STATUSES.some((d) => stacksOfEnemy(d) > 0);

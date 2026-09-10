@@ -52,6 +52,7 @@ import {
   applyTeam,
   casting,
   currentAction,
+  runningAction,
   forte1,
   isHeld,
   queueOutro,
@@ -79,7 +80,7 @@ function suomingAction(id: string, def: object): Action {
 const BA1 = suomingAction("Basic - Furled Canopy 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 31.55, energy: 1.91, concerto: 1.79, offtune: 3174, forte1: 120 });
 const BA2 = suomingAction("Basic - Furled Canopy 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 15.73 * 2 + 31.46, energy: 0.95 * 2 + 1.9, concerto: 0.89 * 2 + 1.78, offtune: 1583 * 2 + 3165, forte1: 40 * 2 + 80 });
 const BA3 = suomingAction("Basic - Furled Canopy 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 22.01 * 3 + 44.02, energy: 1.33 * 3 + 2.66, concerto: 1.25 * 3 + 2.5, offtune: 2214 * 3 + 4428, forte1: 36 * 3 + 72 });
-const MA = suomingAction("Mid-air - Furled Canopy", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 84.2, energy: 5.09, concerto: 4.77, offtune: 8470 });
+const MA = suomingAction("Mid-air - Furled Canopy", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 84.2, energy: 5.09, concerto: 4.77, offtune: 8470 });
 const DC = suomingAction("Dodge Counter - Furled Canopy", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 27.66 * 2 + 55.32, energy: 1.67 * 2 + 3.34, concerto: 1.57 * 2 + 3.13 + 10, offtune: 2783 * 2 + 5565, forte1: 160 });
 
 // --- Unfurled Canopy, the Deep Mind chain, and Whirling Thunder held out of its stage 2
@@ -186,7 +187,7 @@ const RAIN_SOAKED_COVENANT = new Buff({
 const RAIN_SOAKED_INHERENT = new Inherent({
   name: "Inherent: Rain-Soaked Covenant",
   updateBuffs: () => { if (INTROS.includes(currentAction())) applyCurrent(RAIN_SOAKED_COVENANT, 1); },
-  applyStats: () => { if (currentAction() === IntroSealedDelusion || currentAction() === IntroWhirlingThunder) addStat(Stat.AddConcerto, 10); },
+  applyStats: () => { if (runningAction(IntroSealedDelusion) || runningAction(IntroWhirlingThunder)) addStat(Stat.AddConcerto, 10); },
 });
 
 /** Seal Master: +40% DMG Multiplier on the Unfurled Canopy chain and Whirling Thunder, +80% Crit.
@@ -196,8 +197,7 @@ const SEAL_MASTER = new Buff({
   name: "Suoming: Seal Master",
   updateBuffs: () => { lostOnSwap(); if (isHeld(UNISON) && casting(Cast.Liberation)) revokeCurrent(SEAL_MASTER); },
   applyStats: () => {
-    const a = currentAction();
-    if (a === UBA1 || a === UBA2 || a === UBA3 || a === UBA4 || a === UHA1 || a === UHA2) addStat(Stat.MulMv, 40);
+    if (runningAction(UBA1) || runningAction(UBA2) || runningAction(UBA3) || runningAction(UBA4) || runningAction(UHA1) || runningAction(UHA2)) addStat(Stat.MulMv, 40);
     addStat(Stat.CritDmg, 80);
   },
 });
@@ -271,8 +271,7 @@ const LONE_CANOPY = new Buff({
 const SM_S3 = new Sequence({
   name: "Suoming S3: Lone Canopy, Solitary Road",
   updateBuffs: () => {
-    const a = currentAction();
-    if ((a === IntroFlashRift || a === IntroThunderRending) && !isHeld(BOON_RESPONSE)) { applyTeam(UNISON_BOON, 1); applyCurrent(BOON_RESPONSE, 1); }
+    if ((runningAction(IntroFlashRift) || runningAction(IntroThunderRending)) && !isHeld(BOON_RESPONSE)) { applyTeam(UNISON_BOON, 1); applyCurrent(BOON_RESPONSE, 1); }
     if (casting(Cast.Liberation)) applyCurrent(LONE_CANOPY, 1);
   },
 });
@@ -284,7 +283,7 @@ const SM_S4 = new Sequence({
 
 const SM_S5 = new Sequence({
   name: "Suoming S5: Seal Deep, Never Forgotten",
-  applyStats: () => { if (currentAction() === Liberation) addStat(Stat.MulMv, 40); },
+  applyStats: () => { if (runningAction(Liberation)) addStat(Stat.MulMv, 40); },
 });
 
 /** S6: every Unison Boon stack pays the whole team's responders half again (unison.ts's own
@@ -294,7 +293,7 @@ const SM_S6 = new Sequence({
   name: "Suoming S6: Nine Shadows at Her Side",
   combatStart: () => applyTeam(NINE_SHADOWS, 1),
   applyStats: () => {
-    if (currentAction() === EngravedHeart) addStat(Stat.MulMv, 50);
+    if (runningAction(EngravedHeart)) addStat(Stat.MulMv, 50);
     if (isHeld(SEAL_MASTER)) addStat(Stat.CritDmg, 80);
   },
 });

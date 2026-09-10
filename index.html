@@ -12,11 +12,11 @@
 <meta property="og:description" content="WuWa team damage and build comparison for 123 rotations.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://riley31415.github.io/wuwa_calc/">
-<meta property="og:image" content="https://riley31415.github.io/wuwa_calc/web/preview.jpg">
+<meta property="og:image" content="https://riley31415.github.io/wuwa_calc/resources/preview.jpg">
 <meta name="twitter:card" content="summary">
 <meta name="theme-color" content="#f2074a">
-<link rel="icon" type="image/png" sizes="96x64" href="./web/favicon.png">
-<link rel="stylesheet" href="./web/index.css">
+<link rel="icon" type="image/png" sizes="96x64" href="./resources/favicon.png">
+<link rel="stylesheet" href="./resources/index.css">
 </head>
 <body>
 
@@ -76,7 +76,7 @@
   </p>
   <div class="progress-track"><div class="progress-fill"></div></div>
   <!-- the sticker the favicon is cut from, whole, at its own size -->
-  <img class="loading-gif" src="./web/loading.gif" alt="" width="110" height="79">
+  <img class="loading-gif" src="./resources/loading.gif" alt="" width="110" height="79">
   <!-- anything that goes wrong while the page loads lands here, in full, rather than only in a
        console nobody has open (the handlers below) -->
   <pre class="loading-error" hidden></pre>
@@ -101,6 +101,26 @@
     addEventListener("unhandledrejection", function (e) {
       var r = e.reason;
       show(r && r.stack ? r.stack : String(r));
+    });
+    // A press anywhere on an error box takes the whole thing — selected, and on the clipboard, so
+    // a stack goes straight into a bug report. Delegated from here, ahead of the module, for the
+    // same reason the handlers above are: the module is what may have failed. It reaches the
+    // detail page's own `.error` box the same way, whenever the module renders one later.
+    // A selection the reader dragged out for themselves is left as it is.
+    document.addEventListener("click", function (e) {
+      var box = e.target && e.target.closest && e.target.closest(".loading-error, .error");
+      if (!box) return;
+      var sel = getSelection();
+      if (sel && !sel.isCollapsed) return;
+      var range = document.createRange();
+      range.selectNodeContents(box);
+      if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+      // execCommand is the fallback off a secure context, where there is no clipboard API at all
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(box.innerText).catch(function () { document.execCommand("copy"); });
+      } else {
+        document.execCommand("copy");
+      }
     });
   })();
 </script>

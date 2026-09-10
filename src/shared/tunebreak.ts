@@ -11,6 +11,7 @@ import {
   applied,
   applyEnemy,
   currentAction,
+  runningAction,
   currentTeam,
   equip,
   frozenStacks,
@@ -54,7 +55,7 @@ export const TUNE_BREAK_COOLDOWN: Debuff = new Debuff({
   name: "Tune Break Cooldown", maxStacks: 4,
   display: () => "Tune Break Cooldown",
   updateBuffs: () => {
-    if (triggeredAction() || currentAction() === TUNE_BREAK || !isActive()) return;
+    if (triggeredAction() || runningAction(TUNE_BREAK) || !isActive()) return;
     if (stacksOfEnemy(TUNE_BREAK_COOLDOWN) >= 4) revokeEnemy(TUNE_BREAK_COOLDOWN);
     else applyEnemy(TUNE_BREAK_COOLDOWN, 1);
   },
@@ -85,7 +86,7 @@ export const TUNE_BREAK_ENEMY = new Resonator({
   // `-ENEMY_MAX_OFFTUNE` DirectOfftune lands it on empty exactly — before the drain banks, the
   // same `>=` that queues a break below.
   updateDebuffs: () => {
-    if (currentAction() !== TUNE_BREAK) return;
+    if (!runningAction(TUNE_BREAK)) return;
     const state = currentTeam();
     if (state.offtune >= ENEMY_MAX_OFFTUNE) state.offtune = ENEMY_MAX_OFFTUNE;
     applyEnemy(TUNE_BREAK_COOLDOWN, 1);
@@ -97,7 +98,7 @@ export const TUNE_BREAK_ENEMY = new Resonator({
   // inactive action both top the bar up without breaking it, and a break never sets off another.
   // The bar stays full either way, so the next action that *is* one fires it.
   afterAction: () => {
-    if (triggeredAction() || currentAction() === TUNE_BREAK || !isActive()) return;
+    if (triggeredAction() || runningAction(TUNE_BREAK) || !isActive()) return;
     // ...and not part-way through an ActionGroup, which the rotation presses as one beat: the bar
     // can fill on any cast in it, but the break lands on the one that ends the group (evaluate.ts)
     if (midActionGroup()) return;
@@ -146,7 +147,7 @@ export function interferedWindow(def: BuffDef): Debuff {
     maxStacks: 11,
     display: () => def.name ?? "",
     updateBuffs: () => {
-      if (triggeredAction() || currentAction() === TUNE_BREAK || !isActive()) return;
+      if (triggeredAction() || runningAction(TUNE_BREAK) || !isActive()) return;
       if (stacksOfEnemy(self) > 10) revokeEnemy(self);
       else applyEnemy(self, 1);
     },
@@ -181,7 +182,7 @@ function shifting(name: string, interfered: Debuff): Debuff {
   const self: Debuff = new Debuff({
     name,
     updateDebuffs: () => {
-      if (currentAction() !== TUNE_BREAK) return;
+      if (!runningAction(TUNE_BREAK)) return;
       revokeEnemy(self);
       applyEnemy(interfered, 1);
     },
@@ -209,8 +210,8 @@ export const applyHack = (): void => applyShifting(TUNE_HACK_SHIFTING);
  *  Interfered, while the window above re-adds the same debuff on every action it counts off, so
  *  this answers the break once and never the ticks after it. */
 export const tuneRuptureResponse = (action: Action): void => {
-  if (currentAction() === TUNE_BREAK && applied(TUNE_RUPTURE_INTERFERED)) queue(action);
+  if (runningAction(TUNE_BREAK) && applied(TUNE_RUPTURE_INTERFERED)) queue(action);
 };
 export const tuneHackResponse = (action: Action): void => {
-  if (currentAction() === TUNE_BREAK && applied(TUNE_HACK_INTERFERED)) queue(action);
+  if (runningAction(TUNE_BREAK) && applied(TUNE_HACK_INTERFERED)) queue(action);
 };

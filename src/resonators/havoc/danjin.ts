@@ -35,7 +35,7 @@ import {
   isHeld,
   stacksOfEnemy,
   casting,
-  currentAction,
+  runningAction,
   addStat,
   frozenStacks,
   queueOutro,
@@ -67,7 +67,7 @@ const BA1 = danjinAction("Basic - Execution 1", { node: Node.Normal, cast: Cast.
 const BA2 = danjinAction("Basic - Execution 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 58.85, energy: 0.92, concerto: 1.11, offtune: 2960 });
 const BA3 = danjinAction("Basic - Execution 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.53, energy: 1.25, concerto: 1.5, offtune: 3120 });
 
-const MA = danjinAction("Mid-air - Execution", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 98.61, energy: 0.51, concerto: 1, offtune: 9600 });
+const MA = danjinAction("Mid-air - Execution", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 0.51, concerto: 1, offtune: 9600 });
 const HA = danjinAction("Heavy - Execution", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 111.36, energy: 1.74, concerto: 2.1, offtune: 5358 }); // 37.12% x3
 /** A successful Dodge Counter opens the Skill's own Crimson Erosion form, and grants Crimson Light. */
 const DC = danjinAction("Dodge Counter - Ruby Shades", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 190.86, energy: 3, concerto: 11.8, offtune: 4800 }); // 63.62% x3
@@ -129,7 +129,7 @@ const OVERFLOW = new Buff({
 });
 const DJ_INHERENT_OVERFLOW = new Inherent({
   name: "Inherent: Overflow",
-  updateBuffs: () => { if (currentAction() === SanguinePulse3) applyCurrent(OVERFLOW, 1); },
+  updateBuffs: () => { if (runningAction(SanguinePulse3)) applyCurrent(OVERFLOW, 1); },
 });
 
 /** Crimson Light (Inherent Skill): granted the instant Dodge Counter lands. Survives into
@@ -139,13 +139,13 @@ const DJ_INHERENT_OVERFLOW = new Inherent({
 const CRIMSON_LIGHT = new Buff({
   name: "Inherent: Crimson Light",
   applyStats: () => {
-    if (currentAction() === CrimsonErosion1) { addStat(Stat.DmgBonus, 20); addStat(Stat.AddForte1, CrimsonErosion1.forte1); }
+    if (runningAction(CrimsonErosion1)) { addStat(Stat.DmgBonus, 20); addStat(Stat.AddForte1, CrimsonErosion1.forte1); }
   },
-  updateBuffs: () => { if (currentAction() !== CrimsonErosion1) revokeCurrent(CRIMSON_LIGHT); },
+  updateBuffs: () => { if (!runningAction(CrimsonErosion1)) revokeCurrent(CRIMSON_LIGHT); },
 });
 const DJ_INHERENT_CRIMSON_LIGHT = new Inherent({
   name: "Inherent: Crimson Light",
-  updateBuffs: () => { if (currentAction() === DC) applyCurrent(CRIMSON_LIGHT, 1); },
+  updateBuffs: () => { if (runningAction(DC)) applyCurrent(CRIMSON_LIGHT, 1); },
 });
 
 /** The window her outro hands the incoming resonator — "or until they are switched out" is
@@ -219,9 +219,8 @@ const DJ_S4_ACTIVE = new Buff({
 const DJ_S4 = new Sequence({
   name: "Danjin S4: Solitary Carnation",
   updateBuffs: () => {
-    const a = currentAction();
     if (forte1() > 60) applyCurrent(DJ_S4_ACTIVE, 1);
-    else if (a !== Chaoscleave && a !== FullChaoscleave && a !== Scatterbloom && a !== FullScatterbloom) revokeCurrent(DJ_S4_ACTIVE);
+    else if (!runningAction(Chaoscleave) && !runningAction(FullChaoscleave) && !runningAction(Scatterbloom) && !runningAction(FullScatterbloom)) revokeCurrent(DJ_S4_ACTIVE);
   },
 });
 
@@ -240,7 +239,7 @@ const DJ_S6_TEAM = new Buff({
 });
 const DJ_S6 = new Sequence({
   name: "Danjin S6: Bloodied Jade",
-  updateBuffs: () => { if (currentAction() === Chaoscleave || currentAction() === FullChaoscleave) applyTeam(DJ_S6_TEAM, 1); },
+  updateBuffs: () => { if (runningAction(Chaoscleave) || runningAction(FullChaoscleave)) applyTeam(DJ_S6_TEAM, 1); },
 });
 
 // a kit-valid line: Intro is a listed Crimson Erosion trigger, so the Skill press right after

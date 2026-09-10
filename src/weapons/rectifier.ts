@@ -2,7 +2,7 @@
  *  lives here too since it isn't part of any named tier. Each export is the weapon's five
  *  refinements, R1 first (gear.ts's own `refinements()`); a number that grows with rank is
  *  written as its five values. */
-import { WeaponType, Stat, Attribute, Type1, Type2, Cast } from "../engine/stats.js";
+import { WeaponType, Stat, Attribute, Type1, Type2, Cast, LifeTime, BuffTarget } from "../engine/stats.js";
 import { Buff, Weapon, refinements } from "../engine/gear.js";
 import {
   addStat, frozenStacks, stacksOf, isHeld, applyCurrent, applyTeam, revokeCurrent, removeStack, casting,
@@ -42,7 +42,7 @@ export const RIME_DRAPED_SPROUTS = refinements((r, rank) => {
  *  inactive action. Skill DMG stacks ATK twice over (12% a stack). Encore's own weapon. */
 export const STRINGMASTER = refinements((r, rank) => {
   const STRINGMASTER_STACKS = new Buff({
-    name: `Stringmaster: Electric Amplification${rank}`, maxStacks: 2, until: "outro",
+    name: `Stringmaster: Electric Amplification${rank}`, maxStacks: 2, until: LifeTime.Outro,
     applyStats: () => {
       if (!isActive()) addStat(Stat.BonusAtk, [12, 15, 18, 21, 24][r]!);
       addStat(Stat.BonusAtk, [12, 15, 18, 21, 24][r]! * frozenStacks());
@@ -60,7 +60,7 @@ export const STRINGMASTER = refinements((r, rank) => {
  *  Attack DMG Bonus, stack 2 also ignores 12% Havoc RES. Lost entirely if switched off field. */
 export const WHISPERS_OF_SIRENS = refinements((r, rank) => {
   const GENTLE_DREAM: Buff = new Buff({
-    name: `Whispers of Sirens: Gentle Dream${rank}`, maxStacks: 3, until: "swap",
+    name: `Whispers of Sirens: Gentle Dream${rank}`, maxStacks: 3, until: LifeTime.Swap,
     grants: [{ on: onCast(Cast.Echo) }],
     applyStats: () => {
       const held = frozenStacks();
@@ -72,7 +72,7 @@ export const WHISPERS_OF_SIRENS = refinements((r, rank) => {
   return new Weapon({
     weaponType: WeaponType.Rectifier, name: `Whispers of Sirens${rank}`,
     stats: [[Stat.BaseAtk, 500], [Stat.CritDmg, 72], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
-    grants: [{ on: () => (casting(Cast.Intro) || casting(Cast.Basic) || casting(Cast.MidAir)) && !stacksOf(GENTLE_DREAM), buff: GENTLE_DREAM }],
+    grants: [{ on: () => (casting(Cast.Intro) || casting(Cast.Basic)) && !stacksOf(GENTLE_DREAM), buff: GENTLE_DREAM }],
   });
 });
 
@@ -101,7 +101,7 @@ export const LETHEAN_ELEGY = refinements((r, rank) => {
 export const FREEZE_FRAME = refinements((r, rank) => {
   const FREEZE_FRAME_SELF = new Buff({
     name: `Freeze Frame: Light's Offering${rank}`,
-    stats: [[Stat.DmgBonus, [30, 37.5, 45, 52.5, 60][r]!, Attribute.Glacio]], until: "outro",
+    stats: [[Stat.DmgBonus, [30, 37.5, 45, 52.5, 60][r]!, Attribute.Glacio]], until: LifeTime.Outro,
   });
   const FREEZE_FRAME_TEAM = new Buff({
     name: `Freeze Frame: Light's Offering${rank}`,
@@ -112,7 +112,7 @@ export const FREEZE_FRAME = refinements((r, rank) => {
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [
       { on: onInflict(GLACIO_CHAFE), buff: FREEZE_FRAME_SELF },
-      { on: onInflict(GLACIO_CHAFE), buff: FREEZE_FRAME_TEAM, to: "team" },
+      { on: onInflict(GLACIO_CHAFE), buff: FREEZE_FRAME_TEAM, to: BuffTarget.Team },
     ],
   });
 });
@@ -139,7 +139,7 @@ export const SK_SIG = refinements((r, rank) => {
     stats: [[Stat.BaseAtk, 412.5], [Stat.Er, 77.04], [Stat.BonusHp, [12, 15, 18, 21, 24][r]!]],
     grants: [
       { on: onCast(Cast.Liberation), buff: SK_SIG_CONCERTO },
-      { on: both(onCast(Cast.Skill), onApplied(HEALS)), buff: SK_SIG_TEAM, to: "team" },
+      { on: both(onCast(Cast.Skill), onApplied(HEALS)), buff: SK_SIG_TEAM, to: BuffTarget.Team },
     ],
   });
 });
@@ -198,7 +198,7 @@ export const FIRSTLIGHTS_HERALD = refinements((r, rank) => {
       { on: onCast(Cast.Liberation), buff: SPRING_WREATH_CONCERTO },
       { on: onInflict(GLACIO_CHAFE), buff: SNOW_TAINT },
       { on: onApplied(HEALS), buff: RIPPLES },
-      { on: () => isHeld(SNOW_TAINT) && isHeld(RIPPLES), buff: SPRING_WREATH_TEAM, to: "team" },
+      { on: () => isHeld(SNOW_TAINT) && isHeld(RIPPLES), buff: SPRING_WREATH_TEAM, to: BuffTarget.Team },
     ],
   });
 });

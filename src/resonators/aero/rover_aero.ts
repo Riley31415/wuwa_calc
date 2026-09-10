@@ -24,6 +24,7 @@ import {
   revokeCurrent,
   casting,
   currentAction,
+  runningAction,
   addStat,
   setForte1,
   forte1,
@@ -51,7 +52,7 @@ const BA3 = roverAction("Basic - Wind Cutter 3", { node: Node.Normal, cast: Cast
 const BA4 = roverAction("Basic - Wind Cutter 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 76.72, energy: 1.64, concerto: 5.24, offtune: 5232, forte1: 10 });
 const HA = roverAction("Heavy - Wind Cutter", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 53.73, energy: 1.17, concerto: 3.69, offtune: 3666 });
 const RazorWind = roverAction("Heavy - Razor Wind", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 80.83, energy: 1.73, concerto: 5.53, offtune: 5513 });
-const MA = roverAction("Mid-air - Wind Cutter", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 140.76, energy: 0.52, concerto: 9.6, offtune: 9600 });
+const MA = roverAction("Mid-air - Wind Cutter", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 140.76, energy: 0.52, concerto: 9.6, offtune: 9600 });
 const DC = roverAction("Dodge Counter - Wind Cutter", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 175.18, energy: 3.74, concerto: 21.95, offtune: 11944, forte1: 10 });
 
 // --- resonance skill: Awakening Gale on the ground, Skyfall Severance from mid-air, which trades
@@ -99,7 +100,7 @@ const SAND_IN_THE_STORM = new Buff({
 });
 const AR_INHERENT_1 = new Inherent({
   name: "Inherent: Sand in the Storm",
-  updateBuffs: () => { if (currentAction() === Intro) applyCurrent(SAND_IN_THE_STORM, 1); },
+  updateBuffs: () => { if (runningAction(Intro)) applyCurrent(SAND_IN_THE_STORM, 1); },
 });
 /** Boundless Winds (Inherent Skill): +20% healing off Omega Storm — healing is out of scope, so
  *  this piece is held for the name. */
@@ -142,21 +143,19 @@ const AR_S3 = new Sequence({
 const AR_S4 = new Sequence({
   name: "Aero Rover S4: Boundaries Shatter in an Instant",
   updateBuffs: () => {
-    const a = currentAction();
-    if (a === Cloudburst1 || a === Cloudburst2) applyCurrent(S4_SKILL_BONUS, 1);
+    if (runningAction(Cloudburst1) || runningAction(Cloudburst2)) applyCurrent(S4_SKILL_BONUS, 1);
   },
 });
 
 const AR_S5 = new Sequence({
   name: "Aero Rover S5: Life and Death Intertwine",
-  applyStats: () => { if (currentAction() === Liberation) addStat(Stat.MulMv, 20); },
+  applyStats: () => { if (runningAction(Liberation)) addStat(Stat.MulMv, 20); },
 });
 
 const AR_S6 = new Sequence({
   name: "Aero Rover S6: All Crumble in the Wind",
   applyStats: () => {
-    const a = currentAction();
-    if (a === UnboundFlow1 || a === UnboundFlow2) addStat(Stat.MulMv, 30);
+    if (runningAction(UnboundFlow1) || runningAction(UnboundFlow2)) addStat(Stat.MulMv, 30);
   },
 });
 
@@ -183,19 +182,17 @@ export const ROVER_AERO_RESONATOR = new Resonator({
   tier: Tier.Free,
 
   updateDebuffs: () => {
-    const a = currentAction();
     // her own healing marker, read by every healing sonata and weapon (statuses.ts) —
     // applied to the healer alone, never the team
-    if (a === Cloudburst1 || a === Cloudburst2 || a === UnboundFlow1 || a === UnboundFlow2 || a === Liberation) applyCurrent(HEALS, 1);
+    if (runningAction(Cloudburst1) || runningAction(Cloudburst2) || runningAction(UnboundFlow1) || runningAction(UnboundFlow2) || runningAction(Liberation)) applyCurrent(HEALS, 1);
   },
 
   // Bloodpact's Pledge names Unbound Flow outright, so that clause's team Aero Amplification is
   // triggered from here rather than from the weapon — see the weapon's own comment for why
   updateBuffs: () => {
-    const a = currentAction();
     // the held rank's own amp — the five refinements and their amp buffs line up by index
     const rank = BLOODPACTS_PLEDGE.findIndex((w) => isHeld(w));
-    if ((a === UnboundFlow1 || a === UnboundFlow2) && rank >= 0) applyTeam(BLOODPACT_AERO_AMP[rank]!, 1);
+    if ((runningAction(UnboundFlow1) || runningAction(UnboundFlow2)) && rank >= 0) applyTeam(BLOODPACT_AERO_AMP[rank]!, 1);
   },
 
   constantStats: () => {

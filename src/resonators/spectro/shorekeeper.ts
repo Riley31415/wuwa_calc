@@ -18,7 +18,7 @@ import {
   addBuff,
   revokeBuff,
   stacksOfTeam,
-  currentAction,
+  runningAction,
   currentTeam,
   casting,
   isHeld,
@@ -49,7 +49,7 @@ const BA1 = skAction("Basic - Origin Calculus 1", { node: Node.Normal, cast: Cas
 const BA2 = skAction("Basic - Origin Calculus 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 47.72, energy: 0.76, concerto: 2.4, offtune: 4000, forte1: 1 });
 const BA3 = skAction("Basic - Origin Calculus 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 69.96, energy: 1.11, concerto: 3.54, offtune: 5865, forte1: 2 });
 
-const MA = skAction("Mid-air - Origin Calculus", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 73.96, energy: 1.55, concerto: 5, offtune: 4960, forte1: 1 });
+const MA = skAction("Mid-air - Origin Calculus", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.96, energy: 1.55, concerto: 5, offtune: 4960, forte1: 1 });
 
 const Skill = skAction("Skill - Chaos Theory", { node: Node.Skill, cast: Cast.Skill, cutscene: true, type: Type1.Skill, mv: 156.55, energy: 10, concerto: 30, offtune: 5250 });
 
@@ -171,7 +171,7 @@ const SK_S2 = new Sequence({
 const SK_S3 = new Sequence({
   name: "Shorekeeper S3: Infinity Awaits Me",
   applyStats: () => {
-    if (currentAction() === Liberation) addStat(Stat.AddConcerto, 20);
+    if (runningAction(Liberation)) addStat(Stat.AddConcerto, 20);
   },
 });
 
@@ -180,7 +180,7 @@ const SK_S3 = new Sequence({
  *  Inherent Skill an older comment on Chaos Theory called it. */
 const SK_S4 = new Sequence({
   name: "Shorekeeper S4: Overflowing Quietude",
-  applyStats: () => { if (currentAction() === Skill) addStat(Stat.HealingBonus, 70); },
+  applyStats: () => { if (runningAction(Skill)) addStat(Stat.HealingBonus, 70); },
 });
 
 /** S5: two pull ranges. Nothing here has a range, so this is held for its name alone. */
@@ -188,7 +188,7 @@ const SK_S5 = new Sequence({ name: "Shorekeeper S5: Echoes in Silence" });
 
 const SK_S6 = new Sequence({
   name: "Shorekeeper S6: To the New World",
-  applyStats: () => { if (currentAction() === EIntro) { addStat(Stat.MulMv, 42); addStat(Stat.CritDmg, 500); } },
+  applyStats: () => { if (runningAction(EIntro)) { addStat(Stat.MulMv, 42); addStat(Stat.CritDmg, 500); } },
 });
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
@@ -215,10 +215,9 @@ const SHOREKEEPER_RESONATOR = new Resonator({
   outro: () => Outro,
 
   updateDebuffs: () => {
-    const a = currentAction();
     // her own healing marker, read by every healing sonata and weapon (statuses.ts) —
     // applied to the healer alone, never the team
-    if (a === Skill || a === Liberation || a === Intro || a === EIntro) applyCurrent(HEALS, 1);
+    if (runningAction(Skill) || runningAction(Liberation) || runningAction(Intro) || runningAction(EIntro)) applyCurrent(HEALS, 1);
   },
 
   constantStats: () => {
@@ -279,5 +278,5 @@ export const SHOREKEEPER = new Loadout({
   mainstats: [mainstats(Mainstat.HP4, Mainstat.ER3, Mainstat.ER3, Mainstat.HP1, Mainstat.HP1)],
   substat: substats(Substat.HpPct, Substat.Liberation, Substat.FlatHp, true),
   highSubstat: highSubs(Substat.Er, Substat.Liberation, Substat.HpPct, Substat.Liberation),
-    rotation: [SK_LOOP, SK_LOOP, SK_LOOP, SK_LOOP_S3],
+    rotation: { 0: SK_LOOP, 3: SK_LOOP_S3 },
 });

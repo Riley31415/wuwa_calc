@@ -1,6 +1,6 @@
 /** Signature Pistols weapons. Each export is the weapon's five refinements, R1 first (gear.ts's
  *  own `refinements()`); a number that grows with rank is written as its five values. */
-import { WeaponType, Stat, EnemyStat, Attribute, Type1, Cast } from "../engine/stats.js";
+import { WeaponType, Stat, EnemyStat, Attribute, Type1, Cast, LifeTime, BuffTarget } from "../engine/stats.js";
 import { Buff, Debuff, Weapon, refinements } from "../engine/gear.js";
 import { addStat, isHeld, onCast, onType, onInflict, either, both } from "../engine/context.js";
 import { AERO_EROSION } from "../shared/status.js";
@@ -11,7 +11,7 @@ import { TUNE_HACK_SHIFTING, TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from 
 export const THE_LAST_DANCE = refinements((r, rank) => {
   const SILENT_EULOGY = new Buff({
     name: `The Last Dance: Silent Eulogy${rank}`,
-    stats: [[Stat.DmgBonus, [48, 60, 72, 84, 96][r]!, Type1.Skill]], until: "outro",
+    stats: [[Stat.DmgBonus, [48, 60, 72, 84, 96][r]!, Type1.Skill]], until: LifeTime.Outro,
   });
   return new Weapon({
     weaponType: WeaponType.Pistols, name: `The Last Dance${rank}`,
@@ -26,11 +26,11 @@ export const THE_LAST_DANCE = refinements((r, rank) => {
 export const LUX_UMBRA = refinements((r, rank) => {
   const TO_FIRE_SHE_RETURNS_HEAVY = new Buff({
     name: `Lux & Umbra: To Fire She Returns (heavy)${rank}`,
-    stats: [[Stat.Amp, [24, 30, 36, 42, 48][r]!, Type1.Heavy]], until: "outro",
+    stats: [[Stat.Amp, [24, 30, 36, 42, 48][r]!, Type1.Heavy]], until: LifeTime.Outro,
   });
   const TO_FIRE_SHE_RETURNS_ECHO = new Buff({
     name: `Lux & Umbra: To Fire She Returns (echo)${rank}`,
-    stats: [[Stat.Amp, [24, 30, 36, 42, 48][r]!, Type1.Echo]], until: "outro",
+    stats: [[Stat.Amp, [24, 30, 36, 42, 48][r]!, Type1.Echo]], until: LifeTime.Outro,
   });
   return new Weapon({
     weaponType: WeaponType.Pistols, name: `Lux & Umbra${rank}`,
@@ -63,7 +63,7 @@ export const WOODLAND_ARIA = refinements((r, rank) => {
     stats: [[Stat.BaseAtk, 500], [Stat.CritRate, 36], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [
       { on: onInflict(AERO_EROSION), buff: LINGERING_SUMMER_TUNE },
-      { on: onInflict(AERO_EROSION), buff: LINGERING_SUMMER_SHRED, to: "enemy" },
+      { on: onInflict(AERO_EROSION), buff: LINGERING_SUMMER_SHRED, to: BuffTarget.Enemy },
     ],
   });
 });
@@ -76,7 +76,7 @@ export const WOODLAND_ARIA = refinements((r, rank) => {
 export const SPECTRUM_BLASTER = refinements((r, rank) => {
   const ATTENDANCE_EXEMPTION = new Buff({
     name: `Spectrum Blaster: Attendance Exemption Protocol${rank}`,
-    stats: [[Stat.DmgBonus, [36, 45, 54, 63, 72][r]!, Type1.Basic]], until: "outro",
+    stats: [[Stat.DmgBonus, [36, 45, 54, 63, 72][r]!, Type1.Basic]], until: LifeTime.Outro,
   });
   const SPECTRUM_CHORUS = new Buff({
     name: `Spectrum Blaster: Attendance Exemption Protocol${rank}`, maxStacks: 3,
@@ -87,7 +87,7 @@ export const SPECTRUM_BLASTER = refinements((r, rank) => {
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [
       { on: either(onCast(Cast.Intro), onType(Type1.Basic)), buff: ATTENDANCE_EXEMPTION },
-      { on: both(onCast(Cast.Basic, Cast.MidAir), onInflict(TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING)), buff: SPECTRUM_CHORUS, to: "team" },
+      { on: both(onCast(Cast.Basic), onInflict(TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING)), buff: SPECTRUM_CHORUS, to: BuffTarget.Team },
     ],
   });
 });
@@ -99,11 +99,11 @@ export const SPECTRUM_BLASTER = refinements((r, rank) => {
 export const SKULL_THRASHER = refinements((r, rank) => {
   const WAKEFUL_LONER_INTRO = new Buff({
     name: `Skull Thrasher: Wakeful Loner (intro)${rank}`,
-    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type1.Basic]], until: "outro",
+    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type1.Basic]], until: LifeTime.Outro,
   });
   const WAKEFUL_LONER_HACK = new Buff({
     name: `Skull Thrasher: Wakeful Loner (hack)${rank}`,
-    stats: [[Stat.DmgBonus, [12, 15, 18, 21, 24][r]!, Type1.Basic]], until: "outro",
+    stats: [[Stat.DmgBonus, [12, 15, 18, 21, 24][r]!, Type1.Basic]], until: LifeTime.Outro,
   });
   const WAKEFUL_LONER_TEAM = new Buff({
     name: `Skull Thrasher: Wakeful Loner${rank}`,
@@ -115,7 +115,7 @@ export const SKULL_THRASHER = refinements((r, rank) => {
     grants: [
       { on: onCast(Cast.Intro), buff: WAKEFUL_LONER_INTRO },
       { on: onInflict(TUNE_HACK_SHIFTING), buff: WAKEFUL_LONER_HACK },
-      { on: onInflict(TUNE_HACK_SHIFTING), buff: WAKEFUL_LONER_TEAM, to: "team" },
+      { on: onInflict(TUNE_HACK_SHIFTING), buff: WAKEFUL_LONER_TEAM, to: BuffTarget.Team },
     ],
   });
 });
@@ -127,10 +127,10 @@ export const SKULL_THRASHER = refinements((r, rank) => {
 export const SPECTRAL_TRIGGER = refinements((r, rank) => {
   const SUNKEN_DREAM_STACKS = new Buff({
     name: `Spectral Trigger: Sunken Dream (spectro)${rank}`, maxStacks: 2,
-    stats: [[Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Attribute.Spectro]], perStack: true, until: "outro",
+    stats: [[Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Attribute.Spectro]], perStack: true, until: LifeTime.Outro,
   });
   const SUNKEN_DREAM_HACK = new Buff({
-    name: `Spectral Trigger: Sunken Dream (heavy)${rank}`, until: "outro",
+    name: `Spectral Trigger: Sunken Dream (heavy)${rank}`, until: LifeTime.Outro,
     stats: [[Stat.Amp, [30, 37.5, 45, 52.5, 60][r]!, Type1.Heavy], [Stat.DefIgnoreNew, [10, 12.5, 15, 17.5, 20][r]!, Type1.Heavy]],
   });
   return new Weapon({

@@ -18,7 +18,7 @@ import { createHash } from "node:crypto";
 import { cpus } from "node:os";
 import { fileURLToPath } from "node:url";
 import { ALL_TEAMS, teamKey } from "./teams.js";
-import { teamFromKey, solveTeam, defaultFilters, bestKey, picksKey, filterSignature } from "./solver.js";
+import { teamFromKey, solveTeam, defaultFilters, bestKey, picksKey, filterSignature, hasBuild } from "./solver.js";
 import type { Filters, Pick, Solved } from "./solver.js";
 
 /** The states the site ships; anything else solves in the browser. */
@@ -62,6 +62,8 @@ if (!isMainThread) {
     const files = new Set<string>();
     for (const key of keys) {
       const members = membersOf.get(key)!;
+      // a team with a member that has no build at this state has no rows to ship (index.ts skips it too)
+      if (!members.every((m) => hasBuild(m, f))) continue;
       for (const k of [bestKey(key, members, f), picksKey(key, members, f)]) {
         const at = owner.get(k);
         if (at !== undefined) { files.add(at); continue; }

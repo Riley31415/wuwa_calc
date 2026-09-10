@@ -57,6 +57,7 @@ import {
   casting,
   consume,
   currentAction,
+  runningAction,
   currentTeam,
   frozenStacks,
   isHeld,
@@ -109,9 +110,9 @@ const BA2 = hsinAction("Basic - Answering Form 2", { node: Node.Normal, cast: Ca
 const BA3 = hsinAction("Basic - Answering Form 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 157.54, energy: 4.11, concerto: 2.40, offtune: 4800, forte1: 8.51 });
 const BA4 = hsinAction("Basic - Answering Form 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 198.59, energy: 5.15, concerto: 7.85, offtune: 15673, forte1: 27.70 });
 const HA = hsinAction("Heavy - Answering Form", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 102.76, energy: 2.70, concerto: 3.00, offtune: 5906, forte1: 10.46 });
-const MA = hsinAction("Mid-air - Answering Form", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 22.44, energy: 0.59, concerto: 0.65, offtune: 2080, forte1: 2.28 });
+const MA = hsinAction("Mid-air - Answering Form", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 22.44, energy: 0.59, concerto: 0.65, offtune: 2080, forte1: 2.28 });
 const ReignHold = hsinAction("Heavy - Answering Form: Reign at Ease (Mid-Air)", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 696.00, energy: 18.00, concerto: 20.00, offtune: 40000, forte1: 76.50 });
-const ReignPlunge = hsinAction("Mid-air - Answering Form: Reign at Ease", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 22.44, energy: 0.59, concerto: 0.65, offtune: 2080, forte1: 2.28 });
+const ReignPlunge = hsinAction("Mid-air - Answering Form: Reign at Ease", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 22.44, energy: 0.59, concerto: 0.65, offtune: 2080, forte1: 2.28 });
 const DC = hsinAction("Dodge Counter - Answering Form", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 224.90, energy: 5.84, concerto: 16.48, offtune: 12930, forte1: 22.86 });
 const Skill = hsinAction("Skill - Answering Form", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 167.06, energy: 4.35, concerto: 2.40, offtune: 9600, forte1: 8.52 });
 
@@ -134,7 +135,7 @@ const IBA3 = hsinAction("Basic - Illumining Form 3", { node: Node.Normal, cast: 
 const Heartlock = hsinAction("Basic - Illumining Form: Modular Heartlock", { node: Node.Normal, type: Type1.Basic, mv: 41.84, energy: 1.10, concerto: 1.22, offtune: 2406, forte2: 19.04 });
 const IHA = hsinAction("Heavy - Illumining Form", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 107.86, energy: 2.80, concerto: 3.10, offtune: 6200, forte2: 31.66, ...COLLAPSE });
 const UpwardCut = hsinAction("Basic - Illumining Form: Upward Cut", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 87.57, energy: 2.27, concerto: 2.53, offtune: 5035, forte2: 39.84 });
-const IMA = hsinAction("Mid-air - Illumining Form", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 22.45, energy: 0.59, concerto: 0.65, offtune: 2080, forte2: 10.22 });
+const IMA = hsinAction("Mid-air - Illumining Form", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 22.45, energy: 0.59, concerto: 0.65, offtune: 2080, forte2: 10.22 });
 const IDC = hsinAction("Dodge Counter - Illumining Form", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 191.36, energy: 4.96, concerto: 15.50, offtune: 11000, forte2: 73.98, ...COLLAPSE });
 
 /** One Heart of Thunder instance, a single stack apiece — 40% of the target's rung, 52% at S1 —
@@ -358,8 +359,8 @@ const MECHANISM_DOMINION = new Buff({
 const HEARTLOCK = new Buff({ name: "Hsin: Modular Heartlock" });
 const HEARTLOCK_PRIMED = new Buff({
   name: "Hsin: Modular Heartlock (Primed)",
-  applyStats: () => { if (currentAction() === Heartlock) addStat(Stat.AddForte2, 150); },
-  convertStats: () => { if (currentAction() === Heartlock) revokeCurrent(HEARTLOCK_PRIMED); },
+  applyStats: () => { if (runningAction(Heartlock)) addStat(Stat.AddForte2, 150); },
+  convertStats: () => { if (runningAction(Heartlock)) revokeCurrent(HEARTLOCK_PRIMED); },
 });
 
 /** Edict: 21 Soaring Pillars, one a second, banked by Formshift. */
@@ -412,8 +413,7 @@ const THUNDEROUS_BOND = new Buff({
 const HS_INHERENT_1 = new Inherent({
   name: "Inherent: Tides of Succession",
   updateBuffs: () => {
-    const a = currentAction();
-    if (isHeld(MODE_UNISON) && (a === ManifoldAnswering || a === ManifoldIllumining)) applyCurrent(TIDES_UNISON, 1);
+    if (isHeld(MODE_UNISON) && (runningAction(ManifoldAnswering) || runningAction(ManifoldIllumining))) applyCurrent(TIDES_UNISON, 1);
   },
   updateGlobal: () => {
     if (!isHeld(MODE_FLARE)) return;
@@ -474,8 +474,7 @@ const HS_S1 = new Sequence({
     applyTeam(HEART_OF_THUNDER, 50);
   },
   applyStats: () => {
-    const a = currentAction();
-    if (a === ManifoldAnswering || a === ManifoldIllumining) addStat(Stat.MulMv, 15 + 10 * Math.min(4, stacksOfTeam(UNISON_BOON)));
+    if (runningAction(ManifoldAnswering) || runningAction(ManifoldIllumining)) addStat(Stat.MulMv, 15 + 10 * Math.min(4, stacksOfTeam(UNISON_BOON)));
   },
 });
 
@@ -489,8 +488,7 @@ const HS_S2 = new Sequence({
     addForte1(100);
   },
   applyStats: () => {
-    const a = currentAction();
-    if (a === RealmWanderer || a === RealmProtector || a === Beholding || a === FHA) addStat(Stat.MulMv, 60);
+    if (runningAction(RealmWanderer) || runningAction(RealmProtector) || runningAction(Beholding) || runningAction(FHA)) addStat(Stat.MulMv, 60);
   },
 });
 
@@ -501,10 +499,10 @@ const PillarsFlare = flareHit("Liberation - Pillars Across Heaven: Electro Flare
 const HS_S3 = new Sequence({
   name: "Hsin S3: A Dream of Return Among the Hills",
   updateBuffs: () => {
-    if (currentAction() === Lib2 && isHeld(MODE_FLARE) && stacksOfEnemy(ELECTRO_FLARE) > 0) queue(PillarsFlare);
+    if (runningAction(Lib2) && isHeld(MODE_FLARE) && stacksOfEnemy(ELECTRO_FLARE) > 0) queue(PillarsFlare);
   },
   applyStats: () => {
-    if (currentAction() !== Lib2) return;
+    if (!runningAction(Lib2)) return;
     addStat(Stat.MulMv, 70);
     if (isHeld(MODE_UNISON)) addStat(Stat.CritDmg, 20 + 15 * Math.min(4, stacksOfTeam(UNISON_BOON)));
   },
@@ -543,7 +541,7 @@ const HS_S6 = new Sequence({
     if (appliedByMember(UNISON_RESPONSE, currentTeam().slot)) { applyTeam(UNISON_BOON, 1); applyCurrent(HS_BOON_S6, 1); }
   },
   applyStats: () => {
-    addStat(Stat.TotalDmg, 40, Type1.Skill);
+    addStat(Stat.DamageTaken, 40, Type1.Skill);
     addStat(Stat.DefIgnoreNew, 20, Type1.Skill);
     if (isHeld(MODE_FLARE)) { addStat(Stat.CritRate, 80, Type2.ElectroFlare); addStat(Stat.CritDmg, 230, Type2.ElectroFlare); }
   },

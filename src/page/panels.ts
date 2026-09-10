@@ -64,7 +64,8 @@ export const panelRow = (r: TraceEntry, slotHue: Map<string, string>, { noSource
   const own = r.owner !== undefined ? (slotHue.get(r.owner ?? "") ?? TUNE_BREAK_ENEMY.color) : null;
   const label = r.label ?? (r.stat !== undefined ? statLabel(r.stat) : "");
   const source = (r.count ?? 1) > 1 ? `${r.source} x${r.count}` : r.source;
-  const value = `<td class="v">${r.mult ? `&times;${fmt(r.value, r.digits ?? 4)}` : `${fmt(r.value, r.digits ?? 4)}${unit(r)}`}</td>`;
+  const value = `<td class="v">${r.text !== undefined ? esc(r.text)
+    : r.mult ? `&times;${fmt(r.value, r.digits ?? 4)}` : `${fmt(r.value, r.digits ?? 4)}${unit(r)}`}</td>`;
   if (r.summary) return `<tr class="sum"><td class="k">${esc(label)}</td>${value}</tr>`;
   return noSource
     ? `<tr><td class="k">${esc(label)}</td>${value}</tr>`

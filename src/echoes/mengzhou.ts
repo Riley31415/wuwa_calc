@@ -1,5 +1,5 @@
 /** Mainslot echoes and sonatas from Mengzhou (versions 3.5-3.8). */
-import { Stat, Attribute, Type1, Cast, Scaling } from "../engine/stats.js";
+import { Stat, Attribute, Type1, Cast, Scaling, LifeTime, BuffTarget } from "../engine/stats.js";
 import { Buff, Sonata, Sonata2pc, Mainslot, EchoType } from "../engine/gear.js";
 import {
   addStat, frozenStacks, queue, queueOutro, currentMember, applied, onApplied, onInflict, onCast, either,
@@ -29,8 +29,8 @@ export const MYRIAD_SNARE = new Mainslot({
  *  Bonus HP flat. Short window, so it still counts on the wearer's own outro (see jinzhou.ts's
  *  HERON_HANDOFF), then is lost. */
 export const LAMP_STACKS = new Buff({
-  name: "Lamp of Nether Road", maxStacks: 4,
-  stats: [[Stat.CritRate, 5]], perStack: true, until: "outro",
+  name: "Lamp of Nether Road 5pc", maxStacks: 4,
+  stats: [[Stat.CritRate, 5]], perStack: true, until: LifeTime.Outro,
   applyStats: () => { if (frozenStacks() >= 4) addStat(Stat.DmgBonus, 15, Attribute.Fusion); },
 });
 export const LAMP_2PC = new Sonata2pc({ name: "Lamp of Nether Road 2pc", stats: [[Stat.BonusHp, 10]] });
@@ -50,7 +50,7 @@ export const ACTION_CALAMITY_EFFIGY = new Action("Echo - Calamity Effigy", {
 });
 export const CALAMITY_EFFIGY_STRAIN = new Buff({
   name: "Calamity Effigy (strain)",
-  stats: [[Stat.DmgBonus, 10, Attribute.Aero]], until: "outro",
+  stats: [[Stat.DmgBonus, 10, Attribute.Aero]], until: LifeTime.Outro,
 });
 export const CALAMITY_EFFIGY = new Mainslot({
   name: "Calamity Effigy",
@@ -70,8 +70,8 @@ export const HEART_OF_EVILS_PURGE_5PC = new Sonata({
   grants: [{ on: onInflict(TUNE_STRAIN_SHIFTING), buff: () => HEART_OF_EVILS_PURGE_BUFF }],
 });
 export const HEART_OF_EVILS_PURGE_BUFF = new Buff({
-  name: "Heart of Evil's Purge",
-  stats: [[Stat.CritDmg, 20], [Stat.DmgBonus, 30, Attribute.Aero]], until: "outro",
+  name: "Heart of Evil's Purge 5pc",
+  stats: [[Stat.CritDmg, 20], [Stat.DmgBonus, 30, Attribute.Aero]], until: LifeTime.Outro,
 });
 
 /* ------------------------------------------------------------------ Yangyang: Xuanling */
@@ -114,15 +114,15 @@ export const FEATHERED_TRACE_5PC = new Sonata({
   sonata2pc: FEATHERED_TRACE_2PC,
   grants: [
     { on: onInflict(HAVOC_BANE), buff: () => XUANLINGS_FEATHER },
-    { on: onInflict(GLACIO_CHAFE), buff: () => CHONGMINGS_FEATHER, to: "team" },
+    { on: onInflict(GLACIO_CHAFE), buff: () => CHONGMINGS_FEATHER, to: BuffTarget.Team },
   ],
 });
 export const XUANLINGS_FEATHER = new Buff({
-  name: "Song of Feathered Trace: Xuanling's Feather",
-  stats: [[Stat.CritRate, 20], [Stat.DmgBonus, 35, Type1.Heavy]], until: "outro",
+  name: "Song of Feathered Trace 5pc: Xuanling's Feather",
+  stats: [[Stat.CritRate, 20], [Stat.DmgBonus, 35, Type1.Heavy]], until: LifeTime.Outro,
 });
 export const CHONGMINGS_FEATHER = new Buff({
-  name: "Song of Feathered Trace: Chongming's Feather",
+  name: "Song of Feathered Trace 5pc: Chongming's Feather",
   stats: [[Stat.BonusAtk, 25]],
 });
 
@@ -199,7 +199,7 @@ export const SWORN_VIGIL_5PC = new Sonata({
   grants: [{ on: either(onInflict(ELECTRO_FLARE), gainedUnison, unisonResponse), buff: () => SWORN_VIGIL_BUFF }],
 });
 export const SWORN_VIGIL_BUFF = new Buff({
-  name: "Heart of Sworn Vigil",
+  name: "Heart of Sworn Vigil 5pc",
   stats: [[Stat.CritRate, 15], [Stat.DmgBonus, 22.5, Attribute.Electro]],
 });
 
@@ -214,11 +214,11 @@ export const ELECTRIC_REFLECTION_5PC = new Sonata({
   grants: [{ on: onInflict(ELECTRO_FLARE), buff: () => ELECTRIC_REFLECTION_BUFF }],
 });
 export const ELECTRIC_REFLECTION_BUFF = new Buff({
-  name: "Flash of Electric Reflection",
-  stats: [[Stat.DmgBonus, 10, Attribute.Electro]], until: "outro",
-  grants: [{ on: onCast(Cast.Outro), buff: () => ELECTRIC_REFLECTION_HANDOFF, to: "next" }],
+  name: "Flash of Electric Reflection 5pc",
+  stats: [[Stat.DmgBonus, 10, Attribute.Electro]], until: LifeTime.Outro,
+  grants: [{ on: onCast(Cast.Outro), buff: () => ELECTRIC_REFLECTION_HANDOFF, to: BuffTarget.Next }],
 });
-export const ELECTRIC_REFLECTION_HANDOFF = handoff("Flash of Electric Reflection: Outro", () => addStat(Stat.DmgBonus, 25, Attribute.Electro));
+export const ELECTRIC_REFLECTION_HANDOFF = handoff("Flash of Electric Reflection 5pc (outro)", () => addStat(Stat.DmgBonus, 25, Attribute.Electro));
 
 /** Formless Demon (6000223 — "Sound Remains" in the CN text), the 3.7 healing mainslot: one 273.60%
  *  Fusion hit ("Molten" DMG in the CN translation — unconfirmed against EN text), and +10% Energy
@@ -244,14 +244,14 @@ export const TINGED_YEARNING_2PC = new Sonata2pc({ name: "Flower of Tinged Yearn
 export const TINGED_YEARNING_5PC = new Sonata({
   name: "Flower of Tinged Yearning 5pc",
   sonata2pc: TINGED_YEARNING_2PC,
-  grants: [{ on: onApplied(HEALS), buff: () => TINGED_YEARNING_TEAM, to: "team" }],
+  grants: [{ on: onApplied(HEALS), buff: () => TINGED_YEARNING_TEAM, to: BuffTarget.Team }],
 });
 export const TINGED_YEARNING_TEAM = new Buff({
-  name: "Flower of Tinged Yearning",
+  name: "Flower of Tinged Yearning 5pc",
   stats: [[Stat.BonusAtk, 10]],
   grants: [{ on: either(gainedUnison, unisonResponse), buff: () => TINGED_YEARNING_UNISON }],
 });
 export const TINGED_YEARNING_UNISON = new Buff({
-  name: "Flower of Tinged Yearning (unison)",
+  name: "Flower of Tinged Yearning 5pc (unison)",
   stats: [[Stat.BonusAtk, 15]],
 });

@@ -53,10 +53,9 @@ function stepRow(
     if (col.key === "avg") cls.push("avg");
     if (col.key === "member") cls.push("member");
     if (BUFF_UNDERLINE_COLUMNS.has(col.key) && row.buffed.has(col.key)) cls.push("buffed");
-    if (isRunning(col.key) && typeof v === "number"
-      && Math.abs((Number(row.raw[`before:${col.key}`]) || 0) + (Number(row.raw[`moved:${col.key}`]) || 0) - v) > 1e-9) {
-      cls.push("buffed");
-    }
+    // a gauge this cast wipes before its own delta lands — the panel carries the CLEAR row that
+    // says so (display.ts), and the underline is what points at it
+    if (col.key.startsWith("gauge:") && Number(row.raw[`clear:${col.key}`])) cls.push("buffed");
     if (col.key === "concerto" && Number(row.raw["short:concerto"])) cls.push("underspent");
     if (col.key.startsWith("gauge:") && Number(row.raw[`short:${col.key}`])) cls.push("negative");
 
@@ -320,7 +319,7 @@ function energyTable(run: TeamRun, lines: ChainGroup[][], report: Report, slotHu
     + `<div class="c num">Opener</div>`
     + `<div class="c num">Loop 1</div><div class="c num">Loop 2</div><div class="c num">Loop 3</div>`
     + `<div class="c num">Energy Gen</div>`
-    + `<div class="c num">Offtune Buildup</div>`
+    + `<div class="c num">Offtune Gen</div>`
     + `</div>`;
 
   const rows = run.members.map((m, idx) => {

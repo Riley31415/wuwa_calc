@@ -51,6 +51,15 @@ export function casting(cast: Cast): boolean {
   return isCast(ctx.act!, cast);
 }
 
+/** Is the action being evaluated this one — counting its dash- or jump-cancelled form as the same
+ *  cast. A cancel is a fresh Action carrying the original's hooks (rotation.ts's own `cancelled()`),
+ *  so `currentAction() === X` silently reads false on one and a kit's node quietly stops paying.
+ *  Always prefer this to comparing `currentAction()` by identity. */
+export function runningAction(action: Action): boolean {
+  const a = ctx.act!;
+  return a === action || a.cancelOf === action;
+}
+
 /** Is the action being evaluated an on-field one: the member acting is the resonator the scheduler
  *  has on field (`State.onField`), and the action is not a swap-out (an Outro, a swap marker, an
  *  echo's swap form). False on a follow-up landing on an off-field slot (a coordinated tick, a
@@ -365,16 +374,16 @@ export function isHeld(gear: Gear): boolean { return ctx.slot!.isHeld(gear); }
 export function maxEnergy(): number { return ctx.slot!.resonator?.maxEnergy ?? 0; }
 
 /** The acting resonator's own forte gauges, 1-5 — plain numbers, not a Buff's stack count
- *  (Jingran's Qi is `forte1()`, his Mingfire is `forte2()`). No floor, no ceiling — a kit's own
- *  declared `forte1`/`forte2` deltas on an action can be negative when consumed, and this can run
- *  negative too (a kit clamps its own gauge's real bounds itself, if it ever needs to, by calling
- *  `setForteN` directly rather than relying on this to do it). One tiny factory rather than five
- *  hand-written copies of the same three lines. */
+ *  (Jingran's Qi is `forte1()`, his Mingfire is `forte2()`). No ceiling — a kit's own declared
+ *  `forte1`/`forte2` deltas on an action can be negative when consumed, and this can run negative
+ *  too (a spend the bar couldn't cover, flagged red by evaluate()) — but a gain never pays that
+ *  shortfall off: the bar was empty, not in debt, so `add` of a positive amount starts from 0, the
+ *  same as evaluate()'s own banking. One tiny factory rather than five hand-written copies. */
 function forteGauge(i: 0 | 1 | 2 | 3 | 4) {
   return {
     get: (): number => ctx.slot!.forte[i],
     set: (value: number): number => { noteMutation(-1 - i, value); return (ctx.slot!.forte[i] = value); },
-    add: (delta: number): number => { noteMutation(-1 - i, delta); return (ctx.slot!.forte[i] = ctx.slot!.forte[i] + delta); },
+    add: (delta: number): number => { noteMutation(-1 - i, delta); return (ctx.slot!.forte[i] = Math.max(delta > 0 ? 0 : -Infinity, ctx.slot!.forte[i]) + delta); },
   };
 }
 export const { get: forte1, set: setForte1, add: addForte1 } = forteGauge(0);
@@ -468,11 +477,29 @@ export function currentGear(): Gear { return ctx.buff!; }
  *  a value a status contributes on another Gear's behalf, where the source that reads is the one
  *  the number came off (a Negative Status ladder's own rung, "Electro Flare - 13 Stacks", rather
  *  than the status entry itself; see status.ts). Only the attribution moves: what `fn` grants,
- *  spends and reads is the caller's as it always was. */
+ *  spends and reads is the caller's as it always was.
+ *
+ *  The running gear's frozen stack count does not follow it, since it counts the *caller* and
+ *  means nothing on the gear the value is now filed under — left in place, a rung named for the
+ *  stacks it stands for would read its own name plus the status's live count ("Fusion Burst - 13
+ *  Stacks x2"). Inside `fn`, `frozenStacks()` falls back to the new gear's own held count. */
 export function asSource<T>(gear: Gear, fn: () => T): T {
-  const prev = ctx.buff;
+  const prev = ctx.buff, prevStacks = ctx.stacks;
   ctx.buff = gear;
-  try { return fn(); } finally { ctx.buff = prev; }
+  ctx.stacks = -1;
+  try { return fn(); } finally { ctx.buff = prev; ctx.stacks = prevStacks; }
+}
+
+/** Run `fn` as whoever is *acting* rather than as the Gear's own holder — for the one hook where
+ *  those differ, `updateGlobal` on locally-held gear (see evaluate.ts), and a contribution that
+ *  belongs to the cast being evaluated rather than to the resonator whose kit grants it. A stat is
+ *  the case that needs it: `addStat()` writes onto the current slot, so a node paying into
+ *  everyone's hits (Aemeath's fixed Fusion Burst crit, which every burst near the active resonator
+ *  reads) would otherwise bank it all on its own holder and reach none of them. */
+export function asActor<T>(fn: () => T): T {
+  const prev = ctx.slot;
+  ctx.slot = ctx.state!.slot;
+  try { return fn(); } finally { ctx.slot = prev; }
 }
 
 // team-wide — one shared copy, ticks on every slot's own turn regardless of who's acting

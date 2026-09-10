@@ -1,6 +1,6 @@
 /** Signature Gauntlets weapons. Each export is the weapon's five refinements, R1 first (gear.ts's
  *  own `refinements()`); a number that grows with rank is written as its five values. */
-import { WeaponType, Stat, Attribute, Type1, Cast } from "../engine/stats.js";
+import { WeaponType, Stat, Attribute, Type1, Cast, LifeTime } from "../engine/stats.js";
 import { Buff, Weapon, refinements } from "../engine/gear.js";
 import { applyCurrent, setStacksSelf, casting, applied, onCast, onType, onInflict } from "../engine/context.js";
 import { SHIELD } from "../shared/status.js";
@@ -13,7 +13,7 @@ import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 export const VERITYS_HANDLE = refinements((r, rank) => {
   const AD_VERITATEM = new Buff({
     name: `Verity's Handle: Ad Veritatem${rank}`,
-    stats: [[Stat.DmgBonus, [48, 60, 72, 84, 96][r]!, Type1.Liberation]], until: "outro",
+    stats: [[Stat.DmgBonus, [48, 60, 72, 84, 96][r]!, Type1.Liberation]], until: LifeTime.Outro,
   });
   return new Weapon({
     weaponType: WeaponType.Gauntlets, name: `Verity's Handle${rank}`,
@@ -23,17 +23,16 @@ export const VERITYS_HANDLE = refinements((r, rank) => {
 });
 
 /** Tragicomedy, Roccia's sig: Fool's Warble. +12% ATK flat. Basic Attack or Intro grants
- *  +48% Heavy Attack DMG Bonus for 3s. "Basic Attack" is the cast, not the damage type — checked
- *  against `cast` directly since a cast2 match shouldn't count. */
+ *  +48% Heavy Attack DMG Bonus for 3s. "Basic Attack" is the cast, not the damage type. */
 export const TRAGICOMEDY = refinements((r, rank) => {
   const FOOLS_WARBLE = new Buff({
     name: `Tragicomedy: Fool's Warble${rank}`,
-    stats: [[Stat.DmgBonus, [48, 60, 72, 84, 96][r]!, Type1.Heavy]], until: "outro",
+    stats: [[Stat.DmgBonus, [48, 60, 72, 84, 96][r]!, Type1.Heavy]], until: LifeTime.Outro,
   });
   return new Weapon({
     weaponType: WeaponType.Gauntlets, name: `Tragicomedy${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
-    grants: [{ on: onCast(Cast.Basic, Cast.MidAir, Cast.Intro), buff: FOOLS_WARBLE }],
+    grants: [{ on: onCast(Cast.Basic, Cast.Intro), buff: FOOLS_WARBLE }],
   });
 });
 
@@ -42,11 +41,11 @@ export const TRAGICOMEDY = refinements((r, rank) => {
 export const SOLSWORN_CIPHERS = refinements((r, rank) => {
   const SUNWARD_AMP = new Buff({
     name: `Solsworn Ciphers: Sunward (echo amp)${rank}`,
-    stats: [[Stat.Amp, [32, 40, 48, 56, 64][r]!, Type1.Echo]], until: "outro",
+    stats: [[Stat.Amp, [32, 40, 48, 56, 64][r]!, Type1.Echo]], until: LifeTime.Outro,
   });
   const SUNWARD_IGNORE = new Buff({
     name: `Solsworn Ciphers: Sunward (def ignore)${rank}`,
-    stats: [[Stat.DefIgnoreNew, [10, 12.5, 15, 17.5, 20][r]!, Attribute.Aero]], until: "outro",
+    stats: [[Stat.DefIgnoreNew, [10, 12.5, 15, 17.5, 20][r]!, Attribute.Aero]], until: LifeTime.Outro,
   });
   return new Weapon({
     weaponType: WeaponType.Gauntlets, name: `Solsworn Ciphers${rank}`,
@@ -88,10 +87,10 @@ export const IUNO_SIG = refinements((r, rank) => {
 export const DAYBREAKERS_SPINE = refinements((r, rank) => {
   const SUTURING_DAYLINE_SPECTRO = new Buff({
     name: `Daybreaker's Spine: Suturing Dayline (spectro)${rank}`,
-    stats: [[Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Attribute.Spectro]], until: "outro",
+    stats: [[Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Attribute.Spectro]], until: LifeTime.Outro,
   });
   const SUTURING_DAYLINE_STRAIN = new Buff({
-    name: `Daybreaker's Spine: Suturing Dayline (strain)${rank}`, until: "outro",
+    name: `Daybreaker's Spine: Suturing Dayline (strain)${rank}`, until: LifeTime.Outro,
     stats: [[Stat.Amp, [20, 25, 30, 35, 40][r]!, Type1.Basic], [Stat.DefIgnoreNew, [10, 12.5, 15, 17.5, 20][r]!, Type1.Basic]],
   });
   return new Weapon({

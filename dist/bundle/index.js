@@ -26,8 +26,10 @@ import {
   effectiveShred,
   eligibleWeapons,
   filterSignature,
+  hasBuild,
   hitsOf,
   isPercent,
+  isProgress,
   member,
   menuStats,
   mvPercent,
@@ -40,14 +42,14 @@ import {
   sequenceLevels,
   solveTeam,
   splitStat,
-  standardWeapon,
   statLabel,
   substatLines,
   tagKind,
   teamAt,
   teamKey,
+  topRank,
   weaponBase
-} from "./chunk-A6MXUE52.js";
+} from "./chunk-Q24V36OL.js";
 
 // dist/src/display.js
 var formatters = /* @__PURE__ */ new Map();
@@ -135,28 +137,29 @@ var FEEDS = {
   )],
   dealt: (a) => a.scaling === 3 || fixed(a) ? [] : keysFor(
     a,
-    19
-    /* Stat.TotalDmg */
+    19,
+    20
+    /* Stat.DamageTaken */
   ),
   effDef: (a) => fixed(a) ? [] : a.scaling === 3 ? keysFor(
     a,
-    35
+    36
     /* EnemyStat.DefReduce */
   ) : keysFor(
     a,
-    21,
     22,
-    35
+    23,
+    36
     /* EnemyStat.DefReduce */
   ),
   effRes: (a) => a.scaling === 3 ? keysFor(
     a,
-    34
+    35
     /* EnemyStat.ResReduce */
   ) : fixed(a) ? [] : keysFor(
     a,
-    20,
-    34
+    21,
+    35
     /* EnemyStat.ResReduce */
   )
   // energy/concerto/offtune are running totals — `rowValues()` builds their panels by hand
@@ -199,25 +202,33 @@ var SECTION_OF = {
     /* Stat.FlatDef */
   ]: "Flat DEF",
   [
-    21
+    22
     /* Stat.DefIgnoreNew */
   ]: "DEF Ignore (new)",
   [
-    22
+    23
     /* Stat.DefIgnoreOld */
   ]: "DEF Ignore (old)",
   [
-    35
+    36
     /* EnemyStat.DefReduce */
   ]: "DEF Reduce",
   [
-    20
+    21
     /* Stat.ResIgnore */
   ]: "RES Ignore",
   [
-    34
+    35
     /* EnemyStat.ResReduce */
-  ]: "RES Reduce"
+  ]: "RES Reduce",
+  [
+    19
+    /* Stat.TotalDmg */
+  ]: "Total Damage",
+  [
+    20
+    /* Stat.DamageTaken */
+  ]: "Damage Taken"
 };
 var actionInfo = (action, type, triggered, triggeredBy) => {
   const info = [];
@@ -358,10 +369,14 @@ function rowValues(snap, { mv, avg }, members = []) {
       10
       /* Stat.CritDmg */
     ),
-    dealt: filler || snap.action.scaling === 3 || fixed(snap.action) ? null : snap.stat(
+    // the column is the pair's combined lift, since Total Damage and Damage Taken multiply
+    dealt: filler || snap.action.scaling === 3 || fixed(snap.action) ? null : ((1 + snap.stat(
       19
       /* Stat.TotalDmg */
-    ),
+    ) / 100) * (1 + snap.stat(
+      20
+      /* Stat.DamageTaken */
+    ) / 100) - 1) * 100,
     effDef: filler || fixed(snap.action) ? null : effectiveShred(snap) * 100,
     effRes: filler || fixed(snap.action) ? null : effectiveRes(snap),
     er: snap.stat(
@@ -392,13 +407,13 @@ function rowValues(snap, { mv, avg }, members = []) {
     sources[key] = tracing(snap, feeds(snap.action));
   sources.effRes = (sources.effRes ?? []).map((r) => ({ ...r, value: -r.value }));
   const RESOURCE_STAT = { energy: [
-    25
+    26
     /* Stat.AddEnergy */
   ], concerto: [
-    26
+    27
     /* Stat.AddConcerto */
   ], offtune: [
-    27
+    28
     /* Stat.AddOfftune */
   ] };
   const RESOURCE_DIGITS = { energy: 2, concerto: 2, offtune: 4 };
@@ -434,7 +449,7 @@ function rowValues(snap, { mv, avg }, members = []) {
   }
   const buildingOfftune = snap.action.offtune + tracing(snap, keysFor(
     snap.action,
-    27
+    28
     /* Stat.AddOfftune */
   )).reduce((n, r) => n + r.value, 0);
   if (buildingOfftune > 0) {
@@ -448,7 +463,7 @@ function rowValues(snap, { mv, avg }, members = []) {
   }
   const direct = tracing(snap, keysFor(
     snap.action,
-    28
+    29
     /* Stat.DirectOfftune */
   ));
   raw["moved:offtune"] = ((buildingOfftune < 0 ? buildingOfftune : buildingOfftune * (snap.stat(
@@ -466,23 +481,28 @@ function rowValues(snap, { mv, avg }, members = []) {
   }
   const FORTE_FIELD = ["forte1", "forte2", "forte3", "forte4", "forte5"];
   const FORTE_STAT = [
-    29,
     30,
     31,
     32,
-    33
+    33,
+    34
     /* Stat.AddForte5 */
   ];
   FORTE_GAUGES.forEach((key, i) => {
     const declared = snap.action[FORTE_FIELD[i]];
     const traced = tracing(snap, keysFor(snap.action, FORTE_STAT[i]));
     const rows = [];
+    if (snap.action.resetForte[i]) {
+      rows.push({ source: snap.action.name, value: 0, text: "CLEAR", digits: 0, owner: snap.member });
+    }
     if (declared)
       rows.push({ source: snap.action.name, value: declared, digits: 0, owner: snap.member });
     rows.push(...traced.map((r) => ({ ...r, digits: 0 })));
     if (rows.length)
       sources[`gauge:${RESOURCE_NAME[key]}`] = rows;
     raw[`moved:gauge:${RESOURCE_NAME[key]}`] = rows.reduce((n, r) => n + r.value, 0);
+    if (snap.action.resetForte[i])
+      raw[`clear:gauge:${RESOURCE_NAME[key]}`] = 1;
   });
   if (!raw.mv)
     delete sources.mv;
@@ -496,6 +516,27 @@ function rowValues(snap, { mv, avg }, members = []) {
       ...parts.filter((r) => !isFactor(r)),
       ...parts.filter(isFactor).map((r) => ({ ...r, section: MV_MULTIPLIER }))
     ];
+  }
+  if (sources.dealt?.length) {
+    const half = (stat) => sources.dealt.filter((r) => r.stat !== void 0 && splitStat(r.stat)[0] === stat).reduce((n, r) => n + r.value, 0);
+    const total = half(
+      19
+      /* Stat.TotalDmg */
+    ), taken = half(
+      20
+      /* Stat.DamageTaken */
+    );
+    if (total && taken) {
+      sources.dealt = [...sources.dealt, ...[[19, total], [20, taken]].map(([stat, value]) => ({
+        source: "",
+        label: "Total",
+        value,
+        section: SECTION_OF[stat],
+        percent: true,
+        digits: 1,
+        summary: true
+      }))];
+    }
   }
   for (const [key, word, [baseStat, bonusStat, flatStat]] of [
     ["atk", "ATK", [
@@ -580,6 +621,7 @@ function rowValues(snap, { mv, avg }, members = []) {
       { source: "buffs", label: "Amplification", value: f.ampFactor, mult: true },
       ...f.scaling === 4 ? [{ source: "buffs", label: "Tune Break Boost", value: f.tbbFactor, mult: true }] : [],
       ...f.dealtFactor > 1 ? [{ source: "buffs", label: "Total Damage", value: f.dealtFactor, mult: true }] : [],
+      ...f.takenFactor > 1 ? [{ source: "enemy", label: "Damage Taken", value: f.takenFactor, mult: true }] : [],
       { source: "enemy", label: "Res Factor", value: f.resFactor, mult: true },
       { source: "enemy", label: "Def Factor", value: f.defFactor, mult: true },
       { source: "crit", label: "Average Crit", value: f.critFactor, mult: true }
@@ -597,7 +639,8 @@ function buildReport(lines) {
     { key: "amp", label: "amp%", digits: 1, percent: true, full: "Amplification" },
     { key: "cr", label: "cr%", digits: 1, percent: true, full: "Crit Rate" },
     { key: "cd", label: "cd%", digits: 1, percent: true, full: "Crit Dmg" },
-    { key: "dealt", label: "vuln%", digits: 1, percent: true, full: "Total Damage" },
+    // both halves carry their own section heading, so `full` is only the empty-panel one
+    { key: "dealt", label: "vuln%", digits: 1, percent: true, full: "Vulnerability" },
     { key: "effDef", label: "ignore%", digits: 1, percent: true, full: "DEF Ignore", fullEmpty: "DEF Shred" },
     { key: "effRes", label: "res%", digits: 1, percent: true, full: "Enemy RES" },
     { key: "er", label: "er%", digits: 1, percent: true, full: "Energy Regen" },
@@ -729,8 +772,10 @@ function pruneGearFilters() {
         OPTION_FILTER_MAPS[kind].delete(key);
   }
   for (const key of [...sequenceFilters.keys()]) {
-    if (!filters.sequences.includes(key.replace(/ S\d+$/, "")))
+    const owner = tagOwner(key);
+    if (!Object.values(TEAMS).some((ms) => ms.some((m) => m.name === owner && sequenceTagsOf(m).includes(key)))) {
       sequenceFilters.delete(key);
+    }
   }
 }
 function comparable(name, axis) {
@@ -739,7 +784,7 @@ function comparable(name, axis) {
       if (m.name !== name)
         continue;
       const l = m.loadout;
-      const n = axis === "weapons" ? l.weapons.length : axis === "echoes" ? l.echoLoadouts.length : axis === "mainstats" ? l.mainstats.length : axis === "substats" ? 2 : axis === "refines" ? Math.max(...l.refinements.map((r) => r.length)) : l.sequences.length ? l.resonator.tier === 2 ? l.sequences.length + 1 : l.sequences.length - Math.min(baseSequence(l.resonator), l.sequences.length) + 1 : 1;
+      const n = axis === "weapons" ? l.weapons.length : axis === "echoes" ? l.echoLoadouts.length : axis === "mainstats" ? l.mainstats.length : axis === "substats" ? 2 : axis === "refines" ? Math.max(...l.refinements.map((r) => r.length)) : l.sequences.length ? l.sequences.length - Math.max(l.minSequence, l.resonator.tier === 2 ? 0 : Math.min(baseSequence(l.resonator), l.sequences.length)) + 1 : 1;
       if (n > 1)
         return true;
     }
@@ -760,6 +805,22 @@ var setVisibleRows = (rows) => {
   visibleRows = rows;
 };
 var namesHold = (map, names) => [...map].every(([name, mode]) => names.includes(name) === (mode === "include"));
+var tagOwner = (tag) => tag.replace(/ S\d+(R\d+)?$| R\d+$/, "");
+function tagsHold(map, names, fielded) {
+  const wanted = /* @__PURE__ */ new Map();
+  for (const [name, mode] of map) {
+    if (mode === "exclude") {
+      if (names.includes(name))
+        return false;
+      continue;
+    }
+    const who = tagOwner(name);
+    if (!fielded.includes(who))
+      continue;
+    wanted.set(who, [...wanted.get(who) ?? [], name]);
+  }
+  return [...wanted.values()].every((group) => group.some((name) => names.includes(name)));
+}
 var poolAdded = [];
 var poolNeeds = /* @__PURE__ */ new Map();
 var poolKey = "\0";
@@ -794,15 +855,29 @@ function teamWanted(members) {
   }
   return false;
 }
-function sequenceTagAt(m, sequence, f = filters) {
-  if (!axisOpen(m, f, "sequences") || sequence <= baseSequence(m.loadout.resonator))
+function sequenceTagAt(m, sequence, rank = 1, f = filters) {
+  if (!axisOpen(m, f, "sequences"))
     return null;
-  return `${m.name} S${sequence}`;
+  return `${m.name} S${sequence}${rank > 1 ? `R${rank}` : ""}`;
 }
-var sequenceTag = (m, combo) => sequenceTagAt(m, combo.sequence);
+var sequenceTag = (m, combo) => {
+  const weapon = m.loadout.refinements.findIndex((ranks) => ranks.includes(combo.weapon));
+  const extra = weapon < 0 ? null : topRank(m, filters, weapon);
+  const rank = extra !== null && combo.weapon.refinement === extra + 1 ? combo.weapon.refinement : 1;
+  return sequenceTagAt(m, combo.sequence, rank);
+};
+function sequenceTagsOf(m, f = filters) {
+  const tags = sequenceLevels(m, f).map((level) => sequenceTagAt(m, level, 1, f) ?? "");
+  const extra = new Set(eligibleWeapons(m, f).map((w) => topRank(m, f, w)).filter((r) => r !== null));
+  for (const rank of [...extra].sort((a, b) => a - b)) {
+    tags.push(sequenceTagAt(m, m.loadout.sequences.length, rank + 1, f));
+  }
+  return tags;
+}
 var refineTag = (m, combo) => `${m.name} R${combo.weapon.refinement}`;
 function rowWanted(row) {
-  return namesHold(weaponFilters, row.combo.flatMap((c) => [c.weapon.name, weaponBase(c.weapon)])) && namesHold(echoFilters, row.combo.map((c, i) => echoLabel(row.members[i].loadout, c.echo))) && namesHold(sequenceFilters, row.combo.flatMap((c, i) => sequenceTag(row.members[i], c) ?? [])) && namesHold(refineFilters, row.combo.map((c, i) => refineTag(row.members[i], c)));
+  const fielded = row.members.map((m) => m.name);
+  return namesHold(weaponFilters, row.combo.flatMap((c) => [c.weapon.name, weaponBase(c.weapon)])) && namesHold(echoFilters, row.combo.map((c, i) => echoLabel(row.members[i].loadout, c.echo))) && tagsHold(sequenceFilters, row.combo.flatMap((c, i) => sequenceTag(row.members[i], c) ?? []), fielded) && tagsHold(refineFilters, row.combo.map((c, i) => refineTag(row.members[i], c)), fielded);
 }
 function expandTeam(teamKey2, members) {
   const solved = bestPicks.get(bestKey(teamKey2, members, filters));
@@ -822,21 +897,27 @@ function expandTeam(teamKey2, members) {
   return [...rows.values()].filter(rowWanted);
 }
 var teamRows = () => Object.entries(TEAMS).flatMap(([key, members]) => expandTeam(key, members));
-function axisWays(lists, map, cap = Infinity) {
+function axisWays(lists, map, cap = Infinity, tagged = false) {
   const excluded = [...map].filter(([, mode]) => mode === "exclude").map(([n]) => n);
   const sizes = (drop) => lists.map((l) => l === null ? 1 : l.filter((n) => !drop.includes(n)).length);
   const product = (drop) => sizes(drop).reduce((p, n) => p * Math.min(cap, n), 1);
   const untestable = lists.includes(null) || sizes(excluded).some((n) => n > cap);
   const included = untestable ? [] : [...map].filter(([, mode]) => mode === "include").map(([n]) => n);
+  const groups = /* @__PURE__ */ new Map();
+  for (const name of included) {
+    const key = tagged ? tagOwner(name) : name;
+    groups.set(key, [...groups.get(key) ?? [], name]);
+  }
+  const wanted = [...groups.values()].filter((group) => !tagged || lists.some((l) => l?.some((n) => tagOwner(n) === tagOwner(group[0]))));
   let total = 0;
-  for (let mask = 0; mask < 1 << included.length; mask++) {
-    const banned = included.filter((_, k) => mask & 1 << k);
-    total += (banned.length % 2 ? -1 : 1) * product([...excluded, ...banned]);
+  for (let mask = 0; mask < 1 << wanted.length; mask++) {
+    const chosen = wanted.filter((_, k) => mask & 1 << k);
+    total += (chosen.length % 2 ? -1 : 1) * product([...excluded, ...chosen.flat()]);
   }
   return total;
 }
 function estimatedRowCount(members, f = filters) {
-  return axisWays(members.map((m) => axisOpen(m, f, "weapons") ? eligibleWeapons(m, f).map((i) => m.loadout.weapons[i].name) : null), weaponFilters) * axisWays(members.map((m) => axisOpen(m, f, "echoes") ? m.loadout.echoLoadouts.map((e) => echoLabel(m.loadout, e)) : null), echoFilters) * members.reduce((n, m) => n * (axisOpen(m, f, "mainstats") ? Math.min(MAINSTAT_ROWS, m.loadout.mainstats.length) : 1), 1) * axisWays(members.map((m) => sequenceLevels(m, f).map((level) => sequenceTagAt(m, level, f) ?? "")), sequenceFilters) * members.reduce((n, m) => n * (axisOpen(m, f, "substats") ? 2 : 1), 1) * members.reduce((n, m) => n * (axisUsed(m, f, "refines") ? Math.max(...eligibleWeapons(m, f).map((i) => m.loadout.refinements[i].length)) : 1), 1) * members.reduce((n, m) => n * (!axisOpen(m, f, "echoes") && axisUsed(m, f, "echoes") ? m.loadout.echoLoadouts.length : 1) * (!axisOpen(m, f, "mainstats") && axisUsed(m, f, "mainstats") ? Math.min(MAINSTAT_ROWS, m.loadout.mainstats.length) : 1), 1);
+  return axisWays(members.map((m) => axisOpen(m, f, "weapons") ? eligibleWeapons(m, f).map((i) => m.loadout.weapons[i].name) : null), weaponFilters) * axisWays(members.map((m) => axisOpen(m, f, "echoes") ? m.loadout.echoLoadouts.map((e) => echoLabel(m.loadout, e)) : null), echoFilters) * members.reduce((n, m) => n * (axisOpen(m, f, "mainstats") ? Math.min(MAINSTAT_ROWS, m.loadout.mainstats.length) : 1), 1) * axisWays(members.map((m) => sequenceTagsOf(m, f)), sequenceFilters, Infinity, true) * members.reduce((n, m) => n * (axisOpen(m, f, "substats") ? 2 : 1), 1) * members.reduce((n, m) => n * (axisUsed(m, f, "refines") ? Math.max(...eligibleWeapons(m, f).map((i) => m.loadout.refinements[i].length)) : 1), 1) * members.reduce((n, m) => n * (!axisOpen(m, f, "echoes") && axisUsed(m, f, "echoes") ? m.loadout.echoLoadouts.length : 1) * (!axisOpen(m, f, "mainstats") && axisUsed(m, f, "mainstats") ? Math.min(MAINSTAT_ROWS, m.loadout.mainstats.length) : 1), 1);
 }
 function prospectiveRows(f = filters) {
   return Object.entries(TEAMS).filter(([, members]) => teamWanted(members)).reduce((sum, [, members]) => sum + estimatedRowCount(members, f), 0);
@@ -939,7 +1020,8 @@ function solveFits(key, solved, f) {
   const expected = members.reduce((n, m, i) => {
     const pairs = /* @__PURE__ */ new Set();
     const weapons = axisOpen(m, f, "weapons") ? eligibleWeapons(m, f) : [solved.picks[i].weapon];
-    for (const sequence of sequenceLevels(m, f))
+    const levels = axisOpen(m, f, "sequences") ? sequenceLevels(m, f) : [solved.picks[i].sequence];
+    for (const sequence of levels)
       for (const weapon of weapons) {
         for (const refine of refineLevels(m, f, { ...solved.picks[i], weapon, sequence }))
           pairs.add(`${sequence}.${refine}`);
@@ -1032,7 +1114,17 @@ function saveSolves() {
 var hashParams = () => new URLSearchParams(location.hash.replace(/^#/, ""));
 var COMPARE_PARAM = { weapons: "cw", echoes: "ce", mainstats: "cm", substats: "cb", sequences: "cq", refines: "cr" };
 var SCOPED_PARAM = "cs";
-var COST_CODE = { s0r0: "r0", s0r1mdps: "r1m", s0r1: "r1" };
+var COST_CODE = {
+  s0r0: "r0",
+  s0r1mdps: "r1m",
+  s0r1: "r1",
+  s1r1mdps: "s1m",
+  s2r1mdps: "s2m",
+  s3r1mdps: "s3m",
+  s6r1mdps: "s6m",
+  s6r5mdps: "s6r5m",
+  s6r5: "s6r5"
+};
 var FILTER_GROUPS = [
   { include: "r", exclude: "x", map: resonatorFilters },
   { include: "wr", exclude: "wx", map: weaponFilters },
@@ -1158,7 +1250,7 @@ var panelRow = (r, slotHue, { noSource = false } = {}) => {
   const own = r.owner !== void 0 ? slotHue.get(r.owner ?? "") ?? TUNE_BREAK_ENEMY.color : null;
   const label = r.label ?? (r.stat !== void 0 ? statLabel(r.stat) : "");
   const source = (r.count ?? 1) > 1 ? `${r.source} x${r.count}` : r.source;
-  const value = `<td class="v">${r.mult ? `&times;${fmt(r.value, r.digits ?? 4)}` : `${fmt(r.value, r.digits ?? 4)}${unit(r)}`}</td>`;
+  const value = `<td class="v">${r.text !== void 0 ? esc(r.text) : r.mult ? `&times;${fmt(r.value, r.digits ?? 4)}` : `${fmt(r.value, r.digits ?? 4)}${unit(r)}`}</td>`;
   if (r.summary)
     return `<tr class="sum"><td class="k">${esc(label)}</td>${value}</tr>`;
   return noSource ? `<tr><td class="k">${esc(label)}</td>${value}</tr>` : `<tr><td class="s"${own ? ` style="--own:${own}"` : ""}>${esc(source || label)}</td>${value}</tr>`;
@@ -1571,10 +1663,10 @@ function clearSearch() {
 function searchCandidates() {
   const seen = /* @__PURE__ */ new Set();
   const out = [];
-  const add = (kind, value) => {
+  const add = (kind, value, rest = {}) => {
     if (value && !seen.has(`${kind}|${value}`)) {
       seen.add(`${kind}|${value}`);
-      out.push({ kind, value });
+      out.push({ kind, value, ...rest });
     }
   };
   for (const members of Object.values(TEAMS)) {
@@ -1595,11 +1687,18 @@ function searchCandidates() {
       if (axisOpen(m, filters, "echoes"))
         for (const e of m.loadout.echoLoadouts)
           add("echo", echoLabel(m.loadout, e));
-      for (const level of sequenceLevels(m, filters).slice(1)) {
-        const tag = sequenceTagAt(m, level);
+      for (const tag of sequenceTagsOf(m, filters))
         if (tag)
           add("sequence", tag);
-      }
+    }
+  }
+  for (const [name, mode] of resonatorFilters) {
+    if (mode !== "include")
+      continue;
+    for (const axis of AXES) {
+      if (axis === "refines" || filters[axis].includes(name) || !comparable(name, axis))
+        continue;
+      add("compare", `${name} ${AXIS_LABEL[axis]}`, { axis, resonator: name });
     }
   }
   return out;
@@ -1648,20 +1747,25 @@ function searchResults() {
     weapon: "Weapon",
     echo: "Echo",
     sequence: "Sequence",
-    refine: "Refine"
+    refine: "Refine",
+    compare: "Compare"
   };
   const hits = searchHits();
   if (!hits.length)
     return `<div class="sresult none">no matches</div>`;
-  return hits.map(({ kind, value }, i) => {
-    const hue = (kind === "resonator" ? RESONATOR_HUE.get(value) : kind === "sequence" ? RESONATOR_HUE.get(value.replace(/ S\d+$/, "")) : void 0) ?? TUNE_BREAK_ENEMY.color;
-    return `<button type="button" class="sresult${i === searchAt ? " sel" : ""}" data-kind="${kind}" data-value="${esc(value)}" style="--mem:${hue}" title="Add ${esc(value)} to the filters. The chip it makes is where it comes back off."><span class="sact inc"><span class="sname">${esc(value)}<span class="skind">${KIND_LABEL[kind]}</span></span></span></button>`;
+  return hits.map(({ kind, value, axis, resonator }, i) => {
+    const hue = (kind === "resonator" ? RESONATOR_HUE.get(value) : kind === "compare" ? RESONATOR_HUE.get(resonator ?? "") : kind === "sequence" ? RESONATOR_HUE.get(tagOwner(value)) : void 0) ?? TUNE_BREAK_ENEMY.color;
+    return `<button type="button" class="sresult${i === searchAt ? " sel" : ""}" data-kind="${kind}" data-value="${esc(value)}"` + (axis ? ` data-axis="${axis}" data-resonator="${esc(resonator ?? "")}"` : "") + ` style="--mem:${hue}" title="${kind === "compare" ? `Compare ${esc(resonator ?? "")}'s ${esc(AXIS_LABEL[axis].toLowerCase())}` : `Add ${esc(value)} to the filters`}. The chip it makes is where it comes back off."><span class="sact inc"><span class="sname">${esc(value)}<span class="skind">${KIND_LABEL[kind]}</span></span></span></button>`;
   }).join("");
 }
 var COST_HELP = [
   "Full S0R0 - Limited resonators are S0 and use the best standard or 4* weapon available at R1. Rover and 4* resonators are S6.",
   "S0R1 mdps - Each team gets a single signature weapon at R1 that gives the best DPR increase, in most cases the team's main DPS. Dual DPS teams still only get one signature weapon.",
-  "S0R1 all - All limited resonators get their best signature weapon, while Rover and 4* supports may still use standard or 4* weapons."
+  "S0R1 all - All limited resonators get their best signature weapon, while Rover and 4* supports may still use standard or 4* weapons.",
+  "S1R1 / S2R1 / S3R1 / S6R1 mdps - One resonator per team runs that many sequence nodes, whichever gives the best DPR increase, in most cases the team's main DPS. Everyone else stays S0R1.",
+  "S6R5 mdps - That one resonator is S6 and runs their weapon at R5; everyone else is still S0R1.",
+  "Full S6R5 - Every resonator is S6 with their best weapon at R5.",
+  "A kit whose sequences are not implemented yet stays at S0 in every mode above."
 ];
 var MATRIX_HELP = "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.";
 var STANDARDS = [
@@ -1691,7 +1795,7 @@ function comparisonFilters() {
   const costBox = () => {
     const open = openHelp.has("cost");
     const option = (value, label) => `<option value="${value}"${filters.cost === value ? " selected" : ""}>${label}</option>`;
-    return `<div class="tcopt${open ? " open" : ""}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="cost" aria-expanded="${open}">Team Cost<span class="arrow">\u203A</span></button><select id="cost" class="tcselect" aria-label="Team Cost" title="Team Cost">` + option("s0r0", "Full S0R0") + option("s0r1mdps", "S0R1 mdps only") + option("s0r1", "Full S0R1") + `</select></div><div class="tcopt-desc"${open ? "" : " hidden"}><ul>${COST_HELP.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div></div>`;
+    return `<div class="tcopt${open ? " open" : ""}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="cost" aria-expanded="${open}">Team Cost<span class="arrow">\u203A</span></button><select id="cost" class="tcselect" aria-label="Team Cost" title="Team Cost">` + option("s0r0", "Full S0R0") + option("s0r1mdps", "S0R1 mdps only") + option("s0r1", "Full S0R1") + option("s1r1mdps", "S1R1 mdps") + option("s2r1mdps", "S2R1 mdps") + option("s3r1mdps", "S3R1 mdps") + option("s6r1mdps", "S6R1 mdps") + option("s6r5mdps", "S6R5 mdps") + option("s6r5", "Full S6R5") + `</select></div><div class="tcopt-desc"${open ? "" : " hidden"}><ul>${COST_HELP.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div></div>`;
   };
   const matrixBox = () => {
     const open = openHelp.has("matrix");
@@ -1737,7 +1841,7 @@ function resonatorChips() {
   }
   for (const [kind, map] of Object.entries(OPTION_FILTER_MAPS)) {
     for (const [name, mode] of map) {
-      const hue = kind === "sequence" || kind === "refine" ? RESONATOR_HUE.get(name.replace(/ [SR]\d+$/, "")) : void 0;
+      const hue = kind === "sequence" || kind === "refine" ? RESONATOR_HUE.get(tagOwner(name)) : void 0;
       bucket(mode).push(`<button type="button" class="rchip" data-kind="${kind}" data-value="${esc(name)}"` + (hue ? ` style="--mem:${hue}"` : "") + ` title="${esc(name)} \u2014 rows using ${MODE_TITLE[mode]}. Click to remove.">${esc(name)}</button>`);
     }
   }
@@ -1887,16 +1991,10 @@ function setFilter(map, name, mode) {
     };
   });
 }
-var rankless = (name) => Object.values(TEAMS).some((members) => members.some((m) => {
-  if (m.name !== name)
-    return false;
-  const w = m.loadout.weapons[filters.cost === "s0r1" ? 0 : standardWeapon(m.loadout)];
-  return w.tier !== 0 && !(w.tier === 2 && m.loadout.resonator.tier !== 0);
-}));
 function setCompare(name, axis) {
   withRowCap(() => {
     const on = !filters[axis].includes(name);
-    const paired = !rankless(name) ? [] : axis === "refines" && on ? ["weapons"] : axis === "weapons" && !on ? ["refines"] : [];
+    const paired = axis === "refines" && on ? ["weapons"] : axis === "weapons" && !on ? ["refines"] : [];
     const before = /* @__PURE__ */ new Map();
     for (const a of [axis, ...paired]) {
       before.set(a, [...filters[a]]);
@@ -1907,8 +2005,7 @@ function setCompare(name, axis) {
         filters[a].splice(at, 1);
     }
     const kept = Object.values(OPTION_FILTER_MAPS).map((map) => [...map]);
-    if (!on)
-      pruneGearFilters();
+    pruneGearFilters();
     return () => {
       for (const [a, list] of before)
         filters[a] = list;
@@ -1928,22 +2025,17 @@ function setScoped(s) {
       filters.scoped.splice(at, 1);
     else
       filters.scoped.push(s);
-    const weapons = at < 0 && s.axis === "refines" && rankless(s.resonator) && !filters.weapons.includes(s.resonator);
-    if (weapons)
-      filters.weapons.push(s.resonator);
     return () => {
       if (at >= 0)
         filters.scoped.splice(at, 0, s);
       else
         filters.scoped.pop();
-      if (weapons)
-        filters.weapons.splice(filters.weapons.indexOf(s.resonator), 1);
     };
   });
 }
 function scopedItems(resonator, on, value) {
-  const ranks = () => Object.values(TEAMS).some((members) => members.some((m) => m.name === resonator && m.loadout.refinements.some((r) => r.length > 1 && (on !== "weapon" || weaponBase(r[0]) === value))));
-  const axes = on === "echo" ? ["mainstats"] : on === "refine" || on === "weaponRank" ? ["echoes", "mainstats"] : ["refines", "echoes", "mainstats"];
+  const ranks = () => Object.values(TEAMS).some((members) => members.some((m) => m.name === resonator && m.loadout.refinements.some((r) => r.length > 1 && weaponBase(r[0]) === value)));
+  const axes = on === "echo" ? ["mainstats"] : on === "weapon" ? ["refines", "echoes", "mainstats"] : ["echoes", "mainstats"];
   const s = (axis) => ({ resonator, on, value, axis });
   const set = (axis) => filters.scoped.some((x) => scopedKey(x) === scopedKey(s(axis)));
   return axes.filter((axis) => axis === "refines" ? ranks() && (set(axis) || !filters.refines.includes(resonator)) : comparable(resonator, axis)).map((axis) => ({
@@ -2002,8 +2094,8 @@ function showMenu(x, y, items) {
 function memberLabel(m, combo) {
   return [m.loadout.resonator.name, `${seqToken(m, combo)}${rankToken(m, combo)}`].filter(Boolean).join(" ");
 }
-var seqToken = (m, combo) => baseSequence(m.loadout.resonator) > 0 || axisOpen(m, filters, "sequences") ? `S${combo.sequence}` : "";
-var rankToken = (m, combo) => axisUsed(m, filters, "weapons") ? "" : compares(m, filters, "refines", combo) || combo.weapon.tier === 0 || combo.weapon.tier === 2 && m.loadout.resonator.tier !== 0 ? `R${combo.weapon.refinement}` : "R0";
+var seqToken = (m, combo) => combo.sequence > 0 || axisOpen(m, filters, "sequences") ? `S${combo.sequence}` : "";
+var rankToken = (m, combo) => axisUsed(m, filters, "weapons") ? "" : compares(m, filters, "refines", combo) || combo.weapon.refinement > 1 || combo.weapon.tier === 0 || combo.weapon.tier === 2 && m.loadout.resonator.tier !== 0 ? `R${combo.weapon.refinement}` : "R0";
 function optionCell(kind, value, color, lines = [value], resonator = "") {
   const style = `--mem:${color}`;
   if (!value)
@@ -2011,6 +2103,19 @@ function optionCell(kind, value, color, lines = [value], resonator = "") {
   return `<div class="c option" data-kind="${kind}" data-value="${esc(value)}"${resonator ? ` data-resonator="${esc(resonator)}"` : ""} style="${style}">${lines.map(esc).join("<br>")}</div>`;
 }
 var hueShown = true;
+var dprExact = { personal: true, team: true };
+var dprFmt = (v, exact) => {
+  if (exact)
+    return fmt(v);
+  if (v >= 1e6)
+    return `${fmt(Math.floor(v / 1e3) / 1e3, 3, true, false)}M`;
+  if (v < 1e3)
+    return fmt(Math.floor(v), 0, false, false);
+  const decimals = v >= 1e5 ? 0 : v >= 1e4 ? 1 : 2;
+  const step = 10 ** (3 - decimals);
+  return `${fmt(Math.floor(v / step) / 10 ** decimals, decimals, true, false)}K`;
+};
+var pctTrunc = (ratio) => `${fmt(Math.trunc(ratio * 1e3) / 10, 1, true)}%`;
 var tableView = null;
 function comparisonTable(rows) {
   const seq = (run) => run.combo.reduce((n, c) => n + c.sequence, 0);
@@ -2046,16 +2151,17 @@ function comparisonTable(rows) {
     }
     return b.run.total - a.run.total || seq(b.run) - seq(a.run);
   }).map((k) => k.pair);
-  const GEAR_AXES = ["substats", "weapons", "echoes", "mainstats"];
+  const GEAR_AXES = ["weapons", "echoes", "mainstats", "substats"];
   const CMP_AXES = [...GEAR_AXES, "sequences", "refines"];
   const shows = (m, axis) => axisUsed(m, filters, axis);
   const showsRow = (m, axis, combo) => compares(m, filters, axis, combo);
   const AXIS_HEAD = { weapons: "Weapon", echoes: "Echo Set", mainstats: "Mainstats", substats: "Substats" };
-  const gearKey = (c, axis) => {
+  const gearKey = (c, axis, ranked = true) => {
     const [w, e, , seq2, ref, ...rest] = c.key.split(".");
-    return [axis === "weapons" ? "*" : w, axis === "echoes" ? "*" : e, "*", axis === "sequences" ? "*" : seq2, axis === "weapons" || axis === "refines" ? "*" : ref, rest.includes("m"), axis === "substats" || axis === null ? "*" : rest.includes("h")].join("|");
+    const anyRank = axis === "weapons" || axis === "refines" || axis === "sequences" && !ranked;
+    return [axis === "weapons" ? "*" : w, axis === "echoes" ? "*" : e, "*", axis === "sequences" ? "*" : seq2, anyRank ? "*" : ref, rest.includes("m"), axis === "substats" || axis === null ? "*" : rest.includes("h")].join("|");
   };
-  const twinKey = (run, pos, axis) => `${run.teamKey}|${pos}|${axis}|${run.combo.map((c, k) => gearKey(c, k === pos ? axis : null)).join("-")}`;
+  const twinKey = (run, pos, axis) => `${run.teamKey}|${pos}|${axis}|${run.combo.map((c, k) => gearKey(c, k === pos ? axis : null, axisUsed(run.members[pos], filters, "refines"))).join("-")}`;
   const openAt = { weapons: [false, false, false], echoes: [false, false, false], mainstats: [false, false, false], substats: [false, false, false], sequences: [false, false, false], refines: [false, false, false] };
   for (const row of rows) {
     row.members.forEach((m, pos) => {
@@ -2088,14 +2194,14 @@ function comparisonTable(rows) {
       if (axis === "weapons") {
         if (t.combo.weapon.tier === 0)
           continue;
-        if (compares(run.members[pos], filters, "refines", run.combo[pos]) && t.combo.key.split(".")[4] !== "r0")
+        if (t.combo.key.split(".")[4] !== "r0")
           continue;
       }
       if (axis === "refines" && t.combo.key.split(".")[4] !== "r0")
         continue;
       if (axis === "substats" && t.combo.highSubs)
         continue;
-      if (axis === "sequences" && t.combo.sequence !== sequenceLevels(run.members[pos], filters)[0])
+      if (axis === "sequences" && (t.combo.sequence !== sequenceLevels(run.members[pos], filters)[0] || !axisUsed(run.members[pos], filters, "refines") && t.combo.key.split(".")[4] !== "r0"))
         continue;
       if (t.dpr > base)
         base = t.dpr;
@@ -2115,7 +2221,7 @@ function comparisonTable(rows) {
   };
   const gearCompare = (run, pos, axis) => {
     const ratio = gearRatio(run, pos, axis);
-    return ratio == null ? "" : `${fmt(ratio * 100, 1, true)}%`;
+    return ratio == null ? "" : pctTrunc(ratio);
   };
   const seqCmpAt = (i) => !!openAt.sequences[i];
   const refCmpAt = (i) => !!openAt.refines[i] && !openAt.weapons[i];
@@ -2127,7 +2233,7 @@ function comparisonTable(rows) {
       const seqTag = sequenceTag(m, combo);
       const refTag = axisUsed(m, filters, "refines") && !openAt.weapons[i] ? refineTag(m, combo) : null;
       const name = `<div class="c name res" data-resonator="${esc(m.name)}"` + (seqTag ? ` data-sequence="${esc(seqTag)}" data-seq-gate="${combo.sequence}"` : "") + (refTag ? ` data-refine="${esc(refTag)}" data-ref-gate="${combo.weapon.refinement}"` : "") + ` style="--mem:${m.color};color:${m.color}"><span class="res-label">${esc(memberLabel(m, combo))}</span></div>`;
-      const dpr = dprAt(i) ? `<div class="c num slotdpr" style="--mem:${m.color}">${fmt(run.bySlot.get(m.name) ?? 0)}</div>` : "";
+      const dpr = dprAt(i) ? `<div class="c num slotdpr" style="--mem:${m.color}">${dprFmt(run.bySlot.get(m.name) ?? 0, dprExact.personal)}</div>` : "";
       const seqCmp = seqCmpAt(i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${axisOpen(m, filters, "sequences") ? gearCompare(run, i, "sequences") : ""}</div>` : "";
       const refCmp = refCmpAt(i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${compares(m, filters, "refines", combo) ? gearCompare(run, i, "refines") : ""}</div>` : "";
       const gear = GEAR_AXES.map((axis) => {
@@ -2140,10 +2246,10 @@ function comparisonTable(rows) {
       return name + seqCmp + refCmp + gear + dpr;
     };
     const memberCells = run.members.map((m, i) => memberCell(m, run.combo[i], i)).join("");
-    return `<div class="trow${rank.pinned ? " isbaseline" : ""}" style="--hue:${rank.hue}" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}" data-members="${esc(memberNames)}" data-total="${grand}">` + memberCells + `<div class="c num total teamdpr" title="Click to view the team's damage breakdown"${deferredPop("dpr", key)}>${fmt(grand)}</div><div class="c num total baseline" data-team="${esc(key)}" title="Click to measure every team against this one">${rank.pct}</div><div class="c gotodetail" data-team="${esc(key)}">view rotation<span class="arrow">\u203A</span></div></div>`;
+    return `<div class="trow${rank.pinned ? " isbaseline" : ""}" style="--hue:${rank.hue}" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}" data-members="${esc(memberNames)}" data-total="${grand}">` + memberCells + `<div class="c num total teamdpr" title="Click to view the team's damage breakdown"${deferredPop("dpr", key)}>${dprFmt(grand, dprExact.team)}</div><div class="c num total baseline" data-team="${esc(key)}" title="Click to measure every team against this one">${rank.pct}</div><div class="c gotodetail" data-team="${esc(key)}">view rotation<span class="arrow">\u203A</span></div></div>`;
   };
-  const memberHead = (n, i) => `<div class="c slothead">Slot ${n}</div>` + (seqCmpAt(i) ? `<div class="c num">Compare</div>` : "") + (refCmpAt(i) ? `<div class="c num">Compare</div>` : "") + GEAR_AXES.map((axis) => openAt[axis][i] ? `<div class="c">${AXIS_HEAD[axis]}</div><div class="c num">Compare</div>` : "").join("") + (dprAt(i) ? `<div class="c num">Avg Personal</div>` : "");
-  const head = `<div class="trow thead">` + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2) + `<div class="c num">Avg Team DPR</div><div class="c num huehead" title="Click to colour the column by rank">Compare</div><div class="c"></div></div>`;
+  const memberHead = (n, i) => `<div class="c slothead">Slot ${n}</div>` + (seqCmpAt(i) ? `<div class="c num">Compare</div>` : "") + (refCmpAt(i) ? `<div class="c num">Compare</div>` : "") + GEAR_AXES.map((axis) => openAt[axis][i] ? `<div class="c">${AXIS_HEAD[axis]}</div><div class="c num">Compare</div>` : "").join("") + (dprAt(i) ? `<div class="c num dprhead" data-dpr="personal" title="Click to switch between abbreviated and exact figures">Personal</div>` : "");
+  const head = `<div class="trow thead">` + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2) + `<div class="c num dprhead" data-dpr="team" title="Click to switch between abbreviated and exact figures">Team Avg DPR</div><div class="c num huehead" title="Click to colour the column by rank">Compare</div><div class="c"></div></div>`;
   const posCols = (i) => `max-content${seqCmpAt(i) ? " max-content" : ""}${refCmpAt(i) ? " max-content" : ""}${GEAR_AXES.map((axis) => openAt[axis][i] ? " max-content max-content" : "").join("")}${dprAt(i) ? " max-content" : ""}`;
   const gridStyle = `grid-template-columns:${posCols(0)} ${posCols(1)} ${posCols(2)} max-content max-content max-content`;
   const rowLines = (run) => Math.max(1, ...run.members.map((m, i) => openAt.echoes[i] && axisOpen(m, filters, "echoes") ? echoLines(m.loadout, run.combo[i].echo).length : 1));
@@ -2157,9 +2263,11 @@ function comparisonTable(rows) {
   const wide = {
     name: blank(),
     dpr: blank(),
+    dprAbbr: blank(),
     seqcmp: blank(),
     refcmp: blank(),
     total: "",
+    totalAbbr: "",
     pct: "",
     gear: { weapons: blank(), echoes: blank(), mainstats: blank(), substats: blank() },
     cmp: { weapons: blank(), echoes: blank(), mainstats: blank(), substats: blank() }
@@ -2168,7 +2276,8 @@ function comparisonTable(rows) {
     run.members.forEach((m, pos) => {
       const combo = run.combo[pos];
       wide.name[pos] = widest(wide.name[pos], memberLabel(m, combo));
-      wide.dpr[pos] = widest(wide.dpr[pos], fmt(run.bySlot.get(m.name) ?? 0));
+      wide.dpr[pos] = widest(wide.dpr[pos], dprFmt(run.bySlot.get(m.name) ?? 0, true));
+      wide.dprAbbr[pos] = widest(wide.dprAbbr[pos], dprFmt(run.bySlot.get(m.name) ?? 0, false));
       if (axisOpen(m, filters, "sequences"))
         wide.seqcmp[pos] = widest(wide.seqcmp[pos], gearCompare(run, pos, "sequences"));
       if (compares(m, filters, "refines", combo))
@@ -2182,13 +2291,15 @@ function comparisonTable(rows) {
         wide.cmp[axis][pos] = widest(wide.cmp[axis][pos], gearCompare(run, pos, axis));
       }
     });
-    wide.total = widest(wide.total, fmt(run.total));
+    wide.total = widest(wide.total, dprFmt(run.total, true));
+    wide.totalAbbr = widest(wide.totalAbbr, dprFmt(run.total, false));
     wide.pct = widest(wide.pct, ranks[i].pct);
   });
-  const ghostPos = (i) => `<div class="c name res"><span class="res-label">${esc(wide.name[i])}</span></div>` + (seqCmpAt(i) ? `<div class="c num slotcompare">${esc(wide.seqcmp[i])}</div>` : "") + (refCmpAt(i) ? `<div class="c num slotcompare">${esc(wide.refcmp[i])}</div>` : "") + GEAR_AXES.map((axis) => openAt[axis][i] ? `<div class="c option">${esc(wide.gear[axis][i])}</div><div class="c num slotcompare">${esc(wide.cmp[axis][i])}</div>` : "").join("") + (dprAt(i) ? `<div class="c num slotdpr">${esc(wide.dpr[i])}</div>` : "");
-  const ghost = `<div class="trow tghost" aria-hidden="true">` + ghostPos(0) + ghostPos(1) + ghostPos(2) + `<div class="c num total">${esc(wide.total)}</div><div class="c num total baseline">${esc(wide.pct)}</div><div class="c gotodetail">view rotation<span class="arrow">\u203A</span></div></div>`;
+  const ghostPos = (i, dpr) => `<div class="c name res"><span class="res-label">${esc(wide.name[i])}</span></div>` + (seqCmpAt(i) ? `<div class="c num slotcompare">${esc(wide.seqcmp[i])}</div>` : "") + (refCmpAt(i) ? `<div class="c num slotcompare">${esc(wide.refcmp[i])}</div>` : "") + GEAR_AXES.map((axis) => openAt[axis][i] ? `<div class="c option">${esc(wide.gear[axis][i])}</div><div class="c num slotcompare">${esc(wide.cmp[axis][i])}</div>` : "").join("") + (dprAt(i) ? `<div class="c num slotdpr">${esc(dpr[i])}</div>` : "");
+  const ghostFor = (dpr, total) => `<div class="trow tghost" aria-hidden="true">` + ghostPos(0, dpr) + ghostPos(1, dpr) + ghostPos(2, dpr) + `<div class="c num total">${esc(total)}</div><div class="c num total baseline">${esc(wide.pct)}</div><div class="c gotodetail">view rotation<span class="arrow">\u203A</span></div></div>`;
+  const ghost = (personalExact, teamExact) => ghostFor(personalExact ? wide.dpr : wide.dprAbbr, teamExact ? wide.total : wide.totalAbbr);
   tableView = { sorted, ranks, head, ghost, rowHtml, lines, extra };
-  return `<main><div class="tclayout"><aside class="tcside">${comparisonFilters()}</aside><div class="tcbody"><h2 class="summary-label" id="teamCount">${fmt(sorted.length)} teams<span class="hint">Click on a Resonator to filter and compare sequences, weapons, echoes</span></h2><div class="tcwrap"><div class="tgrid${hueShown ? " hued" : ""}" style="${gridStyle}">${head}${ghost}</div></div></div></div></main>`;
+  return `<main><div class="tclayout"><aside class="tcside">${comparisonFilters()}</aside><div class="tcbody"><h2 class="summary-label" id="teamCount">${fmt(sorted.length)} teams<span class="hint">Click on a Resonator to filter and compare sequences, weapons, echoes</span></h2><div class="tcwrap"><div class="tgrid${hueShown ? " hued" : ""}${dprExact.personal ? " personalexact" : ""}${dprExact.team ? " teamexact" : ""}" style="${gridStyle}">${head}${ghost(dprExact.personal, dprExact.team)}</div></div></div></div></main>`;
 }
 var rowHeight = 30;
 var lineHeight = 17;
@@ -2217,7 +2328,7 @@ function rankAll(sorted) {
     const ratio = base ? t / base : 1;
     const away = ratio >= 1 ? maxRatio > 1 ? (ratio - 1) / (maxRatio - 1) : 0 : minRatio < 1 ? (1 - ratio) / (1 - minRatio) : 0;
     const hue = ratio >= 1 ? BASELINE_HUE - away * (BASELINE_HUE - BEST_HUE) : BASELINE_HUE + away * (WORST_HUE - BASELINE_HUE);
-    return { hue, pct: `${fmt(ratio * 100, 1, true)}%`, pinned: i === pinned };
+    return { hue, pct: pctTrunc(ratio), pinned: i === pinned };
   });
 }
 function drawWindow(force = false, scrollTop) {
@@ -2255,7 +2366,7 @@ function drawWindow(force = false, scrollTop) {
     const [key, run] = view.sorted[i];
     body += view.rowHtml(key, run, view.ranks[i]);
   }
-  grid.innerHTML = view.head + view.ghost + spacer(0, from) + body + spacer(to, n);
+  grid.innerHTML = view.head + view.ghost(dprExact.personal, dprExact.team) + spacer(0, from) + body + spacer(to, n);
   drawnFrom = from;
   drawnTo = to;
   if (!measured && to - from >= 2) {
@@ -2368,6 +2479,14 @@ document.addEventListener("click", (e) => {
   hueShown = !hueShown;
   document.querySelector(".tgrid")?.classList.toggle("hued", hueShown);
 });
+document.addEventListener("click", (e) => {
+  const column = e.target.closest(".c.dprhead")?.dataset.dpr;
+  if (!column)
+    return;
+  dprExact[column] = !dprExact[column];
+  document.querySelector(".tgrid")?.classList.toggle(`${column}exact`, dprExact[column]);
+  drawWindow(true);
+});
 document.addEventListener("change", (e) => {
   const select = e.target;
   if (select.id !== "cost")
@@ -2425,35 +2544,29 @@ for (const [type, mode, named] of [["click", "include", false], ["contextmenu", 
 }
 var openNameMenu = (el, x, y) => {
   const resonator = el.dataset.resonator ?? "";
-  const key = resonator;
   const compareItem = (axis) => ({
     label: `${filters[axis].includes(resonator) ? "Stop comparing" : "Compare"} ${resonator} ${AXIS_LABEL[axis].toLowerCase()}`,
     run: () => setCompare(resonator, axis)
   });
-  const tagged = (tag, map) => tag ? [
+  const scopedBlock = (tag, on, gate, map) => tag ? [
     { label: `Show only ${tag} teams`, run: () => setFilter(map, tag, "include") },
-    { label: `Hide ${tag} teams`, run: () => setFilter(map, tag, "exclude") }
+    { label: `Hide ${tag} teams`, run: () => setFilter(map, tag, "exclude") },
+    ...scopedItems(resonator, on, gate).sort((a, b) => AXES.indexOf(a.axis) - AXES.indexOf(b.axis))
   ] : [];
-  const scoped = [
-    ...el.dataset.sequence ? scopedItems(resonator, "sequence", el.dataset.seqGate ?? "") : [],
-    ...el.dataset.refine ? scopedItems(resonator, "refine", el.dataset.refGate ?? "") : []
-  ];
-  const filed = /* @__PURE__ */ new Set();
-  const axisBlock = (axis) => {
-    filed.add(axis);
-    return [compareItem(axis), ...scoped.filter((x2) => x2.axis === axis)];
-  };
   const items = [
-    { label: `Show ${key} teams`, run: () => setFilter(resonatorFilters, key, "include") },
-    { label: `Hide ${key} teams`, run: () => setFilter(resonatorFilters, key, "exclude") },
-    ...tagged(el.dataset.sequence, sequenceFilters),
-    ...tagged(el.dataset.refine, refineFilters),
+    { label: `Show ${resonator} teams`, run: () => setFilter(resonatorFilters, resonator, "include") },
+    { label: `Hide ${resonator} teams`, run: () => setFilter(resonatorFilters, resonator, "exclude") },
     // every axis this resonator has more than one option on, the substat spread last of all —
-    // it is the one that says how the whole build is invested rather than which pick it wears
-    ...AXES.filter((axis) => axis !== "substats" && comparable(resonator, axis)).flatMap(axisBlock),
-    ...comparable(resonator, "substats") ? axisBlock("substats") : [],
-    // a scoped compare whose own axis has no whole-resonator line to sit under still needs one
-    ...scoped.filter((x2) => !filed.has(x2.axis))
+    // it is the one that says how the whole build is invested rather than which pick it wears.
+    // A kit with no chain nodes yet says so where its sequence compare would sit, and the line
+    // does nothing when pressed.
+    // refines are not among them: they belong to the Weapon column, and are opened from a weapon
+    // cell once that column is up (`openOptionMenu`)
+    ...AXES.filter((axis) => axis !== "substats" && axis !== "refines").flatMap((axis) => comparable(resonator, axis) ? [compareItem(axis)] : axis === "sequences" ? [{ label: "Sequences Not Implemented!", run: () => {
+    } }] : []),
+    ...comparable(resonator, "substats") ? [compareItem("substats")] : [],
+    ...scopedBlock(el.dataset.sequence, "sequence", el.dataset.seqGate ?? "", sequenceFilters),
+    ...scopedBlock(el.dataset.refine, "refine", el.dataset.refGate ?? "", refineFilters)
   ];
   showMenu(x, y, items);
   menuOrigin = { map: resonatorFilters, value: resonator, named: true };
@@ -2512,8 +2625,11 @@ var openOptionMenu = (e) => {
     // the compares that opened this column lead, offered back as a way to close it — the same
     // shape a main-stat or substat cell's own menu has (`openStatMenu`)
     ...filters[axis].includes(resonator) ? [{ label: `Stop comparing ${word}`, run: () => setCompare(resonator, axis) }] : [],
-    // the rank rides in this same cell while refines are compared, so it is closed from here too
-    ...kind === "weapon" && filters.refines.includes(resonator) ? [{ label: `Stop comparing ${AXIS_LABEL.refines.toLowerCase()}`, run: () => setCompare(resonator, "refines") }] : [],
+    // the rank rides in this same cell, so this is where the whole rank axis is opened and closed
+    ...kind === "weapon" && comparable(resonator, "refines") ? [{
+      label: `${filters.refines.includes(resonator) ? "Stop comparing" : "Compare"} ${AXIS_LABEL.refines.toLowerCase()}`,
+      run: () => setCompare(resonator, "refines")
+    }] : [],
     ...filters.scoped.filter((s) => s.resonator === resonator && s.axis === axis).map((s) => ({ label: `Stop comparing ${scopedLabel(s)} ${word}`, run: () => setScoped(s) })),
     { label: `Show only ${base}`, run: () => setFilter(map, base, "include") },
     { label: `Hide ${base}`, run: () => setFilter(map, base, "exclude") },
@@ -2551,22 +2667,30 @@ var openStatMenu = (e) => {
 };
 document.addEventListener("click", openStatMenu);
 document.addEventListener("contextmenu", openStatMenu);
+var applySearchHit = (hit) => {
+  if (hit.kind === "compare") {
+    if (hit.resonator && hit.axis)
+      setCompare(hit.resonator, hit.axis);
+    return;
+  }
+  setFilter(hit.kind === "resonator" ? resonatorFilters : OPTION_FILTER_MAPS[hit.kind], hit.value, "include");
+};
 var searchPick = (e) => {
   const el = e.target.closest(".sresult");
   const kind = el?.dataset.kind;
   const value = el?.dataset.value;
   if (!kind || !value)
     return void 0;
-  return [kind === "resonator" ? resonatorFilters : OPTION_FILTER_MAPS[kind], value];
+  return { kind, value, axis: el.dataset.axis, resonator: el.dataset.resonator };
 };
 var addSearchHit = (e) => {
-  const pick = searchPick(e);
-  if (!pick)
+  const hit = searchPick(e);
+  if (!hit)
     return;
   e.preventDefault();
   clearSearch();
   focusAfterDraw = null;
-  setFilter(...pick, "include");
+  applySearchHit(hit);
   focusSearch();
 };
 document.addEventListener("click", addSearchHit);
@@ -2609,6 +2733,8 @@ document.addEventListener("contextmenu", removeChip);
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".clearall"))
     return;
+  if (!matchMedia("(pointer: coarse)").matches)
+    focusAfterDraw = null;
   withRowCap(() => {
     const maps = [resonatorFilters, ...Object.values(OPTION_FILTER_MAPS)];
     const kept = maps.map((map) => [...map]);
@@ -2658,8 +2784,8 @@ document.addEventListener("keydown", (e) => {
     return;
   e.preventDefault();
   const ring = tabRing();
-  const prev = ring[ring.indexOf(chip) - 1];
-  focusAfterDraw = prev && prev.id !== "optionSearch" ? chipSig(prev) : null;
+  const next = ring[ring.indexOf(chip) + 1];
+  focusAfterDraw = next?.classList.contains("rchip") ? chipSig(next) : null;
   chip.click();
 });
 document.addEventListener("keydown", (e) => {
@@ -2690,7 +2816,7 @@ document.addEventListener("keydown", (e) => {
   e.preventDefault();
   clearSearch();
   focusAfterDraw = null;
-  setFilter(hit.kind === "resonator" ? resonatorFilters : OPTION_FILTER_MAPS[hit.kind], hit.value, "include");
+  applySearchHit(hit);
   focusSearch();
 });
 
@@ -2726,9 +2852,8 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
       cls.push("member");
     if (BUFF_UNDERLINE_COLUMNS.has(col.key) && row.buffed.has(col.key))
       cls.push("buffed");
-    if (isRunning(col.key) && typeof v === "number" && Math.abs((Number(row.raw[`before:${col.key}`]) || 0) + (Number(row.raw[`moved:${col.key}`]) || 0) - v) > 1e-9) {
+    if (col.key.startsWith("gauge:") && Number(row.raw[`clear:${col.key}`]))
       cls.push("buffed");
-    }
     if (col.key === "concerto" && Number(row.raw["short:concerto"]))
       cls.push("underspent");
     if (col.key.startsWith("gauge:") && Number(row.raw[`short:${col.key}`]))
@@ -2868,7 +2993,7 @@ function erRequirement(flat, resetIdx, member2, maxEnergy, constant) {
       if (s.energyWiped)
         continue;
       const gain = (s.action.energy + s.stat(
-        25
+        26
         /* Stat.AddEnergy */
       )) * (1 + s.stat(
         14
@@ -2897,7 +3022,7 @@ function energyGenerated(flat, member2, fallback) {
       if (snap.member !== member2 || snap.energyWiped)
         continue;
       total += (snap.action.energy + snap.stat(
-        25
+        26
         /* Stat.AddEnergy */
       )) * (1 + snap.stat(
         14
@@ -2917,11 +3042,11 @@ function offtuneBuilt(flat, member2, [from, to]) {
       if (snap.member !== member2)
         continue;
       const built = snap.action.offtune + snap.stat(
-        27
+        28
         /* Stat.AddOfftune */
       );
       const direct = snap.stat(
-        28
+        29
         /* Stat.DirectOfftune */
       );
       if (built > 0)
@@ -2969,7 +3094,7 @@ function energyTable(run, lines, report, slotHue) {
   const offsets = [0];
   for (const sec of lines)
     offsets.push(offsets[offsets.length - 1] + sec.length);
-  const head = `<div class="rtrow rthead"><div class="c"></div><div class="c num">Opener</div><div class="c num">Loop 1</div><div class="c num">Loop 2</div><div class="c num">Loop 3</div><div class="c num">Energy Gen</div><div class="c num">Offtune Buildup</div></div>`;
+  const head = `<div class="rtrow rthead"><div class="c"></div><div class="c num">Opener</div><div class="c num">Loop 1</div><div class="c num">Loop 2</div><div class="c num">Loop 3</div><div class="c num">Energy Gen</div><div class="c num">Offtune Gen</div></div>`;
   const rows = run.members.map((m, idx) => {
     const maxEnergy = m.loadout.resonator.maxEnergy;
     const combo = run.combo[idx];
@@ -3348,20 +3473,22 @@ function overlayPhase(text, now = false) {
       overlay.hidden = false;
     }, 100);
 }
+var OVERLAY_ROWS = 200;
+async function overlayNow(text, rows = Infinity) {
+  overlayPhase(text, rows >= OVERLAY_ROWS);
+  await paint();
+}
 function overlayHide() {
   clearTimeout(overlayTimer);
   overlayTimer = void 0;
   overlay.hidden = true;
 }
-var barAt = 0;
 function barReset() {
-  barAt = 0;
   overlayFill.style.width = "0%";
   overlayCount.textContent = "";
 }
 function barProgress(done, total) {
-  barAt = Math.max(barAt, total ? done / total : 1);
-  overlayFill.style.width = `${barAt * 100}%`;
+  overlayFill.style.width = `${total ? done / total * 100 : 100}%`;
   overlayCount.textContent = `${fmt(done)} / ${fmt(total)}`;
 }
 var lastPaint = performance.now();
@@ -3402,7 +3529,7 @@ function workerPool() {
   }
   return pool;
 }
-function solveOnWorkers(workers, teams, onDone) {
+function solveOnWorkers(workers, teams, onDone, onShare) {
   return new Promise((resolve) => {
     let next = 0, live = 0, id = 0;
     const pump = (w) => {
@@ -3419,6 +3546,10 @@ function solveOnWorkers(workers, teams, onDone) {
         pump(w);
       };
       w.onmessage = ({ data }) => {
+        if (isProgress(data)) {
+          onShare?.(members, data.share);
+          return;
+        }
         const solved = { picks: data.picks, rows: data.rows, scores: data.scores, hidden: data.hidden ?? [], hiddenScores: data.hiddenScores ?? [] };
         if (solveFits(bestKey(key, members, filters), solved)) {
           finish(solved);
@@ -3443,28 +3574,38 @@ function solveOnWorkers(workers, teams, onDone) {
       resolve();
   });
 }
-async function ensureBestPicks(inPlay, rowsTotal) {
+async function ensureBestPicks(inPlay) {
   await loadShipped(filters);
   const teams = inPlay.filter(([key, members]) => !bestPicks.has(bestKey(key, members, filters)));
   if (!teams.length)
     return false;
-  overlayPhase("Running Calculations...", true);
-  const rowsOf = (members) => members.every((m) => eligibleWeapons(m, filters).length) ? estimatedRowCount(members) : 0;
-  let rowsDone = inPlay.filter(([key, members]) => bestPicks.has(bestKey(key, members, filters))).reduce((sum, [, members]) => sum + rowsOf(members), 0);
-  const progress = () => barProgress(rowsDone, rowsTotal);
+  const rowsOf = (members) => members.every((m) => hasBuild(m, filters)) ? estimatedRowCount(members) : 0;
+  const solvable = teams.filter(([, members]) => members.every((m) => hasBuild(m, filters))).map((t) => [t, rowsOf(t[1])]).sort((a, b) => b[1] - a[1]).map(([t]) => t);
+  if (!solvable.length)
+    return false;
+  const total = solvable.reduce((n, [, members]) => n + rowsOf(members), 0);
+  await overlayNow("Running Calculations...");
+  let done = 0;
+  const progress = () => barProgress(done, total);
   progress();
-  const solvable = teams.filter(([, members]) => members.every((m) => eligibleWeapons(m, filters).length)).map((t) => [t, rowsOf(t[1])]).sort((a, b) => b[1] - a[1]).map(([t]) => t);
+  const counted = /* @__PURE__ */ new Map();
+  const share = (members, part) => {
+    const at = Math.min(rowsOf(members), Math.round(rowsOf(members) * part));
+    const was = counted.get(members) ?? 0;
+    if (at <= was)
+      return;
+    counted.set(members, at);
+    done += at - was;
+    progress();
+  };
   const pool2 = workerPool();
   if (pool2)
-    await solveOnWorkers(pool2, solvable, (members) => {
-      rowsDone += rowsOf(members);
-      progress();
-    });
+    await solveOnWorkers(pool2, solvable, (members) => share(members, 1), share);
   else {
     for (const [key, members] of solvable) {
-      storeSolved(key, solveTeam(key, members, filters, picksCache.get(picksKey(key, members, filters)) ?? null));
-      rowsDone += rowsOf(members);
-      progress();
+      const known = picksCache.get(picksKey(key, members, filters)) ?? null;
+      storeSolved(key, solveTeam(key, members, filters, known, (part) => share(members, part)));
+      share(members, 1);
       await breathe();
     }
   }
@@ -3493,17 +3634,14 @@ async function refresh2() {
       workerPool();
     if (!visibleRows.length)
       route();
-    const solvableInPlay = inPlay.filter(([, members]) => members.every((m) => eligibleWeapons(m, filters).length));
-    const rowsTotal = solvableInPlay.reduce((sum, [, members]) => sum + estimatedRowCount(members), 0);
-    await ensureBestPicks(inPlay, rowsTotal);
+    await ensureBestPicks(inPlay);
     saveSolves();
     const rows = teamRows();
     const cached = rows.filter((row) => results.has(row.key));
     const missing = cached.length !== rows.length;
     if (!missing && cached.length) {
-      overlayPhase("Rendering Table...");
+      await overlayNow("Rendering Table...", rows.length);
       barProgress(rows.length, rows.length);
-      await paint();
       setVisibleRows(cached);
       route();
     } else if (!missing) {
@@ -3512,8 +3650,7 @@ async function refresh2() {
     }
     await runMissing(rows);
     if (missing) {
-      overlayPhase("Rendering Table\u2026");
-      await paint();
+      await overlayNow("Rendering Table\u2026", rows.length);
       setVisibleRows(rows);
       route();
     }
@@ -3557,6 +3694,10 @@ async function boot() {
   if (!detail)
     await refresh2();
   syncHash();
+  const idle = globalThis.requestIdleCallback ?? ((fn) => setTimeout(fn, 500));
+  idle(() => {
+    workerPool();
+  });
   addEventListener("hashchange", () => {
     if (applyHash()) {
       void refresh2();

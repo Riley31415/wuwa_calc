@@ -33,6 +33,9 @@ export interface TraceEntry {
   summary?: boolean;
   /** Identical contributions folded into this row (`foldDuplicates`) — the `xN` after the name. */
   count?: number;
+  /** Printed in the value column in place of the number — for a row that reports something other
+   *  than an amount (a gauge this cast wipes, whose own figure is "whatever was there"). */
+  text?: string;
 }
 
 export type RawRow = Record<string, number | string | null | undefined>;
@@ -81,7 +84,7 @@ const FEEDS: Record<string, (action: Action) => StatKey[]> = {
   amp: (a) => (a.scaling === Scaling.Tune || fixed(a) ? []
     : a.scaling !== Scaling.Dot ? keysFor(a, Stat.Amp)
     : a.type2 === null ? [] : [scopedStat(a.type2, Stat.Amp)]),
-  dealt: (a) => (a.scaling === Scaling.Dot || fixed(a) ? [] : keysFor(a, Stat.TotalDmg)),
+  dealt: (a) => (a.scaling === Scaling.Dot || fixed(a) ? [] : keysFor(a, Stat.TotalDmg, Stat.DamageTaken)),
   effDef: (a) => (fixed(a) ? []
     : a.scaling === Scaling.Dot ? keysFor(a, EnemyStat.DefReduce)
     : keysFor(a, Stat.DefIgnoreNew, Stat.DefIgnoreOld, EnemyStat.DefReduce)),
@@ -100,6 +103,7 @@ const SECTION_OF: Partial<Record<Stat | EnemyStat, string>> = {
   [Stat.DefIgnoreNew]: "DEF Ignore (new)", [Stat.DefIgnoreOld]: "DEF Ignore (old)",
   [EnemyStat.DefReduce]: "DEF Reduce",
   [Stat.ResIgnore]: "RES Ignore", [EnemyStat.ResReduce]: "RES Reduce",
+  [Stat.TotalDmg]: "Total Damage", [Stat.DamageTaken]: "Damage Taken",
 };
 
 /** One line of the hover on an action's name. `source` marks a row that is a *name* (what
@@ -241,7 +245,9 @@ function rowValues(
       : snap.action.scaling === Scaling.Dot ? snap.type2Amp : snap.amp,
     cr: filler || fixed(snap.action) ? null : special(snap.action) ? snap.type2CritRate : snap.stat(Stat.CritRate),
     cd: filler || fixed(snap.action) ? null : special(snap.action) ? snap.type2CritDmg : snap.stat(Stat.CritDmg),
-    dealt: filler || snap.action.scaling === Scaling.Dot || fixed(snap.action) ? null : snap.stat(Stat.TotalDmg),
+    // the column is the pair's combined lift, since Total Damage and Damage Taken multiply
+    dealt: filler || snap.action.scaling === Scaling.Dot || fixed(snap.action) ? null
+      : ((1 + snap.stat(Stat.TotalDmg) / 100) * (1 + snap.stat(Stat.DamageTaken) / 100) - 1) * 100,
     effDef: filler || fixed(snap.action) ? null : effectiveShred(snap) * 100,
     effRes: filler || fixed(snap.action) ? null : effectiveRes(snap),
     er: snap.stat(Stat.Er),
@@ -321,10 +327,16 @@ function rowValues(
     const declared = snap.action[FORTE_FIELD[i]!];
     const traced = tracing(snap, keysFor(snap.action, FORTE_STAT[i]!));
     const rows: TraceEntry[] = [];
+    // a cast that wipes the bar first: its own row says so rather than carrying a figure, since
+    // what it takes off is whatever happened to be there
+    if (snap.action.resetForte[i]) {
+      rows.push({ source: snap.action.name, value: 0, text: "CLEAR", digits: 0, owner: snap.member });
+    }
     if (declared) rows.push({ source: snap.action.name, value: declared, digits: 0, owner: snap.member });
     rows.push(...traced.map((r) => ({ ...r, digits: 0 })));
     if (rows.length) sources[`gauge:${RESOURCE_NAME[key]}`] = rows;
     raw[`moved:gauge:${RESOURCE_NAME[key]}`] = rows.reduce((n, r) => n + r.value, 0);
+    if (snap.action.resetForte[i]) raw[`clear:gauge:${RESOURCE_NAME[key]}`] = 1;
   });
   // mv: `(base + added) x (1 + MulMv)` — the multiplying rows get their own section
   if (!raw.mv) delete sources.mv;
@@ -337,6 +349,21 @@ function rowValues(
       ...parts.filter((r) => !isFactor(r)),
       ...parts.filter(isFactor).map((r) => ({ ...r, section: MV_MULTIPLIER })),
     ];
+  }
+
+  // vuln: the two halves multiply rather than summing, so each gets its own Total and the
+  // column's own (`raw.dealt`) is their product
+  if (sources.dealt?.length) {
+    const half = (stat: Stat) => sources.dealt!
+      .filter((r) => r.stat !== undefined && splitStat(r.stat)[0] === stat)
+      .reduce((n, r) => n + r.value, 0);
+    const total = half(Stat.TotalDmg), taken = half(Stat.DamageTaken);
+    if (total && taken) {
+      sources.dealt = [...sources.dealt, ...([[Stat.TotalDmg, total], [Stat.DamageTaken, taken]] as const)
+        .map(([stat, value]) => ({
+          source: "", label: "Total", value, section: SECTION_OF[stat], percent: true, digits: 1, summary: true,
+        }))];
+    }
   }
 
   // atk/hp/def: a Total per section, then a "Final X" section with the stat and how far the build
@@ -409,6 +436,9 @@ function rowValues(
     ...(f.dealtFactor > 1
       ? [{ source: "buffs", label: "Total Damage", value: f.dealtFactor, mult: true }]
       : []),
+    ...(f.takenFactor > 1
+      ? [{ source: "enemy", label: "Damage Taken", value: f.takenFactor, mult: true }]
+      : []),
     { source: "enemy", label: "Res Factor", value: f.resFactor, mult: true },
     { source: "enemy", label: "Def Factor", value: f.defFactor, mult: true },
     { source: "crit", label: "Average Crit", value: f.critFactor, mult: true },
@@ -474,7 +504,8 @@ export function buildReport(lines: ChainGroup[]): Report {
     { key: "amp", label: "amp%", digits: 1, percent: true, full: "Amplification" },
     { key: "cr", label: "cr%", digits: 1, percent: true, full: "Crit Rate" },
     { key: "cd", label: "cd%", digits: 1, percent: true, full: "Crit Dmg" },
-    { key: "dealt", label: "vuln%", digits: 1, percent: true, full: "Total Damage" },
+    // both halves carry their own section heading, so `full` is only the empty-panel one
+    { key: "dealt", label: "vuln%", digits: 1, percent: true, full: "Vulnerability" },
     { key: "effDef", label: "ignore%", digits: 1, percent: true, full: "DEF Ignore", fullEmpty: "DEF Shred" },
     { key: "effRes", label: "res%", digits: 1, percent: true, full: "Enemy RES" },
     { key: "er", label: "er%", digits: 1, percent: true, full: "Energy Regen" },

@@ -18,7 +18,7 @@ import {
   isHeld,
   revokeCurrent,
   casting,
-  currentAction,
+  runningAction,
   addStat,
   addEnemyStat,
   queue,
@@ -44,7 +44,7 @@ const BA1 = roverAction("Basic - Vibration Manifestation 1", { node: Node.Normal
 const BA2 = roverAction("Basic - Vibration Manifestation 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 76.05, energy: 1, concerto: 4, offtune: 3600, forte1: 5 });
 const BA3 = roverAction("Basic - Vibration Manifestation 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 76.05, energy: 1.5, concerto: 4, offtune: 3600, forte1: 5 });
 const BA4 = roverAction("Basic - Vibration Manifestation 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 130.13, energy: 2, concerto: 6, offtune: 6160, forte1: 7 });
-const MA = roverAction("Mid-air - Attack", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 104.78, energy: 0.51, concerto: 1, offtune: 4960 });
+const MA = roverAction("Mid-air - Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 0.51, concerto: 1, offtune: 4960 });
 const DC = roverAction("Dodge Counter - Vibration Manifestation", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 195.34, energy: 2.62, concerto: 13.6, offtune: 3600 });
 
 const HA1 = roverAction("Heavy - Attack", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 96.35, energy: 1.4, concerto: 4.55, offtune: 22800, forte1: 5 });
@@ -79,7 +79,7 @@ const Outro = roverAction("Outro - Instant", { cast: Cast.Outro, concerto: -100,
  *  straight out of the piece rather than through a buff. */
 const SPR_INHERENT_1 = new Inherent({
   name: "Inherent: Reticence",
-  applyStats: () => { if (currentAction() === FBA) addStat(Stat.DmgBonus, 60); }, // TODO unsure if dmg bonus
+  applyStats: () => { if (runningAction(FBA)) addStat(Stat.DmgBonus, 60); }, // TODO unsure if dmg bonus
 });
 
 /** Silent Listener (Inherent Skill): +15% ATK for 5s off Heavy Attack Resonance. */
@@ -90,7 +90,7 @@ const SILENT_LISTENER = new Buff({
 });
 const SPR_INHERENT_2 = new Inherent({
   name: "Inherent: Silent Listener",
-  updateBuffs: () => { if (currentAction() === HA2) applyCurrent(SILENT_LISTENER, 1); },
+  updateBuffs: () => { if (runningAction(HA2)) applyCurrent(SILENT_LISTENER, 1); },
 });
 
 /** S1 Odyssey of Beginnings: +15% Crit Rate for 7s off either Resonance Skill. Trigger in SPR_S1. */
@@ -115,8 +115,7 @@ const S6_RES_SHRED = new Debuff({
 const SPR_S1 = new Sequence({
   name: "Spectro Rover S1: Odyssey of Beginnings",
   updateBuffs: () => {
-    const a = currentAction();
-    if (a === Skill || a === FSkill1) applyCurrent(S1_CRIT, 1);
+    if (runningAction(Skill) || runningAction(FSkill1)) applyCurrent(S1_CRIT, 1);
   },
 });
 
@@ -142,8 +141,7 @@ const SPR_S5 = new Sequence({
 const SPR_S6 = new Sequence({
   name: "Spectro Rover S6: Echoes of Wanderlust",
   updateBuffs: () => {
-    const a = currentAction();
-    if (a === Skill || a === FSkill1) applyEnemy(S6_RES_SHRED, 1);
+    if (runningAction(Skill) || runningAction(FSkill1)) applyEnemy(S6_RES_SHRED, 1);
   },
 });
 

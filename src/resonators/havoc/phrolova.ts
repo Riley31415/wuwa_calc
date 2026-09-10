@@ -20,6 +20,7 @@ import {
   applyCurrent,
   stacksOf,
   currentAction,
+  runningAction,
   casting,
   queue,
   queueOutro,
@@ -112,6 +113,11 @@ const HBA2 = hecateAction("Basic - Hecate 2", 27.84, { updateBuffs: () => drawNo
 const NOTE_ACTIONS = [EBA_STRINGS, EBA_WINDS, EBA_CADENZA];
 const SWAP_NOTES = NOTE_ACTIONS.map((a) => a.swap());
 
+/** Every hit Hecate lands, her S6 Apparition included. Damage dealt by Hecate is Phrolova's own,
+ *  but her attacks are not Phrolova's for a kit that reads them: "Hecate's attacks will not remove
+ *  the target's Hazy Dream state" is her own text, and Cantarella's Hazy Dream reads this. */
+export const HECATE_ACTIONS = new Set<Action>([...NOTE_ACTIONS, ...SWAP_NOTES, HBA1, HBA2]);
+
 /** Bank one gathered note into the store's first empty slot — 1 Strings, 2 Winds, 3 Cadenza.
  *  Gated on a landed hit ("hitting a target with..."), so a dodge-cancelled Basic 3 (mv stripped
  *  by dodgeCancel()) pays nothing and leaves an armed Accidental standing. Accidental is the one
@@ -174,7 +180,7 @@ const AFTERSOUND = new Buff({
     const n = frozenStacks(), held = Math.min(n, 24), overflow = n - held;
     addStat(Stat.CritDmg, Math.min(100, held * 2.5 + overflow));
 
-    if (currentAction() === ScarletCoda) {
+    if (runningAction(ScarletCoda)) {
       addStat(Stat.AddMv, 82.55 * held);
     }
   },
@@ -215,7 +221,7 @@ const ACCIDENTAL = new Buff({
 /** Accidental's own trigger: casting Suite of Quietus, Suite of Immortality, or an Echo Skill. */
 const PH_INHERENT_1 = new Inherent({
   name: "Inherent: Accidental",
-  updateBuffs: () => { const a = currentAction(); if (a === Intro || a === EIntro || casting(Cast.Echo)) applyCurrent(ACCIDENTAL, 1); },
+  updateBuffs: () => { if (runningAction(Intro) || runningAction(EIntro) || casting(Cast.Echo)) applyCurrent(ACCIDENTAL, 1); },
 });
 /** No combat-formula effect this engine models — still equipped, just doesn't hand out a stat. */
 const PH_INHERENT_2 = new Inherent({ name: "Inherent: Octet" ,
@@ -241,6 +247,7 @@ const PHROLOVA_OUTRO = new Buff({
 /** S6's own Hecate cast, queued out of her two Forte actions — she's on the field for those, so
  *  unlike the Maestro notes this is an active action. */
 const Apparition = phroAction("Hecate - Apparition of Beyond", { type: Type1.Echo, mv: 216.42 });
+HECATE_ACTIONS.add(Apparition);
 
 /** S1: the out-of-combat top-up only ever reads, in a rotation, as opening the fight holding 2
  *  Volatile Notes — Cadenza by its own text ("gains Volatile Note - Cadenza until she has at
@@ -248,14 +255,14 @@ const Apparition = phroAction("Hecate - Apparition of Beyond", { type: Type1.Ech
 const PH_S1 = new Sequence({
   name: "Phrolova S1: A Key to Netherworld's Secrets",
   combatStart: () => applyCurrent(NOTES, 3 | (3 << 2)),
-  applyStats: () => { const a = currentAction(); if (a === FBA || a === FSkill) addStat(Stat.MulMv, 80); },
+  applyStats: () => { if (runningAction(FBA) || runningAction(FSkill)) addStat(Stat.MulMv, 80); },
 });
 
 /** S2: both Scarlet Coda lines together are the one +75% MV multiplier, not a per-Aftersound one. */
 const PH_S2 = new Sequence({
   name: "Phrolova S2: A Rope Tied to a Life Beyond",
-  updateBuffs: () => { if (currentAction() === ScarletCoda) applyCurrent(AFTERSOUND, 14); },
-  applyStats: () => { if (currentAction() === ScarletCoda) addStat(Stat.MulMv, 75); },
+  updateBuffs: () => { if (runningAction(ScarletCoda)) applyCurrent(AFTERSOUND, 14); },
+  applyStats: () => { if (runningAction(ScarletCoda)) addStat(Stat.MulMv, 75); },
 });
 
 /** S3: every note becomes a Cadenza (in drawNote() above); the Cadenza ATK shred isn't modelled
@@ -285,16 +292,14 @@ const PH_S5 = new Sequence({ name: "Phrolova S5: A Forked Road in Fate's Heartla
 const PH_S6 = new Sequence({
   name: "Phrolova S6: A Night to Depart From Eternal Rest",
   updateBuffs: () => {
-    const a = currentAction();
-    if (a === FBA || a === FSkill) queue(Apparition);
-    if (a === Apparition) applyCurrent(AFTERSOUND, 8); // TODO check if the apparition gains the 8 stacks for its damage
+    if (runningAction(FBA) || runningAction(FSkill)) queue(Apparition);
+    if (runningAction(Apparition)) applyCurrent(AFTERSOUND, 8); // TODO check if the apparition gains the 8 stacks for its damage
   },
   applyStats: () => {
-    const a = currentAction();
-    if (a === EBA_STRINGS || a === EBA_WINDS || a === EBA_CADENZA) addStat(Stat.MulMv, 24);
+    if (runningAction(EBA_STRINGS) || runningAction(EBA_WINDS) || runningAction(EBA_CADENZA)) addStat(Stat.MulMv, 24);
     if (stacksOf(MAESTRO)) {
       if (isActive()) addStat(Stat.DmgBonus, 60, Attribute.Havoc);
-      else addStat(Stat.TotalDmg, 40);
+      else addStat(Stat.DamageTaken, 40);
     }
   },
 });
@@ -372,7 +377,7 @@ export const PHROLOVA = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Skill),
-    rotation: [PH_LOOP, PH_LOOP, PH_LOOP_S2],
+    rotation: { 0: PH_LOOP, 2: PH_LOOP_S2 },
   sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6],
 });
 
@@ -410,6 +415,6 @@ export const PHROLOVA_DUAL_DPS = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Skill),
-    rotation: [PH_LOOP_DUAL_DPS, PH_LOOP_DUAL_DPS, PH_LOOP_DUAL_DPS_S2],
+    rotation: { 0: PH_LOOP_DUAL_DPS, 2: PH_LOOP_DUAL_DPS_S2 },
   sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6],
 });

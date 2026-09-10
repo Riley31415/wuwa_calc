@@ -1,6 +1,6 @@
 /**
- * Jiyan, ported to the new engine — sequence-0 core loop, a limited 5-star
- * (`Tier.Limited`). An aero broadblade main DPS. His Liberation (Emerald Storm - Prelude)
+ * Jiyan, ported to the new engine — a limited 5-star (`Tier.Limited`), Sequences 1-6 in their
+ * own block below. An aero broadblade main DPS. His Liberation (Emerald Storm - Prelude)
  * deals no damage itself but opens Qingloong Mode (10s), replacing his kit with the three-stage
  * Heavy Attack Lance of Qingloong; cast with 30+ Resolve it queues Emerald Storm - Finale itself
  * (considered Heavy Attack DMG), spending the 30 — never placed in a rotation by hand. Windqueller inside the mode gets +20% DMG for
@@ -22,11 +22,11 @@
  * "queued and owned by the kit that earned it" shape as Lupa's Set the Arena Ablaze; the 1s
  * trigger ICD isn't modelled.
  */
-import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
+import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   applyCurrent,
-  currentAction,
+  runningAction,
   casting,
   revokeCurrent,
   addStat,
@@ -37,9 +37,11 @@ import {
   triggeredAction,
   queueOutro,
   isActive,
+  applyTeam,
+  frozenStacks,
 } from "../../engine/context.js";
 import { matrix } from "../../shared/helpers.js";
-import { Action, Rotation, START_3, SWAP, INTRO, ECHO_CANCEL, OUTRO, ActionField } from "../../engine/rotation.js";
+import { Action, Rotation, START_3, SWAP, INTRO, ECHO_CANCEL, OUTRO, ActionField, DODGE } from "../../engine/rotation.js";
 import { VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC } from "../../echoes/jinzhou.js";
@@ -66,8 +68,8 @@ const HA2 = jiyanAction("Heavy - Windborne Strike", { node: Node.Normal, cast: C
 /** Abyssal Slash, releasing Basic during the Heavy Attack. */
 const HA3 = jiyanAction("Heavy - Abyssal Slash", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 81.71, energy: 1.02, concerto: 2.05, offtune: 3288 });
 
-const MA = jiyanAction("Mid-air - Lone Lance", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 123.26, energy: 0.51, concerto: 1.00, offtune: 4960 });
-const MA2 = jiyanAction("Mid-air - Lone Lance (Follow-Up)", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 155.66, energy: 1.95, concerto: 3.91, offtune: 6264 });
+const MA = jiyanAction("Mid-air - Lone Lance", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.26, energy: 0.51, concerto: 1.00, offtune: 4960 });
+const MA2 = jiyanAction("Mid-air - Lone Lance (Follow-Up)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 155.66, energy: 1.95, concerto: 3.91, offtune: 6264 });
 /** Banner of Triumph, the mid-air attack after Windborne Strike or a mid-air Windqueller. */
 const MA3 = jiyanAction("Basic - Banner of Triumph", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.52, energy: 1.00, concerto: 2.00, offtune: 3200 });
 const DC = jiyanAction("Dodge Counter - Lone Lance", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 125.84 * 2, energy: 3.16, concerto: 13.32, offtune: 5328 });
@@ -79,7 +81,7 @@ const DC = jiyanAction("Dodge Counter - Lone Lance", { node: Node.Normal, cast: 
 // the out-of-mode action's own forte1 already spends
 const WINDQUELLER = { applyStats: () => addStat(Stat.DmgBonus, 20) };
 const Skill = jiyanAction("Skill - Windqueller", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 106.36 * 4, energy: 9.00, concerto: 16, offtune: 6480, forte1: -30, ...WINDQUELLER });
-const Skill2 = jiyanAction("Skill - Windqueller (Low Resolve)", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 106.36 * 4, energy: 9.00, concerto: 16, offtune: 6480 });
+const SkillLowResolve = jiyanAction("Skill - Windqueller (Low Resolve)", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 106.36 * 4, energy: 9.00, concerto: 16, offtune: 6480 });
 const USkill = jiyanAction("Skill - Windqueller (Qingloong)", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 106.36 * 4, energy: 9.00, concerto: 16, offtune: 6480, ...WINDQUELLER });
 
 /** Emerald Storm - Prelude: no damage of its own, just opens Qingloong Mode. */
@@ -165,7 +167,7 @@ const JIYAN_RESONATOR = new Resonator({
   outro: () => Outro,
   color: "#4fc98f",
   maxEnergy: 125,
-  maxForte1: 30,
+  maxForte1: 60,
 
   constantStats: () => {
     addStat(Stat.BaseHp, 10487.5); addStat(Stat.BaseAtk, 437.5); addStat(Stat.BaseDef, 1185.55);
@@ -177,13 +179,101 @@ const JIYAN_RESONATOR = new Resonator({
 // is empty by then, so it neither spends nor boosts. He's never the team's own lead, so this
 // covers both opener and loop.
 
+/* --------------------------------------------------------------------------------- sequences */
+
+/** S1: Windqueller holds a second charge — the extra in-mode cast the S1 rotation makes — and its
+ *  Resolve cost drops by 15, refunded onto the one form that spends. */
+const JY_S1 = new Sequence({
+  name: "Jiyan S1: Benevolence",
+  applyStats: () => { if (runningAction(Skill)) addStat(Stat.AddForte1, 15); },
+});
+
+/** S2: Tactical Strike banks 30 more Resolve — nothing here spends them, Finale takes its 30 and
+ *  the in-mode Windqueller is free — and +28% ATK for 15s, so until he leaves the field. */
+const VERSATILITY = new Buff({
+  name: "Jiyan S2: Versatility",
+  stats: [[Stat.BonusAtk, 28]],
+  until: LifeTime.AfterSwap,
+});
+const JY_S2 = new Sequence({
+  name: "Jiyan S2: Versatility",
+  applyStats: () => { if (runningAction(Intro)) addStat(Stat.AddForte1, 30); },
+  updateBuffs: () => { if (runningAction(Intro)) applyCurrent(VERSATILITY, 1); },
+});
+
+/** S3: +16% Crit. Rate and +32% Crit. DMG for 8s off Windqueller, either Emerald Storm or Tactical
+ *  Strike — the Intro grants it first and the lances refresh nothing, but Windqueller lands inside
+ *  the mode, so it holds for his whole field window and goes with his Outro. */
+const SPECTATION = new Buff({
+  name: "Jiyan S3: Spectation",
+  stats: [[Stat.CritRate, 16], [Stat.CritDmg, 32]],
+  until: LifeTime.AfterSwap,
+});
+const JY_S3 = new Sequence({
+  name: "Jiyan S3: Spectation",
+  updateBuffs: () => {
+    if (runningAction(Skill) || runningAction(SkillLowResolve) || runningAction(USkill) || runningAction(Liberation) || runningAction(Finale) || runningAction(Intro)) applyCurrent(SPECTATION, 1);
+  },
+});
+
+/** S4: +25% Heavy Attack DMG Bonus to the team off either Emerald Storm, 30s — permanent. */
+const PRUDENCE = new Buff({
+  name: "Jiyan S4: Prudence",
+  stats: [[Stat.DmgBonus, 25, Type1.Heavy]],
+});
+const JY_S4 = new Sequence({
+  name: "Jiyan S4: Prudence",
+  updateBuffs: () => { if (runningAction(Liberation) || runningAction(Finale)) applyTeam(PRUDENCE, 1); },
+});
+
+/** S5: Discipline's lances hit for +120% of their multiplier, and every hit of his is +3% ATK a
+ *  stack up to 15 — maxed outright by Tactical Strike, so the full 45% for his whole window. */
+const RESOLUTION = new Buff({
+  name: "Jiyan S5: Resolution", maxStacks: 15,
+  stats: [[Stat.BonusAtk, 3]], perStack: true,
+  until: LifeTime.AfterSwap,
+});
+const JY_S5 = new Sequence({
+  name: "Jiyan S5: Resolution",
+  applyStats: () => { if (runningAction(ACTION_OUTRO_COORD)) addStat(Stat.MulMv, 120); },
+  updateBuffs: () => {
+    if (runningAction(Intro)) applyCurrent(RESOLUTION, 15);
+    else if (!triggeredAction() && isActive()) applyCurrent(RESOLUTION, 1);
+  },
+});
+
+/** S6: a Momentum stack off every Heavy, Tactical Strike or Windqueller, two at most; Finale spends
+ *  them all for +120% of its multiplier each. Prelude fires Finale straight off the Intro's one
+ *  stack here — a Heavy ahead of the Liberation would bank the second. */
+const MOMENTUM = new Buff({
+  name: "Jiyan S6: Momentum", maxStacks: 2,
+  applyStats: () => { if (runningAction(Finale)) addStat(Stat.MulMv, 120 * frozenStacks()); },
+  convertStats: () => { if (runningAction(Finale)) revokeCurrent(MOMENTUM); },
+});
+const JY_S6 = new Sequence({
+  name: "Jiyan S6: Fortitude",
+  updateBuffs: () => {
+    if (casting(Cast.Heavy) || runningAction(Intro) || runningAction(Skill) || runningAction(SkillLowResolve) || runningAction(USkill)) applyCurrent(MOMENTUM, 1);
+  },
+});
+
+const JY_SEQUENCES = [JY_S1, JY_S2, JY_S3, JY_S4, JY_S5, JY_S6];
+
 const JY_ROTATION = new Rotation([
+  START_3, SkillLowResolve.swap(), SWAP,
+
   INTRO, ECHO_CANCEL,
   Liberation,
-  Lance1, USkill, Lance1, Lance1, Lance1, // dodge cancels
-  Lance1, Lance1, Lance1, Lance1,
-  START_3, Skill2, SWAP, OUTRO,
+  Lance1, USkill, 
+  Lance1, DODGE,
+  Lance1, DODGE,
+  Lance1, DODGE,
+  Lance1, DODGE,
+  Lance1, DODGE,
+  Lance1, DODGE,
+  SkillLowResolve.swap(), OUTRO,
 ]);
+
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -197,5 +287,6 @@ export const JIYAN = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Er),
-    rotation: JY_ROTATION,
+  rotation: JY_ROTATION,
+  sequences: JY_SEQUENCES,
 });

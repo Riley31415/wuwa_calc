@@ -4,7 +4,7 @@
  * `Weapon`/`Resonator`), plus `EchoLoadout` and `Loadout`. Definitions only — what a piece
  * *does* is the hooks it declares, which `evaluate.ts` runs.
  */
-import { Stat, EnemyStat, Attribute, WeaponType, Tier, Type1, Type2, Cast, Node, Scaling, scopedStat, tagBand, STAT_COUNT, TYPE2_BITS } from "./stats.js";
+import { Stat, EnemyStat, Attribute, WeaponType, Tier, Type1, Type2, Cast, Node, Scaling, scopedStat, tagBand, STAT_COUNT, TYPE2_BITS, LifeTime, BuffTarget } from "./stats.js";
 import type { Tag, StatKey } from "./stats.js";
 import type { Rotation, Action, ActionGroup, ActionDef, ActionField } from "./rotation.js";
 import { ctx } from "./runtime.js";
@@ -24,7 +24,7 @@ export type Trigger = () => boolean;
  *  the action (`() => applied(SHIELD)`). `buff` left out means the declaring Buff itself — a buff
  *  that stacks itself up on a trigger; a thunk (`() => LATER_BUFF`) reaches one declared further
  *  down the file. */
-export interface Grant { on: Trigger; buff?: Buff | (() => Buff); stacks?: number | (() => number); to?: "self" | "team" | "enemy" | "next" }
+export interface Grant { on: Trigger; buff?: Buff | (() => Buff); stacks?: number | (() => number); to?: BuffTarget }
 
 export interface GearDef {
   /** Optional only because `toString` can cover for it entirely — a Gear whose display name is
@@ -178,9 +178,9 @@ export class Gear {
           const n = typeof g.stacks === "function" ? g.stacks() : g.stacks ?? 1;
           if (n <= 0) continue;
           const buff = typeof g.buff === "function" ? g.buff() : g.buff ?? (this as Buff);
-          if (g.to === "team") applyTeam(buff, n);
-          else if (g.to === "enemy") applyEnemy(buff as Debuff, n);
-          else if (g.to === "next") queueOutro(buff);
+          if (g.to === BuffTarget.Team) applyTeam(buff, n);
+          else if (g.to === BuffTarget.Enemy) applyEnemy(buff as Debuff, n);
+          else if (g.to === BuffTarget.Next) queueOutro(buff);
           else applyCurrent(buff, n);
         }
       };
@@ -197,9 +197,13 @@ export class Gear {
       | (this.constantStatsFn ? PHASE_CONST : 0);
     this.hookFns = [this.updateDebuffsFn, this.updateBuffsFn, this.applyStatsFn, this.convertStatsFn, this.lateConvertStatsFn, this.afterActionFn, this.constantStatsFn];
   }
+  /** "Name xN" for anything that stacks — by its own declared cap, or in fact: a debuff declared at 1
+   *  can be standing at 2 or 3 once a kit's `maxStackIncrease()` raised the target's own ceiling
+   *  (Tune Strain - Interfered under its responders), and that count is what the reader wants. */
   toString(): string {
     if (this.displayFn) return this.displayFn();
-    return this.maxStacks > 1 ? `${this.name} x${frozenStacks()}` : this.name;
+    const n = frozenStacks();
+    return this.maxStacks > 1 || n > 1 ? `${this.name} x${n}` : this.name;
   }
 }
 
@@ -220,11 +224,8 @@ export interface BuffDef extends GearDef {
    *  so the cast that grants stacks pays for those it held already, not the ones it just added.
    *  The default (applyStats) pays the count after this action's grants. */
   early?: boolean;
-  /** When the buff goes: `outro` — revoked on the holder's Outro after paying on it (the usual
-   *  "short self buff, lost after the outro"); `swap` — revoked on the action that takes the holder
-   *  off field, before it pays ("lost on switching out"); `afterSwap` — the same action, after it
-   *  pays (a handoff that still counts on the leaving row). Unset is permanent. */
-  until?: "outro" | "swap" | "afterSwap";
+  /** When the buff goes — see `LifeTime` (stats.ts). Unset is permanent. */
+  until?: LifeTime;
 }
 
 export class Buff extends Gear {
@@ -241,13 +242,13 @@ export class Buff extends Gear {
       if (def.early) { const own = this.updateBuffsFn; this.updateBuffsFn = () => { pay(); own?.(); }; }
       else { const own = def.applyStats; this.applyStatsFn = () => { pay(); own?.(); }; }
     }
-    if (def.until === "outro") {
+    if (def.until === LifeTime.Outro) {
       const own = def.convertStats;
       this.convertStatsFn = () => { own?.(); if (casting(Cast.Outro)) revokeCurrent(this); };
-    } else if (def.until === "swap") {
+    } else if (def.until === LifeTime.Swap) {
       const own = this.updateBuffsFn;
       this.updateBuffsFn = () => { if (currentAction().swapOut) revokeCurrent(this); own?.(); };
-    } else if (def.until === "afterSwap") {
+    } else if (def.until === LifeTime.AfterSwap) {
       const own = def.convertStats;
       this.convertStatsFn = () => { own?.(); if (currentAction().swapOut) revokeCurrent(this); };
     }
@@ -274,6 +275,8 @@ export const baseSequence = (r: Resonator): number =>
  *  (Lucilla's Echo/Glacio Chafe split), not something toggled mid-rotation. Other pieces of that
  *  kit read `isHeld()` on the specific mode equipped, same as checking a Sequence. */
 export class ResonanceMode extends Gear {}
+/** A resonance-chain level, S0 to S6 — what a loadout's rotation map is keyed by. */
+export type SequenceLevel = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 /** An echo sonata set's 2-piece bonus — worn on its own beside a 3pc/1pc set, or carried along by
  *  its own set's 5pc (see `Sonata`). The `size` literals below are what tell the set shapes apart
  *  for `EchoLoadout`'s constructor: structurally they would otherwise all be a bare Gear. */
@@ -334,9 +337,10 @@ export interface LoadoutDef {
   substat: Buff;
   /** Worn instead of `substat` when that role's High Invest Substats box is on. */
   highSubstat: Buff;
-  /** One rotation for every sequence level, or a list of up to seven where the nth is the one the
-   *  build runs at S(n-1); a shorter list's last entry covers every level above it. */
-  rotation: Rotation | Rotation[];
+  /** One rotation for every sequence level, or a map from the level a rotation takes over at to
+   *  that rotation — `{ 0: base, 3: withStrawCape }` — S0 always named; a level not named runs the
+   *  nearest one declared below it. */
+  rotation: Rotation | Partial<Record<SequenceLevel, Rotation>>;
   sequences?: Sequence[];
   mode?: ResonanceMode;
 }
@@ -371,9 +375,13 @@ export class Loadout {
   /** This build's whole rotation, already compiled into the up-to-three action chains the
    *  scheduler schedules — start of combat, opener, and the Intro chain every visit after
    *  (rotation.ts). One field, not an opener/loop pair: the chains share a body, so splitting
-   *  them across two lists only ever duplicated it. Indexed by sequence level, S0 first — see
-   *  `rotationAt()`. */
+   *  them across two lists only ever duplicated it. Every distinct one this build declares, for
+   *  whoever has to check them all (teams.ts's playability pass); `rotationAt()` picks per level. */
   rotations: Rotation[];
+  /** The lowest chain level this build declares a rotation for: below it there is none, so a
+   *  build at a lower level has no rows (solver.ts's `sequenceLevels()`). */
+  minSequence: number;
+  private readonly rotationByLevel: (Rotation | null)[];
   /** This loadout's own resonance-chain nodes, S1 first — as many as it actually declares, which
    *  is six for anything a build is costed above S0 at (see `Tier`) and none for most
    *  limited kits. */
@@ -388,16 +396,24 @@ export class Loadout {
     this.mainstats = def.mainstats;
     this.substat = def.substat;
     this.highSubstat = def.highSubstat;
-    this.rotations = Array.isArray(def.rotation) ? def.rotation : [def.rotation];
-    if (this.rotations.length < 1 || this.rotations.length > 7) throw new Error(`${def.resonator.name}: a loadout lists 1-7 rotations, one per sequence level`);
+    // a bare Rotation carries an Intro chain; a level map never does. A level takes the nearest
+    // declared rotation below it, and the levels under the lowest declared one have none
+    const declared: Partial<Record<SequenceLevel, Rotation>> = "intro" in def.rotation ? { 0: def.rotation as Rotation } : def.rotation as Partial<Record<SequenceLevel, Rotation>>;
+    this.rotationByLevel = [];
+    for (let n = 0; n <= 6; n++) this.rotationByLevel[n] = declared[n as SequenceLevel] ?? this.rotationByLevel[n - 1] ?? null;
+    this.minSequence = this.rotationByLevel.findIndex(Boolean);
+    if (this.minSequence < 0) throw new Error(`${def.resonator.name}: a loadout's rotation map declares no rotation`);
+    this.rotations = [...new Set(this.rotationByLevel.filter((r): r is Rotation => r !== null))];
     this.sequences = def.sequences ?? [];
     this.mode = def.mode;
   }
 
-  /** The rotation a build at `sequenceLevel` runs: its own entry where the list reaches that
-   *  far, else the last one listed. */
+  /** The rotation a build at `sequenceLevel` runs: the one declared for that level, else the
+   *  nearest declared below it. */
   rotationAt(sequenceLevel: number): Rotation {
-    return this.rotations[Math.min(sequenceLevel, this.rotations.length - 1)]!;
+    const r = this.rotationByLevel[Math.min(6, sequenceLevel)];
+    if (!r) throw new Error(`${this.resonator.name} declares no rotation below S${this.minSequence}`);
+    return r;
   }
 
   /** Every piece for one specific weapon/echo/main-stat/sequence-level combo, flattened into the
@@ -629,7 +645,7 @@ export class Weapon extends Gear {
 
 /** An Action is a Gear (see the class below), so every hook `GearDef` declares is available here
  *  too — an action that *does* something declares it directly instead of a held Gear branching on
- *  `currentAction() === X`. The one that doesn't apply is `combatStart`: an Action is cast, never
+ *  `runningAction(X)`. The one that doesn't apply is `combatStart`: an Action is cast, never
  *  equipped, so nothing ever fires it. */
 /* Action/ActionGroup/ActionDef live in rotation.ts, beside the markers and the rotation-flavoured
  * forms (`cancel()`, `swap()`). This module names them through `import type` only — that erased

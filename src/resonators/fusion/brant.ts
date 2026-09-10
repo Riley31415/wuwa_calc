@@ -21,6 +21,7 @@ import {
   revokeCurrent,
   casting,
   currentAction,
+  runningAction,
   addStat,
   getStat,
   queue,
@@ -99,14 +100,14 @@ const Plunge = brantAction("Basic - Plunging Attack", { node: Node.Normal, cast:
 //     stages 1-2 (the MA1/MA2 variants below), the hold finishers, and stage 3's automatic one —
 //     stage 4 has none. forte1 is the base (un-doubled) Bravo gain, AFLAME doubles it live. The
 //     Slash has no recorded Bravo value, so it declares none.
-const MA1 = brantAction("Mid-air - Captain's Rhapsody 1", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 122.86, energy: 1.82, concerto: 3.64, offtune: 5816, forte1: 9.02 });
-const MA1C = brantAction("Mid-air - Captain's Rhapsody 1 (Charged)", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 332.48, energy: 4.96, concerto: 9.85, offtune: 15736, forte1: 24.46 }); // 33.25%+49.87%+41.56%x6
-const MA2 = brantAction("Mid-air - Captain's Rhapsody 2", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 169.84, energy: 2.52, concerto: 5.04, offtune: 8040, forte1: 12.48 }); // 84.92%x2
-const MA2C = brantAction("Mid-air - Captain's Rhapsody 2 (Charged)", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 197.22, energy: 2.94, concerto: 5.88, offtune: 9336, forte1: 25.32 }); // 32.87%x6
-const MA3 = brantAction("Mid-air - Captain's Rhapsody 3", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 169.02, energy: 2.52, concerto: 5.04, offtune: 7998, forte1: 18.6 }); // 28.17%x6
-const MAFlip = brantAction("Mid-air - Captain's Rhapsody Flip", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 92.95, energy: 1.38, concerto: 2.75, offtune: 4400, forte1: 10.24 }); // 33.80%+59.15%
-const MASlash = brantAction("Mid-air - Captain's Rhapsody 1 Slash", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 84.51, energy: 1.26, concerto: 2.52, offtune: 3999 }); // 28.17%x3
-const MA4 = brantAction("Mid-air - Captain's Rhapsody 4", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 253.85, energy: 3.78, concerto: 7.55, offtune: 12017, forte1: 18.7 }); // 101.53%+25.39%x3+76.15%
+const MA1 = brantAction("Mid-air - Captain's Rhapsody 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 122.86, energy: 1.82, concerto: 3.64, offtune: 5816, forte1: 9.02 });
+const MA1C = brantAction("Mid-air - Captain's Rhapsody 1 (Charged)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 332.48, energy: 4.96, concerto: 9.85, offtune: 15736, forte1: 24.46 }); // 33.25%+49.87%+41.56%x6
+const MA2 = brantAction("Mid-air - Captain's Rhapsody 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 169.84, energy: 2.52, concerto: 5.04, offtune: 8040, forte1: 12.48 }); // 84.92%x2
+const MA2C = brantAction("Mid-air - Captain's Rhapsody 2 (Charged)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 197.22, energy: 2.94, concerto: 5.88, offtune: 9336, forte1: 25.32 }); // 32.87%x6
+const MA3 = brantAction("Mid-air - Captain's Rhapsody 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 169.02, energy: 2.52, concerto: 5.04, offtune: 7998, forte1: 18.6 }); // 28.17%x6
+const MAFlip = brantAction("Mid-air - Captain's Rhapsody Flip", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 92.95, energy: 1.38, concerto: 2.75, offtune: 4400, forte1: 10.24 }); // 33.80%+59.15%
+const MASlash = brantAction("Mid-air - Captain's Rhapsody 1 Slash", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 84.51, energy: 1.26, concerto: 2.52, offtune: 3999 }); // 28.17%x3
+const MA4 = brantAction("Mid-air - Captain's Rhapsody 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 253.85, energy: 3.78, concerto: 7.55, offtune: 12017, forte1: 18.7 }); // 101.53%+25.39%x3+76.15%
 
 // the pressable moves: the release presses flip off their own hit, the holds off the Charged
 // finisher inside their group
@@ -115,6 +116,14 @@ const MA2F = MA2.variant(MA2.name, { updateBuffs: () => queue(MAFlip) });
 const MA3F = MA3.variant(MA3.name, { updateBuffs: () => queue(MAFlip) });
 const MA1CF = MA1C.variant(MA1C.name, { updateBuffs: () => queue(MAFlip) });
 const MA2CF = MA2C.variant(MA2C.name, { updateBuffs: () => queue(MAFlip) });
+
+/** Every press the kit calls a Mid-air Attack: the eight of them, plus the flip-queuing variants
+ *  above — a `variant()` is its own Action, so it has to be named here alongside the press it
+ *  copies. What S2 and S6 both pay on. */
+const midAir = (): boolean => runningAction(MA1) || runningAction(MA1C) || runningAction(MA2)
+  || runningAction(MA2C) || runningAction(MA3) || runningAction(MAFlip) || runningAction(MASlash)
+  || runningAction(MA4) || runningAction(MA1F) || runningAction(MA2F) || runningAction(MA3F)
+  || runningAction(MA1CF) || runningAction(MA2CF);
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -131,7 +140,7 @@ const AFLAME = new Buff({
   // ...and hands the conversion back down as it goes. "My" Moment has already paid out this
   // action by now (the roster was frozen with it held), so this cast still gets the Aflame rate.
   convertStats: () => {
-    if (!(casting(Cast.Outro) || currentAction() === FSkill)) return;
+    if (!(casting(Cast.Outro) || runningAction(FSkill))) return;
     revokeCurrent(AFLAME);
     revokeCurrent(MY_MOMENT); applyCurrent(THEATRICAL_MOMENT, 1);
   },
@@ -180,7 +189,7 @@ const BY_CURRENTS = new Buff({
 });
 const BR_S1 = new Sequence({
   name: "Brant S1: By Currents and Winds",
-  updateBuffs: () => { const a = currentAction(); if (a === Intro || a === MAFlip) applyCurrent(BY_CURRENTS, 1); },
+  updateBuffs: () => { if (runningAction(Intro) || runningAction(MAFlip)) applyCurrent(BY_CURRENTS, 1); },
 });
 
 /** S2's outro enhancement: for 20s after The Course is Set!, the incoming resonator's Resonance
@@ -199,22 +208,22 @@ const COURSE_BLAST = new Buff({
 const BR_S2 = new Sequence({
   name: "Brant S2: For Smiles and Cheers",
   // +30% Crit Rate on the mid-air presses and Returned from Ashes itself; the blast rides the outro
-  applyStats: () => { if (casting(Cast.MidAir) || currentAction() === FSkill) addStat(Stat.CritRate, 30); },
-  updateBuffs: () => { if (currentAction() === Outro) { queueOutro(COURSE_BLAST); queueOutro(COURSE_BLAST); } },
+  applyStats: () => { if (midAir() || runningAction(FSkill)) addStat(Stat.CritRate, 30); },
+  updateBuffs: () => { if (runningAction(Outro)) { queueOutro(COURSE_BLAST); queueOutro(COURSE_BLAST); } },
 });
 
 /** S3: Returned from Ashes' multiplier +42% — S6's secondary blast is 30% of that hit, so it takes
  *  the same lift. */
 const BR_S3 = new Sequence({
   name: "Brant S3: Through Storms I Sail",
-  applyStats: () => { const a = currentAction(); if (a === FSkill || a === AshesBlast) addStat(Stat.MulMv, 42); },
+  applyStats: () => { if (runningAction(FSkill) || runningAction(AshesBlast)) addStat(Stat.MulMv, 42); },
 });
 
 /** S4: Returned from Ashes also heals the whole team (its +20% shield isn't modelled) — the
  *  healing marker every healing sonata/weapon reads, on Brant alone as always. */
 const BR_S4 = new Sequence({
   name: "Brant S4: To Freedom I Sing",
-  updateDebuffs: () => { if (currentAction() === FSkill) applyCurrent(HEALS, 1); },
+  updateDebuffs: () => { if (runningAction(FSkill)) applyCurrent(HEALS, 1); },
 });
 
 /** S5: +15% Basic Attack DMG Bonus for 10s off any Basic Attack DMG — refreshed all visit, so it
@@ -235,8 +244,8 @@ const BR_S5 = new Sequence({
 const AshesBlast = brantAction("Forte - Returned from Ashes (S6 Blast)", { node: Node.Forte, type: Type1.Basic, mv: 1888.71 * 0.3 });
 const BR_S6 = new Sequence({
   name: "Brant S6: All the World's a Captain's Carnevale",
-  applyStats: () => { if (casting(Cast.MidAir)) addStat(Stat.MulMv, 30); },
-  updateBuffs: () => { if (currentAction() === FSkill) queue(AshesBlast); },
+  applyStats: () => { if (midAir()) addStat(Stat.MulMv, 30); },
+  updateBuffs: () => { if (runningAction(FSkill)) queue(AshesBlast); },
 });
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit

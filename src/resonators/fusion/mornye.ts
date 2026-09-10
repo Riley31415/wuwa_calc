@@ -22,10 +22,11 @@
 import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Debuff, Sequence } from "../../engine/gear.js";
 import {
+  asSource,
   addStat,
   applyCurrent,
   applyTeam,
-  currentAction,
+  runningAction,
   queue,
   queueOutro,
   revokeCurrent,
@@ -66,7 +67,7 @@ const BA2 = mornyeAction("Basic - Ground State Calibration 2", { node: Node.Norm
 const BA3 = mornyeAction("Basic - Ground State Calibration 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 103.4, energy: 1.67, concerto: 5.2, offtune: 5200, forte1:37 });
 const BA4 = mornyeAction("Basic - Ground State Calibration 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 135.2, energy: 2.13, concerto: 6.8, offtune: 6800, forte1:100 });
 const HA = mornyeAction("Heavy - Ground State Calibration", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 37, energy: 0.79, concerto: 2.5, offtune: 2480, forte1: 20 });
-const MA = mornyeAction("Mid-air - Ground State Calibration", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 98.61, energy: 1.55, concerto: 4.96, offtune: 4960 });
+const MA = mornyeAction("Mid-air - Ground State Calibration", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 1.55, concerto: 4.96, offtune: 4960 });
 const DC = mornyeAction("Dodge Counter - Ground State Calibration", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 162.23, energy: 2.55, concerto: 18.16, offtune: 8160, forte1: 20 });
 
 // --- Wide Field Observation Mode, the airborne state the Syntony Field lives in
@@ -143,7 +144,9 @@ const SYNTONY_FIELD = new Buff({
     addStat(Stat.OfftuneBuildup, 50);
     if (frozenStacks() === 2) addStat(Stat.BonusDef, 20);
     // S2's own +20% on top, read off her slot: the node is her local gear, this pays the team
-    if (currentTeam().slots.find((m) => m.resonator === MORNYE_RESONATOR)?.isHeld(MO_S2)) addStat(Stat.OfftuneBuildup, 20);
+    if (currentTeam().slots.find((m) => m.resonator === MORNYE_RESONATOR)?.isHeld(MO_S2)) {
+      asSource(MO_S2, () => addStat(Stat.OfftuneBuildup, 20));
+    }
   },
 });
 
@@ -177,7 +180,7 @@ const OBSERVATION_MARKER = new Debuff({
   // leaves a Strain, or none at all, is held off by nothing — so a fresh one starts the count over
   // rather than pushing the old one along.
   updateGlobal: () => {
-    if (currentAction() !== TUNE_BREAK) return;
+    if (!runningAction(TUNE_BREAK)) return;
     revokeEnemy(INTERFERED_MARKER);
     applyEnemy(INTERFERED_MARKER, 1);
   },
@@ -193,7 +196,7 @@ const INTERFERED_MARKER: Debuff = new Debuff({
   name: "Mornye: Interfered Marker", maxStacks: 26,
   display: () => "Mornye: Interfered Marker",
   updateBuffs: () => {
-    if (triggeredAction() || currentAction() === TUNE_BREAK || !isActive()) return;
+    if (triggeredAction() || runningAction(TUNE_BREAK) || !isActive()) return;
     const s1 = currentTeam().slots.find((m) => m.resonator === MORNYE_RESONATOR)?.isHeld(MO_S1);
     if (stacksOfEnemy(INTERFERED_MARKER) > (s1 ? 25 : 10)) revokeEnemy(INTERFERED_MARKER);
     else applyEnemy(INTERFERED_MARKER, 1);
@@ -202,8 +205,11 @@ const INTERFERED_MARKER: Debuff = new Debuff({
   // own slot specifically, found by resonator identity
   applyStats: () => {
     const her = currentTeam().slots.find((m) => m.resonator === MORNYE_RESONATOR);
-    if (her?.isHeld(MO_S1) || stacksOfEnemy(TUNE_RUPTURE_INTERFERED) > 0 || stacksOfEnemy(TUNE_STRAIN_INTERFERED) > 0) addStat(Stat.DmgBonus, 40);
-    if (her?.isHeld(MO_S2)) addStat(Stat.CritDmg, 32);
+    // S1 makes the bonus unconditional, so the half it adds over the base reading is its own
+    const interfered = stacksOfEnemy(TUNE_RUPTURE_INTERFERED) > 0 || stacksOfEnemy(TUNE_STRAIN_INTERFERED) > 0;
+    if (interfered) addStat(Stat.DmgBonus, 40);
+    else if (her?.isHeld(MO_S1)) asSource(MO_S1, () => addStat(Stat.DmgBonus, 40));
+    if (her?.isHeld(MO_S2)) asSource(MO_S2, () => addStat(Stat.CritDmg, 32));
   },
 });
 
@@ -215,7 +221,7 @@ const INTERFERED_MARKER: Debuff = new Debuff({
 const MO_S1 = new Sequence({
   name: "Mornye S1: The Silent Observer",
   updateBuffs: () => {
-    if (currentAction() !== Inversion) return;
+    if (!runningAction(Inversion)) return;
     revokeEnemy(INTERFERED_MARKER);
     applyEnemy(INTERFERED_MARKER, 1);
   },
@@ -234,7 +240,7 @@ const MO_S2 = new Sequence({ name: "Mornye S2: Morning Star of Entropy" });
 const MO_S3 = new Sequence({
   name: "Mornye S3: Blueprint of Recursion",
   applyStats: () => {
-     if (currentAction() === DistributedArray) {
+     if (runningAction(DistributedArray)) {
       addStat(Stat.AddConcerto, 25); 
       addStat(Stat.AddForte2, 100); 
      }
@@ -248,9 +254,8 @@ const MO_S4 = new Sequence({ name: "Mornye S4: Latent Variables of the Cosmos" }
 const MO_S5 = new Sequence({
   name: "Mornye S5: Time Dilation Effect",
   applyStats: () => {
-    const a = currentAction();
-    if (a === Liberation) addStat(Stat.MulMv, 40);
-    if (a === ParticleJet) addStat(Stat.MulMv, 160);
+    if (runningAction(Liberation)) addStat(Stat.MulMv, 40);
+    if (runningAction(ParticleJet)) addStat(Stat.MulMv, 160);
   },
 });
 
@@ -258,7 +263,7 @@ const MO_S5 = new Sequence({
  *  she is off field, which changes nothing here — she already casts the Liberation every loop. */
 const MO_S6 = new Sequence({
   name: "Mornye S6: To the Far Shores of the Stars",
-  applyStats: () => { if (currentAction() === Liberation) addStat(Stat.DmgBonus, 400); },
+  applyStats: () => { if (runningAction(Liberation)) addStat(Stat.DmgBonus, 400); },
 });
 
 const MO_SEQUENCES = [MO_S1, MO_S2, MO_S3, MO_S4, MO_S5, MO_S6];
@@ -271,8 +276,7 @@ const MO_INHERENT_1 = new Inherent({
   name: "Inherent: Blueprint",
   stats: [[Stat.Er, 10]],
   applyStats: () => {
-    const a = currentAction();
-    if (a === Intro || a === WBA3) addStat(Stat.AddConcerto, 20);
+    if (runningAction(Intro) || runningAction(WBA3)) addStat(Stat.AddConcerto, 20);
   },
 });
 
@@ -352,6 +356,6 @@ export const MORNYE = new Loadout({
   mainstats: mainstatOptions(Mainstat.DEF4, Mainstat.ER3, Mainstat.DEF1),
   substat: substats(Substat.DefPct, Substat.Liberation, Substat.FlatDef, true),
   highSubstat: highSubs(Substat.Er, Substat.Liberation, Substat.DefPct, Substat.Liberation),
-  rotation: [MO_ROTATION, MO_ROTATION, MO_ROTATION, MO_ROTATION_S3],
+  rotation: { 0: MO_ROTATION, 3: MO_ROTATION_S3 },
   sequences: MO_SEQUENCES,
 });

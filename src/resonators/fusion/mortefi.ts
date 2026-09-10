@@ -19,6 +19,7 @@ import {
   isHeld,
   casting,
   currentAction,
+  runningAction,
   triggeredAction,
   frozenStacks,
   isType,
@@ -51,8 +52,8 @@ const BA3 = mortefiAction("Basic - Impromptu Show 3", { node: Node.Normal, cast:
 const BA4 = mortefiAction("Basic - Impromptu Show 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 21.02 * 4 + 126.93, energy: 3.76, concerto: 12.09, offtune: 12080, forte1: 25 });
 
 const HA = mortefiAction("Heavy - Impromptu Show", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 167.01, energy: 2.4, concerto: 7.68, offtune: 9600 });
-const MA1 = mortefiAction("Mid-air - Impromptu Show 1", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 23.25, energy: 0.41, concerto: 1, offtune: 1360 });
-const MA2 = mortefiAction("Mid-air - Impromptu Show 2", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 23.25, energy: 0.41, concerto: 1, offtune: 1360 });
+const MA1 = mortefiAction("Mid-air - Impromptu Show 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 23.25, energy: 0.41, concerto: 1, offtune: 1360 });
+const MA2 = mortefiAction("Mid-air - Impromptu Show 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 23.25, energy: 0.41, concerto: 1, offtune: 1360 });
 const DC = mortefiAction("Dodge Counter - Impromptu Show", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 194.98, energy: 3.5, concerto: 16.4, offtune: 6400 });
 
 // --- resonance skill: Passionate Variation. Elemental DMG reads 0, so concerto is the flat
@@ -112,7 +113,7 @@ const BURNING_RHAPSODY = new Buff({
     if (!oneSecondPassed()) return;
     if (casting(Cast.Skill)) { queueOn(MORTEFI_RESONATOR, ACTION_MARCATO); queueOn(MORTEFI_RESONATOR, ACTION_MARCATO_PAIRED); return; }
     const heavy = casting(Cast.Heavy);
-    if (!heavy && !((casting(Cast.Basic) || casting(Cast.MidAir)) && currentAction().mv > 0)) return;
+    if (!heavy && !(casting(Cast.Basic) && currentAction().mv > 0)) return;
     const n = Math.min(3, stacksOfTeam(BURNING_RHAPSODY));
     for (let i = 0; i < n; i++) {
       queueOn(MORTEFI_RESONATOR, ACTION_MARCATO);
@@ -137,13 +138,13 @@ const VIBRATO = new Buff({
  *  short window, lost after the outro action gains stats. */
 const HARMONIC_CONTROL = new Buff({
   name: "Inherent: Harmonic Control",
-  applyStats: () => { if (currentAction() === FSkill) addStat(Stat.DmgBonus, 25); },
+  applyStats: () => { if (runningAction(FSkill)) addStat(Stat.DmgBonus, 25); },
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(HARMONIC_CONTROL); },
 });
 /** Harmonic Control's own trigger — always-equipped Inherent Skill piece. */
 const MO_INHERENT_1 = new Inherent({
   name: "Inherent: Harmonic Control",
-  updateBuffs: () => { if (currentAction() === Skill) applyCurrent(HARMONIC_CONTROL, 1); },
+  updateBuffs: () => { if (runningAction(Skill)) applyCurrent(HARMONIC_CONTROL, 1); },
 });
 
 /** Rhythmic Vibrato (Inherent Skill) — the name; the live ramp itself is the `VIBRATO` buff
@@ -187,7 +188,7 @@ const MORTEFI_S3 = new Sequence({
  *  slots banked on top of the Liberation's own 28. */
 const MORTEFI_S4 = new Sequence({
   name: "Mortefi S4: Cathartic Waltz",
-  updateBuffs: () => { if (currentAction() === Liberation) applyTeam(BURNING_RHAPSODY, 20); },
+  updateBuffs: () => { if (runningAction(Liberation)) applyTeam(BURNING_RHAPSODY, 20); },
 });
 
 /** S5 Funerary Quartet: Mortefi's own Passionate Variation/Fury Fugue hit fires 4 more Marcato at
@@ -196,15 +197,14 @@ const MORTEFI_S4 = new Sequence({
 const MORTEFI_S5 = new Sequence({
   name: "Mortefi S5: Funerary Quartet",
   updateBuffs: () => {
-    const a = currentAction();
-    if (a === Skill || a === FSkill) for (let i = 0; i < 4; i++) queue(ACTION_S5_MARCATO);
+    if (runningAction(Skill) || runningAction(FSkill)) for (let i = 0; i < 4; i++) queue(ACTION_S5_MARCATO);
   },
 });
 
 /** S6 Apoplectic Instrumental — payout lives in `S6_TEAM_ATK` above, this is just its trigger. */
 const MORTEFI_S6 = new Sequence({
   name: "Mortefi S6: Apoplectic Instrumental",
-  updateBuffs: () => { if (currentAction() === Liberation) applyTeam(S6_TEAM_ATK, 1); },
+  updateBuffs: () => { if (runningAction(Liberation)) applyTeam(S6_TEAM_ATK, 1); },
 });
 
 // stat-tree bonus alone, spread across four skill nodes (Fusion DMG + ATK), same +12%/+12% shape

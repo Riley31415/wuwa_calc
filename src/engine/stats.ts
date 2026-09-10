@@ -45,6 +45,9 @@ export const enum Stat {
   Amp,
 
   TotalDmg,
+  /** The target's own vulnerability — "targets take N% more DMG from X", against TotalDmg's
+   *  attacker-side "deals N% more DMG". The two multiply: `(1 + taken) x (1 + total)`. */
+  DamageTaken,
 
   ResIgnore, // doesnt work on dot
   DefIgnoreNew, // use only on the newest resonators
@@ -96,6 +99,7 @@ export const STAT_NAME: Record<Stat | EnemyStat, string> = {
   [Stat.EnergyRegenMult]: "Energy Regen Multiplier",
   [Stat.AddMv]: "MV increase", [Stat.MulMv]: "MV multiplier",
   [Stat.DmgBonus]: "Dmg Bonus", [Stat.Amp]: "Amplification", [Stat.TotalDmg]: "Total Damage",
+  [Stat.DamageTaken]: "Damage Taken",
   [Stat.ResIgnore]: "Res Ignore", [Stat.DefIgnoreNew]: "Def Ignore (new)", [Stat.DefIgnoreOld]: "Def Ignore (old)",
   [Stat.HealingBonus]: "Healing Bonus", [Stat.HealingReceived]: "Healing Received",
   [Stat.AddEnergy]: "Energy", [Stat.AddConcerto]: "Concerto", [Stat.AddOfftune]: "Offtune",
@@ -223,12 +227,25 @@ export const enum Tier {
   Free,
 }
 
+/** How long a Buff stands once granted (`BuffDef.until`): revoked on the holder's Outro after
+ *  paying on it (the usual "short self buff, lost after the outro"); on the action that takes the
+ *  holder off field, before it pays ("lost on switching out"); or on that same action after it
+ *  pays (a handoff that still counts on the leaving row). Unset is permanent. */
+/** Who a `Grant` puts its buff on: the wielder (the default), the whole team, the target, or
+ *  whoever intros next (an outro handoff, `queueOutro`). */
+export const enum BuffTarget { Self, Team, Enemy, Next }
+
+export const enum LifeTime {
+  Outro,
+  Swap,
+  AfterSwap,
+}
+
 /** Cast identities with no damage type of their own (a Dodge Counter deals whatever `type` says);
  *  kept out of `Type1` so they can't be reached for `type`/`type2` by mistake. */
 export const enum Cast {
   DodgeCounter,
   Basic,
-  MidAir,
   Heavy,
   Skill,
   Liberation,
@@ -239,7 +256,7 @@ export const enum Cast {
 }
 
 export const CAST_NAME: Record<Cast, string> = {
-  [Cast.DodgeCounter]: "Dodge Counter", [Cast.Basic]: "Basic", [Cast.MidAir]: "Mid-air", [Cast.Heavy]: "Heavy", [Cast.Skill]: "Skill",
+  [Cast.DodgeCounter]: "Dodge Counter", [Cast.Basic]: "Basic", [Cast.Heavy]: "Heavy", [Cast.Skill]: "Skill",
   [Cast.Liberation]: "Liberation", [Cast.Intro]: "Intro", [Cast.Outro]: "Outro", [Cast.Echo]: "Echo",
   [Cast.TuneBreak]: "Tune Break",
 };
@@ -286,7 +303,7 @@ export const PERCENT_STATS: Set<Stat | EnemyStat> = new Set<Stat | EnemyStat>([
   Stat.BonusAtk, Stat.BonusHp, Stat.BonusDef, Stat.CritRate, Stat.CritDmg, Stat.Er,
   Stat.OfftuneBuildup, Stat.EnergyRegenMult,
   Stat.AddMv, Stat.MulMv,
-  Stat.DmgBonus, Stat.Amp, Stat.TotalDmg,
+  Stat.DmgBonus, Stat.Amp, Stat.TotalDmg, Stat.DamageTaken,
   Stat.ResIgnore, Stat.DefIgnoreNew, Stat.DefIgnoreOld,
   Stat.HealingBonus, Stat.HealingReceived,
   EnemyStat.ResReduce, EnemyStat.DefReduce,

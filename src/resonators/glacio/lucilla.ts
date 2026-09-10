@@ -52,7 +52,7 @@ import {
   applyEnemy,
   isHeld,
   casting,
-  currentAction,
+  runningAction,
   currentTeam,
   addStat,
   addEnemyStat,
@@ -103,7 +103,7 @@ const Outro = lucillaAction("Outro - Montage", {
 const BA1 = lucillaAction("Basic - Snapshot 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 59.29, energy: 1.07, concerto: 1.71, offtune: 3408 });
 const BA2 = lucillaAction("Basic - Snapshot 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 67.23, energy: 1.22, concerto: 1.94, offtune: 3865 });
 const BA3 = lucillaAction("Basic - Snapshot 3 - Commendable", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 235.27, energy: 4.23, concerto: 6.77, offtune: 13524, forte1: 50 });
-const MA = lucillaAction("Mid-air - Snapshot", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 86.29, energy: 1.55, concerto: 3.66, offtune: 4960 });
+const MA = lucillaAction("Mid-air - Snapshot", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.29, energy: 1.55, concerto: 3.66, offtune: 4960 });
 const DC = lucillaAction("Dodge Counter - Snapshot", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 150.73, energy: 2.71, concerto: 16.4, offtune: 8665 });
 
 // Phantom Frame (the pull-in dash, held to deploy Focus Ring) into either Compensate (cursor
@@ -139,7 +139,6 @@ const UBA3 = lucillaAction("Basic - Tracing Forms 3", {
   updateBuffs: () => {
     const photos = Math.min(3, Math.floor(forte1() / 50));
     for (let i = 0; i < photos; i++) queue(isHeld(MODE_CHAFE) ? OblivionChafe : OblivionEcho);
-    queue(LettingGo);
   },
 });
 
@@ -170,7 +169,7 @@ const MODE_ECHO = new ResonanceMode({ name: "Resonance Mode - Echo" });
 const MODE_CHAFE = new ResonanceMode({
   name: "Resonance Mode - Glacio Chafe",
   // the retag has to land in the first phase, before anything reads the type (see typeOverride)
-  updateDebuffs: () => { const a = currentAction(); if (a === Liberation || a === LettingGo) typeOverride(Type1.Basic); },
+  updateDebuffs: () => { if (runningAction(Liberation) || runningAction(LettingGo)) typeOverride(Type1.Basic); },
 });
 
 /** Slow Motion (Inherent Skill): while casting Spotlight, Echo mode grants the whole team +25%
@@ -189,7 +188,7 @@ const SLOW_MOTION_CHAFE = new Debuff({
 const LC_INHERENT_1 = new Inherent({
   name: "Inherent: Slow Motion",
   updateBuffs: () => {
-    if (currentAction() !== Spotlight) return;
+    if (!runningAction(Spotlight)) return;
     if (isHeld(MODE_ECHO)) applyTeam(SLOW_MOTION_TEAM, 1);
     else if (isHeld(MODE_CHAFE)) applyEnemy(SLOW_MOTION_CHAFE, 1);
   },
@@ -225,9 +224,8 @@ const FILM_ROLL: Buff = new Buff({
 const LC_INHERENT_2 = new Inherent({
   name: "Inherent: Remembrance",
   updateBuffs: () => {
-    const a = currentAction();
-    if (a === OblivionEcho) applyTeam(ZOOM, 1);
-    if (a === OblivionChafe) applyTeam(FILM_ROLL, 2);
+    if (runningAction(OblivionEcho)) applyTeam(ZOOM, 1);
+    if (runningAction(OblivionChafe)) applyTeam(FILM_ROLL, 2);
   },
 });
 
@@ -289,11 +287,11 @@ const UBA123 = new ActionGroup("Basic - Tracing Forms 123", [UBA1, UBA2, UBA3]);
 
 const LC_ROTATION = new Rotation([
   INTRO, PhantomFrame, Spotlight, Liberation,
-  UBA123, ECHO_SWAP, OUTRO,
+  UBA123, LettingGo, ECHO_SWAP, OUTRO,
 
   START_3, PhantomFrame, Spotlight, SWAP,
 
-  INTRO_3, ECHO_CANCEL, Liberation, UBA123, 
+  INTRO_3, ECHO_CANCEL, Liberation, UBA123, LettingGo,
   PhantomFrame, Spotlight, 
   OUTRO,
 ]);
@@ -310,7 +308,7 @@ const DISTANT_NOON = new Buff({
 });
 const LC_S1 = new Sequence({
   name: "Lucilla S1: Distant Noon",
-  updateBuffs: () => { if (currentAction() === Spotlight) applyCurrent(DISTANT_NOON, 1); },
+  updateBuffs: () => { if (runningAction(Spotlight)) applyCurrent(DISTANT_NOON, 1); },
 });
 
 /** S2, off Clear As Day and branching on the mode she is committed to: Chafe amplifies every
@@ -329,7 +327,7 @@ const SLUMBERING_ECHO = new Buff({
 const LC_S2 = new Sequence({
   name: "Lucilla S2: Slumbering Moonlight",
   updateBuffs: () => {
-    if (currentAction() !== Liberation) return;
+    if (!runningAction(Liberation)) return;
     applyTeam(isHeld(MODE_CHAFE) ? SLUMBERING_CHAFE : SLUMBERING_ECHO, 1);
   },
 });
@@ -337,7 +335,7 @@ const LC_S2 = new Sequence({
 /** S3: +100% DMG Multiplier on Letting It Go. */
 const LC_S3 = new Sequence({
   name: "Lucilla S3: Days Fade Unheard",
-  applyStats: () => { if (currentAction() === LettingGo) addStat(Stat.MulMv, 100); },
+  applyStats: () => { if (runningAction(LettingGo)) addStat(Stat.MulMv, 100); },
 });
 
 /** S4: +10% ATK a stack off each Oblivion, up to 3 — 6s, so the three Photos Stage 3 spends and
@@ -350,8 +348,7 @@ const PAST_FADES = new Buff({
 const LC_S4 = new Sequence({
   name: "Lucilla S4: The Past Fades Into Silence",
   updateBuffs: () => {
-    const a = currentAction();
-    if (a === OblivionEcho || a === OblivionChafe) applyCurrent(PAST_FADES, 1);
+    if (runningAction(OblivionEcho) || runningAction(OblivionChafe)) applyCurrent(PAST_FADES, 1);
   },
 });
 
@@ -359,8 +356,7 @@ const LC_S4 = new Sequence({
 const LC_S5 = new Sequence({
   name: "Lucilla S5: Time is Like a Stream",
   applyStats: () => {
-    const a = currentAction();
-    if (a === OblivionEcho || a === OblivionChafe) addStat(Stat.MulMv, 50);
+    if (runningAction(OblivionEcho) || runningAction(OblivionChafe)) addStat(Stat.MulMv, 50);
   },
 });
 
@@ -369,14 +365,13 @@ const LC_S5 = new Sequence({
  *  Longing half only refills Trace out of combat. */
 const REMEMBRANCE_S6 = new Buff({
   name: "Lucilla S6: Remembrance", maxStacks: 3,
-  applyStats: () => { if (currentAction() === LettingGo) addStat(Stat.DmgBonus, 200 * frozenStacks()); },
-  convertStats: () => { if (currentAction() === LettingGo) revokeCurrent(REMEMBRANCE_S6); },
+  applyStats: () => { if (runningAction(LettingGo)) addStat(Stat.DmgBonus, 200 * frozenStacks()); },
+  convertStats: () => { if (runningAction(LettingGo)) revokeCurrent(REMEMBRANCE_S6); },
 });
 const LC_S6 = new Sequence({
   name: "Lucilla S6: Gazing In the Mist of Time",
   updateBuffs: () => {
-    const a = currentAction();
-    if (a === OblivionEcho || a === OblivionChafe) applyCurrent(REMEMBRANCE_S6, 1);
+    if (runningAction(OblivionEcho) || runningAction(OblivionChafe)) applyCurrent(REMEMBRANCE_S6, 1);
   },
 });
 

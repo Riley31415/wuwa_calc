@@ -1,7 +1,7 @@
 /** Signature Broadblade weapons. Every piece works if equipped on any resonator, not just its
  *  own. Each export is the weapon's five refinements, R1 first (gear.ts's own `refinements()`);
  *  a number that grows with rank is written as its five values. */
-import { WeaponType, Stat, Attribute, Type1, Cast } from "../engine/stats.js";
+import { WeaponType, Stat, Attribute, Type1, Cast, LifeTime, BuffTarget } from "../engine/stats.js";
 import { Buff, Weapon, refinements } from "../engine/gear.js";
 import {
   addStat, frozenStacks, casting, currentTeam, addBuff, applyCurrent, removeStack, applied,
@@ -14,7 +14,7 @@ import { SHIELD, HEALS, inflictedNegativeStatus, inflictedNegativeStatusBy } fro
 export const VERDANT_SUMMIT = refinements((r, rank) => {
   const SWORDSWORN_STACKS = new Buff({
     name: `Verdant Summit: Swordsworn${rank}`, maxStacks: 2,
-    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type1.Heavy]], perStack: true, early: true, until: "outro",
+    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type1.Heavy]], perStack: true, early: true, until: LifeTime.Outro,
   });
   return new Weapon({
     weaponType: WeaponType.Broadblade, name: `Verdant Summit${rank}`,
@@ -29,11 +29,11 @@ export const VERDANT_SUMMIT = refinements((r, rank) => {
 export const AGES_OF_HARVEST = refinements((r, rank) => {
   const AGELESS_MARKING = new Buff({
     name: `Ages of Harvest: Ageless Marking${rank}`,
-    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type1.Skill]], until: "outro",
+    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type1.Skill]], until: LifeTime.Outro,
   });
   const ETHEREAL_ENDOWMENT = new Buff({
     name: `Ages of Harvest: Ethereal Endowment${rank}`,
-    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type1.Skill]], until: "outro",
+    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type1.Skill]], until: LifeTime.Outro,
   });
   return new Weapon({
     weaponType: WeaponType.Broadblade, name: `Ages of Harvest${rank}`,
@@ -50,11 +50,11 @@ export const AGES_OF_HARVEST = refinements((r, rank) => {
 export const THUNDERFLARE_DOMINION = refinements((r, rank) => {
   const THUNDERBLAZE_DMG = new Buff({
     name: `Thunderflare Dominion: Thunderblaze Eminence (heavy)${rank}`,
-    stats: [[Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Type1.Heavy]], until: "outro",
+    stats: [[Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Type1.Heavy]], until: LifeTime.Outro,
   });
   const THUNDERBLAZE_DEF = new Buff({
     name: `Thunderflare Dominion: Thunderblaze Eminence (def ignore)${rank}`, maxStacks: 5,
-    stats: [[Stat.DefIgnoreNew, [7.2, 8.4, 9.6, 10.8, 12][r]!, Type1.Heavy]], perStack: true, early: true, until: "outro",
+    stats: [[Stat.DefIgnoreNew, [7.2, 8.4, 9.6, 10.8, 12][r]!, Type1.Heavy]], perStack: true, early: true, until: LifeTime.Outro,
   });
   return new Weapon({
     weaponType: WeaponType.Broadblade, name: `Thunderflare Dominion${rank}`,
@@ -77,8 +77,8 @@ export const WILDFIRE_MARK = refinements((r, rank) => {
   });
   const WILDFIRE_LIB_DMG = new Buff({
     name: `Wildfire Mark: Blazing Starfire${rank}`,
-    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type1.Liberation]], until: "outro",
-    grants: [{ on: onType(Type1.Heavy), buff: WILDFIRE_TEAM, to: "team" }],
+    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type1.Liberation]], until: LifeTime.Outro,
+    grants: [{ on: onType(Type1.Heavy), buff: WILDFIRE_TEAM, to: BuffTarget.Team }],
   });
   return new Weapon({
     weaponType: WeaponType.Broadblade, name: `Wildfire Mark${rank}`,
@@ -93,14 +93,14 @@ export const WILDFIRE_MARK = refinements((r, rank) => {
  *  is its own flat +1 rather than also counting the shield it grants, so it doesn't double-stack. */
 export const JINGRAN_SIG = refinements((r, rank) => {
   const NATURES_ORDER = new Buff({
-    name: `Thousandfold Deliverance: Nature's Order${rank}`, maxStacks: 6, until: "swap",
+    name: `Thousandfold Deliverance: Nature's Order${rank}`, maxStacks: 6, until: LifeTime.Swap,
     stats: [[Stat.CritDmg, [4, 5, 6, 7, 8][r]!]], perStack: true,
     applyStats: () => { if (frozenStacks() >= 6) addStat(Stat.CritRate, [12, 15, 18, 21, 24][r]!, Type1.Heavy); },
   });
   /** Spent by a heavy attack: up to two stacks, each piercing 15% defence. "Heavy attack" is the
    *  cast, not the damage type. Also ends on switching resonator. */
   const CRADLE_OF_LIFE: Buff = new Buff({
-    name: `Thousandfold Deliverance: Cradle of Life${rank}`, maxStacks: 6, until: "swap",
+    name: `Thousandfold Deliverance: Cradle of Life${rank}`, maxStacks: 6, until: LifeTime.Swap,
     updateBuffs: () => {
       if (!casting(Cast.Heavy)) return;
       const spent = Math.min(frozenStacks(), 2);
@@ -142,7 +142,7 @@ export const STARFIELD_CALIBRATOR = refinements((r, rank) => {
     stats: [[Stat.BaseAtk, 412.5], [Stat.Er, 77.04], [Stat.BonusDef, [16, 20, 24, 28, 32][r]!]],
     grants: [
       { on: onCast(Cast.Skill), buff: DEFINITE_SOLUTION_CONCERTO },
-      { on: onApplied(HEALS), buff: DEFINITE_SOLUTION, to: "team" },
+      { on: onApplied(HEALS), buff: DEFINITE_SOLUTION, to: BuffTarget.Team },
     ],
   });
 });

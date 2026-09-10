@@ -18,7 +18,7 @@ import {
   isHeld,
   revokeCurrent,
   casting,
-  currentAction,
+  runningAction,
   addStat,
   addEnemyStat,
 } from "../../engine/context.js";
@@ -45,7 +45,7 @@ const BA3 = roverAction("Basic - Tuneslayer 3", { node: Node.Normal, cast: Cast.
 const BA4 = roverAction("Basic - Tuneslayer 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 120.90, energy: 1.26, concerto: 1.56, offtune: 5121, forte1: 9 });
 const BA5 = roverAction("Basic - Tuneslayer 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 188.88, energy: 2, concerto: 2.48, offtune: 8000, forte1: 10 });
 
-const MA = roverAction("Mid-air - Attack", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 117.10, energy: 0.41, concerto: 1, offtune: 9600, forte1: 9 });
+const MA = roverAction("Mid-air - Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 117.10, energy: 0.41, concerto: 1, offtune: 9600, forte1: 9 });
 const DC = roverAction("Dodge Counter - Tuneslayer", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 179.43, energy: 1.9, concerto: 10.86, offtune: 4640 });
 const HA = roverAction("Heavy - Attack", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 95.43, energy: 0.96, concerto: 1.19, offtune: 5360 });
 
@@ -108,7 +108,7 @@ const RH_INHERENT_1 = new Inherent({
 const RH_INHERENT_2 = new Inherent({
   name: "Inherent: Bleak Crescendo",
   applyStats: () => {
-    if (isHeld(DARK_SURGE) && (casting(Cast.Basic) || casting(Cast.MidAir))) {
+    if (isHeld(DARK_SURGE) && casting(Cast.Basic)) {
       addStat(Stat.AddEnergy, 1);
     }
   }
@@ -168,15 +168,14 @@ const ROVER_S3 = new Sequence({ name: "Havoc Rover S3: Surging Resonance" });
 const ROVER_S4 = new Sequence({
   name: "Havoc Rover S4: Annihilated Silence",
   updateBuffs: () => {
-    const a = currentAction();
-    if (a === Devastation || a === Liberation) applyEnemy(S4_RES_SHRED, 1);
+    if (runningAction(Devastation) || runningAction(Liberation)) applyEnemy(S4_RES_SHRED, 1);
   },
 });
 
 // S5 Aeon Symphony: +50% DMG Multiplier on Enhanced Basic Attack Stage 5 specifically
 const ROVER_S5 = new Sequence({
   name: "Havoc Rover S5: Aeon Symphony",
-  applyStats: () => { if (currentAction() === EBA5) addStat(Stat.MulMv, 50); },
+  applyStats: () => { if (runningAction(EBA5)) addStat(Stat.MulMv, 50); },
 });
 
 // S6 Ebbing Undercurrent: +25% Crit Rate while Dark Surge is held

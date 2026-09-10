@@ -1,5 +1,5 @@
 /**
- * Xiangli Yao, ported to the new engine — sequence-0 core loop, a limited 5-star
+ * Xiangli Yao, ported to the new engine — Sequences 1-6 in their own block below, a limited 5-star
  * (`Tier.Limited`). An electro gauntlets main DPS built around his Liberation: Cogitation
  * Model deals a huge hit and opens Intuition (24s, 3 Hypercubes), swapping his kit for Pivot -
  * Impale basics, Divergence, and Unfathomed — Law of Reigns (5 Performance Capacity, one
@@ -23,10 +23,11 @@
  * as Jiyan's Discipline; the 2s trigger ICD isn't modelled.
  */
 import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   applyCurrent,
   currentAction,
+  runningAction,
   casting,
   revokeCurrent,
   addStat,
@@ -34,6 +35,9 @@ import {
   removeStack,
   queueOn,
   queueOutro,
+  queue,
+  applyTeam,
+  isHeld,
 } from "../../engine/context.js";
 import { matrix } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, ActionField } from "../../engine/rotation.js";
@@ -57,7 +61,7 @@ const BA4 = xlyAction("Basic - Probe 4", { node: Node.Normal, cast: Cast.Basic, 
 const BA5 = xlyAction("Basic - Probe 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 198.81, energy: 2.50, concerto: 5.00, offtune: 8000, forte1: 20 });
 
 const HA = xlyAction("Heavy - Probe", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 82.81 * 2, energy: 2.10, concerto: 4.18, offtune: 6664, forte1: 18 });
-const MA = xlyAction("Mid-air - Probe", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 123.27, energy: 0.52, concerto: 1.00, offtune: 4960, forte1: 13 });
+const MA = xlyAction("Mid-air - Probe", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.27, energy: 0.52, concerto: 1.00, offtune: 4960, forte1: 13 });
 const DC = xlyAction("Dodge Counter - Probe", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 238.58, energy: 2.75, concerto: 12.50, offtune: 4000, forte1: 26 });
 
 const Skill = xlyAction("Skill - Deduction", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 198.81, energy: 6.25, concerto: 7, offtune: 4000, forte1: 40 });
@@ -77,7 +81,12 @@ const UDC = xlyAction("Dodge Counter - Unfathomed", { node: Node.Liberation, cas
 /** Law of Reigns: 5 Performance Capacity and a Hypercube a cast, considered Liberation DMG. */
 const UForte = xlyAction("Forte Skill - Law of Reigns", { node: Node.Forte, cast: Cast.Skill, type: Type1.Liberation, mv: 95.73 * 4 + 255.28, energy: 4.78, concerto: 10, offtune: 45600, forte2: -5 });
 /** Revamp, the mid-air follow-up to Decipher/Divergence — considered Liberation DMG. */
-const FBA = xlyAction("Mid-air - Revamp", { node: Node.Forte, cast: Cast.MidAir, type: Type1.Liberation, mv: 21.87 * 4 + 65.61 * 2, energy: 2.78, concerto: 5, offtune: 8800, forte2: 3 });
+const FBA = xlyAction("Mid-air - Revamp", { node: Node.Forte, cast: Cast.Basic, type: Type1.Liberation, mv: 21.87 * 4 + 65.61 * 2, energy: 2.78, concerto: 5, offtune: 8800, forte2: 3 });
+
+/** S1's Convolution Matrices: six more instances off every Law of Reigns, each worth 8% of that
+ *  skill's own multiplier — 51.06% apiece, and 89.86% once S6 raises the skill (nanoka's own rows,
+ *  which carry no energy, concerto or off-tune of their own). */
+const ConvolutionMatrices = xlyAction("Forte Skill - Convolution Matrices (S1)", { node: Node.Forte, type: Type1.Liberation, mv: 51.06 * 6 });
 
 const Intro = xlyAction("Intro - Principle", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 99.41 * 2, energy: 10.00, concerto: 10, offtune: 11200 });
 /** Chain Rule: no damage of its own, just the handoff — its lasers are ACTION_OUTRO_COORD. */
@@ -115,7 +124,7 @@ const XLY_OUTRO: Buff = new Buff({
   field: CHAIN_RULE_FIELD,
   name: "Xiangli Yao: Outro", maxStacks: 3,
   updateBuffs: () => {
-    if (casting(Cast.Basic) || casting(Cast.MidAir)) { queueOn(XIANGLI_YAO_RESONATOR, ACTION_OUTRO_COORD); removeStack(XLY_OUTRO, 1); }
+    if (casting(Cast.Basic)) { queueOn(XIANGLI_YAO_RESONATOR, ACTION_OUTRO_COORD); removeStack(XLY_OUTRO, 1); }
   },
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(XLY_OUTRO); },
 });
@@ -146,6 +155,72 @@ const XIANGLI_YAO_RESONATOR = new Resonator({
   },
 });
 
+/* --------------------------------------------------------------------------------- sequences */
+
+/** S1: six Convolution Matrices off every Law of Reigns. */
+const XLY_S1 = new Sequence({
+  name: "Xiangli Yao S1: Prodigy of Protégés",
+  updateBuffs: () => { if (runningAction(UForte)) queue(ConvolutionMatrices); },
+});
+
+/** S2: +30% Crit. DMG for 8s off any Resonance Skill and off Cogitation Model — every visit opens
+ *  on one, so it stands for his whole window and goes with his outro. */
+const TRACES_OF_PREDECESSORS = new Buff({
+  name: "Xiangli Yao S2: Traces of Predecessors",
+  stats: [[Stat.CritDmg, 30]],
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(TRACES_OF_PREDECESSORS); },
+});
+const XLY_S2 = new Sequence({
+  name: "Xiangli Yao S2: Traces of Predecessors",
+  updateBuffs: () => { if (casting(Cast.Skill) || runningAction(Liberation)) applyCurrent(TRACES_OF_PREDECESSORS, 1); },
+});
+
+/** Ruins of Ancient (S3): Cogitation Model leaves five charges, and Decipher, Deduction, Divergence
+ *  and Law of Reigns each spend one for 63% more damage — "increases the DMG", not the multiplier,
+ *  so a damage bonus. The Intuition window spends all five exactly (two Divergences, three Laws). */
+const RUINS_OF_ANCIENT = new Buff({
+  name: "Xiangli Yao S3: Ruins of Ancient", maxStacks: 5,
+  applyStats: () => { if (RUINS_PAYS.has(currentAction())) addStat(Stat.DmgBonus, 63); },
+  convertStats: () => { if (RUINS_PAYS.has(currentAction())) removeStack(RUINS_OF_ANCIENT, 1); },
+});
+const RUINS_PAYS = new Set<Action>([FSkill, Skill, USkill, UForte]);
+const XLY_S3 = new Sequence({
+  name: "Xiangli Yao S3: Ruins of Ancient",
+  updateBuffs: () => { if (runningAction(Liberation)) applyCurrent(RUINS_OF_ANCIENT, 5); },
+});
+
+/** S4: Cogitation Model hands the whole team +25% Resonance Liberation DMG Bonus for 30s. */
+const VESSEL_OF_REBIRTH = new Buff({
+  name: "Xiangli Yao S4: Vessel of Rebirth",
+  stats: [[Stat.DmgBonus, 25, Type1.Liberation]],
+});
+const XLY_S4 = new Sequence({
+  name: "Xiangli Yao S4: Vessel of Rebirth",
+  updateBuffs: () => { if (runningAction(Liberation)) applyTeam(VESSEL_OF_REBIRTH, 1); },
+});
+
+/** S5: Chain Rule's lasers at x3.22 and Cogitation Model at x2 — multiplicative, nanoka's own row
+ *  for the Liberation (2932.11% against 1466.06%). The Outro carries no second row to read, so it
+ *  is taken the same way its own sentence is written. */
+const XLY_S5 = new Sequence({
+  name: "Xiangli Yao S5: End of Stars",
+  applyStats: () => {
+    if (runningAction(ACTION_OUTRO_COORD)) addStat(Stat.MulMv, 222);
+    if (runningAction(Liberation)) addStat(Stat.MulMv, 100);
+  },
+});
+
+/** S6: Law of Reigns at x1.76 — multiplicative (168.48%/449.28% against 95.73%/255.28%) — and the
+ *  Matrices with it, being a share of that same multiplier (89.86% against 51.06%). */
+const XLY_S6 = new Sequence({
+  name: "Xiangli Yao S6: Solace of the Ordinary",
+  applyStats: () => {
+    if (runningAction(UForte) || runningAction(ConvolutionMatrices)) addStat(Stat.MulMv, 76);
+  },
+});
+
+const XLY_SEQUENCES = [XLY_S1, XLY_S2, XLY_S3, XLY_S4, XLY_S5, XLY_S6];
+
 // Deduction plus the full Probe combo lands exactly on 100 Capacity for Decipher; Cogitation
 // Model opens Intuition, whose three Law of Reigns each spend the 5 Performance Capacity the
 // moves before them bank (pivot combo 1+2+2, then Divergence 2 + Revamp 3, then a second pivot
@@ -173,5 +248,6 @@ export const XIANGLI_YAO = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Er),
-    rotation: XLY_ROTATION,
+  rotation: XLY_ROTATION,
+  sequences: XLY_SEQUENCES,
 });

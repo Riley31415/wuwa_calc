@@ -22,16 +22,20 @@
  * runs the Kaleidoscopic Parade line she actually plays instead of modelling three gauges.
  */
 import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
+import { Buff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   addStat,
   applyCurrent,
   applyTeam,
   casting,
-  currentAction,
+  runningAction,
   maxStackIncrease,
   queueOutro,
   revokeCurrent,
+  asSource,
+  currentTeam,
+  frozenStacks,
+  isHeld,
 } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, SWAP, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
@@ -55,7 +59,7 @@ const BA1 = lynaeAction("Basic - Chroma Drift 1", { node: Node.Normal, cast: Cas
 const BA2 = lynaeAction("Basic - Chroma Drift 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 157.17, energy: 2.34, concerto: 8.37, offtune: 7440, forte1: 21 });
 const BA3 = lynaeAction("Basic - Chroma Drift 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.37, energy: 1.83, concerto: 6.57, offtune: 5840, forte1: 17 });
 const DC = lynaeAction("Dodge Counter - Chroma Drift", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 239.97, energy: 2.05, concerto: 17.38, offtune: 6560, forte1: 19 });
-const MA = lynaeAction("Mid-air - Chroma Drift", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 143.65, energy: 2.14, concerto: 7.66, offtune: 6800, forte1: 20 });
+const MA = lynaeAction("Mid-air - Chroma Drift", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 143.65, energy: 2.14, concerto: 7.66, offtune: 6800, forte1: 20 });
 const SparkCollision = lynaeAction("Basic - Spark Collision Lv. 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 555.56, energy: 8.22, concerto: 29.6, offtune: 26300, forte1: -120, forte2: 120 });
 
 // --- Kaleidoscopic Parade, the combo she actually plays
@@ -102,9 +106,9 @@ const SpectralAnalysis = lynaeAction("Tune Rupture Response - Spectral Analysis"
 
 /** Photochromic Flux rides Polychrome Leap, Iridescent Splash, Visual Impact and her Intro
  *  (Chromaticity Modeling's own list), so those are the casts that shift the target. */
-const inflictsFlux = (a: Action): boolean =>
-  a === PolychromeLeap1 || a === PolychromeLeap2 || a === PolychromeLeap3
-  || a === IridescentSplash || a === VisualImpact || a === Intro;
+const inflictsFlux = (): boolean =>
+  runningAction(PolychromeLeap1) || runningAction(PolychromeLeap2) || runningAction(PolychromeLeap3)
+  || runningAction(IridescentSplash) || runningAction(VisualImpact) || runningAction(Intro);
 
 /** The Shifting lasts 25s either way — longer than a loop, so it simply stays put once applied,
  *  and the engine's own exclusivity rule (one Shifting at a time) does the rest. Each mode also
@@ -113,13 +117,13 @@ const inflictsFlux = (a: Action): boolean =>
  *  Strain pays her Tune Break Boost off the Interfered stacks the breaks leave behind. */
 const MODE_RUPTURE = new ResonanceMode({
   name: "Resonance Mode - Tune Rupture",
-  updateDebuffs: () => { if (inflictsFlux(currentAction())) applyRupture(); },
+  updateDebuffs: () => { if (inflictsFlux()) applyRupture(); },
   updateGlobal: () => tuneRuptureResponse(SpectralAnalysis),
 });
 const MODE_STRAIN = new ResonanceMode({
   name: "Resonance Mode - Tune Strain",
   // her kit raises the target's Tune Strain - Interfered limit by 1 on top of the base 1
-  updateDebuffs: () => { if (inflictsFlux(currentAction())) applyStrain(); },
+  updateDebuffs: () => { if (inflictsFlux()) applyStrain(); },
   combatStart: () => { maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(TUNE_STRAIN_RESPONDER, 1); },
 });
 
@@ -145,6 +149,12 @@ const ADAPTIVE_OPTICS = new Buff({
 const LYNAE_OUTRO = new Buff({
   name: "Lynae: Let's Hit the Road!",
   stats: [[Stat.Amp, 15], [Stat.Amp, 25, Type1.Liberation]],
+  // S2 hands the same resonator 25% more, read off her own slot: this buff is the recipient's
+  applyStats: () => {
+    if (currentTeam().slots.find((m) => m.resonator === LYNAE_RESONATOR)?.isHeld(LY_S2)) {
+      asSource(LY_S2, () => addStat(Stat.Amp, 25));
+    }
+  },
   convertStats: () => { lostOnSwap(); },
 });
 
@@ -160,7 +170,7 @@ const SPECTRAL_ANALYSIS_TBB = new Buff({
 const LY_INHERENT_1 = new Inherent({ name: "Inherent: Colors Never Fade!" });
 const LY_INHERENT_2 = new Inherent({
   name: "Inherent: \"Adaptive Optics: Everyday Applications\"",
-  updateBuffs: () => { if (currentAction() === Intro) applyCurrent(ADAPTIVE_OPTICS, 1); },
+  updateBuffs: () => { if (runningAction(Intro)) applyCurrent(ADAPTIVE_OPTICS, 1); },
 });
 
 const LYNAE_TALENTS = new Talent({
@@ -190,6 +200,65 @@ const LYNAE_RESONATOR = new Resonator({
   },
 });
 
+/* --------------------------------------------------------------------------------- sequences */
+
+/** S1: all three Polychrome Leaps at x2.2 — multiplicative, nanoka's own second rows (74.36%
+ *  against 33.80%, and the same 2.2 on the other two). Spray Paint's longer window and the
+ *  interrupt immunity are no stat, and the out-of-combat Overflow restore reaches nothing here. */
+const LY_S1 = new Sequence({
+  name: "Lynae S1: Days to be Painted Like a Canvas",
+  applyStats: () => {
+    if (runningAction(PolychromeLeap1) || runningAction(PolychromeLeap2) || runningAction(PolychromeLeap3)) addStat(Stat.MulMv, 120);
+  },
+});
+
+/** S2: +25% All DMG Amplification of her own, and the same again on her outro handoff (paid inside
+ *  it, since the buff sits on whoever she hands to). */
+const LY_S2 = new Sequence({
+  name: "Lynae S2: Into Lights' Vanishing Point",
+  stats: [[Stat.Amp, 25]],
+});
+
+/** S3: Visual Impact and Iridescent Splash at x1.9 — multiplicative, their own second rows
+ *  (2311.77% against 1216.72%, 577.95% against 304.18%). Premixed Hue pays only Additive Color's
+ *  own Spectro DMG Bonus, and this line never casts it, so that half reaches nothing. */
+const LY_S3 = new Sequence({
+  name: "Lynae S3: For One Brilliant Moment",
+  applyStats: () => {
+    if (runningAction(VisualImpact) || runningAction(IridescentSplash)) addStat(Stat.MulMv, 90);
+  },
+});
+
+/** S4: +20% ATK. */
+const LY_S4 = new Sequence({ name: "Lynae S4: Shadows of a Wind Racer", stats: [[Stat.BonusAtk, 20]] });
+
+/** S5: Prismatic Overblast at x1.7 — multiplicative, its own second row (148.71% against 87.48%). */
+const LY_S5 = new Sequence({
+  name: "Lynae S5: Visions of a Future Unbound",
+  applyStats: () => { if (runningAction(Liberation)) addStat(Stat.MulMv, 70); },
+});
+
+/** Color of Soul (S6): a stack off every Graffiti Blast or Parade Heavy, three at most, each worth
+ *  30% more damage taken from Iridescent Splash and Visual Impact; both spend the lot. */
+const COLOR_OF_SOUL = new Buff({
+  name: "Lynae S6: Color of Soul", maxStacks: 3,
+  applyStats: () => {
+    if (runningAction(IridescentSplash) || runningAction(VisualImpact)) addStat(Stat.DamageTaken, 30 * frozenStacks());
+  },
+  convertStats: () => {
+    if (runningAction(IridescentSplash) || runningAction(VisualImpact)) revokeCurrent(COLOR_OF_SOUL);
+  },
+});
+/** S6: Color of Soul above. Its other lines are shape rather than damage — the mid-air Heavy's
+ *  charges, her damage reduction, staying in the Parade through her outro, and a Lumiflow ceiling
+ *  nothing in this line spends. */
+const LY_S6 = new Sequence({
+  name: "Lynae S6: Painted in My True Color",
+  updateBuffs: () => { if (runningAction(GraffitiBlast) || runningAction(KHeavy)) applyCurrent(COLOR_OF_SOUL, 1); },
+});
+
+const LY_SEQUENCES = [LY_S1, LY_S2, LY_S3, LY_S4, LY_S5, LY_S6];
+
 /* ---------------------------------------------------------------------------------- rotation */
 
 /** Intro, Spark Collision to open the Parade, her Forte line (which is what lays the Shifting
@@ -203,6 +272,7 @@ const LY_ROTATION = new Rotation([
   PolychromeLeap123,
   VisualImpact, ECHO_SWAP, OUTRO,
 ]);
+
 
 const LY_ECHOES = [
     new EchoLoadout(VOIDWING_MOTH, REEL_5PC),
@@ -220,7 +290,8 @@ const build = (mode: ResonanceMode): Loadout => new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Er),
-    rotation: LY_ROTATION,
+  rotation: { 0: LY_ROTATION },
+  sequences: LY_SEQUENCES,
   mode,
 });
 

@@ -3,6 +3,9 @@
 
 fix hsin flare
 
+
+update character kits to use the same buff and stat system as weapons and echoes Measure before and after performance
+
 # detailed view
 new section for resonator builds
 hover to see substats etc

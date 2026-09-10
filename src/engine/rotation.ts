@@ -114,7 +114,7 @@ export interface ActionDef extends GearDef {
  *  directly on it: `evaluate()` runs the acting action's own hooks first in every phase, with the
  *  "current" pointers aimed at it, so what it grants is attributed to it and every stat it
  *  contributes is sourced to its own name. Prefer that to a held Gear branching on
- *  `currentAction() === X`; a `casting(Y)`/`isType(Y)` check that spans a whole *category* of
+ *  `runningAction(X)`; a `casting(Y)`/`isType(Y)` check that spans a whole *category* of
  *  actions still belongs on the Gear.
  *
  *  Lives here rather than in gear.ts so its rotation-flavoured forms — `dodgeCancel()` queuing DODGE,
@@ -149,6 +149,11 @@ export class Action extends Gear {
   cutscene: boolean;
   /** What this was built from, kept so `variant()` can rebuild it with a change or two. */
   readonly def: ActionDef;
+  /** The cast this is the dash- or jump-cancelled form of; null on every ordinary one. A cancel is
+   *  a fresh Action carrying the original's hooks and cast tags, so a bare `===` against the cast a
+   *  kit named would miss it — context.ts's own `runningAction()` is what reads this. Engine-owned:
+   *  set by `cancelled()` below, never by a kit. */
+  cancelOf: Action | null = null;
   /** Lazily-filled cache for runtime.ts's `tagWordOf()` — this action's own element/type/type2, as the
    *  one word every scoped stat contribution tests against. Engine-owned; never set by a kit. */
   _tagWord?: number;
@@ -197,29 +202,26 @@ export class Action extends Gear {
    *  hooks, the cast tags) with none of its hit: no motion value, element, types, scaling, or
    *  energy/concerto/off-tune/forte. Queues the DODGE that cancels it behind itself, so a
    *  rotation writes only the cancel. */
-  dodgeCancel(): Action {
-    const d = this.def;
-    return new Action(`${this.name} (Cancelled)`, {
-      cast: d.cast, cast2: d.cast2, swapOut: d.swapOut,
-      combatStart: d.combatStart, updateDebuffs: d.updateDebuffs, updateGlobal: d.updateGlobal,
-      // the dodge is queued ahead of the hook, so it resolves before anything the cancelled
-      // press itself queues — the dash is what interrupts the cast, not something trailing it
-      updateBuffs: () => { queue(DODGE); d.updateBuffs?.(); },
-      applyStats: d.applyStats, convertStats: d.convertStats, afterAction: d.afterAction, lateConvertStats: d.lateConvertStats,
-      display: d.display,
-    });
-  }
+  dodgeCancel(): Action { return this.cancelled(DODGE); }
 
   /** The same, cancelled by a jump rather than a dash — the JUMP marker in the DODGE's place. */
-  jumpCancel(): Action {
+  jumpCancel(): Action { return this.cancelled(JUMP); }
+
+  /** Both of the above: the cast's own effects with none of its hit, pointed back at the cast it
+   *  cancels so `runningAction()` still reads the two as one. */
+  private cancelled(marker: Action): Action {
     const d = this.def;
-    return new Action(`${this.name} (Cancelled)`, {
-      cast: d.cast, cast2: d.cast2, swapOut: d.swapOut,
+    const out = new Action(`${this.name} (Cancelled)`, {
+      cast: d.cast, swapOut: d.swapOut,
       combatStart: d.combatStart, updateDebuffs: d.updateDebuffs, updateGlobal: d.updateGlobal,
-      updateBuffs: () => { queue(JUMP); d.updateBuffs?.(); },
+      // the marker is queued ahead of the hook, so it resolves before anything the cancelled
+      // press itself queues — the dash is what interrupts the cast, not something trailing it
+      updateBuffs: () => { queue(marker); d.updateBuffs?.(); },
       applyStats: d.applyStats, convertStats: d.convertStats, afterAction: d.afterAction, lateConvertStats: d.lateConvertStats,
       display: d.display,
     });
+    out.cancelOf = this;
+    return out;
   }
 
   /** The follow-up hit of a multi-hit coordinated attack — the same hit under the same name,
@@ -403,6 +405,13 @@ export const DOUBLE_INTRO = new Action("Double Intro");
  *  opens on their NOINTRO chain instead, so theirs falls on the visit after it. */
 export const FIRST_INTRO = new Action("First Intro");
 
+/** The no-Intro chain's own first-arrival form: played in place of NOINTRO the one time a
+ *  resonator arrives having never played, and only then — a leader's opening visit, or the first
+ *  time a swap-out hands them the field. Every arrival after takes the ordinary NOINTRO chain. It
+ *  is what FIRST_INTRO is for the other entry: a kit whose opening visit has something the loop
+ *  hasn't (Hiyuki's fourth Iai, bought by being out of combat) writes it once here. */
+export const NOINTRO_FIRST = new Action("First No Intro");
+
 /** Chain exit: leave by Outro, handing the field (and whatever `queueOutro()` published) to the
  *  next resonator in team order — except closing a DOUBLE_INTRO section, where it hands to the
  *  *previous* one (see the marker above). Resolved against the acting slot's own
@@ -420,10 +429,12 @@ export const OUTRO = new Action("Outro Placeholder", {
 });
 
 /** The row a plain swap reports as: between the opening scramble's sections and out of a swap-form
- *  DOUBLE_INTRO section the scheduler emits it itself; a kit writes it only to close a
- *  start-of-combat section, where the normal loop drops it entirely — the swap is the scramble's,
- *  not the rotation's. Zero damage, and a swap-out, so every "lost on swap" buff the outgoing
- *  resonator holds drops exactly as it would on an Outro (context.ts's own `lostOnSwap()`). */
+ *  DOUBLE_INTRO section the scheduler emits it itself; a kit writes it to close a start-of-combat
+ *  section, where the normal loop drops it entirely — the swap is the scramble's, not the
+ *  rotation's — or in an outro's place at the end of any chain, leaving without an Outro: the next
+ *  slot then plays their NOINTRO chain, which they must declare. Zero damage, and a swap-out, so
+ *  every "lost on swap" buff the outgoing resonator holds drops exactly as it would on an Outro
+ *  (context.ts's own `lostOnSwap()`). */
 export const SWAP = new Action("Swap", { swapOut: true, triggered: true });
 
 /** Filler a kit writes into a chain body where the player dodges or jumps mid-rotation: no
@@ -441,6 +452,7 @@ export const JUMP = new Action("Jump", { triggered: true });
 export interface Chain {
   entry: Action;
   body: Action[];
+  /** OUTRO, or SWAP for a chain that leaves the field without an Outro. */
   exit: Action;
 }
 
@@ -461,6 +473,8 @@ export class Rotation {
   doubleIntro: Chain | null = null;
   /** The FIRST_INTRO chain, played in place of `intro` on this resonator's first arrival. */
   firstIntro: Chain | null = null;
+  /** The NOINTRO_FIRST chain, played in place of `opener` on that same first arrival. */
+  firstOpener: Chain | null = null;
   /** The INTRO_1/2/3 chains, each played in place of `intro` while this resonator stands in that
    *  position, and the NOINTRO_1/2/3 chains likewise in place of `opener`. */
   intros: (Chain | null)[] = [null, null, null];
@@ -468,8 +482,8 @@ export class Rotation {
 
   constructor(actions: Action[]) {
     // `intro@n` / `opener@n` are the per-position chains' own phases
-    let phase: "none" | "opener" | "double" | "intro" | "first" | `intro@${number}` | `opener@${number}` = "none";
-    const prefix: Action[] = [], loop: Action[] = [], dbl: Action[] = [], first: Action[] = [];
+    let phase: "none" | "opener" | "double" | "intro" | "first" | "firstOpener" | `intro@${number}` | `opener@${number}` = "none";
+    const prefix: Action[] = [], loop: Action[] = [], dbl: Action[] = [], first: Action[] = [], firstPre: Action[] = [];
     const loops: Action[][] = [[], [], []], prefixes: Action[][] = [[], [], []];
     // whichever body an inline section's casts belong to as well as to `start` — null while the
     // section stands on its own, ahead of the chains
@@ -480,17 +494,31 @@ export class Rotation {
     const starts: (Action[] | null)[] = [null, null, null];
     const body = (): Action[] | null =>
       (phase === "opener" ? prefix : phase === "intro" ? loop : phase === "double" ? dbl : phase === "first" ? first
+        : phase === "firstOpener" ? firstPre
         : phase.startsWith("intro@") ? loops[Number(phase.slice(6))]! : phase.startsWith("opener@") ? prefixes[Number(phase.slice(7))]! : null);
     // set when the NOINTRO chain ran into the INTRO marker rather than an outro of its own, which
     // is what makes the two share everything from there down
     let shared = false;
     // ...and the same for a NOINTRO chain that ran into DOUBLE_INTRO instead (see that branch)
     let sharedDouble = false;
-    let openerExit: Action | null = null, introExit: Action | null = null, doubleExit: Action | null = null, firstExit: Action | null = null;
+    let openerExit: Action | null = null, introExit: Action | null = null, doubleExit: Action | null = null;
+    let firstExit: Action | null = null, firstOpenerExit: Action | null = null;
     const introExits: (Action | null)[] = [null, null, null], openerExits: (Action | null)[] = [null, null, null];
     // what each NOINTRO_n chain ran into rather than closing on an outro: the INTRO chain
     // ("main") or its own position's INTRO_n chain (n)
     const sharedInto: ("main" | number | null)[] = [null, null, null];
+
+    // OUTRO or SWAP ending whichever chain is open
+    const close = (action: Action): void => {
+      if (phase === "opener") { openerExit = action; phase = "none"; }
+      else if (phase === "intro") { introExit = action; phase = "none"; }
+      else if (phase === "double") { doubleExit = action; phase = "none"; }
+      else if (phase === "first") { firstExit = action; phase = "none"; }
+      else if (phase === "firstOpener") { firstOpenerExit = action; phase = "none"; }
+      else if (phase.startsWith("intro@")) { introExits[Number(phase.slice(6))] = action; phase = "none"; }
+      else if (phase.startsWith("opener@")) { openerExits[Number(phase.slice(7))] = action; phase = "none"; }
+      else throw new Error(`rotation: ${action.name} closes a chain that was never opened`);
+    };
 
     for (const action of actions) {
       if (startPosition(action) >= 0) {
@@ -505,9 +533,10 @@ export class Rotation {
         // tell where it begins and ends when it comes to skip it
         body()?.push(action);
       } else if (action === SWAP) {
+        // closing a start-of-combat section, or any chain in an outro's place: the resonator
+        // leaves without an Outro and the next slot plays their NOINTRO chain (the scheduler)
         if (inStart.length) { inStart = []; body()?.push(action); }
-        else if (phase === "double") { doubleExit = action; phase = "none"; }
-        else throw new Error("rotation: SWAP only closes a start-of-combat or DOUBLE_INTRO section");
+        else close(action);
       } else if (inStart.length) {
         for (const at of inStart) starts[at]!.push(action);
         body()?.push(action);
@@ -526,6 +555,10 @@ export class Rotation {
         if (firstExit || first.length) throw new Error("rotation: only one FIRST_INTRO chain");
         if (phase !== "none") throw new Error("rotation: FIRST_INTRO opens a chain while one is still open");
         phase = "first";
+      } else if (action === NOINTRO_FIRST) {
+        if (firstOpenerExit || firstPre.length) throw new Error("rotation: only one NOINTRO_FIRST chain");
+        if (phase !== "none") throw new Error("rotation: NOINTRO_FIRST opens a chain while one is still open");
+        phase = "firstOpener";
       } else if (nointroPosition(action) >= 0) {
         const n = nointroPosition(action);
         if (openerExits[n] || prefixes[n]!.length || sharedInto[n] !== null) throw new Error(`rotation: only one ${action.name} chain`);
@@ -557,13 +590,7 @@ export class Rotation {
         // a section left open runs to the end of its chain, and that chain's own outro closes it —
         // the outro is the chain's either way, never a cast the scramble replays
         inStart = [];
-        if (phase === "opener") { openerExit = action; phase = "none"; }
-        else if (phase === "intro") { introExit = action; phase = "none"; }
-        else if (phase === "double") { doubleExit = action; phase = "none"; }
-        else if (phase === "first") { firstExit = action; phase = "none"; }
-        else if (phase.startsWith("intro@")) { introExits[Number(phase.slice(6))] = action; phase = "none"; }
-        else if (phase.startsWith("opener@")) { openerExits[Number(phase.slice(7))] = action; phase = "none"; }
-        else throw new Error(`rotation: ${action.name} closes a chain that was never opened`);
+        close(action);
       } else {
         const into = body();
         if (!into) throw new Error(`rotation: ${action.name} sits outside any action chain`);
@@ -573,7 +600,11 @@ export class Rotation {
 
     if (inStart.length) throw new Error(`rotation: the ${inStart.map((at) => STARTS[at]!.name).join(" / ")} section is never closed by a SWAP`);
     if (phase !== "none") throw new Error("rotation: a chain is left open with no outro to close it");
-    if (!introExit) throw new Error("rotation: every rotation needs an INTRO chain closed by an outro");
+    // a rotation written only for named positions (INTRO_2/INTRO_3, a fixed-slot sub-DPS) has no
+    // main chain of its own: the first position written stands in wherever no chain is named
+    const stand = introExits.findIndex(Boolean);
+    if (!introExit && stand < 0) throw new Error("rotation: every rotation needs an INTRO chain closed by an outro");
+    if (!introExit) { introExit = introExits[stand]!; loop.push(...loops[stand]!); }
     this.startCombat = starts.map((cast) => (cast && cast.length ? cast : null));
     if (sharedDouble) {
       // the swap-back form hands to the previous slot's NOINTRO chain, and a leader has none to hand to
@@ -589,6 +620,9 @@ export class Rotation {
     // entry INTRO, not FIRST_INTRO: it is an Intro chain in every way the scheduler cares about,
     // and only which visit plays it differs
     if (firstExit) this.firstIntro = { entry: INTRO, body: first, exit: firstExit };
+    // entry NOINTRO for the same reason the one above is INTRO: it arrives the way an opener does,
+    // and only which visit plays it differs
+    if (firstOpenerExit) this.firstOpener = { entry: NOINTRO, body: firstPre, exit: firstOpenerExit };
     this.intro = { entry: INTRO, body: loop, exit: introExit };
     for (const n of [0, 1, 2]) {
       const exit = introExits[n];
@@ -632,6 +666,7 @@ export class Rotation {
  *  what teams.ts asks before listing a team: one that can't play is left out of the roster.
  *
  *  - the leader needs a no-Intro chain to open on;
+ *  - a chain closed by SWAP rather than an outro hands to the next slot's no-Intro chain;
  *  - a swap-form double Intro bounces to the previous slot's no-Intro chain;
  *  - a leader with a double Intro takes the whole team through pre-visits first, which has no
  *    place for a swap-back form;
@@ -641,10 +676,14 @@ export class Rotation {
  *    (Hsin and Suoming, Suoming and Jinhsi) the two pre-visits play in turn and it is fine. */
 export function teamPlayable(rotations: Rotation[], names: string[]): string | null {
   // a slot's own no-Intro chain: the one written for the position it stands in, else the plain one
-  const openerChain = (i: number): Chain | null => rotations[i]!.openers[i] ?? rotations[i]!.opener;
+  const openerChain = (i: number): Chain | null => rotations[i]!.openers[i] ?? rotations[i]!.opener ?? rotations[i]!.firstOpener;
   if (!openerChain(0)) return `${names[0]} leads the team but declares no NOINTRO chain`;
   for (let i = 0; i < rotations.length; i++) {
-    const d = rotations[i]!.doubleIntro;
+    const r = rotations[i]!, nxt = (i + 1) % rotations.length;
+    if ([r.intros[i] ?? r.intro, r.firstIntro, r.firstOpener, openerChain(i)].some((c) => c?.exit === SWAP) && !openerChain(nxt)) {
+      return `${names[nxt]} follows ${names[i]}'s swap-out but declares no NOINTRO chain`;
+    }
+    const d = r.doubleIntro;
     if (!d) continue;
     const prev = (i + rotations.length - 1) % rotations.length;
     if (d.exit === SWAP && !openerChain(prev)) return `${names[prev]} plays during ${names[i]}'s double Intro but declares no NOINTRO chain`;
@@ -659,16 +698,20 @@ export function teamPlayable(rotations: Rotation[], names: string[]): string | n
 export function runRotations(state: State, rotations: Rotation[], sections: number): Result[][] {
   const why = teamPlayable(rotations, state.slots.map((s) => s.name));
   if (why) throw new Error(why);
-  // a slot's own no-Intro chain: the one written for the position it stands in, else the plain one
-  const openerChain = (i: number): Chain | null => rotations[i]!.openers[i] ?? rotations[i]!.opener;
+  // Whoever has already played, and so which of the two forms of a chain an arrival takes: the
+  // first-arrival ones are the chain a resonator plays the one time they turn up having never
+  // acted, whichever entry that arrival uses.
+  const visited = new Set<number>(), scrambled = new Set<number>();
+  // a slot's own no-Intro chain: its first-arrival form, else the one written for the position it
+  // stands in, else the plain one
+  const openerChain = (i: number): Chain | null => {
+    const r = rotations[i]!;
+    const main = r.openers[i] ?? r.opener;
+    return !visited.has(i) && r.firstOpener ? r.firstOpener : main ?? r.firstOpener;
+  };
   const last = state.slots.length - 1;
   const out: Result[][] = Array.from({ length: sections }, (): Result[] => []);
   let section = 0;
-
-  // whoever has already had a visit — an inline start-of-combat section plays on every visit but
-  // their first, where the scramble already spent it. `scrambled` is who the scramble actually
-  // visited, filled in below.
-  const visited = new Set<number>(), scrambled = new Set<number>();
 
   // The section the last slot has just outro'd out of stays open for the Intro that outro
   // triggers: `closing` says the next rows to land are that Intro's, and `place()` cuts there —
@@ -705,14 +748,24 @@ export function runRotations(state: State, rotations: Rotation[], sections: numb
     if (section < sections) out[section]!.push(...snaps.slice(cut));
   };
 
-  // Which slots have already played an Intro chain — a FIRST_INTRO chain stands in for the
-  // ordinary one until they have (see that marker).
-  const introed = new Set<number>();
+  // A FIRST_INTRO chain stands in for the ordinary one until this slot has played at all — the
+  // same `visited` the no-Intro pair reads, so a leader's opening visit spends whichever
+  // first-arrival chain it enters on rather than leaving the other standing for the next.
   const introChain = (i: number): Chain => {
     const r = rotations[i]!;
     // the chain written for the position this slot stands in, where there is one
     const main = r.intros[i] ?? r.intro;
-    return !introed.has(i) && r.firstIntro ? r.firstIntro : main;
+    return !visited.has(i) && r.firstIntro ? r.firstIntro : main;
+  };
+  // whether the field arrived on a plain swap rather than an outro: no Intro to cast, so the
+  // slot swapped into plays their NOINTRO chain instead (`teamPlayable()` requires one)
+  let swapped = false;
+  const arrival = (i: number): Chain => {
+    if (!swapped) return introChain(i);
+    swapped = false;
+    const c = openerChain(i);
+    if (!c) throw new Error(`${state.slots[i]!.name} is swapped into but declares no NOINTRO chain`);
+    return c;
   };
 
   const runChain = (i: number, chain: Chain): void => {
@@ -723,7 +776,6 @@ export function runRotations(state: State, rotations: Rotation[], sections: numb
     state.outroDir = chain.entry === DOUBLE_INTRO ? -1 : 1;
     const skipStart = !visited.has(i) && scrambled.has(i);
     visited.add(i);
-    if (chain.entry === INTRO) introed.add(i);
     const casts: Action[] = [];
     // which positions' start-of-combat sections the walk is inside — more than one where their
     // markers were written back to back (see the Rotation constructor)
@@ -743,9 +795,13 @@ export function runRotations(state: State, rotations: Rotation[], sections: numb
     if (chain.entry !== DOUBLE_INTRO) { if (!mained.size) cycleStart = i; mained.add(i); }
     // the outro is the OUTRO marker itself, resolved on its own row (see it): a kit's Unison form
     // depends on what the visit granted by then
-    const list = chain.entry === INTRO || chain.entry === DOUBLE_INTRO ? [INTRO, ...casts, OUTRO] : [...casts, OUTRO];
+    const exit = chain.exit === SWAP ? SWAP : OUTRO;
+    const list = chain.entry === INTRO || chain.entry === DOUBLE_INTRO ? [INTRO, ...casts, exit] : [...casts, exit];
     const snaps = run(state, list);
     state.outroDir = 1;
+    // an Outro row advances the field itself (evaluate.ts); a plain swap hands it forward here
+    swapped = chain.exit === SWAP;
+    if (swapped) state.active = (i + 1) % rotations.length;
     place(snaps);
     // one full trip round the team is done — the Intro this outro hands into closes the section
     // (see `place()`). A double-Intro visit never closes one: its owner's main outro does.
@@ -855,7 +911,7 @@ export function runRotations(state: State, rotations: Rotation[], sections: numb
       if (mained.has(i)) { closeIfPending(); return; }
     }
     doubled.delete(i);
-    runChain(i, introChain(i));
+    runChain(i, arrival(i));
     if (waited) closeIfPending();
   };
 
@@ -880,7 +936,7 @@ export function runRotations(state: State, rotations: Rotation[], sections: numb
         if (d) runChain(i, d);
       }
       first = false;
-      for (let i = 0; i < rotations.length && section < sections; i++) runChain(i, introChain(i));
+      for (let i = 0; i < rotations.length && section < sections; i++) runChain(i, arrival(i));
     }
     return out;
   }

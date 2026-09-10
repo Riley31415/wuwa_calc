@@ -25,7 +25,7 @@ import {
   applyEnemy,
   isHeld,
   casting,
-  currentAction,
+  runningAction,
   addStat,
   queue,
   applyCurrent,
@@ -54,9 +54,9 @@ const BA3 = verinaAction("Basic - Cultivation 3", { node: Node.Normal, cast: Cas
 const BA4 = verinaAction("Basic - Cultivation 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 67.32, energy: 1.69, concerto: 5.41, offtune: 13600 });
 const BA5 = verinaAction("Basic - Cultivation 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 71.62, energy: 1.8, concerto: 5.76, offtune: 14400, forte1: 1 });
 const HA = verinaAction("Heavy - Cultivation", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 99.41, energy: 2.5, concerto: 8, offtune: 20000 });
-const MA1 = verinaAction("Mid-air - Cultivation 1", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 56.37, energy: 1.41, concerto: 4.53, offtune: 11340 });
-const MA2 = verinaAction("Mid-air - Cultivation 2", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 53.19, energy: 1.33, concerto: 4.28, offtune: 10700 });
-const MA3 = verinaAction("Mid-air - Cultivation 3", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 76.26, energy: 1.89, concerto: 6.12, offtune: 15342 });
+const MA1 = verinaAction("Mid-air - Cultivation 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 56.37, energy: 1.41, concerto: 4.53, offtune: 11340 });
+const MA2 = verinaAction("Mid-air - Cultivation 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 53.19, energy: 1.33, concerto: 4.28, offtune: 10700 });
+const MA3 = verinaAction("Mid-air - Cultivation 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 76.26, energy: 1.89, concerto: 6.12, offtune: 15342 });
 const MHA = verinaAction("Heavy - Cultivation (Mid-air)", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 61.64, energy: 0.51, concerto: 1, offtune: 12400 });
 const DC = verinaAction("Dodge Counter - Cultivation", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 129.23, energy: 3.25, concerto: 15.6, offtune: 14000 });
 
@@ -78,11 +78,11 @@ const StarflowerHeavy = verinaAction("Forte Heavy - Starflower Blooms", { node: 
 // Mid-air Starflower Blooms is its own 3-stage combo (same shape as the MA1-3 chain it replaces);
 // only stage 1 banks the forte spend/heal, since the Forte Gauge is spent once for the whole combo.
 const ForteMidair1 = verinaAction("Forte Mid-air - Starflower Blooms 1",
-    { node: Node.Forte, cast: Cast.MidAir, type: Type1.Basic, mv: 67.64, energy: 1.41, concerto: 4.53, offtune: 11340, forte1: -1, ...STARFLOWER_CONCERTO });
+    { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 67.64, energy: 1.41, concerto: 4.53, offtune: 11340, forte1: -1, ...STARFLOWER_CONCERTO });
 const ForteMidair2 = verinaAction("Forte Mid-air - Starflower Blooms 2",
-    { node: Node.Forte, cast: Cast.MidAir, type: Type1.Basic, mv: 63.82, energy: 1.33, concerto: 4.28, offtune: 10700, forte1: -1, ...STARFLOWER_CONCERTO });
+    { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 63.82, energy: 1.33, concerto: 4.28, offtune: 10700, forte1: -1, ...STARFLOWER_CONCERTO });
 const ForteMidair3 = verinaAction("Forte Mid-air - Starflower Blooms 3",
-    { node: Node.Forte, cast: Cast.MidAir, type: Type1.Basic, mv: 30.50 * 3, energy: 1.89, concerto: 6.12, offtune: 15342, forte1: -1, ...STARFLOWER_CONCERTO });
+    { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 30.50 * 3, energy: 1.89, concerto: 6.12, offtune: 15342, forte1: -1, ...STARFLOWER_CONCERTO });
 
 // Arboreal Flourish places Photosynthesis Mark on the enemy (see file header), heals
 const Liberation = verinaAction("Liberation - Arboreal Flourish", {
@@ -124,8 +124,7 @@ const GIFT_OF_NATURE = new Buff({
 const VR_INHERENT_1 = new Inherent({
   name: "Inherent: Gift of Nature",
   updateBuffs: () => {
-    const a = currentAction();
-    if (a === StarflowerHeavy || a === ForteMidair1 || a === Liberation || a === Outro) applyTeam(GIFT_OF_NATURE, 1);
+    if (runningAction(StarflowerHeavy) || runningAction(ForteMidair1) || runningAction(Liberation) || runningAction(Outro)) applyTeam(GIFT_OF_NATURE, 1);
   },
 });
 
@@ -148,7 +147,7 @@ const PHOTOSYNTHESIS_MARK = coordinatedBuff("Verina: Photosynthesis Mark", 12, (
  *  of its base gain. */
 const VERINA_S2 = new Sequence({
   name: "Verina S2: Sprouting Reflections",
-  applyStats: () => { if (currentAction() === Skill) { addStat(Stat.AddForte1, 1); addStat(Stat.AddConcerto, 10); } },
+  applyStats: () => { if (runningAction(Skill)) { addStat(Stat.AddForte1, 1); addStat(Stat.AddConcerto, 10); } },
 });
 
 /** S4 Blossoming Embrace: the trigger lives here; the payout is `S4_TEAM` (permanent uptime once
@@ -156,9 +155,8 @@ const VERINA_S2 = new Sequence({
 const VERINA_S4 = new Sequence({
   name: "Verina S4: Blossoming Embrace",
   updateBuffs: () => {
-    const a = currentAction();
     // ForteMidair1 stands in for "cast Starflower Blooms (Mid-Air)" — only needs to trigger once
-    if (a === StarflowerHeavy || a === ForteMidair1 || a === Liberation || a === Outro) applyTeam(S4_TEAM, 1);
+    if (runningAction(StarflowerHeavy) || runningAction(ForteMidair1) || runningAction(Liberation) || runningAction(Outro)) applyTeam(S4_TEAM, 1);
   },
 });
 const S4_TEAM = new Buff({
@@ -171,8 +169,7 @@ const VERINA_S6 = new Sequence({
   name: "Verina S6: Joyous Harvest",
   // the DMG boost lands on every Mid-air stage; the Coordinated Attack triggers once per combo
   applyStats: () => {
-    const a = currentAction();
-    if (a === StarflowerHeavy || a === ForteMidair1 || a === ForteMidair2 || a === ForteMidair3) {
+    if (runningAction(StarflowerHeavy) || runningAction(ForteMidair1) || runningAction(ForteMidair2) || runningAction(ForteMidair3)) {
       addStat(Stat.DmgBonus, 20);
       queue(S6Tick);
     }
@@ -210,10 +207,9 @@ const VERINA_RESONATOR = new Resonator({
   tier: Tier.Standard,
 
   updateDebuffs: () => {
-    const a = currentAction();
     // her own healing marker, read by every healing sonata and weapon (statuses.ts) —
     // applied to the healer alone, never the team
-    if (a === StarflowerHeavy || a === ForteMidair1 || a === ForteMidair2 || a === ForteMidair3 || a === Liberation || a === PhotosynthesisTick || a === S6Tick || a === Outro) applyCurrent(HEALS, 1);
+    if (runningAction(StarflowerHeavy) || runningAction(ForteMidair1) || runningAction(ForteMidair2) || runningAction(ForteMidair3) || runningAction(Liberation) || runningAction(PhotosynthesisTick) || runningAction(S6Tick) || runningAction(Outro)) applyCurrent(HEALS, 1);
   },
 
   constantStats: () => {
@@ -259,6 +255,6 @@ export const VERINA = new Loadout({
   mainstats: [mainstats(Mainstat.ATK4, Mainstat.ER3, Mainstat.ER3, Mainstat.ATK1, Mainstat.ATK1)],
   substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
   highSubstat: highSubs(Substat.Er, Substat.Basic, Substat.AtkPct, Substat.Basic),
-    rotation: [VR_LOOP, VR_LOOP, VR_S2],
+    rotation: { 0: VR_LOOP, 2: VR_S2 },
   sequences: [VERINA_S1, VERINA_S2, VERINA_S3, VERINA_S4, VERINA_S5, VERINA_S6],
 });

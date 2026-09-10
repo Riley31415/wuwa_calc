@@ -23,15 +23,19 @@
  * Both react to *any* team member's shield via updateGlobal(), rather than needing to be
  * genuinely team-wide buffs just to be reachable from a teammate's turn.
  */
-import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
+  asSource,
+  addForte1,
   applyCurrent,
   forte2,
+  removeStack,
   setForte2,
   stacksOf,
   isHeld,
   currentAction,
+  runningAction,
   currentTeam,
   queue,
   revokeCurrent,
@@ -39,7 +43,7 @@ import {
   getStat,
   frozenStacks,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, ActionField, Rotation, INTRO, ECHO_SWAP, OUTRO, START_1, START_2, START_3, SWAP } from "../../engine/rotation.js";
 import { applied, applyTeam } from "../../engine/context.js";
 import { SHIELD } from "../../shared/status.js";
 import { JINGRAN_SIG, THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
@@ -61,7 +65,7 @@ const BA1 = jingranAction("Basic - Devil's Bane 1", { node: Node.Normal, cast: C
 const BA2 = jingranAction("Basic - Devil's Bane 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 99.47, energy: 1.68, concerto: 3.35, offtune: 5337 });
 const BA3 = jingranAction("Basic - Devil's Bane 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 159.1, energy: 2.69, concerto: 5.36, offtune: 8537, forte1: 50 });
 const BA4 = jingranAction("Basic - Devil's Bane 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 124.24, energy: 2.09, concerto: 4.18, offtune: 6666, forte1: 50 });
-const MA = jingranAction("Mid-air - Edge of Life and Death", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 92.45, energy: 1.55, concerto: 3.1, offtune: 4960 });
+const MA = jingranAction("Mid-air - Edge of Life and Death", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 92.45, energy: 1.55, concerto: 3.1, offtune: 4960 });
 
 const EBA1 = jingranAction("Basic - Drink Soul 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 44.74, energy: 0.75, concerto: 1.5, offtune: 2400 });
 const EBA2 = jingranAction("Basic - Drink Soul 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 74.56, energy: 1.26, concerto: 2.5, offtune: 4000 });
@@ -143,8 +147,7 @@ const JINGRAN_EARTH_CHARM = new Buff({ name: "Jingran: Earth Charm" });
 const JR_INHERENT_1 = new Inherent({
   name: "Inherent: Hark the Dust",
   updateBuffs: () => {
-    const a = currentAction();
-    if (a === Intro || a === Skill1 || a === ESkill1) applyCurrent(JINGRAN_EARTH_CHARM, 1);
+    if (runningAction(Intro) || runningAction(Skill1) || runningAction(ESkill1)) applyCurrent(JINGRAN_EARTH_CHARM, 1);
   },
 });
 
@@ -168,11 +171,10 @@ const JR_INHERENT_2 = new Inherent({
     applyCurrent(JINGRAN_FIXATION, 1); // "upon engaging in combat, Jingran gains Fixation"
     applyCurrent(JINGRAN_GHOST_SHROUD, 25); // "upon entering combat, tops Ghost Shroud up to 25"
   },
-  updateBuffs: () => { if (currentAction() === Outro) applyCurrent(JINGRAN_FIXATION, 1); },
+  updateBuffs: () => { if (runningAction(Outro)) applyCurrent(JINGRAN_FIXATION, 1); },
   // `currentSlot` is switched to Jingran's own slot for this call regardless of who's actually
   // acting, so `applySelf()`/`isHeld()` below always resolve against him specifically.
   updateGlobal: () => {
-    const a = currentAction();
     if (currentTeam().slot.resonator === JINGRAN_RESONATOR || !applied(SHIELD)) return;
     applyCurrent(JINGRAN_GHOST_SHROUD, 2 * applied(SHIELD));
     if (isHeld(JINGRAN_FIXATION)) { revokeCurrent(JINGRAN_FIXATION); applyCurrent(JINGRAN_GHOST_SHROUD, 15); }
@@ -195,9 +197,12 @@ const JINGRAN_HP_TO_FUSION = new Buff({
 /** Same Forte Circuit page section as Nether to Light above, same unconditional self-applied shape. */
 const JINGRAN_HP_TO_ATK = new Buff({
   name: "Jingran: Yang Changes, Yin Unites",
+  // S3 replaces it with Yin-Yang Everflow's own 50 a step (capped 2500) while that window stands
   convertStats: () => {
-    const steps = hpSteps();
-    addStat(Stat.FlatAtk, 36 * steps); // 36 ATK/1000 HP, capped 1800
+    const steps = hpSteps(); // 36 ATK/1000 HP, capped 1800
+    addStat(Stat.FlatAtk, 36 * steps);
+    // S3's Yin-Yang Everflow takes the step to 50 — the 14 more a step is that node's own
+    if (isHeld(JR_EVERFLOW)) asSource(JR_S3, () => addStat(Stat.FlatAtk, 14 * steps));
   },
 });
 
@@ -210,15 +215,119 @@ function fireSteps(): number { return Math.max(0, Math.floor((Math.min(hp(), 500
 const JINGRAN_FIRE_OF_LIFE = new Buff({
   name: "Jingran: Fire of Life",
   convertStats: () => {
-    const a = currentAction();
     const mingfire = forte2();
     queue(ACTION_LIB_FUA);
     addStat(Stat.AddForte2, -25);
     if (mingfire > 25) addStat(Stat.AddForte1, 200);
-    addStat(Stat.AddMv, (a === FHA ? 21.65 : 21.10) * fireSteps()); // 2.17%+2.17%+4.33%+12.98% / 1.48%x2+1.90%x3+12.44%
+    addStat(Stat.AddMv, (runningAction(FHA) ? 21.65 : 21.10) * fireSteps()); // 2.17%+2.17%+4.33%+12.98% / 1.48%x2+1.90%x3+12.44%
     revokeCurrent(JINGRAN_FIRE_OF_LIFE);
   },
 });
+
+/* --------------------------------------------------------------------------------- sequences */
+
+/** S1: all four Resonance Skill forms at x1.8 — nanoka's second rows (118.10%+59.05%*3,
+ *  93.03%+46.52%*2+69.77%*4, 118.57%*2+237.13%), and nothing else multiplies them, so a plain
+ *  multiplier lands on exactly that. The interrupt immunity is no stat. */
+const JR_S1 = new Sequence({
+  name: "Jingran S1: Yin and Yang in Harmony, the Ultimate Law of Being",
+  applyStats: () => {
+    if (runningAction(Skill1) || runningAction(Skill2) || runningAction(ESkill1) || runningAction(ESkill2)) addStat(Stat.MulMv, 80);
+  },
+});
+
+/** Netherworld's Boon (S2): banked on entering combat and spent by the first Soul Raid or Stardome
+ *  Meander — a quarter of the Energy bar back and 180% amplification on the cast that takes it. The
+ *  4s the amplification then stands for is no clock here, and the heavy that spent it is the only
+ *  one inside that window in the loop below anyway. */
+const NETHERWORLDS_BOON = new Buff({
+  name: "Jingran S2: Netherworld's Boon",
+  applyStats: () => {
+    if (!runningAction(FHA) && !runningAction(EFHA)) return;
+    addStat(Stat.Amp, 180);
+    addStat(Stat.AddEnergy, 31.25);
+  },
+  convertStats: () => {
+    if (runningAction(FHA) || runningAction(EFHA)) revokeCurrent(NETHERWORLDS_BOON);
+  },
+});
+/** S2: both Forte heavies at x1.46 — nanoka's second rows (35.10%+35.10%+70.19%+210.56% and
+ *  23.95%*2+30.79%*3+201.80%) — which is one multiplier over the whole bracket, so it carries Fire
+ *  of Life's own per-HP increase with it, exactly as the node's second sentence says. Entering
+ *  combat banks 300 Qi and the Boon above. */
+const JR_S2 = new Sequence({
+  name: "Jingran S2: A Solitary Lantern, Across Lands Shade-Trodden",
+  combatStart: () => { addForte1(300); applyCurrent(NETHERWORLDS_BOON, 1); },
+  applyStats: () => {
+    if (runningAction(FHA) || runningAction(EFHA)) addStat(Stat.MulMv, 46);
+  },
+});
+
+/** Yin-Yang Everflow (S3): 15s off the Liberation, so it stands for his whole window — the ATK
+ *  conversion above reads it. */
+const JR_EVERFLOW = new Buff({
+  name: "Jingran S3: Yin-Yang Everflow",
+  until: LifeTime.Outro,
+});
+/** S3: five Ghost Shroud a Forte heavy, and the Everflow window above. */
+const JR_S3 = new Sequence({
+  name: "Jingran S3: World's Course Shifts, Each to Their Rightful Paths",
+  updateBuffs: () => {
+    if (runningAction(FHA) || runningAction(EFHA)) applyCurrent(JINGRAN_GHOST_SHROUD, 5);
+    if (runningAction(Lib)) applyCurrent(JR_EVERFLOW, 1);
+  },
+});
+
+/** S4: +20% All-Attribute DMG Bonus to the team whenever anyone on it gains a Shield, 30s — his
+ *  own casts shield on nearly every press, so it stands for the fight. */
+const WHERE_REALITY_MEETS = new Buff({
+  name: "Jingran S4: Where Reality Meets Illusion, Where Living Meet Dead",
+  stats: [[Stat.DmgBonus, 20]],
+});
+const JR_S4 = new Sequence({
+  name: "Jingran S4: Where Reality Meets Illusion, Where Living Meet Dead",
+  updateGlobal: () => { if (applied(SHIELD)) applyTeam(WHERE_REALITY_MEETS, 1); },
+});
+
+/** S5: a once-per-fight cheat death. No formula effect. */
+const JR_S5 = new Sequence({ name: "Jingran S5: Ends Return to Beginnings, Truth of Life Laid Bare" });
+
+/** The Parade's own field: its eight summons read as one row under the Liberation that opened it
+ *  rather than eight lines through the visit. Fire of Life's own two carry no field and stay the
+ *  separate lines they are. */
+const PARADE_FIELD = new ActionField("Jingran: Parade of Thousand Souls");
+/** The same Chimei Wangliang, filed under that field. */
+const ACTION_PARADE_FUA = ACTION_LIB_FUA.variant("Liberation - Chimei Wangliang", { field: PARADE_FIELD });
+
+/** Parade of Thousand Souls (S6): eight charges off the Liberation — the cast that lights Yinghuo
+ *  — one spent per damaging press of his for another Chimei Wangliang, the same summon Fire of
+ *  Life makes. Gone when Yinghuo does, and the next Liberation opens a fresh eight. */
+const JR_PARADE = new Buff({
+  name: "Jingran S6: Parade of Thousand Souls", maxStacks: 8,
+  field: PARADE_FIELD,
+  // it ends with Yinghuo, which nothing here marks — its own 15s is his visit either way, so the
+  // window is what carries it rather than a poke at the Mingfire gauge, which is a different thing
+  until: LifeTime.Outro,
+  updateBuffs: () => {
+    const a = currentAction();
+    // never off a summon's own damage, or each would call up the next until the charges ran out
+    if (runningAction(Lib) || runningAction(ACTION_LIB_FUA) || runningAction(ACTION_PARADE_FUA) || a.mv <= 0) return;
+    removeStack(JR_PARADE, 1);
+    queue(ACTION_PARADE_FUA);
+  },
+});
+/** S6: the target takes 40% more Heavy Attack DMG from him, Chimei Wangliang at x1.8 (row 150.31%
+ *  against 83.51%), and the Parade above. */
+const JR_S6 = new Sequence({
+  name: "Jingran S6: As Favors and Feuds Fade, New Stories Await",
+  updateBuffs: () => { if (runningAction(Lib)) applyCurrent(JR_PARADE, 8); },
+  applyStats: () => {
+    addStat(Stat.DamageTaken, 40, Type1.Heavy);
+    if (runningAction(ACTION_LIB_FUA) || runningAction(ACTION_PARADE_FUA)) addStat(Stat.MulMv, 80);
+  },
+});
+
+const JR_SEQUENCES = [JR_S1, JR_S2, JR_S3, JR_S4, JR_S5, JR_S6];
 
 const SHIELDS = new Map<Action, number>([
   [BA1, 1], [BA2, 1], [BA3, 2], [BA4, 2], [MA, 1], [EBA1, 1], [EBA2, 1], [EBA3, 2], [EBA4, 2],
@@ -271,6 +380,7 @@ const JINGRAN_RESONATOR = new Resonator({
 // the first three refund 200 while Mingfire is above 25.
 
 const EBA234 = new ActionGroup("Basic - Drink Soul 234", [EBA2, EBA3, EBA4]);
+const BA234 = new ActionGroup("Basic - Devil's Bane 234", [BA2, BA3, BA4]);
 
 const JR_ROTATION = new Rotation([
   INTRO, BA2,
@@ -293,5 +403,6 @@ export const JINGRAN = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.HP4, Mainstat.Fusion3, Mainstat.ATK1, Mainstat.HP1),
   substat: substats(Substat.AtkPct, Substat.HpPct, Substat.Heavy),
   highSubstat: highSubs(Substat.AtkPct, Substat.Heavy, Substat.Er, Substat.HpPct),
-    rotation: JR_ROTATION,
+  rotation: { 0: JR_ROTATION },
+  sequences: JR_SEQUENCES,
 });

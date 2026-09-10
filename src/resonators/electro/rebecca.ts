@@ -46,6 +46,7 @@ import {
   basicDmgBonus,
   casting,
   currentAction,
+  runningAction,
   currentTeam,
   isHeld,
   queue,
@@ -86,7 +87,7 @@ const HBA2 = rebeccaAction("Basic - Huntress 2", { node: Node.Normal, cast: Cast
 const HBA3 = rebeccaAction("Basic - Huntress 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 109.85, energy: 1.63, concerto: 3.25, offtune: 5200, forte1: 10.54 });
 const HHA = rebeccaAction("Heavy - Huntress", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Basic, mv: 33.8, energy: 0.5, concerto: 1, offtune: 1600, forte1: 3.58 });
 const EatLead = rebeccaAction("Heavy - Eat Lead!: Huntress", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 121.68, energy: 1.8, concerto: 3.6, offtune: 5760, forte1: 11.68 });
-const HMA = rebeccaAction("Mid-air - Huntress", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 136.04, energy: 2.02, concerto: 4.03, offtune: 6440, forte1: 13.05 });
+const HMA = rebeccaAction("Mid-air - Huntress", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 136.04, energy: 2.02, concerto: 4.03, offtune: 6440, forte1: 13.05 });
 const HTD = rebeccaAction("Basic - Tactical Dodge: Huntress", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 84.5, energy: 1.25, concerto: 2.5, offtune: 4000, forte1: 8.95 });
 // the somersault: no damage row of its own on nanoka and no gauges anywhere, and the one thing it
 // grants — the Heavy Attack - Huntress held out of it costing no STA — is stamina, which is unmodelled
@@ -97,7 +98,7 @@ const GBA1 = rebeccaAction("Basic - Guts 1", { node: Node.Normal, cast: Cast.Bas
 const GBA2 = rebeccaAction("Basic - Guts 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 84.5, energy: 1.25, concerto: 2.5, offtune: 4000, forte1: 9.32 });
 const GBA3 = rebeccaAction("Basic - Guts 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 225.11, energy: 3.34, concerto: 6.67, offtune: 10658, forte1: 24.84 });
 const GHA = rebeccaAction("Heavy - Guts", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 202.79, energy: 3, concerto: 6, offtune: 9600, forte1: 19.45 });
-const GMA = rebeccaAction("Mid-air - Guts", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 10.05 });
+const GMA = rebeccaAction("Mid-air - Guts", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 10.05 });
 const GTD = rebeccaAction("Basic - Tactical Dodge: Guts", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 101.4, energy: 1.5, concerto: 3, offtune: 4800, forte1: 9.73 });
 
 // --- Tactical Tweaks: one Resonance Skill per mode, each ending in the other one.
@@ -277,8 +278,7 @@ const OVERLIMIT = new Buff({
 const RB_S1 = new Sequence({
   name: "Rebecca S1: Try Not to Get in the Way!",
   applyStats: () => {
-    const a = currentAction();
-    if (a === HBA1 || a === HBA2 || a === HBA3 || a === HHA || a === HTD || a === GBA1 || a === GBA2 || a === GBA3 || a === GTD) addStat(Stat.MulMv, 50);
+    if (runningAction(HBA1) || runningAction(HBA2) || runningAction(HBA3) || runningAction(HHA) || runningAction(HTD) || runningAction(GBA1) || runningAction(GBA2) || runningAction(GBA3) || runningAction(GTD)) addStat(Stat.MulMv, 50);
   },
 });
 
@@ -300,7 +300,7 @@ const RB_S2 = new Sequence({
     const acting = currentTeam().slot.resonator;
     if (acting && applied(TUNE_HACK_SHIFTING)) addBuff(acting, OH_HEY_CHOOM_HACK, 1);
   },
-  updateBuffs: () => { const a = currentAction(); if (a === Intro || a === EIntro || a === Lib1) applyTeam(OH_HEY_CHOOM_TEAM, 1); },
+  updateBuffs: () => { if (runningAction(Intro) || runningAction(EIntro) || runningAction(Lib1)) applyTeam(OH_HEY_CHOOM_TEAM, 1); },
 });
 
 /** S3: +60% multiplier on everything Party 'til Dawn! fires — the Mk. 31 HMG tiers and BOOM!
@@ -310,8 +310,7 @@ const RB_S2 = new Sequence({
 const RB_S3 = new Sequence({
   name: "Rebecca S3: Don't Sweat Your Six!",
   applyStats: () => {
-    const a = currentAction();
-    if (a === Lib2 || a === Lib3 || a === Lib4 || a === Boom) addStat(Stat.MulMv, 60);
+    if (runningAction(Lib2) || runningAction(Lib3) || runningAction(Lib4) || runningAction(Boom)) addStat(Stat.MulMv, 60);
     if (casting(Cast.Intro) && !isHeld(A_GIRL)) addStat(Stat.AddForte2, 120);
   },
 });
@@ -342,14 +341,12 @@ const S6Guts = rebeccaAction("Forte Heavy - Bang-bang-bang!: Guts (S6 Strike)", 
 const RB_S6 = new Sequence({
   name: "Rebecca S6: Maybe, Just Maybe...",
   applyStats: () => {
-    const a = currentAction();
-    if ((a === FHAHunt || a === FHAGuts) && !isHeld(A_GIRL)) addStat(Stat.AddForte2, 20);
+    if ((runningAction(FHAHunt) || runningAction(FHAGuts)) && !isHeld(A_GIRL)) addStat(Stat.AddForte2, 20);
   },
   lateConvertStats: () => { addStat(Stat.DmgBonus, 0.4 * basicDmgBonus(), Type1.Basic); },
   updateBuffs: () => {
-    const a = currentAction();
-    if (a === FHAHunt) queue(S6Hunt);
-    if (a === FHAGuts) queue(S6Guts);
+    if (runningAction(FHAHunt)) queue(S6Hunt);
+    if (runningAction(FHAGuts)) queue(S6Guts);
   },
 });
 
@@ -366,14 +363,13 @@ const RB_INHERENT_1 = new Inherent({
     if (acting && applied(TUNE_HACK_SHIFTING)) addBuff(acting, TAG_TBB, 1);
   },
   updateBuffs: () => {
-    const a = currentAction();
-    if (applied(A_GIRL) || a === FHAHunt || a === FHAGuts) applyCurrent(TAG_YOURE_IT, 1);
+    if (applied(A_GIRL) || runningAction(FHAHunt) || runningAction(FHAGuts)) applyCurrent(TAG_YOURE_IT, 1);
   },
 });
 
 const RB_INHERENT_2 = new Inherent({
   name: "Inherent: Left an Opening!",
-  updateBuffs: () => { if (currentAction() === Lib1) applyTeam(LEFT_AN_OPENING, 1); },
+  updateBuffs: () => { if (runningAction(Lib1)) applyTeam(LEFT_AN_OPENING, 1); },
 });
 
 const REBECCA_TALENTS = new Talent({

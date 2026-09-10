@@ -68,6 +68,7 @@ import {
   revokeTeam,
   casting,
   currentAction,
+  runningAction,
   revokeCurrent,
   frozenStacks,
   applyEnemy,
@@ -136,7 +137,7 @@ const DeathSnipSpread = chisaAction("Basic - Death Snip With Spread", { node: No
 const ThreadWithdrawn = chisaAction("Basic - Thread Withdrawn", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 67.65, energy: 1.44, concerto: 2.85, offtune: 4538, forte1: 16 });
 /** The airborne normal attack — not part of the ground string, chains into Reign of Silence 2 in
  *  mid-air instead. Not in the rotation (nothing here models being airborne), defined for completeness. */
-const ReignOfSilenceMidAir = chisaAction("Mid-air - Reign of Silence", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 73.96, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: 9 });
+const ReignOfSilenceMidAir = chisaAction("Mid-air - Reign of Silence", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.96, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: 9 });
 
 const HA = chisaAction("Heavy - Reign of Silence", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 71.58, energy: 1.50, concerto: 3.00, offtune: 4800, forte1: 10 });
 /** Heavy Attack's own mid-air follow-up, chaining into Hanging Finality. Not in the rotation. */
@@ -199,15 +200,15 @@ const WOVEN_MYRIAD_CONVERGENCE = new Buff({
       addStat(Stat.MulMv, 120);
     }
   },
-  convertStats: () => { if (currentAction() === Eradication) revokeCurrent(WOVEN_MYRIAD_CONVERGENCE); },
+  convertStats: () => { if (runningAction(Eradication)) revokeCurrent(WOVEN_MYRIAD_CONVERGENCE); },
 });
 
 /** Every point of Ring of Chainsaw Blitz spends banks here (cap 100), and only Eradication ever
  *  reads it — +2.59% MV a point at max rank — before it resets for the next Chainsaw Mode entry. */
 const RING_CONSUMED = new Buff({
   name: "Chisa: Ring of Chainsaw Consumed", maxStacks: 100,
-  applyStats: () => { if (currentAction() === Eradication) addStat(Stat.MulMv, 2.59 * frozenStacks()); },
-  convertStats: () => { if (currentAction() === Eradication) revokeCurrent(RING_CONSUMED); },
+  applyStats: () => { if (runningAction(Eradication)) addStat(Stat.MulMv, 2.59 * frozenStacks()); },
+  convertStats: () => { if (runningAction(Eradication)) revokeCurrent(RING_CONSUMED); },
 });
 
 /** All Ends Here (Inherent 2's own stat half): casting Intro or Liberation grants +20% Havoc DMG
@@ -215,7 +216,7 @@ const RING_CONSUMED = new Buff({
 const ALL_ENDS_HERE = new Buff({
   name: "Inherent: All Ends Here",
   stats: [[Stat.DmgBonus, 20, Attribute.Havoc], [Stat.HealingBonus, 20]],
-  convertStats: () => { if (currentAction() === Outro) revokeCurrent(ALL_ENDS_HERE); },
+  convertStats: () => { if (runningAction(Outro)) revokeCurrent(ALL_ENDS_HERE); },
 });
 
 /** Unseen Snare: an enemy marker, 30s (permanent uptime — Skill/Serrated Loop both refresh it every
@@ -279,7 +280,7 @@ const THREAD_OF_BANE = new Buff({
 const DESOLATE_CORRIDORS = new Buff({
   name: "Chisa S1: Wandering Through the Desolate Corridors",
   stats: [[Stat.BonusAtk, 30]],
-  convertStats: () => { if (currentAction() === Outro) revokeCurrent(DESOLATE_CORRIDORS); },
+  convertStats: () => { if (runningAction(Outro)) revokeCurrent(DESOLATE_CORRIDORS); },
 });
 /** S1's one-off: 61,803 fixed Havoc DMG, Basic Attack DMG that reads no bonus at all, on the first
  *  Snare a target ever takes. The 61.8% floor on the target's HP never binds against a boss. */
@@ -325,7 +326,7 @@ const CS_S4 = new Sequence({ name: "Chisa S4: Severing the Endless Cycle of Trag
 /** S5: +100% DMG Bonus on Moment of Nihility. Glide's cheaper Jetstream reaches no formula. */
 const CS_S5 = new Sequence({
   name: "Chisa S5: Thousands of Lights to Guide the Way Home",
-  applyStats: () => { if (currentAction() === Liberation) addStat(Stat.DmgBonus, 100); },
+  applyStats: () => { if (runningAction(Liberation)) addStat(Stat.DmgBonus, 100); },
 });
 
 /** S6's Unseen Snare - Finality, on the target beside the Snare itself: every Negative Status's
@@ -337,7 +338,7 @@ const SNARE_FINALITY = new Debuff({
   name: "Chisa S6: Unseen Snare - Finality",
   applyStats: () => {
     for (const tag of [Type2.SpectroFrazzle, Type2.FusionBurst, Type2.GlacioChafe, Type2.AeroErosion, Type2.ElectroFlare]) addStat(Stat.Amp, 30, tag);
-    if (isHeld(CHISA_RESONATOR)) addStat(Stat.TotalDmg, 40);
+    if (isHeld(CHISA_RESONATOR)) addStat(Stat.DamageTaken, 40);
   },
 });
 const CS_S6 = new Sequence({
@@ -357,7 +358,7 @@ const CS_INHERENT_1 = new Inherent({ name: "Inherent: Inescapable Fate" });
  *  half — Sight of Unraveling, another on-kill chain — is left out for the same reason as Inherent 1. */
 const CS_INHERENT_2 = new Inherent({
   name: "Inherent: All Ends Here",
-  updateBuffs: () => { if (currentAction() === Intro || currentAction() === Liberation) applyCurrent(ALL_ENDS_HERE, 1); },
+  updateBuffs: () => { if (runningAction(Intro) || runningAction(Liberation)) applyCurrent(ALL_ENDS_HERE, 1); },
 });
 
 const CHISA_TALENTS = new Talent({

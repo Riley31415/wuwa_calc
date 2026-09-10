@@ -1,5 +1,5 @@
 /** Mainslot echoes and sonatas from Rinascita (versions 2.0-2.4). */
-import { Stat, Attribute, Type1, Type2, Cast, Scaling } from "../engine/stats.js";
+import { Stat, Attribute, Type1, Type2, Cast, Scaling, LifeTime, BuffTarget } from "../engine/stats.js";
 import { Buff, Sonata, Sonata2pc, Mainslot, EchoType } from "../engine/gear.js";
 import {
   addStat, casting, getStat, queue, queueOutro, stacksOfEnemy, currentMember, isActive, onCast, onType, onInflict,
@@ -27,11 +27,11 @@ export const SENTRY_CONSTRUCT = new Mainslot({
 export const FROSTY_RESOLVE_2PC = new Sonata2pc({ name: "Frosty Resolve 2pc", stats: [[Stat.DmgBonus, 12, Type1.Skill]] });
 export const FROSTY_RESOLVE_GLACIO = new Buff({
   name: "Frosty Resolve 5pc: Glacio",
-  stats: [[Stat.DmgBonus, 22.5, Attribute.Glacio]], until: "outro",
+  stats: [[Stat.DmgBonus, 22.5, Attribute.Glacio]], until: LifeTime.Outro,
 });
 export const FROSTY_RESOLVE_SKILL_DMG = new Buff({
   name: "Frosty Resolve 5pc: Resonance Skill", maxStacks: 2,
-  stats: [[Stat.DmgBonus, 18, Type1.Skill]], perStack: true, until: "outro",
+  stats: [[Stat.DmgBonus, 18, Type1.Skill]], perStack: true, until: LifeTime.Outro,
 });
 export const FROSTY_RESOLVE_5PC = new Sonata({
   name: "Frosty Resolve 5pc",
@@ -77,8 +77,8 @@ export const ACTION_MIDNIGHT_VEIL_BURST = new Action("Outro - Midnight Veil", {
   element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Outro, mv: 480,
 });
 export const MIDNIGHT_VEIL_HANDOFF = new Buff({
-  name: "Midnight Veil: Outro",
-  stats: [[Stat.DmgBonus, 15, Attribute.Havoc]], until: "outro",
+  name: "Midnight Veil 5pc (outro)",
+  stats: [[Stat.DmgBonus, 15, Attribute.Havoc]], until: LifeTime.Outro,
 });
 export const MIDNIGHT_VEIL_5PC = new Sonata({
   name: "Midnight Veil 5pc",
@@ -159,10 +159,10 @@ export const EMPYREAN_ANTHEM_5PC = new Sonata({
   name: "Empyrean Anthem 5pc",
   sonata2pc: EMPYREAN_ANTHEM_2PC,
   stats: [[Stat.DmgBonus, 80, Type2.Coordinated]],
-  grants: [{ on: onType(Type2.Coordinated), buff: () => EMPYREAN_ANTHEM_TEAM, to: "team" }],
+  grants: [{ on: onType(Type2.Coordinated), buff: () => EMPYREAN_ANTHEM_TEAM, to: BuffTarget.Team }],
 });
 export const EMPYREAN_ANTHEM_TEAM = new Buff({
-  name: "Empyrean Anthem",
+  name: "Empyrean Anthem 5pc",
   stats: [[Stat.BonusAtk, 20]], when: isActive,
 });
 
@@ -192,11 +192,11 @@ export const NM_KELPIE = new Mainslot({
  *  20s — so the team half is lost on the applier's own next Intro and the self half on their own
  *  outro, per the standing duration rules. */
 export const GUSTS_OF_WELKIN_TEAM = new Buff({
-  name: "Gusts of Welkin",
+  name: "Gusts of Welkin 5pc",
   stats: [[Stat.DmgBonus, 15, Attribute.Aero]],
 });
 export const GUSTS_OF_WELKIN_SELF = new Buff({
-  name: "Gusts of Welkin",
+  name: "Gusts of Welkin 5pc",
   stats: [[Stat.DmgBonus, 15, Attribute.Aero]],
 });
 export const GUSTS_OF_WELKIN_2PC = new Sonata2pc({ name: "Gusts of Welkin 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Aero]] });
@@ -204,7 +204,7 @@ export const GUSTS_OF_WELKIN_5PC = new Sonata({
   name: "Gusts of Welkin 5pc",
   sonata2pc: GUSTS_OF_WELKIN_2PC,
   grants: [
-    { on: onInflict(AERO_EROSION), buff: GUSTS_OF_WELKIN_TEAM, to: "team" },
+    { on: onInflict(AERO_EROSION), buff: GUSTS_OF_WELKIN_TEAM, to: BuffTarget.Team },
     { on: onInflict(AERO_EROSION), buff: GUSTS_OF_WELKIN_SELF },
   ],
 });
@@ -243,6 +243,6 @@ export const WINDWARD_5PC = new Sonata({
   grants: [{ on: () => stacksOfEnemy(AERO_EROSION) > 0, buff: () => WINDWARD_BUFF }],
 });
 export const WINDWARD_BUFF = new Buff({
-  name: "Windward Pilgrimage",
-  stats: [[Stat.CritRate, 10], [Stat.DmgBonus, 30, Attribute.Aero]], until: "outro",
+  name: "Windward Pilgrimage 5pc",
+  stats: [[Stat.CritRate, 10], [Stat.DmgBonus, 30, Attribute.Aero]], until: LifeTime.Outro,
 });

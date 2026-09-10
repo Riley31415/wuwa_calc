@@ -43,7 +43,7 @@
  * Boost of her own.
  */
 import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   addStat,
   applied,
@@ -54,11 +54,16 @@ import {
   casting,
   consume,
   currentAction,
+  runningAction,
   currentTeam,
   forte1,
   frozenStacks,
+  isActive,
   isHeld,
+  maxStackIncrease,
   queue,
+  queueOn,
+  removeStack,
   revokeCurrent,
   revokeTeam,
   setForte1,
@@ -67,8 +72,8 @@ import {
   stacksOfTeam,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO, START_3, SWAP, ECHO_SWAP } from "../../engine/rotation.js";
-import { HAVOC_BANE } from "../../shared/status.js";
-import { AZURE_OATH } from "../../weapons/sword.js";
+import { HAVOC_BANE, anyNegativeStatusInflicted } from "../../shared/status.js";
+import { AZURE_OATH, EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { THOUSAND_PUPPET_PAVILION, FEATHERED_TRACE_5PC } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
@@ -109,9 +114,9 @@ const BA_A2 = yangyangAction("Basic - Azure Sword Stance 2", { node: Node.Normal
 const BA_A3 = yangyangAction("Basic - Azure Sword Stance 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 100.69, energy: 1.59, concerto: 3.17, offtune: 5065, forte1: -26 });
 const BA_A4 = yangyangAction("Basic - Azure Sword Stance 4", {
   node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 185.63, energy: 2.94, concerto: 5.85, offtune: 9337, forte1: -48,
-  updateDebuffs: () => applyEnemy(HAVOC_BANE, 1),
+  updateDebuffs: () => applyEnemy(HAVOC_BANE, isHeld(XL_S3) ? 2 : 1),
 });
-const MA_A = yangyangAction("Mid-air - Azure Sword Stance", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 98.61, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: -12 });
+const MA_A = yangyangAction("Mid-air - Azure Sword Stance", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: -12 });
 const DC_A = yangyangAction("Dodge Counter - Azure Sword Stance 2", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 196.13, energy: 3.09, concerto: 16.18, offtune: 9865, forte1: -24 });
 
 const BA_F1 = yangyangAction("Basic - Feather Sword Stance 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.54, energy: 1.26, concerto: 2.50, offtune: 4000, forte1: -12 });
@@ -119,9 +124,9 @@ const BA_F2 = yangyangAction("Basic - Feather Sword Stance 2", { node: Node.Norm
 const BA_F3 = yangyangAction("Basic - Feather Sword Stance 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 74.29, energy: 1.19, concerto: 2.36, offtune: 3738, forte1: -26 });
 const BA_F4 = yangyangAction("Basic - Feather Sword Stance 4", {
   node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 238.59, energy: 3.76, concerto: 7.50, offtune: 12000, forte1: -48,
-  updateDebuffs: () => applyEnemy(HAVOC_BANE, 1),
+  updateDebuffs: () => applyEnemy(HAVOC_BANE, isHeld(XL_S3) ? 2 : 1),
 });
-const MA_F = yangyangAction("Mid-air - Feather Sword Stance", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 98.61, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: -12 });
+const MA_F = yangyangAction("Mid-air - Feather Sword Stance", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: -12 });
 const DC_F = yangyangAction("Dodge Counter - Feather Sword Stance 2", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 196.11, energy: 3.09, concerto: 16.18, offtune: 9864, forte1: -24 });
 
 // --- Feather's Edge: the plain stance switch, castable any time and worth nothing but its own
@@ -142,7 +147,7 @@ const FlowFeather = yangyangAction("Skill - Sword Stance Flow: Feather", {
 
 const HeavyAzure = yangyangAction("Forte Heavy - Azure Sword Stance", {
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 450.53, energy: 9.34, concerto: 15.00, offtune: 10666,
-  updateDebuffs: () => applyEnemy(HAVOC_BANE, 2),
+  updateDebuffs: () => applyEnemy(HAVOC_BANE, isHeld(XL_S3) ? 3 : 2),
   updateBuffs: () => applyCurrent(BATED_BREATH, 1),
   // only opens at 2 Azure Plume, and spends it outright: maxForte2 (2 below) clamps an overrun
   // back to the cap before this lands exactly on 0
@@ -150,11 +155,11 @@ const HeavyAzure = yangyangAction("Forte Heavy - Azure Sword Stance", {
 });
 const HeavyFeather = yangyangAction("Heavy - Feather Sword Stance", {
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 217.05, energy: 1.87, concerto: 4.67, offtune: 7465,
-  updateDebuffs: () => applyEnemy(HAVOC_BANE, 2),
+  updateDebuffs: () => applyEnemy(HAVOC_BANE, isHeld(XL_S3) ? 3 : 2),
   updateBuffs: () => applyCurrent(STREAMING_STORM, 1),
 });
 const FeatherFall = yangyangAction("Forte Mid-air - Feather Fall", {
-  node: Node.Forte, cast: Cast.MidAir, type: Type1.Heavy, mv: 110.97, energy: 1.26, concerto: 3.12, offtune: 4962,
+  node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 110.97, energy: 1.26, concerto: 3.12, offtune: 4962,
   // Feather Sword Stance itself spends none — this auto-cast follow-up is what actually spends
   // the 2 Azure Plume that opened it
   forte2: -2,
@@ -175,6 +180,11 @@ const Lib = yangyangAction("Liberation - Hush of a Thousand Voices", {
 /** Voice upon Voice cashed on the next Sword Stance Flow. A summon, so it is queued rather than
  *  named by the rotation. */
 const ShadowOfXuanling = yangyangAction("Liberation - Shadow of Xuanling", { node: Node.Liberation, type: Type1.Heavy, mv: 337.98 });
+/** The three sequence Shadows — the Liberation's own 337.98% row (no energy/concerto/off-tune of
+ *  its own), Heavy DMG, each filed under the cast that summons it. */
+const ShadowUnfaltering = yangyangAction("Skill - Shadow of Xuanling: Unfaltering (S1)", { node: Node.Forte, type: Type1.Heavy, mv: 337.98 });
+const ShadowStrungNotes = yangyangAction("Basic - Shadow of Xuanling: Strung Notes (S2)", { node: Node.Normal, type: Type1.Heavy, mv: 337.98 });
+const ShadowWitheredWood = yangyangAction("Skill - Shadow of Xuanling: Still as Withered Wood (S6)", { node: Node.Forte, type: Type1.Heavy, mv: 337.98 });
 
 const Intro = yangyangAction("Intro - Skybound Feather", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 116.59, energy: 10, concerto: 10, offtune: 5864,
@@ -215,7 +225,7 @@ const FEATHERED_OATH = new Buff({
   // Stage 3 is the cast the window lapses *on*, so it is dropped here, a phase ahead of any
   // applyStats — Stage 3 itself pays nothing. The grant runs earlier still (the Resonator's own
   // updateGlobal), so a Bane landing on this very cast re-arms it before this looks.
-  updateBuffs: () => { if (currentAction() === HiB3 && !applied(HAVOC_BANE)) revokeCurrent(FEATHERED_OATH); },
+  updateBuffs: () => { if (runningAction(HiB3) && !applied(HAVOC_BANE)) revokeCurrent(FEATHERED_OATH); },
   applyStats: () => { if (OATH_ACTIONS.has(currentAction())) addStat(Stat.CritDmg, 25 * frozenStacks()); },
   // the outro is the other end of it, and nothing it pays is in OATH_ACTIONS, so that one is an
   // ordinary pay-then-drop like every short window in this file
@@ -239,13 +249,13 @@ const BATED_BREATH = new Buff({
   name: "Xuanling: Bated Breath", maxStacks: 2,
   display: () => `Xuanling: Bated Breath${frozenStacks() === 1 ? "" : " (cooldown)"}`,
   applyStats: () => {
-    if (frozenStacks() === 1 && currentAction() === HeavyAzure) addStat(Stat.CritDmg, 160);
+    if (frozenStacks() === 1 && runningAction(HeavyAzure)) addStat(Stat.CritDmg, 160);
   },
   // "when Heavy Attack - Azure Sword Stance ends, Bated Breath is removed" — the window closes on
   // the very cast that opened it, so spending it is a step onto the cooldown stack, not a revoke
   convertStats: () => {
     if (casting(Cast.Outro)) revokeCurrent(BATED_BREATH);
-    else if (frozenStacks() === 1 && currentAction() === HeavyAzure) applyCurrent(BATED_BREATH, 1);
+    else if (frozenStacks() === 1 && runningAction(HeavyAzure)) applyCurrent(BATED_BREATH, 1);
   },
 });
 
@@ -260,7 +270,7 @@ const STREAMING_STORM = new Buff({
   },
   convertStats: () => {
     if (casting(Cast.Outro)) revokeCurrent(STREAMING_STORM);
-    else if (frozenStacks() === 1 && currentAction() === HiB3) applyCurrent(STREAMING_STORM, 1);
+    else if (frozenStacks() === 1 && runningAction(HiB3)) applyCurrent(STREAMING_STORM, 1);
   },
 });
 
@@ -295,6 +305,111 @@ const TONAL_SWITCH_AMP = new Buff({
   name: "Xuanling: Outro",
   stats: [[Stat.Amp, 20, Attribute.Havoc]],
 });
+
+/* --------------------------------------------------------------------------------- sequences */
+
+const isFlow = (): boolean => runningAction(FlowAzure) || runningAction(FlowFeather);
+
+/** S1: a Shadow of Xuanling: Unfaltering off every Sword Stance Flow. Stagnation and the interrupt
+ *  immunity are no stat. */
+const XL_S1 = new Sequence({
+  name: "Xuanling S1: At the Wind's Breath, the Blossoms Wake",
+  updateBuffs: () => { if (isFlow()) queue(ShadowUnfaltering); },
+});
+
+/** Strung Notes (S2): one stack, spent by her first stance Basic for a Shadow of Xuanling. */
+const STRUNG_NOTES = new Buff({
+  name: "Xuanling S2: Strung Notes",
+  updateBuffs: () => {
+    if (!casting(Cast.Basic) || currentAction().node !== Node.Normal) return;
+    revokeCurrent(STRUNG_NOTES);
+    queue(ShadowStrungNotes);
+  },
+});
+/** S2: +100% DMG on both Heavies, Feather Fall and Havoc in Bloom. The out-of-combat lines are
+ *  taken once at the start of the fight: Strung Notes above and 2 Azure Plume (the cooldown reset
+ *  has nothing to reset yet). The plume is banked, not pressed — this line opens no Heavy before
+ *  the swap. */
+const XL_S2 = new Sequence({
+  name: "Xuanling S2: River Carries Her Song Away",
+  combatStart: () => { applyCurrent(STRUNG_NOTES, 1); setForte2(2); },
+  applyStats: () => { if (OATH_ACTIONS.has(currentAction())) addStat(Stat.DmgBonus, 100); },
+});
+
+/** S3: the Liberation Amplified by 175%; the Intro and both Flows raise the target's Havoc Bane
+ *  cap by 3 (20s, renewed every visit, and the engine takes one raise a source) — which is what
+ *  the Liberation's raise-to-max then fills; and the extra stack on both Stage 4s and both
+ *  Heavies is inside their own inflicts above. */
+const XL_S3 = new Sequence({
+  name: "Xuanling S3: My Grief Follows You into the Clouds",
+  updateDebuffs: () => { if (runningAction(Intro) || isFlow()) maxStackIncrease(HAVOC_BANE, 3); },
+  applyStats: () => { if (runningAction(Lib)) addStat(Stat.Amp, 175); },
+});
+
+/** S4: +20% ATK to the team for 20s off the Intro, either Switch or either Flow — granted on every
+ *  visit's first cast and again mid-visit, so it never lapses between them. */
+const A_LETTER_AND_MY_LONGING = new Buff({
+  name: "Xuanling S4: Across the Miles, a Letter and My Longing",
+  stats: [[Stat.BonusAtk, 20]],
+});
+const XL_S4 = new Sequence({
+  name: "Xuanling S4: Across the Miles, a Letter and My Longing",
+  updateBuffs: () => {
+    if (runningAction(Intro) || runningAction(SwitchAzure) || runningAction(SwitchFeather) || isFlow()) applyTeam(A_LETTER_AND_MY_LONGING, 1);
+  },
+});
+
+/** S5: a once-per-fight cheat death. No formula effect. */
+const XL_S5 = new Sequence({ name: "Xuanling S5: Take Wing. Take Wing." });
+
+/** Voice Flux (S6): the target takes 40% more Heavy Attack DMG from her, 30s off her own first Havoc
+ *  Bane — permanent. */
+const VOICE_FLUX = new Buff({
+  name: "Xuanling S6: Voice Flux",
+  stats: [[Stat.DamageTaken, 40, Type1.Heavy]],
+});
+/** Still as Withered Wood (S6): five charges off a Sword Stance Flow, one spent whenever *anyone*
+ *  on the team inflicts any of the six Negative Statuses while she is on field — hers, a teammate's,
+ *  or a marker's, which is why this reads `anyNegativeStatusInflicted()` rather than her own share.
+ *  Watched from updateGlobal so a teammate's turn reaches it; "me" there is her, so `isActive()` is
+ *  the "if Yangyang: Xuanling is on the field" the node asks for and the Shadow is queued onto her
+ *  by name. The 1s gate is no clock here: five charges are what actually binds. */
+const WITHERED_WOOD = new Buff({
+  name: "Xuanling S6: Still as Withered Wood", maxStacks: 5,
+  updateGlobal: () => {
+    // never off its own Shadow's damage: a marker that re-inflicts on whatever hits the target
+    // (Chisa's Thread of Bane) would otherwise have each summon trigger the next until the charges
+    // ran out, which is the runaway the node's own 1s limiter stops in game
+    if (!isActive() || runningAction(ShadowWitheredWood) || !anyNegativeStatusInflicted()) return;
+    removeStack(WITHERED_WOOD, 1);
+    queueOn(XUANLING_RESONATOR, ShadowWitheredWood);
+  },
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(WITHERED_WOOD); },
+});
+/** The window's own 25s cooldown: one Flow a visit opens it, the second doesn't re-arm it. It
+ *  outlives the charges it was granted with, which is what makes it — not the spent window — the
+ *  piece that has to clear itself on her way out so the next visit opens a fresh one. */
+const WITHERED_WOOD_CD = new Buff({
+  name: "Xuanling S6: Still as Withered Wood (cooldown)",
+  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(WITHERED_WOOD_CD); },
+});
+const XL_S6 = new Sequence({
+  name: "Xuanling S6: Let the Azure Keep Its Light",
+  updateBuffs: () => {
+    // her own Havoc Bane, read as the action's own inflict — Chisa's marker re-sources it onto
+    // herself, which `appliedByMe()` would then read as nobody's
+    if (applied(HAVOC_BANE)) applyCurrent(VOICE_FLUX, 1);
+    // opened after the window above has had its look at this cast, so the Flow that opens it never
+    // spends a charge on its own Feather Release
+    if (isFlow() && !isHeld(WITHERED_WOOD_CD)) {
+      applyCurrent(WITHERED_WOOD, 5);
+      applyCurrent(WITHERED_WOOD_CD, 1);
+    }
+  },
+  applyStats: () => { if (runningAction(ShadowWitheredWood)) addStat(Stat.CritRate, 100); },
+});
+
+const XL_SEQUENCES = [XL_S1, XL_S2, XL_S3, XL_S4, XL_S5, XL_S6];
 
 /* --------------------------------------------------------------------------- kit and loadout */
 
@@ -388,26 +503,44 @@ const XUANLING_ROTATION_2F = new Rotation([
   OUTRO,
 ]);
 
+const XUANLING_ROTATION_S1 = new Rotation([
+  START_3, HeavyAzure, SwitchFeather, SWAP, // start in feather stance, so the first cast is a switch to Azure
+
+  INTRO, BA_F1234, FlowAzure, ECHO_ONFIELD, HeavyAzure, 
+  Lib, FlowFeather, HeavyFeather, FeatherFall, HiB123,
+  OUTRO,
+]);
+
+const XUANLING_ROTATION_2F_S1 = new Rotation([
+  START_3, HeavyAzure, SWAP,
+
+  INTRO, FlowFeather, ECHO_ONFIELD, HeavyFeather, FeatherFall, HiB123, SwitchAzure,
+  Lib, FlowFeather, HeavyFeather, FeatherFall, HiB123,
+  OUTRO,
+]);
+
 const XUANLING_ECHOES = [
   new EchoLoadout(THOUSAND_PUPPET_PAVILION, FEATHERED_TRACE_5PC),
 ];
 
 export const XUANLING = new Loadout({
   resonator: XUANLING_RESONATOR,
-  weapons: [AZURE_OATH, EMERALD_OF_GENESIS],
+  weapons: [AZURE_OATH, EMERALD_OF_GENESIS, EMERALD_SENTENCE],
   echoLoadouts: XUANLING_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Er),
-  rotation: XUANLING_ROTATION,
+  rotation: { 0: XUANLING_ROTATION, 1: XUANLING_ROTATION_S1 },
+  sequences: XL_SEQUENCES,
 });
 
 export const XUANLING_2F = new Loadout({
   resonator: XUANLING_RESONATOR,
-  weapons: [AZURE_OATH, EMERALD_OF_GENESIS],
+  weapons: [AZURE_OATH, EMERALD_OF_GENESIS, EMERALD_SENTENCE],
   echoLoadouts: XUANLING_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Er),
-  rotation: XUANLING_ROTATION_2F,
+  rotation: { 0: XUANLING_ROTATION_2F, 1: XUANLING_ROTATION_2F_S1 },
+  sequences: XL_SEQUENCES,
 });

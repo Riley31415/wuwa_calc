@@ -15,14 +15,14 @@
  * aren't exposed on nanoka's own page, so those come off the migrated (old-engine) sheet. Dodge
  * Counter has no sheet row at all, so it's still bare (nanoka's own MV only).
  */
-import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   applyCurrent,
   applyTeam,
   revokeCurrent,
   casting,
-  currentAction,
+  runningAction,
   currentTeam,
   addStat,
   frozenStacks,
@@ -31,11 +31,11 @@ import {
   queueOn,
 } from "../../engine/context.js";
 import { lostOnSwap, matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, SWAP, DODGE, NOINTRO, ECHO_SWAP, START_3 } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, SWAP, DODGE, NOINTRO, ECHO_SWAP, START_3, ECHO_ONFIELD } from "../../engine/rotation.js";
 import { TRAGICOMEDY } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { NM_HERON, MIDNIGHT_VEIL_5PC } from "../../echoes/rinascita.js";
-import { MOONLIT_CLOUDS_5PC, HERON, BELL_BORNE_GEOCHELONE } from "../../echoes/jinzhou.js";
+import { MOONLIT_CLOUDS_5PC, HERON, BELL_BORNE_GEOCHELONE, HAVOC_ECLIPSE_5PC, NM_CROWNLESS } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
@@ -50,7 +50,7 @@ const BA1 = rocciaAction("Basic - Pero, Easy 1", { node: Node.Normal, cast: Cast
 const BA2 = rocciaAction("Basic - Pero, Easy 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 114.42, energy: 1.71, concerto: 5.43, offtune: 5418, forte1: 33 });
 const BA3 = rocciaAction("Basic - Pero, Easy 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 169.00, energy: 2.50, concerto: 8, offtune: 8000, forte1: 49 });
 const BA4 = rocciaAction("Basic - Pero, Easy 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 208.38, energy: 3.10, concerto: 9.88, offtune: 9864, forte1: 100 });
-const MA = rocciaAction("Mid-air - Pero, Easy", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 4.96, offtune: 4960, forte1: 38 });
+const MA = rocciaAction("Mid-air - Pero, Easy", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 4.96, offtune: 4960, forte1: 38 });
 const DC = rocciaAction("Dodge Counter - Pero, Easy", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 206.70, offtune: 4986, concerto: 15.01, energy: 1.56 });
 
 // hitting with 100+ Imagination also launches Beyond Imagination — a second way in besides Skill
@@ -63,6 +63,11 @@ const Skill = rocciaAction("Skill - Acrobatic Trick", { node: Node.Skill, cast: 
 const FBA1 = rocciaAction("Forte Basic - Real Fantasy 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 322.08, energy: 8, concerto: 10, offtune: 7200, forte1: -100 });
 const FBA2 = rocciaAction("Forte Basic - Real Fantasy 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 339.97, energy: 8, concerto: 16, offtune: 7600, forte1: -100 });
 const FBA3 = rocciaAction("Forte Basic - Real Fantasy 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 357.86, energy: 8, concerto: 25, offtune: 8000, forte1: -100 });
+
+/** S6: the Basic in Beyond Imagination after Stage 3 lands within 12s of the Liberation — 100% of
+ *  Stage 3's DMG, Heavy DMG, its own nanoka row (357.86%, energy 1.2, off-tune 8000; no Concerto
+ *  Regen row, so none), no Imagination spent — she relaunches off every landing. */
+const RealityRecreation = rocciaAction("Basic - Reality Recreation (S6)", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 357.86, energy: 1.2, offtune: 8000 });
 
 // Resonance Cost 125 (maxEnergy below) is nanoka's own declared cost, not the migrated sheet's 0
 const Liberation = rocciaAction("Liberation - Commedia Improvviso!", {
@@ -151,14 +156,129 @@ const ROCCIA_RESONATOR = new Resonator({
   },
 });
 
+/* --------------------------------------------------------------------------------- sequences */
+
+function realFantasy(): boolean { return runningAction(FBA1) || runningAction(FBA2) || runningAction(FBA3); }
+
+/** S1: Acrobatic Trick banks 100 more Imagination and 10 Concerto. The Imagination is capped away
+ *  in this line (Intro + Stage 4 + Skill already fill the 300); the Concerto counts. */
+const RC_S1 = new Sequence({
+  name: "Roccia S1: When Shadows Engulf the Hull",
+  applyStats: () => { if (runningAction(Skill)) { addStat(Stat.AddForte1, 100); addStat(Stat.AddConcerto, 10); } },
+});
+
+/** S2: +10% Havoc DMG Bonus to the team a Real Fantasy cast, three stacks, and 10% more at the
+ *  cap — 30s, so permanent. */
+const LUCEANITE_GLEAMS = new Buff({
+  name: "Roccia S2: When the Luceanite Gleams", maxStacks: 3,
+  applyStats: () => { const n = frozenStacks(); addStat(Stat.DmgBonus, 10 * n + (n >= 3 ? 10 : 0), Attribute.Havoc); },
+});
+const RC_S2 = new Sequence({
+  name: "Roccia S2: When the Luceanite Gleams",
+  updateBuffs: () => { if (realFantasy()) applyTeam(LUCEANITE_GLEAMS, 1); },
+});
+
+/** S3: +10% Crit. Rate and +30% Crit. DMG for 15s off Pero, Help — until her Outro. */
+const HEART_SEES = new Buff({
+  name: "Roccia S3: When the Heart Sees and Hands Feel",
+  stats: [[Stat.CritRate, 10], [Stat.CritDmg, 30]], until: LifeTime.Outro,
+});
+const RC_S3 = new Sequence({
+  name: "Roccia S3: When the Heart Sees and Hands Feel",
+  updateBuffs: () => { if (runningAction(Intro)) applyCurrent(HEART_SEES, 1); },
+});
+
+/** S4: Real Fantasy at x1.6 for 12s off Acrobatic Trick — nanoka's second rows (515.32/543.95/
+ *  572.58%), multiplicative, and Reality Recreation has the same x1.6 twin row — until her Outro. */
+const WONDERS_GATHER = new Buff({
+  name: "Roccia S4: When Wonders Gather in the Box",
+  applyStats: () => { if (realFantasy() || runningAction(RealityRecreation)) addStat(Stat.MulMv, 60); },
+  until: LifeTime.Outro,
+});
+const RC_S4 = new Sequence({
+  name: "Roccia S4: When Wonders Gather in the Box",
+  updateBuffs: () => { if (runningAction(Skill)) applyCurrent(WONDERS_GATHER, 1); },
+});
+
+/** S5: the Liberation at x1.2 (row 334.01%) and Heavy Attack Pero, Easy at x1.8 (row 304.18%) —
+ *  both multiplicative. Real Fantasy deals Heavy DMG but is a Basic Attack, and has no such row. */
+const RC_S5 = new Sequence({
+  name: "Roccia S5: When Dreams Are Reborn on Stage",
+  applyStats: () => {
+    if (runningAction(Liberation)) addStat(Stat.MulMv, 20);
+    if (runningAction(HA)) addStat(Stat.MulMv, 80);
+  },
+});
+
+/** S6: for 12s off the Liberation — until her Outro — Real Fantasy ignores 60% DEF (a 2.0 kit,
+ *  the old ignore; the text names Real Fantasy alone, so Reality Recreation gets none) and Stage 3
+ *  opens the Reality Recreation loop the S6 rotation presses. */
+const GOLDEN_WINGS = new Buff({
+  name: "Roccia S6: When the Golden Wings Fly",
+  applyStats: () => { if (realFantasy()) addStat(Stat.DefIgnoreOld, 60); },
+  until: LifeTime.Outro,
+});
+const RC_S6 = new Sequence({
+  name: "Roccia S6: When the Golden Wings Fly",
+  updateBuffs: () => { if (runningAction(Liberation)) applyCurrent(GOLDEN_WINGS, 1); },
+});
+
+const RC_SEQUENCES = [RC_S1, RC_S2, RC_S3, RC_S4, RC_S5, RC_S6];
+
+/* ---------------------------------------------------------------------------------- rotation */
+
+const BA123 = new ActionGroup("Basic - Pero, Easy 123", [BA1, BA2, BA3]);
+const BA1234 = new ActionGroup("Basic - Pero, Easy 1234", [BA1, BA2, BA3, BA4]);
 const FBA123 = new ActionGroup("Forte Basic - Real Fantasy 123", [FBA1, FBA2, FBA3]);
 
 const RC_ROTATION = new Rotation([
   START_3, Liberation, SWAP,
+
+  NOINTRO,
+  BA1234, 
+  Liberation, 
+  Skill, DODGE, FBA123,
+  ECHO_SWAP, 
+  OUTRO,
+
   INTRO, BA4, 
   Liberation, 
-  Skill, FBA123,
+  Skill, DODGE, FBA123,
   ECHO_SWAP, 
+  OUTRO,
+]);
+
+const RC_ROTATION_S1 = new Rotation([
+  START_3, Liberation, SWAP,
+
+  NOINTRO,
+  BA123,
+  Skill, DODGE, FBA123,
+  Liberation, ECHO_SWAP, 
+  OUTRO,
+
+  INTRO,
+  Skill, DODGE, FBA123,
+  Liberation, ECHO_SWAP, 
+  OUTRO,
+]);
+
+// cope rotation
+const RC_ROTATION_MDPS = new Rotation([
+  INTRO, BA4, Liberation,
+  Skill, DODGE, FBA123, ECHO_ONFIELD,
+  BA1234, ECHO_ONFIELD, 
+  Skill, DODGE, FBA123,
+  OUTRO,
+]);
+
+// S6: three Reality Recreations in what the Liberation's 12s leaves after the Skill and the chain
+const RC_ROTATION_S6_MDPS = new Rotation([
+  INTRO, BA4, Liberation,
+  Skill, DODGE, FBA123,
+  RealityRecreation, RealityRecreation, RealityRecreation,
+  RealityRecreation, RealityRecreation, RealityRecreation,
+  RealityRecreation, RealityRecreation, RealityRecreation.swap(),
   OUTRO,
 ]);
 
@@ -184,5 +304,20 @@ export const ROCCIA = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.Heavy, Substat.Er, Substat.FlatAtk),
-    rotation: RC_ROTATION,
+  rotation: { 0: RC_ROTATION, 1: RC_ROTATION_S1 },
+  sequences: RC_SEQUENCES,
 });
+
+export const ROCCIA_MDPS = new Loadout({
+  resonator: ROCCIA_RESONATOR,
+  weapons: [TRAGICOMEDY, NEW_STD_GAUNTLET, ABYSS_SURGES],
+  echoLoadouts: [
+    new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC),
+  ],
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+  substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Heavy, Substat.Er, Substat.FlatAtk),
+  rotation: { 0: RC_ROTATION_MDPS, 6: RC_ROTATION_S6_MDPS },
+  sequences: RC_SEQUENCES,
+});
+

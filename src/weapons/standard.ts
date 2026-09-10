@@ -2,7 +2,7 @@
  *  Three generations, 5 weapons each: Ceaseless Aria (4-star), Stormy Resolution (5-star), and
  *  the "new standard" 5-star set. Each export is the weapon's five refinements, R1 first
  *  (gear.ts's own `refinements()`); a number that grows with rank is written as its five values. */
-import { WeaponType, Stat, Type1, Cast, Attribute, Tier } from "../engine/stats.js";
+import { WeaponType, Stat, Type1, Cast, Attribute, Tier, LifeTime, BuffTarget } from "../engine/stats.js";
 import { Buff, Weapon, refinements } from "../engine/gear.js";
 import {
   addStat, applyCurrent, removeStack, casting, currentAction, frozenStacks, stacksOfEnemy, isActive, applied,
@@ -49,12 +49,12 @@ export const DISCORD = concertoWeapon("Discord", WeaponType.Broadblade);
 export const STATIC_MIST = refinements((r, rank) => {
   const STATIC_MIST_HANDOFF = new Buff({
     name: `Static Mist: Stormy Resolution${rank}`,
-    stats: [[Stat.BonusAtk, [10, 12.5, 15, 17.5, 20][r]!]], until: "outro",
+    stats: [[Stat.BonusAtk, [10, 12.5, 15, 17.5, 20][r]!]], until: LifeTime.Outro,
   });
   return new Weapon({
     weaponType: WeaponType.Pistols, tier: Tier.Standard, name: `Static Mist${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.Er, [12.8, 16, 19.2, 22.4, 25.6][r]!]],
-    grants: [{ on: onCast(Cast.Outro), buff: STATIC_MIST_HANDOFF, to: "next" }],
+    grants: [{ on: onCast(Cast.Outro), buff: STATIC_MIST_HANDOFF, to: BuffTarget.Next }],
   });
 });
 
@@ -62,7 +62,7 @@ export const STATIC_MIST = refinements((r, rank) => {
 export const EMERALD_OF_GENESIS = refinements((r, rank) => {
   const EOG_STACKS = new Buff({
     name: `Emerald of Genesis: Stormy Resolution${rank}`, maxStacks: 2,
-    stats: [[Stat.BonusAtk, [6, 7.5, 9, 10.5, 12][r]!]], perStack: true, until: "outro",
+    stats: [[Stat.BonusAtk, [6, 7.5, 9, 10.5, 12][r]!]], perStack: true, until: LifeTime.Outro,
   });
   return new Weapon({
     weaponType: WeaponType.Sword, tier: Tier.Standard, name: `Emerald of Genesis${rank}`,
@@ -75,7 +75,7 @@ export const EMERALD_OF_GENESIS = refinements((r, rank) => {
 export const COSMIC_RIPPLES = refinements((r, rank) => {
   const COSMIC_RIPPLES_STACKS = new Buff({
     name: `Cosmic Ripples: Stormy Resolution${rank}`, maxStacks: 5,
-    stats: [[Stat.DmgBonus, [3.2, 4, 4.8, 5.6, 6.4][r]!, Type1.Basic]], perStack: true, until: "outro",
+    stats: [[Stat.DmgBonus, [3.2, 4, 4.8, 5.6, 6.4][r]!, Type1.Basic]], perStack: true, until: LifeTime.Outro,
   });
   return new Weapon({
     weaponType: WeaponType.Rectifier, tier: Tier.Standard, name: `Cosmic Ripples${rank}`,
@@ -89,11 +89,11 @@ export const COSMIC_RIPPLES = refinements((r, rank) => {
 export const ABYSS_SURGES = refinements((r, rank) => {
   const ABYSS_SKILL_HIT = new Buff({
     name: `Abyss Surges: Stormy Resolution${rank}`,
-    stats: [[Stat.DmgBonus, [10, 12.5, 15, 17.5, 20][r]!, Type1.Basic]], until: "outro",
+    stats: [[Stat.DmgBonus, [10, 12.5, 15, 17.5, 20][r]!, Type1.Basic]], until: LifeTime.Outro,
   });
   const ABYSS_BASIC_HIT = new Buff({
     name: `Abyss Surges: Stormy Resolution${rank}`,
-    stats: [[Stat.DmgBonus, [10, 12.5, 15, 17.5, 20][r]!, Type1.Skill]], until: "outro",
+    stats: [[Stat.DmgBonus, [10, 12.5, 15, 17.5, 20][r]!, Type1.Skill]], until: LifeTime.Outro,
   });
   return new Weapon({
     weaponType: WeaponType.Gauntlets, tier: Tier.Standard, name: `Abyss Surges${rank}`,
@@ -109,7 +109,7 @@ export const ABYSS_SURGES = refinements((r, rank) => {
 export const LUSTROUS_RAZOR = refinements((r, rank) => {
   const LUSTROUS_RAZOR_STACKS = new Buff({
     name: `Lustrous Razor: Stormy Resolution${rank}`, maxStacks: 3,
-    stats: [[Stat.DmgBonus, [7, 8.75, 10.5, 12.25, 14][r]!, Type1.Liberation]], perStack: true, until: "outro",
+    stats: [[Stat.DmgBonus, [7, 8.75, 10.5, 12.25, 14][r]!, Type1.Liberation]], perStack: true, until: LifeTime.Outro,
   });
   return new Weapon({
     weaponType: WeaponType.Broadblade, tier: Tier.Standard, name: `Lustrous Razor${rank}`,
@@ -182,7 +182,7 @@ export const NEW_STD_SWORD = refinements((r, rank) => {
 export const BLOODPACTS_PLEDGE = refinements((r, rank) => {
   const HARMONIOUS_VIBRANCY = new Buff({
     name: `Bloodpact's Pledge: Harmonious Vibrancy${rank}`,
-    stats: [[Stat.DmgBonus, [10, 14, 18, 22, 26][r]!, Type1.Skill]], until: "outro",
+    stats: [[Stat.DmgBonus, [10, 14, 18, 22, 26][r]!, Type1.Skill]], until: LifeTime.Outro,
   });
   return new Weapon({
     weaponType: WeaponType.Sword, tier: Tier.Free, name: `Bloodpact's Pledge${rank}`,
@@ -206,7 +206,7 @@ export const BLOODPACT_AERO_AMP: Buff[] = [10, 14, 18, 22, 26].map((amp, r) => n
  *  after the wielder's outro. */
 export const NEW_STD_RECTIFIER = refinements((r, rank) => {
   const PATH_OBSERVER_BUFF = new Buff({
-    name: `Boson Astrolabe: Path Observer${rank}`, until: "outro",
+    name: `Boson Astrolabe: Path Observer${rank}`, until: LifeTime.Outro,
     stats: [[Stat.BonusAtk, [12, 13.5, 15, 16.5, 18][r]!], [Stat.DmgBonus, [12, 13.5, 15, 16.5, 18][r]!, Type1.Basic]],
   });
   return new Weapon({
@@ -220,7 +220,7 @@ export const NEW_STD_RECTIFIER = refinements((r, rank) => {
  *  the wielder +20% All-Attribute DMG Bonus for 14s — same shape as Boson Astrolabe above. */
 export const NEW_STD_PISTOL = refinements((r, rank) => {
   const INSIGHT_BEARER_BUFF = new Buff({
-    name: `Phasic Homogenizer: Insight Bearer${rank}`, until: "outro",
+    name: `Phasic Homogenizer: Insight Bearer${rank}`, until: LifeTime.Outro,
     stats: [[Stat.DmgBonus, [20, 22.5, 25, 27.5, 30][r]!]],
   });
   return new Weapon({

@@ -4,7 +4,7 @@
  * is two things: an Action (`cast: Cast.Echo`) plus a piece held by whoever equips it — whatever
  * the cast itself does lives on that Action, while a flat equip passive is the Mainslot's `stats`.
  */
-import { Stat, Attribute, Type1, Cast, Scaling } from "../engine/stats.js";
+import { Stat, Attribute, Type1, Cast, Scaling, LifeTime, BuffTarget } from "../engine/stats.js";
 import { Buff, Sonata, Sonata2pc, Mainslot, EchoType } from "../engine/gear.js";
 import {
   addStat, frozenStacks, casting, applyCurrent, applyTeam, stacksOfTeam, revokeTeam, removeStackTeam, queueOutro, queue,
@@ -83,10 +83,10 @@ export const MOONLIT_CLOUDS_2PC = new Sonata2pc({ name: "Moonlit Clouds 2pc", st
 export const MOONLIT_CLOUDS_5PC = new Sonata({
   name: "Moonlit Clouds 5pc",
   sonata2pc: MOONLIT_CLOUDS_2PC,
-  grants: [{ on: onCast(Cast.Outro), buff: () => MOONLIT_CLOUDS_HANDOFF, to: "next" }],
+  grants: [{ on: onCast(Cast.Outro), buff: () => MOONLIT_CLOUDS_HANDOFF, to: BuffTarget.Next }],
 });
 
-export const MOONLIT_CLOUDS_HANDOFF = handoff("Moonlit Clouds", () => addStat(Stat.BonusAtk, 22.5));
+export const MOONLIT_CLOUDS_HANDOFF = handoff("Moonlit Clouds 5pc (outro)", () => addStat(Stat.BonusAtk, 22.5));
 
 export const REJUV_2PC = new Sonata2pc({ name: "Rejuvenating Glow 2pc", stats: [[Stat.HealingBonus, 10]] });
 /** Rejuvenating Glow, a generic sonata. 5pc: on healing an ally, +15% ATK flat, team-wide,
@@ -94,9 +94,9 @@ export const REJUV_2PC = new Sonata2pc({ name: "Rejuvenating Glow 2pc", stats: [
 export const REJUV_5PC = new Sonata({
   name: "Rejuvenating Glow 5pc",
   sonata2pc: REJUV_2PC,
-  grants: [{ on: onApplied(HEALS), buff: () => REJUV_TEAM, to: "team" }],
+  grants: [{ on: onApplied(HEALS), buff: () => REJUV_TEAM, to: BuffTarget.Team }],
 });
-export const REJUV_TEAM = new Buff({ name: "Rejuvenating Glow", stats: [[Stat.BonusAtk, 15]] });
+export const REJUV_TEAM = new Buff({ name: "Rejuvenating Glow 5pc", stats: [[Stat.BonusAtk, 15]] });
 
 /* ------------------------------------------------------------------------------- Changli, 1.1 */
 
@@ -109,8 +109,8 @@ export const MOLTEN_RIFT_5PC = new Sonata({
   grants: [{ on: onCast(Cast.Skill), buff: () => MOLTEN_RIFT_BUFF }],
 });
 export const MOLTEN_RIFT_BUFF = new Buff({
-  name: "Molten Rift",
-  stats: [[Stat.DmgBonus, 30, Attribute.Fusion]], until: "outro",
+  name: "Molten Rift 5pc",
+  stats: [[Stat.DmgBonus, 30, Attribute.Fusion]], until: LifeTime.Outro,
 });
 
 /** Nightmare: Inferno Rider, Changli's own mainslot echo — her Skill DMG is Fusion. Flat
@@ -135,7 +135,7 @@ export const ACTION_INFERNO_RIDER = new Action("Echo - Inferno Rider", {
 });
 export const INFERNO_RIDER_WINDOW = new Buff({
   name: "Inferno Rider",
-  stats: [[Stat.DmgBonus, 12, Attribute.Fusion], [Stat.DmgBonus, 12, Type1.Basic]], until: "outro",
+  stats: [[Stat.DmgBonus, 12, Attribute.Fusion], [Stat.DmgBonus, 12, Type1.Basic]], until: LifeTime.Outro,
 });
 export const INFERNO_RIDER = new Mainslot({
   name: "Inferno Rider",
@@ -165,7 +165,7 @@ export const ACTION_CROWNLESS = new Action("Echo - Nightmare: Crownless", {
 });
 export const CROWNLESS_WINDOW = new Buff({
   name: "Crownless",
-  stats: [[Stat.DmgBonus, 12, Attribute.Havoc], [Stat.DmgBonus, 12, Type1.Skill]], until: "outro",
+  stats: [[Stat.DmgBonus, 12, Attribute.Havoc], [Stat.DmgBonus, 12, Type1.Skill]], until: LifeTime.Outro,
 });
 export const CROWNLESS = new Mainslot({
   name: "Crownless",
@@ -182,8 +182,8 @@ export const HAVOC_ECLIPSE_5PC = new Sonata({
   grants: [{ on: onType(Type1.Basic, Type1.Heavy), buff: () => HAVOC_ECLIPSE_STACKS }],
 });
 export const HAVOC_ECLIPSE_STACKS = new Buff({
-  name: "Havoc Eclipse", maxStacks: 4,
-  stats: [[Stat.DmgBonus, 7.5, Attribute.Havoc]], perStack: true, until: "outro",
+  name: "Havoc Eclipse 5pc", maxStacks: 4,
+  stats: [[Stat.DmgBonus, 7.5, Attribute.Havoc]], perStack: true, until: LifeTime.Outro,
 });
 
 /* --------------------------------------------------------- old Jinzhou sonatas, none in a build */
@@ -197,7 +197,7 @@ export const ACTION_LAMPYLUMEN_MYRIAD = new Action("Echo - Lampylumen Myriad", {
 });
 export const LAMPYLUMEN_MYRIAD_STACKS = new Buff({
   name: "Lampylumen Myriad", maxStacks: 3,
-  stats: [[Stat.DmgBonus, 4, Attribute.Glacio], [Stat.DmgBonus, 4, Type1.Skill]], perStack: true, until: "outro",
+  stats: [[Stat.DmgBonus, 4, Attribute.Glacio], [Stat.DmgBonus, 4, Type1.Skill]], perStack: true, until: LifeTime.Outro,
 });
 export const LAMPYLUMEN_MYRIAD = new Mainslot({
   name: "Lampylumen Myriad",
@@ -214,8 +214,8 @@ export const FREEZING_FROST_5PC = new Sonata({
   grants: [{ on: onType(Type1.Basic, Type1.Heavy), buff: () => FREEZING_FROST_STACKS }],
 });
 export const FREEZING_FROST_STACKS = new Buff({
-  name: "Freezing Frost", maxStacks: 3,
-  stats: [[Stat.DmgBonus, 10, Attribute.Glacio]], perStack: true, until: "outro",
+  name: "Freezing Frost 5pc", maxStacks: 3,
+  stats: [[Stat.DmgBonus, 10, Attribute.Glacio]], perStack: true, until: LifeTime.Outro,
 });
 
 /** Nightmare: Feilian Beringal — Sierra Gale's own real matching mainslot echo (Iuno just
@@ -239,8 +239,8 @@ export const SIERRA_GALE_5PC = new Sonata({
   grants: [{ on: onCast(Cast.Intro), buff: () => SIERRA_GALE_INTRO }],
 });
 export const SIERRA_GALE_INTRO = new Buff({
-  name: "Sierra Gale",
-  stats: [[Stat.DmgBonus, 30, Attribute.Aero]], until: "outro",
+  name: "Sierra Gale 5pc",
+  stats: [[Stat.DmgBonus, 30, Attribute.Aero]], until: LifeTime.Outro,
 });
 
 /** Jué — a Calamity Class Spectro mainslot echo. Its cast grants the wearer Blessing of Time,
@@ -280,8 +280,8 @@ export const CELESTIAL_LIGHT_5PC = new Sonata({
   grants: [{ on: onCast(Cast.Intro), buff: () => CELESTIAL_LIGHT_INTRO }],
 });
 export const CELESTIAL_LIGHT_INTRO = new Buff({
-  name: "Celestial Light",
-  stats: [[Stat.DmgBonus, 30, Attribute.Spectro]], until: "outro",
+  name: "Celestial Light 5pc",
+  stats: [[Stat.DmgBonus, 30, Attribute.Spectro]], until: LifeTime.Outro,
 });
 
 /** Mech Abomination — an Electro mainslot echo. Its strike also grants +12% ATK for 15s and
@@ -297,7 +297,7 @@ export const ACTION_MECH_WASTE = new Action("Echo - Mech Abomination: Mech Waste
 });
 export const MECH_ABOMINATION_ATK = new Buff({
   name: "Mech Abomination",
-  stats: [[Stat.BonusAtk, 12]], until: "outro",
+  stats: [[Stat.BonusAtk, 12]], until: LifeTime.Outro,
 });
 export const MECH_ABOMINATION = new Mainslot({
   name: "Mech Abomination",
@@ -320,7 +320,7 @@ export const LINGERING_TUNES_5PC = new Sonata({
   grants: [{ on: () => !triggeredAction() && isActive(), buff: () => LINGERING_TUNES_STACKS }],
 });
 export const LINGERING_TUNES_STACKS = new Buff({
-  name: "Lingering Tunes", maxStacks: 8,
+  name: "Lingering Tunes 5pc", maxStacks: 8,
   applyStats: () => addStat(Stat.BonusAtk, 5 * Math.floor(frozenStacks() / 2)),
   updateBuffs: () => lostOnSwap(),
   display: () => `Lingering Tunes x${Math.ceil(frozenStacks() / 2)}`,
@@ -357,7 +357,7 @@ export const NM_TEMPEST_MEPHIS = new Mainslot({
 export const VOID_THUNDER_2PC = new Sonata2pc({ name: "Void Thunder 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Electro]] });
 export const VOID_THUNDER_STACKS = new Buff({
   name: "Void Thunder 5pc: Electro", maxStacks: 2,
-  stats: [[Stat.DmgBonus, 15, Attribute.Electro]], perStack: true, until: "outro",
+  stats: [[Stat.DmgBonus, 15, Attribute.Electro]], perStack: true, until: LifeTime.Outro,
 });
 export const VOID_THUNDER_5PC = new Sonata({
   name: "Void Thunder 5pc",

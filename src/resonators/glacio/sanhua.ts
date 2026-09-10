@@ -17,7 +17,7 @@ import {
   removeStack,
   revokeCurrent,
   casting,
-  currentAction,
+  runningAction,
   addStat,
   frozenStacks,
   queue,
@@ -64,7 +64,7 @@ const BA3 = sanhuaAction("Basic - Frigid Light 3", { node: Node.Normal, cast: Ca
 const BA4 = sanhuaAction("Basic - Frigid Light 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.34, energy: 1.42, concerto: 8, offtune: 4560 });
 const BA5 = sanhuaAction("Basic - Frigid Light 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 233.81, energy: 4.2, concerto: 10, offtune: 13440 });
 const HA = sanhuaAction("Heavy - Frigid Light", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 111.35, energy: 2, concerto: 8, offtune: 8000 });
-const MA = sanhuaAction("Mid-air - Frigid Light", { node: Node.Normal, cast: Cast.MidAir, type: Type1.Basic, mv: 86.29, energy: 0.51, concerto: 1, offtune: 9520 });
+const MA = sanhuaAction("Mid-air - Frigid Light", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.29, energy: 0.51, concerto: 1, offtune: 9520 });
 
 // Ice Thorn's own burst is a real exception, not a data gap: 0 concerto (every other burst pays
 // 1500), just 200 Energy — kept as given rather than smoothed over.
@@ -94,7 +94,7 @@ const CONDENSATION = new Buff({
 /** Condensation's own trigger — always-equipped Inherent Skill piece. */
 const SH_INHERENT_1 = new Inherent({
   name: "Inherent: Condensation",
-  updateBuffs: () => { if (currentAction() === Intro) applyCurrent(CONDENSATION, 1); },
+  updateBuffs: () => { if (runningAction(Intro)) applyCurrent(CONDENSATION, 1); },
 });
 
 /** Avalanche (Inherent Skill): +20% Ice Burst DMG for 8s after Basic Attack 5. Scoped by checking
@@ -102,15 +102,14 @@ const SH_INHERENT_1 = new Inherent({
 const AVALANCHE = new Buff({
   name: "Inherent: Avalanche",
   applyStats: () => {
-    const a = currentAction();
-    if (a === DETONATE_THORN || a === DETONATE_PRISM || a === DETONATE_GLACIER) addStat(Stat.DmgBonus, 20);
+    if (runningAction(DETONATE_THORN) || runningAction(DETONATE_PRISM) || runningAction(DETONATE_GLACIER)) addStat(Stat.DmgBonus, 20);
   },
   convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(AVALANCHE); },
 });
 /** Avalanche's own trigger — always-equipped Inherent Skill piece. */
 const SH_INHERENT_2 = new Inherent({
   name: "Inherent: Avalanche",
-  updateBuffs: () => { if (currentAction() === BA5) applyCurrent(AVALANCHE, 1); },
+  updateBuffs: () => { if (runningAction(BA5)) applyCurrent(AVALANCHE, 1); },
 });
 
 /** S1 Solitude's Embrace: Basic Attack 5 grants +15% Crit Rate, 10s. Trigger lives in SANHUA_S1. */
@@ -124,8 +123,8 @@ const S1_CRIT = new Buff({
  *  or lost on outro if Detonate never comes. Trigger lives in SANHUA_S4. */
 const S4_WINDOW = new Buff({
   name: "Sanhua S4: Blade Mastery",
-  applyStats: () => { if (currentAction() === FHA) addStat(Stat.DmgBonus, 120); },
-  convertStats: () => { if (currentAction() === FHA || casting(Cast.Outro)) revokeCurrent(S4_WINDOW); },
+  applyStats: () => { if (runningAction(FHA)) addStat(Stat.DmgBonus, 120); },
+  convertStats: () => { if (runningAction(FHA) || casting(Cast.Outro)) revokeCurrent(S4_WINDOW); },
 });
 
 /** S6 Daybreak Radiance: detonating an Ice Prism/Glacier grants the *other* two members +10% ATK,
@@ -160,7 +159,7 @@ const SANHUA_OUTRO = new Buff({
 
 const SANHUA_S1 = new Sequence({
   name: "Sanhua S1: Solitude's Embrace",
-  updateBuffs: () => { if (currentAction() === BA5) applyCurrent(S1_CRIT, 1); },
+  updateBuffs: () => { if (runningAction(BA5)) applyCurrent(S1_CRIT, 1); },
 });
 
 // S2 Snowy Clarity: STA-cost/interruption-resistance only — a do-nothing piece, held for the name
@@ -173,7 +172,7 @@ const SANHUA_S3 = new Sequence({
 
 const SANHUA_S4 = new Sequence({
   name: "Sanhua S4: Blade Mastery",
-  updateBuffs: () => { if (currentAction() === Liberation) applyCurrent(S4_WINDOW, 1); },
+  updateBuffs: () => { if (runningAction(Liberation)) applyCurrent(S4_WINDOW, 1); },
 });
 
 /** S5 Unraveling Fate: +100% Crit DMG on Ice Burst, plus a *second* Glacier stack on top of
@@ -182,16 +181,15 @@ const SANHUA_S4 = new Sequence({
 const SANHUA_S5 = new Sequence({
   name: "Sanhua S5: Unraveling Fate",
   applyStats: () => {
-    const a = currentAction();
-    if (a === DETONATE_THORN || a === DETONATE_PRISM || a === DETONATE_GLACIER) addStat(Stat.CritDmg, 100);
+    if (runningAction(DETONATE_THORN) || runningAction(DETONATE_PRISM) || runningAction(DETONATE_GLACIER)) addStat(Stat.CritDmg, 100);
   },
-  updateBuffs: () => { if (currentAction() === Liberation) applyCurrent(GLACIER_BUFF, 1); },
+  updateBuffs: () => { if (runningAction(Liberation)) applyCurrent(GLACIER_BUFF, 1); },
 });
 
 const SANHUA_S6 = new Sequence({
   name: "Sanhua S6: Daybreak Radiance",
   updateBuffs: () => {
-    if (currentAction() === DETONATE_PRISM || currentAction() === DETONATE_GLACIER) applyTeam(S6_ATK, 1);
+    if (runningAction(DETONATE_PRISM) || runningAction(DETONATE_GLACIER)) applyTeam(S6_ATK, 1);
   },
 });
 
@@ -240,11 +238,11 @@ const SH_ROTATION = new Rotation([
 // (Tier.Free — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat
 export const SANHUA = new Loadout({
   resonator: SANHUA_RESONATOR,
-  weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, OVERTURE],
+  weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, OVERTURE],
   echoLoadouts: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Er),
-    rotation: [SH_ROTATION, SH_ROTATION, SH_ROTATION, SH_ROTATION, SH_ROTATION, SH_ROTATION_S5],
+    rotation: { 0: SH_ROTATION, 5: SH_ROTATION_S5 },
   sequences: [SANHUA_S1, SANHUA_S2, SANHUA_S3, SANHUA_S4, SANHUA_S5, SANHUA_S6],
 });

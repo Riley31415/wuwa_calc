@@ -3,9 +3,8 @@
  * scroll window over the sorted rows, and every click/change handler for it.
  */
 import { Tier } from "../engine/stats.js";
-import { baseSequence } from "../engine/gear.js";
 import { fmt } from "../display.js";
-import { sequenceLevels, scopedKey, axisUsed, compares, weaponBase, echoLines, echoLabel, axisOpen, standardWeapon, AXES } from "../solver.js";
+import { sequenceLevels, scopedKey, axisUsed, compares, weaponBase, echoLines, echoLabel, axisOpen, AXES } from "../solver.js";
 import type { Member, Combo, Axis, TeamCost, ScopedCompare } from "../solver.js";
 import type { TeamRun } from "../teamrun.js";
 import {
@@ -14,7 +13,7 @@ import {
   pruneGearFilters, comparable, prospectiveRows, sequenceTag, refineTag, syncHash,
 } from "./model.js";
 import type { ResonatorFilter, OptionKind, TeamRow } from "./model.js";
-import type { SearchKind } from "./filterbar.js";
+import type { SearchKind, SearchHit } from "./filterbar.js";
 import { esc, deferredPop, rect, clearPops, subsLabel } from "./panels.js";
 
 const app = document.getElementById("app")!;
@@ -97,31 +96,13 @@ function setFilter(map: Map<string, ResonatorFilter>, name: string, mode: Resona
   });
 }
 
-/** Whether this resonator's rows read "R0" — the weapon they wear with the Weapon column closed
- *  being a standard, or a craftable on a limited resonator (see `rankToken`). A rank number says
- *  nothing on one of those and would read as a signature's, so their refines and weapons compares
- *  are opened and closed together: the Weapon column is where the name and rank stand side by
- *  side. One already reading R1-R5 needs no such pairing, and does not get one — its rank is on
- *  screen either way, so a refines compare of its own opens on its own.
- *
- *  The weapon asked about is the one the cost mode hands them, not any they list: under `s0r1`
- *  that is the signature at the head of the list, otherwise the best standard. `s0r1mdps` gives it
- *  to one member per team only, so it reads as the standard here — the pairing is a convenience
- *  where the rank is ambiguous, and the members who read R0 are the ones it is for. */
-const rankless = (name: string): boolean =>
-  Object.values(TEAMS).some((members) => members.some((m) => {
-    if (m.name !== name) return false;
-    const w = m.loadout.weapons[filters.cost === "s0r1" ? 0 : standardWeapon(m.loadout)]!;
-    return w.tier !== Tier.Limited && !(w.tier === Tier.Free && m.loadout.resonator.tier !== Tier.Limited);
-  }));
-
 /** Toggle a resonator's compare on an axis; turning one off drops gear filters only it could have
- *  set. Refines and weapons move together where a rank alone would be ambiguous (`rankless`). */
+ *  set. Refines ride in the Weapon column — that cell's menu is the only way to open them
+ *  (`openOptionMenu`), and closing the column closes them with it. */
 function setCompare(name: string, axis: Axis): void {
   withRowCap(() => {
     const on = !filters[axis].includes(name);
-    const paired: Axis[] = !rankless(name) ? []
-      : axis === "refines" && on ? ["weapons"]
+    const paired: Axis[] = axis === "refines" && on ? ["weapons"]
       : axis === "weapons" && !on ? ["refines"] : [];
     const before = new Map<Axis, string[]>();
     for (const a of [axis, ...paired]) {
@@ -131,7 +112,9 @@ function setCompare(name: string, axis: Axis): void {
       if (!on && at >= 0) filters[a].splice(at, 1);
     }
     const kept = (Object.values(OPTION_FILTER_MAPS) as Map<string, ResonatorFilter>[]).map((map) => [...map]);
-    if (!on) pruneGearFilters();
+    // either way: closing a compare strands the picks only it offered, and opening the rank column
+    // absorbs the max-rank row's own level tag (model.ts's `sequenceTagsOf()`)
+    pruneGearFilters();
     return () => {
       for (const [a, list] of before) filters[a] = list;
       (Object.values(OPTION_FILTER_MAPS) as Map<string, ResonatorFilter>[]).forEach((map, i) => {
@@ -147,25 +130,22 @@ function setScoped(s: ScopedCompare): void {
     const key = scopedKey(s);
     const at = filters.scoped.findIndex((x) => scopedKey(x) === key);
     if (at >= 0) filters.scoped.splice(at, 1); else filters.scoped.push(s);
-    // a rank scoped to one pick needs the Weapon column for the same reason the whole axis does
-    const weapons = at < 0 && s.axis === "refines" && rankless(s.resonator) && !filters.weapons.includes(s.resonator);
-    if (weapons) filters.weapons.push(s.resonator);
     return () => {
       if (at >= 0) filters.scoped.splice(at, 0, s); else filters.scoped.pop();
-      if (weapons) filters.weapons.splice(filters.weapons.indexOf(s.resonator), 1);
     };
   });
 }
 
 interface MenuItem { label: string; run: () => void }
 
-/** The scoped compares a pick can open: refines only where a rank list has >1 entry, sonatas and
- *  main stats where the resonator has options; an echo opens main stats alone. */
+/** The scoped compares a pick can open: refines on a weapon pick alone, and only where its rank
+ *  list has >1 entry; sonatas and main stats where the resonator has options; an echo opens main
+ *  stats alone. */
 function scopedItems(resonator: string, on: ScopedCompare["on"], value: string): (MenuItem & { axis: ScopedCompare["axis"] })[] {
   const ranks = (): boolean => Object.values(TEAMS).some((members) => members.some((m) => m.name === resonator
-    && m.loadout.refinements.some((r) => r.length > 1 && (on !== "weapon" || weaponBase(r[0]!) === value))));
+    && m.loadout.refinements.some((r) => r.length > 1 && weaponBase(r[0]!) === value)));
   const axes: ScopedCompare["axis"][] = on === "echo" ? ["mainstats"]
-    : on === "refine" || on === "weaponRank" ? ["echoes", "mainstats"] : ["refines", "echoes", "mainstats"];
+    : on === "weapon" ? ["refines", "echoes", "mainstats"] : ["echoes", "mainstats"];
   const s = (axis: ScopedCompare["axis"]): ScopedCompare => ({ resonator, on, value, axis });
   const set = (axis: ScopedCompare["axis"]): boolean => filters.scoped.some((x) => scopedKey(x) === scopedKey(s(axis)));
   // the resonator's own refines compare already runs every rank on every weapon, so a rank scoped
@@ -229,15 +209,17 @@ function showMenu(x: number, y: number, items: MenuItem[]): void {
 function memberLabel(m: Member, combo: Combo): string {
   return [m.loadout.resonator.name, `${seqToken(m, combo)}${rankToken(m, combo)}`].filter(Boolean).join(" ");
 }
-/** A chain that comes with the character is always named; any level is once the chain is compared. */
+/** Any level above S0 is named — the one a chain comes with, and the one a cost mode hands out —
+ *  and every level is once the chain is compared, so an S0 row reads S0 beside its S1. */
 const seqToken = (m: Member, combo: Combo): string =>
-  baseSequence(m.loadout.resonator) > 0 || axisOpen(m, filters, "sequences") ? `S${combo.sequence}` : "";
-/** "" while a Weapon column carries the rank. A signature, a free weapon on a free resonator, or
- *  any weapon while refines are compared reads its rank; a craftable on a limited resonator is
- *  the "no signature" build and reads R0. */
+  combo.sequence > 0 || axisOpen(m, filters, "sequences") ? `S${combo.sequence}` : "";
+/** "" while a Weapon column carries the rank. A signature, a free weapon on a free resonator, any
+ *  weapon while refines are compared, and any rank above R1 — the S6R5 row an open chain box adds
+ *  (solver.ts's own `refineLevels()`) — read their rank; a craftable at R1 on a limited resonator
+ *  is the "no signature" build and reads R0. */
 const rankToken = (m: Member, combo: Combo): string =>
   axisUsed(m, filters, "weapons") ? ""
-  : compares(m, filters, "refines", combo) || combo.weapon.tier === Tier.Limited
+  : compares(m, filters, "refines", combo) || combo.weapon.refinement > 1 || combo.weapon.tier === Tier.Limited
     || (combo.weapon.tier === Tier.Free && m.loadout.resonator.tier !== Tier.Limited) ? `R${combo.weapon.refinement}`
   : "R0";
 
@@ -250,12 +232,35 @@ function optionCell(kind: OptionKind, value: string, color: string, lines: strin
 }
 
 let hueShown = true;
+/** The Personal and Team DPR columns each print exact figures (12,345,678) or abbreviated ones —
+ *  the same digits with the separator moved and a K/M on the end (1.00K, 12.3K, 123K, 1.234M,
+ *  2.600M), always truncated, never rounded up to a figure the team didn't make. Millions carry
+ *  three decimals, the thousands three significant figures, so the column reads down at one width
+ *  and every row says as much as every other. Under a thousand there is nothing to abbreviate and
+ *  the figure stands as it is. Each column is toggled on its own by clicking its header, and the
+ *  exact figure is what it opens on — abbreviating is the marked state, and says so in full ink. */
+const dprExact = { personal: true, team: true };
+type DprColumn = keyof typeof dprExact;
+const dprFmt = (v: number, exact: boolean): string => {
+  if (exact) return fmt(v);
+  if (v >= 1e6) return `${fmt(Math.floor(v / 1e3) / 1e3, 3, true, false)}M`;
+  // the whole number, no K and nothing after the point — 0.123K said less than 123 does
+  if (v < 1e3) return fmt(Math.floor(v), 0, false, false);
+  // three significant figures: 123K, 12.3K, 1.23K
+  const decimals = v >= 1e5 ? 0 : v >= 1e4 ? 1 : 2;
+  // divided down before the floor rather than scaled up after it — `Math.trunc(12.3 * 10)` is 122
+  const step = 10 ** (3 - decimals);
+  return `${fmt(Math.floor(v / step) / 10 ** decimals, decimals, true, false)}K`;
+};
+/** A compare's share, one decimal truncated — never rounded up to a gain it didn't make. */
+const pctTrunc = (ratio: number): string => `${fmt(Math.trunc(ratio * 1000) / 10, 1, true)}%`;
 
 interface TableView {
   sorted: (readonly [string, TeamRun])[];
   ranks: RowRank[];
   head: string;
-  ghost: string;
+  /** The zero-height sizing row for the DPR columns' current modes (see `dprExact`). */
+  ghost: (personalExact: boolean, teamExact: boolean) => string;
   rowHtml: (key: string, run: TeamRun, rank: RowRank) => string;
   /** Lines per row (echo cells stack a line per set) and the running extra-line count above each. */
   lines: number[];
@@ -306,9 +311,10 @@ function comparisonTable(rows: TeamRow[]): string {
     return b.run.total - a.run.total || seq(b.run) - seq(a.run);
   }).map((k) => k.pair);
 
-  // column order, left to right: the substat spread is the whole build's investment, so it stands
-  // first, ahead of every pick it applies to
-  const GEAR_AXES = ["substats", "weapons", "echoes", "mainstats"] as const;
+  // column order, left to right — the same order the name menu offers the compares in
+  // (solver.ts's own AXES), with the substat spread last: it is the whole build's investment
+  // rather than one of the picks beside it
+  const GEAR_AXES = ["weapons", "echoes", "mainstats", "substats"] as const;
   type GearAxis = typeof GEAR_AXES[number];
   type CmpAxis = GearAxis | "sequences" | "refines";
   const CMP_AXES: readonly CmpAxis[] = [...GEAR_AXES, "sequences", "refines"];
@@ -319,12 +325,17 @@ function comparisonTable(rows: TeamRow[]): string {
   // Gear compares: a row measures against its "twins" — same gear everywhere but main stats
   // (free for everyone) and, on the compared member, the one axis. Teammates' sonatas are held
   // (they can buff the member); the solver's hidden rows supply baselines the table never shows.
-  const gearKey = (c: Combo, axis: CmpAxis | null): string => {
+  // `ranked`: refines have a column of their own beside this one, so a sequence compare holds the
+  // rank rather than folding it in. With that column shut the ladder's own top level runs an extra
+  // row at max rank (solver.ts's `refineLevels()`), which has to sit in the same group as the
+  // levels below it or it has no baseline to measure against at all.
+  const gearKey = (c: Combo, axis: CmpAxis | null, ranked = true): string => {
     const [w, e, , seq, ref, ...rest] = c.key.split(".");
-    return [axis === "weapons" ? "*" : w, axis === "echoes" ? "*" : e, "*", axis === "sequences" ? "*" : seq, axis === "weapons" || axis === "refines" ? "*" : ref, rest.includes("m"), axis === "substats" || axis === null ? "*" : rest.includes("h")].join("|");
+    const anyRank = axis === "weapons" || axis === "refines" || (axis === "sequences" && !ranked);
+    return [axis === "weapons" ? "*" : w, axis === "echoes" ? "*" : e, "*", axis === "sequences" ? "*" : seq, anyRank ? "*" : ref, rest.includes("m"), axis === "substats" || axis === null ? "*" : rest.includes("h")].join("|");
   };
   const twinKey = (run: TeamRun, pos: number, axis: CmpAxis): string =>
-    `${run.teamKey}|${pos}|${axis}|${run.combo.map((c, k) => gearKey(c, k === pos ? axis : null)).join("-")}`;
+    `${run.teamKey}|${pos}|${axis}|${run.combo.map((c, k) => gearKey(c, k === pos ? axis : null, axisUsed(run.members[pos]!, filters, "refines"))).join("-")}`;
   // which axes have a column at each position, off the rows on screen
   const openAt: Record<CmpAxis, boolean[]> = { weapons: [false, false, false], echoes: [false, false, false], mainstats: [false, false, false], substats: [false, false, false], sequences: [false, false, false], refines: [false, false, false] };
   for (const row of rows) {
@@ -357,11 +368,12 @@ function comparisonTable(rows: TeamRow[]): string {
     for (const t of pool) {
       if (axis === "weapons") {
         if (t.combo.weapon.tier === Tier.Limited) continue;
-        if (compares(run.members[pos]!, filters, "refines", run.combo[pos]!) && t.combo.key.split(".")[4] !== "r0") continue;
+        if (t.combo.key.split(".")[4] !== "r0") continue;
       }
       if (axis === "refines" && t.combo.key.split(".")[4] !== "r0") continue;
       if (axis === "substats" && t.combo.highSubs) continue;
-      if (axis === "sequences" && t.combo.sequence !== sequenceLevels(run.members[pos]!, filters)[0]) continue;
+      if (axis === "sequences" && (t.combo.sequence !== sequenceLevels(run.members[pos]!, filters)[0]
+        || (!axisUsed(run.members[pos]!, filters, "refines") && t.combo.key.split(".")[4] !== "r0"))) continue;
       if (t.dpr > base) base = t.dpr;
     }
     return base;
@@ -378,7 +390,7 @@ function comparisonTable(rows: TeamRow[]): string {
   };
   const gearCompare = (run: TeamRun, pos: number, axis: CmpAxis): string => {
     const ratio = gearRatio(run, pos, axis);
-    return ratio == null ? "" : `${fmt(ratio * 100, 1, true)}%`;
+    return ratio == null ? "" : pctTrunc(ratio);
   };
 
   const seqCmpAt = (i: number): boolean => !!openAt.sequences[i];
@@ -401,7 +413,7 @@ function comparisonTable(rows: TeamRow[]): string {
         + ` style="--mem:${m.color};color:${m.color}">`
         + `<span class="res-label">${esc(memberLabel(m, combo))}</span>`
         + `</div>`;
-      const dpr = dprAt(i) ? `<div class="c num slotdpr" style="--mem:${m.color}">${fmt(run.bySlot.get(m.name) ?? 0)}</div>` : "";
+      const dpr = dprAt(i) ? `<div class="c num slotdpr" style="--mem:${m.color}">${dprFmt(run.bySlot.get(m.name) ?? 0, dprExact.personal)}</div>` : "";
       const seqCmp = seqCmpAt(i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${axisOpen(m, filters, "sequences") ? gearCompare(run, i, "sequences") : ""}</div>` : "";
       const refCmp = refCmpAt(i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${compares(m, filters, "refines", combo) ? gearCompare(run, i, "refines") : ""}</div>` : "";
       const gear = GEAR_AXES.map((axis) => {
@@ -423,7 +435,7 @@ function comparisonTable(rows: TeamRow[]): string {
     return `<div class="trow${rank.pinned ? " isbaseline" : ""}" style="--hue:${rank.hue}" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}"`
       + ` data-members="${esc(memberNames)}" data-total="${grand}">`
       + memberCells
-      + `<div class="c num total teamdpr" title="Click to view the team's damage breakdown"${deferredPop("dpr", key)}>${fmt(grand)}</div>`
+      + `<div class="c num total teamdpr" title="Click to view the team's damage breakdown"${deferredPop("dpr", key)}>${dprFmt(grand, dprExact.team)}</div>`
       + `<div class="c num total baseline" data-team="${esc(key)}" title="Click to measure every team against this one">${rank.pct}</div>`
       + `<div class="c gotodetail" data-team="${esc(key)}">view rotation<span class="arrow">›</span></div>`
       + `</div>`;
@@ -433,10 +445,10 @@ function comparisonTable(rows: TeamRow[]): string {
     + (seqCmpAt(i) ? `<div class="c num">Compare</div>` : "")
     + (refCmpAt(i) ? `<div class="c num">Compare</div>` : "")
     + GEAR_AXES.map((axis) => (openAt[axis][i] ? `<div class="c">${AXIS_HEAD[axis]}</div><div class="c num">Compare</div>` : "")).join("")
-    + (dprAt(i) ? `<div class="c num">Avg Personal</div>` : "");
+    + (dprAt(i) ? `<div class="c num dprhead" data-dpr="personal" title="Click to switch between abbreviated and exact figures">Personal</div>` : "");
   const head = `<div class="trow thead">`
     + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2)
-    + `<div class="c num">Avg Team DPR</div>`
+    + `<div class="c num dprhead" data-dpr="team" title="Click to switch between abbreviated and exact figures">Team Avg DPR</div>`
     + `<div class="c num huehead" title="Click to colour the column by rank">Compare</div>`
     + `<div class="c"></div>`
     + `</div>`;
@@ -458,7 +470,7 @@ function comparisonTable(rows: TeamRow[]): string {
   const widest = (a: string, b: string): string => (b.length > a.length ? b : a);
   const blank = (): string[] => ["", "", ""];
   const wide = {
-    name: blank(), dpr: blank(), seqcmp: blank(), refcmp: blank(), total: "", pct: "",
+    name: blank(), dpr: blank(), dprAbbr: blank(), seqcmp: blank(), refcmp: blank(), total: "", totalAbbr: "", pct: "",
     gear: { weapons: blank(), echoes: blank(), mainstats: blank(), substats: blank() } as Record<GearAxis, string[]>,
     cmp: { weapons: blank(), echoes: blank(), mainstats: blank(), substats: blank() } as Record<GearAxis, string[]>,
   };
@@ -466,7 +478,8 @@ function comparisonTable(rows: TeamRow[]): string {
     run.members.forEach((m, pos) => {
       const combo = run.combo[pos]!;
       wide.name[pos] = widest(wide.name[pos]!, memberLabel(m, combo));
-      wide.dpr[pos] = widest(wide.dpr[pos]!, fmt(run.bySlot.get(m.name) ?? 0));
+      wide.dpr[pos] = widest(wide.dpr[pos]!, dprFmt(run.bySlot.get(m.name) ?? 0, true));
+      wide.dprAbbr[pos] = widest(wide.dprAbbr[pos]!, dprFmt(run.bySlot.get(m.name) ?? 0, false));
       if (axisOpen(m, filters, "sequences")) wide.seqcmp[pos] = widest(wide.seqcmp[pos]!, gearCompare(run, pos, "sequences"));
       if (compares(m, filters, "refines", combo)) wide.refcmp[pos] = widest(wide.refcmp[pos]!, gearCompare(run, pos, "refines"));
       for (const axis of GEAR_AXES) {
@@ -477,31 +490,33 @@ function comparisonTable(rows: TeamRow[]): string {
         wide.cmp[axis][pos] = widest(wide.cmp[axis][pos]!, gearCompare(run, pos, axis));
       }
     });
-    wide.total = widest(wide.total, fmt(run.total));
+    wide.total = widest(wide.total, dprFmt(run.total, true));
+    wide.totalAbbr = widest(wide.totalAbbr, dprFmt(run.total, false));
     wide.pct = widest(wide.pct, ranks[i]!.pct);
   });
   // a zero-height ghost row (index.css `.tghost`) sizing every track to its final width
-  const ghostPos = (i: number) =>
+  const ghostPos = (i: number, dpr: string[]) =>
     `<div class="c name res"><span class="res-label">${esc(wide.name[i]!)}</span></div>`
     + (seqCmpAt(i) ? `<div class="c num slotcompare">${esc(wide.seqcmp[i]!)}</div>` : "")
     + (refCmpAt(i) ? `<div class="c num slotcompare">${esc(wide.refcmp[i]!)}</div>` : "")
     + GEAR_AXES.map((axis) => (openAt[axis][i]
       ? `<div class="c option">${esc(wide.gear[axis][i]!)}</div><div class="c num slotcompare">${esc(wide.cmp[axis][i]!)}</div>` : "")).join("")
-    + (dprAt(i) ? `<div class="c num slotdpr">${esc(wide.dpr[i]!)}</div>` : "");
+    + (dprAt(i) ? `<div class="c num slotdpr">${esc(dpr[i]!)}</div>` : "");
   // no `.teamdpr` on the ghost's Total cell: `drawWindow()` measures the row pitch off it
-  const ghost = `<div class="trow tghost" aria-hidden="true">`
-    + ghostPos(0) + ghostPos(1) + ghostPos(2)
-    + `<div class="c num total">${esc(wide.total)}</div>`
+  const ghostFor = (dpr: string[], total: string): string => `<div class="trow tghost" aria-hidden="true">`
+    + ghostPos(0, dpr) + ghostPos(1, dpr) + ghostPos(2, dpr)
+    + `<div class="c num total">${esc(total)}</div>`
     + `<div class="c num total baseline">${esc(wide.pct)}</div>`
     + `<div class="c gotodetail">view rotation<span class="arrow">›</span></div>`
     + `</div>`;
+  const ghost = (personalExact: boolean, teamExact: boolean): string => ghostFor(personalExact ? wide.dpr : wide.dprAbbr, teamExact ? wide.total : wide.totalAbbr);
   tableView = { sorted, ranks, head, ghost, rowHtml, lines, extra };
   return `<main><div class="tclayout">`
     + `<aside class="tcside">${comparisonFilters()}</aside>`
     + `<div class="tcbody">`
     + `<h2 class="summary-label" id="teamCount">${fmt(sorted.length)} teams`
     + `<span class="hint">Click on a Resonator to filter and compare sequences, weapons, echoes</span></h2>`
-    + `<div class="tcwrap"><div class="tgrid${hueShown ? " hued" : ""}" style="${gridStyle}">${head}${ghost}</div></div>`
+    + `<div class="tcwrap"><div class="tgrid${hueShown ? " hued" : ""}${dprExact.personal ? " personalexact" : ""}${dprExact.team ? " teamexact" : ""}" style="${gridStyle}">${head}${ghost(dprExact.personal, dprExact.team)}</div></div>`
     + `</div></div></main>`;
 }
 
@@ -538,7 +553,7 @@ function rankAll(sorted: TableView["sorted"]): RowRank[] {
     const hue = ratio >= 1
       ? BASELINE_HUE - away * (BASELINE_HUE - BEST_HUE)
       : BASELINE_HUE + away * (WORST_HUE - BASELINE_HUE);
-    return { hue, pct: `${fmt(ratio * 100, 1, true)}%`, pinned: i === pinned };
+    return { hue, pct: pctTrunc(ratio), pinned: i === pinned };
   });
 }
 
@@ -573,7 +588,7 @@ export function drawWindow(force = false, scrollTop?: number): void {
     const [key, run] = view.sorted[i]!;
     body += view.rowHtml(key, run, view.ranks[i]!);
   }
-  grid.innerHTML = view.head + view.ghost + spacer(0, from) + body + spacer(to, n);
+  grid.innerHTML = view.head + view.ghost(dprExact.personal, dprExact.team) + spacer(0, from) + body + spacer(to, n);
   drawnFrom = from; drawnTo = to;
 
   // measure the real pitch off the rows just drawn, and redo the spacers once if the guess was off
@@ -662,7 +677,7 @@ export function renderComparison(): void {
   main.scrollTop = scrollTop;
   // the page opens with the caret in the search bar, so a filter is one word away (`openingFocus`)
   if (openingFocus) focusAfterDraw ??= null;
-  // whichever bubble Enter stepped back to, if it is still there — the search bar otherwise, and
+  // whichever bubble Enter stepped on to, if it is still there — the search bar otherwise, and
   // nothing at all where the redraw came from somewhere with no claim on the focus
   const back = focusAfterDraw;
   focusAfterDraw = undefined;
@@ -691,6 +706,13 @@ document.addEventListener("click", (e) => {
   if (!(e.target as Element).closest(".c.huehead")) return;
   hueShown = !hueShown;
   document.querySelector(".tgrid")?.classList.toggle("hued", hueShown);
+});
+document.addEventListener("click", (e) => {
+  const column = (e.target as Element).closest<HTMLElement>(".c.dprhead")?.dataset.dpr as DprColumn | undefined;
+  if (!column) return;
+  dprExact[column] = !dprExact[column];
+  document.querySelector(".tgrid")?.classList.toggle(`${column}exact`, dprExact[column]);
+  drawWindow(true);
 });
 document.addEventListener("change", (e) => {
   const select = e.target as HTMLSelectElement;
@@ -751,41 +773,37 @@ for (const [type, mode, named] of [["click", "include", false], ["contextmenu", 
     quickInclude(() => setFilter(target.map, target.value, mode));
   }, true);
 }
-/** The cell reads "Suoming S6R1": the resonator, then the level and rank as their own lines
- *  wherever the rows differ on them, each also opening the compares scoped to it. */
+/** The cell reads "Suoming S6R1": the resonator's own lines first, whole, then a block for each
+ *  narrower reading of the cell — everything about "Suoming S6", then everything about "Suoming
+ *  R1". Grouped by what a line is about rather than by axis, so the top of the menu is only ever
+ *  the resonator and nothing has to be read past to reach it. */
 const openNameMenu = (el: HTMLElement, x: number, y: number): void => {
   const resonator = el.dataset.resonator ?? "";
-  const key = resonator;
   const compareItem = (axis: Axis): MenuItem => ({
     label: `${filters[axis].includes(resonator) ? "Stop comparing" : "Compare"} ${resonator} ${AXIS_LABEL[axis].toLowerCase()}`,
     run: () => setCompare(resonator, axis),
   });
-  const tagged = (tag: string | undefined, map: Map<string, ResonatorFilter>): MenuItem[] => (tag ? [
+  // one block per tag the cell carries: its own two filters, then the compares scoped to it in the
+  // same axis order the resonator's own lines above read in (`scopedItems` offers its own)
+  const scopedBlock = (tag: string | undefined, on: ScopedCompare["on"], gate: string, map: Map<string, ResonatorFilter>): MenuItem[] => (tag ? [
     { label: `Show only ${tag} teams`, run: () => setFilter(map, tag, "include") },
     { label: `Hide ${tag} teams`, run: () => setFilter(map, tag, "exclude") },
+    ...scopedItems(resonator, on, gate).sort((a, b) => AXES.indexOf(a.axis) - AXES.indexOf(b.axis)),
   ] : []);
-  // the compares the level and rank open, each filed under the axis it is a narrower form of, so
-  // "Compare Qingxiao R5 sonatas" reads directly below "Compare Qingxiao sonatas"
-  const scoped = [
-    ...(el.dataset.sequence ? scopedItems(resonator, "sequence", el.dataset.seqGate ?? "") : []),
-    ...(el.dataset.refine ? scopedItems(resonator, "refine", el.dataset.refGate ?? "") : []),
-  ];
-  const filed = new Set<Axis>();
-  const axisBlock = (axis: Axis): MenuItem[] => {
-    filed.add(axis);
-    return [compareItem(axis), ...scoped.filter((x) => x.axis === axis)];
-  };
   const items: MenuItem[] = [
-    { label: `Show ${key} teams`, run: () => setFilter(resonatorFilters, key, "include") },
-    { label: `Hide ${key} teams`, run: () => setFilter(resonatorFilters, key, "exclude") },
-    ...tagged(el.dataset.sequence, sequenceFilters),
-    ...tagged(el.dataset.refine, refineFilters),
+    { label: `Show ${resonator} teams`, run: () => setFilter(resonatorFilters, resonator, "include") },
+    { label: `Hide ${resonator} teams`, run: () => setFilter(resonatorFilters, resonator, "exclude") },
     // every axis this resonator has more than one option on, the substat spread last of all —
-    // it is the one that says how the whole build is invested rather than which pick it wears
-    ...AXES.filter((axis) => axis !== "substats" && comparable(resonator, axis)).flatMap(axisBlock),
-    ...(comparable(resonator, "substats") ? axisBlock("substats") : []),
-    // a scoped compare whose own axis has no whole-resonator line to sit under still needs one
-    ...scoped.filter((x) => !filed.has(x.axis)),
+    // it is the one that says how the whole build is invested rather than which pick it wears.
+    // A kit with no chain nodes yet says so where its sequence compare would sit, and the line
+    // does nothing when pressed.
+    // refines are not among them: they belong to the Weapon column, and are opened from a weapon
+    // cell once that column is up (`openOptionMenu`)
+    ...AXES.filter((axis) => axis !== "substats" && axis !== "refines").flatMap((axis) => (comparable(resonator, axis) ? [compareItem(axis)]
+      : axis === "sequences" ? [{ label: "Sequences Not Implemented!", run: () => {} }] : [])),
+    ...(comparable(resonator, "substats") ? [compareItem("substats")] : []),
+    ...scopedBlock(el.dataset.sequence, "sequence", el.dataset.seqGate ?? "", sequenceFilters),
+    ...scopedBlock(el.dataset.refine, "refine", el.dataset.refGate ?? "", refineFilters),
   ];
   showMenu(x, y, items);
   menuOrigin = { map: resonatorFilters, value: resonator, named: true };
@@ -842,9 +860,12 @@ const openOptionMenu = (e: MouseEvent): void => {
     // the compares that opened this column lead, offered back as a way to close it — the same
     // shape a main-stat or substat cell's own menu has (`openStatMenu`)
     ...(filters[axis].includes(resonator) ? [{ label: `Stop comparing ${word}`, run: () => setCompare(resonator, axis) }] : []),
-    // the rank rides in this same cell while refines are compared, so it is closed from here too
-    ...(kind === "weapon" && filters.refines.includes(resonator)
-      ? [{ label: `Stop comparing ${AXIS_LABEL.refines.toLowerCase()}`, run: () => setCompare(resonator, "refines") }] : []),
+    // the rank rides in this same cell, so this is where the whole rank axis is opened and closed
+    ...(kind === "weapon" && comparable(resonator, "refines")
+      ? [{
+        label: `${filters.refines.includes(resonator) ? "Stop comparing" : "Compare"} ${AXIS_LABEL.refines.toLowerCase()}`,
+        run: () => setCompare(resonator, "refines"),
+      }] : []),
     ...filters.scoped.filter((s) => s.resonator === resonator && s.axis === axis)
       .map((s) => ({ label: `Stop comparing ${scopedLabel(s)} ${word}`, run: () => setScoped(s) })),
     { label: `Show only ${base}`, run: () => setFilter(map, base, "include") },
@@ -890,21 +911,26 @@ const openStatMenu = (e: MouseEvent): void => {
 document.addEventListener("click", openStatMenu);
 document.addEventListener("contextmenu", openStatMenu);
 
-// a search result: either button adds it to the pool — a chip is where it comes back off
-const searchPick = (e: Event): [Map<string, ResonatorFilter>, string] | undefined => {
+// a search result: either button takes it — a compare opens that axis, every other kind joins the
+// include pool. Both are undone on the chip it makes, never from here.
+const applySearchHit = (hit: SearchHit): void => {
+  if (hit.kind === "compare") { if (hit.resonator && hit.axis) setCompare(hit.resonator, hit.axis); return; }
+  setFilter(hit.kind === "resonator" ? resonatorFilters : OPTION_FILTER_MAPS[hit.kind], hit.value, "include");
+};
+const searchPick = (e: Event): SearchHit | undefined => {
   const el = (e.target as Element).closest<HTMLElement>(".sresult");
   const kind = el?.dataset.kind as SearchKind | undefined;
   const value = el?.dataset.value;
   if (!kind || !value) return undefined;
-  return [kind === "resonator" ? resonatorFilters : OPTION_FILTER_MAPS[kind], value];
+  return { kind, value, axis: el!.dataset.axis as Axis | undefined, resonator: el!.dataset.resonator };
 };
 const addSearchHit = (e: Event): void => {
-  const pick = searchPick(e);
-  if (!pick) return;
+  const hit = searchPick(e);
+  if (!hit) return;
   e.preventDefault();
   clearSearch();
   focusAfterDraw = null;
-  setFilter(...pick, "include");
+  applySearchHit(hit);
   focusSearch();
 };
 document.addEventListener("click", addSearchHit);
@@ -937,6 +963,10 @@ document.addEventListener("click", removeChip);
 document.addEventListener("contextmenu", removeChip);
 document.addEventListener("click", (e) => {
   if (!(e.target as Element).closest(".clearall")) return;
+  // every bubble goes with the filters, Clear Filters itself included, so the caret has nowhere
+  // left to stand — back to the search bar, except on a touch screen, where focusing it throws the
+  // on-screen keyboard up over the page (the same test `openingFocus` makes)
+  if (!matchMedia("(pointer: coarse)").matches) focusAfterDraw = null;
   withRowCap(() => {
     const maps = [resonatorFilters, ...(Object.values(OPTION_FILTER_MAPS) as Map<string, ResonatorFilter>[])];
     const kept = maps.map((map) => [...map]);
@@ -985,8 +1015,8 @@ document.addEventListener("keydown", (e) => {
   ring[at < 0 ? (e.shiftKey ? ring.length - 1 : 0) : (at + (e.shiftKey ? -1 : 1) + ring.length) % ring.length]!.focus();
 });
 
-// Enter or Backspace on a bubble takes it off and steps back to the one before it, or to the
-// search bar where it was the first — so a run of them clears without reaching for the mouse.
+// Enter or Backspace on a bubble takes it off and steps on to the one after it, or to the search
+// bar where it was the last — so a run of them clears without reaching for the mouse.
 // Both ask for the click themselves rather than leaving Enter to the button's own activation:
 // that lands a tick later, and the booking of where the focus goes next raced the redraw.
 document.addEventListener("keydown", (e) => {
@@ -995,8 +1025,8 @@ document.addEventListener("keydown", (e) => {
   if (!chip) return;
   e.preventDefault();
   const ring = tabRing();
-  const prev = ring[ring.indexOf(chip) - 1];
-  focusAfterDraw = prev && prev.id !== "optionSearch" ? chipSig(prev) : null;
+  const next = ring[ring.indexOf(chip) + 1];
+  focusAfterDraw = next?.classList.contains("rchip") ? chipSig(next) : null;
   chip.click();
 });
 
@@ -1029,6 +1059,6 @@ document.addEventListener("keydown", (e) => {
   e.preventDefault();
   clearSearch();
   focusAfterDraw = null;
-  setFilter(hit.kind === "resonator" ? resonatorFilters : OPTION_FILTER_MAPS[hit.kind], hit.value, "include");
+  applySearchHit(hit);
   focusSearch();
 });

@@ -111,6 +111,7 @@ export interface DamageFactors {
   resFactor: number;
   defFactor: number;
   dealtFactor: number;
+  takenFactor: number;
   critFactor: number;
   critMult: number;
   noCrit: number;
@@ -135,7 +136,7 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
   if (scaling === null) {
     return {
       scaling: null, finalMv: 0, finalStat: 0,
-      ampFactor: 1, bonusFactor: 1, tbbFactor: 1, resFactor: 1, defFactor: 1, dealtFactor: 1,
+      ampFactor: 1, bonusFactor: 1, tbbFactor: 1, resFactor: 1, defFactor: 1, dealtFactor: 1, takenFactor: 1,
       critFactor: 1, critMult: 1,
       noCrit: 0, crit: 0, avg: 0,
     };
@@ -146,7 +147,7 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
   if (scaling === Scaling.Fixed) {
     return {
       scaling, finalMv: action.mv, finalStat: 100,
-      ampFactor: 1, bonusFactor: 1, tbbFactor: 1, resFactor: 1, defFactor: 1, dealtFactor: 1,
+      ampFactor: 1, bonusFactor: 1, tbbFactor: 1, resFactor: 1, defFactor: 1, dealtFactor: 1, takenFactor: 1,
       critFactor: 1, critMult: 1,
       noCrit: action.mv, crit: action.mv, avg: action.mv,
     };
@@ -183,7 +184,10 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
   const defFactor = defFactorOf(snapshot);
   // Total Damage joins damage bonus and amplification in what a dot doesn't read — a status's own
   // damage is the target's, and nothing the attacker stacks onto their own hits carries into it.
+  // Damage Taken is the target-side half of the same line ("targets take N% more DMG from X")
+  // and is a factor of its own: the two multiply rather than summing.
   const dealtFactor = 1 + s(Stat.TotalDmg) * notDot;
+  const takenFactor = 1 + s(Stat.DamageTaken) * notDot;
 
   // dot and tune crit only off the Negative-Status-scoped crit (Hsin's S6) — with none, a flat 1
   const special = !(notDot * notTune);
@@ -193,11 +197,11 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
   const critFactor = cr >= 1 ? critMult : (1 - cr) + critMult * cr;
 
   const noCrit = finalMv * finalStat * ampFactor * bonusFactor * tbbFactor
-    * resFactor * defFactor * dealtFactor;
+    * resFactor * defFactor * dealtFactor * takenFactor;
 
   return {
     scaling, finalMv, finalStat,
-    ampFactor, bonusFactor, tbbFactor, resFactor, defFactor, dealtFactor, critFactor, critMult,
+    ampFactor, bonusFactor, tbbFactor, resFactor, defFactor, dealtFactor, takenFactor, critFactor, critMult,
     noCrit,
     crit: noCrit * critMult,
     avg: noCrit * critFactor,
@@ -231,12 +235,13 @@ export function damageAvgOf(
   const resFactor = resFactorFrom(resOf(stats, notDot, enemyRes) / 100);
   const defFactor = defFactorFrom((1 - shredOf(stats, notDot, enemyDef)) * enemyDef);
   const dealtFactor = 1 + stats[Stat.TotalDmg]! / 100 * notDot;
+  const takenFactor = 1 + stats[Stat.DamageTaken]! / 100 * notDot;
   const special = !(notDot * notTune);
   const critMult = special ? (type2CritDmg ? type2CritDmg / 100 : 1) : stats[Stat.CritDmg]! / 100;
   const cr = special ? type2CritRate / 100 : stats[Stat.CritRate]! / 100;
   const critFactor = cr >= 1 ? critMult : (1 - cr) + critMult * cr;
   const noCrit = finalMv * finalStat * ampFactor * bonusFactor * tbbFactor
-    * resFactor * defFactor * dealtFactor;
+    * resFactor * defFactor * dealtFactor * takenFactor;
   return noCrit * critFactor;
 }
 

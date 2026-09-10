@@ -1,8 +1,10 @@
 # general
 - do not read TODO.md
 - comments: 1-2 lines max
+- never crowd a braced block onto one line: `if (x) { a(); b(); }` is two statements hiding on one, and so is any `{ ... }` body written inline. Give it real lines. Only a single short statement may share the line with its `if`, and only without braces
 - read web pages as a human would; never screenshot them
 - DO NOT stage changes, commit changes, or push changes to git
+- use LF for newlines not CRLF
 
 # implementing kits
 - nanoka.cc is the source of truth; `migration/` data is only a sanity check (and a source of action MVs)
@@ -11,7 +13,7 @@
 - a cast that drains a gauge whole ("depletes all", "consumes the whole bar") declares the cap as its negative delta (`forte1: -200`) and clamps the gauge to that cap in its own `updateBuffs` (`if (forte1() > 200) setForte1(200)`) so the delta lands exactly at 0 — never `setForteN(0)`
 - forte/concerto/energy a kit lists elsewhere for a cast go directly on that action
 - an inherent that applies only to specific actions = a buff added and removed on just those actions
-- flat, unconditional equipment stats go in `stats: [[Stat.X, n, tag?], ...]` (a Buff's `stats` pay while held; `perStack`, `when`, `until: "outro" | "swap" | "afterSwap"`); a trigger that grants a buff is `grants: [{ on: onCast(...) | onType(...) | onInflict(...) | onApplied(...), buff, stacks?, to?: "team" | "enemy" | "next" }]`; anything the form doesn't fit stays a closure (`applyStats`, `updateBuffs`, ...)
+- flat, unconditional equipment stats go in `stats: [[Stat.X, n, tag?], ...]` (a Buff's `stats` pay while held; `perStack`, `when`, `until: LifeTime.Outro | LifeTime.Swap | LifeTime.AfterSwap`); a trigger that grants a buff is `grants: [{ on: onCast(...) | onType(...) | onInflict(...) | onApplied(...), buff, stacks?, to?: "team" | "enemy" | "next" }]`; anything the form doesn't fit stays a closure (`applyStats`, `updateBuffs`, ...)
 - a loadout's `weapons` list its best signature first and its best standard weapon second — with the weapons box closed the solver runs only that one
 
 # wording of buffs
@@ -23,9 +25,9 @@
 - "when X enters combat, ... (cooldowns reset / gauge restored). This effect can be triggered once every Ns" = a start-of-combat effect (`combatStart`), fired once — never again on a loop or an intro; ignore the cooldown
 
 # naming actions
-- an action with a cast is `<Cast> - <name>`: Basic, Mid-air, Heavy, Skill, Liberation, Intro, Outro, Echo, Dodge Counter, Tune Break (the `CAST_NAME` words); the prefix follows `cast`, not `type` (`Dodge Counter - Moonbow` even though it deals Liberation DMG)
+- an action with a cast is `<Cast> - <name>`: Basic, Mid-air, Heavy, Skill, Liberation, Intro, Outro, Echo, Dodge Counter, Tune Break; the prefix follows `cast`, not `type` (`Dodge Counter - Moonbow` even though it deals Liberation DMG) — except a mid-air press, which reads `Mid-air` though its cast is Basic
 - `Forte <Cast> - <name>` only when the action sits in `Node.Forte` AND spends something (a negative `forteN` on the action, or a revoke/removeStack/setForte in its def); a stance's plain presses stay `Basic - Umbra 1`, `Heavy - Incarnation`
-- mid-air presses are `cast: Cast.MidAir` and `Mid-air - <name>` (no "(Mid-Air)" suffix); mid-air heavies/dodge counters keep their own cast and carry "(Mid-Air)" in the name
+- mid-air presses are Basic Attacks: `cast: Cast.Basic` and `Mid-air - <name>` (no "(Mid-Air)" suffix), so `casting(Cast.Basic)` already covers them; there is no mid-air cast type, so a "mid-air attack" clause names its presses with `runningAction(X)`; mid-air heavies/dodge counters keep their own cast and carry "(Mid-Air)" in the name
 - every dodge counter is `cast: Cast.DodgeCounter`, named `Dodge Counter - <chain name>` (a bare one takes the basic chain's name: `Dodge Counter - Captain's Rhapsody`)
 - extras after the name go in parentheses: `(Charged)`, `(Hold)`, `(Follow-Up)`, `(Swap)`, `(S6 Blast)`; sub-moves after a colon: `Thrum: Aero Plunge`
 - actions with no cast (coordinated hits, ticks, fields, responses) carry the source they belong to instead: `Liberation - Marcato`, `Tune Rupture Response - Starburst`
