@@ -41,13 +41,12 @@ import {
   applyTeam,
   applyEnemy,
   currentAction,
+  onAction,
   runningAction,
   maxStackIncrease,
   revokeCurrent,
   revokeTeam,
   stacksOfEnemy,
-  setForte1,
-  setForte2,
   forte1,
   forte2,
   stacksOf,
@@ -59,15 +58,14 @@ import {
   appliedByMember,
   addBuff,
 } from "../../engine/context.js";
-import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, START_3, SWAP } from "../../engine/rotation.js";
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_SHIFTING, TUNE_STRAIN_INTERFERED, TUNE_STRAIN_RESPONDER } from "../../shared/tunebreak.js";
-import { BLAZING_BRILLIANCE, GLINT_OF_CLOUDS, RED_SPRING } from "../../weapons/sword.js";
+import { GLINT_OF_CLOUDS, RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS, NEW_STD_SWORD } from "../../weapons/standard.js";
 import { CALAMITY_EFFIGY, HEART_OF_EVILS_PURGE_5PC } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { FROSTY_RESOLVE_SKILL_DMG, NM_KELPIE, WINDWARD_5PC } from "../../echoes/rinascita.js";
+import { NM_KELPIE, WINDWARD_5PC } from "../../echoes/rinascita.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -200,7 +198,7 @@ const CLARITY_FORTE = new Set<Action>([BA1, BA2, BA3, BA4, MA1, MA2, MA3, DC, As
 const HEAVENS_CLARITY = new Buff({
   name: "Qingxiao: Heaven's Clarity",
   updateDebuffs: () => { if (runningAction(HA)) applyEnemy(MINDLOCK, 3); },
-  updateBuffs: () => { if (runningAction(HA)) applyCurrent(RECKONING_ENHANCED, 1); },
+  grants: [{ on: onAction(HA), buff: () => RECKONING_ENHANCED }],
   applyStats: () => {
     const a = currentAction();
     // Sheathed/Drawn stance hits only — Heart Sword Intent rides forte1 as well, and Ephemeral
@@ -216,7 +214,7 @@ const HEAVENS_CLARITY = new Buff({
  *  8,000 (nanoka's own enhanced rows). Ends on switching out or once it's cast. */
 const RECKONING_ENHANCED = new Buff({
   name: "Qingxiao: Heaven's Reckoning Enhancement",
-  updateBuffs: () => lostOnSwap(),
+  until: LifeTime.Swap,
   applyStats: () => { if (runningAction(FHA)) { addStat(Stat.MulMv, 100); addStat(Stat.AddOfftune, 152000); } },
   convertStats: () => { if (runningAction(FHA)) revokeCurrent(RECKONING_ENHANCED); },
 });
@@ -257,6 +255,7 @@ const QINGXIAO_TALENTS = new Talent({
 
 const QINGXIAO_RESONATOR = new Resonator({
   name: "Qingxiao",
+  stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.22], [Stat.Tbb, 10]],
   talent: QINGXIAO_TALENTS,
   inherent1: QX_INHERENT_1,
   inherent2: QX_INHERENT_2,
@@ -291,10 +290,6 @@ const QINGXIAO_RESONATOR = new Resonator({
     if (interfered) applyEnemy(MINDLOCK, interfered);
   },
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 10300); addStat(Stat.BaseAtk, 462.5); addStat(Stat.BaseDef, 1112.22);
-    addStat(Stat.Tbb, 10);
-  },
 });
 
 /* --------------------------------------------------------------------------------- sequences */

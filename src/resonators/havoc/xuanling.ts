@@ -42,7 +42,7 @@
  * actions below stand for both. Her `weakness_mastery` is 0, so she carries no flat Tune Break
  * Boost of her own.
  */
-import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   addStat,
@@ -65,13 +65,11 @@ import {
   queueOn,
   removeStack,
   revokeCurrent,
-  revokeTeam,
   setForte1,
   setForte2,
   stacksOfEnemy,
-  stacksOfTeam,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO, START_3, SWAP, ECHO_SWAP } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO, START_3, SWAP } from "../../engine/rotation.js";
 import { HAVOC_BANE, anyNegativeStatusInflicted } from "../../shared/status.js";
 import { AZURE_OATH, EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
@@ -148,7 +146,7 @@ const FlowFeather = yangyangAction("Skill - Sword Stance Flow: Feather", {
 const HeavyAzure = yangyangAction("Forte Heavy - Azure Sword Stance", {
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 450.53, energy: 9.34, concerto: 15.00, offtune: 10666,
   updateDebuffs: () => applyEnemy(HAVOC_BANE, isHeld(XL_S3) ? 3 : 2),
-  updateBuffs: () => applyCurrent(BATED_BREATH, 1),
+  updateBuffs: () => { if (!isHeld(BATED_BREATH_CD)) applyCurrent(BATED_BREATH, 1); },
   // only opens at 2 Azure Plume, and spends it outright: maxForte2 (2 below) clamps an overrun
   // back to the cap before this lands exactly on 0
   forte2: -2,
@@ -156,7 +154,7 @@ const HeavyAzure = yangyangAction("Forte Heavy - Azure Sword Stance", {
 const HeavyFeather = yangyangAction("Heavy - Feather Sword Stance", {
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 217.05, energy: 1.87, concerto: 4.67, offtune: 7465,
   updateDebuffs: () => applyEnemy(HAVOC_BANE, isHeld(XL_S3) ? 3 : 2),
-  updateBuffs: () => applyCurrent(STREAMING_STORM, 1),
+  updateBuffs: () => { if (!isHeld(STREAMING_STORM_CD)) applyCurrent(STREAMING_STORM, 1); },
 });
 const FeatherFall = yangyangAction("Forte Mid-air - Feather Fall", {
   node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 110.97, energy: 1.26, concerto: 3.12, offtune: 4962,
@@ -229,7 +227,7 @@ const FEATHERED_OATH = new Buff({
   applyStats: () => { if (OATH_ACTIONS.has(currentAction())) addStat(Stat.CritDmg, 25 * frozenStacks()); },
   // the outro is the other end of it, and nothing it pays is in OATH_ACTIONS, so that one is an
   // ordinary pay-then-drop like every short window in this file
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(FEATHERED_OATH); },
+  until: LifeTime.Outro,
 });
 
 /** Bated Breath and Streaming Storm: the two +160% Crit. DMG windows, each opened by its own Heavy
@@ -245,17 +243,20 @@ const FEATHERED_OATH = new Buff({
  *
  *  "While Yangyang: Xuanling is the active Resonator" needs no check on either: every cast either
  *  window pays is one of hers, made on field. */
+/** The once-a-visit cooldowns on the two windows below — nameless, so a spent window leaves no
+ *  row behind: what the reader wants to see is the window while it pays, not a marker saying it
+ *  has already gone. Lifted by her own Outro, which is what makes it once a *visit*. */
+const BATED_BREATH_CD = new Buff({ until: LifeTime.Outro });
+const STREAMING_STORM_CD = new Buff({ until: LifeTime.Outro });
+
 const BATED_BREATH = new Buff({
-  name: "Xuanling: Bated Breath", maxStacks: 2,
-  display: () => `Xuanling: Bated Breath${frozenStacks() === 1 ? "" : " (cooldown)"}`,
-  applyStats: () => {
-    if (frozenStacks() === 1 && runningAction(HeavyAzure)) addStat(Stat.CritDmg, 160);
-  },
+  name: "Xuanling: Bated Breath",
+  stats: [[Stat.CritDmg, 160]], when: () => runningAction(HeavyAzure),
   // "when Heavy Attack - Azure Sword Stance ends, Bated Breath is removed" — the window closes on
-  // the very cast that opened it, so spending it is a step onto the cooldown stack, not a revoke
+  // the very cast that opened it, and the cooldown it leaves is what bars a second one this visit
   convertStats: () => {
     if (casting(Cast.Outro)) revokeCurrent(BATED_BREATH);
-    else if (frozenStacks() === 1 && runningAction(HeavyAzure)) applyCurrent(BATED_BREATH, 1);
+    else if (runningAction(HeavyAzure)) { revokeCurrent(BATED_BREATH); applyCurrent(BATED_BREATH_CD, 1); }
   },
 });
 
@@ -263,14 +264,11 @@ const BATED_BREATH = new Buff({
  *  it starts — the Heavy itself, Feather Fall, and Havoc in Bloom — rather than closing on its own
  *  cast, so it is spent when Stage 3 ends instead. */
 const STREAMING_STORM = new Buff({
-  name: "Xuanling: Streaming Storm", maxStacks: 2,
-  display: () => `Xuanling: Streaming Storm${frozenStacks() === 1 ? "" : " (cooldown)"}`,
-  applyStats: () => {
-    if (frozenStacks() === 1 && STORM_ACTIONS.has(currentAction())) addStat(Stat.CritDmg, 160);
-  },
+  name: "Xuanling: Streaming Storm",
+  stats: [[Stat.CritDmg, 160]], when: () => STORM_ACTIONS.has(currentAction()),
   convertStats: () => {
     if (casting(Cast.Outro)) revokeCurrent(STREAMING_STORM);
-    else if (frozenStacks() === 1 && runningAction(HiB3)) applyCurrent(STREAMING_STORM, 1);
+    else if (runningAction(HiB3)) { revokeCurrent(STREAMING_STORM); applyCurrent(STREAMING_STORM_CD, 1); }
   },
 });
 
@@ -384,15 +382,13 @@ const WITHERED_WOOD = new Buff({
     removeStack(WITHERED_WOOD, 1);
     queueOn(XUANLING_RESONATOR, ShadowWitheredWood);
   },
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(WITHERED_WOOD); },
+  until: LifeTime.Outro,
 });
 /** The window's own 25s cooldown: one Flow a visit opens it, the second doesn't re-arm it. It
  *  outlives the charges it was granted with, which is what makes it — not the spent window — the
- *  piece that has to clear itself on her way out so the next visit opens a fresh one. */
-const WITHERED_WOOD_CD = new Buff({
-  name: "Xuanling S6: Still as Withered Wood (cooldown)",
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(WITHERED_WOOD_CD); },
-});
+ *  piece that has to clear itself on her way out so the next visit opens a fresh one. No `name`:
+ *  a cooldown is not a buff she holds, and the charges it gates already have their own row. */
+const WITHERED_WOOD_CD = new Buff({ until: LifeTime.Outro });
 const XL_S6 = new Sequence({
   name: "Xuanling S6: Let the Azure Keep Its Light",
   updateBuffs: () => {
@@ -446,6 +442,7 @@ const XUANLING_TALENTS = new Talent({
 
 export const XUANLING_RESONATOR = new Resonator({
   name: "Xuanling",
+  stats: [[Stat.BaseHp, 11025], [Stat.BaseAtk, 425], [Stat.BaseDef, 1148.89]],
   talent: XUANLING_TALENTS,
   inherent1: XUANLING_INHERENT_1,
   inherent2: XUANLING_INHERENT_2,
@@ -470,9 +467,6 @@ export const XUANLING_RESONATOR = new Resonator({
     if (currentAction().node === Node.Normal && forte1() > 0) addStat(Stat.EnergyRegenMult, 20);
   },
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 11025); addStat(Stat.BaseAtk, 425); addStat(Stat.BaseDef, 1148.89);
-  },
 });
 
 /* ---------------------------------------------------------------------------------- rotation */

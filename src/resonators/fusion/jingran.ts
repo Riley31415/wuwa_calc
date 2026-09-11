@@ -31,10 +31,11 @@ import {
   applyCurrent,
   forte2,
   removeStack,
-  setForte2,
-  stacksOf,
+  stacksOfTeam,
+  revokeTeam,
   isHeld,
   currentAction,
+  onAction,
   runningAction,
   currentTeam,
   queue,
@@ -43,7 +44,7 @@ import {
   getStat,
   frozenStacks,
 } from "../../engine/context.js";
-import { ActionGroup, Action, ActionField, Rotation, INTRO, ECHO_SWAP, OUTRO, START_1, START_2, START_3, SWAP } from "../../engine/rotation.js";
+import { ActionGroup, Action, ActionField, Rotation, INTRO, ECHO_SWAP, OUTRO, SWAP, START_3, START_2, START_1 } from "../../engine/rotation.js";
 import { applied, applyTeam } from "../../engine/context.js";
 import { SHIELD } from "../../shared/status.js";
 import { JINGRAN_SIG, THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
@@ -97,8 +98,8 @@ const ACTION_LIB_FUA = jingranAction("Liberation - Chimei Wangliang", { node: No
 const Intro = jingranAction("Intro - Question the Tombs", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81, energy: 10, concerto: 10, offtune: 8000, forte1: 100,
   updateBuffs: () => {
-    const shroud = stacksOf(JINGRAN_GHOST_SHROUD);
-    if (shroud) { revokeCurrent(JINGRAN_GHOST_SHROUD); applyCurrent(JINGRAN_FORTUNE, shroud); }
+    const shroud = stacksOfTeam(JINGRAN_GHOST_SHROUD);
+    if (shroud) { revokeTeam(JINGRAN_GHOST_SHROUD); applyCurrent(JINGRAN_FORTUNE, shroud); }
   },
 });
 const Outro = jingranAction("Outro - Rising Fortune and Ebbing Evil", {
@@ -139,6 +140,9 @@ function hpSteps(): number { return Math.floor(Math.min(hp(), 50000) / 1000); }
  *  simplification — granted on JINGRAN_RESONATOR's own updateBuffs() below, not here). Trace the Vestige
  *  (Inherent Skill) adds a second, separate income on top: +2 a shield on a *teammate's* own
  *  shield, plus a flat +15 more via Fixation — see JR_INHERENT_2 below. */
+/** Held team-wide so the count reads on every row of the log rather than only his own, the way
+ *  Jinhsi's Incandescence is — nothing but his Intro spends it and nothing but his own conversion
+ *  reads it, so where it is parked changes no number. */
 const JINGRAN_GHOST_SHROUD = new Buff({ name: "Jingran: Ghost Shroud", maxStacks: 50 });
 
 /** Granted by Intro Skill, Encroaching Yin, or Scorching Yang. No stat of its own — a do-nothing
@@ -169,15 +173,15 @@ const JR_INHERENT_2 = new Inherent({
   name: "Inherent: Trace the Vestige",
   combatStart: () => {
     applyCurrent(JINGRAN_FIXATION, 1); // "upon engaging in combat, Jingran gains Fixation"
-    applyCurrent(JINGRAN_GHOST_SHROUD, 25); // "upon entering combat, tops Ghost Shroud up to 25"
+    applyTeam(JINGRAN_GHOST_SHROUD, 25); // "upon entering combat, tops Ghost Shroud up to 25"
   },
-  updateBuffs: () => { if (runningAction(Outro)) applyCurrent(JINGRAN_FIXATION, 1); },
+  grants: [{ on: onAction(Outro), buff: JINGRAN_FIXATION }],
   // `currentSlot` is switched to Jingran's own slot for this call regardless of who's actually
   // acting, so `applySelf()`/`isHeld()` below always resolve against him specifically.
   updateGlobal: () => {
     if (currentTeam().slot.resonator === JINGRAN_RESONATOR || !applied(SHIELD)) return;
-    applyCurrent(JINGRAN_GHOST_SHROUD, 2 * applied(SHIELD));
-    if (isHeld(JINGRAN_FIXATION)) { revokeCurrent(JINGRAN_FIXATION); applyCurrent(JINGRAN_GHOST_SHROUD, 15); }
+    applyTeam(JINGRAN_GHOST_SHROUD, 2 * applied(SHIELD));
+    if (isHeld(JINGRAN_FIXATION)) { revokeCurrent(JINGRAN_FIXATION); applyTeam(JINGRAN_GHOST_SHROUD, 15); }
   },
 });
 
@@ -273,9 +277,9 @@ const JR_EVERFLOW = new Buff({
 const JR_S3 = new Sequence({
   name: "Jingran S3: World's Course Shifts, Each to Their Rightful Paths",
   updateBuffs: () => {
-    if (runningAction(FHA) || runningAction(EFHA)) applyCurrent(JINGRAN_GHOST_SHROUD, 5);
-    if (runningAction(Lib)) applyCurrent(JR_EVERFLOW, 1);
+    if (runningAction(FHA) || runningAction(EFHA)) applyTeam(JINGRAN_GHOST_SHROUD, 5);
   },
+  grants: [{ on: onAction(Lib), buff: JR_EVERFLOW }],
 });
 
 /** S4: +20% All-Attribute DMG Bonus to the team whenever anyone on it gains a Shield, 30s — his
@@ -320,7 +324,7 @@ const JR_PARADE = new Buff({
  *  against 83.51%), and the Parade above. */
 const JR_S6 = new Sequence({
   name: "Jingran S6: As Favors and Feuds Fade, New Stories Await",
-  updateBuffs: () => { if (runningAction(Lib)) applyCurrent(JR_PARADE, 8); },
+  grants: [{ on: onAction(Lib), buff: JR_PARADE, stacks: 8 }],
   applyStats: () => {
     addStat(Stat.DamageTaken, 40, Type1.Heavy);
     if (runningAction(ACTION_LIB_FUA) || runningAction(ACTION_PARADE_FUA)) addStat(Stat.MulMv, 80);
@@ -342,6 +346,7 @@ const JINGRAN_TALENTS = new Talent({
 
 const JINGRAN_RESONATOR = new Resonator({
   name: "Jingran",
+  stats: [[Stat.BaseHp, 15375], [Stat.BaseAtk, 313]],
   talent: JINGRAN_TALENTS,
   inherent1: JR_INHERENT_1,
   inherent2: JR_INHERENT_2,
@@ -369,11 +374,8 @@ const JINGRAN_RESONATOR = new Resonator({
   },
 
   // base kit: +1 Ghost Shroud per shield whenever he gains one of his own
-  updateBuffs: () => { if (applied(SHIELD)) applyCurrent(JINGRAN_GHOST_SHROUD, applied(SHIELD)); },
+  updateBuffs: () => { if (applied(SHIELD)) applyTeam(JINGRAN_GHOST_SHROUD, applied(SHIELD)); },
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 15375); addStat(Stat.BaseAtk, 313);
-  },
 });
 
 // Qi economy: intro 100, liberation +200 to 300, each of the four heavy attacks spends 300 and
@@ -383,13 +385,25 @@ const EBA234 = new ActionGroup("Basic - Drink Soul 234", [EBA2, EBA3, EBA4]);
 const BA234 = new ActionGroup("Basic - Devil's Bane 234", [BA2, BA3, BA4]);
 
 const JR_ROTATION = new Rotation([
-  INTRO, BA2,
+  INTRO,
   Lib, FHA,
   EBA234, EFHA,
   Skill1, Skill2, FHA,
   ESkill1, ESkill2, EFHA,
   ECHO_SWAP, OUTRO,
 ]);
+
+const JR_ROTATION_S2 = new Rotation([
+  START_1, START_2, START_3, FHA, SWAP,
+
+  INTRO,
+  Lib, EFHA,
+  BA234, FHA,
+  ESkill1, ESkill2, EFHA,
+  Skill1, Skill2, FHA,
+  ECHO_SWAP, OUTRO,
+]);
+
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -403,6 +417,6 @@ export const JINGRAN = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.HP4, Mainstat.Fusion3, Mainstat.ATK1, Mainstat.HP1),
   substat: substats(Substat.AtkPct, Substat.HpPct, Substat.Heavy),
   highSubstat: highSubs(Substat.AtkPct, Substat.Heavy, Substat.Er, Substat.HpPct),
-  rotation: { 0: JR_ROTATION },
+  rotation: { 0: JR_ROTATION, 2: JR_ROTATION_S2 },
   sequences: JR_SEQUENCES,
 });

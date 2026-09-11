@@ -149,7 +149,7 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
       scaling, finalMv: action.mv, finalStat: 100,
       ampFactor: 1, bonusFactor: 1, tbbFactor: 1, resFactor: 1, defFactor: 1, dealtFactor: 1, takenFactor: 1,
       critFactor: 1, critMult: 1,
-      noCrit: action.mv, crit: action.mv, avg: action.mv,
+      noCrit: Math.floor(action.mv), crit: Math.floor(action.mv), avg: Math.floor(action.mv),
     };
   }
 
@@ -199,12 +199,14 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
   const noCrit = finalMv * finalStat * ampFactor * bonusFactor * tbbFactor
     * resFactor * defFactor * dealtFactor * takenFactor;
 
+  // the game floors the damage number it deals, so every figure leaving here is a whole one —
+  // the factors above stay exact, and a trace's product can sit a fraction off what it totals to
   return {
     scaling, finalMv, finalStat,
     ampFactor, bonusFactor, tbbFactor, resFactor, defFactor, dealtFactor, takenFactor, critFactor, critMult,
-    noCrit,
-    crit: noCrit * critMult,
-    avg: noCrit * critFactor,
+    noCrit: Math.floor(noCrit),
+    crit: Math.floor(noCrit * critMult),
+    avg: Math.floor(noCrit * critFactor),
   };
 }
 
@@ -217,7 +219,7 @@ export function damageAvgOf(
 ): number {
   const { scaling } = action;
   if (scaling === null) return 0;
-  if (scaling === Scaling.Fixed) return action.mv;
+  if (scaling === Scaling.Fixed) return Math.floor(action.mv);
   const notDot = scaling !== Scaling.Dot ? 1 : 0;
   const notTune = scaling !== Scaling.Tune ? 1 : 0;
   const finalStat = Math.floor(
@@ -242,7 +244,7 @@ export function damageAvgOf(
   const critFactor = cr >= 1 ? critMult : (1 - cr) + critMult * cr;
   const noCrit = finalMv * finalStat * ampFactor * bonusFactor * tbbFactor
     * resFactor * defFactor * dealtFactor * takenFactor;
-  return noCrit * critFactor;
+  return Math.floor(noCrit * critFactor);
 }
 
 export const damageAvg = (s: Snapshot): number => damageAvgOf(

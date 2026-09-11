@@ -4,9 +4,9 @@
  * `Weapon`/`Resonator`), plus `EchoLoadout` and `Loadout`. Definitions only — what a piece
  * *does* is the hooks it declares, which `evaluate.ts` runs.
  */
-import { Stat, EnemyStat, Attribute, WeaponType, Tier, Type1, Type2, Cast, Node, Scaling, scopedStat, tagBand, STAT_COUNT, TYPE2_BITS, LifeTime, BuffTarget } from "./stats.js";
-import type { Tag, StatKey } from "./stats.js";
-import type { Rotation, Action, ActionGroup, ActionDef, ActionField } from "./rotation.js";
+import { Stat, EnemyStat, Attribute, WeaponType, Tier, Cast, LifeTime, BuffTarget } from "./stats.js";
+import type { Tag } from "./stats.js";
+import type { Rotation, Action, ActionField } from "./rotation.js";
 import { ctx } from "./runtime.js";
 // the one edge back up the stack: a Resonator's own combatStart banks its base stats through
 // the ordinary API. Both names are function declarations, so the import cycle is inert at load.

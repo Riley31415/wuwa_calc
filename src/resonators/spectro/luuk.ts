@@ -34,7 +34,6 @@ import {
   maxStackIncrease,
   queue,
   revokeCurrent,
-  setForte1,
   frozenStacks,
   stacksOfEnemy,
   applyEnemy,
@@ -42,7 +41,7 @@ import {
   isHeld,
   stacksOf,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, ECHO_SWAP, OUTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { TUNE_STRAIN_SHIFTING } from "../../shared/tunebreak.js";
@@ -50,7 +49,8 @@ import { applyStrain, TUNE_BREAK, TUNE_STRAIN_INTERFERED, TUNE_STRAIN_RESPONDER 
 import { DAYBREAKERS_SPINE } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import {
-  NEBULOUS_CANNON, GILDED_REVELATION_5PC, VOIDWING_MOTH, REEL_5PC,
+  NEBULOUS_CANNON,
+  GILDED_REVELATION_5PC,
 } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -231,14 +231,14 @@ const LUUK_RESONATOR = new Resonator({
 
   updateBuffs: () => {
     if (forte1() >= 300) applyCurrent(AUREATE_JUDGE, 1);
-    if (isAureole()) applyCurrent(ENDNOTES, 1);
   },
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 10300); addStat(Stat.BaseAtk, 462.5); addStat(Stat.BaseDef, 1112.2);
+  stats: [
+    [Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.2],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
-    addStat(Stat.Tbb, 10);
-  },
+    [Stat.Tbb, 10],
+  ],
+  grants: [{ on: () => isAureole(), buff: ENDNOTES }],
 });
 
 /* --------------------------------------------------------------------------------- sequences */

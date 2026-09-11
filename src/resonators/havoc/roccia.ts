@@ -15,23 +15,22 @@
  * aren't exposed on nanoka's own page, so those come off the migrated (old-engine) sheet. Dodge
  * Counter has no sheet row at all, so it's still bare (nanoka's own MV only).
  */
-import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime, BuffTarget } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   applyCurrent,
   applyTeam,
-  revokeCurrent,
   casting,
+  onAction,
   runningAction,
   currentTeam,
   addStat,
   frozenStacks,
-  getStat,
   queueOutro,
   queueOn,
 } from "../../engine/context.js";
-import { lostOnSwap, matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, SWAP, DODGE, NOINTRO, ECHO_SWAP, START_3, ECHO_ONFIELD } from "../../engine/rotation.js";
+import { matrix } from "../../shared/helpers.js";
+import { ActionGroup, Action, Rotation, INTRO, OUTRO, SWAP, DODGE, NOINTRO, ECHO_SWAP, START_3, ECHO_ONFIELD } from "../../engine/rotation.js";
 import { TRAGICOMEDY } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { NM_HERON, MIDNIGHT_VEIL_5PC } from "../../echoes/rinascita.js";
@@ -94,7 +93,7 @@ const MAGIC_BOX = rocciaAction("Utility - Super Attractive Magic Box", {
 const IMMERSIVE_PERFORMANCE = new Buff({
   name: "Inherent: Immersive Performance",
   stats: [[Stat.BonusAtk, 20]],
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(IMMERSIVE_PERFORMANCE); },
+  until: LifeTime.Outro,
 });
 const RC_INHERENT_1 = new Inherent({
   name: "Inherent: Immersive Performance",
@@ -113,7 +112,7 @@ const COMMEDIA_TEAM_ATK = new Buff({
 const APPLAUSE_HANDOFF = new Buff({
   name: "Roccia: Outro",
   stats: [[Stat.Amp, 20, Attribute.Havoc], [Stat.Amp, 25, Type1.Basic]],
-  updateBuffs: () => { lostOnSwap(); },
+  until: LifeTime.Swap,
 });
 
 /** Runs through updateGlobal() so it fires on the recipient's own turn, not Roccia's — `currentSlot`
@@ -151,9 +150,7 @@ const ROCCIA_RESONATOR = new Resonator({
   maxEnergy: 125,
   maxForte1: 300,
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 12250); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1198);
-  },
+  stats: [[Stat.BaseHp, 12250], [Stat.BaseAtk, 375], [Stat.BaseDef, 1198]],
 });
 
 /* --------------------------------------------------------------------------------- sequences */
@@ -175,7 +172,7 @@ const LUCEANITE_GLEAMS = new Buff({
 });
 const RC_S2 = new Sequence({
   name: "Roccia S2: When the Luceanite Gleams",
-  updateBuffs: () => { if (realFantasy()) applyTeam(LUCEANITE_GLEAMS, 1); },
+  grants: [{ on: () => realFantasy(), buff: LUCEANITE_GLEAMS, to: BuffTarget.Team }],
 });
 
 /** S3: +10% Crit. Rate and +30% Crit. DMG for 15s off Pero, Help — until her Outro. */
@@ -185,7 +182,7 @@ const HEART_SEES = new Buff({
 });
 const RC_S3 = new Sequence({
   name: "Roccia S3: When the Heart Sees and Hands Feel",
-  updateBuffs: () => { if (runningAction(Intro)) applyCurrent(HEART_SEES, 1); },
+  grants: [{ on: onAction(Intro), buff: HEART_SEES }],
 });
 
 /** S4: Real Fantasy at x1.6 for 12s off Acrobatic Trick — nanoka's second rows (515.32/543.95/
@@ -197,7 +194,7 @@ const WONDERS_GATHER = new Buff({
 });
 const RC_S4 = new Sequence({
   name: "Roccia S4: When Wonders Gather in the Box",
-  updateBuffs: () => { if (runningAction(Skill)) applyCurrent(WONDERS_GATHER, 1); },
+  grants: [{ on: onAction(Skill), buff: WONDERS_GATHER }],
 });
 
 /** S5: the Liberation at x1.2 (row 334.01%) and Heavy Attack Pero, Easy at x1.8 (row 304.18%) —
@@ -220,7 +217,7 @@ const GOLDEN_WINGS = new Buff({
 });
 const RC_S6 = new Sequence({
   name: "Roccia S6: When the Golden Wings Fly",
-  updateBuffs: () => { if (runningAction(Liberation)) applyCurrent(GOLDEN_WINGS, 1); },
+  grants: [{ on: onAction(Liberation), buff: GOLDEN_WINGS }],
 });
 
 const RC_SEQUENCES = [RC_S1, RC_S2, RC_S3, RC_S4, RC_S5, RC_S6];

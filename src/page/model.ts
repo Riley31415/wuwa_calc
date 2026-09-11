@@ -47,6 +47,12 @@ export const RESONATOR_HUE = new Map(
 );
 export const FALLBACK_HUE = "#ff0000";
 
+/** Everyone whose kit carries a Matrix — the only names the Matrix filter offers, and what a
+ *  legacy `f=x` link (Matrix Mode, when it was one box for the whole table) reads as. */
+export const MATRIX_RESONATORS = new Set(
+  ALL_TEAMS.flatMap((t) => t.loadouts).filter((l) => l.resonator.matrix).map((l) => l.resonator.name),
+);
+
 /* ---------------------------------------------------------------------------------- filters */
 
 /** Resonators required/barred by name+role key. Decides which rows are *built*, not hidden. */
@@ -352,12 +358,17 @@ export function rowFromKey(key: string): TeamRow | null {
 }
 
 /** The detail page's report, built on first open: the table's pass is untraced and keeps no lines,
- *  so the one team opened is re-run traced (deterministic, a few ms). */
+ *  so the one team opened is re-run traced (deterministic, a few ms). The whole re-run is kept,
+ *  its `state` included — the trace-only maps the hovers read (`State.grantedBy`) belong to the
+ *  run that produced these lines, and the untraced pass's own state has none of them. */
 export function detailFor(run: TeamRun): { report: Report } {
   if (run.detail) return run.detail;
-  const lines = run.rotationLines ?? runTeam(run.teamKey, run.members, run.combo, true).rotationLines!;
-  run.rotationLines = lines;
-  run.detail = { report: buildReport(lines.flat()) };
+  if (!run.rotationLines) {
+    const traced = runTeam(run.teamKey, run.members, run.combo, true);
+    run.rotationLines = traced.rotationLines;
+    run.state = traced.state;
+  }
+  run.detail = { report: buildReport(run.rotationLines!.flat()) };
   return run.detail;
 }
 
@@ -392,15 +403,17 @@ export function discardRestoredSolves(): boolean {
 
 /** The filter state a `bestKey()` was made under, read back off the key. */
 function filtersOfKey(key: string, members: Member[]): Filters {
-  const [, matrix, cost, bits] = key.split("|");
+  const [, cost, bits] = key.split("|");
   const f = defaultFilters();
-  f.matrix = matrix === "true";
   f.cost = cost as TeamCost;
   (bits ?? "").split(",").forEach((entry, i) => {
     const m = members[i];
     if (!m) return;
-    const [b, scoped] = entry.split(":");
-    AXES.forEach((a, k) => { if (b![k] === "1") f[a].push(m.loadout.resonator.name); });
+    const [head, scoped] = entry.split(":");
+    // the member's own Matrix bit leads their entry, the six axis bits follow
+    const b = head!.startsWith("m") ? head!.slice(1) : head!;
+    if (head!.startsWith("m")) f.matrix.push(m.loadout.resonator.name);
+    AXES.forEach((a, k) => { if (b[k] === "1") f[a].push(m.loadout.resonator.name); });
     for (const s of (scoped ?? "").split(";").filter(Boolean)) {
       const [on, value, axis] = s.split("~") as [ScopedCompare["on"], string, ScopedCompare["axis"]];
       f.scoped.push({ resonator: m.loadout.resonator.name, on, value, axis });
@@ -503,7 +516,7 @@ export function saveSolves(): void {
 
 /* --------------------------------------------------------------------------- state in the URL */
 
-/** The whole page state lives in the hash as a query string: `f=x` (matrix), `tc=` cost, `cw=`...
+/** The whole page state lives in the hash as a query string: `mx=` the Matrix list, `tc=` cost, `cw=`...
  *  compares, `cs=` scoped compares, `r`/`x` + `wr`/`wx`... include/exclude lists, `team=`. Absent
  *  params read as defaults so an old bare `#team=` link still works. */
 export const hashParams = (): URLSearchParams => new URLSearchParams(location.hash.replace(/^#/, ""));
@@ -528,11 +541,15 @@ export function applyHash(): boolean {
   const params = hashParams();
   let changed = false;
 
-  const f = params.get("f");
-  if (f !== null) {
-    const on = f.split(",").filter(Boolean);
-    const matrix = on.includes("x") || on.includes("matrix");
-    if (filters.matrix !== matrix) { filters.matrix = matrix; changed = true; }
+  {
+    // `mx` names the resonators running their Matrix. An older link carries `f=x` instead — the
+    // one box that turned it on table-wide — which reads as every kit that has one.
+    const legacy = (params.get("f") ?? "").split(",").filter(Boolean);
+    const next = params.has("mx")
+      ? (params.get("mx") ?? "").split(",").filter(Boolean).map((n) => RESONATOR_NAME_BY_COMPACT.get(n) ?? n)
+      : legacy.includes("x") || legacy.includes("matrix") ? [...MATRIX_RESONATORS] : [];
+    const cur = filters.matrix;
+    if (next.length !== cur.length || next.some((n) => !cur.includes(n))) { filters.matrix = next; changed = true; }
   }
   const code = params.get("tc");
   const cost = (Object.keys(COST_CODE) as TeamCost[]).find((c) => COST_CODE[c] === code) ?? "s0r1";
@@ -573,7 +590,8 @@ export function syncHash(team: string | null = hashParams().get("team"), push = 
   const named = (map: Map<string, ResonatorFilter>, mode: ResonatorFilter): string => [...map]
     // a resonator's spaces are dropped (`ElectroRover`); gear names keep theirs
     .filter(([, m]) => m === mode).map(([name]) => encodeURIComponent(map === resonatorFilters ? name.replace(/ /g, "") : name)).join(",");
-  const parts = filters.matrix ? ["f=x"] : [];
+  const compact = (n: string): string => encodeURIComponent(n.replace(/ /g, ""));
+  const parts = filters.matrix.length ? [`mx=${filters.matrix.map(compact).join(",")}`] : [];
   if (filters.cost !== "s0r1") parts.push(`tc=${COST_CODE[filters.cost]}`);
   for (const axis of AXES) {
     if (filters[axis].length) parts.push(`${COMPARE_PARAM[axis]}=${filters[axis].map((n) => encodeURIComponent(n.replace(/ /g, ""))).join(",")}`);

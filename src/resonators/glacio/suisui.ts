@@ -46,7 +46,7 @@
  * does not expose; the two agree on every MV/energy/concerto/off-tune figure they share. Her
  * `weakness_mastery` is 0, so she carries no flat Tune Break Boost.
  */
-import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   addBuff,
@@ -56,21 +56,18 @@ import {
   applyCurrent,
   applyEnemy,
   applyTeam,
-  casting,
   concerto,
   consumedAny,
   consumedByMe,
+  onAction,
   runningAction,
   currentTeam,
   isType,
   maxStackIncrease,
-  queueOn,
   queueOutro,
   removeStackTeam,
   revokeCurrent,
   revokeTeam,
-  setForte1,
-  setForte2,
   stacksOfTeam,
   frozenStacks,
   forte2,
@@ -84,10 +81,8 @@ import {
 import { FIRSTLIGHTS_HERALD } from "../../weapons/rectifier.js";
 import { VARIATION } from "../../weapons/standard.js";
 import { FORBIDDEN_BASTION, FEATHERED_TRACE_5PC } from "../../echoes/mengzhou.js";
-import { REJUV_5PC } from "../../echoes/jinzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { lostOnSwap } from "../../shared/helpers.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -200,10 +195,7 @@ const CEASELESS_LANDSCAPE = new Buff({
  *  Havoc RES ignore, both on their Havoc DMG alone. 30s, so it never drops once it is up. */
 const VOID_TIDE = new Buff({
   name: "Suisui: Ceaseless Landscape (bane)",
-  applyStats: () => {
-    addStat(Stat.DefIgnoreNew, 6, Attribute.Havoc);
-    addStat(Stat.ResIgnore, 12, Attribute.Havoc);
-  },
+  stats: [[Stat.DefIgnoreNew, 6, Attribute.Havoc], [Stat.ResIgnore, 12, Attribute.Havoc]],
 });
 
 /** Rippling Waters' own 25% All DMG Amplification — 30s, so permanent once granted. */
@@ -282,9 +274,10 @@ function mistEarned(): boolean {
 const UNDULATING_MIST = new Buff({
   name: "Suisui: Undulating Mist", maxStacks: 2,
   display: () => `Suisui: Undulating Mist${frozenStacks() >= 2 ? " (consumed)" : ""}`,
-  updateBuffs: () => { lostOnSwap(); if (mistEarned()) applyCurrent(UNDULATING_MIST, 1); },
+  updateBuffs: () => { if (mistEarned()) applyCurrent(UNDULATING_MIST, 1); },
   applyStats: () => { if (frozenStacks() >= 2) addStat(Stat.BonusAtk, 50); },
   afterAction: () => { if (mistEarned()) applyCurrent(UNDULATING_MIST, 1); },
+  until: LifeTime.Swap,
 });
 
 /* --------------------------------------------------------------------------------- sequences */
@@ -314,9 +307,9 @@ const CLOUDS_POUR = new Buff({
 /** S2's watcher, in the team pool so every member's own turn is seen: inside Ceaseless Landscape,
  *  the acting member inflicting one of the five tagged statuses or dealing its damage (the
  *  Landscape's own test), or spending Havoc Bane (its consume branch, from afterAction for the same
- *  reason), hands that member the payout. */
+ *  reason), hands that member the payout. No `name`, so the watcher itself stays out of the
+ *  held-buffs list — what it hands over is Clouds Pour, which has its own row. */
 const CLOUDS_POUR_WATCH = new Buff({
-  name: "Suisui S2: Clouds Pour Like Molten Gold (watch)",
   updateGlobal: () => {
     if (!stacksOfTeam(CEASELESS_LANDSCAPE)) return;
     const actor = currentTeam().slot;
@@ -335,13 +328,13 @@ const SS_S2 = new Sequence({
  *  on switching out. */
 const KINGFISHER = new Buff({
   name: "Suisui S3: Kingfisher",
-  updateBuffs: () => lostOnSwap(),
+  until: LifeTime.Swap,
   applyStats: () => { if (runningAction(FBA4)) { addStat(Stat.AddConcerto, 20); addStat(Stat.AddForte2, 350); } },
   convertStats: () => { if (runningAction(FBA4)) revokeCurrent(KINGFISHER); },
 });
 const SS_S3 = new Sequence({
   name: "Suisui S3: Sparse Curtains Invite Evening Glow",
-  updateBuffs: () => { if (runningAction(FSkill)) applyCurrent(KINGFISHER, 1); },
+  grants: [{ on: onAction(FSkill), buff: KINGFISHER }],
 });
 
 /** S4 is +50% on two heals — nothing this calculator reads. */
@@ -382,10 +375,10 @@ const SS_INHERENT_2 = new Inherent({ name: "Inherent: Glimmering Gold" });
 
 const SUISUI_TALENTS = new Talent({
   name: "Suisui: Talents",
-  constantStats: () => {
-    addStat(Stat.BonusHp, 12);
-    addStat(Stat.HealingBonus, 12); // stat-tree Healing Bonus+ nodes — unused by the formula
-  },
+  stats: [
+    [Stat.BonusHp, 12],
+    [Stat.HealingBonus, 12], // stat-tree Healing Bonus+ nodes — unused by the formula
+  ],
 });
 
 const SUISUI_RESONATOR = new Resonator({
@@ -402,9 +395,7 @@ const SUISUI_RESONATOR = new Resonator({
   maxForte1: 120,
   maxForte2: 600,
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 16712.5); addStat(Stat.BaseAtk, 287.5); addStat(Stat.BaseDef, 1100);
-  },
+  stats: [[Stat.BaseHp, 16712.5], [Stat.BaseAtk, 287.5], [Stat.BaseDef, 1100]],
 });
 
 /* ---------------------------------------------------------------------------------- rotation */

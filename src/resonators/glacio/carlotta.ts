@@ -49,7 +49,6 @@ import {
   addStat,
   forte1,
   forte2,
-  setForte2,
 } from "../../engine/context.js";
 import { matrix } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, SWAP, START_3, START_2 } from "../../engine/rotation.js";
@@ -232,6 +231,7 @@ const CARLOTTA_TALENTS = new Talent({
 
 const CARLOTTA_RESONATOR = new Resonator({
   name: "Carlotta",
+  stats: [[Stat.BaseHp, 12450], [Stat.BaseAtk, 463], [Stat.BaseDef, 1198]],
   matrix: matrix("Carlotta", 25),
   talent: CARLOTTA_TALENTS,
   inherent1: CL_INHERENT_1,
@@ -250,9 +250,6 @@ const CARLOTTA_RESONATOR = new Resonator({
   // action leaves it — the only phase that sees Chromatic Splendor's own conversion banked
   afterAction: () => { if (forte2() >= 120) applyCurrent(FINAL_BOW, 1); },
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 12450); addStat(Stat.BaseAtk, 463); addStat(Stat.BaseDef, 1198);
-  },
 });
 
 // Intro (+30 Substance, on the 30 the last Chromatic Splendor left) into Art of Violence/Chromatic

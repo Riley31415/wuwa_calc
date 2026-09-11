@@ -21,13 +21,13 @@
  * Color decide which basic chain is live rather than scaling anything, so the rotation below just
  * runs the Kaleidoscopic Parade line she actually plays instead of modelling three gauges.
  */
-import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, ResonanceMode, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   addStat,
   applyCurrent,
   applyTeam,
-  casting,
+  onAction,
   runningAction,
   maxStackIncrease,
   queueOutro,
@@ -35,10 +35,8 @@ import {
   asSource,
   currentTeam,
   frozenStacks,
-  isHeld,
 } from "../../engine/context.js";
-import { lostOnSwap } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, SWAP, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
 import { applyRupture, applyStrain, TUNE_STRAIN_INTERFERED, TUNE_STRAIN_RESPONDER, tuneRuptureResponse } from "../../shared/tunebreak.js";
 import { SPECTRUM_BLASTER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
@@ -141,7 +139,7 @@ const PRISMATIC_OVERBLAST = new Buff({
 const ADAPTIVE_OPTICS = new Buff({
   name: "Inherent: Adaptive Optics",
   stats: [[Stat.DmgBonus, 25, Attribute.Spectro]],
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(ADAPTIVE_OPTICS); },
+  until: LifeTime.Outro,
 });
 
 /** Her outro hands the incoming resonator +15% All DMG Amplification and +25% Resonance Liberation
@@ -155,7 +153,7 @@ const LYNAE_OUTRO = new Buff({
       asSource(LY_S2, () => addStat(Stat.Amp, 25));
     }
   },
-  convertStats: () => { lostOnSwap(); },
+  until: LifeTime.AfterSwap,
 });
 
 /** The kit's own +40 Tune Break Boost, contributed as the real stat so gear and the damage
@@ -170,7 +168,7 @@ const SPECTRAL_ANALYSIS_TBB = new Buff({
 const LY_INHERENT_1 = new Inherent({ name: "Inherent: Colors Never Fade!" });
 const LY_INHERENT_2 = new Inherent({
   name: "Inherent: \"Adaptive Optics: Everyday Applications\"",
-  updateBuffs: () => { if (runningAction(Intro)) applyCurrent(ADAPTIVE_OPTICS, 1); },
+  grants: [{ on: onAction(Intro), buff: ADAPTIVE_OPTICS }],
 });
 
 const LYNAE_TALENTS = new Talent({
@@ -193,11 +191,11 @@ const LYNAE_RESONATOR = new Resonator({
   maxForte2: 120,
   maxForte3: 3,
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 12237.5); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1197.8);
+  stats: [
+    [Stat.BaseHp, 12237.5], [Stat.BaseAtk, 375], [Stat.BaseDef, 1197.8],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
-    addStat(Stat.Tbb, 10);
-  },
+    [Stat.Tbb, 10],
+  ],
 });
 
 /* --------------------------------------------------------------------------------- sequences */

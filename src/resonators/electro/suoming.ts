@@ -44,7 +44,7 @@
  * modelled. Blight Rain's Thunder Crest window is the kit's own six crests over eight presses
  * as a coordinated window (helpers.ts's `coordinatedBuff`, see BLIGHT_RAIN below).
  */
-import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, LifeTime, BuffTarget } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   addStat,
@@ -59,13 +59,14 @@ import {
   revokeCurrent,
   setForte1,
   stacksOfTeam,
+  onCast,
 } from "../../engine/context.js";
 import { Action, ActionField, ActionGroup, Rotation, DOUBLE_INTRO, INTRO, OUTRO, ECHO_SWAP, DODGE, NOINTRO } from "../../engine/rotation.js";
-import { NINE_SHADOWS, UNISON, UNISON_BOON, UNISON_RESPONDER, respondToUnison, unisonIntro, unisonOutro, unisonResponse } from "../../shared/unison.js";
-import { coordinatedBuff, lostOnSwap } from "../../shared/helpers.js";
+import { NINE_SHADOWS, UNISON, UNISON_BOON, UNISON_RESPONDER, respondToUnison, unisonBoonAmp, unisonIntro, unisonOutro, unisonResponse } from "../../shared/unison.js";
+import { coordinatedBuff } from "../../shared/helpers.js";
 import { RED_SPRING, UNSPOKEN_RUE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
-import { STAY_TUNED, SWORN_VIGIL_5PC, ELECTRIC_REFLECTION_5PC, SOUL_OF_DESPAIR } from "../../echoes/mengzhou.js";
+import { STAY_TUNED, SWORN_VIGIL_5PC } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
@@ -181,12 +182,12 @@ const DEEP_MIND = new Buff({ name: "Suoming: Deep Mind" });
  *  early by switching out; a Unison Intro also pays +10 Concerto, once every 25s — once a loop. */
 const RAIN_SOAKED_COVENANT = new Buff({
   name: "Suoming: Rain-Soaked Covenant",
-  updateBuffs: () => lostOnSwap(),
+  until: LifeTime.Swap,
   stats: [[Stat.DmgBonus, 50, Attribute.Electro]],
 });
 const RAIN_SOAKED_INHERENT = new Inherent({
   name: "Inherent: Rain-Soaked Covenant",
-  updateBuffs: () => { if (INTROS.includes(currentAction())) applyCurrent(RAIN_SOAKED_COVENANT, 1); },
+  grants: [{ on: () => INTROS.includes(currentAction()), buff: RAIN_SOAKED_COVENANT }],
   applyStats: () => { if (runningAction(IntroSealedDelusion) || runningAction(IntroWhirlingThunder)) addStat(Stat.AddConcerto, 10); },
 });
 
@@ -195,11 +196,12 @@ const RAIN_SOAKED_INHERENT = new Inherent({
  *  Liberation — as does Aligned Seals (the Outro cast above). */
 const SEAL_MASTER = new Buff({
   name: "Suoming: Seal Master",
-  updateBuffs: () => { lostOnSwap(); if (isHeld(UNISON) && casting(Cast.Liberation)) revokeCurrent(SEAL_MASTER); },
+  updateBuffs: () => { if (isHeld(UNISON) && casting(Cast.Liberation)) revokeCurrent(SEAL_MASTER); },
   applyStats: () => {
     if (runningAction(UBA1) || runningAction(UBA2) || runningAction(UBA3) || runningAction(UBA4) || runningAction(UHA1) || runningAction(UHA2)) addStat(Stat.MulMv, 40);
     addStat(Stat.CritDmg, 80);
   },
+  until: LifeTime.Swap,
 });
 
 /** Aligned Seals: 30s, so permanent once she has left on a Unison outro. No stat of its own — it
@@ -211,9 +213,9 @@ const SUNKEN_SEAL = new Inherent({ name: "Inherent: Sunken Seal, Forged Lock" })
  *  Amplification while the holder has Unison Boon — 8s or until switched out, so lost on swap. */
 const CANOPY_RUMBLE = new Buff({
   name: "Suoming: Outro",
-  updateBuffs: () => lostOnSwap(),
+  until: LifeTime.Swap,
+  stats: [[Stat.Amp, 20, Attribute.Electro]],
   applyStats: () => {
-    addStat(Stat.Amp, 20, Attribute.Electro);
     if (stacksOfTeam(UNISON_BOON)) addStat(Stat.Amp, 25, Type1.Skill);
   },
 });
@@ -222,7 +224,7 @@ const CANOPY_RUMBLE = new Buff({
  *  holder has, up to +40% — 8s or until switched out. */
 const ALIGNED_SEALS_HANDOFF = new Buff({
   name: "Suoming: Outro (aligned)",
-  updateBuffs: () => lostOnSwap(),
+  until: LifeTime.Swap,
   applyStats: () => addStat(Stat.DmgBonus, 30 + Math.min(40, 20 * stacksOfTeam(UNISON_BOON)), Attribute.Electro),
 });
 
@@ -233,8 +235,9 @@ const ALIGNED_SEALS_HANDOFF = new Buff({
 const BLIGHT_RAIN = coordinatedBuff("Suoming: Blight Rain, Miasmic Thunder", 8, () => SUOMING_RESONATOR, ThunderCrest, { every: 4 / 3 });
 
 /** Unison Response: her Unison Intro hands the team one stack of Unison Boon — one from her this
- *  way, refreshed after that. The marker is what remembers she already has. */
-const BOON_RESPONSE = new Buff({ name: "Suoming: Unison Boon (response)" });
+ *  way, refreshed after that. The marker is what remembers she already has — no `name`, so it
+ *  stays out of the held-buffs list: the Unison Boon stack it handed over is the row that says so. */
+const BOON_RESPONSE = new Buff({});
 
 /* --------------------------------------------------------------------------------- sequences */
 
@@ -249,14 +252,14 @@ const SM_S1 = new Sequence({
  *  +24% — 30s or until switched out, so lost on swap. */
 const BREAKING_THUNDER_HANDOFF = new Buff({
   name: "Suoming S2: Outro",
-  updateBuffs: () => lostOnSwap(),
+  until: LifeTime.Swap,
   applyStats: () => addStat(Stat.CritDmg, 10 + Math.min(24, 6 * stacksOfTeam(UNISON_BOON))),
 });
 /** S2: +40% Crit. DMG, and her Outro carries the handoff above on top of Canopy Rumble. */
 const SM_S2 = new Sequence({
   name: "Suoming S2: Breaking Thunder, Slaying Evil",
   stats: [[Stat.CritDmg, 40]],
-  updateBuffs: () => { if (casting(Cast.Outro)) queueOutro(BREAKING_THUNDER_HANDOFF); },
+  grants: [{ on: onCast(Cast.Outro), buff: BREAKING_THUNDER_HANDOFF, to: BuffTarget.Next }],
 });
 
 /** S3's own: +30% Basic Attack DMG Amplification off a Liberation, 25s — permanent. */
@@ -309,6 +312,7 @@ const SUOMING_TALENTS = new Talent({
 
 const SUOMING_RESONATOR = new Resonator({
   name: "Suoming",
+  stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1148.89]],
   talent: SUOMING_TALENTS,
   inherent1: RAIN_SOAKED_INHERENT,
   inherent2: SUNKEN_SEAL,
@@ -327,11 +331,10 @@ const SUOMING_RESONATOR = new Resonator({
   updateBuffs: () => {
     if (unisonResponse() && !isHeld(BOON_RESPONSE)) { applyTeam(UNISON_BOON, 1); applyCurrent(BOON_RESPONSE, 1); }
   },
-  // she can trigger Unison Response, so Unison Boon pays her (shared/unison.ts)
+  // she can trigger Unison Response, so Unison Boon pays her (shared/unison.ts) — her own kit
+  // reads the count and takes the payout, the way Hsin's Unison mode does
   combatStart: () => applyCurrent(UNISON_RESPONDER, 1),
-  constantStats: () => {
-    addStat(Stat.BaseHp, 10300); addStat(Stat.BaseAtk, 462.5); addStat(Stat.BaseDef, 1148.89);
-  },
+  applyStats: () => unisonBoonAmp(),
 });
 
 /* ---------------------------------------------------------------------------------- rotation */

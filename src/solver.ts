@@ -21,7 +21,8 @@ export interface Member {
 export const member = (loadout: Loadout, mainDps = false): Member =>
   ({ name: loadout.resonator.name, color: loadout.resonator.color, loadout, mainDps });
 
-/** `matrix` is the piece worn: the loadout's Matrix under Matrix Mode, else null. */
+/** `matrix` is the piece worn: the loadout's Matrix while that resonator's own Matrix filter is
+ *  on (`matrixOn`), else null. */
 export interface Combo { weapon: Weapon; echo: EchoLoadout; mainstat: Buff; sequence: number; matrix: Matrix | null; highSubs: boolean; key: string; }
 
 /** The axes a resonator's rows can be opened up on. */
@@ -35,11 +36,15 @@ export const AXES: Axis[] = ["weapons", "echoes", "mainstats", "sequences", "ref
  *  every limited resonator on theirs (every other mode). The `sN`/`rN` in the name is the chain
  *  level and weapon rank on top of that — the team's main DPS's alone where the name ends in
  *  `mdps`, everyone's where it doesn't. Rovers and 4* are S6 on standard/4* weapons throughout. */
-export type TeamCost = "s0r0" | "s0r1mdps" | "s0r1"
-  | "s1r1mdps" | "s2r1mdps" | "s3r1mdps" | "s6r1mdps" | "s6r5mdps" | "s6r5";
+export const TEAM_COSTS = ["s0r0", "s0r1mdps", "s0r1",
+  "s1r1mdps", "s2r1mdps", "s3r1mdps", "s6r1mdps", "s6r5mdps", "s6r5"] as const;
+export type TeamCost = typeof TEAM_COSTS[number];
 
 export interface Filters {
-  matrix: boolean;
+  /** The resonators running their own Matrix, by name. A full replacement of that member's build
+   *  wherever they are fielded — not an axis: it opens no column and adds no row, the team simply
+   *  runs with the Matrix on. Only a kit that has one can be named (see `matrixOn`). */
+  matrix: string[];
   cost: TeamCost;
   /** Per axis, the resonators (by name) whose rows compare it; everyone else runs their best pick. */
   weapons: string[]; echoes: string[]; mainstats: string[]; substats: string[]; sequences: string[]; refines: string[];
@@ -86,32 +91,36 @@ export const echoLabel = (l: Loadout, echo: EchoLoadout): string => echoLines(l,
 
 /** The page's opening state and what precompute.ts solves under — one definition so shipped keys match. */
 export const defaultFilters = (): Filters => ({
-  matrix: false, cost: "s0r1", weapons: [], echoes: [], mainstats: [], substats: [], sequences: [], refines: [], scoped: [],
+  matrix: [], cost: "s0r1", weapons: [], echoes: [], mainstats: [], substats: [], sequences: [], refines: [], scoped: [],
 });
 
 export const axisOpen = (m: Member, filters: Filters, axis: Axis): boolean =>
   filters[axis].includes(m.loadout.resonator.name);
 
-export const filterSignature = (f: Filters): string =>
-  [f.matrix, f.cost, ...AXES.map((a) => [...f[a]].sort().join("+")), f.scoped.map(scopedKey).sort().join("+")].join(",");
+/** Whether this member wears their Matrix: named in the filter, and a kit that actually has one —
+ *  a name left over from a link or a roster change simply doesn't apply. */
+export const matrixOn = (m: Member, filters: Filters): boolean =>
+  m.loadout.resonator.matrix != null && filters.matrix.includes(m.loadout.resonator.name);
 
-/** A solve's cache key: the team under everything that changes its row set — matrix, cost, each
- *  member's six axis bits plus their scoped compares. */
+export const filterSignature = (f: Filters): string =>
+  [[...f.matrix].sort().join("+"), f.cost, ...AXES.map((a) => [...f[a]].sort().join("+")), f.scoped.map(scopedKey).sort().join("+")].join(",");
+
+/** A solve's cache key: the team under everything that changes its row set — cost, and each
+ *  member's Matrix bit, six axis bits and scoped compares. */
 export const bestKey = (teamKey: string, members: Member[], filters: Filters): string => {
-  const matrix = filters.matrix && members.some((m) => m.loadout.resonator.matrix);
   const scoped = (m: Member): string => {
     const own = filters.scoped.filter((s) => s.resonator === m.loadout.resonator.name).map((s) => `${s.on}~${s.value}~${s.axis}`).sort();
     return own.length ? `:${own.join(";")}` : "";
   };
-  return `${teamKey}|${matrix}|${filters.cost}|${members.map((m) => AXES.map((a) => (axisOpen(m, filters, a) ? "1" : "0")).join("") + scoped(m)).join(",")}`;
+  const one = (m: Member): string =>
+    (matrixOn(m, filters) ? "m" : "") + AXES.map((a) => (axisOpen(m, filters, a) ? "1" : "0")).join("") + scoped(m);
+  return `${teamKey}|${filters.cost}|${members.map(one).join(",")}`;
 };
 
-/** The best build's key: only what the *search* reads (weapons compared, matrix, cost) — every other
- *  axis changes which rows open, never which build wins. */
-export const picksKey = (teamKey: string, members: Member[], filters: Filters): string => {
-  const matrix = filters.matrix && members.some((m) => m.loadout.resonator.matrix);
-  return `${teamKey}|${matrix}|${filters.cost}|${members.map((m) => (axisOpen(m, filters, "weapons") ? "1" : "0")).join("")}`;
-};
+/** The best build's key: only what the *search* reads (weapons compared, each member's Matrix,
+ *  cost) — every other axis changes which rows open, never which build wins. */
+export const picksKey = (teamKey: string, members: Member[], filters: Filters): string =>
+  `${teamKey}|${filters.cost}|${members.map((m) => (matrixOn(m, filters) ? "m" : "") + (axisOpen(m, filters, "weapons") ? "1" : "0")).join("")}`;
 
 /** Indices into a loadout's gear lists plus chain level, rank (into `Loadout.refinements[weapon]`),
  *  matrix and substat spread. Only weapon/echo/mainstat are ever searched. */
@@ -328,7 +337,7 @@ export function optimizeTeam(teamKey: string, members: Member[], filters: Filter
     const weapon = weaponOptions(m, filters, sig)[0] ?? 0;
     return {
       weapon, echo: 0, mainstat: 0, sequence: sequenceLevels(m, filters, holds)[0]!,
-      refine: costRefine(m, weapon, filters.cost, holds), matrix: filters.matrix, highSubs: false,
+      refine: costRefine(m, weapon, filters.cost, holds), matrix: matrixOn(m, filters), highSubs: false,
     };
   });
   const run = (): TeamRun => trialRun(teamKey, members, picks);

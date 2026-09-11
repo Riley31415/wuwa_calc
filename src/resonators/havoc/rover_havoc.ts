@@ -144,9 +144,7 @@ const ROVER_HAVOC_RESONATOR = new Resonator({
   maxForte1: 100,
   tier: Tier.Free,
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 10825); addStat(Stat.BaseAtk, 413); addStat(Stat.BaseDef, 1259);
-  },
+  stats: [[Stat.BaseHp, 10825], [Stat.BaseAtk, 413], [Stat.BaseDef, 1259]],
 });
 
 /* -------------------------------------------------------------------------------- sequences */
@@ -154,7 +152,7 @@ const ROVER_HAVOC_RESONATOR = new Resonator({
 // its own trigger rather than the central Resonator updateBuffs() above.
 
 const ROVER_S1 = new Sequence({
-  name: "Havoc Rover S1: Cryptic Insight", applyStats: () => addStat(Stat.DmgBonus, 30, Type1.Skill),
+  name: "Havoc Rover S1: Cryptic Insight", stats: [[Stat.DmgBonus, 30, Type1.Skill]],
 });
 
 // S2 Waning Crescent: resets Resonance Skill's cooldown on entering Dark Surge — no real-time

@@ -5,7 +5,7 @@
 import type { Buff } from "./engine/gear.js";
 import { State } from "./engine/state.js";
 import { withTeam, equip, equipEnemy, setTracing } from "./engine/context.js";
-import type { ChainGroup, Result, ResolvedSnapshot } from "./engine/evaluate.js";
+import type { ChainGroup, Result } from "./engine/evaluate.js";
 import { runRotations } from "./engine/rotation.js";
 import type { ActionField } from "./engine/rotation.js";
 import { TUNE_BREAK_ENEMY } from "./shared/tunebreak.js";
@@ -198,7 +198,6 @@ function sumSection(lines: ChainGroup<Result>[], avgOf: (line: ChainGroup<Result
 
 /** The table's figures: the mean of the four sections, the opener counting as one loop. */
 function sumRun(rotationLines: ChainGroup<Result>[][], avgOf: (line: ChainGroup<Result>) => number) {
-  let total = 0;
   const bySlot = new Map<string, number>();
   const sectionTotals: number[] = [];
   const sectionBySlot: Map<string, number>[] = [];
@@ -206,8 +205,16 @@ function sumRun(rotationLines: ChainGroup<Result>[][], avgOf: (line: ChainGroup<
     const section = sumSection(lines, avgOf);
     sectionTotals.push(section.total);
     sectionBySlot.push(section.bySlot);
-    total += section.total / rotationLines.length;
     for (const [slot, v] of section.bySlot) bySlot.set(slot, (bySlot.get(slot) ?? 0) + v / rotationLines.length);
+  }
+  // Every hit deals a whole number (damage.ts floors it), and the mean of four sections is the one
+  // step that can land between two — so it is floored per slot, and the team's figure is what those
+  // add to rather than its own floor, which keeps the column adding up to the total beside it.
+  let total = 0;
+  for (const [slot, v] of bySlot) {
+    const whole = Math.floor(v);
+    bySlot.set(slot, whole);
+    total += whole;
   }
   return { total, bySlot, sectionTotals, sectionBySlot };
 }
@@ -268,8 +275,17 @@ function variantSums(rotationLines: ChainGroup<Result>[][], members: Member[], v
         const by = new Map<string, number>();
         for (const slot of secOrder) by.set(slot, secBySlot[i]![v]![slotIndex.get(slot)!]!);
         a.sectionBySlot.push(by);
-        a.total += secTotal[i]![v]! / n;
         for (const [slot, x] of by) a.bySlot.set(slot, (a.bySlot.get(slot) ?? 0) + x / n);
+      }
+    }
+  }
+  // the same floor sumRun ends on, so a variant's figures are read on the terms the row's are
+  for (const list of acc) {
+    for (const a of list) {
+      for (const [slot, v] of a.bySlot) {
+        const whole = Math.floor(v);
+        a.bySlot.set(slot, whole);
+        a.total += whole;
       }
     }
   }

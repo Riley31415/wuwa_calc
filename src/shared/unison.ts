@@ -21,9 +21,8 @@
  * Anybody else simply adopts and drops the Intro marker on their Intro row.
  */
 import { Cast, Stat } from "../engine/stats.js";
-import { Buff, Gear } from "../engine/gear.js";
+import { Buff } from "../engine/gear.js";
 import type { Action } from "../engine/rotation.js";
-import type { TeamMember } from "../engine/state.js";
 import {
   addStat,
   applied,
@@ -31,7 +30,6 @@ import {
   casting,
   currentAction,
   currentTeam,
-  frozenStacks,
   getStat,
   isHeld,
   queueOutro,
@@ -53,7 +51,11 @@ export const UNISON = new Buff({
  *  outro is never short whatever it held. A Unison-capable kit builds one off its plain Outro and
  *  its `outro` fn picks it while Unison is held (`isHeld(UNISON)`), the way an Intro fn picks its
  *  Unison form off `unisonIntro()`. */
-export const unisonOutro = (outro: Action): Action => outro.variant(`${outro.name} (Unison)`, { concerto: 0 });
+export const unisonOutro = (outro: Action): Action => {
+  const out = outro.variant(`${outro.name} (Unison)`, { concerto: 0 });
+  out.formOf = outro;
+  return out;
+};
 
 /** Is the chain being played a DOUBLE_INTRO pre-visit — the short visit that leaves on a Unison
  *  outro handing the field *backward* (rotation.ts's own `outroDir`)? What a kit that grants
@@ -107,10 +109,16 @@ export const consumedConcerto = (): boolean =>
  *  UNISON_RESPONDER. The cap is declared at its highest here rather than raised at runtime
  *  (`maxStackIncrease` is enemy-debuff only): without those two pieces nothing grants a third
  *  stack anyway. */
-export const UNISON_BOON = new Buff({
-  name: "Unison Boon", maxStacks: 4,
-  applyStats: () => { if (isHeld(UNISON_RESPONDER)) addStat(Stat.Amp, (stacksOfTeam(NINE_SHADOWS) ? 4.5 : 3) * frozenStacks()); },
-});
+export const UNISON_BOON = new Buff({ name: "Unison Boon", maxStacks: 4 });
+
+/** The Boon's payout, for a responder's own kit to call from its `applyStats`: +3% DMG
+ *  Amplification a stack, +4.5% beside Suoming's S6. Called by the piece that makes the kit a
+ *  responder rather than paid by the Boon itself, so the bonus is sourced to that piece — Hsin's
+ *  Unison mode, Suoming's own kit — the way Denia's mode calls `applyStrain()` for hers. */
+export const unisonBoonAmp = (): void => {
+  const stacks = stacksOfTeam(UNISON_BOON);
+  if (stacks) addStat(Stat.Amp, (stacksOfTeam(NINE_SHADOWS) ? 4.5 : 3) * stacks);
+};
 
 /** Suoming's S6 on the team: every stack of Unison Boon pays half again — +4.5% rather than +3%,
  *  for every responder, not only her. Put up team-wide by that sequence's own combatStart. */

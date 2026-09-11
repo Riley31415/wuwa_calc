@@ -10,7 +10,7 @@
  * Numbers from nanoka.cc (character 1505); Base DEF (1100) confirmed there directly, since the
  * migrated sheet this was ported from didn't carry it. Her resonance chain is below the buffs.
  */
-import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, BuffTarget } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   applyTeam,
@@ -20,21 +20,20 @@ import {
   stacksOfTeam,
   runningAction,
   currentTeam,
-  casting,
   isHeld,
   revokeTeam,
   addStat,
+  onCast,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START_1, START_2, START_3, SWAP, NOINTRO, INTRO, ECHO_CANCEL, OUTRO, DODGE, JUMP, ECHO_SWAP } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_2, START_3, SWAP, NOINTRO, INTRO, OUTRO, DODGE, JUMP, ECHO_SWAP } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { SK_SIG } from "../../weapons/rectifier.js";
 import { VARIATION } from "../../weapons/standard.js";
-import { BELL_BORNE_GEOCHELONE, HERON, MOONLIT_CLOUDS_5PC, REJUV_5PC } from "../../echoes/jinzhou.js";
+import { REJUV_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { SPACETREK_EXPLORER, STARRY_RADIANCE_5PC } from "../../echoes/lahairoi.js";
-import { TUNE_BREAK } from "../../shared/tunebreak.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -104,7 +103,7 @@ const REALM_STAGE = ["Outer", "Inner", "Supernal"];
 const SK_REALM = new Buff({
   name: "Shorekeeper: Stellarealm", maxStacks: 3,
   display: (): string => `Shorekeeper: ${REALM_STAGE[stacksOfTeam(SK_REALM) - 1]} Stellarealm`,
-  updateBuffs: () => { if (casting(Cast.Outro)) applyTeam(SK_REALM, 1); },
+  grants: [{ on: onCast(Cast.Outro), to: BuffTarget.Team }],
   applyStats: () => {
     const stage = stacksOfTeam(SK_REALM);
     if (stage < 2) return; // Outer pays no stat
@@ -194,14 +193,15 @@ const SK_S6 = new Sequence({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const SHOREKEEPER_TALENTS = new Talent({
   name: "Shorekeeper: Talents",
-  constantStats: () => {
-    addStat(Stat.BonusHp, 12);
-    addStat(Stat.HealingBonus, 12); // stat-tree Healing Bonus+ nodes — unused by the formula
-  },
+  stats: [
+    [Stat.BonusHp, 12],
+    [Stat.HealingBonus, 12], // stat-tree Healing Bonus+ nodes — unused by the formula
+  ],
 });
 
 const SHOREKEEPER_RESONATOR = new Resonator({
   name: "Shorekeeper",
+  stats: [[Stat.BaseHp, 16712.5], [Stat.BaseAtk, 287.5], [Stat.BaseDef, 1100]],
   talent: SHOREKEEPER_TALENTS,
   inherent1: SK_INHERENT_1,
   inherent2: SK_INHERENT_2,
@@ -220,9 +220,6 @@ const SHOREKEEPER_RESONATOR = new Resonator({
     if (runningAction(Skill) || runningAction(Liberation) || runningAction(Intro) || runningAction(EIntro)) applyCurrent(HEALS, 1);
   },
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 16712.5); addStat(Stat.BaseAtk, 287.5); addStat(Stat.BaseDef, 1100);
-  },
 });
 
 // INTRO resolves to plain Intro or Discernment on its own — same marker for opener and loop.

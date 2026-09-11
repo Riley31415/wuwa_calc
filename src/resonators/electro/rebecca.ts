@@ -36,7 +36,7 @@
  * out: nanoka gives their motion values but no source gives their Fervor, and neither rotation
  * plays one.
  */
-import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime, BuffTarget } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   addBuff,
@@ -46,6 +46,7 @@ import {
   basicDmgBonus,
   casting,
   currentAction,
+  onAction,
   runningAction,
   currentTeam,
   isHeld,
@@ -55,16 +56,13 @@ import {
   revokeCurrent,
   forte1,
   forte2,
-  setForte1,
   setForte2,
-  frozenStacks,
-  isType,
   triggeredAction,
   isActive,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_2, SWAP, JUMP, ActionField, FIRST_INTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ActionField, FIRST_INTRO, DODGE } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
-import { coordinatedBuff, lostOnSwap } from "../../shared/helpers.js";
+import { coordinatedBuff } from "../../shared/helpers.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING } from "../../shared/tunebreak.js";
 import { SKULL_THRASHER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
@@ -195,8 +193,8 @@ const Meltdown = rebeccaAction("Tune Hack Response - Meltdown", {
 /** Switch Gears!: the two modes. Which one she holds decides which Intro and which Resonance
  *  Skill she casts, and every one of those casts swaps her into the other — done in convertStats()
  *  so the cast itself still pays out under the mode she started it in. */
-const HUNTRESS = new Buff({ name: "Rebecca: Huntress", applyStats: () => addStat(Stat.CritDmg, 30) });
-const GUTS = new Buff({ name: "Rebecca: Guts", applyStats: () => addStat(Stat.DefIgnoreNew, 15) });
+const HUNTRESS = new Buff({ name: "Rebecca: Huntress", stats: [[Stat.CritDmg, 30]] });
+const GUTS = new Buff({ name: "Rebecca: Guts", stats: [[Stat.DefIgnoreNew, 15]] });
 
 /** A Girl Gets What She Wants!: at 120 Hot Hand, a Resonance Skill or Intro Skill grants both
  *  modes' stat bonuses at once for 12s — so it pays whichever of the two she is not already in.
@@ -220,21 +218,21 @@ const A_GIRL = new Buff({
     const a = currentAction();
     if (a.forte2 > 0) addStat(Stat.AddForte2, -a.forte2);
   },
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(A_GIRL); },
+  until: LifeTime.Outro,
 });
 
 /** Tag, You're It! (Inherent Skill), the ATK half: +10% for 12s on triggering A Girl Gets What She
  *  Wants! or casting either Fervor finisher, 2 stacks. */
 const TAG_YOURE_IT = new Buff({
-  name: "Inherent: Tag, You're It! (self)", maxStacks: 2,
+  name: "Inherent: Tag, You're It!", maxStacks: 2,
   stats: [[Stat.BonusAtk, 10]], perStack: true,
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(TAG_YOURE_IT); },
+  until: LifeTime.Outro,
 });
 
 /** The other half: whichever resonator inflicts Hack - Shifting gets +30 Tune Break Boost for 30s
  *  — permanent uptime, and theirs alone rather than the team's (see RB_INHERENT_1 for the watch). */
 const TAG_TBB = new Buff({
-  name: "Inherent: Tag, You're It!",
+  name: "Inherent: Tag, You're It! (team)",
   stats: [[Stat.Tbb, 30]],
 });
 
@@ -252,22 +250,18 @@ const LEFT_AN_OPENING = new Buff({
  *  the full 14s and so takes the mean of that ramp. Both end early on switching out. */
 const EDGERUNNER_BONDS = new Buff({
   name: "Rebecca: Outro - Edgerunner Bonds",
+  stats: [[Stat.Amp, 15]],
   updateBuffs: () => {
-    lostOnSwap();
     if (isHeld(LUCY_RESONATOR)) applyCurrent(OVERLIMIT, 70);
     else if (!triggeredAction()) applyCurrent(OVERLIMIT, 5); // assume 1 action = 1s
   },
-  applyStats: () => {
-    addStat(Stat.Amp, 15);
-  },
+  until: LifeTime.Swap,
 });
 
 const OVERLIMIT = new Buff({
   name: "Rebecca: Outro - Overlimit", maxStacks: 70,
-  updateBuffs: () => lostOnSwap(),
-  applyStats: () => {
-    addStat(Stat.Amp, 0.5 * frozenStacks(), Type1.Heavy);
-  },
+  until: LifeTime.Swap,
+  stats: [[Stat.Amp, 0.5, Type1.Heavy]], perStack: true,
 });
 
 /* --------------------------------------------------------------------------- resonance chain */
@@ -287,11 +281,11 @@ const RB_S1 = new Sequence({
  *  Hack - Shifting gets +15% All DMG Amplification for 30s, theirs alone — watched from her own
  *  node the way Tag, You're It! watches for the Tune Break Boost. */
 const OH_HEY_CHOOM_TEAM = new Buff({
-  name: "Rebecca S2: Oh, Hey Choom!",
+  name: "Rebecca S2: Oh, Hey Choom! (intro/lib)",
   stats: [[Stat.DmgBonus, 20]],
 });
 const OH_HEY_CHOOM_HACK = new Buff({
-  name: "Rebecca S2: Oh, Hey Choom!",
+  name: "Rebecca S2: Oh, Hey Choom! (hack)",
   stats: [[Stat.Amp, 15]],
 });
 const RB_S2 = new Sequence({
@@ -324,7 +318,7 @@ const RB_S4 = new Sequence({ name: "Rebecca S4: Got Ya Covered!" });
 const DREAMIN_ON_THE_EDGE = new Buff({
   name: "Rebecca S5: Dreamin' on the Edge",
   stats: [[Stat.DmgBonus, 20, Type1.Basic]],
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(DREAMIN_ON_THE_EDGE); },
+  until: LifeTime.Outro,
 });
 const RB_S5 = new Sequence({
   name: "Rebecca S5: Dreamin' on the Edge",
@@ -369,7 +363,7 @@ const RB_INHERENT_1 = new Inherent({
 
 const RB_INHERENT_2 = new Inherent({
   name: "Inherent: Left an Opening!",
-  updateBuffs: () => { if (runningAction(Lib1)) applyTeam(LEFT_AN_OPENING, 1); },
+  grants: [{ on: onAction(Lib1), buff: LEFT_AN_OPENING, to: BuffTarget.Team }],
 });
 
 const REBECCA_TALENTS = new Talent({
@@ -405,11 +399,11 @@ const REBECCA_RESONATOR = new Resonator({
     }
   },
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 11600); addStat(Stat.BaseAtk, 400); addStat(Stat.BaseDef, 1173.33);
+  stats: [
+    [Stat.BaseHp, 11600], [Stat.BaseAtk, 400], [Stat.BaseDef, 1173.33],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
-    addStat(Stat.Tbb, 10);
-  },
+    [Stat.Tbb, 10],
+  ],
 });
 
 /* ---------------------------------------------------------------------------------- rotation */

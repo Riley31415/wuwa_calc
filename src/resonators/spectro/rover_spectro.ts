@@ -9,21 +9,21 @@
  * skill's own Skill Attributes row; energy/concerto/offtune/forte off the migrated sheet's own
  * SRover rows (offtune x10000 into this engine's units). Rotation is the sheet's own "srover 3nf".
  */
-import { Tier, Stat, EnemyStat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Tier, Stat, EnemyStat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   applyCurrent,
   applyEnemy,
   revokeEnemy,
   isHeld,
-  revokeCurrent,
   casting,
+  onAction,
   runningAction,
   addStat,
   addEnemyStat,
   queue,
 } from "../../engine/context.js";
-import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
+import { Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
 import { SPECTRO_FRAZZLE, HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";
@@ -86,18 +86,18 @@ const SPR_INHERENT_1 = new Inherent({
 const SILENT_LISTENER = new Buff({
   name: "Inherent: Silent Listener",
   stats: [[Stat.BonusAtk, 15]],
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(SILENT_LISTENER); },
+  until: LifeTime.Outro,
 });
 const SPR_INHERENT_2 = new Inherent({
   name: "Inherent: Silent Listener",
-  updateBuffs: () => { if (runningAction(HA2)) applyCurrent(SILENT_LISTENER, 1); },
+  grants: [{ on: onAction(HA2), buff: SILENT_LISTENER }],
 });
 
 /** S1 Odyssey of Beginnings: +15% Crit Rate for 7s off either Resonance Skill. Trigger in SPR_S1. */
 const S1_CRIT = new Buff({
   name: "Spectro Rover S1: Odyssey of Beginnings",
   stats: [[Stat.CritRate, 15]],
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(S1_CRIT); },
+  until: LifeTime.Outro,
 });
 
 /** S6 Echoes of Wanderlust: a real target-side Spectro RES shred, not a personal ignore — lost on
@@ -167,9 +167,7 @@ const ROVER_SPECTRO_RESONATOR = new Resonator({
   maxForte1: 100,
   tier: Tier.Free,
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 11400); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1369);
-  },
+  stats: [[Stat.BaseHp, 11400], [Stat.BaseAtk, 375], [Stat.BaseDef, 1369]],
 });
 
 const SPR_ROTATION = new Rotation([

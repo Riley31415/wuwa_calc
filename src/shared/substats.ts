@@ -1,38 +1,46 @@
 /** An echo build's substats: five echoes, five rolls each, twenty-five total. Every roll is
  *  valued at the mid-tier number below; the whole spread is one constant piece of gear. */
 import { Buff } from "../engine/gear.js";
+import type { StatLine } from "../engine/gear.js";
 import { addStat } from "../engine/context.js";
-import { Stat, Type1 } from "../engine/stats.js";
+import { Stat, Type1, scopedStat, statLabel } from "../engine/stats.js";
 import type { Tag } from "../engine/stats.js";
 
-/** Each substat piece's own rolls, one line per stat ("Crit Rate 7.5%", 5 rolls), most rolls
- *  first and `Substat` order within a count, for the detail page's loadout hover — kept beside the piece rather than on it, so a
- *  `Buff` stays a `Buff`. */
-export interface SubstatLine { text: string; rolls: number }
-const LINES = new WeakMap<Buff, SubstatLine[]>();
-export const substatLines = (piece: Buff): SubstatLine[] => LINES.get(piece) ?? [];
-const linesOf = (counts: Map<Substat, number>, value: (s: Substat) => number): SubstatLine[] =>
+/** The spread's twenty-five rolls as twenty-five buffs, one per roll: each named for the spread and
+ *  the stat it rolls as that stat is named everywhere else ("ChemX32 - Crit Rate", "ChemX32 - Flat
+ *  ATK" — `ROLL`'s own short label calls both ATK% and Flat ATK "ATK"), and carrying a single roll's
+ *  value. Never equipped and never evaluated — the piece's own `constantStats` is what the fight
+ *  reads; these exist so the loadout hover can list a spread roll by roll, the five Crit Rate ones
+ *  folding into a line of their own. Most rolls first, `Substat` order within a count. */
+const ROLL_BUFFS = new WeakMap<Buff, Buff[]>();
+export const substatRollBuffs = (piece: Buff): Buff[] => ROLL_BUFFS.get(piece) ?? [];
+const rollBuffsOf = (prefix: string, counts: Map<Substat, number>, value: (s: Substat) => number): Buff[] =>
   [...counts].sort((a, b) => b[1] - a[1] || a[0] - b[0])
-    .map(([s, n]) => ({ text: `${ROLL[s].label} ${value(s)}${ROLL[s].percent ? "%" : ""}`, rolls: n }));
+    .flatMap(([s, n]) => {
+      const { stat, tag } = ROLL[s];
+      const line: StatLine = tag === undefined ? [stat, value(s)] : [stat, value(s), tag];
+      const name = `${prefix} - ${statLabel(tag === undefined ? stat : scopedStat(tag, stat))}`;
+      return Array.from({ length: n }, () => new Buff({ name, stats: [line] }));
+    });
 
 /** The thirteen stats a substat can roll. */
 export enum Substat { CritRate, CritDmg, Er, AtkPct, FlatAtk, HpPct, FlatHp, DefPct, FlatDef, Basic, Heavy, Skill, Liberation }
 
 /** What each one adds per roll, and how its line reads. */
-const ROLL: Record<Substat, { stat: Stat; tag?: Tag; value: number; label: string; percent: boolean }> = {
-  [Substat.CritRate]: { stat: Stat.CritRate, value: 7.5, label: "Crit Rate", percent: true },
-  [Substat.CritDmg]: { stat: Stat.CritDmg, value: 15, label: "Crit Dmg", percent: true },
-  [Substat.Er]: { stat: Stat.Er, value: 8.4, label: "ER", percent: true },
-  [Substat.AtkPct]: { stat: Stat.BonusAtk, value: 7.9, label: "ATK", percent: true },
-  [Substat.FlatAtk]: { stat: Stat.FlatAtk, value: 40, label: "ATK", percent: false },
-  [Substat.HpPct]: { stat: Stat.BonusHp, value: 7.9, label: "HP", percent: true },
-  [Substat.FlatHp]: { stat: Stat.FlatHp, value: 430, label: "HP", percent: false },
-  [Substat.DefPct]: { stat: Stat.BonusDef, value: 10, label: "DEF", percent: true },
-  [Substat.FlatDef]: { stat: Stat.FlatDef, value: 50, label: "DEF", percent: false },
-  [Substat.Basic]: { stat: Stat.DmgBonus, tag: Type1.Basic, value: 7.9, label: "Basic", percent: true },
-  [Substat.Heavy]: { stat: Stat.DmgBonus, tag: Type1.Heavy, value: 7.9, label: "Heavy", percent: true },
-  [Substat.Skill]: { stat: Stat.DmgBonus, tag: Type1.Skill, value: 7.9, label: "Skill", percent: true },
-  [Substat.Liberation]: { stat: Stat.DmgBonus, tag: Type1.Liberation, value: 7.9, label: "Liberation", percent: true },
+const ROLL: Record<Substat, { stat: Stat; tag?: Tag; value: number; label: string }> = {
+  [Substat.CritRate]: { stat: Stat.CritRate, value: 7.5, label: "Crit Rate" },
+  [Substat.CritDmg]: { stat: Stat.CritDmg, value: 15, label: "Crit Dmg" },
+  [Substat.Er]: { stat: Stat.Er, value: 8.4, label: "ER" },
+  [Substat.AtkPct]: { stat: Stat.BonusAtk, value: 7.9, label: "ATK" },
+  [Substat.FlatAtk]: { stat: Stat.FlatAtk, value: 40, label: "ATK" },
+  [Substat.HpPct]: { stat: Stat.BonusHp, value: 7.9, label: "HP" },
+  [Substat.FlatHp]: { stat: Stat.FlatHp, value: 430, label: "HP" },
+  [Substat.DefPct]: { stat: Stat.BonusDef, value: 10, label: "DEF" },
+  [Substat.FlatDef]: { stat: Stat.FlatDef, value: 50, label: "DEF" },
+  [Substat.Basic]: { stat: Stat.DmgBonus, tag: Type1.Basic, value: 7.9, label: "Basic" },
+  [Substat.Heavy]: { stat: Stat.DmgBonus, tag: Type1.Heavy, value: 7.9, label: "Heavy" },
+  [Substat.Skill]: { stat: Stat.DmgBonus, tag: Type1.Skill, value: 7.9, label: "Skill" },
+  [Substat.Liberation]: { stat: Stat.DmgBonus, tag: Type1.Liberation, value: 7.9, label: "Liberation" },
 };
 
 /** The same rolls one tier up — a "high investment" build (fandom's Echo/Stats: the fifth of
@@ -66,7 +74,7 @@ export function substats(sub1: Substat, sub2: Substat, sub3: Substat, er = false
     name: `ChemX32 - ${named.join(" ")}`,
     constantStats: () => { for (const [s, n] of counts) addStat(ROLL[s].stat, ROLL[s].value * n, ROLL[s].tag); },
   });
-  LINES.set(piece, linesOf(counts, (s) => ROLL[s].value));
+  ROLL_BUFFS.set(piece, rollBuffsOf("ChemX32", counts, (s) => ROLL[s].value));
   return piece;
 }
 
@@ -100,6 +108,6 @@ export function highSubs(sub1: Substat, sub2: Substat, sub3: Substat, sub4: Subs
     name: `High Invest - ${named.join(" ")}`,
     constantStats: () => { for (const [s, n] of counts) addStat(ROLL[s].stat, HIGH[s] * n, ROLL[s].tag); },
   });
-  LINES.set(piece, linesOf(counts, (s) => HIGH[s]));
+  ROLL_BUFFS.set(piece, rollBuffsOf("High Invest", counts, (s) => HIGH[s]));
   return piece;
 }

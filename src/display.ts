@@ -52,10 +52,28 @@ export const fmt = (v: number | string | null | undefined, digits = 0, pad = fal
   return f.format(v);
 };
 
-/** Columns that always print their full digit count rather than trimming trailing zeros. */
-export const PAD_DIGITS_COLUMNS = new Set(["energy", "concerto", "offtune", "mv", "dmgBonus", "amp", "cr", "cd", "dealt", "effDef"]);
+const FORTE_GAUGES = [Resource.Forte1, Resource.Forte2, Resource.Forte3, Resource.Forte4, Resource.Forte5];
+
+/** Columns that always print their full digit count rather than trimming trailing zeros — the
+ *  forte gauges among them, so a gauge's column reads down a single line of decimal points
+ *  instead of every cell trimming to its own length. */
+export const PAD_DIGITS_COLUMNS = new Set(["energy", "concerto", "offtune", "mv", "dmgBonus", "amp", "cr", "cd", "dealt", "effDef",
+  ...FORTE_GAUGES.map((key) => `gauge:${RESOURCE_NAME[key]}`)]);
 /** The one column that keeps thousands separators. */
 export const GROUPED_COLUMNS = new Set(["avg"]);
+
+/** How many decimals a value needs, two at most — 4 is none, 4.5 is one, 4.52 is two. */
+const decimalsOf = (v: number): number => {
+  const text = Math.abs(v).toFixed(2);
+  return text.endsWith("00") ? 0 : text.endsWith("0") ? 1 : 2;
+};
+
+/** How many decimals this cell prints: the count `buildReport` stamped for that resonator where it
+ *  stamped one (the forte gauges), else the column's own. */
+export const digitsOf = (raw: RawRow, col: Column): number => {
+  const own = raw[`digits:${col.key}`];
+  return typeof own === "number" ? own : (col.digits ?? 0);
+};
 
 /** A stat plus the same stat scoped to the action's element and damage types. */
 const keysFor = (action: Action, ...stats: (Stat | EnemyStat)[]): StatKey[] =>
@@ -175,8 +193,6 @@ export const gaugeSuffix = (raw: RawRow, key: string): string => {
   const cap = raw[`max:${key}`];
   return typeof cap === "number" ? `/${fmt(cap, 0, false, false)}` : "";
 };
-
-const FORTE_GAUGES = [Resource.Forte1, Resource.Forte2, Resource.Forte3, Resource.Forte4, Resource.Forte5];
 
 /** Off-tune's raw unit runs finer than the game's displayed points — display-only /10000. */
 const RESOURCE_SCALE = { energy: 1, concerto: 1, offtune: 10000 } as const;
@@ -332,8 +348,9 @@ function rowValues(
     if (snap.action.resetForte[i]) {
       rows.push({ source: snap.action.name, value: 0, text: "CLEAR", digits: 0, owner: snap.member });
     }
-    if (declared) rows.push({ source: snap.action.name, value: declared, digits: 0, owner: snap.member });
-    rows.push(...traced.map((r) => ({ ...r, digits: 0 })));
+    // the same two decimals the gauge's own column prints, so a fractional gain reads as one
+    if (declared) rows.push({ source: snap.action.name, value: declared, digits: 2, owner: snap.member });
+    rows.push(...traced.map((r) => ({ ...r, digits: 2 })));
     if (rows.length) sources[`gauge:${RESOURCE_NAME[key]}`] = rows;
     raw[`moved:gauge:${RESOURCE_NAME[key]}`] = rows.reduce((n, r) => n + r.value, 0);
     if (snap.action.resetForte[i]) raw[`clear:gauge:${RESOURCE_NAME[key]}`] = 1;
@@ -505,9 +522,9 @@ export function buildReport(lines: ChainGroup[]): Report {
     { key: "cr", label: "cr%", digits: 1, percent: true, full: "Crit Rate" },
     { key: "cd", label: "cd%", digits: 1, percent: true, full: "Crit Dmg" },
     // both halves carry their own section heading, so `full` is only the empty-panel one
-    { key: "dealt", label: "vuln%", digits: 1, percent: true, full: "Vulnerability" },
     { key: "effDef", label: "ignore%", digits: 1, percent: true, full: "DEF Ignore", fullEmpty: "DEF Shred" },
     { key: "effRes", label: "res%", digits: 1, percent: true, full: "Enemy RES" },
+    { key: "dealt", label: "vuln%", digits: 1, percent: true, full: "Vulnerability" },
     { key: "er", label: "er%", digits: 1, percent: true, full: "Energy Regen" },
     { key: "hp", label: "hp", noTotal: true },
     { key: "def", label: "def", noTotal: true },
@@ -515,8 +532,9 @@ export function buildReport(lines: ChainGroup[]): Report {
     { key: "concerto", label: "concerto", digits: 2, hideIfZero: true, full: "Concerto" },
     { key: "energy", label: "energy", digits: 2, hideIfZero: true, full: "Energy" },
     { key: "offtune", label: "offtune", digits: 4, hideIfZero: true, full: "OffTune" },
+    // two decimals, the same as concerto and energy: a gauge is fed in fractions of a point
     ...FORTE_GAUGES.map((key) => ({
-      key: `gauge:${RESOURCE_NAME[key]}`, label: RESOURCE_NAME[key], hideIfZero: true,
+      key: `gauge:${RESOURCE_NAME[key]}`, label: RESOURCE_NAME[key], digits: 2, hideIfZero: true,
       full: RESOURCE_NAME[key],
     })),
   ];
@@ -550,6 +568,23 @@ export function buildReport(lines: ChainGroup[]): Report {
     };
   });
 
+  // A forte gauge's decimals are that resonator's own, not the column's: one kit's bar moves in
+  // whole points and another's in hundredths, and a single count for the column would print
+  // `4.00/5` down a bar that never leaves whole numbers. Every row of one member shares a count, so
+  // their own cells still line up; the stamp is what `digitsOf` reads back.
+  for (const key of FORTE_GAUGES.map((k) => `gauge:${RESOURCE_NAME[k]}`)) {
+    const per = new Map<string, number>();
+    const note = (r: { raw: RawRow }) => {
+      const v = r.raw[key];
+      if (typeof v !== "number") return;
+      const member = String(r.raw.member ?? "");
+      per.set(member, Math.max(per.get(member) ?? 0, decimalsOf(v)));
+    };
+    for (const r of rows) { note(r); r.parts.forEach(note); }
+    const stamp = (r: { raw: RawRow }) => { r.raw[`digits:${key}`] = per.get(String(r.raw.member ?? "")) ?? 0; };
+    for (const r of rows) { stamp(r); r.parts.forEach(stamp); }
+  }
+
   // drop resource columns nobody moved — a chain's parts count
   const moved = (r: { raw: RawRow }, key: string) => Math.abs(Number(r.raw[key]) || 0) > 1e-9;
   const used = columns.filter((c) => !c.hideIfZero
@@ -559,7 +594,7 @@ export function buildReport(lines: ChainGroup[]): Report {
   const shown = (r: { raw: RawRow }, c: Column): string => {
     const v = r.raw[c.key];
     return typeof v === "number"
-      ? fmt(v, c.digits ?? 0, PAD_DIGITS_COLUMNS.has(c.key), GROUPED_COLUMNS.has(c.key)) + (c.percent ? "%" : "") + gaugeSuffix(r.raw, c.key)
+      ? fmt(v, digitsOf(r.raw, c), PAD_DIGITS_COLUMNS.has(c.key), GROUPED_COLUMNS.has(c.key)) + (c.percent ? "%" : "") + gaugeSuffix(r.raw, c.key)
       : String(v ?? "");
   };
   const sized: Column[] = used.map((c) => {

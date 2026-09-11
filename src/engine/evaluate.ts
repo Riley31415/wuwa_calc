@@ -2,17 +2,16 @@
  * Running an action: the phase order, the snapshot each one resolves into, and `run()`, which
  * walks a rotation and drains whatever the casts queued behind them.
  */
-import { Stat, EnemyStat, Attribute, WeaponType, Tier, Type1, Type2, Cast, Node, Scaling, scopedStat, tagBand, STAT_COUNT, TYPE2_BITS } from "./stats.js";
-import type { Tag, StatKey } from "./stats.js";
-import type { Rotation, Action, ActionGroup, ActionDef, ActionField } from "./rotation.js";
-import { ctx, dryLog, undoDry, noteMutation, recordApplied, recordConsumed, pendingQueue, tagWord, tagWordOf, RESOURCE_STATS, replay, readAny, READ_APPLY, READ_CONVERT, READ_AFTER, applied as appliedRecord } from "./runtime.js";
-import { Gear, Buff, Debuff, Resonator, Loadout, Matrix, Mainslot, Weapon, PHASE_COUNT } from "./gear.js";
+import { Stat, EnemyStat, Type1, Cast } from "./stats.js";
+import type { Action, ActionGroup, ActionField } from "./rotation.js";
+import { ctx, pendingQueue, tagWordOf, RESOURCE_STATS, replay, readAny, READ_APPLY, READ_CONVERT, READ_AFTER, applied as appliedRecord } from "./runtime.js";
+import { Gear, PHASE_COUNT } from "./gear.js";
 import type { VariantAt } from "./state.js";
 import {
   State, TeamMember, StatEntry, HeldBuff, ZERO_STATS, TYPE2_AMP_INDEX, TYPE2_CRIT_RATE_INDEX, TYPE2_CRIT_DMG_INDEX, FightSnapshot, capEnergy,
   EMPTY_HELD, EMPTY_FORTE, EMPTY_FIELDS, enemyDef, enemyRes,
 } from "./state.js";
-import { addStat, getStat, withTeam, menuStats, casting, isCast } from "./context.js";
+import { casting, isCast } from "./context.js";
 import { damageAvgOf } from "./damage.js";
 
 export interface Snapshot {

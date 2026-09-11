@@ -14,12 +14,13 @@
  * Resolving Chord's own "no notes gained" window (Coda to Waltz) is left unmodelled: nothing in a
  * rotation gains between the two casts anyway.
  */
-import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, BuffTarget } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   applyCurrent,
   stacksOf,
   currentAction,
+  onAction,
   runningAction,
   casting,
   queue,
@@ -27,17 +28,17 @@ import {
   revokeCurrent,
   addStat,
   frozenStacks,
-  applyTeam,
   isHeld,
   setStacksSelf,
   currentTeam,
   queueOn,
   isActive,
+  onCast,
 } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, NOINTRO, INTRO, ECHO_ONFIELD, OUTRO, DODGE } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
-import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
+import { COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { DREAM_OF_THE_LOST_3PC } from "../../echoes/septimont.js";
 import { NM_HECATE } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
@@ -261,7 +262,7 @@ const PH_S1 = new Sequence({
 /** S2: both Scarlet Coda lines together are the one +75% MV multiplier, not a per-Aftersound one. */
 const PH_S2 = new Sequence({
   name: "Phrolova S2: A Rope Tied to a Life Beyond",
-  updateBuffs: () => { if (runningAction(ScarletCoda)) applyCurrent(AFTERSOUND, 14); },
+  grants: [{ on: onAction(ScarletCoda), buff: AFTERSOUND, stacks: 14 }],
   applyStats: () => { if (runningAction(ScarletCoda)) addStat(Stat.MulMv, 75); },
 });
 
@@ -280,7 +281,7 @@ const PH_S4_TEAM = new Buff({
 });
 const PH_S4 = new Sequence({
   name: "Phrolova S4: A Torch Illuminating the Path",
-  updateBuffs: () => { if (casting(Cast.Echo)) applyTeam(PH_S4_TEAM, 1); },
+  grants: [{ on: onCast(Cast.Echo), buff: PH_S4_TEAM, to: BuffTarget.Team }],
 });
 
 /** S5: a Stagnation field and 30% damage-taken reduction — neither reaches this calculator. */
@@ -328,9 +329,7 @@ export const PHROLOVA_RESONATOR = new Resonator({
 
   combatStart: () => { applyCurrent(NOTES, 1 << 16); }, // initialize notes state
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 10775); addStat(Stat.BaseAtk, 437.5); addStat(Stat.BaseDef, 1137);
-  },
+  stats: [[Stat.BaseHp, 10775], [Stat.BaseAtk, 437.5], [Stat.BaseDef, 1137]],
 });
 
 // INTRO resolves to plain Intro or EIntro on its own (see her own intro() above)

@@ -24,7 +24,7 @@
  * off every action rather than tracking the ICD. Ruler's Realm's own shield (any team member's
  * Intro while it's up) rides the realm buff itself, see RULERS_REALM.
  */
-import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime, BuffTarget } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   asSource,
@@ -34,22 +34,21 @@ import {
   revokeBuff,
   casting,
   currentAction,
+  onAction,
   runningAction,
   currentTeam,
   addStat,
   queue,
   queueOutro,
   forte2,
-  setForte2,
   addForte3,
   frozenStacks,
   getStat,
   isHeld,
   stacksOf,
 } from "../../engine/context.js";
-import { Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ECHO_SWAP } from "../../engine/rotation.js";
+import { Action, Rotation, INTRO, OUTRO } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
-import { lostOnSwap } from "../../shared/helpers.js";
 import { SHIELD } from "../../shared/status.js";
 import { THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
@@ -159,7 +158,7 @@ const RULERS_REALM = new Buff({
 /** Hands the incoming resonator +15% DMG Amplification (all attributes) for 14s. */
 const BATTLESONG = new Buff({
   name: "Augusta: Outro",
-  updateBuffs: () => { lostOnSwap(); },
+  until: LifeTime.Swap,
   stats: [[Stat.Amp, 15]],
 });
 
@@ -195,6 +194,7 @@ const AUGUSTA_TALENTS = new Talent({
 
 const AUGUSTA_RESONATOR = new Resonator({
   name: "Augusta",
+  stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 463], [Stat.BaseDef, 1112]],
   talent: AUGUSTA_TALENTS,
   inherent1: AG_INHERENT_1,
   inherent2: AG_INHERENT_2,
@@ -217,9 +217,6 @@ const AUGUSTA_RESONATOR = new Resonator({
     }
   },
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 10300); addStat(Stat.BaseAtk, 463); addStat(Stat.BaseDef, 1112);
-  },
 });
 
 /* --------------------------------------------------------------------------------- sequences */
@@ -252,7 +249,7 @@ const AG_S3 = new Sequence({
 const STRIDE_OF_GOLDENFLARE = new Buff({ name: "Augusta S4: Ascent in Sun and Glory", stats: [[Stat.BonusAtk, 20]] });
 const AG_S4 = new Sequence({
   name: "Augusta S4: Ascent in Sun and Glory",
-  updateBuffs: () => { if (runningAction(Intro)) applyTeam(STRIDE_OF_GOLDENFLARE, 1); },
+  grants: [{ on: onAction(Intro), buff: STRIDE_OF_GOLDENFLARE, to: BuffTarget.Team }],
 });
 
 /** S5: Glory's Favor shields for half as much again — shields are no stat here. */

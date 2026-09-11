@@ -56,7 +56,6 @@ import {
   revokeCurrent,
   revokeEnemy,
   revokeTeam,
-  setForte1,
   setStacksSelf,
   stacksOf,
   stacksOfEnemy,
@@ -67,9 +66,9 @@ import { oneSecondPassed } from "../../shared/helpers.js";
 import {
   AERO_EROSION, AERO_EROSION_ACTIONS, hasNegativeStatus, inflictedNegativeStatusBy, negativeStatusRung,
 } from "../../shared/status.js";
-import { BLAZING_BRILLIANCE, DEFIERS_THORN, RED_SPRING } from "../../weapons/sword.js";
-import { NEW_STD_SWORD, EMERALD_OF_GENESIS } from "../../weapons/standard.js";
-import { FLEURDELYS, WINDWARD_5PC, GUSTS_OF_WELKIN_5PC } from "../../echoes/rinascita.js";
+import { DEFIERS_THORN, RED_SPRING } from "../../weapons/sword.js";
+import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
+import { FLEURDELYS, WINDWARD_5PC } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
@@ -227,8 +226,8 @@ const POWER_OF_DISCORD = new Buff({ name: "Cartethyia: Power of Discord" });
  *  module. */
 const TRUEST_WISHES = new Buff({
   name: "Inherent: A Heart's Truest Wishes",
+  stats: [[Stat.HealingReceived, 20]],
   applyStats: () => {
-    addStat(Stat.HealingReceived, 20);
     if (casting(Cast.Liberation) && currentMember().resonator?.name === "Aero Rover") addStat(Stat.AddForte1, 25);
   },
 });
@@ -372,9 +371,7 @@ const CARTETHYIA_RESONATOR = new Resonator({
   maxEnergy: 125,
   maxForte1: 120,
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 14800); addStat(Stat.BaseAtk, 312.5); addStat(Stat.BaseDef, 611.11);
-  },
+  stats: [[Stat.BaseHp, 14800], [Stat.BaseAtk, 312.5], [Stat.BaseDef, 611.11]],
 });
 
 // The line the kit asks for: her Intro plants a Discord shadow and chains into Stage 2, the Skill

@@ -3,13 +3,13 @@
  * `addStat`, the `applied`/`consumed` questions, the forte gauges and concerto, every
  * grant/spend/revoke path, and the queues. All of it reads `ctx` for whose turn it is.
  */
-import { Stat, EnemyStat, Attribute, WeaponType, Tier, Type1, Type2, Cast, Node, Scaling, scopedStat, tagBand, STAT_COUNT, TYPE2_BITS } from "./stats.js";
-import type { Tag, StatKey } from "./stats.js";
-import type { Rotation, Action, ActionGroup, ActionDef, ActionField } from "./rotation.js";
-import { ctx, dryLog, undoDry, noteMutation, recordApplied, recordConsumed, pendingQueue, tagWord, tagWordOf, RESOURCE_STATS, recordWrite, recordRead, applied as appliedRecord, consumed as consumedRecord } from "./runtime.js";
-import { Gear, Buff, Debuff, Resonator, Loadout, Matrix, Mainslot, Weapon } from "./gear.js";
+import { Stat, EnemyStat, Attribute, Type1, Type2, Cast, scopedStat, tagBand, TYPE2_BITS } from "./stats.js";
+import type { Tag } from "./stats.js";
+import type { Action } from "./rotation.js";
+import { ctx, noteMutation, recordConsumed, pendingQueue, tagWord, recordWrite, recordRead, applied as appliedRecord, consumed as consumedRecord } from "./runtime.js";
+import { Gear, Buff, Debuff, Resonator, Mainslot } from "./gear.js";
 import type { Trigger } from "./gear.js";
-import { State, TeamMember, StatEntry, HeldBuff, ZERO_STATS, TYPE2_AMP_INDEX, TYPE2_CRIT_RATE_INDEX, TYPE2_CRIT_DMG_INDEX, BASIC_DMG_BONUS_INDEX } from "./state.js";
+import { State, TeamMember, StatEntry, HeldBuff, TYPE2_AMP_INDEX, TYPE2_CRIT_RATE_INDEX, TYPE2_CRIT_DMG_INDEX, BASIC_DMG_BONUS_INDEX } from "./state.js";
 
 /** The three pools a phase reads — the acting slot's own, then team-wide, then enemy — as the
  *  arrays they held when `capture()` last ran. Three references apiece, nothing copied: a Pool's
@@ -99,8 +99,10 @@ export function typeOverride(type: Type1 | Type2): void {
 
 /** The conditions a `Grant` fires on (gear.ts's `Trigger`) — the same questions the closures ask,
  *  as values a def can hold. `onInflict` is "when *you* inflict" (`appliedByMe`), `onApplied` any
- *  application this action; `either` ORs any of them. */
+ *  application this action; `either` ORs any of them. `onAction` names the presses themselves,
+ *  which is what a resonator's own kit reaches for where a weapon only knows the cast. */
 export const onCast = (...casts: Cast[]): Trigger => () => casts.some((c) => casting(c));
+export const onAction = (...actions: Action[]): Trigger => () => actions.some((a) => runningAction(a));
 export const onType = (...types: (Type1 | Type2)[]): Trigger => () => types.some((t) => isType(t));
 export const onInflict = (...gears: Gear[]): Trigger => () => gears.some((g) => appliedByMe(g) > 0);
 export const onApplied = (...gears: Gear[]): Trigger => () => gears.some((g) => applied(g) > 0);
@@ -274,6 +276,7 @@ function pushStat(stat: Stat | EnemyStat, tag: Tag | undefined, value: number): 
     stat: key, value,
     source: ctx.buff?.toString() ?? "",
     owner: (ctx.buff && ctx.state!.sourceOf.get(ctx.buff)) ?? slot.name ?? null,
+    gear: ctx.buff ?? null,
   });
   slot.totals.set(key, (slot.totals.get(key) ?? 0) + value);
 }
@@ -428,6 +431,22 @@ export function setConcerto(value: number): number {
 function attribute(gear: Gear): void {
   const inherited = ctx.buff ? ctx.state!.sourceOf.get(ctx.buff) : undefined;
   ctx.state!.sourceOf.set(gear, inherited ?? ctx.slot!.name);
+  inheritPiece(gear);
+}
+
+/** Which equipped piece this Gear came off, inherited from whatever is running right now — the
+ *  `grantedBy` half of `attribute()` above, split out for the paths that must *not* touch
+ *  `sourceOf`: a queued action is not granted, and its source is the slot that pressed it.
+ *  Trace-only, like `slot.entries` — only the detail page's loadout hovers read the map. */
+function inheritPiece(gear: Gear): void {
+  if (!ctx.tracing || !ctx.buff) return;
+  // First put-up wins. A buff is re-granted all through its life — a stack on top, a handoff
+  // window stepping its own count on (shared/helpers.ts) — and whoever does that later is not who
+  // it came from: Impermanence Heron's handoff is re-applied on the *receiver's* Outro, which
+  // would credit the echo's payout to whoever it was handed to.
+  const state = ctx.state!;
+  if (!state.grantedOn.has(gear)) state.grantedOn.set(gear, ctx.slot!.name);
+  if (!state.grantedBy.has(gear)) state.grantedBy.set(gear, state.grantedBy.get(ctx.buff) ?? ctx.buff);
 }
 
 export function applyCurrent(buff: Buff, n = 1): number {
@@ -444,7 +463,12 @@ export function equip(gear: Gear, n = 1): number {
   attribute(gear);
   const result = ctx.slot!.addStack(gear, n);
   ctx.slot!.equipped.add(gear);
-  if (gear instanceof Mainslot) ctx.slot!.mainslot = gear;
+  if (gear instanceof Mainslot) {
+    ctx.slot!.mainslot = gear;
+    // the echo's own casts are the echo's: what one of them grants (Voidwing Moth's outro handoff)
+    // came off the piece equipped here, not off a source of its own (see `State.grantedBy`)
+    if (ctx.tracing) for (const a of [gear.action, gear.onfield, gear.outro, gear.cancel]) ctx.state!.grantedBy.set(a, gear);
+  }
   // as `ctx.buff` for the call, same as every other hook: what combatStart() grants inherits
   // this gear's own source, and maxStackIncrease() can name it
   const prevBuff = ctx.buff;
@@ -602,6 +626,7 @@ const queuedBy = (): HeldBuff | null => {
   return { name: gear.name, source: ctx.state!.sourceOf.get(gear) ?? ctx.slot!.name };
 };
 export function queue(action: Action): void {
+  inheritPiece(action);
   noteMutation(action.id, 4e6);
   if (ctx.dryRun) return;
   pendingQueue.push({ action, slot: ctx.state!.slots.indexOf(ctx.slot!), by: queuedBy(), event: false });
@@ -612,6 +637,7 @@ export function queue(action: Action): void {
  *  finishes on the incoming resonator's time). Pinned to the queuing slot the same way `queue()`
  *  is, so it lands on its own owner however far the field has moved on by then. */
 export function queueOnIntro(action: Action): void {
+  inheritPiece(action);
   noteMutation(action.id, 7e6);
   if (ctx.dryRun) return;
   ctx.state!.introQueue.push({ action, slot: ctx.state!.slots.indexOf(ctx.slot!), by: queuedBy(), event: false });
@@ -627,6 +653,7 @@ export function queueOnIntro(action: Action): void {
  *    resolves rather than on whoever queued it. That's the difference on a break that goes off on
  *    an Outro: the handoff has landed by then, and the break is the incoming resonator's to eat. */
 export function queueEvent(action: Action): void {
+  inheritPiece(action);
   noteMutation(action.id, 5e6);
   if (ctx.dryRun) return;
   pendingQueue.push({ action, slot: -1, by: queuedBy(), event: true });
@@ -638,6 +665,7 @@ export function queueEvent(action: Action): void {
  *  whoever it's actually for. Resolved via `State.memberOf()`, same "throws rather than silently
  *  no-opping" contract as `addBuff()`. */
 export function queueOn(resonator: Resonator, action: Action): void {
+  inheritPiece(action);
   noteMutation(action.id, 6e6);
   if (ctx.dryRun) return;
   pendingQueue.push({ action, slot: ctx.state!.slots.indexOf(ctx.state!.memberOf(resonator)), by: queuedBy(), event: false });

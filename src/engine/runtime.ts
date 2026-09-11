@@ -3,7 +3,7 @@
  * scratch maps, the dry-run journal and the pending-cast queue. The leaf of the engine: it holds
  * what `context.ts` and `evaluate.ts` both write, and imports nothing from either.
  */
-import { Stat, Attribute, Type1, Type2, tagBand, TYPE2_BITS } from "./stats.js";
+import { Stat, Attribute, Type1, Type2 } from "./stats.js";
 import type { Action } from "./rotation.js";
 import type { Gear } from "./gear.js";
 import type { State, TeamMember, HeldBuff } from "./state.js";

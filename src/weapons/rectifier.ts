@@ -5,8 +5,23 @@
 import { WeaponType, Stat, Attribute, Type1, Type2, Cast, LifeTime, BuffTarget } from "../engine/stats.js";
 import { Buff, Weapon, refinements } from "../engine/gear.js";
 import {
-  addStat, frozenStacks, stacksOf, isHeld, applyCurrent, applyTeam, revokeCurrent, removeStack, casting,
-  currentAction, isActive, applied, onCast, onType, onInflict, onApplied, either, both,
+  addStat,
+  frozenStacks,
+  stacksOf,
+  isHeld,
+  applyCurrent,
+  applyTeam,
+  revokeCurrent,
+  casting,
+  currentAction,
+  isActive,
+  applied,
+  onCast,
+  onType,
+  onInflict,
+  onApplied,
+  either,
+  both,
 } from "../engine/context.js";
 import { GLACIO_CHAFE, FUSION_BURST, HEALS, ELECTRO_FLARE } from "../shared/status.js";
 import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
@@ -17,11 +32,11 @@ import { unisonResponse } from "../shared/unison.js";
  *  +52% Basic Attack DMG Bonus, 27s, permanent uptime. */
 export const RIME_DRAPED_SPROUTS = refinements((r, rank) => {
   const PANORAMA_OFFIELD = new Buff({
-    name: `Rime-Draped Sprouts: Panorama (off field)${rank}`,
+    name: `Rime-Draped Sprouts: Panorama${rank} (outro)`,
     stats: [[Stat.DmgBonus, [52, 65, 78, 91, 104][r]!, Type1.Basic]], when: () => !isActive(),
   });
   const PANORAMA_STACKS: Buff = new Buff({
-    name: `Rime-Draped Sprouts: Panorama${rank}`, maxStacks: 3,
+    name: `Rime-Draped Sprouts: Panorama${rank} (skill)`, maxStacks: 3,
     stats: [[Stat.DmgBonus, [12, 15, 18, 21, 24][r]!, Type1.Basic]], perStack: true,
     // on outro: 3+ stacks convert into the permanent off-field version, short of 3 they're just lost
     updateBuffs: () => {
@@ -104,7 +119,7 @@ export const FREEZE_FRAME = refinements((r, rank) => {
     stats: [[Stat.DmgBonus, [30, 37.5, 45, 52.5, 60][r]!, Attribute.Glacio]], until: LifeTime.Outro,
   });
   const FREEZE_FRAME_TEAM = new Buff({
-    name: `Freeze Frame: Light's Offering${rank}`,
+    name: `Freeze Frame: Light's Offering${rank} (team)`,
     stats: [[Stat.BonusAtk, [24, 30, 36, 42, 48][r]!]],
   });
   return new Weapon({
@@ -118,28 +133,30 @@ export const FREEZE_FRAME = refinements((r, rank) => {
 });
 
 /** Stellar Symphony, Shorekeeper's sig: 12% HP to herself, 14% attack to the team, and 8
- *  Concerto on a Liberation cast, once every 20s — the cooldown works like Variation's
- *  Ceaseless Aria: first cast grants it and goes on cooldown, reset by the wielder's Outro. */
+ *  Concerto on a Liberation cast, once every 20s — the charge works like Variation's Ceaseless
+ *  Aria: held from the start of the fight, spent by the cast, handed back by the wielder's Outro. */
 export const SK_SIG = refinements((r, rank) => {
   const SK_SIG_TEAM = new Buff({
-    name: `Stellar Symphony: Astral Evolvement${rank}`,
+    name: `Stellar Symphony: Astral Evolvement${rank} (team)`,
     stats: [[Stat.BonusAtk, [14, 17.5, 21, 24.5, 28][r]!]],
   });
-  const SK_SIG_CONCERTO: Buff = new Buff({
-    name: `Stellar Symphony: Astral Evolvement${rank}`, maxStacks: 2,
+  /** The charge the Liberation spends — the same shape as Ceaseless Aria's: held from the moment
+   *  the weapon is equipped, gone the cast it pays for, back on the wielder's own Outro. */
+  const SK_SIG_CHARGE: Buff = new Buff({
+    name: `Stellar Symphony: Astral Evolvement${rank}`,
     applyStats: () => {
-      if (frozenStacks() === 1 && (casting(Cast.Liberation))) {
-        applyCurrent(SK_SIG_CONCERTO, 1); addStat(Stat.AddConcerto, [8, 10, 12, 14, 16][r]!);
-      } else if (frozenStacks() === 2 && casting(Cast.Outro)) removeStack(SK_SIG_CONCERTO, 2);
+      if (!casting(Cast.Liberation)) return;
+      addStat(Stat.AddConcerto, [8, 10, 12, 14, 16][r]!);
+      revokeCurrent(SK_SIG_CHARGE);
     },
-    display: () => `Stellar Symphony: Astral Evolvement${rank}${frozenStacks() === 1 ? "" : " (cooldown)"}`,
   });
   return new Weapon({
     weaponType: WeaponType.Rectifier, name: `Stellar Symphony${rank}`,
     stats: [[Stat.BaseAtk, 412.5], [Stat.Er, 77.04], [Stat.BonusHp, [12, 15, 18, 21, 24][r]!]],
+    combatStart: () => applyCurrent(SK_SIG_CHARGE, 1),
     grants: [
-      { on: onCast(Cast.Liberation), buff: SK_SIG_CONCERTO },
       { on: both(onCast(Cast.Skill), onApplied(HEALS)), buff: SK_SIG_TEAM, to: BuffTarget.Team },
+      { on: onCast(Cast.Outro), buff: SK_SIG_CHARGE },
     ],
   });
 });
@@ -151,7 +168,7 @@ export const SK_SIG = refinements((r, rank) => {
  *  lost on the wielder's next intro. Same name doesn't stack. */
 export const FORGED_DWARF_STAR = refinements((r, rank) => {
   const DISSOLUTION_TEAM = new Buff({
-    name: `Forged Dwarf Star: Dissolution${rank}`,
+    name: `Forged Dwarf Star: Dissolution${rank} (team)`,
     stats: [[Stat.BonusAtk, [24, 30, 36, 42, 48][r]!]],
   });
   const DISSOLUTION_LIB = new Buff({
@@ -169,36 +186,38 @@ export const FORGED_DWARF_STAR = refinements((r, rank) => {
 });
 
 /** Firstlight's Herald, Suisui's sig: Spring Wreath. +12% Max HP flat, and 8 Concerto on a
- *  Resonance Liberation once every 20s — the cooldown works like Stellar Symphony's above: the
- *  cast arms it and pays, the charge parks on cooldown, and the wielder's own Outro resets it. The
+ *  Resonance Liberation once every 20s — the charge works like Stellar Symphony's above: held from
+ *  the start of the fight, spent by the cast, handed back by the wielder's own Outro. The
  *  rest is two 6s marks: inflicting Glacio Chafe leaves Snow Taint, healing leaves Ripples, and
  *  holding both is +20% ATK for the whole team. Neither mark is revoked here — the wielder's own
  *  Outro renews both for another 6s, which is what keeps the team's ATK standing across the
  *  handoff. */
 export const FIRSTLIGHTS_HERALD = refinements((r, rank) => {
-  const SPRING_WREATH_CONCERTO: Buff = new Buff({
-    name: `Firstlight's Herald: Spring Wreath${rank}`, maxStacks: 2,
+  /** The charge the Liberation spends — the same shape as Ceaseless Aria's: held from the moment
+   *  the weapon is equipped, gone the cast it pays for, back on the wielder's own Outro. */
+  const SPRING_WREATH: Buff = new Buff({
+    name: `Firstlight's Herald: Spring Wreath${rank}`,
     applyStats: () => {
-      if (frozenStacks() === 1 && casting(Cast.Liberation)) {
-        applyCurrent(SPRING_WREATH_CONCERTO, 1); addStat(Stat.AddConcerto, [8, 10, 12, 14, 16][r]!);
-      } else if (frozenStacks() === 2 && casting(Cast.Outro)) removeStack(SPRING_WREATH_CONCERTO, 2);
+      if (!casting(Cast.Liberation)) return;
+      addStat(Stat.AddConcerto, [8, 10, 12, 14, 16][r]!);
+      revokeCurrent(SPRING_WREATH);
     },
-    display: () => `Firstlight's Herald: Spring Wreath${rank}${frozenStacks() === 1 ? "" : " (cooldown)"}`,
   });
   const SNOW_TAINT = new Buff({ name: `Firstlight's Herald: Snow Taint${rank}` });
   const RIPPLES = new Buff({ name: `Firstlight's Herald: Ripples${rank}` });
   const SPRING_WREATH_TEAM = new Buff({
-    name: `Firstlight's Herald: Spring Wreath${rank}`,
+    name: `Firstlight's Herald: Spring Wreath${rank} (team)`,
     stats: [[Stat.BonusAtk, [20, 25, 30, 35, 40][r]!]],
   });
   return new Weapon({
     weaponType: WeaponType.Rectifier, name: `Firstlight's Herald${rank}`,
     stats: [[Stat.BaseAtk, 412.5], [Stat.Er, 77.04], [Stat.BonusHp, [12, 15, 18, 21, 24][r]!]],
+    combatStart: () => applyCurrent(SPRING_WREATH, 1),
     grants: [
-      { on: onCast(Cast.Liberation), buff: SPRING_WREATH_CONCERTO },
       { on: onInflict(GLACIO_CHAFE), buff: SNOW_TAINT },
       { on: onApplied(HEALS), buff: RIPPLES },
       { on: () => isHeld(SNOW_TAINT) && isHeld(RIPPLES), buff: SPRING_WREATH_TEAM, to: BuffTarget.Team },
+      { on: onCast(Cast.Outro), buff: SPRING_WREATH },
     ],
   });
 });

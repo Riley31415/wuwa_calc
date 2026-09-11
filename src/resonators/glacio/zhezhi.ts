@@ -19,23 +19,23 @@
  * Numbers from nanoka.cc (character 1105) — base stats confirmed there directly; every action's
  * own MV/energy/concerto/offtune/forte1 delta ported from the migrated (old-engine) sheet.
  */
-import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, LifeTime, BuffTarget } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   applyCurrent,
+  onAction,
   runningAction,
   casting,
   revokeCurrent,
   addStat,
-  frozenStacks,
   queueOutro,
   applyTeam,
   isHeld,
   queue,
   stacksOfTeam,
 } from "../../engine/context.js";
-import { coordinatedBuff, lostOnSwap, matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_2, SWAP, ActionField, NOINTRO, ECHO_SWAP, START_3 } from "../../engine/rotation.js";
+import { coordinatedBuff, matrix } from "../../shared/helpers.js";
+import { ActionGroup, Action, Rotation, INTRO, OUTRO, SWAP, ActionField, NOINTRO, ECHO_SWAP, START_3 } from "../../engine/rotation.js";
 import { RIME_DRAPED_SPROUTS, STRINGMASTER, LETHEAN_ELEGY, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { EMPYREAN_ANTHEM_5PC, NM_LAMPY } from "../../echoes/rinascita.js";
@@ -135,19 +135,16 @@ const IVORY_HERALD = new Buff({
 /** The window her outro hands the incoming resonator. */
 const ZHEZHI_OUTRO = new Buff({
   name: "Zhezhi: Outro",
-  applyStats: () => {
-    addStat(Stat.Amp, 20, Attribute.Glacio);
-    addStat(Stat.Amp, 25, Type1.Skill);
-  },
-  updateBuffs: () => { lostOnSwap(); },
+  stats: [[Stat.Amp, 20, Attribute.Glacio], [Stat.Amp, 25, Type1.Skill]],
+  until: LifeTime.Swap,
 });
 
 /** Flourish (Inherent Skill): restores 15 Energy to whoever adopts Carve and Draw, paid on their
  *  own Intro. Its own Buff, queued alongside ZHEZHI_OUTRO, so it traces to its own source name. */
 const ZZ_FLOURISH = new Buff({
   name: "Inherent: Flourish",
+  stats: [[Stat.AddEnergy, 15]],
   applyStats: () => {
-    addStat(Stat.AddEnergy, 15);
     revokeCurrent(ZZ_FLOURISH);
   },
 });
@@ -186,9 +183,7 @@ const ZHEZHI_RESONATOR = new Resonator({
   maxForte1: 90,
   maxForte2: 2,
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 12250); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1198);
-  },
+  stats: [[Stat.BaseHp, 12250], [Stat.BaseAtk, 375], [Stat.BaseDef, 1198]],
 });
 
 // the kit-valid line reconstructed from the old sheet: Intro banks Afflatus, three basics push
@@ -220,7 +215,7 @@ const BRUSHWORKS_FINISH = new Buff({
 const ZZ_S1 = new Sequence({
   name: "Zhezhi S1: Brushwork's Finish",
   applyStats: () => { if (runningAction(FSkill3)) addStat(Stat.AddEnergy, 15); },
-  updateBuffs: () => { if (runningAction(FSkill3)) applyCurrent(BRUSHWORKS_FINISH, 1); },
+  grants: [{ on: onAction(FSkill3), buff: BRUSHWORKS_FINISH }],
 });
 
 /** S2: six more Inklit Spirits off Living Canvas — read off this node by the Liberation itself,
@@ -247,7 +242,7 @@ const HUES_SPECTRUM = new Buff({
 });
 const ZZ_S4 = new Sequence({
   name: "Zhezhi S4: Hue's Spectrum",
-  updateBuffs: () => { if (runningAction(Liberation)) applyTeam(HUES_SPECTRUM, 1); },
+  grants: [{ on: onAction(Liberation), buff: HUES_SPECTRUM, to: BuffTarget.Team }],
 });
 
 /** S5: one extra spirit every third one summoned. The window's stacks are that count — it runs

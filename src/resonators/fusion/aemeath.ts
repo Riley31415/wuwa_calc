@@ -60,15 +60,13 @@ import {
   stacksOfEnemy,
   forte1,
   forte2,
-  setForte1,
-  setForte2,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, SWAP, START_3, START_2, START_1 } from "../../engine/rotation.js";
 import { TUNE_RUPTURE_SHIFTING, applyRupture, tuneRuptureResponse } from "../../shared/tunebreak.js";
 import { FUSION_BURST, FUSION_BURST_ACTIONS } from "../../shared/status.js";
 import { EVERBRIGHT_POLESTAR } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
-import { SIGILLUM, TRAILBLAZING_STAR_5PC, CHROMATIC_FOAM_5PC } from "../../echoes/lahairoi.js";
+import { SIGILLUM, TRAILBLAZING_STAR_5PC } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
@@ -255,11 +253,11 @@ export const AEMEATH_RESONATOR = new Resonator({
   maxForte1: 200,
   maxForte2: 4,
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 11025); addStat(Stat.BaseAtk, 425); addStat(Stat.BaseDef, 1148.88);
+  stats: [
+    [Stat.BaseHp, 11025], [Stat.BaseAtk, 425], [Stat.BaseDef, 1148.88],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
-    addStat(Stat.Tbb, 10);
-  },
+    [Stat.Tbb, 10],
+  ],
 });
 
 /* --------------------------------------------------------------------------------- sequences */
@@ -411,9 +409,8 @@ const BETWEEN_THE_STARS_RUPTURE = new Buff({
  *  20s, 20% once they lay a Tune Rupture - Shifting of their own — stack 2 is that upgraded state.
  *  A 20s team buff, so lost on her next Intro. */
 const SILENT_PROTECTION_RUPTURE = new Buff({
-  name: "Aemeath: Outro", maxStacks: 2,
-  display: () => (frozenStacks() === 2 ? "Aemeath: Outro (rupture)" : "Aemeath: Outro"),
-  updateBuffs: () => { if (appliedByMember(TUNE_RUPTURE_SHIFTING, currentMember())) applyCurrent(SILENT_PROTECTION_RUPTURE, 1); },
+  name: "Aemeath: Outro (rupture)", maxStacks: 2,
+  grants: [{ on: () => appliedByMember(TUNE_RUPTURE_SHIFTING, currentMember()) > 0 }],
   applyStats: () => addStat(Stat.Amp, frozenStacks() === 2 ? 20 : 10),
 });
 
@@ -523,9 +520,8 @@ const BETWEEN_THE_STARS_BURST = new Buff({
 /** Silent Protection (Outro), Fusion Burst: everyone but her gets +10% All DMG Amplification for
  *  20s, 20% once they lay Fusion Burst of their own — stack 2 is that upgraded state. */
 const SILENT_PROTECTION_BURST = new Buff({
-  name: "Aemeath: Outro", maxStacks: 2,
-  display: () => (frozenStacks() === 2 ? "Aemeath: Outro (burst)" : "Aemeath: Outro"),
-  updateBuffs: () => { if (appliedByMember(FUSION_BURST, currentMember())) applyCurrent(SILENT_PROTECTION_BURST, 1); },
+  name: "Aemeath: Outro (burst)", maxStacks: 2,
+  grants: [{ on: () => appliedByMember(FUSION_BURST, currentMember()) > 0 }],
   applyStats: () => addStat(Stat.Amp, frozenStacks() === 2 ? 20 : 10),
 });
 

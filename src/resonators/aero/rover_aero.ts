@@ -11,7 +11,7 @@
  * Cloudburst Dance/Omega Storm heals, Boundless Winds, S2 — only ever shows up as the HEALS
  * marker those casts put up (statuses.ts).
  */
-import { Tier, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Tier, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   applyCurrent,
@@ -21,18 +21,16 @@ import {
   stacksOfEnemy,
   maxStackIncrease,
   isHeld,
-  revokeCurrent,
-  casting,
   currentAction,
+  onAction,
   runningAction,
   addStat,
-  setForte1,
   forte1,
 } from "../../engine/context.js";
 import { Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { AERO_EROSION, SPECTRO_FRAZZLE, HAVOC_BANE, FUSION_BURST, GLACIO_CHAFE, ELECTRO_FLARE, HEALS } from "../../shared/status.js";
 import { BLOODPACTS_PLEDGE, BLOODPACT_AERO_AMP } from "../../weapons/standard.js";
-import { REJUV_5PC, HERON, MOONLIT_CLOUDS_5PC, BELL_BORNE_SHIELD, BELL_BORNE_GEOCHELONE } from "../../echoes/jinzhou.js";
+import { REJUV_5PC, HERON, MOONLIT_CLOUDS_5PC, BELL_BORNE_GEOCHELONE } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -96,11 +94,11 @@ const Outro = roverAction("Outro - Storm's Echo", {
 const SAND_IN_THE_STORM = new Buff({
   name: "Inherent: Sand in the Storm",
   stats: [[Stat.BonusAtk, 20]],
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(SAND_IN_THE_STORM); },
+  until: LifeTime.Outro,
 });
 const AR_INHERENT_1 = new Inherent({
   name: "Inherent: Sand in the Storm",
-  updateBuffs: () => { if (runningAction(Intro)) applyCurrent(SAND_IN_THE_STORM, 1); },
+  grants: [{ on: onAction(Intro), buff: SAND_IN_THE_STORM }],
 });
 /** Boundless Winds (Inherent Skill): +20% healing off Omega Storm — healing is out of scope, so
  *  this piece is held for the name. */
@@ -122,7 +120,7 @@ const AEOLIAN_REALM = new Buff({
 const S4_SKILL_BONUS = new Buff({
   name: "Aero Rover S4: Boundaries Shatter in an Instant",
   stats: [[Stat.DmgBonus, 15, Type1.Skill]],
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(S4_SKILL_BONUS); },
+  until: LifeTime.Outro,
 });
 
 /* -------------------------------------------------------------------------------- sequences */
@@ -169,6 +167,7 @@ const ROVER_AERO_TALENTS = new Talent({
  *  own base stat line. `Tier.Free` — see the file header. */
 export const ROVER_AERO_RESONATOR = new Resonator({
   name: "Aero Rover",
+  stats: [[Stat.BaseHp, 10775], [Stat.BaseAtk, 438], [Stat.BaseDef, 1137]],
   talent: ROVER_AERO_TALENTS,
   inherent1: AR_INHERENT_1,
   inherent2: AR_INHERENT_2,
@@ -195,9 +194,6 @@ export const ROVER_AERO_RESONATOR = new Resonator({
     if ((runningAction(UnboundFlow1) || runningAction(UnboundFlow2)) && rank >= 0) applyTeam(BLOODPACT_AERO_AMP[rank]!, 1);
   },
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 10775); addStat(Stat.BaseAtk, 438); addStat(Stat.BaseDef, 1137);
-  },
 });
 
 // the migrated sheet's own "arover 123": two Awakening Gale into Cloudburst Dance cycles bank the

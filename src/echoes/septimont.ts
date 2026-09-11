@@ -82,7 +82,7 @@ export const LIONESS_OF_GLORY = new Mainslot({
  *  grants the team +15% Fusion DMG Bonus and the caster +20% Liberation DMG Bonus, both 35s —
  *  permanent uptime once granted (≥21s), so a one-time grant on the first cast, never revoked.
  *  2pc: +10% Fusion DMG Bonus flat. */
-export const CLAWPRINT_TEAM = new Buff({ name: "Flaming Clawprint 5pc", stats: [[Stat.DmgBonus, 15, Attribute.Fusion]] });
+export const CLAWPRINT_TEAM = new Buff({ name: "Flaming Clawprint 5pc (team)", stats: [[Stat.DmgBonus, 15, Attribute.Fusion]] });
 export const CLAWPRINT_LIBERATION = new Buff({ name: "Flaming Clawprint 5pc", stats: [[Stat.DmgBonus, 20, Type1.Liberation]] });
 export const CLAWPRINT_2PC = new Sonata2pc({ name: "Flaming Clawprint 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Fusion]] });
 export const CLAWPRINT_5PC = new Sonata({
@@ -110,22 +110,22 @@ export const CORROSAURUS = new Mainslot({
 /** Flamewing's Shadow 3pc, Galbrena's own sonata: Echo Skill DMG grants +20% Heavy Attack Crit
  *  Rate for 6s; Heavy Attack DMG grants +20% Echo Skill Crit Rate for 6s; while both up, +16%
  *  Fusion DMG Bonus. */
-export const FLAMEWING_SHADOW_HEAVY = new Buff({
-  name: "Flamewing's Shadow 3pc (heavy)",
-  stats: [[Stat.CritRate, 20, Type1.Heavy]], until: LifeTime.Outro,
-});
 export const FLAMEWING_SHADOW_ECHO = new Buff({
   name: "Flamewing's Shadow 3pc (echo)",
+  stats: [[Stat.CritRate, 20, Type1.Heavy]], until: LifeTime.Outro,
+});
+export const FLAMEWING_SHADOW_HEAVY = new Buff({
+  name: "Flamewing's Shadow 3pc (heavy)",
   stats: [[Stat.CritRate, 20, Type1.Echo]], until: LifeTime.Outro,
 });
 export const FLAMEWING_SHADOW_3PC = new Sonata3pc({
   name: "Flamewing's Shadow 3pc",
   grants: [
-    { on: onType(Type1.Echo), buff: FLAMEWING_SHADOW_HEAVY },
-    { on: onType(Type1.Heavy), buff: FLAMEWING_SHADOW_ECHO },
+    { on: onType(Type1.Echo), buff: FLAMEWING_SHADOW_ECHO },
+    { on: onType(Type1.Heavy), buff: FLAMEWING_SHADOW_HEAVY },
   ],
   applyStats: () => {
-    if (stacksOf(FLAMEWING_SHADOW_HEAVY) && stacksOf(FLAMEWING_SHADOW_ECHO)) addStat(Stat.DmgBonus, 16, Attribute.Fusion);
+    if (stacksOf(FLAMEWING_SHADOW_ECHO) && stacksOf(FLAMEWING_SHADOW_HEAVY)) addStat(Stat.DmgBonus, 16, Attribute.Fusion);
   },
 });
 
@@ -150,7 +150,7 @@ export const LAW_OF_HARMONY_SELF = new Buff({
   stats: [[Stat.DmgBonus, 30, Type1.Heavy]], until: LifeTime.Outro,
 });
 export const LAW_OF_HARMONY_TEAM = new Buff({
-  name: "Law of Harmony", maxStacks: 4,
+  name: "Law of Harmony (team)", maxStacks: 4,
   applyStats: () => { addStat(Stat.DmgBonus, 4 * stacksOfTeam(LAW_OF_HARMONY_TEAM), Type1.Echo); },
 });
 export const LAW_OF_HARMONY_3PC = new Sonata3pc({

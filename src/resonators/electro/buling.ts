@@ -55,7 +55,7 @@ import {
 import { Action, ActionField, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO, JUMP } from "../../engine/rotation.js";
 import { HEALS, inflictElectroFlare } from "../../shared/status.js";
 import { coordinatedBuff } from "../../shared/helpers.js";
-import { COSMIC_RIPPLES, NEW_STD_RECTIFIER, VARIATION } from "../../weapons/standard.js";
+import { VARIATION } from "../../weapons/standard.js";
 import { REJUV_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
@@ -291,9 +291,7 @@ const BULING_RESONATOR = new Resonator({
   // the Trigram store, empty (its always-set bit alone; see TRIGRAMS)
   combatStart: () => applyCurrent(TRIGRAMS, 1 << 8),
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 10625); addStat(Stat.BaseAtk, 225); addStat(Stat.BaseDef, 1259);
-  },
+  stats: [[Stat.BaseHp, 10625], [Stat.BaseAtk, 225], [Stat.BaseDef, 1259]],
 });
 
 // the kit-valid line: Mid-air banks Thunder, Basic 2 Mountain, and the Heavy reads [T, M] as

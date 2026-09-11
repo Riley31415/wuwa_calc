@@ -3,16 +3,18 @@
  * them, and the `State` that owns the team. Everything here is data plus the stack arithmetic
  * over it — no phase running, no ambient pointers of its own.
  */
-import { Stat, EnemyStat, Attribute, WeaponType, Tier, Type1, Type2, Cast, Node, Scaling, scopedStat, tagBand, STAT_COUNT, TYPE2_BITS } from "./stats.js";
-import type { Tag, StatKey } from "./stats.js";
-import type { Rotation, Action, ActionGroup, ActionDef, ActionField } from "./rotation.js";
-import { ctx, dryLog, undoDry, noteMutation, recordApplied, recordConsumed, MEMBERS } from "./runtime.js";
-import { Gear, Buff, Debuff, Resonator, Loadout, Matrix, Mainslot, Weapon, PHASE_COUNT } from "./gear.js";
+import { STAT_COUNT } from "./stats.js";
+import type { StatKey } from "./stats.js";
+import type { Action, ActionField } from "./rotation.js";
+import { ctx, dryLog, undoDry, noteMutation, recordApplied, MEMBERS } from "./runtime.js";
+import { Gear, Buff, Resonator, Mainslot, PHASE_COUNT } from "./gear.js";
 
 /** One stat contribution, tagged with what granted it and who was acting — `addStat()` fills
  *  `source`/`owner` in automatically from the "current" pointers, so no call site anywhere has
  *  to pass them. Feeds the report's own hover-trace panels (display.ts's `ctx.tracing()`/`explain()`). */
-export interface StatEntry { stat: StatKey; value: number; source: string; owner: string | null; }
+/** `gear` is what contributed the value — the same Gear `source` names, kept as the object so the
+ *  report can ask what granted *it* (`State.grantedBy`). Trace-only, like the entry itself. */
+export interface StatEntry { stat: StatKey; value: number; source: string; owner: string | null; gear: Gear | null; }
 
 /** One buff held on a member, as the report's own resonator popover shows it: its name (with a
  *  stack count where it stacks) and whose kit put it there (see `State.sourceOf`). */
@@ -416,6 +418,22 @@ export class State {
    *  Lives on the State, not the Gear: a Gear is a module-level singleton shared by every team,
    *  so writing to it would leak one team's attribution into another's. */
   sourceOf = new Map<Gear, string>();
+
+  /** Which *equipped piece* each granted buff traces back to — the weapon, echo or sonata whose own
+   *  hook put it up, inherited down a chain of grants the way `sourceOf` inherits its member name.
+   *  A piece equipped at setup has no entry: nothing granted it. Only the loadout hovers read this
+   *  (page/panels.ts), to show what a piece is worth once its buffs are standing.
+   *
+   *  On the State rather than the Gear, for `sourceOf`'s own reason: a Gear is a module-level
+   *  singleton shared by every team. */
+  grantedBy = new Map<Gear, Gear>();
+
+  /** ...and whose turn it was when it landed. A piece is a module-level singleton, so two members
+   *  wearing the same sonata share one `grantedBy` entry for it — but the buffs it puts up are
+   *  each their own Gear, and a set with a branch per wearer (Song of Feathered Trace: Xuanling's
+   *  Feather off Havoc Bane, Chongming's off Glacio Chafe) grants each branch on exactly one
+   *  member's turn. This is what tells those apart. Trace-only, like `grantedBy` above. */
+  grantedOn = new Map<Gear, string>();
 
   /** The three fight snapshots `evaluate()` takes around a varied action — before the stat phases,
    *  after them, and after banking — made once, the first time this team needs them. */

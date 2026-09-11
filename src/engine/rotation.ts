@@ -154,6 +154,12 @@ export class Action extends Gear {
    *  kit named would miss it — context.ts's own `runningAction()` is what reads this. Engine-owned:
    *  set by `cancelled()` below, never by a kit. */
   cancelOf: Action | null = null;
+  /** The cast this is a *renamed* form of — a swap-out (`swap()`), a Unison outro. To anything
+   *  that ranks casts the two are one press, told apart only by how it ended; `cancelOf` above is
+   *  the same link for a cancel. A form that keeps its cast's own name (`paired()`, a kit's
+   *  same-named `variant()`) needs none, being already indistinguishable by name. Engine-owned:
+   *  never set by a kit. */
+  formOf: Action | null = null;
   /** Lazily-filled cache for runtime.ts's `tagWordOf()` — this action's own element/type/type2, as the
    *  one word every scoped stat contribution tests against. Engine-owned; never set by a kit. */
   _tagWord?: number;
@@ -233,7 +239,9 @@ export class Action extends Gear {
   /** The same cast made on the way out, named "… (Swap)" — identical in every field, but
    *  a swap-out (its owner is leaving the field as it lands) and reported as triggered. */
   swap(): Action {
-    return this.variant(`${this.name} (Swap)`, { triggered: true, swapOut: true });
+    const out = this.variant(`${this.name} (Swap)`, { triggered: true, swapOut: true });
+    out.formOf = this;
+    return out;
   }
 }
 

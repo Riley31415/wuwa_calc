@@ -7,7 +7,7 @@
  * `forte2: -3` (maxForte2 below) is the whole cost: the engine clamps an overrun back to that cap
  * before the spend lands, same as Electro Rover's own Overshock.
  */
-import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, LifeTime, BuffTarget } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   asSource,
@@ -19,6 +19,7 @@ import {
   applyCurrent,
   applyTeam,
   currentAction,
+  onAction,
   runningAction,
   casting,
   queue,
@@ -32,16 +33,17 @@ import {
   currentMember,
   concerto,
   setConcerto,
+  onCast,
 } from "../../engine/context.js";
-import { coordinatedBuff, lostOnSwap, matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ActionField, ECHO_SWAP, ECHO_ONFIELD } from "../../engine/rotation.js";
+import { coordinatedBuff, matrix } from "../../shared/helpers.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ActionField, ECHO_ONFIELD } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { HECATE_ACTIONS } from "./phrolova.js";
 import { LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, STRINGMASTER, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC, REJUV_5PC, NM_CROWNLESS, HAVOC_ECLIPSE_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
-import { MIDNIGHT_VEIL_5PC, NM_HECATE, EMPYREAN_ANTHEM_5PC, NM_HERON, HECATE } from "../../echoes/rinascita.js";
+import { MIDNIGHT_VEIL_5PC, EMPYREAN_ANTHEM_5PC, NM_HERON, HECATE } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
@@ -122,7 +124,7 @@ const DIFFUSION_WINDOW = coordinatedBuff("Cantarella: Diffusion", 26, () => CANT
 const POISON = new Buff({
   name: "Inherent: Poison", maxStacks: 2,
   stats: [[Stat.DmgBonus, 6, Attribute.Havoc]], perStack: true,
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(POISON); },
+  until: LifeTime.Outro,
 });
 
 /** Abyssal Rebirth: her Intro opens a window in which *any* team member's own Echo Skill cast
@@ -172,18 +174,18 @@ const HAZY_DREAM = new Debuff({
 const CANTARELLA_OUTRO = new Buff({
   name: "Cantarella: Outro",
   stats: [[Stat.Amp, 20, Attribute.Havoc], [Stat.Amp, 25, Type1.Skill]],
-  updateBuffs: () => { lostOnSwap(); },
+  until: LifeTime.Swap,
 });
 
 // her kit page doesn't name either passive — Poison's own proc (any Echo Skill) and Mirage's own
 // (Delusive Dive) are her two Inherent Skills, each its own trigger piece
 const CA_INHERENT_1 = new Inherent({
   name: "Inherent: \"Cure\"",
-  constantStats: () => { addStat(Stat.HealingBonus, 20) }
+  stats: [[Stat.HealingBonus, 20]],
 });
 const CA_INHERENT_2 = new Inherent({
   name: "Inherent: \"Poison\"",
-  updateBuffs: () => { if (casting(Cast.Echo)) applyCurrent(POISON, 1); },
+  grants: [{ on: onCast(Cast.Echo), buff: POISON }],
 });
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
@@ -194,6 +196,7 @@ const CANTARELLA_TALENTS = new Talent({
 
 const CANTARELLA_RESONATOR = new Resonator({
   name: "Cantarella",
+  stats: [[Stat.BaseHp, 11600], [Stat.BaseAtk, 400], [Stat.BaseDef, 1100]],
   matrix: matrix("Cantarella", 25),
   talent: CANTARELLA_TALENTS,
   inherent1: CA_INHERENT_1,
@@ -204,7 +207,7 @@ const CANTARELLA_RESONATOR = new Resonator({
   outro: () => Outro,
   color: "#896fd6",
   maxEnergy: 125,
-  maxForte1: 15,
+  maxForte1: 5,
   maxForte2: 3,
 
   updateDebuffs: () => {
@@ -213,9 +216,6 @@ const CANTARELLA_RESONATOR = new Resonator({
     if (runningAction(FBA1) || runningAction(FBA2) || runningAction(FBA3) || runningAction(FSkill)) applyCurrent(HEALS, 1);
   },
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 11600); addStat(Stat.BaseAtk, 400); addStat(Stat.BaseDef, 1100);
-  },
 });
 
 /* --------------------------------------------------------------------------------- sequences */
@@ -237,7 +237,7 @@ const CA_S1 = new Sequence({
  *  (row 685.90% against 198.81%, multiplicative). */
 const CA_S2 = new Sequence({
   name: "Cantarella S2: Surrender to the Illusive Reverie",
-  updateBuffs: () => { if (runningAction(Liberation)) applyEnemy(HAZY_DREAM, 1); },
+  grants: [{ on: onAction(Liberation), buff: HAZY_DREAM, to: BuffTarget.Enemy }],
   applyStats: () => { if (runningAction(ESKILL_JOLT)) addStat(Stat.MulMv, 245); },
 });
 
@@ -246,7 +246,7 @@ const CA_S2 = new Sequence({
 const CA_S3 = new Sequence({
   name: "Cantarella S3: Gaze into the Abyss",
   applyStats: () => { if (runningAction(Liberation)) addStat(Stat.MulMv, 370); },
-  updateBuffs: () => { if (runningAction(Liberation)) applyCurrent(MIRAGE, 1); },
+  grants: [{ on: onAction(Liberation), buff: MIRAGE }],
 });
 
 /** S4: +25% Healing Bonus in Mirage — paid by Mirage itself; healing is out of scope here. */
@@ -265,7 +265,7 @@ const FALL_DEEPER = new Buff({
 const CA_S6 = new Sequence({
   name: "Cantarella S6: Fall, Fall... and Fall Deeper into the Dream",
   applyStats: () => { if (runningAction(FBA1) || runningAction(FBA2) || runningAction(FBA3)) addStat(Stat.MulMv, 80); },
-  updateBuffs: () => { if (runningAction(Liberation)) applyCurrent(FALL_DEEPER, 1); },
+  grants: [{ on: onAction(Liberation), buff: FALL_DEEPER }],
 });
 
 const CA_SEQUENCES = [CA_S1, CA_S2, CA_S3, CA_S4, CA_S5, CA_S6];
@@ -285,7 +285,7 @@ const CA_ROTATION = new Rotation([
 const CA_ROTATION_MDPS = new Rotation([
   INTRO, BA3, Skill, ECHO_ONFIELD, Liberation,
   EHA, ESkill, FBA123, FSkill, ECHO_ONFIELD, 
-  FBA123, OUTRO,
+  FBA1, FBA2, OUTRO,
 ]);
 
 

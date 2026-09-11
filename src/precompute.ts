@@ -5,10 +5,8 @@
  * worker_threads over this same file. Only one box is open per state on purpose — rows are the
  * cross of every open axis. Row counts: default 486 | sequences 3.5k | echoes 4.8k | weapons 9.7k.
  *
- * Every key is solved once. `bestKey()`/`picksKey()` fold Matrix Mode away for a team whose members
- * own no Matrix, so each of the three matrix states asks for the very same keys as its non-matrix
- * twin on about two thirds of the roster; those are solved and written by whichever state reaches
- * them first, and `index.json` sends a state to each file its own keys landed in.
+ * Every key is solved once; where two states ask for the same key it is solved and written by
+ * whichever reaches it first, and `index.json` sends a state to each file its own keys landed in.
  *
  *     npm run build && npm run precompute
  */
@@ -18,18 +16,14 @@ import { createHash } from "node:crypto";
 import { cpus } from "node:os";
 import { fileURLToPath } from "node:url";
 import { ALL_TEAMS, teamKey } from "./teams.js";
-import { teamFromKey, solveTeam, defaultFilters, bestKey, picksKey, filterSignature, hasBuild } from "./solver.js";
+import { teamFromKey, solveTeam, defaultFilters, bestKey, picksKey, filterSignature, hasBuild, TEAM_COSTS } from "./solver.js";
 import type { Filters, Pick, Solved } from "./solver.js";
 
-/** The states the site ships; anything else solves in the browser. */
-const STATES: Record<string, Partial<Filters>> = {
-  default: {},
-  "s0r1mdps": { cost: "s0r1mdps" },
-  "s0r0": { cost: "s0r0" },
-  matrix: { matrix: true },
-  "s0r1mdps+matrix": { cost: "s0r1mdps", matrix: true },
-  "s0r0+matrix": { cost: "s0r0", matrix: true },
-};
+/** The states the site ships: every Team Cost, and nothing else. Anything a filter opens — a
+ *  compare axis, a resonator's Matrix — solves in the browser. Built off `TEAM_COSTS` rather than
+ *  written out, so a cost mode added to the type ships without anyone remembering this list. */
+const STATES: Record<string, Partial<Filters>> = Object.fromEntries(TEAM_COSTS.map((cost) =>
+  [cost === defaultFilters().cost ? "default" : cost, { cost }]));
 
 const filtersFor = (state: string): Filters => ({ ...defaultFilters(), ...STATES[state] });
 

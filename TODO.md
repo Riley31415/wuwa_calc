@@ -1,15 +1,9 @@
-
-# TODO
+# kit
 
 fix hsin flare
 
-
-update character kits to use the same buff and stat system as weapons and echoes Measure before and after performance
-
-# detailed view
-new section for resonator builds
-hover to see substats etc
-
+# web
+add a tutorial for first time visitors
 
 #
 add all sequences
@@ -21,12 +15,6 @@ rank by best high invest substats gain
 rank by best sequence gain
 have it re order teams?
 add costs and max cost filter and ranking
-
-# naming
-standardize action naming
-standardize sequence naming
-cleanup all (team) (self) (whatever) buffs
-make some buffs nameless if they dont add stats (look for marker buffs that arent real and not mentioned in kits)
 
 #
 add frame counts and cancel frame counts to all actions

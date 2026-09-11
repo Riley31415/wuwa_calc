@@ -10,8 +10,6 @@
  * - the mid-air Rending Lunge, and the "auto" Death Snip With Spread — wuwalab gives them the exact
  *   same MV/energy/concerto/forte numbers as their ground/manual twins, so they're the same Action
  *   under a different input, not a separate move
- * - likewise every Sawring Blitz "Dodge Counter"/"After Plunge" variant, which reads identically to
- *   the plain tap or the Hold it's a twin of
  * - Sequences 1-6 are modelled from nanoka's released 3.7.0 data — see their own block below; S4
  *   (a shorter Bane cooldown on the Snare) has nothing to act on, since the Snare keeps no clock
  * - a generic "Tune Break Skill" entry every wuwalab character export carries — her weakness_mastery
@@ -28,9 +26,11 @@
  * spends also banks onto a second counter (modelled as RING_CONSUMED below, since — unlike the
  * gauge itself — Eradication actually *reads* this one to scale its own hit, capped 100) that
  * Eradication converts into its own MV bonus (+2.59% a point at max rank) before consuming both.
- * Blitz 2/3 each have a Hold that chains straight into the next stage for more hits at no extra
- * cost this engine models, so the rotation below holds through both rather than releasing early
- * into Discordance/Falltone — both still defined, just unused, same as Mornye's MA/DC.
+ * Stage 2 is reachable four ways (tap, Dodge Counter, After Plunge, and each of those held) and
+ * Stage 3 two; every input wuwalab lists has its own Action below, even where the numbers are the
+ * tap's exactly. A *released* stage chains into a trailing burst — Discordance off Stage 2,
+ * Falltone off Stage 3 — which is queued by the stage itself rather than placed in a rotation, so
+ * it lands wherever the release does. A Hold chains into the next stage instead and throws none.
  *
  * Her Skill (Eye of Unraveling) and Serrated Loop both mark the target with Unseen Snare; while
  * marked, *any* hit that lands — hers or a teammate's — inflicts a stack of the shared Havoc Bane
@@ -66,7 +66,6 @@ import {
   applyCurrent,
   applyTeam,
   revokeTeam,
-  casting,
   currentAction,
   runningAction,
   revokeCurrent,
@@ -77,11 +76,9 @@ import {
   stacksOfEnemy,
   stacksOfTeam,
   maxStackIncrease,
-  setForte2,
-  setForte1,
   forte1,
 } from "../../engine/context.js";
-import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, START_1, START_2, SWAP, START_3 } from "../../engine/rotation.js";
+import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, START_2, SWAP, START_3, ECHO_CANCEL } from "../../engine/rotation.js";
 import {
   HEALS, SHIELD, HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, FUSION_BURST, AERO_EROSION, SPECTRO_FRAZZLE, ELECTRO_RAGE,
   inflictedNegativeStatus,
@@ -110,9 +107,17 @@ const Outro = chisaAction("Outro - Unraveling - Law Zero", {
   updateBuffs: () => applyTeam(RESONANT_THREAD_OF_CLOSURE, 1)
 });
 
-/** Every point of Ring of Chainsaw a Blitz stage spends also banks here (display-only forte1 is the
- *  gauge itself; this is the separate counter Eradication actually reads — see the file header). */
-const spendRing = () => ({ updateBuffs: () => applyCurrent(RING_CONSUMED, -currentAction().forte2) });
+/** A Sawring Blitz stage. Every point of Ring of Chainsaw it spends also banks onto RING_CONSUMED
+ *  (display-only forte2 is the gauge itself; this is the separate counter Eradication actually
+ *  reads — see the file header), and a *released* stage chains straight into `follow`, the little
+ *  trailing burst the release throws out. A Hold passes none: it chains into the next stage
+ *  instead. `follow` is a thunk because the burst is declared below the stage that queues it. */
+const blitz = (follow?: () => Action) => ({
+  updateBuffs: () => {
+    applyCurrent(RING_CONSUMED, -currentAction().forte2);
+    if (follow) queue(follow());
+  },
+});
 /** Applied by Skill/Serrated Loop; two more of the game's four ways to mark Unseen Snare have no
  *  wuwalab entry (see file header) and aren't modelled. */
 const MARK_SNARE = { updateDebuffs: () => applyEnemy(UNSEEN_SNARE, 1) };
@@ -128,7 +133,7 @@ const BA2 = chisaAction("Basic - Reign of Silence 2", { node: Node.Normal, cast:
  *  triggered off a successful Dodge rather than chained from Stage 1. Not in the rotation (nothing
  *  here models incoming attacks to dodge), defined for completeness. */
 const DodgeCounterBA2 = chisaAction("Dodge Counter - Reign of Silence 2", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 238.59, energy: 5.00, concerto: 10.00, offtune: 11200, forte1: 23 });
-const BA3 = chisaAction("Basic - Rending Lunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 151.10, energy: 3.19, concerto: 6.37, offtune: 10137, forte1: 20 });
+const RendingLunge = chisaAction("Basic - Rending Lunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 151.10, energy: 3.19, concerto: 6.37, offtune: 10137, forte1: 20 });
 /** "The skill DMG is considered Resonance Liberation DMG" per the kit page — matches wuwalab's own
  *  damage_type for both hits. */
 const DeathSnip = chisaAction("Basic - Death Snip", { node: Node.Normal, cast: Cast.Basic, type: Type1.Liberation, mv: 149.06, energy: 2.09, concerto: 4.18, offtune: 6665, forte1: 18, ...SNIP_HEAL });
@@ -169,19 +174,31 @@ const Liberation = chisaAction("Liberation - Moment of Nihility", {
 // --- Chainsaw Mode's own Sawring Blitz chain, all typed Resonance Liberation DMG per the kit page.
 //     Each stage both spends the Ring of Chainsaw gauge (forte1, display only) and banks the same
 //     amount onto RING_CONSUMED (spendRing above), which only Eradication ever reads.
-const Blitz1 = chisaAction("Forte - Sawring Blitz 1", { node: Node.Forte, type: Type1.Liberation, mv: 68.94, energy: 1.02, concerto: 1.98, offtune: 3084, forte2: -18, ...spendRing() });
-/** The plain tap, released immediately into Discordance below. Not in the rotation — the Hold
- *  chains straight into Blitz 3 with more hits for the same Ring spent, same call as Serrated Loop. */
-const Blitz2 = chisaAction("Forte - Sawring Blitz 2", { node: Node.Forte, type: Type1.Liberation, mv: 85.12, energy: 1.20, concerto: 2.40, offtune: 3808, forte2: -22, ...spendRing() });
-/** Auto-follows a released (non-Hold) Blitz 2. Not in the rotation, same reason as Blitz 2 above. */
-const Blitz2Discordance = chisaAction("Forte - Sawring Blitz 2 Discordance", { node: Node.Forte, type: Type1.Liberation, mv: 10.74, energy: 0.15, concerto: 0.30, offtune: 480, forte2: -3, ...spendRing() });
-const Blitz2Hold = chisaAction("Forte - Sawring Blitz 2 (Hold)", { node: Node.Forte, type: Type1.Liberation, mv: 191.52, energy: 2.70, concerto: 5.40, offtune: 8568, forte2: -52, ...spendRing() });
-/** The plain tap, released immediately into Falltone below. Not in the rotation, same reason as
- *  Blitz 2's own tap. */
-const Blitz3 = chisaAction("Forte - Sawring Blitz 3", { node: Node.Forte, type: Type1.Liberation, mv: 127.84, energy: 1.84, concerto: 3.60, offtune: 5720, forte2: -26, ...spendRing() });
-/** Auto-follows a released (non-Hold) Blitz 3. Not in the rotation. */
-const Blitz3Falltone = chisaAction("Forte - Sawring Blitz 3 Falltone", { node: Node.Forte, type: Type1.Liberation, mv: 10.74, energy: 0.15, concerto: 0.30, offtune: 480, forte2: -3, ...spendRing() });
-const Blitz3Hold = chisaAction("Forte - Sawring Blitz 3 (Hold)", { node: Node.Forte, type: Type1.Liberation, mv: 223.72, energy: 3.22, concerto: 6.30, offtune: 10010, forte2: -50, ...spendRing() });
+const Blitz1 = chisaAction("Forte - Sawring Blitz 1", { node: Node.Forte, type: Type1.Liberation, mv: 68.94, energy: 1.02, concerto: 1.98, offtune: 3084, forte2: -18, ...blitz() });
+
+/** Stage 2, as the four inputs that reach it. The Dodge Counter and the After Plunge are the same
+ *  stage entered off a dodge or out of a plunge — wuwalab gives all three the same MV, energy,
+ *  concerto, off-tune and Ring cost hit for hit, and nanoka lists the Dodge Counter's own row
+ *  ("Chainsaw Mode - Dodge Counter DMG", 10.64%*8) at exactly the tap's numbers. They are separate
+ *  presses all the same, so each gets its own row rather than being folded into the tap.
+ *  Every one of them is a *release*, so every one chains into Discordance. */
+const Blitz2 = chisaAction("Forte - Sawring Blitz 2", { node: Node.Forte, type: Type1.Liberation, mv: 85.12, energy: 1.20, concerto: 2.40, offtune: 3808, forte2: -22, ...blitz(() => Blitz2Discordance) });
+const Blitz2DodgeCounter = chisaAction("Forte Dodge Counter - Sawring Blitz 2", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Liberation, mv: 85.12, energy: 1.20, concerto: 2.40, offtune: 3808, forte2: -22, ...blitz(() => Blitz2Discordance) });
+const Blitz2AfterPlunge = chisaAction("Forte - Sawring Blitz 2 (After Plunge)", { node: Node.Forte, type: Type1.Liberation, mv: 85.12, energy: 1.20, concerto: 2.40, offtune: 3808, forte2: -22, ...blitz(() => Blitz2Discordance) });
+/** What a released Stage 2 throws out on the way — queued by the stage itself, never pressed. */
+const Blitz2Discordance = chisaAction("Forte - Sawring Blitz 2: Discordance", { node: Node.Forte, type: Type1.Liberation, mv: 10.74, energy: 0.15, concerto: 0.30, offtune: 480, forte2: -3, ...blitz() });
+
+/** Stage 2 held, its own three inputs: 18 hits rather than 8 for the same press, and it chains
+ *  into Stage 3 instead of releasing, so none of them throws a Discordance. */
+const Blitz2Hold = chisaAction("Forte - Sawring Blitz 2 (Hold)", { node: Node.Forte, type: Type1.Liberation, mv: 191.52, energy: 2.70, concerto: 5.40, offtune: 8568, forte2: -52, ...blitz() });
+const Blitz2HoldDodgeCounter = chisaAction("Forte Dodge Counter - Sawring Blitz 2 (Hold)", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Liberation, mv: 191.52, energy: 2.70, concerto: 5.40, offtune: 8568, forte2: -52, ...blitz() });
+const Blitz2HoldAfterPlunge = chisaAction("Forte - Sawring Blitz 2 (Hold After Plunge)", { node: Node.Forte, type: Type1.Liberation, mv: 191.52, energy: 2.70, concerto: 5.40, offtune: 8568, forte2: -52, ...blitz() });
+
+const Blitz3 = chisaAction("Forte - Sawring Blitz 3", { node: Node.Forte, type: Type1.Liberation, mv: 127.84, energy: 1.84, concerto: 3.60, offtune: 5720, forte2: -26, ...blitz(() => Blitz3Falltone) });
+/** What a released Stage 3 throws out, the same shape as Discordance above. */
+const Blitz3Falltone = chisaAction("Forte - Sawring Blitz 3: Falltone", { node: Node.Forte, type: Type1.Liberation, mv: 10.74, energy: 0.15, concerto: 0.30, offtune: 480, forte2: -3, ...blitz() });
+/** Held Stage 3 chains into Eradication, so it throws no Falltone. */
+const Blitz3Hold = chisaAction("Forte - Sawring Blitz 3 (Hold)", { node: Node.Forte, type: Type1.Liberation, mv: 223.72, energy: 3.22, concerto: 6.30, offtune: 10010, forte2: -50, ...blitz() });
 /** Consumes whatever Ring of Chainsaw remains and ends Chainsaw Mode; shields the team. */
 const Eradication = chisaAction("Forte - Sawring Eradication", {
   node: Node.Forte, type: Type1.Liberation, mv: 257.67, energy: 22.40, concerto: 49.80, offtune: 7680,
@@ -189,17 +206,23 @@ const Eradication = chisaAction("Forte - Sawring Eradication", {
   updateDebuffs: () => applyCurrent(SHIELD, 1),
 });
 
+/** The whole Chainsaw Mode chain — every Blitz stage, both release bursts and Eradication. The
+ *  two pieces that scale it (Woven Myriad - Convergence and S3) both pay on all of it. */
+const BLITZ_CHAIN = new Set<Action>([
+  Blitz1,
+  Blitz2, Blitz2DodgeCounter, Blitz2AfterPlunge, Blitz2Discordance,
+  Blitz2Hold, Blitz2HoldDodgeCounter, Blitz2HoldAfterPlunge,
+  Blitz3, Blitz3Falltone, Blitz3Hold,
+  Eradication,
+]);
+
 /* ------------------------------------------------------------------------------------- buffs */
 
 /** Woven Myriad - Convergence: +120% MV to Blitz/Eradication, ended the moment Eradication itself
  *  resolves rather than its own 15s (a loop always reaches Eradication well inside that). */
 const WOVEN_MYRIAD_CONVERGENCE = new Buff({
   name: "Chisa: Woven Myriad - Convergence",
-  applyStats: () => {
-    if ([Blitz1, Blitz2, Blitz2Discordance, Blitz2Hold, Blitz3, Blitz3Falltone, Blitz3Hold, Eradication].includes(currentAction())) {
-      addStat(Stat.MulMv, 120);
-    }
-  },
+  applyStats: () => { if (BLITZ_CHAIN.has(currentAction())) addStat(Stat.MulMv, 120); },
   convertStats: () => { if (runningAction(Eradication)) revokeCurrent(WOVEN_MYRIAD_CONVERGENCE); },
 });
 
@@ -207,7 +230,7 @@ const WOVEN_MYRIAD_CONVERGENCE = new Buff({
  *  reads it — +2.59% MV a point at max rank — before it resets for the next Chainsaw Mode entry. */
 const RING_CONSUMED = new Buff({
   name: "Chisa: Ring of Chainsaw Consumed", maxStacks: 100,
-  applyStats: () => { if (runningAction(Eradication)) addStat(Stat.MulMv, 2.59 * frozenStacks()); },
+  applyStats: () => { if (runningAction(Eradication)) addStat(Stat.AddMv, 2.59 * frozenStacks()); },
   convertStats: () => { if (runningAction(Eradication)) revokeCurrent(RING_CONSUMED); },
 });
 
@@ -313,10 +336,7 @@ const CS_S2 = new Sequence({
  *  Vibration Strength half reaches no formula. */
 const CS_S3 = new Sequence({
   name: "Chisa S3: Across the Confusion of the Long Night",
-  applyStats: () => {
-    const a = currentAction();
-    if ([Blitz1, Blitz2, Blitz2Discordance, Blitz2Hold, Blitz3, Blitz3Falltone, Blitz3Hold, Eradication].includes(a)) addStat(Stat.MulMv, 120);
-  },
+  applyStats: () => { if (BLITZ_CHAIN.has(currentAction())) addStat(Stat.MulMv, 120); },
 });
 
 /** S4 halves Unseen Snare's Bane cooldown, 2s to 1s — the Snare keeps no clock here (see above),
@@ -380,9 +400,7 @@ const CHISA_RESONATOR = new Resonator({
   maxForte1: 100,
   maxForte2: 100,
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 10775); addStat(Stat.BaseAtk, 437.5); addStat(Stat.BaseDef, 1136.6646);
-  },
+  stats: [[Stat.BaseHp, 10775], [Stat.BaseAtk, 437.5], [Stat.BaseDef, 1136.6646]],
 });
 
 /* ---------------------------------------------------------------------------------- rotation */
@@ -390,19 +408,21 @@ const CHISA_RESONATOR = new Resonator({
 /** Skill spent once in the opening scramble (its ~12s cooldown is well clear by the time the loop
  *  reaches it again), then Intro into Liberation, the full ground string (Reign of Silence 1/2 ->
  *  Rending Lunge -> Death Snip -> Thread Withdrawn) to bank the rest of the Ring of Chainsaw,
- *  Serrated Loop's Hold once it's full, and the Blitz Hold chain into Eradication to spend it back
- *  down (saturating RING_CONSUMED's own 100-point cap) and trade the Convergence buff away. */
+ *  Serrated Loop once it's full, then Stage 2 and Stage 3 released — each throwing its own burst
+ *  (Discordance, Falltone) on the way — into Eradication, which spends what is left and trades the
+ *  Convergence buff away. Released rather than held: the Holds are the bigger presses, but nothing
+ *  here models the timing that earns them, so the chain reads as the plain taps it is. */
 
 const CS_ROTATION = new Rotation([
   START_2, START_3, Skill, SWAP,
 
-  NOINTRO, Skill, BA3, DeathSnipSpread, ThreadWithdrawn, Liberation,
-  SerratedLoop, Blitz2Hold, Blitz3Hold, Eradication,
-  ECHO_SWAP, OUTRO,
+  NOINTRO, BA1, BA2, Skill, RendingLunge, DeathSnipSpread, ThreadWithdrawn, ECHO_CANCEL, Liberation,
+  SerratedLoop, Blitz2, Blitz3, Eradication,
+  OUTRO,
 
-  INTRO, Skill, BA3, DeathSnipSpread, Liberation,
-  SerratedLoop, Blitz2Hold, Blitz3Hold, Eradication,
-  ECHO_SWAP, OUTRO,
+  INTRO, BA2, RendingLunge, DeathSnip, ECHO_CANCEL, Liberation,
+  SerratedLoop, Blitz2, Blitz3, Eradication,
+  OUTRO,
 ]);
 
 const CS_ECHOES = [

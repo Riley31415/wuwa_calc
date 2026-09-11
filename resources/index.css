@@ -245,6 +245,22 @@ body {
   overflow-x: auto;
 }
 .rtable-block .summary-label { margin-top: 0; }
+/* Damage Per Rotation and Energy Requirements as one pair, so the second falls under the first
+   rather than under Loadouts when the three no longer fit across. Its own wrap goes first: the
+   row can only shrink this box down to its widest table, which is what makes Energy wrap under
+   Damage while both stay beside Loadouts. */
+.rstack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  align-items: flex-start;
+  /* A zero basis, so the row breaks lines on what this box *needs* (one table wide, the floor
+     below) rather than on both tables side by side — otherwise the pair jumps under Loadouts
+     while there was still room for one of them. It then grows into whatever the row has left,
+     and wraps its own second table when that isn't enough for both. */
+  flex: 1 1 0;
+  min-width: min-content;
+}
 
 /* The table is the grid, its rows `display: contents` — one grid for all of them, so a column
    is as wide as its own widest cell across every row (a row-per-grid could only line them up on
@@ -263,6 +279,9 @@ body {
    figure — the table is as wide as its contents, not the page */
 .rtable.dpr { grid-template-columns: max-content repeat(5, max-content); width: max-content; }
 .rtable.energy { grid-template-columns: max-content repeat(6, max-content); width: max-content; }
+/* Loadouts turns the other two on their side — the row label down the left, one column per member
+   (`--cols`, written on the element: a two-member team has one column fewer than a three). */
+.rtable.loadout { grid-template-columns: max-content repeat(var(--cols), max-content); width: max-content; }
 
 .rtrow { display: contents; }
 /* the heading's own band is drawn by the cells, the rows themselves being box-less; no rule
@@ -308,13 +327,48 @@ body {
 .rtrow .c.name {
   background: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface));
   box-shadow: inset 2px 0 0 color-mix(in srgb, var(--mem, transparent) 70%, transparent);
+  /* ...and the name itself reads in that kit's own colour, the way it does everywhere else it is
+     written (the action log's member column). The Total row carries no `--mem` and falls back. */
+  color: var(--mem, var(--ink));
 }
 .rtrow.total .c { color: var(--ink); font-weight: 700; }
+
+/* Loadouts wears the member's colour in its heading rather than down the first column the way the
+   other two do (`.c.name` above) — here the member is the column, not the row. */
+/* The heading holds a resonator's name and the label column's own first cell, and both read as
+   content rather than as the band's small uppercase label type — a name is written the same
+   everywhere it appears (the action log's own member column, `.c.member`: mono 13px). */
+.rtrow.rthead .c.mem, .rtable.loadout .rthead .c.lbl {
+  padding: 7px 10px;
+  font-size: 13px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.rtrow.rthead .c.mem {
+  background: color-mix(in srgb, var(--mem, transparent) 22%, var(--surface-3));
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--mem, transparent) 70%, transparent);
+  color: var(--mem, var(--ink));
+}
+/* The row's own label — a heading for its row, so it reads the heading grey the top band does,
+   on the band's own ground: the first column is one unbroken strip from the corner cell down,
+   the way the other two tables wash their name column (`.c.name` above). */
+.rtable.loadout .c.lbl { background: var(--surface-3); color: var(--dim); }
+/* Loadouts' footer row: a member's whole menu-stat list written into the cell rather than hidden
+   behind a hover — its own two columns (the stat and its figure) inside the table's one. */
+.rtrow .c.menustats { padding-top: 9px; padding-bottom: 9px; }
+.c.menustats table { border-collapse: collapse; width: 100%; }
+.c.menustats td { padding: 1.5px 0; }
+.c.menustats td.k { color: var(--dim); padding-right: 18px; }
+.c.menustats td.v { text-align: right; color: var(--ink); }
 
 /* Energy Requirements: the member's own real ER stat dipped below this cell's own shown
    requirement at some point since their last reset — same red-underline treatment as the action
    table's own `.negative`/`.underspent`: red where the build falls short of it. */
 .rtrow .c.er-under { color: #e5484d; }
+/* Energy/Offtune Gen with a teammate feeding it: the action log's own "there is a panel behind
+   this figure" mark (`.c.buffed`), so the cells worth opening are the ones that say so. */
+.rtrow .c.teamfed { text-decoration: underline dotted #fff; text-underline-offset: 3px; }
 
 /* ---------------------------------------------------------------------- main */
 
@@ -784,9 +838,6 @@ main {
 /* Actions rides in a table of its own (index.js's own `damagePopover()`) so the longest action
    name sizes only its own label column, leaving Node/Type/Type 2 and the Total row above at their
    natural tag widths. */
-.pop.breakdown .acts { margin-top: 6px; }
-.pop.breakdown .acts:empty { display: none; }
-.pop.breakdown .acts .sec td { padding-top: 7px; }
 
 /* The final-damage panel is a product, not a column of amounts: every row below the leading stat
    is a multiplier, so its figures read left-aligned — flush right pushed the `x` signs apart and

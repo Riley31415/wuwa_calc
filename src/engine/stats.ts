@@ -95,7 +95,7 @@ export const STAT_NAME: Record<Stat | EnemyStat, string> = {
   [Stat.FlatAtk]: "Flat ATK", [Stat.FlatHp]: "Flat HP", [Stat.FlatDef]: "Flat DEF",
   [Stat.BonusAtk]: "ATK%", [Stat.BonusHp]: "HP%", [Stat.BonusDef]: "DEF%",
   [Stat.CritRate]: "Crit Rate", [Stat.CritDmg]: "Crit Dmg", [Stat.Er]: "Energy Regen",
-  [Stat.Tbb]: "Tune Break Boost", [Stat.OfftuneBuildup]: "Buildup",
+  [Stat.Tbb]: "Tune Break Boost", [Stat.OfftuneBuildup]: "Offtune Buildup",
   [Stat.EnergyRegenMult]: "Energy Regen Multiplier",
   [Stat.AddMv]: "MV increase", [Stat.MulMv]: "MV multiplier",
   [Stat.DmgBonus]: "Dmg Bonus", [Stat.Amp]: "Amplification", [Stat.TotalDmg]: "Total Damage",

@@ -24,20 +24,17 @@
  * relative to this file's own scale. Her mainslot echo is Inferno Rider (plain, not
  * "Nightmare:") — see echoes/jinzhou.ts's own INFERNO_RIDER.
  */
-import { Tier, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Tier, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime, BuffTarget } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   applyCurrent,
-  applyTeam,
   revokeCurrent,
   isHeld,
-  casting,
+  onAction,
   runningAction,
   addStat,
-  frozenStacks,
-  queueOutro,
   forte1,
-  setForte1,
+  onCast,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO } from "../../engine/rotation.js";
 import { STRINGMASTER } from "../../weapons/rectifier.js";
@@ -101,7 +98,7 @@ const Outro = encoreAction("Outro - Thermal Field", { cast: Cast.Outro, type: Ty
 const WOOLIES_CHEER_DANCE = new Buff({
   name: "Inherent: Woolies Cheer Dance",
   stats: [[Stat.DmgBonus, 10, Attribute.Fusion]],
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(WOOLIES_CHEER_DANCE); },
+  until: LifeTime.Outro,
 });
 const EN_INHERENT_2 = new Inherent({
   name: "Inherent: Woolies Cheer Dance",
@@ -117,7 +114,7 @@ const ANGRY_COSMOS = new Buff({
 });
 const EN_INHERENT_1 = new Inherent({
   name: "Inherent: Angry Cosmos",
-  updateBuffs: () => { if (runningAction(Liberation)) applyCurrent(ANGRY_COSMOS, 1); },
+  grants: [{ on: onAction(Liberation), buff: ANGRY_COSMOS }],
 });
 
 /* ------------------------------------------------------------------------------- sequences */
@@ -125,11 +122,11 @@ const EN_INHERENT_1 = new Inherent({
 const S1_STACKS = new Buff({
   name: "Encore S1: Wooly's Fairy Tale", maxStacks: 4,
   stats: [[Stat.DmgBonus, 3, Attribute.Fusion]], perStack: true,
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(S1_STACKS); },
+  until: LifeTime.Outro,
 });
 const S1 = new Sequence({
   name: "Encore S1",
-  updateBuffs: () => { if (casting(Cast.Basic)) applyCurrent(S1_STACKS, 1); },
+  grants: [{ on: onCast(Cast.Basic), buff: S1_STACKS }],
 });
 
 // 10s ICD isn't modelled, so it pays every cast instead of once per window
@@ -150,7 +147,7 @@ const S4_TEAM = new Buff({
 });
 const S4 = new Sequence({
   name: "Encore S4",
-  updateBuffs: () => { if (runningAction(FHA)) applyTeam(S4_TEAM, 1); },
+  grants: [{ on: onAction(FHA), buff: S4_TEAM, to: BuffTarget.Team }],
 });
 
 const S5 = new Sequence({
@@ -161,11 +158,11 @@ const S5 = new Sequence({
 const S6_LOST_LAMB = new Buff({
   name: "Encore S6: Lost Lamb", maxStacks: 5,
   stats: [[Stat.BonusAtk, 5]], perStack: true,
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(S6_LOST_LAMB); },
+  until: LifeTime.Outro,
 });
 const S6 = new Sequence({
   name: "Encore S6",
-  updateBuffs: () => { if (isHeld(WOOLIES_CHEER_DANCE)) applyCurrent(S6_LOST_LAMB, 1); },
+  grants: [{ on: () => isHeld(WOOLIES_CHEER_DANCE), buff: S6_LOST_LAMB }],
 });
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
@@ -188,9 +185,7 @@ const ENCORE_RESONATOR = new Resonator({
   maxEnergy: 125,
   maxForte1: 100,
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 10512.5); addStat(Stat.BaseAtk, 425); addStat(Stat.BaseDef, 1247);
-  },
+  stats: [[Stat.BaseHp, 10512.5], [Stat.BaseAtk, 425], [Stat.BaseDef, 1247]],
 });
 
 // a kit-valid line: Intro tops Mayhem partway, Basic 1234 into Wooly Strike, Heavy Attack at 100

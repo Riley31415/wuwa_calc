@@ -5,7 +5,7 @@
  */
 import { Buff } from "../engine/gear.js";
 import { addStat } from "../engine/context.js";
-import { Stat, Attribute, scopedStat, STAT_NAME, TAG_NAME } from "../engine/stats.js";
+import { Stat, Attribute, scopedStat, statLabel, STAT_NAME, TAG_NAME } from "../engine/stats.js";
 import type { StatKey, Tag } from "../engine/stats.js";
 
 /** Every main stat an echo can roll, one entry per stat *and* cost — ATK/HP/DEF exist at every
@@ -57,6 +57,22 @@ const label = (key: Mainstat): string => {
   return costOf(key) === 1 ? word.toLowerCase() : word;
 };
 
+/** Each echo of a build as a buff of its own — named for its cost and main stat ("4C Crit Rate",
+ *  "3C Fusion Dmg Bonus") and carrying the two stats that echo actually wears, its main and the
+ *  secondary its cost decides. Never equipped and never evaluated: the piece's own `constantStats`
+ *  is what the fight reads, and these exist so the loadout hover can list a build echo by echo
+ *  rather than as five collapsed totals. Five buffs, ten stat lines. */
+const SLOT_BUFFS = new WeakMap<Buff, Buff[]>();
+export const mainstatSlotBuffs = (piece: Buff): Buff[] => SLOT_BUFFS.get(piece) ?? [];
+const slotBuffOf = (key: Mainstat): Buff => {
+  const [stat, value, tag] = MAIN[key];
+  const cost = costOf(key);
+  return new Buff({
+    name: `${cost}C ${statLabel(tag ? scopedStat(tag, stat) : stat)}`,
+    stats: [MAIN[key], SECONDARY[cost]!],
+  });
+};
+
 /** Five echoes to a build, cost capped at twelve. */
 const SLOTS = 5, COST_CAP = 12;
 
@@ -87,10 +103,12 @@ export function mainstats(...slots: Mainstat[]): Buff {
 
   const entries = [...totals.values()];
   const layout = slots.map(costOf).join("");
-  return new Buff({
+  const piece = new Buff({
     name: `${layout} ${slots.map(label).join(" ")}`,
     constantStats: () => { for (const { stat, tag, value } of entries) addStat(stat, value, tag ?? undefined); },
   });
+  SLOT_BUFFS.set(piece, slots.map(slotBuffOf));
+  return piece;
 }
 
 /** Every unordered n-slot pick from `keys` — slots of one cost are interchangeable, so CR CD and

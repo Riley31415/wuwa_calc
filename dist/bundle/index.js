@@ -10,6 +10,7 @@ import {
   RESOURCE_NAME,
   SCALING_NAME,
   SWAP,
+  Sonata,
   TAG_NAME,
   TUNE_BREAK_ENEMY,
   axisOpen,
@@ -30,6 +31,7 @@ import {
   hitsOf,
   isPercent,
   isProgress,
+  mainstatSlotBuffs,
   member,
   menuStats,
   mvPercent,
@@ -43,13 +45,13 @@ import {
   solveTeam,
   splitStat,
   statLabel,
-  substatLines,
+  substatRollBuffs,
   tagKind,
   teamAt,
   teamKey,
   topRank,
   weaponBase
-} from "./chunk-Q24V36OL.js";
+} from "./chunk-4GEFP57R.js";
 
 // dist/src/display.js
 var formatters = /* @__PURE__ */ new Map();
@@ -62,8 +64,36 @@ var fmt = (v, digits = 0, pad = false, group = true) => {
     formatters.set(key, f = new Intl.NumberFormat("en-US", { maximumFractionDigits: digits, minimumFractionDigits: pad ? digits : 0, useGrouping: group }));
   return f.format(v);
 };
-var PAD_DIGITS_COLUMNS = /* @__PURE__ */ new Set(["energy", "concerto", "offtune", "mv", "dmgBonus", "amp", "cr", "cd", "dealt", "effDef"]);
+var FORTE_GAUGES = [
+  3,
+  4,
+  5,
+  6,
+  7
+  /* Resource.Forte5 */
+];
+var PAD_DIGITS_COLUMNS = /* @__PURE__ */ new Set([
+  "energy",
+  "concerto",
+  "offtune",
+  "mv",
+  "dmgBonus",
+  "amp",
+  "cr",
+  "cd",
+  "dealt",
+  "effDef",
+  ...FORTE_GAUGES.map((key) => `gauge:${RESOURCE_NAME[key]}`)
+]);
 var GROUPED_COLUMNS = /* @__PURE__ */ new Set(["avg"]);
+var decimalsOf = (v) => {
+  const text = Math.abs(v).toFixed(2);
+  return text.endsWith("00") ? 0 : text.endsWith("0") ? 1 : 2;
+};
+var digitsOf = (raw, col) => {
+  const own = raw[`digits:${col.key}`];
+  return typeof own === "number" ? own : col.digits ?? 0;
+};
 var keysFor = (action, ...stats) => stats.flatMap((stat) => [
   stat,
   ...[action.element, action.type1, action.type2].filter((tag) => tag !== null).map((tag) => scopedStat(tag, stat))
@@ -308,14 +338,6 @@ var gaugeSuffix = (raw, key) => {
   const cap = raw[`max:${key}`];
   return typeof cap === "number" ? `/${fmt(cap, 0, false, false)}` : "";
 };
-var FORTE_GAUGES = [
-  3,
-  4,
-  5,
-  6,
-  7
-  /* Resource.Forte5 */
-];
 var RESOURCE_SCALE = { energy: 1, concerto: 1, offtune: 1e4 };
 var COMBINED_COLUMNS = [
   "mv",
@@ -496,8 +518,8 @@ function rowValues(snap, { mv, avg }, members = []) {
       rows.push({ source: snap.action.name, value: 0, text: "CLEAR", digits: 0, owner: snap.member });
     }
     if (declared)
-      rows.push({ source: snap.action.name, value: declared, digits: 0, owner: snap.member });
-    rows.push(...traced.map((r) => ({ ...r, digits: 0 })));
+      rows.push({ source: snap.action.name, value: declared, digits: 2, owner: snap.member });
+    rows.push(...traced.map((r) => ({ ...r, digits: 2 })));
     if (rows.length)
       sources[`gauge:${RESOURCE_NAME[key]}`] = rows;
     raw[`moved:gauge:${RESOURCE_NAME[key]}`] = rows.reduce((n, r) => n + r.value, 0);
@@ -640,9 +662,9 @@ function buildReport(lines) {
     { key: "cr", label: "cr%", digits: 1, percent: true, full: "Crit Rate" },
     { key: "cd", label: "cd%", digits: 1, percent: true, full: "Crit Dmg" },
     // both halves carry their own section heading, so `full` is only the empty-panel one
-    { key: "dealt", label: "vuln%", digits: 1, percent: true, full: "Vulnerability" },
     { key: "effDef", label: "ignore%", digits: 1, percent: true, full: "DEF Ignore", fullEmpty: "DEF Shred" },
     { key: "effRes", label: "res%", digits: 1, percent: true, full: "Enemy RES" },
+    { key: "dealt", label: "vuln%", digits: 1, percent: true, full: "Vulnerability" },
     { key: "er", label: "er%", digits: 1, percent: true, full: "Energy Regen" },
     { key: "hp", label: "hp", noTotal: true },
     { key: "def", label: "def", noTotal: true },
@@ -650,9 +672,11 @@ function buildReport(lines) {
     { key: "concerto", label: "concerto", digits: 2, hideIfZero: true, full: "Concerto" },
     { key: "energy", label: "energy", digits: 2, hideIfZero: true, full: "Energy" },
     { key: "offtune", label: "offtune", digits: 4, hideIfZero: true, full: "OffTune" },
+    // two decimals, the same as concerto and energy: a gauge is fed in fractions of a point
     ...FORTE_GAUGES.map((key) => ({
       key: `gauge:${RESOURCE_NAME[key]}`,
       label: RESOURCE_NAME[key],
+      digits: 2,
       hideIfZero: true,
       full: RESOURCE_NAME[key]
     }))
@@ -688,11 +712,32 @@ function buildReport(lines) {
       parts: line.isChain ? line.parts.map((p) => partOf(p.snap, p.dmg.avg, snap)) : []
     };
   });
+  for (const key of FORTE_GAUGES.map((k) => `gauge:${RESOURCE_NAME[k]}`)) {
+    const per = /* @__PURE__ */ new Map();
+    const note = (r) => {
+      const v = r.raw[key];
+      if (typeof v !== "number")
+        return;
+      const member2 = String(r.raw.member ?? "");
+      per.set(member2, Math.max(per.get(member2) ?? 0, decimalsOf(v)));
+    };
+    for (const r of rows) {
+      note(r);
+      r.parts.forEach(note);
+    }
+    const stamp = (r) => {
+      r.raw[`digits:${key}`] = per.get(String(r.raw.member ?? "")) ?? 0;
+    };
+    for (const r of rows) {
+      stamp(r);
+      r.parts.forEach(stamp);
+    }
+  }
   const moved = (r, key) => Math.abs(Number(r.raw[key]) || 0) > 1e-9;
   const used = columns.filter((c) => !c.hideIfZero || rows.some((r) => moved(r, c.key) || r.parts.some((p) => moved(p, c.key))));
   const shown = (r, c) => {
     const v = r.raw[c.key];
-    return typeof v === "number" ? fmt(v, c.digits ?? 0, PAD_DIGITS_COLUMNS.has(c.key), GROUPED_COLUMNS.has(c.key)) + (c.percent ? "%" : "") + gaugeSuffix(r.raw, c.key) : String(v ?? "");
+    return typeof v === "number" ? fmt(v, digitsOf(r.raw, c), PAD_DIGITS_COLUMNS.has(c.key), GROUPED_COLUMNS.has(c.key)) + (c.percent ? "%" : "") + gaugeSuffix(r.raw, c.key) : String(v ?? "");
   };
   const sized = used.map((c) => {
     const lens = [c.label.length];
@@ -730,6 +775,7 @@ for (const members of Object.values(TEAMS)) {
 }
 var RESONATOR_HUE = new Map(ALL_TEAMS.flatMap((t) => t.loadouts).map((l) => [l.resonator.name, l.resonator.color]));
 var FALLBACK_HUE = "#ff0000";
+var MATRIX_RESONATORS = new Set(ALL_TEAMS.flatMap((t) => t.loadouts).filter((l) => l.resonator.matrix).map((l) => l.resonator.name));
 var resonatorFilters = /* @__PURE__ */ new Map();
 var weaponFilters = /* @__PURE__ */ new Map();
 var echoFilters = /* @__PURE__ */ new Map();
@@ -945,9 +991,12 @@ function rowFromKey(key) {
 function detailFor(run) {
   if (run.detail)
     return run.detail;
-  const lines = run.rotationLines ?? runTeam(run.teamKey, run.members, run.combo, true).rotationLines;
-  run.rotationLines = lines;
-  run.detail = { report: buildReport(lines.flat()) };
+  if (!run.rotationLines) {
+    const traced = runTeam(run.teamKey, run.members, run.combo, true);
+    run.rotationLines = traced.rotationLines;
+    run.state = traced.state;
+  }
+  run.detail = { report: buildReport(run.rotationLines.flat()) };
   return run.detail;
 }
 var SOLVES_KEY = "wuwa.solves.v1";
@@ -976,15 +1025,17 @@ function discardRestoredSolves() {
   return true;
 }
 function filtersOfKey(key, members) {
-  const [, matrix, cost, bits] = key.split("|");
+  const [, cost, bits] = key.split("|");
   const f = defaultFilters();
-  f.matrix = matrix === "true";
   f.cost = cost;
   (bits ?? "").split(",").forEach((entry, i) => {
     const m = members[i];
     if (!m)
       return;
-    const [b, scoped] = entry.split(":");
+    const [head, scoped] = entry.split(":");
+    const b = head.startsWith("m") ? head.slice(1) : head;
+    if (head.startsWith("m"))
+      f.matrix.push(m.loadout.resonator.name);
     AXES.forEach((a, k) => {
       if (b[k] === "1")
         f[a].push(m.loadout.resonator.name);
@@ -1135,12 +1186,12 @@ var FILTER_GROUPS = [
 function applyHash() {
   const params = hashParams();
   let changed = false;
-  const f = params.get("f");
-  if (f !== null) {
-    const on = f.split(",").filter(Boolean);
-    const matrix = on.includes("x") || on.includes("matrix");
-    if (filters.matrix !== matrix) {
-      filters.matrix = matrix;
+  {
+    const legacy = (params.get("f") ?? "").split(",").filter(Boolean);
+    const next = params.has("mx") ? (params.get("mx") ?? "").split(",").filter(Boolean).map((n) => RESONATOR_NAME_BY_COMPACT.get(n) ?? n) : legacy.includes("x") || legacy.includes("matrix") ? [...MATRIX_RESONATORS] : [];
+    const cur = filters.matrix;
+    if (next.length !== cur.length || next.some((n) => !cur.includes(n))) {
+      filters.matrix = next;
       changed = true;
     }
   }
@@ -1184,7 +1235,8 @@ function applyHash() {
 }
 function syncHash(team = hashParams().get("team"), push = false) {
   const named = (map, mode) => [...map].filter(([, m]) => m === mode).map(([name]) => encodeURIComponent(map === resonatorFilters ? name.replace(/ /g, "") : name)).join(",");
-  const parts = filters.matrix ? ["f=x"] : [];
+  const compact = (n) => encodeURIComponent(n.replace(/ /g, ""));
+  const parts = filters.matrix.length ? [`mx=${filters.matrix.map(compact).join(",")}`] : [];
   if (filters.cost !== "s0r1")
     parts.push(`tc=${COST_CODE[filters.cost]}`);
   for (const axis of AXES) {
@@ -1312,17 +1364,18 @@ function buffsPopover(member2, gear, local, global, enemy, slotHue) {
   return lazyPop(`<span class="pop buffs"><div class="cols">${columns}</div></span>`);
 }
 function eachHit(lines, slot, fn) {
+  const mine = (snap) => slot === null || snap.slot === slot;
   for (const line of lines) {
     if (line.aggregate)
       continue;
     if (!line.isChain) {
-      if (line.snap.slot === slot)
+      if (mine(line.snap))
         fn(line.snap, line.avg);
       continue;
     }
     const members = new Set(line.members ?? []);
     for (const p of line.parts)
-      if (members.has(p.snap) && p.snap.slot === slot)
+      if (members.has(p.snap) && mine(p.snap))
         fn(p.snap, p.dmg.avg);
   }
 }
@@ -1345,27 +1398,32 @@ function breakdownSection(heading, by, total, label) {
   }).join("");
   return `<tr class="sec"><td colspan="2">${esc(heading)}</td></tr>${body}`;
 }
-function actionSection(lines, slot, total) {
+function teamActionPopover(lines, total, slotHue) {
   const by = /* @__PURE__ */ new Map();
-  eachHit(lines, slot, (snap, avg) => {
-    const cur = by.get(snap.action.name) ?? { dmg: 0, n: 0 };
+  eachHit(lines, null, (snap, avg) => {
+    let act = snap.action;
+    while (act.cancelOf ?? act.formOf)
+      act = act.cancelOf ?? act.formOf;
+    const key = `${snap.slot} ${act.name}`;
+    const cur = by.get(key) ?? { dmg: 0, n: 0, slot: snap.slot, name: act.name };
     cur.dmg += avg;
     cur.n++;
-    by.set(snap.action.name, cur);
+    by.set(key, cur);
   });
   if (!by.size)
     return "";
-  const rows = [...by].sort((a, b) => b[1].dmg - a[1].dmg).slice(0, 7).map(([name, v]) => {
+  const rows = [...by.values()].sort((a, b) => b.dmg - a.dmg).slice(0, 10).map((v) => {
     const pct = total ? Math.round(v.dmg / total * 100) : 0;
-    return `<tr><td class="k">${esc(name)} x${v.n}</td><td class="v">${fmt(v.dmg)} <span class="pct">(${pct}%)</span></td></tr>`;
+    const hue = slotHue.get(v.slot) ?? TUNE_BREAK_ENEMY.color;
+    return `<tr><td class="s" style="--own:${hue}">${esc(v.name)}${v.n > 1 ? ` x${v.n}` : ""}</td><td class="v">${fmt(v.dmg)} <span class="pct">(${pct}%)</span></td></tr>`;
   }).join("");
-  return `<tr class="sec"><td colspan="2">Actions</td></tr>${rows}`;
+  return lazyPop(`<span class="pop breakdown"><table><tr class="sec"><td colspan="2">Top Actions</td></tr>${rows}</table></span>`);
 }
 function damagePopover(lines, slot, total, grandTotal) {
   const tagName = (k) => TAG_NAME[k];
   const body = breakdownSection("Node", sumByTag(lines, slot, (a) => a.node), total, (k) => NODE_NAME[k]) + breakdownSection("Type 1", sumByTag(lines, slot, (a) => a.type1), total, tagName) + breakdownSection("Type 2", sumByTag(lines, slot, (a) => a.type2), total, tagName);
   const pct = grandTotal ? Math.round(total / grandTotal * 100) : 0;
-  return lazyPop(`<span class="pop breakdown"><table>${body}<tr class="sum"><td class="k">Total</td><td class="v">${fmt(total)} <span class="pct">(${pct}% of team)</span></td></tr></table><table class="acts">${actionSection(lines, slot, total)}</table></span>`);
+  return lazyPop(`<span class="pop breakdown"><table>${body}<tr class="sum"><td class="k">Total</td><td class="v">${fmt(total)} <span class="pct">(${pct}% of team)</span></td></tr></table></span>`);
 }
 function equippedGear(member2, combo) {
   const l = member2.loadout;
@@ -1379,11 +1437,6 @@ function equippedGear(member2, combo) {
     ["Mainstats", combo.mainstat],
     ["Substats", combo.highSubs ? l.highSubstat : l.substat]
   ];
-}
-function gearRows(member2, combo) {
-  const core = equippedGear(member2, combo).slice(2);
-  const mode = member2.loadout.mode;
-  return (mode ? `<tr class="gear"><td class="k">Mode</td><td class="v">${esc(mode.name)}</td></tr>` : "") + core.map(([label, g]) => `<tr class="gear"><td class="k">${esc(label)}</td><td class="v">${esc(g.name)}</td></tr>`).join("") + (member2.loadout.sequences.length ? `<tr class="gear"><td class="k">Sequences</td><td class="v">${combo.sequence ? Array.from({ length: combo.sequence }, (_, i) => `S${i + 1}`).join(", ") : "S0"}</td></tr>` : "");
 }
 var ATTRIBUTE_SCOPES = [
   64,
@@ -1503,25 +1556,163 @@ function menuStatRows(member2, combo) {
   return rows;
 }
 var subsLabel = (combo) => combo.highSubs ? "High Invest" : "ChemX32";
-function gearPopover(member2, combo) {
-  const stats = menuStatRows(member2, combo).map((r) => `<tr class="stat"><td class="k">${esc(r.label)}</td><td class="v">${esc(r.value)}</td></tr>`).join("");
-  const lines = substatLines(combo.highSubs ? member2.loadout.highSubstat : member2.loadout.substat);
-  const rolls = lines.map((l) => `<tr class="stat${l.rolls === 1 ? " one" : ""}"><td class="k">${esc(l.text)}</td><td class="v n">${l.rolls}</td></tr>`).join("") + `<tr class="sum"><td class="k">Total</td><td class="v n">${lines.reduce((n, l) => n + l.rolls, 0)}</td></tr>`;
-  return lazyPop(`<span class="pop gear"><div class="cols"><table><tr class="sec"><td colspan="2">Loadout</td></tr>${gearRows(member2, combo)}<tr class="sec"><td colspan="2">Menu Stats</td></tr>${stats}</table><table><tr class="sec"><td colspan="2">Substats</td></tr>${rolls}</table></div></span>`);
+function declaredRows(buffs, owner, fold) {
+  const rowsOf = (b) => b.decl.stats.map((line) => {
+    const [stat, value, tag] = line;
+    return { stat: tag === void 0 ? stat : scopedStat(tag, stat), value, source: b.name, owner, gear: b };
+  });
+  if (!fold)
+    return buffs.flatMap(rowsOf);
+  const by = /* @__PURE__ */ new Map();
+  for (const b of buffs) {
+    const rows = rowsOf(b);
+    const key = `${b.name} ${rows.map((e) => e.stat).join(",")}`;
+    const seen = by.get(key);
+    if (seen)
+      seen.n++;
+    else
+      by.set(key, { rows, n: 1 });
+  }
+  return [...by.values()].flatMap(({ rows, n }) => rows.map((e) => ({ ...e, value: e.value * n, source: n > 1 ? `${e.source} x${n}` : e.source, dim: n === 1 })));
+}
+function buffStats(run, keep) {
+  const grantedBy = run.state?.grantedBy;
+  if (!grantedBy || !run.rotationLines)
+    return [];
+  const rootOf = (g) => grantedBy.get(g) ?? g;
+  const peak = /* @__PURE__ */ new Map();
+  for (const section of run.rotationLines) {
+    for (const line of section) {
+      for (const snap of hitsOf(line)) {
+        for (const e of snap.entries) {
+          if (!e.gear || e.value === 0 || !keep(rootOf(e.gear), e, snap.slot))
+            continue;
+          let byStat = peak.get(e.gear);
+          if (!byStat)
+            peak.set(e.gear, byStat = /* @__PURE__ */ new Map());
+          if (e.value > (byStat.get(e.stat)?.value ?? 0))
+            byStat.set(e.stat, e);
+        }
+      }
+    }
+  }
+  return [...peak.values()].flatMap((byStat) => [...byStat.values()]);
+}
+var lineKey = (e) => `${e.gear?.id} ${e.stat} ${e.value}`;
+var constantKeys = (stats) => new Set(stats.map(lineKey));
+var statRow = (e, owner, slotHue, noStat = false) => (
+  // the cell's own member, not the entry's `owner`: every panel here is one member's piece and is
+  // filtered to what that member put up, while `owner` is `State.sourceOf` — one entry per Gear, so
+  // a sonata two of them wear reads as whoever equipped it last
+  `<tr class="stat${e.dim ? " one" : ""}"><td class="s" style="--own:${slotHue.get(owner) ?? FALLBACK_HUE}">${esc(e.source)}</td>` + (noStat ? "" : `<td class="k">${esc(statLabel(e.stat))}</td>`) + `<td class="v">${fmt(e.value, isPercent(e.stat) ? 1 : 0)}${isPercent(e.stat) ? "%" : ""}</td></tr>`
+);
+function piecePopover(run, pieces, owner, slotHue) {
+  const own = new Set(pieces);
+  const stats = menuStats(pieces);
+  const constant = constantKeys(stats);
+  const grantedOn = run.state?.grantedOn;
+  const grantedBy = run.state?.grantedBy;
+  const order = new Map(pieces.map((g, i) => [g, i]));
+  const rank = (e) => order.get((e.gear ? grantedBy?.get(e.gear) : void 0) ?? e.gear) ?? 0;
+  const mine = (e, slot) => (grantedOn?.get(e.gear) ?? slot) === owner;
+  const buffs = buffStats(run, (root, e, slot) => own.has(root) && !constant.has(lineKey(e)) && mine(e, slot));
+  return statsPanel(stats, buffs.sort((a, b) => rank(a) - rank(b)), owner, slotHue);
+}
+function resonatorPopover(run, kit, equipped, owner, slotHue) {
+  const stats = menuStats([...kit]);
+  const constant = constantKeys(stats);
+  const forte = (e) => e.stat >= 30 && e.stat <= 34;
+  const mine = (root, e) => e.owner === owner && (kit.has(root) || !equipped.has(root)) && !constant.has(lineKey(e)) && !forte(e);
+  return statsPanel(stats, buffStats(run, mine), owner, slotHue);
+}
+function statsPanel(stats, buffs, owner, slotHue, heading = "Stats", noStat = false) {
+  const row = (e) => statRow(e, owner, slotHue, noStat);
+  const cols = noStat ? 2 : 3;
+  if (!stats.length && !buffs.length)
+    return "";
+  return lazyPop(`<span class="pop gear"><table>` + (stats.length ? `<tr class="sec"><td colspan="${cols}">${esc(heading)}</td></tr>${stats.map(row).join("")}` : "") + (buffs.length ? `<tr class="sec"><td colspan="${cols}">Buffs</td></tr>${buffs.map(row).join("")}` : "") + `</table></span>`);
+}
+function loadoutTable(run) {
+  const builds = run.members.map((m, i) => ({ member: m, combo: run.combo[i] }));
+  const slotHue = new Map([
+    ...run.members.map((m) => [m.name, m.color]),
+    [TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color]
+  ]);
+  const kitOf = ({ member: member2, combo }) => {
+    const r = member2.loadout.resonator;
+    return new Set([r, r.talent, r.inherent1, r.inherent2, combo.matrix].filter((g) => g != null));
+  };
+  const equipped = new Set(builds.flatMap(({ member: member2, combo }) => member2.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs)));
+  const head = `<div class="rtrow rthead"><div class="c lbl">Resonator</div>` + builds.map((b) => {
+    const hover = resonatorPopover(run, kitOf(b), equipped, b.member.name, slotHue);
+    return `<div class="c mem${hover ? " has" : ""}"${hover} style="--mem:${b.member.color}">${esc(b.member.name)}</div>`;
+  }).join("") + `</div>`;
+  const row = (label, cells) => `<div class="rtrow"><div class="c lbl">${esc(label)}</div>${cells.join("")}</div>`;
+  const gearCell = (owner, g, pieces) => {
+    if (!g)
+      return `<div class="c"></div>`;
+    const hover = piecePopover(run, pieces ?? [g], owner, slotHue);
+    return `<div class="c${hover ? " has" : ""}"${hover}>${esc(g.name)}</div>`;
+  };
+  const rows = [];
+  rows.push(row("Weapon", builds.map((b) => gearCell(b.member.name, b.combo.weapon))));
+  rows.push(row("Mainslot", builds.map((b) => gearCell(b.member.name, b.combo.echo.mainslot))));
+  const sonataOf = builds.map(({ combo }) => {
+    const echo = combo.echo;
+    return [...echo.sets, ...echo.sonata instanceof Sonata ? [echo.sonata.sonata2pc] : []];
+  });
+  const sonatas = Math.max(...sonataOf.map((list) => list.length));
+  for (let i = 0; i < sonatas; i++) {
+    rows.push(row(i === 0 ? "Sonata" : "", builds.map((b, k) => gearCell(b.member.name, sonataOf[k][i] ?? null))));
+  }
+  const spreadCell = (piece, owner, stats, heading, noStat = false) => {
+    const hover = statsPanel(stats, [], owner, slotHue, heading, noStat);
+    return `<div class="c has"${hover}>${esc(piece.name)}</div>`;
+  };
+  rows.push(row("Mainstats", builds.map((b) => spreadCell(b.combo.mainstat, b.member.name, declaredRows(mainstatSlotBuffs(b.combo.mainstat), b.member.name, false), "Mainstats & Secondary Stats"))));
+  rows.push(row("Substats", builds.map((b) => {
+    const piece = b.combo.highSubs ? b.member.loadout.highSubstat : b.member.loadout.substat;
+    const rolls = substatRollBuffs(piece);
+    return spreadCell(piece, b.member.name, declaredRows(rolls, b.member.name, true), `Substats (${rolls.length} lines)`, true);
+  })));
+  if (builds.some((b) => b.combo.sequence > 0)) {
+    rows.push(row("Sequences", builds.map((b) => {
+      if (!b.combo.sequence)
+        return `<div class="c"></div>`;
+      const held = b.member.loadout.sequences.slice(0, b.combo.sequence);
+      const hover = piecePopover(run, held, b.member.name, slotHue);
+      return `<div class="c${hover ? " has" : ""}"${hover}>${held.map((_, i) => `S${i + 1}`).join(", ")}</div>`;
+    })));
+  }
+  if (builds.some((b) => b.member.loadout.mode)) {
+    rows.push(row("Mode", builds.map((b) => gearCell(b.member.name, b.member.loadout.mode ?? null))));
+  }
+  rows.push(row("Menu Stats", builds.map((b) => {
+    const stats = menuStatRows(b.member, b.combo).map((r) => `<tr><td class="k">${esc(r.label)}</td><td class="v">${esc(r.value)}</td></tr>`).join("");
+    return `<div class="c menustats"><table>${stats}</table></div>`;
+  })));
+  return `<div class="rtable loadout" style="--cols:${builds.length}">${head}${rows.join("")}</div>`;
 }
 function dprTable(run, lines) {
   const grand = run.sectionTotals.reduce((a, b) => a + b, 0);
   const flat = lines?.flat();
   const head = `<div class="rtrow rthead"><div class="c"></div><div class="c num">Opener</div><div class="c num">Loop 1</div><div class="c num">Loop 2</div><div class="c num">Loop 3</div><div class="c num">Total</div></div>`;
   const valueCell = (sec, slot, value, total) => sec ? `<div class="c num has"${damagePopover(sec, slot, value, total)}>${fmt(value)}</div>` : `<div class="c num">${fmt(value)}</div>`;
-  const dataRow = (slot, color, hover) => {
+  const dataRow = (slot, color) => {
     const own = run.sectionBySlot.reduce((a, by) => a + (by.get(slot) ?? 0), 0);
-    return `<div class="rtrow"><div class="c name${hover ? " has" : ""}"${hover} style="--mem:${color}">${esc(slot)}</div>` + run.sectionBySlot.map((by, i) => valueCell(lines?.[i], slot, by.get(slot) ?? 0, run.sectionTotals[i])).join("") + valueCell(flat, slot, own, grand) + `</div>`;
+    return `<div class="rtrow"><div class="c name" style="--mem:${color}">${esc(slot)}</div>` + run.sectionBySlot.map((by, i) => valueCell(lines?.[i], slot, by.get(slot) ?? 0, run.sectionTotals[i])).join("") + valueCell(flat, slot, own, grand) + `</div>`;
   };
-  const memberRows = run.members.map((m, i) => dataRow(m.name, m.color, lines ? gearPopover(m, run.combo[i]) : "")).join("");
-  const tuneBreakRow = dataRow(TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color, "");
-  const plainCell = (value) => `<div class="c num">${fmt(value)}</div>`;
-  const totalRow = `<div class="rtrow total"><div class="c name">Total</div>` + run.sectionTotals.map((v) => plainCell(v)).join("") + plainCell(grand) + `</div>`;
+  const memberRows = run.members.map((m) => dataRow(m.name, m.color)).join("");
+  const tuneBreakRow = dataRow(TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color);
+  const slotHue = new Map([
+    ...run.members.map((m) => [m.name, m.color]),
+    [TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color]
+  ]);
+  const totalCell = (sec, value) => {
+    const hover = sec ? teamActionPopover(sec, value, slotHue) : "";
+    return `<div class="c num${hover ? " has" : ""}"${hover}>${fmt(value)}</div>`;
+  };
+  const totalRow = `<div class="rtrow total"><div class="c name">Total</div>` + run.sectionTotals.map((v, i) => totalCell(lines?.[i], v)).join("") + totalCell(flat, grand) + `</div>`;
   return `<div class="rtable dpr">${head}${memberRows}${tuneBreakRow}${totalRow}</div>`;
 }
 function wireSourcePanels(root) {
@@ -1700,6 +1891,8 @@ function searchCandidates() {
         continue;
       add("compare", `${name} ${AXIS_LABEL[axis]}`, { axis, resonator: name });
     }
+    if (MATRIX_RESONATORS.has(name) && !filters.matrix.includes(name))
+      add("matrix", `${name} Matrix`, { resonator: name });
   }
   return out;
 }
@@ -1748,14 +1941,15 @@ function searchResults() {
     echo: "Echo",
     sequence: "Sequence",
     refine: "Refine",
-    compare: "Compare"
+    compare: "Compare",
+    matrix: "Matrix"
   };
   const hits = searchHits();
   if (!hits.length)
     return `<div class="sresult none">no matches</div>`;
   return hits.map(({ kind, value, axis, resonator }, i) => {
-    const hue = (kind === "resonator" ? RESONATOR_HUE.get(value) : kind === "compare" ? RESONATOR_HUE.get(resonator ?? "") : kind === "sequence" ? RESONATOR_HUE.get(tagOwner(value)) : void 0) ?? TUNE_BREAK_ENEMY.color;
-    return `<button type="button" class="sresult${i === searchAt ? " sel" : ""}" data-kind="${kind}" data-value="${esc(value)}"` + (axis ? ` data-axis="${axis}" data-resonator="${esc(resonator ?? "")}"` : "") + ` style="--mem:${hue}" title="${kind === "compare" ? `Compare ${esc(resonator ?? "")}'s ${esc(AXIS_LABEL[axis].toLowerCase())}` : `Add ${esc(value)} to the filters`}. The chip it makes is where it comes back off."><span class="sact inc"><span class="sname">${esc(value)}<span class="skind">${KIND_LABEL[kind]}</span></span></span></button>`;
+    const hue = (kind === "resonator" ? RESONATOR_HUE.get(value) : kind === "compare" || kind === "matrix" ? RESONATOR_HUE.get(resonator ?? "") : kind === "sequence" ? RESONATOR_HUE.get(tagOwner(value)) : void 0) ?? TUNE_BREAK_ENEMY.color;
+    return `<button type="button" class="sresult${i === searchAt ? " sel" : ""}" data-kind="${kind}" data-value="${esc(value)}"` + (axis ? ` data-axis="${axis}"` : "") + (resonator ? ` data-resonator="${esc(resonator)}"` : "") + ` style="--mem:${hue}" title="${kind === "compare" ? `Compare ${esc(resonator ?? "")}'s ${esc(AXIS_LABEL[axis].toLowerCase())}` : kind === "matrix" ? `Run ${esc(resonator ?? "")}'s Matrix in every team they field` : `Add ${esc(value)} to the filters`}. The chip it makes is where it comes back off."><span class="sact inc"><span class="sname">${esc(value)}<span class="skind">${KIND_LABEL[kind]}</span></span></span></button>`;
   }).join("");
 }
 var COST_HELP = [
@@ -1764,8 +1958,7 @@ var COST_HELP = [
   "S0R1 all - All limited resonators get their best signature weapon, while Rover and 4* supports may still use standard or 4* weapons.",
   "S1R1 / S2R1 / S3R1 / S6R1 mdps - One resonator per team runs that many sequence nodes, whichever gives the best DPR increase, in most cases the team's main DPS. Everyone else stays S0R1.",
   "S6R5 mdps - That one resonator is S6 and runs their weapon at R5; everyone else is still S0R1.",
-  "Full S6R5 - Every resonator is S6 with their best weapon at R5.",
-  "A kit whose sequences are not implemented yet stays at S0 in every mode above."
+  "Full S6R5 - Every resonator is S6 with their best weapon at R5."
 ];
 var MATRIX_HELP = "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.";
 var STANDARDS = [
@@ -1777,18 +1970,7 @@ var STANDARDS = [
 ];
 var README = [
   "All beta calculations are subject to change!",
-  "Not all character sequences are implemented YET.",
-  "Jingran DPR went down due to over estimated shield counts in the old calculations.",
-  "Hsin Unison DPR went down because we found out Unison Boon gives 3% amp, not 3% vuln.",
   "If you find an issue in rotations, buffs, stats, builds, or abnormal damage ping me on discord @rileyy._."
-];
-var BROWSING = [
-  "Click on the Slot 1/2/3 header to show Personal DPR",
-  "Click a resonator or gear name to open a filter and gear comparison menu",
-  "The menu shows or hides teams with that name, or compares that resonator's weapons, sonatas, mainstats, substats or sequences.",
-  "Right click a name to filter and show teams with it straight away.",
-  "Click on a teams DPR avg total to view a table with contribution and rotation breakdown.",
-  "Use view rotation to see the full action log with rotations, stats, buffs, resources, and energy requirements."
 ];
 var openHelp = /* @__PURE__ */ new Set(["readme"]);
 function comparisonFilters() {
@@ -1796,10 +1978,6 @@ function comparisonFilters() {
     const open = openHelp.has("cost");
     const option = (value, label) => `<option value="${value}"${filters.cost === value ? " selected" : ""}>${label}</option>`;
     return `<div class="tcopt${open ? " open" : ""}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="cost" aria-expanded="${open}">Team Cost<span class="arrow">\u203A</span></button><select id="cost" class="tcselect" aria-label="Team Cost" title="Team Cost">` + option("s0r0", "Full S0R0") + option("s0r1mdps", "S0R1 mdps only") + option("s0r1", "Full S0R1") + option("s1r1mdps", "S1R1 mdps") + option("s2r1mdps", "S2R1 mdps") + option("s3r1mdps", "S3R1 mdps") + option("s6r1mdps", "S6R1 mdps") + option("s6r5mdps", "S6R5 mdps") + option("s6r5", "Full S6R5") + `</select></div><div class="tcopt-desc"${open ? "" : " hidden"}><ul>${COST_HELP.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div></div>`;
-  };
-  const matrixBox = () => {
-    const open = openHelp.has("matrix");
-    return `<div class="tcopt${open ? " open" : ""}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="matrix" aria-expanded="${open}">Enable Matrix Buffs<span class="arrow">\u203A</span></button><input type="checkbox" id="matrix" aria-label="Enable Matrix Buffs" title="Enable Matrix Buffs"${filters.matrix ? " checked" : ""}></div><div class="tcopt-desc"${open ? "" : " hidden"}>${esc(MATRIX_HELP)}</div></div>`;
   };
   const note = (id, label, lines) => {
     const open = openHelp.has(id);
@@ -1809,9 +1987,7 @@ function comparisonFilters() {
     <div class="tcfilter-row note">
       ${note("readme", "README", README)}
       ${note("standards", "Standards and Assumptions", STANDARDS)}
-      ${note("browsing", "How to Browse and Filter", BROWSING)}
       ${costBox()}
-      ${matrixBox()}
       <div class="tcsearchrow">
         <div class="tcsearch">
           <input id="optionSearch" type="search" placeholder="Add resonators..."
@@ -1847,6 +2023,9 @@ function resonatorChips() {
   }
   for (const s of filters.scoped) {
     inc.push(`<button type="button" class="rchip" data-scoped="${esc(scopedKey(s))}" style="--mem:${RESONATOR_HUE.get(s.resonator) ?? TUNE_BREAK_ENEMY.color}" title="Comparing ${esc(scopedLabel(s))}'s ${AXIS_LABEL[s.axis].toLowerCase()}. Click to remove.">${esc(scopedLabel(s))} ${AXIS_LABEL[s.axis]}</button>`);
+  }
+  for (const name of filters.matrix) {
+    inc.push(`<button type="button" class="rchip" data-matrix="${esc(name)}" style="--mem:${RESONATOR_HUE.get(name) ?? TUNE_BREAK_ENEMY.color}" title="${esc(name)} runs their Matrix in every team. ${esc(MATRIX_HELP)} Click to remove.">${esc(name)} Matrix</button>`);
   }
   for (const axis of AXES) {
     for (const name of filters[axis]) {
@@ -1976,6 +2155,19 @@ function withRowCap(change) {
   syncHash();
   void refresh();
 }
+function setMatrix(name) {
+  withRowCap(() => {
+    const before = [...filters.matrix];
+    const at = filters.matrix.indexOf(name);
+    if (at < 0)
+      filters.matrix.push(name);
+    else
+      filters.matrix.splice(at, 1);
+    return () => {
+      filters.matrix = before;
+    };
+  });
+}
 function setFilter(map, name, mode) {
   withRowCap(() => {
     const was = map.get(name);
@@ -2044,17 +2236,7 @@ function scopedItems(resonator, on, value) {
     run: () => setScoped(s(axis))
   }));
 }
-var closeMenu = () => {
-  document.querySelector(".ctxmenu")?.dispatchEvent(new Event("closemenu"));
-};
-var lastQuickInclude = 0;
-var quickInclude = (run) => {
-  closeMenu();
-  lastQuickInclude = Date.now();
-  run();
-};
 function showMenu(x, y, items) {
-  menuOrigin = null;
   document.querySelector(".ctxmenu")?.remove();
   const menu = document.createElement("div");
   menu.className = "ctxmenu";
@@ -2063,21 +2245,29 @@ function showMenu(x, y, items) {
   placeInView(menu, x, y);
   const close = () => {
     menu.remove();
-    removeEventListener("click", onClick, true);
-    removeEventListener("contextmenu", onClick, true);
+    removeEventListener("click", onOutside, true);
+    removeEventListener("contextmenu", onOutside, true);
     removeEventListener("keydown", onKey, true);
     removeEventListener("scroll", close, true);
   };
-  const onClick = (e) => {
+  const onItem = (e) => {
     const item = e.target.closest(".ctxitem");
-    if (item && menu.contains(item)) {
-      e.stopPropagation();
-      e.preventDefault();
-      close();
-      items[Number(item.dataset.i)].run();
+    if (!item || !menu.contains(item))
       return;
-    }
+    e.stopPropagation();
+    e.preventDefault();
+    const it = items[Number(item.dataset.i)];
+    const run = e.type === "contextmenu" ? it.alt : it.run;
+    if (!run)
+      return;
     close();
+    run();
+  };
+  menu.addEventListener("click", onItem);
+  menu.addEventListener("contextmenu", onItem);
+  const onOutside = (e) => {
+    if (!e.target.closest(".ctxmenu"))
+      close();
   };
   const onKey = (e) => {
     if (e.key === "Escape")
@@ -2085,14 +2275,14 @@ function showMenu(x, y, items) {
   };
   menu.addEventListener("closemenu", close);
   setTimeout(() => {
-    addEventListener("click", onClick, true);
-    addEventListener("contextmenu", onClick, true);
+    addEventListener("click", onOutside, true);
+    addEventListener("contextmenu", onOutside, true);
     addEventListener("keydown", onKey, true);
     addEventListener("scroll", close, true);
   });
 }
 function memberLabel(m, combo) {
-  return [m.loadout.resonator.name, `${seqToken(m, combo)}${rankToken(m, combo)}`].filter(Boolean).join(" ");
+  return [m.loadout.resonator.name, combo.matrix ? "(Matrix)" : "", `${seqToken(m, combo)}${rankToken(m, combo)}`].filter(Boolean).join(" ");
 }
 var seqToken = (m, combo) => combo.sequence > 0 || axisOpen(m, filters, "sequences") ? `S${combo.sequence}` : "";
 var rankToken = (m, combo) => axisUsed(m, filters, "weapons") ? "" : compares(m, filters, "refines", combo) || combo.weapon.refinement > 1 || combo.weapon.tier === 0 || combo.weapon.tier === 2 && m.loadout.resonator.tier !== 0 ? `R${combo.weapon.refinement}` : "R0";
@@ -2500,48 +2690,6 @@ document.addEventListener("change", (e) => {
     };
   });
 });
-document.addEventListener("change", (e) => {
-  const input = e.target;
-  if (input.id !== "matrix")
-    return;
-  withRowCap(() => {
-    const was = filters.matrix;
-    filters.matrix = input.checked;
-    return () => {
-      filters.matrix = was;
-      input.checked = was;
-    };
-  });
-});
-var menuOrigin = null;
-var pressTarget = (e, named) => {
-  const name = e.target.closest(".c.name.res")?.dataset.resonator;
-  if (name)
-    return { map: resonatorFilters, value: name };
-  const pick = named ? void 0 : optionPick(e);
-  if (pick)
-    return { map: pick[0], value: pick[0] === weaponFilters ? pick[1].replace(/ R\d$/, "") : pick[1] };
-  if (!e.target.closest(".ctxmenu") || !menuOrigin || named && !menuOrigin.named)
-    return void 0;
-  return { map: menuOrigin.map, value: menuOrigin.value };
-};
-var lastPress = { key: "", at: 0 };
-var doublePress = (key) => {
-  const now = Date.now();
-  const again = key === lastPress.key && now - lastPress.at < 400;
-  lastPress = { key: again ? "" : key, at: now };
-  return again;
-};
-for (const [type, mode, named] of [["click", "include", false], ["contextmenu", "exclude", true]]) {
-  addEventListener(type, (e) => {
-    const target = pressTarget(e, named);
-    if (!target || !doublePress(`${type}|${target.map === resonatorFilters ? "res" : "gear"}|${target.value}`))
-      return;
-    e.preventDefault();
-    e.stopPropagation();
-    quickInclude(() => setFilter(target.map, target.value, mode));
-  }, true);
-}
 var openNameMenu = (el, x, y) => {
   const resonator = el.dataset.resonator ?? "";
   const compareItem = (axis) => ({
@@ -2549,12 +2697,17 @@ var openNameMenu = (el, x, y) => {
     run: () => setCompare(resonator, axis)
   });
   const scopedBlock = (tag, on, gate, map) => tag ? [
-    { label: `Show only ${tag} teams`, run: () => setFilter(map, tag, "include") },
+    { label: `Show only ${tag} teams`, run: () => setFilter(map, tag, "include"), alt: () => setFilter(map, tag, "exclude") },
     { label: `Hide ${tag} teams`, run: () => setFilter(map, tag, "exclude") },
     ...scopedItems(resonator, on, gate).sort((a, b) => AXES.indexOf(a.axis) - AXES.indexOf(b.axis))
   ] : [];
   const items = [
-    { label: `Show ${resonator} teams`, run: () => setFilter(resonatorFilters, resonator, "include") },
+    // nothing to offer once they are already the ones shown — the bubble is where that comes back off
+    ...resonatorFilters.get(resonator) === "include" ? [] : [{
+      label: `Show ${resonator} teams`,
+      run: () => setFilter(resonatorFilters, resonator, "include"),
+      alt: () => setFilter(resonatorFilters, resonator, "exclude")
+    }],
     { label: `Hide ${resonator} teams`, run: () => setFilter(resonatorFilters, resonator, "exclude") },
     // every axis this resonator has more than one option on, the substat spread last of all —
     // it is the one that says how the whole build is invested rather than which pick it wears.
@@ -2566,10 +2719,14 @@ var openNameMenu = (el, x, y) => {
     } }] : []),
     ...comparable(resonator, "substats") ? [compareItem("substats")] : [],
     ...scopedBlock(el.dataset.sequence, "sequence", el.dataset.seqGate ?? "", sequenceFilters),
-    ...scopedBlock(el.dataset.refine, "refine", el.dataset.refGate ?? "", refineFilters)
+    ...scopedBlock(el.dataset.refine, "refine", el.dataset.refGate ?? "", refineFilters),
+    // last of all, and only for a kit that has a Matrix at all
+    ...MATRIX_RESONATORS.has(resonator) ? [{
+      label: `${filters.matrix.includes(resonator) ? "Disable" : "Enable"} ${resonator} matrix buffs`,
+      run: () => setMatrix(resonator)
+    }] : []
   ];
   showMenu(x, y, items);
-  menuOrigin = { map: resonatorFilters, value: resonator, named: true };
 };
 var openNameMenuAt = (e) => {
   const el = e.target.closest(".c.name.res");
@@ -2591,7 +2748,7 @@ document.addEventListener("mouseover", (e) => {
     return;
   clearTimeout(hoverTimer);
   hoverTimer = setTimeout(() => {
-    if (document.querySelector(".ctxmenu") || !el.matches(":hover") || Date.now() - lastQuickInclude < 1500)
+    if (document.querySelector(".ctxmenu") || !el.matches(":hover"))
       return;
     openNameMenu(el, hoverAt[0], hoverAt[1]);
   }, 1e3);
@@ -2631,10 +2788,10 @@ var openOptionMenu = (e) => {
       run: () => setCompare(resonator, "refines")
     }] : [],
     ...filters.scoped.filter((s) => s.resonator === resonator && s.axis === axis).map((s) => ({ label: `Stop comparing ${scopedLabel(s)} ${word}`, run: () => setScoped(s) })),
-    { label: `Show only ${base}`, run: () => setFilter(map, base, "include") },
+    { label: `Show only ${base}`, run: () => setFilter(map, base, "include"), alt: () => setFilter(map, base, "exclude") },
     { label: `Hide ${base}`, run: () => setFilter(map, base, "exclude") },
     ...ranked ? [
-      { label: `Show only ${key}`, run: () => setFilter(map, key, "include") },
+      { label: `Show only ${key}`, run: () => setFilter(map, key, "include"), alt: () => setFilter(map, key, "exclude") },
       { label: `Hide ${key}`, run: () => setFilter(map, key, "exclude") }
     ] : [],
     ...resonator && kind === "weapon" ? scopedItems(resonator, "weapon", base) : [],
@@ -2642,7 +2799,6 @@ var openOptionMenu = (e) => {
     ...resonator && kind === "echo" ? scopedItems(resonator, "echo", key) : []
   ];
   showMenu(x, y, items);
-  menuOrigin = { map, value: base, named: false };
 };
 document.addEventListener("click", openOptionMenu);
 document.addEventListener("contextmenu", openOptionMenu);
@@ -2671,6 +2827,11 @@ var applySearchHit = (hit) => {
   if (hit.kind === "compare") {
     if (hit.resonator && hit.axis)
       setCompare(hit.resonator, hit.axis);
+    return;
+  }
+  if (hit.kind === "matrix") {
+    if (hit.resonator)
+      setMatrix(hit.resonator);
     return;
   }
   setFilter(hit.kind === "resonator" ? resonatorFilters : OPTION_FILTER_MAPS[hit.kind], hit.value, "include");
@@ -2709,6 +2870,11 @@ var removeChip = (e) => {
     setCompare(chip.dataset.resonator ?? "", axis);
     return;
   }
+  const matrix = chip.dataset.matrix;
+  if (matrix) {
+    setMatrix(matrix);
+    return;
+  }
   const scoped = chip.dataset.scoped;
   if (scoped) {
     const s = filters.scoped.find((x) => scopedKey(x) === scoped);
@@ -2740,11 +2906,13 @@ document.addEventListener("click", (e) => {
     const kept = maps.map((map) => [...map]);
     const compares2 = AXES.map((axis) => [...filters[axis]]);
     const scoped = [...filters.scoped];
+    const matrix = [...filters.matrix];
     for (const map of maps)
       map.clear();
     for (const axis of AXES)
       filters[axis] = [];
     filters.scoped = [];
+    filters.matrix = [];
     return () => {
       maps.forEach((map, i) => {
         for (const [n, mode] of kept[i])
@@ -2754,10 +2922,11 @@ document.addEventListener("click", (e) => {
         filters[axis] = compares2[i];
       });
       filters.scoped = scoped;
+      filters.matrix = matrix;
     };
   });
 });
-var chipSig = (el) => el.classList.contains("clearall") ? "clearall" : [el.dataset.axis, el.dataset.scoped, el.dataset.kind, el.dataset.resonator, el.dataset.value].join("\0");
+var chipSig = (el) => el.classList.contains("clearall") ? "clearall" : [el.dataset.axis, el.dataset.scoped, el.dataset.matrix, el.dataset.kind, el.dataset.resonator, el.dataset.value].join("\0");
 var focusAfterDraw;
 var tabRing = () => {
   const search = document.querySelector("#optionSearch");
@@ -2858,7 +3027,7 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
       cls.push("underspent");
     if (col.key.startsWith("gauge:") && Number(row.raw[`short:${col.key}`]))
       cls.push("negative");
-    const text = esc(fmt(v, col.digits ?? 0, PAD_DIGITS_COLUMNS.has(col.key), GROUPED_COLUMNS.has(col.key))) + (col.percent && typeof v === "number" ? "%" : "") + gaugeSuffix(row.raw, col.key);
+    const text = esc(fmt(v, digitsOf(row.raw, col), PAD_DIGITS_COLUMNS.has(col.key), GROUPED_COLUMNS.has(col.key))) + (col.percent && typeof v === "number" ? "%" : "") + gaugeSuffix(row.raw, col.key);
     let html = sources && text ? `<span class="has">${text}</span>` : text;
     if (col.key === "action" && caret && !part && "parts" in row && row.parts.length) {
       html = `${html}<span class="caret">\u25B8</span>`;
@@ -3085,8 +3254,9 @@ function teamSources(flat, rows, member2, [from, to], field) {
   return [...by.values()];
 }
 function teamSourcePopover(sources, slotHue) {
-  const head = sources.length ? "Team sources" : "No team sources";
-  return lazyPop(`<span class="pop stat"><table><tr class="sec"><td colspan="2">${head}</td></tr>${sources.map((r) => panelRow(r, slotHue)).join("")}</table></span>`);
+  if (!sources.length)
+    return "";
+  return lazyPop(`<span class="pop stat"><table><tr class="sec"><td colspan="2">Team sources</td></tr>${sources.map((r) => panelRow(r, slotHue)).join("")}</table></span>`);
 }
 function energyTable(run, lines, report, slotHue) {
   const erCol = columnOf(report, "er");
@@ -3109,18 +3279,19 @@ function energyTable(run, lines, report, slotHue) {
       const req = snap == null ? null : erRequirement(flat, resetIdx, m.name, maxEnergy, constant);
       const missing = req == null ? 0 : Math.max(0, req - constant);
       const text = req == null ? "\u2014" : `${fmt(req, 1)}%`;
-      const sources = constantSources.map((e) => ({ source: e.source, value: e.value, percent: true, digits: 1, owner: e.owner || m.name }));
-      const hover = snap && erCol ? popover({ ...erCol, full: "Base Energy Regen" }, sources, constant, slotHue) : "";
-      return `<div class="c num${missing > 0 ? " er-under" : ""}${hover ? " has" : ""}"${hover}>${text}</div>`;
+      return `<div class="c num${missing > 0 ? " er-under" : ""}">${text}</div>`;
     };
+    const erSources = constantSources.map((e) => ({ source: e.source, value: e.value, percent: true, digits: 1, owner: e.owner || m.name }));
+    const erHover = erCol ? popover({ ...erCol, full: "Base Energy Regen" }, erSources, constant, slotHue) : "";
     const opener = resetIndices(flat, offsets[0], offsets[1], m.name);
     const lastLoop = [offsets[3], offsets[4]];
     const gen = energyGenerated(flat, m.name, lastLoop);
     const team = teamSourcePopover(teamSources(flat, report.rows, m.name, energySpan(flat, m.name, lastLoop), "energy"), slotHue);
     const offtune = offtuneBuilt(flat, m.name, lastLoop);
     const offtuneTeam = teamSourcePopover(teamSources(flat, report.rows, m.name, lastLoop, "offtune"), slotHue);
-    const cells = cell2(opener[opener.length - 1] ?? null) + [1, 2, 3].map((i) => cell2(resetIndices(flat, offsets[i], offsets[i + 1], m.name)[0] ?? null)).join("") + `<div class="c num has"${team}>${fmt(gen, 2, true)}</div><div class="c num has"${offtuneTeam}>${fmt(offtune, 2, true)}</div>`;
-    return `<div class="rtrow"><div class="c name"${gearPopover(m, run.combo[idx])} style="--mem:${m.color}">${esc(m.name)}</div>` + cells + `</div>`;
+    const genCell = (value, hover) => `<div class="c num${hover ? " teamfed has" : ""}"${hover}>${fmt(value, 2, true)}</div>`;
+    const cells = cell2(opener[opener.length - 1] ?? null) + [1, 2, 3].map((i) => cell2(resetIndices(flat, offsets[i], offsets[i + 1], m.name)[0] ?? null)).join("") + genCell(gen, team) + genCell(offtune, offtuneTeam);
+    return `<div class="rtrow"><div class="c name${erHover ? " has" : ""}"${erHover} style="--mem:${m.color}">${esc(m.name)}</div>` + cells + `</div>`;
   }).join("");
   return `<div class="rtable energy">${head}${rows}</div>`;
 }
@@ -3139,15 +3310,21 @@ function page(run) {
   return `<main>
   <div class="rtables">
     <div class="rtable-block">
-      <h2 class="summary-label">damage per rotation</h2>
-      ${dprTable(run, lines)}
+      <h2 class="summary-label">Equipment</h2>
+      ${loadoutTable(run)}
     </div>
-    <div class="rtable-block">
-      <h2 class="summary-label">energy requirements</h2>
-      ${energyTable(run, lines, report, slotHue)}
+    <div class="rstack">
+      <div class="rtable-block">
+        <h2 class="summary-label">Damage Distribution</h2>
+        ${dprTable(run, lines)}
+      </div>
+      <div class="rtable-block">
+        <h2 class="summary-label">Energy Requirements</h2>
+        ${energyTable(run, lines, report, slotHue)}
+      </div>
     </div>
   </div>
-  <h2 class="summary-label">action log</h2>
+  <h2 class="summary-label">Rotation</h2>
   ${rotationTable(report, slotHue, gearByMember, starts)}
 </main>`;
 }

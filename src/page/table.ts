@@ -8,9 +8,22 @@ import { sequenceLevels, scopedKey, axisUsed, compares, weaponBase, echoLines, e
 import type { Member, Combo, Axis, TeamCost, ScopedCompare } from "../solver.js";
 import type { TeamRun } from "../teamrun.js";
 import {
-  TEAMS, filters, results, visibleRows, ROW_CAP,
-  resonatorFilters, sequenceFilters, refineFilters, weaponFilters, OPTION_FILTER_MAPS,
-  pruneGearFilters, comparable, prospectiveRows, sequenceTag, refineTag, syncHash,
+  TEAMS,
+  filters,
+  results,
+  visibleRows,
+  ROW_CAP,
+  resonatorFilters,
+  sequenceFilters,
+  refineFilters,
+  OPTION_FILTER_MAPS,
+  pruneGearFilters,
+  comparable,
+  prospectiveRows,
+  sequenceTag,
+  refineTag,
+  syncHash,
+  MATRIX_RESONATORS,
 } from "./model.js";
 import type { ResonatorFilter, OptionKind, TeamRow } from "./model.js";
 import type { SearchKind, SearchHit } from "./filterbar.js";
@@ -87,6 +100,18 @@ function withRowCap(change: () => () => void): void {
   void refresh();
 }
 
+/** Turn a resonator's Matrix on or off. Not an axis: it opens no column and adds no row — every
+ *  team fielding them simply runs with the Matrix on, so the old build is replaced, not compared. */
+function setMatrix(name: string): void {
+  withRowCap(() => {
+    const before = [...filters.matrix];
+    const at = filters.matrix.indexOf(name);
+    if (at < 0) filters.matrix.push(name);
+    else filters.matrix.splice(at, 1);
+    return () => { filters.matrix = before; };
+  });
+}
+
 /** Toggle one filter: same mode clears it, a different mode switches it. */
 function setFilter(map: Map<string, ResonatorFilter>, name: string, mode: ResonatorFilter): void {
   withRowCap(() => {
@@ -136,7 +161,9 @@ function setScoped(s: ScopedCompare): void {
   });
 }
 
-interface MenuItem { label: string; run: () => void }
+/** `alt` is what the right button does on this line; without one the right button is inert
+ *  there, so a second right press on a menu it just opened leaves the menu standing. */
+interface MenuItem { label: string; run: () => void; alt?: () => void }
 
 /** The scoped compares a pick can open: refines on a weapon pick alone, and only where its rank
  *  list has >1 entry; sonatas and main stats where the resonator has options; an echo opens main
@@ -160,19 +187,8 @@ function scopedItems(resonator: string, on: ScopedCompare["on"], value: string):
   }));
 }
 
-const closeMenu = (): void => { document.querySelector(".ctxmenu")?.dispatchEvent(new Event("closemenu")); };
-
-/** When the last double press filed its filter — the hover-to-open menu sits out the second after. */
-let lastQuickInclude = 0;
-const quickInclude = (run: () => void): void => {
-  closeMenu();
-  lastQuickInclude = Date.now();
-  run();
-};
-
 /** The menu at the pointer; any other click, a scroll or Escape takes it down. */
 function showMenu(x: number, y: number, items: MenuItem[]): void {
-  menuOrigin = null;
   document.querySelector(".ctxmenu")?.remove();
   const menu = document.createElement("div");
   menu.className = "ctxmenu";
@@ -181,22 +197,36 @@ function showMenu(x: number, y: number, items: MenuItem[]): void {
   placeInView(menu, x, y);
   const close = (): void => {
     menu.remove();
-    removeEventListener("click", onClick, true);
-    removeEventListener("contextmenu", onClick, true);
+    removeEventListener("click", onOutside, true);
+    removeEventListener("contextmenu", onOutside, true);
     removeEventListener("keydown", onKey, true);
     removeEventListener("scroll", close, true);
   };
-  const onClick = (e: Event): void => {
+  /** A press on one of the lines. Bound to the menu itself and live the moment it is on screen,
+   *  so the second press of a double lands on the first line however fast it comes — only the
+   *  dismissal below has to be deferred. */
+  const onItem = (e: Event): void => {
     const item = (e.target as Element).closest<HTMLElement>(".ctxitem");
-    if (item && menu.contains(item)) { e.stopPropagation(); e.preventDefault(); close(); items[Number(item.dataset.i)]!.run(); return; }
+    if (!item || !menu.contains(item)) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const it = items[Number(item.dataset.i)]!;
+    const run = e.type === "contextmenu" ? it.alt : it.run;
+    // a right press on a line with no `alt` is inert, menu and all — so pressing the right button
+    // twice over a cell opens that cell's menu and leaves it standing
+    if (!run) return;
     close();
+    run();
   };
+  menu.addEventListener("click", onItem);
+  menu.addEventListener("contextmenu", onItem);
+  const onOutside = (e: Event): void => { if (!(e.target as Element).closest(".ctxmenu")) close(); };
   const onKey = (e: KeyboardEvent): void => { if (e.key === "Escape") close(); };
   menu.addEventListener("closemenu", close);
-  // deferred, or the contextmenu that opened it would close it in the same tick
+  // deferred, or the press that opened it would close it in the same tick
   setTimeout(() => {
-    addEventListener("click", onClick, true);
-    addEventListener("contextmenu", onClick, true);
+    addEventListener("click", onOutside, true);
+    addEventListener("contextmenu", onOutside, true);
     addEventListener("keydown", onKey, true);
     addEventListener("scroll", close, true);
   });
@@ -207,7 +237,8 @@ function showMenu(x: number, y: number, items: MenuItem[]): void {
 /** A member's name cell: the resonator, then `S?R?` — the name cell's menu offers the level and
  *  rank as filter lines of its own (`openNameMenu`). */
 function memberLabel(m: Member, combo: Combo): string {
-  return [m.loadout.resonator.name, `${seqToken(m, combo)}${rankToken(m, combo)}`].filter(Boolean).join(" ");
+  return [m.loadout.resonator.name, combo.matrix ? "(Matrix)" : "", `${seqToken(m, combo)}${rankToken(m, combo)}`]
+    .filter(Boolean).join(" ");
 }
 /** Any level above S0 is named — the one a chain comes with, and the one a cost mode hands out —
  *  and every level is once the chain is compared, so an S0 row reads S0 beside its S1. */
@@ -723,56 +754,10 @@ document.addEventListener("change", (e) => {
     return () => { filters.cost = was; select.value = was; };
   });
 });
-document.addEventListener("change", (e) => {
-  const input = e.target as HTMLInputElement;
-  if (input.id !== "matrix") return;
-  withRowCap(() => {
-    const was = filters.matrix;
-    filters.matrix = input.checked;
-    return () => { filters.matrix = was; input.checked = was; };
-  });
-});
 
-/** What the open menu was opened on, null for one that files nothing (`showMenu` clears it, each
- *  opener sets it after). Every menu opens at the pointer, so the second press of a double lands
- *  on the menu rather than on the cell — this is how it still reads as the cell's. */
-let menuOrigin: { map: Map<string, ResonatorFilter>; value: string; named: boolean } | null = null;
-
-/** What a press is on: the cell under it, or the open menu's own origin where that menu is now
- *  covering the cell. `named` is the resonator cells alone — what the right button files. */
-const pressTarget = (e: Event, named: boolean): { map: Map<string, ResonatorFilter>; value: string } | undefined => {
-  const name = (e.target as Element).closest<HTMLElement>(".c.name.res")?.dataset.resonator;
-  if (name) return { map: resonatorFilters, value: name };
-  const pick = named ? undefined : optionPick(e);
-  // the weapon at any rank: the rank is a line of the cell's menu, not what a double press files
-  if (pick) return { map: pick[0], value: pick[0] === weaponFilters ? pick[1].replace(/ R\d$/, "") : pick[1] };
-  if (!(e.target as Element).closest(".ctxmenu") || !menuOrigin || (named && !menuOrigin.named)) return undefined;
-  return { map: menuOrigin.map, value: menuOrigin.value };
-};
-
-/** A double press of either button, counted here rather than left to `dblclick` — that fires only
- *  for the primary button, and only after the menu the first press opened has already taken the
- *  second one. The same target, twice inside the interval a double press is. */
-let lastPress = { key: "", at: 0 };
-const doublePress = (key: string): boolean => {
-  const now = Date.now();
-  const again = key === lastPress.key && now - lastPress.at < 400;
-  lastPress = { key: again ? "" : key, at: now };
-  return again;
-};
-
-/** Both buttons' doubles, ahead of everything so the second press beats the menu's own dismissal
- *  (registered on the window later, from inside `showMenu`) and whichever item it is sitting on.
- *  This is what lets every menu open on the first press with no wait at all. */
-for (const [type, mode, named] of [["click", "include", false], ["contextmenu", "exclude", true]] as const) {
-  addEventListener(type, (e) => {
-    const target = pressTarget(e, named);
-    if (!target || !doublePress(`${type}|${target.map === resonatorFilters ? "res" : "gear"}|${target.value}`)) return;
-    e.preventDefault();
-    e.stopPropagation();
-    quickInclude(() => setFilter(target.map, target.value, mode));
-  }, true);
-}
+/* A double press needs no machinery of its own: a menu opens at the pointer with its first line
+ * under the cursor, so the second press simply lands on that line. Left presses it, right runs its
+ * `alt` — which on "Show X teams" is the hide. Any speed: there is no interval to beat. */
 /** The cell reads "Suoming S6R1": the resonator's own lines first, whole, then a block for each
  *  narrower reading of the cell — everything about "Suoming S6", then everything about "Suoming
  *  R1". Grouped by what a line is about rather than by axis, so the top of the menu is only ever
@@ -786,12 +771,17 @@ const openNameMenu = (el: HTMLElement, x: number, y: number): void => {
   // one block per tag the cell carries: its own two filters, then the compares scoped to it in the
   // same axis order the resonator's own lines above read in (`scopedItems` offers its own)
   const scopedBlock = (tag: string | undefined, on: ScopedCompare["on"], gate: string, map: Map<string, ResonatorFilter>): MenuItem[] => (tag ? [
-    { label: `Show only ${tag} teams`, run: () => setFilter(map, tag, "include") },
+    { label: `Show only ${tag} teams`, run: () => setFilter(map, tag, "include"), alt: () => setFilter(map, tag, "exclude") },
     { label: `Hide ${tag} teams`, run: () => setFilter(map, tag, "exclude") },
     ...scopedItems(resonator, on, gate).sort((a, b) => AXES.indexOf(a.axis) - AXES.indexOf(b.axis)),
   ] : []);
   const items: MenuItem[] = [
-    { label: `Show ${resonator} teams`, run: () => setFilter(resonatorFilters, resonator, "include") },
+    // nothing to offer once they are already the ones shown — the bubble is where that comes back off
+    ...(resonatorFilters.get(resonator) === "include" ? [] : [{
+      label: `Show ${resonator} teams`,
+      run: () => setFilter(resonatorFilters, resonator, "include"),
+      alt: () => setFilter(resonatorFilters, resonator, "exclude"),
+    }]),
     { label: `Hide ${resonator} teams`, run: () => setFilter(resonatorFilters, resonator, "exclude") },
     // every axis this resonator has more than one option on, the substat spread last of all —
     // it is the one that says how the whole build is invested rather than which pick it wears.
@@ -804,9 +794,13 @@ const openNameMenu = (el: HTMLElement, x: number, y: number): void => {
     ...(comparable(resonator, "substats") ? [compareItem("substats")] : []),
     ...scopedBlock(el.dataset.sequence, "sequence", el.dataset.seqGate ?? "", sequenceFilters),
     ...scopedBlock(el.dataset.refine, "refine", el.dataset.refGate ?? "", refineFilters),
+    // last of all, and only for a kit that has a Matrix at all
+    ...(MATRIX_RESONATORS.has(resonator) ? [{
+      label: `${filters.matrix.includes(resonator) ? "Disable" : "Enable"} ${resonator} matrix buffs`,
+      run: () => setMatrix(resonator),
+    }] : []),
   ];
   showMenu(x, y, items);
-  menuOrigin = { map: resonatorFilters, value: resonator, named: true };
 };
 const openNameMenuAt = (e: MouseEvent): void => {
   const el = (e.target as Element).closest<HTMLElement>(".c.name.res");
@@ -824,7 +818,7 @@ document.addEventListener("mouseover", (e) => {
   if (!el?.dataset.resonator || el.contains(e.relatedTarget as Node | null)) return;
   clearTimeout(hoverTimer);
   hoverTimer = setTimeout(() => {
-    if (document.querySelector(".ctxmenu") || !el.matches(":hover") || Date.now() - lastQuickInclude < 1500) return;
+    if (document.querySelector(".ctxmenu") || !el.matches(":hover")) return;
     openNameMenu(el, hoverAt[0], hoverAt[1]);
   }, 1000);
 });
@@ -868,10 +862,10 @@ const openOptionMenu = (e: MouseEvent): void => {
       }] : []),
     ...filters.scoped.filter((s) => s.resonator === resonator && s.axis === axis)
       .map((s) => ({ label: `Stop comparing ${scopedLabel(s)} ${word}`, run: () => setScoped(s) })),
-    { label: `Show only ${base}`, run: () => setFilter(map, base, "include") },
+    { label: `Show only ${base}`, run: () => setFilter(map, base, "include"), alt: () => setFilter(map, base, "exclude") },
     { label: `Hide ${base}`, run: () => setFilter(map, base, "exclude") },
     ...(ranked ? [
-      { label: `Show only ${key}`, run: () => setFilter(map, key, "include") },
+      { label: `Show only ${key}`, run: () => setFilter(map, key, "include"), alt: () => setFilter(map, key, "exclude") },
       { label: `Hide ${key}`, run: () => setFilter(map, key, "exclude") },
     ] : []),
     ...(resonator && kind === "weapon" ? scopedItems(resonator, "weapon", base) : []),
@@ -879,7 +873,6 @@ const openOptionMenu = (e: MouseEvent): void => {
     ...(resonator && kind === "echo" ? scopedItems(resonator, "echo", key) : []),
   ];
   showMenu(x, y, items);
-  menuOrigin = { map, value: base, named: false };
 };
 document.addEventListener("click", openOptionMenu);
 document.addEventListener("contextmenu", openOptionMenu);
@@ -915,6 +908,7 @@ document.addEventListener("contextmenu", openStatMenu);
 // include pool. Both are undone on the chip it makes, never from here.
 const applySearchHit = (hit: SearchHit): void => {
   if (hit.kind === "compare") { if (hit.resonator && hit.axis) setCompare(hit.resonator, hit.axis); return; }
+  if (hit.kind === "matrix") { if (hit.resonator) setMatrix(hit.resonator); return; }
   setFilter(hit.kind === "resonator" ? resonatorFilters : OPTION_FILTER_MAPS[hit.kind], hit.value, "include");
 };
 const searchPick = (e: Event): SearchHit | undefined => {
@@ -946,6 +940,8 @@ const removeChip = (e: Event): void => {
   e.preventDefault();
   const axis = chip.dataset.axis as Axis | undefined;
   if (axis) { setCompare(chip.dataset.resonator ?? "", axis); return; }
+  const matrix = chip.dataset.matrix;
+  if (matrix) { setMatrix(matrix); return; }
   const scoped = chip.dataset.scoped;
   if (scoped) { const s = filters.scoped.find((x) => scopedKey(x) === scoped); if (s) setScoped(s); return; }
   const name = chip.dataset.resonator;
@@ -972,13 +968,16 @@ document.addEventListener("click", (e) => {
     const kept = maps.map((map) => [...map]);
     const compares = AXES.map((axis) => [...filters[axis]]);
     const scoped = [...filters.scoped];
+    const matrix = [...filters.matrix];
     for (const map of maps) map.clear();
     for (const axis of AXES) filters[axis] = [];
     filters.scoped = [];
+    filters.matrix = [];
     return () => {
       maps.forEach((map, i) => { for (const [n, mode] of kept[i]!) map.set(n, mode); });
       AXES.forEach((axis, i) => { filters[axis] = compares[i]!; });
       filters.scoped = scoped;
+      filters.matrix = matrix;
     };
   });
 });
@@ -986,7 +985,7 @@ document.addEventListener("click", (e) => {
 /** A bubble's identity across the redraw its own removal starts — its dataset is what makes one,
  *  and Clear Filters has none of its own. */
 const chipSig = (el: HTMLElement): string => (el.classList.contains("clearall") ? "clearall"
-  : [el.dataset.axis, el.dataset.scoped, el.dataset.kind, el.dataset.resonator, el.dataset.value].join(" "));
+  : [el.dataset.axis, el.dataset.scoped, el.dataset.matrix, el.dataset.kind, el.dataset.resonator, el.dataset.value].join(" "));
 /** Where to put the focus once the next redraw is done (`renderComparison`): a bubble by its own
  *  `chipSig`, null for the search bar, undefined to leave the focus wherever it already is. Only
  *  the bar's own flows book one — a checkbox toggled or a filter set from a table menu redraws

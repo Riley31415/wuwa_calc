@@ -4,9 +4,24 @@
 import { WeaponType, Stat, Attribute, Type1, Type2, Cast, LifeTime, BuffTarget } from "../engine/stats.js";
 import { Buff, Weapon, refinements } from "../engine/gear.js";
 import {
-  addStat, frozenStacks, casting, currentAction, revokeCurrent, applyCurrent, removeStack, stacksOf,
-  applyTeam, stacksOfEnemy, revokeTeam, isActive, onCast, onType, onInflict, either, isHeld } from "../engine/context.js";
-import { lostOnSwap, oneSecondPassed } from "../shared/helpers.js";
+  addStat,
+  frozenStacks,
+  casting,
+  currentAction,
+  revokeCurrent,
+  applyCurrent,
+  removeStack,
+  applyTeam,
+  stacksOfEnemy,
+  revokeTeam,
+  isActive,
+  onCast,
+  onType,
+  onInflict,
+  either,
+  isHeld,
+} from "../engine/context.js";
+import { oneSecondPassed } from "../shared/helpers.js";
 import { consumedConcerto, gainedUnison } from "../shared/unison.js";
 import { TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 import { AERO_EROSION, FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE } from "../shared/status.js";
@@ -54,11 +69,11 @@ export const RED_SPRING = refinements((r, rank) => {
  *  Bonus instances (Liberation 10s, Basic Attack DMG 4s) — both up at once is +48%, not capped. */
 export const UNFLICKERING_VALOR = refinements((r, rank) => {
   const LAUGHTER_PREVAILS_LIB = new Buff({
-    name: `Unflickering Valor: Laughter Prevails (lib)${rank}`,
+    name: `Unflickering Valor: Laughter Prevails${rank} (liberation)`,
     stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type1.Basic]], until: LifeTime.Outro,
   });
   const LAUGHTER_PREVAILS_BASIC = new Buff({
-    name: `Unflickering Valor: Laughter Prevails (basic)${rank}`,
+    name: `Unflickering Valor: Laughter Prevails${rank} (basic)`,
     stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type1.Basic]], until: LifeTime.Outro,
   });
   return new Weapon({

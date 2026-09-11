@@ -23,7 +23,7 @@
  *  - Deadly Focus: Lightning Execution +10% DMG against Sinner's Mark, and +10% ATK for 4s when
  *    triggered.
  */
-import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, LifeTime, BuffTarget } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   applyCurrent,
@@ -34,19 +34,19 @@ import {
   stacksOfEnemy,
   isHeld,
   currentAction,
+  onAction,
   runningAction,
   casting,
-  revokeCurrent,
   addStat,
   queue,
   queueOutro,
   applyTeam,
   frozenStacks,
 } from "../../engine/context.js";
-import { coordinatedBuff, lostOnSwap, matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ActionField, ECHO_SWAP } from "../../engine/rotation.js";
+import { coordinatedBuff, matrix } from "../../shared/helpers.js";
+import { ActionGroup, Action, Rotation, INTRO, OUTRO, ActionField, ECHO_SWAP } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
-import { VARIATION, NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
+import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { EMPYREAN_ANTHEM_5PC } from "../../echoes/rinascita.js";
 import { NM_TEMPEST_MEPHIS, HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
@@ -128,7 +128,7 @@ const EXECUTION_MODE: Buff = new Buff({
       removeStack(EXECUTION_MODE, 1);
     }
   },
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(EXECUTION_MODE); },
+  until: LifeTime.Outro,
 });
 
 /* ------------------------------------------------------------------------------------ buffs */
@@ -137,11 +137,11 @@ const EXECUTION_MODE: Buff = new Buff({
 const PAIN_IMMERSION = new Buff({
   name: "Inherent: Pain Immersion",
   stats: [[Stat.CritRate, 15]],
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(PAIN_IMMERSION); },
+  until: LifeTime.Outro,
 });
 const YL_INHERENT_1 = new Inherent({
   name: "Inherent: Pain Immersion",
-  updateBuffs: () => { if (runningAction(Skill1)) applyCurrent(PAIN_IMMERSION, 1); },
+  grants: [{ on: onAction(Skill1), buff: PAIN_IMMERSION }],
 });
 
 /** Deadly Focus (Inherent Skill): the +10% ATK half — the +10% on Lightning Execution itself
@@ -149,7 +149,7 @@ const YL_INHERENT_1 = new Inherent({
 const DEADLY_FOCUS = new Buff({
   name: "Inherent: Deadly Focus",
   stats: [[Stat.BonusAtk, 10]],
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(DEADLY_FOCUS); },
+  until: LifeTime.Outro,
 });
 const YL_INHERENT_2 = new Inherent({
   name: "Inherent: Deadly Focus",
@@ -161,7 +161,7 @@ const YL_INHERENT_2 = new Inherent({
 const YINLIN_OUTRO = new Buff({
   name: "Yinlin: Outro",
   stats: [[Stat.Amp, 20, Attribute.Electro], [Stat.Amp, 25, Type1.Liberation]],
-  updateBuffs: () => { lostOnSwap(); },
+  until: LifeTime.Swap,
 });
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
@@ -176,6 +176,7 @@ const YINLIN_MATRIX = matrix("Yinlin", 20, {
 
 const YINLIN_RESONATOR = new Resonator({
   name: "Yinlin",
+  stats: [[Stat.BaseHp, 11000], [Stat.BaseAtk, 400], [Stat.BaseDef, 1283.33]],
   matrix: YINLIN_MATRIX,
   talent: YINLIN_TALENTS,
   inherent1: YL_INHERENT_1,
@@ -196,9 +197,6 @@ const YINLIN_RESONATOR = new Resonator({
     }
   },
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 11000); addStat(Stat.BaseAtk, 400); addStat(Stat.BaseDef, 1283.33);
-  },
 });
 
 /* --------------------------------------------------------------------------------- sequences */
@@ -236,7 +234,7 @@ const YL_S3 = new Sequence({
 const STEADFAST_CONVICTION = new Buff({ name: "Yinlin S4: Steadfast Conviction", stats: [[Stat.BonusAtk, 20]] });
 const YL_S4 = new Sequence({
   name: "Yinlin S4: Steadfast Conviction",
-  updateBuffs: () => { if (runningAction(ACTION_JUDGMENT_STRIKE)) applyTeam(STEADFAST_CONVICTION, 1); },
+  grants: [{ on: onAction(ACTION_JUDGMENT_STRIKE), buff: STEADFAST_CONVICTION, to: BuffTarget.Team }],
 });
 
 /** S5: Thundering Wrath deals 100% extra to a marked target — her Liberation lays Sinner's Mark
@@ -262,7 +260,7 @@ const PURSUIT_OF_JUSTICE = new Buff({
 });
 const YL_S6 = new Sequence({
   name: "Yinlin S6: Pursuit of Justice",
-  updateBuffs: () => { if (runningAction(Liberation)) applyCurrent(PURSUIT_OF_JUSTICE, 4); },
+  grants: [{ on: onAction(Liberation), buff: PURSUIT_OF_JUSTICE, stacks: 4 }],
 });
 
 const YL_SEQUENCES = [YL_S1, YL_S2, YL_S3, YL_S4, YL_S5, YL_S6];

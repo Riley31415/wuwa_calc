@@ -19,8 +19,8 @@ import {
   applyCurrent,
   forte1,
   currentAction,
+  onAction,
   runningAction,
-  casting,
   queueOutro,
   applyTeam,
   revokeCurrent,
@@ -31,8 +31,7 @@ import {
   queue,
   currentTeam,
 } from "../../engine/context.js";
-import { lostOnSwap } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, START_1, START_2, START_3, SWAP, NOINTRO, INTRO, ECHO_CANCEL, ECHO_ONFIELD, OUTRO, DODGE, INTRO_2, INTRO_3 } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_3, SWAP, NOINTRO, ECHO_CANCEL, OUTRO, DODGE, INTRO_2, INTRO_3 } from "../../engine/rotation.js";
 import { EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { REJUV_2PC, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, SIERRA_GALE_2PC, BELL_BORNE_GEOCHELONE } from "../../echoes/jinzhou.js";
@@ -63,7 +62,7 @@ const Skill = qiuyuanAction("Skill - Through the Groves", { node: Node.Skill, ca
 
 const Liberation = qiuyuanAction("Liberation - Sundering Strike", {
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Echo, mv: 795.24, concerto: 20, offtune: 96000, resetEnergy: true,
-  updateBuffs: () => applyTeam(SUNDERING_STRIKE_CD, 1),
+  updateBuffs: () => applyTeam(SUNDERING_STRIKE, 1),
 });
 
 const Intro = qiuyuanAction("Intro - Attack the Must-Defend", {
@@ -102,15 +101,15 @@ const FHA3 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Sacrifice", {
 const FLOWING_PANACEA = new Buff({
   name: "Qiuyuan: Flowing Panacea",
   stats: [[Stat.BonusAtk, 10]],
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(FLOWING_PANACEA); },
+  until: LifeTime.Outro,
 });
 
 // team-wide, permanent once granted at 400 Soliloquy; S2 adds +30% Echo Skill DMG Amplification,
 // read off his own slot since the node is his local gear and this buff pays the team
 const BAMBOO_SHADE = new Buff({
   name: "Qiuyuan: Bamboo's Shade",
+  stats: [[Stat.DmgBonus, 30, Type1.Echo]],
   applyStats: () => {
-    addStat(Stat.DmgBonus, 30, Type1.Echo);
     if (currentTeam().slots.find((m) => m.resonator === QIUYUAN_RESONATOR)?.isHeld(QY_S2)) {
       asSource(QY_S2, () => addStat(Stat.Amp, 30, Type1.Echo));
     }
@@ -121,7 +120,7 @@ const BAMBOO_SHADE = new Buff({
 // loops) only sees the tail of its 10s, so it pays that Inksplash's To Teach and ends there
 const QUIETUDE_WITHIN = new Buff({
   name: "Inherent: Quietude Within", maxStacks: 2,
-  updateBuffs: () => { lostOnSwap(); },
+  until: LifeTime.Swap,
   applyStats: () => {
     if (runningAction(FHA1) || runningAction(FHA2) || runningAction(FHA3)) addStat(Stat.TotalDmg, 50);
     // "Thus Spoke the Blade: To Sacrifice additionally restores 30 of Concerto Energy on hit" —
@@ -132,7 +131,7 @@ const QUIETUDE_WITHIN = new Buff({
 });
 
 // team-wide — "all nearby active Resonators," gated on the acting resonator's own active flag
-const SUNDERING_STRIKE_CD = new Buff({
+const SUNDERING_STRIKE = new Buff({
   name: "Qiuyuan: Sundering Strike",
   applyStats: () => { if (isActive()) addStat(Stat.CritDmg, 30); },
 });
@@ -140,12 +139,12 @@ const SUNDERING_STRIKE_CD = new Buff({
 const QIUYUAN_OUTRO = new Buff({
   name: "Qiuyuan: Outro",
   stats: [[Stat.Amp, 50, Type1.Echo]],
-  updateBuffs: () => { lostOnSwap(); },
+  until: LifeTime.Swap,
 });
 
 const QY_INHERENT_2 = new Inherent({
   name: "Inherent: Drink Away Woes Age-Old",
-  updateBuffs: () => { if (currentAction().forte1 > 0) applyCurrent(FLOWING_PANACEA, 1); },
+  grants: [{ on: () => currentAction().forte1 > 0, buff: FLOWING_PANACEA }],
 });
 
 const QY_INHERENT_1 = new Inherent({
@@ -166,6 +165,7 @@ const QIUYUAN_TALENTS = new Talent({
 
 const QIUYUAN_RESONATOR = new Resonator({
   name: "Qiuyuan",
+  stats: [[Stat.BaseHp, 12238], [Stat.BaseAtk, 375], [Stat.BaseDef, 1198]],
   talent: QIUYUAN_TALENTS,
   inherent1: QY_INHERENT_1,
   inherent2: QY_INHERENT_2,
@@ -183,9 +183,6 @@ const QIUYUAN_RESONATOR = new Resonator({
     if (soliloquy >= 400) applyTeam(BAMBOO_SHADE, 1);
   },
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 12238); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1198);
-  },
 });
 
 /* --------------------------------------------------------------------------------- sequences */
@@ -229,8 +226,8 @@ const QY_S6 = new Sequence({
   name: "Qiuyuan S6: Thus I Heard, Thus I Saw, Thus I Spoke",
   updateBuffs: () => {
     if (runningAction(FHA3) && isActive()) queue(InksplashExit);
-    if (runningAction(StrawCape)) applyCurrent(THUS_I_SPOKE, 1);
   },
+  grants: [{ on: onAction(StrawCape), buff: THUS_I_SPOKE }],
 });
 
 const QY_SEQUENCES = [QY_S1, QY_S2, QY_S3, QY_S4, QY_S5, QY_S6];

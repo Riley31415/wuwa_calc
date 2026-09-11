@@ -26,6 +26,7 @@ import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, LifeTim
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   applyCurrent,
+  onAction,
   runningAction,
   casting,
   revokeCurrent,
@@ -39,6 +40,7 @@ import {
   isActive,
   applyTeam,
   frozenStacks,
+  onCast,
 } from "../../engine/context.js";
 import { matrix } from "../../shared/helpers.js";
 import { Action, Rotation, START_3, SWAP, INTRO, ECHO_CANCEL, OUTRO, ActionField, DODGE } from "../../engine/rotation.js";
@@ -116,11 +118,11 @@ const ACTION_OUTRO_COORD = jiyanAction("Outro - Discipline (Coordinated Lance)",
 const HEAVENLY_BALANCE = new Buff({
   name: "Inherent: Heavenly Balance",
   stats: [[Stat.BonusAtk, 10]],
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(HEAVENLY_BALANCE); },
+  until: LifeTime.Outro,
 });
 const JY_INHERENT_1 = new Inherent({
   name: "Inherent: Heavenly Balance",
-  updateBuffs: () => { if (casting(Cast.Intro)) applyCurrent(HEAVENLY_BALANCE, 1); },
+  grants: [{ on: onCast(Cast.Intro), buff: HEAVENLY_BALANCE }],
 });
 
 /** Tempest Taming (Inherent Skill): +12% Crit DMG for 8s on hit — held for his whole field
@@ -128,7 +130,7 @@ const JY_INHERENT_1 = new Inherent({
 const TEMPEST_TAMING = new Buff({
   name: "Inherent: Tempest Taming",
   stats: [[Stat.CritDmg, 12]],
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(TEMPEST_TAMING); },
+  until: LifeTime.Outro,
 });
 const JY_INHERENT_2 = new Inherent({
   name: "Inherent: Tempest Taming",
@@ -146,7 +148,7 @@ const JIYAN_OUTRO: Buff = new Buff({
   updateBuffs: () => {
     if (casting(Cast.Heavy)) { queueOn(JIYAN_RESONATOR, ACTION_OUTRO_COORD); removeStack(JIYAN_OUTRO, 1); }
   },
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(JIYAN_OUTRO); },
+  until: LifeTime.Outro,
 });
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
@@ -169,9 +171,7 @@ const JIYAN_RESONATOR = new Resonator({
   maxEnergy: 125,
   maxForte1: 60,
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 10487.5); addStat(Stat.BaseAtk, 437.5); addStat(Stat.BaseDef, 1185.55);
-  },
+  stats: [[Stat.BaseHp, 10487.5], [Stat.BaseAtk, 437.5], [Stat.BaseDef, 1185.55]],
 });
 
 // Intro banks the 30 Resolve Prelude's auto-queued Finale spends; the lances ride the mode with
@@ -198,7 +198,7 @@ const VERSATILITY = new Buff({
 const JY_S2 = new Sequence({
   name: "Jiyan S2: Versatility",
   applyStats: () => { if (runningAction(Intro)) addStat(Stat.AddForte1, 30); },
-  updateBuffs: () => { if (runningAction(Intro)) applyCurrent(VERSATILITY, 1); },
+  grants: [{ on: onAction(Intro), buff: VERSATILITY }],
 });
 
 /** S3: +16% Crit. Rate and +32% Crit. DMG for 8s off Windqueller, either Emerald Storm or Tactical

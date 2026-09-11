@@ -17,7 +17,7 @@
  * Outro ends Apex and clears the Rage. Thunder Rage's 10%/s drain is time, which this engine has
  * none of, so the bar only fills, gains and clears here.
  */
-import { Tier, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Tier, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   applyCurrent,
@@ -27,19 +27,17 @@ import {
   revokeCurrent,
   casting,
   currentAction,
+  onAction,
   runningAction,
   addStat,
   queue,
   queueOutro,
   forte1,
   forte2,
-  setForte1,
-  setForte2,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
-import { lostOnSwap } from "../../shared/helpers.js";
 import { inflictElectroFlare, inflictedNegativeStatus, HEALS } from "../../shared/status.js";
-import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
+import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { SOUL_OF_DESPAIR, SWORN_VIGIL_5PC, ELECTRIC_REFLECTION_5PC, STAY_TUNED } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
@@ -150,11 +148,11 @@ const ER_INHERENT_1 = new Inherent({ name: "Inherent: Decipher" });
 const REGRESSION = new Buff({
   name: "Inherent: Regression",
   stats: [[Stat.DmgBonus, 20, Type1.Skill]],
-  updateBuffs: () => { lostOnSwap(); },
+  until: LifeTime.Swap,
 });
 const ER_INHERENT_2 = new Inherent({
   name: "Inherent: Regression",
-  updateBuffs: () => { if (runningAction(OvershockHold)) applyCurrent(REGRESSION, 1); },
+  grants: [{ on: onAction(OvershockHold), buff: REGRESSION }],
 });
 
 /** Electro Core: what the Outro actually hands the incoming resonator — no stat of its own, just
@@ -163,16 +161,16 @@ const ER_INHERENT_2 = new Inherent({
 const ELECTRO_CORE = new Buff({
   name: "Electro Rover: Electro Core",
   updateBuffs: () => {
-    lostOnSwap();
     if (inflictedNegativeStatus()) { applyCurrent(ER_OUTRO, 1); revokeCurrent(ELECTRO_CORE); }
   },
+  until: LifeTime.Swap,
 });
 /** The Outro proper: 25% All DMG Amplification, paid out only once Electro Core has been spent —
  *  so it starts on the action after the one that inflicted the Negative Status. */
 const ER_OUTRO = new Buff({
   name: "Electro Rover: Outro",
   stats: [[Stat.Amp, 25]],
-  updateBuffs: () => { lostOnSwap(); },
+  until: LifeTime.Swap,
 });
 
 /* -------------------------------------------------------------------------------- sequences */
@@ -223,6 +221,7 @@ const ROVER_ELECTRO_TALENTS = new Talent({
  *  their own base stat line. `Tier.Free` — see the file header. */
 const ROVER_ELECTRO_RESONATOR = new Resonator({
   name: "Electro Rover",
+  stats: [[Stat.BaseHp, 10775], [Stat.BaseAtk, 438], [Stat.BaseDef, 1137]],
   talent: ROVER_ELECTRO_TALENTS,
   inherent1: ER_INHERENT_1,
   inherent2: ER_INHERENT_2,
@@ -244,9 +243,6 @@ const ROVER_ELECTRO_RESONATOR = new Resonator({
 
   updateBuffs: () => { if (THRUMS.includes(currentAction())) queue(ThunderBane); },
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 10775); addStat(Stat.BaseAtk, 438); addStat(Stat.BaseDef, 1137);
-  },
 });
 
 // the migrated sheet's own "erover sub" line: four basics plus Thunderclap into Repel fill Electric

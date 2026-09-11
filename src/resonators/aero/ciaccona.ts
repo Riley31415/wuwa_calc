@@ -15,8 +15,8 @@
  * Damage Data's own Energy/Elemental DMG/Weakness Break columns (the last x10000), except where a
  * skill states its own Concerto Regen outright, which wins.
  */
-import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, Type2 } from "../../engine/stats.js";
-import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, Type2, LifeTime } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   asSource,
   applyCurrent,
@@ -26,11 +26,10 @@ import {
   runningAction,
   currentTeam,
   addStat,
-  casting,
-  revokeCurrent,
   queue,
+  onCast,
 } from "../../engine/context.js";
-import { ActionGroup, Action, ActionField, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, SWAP, JUMP } from "../../engine/rotation.js";
+import { ActionGroup, Action, ActionField, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, JUMP } from "../../engine/rotation.js";
 import { coordinatedBuff } from "../../shared/helpers.js";
 import { AERO_EROSION, SHIELD } from "../../shared/status.js";
 import { WOODLAND_ARIA } from "../../weapons/pistol.js";
@@ -136,7 +135,7 @@ const CI_INHERENT_2 = new Inherent({
  *  dot row reads at all (see statuses.ts) — an unscoped one would pay nothing here. */
 const WINDCALLING_TUNE = new Buff({ 
   name: "Ciaccona: Outro",
-  applyStats: () => { addStat(Stat.Amp, 100, Type2.AeroErosion)}
+  stats: [[Stat.Amp, 100, Type2.AeroErosion]],
 });
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
@@ -160,9 +159,7 @@ const CIACCONA_RESONATOR = new Resonator({
   maxEnergy: 125,
   maxForte1: 3,
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 12238); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1198);
-  },
+  stats: [[Stat.BaseHp, 12238], [Stat.BaseAtk, 375], [Stat.BaseDef, 1198]],
 });
 
 // Intro plus two Basic Stage 4s are the three Musical Essence Quadruple Downbeat spends; the Skill
@@ -203,11 +200,11 @@ const CI_ROTATION_S3 = new Rotation([
 const WHERE_WIND_SINGS = new Buff({
   name: "Ciaccona S1: Where Wind Sings",
   stats: [[Stat.BonusAtk, 35]],
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(WHERE_WIND_SINGS); },
+  until: LifeTime.Outro,
 });
 const CI_S1 = new Sequence({
   name: "Ciaccona S1: Where Wind Sings",
-  updateBuffs: () => { if (casting(Cast.Basic)) applyCurrent(WHERE_WIND_SINGS, 1); },
+  grants: [{ on: onCast(Cast.Basic), buff: WHERE_WIND_SINGS }],
 });
 
 /** S2: +40% Aero DMG Bonus to the team while the Cadenza plays — paid by the Recital itself (above),

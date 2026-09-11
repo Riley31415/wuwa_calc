@@ -13,7 +13,7 @@
  * forte2 (cap 100, +50 a Schemata, all of it for Learn My True Name), and Soliskin Vitality a real
  * 0-60 gauge fed by any team member's Echo cast.
  */
-import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   asSource,
@@ -25,6 +25,7 @@ import {
   revokeCurrent,
   casting,
   currentAction,
+  onAction,
   runningAction,
   addStat,
   frozenStacks,
@@ -36,7 +37,7 @@ import {
   forte2,
 } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_3, SWAP, ECHO_ONFIELD, ECHO_SWAP } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, OUTRO, ECHO_ONFIELD } from "../../engine/rotation.js";
 import { SOLSWORN_CIPHERS } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { NAMELESS_EXPLORER, SOUND_OF_TRUE_NAME_5PC } from "../../echoes/lahairoi.js";
@@ -130,7 +131,7 @@ const SR_INHERENT_2 = new Inherent({
 /** True Names Invoked (Inherent Skill): casting Intro grants Convergent — the only source of it. */
 const SR_INHERENT_1 = new Inherent({
   name: "Inherent: True Names Invoked",
-  updateBuffs: () => { if (runningAction(Intro)) applyCurrent(CONVERGENT, 1); },
+  grants: [{ on: onAction(Intro), buff: () => CONVERGENT }],
 });
 
 /** Whether the current action grants Sigrika a Rune — Elucidated/Decipher's own Dodge Counter
@@ -143,9 +144,7 @@ function gainsRune(): boolean {
  *  While up, Basic Attack becomes Elucidated and Dodge Counter its own Decipher variant. */
 const DECIPHER = new Buff({
   name: "Sigrika: Decipher",
-  updateBuffs: () =>  {
-    lostOnSwap();
-  },
+  until: LifeTime.Swap,
   convertStats: () => { if (gainsRune()) revokeCurrent(DECIPHER); },
 });
 
@@ -255,6 +254,7 @@ const SIGRIKA_TALENTS = new Talent({
  *  own base stat line. */
 const SIGRIKA_RESONATOR = new Resonator({
   name: "Sigrika",
+  stats: [[Stat.BaseHp, 10775], [Stat.BaseAtk, 437.5], [Stat.BaseDef, 1137]],
   talent: SIGRIKA_TALENTS,
   inherent1: SR_INHERENT_1,
   inherent2: SR_INHERENT_2,
@@ -272,9 +272,6 @@ const SIGRIKA_RESONATOR = new Resonator({
   // Soliskin Vitality's own gain — any team member's Echo cast
   updateGlobal: () => { if (casting(Cast.Echo)) applyCurrent(SOLISKIN_VITALITY, 10); },
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 10775); addStat(Stat.BaseAtk, 437.5); addStat(Stat.BaseDef, 1137);
-  },
 });
 
 /* --------------------------------------------------------------------------------- sequences */

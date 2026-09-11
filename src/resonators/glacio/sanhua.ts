@@ -6,7 +6,7 @@
  * Ice Prism (Skill), Glacier (Liberation, doubled by S5) — each a stackable marker buff Detonate's
  * own updateBuffs() reads and consumes.
  */
-import { Tier, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Tier, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   applyCurrent,
@@ -17,13 +17,13 @@ import {
   removeStack,
   revokeCurrent,
   casting,
+  onAction,
   runningAction,
   addStat,
   frozenStacks,
   queue,
   queueOutro,
 } from "../../engine/context.js";
-import { lostOnSwap } from "../../shared/helpers.js";
 import { Action, Rotation, INTRO, ECHO_SWAP, OUTRO, NOINTRO } from "../../engine/rotation.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
@@ -89,12 +89,12 @@ const DETONATE_GLACIER = sanhuaAction("Forte - Ice Burst (Glacier)", { node: Nod
 const CONDENSATION = new Buff({
   name: "Inherent: Condensation",
   stats: [[Stat.DmgBonus, 20, Type1.Skill]],
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(CONDENSATION); },
+  until: LifeTime.Outro,
 });
 /** Condensation's own trigger — always-equipped Inherent Skill piece. */
 const SH_INHERENT_1 = new Inherent({
   name: "Inherent: Condensation",
-  updateBuffs: () => { if (runningAction(Intro)) applyCurrent(CONDENSATION, 1); },
+  grants: [{ on: onAction(Intro), buff: CONDENSATION }],
 });
 
 /** Avalanche (Inherent Skill): +20% Ice Burst DMG for 8s after Basic Attack 5. Scoped by checking
@@ -104,19 +104,19 @@ const AVALANCHE = new Buff({
   applyStats: () => {
     if (runningAction(DETONATE_THORN) || runningAction(DETONATE_PRISM) || runningAction(DETONATE_GLACIER)) addStat(Stat.DmgBonus, 20);
   },
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(AVALANCHE); },
+  until: LifeTime.Outro,
 });
 /** Avalanche's own trigger — always-equipped Inherent Skill piece. */
 const SH_INHERENT_2 = new Inherent({
   name: "Inherent: Avalanche",
-  updateBuffs: () => { if (runningAction(BA5)) applyCurrent(AVALANCHE, 1); },
+  grants: [{ on: onAction(BA5), buff: AVALANCHE }],
 });
 
 /** S1 Solitude's Embrace: Basic Attack 5 grants +15% Crit Rate, 10s. Trigger lives in SANHUA_S1. */
 const S1_CRIT = new Buff({
   name: "Sanhua S1: Solitude's Embrace",
   stats: [[Stat.CritRate, 15]],
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(S1_CRIT); },
+  until: LifeTime.Outro,
 });
 
 /** S4 Blade Mastery: arms a one-shot +120% DMG Bonus for the next Detonate, consumed on landing
@@ -138,19 +138,19 @@ const S6_ATK = new Buff({
 /** Ice Creations: one stackable marker each, granted by the cast that makes it and consumed by
  *  Detonate's own updateBuffs() below, which queues the matching burst(s). No stat of their own. */
 const THORN_BUFF = new Buff({
-  name: "Sanhua: Ice Thorn", convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(THORN_BUFF); },
+  name: "Sanhua: Ice Thorn", until: LifeTime.Outro,
 });
 const PRISM_BUFF = new Buff({
-  name: "Sanhua: Ice Prism", convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(PRISM_BUFF); },
+  name: "Sanhua: Ice Prism", until: LifeTime.Outro,
 });
 const GLACIER_BUFF = new Buff({
-  name: "Sanhua: Glacier", maxStacks: 2, convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(GLACIER_BUFF); },
+  name: "Sanhua: Glacier", maxStacks: 2, until: LifeTime.Outro,
 });
 
 const SANHUA_OUTRO = new Buff({
   name: "Sanhua: Outro",
   stats: [[Stat.Amp, 38, Type1.Basic]],
-  updateBuffs: () => { lostOnSwap(); },
+  until: LifeTime.Swap,
 });
 
 /* -------------------------------------------------------------------------------- sequences */
@@ -159,7 +159,7 @@ const SANHUA_OUTRO = new Buff({
 
 const SANHUA_S1 = new Sequence({
   name: "Sanhua S1: Solitude's Embrace",
-  updateBuffs: () => { if (runningAction(BA5)) applyCurrent(S1_CRIT, 1); },
+  grants: [{ on: onAction(BA5), buff: S1_CRIT }],
 });
 
 // S2 Snowy Clarity: STA-cost/interruption-resistance only — a do-nothing piece, held for the name
@@ -167,12 +167,12 @@ const SANHUA_S2 = new Sequence({ name: "Sanhua S2: Snowy Clarity" });
 
 // S3 Anomalous Vision: flat DMG Bonus, no separate trigger needed
 const SANHUA_S3 = new Sequence({
-  name: "Sanhua S3: Anomalous Vision", applyStats: () => addStat(Stat.DmgBonus, 24.5),
+  name: "Sanhua S3: Anomalous Vision", stats: [[Stat.DmgBonus, 24.5]],
 });
 
 const SANHUA_S4 = new Sequence({
   name: "Sanhua S4: Blade Mastery",
-  updateBuffs: () => { if (runningAction(Liberation)) applyCurrent(S4_WINDOW, 1); },
+  grants: [{ on: onAction(Liberation), buff: S4_WINDOW }],
 });
 
 /** S5 Unraveling Fate: +100% Crit DMG on Ice Burst, plus a *second* Glacier stack on top of
@@ -183,7 +183,7 @@ const SANHUA_S5 = new Sequence({
   applyStats: () => {
     if (runningAction(DETONATE_THORN) || runningAction(DETONATE_PRISM) || runningAction(DETONATE_GLACIER)) addStat(Stat.CritDmg, 100);
   },
-  updateBuffs: () => { if (runningAction(Liberation)) applyCurrent(GLACIER_BUFF, 1); },
+  grants: [{ on: onAction(Liberation), buff: GLACIER_BUFF }],
 });
 
 const SANHUA_S6 = new Sequence({
@@ -214,9 +214,7 @@ const SANHUA_RESONATOR = new Resonator({
   maxEnergy: 125,
   tier: Tier.Free,
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 10063); addStat(Stat.BaseAtk, 275); addStat(Stat.BaseDef, 941);
-  },
+  stats: [[Stat.BaseHp, 10063], [Stat.BaseAtk, 275], [Stat.BaseDef, 941]],
 });
 
 // Skill/Liberation first so Condensation (opened by Intro) covers the Skill cast; basics end on

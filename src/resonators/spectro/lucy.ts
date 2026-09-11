@@ -39,7 +39,7 @@
  * (api.wuwalab.com/api/app/characters/lucy) summed the same way, cross-checked against the
  * migrated sheet.
  */
-import { Stat, EnemyStat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, EnemyStat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   addStat,
@@ -47,7 +47,7 @@ import {
   applyEnemy,
   applyCurrent,
   applyTeam,
-  casting,
+  onAction,
   runningAction,
   isHeld,
   queue,
@@ -56,15 +56,12 @@ import {
   revokeTeam,
   forte1,
   forte2,
-  setForte1,
-  setForte2,
-  getStat,
   frozenStacks,
   stacksOfEnemy,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
-import { lostOnSwap, matrix } from "../../shared/helpers.js";
+import { matrix } from "../../shared/helpers.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING, TUNE_HACK_INTERFERED } from "../../shared/tunebreak.js";
 import { SPECTRAL_TRIGGER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
@@ -240,7 +237,7 @@ const BREACH_PROTOCOL = new Debuff({
  *  DMG Amplification for 14s or until they switch out. */
 const COUNTERMEASURE_HANDOFF = new Buff({
   name: "Lucy: Outro",
-  updateBuffs: () => lostOnSwap(),
+  until: LifeTime.Swap,
   stats: [[Stat.Amp, 25, Type1.Basic]],
 });
 
@@ -249,7 +246,7 @@ const COUNTERMEASURE_HANDOFF = new Buff({
  *  that it ticks on every member's own turn and can pay out onto whoever is actually acting; the
  *  DMG-reduction and Stagnate halves are defensive and carry no stat. */
 const COUNTERMEASURE_MARKER = new Buff({
-  name: "Lucy: Countermeasure Program",
+  name: "Lucy: Countermeasure Program (team)",
   updateBuffs: () => { 
     if (applied(TUNE_HACK_SHIFTING) && !isHeld(LUCY_RESONATOR)) {
       applyCurrent(COUNTERMEASURE_AMP, 1); 
@@ -261,7 +258,7 @@ const COUNTERMEASURE_MARKER = new Buff({
 });
 const COUNTERMEASURE_AMP = new Buff({
   name: "Lucy: Countermeasure Program",
-  updateBuffs: () => lostOnSwap(),
+  until: LifeTime.Swap,
   stats: [[Stat.Amp, 20]],
 });
 
@@ -274,12 +271,12 @@ const COUNTERMEASURE_AMP = new Buff({
 const LC_S1_ATK = new Buff({
   name: "Lucy S1: The Moon, a Ticket, and a Dream",
   stats: [[Stat.BonusAtk, 20]],
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(LC_S1_ATK); },
+  until: LifeTime.Outro,
 });
 
 const LC_S1 = new Sequence({
   name: "Lucy S1: The Moon, a Ticket, and a Dream",
-  updateBuffs: () => { if (runningAction(Intro)) applyCurrent(LC_S1_ATK, 1); },
+  grants: [{ on: onAction(Intro), buff: LC_S1_ATK }],
 });
 
 /** S2's own extra instance behind Pulse Interference: 450% of ATK, Heavy Attack DMG, applying every
@@ -379,11 +376,11 @@ export const LUCY_RESONATOR = new Resonator({
 
   updateGlobal: () => tuneHackResponse(DataCrash),
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 11025); addStat(Stat.BaseAtk, 425); addStat(Stat.BaseDef, 1148.89);
+  stats: [
+    [Stat.BaseHp, 11025], [Stat.BaseAtk, 425], [Stat.BaseDef, 1148.89],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
-    addStat(Stat.Tbb, 10);
-  },
+    [Stat.Tbb, 10],
+  ],
 });
 
 /* ---------------------------------------------------------------------------------- rotation */

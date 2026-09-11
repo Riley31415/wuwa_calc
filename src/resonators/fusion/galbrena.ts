@@ -27,12 +27,13 @@
  * Sinflame come off the migrated (old-engine) sheet. Mid-air Sustained Fire and the Dodge
  * Counter have no sheet row at all, so they're still bare (nanoka's own MV only).
  */
-import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   asSource,
   applyCurrent,
   applyTeam,
+  revokeTeam,
   casting,
   runningAction,
   addStat,
@@ -41,8 +42,6 @@ import {
   isHeld,
   forte1,
   forte2,
-  setForte1,
-  setForte2,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, DODGE } from "../../engine/rotation.js";
 import { LUX_UMBRA } from "../../weapons/pistol.js";
@@ -132,24 +131,24 @@ const Outro = galbrenaAction("Outro - Ashen Pursuit", { cast: Cast.Outro, type: 
  *  Ravage (Hellstride isn't implemented, see file header, so it's dropped from this list too). */
 const BURNING_DRIVE = new Buff({
   name: "Galbrena: Burning Drive",
+  stats: [[Stat.BonusAtk, 20]],
   // S2: 350% more of the bonus, so 20% becomes 90%
   applyStats: () => {
-    addStat(Stat.BonusAtk, 20);
     // S2 takes it to 90% of ATK — the 70 over the base is the node's own
     if (isHeld(GB_S2)) asSource(GB_S2, () => addStat(Stat.BonusAtk, 70));
   },
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(BURNING_DRIVE); },
+  until: LifeTime.Outro,
 });
 
 /** +5% DMG Dealt a stack, up to 4, 5.5s — granted on any of her own landed attacks. */
 const OATHBOUND_HUNT = new Buff({
   name: "Galbrena: Fated End", maxStacks: 4,
   stats: [[Stat.Amp, 5]], perStack: true,
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(OATHBOUND_HUNT); },
+  until: LifeTime.Outro,
 });
 const GB_INHERENT_1 = new Inherent({
   name: "Inherent: Oathbound Hunt",
-  updateBuffs: () => { if (!casting(Cast.Echo)) applyCurrent(OATHBOUND_HUNT, 1); },
+  grants: [{ on: () => !casting(Cast.Echo), buff: OATHBOUND_HUNT }],
 });
 /** No combat-formula effect this engine models, same "still equipped, no stat" treatment
  *  Augusta's own Ruler's Realm shield gets. */
@@ -159,12 +158,14 @@ const GB_INHERENT_2 = new Inherent({ name: "Inherent: Sin Feaster" });
  *  Flame runs out, taking Afterflame down with it. */
 const DEMON_HYPOSTASIS = new Buff({
   name: "Galbrena: Demon Hypostasis",
-  updateBuffs: () => { if (forte2() <= 0) { revokeCurrent(AFTERFLAME); revokeCurrent(DEMON_HYPOSTASIS); } },
+  updateBuffs: () => { if (forte2() <= 0) { revokeTeam(AFTERFLAME); revokeCurrent(DEMON_HYPOSTASIS); } },
 });
 
 /** 0-40, +8 on any team member's own Echo Skill cast while she's still in Threshold State (not
  *  yet holding DEMON_HYPOSTASIS this turn). Scales the nine enhanced-mode actions at +1.5%/point,
- *  capped at 60%, gated per-action inside applyStats() itself. */
+ *  capped at 60%, gated per-action inside applyStats() itself. Held team-wide so the count reads
+ *  on every row of the log, the way Jinhsi's Incandescence is; the nine-action gate below is what
+ *  keeps the payout hers. */
 const AFTERFLAME = new Buff({
   name: "Galbrena: Afterflame", maxStacks: 40,
   applyStats: () => {
@@ -193,7 +194,7 @@ const HELLFIRE_WINDOW = new Buff({
       || runningAction(SeraphicExecution4) || runningAction(SeraphicExecution5)
       || runningAction(FlamewingVerdict1) || runningAction(FlamewingVerdict2) || runningAction(FlamewingVerdict3)) addStat(Stat.MulMv, 85);
   },
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(HELLFIRE_WINDOW); },
+  until: LifeTime.Outro,
 });
 
 /* --------------------------------------------------------------------------------- sequences */
@@ -258,6 +259,7 @@ const GALBRENA_TALENTS = new Talent({
 
 const GALBRENA_RESONATOR = new Resonator({
   name: "Galbrena",
+  stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 463], [Stat.BaseDef, 1112]],
   talent: GALBRENA_TALENTS,
   inherent1: GB_INHERENT_1,
   inherent2: GB_INHERENT_2,
@@ -272,10 +274,7 @@ const GALBRENA_RESONATOR = new Resonator({
 
   // reacts to *any* team member's own Echo cast, not just her own — see AFTERFLAME's own comment
   updateGlobal: () => {
-    if (casting(Cast.Echo) && !isHeld(DEMON_HYPOSTASIS)) applyCurrent(AFTERFLAME, 8);
-  },
-  constantStats: () => {
-    addStat(Stat.BaseHp, 10300); addStat(Stat.BaseAtk, 463); addStat(Stat.BaseDef, 1112);
+    if (casting(Cast.Echo) && !isHeld(DEMON_HYPOSTASIS)) applyTeam(AFTERFLAME, 8);
   },
 });
 

@@ -58,24 +58,20 @@ import {
   runningAction,
   isHeld,
   maxStackIncrease,
-  queueOn,
   queueOutro,
   revokeCurrent as revokeCurrent,
   revokeTeam,
   frozenStacks,
   forte1,
-  triggeredAction,
   setForte1,
-  setForte2,
   getStat,
   forte2,
   stacksOf,
-  addForte1,
   stacksOfTeam,
 } from "../../engine/context.js";
 import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, JUMP, ActionGroup, DODGE, ActionField } from "../../engine/rotation.js";
 import { applied, applyEnemy } from "../../engine/context.js";
-import { coordinatedBuff, lostOnSwap } from "../../shared/helpers.js";
+import { coordinatedBuff } from "../../shared/helpers.js";
 import { FUSION_BURST, FUSION_BURST_ACTIONS } from "../../shared/status.js";
 import { ENEMY_MAX_OFFTUNE, TUNE_STRAIN_SHIFTING } from "../../shared/tunebreak.js";
 import { applyStrain, TUNE_STRAIN_INTERFERED, TUNE_STRAIN_RESPONDER } from "../../shared/tunebreak.js";
@@ -257,12 +253,12 @@ const spendsVoid = (a: Action): boolean => a.forte1 < 0 && a.forte2 > 0;
  *  and short enough to come off after her outro otherwise. */
 const ENTROPY_BREAKDOWN = new Buff({
   name: "Entropy Shift: Breakdown Form",
+  stats: [[Stat.BonusAtk, 30]],
 
   // the retag has to land in the first phase, before anything reads the type (see typeOverride)
   updateDebuffs: () => { if (spendsVoid(currentAction()) && forte1() > 0) typeOverride(Type1.Liberation); },
 
   applyStats: () => {
-    addStat(Stat.BonusAtk, 30);
     // S3 has Final Act - Breakdown hand back 30 Concerto; S6's own standing pair is on its node
     if (isHeld(DN_S3) && runningAction(Lib2)) asSource(DN_S3, () => addStat(Stat.AddConcerto, 30));
 
@@ -271,7 +267,7 @@ const ENTROPY_BREAKDOWN = new Buff({
     addStat(Stat.MulMv, 50);
     addStat(Stat.AddForte2, a.forte2);
   },
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(ENTROPY_BREAKDOWN); },
+  until: LifeTime.Outro,
 });
 
 /** Erosion Field: 30s from Final Act - Breakdown, pulling every 4s — on this clockless engine
@@ -366,10 +362,10 @@ const UNFINISHED_LIES_STRAIN = new Buff({
   name: "Denia: Outro (strain)", maxStacks: 2,
   display: () => (frozenStacks() === 2 ? "Denia: Outro (shifting)" : "Denia: Outro (strain)"),
   updateBuffs: () => {
-    lostOnSwap();
     if (applied(TUNE_STRAIN_SHIFTING)) applyCurrent(UNFINISHED_LIES_STRAIN, 1);
   },
   applyStats: () => addStat(Stat.Amp, frozenStacks() === 2 ? 40 : 15),
+  until: LifeTime.Swap,
 });
 
 /* --------------------------------------------------------------------------------- sequences */
@@ -385,7 +381,7 @@ const DN_S1 = new Sequence({
 /** Tossed in the Tides (S2), Fusion Burst: +50% Fusion DMG Bonus to whoever on the team lays a
  *  Fusion Burst, 15s — hers holds for her window, a teammate's goes with their swap-out. */
 const TIDES_BURST = new Buff({
-  name: "Denia S2: Tossed in the Tides of Reality",
+  name: "Denia S2: Tossed in the Tides of Reality (burst)",
   stats: [[Stat.DmgBonus, 50, Attribute.Fusion]], until: LifeTime.AfterSwap,
 });
 /** Degenerate Voidmatter (S2): a stack every time a Fusion Burst calculates around the team, 10 at
@@ -396,7 +392,7 @@ const DEGENERATE_VOIDMATTER = new Buff({
 });
 /** The Tune Strain half: +20 Tune Break Boost to whoever lays a Shifting, 15s. */
 const TIDES_STRAIN = new Buff({
-  name: "Denia S2: Tossed in the Tides of Reality",
+  name: "Denia S2: Tossed in the Tides of Reality (strain)",
   stats: [[Stat.Tbb, 20]], until: LifeTime.AfterSwap,
 });
 /** S2: the mode's own handout above, and Banish at x1.4 — nanoka's second Stage 2 ladder
@@ -516,11 +512,11 @@ const DENIA_RESONATOR = new Resonator({
   maxForte1: 100,
   maxForte2: 100,
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 11025); addStat(Stat.BaseAtk, 425); addStat(Stat.BaseDef, 1148.89);
+  stats: [
+    [Stat.BaseHp, 11025], [Stat.BaseAtk, 425], [Stat.BaseDef, 1148.89],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
-    addStat(Stat.Tbb, 10);
-  },
+    [Stat.Tbb, 10],
+  ],
 });
 
 /* ---------------------------------------------------------------------------------- rotation */

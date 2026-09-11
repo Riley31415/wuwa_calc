@@ -192,7 +192,7 @@ export const NM_KELPIE = new Mainslot({
  *  20s — so the team half is lost on the applier's own next Intro and the self half on their own
  *  outro, per the standing duration rules. */
 export const GUSTS_OF_WELKIN_TEAM = new Buff({
-  name: "Gusts of Welkin 5pc",
+  name: "Gusts of Welkin 5pc (team)",
   stats: [[Stat.DmgBonus, 15, Attribute.Aero]],
 });
 export const GUSTS_OF_WELKIN_SELF = new Buff({

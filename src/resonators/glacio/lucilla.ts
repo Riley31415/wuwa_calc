@@ -42,7 +42,7 @@
  * self-buff/RES shred/Film Roll grants) likewise come from that page's own description text — the
  * old migrated sheet predates Chafe mode entirely, so none of it could be cross-checked.
  */
-import { Stat, EnemyStat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, EnemyStat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, LifeTime, BuffTarget } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, ResonanceMode, Sequence } from "../../engine/gear.js";
 import {
   typeOverride,
@@ -51,7 +51,7 @@ import {
   applyTeam,
   applyEnemy,
   isHeld,
-  casting,
+  onAction,
   runningAction,
   currentTeam,
   addStat,
@@ -64,7 +64,6 @@ import {
   revokeCurrent,
   isActive,
 } from "../../engine/context.js";
-import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, START_3, SWAP, ECHO_SWAP, INTRO_3 } from "../../engine/rotation.js";
 import { GLACIO_CHAFE } from "../../shared/status.js";
 import { FREEZE_FRAME, STRINGMASTER, LETHEAN_ELEGY } from "../../weapons/rectifier.js";
@@ -72,7 +71,6 @@ import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { BELL_BORNE_GEOCHELONE, HERON, MOONLIT_CLOUDS_2PC, MOONLIT_CLOUDS_5PC, REJUV_2PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { DREAM_OF_THE_LOST_3PC, LAW_OF_HARMONY_3PC } from "../../echoes/septimont.js";
-import { NM_HECATE } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { GLOMMOTH, QUIET_SNOWFALL_2PC, QUIET_SNOWFALL_5PC } from "../../echoes/lahairoi.js";
@@ -176,13 +174,13 @@ const MODE_CHAFE = new ResonanceMode({
  *  Echo Skill DMG Bonus for 30s — permanent uptime. Team-wide since it lands on whoever's own
  *  turn it currently is, not just Lucilla's own. */
 const SLOW_MOTION_TEAM = new Buff({
-  name: "Inherent: Slow Motion",
+  name: "Inherent: Slow Motion (echo)",
   stats: [[Stat.DmgBonus, 25, Type1.Echo]],
 });
 /** Chafe-mode payout: -8% Glacio RES on the target for 30s — a genuine enemy debuff, permanent
  *  uptime once granted. */
 const SLOW_MOTION_CHAFE = new Debuff({
-  name: "Inherent: Slow Motion",
+  name: "Inherent: Slow Motion (chafe)",
   applyStats: () => addEnemyStat(EnemyStat.ResReduce, 8, Attribute.Glacio),
 });
 const LC_INHERENT_1 = new Inherent({
@@ -223,17 +221,14 @@ const FILM_ROLL: Buff = new Buff({
  *  Echo mode or 2 Film Roll under Chafe — on top of Déjà Vu's own flat Liberation grant. */
 const LC_INHERENT_2 = new Inherent({
   name: "Inherent: Remembrance",
-  updateBuffs: () => {
-    if (runningAction(OblivionEcho)) applyTeam(ZOOM, 1);
-    if (runningAction(OblivionChafe)) applyTeam(FILM_ROLL, 2);
-  },
+  grants: [{ on: onAction(OblivionEcho), buff: ZOOM, to: BuffTarget.Team }, { on: onAction(OblivionChafe), buff: FILM_ROLL, stacks: 2, to: BuffTarget.Team }],
 });
 
 /** Clear As Day's own cast: +30% Basic Attack/Echo Skill DMG Bonus (Chafe/Echo), 10s. */
 const LIB_SELF_DMG = new Buff({
   name: "Lucilla: Clear As Day",
   applyStats: () => addStat(Stat.DmgBonus, 30, isHeld(MODE_CHAFE) ? Type1.Basic : Type1.Echo),
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(LIB_SELF_DMG); },
+  until: LifeTime.Outro,
 });
 
 /** Montage (Outro Skill), Echo mode: the incoming resonator gets +50% Echo Skill DMG
@@ -241,7 +236,7 @@ const LIB_SELF_DMG = new Buff({
 const MONTAGE_HANDOFF = new Buff({
   name: "Lucilla: Outro (echo)",
   stats: [[Stat.Amp, 50, Type1.Echo]],
-  updateBuffs: () => { lostOnSwap(); },
+  until: LifeTime.Swap,
 });
 
 /** Montage, Chafe mode: +60% Glacio Chafe DMG Amplification for 30s to whoever's active,
@@ -255,9 +250,7 @@ const MONTAGE_CHAFE = new Buff({
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
 const LUCILLA_TALENTS = new Talent({
   name: "Lucilla: Talents",
-  constantStats: () => {
-    addStat(Stat.BonusAtk, 12); addStat(Stat.CritRate, 8);
-  },
+  stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
 });
 
 const LUCILLA_RESONATOR = new Resonator({
@@ -273,9 +266,7 @@ const LUCILLA_RESONATOR = new Resonator({
   maxEnergy: 0,
   maxForte1: 150,
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 12237.5); addStat(Stat.BaseAtk, 375); addStat(Stat.BaseDef, 1197.8);
-  },
+  stats: [[Stat.BaseHp, 12237.5], [Stat.BaseAtk, 375], [Stat.BaseDef, 1197.8]],
 });
 
 // the kit page's own line, both modes: a held Phantom Frame -> Spotlight opener, Liberation into
@@ -304,11 +295,11 @@ const LC_ROTATION = new Rotation([
 const DISTANT_NOON = new Buff({
   name: "Lucilla S1: Distant Noon",
   stats: [[Stat.CritRate, 20]],
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(DISTANT_NOON); },
+  until: LifeTime.Outro,
 });
 const LC_S1 = new Sequence({
   name: "Lucilla S1: Distant Noon",
-  updateBuffs: () => { if (runningAction(Spotlight)) applyCurrent(DISTANT_NOON, 1); },
+  grants: [{ on: onAction(Spotlight), buff: DISTANT_NOON }],
 });
 
 /** S2, off Clear As Day and branching on the mode she is committed to: Chafe amplifies every
@@ -343,7 +334,7 @@ const LC_S3 = new Sequence({
 const PAST_FADES = new Buff({
   name: "Lucilla S4: The Past Fades Into Silence", maxStacks: 3,
   stats: [[Stat.BonusAtk, 10]], perStack: true,
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(PAST_FADES); },
+  until: LifeTime.Outro,
 });
 const LC_S4 = new Sequence({
   name: "Lucilla S4: The Past Fades Into Silence",

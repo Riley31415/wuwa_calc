@@ -10,20 +10,19 @@
  * old-engine reference file's own numbers (÷100 relative to this file's own scale). No offtune
  * anywhere in either source, so it's left off entirely rather than guessed at.
  */
-import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime, BuffTarget } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   applyCurrent,
-  applyTeam,
   revokeCurrent,
-  casting,
+  onAction,
   runningAction,
   addStat,
   forte1,
   queueOutro,
 } from "../../engine/context.js";
-import { lostOnSwap, matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, START_2, START_3, SWAP, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { matrix } from "../../shared/helpers.js";
+import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
 import { BLAZING_BRILLIANCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { NM_INFERNO_RIDER, MOLTEN_RIFT_5PC } from "../../echoes/jinzhou.js";
@@ -115,7 +114,7 @@ const FIERY_FEATHER = new Buff({
 const CHANGLI_OUTRO = new Buff({
   name: "Changli: Outro",
   stats: [[Stat.Amp, 20, Attribute.Fusion], [Stat.Amp, 25, Type1.Liberation]],
-  updateBuffs: () => { lostOnSwap(); },
+  until: LifeTime.Swap,
 });
 
 /* --------------------------------------------------------------------------- resonance chain */
@@ -135,7 +134,7 @@ const CH_S1 = new Sequence({
 const PURSUIT_OF_DESIRES = new Buff({
   name: "Changli S2: Pursuit of Desires",
   stats: [[Stat.CritRate, 25]],
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(PURSUIT_OF_DESIRES); },
+  until: LifeTime.Outro,
 });
 const CH_S2 = new Sequence({
   name: "Changli S2: Pursuit of Desires",
@@ -155,7 +154,7 @@ const POLISHED_WORDS = new Buff({
 });
 const CH_S4 = new Sequence({
   name: "Changli S4: Polished Words",
-  updateBuffs: () => { if (runningAction(Intro)) applyTeam(POLISHED_WORDS, 1); },
+  grants: [{ on: onAction(Intro), buff: POLISHED_WORDS, to: BuffTarget.Team }],
 });
 
 /** S5: Flaming Sacrifice's multiplier +50% and its DMG dealt +50%. */
@@ -180,6 +179,7 @@ const CHANGLI_TALENTS = new Talent({
 
 const CHANGLI_RESONATOR = new Resonator({
   name: "Changli",
+  stats: [[Stat.BaseHp, 12762], [Stat.BaseAtk, 410], [Stat.BaseDef, 1181]],
   matrix: matrix("Changli", 25),
   talent: CHANGLI_TALENTS,
   inherent1: CH_INHERENT_1,
@@ -198,9 +198,6 @@ const CHANGLI_RESONATOR = new Resonator({
     if (runningAction(SBA) || runningAction(SMA)) revokeCurrent(TRUE_SIGHT);
   },
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 12762); addStat(Stat.BaseAtk, 410); addStat(Stat.BaseDef, 1181);
-  },
 });
 
 const BA1234 = new ActionGroup("Basic - Blazing Enlightenment 1234", [BA1, BA2, BA3, BA4]);

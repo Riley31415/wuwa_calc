@@ -5,8 +5,16 @@
 import { WeaponType, Stat, Type1, Cast, Attribute, Tier, LifeTime, BuffTarget } from "../engine/stats.js";
 import { Buff, Weapon, refinements } from "../engine/gear.js";
 import {
-  addStat, applyCurrent, removeStack, casting, currentAction, frozenStacks, stacksOfEnemy, isActive, applied,
-  onCast, onType, onApplied,
+  addStat,
+  applyCurrent,
+  casting,
+  currentAction,
+  stacksOfEnemy,
+  isActive,
+  revokeCurrent,
+  onCast,
+  onType,
+  onApplied,
 } from "../engine/context.js";
 import { HEALS } from "../shared/status.js";
 import { TUNE_STRAIN_INTERFERED } from "../shared/tunebreak.js";
@@ -16,23 +24,26 @@ import { TUNE_STRAIN_INTERFERED } from "../shared/tunebreak.js";
 /** The five 4-star standard weapons — identical stats and behavior, only the name differs. Four
  *  are the craftable (`Tier.Free`, so a loadout runs them at R5); Variation is a standard weapon,
  *  so a loadout runs it at R1 and a build carrying it reads R0 (page/table.ts's `memberLabel()`).
- *  Ceaseless Aria is granted on the wielder's first Resonance Skill cast (restoring `concerto` —
- *  8 at R1, 16 at R5) and promoted to cooldown the same action; a repeat cast on cooldown does
- *  nothing. Lost entirely on the wielder's Outro. */
+ *  Ceaseless Aria pays on the wielder's Resonance Skill cast (restoring `concerto` — 8 at R1, 16
+ *  at R5), once every 20s; the wielder's own Outro makes it ready again. */
 function concertoWeapon(name: string, weaponType: WeaponType, tier: Tier = Tier.Free): Weapon[] {
   return refinements((r, rank) => {
-    const aria: Buff = new Buff({
-      name: `${name}: Ceaseless Aria${rank}`, maxStacks: 2,
+    /** The charge the Skill spends: held from the moment the weapon is equipped, gone the cast it
+     *  pays for, and back on the wielder's own Outro. A charge the wielder is holding, so it reads
+     *  in the held-buffs list by name — a repeat Skill while it is spent finds nothing to spend. */
+    const CEASELESS_ARIA: Buff = new Buff({
+      name: `${name}: Ceaseless Aria${rank}`,
       applyStats: () => {
-        if (frozenStacks() === 1 && casting(Cast.Skill)) { applyCurrent(aria, 1); addStat(Stat.AddConcerto, [8, 10, 12, 14, 16][r]!); }
-        else if (frozenStacks() === 2 && casting(Cast.Outro)) removeStack(aria, 2);
+        if (!casting(Cast.Skill)) return;
+        addStat(Stat.AddConcerto, [8, 10, 12, 14, 16][r]!);
+        revokeCurrent(CEASELESS_ARIA);
       },
-      display: () => `${name}: Ceaseless Aria${rank}${frozenStacks() === 1 ? "" : " (cooldown)"}`,
     });
     return new Weapon({
       weaponType, tier, name: `${name}${rank}`,
       stats: [[Stat.BaseAtk, 337.5], [Stat.Er, 51.84]],
-      grants: [{ on: onCast(Cast.Skill), buff: aria }],
+      combatStart: () => applyCurrent(CEASELESS_ARIA, 1),
+      grants: [{ on: onCast(Cast.Outro), buff: CEASELESS_ARIA }],
     });
   });
 }
@@ -88,11 +99,11 @@ export const COSMIC_RIPPLES = refinements((r, rank) => {
  *  Skill DMG Bonus. */
 export const ABYSS_SURGES = refinements((r, rank) => {
   const ABYSS_SKILL_HIT = new Buff({
-    name: `Abyss Surges: Stormy Resolution${rank}`,
+    name: `Abyss Surges: Stormy Resolution${rank} (skill)`,
     stats: [[Stat.DmgBonus, [10, 12.5, 15, 17.5, 20][r]!, Type1.Basic]], until: LifeTime.Outro,
   });
   const ABYSS_BASIC_HIT = new Buff({
-    name: `Abyss Surges: Stormy Resolution${rank}`,
+    name: `Abyss Surges: Stormy Resolution${rank} (basic)`,
     stats: [[Stat.DmgBonus, [10, 12.5, 15, 17.5, 20][r]!, Type1.Skill]], until: LifeTime.Outro,
   });
   return new Weapon({

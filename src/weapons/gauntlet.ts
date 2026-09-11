@@ -40,11 +40,11 @@ export const TRAGICOMEDY = refinements((r, rank) => {
  *  Echo Skill DMG Amp for 15s; dealing Echo Skill DMG makes Aero DMG ignore 10% DEF for 6s. */
 export const SOLSWORN_CIPHERS = refinements((r, rank) => {
   const SUNWARD_AMP = new Buff({
-    name: `Solsworn Ciphers: Sunward (echo amp)${rank}`,
+    name: `Solsworn Ciphers: Sunward${rank} (intro/echo)`,
     stats: [[Stat.Amp, [32, 40, 48, 56, 64][r]!, Type1.Echo]], until: LifeTime.Outro,
   });
   const SUNWARD_IGNORE = new Buff({
-    name: `Solsworn Ciphers: Sunward (def ignore)${rank}`,
+    name: `Solsworn Ciphers: Sunward${rank} (echo dmg)`,
     stats: [[Stat.DefIgnoreNew, [10, 12.5, 15, 17.5, 20][r]!, Attribute.Aero]], until: LifeTime.Outro,
   });
   return new Weapon({
@@ -86,11 +86,11 @@ export const IUNO_SIG = refinements((r, rank) => {
  *  his outro. */
 export const DAYBREAKERS_SPINE = refinements((r, rank) => {
   const SUTURING_DAYLINE_SPECTRO = new Buff({
-    name: `Daybreaker's Spine: Suturing Dayline (spectro)${rank}`,
+    name: `Daybreaker's Spine: Suturing Dayline${rank} (basic)`,
     stats: [[Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Attribute.Spectro]], until: LifeTime.Outro,
   });
   const SUTURING_DAYLINE_STRAIN = new Buff({
-    name: `Daybreaker's Spine: Suturing Dayline (strain)${rank}`, until: LifeTime.Outro,
+    name: `Daybreaker's Spine: Suturing Dayline${rank} (strain)`, until: LifeTime.Outro,
     stats: [[Stat.Amp, [20, 25, 30, 35, 40][r]!, Type1.Basic], [Stat.DefIgnoreNew, [10, 12.5, 15, 17.5, 20][r]!, Type1.Basic]],
   });
   return new Weapon({

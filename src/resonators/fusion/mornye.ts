@@ -24,27 +24,23 @@ import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Debuff, Sequen
 import {
   asSource,
   addStat,
+  getStat,
   applyCurrent,
   applyTeam,
   runningAction,
   queue,
-  queueOutro,
   revokeCurrent,
-  getStat,
-  stacksOf,
   stacksOfTeam,
   frozenStacks,
   maxStackIncrease,
   applyEnemy,
   revokeEnemy,
-  isHeld,
   stacksOfEnemy,
   triggeredAction,
   isActive,
   currentTeam,
-  addForte2,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START_1, START_2, SWAP, NOINTRO, INTRO, ECHO_SWAP, OUTRO, START_3 } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_2, SWAP, NOINTRO, INTRO, ECHO_SWAP, OUTRO, START_3 } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import {
   TUNE_BREAK, TUNE_RUPTURE_INTERFERED, TUNE_STRAIN_INTERFERED, TUNE_STRAIN_RESPONDER, tuneRuptureResponse,
@@ -52,7 +48,7 @@ import {
 import { STARFIELD_CALIBRATOR } from "../../weapons/broadblade.js";
 import { DISCORD } from "../../weapons/standard.js";
 import { REACTOR_HUSK, SPACETREK_EXPLORER, STARRY_RADIANCE_5PC } from "../../echoes/lahairoi.js";
-import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
+import { mainstats, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
 /* ----------------------------------------------------------------------------------- actions */
@@ -140,8 +136,8 @@ const ParticleJet = mornyeAction("Tune Rupture Response - Particle Jet", {
 const SYNTONY_FIELD = new Buff({
   name: "Mornye: Syntony Field", maxStacks: 2,
   display: () => (frozenStacks() === 2 ? "Mornye: High Syntony Field" : "Mornye: Syntony Field"),
+  stats: [[Stat.OfftuneBuildup, 50]],
   applyStats: () => {
-    addStat(Stat.OfftuneBuildup, 50);
     if (frozenStacks() === 2) addStat(Stat.BonusDef, 20);
     // S2's own +20% on top, read off her slot: the node is her local gear, this pays the team
     if (currentTeam().slots.find((m) => m.resonator === MORNYE_RESONATOR)?.isHeld(MO_S2)) {
@@ -156,16 +152,18 @@ const RECURSION = new Buff({
   stats: [[Stat.Amp, 25]],
 });
 
-/** Critical Protocol's own conversion: every 1% of ER past 100% is +0.5% Crit. Rate (cap 80) and
- *  +1% Crit. DMG (cap 160) *on that skill only*. Taken at the cap, per CLAUDE.md's rule for a
- *  bonus keyed off the resonator's own stats — she runs an ER weapon, an ER echo and an ER main
- *  stat, so 260% ER is the build rather than a stretch. */
+/** Critical Protocol's own conversion: every 1% of ER past 100% is +0.5% Crit. Rate and +1% Crit.
+ *  DMG *on that skill only*, capped at +80% and +160%. Read off the ER she actually holds as the
+ *  Liberation lands, buffs included — her own build (an ER weapon, two ER 3-costs, ER rolls) clears
+ *  the 260% the cap wants on its own, so the caps are what she reads, and a run that somehow holds
+ *  less pays less rather than being handed the cap anyway. */
 const CRITICAL_PROTOCOL = new Buff({
   name: "Mornye: Critical Protocol",
   convertStats: () => {
     revokeCurrent(CRITICAL_PROTOCOL);
-    addStat(Stat.CritRate, Math.min(80, 0.5 * (getStat(Stat.Er) - 100)));
-    addStat(Stat.CritDmg, Math.min(160, 1 * (getStat(Stat.Er) - 100)));
+    const converted = getStat(Stat.Er) - 100;
+    addStat(Stat.CritRate, Math.min(80, 0.5 * converted));
+    addStat(Stat.CritDmg, Math.min(160, converted));
   }
 });
 
@@ -306,11 +304,11 @@ const MORNYE_RESONATOR = new Resonator({
   updateGlobal: () => tuneRuptureResponse(ParticleJet),
   combatStart: () => { maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(TUNE_STRAIN_RESPONDER, 1); },
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 15375); addStat(Stat.BaseAtk, 287.5); addStat(Stat.BaseDef, 1356.7);
+  stats: [
+    [Stat.BaseHp, 15375], [Stat.BaseAtk, 287.5], [Stat.BaseDef, 1356.7],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
-    addStat(Stat.Tbb, 10);
-  },
+    [Stat.Tbb, 10],
+  ],
 });
 
 /* ---------------------------------------------------------------------------------- rotation */
@@ -353,7 +351,9 @@ export const MORNYE = new Loadout({
   resonator: MORNYE_RESONATOR,
   weapons: [STARFIELD_CALIBRATOR, DISCORD],
   echoLoadouts: MO_ECHOES,
-  mainstats: mainstatOptions(Mainstat.DEF4, Mainstat.ER3, Mainstat.DEF1),
+  // the two ER 3-costs are the build, not a pick: Critical Protocol pays out of ER, and so does
+  // the Liberation she needs back every loop — the same fixed spread every ER support here runs
+  mainstats: [mainstats(Mainstat.DEF4, Mainstat.ER3, Mainstat.ER3, Mainstat.DEF1, Mainstat.DEF1)],
   substat: substats(Substat.DefPct, Substat.Liberation, Substat.FlatDef, true),
   highSubstat: highSubs(Substat.Er, Substat.Liberation, Substat.DefPct, Substat.Liberation),
   rotation: { 0: MO_ROTATION, 3: MO_ROTATION_S3 },

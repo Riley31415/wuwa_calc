@@ -22,22 +22,20 @@
  * Basic casts consumes a charge to fire one 237.63% laser on Xiangli Yao's own slot — same shape
  * as Jiyan's Discipline; the 2s trigger ICD isn't modelled.
  */
-import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime, BuffTarget } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   applyCurrent,
   currentAction,
+  onAction,
   runningAction,
   casting,
-  revokeCurrent,
   addStat,
-  frozenStacks,
   removeStack,
   queueOn,
   queueOutro,
   queue,
-  applyTeam,
-  isHeld,
+  onCast,
 } from "../../engine/context.js";
 import { matrix } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, ActionField } from "../../engine/rotation.js";
@@ -107,11 +105,11 @@ const ACTION_OUTRO_COORD = xlyAction("Outro - Chain Rule (Laser)", { type: Type1
 const KNOWING = new Buff({
   name: "Inherent: Knowing", maxStacks: 4,
   stats: [[Stat.DmgBonus, 5, Attribute.Electro]], perStack: true,
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(KNOWING); },
+  until: LifeTime.Outro,
 });
 const XLY_INHERENT_1 = new Inherent({
   name: "Inherent: Knowing",
-  updateBuffs: () => { if (casting(Cast.Skill)) applyCurrent(KNOWING, 1); },
+  grants: [{ on: onCast(Cast.Skill), buff: KNOWING }],
 });
 
 /** Focus (Inherent Skill): interruption resistance during Intuition — see file header. */
@@ -126,7 +124,7 @@ const XLY_OUTRO: Buff = new Buff({
   updateBuffs: () => {
     if (casting(Cast.Basic)) { queueOn(XIANGLI_YAO_RESONATOR, ACTION_OUTRO_COORD); removeStack(XLY_OUTRO, 1); }
   },
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(XLY_OUTRO); },
+  until: LifeTime.Outro,
 });
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
@@ -150,9 +148,7 @@ const XIANGLI_YAO_RESONATOR = new Resonator({
   maxForte1: 100,
   maxForte2: 5,
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 10625); addStat(Stat.BaseAtk, 425); addStat(Stat.BaseDef, 1222.22);
-  },
+  stats: [[Stat.BaseHp, 10625], [Stat.BaseAtk, 425], [Stat.BaseDef, 1222.22]],
 });
 
 /* --------------------------------------------------------------------------------- sequences */
@@ -168,7 +164,7 @@ const XLY_S1 = new Sequence({
 const TRACES_OF_PREDECESSORS = new Buff({
   name: "Xiangli Yao S2: Traces of Predecessors",
   stats: [[Stat.CritDmg, 30]],
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(TRACES_OF_PREDECESSORS); },
+  until: LifeTime.Outro,
 });
 const XLY_S2 = new Sequence({
   name: "Xiangli Yao S2: Traces of Predecessors",
@@ -186,7 +182,7 @@ const RUINS_OF_ANCIENT = new Buff({
 const RUINS_PAYS = new Set<Action>([FSkill, Skill, USkill, UForte]);
 const XLY_S3 = new Sequence({
   name: "Xiangli Yao S3: Ruins of Ancient",
-  updateBuffs: () => { if (runningAction(Liberation)) applyCurrent(RUINS_OF_ANCIENT, 5); },
+  grants: [{ on: onAction(Liberation), buff: RUINS_OF_ANCIENT, stacks: 5 }],
 });
 
 /** S4: Cogitation Model hands the whole team +25% Resonance Liberation DMG Bonus for 30s. */
@@ -196,7 +192,7 @@ const VESSEL_OF_REBIRTH = new Buff({
 });
 const XLY_S4 = new Sequence({
   name: "Xiangli Yao S4: Vessel of Rebirth",
-  updateBuffs: () => { if (runningAction(Liberation)) applyTeam(VESSEL_OF_REBIRTH, 1); },
+  grants: [{ on: onAction(Liberation), buff: VESSEL_OF_REBIRTH, to: BuffTarget.Team }],
 });
 
 /** S5: Chain Rule's lasers at x3.22 and Cogitation Model at x2 — multiplicative, nanoka's own row

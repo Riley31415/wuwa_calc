@@ -47,7 +47,7 @@
  * both agree on every MV/energy/concerto/off-tune figure they share. Her `weakness_mastery` is 0,
  * so unlike the tune-break-era cast she carries no flat Tune Break Boost of her own.
  */
-import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   asSource,
@@ -59,21 +59,18 @@ import {
   applyEnemy,
   applyTeam,
   currentAction,
+  onAction,
   runningAction,
   currentTeam,
   frozenStacks,
   queue,
   queueEvent,
   queueOn,
-  queueOutro,
   removeStack,
   consume,
-  removeStackEnemy,
   revokeEnemy,
   revokeCurrent,
   revokeTeam,
-  setForte1,
-  setForte2,
   stacksOf,
   stacksOfEnemy,
   forte1,
@@ -83,7 +80,6 @@ import {
   isHeld,
   currentMember,
 } from "../../engine/context.js";
-import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, ActionField, Rotation, INTRO, FIRST_INTRO, ECHO_CANCEL, OUTRO, DODGE, NOINTRO, NOINTRO_FIRST, JUMP } from "../../engine/rotation.js";
 import { GLACIO_CHAFE, GLACIO_CHAFE_ACTIONS, HAVOC_BANE, HEALS } from "../../shared/status.js";
 import { FROSTBURN } from "../../weapons/sword.js";
@@ -277,7 +273,7 @@ const SNOWFORGED_BLADE = new Buff({ name: "Hiyuki: Snowforged Blade", maxStacks:
  *  scramble and the swap ends it (see the file header). */
 const FROSTBLIGHT_ENHANCED = new Buff({
   name: "Hiyuki: Present Self",
-  updateBuffs: () => lostOnSwap(),
+  until: LifeTime.Swap,
   applyStats: () => { if (runningAction(BA3)) addStat(Stat.AddForte1, 100); },
   convertStats: () => { if (runningAction(BA3)) revokeCurrent(FROSTBLIGHT_ENHANCED); },
 });
@@ -384,6 +380,7 @@ const HIYUKI_TALENTS = new Talent({
 
 export const HIYUKI_RESONATOR = new Resonator({
   name: "Hiyuki",
+  stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.22]],
   talent: HIYUKI_TALENTS,
   inherent1: HY_INHERENT_1,
   inherent2: HY_INHERENT_2,
@@ -437,9 +434,6 @@ export const HIYUKI_RESONATOR = new Resonator({
     for (let i = 0; i < inflicted; i++) queueOn(applier, rung);
   },
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 10300); addStat(Stat.BaseAtk, 462.5); addStat(Stat.BaseDef, 1112.22);
-  },
 
   // the Stage 3 a Tune Break of hers rolls into — `queueEvent`, not `queue`, so it lands as a
   // press of her own rather than a follow-up pinned to the break (evaluate.ts's own `triggered`)
@@ -465,7 +459,7 @@ const SPRINGLESS = new Buff({
 const HY_S1 = new Sequence({
   name: "Hiyuki S1: Springless",
   applyStats: () => { if (FORECLAIMED_HITS.has(currentAction())) addStat(Stat.MulMv, 120); },
-  updateBuffs: () => { if (runningAction(Lib1)) applyCurrent(SPRINGLESS, 1); },
+  grants: [{ on: onAction(Lib1), buff: SPRINGLESS }],
 });
 
 /** What S2 leaves standing from being out of combat: the next two Frostblight casts of the

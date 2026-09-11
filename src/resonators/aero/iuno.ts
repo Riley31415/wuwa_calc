@@ -7,7 +7,7 @@
  * Cycle) deltas come off the migrated (old-engine) sheet instead, cross-checked where it also
  * gives a combined row (BA123 = BA1+BA2+BA3, FMA123 = FMA1+FMA2+FMA3, both exact).
  */
-import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   asSource,
@@ -18,24 +18,21 @@ import {
   runningAction,
   casting,
   queueOutro,
-  revokeCurrent,
   addStat,
   frozenStacks,
   applied,
-  setForte1,
   forte1,
   currentTeam,
   applyOthers,
-  isHeld,
 } from "../../engine/context.js";
-import { lostOnSwap, oneSecondPassed } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO, ECHO_CANCEL, ECHO_SWAP } from "../../engine/rotation.js";
+import { oneSecondPassed } from "../../shared/helpers.js";
+import { ActionGroup, Action, Rotation, INTRO, OUTRO, ECHO_CANCEL, ECHO_SWAP } from "../../engine/rotation.js";
 import { SHIELD } from "../../shared/status.js";
 import { IUNO_SIG, VERITYS_HANDLE } from "../../weapons/gauntlet.js";
 import { MARCATO, NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import { MYA, COV_3PC } from "../../echoes/septimont.js";
 import { WINDWARD_5PC, NM_KELPIE } from "../../echoes/rinascita.js";
-import { SIERRA_GALE_2PC, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, REJUV_5PC, REJUV_2PC, FALLACY } from "../../echoes/jinzhou.js";
+import { SIERRA_GALE_2PC, HERON, MOONLIT_CLOUDS_5PC, REJUV_5PC, FALLACY } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
@@ -105,13 +102,13 @@ const FHA = iunoAction("Heavy - Absolute Fullness", {
  *  own slot: the node is her local gear and this buff sits on whoever was shielded. */
 const IUNO_BLESSING = new Buff({
   name: "Iuno: Blessing of the Wan Light", maxStacks: 10,
+  stats: [[Stat.Amp, 4]], perStack: true,
   applyStats: () => {
-    addStat(Stat.Amp, 4 * frozenStacks());
     if (frozenStacks() >= 10 && currentTeam().slots.find((m) => m.resonator === IUNO_RESONATOR)?.isHeld(IO_S2)) {
       asSource(IO_S2, () => addStat(Stat.Amp, 40));
     }
   },
-  updateBuffs: () => lostOnSwap(),
+  until: LifeTime.Swap,
 });
 
 /** What FHA leaves at her feet — team-wide, permanent uptime. Its own updateBuffs() runs on every
@@ -132,7 +129,7 @@ const IO_INHERENT_1 = new Inherent({ name: "Inherent: Waxing Ascent" }); // gain
 const IUNO_OUTRO = new Buff({
   name: "Iuno: Outro",
   stats: [[Stat.Amp, 50, Type1.Heavy]],
-  updateBuffs: () => { lostOnSwap(); },
+  until: LifeTime.Swap,
 });
 
 /** Her casts inside Lunar Cycle — Flux either way, everything Moonbow, and Absolute Fullness, which
@@ -156,6 +153,7 @@ const IUNO_TALENTS = new Talent({
 
 const IUNO_RESONATOR = new Resonator({
   name: "Iuno",
+  stats: [[Stat.BaseHp, 10525], [Stat.BaseAtk, 450], [Stat.BaseDef, 1124]],
   talent: IUNO_TALENTS,
   inherent1: IO_INHERENT_1,
   inherent2: IO_INHERENT_2,
@@ -172,9 +170,6 @@ const IUNO_RESONATOR = new Resonator({
     if (SHIELDING.has(currentAction())) applyCurrent(SHIELD, 1); 
   },
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 10525); addStat(Stat.BaseAtk, 450); addStat(Stat.BaseDef, 1124);
-  },
 });
 
 

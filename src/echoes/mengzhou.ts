@@ -2,7 +2,7 @@
 import { Stat, Attribute, Type1, Cast, Scaling, LifeTime, BuffTarget } from "../engine/stats.js";
 import { Buff, Sonata, Sonata2pc, Mainslot, EchoType } from "../engine/gear.js";
 import {
-  addStat, frozenStacks, queue, queueOutro, currentMember, applied, onApplied, onInflict, onCast, either,
+  addStat, frozenStacks, queue, queueOutro, applied, onApplied, onInflict, onCast, either,
 } from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
 import { SHIELD, HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, HEALS } from "../shared/status.js";
@@ -146,30 +146,42 @@ export const FORBIDDEN_BASTION = new Mainslot({
 /* ------------------------------------------------------------------------ Suoming and Hsin, 3.7 */
 
 /** "Stay tuned" (encore's placeholder name — the echo has none yet), the 3.7 Electro mainslot:
- *  4 x 27.36% + 164.16% Electro for anybody, 5 x 13.68% + 232.56% when Hsin wears it — the one
- *  cast, with the difference added on when the wearer is her. Carries +10% Electro DMG Bonus flat,
- *  and inflicting Electro Flare, obtaining Unison or triggering Unison Response adds another +10%
- *  for 30s, so permanent once granted. Summon/transform is unconfirmed — the text says only "Cast
- *  Echo Skill to deal", the same wording as Nameless Explorer. */
+ *  4 x 27.36% + 164.16% Electro for anybody, and 5 x 13.68% + 232.56% "when equipped by Hsin" —
+ *  a whole second cast rather than a bonus on the first, so it is a Mainslot of its own that only
+ *  her loadouts name, the way Adam Smasher's two forms are (lahairoi.ts). Both carry +10% Electro
+ *  DMG Bonus flat, and inflicting Electro Flare, obtaining Unison or triggering Unison Response
+ *  adds another +10% for 30s, so permanent once granted. Summon/transform is unconfirmed — the
+ *  text says only "Cast Echo Skill to deal", the same wording as Nameless Explorer. */
+/** Named apart from the echo it sits on: the mainslot's own +10% is flat and this one is earned,
+ *  and two lines reading "Stay tuned 4c" said nothing about which was which. */
 export const STAY_TUNED_BUFF = new Buff({
-  name: "Stay tuned 4c",
+  name: "Stay tuned 4c (flare/unison)",
   stats: [[Stat.DmgBonus, 10, Attribute.Electro]],
 });
+const STAY_TUNED_GRANTS = [{ on: either(onInflict(ELECTRO_FLARE), gainedUnison, unisonResponse), buff: STAY_TUNED_BUFF }];
 export const ACTION_STAY_TUNED = new Action("Echo - Stay tuned", {
   cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type1.Echo,
   mv: 27.36 * 4 + 164.16, energy: 0.38 * 4 + 2.28,
-  applyStats: () => {
-    if (currentMember().resonator?.name !== "Hsin") return;
-    addStat(Stat.AddMv, 13.68 * 5 + 232.56 - (27.36 * 4 + 164.16));
-    addStat(Stat.AddEnergy, 0.19 * 5 + 3.23 - (0.38 * 4 + 2.28));
-  },
 });
 export const STAY_TUNED = new Mainslot({
   name: "Stay tuned 4c",
   action: ACTION_STAY_TUNED,
   echoType: EchoType.SUMMON,
   stats: [[Stat.DmgBonus, 10, Attribute.Electro]],
-  grants: [{ on: either(onInflict(ELECTRO_FLARE), gainedUnison, unisonResponse), buff: STAY_TUNED_BUFF }],
+  grants: STAY_TUNED_GRANTS,
+});
+
+/** Hsin's own form of it — her loadouts name this one instead. */
+export const ACTION_STAY_TUNED_HSIN = new Action("Echo - Stay tuned", {
+  cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type1.Echo,
+  mv: 13.68 * 5 + 232.56, energy: 0.19 * 5 + 3.23,
+});
+export const STAY_TUNED_HSIN = new Mainslot({
+  name: "Stay tuned 4c",
+  action: ACTION_STAY_TUNED_HSIN,
+  echoType: EchoType.SUMMON,
+  stats: [[Stat.DmgBonus, 10, Attribute.Electro]],
+  grants: STAY_TUNED_GRANTS,
 });
 
 /** Soul of Despair (6000224, the 3-cost "Stay tuned"), Electro Rover's own mainslot: three
@@ -247,11 +259,11 @@ export const TINGED_YEARNING_5PC = new Sonata({
   grants: [{ on: onApplied(HEALS), buff: () => TINGED_YEARNING_TEAM, to: BuffTarget.Team }],
 });
 export const TINGED_YEARNING_TEAM = new Buff({
-  name: "Flower of Tinged Yearning 5pc",
+  name: "Flower of Tinged Yearning 5pc (team)",
   stats: [[Stat.BonusAtk, 10]],
   grants: [{ on: either(gainedUnison, unisonResponse), buff: () => TINGED_YEARNING_UNISON }],
 });
 export const TINGED_YEARNING_UNISON = new Buff({
-  name: "Flower of Tinged Yearning 5pc (unison)",
+  name: "Flower of Tinged Yearning 5pc",
   stats: [[Stat.BonusAtk, 15]],
 });

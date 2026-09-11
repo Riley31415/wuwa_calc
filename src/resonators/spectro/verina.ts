@@ -34,7 +34,7 @@ import { Action, Rotation, NOINTRO, INTRO, ECHO_SWAP, OUTRO, JUMP, ActionField, 
 import { coordinatedBuff } from "../../shared/helpers.js";
 import { HEALS } from "../../shared/status.js";
 import { VARIATION } from "../../weapons/standard.js";
-import { BELL_BORNE_GEOCHELONE, HERON, MOONLIT_CLOUDS_5PC, REJUV_5PC } from "../../echoes/jinzhou.js";
+import { REJUV_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstats, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
@@ -160,7 +160,7 @@ const VERINA_S4 = new Sequence({
   },
 });
 const S4_TEAM = new Buff({
-  name: "Verina S4: Blossoming Embrace", applyStats: () => addStat(Stat.DmgBonus, 15, Attribute.Spectro),
+  name: "Verina S4: Blossoming Embrace", stats: [[Stat.DmgBonus, 15, Attribute.Spectro]],
 });
 
 /** S6 Joyous Harvest: Starflower Blooms deals +20% more DMG and also triggers one Coordinated
@@ -193,6 +193,7 @@ const VERINA_TALENTS = new Talent({
  *  own base stat line. `Tier.Standard` — see the file header. */
 const VERINA_RESONATOR = new Resonator({
   name: "Verina",
+  stats: [[Stat.BaseHp, 14238], [Stat.BaseAtk, 338], [Stat.BaseDef, 1100]],
   talent: VERINA_TALENTS,
   inherent1: VR_INHERENT_1,
   inherent2: VR_INHERENT_2,
@@ -212,9 +213,6 @@ const VERINA_RESONATOR = new Resonator({
     if (runningAction(StarflowerHeavy) || runningAction(ForteMidair1) || runningAction(ForteMidair2) || runningAction(ForteMidair3) || runningAction(Liberation) || runningAction(PhotosynthesisTick) || runningAction(S6Tick) || runningAction(Outro)) applyCurrent(HEALS, 1);
   },
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 14238); addStat(Stat.BaseAtk, 338); addStat(Stat.BaseDef, 1100);
-  },
 });
 
 const BA345 = new ActionGroup("Basic - Cultivation 345", [BA3, BA4, BA5]);

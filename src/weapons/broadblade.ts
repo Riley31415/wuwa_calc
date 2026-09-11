@@ -4,7 +4,7 @@
 import { WeaponType, Stat, Attribute, Type1, Cast, LifeTime, BuffTarget } from "../engine/stats.js";
 import { Buff, Weapon, refinements } from "../engine/gear.js";
 import {
-  addStat, frozenStacks, casting, currentTeam, addBuff, applyCurrent, removeStack, applied,
+  addStat, frozenStacks, casting, currentTeam, addBuff, applyCurrent, removeStack, revokeCurrent, applied,
   onCast, onType, onApplied, either, isActive,
 } from "../engine/context.js";
 import { SHIELD, HEALS, inflictedNegativeStatus, inflictedNegativeStatusBy } from "../shared/status.js";
@@ -49,11 +49,11 @@ export const AGES_OF_HARVEST = refinements((r, rank) => {
  *  15s; gaining a shield grants a stack (up to 5) of +7.2% Heavy Attack DEF ignore, 7s. */
 export const THUNDERFLARE_DOMINION = refinements((r, rank) => {
   const THUNDERBLAZE_DMG = new Buff({
-    name: `Thunderflare Dominion: Thunderblaze Eminence (heavy)${rank}`,
+    name: `Thunderflare Dominion: Thunderblaze Eminence${rank} (intro/skill)`,
     stats: [[Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Type1.Heavy]], until: LifeTime.Outro,
   });
   const THUNDERBLAZE_DEF = new Buff({
-    name: `Thunderflare Dominion: Thunderblaze Eminence (def ignore)${rank}`, maxStacks: 5,
+    name: `Thunderflare Dominion: Thunderblaze Eminence${rank} (shield)`, maxStacks: 5,
     stats: [[Stat.DefIgnoreNew, [7.2, 8.4, 9.6, 10.8, 12][r]!, Type1.Heavy]], perStack: true, early: true, until: LifeTime.Outro,
   });
   return new Weapon({
@@ -72,7 +72,7 @@ export const THUNDERFLARE_DOMINION = refinements((r, rank) => {
  *  granted. "Heavy Attack DMG" is the damage type, not the cast. */
 export const WILDFIRE_MARK = refinements((r, rank) => {
   const WILDFIRE_TEAM = new Buff({
-    name: `Wildfire Mark: Blazing Starfire${rank}`,
+    name: `Wildfire Mark: Blazing Starfire${rank} (team)`,
     stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Attribute.Fusion]],
   });
   const WILDFIRE_LIB_DMG = new Buff({
@@ -122,27 +122,30 @@ export const JINGRAN_SIG = refinements((r, rank) => {
  *  — the ER is the point, since her own Liberation converts everything past 100% into crit. +16%
  *  DEF flat (she scales her Liberation and her healing off DEF). Healing anyone hands the whole
  *  team +20% Crit. DMG for 4s; her rotation heals on both her skill and her field, so it holds.
- *  The Resonance Skill's 8 Concerto on a 20s cooldown works like Variation's Ceaseless Aria:
- *  first Skill cast grants it and goes on cooldown, reset by the wielder's Outro. */
+ *  The Resonance Skill's 8 Concerto on a 20s cooldown works like Variation's Ceaseless Aria: a
+ *  charge held from the start of the fight, spent by the Skill, handed back by the wielder's Outro. */
 export const STARFIELD_CALIBRATOR = refinements((r, rank) => {
-  const DEFINITE_SOLUTION = new Buff({
-    name: `Starfield Calibrator: Definite Solution${rank}`,
+  const DEFINITE_SOLUTION_TEAM = new Buff({
+    name: `Starfield Calibrator: Definite Solution${rank} (team)`,
     stats: [[Stat.CritDmg, [20, 25, 30, 35, 40][r]!]], when: isActive,
   });
-  const DEFINITE_SOLUTION_CONCERTO: Buff = new Buff({
-    name: `Starfield Calibrator: Definite Solution${rank}`, maxStacks: 2,
+  /** The charge the Skill spends: held from the moment the weapon is equipped, gone the cast it
+   *  pays for, and back on the wielder's own Outro. */
+  const DEFINITE_SOLUTION: Buff = new Buff({
+    name: `Starfield Calibrator: Definite Solution${rank}`,
     applyStats: () => {
-      if (frozenStacks() === 1 && casting(Cast.Skill)) { applyCurrent(DEFINITE_SOLUTION_CONCERTO, 1); addStat(Stat.AddConcerto, [8, 10, 12, 14, 16][r]!); }
-      else if (frozenStacks() === 2 && casting(Cast.Outro)) removeStack(DEFINITE_SOLUTION_CONCERTO, 2);
+      if (!casting(Cast.Skill)) return;
+      addStat(Stat.AddConcerto, [8, 10, 12, 14, 16][r]!);
+      revokeCurrent(DEFINITE_SOLUTION);
     },
-    display: () => `Starfield Calibrator: Definite Solution${rank}${frozenStacks() === 1 ? "" : " (cooldown)"}`,
   });
   return new Weapon({
     weaponType: WeaponType.Broadblade, name: `Starfield Calibrator${rank}`,
     stats: [[Stat.BaseAtk, 412.5], [Stat.Er, 77.04], [Stat.BonusDef, [16, 20, 24, 28, 32][r]!]],
+    combatStart: () => applyCurrent(DEFINITE_SOLUTION, 1),
     grants: [
-      { on: onCast(Cast.Skill), buff: DEFINITE_SOLUTION_CONCERTO },
-      { on: onApplied(HEALS), buff: DEFINITE_SOLUTION, to: BuffTarget.Team },
+      { on: onApplied(HEALS), buff: DEFINITE_SOLUTION_TEAM, to: BuffTarget.Team },
+      { on: onCast(Cast.Outro), buff: DEFINITE_SOLUTION },
     ],
   });
 });
@@ -155,7 +158,7 @@ export const STARFIELD_CALIBRATOR = refinements((r, rank) => {
  *  one never has it. "Effects of the same name" so it doesn't restack itself. */
 export const KUMOKIRI = refinements((r, rank) => {
   const THREAD_OF_FATE_BONUS = new Buff({
-    name: `Kumokiri: Thread of Fate${rank}`,
+    name: `Kumokiri: Thread of Fate${rank} (team)`,
     stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!]],
   });
   const THREAD_OF_FATE_STACKS = new Buff({

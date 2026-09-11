@@ -42,25 +42,23 @@
  * "Damage Data" table — see the comment above the action definitions for the column mapping.
  * Outro/Twining's own table gives 0 across the board, a real absence, not an unchecked gap.
  */
-import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime, BuffTarget } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   asSource,
   applyCurrent,
-  applyTeam,
   revokeCurrent,
-  casting,
   currentAction,
+  onAction,
   runningAction,
   addStat,
-  setForte1,
   isHeld,
   stacksOf,
   frozenStacks,
   forte1,
 } from "../../engine/context.js";
 import { lostOnSwap, matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ECHO_ONFIELD, DOUBLE_INTRO, SWAP } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, DOUBLE_INTRO, SWAP } from "../../engine/rotation.js";
 import { RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { NM_CROWNLESS, HAVOC_ECLIPSE_5PC } from "../../echoes/jinzhou.js";
@@ -204,7 +202,7 @@ const BUDDING_MODE = new Buff({
  *  just decides how many of Budding Mode's own 11 stacks get granted. */
 const CRIMSON_BUD = new Buff({
   name: "Camellya: Crimson Bud", maxStacks: 10,
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(CRIMSON_BUD); },
+  until: LifeTime.Outro,
 });
 
 /** Seedbed (Inherent Skill): +15% Havoc DMG Bonus flat — genuinely unconditional. */
@@ -265,11 +263,9 @@ const CAMELLYA_RESONATOR = new Resonator({
   maxForte1: 100,
 
   // any gauge-spending cast of hers is a Crimson Pistil consumption
-  updateBuffs: () => { if (currentAction().forte1 < 0) applyCurrent(CONSUME_CRIMSON_PISTIL, 1); },
+  grants: [{ on: () => currentAction().forte1 < 0, buff: CONSUME_CRIMSON_PISTIL }],
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 10325); addStat(Stat.BaseAtk, 450); addStat(Stat.BaseDef, 1161);
-  },
+  stats: [[Stat.BaseHp, 10325], [Stat.BaseAtk, 450], [Stat.BaseDef, 1161]],
 });
 
 /* --------------------------------------------------------------------------------- sequences */
@@ -281,7 +277,7 @@ const SOMEWHERE_NO_ONE_TRAVELLED = new Buff({
 });
 const CM_S1 = new Sequence({
   name: "Camellya S1: Somewhere No One Travelled",
-  updateBuffs: () => { if (runningAction(Intro)) applyCurrent(SOMEWHERE_NO_ONE_TRAVELLED, 1); },
+  grants: [{ on: onAction(Intro), buff: SOMEWHERE_NO_ONE_TRAVELLED }],
 });
 
 /** S2: Ephemeral at x2.2 of its multiplier — nanoka's second row (2777.38% against 1262.45%), so
@@ -305,7 +301,7 @@ const ROOTS_SET_DEEP = new Buff({
 });
 const CM_S4 = new Sequence({
   name: "Camellya S4: Roots Set Deep In Eternity",
-  updateBuffs: () => { if (runningAction(Intro)) applyTeam(ROOTS_SET_DEEP, 1); },
+  grants: [{ on: onAction(Intro), buff: ROOTS_SET_DEEP, to: BuffTarget.Team }],
 });
 
 /** S5: Everblooming at x4.03 (row 801.21%) and Twining at x1.68 (row 553.11%) — both multiplicative. */

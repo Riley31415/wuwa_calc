@@ -22,20 +22,18 @@
  *  S6 a Pushing Punch (interrupting Zhoutian early) opens Special Chi Counter, 556.67% Heavy DMG,
  *     once in 5s. Kept as its own cast; a rotation that interrupts can name it.
  */
-import { Tier, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Tier, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   addStat,
   applyCurrent,
   casting,
   currentAction,
+  onAction,
   runningAction,
   forte1,
   queueOutro,
-  revokeCurrent,
-  setForte1,
 } from "../../engine/context.js";
-import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
 import { HEALS, SHIELD } from "../../shared/status.js";
 import { MARCATO } from "../../weapons/standard.js";
@@ -138,7 +136,7 @@ const Outro = jianxinAction("Outro - Transcendence", {
  *  14s or until they switch out. */
 const TRANSCENDENCE = new Buff({
   name: "Jianxin: Outro",
-  updateBuffs: () => lostOnSwap(),
+  until: LifeTime.Swap,
   stats: [[Stat.Amp, 38, Type1.Liberation]],
 });
 
@@ -149,11 +147,11 @@ const TRANSCENDENCE = new Buff({
 const S1_BRANCHLET = new Buff({
   name: "Jianxin S1: Verdant Branchlet",
   applyStats: () => { if (casting(Cast.Basic)) addStat(Stat.AddForte1, currentAction().forte1); },
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(S1_BRANCHLET); },
+  until: LifeTime.Outro,
 });
 const S1 = new Sequence({
   name: "Jianxin S1: Verdant Branchlet",
-  updateBuffs: () => { if (runningAction(Intro)) applyCurrent(S1_BRANCHLET, 1); },
+  grants: [{ on: onAction(Intro), buff: S1_BRANCHLET }],
 });
 const S2 = new Sequence({ name: "Jianxin S2: Tao Seeker's Journey" }); // allow 2 skills
 const S3 = new Sequence({ name: "Jianxin S3: Principles of Wuwei" });
@@ -162,11 +160,11 @@ const S3 = new Sequence({ name: "Jianxin S3: Principles of Wuwei" });
 const S4_REFLECTION = new Buff({
   name: "Jianxin S4: Multitide Reflection",
   applyStats: () => { if (runningAction(Liberation)) addStat(Stat.DmgBonus, 80); },
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(S4_REFLECTION); },
+  until: LifeTime.Outro,
 });
 const S4 = new Sequence({
   name: "Jianxin S4",
-  updateBuffs: () => { if (runningAction(FHA)) applyCurrent(S4_REFLECTION, 1); },
+  grants: [{ on: onAction(FHA), buff: S4_REFLECTION }],
 });
 const S5 = new Sequence({ name: "Jianxin S5" });
 
@@ -209,10 +207,10 @@ const JIANXIN_RESONATOR = new Resonator({
   maxEnergy: 150,
   maxForte1: 120,
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 14112.5); addStat(Stat.BaseAtk, 337.5); addStat(Stat.BaseDef, 1124.44);
+  stats: [
+    [Stat.BaseHp, 14112.5], [Stat.BaseAtk, 337.5], [Stat.BaseDef, 1124.44],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
-  },
+  ],
 });
 
 /* ---------------------------------------------------------------------------------- rotation */

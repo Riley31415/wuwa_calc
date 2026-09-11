@@ -23,7 +23,7 @@
  *    Liberation - Glory" text is where Glory (team Fusion RES ignore) actually comes from — not a
  *    bare base-kit Liberation effect (see GLORY's own trigger below).
  */
-import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime, BuffTarget } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   asSource,
@@ -37,6 +37,7 @@ import {
   revokeEnemy,
   casting,
   currentAction,
+  onAction,
   runningAction,
   currentTeam,
   addStat,
@@ -44,10 +45,8 @@ import {
   stacksOfTeam,
   queueOn,
   queueOutro,
-  setForte1,
-  setForte2,
+  onCast,
 } from "../../engine/context.js";
-import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { WILDFIRE_MARK } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
@@ -146,9 +145,9 @@ const Outro = lupaAction("Outro - Stand by Me, Warrior", {
  *  escalation) applies unconditionally. Ended by her own intro() selector below once maxed. */
 const PACK_HUNT = new Buff({
   name: "Lupa: Pack Hunt", maxStacks: 3,
-  updateBuffs: () => { if (casting(Cast.Intro)) applyTeam(PACK_HUNT, 1); },
+  stats: [[Stat.BonusAtk, 6]], perStack: true,
+  grants: [{ on: onCast(Cast.Intro), to: BuffTarget.Team }],
   applyStats: () => {
-    addStat(Stat.BonusAtk, 6 * frozenStacks());
     addStat(Stat.DmgBonus, 10, Attribute.Fusion);
     // S3 drops the three-Fusion requirement on the second half — her node, read off her own slot,
     // since this buff is the team's and `isHeld()` here would only ever answer for whoever is up
@@ -186,7 +185,7 @@ const GLORY = new Buff({
 const LUPA_OUTRO = new Buff({
   name: "Lupa: Outro",
   stats: [[Stat.Amp, 20, Attribute.Fusion], [Stat.Amp, 25, Type1.Basic]],
-  updateBuffs: () => { lostOnSwap(); },
+  until: LifeTime.Swap,
 });
 
 /** Wildfire Banner: +12% ATK for 8s on casting Feral Fang, Wolf's Gnawing/Wolf's Claw/Firestrike,
@@ -256,7 +255,7 @@ const NAMELESS_ONE = new Buff({
 });
 const LP_S1 = new Sequence({
   name: "Lupa S1: Behold the Nameless One",
-  updateBuffs: () => { if (runningAction(Liberation)) applyCurrent(NAMELESS_ONE, 1); },
+  grants: [{ on: onAction(Liberation), buff: NAMELESS_ONE }],
   applyStats: () => { if (runningAction(Liberation)) addStat(Stat.AddConcerto, 10); },
 });
 
@@ -320,6 +319,7 @@ const LUPA_TALENTS = new Talent({
  *  own base stat line. Sequence-0 only — a limited 5-star (`Tier.Limited`). */
 const LUPA_RESONATOR = new Resonator({
   name: "Lupa",
+  stats: [[Stat.BaseHp, 11912.5], [Stat.BaseAtk, 387.5], [Stat.BaseDef, 1186]],
   talent: LUPA_TALENTS,
   inherent1: LP_INHERENT_1,
   inherent2: LP_INHERENT_2,
@@ -344,9 +344,6 @@ const LUPA_RESONATOR = new Resonator({
     }
   },
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 11912.5); addStat(Stat.BaseAtk, 387.5); addStat(Stat.BaseDef, 1186);
-  },
 });
 
 const MA12 = new ActionGroup("Mid-air - Flaming Star 12", [MA1, MA2]);

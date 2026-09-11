@@ -43,7 +43,7 @@
  * visit ending on Formshift's Unison outro, the resonator behind her plays, and their outro
  * brings her back in Illumining Form for Dominion, Stilling and Pillars Across Heaven.
  */
-import { Tier, Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Tier, Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, ResonanceMode, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   removeStackTeam,
@@ -71,18 +71,17 @@ import {
   stacksOfEnemy,
   stacksOfTeam,
   isActive,
-  forte3,
   forte2,
   setForte2,
   addForte1,
 } from "../../engine/context.js";
-import { Action, ActionField, ActionGroup, Rotation, DOUBLE_INTRO, INTRO, ECHO_SWAP, OUTRO, ECHO_ONFIELD, NOINTRO, DODGE, JUMP } from "../../engine/rotation.js";
-import { coordinatedBuff, lostOnSwap } from "../../shared/helpers.js";
-import { UNISON, UNISON_BOON, UNISON_RESPONDER, UNISON_RESPONSE, respondToUnison, unisonIntro, unisonOutro, unisonResponse } from "../../shared/unison.js";
+import { Action, ActionField, ActionGroup, Rotation, DOUBLE_INTRO, INTRO, OUTRO, ECHO_ONFIELD, NOINTRO, DODGE, JUMP } from "../../engine/rotation.js";
+import { coordinatedBuff } from "../../shared/helpers.js";
+import { UNISON, UNISON_BOON, UNISON_RESPONDER, UNISON_RESPONSE, respondToUnison, unisonBoonAmp, unisonIntro, unisonOutro, unisonResponse } from "../../shared/unison.js";
 import { ELECTRO_FLARE, ELECTRO_RAGE, FLEETING_THUNDER, inflictElectroFlare } from "../../shared/status.js";
 import { BLOOMING_JADEHAVEN, FREEZE_FRAME, LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
-import { COSMIC_RIPPLES, NEW_STD_RECTIFIER } from "../../weapons/standard.js";
-import { STAY_TUNED, SWORN_VIGIL_5PC, ELECTRIC_REFLECTION_5PC } from "../../echoes/mengzhou.js";
+import { COSMIC_RIPPLES } from "../../weapons/standard.js";
+import { STAY_TUNED_HSIN, SWORN_VIGIL_5PC } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 
@@ -284,7 +283,7 @@ const NIGHTGLOW = new Buff({ name: "Hsin: Nightglow" });
 /** Outro, Flare mode: +20% Electro DMG Amplification for everyone but her, 20s — a team buff that
  *  short is lost on her own next Intro. */
 const OUTRO_FLARE = new Buff({
-  name: "Hsin: Outro",
+  name: "Hsin: Outro (flare)",
   applyStats: () => { if (isActive() && !isHeld(HSIN_RESONATOR)) addStat(Stat.Amp, 20, Attribute.Electro); },
 });
 
@@ -292,7 +291,7 @@ const OUTRO_FLARE = new Buff({
  *  turns it into +20% All DMG Amplification for 30s — permanent once granted. */
 const SHARED_LIGHT = new Buff({ name: "Hsin: Shared Light" });
 const OUTRO_UNISON = new Buff({ 
-  name: "Hsin: Outro", applyStats: () => { if(isHeld(SHARED_LIGHT)) addStat(Stat.Amp, 20); }
+  name: "Hsin: Outro (unison)", applyStats: () => { if(isHeld(SHARED_LIGHT)) addStat(Stat.Amp, 20); }
 });
 
 /* ------------------------------------------------------------------------------------ buffs */
@@ -315,6 +314,8 @@ const MODE_FLARE = new ResonanceMode({ name: "Resonance Mode - Electro Flare",
 const MODE_UNISON = new ResonanceMode({
   name: "Resonance Mode - Unison",
   combatStart: () => applyCurrent(UNISON_RESPONDER, 1),
+  // the Boon is a count; the mode is what reads it and pays her for it (shared/unison.ts)
+  applyStats: () => unisonBoonAmp(),
   updateBuffs: () => { if (unisonResponse() && !isHeld(HS_BOON_RESPONSE)) { applyTeam(UNISON_BOON, 1); applyCurrent(HS_BOON_RESPONSE, 1); } },
   updateGlobal: () => {
     const actor = currentTeam().slot;
@@ -329,15 +330,18 @@ const MODE_UNISON = new ResonanceMode({
 const SOURCE_INTENT = new Buff({ name: "Hsin: Source Intent" });
 
 /** Her own two Unison Boon grants — one each, refreshed after: her Unison Response (the shared
- *  rule) and Gleaning Simple Joys' off anybody's response. */
-const HS_BOON_RESPONSE = new Buff({ name: "Hsin: Unison Boon (response)" });
-const HS_BOON_GLEANING = new Buff({ name: "Hsin: Unison Boon (Gleaning Simple Joys)" });
+ *  rule) and Gleaning Simple Joys' off anybody's response. Neither carries a `name`, so neither
+ *  enters the held-buffs list (evaluate.ts's own `named()`): each only remembers a grant already
+ *  made, and the Unison Boon stack it handed over is the row that reports it. */
+const HS_BOON_RESPONSE = new Buff({});
+const HS_BOON_GLEANING = new Buff({});
 
 /** Form and unlock markers — Illumining Form picks her Intro, the two unlocks are what the
- *  Liberation button does next. Heart Manifest is the 45s window, and survives a swap. */
+ *  Liberation button does next. Heart Manifest is the 45s window, and survives a swap. The two
+ *  unlocks carry no `name`: which button is live is not a buff of hers to show. */
 const ILLUMINING_FORM = new Buff({ name: "Hsin: Illumining Form" });
-const FORMSHIFT_UNLOCKED = new Buff({ name: "Hsin: Formshift Unlocked" });
-const PILLARS_UNLOCKED = new Buff({ name: "Hsin: Pillars Across Heaven Unlocked" });
+const FORMSHIFT_UNLOCKED = new Buff({});
+const PILLARS_UNLOCKED = new Buff({});
 const HEART_MANIFEST = new Buff({ name: "Hsin: Heart Manifest" });
 
 /** Illumining Heart's own gate: a Normal Attack - Illumining Form or Resonance Skill - Illumining
@@ -358,7 +362,7 @@ const MECHANISM_DOMINION = new Buff({
  *  collapse worth 150 Illumining Heart — once per Formshift, paid on the collapse hit itself. */
 const HEARTLOCK = new Buff({ name: "Hsin: Modular Heartlock" });
 const HEARTLOCK_PRIMED = new Buff({
-  name: "Hsin: Modular Heartlock (Primed)",
+  name: "Hsin: Formshift Extra Modular Heartlock",
   applyStats: () => { if (runningAction(Heartlock)) addStat(Stat.AddForte2, 150); },
   convertStats: () => { if (runningAction(Heartlock)) revokeCurrent(HEARTLOCK_PRIMED); },
 });
@@ -393,7 +397,7 @@ const tidesPayers = (): number => {
  *  ended by switching out. */
 const TIDES_UNISON = new Buff({
   name: "Inherent: Tides of Succession (Manifold Unison)",
-  updateBuffs: () => lostOnSwap(),
+  until: LifeTime.Swap,
   stats: [[Stat.DmgBonus, 40, Attribute.Electro]],
 });
 /** Tides of Succession, Flare mode: +25% Electro DMG Bonus per resonator on the team who has
@@ -527,8 +531,9 @@ const HS_S4 = new Sequence({
 /** S5 is a damage reduction and a death save — neither reaches the formula. Held for the name. */
 const HS_S5 = new Sequence({ name: "Hsin S5: Forms Turn as the Heart Wills" });
 
-/** S6's own Unison Boon grant, off any member's response — one, refreshed after, like her other two. */
-const HS_BOON_S6 = new Buff({ name: "Hsin: Unison Boon (S6)" });
+/** S6's own Unison Boon grant, off any member's response — one, refreshed after, and nameless,
+ *  like her other two. */
+const HS_BOON_S6 = new Buff({});
 /** S6: the target takes 40% more Resonance Skill DMG from her and 20% less of its DEF counts
  *  against it; in Unison mode the team's Unison Boon reaches a fourth stack (the cap unison.ts
  *  declares) and any member's response hands everyone one; in Flare mode every Electro Flare hit
@@ -577,9 +582,7 @@ const HSIN_RESONATOR = new Resonator({
   maxForte2: 300,
 
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 10300); addStat(Stat.BaseAtk, 462.5); addStat(Stat.BaseDef, 1112.22);
-  },
+  stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.22]],
 });
 
 // The Flare-mode visit as the kit reads: the Intro chains into Stage 4, the Skill into Stage 4
@@ -629,7 +632,7 @@ const HS_ROTATION_UNISON = new Rotation([
 export const HSIN_FLARE = new Loadout({
   resonator: HSIN_RESONATOR,
   weapons: [BLOOMING_JADEHAVEN, COSMIC_RIPPLES, STRINGMASTER, LETHEAN_ELEGY, FREEZE_FRAME],
-  echoLoadouts: [new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC)],
+  echoLoadouts: [new EchoLoadout(STAY_TUNED_HSIN, SWORN_VIGIL_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.Skill, Substat.Er, Substat.FlatAtk),
@@ -641,7 +644,7 @@ export const HSIN_FLARE = new Loadout({
 export const HSIN_UNISON = new Loadout({
   resonator: HSIN_RESONATOR,
   weapons: [BLOOMING_JADEHAVEN, COSMIC_RIPPLES, STRINGMASTER, LETHEAN_ELEGY, FREEZE_FRAME],
-  echoLoadouts: [new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC)],
+  echoLoadouts: [new EchoLoadout(STAY_TUNED_HSIN, SWORN_VIGIL_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.Skill, Substat.Er, Substat.FlatAtk),

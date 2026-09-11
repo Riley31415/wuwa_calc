@@ -7,12 +7,12 @@ import type { Gear } from "../engine/gear.js";
 import { menuStats } from "../engine/context.js";
 import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
 import type { ChainGroup, ResolvedSnapshot } from "../engine/evaluate.js";
-import { columnOf, gaugeSuffix, fmt, PAD_DIGITS_COLUMNS, GROUPED_COLUMNS, OFFTUNE_RATE, ENERGY_RATE } from "../display.js";
+import { columnOf, gaugeSuffix, fmt, digitsOf, PAD_DIGITS_COLUMNS, GROUPED_COLUMNS, OFFTUNE_RATE, ENERGY_RATE } from "../display.js";
 import type { Report, Column, ReportRow, ReportPart, TraceEntry } from "../display.js";
 import type { TeamRun } from "../teamrun.js";
 import { hitsOf } from "../teamrun.js";
 import { results, detailFor, FALLBACK_HUE } from "./model.js";
-import { esc, lazyPop, rect, zoom, clearPops, panelRow, popover, infoPopover, buffsPopover, equippedGear, gearPopover, dprTable } from "./panels.js";
+import { esc, lazyPop, rect, zoom, clearPops, panelRow, popover, infoPopover, buffsPopover, equippedGear, dprTable, loadoutTable } from "./panels.js";
 import { rememberTableScroll } from "./table.js";
 
 const app = document.getElementById("app")!;
@@ -59,7 +59,7 @@ function stepRow(
     if (col.key === "concerto" && Number(row.raw["short:concerto"])) cls.push("underspent");
     if (col.key.startsWith("gauge:") && Number(row.raw[`short:${col.key}`])) cls.push("negative");
 
-    const text = esc(fmt(v, col.digits ?? 0, PAD_DIGITS_COLUMNS.has(col.key), GROUPED_COLUMNS.has(col.key)))
+    const text = esc(fmt(v, digitsOf(row.raw, col), PAD_DIGITS_COLUMNS.has(col.key), GROUPED_COLUMNS.has(col.key)))
       + (col.percent && typeof v === "number" ? "%" : "") + gaugeSuffix(row.raw, col.key);
     let html = sources && text ? `<span class="has">${text}</span>` : text;
     if (col.key === "action" && caret && !part && "parts" in row && row.parts.length) {
@@ -298,16 +298,19 @@ function teamSources(flat: ChainGroup[], rows: ReportRow[], member: string, [fro
   return [...by.values()];
 }
 
+/** Empty where the rest of the team fed this figure nothing — no panel at all rather than one
+ *  saying so, since the dotted underline is what marks the cells that have one. */
 function teamSourcePopover(sources: TraceEntry[], slotHue: Map<string, string>): string {
-  const head = sources.length ? "Team sources" : "No team sources";
+  if (!sources.length) return "";
   return lazyPop(`<span class="pop stat"><table>`
-    + `<tr class="sec"><td colspan="2">${head}</td></tr>`
+    + `<tr class="sec"><td colspan="2">Team sources</td></tr>`
     + `${sources.map((r) => panelRow(r, slotHue)).join("")}</table></span>`);
 }
 
 /** Energy Requirements: per member, the constant ER needed for the Liberation each section holds
  *  (the opener's *last*; the fight's very first is free and reads `—`), red where the build's own
- *  constant ER falls short, then their own Energy Gen. */
+ *  constant ER falls short, then their own Energy Gen. The build's own ER stats hover the member's
+ *  name — one panel for the row, rather than the same list under each of its four figures. */
 function energyTable(run: TeamRun, lines: ChainGroup[][], report: Report, slotHue: Map<string, string>): string {
   const erCol = columnOf(report, "er");
   const flat = lines.flat();
@@ -334,10 +337,10 @@ function energyTable(run: TeamRun, lines: ChainGroup[][], report: Report, slotHu
       const req = snap == null ? null : erRequirement(flat, resetIdx!, m.name, maxEnergy, constant);
       const missing = req == null ? 0 : Math.max(0, req - constant);
       const text = req == null ? "—" : `${fmt(req, 1)}%`;
-      const sources = constantSources.map((e): TraceEntry => ({ source: e.source, value: e.value, percent: true, digits: 1, owner: e.owner || m.name }));
-      const hover = snap && erCol ? popover({ ...erCol, full: "Base Energy Regen" }, sources, constant, slotHue) : "";
-      return `<div class="c num${missing > 0 ? " er-under" : ""}${hover ? " has" : ""}"${hover}>${text}</div>`;
+      return `<div class="c num${missing > 0 ? " er-under" : ""}">${text}</div>`;
     };
+    const erSources = constantSources.map((e): TraceEntry => ({ source: e.source, value: e.value, percent: true, digits: 1, owner: e.owner || m.name }));
+    const erHover = erCol ? popover({ ...erCol, full: "Base Energy Regen" }, erSources, constant, slotHue) : "";
 
     const opener = resetIndices(flat, offsets[0]!, offsets[1]!, m.name);
     const lastLoop: [number, number] = [offsets[3]!, offsets[4]!];
@@ -347,12 +350,16 @@ function energyTable(run: TeamRun, lines: ChainGroup[][], report: Report, slotHu
     // cast to span from the way energy's own reset does
     const offtune = offtuneBuilt(flat, m.name, lastLoop);
     const offtuneTeam = teamSourcePopover(teamSources(flat, report.rows, m.name, lastLoop, "offtune"), slotHue);
+    // the two Gen figures underline dotted where a teammate fed them, which is what says a panel
+    // is there to open — the four requirement columns never carry one
+    const genCell = (value: number, hover: string): string =>
+      `<div class="c num${hover ? " teamfed has" : ""}"${hover}>${fmt(value, 2, true)}</div>`;
     const cells = cell(opener[opener.length - 1] ?? null)
       + [1, 2, 3].map((i) => cell(resetIndices(flat, offsets[i]!, offsets[i + 1]!, m.name)[0] ?? null)).join("")
-      + `<div class="c num has"${team}>${fmt(gen, 2, true)}</div>`
-      + `<div class="c num has"${offtuneTeam}>${fmt(offtune, 2, true)}</div>`;
+      + genCell(gen, team)
+      + genCell(offtune, offtuneTeam);
     return `<div class="rtrow">`
-      + `<div class="c name"${gearPopover(m, run.combo[idx]!)} style="--mem:${m.color}">${esc(m.name)}</div>`
+      + `<div class="c name${erHover ? " has" : ""}"${erHover} style="--mem:${m.color}">${esc(m.name)}</div>`
       + cells
       + `</div>`;
   }).join("");
@@ -375,15 +382,21 @@ function page(run: TeamRun): string {
   return `<main>
   <div class="rtables">
     <div class="rtable-block">
-      <h2 class="summary-label">damage per rotation</h2>
-      ${dprTable(run, lines)}
+      <h2 class="summary-label">Equipment</h2>
+      ${loadoutTable(run)}
     </div>
-    <div class="rtable-block">
-      <h2 class="summary-label">energy requirements</h2>
-      ${energyTable(run, lines, report, slotHue)}
+    <div class="rstack">
+      <div class="rtable-block">
+        <h2 class="summary-label">Damage Distribution</h2>
+        ${dprTable(run, lines)}
+      </div>
+      <div class="rtable-block">
+        <h2 class="summary-label">Energy Requirements</h2>
+        ${energyTable(run, lines, report, slotHue)}
+      </div>
     </div>
   </div>
-  <h2 class="summary-label">action log</h2>
+  <h2 class="summary-label">Rotation</h2>
   ${rotationTable(report, slotHue, gearByMember, starts)}
 </main>`;
 }

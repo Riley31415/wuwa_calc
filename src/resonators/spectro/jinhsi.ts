@@ -45,24 +45,22 @@ import {
   addStat,
   applyCurrent,
   applyTeam,
-  casting,
   currentAction,
+  onAction,
   runningAction,
   frozenStacks,
   isHeld,
   isType,
   queue,
-  removeStack,
   revokeCurrent,
   revokeTeam,
   setStacksSelf,
   stacksOf,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START_3, SWAP, DOUBLE_INTRO, INTRO, ECHO_ONFIELD, OUTRO, START_2, NOINTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_3, SWAP, DOUBLE_INTRO, INTRO, ECHO_ONFIELD, OUTRO, NOINTRO } from "../../engine/rotation.js";
 import { AGES_OF_HARVEST } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { JUE, CELESTIAL_LIGHT_5PC } from "../../echoes/jinzhou.js";
-import { VOIDWING_MOTH } from "../../echoes/lahairoi.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { matrix, oneSecondPassed } from "../../shared/helpers.js";
@@ -149,8 +147,9 @@ const ORDINATION_GLOW = new Buff({ name: "Jinhsi: Ordination Glow" });
  *  Her first Illuminous Epiphany of a rotation hands a Unison over and sets this, every Epiphany
  *  after it hands over nothing, and her Liberation clears it — one cast a rotation whichever of her
  *  rotations is being run, so the next one grants again. Written this way rather than off the
- *  double-Intro pre-visit, which not every rotation of hers has. */
-const JX_UNISON_SPENT = new Buff({ name: "Jinhsi: Illuminous Epiphany (Unison spent)" });
+ *  double-Intro pre-visit, which not every rotation of hers has. No `name`: a spent flag is
+ *  bookkeeping, and the Unison it withholds is reported by Unison's own row. */
+const JX_UNISON_SPENT = new Buff({});
 
 /* Unison itself is shared/unison.ts's: whichever of her outros holds it is the free one, and the
  * other pays the real bar. */
@@ -269,7 +268,7 @@ const IMMORTALS_DESCENDANCY = new Buff({
 
 const JX_S3 = new Sequence({
   name: "Jinhsi S3: Celestial Incarnate",
-  updateBuffs: () => { if (runningAction(Intro)) applyCurrent(IMMORTALS_DESCENDANCY, 1); },
+  grants: [{ on: onAction(Intro), buff: IMMORTALS_DESCENDANCY }],
 });
 
 /** S4: "all nearby Resonators", so it pays on their inactive actions too; "Attribute DMG Bonus"
@@ -326,9 +325,7 @@ const JINHSI_RESONATOR = new Resonator({
   // Eras in Unity is hers the moment she is on the team, well before her first turn
   combatStart: () => applyCurrent(ERAS_IN_UNITY, 1),
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 10825); addStat(Stat.BaseAtk, 412.5); addStat(Stat.BaseDef, 1258.9);
-  },
+  stats: [[Stat.BaseHp, 10825], [Stat.BaseAtk, 412.5], [Stat.BaseDef, 1258.9]],
 });
 
 /* ---------------------------------------------------------------------------------- rotation */

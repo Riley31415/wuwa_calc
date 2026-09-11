@@ -23,7 +23,7 @@
  * "Damage Data" table — see the comment above the action definitions for the column mapping.
  * Resonance Cost (`maxEnergy` below) is her own real 100%, not the generic 125% default.
  */
-import { Tier, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Tier, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   applyCurrent,
@@ -35,16 +35,15 @@ import {
   isHeld,
   stacksOfEnemy,
   casting,
+  onAction,
   runningAction,
   addStat,
-  frozenStacks,
   queueOutro,
   forte1,
 } from "../../engine/context.js";
-import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, SWAP, START_3 } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
-import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
+import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { NM_HERON, MIDNIGHT_VEIL_5PC } from "../../echoes/rinascita.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
@@ -125,11 +124,11 @@ const INCINERATING_WILL = new Debuff({
 const OVERFLOW = new Buff({
   name: "Inherent: Overflow",
   stats: [[Stat.DmgBonus, 30, Type1.Heavy]],
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(OVERFLOW); },
+  until: LifeTime.Outro,
 });
 const DJ_INHERENT_OVERFLOW = new Inherent({
   name: "Inherent: Overflow",
-  updateBuffs: () => { if (runningAction(SanguinePulse3)) applyCurrent(OVERFLOW, 1); },
+  grants: [{ on: onAction(SanguinePulse3), buff: OVERFLOW }],
 });
 
 /** Crimson Light (Inherent Skill): granted the instant Dodge Counter lands. Survives into
@@ -145,15 +144,15 @@ const CRIMSON_LIGHT = new Buff({
 });
 const DJ_INHERENT_CRIMSON_LIGHT = new Inherent({
   name: "Inherent: Crimson Light",
-  updateBuffs: () => { if (runningAction(DC)) applyCurrent(CRIMSON_LIGHT, 1); },
+  grants: [{ on: onAction(DC), buff: CRIMSON_LIGHT }],
 });
 
 /** The window her outro hands the incoming resonator — "or until they are switched out" is
- *  lost-on-swap wording, checked via lostOnSwap() rather than the usual convertStats(). */
+ *  lost-on-swap wording, so it ends on the swap-out action rather than at the outro. */
 const DANJIN_OUTRO = new Buff({
   name: "Danjin: Outro",
   stats: [[Stat.Amp, 23, Attribute.Havoc]],
-  updateBuffs: () => { lostOnSwap(); },
+  until: LifeTime.Swap,
 });
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
@@ -176,9 +175,7 @@ const DANJIN_RESONATOR = new Resonator({
   maxForte1: 120,
   tier: Tier.Free,
 
-  constantStats: () => {
-    addStat(Stat.BaseHp, 9438); addStat(Stat.BaseAtk, 263); addStat(Stat.BaseDef, 1149);
-  },
+  stats: [[Stat.BaseHp, 9438], [Stat.BaseAtk, 263], [Stat.BaseDef, 1149]],
 });
 
 /* -------------------------------------------------------------------------------- sequences */
@@ -190,11 +187,11 @@ const DANJIN_RESONATOR = new Resonator({
 const DJ_S1_STACKS = new Buff({
   name: "Danjin S1: Crimson Heart of Justice", maxStacks: 6,
   stats: [[Stat.BonusAtk, 5]], perStack: true,
-  convertStats: () => { if (casting(Cast.Outro)) revokeCurrent(DJ_S1_STACKS); },
+  until: LifeTime.Outro,
 });
 const DJ_S1 = new Sequence({
   name: "Danjin S1: Crimson Heart of Justice",
-  updateBuffs: () => { if (stacksOfEnemy(INCINERATING_WILL)) applyCurrent(DJ_S1_STACKS, 1); },
+  grants: [{ on: () => stacksOfEnemy(INCINERATING_WILL) > 0, buff: DJ_S1_STACKS }],
 });
 
 /** S2: +20% (unscoped) DMG Bonus on any hit landed while Incinerating Will is up. */
