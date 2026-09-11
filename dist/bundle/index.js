@@ -51,7 +51,7 @@ import {
   teamKey,
   topRank,
   weaponBase
-} from "./chunk-4GEFP57R.js";
+} from "./chunk-TLZ7XPCH.js";
 
 // dist/src/display.js
 var formatters = /* @__PURE__ */ new Map();
@@ -515,7 +515,7 @@ function rowValues(snap, { mv, avg }, members = []) {
     const traced = tracing(snap, keysFor(snap.action, FORTE_STAT[i]));
     const rows = [];
     if (snap.action.resetForte[i]) {
-      rows.push({ source: snap.action.name, value: 0, text: "CLEAR", digits: 0, owner: snap.member });
+      rows.push({ source: snap.action.name, value: 0, text: "RESET", digits: 0, owner: snap.member });
     }
     if (declared)
       rows.push({ source: snap.action.name, value: declared, digits: 2, owner: snap.member });
@@ -2225,6 +2225,7 @@ function setScoped(s) {
     };
   });
 }
+var MENU_AXES = ["weapons", "sequences", "echoes", "mainstats"];
 function scopedItems(resonator, on, value) {
   const ranks = () => Object.values(TEAMS).some((members) => members.some((m) => m.name === resonator && m.loadout.refinements.some((r) => r.length > 1 && weaponBase(r[0]) === value)));
   const axes = on === "echo" ? ["mainstats"] : on === "weapon" ? ["refines", "echoes", "mainstats"] : ["echoes", "mainstats"];
@@ -2715,7 +2716,7 @@ var openNameMenu = (el, x, y) => {
     // does nothing when pressed.
     // refines are not among them: they belong to the Weapon column, and are opened from a weapon
     // cell once that column is up (`openOptionMenu`)
-    ...AXES.filter((axis) => axis !== "substats" && axis !== "refines").flatMap((axis) => comparable(resonator, axis) ? [compareItem(axis)] : axis === "sequences" ? [{ label: "Sequences Not Implemented!", run: () => {
+    ...MENU_AXES.flatMap((axis) => comparable(resonator, axis) ? [compareItem(axis)] : axis === "sequences" ? [{ label: "Sequences Not Implemented!", run: () => {
     } }] : []),
     ...comparable(resonator, "substats") ? [compareItem("substats")] : [],
     ...scopedBlock(el.dataset.sequence, "sequence", el.dataset.seqGate ?? "", sequenceFilters),

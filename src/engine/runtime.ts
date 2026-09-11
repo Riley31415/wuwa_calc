@@ -4,6 +4,7 @@
  * what `context.ts` and `evaluate.ts` both write, and imports nothing from either.
  */
 import { Stat, Attribute, Type1, Type2 } from "./stats.js";
+import type { Cast } from "./stats.js";
 import type { Action } from "./rotation.js";
 import type { Gear } from "./gear.js";
 import type { State, TeamMember, HeldBuff } from "./state.js";
@@ -63,6 +64,9 @@ export const ctx: {
    *  action; read by `isType()`, the tag list, and the snapshot. */
   overrideType1: Type1 | null;
   overrideType2: Type2 | null;
+  /** A second cast this action would otherwise also count as, dropped for this action alone (see
+   *  `dropCast()`). Cleared by `evaluate()` every action, like the type overrides above. */
+  droppedCast: Cast | null;
   /** Bumped at the top of every `evaluate()`: what stamps this action's grant records (`applied`,
    *  `consumed`) as current, so neither is ever cleared. */
   actionStamp: number;
@@ -86,6 +90,7 @@ export const ctx: {
   constVersion: 0,
   overrideType1: null,
   overrideType2: null,
+  droppedCast: null,
   actionStamp: 0,
   tracing: false,
   insideGroup: false,

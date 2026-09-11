@@ -206,7 +206,7 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
   ctx.tagWord = tagWordOf(action);
   // every action starts on its own type; a held Gear reassigns it from updateDebuffs() below, and
   // `typeOverride()` rebuilds `ctx.tagWord` when one does
-  ctx.overrideType1 = null; ctx.overrideType2 = null;
+  ctx.overrideType1 = null; ctx.overrideType2 = null; ctx.droppedCast = null;
   // what this action grants and spends is recorded under this stamp (see runtime.ts's `applied`)
   ctx.actionStamp++;
   // Replaced rather than cleared/copied: the snapshot below keeps whichever array this action built,

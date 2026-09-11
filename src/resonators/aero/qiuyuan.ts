@@ -17,6 +17,8 @@ import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } fro
 import {
   asSource,
   applyCurrent,
+  casting,
+  dropCast,
   forte1,
   currentAction,
   onAction,
@@ -31,7 +33,7 @@ import {
   queue,
   currentTeam,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START_3, SWAP, NOINTRO, ECHO_CANCEL, OUTRO, DODGE, INTRO_2, INTRO_3 } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_3, SWAP, NOINTRO, ECHO_CANCEL, OUTRO, DODGE, INTRO_2, INTRO_3, INTRO } from "../../engine/rotation.js";
 import { EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { REJUV_2PC, HERON, MOONLIT_CLOUDS_5PC, MOONLIT_CLOUDS_2PC, SIERRA_GALE_2PC, BELL_BORNE_GEOCHELONE } from "../../echoes/jinzhou.js";
@@ -95,6 +97,12 @@ const InksplashExit = qiuyuanAction("Forte - Inksplash of Mind (S6)", { node: No
 const FHA1 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Teach", { node: Node.Forte, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Heavy, mv: 457.2, energy: 7.7, concerto: 14.75, offtune: 12265, forte1: -200 });
 const FHA2 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Save", { node: Node.Forte, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Heavy, mv: 209.67, energy: 3.54, concerto: 6.78, offtune: 5625, forte1: -200 });
 const FHA3 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Sacrifice", { node: Node.Forte, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Heavy, mv: 217.7, energy: 3.65, concerto: 7.01, offtune: 5840, forte1: -200 });
+
+/** Thus Spoke the Blade counts as an Echo Skill the first time it is pressed each visit and not
+ *  again: a second FHA123 in the same rotation is a plain Heavy chain, so nothing that pays out on
+ *  an Echo Skill cast (Sigrika's Soliskin Vitality, the echo-reading weapons) pays twice for it.
+ *  Nameless, so it stays out of the held-buffs list — it only remembers a press already made. */
+const BLADE_ECHO_SPENT = new Buff({});
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -176,6 +184,15 @@ const QIUYUAN_RESONATOR = new Resonator({
   color: "#4fae6b",
   maxEnergy: 125,
   maxForte1: 600,
+  // the Echo Skill half of Thus Spoke the Blade, spent once a visit (see BLADE_ECHO_SPENT). From
+  // updateDebuffs, the first phase, so every `casting(Cast.Echo)` this action reaches sees it
+  updateDebuffs: () => {
+    if (casting(Cast.Intro)) revokeCurrent(BLADE_ECHO_SPENT);
+    if (!runningAction(FHA1) && !runningAction(FHA2) && !runningAction(FHA3)) return;
+    if (isHeld(BLADE_ECHO_SPENT)) dropCast(Cast.Echo);
+    // the chain is one use: the third press is what closes it
+    else if (runningAction(FHA3)) applyCurrent(BLADE_ECHO_SPENT, 1);
+  },
   updateBuffs: () => {
     // forte1() only reflects every *prior* action's own contribution, so what the gauge is about
     // to become (forte1() + a.forte1) is what has to be checked, not what it reads right now
@@ -269,21 +286,11 @@ const QY_ROTATION = new Rotation([
  *  Outro that follows is Sheath Fallen. The opener has no full bar before its first Outro, so it
  *  stays as it is. */
 const QY_ROTATION_MDPS = new Rotation([
-  START_3, Liberation, SWAP,
-
-  INTRO_2, EBA34, 
-  ECHO_CANCEL, Liberation, Skill,  
+  INTRO, EBA34, 
+  ECHO_CANCEL,
   FHA123, 
-  HA, EBA4, HA, EBA4, EBA12, DODGE, EBA12, 
+  HA, EBA4, HA, EBA4, Liberation, EBA12, DODGE, EBA12, 
   FHA123, 
-  OUTRO,
-
-  INTRO_3, EBA34, 
-  ECHO_CANCEL, Skill,
-  FHA123, 
-  HA, EBA4, HA, EBA4, EBA12, DODGE, EBA12, 
-  FHA123, 
-  Liberation, 
   OUTRO,
 ]);
 
@@ -291,13 +298,13 @@ const QY_ROTATION_MDPS_S3 = new Rotation([
   START_3, Liberation, SWAP,
 
   INTRO_2, EBA34, 
-  ECHO_CANCEL, Liberation, Skill,
+  ECHO_CANCEL, Liberation,
   FHA123, 
   StrawCape, EBA34, FHA123,
   OUTRO,
 
   INTRO_3, EBA34, 
-  ECHO_CANCEL, Skill,
+  ECHO_CANCEL,
   FHA123, 
   StrawCape, EBA34, 
   FHA123, 

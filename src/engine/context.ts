@@ -48,7 +48,23 @@ export const currentMember = (): TeamMember => ctx.slot!;
 
 /** Is the action being evaluated this cast type — checks both `cast` and `cast2`. */
 export function casting(cast: Cast): boolean {
-  return isCast(ctx.act!, cast);
+  return isCast(ctx.act!, cast) && ctx.droppedCast !== cast;
+}
+
+/**
+ * Stop this action counting as `cast` — for a press that is two casts at once (Qiuyuan's Thus
+ * Spoke the Blade trio are Heavy Attacks that also count as an Echo Skill) whose second half its
+ * own kit only pays out some of the time. Assign from `updateDebuffs`, the first phase, the way
+ * `typeOverride()` is: everything that reads `casting()` runs after it — every `grants` trigger,
+ * every `applyStats`, every `updateGlobal`.
+ *
+ * The action's primary `cast` can be dropped too, and the Action itself is never touched — kits
+ * compare actions by identity, and a mutated singleton would leak across the teams a worker runs.
+ * Only `casting()` consults this: `isCast()` is asked about actions that are not the one being
+ * evaluated (a queued cast, a snapshot after the fact), where an ambient would be meaningless.
+ */
+export function dropCast(cast: Cast): void {
+  ctx.droppedCast = cast;
 }
 
 /** Is the action being evaluated this one — counting its dash- or jump-cancelled form as the same

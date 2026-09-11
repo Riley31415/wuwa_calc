@@ -34,6 +34,8 @@ import {
   queueOn,
   isActive,
   onCast,
+  setForte1,
+  addForte1,
 } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, NOINTRO, INTRO, ECHO_ONFIELD, OUTRO, DODGE } from "../../engine/rotation.js";
@@ -255,7 +257,10 @@ HECATE_ACTIONS.add(Apparition);
  *  least 2"), banked straight into the store's first two slots. */
 const PH_S1 = new Sequence({
   name: "Phrolova S1: A Key to Netherworld's Secrets",
-  combatStart: () => applyCurrent(NOTES, 3 | (3 << 2)),
+  combatStart: () => {
+    applyCurrent(NOTES, 3 | (3 << 2));
+    addForte1(2);
+  },
   applyStats: () => { if (runningAction(FBA) || runningAction(FSkill)) addStat(Stat.MulMv, 80); },
 });
 
@@ -337,83 +342,119 @@ export const PHROLOVA_RESONATOR = new Resonator({
 
 const BA123 = new ActionGroup("Basic - Movement of Life and Death 123", [BA1, BA2, BA3]);
 const BA123idash = new ActionGroup("Basic - Movement of Life and Death 123 (Cancelled)", [BA1, BA2, BA3.dodgeCancel()]);
-
-const HBA12 = new ActionGroup("Basic - Hecate 12", [HBA1, HBA2]);
 const BA23 = new ActionGroup("Basic - Movement of Life and Death 23", [BA2, BA3]);
+const HBA12 = new ActionGroup("Basic - Hecate 12", [HBA1, HBA2]);
 
-const PH_LOOP = new Rotation([
-  NOINTRO, BA2,
-  INTRO,
-  BA3, ECHO_ONFIELD, 
-  FBA, Skill, FBA, DODGE, 
-  BA123, DODGE, FBA, DODGE,
+
+const PHRO_FAST = new Rotation([
+  NOINTRO, BA23, ECHO_ONFIELD, FBA, Skill, FBA, DODGE, 
+  BA123, DODGE, FBA, 
+  ScarletCoda, Liberation, OUTRO,
+  
+  INTRO, BA3, ECHO_ONFIELD, FBA, Skill, FBA, DODGE,
+  BA123, DODGE, FBA, 
+  ScarletCoda, Liberation, OUTRO,
+]);
+
+const PHRO_MANUAL = new Rotation([
+  NOINTRO, BA23, ECHO_ONFIELD, FBA, Skill, FBA, DODGE, 
+  BA123, DODGE, FBA, 
+  ScarletCoda, Liberation, OUTRO,
+
+  INTRO, BA3, ECHO_ONFIELD, FBA, Skill, FBA, DODGE, 
+  BA123, DODGE, FBA, 
   ScarletCoda, Liberation, HBA12, OUTRO,
 ]);
 
-const PH_LOOP_S2 = new Rotation([
-  NOINTRO, BA23, ECHO_ONFIELD, 
-  FBA, Skill, FBA,
+const PHRO_5FBA = new Rotation([
+  NOINTRO, BA23, ECHO_ONFIELD, FBA, Skill, FBA, DODGE, 
+  BA123, DODGE, FBA, 
   ScarletCoda, Liberation, OUTRO,
 
-
   INTRO,
-  BA3, ECHO_ONFIELD, 
-  FBA, Skill, FBA, DODGE, 
+  BA3.dodgeCancel(), FBA, Skill, FBA, ECHO_ONFIELD,
+  BA123idash, FBA, DODGE,
   BA123idash, FBA, DODGE,
   BA123idash, FBA, DODGE,
   ScarletCoda, Liberation, OUTRO,
 ]);
 
+const PHRO_5FBA_MANUAL = new Rotation([
+  NOINTRO, BA23, ECHO_ONFIELD, FBA, Skill, FBA, DODGE, 
+  BA123, DODGE, FBA, 
+  ScarletCoda, Liberation, OUTRO,
 
-/* ----------------------------------------------------------------------------------- loadout */
+  INTRO,
+  BA3.dodgeCancel(), FBA, Skill, FBA, ECHO_ONFIELD,
+  BA123idash, FBA, DODGE,
+  BA123idash, FBA, DODGE,
+  BA123idash, FBA, DODGE,
+  ScarletCoda, Liberation, HBA12, OUTRO,
+]);
 
-// her real 43311 build: resonator + talents + both Inherent Skills + Forte Circuit, weapon,
-// mainslot echo, sonata pieces, mainstat/substat
-export const PHROLOVA = new Loadout({
+const PHRO_FAST_S2 = new Rotation([
+  NOINTRO, BA23, ECHO_ONFIELD, FBA, Skill, FBA, 
+  ScarletCoda, Liberation, OUTRO,
+  
+  INTRO, BA3, ECHO_ONFIELD, FBA, Skill, FBA, DODGE,
+  BA123, DODGE, FBA, 
+  ScarletCoda, Liberation, OUTRO,
+]);
+const PHRO_5FBA_S2 = new Rotation([
+  NOINTRO, BA23, ECHO_ONFIELD, FBA, Skill, FBA, 
+  ScarletCoda, Liberation, OUTRO,
+
+  INTRO,
+  BA3.dodgeCancel(), FBA, Skill, FBA, ECHO_ONFIELD,
+  BA123idash, FBA, DODGE,
+  BA123idash, FBA, DODGE,
+  BA123idash, FBA, DODGE,
+  ScarletCoda, Liberation, OUTRO,
+]);
+
+const PHRO_5FBA_MANUAL_S2 = new Rotation([
+  NOINTRO, BA23, ECHO_ONFIELD, FBA, Skill, FBA, 
+  ScarletCoda, Liberation, OUTRO,
+
+  INTRO,
+  BA3.dodgeCancel(), FBA, Skill, FBA, ECHO_ONFIELD,
+  BA123idash, FBA, DODGE,
+  BA123idash, FBA, DODGE,
+  BA123idash, FBA, DODGE,
+  ScarletCoda, Liberation, HBA12, OUTRO,
+]);
+
+export const PHRO_14s = new Loadout({
   resonator: PHROLOVA_RESONATOR,
   weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER],
   echoLoadouts: [new EchoLoadout(NM_HECATE, DREAM_OF_THE_LOST_3PC, HAVOC_ECLIPSE_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Skill),
-    rotation: { 0: PH_LOOP, 2: PH_LOOP_S2 },
+    rotation: { 0: PHRO_5FBA_MANUAL, 2: PHRO_5FBA_MANUAL_S2 },
   sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6],
 });
 
+export const PHRO_12s = new Loadout({
+  resonator: PHROLOVA_RESONATOR,
+  weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER],
+  echoLoadouts: [new EchoLoadout(NM_HECATE, DREAM_OF_THE_LOST_3PC, HAVOC_ECLIPSE_2PC)],
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+  substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Skill),
+    rotation: { 0: PHRO_5FBA, 2: PHRO_5FBA_S2 },
+  sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6],
+});
 
-const PH_LOOP_DUAL_DPS = new Rotation([
-  NOINTRO, BA2,
-  INTRO, BA3, ECHO_ONFIELD, 
-  FBA, Skill, FBA, DODGE,
-  BA123, DODGE, FBA, 
-  ScarletCoda, Liberation, OUTRO,
-]);
-
-const PH_LOOP_DUAL_DPS_S2 = new Rotation([
-  NOINTRO, BA23, ECHO_ONFIELD, 
-  FBA, Skill, FBA,
-  ScarletCoda, Liberation, OUTRO,
-
-
-  INTRO, BA3, ECHO_ONFIELD, 
-  FBA, Skill, FBA, DODGE,
-  BA123, DODGE, FBA, 
-  ScarletCoda, Liberation, OUTRO,
-]);
-
-export const PHROLOVA_DUAL_DPS = new Loadout({
+export const PHROLO_10s = new Loadout({
   resonator: PHROLOVA_RESONATOR,
   weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER],
   echoLoadouts: [
     new EchoLoadout(NM_HECATE, DREAM_OF_THE_LOST_3PC, HAVOC_ECLIPSE_2PC),
-    new EchoLoadout(HERON, DREAM_OF_THE_LOST_3PC, MOONLIT_CLOUDS_2PC),
-    new EchoLoadout(BELL_BORNE_GEOCHELONE, DREAM_OF_THE_LOST_3PC, MOONLIT_CLOUDS_2PC),
-    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
-    new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
   highSubstat: highSubs(Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Skill),
-    rotation: { 0: PH_LOOP_DUAL_DPS, 2: PH_LOOP_DUAL_DPS_S2 },
+    rotation: { 0: PHRO_FAST, 2: PHRO_FAST_S2 },
   sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6],
 });

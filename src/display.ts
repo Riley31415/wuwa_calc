@@ -346,7 +346,7 @@ function rowValues(
     // a cast that wipes the bar first: its own row says so rather than carrying a figure, since
     // what it takes off is whatever happened to be there
     if (snap.action.resetForte[i]) {
-      rows.push({ source: snap.action.name, value: 0, text: "CLEAR", digits: 0, owner: snap.member });
+      rows.push({ source: snap.action.name, value: 0, text: "RESET", digits: 0, owner: snap.member });
     }
     // the same two decimals the gauge's own column prints, so a fractional gain reads as one
     if (declared) rows.push({ source: snap.action.name, value: declared, digits: 2, owner: snap.member });

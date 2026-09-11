@@ -161,6 +161,13 @@ function setScoped(s: ScopedCompare): void {
   });
 }
 
+/** The order the resonator menu offers its compares in — the chain ahead of the gear picks, and
+ *  the substat spread appended after these, being the whole build's investment rather than a pick.
+ *  Its own list rather than `AXES`: that one is the order a filter set serialises in
+ *  (solver.ts's own `filterSignature` and the per-member solve keys), so it cannot be shuffled for
+ *  a menu's sake. Refines are absent — they belong to the Weapon column (`openOptionMenu`). */
+const MENU_AXES: Axis[] = ["weapons", "sequences", "echoes", "mainstats"];
+
 /** `alt` is what the right button does on this line; without one the right button is inert
  *  there, so a second right press on a menu it just opened leaves the menu standing. */
 interface MenuItem { label: string; run: () => void; alt?: () => void }
@@ -789,7 +796,7 @@ const openNameMenu = (el: HTMLElement, x: number, y: number): void => {
     // does nothing when pressed.
     // refines are not among them: they belong to the Weapon column, and are opened from a weapon
     // cell once that column is up (`openOptionMenu`)
-    ...AXES.filter((axis) => axis !== "substats" && axis !== "refines").flatMap((axis) => (comparable(resonator, axis) ? [compareItem(axis)]
+    ...MENU_AXES.flatMap((axis) => (comparable(resonator, axis) ? [compareItem(axis)]
       : axis === "sequences" ? [{ label: "Sequences Not Implemented!", run: () => {} }] : [])),
     ...(comparable(resonator, "substats") ? [compareItem("substats")] : []),
     ...scopedBlock(el.dataset.sequence, "sequence", el.dataset.seqGate ?? "", sequenceFilters),
