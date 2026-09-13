@@ -253,8 +253,9 @@ export const CIACCONA = new Loadout({
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.FlatAtk, Substat.Liberation, Substat.Er),
-  rotation: { 0: CI_ROTATION, 3: CI_ROTATION_S3 },
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Heavy),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Heavy),
+  rotation: { 0: CI_ROTATION, // 3: CI_ROTATION_S3 disabled for er and extension issue
+   },
   sequences: CI_SEQUENCES,
 });

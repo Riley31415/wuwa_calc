@@ -273,7 +273,11 @@ export const SHOREKEEPER = new Loadout({
   ],
   sequences: [SK_S1, SK_S2, SK_S3, SK_S4, SK_S5, SK_S6],
   mainstats: [mainstats(Mainstat.HP4, Mainstat.ER3, Mainstat.ER3, Mainstat.HP1, Mainstat.HP1)],
-  substat: substats(Substat.HpPct, Substat.Liberation, Substat.FlatHp, true),
-  highSubstat: highSubs(Substat.Er, Substat.Liberation, Substat.HpPct, Substat.Liberation),
-    rotation: { 0: SK_LOOP, 3: SK_LOOP_S3 },
+  substat: substats(Substat.Er, Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.HpPct, Substat.Heavy),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.Liberation, Substat.HpPct, Substat.Heavy),
+    // S3 loop disabled for now: it drops a whole Basic line and cuts her Intro chain to one press,
+    // which costs her ~7.2 Energy a window and half of that to whoever she is standing in front of
+    // — enough to put twelve teams' Liberations out of reach. Re-point this at SK_LOOP_S3 once that
+    // rotation is settled.
+    rotation: SK_LOOP,
 });

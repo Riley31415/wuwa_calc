@@ -367,7 +367,7 @@ const CARTETHYIA_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   intro: () => (isHeld(MANIFEST) ? FIntro : Intro),
   outro: () => Outro,
-  color: "#1d3fff",
+  color: "#3553fb",
   maxEnergy: 125,
   maxForte1: 120,
 
@@ -398,7 +398,7 @@ export const CARTETHYIA = new Loadout({
   weapons: [DEFIERS_THORN, EMERALD_OF_GENESIS, RED_SPRING],
   echoLoadouts: [new EchoLoadout(FLEURDELYS, WINDWARD_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.HP4, Mainstat.Aero3, Mainstat.HP1),
-  substat: substats(Substat.HpPct, Substat.Basic, Substat.FlatHp),
-  highSubstat: highSubs(Substat.HpPct, Substat.FlatHp, Substat.Basic, Substat.Er),
+  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.HpPct, Substat.Basic, Substat.FlatHp, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.HpPct, Substat.Basic, Substat.FlatHp, Substat.Liberation),
   rotation: CT_ROTATION,
 });

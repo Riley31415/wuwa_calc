@@ -19,10 +19,11 @@ import {
   runningAction,
   addStat,
   forte1,
+  frozenStacks,
   queueOutro,
 } from "../../engine/context.js";
-import { matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, OUTRO, DODGE } from "../../engine/rotation.js";
+import { matrix, oneSecondPassed } from "../../shared/helpers.js";
+import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, OUTRO, DODGE, ECHO_SWAP } from "../../engine/rotation.js";
 import { BLAZING_BRILLIANCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { NM_INFERNO_RIDER, MOLTEN_RIFT_5PC } from "../../echoes/jinzhou.js";
@@ -110,11 +111,26 @@ const FIERY_FEATHER = new Buff({
   convertStats: () => { if (runningAction(FlamingSacrifice)) revokeCurrent(FIERY_FEATHER); },
 });
 
-/** Strategy of Duality: the outro handoff. */
-const CHANGLI_OUTRO = new Buff({
+/** Strategy of Duality: the outro handoff — 10s, or the receiver switching out, whichever comes
+ *  first. The stacks are the seconds it has run for, one added per engine second (Red Spring's own
+ *  shape in sword.ts, counting up rather than down: an outro handoff is adopted one stack at a
+ *  time, so there is no full bar to spend). They are not a payout — the stats below stand whole
+ *  while any stack remains — so what the count is shown as is the time it has left. */
+const CHANGLI_OUTRO: Buff = new Buff({
   name: "Changli: Outro",
+  maxStacks: 10,
+  // the stack it lands with is the first of its ten seconds, so n stacks held is 10 - (n - 1) left
+  display: () => `Changli: Outro (${11 - frozenStacks()}s)`,
   stats: [[Stat.Amp, 20, Attribute.Fusion], [Stat.Amp, 25, Type1.Liberation]],
   until: LifeTime.Swap,
+  // counted in convertStats, after the stats have been paid: the press that spends the tenth
+  // second is still inside the window, and closing it in updateBuffs would take it off that press
+  // before it read anything, leaving a 10s buff paying nine
+  convertStats: () => {
+    if (!oneSecondPassed()) return;
+    if (frozenStacks() >= 10) revokeCurrent(CHANGLI_OUTRO);
+    else applyCurrent(CHANGLI_OUTRO, 1);
+  },
 });
 
 /* --------------------------------------------------------------------------- resonance chain */
@@ -203,14 +219,14 @@ const CHANGLI_RESONATOR = new Resonator({
 const BA1234 = new ActionGroup("Basic - Blazing Enlightenment 1234", [BA1, BA2, BA3, BA4]);
 
 const CH_ROTATION = new Rotation([
-  START_3, Liberation, FlamingSacrifice.swap(), SWAP,
+  START_3, Skill, Liberation, FlamingSacrifice.swap(), SWAP,
   // TODO get cancels
   INTRO, SMA,
   Skill, SBA,
   Skill, SBA,
   BA1234, DODGE, SBA,
   FlamingSacrifice,
-  Liberation, FlamingSacrifice,
+  Liberation, FlamingSacrifice, ECHO_SWAP,
   OUTRO,
 ]);
 
@@ -224,7 +240,7 @@ export const CHANGLI = new Loadout({
   weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS],
   echoLoadouts: [new EchoLoadout(NM_INFERNO_RIDER, MOLTEN_RIFT_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Er),
+  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
     rotation: CH_ROTATION,
 });

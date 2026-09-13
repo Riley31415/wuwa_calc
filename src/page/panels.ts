@@ -2,15 +2,15 @@
  * Hover panels: the markup every popover is built from (stat traces, action info, held buffs,
  * damage breakdowns, loadouts, the DPR table) and `wireSourcePanels`, which opens them.
  */
-import { Stat, Attribute, Type1, Type2, scopedStat, isPercent, statLabel, TAG_NAME, NODE_NAME } from "../engine/stats.js";
+import { Stat, Attribute, Type1, Type2, scopedStat, splitStat, isPercent, statLabel, TAG_NAME, NODE_NAME } from "../engine/stats.js";
 import type { StatKey, Tag } from "../engine/stats.js";
 import type { StatEntry } from "../engine/state.js";
 import { Sonata } from "../engine/gear.js";
 import type { Buff, Gear } from "../engine/gear.js";
 import { menuStats } from "../engine/context.js";
-import { substatRollBuffs } from "../shared/substats.js";
+import { substatRollBuffs, litStats } from "../shared/substats.js";
+import { erRollsFor } from "../teamrun.js";
 import { mainstatSlotBuffs } from "../shared/mainstats.js";
-import type { Action } from "../engine/rotation.js";
 import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
 import type { HeldBuff } from "../engine/state.js";
 import type { ChainGroup, ResolvedSnapshot } from "../engine/evaluate.js";
@@ -23,6 +23,12 @@ import { results, FALLBACK_HUE } from "./model.js";
 
 export const esc = (s: unknown): string => String(s)
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/** A touch screen has no click, so nothing the page asks for is spelt as one there. The two
+ *  wordings every such line is built from, settled once: the pointer cannot change mid-session. */
+const coarse = matchMedia("(pointer: coarse)").matches;
+export const CLICK = coarse ? "Tap" : "Click";
+export const CLICKING = coarse ? "tapping" : "clicking";
 
 /** A panel parked as its cell's `data-pop` attribute — a string the parser scans but never builds;
  *  `wireSourcePanels` parses it on first hover. Single-quoted so the markup's own `"` stay raw. */
@@ -166,74 +172,18 @@ function eachHit(lines: ChainGroup[], slot: string | null, fn: (snap: ResolvedSn
   }
 }
 
-function sumByTag(lines: ChainGroup[], slot: string, keyOf: (a: Action) => number | null): Map<number, number> {
-  const by = new Map<number, number>();
-  eachHit(lines, slot, (snap, avg) => {
-    const key = keyOf(snap.action);
-    if (key != null) by.set(key, (by.get(key) ?? 0) + avg);
-  });
-  return by;
-}
-
-function breakdownSection(heading: string, by: Map<number, number>, total: number, label: (k: number) => string): string {
-  if (!by.size) return "";
-  const rows = [...by].sort((a, b) => b[1] - a[1]);
-  const body = rows.map(([k, v]) => {
-    const pct = total ? Math.round((v / total) * 100) : 0;
-    return `<tr><td class="k">${esc(label(k))}</td><td class="v">${fmt(v)} <span class="pct">(${pct}%)</span></td></tr>`;
-  }).join("");
-  return `<tr class="sec"><td colspan="2">${esc(heading)}</td></tr>${body}`;
-}
-
-/** The Total row's hover: the ten actions that contributed most across the whole team, with cast
- *  counts. Each row wears its caster's colour and left bar, the way a concerto or energy source
- *  reads in the action log (`panelRow`) — one ranking rather than a per-member seven each. */
-function teamActionPopover(lines: ChainGroup[], total: number, slotHue: Map<string, string>): string {
-  const by = new Map<string, { dmg: number; n: number; slot: string; name: string }>();
-  eachHit(lines, null, (snap, avg) => {
-    // a dash-cancel, a swap-out and a Unison outro are the same press as the cast they came from,
-    // so they rank with it rather than as a form of their own
-    let act = snap.action;
-    while (act.cancelOf ?? act.formOf) act = act.cancelOf ?? act.formOf!;
-    const key = `${snap.slot} ${act.name}`;
-    const cur = by.get(key) ?? { dmg: 0, n: 0, slot: snap.slot, name: act.name };
-    cur.dmg += avg; cur.n++;
-    by.set(key, cur);
-  });
-  if (!by.size) return "";
-  const rows = [...by.values()].sort((a, b) => b.dmg - a.dmg).slice(0, 10).map((v) => {
-    const pct = total ? Math.round((v.dmg / total) * 100) : 0;
-    const hue = slotHue.get(v.slot) ?? TUNE_BREAK_ENEMY.color;
-    return `<tr><td class="s" style="--own:${hue}">${esc(v.name)}${v.n > 1 ? ` x${v.n}` : ""}</td>`
-      + `<td class="v">${fmt(v.dmg)} <span class="pct">(${pct}%)</span></td></tr>`;
-  }).join("");
-  return lazyPop(`<span class="pop breakdown"><table>`
-    + `<tr class="sec"><td colspan="2">Top Actions</td></tr>${rows}</table></span>`);
-}
-
-function damagePopover(lines: ChainGroup[], slot: string, total: number, grandTotal: number): string {
-  const tagName = (k: number) => TAG_NAME[k as keyof typeof TAG_NAME];
-  const body = breakdownSection("Node", sumByTag(lines, slot, (a) => a.node), total, (k) => NODE_NAME[k as keyof typeof NODE_NAME])
-    + breakdownSection("Type 1", sumByTag(lines, slot, (a) => a.type1), total, tagName)
-    + breakdownSection("Type 2", sumByTag(lines, slot, (a) => a.type2), total, tagName);
-  const pct = grandTotal ? Math.round((total / grandTotal) * 100) : 0;
-  return lazyPop(`<span class="pop breakdown"><table>${body}`
-    + `<tr class="sum"><td class="k">Total</td><td class="v">${fmt(total)} <span class="pct">(${pct}% of team)</span></td></tr>`
-    + `</table></span>`);
-}
-
 /* ---------------------------------------------------------------------------------- loadout */
 
 /** A member's equipped gear for one combo, labelled by slot — inherents, weapon, mainslot, sets,
  *  mainstat, substats. Matrix is left out: it is a filter on the resonator, not a build pick. */
-export function equippedGear(member: Member, combo: Combo): [string, Gear][] {
+export function equippedGear(member: Member, combo: Combo, erRolls = 1): [string, Gear][] {
   const l = member.loadout;
   const r = l.resonator;
   return [...(r.inherent1 ? [["Inherent", r.inherent1] as [string, Gear]] : []),
     ...(r.inherent2 ? [["Inherent", r.inherent2] as [string, Gear]] : []),
     ["Weapon", combo.weapon], ["Mainslot", combo.echo.mainslot],
     ...combo.echo.sets.map((g, i): [string, Gear] => [i === 0 ? "Sonata" : "", g]),
-    ["Mainstats", combo.mainstat], ["Substats", combo.highSubs ? l.highSubstat : l.substat]];
+    ["Mainstats", combo.mainstat], ["Substats", l.spread(combo.highSubs, erRolls)]];
 }
 
 /** Dmg Bonus scope buckets for the menu stats — each keeps only its biggest line. */
@@ -250,9 +200,9 @@ const OTHER_SCOPES = [
 ];
 
 /** The build's constant stats as the game's character screen shows them (`menuStats()`), zeros dropped. */
-function menuStatRows(member: Member, combo: Combo): { label: string; value: string }[] {
+function menuStatRows(member: Member, combo: Combo, erRolls: number): { label: string; value: string }[] {
   const l = member.loadout;
-  const entries = menuStats(l.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs));
+  const entries = menuStats(l.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, erRolls));
   const totals = new Map<number, number>();
   for (const e of entries) totals.set(e.stat, (totals.get(e.stat) ?? 0) + e.value);
   const get = (key: number) => totals.get(key) ?? 0;
@@ -295,7 +245,7 @@ export const subsLabel = (combo: Combo): string => (combo.highSubs ? "High Inves
  * five one-stat rolls, five of them Crit Rate. A main-stat build reads echo by echo instead, so
  * two 3-cost Fusion slots stay two lines apiece.
  */
-function declaredRows(buffs: Buff[], owner: string, fold: boolean): PanelRow[] {
+function declaredRows(buffs: Buff[], owner: string, fold: boolean, lit: StatKey[] = []): PanelRow[] {
   const rowsOf = (b: Buff): StatEntry[] => b.decl.stats.map((line) => {
     const [stat, value, tag] = line as readonly [Stat, number, Tag?];
     return { stat: tag === undefined ? stat : scopedStat(tag, stat), value, source: b.name, owner, gear: b };
@@ -311,9 +261,12 @@ function declaredRows(buffs: Buff[], owner: string, fold: boolean): PanelRow[] {
     if (seen) seen.n++;
     else by.set(key, { rows, n: 1 });
   }
-  // a folded line reads what the whole spread put into that stat, the count saying how it got there
+  // a folded line reads what the whole spread put into that stat, the count saying how it got
+  // there, and a lone roll dims as the spread's small change — except the ones the build asked for
+  // at a single roll, which `lit` names (shared/substats.ts's `litStats`)
   return [...by.values()].flatMap(({ rows, n }) => rows.map((e): PanelRow =>
-    ({ ...e, value: e.value * n, source: n > 1 ? `${e.source} x${n}` : e.source, dim: n === 1 })));
+    ({ ...e, value: e.value * n, source: `${e.source} x${n}`,
+       dim: n === 1 && !lit.includes(e.stat) })));
 }
 
 /**
@@ -358,13 +311,19 @@ type PanelRow = StatEntry & { dim?: boolean };
 
 /** One line of a loadout panel: what granted it, in that kit's own colour and left bar (the same
  *  reading a concerto or energy source gets in the action log), then the stat and the value. */
-const statRow = (e: PanelRow, owner: string, slotHue: Map<string, string>, noStat = false): string =>
+const statRow = (e: PanelRow, owner: string, slotHue: Map<string, string>, noStat = false): string => {
+  const percent = isPercent(e.stat);
+  // energy and concerto are fed in fractions of a point — the same two decimals their own columns
+  // print in the action log, rather than a whole number that reads 31 for 30.51
+  const stat = splitStat(e.stat)[0];
+  const resource = stat === Stat.AddEnergy || stat === Stat.AddConcerto;
   // the cell's own member, not the entry's `owner`: every panel here is one member's piece and is
   // filtered to what that member put up, while `owner` is `State.sourceOf` — one entry per Gear, so
   // a sonata two of them wear reads as whoever equipped it last
-  `<tr class="stat${e.dim ? " one" : ""}"><td class="s" style="--own:${slotHue.get(owner) ?? FALLBACK_HUE}">${esc(e.source)}</td>`
-  + (noStat ? "" : `<td class="k">${esc(statLabel(e.stat))}</td>`)
-  + `<td class="v">${fmt(e.value, isPercent(e.stat) ? 1 : 0)}${isPercent(e.stat) ? "%" : ""}</td></tr>`;
+  return `<tr class="stat${e.dim ? " one" : ""}"><td class="s" style="--own:${slotHue.get(owner) ?? FALLBACK_HUE}">${esc(e.source)}</td>`
+    + (noStat ? "" : `<td class="k">${esc(statLabel(e.stat))}</td>`)
+    + `<td class="v">${fmt(e.value, percent ? 1 : resource ? 2 : 0)}${percent ? "%" : ""}</td></tr>`;
+};
 
 /** A loadout cell's hover: what the pieces grant the character screen (`menuStats()`), and under
  *  it what their buffs are worth at their peak. Nothing of either — a chain node that only changes
@@ -423,7 +382,8 @@ function statsPanel(stats: PanelRow[], buffs: PanelRow[], owner: string, slotHue
  * dozen rows of their own crowded out the pieces, and three builds rarely show the same ones.
  */
 export function loadoutTable(run: TeamRun): string {
-  const builds = run.members.map((m, i) => ({ member: m, combo: run.combo[i]! }));
+  const erRolls = erRollsFor(run.teamKey, run.members, run.combo);
+  const builds = run.members.map((m, i) => ({ member: m, combo: run.combo[i]!, erRolls: erRolls[i]! }));
   const slotHue = new Map([...run.members.map((m): [string, string] => [m.name, m.color]),
     [TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color]]);
   const kitOf = ({ member, combo }: typeof builds[number]): Set<Gear> => {
@@ -432,8 +392,8 @@ export function loadoutTable(run: TeamRun): string {
   };
   // everything anybody on the team holds — what tells a kit's own buff (put up by a cast, which
   // nobody equips) apart from a piece's
-  const equipped = new Set(builds.flatMap(({ member, combo }) =>
-    member.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs)));
+  const equipped = new Set(builds.flatMap(({ member, combo, erRolls: n }) =>
+    member.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, n)));
 
   // the resonator herself, under her own name: her kit's own pieces, which are every piece she
   // holds that isn't one of the build picks the rows below already list
@@ -476,9 +436,12 @@ export function loadoutTable(run: TeamRun): string {
     spreadCell(b.combo.mainstat, b.member.name,
       declaredRows(mainstatSlotBuffs(b.combo.mainstat), b.member.name, false), "Mainstats & Secondary Stats"))));
   rows.push(row("Substats", builds.map((b) => {
-    const piece = b.combo.highSubs ? b.member.loadout.highSubstat : b.member.loadout.substat;
+    const l = b.member.loadout;
+    const piece = l.spread(b.combo.highSubs, b.erRolls);
     const rolls = substatRollBuffs(piece);
-    return spreadCell(piece, b.member.name, declaredRows(rolls, b.member.name, true), `Substats (${rolls.length} lines)`, true);
+    const lit = litStats(l.resonator.maxEnergy);
+    return spreadCell(piece, b.member.name, declaredRows(rolls, b.member.name, true, lit),
+      `Substats (${rolls.length} lines)`, true);
   })));
   // S0 is the absence of a chain, not a pick — the row only appears once somebody holds a node
   if (builds.some((b) => b.combo.sequence > 0)) {
@@ -495,7 +458,7 @@ export function loadoutTable(run: TeamRun): string {
   }
   // the menu stats are the row, not a hover off it: one member's whole list per cell
   rows.push(row("Menu Stats", builds.map((b) => {
-    const stats = menuStatRows(b.member, b.combo)
+    const stats = menuStatRows(b.member, b.combo, b.erRolls)
       .map((r) => `<tr><td class="k">${esc(r.label)}</td><td class="v">${esc(r.value)}</td></tr>`).join("");
     return `<div class="c menustats"><table>${stats}</table></div>`;
   })));
@@ -505,53 +468,96 @@ export function loadoutTable(run: TeamRun): string {
 
 /* -------------------------------------------------------------------------------- DPR table */
 
+/** The detail page's extra resource columns — per slot, cells already rendered (detail.ts owns what
+ *  they mean and what they hover). Absent inside the comparison table's own DPR popover. */
+export interface DprExtra { heads: string[]; cells: Map<string, string[]> }
+
 /** Damage per rotation: a row per member, Tune Break and Total, over the four sections the run
  *  keeps. With `lines` (the detail page) a member's cell hovers its breakdown and the Total row's
  *  the team's top actions; the comparison table's Total DPR hover passes none (no hover inside a
  *  hover). */
-export function dprTable(run: TeamRun, lines?: ChainGroup[][]): string {
+export function dprTable(run: TeamRun, lines?: ChainGroup[][], extra?: DprExtra): string {
   const grand = run.sectionTotals.reduce((a, b) => a + b, 0);
   const flat = lines?.flat();
+  const slots = [...run.members.map((m) => m.name), TUNE_BREAK_ENEMY.name];
+  const slotHue = new Map([...run.members.map((m): [string, string] => [m.name, m.color]),
+    [TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color]]);
+  // the four rotation sections, named once over for both the column headings and the pies' titles
+  const sections = ["Opener", "Loop 1", "Loop 2", "Loop 3"];
+  const ownTotal = (slot: string): number => run.sectionBySlot.reduce((a, by) => a + (by.get(slot) ?? 0), 0);
+  // the row opens on the team's own Total, which is the figure the table is read for
+  const selected = flat ? `${TEAM_ROW}|4` : "";
+  if (lines) distCells = new Map([
+    ...slots.flatMap((slot) => [...lines, lines.flat()]
+      .map((sec, i): [string, DistCell] => [`${slot}|${i}`,
+        distCell(sec, slot, sections[i] ?? "", slotHue.get(slot) ?? TUNE_BREAK_ENEMY.color)])),
+    // the team's own row reads the rotation itself rather than one slot's share of it: one section
+    // for each of the four loop columns, all four in order for the Total
+    ...[...lines.map((sec) => [sec]), lines]
+      .map((secs, i): [string, DistCell] => [`${TEAM_ROW}|${i}`, teamCell(secs, sections[i] ?? "", slotHue)]),
+  ]);
+  const blanks = extra ? extra.heads.map(() => `<div class="c num"></div>`).join("") : "";
+  const extraFor = (slot: string): string => (extra ? (extra.cells.get(slot) ?? []).join("") || blanks : "");
 
   const head = `<div class="rtrow rthead">`
     + `<div class="c"></div>`
-    + `<div class="c num">Opener</div><div class="c num">Loop 1</div>`
-    + `<div class="c num">Loop 2</div><div class="c num">Loop 3</div>`
+    + sections.map((n) => `<div class="c num">${n}</div>`).join("")
     + `<div class="c num">Total</div>`
+    + (extra ? extra.heads.map((h) => `<div class="c num">${esc(h)}</div>`).join("") : "")
     + `</div>`;
 
-  const valueCell = (sec: ChainGroup[] | undefined, slot: string, value: number, total: number): string =>
+  // A figure is a distribution cell only on the detail page, where there is a rotation to break
+  // down: `<slot>|<section>`, section 4 being the Total column. No hover panel of its own — the
+  // breakdown it used to carry is the Distribution row, which a click on it opens.
+  const valueCell = (sec: ChainGroup[] | undefined, value: number, key: string): string =>
     (sec
-      ? `<div class="c num has"${damagePopover(sec, slot, value, total)}>${fmt(value)}</div>`
+      ? `<div class="c num dist-cell${key === selected ? " sel" : ""}" data-dist="${key}">${fmt(value)}</div>`
       : `<div class="c num">${fmt(value)}</div>`);
 
+  // a row's own label opens the same figure its Total column does, so a row can be read by its name
+  const rowLabel = (slot: string, mem: string): string =>
+    `<div class="c name"${mem}${lines ? ` data-dist-row="${esc(slot)}"` : ""}>${esc(slot)}</div>`;
+
   const dataRow = (slot: string, color: string): string => {
-    const own = run.sectionBySlot.reduce((a, by) => a + (by.get(slot) ?? 0), 0);
+    const own = ownTotal(slot);
     return `<div class="rtrow">`
-      + `<div class="c name" style="--mem:${color}">${esc(slot)}</div>`
-      + run.sectionBySlot.map((by, i) => valueCell(lines?.[i], slot, by.get(slot) ?? 0, run.sectionTotals[i]!)).join("")
-      + valueCell(flat, slot, own, grand)
+      + rowLabel(slot, ` style="--mem:${color}"`)
+      + run.sectionBySlot.map((by, i) => valueCell(lines?.[i], by.get(slot) ?? 0, `${slot}|${i}`)).join("")
+      + valueCell(flat, own, `${slot}|4`)
+      + extraFor(slot)
       + `</div>`;
   };
 
   const memberRows = run.members.map((m) => dataRow(m.name, m.color)).join("");
   const tuneBreakRow = dataRow(TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color);
-  const slotHue = new Map([...run.members.map((m): [string, string] => [m.name, m.color]),
-    [TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color]]);
-  const totalCell = (sec: ChainGroup[] | undefined, value: number): string => {
-    const hover = sec ? teamActionPopover(sec, value, slotHue) : "";
-    return `<div class="c num${hover ? " has" : ""}"${hover}>${fmt(value)}</div>`;
-  };
+  // the team's own figures are distribution cells like everyone else's, keyed on the row's label
   const totalRow = `<div class="rtrow total">`
-    + `<div class="c name">Total</div>`
-    + run.sectionTotals.map((v, i) => totalCell(lines?.[i], v)).join("")
-    + totalCell(flat, grand)
+    + rowLabel(TEAM_ROW, "")
+    + run.sectionTotals.map((v, i) => valueCell(lines?.[i], v, `${TEAM_ROW}|${i}`)).join("")
+    + valueCell(flat, grand, `${TEAM_ROW}|4`)
+    + blanks
     + `</div>`;
 
-  return `<div class="rtable dpr">${head}${memberRows}${tuneBreakRow}${totalRow}</div>`;
+  const distRow = lines ? distributionRow(selected) : "";
+  // every row but the pies' to its own content, the pies to whatever height is left over — which is
+  // what finishes this table level with Equipment beside it
+  const tracks = lines ? `;grid-template-rows:repeat(${run.members.length + 3}, max-content) 1fr` : "";
+  return `<div class="rtable dpr" style="--cols:${5 + (extra?.heads.length ?? 0)}${tracks}">`
+    + `${head}${memberRows}${tuneBreakRow}${totalRow}${distRow}</div>`;
 }
 
 /* ----------------------------------------------------------------------------- wiring */
+
+/** The one panel the page drives itself rather than leaving to the hover: the action log's
+ *  avg-cell sum, shown while its drag is held (detail.ts's `wireAvgSum`). Installed by
+ *  `wireSourcePanels`, which owns the placing and the single open panel. */
+let driver: { show: (cell: Element, html: string) => void; hide: () => void } | null = null;
+
+/** Show `html` over `cell` in place of whatever that cell carries, until `dropPanel()`. The hover
+ *  is held shut meanwhile, so crossing other cells cannot replace it. Safe to call on every
+ *  pointer move: it rebuilds and re-places, which is how the sum keeps up with the drag. */
+export const drivePanel = (cell: Element, html: string): void => driver?.show(cell, html);
+export const dropPanel = (): void => driver?.hide();
 
 /**
  * Open a cell's panel on hover. A closed panel is detached and kept in `built` (only the open one
@@ -617,12 +623,30 @@ export function wireSourcePanels(root: HTMLElement): void {
     return { cell, pop };
   };
 
+  // while a driven panel stands it is the only one: the hover handlers below all stand down, and
+  // nothing but `dropPanel()` takes it off the screen
+  let driven = false;
+  driver = {
+    show: (cell, html) => {
+      close();
+      driven = true;
+      const box = document.createElement("div");
+      box.innerHTML = html;
+      const pop = box.firstElementChild as HTMLElement | null;
+      if (pop) place(cell, pop);
+    },
+    hide: () => {
+      driven = false;
+      close();
+    },
+  };
+
   const isAction = (cell: Element): boolean => (!!cell.closest(".grid")
     && (cell.classList.contains("action") || cell.classList.contains("name")))
     || cell.classList.contains("teamdpr");
 
   document.addEventListener("mouseover", (e) => {
-    if (pinned) return;
+    if (driven || pinned) return;
     if (open && open.contains(e.target as Node)) return;
     const hovered = (e.target as Element | null)?.closest?.(".c") ?? null;
     if (hovered && isAction(hovered)) { if (openHome !== hovered) close(); return; }
@@ -633,13 +657,14 @@ export function wireSourcePanels(root: HTMLElement): void {
   });
 
   document.addEventListener("mouseout", (e) => {
-    if (pinned) return;
+    if (driven || pinned) return;
     const to = e.relatedTarget as Node | null;
     if (to && (root.contains(to) || (open && open.contains(to)))) return;
     close();
   });
 
   addEventListener("click", (e) => {
+    if (driven) return;
     if (pinned) {
       if (open?.contains(e.target as Node)) return;
       const onHome = !!openHome?.contains(e.target as Node);
@@ -660,6 +685,332 @@ export function wireSourcePanels(root: HTMLElement): void {
     if (cell.querySelector(":scope > .caret")) close();
   });
 
-  addEventListener("scroll", close, true);
-  addEventListener("resize", close);
+  addEventListener("scroll", () => { if (!driven) close(); }, true);
+  addEventListener("resize", () => { if (!driven) close(); });
+}
+
+/* --------------------------------------------------------------------- damage distribution */
+
+/** One wedge of a pie. `color: null` draws no wedge at all — the node pie's own share of damage
+ *  that carries no node, left as a gap in the circle rather than a slice of its own. */
+interface Slice { label: string; value: number; color: string | null }
+/** What one figure in the table opens under it. A resonator's own figure opens its two pies; the
+ *  team's opens the rotation itself — every hit on a time axis, and the actions that led it.
+ *  `section` is the loop column it stands in, empty in the Total column, which covers all four. */
+type DistCell =
+  | { kind: "slices"; slot: string; section: string; total: number; types: Slice[]; nodes: Slice[] }
+  | { kind: "team"; section: string; total: number; bars: Bar[]; roster: Caster[]; top: TopAction[] };
+/** One hit of the rotation, in the order it was cast. */
+interface Bar { dmg: number; color: string }
+/** One action's whole contribution to a figure, folded over every cast of it. */
+interface TopAction { name: string; color: string; dmg: number; casts: number }
+/** A name in the chart's own key, in the colour its bars are drawn in. */
+interface Caster { name: string; color: string }
+/** The label the team's own row wears, and the slot its distribution cells are keyed on — no
+ *  resonator answers to it, so it can't collide with one. */
+const TEAM_ROW = "Team Total";
+
+/**
+ * A slice's colour, struck off the resonator's own rather than out of a table: the biggest slice
+ * wears their colour exactly, and each one after it — that is, each step round the pie — is turned
+ * an even share of the wheel further on, so no two are alike however many there are. The lift
+ * alternates the lightness either side of theirs on top of that, which keeps neighbours apart even
+ * where the turn is small (a pie of ten) or the colour too grey for a turn to show (the enemy's).
+ *
+ * Full strength, the resonator's own saturation: what takes the wedges back off the page is the
+ * opacity index.css draws them at — as far down as the ranking's own bands are mixed, so the two
+ * panes carry one weight — which leaves the leader pointing at each one at full strength.
+ */
+function sliceColor(base: string, i: number, n: number): string {
+  const [h, sat, l] = toHsl(base);
+  const lift = i === 0 ? 0 : (i % 2 ? 8 : -8);
+  return `hsl(${((h + (i * 360) / n) % 360).toFixed(1)} ${sat.toFixed(1)}%`
+    + ` ${Math.min(92, Math.max(22, l + lift)).toFixed(1)}%)`;
+}
+
+/** `#rrggbb` as `[hue, saturation, lightness]` — the resonator colours are all written as hex. */
+function toHsl(hex: string): [number, number, number] {
+  const word = parseInt(hex.slice(1), 16);
+  const r = ((word >> 16) & 255) / 255, g = ((word >> 8) & 255) / 255, b = (word & 255) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), spread = max - min;
+  const l = (max + min) / 2;
+  if (!spread) return [0, 0, l * 100];
+  const h = max === r ? (g - b) / spread + (g < b ? 6 : 0)
+    : max === g ? (b - r) / spread + 2
+      : (r - g) / spread + 4;
+  return [h * 60, (spread / (1 - Math.abs(2 * l - 1))) * 100, l * 100];
+}
+
+const typeLabel = (type1: Type1 | null, type2: Type2 | null): string =>
+  [type1, type2].filter((t): t is Type1 | Type2 => t !== null).map((t) => TAG_NAME[t]).join(" ") || "Untyped";
+
+/** One figure's two breakdowns. The type key is the Type 1 and Type 2 bits in one word, which is
+ *  what they already are (stats.ts's tag bands) — the effective Type 1 an override left, since
+ *  that is the type the hit was actually paid as. */
+function distCell(lines: ChainGroup[], slot: string, section: string, hue: string): DistCell {
+  const types = new Map<number, Slice>();
+  const nodes = new Map<number, Slice>();
+  let total = 0;
+  let nodeless = 0;
+  eachHit(lines, slot, (snap, avg) => {
+    total += avg;
+    // A status ladder carries Status on top of its own Type 2 — the Type 2 is the whole name anyone
+    // reads it by, so Status drops out and the hit wears that status's own alone shade.
+    const type2 = snap.action.type2;
+    const type1 = snap.type === Type1.Status && type2 !== null ? null : snap.type;
+    const key = (type1 ?? 0) | (type2 ?? 0);
+    const type = types.get(key);
+    if (type) type.value += avg;
+    else types.set(key, { label: typeLabel(type1, type2), value: avg, color: "" });
+
+    const node = snap.action.node;
+    if (node === null) { nodeless += avg; return; }
+    const cur = nodes.get(node);
+    if (cur) cur.value += avg;
+    else nodes.set(node, { label: NODE_NAME[node], value: avg, color: "" });
+  });
+
+  // a rotation marker — a swap, a start-of-combat, an intro placeholder — is a line of the log with
+  // no damage and no type of its own, and has no wedge to show for it
+  // biggest first, which is both the order they are drawn in and the order they are coloured in
+  const ranked = (by: Map<number, Slice>): Slice[] => {
+    const out = [...by.values()].filter((v) => v.value > 0).sort((a, b) => b.value - a.value);
+    for (const [i, slice] of out.entries()) slice.color = sliceColor(hue, i, out.length);
+    return out;
+  };
+  const gap: Slice[] = nodeless > 0 ? [{ label: "None", value: nodeless, color: null }] : [];
+  return { kind: "slices", slot, section, types: ranked(types), nodes: [...ranked(nodes), ...gap], total };
+}
+
+/**
+ * Wedges anticlockwise from twelve o'clock, colour alone dividing them, every one named off a
+ * leader that runs out at the wedge's own angle and turns horizontal at the rail. The biggest is
+ * drawn first, so it is the one that opens to the left. Swept over the cell's
+ * whole total rather than over the slices, so a node pie whose slices fall short of it leaves the
+ * rest of the circle unpainted — and that open share is led out and named like any other.
+ *
+ * A wedge and its own leader are one group: hovering the wedge slides the wedge out, and the
+ * leader redraws with only its rim end following — the far end stays pinned to its label, so the
+ * line stretches rather than sliding off the words it points at.
+ */
+function pieSvg(slices: Slice[], total: number): string {
+  // Sized to the half of the row it gets, so it draws at very near 1:1 rather than being scaled
+  // down into it — wide enough that a leader's label clears the pie beside it (index.css pays for
+  // that width by holding the row to a minimum, which is what sets the table's own width).
+  const width = 480, cx = 240, r = 66, pitch = 19;
+  const f = (n: number): string => n.toFixed(2);
+
+  // Where a wedge that far round the pie sits: twelve o'clock turned a twelfth of a turn — 30° —
+  // clockwise, and anticlockwise from there, so the biggest wedge opens to the left of it.
+  const angle = (turn: number): number => (1 / 12 - 0.25 - turn) * Math.PI * 2;
+
+  // where each wedge starts, and the angle its own leader runs out at
+  let turn = 0;
+  const arcs = slices.map((s) => {
+    const from = turn;
+    const share = s.value / total;
+    turn += share;
+    const a = angle(from + share / 2);
+    // how far out of the circle this one slides when it is hovered, straight down its own angle
+    return { s, from, share, a, ox: Math.cos(a) * 7, oy: Math.sin(a) * 7, side: Math.cos(a) >= 0 ? 1 : -1, y: 0 };
+  });
+
+  // tall enough that the busier side's labels clear each other without being pushed off the pie
+  const down = arcs.filter((l) => l.side < 0).length;
+  const height = Math.max(2 * r + 34, Math.max(down, arcs.length - down) * pitch + 26);
+  const cy = height / 2;
+  const point = (a: number, rad: number): [number, number] => [cx + rad * Math.cos(a), cy + rad * Math.sin(a)];
+
+  // labels down each side in the order their wedges stand, pushed apart to the pitch off the top
+  // and then held off the floor — so a run of thin slices spreads rather than piling up
+  for (const side of [1, -1]) {
+    const column = arcs.filter((l) => l.side === side).sort((a, b) => Math.sin(a.a) - Math.sin(b.a));
+    let ceiling = 10;
+    for (const l of column) {
+      l.y = Math.max(cy + (r + 18) * Math.sin(l.a), ceiling);
+      ceiling = l.y + pitch;
+    }
+    let floor = height - 10;
+    for (const l of [...column].reverse()) {
+      l.y = Math.min(l.y, floor);
+      floor = l.y - pitch;
+    }
+  }
+
+  const wedge = ({ s, from, share }: (typeof arcs)[number]): string => {
+    if (s.color === null) return "";
+    // stroked in its own colour as well as filled: the fill is faint, and index.css lights that
+    // stroke up when the wedge is hovered
+    const paint = ` fill="${s.color}" stroke="${s.color}"`;
+    if (share > 0.999) return `<circle class="wedge" cx="${cx}" cy="${f(cy)}" r="${r}"${paint}/>`;
+    const [x0, y0] = point(angle(from), r);
+    const [x1, y1] = point(angle(from + share), r);
+    // sweep 0: the arc runs the way the angles do, which here is anticlockwise
+    return `<path class="wedge" d="M${cx},${f(cy)} L${f(x0)},${f(y0)}`
+      + ` A${r},${r} 0 ${share > 0.5 ? 1 : 0},0 ${f(x1)},${f(y1)} Z"${paint}/>`;
+  };
+
+  // One curve rather than a bend: it leaves the rim at the wedge's own angle and eases round to
+  // meet the rail level, so a label pushed well off its natural line still reads as pointing at its
+  // own slice. The two handles are what hold those two tangents.
+  //
+  // `--d-out` is the same curve with its rim end — and the handle holding that end's tangent —
+  // moved out by the wedge's own offset; index.css swaps to it on hover, and the two interpolate
+  // because they are the same two commands either way.
+  const leader = ({ s, a, side, y, ox, oy }: (typeof arcs)[number]): string => {
+    const [px, py] = point(a, r);
+    const [bx, by] = point(a, r + 24);
+    const rail = cx + side * (r + 38);
+    const tail = `${f(rail - side * 30)},${f(y)} ${f(rail)},${f(y)}`;
+    const curve = (dx: number, dy: number): string =>
+      `M${f(px + dx)},${f(py + dy)} C${f(bx + dx)},${f(by + dy)} ${tail}`;
+    return `<path class="leader" d="${curve(0, 0)}" style="--d-out:path('${curve(ox, oy)}')"`
+      + ` fill="none" stroke="${s.color ?? "var(--faint)"}" stroke-width="2" stroke-linecap="round"/>`;
+  };
+
+  const groups = arcs.map((arc) => `<g class="slice" style="--ox:${f(arc.ox)}px;--oy:${f(arc.oy)}px">`
+    + `${wedge(arc)}${leader(arc)}</g>`).join("");
+
+  const labels = arcs.map(({ s, side, y }) => {
+    const rail = cx + side * (r + 38);
+    return `<text x="${f(rail + side * 7)}" y="${f(y)}" text-anchor="${side > 0 ? "start" : "end"}"`
+      + ` dominant-baseline="middle"><tspan class="nm">${esc(s.label)}</tspan>`
+      + ` <tspan class="pc">(${(s.value / total * 100).toFixed(1)}%)</tspan></text>`;
+  }).join("");
+
+  return `<svg class="pie" viewBox="0 0 ${width} ${f(height)}" role="img">${groups}${labels}</svg>`;
+}
+
+const pieFigure = (heading: string, slices: Slice[], total: number): string =>
+  `<figure class="piefig"><figcaption>${esc(heading)}</figcaption>${pieSvg(slices, total)}</figure>`;
+
+/**
+ * The team's own figure: every hit of the sections it covers, in cast order and in its caster's
+ * colour, plus the same hits ranked by the action they came from.
+ */
+function teamCell(sections: ChainGroup[][], section: string, slotHue: Map<string, string>): DistCell {
+  const bars: Bar[] = [];
+  const by = new Map<string, TopAction>();
+  let total = 0;
+  sections.forEach((lines) => {
+    eachHit(lines, null, (snap, avg) => {
+      // A swap, a start of combat, a field going up, a triggered line that lands nothing: an action
+      // of the log with no damage to show. It takes no slot on the axis either — a run of them is
+      // what used to read as a hole in the chart.
+      if (avg <= 0) return;
+      total += avg;
+      const color = slotHue.get(snap.slot) ?? TUNE_BREAK_ENEMY.color;
+      bars.push({ dmg: avg, color });
+      // a dash-cancel, a swap-out and a Unison outro are the same press as the cast they came from,
+      // so they rank with it rather than as a form of their own
+      let act = snap.action;
+      while (act.cancelOf ?? act.formOf) act = act.cancelOf ?? act.formOf!;
+      const key = `${snap.slot} ${act.name}`;
+      const cur = by.get(key) ?? { name: act.name, color, dmg: 0, casts: 0 };
+      cur.dmg += avg;
+      cur.casts++;
+      by.set(key, cur);
+    });
+  });
+  const top = [...by.values()].sort((a, b) => b.dmg - a.dmg);
+  // the whole roster, not just who happened to land a hit here — the key reads the same either way
+  const roster = [...slotHue].map(([name, color]): Caster => ({ name, color }));
+  return { kind: "team", section, total, bars, roster, top };
+}
+
+/** Every hit in the order it was cast, one bar each — the shape of the rotation rather than a
+ *  total. Nothing is named on it: the bars are read against each other and against the key under
+ *  them, not off a scale. */
+function barChart(bars: Bar[]): string {
+  const width = 480, height = 210, left = 2, right = 2, top = 10, foot = 12;
+  const plotW = width - left - right, plotH = height - top - foot;
+  const f = (n: number): string => n.toFixed(2);
+  const peak = Math.max(...bars.map((b) => b.dmg));
+  const slot = plotW / bars.length;
+  const rects = bars.map((b, i) => {
+    const h = (b.dmg / peak) * plotH;
+    return `<rect x="${f(left + i * slot)}" y="${f(top + plotH - h)}"`
+      + ` width="${f(Math.max(slot * 0.9, 0.6))}" height="${f(h)}" fill="${b.color}"/>`;
+  }).join("");
+  return `<svg class="bars" viewBox="0 0 ${width} ${height}" role="img">`
+    + `<line class="axis" x1="${left}" y1="${top + plotH}" x2="${width - right}" y2="${top + plotH}"/>`
+    + rects
+    + `</svg>`;
+}
+
+/** Who each colour in the chart is, spread evenly under it — `--keys` is how many columns the row
+ *  is split into, since a two-member team is two rather than four. */
+const barKey = (roster: Caster[]): string => `<ul class="barkey" style="--keys:${roster.length}">`
+  + `${roster.map((c) => `<li><span class="dot" style="background:${c.color}"></span>${esc(c.name)}</li>`).join("")}</ul>`;
+
+/** The whole ranking, every action of it. Each row's band runs `--fill` of the way across, its
+ *  damage against the leader's — so the top action's band is the full width and the rest read off
+ *  it. How much of the list is actually shown is the row's own height to decide: `fitTopActions`
+ *  cuts it to what fits once the page has laid it out, and it is laid out absolutely inside
+ *  `.topwrap` (index.css) so its own length never sets that height. */
+const topActions = (top: TopAction[], total: number): string => `<div class="topwrap"><ol class="topacts">${top.map((a) =>
+  `<li style="--own:${a.color};--fill:${((a.dmg / (top[0]?.dmg ?? a.dmg)) * 100).toFixed(2)}%">`
+  + `<span class="nm">${esc(a.name)}${a.casts > 1 ? ` x${a.casts}` : ""}</span>`
+  + `<span class="v">${fmt(a.dmg)} <span class="pct">(${Math.round((a.dmg / total) * 100)}%)</span></span></li>`,
+).join("")}</ol></div>`;
+
+function distBody(cell: DistCell | undefined): string {
+  if (!cell || cell.total <= 0) return `<div class="pies"><p class="nodist">No damage in this section.</p></div>`;
+  const section = cell.section ? ` (${cell.section})` : "";
+  if (cell.kind === "team") {
+    return `<div class="teampanes">`
+      + `<figure class="piefig"><figcaption>Damage Over Time${section}</figcaption>`
+      + `${barChart(cell.bars)}${barKey(cell.roster)}</figure>`
+      + `<figure class="piefig"><figcaption>Strongest Actions${section}</figcaption>`
+      + `${topActions(cell.top, cell.total)}</figure></div>`;
+  }
+  return `<div class="pies">${pieFigure(`${cell.slot} Damage Distribution${section}`, cell.types, cell.total)}`
+    + `${pieFigure(`${cell.slot} Node Priority${section}`, cell.nodes, cell.total)}</div>`;
+}
+
+/** Every figure's breakdown, keyed `<slot>|<section>` with section 4 the Total column. Filled in by
+ *  the last `dprTable` that had a rotation to read — the detail page's own, the comparison table's
+ *  hover passing none — and read back by `wireDistribution` when a figure is clicked. */
+let distCells = new Map<string, DistCell>();
+
+/** The row itself, already showing the figure `selected` names — one cell across the whole table,
+ *  the two pies splitting it down the middle. */
+const distributionRow = (selected: string): string =>
+  `<div class="rtrow dist"><div class="c distbody">${distBody(distCells.get(selected))}</div></div>`;
+
+/** Strongest Actions is rendered whole and then cut to the rows the row's own height has space for,
+ *  so none of them is ever left half-clipped. Every bottom is measured before anything is hidden —
+ *  hiding one closes the gap under it, which would move the next one back inside the floor. */
+function fitTopActions(body: HTMLElement): void {
+  const list = body.querySelector<HTMLElement>(".topacts");
+  if (!list) return;
+  const items = [...list.children] as HTMLElement[];
+  for (const li of items) li.hidden = false;
+  const floor = list.getBoundingClientRect().bottom;
+  for (const li of items.filter((el) => el.getBoundingClientRect().bottom > floor + 0.5)) li.hidden = true;
+}
+
+/** Watches the Distribution row so the ranking is re-cut when Equipment beside it changes what
+ *  height the row has. One observer, re-pointed on every render rather than stacked up. */
+let rowObserver: ResizeObserver | null = null;
+
+/** Clicking any figure in the table swaps the row to it; the selected one keeps the outline. */
+export function wireDistribution(root: HTMLElement): void {
+  const table = root.querySelector<HTMLElement>(".rtable.dpr");
+  const body = root.querySelector<HTMLElement>(".c.distbody");
+  if (!table || !body) return;
+  table.addEventListener("click", (e) => {
+    const hit = (e.target as Element | null)?.closest<HTMLElement>(".c[data-dist], .c[data-dist-row]");
+    if (!hit) return;
+    // a row's label carries no figure of its own — it stands for that row's Total, and the outline
+    // goes on the Total cell, exactly as if that were what had been clicked
+    const key = hit.dataset.dist ?? `${hit.dataset.distRow}|4`;
+    const cell = table.querySelector(`.c[data-dist="${key}"]`);
+    for (const c of table.querySelectorAll(".c[data-dist]")) c.classList.toggle("sel", c === cell);
+    body.innerHTML = distBody(distCells.get(key));
+    fitTopActions(body);
+  });
+  rowObserver?.disconnect();
+  rowObserver = new ResizeObserver(() => fitTopActions(body));
+  rowObserver.observe(body);
 }

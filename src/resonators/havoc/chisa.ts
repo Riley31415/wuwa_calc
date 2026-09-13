@@ -439,9 +439,9 @@ export const CHISA = new Loadout({
   resonator: CHISA_RESONATOR,
   weapons: [KUMOKIRI, LUSTROUS_RAZOR, NEW_STD_BRAUDBLADE, DISCORD, WILDFIRE_MARK],
   echoLoadouts: CS_ECHOES,
-  mainstats: mainstatOptions(Mainstat.CD4, Mainstat.CR4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Liberation, Substat.Er, Substat.FlatAtk),
+  mainstats: mainstatOptions(Mainstat.CD4, Mainstat.CR4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Basic),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Basic),
   rotation: CS_ROTATION,
   sequences: CS_SEQUENCES,
 });

@@ -2,6 +2,7 @@ import {
   AXES,
   MAINSTAT_ROWS,
   TEAM_COSTS,
+  TEAM_SCOPES,
   axisOpen,
   axisUsed,
   bestKey,
@@ -34,11 +35,12 @@ import {
   topRank,
   weaponBase,
   weaponOptions
-} from "./chunk-TLZ7XPCH.js";
+} from "./chunk-XWZCCBN6.js";
 export {
   AXES,
   MAINSTAT_ROWS,
   TEAM_COSTS,
+  TEAM_SCOPES,
   axisOpen,
   axisUsed,
   bestKey,

@@ -1,13 +1,9 @@
-# kit
+# todo
 
-fix hsin flare
-
-# web
-add a tutorial for first time visitors
+check hsin flare
+amy burst
 
 #
-add all sequences
-once all added add a sequence ranking view
 rank teams by substats gains or sequences gains or weapon gains etc
 rank teams by mdps sig gain
 rank teams by best subdps sig gain
@@ -26,15 +22,9 @@ stage2 add durations to all weapons, echoes, sonatas
 stage3 add durations to all kit buffs
 stage4 phrolova hecate automation
 
-# high substats
-im thinking
-5x cr
-5x cd
-5x of either atk/er/dmg%/hp whatever is 1st best
-3x of atk/er/dmg%/hp whatever is 2nd best
-3x of atk/er/dmg%/hp/flatatk whatever is 3rd best
-2x er, or if er is already used then the 4th best
+#
+action validation (like forms and states)
+cooldown verification
 
-total 21/25 + 2 er usually. 5x dmg%, 3x atk, 3x flat
-
-if a character needs 3x er subs then that would replace the 3x and they only get 2x flatatk
+#
+RDPR? buff contribution

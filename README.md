@@ -40,11 +40,10 @@ first and stalls ~200ms on *every* connection.
 | `src/page/filterbar.ts` | the filter aside: option/help boxes, chips, the search bar |
 | `src/page/table.ts` | the comparison table, its scroll window, and every filter/menu handler |
 | `src/page/detail.ts` | the detail page: DPR/energy tables, the action log, column drag |
-| `resources/` | everything the page loads that isn't code: `index.css`, `favicon.png`, `loading.gif`, `preview.jpg` |
 
-`index.html` is the page itself and loads `./dist/bundle/index.js` plus its stylesheet and
-images out of `resources/`; `dev.py` serves the repo root, so the source tree, `dist/` and `resources/`
-are all reachable from it.
+`index.html` is the page itself and loads `./dist/bundle/index.js` plus `index.css`, `favicon.png`
+and `loading.gif` beside it; `dev.py` serves the repo root, so the source tree and `dist/` are
+reachable from it too.
 
 ## The engine
 

@@ -4,6 +4,7 @@ import {
   BASE_RESISTANCE,
   CAST_NAME,
   DODGE,
+  ENEMY_MAX_OFFTUNE,
   JUMP,
   MAINSTAT_ROWS,
   NODE_NAME,
@@ -26,11 +27,13 @@ import {
   effectiveRes,
   effectiveShred,
   eligibleWeapons,
+  erRollsFor,
   filterSignature,
   hasBuild,
   hitsOf,
   isPercent,
   isProgress,
+  litStats,
   mainstatSlotBuffs,
   member,
   menuStats,
@@ -51,7 +54,7 @@ import {
   teamKey,
   topRank,
   weaponBase
-} from "./chunk-TLZ7XPCH.js";
+} from "./chunk-XWZCCBN6.js";
 
 // dist/src/display.js
 var formatters = /* @__PURE__ */ new Map();
@@ -336,7 +339,7 @@ function tracing(snapshot, stats, merge = true) {
 var columnOf = (report, key) => report.columns.find((c) => c.key === key);
 var gaugeSuffix = (raw, key) => {
   const cap = raw[`max:${key}`];
-  return typeof cap === "number" ? `/${fmt(cap, 0, false, false)}` : "";
+  return typeof cap === "number" ? `/${fmt(cap, decimalsOf(cap), false, false)}` : "";
 };
 var RESOURCE_SCALE = { energy: 1, concerto: 1, offtune: 1e4 };
 var COMBINED_COLUMNS = [
@@ -408,6 +411,8 @@ function rowValues(snap, { mv, avg }, members = []) {
     energy: snap.energy / RESOURCE_SCALE.energy,
     concerto: snap.concerto / RESOURCE_SCALE.concerto,
     offtune: snap.offtune / RESOURCE_SCALE.offtune,
+    // off-tune is the enemy's one shared bar, so its ceiling is the same on every row
+    "max:offtune": ENEMY_MAX_OFFTUNE / RESOURCE_SCALE.offtune,
     // what each held coming in — the running-column blanking reads these (page/detail.ts stepRow)
     "before:energy": snap.energyBefore / RESOURCE_SCALE.energy,
     "before:concerto": snap.concertoBefore / RESOURCE_SCALE.concerto,
@@ -760,6 +765,8 @@ var TEAMS = Object.fromEntries(ALL_TEAMS.map(({ loadouts, mdps }, i) => [
   teamKey(i),
   loadouts.map((l, j) => member(l, mdps[j]))
 ]));
+var INTENDED_TEAMS = new Set(ALL_TEAMS.flatMap(({ intended }, i) => intended ? [teamKey(i)] : []));
+var inScope = (key) => filters.scope === "all" || INTENDED_TEAMS.has(key);
 var MDPS_NAMES = /* @__PURE__ */ new Set();
 for (const members of Object.values(TEAMS))
   for (const m of members)
@@ -871,22 +878,26 @@ var poolAdded = [];
 var poolNeeds = /* @__PURE__ */ new Map();
 var poolKey = "\0";
 function leaderNeeds() {
-  const added = [...resonatorFilters].filter(([, mode]) => mode === "include").map(([name]) => name);
-  const key = added.join("\0");
+  const added2 = [...resonatorFilters].filter(([, mode]) => mode === "include").map(([name]) => name);
+  const key = `${filters.scope}\0${added2.join("\0")}`;
   if (key === poolKey)
     return poolNeeds;
-  [poolKey, poolAdded, poolNeeds] = [key, added, /* @__PURE__ */ new Map()];
-  for (const ms of Object.values(TEAMS)) {
+  [poolKey, poolAdded, poolNeeds] = [key, added2, /* @__PURE__ */ new Map()];
+  for (const [teamKey2, ms] of Object.entries(TEAMS)) {
+    if (!inScope(teamKey2))
+      continue;
     for (const m of ms) {
-      if (!MDPS_NAMES.has(m.name) || !added.includes(m.name))
+      if (!MDPS_NAMES.has(m.name) || !added2.includes(m.name))
         continue;
-      const held = added.filter((o) => o !== m.name && ms.some((x) => x.name === o)).length;
+      const held = added2.filter((o) => o !== m.name && ms.some((x) => x.name === o)).length;
       poolNeeds.set(m.name, Math.max(poolNeeds.get(m.name) ?? 0, held));
     }
   }
   return poolNeeds;
 }
-function teamWanted(members) {
+function teamWanted(key, members) {
+  if (!inScope(key))
+    return false;
   const has = (name) => members.some((m) => m.name === name);
   for (const [name, mode] of resonatorFilters)
     if (mode === "exclude" && has(name))
@@ -927,7 +938,7 @@ function rowWanted(row) {
 }
 function expandTeam(teamKey2, members) {
   const solved = bestPicks.get(bestKey(teamKey2, members, filters));
-  if (!solved || !teamWanted(members))
+  if (!solved || !teamWanted(teamKey2, members))
     return [];
   const rows = /* @__PURE__ */ new Map();
   const file = (picks, score, list) => {
@@ -966,7 +977,7 @@ function estimatedRowCount(members, f = filters) {
   return axisWays(members.map((m) => axisOpen(m, f, "weapons") ? eligibleWeapons(m, f).map((i) => m.loadout.weapons[i].name) : null), weaponFilters) * axisWays(members.map((m) => axisOpen(m, f, "echoes") ? m.loadout.echoLoadouts.map((e) => echoLabel(m.loadout, e)) : null), echoFilters) * members.reduce((n, m) => n * (axisOpen(m, f, "mainstats") ? Math.min(MAINSTAT_ROWS, m.loadout.mainstats.length) : 1), 1) * axisWays(members.map((m) => sequenceTagsOf(m, f)), sequenceFilters, Infinity, true) * members.reduce((n, m) => n * (axisOpen(m, f, "substats") ? 2 : 1), 1) * members.reduce((n, m) => n * (axisUsed(m, f, "refines") ? Math.max(...eligibleWeapons(m, f).map((i) => m.loadout.refinements[i].length)) : 1), 1) * members.reduce((n, m) => n * (!axisOpen(m, f, "echoes") && axisUsed(m, f, "echoes") ? m.loadout.echoLoadouts.length : 1) * (!axisOpen(m, f, "mainstats") && axisUsed(m, f, "mainstats") ? Math.min(MAINSTAT_ROWS, m.loadout.mainstats.length) : 1), 1);
 }
 function prospectiveRows(f = filters) {
-  return Object.entries(TEAMS).filter(([, members]) => teamWanted(members)).reduce((sum, [, members]) => sum + estimatedRowCount(members, f), 0);
+  return Object.entries(TEAMS).filter(([key, members]) => teamWanted(key, members)).reduce((sum, [, members]) => sum + estimatedRowCount(members, f), 0);
 }
 function rowFromKey(key) {
   const [teamKey2, ...comboKeys] = key.split("-");
@@ -1165,6 +1176,7 @@ function saveSolves() {
 var hashParams = () => new URLSearchParams(location.hash.replace(/^#/, ""));
 var COMPARE_PARAM = { weapons: "cw", echoes: "ce", mainstats: "cm", substats: "cb", sequences: "cq", refines: "cr" };
 var SCOPED_PARAM = "cs";
+var SCOPE_CODE = { intended: "i", all: "a" };
 var COST_CODE = {
   s0r0: "r0",
   s0r1mdps: "r1m",
@@ -1201,6 +1213,12 @@ function applyHash() {
     filters.cost = cost;
     changed = true;
   }
+  const scopeCode = params.get("ts");
+  const scope = Object.keys(SCOPE_CODE).find((sc) => SCOPE_CODE[sc] === scopeCode) ?? "intended";
+  if (filters.scope !== scope) {
+    filters.scope = scope;
+    changed = true;
+  }
   for (const axis of AXES) {
     const next = (params.get(COMPARE_PARAM[axis]) ?? "").split(",").filter(Boolean).map((n) => RESONATOR_NAME_BY_COMPACT.get(n) ?? n);
     const cur = filters[axis];
@@ -1233,12 +1251,59 @@ function applyHash() {
   }
   return changed;
 }
-function syncHash(team = hashParams().get("team"), push = false) {
+var TAG_DIGITS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+function teamTag(key) {
+  const [teamKey2, ...comboKeys] = key.split("-");
+  const team = /^t(\d+)$/.exec(teamKey2 ?? "");
+  if (!team || +team[1] > 16383)
+    return key;
+  let bits = BigInt(+team[1]), width = 14n;
+  for (const combo of comboKeys) {
+    const p = /^(\d+)\.(\d+)\.(\d+)\.s(\d+)\.r(\d+)(\.m)?(\.h)?$/.exec(combo);
+    if (!p)
+      return key;
+    const [weapon, echo, mainstat, sequence, refine] = p.slice(1, 6).map(Number);
+    if (weapon > 7 || echo > 7 || mainstat > 63 || sequence > 7 || refine > 7)
+      return key;
+    const packed = weapon | echo << 3 | mainstat << 6 | sequence << 12 | refine << 15 | (p[6] ? 1 << 18 : 0) | (p[7] ? 1 << 19 : 0);
+    bits |= BigInt(packed) << width;
+    width += 20n;
+  }
+  const base = BigInt(TAG_DIGITS.length);
+  let tag = "";
+  do {
+    tag = TAG_DIGITS[Number(bits % base)] + tag;
+    bits /= base;
+  } while (bits > 0n);
+  return tag;
+}
+function hashTeam() {
+  const tag = hashParams().get("team");
+  if (!tag || !/^[0-9a-zA-Z]+$/.test(tag))
+    return tag;
+  let bits = 0n;
+  for (const c of tag)
+    bits = bits * BigInt(TAG_DIGITS.length) + BigInt(TAG_DIGITS.indexOf(c));
+  const teamKey2 = `t${Number(bits & 0x3fffn)}`;
+  const members = TEAMS[teamKey2];
+  if (!members)
+    return tag;
+  bits >>= 14n;
+  const combos = members.map(() => {
+    const packed = Number(bits & 0xfffffn);
+    bits >>= 20n;
+    return `${packed & 7}.${packed >> 3 & 7}.${packed >> 6 & 63}.s${packed >> 12 & 7}.r${packed >> 15 & 7}` + (packed & 1 << 18 ? ".m" : "") + (packed & 1 << 19 ? ".h" : "");
+  });
+  return [teamKey2, ...combos].join("-");
+}
+function syncHash(team = hashTeam(), push = false) {
   const named = (map, mode) => [...map].filter(([, m]) => m === mode).map(([name]) => encodeURIComponent(map === resonatorFilters ? name.replace(/ /g, "") : name)).join(",");
   const compact = (n) => encodeURIComponent(n.replace(/ /g, ""));
   const parts = filters.matrix.length ? [`mx=${filters.matrix.map(compact).join(",")}`] : [];
   if (filters.cost !== "s0r1")
     parts.push(`tc=${COST_CODE[filters.cost]}`);
+  if (filters.scope !== "intended")
+    parts.push(`ts=${SCOPE_CODE[filters.scope]}`);
   for (const axis of AXES) {
     if (filters[axis].length)
       parts.push(`${COMPARE_PARAM[axis]}=${filters[axis].map((n) => encodeURIComponent(n.replace(/ /g, ""))).join(",")}`);
@@ -1252,7 +1317,7 @@ function syncHash(team = hashParams().get("team"), push = false) {
       parts.push(`${exclude}=${named(map, "exclude")}`);
   }
   if (team)
-    parts.push(`team=${team}`);
+    parts.push(`team=${teamTag(team)}`);
   const next = parts.length ? `#${parts.join("&")}` : "";
   if (next === location.hash)
     return;
@@ -1263,12 +1328,15 @@ function syncHash(team = hashParams().get("team"), push = false) {
     history.replaceState(history.state, "", url);
 }
 var routeTeam = () => {
-  const key = hashParams().get("team");
+  const key = hashTeam();
   return key && results.has(key) ? key : null;
 };
 
 // dist/src/page/panels.js
 var esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+var coarse = matchMedia("(pointer: coarse)").matches;
+var CLICK = coarse ? "Tap" : "Click";
+var CLICKING = coarse ? "tapping" : "clicking";
 var lazyPop = (html) => html ? ` data-pop='${html.replace(/&/g, "&amp;").replace(/'/g, "&#39;")}'` : "";
 var deferredPop = (kind, key) => ` data-pop-kind="${kind}" data-pop-key="${esc(key)}"`;
 function buildPop(kind, key) {
@@ -1379,53 +1447,7 @@ function eachHit(lines, slot, fn) {
         fn(p.snap, p.dmg.avg);
   }
 }
-function sumByTag(lines, slot, keyOf) {
-  const by = /* @__PURE__ */ new Map();
-  eachHit(lines, slot, (snap, avg) => {
-    const key = keyOf(snap.action);
-    if (key != null)
-      by.set(key, (by.get(key) ?? 0) + avg);
-  });
-  return by;
-}
-function breakdownSection(heading, by, total, label) {
-  if (!by.size)
-    return "";
-  const rows = [...by].sort((a, b) => b[1] - a[1]);
-  const body = rows.map(([k, v]) => {
-    const pct = total ? Math.round(v / total * 100) : 0;
-    return `<tr><td class="k">${esc(label(k))}</td><td class="v">${fmt(v)} <span class="pct">(${pct}%)</span></td></tr>`;
-  }).join("");
-  return `<tr class="sec"><td colspan="2">${esc(heading)}</td></tr>${body}`;
-}
-function teamActionPopover(lines, total, slotHue) {
-  const by = /* @__PURE__ */ new Map();
-  eachHit(lines, null, (snap, avg) => {
-    let act = snap.action;
-    while (act.cancelOf ?? act.formOf)
-      act = act.cancelOf ?? act.formOf;
-    const key = `${snap.slot} ${act.name}`;
-    const cur = by.get(key) ?? { dmg: 0, n: 0, slot: snap.slot, name: act.name };
-    cur.dmg += avg;
-    cur.n++;
-    by.set(key, cur);
-  });
-  if (!by.size)
-    return "";
-  const rows = [...by.values()].sort((a, b) => b.dmg - a.dmg).slice(0, 10).map((v) => {
-    const pct = total ? Math.round(v.dmg / total * 100) : 0;
-    const hue = slotHue.get(v.slot) ?? TUNE_BREAK_ENEMY.color;
-    return `<tr><td class="s" style="--own:${hue}">${esc(v.name)}${v.n > 1 ? ` x${v.n}` : ""}</td><td class="v">${fmt(v.dmg)} <span class="pct">(${pct}%)</span></td></tr>`;
-  }).join("");
-  return lazyPop(`<span class="pop breakdown"><table><tr class="sec"><td colspan="2">Top Actions</td></tr>${rows}</table></span>`);
-}
-function damagePopover(lines, slot, total, grandTotal) {
-  const tagName = (k) => TAG_NAME[k];
-  const body = breakdownSection("Node", sumByTag(lines, slot, (a) => a.node), total, (k) => NODE_NAME[k]) + breakdownSection("Type 1", sumByTag(lines, slot, (a) => a.type1), total, tagName) + breakdownSection("Type 2", sumByTag(lines, slot, (a) => a.type2), total, tagName);
-  const pct = grandTotal ? Math.round(total / grandTotal * 100) : 0;
-  return lazyPop(`<span class="pop breakdown"><table>${body}<tr class="sum"><td class="k">Total</td><td class="v">${fmt(total)} <span class="pct">(${pct}% of team)</span></td></tr></table></span>`);
-}
-function equippedGear(member2, combo) {
+function equippedGear(member2, combo, erRolls = 1) {
   const l = member2.loadout;
   const r = l.resonator;
   return [
@@ -1435,7 +1457,7 @@ function equippedGear(member2, combo) {
     ["Mainslot", combo.echo.mainslot],
     ...combo.echo.sets.map((g, i) => [i === 0 ? "Sonata" : "", g]),
     ["Mainstats", combo.mainstat],
-    ["Substats", combo.highSubs ? l.highSubstat : l.substat]
+    ["Substats", l.spread(combo.highSubs, erRolls)]
   ];
 }
 var ATTRIBUTE_SCOPES = [
@@ -1470,9 +1492,9 @@ var OTHER_SCOPES = [
   1310720,
   1572864
 ];
-function menuStatRows(member2, combo) {
+function menuStatRows(member2, combo, erRolls) {
   const l = member2.loadout;
-  const entries = menuStats(l.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs));
+  const entries = menuStats(l.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, erRolls));
   const totals = /* @__PURE__ */ new Map();
   for (const e of entries)
     totals.set(e.stat, (totals.get(e.stat) ?? 0) + e.value);
@@ -1556,7 +1578,7 @@ function menuStatRows(member2, combo) {
   return rows;
 }
 var subsLabel = (combo) => combo.highSubs ? "High Invest" : "ChemX32";
-function declaredRows(buffs, owner, fold) {
+function declaredRows(buffs, owner, fold, lit = []) {
   const rowsOf = (b) => b.decl.stats.map((line) => {
     const [stat, value, tag] = line;
     return { stat: tag === void 0 ? stat : scopedStat(tag, stat), value, source: b.name, owner, gear: b };
@@ -1573,7 +1595,12 @@ function declaredRows(buffs, owner, fold) {
     else
       by.set(key, { rows, n: 1 });
   }
-  return [...by.values()].flatMap(({ rows, n }) => rows.map((e) => ({ ...e, value: e.value * n, source: n > 1 ? `${e.source} x${n}` : e.source, dim: n === 1 })));
+  return [...by.values()].flatMap(({ rows, n }) => rows.map((e) => ({
+    ...e,
+    value: e.value * n,
+    source: `${e.source} x${n}`,
+    dim: n === 1 && !lit.includes(e.stat)
+  })));
 }
 function buffStats(run, keep) {
   const grantedBy = run.state?.grantedBy;
@@ -1600,12 +1627,12 @@ function buffStats(run, keep) {
 }
 var lineKey = (e) => `${e.gear?.id} ${e.stat} ${e.value}`;
 var constantKeys = (stats) => new Set(stats.map(lineKey));
-var statRow = (e, owner, slotHue, noStat = false) => (
-  // the cell's own member, not the entry's `owner`: every panel here is one member's piece and is
-  // filtered to what that member put up, while `owner` is `State.sourceOf` — one entry per Gear, so
-  // a sonata two of them wear reads as whoever equipped it last
-  `<tr class="stat${e.dim ? " one" : ""}"><td class="s" style="--own:${slotHue.get(owner) ?? FALLBACK_HUE}">${esc(e.source)}</td>` + (noStat ? "" : `<td class="k">${esc(statLabel(e.stat))}</td>`) + `<td class="v">${fmt(e.value, isPercent(e.stat) ? 1 : 0)}${isPercent(e.stat) ? "%" : ""}</td></tr>`
-);
+var statRow = (e, owner, slotHue, noStat = false) => {
+  const percent = isPercent(e.stat);
+  const stat = splitStat(e.stat)[0];
+  const resource = stat === 26 || stat === 27;
+  return `<tr class="stat${e.dim ? " one" : ""}"><td class="s" style="--own:${slotHue.get(owner) ?? FALLBACK_HUE}">${esc(e.source)}</td>` + (noStat ? "" : `<td class="k">${esc(statLabel(e.stat))}</td>`) + `<td class="v">${fmt(e.value, percent ? 1 : resource ? 2 : 0)}${percent ? "%" : ""}</td></tr>`;
+};
 function piecePopover(run, pieces, owner, slotHue) {
   const own = new Set(pieces);
   const stats = menuStats(pieces);
@@ -1633,7 +1660,8 @@ function statsPanel(stats, buffs, owner, slotHue, heading = "Stats", noStat = fa
   return lazyPop(`<span class="pop gear"><table>` + (stats.length ? `<tr class="sec"><td colspan="${cols}">${esc(heading)}</td></tr>${stats.map(row).join("")}` : "") + (buffs.length ? `<tr class="sec"><td colspan="${cols}">Buffs</td></tr>${buffs.map(row).join("")}` : "") + `</table></span>`);
 }
 function loadoutTable(run) {
-  const builds = run.members.map((m, i) => ({ member: m, combo: run.combo[i] }));
+  const erRolls = erRollsFor(run.teamKey, run.members, run.combo);
+  const builds = run.members.map((m, i) => ({ member: m, combo: run.combo[i], erRolls: erRolls[i] }));
   const slotHue = new Map([
     ...run.members.map((m) => [m.name, m.color]),
     [TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color]
@@ -1642,7 +1670,7 @@ function loadoutTable(run) {
     const r = member2.loadout.resonator;
     return new Set([r, r.talent, r.inherent1, r.inherent2, combo.matrix].filter((g) => g != null));
   };
-  const equipped = new Set(builds.flatMap(({ member: member2, combo }) => member2.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs)));
+  const equipped = new Set(builds.flatMap(({ member: member2, combo, erRolls: n }) => member2.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, n)));
   const head = `<div class="rtrow rthead"><div class="c lbl">Resonator</div>` + builds.map((b) => {
     const hover = resonatorPopover(run, kitOf(b), equipped, b.member.name, slotHue);
     return `<div class="c mem${hover ? " has" : ""}"${hover} style="--mem:${b.member.color}">${esc(b.member.name)}</div>`;
@@ -1671,9 +1699,11 @@ function loadoutTable(run) {
   };
   rows.push(row("Mainstats", builds.map((b) => spreadCell(b.combo.mainstat, b.member.name, declaredRows(mainstatSlotBuffs(b.combo.mainstat), b.member.name, false), "Mainstats & Secondary Stats"))));
   rows.push(row("Substats", builds.map((b) => {
-    const piece = b.combo.highSubs ? b.member.loadout.highSubstat : b.member.loadout.substat;
+    const l = b.member.loadout;
+    const piece = l.spread(b.combo.highSubs, b.erRolls);
     const rolls = substatRollBuffs(piece);
-    return spreadCell(piece, b.member.name, declaredRows(rolls, b.member.name, true), `Substats (${rolls.length} lines)`, true);
+    const lit = litStats(l.resonator.maxEnergy);
+    return spreadCell(piece, b.member.name, declaredRows(rolls, b.member.name, true, lit), `Substats (${rolls.length} lines)`, true);
   })));
   if (builds.some((b) => b.combo.sequence > 0)) {
     rows.push(row("Sequences", builds.map((b) => {
@@ -1688,33 +1718,51 @@ function loadoutTable(run) {
     rows.push(row("Mode", builds.map((b) => gearCell(b.member.name, b.member.loadout.mode ?? null))));
   }
   rows.push(row("Menu Stats", builds.map((b) => {
-    const stats = menuStatRows(b.member, b.combo).map((r) => `<tr><td class="k">${esc(r.label)}</td><td class="v">${esc(r.value)}</td></tr>`).join("");
+    const stats = menuStatRows(b.member, b.combo, b.erRolls).map((r) => `<tr><td class="k">${esc(r.label)}</td><td class="v">${esc(r.value)}</td></tr>`).join("");
     return `<div class="c menustats"><table>${stats}</table></div>`;
   })));
   return `<div class="rtable loadout" style="--cols:${builds.length}">${head}${rows.join("")}</div>`;
 }
-function dprTable(run, lines) {
+function dprTable(run, lines, extra) {
   const grand = run.sectionTotals.reduce((a, b) => a + b, 0);
   const flat = lines?.flat();
-  const head = `<div class="rtrow rthead"><div class="c"></div><div class="c num">Opener</div><div class="c num">Loop 1</div><div class="c num">Loop 2</div><div class="c num">Loop 3</div><div class="c num">Total</div></div>`;
-  const valueCell = (sec, slot, value, total) => sec ? `<div class="c num has"${damagePopover(sec, slot, value, total)}>${fmt(value)}</div>` : `<div class="c num">${fmt(value)}</div>`;
-  const dataRow = (slot, color) => {
-    const own = run.sectionBySlot.reduce((a, by) => a + (by.get(slot) ?? 0), 0);
-    return `<div class="rtrow"><div class="c name" style="--mem:${color}">${esc(slot)}</div>` + run.sectionBySlot.map((by, i) => valueCell(lines?.[i], slot, by.get(slot) ?? 0, run.sectionTotals[i])).join("") + valueCell(flat, slot, own, grand) + `</div>`;
-  };
-  const memberRows = run.members.map((m) => dataRow(m.name, m.color)).join("");
-  const tuneBreakRow = dataRow(TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color);
+  const slots = [...run.members.map((m) => m.name), TUNE_BREAK_ENEMY.name];
   const slotHue = new Map([
     ...run.members.map((m) => [m.name, m.color]),
     [TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color]
   ]);
-  const totalCell = (sec, value) => {
-    const hover = sec ? teamActionPopover(sec, value, slotHue) : "";
-    return `<div class="c num${hover ? " has" : ""}"${hover}>${fmt(value)}</div>`;
+  const sections = ["Opener", "Loop 1", "Loop 2", "Loop 3"];
+  const ownTotal = (slot) => run.sectionBySlot.reduce((a, by) => a + (by.get(slot) ?? 0), 0);
+  const selected2 = flat ? `${TEAM_ROW}|4` : "";
+  if (lines)
+    distCells = new Map([
+      ...slots.flatMap((slot) => [...lines, lines.flat()].map((sec, i) => [
+        `${slot}|${i}`,
+        distCell(sec, slot, sections[i] ?? "", slotHue.get(slot) ?? TUNE_BREAK_ENEMY.color)
+      ])),
+      // the team's own row reads the rotation itself rather than one slot's share of it: one section
+      // for each of the four loop columns, all four in order for the Total
+      ...[...lines.map((sec) => [sec]), lines].map((secs, i) => [`${TEAM_ROW}|${i}`, teamCell(secs, sections[i] ?? "", slotHue)])
+    ]);
+  const blanks = extra ? extra.heads.map(() => `<div class="c num"></div>`).join("") : "";
+  const extraFor = (slot) => extra ? (extra.cells.get(slot) ?? []).join("") || blanks : "";
+  const head = `<div class="rtrow rthead"><div class="c"></div>` + sections.map((n) => `<div class="c num">${n}</div>`).join("") + `<div class="c num">Total</div>` + (extra ? extra.heads.map((h) => `<div class="c num">${esc(h)}</div>`).join("") : "") + `</div>`;
+  const valueCell = (sec, value, key) => sec ? `<div class="c num dist-cell${key === selected2 ? " sel" : ""}" data-dist="${key}">${fmt(value)}</div>` : `<div class="c num">${fmt(value)}</div>`;
+  const rowLabel = (slot, mem) => `<div class="c name"${mem}${lines ? ` data-dist-row="${esc(slot)}"` : ""}>${esc(slot)}</div>`;
+  const dataRow = (slot, color) => {
+    const own = ownTotal(slot);
+    return `<div class="rtrow">` + rowLabel(slot, ` style="--mem:${color}"`) + run.sectionBySlot.map((by, i) => valueCell(lines?.[i], by.get(slot) ?? 0, `${slot}|${i}`)).join("") + valueCell(flat, own, `${slot}|4`) + extraFor(slot) + `</div>`;
   };
-  const totalRow = `<div class="rtrow total"><div class="c name">Total</div>` + run.sectionTotals.map((v, i) => totalCell(lines?.[i], v)).join("") + totalCell(flat, grand) + `</div>`;
-  return `<div class="rtable dpr">${head}${memberRows}${tuneBreakRow}${totalRow}</div>`;
+  const memberRows = run.members.map((m) => dataRow(m.name, m.color)).join("");
+  const tuneBreakRow = dataRow(TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color);
+  const totalRow = `<div class="rtrow total">` + rowLabel(TEAM_ROW, "") + run.sectionTotals.map((v, i) => valueCell(lines?.[i], v, `${TEAM_ROW}|${i}`)).join("") + valueCell(flat, grand, `${TEAM_ROW}|4`) + blanks + `</div>`;
+  const distRow = lines ? distributionRow(selected2) : "";
+  const tracks = lines ? `;grid-template-rows:repeat(${run.members.length + 3}, max-content) 1fr` : "";
+  return `<div class="rtable dpr" style="--cols:${5 + (extra?.heads.length ?? 0)}${tracks}">${head}${memberRows}${tuneBreakRow}${totalRow}${distRow}</div>`;
 }
+var driver = null;
+var drivePanel = (cell2, html) => driver?.show(cell2, html);
+var dropPanel = () => driver?.hide();
 function wireSourcePanels(root) {
   const GAP = 4, EDGE = 6;
   let open = null;
@@ -1728,7 +1776,7 @@ function wireSourcePanels(root) {
     openHome = null;
     pinned = false;
   };
-  const place = (cell2, pop) => {
+  const place2 = (cell2, pop) => {
     if (pop.parentElement !== document.body)
       document.body.appendChild(pop);
     pop.style.visibility = "hidden";
@@ -1773,15 +1821,31 @@ function wireSourcePanels(root) {
       built.set(cell2, pop);
     return { cell: cell2, pop };
   };
+  let driven = false;
+  driver = {
+    show: (cell2, html) => {
+      close();
+      driven = true;
+      const box = document.createElement("div");
+      box.innerHTML = html;
+      const pop = box.firstElementChild;
+      if (pop)
+        place2(cell2, pop);
+    },
+    hide: () => {
+      driven = false;
+      close();
+    }
+  };
   const isAction = (cell2) => !!cell2.closest(".grid") && (cell2.classList.contains("action") || cell2.classList.contains("name")) || cell2.classList.contains("teamdpr");
   document.addEventListener("mouseover", (e) => {
-    if (pinned)
+    if (driven || pinned)
       return;
     if (open && open.contains(e.target))
       return;
-    const hovered = e.target?.closest?.(".c") ?? null;
-    if (hovered && isAction(hovered)) {
-      if (openHome !== hovered)
+    const hovered2 = e.target?.closest?.(".c") ?? null;
+    if (hovered2 && isAction(hovered2)) {
+      if (openHome !== hovered2)
         close();
       return;
     }
@@ -1790,10 +1854,10 @@ function wireSourcePanels(root) {
       return;
     close();
     if (pop)
-      place(cell2, pop);
+      place2(cell2, pop);
   });
   document.addEventListener("mouseout", (e) => {
-    if (pinned)
+    if (driven || pinned)
       return;
     const to = e.relatedTarget;
     if (to && (root.contains(to) || open && open.contains(to)))
@@ -1801,6 +1865,8 @@ function wireSourcePanels(root) {
     close();
   });
   addEventListener("click", (e) => {
+    if (driven)
+      return;
     if (pinned) {
       if (open?.contains(e.target))
         return;
@@ -1818,7 +1884,7 @@ function wireSourcePanels(root) {
       const same = openHome === cell2;
       close();
       if (!same) {
-        place(cell2, pop);
+        place2(cell2, pop);
         pinned = cell2.classList.contains("teamdpr");
       }
       return;
@@ -1826,8 +1892,203 @@ function wireSourcePanels(root) {
     if (cell2.querySelector(":scope > .caret"))
       close();
   });
-  addEventListener("scroll", close, true);
-  addEventListener("resize", close);
+  addEventListener("scroll", () => {
+    if (!driven)
+      close();
+  }, true);
+  addEventListener("resize", () => {
+    if (!driven)
+      close();
+  });
+}
+var TEAM_ROW = "Team Total";
+function sliceColor(base, i, n) {
+  const [h, sat, l] = toHsl(base);
+  const lift = i === 0 ? 0 : i % 2 ? 8 : -8;
+  return `hsl(${((h + i * 360 / n) % 360).toFixed(1)} ${sat.toFixed(1)}% ${Math.min(92, Math.max(22, l + lift)).toFixed(1)}%)`;
+}
+function toHsl(hex) {
+  const word = parseInt(hex.slice(1), 16);
+  const r = (word >> 16 & 255) / 255, g = (word >> 8 & 255) / 255, b = (word & 255) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), spread = max - min;
+  const l = (max + min) / 2;
+  if (!spread)
+    return [0, 0, l * 100];
+  const h = max === r ? (g - b) / spread + (g < b ? 6 : 0) : max === g ? (b - r) / spread + 2 : (r - g) / spread + 4;
+  return [h * 60, spread / (1 - Math.abs(2 * l - 1)) * 100, l * 100];
+}
+var typeLabel = (type1, type2) => [type1, type2].filter((t) => t !== null).map((t) => TAG_NAME[t]).join(" ") || "Untyped";
+function distCell(lines, slot, section, hue) {
+  const types = /* @__PURE__ */ new Map();
+  const nodes = /* @__PURE__ */ new Map();
+  let total = 0;
+  let nodeless = 0;
+  eachHit(lines, slot, (snap, avg) => {
+    total += avg;
+    const type2 = snap.action.type2;
+    const type1 = snap.type === 32768 && type2 !== null ? null : snap.type;
+    const key = (type1 ?? 0) | (type2 ?? 0);
+    const type = types.get(key);
+    if (type)
+      type.value += avg;
+    else
+      types.set(key, { label: typeLabel(type1, type2), value: avg, color: "" });
+    const node = snap.action.node;
+    if (node === null) {
+      nodeless += avg;
+      return;
+    }
+    const cur = nodes.get(node);
+    if (cur)
+      cur.value += avg;
+    else
+      nodes.set(node, { label: NODE_NAME[node], value: avg, color: "" });
+  });
+  const ranked = (by) => {
+    const out = [...by.values()].filter((v) => v.value > 0).sort((a, b) => b.value - a.value);
+    for (const [i, slice] of out.entries())
+      slice.color = sliceColor(hue, i, out.length);
+    return out;
+  };
+  const gap = nodeless > 0 ? [{ label: "None", value: nodeless, color: null }] : [];
+  return { kind: "slices", slot, section, types: ranked(types), nodes: [...ranked(nodes), ...gap], total };
+}
+function pieSvg(slices, total) {
+  const width = 480, cx = 240, r = 66, pitch = 19;
+  const f = (n) => n.toFixed(2);
+  const angle = (turn2) => (1 / 12 - 0.25 - turn2) * Math.PI * 2;
+  let turn = 0;
+  const arcs = slices.map((s) => {
+    const from = turn;
+    const share = s.value / total;
+    turn += share;
+    const a = angle(from + share / 2);
+    return { s, from, share, a, ox: Math.cos(a) * 7, oy: Math.sin(a) * 7, side: Math.cos(a) >= 0 ? 1 : -1, y: 0 };
+  });
+  const down = arcs.filter((l) => l.side < 0).length;
+  const height = Math.max(2 * r + 34, Math.max(down, arcs.length - down) * pitch + 26);
+  const cy = height / 2;
+  const point = (a, rad) => [cx + rad * Math.cos(a), cy + rad * Math.sin(a)];
+  for (const side of [1, -1]) {
+    const column = arcs.filter((l) => l.side === side).sort((a, b) => Math.sin(a.a) - Math.sin(b.a));
+    let ceiling = 10;
+    for (const l of column) {
+      l.y = Math.max(cy + (r + 18) * Math.sin(l.a), ceiling);
+      ceiling = l.y + pitch;
+    }
+    let floor = height - 10;
+    for (const l of [...column].reverse()) {
+      l.y = Math.min(l.y, floor);
+      floor = l.y - pitch;
+    }
+  }
+  const wedge = ({ s, from, share }) => {
+    if (s.color === null)
+      return "";
+    const paint2 = ` fill="${s.color}" stroke="${s.color}"`;
+    if (share > 0.999)
+      return `<circle class="wedge" cx="${cx}" cy="${f(cy)}" r="${r}"${paint2}/>`;
+    const [x0, y0] = point(angle(from), r);
+    const [x1, y1] = point(angle(from + share), r);
+    return `<path class="wedge" d="M${cx},${f(cy)} L${f(x0)},${f(y0)} A${r},${r} 0 ${share > 0.5 ? 1 : 0},0 ${f(x1)},${f(y1)} Z"${paint2}/>`;
+  };
+  const leader = ({ s, a, side, y, ox, oy }) => {
+    const [px, py] = point(a, r);
+    const [bx, by] = point(a, r + 24);
+    const rail = cx + side * (r + 38);
+    const tail = `${f(rail - side * 30)},${f(y)} ${f(rail)},${f(y)}`;
+    const curve = (dx, dy) => `M${f(px + dx)},${f(py + dy)} C${f(bx + dx)},${f(by + dy)} ${tail}`;
+    return `<path class="leader" d="${curve(0, 0)}" style="--d-out:path('${curve(ox, oy)}')" fill="none" stroke="${s.color ?? "var(--faint)"}" stroke-width="2" stroke-linecap="round"/>`;
+  };
+  const groups = arcs.map((arc) => `<g class="slice" style="--ox:${f(arc.ox)}px;--oy:${f(arc.oy)}px">${wedge(arc)}${leader(arc)}</g>`).join("");
+  const labels = arcs.map(({ s, side, y }) => {
+    const rail = cx + side * (r + 38);
+    return `<text x="${f(rail + side * 7)}" y="${f(y)}" text-anchor="${side > 0 ? "start" : "end"}" dominant-baseline="middle"><tspan class="nm">${esc(s.label)}</tspan> <tspan class="pc">(${(s.value / total * 100).toFixed(1)}%)</tspan></text>`;
+  }).join("");
+  return `<svg class="pie" viewBox="0 0 ${width} ${f(height)}" role="img">${groups}${labels}</svg>`;
+}
+var pieFigure = (heading, slices, total) => `<figure class="piefig"><figcaption>${esc(heading)}</figcaption>${pieSvg(slices, total)}</figure>`;
+function teamCell(sections, section, slotHue) {
+  const bars = [];
+  const by = /* @__PURE__ */ new Map();
+  let total = 0;
+  sections.forEach((lines) => {
+    eachHit(lines, null, (snap, avg) => {
+      if (avg <= 0)
+        return;
+      total += avg;
+      const color = slotHue.get(snap.slot) ?? TUNE_BREAK_ENEMY.color;
+      bars.push({ dmg: avg, color });
+      let act = snap.action;
+      while (act.cancelOf ?? act.formOf)
+        act = act.cancelOf ?? act.formOf;
+      const key = `${snap.slot} ${act.name}`;
+      const cur = by.get(key) ?? { name: act.name, color, dmg: 0, casts: 0 };
+      cur.dmg += avg;
+      cur.casts++;
+      by.set(key, cur);
+    });
+  });
+  const top = [...by.values()].sort((a, b) => b.dmg - a.dmg);
+  const roster = [...slotHue].map(([name, color]) => ({ name, color }));
+  return { kind: "team", section, total, bars, roster, top };
+}
+function barChart(bars) {
+  const width = 480, height = 210, left = 2, right = 2, top = 10, foot = 12;
+  const plotW = width - left - right, plotH = height - top - foot;
+  const f = (n) => n.toFixed(2);
+  const peak = Math.max(...bars.map((b) => b.dmg));
+  const slot = plotW / bars.length;
+  const rects = bars.map((b, i) => {
+    const h = b.dmg / peak * plotH;
+    return `<rect x="${f(left + i * slot)}" y="${f(top + plotH - h)}" width="${f(Math.max(slot * 0.9, 0.6))}" height="${f(h)}" fill="${b.color}"/>`;
+  }).join("");
+  return `<svg class="bars" viewBox="0 0 ${width} ${height}" role="img"><line class="axis" x1="${left}" y1="${top + plotH}" x2="${width - right}" y2="${top + plotH}"/>` + rects + `</svg>`;
+}
+var barKey = (roster) => `<ul class="barkey" style="--keys:${roster.length}">${roster.map((c) => `<li><span class="dot" style="background:${c.color}"></span>${esc(c.name)}</li>`).join("")}</ul>`;
+var topActions = (top, total) => `<div class="topwrap"><ol class="topacts">${top.map((a) => `<li style="--own:${a.color};--fill:${(a.dmg / (top[0]?.dmg ?? a.dmg) * 100).toFixed(2)}%"><span class="nm">${esc(a.name)}${a.casts > 1 ? ` x${a.casts}` : ""}</span><span class="v">${fmt(a.dmg)} <span class="pct">(${Math.round(a.dmg / total * 100)}%)</span></span></li>`).join("")}</ol></div>`;
+function distBody(cell2) {
+  if (!cell2 || cell2.total <= 0)
+    return `<div class="pies"><p class="nodist">No damage in this section.</p></div>`;
+  const section = cell2.section ? ` (${cell2.section})` : "";
+  if (cell2.kind === "team") {
+    return `<div class="teampanes"><figure class="piefig"><figcaption>Damage Over Time${section}</figcaption>${barChart(cell2.bars)}${barKey(cell2.roster)}</figure><figure class="piefig"><figcaption>Strongest Actions${section}</figcaption>${topActions(cell2.top, cell2.total)}</figure></div>`;
+  }
+  return `<div class="pies">${pieFigure(`${cell2.slot} Damage Distribution${section}`, cell2.types, cell2.total)}${pieFigure(`${cell2.slot} Node Priority${section}`, cell2.nodes, cell2.total)}</div>`;
+}
+var distCells = /* @__PURE__ */ new Map();
+var distributionRow = (selected2) => `<div class="rtrow dist"><div class="c distbody">${distBody(distCells.get(selected2))}</div></div>`;
+function fitTopActions(body) {
+  const list = body.querySelector(".topacts");
+  if (!list)
+    return;
+  const items = [...list.children];
+  for (const li of items)
+    li.hidden = false;
+  const floor = list.getBoundingClientRect().bottom;
+  for (const li of items.filter((el) => el.getBoundingClientRect().bottom > floor + 0.5))
+    li.hidden = true;
+}
+var rowObserver = null;
+function wireDistribution(root) {
+  const table = root.querySelector(".rtable.dpr");
+  const body = root.querySelector(".c.distbody");
+  if (!table || !body)
+    return;
+  table.addEventListener("click", (e) => {
+    const hit = e.target?.closest(".c[data-dist], .c[data-dist-row]");
+    if (!hit)
+      return;
+    const key = hit.dataset.dist ?? `${hit.dataset.distRow}|4`;
+    const cell2 = table.querySelector(`.c[data-dist="${key}"]`);
+    for (const c of table.querySelectorAll(".c[data-dist]"))
+      c.classList.toggle("sel", c === cell2);
+    body.innerHTML = distBody(distCells.get(key));
+    fitTopActions(body);
+  });
+  rowObserver?.disconnect();
+  rowObserver = new ResizeObserver(() => fitTopActions(body));
+  rowObserver.observe(body);
 }
 
 // dist/src/page/filterbar.js
@@ -1953,12 +2214,13 @@ function searchResults() {
   }).join("");
 }
 var COST_HELP = [
-  "Full S0R0 - Limited resonators are S0 and use the best standard or 4* weapon available at R1. Rover and 4* resonators are S6.",
-  "S0R1 mdps - Each team gets a single signature weapon at R1 that gives the best DPR increase, in most cases the team's main DPS. Dual DPS teams still only get one signature weapon.",
+  "Intended Teams - Teams with synergy that use supports for that archetype. No suisui on an echo team for example. Switch to ALL teams to see a ton more combinations if you want to check a weird team.",
+  "S0R0 all - Limited resonators are S0 and use the best standard or 4* weapon available at R1. Rover and 4* resonators are S6.",
   "S0R1 all - All limited resonators get their best signature weapon, while Rover and 4* supports may still use standard or 4* weapons.",
+  "S0R1 mdps - Each team gets a single signature weapon at R1 that gives the best DPR increase, in most cases the team's main DPS. Dual DPS teams still only get one signature weapon.",
   "S1R1 / S2R1 / S3R1 / S6R1 mdps - One resonator per team runs that many sequence nodes, whichever gives the best DPR increase, in most cases the team's main DPS. Everyone else stays S0R1.",
   "S6R5 mdps - That one resonator is S6 and runs their weapon at R5; everyone else is still S0R1.",
-  "Full S6R5 - Every resonator is S6 with their best weapon at R5."
+  "S6R5 all - Every resonator is S6 with their best weapon at R5."
 ];
 var MATRIX_HELP = "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.";
 var STANDARDS = [
@@ -1970,27 +2232,28 @@ var STANDARDS = [
 ];
 var README = [
   "All beta calculations are subject to change!",
-  "If you find an issue in rotations, buffs, stats, builds, or abnormal damage ping me on discord @rileyy._."
+  "If you find any bug or issue ping me on discord @rileyy._."
 ];
 var openHelp = /* @__PURE__ */ new Set(["readme"]);
 function comparisonFilters() {
   const costBox = () => {
     const open = openHelp.has("cost");
     const option = (value, label) => `<option value="${value}"${filters.cost === value ? " selected" : ""}>${label}</option>`;
-    return `<div class="tcopt${open ? " open" : ""}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="cost" aria-expanded="${open}">Team Cost<span class="arrow">\u203A</span></button><select id="cost" class="tcselect" aria-label="Team Cost" title="Team Cost">` + option("s0r0", "Full S0R0") + option("s0r1mdps", "S0R1 mdps only") + option("s0r1", "Full S0R1") + option("s1r1mdps", "S1R1 mdps") + option("s2r1mdps", "S2R1 mdps") + option("s3r1mdps", "S3R1 mdps") + option("s6r1mdps", "S6R1 mdps") + option("s6r5mdps", "S6R5 mdps") + option("s6r5", "Full S6R5") + `</select></div><div class="tcopt-desc"${open ? "" : " hidden"}><ul>${COST_HELP.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div></div>`;
+    const scope = (value, label) => `<option value="${value}"${filters.scope === value ? " selected" : ""}>${label}</option>`;
+    return `<div class="tcopt${open ? " open" : ""}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="cost" aria-expanded="${open}">Team Cost<span class="arrow">\u203A</span></button><select id="cost" class="tcselect" aria-label="Team Cost" title="Team Cost">` + option("s0r0", "S0R0 all") + option("s0r1", "S0R1 all") + option("s0r1mdps", "S0R1 mdps") + option("s1r1mdps", "S1R1 mdps") + option("s2r1mdps", "S2R1 mdps") + option("s3r1mdps", "S3R1 mdps") + option("s6r1mdps", "S6R1 mdps") + option("s6r5mdps", "S6R5 mdps") + option("s6r5", "S6R5 all") + `</select><select id="scope" class="tcselect" aria-label="Teams" title="Teams">` + scope("intended", "Intended Teams") + scope("all", "ALL Teams") + `</select></div><div class="tcopt-desc"${open ? "" : " hidden"}><ul>${COST_HELP.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div></div>`;
   };
-  const note = (id, label, lines) => {
+  const note = (id, label, lines, extra = "") => {
     const open = openHelp.has(id);
-    return `<div class="tcopt note${open ? " open" : ""}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="${id}" aria-expanded="${open}">${esc(label)}<span class="arrow">\u203A</span></button></div><div class="tcopt-desc"${open ? "" : " hidden"}><ul>${lines.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div></div>`;
+    return `<div class="tcopt note${open ? " open" : ""}" data-note="${id}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="${id}" aria-expanded="${open}">${esc(label)}<span class="arrow">\u203A</span></button></div><div class="tcopt-desc"${open ? "" : " hidden"}><ul>${lines.map((l) => `<li>${esc(l)}</li>`).join("")}${extra}</ul></div></div>`;
   };
   return `<div class="tcfilters">
     <div class="tcfilter-row note">
-      ${note("readme", "README", README)}
+      ${note("readme", "README", README, `<li><button type="button" class="tutstart">How do I use this website? ${CLICK} here.</button></li>`)}
       ${note("standards", "Standards and Assumptions", STANDARDS)}
       ${costBox()}
       <div class="tcsearchrow">
         <div class="tcsearch">
-          <input id="optionSearch" type="search" placeholder="Add resonators..."
+          <input id="optionSearch" type="search" placeholder="Add resonator or comparison..."
             autocomplete="off" spellcheck="false" value="${esc(searchText)}">
           <div class="tcsearch-results" id="searchResults">${searchResults()}</div>
         </div>
@@ -2013,23 +2276,23 @@ function resonatorChips() {
   const bucket = (mode) => mode === "include" ? inc : exc;
   const MODE_TITLE = { include: "these", exclude: "none of these" };
   for (const [name, mode] of resonatorFilters) {
-    bucket(mode).push(`<button type="button" class="rchip" data-resonator="${esc(name)}" style="--mem:${RESONATOR_HUE.get(name) ?? TUNE_BREAK_ENEMY.color}" title="${esc(name)} \u2014 teams fielding ${MODE_TITLE[mode]}. Click to remove.">${esc(name)}</button>`);
+    bucket(mode).push(`<button type="button" class="rchip" data-resonator="${esc(name)}" style="--mem:${RESONATOR_HUE.get(name) ?? TUNE_BREAK_ENEMY.color}" title="${esc(name)} \u2014 teams fielding ${MODE_TITLE[mode]}. ${CLICK} to remove.">${esc(name)}</button>`);
   }
   for (const [kind, map] of Object.entries(OPTION_FILTER_MAPS)) {
     for (const [name, mode] of map) {
       const hue = kind === "sequence" || kind === "refine" ? RESONATOR_HUE.get(tagOwner(name)) : void 0;
-      bucket(mode).push(`<button type="button" class="rchip" data-kind="${kind}" data-value="${esc(name)}"` + (hue ? ` style="--mem:${hue}"` : "") + ` title="${esc(name)} \u2014 rows using ${MODE_TITLE[mode]}. Click to remove.">${esc(name)}</button>`);
+      bucket(mode).push(`<button type="button" class="rchip" data-kind="${kind}" data-value="${esc(name)}"` + (hue ? ` style="--mem:${hue}"` : "") + ` title="${esc(name)} \u2014 rows using ${MODE_TITLE[mode]}. ${CLICK} to remove.">${esc(name)}</button>`);
     }
   }
   for (const s of filters.scoped) {
-    inc.push(`<button type="button" class="rchip" data-scoped="${esc(scopedKey(s))}" style="--mem:${RESONATOR_HUE.get(s.resonator) ?? TUNE_BREAK_ENEMY.color}" title="Comparing ${esc(scopedLabel(s))}'s ${AXIS_LABEL[s.axis].toLowerCase()}. Click to remove.">${esc(scopedLabel(s))} ${AXIS_LABEL[s.axis]}</button>`);
+    inc.push(`<button type="button" class="rchip" data-scoped="${esc(scopedKey(s))}" style="--mem:${RESONATOR_HUE.get(s.resonator) ?? TUNE_BREAK_ENEMY.color}" title="Comparing ${esc(scopedLabel(s))}'s ${AXIS_LABEL[s.axis].toLowerCase()}. ${CLICK} to remove.">${esc(scopedLabel(s))} ${AXIS_LABEL[s.axis]}</button>`);
   }
   for (const name of filters.matrix) {
-    inc.push(`<button type="button" class="rchip" data-matrix="${esc(name)}" style="--mem:${RESONATOR_HUE.get(name) ?? TUNE_BREAK_ENEMY.color}" title="${esc(name)} runs their Matrix in every team. ${esc(MATRIX_HELP)} Click to remove.">${esc(name)} Matrix</button>`);
+    inc.push(`<button type="button" class="rchip" data-matrix="${esc(name)}" style="--mem:${RESONATOR_HUE.get(name) ?? TUNE_BREAK_ENEMY.color}" title="${esc(name)} runs their Matrix in every team. ${esc(MATRIX_HELP)} ${CLICK} to remove.">${esc(name)} Matrix</button>`);
   }
   for (const axis of AXES) {
     for (const name of filters[axis]) {
-      inc.push(`<button type="button" class="rchip" data-axis="${axis}" data-resonator="${esc(name)}" style="--mem:${RESONATOR_HUE.get(name) ?? TUNE_BREAK_ENEMY.color}" title="Comparing ${esc(name)}'s ${AXIS_LABEL[axis].toLowerCase()}. Click to remove.">${esc(name)} ${AXIS_LABEL[axis]}</button>`);
+      inc.push(`<button type="button" class="rchip" data-axis="${axis}" data-resonator="${esc(name)}" style="--mem:${RESONATOR_HUE.get(name) ?? TUNE_BREAK_ENEMY.color}" title="Comparing ${esc(name)}'s ${AXIS_LABEL[axis].toLowerCase()}. ${CLICK} to remove.">${esc(name)} ${AXIS_LABEL[axis]}</button>`);
     }
   }
   const section = (label, chips2) => chips2.length ? `<div class="chipsec"><span class="chiplabel">${label}</span><div class="chiprow">${chips2.join("")}</div></div>` : "";
@@ -2310,6 +2573,7 @@ var pctTrunc = (ratio) => `${fmt(Math.trunc(ratio * 1e3) / 10, 1, true)}%`;
 var tableView = null;
 function comparisonTable(rows) {
   const seq = (run) => run.combo.reduce((n, c) => n + c.sequence, 0);
+  const rank = (run) => run.combo.reduce((n, c) => n + c.weapon.refinement, 0);
   const LEVELS = [
     (c) => c.highSubs ? "h" : "",
     (_, p) => p[3],
@@ -2338,9 +2602,9 @@ function comparisonTable(rows) {
       if (ka === kb)
         continue;
       const [ra, rb] = [groupBest.get(ka), groupBest.get(kb)];
-      return rb.total - ra.total || seq(rb) - seq(ra) || (ka < kb ? -1 : 1);
+      return rb.total - ra.total || seq(rb) - seq(ra) || rank(rb) - rank(ra) || (ka < kb ? -1 : 1);
     }
-    return b.run.total - a.run.total || seq(b.run) - seq(a.run);
+    return b.run.total - a.run.total || seq(b.run) - seq(a.run) || rank(b.run) - rank(a.run);
   }).map((k) => k.pair);
   const GEAR_AXES = ["weapons", "echoes", "mainstats", "substats"];
   const CMP_AXES = [...GEAR_AXES, "sequences", "refines"];
@@ -2417,7 +2681,7 @@ function comparisonTable(rows) {
   const seqCmpAt = (i) => !!openAt.sequences[i];
   const refCmpAt = (i) => !!openAt.refines[i] && !openAt.weapons[i];
   const dprAt = (i) => CMP_AXES.some((axis) => openAt[axis][i]);
-  const rowHtml = (key, run, rank) => {
+  const rowHtml = (key, run, rank2) => {
     const grand = run.total;
     const memberNames = run.members.map((m) => m.name).join("|");
     const memberCell = (m, combo, i) => {
@@ -2437,10 +2701,10 @@ function comparisonTable(rows) {
       return name + seqCmp + refCmp + gear + dpr;
     };
     const memberCells = run.members.map((m, i) => memberCell(m, run.combo[i], i)).join("");
-    return `<div class="trow${rank.pinned ? " isbaseline" : ""}" style="--hue:${rank.hue}" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}" data-members="${esc(memberNames)}" data-total="${grand}">` + memberCells + `<div class="c num total teamdpr" title="Click to view the team's damage breakdown"${deferredPop("dpr", key)}>${dprFmt(grand, dprExact.team)}</div><div class="c num total baseline" data-team="${esc(key)}" title="Click to measure every team against this one">${rank.pct}</div><div class="c gotodetail" data-team="${esc(key)}">view rotation<span class="arrow">\u203A</span></div></div>`;
+    return `<div class="trow${rank2.pinned ? " isbaseline" : ""}" style="--hue:${rank2.hue}" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}" data-members="${esc(memberNames)}" data-total="${grand}">` + memberCells + `<div class="c num total teamdpr" title="${CLICK} to view the team's damage breakdown"${deferredPop("dpr", key)}>${dprFmt(grand, dprExact.team)}</div><div class="c num total baseline" data-team="${esc(key)}" title="${CLICK} to measure every team against this one">${rank2.pct}</div><div class="c gotodetail" data-team="${esc(key)}">view rotation<span class="arrow">\u203A</span></div></div>`;
   };
-  const memberHead = (n, i) => `<div class="c slothead">Slot ${n}</div>` + (seqCmpAt(i) ? `<div class="c num">Compare</div>` : "") + (refCmpAt(i) ? `<div class="c num">Compare</div>` : "") + GEAR_AXES.map((axis) => openAt[axis][i] ? `<div class="c">${AXIS_HEAD[axis]}</div><div class="c num">Compare</div>` : "").join("") + (dprAt(i) ? `<div class="c num dprhead" data-dpr="personal" title="Click to switch between abbreviated and exact figures">Personal</div>` : "");
-  const head = `<div class="trow thead">` + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2) + `<div class="c num dprhead" data-dpr="team" title="Click to switch between abbreviated and exact figures">Team Avg DPR</div><div class="c num huehead" title="Click to colour the column by rank">Compare</div><div class="c"></div></div>`;
+  const memberHead = (n, i) => `<div class="c slothead">Slot ${n}</div>` + (seqCmpAt(i) ? `<div class="c num">Compare</div>` : "") + (refCmpAt(i) ? `<div class="c num">Compare</div>` : "") + GEAR_AXES.map((axis) => openAt[axis][i] ? `<div class="c">${AXIS_HEAD[axis]}</div><div class="c num">Compare</div>` : "").join("") + (dprAt(i) ? `<div class="c num dprhead" data-dpr="personal" title="${CLICK} to switch between abbreviated and exact figures">Personal</div>` : "");
+  const head = `<div class="trow thead">` + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2) + `<div class="c num dprhead" data-dpr="team" title="${CLICK} to switch between abbreviated and exact figures">Team Avg DPR</div><div class="c num huehead" title="${CLICK} to colour the column by rank">Compare</div><div class="c"></div></div>`;
   const posCols = (i) => `max-content${seqCmpAt(i) ? " max-content" : ""}${refCmpAt(i) ? " max-content" : ""}${GEAR_AXES.map((axis) => openAt[axis][i] ? " max-content max-content" : "").join("")}${dprAt(i) ? " max-content" : ""}`;
   const gridStyle = `grid-template-columns:${posCols(0)} ${posCols(1)} ${posCols(2)} max-content max-content max-content`;
   const rowLines = (run) => Math.max(1, ...run.members.map((m, i) => openAt.echoes[i] && axisOpen(m, filters, "echoes") ? echoLines(m.loadout, run.combo[i].echo).length : 1));
@@ -2490,7 +2754,7 @@ function comparisonTable(rows) {
   const ghostFor = (dpr, total) => `<div class="trow tghost" aria-hidden="true">` + ghostPos(0, dpr) + ghostPos(1, dpr) + ghostPos(2, dpr) + `<div class="c num total">${esc(total)}</div><div class="c num total baseline">${esc(wide.pct)}</div><div class="c gotodetail">view rotation<span class="arrow">\u203A</span></div></div>`;
   const ghost = (personalExact, teamExact) => ghostFor(personalExact ? wide.dpr : wide.dprAbbr, teamExact ? wide.total : wide.totalAbbr);
   tableView = { sorted, ranks, head, ghost, rowHtml, lines, extra };
-  return `<main><div class="tclayout"><aside class="tcside">${comparisonFilters()}</aside><div class="tcbody"><h2 class="summary-label" id="teamCount">${fmt(sorted.length)} teams<span class="hint">Click on a Resonator to filter and compare sequences, weapons, echoes</span></h2><div class="tcwrap"><div class="tgrid${hueShown ? " hued" : ""}${dprExact.personal ? " personalexact" : ""}${dprExact.team ? " teamexact" : ""}" style="${gridStyle}">${head}${ghost(dprExact.personal, dprExact.team)}</div></div></div></div></main>`;
+  return `<main><div class="tclayout"><aside class="tcside">${comparisonFilters()}</aside><div class="tcbody"><h2 class="summary-label" id="teamCount">${fmt(sorted.length)} teams<span class="hint">${CLICK} on a Resonator to filter and compare sequences, weapons, echoes</span></h2><div class="tcwrap"><div class="tgrid${hueShown ? " hued" : ""}${dprExact.personal ? " personalexact" : ""}${dprExact.team ? " teamexact" : ""}" style="${gridStyle}">${head}${ghost(dprExact.personal, dprExact.team)}</div></div></div></div></main>`;
 }
 var rowHeight = 30;
 var lineHeight = 17;
@@ -2601,14 +2865,27 @@ function fitSide() {
     main.classList.add("stack");
     const cs = getComputedStyle(main);
     room = main.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-    side.style.width = `${room}px`;
+    side.style.width = `${Math.min(room, table)}px`;
+    side.style.marginInline = table < room ? "auto" : "0";
   }
   side.style.maxHeight = stacked ? "" : `${main.clientHeight}px`;
-  if (!stacked)
+  if (!stacked) {
     side.style.width = "";
+    side.style.marginInline = "";
+  }
   side.style.marginBottom = stacked ? "" : `-${side.offsetHeight}px`;
+  const label = app2.querySelector(".tcbody > .summary-label");
+  if (label)
+    main.style.setProperty("--headtop", `${label.offsetHeight}px`);
   sideFit.disconnect();
   sideFit.observe(side);
+}
+function rowElementAt(i) {
+  const sorted = tableView?.sorted;
+  if (!sorted?.length)
+    return null;
+  const key = sorted[Math.min(i, sorted.length - 1)][0];
+  return [...app2.querySelectorAll(".tgrid .trow[data-team]")].find((el) => el.dataset.team === key) ?? null;
 }
 var tableScrollTop = 0;
 var rememberTableScroll = () => {
@@ -2644,13 +2921,13 @@ function renderComparison() {
     else
       focusSearch();
   }
-  let queued = false;
+  let queued2 = false;
   main.addEventListener("scroll", () => {
-    if (queued)
+    if (queued2)
       return;
-    queued = true;
+    queued2 = true;
     requestAnimationFrame(() => {
-      queued = false;
+      queued2 = false;
       drawWindow();
     });
   }, { passive: true });
@@ -2687,6 +2964,19 @@ document.addEventListener("change", (e) => {
     filters.cost = select.value;
     return () => {
       filters.cost = was;
+      select.value = was;
+    };
+  });
+});
+document.addEventListener("change", (e) => {
+  const select = e.target;
+  if (select.id !== "scope")
+    return;
+  withRowCap(() => {
+    const was = filters.scope;
+    filters.scope = select.value;
+    return () => {
+      filters.scope = was;
       select.value = was;
     };
   });
@@ -2738,27 +3028,6 @@ var openNameMenuAt = (e) => {
 };
 document.addEventListener("click", openNameMenuAt);
 document.addEventListener("contextmenu", openNameMenuAt);
-var hoverTimer;
-var hoverAt = [0, 0];
-document.addEventListener("mousemove", (e) => {
-  hoverAt = [e.clientX, e.clientY];
-});
-document.addEventListener("mouseover", (e) => {
-  const el = e.target.closest(".c.name.res");
-  if (!el?.dataset.resonator || el.contains(e.relatedTarget))
-    return;
-  clearTimeout(hoverTimer);
-  hoverTimer = setTimeout(() => {
-    if (document.querySelector(".ctxmenu") || !el.matches(":hover"))
-      return;
-    openNameMenu(el, hoverAt[0], hoverAt[1]);
-  }, 1e3);
-});
-document.addEventListener("mouseout", (e) => {
-  const el = e.target.closest(".c.name.res");
-  if (el && !el.contains(e.relatedTarget))
-    clearTimeout(hoverTimer);
-});
 var optionPick = (e) => {
   const el = e.target.closest(".c.option");
   const kind = el?.dataset.kind;
@@ -2997,9 +3266,9 @@ var BUFF_UNDERLINE_COLUMNS = /* @__PURE__ */ new Set(["mv", "energy", "concerto"
 var RUNNING_COLUMNS = /* @__PURE__ */ new Set(["concerto", "energy", "offtune"]);
 var isRunning = (key) => RUNNING_COLUMNS.has(key) || key.startsWith("gauge:");
 var colWidth = (c) => `calc(var(--cw) * ${c.width} + var(--cpad))`;
-function cell(col, { cls = [], html = "", pop = "", style = "" } = {}) {
+function cell(col, { cls = [], html = "", pop = "", style = "", attr = "" } = {}) {
   const classes = ["c", col.align === "left" ? "" : "num", ...cls].filter(Boolean).join(" ");
-  return `<span class="${classes}"${style ? ` style="${style}"` : ""}${pop}>${html}</span>`;
+  return `<span class="${classes}"${style ? ` style="${style}"` : ""}${attr}${pop}>${html}</span>`;
 }
 function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = true } = {}) {
   return columns.map((col) => {
@@ -3047,15 +3316,16 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
     }
     const mem = slotHue.get(String(v)) ?? FALLBACK_HUE;
     const style = col.key === "member" ? `--mem:${mem};color:${mem}` : col.key === "avg" ? `--mem:${slotHue.get(String(row.raw["member"] ?? "")) ?? FALLBACK_HUE}` : "";
-    return cell(col, { cls, html, pop, style });
+    const attr = col.key === "avg" && typeof v === "number" ? ` data-avg="${v}"` : "";
+    return cell(col, { cls, html, pop, style, attr });
   }).join("");
 }
 function partRows(columns, parts, slotHue, gearByMember, fieldOf) {
   return parts.map((p) => {
     const hue = slotHue.get(String(p.raw.member)) ?? FALLBACK_HUE;
     const field = fieldOf.get(p.snap);
-    const mark = field === void 0 ? "" : ` data-fh="${field}"`;
-    return `<div class="r${p.short ? " short" : ""}" style="--m:${hue}"${mark}>${stepRow(columns, p, slotHue, gearByMember, { part: true })}</div>`;
+    const mark2 = field === void 0 ? "" : ` data-fh="${field}"`;
+    return `<div class="r${p.short ? " short" : ""}" style="--m:${hue}"${mark2}>${stepRow(columns, p, slotHue, gearByMember, { part: true })}</div>`;
   }).join("");
 }
 function rotationTable(report, slotHue, gearByMember, starts) {
@@ -3099,7 +3369,7 @@ function rotationTable(report, slotHue, gearByMember, starts) {
     const cells = stepRow(columns, row, slotHue, gearByMember);
     const shortCls = row.short ? " short" : "";
     const key = row.line.fieldKey;
-    const mark = key === void 0 || row.line.aggregate ? "" : ` data-fh="${fieldId(key)}"`;
+    const mark2 = key === void 0 || row.line.aggregate ? "" : ` data-fh="${fieldId(key)}"`;
     if (row.line.aggregate) {
       closeBlock();
       const id2 = `fg${fieldId(key)}`;
@@ -3109,19 +3379,19 @@ function rotationTable(report, slotHue, gearByMember, starts) {
     if (row.line.spill && spilling) {
       if (row.parts.length) {
         const id2 = `x${i}`;
-        out.push(`<div class="chain"${style}${mark}><input class="tgl" type="checkbox" id="${id2}"><label class="r${shortCls}" for="${id2}">${cells}</label><div class="parts">${partRows(columns, row.parts, slotHue, gearByMember, fieldOf)}</div></div>`);
+        out.push(`<div class="chain"${style}${mark2}><input class="tgl" type="checkbox" id="${id2}"><label class="r${shortCls}" for="${id2}">${cells}</label><div class="parts">${partRows(columns, row.parts, slotHue, gearByMember, fieldOf)}</div></div>`);
         return;
       }
-      out.push(`<div class="r${shortCls}"${style}${mark}>${stepRow(columns, row, slotHue, gearByMember, { caret: false })}</div>`);
+      out.push(`<div class="r${shortCls}"${style}${mark2}>${stepRow(columns, row, slotHue, gearByMember, { caret: false })}</div>`);
       return;
     }
     closeBlock();
     if (!row.parts.length) {
-      out.push(`<div class="step"${style}${mark}><div class="r${shortCls}">${cells}</div></div>`);
+      out.push(`<div class="step"${style}${mark2}><div class="r${shortCls}">${cells}</div></div>`);
       return;
     }
     const id = `x${i}`;
-    out.push(`<div class="step chain"${style}${mark}><input class="tgl" type="checkbox" id="${id}"><label class="r${shortCls}" for="${id}">${cells}</label><div class="parts">${partRows(columns, row.parts, slotHue, gearByMember, fieldOf)}</div><div class="spill">`);
+    out.push(`<div class="step chain"${style}${mark2}><input class="tgl" type="checkbox" id="${id}"><label class="r${shortCls}" for="${id}">${cells}</label><div class="parts">${partRows(columns, row.parts, slotHue, gearByMember, fieldOf)}</div><div class="spill">`);
     spilling = true;
   });
   closeBlock();
@@ -3177,12 +3447,13 @@ function erRequirement(flat, resetIdx, member2, maxEnergy, constant) {
   }
   return (maxEnergy * 100 - buffed) / before;
 }
-function energySpan(flat, member2, fallback) {
+function windowsOf(flat, member2, fallback) {
   const casts = resetIndices(flat, 0, flat.length, member2);
-  return casts.length < 2 ? fallback : [casts[casts.length - 2] + 1, casts[casts.length - 1]];
+  if (casts.length < 2)
+    return [fallback];
+  return casts.slice(0, -1).map((c, i) => [c + 1, casts[i + 1]]);
 }
-function energyGenerated(flat, member2, fallback) {
-  const [from, to] = energySpan(flat, member2, fallback);
+function energyGenerated(flat, member2, [from, to]) {
   let total = 0;
   for (let i = from; i < to; i++) {
     const line = flat[i];
@@ -3259,49 +3530,50 @@ function teamSourcePopover(sources, slotHue) {
     return "";
   return lazyPop(`<span class="pop stat"><table><tr class="sec"><td colspan="2">Team sources</td></tr>${sources.map((r) => panelRow(r, slotHue)).join("")}</table></span>`);
 }
-function energyTable(run, lines, report, slotHue) {
+function dprExtra(run, lines, report, slotHue) {
   const erCol = columnOf(report, "er");
   const flat = lines.flat();
   const offsets = [0];
   for (const sec of lines)
     offsets.push(offsets[offsets.length - 1] + sec.length);
-  const head = `<div class="rtrow rthead"><div class="c"></div><div class="c num">Opener</div><div class="c num">Loop 1</div><div class="c num">Loop 2</div><div class="c num">Loop 3</div><div class="c num">Energy Gen</div><div class="c num">Offtune Gen</div></div>`;
-  const rows = run.members.map((m, idx) => {
+  const lastLoop = [offsets[3], offsets[4]];
+  const erOf = erRollsFor(run.teamKey, run.members, run.combo);
+  const cells = /* @__PURE__ */ new Map();
+  run.members.forEach((m, idx) => {
     const maxEnergy = m.loadout.resonator.maxEnergy;
     const combo = run.combo[idx];
-    const constantSources = menuStats(m.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs)).filter(
+    const constantSources = menuStats(m.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, erOf[idx])).filter(
       (e) => e.stat === 11
       /* Stat.Er */
     );
     const constant = constantSources.reduce((n, e) => n + e.value, 0);
-    const free = resetIndices(flat, 0, flat.length, m.name)[0] ?? null;
-    const cell2 = (resetIdx) => {
-      const snap = resetIdx == null || resetIdx === free ? null : flat[resetIdx].snap;
-      const req = snap == null ? null : erRequirement(flat, resetIdx, m.name, maxEnergy, constant);
-      const missing = req == null ? 0 : Math.max(0, req - constant);
-      const text = req == null ? "\u2014" : `${fmt(req, 1)}%`;
-      return `<div class="c num${missing > 0 ? " er-under" : ""}">${text}</div>`;
-    };
+    const casts = resetIndices(flat, 0, flat.length, m.name).slice(1);
+    const asked = casts.map((i) => erRequirement(flat, i, m.name, maxEnergy, constant)).filter((v) => v != null);
+    const req = asked.length ? Math.max(...asked) : null;
     const erSources = constantSources.map((e) => ({ source: e.source, value: e.value, percent: true, digits: 1, owner: e.owner || m.name }));
     const erHover = erCol ? popover({ ...erCol, full: "Base Energy Regen" }, erSources, constant, slotHue) : "";
-    const opener = resetIndices(flat, offsets[0], offsets[1], m.name);
-    const lastLoop = [offsets[3], offsets[4]];
-    const gen = energyGenerated(flat, m.name, lastLoop);
-    const team = teamSourcePopover(teamSources(flat, report.rows, m.name, energySpan(flat, m.name, lastLoop), "energy"), slotHue);
-    const offtune = offtuneBuilt(flat, m.name, lastLoop);
-    const offtuneTeam = teamSourcePopover(teamSources(flat, report.rows, m.name, lastLoop, "offtune"), slotHue);
+    const short = req != null && req > constant;
+    const reqCell = `<div class="c num${short ? " er-under" : ""}${erHover ? " has" : ""}"${erHover}>${req == null ? "\u2014" : `${fmt(req, 1)}%`}</div>`;
+    const windows = windowsOf(flat, m.name, lastLoop);
+    const best = (of) => windows.reduce((top, span) => of(span) > top[0] ? [of(span), span] : top, [0, lastLoop]);
+    const [gen, genSpan] = best((span) => energyGenerated(flat, m.name, span));
+    const [offtune, offSpan] = best((span) => offtuneBuilt(flat, m.name, span));
     const genCell = (value, hover) => `<div class="c num${hover ? " teamfed has" : ""}"${hover}>${fmt(value, 2, true)}</div>`;
-    const cells = cell2(opener[opener.length - 1] ?? null) + [1, 2, 3].map((i) => cell2(resetIndices(flat, offsets[i], offsets[i + 1], m.name)[0] ?? null)).join("") + genCell(gen, team) + genCell(offtune, offtuneTeam);
-    return `<div class="rtrow"><div class="c name${erHover ? " has" : ""}"${erHover} style="--mem:${m.color}">${esc(m.name)}</div>` + cells + `</div>`;
-  }).join("");
-  return `<div class="rtable energy">${head}${rows}</div>`;
+    cells.set(m.name, [
+      reqCell,
+      genCell(gen, teamSourcePopover(teamSources(flat, report.rows, m.name, genSpan, "energy"), slotHue)),
+      genCell(offtune, teamSourcePopover(teamSources(flat, report.rows, m.name, offSpan, "offtune"), slotHue))
+    ]);
+  });
+  return { heads: ["Energy Req", "Energy Gen", "Offtune Gen"], cells };
 }
 function page(run) {
   const { report } = detailFor(run);
   const lines = run.rotationLines;
   const { members } = run;
   const slotHue = new Map([...members.map((m) => [m.name, m.color]), [TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color]]);
-  const gearByMember = new Map(members.map((m, i) => [m.name, equippedGear(m, run.combo[i]).map(([, g]) => g)]));
+  const erRolls = erRollsFor(run.teamKey, run.members, run.combo);
+  const gearByMember = new Map(members.map((m, i) => [m.name, equippedGear(m, run.combo[i], erRolls[i]).map(([, g]) => g)]));
   const starts = /* @__PURE__ */ new Map();
   lines.reduce((n, sec, k) => {
     if (k)
@@ -3316,30 +3588,16 @@ function page(run) {
     </div>
     <div class="rstack">
       <div class="rtable-block">
-        <h2 class="summary-label">Damage Distribution</h2>
-        ${dprTable(run, lines)}
-      </div>
-      <div class="rtable-block">
-        <h2 class="summary-label">Energy Requirements</h2>
-        ${energyTable(run, lines, report, slotHue)}
+        <h2 class="summary-label">Damage Contribution</h2>
+        ${dprTable(run, lines, dprExtra(run, lines, report, slotHue))}
       </div>
     </div>
   </div>
-  <h2 class="summary-label">Rotation</h2>
-  ${rotationTable(report, slotHue, gearByMember, starts)}
+  <div class="rotation-block">
+    <h2 class="summary-label">Rotation</h2>
+    ${rotationTable(report, slotHue, gearByMember, starts)}
+  </div>
 </main>`;
-}
-function errorPage(err) {
-  const hint = location.protocol === "file:" ? `This page was opened straight off disk. Browsers refuse to load ES modules or
-       <code>fetch()</code> data over <code>file://</code>, so it has to be served \u2014 run
-       <code>python -m http.server 8000</code> in this directory and open
-       <code>http://localhost:8000/</code>.` : `The engine threw while running the team. The stack below points at the file to look at.`;
-  const message = err instanceof Error ? err.stack ?? err.message : String(err);
-  return `<div class="error">
-  <h2>Could not run the team</h2>
-  <p>${hint}</p>
-  <pre>${esc(message)}</pre>
-</div>`;
 }
 function renderDetail(key) {
   rememberTableScroll();
@@ -3349,6 +3607,8 @@ function renderDetail(key) {
   app3.innerHTML = page(run);
   app3.className = "";
   wireColumnDrag(app3, detailFor(run).report.columns);
+  wireAvgSum(app3);
+  wireDistribution(app3);
 }
 var COLUMN_ORDER_KEY = "wuwa.logColumns";
 var savedOrder = () => {
@@ -3418,6 +3678,74 @@ function paintSelection(root) {
   const track = grid && trackBox(grid, selected);
   if (grid && track)
     selBox = columnBox(grid, track.left, track.width);
+}
+function cellBox(grid, left, top, width, height) {
+  const box = grid.appendChild(document.createElement("div"));
+  box.className = "cellbox";
+  box.style.left = `${left}px`;
+  box.style.top = `${top}px`;
+  box.style.width = `${width}px`;
+  box.style.height = `${height}px`;
+  return box;
+}
+var sumPanel = (total) => `<span class="pop stat damage"><table><tr class="sum"><td class="k">Total</td><td class="v">${esc(fmt(total, 0))}</td></tr></table></span>`;
+function wireAvgSum(root) {
+  const grid = root.querySelector(".gridwrap .grid");
+  if (!grid)
+    return;
+  let cells = [];
+  let mids = [];
+  let anchor = -1;
+  let box = null;
+  const paint2 = (at) => {
+    const from = Math.min(anchor, at), to = Math.max(anchor, at);
+    const g = rect(grid);
+    const first = rect(cells[from]), last = rect(cells[to]);
+    box?.remove();
+    box = cellBox(grid, first.left - g.left, first.top - g.top, first.width, last.bottom - first.top);
+    let total = 0;
+    for (let i = from; i <= to; i++)
+      total += Number(cells[i].dataset.avg) || 0;
+    drivePanel(cells[at], sumPanel(total));
+  };
+  const end = () => {
+    if (anchor < 0)
+      return;
+    anchor = -1;
+    box?.remove();
+    box = null;
+    if (selBox)
+      selBox.style.display = "";
+    dropPanel();
+  };
+  grid.addEventListener("pointerdown", (e) => {
+    const cell2 = e.target.closest(".c.avg[data-avg]");
+    if (e.button !== 0 || anchor >= 0 || !cell2)
+      return;
+    e.preventDefault();
+    cell2.setPointerCapture(e.pointerId);
+    if (selected === "avg" && selBox)
+      selBox.style.display = "none";
+    cells = [...grid.querySelectorAll(".c.avg[data-avg]")].filter((c) => c.offsetParent);
+    mids = cells.map((c) => {
+      const r = rect(c);
+      return (r.top + r.bottom) / 2;
+    });
+    anchor = cells.indexOf(cell2);
+    if (anchor >= 0)
+      paint2(anchor);
+  });
+  grid.addEventListener("pointermove", (e) => {
+    if (anchor < 0)
+      return;
+    const y = e.clientY / zoom();
+    let at = 0;
+    while (at < mids.length - 1 && y > mids[at])
+      at++;
+    paint2(at);
+  });
+  grid.addEventListener("pointerup", end);
+  grid.addEventListener("pointercancel", end);
 }
 var dragStyle = null;
 var liftRule = null;
@@ -3626,29 +3954,454 @@ function wireColumnDrag(root, columns) {
   });
 }
 
+// dist/src/page/tutorial.js
+var DONE_KEY = "wuwa.tutorialDone";
+var STAGE_KEY = "wuwa.tutorialStage";
+var done = false;
+function dismissed() {
+  if (done)
+    return true;
+  try {
+    return localStorage.getItem(DONE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+var TEXT = [
+  `Try ${CLICKING} on a resonator to show only their teams`,
+  `${CLICK} that resonator again and compare their weapons`,
+  "Search to add another resonator or comparison",
+  `Try ${CLICKING} a filter bubble to remove it`,
+  "Try viewing a team's rotation and loadout",
+  "Hover over equipment to see its stats and buffs",
+  `${CLICK} on a member's damage number to see their damage distribution and node leveling priority`,
+  `${CLICK} on the team total for a loop to see the damage over time graph and strongest actions`,
+  "Scroll down to read the rotation, buffs, and stats"
+];
+var DETAIL_STAGE = 5;
+var HEAD = 14;
+var shownNow = () => [...resonatorFilters].filter(([, mode]) => mode === "include").map(([name]) => name);
+var comparedNow = () => [...filters.scoped.map(scopedKey), ...AXES.flatMap((axis) => filters[axis].map((name) => `${axis}|${name}`))];
+var shownBefore = /* @__PURE__ */ new Set();
+var comparedBefore = /* @__PURE__ */ new Set();
+function baseline() {
+  shownBefore = new Set(shownNow());
+  comparedBefore = new Set(comparedNow());
+}
+function added(now, before) {
+  for (const key of before)
+    if (!now.includes(key))
+      before.delete(key);
+  return now.some((key) => !before.has(key));
+}
+var showing = () => added(shownNow(), shownBefore);
+var comparing = () => added(comparedNow(), comparedBefore);
+var firstChip = () => document.querySelector(".tcchips .rchip");
+function substatsCell() {
+  const row = [...document.querySelectorAll(".rtable.loadout .rtrow")].find((r) => r.querySelector(".c.lbl")?.textContent === "Substats");
+  const cells = [...row?.children ?? []].filter((c) => !c.classList.contains("lbl"));
+  return cells[2] ?? cells[cells.length - 1] ?? null;
+}
+function totalCell() {
+  const rows = [...document.querySelectorAll(".rtable.dpr .rtrow:not(.rthead):not(.total)")];
+  return (rows[2] ?? rows[rows.length - 1])?.querySelector(`[data-dist$="|4"]`) ?? null;
+}
+var loopCell = () => document.querySelector(`.rtable.dpr .rtrow.total [data-dist$="|3"]`);
+function actionRow(n) {
+  const rows = [...document.querySelectorAll(".rotation-block .grid .r")].filter((r) => !r.classList.contains("head") && !r.classList.contains("totalrow") && !r.closest(".parts") && !r.closest(".spill"));
+  const row = rows[n] ?? rows[rows.length - 1];
+  return row?.querySelector(".c.action") ?? row ?? null;
+}
+function scrolledFar() {
+  const main = document.querySelector("main");
+  const log = document.querySelector(".rotation-block .gridwrap");
+  if (!main || !log)
+    return false;
+  const mainR = rect(main);
+  return rect(log).top <= mainR.top + mainR.height * 0.3;
+}
+function restoreStage() {
+  try {
+    const n = Number(localStorage.getItem(STAGE_KEY));
+    return Number.isInteger(n) && n >= 0 && n < TEXT.length ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+function setStage(n) {
+  stage = n;
+  try {
+    localStorage.setItem(STAGE_KEY, String(n));
+  } catch {
+  }
+}
+var stage = restoreStage();
+var layer = null;
+var overlay = document.getElementById("loading");
+function settle() {
+  if (stage === 0 && showing())
+    setStage(1);
+  else if (stage === 1 && !showing())
+    setStage(0);
+  if (stage === 1 && comparing())
+    setStage(2);
+  if (stage === 3 && !firstChip())
+    setStage(2);
+}
+function build() {
+  const el = document.createElement("div");
+  el.className = "tut";
+  el.innerHTML = `<svg class="tut-arrow" aria-hidden="true"><defs><marker id="tutHead" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="12" refX="0" refY="6" orient="auto"><path d="M0,0 L14,6 L0,12 Z"></path></marker></defs><path class="tut-path" marker-end="url(#tutHead)" d=""></path></svg><div class="tut-box" role="dialog" aria-label="Tutorial"><p></p><div class="tut-buttons"><button type="button" class="tut-skip">Don't show again</button></div></div>`;
+  el.querySelector(".tut-skip").addEventListener("click", () => {
+    done = true;
+    try {
+      localStorage.setItem(DONE_KEY, "1");
+    } catch {
+    }
+    hideTutorial();
+  });
+  return el;
+}
+function mark(anchor) {
+  for (const el of document.querySelectorAll(".tut-target"))
+    el.classList.remove("tut-target");
+  anchor?.classList.add("tut-target");
+}
+function placeDetail(box, path, mainR) {
+  const width = Math.max(240, Math.min(330, mainR.width - 24));
+  box.style.width = `${width}px`;
+  box.style.left = `${mainR.left + (mainR.width - width) / 2}px`;
+  box.style.top = `8px`;
+  const anchor = stage === DETAIL_STAGE ? substatsCell() : stage === DETAIL_STAGE + 1 ? totalCell() : stage === DETAIL_STAGE + 2 ? loopCell() : actionRow(19);
+  mark(anchor);
+  const anchorR = anchor ? rect(anchor) : null;
+  if (!anchorR) {
+    path.setAttribute("d", "");
+    return;
+  }
+  const boxR = rect(box);
+  const [bx, by] = [boxR.left + boxR.width / 2, boxR.bottom];
+  const side = anchorR.left > mainR.right - 16 ? 1 : anchorR.right < mainR.left + 16 ? -1 : 0;
+  if (side) {
+    const tx2 = side > 0 ? mainR.right - 4 : mainR.left + 4;
+    const ty2 = Math.min(Math.max(anchorR.top + anchorR.height / 2, by + 40), mainR.bottom - 20);
+    const end = tx2 - side * HEAD;
+    path.setAttribute("d", `M ${bx} ${by} C ${bx} ${by + 60}, ${end - side * 60} ${ty2}, ${end} ${ty2}`);
+    return;
+  }
+  if (stage === DETAIL_STAGE + 1 || stage === DETAIL_STAGE + 2) {
+    const tx2 = anchorR.left - 4, ty2 = anchorR.top + anchorR.height / 2;
+    path.setAttribute("d", `M ${bx} ${by} C ${bx} ${by + 60}, ${tx2 - HEAD - 60} ${ty2}, ${tx2 - HEAD} ${ty2}`);
+    return;
+  }
+  const tx = anchorR.left + anchorR.width / 2;
+  const ty = Math.min(anchorR.top - 4, mainR.bottom - 4);
+  const bend = Math.max(12, Math.min(70, (ty - HEAD - by) * 0.5));
+  path.setAttribute("d", `M ${bx} ${by} C ${bx} ${by + bend}, ${tx} ${ty - HEAD - bend}, ${tx} ${ty - HEAD}`);
+}
+function place() {
+  if (!layer)
+    return;
+  settle();
+  const box = layer.querySelector(".tut-box");
+  const path = layer.querySelector(".tut-path");
+  const main = document.querySelector("main");
+  if (!main)
+    return;
+  layer.querySelector("p").textContent = TEXT[stage];
+  if (stage >= DETAIL_STAGE) {
+    placeDetail(box, path, rect(main));
+    return;
+  }
+  const layout = document.querySelector(".tclayout");
+  const table = document.querySelector(".tcbody");
+  const filterbar = document.querySelector(".tcfilters");
+  const search = document.querySelector(".tcsearch");
+  if (!layout || !table || !filterbar || !search)
+    return;
+  const stacked = layout.classList.contains("stack");
+  const items = [...document.querySelector(".ctxmenu:not(.rowcap)")?.querySelectorAll(".ctxitem") ?? []];
+  const compares2 = items.filter((item) => item.textContent?.startsWith("Compare"));
+  const line = stage === 0 ? items[0] : compares2.find((item) => item.textContent?.includes("weapon")) ?? compares2[0];
+  const headCell = document.querySelector(".tgrid .trow.thead .c");
+  const below = headCell ? rect(headCell).bottom : rect(main).top;
+  const already = new Set(shownNow());
+  let first;
+  let fresh;
+  for (const row of document.querySelectorAll(".tgrid .trow[data-team]")) {
+    const cells = [...row.querySelectorAll(".c.name.res")];
+    const cell2 = cells[2] ?? cells[cells.length - 1];
+    if (!cell2 || rect(cell2).top < below - 1)
+      continue;
+    first ??= cell2;
+    const spare = already.has(cell2.dataset.resonator ?? "") ? cells.find((c) => !already.has(c.dataset.resonator ?? "")) : cell2;
+    if (!spare)
+      continue;
+    fresh = spare;
+    break;
+  }
+  const column = (stage === 0 ? fresh : void 0) ?? first;
+  const chips = [...document.querySelectorAll(".tcchips .rchip")];
+  const anchor = stage === 2 ? search : stage === 3 ? stacked ? chips[chips.length - 1] : chips[0] : stage === 4 ? rowElementAt(0)?.querySelector(".gotodetail") : line ?? column;
+  mark(anchor);
+  const anchorR = anchor ? rect(anchor) : null;
+  const mainR = rect(main), layoutR = rect(layout), tableR = rect(table), filterR = rect(filterbar);
+  const aside = stage > 1 || stacked;
+  const [from, to] = aside ? [filterR.left, filterR.right] : [layoutR.left, tableR.left];
+  const width = Math.max(240, Math.min(330, to - from - 40));
+  box.style.width = `${width}px`;
+  const boxH = rect(box).height;
+  const middle = Math.min(Math.max((from + to - width) / 2, mainR.left + 12), mainR.right - width - 12);
+  box.style.left = `${stacked && stage === 4 ? mainR.left + 12 : middle}px`;
+  const list = document.getElementById("searchResults");
+  const listR = list?.childElementCount ? rect(list) : null;
+  const under = stage === 2 && listR ? Math.max(filterR.bottom, listR.bottom) : filterR.bottom;
+  const top = aside ? under + 16 : mainR.top + mainR.height * 0.2;
+  const clear = stacked && stage < 2 && anchorR ? Math.min(top, anchorR.top - boxH - 40) : top;
+  box.style.top = `${Math.min(Math.max(clear, mainR.top + 12), mainR.bottom - boxH - 12)}px`;
+  if (!anchorR || anchorR.top > mainR.bottom || anchorR.bottom < mainR.top || anchorR.right < mainR.left || anchorR.left > mainR.right && stage !== 4) {
+    path.setAttribute("d", "");
+    return;
+  }
+  const boxR = rect(box);
+  const by = boxR.top + boxR.height / 2;
+  const bow = Math.min(100, boxR.left - mainR.left - 8);
+  if (stage === 4 && !stacked) {
+    const [tx2, ty2] = [anchorR.left + anchorR.width / 2, anchorR.bottom + 4];
+    path.setAttribute("d", `M ${boxR.left} ${by} C ${boxR.left - bow} ${by}, ${tx2} ${ty2 + HEAD + 90}, ${tx2} ${ty2 + HEAD}`);
+    return;
+  }
+  if (stage === 4 && stacked && anchorR.right <= mainR.right) {
+    const [tx2, ty2] = [anchorR.left + anchorR.width / 2, anchorR.top - 4];
+    path.setAttribute("d", `M ${boxR.right} ${by} C ${boxR.right + 40} ${by}, ${tx2} ${ty2 - HEAD - 40}, ${tx2} ${ty2 - HEAD}`);
+    return;
+  }
+  if (stage === 4 && anchorR.right > mainR.right) {
+    const [tx2, ty2] = [mainR.right - 14, anchorR.top + anchorR.height / 2];
+    path.setAttribute("d", `M ${boxR.right} ${by} C ${boxR.right + 30} ${by}, ${tx2 - HEAD - 30} ${ty2}, ${tx2 - HEAD} ${ty2}`);
+    return;
+  }
+  const [tx, ty] = [anchorR.left - 4, anchorR.top + anchorR.height / 2];
+  if (stage === 2 || stage === 3) {
+    const bx2 = boxR.left;
+    if (!stacked) {
+      path.setAttribute("d", tx - HEAD - bow >= mainR.left ? `M ${bx2} ${by} C ${bx2 - bow} ${by}, ${tx - HEAD - bow} ${ty}, ${tx - HEAD} ${ty}` : `M ${bx2} ${by} C ${bx2 - bow} ${by}, ${anchorR.left + anchorR.width / 2} ${ty + HEAD + 70}, ${anchorR.left + anchorR.width / 2} ${ty + HEAD}`);
+      return;
+    }
+    const cx = boxR.left + boxR.width / 2;
+    const [ax, ay] = [anchorR.left + anchorR.width / 2, anchorR.bottom + 4];
+    const bend = Math.max(12, Math.min(70, (boxR.top - ay - HEAD) * 0.5));
+    path.setAttribute("d", `M ${cx} ${boxR.top} C ${cx} ${boxR.top - bend}, ${ax} ${ay + HEAD + bend}, ${ax} ${ay + HEAD}`);
+    return;
+  }
+  if (stacked && stage < 2) {
+    const bx2 = boxR.left + boxR.width / 2;
+    const [cx, cy] = [anchorR.left + anchorR.width / 2, anchorR.top - 4];
+    const bend = Math.max(12, Math.min(70, (cy - HEAD - boxR.bottom) * 0.5));
+    path.setAttribute("d", `M ${bx2} ${boxR.bottom} C ${bx2} ${boxR.bottom + bend}, ${cx} ${cy - HEAD - bend}, ${cx} ${cy - HEAD}`);
+    return;
+  }
+  const bx = boxR.right, dx = tx - bx;
+  if (dx >= 80) {
+    path.setAttribute("d", `M ${bx} ${by} C ${bx + dx * 0.5} ${by}, ${tx - HEAD - dx * 0.5} ${ty}, ${tx - HEAD} ${ty}`);
+    return;
+  }
+  if (ty > by) {
+    path.setAttribute("d", `M ${bx} ${by} C ${bx + 70} ${by}, ${tx} ${ty - HEAD - 70}, ${tx} ${ty - HEAD}`);
+    return;
+  }
+  const [ex, ey] = [tx - HEAD * 0.7, ty + HEAD * 0.7];
+  path.setAttribute("d", `M ${bx} ${by} C ${bx + (ex - bx) * 0.9} ${by}, ${ex - 45} ${ey + 45}, ${ex} ${ey}`);
+}
+function maybeShowTutorial() {
+  if (!overlay?.hidden)
+    return;
+  if (dismissed())
+    return;
+  const ready = stage >= DETAIL_STAGE ? document.querySelector(".rtable.loadout") : document.querySelector(".tgrid .trow[data-team]");
+  if (!ready) {
+    hideTutorial();
+    return;
+  }
+  if (!layer) {
+    layer = build();
+    document.body.appendChild(layer);
+    baseline();
+  }
+  layer.hidden = false;
+  place();
+}
+function hideTutorial() {
+  if (layer)
+    layer.hidden = true;
+  mark(null);
+}
+var typing;
+document.addEventListener("click", (e) => {
+  if (!layer || layer.hidden || stage !== 2 || typing !== void 0)
+    return;
+  if (!e.target.closest?.("#optionSearch"))
+    return;
+  const input = document.querySelector("#optionSearch");
+  const cells = [...rowElementAt(0)?.querySelectorAll(".c.name.res") ?? []];
+  const name = (cells[2] ?? cells[cells.length - 1])?.dataset.resonator;
+  if (!input || input.value || !name)
+    return;
+  const text = name.slice(0, 3);
+  let at = 0;
+  const key = () => {
+    input.value = text.slice(0, ++at);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    typing = at < text.length ? setTimeout(key, 100) : void 0;
+  };
+  typing = setTimeout(key, 100);
+}, true);
+function searchUsed() {
+  if (!layer || layer.hidden || stage !== 2)
+    return;
+  setStage(3);
+  place();
+}
+document.addEventListener("click", (e) => {
+  if (e.target.closest?.(".sresult[data-value]"))
+    searchUsed();
+}, true);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && e.target.id === "optionSearch" && searchChoice())
+    searchUsed();
+}, true);
+document.addEventListener("click", (e) => {
+  if (!layer || layer.hidden || stage !== 3)
+    return;
+  if (!e.target.closest?.(".tcchips .rchip, .tcchips .clearall"))
+    return;
+  setStage(4);
+  place();
+}, true);
+document.addEventListener("click", (e) => {
+  if (!layer || layer.hidden || stage !== 4)
+    return;
+  if (!e.target.closest?.(".gotodetail"))
+    return;
+  setStage(DETAIL_STAGE);
+}, true);
+var hoverTimer;
+var hovered = (e) => e.target.closest?.(".rtable.loadout .c.has");
+document.addEventListener("pointerover", (e) => {
+  if (!layer || layer.hidden || stage !== DETAIL_STAGE || !hovered(e))
+    return;
+  clearTimeout(hoverTimer);
+  hoverTimer = setTimeout(() => {
+    setStage(DETAIL_STAGE + 1);
+    place();
+  }, 1e3);
+}, true);
+document.addEventListener("pointerout", (e) => {
+  const from = hovered(e);
+  if (!from || e.relatedTarget instanceof Element && e.relatedTarget.closest(".rtable.loadout .c.has") === from)
+    return;
+  clearTimeout(hoverTimer);
+}, true);
+document.addEventListener("click", (e) => {
+  if (!layer || layer.hidden)
+    return;
+  const cell2 = e.target.closest?.(".dist-cell, [data-dist-row]");
+  if (!cell2)
+    return;
+  if (stage === DETAIL_STAGE + 1)
+    setStage(DETAIL_STAGE + 2);
+  else if (stage === DETAIL_STAGE + 2 && cell2.closest(".rtrow.total"))
+    setStage(DETAIL_STAGE + 3);
+  else
+    return;
+  place();
+}, true);
+function finish() {
+  done = true;
+  try {
+    localStorage.setItem(DONE_KEY, "1");
+  } catch {
+  }
+  hideTutorial();
+}
+document.addEventListener("click", (e) => {
+  if (!e.target.closest?.(".tutstart"))
+    return;
+  if (layer && !layer.hidden)
+    return;
+  try {
+    localStorage.removeItem(DONE_KEY);
+  } catch {
+  }
+  done = false;
+  setStage(0);
+  baseline();
+  maybeShowTutorial();
+}, true);
+if (overlay) {
+  new MutationObserver(() => {
+    if (overlay.hidden)
+      maybeShowTutorial();
+    else
+      hideTutorial();
+  }).observe(overlay, { attributes: true, attributeFilter: ["hidden"] });
+}
+new MutationObserver(() => {
+  if (layer && !layer.hidden)
+    place();
+}).observe(document.body, { childList: true });
+var queued = false;
+addEventListener("scroll", () => {
+  if (!layer || layer.hidden || queued)
+    return;
+  queued = true;
+  requestAnimationFrame(() => {
+    queued = false;
+    if (stage === DETAIL_STAGE + 3 && scrolledFar()) {
+      finish();
+      return;
+    }
+    place();
+    requestAnimationFrame(place);
+  });
+}, true);
+var remeasure = () => {
+  if (layer && !layer.hidden)
+    requestAnimationFrame(place);
+};
+document.addEventListener("input", remeasure, true);
+document.addEventListener("click", remeasure, true);
+document.addEventListener("focusout", remeasure, true);
+addEventListener("resize", () => {
+  if (!layer || layer.hidden)
+    return;
+  place();
+  requestAnimationFrame(place);
+});
+
 // dist/src/index.js
 var app4 = document.getElementById("app");
 var backLink = document.getElementById("backLink");
-var overlay = document.getElementById("loading");
-var overlayStatus = overlay.querySelector(".status-text");
-var overlayCount = overlay.querySelector(".progress-count");
-var overlayFill = overlay.querySelector(".progress-fill");
+var overlay2 = document.getElementById("loading");
+var overlayStatus = overlay2.querySelector(".status-text");
+var overlayCount = overlay2.querySelector(".progress-count");
+var overlayFill = overlay2.querySelector(".progress-fill");
 var paint = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 var overlayTimer;
 function overlayPhase(text, now = false) {
   overlayStatus.textContent = text;
-  if (!overlay.hidden)
+  if (!overlay2.hidden)
     return;
   if (now) {
     clearTimeout(overlayTimer);
     overlayTimer = void 0;
-    overlay.hidden = false;
+    overlay2.hidden = false;
     return;
   }
   if (overlayTimer === void 0)
     overlayTimer = setTimeout(() => {
       overlayTimer = void 0;
-      overlay.hidden = false;
+      overlay2.hidden = false;
     }, 100);
 }
 var OVERLAY_ROWS = 200;
@@ -3659,15 +4412,26 @@ async function overlayNow(text, rows = Infinity) {
 function overlayHide() {
   clearTimeout(overlayTimer);
   overlayTimer = void 0;
-  overlay.hidden = true;
+  overlay2.hidden = true;
+}
+function showError(err) {
+  console.error(err);
+  const box = overlay2.querySelector(".loading-error");
+  if (!box)
+    return;
+  box.hidden = false;
+  box.textContent += `${box.textContent ? "\n\n" : ""}${err instanceof Error ? err.stack ?? err.message : String(err)}`;
+  clearTimeout(overlayTimer);
+  overlayTimer = void 0;
+  overlay2.hidden = false;
 }
 function barReset() {
   overlayFill.style.width = "0%";
   overlayCount.textContent = "";
 }
-function barProgress(done, total) {
-  overlayFill.style.width = `${total ? done / total * 100 : 100}%`;
-  overlayCount.textContent = `${fmt(done)} / ${fmt(total)}`;
+function barProgress(done2, total) {
+  overlayFill.style.width = `${total ? done2 / total * 100 : 100}%`;
+  overlayCount.textContent = `${fmt(done2)} / ${fmt(total)}`;
 }
 var lastPaint = performance.now();
 async function breathe() {
@@ -3718,7 +4482,7 @@ function solveOnWorkers(workers, teams, onDone, onShare) {
       }
       const [key, members] = teams[next++];
       const known = picksCache.get(picksKey(key, members, filters)) ?? null;
-      const finish = (solved) => {
+      const finish2 = (solved) => {
         storeSolved(key, solved);
         onDone(members);
         pump(w);
@@ -3730,16 +4494,16 @@ function solveOnWorkers(workers, teams, onDone, onShare) {
         }
         const solved = { picks: data.picks, rows: data.rows, scores: data.scores, hidden: data.hidden ?? [], hiddenScores: data.hiddenScores ?? [] };
         if (solveFits(bestKey(key, members, filters), solved)) {
-          finish(solved);
+          finish2(solved);
           return;
         }
         console.warn(`worker's solve for ${key} does not fit this build; solving it here`);
-        finish(solveTeam(key, members, filters, known));
+        finish2(solveTeam(key, members, filters, known));
       };
       w.onerror = (e) => {
         console.warn(`worker failed on ${key}, solving it here:`, e.message);
         e.preventDefault();
-        finish(solveTeam(key, members, filters, known));
+        finish2(solveTeam(key, members, filters, known));
       };
       const request = { id: id++, teamKey: key, filters, picks: known };
       w.postMessage(request);
@@ -3763,8 +4527,8 @@ async function ensureBestPicks(inPlay) {
     return false;
   const total = solvable.reduce((n, [, members]) => n + rowsOf(members), 0);
   await overlayNow("Running Calculations...");
-  let done = 0;
-  const progress = () => barProgress(done, total);
+  let done2 = 0;
+  const progress = () => barProgress(done2, total);
   progress();
   const counted = /* @__PURE__ */ new Map();
   const share = (members, part) => {
@@ -3773,7 +4537,7 @@ async function ensureBestPicks(inPlay) {
     if (at <= was)
       return;
     counted.set(members, at);
-    done += at - was;
+    done2 += at - was;
     progress();
   };
   const pool2 = workerPool();
@@ -3795,6 +4559,7 @@ var route = () => {
   const key = routeTeam();
   if (key) {
     renderDetail(key);
+    maybeShowTutorial();
     return;
   }
   if (!tableRequested) {
@@ -3802,12 +4567,13 @@ var route = () => {
     return;
   }
   renderComparison();
+  maybeShowTutorial();
 };
 async function refresh2() {
   tableRequested = true;
   barReset();
   try {
-    const inPlay = Object.entries(TEAMS).filter(([, members]) => teamWanted(members));
+    const inPlay = Object.entries(TEAMS).filter(([key, members]) => teamWanted(key, members));
     if (inPlay.some(([key, members]) => !bestPicks.has(bestKey(key, members, filters))))
       workerPool();
     if (!visibleRows.length)
@@ -3839,14 +4605,14 @@ async function refresh2() {
       await refresh2();
       return;
     }
-    console.error(err);
-    app4.innerHTML = errorPage(err);
-    app4.className = "";
+    showError(err);
+    return;
   }
   overlayHide();
+  maybeShowTutorial();
 }
 async function bootDetail() {
-  const key = hashParams().get("team");
+  const key = hashTeam();
   if (!key || results.has(key))
     return false;
   const row = rowFromKey(key);
@@ -3881,7 +4647,7 @@ async function boot() {
       void refresh2();
       return;
     }
-    const key = hashParams().get("team");
+    const key = hashTeam();
     if (key && !results.has(key) && rowFromKey(key)) {
       void bootDetail();
       return;
@@ -3906,14 +4672,4 @@ async function boot() {
     route();
   });
 }
-boot().catch((err) => {
-  console.error(err);
-  app4.innerHTML = errorPage(err);
-  app4.className = "";
-  const box = overlay.querySelector(".loading-error");
-  if (box) {
-    box.hidden = false;
-    box.textContent += `${box.textContent ? "\n\n" : ""}${err instanceof Error ? err.stack ?? err.message : String(err)}`;
-    overlay.hidden = false;
-  }
-});
+boot().catch(showError);

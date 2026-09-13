@@ -161,17 +161,23 @@ export function interferedWindow(def: BuffDef): Debuff {
  *  responds to it raising the target's own limit with `maxStackIncrease()`, so the real ceiling is
  *  whoever is on the team. */
 export const TUNE_RUPTURE_INTERFERED = interferedWindow({ name: "Tune Rupture - Interfered" });
-export const TUNE_STRAIN_INTERFERED = new Debuff({
-  name: "Tune Strain - Interfered", maxStacks: 1,
-  // the Strain payout, to a slot that responds to it: every point of its own Tune Break Boost is
-  // +0.12% total damage a stack. Late, by when every Tbb source has landed.
-  lateConvertStats: () => { if (isHeld(TUNE_STRAIN_RESPONDER)) addStat(Stat.TotalDmg, 0.12 * getStat(Stat.Tbb) * frozenStacks()); },
+export const TUNE_STRAIN_INTERFERED = new Debuff({ name: "Tune Strain - Interfered", maxStacks: 1 });
+
+/** The Strain payout, for a responder's own kit to call from its `lateConvertStats`: every point of
+ *  its own Tune Break Boost is +0.12% total damage a stack of Interfered. Late, by when every Tbb
+ *  source has landed. Called by the piece that makes the kit a responder — Luuk's resonator,
+ *  Denia's Strain mode — so the loadout hover files it under that piece, while the value itself
+ *  reads as the debuff's, which is what pays it. Same shape as unison.ts's `unisonBoonAmp()`. */
+export const strainPayout = (): Buff => new Buff({
+  name: "Tune Strain - Interfered", hidden: true,
+  lateConvertStats: () => tuneStrainPayout(),
 });
-/** Held by a kit that responds to Tune Strain — granted from its own combatStart — so the
- *  Interfered debuff above pays that slot, sourced to itself. No `name`, so it never enters the
- *  held-buffs list (evaluate.ts's own `named()`): it's bookkeeping for a bonus the Interfered
- *  debuff's own row already reports, not a second thing to show. */
-export const TUNE_STRAIN_RESPONDER = new Buff({});
+
+const tuneStrainPayout = (): void => {
+  const stacks = stacksOfEnemy(TUNE_STRAIN_INTERFERED);
+  if (!stacks) return;
+  addStat(Stat.TotalDmg, 0.12 * getStat(Stat.Tbb) * stacks);
+};
 export const TUNE_HACK_INTERFERED = interferedWindow({ name: "Tune Hack - Interfered" });
 
 /** What a kit puts on the target to steer the next break — and where every Interfered comes from:

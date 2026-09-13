@@ -2,15 +2,20 @@
  * One engine run of a team under one combo, and the lines/totals read off it. DOM-free: the
  * solver's worker, precompute.ts and the scratch A/B scripts all import `runTeam` from here.
  */
-import type { Buff } from "./engine/gear.js";
+import type { Gear } from "./engine/gear.js";
 import { State } from "./engine/state.js";
-import { withTeam, equip, equipEnemy, setTracing } from "./engine/context.js";
+import { withTeam, equip, equipEnemy, setTracing, menuStats } from "./engine/context.js";
 import type { ChainGroup, Result } from "./engine/evaluate.js";
+import { ER_SHORT } from "./engine/evaluate.js";
 import { runRotations } from "./engine/rotation.js";
 import type { ActionField } from "./engine/rotation.js";
 import { TUNE_BREAK_ENEMY } from "./shared/tunebreak.js";
+import { erRollValue } from "./shared/substats.js";
+import { Stat } from "./engine/stats.js";
+import { ctx } from "./engine/runtime.js";
 import type { Report } from "./display.js";
 import type { Member, Combo } from "./solver.js";
+import type { Loadout } from "./engine/gear.js";
 
 export interface TeamRun {
   /** The fight itself — null on a row rebuilt from a worker's score (`runFromScore`). */
@@ -224,7 +229,7 @@ function sumRun(rotationLines: ChainGroup<Result>[][], avgOf: (line: ChainGroup<
  *  last hit's snapshot, so its hits are swapped one by one out of `parts`. Each accumulator adds
  *  the same values in the same order a separate `sumRun` per variant did, so the sums are
  *  bit-identical; the lines are just walked once instead of once per variant. */
-function variantSums(rotationLines: ChainGroup<Result>[][], members: Member[], variants: (Buff[] | null)[] | null, state: State): VariantRun[][] {
+function variantSums(rotationLines: ChainGroup<Result>[][], members: Member[], variants: (Combo[] | null)[] | null, state: State): VariantRun[][] {
   const counts = members.map((_, i) => variants?.[i]?.length ?? 0);
   if (!counts.some(Boolean)) return members.map(() => []);
   const n = rotationLines.length;
@@ -292,30 +297,210 @@ function variantSums(rotationLines: ChainGroup<Result>[][], members: Member[], v
   return acc.map((list, i) => list.map((a, v) => ({ ...a, unsafe: state.slots[i]!.variantUnsafe[v]! })));
 }
 
+/** Per team, the constant ER each member's rotation was last measured to need, and per member the
+ *  need measured on each build of their own (`Combo.build`) they have run in. It is a property of
+ *  the rotation and who is standing in it, not of the constant gear: the engine banks RealEnergy at
+ *  a flat 100%, so what a window generated and what it generated weighted by the ER it was taken
+ *  at solve for the requirement directly, and no constant ER the build carries can move it. What
+ *  moves it is buffs — a member's own weapon and echoes far more than a teammate's picks — so an
+ *  unrun combo is guessed off the last run of the same build, and off the team's last run only
+ *  where there is none. What the build carries decides how much of it is already paid. */
+const ER_LAST = new Map<string, number[]>();
+const ER_SEEN = new Map<string, Map<string, number>[]>();
+
+/** The requirement as one *combo* actually showed it, keyed by that combo — the team-level figure
+ *  above is only the opening guess, and the buffs a build holds move the real one. Filled by
+ *  `runTeam` off the run it just did, so a combo pays at most one corrective re-run and every read
+ *  of it after is free. */
+const ER_NEED_AT = new Map<string, number[]>();
+const needKey = (teamKey: string, combo: Combo[]): string => `${teamKey}|${combo.map((c) => c.key).join(",")}`;
+
+/** Per loadout, the constant ER a combo's own gear adds up to — the same pieces recur across a
+ *  team's combos, so this is read far more often than it is filled. */
+const ER_HELD = new WeakMap<Loadout, Map<string, number>>();
+
+/** The opening guess for a combo not yet run. No probe run: a team opens on the tier each kit
+ *  named and the first run of it measures what was really needed (`runTeam`), which both corrects
+ *  that run and becomes the guess every combo after starts from. */
+export function erNeedFor(teamKey: string, members: Member[], combo: Combo[]): number[] {
+  const last = ER_LAST.get(teamKey), seen = ER_SEEN.get(teamKey);
+  return members.map((_, i) => seen?.[i]?.get(combo[i]!.build) ?? last?.[i] ?? 0);
+}
+
+/** Bank what a run of `combo` measured (or, with `member`, what one cast of theirs asked for). */
+function remember(teamKey: string, combo: Combo[], need: number[], member = -1): void {
+  ER_LAST.set(teamKey, need);
+  let seen = ER_SEEN.get(teamKey);
+  if (!seen) {
+    seen = combo.map(() => new Map());
+    ER_SEEN.set(teamKey, seen);
+  }
+  need.forEach((n, i) => {
+    if (member < 0 || member === i) seen![i]!.set(combo[i]!.build, n);
+  });
+}
+
+/** What each member's own gear, this combo's picks included, already pays towards that. */
+function erHeld(m: Member, c: Combo, rolls: number): number {
+  let per = ER_HELD.get(m.loadout);
+  if (!per) {
+    per = new Map();
+    ER_HELD.set(m.loadout, per);
+  }
+  const key = `${c.key}|${rolls}`;
+  const hit = per.get(key);
+  if (hit !== undefined) return hit;
+  // constant stats are one piece's own, so the pieces' ER sums — and each is priced once (`gearEr`)
+  let held = 0;
+  for (const g of m.loadout.pieces(c.weapon, c.echo, c.mainstat, c.sequence, c.matrix !== null, c.highSubs, rolls)) held += gearEr(g);
+  per.set(key, held);
+  return held;
+}
+
+/** How many ER rolls each member's spread has to carry under this combo. Can come back higher than
+ *  any spread can pay — `erFeasible` is what tests that, and the solver drops those combos rather
+ *  than the team, since a sonata or mainslot carrying ER often covers what the rotation needs. */
+export function erRollsFor(teamKey: string, members: Member[], combo: Combo[]): number[] {
+  const need = ER_NEED_AT.get(needKey(teamKey, combo)) ?? erNeedFor(teamKey, members, combo);
+  return members.map((m, i) => erRollsWanted(m, combo[i]!, need[i] ?? 0));
+}
+
+/** One member's ER rolls under one combo, given the requirement `need`. */
+function erRollsWanted(m: Member, c: Combo, need: number): number {
+  const base = m.loadout.substat.tiers[0]!.rolls;
+  if (!need) return base;
+  return base + Math.max(0, Math.ceil((need - erHeld(m, c, base)) / erRollValue()));
+}
+
+/** How much constant ER one piece carries — the mainstat sweep compares two picks by this rather
+ *  than pricing a whole combo for each. Per Buff, so it is computed once for the whole solve. */
+const GEAR_ER = new WeakMap<Gear, number>();
+export function gearEr(gear: Gear): number {
+  let er = GEAR_ER.get(gear);
+  if (er === undefined) {
+    er = menuStats([gear]).reduce((n, e) => n + (e.stat === Stat.Er ? e.value : 0), 0);
+    GEAR_ER.set(gear, er);
+  }
+  return er;
+}
+
+/** Whether every member of this team can actually fill their bar on this combo's gear. */
+export function erFeasible(teamKey: string, members: Member[], combo: Combo[]): boolean {
+  const rolls = erRollsFor(teamKey, members, combo);
+  return members.every((m, i) => rolls[i]! <= m.loadout.substat.tiers[m.loadout.substat.tiers.length - 1]!.rolls);
+}
+
+/** What each member's Liberation actually needed over this run — the same solve `erNeedFor` does,
+ *  read off the slots the run left behind rather than off a probe. Independent of the ER the build
+ *  was wearing: the constant it ran at comes back out of the buffed term. */
+function measureNeed(members: Member[], _combo: Combo[], state: State): number[] {
+  return members.map((m, i) => (m.loadout.resonator.maxEnergy ? state.slots[i]!.erWorst : 0));
+}
+
+/** `combo` with member `i`'s replaced by `alt` — the combo one of their main-stat variants stands for. */
+const variantCombo = (combo: Combo[], i: number, alt: Combo): Combo[] => combo.map((c, j) => (j === i ? alt : c));
+
 /** @param trace  keep per-entry traces and the resolved lines (the detail page); off for the bulk pass.
- *  @param variants  per member, main-stat Buffs to score as variants of `combo` (not with `trace`). */
-export function runTeam(teamKey: string, members: Member[], combo: Combo[], trace = false, variants: (Buff[] | null)[] | null = null): TeamRun {
+ *  @param variants  per member, combos differing from `combo` in that member's main stat alone, to
+ *  score as engine variants of it (not with `trace`). */
+export function runTeam(teamKey: string, members: Member[], combo: Combo[], trace = false, variants: (Combo[] | null)[] | null = null): TeamRun {
+  // restored, not cleared: `erRollsFor` probes a team by running it, and that run sits *inside* the
+  // traced one that triggered it — clearing here would leave the outer run untraced from then on
+  const outer = ctx.tracing;
   setTracing(trace);
   try {
-    return runTeamInner(teamKey, members, combo, trace, variants);
+    // Each attempt equips the tier the requirement known so far asks for. A Liberation that fires
+    // on a bar that tier could never fill abandons the run where it stands (evaluate's ER_SHORT)
+    // rather than finishing it, and the next attempt wears what that cast wanted — strictly more,
+    // so the loop climbs. A run that finishes measures what it really needed, and one that wore
+    // more than that is run again on the tier it measured: what a run reports is always the tier
+    // `erRollsFor` names for it afterwards, whatever guess it started from. At the top tier there
+    // is nothing left to climb to, so the run finishes short, which is what `erFeasible` reports.
+    // `floor` keeps a climb from being undone by the descent — they disagree only by rounding.
+    const floor = members.map(() => 0);
+    const top = (m: Member): number => m.loadout.substat.tiers[m.loadout.substat.tiers.length - 1]!.rolls;
+    for (;;) {
+      const key = needKey(teamKey, combo);
+      const known = ER_NEED_AT.has(key);
+      const worn = erRollsFor(teamKey, members, combo).map((r, i) => Math.max(r, floor[i]!));
+      const guard = members.map((m, i) => !combo[i]!.highSubs && worn[i]! < top(m));
+      let run: TeamRun;
+      try {
+        run = runTeamInner(teamKey, members, combo, trace, variants, worn, guard);
+      } catch (e) {
+        if (e !== ER_SHORT) throw e;
+        // the cast that gave up says what it wanted; raise that member and equip again
+        const at = members.findIndex((m) => m.name === ER_SHORT.member);
+        const raised = (ER_NEED_AT.get(key) ?? erNeedFor(teamKey, members, combo)).slice();
+        raised[at] = Math.max(raised[at] ?? 0, ER_SHORT.need);
+        remember(teamKey, combo, raised, at);
+        if (known) ER_NEED_AT.set(key, raised);
+        floor[at] = erRollsFor(teamKey, members, combo)[at]!;
+        continue;
+      }
+      // a run that finished tells us what it really needed, so every combo after starts from there
+      const measured = run.state ? measureNeed(members, combo, run.state) : null;
+      if (measured && !known) {
+        ER_NEED_AT.set(key, measured);
+        remember(teamKey, combo, measured);
+      }
+      if (measured) {
+        const asked = erRollsFor(teamKey, members, combo);
+        const over = members.some((m, i) => !combo[i]!.highSubs && m.loadout.substat.at(Math.max(asked[i]!, floor[i]!)) !== m.loadout.substat.at(worn[i]!));
+        if (over) continue;
+      }
+      // A variant wore the tier the requirement known before the run asked of it, so one that ends
+      // up on another tier than a run of its own would — the one the measurement names, since it
+      // has the same buffs and so the same need — is scored for real instead. Every alt combo is
+      // known on the same terms as this one, which is what that run of its own reads.
+      if (variants && measured) {
+        members.forEach((m, i) => {
+          const alts = variants[i];
+          if (!alts?.length) return;
+          const slot = run.state!.slots[i]!;
+          alts.forEach((alt, v) => {
+            const at = variantCombo(combo, i, alt);
+            const altKey = needKey(teamKey, at);
+            if (!ER_NEED_AT.has(altKey)) ER_NEED_AT.set(altKey, measured);
+            const asked = erRollsFor(teamKey, members, at)[i]!;
+            if (!alt.highSubs && m.loadout.substat.at(asked) !== m.loadout.substat.at(slot.variantRolls[v]!)) run.variantRuns[i]![v]!.unsafe = true;
+          });
+        });
+      }
+      return run;
+    }
   } finally {
-    setTracing(false);
+    setTracing(outer);
   }
 }
 
-function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace: boolean, variants: (Buff[] | null)[] | null): TeamRun {
+function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace: boolean, variants: (Combo[] | null)[] | null, erRolls = erRollsFor(teamKey, members, combo), guard: boolean[] = []): TeamRun {
   const state = new State(members.map((m) => m.name));
   members.forEach((m, i) => {
     state.active = i;
     const c = combo[i]!;
-    withTeam(state, () => { for (const g of m.loadout.pieces(c.weapon, c.echo, c.mainstat, c.sequence, c.matrix !== null, c.highSubs)) equip(g, 1); });
+    withTeam(state, () => { for (const g of m.loadout.pieces(c.weapon, c.echo, c.mainstat, c.sequence, c.matrix !== null, c.highSubs, erRolls[i])) equip(g, 1); });
+    state.slots[i]!.constEr = erHeld(m, c, erRolls[i]!);
+    state.slots[i]!.erGuard = guard[i] ?? false;
     const alts = variants?.[i];
     if (alts?.length) {
       const slot = state.slots[i]!;
       slot.variantOf = c.mainstat;
-      slot.variants = alts;
+      slot.variants = alts.map((alt) => alt.mainstat);
       slot.variantAt = new Map();
       slot.variantUnsafe = alts.map(() => false);
+      // a main stat carrying ER moves the tier the spread wears, so each variant's base swaps the
+      // substat piece along with its main stat — at the rolls the requirement known so far asks.
+      // A variant has this build's buffs and so its need: where its own combo is not yet known,
+      // this one's measurement is the guess, ahead of the team's
+      const worn = c.highSubs ? null : m.loadout.substat.at(erRolls[i]!);
+      slot.variantSubOf = worn;
+      const own = ER_NEED_AT.get(needKey(teamKey, combo)) ?? erNeedFor(teamKey, members, combo);
+      slot.variantRolls = alts.map((alt) => erRollsWanted(m, alt, (ER_NEED_AT.get(needKey(teamKey, variantCombo(combo, i, alt))) ?? own)[i] ?? 0));
+      slot.variantSubs = slot.variantRolls.map((rolls) => {
+        const piece = c.highSubs ? null : m.loadout.substat.at(rolls);
+        return piece === worn ? null : piece;
+      });
     }
   });
   state.active = 0;

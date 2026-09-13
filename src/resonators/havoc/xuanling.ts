@@ -69,7 +69,7 @@ import {
   setForte2,
   stacksOfEnemy,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO, START_3, SWAP } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO, START_3, SWAP, INTRO_3 } from "../../engine/rotation.js";
 import { HAVOC_BANE, anyNegativeStatusInflicted } from "../../shared/status.js";
 import { AZURE_OATH, EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
@@ -450,7 +450,7 @@ export const XUANLING_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   intro: () => Intro,
   outro: () => Outro,
-  color: "#4f29e6",
+  color: "#6140e5",
   maxEnergy: 125,
   maxForte1: 100,
   maxForte2: 2,
@@ -472,6 +472,7 @@ export const XUANLING_RESONATOR = new Resonator({
 /* ---------------------------------------------------------------------------------- rotation */
 
 const BA_F1234 = new ActionGroup("Basic - Feather Sword Stance 1234", [BA_F1, BA_F2, BA_F3, BA_F4]);
+const BA_A1234 = new ActionGroup("Basic - Azure Sword Stance 1234", [BA_A1, BA_A2, BA_A3, BA_A4]);
 const HiB123 = new ActionGroup("Forte Basic: Havoc in Bloom 123", [HiB1, HiB2, HiB3]);
 
 /** One visit, in gauge order. The Intro banks a plume, the Azure chain spends the whole Melody
@@ -486,30 +487,32 @@ const HiB123 = new ActionGroup("Forte Basic: Havoc in Bloom 123", [HiB1, HiB2, H
 const XUANLING_ROTATION = new Rotation([
   START_3, SwitchFeather, SWAP, // start in feather stance, so the first cast is a switch to Azure
 
-  INTRO, BA_F1234, FlowAzure, ECHO_ONFIELD, HeavyAzure, 
+  INTRO_3, BA_F1234, FlowAzure, ECHO_ONFIELD, HeavyAzure, 
   Lib, FlowFeather, HeavyFeather, FeatherFall, HiB123,
   OUTRO,
 ]);
 
 const XUANLING_ROTATION_2F = new Rotation([
-  INTRO, FlowFeather, ECHO_ONFIELD, HeavyFeather, FeatherFall, HiB123, SwitchAzure,
-  Lib, FlowFeather, HeavyFeather, FeatherFall, HiB123,
+  START_3, BA_A1234, SWAP,
+
+  INTRO_3, FlowFeather, ECHO_ONFIELD, HeavyFeather, FeatherFall, HiB123, SwitchAzure,
+  Lib, FlowFeather, HeavyFeather, FeatherFall, HiB123, BA_F1234, SwitchAzure.swap(),
   OUTRO,
 ]);
 
 const XUANLING_ROTATION_S1 = new Rotation([
   START_3, HeavyAzure, SwitchFeather, SWAP, // start in feather stance, so the first cast is a switch to Azure
 
-  INTRO, BA_F1234, FlowAzure, ECHO_ONFIELD, HeavyAzure, 
+  INTRO_3, BA_F1234, FlowAzure, ECHO_ONFIELD, HeavyAzure, 
   Lib, FlowFeather, HeavyFeather, FeatherFall, HiB123,
   OUTRO,
 ]);
 
 const XUANLING_ROTATION_2F_S1 = new Rotation([
-  START_3, HeavyAzure, SWAP,
+  START_3, BA_A1234, HeavyAzure, SWAP,
 
-  INTRO, FlowFeather, ECHO_ONFIELD, HeavyFeather, FeatherFall, HiB123, SwitchAzure,
-  Lib, FlowFeather, HeavyFeather, FeatherFall, HiB123,
+  INTRO_3, FlowFeather, ECHO_ONFIELD, HeavyFeather, FeatherFall, HiB123, SwitchAzure,
+  Lib, FlowFeather, HeavyFeather, FeatherFall, HiB123, BA_A1234, SwitchAzure.swap(),
   OUTRO,
 ]);
 
@@ -522,8 +525,8 @@ export const XUANLING = new Loadout({
   weapons: [AZURE_OATH, EMERALD_OF_GENESIS, EMERALD_SENTENCE],
   echoLoadouts: XUANLING_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Er),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
   rotation: { 0: XUANLING_ROTATION, 1: XUANLING_ROTATION_S1 },
   sequences: XL_SEQUENCES,
 });
@@ -533,8 +536,8 @@ export const XUANLING_2F = new Loadout({
   weapons: [AZURE_OATH, EMERALD_OF_GENESIS, EMERALD_SENTENCE],
   echoLoadouts: XUANLING_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Er),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
   rotation: { 0: XUANLING_ROTATION_2F, 1: XUANLING_ROTATION_2F_S1 },
   sequences: XL_SEQUENCES,
 });

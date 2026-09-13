@@ -239,8 +239,8 @@ export const SANHUA = new Loadout({
   weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, OVERTURE],
   echoLoadouts: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Er),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
     rotation: { 0: SH_ROTATION, 5: SH_ROTATION_S5 },
   sequences: [SANHUA_S1, SANHUA_S2, SANHUA_S3, SANHUA_S4, SANHUA_S5, SANHUA_S6],
 });

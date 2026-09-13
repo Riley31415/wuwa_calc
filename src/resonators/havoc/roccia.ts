@@ -229,8 +229,6 @@ const BA1234 = new ActionGroup("Basic - Pero, Easy 1234", [BA1, BA2, BA3, BA4]);
 const FBA123 = new ActionGroup("Forte Basic - Real Fantasy 123", [FBA1, FBA2, FBA3]);
 
 const RC_ROTATION = new Rotation([
-  START_3, Liberation, SWAP,
-
   NOINTRO,
   BA1234, 
   Liberation, 
@@ -246,8 +244,6 @@ const RC_ROTATION = new Rotation([
 ]);
 
 const RC_ROTATION_S1 = new Rotation([
-  START_3, Liberation, SWAP,
-
   NOINTRO,
   BA123,
   Skill, DODGE, FBA123,
@@ -298,9 +294,9 @@ export const ROCCIA = new Loadout({
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Heavy, Substat.Er, Substat.FlatAtk),
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill),
   rotation: { 0: RC_ROTATION, 1: RC_ROTATION_S1 },
   sequences: RC_SEQUENCES,
 });
@@ -311,9 +307,9 @@ export const ROCCIA_MDPS = new Loadout({
   echoLoadouts: [
     new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Heavy, Substat.Er, Substat.FlatAtk),
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill),
   rotation: { 0: RC_ROTATION_MDPS, 6: RC_ROTATION_S6_MDPS },
   sequences: RC_SEQUENCES,
 });

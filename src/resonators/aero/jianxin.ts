@@ -57,6 +57,7 @@ const HA = jianxinAction("Heavy - Fengyiquan", { node: Node.Normal, cast: Cast.H
 const MA = jianxinAction("Mid-air - Fengyiquan", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.27, energy: 0.52, concerto: 1, offtune: 4960, forte1: 6 });
 const DC = jianxinAction("Dodge Counter - Fengyiquan", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 244.94, energy: 3.10, concerto: 16.68, offtune: 13143, forte1: 17 });
 const BA1234 = new ActionGroup("Basic - Fengyiquan 1234", [BA1, BA2, BA3, BA4]);
+const BA12 = new ActionGroup("Basic - Fengyiquan 12", [BA1, BA2]);
 // --- Calming Air: the Parry Stance (8 Concerto on the cast) ends either as Chi Parry (released)
 //     or Chi Counter (attacked — S3 makes it available after 2.5s regardless); each cast is one
 //     press of the skill, so each carries the stance's own 8 plus its own 14.
@@ -218,19 +219,19 @@ const JIANXIN_RESONATOR = new Resonator({
 /** Intro (40 Chi, S1 up), Chi Parry, the basic chain at double Chi, the second Chi Parry (S2), the
  *  Spiral on a full gauge, the Liberation under S4, the echo and out. Never the team's lead. */
 const JX_ROTATION = new Rotation([
-  INTRO, BA1234, ChiParry, Liberation, ZHOUTIAN_1, ECHO_SWAP, OUTRO,
+  INTRO, BA1234, ChiParry, BA12, Liberation, ZHOUTIAN_1, ECHO_SWAP, OUTRO,
 ]);
 const JX_ROTATION_S2 = new Rotation([
-  INTRO, ChiParry, ChiParry, Liberation, ZHOUTIAN_1, ECHO_SWAP, OUTRO,
+  INTRO, BA1234, ChiParry, ChiParry, Liberation, ZHOUTIAN_1, ECHO_SWAP, OUTRO,
 ]);
 
 export const JIANXIN = new Loadout({
   resonator: JIANXIN_RESONATOR,
-  weapons: [MARCATO[4]!], // the craftable at its real R5, the one rank she is ever run at
+  weapons: [MARCATO], 
   echoLoadouts: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.Aero3, Mainstat.ATK3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.FlatAtk, Substat.Liberation, Substat.Er),
+  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill),
   rotation: { 0: JX_ROTATION, 2: JX_ROTATION_S2 },
   sequences: [S1, S2, S3, S4, S5, S6],
 });

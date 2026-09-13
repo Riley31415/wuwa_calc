@@ -309,8 +309,8 @@ export const GALBRENA = new Loadout({
   weapons: GB_WEAPONS,
   echoLoadouts: GB_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.FlatAtk, Substat.Heavy, Substat.Er),
+  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill),
   rotation: { 0: GB_ROTATION },
   sequences: GB_SEQUENCES,
 });

@@ -10,7 +10,7 @@ import {
 import type { Type1, StatKey } from "./engine/stats.js";
 import { SWAP, DODGE, JUMP } from "./engine/rotation.js";
 import { mvPercent, effectiveShred, effectiveRes, damageFactors } from "./engine/damage.js";
-import { BASE_RESISTANCE } from "./shared/tunebreak.js";
+import { BASE_RESISTANCE, ENEMY_MAX_OFFTUNE } from "./shared/tunebreak.js";
 import type { Action } from "./engine/rotation.js";
 import type { ChainGroup, ResolvedSnapshot } from "./engine/evaluate.js";
 import type { HeldBuff } from "./engine/state.js";
@@ -188,10 +188,12 @@ function tracing(snapshot: ResolvedSnapshot, stats: StatKey[], merge = true): Tr
 
 export const columnOf = (report: Report, key: string): Column | undefined => report.columns.find((c) => c.key === key);
 
-/** A gauge cell's "/cap" — `maxForteN` where the Resonator declares one. */
+/** A gauge cell's "/cap" — `maxForteN` where the Resonator declares one, and the enemy's own
+ *  off-tune ceiling. The cap prints at its own decimals rather than the column's, so a bar capped
+ *  at 100 stays `/100` beside a value printed to two places and off-tune keeps its tenth. */
 export const gaugeSuffix = (raw: RawRow, key: string): string => {
   const cap = raw[`max:${key}`];
-  return typeof cap === "number" ? `/${fmt(cap, 0, false, false)}` : "";
+  return typeof cap === "number" ? `/${fmt(cap, decimalsOf(cap), false, false)}` : "";
 };
 
 /** Off-tune's raw unit runs finer than the game's displayed points — display-only /10000. */
@@ -270,6 +272,8 @@ function rowValues(
     energy: snap.energy / RESOURCE_SCALE.energy,
     concerto: snap.concerto / RESOURCE_SCALE.concerto,
     offtune: snap.offtune / RESOURCE_SCALE.offtune,
+    // off-tune is the enemy's one shared bar, so its ceiling is the same on every row
+    "max:offtune": ENEMY_MAX_OFFTUNE / RESOURCE_SCALE.offtune,
     // what each held coming in — the running-column blanking reads these (page/detail.ts stepRow)
     "before:energy": snap.energyBefore / RESOURCE_SCALE.energy,
     "before:concerto": snap.concertoBefore / RESOURCE_SCALE.concerto,

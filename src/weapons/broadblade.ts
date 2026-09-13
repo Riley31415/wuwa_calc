@@ -5,7 +5,7 @@ import { WeaponType, Stat, Attribute, Type1, Cast, LifeTime, BuffTarget } from "
 import { Buff, Weapon, refinements } from "../engine/gear.js";
 import {
   addStat, frozenStacks, casting, currentTeam, addBuff, applyCurrent, removeStack, revokeCurrent, applied,
-  onCast, onType, onApplied, either, isActive,
+  onCast, onType, onApplied, either, isActive, isType, setStacksSelf, triggeredAction,
 } from "../engine/context.js";
 import { SHIELD, HEALS, inflictedNegativeStatus, inflictedNegativeStatusBy } from "../shared/status.js";
 
@@ -89,13 +89,26 @@ export const WILDFIRE_MARK = refinements((r, rank) => {
 
 /** Jingran's sig: Thousandfold Deliverance. Nature's Order stacks on intro/shield, 6x 4%
  *  crit damage, full six sharpens heavy attacks with 12% crit rate. Cradle of Life stacks the
- *  same way, spent by a heavy attack for defence ignore. Both end on switching resonator; Intro
- *  is its own flat +1 rather than also counting the shield it grants, so it doesn't double-stack. */
+ *  same way, spent by a heavy attack for defence ignore. Both end on switching resonator, and both
+ *  are two triggers rather than one — his Intro shields as well, so that cast pays +2. */
 export const JINGRAN_SIG = refinements((r, rank) => {
   const NATURES_ORDER = new Buff({
     name: `Thousandfold Deliverance: Nature's Order${rank}`, maxStacks: 6, until: LifeTime.Swap,
     stats: [[Stat.CritDmg, [4, 5, 6, 7, 8][r]!]], perStack: true,
     applyStats: () => { if (frozenStacks() >= 6) addStat(Stat.CritRate, [12, 15, 18, 21, 24][r]!, Type1.Heavy); },
+  });
+  /** What a heavy's spend actually pays out, held at the stacks it spent. The press and the
+   *  summons it queues — Jingran's Chimei Wangliang, Fire of Life's own and the Parade's at S6 —
+   *  are separate actions, so one buff covering the window is what gets them the same figure; a
+   *  stat paid on the press alone stopped at the press. Anything he does that is neither another
+   *  heavy nor one of those Heavy-typed follow-ups closes it. */
+  const CRADLE_SPENT: Buff = new Buff({
+    name: `Thousandfold Deliverance: Cradle of Life${rank} (spent)`, maxStacks: 2,
+    stats: [[Stat.DefIgnoreNew, [15, 17.5, 20, 22.5, 25][r]!, Type1.Heavy]], perStack: true,
+    updateBuffs: () => {
+      if (casting(Cast.Heavy) || (triggeredAction() && isType(Type1.Heavy))) return;
+      revokeCurrent(CRADLE_SPENT);
+    },
   });
   /** Spent by a heavy attack: up to two stacks, each piercing 15% defence. "Heavy attack" is the
    *  cast, not the damage type. Also ends on switching resonator. */
@@ -104,16 +117,22 @@ export const JINGRAN_SIG = refinements((r, rank) => {
     updateBuffs: () => {
       if (!casting(Cast.Heavy)) return;
       const spent = Math.min(frozenStacks(), 2);
-      addStat(Stat.DefIgnoreNew, [15, 17.5, 20, 22.5, 25][r]! * spent, Type1.Heavy);
+      if (!spent) return;
       removeStack(CRADLE_OF_LIFE, spent);
+      // applied mid-phase, so it misses this action's own updateBuffs (and its revoke above) but
+      // still pays into the press that put it up — which is what makes one buff cover both
+      setStacksSelf(CRADLE_SPENT, spent);
     },
   });
   return new Weapon({
     weaponType: WeaponType.Broadblade, name: `Thousandfold Deliverance${rank}`,
     stats: [[Stat.BaseAtk, 413], [Stat.BonusHp, 72.2], [Stat.DmgBonus, [12, 15, 18, 21, 24][r]!]],
     updateBuffs: () => {
-      if (casting(Cast.Intro)) { applyCurrent(NATURES_ORDER); applyCurrent(CRADLE_OF_LIFE); }
-      else if (applied(SHIELD)) { applyCurrent(NATURES_ORDER, applied(SHIELD)); applyCurrent(CRADLE_OF_LIFE, applied(SHIELD)); }
+      // two separate triggers, so his Intro — which also shields — pays both and stacks twice
+      const n = (casting(Cast.Intro) ? 1 : 0) + applied(SHIELD);
+      if (!n) return;
+      applyCurrent(NATURES_ORDER, n);
+      applyCurrent(CRADLE_OF_LIFE, n);
     },
   });
 });

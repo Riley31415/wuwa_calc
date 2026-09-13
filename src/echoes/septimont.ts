@@ -40,11 +40,13 @@ export const FALSE_SOVEREIGN = new Mainslot({
   stats: [[Stat.DmgBonus, 12, Attribute.Electro], [Stat.DmgBonus, 12, Type1.Heavy]],
 });
 
-/** Crown of Valor, Augusta's own sonata — also reused by Iuno. 3pc: a shield stacks +6% ATK /
- *  +4% Crit DMG, up to five. */
+/** Crown of Valor, Augusta's own sonata — also reused by Iuno and Jingran. 3pc: a shield stacks
+ *  +6% ATK / +4% Crit DMG, up to five. Its 4s is shorter still than Lamp of Nether Road's, so the
+ *  same reading: the wearer's own outro keeps it, and nothing they built carries into their next
+ *  visit. */
 export const CROWN_STACKS = new Buff({
   name: "Crown of Valor", maxStacks: 5,
-  stats: [[Stat.BonusAtk, 6], [Stat.CritDmg, 4]], perStack: true,
+  stats: [[Stat.BonusAtk, 6], [Stat.CritDmg, 4]], perStack: true, until: LifeTime.AfterSwap,
 });
 export const COV_3PC = new Sonata3pc({
   name: "Crown of Valor 3pc",

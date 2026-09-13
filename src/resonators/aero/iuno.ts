@@ -222,7 +222,7 @@ const IO_S6 = new Sequence({
 const IO_SEQUENCES = [IO_S1, IO_S2, IO_S3, IO_S4, IO_S5, IO_S6];
 
 const IO_ROTATION = new Rotation([
-  INTRO, ECHO_CANCEL, Liberation, JumpHeavy,
+  INTRO, ESkill, ECHO_CANCEL, Liberation, JumpHeavy,
   FMSkill, FMA123, FMSkill, 
   FHA, OUTRO,
 ]);
@@ -258,8 +258,8 @@ export const IUNO = new Loadout({
     new EchoLoadout(FALLACY, REJUV_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Liberation, Substat.Er, Substat.FlatAtk),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
   rotation: IO_ROTATION,
   sequences: IO_SEQUENCES,
 });
@@ -276,8 +276,8 @@ export const IUNO_MDPS = new Loadout({
     new EchoLoadout(NM_KELPIE, WINDWARD_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Er),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
   rotation: { 0: IO_ROTATION_MDPS, 6: IO_ROTATION_MDPS_S6 },
   sequences: IO_SEQUENCES,
 });

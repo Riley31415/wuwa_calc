@@ -14,12 +14,13 @@ import { runTeam } from "./teamrun.js";
 import {
   TEAMS, filters, results, bestPicks, picksCache, storeSolved, teamWanted, teamRows, estimatedRowCount, rowFromKey,
   setVisibleRows, visibleRows, discardRestoredSolves, loadShipped, loadSolves, saveSolves, solveFits,
-  hashParams, applyHash, syncHash, routeTeam,
+  applyHash, syncHash, routeTeam, hashTeam,
 } from "./page/model.js";
 import type { TeamRow } from "./page/model.js";
 import { wireSourcePanels } from "./page/panels.js";
 import { renderComparison, onRefresh } from "./page/table.js";
-import { renderDetail, errorPage } from "./page/detail.js";
+import { renderDetail } from "./page/detail.js";
+import { maybeShowTutorial } from "./page/tutorial.js";
 
 const app = document.getElementById("app")!;
 const backLink = document.getElementById("backLink")!;
@@ -57,6 +58,21 @@ function overlayHide(): void {
   clearTimeout(overlayTimer);
   overlayTimer = undefined;
   overlay.hidden = true;
+}
+
+/** Anything that goes wrong lands in the one box on the loading screen — the same box the boot
+ *  handlers in index.html write to, and the overlay comes back up around it. The page underneath
+ *  is left as it was: a second copy of the error drawn behind the blur said nothing the box in
+ *  front of it did not. */
+function showError(err: unknown): void {
+  console.error(err);
+  const box = overlay.querySelector<HTMLElement>(".loading-error");
+  if (!box) return;
+  box.hidden = false;
+  box.textContent += `${box.textContent ? "\n\n" : ""}${err instanceof Error ? err.stack ?? err.message : String(err)}`;
+  clearTimeout(overlayTimer);
+  overlayTimer = undefined;
+  overlay.hidden = false;
 }
 
 /** The bar counts teams while they solve and rows while they run — two phases, two units, so it
@@ -210,9 +226,16 @@ let tableRequested = false;
 
 const route = (): void => {
   const key = routeTeam();
-  if (key) { renderDetail(key); return; }
+  if (key) {
+    renderDetail(key);
+    // the tutorial's later stages belong to this page; the earlier ones take themselves down for it
+    maybeShowTutorial();
+    return;
+  }
   if (!tableRequested) { void refresh(); return; }
   renderComparison();
+  // measured off the table it points at, so it goes up once that table is on screen
+  maybeShowTutorial();
 };
 
 /**
@@ -224,7 +247,7 @@ async function refresh(): Promise<void> {
   tableRequested = true;
   barReset();
   try {
-    const inPlay = Object.entries(TEAMS).filter(([, members]) => teamWanted(members));
+    const inPlay = Object.entries(TEAMS).filter(([key, members]) => teamWanted(key, members));
     // workers come up while the empty table draws, but only if there is something to solve
     if (inPlay.some(([key, members]) => !bestPicks.has(bestKey(key, members, filters)))) workerPool();
     if (!visibleRows.length) route();
@@ -257,16 +280,17 @@ async function refresh(): Promise<void> {
       await refresh();
       return;
     }
-    console.error(err);
-    app.innerHTML = errorPage(err);
-    app.className = "";
+    showError(err);
+    return;
   }
   overlayHide();
+  // the run is what it was waiting on: the table it points into is drawn and the overlay is down
+  maybeShowTutorial();
 }
 
 /** A `#team=` load served off its key alone: one traced run, no table build. */
 async function bootDetail(): Promise<boolean> {
-  const key = hashParams().get("team");
+  const key = hashTeam();
   if (!key || results.has(key)) return false;
   const row = rowFromKey(key);
   if (!row) return false;
@@ -297,7 +321,7 @@ async function boot(): Promise<void> {
   // only a real navigation gets here — `syncHash()` writes fire nothing
   addEventListener("hashchange", () => {
     if (applyHash()) { void refresh(); return; }
-    const key = hashParams().get("team");
+    const key = hashTeam();
     if (key && !results.has(key) && rowFromKey(key)) { void bootDetail(); return; }
     route();
   });
@@ -316,14 +340,4 @@ async function boot(): Promise<void> {
   });
 }
 
-boot().catch((err: unknown) => {
-  console.error(err);
-  app.innerHTML = errorPage(err);
-  app.className = "";
-  const box = overlay.querySelector<HTMLElement>(".loading-error");
-  if (box) {
-    box.hidden = false;
-    box.textContent += `${box.textContent ? "\n\n" : ""}${err instanceof Error ? err.stack ?? err.message : String(err)}`;
-    overlay.hidden = false;
-  }
-});
+boot().catch(showError);

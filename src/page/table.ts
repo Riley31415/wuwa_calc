@@ -5,7 +5,7 @@
 import { Tier } from "../engine/stats.js";
 import { fmt } from "../display.js";
 import { sequenceLevels, scopedKey, axisUsed, compares, weaponBase, echoLines, echoLabel, axisOpen, AXES } from "../solver.js";
-import type { Member, Combo, Axis, TeamCost, ScopedCompare } from "../solver.js";
+import type { Member, Combo, Axis, TeamCost, TeamScope, ScopedCompare } from "../solver.js";
 import type { TeamRun } from "../teamrun.js";
 import {
   TEAMS,
@@ -27,7 +27,7 @@ import {
 } from "./model.js";
 import type { ResonatorFilter, OptionKind, TeamRow } from "./model.js";
 import type { SearchKind, SearchHit } from "./filterbar.js";
-import { esc, deferredPop, rect, clearPops, subsLabel } from "./panels.js";
+import { esc, deferredPop, rect, clearPops, subsLabel, CLICK } from "./panels.js";
 
 const app = document.getElementById("app")!;
 const topbar = document.getElementById("topbar")!;
@@ -310,6 +310,9 @@ let tableView: TableView | null = null;
 /** The whole page's markup: the aside and the table shell. Rows are drawn by `drawWindow()`. */
 function comparisonTable(rows: TeamRow[]): string {
   const seq = (run: TeamRun): number => run.combo.reduce((n, c) => n + c.sequence, 0);
+  // a tie is the rank buying nothing, and the row that paid for it is the one that answers
+  // "is R5 worth it" — so S6R5 stands above the S6R1/R0 it drew with rather than under it
+  const rank = (run: TeamRun): number => run.combo.reduce((n, c) => n + c.weapon.refinement, 0);
   // Main stats and substats reach nobody but the member wearing them (solver.ts's own
   // `rowPicks()`), so rows differing only on those are one build in different rolls and belong
   // together, and they nest outside in, each level's key extending the one before it: the team,
@@ -344,9 +347,9 @@ function comparisonTable(rows: TeamRow[]): string {
       const [ka, kb] = [a.keys[i]!, b.keys[i]!];
       if (ka === kb) continue;
       const [ra, rb] = [groupBest.get(ka)!, groupBest.get(kb)!];
-      return rb.total - ra.total || seq(rb) - seq(ra) || (ka < kb ? -1 : 1);
+      return rb.total - ra.total || seq(rb) - seq(ra) || rank(rb) - rank(ra) || (ka < kb ? -1 : 1);
     }
-    return b.run.total - a.run.total || seq(b.run) - seq(a.run);
+    return b.run.total - a.run.total || seq(b.run) - seq(a.run) || rank(b.run) - rank(a.run);
   }).map((k) => k.pair);
 
   // column order, left to right — the same order the name menu offers the compares in
@@ -473,8 +476,8 @@ function comparisonTable(rows: TeamRow[]): string {
     return `<div class="trow${rank.pinned ? " isbaseline" : ""}" style="--hue:${rank.hue}" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}"`
       + ` data-members="${esc(memberNames)}" data-total="${grand}">`
       + memberCells
-      + `<div class="c num total teamdpr" title="Click to view the team's damage breakdown"${deferredPop("dpr", key)}>${dprFmt(grand, dprExact.team)}</div>`
-      + `<div class="c num total baseline" data-team="${esc(key)}" title="Click to measure every team against this one">${rank.pct}</div>`
+      + `<div class="c num total teamdpr" title="${CLICK} to view the team's damage breakdown"${deferredPop("dpr", key)}>${dprFmt(grand, dprExact.team)}</div>`
+      + `<div class="c num total baseline" data-team="${esc(key)}" title="${CLICK} to measure every team against this one">${rank.pct}</div>`
       + `<div class="c gotodetail" data-team="${esc(key)}">view rotation<span class="arrow">›</span></div>`
       + `</div>`;
   };
@@ -483,11 +486,11 @@ function comparisonTable(rows: TeamRow[]): string {
     + (seqCmpAt(i) ? `<div class="c num">Compare</div>` : "")
     + (refCmpAt(i) ? `<div class="c num">Compare</div>` : "")
     + GEAR_AXES.map((axis) => (openAt[axis][i] ? `<div class="c">${AXIS_HEAD[axis]}</div><div class="c num">Compare</div>` : "")).join("")
-    + (dprAt(i) ? `<div class="c num dprhead" data-dpr="personal" title="Click to switch between abbreviated and exact figures">Personal</div>` : "");
+    + (dprAt(i) ? `<div class="c num dprhead" data-dpr="personal" title="${CLICK} to switch between abbreviated and exact figures">Personal</div>` : "");
   const head = `<div class="trow thead">`
     + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2)
-    + `<div class="c num dprhead" data-dpr="team" title="Click to switch between abbreviated and exact figures">Team Avg DPR</div>`
-    + `<div class="c num huehead" title="Click to colour the column by rank">Compare</div>`
+    + `<div class="c num dprhead" data-dpr="team" title="${CLICK} to switch between abbreviated and exact figures">Team Avg DPR</div>`
+    + `<div class="c num huehead" title="${CLICK} to colour the column by rank">Compare</div>`
     + `<div class="c"></div>`
     + `</div>`;
 
@@ -553,7 +556,7 @@ function comparisonTable(rows: TeamRow[]): string {
     + `<aside class="tcside">${comparisonFilters()}</aside>`
     + `<div class="tcbody">`
     + `<h2 class="summary-label" id="teamCount">${fmt(sorted.length)} teams`
-    + `<span class="hint">Click on a Resonator to filter and compare sequences, weapons, echoes</span></h2>`
+    + `<span class="hint">${CLICK} on a Resonator to filter and compare sequences, weapons, echoes</span></h2>`
     + `<div class="tcwrap"><div class="tgrid${hueShown ? " hued" : ""}${dprExact.personal ? " personalexact" : ""}${dprExact.team ? " teamexact" : ""}" style="${gridStyle}">${head}${ghost(dprExact.personal, dprExact.team)}</div></div>`
     + `</div></div></main>`;
 }
@@ -676,13 +679,34 @@ export function fitSide(): void {
     main.classList.add("stack");
     const cs = getComputedStyle(main);
     room = main.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-    side.style.width = `${room}px`;
+    // above the table the aside is only as wide as the table it stands over, and the two centre
+    // together, so the README and the search bar keep the table's own edges. A table wider than
+    // the scrollport has no slack to centre in: the aside spans the scrollport and stays hard
+    // left, which is what its sideways-sticky needs (the stacked rules in index.css).
+    side.style.width = `${Math.min(room, table)}px`;
+    side.style.marginInline = table < room ? "auto" : "0";
   }
   side.style.maxHeight = stacked ? "" : `${main.clientHeight}px`;
-  if (!stacked) side.style.width = "";
+  if (!stacked) {
+    side.style.width = "";
+    side.style.marginInline = "";
+  }
   side.style.marginBottom = stacked ? "" : `-${side.offsetHeight}px`;
+  // the count heading pins to the top of <main> and the column headings pin under it, so they need
+  // its height: the hint beside the count wraps on a narrow window, which no CSS rule can know
+  const label = app.querySelector<HTMLElement>(".tcbody > .summary-label");
+  if (label) main.style.setProperty("--headtop", `${label.offsetHeight}px`);
   sideFit.disconnect();
   sideFit.observe(side);
+}
+
+/** The `i`th row of the sorted table as it stands in the DOM, clamped to the last row and null
+ *  while the scroll window has it undrawn — the tutorial's anchor. */
+export function rowElementAt(i: number): HTMLElement | null {
+  const sorted = tableView?.sorted;
+  if (!sorted?.length) return null;
+  const key = sorted[Math.min(i, sorted.length - 1)]![0];
+  return [...app.querySelectorAll<HTMLElement>(".tgrid .trow[data-team]")].find((el) => el.dataset.team === key) ?? null;
 }
 
 /** Where the table was scrolled to when a detail page replaced it. */
@@ -761,6 +785,16 @@ document.addEventListener("change", (e) => {
     return () => { filters.cost = was; select.value = was; };
   });
 });
+/** The Teams box beside it: which teams the table runs at all (model.ts's own `inScope`). */
+document.addEventListener("change", (e) => {
+  const select = e.target as HTMLSelectElement;
+  if (select.id !== "scope") return;
+  withRowCap(() => {
+    const was = filters.scope;
+    filters.scope = select.value as TeamScope;
+    return () => { filters.scope = was; select.value = was; };
+  });
+});
 
 /* A double press needs no machinery of its own: a menu opens at the pointer with its first line
  * under the cursor, so the second press simply lands on that line. Left presses it, right runs its
@@ -815,24 +849,10 @@ const openNameMenuAt = (e: MouseEvent): void => {
   e.preventDefault();
   openNameMenu(el, e.clientX, e.clientY);
 };
+// A press, either button — never a hover: the menu used to open itself after a second over a name,
+// which put it in the way of anyone reading the row rather than asking for it.
 document.addEventListener("click", openNameMenuAt);
 document.addEventListener("contextmenu", openNameMenuAt);
-let hoverTimer: ReturnType<typeof setTimeout> | undefined;
-let hoverAt: [number, number] = [0, 0];
-document.addEventListener("mousemove", (e) => { hoverAt = [e.clientX, e.clientY]; });
-document.addEventListener("mouseover", (e) => {
-  const el = (e.target as Element).closest<HTMLElement>(".c.name.res");
-  if (!el?.dataset.resonator || el.contains(e.relatedTarget as Node | null)) return;
-  clearTimeout(hoverTimer);
-  hoverTimer = setTimeout(() => {
-    if (document.querySelector(".ctxmenu") || !el.matches(":hover")) return;
-    openNameMenu(el, hoverAt[0], hoverAt[1]);
-  }, 1000);
-});
-document.addEventListener("mouseout", (e) => {
-  const el = (e.target as Element).closest<HTMLElement>(".c.name.res");
-  if (el && !el.contains(e.relatedTarget as Node | null)) clearTimeout(hoverTimer);
-});
 
 // a gear pick cell, keyed by `data-kind`/`data-value` so one pair of handlers covers every axis
 const optionPick = (e: Event): [Map<string, ResonatorFilter>, string] | undefined => {

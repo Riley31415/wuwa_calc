@@ -8,6 +8,7 @@ import { Stat, EnemyStat, Attribute, WeaponType, Tier, Cast, LifeTime, BuffTarge
 import type { Tag } from "./stats.js";
 import type { Rotation, Action, ActionField } from "./rotation.js";
 import { ctx } from "./runtime.js";
+import type { ErSpread } from "../shared/substats.js";
 // the one edge back up the stack: a Resonator's own combatStart banks its base stats through
 // the ordinary API. Both names are function declarations, so the import cycle is inert at load.
 import { addStat, frozenStacks, casting, currentAction, applyCurrent, applyTeam, applyEnemy, queueOutro, revokeCurrent } from "./context.js";
@@ -32,6 +33,11 @@ export interface GearDef {
    *  to also give here. Leaving both unset means this Gear reports as "" everywhere; that's a
    *  bug in whatever kit does it, not something worth a guard here. */
   name?: string;
+  /** Named for a stat's own hover, but not a buff in its own right: kept out of the held-buff
+   *  popovers. For a piece that exists only to pay a bonus on something else's behalf — the Unison
+   *  Boon's amplification, the Tune Strain payout — where the name says what pays, and the buff
+   *  that actually stands is listed elsewhere. */
+  hidden?: boolean;
   /** Runs once, the moment this Gear is `equip()`-ped during team setup — never mid-fight.
    *  For anything that happens on entering combat, not on a specific cast (Phrolova's Octet:
    *  10 Aftersound the instant she's on the team, regardless of when she first acts). */
@@ -118,6 +124,8 @@ let nextGearId = 1;
  *  eventually the resonator itself (TODO_ENGINE.md). `Buff` is a plain named subclass, same
  *  reasoning the old engine used for Debuff/GlobalBuff/Mode. */
 export class Gear {
+  /** See `GearDef.hidden` — named for a stat's hover, absent from the held-buff popovers. */
+  readonly hidden: boolean;
   name: string;
   /** How many stacks of this can be held at once. Only a `Buff` ever declares one (see `BuffDef`)
    *  — every other Gear is a single equipped piece, so 1. The field lives here rather than on
@@ -152,6 +160,7 @@ export class Gear {
   constructor(def: GearDef) {
     this.id = nextGearId++;
     this.name = def.name ?? "";
+    this.hidden = !!def.hidden;
     this.field = def.field ?? null;
     this.combatStartFn = def.combatStart;
     this.updateDebuffsFn = def.updateDebuffs;
@@ -334,9 +343,12 @@ export interface LoadoutDef {
   weapons: (Weapon | Weapon[])[];
   echoLoadouts: EchoLoadout[];
   mainstats: Buff[];
-  substat: Buff;
-  /** Worn instead of `substat` when that role's High Invest Substats box is on. */
-  highSubstat: Buff;
+  /** Every ER tier this build's ChemX32 spread comes in (shared/substats.ts) — the run picks one
+   *  off the member's own ER requirement. */
+  substat: ErSpread;
+  /** Worn instead of `substat` when that role's High Invest Substats box is on — its own ER tiers,
+   *  picked off the same requirement (a kit with no Liberation to pay for has only the bare one). */
+  highSubstat: ErSpread;
   /** One rotation for every sequence level, or a map from the level a rotation takes over at to
    *  that rotation — `{ 0: base, 3: withStrawCape }` — S0 always named; a level not named runs the
    *  nearest one declared below it. */
@@ -370,8 +382,8 @@ export class Loadout {
    *  `mainstatOptions()`) — a list for the same reason `weapons`/`echoLoadouts` are, the table
    *  runs one row per combination. A pure support names just the one. */
   mainstats: Buff[];
-  substat: Buff;
-  highSubstat: Buff;
+  substat: ErSpread;
+  highSubstat: ErSpread;
   /** This build's whole rotation, already compiled into the up-to-three action chains the
    *  scheduler schedules — start of combat, opener, and the Intro chain every visit after
    *  (rotation.ts). One field, not an opener/loop pair: the chains share a body, so splitting
@@ -423,12 +435,21 @@ export class Loadout {
    *  S0, 6 for the full chain — the comparison table runs one row per level so the gain from each
    *  can be read off (see index.ts's own combos). `matrix` is whether Matrix Mode is on — the
    *  piece only goes on when it is *and* this resonator has one. `highSubs` swaps the substat
-   *  piece for the high-investment one (that role's own box). */
-  pieces(weapon: Weapon, echo: EchoLoadout, mainstat: Buff, sequenceLevel: number, matrix = false, highSubs = false): Gear[] {
+   *  piece for the high-investment one (that role's own box); `erRolls` is how many ER rolls this
+   *  member's rotation turned out to need, which picks the ChemX32 tier. */
+  /** The substat piece this build wears: the tier `erRolls` asks for. ChemX32 carries its single
+   *  ER roll whatever the bar costs — it is one of the eight the spread does not name. The high
+   *  spread spends that slot on the sixth stat instead where the Liberation costs nothing. */
+  spread(highSubs: boolean, erRolls: number): Buff {
+    if (!highSubs) return this.substat.at(erRolls);
+    return this.resonator.maxEnergy ? this.highSubstat.at(erRolls) : (this.highSubstat.noEr ?? this.highSubstat.at(0));
+  }
+
+  pieces(weapon: Weapon, echo: EchoLoadout, mainstat: Buff, sequenceLevel: number, matrix = false, highSubs = false, erRolls = 1): Gear[] {
     const r = this.resonator;
     return [
       r, r.talent, r.inherent1, r.inherent2,
-      weapon, ...echo.pieces(), mainstat, highSubs ? this.highSubstat : this.substat,
+      weapon, ...echo.pieces(), mainstat, this.spread(highSubs, erRolls),
       ...this.sequences.slice(0, sequenceLevel),
       this.mode,
       matrix ? r.matrix : undefined,

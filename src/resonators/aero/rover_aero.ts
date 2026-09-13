@@ -26,6 +26,7 @@ import {
   runningAction,
   addStat,
   forte1,
+  asSource,
 } from "../../engine/context.js";
 import { Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import { AERO_EROSION, SPECTRO_FRAZZLE, HAVOC_BANE, FUSION_BURST, GLACIO_CHAFE, ELECTRO_FLARE, HEALS } from "../../shared/status.js";
@@ -191,7 +192,10 @@ export const ROVER_AERO_RESONATOR = new Resonator({
   updateBuffs: () => {
     // the held rank's own amp — the five refinements and their amp buffs line up by index
     const rank = BLOODPACTS_PLEDGE.findIndex((w) => isHeld(w));
-    if ((runningAction(UnboundFlow1) || runningAction(UnboundFlow2)) && rank >= 0) applyTeam(BLOODPACT_AERO_AMP[rank]!, 1);
+    if (!(runningAction(UnboundFlow1) || runningAction(UnboundFlow2)) || rank < 0) return;
+    // the clause is the weapon's, only its trigger lives here, so the amp files under the weapon
+    // rather than under this kit — otherwise the sword's own hover never shows what it pays
+    asSource(BLOODPACTS_PLEDGE[rank]!, () => applyTeam(BLOODPACT_AERO_AMP[rank]!, 1));
   },
 
 });
@@ -225,8 +229,8 @@ export const ROVER_AERO = new Loadout({
     new EchoLoadout(FLEURDELYS, WINDWARD_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Skill, Substat.Er, Substat.FlatAtk),
+  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Liberation),
     rotation: AR_ROTATION,
   sequences: [AR_S1, AR_S2, AR_S3, AR_S4, AR_S5, AR_S6],
 });

@@ -225,7 +225,7 @@ const XLY_SEQUENCES = [XLY_S1, XLY_S2, XLY_S3, XLY_S4, XLY_S5, XLY_S6];
 const UBA123 = new ActionGroup("Basic - Pivot: Impale 123", [UBA1, UBA2, UBA3]);
 
 const XLY_ROTATION = new Rotation([
-  INTRO, Skill, Skill, // TODO swapped
+  INTRO, //Skill, Skill, // TODO swapped
   Liberation,
   USkill, FBA, UForte,
   UBA123, UForte,
@@ -242,8 +242,8 @@ export const XIANGLI_YAO = new Loadout({
   weapons: [IUNO_SIG, NEW_STD_GAUNTLET, VERITYS_HANDLE, ABYSS_SURGES],
   echoLoadouts: [new EchoLoadout(NM_MEPHIS, VOID_THUNDER_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Er),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill),
   rotation: XLY_ROTATION,
   sequences: XLY_SEQUENCES,
 });

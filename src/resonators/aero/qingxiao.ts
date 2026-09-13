@@ -6,7 +6,7 @@
  * Heart Sword Intent for Heaven's Reckoning, which spends it and ends the state.
  *
  * Every damaging cast of hers lays Tune Strain - Shifting (once per skill per target — once per
- * cast here), she responds to Strain like Lynae/Mornye/Denia (TUNE_STRAIN_RESPONDER) and raises the
+ * cast here), she responds to Strain like Lynae/Mornye/Denia (see `strainPayout`) and raises the
  * Interfered cap by 1. Mindlock is her own enemy debuff: +1 per Tune Strain - Interfered the team
  * inflicts (+1 more against an Overlord/Calamity target — assumed: the standing target is a boss),
  * +3 off Heavy Attack - Stringblade under Heaven's Clarity, plus Gathered Mind's own opening
@@ -59,7 +59,7 @@ import {
   addBuff,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, START_3, SWAP } from "../../engine/rotation.js";
-import { applyStrain, TUNE_BREAK, TUNE_STRAIN_SHIFTING, TUNE_STRAIN_INTERFERED, TUNE_STRAIN_RESPONDER } from "../../shared/tunebreak.js";
+import { applyStrain, TUNE_BREAK, TUNE_STRAIN_SHIFTING, TUNE_STRAIN_INTERFERED, strainPayout } from "../../shared/tunebreak.js";
 import { GLINT_OF_CLOUDS, RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS, NEW_STD_SWORD } from "../../weapons/standard.js";
 import { CALAMITY_EFFIGY, HEART_OF_EVILS_PURGE_5PC } from "../../echoes/mengzhou.js";
@@ -253,6 +253,9 @@ const QINGXIAO_TALENTS = new Talent({
   stats: [[Stat.BonusAtk, 12], [Stat.CritDmg, 16]],
 });
 
+/** This kit's own carrier for the Tune Strain payout (tunebreak.ts's `strainPayout`). */
+const QX_STRAIN_PAYOUT = strainPayout();
+
 const QINGXIAO_RESONATOR = new Resonator({
   name: "Qingxiao",
   stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.22], [Stat.Tbb, 10]],
@@ -271,9 +274,10 @@ const QINGXIAO_RESONATOR = new Resonator({
   // Draw and Sunder: "while Qingxiao is in the team"; Heaven's Clarity and Formless Heart Sword
   // are up from the first action
   combatStart: () => {
-    maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(TUNE_STRAIN_RESPONDER, 1);
+    maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(QX_STRAIN_PAYOUT, 1);
     applyCurrent(HEAVENS_CLARITY, 1);
   },
+
 
   // every damaging cast of hers lays Tune Strain - Shifting (the echo is its own cast, not hers)
   updateDebuffs: () => {
@@ -382,7 +386,7 @@ const MA123 = new ActionGroup("Mid-air - Stringblade 123", [MA1, MA2, MA3]);
 const BA34 = new ActionGroup("Basic - Stringblade 34", [BA3, BA4]);
 
 const QX_ROTATION = new Rotation([
-  START_3, Liberation, SWAP,
+  START_3, Liberation, ECHO_SWAP, SWAP,
   INTRO, MA123, BA34, Skill, HA,
   FBA1234, FHA,
   Liberation, ECHO_SWAP, OUTRO,
@@ -394,8 +398,8 @@ export const QINGXIAO = new Loadout({
   echoLoadouts: [new EchoLoadout(CALAMITY_EFFIGY, HEART_OF_EVILS_PURGE_5PC),
       new EchoLoadout(NM_KELPIE, WINDWARD_5PC),],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.FlatAtk, Substat.Liberation, Substat.Er),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.FlatAtk, Substat.Heavy, Substat.Liberation),
   rotation: QX_ROTATION,
   sequences: QX_SEQUENCES,
 });

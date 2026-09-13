@@ -150,6 +150,11 @@ export interface ResolvedSnapshot extends Result, Snapshot {
  *  follow-up is already its own top-level row — see `run()`), so every group is a single action,
  *  never collapsed. Kept only so display.ts's own `buildReport(lines: ChainGroup[])` — otherwise
  *  unmodified — still has something to consume. */
+/** Thrown by a Liberation that fires on a bar its build could never have filled, so the run can be
+ *  abandoned where it stands rather than finished — caught by `runTeam`, which raises the ER tier
+ *  and starts again. A marker, not an error: it carries nothing and never leaves teamrun. */
+export const ER_SHORT = { erShort: true, member: "", need: 0 };
+
 export interface ChainGroup<S extends Result = ResolvedSnapshot> {
   id: string;
   isChain: boolean;
@@ -379,7 +384,8 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
       const base = slot.constBase.get(ctx.tagWord)!;
       at = { bases: [], diffs: [] };
       for (let v = 0; v < slot.variants.length; v++) {
-        const vbase = constBaseOf(slot, slot.variantOf, slot.variants[v]!), diff: number[] = [];
+        const sub = slot.variantSubs[v] ?? null;
+        const vbase = constBaseOf(slot, slot.variantOf, slot.variants[v]!, sub && slot.variantSubOf, sub), diff: number[] = [];
         for (let i = 0; i < vbase.length; i++) if (vbase[i] !== base[i]) diff.push(i);
         at.bases.push(vbase); at.diffs.push(diff);
       }
@@ -451,9 +457,9 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
     // nameless gear is engine machinery someone's setup put there, not a buff a kit put up
     // (tunebreak.ts's own watcher), so it belongs in no popover — same exclusion equipped gear gets
     const named = (b: HeldBuff): boolean => b.name !== "";
-    heldLocal = heldPools![0]!.filter(([g]) => !slot.equipped.has(g)).map(describe).filter(named);
-    heldGlobal = heldPools![1]!.map(describe).filter(named);
-    heldEnemy = heldPools![2]!.filter(([g]) => !state.enemy.equipped.has(g)).map(describe).filter(named);
+    heldLocal = heldPools![0]!.filter(([g]) => !slot.equipped.has(g) && !g.hidden).map(describe).filter(named);
+    heldGlobal = heldPools![1]!.filter(([g]) => !g.hidden).map(describe).filter(named);
+    heldEnemy = heldPools![2]!.filter(([g]) => !state.enemy.equipped.has(g) && !g.hidden).map(describe).filter(named);
   }
   ctx.stacks = -1;
   ctx.buff = null;
@@ -518,8 +524,8 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
   state.offtune += (built < 0 ? built : built * (effective[Stat.OfftuneBuildup]! / 100)) + effective[Stat.DirectOfftune]!;
 
   // RealEnergy (TeamMember.realEnergy): the same gain as the real Energy bar above, each holder
-  // capped at their own maxEnergy, plus half of it shared to every *other* member — a standing
-  // assumption for the ER-requirement estimate, not a real game mechanic. Captured before this
+  // capped at their own maxEnergy, plus half of it shared to every *other* member — this is
+  // the real ingame mechanic for energy being automatically shared across the team. A Liberation that resets the bar is a special case: it
   // action's own gain lands, so a resetEnergy-marked Liberation's "before" value excludes its own
   // contribution — exactly the "banked coming into this cast" figure the ER requirement wants.
   const realEnergyBefore = slot.realEnergy;
@@ -528,7 +534,36 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
   for (const other of state.slots) {
     if (other !== slot) other.realEnergy = capEnergy(other, other.realEnergy + shared);
   }
-  if (action.resetEnergy) slot.realEnergy = 0;
+  // The ER-requirement window (teamrun.ts's `erRollsFor`): two running sums and nothing else, so
+  // every run carries the requirement without a second pass. The Liberation that closes a window
+  // is in neither it nor the next, matching how the detail page walks the same span.
+  if (action.resetEnergy) {
+    slot.libCasts++;
+    if (slot.libCasts > 1) {
+      slot.erBefore = realEnergyBefore;
+      slot.erA = slot.erGainEr;
+      slot.erG = slot.erGain;
+      // what this one Liberation asked of the constant ER. Every window counts, the opener's
+      // included — only the very first cast is free, on the bar combatStart hands over.
+      const want = realEnergyBefore > 0
+        ? ((slot.resonator?.maxEnergy ?? 0) * 100 - (slot.erGainEr - slot.constEr * slot.erGain)) / realEnergyBefore
+        : 0;
+      if (want > slot.erWorst) slot.erWorst = want;
+      // Nothing after this point can make the bar have been full, so the rest of the fight is run
+      // on a build that cannot cast what its rotation lists. Bail here and let teamrun re-equip.
+      if (slot.erGuard && want > slot.constEr + 1e-9) {
+        ER_SHORT.member = slot.name;
+        ER_SHORT.need = want;
+        throw ER_SHORT;
+      }
+    }
+    slot.erGainEr = 0;
+    slot.erGain = 0;
+    slot.realEnergy = 0;
+  } else if (!energyWiped) {
+    slot.erGain += energyGain;
+    slot.erGainEr += energyGain * effective[Stat.Er]!;
+  }
 
   // same shape, for whichever forte gauges this action declares a delta on — a kit assigns its
   // own meaning onto whichever slot fits (Jingran's Qi is forte1, his Mingfire is forte2) — plus
@@ -709,6 +744,19 @@ export function run(state: State, rotation: Action[]): Result[] {
     const before = state.active;
     state.onField = before;
     if (step.slot >= 0) state.active = step.slot;
+    // A marker that gates the entry after it rather than standing for a cast (rotation.ts's own
+    // EVERY_OTHER): it never lands itself, and a skip swallows the whole group where the entry it
+    // gates is one. Read through the same "current" pointers as any other marker.
+    if (step.action.skipNextFn) {
+      ctx.state = state;
+      ctx.slot = state.slot;
+      if (step.action.skipNextFn()) {
+        const gated = steps[i];
+        i++;
+        if (gated?.group) while (i < steps.length && steps[i]!.group === gated.group) i++;
+      }
+      continue;
+    }
     let action: Action | null = step.action;
     if (step.action.resolveFn) {
       // a marker reads state via the "current" pointers, same as any other kit logic — evaluate()
@@ -802,16 +850,18 @@ function capture(slot: TeamMember, state: State): void {
 
 /** Every captured Gear's constantStats summed into a fresh array, in roster order — the slot's
  *  own cached base for one tag word. With `from`/`to`, the one Gear `from` (a held main-stat Buff)
- *  is stood in for by `to` at the very same position, so a variant's base is built by exactly the
- *  additions, in exactly the order, a real run wearing `to` would make. */
-function constBaseOf(slot: TeamMember, from: Gear | null, to: Gear | null): number[] {
+ *  is stood in for by `to` at the very same position — and `from2` by `to2` likewise, the substat
+ *  tier a variant's ER moves — so a variant's base is built by exactly the additions, in exactly
+ *  the order, a real run wearing them would make. */
+function constBaseOf(slot: TeamMember, from: Gear | null, to: Gear | null, from2: Gear | null = null, to2: Gear | null = null): number[] {
   const live = slot.effective;
   slot.effective = ZERO_STATS.slice();
   for (let q = 0; q < 3; q++) {
     const list = capList[q]!, counts = capCounts[q]!, hooks = capHooks[q]![6]!;
     for (let i = 0, m = hooks.length; i < m; i++) {
       const k = hooks[i]!;
-      const gear = list[k] === from ? to! : list[k]!;
+      const g = list[k]!;
+      const gear = g === from ? to! : g === from2 ? to2! : g;
       ctx.buff = gear; ctx.stacks = counts[k]!;
       gear.constantStatsFn!();
     }

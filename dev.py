@@ -4,8 +4,7 @@ the two compilers that produce what it serves (`tsc --watch` and `esbuild --watc
     python dev.py                    ->  run in the foreground, ctrl-c stops all three
     python dev.py 9000               ->  ...on another port
     python dev.py --serve-only       ->  the server alone, no compilers
-    python dev.py --install-autostart ->  start it at every logon, hidden, and start it now
-    python dev.py --remove-autostart  ->  undo that (also just delete the .vbs it names)
+    python dev.py --detach           ->  leave it running in the background and return at once
 
 then http://127.0.0.1:8731/index.html.
 
@@ -87,6 +86,26 @@ def _snapshot() -> dict:
     return state
 
 
+def _sweep_chunks() -> None:
+    """Delete the chunks esbuild has stopped referencing. It content-hashes the shared chunk into a
+    new `chunk-<hash>.js` on every rebuild and never removes the last one, so a long watch session
+    piles up ~750KB per edit. A chunk newer than the entries is left alone: mid-rebuild that is the
+    incoming one, written before the index.js that will name it."""
+    bundle = ROOT / "dist" / "bundle"
+    entries = [bundle / "index.js", bundle / "solver.js"]
+    try:
+        named = "".join(e.read_text(encoding="utf-8") for e in entries)
+        newest = max(e.stat().st_mtime for e in entries)
+    except OSError:
+        return  # no bundle yet, or a read lost to a rebuild — nothing safe to delete
+    for p in bundle.glob("chunk-*.js"):
+        try:
+            if p.name not in named and p.stat().st_mtime <= newest:
+                p.unlink()
+        except OSError:
+            pass  # raced with esbuild's own write; the next sweep gets it
+
+
 def _watch_loop() -> None:
     global _stamp
     last = _snapshot()
@@ -96,6 +115,9 @@ def _watch_loop() -> None:
         time.sleep(POLL_SECONDS)
         cur = _snapshot()
         if cur != last:
+            # before the stamp, so the deletions are already in the snapshot the page reloads onto
+            _sweep_chunks()
+            cur = _snapshot()
             with _lock:
                 _stamp = str(zlib.crc32(repr(sorted(cur.items())).encode()))
             last = cur
@@ -126,13 +148,60 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
             return
         super().do_GET()
 
-    def log_message(self, fmt, *args):  # one line per request, without the timestamp noise
-        sys.stderr.write("%s\n" % (fmt % args))
+    def log_message(self, fmt, *args):
+        """One line per request, without the timestamp noise — and never onto an inherited pipe.
+
+        A pipe whose reader has gone (the terminal or agent session that launched this, once it
+        ends) blocks on write rather than failing, and since this runs on the handler thread every
+        request would wedge behind it: the port stays open, nothing is answered, and `dev.py` sees
+        a live listener and declines to restart. A file cannot block that way; a tty is a real
+        console someone is watching, so that still gets the line."""
+        line = "%s\n" % (fmt % args)
+        try:
+            if sys.stderr is not None and sys.stderr.isatty():
+                sys.stderr.write(line)
+                return
+        except Exception:
+            pass
+        try:
+            LOGS.mkdir(exist_ok=True)
+            with open(LOGS / "access.log", "a", encoding="utf-8") as fh:
+                fh.write(line)
+        except Exception:
+            pass
 
 
 def port_taken(port: int) -> bool:
     with socket.socket() as s:
         return s.connect_ex(("127.0.0.1", port)) == 0
+
+
+def responding(port: int, timeout: float = 3.0) -> bool:
+    """Whether something on the port actually answers, not merely accepts.
+
+    A wedged server still holds the socket open, so "is the port taken" cannot tell a healthy copy
+    from one that will never reply — and that is the difference between "nothing to do" and "the
+    page is down for no reason"."""
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout) as s:
+            s.settimeout(timeout)
+            s.sendall(b"HEAD / HTTP/1.0\r\n\r\n")
+            return s.recv(12).startswith(b"HTTP/")
+    except OSError:
+        return False
+
+
+def listener_pid(port: int) -> int | None:
+    """The pid holding the port, off netstat — used only to clear a wedged copy of this server."""
+    try:
+        out = subprocess.run(["netstat", "-ano"], capture_output=True, text=True, timeout=15).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) >= 5 and parts[0] == "TCP" and parts[1].endswith(f":{port}") and parts[3] == "LISTENING":
+            return int(parts[4])
+    return None
 
 
 def start_watcher(name: str, bin_path: Path, args: list[str]) -> subprocess.Popen | None:
@@ -154,15 +223,59 @@ def start_watcher(name: str, bin_path: Path, args: list[str]) -> subprocess.Pope
 
 
 
+def pythonw() -> Path:
+    """The windowless interpreter beside this one, so a detached copy has no console to show."""
+    exe = Path(sys.executable)
+    beside = exe.with_name("pythonw.exe")
+    return beside if beside.exists() else exe
+
+
+def detach() -> None:
+    """This same script again without --detach, windowless and off this process tree, so the caller
+    returns at once and the watchers outlive the terminal that started them."""
+    LOGS.mkdir(exist_ok=True)
+    log = open(LOGS / "dev.log", "w", encoding="utf-8", buffering=1)
+    rest = [a for a in sys.argv[1:] if a != "--detach"]
+    subprocess.Popen(
+        [str(pythonw()), str(Path(__file__).resolve()), *rest], cwd=ROOT,
+        stdout=log, stderr=subprocess.STDOUT,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0),
+    )
+
+
 def main() -> int:
     args = sys.argv[1:]
     serve_only = "--serve-only" in args
     positional = [a for a in args if not a.startswith("--")]
     port = int(positional[0]) if positional else DEFAULT_PORT
 
-    if port_taken(port):
+    if responding(port):
         print(f"already serving on http://127.0.0.1:{port}/ - nothing to do")
         return 0
+
+    # Holding the socket without answering: a copy that wedged rather than exited. Left alone it
+    # keeps the port and the page stays dark, so it is cleared and replaced rather than reported.
+    if port_taken(port):
+        pid = listener_pid(port)
+        print(f"port {port} held by an unresponsive server (pid {pid}) - replacing it")
+        if pid:
+            subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+        for _ in range(20):
+            if not port_taken(port):
+                break
+            time.sleep(0.25)
+        else:
+            print(f"could not free port {port}")
+            return 1
+
+    # after the port check, so asking to detach onto a port already served is still a no-op
+    if "--detach" in args:
+        detach()
+        print(f"serving http://127.0.0.1:{port}/index.html in the background (logs/dev.log)")
+        return 0
+
+    # clear whatever the last session left behind before the watch starts adding to it
+    _sweep_chunks()
 
     children = []
     if not serve_only:

@@ -17,7 +17,7 @@
  *   Fusion DMG Bonus while an Entropy Shift is up, and her Outro amplifies Fusion Burst DMG 60%
  *   around the active resonator.
  * - **Tune Strain**: the same casts lay Tune Strain - Shifting instead, Etched Colors hands the
- *   team Tune Break Boost, she responds to Strain the way Lynae/Mornye do (TUNE_STRAIN_RESPONDER), and
+ *   team Tune Break Boost, she responds to Strain the way Lynae/Mornye do (see `strainPayout`), and
  *   her Outro is a 15%/40% All DMG Amp handoff.
  *
  * Gauges: Void Particle is forte1 (0-100) and Conformal Charge forte2 (0-100); Dark Cores are an
@@ -74,7 +74,7 @@ import { applied, applyEnemy } from "../../engine/context.js";
 import { coordinatedBuff } from "../../shared/helpers.js";
 import { FUSION_BURST, FUSION_BURST_ACTIONS } from "../../shared/status.js";
 import { ENEMY_MAX_OFFTUNE, TUNE_STRAIN_SHIFTING } from "../../shared/tunebreak.js";
-import { applyStrain, TUNE_STRAIN_INTERFERED, TUNE_STRAIN_RESPONDER } from "../../shared/tunebreak.js";
+import { applyStrain, TUNE_STRAIN_INTERFERED, strainPayout } from "../../shared/tunebreak.js";
 import { FORGED_DWARF_STAR, STRINGMASTER } from "../../weapons/rectifier.js";
 import { COSMIC_RIPPLES, NEW_STD_RECTIFIER } from "../../weapons/standard.js";
 import {
@@ -135,7 +135,7 @@ const Banish2 = deniaAction("Skill - Banish 2", { cutscene: true,node: Node.Skil
 // --- Final Act. Stagecraft spends the Energy bar (125); Breakdown spends the full Conformal
 //     Charge and every Void Particle instead (zeroed in DENIA_RESONATOR's update — "all", not a fixed
 //     delta), and drops the Erosion Field: a 136.33% Liberation pull every 4s for 30s — seven
-//     ticks, one every five active presses by anyone (EROSION_FIELD below), each its own cast to
+//     ticks, one every four active presses by anyone (EROSION_FIELD below), each its own cast to
 //     the modes below.
 const Lib1 = deniaAction("Liberation - Final Act (Stagecraft)", {
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 397.62,
@@ -154,7 +154,7 @@ const Lib2 = deniaAction("Liberation - Final Act (Breakdown)", {
     // only one field of hers at a time: a fresh cast starts the clock over
     const field = isHeld(DN_S4) ? EROSION_FIELD_S4 : EROSION_FIELD;
     revokeTeam(field);
-    applyTeam(field, isHeld(DN_S4) ? 30 : 35);
+    applyTeam(field, 30);
   },
 });
 /** Her field, and the one pull of it — the pair sits together the way a status ladder sits with
@@ -201,6 +201,9 @@ const inflictsOne = (): boolean => runningAction(BA3) || runningAction(BA4) || r
  *  reads `applied()` the same action. Fusion Burst detonates itself once the target is at the cap
  *  (statuses.ts), so nothing here has to fire its damage.
  *  Strain also responds to Strain, and the team's first Shifting fills half the off-tune bar. */
+/** This kit's own carrier for the Tune Strain payout (tunebreak.ts's `strainPayout`). */
+const DE_STRAIN_PAYOUT = strainPayout();
+
 const MODE_BURST = new ResonanceMode({
   name: "Resonance Mode - Fusion Burst",
   updateDebuffs: () => {
@@ -213,7 +216,7 @@ const MODE_STRAIN = new ResonanceMode({
 
   // Shattered Hours: "while Denia is in the team", whichever mode
   combatStart: () => {
-    maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(TUNE_STRAIN_RESPONDER, 1);
+    maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(DE_STRAIN_PAYOUT, 1);
     applyTeam(OFFTUNE_SURGE, 1);
   },
   updateDebuffs: () => { if (inflictsTwo() || inflictsOne()) applyStrain(); },
@@ -271,10 +274,10 @@ const ENTROPY_BREAKDOWN = new Buff({
 });
 
 /** Erosion Field: 30s from Final Act - Breakdown, pulling every 4s — on this clockless engine
- *  thirty-five active, non-triggered presses by anyone on the team, one tick every fifth of them,
+ *  thirty active, non-triggered presses by anyone on the team, one tick every fourth of them,
  *  seven in all. The same window every other field is (shared/helpers.ts): team-held so it counts
  *  everyone's turns, ticking onto her own slot whoever is on field, and gone with the last of them. */
-const EROSION_FIELD = coordinatedBuff("Denia: Erosion Field", 35, () => DENIA_RESONATOR, ErosionField, { every: 5 });
+const EROSION_FIELD = coordinatedBuff("Denia: Erosion Field", 30, () => DENIA_RESONATOR, ErosionField, { every: 4 });
 /** The same field on S4's own 3s interval: ten pulls across the 30s rather than seven, counted the
  *  only way this engine can count them — one every third press, over the thirty that fit. */
 const EROSION_FIELD_S4 = coordinatedBuff("Denia: Erosion Field", 30, () => DENIA_RESONATOR, ErosionField, { every: 3 });
@@ -546,7 +549,7 @@ const DN_ROTATION_BURST_S3 = new Rotation([
   NOINTRO,
   INTRO, Lib1,
   UBA1234, 
-  Lib2, 
+  USkill12, Lib2,
   ECHO_SWAP, OUTRO,
 ]);
 
@@ -561,9 +564,9 @@ export const DENIA_BURST = new Loadout({
     new EchoLoadout(LIONESS_OF_GLORY, CLAWPRINT_5PC),
     new EchoLoadout(SIGILLUM, TRAILBLAZING_STAR_5PC), 
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Liberation, Substat.Er, Substat.FlatAtk),
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Basic),
   rotation: { 0: DN_ROTATION_BURST, 3: DN_ROTATION_BURST_S3 },
   sequences: DN_SEQUENCES,
   mode: MODE_BURST,
@@ -584,8 +587,8 @@ const DN_ROTATION_STRAIN = new Rotation([
 const DN_ROTATION_STRAIN_S3 = new Rotation([
   NOINTRO,
   INTRO, Lib1,
-  UBA12, JUMP, UBA12, USkill12,
-  Lib2,
+  UBA12, JUMP, UBA12,
+  USkill12, Lib2,
   ECHO_SWAP, OUTRO,
 ]);
 
@@ -596,9 +599,9 @@ export const DENIA_STRAIN = new Loadout({
     new EchoLoadout(VOIDWING_MOTH, REEL_5PC),
     new EchoLoadout(HYVATIA, NEONLIGHT_LEAP_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Liberation, Substat.Er, Substat.FlatAtk),
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
   rotation: { 0: DN_ROTATION_STRAIN, 3: DN_ROTATION_STRAIN_S3 },
   sequences: DN_SEQUENCES,
   mode: MODE_STRAIN,

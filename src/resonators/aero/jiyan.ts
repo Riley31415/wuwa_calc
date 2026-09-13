@@ -43,7 +43,7 @@ import {
   onCast,
 } from "../../engine/context.js";
 import { matrix } from "../../shared/helpers.js";
-import { Action, Rotation, START_3, SWAP, INTRO, ECHO_CANCEL, OUTRO, ActionField, DODGE } from "../../engine/rotation.js";
+import { Action, Rotation, START_3, SWAP, INTRO, ECHO_CANCEL, OUTRO, ActionField, DODGE, ECHO_ONFIELD, ECHO_SWAP } from "../../engine/rotation.js";
 import { VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC } from "../../echoes/jinzhou.js";
@@ -262,7 +262,7 @@ const JY_SEQUENCES = [JY_S1, JY_S2, JY_S3, JY_S4, JY_S5, JY_S6];
 const JY_ROTATION = new Rotation([
   START_3, SkillLowResolve.swap(), SWAP,
 
-  INTRO, ECHO_CANCEL,
+  INTRO, 
   Liberation,
   Lance1, USkill, 
   Lance1, DODGE,
@@ -271,7 +271,7 @@ const JY_ROTATION = new Rotation([
   Lance1, DODGE,
   Lance1, DODGE,
   Lance1, DODGE,
-  SkillLowResolve.swap(), OUTRO,
+  SkillLowResolve, ECHO_SWAP, OUTRO,
 ]);
 
 
@@ -285,8 +285,8 @@ export const JIYAN = new Loadout({
   echoLoadouts: [new EchoLoadout(NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC),
       new EchoLoadout(NM_KELPIE, WINDWARD_5PC),],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Er),
+  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill),
   rotation: JY_ROTATION,
   sequences: JY_SEQUENCES,
 });

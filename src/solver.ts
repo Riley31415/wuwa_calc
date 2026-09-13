@@ -6,7 +6,7 @@
 import { Buff, Loadout, EchoLoadout, Weapon, baseSequence } from "./engine/gear.js";
 import { Tier } from "./engine/stats.js";
 import type { Matrix } from "./engine/gear.js";
-import { runTeam, scoreOf } from "./teamrun.js";
+import { runTeam, scoreOf, erRollsFor } from "./teamrun.js";
 import type { TeamRun, RowScore } from "./teamrun.js";
 import { teamAt } from "./teams.js";
 
@@ -23,7 +23,8 @@ export const member = (loadout: Loadout, mainDps = false): Member =>
 
 /** `matrix` is the piece worn: the loadout's Matrix while that resonator's own Matrix filter is
  *  on (`matrixOn`), else null. */
-export interface Combo { weapon: Weapon; echo: EchoLoadout; mainstat: Buff; sequence: number; matrix: Matrix | null; highSubs: boolean; key: string; }
+/** `build` is `key` without the main stat: what an ER requirement is guessed by (teamrun.ts). */
+export interface Combo { weapon: Weapon; echo: EchoLoadout; mainstat: Buff; sequence: number; matrix: Matrix | null; highSubs: boolean; key: string; build: string; }
 
 /** The axes a resonator's rows can be opened up on. */
 export type Axis = "weapons" | "echoes" | "mainstats" | "substats" | "sequences" | "refines";
@@ -40,12 +41,18 @@ export const TEAM_COSTS = ["s0r0", "s0r1mdps", "s0r1",
   "s1r1mdps", "s2r1mdps", "s3r1mdps", "s6r1mdps", "s6r5mdps", "s6r5"] as const;
 export type TeamCost = typeof TEAM_COSTS[number];
 
+/** Which teams the table runs: the ones teams.ts marks `INTENDED`, or every combination its slot
+ *  lists allow. An unintended team is never solved or run while the box says `intended`. */
+export const TEAM_SCOPES = ["intended", "all"] as const;
+export type TeamScope = typeof TEAM_SCOPES[number];
+
 export interface Filters {
   /** The resonators running their own Matrix, by name. A full replacement of that member's build
    *  wherever they are fielded — not an axis: it opens no column and adds no row, the team simply
    *  runs with the Matrix on. Only a kit that has one can be named (see `matrixOn`). */
   matrix: string[];
   cost: TeamCost;
+  scope: TeamScope;
   /** Per axis, the resonators (by name) whose rows compare it; everyone else runs their best pick. */
   weapons: string[]; echoes: string[]; mainstats: string[]; substats: string[]; sequences: string[]; refines: string[];
   scoped: ScopedCompare[];
@@ -91,7 +98,7 @@ export const echoLabel = (l: Loadout, echo: EchoLoadout): string => echoLines(l,
 
 /** The page's opening state and what precompute.ts solves under — one definition so shipped keys match. */
 export const defaultFilters = (): Filters => ({
-  matrix: [], cost: "s0r1", weapons: [], echoes: [], mainstats: [], substats: [], sequences: [], refines: [], scoped: [],
+  matrix: [], cost: "s0r1", scope: "intended", weapons: [], echoes: [], mainstats: [], substats: [], sequences: [], refines: [], scoped: [],
 });
 
 export const axisOpen = (m: Member, filters: Filters, axis: Axis): boolean =>
@@ -132,6 +139,7 @@ export const comboOf = (l: Loadout, p: Pick): Combo => {
     weapon: l.refinements[p.weapon]![p.refine]!, echo: l.echoLoadouts[p.echo]!, mainstat: l.mainstats[p.mainstat]!,
     sequence: p.sequence, matrix, highSubs: p.highSubs,
     key: `${p.weapon}.${p.echo}.${p.mainstat}.s${p.sequence}.r${p.refine}${matrix ? ".m" : ""}${p.highSubs ? ".h" : ""}`,
+    build: `${p.weapon}.${p.echo}.s${p.sequence}.r${p.refine}${matrix ? ".m" : ""}${p.highSubs ? ".h" : ""}`,
   };
 };
 
@@ -273,7 +281,7 @@ function scoreMainstats(teamKey: string, members: Member[], picks: Pick[], who: 
 function scoreMainstatsRun(teamKey: string, members: Member[], picks: Pick[], who: number[], combo: Combo[]): Map<number, TeamRun[]> {
   const alts = members.map((m, i) => (who.includes(i)
     ? m.loadout.mainstats.map((_, k) => k).filter((k) => k !== picks[i]!.mainstat) : null));
-  const run = runTeam(teamKey, members, combo, false, alts.map((a, i) => a && a.map((k) => members[i]!.loadout.mainstats[k]!)));
+  const run = runTeam(teamKey, members, combo, false, alts.map((a, i) => a && a.map((k) => comboOf(members[i]!.loadout, { ...picks[i]!, mainstat: k }))));
   trialCache.set(trialKey(teamKey, combo), run);
   const out = new Map<number, TeamRun[]>();
   for (const i of who) {
@@ -282,7 +290,10 @@ function scoreMainstatsRun(teamKey: string, members: Member[], picks: Pick[], wh
     alts[i]!.forEach((k, v) => {
       const trial = picks.map((p, j) => (j === i ? { ...p, mainstat: k } : p));
       const variant = run.variantRuns[i]![v]!;
-      if (variant.unsafe) { scores[k] = trialRun(teamKey, members, trial); return; }
+      if (variant.unsafe) {
+        scores[k] = trialRun(teamKey, members, trial);
+        return;
+      }
       const c = members.map((m, j) => comboOf(m.loadout, trial[j]!));
       const scored: TeamRun = {
         state: run.state, teamKey, members, combo: c, rotationLines: null, variantRuns: [],
@@ -296,19 +307,32 @@ function scoreMainstatsRun(teamKey: string, members: Member[], picks: Pick[], wh
   return out;
 }
 
-/** Member `i`'s main stats ranked by their own damage out of `bySlot`, best first. */
-function rankedMainstats(scores: TeamRun[], m: Member): { mainstat: number; damage: number; total: number }[] {
+/** Member `i`'s main stats ranked by their own damage out of `bySlot`, best first — but a build
+ *  whose Energy bar the spread cannot fill ranks behind every one that can. Nothing in the fight
+ *  stops a Liberation firing on an empty bar, so an over-budget build otherwise scores highest and
+ *  would always win; where a main stat carrying ER is what makes the sonata reachable, this is what
+ *  reaches for it. Only when nothing fits does the plain damage order stand. */
+function rankedMainstats(scores: TeamRun[], m: Member, fills: (mainstat: number) => boolean): { mainstat: number; damage: number; total: number }[] {
   const ranked: { mainstat: number; damage: number; total: number }[] = [];
   scores.forEach((run, k) => ranked.push({ mainstat: k, damage: run.bySlot.get(m.name) ?? 0, total: run.total }));
-  return ranked.sort((a, b) => b.damage - a.damage);
+  ranked.sort((a, b) => b.damage - a.damage);
+  const fit = ranked.filter((r) => fills(r.mainstat));
+  return fit.length ? fit : ranked;
 }
+
+/** Whether member `i` wearing `mainstat` can carry the ER their Liberation wants. */
+const mainstatFills = (teamKey: string, members: Member[], picks: Pick[], i: number) => (mainstat: number): boolean => {
+  const l = members[i]!.loadout;
+  const combo = picks.map((p, j) => comboOf(members[j]!.loadout, j === i ? { ...p, mainstat } : p));
+  return erRollsFor(teamKey, members, combo)[i]! <= l.substat.tiers[l.substat.tiers.length - 1]!.rolls;
+};
 
 /** Each of `who`'s best main stat under `picks`, everyone else's as given — one run for the set. */
 function bestMainstats(teamKey: string, members: Member[], picks: Pick[], who: number[]): Pick[] {
   const scores = scoreMainstats(teamKey, members, picks, who);
   return picks.map((p, i) => {
     if (!who.includes(i)) return p;
-    const index = rankedMainstats(scores.get(i)!, members[i]!)[0]?.mainstat ?? p.mainstat;
+    const index = rankedMainstats(scores.get(i)!, members[i]!, mainstatFills(teamKey, members, picks, i))[0]?.mainstat ?? p.mainstat;
     return index === p.mainstat ? p : { ...p, mainstat: index };
   });
 }
@@ -316,7 +340,7 @@ function bestMainstats(teamKey: string, members: Member[], picks: Pick[], who: n
 /** One member's best main stat under one build, and the team total of that run — nobody else's
  *  damage moves with it, so that run is also the team's best under this build. */
 function bestMainstatFor(teamKey: string, members: Member[], picks: Pick[], i: number): { mainstat: number; total: number } {
-  const best = rankedMainstats(scoreMainstats(teamKey, members, picks, [i]).get(i)!, members[i]!)[0];
+  const best = rankedMainstats(scoreMainstats(teamKey, members, picks, [i]).get(i)!, members[i]!, mainstatFills(teamKey, members, picks, i))[0];
   return best ? { mainstat: best.mainstat, total: best.total } : { mainstat: picks[i]!.mainstat, total: 0 };
 }
 
@@ -341,6 +365,21 @@ export function optimizeTeam(teamKey: string, members: Member[], filters: Filter
     };
   });
   const run = (): TeamRun => trialRun(teamKey, members, picks);
+
+  /** Whether member `i` could fill their Energy bar on `at` — a sonata or mainslot carrying ER is
+   *  often the whole difference, so an infeasible pick is dropped and the rest stand. */
+  const canFill = (i: number, at: Pick): boolean => {
+    const l = members[i]!.loadout;
+    const combo = picks.map((p, j) => comboOf(members[j]!.loadout, j === i ? at : p));
+    return erRollsFor(teamKey, members, combo)[i]! <= l.substat.tiers[l.substat.tiers.length - 1]!.rolls;
+  };
+  // the opening pick is a cost rule's, not a search result, so it can itself be one the bar never
+  // fills — start the search from an echo that does, where the loadout has one
+  members.forEach((m, i) => {
+    if (canFill(i, picks[i]!)) return;
+    const fix = m.loadout.echoLoadouts.findIndex((_, e) => canFill(i, { ...picks[i]!, echo: e }));
+    if (fix >= 0) picks[i] = { ...picks[i]!, echo: fix };
+  });
 
   const sweepMainstats = (): boolean => {
     const next = bestMainstats(teamKey, members, picks, members.map((_, i) => i));
@@ -388,6 +427,9 @@ export function optimizeTeam(teamKey: string, members: Member[], filters: Filter
       if (!isSignature(m.loadout, 0)) return;
       const trial = picks.map((p, j) => (j === i ? { ...p, weapon: 0, refine: Math.min(p.refine, m.loadout.refinements[0]!.length - 1) } : p));
       const rerolled = bestMainstatFor(teamKey, members, trial, i);
+      // the one signature goes to a member who can still fill their bar wearing it — they keep it
+      // through the repair pass below, so handing it to someone it strands is handing it nowhere
+      if (!canFill(i, { ...trial[i]!, mainstat: rerolled.mainstat })) return;
       if (rerolled.total > best) { best = rerolled.total; winner = trial.map((p, j) => (j === i ? { ...p, mainstat: rerolled.mainstat } : p)); }
     });
     if (winner) {
@@ -419,6 +461,46 @@ export function optimizeTeam(teamKey: string, members: Member[], filters: Filter
       sweepMainstats();
       converge(true);
     }
+  }
+  // Every sweep judges one member against the teammates of the moment, so an echo that filled this
+  // member's bar can stop doing so once a teammate moves. One last pass puts anybody left short
+  // onto their best pick that does fill it — sonata and main stat together, since either can be
+  // the one carrying the ER — and repeats while that keeps moving somebody.
+  for (let pass = 0; pass < members.length; pass++) {
+    let moved = false;
+    members.forEach((m, i) => {
+      if (canFill(i, picks[i]!)) return;
+      let winner: Pick | null = null, best = -Infinity;
+      // the weapon is the build, not a lever the Energy solve may pull: whatever the damage sweep
+      // settled on stays on, the bar is paid out of sonata and main stat, or the team is unrunnable
+      m.loadout.echoLoadouts.forEach((_, echo) => {
+        m.loadout.mainstats.forEach((_, mainstat) => {
+          const at = { ...picks[i]!, echo, mainstat };
+          if (!canFill(i, at)) return;
+          const total = trialRun(teamKey, members, picks.map((p, j) => (j === i ? at : p))).total;
+          if (total <= best) return;
+          best = total;
+          winner = at;
+        });
+      });
+      if (!winner) return;
+      picks[i] = winner;
+      moved = true;
+    });
+    if (!moved) break;
+  }
+  // Nothing this member owns fills their bar: three ER rolls is as far as a spread goes, so the
+  // Energy has to come off an ER 3-cost main stat — and this kit has none to wear. The team is not
+  // runnable as listed, and saying so beats reporting damage from a Liberation that never fires.
+  for (let i = 0; i < members.length; i++) {
+    if (canFill(i, picks[i]!)) continue;
+    const l = members[i]!.loadout;
+    const rolls = erRollsFor(teamKey, members, picks.map((p, j) => comboOf(members[j]!.loadout, p)))[i]!;
+    // the build each member settled on, since the requirement is a property of the whole team's
+    // rotations and levels rather than of the one who came up short
+    const built = members.map((m, j) => `${m.name} s${picks[j]!.sequence}r${picks[j]!.refine + 1} ${m.loadout.refinements[picks[j]!.weapon]![picks[j]!.refine]!.name.replace(/ R\d$/, "")}`).join(", ");
+    throw new Error(`${members[i]!.name} on ${teamKey} (${built}) cannot fill their Energy bar: ${rolls} ER rolls wanted, `
+      + `${l.substat.tiers[l.substat.tiers.length - 1]!.rolls} is all a spread carries, and no ER 3-cost main stat is on their list`);
   }
   return picks;
 }
@@ -456,6 +538,9 @@ function buildsOf(m: Member, home: Pick, f: Filters, sig: boolean): Pick[] {
       picks.push({ ...at, refine, echo, highSubs });
     }
   }
+  // a pick whose gear cannot fill this member's Energy bar is no build at all — drop it and let the
+  // sonatas and mainslots that carry ER stand. Everything dropped means the kit itself is short, so
+  // the home pick stays and the row reads on whatever it can reach (teamrun.ts's `erFeasible`)
   return picks;
 }
 
@@ -520,6 +605,7 @@ function rowPicks(
   };
 
   const holder = sigHolder(members, best);
+  const homeCombo = members.map((m, i) => comboOf(m.loadout, best[i]!));
   const builds = cartesian(members.map((m, i) => buildsOf(m, best[i]!, filters, sigAllowed(i, holder, filters.cost))));
   const seen = new Map<string, Pick[]>();
   for (const picks of builds) {
@@ -543,7 +629,9 @@ function rowPicks(
     const scores = scoreMainstats(teamKey, members, settled, open);
     const top = new Map<number, number[]>();
     for (const i of open) {
-      top.set(i, rankedMainstats(scores.get(i)!, members[i]!).slice(0, MAINSTAT_ROWS).map((r) => r.mainstat));
+      // the comparison rows list every main stat on its own merits, over-budget ones included —
+      // it is the *picked* build that has to fill the bar, not the alternatives shown beside it
+      top.set(i, rankedMainstats(scores.get(i)!, members[i]!, () => true).slice(0, MAINSTAT_ROWS).map((r) => r.mainstat));
     }
     for (const mainstats of cartesian(members.map((_, i) => top.get(i) ?? [settled[i]!.mainstat]))) {
       rows.push(settled.map((p, i) => ({ ...p, mainstat: mainstats[i]! })));

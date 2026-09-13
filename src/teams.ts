@@ -1,8 +1,11 @@
 /**
- * Every team the comparison table runs, by slot: each entry is three lists, one per position, and
- * stands for every team picking one loadout from each. A one-loadout slot is a main DPS; a fixed
- * support says it is *not* one by naming its loadout twice. Position matters: slot 1 runs its opener.
- * Workers are handed a team's index into `ALL_TEAMS` (`teamKey`), which both threads build alike.
+ * Every team the comparison table runs, by slot: each entry is three positions, and stands for
+ * every team picking one loadout from each. A position names a bare loadout to be a main DPS, or a
+ * list of loadouts to be a support running each in turn — a support with only one choice is still
+ * a one-entry list. Position matters: slot 1 runs its opener. An `INTENDED` marker in front of an
+ * entry marks that one entry as a real team rather than a combination the cross-product merely
+ * allows. Workers are handed a team's index into `ALL_TEAMS` (`teamKey`), which both threads build
+ * alike.
  */
 import type { Loadout } from "./engine/gear.js";
 import { teamPlayable } from "./engine/rotation.js";
@@ -43,7 +46,7 @@ import {  CAMELLYA_DOUBLE } from "./resonators/havoc/camellya.js";
 import { CANTARELLA, CANTARELLA_MDPS } from "./resonators/havoc/cantarella.js";
 import { CHISA } from "./resonators/havoc/chisa.js";
 import { DANJIN } from "./resonators/havoc/danjin.js";
-import { PHRO_12s, PHRO_14s, PHROLO_10s } from "./resonators/havoc/phrolova.js";
+import { PHRO_12s, PHRO_14s, PHROLO_10s as PHRO_10s, PHROLO_10s } from "./resonators/havoc/phrolova.js";
 import { ROCCIA, ROCCIA_MDPS } from "./resonators/havoc/roccia.js";
 import { ROVER_HAVOC } from "./resonators/havoc/rover_havoc.js";
 import { XUANLING, XUANLING_2F } from "./resonators/havoc/xuanling.js";
@@ -55,169 +58,224 @@ import { ROVER_SPECTRO } from "./resonators/spectro/rover_spectro.js";
 import { SHOREKEEPER } from "./resonators/spectro/shorekeeper.js";
 import { VERINA } from "./resonators/spectro/verina.js";
 
-const TEAMS: Loadout[][][] = [
+/** One position in a team: the main DPS bare, or the list of loadouts a support position runs. */
+type Slot = Loadout | Loadout[];
+
+/** Marks the one team entry that follows it as intended — a pairing whose supports are each
+ *  actually consumed, not merely a combination the slot cross-product allows. Reaches exactly one
+ *  entry: every team you want on the Intended view names its own marker. */
+const INTENDED: Slot[] = [];
+
+const TEAMS: Slot[][] = [
 
   // suoming mdps, electro basic unison
-  [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [SANHUA, LYNAE_RUPTURE, REBECCA, JINHSI_SUPPORT], [SUOMING_MDPS]],
+  INTENDED, [[SHOREKEEPER], [SANHUA, JINHSI_SUPPORT], SUOMING_MDPS],
+  INTENDED, [[SHOREKEEPER, MORNYE], [LYNAE_RUPTURE], SUOMING_MDPS],
+  [[VERINA, MORNYE, SUISUI], [SANHUA, LYNAE_RUPTURE, REBECCA, JINHSI_SUPPORT], SUOMING_MDPS],
   // dual dps long rot
   // [[SHOREKEEPER, VERINA, BULING, MORNYE, SUISUI], [SUOMING_MDPS], [JINHSI]],
 
   // hsin, Unison mode: Suoming or Jinhsi behind her hands over the Unison her Intro answers
-  [[SHOREKEEPER, VERINA, BULING, MORNYE, SUISUI], [SUOMING, SUOMING], [HSIN_UNISON]],
-  //[[HSIN_UNISON], [JINHSI_SUPPORT, JINHSI_SUPPORT], [SUOMING, SUOMING], ],
-  [[SUOMING, SUOMING], [HSIN_UNISON], [JINHSI_SUPPORT, JINHSI_SUPPORT], ],
-  [[PHROLO_10s], [SUOMING, SUOMING], [HSIN_UNISON], ],
-  //[[JINHSI_SUPPORT, JINHSI_SUPPORT], [SUOMING, SUOMING], [HSIN_UNISON], ],
-
-  // jinhsi: spectro skill
-  [[SHOREKEEPER, VERINA, MORNYE, BULING, ZHEZHI, SUISUI], [ZHEZHI, YINLIN, CANTARELLA, LYNAE_RUPTURE, REBECCA, SUOMING, HSIN_UNISON], [JINHSI]],
-  // both worse with jinhsi first
-  // [[SHOREKEEPER, VERINA, MORNYE, BULING, ZHEZHI, SUISUI], [JINHSI], [SUOMING, HSIN_UNISON]],
+  INTENDED, [[SHOREKEEPER], [SUOMING], HSIN_UNISON],
+  INTENDED, [[SUOMING], HSIN_UNISON, [JINHSI_SUPPORT]],
+  [[VERINA, MORNYE, SUISUI, PHRO_10s, BULING], [SUOMING], HSIN_UNISON],
 
   // hsin (Electro Flare mode): electro skill flare
-  [[SUISUI, BULING, CHISA, SHOREKEEPER, MORNYE], [CHISA, ROVER_ELECTRO, LYNAE_RUPTURE, REBECCA], [HSIN_FLARE]],
+  INTENDED, [[SUISUI, BULING, CHISA], [ROVER_ELECTRO], HSIN_FLARE],
+  [[SHOREKEEPER, MORNYE, SUISUI, BULING, CHISA], [LYNAE_RUPTURE, REBECCA, CHISA, ], HSIN_FLARE],
+
+  // jinhsi: spectro skill
+  INTENDED, [[SHOREKEEPER, VERINA], [ZHEZHI, CANTARELLA, SUOMING, HSIN_UNISON, YINLIN], JINHSI],
+  [[MORNYE, SUISUI, SHOREKEEPER, VERINA, BULING], [LYNAE_RUPTURE, REBECCA, ZHEZHI, CANTARELLA, SUOMING, HSIN_UNISON, YINLIN], JINHSI],
 
   // electro rover mdps: Apex Resonance, the Thrum of All Sounds chains
-  [[BULING, CHISA, SHOREKEEPER, VERINA, MORNYE, SUISUI], [LYNAE_RUPTURE, REBECCA], [ROVER_ELECTRO_MDPS]],
+  INTENDED, [[BULING, CHISA, SHOREKEEPER, MORNYE], [LYNAE_RUPTURE], ROVER_ELECTRO_MDPS],
+  [[BULING, CHISA, SHOREKEEPER, VERINA, MORNYE, SUISUI], [LYNAE_RUPTURE, REBECCA], ROVER_ELECTRO_MDPS],
 
   // jingran: fusion heavy shielder
-  [[SHOREKEEPER, LUPA, VERINA, MORNYE], [IUNO, MORTEFI, BRANT, LUPA, LYNAE_RUPTURE, REBECCA], [JINGRAN]],
+  INTENDED, [[SHOREKEEPER], [IUNO, MORTEFI], JINGRAN],
+  INTENDED, [[LUPA], [MORTEFI, BRANT], JINGRAN],
+  INTENDED, [[MORNYE], [LUPA, REBECCA], JINGRAN],
+  [[SHOREKEEPER,VERINA, MORNYE, SUISUI], [IUNO, MORTEFI, REBECCA, LYNAE_RUPTURE, LUPA], JINGRAN],
 
   // qingxiao: aero heavy/basic/liberation on tune strain
-  [[MORNYE, SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA], [DENIA_STRAIN, LYNAE_STRAIN, ROVER_AERO, CIACCONA, SANHUA, MORTEFI, REBECCA, JIANXIN], [QINGXIAO]],
+  INTENDED,[[MORNYE, SHOREKEEPER], [DENIA_STRAIN, LYNAE_STRAIN], QINGXIAO],
+  [[MORNYE, SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA], [DENIA_STRAIN, LYNAE_STRAIN, ROVER_AERO, CIACCONA, SANHUA, MORTEFI, REBECCA, JIANXIN], QINGXIAO],
 
   // xuanling: havoc heavy attack on Havoc Bane — Chisa's +3 to every Negative Status cap is what
   // takes Unbroken Vow off its 3-stack 30% tier onto the 4-6 stack 36% one
-  [[SUISUI, MORNYE, CHISA, VERINA, SHOREKEEPER], [MORTEFI, REBECCA, LYNAE_RUPTURE, IUNO, PHROLO_10s, ROVER_ELECTRO], [XUANLING]],
-  // faster supports = 2F rot with chisa
-  [[VERINA, SHOREKEEPER], [CHISA, CHISA], [XUANLING_2F]],
-  [[SUISUI, MORNYE], [CHISA, CHISA], [XUANLING]],
+  INTENDED, [[SUISUI, CHISA], [MORTEFI, REBECCA, IUNO, PHRO_10s, CHISA], XUANLING],
+  [[MORNYE, VERINA, SHOREKEEPER, SUISUI, CHISA], [MORTEFI, REBECCA, LYNAE_RUPTURE, IUNO, PHRO_10s, ROVER_ELECTRO], XUANLING],
+
+  // lucy: spectro heavy on tune hack, with rebecca feeding her the outro
+  INTENDED, [[MORNYE, SHOREKEEPER], [REBECCA], LUCY],
+  [[VERINA, SUISUI, MORNYE], [REBECCA, MORTEFI, LYNAE_RUPTURE], LUCY],
 
   // hiyuki: glacio chafe/bite — every stack the team lands calculates at the target's own limit,
   // which is why Chisa (+3 to it) and Lucilla's Chafe build stand behind her
-  [[SUISUI, VERINA, SHOREKEEPER, MORNYE, CHISA], [LUCILLA_CHAFE, CHISA, LYNAE_RUPTURE, JIANXIN, ROVER_ELECTRO, ZHEZHI], [HIYUKI]],
-  [[HIYUKI],[LUCILLA_CHAFE, LUCILLA_CHAFE], [LYNAE_RUPTURE, JIANXIN, ROVER_ELECTRO, ZHEZHI],],
-
-  [[PHROLO_10s], [LUCILLA, LUCILLA], [HIYUKI]],
-  [[SUISUI, SUISUI], [PHROLO_10s], [HIYUKI]],
-  [[SUISUI, SUISUI], [CARLOTTA], [HIYUKI]],
-  [[HIYUKI], [CARLOTTA], [LUCILLA_CHAFE, LUCILLA_CHAFE], ],
-
-  // lucy: spectro heavy on tune hack, with rebecca feeding her the outro
-  [[VERINA, MORNYE, SHOREKEEPER], [REBECCA, REBECCA], [LUCY]],
+  INTENDED, [[SUISUI, CHISA], [LUCILLA_CHAFE, LYNAE_RUPTURE], HIYUKI],
+  INTENDED, [[MORNYE], [LYNAE_RUPTURE], HIYUKI],
+  [[SUISUI, VERINA, SHOREKEEPER, MORNYE, CHISA], [LUCILLA_CHAFE, CHISA, LYNAE_RUPTURE, JIANXIN, ROVER_ELECTRO, ZHEZHI], HIYUKI],
+  [PHRO_10s, [LUCILLA], HIYUKI],
+  [[SUISUI], PHRO_10s, HIYUKI],
+  [[SUISUI], CARLOTTA, HIYUKI],
+  [HIYUKI, CARLOTTA, [LUCILLA_CHAFE]],
 
   // sigrika: aero + echo
-  [[SHOREKEEPER, CIACCONA, VERINA, MORNYE], [QIUYUAN, LUCILLA, CANTARELLA, ROVER_AERO, CIACCONA, LYNAE_RUPTURE], [SIGRIKA]],
-  [[QIUYUAN, ROVER_AERO], [QIUYUAN, LUCILLA], [SIGRIKA_FAST]],
-  [[PHROLO_10s], [QIUYUAN, LUCILLA], [SIGRIKA_FAST]],
+  INTENDED, [PHRO_10s, [QIUYUAN, LUCILLA], SIGRIKA_FAST],
+  INTENDED, [[SHOREKEEPER], [QIUYUAN, LUCILLA], SIGRIKA],
+  INTENDED, [[CIACCONA], [QIUYUAN], SIGRIKA],
+  INTENDED, [[QIUYUAN], [LUCILLA], SIGRIKA_FAST],
+  [[SHOREKEEPER, VERINA, MORNYE], [QIUYUAN, LUCILLA, CANTARELLA, ROVER_AERO, CIACCONA, LYNAE_RUPTURE], SIGRIKA],
+  [[CIACCONA, ROVER_AERO, SUISUI], [QIUYUAN, LUCILLA, CANTARELLA, ROVER_AERO, CIACCONA, LYNAE_RUPTURE], SIGRIKA_FAST],
+  [[QIUYUAN], SIGRIKA, [IUNO]],
 
   // luuk: spectro basic, tune strain
-  [[SHOREKEEPER, VERINA, MORNYE], [LYNAE_STRAIN, SANHUA, DENIA_STRAIN, ROVER_SPECTRO], [LUUK]],
+  [[SHOREKEEPER, MORNYE], [LYNAE_STRAIN, SANHUA, DENIA_STRAIN], LUUK],
+  [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [LYNAE_STRAIN, SANHUA, DENIA_STRAIN, ROVER_SPECTRO], LUUK],
 
   // aemeath: fusion liberation on tune rupture — Mornye and Lynae answer the break beside her
-  [[SHOREKEEPER, VERINA, MORNYE, LUPA], [LYNAE_RUPTURE, LUPA, CHANGLI, JIANXIN], [AEMEATH_RUPTURE]],
-  // monofus needs mornye or lupa
-  [[MORNYE, LUPA], [BRANT, BRANT], [AEMEATH_RUPTURE]],
-  // denia burst mode with real rupture teammates
-  [[DENIA_BURST, DENIA_BURST], [LYNAE_RUPTURE, LYNAE_RUPTURE], [AEMEATH_RUPTURE]],
-  [[MORNYE, MORNYE], [DENIA_BURST, DENIA_BURST], [AEMEATH_RUPTURE]],
+  INTENDED, [[MORNYE], [LYNAE_RUPTURE, CHANGLI, LUPA], AEMEATH_RUPTURE],
+  INTENDED, [[LUPA], [CHANGLI], AEMEATH_RUPTURE], // TODO CHECK
+  [[SHOREKEEPER, VERINA, MORNYE, LUPA], [LYNAE_RUPTURE, LUPA, CHANGLI, JIANXIN], AEMEATH_RUPTURE],
+  [[MORNYE, LUPA], [BRANT], AEMEATH_RUPTURE],
+  [[DENIA_BURST], [LYNAE_RUPTURE], AEMEATH_RUPTURE],
+  [[MORNYE], [DENIA_BURST], AEMEATH_RUPTURE],
 
   // aemeath: fusion liberation on fusion burst — Denia's Burst mode feeds the stacks and amplifies
-  [[SHOREKEEPER, VERINA, MORNYE, LUPA, DENIA_BURST, CHISA, SUISUI], [DENIA_BURST, LUPA, JIANXIN, ROVER_ELECTRO], [AEMEATH_BURST]],
+  INTENDED, [[SUISUI, CHISA, LUPA], [DENIA_BURST], AEMEATH_BURST],
+  INTENDED, [[DENIA_BURST], [LYNAE_RUPTURE, CHANGLI], AEMEATH_BURST],
+  [[SHOREKEEPER, VERINA, MORNYE, LUPA, DENIA_BURST, CHISA, SUISUI], [DENIA_BURST, LUPA, JIANXIN, ROVER_ELECTRO], AEMEATH_BURST],
   // monofus needs lupa or denia
-  [[LUPA, DENIA_BURST], [CHANGLI, BRANT], [AEMEATH_BURST]],
+  [[LUPA, DENIA_BURST], [CHANGLI, BRANT], AEMEATH_BURST],
   // lynae rupture only with denia burst 3rd slot
-  [[DENIA_BURST, DENIA_BURST], [LYNAE_RUPTURE, LYNAE_RUPTURE], [AEMEATH_BURST]],
+  [[DENIA_BURST], [LYNAE_RUPTURE], AEMEATH_BURST],
 
   // qiuyuan: aero heavy echo
-  [[SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA, MORNYE], [MORTEFI, IUNO, CIACCONA, LYNAE_RUPTURE, REBECCA, ROVER_AERO, LUCILLA], [QIUYUAN_MDPS]],
-  // too long
-  //[[SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA, MORNYE], [PHROLO_10s], [QIUYUAN_MDPS]],
+  INTENDED, [[SHOREKEEPER], [MORTEFI, IUNO, REBECCA], QIUYUAN_MDPS],
+  [[SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA, MORNYE, SUISUI], [MORTEFI, IUNO, CIACCONA, LYNAE_RUPTURE, REBECCA, ROVER_AERO, LUCILLA], QIUYUAN_MDPS],
+  [[SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA, MORNYE, SUISUI], PHRO_10s, QIUYUAN_MDPS],
 
-  // galbrena: fusion echo
-  [[SHOREKEEPER, VERINA, LUPA, QIUYUAN, MORNYE, DENIA_BURST], [QIUYUAN, LUCILLA], [GALBRENA]],
-  [[PHROLO_10s], [QIUYUAN, LUCILLA], [GALBRENA], ],
-  // galbrena: fusion heavy
-  [[SHOREKEEPER, VERINA, LUPA, MORNYE, DENIA_BURST], [BRANT, MORTEFI, IUNO, LUPA, LYNAE_RUPTURE, REBECCA], [GALBRENA]],
+  // galbrena: fusion echo and heavy
+  INTENDED, [[SHOREKEEPER], [QIUYUAN, LUCILLA], GALBRENA],
+  INTENDED, [[LUPA], [MORTEFI, GALBRENA], GALBRENA],
+  INTENDED, [[MORNYE], [LUPA], GALBRENA],
+  [[SHOREKEEPER, VERINA, LUPA, QIUYUAN, MORNYE, DENIA_BURST], [QIUYUAN, LUCILLA], GALBRENA],
+  [PHRO_10s, [QIUYUAN, LUCILLA], GALBRENA],
+  [[SHOREKEEPER, VERINA, LUPA, MORNYE, DENIA_BURST, SUISUI], [BRANT, MORTEFI, IUNO, LUPA, LYNAE_RUPTURE, REBECCA], GALBRENA],
 
   // iuno mdps: aero + echo
-  [[SHOREKEEPER, ROVER_AERO, CIACCONA, VERINA, MORNYE], [ROVER_AERO, CIACCONA, LYNAE_RUPTURE, JIANXIN], [IUNO_MDPS]],
+  INTENDED, [[SHOREKEEPER, MORNYE], [LYNAE_RUPTURE], IUNO_MDPS],
+  INTENDED, [[CIACCONA], [JIANXIN], IUNO_MDPS],
+  [[SHOREKEEPER, ROVER_AERO, CIACCONA, VERINA, MORNYE, SUISUI], [ROVER_AERO, CIACCONA, LYNAE_RUPTURE, JIANXIN], IUNO_MDPS],
 
   // augusta: electro heavy shielder
-  [[SHOREKEEPER, VERINA, MORNYE], [IUNO, MORTEFI, LYNAE_RUPTURE, REBECCA], [AUGUSTA]],
-  // add phrolo subdps?
+  INTENDED, [[SHOREKEEPER], [IUNO, MORTEFI, REBECCA], AUGUSTA],
+  [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [IUNO, MORTEFI, LYNAE_RUPTURE, REBECCA], AUGUSTA],
 
   // phrolova: havoc, echo, skill
-  // phrolova fastest
-  [[PHRO_14s], [VERINA, VERINA], [QIUYUAN, DANJIN, LUCILLA, CANTARELLA, LYNAE_RUPTURE]],
-  [[PHRO_14s], [QIUYUAN, ROCCIA, DANJIN], [VERINA, VERINA]],
+  INTENDED, [PHRO_10s, [ROCCIA, LUCILLA], [CANTARELLA]],
+  INTENDED, [PHRO_10s, [QIUYUAN], [CANTARELLA, LUCILLA]],
+  INTENDED, [PHRO_12s, [SHOREKEEPER], [CANTARELLA, LUCILLA, QIUYUAN]],
 
-  // phrolova with support
-  [[PHRO_12s], [SHOREKEEPER, BULING, MORNYE, SUISUI], [QIUYUAN, DANJIN, LUCILLA, CANTARELLA, LYNAE_RUPTURE, ROCCIA]],
-  [[PHRO_12s], [QIUYUAN, ROCCIA, DANJIN], [SHOREKEEPER, SUISUI, MORNYE]],
-
-  // phrolova offield more
-  [[PHROLO_10s], [QIUYUAN, LUCILLA, LYNAE_RUPTURE, DANJIN, ROCCIA], [LUCILLA, QIUYUAN, LYNAE_RUPTURE, CANTARELLA]],
-  [[PHROLO_10s], [JINHSI_SUPPORT, JINHSI_SUPPORT], [CANTARELLA, CANTARELLA]],
+  [PHRO_14s, [VERINA], [QIUYUAN, DANJIN, LUCILLA, CANTARELLA, LYNAE_RUPTURE]],
+  [PHRO_14s, [QIUYUAN, ROCCIA, DANJIN], [VERINA]],
+  [PHRO_12s, [SHOREKEEPER, BULING, MORNYE, SUISUI], [QIUYUAN, DANJIN, LUCILLA, CANTARELLA, LYNAE_RUPTURE, ROCCIA]],
+  [PHRO_12s, [QIUYUAN, ROCCIA, DANJIN], [SHOREKEEPER, SUISUI, MORNYE]],
+  [PHRO_10s, [QIUYUAN, LUCILLA, LYNAE_RUPTURE, DANJIN, ROCCIA], [LUCILLA, QIUYUAN, LYNAE_RUPTURE, CANTARELLA]],
+  [PHRO_10s, [JINHSI_SUPPORT], [CANTARELLA]],
 
   // cartethyia: aero HP-scaling basic attack on Aero Erosion — Aero Rover and Chisa both raise the
   // status's own cap, which is what her Erosion ticks and her Blade's amplification both read
-  [[SUISUI, CHISA, SHOREKEEPER, MORNYE, CIACCONA, CHISA], [ROVER_AERO, CHISA], [CARTETHYIA]],
-  [[SUISUI, CHISA, ROVER_AERO, CIACCONA], [SANHUA, SANHUA], [CARTETHYIA]],
+  INTENDED, [[CIACCONA], [ROVER_AERO, CHISA], CARTETHYIA],
+  INTENDED, [[CHISA, ROVER_AERO, CIACCONA], [SANHUA, ROVER_AERO], CARTETHYIA],
+  [[SUISUI, CHISA, ROVER_AERO, CIACCONA, SHOREKEEPER, SUISUI, MORNYE], [SANHUA, ROVER_AERO, CHISA], CARTETHYIA],
 
   // brant: fusion basic
-  [[MORNYE, DENIA_BURST, VERINA, SHOREKEEPER], [SANHUA, LUPA, DENIA_BURST], [BRANT_MDPS]],
-  [[LUPA, LUPA], [BRANT], [CHANGLI]],
-  [[LUPA, LUPA], [BRANT], [ENCORE]],
+  INTENDED, [[SHOREKEEPER], [SANHUA, LUPA], BRANT_MDPS],
+  INTENDED, [[MORNYE], [LUPA], BRANT_MDPS],
+  [[MORNYE, DENIA_BURST, VERINA, SHOREKEEPER, SUISUI], [SANHUA, LUPA, DENIA_BURST], BRANT_MDPS],
+  INTENDED, [[LUPA], BRANT, CHANGLI],
+  [[LUPA], BRANT, ENCORE],
 
   // cantarella: havoc basic, echo
-  [[SHOREKEEPER, VERINA, MORNYE], [SANHUA, ROCCIA, LYNAE_RUPTURE, REBECCA], [CANTARELLA_MDPS]],
+  //INTENDED, [[SHOREKEEPER], [SANHUA, ROCCIA], CANTARELLA_MDPS],
+  [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [SANHUA, ROCCIA, LYNAE_RUPTURE, REBECCA], CANTARELLA_MDPS],
 
   // carlotta: glacio skill
-  [[SHOREKEEPER, BULING, VERINA, MORNYE, SUISUI], [BRANT, LYNAE_RUPTURE, REBECCA, LUCILLA_CHAFE], [CARLOTTA]],
-  [[SHOREKEEPER, BULING, VERINA, MORNYE, SUISUI, JINHSI_SUPPORT], [ZHEZHI, CANTARELLA], [CARLOTTA]],
+  INTENDED, [[SHOREKEEPER, BULING], [ZHEZHI], CARLOTTA],
+  INTENDED, [[MORNYE], [LYNAE_RUPTURE], CARLOTTA],
+  [[SHOREKEEPER, BULING, VERINA, MORNYE, SUISUI], [BRANT, ZHEZHI, LYNAE_RUPTURE, REBECCA, LUCILLA_CHAFE], CARLOTTA],
 
   // roccia: havoc heavy
-  [[SHOREKEEPER, VERINA, MORNYE], [MORTEFI, IUNO, LYNAE_RUPTURE, REBECCA], [ROCCIA_MDPS]],
-  // too long
-  //[[SHOREKEEPER, VERINA, MORNYE], [PHROLO_10s], [ROCCIA_MDPS]],
+  //INTENDED, [[SHOREKEEPER], [MORTEFI, IUNO, REBECCA], ROCCIA_MDPS],
+  [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [MORTEFI, IUNO, LYNAE_RUPTURE, REBECCA], ROCCIA_MDPS],
+  [[SHOREKEEPER, VERINA, MORNYE, SUISUI], PHROLO_10s, ROCCIA_MDPS],
 
   // camellya: havoc basic
-  [[SHOREKEEPER, VERINA], [SANHUA, ROCCIA], [CAMELLYA_DOUBLE]],
+  INTENDED, [[SHOREKEEPER], [SANHUA, ROCCIA], CAMELLYA_DOUBLE],
+   [[VERINA, SUISUI, MORNYE], [SANHUA, ROCCIA], CAMELLYA_DOUBLE],
 
   // xiangli yao: electro liberation
-  [[SHOREKEEPER, VERINA, MORNYE], [YINLIN, LYNAE_RUPTURE, JIANXIN], [XIANGLI_YAO]],
+  INTENDED, [[MORNYE], [LYNAE_RUPTURE], XIANGLI_YAO],
+  INTENDED, [[SHOREKEEPER], [YINLIN, LYNAE_RUPTURE], XIANGLI_YAO],
+  [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [YINLIN, LYNAE_RUPTURE, JIANXIN], XIANGLI_YAO],
 
   // changli: fusion skill+liberation
-  [[LUPA, MORNYE, SHOREKEEPER, DENIA_BURST, VERINA], [DENIA_BURST, LYNAE_RUPTURE, LUPA], [CHANGLI]],
+  INTENDED, [[MORNYE, SHOREKEEPER], [LUPA, LYNAE_RUPTURE], CHANGLI],
+  INTENDED, [[DENIA_BURST], [LUPA], CHANGLI],
+  [[LUPA, MORNYE, SHOREKEEPER, DENIA_BURST, VERINA, SUISUI], [DENIA_BURST, LYNAE_RUPTURE, LUPA], CHANGLI],
 
   // jiyan: aero heavy
-  [[SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA, MORNYE], [MORTEFI, IUNO, CIACCONA, LYNAE_RUPTURE, REBECCA, PHROLO_10s, ROVER_AERO], [JIYAN]],
+  INTENDED, [[SHOREKEEPER], [MORTEFI, IUNO, CIACCONA, REBECCA, PHRO_10s], JIYAN],
+  INTENDED, [[CIACCONA], [IUNO], JIYAN],
+  [[SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA, MORNYE, SUISUI], [MORTEFI, IUNO, CIACCONA, LYNAE_RUPTURE, REBECCA, PHRO_10s, ROVER_AERO], JIYAN],
 
   // encore: fusion basic
-  //[[SHOREKEEPER, VERINA, DENIA_BURST, LUPA], [LUPA, SANHUA, DENIA_BURST], [ENCORE]],
-  //[[LUPA, LUPA], [ENCORE], [CHANGLI, BRANT]],
+  //[[SHOREKEEPER, VERINA, DENIA_BURST, LUPA], [LUPA, SANHUA, DENIA_BURST], ENCORE],
+  //[[LUPA], ENCORE, [CHANGLI, BRANT]],
 
   // havoc rover: havoc, mixed
-  //[[SHOREKEEPER, VERINA, MORNYE], [ROCCIA, DANJIN, SANHUA, LYNAE_RUPTURE, CANTARELLA], [ROVER_HAVOC]],
+  //[[SHOREKEEPER, VERINA, MORNYE], [ROCCIA, DANJIN, SANHUA, LYNAE_RUPTURE, CANTARELLA], ROVER_HAVOC],
 ];
 
-/** `mdps[i]`: whether slot i is one of the team's main DPS — per team, never stamped on the shared Loadout. */
-export interface TeamEntry { loadouts: Loadout[]; mdps: boolean[] }
+/** `mdps[i]`: whether slot i is one of the team's main DPS — per team, never stamped on the shared
+ *  Loadout. `intended`: whether an `INTENDED` marker stood in front of the entry this came from. */
+export interface TeamEntry { loadouts: Loadout[]; mdps: boolean[]; intended: boolean }
 
 /** Teams the scheduler can't play — thrown below so the roster's mistake shows on the loading screen. */
 const UNPLAYABLE_TEAMS: { names: string[]; why: string }[] = [];
 
-/** `TEAMS` expanded: every pick of one loadout per slot, minus any that repeats a resonator. */
-export const ALL_TEAMS: TeamEntry[] = TEAMS.flatMap((slots) => {
-  // read before the dedupe: a repeated loadout is how a slot opts out of being the main DPS
-  const mdps = slots.map((s) => s.length === 1);
-  if (!mdps.some(Boolean)) {
-    const names = slots.map((s) => s.map((l) => l.resonator.name).join("/")).join(", ");
-    throw new Error(`the team [${names}] has no one-loadout slot naming its main DPS`);
+/** `TEAMS` with its markers read off: the real entries, each carrying whether one stood before it. */
+const MARKED: { slots: Slot[]; intended: boolean }[] = TEAMS.flatMap((slots, i) => {
+  if (slots !== INTENDED) return [{ slots, intended: i > 0 && TEAMS[i - 1] === INTENDED }];
+  // a marker reaches exactly one entry, so two in a row or one at the end marks nothing
+  if (TEAMS[i + 1] === undefined || TEAMS[i + 1] === INTENDED) {
+    throw new Error(`teams.ts has an INTENDED marker at index ${i} with no team entry after it`);
   }
-  const [a, b, c] = slots.map((s) => [...new Set(s)]);
-  return a!.flatMap((x) => b!.flatMap((y) => c!.map((z) => ({ loadouts: [x, y, z], mdps }))))
+  return [];
+});
+
+/** A stable number per distinct Loadout, so a team's identity is the objects it holds rather than
+ *  the names on them — Phrolova's three loadouts share a resonator and a mode, and are not the same. */
+const LOADOUT_ID = new Map<Loadout, number>();
+const idOf = (l: Loadout): number => {
+  const seen = LOADOUT_ID.get(l);
+  if (seen !== undefined) return seen;
+  LOADOUT_ID.set(l, LOADOUT_ID.size);
+  return LOADOUT_ID.size - 1;
+};
+
+/** `TEAMS` expanded: every pick of one loadout per slot, minus any that repeats a resonator. */
+const EXPANDED: TeamEntry[] = MARKED.flatMap(({ slots, intended }) => {
+  // a bare loadout is a main DPS; a list is a support position, however many choices it holds
+  const mdps = slots.map((s) => !Array.isArray(s));
+  const [a, b, c] = slots.map((s) => (Array.isArray(s) ? [...new Set(s)] : [s]));
+  if (!mdps.some(Boolean)) {
+    const names = [a, b, c].map((s) => s!.map((l) => l.resonator.name).join("/")).join(", ");
+    throw new Error(`the team [${names}] has no bare loadout naming its main DPS`);
+  }
+  return a!.flatMap((x) => b!.flatMap((y) => c!.map((z) => ({ loadouts: [x, y, z], mdps, intended }))))
     .filter((team) => new Set(team.loadouts.map((l) => l.resonator)).size === team.loadouts.length)
     // every chain level its members declare rotations for must be playable (rotation.ts `teamPlayable()`)
     .filter((team) => {
@@ -229,6 +287,18 @@ export const ALL_TEAMS: TeamEntry[] = TEAMS.flatMap((slots) => {
       return why === null;
     });
 });
+/** One row per distinct team. The same three loadouts, in the same three positions, with the same
+ *  main-DPS slots, is the same fight however many entries produced it — the `INTENDED` rows and the
+ *  general rows under them overlap constantly. First occurrence keeps its place; `intended` anywhere
+ *  in a group marks the survivor, since the marker is a statement about the pairing, not the row. */
+export const ALL_TEAMS: TeamEntry[] = [...EXPANDED.reduce((by, team) => {
+  const key = `${team.loadouts.map(idOf).join(".")}|${team.mdps.map(Number).join("")}`;
+  const seen = by.get(key);
+  if (seen) seen.intended ||= team.intended;
+  else by.set(key, team);
+  return by;
+}, new Map<string, TeamEntry>()).values()];
+
 if (UNPLAYABLE_TEAMS.length) {
   throw new Error(`teams.ts lists ${UNPLAYABLE_TEAMS.length} team(s) the scheduler can't play:\n`
     + UNPLAYABLE_TEAMS.map((t) => `  ${t.names.join(" / ")} — ${t.why}`).join("\n"));

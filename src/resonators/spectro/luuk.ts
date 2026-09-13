@@ -41,11 +41,11 @@ import {
   isHeld,
   stacksOf,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, ECHO_SWAP, OUTRO, DODGE } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { TUNE_STRAIN_SHIFTING } from "../../shared/tunebreak.js";
-import { applyStrain, TUNE_BREAK, TUNE_STRAIN_INTERFERED, TUNE_STRAIN_RESPONDER } from "../../shared/tunebreak.js";
+import { applyStrain, TUNE_BREAK, TUNE_STRAIN_INTERFERED, strainPayout } from "../../shared/tunebreak.js";
 import { DAYBREAKERS_SPINE } from "../../weapons/gauntlet.js";
 import { NEW_STD_GAUNTLET, ABYSS_SURGES } from "../../weapons/standard.js";
 import {
@@ -78,6 +78,9 @@ const MA2 = luukAction("Mid-air - Scythe: Dissection 2", { node: Node.Normal, ca
 const MA3 = luukAction("Mid-air - Scythe: Dissection 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 143.1, energy: 2.73, concerto: 3.96, offtune: 6320, forte1: 19.76 });
 // Resection 2/3, Golden Reflux, every Aureole of Execution and his Intro lay Tune Strain - Shifting
 const STRAIN = { updateDebuffs: () => applyStrain() };
+/** What every Aureole of Execution form carries: the kit's own Tune Strain, and the Endnote the
+ *  cast banks (see ENDNOTES). */
+const AUREOLE = { ...STRAIN, updateBuffs: () => applyCurrent(ENDNOTES, 1) };
 const MA2R = luukAction("Mid-air - Scythe: Resection 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 100.84, energy: 1.5, concerto: 2.7, offtune: 4320, forte1: 13.5, ...STRAIN });
 const MA3R = luukAction("Mid-air - Scythe: Resection 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 149.84, energy: 2.82, concerto: 4.16, offtune: 6640, forte1: 20.76, ...STRAIN });
 const MA4 = luukAction("Mid-air - Such is Light 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 1, offtune: 4960, forte1: 15.5 });
@@ -90,9 +93,9 @@ const MDC = luukAction("Dodge Counter - Such is Light (Mid-Air)", { node: Node.N
 //     Impale; Breach also hurls an Ichor Blade; Glare lays the Ichor Deposit that Gavel of
 //     Earthshaker detonates.
 const Skill = luukAction("Skill - Golden Reflux", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 201.2, energy: 2.3, concerto: 4.6, offtune: 7360, forte1: 23, ...STRAIN });
-const Ring = luukAction("Skill - Aureole of Execution: Ring", { node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 221.33, energy: 8, concerto: 10, offtune: 10400, forte1: 32.5, ...STRAIN });
-const Breach = luukAction("Skill - Aureole of Execution: Breach", { node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 287.73, energy: 8.01, concerto: 10.02, offtune: 10320, forte1: 32.25, ...STRAIN });
-const Glare = luukAction("Skill - Aureole of Execution: Glare", { node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 354.11, energy: 6, concerto: 10, offtune: 7840, forte1: 24.5, ...STRAIN });
+const Ring = luukAction("Skill - Aureole of Execution: Ring", { node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 221.33, energy: 8, concerto: 10, offtune: 10400, forte1: 32.5, ...AUREOLE });
+const Breach = luukAction("Skill - Aureole of Execution: Breach", { node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 287.73, energy: 8.01, concerto: 10.02, offtune: 10320, forte1: 32.25, ...AUREOLE });
+const Glare = luukAction("Skill - Aureole of Execution: Glare", { node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 354.11, energy: 6, concerto: 10, offtune: 7840, forte1: 24.5, ...AUREOLE });
 const GoldenImpale = luukAction("Basic - Golden Impale", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 155.47, energy: 2.3, concerto: 4.6, offtune: 7360, forte1: 23 });
 /** Detonates 5s after Glare lays it, or the moment a Gavel of Earthshaker lands on it — queued
  *  off the Gavel here, since the rotation always follows a Glare with one. */
@@ -212,6 +215,9 @@ const LUUK_TALENTS = new Talent({
   stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
 });
 
+/** This kit's own carrier for the Tune Strain payout (tunebreak.ts's `strainPayout`). */
+const LK_STRAIN_PAYOUT = strainPayout();
+
 const LUUK_RESONATOR = new Resonator({
   name: "Luuk Herssen",
   talent: LUUK_TALENTS,
@@ -227,7 +233,7 @@ const LUUK_RESONATOR = new Resonator({
 
   // his kit raises the target's Tune Strain - Interfered limit by 1 on top of the base 1; Golden
   // Rule is armed from the start so his first Intro is brought in the same way every later one is
-  combatStart: () => { maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(TUNE_STRAIN_RESPONDER, 1); applyCurrent(GOLDEN_RULE, 1); },
+  combatStart: () => { maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(GOLDEN_RULE, 1); applyCurrent(LK_STRAIN_PAYOUT, 1); },
 
   updateBuffs: () => {
     if (forte1() >= 300) applyCurrent(AUREATE_JUDGE, 1);
@@ -238,7 +244,6 @@ const LUUK_RESONATOR = new Resonator({
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
     [Stat.Tbb, 10],
   ],
-  grants: [{ on: () => isAureole(), buff: ENDNOTES }],
 });
 
 /* --------------------------------------------------------------------------------- sequences */
@@ -336,9 +341,9 @@ const MA123 = new ActionGroup("Mid-air - Scythe: Dissection 123", [MA1, MA2, MA3
 const MA23 = new ActionGroup("Mid-air - Scythe: Dissection 23", [MA2, MA3]);
 
 const LK_ROTATION = new Rotation([
-  START_3, Skill, Liberation, SWAP,
-  INTRO, MA23, Ring, GoldenImpale,  // TODO add dodge/jumps
-  MA123, Breach, GoldenImpale, 
+  START_3, Skill, Liberation, ECHO_SWAP, SWAP,
+  INTRO, MA23, Ring, GoldenImpale, DODGE,  // TODO add dodge/jumps
+  MA123, Breach, GoldenImpale, DODGE,
   MA123, Glare, Gavel,
   Liberation, ECHO_SWAP, OUTRO,
 ]);
@@ -352,8 +357,8 @@ export const LUUK = new Loadout({
   weapons: [DAYBREAKERS_SPINE, NEW_STD_GAUNTLET, ABYSS_SURGES],
   echoLoadouts: LK_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Er),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
   rotation: LK_ROTATION,
   sequences: LK_SEQUENCES,
 });

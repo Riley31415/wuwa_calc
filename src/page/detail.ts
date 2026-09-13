@@ -10,9 +10,10 @@ import type { ChainGroup, ResolvedSnapshot } from "../engine/evaluate.js";
 import { columnOf, gaugeSuffix, fmt, digitsOf, PAD_DIGITS_COLUMNS, GROUPED_COLUMNS, OFFTUNE_RATE, ENERGY_RATE } from "../display.js";
 import type { Report, Column, ReportRow, ReportPart, TraceEntry } from "../display.js";
 import type { TeamRun } from "../teamrun.js";
-import { hitsOf } from "../teamrun.js";
+import { hitsOf, erRollsFor } from "../teamrun.js";
 import { results, detailFor, FALLBACK_HUE } from "./model.js";
-import { esc, lazyPop, rect, zoom, clearPops, panelRow, popover, infoPopover, buffsPopover, equippedGear, dprTable, loadoutTable } from "./panels.js";
+import { esc, lazyPop, rect, zoom, clearPops, panelRow, popover, infoPopover, buffsPopover, equippedGear, dprTable, loadoutTable, wireDistribution, drivePanel, dropPanel } from "./panels.js";
+import type { DprExtra } from "./panels.js";
 import { rememberTableScroll } from "./table.js";
 
 const app = document.getElementById("app")!;
@@ -27,9 +28,9 @@ const isRunning = (key: string): boolean => RUNNING_COLUMNS.has(key) || key.star
 /** A grid track: the column's character width times --cw, plus the cell padding. */
 const colWidth = (c: Column): string => `calc(var(--cw) * ${c.width} + var(--cpad))`;
 
-function cell(col: Column, { cls = [], html = "", pop = "", style = "" }: { cls?: string[]; html?: string; pop?: string; style?: string } = {}): string {
+function cell(col: Column, { cls = [], html = "", pop = "", style = "", attr = "" }: { cls?: string[]; html?: string; pop?: string; style?: string; attr?: string } = {}): string {
   const classes = ["c", col.align === "left" ? "" : "num", ...cls].filter(Boolean).join(" ");
-  return `<span class="${classes}"${style ? ` style="${style}"` : ""}${pop}>${html}</span>`;
+  return `<span class="${classes}"${style ? ` style="${style}"` : ""}${attr}${pop}>${html}</span>`;
 }
 
 /** One row of the log. A running column is blank where the row left it exactly as it came in
@@ -83,7 +84,9 @@ function stepRow(
     const mem = slotHue.get(String(v)) ?? FALLBACK_HUE;
     const style = col.key === "member" ? `--mem:${mem};color:${mem}`
       : col.key === "avg" ? `--mem:${slotHue.get(String(row.raw["member"] ?? "")) ?? FALLBACK_HUE}` : "";
-    return cell(col, { cls, html, pop, style });
+    // the figure itself, unformatted, for the run a press down the column adds up (`wireAvgSum`)
+    const attr = col.key === "avg" && typeof v === "number" ? ` data-avg="${v}"` : "";
+    return cell(col, { cls, html, pop, style, attr });
   }).join("");
 }
 
@@ -226,16 +229,18 @@ function erRequirement(flat: ChainGroup[], resetIdx: number, member: string, max
   return (maxEnergy * 100 - buffed) / before;
 }
 
-/** Between the member's last two Liberations, or `fallback` (the last loop) with no such interval. */
-function energySpan(flat: ChainGroup[], member: string, fallback: [number, number]): [number, number] {
+/** The spans one member's own figures are read over: between their own Liberations, so a rotation
+ *  that casts one every other loop reads a single window across the pair rather than two. A kit
+ *  with no Liberation to cast has no such span and reads `fallback` (the last loop) instead. */
+function windowsOf(flat: ChainGroup[], member: string, fallback: [number, number]): [number, number][] {
   const casts = resetIndices(flat, 0, flat.length, member);
-  return casts.length < 2 ? fallback : [casts[casts.length - 2]! + 1, casts[casts.length - 1]!];
+  if (casts.length < 2) return [fallback];
+  return casts.slice(0, -1).map((c, i): [number, number] => [c + 1, casts[i + 1]!]);
 }
 
-/** What the member's own casts banked over their span — RealEnergy also carries half of everyone
+/** What the member's own casts banked over `span` — RealEnergy also carries half of everyone
  *  else's gains, so this reads the casts, not the counter. An outro's declared energy never banks. */
-function energyGenerated(flat: ChainGroup[], member: string, fallback: [number, number]): number {
-  const [from, to] = energySpan(flat, member, fallback);
+function energyGenerated(flat: ChainGroup[], member: string, [from, to]: [number, number]): number {
   let total = 0;
   for (let i = from; i < to; i++) {
     const line = flat[i]!;
@@ -307,64 +312,54 @@ function teamSourcePopover(sources: TraceEntry[], slotHue: Map<string, string>):
     + `${sources.map((r) => panelRow(r, slotHue)).join("")}</table></span>`);
 }
 
-/** Energy Requirements: per member, the constant ER needed for the Liberation each section holds
- *  (the opener's *last*; the fight's very first is free and reads `—`), red where the build's own
- *  constant ER falls short, then their own Energy Gen. The build's own ER stats hover the member's
- *  name — one panel for the row, rather than the same list under each of its four figures. */
-function energyTable(run: TeamRun, lines: ChainGroup[][], report: Report, slotHue: Map<string, string>): string {
+/**
+ * The Damage Contribution table's three resource columns, per member: the most Energy any of their
+ * Liberations asked of constant ER, and the most Energy and off-tune any one window of theirs put
+ * up. Read over `windowsOf` spans, so an every-other-loop Liberation counts its pair as one window
+ * rather than reading half of it twice. The build's own ER stats hover the requirement.
+ */
+function dprExtra(run: TeamRun, lines: ChainGroup[][], report: Report, slotHue: Map<string, string>): DprExtra {
   const erCol = columnOf(report, "er");
   const flat = lines.flat();
   const offsets = [0];
   for (const sec of lines) offsets.push(offsets[offsets.length - 1]! + sec.length);
+  const lastLoop: [number, number] = [offsets[3]!, offsets[4]!];
+  const erOf = erRollsFor(run.teamKey, run.members, run.combo);
 
-  const head = `<div class="rtrow rthead">`
-    + `<div class="c"></div>`
-    + `<div class="c num">Opener</div>`
-    + `<div class="c num">Loop 1</div><div class="c num">Loop 2</div><div class="c num">Loop 3</div>`
-    + `<div class="c num">Energy Gen</div>`
-    + `<div class="c num">Offtune Gen</div>`
-    + `</div>`;
-
-  const rows = run.members.map((m, idx) => {
+  const cells = new Map<string, string[]>();
+  run.members.forEach((m, idx) => {
     const maxEnergy = m.loadout.resonator.maxEnergy;
     const combo = run.combo[idx]!;
-    const constantSources = menuStats(m.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs))
+    const constantSources = menuStats(m.loadout.pieces(combo.weapon, combo.echo, combo.mainstat, combo.sequence, combo.matrix !== null, combo.highSubs, erOf[idx]!))
       .filter((e) => e.stat === Stat.Er);
     const constant = constantSources.reduce((n, e) => n + e.value, 0);
-    const free = resetIndices(flat, 0, flat.length, m.name)[0] ?? null;
-    const cell = (resetIdx: number | null): string => {
-      const snap = resetIdx == null || resetIdx === free ? null : flat[resetIdx]!.snap;
-      const req = snap == null ? null : erRequirement(flat, resetIdx!, m.name, maxEnergy, constant);
-      const missing = req == null ? 0 : Math.max(0, req - constant);
-      const text = req == null ? "—" : `${fmt(req, 1)}%`;
-      return `<div class="c num${missing > 0 ? " er-under" : ""}">${text}</div>`;
-    };
+
+    // the fight's very first Liberation runs on the bar `combatStart` hands over, so it asks nothing
+    const casts = resetIndices(flat, 0, flat.length, m.name).slice(1);
+    const asked = casts.map((i) => erRequirement(flat, i, m.name, maxEnergy, constant)).filter((v): v is number => v != null);
+    const req = asked.length ? Math.max(...asked) : null;
     const erSources = constantSources.map((e): TraceEntry => ({ source: e.source, value: e.value, percent: true, digits: 1, owner: e.owner || m.name }));
     const erHover = erCol ? popover({ ...erCol, full: "Base Energy Regen" }, erSources, constant, slotHue) : "";
+    const short = req != null && req > constant;
+    const reqCell = `<div class="c num${short ? " er-under" : ""}${erHover ? " has" : ""}"${erHover}>`
+      + `${req == null ? "—" : `${fmt(req, 1)}%`}</div>`;
 
-    const opener = resetIndices(flat, offsets[0]!, offsets[1]!, m.name);
-    const lastLoop: [number, number] = [offsets[3]!, offsets[4]!];
-    const gen = energyGenerated(flat, m.name, lastLoop);
-    const team = teamSourcePopover(teamSources(flat, report.rows, m.name, energySpan(flat, m.name, lastLoop), "energy"), slotHue);
-    // off-tune reads the last loop outright: it is the enemy's shared gauge, with no per-member
-    // cast to span from the way energy's own reset does
-    const offtune = offtuneBuilt(flat, m.name, lastLoop);
-    const offtuneTeam = teamSourcePopover(teamSources(flat, report.rows, m.name, lastLoop, "offtune"), slotHue);
-    // the two Gen figures underline dotted where a teammate fed them, which is what says a panel
-    // is there to open — the four requirement columns never carry one
+    // the widest window of each, and the team's own share of whichever one that was
+    const windows = windowsOf(flat, m.name, lastLoop);
+    const best = (of: (span: [number, number]) => number): [number, [number, number]] =>
+      windows.reduce((top: [number, [number, number]], span) => (of(span) > top[0] ? [of(span), span] : top), [0, lastLoop]);
+    const [gen, genSpan] = best((span) => energyGenerated(flat, m.name, span));
+    const [offtune, offSpan] = best((span) => offtuneBuilt(flat, m.name, span));
+    // the two Gen figures underline dotted where a teammate fed them, which is what says a panel is there
     const genCell = (value: number, hover: string): string =>
       `<div class="c num${hover ? " teamfed has" : ""}"${hover}>${fmt(value, 2, true)}</div>`;
-    const cells = cell(opener[opener.length - 1] ?? null)
-      + [1, 2, 3].map((i) => cell(resetIndices(flat, offsets[i]!, offsets[i + 1]!, m.name)[0] ?? null)).join("")
-      + genCell(gen, team)
-      + genCell(offtune, offtuneTeam);
-    return `<div class="rtrow">`
-      + `<div class="c name${erHover ? " has" : ""}"${erHover} style="--mem:${m.color}">${esc(m.name)}</div>`
-      + cells
-      + `</div>`;
-  }).join("");
 
-  return `<div class="rtable energy">${head}${rows}</div>`;
+    cells.set(m.name, [reqCell,
+      genCell(gen, teamSourcePopover(teamSources(flat, report.rows, m.name, genSpan, "energy"), slotHue)),
+      genCell(offtune, teamSourcePopover(teamSources(flat, report.rows, m.name, offSpan, "offtune"), slotHue))]);
+  });
+
+  return { heads: ["Energy Req", "Energy Gen", "Offtune Gen"], cells };
 }
 
 /* ------------------------------------------------------------------------------------ page */
@@ -374,7 +369,8 @@ function page(run: TeamRun): string {
   const lines = run.rotationLines!;
   const { members } = run;
   const slotHue = new Map([...members.map((m): [string, string] => [m.name, m.color]), [TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color]]);
-  const gearByMember = new Map(members.map((m, i): [string, Gear[]] => [m.name, equippedGear(m, run.combo[i]!).map(([, g]) => g)]));
+  const erRolls = erRollsFor(run.teamKey, run.members, run.combo);
+  const gearByMember = new Map(members.map((m, i): [string, Gear[]] => [m.name, equippedGear(m, run.combo[i]!, erRolls[i]!).map(([, g]) => g)]));
   // where Loop 1-3 begin in the log, by loop number
   const starts = new Map<number, number>();
   lines.reduce((n, sec, k) => { if (k) starts.set(n, k); return n + sec.length; }, 0);
@@ -387,34 +383,18 @@ function page(run: TeamRun): string {
     </div>
     <div class="rstack">
       <div class="rtable-block">
-        <h2 class="summary-label">Damage Distribution</h2>
-        ${dprTable(run, lines)}
-      </div>
-      <div class="rtable-block">
-        <h2 class="summary-label">Energy Requirements</h2>
-        ${energyTable(run, lines, report, slotHue)}
+        <h2 class="summary-label">Damage Contribution</h2>
+        ${dprTable(run, lines, dprExtra(run, lines, report, slotHue))}
       </div>
     </div>
   </div>
-  <h2 class="summary-label">Rotation</h2>
-  ${rotationTable(report, slotHue, gearByMember, starts)}
+  <div class="rotation-block">
+    <h2 class="summary-label">Rotation</h2>
+    ${rotationTable(report, slotHue, gearByMember, starts)}
+  </div>
 </main>`;
 }
 
-export function errorPage(err: unknown): string {
-  const hint = location.protocol === "file:"
-    ? `This page was opened straight off disk. Browsers refuse to load ES modules or
-       <code>fetch()</code> data over <code>file://</code>, so it has to be served — run
-       <code>python -m http.server 8000</code> in this directory and open
-       <code>http://localhost:8000/</code>.`
-    : `The engine threw while running the team. The stack below points at the file to look at.`;
-  const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
-  return `<div class="error">
-  <h2>Could not run the team</h2>
-  <p>${hint}</p>
-  <pre>${esc(message)}</pre>
-</div>`;
-}
 
 export function renderDetail(key: string): void {
   rememberTableScroll();
@@ -424,6 +404,8 @@ export function renderDetail(key: string): void {
   app.innerHTML = page(run);
   app.className = "";
   wireColumnDrag(app, detailFor(run).report.columns);
+  wireAvgSum(app);
+  wireDistribution(app);
 }
 
 /* ------------------------------------------------------------------------- column order */
@@ -512,6 +494,90 @@ function paintSelection(root: HTMLElement): void {
   const grid = root.querySelector<HTMLElement>(".gridwrap .grid");
   const track = grid && trackBox(grid, selected);
   if (grid && track) selBox = columnBox(grid, track.left, track.width);
+}
+
+/** One box laid over the grid spanning a run of cells in a single column — the cells cannot carry
+ *  an outline themselves, for the reasons `columnBox` gives. */
+function cellBox(grid: HTMLElement, left: number, top: number, width: number, height: number): HTMLElement {
+  const box = grid.appendChild(document.createElement("div"));
+  box.className = "cellbox";
+  box.style.left = `${left}px`;
+  box.style.top = `${top}px`;
+  box.style.width = `${width}px`;
+  box.style.height = `${height}px`;
+  return box;
+}
+
+/** What the held run is worth, in place of the cell panel the column carries the rest of the time. */
+const sumPanel = (total: number): string =>
+  `<span class="pop stat damage"><table><tr class="sum"><td class="k">Total</td>`
+  + `<td class="v">${esc(fmt(total, 0))}</td></tr></table></span>`;
+
+/**
+ * Press and hold an avg cell to read what a run of them comes to: the run wears the same white
+ * outline a singled-out column does, and the hover becomes that one figure, both gone the moment
+ * the pointer comes up. Dragging up or down grows the run — tracked by the pointer's height alone,
+ * so it holds even where the drag wanders out of the column.
+ *
+ * A column singled out by its heading stays singled out. Where that column is avg itself, its box
+ * steps aside for as long as the run is held and comes back on release — the two run through the
+ * same cells, and drawn together they read as one thick, ragged outline rather than two.
+ *
+ * Rows are re-read on every press rather than kept, since a group opening or a field summary
+ * swapping changes which cells are on screen, and only those are picked up or added in.
+ */
+function wireAvgSum(root: HTMLElement): void {
+  const grid = root.querySelector<HTMLElement>(".gridwrap .grid");
+  if (!grid) return;
+
+  let cells: HTMLElement[] = [];
+  /** Each cell's vertical middle, measured once per press — the drag cannot reflow the table. */
+  let mids: number[] = [];
+  let anchor = -1;
+  let box: HTMLElement | null = null;
+
+  const paint = (at: number): void => {
+    const from = Math.min(anchor, at), to = Math.max(anchor, at);
+    const g = rect(grid);
+    const first = rect(cells[from]!), last = rect(cells[to]!);
+    box?.remove();
+    box = cellBox(grid, first.left - g.left, first.top - g.top, first.width, last.bottom - first.top);
+    let total = 0;
+    for (let i = from; i <= to; i++) total += Number(cells[i]!.dataset.avg) || 0;
+    drivePanel(cells[at]!, sumPanel(total));
+  };
+
+  const end = (): void => {
+    if (anchor < 0) return;
+    anchor = -1;
+    box?.remove();
+    box = null;
+    if (selBox) selBox.style.display = "";
+    dropPanel();
+  };
+
+  grid.addEventListener("pointerdown", (e) => {
+    const cell = (e.target as HTMLElement).closest<HTMLElement>(".c.avg[data-avg]");
+    if (e.button !== 0 || anchor >= 0 || !cell) return;
+    e.preventDefault();
+    cell.setPointerCapture(e.pointerId);
+    if (selected === "avg" && selBox) selBox.style.display = "none";
+    cells = [...grid.querySelectorAll<HTMLElement>(".c.avg[data-avg]")].filter((c) => c.offsetParent);
+    mids = cells.map((c) => { const r = rect(c); return (r.top + r.bottom) / 2; });
+    anchor = cells.indexOf(cell);
+    if (anchor >= 0) paint(anchor);
+  });
+
+  grid.addEventListener("pointermove", (e) => {
+    if (anchor < 0) return;
+    const y = e.clientY / zoom();
+    let at = 0;
+    while (at < mids.length - 1 && y > mids[at]!) at++;
+    paint(at);
+  });
+
+  grid.addEventListener("pointerup", end);
+  grid.addEventListener("pointercancel", end);
 }
 
 /** The drag's stylesheet goes up once; only its transform declarations are touched after. Setting

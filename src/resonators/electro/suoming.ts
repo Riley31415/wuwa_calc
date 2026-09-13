@@ -19,9 +19,9 @@
  * loop, so always. Two ways to spend it, and a loadout takes one:
  *
  * - Rift Cleaver with Unison (Sunken Seal, Forged Lock) removes it, spends 20 Concerto, clears
- *   Delusion and grants **Seal Master**: +40% DMG Multiplier on Unfurled Canopy and Whirling
- *   Thunder, +80% Crit. DMG, 12s or until switched out — the main-DPS way to play her, and the
- *   whole of SM_ROTATION_MDPS below.
+ *   Delusion and grants **Seal Master**: +100% DMG Multiplier on Unfurled Canopy and Whirling
+ *   Thunder, +5 Concerto a stage on hit, +100% Crit. DMG, 12s or until switched out — the main-DPS
+ *   way to play her, and the whole of SM_ROTATION_MDPS below.
  * - Swapping out with it (a Unison outro, the bar handed back) grants **Aligned Seals**, 30s, and
  *   with it her Outro hands the incoming resonator +30% Electro DMG Bonus, +20% a Unison Boon
  *   stack they hold up to +40%, 8s or until switched out; and Blight Rain, Miasmic Thunder summons
@@ -33,16 +33,18 @@
  * which hands the whole team Unison Boon — one stack from her this way, 30s refreshed, so
  * permanent — and a Unison Intro also pays +10 Concerto (Rain-Soaked Covenant, once every 25s).
  * Each stack is +3% DMG dealt to the team's responders, which is her alone. Sequences 1-6 are
- * modelled from nanoka's released 3.7.0 data (character 1312) — see their own block below.
+ * modelled from the same file — see their own block below.
  *
- * Numbers from encore.moe's beta data (character 1312, `?v=Beta`): per-hit MV/energy/concerto/
- * off-tune/Delusion summed per action the way CLAUDE.md describes, each Intro's "Concerto Regen
- * 10" added on top of its hits, and the dodge counters' hidden +10. The duplicated larger rows on
- * the intros (x1.6), Engraved Heart (x1.5) and the Unfurled basics (x1.4) are S1, S6 and Seal
- * Master re-shown — only Seal Master's contributes its multiplier here. Engraved Heart's held form
- * ("hold to continuously attack") has three unlabelled rows and no text of its own — not
- * modelled. Blight Rain's Thunder Crest window is the kit's own six crests over eight presses
- * as a coordinated window (helpers.ts's `coordinatedBuff`, see BLIGHT_RAIN below).
+ * Numbers from nanoka's 3.7.1 data (character 1312 — note 3.7.0 is a *stale* directory on that CDN,
+ * not an earlier patch): per-hit MV/energy/concerto/off-tune/Delusion summed per action the way
+ * CLAUDE.md describes, each Intro's "Concerto Regen 10" added on top of its hits, and the dodge
+ * counters' hidden +10. Every Intro hit's element_power is 0 here, so those Regen rows are the whole
+ * of an Intro's Concerto; Engraved Heart is the same, with "Concerto Regen 40" for all of its. The
+ * duplicated larger rows on the intros (x1.6), Engraved Heart (x1.5) and the Unfurled basics (x1.4)
+ * are S1, S6 and Seal Master re-shown — only Seal Master's contributes its multiplier here. Engraved
+ * Heart is its tap row plus its "(Hold)" row: the rotation holds it, and holding adds the 19.40%x10
+ * and 24.24%x8 ticks on top. Blight Rain's Thunder Crest window is the kit's own six crests over
+ * eight presses as a coordinated window (helpers.ts's `coordinatedBuff`, see BLIGHT_RAIN below).
  */
 import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, LifeTime, BuffTarget } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
@@ -62,7 +64,7 @@ import {
   onCast,
 } from "../../engine/context.js";
 import { Action, ActionField, ActionGroup, Rotation, DOUBLE_INTRO, INTRO, OUTRO, ECHO_SWAP, DODGE, NOINTRO } from "../../engine/rotation.js";
-import { NINE_SHADOWS, UNISON, UNISON_BOON, UNISON_RESPONDER, respondToUnison, unisonBoonAmp, unisonIntro, unisonOutro, unisonResponse } from "../../shared/unison.js";
+import { NINE_SHADOWS, UNISON, UNISON_BOON, respondToUnison, boonPayout, unisonIntro, unisonOutro, unisonResponse } from "../../shared/unison.js";
 import { coordinatedBuff } from "../../shared/helpers.js";
 import { RED_SPRING, UNSPOKEN_RUE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
@@ -78,27 +80,27 @@ function suomingAction(id: string, def: object): Action {
 }
 
 // --- Furled Canopy, the Awakened Mind chain
-const BA1 = suomingAction("Basic - Furled Canopy 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 31.55, energy: 1.91, concerto: 1.79, offtune: 3174, forte1: 120 });
-const BA2 = suomingAction("Basic - Furled Canopy 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 15.73 * 2 + 31.46, energy: 0.95 * 2 + 1.9, concerto: 0.89 * 2 + 1.78, offtune: 1583 * 2 + 3165, forte1: 40 * 2 + 80 });
-const BA3 = suomingAction("Basic - Furled Canopy 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 22.01 * 3 + 44.02, energy: 1.33 * 3 + 2.66, concerto: 1.25 * 3 + 2.5, offtune: 2214 * 3 + 4428, forte1: 36 * 3 + 72 });
-const MA = suomingAction("Mid-air - Furled Canopy", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 84.2, energy: 5.09, concerto: 4.77, offtune: 8470 });
-const DC = suomingAction("Dodge Counter - Furled Canopy", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 27.66 * 2 + 55.32, energy: 1.67 * 2 + 3.34, concerto: 1.57 * 2 + 3.13 + 10, offtune: 2783 * 2 + 5565, forte1: 160 });
+const BA1 = suomingAction("Basic - Furled Canopy 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 31.55, energy: 1.91, concerto: 1.59, offtune: 3174, forte1: 120 });
+const BA2 = suomingAction("Basic - Furled Canopy 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 15.73 * 2 + 31.46, energy: 0.95 * 2 + 1.9, concerto: 0.8 * 2 + 1.59, offtune: 1583 * 2 + 3165, forte1: 40 * 2 + 80 });
+const BA3 = suomingAction("Basic - Furled Canopy 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 22.01 * 3 + 44.02, energy: 1.33 * 3 + 2.66, concerto: 1.11 * 3 + 2.22, offtune: 2214 * 3 + 4428, forte1: 36 * 3 + 72 });
+const MA = suomingAction("Mid-air - Furled Canopy", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 84.2, energy: 5.09, concerto: 4.24, offtune: 8470 });
+const DC = suomingAction("Dodge Counter - Furled Canopy", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 27.66 * 2 + 55.32, energy: 1.67 * 2 + 3.34, concerto: 1.4 * 2 + 2.79 + 10, offtune: 2783 * 2 + 5565, forte1: 160 });
 
 // --- Unfurled Canopy, the Deep Mind chain, and Whirling Thunder held out of its stage 2
-const UBA1 = suomingAction("Basic - Unfurled Canopy 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 65.42 + 32.71 * 2, energy: 1.58 + 0.79 * 2, concerto: 2 + 1 * 2, offtune: 3949 + 1975 * 2, forte1: 60 + 30 * 2 });
-const UBA2 = suomingAction("Basic - Unfurled Canopy 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 114.4 + 38.14 * 3, energy: 2.77 + 0.93 * 3, concerto: 2 + 0.67 * 3, offtune: 5705 + 1902 * 3, forte1: 80 + 27 * 3 });
-const UBA3 = suomingAction("Basic - Unfurled Canopy 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 58.64 * 4, energy: 1.42 * 4, concerto: 3.75 * 4, offtune: 3540 * 4, forte1: 45 * 4 });
-const UBA4 = suomingAction("Basic - Unfurled Canopy 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 107.25 * 2 + 143, energy: 2.59 * 2 + 3.46, concerto: 4.5 * 2 + 6, offtune: 6474 * 2 + 8632, forte1: 54 * 2 + 72 });
-const UHA1 = suomingAction("Heavy - Unfurled Canopy: Whirling Thunder 1", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Basic, mv: 73.32 * 3 + 36.66 * 2, energy: 1.77 * 3 + 0.89 * 2, concerto: 3.75 * 3 + 1.88 * 2, offtune: 4425 * 3 + 2213 * 2, forte1: 45 * 3 + 23 * 2 });
-const UHA2 = suomingAction("Heavy - Unfurled Canopy: Whirling Thunder 2", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Basic, mv: 56.69 * 5, energy: 1.37 * 5, concerto: 3 * 5, offtune: 3422 * 5, forte1: 36 * 5 });
-const UDC = suomingAction("Dodge Counter - Unfurled Canopy", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 174.04 + 58.02 * 3, energy: 4.21 + 1.41 * 3, concerto: 3.94 + 1.32 * 3 + 10, offtune: 7004 + 2335 * 3, forte1: 80 + 27 * 3 });
+const UBA1 = suomingAction("Basic - Unfurled Canopy 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 65.42 + 32.71 * 2, energy: 1.58 + 0.79 * 2, concerto: 1.32 + 0.66 * 2, offtune: 3949 + 1975 * 2, forte1: 60 + 30 * 2 });
+const UBA2 = suomingAction("Basic - Unfurled Canopy 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 114.4 + 38.14 * 3, energy: 2.77 + 0.93 * 3, concerto: 2.31 + 0.77 * 3, offtune: 6905 + 2302 * 3, forte1: 80 + 27 * 3 });
+const UBA3 = suomingAction("Basic - Unfurled Canopy 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 58.64 * 4, energy: 1.42 * 4, concerto: 1.18 * 4, offtune: 3540 * 4, forte1: 45 * 4 });
+const UBA4 = suomingAction("Basic - Unfurled Canopy 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 107.25 * 2 + 47.67 * 3, energy: 2.59 * 2 + 1.16 * 3, concerto: 2.16 * 2 + 0.96 * 3, offtune: 6474 * 2 + 2878 * 3, forte1: 54 * 2 + 72 });
+const UHA1 = suomingAction("Heavy - Unfurled Canopy: Whirling Thunder 1", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Basic, mv: 73.32 * 3 + 36.66 * 2, energy: 1.77 * 3 + 0.89 * 2, concerto: 1.48 * 3 + 0.74 * 2, offtune: 4425 * 3 + 2213 * 2, forte1: 45 * 3 + 23 * 2 });
+const UHA2 = suomingAction("Heavy - Unfurled Canopy: Whirling Thunder 2", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Basic, mv: 56.69 * 5, energy: 1.37 * 5, concerto: 1.15 * 5, offtune: 3422 * 5, forte1: 36 * 5 });
+const UDC = suomingAction("Dodge Counter - Unfurled Canopy", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 174.04 + 58.02 * 3, energy: 4.21 + 1.41 * 3, concerto: 3.51 + 1.17 * 3 + 10, offtune: 7004 + 2335 * 3, forte1: 80 + 27 * 3 });
 
 // --- Rift Cleaver, the plain Resonance Skill in either state. Holding Unison additionally spends
 //     it, 20 Concerto, and every point of Delusion, for Seal Master (see SUNKEN_SEAL below).
 //     Crimson Gleam is the follow-up a counter-cast Rift Cleaver triggers, which needs the target
 //     to attack into it — left for a rotation to name.
 const RiftCleaver = suomingAction("Skill - Furled Canopy: Rift Cleaver", {
-  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 106.61, energy: 3.68, concerto: 3.45, offtune: 6128,
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 106.61, energy: 3.68, concerto: 3.07, offtune: 6128,
   updateBuffs: () => {
     if (!isHeld(UNISON)) return;
     addStat(Stat.AddConcerto, -20);
@@ -107,11 +109,11 @@ const RiftCleaver = suomingAction("Skill - Furled Canopy: Rift Cleaver", {
     if (!isHeld(ALIGNED_SEALS)) applyCurrent(SEAL_MASTER, 1);
   },
 });
-const CrimsonGleamParry = suomingAction("Skill - Unfurled Canopy: Crimson Gleam", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 47.25 + 23.63 * 2 + 63, energy: 1.63 + 0.82 * 2 + 2.18, concerto: 1.53 + 0.77 * 2 + 2.04, offtune: 2717 + 1359 * 2 + 3622 });
+const CrimsonGleamParry = suomingAction("Skill - Unfurled Canopy: Crimson Gleam", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 47.25 + 23.63 * 2 + 63, energy: 1.63 + 0.82 * 2 + 2.18, concerto: 1.36 + 0.68 * 2 + 1.82, offtune: 2717 + 1359 * 2 + 3622 });
 
 // --- Umbral Canopy: Miasma Lock, Deep Mind only; grants Unison and 200 Delusion
 const Liberation = suomingAction("Liberation - Umbral Canopy: Miasma Lock", {
-  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 69.59 * 7 + 208.76, concerto: 20, offtune: 8400 * 7 + 25200, forte1: 200, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 60.89 * 8 + 208.76, concerto: 20, offtune: 7350 * 8 + 25200, forte1: 200, resetEnergy: true,
   updateBuffs: () => { applyCurrent(UNISON, 1); },
 });
 /** Blight Rain, Miasmic Thunder: the Thunder Crest, one a second off the active resonator's own
@@ -124,7 +126,7 @@ const ThunderCrest = suomingAction("Liberation - Blight Rain, Miasmic Thunder", 
 // --- the four Intros, all Basic Attack DMG: Furled forms from Awakened Mind (into Deep Mind,
 //     Delusion cleared), Unfurled forms from Deep Mind (+200 Delusion); the (Unison) pair answer a
 //     Unison outro and are what triggers Unison Response
-const INTRO_FURLED = { node: Node.Intro, cast: Cast.Intro, resetForte1: true, type: Type1.Basic, mv: 110.89 * 2 + 36.97 * 4, energy: 3 * 2 + 1 * 4, concerto: 1.5 * 2 + 0.5 * 4 + 10, offtune: 5578 * 2 + 1860 * 4 };
+const INTRO_FURLED = { node: Node.Intro, cast: Cast.Intro, resetForte1: true, type: Type1.Basic, mv: 110.89 * 2 + 36.97 * 4, energy: 3 * 2 + 1 * 4, concerto: 10, offtune: 5578 * 2 + 1860 * 4 };
 const IntroFlashRift = suomingAction("Intro - Furled Canopy: Flash Rift", {
   ...INTRO_FURLED,
   updateBuffs: () => applyCurrent(DEEP_MIND, 1),
@@ -143,7 +145,7 @@ const INTROS = [IntroFlashRift, IntroThunderRending, IntroSealedDelusion, IntroW
 
 // --- Forte Circuit: the two full-bar skills and Engraved Heart behind them, all Basic Attack DMG
 const SealedDelusion = suomingAction("Forte Skill - Furled Canopy: Sealed Delusion", {
-  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 62.78 * 2 + 31.39 * 4, energy: 2.17 * 2 + 1.09 * 4, concerto: 2.03 * 2 + 1.02 * 4, offtune: 3609 * 2 + 1805 * 4,
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 62.78 * 2 + 31.39 * 4, energy: 2.17 * 2 + 1.09 * 4, concerto: 1.81 * 2 + 0.91 * 4, offtune: 3609 * 2 + 1805 * 4,
   // only fires at a full 800 Delusion — maxForte1 (800) clamps an overrun back to the cap before
   // this lands exactly on 0, same as Engraved Heart's own -800
   forte1: -800,
@@ -152,7 +154,7 @@ const SealedDelusion = suomingAction("Forte Skill - Furled Canopy: Sealed Delusi
 const UnforsakenMind = suomingAction("Skill - Unfurled Canopy: Unforsaken Mind", { node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 152.67, offtune: 8776 });
 /** Calamity Mind for its own duration, Awakened Mind once it ends: Deep Mind is simply over. */
 const EngravedHeart = suomingAction("Forte Basic - Umbral Canopy: Engraved Heart", {
-  node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 1939.29, energy: 20.49, concerto: 25, offtune: 26016,
+  node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 155.14 * 3 + 77.57 * 4 + 38.79 * 4 + 620.55 + 19.4 * 10 + 24.24 * 8, energy: 2.05 * 3 + 1.03 * 4 + 0.52 * 4 + 8.18, concerto: 40, offtune: 2602 * 3 + 1301 * 4 + 651 * 4 + 10405,
   forte1: -800,
   updateBuffs: () => revokeCurrent(DEEP_MIND),
 });
@@ -191,15 +193,20 @@ const RAIN_SOAKED_INHERENT = new Inherent({
   applyStats: () => { if (runningAction(IntroSealedDelusion) || runningAction(IntroWhirlingThunder)) addStat(Stat.AddConcerto, 10); },
 });
 
-/** Seal Master: +40% DMG Multiplier on the Unfurled Canopy chain and Whirling Thunder, +80% Crit.
- *  DMG, 12s or until switched out. Gaining Unison ends it — the next
- *  Liberation — as does Aligned Seals (the Outro cast above). */
+/** The stages Seal Master pays: the whole Unfurled Canopy chain and both Whirling Thunder stages. */
+const SEAL_MASTER_STAGES = [UBA1, UBA2, UBA3, UBA4, UHA1, UHA2];
+/** Seal Master: +100% DMG Multiplier on the Unfurled Canopy chain and Whirling Thunder, +5 Concerto
+ *  a stage on hit, +100% Crit. DMG, 12s or until switched out. Gaining Unison ends it — the next
+ *  Liberation — as does Aligned Seals (the Outro cast above). The Concerto is the kit text's, not a
+ *  row of the damage table, so it goes through the buff (CLAUDE.md) and a re-sync cannot lose it. */
 const SEAL_MASTER = new Buff({
   name: "Suoming: Seal Master",
   updateBuffs: () => { if (isHeld(UNISON) && casting(Cast.Liberation)) revokeCurrent(SEAL_MASTER); },
   applyStats: () => {
-    if (runningAction(UBA1) || runningAction(UBA2) || runningAction(UBA3) || runningAction(UBA4) || runningAction(UHA1) || runningAction(UHA2)) addStat(Stat.MulMv, 40);
-    addStat(Stat.CritDmg, 80);
+    addStat(Stat.CritDmg, 100);
+    if (!SEAL_MASTER_STAGES.includes(currentAction())) return;
+    addStat(Stat.MulMv, 100);
+    addStat(Stat.AddConcerto, 5);
   },
   until: LifeTime.Swap,
 });
@@ -221,7 +228,9 @@ const CANOPY_RUMBLE = new Buff({
 });
 
 /** The Aligned Seals half of her Outro: +30% Electro DMG Bonus, +20% a Unison Boon stack the
- *  holder has, up to +40% — 8s or until switched out. */
+ *  holder has, up to +40% — 8s or until switched out. The kit only hands it over when the Outro
+ *  lands within 8s of her Liberation or Engraved Heart; both rotations leave straight off one of
+ *  those, so the window is always open and nothing here has to time it. */
 const ALIGNED_SEALS_HANDOFF = new Buff({
   name: "Suoming: Outro (aligned)",
   until: LifeTime.Swap,
@@ -291,13 +300,13 @@ const SM_S5 = new Sequence({
 
 /** S6: every Unison Boon stack pays the whole team's responders half again (unison.ts's own
  *  NINE_SHADOWS, up from the moment the fight starts), Engraved Heart's multiplier +50%, and Seal
- *  Master's Crit. DMG another +80%. */
+ *  Master's Crit. DMG another +200%. */
 const SM_S6 = new Sequence({
   name: "Suoming S6: Nine Shadows at Her Side",
   combatStart: () => applyTeam(NINE_SHADOWS, 1),
   applyStats: () => {
     if (runningAction(EngravedHeart)) addStat(Stat.MulMv, 50);
-    if (isHeld(SEAL_MASTER)) addStat(Stat.CritDmg, 80);
+    if (isHeld(SEAL_MASTER)) addStat(Stat.CritDmg, 200);
   },
 });
 
@@ -309,6 +318,9 @@ const SUOMING_TALENTS = new Talent({
   name: "Suoming: Talents",
   stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
 });
+
+/** This kit's own carrier for the Unison Boon payout (shared/unison.ts's `boonPayout`). */
+const SM_BOON_PAYOUT = boonPayout();
 
 const SUOMING_RESONATOR = new Resonator({
   name: "Suoming",
@@ -331,10 +343,9 @@ const SUOMING_RESONATOR = new Resonator({
   updateBuffs: () => {
     if (unisonResponse() && !isHeld(BOON_RESPONSE)) { applyTeam(UNISON_BOON, 1); applyCurrent(BOON_RESPONSE, 1); }
   },
-  // she can trigger Unison Response, so Unison Boon pays her (shared/unison.ts) — her own kit
-  // reads the count and takes the payout, the way Hsin's Unison mode does
-  combatStart: () => applyCurrent(UNISON_RESPONDER, 1),
-  applyStats: () => unisonBoonAmp(),
+  // she can trigger Unison Response, so Unison Boon pays her (shared/unison.ts) — the carrier her
+  // kit grants reads the count and takes the payout, the way Hsin's Unison mode does
+  combatStart: () => { applyCurrent(SM_BOON_PAYOUT, 1); },
 });
 
 /* ---------------------------------------------------------------------------------- rotation */
@@ -387,8 +398,8 @@ export const SUOMING = new Loadout({
   weapons: [UNSPOKEN_RUE, EMERALD_OF_GENESIS, RED_SPRING],
   echoLoadouts: SM_ECHOES,
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Basic, Substat.Er, Substat.FlatAtk),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
   sequences: SM_SEQUENCES,
   rotation: SM_ROTATION,
 });
@@ -398,8 +409,8 @@ export const SUOMING_MDPS = new Loadout({
   weapons: [UNSPOKEN_RUE, EMERALD_OF_GENESIS, RED_SPRING],
   echoLoadouts: [new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Er),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
   sequences: SM_SEQUENCES,
   rotation: SM_ROTATION_MDPS,
 });

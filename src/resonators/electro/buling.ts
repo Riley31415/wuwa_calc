@@ -136,9 +136,6 @@ const Harmony = bulingAction("Liberation - Flashing Thunder Spell - Harmony", {
 const FlashingThunderSpell = bulingAction("Liberation - Flashing Thunder Spell", {
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 357.86, offtune: 36000, concerto: 20, resetEnergy: true,
 });
-const Liberation = new Action("Liberation - Flashing Thunder Spell (either)", {
-  resolve: () => (isHeld(YIN_YANG_BALANCE) ? Harmony : FlashingThunderSpell),
-});
 
 /** The Array's own pull: 19.89% mv and 2 Electro Flare every 2s for 24s (nanoka), twelve in all,
  *  each on her own slot whoever is on field. Energy is the migrated sheet's 25 over the whole
@@ -249,7 +246,14 @@ const BL_S1 = new Sequence({
 
 const BL_S2 = new Sequence({
   name: "Buling S2",
-  applyStats: () => { if (isHeld(YIN_YANG_BALANCE)) addStat(Stat.AddEnergy, 25); },
+  // the one Heavy that completed the pair, not every cast that follows it: entering Balance clears
+  // both Minors, so the entering press is the only Heavy holding neither — a later one is holding
+  // whichever it has just banked, and pays nothing
+  applyStats: () => {
+    if (isHeld(YIN_YANG_BALANCE) && casting(Cast.Heavy) && !isHeld(MINOR_YANG) && !isHeld(MINOR_YIN)) {
+      addStat(Stat.AddEnergy, 25);
+    }
+  },
 });
 
 const BL_S3 = new Sequence({ name: "Buling S3" });
@@ -301,7 +305,7 @@ const BL_ROTATION = new Rotation([
   NOINTRO,
   INTRO, JUMP, MA, BA2, HA,
   Skill, BA4, HA, ECHO_CANCEL,
-  Liberation, OUTRO,
+  FlashingThunderSpell, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -315,8 +319,8 @@ export const BULING = new Loadout({
     new EchoLoadout(FALLACY, REJUV_5PC),
   ],
   mainstats: [mainstats(Mainstat.CD4, Mainstat.ER3, Mainstat.ER3, Mainstat.ATK1, Mainstat.ATK1)],
-  substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, true),
-  highSubstat: highSubs(Substat.Er, Substat.Liberation, Substat.AtkPct, Substat.Liberation),
-    rotation: BL_ROTATION,
+  substat: substats(Substat.Er, Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.Basic),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.Liberation, Substat.AtkPct, Substat.Basic),
+  rotation: BL_ROTATION,
   sequences: [BL_S1, BL_S2, BL_S3, BL_S4, BL_S5, BL_S6],
 });

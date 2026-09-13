@@ -37,7 +37,7 @@ import {
   frozenStacks,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
-import { applyRupture, applyStrain, TUNE_STRAIN_INTERFERED, TUNE_STRAIN_RESPONDER, tuneRuptureResponse } from "../../shared/tunebreak.js";
+import { applyRupture, applyStrain, TUNE_STRAIN_INTERFERED, strainPayout, tuneRuptureResponse } from "../../shared/tunebreak.js";
 import { SPECTRUM_BLASTER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
 import { HYVATIA, NEONLIGHT_LEAP_5PC, REEL_5PC, VOIDWING_MOTH } from "../../echoes/lahairoi.js";
@@ -118,11 +118,13 @@ const MODE_RUPTURE = new ResonanceMode({
   updateDebuffs: () => { if (inflictsFlux()) applyRupture(); },
   updateGlobal: () => tuneRuptureResponse(SpectralAnalysis),
 });
+/** This kit's own carrier for the Tune Strain payout (tunebreak.ts's `strainPayout`). */
+const LY_STRAIN_PAYOUT = strainPayout();
 const MODE_STRAIN = new ResonanceMode({
   name: "Resonance Mode - Tune Strain",
   // her kit raises the target's Tune Strain - Interfered limit by 1 on top of the base 1
   updateDebuffs: () => { if (inflictsFlux()) applyStrain(); },
-  combatStart: () => { maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(TUNE_STRAIN_RESPONDER, 1); },
+  combatStart: () => { maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(LY_STRAIN_PAYOUT, 1); },
 });
 
 /* ------------------------------------------------------------------------------------- buffs */
@@ -285,9 +287,9 @@ const build = (mode: ResonanceMode): Loadout => new Loadout({
   resonator: LYNAE_RESONATOR,
   weapons: [SPECTRUM_BLASTER, NEW_STD_PISTOL, STATIC_MIST],
   echoLoadouts: LY_ECHOES,
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Er),
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
   rotation: { 0: LY_ROTATION },
   sequences: LY_SEQUENCES,
   mode,

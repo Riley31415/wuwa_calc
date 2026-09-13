@@ -57,7 +57,7 @@ import {
   setStacksSelf,
   stacksOf,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START_3, SWAP, DOUBLE_INTRO, INTRO, ECHO_ONFIELD, OUTRO, NOINTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_3, SWAP, DOUBLE_INTRO, INTRO, ECHO_ONFIELD, OUTRO, NOINTRO, EVERY_OTHER } from "../../engine/rotation.js";
 import { AGES_OF_HARVEST } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { JUE, CELESTIAL_LIGHT_5PC } from "../../echoes/jinzhou.js";
@@ -361,16 +361,37 @@ const JX_ROTATION = new Rotation([
   Skill4, Liberation, OUTRO,
 ]);
 
-const JX_ROTATION_SUPPORT = new Rotation([
-  START_3, Liberation, SWAP,
+// her support rotation lists a Liberation every visit and the bar only fills for half of them, so
+// each one is gated: the START cast plays, the opener's is skipped, and the loops alternate on
+// her main-DPS rotation with both Liberations gated: the double-Intro visit stays, but the bar
+// only fills every other time it comes round, so the cast alternates rather than being listed
+// every loop and paid for on credit
+const JX_ROTATION_EVERY_OTHER = new Rotation([
+  START_3, EVERY_OTHER, Liberation, SWAP,
 
   NOINTRO, BA1234, Skill2.dodgeCancel(), ECHO_ONFIELD, 
   IncBA1, IncBA2.jumpCancel(), IncBA3.jumpCancel(), IncBA4, 
-  Skill4, Liberation, OUTRO,
+  Skill4, OUTRO,
+
+  DOUBLE_INTRO, Skill2.dodgeCancel(), 
+  IncBA12, Skill3, IncBA34,
+  ECHO_ONFIELD, Skill4, OUTRO,
+
+  INTRO, Skill2.dodgeCancel(),
+  IncBA12, Skill3, IncBA34,
+  Skill4, EVERY_OTHER, Liberation, OUTRO,
+]);
+
+const JX_ROTATION_SUPPORT = new Rotation([
+  START_3, EVERY_OTHER, Liberation, SWAP,
+
+  NOINTRO, BA1234, Skill2.dodgeCancel(), ECHO_ONFIELD, 
+  IncBA1, IncBA2.jumpCancel(), IncBA3.jumpCancel(), IncBA4, 
+  Skill4, EVERY_OTHER, Liberation, OUTRO,
 
   INTRO, Skill2.dodgeCancel(), ECHO_ONFIELD, 
   IncBA12, Skill3, IncBA34,
-  Skill4, Liberation, OUTRO,
+  Skill4, EVERY_OTHER, Liberation, OUTRO,
 ]);
 
 const JX_ECHOES = [
@@ -378,15 +399,17 @@ const JX_ECHOES = [
   new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC),
 ];
 
+/** For teams whose Energy the rotation cannot keep up with — her Liberation every other visit
+ *  instead of every one (see `JX_ROTATION_EVERY_OTHER`). */
 export const JINHSI = new Loadout({
   resonator: JINHSI_RESONATOR,
   weapons: [AGES_OF_HARVEST, NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR],
   echoLoadouts: JX_ECHOES,
   sequences: [JX_S1, JX_S2, JX_S3, JX_S4, JX_S5, JX_S6],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Er),
-  rotation: JX_ROTATION,
+  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
+  rotation: JX_ROTATION_EVERY_OTHER,
 });
 
 export const JINHSI_SUPPORT = new Loadout({
@@ -395,7 +418,7 @@ export const JINHSI_SUPPORT = new Loadout({
   echoLoadouts: JX_ECHOES,
   sequences: [JX_S1, JX_S2, JX_S3, JX_S4, JX_S5, JX_S6],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Er),
+  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
   rotation: JX_ROTATION_SUPPORT,
 });

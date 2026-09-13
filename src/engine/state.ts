@@ -230,6 +230,38 @@ export class TeamMember {
    *  Liberation cast, not on every outro. Same gain (and the same maxEnergy ceiling) as `energy`,
    *  plus half of every *other* member's own gain (see `evaluate()`). */
   realEnergy = 0;
+  /** The running window feeding the ER requirement (teamrun.ts's `erRollsFor`): what this member
+   *  has banked since their last Liberation at the flat 100% the engine banks at, and the same
+   *  gains weighted by the ER they were actually taken at. ER never multiplies `energyGain`, so
+   *  the requirement is solved for afterwards rather than measured — which is also why it does not
+   *  move when the spread's own ER rolls do. */
+  erGain = 0;
+  erGainEr = 0;
+  /** The last closed window: the bar coming into that Liberation, and the two sums above as it
+   *  stood. The last one, not any one — the fight is opener plus three loops off one continuous
+   *  bar, so only the final loop is steady state. */
+  erBefore = 0;
+  erA = 0;
+  erG = 0;
+  /** How many `resetEnergy` Liberations this member has cast: the opening one is handed a full bar
+   *  by combatStart, so it sets no requirement and opens the first real window instead. */
+  libCasts = 0;
+  /** The constant ER this build actually wears, stamped after equipping. A Liberation that needs
+   *  more than this is one the bar never filled, and `runTeam` re-equips rather than finish a run
+   *  on a build that cannot cast what its rotation lists. */
+  constEr = 0;
+  /** The largest requirement any of this member's Liberations has asked for so far — the opener's
+   *  included, since a cast the build cannot pay for is wrong wherever in the fight it falls. */
+  erWorst = 0;
+  /** Whether a Liberation short of its bar should abandon the run for this member — set only while
+   *  they have a higher ER tier left to wear. At the top there is nothing to re-equip, so the run
+   *  finishes and `erFeasible` reports the shortfall instead. */
+  erGuard = false;
+
+  /** How many EVERY_OTHER markers (rotation.ts) this member has reached — the count that decides
+   *  whether the cast written after each one plays or is skipped. One running count, not one per
+   *  row, and the State is new each run, so a fight always starts on a play. */
+  everyOther = 0;
   stacks = new Pool();
   /** Exactly the gear in `stacks` that declares an `updateGlobalFn`, kept in lockstep by the four
    *  mutators below. `evaluate()` walks every slot's own global hooks on *every* action, and only
@@ -271,6 +303,14 @@ export class TeamMember {
    *  in the fight changes, since a main stat only ever feeds its wearer. */
   variantOf: Gear | null = null;
   variants: Gear[] = [];
+  /** The substat tier piece the real build wears, and per variant the tier its own ER requirement
+   *  puts it on — `null` where that is the very same piece. A main stat carrying ER moves how many
+   *  ER rolls the spread wears, so a variant's base swaps both pieces (see `constBaseOf`). */
+  variantSubOf: Gear | null = null;
+  variantSubs: (Gear | null)[] = [];
+  /** Per variant, the ER rolls its tier was chosen for — checked after the run against what the
+   *  requirement the run measured asks of it (teamrun.ts's `runTeam`). */
+  variantRolls: number[] = [];
   variantAt = new Map<number, VariantAt>();
   /** Set per variant when its dry re-run would have changed the fight — a mutation the real build
    *  didn't make, or a resource stat that banks differently — so its scores can't be trusted and

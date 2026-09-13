@@ -4,10 +4,10 @@
  */
 import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
 import { eligibleWeapons, scopedKey, axisUsed, weaponBase, echoLabel, axisOpen, AXES } from "../solver.js";
-import type { Axis, TeamCost, ScopedCompare } from "../solver.js";
+import type { Axis, TeamCost, TeamScope, ScopedCompare } from "../solver.js";
 import { TEAMS, RESONATOR_HUE, filters, resonatorFilters, OPTION_FILTER_MAPS, sequenceTagsOf, tagOwner, comparable, MATRIX_RESONATORS } from "./model.js";
 import type { ResonatorFilter, OptionKind } from "./model.js";
-import { esc } from "./panels.js";
+import { esc, CLICK } from "./panels.js";
 
 const app = document.getElementById("app")!;
 
@@ -162,12 +162,13 @@ function searchResults(): string {
 /* ---------------------------------------------------------------------------- filter aside */
 
 const COST_HELP = [
-  "Full S0R0 - Limited resonators are S0 and use the best standard or 4* weapon available at R1. Rover and 4* resonators are S6.",
-  "S0R1 mdps - Each team gets a single signature weapon at R1 that gives the best DPR increase, in most cases the team's main DPS. Dual DPS teams still only get one signature weapon.",
+  "Intended Teams - Teams with synergy that use supports for that archetype. No suisui on an echo team for example. Switch to ALL teams to see a ton more combinations if you want to check a weird team.",
+  "S0R0 all - Limited resonators are S0 and use the best standard or 4* weapon available at R1. Rover and 4* resonators are S6.",
   "S0R1 all - All limited resonators get their best signature weapon, while Rover and 4* supports may still use standard or 4* weapons.",
+  "S0R1 mdps - Each team gets a single signature weapon at R1 that gives the best DPR increase, in most cases the team's main DPS. Dual DPS teams still only get one signature weapon.",
   "S1R1 / S2R1 / S3R1 / S6R1 mdps - One resonator per team runs that many sequence nodes, whichever gives the best DPR increase, in most cases the team's main DPS. Everyone else stays S0R1.",
   "S6R5 mdps - That one resonator is S6 and runs their weapon at R5; everyone else is still S0R1.",
-  "Full S6R5 - Every resonator is S6 with their best weapon at R5.",
+  "S6R5 all - Every resonator is S6 with their best weapon at R5.",
 ];
 /** Shown on the Matrix bubble and on the name menu's own line — the box this used to describe is
  *  gone, the option is per resonator now. */
@@ -181,7 +182,7 @@ const STANDARDS = [
 ];
 const README = [
   "All beta calculations are subject to change!",
-  "If you find an issue in rotations, buffs, stats, builds, or abnormal damage ping me on discord @rileyy._.",
+  "If you find any bug or issue ping me on discord @rileyy._.",
 ];
 
 /** Which boxes show their description; survives redraws. The README starts open. */
@@ -191,33 +192,41 @@ export function comparisonFilters(): string {
   const costBox = (): string => {
     const open = openHelp.has("cost");
     const option = (value: TeamCost, label: string) => `<option value="${value}"${filters.cost === value ? " selected" : ""}>${label}</option>`;
+    const scope = (value: TeamScope, label: string) => `<option value="${value}"${filters.scope === value ? " selected" : ""}>${label}</option>`;
     return `<div class="tcopt${open ? " open" : ""}">`
       + `<div class="tcopt-head">`
       + `<button type="button" class="tcopt-name" data-help="cost" aria-expanded="${open}">Team Cost<span class="arrow">›</span></button>`
       + `<select id="cost" class="tcselect" aria-label="Team Cost" title="Team Cost">`
-      + option("s0r0", "Full S0R0") + option("s0r1mdps", "S0R1 mdps only") + option("s0r1", "Full S0R1")
+      + option("s0r0", "S0R0 all") + option("s0r1", "S0R1 all") + option("s0r1mdps", "S0R1 mdps")
       + option("s1r1mdps", "S1R1 mdps") + option("s2r1mdps", "S2R1 mdps") + option("s3r1mdps", "S3R1 mdps")
-      + option("s6r1mdps", "S6R1 mdps") + option("s6r5mdps", "S6R5 mdps") + option("s6r5", "Full S6R5")
+      + option("s6r1mdps", "S6R1 mdps") + option("s6r5mdps", "S6R5 mdps") + option("s6r5", "S6R5 all")
+      + `</select>`
+      // which teams run at all, beside the cost they run at — the unintended ones are not solved
+      // until this says All, so the box is a switch on the work as much as on the table
+      + `<select id="scope" class="tcselect" aria-label="Teams" title="Teams">`
+      + scope("intended", "Intended Teams") + scope("all", "ALL Teams")
       + `</select></div>`
       + `<div class="tcopt-desc"${open ? "" : " hidden"}><ul>${COST_HELP.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div>`
       + `</div>`;
   };
-  const note = (id: string, label: string, lines: string[]) => {
+  // `extra` is markup of its own at the end of the list, which only the README has: the line that
+  // starts the tutorial over (page/tutorial.ts listens for it)
+  const note = (id: string, label: string, lines: string[], extra = "") => {
     const open = openHelp.has(id);
-    return `<div class="tcopt note${open ? " open" : ""}"><div class="tcopt-head">`
+    return `<div class="tcopt note${open ? " open" : ""}" data-note="${id}"><div class="tcopt-head">`
       + `<button type="button" class="tcopt-name" data-help="${id}" aria-expanded="${open}">`
       + `${esc(label)}<span class="arrow">›</span></button></div>`
       + `<div class="tcopt-desc"${open ? "" : " hidden"}>`
-      + `<ul>${lines.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div></div>`;
+      + `<ul>${lines.map((l) => `<li>${esc(l)}</li>`).join("")}${extra}</ul></div></div>`;
   };
   return `<div class="tcfilters">
     <div class="tcfilter-row note">
-      ${note("readme", "README", README)}
+      ${note("readme", "README", README, `<li><button type="button" class="tutstart">How do I use this website? ${CLICK} here.</button></li>`)}
       ${note("standards", "Standards and Assumptions", STANDARDS)}
       ${costBox()}
       <div class="tcsearchrow">
         <div class="tcsearch">
-          <input id="optionSearch" type="search" placeholder="Add resonators..."
+          <input id="optionSearch" type="search" placeholder="Add resonator or comparison..."
             autocomplete="off" spellcheck="false" value="${esc(searchText)}">
           <div class="tcsearch-results" id="searchResults">${searchResults()}</div>
         </div>
@@ -243,7 +252,7 @@ function resonatorChips(): string {
   for (const [name, mode] of resonatorFilters) {
     bucket(mode).push(`<button type="button" class="rchip" data-resonator="${esc(name)}"`
       + ` style="--mem:${RESONATOR_HUE.get(name) ?? TUNE_BREAK_ENEMY.color}"`
-      + ` title="${esc(name)} — teams fielding ${MODE_TITLE[mode]}. Click to remove.">`
+      + ` title="${esc(name)} — teams fielding ${MODE_TITLE[mode]}. ${CLICK} to remove.">`
       + `${esc(name)}</button>`);
   }
   for (const [kind, map] of Object.entries(OPTION_FILTER_MAPS) as [OptionKind, Map<string, ResonatorFilter>][]) {
@@ -251,27 +260,27 @@ function resonatorChips(): string {
       const hue = kind === "sequence" || kind === "refine" ? RESONATOR_HUE.get(tagOwner(name)) : undefined;
       bucket(mode).push(`<button type="button" class="rchip" data-kind="${kind}" data-value="${esc(name)}"`
         + (hue ? ` style="--mem:${hue}"` : "")
-        + ` title="${esc(name)} — rows using ${MODE_TITLE[mode]}. Click to remove.">`
+        + ` title="${esc(name)} — rows using ${MODE_TITLE[mode]}. ${CLICK} to remove.">`
         + `${esc(name)}</button>`);
     }
   }
   for (const s of filters.scoped) {
     inc.push(`<button type="button" class="rchip" data-scoped="${esc(scopedKey(s))}"`
       + ` style="--mem:${RESONATOR_HUE.get(s.resonator) ?? TUNE_BREAK_ENEMY.color}"`
-      + ` title="Comparing ${esc(scopedLabel(s))}'s ${AXIS_LABEL[s.axis].toLowerCase()}. Click to remove.">`
+      + ` title="Comparing ${esc(scopedLabel(s))}'s ${AXIS_LABEL[s.axis].toLowerCase()}. ${CLICK} to remove.">`
       + `${esc(scopedLabel(s))} ${AXIS_LABEL[s.axis]}</button>`);
   }
   for (const name of filters.matrix) {
     inc.push(`<button type="button" class="rchip" data-matrix="${esc(name)}"`
       + ` style="--mem:${RESONATOR_HUE.get(name) ?? TUNE_BREAK_ENEMY.color}"`
-      + ` title="${esc(name)} runs their Matrix in every team. ${esc(MATRIX_HELP)} Click to remove.">`
+      + ` title="${esc(name)} runs their Matrix in every team. ${esc(MATRIX_HELP)} ${CLICK} to remove.">`
       + `${esc(name)} Matrix</button>`);
   }
   for (const axis of AXES) {
     for (const name of filters[axis]) {
       inc.push(`<button type="button" class="rchip" data-axis="${axis}" data-resonator="${esc(name)}"`
         + ` style="--mem:${RESONATOR_HUE.get(name) ?? TUNE_BREAK_ENEMY.color}"`
-        + ` title="Comparing ${esc(name)}'s ${AXIS_LABEL[axis].toLowerCase()}. Click to remove.">`
+        + ` title="Comparing ${esc(name)}'s ${AXIS_LABEL[axis].toLowerCase()}. ${CLICK} to remove.">`
         + `${esc(name)} ${AXIS_LABEL[axis]}</button>`);
     }
   }

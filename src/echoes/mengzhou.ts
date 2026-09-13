@@ -26,11 +26,12 @@ export const MYRIAD_SNARE = new Mainslot({
 
 /** Lamp of Nether Road, Jingran's own sonata (paired directly with Myriad Snare above). 5pc: a
  *  shield grants 5% crit rate, four stacks, full four pay 15% fusion damage on top. 2pc: +10%
- *  Bonus HP flat. Short window, so it still counts on the wearer's own outro (see jinzhou.ts's
- *  HERON_HANDOFF), then is lost. */
+ *  Bonus HP flat. The window is 5s, far short of a trip round the team, so it counts on the
+ *  wearer's own outro (see jinzhou.ts's HERON_HANDOFF) and is gone the moment he leaves the
+ *  field — a stack picked up in an opener never reaches the visit after it. */
 export const LAMP_STACKS = new Buff({
   name: "Lamp of Nether Road 5pc", maxStacks: 4,
-  stats: [[Stat.CritRate, 5]], perStack: true, until: LifeTime.Outro,
+  stats: [[Stat.CritRate, 5]], perStack: true, until: LifeTime.AfterSwap,
   applyStats: () => { if (frozenStacks() >= 4) addStat(Stat.DmgBonus, 15, Attribute.Fusion); },
 });
 export const LAMP_2PC = new Sonata2pc({ name: "Lamp of Nether Road 2pc", stats: [[Stat.BonusHp, 10]] });

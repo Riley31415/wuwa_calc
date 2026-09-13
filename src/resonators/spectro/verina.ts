@@ -233,7 +233,7 @@ const VR_S2 = new Rotation([
   ECHO_SWAP, OUTRO,
 
   INTRO, Liberation,
-  Skill, JUMP, ForteMidair1,
+  Skill, JUMP, ForteMidair1, ForteMidair2,
   ECHO_SWAP, OUTRO,
 ]);
 
@@ -251,8 +251,10 @@ export const VERINA = new Loadout({
     //new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     ],
   mainstats: [mainstats(Mainstat.ATK4, Mainstat.ER3, Mainstat.ER3, Mainstat.ATK1, Mainstat.ATK1)],
-  substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.Er, Substat.Basic, Substat.AtkPct, Substat.Basic),
-    rotation: { 0: VR_LOOP, 2: VR_S2 },
+  substat: substats(Substat.Er, Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.Basic),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.Liberation, Substat.AtkPct, Substat.Basic),
+    // S2 loop disabled for now: dropping BA345 from the window costs every teammate ~3.1 ER and
+    // loses her own damage too. Re-point at VR_S2 once that rotation is settled.
+    rotation: VR_LOOP,
   sequences: [VERINA_S1, VERINA_S2, VERINA_S3, VERINA_S4, VERINA_S5, VERINA_S6],
 });

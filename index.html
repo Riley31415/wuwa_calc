@@ -7,16 +7,23 @@
      an ordinary reload — which looks exactly like "the edit did nothing". dev.py sends no-store
      itself; this covers every other host. -->
 <meta http-equiv="Cache-Control" content="no-store">
-<title>Skittle Calcs</title>
-<meta property="og:title" content="Skittle Calcs">
-<meta property="og:description" content="WuWa team damage and build comparison for 123 rotations.">
+<title>Riley Calcs</title>
+<!-- The search snippet, then the shorter line the link embeds show; Twitter reads og:description.
+     The old name is kept at the end of the snippet so searches for it still land here. -->
+<meta name="description" content="WuWa team damage and build calculations by Riley. Compare every team side by side, with the best echoes, main stats, substats and weapon solved for each build with full rotation breakdowns. Formerly known as Skittle Calcs.">
+
+<meta property="og:title" content="Riley Calcs">
+<meta property="og:site_name" content="Riley Calcs">
+<meta property="og:description" content="WuWa team damage and build calculations by Riley">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://riley31415.github.io/wuwa_calc/">
-<meta property="og:image" content="https://riley31415.github.io/wuwa_calc/resources/preview.jpg">
+<meta property="og:image" content="https://riley31415.github.io/wuwa_calc/loading_upscale.gif">
+
 <meta name="twitter:card" content="summary">
 <meta name="theme-color" content="#f2074a">
-<link rel="icon" type="image/png" sizes="96x64" href="./resources/favicon.png">
-<link rel="stylesheet" href="./resources/index.css">
+
+<link rel="icon" type="image/png" sizes="192x192" href="./favicon.png">
+<link rel="stylesheet" href="./index.css">
 </head>
 <body>
 
@@ -76,7 +83,10 @@
   </p>
   <div class="progress-track"><div class="progress-fill"></div></div>
   <!-- the sticker the favicon is cut from, whole, at its own size -->
-  <img class="loading-gif" src="./resources/loading.gif" alt="" width="110" height="79">
+  <img class="loading-gif" src="./loading.gif" alt="" width="110" height="79">
+  <!-- and the one that takes its place the moment anything lands in the error box below. Empty,
+       with the sticker as its background: a page that comes up clean never fetches it. -->
+  <div class="error-gif" aria-hidden="true"></div>
   <!-- anything that goes wrong while the page loads lands here, in full, rather than only in a
        console nobody has open (the handlers below) -->
   <pre class="loading-error" hidden></pre>

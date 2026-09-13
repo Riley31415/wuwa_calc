@@ -37,7 +37,7 @@ import {
   onCast,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO } from "../../engine/rotation.js";
-import { STRINGMASTER } from "../../weapons/rectifier.js";
+import { LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, STRINGMASTER, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { INFERNO_RIDER, MOLTEN_RIFT_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
@@ -213,11 +213,11 @@ const EN_ROTATION = new Rotation([
 // sonata pieces, mainstat/substat, all six sequences (by explicit instruction — see file header)
 export const ENCORE = new Loadout({
   resonator: ENCORE_RESONATOR,
-  weapons: [STRINGMASTER, COSMIC_RIPPLES, NEW_STD_RECTIFIER],
+  weapons: [STRINGMASTER, COSMIC_RIPPLES, NEW_STD_RECTIFIER, LETHEAN_ELEGY, WHISPERS_OF_SIRENS, RIME_DRAPED_SPROUTS],
   echoLoadouts: [new EchoLoadout(INFERNO_RIDER, MOLTEN_RIFT_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.FlatAtk, Substat.Basic, Substat.Er),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill),
     rotation: EN_ROTATION,
   sequences: [S1, S2, S3, S4, S5, S6],
 });

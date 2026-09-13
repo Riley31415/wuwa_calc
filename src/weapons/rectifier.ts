@@ -7,7 +7,6 @@ import { Buff, Weapon, refinements } from "../engine/gear.js";
 import {
   addStat,
   frozenStacks,
-  stacksOf,
   isHeld,
   applyCurrent,
   applyTeam,
@@ -75,19 +74,21 @@ export const STRINGMASTER = refinements((r, rank) => {
  *  Attack DMG Bonus, stack 2 also ignores 12% Havoc RES. Lost entirely if switched off field. */
 export const WHISPERS_OF_SIRENS = refinements((r, rank) => {
   const GENTLE_DREAM: Buff = new Buff({
-    name: `Whispers of Sirens: Gentle Dream${rank}`, maxStacks: 3, until: LifeTime.Swap,
-    grants: [{ on: onCast(Cast.Echo) }],
+    name: `Whispers of Sirens: Gentle Dream${rank}`, maxStacks: 2, until: LifeTime.Swap,
+    // one stack is the Basic Attack DMG Bonus, the second adds the Havoc RES ignore on top
     applyStats: () => {
-      const held = frozenStacks();
-      if (held < 2) return;
       addStat(Stat.DmgBonus, [40, 50, 60, 70, 80][r]!, Type1.Basic);
-      if (held >= 3) addStat(Stat.ResIgnore, [12, 15, 18, 21, 24][r]!, Attribute.Havoc);
+      if (frozenStacks() >= 2) addStat(Stat.ResIgnore, [12, 15, 18, 21, 24][r]!, Attribute.Havoc);
     },
   });
   return new Weapon({
     weaponType: WeaponType.Rectifier, name: `Whispers of Sirens${rank}`,
     stats: [[Stat.BaseAtk, 500], [Stat.CritDmg, 72], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
-    grants: [{ on: () => (casting(Cast.Intro) || casting(Cast.Basic)) && !stacksOf(GENTLE_DREAM), buff: GENTLE_DREAM }],
+    // Every Echo Skill cast banks a stack, her own kit's included — Cantarella's Skill, her Forte
+    // press and her Liberation all cast one (`cast2: Cast.Echo`), so the two stacks come off
+    // different casts rather than off pressing one echo twice. The "within 10s of an Intro or a
+    // Basic" window is always open in a rotation that opens on Basics. Swapping out ends it.
+    grants: [{ on: onCast(Cast.Echo), buff: GENTLE_DREAM }],
   });
 });
 

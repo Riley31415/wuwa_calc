@@ -92,6 +92,10 @@ export interface ActionDef extends GearDef {
    *  to no cast at all this step (it deferred itself onto a later one, say — see `queueOnIntro()`),
    *  and `run()` simply moves on. */
   resolve?: () => Action | null;
+  /** A rotation marker that gates the entry written *after* it rather than standing for a cast of
+   *  its own: true skips that entry (a whole ActionGroup, where that is what follows), false lets
+   *  it play. The marker itself never lands. */
+  skipNext?: () => boolean;
   /** Report this cast as a triggered row even though it came straight off a rotation list — for
    *  engine bookkeeping a resonator didn't press a button for (the swap markers below).
    *  Everything else `run()` derives on its own; see its `triggered` local. */
@@ -145,6 +149,7 @@ export class Action extends Gear {
   /** `resetForte1`-`resetForte5` as one array, indexed the way `TeamMember.forte` is. */
   resetForte: [boolean, boolean, boolean, boolean, boolean];
   resolveFn?: () => Action | null;
+  skipNextFn?: () => boolean;
   triggered: boolean;
   cutscene: boolean;
   /** What this was built from, kept so `variant()` can rebuild it with a change or two. */
@@ -192,6 +197,7 @@ export class Action extends Gear {
     this.forteDeltas = [this.forte1, this.forte2, this.forte3, this.forte4, this.forte5];
     this.resetForte = [!!def.resetForte1, !!def.resetForte2, !!def.resetForte3, !!def.resetForte4, !!def.resetForte5];
     this.resolveFn = def.resolve;
+    this.skipNextFn = def.skipNext;
     this.triggered = def.triggered ?? false;
     this.cutscene = def.cutscene ?? false;
     this.def = def;
@@ -376,6 +382,15 @@ export const ECHO_ONFIELD = new Action("Echo Placeholder (on field)", {
     if (!mainslot) throw new Error(`${currentMember().name} casts ECHO_ONFIELD but has no Mainslot equipped`);
     return mainslot.onfield;
   },
+});
+
+/** Written immediately before a cast: that cast plays every other time this marker is reached, and
+ *  is skipped in between — play, skip, play, skip. The count is the member's own and runs across
+ *  every EVERY_OTHER in their rotation rather than per row, so a START section's copy takes the
+ *  first play and the loops alternate on from there: play (start), skip, play, skip, play. For a
+ *  cast a rotation lists every visit that the kit can only pay for on half of them. */
+export const EVERY_OTHER = new Action("Every Other", {
+  skipNext: () => ++currentMember().everyOther % 2 === 0,
 });
 
 /** Written right before the outro — see ECHO_ONFIELD above. */

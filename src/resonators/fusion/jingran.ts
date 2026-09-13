@@ -335,7 +335,7 @@ const JR_SEQUENCES = [JR_S1, JR_S2, JR_S3, JR_S4, JR_S5, JR_S6];
 
 const SHIELDS = new Map<Action, number>([
   [BA1, 1], [BA2, 1], [BA3, 2], [BA4, 2], [MA, 1], [EBA1, 1], [EBA2, 1], [EBA3, 2], [EBA4, 2],
-  [DC, 1], [EDC, 1], [Skill1, 1], [ESkill1, 1], [Skill2, 2], [ESkill2, 2], [Lib, 1], [Intro, 1], [FHA, 1], [EFHA, 1],
+  [DC, 1], [EDC, 1], [Skill1, 1], [ESkill1, 1], [Skill2, 2], [ESkill2, 2], [Lib, 0], [Intro, 1], [FHA, 1], [EFHA, 1],
 ]);
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
@@ -415,8 +415,8 @@ export const JINGRAN = new Loadout({
   echoLoadouts: [new EchoLoadout(MYRIAD_SNARE, LAMP_5PC),
   new EchoLoadout(MYRIAD_SNARE, COV_3PC, LAMP_2PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.HP4, Mainstat.Fusion3, Mainstat.ATK1, Mainstat.HP1),
-  substat: substats(Substat.AtkPct, Substat.HpPct, Substat.Heavy),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Heavy, Substat.Er, Substat.HpPct),
+  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.HpPct, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.HpPct, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk),
   rotation: { 0: JR_ROTATION, 2: JR_ROTATION_S2 },
   sequences: JR_SEQUENCES,
 });

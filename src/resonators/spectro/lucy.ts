@@ -59,7 +59,7 @@ import {
   frozenStacks,
   stacksOfEnemy,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, ECHO_CANCEL, OUTRO, ECHO_SWAP } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
 import { matrix } from "../../shared/helpers.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING, TUNE_HACK_INTERFERED } from "../../shared/tunebreak.js";
@@ -397,7 +397,7 @@ const BA234 = new ActionGroup("Basic - Locked Thread 234", [BA2, BA3, BA4]);
 const EBA234 = new ActionGroup("Basic - Thread Shredding 234", [EBA2, EBA3, EBA4]);
 
 const LC_ROTATION = new Rotation([
-  START_3, Lib, SWAP,
+  START_3, Lib, ECHO_SWAP, SWAP,
   INTRO, BA234, Skill1, Skill3,
   Deadlock, EBA234,
   DualThreading, MultiThreading, ECHO_CANCEL,
@@ -438,7 +438,7 @@ export const LUCY = new Loadout({
   echoLoadouts: LC_ECHOES,
   sequences: [LC_S1, LC_S2, LC_S3, LC_S4, LC_S5, LC_S6],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Er),
+  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill),
     rotation: LC_ROTATION,
 });

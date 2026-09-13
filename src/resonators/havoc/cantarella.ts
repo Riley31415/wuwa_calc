@@ -304,9 +304,11 @@ export const CANTARELLA = new Loadout({
     new EchoLoadout(HECATE, EMPYREAN_ANTHEM_5PC),
         new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Basic),
+  // an ER 3-cost is on the table as a support: her Liberation is what the team is waiting on, and
+  // the rolls it frees off the spread often outweigh the elemental bonus it gives up
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill),
   rotation: CA_ROTATION,
   sequences: CA_SEQUENCES,
 });
@@ -321,9 +323,10 @@ export const CANTARELLA_MDPS = new Loadout({
   echoLoadouts: [
     new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Basic, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Basic),
+  // same ER 3-cost her support build carries: her own bar wants more than a spread holds
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Skill),
   rotation: CA_ROTATION_MDPS,
   sequences: CA_SEQUENCES,
 });

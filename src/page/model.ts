@@ -9,7 +9,7 @@ import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
 import { buildReport } from "../display.js";
 import type { Report } from "../display.js";
 import { member, comboOf, eligibleWeapons, refineLevels, sequenceLevels, topRank, scopedKey, axisUsed, weaponBase, echoLabel, MAINSTAT_ROWS, defaultFilters, bestKey, picksKey, axisOpen, filterSignature, AXES } from "../solver.js";
-import type { Member, Combo, Pick, Filters, Solved, SolveSave, Axis, TeamCost, ScopedCompare } from "../solver.js";
+import type { Member, Combo, Pick, Filters, Solved, SolveSave, Axis, TeamCost, TeamScope, ScopedCompare } from "../solver.js";
 import { runTeam, runFromScore } from "../teamrun.js";
 import type { TeamRun } from "../teamrun.js";
 import { teamKey, teamAt, ALL_TEAMS } from "../teams.js";
@@ -21,6 +21,11 @@ export const TEAMS: Record<string, Member[]> = Object.fromEntries(ALL_TEAMS.map(
   teamKey(i),
   loadouts.map((l, j) => member(l, mdps[j]!)),
 ]));
+
+/** The team keys teams.ts marked `INTENDED` — the only ones in play until the Teams box says All. */
+const INTENDED_TEAMS = new Set(ALL_TEAMS.flatMap(({ intended }, i) => (intended ? [teamKey(i)] : [])));
+/** Whether the Teams box is running this team at all: every team once it says All. */
+const inScope = (key: string): boolean => filters.scope === "all" || INTENDED_TEAMS.has(key);
 
 export type ResonatorFilter = "include" | "exclude";
 // no main stats: a roll reaches nobody but its wearer, so it is read off the table, never filtered
@@ -181,10 +186,12 @@ let poolNeeds = new Map<string, number>();
 let poolKey = " ";
 function leaderNeeds(): Map<string, number> {
   const added = [...resonatorFilters].filter(([, mode]) => mode === "include").map(([name]) => name);
-  const key = added.join(" ");
+  const key = `${filters.scope} ${added.join(" ")}`;
   if (key === poolKey) return poolNeeds;
   [poolKey, poolAdded, poolNeeds] = [key, added, new Map()];
-  for (const ms of Object.values(TEAMS)) {
+  // read off the teams actually in play: a need no intended team can meet would empty the table
+  for (const [teamKey, ms] of Object.entries(TEAMS)) {
+    if (!inScope(teamKey)) continue;
     for (const m of ms) {
       if (!MDPS_NAMES.has(m.name) || !added.includes(m.name)) continue;
       const held = added.filter((o) => o !== m.name && ms.some((x) => x.name === o)).length;
@@ -210,7 +217,8 @@ function leaderNeeds(): Map<string, number> {
  * added there is nothing to lead the narrowing, so it falls back to the whole roster narrowed by
  * everyone added: a lone support reads as "every team fielding them".
  */
-export function teamWanted(members: Member[]): boolean {
+export function teamWanted(key: string, members: Member[]): boolean {
+  if (!inScope(key)) return false;
   const has = (name: string): boolean => members.some((m) => m.name === name);
   for (const [name, mode] of resonatorFilters) if (mode === "exclude" && has(name)) return false;
   const needs = leaderNeeds();
@@ -264,7 +272,7 @@ function rowWanted(row: TeamRow): boolean {
  *  already run off the solve's scores, filtered to what the option filters want. */
 function expandTeam(teamKey: string, members: Member[]): TeamRow[] {
   const solved = bestPicks.get(bestKey(teamKey, members, filters));
-  if (!solved || !teamWanted(members)) return [];
+  if (!solved || !teamWanted(teamKey, members)) return [];
   const rows = new Map<string, TeamRow>();
   const file = (picks: Pick[], score: Solved["scores"][number] | undefined, list: boolean): void => {
     const combo = picks.map((p, i) => comboOf(members[i]!.loadout, p));
@@ -334,7 +342,7 @@ export function estimatedRowCount(members: Member[], f: Filters = filters): numb
 
 export function prospectiveRows(f: Filters = filters): number {
   return Object.entries(TEAMS)
-    .filter(([, members]) => teamWanted(members))
+    .filter(([key, members]) => teamWanted(key, members))
     .reduce((sum, [, members]) => sum + estimatedRowCount(members, f), 0);
 }
 
@@ -517,12 +525,14 @@ export function saveSolves(): void {
 /* --------------------------------------------------------------------------- state in the URL */
 
 /** The whole page state lives in the hash as a query string: `mx=` the Matrix list, `tc=` cost, `cw=`...
- *  compares, `cs=` scoped compares, `r`/`x` + `wr`/`wx`... include/exclude lists, `team=`. Absent
+ *  compares, `cs=` scoped compares, `ts=` team scope, `r`/`x` + `wr`/`wx`... include/exclude
+ *  lists, `team=` the row's own hex tag (`teamTag()`). Absent
  *  params read as defaults so an old bare `#team=` link still works. */
 export const hashParams = (): URLSearchParams => new URLSearchParams(location.hash.replace(/^#/, ""));
 
 const COMPARE_PARAM: Record<Axis, string> = { weapons: "cw", echoes: "ce", mainstats: "cm", substats: "cb", sequences: "cq", refines: "cr" };
 const SCOPED_PARAM = "cs";
+const SCOPE_CODE: Record<TeamScope, string> = { intended: "i", all: "a" };
 const COST_CODE: Record<TeamCost, string> = {
   s0r0: "r0", s0r1mdps: "r1m", s0r1: "r1",
   s1r1mdps: "s1m", s2r1mdps: "s2m", s3r1mdps: "s3m", s6r1mdps: "s6m", s6r5mdps: "s6r5m", s6r5: "s6r5",
@@ -554,6 +564,9 @@ export function applyHash(): boolean {
   const code = params.get("tc");
   const cost = (Object.keys(COST_CODE) as TeamCost[]).find((c) => COST_CODE[c] === code) ?? "s0r1";
   if (filters.cost !== cost) { filters.cost = cost; changed = true; }
+  const scopeCode = params.get("ts");
+  const scope = (Object.keys(SCOPE_CODE) as TeamScope[]).find((sc) => SCOPE_CODE[sc] === scopeCode) ?? "intended";
+  if (filters.scope !== scope) { filters.scope = scope; changed = true; }
   for (const axis of AXES) {
     const next = (params.get(COMPARE_PARAM[axis]) ?? "").split(",").filter(Boolean)
       .map((n) => RESONATOR_NAME_BY_COMPACT.get(n) ?? n);
@@ -582,17 +595,72 @@ export function applyHash(): boolean {
   return changed;
 }
 
+/** The digits a tag is written in — base62, which fits the widths below in 13 characters where
+ *  hex takes 19. Case matters, so a tag is copied, never typed. */
+const TAG_DIGITS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+/** The `team=` tag: a row key packed into one base62 number, low bits first — the team's index in
+ *  14 bits, then each member's own picks in 20 (weapon 3, echo 3, mainstat 6, sequence 3, refine 3,
+ *  matrix, high subs). The last member's zeroes trim off the front, so an ordinary build reads as
+ *  a dozen digits rather than forty. A key that doesn't fit the widths is written out plain —
+ *  `hashTeam()` reads both, so an old link still resolves. */
+export function teamTag(key: string): string {
+  const [teamKey, ...comboKeys] = key.split("-");
+  const team = /^t(\d+)$/.exec(teamKey ?? "");
+  if (!team || +team[1]! > 0x3fff) return key;
+  let bits = BigInt(+team[1]!), width = 14n;
+  for (const combo of comboKeys) {
+    const p = /^(\d+)\.(\d+)\.(\d+)\.s(\d+)\.r(\d+)(\.m)?(\.h)?$/.exec(combo);
+    if (!p) return key;
+    const [weapon, echo, mainstat, sequence, refine] = p.slice(1, 6).map(Number) as [number, number, number, number, number];
+    if (weapon > 7 || echo > 7 || mainstat > 63 || sequence > 7 || refine > 7) return key;
+    const packed = weapon | (echo << 3) | (mainstat << 6) | (sequence << 12) | (refine << 15)
+      | (p[6] ? 1 << 18 : 0) | (p[7] ? 1 << 19 : 0);
+    bits |= BigInt(packed) << width;
+    width += 20n;
+  }
+  const base = BigInt(TAG_DIGITS.length);
+  let tag = "";
+  do {
+    tag = TAG_DIGITS[Number(bits % base)] + tag;
+    bits /= base;
+  } while (bits > 0n);
+  return tag;
+}
+
+/** The hash's team as a row key — the tag unpacked, or the value as written for a plain-key link
+ *  from before the tag (and for one `teamTag()` refused to pack). The member count comes from the
+ *  team the low bits name, so a tag for a team the roster no longer has reads as a stale key. */
+export function hashTeam(): string | null {
+  const tag = hashParams().get("team");
+  if (!tag || !/^[0-9a-zA-Z]+$/.test(tag)) return tag;
+  let bits = 0n;
+  for (const c of tag) bits = bits * BigInt(TAG_DIGITS.length) + BigInt(TAG_DIGITS.indexOf(c));
+  const teamKey = `t${Number(bits & 0x3fffn)}`;
+  const members = TEAMS[teamKey];
+  if (!members) return tag;
+  bits >>= 14n;
+  const combos = members.map(() => {
+    const packed = Number(bits & 0xfffffn);
+    bits >>= 20n;
+    return `${packed & 7}.${(packed >> 3) & 7}.${(packed >> 6) & 63}.s${(packed >> 12) & 7}.r${(packed >> 15) & 7}`
+      + (packed & (1 << 18) ? ".m" : "") + (packed & (1 << 19) ? ".h" : "");
+  });
+  return [teamKey, ...combos].join("-");
+}
+
 /** Write the state back into the URL. `replaceState` by default, so a filter flip never fires
  *  `hashchange` and never buries the page under Back entries — every caller routes for itself.
  *  `push` is for opening a detail view, which is a navigation of its own: it goes on the history
  *  stack so the browser's own Back button comes back out of it (index.ts's `hashchange`). */
-export function syncHash(team: string | null = hashParams().get("team"), push = false): void {
+export function syncHash(team: string | null = hashTeam(), push = false): void {
   const named = (map: Map<string, ResonatorFilter>, mode: ResonatorFilter): string => [...map]
     // a resonator's spaces are dropped (`ElectroRover`); gear names keep theirs
     .filter(([, m]) => m === mode).map(([name]) => encodeURIComponent(map === resonatorFilters ? name.replace(/ /g, "") : name)).join(",");
   const compact = (n: string): string => encodeURIComponent(n.replace(/ /g, ""));
   const parts = filters.matrix.length ? [`mx=${filters.matrix.map(compact).join(",")}`] : [];
   if (filters.cost !== "s0r1") parts.push(`tc=${COST_CODE[filters.cost]}`);
+  if (filters.scope !== "intended") parts.push(`ts=${SCOPE_CODE[filters.scope]}`);
   for (const axis of AXES) {
     if (filters[axis].length) parts.push(`${COMPARE_PARAM[axis]}=${filters[axis].map((n) => encodeURIComponent(n.replace(/ /g, ""))).join(",")}`);
   }
@@ -601,7 +669,7 @@ export function syncHash(team: string | null = hashParams().get("team"), push = 
     if (named(map, "include")) parts.push(`${include}=${named(map, "include")}`);
     if (named(map, "exclude")) parts.push(`${exclude}=${named(map, "exclude")}`);
   }
-  if (team) parts.push(`team=${team}`);
+  if (team) parts.push(`team=${teamTag(team)}`);
   const next = parts.length ? `#${parts.join("&")}` : "";
   if (next === location.hash) return;
   const url = `${location.pathname}${location.search}${next}`;
@@ -612,6 +680,6 @@ export function syncHash(team: string | null = hashParams().get("team"), push = 
 
 /** A detail route is valid iff `results` has actually run it. */
 export const routeTeam = (): string | null => {
-  const key = hashParams().get("team");
+  const key = hashTeam();
   return key && results.has(key) ? key : null;
 };

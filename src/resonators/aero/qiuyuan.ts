@@ -272,7 +272,7 @@ const QY_ROTATION = new Rotation([
   FHA123, 
   OUTRO,
 
-  START_3, Liberation, SWAP,
+  START_3, Liberation, Skill, SWAP,
 
   INTRO_3, EBA34, 
   ECHO_CANCEL, Skill,
@@ -287,24 +287,25 @@ const QY_ROTATION = new Rotation([
  *  stays as it is. */
 const QY_ROTATION_MDPS = new Rotation([
   INTRO, EBA34, 
-  ECHO_CANCEL,
+  ECHO_CANCEL, Skill, 
   FHA123, 
-  HA, EBA4, HA, EBA4, Liberation, EBA12, DODGE, EBA12, 
+  HA, EBA4, HA, EBA4, Liberation, 
+  EBA12, DODGE, EBA12, 
   FHA123, 
   OUTRO,
 ]);
 
 const QY_ROTATION_MDPS_S3 = new Rotation([
-  START_3, Liberation, SWAP,
+  START_3, Liberation, Skill, SWAP,
 
   INTRO_2, EBA34, 
-  ECHO_CANCEL, Liberation,
+  ECHO_CANCEL, Liberation, Skill, 
   FHA123, 
   StrawCape, EBA34, FHA123,
   OUTRO,
 
   INTRO_3, EBA34, 
-  ECHO_CANCEL,
+  ECHO_CANCEL, Skill, 
   FHA123, 
   StrawCape, EBA34, 
   FHA123, 
@@ -329,9 +330,11 @@ export const QIUYUAN = new Loadout({
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     new EchoLoadout(BELL_BORNE_GEOCHELONE, MOONLIT_CLOUDS_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Heavy, Substat.Er, Substat.FlatAtk),
+  // an ER 3-cost is on the table: beside Phrolova her bar wants more Energy than her spread can
+  // carry, and without it every sonata she owns falls out of reach rather than out of the running
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Basic),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Basic),
   rotation: QY_ROTATION,
   sequences: QY_SEQUENCES,
 });
@@ -342,9 +345,11 @@ export const QIUYUAN_MDPS = new Loadout({
   echoLoadouts: [
     new EchoLoadout(FENRICO, LAW_OF_HARMONY_3PC, SIERRA_GALE_2PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Heavy, Substat.Er, Substat.FlatAtk),
+  // an ER 3-cost is on the table: beside Phrolova her bar wants more Energy than her spread can
+  // carry, and without it every sonata she owns falls out of reach rather than out of the running
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Basic),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Basic),
   rotation: { 0: QY_ROTATION_MDPS, 3: QY_ROTATION_MDPS_S3 },
   sequences: QY_SEQUENCES,
 });

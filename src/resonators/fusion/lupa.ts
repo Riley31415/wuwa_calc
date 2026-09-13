@@ -47,7 +47,7 @@ import {
   queueOutro,
   onCast,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO, ECHO_SWAP } from "../../engine/rotation.js";
 import { WILDFIRE_MARK } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { LIONESS_OF_GLORY, CLAWPRINT_5PC } from "../../echoes/septimont.js";
@@ -350,7 +350,7 @@ const MA12 = new ActionGroup("Mid-air - Flaming Star 12", [MA1, MA2]);
 
 const LP_LOOP = new Rotation([
   NOINTRO, Skill1,
-  INTRO, ECHO_CANCEL, Liberation, USkill, MA12, EMA3, EHA4, UFSkill, OUTRO,
+  INTRO, Liberation, USkill, MA12, EMA3, EHA4, UFSkill, ECHO_SWAP, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -364,9 +364,9 @@ export const LUPA = new Loadout({
     new EchoLoadout(LIONESS_OF_GLORY, CLAWPRINT_5PC),
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
   ],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Liberation, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Liberation, Substat.Er, Substat.FlatAtk),
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Fusion3, Mainstat.ATK1),
+  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill),
   rotation: { 0: LP_LOOP },
   sequences: LP_SEQUENCES,
 });

@@ -43,7 +43,7 @@ import {
 import { ActionGroup, Action, Rotation, START_2, SWAP, NOINTRO, INTRO, ECHO_SWAP, OUTRO, START_3 } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import {
-  TUNE_BREAK, TUNE_RUPTURE_INTERFERED, TUNE_STRAIN_INTERFERED, TUNE_STRAIN_RESPONDER, tuneRuptureResponse,
+  TUNE_BREAK, TUNE_RUPTURE_INTERFERED, TUNE_STRAIN_INTERFERED, tuneRuptureResponse, strainPayout,
 } from "../../shared/tunebreak.js";
 import { STARFIELD_CALIBRATOR } from "../../weapons/broadblade.js";
 import { DISCORD } from "../../weapons/standard.js";
@@ -287,6 +287,9 @@ const MORNYE_TALENTS = new Talent({
   stats: [[Stat.BonusDef, 15.2], [Stat.HealingBonus, 12]],
 });
 
+/** This kit's own carrier for the Tune Strain payout (tunebreak.ts's `strainPayout`). */
+const MO_STRAIN_PAYOUT = strainPayout();
+
 const MORNYE_RESONATOR = new Resonator({
   name: "Mornye",
   talent: MORNYE_TALENTS,
@@ -302,7 +305,7 @@ const MORNYE_RESONATOR = new Resonator({
   maxForte2: 100,
 
   updateGlobal: () => tuneRuptureResponse(ParticleJet),
-  combatStart: () => { maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(TUNE_STRAIN_RESPONDER, 1); },
+  combatStart: () => { maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(MO_STRAIN_PAYOUT, 1); },
 
   stats: [
     [Stat.BaseHp, 15375], [Stat.BaseAtk, 287.5], [Stat.BaseDef, 1356.7],
@@ -354,8 +357,10 @@ export const MORNYE = new Loadout({
   // the two ER 3-costs are the build, not a pick: Critical Protocol pays out of ER, and so does
   // the Liberation she needs back every loop — the same fixed spread every ER support here runs
   mainstats: [mainstats(Mainstat.DEF4, Mainstat.ER3, Mainstat.ER3, Mainstat.DEF1, Mainstat.DEF1)],
-  substat: substats(Substat.DefPct, Substat.Liberation, Substat.FlatDef, true),
-  highSubstat: highSubs(Substat.Er, Substat.Liberation, Substat.DefPct, Substat.Liberation),
-  rotation: { 0: MO_ROTATION, 3: MO_ROTATION_S3 },
+  substat: substats(Substat.Er, Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.DefPct, Substat.Basic),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.Liberation, Substat.DefPct, Substat.Basic),
+  // S3 loop disabled for now: dropping Wide Field out of the looping window costs her 8.4 ER and
+  // ~2 more on each teammate for less damage than S2. Re-point at MO_ROTATION_S3 once it settles.
+  rotation: MO_ROTATION,
   sequences: MO_SEQUENCES,
 });

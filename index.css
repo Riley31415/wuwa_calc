@@ -41,7 +41,8 @@
   --r:   0px;
   --r-s: 0px;
   --sh-1: 0 1px 2px rgba(0, 0, 0, .5);
-  --sh-2: 0 18px 40px -22px rgba(0, 0, 0, .9), 0 0 0 1px var(--line);
+  --sh-drop: 0 18px 40px -22px rgba(0, 0, 0, .9);
+  --sh-2: var(--sh-drop), 0 0 0 1px var(--line);
 
   /* A column's width is its character count from display.js scaled by --cw, plus --cpad for
      the cell's own horizontal padding — the terminal spelling of the report has no padding to
@@ -199,6 +200,18 @@ body {
 /* the gif under the bar: a block, so the grid's own gap spaces it and no inline baseline gap
    sits beneath it; its width/height attributes hold the slot before the frames arrive */
 .loading-gif { display: block; }
+/* Swapped for the one above the moment the error box is unhidden — the single signal both failure
+   paths share, index.html's own window handlers and index.ts's `boot().catch`, so neither has to
+   know about this. A background rather than an <img>: a `display: none` element's background is
+   never fetched, so a clean load pays nothing for it. */
+.error-gif {
+  display: none;
+  width: 200px;
+  height: 200px;
+  background: url("./error.gif") center / contain no-repeat;
+}
+#loading:has(.loading-error:not([hidden])) .loading-gif { display: none; }
+#loading:has(.loading-error:not([hidden])) .error-gif { display: block; }
 
 /* small uppercase section label — above the action log and each of the two rotation tables below
    it, so it carries its own top margin the way .gridwrap and .eventlog do rather than relying on
@@ -213,6 +226,25 @@ body {
    label, so it drops the uppercase the heading wears and reads a size up */
 .summary-label:has(.hint) { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
 .summary-label .hint { text-align: right; }
+/* The comparison table's own heading pins to the top of <main> with the column headings under it,
+   so the team count and the hint survive scrolling down a long table. Scoped to `.tcbody`: the
+   rotation tables' labels below belong to blocks of their own and scroll with them. */
+.tcbody > .summary-label {
+  position: sticky;
+  top: 0;
+  /* level with the column headings it sits above (both 5) — they never overlap, and the aside
+     above them both stays at 6 */
+  z-index: 5;
+  background: var(--bg);
+  /* Both gaps carried as padding, never margin: a margin sits outside the pinned box, so it
+     scrolls away and leaves the heading flush to the scrollport edge with the grey column
+     headings against its underside. As padding they are part of what pins, so the band above the
+     count and the gap down to the table read the same scrolled as at rest — and `--headtop`,
+     measured off this box, moves the column headings down with them. The lower 22px is the
+     8px this used to carry plus `.tcwrap`'s own top margin, which it gives up below. */
+  margin: 0;
+  padding: 12px 0;
+}
 
 /* -------------------------------------------------------------- rotation tables */
 
@@ -228,7 +260,12 @@ body {
      stands in for the label's, which the blocks' labels give up (below) */
   gap: 12px 18px;
   margin-top: 22px;
-  align-items: flex-start;
+  /* both blocks to the height of the taller: Damage Contribution's pies take up the slack
+     (`grid-template-rows` off dprTable), so the two finish level */
+  align-items: stretch;
+  /* centred in the scrollport rather than run up against its left edge — the pair is narrower than
+     the action log below, which is what the page's width is actually set by */
+  justify-content: center;
   position: sticky;
   left: 0;
   width: 100%;
@@ -243,6 +280,9 @@ body {
   min-width: 0;
   max-width: 100%;
   overflow-x: auto;
+  /* a column, so the table under the label can be handed the block's leftover height */
+  display: flex;
+  flex-direction: column;
 }
 .rtable-block .summary-label { margin-top: 0; }
 /* Damage Per Rotation and Energy Requirements as one pair, so the second falls under the first
@@ -253,13 +293,18 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 12px 18px;
-  align-items: flex-start;
-  /* A zero basis, so the row breaks lines on what this box *needs* (one table wide, the floor
-     below) rather than on both tables side by side — otherwise the pair jumps under Loadouts
-     while there was still room for one of them. It then grows into whatever the row has left,
-     and wraps its own second table when that isn't enough for both. */
-  flex: 1 1 0;
-  min-width: min-content;
+  /* passes the row's own stretch down to the table inside it */
+  align-items: stretch;
+  /* Its own width and no more: growing into the row's slack would push Damage Contribution off to
+     the far edge instead of leaving the pair centred (`justify-content` above). It still shrinks,
+     and wraps under Equipment when the two no longer fit across. */
+  flex: 0 1 auto;
+  /* `0`, not `min-content`: a min-content floor here held the stack at the width of the table
+     inside it, and a table wider than the page then hung off *both* edges of a centred row with no
+     way to reach either end of it. Shrinking instead caps the block at the line, which is what lets
+     its own `overflow-x` scroll the table sideways. Wrapping is untouched — a line too narrow for
+     both blocks still wraps this one under Equipment before either has to shrink. */
+  min-width: 0;
 }
 
 /* The table is the grid, its rows `display: contents` — one grid for all of them, so a column
@@ -271,14 +316,18 @@ body {
 .rtable {
   display: grid;
   min-width: min-content;
+  /* stretched taller than its rows need, a table keeps its rows at their own height and leaves the
+     slack below — only Damage Contribution spends it, on the one row that asks for it (`1fr`) */
+  align-content: start;
   border-radius: var(--r);
   background: var(--surface);
   box-shadow: var(--sh-2);
 }
 /* the name column to its longest name and the five figure columns each to their own widest
    figure — the table is as wide as its contents, not the page */
-.rtable.dpr { grid-template-columns: max-content repeat(5, max-content); width: max-content; }
-.rtable.energy { grid-template-columns: max-content repeat(6, max-content); width: max-content; }
+.rtable.dpr { grid-template-columns: max-content repeat(var(--cols, 5), max-content); width: max-content; }
+/* ...and on the page it takes the whole of its block's height, which is Equipment's height */
+.rtable-block > .rtable.dpr { flex: 1; }
 /* Loadouts turns the other two on their side — the row label down the left, one column per member
    (`--cols`, written on the element: a two-member team has one column fewer than a three). */
 .rtable.loadout { grid-template-columns: max-content repeat(var(--cols), max-content); width: max-content; }
@@ -370,6 +419,171 @@ body {
    this figure" mark (`.c.buffed`), so the cells worth opening are the ones that say so. */
 .rtrow .c.teamfed { text-decoration: underline dotted #fff; text-underline-offset: 3px; }
 
+/* Damage Contribution's two rules, both drawn on the cells rather than as boxes of their own (the
+   rows are `display: contents`, so there is no row box to put a border on).
+
+   The team's own row ruled off from the resonators above it: its label and the five figure columns
+   only, stopping short of the resource columns beside them, which this row leaves empty. `.c`
+   already reserves a transparent 1px top border, so colouring it in shifts nothing. */
+.rtable.dpr .rtrow.total .c:nth-child(-n + 6) { border-top-color: var(--line-2); }
+/* ...and the Total column ruled off from the four loops, down the five rows that carry a figure —
+   the heading above them keeps the band it shares with the rest. An inset shadow rather than a left
+   border: the track is `max-content`, so a border would widen the column and shift the figures. */
+.rtable.dpr .rtrow:not(.rthead):not(.dist) .c:nth-child(6) { box-shadow: inset 1px 0 0 var(--line-2); }
+
+/* ------------------------------------------------- Damage Contribution: the Distribution row */
+
+/* Every figure in the table is a cell the pies below can be read for; the one they are showing
+   wears the outline. The cell is already `position: relative`, so the outline draws over its
+   neighbours' edges rather than under them. */
+.rtrow .c.dist-cell, .rtrow .c.name[data-dist-row] { cursor: pointer; }
+.rtrow .c.dist-cell.sel { outline: 2px solid var(--accent); outline-offset: -2px; z-index: 1; }
+
+/* the pies run the whole width of the table, the row's own label given up to them */
+.rtrow.dist .c.distbody {
+  grid-column: 1 / -1;
+  /* the deeper floor is what raises the pies: they centre in the content box, whose middle this
+     puts a little above the row's own */
+  padding: 12px 10px 40px;
+  /* ...but the team's own panes fill the row rather than centring in it, and every pixel of that
+     floor is a row of the ranking that would otherwise be cut */
+  white-space: normal;
+  font-family: var(--sans);
+  /* the row is as tall as Equipment leaves it, so the pies sit in the middle of it, title and all */
+  display: flex;
+  align-items: center;
+}
+/* split down the middle, each pie centred in its own half */
+.pies { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.piefig { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
+/* the table's own heading type — these are two sub-headings inside one row, not content */
+.piefig figcaption { font-size: 12px; font-weight: 650; color: var(--dim); }
+/* Scales with its half rather than sitting at a fixed size, and never clips: a long name on a
+   leader is allowed to run past the box's own edge. The minimum is what keeps the two halves'
+   labels off each other — the row carries it up into the table's own width. */
+svg.pie { width: 100%; min-width: 455px; max-width: 480px; height: auto; overflow: visible; }
+/* a leader's label — the name never wears the wedge's colour, the line running to it carries that */
+svg.pie text { font-family: var(--sans); font-size: 14px; }
+svg.pie .nm { fill: var(--ink-2); }
+svg.pie .pc { fill: var(--dim); font-family: var(--mono); }
+/* Only the wedges take the pointer, so a leader or a label lying over one doesn't swallow the
+   hover (the offset each slides by is written on its own group by pieSvg). */
+/* The wedges sit back off the page so the labels lead: a faint fill inside an edge drawn at full
+   strength in the wedge's own colour — the same colour, at the same strength, as the leader running
+   off it, so a slice and its label are one mark. A hovered wedge doubles that edge on its way out.
+
+   `will-change` is what keeps the move to itself: without it the whole <svg> is re-rasterised for
+   the animation, and every label and seam in it shimmers a subpixel as it re-snaps. */
+svg.pie .wedge {
+  fill-opacity: .3;
+  stroke-width: 1;
+  transition: transform .12s ease-out, stroke-width .12s ease-out;
+  will-change: transform;
+}
+svg.pie .slice:hover .wedge { stroke-width: 2; transform: translate(var(--ox, 0px), var(--oy, 0px)); }
+/* The leader does not move with it — it redraws to the curve pieSvg parked on it, which is the same
+   curve with only its rim end carried out. Its far end stays where the label is. */
+svg.pie .leader { transition: d .12s ease-out; }
+svg.pie .slice:hover .leader { d: var(--d-out); }
+svg.pie .leader, svg.pie text { pointer-events: none; }
+/* glyphs positioned at full precision rather than snapped to the device pixel, so a repaint of the
+   box they sit in can never land them anywhere else */
+svg.pie text { text-rendering: geometricPrecision; }
+/* The team's own figure opens two panes rather than two pies: the rotation drawn out, and the
+   ranking. Both take the full height of the row — the ranking needs it, since how much of it shows
+   is exactly how much fits. */
+.rtrow.dist .c.distbody:has(.teampanes) { padding-bottom: 12px; }
+.teampanes { flex: 1; align-self: stretch; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.teampanes .piefig { height: 100%; }
+/* sized like the pies beside it, so the team's figures and a resonator's leave the table the same
+   width; the chart takes the middle of what its title leaves, the way a pie does */
+svg.bars { width: 100%; min-width: 455px; max-width: 480px; height: auto; }
+svg.bars .axis { stroke: var(--line-2); }
+/* the chart's key, right under the chart rather than out on the slack below it: one even column
+   per caster, whoever they are */
+.barkey {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(var(--keys, 4), 1fr);
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.barkey li { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; }
+.barkey .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+/* The ranking runs to as many rows as the half has room for — it is rendered whole and cut down by
+   `fitTopActions`. Absolute inside its own box, so a forty-row ranking contributes nothing to how
+   tall the row wants to be: the row is Equipment's height, and the list is cut to that rather than
+   stretching it. The chart beside it is what keeps the pair from collapsing when there is no
+   height to inherit. `overflow` clips whatever slips past a re-measure. */
+.topwrap { position: relative; flex: 1; width: 100%; min-height: 0; }
+.topacts {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  /* Two columns: the name from the left with the slack behind it, the figure hard right. No padding
+     inside a row and no gap between them — a row is exactly as tall as its line, which is what lets
+     the bar and the band agree on a height and leaves each band flush with the one above and below
+     it, the way the action log's own rows butt up. */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-content: start;
+  column-gap: 14px;
+}
+/* each row wears its caster's colour as a left bar, the way a source row does in a panel (`.pop
+   td.s`) and a member does down the side of the table (`.c.name`) */
+/* The row is a band in its caster's own wash, as far across the column as its damage is of the
+   leader's (`--fill`, off panels.ts) — so the top action's runs the whole width, behind its figure
+   and all, and the rest are read against it. A hard stop, not a fade: the band has an end. The wash
+   is the table's own member column (`.c.name`): 18% of the colour over the surface.
+   `subgrid` is what lets the row be a real box, which it must be to carry that band, and still put
+   its name and figure in the list's own two columns so those stay aligned from row to row. */
+.topacts li {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: stretch;
+  /* the bar stays at the left edge whatever the band does, so even a thin one names its caster */
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--own, transparent) 70%, transparent);
+  background: linear-gradient(to right,
+    color-mix(in srgb, var(--own, transparent) 18%, var(--surface)) var(--fill, 0%),
+    transparent var(--fill, 0%));
+  font-size: 13px;
+  line-height: 21px;
+}
+/* the name carries no ground of its own any more — the row behind it is the ground, and the
+   column gap is all that separates it from the figure */
+.topacts .nm {
+  grid-column: 1;
+  min-width: 0;
+  /* the bar's own 2px first, then the 8 the log gives its action names (`.c.action`) */
+  padding-left: 10px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* ...and the figure is what the list is read for, so it takes the brightest ink and the far end */
+.topacts .v {
+  grid-column: 2;
+  padding-right: 8px;
+  text-align: right;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.topacts .pct { color: var(--dim); }
+/* `fitTopActions` cuts a row by hiding it, and the rule above would otherwise out-specify the
+   browser's own `[hidden] { display: none }` and keep painting it */
+.topacts li[hidden] { display: none; }
+.nodist { grid-column: 1 / -1; margin: 0; color: var(--dim); font-size: 12px; }
+
 /* ---------------------------------------------------------------------- main */
 
 /* the one scrolling box on the page, both axes */
@@ -394,7 +608,9 @@ main {
   display: flex;
   flex-direction: column;
   gap: 9px;
-  margin-top: 22px;
+  /* level with the table's own count heading, which carries the same as padding so it survives
+     being pinned (`.tcbody > .summary-label`) */
+  margin-top: 12px;
   font-size: 12px;
   color: var(--dim);
 }
@@ -423,8 +639,10 @@ main {
   background: var(--surface);
 }
 /* an opened box keeps its colour: the arrow alone says it is open */
-.tcopt-head { display: flex; align-items: center; gap: 10px; }
-/* the Team Cost dropdown, hard right where a box's checkbox sits */
+/* wraps so the Cost box's two dropdowns drop to a line of their own rather than overflow: the name
+   has a zero basis, so they only ever wrap when the pair alone outgrows the box */
+.tcopt-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; row-gap: 6px; }
+/* the Team Cost and Teams dropdowns, hard right where a box's checkbox sits */
 .tcselect {
   padding: 2px 6px; border: 1px solid var(--line-2); border-radius: 4px;
   background: var(--surface-3); color: var(--ink); font-family: var(--sans); font-size: 12px;
@@ -657,11 +875,16 @@ main {
    rather than by any alignment rule. A build-naming member cell (see index.js's memberLabel())
    can outgrow the viewport, and that's fine — <main> is the page's own scrollport on both axes. */
 .tcwrap {
-  margin-top: 14px;
+  /* no top margin: the gap up to the count heading is that heading's own bottom padding, so it
+     survives being pinned (`.tcbody > .summary-label` above) */
+  margin-top: 0;
   width: max-content;
   border-radius: var(--r);
   background: var(--surface);
-  box-shadow: var(--sh-2);
+  /* the drop shadow alone, never `--sh-2`'s 1px ring: a ring is drawn outside the box, so with the
+     count heading pinned flush on top of this one its left and right edges ran up either side of
+     the heading as a stray grey line, and its top edge under the heading as another */
+  box-shadow: var(--sh-drop);
   /* `clip`, not `hidden`: `hidden` is a scroll container, and the header sticks to its nearest
      scrollable ancestor — which would be this box, which never scrolls, rather than <main>. */
   overflow: clip;
@@ -688,7 +911,9 @@ main {
 .tgrid .vspace { grid-column: 1 / -1; }
 .trow.thead .c {
   position: sticky;
-  top: 0;
+  /* under the count heading, which pins above it — `fitSide()` measures that heading and sets the
+     offset, since the hint beside it wraps to a second line on a narrow enough window */
+  top: var(--headtop, 0px);
   z-index: 5;
   background: var(--surface-3);
   padding: 9px 10px;
@@ -875,6 +1100,10 @@ main {
 /* ---------------------------------------------------------------------- table */
 
 /* No longer a scroll box of its own — <main> scrolls, so the header row can pin to it. */
+/* the log and its own label as one block, centred on the page while the log is narrower than the
+   scrollport — and, once it is wider, left where it is, since `auto` margins have nothing to hand
+   out (which is also what keeps the label level with the log's left edge either way) */
+.rotation-block { width: max-content; margin-inline: auto; }
 .gridwrap {
   margin-top: 22px;
   background: var(--surface);
@@ -909,6 +1138,16 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
   /* over the pinned heading (z-index 40), so the box closes across it rather than under it */
   z-index: 41;
   transition: transform .16s ease;
+}
+
+/* The white box around a run of avg cells held down (index.js's own cellBox) — the column box's
+   reasoning above, bounded to the run's own rows rather than running the table's whole height. No
+   transition: it tracks the pointer, and easing it would leave it trailing the drag. */
+.cellbox {
+  position: absolute;
+  border: 1px solid #fff;
+  pointer-events: none;
+  z-index: 41;
 }
 
 .r {
@@ -1349,9 +1588,19 @@ body.coldrag { user-select: none; }
 
 @media (min-width: 900px) {
   .tclayout { flex-direction: row; align-items: flex-start; gap: 20px; }
+  /* An empty band the aside's own width, so the table reads as centred on the page rather than
+     in what is left of the page: 370px and a 20px gap stand either side of it, and `.tcbody`'s
+     two auto margins split the remaining slack evenly between them. */
+  .tclayout::before { content: ""; flex: 0 1000 370px; }
   /* the table's own column: `min-width: 0` so a wide table overflows `main` (which scrolls)
-     rather than pushing the aside off the side of it */
+     rather than pushing the aside off the side of it. The auto margins are what centre it, and
+     the huge shrink factor on the band above is what spends itself first: a table too wide to
+     sit centred eats the band, sliding left, and only once it is gone does anything else give. */
   .tcbody { min-width: 0; }
+  /* centred either way: beside the table the empty band above is what it centres against, and
+     stacked the aside is narrowed to the table's own width and centred with it (`fitSide()`), so
+     the boxes and the search bar still keep the line the table keeps */
+  .tcbody { margin-left: auto; margin-right: auto; }
   .tcside {
     order: 1;
     flex: none;
@@ -1363,9 +1612,9 @@ body.coldrag { user-select: none; }
     /* the narrowest of the three, until `fitSide()` has measured which one this table can afford
        (the 10px for its own scrollbar) */
     width: 370px;
-    /* the slack beside a table narrower than the room left for it belongs between the two, not to
-       the right of the aside: the columns keep the page's own right edge */
-    margin-left: auto;
+    /* `0`, not `auto`: an auto margin here would take a third share of the slack and pull the
+       table off centre. `.tcbody`'s own autos hand the aside the page's right edge instead. */
+    margin-left: 0;
     background: var(--bg);
     /* its own scroller, capped at the scrollport's height by `fitSide()`: a column of open boxes
        taller than the window scrolls on its own, and a wheel over it never reaches the table */
@@ -1389,12 +1638,15 @@ body.coldrag { user-select: none; }
 /* as wide as the table rather than the scrollport: a sticky aside can only slide within its own
    containing block, and one exactly the aside's width leaves it nowhere to go */
 .tclayout.stack { flex-direction: column; width: max-content; min-width: 100%; }
-/* `margin-left: 0` undoes the beside-the-table `auto` above: an auto cross-axis margin would also
-   stop the aside stretching to the column's width, leaving it fit-content and at the right.
-   Sticky to the scrollport's left rather than static: above a table wider than the window (a
-   phone) `main` scrolls sideways, and the boxes would ride off the left edge with the table's
-   first columns. They stay put instead, no wider than the scrollport (`fitSide()` sets the cap,
-   which is what leaves the aside room to stick in). */
+/* nothing to centre between once the aside is above the table, and as a column item the band
+   would only open a gap above it */
+.tclayout.stack::before { display: none; }
+/* Width and side margins are `fitSide()`'s: it narrows the aside to the table's own width and
+   centres the pair, and falls back to the scrollport's width hard left for a table too wide to
+   centre in it. Sticky to the scrollport's left rather than static, for that second case: above a
+   table wider than the window (a phone) `main` scrolls sideways, and the boxes would ride off the
+   left edge with the table's first columns. They stay put instead, and being no wider than the
+   scrollport is what leaves the aside room to stick in. */
 .tclayout.stack .tcside {
   position: sticky;
   left: 0;
@@ -1430,3 +1682,96 @@ main.stack { padding: 0 12px 420px; }
   .tcopt { flex: 1 1 100%; }
   .tcsearch { max-width: none; }
 }
+
+/* The line the README opens on is the warning, not a note: it is the one thing in that box a
+   reader has to have read, so it carries the table's own red (`.c.underspent`) and an underline. */
+.tcopt[data-note="readme"] .tcopt-desc li:first-child {
+  color: #e5484d;
+  text-decoration: underline;
+}
+/* the warning is the line, not the bullet beside it, which keeps the colour every other one has */
+.tcopt[data-note="readme"] .tcopt-desc li:first-child::marker { color: var(--dim); }
+
+/* ------------------------------------------------------------------ tutorial */
+
+/* The first-run walkthrough (page/tutorial.ts, which measures and places everything in here):
+   a card in the empty band left of the table with a curved arrow into the tenth row. Fixed to
+   the viewport, so scrolling the table below leaves the pair where they are. Over the pinned
+   headers, popovers and hover panels (200), under a run in progress (#loading, 300). */
+.tut {
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  /* the page keeps working around it — only the card itself takes clicks */
+  pointer-events: none;
+}
+.tut[hidden] { display: none; }
+
+/* no viewBox: the path is drawn straight in the viewport pixels the card was measured in */
+.tut-arrow {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+/* A solid line at the width of the ring it leads to (below), which is dashed — the line is the
+   one thing on screen the eye follows end to end, and a broken one reads as a border. */
+.tut-path {
+  fill: none;
+  stroke: #3ddc7a;
+  stroke-width: 2px;
+  stroke-linecap: round;
+}
+.tut-arrow marker path { fill: #3ddc7a; }
+
+/* the fill is translucent rather than the whole card, so the page reads through it while its own
+   text stays at full ink */
+/* Whatever the tutorial is pointing at, ringed in the card's own green so the arrow lands on
+   something the eye can already see. `.c` in the selector for the distribution cells, whose own
+   selected outline (`.rtrow .c.dist-cell.sel`) would otherwise outrank it. */
+/* Inside its own box, not outside it: a ring drawn past the edge is clipped by whatever the target
+   stands in — the menu clips its lines (`overflow: hidden` for its corners), and the aside clips
+   the search bar the same way it clips the Clear Filters underline — and a neighbouring cell would
+   paint its background over the rest. */
+.tut-target, .c.tut-target {
+  /* dashed rather than dotted: the dashes an outline draws are three times its width, which is as
+     long as CSS lets them be without drawing the ring by hand — and at the arrow's own width, so
+     the line and the ring it lands on are the same mark */
+  outline: 2px dashed #3ddc7a;
+  outline-offset: -2px;
+}
+/* ...and over its neighbours all the same, so a cell wearing an inset outline of its own (the
+   selected figure's `z-index: 1`) cannot paint across the edge they share. Not on the search bar:
+   it is already a positioned box, and a stacking context there would trap its results list under
+   the table's pinned header. */
+.c.tut-target, .rchip.tut-target, .ctxitem.tut-target {
+  position: relative;
+  z-index: 2;
+}
+
+.tut-box {
+  position: absolute;
+  pointer-events: auto;
+  padding: 14px 16px;
+  border: 1px solid #3ddc7a;
+  background: rgba(18, 87, 47, .78);
+  color: #fff;
+  box-shadow: var(--sh-drop);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.tut-box p { margin: 0; }
+/* a line of text at the bottom left, not a button: the card is asking for something else */
+.tut-buttons { display: flex; justify-content: flex-start; margin-top: 12px; }
+.tut-skip, .tutstart {
+  font: inherit;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #3ddc7a;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.tut-skip { font-size: 11px; }
+.tut-skip:hover, .tutstart:hover { color: #8bf0b4; }

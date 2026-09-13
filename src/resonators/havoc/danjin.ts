@@ -251,7 +251,6 @@ const DJ_S6 = new Sequence({
 const BA23 = new ActionGroup("Basic - Execution 23", [BA2, BA3]);
 
 const DJ_ROTATION = new Rotation([
-  START_3, Liberation, SWAP,
   INTRO, CrimsonErosion1, CrimsonErosion2,
   Liberation,
   CarmineGleam, BA23,
@@ -273,8 +272,8 @@ export const DANJIN = new Loadout({
     new EchoLoadout(CROWNLESS, HAVOC_ECLIPSE_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Heavy, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.FlatAtk, Substat.Liberation, Substat.Er),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Liberation),
     rotation: DJ_ROTATION,
   sequences: [DJ_S1, DJ_S2, DJ_S3, DJ_S4, DJ_S5, DJ_S6],
 });

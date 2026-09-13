@@ -99,7 +99,7 @@ export const ACTION_VOIDBORNE_CONSTRUCT = new Action("Echo - Reminiscence: Voidb
   mv: 21.88 * 5 + 164.16, energy: 0.12 * 5 + 1.36,
 });
 export const VOIDBORNE_CONSTRUCT = new Mainslot({
-  name: "Reminiscence: Threnodian - Voidborne Construct",
+  name: "Reminiscence: Threnodian - Voidborne",
   action: ACTION_VOIDBORNE_CONSTRUCT,
   echoType: EchoType.SUMMON,
   stats: [[Stat.DmgBonus, 12, Attribute.Glacio], [Stat.DmgBonus, 12, Type1.Liberation]],

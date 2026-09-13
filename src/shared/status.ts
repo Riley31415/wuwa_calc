@@ -201,9 +201,14 @@ export const ELECTRO_RAGE_ACTIONS = negativeStatusActions("Electro Rage", Attrib
  *  cleared by it. Only ever granted through `inflictElectroFlare()` below. */
 export const ELECTRO_RAGE = new Debuff({ name: "Electro Rage", maxStacks: 10 });
 
-/** Hsin's Fleeting Thunder on the target: while it stands a Flare tick spends no stacks. Granted
- *  and revoked by her own kit (hsin.ts). */
-export const FLEETING_THUNDER = new Debuff({ name: "Hsin: Fleeting Thunder" });
+/** Hsin's hold on the target: while it stands a Flare tick fires at the count it finds and spends
+ *  none of it. "When Hsin enters combat, targets within a certain range do not lose Electro Flare
+ *  stacks when it's triggered automatically" — keyed to entering combat, so her Electro Flare
+ *  mode's own combatStart puts it up (hsin.ts) and nothing ever takes it down. Nameless: this is
+ *  how that one clause of her kit reaches this file, not a debuff the target's popover should carry
+ *  a row for. Not the mark she calls Fleeting Thunder, which is the cap pin and lives in hsin.ts
+ *  with the rest of Heart Manifest. */
+export const FLARE_RETAINED = new Debuff({});
 
 /** Electromagnetic Effect: 15s a stack, refreshed on gain, cap 10. Every 5s it calculates at the
  *  current count and halves the stacks (rounded down); what lands past the cap banks as Electro
@@ -219,13 +224,15 @@ export const ELECTRO_FLARE = new Debuff({
   name: "Electro Flare", maxStacks: 10,
   display: () => `Electro Flare x${frozenStacks()} (tick in ${5 - enemyForte1()}s)`,
   // A kit's own Electro Flare DMG instance carries no motion value of its own (Hsin's Heart of
-  // Thunder hits): what it is worth is the cap rung — a kit's own instance calculates at the cap,
-  // unlike the status's own ticks below, which fire at the count they find — and the kit's own
-  // percentage multiplies that. Added from here, sourced to the rung itself ("Electro Flare - 10
-  // Stacks"), which is where the number comes from; the cap is the fight's, not the declared 10.
+  // Thunder hits): what it is worth is "the Electro Flare DMG Multiplier corresponding to the
+  // current Electro Flare stacks on the target" — the count it finds, the same rung the status's
+  // own ticks fire at, not the cap — and the kit's own percentage multiplies that. Added from
+  // here, sourced to the rung itself ("Electro Flare - 10 Stacks"), which is where the number
+  // comes from. Hsin's own instances land while her cap pin holds the target full, so for her the
+  // two read alike; a kit firing one on a target below the cap pays the lower rung.
   applyStats: () => {
     if (!isType(Type2.ElectroFlare) || currentAction().mv !== 0) return;
-    const rung = negativeStatusRung(ELECTRO_FLARE_DMG, currentTeam().enemyMax(ELECTRO_FLARE));
+    const rung = negativeStatusRung(ELECTRO_FLARE_DMG, frozenStacks());
     if (rung) asSource(rung, () => addStat(Stat.AddMv, rung.mv));
   },
   updateBuffs: () => {
@@ -236,7 +243,7 @@ export const ELECTRO_FLARE = new Debuff({
     queueOnApplier(ELECTRO_FLARE, rung);
     const rage = negativeStatusRung(ELECTRO_RAGE_ACTIONS, stacksOfEnemy(ELECTRO_RAGE));
     if (rage) { queueOnApplier(ELECTRO_FLARE, rage); revokeEnemy(ELECTRO_RAGE); }
-    if (!stacksOfEnemy(FLEETING_THUNDER)) removeStackEnemy(ELECTRO_FLARE, held - Math.floor(held / 2));
+    if (!stacksOfEnemy(FLARE_RETAINED)) removeStackEnemy(ELECTRO_FLARE, held - Math.floor(held / 2));
   },
 });
 

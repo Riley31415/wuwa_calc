@@ -51,7 +51,7 @@ function roverAction(id: string, def: object): Action {
 }
 
 // --- basics (Deterrence) and Resonance Skill, all Electric Surge (forte1) generators
-const BA1 = roverAction("Basic - Deterrence 1", { node: Node.Normal, cutscene: true, cast: Cast.Basic, type: Type1.Basic, mv: 51.08, energy: 0.92, concerto: 3.31, offtune: 2936, forte1: 6.12 });
+const BA1 = roverAction("Basic - Deterrence 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 51.08, energy: 0.92, concerto: 3.31, offtune: 2936, forte1: 6.12 });
 const BA2 = roverAction("Basic - Deterrence 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 65.00, energy: 1.18, concerto: 4.22, offtune: 3737, forte1: 7.8 });
 const BA3 = roverAction("Basic - Deterrence 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 92.89, energy: 1.68, concerto: 6.02, offtune: 5341, forte1: 11.16 });
 const BA4 = roverAction("Basic - Deterrence 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 182.04, energy: 3.28, concerto: 11.78, offtune: 10465, forte1: 21.82 });
@@ -73,7 +73,7 @@ const OVERSHOCK = {
 };
 const Overshock = roverAction("Forte Skill - Overshock",{
   ...OVERSHOCK,
-  updateBuffs: () => applyTeam(OVERSHOCK_ATK, 1),  cutscene: true, 
+  updateBuffs: () => applyTeam(OVERSHOCK_ATK, 1), 
 });
 // The hold pays 60 Concerto on top of the hit's own gain, and entering Apex restores Thunder Rage
 // to its 100 — a reset ahead of the declared +100, so it lands exactly full however much a
@@ -289,8 +289,8 @@ export const ROVER_ELECTRO = new Loadout({
     //new EchoLoadout(SOUL_OF_DESPAIR, SWORN_VIGIL_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.FlatAtk, Substat.Skill, Substat.Er),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
     rotation: ER_ROTATION,
   sequences: [
     ER_S1, ER_S2,
@@ -307,8 +307,8 @@ export const ROVER_ELECTRO_MDPS = new Loadout({
     new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC),
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
-  substat: substats(Substat.AtkPct, Substat.Skill, Substat.FlatAtk),
-  highSubstat: highSubs(Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Er),
+  substat: substats(Substat.CritRate, Substat.CritDmg, Substat.Skill, Substat.AtkPct, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),
   rotation: ER_ROTATION_MDPS,
   sequences: [ER_S1, ER_S2, ER_S3, ER_S4, ER_S5, ER_S6],
 });
