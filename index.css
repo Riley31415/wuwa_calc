@@ -985,11 +985,19 @@ main {
 .trow:not(.thead):hover .c.slotdpr, .trow:not(.thead):hover .c.slotcompare { background: color-mix(in srgb, var(--mem, transparent) 18%, var(--surface)); }
 .trow.thead .c.huehead { cursor: pointer; }
 .trow.thead .c.huehead:hover { color: var(--ink); }
+/* a Slot heading opens and shuts that position's own Personal column (table.ts's `personalOpen`);
+   its marker points down while the column is shut and swings right once it is open, so the heading
+   says which way the next click goes */
+.trow.thead .c.slothead { cursor: pointer; }
+.trow.thead .c.slothead:hover, .trow.thead .c.slothead.open { color: var(--ink); }
+.trow.thead .c.slothead .arrow { transform: rotate(90deg); }
+.trow.thead .c.slothead.open .arrow { transform: none; }
 /* each DPR header toggles its own column between exact and abbreviated figures (table.ts's own
-   `dprExact`); a column opens on the exact figure, so abbreviating is the marked state, in full ink */
+   `dprExact`); the Team column opens on the exact figure, so abbreviating is its marked state, in
+   full ink. Personal carries no mark: its Slot heading beside it is already in ink while the column
+   is open, and a second white heading in the same block read as a second thing being said. */
 .trow.thead .c.dprhead { cursor: pointer; }
 .trow.thead .c.dprhead:hover,
-.tgrid:not(.personalexact) .trow.thead .c.dprhead[data-dpr="personal"],
 .tgrid:not(.teamexact) .trow.thead .c.dprhead[data-dpr="team"] { color: var(--ink); }
 
 /* The `% of Baseline` column: one continuous hue ramp, written per row as `--hue` by
@@ -1033,11 +1041,9 @@ main {
 /* the Team Avg DPR figure opens its breakdown on a click, not a hover (see `wireSourcePanels`) */
 .c.teamdpr { cursor: pointer; }
 .gotodetail:hover { color: var(--ink); }
-/* ...and the Slot headings, which expand that position's own DPR column rather than navigating —
-   same marker, so both places that open something read the same. Its own marker points down
-   while the column is shut and swings right once it is open, so the heading says which way the
-   next click goes. */
-.gotodetail .arrow, .tcopt-name .arrow {
+/* ...and the Slot headings, which open that position's own Personal DPR column rather than
+   navigating — same marker, so both places that open something read the same. */
+.gotodetail .arrow, .tcopt-name .arrow, .trow.thead .c.slothead .arrow {
   display: inline-block;
   margin-left: 4px;
   color: var(--faint);
@@ -1045,6 +1051,9 @@ main {
 }
 .gotodetail:hover .arrow { color: var(--accent); transform: translateX(2px); }
 .tcopt-name:hover .arrow { color: var(--accent); }
+/* a Slot heading's marker lifts with the heading itself rather than picking up the accent — the
+   whole cell is the target, so the two read as one thing lighting up */
+.trow.thead .c.slothead:hover .arrow { color: var(--ink); }
 /* the ordinary disclosure reading: pointing right at a shut box, swung down once it is open */
 .tcopt-name .arrow { transform: none; }
 .tcopt.open .tcopt-name .arrow { transform: rotate(90deg); }
@@ -1140,9 +1149,10 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
   transition: transform .16s ease;
 }
 
-/* The white box around a run of avg cells held down (index.js's own cellBox) — the column box's
-   reasoning above, bounded to the run's own rows rather than running the table's whole height. No
-   transition: it tracks the pointer, and easing it would leave it trailing the drag. */
+/* The white box around a block of cells a press ran over (index.js's own cellBox) — the column
+   box's reasoning above, bounded to the block's own rows and columns rather than running the
+   table's whole height. No transition: it tracks the pointer, and easing it would leave it
+   trailing the drag. */
 .cellbox {
   position: absolute;
   border: 1px solid #fff;
@@ -1483,8 +1493,10 @@ body.coldrag { user-select: none; }
   color: var(--ink);
 }
 .pop tr:first-child.sec td { padding-top: 0; }
-/* the rule is what marks a total or a summary row; the text keeps the rows' own weight and size */
-.pop .sum td { padding-top: 5px; border-top: 1px solid var(--line-2); }
+/* the rule is what marks a total or a summary row; the text keeps the rows' own weight and size.
+   A sum standing on its own — the cell block's, which is the whole panel (detail.ts's `sumPanel`)
+   — has nothing above it to rule off, and the line read as a lid over the figure. */
+.pop .sum:not(:first-child) td { padding-top: 5px; border-top: 1px solid var(--line-2); }
 .pop .sum td.v { color: var(--ink); }
 
 /* a group heading — base / bonus / flat, a scope ("Basic Dmg Bonus"), or the column's own name on

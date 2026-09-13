@@ -33,10 +33,11 @@ export type Axis = "weapons" | "echoes" | "mainstats" | "substats" | "sequences"
 // than a pick (the columns order it their own way, see table.ts's own `GEAR_AXES`)
 export const AXES: Axis[] = ["weapons", "echoes", "mainstats", "sequences", "refines", "substats"];
 
-/** Team Cost: no signatures (`s0r0`), one R1 signature to whoever gains most (`s0r1mdps`), or
- *  every limited resonator on theirs (every other mode). The `sN`/`rN` in the name is the chain
- *  level and weapon rank on top of that — the team's main DPS's alone where the name ends in
- *  `mdps`, everyone's where it doesn't. Rovers and 4* are S6 on standard/4* weapons throughout. */
+/** Team Cost: no signatures (`s0r0`), one R1 signature to whichever main DPS gains most
+ *  (`s0r1mdps`), or every limited resonator on theirs (every other mode). The `sN`/`rN` in the
+ *  name is the chain level and weapon rank on top of that — one main DPS's alone where the name
+ *  ends in `mdps` (never a support's, however much the team would gain), everyone's where it
+ *  doesn't. Rovers and 4* are S6 on standard/4* weapons throughout. */
 export const TEAM_COSTS = ["s0r0", "s0r1mdps", "s0r1",
   "s1r1mdps", "s2r1mdps", "s3r1mdps", "s6r1mdps", "s6r5mdps", "s6r5"] as const;
 export type TeamCost = typeof TEAM_COSTS[number];
@@ -172,26 +173,13 @@ function costLevel(m: Member, cost: TeamCost, holds: boolean): number | null {
 const costRefine = (m: Member, weapon: number, cost: TeamCost, holds: boolean): number =>
   Math.min(costGrant(cost, holds).refine, m.loadout.refinements[weapon]!.length - 1);
 
-/** The extra rank an open Sequences box runs its top chain level at — the S6R5 row that stands
- *  beside S6R1 as a level of its own, the S7 the chain hasn't got. Null where there is none: a
- *  weapon listing one rank, a kit with no chain, or a rank column on screen (`axisUsed`), where S6
- *  at R5 is just a cell of the cross and says so on its own. */
-export function topRank(m: Member, filters: Filters, weapon: number): number | null {
-  if (m.loadout.refinements[weapon]!.length < 2 || !m.loadout.sequences.length) return null;
-  if (!axisOpen(m, filters, "sequences") || axisUsed(m, filters, "refines")) return null;
-  return m.loadout.refinements[weapon]!.length - 1;
-}
-
 /** Ranks a row at `p` runs its weapon at: every listed rank while refines are compared there, else
- *  the build's own — joined, on the top level of an open Sequences box, by `topRank()`. An open box
- *  runs its whole ladder at R1 whatever the cost hands out, so the levels read against each other
- *  and the rank the cost paid for is the max-rank row on top. */
+ *  the build's own. An open Sequences box runs its whole ladder at R1 whatever the cost hands out,
+ *  so the levels read against each other. */
 export function refineLevels(m: Member, filters: Filters, p: Pick): number[] {
   const ranks = m.loadout.refinements[p.weapon]!;
   if (compares(m, filters, "refines", gateOf(m.loadout, p))) return ranks.map((_, i) => i);
-  const home = axisOpen(m, filters, "sequences") ? 0 : Math.min(p.refine, ranks.length - 1);
-  const extra = p.sequence === m.loadout.sequences.length ? topRank(m, filters, p.weapon) : null;
-  return extra === null ? [home] : [home, extra];
+  return [axisOpen(m, filters, "sequences") ? 0 : Math.min(p.refine, ranks.length - 1)];
 }
 
 /** Chain levels a member's rows cover, baseline first. Never searched — a node is strictly more kit —
@@ -424,7 +412,8 @@ export function optimizeTeam(teamKey: string, members: Member[], filters: Filter
   if (filters.cost === "s0r1mdps") {
     let best = run().total, winner: Pick[] | null = null;
     members.forEach((m, i) => {
-      if (!isSignature(m.loadout, 0)) return;
+      // the one signature is a main DPS's: a support never takes it, whatever it would buy
+      if (!m.mainDps || !isSignature(m.loadout, 0)) return;
       const trial = picks.map((p, j) => (j === i ? { ...p, weapon: 0, refine: Math.min(p.refine, m.loadout.refinements[0]!.length - 1) } : p));
       const rerolled = bestMainstatFor(teamKey, members, trial, i);
       // the one signature goes to a member who can still fill their bar wearing it — they keep it
@@ -439,12 +428,14 @@ export function optimizeTeam(teamKey: string, members: Member[], filters: Filter
       converge(false);
     }
   }
-  // the chain/rank grant goes to one member too: lift each in turn and keep whoever the team gains
-  // most from. Their own weapon is re-swept after — a rank the grant paid for can be worth more on
-  // a weapon the R1 sweep passed over. `s0r1mdps` lifts nobody, so its loop finds nothing to try.
+  // the chain/rank grant goes to one main DPS too: lift each in turn and keep whoever the team
+  // gains most from — never a support. Their own weapon is re-swept after — a rank the grant paid
+  // for can be worth more on a weapon the R1 sweep passed over. `s0r1mdps` lifts nobody, so its
+  // loop finds nothing to try.
   if (grantToOne(filters.cost)) {
     let best = run().total, winner: Pick[] | null = null;
     members.forEach((m, i) => {
+      if (!m.mainDps) return;
       const home = picks[i]!;
       const level = costLevel(m, filters.cost, true);
       const lifted = {
@@ -620,10 +611,37 @@ function rowPicks(
     return p.weapon === b.weapon && p.echo === b.echo && p.sequence === b.sequence && p.refine === b.refine && p.highSubs === b.highSubs;
   });
   const rows: Pick[][] = [];
+  const baselines = new Set<string>();
   let built = 0;
   for (const build of seen.values()) {
     onProgress?.(built++ / seen.size);
     const settled = settle(!compared && isBest(build) ? build : pinEchoes(build));
+    // a compared row measures against its axis's baseline in *its own* settled sets — the
+    // re-search settles each build apart, so that twin is not otherwise guaranteed to be run:
+    // the baseline level at R1 for a level or rank row, every non-limited weapon (at the rank
+    // the row runs) for a signature row, the default subs for a high-subs row
+    const twinOf = (i: number, change: Partial<Pick>): void => {
+      const twin = settled.map((q, j) => (j === i ? { ...q, ...change } : q));
+      const key = twin.map((q) => `${q.weapon}.${q.echo}.s${q.sequence}.r${q.refine}${q.highSubs ? ".h" : ""}`).join("-");
+      if (baselines.has(key)) return;
+      baselines.add(key);
+      hidden.push(settle(twin));
+    };
+    // one twin per axis, everything else the row's own: a level twin keeps the row's rank (a rank
+    // column open holds it in the twin key), a rank twin keeps the row's level
+    members.forEach((m, i) => {
+      const p = settled[i]!;
+      const ranked = axisUsed(m, filters, "refines");
+      if (axisOpen(m, filters, "sequences") && p.sequence !== sequenceLevels(m, filters)[0]!) twinOf(i, { sequence: sequenceLevels(m, filters)[0]! });
+      if (ranked && p.refine !== 0) twinOf(i, { refine: 0 });
+      if (axisOpen(m, filters, "weapons") && m.loadout.weapons[p.weapon]!.tier === Tier.Limited) {
+        for (const w of eligibleWeapons(m, filters)) {
+          if (m.loadout.weapons[w]!.tier === Tier.Limited) continue;
+          twinOf(i, { weapon: w, refine: ranked ? 0 : Math.min(p.refine, m.loadout.refinements[w]!.length - 1) });
+        }
+      }
+      if (axisOpen(m, filters, "substats") && p.highSubs) twinOf(i, { highSubs: false });
+    });
     const open = mainstatsOpen(settled);
     if (!open.length) { rows.push(settled); continue; }
     const scores = scoreMainstats(teamKey, members, settled, open);

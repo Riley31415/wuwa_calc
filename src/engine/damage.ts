@@ -27,6 +27,9 @@ export interface Snapshot {
   /** The parts of Crit Rate/Crit DMG scoped to a `Type2` — the only crit a dot or tune hit has. */
   type2CritRate: number;
   type2CritDmg: number;
+  /** The parts of Total Damage / Damage Taken scoped to a `Type2` — all a dot hit reads of either. */
+  type2TotalDmg: number;
+  type2DamageTaken: number;
   dmgBonus: number;
   /** The enemy's own current resistance to this action's element, and current defence — both
    *  read off `Enemy` at resolve time (base plus whatever debuffs contributed this pass). */
@@ -182,12 +185,13 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
   const tbbFactor = 1 + (snapshot.stats[Stat.Tbb]! / 100) * (1 - notTune);
   const resFactor = resFactorOf(snapshot);
   const defFactor = defFactorOf(snapshot);
-  // Total Damage joins damage bonus and amplification in what a dot doesn't read — a status's own
-  // damage is the target's, and nothing the attacker stacks onto their own hits carries into it.
-  // Damage Taken is the target-side half of the same line ("targets take N% more DMG from X")
-  // and is a factor of its own: the two multiply rather than summing.
-  const dealtFactor = 1 + s(Stat.TotalDmg) * notDot;
-  const takenFactor = 1 + s(Stat.DamageTaken) * notDot;
+  // Total Damage and Damage Taken read like amplification on a dot: only the part scoped to the
+  // Negative Status it is, never plain or element-scoped — a status's own damage is the target's,
+  // and nothing the attacker stacks onto their own hits carries into it. Damage Taken is the
+  // target-side half of the same line ("targets take N% more DMG from X") and is a factor of its
+  // own: the two multiply rather than summing.
+  const dealtFactor = 1 + (notDot ? s(Stat.TotalDmg) : snapshot.type2TotalDmg / 100);
+  const takenFactor = 1 + (notDot ? s(Stat.DamageTaken) : snapshot.type2DamageTaken / 100);
 
   // dot and tune crit only off the Negative-Status-scoped crit (Hsin's S6) — with none, a flat 1
   const special = !(notDot * notTune);
@@ -215,7 +219,7 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
 export function damageAvgOf(
   action: Action, stats: number[], atk: number, hp: number, def: number,
   amp: number, type2Amp: number, dmgBonus: number, type2CritRate: number, type2CritDmg: number,
-  enemyRes: number, enemyDef: number,
+  type2TotalDmg: number, type2DamageTaken: number, enemyRes: number, enemyDef: number,
 ): number {
   const { scaling } = action;
   if (scaling === null) return 0;
@@ -236,8 +240,8 @@ export function damageAvgOf(
   const tbbFactor = 1 + (stats[Stat.Tbb]! / 100) * (1 - notTune);
   const resFactor = resFactorFrom(resOf(stats, notDot, enemyRes) / 100);
   const defFactor = defFactorFrom((1 - shredOf(stats, notDot, enemyDef)) * enemyDef);
-  const dealtFactor = 1 + stats[Stat.TotalDmg]! / 100 * notDot;
-  const takenFactor = 1 + stats[Stat.DamageTaken]! / 100 * notDot;
+  const dealtFactor = 1 + (notDot ? stats[Stat.TotalDmg]! : type2TotalDmg) / 100;
+  const takenFactor = 1 + (notDot ? stats[Stat.DamageTaken]! : type2DamageTaken) / 100;
   const special = !(notDot * notTune);
   const critMult = special ? (type2CritDmg ? type2CritDmg / 100 : 1) : stats[Stat.CritDmg]! / 100;
   const cr = special ? type2CritRate / 100 : stats[Stat.CritRate]! / 100;
@@ -248,7 +252,8 @@ export function damageAvgOf(
 }
 
 export const damageAvg = (s: Snapshot): number => damageAvgOf(
-  s.action, s.stats, s.atk, s.hp, s.def, s.amp, s.type2Amp, s.dmgBonus, s.type2CritRate, s.type2CritDmg, s.enemyRes, s.enemyDef,
+  s.action, s.stats, s.atk, s.hp, s.def, s.amp, s.type2Amp, s.dmgBonus, s.type2CritRate, s.type2CritDmg,
+  s.type2TotalDmg, s.type2DamageTaken, s.enemyRes, s.enemyDef,
 );
 
 export interface Damage {

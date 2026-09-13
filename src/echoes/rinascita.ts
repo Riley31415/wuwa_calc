@@ -174,7 +174,7 @@ export const EMPYREAN_ANTHEM_TEAM = new Buff({
 export const ACTION_NM_KELPIE = new Action("Echo - Nightmare: Kelpie", {
   cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Atk, type: Type1.Echo, mv: 405, energy: 2.81,
 });
-export const ACTION_NM_KELPIE_OUTRO = new Action("Echo - Nightmare: Kelpie Outro", {
+export const ACTION_NM_KELPIE_OUTRO = new Action("Echo - Nightmare: Kelpie (Outro)", {
   element: Attribute.Aero, scaling: Scaling.Atk, type: Type1.Echo, mv: 405, energy: 2.81,
 });
 export const NM_KELPIE = new Mainslot({

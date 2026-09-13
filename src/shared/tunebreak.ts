@@ -108,7 +108,7 @@ export const TUNE_BREAK_ENEMY = new Resonator({
     if (stacksOfEnemy(TUNE_RUPTURE_INTERFERED) > 0 || stacksOfEnemy(TUNE_HACK_INTERFERED) > 0) return;
     // and never straight off a Liberation or an Intro: those casts' own lock holds the break off,
     // so a bar one of them filled stays full and breaks on the next action instead.
-    if (isCast(currentAction(), Cast.Liberation) || isCast(currentAction(), Cast.Intro)) return;
+    if (isCast(currentAction(), Cast.Liberation) || isCast(currentAction(), Cast.Intro) || currentAction().cutscene) return;
     if (currentTeam().offtune >= ENEMY_MAX_OFFTUNE) queueEvent(TUNE_BREAK);
   },
 });

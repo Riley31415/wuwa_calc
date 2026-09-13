@@ -54,6 +54,7 @@ import {
   casting,
   consume,
   currentAction,
+  triggeredAction,
   runningAction,
   currentTeam,
   forte1,
@@ -180,9 +181,9 @@ const Lib = yangyangAction("Liberation - Hush of a Thousand Voices", {
 const ShadowOfXuanling = yangyangAction("Liberation - Shadow of Xuanling", { node: Node.Liberation, type: Type1.Heavy, mv: 337.98 });
 /** The three sequence Shadows — the Liberation's own 337.98% row (no energy/concerto/off-tune of
  *  its own), Heavy DMG, each filed under the cast that summons it. */
-const ShadowUnfaltering = yangyangAction("Skill - Shadow of Xuanling: Unfaltering (S1)", { node: Node.Forte, type: Type1.Heavy, mv: 337.98 });
-const ShadowStrungNotes = yangyangAction("Basic - Shadow of Xuanling: Strung Notes (S2)", { node: Node.Normal, type: Type1.Heavy, mv: 337.98 });
-const ShadowWitheredWood = yangyangAction("Skill - Shadow of Xuanling: Still as Withered Wood (S6)", { node: Node.Forte, type: Type1.Heavy, mv: 337.98 });
+const ShadowUnfaltering = yangyangAction("Liberation - Shadow of Xuanling: Unfaltering (S1)", { type: Type1.Heavy, mv: 337.98 });
+const ShadowStrungNotes = yangyangAction("Liberation - Shadow of Xuanling: Strung Notes (S2)", { type: Type1.Heavy, mv: 337.98 });
+const ShadowWitheredWood = yangyangAction("Liberation - Shadow of Xuanling: Still as Withered Wood (S6)", { type: Type1.Heavy, mv: 337.98 });
 
 const Intro = yangyangAction("Intro - Skybound Feather", {
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 116.59, energy: 10, concerto: 10, offtune: 5864,
@@ -378,7 +379,10 @@ const WITHERED_WOOD = new Buff({
     // never off its own Shadow's damage: a marker that re-inflicts on whatever hits the target
     // (Chisa's Thread of Bane) would otherwise have each summon trigger the next until the charges
     // ran out, which is the runaway the node's own 1s limiter stops in game
-    if (!isActive() || runningAction(ShadowWitheredWood) || !anyNegativeStatusInflicted()) return;
+    // `triggeredAction()`, the row's own flag, not `currentAction().triggered`: that one is the
+    // Action's static mark, set only on an echo's transform forms — a queued follow-up like the
+    // Pavilion's Blades carries none, so it read as a press and spent a charge off each Blade
+    if (!isActive() || runningAction(ShadowWitheredWood) || !anyNegativeStatusInflicted() || triggeredAction()) return;
     removeStack(WITHERED_WOOD, 1);
     queueOn(XUANLING_RESONATOR, ShadowWitheredWood);
   },
@@ -418,7 +422,7 @@ const XUANLING_INHERENT_1 = new Inherent({
   applyStats: () => {
     const bane = stacksOfEnemy(HAVOC_BANE);
     if (bane === 0) return;
-    addStat(Stat.Amp, bane <= 3 ? 10 * bane : 30 + (bane - 3) * 12);
+    addStat(Stat.Amp, bane <= 3 ? 10 * bane : 30 + 12 * Math.min(6, bane - 3));
   },
 });
 

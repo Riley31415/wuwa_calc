@@ -200,18 +200,18 @@ const ZOOM = new Buff({
   name: "Lucilla: Zoom", maxStacks: 4,
   applyStats: () => { if (isActive()) addStat(Stat.CritDmg, 10 * frozenStacks(), Type1.Echo); },
 });
-/** Any *other* active resonator inflicting Glacio Chafe spends a stack of this to have Lucilla
- *  inflict two more. Her own casts never trigger it. Cap 10; the real 0.5s cooldown isn't
- *  modelled, so one trigger an action.
+/** Any *other* active resonator inflicting Glacio Chafe spends a stack of this
+ *  Her own casts never trigger it. Cap 10;
  *
  *  Held team-wide, so it ticks on whoever is acting; `currentTeam().slot` is that actor. This runs
  *  in updateDebuffs, where the acting kit's own inflictions have already landed (its gear comes
- *  before team gear in the phase) and its two stacks still reach everything reading `applied()`. */
+ *  before team gear in the phase) and its own stacks still reach everything reading `applied()`. */
 const FILM_ROLL: Buff = new Buff({
   name: "Lucilla: Film Roll", maxStacks: 10,
   updateDebuffs: () => {
     if (!isActive() || currentTeam().slot.resonator === LUCILLA_RESONATOR) return;
-    if (!applied(GLACIO_CHAFE)) return;
+    const n = Math.min(applied(GLACIO_CHAFE), frozenStacks());
+    if (n <= 0) return;
     removeStackTeam(FILM_ROLL, 1);
     applyEnemy(GLACIO_CHAFE, 2);
   },

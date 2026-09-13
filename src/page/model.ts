@@ -8,7 +8,7 @@ import { baseSequence } from "../engine/gear.js";
 import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
 import { buildReport } from "../display.js";
 import type { Report } from "../display.js";
-import { member, comboOf, eligibleWeapons, refineLevels, sequenceLevels, topRank, scopedKey, axisUsed, weaponBase, echoLabel, MAINSTAT_ROWS, defaultFilters, bestKey, picksKey, axisOpen, filterSignature, AXES } from "../solver.js";
+import { member, comboOf, eligibleWeapons, refineLevels, sequenceLevels, scopedKey, axisUsed, weaponBase, echoLabel, MAINSTAT_ROWS, defaultFilters, bestKey, picksKey, axisOpen, filterSignature, AXES } from "../solver.js";
 import type { Member, Combo, Pick, Filters, Solved, SolveSave, Axis, TeamCost, TeamScope, ScopedCompare } from "../solver.js";
 import { runTeam, runFromScore } from "../teamrun.js";
 import type { TeamRun } from "../teamrun.js";
@@ -151,7 +151,7 @@ export const setVisibleRows = (rows: TeamRow[]): void => { visibleRows = rows; }
 const namesHold = (map: Map<string, ResonatorFilter>, names: string[]): boolean =>
   [...map].every(([name, mode]) => names.includes(name) === (mode === "include"));
 
-/** Whose tag this is: "Lupa S3", "Lupa S6R5" and "Hsin R3" all belong to their resonator. */
+/** Whose tag this is: "Lupa S3" and "Hsin R3" all belong to their resonator. */
 export const tagOwner = (tag: string): string => tag.replace(/ S\d+(R\d+)?$| R\d+$/, "");
 
 /** `namesHold` for the level and rank tags, where two includes naming the same resonator mean
@@ -231,32 +231,18 @@ export function teamWanted(key: string, members: Member[]): boolean {
 }
 
 /** "Phrolova S5" wherever the level is a build choice the rows differ on — every level the open
- *  compare put on screen, the baseline included, so "Phrolova S0" filters like any other. The top
- *  level's max-rank row is a level of its own, "Phrolova S6R5" (solver.ts's `topRank()`), so it
- *  filters apart from the S6 it stands beside. Null with the compare closed, where there is only
- *  the one level and a filter would say nothing. */
-export function sequenceTagAt(m: Member, sequence: number, rank = 1, f: Filters = filters): string | null {
+ *  compare put on screen, the baseline included, so "Phrolova S0" filters like any other. Null
+ *  with the compare closed, where there is only the one level and a filter would say nothing. */
+export function sequenceTagAt(m: Member, sequence: number, f: Filters = filters): string | null {
   if (!axisOpen(m, f, "sequences")) return null;
-  return `${m.name} S${sequence}${rank > 1 ? `R${rank}` : ""}`;
+  return `${m.name} S${sequence}`;
 }
-export const sequenceTag = (m: Member, combo: Combo): string | null => {
-  // the suffix belongs to the extra row alone, not to any row that happens to run above R1 — a
-  // cost handing out R5, or a weapon listed at one pinned rank, says nothing about the level
-  const weapon = m.loadout.refinements.findIndex((ranks) => ranks.includes(combo.weapon));
-  const extra = weapon < 0 ? null : topRank(m, filters, weapon);
-  const rank = extra !== null && combo.weapon.refinement === extra + 1 ? combo.weapon.refinement : 1;
-  return sequenceTagAt(m, combo.sequence, rank);
-};
+export const sequenceTag = (m: Member, combo: Combo): string | null => sequenceTagAt(m, combo.sequence);
 
-/** Every sequence tag a member's rows can carry, in row order — one per level the box shows, plus
- *  the top level's max-rank row. One empty string with the box shut, where no row is tagged. */
+/** Every sequence tag a member's rows can carry, in row order — one per level the box shows. One
+ *  empty string with the box shut, where no row is tagged. */
 export function sequenceTagsOf(m: Member, f: Filters = filters): string[] {
-  const tags = sequenceLevels(m, f).map((level) => sequenceTagAt(m, level, 1, f) ?? "");
-  const extra = new Set(eligibleWeapons(m, f).map((w) => topRank(m, f, w)).filter((r) => r !== null));
-  for (const rank of [...extra].sort((a, b) => a - b)) {
-    tags.push(sequenceTagAt(m, m.loadout.sequences.length, rank + 1, f)!);
-  }
-  return tags;
+  return sequenceLevels(m, f).map((level) => sequenceTagAt(m, level, f) ?? "");
 }
 export const refineTag = (m: Member, combo: Combo): string => `${m.name} R${combo.weapon.refinement}`;
 

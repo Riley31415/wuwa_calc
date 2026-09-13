@@ -13,8 +13,7 @@
 <meta name="description" content="WuWa team damage and build calculations by Riley. Compare every team side by side, with the best echoes, main stats, substats and weapon solved for each build with full rotation breakdowns. Formerly known as Skittle Calcs.">
 
 <meta property="og:title" content="Riley Calcs">
-<meta property="og:site_name" content="Riley Calcs">
-<meta property="og:description" content="WuWa team damage and build calculations by Riley">
+<meta property="og:description" content="WuWa team damage calculations and build comparisons">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://riley31415.github.io/wuwa_calc/">
 <meta property="og:image" content="https://riley31415.github.io/wuwa_calc/loading_upscale.gif">
@@ -56,15 +55,21 @@
   // isn't a stamp (a 404 off GitHub Pages, say) means "not on dev.py", and the polling stops.
   (function poll() {
     let last = null;
-    const timer = setInterval(async () => {
+    const tick = async () => {
       try {
         const res = await fetch("/__livereload", { cache: "no-store" });
-        if (!res.ok) { clearInterval(timer); return; }
+        // only a 404 means "not on dev.py"; any other miss is the server mid-restart, and one
+        // of those must not stop the tab polling for good
+        if (res.status === 404) { clearInterval(timer); return; }
+        if (!res.ok) return;
         const v = await res.text();
         if (last === null) { last = v; return; } // baseline on first successful poll, not a reload
         if (v !== last) location.reload();
       } catch { /* server mid-restart — try again next tick */ }
-    }, 500);
+    };
+    const timer = setInterval(tick, 500);
+    // a background tab's timers are throttled to once a minute; check the moment it is looked at
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) tick(); });
   })();
 </script>
 

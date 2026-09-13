@@ -8,7 +8,7 @@ import { ctx, pendingQueue, tagWordOf, RESOURCE_STATS, replay, readAny, READ_APP
 import { Gear, PHASE_COUNT } from "./gear.js";
 import type { VariantAt } from "./state.js";
 import {
-  State, TeamMember, StatEntry, HeldBuff, ZERO_STATS, TYPE2_AMP_INDEX, TYPE2_CRIT_RATE_INDEX, TYPE2_CRIT_DMG_INDEX, FightSnapshot, capEnergy,
+  State, TeamMember, StatEntry, HeldBuff, ZERO_STATS, TYPE2_AMP_INDEX, TYPE2_CRIT_RATE_INDEX, TYPE2_CRIT_DMG_INDEX, TYPE2_TOTAL_DMG_INDEX, TYPE2_DAMAGE_TAKEN_INDEX, FightSnapshot, capEnergy,
   EMPTY_HELD, EMPTY_FORTE, EMPTY_FIELDS, enemyDef, enemyRes,
 } from "./state.js";
 import { casting, isCast } from "./context.js";
@@ -27,6 +27,7 @@ export interface Snapshot {
    *  TYPE2_AMP_INDEX and damage.ts's own `ampFactor`). */
   type2Amp: number;
   type2CritRate: number; type2CritDmg: number;
+  type2TotalDmg: number; type2DamageTaken: number;
   enemyRes: number; enemyDef: number;
 }
 
@@ -603,6 +604,7 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
       bd + eff[Stat.BonusDef]! / 100 * bd + eff[Stat.FlatDef]!,
       eff[Stat.Amp]!, eff[TYPE2_AMP_INDEX]!, eff[Stat.DmgBonus]!,
       eff[TYPE2_CRIT_RATE_INDEX]!, eff[TYPE2_CRIT_DMG_INDEX]!,
+      eff[TYPE2_TOTAL_DMG_INDEX]!, eff[TYPE2_DAMAGE_TAKEN_INDEX]!,
       enemyRes(), enemyDef(),
     );
   };
@@ -665,7 +667,8 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
   const mv = (action.mv + effective[Stat.AddMv]!) * (1 + effective[Stat.MulMv]! / 100);
   const avg = damageAvgOf(
     action, effective, atk, hp, def, effective[Stat.Amp]!, effective[TYPE2_AMP_INDEX]!, effective[Stat.DmgBonus]!,
-    effective[TYPE2_CRIT_RATE_INDEX]!, effective[TYPE2_CRIT_DMG_INDEX]!, enemyRes(), enemyDef(),
+    effective[TYPE2_CRIT_RATE_INDEX]!, effective[TYPE2_CRIT_DMG_INDEX]!,
+    effective[TYPE2_TOTAL_DMG_INDEX]!, effective[TYPE2_DAMAGE_TAKEN_INDEX]!, enemyRes(), enemyDef(),
   );
   // `group`/`groupEnd`/`groupSpill`/`queued` are stamped by run() the moment this returns — nothing
   // mid-action reads them, unlike `triggered`, so none has to be threaded through this call
@@ -681,6 +684,8 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
     type2Amp: effective[TYPE2_AMP_INDEX]!,
     type2CritRate: effective[TYPE2_CRIT_RATE_INDEX]!,
     type2CritDmg: effective[TYPE2_CRIT_DMG_INDEX]!,
+    type2TotalDmg: effective[TYPE2_TOTAL_DMG_INDEX]!,
+    type2DamageTaken: effective[TYPE2_DAMAGE_TAKEN_INDEX]!,
     dmgBonus: effective[Stat.DmgBonus]!,
     enemyRes: enemyRes(),
     enemyDef: enemyDef(),

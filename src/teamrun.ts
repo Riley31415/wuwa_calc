@@ -164,7 +164,10 @@ export function collapseFields(sections: ChainGroup[][]): ChainGroup[][] {
         id: parts.every((p) => p.snap.action.name === one) ? `${one} x${parts.length}` : `${field.name} x${parts.length}`,
         isChain: true, aggregate: true, fieldKey: key, parts,
         members: parts.map((p) => p.snap),
-        snap: parts[parts.length - 1]!.snap,
+        // the opening hit's: the row sits under the cast that opened the window, and a window
+        // spanning a visit ends holding buffs that cast never had (Undulating Mist's ATK, bought
+        // by the Iai after Hiyuki's Intro); each part still pays off its own snapshot
+        snap: parts[0]!.snap,
         mv: hits.reduce((sum, i) => sum + lines[i]!.mv, 0),
         avg: hits.reduce((sum, i) => sum + lines[i]!.avg, 0),
       };

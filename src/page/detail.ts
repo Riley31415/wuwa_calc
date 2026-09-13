@@ -12,7 +12,7 @@ import type { Report, Column, ReportRow, ReportPart, TraceEntry } from "../displ
 import type { TeamRun } from "../teamrun.js";
 import { hitsOf, erRollsFor } from "../teamrun.js";
 import { results, detailFor, FALLBACK_HUE } from "./model.js";
-import { esc, lazyPop, rect, zoom, clearPops, panelRow, popover, infoPopover, buffsPopover, equippedGear, dprTable, loadoutTable, wireDistribution, drivePanel, dropPanel } from "./panels.js";
+import { esc, lazyPop, rect, zoom, clearPops, panelRow, popover, infoPopover, buffsPopover, equippedGear, dprTable, loadoutTable, wireDistribution, drivePanel, dropPanel, holdPanels } from "./panels.js";
 import type { DprExtra } from "./panels.js";
 import { rememberTableScroll } from "./table.js";
 
@@ -404,7 +404,7 @@ export function renderDetail(key: string): void {
   app.innerHTML = page(run);
   app.className = "";
   wireColumnDrag(app, detailFor(run).report.columns);
-  wireAvgSum(app);
+  wireCellSelect(app);
   wireDistribution(app);
 }
 
@@ -454,6 +454,10 @@ interface ColumnDrag {
   home: number;
   span: number;
   startX: number;
+  /** The page's own zoom as the press found it. Measuring it again on every report read the
+   *  table's layout back a move at a time, right after a move had written the rule that re-styles
+   *  every cell in the column — the two together are what made a quick drag crawl. */
+  scale: number;
   /** Where it lands if dropped now — an index into `order` with itself taken out. */
   at: number;
 }
@@ -491,89 +495,301 @@ function paintSelection(root: HTMLElement): void {
   selBox?.remove();
   selBox = null;
   if (!selected) return;
+  clearBlock();
   const grid = root.querySelector<HTMLElement>(".gridwrap .grid");
   const track = grid && trackBox(grid, selected);
   if (grid && track) selBox = columnBox(grid, track.left, track.width);
 }
 
-/** One box laid over the grid spanning a run of cells in a single column — the cells cannot carry
- *  an outline themselves, for the reasons `columnBox` gives. */
-function cellBox(grid: HTMLElement, left: number, top: number, width: number, height: number): HTMLElement {
+/* ----------------------------------------------------------------------------- cell block */
+
+/** One box laid over the grid spanning a block of cells — the cells cannot carry an outline
+ *  themselves, for the reasons `columnBox` gives. It is moved and resized rather than redrawn as
+ *  the block grows: taking a child out of the grid and putting another back in invalidated the
+ *  whole table on every pointer move. */
+function cellBox(grid: HTMLElement): HTMLElement {
   const box = grid.appendChild(document.createElement("div"));
   box.className = "cellbox";
-  box.style.left = `${left}px`;
-  box.style.top = `${top}px`;
-  box.style.width = `${width}px`;
-  box.style.height = `${height}px`;
   return box;
 }
 
-/** What the held run is worth, in place of the cell panel the column carries the rest of the time. */
+/** What the held block is worth, in place of the cell panel the column carries the rest of the time. */
 const sumPanel = (total: number): string =>
   `<span class="pop stat damage"><table><tr class="sum"><td class="k">Total</td>`
   + `<td class="v">${esc(fmt(total, 0))}</td></tr></table></span>`;
 
+/** The block a press picked out: what it can reach, read once at the press, and the two corners it
+ *  spans — `ar`/`ac` where the press landed and stays, `fr` the row the pointer has taken the other
+ *  one to. `r0`..`c1` are the two corners put in order. */
+interface CellSel {
+  grid: HTMLElement;
+  rows: HTMLElement[];
+  /** Each row's top and bottom inside the grid, filled in as the drag first reaches it. Nothing
+   *  reflows the table under a held press, so a row measured once is measured for good — and the
+   *  measuring is what costs: a row far enough off screen is laid out only when something asks it
+   *  for its box (`content-visibility`), and a quick drag sweeps a hundred of them. */
+  span: ([number, number] | undefined)[];
+  /** Every column in the order it is shown, each with its own edges *inside* the grid — which a
+   *  scroll moves the grid by and leaves these alone — and the place its cell sits in a row. */
+  cols: { key: string; nth: number; left: number; right: number }[];
+  ar: number;
+  ac: number;
+  fr: number;
+  r0: number;
+  r1: number;
+  c0: number;
+  c1: number;
+}
+
+/** The block of cells a press ran over — a reading marker like the singled-out column, and the
+ *  same one: taking either takes the other off. */
+let cellSel: CellSel | null = null;
+let cellSelBox: HTMLElement | null = null;
+/** Whether a press is down on the log, where its pointer last was in page px, and the page's own
+ *  zoom as the press found it — read again on every report, it costs a look at the table's layout
+ *  for each one, which is what a pointer handler must do least of. */
+let holding = false;
+let px = 0;
+let py = 0;
+let pressScale = 1;
+
+function clearBlock(): void {
+  cellSel = null;
+  cellSelBox?.remove();
+  cellSelBox = null;
+}
+
+/** Where row `i` sits inside the grid, measured on the first ask and kept after (`span`). */
+function rowSpan(sel: CellSel, i: number, gridTop: number): [number, number] {
+  const seen = sel.span[i];
+  if (seen) return seen;
+  const r = rect(sel.rows[i]!);
+  const at: [number, number] = [r.top - gridTop, r.bottom - gridTop];
+  sel.span[i] = at;
+  return at;
+}
+
+/** Take the block from the press's own corner out to `row`/`col` and redraw it. */
+function aimBlock(sel: CellSel, row: number, col: number, gridTop: number): void {
+  sel.fr = row;
+  sel.r0 = Math.min(sel.ar, row);
+  sel.r1 = Math.max(sel.ar, row);
+  sel.c0 = Math.min(sel.ac, col);
+  sel.c1 = Math.max(sel.ac, col);
+  const top = rowSpan(sel, sel.r0, gridTop)[0];
+  const left = sel.cols[sel.c0]!.left;
+  const box = cellSelBox ?? (cellSelBox = cellBox(sel.grid));
+  box.style.left = `${left}px`;
+  box.style.top = `${top}px`;
+  box.style.width = `${sel.cols[sel.c1]!.right - left}px`;
+  box.style.height = `${rowSpan(sel, sel.r1, gridTop)[1] - top}px`;
+}
+
+/** The block's own cells, a row of them at a time. */
+function blockCells(sel: CellSel): HTMLElement[][] {
+  const out: HTMLElement[][] = [];
+  for (let r = sel.r0; r <= sel.r1; r++) {
+    const cells = sel.rows[r]!.children;
+    out.push(sel.cols.slice(sel.c0, sel.c1 + 1).map((c) => cells[c.nth] as HTMLElement));
+  }
+  return out;
+}
+
 /**
- * Press and hold an avg cell to read what a run of them comes to: the run wears the same white
- * outline a singled-out column does, and the hover becomes that one figure, both gone the moment
- * the pointer comes up. Dragging up or down grows the run — tracked by the pointer's height alone,
- * so it holds even where the drag wanders out of the column.
+ * Aim the block at wherever the pointer now is. Called on a move and on a scroll alike: a scroll
+ * under a held press slides the rows past a pointer that has not moved at all, which grows the
+ * block exactly as reaching further down the table with the pointer would.
  *
- * A column singled out by its heading stays singled out. Where that column is avg itself, its box
- * steps aside for as long as the run is held and comes back on release — the two run through the
- * same cells, and drawn together they read as one thick, ragged outline rather than two.
+ * The row is walked from the one the pointer was over last — rows run down the table in order, and
+ * neither a move nor a scroll shifts it by more than a few — rather than measured up front, since
+ * the whole table would then have to be laid out before the first move.
+ */
+function trackBlock(): void {
+  const sel = cellSel;
+  if (!sel) return;
+  const g = rect(sel.grid);
+  const y = py - g.top;
+  let row = Math.min(Math.max(sel.fr, 0), sel.rows.length - 1);
+  while (row < sel.rows.length - 1 && y > rowSpan(sel, row, g.top)[1]) row++;
+  while (row > 0 && y < rowSpan(sel, row, g.top)[0]) row--;
+  const x = px - g.left;
+  let col = 0;
+  while (col < sel.cols.length - 1 && x >= sel.cols[col + 1]!.left) col++;
+  aimBlock(sel, row, col, g.top);
+
+  // the sum is the avg column's own reading: a block standing in any other column, or across more
+  // than the one, is the outline alone
+  const only = sel.cols[sel.c0]!;
+  if (sel.c0 !== sel.c1 || only.key !== "avg" || sel.r0 === sel.r1) {
+    dropPanel();
+    return;
+  }
+  let total = 0;
+  for (let r = sel.r0; r <= sel.r1; r++) {
+    total += Number((sel.rows[r]!.children[only.nth] as HTMLElement).dataset.avg) || 0;
+  }
+  drivePanel(sel.rows[sel.fr]!.children[only.nth]!, sumPanel(total));
+}
+
+/** The block is re-aimed a frame at a time. A mouse reports itself far oftener than the screen is
+ *  drawn, and each aim reads the table's own layout back, which is the one thing a pointer handler
+ *  must not do more than it has to. */
+let trackRaf = 0;
+function queueTrack(): void {
+  if (trackRaf) return;
+  trackRaf = requestAnimationFrame(() => {
+    trackRaf = 0;
+    trackBlock();
+  });
+}
+
+/** Aim it now, rather than a frame from now — for the last aim of a press, whose frame would land
+ *  after everything the release goes on to do. */
+function flushTrack(): void {
+  if (!trackRaf) return;
+  cancelAnimationFrame(trackRaf);
+  trackRaf = 0;
+  trackBlock();
+}
+
+// a scroll under a held press is a reach down the table; the panels' own scroll handler leaves a
+// driven panel alone, so the sum rides it out as well
+addEventListener("scroll", () => {
+  if (holding) queueTrack();
+}, true);
+
+/** Ctrl+C takes a copy of the block, a row to a line and a tab between columns — the figures as the
+ *  table sets them, so what lands in a spreadsheet reads the way the log does. */
+addEventListener("keydown", (e) => {
+  if (!cellSel || e.key !== "c" || !(e.ctrlKey || e.metaKey) || e.altKey) return;
+  const loose = getSelection();
+  if (loose && !loose.isCollapsed) return;
+  e.preventDefault();
+  const text = blockCells(cellSel)
+    .map((row) => row.map((c) => (c.textContent ?? "").replace("▸", "").trim()).join("\t")).join("\n");
+  navigator.clipboard?.writeText(text).catch(() => { /* nowhere to put it */ });
+});
+
+/**
+ * Press and drag over the log to pick out a block of cells: any rectangle, any columns. The block
+ * wears the same white outline a singled-out column does, and stands from the press until the next
+ * block or until a heading singles a column out instead — the two are the one marker, so starting
+ * a block takes a singled-out column off outright.
+ *
+ * No panel opens while the press is down. Where the block stands in the avg column and nowhere
+ * else it becomes what those cells come to, left up to be read once the pointer comes up; anywhere
+ * else the block is the outline alone, and Ctrl+C is what reads it.
+ *
+ * A block already up is taken off by a plain click anywhere in the log, which does nothing else:
+ * the cell it lands on is picked up only by a press that is held or dragged (`arming`), so the
+ * click that clears the table does not open a panel or lay a new block down in the same stroke.
  *
  * Rows are re-read on every press rather than kept, since a group opening or a field summary
  * swapping changes which cells are on screen, and only those are picked up or added in.
  */
-function wireAvgSum(root: HTMLElement): void {
+function wireCellSelect(root: HTMLElement): void {
+  clearBlock();
+  holding = false;
   const grid = root.querySelector<HTMLElement>(".gridwrap .grid");
   if (!grid) return;
 
-  let cells: HTMLElement[] = [];
-  /** Each cell's vertical middle, measured once per press — the drag cannot reflow the table. */
-  let mids: number[] = [];
-  let anchor = -1;
-  let box: HTMLElement | null = null;
+  /** A press made while a block already stood, waiting to find out which it is: held or dragged it
+   *  picks its own cell up, let go of it was the click that took the old block off and no more. */
+  let arming: { begin: () => void; timer: ReturnType<typeof setTimeout>; x: number; y: number } | null = null;
+  const HELD_AT = 250, MOVED_AT = 3;
 
-  const paint = (at: number): void => {
-    const from = Math.min(anchor, at), to = Math.max(anchor, at);
-    const g = rect(grid);
-    const first = rect(cells[from]!), last = rect(cells[to]!);
-    box?.remove();
-    box = cellBox(grid, first.left - g.left, first.top - g.top, first.width, last.bottom - first.top);
-    let total = 0;
-    for (let i = from; i <= to; i++) total += Number(cells[i]!.dataset.avg) || 0;
-    drivePanel(cells[at]!, sumPanel(total));
+  /** Keep the click the press is about to end on from opening the cell's own panel: a reach across
+   *  the table, and the press that takes a block off, are presses on the log rather than clicks on
+   *  the one cell they happen to have landed on. `keepDefault` leaves the row itself to do what
+   *  the click would have done anyway — a group under the press still opens or closes, which the
+   *  reader taking a block off has no reason to be denied. A reach across the table is denied it:
+   *  the group it set out from would open out from under the block just drawn. */
+  const swallowClick = (keepDefault: boolean): void => {
+    const swallow = (e: Event): void => {
+      if (!keepDefault) e.preventDefault();
+      e.stopPropagation();
+    };
+    addEventListener("click", swallow, { capture: true, once: true });
+    setTimeout(() => removeEventListener("click", swallow, true), 0);
   };
 
   const end = (): void => {
-    if (anchor < 0) return;
-    anchor = -1;
-    box?.remove();
-    box = null;
-    if (selBox) selBox.style.display = "";
-    dropPanel();
+    flushTrack();
+    if (arming) {
+      clearTimeout(arming.timer);
+      arming = null;
+      holdPanels(false);
+      swallowClick(true);
+      return;
+    }
+    if (!holding) return;
+    holding = false;
+    holdPanels(false);
+    const sel = cellSel!;
+    if (sel.r0 === sel.r1 && sel.c0 === sel.c1) {
+      dropPanel();
+      return;
+    }
+    swallowClick(false);
   };
 
   grid.addEventListener("pointerdown", (e) => {
-    const cell = (e.target as HTMLElement).closest<HTMLElement>(".c.avg[data-avg]");
-    if (e.button !== 0 || anchor >= 0 || !cell) return;
+    const cell = (e.target as HTMLElement).closest<HTMLElement>(".r:not(.head) > .c");
+    if (e.button !== 0 || holding || arming || !cell) return;
+    const g = rect(grid);
+    const cols = [...grid.querySelectorAll<HTMLElement>(":scope > .r.head > .c[data-col]")]
+      .map((h, nth) => {
+        const r = rect(h);
+        return { key: h.dataset.col!, nth, left: r.left - g.left, right: r.right - g.left };
+      })
+      .sort((a, b) => a.left - b.left);
+    const row = cell.closest<HTMLElement>(".r")!;
+    const rows = [...grid.querySelectorAll<HTMLElement>(".r")]
+      .filter((r) => !r.classList.contains("head") && r.offsetParent);
+    const ar = rows.indexOf(row);
+    const ac = cols.findIndex((c) => c.nth === [...row.children].indexOf(cell));
+    if (ar < 0 || ac < 0) return;
+
     e.preventDefault();
     cell.setPointerCapture(e.pointerId);
-    if (selected === "avg" && selBox) selBox.style.display = "none";
-    cells = [...grid.querySelectorAll<HTMLElement>(".c.avg[data-avg]")].filter((c) => c.offsetParent);
-    mids = cells.map((c) => { const r = rect(c); return (r.top + r.bottom) / 2; });
-    anchor = cells.indexOf(cell);
-    if (anchor >= 0) paint(anchor);
+    dropPanel();
+    holdPanels(true);
+    // the block and a singled-out column are the one marker: taking this one takes that one off
+    selected = null;
+    selBox?.remove();
+    selBox = null;
+    pressScale = zoom();
+    px = e.clientX / pressScale;
+    py = e.clientY / pressScale;
+
+    const begin = (): void => {
+      arming = null;
+      holding = true;
+      cellSel = { grid, rows, span: [], cols, ar, ac, fr: ar, r0: ar, r1: ar, c0: ac, c1: ac };
+      aimBlock(cellSel, ar, ac, rect(grid).top);
+    };
+    // a block already up is put down by this press before anything else, and the press has to
+    // stay down to pick a new one up in its place — a plain click on the log is how the reader
+    // takes a block off, and it would be no use if it laid another straight back down
+    if (!cellSel) {
+      begin();
+      return;
+    }
+    clearBlock();
+    arming = { begin, timer: setTimeout(begin, HELD_AT), x: px, y: py };
   });
 
   grid.addEventListener("pointermove", (e) => {
-    if (anchor < 0) return;
-    const y = e.clientY / zoom();
-    let at = 0;
-    while (at < mids.length - 1 && y > mids[at]!) at++;
-    paint(at);
+    if (!holding && !arming) return;
+    px = e.clientX / pressScale;
+    py = e.clientY / pressScale;
+    if (arming) {
+      // a drag is as good as a hold: it is plainly a reach across the table, not a click
+      if (Math.abs(px - arming.x) < MOVED_AT && Math.abs(py - arming.y) < MOVED_AT) return;
+      clearTimeout(arming.timer);
+      arming.begin();
+    }
+    queueTrack();
   });
 
   grid.addEventListener("pointerup", end);
@@ -637,6 +853,8 @@ function openDrag(grid: HTMLElement, d: ColumnDrag): void {
     if (rule) slideRules.set(key, rule);
   });
 
+  // the columns are about to slide out from under any block drawn over them
+  clearBlock();
   const track = trackBox(grid, d.key);
   liftBox = columnBox(grid, track?.left ?? d.home, track?.width ?? d.width.get(d.key)!);
   liftBox.style.transition = "none";
@@ -685,6 +903,9 @@ function wireColumnDrag(root: HTMLElement, columns: Column[]): void {
   let drag: ColumnDrag | null = null;
   let lifted = false;
   let settling = false;
+  /** Where the pointer last was in page px, and the frame waiting to put the column there. */
+  let moveX = 0;
+  let moveRaf = 0;
   const LIFT_AT = 3;
 
   head.addEventListener("pointerdown", (e) => {
@@ -695,6 +916,7 @@ function wireColumnDrag(root: HTMLElement, columns: Column[]): void {
     const width = new Map(cells.map((c) => [c.dataset.col!, rect(c).width]));
     const key = cell.dataset.col!;
     const offsets = offsetsOf(logOrder, width);
+    const scale = zoom();
     drag = {
       key,
       nth: cells.indexOf(cell) + 1,
@@ -702,22 +924,21 @@ function wireColumnDrag(root: HTMLElement, columns: Column[]): void {
       width,
       home: offsets.get(key)!,
       span: [...width.values()].reduce((n, w) => n + w, 0),
-      startX: e.clientX / zoom(),
+      startX: e.clientX / scale,
+      scale,
       at: logOrder.indexOf(key),
     };
     lifted = false;
   });
 
-  head.addEventListener("pointermove", (e) => {
+  /** Put the lifted column where the pointer now has it, and work out which gap it would drop
+   *  into — a frame at a time, since each aim re-styles every cell in the column and a mouse
+   *  reports itself far oftener than the screen is drawn. */
+  const aimDrag = (): void => {
+    moveRaf = 0;
     if (!drag) return;
-    if (!lifted) {
-      if (Math.abs(e.clientX / zoom() - drag.startX) < LIFT_AT) return;
-      lifted = true;
-      document.body.classList.add("coldrag");
-      openDrag(head.parentElement as HTMLElement, drag);
-    }
     const w = drag.width.get(drag.key)!;
-    const dx = Math.min(drag.span - w - drag.home, Math.max(-drag.home, e.clientX / zoom() - drag.startX));
+    const dx = Math.min(drag.span - w - drag.home, Math.max(-drag.home, moveX - drag.startX));
     // it trades places with a neighbour once it has slid halfway across that neighbour's width
     const { width, key } = drag;
     const rest = drag.order.filter((k) => k !== key);
@@ -739,13 +960,34 @@ function wireColumnDrag(root: HTMLElement, columns: Column[]): void {
       }
       break;
     }
-    if (at !== drag.at) { drag.at = at; slideDrag(drag); }
+    if (at !== drag.at) {
+      drag.at = at;
+      slideDrag(drag);
+    }
     if (liftRule) liftRule.style.transform = `translateX(${dx}px)`;
     if (liftBox) liftBox.style.transform = `translateX(${dx}px)`;
+  };
+
+  head.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    moveX = e.clientX / drag.scale;
+    if (!lifted) {
+      if (Math.abs(moveX - drag.startX) < LIFT_AT) return;
+      lifted = true;
+      document.body.classList.add("coldrag");
+      openDrag(head.parentElement as HTMLElement, drag);
+    }
+    if (!moveRaf) moveRaf = requestAnimationFrame(aimDrag);
   });
 
   const drop = (): void => {
     if (!drag) return;
+    // the last aim of the drag, now rather than a frame from now: the gap it lands in is read off
+    // it, and the frame it was waiting for would come after the drop had already chosen one
+    if (moveRaf) {
+      cancelAnimationFrame(moveRaf);
+      aimDrag();
+    }
     const d = drag;
     drag = null;
     document.body.classList.remove("coldrag");

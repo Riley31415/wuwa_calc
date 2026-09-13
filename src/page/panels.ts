@@ -548,21 +548,25 @@ export function dprTable(run: TeamRun, lines?: ChainGroup[][], extra?: DprExtra)
 
 /* ----------------------------------------------------------------------------- wiring */
 
-/** The one panel the page drives itself rather than leaving to the hover: the action log's
- *  avg-cell sum, shown while its drag is held (detail.ts's `wireAvgSum`). Installed by
- *  `wireSourcePanels`, which owns the placing and the single open panel. */
-let driver: { show: (cell: Element, html: string) => void; hide: () => void } | null = null;
+/** The one panel the page drives itself rather than leaving to the click: the action log's
+ *  avg-cell sum, shown while a block of them is dragged over (detail.ts's `wireCellSelect`).
+ *  Installed by `wireSourcePanels`, which owns the placing and the single open panel. */
+let driver: { show: (cell: Element, html: string) => void; hide: () => void; hold: (on: boolean) => void } | null = null;
 
-/** Show `html` over `cell` in place of whatever that cell carries, until `dropPanel()`. The hover
- *  is held shut meanwhile, so crossing other cells cannot replace it. Safe to call on every
- *  pointer move: it rebuilds and re-places, which is how the sum keeps up with the drag. */
+/** Show `html` over `cell` in place of whatever that cell carries, until `dropPanel()` or the next
+ *  click anywhere. Safe to call on every pointer move: it rebuilds and re-places, which is how the
+ *  sum keeps up with the drag. */
 export const drivePanel = (cell: Element, html: string): void => driver?.show(cell, html);
 export const dropPanel = (): void => driver?.hide();
+/** Shut the panels for as long as a press is down — nothing the pointer crosses mid-drag opens one
+ *  (detail.ts's `wireCellSelect`), and a driven panel is still free to stand. */
+export const holdPanels = (on: boolean): void => driver?.hold(on);
 
 /**
  * Open a cell's panel on hover. A closed panel is detached and kept in `built` (only the open one
- * is ever in the document — hundreds of parked panels were re-styled on every pass). Action names
- * and the Team Avg DPR cell open on click instead; the DPR one stays pinned until a click elsewhere.
+ * is ever in the document — hundreds of parked panels were re-styled on every pass). The action
+ * log's cells and the Team Avg DPR cell open on a click instead, and stay open until the next
+ * click elsewhere (`clickOpen`).
  */
 export function wireSourcePanels(root: HTMLElement): void {
   const GAP = 4, EDGE = 6;
@@ -624,8 +628,10 @@ export function wireSourcePanels(root: HTMLElement): void {
   };
 
   // while a driven panel stands it is the only one: the hover handlers below all stand down, and
-  // nothing but `dropPanel()` takes it off the screen
+  // nothing but `dropPanel()` or the next click takes it off the screen. `held` is the press's own
+  // shutter — no panel of any kind while the pointer is down.
   let driven = false;
+  let held = false;
   driver = {
     show: (cell, html) => {
       close();
@@ -639,17 +645,22 @@ export function wireSourcePanels(root: HTMLElement): void {
       driven = false;
       close();
     },
+    hold: (on) => {
+      held = on;
+      if (on) close();
+    },
   };
 
-  const isAction = (cell: Element): boolean => (!!cell.closest(".grid")
-    && (cell.classList.contains("action") || cell.classList.contains("name")))
-    || cell.classList.contains("teamdpr");
+  /** Cells whose panel waits for a click and then stays put. The whole action log reads this way:
+   *  its cells are pressed and dragged over to pick a block out (detail.ts's `wireCellSelect`), and
+   *  a panel opening under the pointer on the way would fight that. */
+  const clickOpen = (cell: Element): boolean => !!cell.closest(".grid") || cell.classList.contains("teamdpr");
 
   document.addEventListener("mouseover", (e) => {
-    if (driven || pinned) return;
+    if (driven || held || pinned) return;
     if (open && open.contains(e.target as Node)) return;
     const hovered = (e.target as Element | null)?.closest?.(".c") ?? null;
-    if (hovered && isAction(hovered)) { if (openHome !== hovered) close(); return; }
+    if (hovered && clickOpen(hovered)) { if (openHome !== hovered) close(); return; }
     const { cell, pop } = panelIn(e.target);
     if (pop === open) return;
     close();
@@ -657,14 +668,21 @@ export function wireSourcePanels(root: HTMLElement): void {
   });
 
   document.addEventListener("mouseout", (e) => {
-    if (driven || pinned) return;
+    if (driven || held || pinned) return;
     const to = e.relatedTarget as Node | null;
     if (to && (root.contains(to) || (open && open.contains(to)))) return;
     close();
   });
 
   addEventListener("click", (e) => {
-    if (driven) return;
+    if (held) return;
+    // a driven panel (the block's sum) is read, not clicked: any click takes it off and goes no
+    // further, the same way a pinned one swallows the click that closes it
+    if (driven) {
+      driven = false;
+      close();
+      return;
+    }
     if (pinned) {
       if (open?.contains(e.target as Node)) return;
       const onHome = !!openHome?.contains(e.target as Node);
@@ -675,11 +693,11 @@ export function wireSourcePanels(root: HTMLElement): void {
     if (!cell) return;
     const onCaret = !!(e.target as Element | null)?.closest?.(".caret");
     // a group's name has no panel, so its click falls through to the row's label and expands it
-    if (isAction(cell) && !onCaret && pop) {
+    if (clickOpen(cell) && !onCaret && pop) {
       e.preventDefault();
       const same = openHome === cell;
       close();
-      if (!same) { place(cell, pop); pinned = cell.classList.contains("teamdpr"); }
+      if (!same) { place(cell, pop); pinned = true; }
       return;
     }
     if (cell.querySelector(":scope > .caret")) close();

@@ -236,7 +236,11 @@ function placeDetail(box: HTMLElement, path: SVGPathElement, mainR: DOMRect): vo
 
 /** Put this stage's card where it belongs and draw its arrow into whatever it points at. */
 function place(): void {
-  if (!layer) return;
+  // hidden as well as absent: every deferred caller below queues a frame while the card is still
+  // up, and a dismissal landing in between would otherwise have that frame mark a ring back onto
+  // the page the card has just left (the captured `remeasure` runs ahead of the skip button's own
+  // handler on the very click that puts it away)
+  if (!layer || layer.hidden) return;
   settle();
   const box = layer.querySelector<HTMLElement>(".tut-box")!;
   const path = layer.querySelector<SVGPathElement>(".tut-path")!;

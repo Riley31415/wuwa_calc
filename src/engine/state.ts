@@ -57,6 +57,10 @@ export const BASIC_DMG_BONUS_INDEX = STAT_COUNT + 1;
  *  by `pushStat()` the same way as the amp split above. */
 export const TYPE2_CRIT_RATE_INDEX = STAT_COUNT + 2;
 export const TYPE2_CRIT_DMG_INDEX = STAT_COUNT + 3;
+/** And two more: the parts of `Stat.TotalDmg` and `Stat.DamageTaken` scoped to a `Type2` — the
+ *  only "deals N% more" / "takes N% more" a dot row reads, split off exactly as the amp above. */
+export const TYPE2_TOTAL_DMG_INDEX = STAT_COUNT + 4;
+export const TYPE2_DAMAGE_TAKEN_INDEX = STAT_COUNT + 5;
 
 /** What every action's own `effective` starts as — cloned per action with `.slice()`, which is one
  *  memcpy of ~36 doubles. A plain array rather than a `Float64Array`: a typed array is a separate
@@ -64,7 +68,7 @@ export const TYPE2_CRIT_DMG_INDEX = STAT_COUNT + 3;
  *  line in `evaluate()`. The one fractional write below (and its undo) is deliberate — V8 fixes an
  *  array's element kind once it widens, and a clone inherits it, so every copy is a double array
  *  from the start rather than transitioning from integers on its first real contribution. */
-export const ZERO_STATS: number[] = new Array<number>(STAT_COUNT + 4).fill(0);
+export const ZERO_STATS: number[] = new Array<number>(STAT_COUNT + 6).fill(0);
 ZERO_STATS[0] = 0.5; ZERO_STATS[0] = 0;
 
 /**

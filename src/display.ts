@@ -102,7 +102,9 @@ const FEEDS: Record<string, (action: Action) => StatKey[]> = {
   amp: (a) => (a.scaling === Scaling.Tune || fixed(a) ? []
     : a.scaling !== Scaling.Dot ? keysFor(a, Stat.Amp)
     : a.type2 === null ? [] : [scopedStat(a.type2, Stat.Amp)]),
-  dealt: (a) => (a.scaling === Scaling.Dot || fixed(a) ? [] : keysFor(a, Stat.TotalDmg, Stat.DamageTaken)),
+  dealt: (a) => (fixed(a) ? []
+    : a.scaling !== Scaling.Dot ? keysFor(a, Stat.TotalDmg, Stat.DamageTaken)
+    : a.type2 === null ? [] : [scopedStat(a.type2, Stat.TotalDmg), scopedStat(a.type2, Stat.DamageTaken)]),
   effDef: (a) => (fixed(a) ? []
     : a.scaling === Scaling.Dot ? keysFor(a, EnemyStat.DefReduce)
     : keysFor(a, Stat.DefIgnoreNew, Stat.DefIgnoreOld, EnemyStat.DefReduce)),
@@ -263,8 +265,10 @@ function rowValues(
       : snap.action.scaling === Scaling.Dot ? snap.type2Amp : snap.amp,
     cr: filler || fixed(snap.action) ? null : special(snap.action) ? snap.type2CritRate : snap.stat(Stat.CritRate),
     cd: filler || fixed(snap.action) ? null : special(snap.action) ? snap.type2CritDmg : snap.stat(Stat.CritDmg),
-    // the column is the pair's combined lift, since Total Damage and Damage Taken multiply
-    dealt: filler || snap.action.scaling === Scaling.Dot || fixed(snap.action) ? null
+    // the column is the pair's combined lift, since Total Damage and Damage Taken multiply; a dot
+    // reads only its status-scoped halves, the way `amp` above does
+    dealt: filler || fixed(snap.action) ? null
+      : snap.action.scaling === Scaling.Dot ? ((1 + snap.type2TotalDmg / 100) * (1 + snap.type2DamageTaken / 100) - 1) * 100
       : ((1 + snap.stat(Stat.TotalDmg) / 100) * (1 + snap.stat(Stat.DamageTaken) / 100) - 1) * 100,
     effDef: filler || fixed(snap.action) ? null : effectiveShred(snap) * 100,
     effRes: filler || fixed(snap.action) ? null : effectiveRes(snap),

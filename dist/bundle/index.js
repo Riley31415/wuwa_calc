@@ -52,9 +52,8 @@ import {
   tagKind,
   teamAt,
   teamKey,
-  topRank,
   weaponBase
-} from "./chunk-XWZCCBN6.js";
+} from "./chunk-JOF4PML2.js";
 
 // dist/src/display.js
 var formatters = /* @__PURE__ */ new Map();
@@ -168,12 +167,20 @@ var FEEDS = {
     18
     /* Stat.Amp */
   )],
-  dealt: (a) => a.scaling === 3 || fixed(a) ? [] : keysFor(
+  dealt: (a) => fixed(a) ? [] : a.scaling !== 3 ? keysFor(
     a,
     19,
     20
     /* Stat.DamageTaken */
-  ),
+  ) : a.type2 === null ? [] : [scopedStat(
+    a.type2,
+    19
+    /* Stat.TotalDmg */
+  ), scopedStat(
+    a.type2,
+    20
+    /* Stat.DamageTaken */
+  )],
   effDef: (a) => fixed(a) ? [] : a.scaling === 3 ? keysFor(
     a,
     36
@@ -394,8 +401,9 @@ function rowValues(snap, { mv, avg }, members = []) {
       10
       /* Stat.CritDmg */
     ),
-    // the column is the pair's combined lift, since Total Damage and Damage Taken multiply
-    dealt: filler || snap.action.scaling === 3 || fixed(snap.action) ? null : ((1 + snap.stat(
+    // the column is the pair's combined lift, since Total Damage and Damage Taken multiply; a dot
+    // reads only its status-scoped halves, the way `amp` above does
+    dealt: filler || fixed(snap.action) ? null : snap.action.scaling === 3 ? ((1 + snap.type2TotalDmg / 100) * (1 + snap.type2DamageTaken / 100) - 1) * 100 : ((1 + snap.stat(
       19
       /* Stat.TotalDmg */
     ) / 100) * (1 + snap.stat(
@@ -912,24 +920,14 @@ function teamWanted(key, members) {
   }
   return false;
 }
-function sequenceTagAt(m, sequence, rank = 1, f = filters) {
+function sequenceTagAt(m, sequence, f = filters) {
   if (!axisOpen(m, f, "sequences"))
     return null;
-  return `${m.name} S${sequence}${rank > 1 ? `R${rank}` : ""}`;
+  return `${m.name} S${sequence}`;
 }
-var sequenceTag = (m, combo) => {
-  const weapon = m.loadout.refinements.findIndex((ranks) => ranks.includes(combo.weapon));
-  const extra = weapon < 0 ? null : topRank(m, filters, weapon);
-  const rank = extra !== null && combo.weapon.refinement === extra + 1 ? combo.weapon.refinement : 1;
-  return sequenceTagAt(m, combo.sequence, rank);
-};
+var sequenceTag = (m, combo) => sequenceTagAt(m, combo.sequence);
 function sequenceTagsOf(m, f = filters) {
-  const tags = sequenceLevels(m, f).map((level) => sequenceTagAt(m, level, 1, f) ?? "");
-  const extra = new Set(eligibleWeapons(m, f).map((w) => topRank(m, f, w)).filter((r) => r !== null));
-  for (const rank of [...extra].sort((a, b) => a - b)) {
-    tags.push(sequenceTagAt(m, m.loadout.sequences.length, rank + 1, f));
-  }
-  return tags;
+  return sequenceLevels(m, f).map((level) => sequenceTagAt(m, level, f) ?? "");
 }
 var refineTag = (m, combo) => `${m.name} R${combo.weapon.refinement}`;
 function rowWanted(row) {
@@ -1763,6 +1761,7 @@ function dprTable(run, lines, extra) {
 var driver = null;
 var drivePanel = (cell2, html) => driver?.show(cell2, html);
 var dropPanel = () => driver?.hide();
+var holdPanels = (on) => driver?.hold(on);
 function wireSourcePanels(root) {
   const GAP = 4, EDGE = 6;
   let open = null;
@@ -1822,6 +1821,7 @@ function wireSourcePanels(root) {
     return { cell: cell2, pop };
   };
   let driven = false;
+  let held = false;
   driver = {
     show: (cell2, html) => {
       close();
@@ -1835,16 +1835,21 @@ function wireSourcePanels(root) {
     hide: () => {
       driven = false;
       close();
+    },
+    hold: (on) => {
+      held = on;
+      if (on)
+        close();
     }
   };
-  const isAction = (cell2) => !!cell2.closest(".grid") && (cell2.classList.contains("action") || cell2.classList.contains("name")) || cell2.classList.contains("teamdpr");
+  const clickOpen = (cell2) => !!cell2.closest(".grid") || cell2.classList.contains("teamdpr");
   document.addEventListener("mouseover", (e) => {
-    if (driven || pinned)
+    if (driven || held || pinned)
       return;
     if (open && open.contains(e.target))
       return;
     const hovered2 = e.target?.closest?.(".c") ?? null;
-    if (hovered2 && isAction(hovered2)) {
+    if (hovered2 && clickOpen(hovered2)) {
       if (openHome !== hovered2)
         close();
       return;
@@ -1857,7 +1862,7 @@ function wireSourcePanels(root) {
       place2(cell2, pop);
   });
   document.addEventListener("mouseout", (e) => {
-    if (driven || pinned)
+    if (driven || held || pinned)
       return;
     const to = e.relatedTarget;
     if (to && (root.contains(to) || open && open.contains(to)))
@@ -1865,8 +1870,13 @@ function wireSourcePanels(root) {
     close();
   });
   addEventListener("click", (e) => {
-    if (driven)
+    if (held)
       return;
+    if (driven) {
+      driven = false;
+      close();
+      return;
+    }
     if (pinned) {
       if (open?.contains(e.target))
         return;
@@ -1879,13 +1889,13 @@ function wireSourcePanels(root) {
     if (!cell2)
       return;
     const onCaret = !!e.target?.closest?.(".caret");
-    if (isAction(cell2) && !onCaret && pop) {
+    if (clickOpen(cell2) && !onCaret && pop) {
       e.preventDefault();
       const same = openHome === cell2;
       close();
       if (!same) {
         place2(cell2, pop);
-        pinned = cell2.classList.contains("teamdpr");
+        pinned = true;
       }
       return;
     }
@@ -1993,11 +2003,11 @@ function pieSvg(slices, total) {
     return `<path class="wedge" d="M${cx},${f(cy)} L${f(x0)},${f(y0)} A${r},${r} 0 ${share > 0.5 ? 1 : 0},0 ${f(x1)},${f(y1)} Z"${paint2}/>`;
   };
   const leader = ({ s, a, side, y, ox, oy }) => {
-    const [px, py] = point(a, r);
+    const [px2, py2] = point(a, r);
     const [bx, by] = point(a, r + 24);
     const rail = cx + side * (r + 38);
     const tail = `${f(rail - side * 30)},${f(y)} ${f(rail)},${f(y)}`;
-    const curve = (dx, dy) => `M${f(px + dx)},${f(py + dy)} C${f(bx + dx)},${f(by + dy)} ${tail}`;
+    const curve = (dx, dy) => `M${f(px2 + dx)},${f(py2 + dy)} C${f(bx + dx)},${f(by + dy)} ${tail}`;
     return `<path class="leader" d="${curve(0, 0)}" style="--d-out:path('${curve(ox, oy)}')" fill="none" stroke="${s.color ?? "var(--faint)"}" stroke-width="2" stroke-linecap="round"/>`;
   };
   const groups = arcs.map((arc) => `<g class="slice" style="--ox:${f(arc.ox)}px;--oy:${f(arc.oy)}px">${wedge(arc)}${leader(arc)}</g>`).join("");
@@ -2217,9 +2227,9 @@ var COST_HELP = [
   "Intended Teams - Teams with synergy that use supports for that archetype. No suisui on an echo team for example. Switch to ALL teams to see a ton more combinations if you want to check a weird team.",
   "S0R0 all - Limited resonators are S0 and use the best standard or 4* weapon available at R1. Rover and 4* resonators are S6.",
   "S0R1 all - All limited resonators get their best signature weapon, while Rover and 4* supports may still use standard or 4* weapons.",
-  "S0R1 mdps - Each team gets a single signature weapon at R1 that gives the best DPR increase, in most cases the team's main DPS. Dual DPS teams still only get one signature weapon.",
-  "S1R1 / S2R1 / S3R1 / S6R1 mdps - One resonator per team runs that many sequence nodes, whichever gives the best DPR increase, in most cases the team's main DPS. Everyone else stays S0R1.",
-  "S6R5 mdps - That one resonator is S6 and runs their weapon at R5; everyone else is still S0R1.",
+  "S0R1 mdps - Each team gets a single signature weapon at R1, on whichever of its main DPS gives the best DPR increase \u2014 never a support. Dual DPS teams still only get one signature weapon.",
+  "S1R1 / S2R1 / S3R1 / S6R1 mdps - One main DPS per team runs that many sequence nodes, whichever gives the best DPR increase \u2014 never a support. Everyone else stays S0R1.",
+  "S6R5 mdps - That one main DPS is S6 and runs their weapon at R5; everyone else is still S0R1.",
   "S6R5 all - Every resonator is S6 with their best weapon at R5."
 ];
 var MATRIX_HELP = "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.";
@@ -2557,6 +2567,8 @@ function optionCell(kind, value, color, lines = [value], resonator = "") {
   return `<div class="c option" data-kind="${kind}" data-value="${esc(value)}"${resonator ? ` data-resonator="${esc(resonator)}"` : ""} style="${style}">${lines.map(esc).join("<br>")}</div>`;
 }
 var hueShown = true;
+var personalOpen = [false, false, false];
+var cmpDrawn = /* @__PURE__ */ new Set();
 var dprExact = { personal: true, team: true };
 var dprFmt = (v, exact) => {
   if (exact)
@@ -2611,12 +2623,12 @@ function comparisonTable(rows) {
   const shows = (m, axis) => axisUsed(m, filters, axis);
   const showsRow = (m, axis, combo) => compares(m, filters, axis, combo);
   const AXIS_HEAD = { weapons: "Weapon", echoes: "Echo Set", mainstats: "Mainstats", substats: "Substats" };
-  const gearKey = (c, axis, ranked = true) => {
+  const gearKey = (c, axis) => {
     const [w, e, , seq2, ref, ...rest] = c.key.split(".");
-    const anyRank = axis === "weapons" || axis === "refines" || axis === "sequences" && !ranked;
+    const anyRank = axis === "weapons" || axis === "refines";
     return [axis === "weapons" ? "*" : w, axis === "echoes" ? "*" : e, "*", axis === "sequences" ? "*" : seq2, anyRank ? "*" : ref, rest.includes("m"), axis === "substats" || axis === null ? "*" : rest.includes("h")].join("|");
   };
-  const twinKey = (run, pos, axis) => `${run.teamKey}|${pos}|${axis}|${run.combo.map((c, k) => gearKey(c, k === pos ? axis : null, axisUsed(run.members[pos], filters, "refines"))).join("-")}`;
+  const twinKey = (run, pos, axis) => `${run.teamKey}|${pos}|${axis}|${run.combo.map((c, k) => gearKey(c, k === pos ? axis : null)).join("-")}`;
   const openAt = { weapons: [false, false, false], echoes: [false, false, false], mainstats: [false, false, false], substats: [false, false, false], sequences: [false, false, false], refines: [false, false, false] };
   for (const row of rows) {
     row.members.forEach((m, pos) => {
@@ -2649,7 +2661,7 @@ function comparisonTable(rows) {
       if (axis === "weapons") {
         if (t.combo.weapon.tier === 0)
           continue;
-        if (t.combo.key.split(".")[4] !== "r0")
+        if (axisUsed(run.members[pos], filters, "refines") && t.combo.key.split(".")[4] !== "r0")
           continue;
       }
       if (axis === "refines" && t.combo.key.split(".")[4] !== "r0")
@@ -2680,7 +2692,17 @@ function comparisonTable(rows) {
   };
   const seqCmpAt = (i) => !!openAt.sequences[i];
   const refCmpAt = (i) => !!openAt.refines[i] && !openAt.weapons[i];
-  const dprAt = (i) => CMP_AXES.some((axis) => openAt[axis][i]);
+  for (let i = 0; i < personalOpen.length; i++)
+    for (const axis of CMP_AXES) {
+      const key = `${axis}|${i}`;
+      if (!openAt[axis][i])
+        cmpDrawn.delete(key);
+      else if (!cmpDrawn.has(key)) {
+        cmpDrawn.add(key);
+        personalOpen[i] = true;
+      }
+    }
+  const dprAt = (i) => !!personalOpen[i];
   const rowHtml = (key, run, rank2) => {
     const grand = run.total;
     const memberNames = run.members.map((m) => m.name).join("|");
@@ -2703,7 +2725,7 @@ function comparisonTable(rows) {
     const memberCells = run.members.map((m, i) => memberCell(m, run.combo[i], i)).join("");
     return `<div class="trow${rank2.pinned ? " isbaseline" : ""}" style="--hue:${rank2.hue}" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}" data-members="${esc(memberNames)}" data-total="${grand}">` + memberCells + `<div class="c num total teamdpr" title="${CLICK} to view the team's damage breakdown"${deferredPop("dpr", key)}>${dprFmt(grand, dprExact.team)}</div><div class="c num total baseline" data-team="${esc(key)}" title="${CLICK} to measure every team against this one">${rank2.pct}</div><div class="c gotodetail" data-team="${esc(key)}">view rotation<span class="arrow">\u203A</span></div></div>`;
   };
-  const memberHead = (n, i) => `<div class="c slothead">Slot ${n}</div>` + (seqCmpAt(i) ? `<div class="c num">Compare</div>` : "") + (refCmpAt(i) ? `<div class="c num">Compare</div>` : "") + GEAR_AXES.map((axis) => openAt[axis][i] ? `<div class="c">${AXIS_HEAD[axis]}</div><div class="c num">Compare</div>` : "").join("") + (dprAt(i) ? `<div class="c num dprhead" data-dpr="personal" title="${CLICK} to switch between abbreviated and exact figures">Personal</div>` : "");
+  const memberHead = (n, i) => `<div class="c slothead${dprAt(i) ? " open" : ""}" data-slot="${i}" title="${CLICK} to ${dprAt(i) ? "hide" : "show"} this slot's Personal DPR">Slot ${n}<span class="arrow">\u203A</span></div>` + (seqCmpAt(i) ? `<div class="c num">Compare</div>` : "") + (refCmpAt(i) ? `<div class="c num">Compare</div>` : "") + GEAR_AXES.map((axis) => openAt[axis][i] ? `<div class="c">${AXIS_HEAD[axis]}</div><div class="c num">Compare</div>` : "").join("") + (dprAt(i) ? `<div class="c num dprhead" data-dpr="personal" title="${CLICK} to switch between abbreviated and exact figures">Personal</div>` : "");
   const head = `<div class="trow thead">` + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2) + `<div class="c num dprhead" data-dpr="team" title="${CLICK} to switch between abbreviated and exact figures">Team Avg DPR</div><div class="c num huehead" title="${CLICK} to colour the column by rank">Compare</div><div class="c"></div></div>`;
   const posCols = (i) => `max-content${seqCmpAt(i) ? " max-content" : ""}${refCmpAt(i) ? " max-content" : ""}${GEAR_AXES.map((axis) => openAt[axis][i] ? " max-content max-content" : "").join("")}${dprAt(i) ? " max-content" : ""}`;
   const gridStyle = `grid-template-columns:${posCols(0)} ${posCols(1)} ${posCols(2)} max-content max-content max-content`;
@@ -2948,6 +2970,13 @@ document.addEventListener("click", (e) => {
   document.querySelector(".tgrid")?.classList.toggle("hued", hueShown);
 });
 document.addEventListener("click", (e) => {
+  const slot = e.target.closest(".c.slothead")?.dataset.slot;
+  if (slot === void 0)
+    return;
+  personalOpen[Number(slot)] = !personalOpen[Number(slot)];
+  renderComparison();
+});
+document.addEventListener("click", (e) => {
   const column = e.target.closest(".c.dprhead")?.dataset.dpr;
   if (!column)
     return;
@@ -3049,15 +3078,7 @@ var openOptionMenu = (e) => {
   const axis = kind === "weapon" ? "weapons" : "echoes";
   const word = kind === "weapon" ? "weapons" : "sonatas";
   const items = [
-    // the compares that opened this column lead, offered back as a way to close it — the same
-    // shape a main-stat or substat cell's own menu has (`openStatMenu`)
-    ...filters[axis].includes(resonator) ? [{ label: `Stop comparing ${word}`, run: () => setCompare(resonator, axis) }] : [],
-    // the rank rides in this same cell, so this is where the whole rank axis is opened and closed
-    ...kind === "weapon" && comparable(resonator, "refines") ? [{
-      label: `${filters.refines.includes(resonator) ? "Stop comparing" : "Compare"} ${AXIS_LABEL.refines.toLowerCase()}`,
-      run: () => setCompare(resonator, "refines")
-    }] : [],
-    ...filters.scoped.filter((s) => s.resonator === resonator && s.axis === axis).map((s) => ({ label: `Stop comparing ${scopedLabel(s)} ${word}`, run: () => setScoped(s) })),
+    // the pick's own filters lead, so "Show only" is the top line whatever else the cell offers
     { label: `Show only ${base}`, run: () => setFilter(map, base, "include"), alt: () => setFilter(map, base, "exclude") },
     { label: `Hide ${base}`, run: () => setFilter(map, base, "exclude") },
     ...ranked ? [
@@ -3066,7 +3087,15 @@ var openOptionMenu = (e) => {
     ] : [],
     ...resonator && kind === "weapon" ? scopedItems(resonator, "weapon", base) : [],
     ...resonator && ranked ? scopedItems(resonator, "weaponRank", key) : [],
-    ...resonator && kind === "echo" ? scopedItems(resonator, "echo", key) : []
+    ...resonator && kind === "echo" ? scopedItems(resonator, "echo", key) : [],
+    // ...and last, the compares that opened this column, offered back as a way to close it
+    ...filters[axis].includes(resonator) ? [{ label: `Stop comparing ${word}`, run: () => setCompare(resonator, axis) }] : [],
+    // the rank rides in this same cell, so this is where the whole rank axis is opened and closed
+    ...kind === "weapon" && comparable(resonator, "refines") ? [{
+      label: `${filters.refines.includes(resonator) ? "Stop comparing" : "Compare"} ${AXIS_LABEL.refines.toLowerCase()}`,
+      run: () => setCompare(resonator, "refines")
+    }] : [],
+    ...filters.scoped.filter((s) => s.resonator === resonator && s.axis === axis).map((s) => ({ label: `Stop comparing ${scopedLabel(s)} ${word}`, run: () => setScoped(s) }))
   ];
   showMenu(x, y, items);
 };
@@ -3114,15 +3143,23 @@ var searchPick = (e) => {
     return void 0;
   return { kind, value, axis: el.dataset.axis, resonator: el.dataset.resonator };
 };
+var takeSearchHit = (hit) => {
+  const coarse2 = matchMedia("(pointer: coarse)").matches;
+  clearSearch();
+  if (!coarse2)
+    focusAfterDraw = null;
+  applySearchHit(hit);
+  if (coarse2)
+    document.querySelector("#optionSearch")?.blur();
+  else
+    focusSearch();
+};
 var addSearchHit = (e) => {
   const hit = searchPick(e);
   if (!hit)
     return;
   e.preventDefault();
-  clearSearch();
-  focusAfterDraw = null;
-  applySearchHit(hit);
-  focusSearch();
+  takeSearchHit(hit);
 };
 document.addEventListener("click", addSearchHit);
 document.addEventListener("contextmenu", addSearchHit);
@@ -3253,10 +3290,7 @@ document.addEventListener("keydown", (e) => {
   if (!hit)
     return;
   e.preventDefault();
-  clearSearch();
-  focusAfterDraw = null;
-  applySearchHit(hit);
-  focusSearch();
+  takeSearchHit(hit);
 });
 
 // dist/src/page/detail.js
@@ -3607,7 +3641,7 @@ function renderDetail(key) {
   app3.innerHTML = page(run);
   app3.className = "";
   wireColumnDrag(app3, detailFor(run).report.columns);
-  wireAvgSum(app3);
+  wireCellSelect(app3);
   wireDistribution(app3);
 }
 var COLUMN_ORDER_KEY = "wuwa.logColumns";
@@ -3674,75 +3708,205 @@ function paintSelection(root) {
   selBox = null;
   if (!selected)
     return;
+  clearBlock();
   const grid = root.querySelector(".gridwrap .grid");
   const track = grid && trackBox(grid, selected);
   if (grid && track)
     selBox = columnBox(grid, track.left, track.width);
 }
-function cellBox(grid, left, top, width, height) {
+function cellBox(grid) {
   const box = grid.appendChild(document.createElement("div"));
   box.className = "cellbox";
-  box.style.left = `${left}px`;
-  box.style.top = `${top}px`;
-  box.style.width = `${width}px`;
-  box.style.height = `${height}px`;
   return box;
 }
 var sumPanel = (total) => `<span class="pop stat damage"><table><tr class="sum"><td class="k">Total</td><td class="v">${esc(fmt(total, 0))}</td></tr></table></span>`;
-function wireAvgSum(root) {
+var cellSel = null;
+var cellSelBox = null;
+var holding = false;
+var px = 0;
+var py = 0;
+var pressScale = 1;
+function clearBlock() {
+  cellSel = null;
+  cellSelBox?.remove();
+  cellSelBox = null;
+}
+function rowSpan(sel, i, gridTop) {
+  const seen = sel.span[i];
+  if (seen)
+    return seen;
+  const r = rect(sel.rows[i]);
+  const at = [r.top - gridTop, r.bottom - gridTop];
+  sel.span[i] = at;
+  return at;
+}
+function aimBlock(sel, row, col, gridTop) {
+  sel.fr = row;
+  sel.r0 = Math.min(sel.ar, row);
+  sel.r1 = Math.max(sel.ar, row);
+  sel.c0 = Math.min(sel.ac, col);
+  sel.c1 = Math.max(sel.ac, col);
+  const top = rowSpan(sel, sel.r0, gridTop)[0];
+  const left = sel.cols[sel.c0].left;
+  const box = cellSelBox ?? (cellSelBox = cellBox(sel.grid));
+  box.style.left = `${left}px`;
+  box.style.top = `${top}px`;
+  box.style.width = `${sel.cols[sel.c1].right - left}px`;
+  box.style.height = `${rowSpan(sel, sel.r1, gridTop)[1] - top}px`;
+}
+function blockCells(sel) {
+  const out = [];
+  for (let r = sel.r0; r <= sel.r1; r++) {
+    const cells = sel.rows[r].children;
+    out.push(sel.cols.slice(sel.c0, sel.c1 + 1).map((c) => cells[c.nth]));
+  }
+  return out;
+}
+function trackBlock() {
+  const sel = cellSel;
+  if (!sel)
+    return;
+  const g = rect(sel.grid);
+  const y = py - g.top;
+  let row = Math.min(Math.max(sel.fr, 0), sel.rows.length - 1);
+  while (row < sel.rows.length - 1 && y > rowSpan(sel, row, g.top)[1])
+    row++;
+  while (row > 0 && y < rowSpan(sel, row, g.top)[0])
+    row--;
+  const x = px - g.left;
+  let col = 0;
+  while (col < sel.cols.length - 1 && x >= sel.cols[col + 1].left)
+    col++;
+  aimBlock(sel, row, col, g.top);
+  const only = sel.cols[sel.c0];
+  if (sel.c0 !== sel.c1 || only.key !== "avg" || sel.r0 === sel.r1) {
+    dropPanel();
+    return;
+  }
+  let total = 0;
+  for (let r = sel.r0; r <= sel.r1; r++) {
+    total += Number(sel.rows[r].children[only.nth].dataset.avg) || 0;
+  }
+  drivePanel(sel.rows[sel.fr].children[only.nth], sumPanel(total));
+}
+var trackRaf = 0;
+function queueTrack() {
+  if (trackRaf)
+    return;
+  trackRaf = requestAnimationFrame(() => {
+    trackRaf = 0;
+    trackBlock();
+  });
+}
+function flushTrack() {
+  if (!trackRaf)
+    return;
+  cancelAnimationFrame(trackRaf);
+  trackRaf = 0;
+  trackBlock();
+}
+addEventListener("scroll", () => {
+  if (holding)
+    queueTrack();
+}, true);
+addEventListener("keydown", (e) => {
+  if (!cellSel || e.key !== "c" || !(e.ctrlKey || e.metaKey) || e.altKey)
+    return;
+  const loose = getSelection();
+  if (loose && !loose.isCollapsed)
+    return;
+  e.preventDefault();
+  const text = blockCells(cellSel).map((row) => row.map((c) => (c.textContent ?? "").replace("\u25B8", "").trim()).join("	")).join("\n");
+  navigator.clipboard?.writeText(text).catch(() => {
+  });
+});
+function wireCellSelect(root) {
+  clearBlock();
+  holding = false;
   const grid = root.querySelector(".gridwrap .grid");
   if (!grid)
     return;
-  let cells = [];
-  let mids = [];
-  let anchor = -1;
-  let box = null;
-  const paint2 = (at) => {
-    const from = Math.min(anchor, at), to = Math.max(anchor, at);
-    const g = rect(grid);
-    const first = rect(cells[from]), last = rect(cells[to]);
-    box?.remove();
-    box = cellBox(grid, first.left - g.left, first.top - g.top, first.width, last.bottom - first.top);
-    let total = 0;
-    for (let i = from; i <= to; i++)
-      total += Number(cells[i].dataset.avg) || 0;
-    drivePanel(cells[at], sumPanel(total));
+  let arming = null;
+  const HELD_AT = 250, MOVED_AT = 3;
+  const swallowClick = (keepDefault) => {
+    const swallow = (e) => {
+      if (!keepDefault)
+        e.preventDefault();
+      e.stopPropagation();
+    };
+    addEventListener("click", swallow, { capture: true, once: true });
+    setTimeout(() => removeEventListener("click", swallow, true), 0);
   };
   const end = () => {
-    if (anchor < 0)
+    flushTrack();
+    if (arming) {
+      clearTimeout(arming.timer);
+      arming = null;
+      holdPanels(false);
+      swallowClick(true);
       return;
-    anchor = -1;
-    box?.remove();
-    box = null;
-    if (selBox)
-      selBox.style.display = "";
-    dropPanel();
+    }
+    if (!holding)
+      return;
+    holding = false;
+    holdPanels(false);
+    const sel = cellSel;
+    if (sel.r0 === sel.r1 && sel.c0 === sel.c1) {
+      dropPanel();
+      return;
+    }
+    swallowClick(false);
   };
   grid.addEventListener("pointerdown", (e) => {
-    const cell2 = e.target.closest(".c.avg[data-avg]");
-    if (e.button !== 0 || anchor >= 0 || !cell2)
+    const cell2 = e.target.closest(".r:not(.head) > .c");
+    if (e.button !== 0 || holding || arming || !cell2)
+      return;
+    const g = rect(grid);
+    const cols = [...grid.querySelectorAll(":scope > .r.head > .c[data-col]")].map((h, nth) => {
+      const r = rect(h);
+      return { key: h.dataset.col, nth, left: r.left - g.left, right: r.right - g.left };
+    }).sort((a, b) => a.left - b.left);
+    const row = cell2.closest(".r");
+    const rows = [...grid.querySelectorAll(".r")].filter((r) => !r.classList.contains("head") && r.offsetParent);
+    const ar = rows.indexOf(row);
+    const ac = cols.findIndex((c) => c.nth === [...row.children].indexOf(cell2));
+    if (ar < 0 || ac < 0)
       return;
     e.preventDefault();
     cell2.setPointerCapture(e.pointerId);
-    if (selected === "avg" && selBox)
-      selBox.style.display = "none";
-    cells = [...grid.querySelectorAll(".c.avg[data-avg]")].filter((c) => c.offsetParent);
-    mids = cells.map((c) => {
-      const r = rect(c);
-      return (r.top + r.bottom) / 2;
-    });
-    anchor = cells.indexOf(cell2);
-    if (anchor >= 0)
-      paint2(anchor);
+    dropPanel();
+    holdPanels(true);
+    selected = null;
+    selBox?.remove();
+    selBox = null;
+    pressScale = zoom();
+    px = e.clientX / pressScale;
+    py = e.clientY / pressScale;
+    const begin = () => {
+      arming = null;
+      holding = true;
+      cellSel = { grid, rows, span: [], cols, ar, ac, fr: ar, r0: ar, r1: ar, c0: ac, c1: ac };
+      aimBlock(cellSel, ar, ac, rect(grid).top);
+    };
+    if (!cellSel) {
+      begin();
+      return;
+    }
+    clearBlock();
+    arming = { begin, timer: setTimeout(begin, HELD_AT), x: px, y: py };
   });
   grid.addEventListener("pointermove", (e) => {
-    if (anchor < 0)
+    if (!holding && !arming)
       return;
-    const y = e.clientY / zoom();
-    let at = 0;
-    while (at < mids.length - 1 && y > mids[at])
-      at++;
-    paint2(at);
+    px = e.clientX / pressScale;
+    py = e.clientY / pressScale;
+    if (arming) {
+      if (Math.abs(px - arming.x) < MOVED_AT && Math.abs(py - arming.y) < MOVED_AT)
+        return;
+      clearTimeout(arming.timer);
+      arming.begin();
+    }
+    queueTrack();
   });
   grid.addEventListener("pointerup", end);
   grid.addEventListener("pointercancel", end);
@@ -3795,6 +3959,7 @@ function openDrag(grid, d) {
     if (rule)
       slideRules.set(key, rule);
   });
+  clearBlock();
   const track = trackBox(grid, d.key);
   liftBox = columnBox(grid, track?.left ?? d.home, track?.width ?? d.width.get(d.key));
   liftBox.style.transition = "none";
@@ -3842,6 +4007,8 @@ function wireColumnDrag(root, columns) {
   let drag = null;
   let lifted = false;
   let settling = false;
+  let moveX = 0;
+  let moveRaf = 0;
   const LIFT_AT = 3;
   head.addEventListener("pointerdown", (e) => {
     const cell2 = e.target.closest(".c[data-col]");
@@ -3852,6 +4019,7 @@ function wireColumnDrag(root, columns) {
     const width = new Map(cells.map((c) => [c.dataset.col, rect(c).width]));
     const key = cell2.dataset.col;
     const offsets = offsetsOf(logOrder, width);
+    const scale = zoom();
     drag = {
       key,
       nth: cells.indexOf(cell2) + 1,
@@ -3859,23 +4027,18 @@ function wireColumnDrag(root, columns) {
       width,
       home: offsets.get(key),
       span: [...width.values()].reduce((n, w) => n + w, 0),
-      startX: e.clientX / zoom(),
+      startX: e.clientX / scale,
+      scale,
       at: logOrder.indexOf(key)
     };
     lifted = false;
   });
-  head.addEventListener("pointermove", (e) => {
+  const aimDrag = () => {
+    moveRaf = 0;
     if (!drag)
       return;
-    if (!lifted) {
-      if (Math.abs(e.clientX / zoom() - drag.startX) < LIFT_AT)
-        return;
-      lifted = true;
-      document.body.classList.add("coldrag");
-      openDrag(head.parentElement, drag);
-    }
     const w = drag.width.get(drag.key);
-    const dx = Math.min(drag.span - w - drag.home, Math.max(-drag.home, e.clientX / zoom() - drag.startX));
+    const dx = Math.min(drag.span - w - drag.home, Math.max(-drag.home, moveX - drag.startX));
     const { width, key } = drag;
     const rest = drag.order.filter((k) => k !== key);
     const edge = drag.home + dx;
@@ -3904,10 +4067,28 @@ function wireColumnDrag(root, columns) {
       liftRule.style.transform = `translateX(${dx}px)`;
     if (liftBox)
       liftBox.style.transform = `translateX(${dx}px)`;
+  };
+  head.addEventListener("pointermove", (e) => {
+    if (!drag)
+      return;
+    moveX = e.clientX / drag.scale;
+    if (!lifted) {
+      if (Math.abs(moveX - drag.startX) < LIFT_AT)
+        return;
+      lifted = true;
+      document.body.classList.add("coldrag");
+      openDrag(head.parentElement, drag);
+    }
+    if (!moveRaf)
+      moveRaf = requestAnimationFrame(aimDrag);
   });
   const drop = () => {
     if (!drag)
       return;
+    if (moveRaf) {
+      cancelAnimationFrame(moveRaf);
+      aimDrag();
+    }
     const d = drag;
     drag = null;
     document.body.classList.remove("coldrag");
@@ -4100,7 +4281,7 @@ function placeDetail(box, path, mainR) {
   path.setAttribute("d", `M ${bx} ${by} C ${bx} ${by + bend}, ${tx} ${ty - HEAD - bend}, ${tx} ${ty - HEAD}`);
 }
 function place() {
-  if (!layer)
+  if (!layer || layer.hidden)
     return;
   settle();
   const box = layer.querySelector(".tut-box");

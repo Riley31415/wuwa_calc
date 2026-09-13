@@ -432,7 +432,9 @@ export const FIRST_INTRO = new Action("First Intro");
  *  resonator arrives having never played, and only then — a leader's opening visit, or the first
  *  time a swap-out hands them the field. Every arrival after takes the ordinary NOINTRO chain. It
  *  is what FIRST_INTRO is for the other entry: a kit whose opening visit has something the loop
- *  hasn't (Hiyuki's fourth Iai, bought by being out of combat) writes it once here. */
+ *  hasn't (Hiyuki's fourth Iai, bought by being out of combat) writes it once here. Closed by an
+ *  OUTRO of its own, or run into the FIRST_INTRO chain to share that chain's tail, exactly as
+ *  NOINTRO may run into INTRO. */
 export const NOINTRO_FIRST = new Action("First No Intro");
 
 /** Chain exit: leave by Outro, handing the field (and whatever `queueOutro()` published) to the
@@ -524,6 +526,9 @@ export class Rotation {
     let shared = false;
     // ...and the same for a NOINTRO chain that ran into DOUBLE_INTRO instead (see that branch)
     let sharedDouble = false;
+    // ...and for a NOINTRO_FIRST chain that ran into FIRST_INTRO, the first-arrival pair sharing
+    // their tail exactly as NOINTRO and INTRO do
+    let sharedFirst = false;
     let openerExit: Action | null = null, introExit: Action | null = null, doubleExit: Action | null = null;
     let firstExit: Action | null = null, firstOpenerExit: Action | null = null;
     const introExits: (Action | null)[] = [null, null, null], openerExits: (Action | null)[] = [null, null, null];
@@ -576,10 +581,13 @@ export class Rotation {
         phase = "double";
       } else if (action === FIRST_INTRO) {
         if (firstExit || first.length) throw new Error("rotation: only one FIRST_INTRO chain");
-        if (phase !== "none") throw new Error("rotation: FIRST_INTRO opens a chain while one is still open");
+        // the walk-through: a FIRST_INTRO reached inside an open NOINTRO_FIRST chain isn't cast, it
+        // just marks where the tail the two share begins
+        if (phase === "firstOpener") sharedFirst = true;
+        else if (phase !== "none") throw new Error("rotation: FIRST_INTRO opens a chain while one is still open");
         phase = "first";
       } else if (action === NOINTRO_FIRST) {
-        if (firstOpenerExit || firstPre.length) throw new Error("rotation: only one NOINTRO_FIRST chain");
+        if (firstOpenerExit || firstPre.length || sharedFirst) throw new Error("rotation: only one NOINTRO_FIRST chain");
         if (phase !== "none") throw new Error("rotation: NOINTRO_FIRST opens a chain while one is still open");
         phase = "firstOpener";
       } else if (nointroPosition(action) >= 0) {
@@ -645,7 +653,11 @@ export class Rotation {
     if (firstExit) this.firstIntro = { entry: INTRO, body: first, exit: firstExit };
     // entry NOINTRO for the same reason the one above is INTRO: it arrives the way an opener does,
     // and only which visit plays it differs
-    if (firstOpenerExit) this.firstOpener = { entry: NOINTRO, body: firstPre, exit: firstOpenerExit };
+    if (firstOpenerExit || sharedFirst) {
+      this.firstOpener = { entry: NOINTRO, body: sharedFirst ? [...firstPre, ...first] : firstPre, exit: firstOpenerExit ?? firstExit! };
+    } else if (firstPre.length) {
+      throw new Error("rotation: the NOINTRO_FIRST chain is closed by neither an outro nor a FIRST_INTRO");
+    }
     this.intro = { entry: INTRO, body: loop, exit: introExit };
     for (const n of [0, 1, 2]) {
       const exit = introExits[n];

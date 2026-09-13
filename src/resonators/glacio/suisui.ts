@@ -441,6 +441,8 @@ export const SUISUI = new Loadout({
   mainstats: [mainstats(Mainstat.HP4, Mainstat.ER3, Mainstat.ER3, Mainstat.HP1, Mainstat.HP1)],
   substat: substats(Substat.Er, Substat.CritRate, Substat.CritDmg, Substat.Skill, Substat.HpPct, Substat.FlatHp),
   highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.Skill, Substat.HpPct, Substat.FlatHp),
-  rotation: { 0: SS_ROTATION, 3: SS_ROTATION_S3 },
+  rotation: { 0: SS_ROTATION, //3: SS_ROTATION_S3 disabled for er and rot extend
+
+  },
   sequences: SS_SEQUENCES,
 });

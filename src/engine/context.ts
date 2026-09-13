@@ -9,7 +9,7 @@ import type { Action } from "./rotation.js";
 import { ctx, noteMutation, recordConsumed, pendingQueue, tagWord, recordWrite, recordRead, applied as appliedRecord, consumed as consumedRecord } from "./runtime.js";
 import { Gear, Buff, Debuff, Resonator, Mainslot } from "./gear.js";
 import type { Trigger } from "./gear.js";
-import { State, TeamMember, StatEntry, HeldBuff, TYPE2_AMP_INDEX, TYPE2_CRIT_RATE_INDEX, TYPE2_CRIT_DMG_INDEX, BASIC_DMG_BONUS_INDEX } from "./state.js";
+import { State, TeamMember, StatEntry, HeldBuff, TYPE2_AMP_INDEX, TYPE2_CRIT_RATE_INDEX, TYPE2_CRIT_DMG_INDEX, TYPE2_TOTAL_DMG_INDEX, TYPE2_DAMAGE_TAKEN_INDEX, BASIC_DMG_BONUS_INDEX } from "./state.js";
 
 /** The three pools a phase reads — the acting slot's own, then team-wide, then enemy — as the
  *  arrays they held when `capture()` last ran. Three references apiece, nothing copied: a Pool's
@@ -73,7 +73,10 @@ export function dropCast(cast: Cast): void {
  *  Always prefer this to comparing `currentAction()` by identity. */
 export function runningAction(action: Action): boolean {
   const a = ctx.act!;
-  return a === action || a.cancelOf === action;
+  // a cancel, a swap-out form or a Unison outro is the cast a kit named, told apart only by how
+  // it ended (rotation.ts's `cancelOf`/`formOf`) — Jiyan's S6 banks Momentum off the Skill he
+  // swaps out on as readily as off the one he stands through
+  return a === action || a.cancelOf === action || a.formOf === action;
 }
 
 /** Is the action being evaluated an on-field one: the member acting is the resonator the scheduler
@@ -276,6 +279,9 @@ function pushStat(stat: Stat | EnemyStat, tag: Tag | undefined, value: number): 
       // ...and the Negative-Status-scoped crit the same way — all a dot/tune row crits off
       else if (stat === Stat.CritRate) write(slot.effective, TYPE2_CRIT_RATE_INDEX, value);
       else if (stat === Stat.CritDmg) write(slot.effective, TYPE2_CRIT_DMG_INDEX, value);
+      // ...and the scoped "deals more" / "takes more", the only ones a dot row reads
+      else if (stat === Stat.TotalDmg) write(slot.effective, TYPE2_TOTAL_DMG_INDEX, value);
+      else if (stat === Stat.DamageTaken) write(slot.effective, TYPE2_DAMAGE_TAKEN_INDEX, value);
     }
     // ...and the Basic-scoped part of DMG Bonus into its own (see BASIC_DMG_BONUS_INDEX)
     if (stat === Stat.DmgBonus && tag === Type1.Basic) write(slot.effective, BASIC_DMG_BONUS_INDEX, value);

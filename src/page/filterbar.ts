@@ -165,9 +165,9 @@ const COST_HELP = [
   "Intended Teams - Teams with synergy that use supports for that archetype. No suisui on an echo team for example. Switch to ALL teams to see a ton more combinations if you want to check a weird team.",
   "S0R0 all - Limited resonators are S0 and use the best standard or 4* weapon available at R1. Rover and 4* resonators are S6.",
   "S0R1 all - All limited resonators get their best signature weapon, while Rover and 4* supports may still use standard or 4* weapons.",
-  "S0R1 mdps - Each team gets a single signature weapon at R1 that gives the best DPR increase, in most cases the team's main DPS. Dual DPS teams still only get one signature weapon.",
-  "S1R1 / S2R1 / S3R1 / S6R1 mdps - One resonator per team runs that many sequence nodes, whichever gives the best DPR increase, in most cases the team's main DPS. Everyone else stays S0R1.",
-  "S6R5 mdps - That one resonator is S6 and runs their weapon at R5; everyone else is still S0R1.",
+  "S0R1 mdps - Each team gets a single signature weapon at R1, on whichever of its main DPS gives the best DPR increase — never a support. Dual DPS teams still only get one signature weapon.",
+  "S1R1 / S2R1 / S3R1 / S6R1 mdps - One main DPS per team runs that many sequence nodes, whichever gives the best DPR increase — never a support. Everyone else stays S0R1.",
+  "S6R5 mdps - That one main DPS is S6 and runs their weapon at R5; everyone else is still S0R1.",
   "S6R5 all - Every resonator is S6 with their best weapon at R5.",
 ];
 /** Shown on the Matrix bubble and on the name menu's own line — the box this used to describe is

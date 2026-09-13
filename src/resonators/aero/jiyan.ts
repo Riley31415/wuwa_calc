@@ -4,8 +4,8 @@
  * deals no damage itself but opens Qingloong Mode (10s), replacing his kit with the three-stage
  * Heavy Attack Lance of Qingloong; cast with 30+ Resolve it queues Emerald Storm - Finale itself
  * (considered Heavy Attack DMG), spending the 30 — never placed in a rotation by hand. Windqueller inside the mode gets +20% DMG for
- * free; outside it consumes 30 Resolve for the same +20% — modelled as two actions (Skill/USkill),
- * both carrying the bonus, the rotation only placing the consuming form when the gauge covers it.
+ * free; outside it consumes 30 Resolve (15 at S1) for the same +20%, or is the plain cast below
+ * that — one action reading the mode and the gauge itself.
  *
  * Numbers from nanoka.cc (character 1404) — MV/energy/concerto/offtune all resolved off the
  * site's own level-10 damage table; no migrated-sheet rows exist for him. Resolve (forte1, cap
@@ -30,6 +30,7 @@ import {
   runningAction,
   casting,
   revokeCurrent,
+  isHeld,
   addStat,
   removeStack,
   forte1,
@@ -76,21 +77,36 @@ const MA2 = jiyanAction("Mid-air - Lone Lance (Follow-Up)", { node: Node.Normal,
 const MA3 = jiyanAction("Basic - Banner of Triumph", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.52, energy: 1.00, concerto: 2.00, offtune: 3200 });
 const DC = jiyanAction("Dodge Counter - Lone Lance", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 125.84 * 2, energy: 3.16, concerto: 13.32, offtune: 5328 });
 
-// Windqueller's three forms — at 30+ Resolve out of Qingloong Mode it consumes 30 for +20% DMG,
-// below 30 it's the plain cast with neither, inside the mode the +20% is free (the bonus lives on
-// JIYAN_RESONATOR's own apply below, on the two boosted forms only)
-// Qingloong at War (Forte Circuit): Windqueller +20% DMG — free in-mode, or off the 30 Resolve
-// the out-of-mode action's own forte1 already spends
-const WINDQUELLER = { applyStats: () => addStat(Stat.DmgBonus, 20) };
-const Skill = jiyanAction("Skill - Windqueller", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 106.36 * 4, energy: 9.00, concerto: 16, offtune: 6480, forte1: -30, ...WINDQUELLER });
-const SkillLowResolve = jiyanAction("Skill - Windqueller (Low Resolve)", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 106.36 * 4, energy: 9.00, concerto: 16, offtune: 6480 });
-const USkill = jiyanAction("Skill - Windqueller (Qingloong)", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 106.36 * 4, energy: 9.00, concerto: 16, offtune: 6480, ...WINDQUELLER });
+/** Qingloong Mode itself, opened by Prelude and over when he leaves — what Windqueller reads to
+ *  know its +20% is free. Nameless: the mode is the lances on screen, not a line of its own. */
+const QINGLOONG_MODE = new Buff({ until: LifeTime.Outro });
+
+/** Windqueller, one action for its three faces. Qingloong at War (Forte Circuit): +20% DMG free
+ *  inside the mode; outside it, bought with 30 Resolve when he holds that many (15 at S1, which
+ *  cuts the cost), and neither below that — the plain cast. The gauge is read here before the
+ *  spend lands, so it is the bar he cast on that decides. */
+const Skill = jiyanAction("Skill - Windqueller", {
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 106.36 * 4, energy: 9.00, concerto: 16, offtune: 6480,
+  applyStats: () => {
+    if (isHeld(QINGLOONG_MODE)) {
+      addStat(Stat.DmgBonus, 20);
+      return;
+    }
+    const cost = isHeld(JY_S1) ? 15 : 30;
+    if (forte1() < cost) return;
+    addStat(Stat.AddForte1, -cost);
+    addStat(Stat.DmgBonus, 20);
+  },
+});
 
 /** Emerald Storm - Prelude: no damage of its own, just opens Qingloong Mode. */
 // Prelude releases Finale itself whenever the 30 Resolve it spends is banked
 const Liberation = jiyanAction("Liberation - Emerald Storm: Prelude", {
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, concerto: 20, resetEnergy: true,
-  updateBuffs: () => { if (forte1() >= 30) queue(Finale); }
+  updateBuffs: () => {
+    applyCurrent(QINGLOONG_MODE, 1);
+    if (forte1() >= 30) queue(Finale);
+  },
 });
 /** Emerald Storm - Finale, released by Prelude at 30+ Resolve — considered Heavy Attack DMG. */
 const Finale = jiyanAction("Liberation - Emerald Storm: Finale", { node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Heavy, mv: 142.91 * 2 + 428.73, offtune: 107520, forte1: -30 });
@@ -175,18 +191,14 @@ const JIYAN_RESONATOR = new Resonator({
 });
 
 // Intro banks the 30 Resolve Prelude's auto-queued Finale spends; the lances ride the mode with
-// the free in-mode Windqueller, and the closing Windqueller is the low-Resolve form — the gauge
-// is empty by then, so it neither spends nor boosts. He's never the team's own lead, so this
-// covers both opener and loop.
+// the free in-mode Windqueller, and the closing Windqueller finds the gauge empty, so it neither
+// spends nor boosts. He's never the team's own lead, so this covers both opener and loop.
 
 /* --------------------------------------------------------------------------------- sequences */
 
 /** S1: Windqueller holds a second charge — the extra in-mode cast the S1 rotation makes — and its
- *  Resolve cost drops by 15, refunded onto the one form that spends. */
-const JY_S1 = new Sequence({
-  name: "Jiyan S1: Benevolence",
-  applyStats: () => { if (runningAction(Skill)) addStat(Stat.AddForte1, 15); },
-});
+ *  Resolve cost drops to 15, which the Skill itself reads off this being held. */
+const JY_S1 = new Sequence({ name: "Jiyan S1: Benevolence" });
 
 /** S2: Tactical Strike banks 30 more Resolve — nothing here spends them, Finale takes its 30 and
  *  the in-mode Windqueller is free — and +28% ATK for 15s, so until he leaves the field. */
@@ -212,7 +224,7 @@ const SPECTATION = new Buff({
 const JY_S3 = new Sequence({
   name: "Jiyan S3: Spectation",
   updateBuffs: () => {
-    if (runningAction(Skill) || runningAction(SkillLowResolve) || runningAction(USkill) || runningAction(Liberation) || runningAction(Finale) || runningAction(Intro)) applyCurrent(SPECTATION, 1);
+    if (runningAction(Skill) || runningAction(Liberation) || runningAction(Finale) || runningAction(Intro)) applyCurrent(SPECTATION, 1);
   },
 });
 
@@ -253,27 +265,41 @@ const MOMENTUM = new Buff({
 const JY_S6 = new Sequence({
   name: "Jiyan S6: Fortitude",
   updateBuffs: () => {
-    if (casting(Cast.Heavy) || runningAction(Intro) || runningAction(Skill) || runningAction(SkillLowResolve) || runningAction(USkill)) applyCurrent(MOMENTUM, 1);
+    if (casting(Cast.Heavy) || runningAction(Intro) || runningAction(Skill)) applyCurrent(MOMENTUM, 1);
   },
 });
 
 const JY_SEQUENCES = [JY_S1, JY_S2, JY_S3, JY_S4, JY_S5, JY_S6];
 
 const JY_ROTATION = new Rotation([
-  START_3, SkillLowResolve.swap(), SWAP,
+  START_3, Skill.swap(), SWAP,
 
   INTRO, 
   Liberation,
-  Lance1, USkill, 
+  Lance1, Skill, 
   Lance1, DODGE,
   Lance1, DODGE,
   Lance1, DODGE,
   Lance1, DODGE,
   Lance1, DODGE,
   Lance1, DODGE,
-  SkillLowResolve, ECHO_SWAP, OUTRO,
+  Skill, ECHO_SWAP, OUTRO,
 ]);
 
+const JY_ROTATION_S6 = new Rotation([
+  START_3, Skill.swap(), SWAP,
+
+  INTRO, 
+  Liberation,
+  Lance1, Skill, 
+  Lance1, DODGE,
+  Lance1, DODGE,
+  Lance1, DODGE,
+  Lance1, DODGE,
+  Lance1, DODGE,
+  Lance1, DODGE,
+  Skill, ECHO_SWAP, OUTRO,
+]);
 
 /* ----------------------------------------------------------------------------------- loadout */
 
@@ -287,6 +313,6 @@ export const JIYAN = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
   substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill),
   highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Skill),
-  rotation: JY_ROTATION,
+  rotation: { 0: JY_ROTATION, 6: JY_ROTATION_S6 },
   sequences: JY_SEQUENCES,
 });

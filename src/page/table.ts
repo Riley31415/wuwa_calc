@@ -137,8 +137,7 @@ function setCompare(name: string, axis: Axis): void {
       if (!on && at >= 0) filters[a].splice(at, 1);
     }
     const kept = (Object.values(OPTION_FILTER_MAPS) as Map<string, ResonatorFilter>[]).map((map) => [...map]);
-    // either way: closing a compare strands the picks only it offered, and opening the rank column
-    // absorbs the max-rank row's own level tag (model.ts's `sequenceTagsOf()`)
+    // either way: closing a compare strands the picks only it offered
     pruneGearFilters();
     return () => {
       for (const [a, list] of before) filters[a] = list;
@@ -252,9 +251,8 @@ function memberLabel(m: Member, combo: Combo): string {
 const seqToken = (m: Member, combo: Combo): string =>
   combo.sequence > 0 || axisOpen(m, filters, "sequences") ? `S${combo.sequence}` : "";
 /** "" while a Weapon column carries the rank. A signature, a free weapon on a free resonator, any
- *  weapon while refines are compared, and any rank above R1 — the S6R5 row an open chain box adds
- *  (solver.ts's own `refineLevels()`) — read their rank; a craftable at R1 on a limited resonator
- *  is the "no signature" build and reads R0. */
+ *  weapon while refines are compared, and any rank above R1 read their rank; a craftable at R1 on
+ *  a limited resonator is the "no signature" build and reads R0. */
 const rankToken = (m: Member, combo: Combo): string =>
   axisUsed(m, filters, "weapons") ? ""
   : compares(m, filters, "refines", combo) || combo.weapon.refinement > 1 || combo.weapon.tier === Tier.Limited
@@ -270,6 +268,14 @@ function optionCell(kind: OptionKind, value: string, color: string, lines: strin
 }
 
 let hueShown = true;
+/** Which positions show a Personal DPR column of their own. The reader opens and shuts one on that
+ *  position's Slot heading; it opens itself the moment a position starts comparing anything, since
+ *  every Compare beside it is a share of that figure. Closing the last Compare leaves it standing —
+ *  it is the reader's from then on, and the heading is where it comes back off. */
+const personalOpen = [false, false, false];
+/** The `axis|position` Compare columns standing on the last draw — a key arriving is the edge
+ *  `personalOpen` opens on, so each new Compare opens the figure it is a share of. */
+const cmpDrawn = new Set<string>();
 /** The Personal and Team DPR columns each print exact figures (12,345,678) or abbreviated ones —
  *  the same digits with the separator moved and a K/M on the end (1.00K, 12.3K, 123K, 1.234M,
  *  2.600M), always truncated, never rounded up to a figure the team didn't make. Millions carry
@@ -311,7 +317,7 @@ let tableView: TableView | null = null;
 function comparisonTable(rows: TeamRow[]): string {
   const seq = (run: TeamRun): number => run.combo.reduce((n, c) => n + c.sequence, 0);
   // a tie is the rank buying nothing, and the row that paid for it is the one that answers
-  // "is R5 worth it" — so S6R5 stands above the S6R1/R0 it drew with rather than under it
+  // "is R5 worth it" — so the higher rank stands above the one it drew with rather than under it
   const rank = (run: TeamRun): number => run.combo.reduce((n, c) => n + c.weapon.refinement, 0);
   // Main stats and substats reach nobody but the member wearing them (solver.ts's own
   // `rowPicks()`), so rows differing only on those are one build in different rolls and belong
@@ -366,17 +372,17 @@ function comparisonTable(rows: TeamRow[]): string {
   // Gear compares: a row measures against its "twins" — same gear everywhere but main stats
   // (free for everyone) and, on the compared member, the one axis. Teammates' sonatas are held
   // (they can buff the member); the solver's hidden rows supply baselines the table never shows.
-  // `ranked`: refines have a column of their own beside this one, so a sequence compare holds the
-  // rank rather than folding it in. With that column shut the ladder's own top level runs an extra
-  // row at max rank (solver.ts's `refineLevels()`), which has to sit in the same group as the
-  // levels below it or it has no baseline to measure against at all.
-  const gearKey = (c: Combo, axis: CmpAxis | null, ranked = true): string => {
+  // Refines have a column of their own beside this one, so a sequence compare holds the rank
+  // rather than folding it in. The closed-echo re-search settles each level's build on its own,
+  // so a row's twin — the baseline level in *its* sets — is a hidden row the solver runs for it
+  // (solver.ts's `rowPicks()`), never a row wearing other sets.
+  const gearKey = (c: Combo, axis: CmpAxis | null): string => {
     const [w, e, , seq, ref, ...rest] = c.key.split(".");
-    const anyRank = axis === "weapons" || axis === "refines" || (axis === "sequences" && !ranked);
+    const anyRank = axis === "weapons" || axis === "refines";
     return [axis === "weapons" ? "*" : w, axis === "echoes" ? "*" : e, "*", axis === "sequences" ? "*" : seq, anyRank ? "*" : ref, rest.includes("m"), axis === "substats" || axis === null ? "*" : rest.includes("h")].join("|");
   };
   const twinKey = (run: TeamRun, pos: number, axis: CmpAxis): string =>
-    `${run.teamKey}|${pos}|${axis}|${run.combo.map((c, k) => gearKey(c, k === pos ? axis : null, axisUsed(run.members[pos]!, filters, "refines"))).join("-")}`;
+    `${run.teamKey}|${pos}|${axis}|${run.combo.map((c, k) => gearKey(c, k === pos ? axis : null)).join("-")}`;
   // which axes have a column at each position, off the rows on screen
   const openAt: Record<CmpAxis, boolean[]> = { weapons: [false, false, false], echoes: [false, false, false], mainstats: [false, false, false], substats: [false, false, false], sequences: [false, false, false], refines: [false, false, false] };
   for (const row of rows) {
@@ -402,14 +408,17 @@ function comparisonTable(rows: TeamRow[]): string {
       }
     });
   }
-  // the baseline: the best twin wearing the axis's own baseline (a non-limited weapon at R1, any
-  // sonata/main stat, the default subs, the lowest chain level), on-screen twins preferred
+  // the baseline: the best twin wearing the axis's own baseline (a non-limited weapon at the rank
+  // the cost hands out — R5 under an R5 cost — any sonata/main stat, the default subs, the lowest
+  // chain level), on-screen twins preferred
   const bestOf = (pool: { combo: Combo; dpr: number }[], run: TeamRun, pos: number, axis: CmpAxis): number => {
     let base = -Infinity;
     for (const t of pool) {
       if (axis === "weapons") {
         if (t.combo.weapon.tier === Tier.Limited) continue;
-        if (t.combo.key.split(".")[4] !== "r0") continue;
+        // with no rank column every twin already runs at the cost's rank; with one, lower ranks
+        // share the pool and R1 is the baseline
+        if (axisUsed(run.members[pos]!, filters, "refines") && t.combo.key.split(".")[4] !== "r0") continue;
       }
       if (axis === "refines" && t.combo.key.split(".")[4] !== "r0") continue;
       if (axis === "substats" && t.combo.highSubs) continue;
@@ -437,9 +446,17 @@ function comparisonTable(rows: TeamRow[]): string {
   const seqCmpAt = (i: number): boolean => !!openAt.sequences[i];
   // the Weapon column's own Compare already measures against R1, so the refine one stands down
   const refCmpAt = (i: number): boolean => !!openAt.refines[i] && !openAt.weapons[i];
-  // ...and the Personal column, wherever this position compares anything at all: it is what every
-  // Compare beside it is a share of, so it earns its place exactly when they do
-  const dprAt = (i: number): boolean => CMP_AXES.some((axis) => openAt[axis][i]);
+  // ...and the Personal column, which the reader holds (`personalOpen`) but a new Compare opens for
+  // them: it is what every Compare beside it is a share of, so it earns its place when one arrives
+  for (let i = 0; i < personalOpen.length; i++) for (const axis of CMP_AXES) {
+    const key = `${axis}|${i}`;
+    if (!openAt[axis][i]) cmpDrawn.delete(key);
+    else if (!cmpDrawn.has(key)) {
+      cmpDrawn.add(key);
+      personalOpen[i] = true;
+    }
+  }
+  const dprAt = (i: number): boolean => !!personalOpen[i];
   const rowHtml = (key: string, run: TeamRun, rank: RowRank): string => {
     const grand = run.total;
     const memberNames = run.members.map((m) => m.name).join("|");
@@ -482,7 +499,8 @@ function comparisonTable(rows: TeamRow[]): string {
       + `</div>`;
   };
 
-  const memberHead = (n: number, i: number) => `<div class="c slothead">Slot ${n}</div>`
+  const memberHead = (n: number, i: number) => `<div class="c slothead${dprAt(i) ? " open" : ""}" data-slot="${i}"`
+    + ` title="${CLICK} to ${dprAt(i) ? "hide" : "show"} this slot's Personal DPR">Slot ${n}<span class="arrow">›</span></div>`
     + (seqCmpAt(i) ? `<div class="c num">Compare</div>` : "")
     + (refCmpAt(i) ? `<div class="c num">Compare</div>` : "")
     + GEAR_AXES.map((axis) => (openAt[axis][i] ? `<div class="c">${AXIS_HEAD[axis]}</div><div class="c num">Compare</div>` : "")).join("")
@@ -769,6 +787,14 @@ document.addEventListener("click", (e) => {
   hueShown = !hueShown;
   document.querySelector(".tgrid")?.classList.toggle("hued", hueShown);
 });
+/** A Slot heading opens or shuts that position's Personal DPR column. A whole track comes and goes,
+ *  so the table is drawn again rather than toggled on a class. */
+document.addEventListener("click", (e) => {
+  const slot = (e.target as Element).closest<HTMLElement>(".c.slothead")?.dataset.slot;
+  if (slot === undefined) return;
+  personalOpen[Number(slot)] = !personalOpen[Number(slot)];
+  renderComparison();
+});
 document.addEventListener("click", (e) => {
   const column = (e.target as Element).closest<HTMLElement>(".c.dprhead")?.dataset.dpr as DprColumn | undefined;
   if (!column) return;
@@ -878,17 +904,7 @@ const openOptionMenu = (e: MouseEvent): void => {
   const axis = kind === "weapon" ? "weapons" : "echoes";
   const word = kind === "weapon" ? "weapons" : "sonatas";
   const items: MenuItem[] = [
-    // the compares that opened this column lead, offered back as a way to close it — the same
-    // shape a main-stat or substat cell's own menu has (`openStatMenu`)
-    ...(filters[axis].includes(resonator) ? [{ label: `Stop comparing ${word}`, run: () => setCompare(resonator, axis) }] : []),
-    // the rank rides in this same cell, so this is where the whole rank axis is opened and closed
-    ...(kind === "weapon" && comparable(resonator, "refines")
-      ? [{
-        label: `${filters.refines.includes(resonator) ? "Stop comparing" : "Compare"} ${AXIS_LABEL.refines.toLowerCase()}`,
-        run: () => setCompare(resonator, "refines"),
-      }] : []),
-    ...filters.scoped.filter((s) => s.resonator === resonator && s.axis === axis)
-      .map((s) => ({ label: `Stop comparing ${scopedLabel(s)} ${word}`, run: () => setScoped(s) })),
+    // the pick's own filters lead, so "Show only" is the top line whatever else the cell offers
     { label: `Show only ${base}`, run: () => setFilter(map, base, "include"), alt: () => setFilter(map, base, "exclude") },
     { label: `Hide ${base}`, run: () => setFilter(map, base, "exclude") },
     ...(ranked ? [
@@ -898,6 +914,16 @@ const openOptionMenu = (e: MouseEvent): void => {
     ...(resonator && kind === "weapon" ? scopedItems(resonator, "weapon", base) : []),
     ...(resonator && ranked ? scopedItems(resonator, "weaponRank", key) : []),
     ...(resonator && kind === "echo" ? scopedItems(resonator, "echo", key) : []),
+    // ...and last, the compares that opened this column, offered back as a way to close it
+    ...(filters[axis].includes(resonator) ? [{ label: `Stop comparing ${word}`, run: () => setCompare(resonator, axis) }] : []),
+    // the rank rides in this same cell, so this is where the whole rank axis is opened and closed
+    ...(kind === "weapon" && comparable(resonator, "refines")
+      ? [{
+        label: `${filters.refines.includes(resonator) ? "Stop comparing" : "Compare"} ${AXIS_LABEL.refines.toLowerCase()}`,
+        run: () => setCompare(resonator, "refines"),
+      }] : []),
+    ...filters.scoped.filter((s) => s.resonator === resonator && s.axis === axis)
+      .map((s) => ({ label: `Stop comparing ${scopedLabel(s)} ${word}`, run: () => setScoped(s) })),
   ];
   showMenu(x, y, items);
 };
@@ -945,14 +971,23 @@ const searchPick = (e: Event): SearchHit | undefined => {
   if (!kind || !value) return undefined;
   return { kind, value, axis: el!.dataset.axis as Axis | undefined, resonator: el!.dataset.resonator };
 };
+/** Take a hit and settle the focus after it: back in the bar, so the next filter is one word away.
+ *  Never on a touch screen — there the bar holding focus keeps the on-screen keyboard up over the
+ *  table, so it gives the focus up instead (the same test `openingFocus` makes). */
+const takeSearchHit = (hit: SearchHit): void => {
+  const coarse = matchMedia("(pointer: coarse)").matches;
+  clearSearch();
+  // booked before the hit, which is what redraws and reads it
+  if (!coarse) focusAfterDraw = null;
+  applySearchHit(hit);
+  if (coarse) document.querySelector<HTMLInputElement>("#optionSearch")?.blur();
+  else focusSearch();
+};
 const addSearchHit = (e: Event): void => {
   const hit = searchPick(e);
   if (!hit) return;
   e.preventDefault();
-  clearSearch();
-  focusAfterDraw = null;
-  applySearchHit(hit);
-  focusSearch();
+  takeSearchHit(hit);
 };
 document.addEventListener("click", addSearchHit);
 document.addEventListener("contextmenu", addSearchHit);
@@ -1083,8 +1118,5 @@ document.addEventListener("keydown", (e) => {
   const hit = searchChoice();
   if (!hit) return;
   e.preventDefault();
-  clearSearch();
-  focusAfterDraw = null;
-  applySearchHit(hit);
-  focusSearch();
+  takeSearchHit(hit);
 });

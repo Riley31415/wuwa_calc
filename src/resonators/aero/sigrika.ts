@@ -262,7 +262,7 @@ const SIGRIKA_RESONATOR = new Resonator({
   weapon: WeaponType.Gauntlets,
   intro: () => Intro,
   outro: () => Outro,
-  color: "#7ee0c9",
+  color: "#e0aa7e",
   maxEnergy: 125,
   maxForte1: 4,
   maxForte2: 100,
