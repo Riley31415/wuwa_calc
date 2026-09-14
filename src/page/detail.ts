@@ -2,7 +2,7 @@
  * The detail page: the DPR and energy tables, the action log grid, and the log's draggable
  * column order (kept in localStorage) with its pointer handlers.
  */
-import { Stat, SCALING_NAME } from "../engine/stats.js";
+import { Stat, Cast, SCALING_NAME } from "../engine/stats.js";
 import type { Gear } from "../engine/gear.js";
 import { menuStats } from "../engine/context.js";
 import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
@@ -11,9 +11,9 @@ import { columnOf, gaugeSuffix, fmt, digitsOf, PAD_DIGITS_COLUMNS, GROUPED_COLUM
 import type { Report, Column, ReportRow, ReportPart, TraceEntry } from "../display.js";
 import type { TeamRun } from "../teamrun.js";
 import { hitsOf, erRollsFor } from "../teamrun.js";
+import { ER_TOLERANCE } from "../shared/substats.js";
 import { results, detailFor, FALLBACK_HUE } from "./model.js";
 import { esc, lazyPop, rect, zoom, clearPops, panelRow, popover, infoPopover, buffsPopover, equippedGear, dprTable, loadoutTable, wireDistribution, drivePanel, dropPanel, holdPanels } from "./panels.js";
-import type { DprExtra } from "./panels.js";
 import { rememberTableScroll } from "./table.js";
 
 const app = document.getElementById("app")!;
@@ -43,11 +43,20 @@ function stepRow(
   return columns.map((col) => {
     const v = row.raw[col.key];
     const sources = row.sources[col.key];
+    // a resource cell carries its balance and whose it is, blank or not, for the block a press
+    // runs down the column to read the change over (`blockPanel`) — except where the balance is
+    // the row's own spend rather than a step in the run: an Outro wipes concerto and energy, the
+    // Tune Break takes the whole off-tune bar, and a block read across either would say so
+    let attr = "";
     if (isRunning(col.key)) {
       if ("line" in row && row.line.aggregate) return cell(col);
+      const cast = ("line" in row ? row.line.snap : row.snap).action.cast;
+      const spend = col.key === "offtune" ? cast === Cast.TuneBreak
+        : (col.key === "concerto" || col.key === "energy") && cast === Cast.Outro;
+      if (!spend) attr = ` data-val="${Number(v) || 0}" data-mem="${esc(String(row.raw["member"] ?? ""))}"`;
       const before = Number(row.raw[`before:${col.key}`]) || 0;
       const fed = (sources ?? []).some((r) => r.section !== OFFTUNE_RATE && r.section !== ENERGY_RATE);
-      if (!fed && Math.abs((Number(v) || 0) - before) < 1e-9) return cell(col);
+      if (!fed && Math.abs((Number(v) || 0) - before) < 1e-9) return cell(col, { attr });
     }
     const cls: string[] = [];
     if (col.key === "action") cls.push(part ? "name" : "action");
@@ -84,8 +93,8 @@ function stepRow(
     const mem = slotHue.get(String(v)) ?? FALLBACK_HUE;
     const style = col.key === "member" ? `--mem:${mem};color:${mem}`
       : col.key === "avg" ? `--mem:${slotHue.get(String(row.raw["member"] ?? "")) ?? FALLBACK_HUE}` : "";
-    // the figure itself, unformatted, for the run a press down the column adds up (`wireAvgSum`)
-    const attr = col.key === "avg" && typeof v === "number" ? ` data-avg="${v}"` : "";
+    // the figure itself, unformatted, for the run a press down the column adds up (`blockPanel`)
+    if (col.key === "avg" && typeof v === "number") attr = ` data-avg="${v}"`;
     return cell(col, { cls, html, pop, style, attr });
   }).join("");
 }
@@ -229,104 +238,19 @@ function erRequirement(flat: ChainGroup[], resetIdx: number, member: string, max
   return (maxEnergy * 100 - buffed) / before;
 }
 
-/** The spans one member's own figures are read over: between their own Liberations, so a rotation
- *  that casts one every other loop reads a single window across the pair rather than two. A kit
- *  with no Liberation to cast has no such span and reads `fallback` (the last loop) instead. */
-function windowsOf(flat: ChainGroup[], member: string, fallback: [number, number]): [number, number][] {
-  const casts = resetIndices(flat, 0, flat.length, member);
-  if (casts.length < 2) return [fallback];
-  return casts.slice(0, -1).map((c, i): [number, number] => [c + 1, casts[i + 1]!]);
-}
-
-/** What the member's own casts banked over `span` — RealEnergy also carries half of everyone
- *  else's gains, so this reads the casts, not the counter. An outro's declared energy never banks. */
-function energyGenerated(flat: ChainGroup[], member: string, [from, to]: [number, number]): number {
-  let total = 0;
-  for (let i = from; i < to; i++) {
-    const line = flat[i]!;
-    if (line.aggregate) continue;
-    for (const snap of hitsOf(line)) {
-      if (snap.member !== member || snap.energyWiped) continue;
-      total += (snap.action.energy + snap.stat(Stat.AddEnergy)) * (1 + snap.stat(Stat.EnergyRegenMult) / 100);
-    }
-  }
-  return total;
-}
-
-/** What that member put *on* the target's off-tune bar over `span` — the engine's own sum (the
- *  action's own amount plus AddOfftune, taken at their Buildup rate, plus anything a kit lands on
- *  the bar directly — see evaluate.ts), in the log's own units. Off-tune is the enemy's one shared
- *  gauge, so this is their share of the building rather than a gauge of their own.
- *
- *  Drains are left out: the Tune Break takes the whole bar and a full bar cancels whatever would
- *  overflow, both as negative `DirectOfftune` (tunebreak.ts), and neither is buildup this
- *  resonator generated — this is how fast they fill the bar, which is what a loop's figure is
- *  read for. */
-function offtuneBuilt(flat: ChainGroup[], member: string, [from, to]: [number, number]): number {
-  let total = 0;
-  for (let i = from; i < to; i++) {
-    const line = flat[i]!;
-    if (line.aggregate) continue;
-    for (const snap of hitsOf(line)) {
-      if (snap.member !== member) continue;
-      const built = snap.action.offtune + snap.stat(Stat.AddOfftune);
-      const direct = snap.stat(Stat.DirectOfftune);
-      if (built > 0) total += built * (snap.stat(Stat.OfftuneBuildup) / 100);
-      if (direct > 0) total += direct;
-    }
-  }
-  return total / 10000;
-}
-
-/** What the rest of the team put into one of those figures, summed per source off the rows' own
- *  panels — a rate (a percentage, not an amount) is taken once rather than added up. */
-function teamSources(flat: ChainGroup[], rows: ReportRow[], member: string, [from, to]: [number, number], field: "energy" | "offtune"): TraceEntry[] {
-  const rate = field === "energy" ? ENERGY_RATE : OFFTUNE_RATE;
-  const by = new Map<string, TraceEntry>();
-  for (let i = from; i < to; i++) {
-    const line = flat[i]!;
-    const snap = line.snap;
-    if (line.aggregate || snap.member !== member || (field === "energy" && snap.energyWiped)) continue;
-    for (const r of rows[i]?.sources[field] ?? []) {
-      if (!r.owner || r.owner === member) continue;
-      const key = `${r.source} ${r.section ?? ""}`;
-      const seen = by.get(key);
-      if (seen) {
-        if (!r.mult && r.section !== rate) {
-          seen.value += r.value;
-          seen.count = (seen.count ?? 1) + (r.count ?? 1);
-        }
-      }
-      else by.set(key, { ...r });
-    }
-  }
-  return [...by.values()];
-}
-
-/** Empty where the rest of the team fed this figure nothing — no panel at all rather than one
- *  saying so, since the dotted underline is what marks the cells that have one. */
-function teamSourcePopover(sources: TraceEntry[], slotHue: Map<string, string>): string {
-  if (!sources.length) return "";
-  return lazyPop(`<span class="pop stat"><table>`
-    + `<tr class="sec"><td colspan="2">Team sources</td></tr>`
-    + `${sources.map((r) => panelRow(r, slotHue)).join("")}</table></span>`);
-}
+/** What the figure in the Energy Regen label is, for anyone reading the row for the first time. */
+const ER_TIP = lazyPop(`<span class="pop tip">Unbuffed Energy Regen Requirement</span>`);
 
 /**
- * The Damage Contribution table's three resource columns, per member: the most Energy any of their
- * Liberations asked of constant ER, and the most Energy and off-tune any one window of theirs put
- * up. Read over `windowsOf` spans, so an every-other-loop Liberation counts its pair as one window
- * rather than reading half of it twice. The build's own ER stats hover the requirement.
+ * What each member's Liberations asked of their constant ER — the most any one of them wanted, which
+ * the Energy Regen menu stat carries in its own label. Its colour says whether what the build wears
+ * covers it.
  */
-function dprExtra(run: TeamRun, lines: ChainGroup[][], report: Report, slotHue: Map<string, string>): DprExtra {
-  const erCol = columnOf(report, "er");
+function energyRequirements(run: TeamRun, lines: ChainGroup[][]): Map<string, string> {
   const flat = lines.flat();
-  const offsets = [0];
-  for (const sec of lines) offsets.push(offsets[offsets.length - 1]! + sec.length);
-  const lastLoop: [number, number] = [offsets[3]!, offsets[4]!];
   const erOf = erRollsFor(run.teamKey, run.members, run.combo);
 
-  const cells = new Map<string, string[]>();
+  const cells = new Map<string, string>();
   run.members.forEach((m, idx) => {
     const maxEnergy = m.loadout.resonator.maxEnergy;
     const combo = run.combo[idx]!;
@@ -338,28 +262,23 @@ function dprExtra(run: TeamRun, lines: ChainGroup[][], report: Report, slotHue: 
     const casts = resetIndices(flat, 0, flat.length, m.name).slice(1);
     const asked = casts.map((i) => erRequirement(flat, i, m.name, maxEnergy, constant)).filter((v): v is number => v != null);
     const req = asked.length ? Math.max(...asked) : null;
-    const erSources = constantSources.map((e): TraceEntry => ({ source: e.source, value: e.value, percent: true, digits: 1, owner: e.owner || m.name }));
-    const erHover = erCol ? popover({ ...erCol, full: "Base Energy Regen" }, erSources, constant, slotHue) : "";
-    const short = req != null && req > constant;
-    const reqCell = `<div class="c num${short ? " er-under" : ""}${erHover ? " has" : ""}"${erHover}>`
-      + `${req == null ? "—" : `${fmt(req, 1)}%`}</div>`;
-
-    // the widest window of each, and the team's own share of whichever one that was
-    const windows = windowsOf(flat, m.name, lastLoop);
-    const best = (of: (span: [number, number]) => number): [number, [number, number]] =>
-      windows.reduce((top: [number, [number, number]], span) => (of(span) > top[0] ? [of(span), span] : top), [0, lastLoop]);
-    const [gen, genSpan] = best((span) => energyGenerated(flat, m.name, span));
-    const [offtune, offSpan] = best((span) => offtuneBuilt(flat, m.name, span));
-    // the two Gen figures underline dotted where a teammate fed them, which is what says a panel is there
-    const genCell = (value: number, hover: string): string =>
-      `<div class="c num${hover ? " teamfed has" : ""}"${hover}>${fmt(value, 2, true)}</div>`;
-
-    cells.set(m.name, [reqCell,
-      genCell(gen, teamSourcePopover(teamSources(flat, report.rows, m.name, genSpan, "energy"), slotHue)),
-      genCell(offtune, teamSourcePopover(teamSources(flat, report.rows, m.name, offSpan, "offtune"), slotHue))]);
+    // met or missed, said in colour: green where the build's own constant ER covers the figure,
+    // red where it falls short even of the slack the run is granted (`ER_TOLERANCE`) — the page
+    // would otherwise call a build short that the engine just let cast. Amber between the two:
+    // the bar fills on slack rather than on ER, and without the tolerance this build would have
+    // been pushed up a roll.
+    const met = req == null ? ""
+      : req > constant + ER_TOLERANCE ? " er-under"
+      : req > constant ? " er-slack"
+      : " er-met";
+    // only the figure itself is coloured — "(need" and the bracket stay the label's own tone
+    if (req != null) {
+      cells.set(m.name, `<span class="erneed has"${ER_TIP}>`
+        + `> <span class="erreq${met}">${fmt(req, 1)}%</span></span>`);
+    }
   });
 
-  return { heads: ["Energy Req", "Energy Gen", "Offtune Gen"], cells };
+  return cells;
 }
 
 /* ------------------------------------------------------------------------------------ page */
@@ -379,12 +298,12 @@ function page(run: TeamRun): string {
   <div class="rtables">
     <div class="rtable-block">
       <h2 class="summary-label">Equipment</h2>
-      ${loadoutTable(run)}
+      ${loadoutTable(run, energyRequirements(run, lines))}
     </div>
     <div class="rstack">
       <div class="rtable-block">
         <h2 class="summary-label">Damage Contribution</h2>
-        ${dprTable(run, lines, dprExtra(run, lines, report, slotHue))}
+        ${dprTable(run, lines)}
       </div>
     </div>
   </div>
@@ -404,6 +323,7 @@ export function renderDetail(key: string): void {
   app.innerHTML = page(run);
   app.className = "";
   wireColumnDrag(app, detailFor(run).report.columns);
+  logMembers = run.members.map((m) => m.name);
   wireCellSelect(app);
   wireDistribution(app);
 }
@@ -431,6 +351,8 @@ function orderedKeys(columns: Column[]): string[] {
 }
 
 let logColumns: Column[] = [];
+/** The team in slot order — what the block panel lists its resource lines by. */
+let logMembers: string[] = [];
 let logOrder: string[] = [];
 let logStyle: HTMLStyleElement | null = null;
 
@@ -513,10 +435,67 @@ function cellBox(grid: HTMLElement): HTMLElement {
   return box;
 }
 
-/** What the held block is worth, in place of the cell panel the column carries the rest of the time. */
-const sumPanel = (total: number): string =>
-  `<span class="pop stat damage"><table><tr class="sum"><td class="k">Total</td>`
-  + `<td class="v">${esc(fmt(total, 0))}</td></tr></table></span>`;
+/** Whether an opened group's own row only says over again what rows the block already holds say:
+ *  its figures are the sum of theirs, so counting both counts the group twice. A closed group
+ *  stands in for the rows it hides and is counted as itself. */
+function doubled(row: HTMLElement, held: Set<HTMLElement>): boolean {
+  const chain = row.parentElement;
+  const tgl = chain?.classList.contains("chain")
+    ? chain.querySelector<HTMLInputElement>(":scope > .tgl")
+    : null;
+  if (!tgl?.checked) return false;
+  // a field summary opens onto its summons, scattered through the table; every other group opens
+  // onto the parts kept under it
+  const field = tgl.id.startsWith("fg") ? tgl.id.slice(2) : "";
+  const opened = field
+    ? chain!.closest(".grid")!.querySelectorAll<HTMLElement>(`.r[data-fh="${field}"], [data-fh="${field}"] .r`)
+    : chain!.querySelectorAll<HTMLElement>(":scope > .parts .r");
+  return [...opened].some((r) => held.has(r));
+}
+
+/** What the held block is worth, in place of the cell panel a column carries the rest of the
+ *  time: the avg cells' total, and for each member's resource with more than one cell in the block
+ *  the change across them — the last balance less the first. Off-tune is the one bar the whole
+ *  team fills, so its line is the team's. Nothing else in the block earns a line, and a block with
+ *  no line at all has no panel. An opened group's own row is left out where the block holds the
+ *  rows it opened onto (`doubled`). */
+function blockPanel(sel: CellSel): string {
+  let dmg = 0, dmgCells = 0;
+  const res = new Map<string, { label: string; first: number; last: number; cells: number; digits: number }>();
+  const held = new Set(sel.rows.slice(sel.r0, sel.r1 + 1));
+  const rows = blockCells(sel);
+  for (let i = 0; i < rows.length; i++) {
+    if (doubled(sel.rows[sel.r0 + i]!, held)) continue;
+    for (const c of rows[i]!) {
+      if (c.dataset.avg !== undefined) {
+        dmg += Number(c.dataset.avg) || 0;
+        dmgCells++;
+        continue;
+      }
+      if (c.dataset.val === undefined) continue;
+      const col = logColumns[[...c.parentElement!.children].indexOf(c)]!;
+      const mem = col.key === "offtune" ? "" : c.dataset.mem ?? "";
+      const key = `${mem}|${col.key}`;
+      const v = Number(c.dataset.val) || 0;
+      const seen = res.get(key);
+      if (seen) {
+        seen.last = v;
+        seen.cells++;
+      } else res.set(key, { label: mem ? `${mem} ${col.label}` : "Total Offtune", first: v, last: v, cells: 1, digits: col.digits ?? 2 });
+    }
+  }
+  const lines: [string, string][] = dmgCells > 1 ? [["Total Dmg", fmt(dmg, 0)]] : [];
+  // by member in the team's own order, each member's resources in the columns' own order
+  const order = (key: string): number => logMembers.indexOf(key.split("|")[0]!) * logColumns.length
+    + logColumns.findIndex((c) => c.key === key.split("|")[1]);
+  for (const [key, r] of [...res].sort((a, b) => order(a[0]) - order(b[0]))) {
+    if (r.cells > 1) lines.push([r.label, fmt(r.last - r.first, r.digits, true, false)]);
+  }
+  if (!lines.length) return "";
+  return `<span class="pop stat"><table>`
+    + lines.map(([k, v]) => `<tr><td class="k">${esc(k)}</td><td class="v">${esc(v)}</td></tr>`).join("")
+    + `</table></span>`;
+}
 
 /** The block a press picked out: what it can reach, read once at the press, and the two corners it
  *  spans — `ar`/`ac` where the press landed and stays, `fr` the row the pointer has taken the other
@@ -617,18 +596,13 @@ function trackBlock(): void {
   while (col < sel.cols.length - 1 && x >= sel.cols[col + 1]!.left) col++;
   aimBlock(sel, row, col, g.top);
 
-  // the sum is the avg column's own reading: a block standing in any other column, or across more
-  // than the one, is the outline alone
-  const only = sel.cols[sel.c0]!;
-  if (sel.c0 !== sel.c1 || only.key !== "avg" || sel.r0 === sel.r1) {
+  // the panel rides the cell under the pointer; a block with nothing to say is the outline alone
+  const html = sel.r0 === sel.r1 ? "" : blockPanel(sel);
+  if (!html) {
     dropPanel();
     return;
   }
-  let total = 0;
-  for (let r = sel.r0; r <= sel.r1; r++) {
-    total += Number((sel.rows[r]!.children[only.nth] as HTMLElement).dataset.avg) || 0;
-  }
-  drivePanel(sel.rows[sel.fr]!.children[only.nth]!, sumPanel(total));
+  drivePanel(sel.rows[row]!.children[sel.cols[col]!.nth]!, html);
 }
 
 /** The block is re-aimed a frame at a time. A mouse reports itself far oftener than the screen is
@@ -676,9 +650,9 @@ addEventListener("keydown", (e) => {
  * block or until a heading singles a column out instead — the two are the one marker, so starting
  * a block takes a singled-out column off outright.
  *
- * No panel opens while the press is down. Where the block stands in the avg column and nowhere
- * else it becomes what those cells come to, left up to be read once the pointer comes up; anywhere
- * else the block is the outline alone, and Ctrl+C is what reads it.
+ * No panel opens while the press is down. A block reaching more than one avg cell, or more than
+ * one of a member's resource cells, says what they come to (`blockPanel`), left up to be read once
+ * the pointer comes up; any other block is the outline alone, and Ctrl+C is what reads it.
  *
  * A block already up is taken off by a plain click anywhere in the log, which does nothing else:
  * the cell it lands on is picked up only by a press that is held or dragged (`arming`), so the

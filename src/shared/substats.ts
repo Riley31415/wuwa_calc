@@ -7,8 +7,8 @@ import { addStat } from "../engine/context.js";
 import { Stat, Type1, scopedStat, statLabel } from "../engine/stats.js";
 import type { StatKey, Tag } from "../engine/stats.js";
 
-/** The spread's twenty-five rolls as twenty-five buffs, one per roll: each named for the spread and
- *  the stat it rolls as that stat is named everywhere else ("ChemX32 - Crit Rate", "ChemX32 - Flat
+/** The spread's rolls as one buff apiece: each named for the spread and the stat it rolls as that
+ *  stat is named everywhere else ("ChemX32 - Crit Rate", "ChemX32 - Flat
  *  ATK" — `ROLL`'s own short label calls both ATK% and Flat ATK "ATK"), and carrying a single roll's
  *  value. Never equipped and never evaluated — the piece's own `constantStats` is what the fight
  *  reads; these exist so the loadout hover can list a spread roll by roll, the five Crit Rate ones
@@ -65,19 +65,24 @@ const rollAt = (s: Substat, p: number): number => {
   return values[values.length - 1]!;
 };
 
-/** How many of the twenty-five rolls each named stat takes, in priority order. The eight stats a
- *  spread does not name take a single roll each, which is what makes twenty-five. */
-const SHAPE = [5, 5, 3, 2, 2];
+/** How many rolls each named stat takes, in priority order: two five-roll slots, and nothing
+ *  above two underneath them, so no stat outside the top pair is big enough to carry a build. The
+ *  eight stats a spread does not name take a single roll each, which leaves one of the twenty-five
+ *  unspent — the roll the old 5/5/3/2/2 third slot held. */
+const SHAPE = [5, 5, 2, 2, 2];
 
 /** Where ER slots in when a member needs more of it than the spread as written gives: the roll
- *  count it is promoted to, against the priority place it takes to get there. Promoting pushes
- *  every stat below it one place down, and the last one off into the single-roll eight.
+ *  count it is promoted to, the priority place it takes to get there, and the shape the spread
+ *  wears once it is there. ER lands third either way: two rolls are what `SHAPE` already writes
+ *  into that slot, and a third is bought off the second-best stat, which drops to four (5/4/3/2/2)
+ *  rather than the build growing a roll it did not have. Promoting pushes every stat below it one
+ *  place down, and the last one off into the single-roll eight.
  *
  *  It stops at three. A five-roll slot is the build's own scaling, and spending it on Energy is a
  *  different build rather than the same one under strain — a bar that wants more than three rolls
- *  is asking for an ER 3-cost main stat instead. Only a kit that names ER first gets five, because
- *  there the five rolls are what the kit asked for. */
-const PROMOTIONS: [number, number][] = [[2, 3], [3, 2]];
+ *  is asking for an ER 3-cost main stat instead. Only a kit that names ER first or second gets
+ *  five, because there the five rolls are what the kit asked for. */
+const PROMOTIONS: [number, number, number[]][] = [[2, 2, SHAPE], [3, 2, [5, 4, 3, 2, 2]]];
 
 /** One ChemX32 spread at every ER tier a run might need: the five stats as the kit named them,
  *  and the same five with ER promoted above whatever it already holds. The solve picks a tier off
@@ -108,20 +113,20 @@ export class ErSpread {
   }
 }
 
-/** The spread `named` describes as one piece: `SHAPE` rolls apiece in priority order, one roll of
+/** The spread `named` describes as one piece: `shape` rolls apiece in priority order, one roll of
  *  each of the eight left over. Named after the stats that tell two spreads apart — every one of
  *  them rolls crit, so crit is left out of the name. */
-function spreadPiece(named: Substat[]): Buff {
+function spreadPiece(named: Substat[], shape: number[] = SHAPE): Buff {
   const counts = new Map<Substat, number>();
-  // only the first five take a share of `SHAPE`; a sixth is named for the hover's sake and takes
+  // only the first five take a share of the shape; a sixth is named for the hover's sake and takes
   // the single roll it would have had among the eight either way
-  named.slice(0, SHAPE.length).forEach((s, i) => counts.set(s, SHAPE[i]!));
+  named.slice(0, shape.length).forEach((s, i) => counts.set(s, shape[i]!));
   for (let s = Substat.CritRate; s <= Substat.Liberation; s++) if (!counts.has(s)) counts.set(s, 1);
   // the name is what the spread is spent on, so it reads the five that take `SHAPE` and not the
   // sixth, which is one roll named only so the hover leaves it lit. ER only reads as part of it
   // where it actually took a five-roll slot; promoted into the 3- or 2-roll ones it is an Energy
   // tax the spread pays, not what the spread is
-  const labels = [...new Set(named.slice(0, SHAPE.length)
+  const labels = [...new Set(named.slice(0, shape.length)
     .filter((s) => s > Substat.CritDmg && (s !== Substat.Er || counts.get(s) === 5))
     .map((s) => ROLL[s].label))];
   const lines = [...counts].map(([s, n]) => [ROLL[s].stat, rollAt(s, 0.5) * n, ROLL[s].tag] as const);
@@ -138,12 +143,24 @@ function spreadPiece(named: Substat[]): Buff {
  *  else at a single roll is the spread's small change and dims, the named sixth included. */
 export const litStats = (maxEnergy: number): StatKey[] => (maxEnergy ? [Stat.Er] : []);
 
+/** ER points a build is allowed to come up short by with nothing backing them. A bar that misses
+ *  by a hair misses on the worst single window of the run, and buying a whole roll — 9.2 points, a
+ *  crit roll's worth of damage off the spread — to cover two of them is a trade nobody would make.
+ *  Both halves of it have to move together: `evaluate.ts`'s requirement guard forgives this much,
+ *  and `teamrun.ts`'s `erRollsWanted` discounts the same much off what it asks for. Forgive without
+ *  discounting and the count still buys the roll; discount without forgiving and the run keeps
+ *  failing on a bar the count has already declared paid for, which never converges.
+ *
+ *  Never a `Stat.Er`: the kits that read Energy Regen back as damage (Sigrika, Brant, Mornye) would
+ *  be paid for slack the build does not actually carry. */
+export const ER_TOLERANCE = 3;
+
 /** What one ER roll is worth on a ChemX32 spread — what the ER requirement is paid down in. */
 export const erRollValue = (): number => rollAt(Substat.Er, 0.5);
 
-/** A build's twenty-five rolls: the five stats named here, most important first, take 5/5/3/2/2 of
- *  them and each of the other eight takes one. ER is one of those eight unless a kit names it, so
- *  every spread carries a roll of it either way — name it where the kit actually wants it (first
+/** A build's rolls: the five stats named here, most important first, take 5/5/2/2/2 of the
+ *  twenty-five and each of the other eight takes one. ER is one of those eight unless a kit
+ *  names it, so every spread carries a roll of it either way — name it where the kit wants it (first
  *  for a support living on its Liberation, third for an ER scaler) and the solve promotes it
  *  further only if the rotation cannot fill the bar without. */
 export function substats(sub1: Substat, sub2: Substat, sub3: Substat, sub4: Substat, sub5: Substat, sub6: Substat): ErSpread {
@@ -153,8 +170,8 @@ export function substats(sub1: Substat, sub2: Substat, sub3: Substat, sub4: Subs
   const held = own < 0 ? 1 : SHAPE[own]!;
   const rest = named.filter((s) => s !== Substat.Er);
   const tiers = [{ rolls: held, piece: spreadPiece(named) }];
-  for (const [rolls, place] of PROMOTIONS) {
-    if (rolls > held) tiers.push({ rolls, piece: spreadPiece([...rest.slice(0, place), Substat.Er, ...rest.slice(place)].slice(0, 5)) });
+  for (const [rolls, place, shape] of PROMOTIONS) {
+    if (rolls > held) tiers.push({ rolls, piece: spreadPiece([...rest.slice(0, place), Substat.Er, ...rest.slice(place)].slice(0, 5), shape) });
   }
   return new ErSpread(named, tiers);
 }

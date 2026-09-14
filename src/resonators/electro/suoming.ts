@@ -63,7 +63,7 @@ import {
   stacksOfTeam,
   onCast,
 } from "../../engine/context.js";
-import { Action, ActionField, ActionGroup, Rotation, DOUBLE_INTRO, INTRO, OUTRO, ECHO_SWAP, DODGE, NOINTRO } from "../../engine/rotation.js";
+import { Action, ActionField, ActionGroup, Rotation, DOUBLE_INTRO, INTRO, OUTRO, ECHO_SWAP, DODGE, NOINTRO, SWAP } from "../../engine/rotation.js";
 import { NINE_SHADOWS, UNISON, UNISON_BOON, respondToUnison, boonPayout, unisonIntro, unisonOutro, unisonResponse } from "../../shared/unison.js";
 import { coordinatedBuff } from "../../shared/helpers.js";
 import { RED_SPRING, UNSPOKEN_RUE } from "../../weapons/sword.js";
@@ -151,11 +151,12 @@ const SealedDelusion = suomingAction("Forte Skill - Furled Canopy: Sealed Delusi
   forte1: -800,
   updateBuffs: () => applyCurrent(DEEP_MIND, 1),
 });
-const UnforsakenMind = suomingAction("Skill - Unfurled Canopy: Unforsaken Mind", { node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 152.67, offtune: 8776 });
+const UnforsakenMind = suomingAction("Skill - Unfurled Canopy: Unforsaken Mind", { 
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 152.67, offtune: 8776, forte1: -800,
+});
 /** Calamity Mind for its own duration, Awakened Mind once it ends: Deep Mind is simply over. */
 const EngravedHeart = suomingAction("Forte Basic - Umbral Canopy: Engraved Heart", {
   node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 155.14 * 3 + 77.57 * 4 + 38.79 * 4 + 620.55 + 19.4 * 10 + 24.24 * 8, energy: 2.05 * 3 + 1.03 * 4 + 0.52 * 4 + 8.18, concerto: 40, offtune: 2602 * 3 + 1301 * 4 + 651 * 4 + 10405,
-  forte1: -800,
   updateBuffs: () => revokeCurrent(DEEP_MIND),
 });
 
@@ -356,10 +357,12 @@ const SUOMING_RESONATOR = new Resonator({
  *  brings her round again for the real visit: her Intro (its Unison form when the outro she
  *  answers carried one) banks 200 Delusion in Deep Mind, the Unfurled chain carries it past 800
  *  for Unforsaken Mind, and Engraved Heart spends the lot. */
+const UHA12 = new ActionGroup("Basic - Unfurled Canopy: Whirling Thunder 12", [UHA1, UHA2]);
 const UBA234 = new ActionGroup("Basic - Unfurled Canopy 234", [UBA2, UBA3, UBA4]);
 const UBA34 = new ActionGroup("Basic - Unfurled Canopy 34", [UBA3, UBA4]);
 const UBA12 = new ActionGroup("Basic - Unfurled Canopy 12", [UBA1, UBA2]);
 const UBA1234 = new ActionGroup("Basic - Unfurled Canopy 1234", [UBA1, UBA2, UBA3, UBA4]);
+const UBA123 = new ActionGroup("Basic - Unfurled Canopy 123", [UBA1, UBA2, UBA3]);
 const BA123 = new ActionGroup("Basic - Furled Canopy 123", [BA1, BA2, BA3]);
 
 const SM_ROTATION = new Rotation([
@@ -380,6 +383,19 @@ const SM_ROTATION = new Rotation([
 const SM_ROTATION_MDPS = new Rotation([
 
   INTRO, Liberation, 
+  RiftCleaver, UBA34, DODGE,
+  UBA1234, DODGE,
+  UBA1, // add uba2 for 1s
+  UnforsakenMind, EngravedHeart,
+  ECHO_SWAP, OUTRO,
+]);
+const SM_ROTATION_MDPS_DOUBLE = new Rotation([
+  DOUBLE_INTRO,
+  UBA1234,
+  SWAP,
+
+  INTRO,
+  Liberation, 
   RiftCleaver, UBA34, DODGE,
   UBA1234, DODGE,
   UBA12,
@@ -413,4 +429,15 @@ export const SUOMING_MDPS = new Loadout({
   highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
   sequences: SM_SEQUENCES,
   rotation: SM_ROTATION_MDPS,
+});
+
+export const SUOMING_MDPS_DOUBLE = new Loadout({
+  resonator: SUOMING_RESONATOR,
+  weapons: [UNSPOKEN_RUE, EMERALD_OF_GENESIS, RED_SPRING],
+  echoLoadouts: [new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC)],
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Electro3, Mainstat.ATK1),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+  sequences: SM_SEQUENCES,
+  rotation: SM_ROTATION_MDPS_DOUBLE,
 });

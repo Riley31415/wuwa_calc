@@ -381,7 +381,7 @@ function statsPanel(stats: PanelRow[], buffs: PanelRow[], owner: string, slotHue
  * neither. The menu stats are a footer row that opens one member's whole list at a time — a
  * dozen rows of their own crowded out the pieces, and three builds rarely show the same ones.
  */
-export function loadoutTable(run: TeamRun): string {
+export function loadoutTable(run: TeamRun, erReq?: Map<string, string>): string {
   const erRolls = erRollsFor(run.teamKey, run.members, run.combo);
   const builds = run.members.map((m, i) => ({ member: m, combo: run.combo[i]!, erRolls: erRolls[i]! }));
   const slotHue = new Map([...run.members.map((m): [string, string] => [m.name, m.color]),
@@ -458,8 +458,14 @@ export function loadoutTable(run: TeamRun): string {
   }
   // the menu stats are the row, not a hover off it: one member's whole list per cell
   rows.push(row("Menu Stats", builds.map((b) => {
+    // Energy Regen says in its own label what the rotation asked of it — detail.ts renders that
+    // figure, since the requirement is the run's and not the build's
+    const req = erReq?.get(b.member.name);
     const stats = menuStatRows(b.member, b.combo, b.erRolls)
-      .map((r) => `<tr><td class="k">${esc(r.label)}</td><td class="v">${esc(r.value)}</td></tr>`).join("");
+      .map((r) => {
+        const label = r.label === statLabel(Stat.Er) && req ? `${esc(r.label)} ${req}` : esc(r.label);
+        return `<tr><td class="k">${label}</td><td class="v">${esc(r.value)}</td></tr>`;
+      }).join("");
     return `<div class="c menustats"><table>${stats}</table></div>`;
   })));
 
@@ -468,15 +474,11 @@ export function loadoutTable(run: TeamRun): string {
 
 /* -------------------------------------------------------------------------------- DPR table */
 
-/** The detail page's extra resource columns — per slot, cells already rendered (detail.ts owns what
- *  they mean and what they hover). Absent inside the comparison table's own DPR popover. */
-export interface DprExtra { heads: string[]; cells: Map<string, string[]> }
-
 /** Damage per rotation: a row per member, Tune Break and Total, over the four sections the run
  *  keeps. With `lines` (the detail page) a member's cell hovers its breakdown and the Total row's
  *  the team's top actions; the comparison table's Total DPR hover passes none (no hover inside a
  *  hover). */
-export function dprTable(run: TeamRun, lines?: ChainGroup[][], extra?: DprExtra): string {
+export function dprTable(run: TeamRun, lines?: ChainGroup[][]): string {
   const grand = run.sectionTotals.reduce((a, b) => a + b, 0);
   const flat = lines?.flat();
   const slots = [...run.members.map((m) => m.name), TUNE_BREAK_ENEMY.name];
@@ -496,14 +498,10 @@ export function dprTable(run: TeamRun, lines?: ChainGroup[][], extra?: DprExtra)
     ...[...lines.map((sec) => [sec]), lines]
       .map((secs, i): [string, DistCell] => [`${TEAM_ROW}|${i}`, teamCell(secs, sections[i] ?? "", slotHue)]),
   ]);
-  const blanks = extra ? extra.heads.map(() => `<div class="c num"></div>`).join("") : "";
-  const extraFor = (slot: string): string => (extra ? (extra.cells.get(slot) ?? []).join("") || blanks : "");
-
   const head = `<div class="rtrow rthead">`
     + `<div class="c"></div>`
     + sections.map((n) => `<div class="c num">${n}</div>`).join("")
     + `<div class="c num">Total</div>`
-    + (extra ? extra.heads.map((h) => `<div class="c num">${esc(h)}</div>`).join("") : "")
     + `</div>`;
 
   // A figure is a distribution cell only on the detail page, where there is a rotation to break
@@ -524,7 +522,6 @@ export function dprTable(run: TeamRun, lines?: ChainGroup[][], extra?: DprExtra)
       + rowLabel(slot, ` style="--mem:${color}"`)
       + run.sectionBySlot.map((by, i) => valueCell(lines?.[i], by.get(slot) ?? 0, `${slot}|${i}`)).join("")
       + valueCell(flat, own, `${slot}|4`)
-      + extraFor(slot)
       + `</div>`;
   };
 
@@ -535,14 +532,13 @@ export function dprTable(run: TeamRun, lines?: ChainGroup[][], extra?: DprExtra)
     + rowLabel(TEAM_ROW, "")
     + run.sectionTotals.map((v, i) => valueCell(lines?.[i], v, `${TEAM_ROW}|${i}`)).join("")
     + valueCell(flat, grand, `${TEAM_ROW}|4`)
-    + blanks
     + `</div>`;
 
   const distRow = lines ? distributionRow(selected) : "";
   // every row but the pies' to its own content, the pies to whatever height is left over — which is
   // what finishes this table level with Equipment beside it
-  const tracks = lines ? `;grid-template-rows:repeat(${run.members.length + 3}, max-content) 1fr` : "";
-  return `<div class="rtable dpr" style="--cols:${5 + (extra?.heads.length ?? 0)}${tracks}">`
+  const tracks = lines ? ` style="grid-template-rows:repeat(${run.members.length + 3}, max-content) 1fr"` : "";
+  return `<div class="rtable dpr"${tracks}>`
     + `${head}${memberRows}${tuneBreakRow}${totalRow}${distRow}</div>`;
 }
 
@@ -610,21 +606,34 @@ export function wireSourcePanels(root: HTMLElement): void {
     openHome = cell;
   };
 
+  /** What inside the hovered cell owns a panel: the cell itself for nearly everything, but a panel
+   *  can hang off one part of a cell instead (the Energy Regen label's own figure), and then that
+   *  part is what the panel is placed against. `built` is checked on the way up as well as the
+   *  attributes, since building a panel takes its `data-pop` off again. */
+  const homeIn = (target: Element, cell: Element): Element => {
+    for (let el: Element | null = target; el && el !== cell; el = el.parentElement) {
+      const data = (el as HTMLElement).dataset;
+      if (built.has(el) || data?.pop !== undefined || data?.popKind !== undefined) return el;
+    }
+    return cell;
+  };
+
   const panelIn = (target: EventTarget | null): { cell: Element | null; pop: HTMLElement | null } => {
     const cell = (target as Element | null)?.closest?.(".c") ?? null;
     if (!cell) return { cell: null, pop: null };
-    if (open && openHome === cell) return { cell, pop: open };
-    const kept = built.get(cell);
-    if (kept) return { cell, pop: kept };
-    const data = (cell as HTMLElement).dataset;
+    const home = homeIn(target as Element, cell);
+    if (open && openHome === home) return { cell: home, pop: open };
+    const kept = built.get(home);
+    if (kept) return { cell: home, pop: kept };
+    const data = (home as HTMLElement).dataset;
     const markup = data?.pop ?? (data?.popKind ? buildPop(data.popKind, data.popKey ?? "") : undefined);
-    if (!markup) return { cell, pop: null };
+    if (!markup) return { cell: home, pop: null };
     const box = document.createElement("div");
     box.innerHTML = markup;
-    cell.removeAttribute("data-pop");
+    home.removeAttribute("data-pop");
     const pop = box.firstElementChild as HTMLElement | null;
-    if (pop) built.set(cell, pop);
-    return { cell, pop };
+    if (pop) built.set(home, pop);
+    return { cell: home, pop };
   };
 
   // while a driven panel stands it is the only one: the hover handlers below all stand down, and
@@ -759,8 +768,10 @@ function toHsl(hex: string): [number, number, number] {
   return [h * 60, (spread / (1 - Math.abs(2 * l - 1))) * 100, l * 100];
 }
 
+/** Type 2 first, so a coordinated Liberation reads "Coordinated Liberation" — the Type 2 qualifies
+ *  the Type 1 the way an adjective qualifies its noun, not the other way round. */
 const typeLabel = (type1: Type1 | null, type2: Type2 | null): string =>
-  [type1, type2].filter((t): t is Type1 | Type2 => t !== null).map((t) => TAG_NAME[t]).join(" ") || "Untyped";
+  [type2, type1].filter((t): t is Type1 | Type2 => t !== null).map((t) => TAG_NAME[t]).join(" ") || "Untyped";
 
 /** One figure's two breakdowns. The type key is the Type 1 and Type 2 bits in one word, which is
  *  what they already are (stats.ts's tag bands) — the effective Type 1 an override left, since
@@ -815,12 +826,54 @@ function pieSvg(slices: Slice[], total: number): string {
   // Sized to the half of the row it gets, so it draws at very near 1:1 rather than being scaled
   // down into it — wide enough that a leader's label clears the pie beside it (index.css pays for
   // that width by holding the row to a minimum, which is what sets the table's own width).
-  const width = 480, cx = 240, r = 66, pitch = 19;
+  // One frame for every pie on the team, not one sized to each member's own labels: a frame that
+  // grew with the longest label drew the same pie at anything from 77 to 126 real pixels depending
+  // on who was selected, and moved its title with it. `rail` is the room each side is given for a
+  // label — enough for the longest that can't be wrapped ("Liberation (74.9%)") — and the rest of
+  // the frame is the pie, which is therefore the same size for everyone.
+  // The share drops under its own name rather than running on after it, which is what keeps the
+  // frame near the shape of the space it is drawn into: a rail wide enough for "Liberation (78.6%)"
+  // on one line made the frame twice as wide as it was tall, so it scaled to the pane's width and
+  // left the height under it empty. Stacked, the frame is about 8:5 like the pane, and the same
+  // pane draws it half again as big.
+  // The label type is the svg's own, so the rail below is measured in the size the labels are
+  // actually set in — sans runs about 0.515em a glyph, the mono share about 0.6 — rather than
+  // against a size index.css could drift away from.
+  const font = 20, glyph = font * 0.515, mono = font * 0.6;
+  // the rail holds the longest line a wrap can leave standing, and the share under it
+  const rail = Math.ceil(Math.max(11 * glyph, 8 * mono));
+  const r = 120, lead = 28, lh = Math.round(font * 1.06), pitch = lh + 4;
+  const width = 2 * (rail + r + lead + 19);
+  // Cut to the shape of the half-row it is drawn into (about 8:5), not to the tallest label stack
+  // that could ever turn up: sized off the stack the frame came out twice as deep as the pane and
+  // the row grew to hold the empty part. At this depth a column still takes seven labels, where the
+  // most any figure has actually shown is four.
+  const height = Math.max(2 * r + 34, Math.round(width * 0.6));
+  const cx = width / 2;
+  const cy = height / 2;
   const f = (n: number): string => n.toFixed(2);
+  const pct = (s: Slice): string => `(${(s.value / total * 100).toFixed(1)}%)`;
 
-  // Where a wedge that far round the pie sits: twelve o'clock turned a twelfth of a turn — 30° —
+  // A label long enough to widen the frame reads on two lines instead of one long rail — the rail
+  // is the whole of what the frame has to be wide enough for, so wrapping "Coordinated Liberation"
+  // is what buys the pie beside it its own room. Split where the longer of the two lines comes out
+  // shortest; a single word has nowhere to break and stays as it is.
+  const wrapAt = 11;
+  const linesOf = (label: string): string[] => {
+    const words = label.split(" ");
+    if (label.length <= wrapAt || words.length < 2) return [label];
+    let best: string[] = [label], widest = Infinity;
+    for (let i = 1; i < words.length; i++) {
+      const pair = [words.slice(0, i).join(" "), words.slice(i).join(" ")];
+      const longest = Math.max(...pair.map((t) => t.length));
+      if (longest < widest) { widest = longest; best = pair; }
+    }
+    return best;
+  };
+
+  // Where a wedge that far round the pie sits: twelve o'clock turned an eighth of a turn — 45° —
   // clockwise, and anticlockwise from there, so the biggest wedge opens to the left of it.
-  const angle = (turn: number): number => (1 / 12 - 0.25 - turn) * Math.PI * 2;
+  const angle = (turn: number): number => (1 / 8 - 0.25 - turn) * Math.PI * 2;
 
   // where each wedge starts, and the angle its own leader runs out at
   let turn = 0;
@@ -833,25 +886,28 @@ function pieSvg(slices: Slice[], total: number): string {
     return { s, from, share, a, ox: Math.cos(a) * 7, oy: Math.sin(a) * 7, side: Math.cos(a) >= 0 ? 1 : -1, y: 0 };
   });
 
-  // tall enough that the busier side's labels clear each other without being pushed off the pie
-  const down = arcs.filter((l) => l.side < 0).length;
-  const height = Math.max(2 * r + 34, Math.max(down, arcs.length - down) * pitch + 26);
-  const cy = height / 2;
+  // a label's own lines: its name, wrapped where it has to be, and its share under it
+  const linesFor = (s: Slice): string[] => [...linesOf(s.label), pct(s)];
+  const boxH = (l: (typeof arcs)[number]): number => linesFor(l.s).length * lh;
   const point = (a: number, rad: number): [number, number] => [cx + rad * Math.cos(a), cy + rad * Math.sin(a)];
 
   // labels down each side in the order their wedges stand, pushed apart to the pitch off the top
   // and then held off the floor — so a run of thin slices spreads rather than piling up
   for (const side of [1, -1]) {
     const column = arcs.filter((l) => l.side === side).sort((a, b) => Math.sin(a.a) - Math.sin(b.a));
+    // `y` is the middle of the label's own box, one line tall or two, so each pass walks the box's
+    // near edge and leaves `pitch - lh` of air between one box and the next
     let ceiling = 10;
     for (const l of column) {
-      l.y = Math.max(cy + (r + 18) * Math.sin(l.a), ceiling);
-      ceiling = l.y + pitch;
+      const half = boxH(l) / 2;
+      l.y = Math.max(cy + (r + lead - 10) * Math.sin(l.a), ceiling + half);
+      ceiling = l.y + half + (pitch - lh);
     }
     let floor = height - 10;
     for (const l of [...column].reverse()) {
-      l.y = Math.min(l.y, floor);
-      floor = l.y - pitch;
+      const half = boxH(l) / 2;
+      l.y = Math.min(l.y, floor - half);
+      floor = l.y - half - (pitch - lh);
     }
   }
 
@@ -877,9 +933,9 @@ function pieSvg(slices: Slice[], total: number): string {
   // because they are the same two commands either way.
   const leader = ({ s, a, side, y, ox, oy }: (typeof arcs)[number]): string => {
     const [px, py] = point(a, r);
-    const [bx, by] = point(a, r + 24);
-    const rail = cx + side * (r + 38);
-    const tail = `${f(rail - side * 30)},${f(y)} ${f(rail)},${f(y)}`;
+    const [bx, by] = point(a, r + lead - 14);
+    const out = cx + side * (r + lead);
+    const tail = `${f(out - side * 30)},${f(y)} ${f(out)},${f(y)}`;
     const curve = (dx: number, dy: number): string =>
       `M${f(px + dx)},${f(py + dy)} C${f(bx + dx)},${f(by + dy)} ${tail}`;
     return `<path class="leader" d="${curve(0, 0)}" style="--d-out:path('${curve(ox, oy)}')"`
@@ -889,14 +945,21 @@ function pieSvg(slices: Slice[], total: number): string {
   const groups = arcs.map((arc) => `<g class="slice" style="--ox:${f(arc.ox)}px;--oy:${f(arc.oy)}px">`
     + `${wedge(arc)}${leader(arc)}</g>`).join("");
 
+  // Every line carries the rail's own `x`, which is what starts it as a chunk of its own — without
+  // it a second line would run on from where the first ended rather than sitting under it.
   const labels = arcs.map(({ s, side, y }) => {
-    const rail = cx + side * (r + 38);
-    return `<text x="${f(rail + side * 7)}" y="${f(y)}" text-anchor="${side > 0 ? "start" : "end"}"`
-      + ` dominant-baseline="middle"><tspan class="nm">${esc(s.label)}</tspan>`
-      + ` <tspan class="pc">(${(s.value / total * 100).toFixed(1)}%)</tspan></text>`;
+    const at = cx + side * (r + lead);
+    const x = f(at + side * 7);
+    const lines = linesFor(s);
+    const last = lines.length - 1;
+    const top = y - (last * lh) / 2;
+    return `<text text-anchor="${side > 0 ? "start" : "end"}" dominant-baseline="middle">`
+      + lines.map((t, i) => `<tspan class="${i === last ? "pc" : "nm"}" x="${x}"`
+        + ` y="${f(top + i * lh)}">${esc(t)}</tspan>`).join("")
+      + `</text>`;
   }).join("");
 
-  return `<svg class="pie" viewBox="0 0 ${width} ${f(height)}" role="img">${groups}${labels}</svg>`;
+  return `<svg class="pie" viewBox="0 0 ${width} ${f(height)}" font-size="${font}" role="img">${groups}${labels}</svg>`;
 }
 
 const pieFigure = (heading: string, slices: Slice[], total: number): string =>
@@ -950,8 +1013,12 @@ function barChart(bars: Bar[]): string {
     return `<rect x="${f(left + i * slot)}" y="${f(top + plotH - h)}"`
       + ` width="${f(Math.max(slot * 0.9, 0.6))}" height="${f(h)}" fill="${b.color}"/>`;
   }).join("");
-  return `<svg class="bars" viewBox="0 0 ${width} ${height}" role="img">`
-    + `<line class="axis" x1="${left}" y1="${top + plotH}" x2="${width - right}" y2="${top + plotH}"/>`
+  // Drawn to whatever box the pane leaves rather than to its own ratio — the key is pinned under
+  // it, and a chart held to 480:210 left the gap between the two empty. Nothing here is a shape
+  // that stretching would lie about: the bars are the figures, and the axis holds its own weight
+  // (`non-scaling-stroke`) instead of thickening with the box.
+  return `<svg class="bars" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img">`
+    + `<line class="axis" vector-effect="non-scaling-stroke" x1="${left}" y1="${top + plotH}" x2="${width - right}" y2="${top + plotH}"/>`
     + rects
     + `</svg>`;
 }

@@ -2217,6 +2217,157 @@ function damageAvgOf(action, stats, atk, hp2, def2, amp, type2Amp, dmgBonus, typ
   return Math.floor(noCrit * critFactor);
 }
 
+// dist/src/shared/substats.js
+var ROLL_BUFFS = /* @__PURE__ */ new WeakMap();
+var substatRollBuffs = (piece) => ROLL_BUFFS.get(piece) ?? [];
+var rollBuffsOf = (prefix, counts, p) => [...counts].sort((a, b) => b[1] - a[1] || a[0] - b[0]).flatMap(([s, n]) => {
+  const { stat, tag } = ROLL[s];
+  const value = rollAt(s, p);
+  const line = tag === void 0 ? [stat, value] : [stat, value, tag];
+  const name = `${prefix} - ${statLabel(tag === void 0 ? stat : scopedStat(tag, stat))}`;
+  return Array.from({ length: n }, () => new Buff({ name, stats: [line] }));
+});
+var Substat;
+(function(Substat2) {
+  Substat2[Substat2["CritRate"] = 0] = "CritRate";
+  Substat2[Substat2["CritDmg"] = 1] = "CritDmg";
+  Substat2[Substat2["Er"] = 2] = "Er";
+  Substat2[Substat2["AtkPct"] = 3] = "AtkPct";
+  Substat2[Substat2["FlatAtk"] = 4] = "FlatAtk";
+  Substat2[Substat2["HpPct"] = 5] = "HpPct";
+  Substat2[Substat2["FlatHp"] = 6] = "FlatHp";
+  Substat2[Substat2["DefPct"] = 7] = "DefPct";
+  Substat2[Substat2["FlatDef"] = 8] = "FlatDef";
+  Substat2[Substat2["Basic"] = 9] = "Basic";
+  Substat2[Substat2["Heavy"] = 10] = "Heavy";
+  Substat2[Substat2["Skill"] = 11] = "Skill";
+  Substat2[Substat2["Liberation"] = 12] = "Liberation";
+})(Substat || (Substat = {}));
+var PCT = [6.4, 7.1, 7.9, 8.6, 9.4, 10.1, 10.9, 11.6];
+var WEIGHTS = [7, 8, 21, 25, 18, 15, 6, 3];
+var CRIT_WEIGHTS = [70, 70, 70, 24, 24, 24, 9, 9];
+var ROLL = {
+  [Substat.CritRate]: { stat: 9, values: [6.3, 6.9, 7.5, 8.1, 8.7, 9.3, 9.9, 10.5], weights: CRIT_WEIGHTS, label: "Crit Rate" },
+  [Substat.CritDmg]: { stat: 10, values: [12.6, 13.8, 15, 16.2, 17.4, 18.6, 19.8, 21], weights: CRIT_WEIGHTS, label: "Crit Dmg" },
+  [Substat.Er]: { stat: 11, values: [6.8, 7.6, 8.4, 9.2, 10, 10.8, 11.6, 12.4], weights: WEIGHTS, label: "ER" },
+  [Substat.AtkPct]: { stat: 6, values: PCT, weights: WEIGHTS, label: "ATK" },
+  [Substat.FlatAtk]: { stat: 3, values: [30, 40, 50, 60], weights: [7, 54, 39, 3], label: "ATK" },
+  [Substat.HpPct]: { stat: 7, values: PCT, weights: WEIGHTS, label: "HP" },
+  [Substat.FlatHp]: { stat: 4, values: [320, 360, 390, 430, 470, 510, 540, 580], weights: WEIGHTS, label: "HP" },
+  [Substat.DefPct]: { stat: 8, values: [8.1, 9, 10, 10.9, 11.8, 12.8, 13.8, 14.7], weights: WEIGHTS, label: "DEF" },
+  [Substat.FlatDef]: { stat: 5, values: [40, 50, 60, 70], weights: [15, 46, 33, 9], label: "DEF" },
+  [Substat.Basic]: { stat: 17, tag: 4096, values: PCT, weights: WEIGHTS, label: "Basic" },
+  [Substat.Heavy]: { stat: 17, tag: 8192, values: PCT, weights: WEIGHTS, label: "Heavy" },
+  [Substat.Skill]: { stat: 17, tag: 12288, values: PCT, weights: WEIGHTS, label: "Skill" },
+  [Substat.Liberation]: { stat: 17, tag: 16384, values: PCT, weights: WEIGHTS, label: "Liberation" }
+};
+var rollAt = (s, p) => {
+  const { values, weights } = ROLL[s];
+  const target = p * weights.reduce((a, b) => a + b, 0);
+  let seen = 0;
+  for (const [i, value] of values.entries()) {
+    seen += weights[i];
+    if (seen >= target)
+      return value;
+  }
+  return values[values.length - 1];
+};
+var SHAPE = [5, 5, 2, 2, 2];
+var PROMOTIONS = [[2, 2, SHAPE], [3, 2, [5, 4, 3, 2, 2]]];
+var ErSpread = class {
+  /** Fewest ER rolls first — `[1, 2, 3]` where the kit named no ER at all, and a lone `[5]` where
+   *  it named ER first. */
+  tiers;
+  /** The five stats the kit named, most important first — what every tier is built from. */
+  named;
+  /** The high-investment spread with no ER line at all, worn by a kit whose Liberation costs
+   *  nothing (`maxEnergy: 0`) — there the roll would be paying down a bar that never fills, and the
+   *  slot goes to the sixth stat instead. Null on ChemX32, which carries its ER roll either way. */
+  noEr;
+  constructor(named, tiers, noEr = null) {
+    this.named = named;
+    this.tiers = tiers;
+    this.noEr = noEr;
+  }
+  /** The cheapest tier carrying at least `rolls` ER rolls, or the top one where nothing does — a
+   *  combo wanting more than the spread can pay has to find it on an ER 3-cost main stat, and the
+   *  solver is what reaches for one (see `rankedMainstats`). */
+  at(rolls) {
+    return (this.tiers.find((t) => t.rolls >= rolls) ?? this.tiers[this.tiers.length - 1]).piece;
+  }
+};
+function spreadPiece(named, shape = SHAPE) {
+  const counts = /* @__PURE__ */ new Map();
+  named.slice(0, shape.length).forEach((s, i) => counts.set(s, shape[i]));
+  for (let s = Substat.CritRate; s <= Substat.Liberation; s++)
+    if (!counts.has(s))
+      counts.set(s, 1);
+  const labels = [...new Set(named.slice(0, shape.length).filter((s) => s > Substat.CritDmg && (s !== Substat.Er || counts.get(s) === 5)).map((s) => ROLL[s].label))];
+  const lines = [...counts].map(([s, n]) => [ROLL[s].stat, rollAt(s, 0.5) * n, ROLL[s].tag]);
+  const piece = new Buff({
+    name: `ChemX32 - ${labels.join(" ")}`,
+    constantStats: () => {
+      for (const [stat, value, tag] of lines)
+        addStat(stat, value, tag);
+    }
+  });
+  ROLL_BUFFS.set(piece, rollBuffsOf("ChemX32", counts, 0.5));
+  return piece;
+}
+var litStats = (maxEnergy2) => maxEnergy2 ? [
+  11
+  /* Stat.Er */
+] : [];
+var ER_TOLERANCE = 3;
+var erRollValue = () => rollAt(Substat.Er, 0.5);
+function substats(sub1, sub2, sub3, sub4, sub5, sub6) {
+  const named = [sub1, sub2, sub3, sub4, sub5, sub6];
+  if (new Set(named).size !== 6)
+    throw new Error(`substats(${named.join(", ")}): six distinct stats`);
+  const own = named.indexOf(Substat.Er);
+  const held = own < 0 ? 1 : SHAPE[own];
+  const rest = named.filter((s) => s !== Substat.Er);
+  const tiers = [{ rolls: held, piece: spreadPiece(named) }];
+  for (const [rolls, place, shape] of PROMOTIONS) {
+    if (rolls > held)
+      tiers.push({ rolls, piece: spreadPiece([...rest.slice(0, place), Substat.Er, ...rest.slice(place)].slice(0, 5), shape) });
+  }
+  return new ErSpread(named, tiers);
+}
+var HIGH_SHAPE = [5, 5, 5, 3, 2, 1];
+var HIGH_PROMOTIONS = [[2, 4], [3, 3]];
+function highPiece(named, last) {
+  const counts = /* @__PURE__ */ new Map();
+  named.forEach((s, i) => counts.set(s, HIGH_SHAPE[i] ?? 1));
+  for (const [s, n] of counts)
+    if (n > 5)
+      throw new Error(`highSubs(): ${ROLL[s].label} rolls ${n} times, a build has five echoes`);
+  const labels = [...new Set(named.filter((s) => s > Substat.CritDmg && s !== last && (s !== Substat.Er || counts.get(s) === 5)).map((s) => ROLL[s].label))];
+  const lines = [...counts].map(([s, n]) => [ROLL[s].stat, rollAt(s, 0.8) * n, ROLL[s].tag]);
+  const piece = new Buff({
+    name: `High Invest - ${labels.join(" ")}`,
+    constantStats: () => {
+      for (const [stat, value, tag] of lines)
+        addStat(stat, value, tag);
+    }
+  });
+  ROLL_BUFFS.set(piece, rollBuffsOf("High Invest", counts, 0.8));
+  return piece;
+}
+function highSubs(sub1, sub2, sub3, sub4, sub5, sub6) {
+  const named = [sub1, sub2, sub3, sub4, sub5, sub6];
+  if (new Set(named).size !== 6)
+    throw new Error(`highSubs(${named.join(", ")}): six distinct stats`);
+  const own = named.indexOf(Substat.Er);
+  if (own >= 0)
+    return new ErSpread(named, [{ rolls: HIGH_SHAPE[own], piece: highPiece(named, sub6) }]);
+  const five = named.slice(0, 5);
+  return new ErSpread(named, [
+    { rolls: 1, piece: highPiece([...five, Substat.Er], sub6) },
+    ...HIGH_PROMOTIONS.map(([rolls, place]) => ({ rolls, piece: highPiece([...five.slice(0, place), Substat.Er, ...five.slice(place)], sub6) }))
+  ], highPiece(named, sub6));
+}
+
 // dist/src/engine/evaluate.js
 var ER_SHORT = { erShort: true, member: "", need: 0 };
 function evaluate(state, action, triggered = false, triggeredBy = null) {
@@ -2489,7 +2640,7 @@ function evaluate(state, action, triggered = false, triggeredBy = null) {
       const want = realEnergyBefore > 0 ? ((slot.resonator?.maxEnergy ?? 0) * 100 - (slot.erGainEr - slot.constEr * slot.erGain)) / realEnergyBefore : 0;
       if (want > slot.erWorst)
         slot.erWorst = want;
-      if (slot.erGuard && want > slot.constEr + 1e-9) {
+      if (slot.erGuard && want > slot.constEr + ER_TOLERANCE + 1e-9) {
         ER_SHORT.member = slot.name;
         ER_SHORT.need = want;
         throw ER_SHORT;
@@ -3694,156 +3845,6 @@ var tuneHackResponse = (action) => {
     queue(action);
 };
 
-// dist/src/shared/substats.js
-var ROLL_BUFFS = /* @__PURE__ */ new WeakMap();
-var substatRollBuffs = (piece) => ROLL_BUFFS.get(piece) ?? [];
-var rollBuffsOf = (prefix, counts, p) => [...counts].sort((a, b) => b[1] - a[1] || a[0] - b[0]).flatMap(([s, n]) => {
-  const { stat, tag } = ROLL[s];
-  const value = rollAt(s, p);
-  const line = tag === void 0 ? [stat, value] : [stat, value, tag];
-  const name = `${prefix} - ${statLabel(tag === void 0 ? stat : scopedStat(tag, stat))}`;
-  return Array.from({ length: n }, () => new Buff({ name, stats: [line] }));
-});
-var Substat;
-(function(Substat2) {
-  Substat2[Substat2["CritRate"] = 0] = "CritRate";
-  Substat2[Substat2["CritDmg"] = 1] = "CritDmg";
-  Substat2[Substat2["Er"] = 2] = "Er";
-  Substat2[Substat2["AtkPct"] = 3] = "AtkPct";
-  Substat2[Substat2["FlatAtk"] = 4] = "FlatAtk";
-  Substat2[Substat2["HpPct"] = 5] = "HpPct";
-  Substat2[Substat2["FlatHp"] = 6] = "FlatHp";
-  Substat2[Substat2["DefPct"] = 7] = "DefPct";
-  Substat2[Substat2["FlatDef"] = 8] = "FlatDef";
-  Substat2[Substat2["Basic"] = 9] = "Basic";
-  Substat2[Substat2["Heavy"] = 10] = "Heavy";
-  Substat2[Substat2["Skill"] = 11] = "Skill";
-  Substat2[Substat2["Liberation"] = 12] = "Liberation";
-})(Substat || (Substat = {}));
-var PCT = [6.4, 7.1, 7.9, 8.6, 9.4, 10.1, 10.9, 11.6];
-var WEIGHTS = [7, 8, 21, 25, 18, 15, 6, 3];
-var CRIT_WEIGHTS = [70, 70, 70, 24, 24, 24, 9, 9];
-var ROLL = {
-  [Substat.CritRate]: { stat: 9, values: [6.3, 6.9, 7.5, 8.1, 8.7, 9.3, 9.9, 10.5], weights: CRIT_WEIGHTS, label: "Crit Rate" },
-  [Substat.CritDmg]: { stat: 10, values: [12.6, 13.8, 15, 16.2, 17.4, 18.6, 19.8, 21], weights: CRIT_WEIGHTS, label: "Crit Dmg" },
-  [Substat.Er]: { stat: 11, values: [6.8, 7.6, 8.4, 9.2, 10, 10.8, 11.6, 12.4], weights: WEIGHTS, label: "ER" },
-  [Substat.AtkPct]: { stat: 6, values: PCT, weights: WEIGHTS, label: "ATK" },
-  [Substat.FlatAtk]: { stat: 3, values: [30, 40, 50, 60], weights: [7, 54, 39, 3], label: "ATK" },
-  [Substat.HpPct]: { stat: 7, values: PCT, weights: WEIGHTS, label: "HP" },
-  [Substat.FlatHp]: { stat: 4, values: [320, 360, 390, 430, 470, 510, 540, 580], weights: WEIGHTS, label: "HP" },
-  [Substat.DefPct]: { stat: 8, values: [8.1, 9, 10, 10.9, 11.8, 12.8, 13.8, 14.7], weights: WEIGHTS, label: "DEF" },
-  [Substat.FlatDef]: { stat: 5, values: [40, 50, 60, 70], weights: [15, 46, 33, 9], label: "DEF" },
-  [Substat.Basic]: { stat: 17, tag: 4096, values: PCT, weights: WEIGHTS, label: "Basic" },
-  [Substat.Heavy]: { stat: 17, tag: 8192, values: PCT, weights: WEIGHTS, label: "Heavy" },
-  [Substat.Skill]: { stat: 17, tag: 12288, values: PCT, weights: WEIGHTS, label: "Skill" },
-  [Substat.Liberation]: { stat: 17, tag: 16384, values: PCT, weights: WEIGHTS, label: "Liberation" }
-};
-var rollAt = (s, p) => {
-  const { values, weights } = ROLL[s];
-  const target = p * weights.reduce((a, b) => a + b, 0);
-  let seen = 0;
-  for (const [i, value] of values.entries()) {
-    seen += weights[i];
-    if (seen >= target)
-      return value;
-  }
-  return values[values.length - 1];
-};
-var SHAPE = [5, 5, 3, 2, 2];
-var PROMOTIONS = [[2, 3], [3, 2]];
-var ErSpread = class {
-  /** Fewest ER rolls first — `[1, 2, 3]` where the kit named no ER at all, and a lone `[5]` where
-   *  it named ER first. */
-  tiers;
-  /** The five stats the kit named, most important first — what every tier is built from. */
-  named;
-  /** The high-investment spread with no ER line at all, worn by a kit whose Liberation costs
-   *  nothing (`maxEnergy: 0`) — there the roll would be paying down a bar that never fills, and the
-   *  slot goes to the sixth stat instead. Null on ChemX32, which carries its ER roll either way. */
-  noEr;
-  constructor(named, tiers, noEr = null) {
-    this.named = named;
-    this.tiers = tiers;
-    this.noEr = noEr;
-  }
-  /** The cheapest tier carrying at least `rolls` ER rolls, or the top one where nothing does — a
-   *  combo wanting more than the spread can pay has to find it on an ER 3-cost main stat, and the
-   *  solver is what reaches for one (see `rankedMainstats`). */
-  at(rolls) {
-    return (this.tiers.find((t) => t.rolls >= rolls) ?? this.tiers[this.tiers.length - 1]).piece;
-  }
-};
-function spreadPiece(named) {
-  const counts = /* @__PURE__ */ new Map();
-  named.slice(0, SHAPE.length).forEach((s, i) => counts.set(s, SHAPE[i]));
-  for (let s = Substat.CritRate; s <= Substat.Liberation; s++)
-    if (!counts.has(s))
-      counts.set(s, 1);
-  const labels = [...new Set(named.slice(0, SHAPE.length).filter((s) => s > Substat.CritDmg && (s !== Substat.Er || counts.get(s) === 5)).map((s) => ROLL[s].label))];
-  const lines = [...counts].map(([s, n]) => [ROLL[s].stat, rollAt(s, 0.5) * n, ROLL[s].tag]);
-  const piece = new Buff({
-    name: `ChemX32 - ${labels.join(" ")}`,
-    constantStats: () => {
-      for (const [stat, value, tag] of lines)
-        addStat(stat, value, tag);
-    }
-  });
-  ROLL_BUFFS.set(piece, rollBuffsOf("ChemX32", counts, 0.5));
-  return piece;
-}
-var litStats = (maxEnergy2) => maxEnergy2 ? [
-  11
-  /* Stat.Er */
-] : [];
-var erRollValue = () => rollAt(Substat.Er, 0.5);
-function substats(sub1, sub2, sub3, sub4, sub5, sub6) {
-  const named = [sub1, sub2, sub3, sub4, sub5, sub6];
-  if (new Set(named).size !== 6)
-    throw new Error(`substats(${named.join(", ")}): six distinct stats`);
-  const own = named.indexOf(Substat.Er);
-  const held = own < 0 ? 1 : SHAPE[own];
-  const rest = named.filter((s) => s !== Substat.Er);
-  const tiers = [{ rolls: held, piece: spreadPiece(named) }];
-  for (const [rolls, place] of PROMOTIONS) {
-    if (rolls > held)
-      tiers.push({ rolls, piece: spreadPiece([...rest.slice(0, place), Substat.Er, ...rest.slice(place)].slice(0, 5)) });
-  }
-  return new ErSpread(named, tiers);
-}
-var HIGH_SHAPE = [5, 5, 5, 3, 2, 1];
-var HIGH_PROMOTIONS = [[2, 4], [3, 3]];
-function highPiece(named, last) {
-  const counts = /* @__PURE__ */ new Map();
-  named.forEach((s, i) => counts.set(s, HIGH_SHAPE[i] ?? 1));
-  for (const [s, n] of counts)
-    if (n > 5)
-      throw new Error(`highSubs(): ${ROLL[s].label} rolls ${n} times, a build has five echoes`);
-  const labels = [...new Set(named.filter((s) => s > Substat.CritDmg && s !== last && (s !== Substat.Er || counts.get(s) === 5)).map((s) => ROLL[s].label))];
-  const lines = [...counts].map(([s, n]) => [ROLL[s].stat, rollAt(s, 0.8) * n, ROLL[s].tag]);
-  const piece = new Buff({
-    name: `High Invest - ${labels.join(" ")}`,
-    constantStats: () => {
-      for (const [stat, value, tag] of lines)
-        addStat(stat, value, tag);
-    }
-  });
-  ROLL_BUFFS.set(piece, rollBuffsOf("High Invest", counts, 0.8));
-  return piece;
-}
-function highSubs(sub1, sub2, sub3, sub4, sub5, sub6) {
-  const named = [sub1, sub2, sub3, sub4, sub5, sub6];
-  if (new Set(named).size !== 6)
-    throw new Error(`highSubs(${named.join(", ")}): six distinct stats`);
-  const own = named.indexOf(Substat.Er);
-  if (own >= 0)
-    return new ErSpread(named, [{ rolls: HIGH_SHAPE[own], piece: highPiece(named, sub6) }]);
-  const five = named.slice(0, 5);
-  return new ErSpread(named, [
-    { rolls: 1, piece: highPiece([...five, Substat.Er], sub6) },
-    ...HIGH_PROMOTIONS.map(([rolls, place]) => ({ rolls, piece: highPiece([...five.slice(0, place), Substat.Er, ...five.slice(place)], sub6) }))
-  ], highPiece(named, sub6));
-}
-
 // dist/src/teamrun.js
 var hitsOf = (line) => line.members?.length ? line.members : [line.snap];
 var toLine = (snap, spill = false) => ({ id: snap.action.name, isChain: false, parts: [], snap, mv: snap.mv, avg: snap.avg, spill });
@@ -4161,7 +4162,7 @@ function erRollsWanted(m, c, need) {
   const base = m.loadout.substat.tiers[0].rolls;
   if (!need)
     return base;
-  return base + Math.max(0, Math.ceil((need - erHeld(m, c, base)) / erRollValue()));
+  return base + Math.max(0, Math.ceil((need - erHeld(m, c, base) - ER_TOLERANCE) / erRollValue()));
 }
 var GEAR_ER = /* @__PURE__ */ new WeakMap();
 function gearEr(gear) {
@@ -9692,7 +9693,7 @@ var QINGXIAO = new Loadout({
     15
     /* Mainstat.ATK1 */
   ),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Liberation),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.FlatAtk, Substat.Heavy, Substat.Liberation),
   highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.FlatAtk, Substat.Heavy, Substat.Liberation),
   rotation: QX_ROTATION,
   sequences: QX_SEQUENCES
@@ -14240,7 +14241,14 @@ var SealedDelusion = suomingAction("Forte Skill - Furled Canopy: Sealed Delusion
   forte1: -800,
   updateBuffs: () => applyCurrent(DEEP_MIND, 1)
 });
-var UnforsakenMind = suomingAction("Skill - Unfurled Canopy: Unforsaken Mind", { node: 2, cast: 3, type: 4096, mv: 152.67, offtune: 8776 });
+var UnforsakenMind = suomingAction("Skill - Unfurled Canopy: Unforsaken Mind", {
+  node: 2,
+  cast: 3,
+  type: 4096,
+  mv: 152.67,
+  offtune: 8776,
+  forte1: -800
+});
 var EngravedHeart = suomingAction("Forte Basic - Umbral Canopy: Engraved Heart", {
   node: 2,
   cast: 1,
@@ -14249,7 +14257,6 @@ var EngravedHeart = suomingAction("Forte Basic - Umbral Canopy: Engraved Heart",
   energy: 2.05 * 3 + 1.03 * 4 + 0.52 * 4 + 8.18,
   concerto: 40,
   offtune: 2602 * 3 + 1301 * 4 + 651 * 4 + 10405,
-  forte1: -800,
   updateBuffs: () => revokeCurrent(DEEP_MIND)
 });
 var Outro17 = suomingAction("Outro - Canopy Rumble", {
@@ -14442,10 +14449,12 @@ var SUOMING_RESONATOR = new Resonator({
     applyCurrent(SM_BOON_PAYOUT, 1);
   }
 });
+var UHA12 = new ActionGroup("Basic - Unfurled Canopy: Whirling Thunder 12", [UHA1, UHA2]);
 var UBA234 = new ActionGroup("Basic - Unfurled Canopy 234", [UBA2, UBA3, UBA4]);
 var UBA34 = new ActionGroup("Basic - Unfurled Canopy 34", [UBA3, UBA4]);
 var UBA12 = new ActionGroup("Basic - Unfurled Canopy 12", [UBA1, UBA2]);
 var UBA1234 = new ActionGroup("Basic - Unfurled Canopy 1234", [UBA1, UBA2, UBA3, UBA4]);
+var UBA123 = new ActionGroup("Basic - Unfurled Canopy 123", [UBA1, UBA2, UBA3]);
 var BA1233 = new ActionGroup("Basic - Furled Canopy 123", [BA116, BA216, BA317]);
 var SM_ROTATION = new Rotation([
   NOINTRO,
@@ -14464,6 +14473,24 @@ var SM_ROTATION = new Rotation([
   OUTRO
 ]);
 var SM_ROTATION_MDPS = new Rotation([
+  INTRO,
+  Liberation12,
+  RiftCleaver,
+  UBA34,
+  DODGE,
+  UBA1234,
+  DODGE,
+  UBA1,
+  // add uba2 for 1s
+  UnforsakenMind,
+  EngravedHeart,
+  ECHO_SWAP,
+  OUTRO
+]);
+var SM_ROTATION_MDPS_DOUBLE = new Rotation([
+  DOUBLE_INTRO,
+  UBA1234,
+  SWAP,
   INTRO,
   Liberation12,
   RiftCleaver,
@@ -14515,6 +14542,23 @@ var SUOMING_MDPS = new Loadout({
   highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
   sequences: SM_SEQUENCES,
   rotation: SM_ROTATION_MDPS
+});
+var SUOMING_MDPS_DOUBLE = new Loadout({
+  resonator: SUOMING_RESONATOR,
+  weapons: [UNSPOKEN_RUE, EMERALD_OF_GENESIS, RED_SPRING],
+  echoLoadouts: [new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC)],
+  mainstats: mainstatOptions(
+    0,
+    1,
+    6,
+    11,
+    15
+    /* Mainstat.ATK1 */
+  ),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+  sequences: SM_SEQUENCES,
+  rotation: SM_ROTATION_MDPS_DOUBLE
 });
 
 // dist/src/resonators/electro/xiangli_yao.js
@@ -14683,15 +14727,15 @@ var XLY_S6 = new Sequence({
   }
 });
 var XLY_SEQUENCES = [XLY_S1, XLY_S2, XLY_S3, XLY_S4, XLY_S5, XLY_S6];
-var UBA123 = new ActionGroup("Basic - Pivot: Impale 123", [UBA13, UBA22, UBA32]);
+var UBA1232 = new ActionGroup("Basic - Pivot: Impale 123", [UBA13, UBA22, UBA32]);
 var XLY_ROTATION = new Rotation([
   INTRO,
-  //Skill, Skill, // TODO swapped
+  Skill15,
   Liberation13,
   USkill,
   FBA6,
   UForte,
-  UBA123,
+  UBA1232,
   UForte,
   USkill,
   FBA6,
@@ -16061,12 +16105,13 @@ var Lib26 = deniaAction("Liberation - Final Act (Breakdown)", {
   offtune: 52528,
   resetForte1: true,
   forte2: -100,
+  // the Breakdown shift's +30% ATK pays into this cast: the shift takes itself off next action
   updateBuffs: () => {
-    revokeCurrent(ENTROPY_BREAKDOWN);
     applyCurrent(ENTROPY_STAGECRAFT);
     const field = isHeld(DN_S4) ? EROSION_FIELD_S4 : EROSION_FIELD;
     revokeTeam(field);
     applyTeam(field, 30);
+    queue(ErosionField);
   }
 });
 var EROSION2 = new ActionField("Denia: Erosion Field");
@@ -16157,6 +16202,10 @@ var spendsVoid = (a) => a.forte1 < 0 && a.forte2 > 0;
 var ENTROPY_BREAKDOWN = new Buff({
   name: "Entropy Shift: Breakdown Form",
   stats: [[6, 30]],
+  updateBuffs: () => {
+    if (isHeld(ENTROPY_STAGECRAFT) && !runningAction(Lib26))
+      revokeCurrent(ENTROPY_BREAKDOWN);
+  },
   // the retag has to land in the first phase, before anything reads the type (see typeOverride)
   updateDebuffs: () => {
     if (spendsVoid(currentAction()) && forte1() > 0)
@@ -19309,13 +19358,13 @@ var LUCILLA_RESONATOR = new Resonator({
   maxForte1: 150,
   stats: [[1, 12237.5], [0, 375], [2, 1197.8]]
 });
-var UBA1232 = new ActionGroup("Basic - Tracing Forms 123", [UBA16, UBA25, UBA36]);
+var UBA1233 = new ActionGroup("Basic - Tracing Forms 123", [UBA16, UBA25, UBA36]);
 var LC_ROTATION2 = new Rotation([
   INTRO,
   PhantomFrame,
   Spotlight,
   Liberation22,
-  UBA1232,
+  UBA1233,
   LettingGo,
   ECHO_SWAP,
   OUTRO,
@@ -19326,7 +19375,7 @@ var LC_ROTATION2 = new Rotation([
   INTRO_3,
   ECHO_CANCEL,
   Liberation22,
-  UBA1232,
+  UBA1233,
   LettingGo,
   PhantomFrame,
   Spotlight,
@@ -20055,8 +20104,8 @@ var SUISUI = new Loadout({
     16
     /* Mainstat.HP1 */
   )],
-  substat: substats(Substat.Er, Substat.CritRate, Substat.CritDmg, Substat.Skill, Substat.HpPct, Substat.FlatHp),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Er, Substat.Skill, Substat.HpPct, Substat.FlatHp),
+  substat: substats(Substat.Er, Substat.CritDmg, Substat.CritRate, Substat.Skill, Substat.HpPct, Substat.FlatHp),
+  highSubstat: highSubs(Substat.CritDmg, Substat.CritRate, Substat.Er, Substat.Skill, Substat.HpPct, Substat.FlatHp),
   rotation: {
     0: SS_ROTATION
     //3: SS_ROTATION_S3 disabled for er and rot extend
@@ -23916,9 +23965,13 @@ var INTENDED = [];
 var TEAMS = [
   // suoming mdps, electro basic unison
   INTENDED,
-  [[SHOREKEEPER], [SANHUA, JINHSI_SUPPORT], SUOMING_MDPS],
+  [[SHOREKEEPER], [JINHSI_SUPPORT], SUOMING_MDPS],
+  INTENDED,
+  [[SHOREKEEPER], [SANHUA], SUOMING_MDPS_DOUBLE],
   INTENDED,
   [[SHOREKEEPER, MORNYE], [LYNAE_RUPTURE], SUOMING_MDPS],
+  INTENDED,
+  [[SHOREKEEPER], [AUGUSTA], SUOMING],
   [[VERINA, MORNYE, SUISUI], [SANHUA, LYNAE_RUPTURE, REBECCA, JINHSI_SUPPORT], SUOMING_MDPS],
   // dual dps long rot
   // [[SHOREKEEPER, VERINA, BULING, MORNYE, SUISUI], [SUOMING_MDPS], [JINHSI]],
@@ -23999,9 +24052,9 @@ var TEAMS = [
   [[MORNYE], [DENIA_BURST], AEMEATH_RUPTURE],
   // aemeath: fusion liberation on fusion burst — Denia's Burst mode feeds the stacks and amplifies
   INTENDED,
-  [[SUISUI, CHISA, LUPA], [DENIA_BURST], AEMEATH_BURST],
+  [[SUISUI, CHISA], [DENIA_BURST], AEMEATH_BURST],
   INTENDED,
-  [[DENIA_BURST], [LYNAE_RUPTURE, CHANGLI], AEMEATH_BURST],
+  [[DENIA_BURST], [LYNAE_RUPTURE, CHANGLI, LUPA], AEMEATH_BURST],
   [[SHOREKEEPER, VERINA, MORNYE, LUPA, DENIA_BURST, CHISA, SUISUI], [DENIA_BURST, LUPA, JIANXIN, ROVER_ELECTRO], AEMEATH_BURST],
   // monofus needs lupa or denia
   [[LUPA, DENIA_BURST], [CHANGLI, BRANT], AEMEATH_BURST],
@@ -24702,14 +24755,15 @@ export {
   effectiveShred,
   effectiveRes,
   damageFactors,
+  substatRollBuffs,
+  litStats,
+  ER_TOLERANCE,
   SWAP,
   DODGE,
   JUMP,
   ENEMY_MAX_OFFTUNE,
   BASE_RESISTANCE,
   TUNE_BREAK_ENEMY,
-  substatRollBuffs,
-  litStats,
   hitsOf,
   erRollsFor,
   runTeam,

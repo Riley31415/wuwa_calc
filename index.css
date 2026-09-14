@@ -323,9 +323,11 @@ body {
   background: var(--surface);
   box-shadow: var(--sh-2);
 }
-/* the name column to its longest name and the five figure columns each to their own widest
-   figure — the table is as wide as its contents, not the page */
-.rtable.dpr { grid-template-columns: max-content repeat(var(--cols, 5), max-content); width: max-content; }
+/* The name column to its longest name and the five figure columns each to their own widest
+   figure — the table is as wide as its contents, not the page. The pies' row spans every track and
+   is wider than the figures come to (`svg.pie`'s own minimum), and that slack goes to the five
+   figure columns alone: the two Energy columns (`.energy`, the detail page's) hold their width. */
+.rtable.dpr { grid-template-columns: max-content repeat(5, minmax(max-content, 1fr)); width: max-content; }
 /* ...and on the page it takes the whole of its block's height, which is Equipment's height */
 .rtable-block > .rtable.dpr { flex: 1; }
 /* Loadouts turns the other two on their side — the row label down the left, one column per member
@@ -345,8 +347,9 @@ body {
    tables are read for the figures. Its own line-height, not `.rtrow .c`'s 17px. */
 .rtrow.rthead .c {
   background: var(--surface-3);
-  /* the action log's heading band (`.head .c`), which carries no row border */
-  padding: 9px 10px;
+  /* the action log's heading band (`.head .c`), which carries no row border — and the same 7px
+     the member headings beside it already take (`.c.mem` below), so all three tables open level */
+  padding: 7px 10px;
   border-top: 0;
   line-height: 19px;
   font-size: 11px;
@@ -411,26 +414,27 @@ body {
 .c.menustats td.k { color: var(--dim); padding-right: 18px; }
 .c.menustats td.v { text-align: right; color: var(--ink); }
 
-/* Energy Requirements: the member's own real ER stat dipped below this cell's own shown
-   requirement at some point since their last reset — same red-underline treatment as the action
-   table's own `.negative`/`.underspent`: red where the build falls short of it. */
-.rtrow .c.er-under { color: #e5484d; }
-/* Energy/Offtune Gen with a teammate feeding it: the action log's own "there is a panel behind
-   this figure" mark (`.c.buffed`), so the cells worth opening are the ones that say so. */
-.rtrow .c.teamfed { text-decoration: underline dotted #fff; text-underline-offset: 3px; }
+/* The requirement the Energy Regen menu stat is read against, written into its label. The figure
+   alone carries the colour — the "(need" around it stays the label's own tone — underlined either
+   way, red where the build's own ER falls short of it (the action table's own
+   `.negative`/`.underspent` red) and green where it covers it. Amber between the two, where only
+   the run's own slack (`ER_TOLERANCE`) closes the gap — the bar fills, but on nothing the build
+   actually wears, and one point more of requirement would cost it a roll. */
+.rtrow .erreq { text-decoration: underline; text-underline-offset: 3px; }
+.rtrow .erreq.er-under { color: #e5484d; }
+.rtrow .erreq.er-slack { color: var(--amber); }
+.rtrow .erreq.er-met { color: #3ddc7a; }
 
 /* Damage Contribution's two rules, both drawn on the cells rather than as boxes of their own (the
    rows are `display: contents`, so there is no row box to put a border on).
 
-   The team's own row ruled off from the resonators above it: its label and the five figure columns
-   only, stopping short of the resource columns beside them, which this row leaves empty. `.c`
-   already reserves a transparent 1px top border, so colouring it in shifts nothing. */
-.rtable.dpr .rtrow.total .c:nth-child(-n + 6) { border-top-color: var(--line-2); }
+   The team's own row ruled off from the resonators above it. `.c` already reserves a transparent
+   1px top border, so colouring it in shifts nothing. */
+.rtable.dpr .rtrow.total .c { border-top-color: var(--line-2); }
 /* ...and the Total column ruled off from the four loops, down the five rows that carry a figure —
    the heading above them keeps the band it shares with the rest. An inset shadow rather than a left
    border: the track is `max-content`, so a border would widen the column and shift the figures. */
 .rtable.dpr .rtrow:not(.rthead):not(.dist) .c:nth-child(6) { box-shadow: inset 1px 0 0 var(--line-2); }
-
 /* ------------------------------------------------- Damage Contribution: the Distribution row */
 
 /* Every figure in the table is a cell the pies below can be read for; the one they are showing
@@ -442,28 +446,39 @@ body {
 /* the pies run the whole width of the table, the row's own label given up to them */
 .rtrow.dist .c.distbody {
   grid-column: 1 / -1;
-  /* the deeper floor is what raises the pies: they centre in the content box, whose middle this
-     puts a little above the row's own */
-  padding: 12px 10px 40px;
+  /* Both distributions to one floor, so switching between a resonator's pies and the team's chart
+     never resizes the table under them — the chart plus its key is the taller of the two, and the
+     pies keep its height rather than the row snapping ~36px shorter. Only bites once the two tables
+     have wrapped onto separate lines: side by side the `1fr` track already levels them and the row
+     comes out past this on its own. */
+  min-height: 285px;
+  /* the floor matches the gap under a figure's own title, which is what puts a pie's centre exactly
+     halfway between that title and the bottom of the cell */
+  padding: 12px 10px 8px;
   /* ...but the team's own panes fill the row rather than centring in it, and every pixel of that
      floor is a row of the ranking that would otherwise be cut */
   white-space: normal;
   font-family: var(--sans);
-  /* the row is as tall as Equipment leaves it, so the pies sit in the middle of it, title and all */
+  /* the row is as tall as Equipment leaves it, and both distributions take the whole of it — a pie
+     centres in the box its own title leaves rather than in the row */
   display: flex;
-  align-items: center;
+  align-items: stretch;
 }
 /* split down the middle, each pie centred in its own half */
 .pies { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+/* the frame takes the height under the title, and the drawing centres in it (`meet`) — so the pie's
+   own middle lands halfway between the title's bottom edge and the cell's */
+svg.pie { flex: 1; min-height: 0; }
 .piefig { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
 /* the table's own heading type — these are two sub-headings inside one row, not content */
 .piefig figcaption { font-size: 12px; font-weight: 650; color: var(--dim); }
-/* Scales with its half rather than sitting at a fixed size, and never clips: a long name on a
-   leader is allowed to run past the box's own edge. The minimum is what keeps the two halves'
-   labels off each other — the row carries it up into the table's own width. */
-svg.pie { width: 100%; min-width: 455px; max-width: 480px; height: auto; overflow: visible; }
+/* Scales with its half rather than sitting at a fixed size; its frame is drawn wide enough for its
+   own labels (panels.ts's pieSvg), so nothing of it runs out to the row's scroll box to be cut. The
+   minimum is what keeps the two halves' labels off each other — the row carries it up into the
+   table's own width. */
+svg.pie { width: 100%; min-width: 330px; max-width: 480px; height: auto; overflow: visible; }
 /* a leader's label — the name never wears the wedge's colour, the line running to it carries that */
-svg.pie text { font-family: var(--sans); font-size: 14px; }
+svg.pie text { font-family: var(--sans); }
 svg.pie .nm { fill: var(--ink-2); }
 svg.pie .pc { fill: var(--dim); font-family: var(--mono); }
 /* Only the wedges take the pointer, so a leader or a label lying over one doesn't swallow the
@@ -494,10 +509,14 @@ svg.pie text { text-rendering: geometricPrecision; }
    is exactly how much fits. */
 .rtrow.dist .c.distbody:has(.teampanes) { padding-bottom: 12px; }
 .teampanes { flex: 1; align-self: stretch; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-.teampanes .piefig { height: 100%; }
+/* Sized off nothing inside: the chart's height is definite here (the figure fills the row) and a
+   chart with an aspect ratio then asks for the width that height comes to, which widened the panes
+   — and the table — past the pies'. The floor is the pies' own (`svg.pie`), so the two rows agree. */
+.teampanes .piefig { height: 100%; contain: inline-size; min-width: 330px; }
 /* sized like the pies beside it, so the team's figures and a resonator's leave the table the same
    width; the chart takes the middle of what its title leaves, the way a pie does */
-svg.bars { width: 100%; min-width: 455px; max-width: 480px; height: auto; }
+/* takes the height the pane leaves between the title and the key, which is pinned under it */
+svg.bars { width: 100%; min-width: 330px; max-width: 480px; flex: 1; min-height: 0; height: auto; }
 svg.bars .axis { stroke: var(--line-2); }
 /* the chart's key, right under the chart rather than out on the slack below it: one even column
    per caster, whoever they are */
@@ -507,7 +526,9 @@ svg.bars .axis { stroke: var(--line-2); }
   width: 100%;
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(var(--keys, 4), 1fr);
+  /* a floor of 0, not the names' own width: four names came to more than the chart's minimum and
+     widened the pane — and the table with it — past what the pies beside it hold it at */
+  grid-template-columns: repeat(var(--keys, 4), minmax(0, 1fr));
   font-size: 12px;
   color: var(--ink-2);
 }
@@ -1214,7 +1235,7 @@ main::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 .head .c {
   /* one more pixel of right padding than the cells below (`.c`), so a heading sitting right
      against its column's own right edge is not quite as tight as the figures under it */
-  padding: 9px 6px 9px 2px;
+  padding: 7px 6px 7px 2px;
   /* smaller than the cells below on purpose: uppercase + letter-spacing at the body size would
      outrun the narrow columns, whose tracks are sized off their values, not their headings */
   font-size: 11px;
@@ -1447,7 +1468,9 @@ body.coldrag { user-select: none; }
   /* Above the pinned column header. Nothing between the panel and the page root sets a
      z-index, so this competes at the top level rather than inside a row's own context. */
   z-index: 200;
-  padding: 9px 11px;
+  /* tighter top and bottom than sides: the rows inside already carry their own leading, so the
+     box only needs enough to keep the first and last off the border */
+  padding: 5px 11px;
   border: 1px solid var(--line-2);
   /* opaque, not translucent: the table underneath it is dense and shows straight through */
   background: var(--surface-3);
@@ -1462,6 +1485,10 @@ body.coldrag { user-select: none; }
   font-weight: 400;
   color: var(--ink-2);
 }
+
+/* A one-line panel: prose, not figures, so it reads in the page's own face rather than the
+   tabular one every other panel uses. */
+.pop.tip { font-family: inherit; font-size: 12px; color: var(--ink-2); }
 
 /* No `width: 100%` — that stretched every panel out to `.pop`'s own box (which used to carry a
    flat `min-width: 250px`, gone now too) rather than letting the table size itself, so a
@@ -1493,10 +1520,9 @@ body.coldrag { user-select: none; }
   color: var(--ink);
 }
 .pop tr:first-child.sec td { padding-top: 0; }
-/* the rule is what marks a total or a summary row; the text keeps the rows' own weight and size.
-   A sum standing on its own — the cell block's, which is the whole panel (detail.ts's `sumPanel`)
-   — has nothing above it to rule off, and the line read as a lid over the figure. */
-.pop .sum:not(:first-child) td { padding-top: 5px; border-top: 1px solid var(--line-2); }
+/* the rule is what marks a total or a summary row; the text keeps the rows' own weight and size
+   (the cell block's own panel is a plain list, detail.ts's `blockPanel` — no rule, nothing to sum) */
+.pop .sum td { padding-top: 5px; border-top: 1px solid var(--line-2); }
 .pop .sum td.v { color: var(--ink); }
 
 /* a group heading — base / bonus / flat, a scope ("Basic Dmg Bonus"), or the column's own name on

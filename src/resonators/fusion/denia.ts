@@ -134,9 +134,10 @@ const Banish2 = deniaAction("Skill - Banish 2", { cutscene: true,node: Node.Skil
 
 // --- Final Act. Stagecraft spends the Energy bar (125); Breakdown spends the full Conformal
 //     Charge and every Void Particle instead (zeroed in DENIA_RESONATOR's update — "all", not a fixed
-//     delta), and drops the Erosion Field: a 136.33% Liberation pull every 4s for 30s — seven
-//     ticks, one every four active presses by anyone (EROSION_FIELD below), each its own cast to
-//     the modes below.
+//     delta), and drops the Erosion Field: a 136.33% Liberation pull as it lands and every 4s of
+//     its 30s after — eight in all (wuwalab's hit count), the first queued straight off the cast
+//     and the rest one every four active presses by anyone (EROSION_FIELD below), each its own
+//     cast to the modes below.
 const Lib1 = deniaAction("Liberation - Final Act (Stagecraft)", {
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 397.62,
   concerto: 20, offtune: 48000, resetEnergy: true, 
@@ -148,13 +149,15 @@ const Lib1 = deniaAction("Liberation - Final Act (Stagecraft)", {
 const Lib2 = deniaAction("Liberation - Final Act (Breakdown)", {
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 795.24, energy: 30,
   concerto: 20, offtune: 52528, resetForte1: true, forte2: -100,
+  // the Breakdown shift's +30% ATK pays into this cast: the shift takes itself off next action
   updateBuffs: () => {
-    revokeCurrent(ENTROPY_BREAKDOWN);
     applyCurrent(ENTROPY_STAGECRAFT);
     // only one field of hers at a time: a fresh cast starts the clock over
     const field = isHeld(DN_S4) ? EROSION_FIELD_S4 : EROSION_FIELD;
     revokeTeam(field);
     applyTeam(field, 30);
+    // the field pulls as it lands — after this cast, so the Breakdown shift is already off it
+    queue(ErosionField);
   },
 });
 /** Her field, and the one pull of it — the pair sits together the way a status ladder sits with
@@ -252,11 +255,15 @@ const OFFTUNE_SURGE = new Buff({
 const spendsVoid = (a: Action): boolean => a.forte1 < 0 && a.forte2 > 0;
 
 /** Entropy Shift: Breakdown Form — +30% ATK for 12s, granted by Final Act - Stagecraft and Knock
- *  Knock. Replaced outright by Final Act - Breakdown's own Stagecraft shift (see DENIA_RESONATOR's update),
- *  and short enough to come off after her outro otherwise. */
+ *  Knock. Replaced by Final Act - Breakdown's own Stagecraft shift — after that cast rather than
+ *  in it, so the ATK still pays into the Final Act that ends it — and short enough to come off
+ *  after her outro otherwise. */
 const ENTROPY_BREAKDOWN = new Buff({
   name: "Entropy Shift: Breakdown Form",
   stats: [[Stat.BonusAtk, 30]],
+  updateBuffs: () => {
+    if (isHeld(ENTROPY_STAGECRAFT) && !runningAction(Lib2)) revokeCurrent(ENTROPY_BREAKDOWN);
+  },
 
   // the retag has to land in the first phase, before anything reads the type (see typeOverride)
   updateDebuffs: () => { if (spendsVoid(currentAction()) && forte1() > 0) typeOverride(Type1.Liberation); },

@@ -13,6 +13,7 @@ import {
 } from "./state.js";
 import { casting, isCast } from "./context.js";
 import { damageAvgOf } from "./damage.js";
+import { ER_TOLERANCE } from "../shared/substats.js";
 
 export interface Snapshot {
   action: Action;
@@ -552,7 +553,7 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
       if (want > slot.erWorst) slot.erWorst = want;
       // Nothing after this point can make the bar have been full, so the rest of the fight is run
       // on a build that cannot cast what its rotation lists. Bail here and let teamrun re-equip.
-      if (slot.erGuard && want > slot.constEr + 1e-9) {
+      if (slot.erGuard && want > slot.constEr + ER_TOLERANCE + 1e-9) {
         ER_SHORT.member = slot.name;
         ER_SHORT.need = want;
         throw ER_SHORT;

@@ -5,6 +5,7 @@ import {
   CAST_NAME,
   DODGE,
   ENEMY_MAX_OFFTUNE,
+  ER_TOLERANCE,
   JUMP,
   MAINSTAT_ROWS,
   NODE_NAME,
@@ -53,7 +54,7 @@ import {
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-JOF4PML2.js";
+} from "./chunk-Q6LN2NQV.js";
 
 // dist/src/display.js
 var formatters = /* @__PURE__ */ new Map();
@@ -343,7 +344,6 @@ function tracing(snapshot, stats, merge = true) {
   }
   return rows.sort((a, b) => tagRank(a.stat ?? 0) - tagRank(b.stat ?? 0));
 }
-var columnOf = (report, key) => report.columns.find((c) => c.key === key);
 var gaugeSuffix = (raw, key) => {
   const cap = raw[`max:${key}`];
   return typeof cap === "number" ? `/${fmt(cap, decimalsOf(cap), false, false)}` : "";
@@ -1657,7 +1657,7 @@ function statsPanel(stats, buffs, owner, slotHue, heading = "Stats", noStat = fa
     return "";
   return lazyPop(`<span class="pop gear"><table>` + (stats.length ? `<tr class="sec"><td colspan="${cols}">${esc(heading)}</td></tr>${stats.map(row).join("")}` : "") + (buffs.length ? `<tr class="sec"><td colspan="${cols}">Buffs</td></tr>${buffs.map(row).join("")}` : "") + `</table></span>`);
 }
-function loadoutTable(run) {
+function loadoutTable(run, erReq) {
   const erRolls = erRollsFor(run.teamKey, run.members, run.combo);
   const builds = run.members.map((m, i) => ({ member: m, combo: run.combo[i], erRolls: erRolls[i] }));
   const slotHue = new Map([
@@ -1716,12 +1716,19 @@ function loadoutTable(run) {
     rows.push(row("Mode", builds.map((b) => gearCell(b.member.name, b.member.loadout.mode ?? null))));
   }
   rows.push(row("Menu Stats", builds.map((b) => {
-    const stats = menuStatRows(b.member, b.combo, b.erRolls).map((r) => `<tr><td class="k">${esc(r.label)}</td><td class="v">${esc(r.value)}</td></tr>`).join("");
+    const req = erReq?.get(b.member.name);
+    const stats = menuStatRows(b.member, b.combo, b.erRolls).map((r) => {
+      const label = r.label === statLabel(
+        11
+        /* Stat.Er */
+      ) && req ? `${esc(r.label)} ${req}` : esc(r.label);
+      return `<tr><td class="k">${label}</td><td class="v">${esc(r.value)}</td></tr>`;
+    }).join("");
     return `<div class="c menustats"><table>${stats}</table></div>`;
   })));
   return `<div class="rtable loadout" style="--cols:${builds.length}">${head}${rows.join("")}</div>`;
 }
-function dprTable(run, lines, extra) {
+function dprTable(run, lines) {
   const grand = run.sectionTotals.reduce((a, b) => a + b, 0);
   const flat = lines?.flat();
   const slots = [...run.members.map((m) => m.name), TUNE_BREAK_ENEMY.name];
@@ -1742,21 +1749,19 @@ function dprTable(run, lines, extra) {
       // for each of the four loop columns, all four in order for the Total
       ...[...lines.map((sec) => [sec]), lines].map((secs, i) => [`${TEAM_ROW}|${i}`, teamCell(secs, sections[i] ?? "", slotHue)])
     ]);
-  const blanks = extra ? extra.heads.map(() => `<div class="c num"></div>`).join("") : "";
-  const extraFor = (slot) => extra ? (extra.cells.get(slot) ?? []).join("") || blanks : "";
-  const head = `<div class="rtrow rthead"><div class="c"></div>` + sections.map((n) => `<div class="c num">${n}</div>`).join("") + `<div class="c num">Total</div>` + (extra ? extra.heads.map((h) => `<div class="c num">${esc(h)}</div>`).join("") : "") + `</div>`;
+  const head = `<div class="rtrow rthead"><div class="c"></div>` + sections.map((n) => `<div class="c num">${n}</div>`).join("") + `<div class="c num">Total</div></div>`;
   const valueCell = (sec, value, key) => sec ? `<div class="c num dist-cell${key === selected2 ? " sel" : ""}" data-dist="${key}">${fmt(value)}</div>` : `<div class="c num">${fmt(value)}</div>`;
   const rowLabel = (slot, mem) => `<div class="c name"${mem}${lines ? ` data-dist-row="${esc(slot)}"` : ""}>${esc(slot)}</div>`;
   const dataRow = (slot, color) => {
     const own = ownTotal(slot);
-    return `<div class="rtrow">` + rowLabel(slot, ` style="--mem:${color}"`) + run.sectionBySlot.map((by, i) => valueCell(lines?.[i], by.get(slot) ?? 0, `${slot}|${i}`)).join("") + valueCell(flat, own, `${slot}|4`) + extraFor(slot) + `</div>`;
+    return `<div class="rtrow">` + rowLabel(slot, ` style="--mem:${color}"`) + run.sectionBySlot.map((by, i) => valueCell(lines?.[i], by.get(slot) ?? 0, `${slot}|${i}`)).join("") + valueCell(flat, own, `${slot}|4`) + `</div>`;
   };
   const memberRows = run.members.map((m) => dataRow(m.name, m.color)).join("");
   const tuneBreakRow = dataRow(TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color);
-  const totalRow = `<div class="rtrow total">` + rowLabel(TEAM_ROW, "") + run.sectionTotals.map((v, i) => valueCell(lines?.[i], v, `${TEAM_ROW}|${i}`)).join("") + valueCell(flat, grand, `${TEAM_ROW}|4`) + blanks + `</div>`;
+  const totalRow = `<div class="rtrow total">` + rowLabel(TEAM_ROW, "") + run.sectionTotals.map((v, i) => valueCell(lines?.[i], v, `${TEAM_ROW}|${i}`)).join("") + valueCell(flat, grand, `${TEAM_ROW}|4`) + `</div>`;
   const distRow = lines ? distributionRow(selected2) : "";
-  const tracks = lines ? `;grid-template-rows:repeat(${run.members.length + 3}, max-content) 1fr` : "";
-  return `<div class="rtable dpr" style="--cols:${5 + (extra?.heads.length ?? 0)}${tracks}">${head}${memberRows}${tuneBreakRow}${totalRow}${distRow}</div>`;
+  const tracks = lines ? ` style="grid-template-rows:repeat(${run.members.length + 3}, max-content) 1fr"` : "";
+  return `<div class="rtable dpr"${tracks}>${head}${memberRows}${tuneBreakRow}${totalRow}${distRow}</div>`;
 }
 var driver = null;
 var drivePanel = (cell2, html) => driver?.show(cell2, html);
@@ -1799,26 +1804,35 @@ function wireSourcePanels(root) {
     open = pop;
     openHome = cell2;
   };
+  const homeIn = (target, cell2) => {
+    for (let el = target; el && el !== cell2; el = el.parentElement) {
+      const data = el.dataset;
+      if (built.has(el) || data?.pop !== void 0 || data?.popKind !== void 0)
+        return el;
+    }
+    return cell2;
+  };
   const panelIn = (target) => {
     const cell2 = target?.closest?.(".c") ?? null;
     if (!cell2)
       return { cell: null, pop: null };
-    if (open && openHome === cell2)
-      return { cell: cell2, pop: open };
-    const kept = built.get(cell2);
+    const home = homeIn(target, cell2);
+    if (open && openHome === home)
+      return { cell: home, pop: open };
+    const kept = built.get(home);
     if (kept)
-      return { cell: cell2, pop: kept };
-    const data = cell2.dataset;
+      return { cell: home, pop: kept };
+    const data = home.dataset;
     const markup = data?.pop ?? (data?.popKind ? buildPop(data.popKind, data.popKey ?? "") : void 0);
     if (!markup)
-      return { cell: cell2, pop: null };
+      return { cell: home, pop: null };
     const box = document.createElement("div");
     box.innerHTML = markup;
-    cell2.removeAttribute("data-pop");
+    home.removeAttribute("data-pop");
     const pop = box.firstElementChild;
     if (pop)
-      built.set(cell2, pop);
-    return { cell: cell2, pop };
+      built.set(home, pop);
+    return { cell: home, pop };
   };
   let driven = false;
   let held = false;
@@ -1927,7 +1941,7 @@ function toHsl(hex) {
   const h = max === r ? (g - b) / spread + (g < b ? 6 : 0) : max === g ? (b - r) / spread + 2 : (r - g) / spread + 4;
   return [h * 60, spread / (1 - Math.abs(2 * l - 1)) * 100, l * 100];
 }
-var typeLabel = (type1, type2) => [type1, type2].filter((t) => t !== null).map((t) => TAG_NAME[t]).join(" ") || "Untyped";
+var typeLabel = (type1, type2) => [type2, type1].filter((t) => t !== null).map((t) => TAG_NAME[t]).join(" ") || "Untyped";
 function distCell(lines, slot, section, hue) {
   const types = /* @__PURE__ */ new Map();
   const nodes = /* @__PURE__ */ new Map();
@@ -1964,9 +1978,32 @@ function distCell(lines, slot, section, hue) {
   return { kind: "slices", slot, section, types: ranked(types), nodes: [...ranked(nodes), ...gap], total };
 }
 function pieSvg(slices, total) {
-  const width = 480, cx = 240, r = 66, pitch = 19;
+  const font = 20, glyph = font * 0.515, mono = font * 0.6;
+  const rail = Math.ceil(Math.max(11 * glyph, 8 * mono));
+  const r = 120, lead = 28, lh = Math.round(font * 1.06), pitch = lh + 4;
+  const width = 2 * (rail + r + lead + 19);
+  const height = Math.max(2 * r + 34, Math.round(width * 0.6));
+  const cx = width / 2;
+  const cy = height / 2;
   const f = (n) => n.toFixed(2);
-  const angle = (turn2) => (1 / 12 - 0.25 - turn2) * Math.PI * 2;
+  const pct = (s) => `(${(s.value / total * 100).toFixed(1)}%)`;
+  const wrapAt = 11;
+  const linesOf = (label) => {
+    const words = label.split(" ");
+    if (label.length <= wrapAt || words.length < 2)
+      return [label];
+    let best = [label], widest = Infinity;
+    for (let i = 1; i < words.length; i++) {
+      const pair = [words.slice(0, i).join(" "), words.slice(i).join(" ")];
+      const longest = Math.max(...pair.map((t) => t.length));
+      if (longest < widest) {
+        widest = longest;
+        best = pair;
+      }
+    }
+    return best;
+  };
+  const angle = (turn2) => (1 / 8 - 0.25 - turn2) * Math.PI * 2;
   let turn = 0;
   const arcs = slices.map((s) => {
     const from = turn;
@@ -1975,21 +2012,22 @@ function pieSvg(slices, total) {
     const a = angle(from + share / 2);
     return { s, from, share, a, ox: Math.cos(a) * 7, oy: Math.sin(a) * 7, side: Math.cos(a) >= 0 ? 1 : -1, y: 0 };
   });
-  const down = arcs.filter((l) => l.side < 0).length;
-  const height = Math.max(2 * r + 34, Math.max(down, arcs.length - down) * pitch + 26);
-  const cy = height / 2;
+  const linesFor = (s) => [...linesOf(s.label), pct(s)];
+  const boxH = (l) => linesFor(l.s).length * lh;
   const point = (a, rad) => [cx + rad * Math.cos(a), cy + rad * Math.sin(a)];
   for (const side of [1, -1]) {
     const column = arcs.filter((l) => l.side === side).sort((a, b) => Math.sin(a.a) - Math.sin(b.a));
     let ceiling = 10;
     for (const l of column) {
-      l.y = Math.max(cy + (r + 18) * Math.sin(l.a), ceiling);
-      ceiling = l.y + pitch;
+      const half = boxH(l) / 2;
+      l.y = Math.max(cy + (r + lead - 10) * Math.sin(l.a), ceiling + half);
+      ceiling = l.y + half + (pitch - lh);
     }
     let floor = height - 10;
     for (const l of [...column].reverse()) {
-      l.y = Math.min(l.y, floor);
-      floor = l.y - pitch;
+      const half = boxH(l) / 2;
+      l.y = Math.min(l.y, floor - half);
+      floor = l.y - half - (pitch - lh);
     }
   }
   const wedge = ({ s, from, share }) => {
@@ -2004,18 +2042,22 @@ function pieSvg(slices, total) {
   };
   const leader = ({ s, a, side, y, ox, oy }) => {
     const [px2, py2] = point(a, r);
-    const [bx, by] = point(a, r + 24);
-    const rail = cx + side * (r + 38);
-    const tail = `${f(rail - side * 30)},${f(y)} ${f(rail)},${f(y)}`;
+    const [bx, by] = point(a, r + lead - 14);
+    const out = cx + side * (r + lead);
+    const tail = `${f(out - side * 30)},${f(y)} ${f(out)},${f(y)}`;
     const curve = (dx, dy) => `M${f(px2 + dx)},${f(py2 + dy)} C${f(bx + dx)},${f(by + dy)} ${tail}`;
     return `<path class="leader" d="${curve(0, 0)}" style="--d-out:path('${curve(ox, oy)}')" fill="none" stroke="${s.color ?? "var(--faint)"}" stroke-width="2" stroke-linecap="round"/>`;
   };
   const groups = arcs.map((arc) => `<g class="slice" style="--ox:${f(arc.ox)}px;--oy:${f(arc.oy)}px">${wedge(arc)}${leader(arc)}</g>`).join("");
   const labels = arcs.map(({ s, side, y }) => {
-    const rail = cx + side * (r + 38);
-    return `<text x="${f(rail + side * 7)}" y="${f(y)}" text-anchor="${side > 0 ? "start" : "end"}" dominant-baseline="middle"><tspan class="nm">${esc(s.label)}</tspan> <tspan class="pc">(${(s.value / total * 100).toFixed(1)}%)</tspan></text>`;
+    const at = cx + side * (r + lead);
+    const x = f(at + side * 7);
+    const lines = linesFor(s);
+    const last = lines.length - 1;
+    const top = y - last * lh / 2;
+    return `<text text-anchor="${side > 0 ? "start" : "end"}" dominant-baseline="middle">` + lines.map((t, i) => `<tspan class="${i === last ? "pc" : "nm"}" x="${x}" y="${f(top + i * lh)}">${esc(t)}</tspan>`).join("") + `</text>`;
   }).join("");
-  return `<svg class="pie" viewBox="0 0 ${width} ${f(height)}" role="img">${groups}${labels}</svg>`;
+  return `<svg class="pie" viewBox="0 0 ${width} ${f(height)}" font-size="${font}" role="img">${groups}${labels}</svg>`;
 }
 var pieFigure = (heading, slices, total) => `<figure class="piefig"><figcaption>${esc(heading)}</figcaption>${pieSvg(slices, total)}</figure>`;
 function teamCell(sections, section, slotHue) {
@@ -2053,7 +2095,7 @@ function barChart(bars) {
     const h = b.dmg / peak * plotH;
     return `<rect x="${f(left + i * slot)}" y="${f(top + plotH - h)}" width="${f(Math.max(slot * 0.9, 0.6))}" height="${f(h)}" fill="${b.color}"/>`;
   }).join("");
-  return `<svg class="bars" viewBox="0 0 ${width} ${height}" role="img"><line class="axis" x1="${left}" y1="${top + plotH}" x2="${width - right}" y2="${top + plotH}"/>` + rects + `</svg>`;
+  return `<svg class="bars" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img"><line class="axis" vector-effect="non-scaling-stroke" x1="${left}" y1="${top + plotH}" x2="${width - right}" y2="${top + plotH}"/>` + rects + `</svg>`;
 }
 var barKey = (roster) => `<ul class="barkey" style="--keys:${roster.length}">${roster.map((c) => `<li><span class="dot" style="background:${c.color}"></span>${esc(c.name)}</li>`).join("")}</ul>`;
 var topActions = (top, total) => `<div class="topwrap"><ol class="topacts">${top.map((a) => `<li style="--own:${a.color};--fill:${(a.dmg / (top[0]?.dmg ?? a.dmg) * 100).toFixed(2)}%"><span class="nm">${esc(a.name)}${a.casts > 1 ? ` x${a.casts}` : ""}</span><span class="v">${fmt(a.dmg)} <span class="pct">(${Math.round(a.dmg / total * 100)}%)</span></span></li>`).join("")}</ol></div>`;
@@ -3308,13 +3350,18 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
   return columns.map((col) => {
     const v = row.raw[col.key];
     const sources = row.sources[col.key];
+    let attr = "";
     if (isRunning(col.key)) {
       if ("line" in row && row.line.aggregate)
         return cell(col);
+      const cast = ("line" in row ? row.line.snap : row.snap).action.cast;
+      const spend = col.key === "offtune" ? cast === 8 : (col.key === "concerto" || col.key === "energy") && cast === 6;
+      if (!spend)
+        attr = ` data-val="${Number(v) || 0}" data-mem="${esc(String(row.raw["member"] ?? ""))}"`;
       const before = Number(row.raw[`before:${col.key}`]) || 0;
       const fed = (sources ?? []).some((r) => r.section !== OFFTUNE_RATE && r.section !== ENERGY_RATE);
       if (!fed && Math.abs((Number(v) || 0) - before) < 1e-9)
-        return cell(col);
+        return cell(col, { attr });
     }
     const cls = [];
     if (col.key === "action")
@@ -3350,7 +3397,8 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
     }
     const mem = slotHue.get(String(v)) ?? FALLBACK_HUE;
     const style = col.key === "member" ? `--mem:${mem};color:${mem}` : col.key === "avg" ? `--mem:${slotHue.get(String(row.raw["member"] ?? "")) ?? FALLBACK_HUE}` : "";
-    const attr = col.key === "avg" && typeof v === "number" ? ` data-avg="${v}"` : "";
+    if (col.key === "avg" && typeof v === "number")
+      attr = ` data-avg="${v}"`;
     return cell(col, { cls, html, pop, style, attr });
   }).join("");
 }
@@ -3481,96 +3529,9 @@ function erRequirement(flat, resetIdx, member2, maxEnergy, constant) {
   }
   return (maxEnergy * 100 - buffed) / before;
 }
-function windowsOf(flat, member2, fallback) {
-  const casts = resetIndices(flat, 0, flat.length, member2);
-  if (casts.length < 2)
-    return [fallback];
-  return casts.slice(0, -1).map((c, i) => [c + 1, casts[i + 1]]);
-}
-function energyGenerated(flat, member2, [from, to]) {
-  let total = 0;
-  for (let i = from; i < to; i++) {
-    const line = flat[i];
-    if (line.aggregate)
-      continue;
-    for (const snap of hitsOf(line)) {
-      if (snap.member !== member2 || snap.energyWiped)
-        continue;
-      total += (snap.action.energy + snap.stat(
-        26
-        /* Stat.AddEnergy */
-      )) * (1 + snap.stat(
-        14
-        /* Stat.EnergyRegenMult */
-      ) / 100);
-    }
-  }
-  return total;
-}
-function offtuneBuilt(flat, member2, [from, to]) {
-  let total = 0;
-  for (let i = from; i < to; i++) {
-    const line = flat[i];
-    if (line.aggregate)
-      continue;
-    for (const snap of hitsOf(line)) {
-      if (snap.member !== member2)
-        continue;
-      const built = snap.action.offtune + snap.stat(
-        28
-        /* Stat.AddOfftune */
-      );
-      const direct = snap.stat(
-        29
-        /* Stat.DirectOfftune */
-      );
-      if (built > 0)
-        total += built * (snap.stat(
-          13
-          /* Stat.OfftuneBuildup */
-        ) / 100);
-      if (direct > 0)
-        total += direct;
-    }
-  }
-  return total / 1e4;
-}
-function teamSources(flat, rows, member2, [from, to], field) {
-  const rate = field === "energy" ? ENERGY_RATE : OFFTUNE_RATE;
-  const by = /* @__PURE__ */ new Map();
-  for (let i = from; i < to; i++) {
-    const line = flat[i];
-    const snap = line.snap;
-    if (line.aggregate || snap.member !== member2 || field === "energy" && snap.energyWiped)
-      continue;
-    for (const r of rows[i]?.sources[field] ?? []) {
-      if (!r.owner || r.owner === member2)
-        continue;
-      const key = `${r.source} ${r.section ?? ""}`;
-      const seen = by.get(key);
-      if (seen) {
-        if (!r.mult && r.section !== rate) {
-          seen.value += r.value;
-          seen.count = (seen.count ?? 1) + (r.count ?? 1);
-        }
-      } else
-        by.set(key, { ...r });
-    }
-  }
-  return [...by.values()];
-}
-function teamSourcePopover(sources, slotHue) {
-  if (!sources.length)
-    return "";
-  return lazyPop(`<span class="pop stat"><table><tr class="sec"><td colspan="2">Team sources</td></tr>${sources.map((r) => panelRow(r, slotHue)).join("")}</table></span>`);
-}
-function dprExtra(run, lines, report, slotHue) {
-  const erCol = columnOf(report, "er");
+var ER_TIP = lazyPop(`<span class="pop tip">Unbuffed Energy Regen Requirement</span>`);
+function energyRequirements(run, lines) {
   const flat = lines.flat();
-  const offsets = [0];
-  for (const sec of lines)
-    offsets.push(offsets[offsets.length - 1] + sec.length);
-  const lastLoop = [offsets[3], offsets[4]];
   const erOf = erRollsFor(run.teamKey, run.members, run.combo);
   const cells = /* @__PURE__ */ new Map();
   run.members.forEach((m, idx) => {
@@ -3584,22 +3545,12 @@ function dprExtra(run, lines, report, slotHue) {
     const casts = resetIndices(flat, 0, flat.length, m.name).slice(1);
     const asked = casts.map((i) => erRequirement(flat, i, m.name, maxEnergy, constant)).filter((v) => v != null);
     const req = asked.length ? Math.max(...asked) : null;
-    const erSources = constantSources.map((e) => ({ source: e.source, value: e.value, percent: true, digits: 1, owner: e.owner || m.name }));
-    const erHover = erCol ? popover({ ...erCol, full: "Base Energy Regen" }, erSources, constant, slotHue) : "";
-    const short = req != null && req > constant;
-    const reqCell = `<div class="c num${short ? " er-under" : ""}${erHover ? " has" : ""}"${erHover}>${req == null ? "\u2014" : `${fmt(req, 1)}%`}</div>`;
-    const windows = windowsOf(flat, m.name, lastLoop);
-    const best = (of) => windows.reduce((top, span) => of(span) > top[0] ? [of(span), span] : top, [0, lastLoop]);
-    const [gen, genSpan] = best((span) => energyGenerated(flat, m.name, span));
-    const [offtune, offSpan] = best((span) => offtuneBuilt(flat, m.name, span));
-    const genCell = (value, hover) => `<div class="c num${hover ? " teamfed has" : ""}"${hover}>${fmt(value, 2, true)}</div>`;
-    cells.set(m.name, [
-      reqCell,
-      genCell(gen, teamSourcePopover(teamSources(flat, report.rows, m.name, genSpan, "energy"), slotHue)),
-      genCell(offtune, teamSourcePopover(teamSources(flat, report.rows, m.name, offSpan, "offtune"), slotHue))
-    ]);
+    const met = req == null ? "" : req > constant + ER_TOLERANCE ? " er-under" : req > constant ? " er-slack" : " er-met";
+    if (req != null) {
+      cells.set(m.name, `<span class="erneed has"${ER_TIP}>> <span class="erreq${met}">${fmt(req, 1)}%</span></span>`);
+    }
   });
-  return { heads: ["Energy Req", "Energy Gen", "Offtune Gen"], cells };
+  return cells;
 }
 function page(run) {
   const { report } = detailFor(run);
@@ -3618,12 +3569,12 @@ function page(run) {
   <div class="rtables">
     <div class="rtable-block">
       <h2 class="summary-label">Equipment</h2>
-      ${loadoutTable(run)}
+      ${loadoutTable(run, energyRequirements(run, lines))}
     </div>
     <div class="rstack">
       <div class="rtable-block">
         <h2 class="summary-label">Damage Contribution</h2>
-        ${dprTable(run, lines, dprExtra(run, lines, report, slotHue))}
+        ${dprTable(run, lines)}
       </div>
     </div>
   </div>
@@ -3641,6 +3592,7 @@ function renderDetail(key) {
   app3.innerHTML = page(run);
   app3.className = "";
   wireColumnDrag(app3, detailFor(run).report.columns);
+  logMembers = run.members.map((m) => m.name);
   wireCellSelect(app3);
   wireDistribution(app3);
 }
@@ -3663,6 +3615,7 @@ function orderedKeys(columns) {
   return out;
 }
 var logColumns = [];
+var logMembers = [];
 var logOrder = [];
 var logStyle = null;
 function applyColumnOrder(root) {
@@ -3719,7 +3672,53 @@ function cellBox(grid) {
   box.className = "cellbox";
   return box;
 }
-var sumPanel = (total) => `<span class="pop stat damage"><table><tr class="sum"><td class="k">Total</td><td class="v">${esc(fmt(total, 0))}</td></tr></table></span>`;
+function doubled(row, held) {
+  const chain = row.parentElement;
+  const tgl = chain?.classList.contains("chain") ? chain.querySelector(":scope > .tgl") : null;
+  if (!tgl?.checked)
+    return false;
+  const field = tgl.id.startsWith("fg") ? tgl.id.slice(2) : "";
+  const opened = field ? chain.closest(".grid").querySelectorAll(`.r[data-fh="${field}"], [data-fh="${field}"] .r`) : chain.querySelectorAll(":scope > .parts .r");
+  return [...opened].some((r) => held.has(r));
+}
+function blockPanel(sel) {
+  let dmg = 0, dmgCells = 0;
+  const res = /* @__PURE__ */ new Map();
+  const held = new Set(sel.rows.slice(sel.r0, sel.r1 + 1));
+  const rows = blockCells(sel);
+  for (let i = 0; i < rows.length; i++) {
+    if (doubled(sel.rows[sel.r0 + i], held))
+      continue;
+    for (const c of rows[i]) {
+      if (c.dataset.avg !== void 0) {
+        dmg += Number(c.dataset.avg) || 0;
+        dmgCells++;
+        continue;
+      }
+      if (c.dataset.val === void 0)
+        continue;
+      const col = logColumns[[...c.parentElement.children].indexOf(c)];
+      const mem = col.key === "offtune" ? "" : c.dataset.mem ?? "";
+      const key = `${mem}|${col.key}`;
+      const v = Number(c.dataset.val) || 0;
+      const seen = res.get(key);
+      if (seen) {
+        seen.last = v;
+        seen.cells++;
+      } else
+        res.set(key, { label: mem ? `${mem} ${col.label}` : "Total Offtune", first: v, last: v, cells: 1, digits: col.digits ?? 2 });
+    }
+  }
+  const lines = dmgCells > 1 ? [["Total Dmg", fmt(dmg, 0)]] : [];
+  const order = (key) => logMembers.indexOf(key.split("|")[0]) * logColumns.length + logColumns.findIndex((c) => c.key === key.split("|")[1]);
+  for (const [key, r] of [...res].sort((a, b) => order(a[0]) - order(b[0]))) {
+    if (r.cells > 1)
+      lines.push([r.label, fmt(r.last - r.first, r.digits, true, false)]);
+  }
+  if (!lines.length)
+    return "";
+  return `<span class="pop stat"><table>` + lines.map(([k, v]) => `<tr><td class="k">${esc(k)}</td><td class="v">${esc(v)}</td></tr>`).join("") + `</table></span>`;
+}
 var cellSel = null;
 var cellSelBox = null;
 var holding = false;
@@ -3778,16 +3777,12 @@ function trackBlock() {
   while (col < sel.cols.length - 1 && x >= sel.cols[col + 1].left)
     col++;
   aimBlock(sel, row, col, g.top);
-  const only = sel.cols[sel.c0];
-  if (sel.c0 !== sel.c1 || only.key !== "avg" || sel.r0 === sel.r1) {
+  const html = sel.r0 === sel.r1 ? "" : blockPanel(sel);
+  if (!html) {
     dropPanel();
     return;
   }
-  let total = 0;
-  for (let r = sel.r0; r <= sel.r1; r++) {
-    total += Number(sel.rows[r].children[only.nth].dataset.avg) || 0;
-  }
-  drivePanel(sel.rows[sel.fr].children[only.nth], sumPanel(total));
+  drivePanel(sel.rows[row].children[sel.cols[col].nth], html);
 }
 var trackRaf = 0;
 function queueTrack() {

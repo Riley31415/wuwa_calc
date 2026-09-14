@@ -23,7 +23,7 @@ import { BULING } from "./resonators/electro/buling.js";
 import { HSIN_FLARE, HSIN_UNISON } from "./resonators/electro/hsin.js";
 import { REBECCA } from "./resonators/electro/rebecca.js";
 import { ROVER_ELECTRO, ROVER_ELECTRO_MDPS } from "./resonators/electro/rover_electro.js";
-import { SUOMING, SUOMING_MDPS } from "./resonators/electro/suoming.js";
+import { SUOMING, SUOMING_MDPS, SUOMING_MDPS_DOUBLE } from "./resonators/electro/suoming.js";
 import { XIANGLI_YAO } from "./resonators/electro/xiangli_yao.js";
 import { YINLIN } from "./resonators/electro/yinlin.js";
 import { AEMEATH_BURST, AEMEATH_RUPTURE } from "./resonators/fusion/aemeath.js";
@@ -69,8 +69,10 @@ const INTENDED: Slot[] = [];
 const TEAMS: Slot[][] = [
 
   // suoming mdps, electro basic unison
-  INTENDED, [[SHOREKEEPER], [SANHUA, JINHSI_SUPPORT], SUOMING_MDPS],
+  INTENDED, [[SHOREKEEPER], [JINHSI_SUPPORT], SUOMING_MDPS],
+  INTENDED, [[SHOREKEEPER], [SANHUA], SUOMING_MDPS_DOUBLE],
   INTENDED, [[SHOREKEEPER, MORNYE], [LYNAE_RUPTURE], SUOMING_MDPS],
+  INTENDED, [[SHOREKEEPER], [AUGUSTA], SUOMING],
   [[VERINA, MORNYE, SUISUI], [SANHUA, LYNAE_RUPTURE, REBECCA, JINHSI_SUPPORT], SUOMING_MDPS],
   // dual dps long rot
   // [[SHOREKEEPER, VERINA, BULING, MORNYE, SUISUI], [SUOMING_MDPS], [JINHSI]],
@@ -143,8 +145,8 @@ const TEAMS: Slot[][] = [
   [[MORNYE], [DENIA_BURST], AEMEATH_RUPTURE],
 
   // aemeath: fusion liberation on fusion burst — Denia's Burst mode feeds the stacks and amplifies
-  INTENDED, [[SUISUI, CHISA, LUPA], [DENIA_BURST], AEMEATH_BURST],
-  INTENDED, [[DENIA_BURST], [LYNAE_RUPTURE, CHANGLI], AEMEATH_BURST],
+  INTENDED, [[SUISUI, CHISA], [DENIA_BURST], AEMEATH_BURST],
+  INTENDED, [[DENIA_BURST], [LYNAE_RUPTURE, CHANGLI, LUPA], AEMEATH_BURST],
   [[SHOREKEEPER, VERINA, MORNYE, LUPA, DENIA_BURST, CHISA, SUISUI], [DENIA_BURST, LUPA, JIANXIN, ROVER_ELECTRO], AEMEATH_BURST],
   // monofus needs lupa or denia
   [[LUPA, DENIA_BURST], [CHANGLI, BRANT], AEMEATH_BURST],

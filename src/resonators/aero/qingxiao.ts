@@ -398,7 +398,7 @@ export const QINGXIAO = new Loadout({
   echoLoadouts: [new EchoLoadout(CALAMITY_EFFIGY, HEART_OF_EVILS_PURGE_5PC),
       new EchoLoadout(NM_KELPIE, WINDWARD_5PC),],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Aero3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Heavy, Substat.FlatAtk, Substat.Liberation),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.FlatAtk, Substat.Heavy, Substat.Liberation),
   highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.FlatAtk, Substat.Heavy, Substat.Liberation),
   rotation: QX_ROTATION,
   sequences: QX_SEQUENCES,

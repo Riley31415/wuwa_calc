@@ -10,7 +10,7 @@ import { ER_SHORT } from "./engine/evaluate.js";
 import { runRotations } from "./engine/rotation.js";
 import type { ActionField } from "./engine/rotation.js";
 import { TUNE_BREAK_ENEMY } from "./shared/tunebreak.js";
-import { erRollValue } from "./shared/substats.js";
+import { erRollValue, ER_TOLERANCE } from "./shared/substats.js";
 import { Stat } from "./engine/stats.js";
 import { ctx } from "./engine/runtime.js";
 import type { Report } from "./display.js";
@@ -372,7 +372,7 @@ export function erRollsFor(teamKey: string, members: Member[], combo: Combo[]): 
 function erRollsWanted(m: Member, c: Combo, need: number): number {
   const base = m.loadout.substat.tiers[0]!.rolls;
   if (!need) return base;
-  return base + Math.max(0, Math.ceil((need - erHeld(m, c, base)) / erRollValue()));
+  return base + Math.max(0, Math.ceil((need - erHeld(m, c, base) - ER_TOLERANCE) / erRollValue()));
 }
 
 /** How much constant ER one piece carries — the mainstat sweep compares two picks by this rather

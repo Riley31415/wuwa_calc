@@ -225,7 +225,7 @@ const XLY_SEQUENCES = [XLY_S1, XLY_S2, XLY_S3, XLY_S4, XLY_S5, XLY_S6];
 const UBA123 = new ActionGroup("Basic - Pivot: Impale 123", [UBA1, UBA2, UBA3]);
 
 const XLY_ROTATION = new Rotation([
-  INTRO, //Skill, Skill, // TODO swapped
+  INTRO, Skill,
   Liberation,
   USkill, FBA, UForte,
   UBA123, UForte,

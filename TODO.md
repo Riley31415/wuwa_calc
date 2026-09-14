@@ -1,7 +1,3 @@
-# todo
-
-check hsin flare
-amy burst
 
 #
 rank teams by substats gains or sequences gains or weapon gains etc
@@ -28,3 +24,6 @@ cooldown verification
 
 #
 RDPR? buff contribution
+
+#
+def ignore formula
