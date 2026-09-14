@@ -35,10 +35,17 @@
 # nanoka data
 the damage table is client-rendered — read the CDN json, not the html:
 `https://static.nanoka.cc/ww/<ver>/en/character/<id>.json`, `<ver>` from any page's `data-url`
-(3.6+365 now), `<id>` 1101-1610 (404s on gaps). plain curl works; WebFetch gets 403.
+(3.7.1 now), `<id>` 1101-1610 (404s on gaps). plain curl works for the json; WebFetch gets 403, and
+the html needs a browser UA or it comes back empty.
 
 - `skill.damage[*]` = one hit: `rate_lv[9]` = level-10 MV ×100, `energy` ×100, `element_power` = concerto ×100, `weakness_lvl` = off-tune in engine units
 - match against `skill.level[*]` rows: `param[0][9]` is the row text ("22.06%*3+33.08%*2") — resolve each term to its damage entry, multiply, sum. an engine action = the 1-4 rows summing to its MV. more than one distinct answer = unmatched, don't guess
+
+echoes are the same shape at `.../en/echo/<id>.json`, and every id resolves — 6000042-60002xx (the
+unreleased ones included, still named "Stay tuned") beside the old 3900700xx/3900770xx. `rate_lv[4]`
+is the level-5 MV there, and `skill.damage` carries no hit counts: substitute `skill.param[4]` into
+`skill.desc`'s `{n}` and read them off the text, then the action is per-hit × that count. encore's
+`/api/en/echo` list is the only name→id index, and it omits the unreleased ones — probe ids instead.
 
 # concerto
 a kit is done only when all three sources are read:

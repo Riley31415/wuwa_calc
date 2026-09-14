@@ -115,8 +115,9 @@ export class ErSpread {
 
 /** The spread `named` describes as one piece: `shape` rolls apiece in priority order, one roll of
  *  each of the eight left over. Named after the stats that tell two spreads apart — every one of
- *  them rolls crit, so crit is left out of the name. */
-function spreadPiece(named: Substat[], shape: number[] = SHAPE): Buff {
+ *  them rolls crit, so crit is left out of the name. `ownEr` is whether the ER in `named` is the
+ *  kit's own rather than a promotion's. */
+function spreadPiece(named: Substat[], shape: number[] = SHAPE, ownEr = false): Buff {
   const counts = new Map<Substat, number>();
   // only the first five take a share of the shape; a sixth is named for the hover's sake and takes
   // the single roll it would have had among the eight either way
@@ -124,10 +125,10 @@ function spreadPiece(named: Substat[], shape: number[] = SHAPE): Buff {
   for (let s = Substat.CritRate; s <= Substat.Liberation; s++) if (!counts.has(s)) counts.set(s, 1);
   // the name is what the spread is spent on, so it reads the five that take `SHAPE` and not the
   // sixth, which is one roll named only so the hover leaves it lit. ER only reads as part of it
-  // where it actually took a five-roll slot; promoted into the 3- or 2-roll ones it is an Energy
-  // tax the spread pays, not what the spread is
+  // where the kit named it, however few rolls that is — promoted in to fill a bar the rotation
+  // could not, it is an Energy tax the spread pays rather than what the spread is
   const labels = [...new Set(named.slice(0, shape.length)
-    .filter((s) => s > Substat.CritDmg && (s !== Substat.Er || counts.get(s) === 5))
+    .filter((s) => s > Substat.CritDmg && (s !== Substat.Er || ownEr))
     .map((s) => ROLL[s].label))];
   const lines = [...counts].map(([s, n]) => [ROLL[s].stat, rollAt(s, 0.5) * n, ROLL[s].tag] as const);
   const piece = new Buff({
@@ -169,9 +170,9 @@ export function substats(sub1: Substat, sub2: Substat, sub3: Substat, sub4: Subs
   const own = named.indexOf(Substat.Er);
   const held = own < 0 ? 1 : SHAPE[own]!;
   const rest = named.filter((s) => s !== Substat.Er);
-  const tiers = [{ rolls: held, piece: spreadPiece(named) }];
+  const tiers = [{ rolls: held, piece: spreadPiece(named, SHAPE, own >= 0) }];
   for (const [rolls, place, shape] of PROMOTIONS) {
-    if (rolls > held) tiers.push({ rolls, piece: spreadPiece([...rest.slice(0, place), Substat.Er, ...rest.slice(place)].slice(0, 5), shape) });
+    if (rolls > held) tiers.push({ rolls, piece: spreadPiece([...rest.slice(0, place), Substat.Er, ...rest.slice(place)].slice(0, 5), shape, own >= 0) });
   }
   return new ErSpread(named, tiers);
 }
@@ -186,14 +187,15 @@ const HIGH_SHAPE = [5, 5, 5, 3, 2, 1];
 const HIGH_PROMOTIONS: [number, number][] = [[2, 4], [3, 3]];
 
 /** One high-investment piece from the stats it names, in priority order. `last` is the sixth stat
- *  the kit asked for — a single roll wherever the tier puts it, and left out of the name. */
-function highPiece(named: Substat[], last: Substat): Buff {
+ *  the kit asked for — a single roll wherever the tier puts it, and left out of the name; `ownEr`
+ *  is whether the ER in `named` is the kit's own rather than a promotion's. */
+function highPiece(named: Substat[], last: Substat, ownEr = false): Buff {
   const counts = new Map<Substat, number>();
   named.forEach((s, i) => counts.set(s, HIGH_SHAPE[i] ?? 1));
   for (const [s, n] of counts) if (n > 5) throw new Error(`highSubs(): ${ROLL[s].label} rolls ${n} times, a build has five echoes`);
-  // ER reads as part of the build's name only where the kit named it into a five-roll slot;
-  // anywhere else it is the Energy tax the spread pays, not what the spread is
-  const labels = [...new Set(named.filter((s) => s > Substat.CritDmg && s !== last && (s !== Substat.Er || counts.get(s) === 5))
+  // ER reads as part of the build's name only where the kit named it, however few rolls that is;
+  // promoted in for the bar it is the Energy tax the spread pays, not what the spread is
+  const labels = [...new Set(named.filter((s) => s > Substat.CritDmg && s !== last && (s !== Substat.Er || ownEr))
     .map((s) => ROLL[s].label))];
   const lines = [...counts].map(([s, n]) => [ROLL[s].stat, rollAt(s, 0.8) * n, ROLL[s].tag] as const);
   const piece = new Buff({
@@ -220,7 +222,7 @@ export function highSubs(sub1: Substat, sub2: Substat, sub3: Substat, sub4: Subs
   if (new Set(named).size !== 6) throw new Error(`highSubs(${named.join(", ")}): six distinct stats`);
   const own = named.indexOf(Substat.Er);
   // a kit that named ER wears all six as written: there ER is the build, not the bar's own tax
-  if (own >= 0) return new ErSpread(named, [{ rolls: HIGH_SHAPE[own]!, piece: highPiece(named, sub6) }]);
+  if (own >= 0) return new ErSpread(named, [{ rolls: HIGH_SHAPE[own]!, piece: highPiece(named, sub6, true) }]);
   // everyone else pays for their bar out of the sixth slot rather than on top of it, so the ER line
   // takes `sub6`'s place and every tier stays six stats long. Only a kit with no Liberation to pay
   // for (`maxEnergy: 0`, the `noEr` piece) actually gets the sixth stat it asked for.

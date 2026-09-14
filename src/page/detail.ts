@@ -43,18 +43,19 @@ function stepRow(
   return columns.map((col) => {
     const v = row.raw[col.key];
     const sources = row.sources[col.key];
-    // a resource cell carries its balance and whose it is, blank or not, for the block a press
-    // runs down the column to read the change over (`blockPanel`) — except where the balance is
-    // the row's own spend rather than a step in the run: an Outro wipes concerto and energy, the
-    // Tune Break takes the whole off-tune bar, and a block read across either would say so
+    // a resource cell carries its balance and the one the row was entered on, blank or not, for
+    // the block a press runs down the column to read the gain over (`blockPanel`) — except where
+    // the balance is the row's own spend rather than a step in the run: an Outro wipes concerto
+    // and energy, the Tune Break takes the whole off-tune bar, and a block read across either
+    // would say so
     let attr = "";
     if (isRunning(col.key)) {
       if ("line" in row && row.line.aggregate) return cell(col);
       const cast = ("line" in row ? row.line.snap : row.snap).action.cast;
       const spend = col.key === "offtune" ? cast === Cast.TuneBreak
         : (col.key === "concerto" || col.key === "energy") && cast === Cast.Outro;
-      if (!spend) attr = ` data-val="${Number(v) || 0}" data-mem="${esc(String(row.raw["member"] ?? ""))}"`;
       const before = Number(row.raw[`before:${col.key}`]) || 0;
+      if (!spend) attr = ` data-val="${Number(v) || 0}" data-before="${before}"`;
       const fed = (sources ?? []).some((r) => r.section !== OFFTUNE_RATE && r.section !== ENERGY_RATE);
       if (!fed && Math.abs((Number(v) || 0) - before) < 1e-9) return cell(col, { attr });
     }
@@ -238,9 +239,6 @@ function erRequirement(flat: ChainGroup[], resetIdx: number, member: string, max
   return (maxEnergy * 100 - buffed) / before;
 }
 
-/** What the figure in the Energy Regen label is, for anyone reading the row for the first time. */
-const ER_TIP = lazyPop(`<span class="pop tip">Unbuffed Energy Regen Requirement</span>`);
-
 /**
  * What each member's Liberations asked of their constant ER — the most any one of them wanted, which
  * the Energy Regen menu stat carries in its own label. Its colour says whether what the build wears
@@ -273,7 +271,11 @@ function energyRequirements(run: TeamRun, lines: ChainGroup[][]): Map<string, st
       : " er-met";
     // only the figure itself is coloured — "(need" and the bracket stay the label's own tone
     if (req != null) {
-      cells.set(m.name, `<span class="erneed has"${ER_TIP}>`
+      // what the figure is, for anyone reading the row for the first time, and the colour said in
+      // words: the build's own ER covers it, misses it by no more than the run's slack, or misses
+      const verdict = met === " er-met" ? "Met" : met === " er-slack" ? "Barely Not Met" : "Not Met";
+      const tip = lazyPop(`<span class="pop tip">Unbuffed Energy Regen Requirement (${verdict})</span>`);
+      cells.set(m.name, `<span class="erneed has"${tip}>`
         + `> <span class="erreq${met}">${fmt(req, 1)}%</span></span>`);
     }
   });
@@ -323,7 +325,6 @@ export function renderDetail(key: string): void {
   app.innerHTML = page(run);
   app.className = "";
   wireColumnDrag(app, detailFor(run).report.columns);
-  logMembers = run.members.map((m) => m.name);
   wireCellSelect(app);
   wireDistribution(app);
 }
@@ -351,8 +352,6 @@ function orderedKeys(columns: Column[]): string[] {
 }
 
 let logColumns: Column[] = [];
-/** The team in slot order — what the block panel lists its resource lines by. */
-let logMembers: string[] = [];
 let logOrder: string[] = [];
 let logStyle: HTMLStyleElement | null = null;
 
@@ -454,14 +453,16 @@ function doubled(row: HTMLElement, held: Set<HTMLElement>): boolean {
 }
 
 /** What the held block is worth, in place of the cell panel a column carries the rest of the
- *  time: the avg cells' total, and for each member's resource with more than one cell in the block
- *  the change across them — the last balance less the first. Off-tune is the one bar the whole
- *  team fills, so its line is the team's. Nothing else in the block earns a line, and a block with
- *  no line at all has no panel. An opened group's own row is left out where the block holds the
- *  rows it opened onto (`doubled`). */
+ *  time: the avg cells' total, and — off-tune being the one bar the whole team fills — what the
+ *  block gained of it: each row's balance less the one it was entered on, added up, so the run
+ *  reads from the balance standing before the block (0 at the top of the run) and the Tune Break
+ *  that takes the whole bar drops out rather than reading as a loss across it. A member's own
+ *  concerto, energy and forte are left to their columns; nothing else in the block earns a line,
+ *  and a block with no line at all has no panel. An opened group's own row is left out where the
+ *  block holds the rows it opened onto (`doubled`). */
 function blockPanel(sel: CellSel): string {
   let dmg = 0, dmgCells = 0;
-  const res = new Map<string, { label: string; first: number; last: number; cells: number; digits: number }>();
+  let gained = 0, tuneCells = 0, tuneDigits = 2;
   const held = new Set(sel.rows.slice(sel.r0, sel.r1 + 1));
   const rows = blockCells(sel);
   for (let i = 0; i < rows.length; i++) {
@@ -474,23 +475,14 @@ function blockPanel(sel: CellSel): string {
       }
       if (c.dataset.val === undefined) continue;
       const col = logColumns[[...c.parentElement!.children].indexOf(c)]!;
-      const mem = col.key === "offtune" ? "" : c.dataset.mem ?? "";
-      const key = `${mem}|${col.key}`;
-      const v = Number(c.dataset.val) || 0;
-      const seen = res.get(key);
-      if (seen) {
-        seen.last = v;
-        seen.cells++;
-      } else res.set(key, { label: mem ? `${mem} ${col.label}` : "Total Offtune", first: v, last: v, cells: 1, digits: col.digits ?? 2 });
+      if (col.key !== "offtune") continue;
+      gained += (Number(c.dataset.val) || 0) - (Number(c.dataset.before) || 0);
+      tuneDigits = col.digits ?? 2;
+      tuneCells++;
     }
   }
   const lines: [string, string][] = dmgCells > 1 ? [["Total Dmg", fmt(dmg, 0)]] : [];
-  // by member in the team's own order, each member's resources in the columns' own order
-  const order = (key: string): number => logMembers.indexOf(key.split("|")[0]!) * logColumns.length
-    + logColumns.findIndex((c) => c.key === key.split("|")[1]);
-  for (const [key, r] of [...res].sort((a, b) => order(a[0]) - order(b[0]))) {
-    if (r.cells > 1) lines.push([r.label, fmt(r.last - r.first, r.digits, true, false)]);
-  }
+  if (tuneCells) lines.push(["Total Offtune", fmt(gained, tuneDigits, true, false)]);
   if (!lines.length) return "";
   return `<span class="pop stat"><table>`
     + lines.map(([k, v]) => `<tr><td class="k">${esc(k)}</td><td class="v">${esc(v)}</td></tr>`).join("")

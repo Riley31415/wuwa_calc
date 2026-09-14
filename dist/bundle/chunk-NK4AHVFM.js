@@ -2296,13 +2296,13 @@ var ErSpread = class {
     return (this.tiers.find((t) => t.rolls >= rolls) ?? this.tiers[this.tiers.length - 1]).piece;
   }
 };
-function spreadPiece(named, shape = SHAPE) {
+function spreadPiece(named, shape = SHAPE, ownEr = false) {
   const counts = /* @__PURE__ */ new Map();
   named.slice(0, shape.length).forEach((s, i) => counts.set(s, shape[i]));
   for (let s = Substat.CritRate; s <= Substat.Liberation; s++)
     if (!counts.has(s))
       counts.set(s, 1);
-  const labels = [...new Set(named.slice(0, shape.length).filter((s) => s > Substat.CritDmg && (s !== Substat.Er || counts.get(s) === 5)).map((s) => ROLL[s].label))];
+  const labels = [...new Set(named.slice(0, shape.length).filter((s) => s > Substat.CritDmg && (s !== Substat.Er || ownEr)).map((s) => ROLL[s].label))];
   const lines = [...counts].map(([s, n]) => [ROLL[s].stat, rollAt(s, 0.5) * n, ROLL[s].tag]);
   const piece = new Buff({
     name: `ChemX32 - ${labels.join(" ")}`,
@@ -2327,22 +2327,22 @@ function substats(sub1, sub2, sub3, sub4, sub5, sub6) {
   const own = named.indexOf(Substat.Er);
   const held = own < 0 ? 1 : SHAPE[own];
   const rest = named.filter((s) => s !== Substat.Er);
-  const tiers = [{ rolls: held, piece: spreadPiece(named) }];
+  const tiers = [{ rolls: held, piece: spreadPiece(named, SHAPE, own >= 0) }];
   for (const [rolls, place, shape] of PROMOTIONS) {
     if (rolls > held)
-      tiers.push({ rolls, piece: spreadPiece([...rest.slice(0, place), Substat.Er, ...rest.slice(place)].slice(0, 5), shape) });
+      tiers.push({ rolls, piece: spreadPiece([...rest.slice(0, place), Substat.Er, ...rest.slice(place)].slice(0, 5), shape, own >= 0) });
   }
   return new ErSpread(named, tiers);
 }
 var HIGH_SHAPE = [5, 5, 5, 3, 2, 1];
 var HIGH_PROMOTIONS = [[2, 4], [3, 3]];
-function highPiece(named, last) {
+function highPiece(named, last, ownEr = false) {
   const counts = /* @__PURE__ */ new Map();
   named.forEach((s, i) => counts.set(s, HIGH_SHAPE[i] ?? 1));
   for (const [s, n] of counts)
     if (n > 5)
       throw new Error(`highSubs(): ${ROLL[s].label} rolls ${n} times, a build has five echoes`);
-  const labels = [...new Set(named.filter((s) => s > Substat.CritDmg && s !== last && (s !== Substat.Er || counts.get(s) === 5)).map((s) => ROLL[s].label))];
+  const labels = [...new Set(named.filter((s) => s > Substat.CritDmg && s !== last && (s !== Substat.Er || ownEr)).map((s) => ROLL[s].label))];
   const lines = [...counts].map(([s, n]) => [ROLL[s].stat, rollAt(s, 0.8) * n, ROLL[s].tag]);
   const piece = new Buff({
     name: `High Invest - ${labels.join(" ")}`,
@@ -2360,7 +2360,7 @@ function highSubs(sub1, sub2, sub3, sub4, sub5, sub6) {
     throw new Error(`highSubs(${named.join(", ")}): six distinct stats`);
   const own = named.indexOf(Substat.Er);
   if (own >= 0)
-    return new ErSpread(named, [{ rolls: HIGH_SHAPE[own], piece: highPiece(named, sub6) }]);
+    return new ErSpread(named, [{ rolls: HIGH_SHAPE[own], piece: highPiece(named, sub6, true) }]);
   const five = named.slice(0, 5);
   return new ErSpread(named, [
     { rolls: 1, piece: highPiece([...five, Substat.Er], sub6) },
@@ -3689,7 +3689,7 @@ var TUNE_BREAK_COOLDOWN = new Debuff({
   maxStacks: 4,
   display: () => "Tune Break Cooldown",
   updateBuffs: () => {
-    if (triggeredAction() || runningAction(TUNE_BREAK) || !isActive())
+    if (triggeredAction() || !isActive())
       return;
     if (stacksOfEnemy(TUNE_BREAK_COOLDOWN) >= 4)
       revokeEnemy(TUNE_BREAK_COOLDOWN);
@@ -3740,10 +3740,10 @@ var TUNE_BREAK_ENEMY = new Resonator({
   // sees the bar fill in time. Not `queue`: a break falls in behind everything else this action
   // spawned, and lands on whoever is on field rather than on whoever queued it.
   // Only a real on-field press can set one off: a queued follow-up (`triggeredAction()`) and an
-  // inactive action both top the bar up without breaking it, and a break never sets off another.
-  // The bar stays full either way, so the next action that *is* one fires it.
+  // inactive action both top the bar up without breaking it, and a break — triggered itself — never
+  // sets off another. The bar stays full either way, so the next action that *is* one fires it.
   afterAction: () => {
-    if (triggeredAction() || runningAction(TUNE_BREAK) || !isActive())
+    if (triggeredAction() || !isActive())
       return;
     if (midActionGroup())
       return;
@@ -3771,6 +3771,11 @@ var TUNE_BREAK = new Action("Tune Break", {
   type: 36864,
   mv: 1600,
   slot: TUNE_BREAK_ENEMY.name,
+  // A cast nobody pressed, so a triggered one like any other queued hit (`ActionDef.triggered`):
+  // every per-action clock in the fight — the two below, a sonata's own cadence, an inherent
+  // counting presses — reads `triggeredAction()` and passes it over, rather than each having to
+  // know the break by name.
+  triggered: true,
   // The whole bar, straight off it: `DirectOfftune` rather than a declared `offtune`, because a
   // drain is an amount the bar moves by, not something the team's Off-Tune Buildup Rate builds
   // (see evaluate.ts's own evaluate()). Sourced to the break itself, so the off-tune panel names it.
@@ -3784,7 +3789,7 @@ function interferedWindow(def2) {
     maxStacks: 11,
     display: () => def2.name ?? "",
     updateBuffs: () => {
-      if (triggeredAction() || runningAction(TUNE_BREAK) || !isActive())
+      if (triggeredAction() || !isActive())
         return;
       if (stacksOfEnemy(self2) > 10)
         revokeEnemy(self2);
@@ -6607,13 +6612,14 @@ var BELL_BORNE_SHIELD = new Buff({
   }
 });
 var ACTION_HERON = new Action("Echo - Impermanence Heron", {
+  // 4.85 off the hit itself, plus the flat 10 its own skill text hands back ("the current
+  // character regains 10 Resonance Energy" once the smack-down lands)
   cast: 7,
   element: 384,
   scaling: 0,
   type: 28672,
   mv: 310.56,
-  energy: 14.85,
-  // TODO check 10 er on hit
+  energy: 4.85 + 10,
   updateBuffs: () => queueOutro(HERON_HANDOFF)
 });
 var HERON = new Mainslot({
@@ -6712,11 +6718,12 @@ var NM_INFERNO_RIDER = new Mainslot({
   ]]
 });
 var ACTION_INFERNO_RIDER = new Action("Echo - Inferno Rider", {
+  // the three slashes of the chain, 242.40% / 282.80% / 282.80%
   cast: 7,
   element: 192,
   scaling: 0,
   type: 28672,
-  mv: 252.4 + 282.8 * 2,
+  mv: 242.4 + 282.8 * 2,
   energy: 3.78 + 4.41 * 2,
   updateBuffs: () => applyCurrent(INFERNO_RIDER_WINDOW, 1)
 });
@@ -6764,13 +6771,13 @@ var NM_CROWNLESS = new Mainslot({
     /* Type1.Basic */
   ]]
 });
-var ACTION_CROWNLESS = new Action("Echo - Nightmare: Crownless", {
+var ACTION_CROWNLESS = new Action("Echo - Crownless", {
   cast: 7,
   element: 384,
   scaling: 0,
   type: 28672,
-  mv: 134.08 * 2,
-  energy: 2.09 * 2,
+  mv: 134.08,
+  energy: 2.09,
   updateBuffs: () => applyCurrent(CROWNLESS_WINDOW, 1)
 });
 var CROWNLESS_WINDOW = new Buff({
@@ -6929,12 +6936,13 @@ var SIERRA_GALE_INTRO = new Buff({
   until: 0
 });
 var ACTION_JUE = new Action("Echo - Ju\xE9", {
+  // the soar, five thunderbolts, then the two hits of the spiral down: three 48.64% hits, not two
   cast: 7,
   element: 320,
   scaling: 0,
   type: 28672,
-  mv: 48.64 * 2 + 19.46 * 5,
-  energy: 0.76 * 2 + 0.3 * 5,
+  mv: 48.64 * 3 + 19.46 * 5,
+  energy: 0.76 * 3 + 0.3 * 5,
   updateBuffs: () => applyCurrent(JUE_BLESSING, 15)
 });
 var JUE_FIELD = new ActionField("Ju\xE9: Blessing of Time");
@@ -8987,7 +8995,7 @@ var ACTION_MYRIAD_SNARE = new Action("Echo - Myriad Snare", {
   energy: 3.8
 });
 var MYRIAD_SNARE = new Mainslot({
-  name: "Myriad Snare",
+  name: "Myriad Snare: Rustfire Chassis",
   action: ACTION_MYRIAD_SNARE,
   echoType: 0,
   stats: [[
@@ -9159,7 +9167,7 @@ var STAY_TUNED_BUFF = new Buff({
   ]]
 });
 var STAY_TUNED_GRANTS = [{ on: either(onInflict(ELECTRO_FLARE), gainedUnison, unisonResponse), buff: STAY_TUNED_BUFF }];
-var ACTION_STAY_TUNED = new Action("Echo - Stay tuned", {
+var ACTION_STAY_TUNED = new Action("Echo - Stay tuned 4c", {
   cast: 7,
   element: 128,
   scaling: 0,
@@ -9179,7 +9187,7 @@ var STAY_TUNED = new Mainslot({
   ]],
   grants: STAY_TUNED_GRANTS
 });
-var ACTION_STAY_TUNED_HSIN = new Action("Echo - Stay tuned", {
+var ACTION_STAY_TUNED_HSIN = new Action("Echo - Stay tuned 4c (Hsin)", {
   cast: 7,
   element: 128,
   scaling: 0,
@@ -9199,21 +9207,21 @@ var STAY_TUNED_HSIN = new Mainslot({
   ]],
   grants: STAY_TUNED_GRANTS
 });
-var ACTION_SOUL_OF_DESPAIR = new Action("Echo - Soul of Despair", {
+var ACTION_STAY_TUNED_3C = new Action("Echo - Soulfrayer", {
   cast: 7,
   element: 128,
   scaling: 0,
   type: 28672,
   mv: 91.18 * 3,
   energy: 1.26 * 3,
-  updateBuffs: () => queueOutro(SOUL_OF_DESPAIR_HANDOFF)
+  updateBuffs: () => queueOutro(STAY_TUNED_3C_OUTRO)
 });
-var SOUL_OF_DESPAIR = new Mainslot({
-  name: "Soul of Despair",
-  action: ACTION_SOUL_OF_DESPAIR,
+var STAY_TUNED_3C = new Mainslot({
+  name: "Soulfrayer",
+  action: ACTION_STAY_TUNED_3C,
   echoType: 0
 });
-var SOUL_OF_DESPAIR_HANDOFF = handoff("Soul of Despair: Outro", () => addStat(
+var STAY_TUNED_3C_OUTRO = handoff("Soulfrayer: Outro", () => addStat(
   17,
   12,
   128
@@ -9275,7 +9283,7 @@ var ELECTRIC_REFLECTION_HANDOFF = handoff("Flash of Electric Reflection 5pc (out
   128
   /* Attribute.Electro */
 ));
-var ACTION_FORMLESS_DEMON = new Action("Echo - Formless Demon", {
+var ACTION_FORMLESS_DEMON = new Action("Echo - Formrender", {
   cast: 7,
   element: 192,
   scaling: 0,
@@ -9284,7 +9292,7 @@ var ACTION_FORMLESS_DEMON = new Action("Echo - Formless Demon", {
   energy: 3.8
 });
 var FORMLESS_DEMON = new Mainslot({
-  name: "Formless Demon",
+  name: "Formrender",
   action: ACTION_FORMLESS_DEMON,
   echoType: 0,
   stats: [[11, 10]]
@@ -10283,6 +10291,7 @@ var ACTION_HYVATIA = new Action("Echo - Hyvatia", {
   scaling: 0,
   type: 28672,
   mv: 27.36 * 10,
+  energy: 0.03 * 10,
   updateBuffs: () => queueOutro(HYVATIA_HANDOFF)
 });
 var HYVATIA_HANDOFF = handoff("Hyvatia: Outro", () => addStat(17, 10));
@@ -10296,7 +10305,8 @@ var ACTION_REACTOR_HUSK = new Action("Echo - Reactor Husk", {
   element: 192,
   scaling: 0,
   type: 28672,
-  mv: 351
+  mv: 351,
+  energy: 4.87
 });
 var REACTOR_HUSK = new Mainslot({
   name: "Reactor Husk",
@@ -13665,7 +13675,7 @@ var EDGERUNNER_BONDS = new Buff({
   updateBuffs: () => {
     if (isHeld(LUCY_RESONATOR))
       applyCurrent(OVERLIMIT, 70);
-    else if (!triggeredAction())
+    else if (oneSecondPassed())
       applyCurrent(OVERLIMIT, 5);
   },
   until: 1
@@ -14114,7 +14124,7 @@ var ROVER_ELECTRO = new Loadout({
   echoLoadouts: [
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     //new EchoLoadout(STAY_TUNED, ELECTRIC_REFLECTION_5PC),
-    new EchoLoadout(SOUL_OF_DESPAIR, ELECTRIC_REFLECTION_5PC),
+    new EchoLoadout(STAY_TUNED_3C, ELECTRIC_REFLECTION_5PC),
     new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC)
     //new EchoLoadout(SOUL_OF_DESPAIR, SWORN_VIGIL_5PC),
   ],
@@ -17708,10 +17718,11 @@ var LUPA_RESONATOR = new Resonator({
   }
 });
 var MA122 = new ActionGroup("Mid-air - Flaming Star 12", [MA110, MA29]);
+var Skill122 = new ActionGroup("Skill - Shewolf's Hunt + Feral Fang", [Skill112, Skill26]);
 var LP_LOOP = new Rotation([
   NOINTRO,
-  Skill112,
   INTRO,
+  Skill122,
   Liberation19,
   USkill3,
   MA122,
@@ -17858,7 +17869,7 @@ var INTERFERED_MARKER = new Debuff({
   maxStacks: 26,
   display: () => "Mornye: Interfered Marker",
   updateBuffs: () => {
-    if (triggeredAction() || runningAction(TUNE_BREAK) || !isActive())
+    if (triggeredAction() || !isActive())
       return;
     const s1 = currentTeam().slots.find((m) => m.resonator === MORNYE_RESONATOR)?.isHeld(MO_S1);
     if (stacksOfEnemy(INTERFERED_MARKER) > (s1 ? 25 : 10))
@@ -18520,7 +18531,7 @@ var CARLOTTA_RESONATOR = new Resonator({
   }
 });
 var DeathKnellx4 = new ActionGroup("Liberation - Death Knell x4", [DeathKnell, DeathKnell, DeathKnell, DeathKnell]);
-var Skill122 = new ActionGroup("Skill - Art of Violence + Chromatic Splendor", [Skill113, Skill27]);
+var Skill123 = new ActionGroup("Skill - Art of Violence + Chromatic Splendor", [Skill113, Skill27]);
 var Skill12Swap = new ActionGroup("Skill - Art of Violence + Chromatic Splendor", [Skill113, Skill27.swap()]);
 var NM123 = new ActionGroup("Silent Execution: Necessary Measures 123", [NM1, NM2, NM3]);
 var CL_ROTATION = new Rotation([
@@ -18532,13 +18543,13 @@ var CL_ROTATION = new Rotation([
   Skill12Swap,
   SWAP,
   INTRO,
-  Skill122,
+  Skill123,
   MA112,
   FHA10,
   Lib16,
   DeathKnellx4,
   FatalFinale,
-  Skill122,
+  Skill123,
   ECHO_SWAP,
   OUTRO
 ]);
@@ -23111,10 +23122,10 @@ var KBA4 = lynaeAction("Basic - Kaleidoscopic Parade 4", { node: 0, cast: 1, typ
 var KBA5 = lynaeAction("Basic - Kaleidoscopic Parade 5", { node: 0, cast: 1, type: 4096, mv: 251.81, energy: 3.76, concerto: 13.45, offtune: 11924 });
 var KHeavy = lynaeAction("Heavy - Kaleidoscopic Parade (Ground)", { node: 0, cast: 2, type: 4096, mv: 123.41, energy: 2.94, concerto: 6.58, offtune: 5845 });
 var GraffitiBlast = lynaeAction("Heavy - Kaleidoscopic Parade: Graffiti Blast", { node: 0, cast: 2, type: 4096, mv: 104.78, energy: 1.55, concerto: 5.58, offtune: 4960 });
-var PolychromeLeap1 = lynaeAction("Forte Basic - Polychrome Leap 1", { node: 2, cast: 1, type: 4096, mv: 101.4, energy: 2.25, concerto: 5.4, offtune: 4800, forte2: -40, forte3: 1 });
-var PolychromeLeap2 = lynaeAction("Forte Basic - Polychrome Leap 2", { node: 2, cast: 1, type: 4096, mv: 101.4, energy: 2.28, concerto: 5.4, offtune: 4800, forte2: -40, forte3: 1 });
-var PolychromeLeap3 = lynaeAction("Forte Basic - Polychrome Leap 3", { node: 2, cast: 1, type: 4096, mv: 104.8, energy: 2.4, concerto: 5.6, offtune: 4960, forte2: -40, forte3: 1 });
-var IridescentSplash = lynaeAction("Forte Basic - Iridescent Splash", { node: 2, cast: 1, type: 4096, mv: 304.18, energy: 8.13, concerto: 7.65, offtune: 6800, forte3: -3 });
+var PolychromeLeap1 = lynaeAction("Forte Basic - Polychrome Leap 1", { node: 2, cast: 1, type: 4096, mv: 101.4, energy: 2.25, concerto: 5.4, offtune: 4800, forte2: -40 });
+var PolychromeLeap2 = lynaeAction("Forte Basic - Polychrome Leap 2", { node: 2, cast: 1, type: 4096, mv: 101.4, energy: 2.28, concerto: 5.4, offtune: 4800, forte2: -40 });
+var PolychromeLeap3 = lynaeAction("Forte Basic - Polychrome Leap 3", { node: 2, cast: 1, type: 4096, mv: 104.8, energy: 2.4, concerto: 5.6, offtune: 4960, forte2: -40 });
+var IridescentSplash = lynaeAction("Forte Basic - Iridescent Splash", { node: 2, cast: 1, type: 4096, mv: 304.18, energy: 8.13, concerto: 7.65, offtune: 6800 });
 var VisualImpact = lynaeAction("Forte Basic - Visual Impact", {
   node: 2,
   cast: 1,
@@ -23123,7 +23134,6 @@ var VisualImpact = lynaeAction("Forte Basic - Visual Impact", {
   energy: 14.05,
   concerto: 14.58,
   offtune: 60960,
-  forte3: -3,
   updateBuffs: () => applyTeam(SPECTRAL_ANALYSIS_TBB, 1)
 });
 var Skill39 = lynaeAction("Skill - Lynae-Style Palettes", { node: 1, cast: 3, type: 12288, mv: 278.63, energy: 8.75, concerto: 9.83, offtune: 8722, forte1: 25 });
@@ -23234,7 +23244,6 @@ var LYNAE_RESONATOR = new Resonator({
   maxEnergy: 125,
   maxForte1: 120,
   maxForte2: 120,
-  maxForte3: 3,
   stats: [
     [1, 12237.5],
     [0, 375],

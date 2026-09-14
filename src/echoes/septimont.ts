@@ -29,6 +29,7 @@ export const DREAM_OF_THE_LOST_3PC = new Sonata3pc({
 export const ACTION_FALSE_SOVEREIGN = new Action("Echo - False Sovereign", {
   cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type1.Echo, mv: 221.4, energy: 3.04,
 });
+// no energy: the Intro summon has its own damage row and, unlike the transform strike, pays none
 export const ACTION_FALSE_SOVEREIGN_INTRO = new Action("Echo - False Sovereign (Intro)", {
   element: Attribute.Electro, scaling: Scaling.Atk, type: Type1.Echo, mv: 405,
 });

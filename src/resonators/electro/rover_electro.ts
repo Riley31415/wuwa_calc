@@ -39,7 +39,7 @@ import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../en
 import { inflictElectroFlare, inflictedNegativeStatus, HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
-import { SOUL_OF_DESPAIR, SWORN_VIGIL_5PC, ELECTRIC_REFLECTION_5PC, STAY_TUNED } from "../../echoes/mengzhou.js";
+import { STAY_TUNED_3C, SWORN_VIGIL_5PC, ELECTRIC_REFLECTION_5PC, STAY_TUNED } from "../../echoes/mengzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
 import { BLAZING_BRILLIANCE, RED_SPRING, UNSPOKEN_RUE } from "../../weapons/sword.js";
@@ -284,7 +284,7 @@ export const ROVER_ELECTRO = new Loadout({
   echoLoadouts: [
     new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
     //new EchoLoadout(STAY_TUNED, ELECTRIC_REFLECTION_5PC),
-    new EchoLoadout(SOUL_OF_DESPAIR, ELECTRIC_REFLECTION_5PC),
+    new EchoLoadout(STAY_TUNED_3C, ELECTRIC_REFLECTION_5PC),
     new EchoLoadout(STAY_TUNED, SWORN_VIGIL_5PC),
     //new EchoLoadout(SOUL_OF_DESPAIR, SWORN_VIGIL_5PC),
   ],

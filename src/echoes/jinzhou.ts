@@ -42,7 +42,9 @@ export const BELL_BORNE_SHIELD: Buff = new Buff({
  *  handoff: the incoming resonator gets +12% (unscoped) DMG Bonus for 15s — long enough to outlast
  *  their own visit, so it runs to the end of the next handoff (shared/helpers.ts). */
 export const ACTION_HERON = new Action("Echo - Impermanence Heron", {
-  cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Echo, mv: 310.56, energy: 14.85, // TODO check 10 er on hit
+  // 4.85 off the hit itself, plus the flat 10 its own skill text hands back ("the current
+  // character regains 10 Resonance Energy" once the smack-down lands)
+  cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Echo, mv: 310.56, energy: 4.85 + 10,
   updateBuffs: () => queueOutro(HERON_HANDOFF),
 });
 
@@ -130,7 +132,8 @@ export const NM_INFERNO_RIDER = new Mainslot({
 /** Inferno Rider (plain, not "Nightmare:") — Encore's own mainslot echo. No permanent passive:
  *  casting it grants a temporary +12%/+12% Fusion/Basic Attack DMG Bonus window. */
 export const ACTION_INFERNO_RIDER = new Action("Echo - Inferno Rider", {
-  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 252.4 + 282.8 * 2, energy: 3.78 + 4.41 * 2,
+  // the three slashes of the chain, 242.40% / 282.80% / 282.80%
+  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 242.4 + 282.8 * 2, energy: 3.78 + 4.41 * 2,
   updateBuffs: () => applyCurrent(INFERNO_RIDER_WINDOW, 1),
 });
 export const INFERNO_RIDER_WINDOW = new Buff({
@@ -159,8 +162,11 @@ export const NM_CROWNLESS = new Mainslot({
   stats: [[Stat.DmgBonus, 12, Attribute.Havoc], [Stat.DmgBonus, 12, Type1.Basic]],
 });
 
-export const ACTION_CROWNLESS = new Action("Echo - Nightmare: Crownless", {
-  cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Echo, mv: 134.08*2, energy: 	2.09*2,
+/** Crownless (plain, not "Nightmare:") — no equip passive, the transform itself granting the
+ *  +12%/+12% Havoc/Resonance Skill window. Its chain runs to four attacks, but only the first is
+ *  pressed: the transform is left the moment the window is banked. */
+export const ACTION_CROWNLESS = new Action("Echo - Crownless", {
+  cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Echo, mv: 134.08, energy: 2.09,
   updateBuffs: () => applyCurrent(CROWNLESS_WINDOW, 1),
 });
 export const CROWNLESS_WINDOW = new Buff({
@@ -252,12 +258,14 @@ export const SIERRA_GALE_INTRO = new Buff({
  *  A tick is an active row: it is the wearer's own hit, not a swap, so none of their "lost on
  *  switching out" buffs (an outro handoff they just adopted) should drop on it. */
 export const ACTION_JUE = new Action("Echo - Jué", {
-  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Echo, mv: 48.64 * 2 + 19.46 * 5, energy: 0.76 * 2 + 0.3 * 5,
+  // the soar, five thunderbolts, then the two hits of the spiral down: three 48.64% hits, not two
+  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Echo, mv: 48.64 * 3 + 19.46 * 5, energy: 0.76 * 3 + 0.3 * 5,
   updateBuffs: () => applyCurrent(JUE_BLESSING, 15),
 });
 /** Blessing of Time's own summon — the field it fires from, named for the report (rotation.ts's
  *  `ActionField`); JUE_BLESSING below is the buff whose grant puts it out. */
 const JUE_FIELD = new ActionField("Jué: Blessing of Time");
+// no energy: the tick has a damage row of its own and it pays nothing
 export const ACTION_JUE_TICK = new Action("Echo - Jué: Blessing of Time", {
   element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Skill, mv: 16, field: JUE_FIELD,
 });

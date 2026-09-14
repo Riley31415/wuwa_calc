@@ -57,12 +57,11 @@ import {
   forte1,
   forte2,
   setForte2,
-  triggeredAction,
   isActive,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, ActionField, FIRST_INTRO, DODGE } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
-import { coordinatedBuff } from "../../shared/helpers.js";
+import { coordinatedBuff, oneSecondPassed } from "../../shared/helpers.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING } from "../../shared/tunebreak.js";
 import { SKULL_THRASHER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
@@ -253,7 +252,7 @@ const EDGERUNNER_BONDS = new Buff({
   stats: [[Stat.Amp, 15]],
   updateBuffs: () => {
     if (isHeld(LUCY_RESONATOR)) applyCurrent(OVERLIMIT, 70);
-    else if (!triggeredAction()) applyCurrent(OVERLIMIT, 5); // assume 1 action = 1s
+    else if (oneSecondPassed()) applyCurrent(OVERLIMIT, 5); // 5 stacks the engine's second, at 0.2s each
   },
   until: LifeTime.Swap,
 });

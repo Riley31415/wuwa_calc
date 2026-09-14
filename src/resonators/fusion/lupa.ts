@@ -347,10 +347,11 @@ const LUPA_RESONATOR = new Resonator({
 });
 
 const MA12 = new ActionGroup("Mid-air - Flaming Star 12", [MA1, MA2]);
+const Skill12 = new ActionGroup("Skill - Shewolf's Hunt + Feral Fang", [Skill1, Skill2]);
 
 const LP_LOOP = new Rotation([
-  NOINTRO, Skill1,
-  INTRO, Liberation, USkill, MA12, EMA3, EHA4, UFSkill, ECHO_SWAP, OUTRO,
+  NOINTRO, INTRO, Skill12,
+  Liberation, USkill, MA12, EMA3, EHA4, UFSkill, ECHO_SWAP, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

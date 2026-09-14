@@ -18,7 +18,7 @@ export const ACTION_MYRIAD_SNARE = new Action("Echo - Myriad Snare", {
   cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Hp, type: Type1.Echo, mv: 17.23, energy: 3.8,
 });
 export const MYRIAD_SNARE = new Mainslot({
-  name: "Myriad Snare",
+  name: "Myriad Snare: Rustfire Chassis",
   action: ACTION_MYRIAD_SNARE,
   echoType: EchoType.SUMMON,
   stats: [[Stat.DmgBonus, 12, Attribute.Fusion], [Stat.DmgBonus, 12, Type1.Heavy]],
@@ -160,7 +160,7 @@ export const STAY_TUNED_BUFF = new Buff({
   stats: [[Stat.DmgBonus, 10, Attribute.Electro]],
 });
 const STAY_TUNED_GRANTS = [{ on: either(onInflict(ELECTRO_FLARE), gainedUnison, unisonResponse), buff: STAY_TUNED_BUFF }];
-export const ACTION_STAY_TUNED = new Action("Echo - Stay tuned", {
+export const ACTION_STAY_TUNED = new Action("Echo - Stay tuned 4c", {
   cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type1.Echo,
   mv: 27.36 * 4 + 164.16, energy: 0.38 * 4 + 2.28,
 });
@@ -173,7 +173,7 @@ export const STAY_TUNED = new Mainslot({
 });
 
 /** Hsin's own form of it — her loadouts name this one instead. */
-export const ACTION_STAY_TUNED_HSIN = new Action("Echo - Stay tuned", {
+export const ACTION_STAY_TUNED_HSIN = new Action("Echo - Stay tuned 4c (Hsin)", {
   cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type1.Echo,
   mv: 13.68 * 5 + 232.56, energy: 0.19 * 5 + 3.23,
 });
@@ -190,16 +190,16 @@ export const STAY_TUNED_HSIN = new Mainslot({
  *  incoming resonator's +12% Electro DMG Bonus for 15s, long enough to outlast their own visit
  *  (helpers.ts's `handoff`). Text is the CN translation ("conductive" = Electro); encore's own
  *  data lists the hit once — the three instances are the CN text's. Summon by that text. */
-export const ACTION_SOUL_OF_DESPAIR = new Action("Echo - Soul of Despair", {
+export const ACTION_STAY_TUNED_3C = new Action("Echo - Soulfrayer", {
   cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type1.Echo, mv: 91.18 * 3, energy: 1.26 * 3,
-  updateBuffs: () => queueOutro(SOUL_OF_DESPAIR_HANDOFF),
+  updateBuffs: () => queueOutro(STAY_TUNED_3C_OUTRO),
 });
-export const SOUL_OF_DESPAIR = new Mainslot({
-  name: "Soul of Despair",
-  action: ACTION_SOUL_OF_DESPAIR,
+export const STAY_TUNED_3C = new Mainslot({
+  name: "Soulfrayer",
+  action: ACTION_STAY_TUNED_3C,
   echoType: EchoType.SUMMON,
 });
-export const SOUL_OF_DESPAIR_HANDOFF = handoff("Soul of Despair: Outro", () => addStat(Stat.DmgBonus, 12, Attribute.Electro));
+export const STAY_TUNED_3C_OUTRO = handoff("Soulfrayer: Outro", () => addStat(Stat.DmgBonus, 12, Attribute.Electro));
 
 /** Heart of Sworn Vigil. 2pc: +10% Electro DMG Bonus flat. 5pc: inflicting Electro Flare,
  *  obtaining Unison or triggering Unison Response grants +15% Crit. Rate and +22.5% Electro DMG
@@ -237,11 +237,11 @@ export const ELECTRIC_REFLECTION_HANDOFF = handoff("Flash of Electric Reflection
  *  Fusion hit ("Molten" DMG in the CN translation — unconfirmed against EN text), and +10% Energy
  *  Regen for whoever wears it. Pairs with Flower of Tinged Yearning below. Summon by its text
  *  ("summon the Formless Demon"). */
-export const ACTION_FORMLESS_DEMON = new Action("Echo - Formless Demon", {
+export const ACTION_FORMLESS_DEMON = new Action("Echo - Formrender", {
   cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 273.6, energy: 3.8,
 });
 export const FORMLESS_DEMON = new Mainslot({
-  name: "Formless Demon",
+  name: "Formrender",
   action: ACTION_FORMLESS_DEMON,
   echoType: EchoType.SUMMON,
   stats: [[Stat.Er, 10]],

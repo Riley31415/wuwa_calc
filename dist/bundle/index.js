@@ -54,7 +54,7 @@ import {
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-Q6LN2NQV.js";
+} from "./chunk-NK4AHVFM.js";
 
 // dist/src/display.js
 var formatters = /* @__PURE__ */ new Map();
@@ -681,10 +681,11 @@ function buildReport(lines) {
     { key: "er", label: "er%", digits: 1, percent: true, full: "Energy Regen" },
     { key: "hp", label: "hp", noTotal: true },
     { key: "def", label: "def", noTotal: true },
-    // digits match nanoka's precision; offtune is /10000 (RESOURCE_SCALE)
+    // digits match nanoka's precision; offtune is /10000 (RESOURCE_SCALE) and reads to two like
+    // the rest — its own panel is where the finer figures are (`RESOURCE_DIGITS`)
     { key: "concerto", label: "concerto", digits: 2, hideIfZero: true, full: "Concerto" },
     { key: "energy", label: "energy", digits: 2, hideIfZero: true, full: "Energy" },
-    { key: "offtune", label: "offtune", digits: 4, hideIfZero: true, full: "OffTune" },
+    { key: "offtune", label: "offtune", digits: 2, hideIfZero: true, full: "OffTune" },
     // two decimals, the same as concerto and energy: a gauge is fed in fractions of a point
     ...FORTE_GAUGES.map((key) => ({
       key: `gauge:${RESOURCE_NAME[key]}`,
@@ -1683,13 +1684,13 @@ function loadoutTable(run, erReq) {
   const rows = [];
   rows.push(row("Weapon", builds.map((b) => gearCell(b.member.name, b.combo.weapon))));
   rows.push(row("Mainslot", builds.map((b) => gearCell(b.member.name, b.combo.echo.mainslot))));
-  const sonataOf = builds.map(({ combo }) => {
-    const echo = combo.echo;
-    return [...echo.sets, ...echo.sonata instanceof Sonata ? [echo.sonata.sonata2pc] : []];
-  });
+  const sonataOf = builds.map(({ combo }) => combo.echo.sets);
   const sonatas = Math.max(...sonataOf.map((list) => list.length));
   for (let i = 0; i < sonatas; i++) {
-    rows.push(row(i === 0 ? "Sonata" : "", builds.map((b, k) => gearCell(b.member.name, sonataOf[k][i] ?? null))));
+    rows.push(row(i === 0 ? "Sonata" : "", builds.map((b, k) => {
+      const set = sonataOf[k][i] ?? null;
+      return gearCell(b.member.name, set, set instanceof Sonata ? [set, set.sonata2pc] : void 0);
+    })));
   }
   const spreadCell = (piece, owner, stats, heading, noStat = false) => {
     const hover = statsPanel(stats, [], owner, slotHue, heading, noStat);
@@ -2431,11 +2432,6 @@ addEventListener("keydown", () => {
   if (r && (r.width || r.height))
     lastPoint = [r.left, r.bottom];
 }, true);
-function placeInView(el, x, y) {
-  const r = el.getBoundingClientRect();
-  el.style.left = `${Math.max(6, Math.min(x, innerWidth - r.width - 6))}px`;
-  el.style.top = `${Math.max(6, Math.min(y, innerHeight - r.height - 6))}px`;
-}
 function rowCapWarning(total) {
   document.querySelector(".rowcap")?.remove();
   if (total === null)
@@ -2444,7 +2440,10 @@ function rowCapWarning(total) {
   pop.className = "ctxmenu rowcap";
   pop.textContent = `That would open ${fmt(total)} rows, which is over the ${fmt(ROW_CAP)} cap. Try using less comparisons, removing a resonator, or hiding resonators.`;
   document.body.appendChild(pop);
-  placeInView(pop, ...lastPoint);
+  const [x, y] = lastPoint;
+  const r = pop.getBoundingClientRect();
+  pop.style.left = `${Math.max(6, Math.min(x, innerWidth - r.width - 6))}px`;
+  pop.style.top = `${Math.max(6, Math.min(y, innerHeight - r.height - 6))}px`;
   const close = () => {
     pop.remove();
     removeEventListener("click", close, true);
@@ -2558,7 +2557,8 @@ function showMenu(x, y, items) {
   menu.className = "ctxmenu";
   menu.innerHTML = items.map((it, i) => `<button type="button" class="ctxitem" data-i="${i}">${esc(it.label)}</button>`).join("");
   document.body.appendChild(menu);
-  placeInView(menu, x, y);
+  menu.style.left = `${Math.max(6, Math.min(x, innerWidth - menu.getBoundingClientRect().width - 6))}px`;
+  menu.style.top = `${y}px`;
   const close = () => {
     menu.remove();
     removeEventListener("click", onOutside, true);
@@ -3356,9 +3356,9 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
         return cell(col);
       const cast = ("line" in row ? row.line.snap : row.snap).action.cast;
       const spend = col.key === "offtune" ? cast === 8 : (col.key === "concerto" || col.key === "energy") && cast === 6;
-      if (!spend)
-        attr = ` data-val="${Number(v) || 0}" data-mem="${esc(String(row.raw["member"] ?? ""))}"`;
       const before = Number(row.raw[`before:${col.key}`]) || 0;
+      if (!spend)
+        attr = ` data-val="${Number(v) || 0}" data-before="${before}"`;
       const fed = (sources ?? []).some((r) => r.section !== OFFTUNE_RATE && r.section !== ENERGY_RATE);
       if (!fed && Math.abs((Number(v) || 0) - before) < 1e-9)
         return cell(col, { attr });
@@ -3529,7 +3529,6 @@ function erRequirement(flat, resetIdx, member2, maxEnergy, constant) {
   }
   return (maxEnergy * 100 - buffed) / before;
 }
-var ER_TIP = lazyPop(`<span class="pop tip">Unbuffed Energy Regen Requirement</span>`);
 function energyRequirements(run, lines) {
   const flat = lines.flat();
   const erOf = erRollsFor(run.teamKey, run.members, run.combo);
@@ -3547,7 +3546,9 @@ function energyRequirements(run, lines) {
     const req = asked.length ? Math.max(...asked) : null;
     const met = req == null ? "" : req > constant + ER_TOLERANCE ? " er-under" : req > constant ? " er-slack" : " er-met";
     if (req != null) {
-      cells.set(m.name, `<span class="erneed has"${ER_TIP}>> <span class="erreq${met}">${fmt(req, 1)}%</span></span>`);
+      const verdict = met === " er-met" ? "Met" : met === " er-slack" ? "Barely Not Met" : "Not Met";
+      const tip = lazyPop(`<span class="pop tip">Unbuffed Energy Regen Requirement (${verdict})</span>`);
+      cells.set(m.name, `<span class="erneed has"${tip}>> <span class="erreq${met}">${fmt(req, 1)}%</span></span>`);
     }
   });
   return cells;
@@ -3592,7 +3593,6 @@ function renderDetail(key) {
   app3.innerHTML = page(run);
   app3.className = "";
   wireColumnDrag(app3, detailFor(run).report.columns);
-  logMembers = run.members.map((m) => m.name);
   wireCellSelect(app3);
   wireDistribution(app3);
 }
@@ -3615,7 +3615,6 @@ function orderedKeys(columns) {
   return out;
 }
 var logColumns = [];
-var logMembers = [];
 var logOrder = [];
 var logStyle = null;
 function applyColumnOrder(root) {
@@ -3683,7 +3682,7 @@ function doubled(row, held) {
 }
 function blockPanel(sel) {
   let dmg = 0, dmgCells = 0;
-  const res = /* @__PURE__ */ new Map();
+  let gained = 0, tuneCells = 0, tuneDigits = 2;
   const held = new Set(sel.rows.slice(sel.r0, sel.r1 + 1));
   const rows = blockCells(sel);
   for (let i = 0; i < rows.length; i++) {
@@ -3698,23 +3697,16 @@ function blockPanel(sel) {
       if (c.dataset.val === void 0)
         continue;
       const col = logColumns[[...c.parentElement.children].indexOf(c)];
-      const mem = col.key === "offtune" ? "" : c.dataset.mem ?? "";
-      const key = `${mem}|${col.key}`;
-      const v = Number(c.dataset.val) || 0;
-      const seen = res.get(key);
-      if (seen) {
-        seen.last = v;
-        seen.cells++;
-      } else
-        res.set(key, { label: mem ? `${mem} ${col.label}` : "Total Offtune", first: v, last: v, cells: 1, digits: col.digits ?? 2 });
+      if (col.key !== "offtune")
+        continue;
+      gained += (Number(c.dataset.val) || 0) - (Number(c.dataset.before) || 0);
+      tuneDigits = col.digits ?? 2;
+      tuneCells++;
     }
   }
   const lines = dmgCells > 1 ? [["Total Dmg", fmt(dmg, 0)]] : [];
-  const order = (key) => logMembers.indexOf(key.split("|")[0]) * logColumns.length + logColumns.findIndex((c) => c.key === key.split("|")[1]);
-  for (const [key, r] of [...res].sort((a, b) => order(a[0]) - order(b[0]))) {
-    if (r.cells > 1)
-      lines.push([r.label, fmt(r.last - r.first, r.digits, true, false)]);
-  }
+  if (tuneCells)
+    lines.push(["Total Offtune", fmt(gained, tuneDigits, true, false)]);
   if (!lines.length)
     return "";
   return `<span class="pop stat"><table>` + lines.map(([k, v]) => `<tr><td class="k">${esc(k)}</td><td class="v">${esc(v)}</td></tr>`).join("") + `</table></span>`;

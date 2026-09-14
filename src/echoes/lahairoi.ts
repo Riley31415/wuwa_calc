@@ -45,10 +45,11 @@ export const SOUND_OF_TRUE_NAME_5PC = new Sonata({
 
 /* -------------------------------------------------------------------------------- Lynae, 3.6 */
 
-/** Hyvatia: ten lasers at 27.36% apiece. */
+/** Hyvatia: ten lasers at 27.36% apiece, and 0.03 energy each — a tenth of what a hit that size
+ *  usually pays, which is what its own damage row gives. */
 export const ACTION_HYVATIA = new Action("Echo - Hyvatia", {
   cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Echo,
-  mv: 27.36 * 10,
+  mv: 27.36 * 10, energy: 0.03 * 10,
   updateBuffs: () => queueOutro(HYVATIA_HANDOFF),
 });
 
@@ -69,7 +70,7 @@ export const HYVATIA = new Mainslot({
  *  which is the reason Mornye wants it, her Liberation turning every point of ER past 100% into
  *  crit. */
 export const ACTION_REACTOR_HUSK = new Action("Echo - Reactor Husk", {
-  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 351,
+  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 351, energy: 4.87,
 });
 export const REACTOR_HUSK = new Mainslot({
   name: "Reactor Husk",

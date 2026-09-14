@@ -71,12 +71,12 @@ const GraffitiBlast = lynaeAction("Heavy - Kaleidoscopic Parade: Graffiti Blast"
 
 // --- Forte Circuit. These carry Photochromic Flux, which is what shifts the target (see the two
 //     Resonance Modes below). Visual Impact is the big one, on a 25s cooldown.
-const PolychromeLeap1 = lynaeAction("Forte Basic - Polychrome Leap 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 101.4, energy: 2.25, concerto: 5.4, offtune: 4800, forte2: -40, forte3: 1 });
-const PolychromeLeap2 = lynaeAction("Forte Basic - Polychrome Leap 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 101.4, energy: 2.28, concerto: 5.4, offtune: 4800, forte2: -40, forte3: 1 });
-const PolychromeLeap3 = lynaeAction("Forte Basic - Polychrome Leap 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 104.8, energy: 2.4, concerto: 5.6, offtune: 4960, forte2: -40, forte3: 1 });
-const IridescentSplash = lynaeAction("Forte Basic - Iridescent Splash", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 304.18, energy: 8.13, concerto: 7.65, offtune: 6800, forte3: -3 });
+const PolychromeLeap1 = lynaeAction("Forte Basic - Polychrome Leap 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 101.4, energy: 2.25, concerto: 5.4, offtune: 4800, forte2: -40,  });
+const PolychromeLeap2 = lynaeAction("Forte Basic - Polychrome Leap 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 101.4, energy: 2.28, concerto: 5.4, offtune: 4800, forte2: -40,  });
+const PolychromeLeap3 = lynaeAction("Forte Basic - Polychrome Leap 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 104.8, energy: 2.4, concerto: 5.6, offtune: 4960, forte2: -40,  });
+const IridescentSplash = lynaeAction("Forte Basic - Iridescent Splash", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 304.18, energy: 8.13, concerto: 7.65, offtune: 6800,  });
 const VisualImpact = lynaeAction("Forte Basic - Visual Impact", {
-  node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 1216.72, energy: 14.05, concerto: 14.58, offtune: 60960, forte3: -3,
+  node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 1216.72, energy: 14.05, concerto: 14.58, offtune: 60960,
   updateBuffs: () => applyTeam(SPECTRAL_ANALYSIS_TBB, 1),
 });
 
@@ -191,7 +191,6 @@ const LYNAE_RESONATOR = new Resonator({
   maxEnergy: 125,
   maxForte1: 120,
   maxForte2: 120,
-  maxForte3: 3,
 
   stats: [
     [Stat.BaseHp, 12237.5], [Stat.BaseAtk, 375], [Stat.BaseDef, 1197.8],

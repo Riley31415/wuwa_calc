@@ -50,13 +50,6 @@ addEventListener("keydown", () => {
   if (r && (r.width || r.height)) lastPoint = [r.left, r.bottom];
 }, true);
 
-/** Put a popup at a point, kept whole inside the viewport — a menu, or the notice below. */
-function placeInView(el: HTMLElement, x: number, y: number): void {
-  const r = el.getBoundingClientRect();
-  el.style.left = `${Math.max(6, Math.min(x, innerWidth - r.width - 6))}px`;
-  el.style.top = `${Math.max(6, Math.min(y, innerHeight - r.height - 6))}px`;
-}
-
 /** The refusal a change over `ROW_CAP` gets, popped where the reader asked for it rather than in
  *  the filter bar they may not be looking at. Takes itself down on the next click, key or scroll,
  *  the way a menu does. */
@@ -68,7 +61,11 @@ function rowCapWarning(total: number | null): void {
   pop.textContent = `That would open ${fmt(total)} rows, which is over the ${fmt(ROW_CAP)} cap.`
     + ` Try using less comparisons, removing a resonator, or hiding resonators.`;
   document.body.appendChild(pop);
-  placeInView(pop, ...lastPoint);
+  // kept whole inside the viewport, wherever the reader's last input landed
+  const [x, y] = lastPoint;
+  const r = pop.getBoundingClientRect();
+  pop.style.left = `${Math.max(6, Math.min(x, innerWidth - r.width - 6))}px`;
+  pop.style.top = `${Math.max(6, Math.min(y, innerHeight - r.height - 6))}px`;
   const close = (): void => {
     pop.remove();
     removeEventListener("click", close, true);
@@ -200,7 +197,10 @@ function showMenu(x: number, y: number, items: MenuItem[]): void {
   menu.className = "ctxmenu";
   menu.innerHTML = items.map((it, i) => `<button type="button" class="ctxitem" data-i="${i}">${esc(it.label)}</button>`).join("");
   document.body.appendChild(menu);
-  placeInView(menu, x, y);
+  // the first line sits under the pointer, even where that runs the rest of the menu off the
+  // bottom: lifting it to fit would put the pointer over a line the reader never aimed for
+  menu.style.left = `${Math.max(6, Math.min(x, innerWidth - menu.getBoundingClientRect().width - 6))}px`;
+  menu.style.top = `${y}px`;
   const close = (): void => {
     menu.remove();
     removeEventListener("click", onOutside, true);

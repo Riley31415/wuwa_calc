@@ -778,9 +778,10 @@ export function run(state: State, rotation: Action[]): Result[] {
     // queued (Phrolova's Hecate procs, Cantarella's Jolt, ...), a rotation marker or a cast that
     // declares itself one (rotation.ts's swap markers, a summon echo's own hit), and an outro (a
     // handoff, not an attack).
-    // An engine-level event is *not* one, though it reports under its own bucket rather than any
-    // member's (`ActionDef.slot`): a Tune Break is a beat of the fight's own, so it counts off
-    // every per-action clock and stands as a row in its own right — see `queueEvent`.
+    // An engine-level event is not one by virtue of being an event — `queueEvent` says where a cast
+    // lands and on whom, not whose press it is (Hiyuki's Stage 3 is an event *and* a press of her
+    // own). A Tune Break declares itself one instead, the way the markers do, so every per-action
+    // clock passes it over without knowing it by name — see tunebreak.ts.
     // Handed to evaluate() rather than stamped on the result after: gear reacting mid-action
     // needs it too (tunebreak.ts's own watcher won't auto-fire off one) — see triggeredAction().
     const triggered = step.slot >= 0 || step.action.triggered || action.triggered || isCast(action, Cast.Outro);

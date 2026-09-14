@@ -48,14 +48,14 @@ export const BASE_RESISTANCE = new Gear({
  *  taken straight back off the bar — for the next three active presses by anyone on the team, and
  *  every triggered action in between. Its stacks are that clock: the break lands the first, each
  *  active, non-triggered action adds one, and the fourth is the one that finds it full and takes
- *  it off, a phase ahead of any stat, so that action already builds again. The break itself is an
- *  untriggered action now, so it is named outright here — it already laid the first stack down in
- *  the enemy's own updateDebuffs, and must not count itself off as well. */
+ *  it off, a phase ahead of any stat, so that action already builds again. The break is a triggered
+ *  action of its own, so `triggeredAction()` already holds it off here — it laid the first stack
+ *  down in the enemy's own updateDebuffs and must not count itself off as well. */
 export const TUNE_BREAK_COOLDOWN: Debuff = new Debuff({
   name: "Tune Break Cooldown", maxStacks: 4,
   display: () => "Tune Break Cooldown",
   updateBuffs: () => {
-    if (triggeredAction() || runningAction(TUNE_BREAK) || !isActive()) return;
+    if (triggeredAction() || !isActive()) return;
     if (stacksOfEnemy(TUNE_BREAK_COOLDOWN) >= 4) revokeEnemy(TUNE_BREAK_COOLDOWN);
     else applyEnemy(TUNE_BREAK_COOLDOWN, 1);
   },
@@ -95,10 +95,10 @@ export const TUNE_BREAK_ENEMY = new Resonator({
   // sees the bar fill in time. Not `queue`: a break falls in behind everything else this action
   // spawned, and lands on whoever is on field rather than on whoever queued it.
   // Only a real on-field press can set one off: a queued follow-up (`triggeredAction()`) and an
-  // inactive action both top the bar up without breaking it, and a break never sets off another.
-  // The bar stays full either way, so the next action that *is* one fires it.
+  // inactive action both top the bar up without breaking it, and a break — triggered itself — never
+  // sets off another. The bar stays full either way, so the next action that *is* one fires it.
   afterAction: () => {
-    if (triggeredAction() || runningAction(TUNE_BREAK) || !isActive()) return;
+    if (triggeredAction() || !isActive()) return;
     // ...and not part-way through an ActionGroup, which the rotation presses as one beat: the bar
     // can fill on any cast in it, but the break lands on the one that ends the group (evaluate.ts)
     if (midActionGroup()) return;
@@ -119,6 +119,11 @@ export const TUNE_BREAK_ENEMY = new Resonator({
 export const TUNE_BREAK = new Action("Tune Break", {
   element: Attribute.Physical, scaling: Scaling.Tune, cast: Cast.TuneBreak, cutscene: true, type: Type1.Break,
   mv: 1600, slot: TUNE_BREAK_ENEMY.name,
+  // A cast nobody pressed, so a triggered one like any other queued hit (`ActionDef.triggered`):
+  // every per-action clock in the fight — the two below, a sonata's own cadence, an inherent
+  // counting presses — reads `triggeredAction()` and passes it over, rather than each having to
+  // know the break by name.
+  triggered: true,
   // The whole bar, straight off it: `DirectOfftune` rather than a declared `offtune`, because a
   // drain is an amount the bar moves by, not something the team's Off-Tune Buildup Rate builds
   // (see evaluate.ts's own evaluate()). Sourced to the break itself, so the off-tune panel names it.
@@ -130,9 +135,9 @@ export const TUNE_BREAK = new Action("Tune Break", {
 /** How long an Interfered lasts: 8s in game, which this clockless engine takes as the next 10
  *  active, non-triggered actions.
  *  A debuff on that clock, counting the window off in its own stacks rather than through anything
- *  beside it: the break that inflicts it lands the first (and is skipped by name here, being an
- *  untriggered action of its own now), every active, non-triggered action after adds one — a
- *  break's own queued follow-ups add none — and the action that finds it already full is the one
+ *  beside it: the break that inflicts it lands the first (and, being a triggered action itself, is
+ *  passed over here), every active, non-triggered action after adds one — a break's own queued
+ *  follow-ups add none — and the action that finds it already full is the one
  *  that revokes it, from updateBuffs, a phase ahead of any applyStats, so that action already pays
  *  nothing. Its stacks are the clock and nothing else, so it still reports its plain
  *  name rather than "xN".
@@ -147,7 +152,7 @@ export function interferedWindow(def: BuffDef): Debuff {
     maxStacks: 11,
     display: () => def.name ?? "",
     updateBuffs: () => {
-      if (triggeredAction() || runningAction(TUNE_BREAK) || !isActive()) return;
+      if (triggeredAction() || !isActive()) return;
       if (stacksOfEnemy(self) > 10) revokeEnemy(self);
       else applyEnemy(self, 1);
     },

@@ -194,7 +194,7 @@ const INTERFERED_MARKER: Debuff = new Debuff({
   name: "Mornye: Interfered Marker", maxStacks: 26,
   display: () => "Mornye: Interfered Marker",
   updateBuffs: () => {
-    if (triggeredAction() || runningAction(TUNE_BREAK) || !isActive()) return;
+    if (triggeredAction() || !isActive()) return;
     const s1 = currentTeam().slots.find((m) => m.resonator === MORNYE_RESONATOR)?.isHeld(MO_S1);
     if (stacksOfEnemy(INTERFERED_MARKER) > (s1 ? 25 : 10)) revokeEnemy(INTERFERED_MARKER);
     else applyEnemy(INTERFERED_MARKER, 1);

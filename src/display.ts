@@ -536,10 +536,11 @@ export function buildReport(lines: ChainGroup[]): Report {
     { key: "er", label: "er%", digits: 1, percent: true, full: "Energy Regen" },
     { key: "hp", label: "hp", noTotal: true },
     { key: "def", label: "def", noTotal: true },
-    // digits match nanoka's precision; offtune is /10000 (RESOURCE_SCALE)
+    // digits match nanoka's precision; offtune is /10000 (RESOURCE_SCALE) and reads to two like
+    // the rest — its own panel is where the finer figures are (`RESOURCE_DIGITS`)
     { key: "concerto", label: "concerto", digits: 2, hideIfZero: true, full: "Concerto" },
     { key: "energy", label: "energy", digits: 2, hideIfZero: true, full: "Energy" },
-    { key: "offtune", label: "offtune", digits: 4, hideIfZero: true, full: "OffTune" },
+    { key: "offtune", label: "offtune", digits: 2, hideIfZero: true, full: "OffTune" },
     // two decimals, the same as concerto and energy: a gauge is fed in fractions of a point
     ...FORTE_GAUGES.map((key) => ({
       key: `gauge:${RESOURCE_NAME[key]}`, label: RESOURCE_NAME[key], digits: 2, hideIfZero: true,

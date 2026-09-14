@@ -490,7 +490,7 @@ svg.pie .pc { fill: var(--dim); font-family: var(--mono); }
    `will-change` is what keeps the move to itself: without it the whole <svg> is re-rasterised for
    the animation, and every label and seam in it shimmers a subpixel as it re-snaps. */
 svg.pie .wedge {
-  fill-opacity: .3;
+  fill-opacity: .4;
   stroke-width: 1;
   transition: transform .12s ease-out, stroke-width .12s ease-out;
   will-change: transform;

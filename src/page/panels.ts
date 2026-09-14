@@ -414,16 +414,17 @@ export function loadoutTable(run: TeamRun, erReq?: Map<string, string>): string 
   const rows: string[] = [];
   rows.push(row("Weapon", builds.map((b) => gearCell(b.member.name, b.combo.weapon))));
   rows.push(row("Mainslot", builds.map((b) => gearCell(b.member.name, b.combo.echo.mainslot))));
-  // Every sonata piece the build wears, a row each — a 5pc's own 2pc half included, since
-  // `EchoLoadout.pieces()` equips it separately and it carries stats of its own. As many rows as
-  // the widest member needs; a member with fewer leaves the extra ones blank.
-  const sonataOf = builds.map(({ combo }) => {
-    const echo = combo.echo;
-    return [...echo.sets, ...(echo.sonata instanceof Sonata ? [echo.sonata.sonata2pc] : [])];
-  });
+  // Every sonata set the build names, a row each. A 5pc's own 2pc half carries stats of its own
+  // (`EchoLoadout.pieces()` equips it separately), but it is never worn apart from the 5pc, so it
+  // reads inside that cell's own panel rather than taking a row nobody chose. As many rows as the
+  // widest member needs; a member with fewer leaves the extra ones blank.
+  const sonataOf = builds.map(({ combo }) => combo.echo.sets);
   const sonatas = Math.max(...sonataOf.map((list) => list.length));
   for (let i = 0; i < sonatas; i++) {
-    rows.push(row(i === 0 ? "Sonata" : "", builds.map((b, k) => gearCell(b.member.name, sonataOf[k]![i] ?? null))));
+    rows.push(row(i === 0 ? "Sonata" : "", builds.map((b, k) => {
+      const set = sonataOf[k]![i] ?? null;
+      return gearCell(b.member.name, set, set instanceof Sonata ? [set, set.sonata2pc] : undefined);
+    })));
   }
   // Both spreads are their own list rather than a piece plus what it granted: five echoes' own
   // main and secondary stats, and the twenty-five rolls folded by stat. All Stats — nothing here

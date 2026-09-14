@@ -27,3 +27,6 @@ RDPR? buff contribution
 
 #
 def ignore formula
+
+#
+add er/crit/hp reccomendations for kit requirements
