@@ -50,7 +50,7 @@ const Outro = sanhuaAction("Outro - Silversnow", {
 });
 
 const Skill = sanhuaAction("Skill - Eternal Frost", {
-  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 359.85, offtune: 8000, energy: 10, concerto: 15,
+  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, cutscene: true, mv: 359.85, offtune: 8000, energy: 10, concerto: 15,
   updateBuffs: () => applyCurrent(PRISM_BUFF, 1),
 });
 const Liberation = sanhuaAction("Liberation - Glacial Gaze", {

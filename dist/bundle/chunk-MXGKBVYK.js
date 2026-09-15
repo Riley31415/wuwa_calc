@@ -19627,6 +19627,7 @@ var Skill29 = sanhuaAction("Skill - Eternal Frost", {
   node: 1,
   cast: 3,
   type: 12288,
+  cutscene: true,
   mv: 359.85,
   offtune: 8e3,
   energy: 10,
@@ -24090,7 +24091,7 @@ var TEAMS = [
   [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [IUNO, MORTEFI, REBECCA, LYNAE_RUPTURE, LUPA], JINGRAN],
   // qingxiao: aero heavy/basic/liberation on tune strain
   INTENDED,
-  [[MORNYE, SHOREKEEPER], [DENIA_STRAIN, LYNAE_STRAIN], QINGXIAO],
+  [[MORNYE, SHOREKEEPER], [DENIA_STRAIN, LYNAE_STRAIN, SANHUA, MORTEFI], QINGXIAO],
   [[MORNYE, SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA], [DENIA_STRAIN, LYNAE_STRAIN, ROVER_AERO, CIACCONA, SANHUA, MORTEFI, REBECCA, JIANXIN], QINGXIAO],
   // xuanling: havoc heavy attack on Havoc Bane — Chisa's +3 to every Negative Status cap is what
   // takes Unbroken Vow off its 3-stack 30% tier onto the 4-6 stack 36% one
@@ -24125,6 +24126,7 @@ var TEAMS = [
   [[CIACCONA, ROVER_AERO, SUISUI], [QIUYUAN, LUCILLA, CANTARELLA, ROVER_AERO, CIACCONA, LYNAE_RUPTURE], SIGRIKA_FAST],
   [[QIUYUAN], SIGRIKA, [IUNO]],
   // luuk: spectro basic, tune strain
+  INTENDED,
   [[SHOREKEEPER, MORNYE], [LYNAE_STRAIN, SANHUA, DENIA_STRAIN], LUUK],
   [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [LYNAE_STRAIN, SANHUA, DENIA_STRAIN, ROVER_SPECTRO], LUUK],
   // aemeath: fusion liberation on tune rupture — Mornye and Lynae answer the break beside her

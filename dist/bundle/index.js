@@ -54,7 +54,7 @@ import {
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-WUQFIQML.js";
+} from "./chunk-MXGKBVYK.js";
 
 // dist/src/display.js
 var formatters = /* @__PURE__ */ new Map();

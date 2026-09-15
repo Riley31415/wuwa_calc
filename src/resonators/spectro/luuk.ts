@@ -41,7 +41,7 @@ import {
   isHeld,
   stacksOf,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, ECHO_SWAP, OUTRO, DODGE } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, START_3, SWAP, INTRO, ECHO_SWAP, OUTRO, DODGE, DOUBLE_INTRO } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
 import { lostOnSwap } from "../../shared/helpers.js";
 import { TUNE_STRAIN_SHIFTING } from "../../shared/tunebreak.js";
