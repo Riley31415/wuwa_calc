@@ -11,17 +11,18 @@ import {
   triggeredAction, isActive, onCast, onType, onApplied,
 } from "../engine/context.js";
 import { Action, ActionField } from "../engine/rotation.js";
-import { coordinatedBuff, handoff, lostOnSwap } from "../shared/helpers.js";
+import { coordinatedBuff, handoff, lostOnSwap, oneSecondPassed } from "../shared/helpers.js";
 import { HEALS, SHIELD } from "../shared/status.js";
 
 /* -------------------------------------------------------------------------- generic, unowned */
 
-/** Bell-Borne Geochelone, a 5-cost mainslot echo. No equip passive — its own cast grants the
- *  team 2 stacks of Bell-Borne Shield (only the +10% DMG Bonus half is modelled). A stack is
- *  lost on any teammate's outro. */
+/** Bell-Borne Geochelone, a 5-cost mainslot echo. No equip passive — its own cast puts the team's
+ *  Bell-Borne Shield up for 15s (only the +10% DMG Bonus half is modelled; the 50% DMG Reduction
+ *  pays nothing here). Its other end — "disappears after the current character is hit 3 times" —
+ *  is nothing this engine can see, so the 15s is the whole of what bounds it. */
 export const ACTION_BELL_BORNE = new Action("Echo - Bell-Borne Geochelone", {
   cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Def, type: Type1.Echo, mv: 145.92, energy: 4.55,
-  updateBuffs: () => applyTeam(BELL_BORNE_SHIELD, 2),
+  updateBuffs: () => applyTeam(BELL_BORNE_SHIELD, 15),
 });
 
 export const BELL_BORNE_GEOCHELONE = new Mainslot({
@@ -31,11 +32,12 @@ export const BELL_BORNE_GEOCHELONE = new Mainslot({
 });
 
 export const BELL_BORNE_SHIELD: Buff = new Buff({
-  name: "Bell-Borne Geochelone: Bell-Borne Shield", maxStacks: 2,
-  // no "xN" suffix — the DMG Bonus is flat regardless of charge count
-  display: () => BELL_BORNE_SHIELD.name,
+  name: "Bell-Borne Geochelone: Bell-Borne Shield", maxStacks: 15,
+  // the stacks are its own fifteen seconds, one spent per engine second — so what the count reads as
+  // is the time it has left, not an xN (the DMG Bonus is flat while any second remains)
+  display: () => `Bell-Borne Geochelone: Bell-Borne Shield (${frozenStacks()}s)`,
   stats: [[Stat.DmgBonus, 10]],
-  updateBuffs: () => { if (casting(Cast.Outro)) removeStackTeam(BELL_BORNE_SHIELD, 1); },
+  updateBuffs: () => { if (oneSecondPassed()) removeStackTeam(BELL_BORNE_SHIELD, 1); },
 });
 
 /** Impermanence Heron, a generic mainslot echo. No equip passive — its own cast primes an Outro

@@ -47,7 +47,7 @@ import {
   isHeld,
   stacksOf,
 } from "../../engine/context.js";
-import { Action, Rotation, INTRO, OUTRO } from "../../engine/rotation.js";
+import { Action, Rotation, INTRO, OUTRO, ECHO_SWAP } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
 import { SHIELD } from "../../shared/status.js";
 import { THUNDERFLARE_DOMINION, VERDANT_SUMMIT } from "../../weapons/broadblade.js";
@@ -276,7 +276,7 @@ const AG_SEQUENCES = [AG_S1, AG_S2, AG_S3, AG_S4, AG_S5, AG_S6];
 
 const AG_ROTATION = new Rotation([
   INTRO, FHA1, FHA2, Skill, FHA1, FHA2, HA, Lib1, HA, 
-  FSkill1, FSkill2, FSkill3, Lib2, FJump, OUTRO,
+  FSkill1, FSkill2, FSkill3, Lib2, FJump, ECHO_SWAP, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

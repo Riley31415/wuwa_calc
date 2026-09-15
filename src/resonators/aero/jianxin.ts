@@ -219,10 +219,10 @@ const JIANXIN_RESONATOR = new Resonator({
 /** Intro (40 Chi, S1 up), Chi Parry, the basic chain at double Chi, the second Chi Parry (S2), the
  *  Spiral on a full gauge, the Liberation under S4, the echo and out. Never the team's lead. */
 const JX_ROTATION = new Rotation([
-  INTRO, BA1234, ChiParry, BA12, Liberation, ZHOUTIAN_1, ECHO_SWAP, OUTRO,
+  INTRO, BA1234, ChiParry, Liberation, ZHOUTIAN_1, ECHO_SWAP, OUTRO,
 ]);
 const JX_ROTATION_S2 = new Rotation([
-  INTRO, BA1234, ChiParry, ChiParry, Liberation, ZHOUTIAN_1, ECHO_SWAP, OUTRO,
+  INTRO, ChiParry, ChiParry, Liberation, ZHOUTIAN_1, ECHO_SWAP, OUTRO,
 ]);
 
 export const JIANXIN = new Loadout({
@@ -232,6 +232,8 @@ export const JIANXIN = new Loadout({
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.Aero3, Mainstat.ATK3, Mainstat.ATK1),
   substat: substats(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill),
   highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill),
-  rotation: { 0: JX_ROTATION, 2: JX_ROTATION_S2 },
+  rotation: { 0: JX_ROTATION, //2: JX_ROTATION_S2 
+
+  },
   sequences: [S1, S2, S3, S4, S5, S6],
 });

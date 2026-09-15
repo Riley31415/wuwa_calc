@@ -96,11 +96,15 @@ export function handoff(name: string, applyStats: () => void): Buff {
 /** The clockless engine's second: one on-field, non-triggered press. Every timed thing here (a
  *  field's window, a status's tick clock) counts these off as its seconds.
  *
- *  A cutscene press is no second at all, because the world is frozen for its whole animation
- *  (wuwalab's frame data: a Liberation's `time_stop` outlasts its cast, a Tune Break's is all of
- *  it) — the press says so itself (`ActionDef.cutscene`). */
+ *  Three presses are no second at all. A cutscene, because the world is frozen for its whole
+ *  animation (wuwalab's frame data: a Liberation's `time_stop` outlasts its cast, a Tune Break's is
+ *  all of it) — the press says so itself (`ActionDef.cutscene`). A swap-out, which `isActive()`
+ *  already answers for (an Outro, a swap marker, an echo's swap form). And a cancelled press
+ *  (`cancelOf`, off `dodgeCancel()`/`jumpCancel()`): it is the cast's own effects with its animation
+ *  cut, so no time goes to it — nor to the dash that cut it, the marker being triggered. */
 export function oneSecondPassed(): boolean {
-  return isActive() && !triggeredAction() && !currentAction().cutscene;
+  const action = currentAction();
+  return isActive() && !triggeredAction() && !action.cutscene && action.cancelOf === null;
 }
 
 /* ------------------------------------------------------------------------- coordinated windows */

@@ -96,7 +96,7 @@ const EROSION_BURST = {
 // --- Cartethyia: basics, heavy, dodge counter (Sword to Carve My Forms). Stage 4 lays the Aero
 //     Erosion and the Sword of Divinity's Shadow; the Heavy is considered Basic Attack DMG.
 const BA1 = cartethyiaAction("Basic - Sword to Carve My Forms 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 4.78, energy: 0.70, concerto: 0.98, offtune: 2240 });
-const BA2 = cartethyiaAction("Basic - Sword to Carve My Forms 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 13.13, energy: 1.93, concerto: 2.70, offtune: 6146 });
+const BA2 = cartethyiaAction("Basic - Sword to Carve My Forms 2", { cutscene: true, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 13.13, energy: 1.93, concerto: 2.70, offtune: 6146 });
 const BA3 = cartethyiaAction("Basic - Sword to Carve My Forms 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 17.12, energy: 2.52, concerto: 3.52, offtune: 8016 });
 const BA4 = cartethyiaAction("Basic - Sword to Carve My Forms 4", {
   node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 15.10, energy: 2.22, concerto: 3.11, offtune: 7073, ...erosion(1),
@@ -128,7 +128,7 @@ const Plunge3 = cartethyiaAction("Mid-air - Plunging Attack (3 Sword Shadows)", 
 
 // --- Cartethyia: skill and intro, both considered their own DMG and both laying 2 Aero Erosion
 const Skill = cartethyiaAction("Skill - Sword to Bear Their Names", {
-  node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 29.53, energy: 16.28, concerto: 10, offtune: 7200, ...erosion(2),
+  node: Node.Skill, cast: Cast.Skill, cutscene: true, type: Type1.Basic, mv: 29.53, energy: 16.28, concerto: 10, offtune: 7200, ...erosion(2),
   updateBuffs: () => applyCurrent(SWORD_OF_VIRTUE, 1),
 });
 const Intro = cartethyiaAction("Intro - Sword to Mark Tide's Trace", {

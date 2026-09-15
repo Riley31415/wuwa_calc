@@ -116,7 +116,7 @@ export const TUNE_BREAK_ENEMY = new Resonator({
 /** Always this one tune-scaled hit, whichever Shifting steered it — a Tune Break scales off Tune
  *  Break, and the Shifting only decides which Interfered it leaves behind. Reports under the
  *  enemy's own bucket rather than whoever was on field. */
-export const TUNE_BREAK = new Action("Tune Break", {
+export const TUNE_BREAK = new Action("Tune Break (Auto Generated)", {
   element: Attribute.Physical, scaling: Scaling.Tune, cast: Cast.TuneBreak, cutscene: true, type: Type1.Break,
   mv: 1600, slot: TUNE_BREAK_ENEMY.name,
   // A cast nobody pressed, so a triggered one like any other queued hit (`ActionDef.triggered`):

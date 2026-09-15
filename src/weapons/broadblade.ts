@@ -37,7 +37,7 @@ export const AGES_OF_HARVEST = refinements((r, rank) => {
   });
   return new Weapon({
     weaponType: WeaponType.Broadblade, name: `Ages of Harvest${rank}`,
-    stats: [[Stat.BaseAtk, 587.5], [Stat.CritDmg, 48.6], [Stat.DmgBonus, [12, 15, 18, 21, 24][r]!]],
+    stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.DmgBonus, [12, 15, 18, 21, 24][r]!]],
     grants: [
       { on: onCast(Cast.Intro), buff: AGELESS_MARKING },
       { on: onCast(Cast.Skill), buff: ETHEREAL_ENDOWMENT },
@@ -126,7 +126,7 @@ export const JINGRAN_SIG = refinements((r, rank) => {
   });
   return new Weapon({
     weaponType: WeaponType.Broadblade, name: `Thousandfold Deliverance${rank}`,
-    stats: [[Stat.BaseAtk, 413], [Stat.BonusHp, 72.2], [Stat.DmgBonus, [12, 15, 18, 21, 24][r]!]],
+    stats: [[Stat.BaseAtk, 412.5], [Stat.BonusHp, 72.225], [Stat.DmgBonus, [12, 15, 18, 21, 24][r]!]],
     updateBuffs: () => {
       // two separate triggers, so his Intro — which also shields — pays both and stacks twice
       const n = (casting(Cast.Intro) ? 1 : 0) + applied(SHIELD);

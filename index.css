@@ -325,7 +325,7 @@ body {
 }
 /* The name column to its longest name and the five figure columns each to their own widest
    figure — the table is as wide as its contents, not the page. The pies' row spans every track and
-   is wider than the figures come to (`svg.pie`'s own minimum), and that slack goes to the five
+   is wider than the figures come to (`.chartwrap`'s own minimum), and that slack goes to the five
    figure columns alone: the two Energy columns (`.energy`, the detail page's) hold their width. */
 .rtable.dpr { grid-template-columns: max-content repeat(5, minmax(max-content, 1fr)); width: max-content; }
 /* ...and on the page it takes the whole of its block's height, which is Equipment's height */
@@ -446,12 +446,12 @@ body {
 /* the pies run the whole width of the table, the row's own label given up to them */
 .rtrow.dist .c.distbody {
   grid-column: 1 / -1;
-  /* Both distributions to one floor, so switching between a resonator's pies and the team's chart
-     never resizes the table under them — the chart plus its key is the taller of the two, and the
-     pies keep its height rather than the row snapping ~36px shorter. Only bites once the two tables
-     have wrapped onto separate lines: side by side the `1fr` track already levels them and the row
-     comes out past this on its own. */
-  min-height: 285px;
+  /* The row is whatever Equipment leaves (the `1fr` track off dprTable), and this is the floor for
+     when there is nothing to take it from — the block alone on its own line. The drawings are sized
+     against `.chartwrap` rather than carrying their own aspect height up into here, so neither
+     distribution pushes this table past Equipment beside it, and both scale into whatever it leaves
+     instead. Low enough to fit inside the shortest Equipment on the roster (~195px of slack). */
+  min-height: 190px;
   /* the floor matches the gap under a figure's own title, which is what puts a pie's centre exactly
      halfway between that title and the bottom of the cell */
   padding: 12px 10px 8px;
@@ -464,11 +464,14 @@ body {
   display: flex;
   align-items: stretch;
 }
+/* Narrow enough that Equipment cannot be beside it (the two tables come to ~1500px between them),
+   so there is no height to match and no reason to hold the charts down to the floor above: they go
+   back to the taller of the two distributions, which is what they had before either had to level. */
+@media (max-width: 1100px) {
+  .rtrow.dist .c.distbody { min-height: 285px; }
+}
 /* split down the middle, each pie centred in its own half */
 .pies { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-/* the frame takes the height under the title, and the drawing centres in it (`meet`) — so the pie's
-   own middle lands halfway between the title's bottom edge and the cell's */
-svg.pie { flex: 1; min-height: 0; }
 .piefig { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
 /* the table's own heading type — these are two sub-headings inside one row, not content */
 .piefig figcaption { font-size: 12px; font-weight: 650; color: var(--dim); }
@@ -476,7 +479,14 @@ svg.pie { flex: 1; min-height: 0; }
    own labels (panels.ts's pieSvg), so nothing of it runs out to the row's scroll box to be cut. The
    minimum is what keeps the two halves' labels off each other — the row carries it up into the
    table's own width. */
-svg.pie { width: 100%; min-width: 330px; max-width: 480px; height: auto; overflow: visible; }
+/* The box a drawing is measured by. It carries the width — its own minimum is what keeps the two
+   halves' labels off each other, and the row hands that up to the table — while the svg inside fills
+   it absolutely, so the ratio the viewBox implies never becomes a height the row has to find. */
+.chartwrap { position: relative; flex: 1; min-height: 0; width: 100%; min-width: 330px; max-width: 480px; }
+/* `meet` (the default `preserveAspectRatio`) letterboxes the drawing in whatever box it is given, so
+   a shorter row shrinks it rather than stretching it out of shape. */
+svg.pie, svg.bars { position: absolute; inset: 0; width: 100%; height: 100%; }
+svg.pie { overflow: visible; }
 /* a leader's label — the name never wears the wedge's colour, the line running to it carries that */
 svg.pie text { font-family: var(--sans); }
 svg.pie .nm { fill: var(--ink-2); }
@@ -485,17 +495,18 @@ svg.pie .pc { fill: var(--dim); font-family: var(--mono); }
    hover (the offset each slides by is written on its own group by pieSvg). */
 /* The wedges sit back off the page so the labels lead: a faint fill inside an edge drawn at full
    strength in the wedge's own colour — the same colour, at the same strength, as the leader running
-   off it, so a slice and its label are one mark. A hovered wedge doubles that edge on its way out.
+   off it, so a slice and its label are one mark. The edge is already fully opaque, so it is width
+   that carries how hard it reads; a hovered wedge thickens it further on its way out.
 
    `will-change` is what keeps the move to itself: without it the whole <svg> is re-rasterised for
    the animation, and every label and seam in it shimmers a subpixel as it re-snaps. */
 svg.pie .wedge {
   fill-opacity: .4;
-  stroke-width: 1;
+  stroke-width: 1.5;
   transition: transform .12s ease-out, stroke-width .12s ease-out;
   will-change: transform;
 }
-svg.pie .slice:hover .wedge { stroke-width: 2; transform: translate(var(--ox, 0px), var(--oy, 0px)); }
+svg.pie .slice:hover .wedge { stroke-width: 2.5; transform: translate(var(--ox, 0px), var(--oy, 0px)); }
 /* The leader does not move with it — it redraws to the curve pieSvg parked on it, which is the same
    curve with only its rim end carried out. Its far end stays where the label is. */
 svg.pie .leader { transition: d .12s ease-out; }
@@ -511,12 +522,11 @@ svg.pie text { text-rendering: geometricPrecision; }
 .teampanes { flex: 1; align-self: stretch; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 /* Sized off nothing inside: the chart's height is definite here (the figure fills the row) and a
    chart with an aspect ratio then asks for the width that height comes to, which widened the panes
-   — and the table — past the pies'. The floor is the pies' own (`svg.pie`), so the two rows agree. */
+   — and the table — past the pies'. The floor is the pies' own (`.chartwrap`), so the two rows agree. */
 .teampanes .piefig { height: 100%; contain: inline-size; min-width: 330px; }
 /* sized like the pies beside it, so the team's figures and a resonator's leave the table the same
    width; the chart takes the middle of what its title leaves, the way a pie does */
 /* takes the height the pane leaves between the title and the key, which is pinned under it */
-svg.bars { width: 100%; min-width: 330px; max-width: 480px; flex: 1; min-height: 0; height: auto; }
 svg.bars .axis { stroke: var(--line-2); }
 /* the chart's key, right under the chart rather than out on the slack below it: one even column
    per caster, whoever they are */

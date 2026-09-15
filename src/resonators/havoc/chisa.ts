@@ -201,7 +201,7 @@ const Blitz3Falltone = chisaAction("Forte - Sawring Blitz 3: Falltone", { node: 
 const Blitz3Hold = chisaAction("Forte - Sawring Blitz 3 (Hold)", { node: Node.Forte, type: Type1.Liberation, mv: 223.72, energy: 3.22, concerto: 6.30, offtune: 10010, forte2: -50, ...blitz() });
 /** Consumes whatever Ring of Chainsaw remains and ends Chainsaw Mode; shields the team. */
 const Eradication = chisaAction("Forte - Sawring Eradication", {
-  node: Node.Forte, type: Type1.Liberation, mv: 257.67, energy: 22.40, concerto: 49.80, offtune: 7680,
+  node: Node.Forte, type: Type1.Liberation, mv: 257.67, energy: 22.40, concerto: 49.80, offtune: 7680, cutscene: true,
   resetForte2: true,
   updateDebuffs: () => applyCurrent(SHIELD, 1),
 });

@@ -103,7 +103,7 @@ const IchorDeposit = luukAction("Skill - Ichor Deposit", { node: Node.Skill, typ
 
 // --- Spark from the Frost. Gavel of Earthshaker is the mid-air slam a Glare opens up; it
 //     detonates the Deposit, and its Concerto is all the flat regen row (the hit itself carries 0).
-const Gavel = luukAction("Basic - Gavel of Earthshaker", {
+const Gavel = luukAction("Mid-air - Gavel of Earthshaker", {
   node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 306.9, energy: 6, concerto: 10, offtune: 8080, forte1: 25.25,
   updateBuffs: () => queue(IchorDeposit),
 });

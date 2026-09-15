@@ -390,17 +390,61 @@ function comparisonTable(rows: TeamRow[]): string {
       for (const axis of CMP_AXES) if (shows(m, axis)) openAt[axis][pos] = true;
     });
   }
+  // ...and a column only earns its place while there is more than one option left behind it. A
+  // compare filtered down to a single level or set (`sr=Jinhsi S1` with Jinhsi's sequences open)
+  // repeats the one pick down the table with nothing to measure it against, so it closes again.
+  // Counted per member rather than per position: a position several resonators share keeps its
+  // column as long as any one of them still has a choice there.
+  const optionOf = (axis: CmpAxis, m: Member, c: Combo): string =>
+    axis === "weapons" ? c.weapon.name
+      : axis === "echoes" ? echoLabel(m.loadout, c.echo)
+        : axis === "mainstats" ? c.mainstat.name
+          : axis === "substats" ? subsLabel(c)
+            : axis === "sequences" ? String(c.sequence)
+              : String(c.weapon.refinement);
+  const seenAt = new Map<string, Set<string>>();
+  for (const row of rows) {
+    row.members.forEach((m, pos) => {
+      for (const axis of CMP_AXES) {
+        if (!shows(m, axis)) continue;
+        const key = `${axis}|${pos}|${m.name}`;
+        let seen = seenAt.get(key);
+        if (!seen) seenAt.set(key, seen = new Set());
+        seen.add(optionOf(axis, m, row.combo[pos]!));
+      }
+    });
+  }
+  // ...except the Weapon column, which keeps its cell on a single weapon so the reader can still
+  // read which one is running — only the Compare beside it goes.
+  const soloWeapon = [false, false, false];
+  for (const axis of CMP_AXES) {
+    openAt[axis].forEach((open, pos) => {
+      if (!open) return;
+      const choices = [...seenAt].some(([key, seen]) => key.startsWith(`${axis}|${pos}|`) && seen.size > 1);
+      if (choices) return;
+      if (axis === "weapons") soloWeapon[pos] = true;
+      else openAt[axis][pos] = false;
+    });
+  }
+  /** Whether this axis draws a Compare cell at this position — every open column does, bar the two
+   *  that have nothing to measure: a Weapon column standing on one weapon, and a refine one beside
+   *  a Weapon Compare that already measures against R1. */
+  const cmpAt = (axis: CmpAxis, i: number): boolean =>
+    !openAt[axis][i] ? false
+    : axis === "weapons" ? !soloWeapon[i]
+    : axis === "refines" ? !cmpAt("weapons", i)
+    : true;
   // indexed only for the axes and positions with a Compare on screen, over the teams on screen —
   // `results` holds every run of the session, and the default table has no compare at all
   const onScreen = new Set(rows.map((r) => r.key));
   const teamsOnScreen = new Set(rows.map((r) => r.teamKey));
-  const openAxes = CMP_AXES.filter((axis) => openAt[axis].some(Boolean));
+  const openAxes = CMP_AXES.filter((axis) => openAt[axis].some((_, pos) => cmpAt(axis, pos)));
   const twins = new Map<string, { combo: Combo; dpr: number; shown: boolean }[]>();
   for (const [key, run] of results) {
     if (!openAxes.length || !teamsOnScreen.has(run.teamKey)) continue;
     run.members.forEach((m, pos) => {
       for (const axis of openAxes) {
-        if (!openAt[axis][pos]) continue;
+        if (!cmpAt(axis, pos)) continue;
         const twin = twinKey(run, pos, axis);
         const list = twins.get(twin) ?? [];
         list.push({ combo: run.combo[pos]!, dpr: run.bySlot.get(m.name) ?? 0, shown: onScreen.has(key) });
@@ -443,11 +487,9 @@ function comparisonTable(rows: TeamRow[]): string {
     return ratio == null ? "" : pctTrunc(ratio);
   };
 
-  const seqCmpAt = (i: number): boolean => !!openAt.sequences[i];
-  // the Weapon column's own Compare already measures against R1, so the refine one stands down
-  const refCmpAt = (i: number): boolean => !!openAt.refines[i] && !openAt.weapons[i];
-  // ...and the Personal column, which the reader holds (`personalOpen`) but a new Compare opens for
-  // them: it is what every Compare beside it is a share of, so it earns its place when one arrives
+  // ...and the Personal column, which the reader holds (`personalOpen`) but a new column opens for
+  // them: it is the figure every Compare beside it is a share of, and the one a name-only Weapon
+  // column is read against by eye, so it earns its place the moment either arrives
   for (let i = 0; i < personalOpen.length; i++) for (const axis of CMP_AXES) {
     const key = `${axis}|${i}`;
     if (!openAt[axis][i]) cmpDrawn.delete(key);
@@ -472,8 +514,8 @@ function comparisonTable(rows: TeamRow[]): string {
         + `<span class="res-label">${esc(memberLabel(m, combo))}</span>`
         + `</div>`;
       const dpr = dprAt(i) ? `<div class="c num slotdpr" style="--mem:${m.color}">${dprFmt(run.bySlot.get(m.name) ?? 0, dprExact.personal)}</div>` : "";
-      const seqCmp = seqCmpAt(i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${axisOpen(m, filters, "sequences") ? gearCompare(run, i, "sequences") : ""}</div>` : "";
-      const refCmp = refCmpAt(i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${compares(m, filters, "refines", combo) ? gearCompare(run, i, "refines") : ""}</div>` : "";
+      const seqCmp = cmpAt("sequences", i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${axisOpen(m, filters, "sequences") ? gearCompare(run, i, "sequences") : ""}</div>` : "";
+      const refCmp = cmpAt("refines", i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${compares(m, filters, "refines", combo) ? gearCompare(run, i, "refines") : ""}</div>` : "";
       const gear = GEAR_AXES.map((axis) => {
         if (!openAt[axis][i]) return "";
         const open = showsRow(m, axis, combo);
@@ -485,7 +527,7 @@ function comparisonTable(rows: TeamRow[]): string {
           // off (`openStatMenu`).
           : `<div class="c option"${open ? ` data-stat="${axis}" data-resonator="${esc(m.name)}"` : ""} style="--mem:${m.color}">`
             + `${open ? esc(axis === "mainstats" ? combo.mainstat.name : subsLabel(combo)) : ""}</div>`;
-        return cell + `<div class="c num slotcompare" style="--mem:${m.color}">${open ? gearCompare(run, i, axis) : ""}</div>`;
+        return cell + (cmpAt(axis, i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${open ? gearCompare(run, i, axis) : ""}</div>` : "");
       }).join("");
       return name + seqCmp + refCmp + gear + dpr;
     };
@@ -501,9 +543,9 @@ function comparisonTable(rows: TeamRow[]): string {
 
   const memberHead = (n: number, i: number) => `<div class="c slothead${dprAt(i) ? " open" : ""}" data-slot="${i}"`
     + ` title="${CLICK} to ${dprAt(i) ? "hide" : "show"} this slot's Personal DPR">Slot ${n}<span class="arrow">›</span></div>`
-    + (seqCmpAt(i) ? `<div class="c num">Compare</div>` : "")
-    + (refCmpAt(i) ? `<div class="c num">Compare</div>` : "")
-    + GEAR_AXES.map((axis) => (openAt[axis][i] ? `<div class="c">${AXIS_HEAD[axis]}</div><div class="c num">Compare</div>` : "")).join("")
+    + (cmpAt("sequences", i) ? `<div class="c num">Compare</div>` : "")
+    + (cmpAt("refines", i) ? `<div class="c num">Compare</div>` : "")
+    + GEAR_AXES.map((axis) => (openAt[axis][i] ? `<div class="c">${AXIS_HEAD[axis]}</div>${cmpAt(axis, i) ? `<div class="c num">Compare</div>` : ""}` : "")).join("")
     + (dprAt(i) ? `<div class="c num dprhead" data-dpr="personal" title="${CLICK} to switch between abbreviated and exact figures">Personal</div>` : "");
   const head = `<div class="trow thead">`
     + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2)
@@ -513,7 +555,7 @@ function comparisonTable(rows: TeamRow[]): string {
     + `</div>`;
 
   // one grid track per column rendered above, position by position
-  const posCols = (i: number) => `max-content${seqCmpAt(i) ? " max-content" : ""}${refCmpAt(i) ? " max-content" : ""}${GEAR_AXES.map((axis) => (openAt[axis][i] ? " max-content max-content" : "")).join("")}${dprAt(i) ? " max-content" : ""}`;
+  const posCols = (i: number) => `max-content${cmpAt("sequences", i) ? " max-content" : ""}${cmpAt("refines", i) ? " max-content" : ""}${GEAR_AXES.map((axis) => (openAt[axis][i] ? ` max-content${cmpAt(axis, i) ? " max-content" : ""}` : "")).join("")}${dprAt(i) ? " max-content" : ""}`;
   const gridStyle = `grid-template-columns:${posCols(0)} ${posCols(1)} ${posCols(2)} max-content max-content max-content`;
 
   const rowLines = (run: TeamRun): number => Math.max(1, ...run.members.map((m, i) =>
@@ -556,10 +598,10 @@ function comparisonTable(rows: TeamRow[]): string {
   // a zero-height ghost row (index.css `.tghost`) sizing every track to its final width
   const ghostPos = (i: number, dpr: string[]) =>
     `<div class="c name res"><span class="res-label">${esc(wide.name[i]!)}</span></div>`
-    + (seqCmpAt(i) ? `<div class="c num slotcompare">${esc(wide.seqcmp[i]!)}</div>` : "")
-    + (refCmpAt(i) ? `<div class="c num slotcompare">${esc(wide.refcmp[i]!)}</div>` : "")
+    + (cmpAt("sequences", i) ? `<div class="c num slotcompare">${esc(wide.seqcmp[i]!)}</div>` : "")
+    + (cmpAt("refines", i) ? `<div class="c num slotcompare">${esc(wide.refcmp[i]!)}</div>` : "")
     + GEAR_AXES.map((axis) => (openAt[axis][i]
-      ? `<div class="c option">${esc(wide.gear[axis][i]!)}</div><div class="c num slotcompare">${esc(wide.cmp[axis][i]!)}</div>` : "")).join("")
+      ? `<div class="c option">${esc(wide.gear[axis][i]!)}</div>${cmpAt(axis, i) ? `<div class="c num slotcompare">${esc(wide.cmp[axis][i]!)}</div>` : ""}` : "")).join("")
     + (dprAt(i) ? `<div class="c num slotdpr">${esc(dpr[i]!)}</div>` : "");
   // no `.teamdpr` on the ghost's Total cell: `drawWindow()` measures the row pitch off it
   const ghostFor = (dpr: string[], total: string): string => `<div class="trow tghost" aria-hidden="true">`

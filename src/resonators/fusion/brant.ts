@@ -91,7 +91,7 @@ const BA4 = brantAction("Basic - Captain's Rhapsody 4", { node: Node.Normal, cas
 const HA = brantAction("Heavy - Captain's Rhapsody", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 197.55, energy: 2.93, concerto: 5.85, offtune: 9352, forte1: 7.25 });
 const HARiff = brantAction("Heavy - Rhapsodic Riff", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 168.99, energy: 2.5, concerto: 5, offtune: 8000, forte1: 6.2 });
 const DC = brantAction("Dodge Counter - Captain's Rhapsody", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 228.17, energy: 3.41, concerto: 16.77, offtune: 10800 }); // 38.03%x3+57.04%x2
-const Plunge = brantAction("Basic - Plunging Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 3.83 });
+const Plunge = brantAction("Mid-air - Plunging Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 3.83 });
 
 // --- mid-air Captain's Rhapsody, one action per hit family off the table: each stage's own hit,
 //     its Charged Attack insert, the automatic backward Flip (identical rows on stages 1-3) and
@@ -105,16 +105,16 @@ const MA1C = brantAction("Mid-air - Captain's Rhapsody 1 (Charged)", { node: Nod
 const MA2 = brantAction("Mid-air - Captain's Rhapsody 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 169.84, energy: 2.52, concerto: 5.04, offtune: 8040, forte1: 6.24 }); // 84.92%x2
 const MA2C = brantAction("Mid-air - Captain's Rhapsody 2 (Charged)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 197.22, energy: 2.94, concerto: 5.88, offtune: 9336, forte1: 12.66 }); // 32.87%x6
 const MA3 = brantAction("Mid-air - Captain's Rhapsody 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 169.02, energy: 2.52, concerto: 5.04, offtune: 7998, forte1: 9.3 }); // 28.17%x6
-const MAFlip = brantAction("Mid-air - Captain's Rhapsody Flip", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 92.95, energy: 1.38, concerto: 2.75, offtune: 4400, forte1: 5.12 }); // 33.80%+59.15%
+const MAFlip = brantAction("Mid-air - Captain's Rhapsody Flip", { node: Node.Normal, cutscene: true, cast: Cast.Basic, type: Type1.Basic, mv: 92.95, energy: 1.38, concerto: 2.75, offtune: 4400, forte1: 5.12 }); // 33.80%+59.15%
 const MASlash = brantAction("Mid-air - Captain's Rhapsody 1 Slash", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 84.51, energy: 1.26, concerto: 2.52, offtune: 3999 }); // 28.17%x3
 const MA4 = brantAction("Mid-air - Captain's Rhapsody 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 253.85, energy: 3.78, concerto: 7.55, offtune: 12017, forte1: 9.35 }); // 101.53%+25.39%x3+76.15%
 
 /** Every press the kit calls a Mid-air Attack: the eight of them, plus the flip-queuing variants
  *  above — a `variant()` is its own Action, so it has to be named here alongside the press it
- *  copies. What S2 and S6 both pay on. */
+ *  copies — and the Plunging Attack, which is a Mid-air Attack too. What S2 and S6 both pay on. */
 const midAir = (): boolean => runningAction(MA1) || runningAction(MA1C) || runningAction(MA2)
   || runningAction(MA2C) || runningAction(MA3) || runningAction(MAFlip) || runningAction(MASlash)
-  || runningAction(MA4)
+  || runningAction(MA4) || runningAction(Plunge)
 
 /* ------------------------------------------------------------------------------------ buffs */
 

@@ -37,7 +37,7 @@ function changliAction(id: string, def: object): Action {
 }
 
 // --- basics, dodge counter, heavy (Blazing Enlightenment). Stage 4 opens True Sight.
-const BA1 = changliAction("Basic - Blazing Enlightenment 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 58.98, offtune: 2792, energy: 0.88, concerto: 1.76 });
+const BA1 = changliAction("Basic - Blazing Enlightenment 1", { cutscene: true, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 58.98, offtune: 2792, energy: 0.88, concerto: 1.76 });
 const BA2 = changliAction("Basic - Blazing Enlightenment 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 70.98, offtune: 3360, energy: 1.06, concerto: 2.10 });
 const BA3 = changliAction("Basic - Blazing Enlightenment 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 109.35, offtune: 5178, energy: 1.62, concerto: 3.24 });
 const BA4 = changliAction("Basic - Blazing Enlightenment 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 169.02, offtune: 8000, energy: 2.51, concerto: 5.02 });
@@ -53,8 +53,8 @@ const MHA = changliAction("Heavy - Blazing Enlightenment (Mid-Air)", { node: Nod
 
 // --- True Sight's own finishers: Conquest (ground Basic), Charge (jump/mid-air Basic) — both
 //     Resonance Skill DMG, both bank a stack of Enflamement and end True Sight
-const SBA = changliAction("Basic - True Sight: Conquest", { node: Node.Skill, cast: Cast.Basic, type: Type1.Skill, mv: 294.73, offtune: 8985, energy: 4.04, concerto: 7.00, forte1: 1 });
-const SMA = changliAction("Basic - True Sight: Charge", { node: Node.Skill, cast: Cast.Basic, type: Type1.Skill, mv: 181.70, offtune: 4353, energy: 2.57, concerto: 6.00, forte1: 1 });
+const SBA = changliAction("Basic - True Sight: Conquest", { cutscene: true, node: Node.Skill, cast: Cast.Basic, type: Type1.Skill, mv: 294.73, offtune: 8985, energy: 4.04, concerto: 7.00, forte1: 1 });
+const SMA = changliAction("Basic - True Sight: Charge", { cutscene: true, node: Node.Skill, cast: Cast.Basic, type: Type1.Skill, mv: 181.70, offtune: 4353, energy: 2.57, concerto: 6.00, forte1: 1 });
 
 // --- resonance skill: Tripartite Flames — also opens True Sight: Capture (bundled into this
 //     one hit's own total per wuwalab, not a separate press)

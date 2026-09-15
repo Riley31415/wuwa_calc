@@ -276,7 +276,7 @@ function energyRequirements(run: TeamRun, lines: ChainGroup[][]): Map<string, st
       const verdict = met === " er-met" ? "Met" : met === " er-slack" ? "Barely Not Met" : "Not Met";
       const tip = lazyPop(`<span class="pop tip">Unbuffed Energy Regen Requirement (${verdict})</span>`);
       cells.set(m.name, `<span class="erneed has"${tip}>`
-        + `> <span class="erreq${met}">${fmt(req, 1)}%</span></span>`);
+        + `> <span class="erreq${met}">${fmt(req, 1, true)}%</span></span>`);
     }
   });
 

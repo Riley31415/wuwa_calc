@@ -1,6 +1,6 @@
 /** Signature Gauntlets weapons. Each export is the weapon's five refinements, R1 first (gear.ts's
  *  own `refinements()`); a number that grows with rank is written as its five values. */
-import { WeaponType, Stat, Attribute, Type1, Cast, LifeTime } from "../engine/stats.js";
+import { WeaponType, Stat, Attribute, Type1, Type2, Cast, LifeTime } from "../engine/stats.js";
 import { Buff, Weapon, refinements } from "../engine/gear.js";
 import { applyCurrent, setStacksSelf, casting, applied, onCast, onType, onInflict } from "../engine/context.js";
 import { SHIELD } from "../shared/status.js";
@@ -17,7 +17,7 @@ export const VERITYS_HANDLE = refinements((r, rank) => {
   });
   return new Weapon({
     weaponType: WeaponType.Gauntlets, name: `Verity's Handle${rank}`,
-    stats: [[Stat.BaseAtk, 587.5], [Stat.CritDmg, 48.6], [Stat.DmgBonus, [12, 15, 18, 21, 24][r]!]],
+    stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.DmgBonus, [12, 15, 18, 21, 24][r]!]],
     grants: [{ on: onCast(Cast.Liberation), buff: AD_VERITATEM }],
   });
 });
@@ -33,6 +33,25 @@ export const TRAGICOMEDY = refinements((r, rank) => {
     weaponType: WeaponType.Gauntlets, name: `Tragicomedy${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [{ on: onCast(Cast.Basic, Cast.Intro), buff: FOOLS_WARBLE }],
+  });
+});
+
+/** Blazing Justice, Zani's sig: Darkness Breaker. +12% ATK flat. A Basic Attack cast opens a 6s
+ *  window in which the wielder's damage ignores 8% of the target's DEF and their Spectro Frazzle
+ *  DMG is amplified 50% — a short self window, re-opened by every Basic, lost after the outro.
+ *  "Casting Basic Attack" is the cast, not the damage type. */
+export const BLAZING_JUSTICE = refinements((r, rank) => {
+  const DARKNESS_BREAKER = new Buff({
+    name: `Blazing Justice: Darkness Breaker${rank}`, until: LifeTime.Outro,
+    stats: [
+      [Stat.DefIgnoreOld, [8, 10, 12, 14, 16][r]!],
+      [Stat.Amp, [50, 62.5, 75, 87.5, 100][r]!, Type2.SpectroFrazzle],
+    ],
+  });
+  return new Weapon({
+    weaponType: WeaponType.Gauntlets, name: `Blazing Justice${rank}`,
+    stats: [[Stat.BaseAtk, 587.5], [Stat.CritDmg, 48.6], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
+    grants: [{ on: onCast(Cast.Basic), buff: DARKNESS_BREAKER }],
   });
 });
 
@@ -57,21 +76,24 @@ export const SOLSWORN_CIPHERS = refinements((r, rank) => {
   });
 });
 
-/** Moongazer's Sigil, Iuno's sig. Liberation damage gets a flat bonus and, per shield stack,
- *  pierces defence — her own Intro takes the stack straight to the ceiling, every other
- *  shielding cast adds one per shield it declares. */
+/** Moongazer's Sigil, Iuno's sig: Plenilune Radiance. +12% ATK flat. An Intro or Liberation cast
+ *  grants +20% Liberation DMG Bonus for 15s — a short self window, so lost after the outro. Per
+ *  shield stack her Liberation damage also pierces defence — her own Intro takes that stack
+ *  straight to the ceiling, every other shielding cast adds one per shield it declares. */
 export const IUNO_SIG = refinements((r, rank) => {
+  const PLENILUNE_DMG = new Buff({
+    name: `Moongazer's Sigil: Plenilune Radiance${rank} (intro/lib)`,
+    stats: [[Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Type1.Liberation]], until: LifeTime.Outro,
+  });
   const MOONGAZER_STACKS = new Buff({
-    name: `Moongazer's Sigil: Plenilune Radiance${rank}`, maxStacks: 5,
+    name: `Moongazer's Sigil: Plenilune Radiance${rank} (shield)`, maxStacks: 5,
     // scoped to liberation damage — most of Lunar Cycle qualifies, intro/outro/echo don't
     stats: [[Stat.DefIgnoreNew, [7.2, 8.4, 9.6, 10.8, 12][r]!, Type1.Liberation]], perStack: true,
   });
   return new Weapon({
     weaponType: WeaponType.Gauntlets, name: `Moongazer's Sigil${rank}`,
-    stats: [
-      [Stat.BaseAtk, 500], [Stat.CritRate, 36], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!],
-      [Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Type1.Liberation],
-    ],
+    stats: [[Stat.BaseAtk, 500], [Stat.CritRate, 36], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
+    grants: [{ on: onCast(Cast.Intro, Cast.Liberation), buff: PLENILUNE_DMG }],
     updateBuffs: () => {
       if (casting(Cast.Intro)) setStacksSelf(MOONGAZER_STACKS, 5);
       else if (applied(SHIELD)) applyCurrent(MOONGAZER_STACKS, applied(SHIELD));

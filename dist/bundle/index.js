@@ -54,7 +54,7 @@ import {
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-NK4AHVFM.js";
+} from "./chunk-WUQFIQML.js";
 
 // dist/src/display.js
 var formatters = /* @__PURE__ */ new Map();
@@ -2060,7 +2060,7 @@ function pieSvg(slices, total) {
   }).join("");
   return `<svg class="pie" viewBox="0 0 ${width} ${f(height)}" font-size="${font}" role="img">${groups}${labels}</svg>`;
 }
-var pieFigure = (heading, slices, total) => `<figure class="piefig"><figcaption>${esc(heading)}</figcaption>${pieSvg(slices, total)}</figure>`;
+var pieFigure = (heading, slices, total) => `<figure class="piefig"><figcaption>${esc(heading)}</figcaption><div class="chartwrap">${pieSvg(slices, total)}</div></figure>`;
 function teamCell(sections, section, slotHue) {
   const bars = [];
   const by = /* @__PURE__ */ new Map();
@@ -2105,7 +2105,7 @@ function distBody(cell2) {
     return `<div class="pies"><p class="nodist">No damage in this section.</p></div>`;
   const section = cell2.section ? ` (${cell2.section})` : "";
   if (cell2.kind === "team") {
-    return `<div class="teampanes"><figure class="piefig"><figcaption>Damage Over Time${section}</figcaption>${barChart(cell2.bars)}${barKey(cell2.roster)}</figure><figure class="piefig"><figcaption>Strongest Actions${section}</figcaption>${topActions(cell2.top, cell2.total)}</figure></div>`;
+    return `<div class="teampanes"><figure class="piefig"><figcaption>Damage Over Time${section}</figcaption><div class="chartwrap">${barChart(cell2.bars)}</div>${barKey(cell2.roster)}</figure><figure class="piefig"><figcaption>Strongest Actions${section}</figcaption>${topActions(cell2.top, cell2.total)}</figure></div>`;
   }
   return `<div class="pies">${pieFigure(`${cell2.slot} Damage Distribution${section}`, cell2.types, cell2.total)}${pieFigure(`${cell2.slot} Node Priority${section}`, cell2.nodes, cell2.total)}</div>`;
 }
@@ -2679,16 +2679,46 @@ function comparisonTable(rows) {
           openAt[axis][pos] = true;
     });
   }
+  const optionOf = (axis, m, c) => axis === "weapons" ? c.weapon.name : axis === "echoes" ? echoLabel(m.loadout, c.echo) : axis === "mainstats" ? c.mainstat.name : axis === "substats" ? subsLabel(c) : axis === "sequences" ? String(c.sequence) : String(c.weapon.refinement);
+  const seenAt = /* @__PURE__ */ new Map();
+  for (const row of rows) {
+    row.members.forEach((m, pos) => {
+      for (const axis of CMP_AXES) {
+        if (!shows(m, axis))
+          continue;
+        const key = `${axis}|${pos}|${m.name}`;
+        let seen = seenAt.get(key);
+        if (!seen)
+          seenAt.set(key, seen = /* @__PURE__ */ new Set());
+        seen.add(optionOf(axis, m, row.combo[pos]));
+      }
+    });
+  }
+  const soloWeapon = [false, false, false];
+  for (const axis of CMP_AXES) {
+    openAt[axis].forEach((open, pos) => {
+      if (!open)
+        return;
+      const choices = [...seenAt].some(([key, seen]) => key.startsWith(`${axis}|${pos}|`) && seen.size > 1);
+      if (choices)
+        return;
+      if (axis === "weapons")
+        soloWeapon[pos] = true;
+      else
+        openAt[axis][pos] = false;
+    });
+  }
+  const cmpAt = (axis, i) => !openAt[axis][i] ? false : axis === "weapons" ? !soloWeapon[i] : axis === "refines" ? !cmpAt("weapons", i) : true;
   const onScreen = new Set(rows.map((r) => r.key));
   const teamsOnScreen = new Set(rows.map((r) => r.teamKey));
-  const openAxes = CMP_AXES.filter((axis) => openAt[axis].some(Boolean));
+  const openAxes = CMP_AXES.filter((axis) => openAt[axis].some((_, pos) => cmpAt(axis, pos)));
   const twins = /* @__PURE__ */ new Map();
   for (const [key, run] of results) {
     if (!openAxes.length || !teamsOnScreen.has(run.teamKey))
       continue;
     run.members.forEach((m, pos) => {
       for (const axis of openAxes) {
-        if (!openAt[axis][pos])
+        if (!cmpAt(axis, pos))
           continue;
         const twin = twinKey(run, pos, axis);
         const list = twins.get(twin) ?? [];
@@ -2732,8 +2762,6 @@ function comparisonTable(rows) {
     const ratio = gearRatio(run, pos, axis);
     return ratio == null ? "" : pctTrunc(ratio);
   };
-  const seqCmpAt = (i) => !!openAt.sequences[i];
-  const refCmpAt = (i) => !!openAt.refines[i] && !openAt.weapons[i];
   for (let i = 0; i < personalOpen.length; i++)
     for (const axis of CMP_AXES) {
       const key = `${axis}|${i}`;
@@ -2753,23 +2781,23 @@ function comparisonTable(rows) {
       const refTag = axisUsed(m, filters, "refines") && !openAt.weapons[i] ? refineTag(m, combo) : null;
       const name = `<div class="c name res" data-resonator="${esc(m.name)}"` + (seqTag ? ` data-sequence="${esc(seqTag)}" data-seq-gate="${combo.sequence}"` : "") + (refTag ? ` data-refine="${esc(refTag)}" data-ref-gate="${combo.weapon.refinement}"` : "") + ` style="--mem:${m.color};color:${m.color}"><span class="res-label">${esc(memberLabel(m, combo))}</span></div>`;
       const dpr = dprAt(i) ? `<div class="c num slotdpr" style="--mem:${m.color}">${dprFmt(run.bySlot.get(m.name) ?? 0, dprExact.personal)}</div>` : "";
-      const seqCmp = seqCmpAt(i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${axisOpen(m, filters, "sequences") ? gearCompare(run, i, "sequences") : ""}</div>` : "";
-      const refCmp = refCmpAt(i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${compares(m, filters, "refines", combo) ? gearCompare(run, i, "refines") : ""}</div>` : "";
+      const seqCmp = cmpAt("sequences", i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${axisOpen(m, filters, "sequences") ? gearCompare(run, i, "sequences") : ""}</div>` : "";
+      const refCmp = cmpAt("refines", i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${compares(m, filters, "refines", combo) ? gearCompare(run, i, "refines") : ""}</div>` : "";
       const gear = GEAR_AXES.map((axis) => {
         if (!openAt[axis][i])
           return "";
         const open = showsRow(m, axis, combo);
         const cell2 = axis === "weapons" ? optionCell("weapon", open ? combo.weapon.name : "", m.color, [combo.weapon.name], m.name) : axis === "echoes" ? optionCell("echo", open ? echoLabel(m.loadout, combo.echo) : "", m.color, open ? echoLines(m.loadout, combo.echo) : [], m.name) : `<div class="c option"${open ? ` data-stat="${axis}" data-resonator="${esc(m.name)}"` : ""} style="--mem:${m.color}">${open ? esc(axis === "mainstats" ? combo.mainstat.name : subsLabel(combo)) : ""}</div>`;
-        return cell2 + `<div class="c num slotcompare" style="--mem:${m.color}">${open ? gearCompare(run, i, axis) : ""}</div>`;
+        return cell2 + (cmpAt(axis, i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${open ? gearCompare(run, i, axis) : ""}</div>` : "");
       }).join("");
       return name + seqCmp + refCmp + gear + dpr;
     };
     const memberCells = run.members.map((m, i) => memberCell(m, run.combo[i], i)).join("");
     return `<div class="trow${rank2.pinned ? " isbaseline" : ""}" style="--hue:${rank2.hue}" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}" data-members="${esc(memberNames)}" data-total="${grand}">` + memberCells + `<div class="c num total teamdpr" title="${CLICK} to view the team's damage breakdown"${deferredPop("dpr", key)}>${dprFmt(grand, dprExact.team)}</div><div class="c num total baseline" data-team="${esc(key)}" title="${CLICK} to measure every team against this one">${rank2.pct}</div><div class="c gotodetail" data-team="${esc(key)}">view rotation<span class="arrow">\u203A</span></div></div>`;
   };
-  const memberHead = (n, i) => `<div class="c slothead${dprAt(i) ? " open" : ""}" data-slot="${i}" title="${CLICK} to ${dprAt(i) ? "hide" : "show"} this slot's Personal DPR">Slot ${n}<span class="arrow">\u203A</span></div>` + (seqCmpAt(i) ? `<div class="c num">Compare</div>` : "") + (refCmpAt(i) ? `<div class="c num">Compare</div>` : "") + GEAR_AXES.map((axis) => openAt[axis][i] ? `<div class="c">${AXIS_HEAD[axis]}</div><div class="c num">Compare</div>` : "").join("") + (dprAt(i) ? `<div class="c num dprhead" data-dpr="personal" title="${CLICK} to switch between abbreviated and exact figures">Personal</div>` : "");
+  const memberHead = (n, i) => `<div class="c slothead${dprAt(i) ? " open" : ""}" data-slot="${i}" title="${CLICK} to ${dprAt(i) ? "hide" : "show"} this slot's Personal DPR">Slot ${n}<span class="arrow">\u203A</span></div>` + (cmpAt("sequences", i) ? `<div class="c num">Compare</div>` : "") + (cmpAt("refines", i) ? `<div class="c num">Compare</div>` : "") + GEAR_AXES.map((axis) => openAt[axis][i] ? `<div class="c">${AXIS_HEAD[axis]}</div>${cmpAt(axis, i) ? `<div class="c num">Compare</div>` : ""}` : "").join("") + (dprAt(i) ? `<div class="c num dprhead" data-dpr="personal" title="${CLICK} to switch between abbreviated and exact figures">Personal</div>` : "");
   const head = `<div class="trow thead">` + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2) + `<div class="c num dprhead" data-dpr="team" title="${CLICK} to switch between abbreviated and exact figures">Team Avg DPR</div><div class="c num huehead" title="${CLICK} to colour the column by rank">Compare</div><div class="c"></div></div>`;
-  const posCols = (i) => `max-content${seqCmpAt(i) ? " max-content" : ""}${refCmpAt(i) ? " max-content" : ""}${GEAR_AXES.map((axis) => openAt[axis][i] ? " max-content max-content" : "").join("")}${dprAt(i) ? " max-content" : ""}`;
+  const posCols = (i) => `max-content${cmpAt("sequences", i) ? " max-content" : ""}${cmpAt("refines", i) ? " max-content" : ""}${GEAR_AXES.map((axis) => openAt[axis][i] ? ` max-content${cmpAt(axis, i) ? " max-content" : ""}` : "").join("")}${dprAt(i) ? " max-content" : ""}`;
   const gridStyle = `grid-template-columns:${posCols(0)} ${posCols(1)} ${posCols(2)} max-content max-content max-content`;
   const rowLines = (run) => Math.max(1, ...run.members.map((m, i) => openAt.echoes[i] && axisOpen(m, filters, "echoes") ? echoLines(m.loadout, run.combo[i].echo).length : 1));
   const lines = sorted.map(([, run]) => rowLines(run));
@@ -2814,7 +2842,7 @@ function comparisonTable(rows) {
     wide.totalAbbr = widest(wide.totalAbbr, dprFmt(run.total, false));
     wide.pct = widest(wide.pct, ranks[i].pct);
   });
-  const ghostPos = (i, dpr) => `<div class="c name res"><span class="res-label">${esc(wide.name[i])}</span></div>` + (seqCmpAt(i) ? `<div class="c num slotcompare">${esc(wide.seqcmp[i])}</div>` : "") + (refCmpAt(i) ? `<div class="c num slotcompare">${esc(wide.refcmp[i])}</div>` : "") + GEAR_AXES.map((axis) => openAt[axis][i] ? `<div class="c option">${esc(wide.gear[axis][i])}</div><div class="c num slotcompare">${esc(wide.cmp[axis][i])}</div>` : "").join("") + (dprAt(i) ? `<div class="c num slotdpr">${esc(dpr[i])}</div>` : "");
+  const ghostPos = (i, dpr) => `<div class="c name res"><span class="res-label">${esc(wide.name[i])}</span></div>` + (cmpAt("sequences", i) ? `<div class="c num slotcompare">${esc(wide.seqcmp[i])}</div>` : "") + (cmpAt("refines", i) ? `<div class="c num slotcompare">${esc(wide.refcmp[i])}</div>` : "") + GEAR_AXES.map((axis) => openAt[axis][i] ? `<div class="c option">${esc(wide.gear[axis][i])}</div>${cmpAt(axis, i) ? `<div class="c num slotcompare">${esc(wide.cmp[axis][i])}</div>` : ""}` : "").join("") + (dprAt(i) ? `<div class="c num slotdpr">${esc(dpr[i])}</div>` : "");
   const ghostFor = (dpr, total) => `<div class="trow tghost" aria-hidden="true">` + ghostPos(0, dpr) + ghostPos(1, dpr) + ghostPos(2, dpr) + `<div class="c num total">${esc(total)}</div><div class="c num total baseline">${esc(wide.pct)}</div><div class="c gotodetail">view rotation<span class="arrow">\u203A</span></div></div>`;
   const ghost = (personalExact, teamExact) => ghostFor(personalExact ? wide.dpr : wide.dprAbbr, teamExact ? wide.total : wide.totalAbbr);
   tableView = { sorted, ranks, head, ghost, rowHtml, lines, extra };
@@ -3548,7 +3576,7 @@ function energyRequirements(run, lines) {
     if (req != null) {
       const verdict = met === " er-met" ? "Met" : met === " er-slack" ? "Barely Not Met" : "Not Met";
       const tip = lazyPop(`<span class="pop tip">Unbuffed Energy Regen Requirement (${verdict})</span>`);
-      cells.set(m.name, `<span class="erneed has"${tip}>> <span class="erreq${met}">${fmt(req, 1)}%</span></span>`);
+      cells.set(m.name, `<span class="erneed has"${tip}>> <span class="erreq${met}">${fmt(req, 1, true)}%</span></span>`);
     }
   });
   return cells;

@@ -70,7 +70,7 @@ const EBA5 = roverAction("Basic - Umbra 5", {
   updateDebuffs: () => applyCurrent(HEALS, 1),
 });
 
-const EMA = roverAction("Basic - Umbra Plunge", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 123.27, energy: 0.41, concerto: 1, offtune: 9600 });
+const EMA = roverAction("Mid-air - Umbra Plunge", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 123.27, energy: 0.41, concerto: 1, offtune: 9600 });
 const EDC = roverAction("Dodge Counter - Umbra", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 316.71, energy: 2.36, concerto: 11.98, offtune: 4640 });
 
 const EHA = roverAction("Heavy - Umbra", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 128.83, energy: 0.96, concerto: 1.64, offtune: 6400 });

@@ -78,7 +78,7 @@ export const UNFLICKERING_VALOR = refinements((r, rank) => {
   });
   return new Weapon({
     weaponType: WeaponType.Sword, name: `Unflickering Valor${rank}`,
-    stats: [[Stat.BaseAtk, 413], [Stat.Er, 77.04], [Stat.CritRate, [8, 10, 12, 14, 16][r]!]],
+    stats: [[Stat.BaseAtk, 412.5], [Stat.Er, 77.04], [Stat.CritRate, [8, 10, 12, 14, 16][r]!]],
     grants: [
       { on: onCast(Cast.Liberation), buff: LAUGHTER_PREVAILS_LIB },
       { on: onType(Type1.Basic), buff: LAUGHTER_PREVAILS_BASIC },
@@ -202,7 +202,7 @@ export const DEFIERS_THORN = refinements((r, rank) => {
   return new Weapon({
     weaponType: WeaponType.Sword, name: `Defier's Thorn${rank}`,
     // the 12% is A Free Knight's Tarantella's own flat half
-    stats: [[Stat.BaseAtk, 413], [Stat.BonusHp, 72.2], [Stat.BonusHp, [12, 15, 18, 21, 24][r]!]],
+    stats: [[Stat.BaseAtk, 412.5], [Stat.BonusHp, 72.225], [Stat.BonusHp, [12, 15, 18, 21, 24][r]!]],
     grants: [{ on: either(onCast(Cast.Intro), onType(Type1.Basic)), buff: FREE_KNIGHTS_TARANTELLA }],
   });
 });

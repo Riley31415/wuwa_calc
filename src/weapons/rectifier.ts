@@ -3,7 +3,7 @@
  *  refinements, R1 first (gear.ts's own `refinements()`); a number that grows with rank is
  *  written as its five values. */
 import { WeaponType, Stat, Attribute, Type1, Type2, Cast, LifeTime, BuffTarget } from "../engine/stats.js";
-import { Buff, Weapon, refinements } from "../engine/gear.js";
+import { Buff, Debuff, Weapon, refinements } from "../engine/gear.js";
 import {
   addStat,
   frozenStacks,
@@ -15,6 +15,7 @@ import {
   currentAction,
   isActive,
   applied,
+  stacksOfEnemy,
   onCast,
   onType,
   onInflict,
@@ -22,7 +23,7 @@ import {
   either,
   both,
 } from "../engine/context.js";
-import { GLACIO_CHAFE, FUSION_BURST, HEALS, ELECTRO_FLARE } from "../shared/status.js";
+import { GLACIO_CHAFE, FUSION_BURST, HEALS, ELECTRO_FLARE, SPECTRO_FRAZZLE } from "../shared/status.js";
 import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 import { unisonResponse } from "../shared/unison.js";
 
@@ -158,6 +159,34 @@ export const SK_SIG = refinements((r, rank) => {
     grants: [
       { on: both(onCast(Cast.Skill), onApplied(HEALS)), buff: SK_SIG_TEAM, to: BuffTarget.Team },
       { on: onCast(Cast.Outro), buff: SK_SIG_CHARGE },
+    ],
+  });
+});
+
+/** Luminous Hymn, Phoebe's sig: Homebuilder's Anthem. +12% ATK flat. Hitting a target that holds
+ *  Spectro Frazzle grants +14% Basic Attack and +14% Heavy Attack DMG Bonus a stack, up to 3, 6s —
+ *  short, re-earned by every hit while the Frazzle stands, lost after the outro. The Outro
+ *  amplifies the target's own Spectro Frazzle DMG 30% for 30s (permanent uptime): that half is
+ *  target-side, so it rides on the enemy and pays whoever is dealing the tick, not just the
+ *  wielder. */
+export const LUMINOUS_HYMN = refinements((r, rank) => {
+  const HOMEBUILDERS_STACKS = new Buff({
+    name: `Luminous Hymn: Homebuilder's Anthem${rank}`, maxStacks: 3, until: LifeTime.Outro,
+    stats: [
+      [Stat.DmgBonus, [14, 17.5, 21, 24.5, 28][r]!, Type1.Basic],
+      [Stat.DmgBonus, [14, 17.5, 21, 24.5, 28][r]!, Type1.Heavy],
+    ], perStack: true,
+  });
+  const HOMEBUILDERS_FRAZZLE = new Debuff({
+    name: `Luminous Hymn: Homebuilder's Anthem${rank} (frazzle)`,
+    stats: [[Stat.Amp, [30, 37.5, 45, 52.5, 60][r]!, Type2.SpectroFrazzle]],
+  });
+  return new Weapon({
+    weaponType: WeaponType.Rectifier, name: `Luminous Hymn${rank}`,
+    stats: [[Stat.BaseAtk, 500], [Stat.CritRate, 36], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
+    grants: [
+      { on: () => currentAction().mv > 0 && stacksOfEnemy(SPECTRO_FRAZZLE) > 0, buff: HOMEBUILDERS_STACKS },
+      { on: onCast(Cast.Outro), buff: HOMEBUILDERS_FRAZZLE, to: BuffTarget.Enemy },
     ],
   });
 });

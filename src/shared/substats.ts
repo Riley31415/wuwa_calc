@@ -154,7 +154,7 @@ export const litStats = (maxEnergy: number): StatKey[] => (maxEnergy ? [Stat.Er]
  *
  *  Never a `Stat.Er`: the kits that read Energy Regen back as damage (Sigrika, Brant, Mornye) would
  *  be paid for slack the build does not actually carry. */
-export const ER_TOLERANCE = 3;
+export const ER_TOLERANCE = 0.0; // tolerance removed for now.
 
 /** What one ER roll is worth on a ChemX32 spread — what the ER requirement is paid down in. */
 export const erRollValue = (): number => rollAt(Substat.Er, 0.5);

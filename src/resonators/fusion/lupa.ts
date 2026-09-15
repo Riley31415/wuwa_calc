@@ -71,11 +71,11 @@ const BA4 = lupaAction("Basic - Flaming Star 4", { node: Node.Normal, cast: Cast
 const EBA = lupaAction("Basic - Flaming Star: Starfall", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 168.66, energy: 2.51, concerto: 5.02, offtune: 7985, forte1: 5 });
 
 /** Wolf's Descent, her plunging attack — never placed in the rotation below, kept for completeness. */
-const MA = lupaAction("Basic - Flaming Star: Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.79, energy: 1.56, concerto: 3.11, offtune: 4960, forte1: 5 });
+const MA = lupaAction("Mid-air - Flaming Star: Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.79, energy: 1.56, concerto: 3.11, offtune: 4960, forte1: 5 });
 /** Flaming Star, her dodge counter — same treatment as `MA` above. */
 const DC = lupaAction("Dodge Counter - Flaming Star", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 273.44, energy: 4.07, concerto: 18.13, offtune: 12944 });
 
-const MA1 = lupaAction("Mid-air - Flaming Star 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 76.73, energy: 1.14, concerto: 2.27, offtune: 3632, forte1: 7 });
+const MA1 = lupaAction("Mid-air - Flaming Star 1", { node: Node.Normal, cutscene: true, cast: Cast.Basic, type: Type1.Basic, mv: 76.73, energy: 1.14, concerto: 2.27, offtune: 3632, forte1: 7 });
 const MA2 = lupaAction("Mid-air - Flaming Star 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 154.47, energy: 2.31, concerto: 4.61, offtune: 7312, forte1: 13 });
 const MA3 = lupaAction("Mid-air - Flaming Star 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 56.96, energy: 0.86, concerto: 1.70, offtune: 2696 });
 
@@ -91,7 +91,7 @@ const EHA4 = lupaAction("Heavy - Wolf's Claw", { node: Node.Normal, cast: Cast.H
 
 // Shewolf's Hunt and its Feral Fang follow-up, each restoring 15 Wolflame
 const Skill1 = lupaAction("Skill - Shewolf's Hunt", {
-  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 140.77, energy: 2.09, concerto: 4.17, offtune: 6664, forte1: 15,
+  node: Node.Skill, cast: Cast.Skill, cutscene: true, type: Type1.Skill, mv: 140.77, energy: 2.09, concerto: 4.17, offtune: 6664, forte1: 15,
   updateBuffs: () => applyEnemy(LUPA_MARK, 1),
 });
 /** Feral Fang: +50% DMG Multiplier against the marked target, kept as an explicit MulMv add (see

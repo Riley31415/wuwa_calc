@@ -963,8 +963,12 @@ function pieSvg(slices: Slice[], total: number): string {
   return `<svg class="pie" viewBox="0 0 ${width} ${f(height)}" font-size="${font}" role="img">${groups}${labels}</svg>`;
 }
 
+/** `.chartwrap` is what the drawing is sized against rather than the drawing itself: an svg with a
+ *  viewBox asks for the height its own ratio comes to, and that height used to set the row's
+ *  (index.css). Same trick `.topwrap` plays for the ranking. */
 const pieFigure = (heading: string, slices: Slice[], total: number): string =>
-  `<figure class="piefig"><figcaption>${esc(heading)}</figcaption>${pieSvg(slices, total)}</figure>`;
+  `<figure class="piefig"><figcaption>${esc(heading)}</figcaption>`
+  + `<div class="chartwrap">${pieSvg(slices, total)}</div></figure>`;
 
 /**
  * The team's own figure: every hit of the sections it covers, in cast order and in its caster's
@@ -1046,7 +1050,7 @@ function distBody(cell: DistCell | undefined): string {
   if (cell.kind === "team") {
     return `<div class="teampanes">`
       + `<figure class="piefig"><figcaption>Damage Over Time${section}</figcaption>`
-      + `${barChart(cell.bars)}${barKey(cell.roster)}</figure>`
+      + `<div class="chartwrap">${barChart(cell.bars)}</div>${barKey(cell.roster)}</figure>`
       + `<figure class="piefig"><figcaption>Strongest Actions${section}</figcaption>`
       + `${topActions(cell.top, cell.total)}</figure></div>`;
   }

@@ -83,7 +83,7 @@ const BA4 = qxAction("Basic - Stringblade 4", { node: Node.Normal, cast: Cast.Ba
 const MA1 = qxAction("Mid-air - Stringblade 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 90.48, energy: 1.63, concerto: 3.25, offtune: 5200, forte2: 8.71 });
 const MA2 = qxAction("Mid-air - Stringblade 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 89.79, energy: 1.63, concerto: 3.24, offtune: 5160, forte2: 8.63 });
 const MA3 = qxAction("Mid-air - Stringblade 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 139.21, energy: 2.50, concerto: 5, offtune: 8000, forte2: 13.37 });
-const Plunge = qxAction("Basic - Plunging Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.29, energy: 1.55, concerto: 3.10, offtune: 4960 });
+const Plunge = qxAction("Mid-air - Plunging Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.29, energy: 1.55, concerto: 3.10, offtune: 4960 });
 const DC = qxAction("Dodge Counter - Stringblade", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 180.92, energy: 3.28, concerto: 16.52, offtune: 10400, forte2: 26.04 });
 
 /** Spends both gauges in full — pre-clamped here so its own declared -100s land exactly on 0 —

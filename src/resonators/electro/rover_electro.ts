@@ -270,7 +270,6 @@ const THRUM_HAVOC = new ActionGroup("Skill - Thrum: Havoc 123", [
 const ER_ROTATION_MDPS = new Rotation([
   INTRO, BA1234, Skill, Repel, OvershockHold, Liberation,
   THRUM_SPECTRO, THRUM_HAVOC, SilencingBlade,
-  THRUM_SPECTRO, THRUM_HAVOC, SilencingBlade,
   ECHO_SWAP, OUTRO,
 ]);
 

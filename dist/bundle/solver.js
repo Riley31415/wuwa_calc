@@ -34,7 +34,7 @@ import {
   teamFromKey,
   weaponBase,
   weaponOptions
-} from "./chunk-NK4AHVFM.js";
+} from "./chunk-WUQFIQML.js";
 export {
   AXES,
   MAINSTAT_ROWS,
