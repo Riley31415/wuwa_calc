@@ -4192,6 +4192,7 @@ function added(now, before) {
 }
 var showing = () => added(shownNow(), shownBefore);
 var comparing = () => added(comparedNow(), comparedBefore);
+var atBasePage = () => AXES.every((axis) => filters[axis].length === 0) && !filters.scoped.length && !filters.matrix.length && [resonatorFilters, weaponFilters, echoFilters, sequenceFilters, refineFilters].every((m) => m.size === 0);
 var firstChip = () => document.querySelector(".tcchips .rchip");
 function substatsCell() {
   const row = [...document.querySelectorAll(".rtable.loadout .rtrow")].find((r) => r.querySelector(".c.lbl")?.textContent === "Substats");
@@ -4232,6 +4233,7 @@ function setStage(n) {
   }
 }
 var stage = restoreStage();
+var started = false;
 var layer = null;
 var overlay = document.getElementById("loading");
 function settle() {
@@ -4409,11 +4411,15 @@ function place() {
   const [ex, ey] = [tx - HEAD * 0.7, ty + HEAD * 0.7];
   path.setAttribute("d", `M ${bx} ${by} C ${bx + (ex - bx) * 0.9} ${by}, ${ex - 45} ${ey + 45}, ${ex} ${ey}`);
 }
-function maybeShowTutorial() {
+function maybeShowTutorial(force = false) {
   if (!overlay?.hidden)
     return;
   if (dismissed())
     return;
+  if (!force && !started && stage === 0 && !atBasePage()) {
+    hideTutorial();
+    return;
+  }
   const ready = stage >= DETAIL_STAGE ? document.querySelector(".rtable.loadout") : document.querySelector(".tgrid .trow[data-team]");
   if (!ready) {
     hideTutorial();
@@ -4425,6 +4431,7 @@ function maybeShowTutorial() {
     baseline();
   }
   layer.hidden = false;
+  started = true;
   place();
 }
 function hideTutorial() {
@@ -4532,7 +4539,7 @@ document.addEventListener("click", (e) => {
   done = false;
   setStage(0);
   baseline();
-  maybeShowTutorial();
+  maybeShowTutorial(true);
 }, true);
 if (overlay) {
   new MutationObserver(() => {

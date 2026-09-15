@@ -18,10 +18,15 @@
  * It is shown to everyone who has not clicked "Don't show again" — there is no other flag, so a
  * reader who has never seen it and one who dismissed an earlier visit are told apart by that click
  * alone, dev.py included. The README's own line is the way back into it once it has been put away.
+ *
+ * Before the first stage it also waits for the base page — no filter and no compare set, any cost
+ * mode — since "show one resonator's teams" says nothing to a reader who arrived on a link that
+ * already shows one. That is a wait, not a dismissal: nothing is marked, and it opens the moment the
+ * filters come off. The README's line starts it wherever the reader is.
  */
 import { AXES, scopedKey } from "../solver.js";
 import { searchChoice } from "./filterbar.js";
-import { filters, resonatorFilters } from "./model.js";
+import { echoFilters, filters, refineFilters, resonatorFilters, sequenceFilters, weaponFilters } from "./model.js";
 import { rect, CLICKING, CLICK } from "./panels.js";
 import { rowElementAt } from "./table.js";
 
@@ -85,6 +90,11 @@ function added(now: string[], before: Set<string>): boolean {
 }
 const showing = (): boolean => added(shownNow(), shownBefore);
 const comparing = (): boolean => added(comparedNow(), comparedBefore);
+/** The page as the bare link opens it: nothing filtered and nothing compared, whatever the cost mode
+ *  is set to — the same set the filter bar draws a chip for (filterbar.ts's `resonatorChips`). */
+const atBasePage = (): boolean =>
+  AXES.every((axis) => filters[axis].length === 0) && !filters.scoped.length && !filters.matrix.length
+  && [resonatorFilters, weaponFilters, echoFilters, sequenceFilters, refineFilters].every((m) => m.size === 0);
 const firstChip = (): HTMLElement | null => document.querySelector(".tcchips .rchip");
 
 /** The third member's substats in the Equipment table, and their Total in the damage one — what
@@ -143,6 +153,10 @@ function setStage(n: number): void {
 }
 
 let stage = restoreStage();
+/** Whether the card has been up at all this load. Past the first stage the tutorial asks for filters
+ *  of its own, so the base-page wait below is only ever put to it before that — once it is up, the
+ *  reader filtering the page is the tutorial working, not a reason to take it down. */
+let started = false;
 let layer: HTMLElement | null = null;
 const overlay = document.getElementById("loading");
 
@@ -419,9 +433,15 @@ function place(): void {
 /** Put the tutorial up over a drawn comparison table, unless it has been dismissed. Never while a
  *  run is going: the overlay stands over the table, and the rows the card points into are not drawn
  *  until the end of it — so it waits on both, the overlay being down and a row being there. */
-export function maybeShowTutorial(): void {
+export function maybeShowTutorial(force = false): void {
   if (!overlay?.hidden) return;
   if (dismissed()) return;
+  // Nothing begun yet waits for the base page — see the header. `force` is the README's own line,
+  // which starts it on whatever page the reader asked from.
+  if (!force && !started && stage === 0 && !atBasePage()) {
+    hideTutorial();
+    return;
+  }
   // each stage belongs to one page, and waits out of sight while the reader is on the other
   const ready = stage >= DETAIL_STAGE
     ? document.querySelector(".rtable.loadout")
@@ -437,6 +457,7 @@ export function maybeShowTutorial(): void {
     baseline();
   }
   layer.hidden = false;
+  started = true;
   place();
 }
 
@@ -549,7 +570,7 @@ document.addEventListener("click", (e) => {
   done = false;
   setStage(0);
   baseline();
-  maybeShowTutorial();
+  maybeShowTutorial(true);
 }, true);
 
 // Every run puts the overlay back up, and the card goes away under it rather than sitting blurred
