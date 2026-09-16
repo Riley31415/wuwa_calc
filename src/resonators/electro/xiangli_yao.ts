@@ -59,7 +59,7 @@ const BA4 = xlyAction("Basic - Probe 4", { node: Node.Normal, cast: Cast.Basic, 
 const BA5 = xlyAction("Basic - Probe 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 198.81, energy: 2.50, concerto: 5.00, offtune: 8000, forte1: 20 });
 
 const HA = xlyAction("Heavy - Probe", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 82.81 * 2, energy: 2.10, concerto: 4.18, offtune: 6664, forte1: 18 });
-const MA = xlyAction("Mid-air - Probe", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.27, energy: 0.52, concerto: 1.00, offtune: 4960, forte1: 13 });
+const MA = xlyAction("Mid-air - Probe Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.27, energy: 0.52, concerto: 1.00, offtune: 4960, forte1: 13 });
 const DC = xlyAction("Dodge Counter - Probe", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 238.58, energy: 2.75, concerto: 12.50, offtune: 4000, forte1: 26 });
 
 const Skill = xlyAction("Skill - Deduction", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 198.81, energy: 6.25, concerto: 7, offtune: 4000, forte1: 40 });

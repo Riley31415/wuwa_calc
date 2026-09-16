@@ -51,7 +51,7 @@ const BA3 = roverAction("Basic - Wind Cutter 3", { node: Node.Normal, cast: Cast
 const BA4 = roverAction("Basic - Wind Cutter 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 76.72, energy: 1.64, concerto: 5.24, offtune: 5232, forte1: 10 });
 const HA = roverAction("Heavy - Wind Cutter", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 53.73, energy: 1.17, concerto: 3.69, offtune: 3666 });
 const RazorWind = roverAction("Heavy - Razor Wind", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 80.83, energy: 1.73, concerto: 5.53, offtune: 5513 });
-const MA = roverAction("Mid-air - Wind Cutter", { node: Node.Normal, cutscene: true, cast: Cast.Basic, type: Type1.Basic, mv: 140.76, energy: 0.52, concerto: 9.6, offtune: 9600 });
+const MA = roverAction("Mid-air - Wind Cutter Plunge", { node: Node.Normal, cutscene: true, cast: Cast.Basic, type: Type1.Basic, mv: 140.76, energy: 0.52, concerto: 9.6, offtune: 9600 });
 const DC = roverAction("Dodge Counter - Wind Cutter", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 175.18, energy: 3.74, concerto: 21.95, offtune: 11944, forte1: 10 });
 
 // --- resonance skill: Awakening Gale on the ground, Skyfall Severance from mid-air, which trades

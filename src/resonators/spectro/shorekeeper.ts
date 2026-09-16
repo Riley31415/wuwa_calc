@@ -48,7 +48,7 @@ const BA1 = skAction("Basic - Origin Calculus 1", { node: Node.Normal, cast: Cas
 const BA2 = skAction("Basic - Origin Calculus 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 47.72, energy: 0.76, concerto: 2.4, offtune: 4000, forte1: 1 });
 const BA3 = skAction("Basic - Origin Calculus 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 69.96, energy: 1.11, concerto: 3.54, offtune: 5865, forte1: 2 });
 
-const MA = skAction("Mid-air - Origin Calculus", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.96, energy: 1.55, concerto: 5, offtune: 4960, forte1: 1 });
+const MA = skAction("Mid-air - Origin Calculus Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.96, energy: 1.55, concerto: 5, offtune: 4960, forte1: 1 });
 
 const Skill = skAction("Skill - Chaos Theory", { node: Node.Skill, cast: Cast.Skill, cutscene: true, type: Type1.Skill, mv: 156.55, energy: 10, concerto: 30, offtune: 5250 });
 

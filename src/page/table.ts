@@ -5,7 +5,7 @@
 import { Tier } from "../engine/stats.js";
 import { fmt } from "../display.js";
 import { sequenceLevels, scopedKey, axisUsed, compares, weaponBase, echoLines, echoLabel, axisOpen, AXES } from "../solver.js";
-import type { Member, Combo, Axis, TeamCost, TeamScope, ScopedCompare } from "../solver.js";
+import type { Member, Combo, Axis, TeamCost, ScopedCompare } from "../solver.js";
 import type { TeamRun } from "../teamrun.js";
 import {
   TEAMS,
@@ -250,13 +250,15 @@ function memberLabel(m: Member, combo: Combo): string {
  *  and every level is once the chain is compared, so an S0 row reads S0 beside its S1. */
 const seqToken = (m: Member, combo: Combo): string =>
   combo.sequence > 0 || axisOpen(m, filters, "sequences") ? `S${combo.sequence}` : "";
-/** "" while a Weapon column carries the rank. A signature, a free weapon on a free resonator, any
- *  weapon while refines are compared, and any rank above R1 read their rank; a craftable at R1 on
- *  a limited resonator is the "no signature" build and reads R0. */
+/** "" while a Weapon column carries the rank. A signature, any weapon while refines are compared,
+ *  and any rank above R1 read their rank — a rank above R1 is one the loadout pinned itself
+ *  (`BLOODPACTS_PLEDGE[4]`), which is the only way a build runs one. Everything else is at R1 off
+ *  its whole refinement list, where only a signature costs anything: a craftable or a standard
+ *  weapon there is the "no signature" build and reads R0. */
 const rankToken = (m: Member, combo: Combo): string =>
   axisUsed(m, filters, "weapons") ? ""
-  : compares(m, filters, "refines", combo) || combo.weapon.refinement > 1 || combo.weapon.tier === Tier.Limited
-    || (combo.weapon.tier === Tier.Free && m.loadout.resonator.tier !== Tier.Limited) ? `R${combo.weapon.refinement}`
+  : compares(m, filters, "refines", combo) || combo.weapon.refinement > 1
+    || combo.weapon.tier === Tier.Limited ? `R${combo.weapon.refinement}`
   : "R0";
 
 /** A gear pick cell; `data-kind`/`data-value` are what the click handlers filter on. Empty when
@@ -853,17 +855,6 @@ document.addEventListener("change", (e) => {
     return () => { filters.cost = was; select.value = was; };
   });
 });
-/** The Teams box beside it: which teams the table runs at all (model.ts's own `inScope`). */
-document.addEventListener("change", (e) => {
-  const select = e.target as HTMLSelectElement;
-  if (select.id !== "scope") return;
-  withRowCap(() => {
-    const was = filters.scope;
-    filters.scope = select.value as TeamScope;
-    return () => { filters.scope = was; select.value = was; };
-  });
-});
-
 /* A double press needs no machinery of its own: a menu opens at the pointer with its first line
  * under the cursor, so the second press simply lands on that line. Left presses it, right runs its
  * `alt` — which on "Show X teams" is the hide. Any speed: there is no interval to beat. */

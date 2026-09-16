@@ -4,7 +4,7 @@
  */
 import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
 import { eligibleWeapons, scopedKey, axisUsed, weaponBase, echoLabel, axisOpen, AXES } from "../solver.js";
-import type { Axis, TeamCost, TeamScope, ScopedCompare } from "../solver.js";
+import type { Axis, TeamCost, ScopedCompare } from "../solver.js";
 import { TEAMS, RESONATOR_HUE, filters, resonatorFilters, OPTION_FILTER_MAPS, sequenceTagsOf, tagOwner, comparable, MATRIX_RESONATORS } from "./model.js";
 import type { ResonatorFilter, OptionKind } from "./model.js";
 import { esc, CLICK } from "./panels.js";
@@ -162,13 +162,11 @@ function searchResults(): string {
 /* ---------------------------------------------------------------------------- filter aside */
 
 const COST_HELP = [
-  "Intended Teams - Teams with synergy that use supports for that archetype. No suisui on an echo team for example. Switch to ALL teams to see a ton more combinations if you want to check a weird team.",
-  "S0R0 all - Limited resonators are S0 and use the best standard or 4* weapon available at R1. Rover and 4* resonators are S6.",
-  "S0R1 all - All limited resonators get their best signature weapon, while Rover and 4* supports may still use standard or 4* weapons.",
-  "S0R1 mdps - Each team gets a single signature weapon at R1, on whichever of its main DPS gives the best DPR increase — never a support. Dual DPS teams still only get one signature weapon.",
-  "S1R1 / S2R1 / S3R1 / S6R1 mdps - One main DPS per team runs that many sequence nodes, whichever gives the best DPR increase — never a support. Everyone else stays S0R1.",
-  "S6R5 mdps - That one main DPS is S6 and runs their weapon at R5; everyone else is still S0R1.",
-  "S6R5 all - Every resonator is S6 with their best weapon at R5.",
+  "s0r0 all - Limited resonators are S0 and use the best standard or 4* weapon available at R1. Rover and 4* resonators are S6.",
+  "s0r1 mdps +r0 supports - Each team gets a single signature weapon at R1, on whichever of its main DPS gives the best DPR increase — never a support. Dual DPS teams still only get one signature weapon.",
+  "s0r1 all - All limited resonators get their best signature weapon, while Rover and 4* supports may still use standard or 4* weapons.",
+  "s2r1 / s3r1 / s6r1 mdps +r1 supports - One main DPS per team runs that many sequence nodes, whichever gives the best DPR increase — never a support. Everyone else stays S0 on their own signature at R1.",
+  "s6r5 all - Every resonator is S6 with their best weapon at R5.",
 ];
 /** Shown on the Matrix bubble and on the name menu's own line — the box this used to describe is
  *  gone, the option is per resonator now. */
@@ -179,6 +177,7 @@ const STANDARDS = [
   "Each rotation is achievable in 25-28 seconds, and we assume 4 rotations in 2 minutes.",
   "Combat is performed against a single level 100 boss with 20% resistance to all attributes.",
   "Resonators and weapons are level 90, with all skill nodes at level 10.",
+  "Shorekeeper, Mornye, Suisui, Buling and Verina fill one another's slot, so a team that differs only in which of them it runs shows once, behind the support it leans on - Suisui in front of a Negative Status DPS, Mornye beside Lupa or Lynae, Shorekeeper otherwise. Filter for the other two teammates to run and see the whole bench.",
 ];
 const README = [
   "All beta calculations are subject to change!",
@@ -192,19 +191,14 @@ export function comparisonFilters(): string {
   const costBox = (): string => {
     const open = openHelp.has("cost");
     const option = (value: TeamCost, label: string) => `<option value="${value}"${filters.cost === value ? " selected" : ""}>${label}</option>`;
-    const scope = (value: TeamScope, label: string) => `<option value="${value}"${filters.scope === value ? " selected" : ""}>${label}</option>`;
     return `<div class="tcopt${open ? " open" : ""}">`
       + `<div class="tcopt-head">`
       + `<button type="button" class="tcopt-name" data-help="cost" aria-expanded="${open}">Team Cost<span class="arrow">›</span></button>`
       + `<select id="cost" class="tcselect" aria-label="Team Cost" title="Team Cost">`
-      + option("s0r0", "S0R0 all") + option("s0r1", "S0R1 all") + option("s0r1mdps", "S0R1 mdps")
-      + option("s1r1mdps", "S1R1 mdps") + option("s2r1mdps", "S2R1 mdps") + option("s3r1mdps", "S3R1 mdps")
-      + option("s6r1mdps", "S6R1 mdps") + option("s6r5mdps", "S6R5 mdps") + option("s6r5", "S6R5 all")
-      + `</select>`
-      // which teams run at all, beside the cost they run at — the unintended ones are not solved
-      // until this says All, so the box is a switch on the work as much as on the table
-      + `<select id="scope" class="tcselect" aria-label="Teams" title="Teams">`
-      + scope("intended", "Intended Teams") + scope("all", "ALL Teams")
+      + option("s0r0", "s0r0 all") + option("s0r1mdps", "s0r1 mdps +r0 supports") + option("s0r1", "s0r1 all")
+      + option("s2r1mdps", "s2r1 mdps +r1 supports")
+      + option("s3r1mdps", "s3r1 mdps +r1 supports") + option("s6r1mdps", "s6r1 mdps +r1 supports")
+      + option("s6r5", "s6r5 all")
       + `</select></div>`
       + `<div class="tcopt-desc"${open ? "" : " hidden"}><ul>${COST_HELP.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div>`
       + `</div>`;

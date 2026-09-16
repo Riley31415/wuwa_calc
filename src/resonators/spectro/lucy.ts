@@ -81,7 +81,7 @@ const BA1 = lucyAction("Basic - Locked Thread 1", { node: Node.Normal, cast: Cas
 const BA2 = lucyAction("Basic - Locked Thread 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 60.76, energy: 0.96, concerto: 3.07, offtune: 3761, forte1: 12 });
 const BA3 = lucyAction("Basic - Locked Thread 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 120.2, energy: 1.87, concerto: 6.06, offtune: 7440, forte1: 18 });
 const BA4 = lucyAction("Basic - Locked Thread 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 155.09, energy: 2.4, concerto: 7.8, offtune: 9600, forte1: 26 });
-const MA = lucyAction("Mid-air - Locked Thread", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 116.32, energy: 2.26, concerto: 5.86, offtune: 7200, forte1: 8 });
+const MA = lucyAction("Mid-air - Locked Thread Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 116.32, energy: 2.26, concerto: 5.86, offtune: 7200, forte1: 8 });
 const DC = lucyAction("Dodge Counter - Locked Thread", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 197.73, energy: 3.83, concerto: 19.96, offtune: 12240, forte1: 12 });
 const HA1 = lucyAction("Heavy - Locked Thread 1", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 73.67, energy: 1.43, concerto: 3.73, offtune: 4560, forte1: 10 });
 const HA2 = lucyAction("Heavy - Locked Thread 2", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 284.32, energy: 5.51, concerto: 14.32, offtune: 17602, forte1: 20.02 });
@@ -92,7 +92,7 @@ const EBA1 = lucyAction("Basic - Thread Shredding 1", { node: Node.Normal, cast:
 const EBA2 = lucyAction("Basic - Thread Shredding 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 111.35, energy: 1.6, concerto: 6.4, offtune: 6400, forte2: 29.55 });
 const EBA3 = lucyAction("Basic - Thread Shredding 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 140.6, energy: 2.05, concerto: 8.1, offtune: 8080, forte2: 37.3 });
 const EBA4 = lucyAction("Basic - Thread Shredding 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 125.3, energy: 1.8, concerto: 7.2, offtune: 7200, forte2: 33.25 });
-const EMA = lucyAction("Mid-air - Algorithm Compaction", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 125.26, energy: 2.26, concerto: 5.86, offtune: 7200, forte2: 33.22 });
+const EMA = lucyAction("Mid-air - Algorithm Compaction Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 125.26, energy: 2.26, concerto: 5.86, offtune: 7200, forte2: 33.22 });
 const EDC = lucyAction("Dodge Counter - Algorithm Compaction", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 194.85, energy: 3.5, concerto: 21.2, offtune: 11200, forte2: 29.55 });
 const EHA = lucyAction("Heavy - Single Threading", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 116.95, energy: 1.7, concerto: 6.75, offtune: 6720, forte2: 31 });
 // Payload's charge, Deadlock and Multi-threading each land a Tune Hack
@@ -401,7 +401,7 @@ const LC_ROTATION = new Rotation([
   INTRO, BA234, Skill1, Skill3,
   Deadlock, EBA234,
   DualThreading, MultiThreading, ECHO_CANCEL,
-  ELib, OUTRO,
+  ELib, HA1, HA2.swap(), OUTRO,
 ]);
 
 /** Adam Smasher carries its own 1pc set, so the other four echoes run two ordinary 2-piece sets

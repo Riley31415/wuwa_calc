@@ -9,10 +9,10 @@ import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
 import { buildReport } from "../display.js";
 import type { Report } from "../display.js";
 import { member, comboOf, eligibleWeapons, refineLevels, sequenceLevels, scopedKey, axisUsed, weaponBase, echoLabel, MAINSTAT_ROWS, defaultFilters, bestKey, picksKey, axisOpen, filterSignature, AXES } from "../solver.js";
-import type { Member, Combo, Pick, Filters, Solved, SolveSave, Axis, TeamCost, TeamScope, ScopedCompare } from "../solver.js";
+import type { Member, Combo, Pick, Filters, Solved, SolveSave, Axis, TeamCost, ScopedCompare } from "../solver.js";
 import { runTeam, runFromScore } from "../teamrun.js";
 import type { TeamRun } from "../teamrun.js";
-import { teamKey, teamAt, ALL_TEAMS } from "../teams.js";
+import { teamKey, teamAt, ALL_TEAMS, PRIMARY_TEAM, INTERCHANGEABLE } from "../teams.js";
 
 /* ------------------------------------------------------------------------------------ teams */
 
@@ -22,10 +22,9 @@ export const TEAMS: Record<string, Member[]> = Object.fromEntries(ALL_TEAMS.map(
   loadouts.map((l, j) => member(l, mdps[j]!)),
 ]));
 
-/** The team keys teams.ts marked `INTENDED` — the only ones in play until the Teams box says All. */
-const INTENDED_TEAMS = new Set(ALL_TEAMS.flatMap(({ intended }, i) => (intended ? [teamKey(i)] : [])));
-/** Whether the Teams box is running this team at all: every team once it says All. */
-const inScope = (key: string): boolean => filters.scope === "all" || INTENDED_TEAMS.has(key);
+/** The team keys that stand for their interchangeable group — the only ones solved until a group is
+ *  opened (`groupOpen`). */
+const PRIMARY_TEAMS = new Set(PRIMARY_TEAM.flatMap((primary, i) => (primary ? [teamKey(i)] : [])));
 
 export type ResonatorFilter = "include" | "exclude";
 // no main stats: a roll reaches nobody but its wearer, so it is read off the table, never filtered
@@ -179,22 +178,33 @@ function tagsHold(map: Map<string, ResonatorFilter>, names: string[], fielded: s
 }
 
 /** The pool as each added leader answers for it: the others added, and how many of them the best
- *  team fielding that leader manages to hold at once. Memoised on the pool itself, since it reads
- *  the whole roster and the pool changes far more rarely than this is asked. */
+ *  team *they lead* manages to hold at once. Memoised on the pool itself, since it reads the whole
+ *  roster and the pool changes far more rarely than this is asked.
+ *
+ *  A team they only support is not one of theirs, so it never raises their need: two leaders where
+ *  one plays support behind the other (Suoming behind Hsin) would otherwise each read the shared
+ *  team as "my own teams can hold the other", and the one who merely supports there would lose
+ *  every team of their own that hasn't got the other on it. They still get an entry from such a
+ *  team — they answer for every team fielding them, led or not — it just stays at 0.
+ *
+ *  The exception is a team the pool fills outright: once three added resonators are a real team,
+ *  that team is what the three of them were picked for, and each of them needs both of the others
+ *  from then on — led or supported. Any two of the three stop opening teams of their own, so the
+ *  trio shows the teams it actually forms rather than every team any pair of them appears on. */
 let poolAdded: string[] = [];
 let poolNeeds = new Map<string, number>();
-let poolKey = " ";
+let poolKey: string | null = null;
 function leaderNeeds(): Map<string, number> {
   const added = [...resonatorFilters].filter(([, mode]) => mode === "include").map(([name]) => name);
-  const key = `${filters.scope} ${added.join(" ")}`;
+  const key = added.join(" ");
   if (key === poolKey) return poolNeeds;
   [poolKey, poolAdded, poolNeeds] = [key, added, new Map()];
-  // read off the teams actually in play: a need no intended team can meet would empty the table
-  for (const [teamKey, ms] of Object.entries(TEAMS)) {
-    if (!inScope(teamKey)) continue;
+  for (const ms of Object.values(TEAMS)) {
+    // a team every one of whose slots is added: it counts for each of the three, not just whoever leads
+    const whole = ms.every((x) => added.includes(x.name));
     for (const m of ms) {
       if (!MDPS_NAMES.has(m.name) || !added.includes(m.name)) continue;
-      const held = added.filter((o) => o !== m.name && ms.some((x) => x.name === o)).length;
+      const held = m.mainDps || whole ? added.filter((o) => o !== m.name && ms.some((x) => x.name === o)).length : 0;
       poolNeeds.set(m.name, Math.max(poolNeeds.get(m.name) ?? 0, held));
     }
   }
@@ -203,9 +213,9 @@ function leaderNeeds(): Map<string, number> {
 
 /**
  * Which teams the resonator pool opens. Each added resonator who leads somewhere (`MDPS_NAMES`)
- * brings in every team fielding them — the ones they only support included, so adding Phrolova
- * reaches the Xuanling teams she plays behind — and answers for those alone, by how well the pool
- * can be satisfied on a team of theirs at all, which is the count their best one manages:
+ * brings in the teams they lead, and answers for them by how well the pool can be satisfied on a
+ * team they *lead* at all, which is the count their best one manages (a team they only support
+ * behind another leader is that leader's, and asks nothing of them):
  *
  * - can their best team field two of the others added? then only their teams fielding two survive;
  * - one? then their teams fielding at least one — any one, so two of the pool who never share a
@@ -213,19 +223,34 @@ function leaderNeeds(): Map<string, number> {
  * - none? then all of their teams stand, so a second leader added alongside the first never costs
  *   the first any rows.
  *
+ * A team they only *support* is not theirs to bring in on its own once somebody else is added
+ * beside them: it stands only while it pairs them with another name in the pool. Qiuyuan and Iuno
+ * together are Qiuyuan's own teams holding Iuno and every team Iuno leads — not the Jiyan and
+ * Jingran teams Iuno merely plays behind, which say nothing about the two of them. With a single
+ * name in the pool there is nobody to pair with and the rule would empty the table, so there it
+ * still reads as "every team fielding them" — adding Phrolova alone reaches the Xuanling teams.
+ *
  * Their sets are ORed, and anyone hidden strikes out every team they appear on. With none of them
  * added there is nothing to lead the narrowing, so it falls back to the whole roster narrowed by
  * everyone added: a lone support reads as "every team fielding them".
  */
 export function teamWanted(key: string, members: Member[]): boolean {
-  if (!inScope(key)) return false;
   const has = (name: string): boolean => members.some((m) => m.name === name);
+  // the bench behind one pairing: both teammates beside the interchangeable slot named, and every
+  // support who can stand in it is solved. Short of that only the group's own team is, so the ones
+  // it stands for cost nothing to leave out
+  if (!PRIMARY_TEAMS.has(key)
+    && !members.every((m) => INTERCHANGEABLE.has(m.loadout) || resonatorFilters.get(m.name) === "include")) return false;
   for (const [name, mode] of resonatorFilters) if (mode === "exclude" && has(name)) return false;
   const needs = leaderNeeds();
   if (!needs.size) return poolAdded.every(has);
   for (const m of members) {
     const need = needs.get(m.name);
-    if (need !== undefined && poolAdded.filter((o) => o !== m.name && has(o)).length >= need) return true;
+    if (need === undefined) continue;
+    const others = poolAdded.filter((o) => o !== m.name && has(o)).length;
+    // where they only support, the team has to pair them with somebody else added
+    const wants = m.mainDps || poolAdded.length < 2 ? need : Math.max(need, 1);
+    if (others >= wants) return true;
   }
   return false;
 }
@@ -511,17 +536,16 @@ export function saveSolves(): void {
 /* --------------------------------------------------------------------------- state in the URL */
 
 /** The whole page state lives in the hash as a query string: `mx=` the Matrix list, `tc=` cost, `cw=`...
- *  compares, `cs=` scoped compares, `ts=` team scope, `r`/`x` + `wr`/`wx`... include/exclude
- *  lists, `team=` the row's own hex tag (`teamTag()`). Absent
- *  params read as defaults so an old bare `#team=` link still works. */
+ *  compares, `cs=` scoped compares, `r`/`x` + `wr`/`wx`... include/exclude lists, `team=` the row's
+ *  own hex tag (`teamTag()`). Absent params read as defaults, so an old bare `#team=` link still
+ *  works and one carrying the Teams box's `ts=` is simply read without it. */
 export const hashParams = (): URLSearchParams => new URLSearchParams(location.hash.replace(/^#/, ""));
 
 const COMPARE_PARAM: Record<Axis, string> = { weapons: "cw", echoes: "ce", mainstats: "cm", substats: "cb", sequences: "cq", refines: "cr" };
 const SCOPED_PARAM = "cs";
-const SCOPE_CODE: Record<TeamScope, string> = { intended: "i", all: "a" };
 const COST_CODE: Record<TeamCost, string> = {
   s0r0: "r0", s0r1mdps: "r1m", s0r1: "r1",
-  s1r1mdps: "s1m", s2r1mdps: "s2m", s3r1mdps: "s3m", s6r1mdps: "s6m", s6r5mdps: "s6r5m", s6r5: "s6r5",
+  s2r1mdps: "s2m", s3r1mdps: "s3m", s6r1mdps: "s6m", s6r5: "s6r5",
 };
 
 const FILTER_GROUPS: { include: string; exclude: string; map: Map<string, ResonatorFilter> }[] = [
@@ -550,9 +574,6 @@ export function applyHash(): boolean {
   const code = params.get("tc");
   const cost = (Object.keys(COST_CODE) as TeamCost[]).find((c) => COST_CODE[c] === code) ?? "s0r1";
   if (filters.cost !== cost) { filters.cost = cost; changed = true; }
-  const scopeCode = params.get("ts");
-  const scope = (Object.keys(SCOPE_CODE) as TeamScope[]).find((sc) => SCOPE_CODE[sc] === scopeCode) ?? "intended";
-  if (filters.scope !== scope) { filters.scope = scope; changed = true; }
   for (const axis of AXES) {
     const next = (params.get(COMPARE_PARAM[axis]) ?? "").split(",").filter(Boolean)
       .map((n) => RESONATOR_NAME_BY_COMPACT.get(n) ?? n);
@@ -646,7 +667,6 @@ export function syncHash(team: string | null = hashTeam(), push = false): void {
   const compact = (n: string): string => encodeURIComponent(n.replace(/ /g, ""));
   const parts = filters.matrix.length ? [`mx=${filters.matrix.map(compact).join(",")}`] : [];
   if (filters.cost !== "s0r1") parts.push(`tc=${COST_CODE[filters.cost]}`);
-  if (filters.scope !== "intended") parts.push(`ts=${SCOPE_CODE[filters.scope]}`);
   for (const axis of AXES) {
     if (filters[axis].length) parts.push(`${COMPARE_PARAM[axis]}=${filters[axis].map((n) => encodeURIComponent(n.replace(/ /g, ""))).join(",")}`);
   }

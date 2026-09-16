@@ -63,7 +63,7 @@ const BA2 = mornyeAction("Basic - Ground State Calibration 2", { node: Node.Norm
 const BA3 = mornyeAction("Basic - Ground State Calibration 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 103.4, energy: 1.67, concerto: 5.2, offtune: 5200, forte1:37 });
 const BA4 = mornyeAction("Basic - Ground State Calibration 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 135.2, energy: 2.13, concerto: 6.8, offtune: 6800, forte1:100 });
 const HA = mornyeAction("Heavy - Ground State Calibration", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 37, energy: 0.79, concerto: 2.5, offtune: 2480, forte1: 20 });
-const MA = mornyeAction("Mid-air - Ground State Calibration", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 1.55, concerto: 4.96, offtune: 4960 });
+const MA = mornyeAction("Mid-air - Ground State Calibration Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 1.55, concerto: 4.96, offtune: 4960 });
 const DC = mornyeAction("Dodge Counter - Ground State Calibration", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 162.23, energy: 2.55, concerto: 18.16, offtune: 8160, forte1: 20 });
 
 // --- Wide Field Observation Mode, the airborne state the Syntony Field lives in

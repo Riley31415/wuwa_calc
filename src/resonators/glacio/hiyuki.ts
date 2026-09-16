@@ -136,7 +136,7 @@ const FROSTBIND = {
 const BA1 = hiyukiAction("Basic - Present Self 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 75.44, energy: 1.28, concerto: 2.44, offtune: 4336 });
 const BA2 = hiyukiAction("Basic - Present Self 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 90.25, energy: 1.53, concerto: 2.92, offtune: 5188 });
 const BA3 = hiyukiAction("Basic - Present Self 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 122.97, energy: 2.12, concerto: 3.99, offtune: 7070, forte1: 100, ...CHAFE });
-const MA = hiyukiAction("Mid-air - Present Self", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 128.18, energy: 2.17, concerto: 4.15, offtune: 7368 });
+const MA = hiyukiAction("Mid-air - Present Self Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 128.18, energy: 2.17, concerto: 4.15, offtune: 7368 });
 const DC = hiyukiAction("Dodge Counter - Present Self 2", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 173.75, energy: 2.94, concerto: 15.62, offtune: 9988 });
 /** Three arrows, considered Resonance Liberation DMG, and what opens Inward Vision. */
 const FrostSplinter = hiyukiAction("Heavy - Frost Splinter: Present Self", {

@@ -58,7 +58,7 @@ const BA3 = encoreAction("Basic - Wooly Attack 3", { node: Node.Normal, cast: Ca
 const BA4 = encoreAction("Basic - Wooly Attack 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 153.08, energy: 1.92, concerto: 3.84, offtune: 9240, forte1: 4 });
 const WoolyStrike = encoreAction("Basic - Wooly Strike", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 238.57, energy: 3.00, concerto: 6.00, offtune: 14400, forte1: 25 });
 const HA = encoreAction("Heavy - Wooly Attack", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 187.08, energy: 2.35, concerto: 4.70, offtune: 11292, forte1: 5 });
-const MA = encoreAction("Mid-air - Wooly Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.26, energy: 0.51, concerto: 1.00, offtune: 14400, forte1: 11 });
+const MA = encoreAction("Mid-air - Wooly Attack Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.26, energy: 0.51, concerto: 1.00, offtune: 14400, forte1: 11 });
 const DC = encoreAction("Dodge Counter - Wooly Attack", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 251.88, energy: 3.16, concerto: 13.32, offtune: 8004, forte1: 6 });
 
 // Flaming Woolies, then Energetic Welcome (press again shortly after)

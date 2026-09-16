@@ -101,7 +101,7 @@ const Outro = lucillaAction("Outro - Montage", {
 const BA1 = lucillaAction("Basic - Snapshot 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 59.29, energy: 1.07, concerto: 1.71, offtune: 3408 });
 const BA2 = lucillaAction("Basic - Snapshot 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 67.23, energy: 1.22, concerto: 1.94, offtune: 3865 });
 const BA3 = lucillaAction("Basic - Snapshot 3 - Commendable", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 235.27, energy: 4.23, concerto: 6.77, offtune: 13524, forte1: 50 });
-const MA = lucillaAction("Mid-air - Snapshot", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.29, energy: 1.55, concerto: 3.66, offtune: 4960 });
+const MA = lucillaAction("Mid-air - Snapshot Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.29, energy: 1.55, concerto: 3.66, offtune: 4960 });
 const DC = lucillaAction("Dodge Counter - Snapshot", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 150.73, energy: 2.71, concerto: 16.4, offtune: 8665 });
 
 // Phantom Frame (the pull-in dash, held to deploy Focus Ring) into either Compensate (cursor

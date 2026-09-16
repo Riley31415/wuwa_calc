@@ -101,7 +101,7 @@ const BA2 = deniaAction("Basic - Stagecraft Form 2", { node: Node.Normal, cast: 
 const BA3 = deniaAction("Basic - Stagecraft Form 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 76.47, energy: 1.62, concerto: 3.21, offtune: 5130, forte1: 9 });
 const BA4 = deniaAction("Basic - Stagecraft Form 4", { cutscene: true,node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 128, energy: 0.69, concerto: 5.37, offtune: 8584, forte1: 30 });
 const HA = deniaAction("Heavy - Stagecraft Form", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 161.52, energy: 3.40, concerto: 6.78, offtune: 10832, forte1: 20 });
-const MA = deniaAction("Mid-air - Stagecraft Form", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.97, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: 10 });
+const MA = deniaAction("Mid-air - Stagecraft Form Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.97, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: 10 });
 const DC = deniaAction("Dodge Counter - Stagecraft Form 3", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 148.05, energy: 3.12, concerto: 16.21, offtune: 5130, forte1: 18 });
 
 // --- Breakdown Form: Basic Attack DMG, banking Conformal Charge (forte2). Each also declares the

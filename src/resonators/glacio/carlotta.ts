@@ -67,7 +67,7 @@ function carlottaAction(id: string, def: object): Action {
 // --- basics, mid-air, dodge counter (Silent Execution)
 const BA1 = carlottaAction("Basic - Silent Execution 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 54.08, energy: 0.8, concerto: 1.6, offtune: 2560 });
 const BA2 = carlottaAction("Basic - Silent Execution 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 131.83, energy: 1.96, concerto: 3.9, offtune: 6240, forte1: 3 });
-const MA1 = carlottaAction("Mid-air - Silent Execution", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 3, concerto: 6, offtune: 9600 });
+const MA1 = carlottaAction("Mid-air - Silent Execution Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 3, concerto: 6, offtune: 9600 });
 const MA2 = carlottaAction("Basic - Silent Execution: Customary Greetings", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 239.98, energy: 2.11, concerto: 4.2, offtune: 6720, forte1: 3 });
 const DC = carlottaAction("Dodge Counter - Silent Execution", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 241.32, energy: 3.58, concerto: 17.15, offtune: 11425, forte2: 10, forte1: -1 });
 

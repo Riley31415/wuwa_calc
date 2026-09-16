@@ -44,8 +44,8 @@ export interface Snapshot {
  *  straight from `data/levels.json`'s own level-90 row rather than looked up out of the whole
  *  table at runtime. */
 export const RESONATOR_LEVEL = 90;
-const LEVEL_90_DOT = 3674;
-const LEVEL_90_TUNE = 10027;
+export const LEVEL_90_DOT = 3674;
+export const LEVEL_90_TUNE = 10027;
 
 /**
  * The action's motion value after everything that changes it, in percent:
@@ -213,6 +213,19 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
     avg: Math.floor(noCrit * critFactor),
   };
 }
+
+/**
+ * `floor(base) + floor(floor(base) x bonus%) + flat` — the one fold ATK, HP and DEF each come out
+ * of the totals by, and the only place that formula is written. The game floors the base before
+ * the percentage is taken and floors that product too, so a fractional base is lost twice over.
+ * All three stay unscoped, matching the old engine: only formula-facing stats scope. The base is
+ * itself a summed entry (a resonator's own kit-base value plus a weapon's own base line), not a
+ * fixed per-slot number, matching the old engine's total().
+ */
+export const foldStat = (stats: number[], base: Stat, bonus: Stat, flat: Stat): number => {
+  const b = Math.floor(stats[base]!);
+  return b + Math.floor(b * stats[bonus]! / 100) + stats[flat]!;
+};
 
 /** `damageFactors().avg` alone, off the figures rather than a Snapshot — the same expressions in
  *  the same order, with nothing allocated. The search calls this once per variant per action. */

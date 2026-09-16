@@ -14,7 +14,7 @@ import { mainstatSlotBuffs } from "../shared/mainstats.js";
 import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
 import type { HeldBuff } from "../engine/state.js";
 import type { ChainGroup, ResolvedSnapshot } from "../engine/evaluate.js";
-import { fmt } from "../display.js";
+import { fmt, fmtExact } from "../display.js";
 import type { Column, TraceEntry, InfoEntry } from "../display.js";
 import type { Member, Combo } from "../solver.js";
 import { hitsOf } from "../teamrun.js";
@@ -75,8 +75,11 @@ export const panelRow = (r: TraceEntry, slotHue: Map<string, string>, { noSource
   const own = r.owner !== undefined ? (slotHue.get(r.owner ?? "") ?? TUNE_BREAK_ENEMY.color) : null;
   const label = r.label ?? (r.stat !== undefined ? statLabel(r.stat) : "");
   const source = (r.count ?? 1) > 1 ? `${r.source} x${r.count}` : r.source;
+  // the panel is the exact figure unless the row asks for a length — a derived ratio does, since
+  // its decimals run as long as the division does
+  const show = (v: number): string => (r.digits === undefined ? fmtExact(v) : fmt(v, r.digits, true));
   const value = `<td class="v">${r.text !== undefined ? esc(r.text)
-    : r.mult ? `&times;${fmt(r.value, r.digits ?? 4)}` : `${fmt(r.value, r.digits ?? 4)}${unit(r)}`}</td>`;
+    : r.mult ? `&times;${show(r.value)}` : `${show(r.value)}${unit(r)}`}</td>`;
   if (r.summary) return `<tr class="sum"><td class="k">${esc(label)}</td>${value}</tr>`;
   return noSource
     ? `<tr><td class="k">${esc(label)}</td>${value}</tr>`
@@ -85,7 +88,9 @@ export const panelRow = (r: TraceEntry, slotHue: Map<string, string>, { noSource
 
 /** A stat column's panel: rows grouped by section, then the Total. An empty list is still a panel;
  *  only `undefined` (never traced) has none. */
-export function popover(col: Column, rows: TraceEntry[] | undefined, total: number | string | null | undefined, slotHue: Map<string, string>, suffix = ""): string {
+/** `empty` replaces the heading a panel with nothing feeding it opens with — for a cell whose
+ *  answer varies by row rather than by column (a dot/tune hit's own scaling constant). */
+export function popover(col: Column, rows: TraceEntry[] | undefined, total: number | string | null | undefined, slotHue: Map<string, string>, suffix = "", empty = ""): string {
   if (!rows) return "";
   const noSource = col.key === "avg";
   const row = (r: TraceEntry) => panelRow(r, slotHue, { noSource });
@@ -107,10 +112,13 @@ export function popover(col: Column, rows: TraceEntry[] | undefined, total: numb
   const body = sections.map(({ key, rows: group }) =>
     `<tr class="sec"><td colspan="2">${esc(key ?? col.full ?? col.label)}</td></tr>`
     + group.map(row).join("")).join("");
+  // `empty` is a sentence about this row's own scaling, not a label over a group of rows, so it
+  // reads in the rows' own type (`.sec.plain`) rather than the heading's small uppercase
   const titled = sections.length ? body
-    : `<tr class="sec"><td colspan="2">${esc(col.fullEmpty ?? col.full ?? col.label)}</td></tr>`;
+    : `<tr class="sec${empty ? " plain" : ""}"><td colspan="2">`
+      + `${esc(empty || (col.fullEmpty ?? col.full ?? col.label))}</td></tr>`;
   const sum = col.noTotal ? "" : `<tr class="sum"><td class="k">Total</td>`
-    + `<td class="v">${fmt(total, col.digits ?? 0)}${col.percent ? "%" : ""}${esc(suffix)}</td></tr>`;
+    + `<td class="v">${fmtExact(total)}${col.percent ? "%" : ""}${esc(suffix)}</td></tr>`;
   return lazyPop(`<span class="pop stat${col.key === "avg" ? " damage" : ""}"><table>${titled}`
     + `${before.map(row).join("")}${sum}${after.map(row).join("")}</table></span>`);
 }
@@ -853,7 +861,7 @@ function pieSvg(slices: Slice[], total: number): string {
   const cx = width / 2;
   const cy = height / 2;
   const f = (n: number): string => n.toFixed(2);
-  const pct = (s: Slice): string => `(${(s.value / total * 100).toFixed(1)}%)`;
+  const pct = (s: Slice): string => `(${fmt(s.value / total * 100, 1)}%)`;
 
   // A label long enough to widen the frame reads on two lines instead of one long rail — the rail
   // is the whole of what the frame has to be wide enough for, so wrapping "Coordinated Liberation"
@@ -1041,7 +1049,7 @@ const barKey = (roster: Caster[]): string => `<ul class="barkey" style="--keys:$
 const topActions = (top: TopAction[], total: number): string => `<div class="topwrap"><ol class="topacts">${top.map((a) =>
   `<li style="--own:${a.color};--fill:${((a.dmg / (top[0]?.dmg ?? a.dmg)) * 100).toFixed(2)}%">`
   + `<span class="nm">${esc(a.name)}${a.casts > 1 ? ` x${a.casts}` : ""}</span>`
-  + `<span class="v">${fmt(a.dmg)} <span class="pct">(${Math.round((a.dmg / total) * 100)}%)</span></span></li>`,
+  + `<span class="v">${fmt(a.dmg)} <span class="pct">(${fmt((a.dmg / total) * 100)}%)</span></span></li>`,
 ).join("")}</ol></div>`;
 
 function distBody(cell: DistCell | undefined): string {

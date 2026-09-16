@@ -62,7 +62,7 @@ const BA4 = sigrikaAction("Basic - One, Two, Three 4", {
   node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 206.79, energy: 3.27, concerto: 6.51, offtune: 10400,
   updateBuffs: () => applyCurrent(DECIPHER, 1),
 });
-const MA = sigrikaAction("Mid-air - One, Two, Three", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960 });
+const MA = sigrikaAction("Mid-air - One, Two, Three Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960 });
 const MDC = sigrikaAction("Dodge Counter - One, Two, Three (Mid-Air)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 206.17, energy: 3.05, concerto: 16.1, offtune: 9920 });
 const DC = sigrikaAction("Dodge Counter - One, Two, Three", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 219.70, energy: 3.26, concerto: 16.5, offtune: 10026 });
 const HA = sigrikaAction("Heavy - One, Two, Three", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 116.28, offtune: 5848, concerto: 3.66, energy: 1.84 });

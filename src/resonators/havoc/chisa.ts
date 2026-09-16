@@ -142,7 +142,7 @@ const DeathSnipSpread = chisaAction("Basic - Death Snip With Spread", { node: No
 const ThreadWithdrawn = chisaAction("Basic - Thread Withdrawn", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 67.65, energy: 1.44, concerto: 2.85, offtune: 4538, forte1: 16 });
 /** The airborne normal attack — not part of the ground string, chains into Reign of Silence 2 in
  *  mid-air instead. Not in the rotation (nothing here models being airborne), defined for completeness. */
-const ReignOfSilenceMidAir = chisaAction("Mid-air - Reign of Silence", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.96, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: 9 });
+const ReignOfSilenceMidAir = chisaAction("Mid-air - Reign of Silence Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.96, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: 9 });
 
 const HA = chisaAction("Heavy - Reign of Silence", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 71.58, energy: 1.50, concerto: 3.00, offtune: 4800, forte1: 10 });
 /** Heavy Attack's own mid-air follow-up, chaining into Hanging Finality. Not in the rotation. */

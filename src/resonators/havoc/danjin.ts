@@ -66,7 +66,7 @@ const BA1 = danjinAction("Basic - Execution 1", { node: Node.Normal, cast: Cast.
 const BA2 = danjinAction("Basic - Execution 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 58.85, energy: 0.92, concerto: 1.11, offtune: 2960 });
 const BA3 = danjinAction("Basic - Execution 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.53, energy: 1.25, concerto: 1.5, offtune: 3120 });
 
-const MA = danjinAction("Mid-air - Execution", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 0.51, concerto: 1, offtune: 9600 });
+const MA = danjinAction("Mid-air - Execution Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 0.51, concerto: 1, offtune: 9600 });
 const HA = danjinAction("Heavy - Execution", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 111.36, energy: 1.74, concerto: 2.1, offtune: 5358 }); // 37.12% x3
 /** A successful Dodge Counter opens the Skill's own Crimson Erosion form, and grants Crimson Light. */
 const DC = danjinAction("Dodge Counter - Ruby Shades", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 190.86, energy: 3, concerto: 11.8, offtune: 4800 }); // 63.62% x3

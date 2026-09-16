@@ -6,9 +6,14 @@ import {
   DODGE,
   ENEMY_MAX_OFFTUNE,
   ER_TOLERANCE,
+  INTERCHANGEABLE,
   JUMP,
+  LEVEL_90_DOT,
+  LEVEL_90_TUNE,
   MAINSTAT_ROWS,
   NODE_NAME,
+  PRIMARY_TEAM,
+  RESONATOR_LEVEL,
   RESOURCE_NAME,
   SCALING_NAME,
   SWAP,
@@ -54,19 +59,23 @@ import {
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-MXGKBVYK.js";
+} from "./chunk-EJ3NNNGB.js";
 
 // dist/src/display.js
 var formatters = /* @__PURE__ */ new Map();
 var fmt = (v, digits = 0, pad = false, group = true) => {
   if (typeof v !== "number")
     return String(v ?? "");
+  const scale = 10 ** digits;
   const key = `${digits}${pad ? "p" : ""}${group ? "g" : ""}`;
   let f = formatters.get(key);
   if (!f)
     formatters.set(key, f = new Intl.NumberFormat("en-US", { maximumFractionDigits: digits, minimumFractionDigits: pad ? digits : 0, useGrouping: group }));
-  return f.format(v);
+  const cut = Math.trunc(Number((v * scale).toFixed(6))) / scale;
+  return f.format(cut === 0 ? 0 : cut);
 };
+var exact = new Intl.NumberFormat("en-US", { maximumFractionDigits: 10 });
+var fmtExact = (v) => typeof v === "number" ? exact.format(v) : String(v ?? "");
 var FORTE_GAUGES = [
   3,
   4,
@@ -103,28 +112,52 @@ var keysFor = (action, ...stats) => stats.flatMap((stat) => [
 ]);
 var special = (action) => action.scaling === 3 || action.scaling === 4 || action.scaling === 5;
 var fixed = (action) => action.scaling === 5;
-var FEEDS = {
-  atk: (a) => keysFor(
-    a,
+var SCALERS = {
+  [
+    0
+    /* Scaling.Atk */
+  ]: { key: "atk", word: "ATK", stats: [
     0,
     6,
     3
     /* Stat.FlatAtk */
-  ),
-  hp: (a) => keysFor(
-    a,
+  ] },
+  [
+    1
+    /* Scaling.Hp */
+  ]: { key: "hp", word: "HP", stats: [
     1,
     7,
     4
     /* Stat.FlatHp */
-  ),
-  def: (a) => keysFor(
-    a,
+  ] },
+  [
+    2
+    /* Scaling.Def */
+  ]: { key: "def", word: "DEF", stats: [
     2,
     8,
     5
     /* Stat.FlatDef */
-  ),
+  ] }
+};
+var scalerOf = (action) => action.scaling === null ? void 0 : SCALERS[action.scaling];
+var CONSTANT_SCALERS = {
+  [
+    3
+    /* Scaling.Dot */
+  ]: { value: LEVEL_90_DOT, label: `Negative Status constant at resonator level ${RESONATOR_LEVEL}` },
+  [
+    4
+    /* Scaling.Tune */
+  ]: { value: LEVEL_90_TUNE, label: `Tune Break constant at resonator level ${RESONATOR_LEVEL}` }
+};
+var constantScalerOf = (action) => action.scaling === null ? void 0 : CONSTANT_SCALERS[action.scaling];
+var FEEDS = {
+  scaler: (a) => {
+    const s = scalerOf(a);
+    return s ? keysFor(a, ...s.stats) : [];
+  },
   mv: (a) => keysFor(
     a,
     15,
@@ -149,11 +182,6 @@ var FEEDS = {
     10
     /* Stat.CritDmg */
   )],
-  er: (a) => keysFor(
-    a,
-    11
-    /* Stat.Er */
-  ),
   dmgBonus: (a) => special(a) ? [] : keysFor(
     a,
     17
@@ -383,13 +411,16 @@ var MV_MULTIPLIER = "MV Multiplier";
 function rowValues(snap, { mv, avg }, members = []) {
   const dealsDamage = mv !== 0;
   const filler = snap.action === SWAP || snap.action === DODGE || snap.action === JUMP;
+  const scaler = scalerOf(snap.action);
+  const constant = constantScalerOf(snap.action);
   const buffed = /* @__PURE__ */ new Set();
   const raw = {
     member: snap.member,
-    atk: snap.atk,
-    hp: snap.hp,
-    def: snap.def,
-    mv: dealsDamage ? mv : null,
+    // the stat this action scales off; a dot/tune hit reads its own constant instead, and a fixed
+    // hit reads nothing, so its cell is blank
+    scaler: scaler ? snap[scaler.key] : constant?.value ?? null,
+    // a fixed hit's motion value *is* its damage rather than a multiplier, so no mv cell either
+    mv: dealsDamage && !fixed(snap.action) ? mv : null,
     // what a dot/tune/fixed hit doesn't read is blank, matching `FEEDS`
     dmgBonus: filler || special(snap.action) ? null : snap.dmgBonus,
     amp: filler || fixed(snap.action) ? null : snap.action.scaling === 4 ? null : snap.action.scaling === 3 ? snap.type2Amp : snap.amp,
@@ -412,10 +443,6 @@ function rowValues(snap, { mv, avg }, members = []) {
     ) / 100) - 1) * 100,
     effDef: filler || fixed(snap.action) ? null : effectiveShred(snap) * 100,
     effRes: filler || fixed(snap.action) ? null : effectiveRes(snap),
-    er: snap.stat(
-      11
-      /* Stat.Er */
-    ),
     energy: snap.energy / RESOURCE_SCALE.energy,
     concerto: snap.concerto / RESOURCE_SCALE.concerto,
     offtune: snap.offtune / RESOURCE_SCALE.offtune,
@@ -440,6 +467,8 @@ function rowValues(snap, { mv, avg }, members = []) {
   const sources = {};
   for (const [key, feeds] of Object.entries(FEEDS))
     sources[key] = tracing(snap, feeds(snap.action));
+  if (constant)
+    raw["empty:scaler"] = constant.label;
   sources.effRes = (sources.effRes ?? []).map((r) => ({ ...r, value: -r.value }));
   const RESOURCE_STAT = { energy: [
     26
@@ -451,16 +480,14 @@ function rowValues(snap, { mv, avg }, members = []) {
     28
     /* Stat.AddOfftune */
   ] };
-  const RESOURCE_DIGITS = { energy: 2, concerto: 2, offtune: 4 };
   for (const key of ["energy", "concerto", "offtune"]) {
     const wiped = key === "energy" && snap.energyWiped;
     const declared = wiped ? 0 : snap.action[key] / RESOURCE_SCALE[key];
     const traced = wiped ? [] : RESOURCE_STAT[key].flatMap((st) => tracing(snap, keysFor(snap.action, st), false)).map((r) => ({ ...r, value: r.value / RESOURCE_SCALE[key] }));
     const rows = [];
-    const digits = RESOURCE_DIGITS[key];
     if (declared)
-      rows.push({ source: snap.action.name, value: declared, digits, owner: snap.member });
-    rows.push(...traced.map((r) => ({ ...r, digits })));
+      rows.push({ source: snap.action.name, value: declared, owner: snap.member });
+    rows.push(...traced);
     const folded = foldDuplicates(rows);
     if (folded.length || wiped)
       sources[key] = folded;
@@ -475,7 +502,7 @@ function rowValues(snap, { mv, avg }, members = []) {
       /* Stat.EnergyRegenMult */
     ));
     if (rate.length) {
-      sources.energy = [...sources.energy ?? [], ...rate.map((r) => ({ ...r, section: ENERGY_RATE, digits: 2 }))];
+      sources.energy = [...sources.energy ?? [], ...rate.map((r) => ({ ...r, section: ENERGY_RATE }))];
       raw["moved:energy"] = (Number(raw["moved:energy"]) || 0) * (1 + snap.stat(
         14
         /* Stat.EnergyRegenMult */
@@ -494,7 +521,7 @@ function rowValues(snap, { mv, avg }, members = []) {
       /* Stat.OfftuneBuildup */
     ));
     if (rate.length)
-      sources.offtune = [...sources.offtune ?? [], ...rate.map((r) => ({ ...r, section: OFFTUNE_RATE, digits: 2 }))];
+      sources.offtune = [...sources.offtune ?? [], ...rate.map((r) => ({ ...r, section: OFFTUNE_RATE }))];
   }
   const direct = tracing(snap, keysFor(
     snap.action,
@@ -509,7 +536,6 @@ function rowValues(snap, { mv, avg }, members = []) {
     sources.offtune = [...sources.offtune ?? [], ...direct.map((r) => ({
       ...r,
       value: r.value / RESOURCE_SCALE.offtune,
-      digits: RESOURCE_DIGITS.offtune,
       section: "Direct Offtune"
     }))];
     buffed.add("offtune");
@@ -528,11 +554,11 @@ function rowValues(snap, { mv, avg }, members = []) {
     const traced = tracing(snap, keysFor(snap.action, FORTE_STAT[i]));
     const rows = [];
     if (snap.action.resetForte[i]) {
-      rows.push({ source: snap.action.name, value: 0, text: "RESET", digits: 0, owner: snap.member });
+      rows.push({ source: snap.action.name, value: 0, text: "RESET", owner: snap.member });
     }
     if (declared)
-      rows.push({ source: snap.action.name, value: declared, digits: 2, owner: snap.member });
-    rows.push(...traced.map((r) => ({ ...r, digits: 2 })));
+      rows.push({ source: snap.action.name, value: declared, owner: snap.member });
+    rows.push(...traced);
     if (rows.length)
       sources[`gauge:${RESOURCE_NAME[key]}`] = rows;
     raw[`moved:gauge:${RESOURCE_NAME[key]}`] = rows.reduce((n, r) => n + r.value, 0);
@@ -568,56 +594,27 @@ function rowValues(snap, { mv, avg }, members = []) {
         value,
         section: SECTION_OF[stat],
         percent: true,
-        digits: 1,
         summary: true
       }))];
     }
   }
-  for (const [key, word, [baseStat, bonusStat, flatStat]] of [
-    ["atk", "ATK", [
-      0,
-      6,
-      3
-      /* Stat.FlatAtk */
-    ]],
-    ["hp", "HP", [
-      1,
-      7,
-      4
-      /* Stat.FlatHp */
-    ]],
-    ["def", "DEF", [
-      2,
-      8,
-      5
-      /* Stat.FlatDef */
-    ]]
-  ]) {
-    const traced = sources[key];
-    if (!traced)
-      continue;
-    const sum = (stat) => traced.filter((r) => r.stat !== void 0 && splitStat(r.stat)[0] === stat).reduce((n, r) => n + r.value, 0);
-    const base = sum(baseStat);
-    if (!base)
-      continue;
-    const subtotal = (stat, percent) => traced.some((r) => r.stat !== void 0 && splitStat(r.stat)[0] === stat) ? [{ source: "", label: "Total", value: sum(stat), section: SECTION_OF[stat], percent, digits: percent ? 2 : 0, summary: true }] : [];
-    const final = `Final ${word}`;
-    sources[key] = [
-      ...traced,
-      ...subtotal(baseStat, false),
-      ...subtotal(bonusStat, true),
-      ...subtotal(flatStat, false),
-      { source: "", label: "Total", value: snap[key], section: final, digits: 0, summary: true },
-      {
-        source: "",
-        label: "Relative",
-        value: (sum(flatStat) + sum(bonusStat) / 100 * base) / base * 100,
-        section: final,
-        percent: true,
-        digits: 2,
-        summary: true
-      }
-    ];
+  const tracedScaler = sources.scaler;
+  if (scaler && tracedScaler) {
+    const [baseStat, bonusStat, flatStat] = scaler.stats;
+    const sum = (stat) => tracedScaler.filter((r) => r.stat !== void 0 && splitStat(r.stat)[0] === stat).reduce((n, r) => n + r.value, 0);
+    const base = Math.floor(sum(baseStat));
+    if (base) {
+      const subtotal = (stat, percent) => tracedScaler.some((r) => r.stat !== void 0 && splitStat(r.stat)[0] === stat) ? [{ source: "", label: "Total", value: sum(stat), section: SECTION_OF[stat], percent, summary: true }] : [];
+      const final = `Final ${scaler.word}`;
+      sources.scaler = [
+        ...tracedScaler,
+        ...subtotal(baseStat, false),
+        ...subtotal(bonusStat, true),
+        ...subtotal(flatStat, false),
+        { source: "", label: "Total", value: snap[scaler.key], section: final, summary: true },
+        { source: "", label: "Relative", value: (snap[scaler.key] / base - 1) * 100, section: final, percent: true, digits: 2, summary: true }
+      ];
+    }
   }
   if (members.length > 1) {
     const per = members.map((m) => rowValues(m, { mv: mvPercent(m), avg: 0 }));
@@ -669,7 +666,8 @@ function buildReport(lines) {
     { key: "action", label: "action", align: "left" },
     { key: "avg", label: "avg dmg", full: "Final Damage" },
     { key: "mv", label: "mv%", digits: 2, percent: true, full: "Motion Value" },
-    { key: "atk", label: "atk", noTotal: true },
+    // whichever stat the action scales off, blank where it scales off a constant
+    { key: "scaler", label: "scaler", noTotal: true },
     { key: "dmgBonus", label: "dmg%", digits: 1, percent: true, full: "Dmg Bonus" },
     { key: "amp", label: "amp%", digits: 1, percent: true, full: "Amplification" },
     { key: "cr", label: "cr%", digits: 1, percent: true, full: "Crit Rate" },
@@ -678,11 +676,8 @@ function buildReport(lines) {
     { key: "effDef", label: "ignore%", digits: 1, percent: true, full: "DEF Ignore", fullEmpty: "DEF Shred" },
     { key: "effRes", label: "res%", digits: 1, percent: true, full: "Enemy RES" },
     { key: "dealt", label: "vuln%", digits: 1, percent: true, full: "Vulnerability" },
-    { key: "er", label: "er%", digits: 1, percent: true, full: "Energy Regen" },
-    { key: "hp", label: "hp", noTotal: true },
-    { key: "def", label: "def", noTotal: true },
     // digits match nanoka's precision; offtune is /10000 (RESOURCE_SCALE) and reads to two like
-    // the rest — its own panel is where the finer figures are (`RESOURCE_DIGITS`)
+    // the rest — its own panel is where the finer figures are, printed in full
     { key: "concerto", label: "concerto", digits: 2, hideIfZero: true, full: "Concerto" },
     { key: "energy", label: "energy", digits: 2, hideIfZero: true, full: "Energy" },
     { key: "offtune", label: "offtune", digits: 2, hideIfZero: true, full: "OffTune" },
@@ -774,8 +769,7 @@ var TEAMS = Object.fromEntries(ALL_TEAMS.map(({ loadouts, mdps }, i) => [
   teamKey(i),
   loadouts.map((l, j) => member(l, mdps[j]))
 ]));
-var INTENDED_TEAMS = new Set(ALL_TEAMS.flatMap(({ intended }, i) => intended ? [teamKey(i)] : []));
-var inScope = (key) => filters.scope === "all" || INTENDED_TEAMS.has(key);
+var PRIMARY_TEAMS = new Set(PRIMARY_TEAM.flatMap((primary, i) => primary ? [teamKey(i)] : []));
 var MDPS_NAMES = /* @__PURE__ */ new Set();
 for (const members of Object.values(TEAMS))
   for (const m of members)
@@ -885,29 +879,28 @@ function tagsHold(map, names, fielded) {
 }
 var poolAdded = [];
 var poolNeeds = /* @__PURE__ */ new Map();
-var poolKey = "\0";
+var poolKey = null;
 function leaderNeeds() {
   const added2 = [...resonatorFilters].filter(([, mode]) => mode === "include").map(([name]) => name);
-  const key = `${filters.scope}\0${added2.join("\0")}`;
+  const key = added2.join("\0");
   if (key === poolKey)
     return poolNeeds;
   [poolKey, poolAdded, poolNeeds] = [key, added2, /* @__PURE__ */ new Map()];
-  for (const [teamKey2, ms] of Object.entries(TEAMS)) {
-    if (!inScope(teamKey2))
-      continue;
+  for (const ms of Object.values(TEAMS)) {
+    const whole = ms.every((x) => added2.includes(x.name));
     for (const m of ms) {
       if (!MDPS_NAMES.has(m.name) || !added2.includes(m.name))
         continue;
-      const held = added2.filter((o) => o !== m.name && ms.some((x) => x.name === o)).length;
+      const held = m.mainDps || whole ? added2.filter((o) => o !== m.name && ms.some((x) => x.name === o)).length : 0;
       poolNeeds.set(m.name, Math.max(poolNeeds.get(m.name) ?? 0, held));
     }
   }
   return poolNeeds;
 }
 function teamWanted(key, members) {
-  if (!inScope(key))
-    return false;
   const has = (name) => members.some((m) => m.name === name);
+  if (!PRIMARY_TEAMS.has(key) && !members.every((m) => INTERCHANGEABLE.has(m.loadout) || resonatorFilters.get(m.name) === "include"))
+    return false;
   for (const [name, mode] of resonatorFilters)
     if (mode === "exclude" && has(name))
       return false;
@@ -916,7 +909,11 @@ function teamWanted(key, members) {
     return poolAdded.every(has);
   for (const m of members) {
     const need = needs.get(m.name);
-    if (need !== void 0 && poolAdded.filter((o) => o !== m.name && has(o)).length >= need)
+    if (need === void 0)
+      continue;
+    const others = poolAdded.filter((o) => o !== m.name && has(o)).length;
+    const wants = m.mainDps || poolAdded.length < 2 ? need : Math.max(need, 1);
+    if (others >= wants)
       return true;
   }
   return false;
@@ -1175,16 +1172,13 @@ function saveSolves() {
 var hashParams = () => new URLSearchParams(location.hash.replace(/^#/, ""));
 var COMPARE_PARAM = { weapons: "cw", echoes: "ce", mainstats: "cm", substats: "cb", sequences: "cq", refines: "cr" };
 var SCOPED_PARAM = "cs";
-var SCOPE_CODE = { intended: "i", all: "a" };
 var COST_CODE = {
   s0r0: "r0",
   s0r1mdps: "r1m",
   s0r1: "r1",
-  s1r1mdps: "s1m",
   s2r1mdps: "s2m",
   s3r1mdps: "s3m",
   s6r1mdps: "s6m",
-  s6r5mdps: "s6r5m",
   s6r5: "s6r5"
 };
 var FILTER_GROUPS = [
@@ -1210,12 +1204,6 @@ function applyHash() {
   const cost = Object.keys(COST_CODE).find((c) => COST_CODE[c] === code) ?? "s0r1";
   if (filters.cost !== cost) {
     filters.cost = cost;
-    changed = true;
-  }
-  const scopeCode = params.get("ts");
-  const scope = Object.keys(SCOPE_CODE).find((sc) => SCOPE_CODE[sc] === scopeCode) ?? "intended";
-  if (filters.scope !== scope) {
-    filters.scope = scope;
     changed = true;
   }
   for (const axis of AXES) {
@@ -1301,8 +1289,6 @@ function syncHash(team = hashTeam(), push = false) {
   const parts = filters.matrix.length ? [`mx=${filters.matrix.map(compact).join(",")}`] : [];
   if (filters.cost !== "s0r1")
     parts.push(`tc=${COST_CODE[filters.cost]}`);
-  if (filters.scope !== "intended")
-    parts.push(`ts=${SCOPE_CODE[filters.scope]}`);
   for (const axis of AXES) {
     if (filters[axis].length)
       parts.push(`${COMPARE_PARAM[axis]}=${filters[axis].map((n) => encodeURIComponent(n.replace(/ /g, ""))).join(",")}`);
@@ -1369,12 +1355,13 @@ var panelRow = (r, slotHue, { noSource = false } = {}) => {
   const own = r.owner !== void 0 ? slotHue.get(r.owner ?? "") ?? TUNE_BREAK_ENEMY.color : null;
   const label = r.label ?? (r.stat !== void 0 ? statLabel(r.stat) : "");
   const source = (r.count ?? 1) > 1 ? `${r.source} x${r.count}` : r.source;
-  const value = `<td class="v">${r.text !== void 0 ? esc(r.text) : r.mult ? `&times;${fmt(r.value, r.digits ?? 4)}` : `${fmt(r.value, r.digits ?? 4)}${unit(r)}`}</td>`;
+  const show = (v) => r.digits === void 0 ? fmtExact(v) : fmt(v, r.digits, true);
+  const value = `<td class="v">${r.text !== void 0 ? esc(r.text) : r.mult ? `&times;${show(r.value)}` : `${show(r.value)}${unit(r)}`}</td>`;
   if (r.summary)
     return `<tr class="sum"><td class="k">${esc(label)}</td>${value}</tr>`;
   return noSource ? `<tr><td class="k">${esc(label)}</td>${value}</tr>` : `<tr><td class="s"${own ? ` style="--own:${own}"` : ""}>${esc(source || label)}</td>${value}</tr>`;
 };
-function popover(col, rows, total, slotHue, suffix = "") {
+function popover(col, rows, total, slotHue, suffix = "", empty = "") {
   if (!rows)
     return "";
   const noSource = col.key === "avg";
@@ -1391,8 +1378,8 @@ function popover(col, rows, total, slotHue, suffix = "") {
   }
   const sections = [...bySection].map(([key, group]) => ({ key, rows: group })).sort((a, b) => SECTION_RANK(a.key) - SECTION_RANK(b.key));
   const body = sections.map(({ key, rows: group }) => `<tr class="sec"><td colspan="2">${esc(key ?? col.full ?? col.label)}</td></tr>` + group.map(row).join("")).join("");
-  const titled = sections.length ? body : `<tr class="sec"><td colspan="2">${esc(col.fullEmpty ?? col.full ?? col.label)}</td></tr>`;
-  const sum = col.noTotal ? "" : `<tr class="sum"><td class="k">Total</td><td class="v">${fmt(total, col.digits ?? 0)}${col.percent ? "%" : ""}${esc(suffix)}</td></tr>`;
+  const titled = sections.length ? body : `<tr class="sec${empty ? " plain" : ""}"><td colspan="2">${esc(empty || (col.fullEmpty ?? col.full ?? col.label))}</td></tr>`;
+  const sum = col.noTotal ? "" : `<tr class="sum"><td class="k">Total</td><td class="v">${fmtExact(total)}${col.percent ? "%" : ""}${esc(suffix)}</td></tr>`;
   return lazyPop(`<span class="pop stat${col.key === "avg" ? " damage" : ""}"><table>${titled}${before.map(row).join("")}${sum}${after.map(row).join("")}</table></span>`);
 }
 function infoPopover(info, slotHue) {
@@ -1987,7 +1974,7 @@ function pieSvg(slices, total) {
   const cx = width / 2;
   const cy = height / 2;
   const f = (n) => n.toFixed(2);
-  const pct = (s) => `(${(s.value / total * 100).toFixed(1)}%)`;
+  const pct = (s) => `(${fmt(s.value / total * 100, 1)}%)`;
   const wrapAt = 11;
   const linesOf = (label) => {
     const words = label.split(" ");
@@ -2099,7 +2086,7 @@ function barChart(bars) {
   return `<svg class="bars" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img"><line class="axis" vector-effect="non-scaling-stroke" x1="${left}" y1="${top + plotH}" x2="${width - right}" y2="${top + plotH}"/>` + rects + `</svg>`;
 }
 var barKey = (roster) => `<ul class="barkey" style="--keys:${roster.length}">${roster.map((c) => `<li><span class="dot" style="background:${c.color}"></span>${esc(c.name)}</li>`).join("")}</ul>`;
-var topActions = (top, total) => `<div class="topwrap"><ol class="topacts">${top.map((a) => `<li style="--own:${a.color};--fill:${(a.dmg / (top[0]?.dmg ?? a.dmg) * 100).toFixed(2)}%"><span class="nm">${esc(a.name)}${a.casts > 1 ? ` x${a.casts}` : ""}</span><span class="v">${fmt(a.dmg)} <span class="pct">(${Math.round(a.dmg / total * 100)}%)</span></span></li>`).join("")}</ol></div>`;
+var topActions = (top, total) => `<div class="topwrap"><ol class="topacts">${top.map((a) => `<li style="--own:${a.color};--fill:${(a.dmg / (top[0]?.dmg ?? a.dmg) * 100).toFixed(2)}%"><span class="nm">${esc(a.name)}${a.casts > 1 ? ` x${a.casts}` : ""}</span><span class="v">${fmt(a.dmg)} <span class="pct">(${fmt(a.dmg / total * 100)}%)</span></span></li>`).join("")}</ol></div>`;
 function distBody(cell2) {
   if (!cell2 || cell2.total <= 0)
     return `<div class="pies"><p class="nodist">No damage in this section.</p></div>`;
@@ -2267,13 +2254,11 @@ function searchResults() {
   }).join("");
 }
 var COST_HELP = [
-  "Intended Teams - Teams with synergy that use supports for that archetype. No suisui on an echo team for example. Switch to ALL teams to see a ton more combinations if you want to check a weird team.",
-  "S0R0 all - Limited resonators are S0 and use the best standard or 4* weapon available at R1. Rover and 4* resonators are S6.",
-  "S0R1 all - All limited resonators get their best signature weapon, while Rover and 4* supports may still use standard or 4* weapons.",
-  "S0R1 mdps - Each team gets a single signature weapon at R1, on whichever of its main DPS gives the best DPR increase \u2014 never a support. Dual DPS teams still only get one signature weapon.",
-  "S1R1 / S2R1 / S3R1 / S6R1 mdps - One main DPS per team runs that many sequence nodes, whichever gives the best DPR increase \u2014 never a support. Everyone else stays S0R1.",
-  "S6R5 mdps - That one main DPS is S6 and runs their weapon at R5; everyone else is still S0R1.",
-  "S6R5 all - Every resonator is S6 with their best weapon at R5."
+  "s0r0 all - Limited resonators are S0 and use the best standard or 4* weapon available at R1. Rover and 4* resonators are S6.",
+  "s0r1 mdps +r0 supports - Each team gets a single signature weapon at R1, on whichever of its main DPS gives the best DPR increase \u2014 never a support. Dual DPS teams still only get one signature weapon.",
+  "s0r1 all - All limited resonators get their best signature weapon, while Rover and 4* supports may still use standard or 4* weapons.",
+  "s2r1 / s3r1 / s6r1 mdps +r1 supports - One main DPS per team runs that many sequence nodes, whichever gives the best DPR increase \u2014 never a support. Everyone else stays S0 on their own signature at R1.",
+  "s6r5 all - Every resonator is S6 with their best weapon at R5."
 ];
 var MATRIX_HELP = "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.";
 var STANDARDS = [
@@ -2281,7 +2266,8 @@ var STANDARDS = [
   "A resonator may use their liberation at the start of the fight for free damage or buffs.",
   "Each rotation is achievable in 25-28 seconds, and we assume 4 rotations in 2 minutes.",
   "Combat is performed against a single level 100 boss with 20% resistance to all attributes.",
-  "Resonators and weapons are level 90, with all skill nodes at level 10."
+  "Resonators and weapons are level 90, with all skill nodes at level 10.",
+  "Shorekeeper, Mornye, Suisui, Buling and Verina fill one another's slot, so a team that differs only in which of them it runs shows once, behind the support it leans on - Suisui in front of a Negative Status DPS, Mornye beside Lupa or Lynae, Shorekeeper otherwise. Filter for the other two teammates to run and see the whole bench."
 ];
 var README = [
   "All beta calculations are subject to change!",
@@ -2292,8 +2278,7 @@ function comparisonFilters() {
   const costBox = () => {
     const open = openHelp.has("cost");
     const option = (value, label) => `<option value="${value}"${filters.cost === value ? " selected" : ""}>${label}</option>`;
-    const scope = (value, label) => `<option value="${value}"${filters.scope === value ? " selected" : ""}>${label}</option>`;
-    return `<div class="tcopt${open ? " open" : ""}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="cost" aria-expanded="${open}">Team Cost<span class="arrow">\u203A</span></button><select id="cost" class="tcselect" aria-label="Team Cost" title="Team Cost">` + option("s0r0", "S0R0 all") + option("s0r1", "S0R1 all") + option("s0r1mdps", "S0R1 mdps") + option("s1r1mdps", "S1R1 mdps") + option("s2r1mdps", "S2R1 mdps") + option("s3r1mdps", "S3R1 mdps") + option("s6r1mdps", "S6R1 mdps") + option("s6r5mdps", "S6R5 mdps") + option("s6r5", "S6R5 all") + `</select><select id="scope" class="tcselect" aria-label="Teams" title="Teams">` + scope("intended", "Intended Teams") + scope("all", "ALL Teams") + `</select></div><div class="tcopt-desc"${open ? "" : " hidden"}><ul>${COST_HELP.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div></div>`;
+    return `<div class="tcopt${open ? " open" : ""}"><div class="tcopt-head"><button type="button" class="tcopt-name" data-help="cost" aria-expanded="${open}">Team Cost<span class="arrow">\u203A</span></button><select id="cost" class="tcselect" aria-label="Team Cost" title="Team Cost">` + option("s0r0", "s0r0 all") + option("s0r1mdps", "s0r1 mdps +r0 supports") + option("s0r1", "s0r1 all") + option("s2r1mdps", "s2r1 mdps +r1 supports") + option("s3r1mdps", "s3r1 mdps +r1 supports") + option("s6r1mdps", "s6r1 mdps +r1 supports") + option("s6r5", "s6r5 all") + `</select></div><div class="tcopt-desc"${open ? "" : " hidden"}><ul>${COST_HELP.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></div></div>`;
   };
   const note = (id, label, lines, extra = "") => {
     const open = openHelp.has(id);
@@ -2601,7 +2586,7 @@ function memberLabel(m, combo) {
   return [m.loadout.resonator.name, combo.matrix ? "(Matrix)" : "", `${seqToken(m, combo)}${rankToken(m, combo)}`].filter(Boolean).join(" ");
 }
 var seqToken = (m, combo) => combo.sequence > 0 || axisOpen(m, filters, "sequences") ? `S${combo.sequence}` : "";
-var rankToken = (m, combo) => axisUsed(m, filters, "weapons") ? "" : compares(m, filters, "refines", combo) || combo.weapon.refinement > 1 || combo.weapon.tier === 0 || combo.weapon.tier === 2 && m.loadout.resonator.tier !== 0 ? `R${combo.weapon.refinement}` : "R0";
+var rankToken = (m, combo) => axisUsed(m, filters, "weapons") ? "" : compares(m, filters, "refines", combo) || combo.weapon.refinement > 1 || combo.weapon.tier === 0 ? `R${combo.weapon.refinement}` : "R0";
 function optionCell(kind, value, color, lines = [value], resonator = "") {
   const style = `--mem:${color}`;
   if (!value)
@@ -2612,8 +2597,8 @@ var hueShown = true;
 var personalOpen = [false, false, false];
 var cmpDrawn = /* @__PURE__ */ new Set();
 var dprExact = { personal: true, team: true };
-var dprFmt = (v, exact) => {
-  if (exact)
+var dprFmt = (v, exact2) => {
+  if (exact2)
     return fmt(v);
   if (v >= 1e6)
     return `${fmt(Math.floor(v / 1e3) / 1e3, 3, true, false)}M`;
@@ -3067,19 +3052,6 @@ document.addEventListener("change", (e) => {
     };
   });
 });
-document.addEventListener("change", (e) => {
-  const select = e.target;
-  if (select.id !== "scope")
-    return;
-  withRowCap(() => {
-    const was = filters.scope;
-    filters.scope = select.value;
-    return () => {
-      filters.scope = was;
-      select.value = was;
-    };
-  });
-});
 var openNameMenu = (el, x, y) => {
   const resonator = el.dataset.resonator ?? "";
   const compareItem = (axis) => ({
@@ -3421,7 +3393,7 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
       const gear = gearByMember.get(snap.member) ?? [];
       pop = buffsPopover(snap.member, gear, snap.heldLocal, snap.heldGlobal, snap.heldEnemy, slotHue);
     } else if (text) {
-      pop = popover(col, sources, row.raw[`moved:${col.key}`] ?? v, slotHue, suffix);
+      pop = popover(col, sources, row.raw[`moved:${col.key}`] ?? v, slotHue, suffix, String(row.raw[`empty:${col.key}`] ?? ""));
     }
     const mem = slotHue.get(String(v)) ?? FALLBACK_HUE;
     const style = col.key === "member" ? `--mem:${mem};color:${mem}` : col.key === "avg" ? `--mem:${slotHue.get(String(row.raw["member"] ?? "")) ?? FALLBACK_HUE}` : "";
@@ -4661,6 +4633,11 @@ async function runMissing(rows) {
 var WORKER_LIMIT = 8;
 var pool = null;
 var poolTried = false;
+function dropWorkers() {
+  for (const w of pool ?? [])
+    w.terminate();
+  pool = null;
+}
 function workerPool() {
   if (poolTried)
     return pool;
@@ -4677,18 +4654,26 @@ function workerPool() {
 function solveOnWorkers(workers, teams, onDone, onShare) {
   return new Promise((resolve) => {
     let next = 0, live = 0, id = 0;
-    const pump = (w) => {
-      if (next >= teams.length) {
-        if (--live === 0)
-          resolve();
-        return;
+    const pump = async (w) => {
+      for (; ; ) {
+        if (next >= teams.length) {
+          if (--live === 0)
+            resolve();
+          return;
+        }
+        if (pool)
+          break;
+        const [key2, members2] = teams[next++];
+        storeSolved(key2, solveTeam(key2, members2, filters, picksCache.get(picksKey(key2, members2, filters)) ?? null));
+        onDone(members2);
+        await breathe();
       }
       const [key, members] = teams[next++];
       const known = picksCache.get(picksKey(key, members, filters)) ?? null;
       const finish2 = (solved) => {
         storeSolved(key, solved);
         onDone(members);
-        pump(w);
+        void pump(w);
       };
       w.onmessage = ({ data }) => {
         if (isProgress(data)) {
@@ -4700,7 +4685,10 @@ function solveOnWorkers(workers, teams, onDone, onShare) {
           finish2(solved);
           return;
         }
-        console.warn(`worker's solve for ${key} does not fit this build; solving it here`);
+        if (pool) {
+          console.warn(`the workers are on a different build than this page (first seen on ${key}); solving the rest here. Reload once the rebuild has landed.`);
+          dropWorkers();
+        }
         finish2(solveTeam(key, members, filters, known));
       };
       w.onerror = (e) => {
@@ -4713,7 +4701,7 @@ function solveOnWorkers(workers, teams, onDone, onShare) {
     };
     for (const w of workers.slice(0, teams.length)) {
       live++;
-      pump(w);
+      void pump(w);
     }
     if (live === 0)
       resolve();

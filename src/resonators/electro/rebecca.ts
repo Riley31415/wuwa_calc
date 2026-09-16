@@ -84,7 +84,7 @@ const HBA2 = rebeccaAction("Basic - Huntress 2", { node: Node.Normal, cast: Cast
 const HBA3 = rebeccaAction("Basic - Huntress 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 109.85, energy: 1.63, concerto: 3.25, offtune: 5200, forte1: 10.54 });
 const HHA = rebeccaAction("Heavy - Huntress", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Basic, mv: 33.8, energy: 0.5, concerto: 1, offtune: 1600, forte1: 3.58 });
 const EatLead = rebeccaAction("Heavy - Eat Lead!: Huntress", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 121.68, energy: 1.8, concerto: 3.6, offtune: 5760, forte1: 11.68 });
-const HMA = rebeccaAction("Mid-air - Huntress", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 136.04, energy: 2.02, concerto: 4.03, offtune: 6440, forte1: 13.05 });
+const HMA = rebeccaAction("Mid-air - Huntress Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 136.04, energy: 2.02, concerto: 4.03, offtune: 6440, forte1: 13.05 });
 const HTD = rebeccaAction("Basic - Tactical Dodge: Huntress", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 84.5, energy: 1.25, concerto: 2.5, offtune: 4000, forte1: 8.95 });
 // the somersault: no damage row of its own on nanoka and no gauges anywhere, and the one thing it
 // grants — the Heavy Attack - Huntress held out of it costing no STA — is stamina, which is unmodelled
@@ -95,7 +95,7 @@ const GBA1 = rebeccaAction("Basic - Guts 1", { node: Node.Normal, cast: Cast.Bas
 const GBA2 = rebeccaAction("Basic - Guts 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 84.5, energy: 1.25, concerto: 2.5, offtune: 4000, forte1: 9.32 });
 const GBA3 = rebeccaAction("Basic - Guts 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 225.11, energy: 3.34, concerto: 6.67, offtune: 10658, forte1: 24.84 });
 const GHA = rebeccaAction("Heavy - Guts", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 202.79, energy: 3, concerto: 6, offtune: 9600, forte1: 19.45 });
-const GMA = rebeccaAction("Mid-air - Guts", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 10.05 });
+const GMA = rebeccaAction("Mid-air - Guts Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 10.05 });
 const GTD = rebeccaAction("Basic - Tactical Dodge: Guts", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 101.4, energy: 1.5, concerto: 3, offtune: 4800, forte1: 9.73 });
 
 // --- Tactical Tweaks: one Resonance Skill per mode, each ending in the other one.
@@ -123,17 +123,17 @@ const FHAGuts = rebeccaAction("Forte Heavy - Bang-bang-bang!: Guts", { node: Nod
 // firepower tiers, and BOOM! Fireworks! goes off once Overload caps — late enough that it lands
 // on the next resonator's time, so it is deferred behind their Intro (still on Rebecca's slot)
 const Lib1 = rebeccaAction("Liberation - Party 'til Dawn!", {
-  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, resetEnergy: true, forte3: 90,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, resetEnergy: true,
   updateBuffs: () => { queueOnIntro(Boom); },
 });
 const Lib2 = rebeccaAction("Liberation - Mk. 31 HMG x5", {
-  node: Node.Liberation, type: Type1.Basic, cast: Cast.Liberation, cutscene: true, mv: 24.3 * 5, concerto: 20 + 0.56 * 5, offtune: 1609 * 5, forte3: -10,
+  node: Node.Liberation, type: Type1.Basic, cast: Cast.Liberation, cutscene: true, mv: 24.3 * 5, concerto: 20 + 0.56 * 5, offtune: 1609 * 5, 
 });
 const Lib3 = rebeccaAction("Liberation - Mk. 31 HMG 1st Enhancement x5", {
-  node: Node.Liberation, type: Type1.Basic, cast: Cast.Liberation, cutscene: true, mv: 48.6 * 5, concerto: 1.12 * 5, offtune: 3218 * 5, forte3: -20,
+  node: Node.Liberation, type: Type1.Basic, cast: Cast.Liberation, cutscene: true, mv: 48.6 * 5, concerto: 1.12 * 5, offtune: 3218 * 5, 
 });
 const Lib4 = rebeccaAction("Liberation - Mk. 31 HMG 2nd Enhancement x10", {
-  node: Node.Liberation, type: Type1.Basic, cast: Cast.Liberation, cutscene: true, mv: 72.9 * 10, concerto: 1.67 * 10, offtune: 4826 * 10, forte3: -60,
+  node: Node.Liberation, type: Type1.Basic, cast: Cast.Liberation, cutscene: true, mv: 72.9 * 10, concerto: 1.67 * 10, offtune: 4826 * 10, 
 });
 const Lib234 = new ActionGroup("Liberation - Mk. 31 HMG", [Lib2, Lib3, Lib4]);
 // fires behind whoever intros after her, so it is inactive: it is her hit, not her field time
@@ -384,7 +384,6 @@ const REBECCA_RESONATOR = new Resonator({
   maxEnergy: 125,
   maxForte1: 120,
   maxForte2: 120,
-  maxForte3: 90,
 
   // she starts in Huntress with a full Hot Hand bar
   combatStart: () => { applyCurrent(HUNTRESS, 1); setForte2(120); },

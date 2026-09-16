@@ -9,7 +9,7 @@ import {
 } from "./engine/stats.js";
 import type { Type1, StatKey } from "./engine/stats.js";
 import { SWAP, DODGE, JUMP } from "./engine/rotation.js";
-import { mvPercent, effectiveShred, effectiveRes, damageFactors } from "./engine/damage.js";
+import { mvPercent, effectiveShred, effectiveRes, damageFactors, RESONATOR_LEVEL, LEVEL_90_DOT, LEVEL_90_TUNE } from "./engine/damage.js";
 import { BASE_RESISTANCE, ENEMY_MAX_OFFTUNE } from "./shared/tunebreak.js";
 import type { Action } from "./engine/rotation.js";
 import type { ChainGroup, ResolvedSnapshot } from "./engine/evaluate.js";
@@ -25,7 +25,8 @@ export interface TraceEntry {
   mult?: boolean;
   place?: "beforeTotal" | "afterTotal";
   label?: string;
-  /** Decimals for this row when the panel's default (4) is too many. */
+  /** Fixed decimals for this row. Omitted, the panel prints every place the value has — a hover
+   *  is where the exact figure belongs; only a derived ratio wants a length of its own. */
   digits?: number;
   /** Which team member granted this — the panel's colour bar (`Buff.owner`). */
   owner?: string | null;
@@ -44,13 +45,30 @@ export type Sources = Record<string, TraceEntry[]>;
 /** One formatter per (digits, pad, group): `toLocaleString` builds a fresh Intl.NumberFormat per
  *  call (~22µs) and a table draw makes ~30 calls a row. */
 const formatters = new Map<string, Intl.NumberFormat>();
+
+/**
+ * Every figure on the page is cut at its digit count, never rounded up: the game floors what it
+ * shows and a cell that reads 963 off 962.5 is claiming half a point the build does not have.
+ * The scaled value is cleaned of binary noise before the cut — 2.67 x 100 is 266.99999999999997
+ * in a double, and truncating that raw would print 2.66.
+ */
 export const fmt = (v: number | string | null | undefined, digits = 0, pad = false, group = true): string => {
   if (typeof v !== "number") return String(v ?? "");
+  const scale = 10 ** digits;
   const key = `${digits}${pad ? "p" : ""}${group ? "g" : ""}`;
   let f = formatters.get(key);
   if (!f) formatters.set(key, f = new Intl.NumberFormat("en-US", { maximumFractionDigits: digits, minimumFractionDigits: pad ? digits : 0, useGrouping: group }));
-  return f.format(v);
+  const cut = Math.trunc(Number((v * scale).toFixed(6))) / scale;
+  // a truncated -0.4 is -0, which Intl prints with the sign still on it
+  return f.format(cut === 0 ? 0 : cut);
 };
+
+/** A hover is where the exact figure belongs, so a panel prints every decimal a value has rather
+ *  than a budgeted few — cut off at ten places, which is binary noise (0.30000000000000004) and
+ *  nothing a kit ever authored. */
+const exact = new Intl.NumberFormat("en-US", { maximumFractionDigits: 10 });
+export const fmtExact = (v: number | string | null | undefined): string =>
+  (typeof v === "number" ? exact.format(v) : String(v ?? ""));
 
 const FORTE_GAUGES = [Resource.Forte1, Resource.Forte2, Resource.Forte3, Resource.Forte4, Resource.Forte5];
 
@@ -87,17 +105,33 @@ const special = (action: Action): boolean =>
   action.scaling === Scaling.Dot || action.scaling === Scaling.Tune || action.scaling === Scaling.Fixed;
 const fixed = (action: Action): boolean => action.scaling === Scaling.Fixed;
 
+/** The stat the SCALER column reads for an action — its scaling's own. Dot/Tune scale off a
+ *  constant instead (`CONSTANT_SCALERS`), and Fixed off nothing at all. */
+const SCALERS: Partial<Record<Scaling, { key: "atk" | "hp" | "def"; word: string; stats: [Stat, Stat, Stat] }>> = {
+  [Scaling.Atk]: { key: "atk", word: "ATK", stats: [Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk] },
+  [Scaling.Hp]: { key: "hp", word: "HP", stats: [Stat.BaseHp, Stat.BonusHp, Stat.FlatHp] },
+  [Scaling.Def]: { key: "def", word: "DEF", stats: [Stat.BaseDef, Stat.BonusDef, Stat.FlatDef] },
+};
+
+const scalerOf = (action: Action) => (action.scaling === null ? undefined : SCALERS[action.scaling]);
+
+/** What a dot/tune hit reads in place of a stat: the level-90 figure damage.ts multiplies by, and
+ *  the one line its SCALER panel says instead of a source trace — there is nothing to trace, the
+ *  number is the resonator's level and nothing else. */
+const CONSTANT_SCALERS: Partial<Record<Scaling, { value: number; label: string }>> = {
+  [Scaling.Dot]: { value: LEVEL_90_DOT, label: `Negative Status constant at resonator level ${RESONATOR_LEVEL}` },
+  [Scaling.Tune]: { value: LEVEL_90_TUNE, label: `Tune Break constant at resonator level ${RESONATOR_LEVEL}` },
+};
+const constantScalerOf = (action: Action) => (action.scaling === null ? undefined : CONSTANT_SCALERS[action.scaling]);
+
 /** Which stats feed a column (damage.ts's `damageFactors`): dot/tune read no damage bonus and crit
  *  only off their Negative Status's scoped crit; tune reads no amp, a dot only its status-scoped
  *  amp and neither Damage Dealt nor penetration; fixed reads nothing. */
 const FEEDS: Record<string, (action: Action) => StatKey[]> = {
-  atk: (a) => keysFor(a, Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk),
-  hp: (a) => keysFor(a, Stat.BaseHp, Stat.BonusHp, Stat.FlatHp),
-  def: (a) => keysFor(a, Stat.BaseDef, Stat.BonusDef, Stat.FlatDef),
+  scaler: (a) => { const s = scalerOf(a); return s ? keysFor(a, ...s.stats) : []; },
   mv: (a) => keysFor(a, Stat.AddMv, Stat.MulMv),
   cr: (a) => (fixed(a) ? [] : !special(a) ? keysFor(a, Stat.CritRate) : a.type2 === null ? [] : [scopedStat(a.type2, Stat.CritRate)]),
   cd: (a) => (fixed(a) ? [] : !special(a) ? keysFor(a, Stat.CritDmg) : a.type2 === null ? [] : [scopedStat(a.type2, Stat.CritDmg)]),
-  er: (a) => keysFor(a, Stat.Er),
   dmgBonus: (a) => (special(a) ? [] : keysFor(a, Stat.DmgBonus)),
   amp: (a) => (a.scaling === Scaling.Tune || fixed(a) ? []
     : a.scaling !== Scaling.Dot ? keysFor(a, Stat.Amp)
@@ -250,15 +284,18 @@ function rowValues(
 ): RowValues {
   // no motion value = not a damage cast: mv/avg blank rather than "0"
   const dealsDamage = mv !== 0;
-  // Swap/Dodge/Jump are nobody's hit: only atk/hp/def/er stand
+  // Swap/Dodge/Jump are nobody's hit: nothing but the running counters stands
   const filler = snap.action === SWAP || snap.action === DODGE || snap.action === JUMP;
+  const scaler = scalerOf(snap.action);
+  const constant = constantScalerOf(snap.action);
   const buffed = new Set<string>();
   const raw: RawRow = {
     member: snap.member,
-    atk: snap.atk,
-    hp: snap.hp,
-    def: snap.def,
-    mv: dealsDamage ? mv : null,
+    // the stat this action scales off; a dot/tune hit reads its own constant instead, and a fixed
+    // hit reads nothing, so its cell is blank
+    scaler: scaler ? snap[scaler.key] : constant?.value ?? null,
+    // a fixed hit's motion value *is* its damage rather than a multiplier, so no mv cell either
+    mv: dealsDamage && !fixed(snap.action) ? mv : null,
     // what a dot/tune/fixed hit doesn't read is blank, matching `FEEDS`
     dmgBonus: filler || special(snap.action) ? null : snap.dmgBonus,
     amp: filler || fixed(snap.action) ? null : snap.action.scaling === Scaling.Tune ? null
@@ -272,7 +309,6 @@ function rowValues(
       : ((1 + snap.stat(Stat.TotalDmg) / 100) * (1 + snap.stat(Stat.DamageTaken) / 100) - 1) * 100,
     effDef: filler || fixed(snap.action) ? null : effectiveShred(snap) * 100,
     effRes: filler || fixed(snap.action) ? null : effectiveRes(snap),
-    er: snap.stat(Stat.Er),
     energy: snap.energy / RESOURCE_SCALE.energy,
     concerto: snap.concerto / RESOURCE_SCALE.concerto,
     offtune: snap.offtune / RESOURCE_SCALE.offtune,
@@ -296,12 +332,14 @@ function rowValues(
   // a panel with a heading and Total 0 is an answer; only blank cells drop theirs
   const sources: Sources = {};
   for (const [key, feeds] of Object.entries(FEEDS)) sources[key] = tracing(snap, feeds(snap.action));
+  // nothing feeds a constant scaler (`FEEDS`), so its panel is the heading alone — and the heading
+  // says which constant it is rather than the column's own name
+  if (constant) raw["empty:scaler"] = constant.label;
   // res shows what's *left*, so every feeding row is negated to add up to it
   sources.effRes = (sources.effRes ?? []).map((r) => ({ ...r, value: -r.value }));
 
   // running totals: the panel shows what moved the counter *this* action, footed to `moved:`
   const RESOURCE_STAT = { energy: [Stat.AddEnergy], concerto: [Stat.AddConcerto], offtune: [Stat.AddOfftune] } as const;
-  const RESOURCE_DIGITS = { energy: 2, concerto: 2, offtune: 4 } as const;
   for (const key of ["energy", "concerto", "offtune"] as const) {
     // an outro wipes energy outright, so nothing contributed to what the cell reads
     const wiped = key === "energy" && snap.energyWiped;
@@ -310,9 +348,8 @@ function rowValues(
       .flatMap((st) => tracing(snap, keysFor(snap.action, st), false))
       .map((r) => ({ ...r, value: r.value / RESOURCE_SCALE[key] }));
     const rows: TraceEntry[] = [];
-    const digits = RESOURCE_DIGITS[key];
-    if (declared) rows.push({ source: snap.action.name, value: declared, digits, owner: snap.member });
-    rows.push(...traced.map((r) => ({ ...r, digits })));
+    if (declared) rows.push({ source: snap.action.name, value: declared, owner: snap.member });
+    rows.push(...traced);
     const folded = foldDuplicates(rows);
     if (folded.length || wiped) sources[key] = folded;
     if (traced.length) buffed.add(key);
@@ -322,7 +359,7 @@ function rowValues(
   if (!snap.energyWiped) {
     const rate = tracing(snap, keysFor(snap.action, Stat.EnergyRegenMult));
     if (rate.length) {
-      sources.energy = [...(sources.energy ?? []), ...rate.map((r) => ({ ...r, section: ENERGY_RATE, digits: 2 }))];
+      sources.energy = [...(sources.energy ?? []), ...rate.map((r) => ({ ...r, section: ENERGY_RATE }))];
       raw["moved:energy"] = (Number(raw["moved:energy"]) || 0) * (1 + snap.stat(Stat.EnergyRegenMult) / 100);
     }
   }
@@ -331,7 +368,7 @@ function rowValues(
     + tracing(snap, keysFor(snap.action, Stat.AddOfftune)).reduce((n, r) => n + r.value, 0);
   if (buildingOfftune > 0) {
     const rate = tracing(snap, keysFor(snap.action, Stat.OfftuneBuildup));
-    if (rate.length) sources.offtune = [...(sources.offtune ?? []), ...rate.map((r) => ({ ...r, section: OFFTUNE_RATE, digits: 2 }))];
+    if (rate.length) sources.offtune = [...(sources.offtune ?? []), ...rate.map((r) => ({ ...r, section: OFFTUNE_RATE }))];
   }
   const direct = tracing(snap, keysFor(snap.action, Stat.DirectOfftune));
   raw["moved:offtune"] = ((buildingOfftune < 0
@@ -340,7 +377,7 @@ function rowValues(
     + direct.reduce((n, r) => n + r.value, 0)) / RESOURCE_SCALE.offtune;
   if (direct.length) {
     sources.offtune = [...(sources.offtune ?? []), ...direct.map((r) => ({
-      ...r, value: r.value / RESOURCE_SCALE.offtune, digits: RESOURCE_DIGITS.offtune, section: "Direct Offtune",
+      ...r, value: r.value / RESOURCE_SCALE.offtune, section: "Direct Offtune",
     }))];
     buffed.add("offtune");
   }
@@ -354,11 +391,11 @@ function rowValues(
     // a cast that wipes the bar first: its own row says so rather than carrying a figure, since
     // what it takes off is whatever happened to be there
     if (snap.action.resetForte[i]) {
-      rows.push({ source: snap.action.name, value: 0, text: "RESET", digits: 0, owner: snap.member });
+      rows.push({ source: snap.action.name, value: 0, text: "RESET", owner: snap.member });
     }
     // the same two decimals the gauge's own column prints, so a fractional gain reads as one
-    if (declared) rows.push({ source: snap.action.name, value: declared, digits: 2, owner: snap.member });
-    rows.push(...traced.map((r) => ({ ...r, digits: 2 })));
+    if (declared) rows.push({ source: snap.action.name, value: declared, owner: snap.member });
+    rows.push(...traced);
     if (rows.length) sources[`gauge:${RESOURCE_NAME[key]}`] = rows;
     raw[`moved:gauge:${RESOURCE_NAME[key]}`] = rows.reduce((n, r) => n + r.value, 0);
     if (snap.action.resetForte[i]) raw[`clear:gauge:${RESOURCE_NAME[key]}`] = 1;
@@ -386,40 +423,35 @@ function rowValues(
     if (total && taken) {
       sources.dealt = [...sources.dealt, ...([[Stat.TotalDmg, total], [Stat.DamageTaken, taken]] as const)
         .map(([stat, value]) => ({
-          source: "", label: "Total", value, section: SECTION_OF[stat], percent: true, digits: 1, summary: true,
+          source: "", label: "Total", value, section: SECTION_OF[stat], percent: true, summary: true,
         }))];
     }
   }
 
-  // atk/hp/def: a Total per section, then a "Final X" section with the stat and how far the build
-  // lifts it over base — `(flat + bonus% x base) / base`
-  for (const [key, word, [baseStat, bonusStat, flatStat]] of [
-    ["atk", "ATK", [Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk]],
-    ["hp", "HP", [Stat.BaseHp, Stat.BonusHp, Stat.FlatHp]],
-    ["def", "DEF", [Stat.BaseDef, Stat.BonusDef, Stat.FlatDef]],
-  ] as const) {
-    const traced = sources[key];
-    if (!traced) continue;
-    const sum = (stat: Stat) => traced
+  // scaler: a Total per section, then a "Final X" section with the stat itself and how far the
+  // build lifts it over base — the fold is the engine's (damage.ts's `foldStat`), read back off
+  // the figure it already produced rather than worked out a second time here
+  const tracedScaler = sources.scaler;
+  if (scaler && tracedScaler) {
+    const [baseStat, bonusStat, flatStat] = scaler.stats;
+    const sum = (stat: Stat) => tracedScaler
       .filter((r) => r.stat !== undefined && splitStat(r.stat)[0] === stat)
       .reduce((n, r) => n + r.value, 0);
-    const base = sum(baseStat);
-    if (!base) continue;
-    const subtotal = (stat: Stat, percent: boolean): TraceEntry[] => (
-      traced.some((r) => r.stat !== undefined && splitStat(r.stat)[0] === stat)
-        ? [{ source: "", label: "Total", value: sum(stat), section: SECTION_OF[stat], percent, digits: percent ? 2 : 0, summary: true }]
-        : []);
-    const final = `Final ${word}`;
-    sources[key] = [
-      ...traced,
-      ...subtotal(baseStat, false), ...subtotal(bonusStat, true), ...subtotal(flatStat, false),
-      { source: "", label: "Total", value: snap[key], section: final, digits: 0, summary: true },
-      {
-        source: "", label: "Relative",
-        value: ((sum(flatStat) + (sum(bonusStat) / 100) * base) / base) * 100,
-        section: final, percent: true, digits: 2, summary: true,
-      },
-    ];
+    // the fold floors the base before taking the percentage, so the lift is measured off that
+    const base = Math.floor(sum(baseStat));
+    if (base) {
+      const subtotal = (stat: Stat, percent: boolean): TraceEntry[] => (
+        tracedScaler.some((r) => r.stat !== undefined && splitStat(r.stat)[0] === stat)
+          ? [{ source: "", label: "Total", value: sum(stat), section: SECTION_OF[stat], percent, summary: true }]
+          : []);
+      const final = `Final ${scaler.word}`;
+      sources.scaler = [
+        ...tracedScaler,
+        ...subtotal(baseStat, false), ...subtotal(bonusStat, true), ...subtotal(flatStat, false),
+        { source: "", label: "Total", value: snap[scaler.key], section: final, summary: true },
+        { source: "", label: "Relative", value: (snap[scaler.key] / base - 1) * 100, section: final, percent: true, digits: 2, summary: true },
+      ];
+    }
   }
 
   // a group row: stat columns are the last member's; the accumulating columns are rebuilt across
@@ -524,7 +556,8 @@ export function buildReport(lines: ChainGroup[]): Report {
     { key: "action", label: "action", align: "left" },
     { key: "avg", label: "avg dmg", full: "Final Damage" },
     { key: "mv", label: "mv%", digits: 2, percent: true, full: "Motion Value" },
-    { key: "atk", label: "atk", noTotal: true },
+    // whichever stat the action scales off, blank where it scales off a constant
+    { key: "scaler", label: "scaler", noTotal: true },
     { key: "dmgBonus", label: "dmg%", digits: 1, percent: true, full: "Dmg Bonus" },
     { key: "amp", label: "amp%", digits: 1, percent: true, full: "Amplification" },
     { key: "cr", label: "cr%", digits: 1, percent: true, full: "Crit Rate" },
@@ -533,11 +566,8 @@ export function buildReport(lines: ChainGroup[]): Report {
     { key: "effDef", label: "ignore%", digits: 1, percent: true, full: "DEF Ignore", fullEmpty: "DEF Shred" },
     { key: "effRes", label: "res%", digits: 1, percent: true, full: "Enemy RES" },
     { key: "dealt", label: "vuln%", digits: 1, percent: true, full: "Vulnerability" },
-    { key: "er", label: "er%", digits: 1, percent: true, full: "Energy Regen" },
-    { key: "hp", label: "hp", noTotal: true },
-    { key: "def", label: "def", noTotal: true },
     // digits match nanoka's precision; offtune is /10000 (RESOURCE_SCALE) and reads to two like
-    // the rest — its own panel is where the finer figures are (`RESOURCE_DIGITS`)
+    // the rest — its own panel is where the finer figures are, printed in full
     { key: "concerto", label: "concerto", digits: 2, hideIfZero: true, full: "Concerto" },
     { key: "energy", label: "energy", digits: 2, hideIfZero: true, full: "Energy" },
     { key: "offtune", label: "offtune", digits: 2, hideIfZero: true, full: "OffTune" },

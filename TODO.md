@@ -8,6 +8,8 @@ rank by best sequence gain
 have it re order teams?
 add costs and max cost filter and ranking
 
+maybe give four stars R1
+
 #
 add frame counts and cancel frame counts to all actions
 make all durations work for all buffs
@@ -21,9 +23,6 @@ stage4 phrolova hecate automation
 #
 action validation (like forms and states)
 cooldown verification
-
-#
-RDPR? buff contribution
 
 #
 def ignore formula

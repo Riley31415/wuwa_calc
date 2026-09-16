@@ -54,7 +54,7 @@ const BA1 = zhezhiAction("Basic - Dimming Brush 1", { node: Node.Normal, cast: C
 const BA2 = zhezhiAction("Basic - Dimming Brush 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 102.75, energy: 1.85, concerto: 5.95, offtune: 5905, forte1: 15 });
 const BA3 = zhezhiAction("Basic - Dimming Brush 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 133.61, energy: 2.4, concerto: 7.68, offtune: 7680, forte1: 25 });
 
-const MA = zhezhiAction("Mid-air - Dimming Brush", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 229.53, energy: 3.4, concerto: 10.91, offtune: 10865, forte1: 25 });
+const MA = zhezhiAction("Mid-air - Dimming Brush 12", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 229.53, energy: 3.4, concerto: 10.91, offtune: 10865, forte1: 25 });
 const DC = zhezhiAction("Dodge Counter - Dimming Brush", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 145.35, energy: 2.15, concerto: 20, offtune: 6880, forte1: 15 });
 const HA = zhezhiAction("Heavy - Dimming Brush", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 112.72, energy: 1.67, concerto: 5.34, offtune: 5336, forte1: 15 });
 

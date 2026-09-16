@@ -83,7 +83,7 @@ function suomingAction(id: string, def: object): Action {
 const BA1 = suomingAction("Basic - Furled Canopy 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 31.55, energy: 1.91, concerto: 1.59, offtune: 3174, forte1: 120 });
 const BA2 = suomingAction("Basic - Furled Canopy 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 15.73 * 2 + 31.46, energy: 0.95 * 2 + 1.9, concerto: 0.8 * 2 + 1.59, offtune: 1583 * 2 + 3165, forte1: 40 * 2 + 80 });
 const BA3 = suomingAction("Basic - Furled Canopy 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 22.01 * 3 + 44.02, energy: 1.33 * 3 + 2.66, concerto: 1.11 * 3 + 2.22, offtune: 2214 * 3 + 4428, forte1: 36 * 3 + 72 });
-const MA = suomingAction("Mid-air - Furled Canopy", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 84.2, energy: 5.09, concerto: 4.24, offtune: 8470 });
+const MA = suomingAction("Mid-air - Furled Canopy Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 84.2, energy: 5.09, concerto: 4.24, offtune: 8470 });
 const DC = suomingAction("Dodge Counter - Furled Canopy", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 27.66 * 2 + 55.32, energy: 1.67 * 2 + 3.34, concerto: 1.4 * 2 + 2.79 + 10, offtune: 2783 * 2 + 5565, forte1: 160 });
 
 // --- Unfurled Canopy, the Deep Mind chain, and Whirling Thunder held out of its stage 2

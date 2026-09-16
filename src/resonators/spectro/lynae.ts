@@ -57,7 +57,7 @@ const BA1 = lynaeAction("Basic - Chroma Drift 1", { node: Node.Normal, cast: Cas
 const BA2 = lynaeAction("Basic - Chroma Drift 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 157.17, energy: 2.34, concerto: 8.37, offtune: 7440, forte1: 21 });
 const BA3 = lynaeAction("Basic - Chroma Drift 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.37, energy: 1.83, concerto: 6.57, offtune: 5840, forte1: 17 });
 const DC = lynaeAction("Dodge Counter - Chroma Drift", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 239.97, energy: 2.05, concerto: 17.38, offtune: 6560, forte1: 19 });
-const MA = lynaeAction("Mid-air - Chroma Drift", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 143.65, energy: 2.14, concerto: 7.66, offtune: 6800, forte1: 20 });
+const MA = lynaeAction("Mid-air - Chroma Drift Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 143.65, energy: 2.14, concerto: 7.66, offtune: 6800, forte1: 20 });
 const SparkCollision = lynaeAction("Basic - Spark Collision Lv. 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 555.56, energy: 8.22, concerto: 29.6, offtune: 26300, forte1: -120, forte2: 120 });
 
 // --- Kaleidoscopic Parade, the combo she actually plays

@@ -45,7 +45,7 @@ const BA3 = roverAction("Basic - Tuneslayer 3", { node: Node.Normal, cast: Cast.
 const BA4 = roverAction("Basic - Tuneslayer 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 120.90, energy: 1.26, concerto: 1.56, offtune: 5121, forte1: 9 });
 const BA5 = roverAction("Basic - Tuneslayer 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 188.88, energy: 2, concerto: 2.48, offtune: 8000, forte1: 10 });
 
-const MA = roverAction("Mid-air - Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 117.10, energy: 0.41, concerto: 1, offtune: 9600, forte1: 9 });
+const MA = roverAction("Mid-air - Plunging Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 117.10, energy: 0.41, concerto: 1, offtune: 9600, forte1: 9 });
 const DC = roverAction("Dodge Counter - Tuneslayer", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 179.43, energy: 1.9, concerto: 10.86, offtune: 4640 });
 const HA = roverAction("Heavy - Attack", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 95.43, energy: 0.96, concerto: 1.19, offtune: 5360 });
 

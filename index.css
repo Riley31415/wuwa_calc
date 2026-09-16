@@ -1548,6 +1548,15 @@ body.coldrag { user-select: none; }
   color: var(--dim);
 }
 .pop tr:first-child.sec td { padding-top: 0; }
+/* the dot/tune constant heading (panels.ts's `empty`) names what this one row scales off rather
+   than heading a group, so it reads in the rows' own type — the same font "Relative" and every
+   other label in the panel carries — instead of the small uppercase a group heading uses */
+.pop .sec.plain td {
+  font-size: inherit;
+  font-weight: inherit;
+  text-transform: none;
+  letter-spacing: normal;
+}
 /* A loadout row. Its value column is a list of gear names, not numbers — left-aligned so they
    read down as one column of text rather than being pushed apart by their own lengths. The Avg
    DPR panel left-aligns its own figures too (see `.pop.breakdown td.v` above), so the two

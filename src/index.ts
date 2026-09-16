@@ -114,6 +114,17 @@ const WORKER_LIMIT = 8;
 let pool: Worker[] | null = null;
 let poolTried = false;
 
+/** Drop the pool for the rest of the session: its workers are on a build this page isn't, and every
+ *  team they answer would only be thrown away and redone here. A rebuild is what puts them there —
+ *  the page's bundle is fetched when it loads and the worker's when the pool first comes up, so an
+ *  edit landing between the two leaves the workers a build ahead. Hot reload is about to replace
+ *  the page anyway; until it does, this keeps the roster on one engine instead of round-tripping
+ *  every team through a worker whose answer can't be used. */
+function dropWorkers(): void {
+  for (const w of pool ?? []) w.terminate();
+  pool = null;
+}
+
 function workerPool(): Worker[] | null {
   if (poolTried) return pool;
   poolTried = true;
@@ -138,23 +149,37 @@ function solveOnWorkers(
 ): Promise<void> {
   return new Promise((resolve) => {
     let next = 0, live = 0, id = 0;
-    const pump = (w: Worker): void => {
-      if (next >= teams.length) {
-        if (--live === 0) resolve();
-        return;
+    const pump = async (w: Worker): Promise<void> => {
+      // a loop rather than a tail call: once the pool is dropped every remaining team is solved on
+      // this thread, and recursing through `finish` for each would bury the stack hundreds deep.
+      // Each one yields, so the overlay still paints through a fallback that solves the whole roster
+      for (;;) {
+        if (next >= teams.length) {
+          if (--live === 0) resolve();
+          return;
+        }
+        if (pool) break;
+        const [key, members] = teams[next++]!;
+        storeSolved(key, solveTeam(key, members, filters, picksCache.get(picksKey(key, members, filters)) ?? null));
+        onDone(members);
+        await breathe();
       }
       const [key, members] = teams[next++]!;
       const known = picksCache.get(picksKey(key, members, filters)) ?? null;
       const finish = (solved: Solved): void => {
         storeSolved(key, solved);
         onDone(members);
-        pump(w);
+        void pump(w);
       };
       w.onmessage = ({ data }: MessageEvent<SolveResponse | SolveProgress>) => {
         if (isProgress(data)) { onShare?.(members, data.share); return; }
         const solved: Solved = { picks: data.picks, rows: data.rows, scores: data.scores, hidden: data.hidden ?? [], hiddenScores: data.hiddenScores ?? [] };
         if (solveFits(bestKey(key, members, filters), solved)) { finish(solved); return; }
-        console.warn(`worker's solve for ${key} does not fit this build; solving it here`);
+        if (pool) {
+          console.warn(`the workers are on a different build than this page (first seen on ${key});`
+            + ` solving the rest here. Reload once the rebuild has landed.`);
+          dropWorkers();
+        }
         finish(solveTeam(key, members, filters, known));
       };
       w.onerror = (e) => {
@@ -165,7 +190,7 @@ function solveOnWorkers(
       const request: SolveRequest = { id: id++, teamKey: key, filters, picks: known };
       w.postMessage(request);
     };
-    for (const w of workers.slice(0, teams.length)) { live++; pump(w); }
+    for (const w of workers.slice(0, teams.length)) { live++; void pump(w); }
     if (live === 0) resolve();
   });
 }

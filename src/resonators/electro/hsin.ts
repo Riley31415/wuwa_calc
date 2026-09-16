@@ -115,9 +115,9 @@ const BA2 = hsinAction("Basic - Answering Form 2", { node: Node.Normal, cast: Ca
 const BA3 = hsinAction("Basic - Answering Form 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 157.54, energy: 2.85, concerto: 2.40, offtune: 4800, forte1: 8.51 });
 const BA4 = hsinAction("Basic - Answering Form 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 198.59, energy: 3.59, concerto: 7.85, offtune: 15673, forte1: 27.70 });
 const HA = hsinAction("Heavy - Answering Form", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 102.76, energy: 1.86, concerto: 3.00, offtune: 5906, forte1: 10.46 });
-const MA = hsinAction("Mid-air - Answering Form", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 22.44, energy: 0.41, concerto: 0.65, offtune: 2080, forte1: 2.28 });
+const MA = hsinAction("Mid-air - Answering Form Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 22.44, energy: 0.41, concerto: 0.65, offtune: 2080, forte1: 2.28 });
 const ReignHold = hsinAction("Heavy - Answering Form: Reign at Ease (Mid-Air)", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 696.00, energy: 12.50, concerto: 20.00, offtune: 40000, forte1: 76.50 });
-const ReignPlunge = hsinAction("Mid-air - Answering Form: Reign at Ease", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 22.44, energy: 0.41, concerto: 0.65, offtune: 2080, forte1: 2.28 });
+const ReignPlunge = hsinAction("Mid-air - Answering Form: Reign at Ease Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 22.44, energy: 0.41, concerto: 0.65, offtune: 2080, forte1: 2.28 });
 const DC = hsinAction("Dodge Counter - Answering Form", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 224.90, energy: 4.06, concerto: 16.48, offtune: 12930, forte1: 22.86 });
 const Skill = hsinAction("Skill - Answering Form", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 167.06, energy: 3.00, concerto: 2.40, offtune: 9600, forte1: 8.52 });
 
@@ -143,7 +143,7 @@ const IBA3 = hsinAction("Basic - Illumining Form 3", { node: Node.Normal, cast: 
 const Heartlock = hsinAction("Basic - Illumining Form: Modular Heartlock", { node: Node.Normal, type: Type1.Basic, mv: 41.84, energy: 0.76, concerto: 1.22, offtune: 2406, forte2: 19.04 });
 const IHA = hsinAction("Heavy - Illumining Form", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 107.86, energy: 1.94, concerto: 3.10, offtune: 6200, forte2: 31.66, ...COLLAPSE });
 const UpwardCut = hsinAction("Basic - Illumining Form: Upward Cut", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 87.57, energy: 1.58, concerto: 2.53, offtune: 5035, forte2: 39.84 });
-const IMA = hsinAction("Mid-air - Illumining Form", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 22.45, energy: 0.42, concerto: 0.65, offtune: 2080, forte2: 10.22 });
+const IMA = hsinAction("Mid-air - Illumining Form Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 22.45, energy: 0.42, concerto: 0.65, offtune: 2080, forte2: 10.22 });
 const IDC = hsinAction("Dodge Counter - Illumining Form", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 191.36, energy: 3.44, concerto: 15.50, offtune: 11000, forte2: 73.98, ...COLLAPSE });
 
 /** One Heart of Thunder instance, a single stack apiece — 35% of the target's rung, 42% at S1 —

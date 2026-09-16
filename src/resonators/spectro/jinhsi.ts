@@ -80,7 +80,7 @@ const BA2 = jinhsiAction("Basic - Slash of Breaking Dawn 2", { node: Node.Normal
 const BA3 = jinhsiAction("Basic - Slash of Breaking Dawn 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 106.49, energy: 2, concerto: 3.99, offtune: 6349 });
 const BA4 = jinhsiAction("Basic - Slash of Breaking Dawn 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 157.72, energy: 2.95, concerto: 5.89, offtune: 9400 });
 const HA = jinhsiAction("Heavy - Slash of Breaking Dawn", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 238.6, energy: 4, concerto: 8, offtune: 12800 });
-const MA = jinhsiAction("Mid-air - Slash of Breaking Dawn", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.28, energy: 0.54, concerto: 1, offtune: 4960 });
+const MA = jinhsiAction("Mid-air - Slash of Breaking Dawn Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.28, energy: 0.54, concerto: 1, offtune: 4960 });
 const DC = jinhsiAction("Dodge Counter - Slash of Breaking Dawn", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 146.78, energy: 2.78, concerto: 15.49, offtune: 8749 });
 
 // --- Trailing Lights of Eons, and the alternative skill that opens Incarnation

@@ -58,7 +58,7 @@ import {
   forte1,
 } from "../../engine/context.js";
 import { lostOnSwap, matrix } from "../../shared/helpers.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, DOUBLE_INTRO, SWAP } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, INTRO, ECHO_CANCEL, OUTRO, DOUBLE_INTRO, SWAP, ECHO_SWAP } from "../../engine/rotation.js";
 import { RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { NM_CROWNLESS, HAVOC_ECLIPSE_5PC } from "../../echoes/jinzhou.js";
@@ -87,7 +87,7 @@ const BA3 = camellyaAction("Basic - Burgeoning 3", { node: Node.Normal, cast: Ca
 const BA4 = camellyaAction("Basic - Burgeoning 4 (Hold)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 494.00, energy: 5.4, concerto: 10.8, offtune: 17280, forte1: -36 }); // 24.70% x20
 const BA5 = camellyaAction("Basic - Burgeoning 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 192.68, energy: 2.88, concerto: 5.72, offtune: 9120, forte1: -18.96 }); // 48.17% x4
 
-const MA = camellyaAction("Mid-air - Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 131.22, energy: 1.66, concerto: 3.3, offtune: 5280, forte1: -10.96 }); // 65.61% x2
+const MA = camellyaAction("Mid-air - Plunging Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 131.22, energy: 1.66, concerto: 3.3, offtune: 5280, forte1: -10.96 }); // 65.61% x2
 const DC = camellyaAction("Dodge Counter - Burgeoning", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 298.20, energy: 2.25, concerto: 14.5, offtune: 7200, forte1: -24.9 }); // 99.40% x3
 /** Considered Basic Attack DMG per Seedbed's own text. */
 const HA = camellyaAction("Heavy - Pruning", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Basic, mv: 264.42, energy: 3.33, concerto: 6.66, offtune: 10641, forte1: -22.08 }); // 88.14% x3
@@ -327,36 +327,86 @@ const CM_SEQUENCES = [CM_S1, CM_S2, CM_S3, CM_S4, CM_S5, CM_S6];
 // this covers both opener and loop.
 
 const VW1234 = new ActionGroup("Basic - Vining Waltz 123H4", [VW1, VW2, VW3, BlazingWaltz, VW4]);
-const BA12345 = new ActionGroup("Basic - Burgeoning 1234H5", [BA1, BA2, BA3, BA4, BA5]);
+
+const CM_ROTATION_16s = new Rotation([
+  INTRO, CrimsonBlossom, ECHO_CANCEL, VW1234, 
+  Liberation, VW1, Ephemeral, VW1234,
+  FloralRavage.swap(), OUTRO,
+]);
+const CM_ROTATION_16s_S6 = new Rotation([
+  INTRO, CrimsonBlossom, ECHO_CANCEL, VW1234, 
+  Liberation, VW1, Ephemeral, VW1234,
+  FloralRavage.swap(), Perennial.swap(), SWAP,
+]);
 
 const CM_ROTATION_DOUBLE = new Rotation([
   DOUBLE_INTRO, CrimsonBlossom, ECHO_CANCEL,
-  HA, BA4.swap(), SWAP,
+  HA, BA4, FloralRavage.swap(),SWAP,
+
+  INTRO, 
+  Liberation, Ephemeral, CrimsonBlossom,
+  VW1234, FloralRavage, ECHO_SWAP,
+  OUTRO,
+]);
+const CM_ROTATION_DOUBLE_FAST_SUP = new Rotation([
+  DOUBLE_INTRO, CrimsonBlossom, ECHO_CANCEL,
+  HA, BA4, FloralRavage.swap(),SWAP,
+
+  INTRO, 
+  Liberation, Ephemeral, CrimsonBlossom,
+  VW1234, ECHO_CANCEL, VW1234, FloralRavage, ECHO_SWAP,
+  OUTRO,
+]);
+const CM_ROTATION_DOUBLE_S6 = new Rotation([
+  DOUBLE_INTRO, CrimsonBlossom, ECHO_CANCEL,
+  HA, BA4, FloralRavage.swap(),SWAP,
   
-  INTRO, Liberation, Ephemeral, CrimsonBlossom,
-  VW1234, FloralRavage,
+  INTRO, 
+  Liberation, Ephemeral, CrimsonBlossom,
+  VW1234, ECHO_CANCEL, VW1, Perennial, VW1234, FloralRavage.swap(),
   OUTRO,
 ]);
 
-const CM_ROTATION_DOUBLE_S6 = new Rotation([
-  DOUBLE_INTRO, CrimsonBlossom, ECHO_CANCEL,
-  HA, BA4, FloralRavage.swap(), SWAP,
 
-  INTRO, Liberation, Ephemeral, CrimsonBlossom,
-  VW1234, FloralRavage, Perennial,
-  SWAP,
-]);
 /* ----------------------------------------------------------------------------------- loadout */
+
 
 // her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
 // sonata pieces, mainstat/substat
-export const CAMELLYA_DOUBLE = new Loadout({
+export const CAMELLYA_DOUBLE_ALWAYS = new Loadout({
   resonator: CAMELLYA_RESONATOR,
   weapons: [RED_SPRING, EMERALD_OF_GENESIS],
   echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
   substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
   highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
-  rotation: { 0: CM_ROTATION_DOUBLE, 6: CM_ROTATION_DOUBLE_S6 },
+  rotation: { 0: CM_ROTATION_DOUBLE_FAST_SUP, 6: CM_ROTATION_DOUBLE_S6 },
+  sequences: CM_SEQUENCES,
+});
+
+// her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
+// sonata pieces, mainstat/substat
+export const CAMELLYA_DOUBLE_123S6 = new Loadout({
+  resonator: CAMELLYA_RESONATOR,
+  weapons: [RED_SPRING, EMERALD_OF_GENESIS],
+  echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+  rotation: { 0: CM_ROTATION_DOUBLE, 6: CM_ROTATION_16s_S6 },
+  sequences: CM_SEQUENCES,
+});
+
+
+// her real 43311 build: resonator + talents + both Inherent Skills, weapon, mainslot echo,
+// sonata pieces, mainstat/substat
+export const CAMELLYA_123_ALWAYS_OUTRO = new Loadout({
+  resonator: CAMELLYA_RESONATOR,
+  weapons: [RED_SPRING, EMERALD_OF_GENESIS],
+  echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+  rotation: { 0: CM_ROTATION_16s },
   sequences: CM_SEQUENCES,
 });

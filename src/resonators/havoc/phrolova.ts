@@ -379,19 +379,6 @@ const PHRO_5FBA = new Rotation([
   ScarletCoda, Liberation, OUTRO,
 ]);
 
-const PHRO_5FBA_MANUAL = new Rotation([
-  NOINTRO, BA23, ECHO_ONFIELD, FBA, Skill, FBA, DODGE, 
-  BA123, DODGE, FBA, 
-  ScarletCoda, Liberation, OUTRO,
-
-  INTRO,
-  BA3.dodgeCancel(), FBA, Skill, FBA, ECHO_ONFIELD,
-  BA123idash, FBA, DODGE,
-  BA123idash, FBA, DODGE,
-  BA123idash, FBA, DODGE,
-  ScarletCoda, Liberation, HBA12, OUTRO,
-]);
-
 const PHRO_FAST_S2 = new Rotation([
   NOINTRO, BA23, ECHO_ONFIELD, FBA, Skill, FBA, 
   ScarletCoda, Liberation, OUTRO,
@@ -412,29 +399,6 @@ const PHRO_5FBA_S2 = new Rotation([
   ScarletCoda, Liberation, OUTRO,
 ]);
 
-const PHRO_5FBA_MANUAL_S2 = new Rotation([
-  NOINTRO, BA23, ECHO_ONFIELD, FBA, Skill, FBA, 
-  ScarletCoda, Liberation, OUTRO,
-
-  INTRO,
-  BA3.dodgeCancel(), FBA, Skill, FBA, ECHO_ONFIELD,
-  BA123idash, FBA, DODGE,
-  BA123idash, FBA, DODGE,
-  BA123idash, FBA, DODGE,
-  ScarletCoda, Liberation, HBA12, OUTRO,
-]);
-
-export const PHRO_14s = new Loadout({
-  resonator: PHROLOVA_RESONATOR,
-  weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER],
-  echoLoadouts: [new EchoLoadout(NM_HECATE, DREAM_OF_THE_LOST_3PC, HAVOC_ECLIPSE_2PC)],
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic),
-    rotation: { 0: PHRO_5FBA_MANUAL, 2: PHRO_5FBA_MANUAL_S2 },
-  sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6],
-});
-
 export const PHRO_12s = new Loadout({
   resonator: PHROLOVA_RESONATOR,
   weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER],
@@ -446,7 +410,7 @@ export const PHRO_12s = new Loadout({
   sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6],
 });
 
-export const PHROLO_10s = new Loadout({
+export const PHRO_10s = new Loadout({
   resonator: PHROLOVA_RESONATOR,
   weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER],
   echoLoadouts: [

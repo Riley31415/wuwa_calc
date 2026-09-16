@@ -88,7 +88,7 @@ function stepRow(
       pop = buffsPopover(snap.member, gear, snap.heldLocal, snap.heldGlobal, snap.heldEnemy, slotHue);
     } else if (text) {
       // a running counter's panel foots to what this action moved it by, not the balance
-      pop = popover(col, sources, row.raw[`moved:${col.key}`] ?? v, slotHue, suffix);
+      pop = popover(col, sources, row.raw[`moved:${col.key}`] ?? v, slotHue, suffix, String(row.raw[`empty:${col.key}`] ?? ""));
     }
 
     const mem = slotHue.get(String(v)) ?? FALLBACK_HUE;

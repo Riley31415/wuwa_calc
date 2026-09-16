@@ -12,7 +12,7 @@ import {
   EMPTY_HELD, EMPTY_FORTE, EMPTY_FIELDS, enemyDef, enemyRes,
 } from "./state.js";
 import { casting, isCast } from "./context.js";
-import { damageAvgOf } from "./damage.js";
+import { damageAvgOf, foldStat } from "./damage.js";
 import { ER_TOLERANCE } from "../shared/substats.js";
 
 export interface Snapshot {
@@ -486,10 +486,6 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
   // stat is one lookup rather than a re-sum across three freshly-built key strings.
   const effective = slot.effective;
   const stat = (k: Stat | EnemyStat) => effective[k]!;
-  // atk/hp/def stay unscoped, matching the old engine — only formula-facing stats scope.
-  // BaseAtk/BaseHp/BaseDef are themselves summed entries (a resonator's own kit-base value plus
-  // a weapon's own base line), not a fixed per-slot number, matching the old engine's total().
-  const base = effective[Stat.BaseAtk]!, baseHp = effective[Stat.BaseHp]!, baseDef = effective[Stat.BaseDef]!;
 
   // bank this action's own declared energy/concerto/offtune (the resonator's own baseline for
   // performing it) plus whatever AddEnergy/AddConcerto/AddOfftune a held buff contributed, into
@@ -596,19 +592,16 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
   //
   // The variants' own afterAction runs first, dry, so each sees the roster and gauges exactly as
   // the real build's is about to — and each variant's damage is read here, off its own totals.
-  const avgOf = (eff: number[]): number => {
-    const b = eff[Stat.BaseAtk]!, bh = eff[Stat.BaseHp]!, bd = eff[Stat.BaseDef]!;
-    return damageAvgOf(
-      action, eff,
-      b + eff[Stat.BonusAtk]! / 100 * b + eff[Stat.FlatAtk]!,
-      bh + eff[Stat.BonusHp]! / 100 * bh + eff[Stat.FlatHp]!,
-      bd + eff[Stat.BonusDef]! / 100 * bd + eff[Stat.FlatDef]!,
-      eff[Stat.Amp]!, eff[TYPE2_AMP_INDEX]!, eff[Stat.DmgBonus]!,
-      eff[TYPE2_CRIT_RATE_INDEX]!, eff[TYPE2_CRIT_DMG_INDEX]!,
-      eff[TYPE2_TOTAL_DMG_INDEX]!, eff[TYPE2_DAMAGE_TAKEN_INDEX]!,
-      enemyRes(), enemyDef(),
-    );
-  };
+  const avgOf = (eff: number[]): number => damageAvgOf(
+    action, eff,
+    foldStat(eff, Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk),
+    foldStat(eff, Stat.BaseHp, Stat.BonusHp, Stat.FlatHp),
+    foldStat(eff, Stat.BaseDef, Stat.BonusDef, Stat.FlatDef),
+    eff[Stat.Amp]!, eff[TYPE2_AMP_INDEX]!, eff[Stat.DmgBonus]!,
+    eff[TYPE2_CRIT_RATE_INDEX]!, eff[TYPE2_CRIT_DMG_INDEX]!,
+    eff[TYPE2_TOTAL_DMG_INDEX]!, eff[TYPE2_DAMAGE_TAKEN_INDEX]!,
+    enemyRes(), enemyDef(),
+  );
   // The real build's afterAction runs first, journaled, from the banked fight. A variant still pure
   // through it is the finished row with its own indices recomputed over the whole journal; any
   // other re-runs afterAction dry from the banked fight, on the row as afterAction found it — one
@@ -662,9 +655,9 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
     runPhase(5, false);
     ctx.buff = null;
   }
-  const atk = base + effective[Stat.BonusAtk]! / 100 * base + effective[Stat.FlatAtk]!;
-  const hp = baseHp + effective[Stat.BonusHp]! / 100 * baseHp + effective[Stat.FlatHp]!;
-  const def = baseDef + effective[Stat.BonusDef]! / 100 * baseDef + effective[Stat.FlatDef]!;
+  const atk = foldStat(effective, Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk);
+  const hp = foldStat(effective, Stat.BaseHp, Stat.BonusHp, Stat.FlatHp);
+  const def = foldStat(effective, Stat.BaseDef, Stat.BonusDef, Stat.FlatDef);
   const mv = (action.mv + effective[Stat.AddMv]!) * (1 + effective[Stat.MulMv]! / 100);
   const avg = damageAvgOf(
     action, effective, atk, hp, def, effective[Stat.Amp]!, effective[TYPE2_AMP_INDEX]!, effective[Stat.DmgBonus]!,

@@ -90,7 +90,7 @@ const ABA3 = aemeathAction("Basic - Aemeath 3", { node: Node.Normal, cast: Cast.
 const ABA4 = aemeathAction("Basic - Aemeath 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 134.59, energy: 2.47, concerto: 4.88, offtune: 7737, forte1: 23.31, ...DUO });
 const AHA1 = aemeathAction("Heavy - Aemeath: Charged I", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Liberation, mv: 92.83, energy: 1.68, concerto: 3.34, offtune: 5337 });
 const AHA2 = aemeathAction("Heavy - Aemeath: Charged II", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Liberation, mv: 232, energy: 4.18, concerto: 8.35, offtune: 13337 });
-const AMA = aemeathAction("Mid-air - Aemeath", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.29, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: 11.71 });
+const AMA = aemeathAction("Mid-air - Aemeath Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.29, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: 11.71 });
 const ADC = aemeathAction("Dodge Counter - Aemeath", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 260.15, energy: 3.19, concerto: 16.37, offtune: 10155, forte1: 28.99 });
 
 // --- Mech form

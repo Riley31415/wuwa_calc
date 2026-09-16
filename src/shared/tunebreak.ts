@@ -106,9 +106,10 @@ export const TUNE_BREAK_ENEMY = new Resonator({
     // interfered with can't be broken again until that window is out. The bar just stays full
     // meanwhile, so the break lands on the first action after the window ends.
     if (stacksOfEnemy(TUNE_RUPTURE_INTERFERED) > 0 || stacksOfEnemy(TUNE_HACK_INTERFERED) > 0) return;
-    // and never straight off a Liberation or an Intro: those casts' own lock holds the break off,
-    // so a bar one of them filled stays full and breaks on the next action instead.
-    if (isCast(currentAction(), Cast.Liberation) || isCast(currentAction(), Cast.Intro) || currentAction().cutscene) return;
+
+
+    //if ((isCast(currentAction(), Cast.Liberation) && currentAction().cutscene)) return;
+    if (isCast(currentAction(), Cast.Intro)) return;
     if (currentTeam().offtune >= ENEMY_MAX_OFFTUNE) queueEvent(TUNE_BREAK);
   },
 });

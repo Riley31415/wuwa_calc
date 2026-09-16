@@ -115,7 +115,7 @@ const BA_A4 = yangyangAction("Basic - Azure Sword Stance 4", {
   node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 185.63, energy: 2.94, concerto: 5.85, offtune: 9337, forte1: -48,
   updateDebuffs: () => applyEnemy(HAVOC_BANE, isHeld(XL_S3) ? 2 : 1),
 });
-const MA_A = yangyangAction("Mid-air - Azure Sword Stance", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: -12 });
+const MA_A = yangyangAction("Mid-air - Azure Sword Stance Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: -12 });
 const DC_A = yangyangAction("Dodge Counter - Azure Sword Stance 2", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 196.13, energy: 3.09, concerto: 16.18, offtune: 9865, forte1: -24 });
 
 const BA_F1 = yangyangAction("Basic - Feather Sword Stance 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.54, energy: 1.26, concerto: 2.50, offtune: 4000, forte1: -12 });
@@ -125,7 +125,7 @@ const BA_F4 = yangyangAction("Basic - Feather Sword Stance 4", {
   node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 238.59, energy: 3.76, concerto: 7.50, offtune: 12000, forte1: -48,
   updateDebuffs: () => applyEnemy(HAVOC_BANE, isHeld(XL_S3) ? 2 : 1),
 });
-const MA_F = yangyangAction("Mid-air - Feather Sword Stance", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: -12 });
+const MA_F = yangyangAction("Mid-air - Feather Sword Stance Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: -12 });
 const DC_F = yangyangAction("Dodge Counter - Feather Sword Stance 2", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 196.11, energy: 3.09, concerto: 16.18, offtune: 9864, forte1: -24 });
 
 // --- Feather's Edge: the plain stance switch, castable any time and worth nothing but its own

@@ -66,7 +66,7 @@ const BA1 = jingranAction("Basic - Devil's Bane 1", { node: Node.Normal, cast: C
 const BA2 = jingranAction("Basic - Devil's Bane 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 99.47, energy: 1.68, concerto: 3.35, offtune: 5337 });
 const BA3 = jingranAction("Basic - Devil's Bane 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 159.1, energy: 2.69, concerto: 5.36, offtune: 8537, forte1: 50 });
 const BA4 = jingranAction("Basic - Devil's Bane 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 124.24, energy: 2.09, concerto: 4.18, offtune: 6666, forte1: 50 });
-const MA = jingranAction("Mid-air - Edge of Life and Death", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 92.45, energy: 1.55, concerto: 3.1, offtune: 4960 });
+const MA = jingranAction("Mid-air - Edge of Life and Death Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 92.45, energy: 1.55, concerto: 3.1, offtune: 4960 });
 
 const EBA1 = jingranAction("Basic - Drink Soul 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 44.74, energy: 0.75, concerto: 1.5, offtune: 2400 });
 const EBA2 = jingranAction("Basic - Drink Soul 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 74.56, energy: 1.26, concerto: 2.5, offtune: 4000 });

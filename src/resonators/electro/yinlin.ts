@@ -65,7 +65,7 @@ const BA3 = yinlinAction("Basic - Zapstring's Dance 3", { node: Node.Normal, cas
 const BA4 = yinlinAction("Basic - Zapstring's Dance 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 75.16, energy: 1.50, concerto: 6.00, offtune: 4976, forte1: 10 });
 
 const HA = yinlinAction("Heavy - Zapstring's Dance", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 29.83 * 2, energy: 1.80, concerto: 4.50, offtune: 9392, forte1: 20 });
-const MA = yinlinAction("Mid-air - Zapstring's Dance", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.27, energy: 0.51, concerto: 5.00, offtune: 4960, forte1: 5 });
+const MA = yinlinAction("Mid-air - Zapstring's Dance Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.27, energy: 0.51, concerto: 5.00, offtune: 4960, forte1: 5 });
 const DC = yinlinAction("Dodge Counter - Zapstring's Dance", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 24.22 * 7, energy: 3.99, concerto: 17.00, offtune: 11746 });
 
 // Magnetic Roar opens Execution Mode; Lightning Execution is the follow-up Skill press

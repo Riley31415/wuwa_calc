@@ -349,7 +349,7 @@ export const ACTION_ADAM_SMASHER_LUCY = new Action("Echo - Adam Smasher", {
   cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Echo, mv: 273.6, energy: 3.8,
 });
 export const ADAM_SMASHER_LUCY = new Mainslot({
-  name: "Reminiscence - Nightmare: Adam Smasher",
+  name: "Nightmare: Adam Smasher",
   action: ACTION_ADAM_SMASHER_LUCY,
   echoType: EchoType.SUMMON,
   stats: [[Stat.CritRate, 15]],
@@ -360,7 +360,7 @@ export const ACTION_ADAM_SMASHER_REBECCA = new Action("Echo - Adam Smasher", {
   mv: 17.1 * 16, energy: 0.23 * 16,
 });
 export const ADAM_SMASHER_REBECCA = new Mainslot({
-  name: "Reminiscence - Nightmare: Adam Smasher",
+  name: "Nightmare: Adam Smasher",
   action: ACTION_ADAM_SMASHER_REBECCA,
   echoType: EchoType.SUMMON,
   stats: [[Stat.CritRate, 15]],

@@ -2171,6 +2171,10 @@ function damageFactors(snapshot) {
     avg: Math.floor(noCrit * critFactor)
   };
 }
+var foldStat = (stats, base, bonus, flat) => {
+  const b = Math.floor(stats[base]);
+  return b + Math.floor(b * stats[bonus] / 100) + stats[flat];
+};
 function damageAvgOf(action, stats, atk, hp2, def2, amp, type2Amp, dmgBonus, type2CritRate, type2CritDmg, type2TotalDmg, type2DamageTaken, enemyRes2, enemyDef2) {
   const { scaling } = action;
   if (scaling === null)
@@ -2450,16 +2454,16 @@ function evaluate(state, action, triggered = false, triggeredBy = null) {
       slot.variantAt.clear();
       slot.constBaseVersion = ctx.constVersion;
     }
-    let base2 = slot.constBase.get(ctx.tagWord);
-    if (base2 === void 0)
-      slot.constBase.set(ctx.tagWord, base2 = constBaseOf(slot, null, null));
+    let base = slot.constBase.get(ctx.tagWord);
+    if (base === void 0)
+      slot.constBase.set(ctx.tagWord, base = constBaseOf(slot, null, null));
     const effective2 = slot.effective;
     if (ctx.wrote === 0)
       for (let i = 0; i < effective2.length; i++)
-        effective2[i] = base2[i];
+        effective2[i] = base[i];
     else
       for (let i = 0; i < effective2.length; i++)
-        effective2[i] = effective2[i] + base2[i];
+        effective2[i] = effective2[i] + base[i];
   }
   ctx.mutHash = 0;
   ctx.recording = pre !== null;
@@ -2489,13 +2493,13 @@ function evaluate(state, action, triggered = false, triggeredBy = null) {
     const [before, after] = snapshots;
     let at = slot.variantAt.get(ctx.tagWord);
     if (at === void 0) {
-      const base2 = slot.constBase.get(ctx.tagWord);
+      const base = slot.constBase.get(ctx.tagWord);
       at = { bases: [], diffs: [] };
       for (let v = 0; v < slot.variants.length; v++) {
         const sub = slot.variantSubs[v] ?? null;
         const vbase = constBaseOf(slot, slot.variantOf, slot.variants[v], sub && slot.variantSubOf, sub), diff = [];
         for (let i = 0; i < vbase.length; i++)
-          if (vbase[i] !== base2[i])
+          if (vbase[i] !== base[i])
             diff.push(i);
         at.bases.push(vbase);
         at.diffs.push(diff);
@@ -2580,16 +2584,6 @@ function evaluate(state, action, triggered = false, triggeredBy = null) {
   }
   const effective = slot.effective;
   const stat = (k) => effective[k];
-  const base = effective[
-    0
-    /* Stat.BaseAtk */
-  ], baseHp = effective[
-    1
-    /* Stat.BaseHp */
-  ], baseDef = effective[
-    2
-    /* Stat.BaseDef */
-  ];
   const energyGain = (action.energy + effective[
     26
     /* Stat.AddEnergy */
@@ -2670,43 +2664,31 @@ function evaluate(state, action, triggered = false, triggeredBy = null) {
     if (forte[i] < 0)
       forteShort[i] = true;
   }
-  const avgOf = (eff) => {
-    const b = eff[
-      0
-      /* Stat.BaseAtk */
-    ], bh = eff[
-      1
-      /* Stat.BaseHp */
-    ], bd = eff[
-      2
-      /* Stat.BaseDef */
-    ];
-    return damageAvgOf(action, eff, b + eff[
-      6
-      /* Stat.BonusAtk */
-    ] / 100 * b + eff[
-      3
-      /* Stat.FlatAtk */
-    ], bh + eff[
-      7
-      /* Stat.BonusHp */
-    ] / 100 * bh + eff[
-      4
-      /* Stat.FlatHp */
-    ], bd + eff[
-      8
-      /* Stat.BonusDef */
-    ] / 100 * bd + eff[
-      5
-      /* Stat.FlatDef */
-    ], eff[
-      18
-      /* Stat.Amp */
-    ], eff[TYPE2_AMP_INDEX], eff[
-      17
-      /* Stat.DmgBonus */
-    ], eff[TYPE2_CRIT_RATE_INDEX], eff[TYPE2_CRIT_DMG_INDEX], eff[TYPE2_TOTAL_DMG_INDEX], eff[TYPE2_DAMAGE_TAKEN_INDEX], enemyRes(), enemyDef());
-  };
+  const avgOf = (eff) => damageAvgOf(action, eff, foldStat(
+    eff,
+    0,
+    6,
+    3
+    /* Stat.FlatAtk */
+  ), foldStat(
+    eff,
+    1,
+    7,
+    4
+    /* Stat.FlatHp */
+  ), foldStat(
+    eff,
+    2,
+    8,
+    5
+    /* Stat.FlatDef */
+  ), eff[
+    18
+    /* Stat.Amp */
+  ], eff[TYPE2_AMP_INDEX], eff[
+    17
+    /* Stat.DmgBonus */
+  ], eff[TYPE2_CRIT_RATE_INDEX], eff[TYPE2_CRIT_DMG_INDEX], eff[TYPE2_TOTAL_DMG_INDEX], eff[TYPE2_DAMAGE_TAKEN_INDEX], enemyRes(), enemyDef());
   let variantAvg = null;
   if (variantEff !== null && snapshots !== null) {
     const [, , banked, done] = snapshots;
@@ -2768,27 +2750,27 @@ function evaluate(state, action, triggered = false, triggeredBy = null) {
     runPhase(5, false);
     ctx.buff = null;
   }
-  const atk = base + effective[
-    6
-    /* Stat.BonusAtk */
-  ] / 100 * base + effective[
+  const atk = foldStat(
+    effective,
+    0,
+    6,
     3
     /* Stat.FlatAtk */
-  ];
-  const hp2 = baseHp + effective[
-    7
-    /* Stat.BonusHp */
-  ] / 100 * baseHp + effective[
+  );
+  const hp2 = foldStat(
+    effective,
+    1,
+    7,
     4
     /* Stat.FlatHp */
-  ];
-  const def2 = baseDef + effective[
-    8
-    /* Stat.BonusDef */
-  ] / 100 * baseDef + effective[
+  );
+  const def2 = foldStat(
+    effective,
+    2,
+    8,
     5
     /* Stat.FlatDef */
-  ];
+  );
   const mv = (action.mv + effective[
     15
     /* Stat.AddMv */
@@ -3751,13 +3733,9 @@ var TUNE_BREAK_ENEMY = new Resonator({
       return;
     if (isCast(
       currentAction(),
-      4
-      /* Cast.Liberation */
-    ) || isCast(
-      currentAction(),
       5
       /* Cast.Intro */
-    ) || currentAction().cutscene)
+    ))
       return;
     if (currentTeam().offtune >= ENEMY_MAX_OFFTUNE)
       queueEvent(TUNE_BREAK);
@@ -8209,7 +8187,7 @@ var BA24 = jianxinAction("Basic - Fengyiquan 2", { node: 0, cast: 1, type: 4096,
 var BA35 = jianxinAction("Basic - Fengyiquan 3", { node: 0, cast: 1, type: 4096, mv: 167, energy: 2.48, concerto: 7.92, offtune: 7920, forte1: 12 });
 var BA43 = jianxinAction("Basic - Fengyiquan 4", { node: 0, cast: 1, type: 4096, mv: 113.4, energy: 1.68, concerto: 5.37, offtune: 5360, forte1: 12 });
 var HA3 = jianxinAction("Heavy - Fengyiquan", { node: 0, cast: 2, type: 8192, mv: 126.07, energy: 1.87, concerto: 5.96, offtune: 6e3, forte1: 9 });
-var MA = jianxinAction("Mid-air - Fengyiquan", { node: 0, cast: 1, type: 4096, mv: 123.27, energy: 0.52, concerto: 1, offtune: 4960, forte1: 6 });
+var MA = jianxinAction("Mid-air - Fengyiquan Plunge", { node: 0, cast: 1, type: 4096, mv: 123.27, energy: 0.52, concerto: 1, offtune: 4960, forte1: 6 });
 var DC4 = jianxinAction("Dodge Counter - Fengyiquan", { node: 0, cast: 0, type: 4096, mv: 244.94, energy: 3.1, concerto: 16.68, offtune: 13143, forte1: 17 });
 var BA1234 = new ActionGroup("Basic - Fengyiquan 1234", [BA14, BA24, BA35, BA43]);
 var BA122 = new ActionGroup("Basic - Fengyiquan 12", [BA14, BA24]);
@@ -8744,8 +8722,8 @@ var BA5 = jiyanAction("Basic - Lone Lance 5", { node: 0, cast: 1, type: 4096, mv
 var HA4 = jiyanAction("Heavy - Lone Lance", { node: 0, cast: 2, type: 8192, mv: 22.2 * 6, energy: 1.62, concerto: 3.3, offtune: 5364 });
 var HA22 = jiyanAction("Heavy - Windborne Strike", { node: 0, cast: 2, type: 8192, mv: 105.96, energy: 1.33, concerto: 2.66, offtune: 4264 });
 var HA32 = jiyanAction("Heavy - Abyssal Slash", { node: 0, cast: 2, type: 8192, mv: 81.71, energy: 1.02, concerto: 2.05, offtune: 3288 });
-var MA4 = jiyanAction("Mid-air - Lone Lance", { node: 0, cast: 1, type: 4096, mv: 123.26, energy: 0.51, concerto: 1, offtune: 4960 });
-var MA23 = jiyanAction("Mid-air - Lone Lance (Follow-Up)", { node: 0, cast: 1, type: 4096, mv: 155.66, energy: 1.95, concerto: 3.91, offtune: 6264 });
+var MA4 = jiyanAction("Mid-air - Lone Lance Plunge", { node: 0, cast: 1, type: 4096, mv: 123.26, energy: 0.51, concerto: 1, offtune: 4960 });
+var MA23 = jiyanAction("Mid-air - Lone Lance Plunge (Follow-Up)", { node: 0, cast: 1, type: 4096, mv: 155.66, energy: 1.95, concerto: 3.91, offtune: 6264 });
 var MA32 = jiyanAction("Basic - Banner of Triumph", { node: 0, cast: 1, type: 4096, mv: 79.52, energy: 1, concerto: 2, offtune: 3200 });
 var DC5 = jiyanAction("Dodge Counter - Lone Lance", { node: 0, cast: 0, type: 4096, mv: 125.84 * 2, energy: 3.16, concerto: 13.32, offtune: 5328 });
 var QINGLOONG_MODE = new Buff({
@@ -10090,7 +10068,7 @@ var BA39 = roverAction("Basic - Wind Cutter 3", { node: 0, cast: 1, type: 4096, 
 var BA46 = roverAction("Basic - Wind Cutter 4", { node: 0, cast: 1, type: 4096, mv: 76.72, energy: 1.64, concerto: 5.24, offtune: 5232, forte1: 10 });
 var HA7 = roverAction("Heavy - Wind Cutter", { node: 0, cast: 2, type: 8192, mv: 53.73, energy: 1.17, concerto: 3.69, offtune: 3666 });
 var RazorWind = roverAction("Heavy - Razor Wind", { node: 0, cast: 2, type: 8192, mv: 80.83, energy: 1.73, concerto: 5.53, offtune: 5513 });
-var MA5 = roverAction("Mid-air - Wind Cutter", { node: 0, cutscene: true, cast: 1, type: 4096, mv: 140.76, energy: 0.52, concerto: 9.6, offtune: 9600 });
+var MA5 = roverAction("Mid-air - Wind Cutter Plunge", { node: 0, cutscene: true, cast: 1, type: 4096, mv: 140.76, energy: 0.52, concerto: 9.6, offtune: 9600 });
 var DC7 = roverAction("Dodge Counter - Wind Cutter", { node: 0, cast: 0, type: 4096, mv: 175.18, energy: 3.74, concerto: 21.95, offtune: 11944, forte1: 10 });
 var Skill7 = roverAction("Skill - Awakening Gale", { node: 1, cast: 3, type: 12288, mv: 166.1, energy: 5, concerto: 10, offtune: 7553 });
 var SkyfallSeverance = roverAction("Skill - Skyfall Severance", {
@@ -10703,7 +10681,7 @@ var ACTION_ADAM_SMASHER_LUCY = new Action("Echo - Adam Smasher", {
   energy: 3.8
 });
 var ADAM_SMASHER_LUCY = new Mainslot({
-  name: "Reminiscence - Nightmare: Adam Smasher",
+  name: "Nightmare: Adam Smasher",
   action: ACTION_ADAM_SMASHER_LUCY,
   echoType: 0,
   stats: [[9, 15]]
@@ -10717,7 +10695,7 @@ var ACTION_ADAM_SMASHER_REBECCA = new Action("Echo - Adam Smasher", {
   energy: 0.23 * 16
 });
 var ADAM_SMASHER_REBECCA = new Mainslot({
-  name: "Reminiscence - Nightmare: Adam Smasher",
+  name: "Nightmare: Adam Smasher",
   action: ACTION_ADAM_SMASHER_REBECCA,
   echoType: 0,
   stats: [[9, 15]]
@@ -10764,7 +10742,7 @@ var BA47 = sigrikaAction("Basic - One, Two, Three 4", {
   offtune: 10400,
   updateBuffs: () => applyCurrent(DECIPHER, 1)
 });
-var MA6 = sigrikaAction("Mid-air - One, Two, Three", { node: 0, cast: 1, type: 4096, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960 });
+var MA6 = sigrikaAction("Mid-air - One, Two, Three Plunge", { node: 0, cast: 1, type: 4096, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960 });
 var MDC2 = sigrikaAction("Dodge Counter - One, Two, Three (Mid-Air)", { node: 0, cast: 0, type: 4096, mv: 206.17, energy: 3.05, concerto: 16.1, offtune: 9920 });
 var DC8 = sigrikaAction("Dodge Counter - One, Two, Three", { node: 0, cast: 0, type: 4096, mv: 219.7, energy: 3.26, concerto: 16.5, offtune: 10026 });
 var HA8 = sigrikaAction("Heavy - One, Two, Three", { node: 0, cast: 2, type: 8192, mv: 116.28, offtune: 5848, concerto: 3.66, energy: 1.84 });
@@ -11852,40 +11830,6 @@ var PHRO_5FBA = new Rotation([
   Liberation10,
   OUTRO
 ]);
-var PHRO_5FBA_MANUAL = new Rotation([
-  NOINTRO,
-  BA232,
-  ECHO_ONFIELD,
-  FBA,
-  Skill9,
-  FBA,
-  DODGE,
-  BA1232,
-  DODGE,
-  FBA,
-  ScarletCoda,
-  Liberation10,
-  OUTRO,
-  INTRO,
-  BA311.dodgeCancel(),
-  FBA,
-  Skill9,
-  FBA,
-  ECHO_ONFIELD,
-  BA123idash,
-  FBA,
-  DODGE,
-  BA123idash,
-  FBA,
-  DODGE,
-  BA123idash,
-  FBA,
-  DODGE,
-  ScarletCoda,
-  Liberation10,
-  HBA12,
-  OUTRO
-]);
 var PHRO_FAST_S2 = new Rotation([
   NOINTRO,
   BA232,
@@ -11939,53 +11883,6 @@ var PHRO_5FBA_S2 = new Rotation([
   Liberation10,
   OUTRO
 ]);
-var PHRO_5FBA_MANUAL_S2 = new Rotation([
-  NOINTRO,
-  BA232,
-  ECHO_ONFIELD,
-  FBA,
-  Skill9,
-  FBA,
-  ScarletCoda,
-  Liberation10,
-  OUTRO,
-  INTRO,
-  BA311.dodgeCancel(),
-  FBA,
-  Skill9,
-  FBA,
-  ECHO_ONFIELD,
-  BA123idash,
-  FBA,
-  DODGE,
-  BA123idash,
-  FBA,
-  DODGE,
-  BA123idash,
-  FBA,
-  DODGE,
-  ScarletCoda,
-  Liberation10,
-  HBA12,
-  OUTRO
-]);
-var PHRO_14s = new Loadout({
-  resonator: PHROLOVA_RESONATOR,
-  weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER],
-  echoLoadouts: [new EchoLoadout(NM_HECATE, DREAM_OF_THE_LOST_3PC, HAVOC_ECLIPSE_2PC)],
-  mainstats: mainstatOptions(
-    0,
-    1,
-    6,
-    14,
-    15
-    /* Mainstat.ATK1 */
-  ),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Basic),
-  rotation: { 0: PHRO_5FBA_MANUAL, 2: PHRO_5FBA_MANUAL_S2 },
-  sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6]
-});
 var PHRO_12s = new Loadout({
   resonator: PHROLOVA_RESONATOR,
   weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER],
@@ -12003,7 +11900,7 @@ var PHRO_12s = new Loadout({
   rotation: { 0: PHRO_5FBA, 2: PHRO_5FBA_S2 },
   sequences: [PH_S1, PH_S2, PH_S3, PH_S4, PH_S5, PH_S6]
 });
-var PHROLO_10s = new Loadout({
+var PHRO_10s = new Loadout({
   resonator: PHROLOVA_RESONATOR,
   weapons: [LETHEAN_ELEGY, COSMIC_RIPPLES, STRINGMASTER],
   echoLoadouts: [
@@ -12031,7 +11928,7 @@ var BA111 = augustaAction("Basic - Hunter's Path 1", { node: 0, cast: 1, type: 4
 var BA211 = augustaAction("Basic - Hunter's Path 2", { node: 0, cast: 1, type: 4096, mv: 134, energy: 1.7, concerto: 3.38, offtune: 5392, forte1: 230, forte2: 172 });
 var BA312 = augustaAction("Basic - Hunter's Path 3", { node: 0, cast: 1, type: 4096, mv: 196.83, energy: 2.49, concerto: 4.95, offtune: 7920, forte1: 336, forte2: 252 });
 var BA48 = augustaAction("Basic - Hunter's Path 4", { node: 0, cast: 1, type: 4096, mv: 193.89, energy: 2.46, concerto: 4.89, offtune: 7803, forte1: 333, forte2: 249 });
-var MA7 = augustaAction("Mid-air - Hunter's Path", { node: 0, cast: 1, type: 4096, mv: 119.3, energy: 1.5, concerto: 2, offtune: 7200, forte1: 50, forte2: 154 });
+var MA7 = augustaAction("Mid-air - Hunter's Path Plunge", { node: 0, cast: 1, type: 4096, mv: 119.3, energy: 1.5, concerto: 2, offtune: 7200, forte1: 50, forte2: 154 });
 var DC9 = augustaAction("Dodge Counter - Hunter's Path 2", { node: 0, cast: 0, type: 4096, mv: 134, energy: 1.7, concerto: 13.38, offtune: 5392, forte1: 230, forte2: 172 });
 var MDC3 = augustaAction("Dodge Counter - Hunter's Path (Mid-Air)", { node: 0, cast: 0, type: 4096, mv: 119.3, energy: 1.5, concerto: 12, offtune: 7200, forte1: 50, forte2: 154 });
 var HA9 = augustaAction("Heavy - Hunter's Path", { node: 0, cast: 2, type: 8192, mv: 139.17, energy: 1.77, concerto: 3.51, offtune: 5601, forte1: 342, forte2: 255 });
@@ -12281,7 +12178,7 @@ var BA112 = bulingAction("Basic - Hexagram Calls, Lightning Falls 1", { node: 0,
 var BA212 = bulingAction("Basic - Hexagram Calls, Lightning Falls 2", { node: 0, cast: 1, type: 4096, mv: 66.9, offtune: 5384, energy: 1.7, concerto: 5.4, ...MOUNTAIN });
 var BA313 = bulingAction("Basic - Hexagram Calls, Lightning Falls 3", { node: 0, cast: 1, type: 4096, mv: 47.02, offtune: 3784, energy: 1.2, concerto: 3.8 });
 var BA49 = bulingAction("Basic - Hexagram Calls, Lightning Falls 4", { node: 0, cast: 1, type: 4096, mv: 93.64, offtune: 7536, energy: 2.36, concerto: 7.54, ...THUNDER });
-var MA8 = bulingAction("Mid-air - Hexagram Calls, Lightning Falls", { node: 0, cast: 1, type: 4096, mv: 73.96, offtune: 4960, energy: 1.24, concerto: 4.96, ...THUNDER });
+var MA8 = bulingAction("Mid-air - Hexagram Calls, Lightning Falls Plunge", { node: 0, cast: 1, type: 4096, mv: 73.96, offtune: 4960, energy: 1.24, concerto: 4.96, ...THUNDER });
 var DC10 = bulingAction("Dodge Counter - Hexagram Calls, Lightning Falls 3", { node: 0, cast: 0, type: 4096, mv: 47.02, offtune: 3784, energy: 1.2, concerto: 13.8 });
 var YANG = { updateBuffs: () => {
   spendTrigrams();
@@ -12559,9 +12456,9 @@ var BA213 = hsinAction("Basic - Answering Form 2", { node: 0, cast: 1, type: 409
 var BA314 = hsinAction("Basic - Answering Form 3", { node: 0, cast: 1, type: 4096, mv: 157.54, energy: 2.85, concerto: 2.4, offtune: 4800, forte1: 8.51 });
 var BA410 = hsinAction("Basic - Answering Form 4", { node: 0, cast: 1, type: 4096, mv: 198.59, energy: 3.59, concerto: 7.85, offtune: 15673, forte1: 27.7 });
 var HA11 = hsinAction("Heavy - Answering Form", { node: 0, cast: 2, type: 8192, mv: 102.76, energy: 1.86, concerto: 3, offtune: 5906, forte1: 10.46 });
-var MA9 = hsinAction("Mid-air - Answering Form", { node: 0, cast: 1, type: 4096, mv: 22.44, energy: 0.41, concerto: 0.65, offtune: 2080, forte1: 2.28 });
+var MA9 = hsinAction("Mid-air - Answering Form Plunge", { node: 0, cast: 1, type: 4096, mv: 22.44, energy: 0.41, concerto: 0.65, offtune: 2080, forte1: 2.28 });
 var ReignHold = hsinAction("Heavy - Answering Form: Reign at Ease (Mid-Air)", { node: 0, cast: 2, type: 8192, mv: 696, energy: 12.5, concerto: 20, offtune: 4e4, forte1: 76.5 });
-var ReignPlunge = hsinAction("Mid-air - Answering Form: Reign at Ease", { node: 0, cast: 1, type: 4096, mv: 22.44, energy: 0.41, concerto: 0.65, offtune: 2080, forte1: 2.28 });
+var ReignPlunge = hsinAction("Mid-air - Answering Form: Reign at Ease Plunge", { node: 0, cast: 1, type: 4096, mv: 22.44, energy: 0.41, concerto: 0.65, offtune: 2080, forte1: 2.28 });
 var DC11 = hsinAction("Dodge Counter - Answering Form", { node: 0, cast: 0, type: 4096, mv: 224.9, energy: 4.06, concerto: 16.48, offtune: 12930, forte1: 22.86 });
 var Skill12 = hsinAction("Skill - Answering Form", { node: 1, cast: 3, type: 12288, mv: 167.06, energy: 3, concerto: 2.4, offtune: 9600, forte1: 8.52 });
 var REALM = {
@@ -12596,7 +12493,7 @@ var IBA3 = hsinAction("Basic - Illumining Form 3", { node: 0, cast: 1, type: 409
 var Heartlock = hsinAction("Basic - Illumining Form: Modular Heartlock", { node: 0, type: 4096, mv: 41.84, energy: 0.76, concerto: 1.22, offtune: 2406, forte2: 19.04 });
 var IHA = hsinAction("Heavy - Illumining Form", { node: 0, cast: 2, type: 8192, mv: 107.86, energy: 1.94, concerto: 3.1, offtune: 6200, forte2: 31.66, ...COLLAPSE });
 var UpwardCut2 = hsinAction("Basic - Illumining Form: Upward Cut", { node: 0, cast: 1, type: 4096, mv: 87.57, energy: 1.58, concerto: 2.53, offtune: 5035, forte2: 39.84 });
-var IMA = hsinAction("Mid-air - Illumining Form", { node: 0, cast: 1, type: 4096, mv: 22.45, energy: 0.42, concerto: 0.65, offtune: 2080, forte2: 10.22 });
+var IMA = hsinAction("Mid-air - Illumining Form Plunge", { node: 0, cast: 1, type: 4096, mv: 22.45, energy: 0.42, concerto: 0.65, offtune: 2080, forte2: 10.22 });
 var IDC = hsinAction("Dodge Counter - Illumining Form", { node: 0, cast: 0, type: 4096, mv: 191.36, energy: 3.44, concerto: 15.5, offtune: 11e3, forte2: 73.98, ...COLLAPSE });
 var ThunderHit = flareHit("Skill - Illumining Form: Heart of Thunder", () => (isHeld(HS_S1) ? 42 : 35) - 100, { convertStats: () => removeStackTeam(HEART_OF_THUNDER, 1) });
 var ISkill = hsinAction("Skill - Illumining Form", {
@@ -13215,7 +13112,7 @@ var BA114 = lucyAction("Basic - Locked Thread 1", { node: 0, cast: 1, type: 4096
 var BA214 = lucyAction("Basic - Locked Thread 2", { node: 0, cast: 1, type: 4096, mv: 60.76, energy: 0.96, concerto: 3.07, offtune: 3761, forte1: 12 });
 var BA315 = lucyAction("Basic - Locked Thread 3", { node: 0, cast: 1, type: 4096, mv: 120.2, energy: 1.87, concerto: 6.06, offtune: 7440, forte1: 18 });
 var BA411 = lucyAction("Basic - Locked Thread 4", { node: 0, cast: 1, type: 4096, mv: 155.09, energy: 2.4, concerto: 7.8, offtune: 9600, forte1: 26 });
-var MA10 = lucyAction("Mid-air - Locked Thread", { node: 0, cast: 1, type: 4096, mv: 116.32, energy: 2.26, concerto: 5.86, offtune: 7200, forte1: 8 });
+var MA10 = lucyAction("Mid-air - Locked Thread Plunge", { node: 0, cast: 1, type: 4096, mv: 116.32, energy: 2.26, concerto: 5.86, offtune: 7200, forte1: 8 });
 var DC12 = lucyAction("Dodge Counter - Locked Thread", { node: 0, cast: 0, type: 4096, mv: 197.73, energy: 3.83, concerto: 19.96, offtune: 12240, forte1: 12 });
 var HA1 = lucyAction("Heavy - Locked Thread 1", { node: 0, cast: 2, type: 8192, mv: 73.67, energy: 1.43, concerto: 3.73, offtune: 4560, forte1: 10 });
 var HA23 = lucyAction("Heavy - Locked Thread 2", { node: 0, cast: 2, type: 8192, mv: 284.32, energy: 5.51, concerto: 14.32, offtune: 17602, forte1: 20.02 });
@@ -13223,7 +13120,7 @@ var EBA13 = lucyAction("Basic - Thread Shredding 1", { node: 0, cast: 1, type: 8
 var EBA22 = lucyAction("Basic - Thread Shredding 2", { node: 0, cast: 1, type: 8192, mv: 111.35, energy: 1.6, concerto: 6.4, offtune: 6400, forte2: 29.55 });
 var EBA32 = lucyAction("Basic - Thread Shredding 3", { node: 0, cast: 1, type: 8192, mv: 140.6, energy: 2.05, concerto: 8.1, offtune: 8080, forte2: 37.3 });
 var EBA42 = lucyAction("Basic - Thread Shredding 4", { node: 0, cast: 1, type: 8192, mv: 125.3, energy: 1.8, concerto: 7.2, offtune: 7200, forte2: 33.25 });
-var EMA = lucyAction("Mid-air - Algorithm Compaction", { node: 0, cast: 1, type: 4096, mv: 125.26, energy: 2.26, concerto: 5.86, offtune: 7200, forte2: 33.22 });
+var EMA = lucyAction("Mid-air - Algorithm Compaction Plunge", { node: 0, cast: 1, type: 4096, mv: 125.26, energy: 2.26, concerto: 5.86, offtune: 7200, forte2: 33.22 });
 var EDC2 = lucyAction("Dodge Counter - Algorithm Compaction", { node: 0, cast: 0, type: 4096, mv: 194.85, energy: 3.5, concerto: 21.2, offtune: 11200, forte2: 29.55 });
 var EHA = lucyAction("Heavy - Single Threading", { node: 0, cast: 2, type: 8192, mv: 116.95, energy: 1.7, concerto: 6.75, offtune: 6720, forte2: 31 });
 var HACKS = { updateDebuffs: () => applyHack() };
@@ -13542,6 +13439,8 @@ var LC_ROTATION = new Rotation([
   MultiThreading,
   ECHO_CANCEL,
   ELib,
+  HA1,
+  HA23.swap(),
   OUTRO
 ]);
 var LC_ECHOES = [
@@ -13590,7 +13489,7 @@ var HBA22 = rebeccaAction("Basic - Huntress 2", { node: 0, cast: 1, type: 4096, 
 var HBA3 = rebeccaAction("Basic - Huntress 3", { node: 0, cast: 1, type: 4096, mv: 109.85, energy: 1.63, concerto: 3.25, offtune: 5200, forte1: 10.54 });
 var HHA = rebeccaAction("Heavy - Huntress", { node: 0, cast: 2, type: 4096, mv: 33.8, energy: 0.5, concerto: 1, offtune: 1600, forte1: 3.58 });
 var EatLead = rebeccaAction("Heavy - Eat Lead!: Huntress", { node: 0, cast: 2, type: 8192, mv: 121.68, energy: 1.8, concerto: 3.6, offtune: 5760, forte1: 11.68 });
-var HMA = rebeccaAction("Mid-air - Huntress", { node: 0, cast: 1, type: 4096, mv: 136.04, energy: 2.02, concerto: 4.03, offtune: 6440, forte1: 13.05 });
+var HMA = rebeccaAction("Mid-air - Huntress Plunge", { node: 0, cast: 1, type: 4096, mv: 136.04, energy: 2.02, concerto: 4.03, offtune: 6440, forte1: 13.05 });
 var HTD = rebeccaAction("Basic - Tactical Dodge: Huntress", { node: 0, cast: 1, type: 4096, mv: 84.5, energy: 1.25, concerto: 2.5, offtune: 4e3, forte1: 8.95 });
 var CominInHot = rebeccaAction("Basic - Comin' in Hot!: Huntress", {
   node: 0,
@@ -13601,7 +13500,7 @@ var GBA1 = rebeccaAction("Basic - Guts 1", { node: 0, cast: 1, type: 4096, mv: 1
 var GBA2 = rebeccaAction("Basic - Guts 2", { node: 0, cast: 1, type: 4096, mv: 84.5, energy: 1.25, concerto: 2.5, offtune: 4e3, forte1: 9.32 });
 var GBA3 = rebeccaAction("Basic - Guts 3", { node: 0, cast: 1, type: 4096, mv: 225.11, energy: 3.34, concerto: 6.67, offtune: 10658, forte1: 24.84 });
 var GHA = rebeccaAction("Heavy - Guts", { node: 0, cast: 2, type: 8192, mv: 202.79, energy: 3, concerto: 6, offtune: 9600, forte1: 19.45 });
-var GMA = rebeccaAction("Mid-air - Guts", { node: 0, cast: 1, type: 4096, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 10.05 });
+var GMA = rebeccaAction("Mid-air - Guts Plunge", { node: 0, cast: 1, type: 4096, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 10.05 });
 var GTD = rebeccaAction("Basic - Tactical Dodge: Guts", { node: 0, cast: 1, type: 4096, mv: 101.4, energy: 1.5, concerto: 3, offtune: 4800, forte1: 9.73 });
 var TO_GUTS = { convertStats: () => {
   revokeCurrent(HUNTRESS);
@@ -13621,7 +13520,6 @@ var Lib13 = rebeccaAction("Liberation - Party 'til Dawn!", {
   cast: 4,
   cutscene: true,
   resetEnergy: true,
-  forte3: 90,
   updateBuffs: () => {
     queueOnIntro(Boom);
   }
@@ -13633,8 +13531,7 @@ var Lib24 = rebeccaAction("Liberation - Mk. 31 HMG x5", {
   cutscene: true,
   mv: 24.3 * 5,
   concerto: 20 + 0.56 * 5,
-  offtune: 1609 * 5,
-  forte3: -10
+  offtune: 1609 * 5
 });
 var Lib32 = rebeccaAction("Liberation - Mk. 31 HMG 1st Enhancement x5", {
   node: 3,
@@ -13643,8 +13540,7 @@ var Lib32 = rebeccaAction("Liberation - Mk. 31 HMG 1st Enhancement x5", {
   cutscene: true,
   mv: 48.6 * 5,
   concerto: 1.12 * 5,
-  offtune: 3218 * 5,
-  forte3: -20
+  offtune: 3218 * 5
 });
 var Lib4 = rebeccaAction("Liberation - Mk. 31 HMG 2nd Enhancement x10", {
   node: 3,
@@ -13653,8 +13549,7 @@ var Lib4 = rebeccaAction("Liberation - Mk. 31 HMG 2nd Enhancement x10", {
   cutscene: true,
   mv: 72.9 * 10,
   concerto: 1.67 * 10,
-  offtune: 4826 * 10,
-  forte3: -60
+  offtune: 4826 * 10
 });
 var Lib234 = new ActionGroup("Liberation - Mk. 31 HMG", [Lib24, Lib32, Lib4]);
 var Boom = rebeccaAction("Liberation - BOOM! Fireworks!", {
@@ -13894,7 +13789,6 @@ var REBECCA_RESONATOR = new Resonator({
   maxEnergy: 125,
   maxForte1: 120,
   maxForte2: 120,
-  maxForte3: 90,
   // she starts in Huntress with a full Hot Hand bar
   combatStart: () => {
     applyCurrent(HUNTRESS, 1);
@@ -14251,7 +14145,7 @@ function suomingAction(id, def2) {
 var BA116 = suomingAction("Basic - Furled Canopy 1", { node: 0, cast: 1, type: 4096, mv: 31.55, energy: 1.91, concerto: 1.59, offtune: 3174, forte1: 120 });
 var BA216 = suomingAction("Basic - Furled Canopy 2", { node: 0, cast: 1, type: 4096, mv: 15.73 * 2 + 31.46, energy: 0.95 * 2 + 1.9, concerto: 0.8 * 2 + 1.59, offtune: 1583 * 2 + 3165, forte1: 40 * 2 + 80 });
 var BA317 = suomingAction("Basic - Furled Canopy 3", { node: 0, cast: 1, type: 4096, mv: 22.01 * 3 + 44.02, energy: 1.33 * 3 + 2.66, concerto: 1.11 * 3 + 2.22, offtune: 2214 * 3 + 4428, forte1: 36 * 3 + 72 });
-var MA11 = suomingAction("Mid-air - Furled Canopy", { node: 0, cast: 1, type: 4096, mv: 84.2, energy: 5.09, concerto: 4.24, offtune: 8470 });
+var MA11 = suomingAction("Mid-air - Furled Canopy Plunge", { node: 0, cast: 1, type: 4096, mv: 84.2, energy: 5.09, concerto: 4.24, offtune: 8470 });
 var DC13 = suomingAction("Dodge Counter - Furled Canopy", { node: 0, cast: 0, type: 4096, mv: 27.66 * 2 + 55.32, energy: 1.67 * 2 + 3.34, concerto: 1.4 * 2 + 2.79 + 10, offtune: 2783 * 2 + 5565, forte1: 160 });
 var UBA1 = suomingAction("Basic - Unfurled Canopy 1", { node: 0, cast: 1, type: 4096, mv: 65.42 + 32.71 * 2, energy: 1.58 + 0.79 * 2, concerto: 1.32 + 0.66 * 2, offtune: 3949 + 1975 * 2, forte1: 60 + 30 * 2 });
 var UBA2 = suomingAction("Basic - Unfurled Canopy 2", { node: 0, cast: 1, type: 4096, mv: 114.4 + 38.14 * 3, energy: 2.77 + 0.93 * 3, concerto: 2.31 + 0.77 * 3, offtune: 6905 + 2302 * 3, forte1: 80 + 27 * 3 });
@@ -14657,7 +14551,7 @@ var BA318 = xlyAction("Basic - Probe 3", { node: 0, cast: 1, type: 4096, mv: 39.
 var BA413 = xlyAction("Basic - Probe 4", { node: 0, cast: 1, type: 4096, mv: 53.05 * 2 + 26.53, energy: 1.68, concerto: 3.35, offtune: 5338, forte1: 18 });
 var BA52 = xlyAction("Basic - Probe 5", { node: 0, cast: 1, type: 4096, mv: 198.81, energy: 2.5, concerto: 5, offtune: 8e3, forte1: 20 });
 var HA12 = xlyAction("Heavy - Probe", { node: 0, cast: 2, type: 8192, mv: 82.81 * 2, energy: 2.1, concerto: 4.18, offtune: 6664, forte1: 18 });
-var MA15 = xlyAction("Mid-air - Probe", { node: 0, cast: 1, type: 4096, mv: 123.27, energy: 0.52, concerto: 1, offtune: 4960, forte1: 13 });
+var MA15 = xlyAction("Mid-air - Probe Plunge", { node: 0, cast: 1, type: 4096, mv: 123.27, energy: 0.52, concerto: 1, offtune: 4960, forte1: 13 });
 var DC14 = xlyAction("Dodge Counter - Probe", { node: 0, cast: 0, type: 4096, mv: 238.58, energy: 2.75, concerto: 12.5, offtune: 4e3, forte1: 26 });
 var Skill15 = xlyAction("Skill - Deduction", { node: 1, cast: 3, type: 12288, mv: 198.81, energy: 6.25, concerto: 7, offtune: 4e3, forte1: 40 });
 var FSkill4 = xlyAction("Forte Skill - Decipher", { node: 2, cast: 3, type: 16384, mv: 397.82, energy: 1.67, concerto: 7, offtune: 5336, forte1: -100 });
@@ -14856,7 +14750,7 @@ var BA218 = yinlinAction("Basic - Zapstring's Dance 2", { node: 0, cast: 1, type
 var BA319 = yinlinAction("Basic - Zapstring's Dance 3", { node: 0, cast: 1, type: 4096, mv: 13.99 * 7, energy: 2.45, concerto: 7, offtune: 7147, forte1: 7.5 });
 var BA414 = yinlinAction("Basic - Zapstring's Dance 4", { node: 0, cast: 1, type: 4096, mv: 75.16, energy: 1.5, concerto: 6, offtune: 4976, forte1: 10 });
 var HA13 = yinlinAction("Heavy - Zapstring's Dance", { node: 0, cast: 2, type: 8192, mv: 29.83 * 2, energy: 1.8, concerto: 4.5, offtune: 9392, forte1: 20 });
-var MA16 = yinlinAction("Mid-air - Zapstring's Dance", { node: 0, cast: 1, type: 4096, mv: 123.27, energy: 0.51, concerto: 5, offtune: 4960, forte1: 5 });
+var MA16 = yinlinAction("Mid-air - Zapstring's Dance Plunge", { node: 0, cast: 1, type: 4096, mv: 123.27, energy: 0.51, concerto: 5, offtune: 4960, forte1: 5 });
 var DC15 = yinlinAction("Dodge Counter - Zapstring's Dance", { node: 0, cast: 0, type: 4096, mv: 24.22 * 7, energy: 3.99, concerto: 17, offtune: 11746 });
 var Skill16 = yinlinAction("Skill - Magnetic Roar", {
   node: 1,
@@ -15119,7 +15013,7 @@ var ABA3 = aemeathAction("Basic - Aemeath 3", { node: 0, cast: 1, type: 4096, mv
 var ABA4 = aemeathAction("Basic - Aemeath 4", { node: 0, cast: 1, type: 4096, mv: 134.59, energy: 2.47, concerto: 4.88, offtune: 7737, forte1: 23.31, ...DUO });
 var AHA1 = aemeathAction("Heavy - Aemeath: Charged I", { node: 0, cast: 2, type: 16384, mv: 92.83, energy: 1.68, concerto: 3.34, offtune: 5337 });
 var AHA2 = aemeathAction("Heavy - Aemeath: Charged II", { node: 0, cast: 2, type: 16384, mv: 232, energy: 4.18, concerto: 8.35, offtune: 13337 });
-var AMA = aemeathAction("Mid-air - Aemeath", { node: 0, cast: 1, type: 4096, mv: 86.29, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 11.71 });
+var AMA = aemeathAction("Mid-air - Aemeath Plunge", { node: 0, cast: 1, type: 4096, mv: 86.29, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 11.71 });
 var ADC = aemeathAction("Dodge Counter - Aemeath", { node: 0, cast: 0, type: 4096, mv: 260.15, energy: 3.19, concerto: 16.37, offtune: 10155, forte1: 28.99 });
 var MBA1 = aemeathAction("Basic - Mech 1", { node: 0, cast: 1, type: 4096, mv: 69.6, energy: 1.26, concerto: 2.52, offtune: 4002, forte1: 6.45 });
 var MBA2 = aemeathAction("Basic - Mech 2", { node: 0, cast: 1, type: 4096, mv: 92.83, energy: 1.68, concerto: 3.34, offtune: 5337, forte1: 9.6 });
@@ -16152,7 +16046,7 @@ var BA221 = deniaAction("Basic - Stagecraft Form 2", { node: 0, cast: 1, type: 4
 var BA322 = deniaAction("Basic - Stagecraft Form 3", { node: 0, cast: 1, type: 4096, mv: 76.47, energy: 1.62, concerto: 3.21, offtune: 5130, forte1: 9 });
 var BA417 = deniaAction("Basic - Stagecraft Form 4", { cutscene: true, node: 0, cast: 1, type: 4096, mv: 128, energy: 0.69, concerto: 5.37, offtune: 8584, forte1: 30 });
 var HA16 = deniaAction("Heavy - Stagecraft Form", { node: 0, cast: 2, type: 8192, mv: 161.52, energy: 3.4, concerto: 6.78, offtune: 10832, forte1: 20 });
-var MA19 = deniaAction("Mid-air - Stagecraft Form", { node: 0, cast: 1, type: 4096, mv: 73.97, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 10 });
+var MA19 = deniaAction("Mid-air - Stagecraft Form Plunge", { node: 0, cast: 1, type: 4096, mv: 73.97, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 10 });
 var DC18 = deniaAction("Dodge Counter - Stagecraft Form 3", { node: 0, cast: 0, type: 4096, mv: 148.05, energy: 3.12, concerto: 16.21, offtune: 5130, forte1: 18 });
 var UBA14 = deniaAction("Basic - Breakdown Form 1", { node: 0, cast: 1, type: 4096, mv: 36.51, energy: 0.77, concerto: 1.53, offtune: 2448, forte1: -18, forte2: 3 });
 var UBA23 = deniaAction("Basic - Breakdown Form 2", { node: 0, cast: 1, type: 4096, mv: 93.79, energy: 1.99, concerto: 3.94, offtune: 6292, forte1: -46, forte2: 12 });
@@ -16682,7 +16576,7 @@ var BA323 = encoreAction("Basic - Wooly Attack 3", { node: 0, cast: 1, type: 409
 var BA418 = encoreAction("Basic - Wooly Attack 4", { node: 0, cast: 1, type: 4096, mv: 153.08, energy: 1.92, concerto: 3.84, offtune: 9240, forte1: 4 });
 var WoolyStrike = encoreAction("Basic - Wooly Strike", { node: 0, cast: 1, type: 4096, mv: 238.57, energy: 3, concerto: 6, offtune: 14400, forte1: 25 });
 var HA17 = encoreAction("Heavy - Wooly Attack", { node: 0, cast: 2, type: 8192, mv: 187.08, energy: 2.35, concerto: 4.7, offtune: 11292, forte1: 5 });
-var MA20 = encoreAction("Mid-air - Wooly Attack", { node: 0, cast: 1, type: 4096, mv: 123.26, energy: 0.51, concerto: 1, offtune: 14400, forte1: 11 });
+var MA20 = encoreAction("Mid-air - Wooly Attack Plunge", { node: 0, cast: 1, type: 4096, mv: 123.26, energy: 0.51, concerto: 1, offtune: 14400, forte1: 11 });
 var DC19 = encoreAction("Dodge Counter - Wooly Attack", { node: 0, cast: 0, type: 4096, mv: 251.88, energy: 3.16, concerto: 13.32, offtune: 8004, forte1: 6 });
 var Skill110 = encoreAction("Skill - Flaming Woolies", { node: 1, cast: 3, type: 12288, mv: 612.88, energy: 15.28, concerto: 15, offtune: 25600, forte1: 32 });
 var Skill24 = encoreAction("Skill - Energetic Welcome", { node: 1, cast: 3, type: 12288, mv: 339.16, energy: 0.75, concerto: 6.51, offtune: 9072, forte1: 30 });
@@ -17099,7 +16993,7 @@ var BA126 = jingranAction("Basic - Devil's Bane 1", { node: 0, cast: 1, type: 40
 var BA224 = jingranAction("Basic - Devil's Bane 2", { node: 0, cast: 1, type: 4096, mv: 99.47, energy: 1.68, concerto: 3.35, offtune: 5337 });
 var BA325 = jingranAction("Basic - Devil's Bane 3", { node: 0, cast: 1, type: 8192, mv: 159.1, energy: 2.69, concerto: 5.36, offtune: 8537, forte1: 50 });
 var BA420 = jingranAction("Basic - Devil's Bane 4", { node: 0, cast: 1, type: 8192, mv: 124.24, energy: 2.09, concerto: 4.18, offtune: 6666, forte1: 50 });
-var MA27 = jingranAction("Mid-air - Edge of Life and Death", { node: 0, cast: 1, type: 4096, mv: 92.45, energy: 1.55, concerto: 3.1, offtune: 4960 });
+var MA27 = jingranAction("Mid-air - Edge of Life and Death Plunge", { node: 0, cast: 1, type: 4096, mv: 92.45, energy: 1.55, concerto: 3.1, offtune: 4960 });
 var EBA14 = jingranAction("Basic - Drink Soul 1", { node: 0, cast: 1, type: 4096, mv: 44.74, energy: 0.75, concerto: 1.5, offtune: 2400 });
 var EBA23 = jingranAction("Basic - Drink Soul 2", { node: 0, cast: 1, type: 4096, mv: 74.56, energy: 1.26, concerto: 2.5, offtune: 4e3 });
 var EBA33 = jingranAction("Basic - Drink Soul 3", { node: 0, cast: 1, type: 8192, mv: 109.32, energy: 1.84, concerto: 3.68, offtune: 5864, forte1: 50 });
@@ -17840,7 +17734,7 @@ var BA226 = mornyeAction("Basic - Ground State Calibration 2", { node: 0, cast: 
 var BA327 = mornyeAction("Basic - Ground State Calibration 3", { node: 0, cast: 1, type: 4096, mv: 103.4, energy: 1.67, concerto: 5.2, offtune: 5200, forte1: 37 });
 var BA422 = mornyeAction("Basic - Ground State Calibration 4", { node: 0, cast: 1, type: 4096, mv: 135.2, energy: 2.13, concerto: 6.8, offtune: 6800, forte1: 100 });
 var HA20 = mornyeAction("Heavy - Ground State Calibration", { node: 0, cast: 2, type: 8192, mv: 37, energy: 0.79, concerto: 2.5, offtune: 2480, forte1: 20 });
-var MA30 = mornyeAction("Mid-air - Ground State Calibration", { node: 0, cast: 1, type: 4096, mv: 98.61, energy: 1.55, concerto: 4.96, offtune: 4960 });
+var MA30 = mornyeAction("Mid-air - Ground State Calibration Plunge", { node: 0, cast: 1, type: 4096, mv: 98.61, energy: 1.55, concerto: 4.96, offtune: 4960 });
 var DC23 = mornyeAction("Dodge Counter - Ground State Calibration", { node: 0, cast: 0, type: 4096, mv: 162.23, energy: 2.55, concerto: 18.16, offtune: 8160, forte1: 20 });
 var WBA1 = mornyeAction("Basic - Wide Field Observation 1", { node: 0, cast: 1, type: 4096, mv: 55.68, energy: 0.88, concerto: 1.4, offtune: 2800, forte2: 10 });
 var WBA2 = mornyeAction("Basic - Wide Field Observation 2", { node: 0, cast: 1, type: 4096, mv: 103.4, energy: 1.64, concerto: 2.56, offtune: 5200, forte2: 12 });
@@ -18377,7 +18271,7 @@ function carlottaAction(id, def2) {
 }
 var BA130 = carlottaAction("Basic - Silent Execution 1", { node: 0, cast: 1, type: 4096, mv: 54.08, energy: 0.8, concerto: 1.6, offtune: 2560 });
 var BA228 = carlottaAction("Basic - Silent Execution 2", { node: 0, cast: 1, type: 4096, mv: 131.83, energy: 1.96, concerto: 3.9, offtune: 6240, forte1: 3 });
-var MA112 = carlottaAction("Mid-air - Silent Execution", { node: 0, cast: 1, type: 4096, mv: 104.78, energy: 3, concerto: 6, offtune: 9600 });
+var MA112 = carlottaAction("Mid-air - Silent Execution Plunge", { node: 0, cast: 1, type: 4096, mv: 104.78, energy: 3, concerto: 6, offtune: 9600 });
 var MA211 = carlottaAction("Basic - Silent Execution: Customary Greetings", { node: 0, cast: 1, type: 4096, mv: 239.98, energy: 2.11, concerto: 4.2, offtune: 6720, forte1: 3 });
 var DC25 = carlottaAction("Dodge Counter - Silent Execution", { node: 0, cast: 0, type: 4096, mv: 241.32, energy: 3.58, concerto: 17.15, offtune: 11425, forte2: 10, forte1: -1 });
 var NM1 = carlottaAction("Basic - Silent Execution: Necessary Measures 1", { node: 0, cast: 1, type: 4096, mv: 65.91, energy: 0.98, concerto: 1.95, offtune: 3120, forte2: 10, forte1: -1 });
@@ -18668,7 +18562,7 @@ var FROSTBIND = {
 var BA131 = hiyukiAction("Basic - Present Self 1", { node: 0, cast: 1, type: 4096, mv: 75.44, energy: 1.28, concerto: 2.44, offtune: 4336 });
 var BA229 = hiyukiAction("Basic - Present Self 2", { node: 0, cast: 1, type: 4096, mv: 90.25, energy: 1.53, concerto: 2.92, offtune: 5188 });
 var BA329 = hiyukiAction("Basic - Present Self 3", { node: 0, cast: 1, type: 4096, mv: 122.97, energy: 2.12, concerto: 3.99, offtune: 7070, forte1: 100, ...CHAFE });
-var MA31 = hiyukiAction("Mid-air - Present Self", { node: 0, cast: 1, type: 4096, mv: 128.18, energy: 2.17, concerto: 4.15, offtune: 7368 });
+var MA31 = hiyukiAction("Mid-air - Present Self Plunge", { node: 0, cast: 1, type: 4096, mv: 128.18, energy: 2.17, concerto: 4.15, offtune: 7368 });
 var DC26 = hiyukiAction("Dodge Counter - Present Self 2", { node: 0, cast: 0, type: 4096, mv: 173.75, energy: 2.94, concerto: 15.62, offtune: 9988 });
 var FrostSplinter = hiyukiAction("Heavy - Frost Splinter: Present Self", {
   node: 0,
@@ -19247,7 +19141,7 @@ var Outro32 = lucillaAction("Outro - Montage", {
 var BA132 = lucillaAction("Basic - Snapshot 1", { node: 0, cast: 1, type: 4096, mv: 59.29, energy: 1.07, concerto: 1.71, offtune: 3408 });
 var BA230 = lucillaAction("Basic - Snapshot 2", { node: 0, cast: 1, type: 4096, mv: 67.23, energy: 1.22, concerto: 1.94, offtune: 3865 });
 var BA330 = lucillaAction("Basic - Snapshot 3 - Commendable", { node: 0, cast: 1, type: 4096, mv: 235.27, energy: 4.23, concerto: 6.77, offtune: 13524, forte1: 50 });
-var MA37 = lucillaAction("Mid-air - Snapshot", { node: 0, cast: 1, type: 4096, mv: 86.29, energy: 1.55, concerto: 3.66, offtune: 4960 });
+var MA37 = lucillaAction("Mid-air - Snapshot Plunge", { node: 0, cast: 1, type: 4096, mv: 86.29, energy: 1.55, concerto: 3.66, offtune: 4960 });
 var DC27 = lucillaAction("Dodge Counter - Snapshot", { node: 0, cast: 0, type: 4096, mv: 150.73, energy: 2.71, concerto: 16.4, offtune: 8665 });
 var PhantomFrame = lucillaAction("Skill - Phantom Frame", { node: 1, cast: 3, type: 12288, mv: 39.78, energy: 1.26, concerto: 2.07, offtune: 4002 });
 var Compensate = lucillaAction("Skill - Compensate", { node: 1, cast: 3, type: 12288, mv: 249.07, energy: 9.31, concerto: 3.08, offtune: 4176, forte1: 25 });
@@ -19652,7 +19546,7 @@ var BA331 = sanhuaAction("Basic - Frigid Light 3", { node: 0, cast: 1, type: 409
 var BA424 = sanhuaAction("Basic - Frigid Light 4", { node: 0, cast: 1, type: 4096, mv: 79.34, energy: 1.42, concerto: 8, offtune: 4560 });
 var BA53 = sanhuaAction("Basic - Frigid Light 5", { node: 0, cast: 1, type: 4096, mv: 233.81, energy: 4.2, concerto: 10, offtune: 13440 });
 var HA26 = sanhuaAction("Heavy - Frigid Light", { node: 0, cast: 2, type: 8192, mv: 111.35, energy: 2, concerto: 8, offtune: 8e3 });
-var MA38 = sanhuaAction("Mid-air - Frigid Light", { node: 0, cast: 1, type: 4096, mv: 86.29, energy: 0.51, concerto: 1, offtune: 9520 });
+var MA38 = sanhuaAction("Mid-air - Frigid Light Plunge", { node: 0, cast: 1, type: 4096, mv: 86.29, energy: 0.51, concerto: 1, offtune: 9520 });
 var FHA13 = sanhuaAction("Forte Heavy - Detonate", {
   node: 0,
   cast: 2,
@@ -19868,7 +19762,7 @@ var BA134 = suisuiAction("Basic - Zephyr Stance 1", { node: 0, cast: 1, type: 40
 var BA233 = suisuiAction("Basic - Zephyr Stance 2", { node: 0, cast: 1, type: 4096, mv: 122, energy: 1.92, concerto: 6.14, offtune: 6136, forte1: 46 });
 var BA332 = suisuiAction("Basic - Zephyr Stance 3", { node: 0, cast: 1, type: 4096, mv: 139.34, energy: 2.2, concerto: 7.03, offtune: 7010, forte1: 53 });
 var BA425 = suisuiAction("Basic - Zephyr Stance 4", { node: 0, cast: 1, type: 4096, mv: 159.08, energy: 2.5, concerto: 8, offtune: 8e3, forte1: 60 });
-var MA39 = suisuiAction("Mid-air - Zephyr Stance", { node: 0, cast: 1, type: 4096, mv: 70.72, energy: 1.86, concerto: 5.93, offtune: 5928 });
+var MA39 = suisuiAction("Mid-air - Zephyr Stance Plunge", { node: 0, cast: 1, type: 4096, mv: 70.72, energy: 1.86, concerto: 5.93, offtune: 5928 });
 var DC28 = suisuiAction("Dodge Counter - Zephyr Stance 3", { node: 0, cast: 0, type: 4096, mv: 170.67, energy: 2.7, concerto: 18.6, offtune: 8586, forte1: 30 });
 var Skill30 = suisuiAction("Skill - Vernal Screen: Zephyr Stance", { node: 1, cast: 3, type: 12288, mv: 143.16, energy: 2.28, concerto: 7.2, offtune: 7200, forte1: 40 });
 var ESkill4 = suisuiAction("Skill - Awakening Spring", {
@@ -20209,7 +20103,7 @@ function zhezhiAction(id, def2) {
 var BA135 = zhezhiAction("Basic - Dimming Brush 1", { node: 0, cast: 1, type: 4096, mv: 83.52, energy: 1.5, concerto: 4.8, offtune: 4800, forte1: 10 });
 var BA235 = zhezhiAction("Basic - Dimming Brush 2", { node: 0, cast: 1, type: 4096, mv: 102.75, energy: 1.85, concerto: 5.95, offtune: 5905, forte1: 15 });
 var BA333 = zhezhiAction("Basic - Dimming Brush 3", { node: 0, cast: 1, type: 4096, mv: 133.61, energy: 2.4, concerto: 7.68, offtune: 7680, forte1: 25 });
-var MA40 = zhezhiAction("Mid-air - Dimming Brush", { node: 0, cast: 1, type: 4096, mv: 229.53, energy: 3.4, concerto: 10.91, offtune: 10865, forte1: 25 });
+var MA40 = zhezhiAction("Mid-air - Dimming Brush 12", { node: 0, cast: 1, type: 4096, mv: 229.53, energy: 3.4, concerto: 10.91, offtune: 10865, forte1: 25 });
 var DC29 = zhezhiAction("Dodge Counter - Dimming Brush", { node: 0, cast: 0, type: 4096, mv: 145.35, energy: 2.15, concerto: 20, offtune: 6880, forte1: 15 });
 var HA27 = zhezhiAction("Heavy - Dimming Brush", { node: 0, cast: 2, type: 8192, mv: 112.72, energy: 1.67, concerto: 5.34, offtune: 5336, forte1: 15 });
 var Skill31 = zhezhiAction("Skill - Manifestation", {
@@ -20488,7 +20382,7 @@ var BA236 = camellyaAction("Basic - Burgeoning 2", { node: 0, cast: 1, type: 409
 var BA334 = camellyaAction("Basic - Burgeoning 3", { node: 0, cast: 1, type: 4096, mv: 152.1, energy: 2.25, concerto: 4.5, offtune: 7200, forte1: -14.94 });
 var BA426 = camellyaAction("Basic - Burgeoning 4 (Hold)", { node: 0, cast: 1, type: 4096, mv: 494, energy: 5.4, concerto: 10.8, offtune: 17280, forte1: -36 });
 var BA54 = camellyaAction("Basic - Burgeoning 5", { node: 0, cast: 1, type: 4096, mv: 192.68, energy: 2.88, concerto: 5.72, offtune: 9120, forte1: -18.96 });
-var MA41 = camellyaAction("Mid-air - Attack", { node: 0, cast: 1, type: 4096, mv: 131.22, energy: 1.66, concerto: 3.3, offtune: 5280, forte1: -10.96 });
+var MA41 = camellyaAction("Mid-air - Plunging Attack", { node: 0, cast: 1, type: 4096, mv: 131.22, energy: 1.66, concerto: 3.3, offtune: 5280, forte1: -10.96 });
 var DC30 = camellyaAction("Dodge Counter - Burgeoning", { node: 0, cast: 0, type: 4096, mv: 298.2, energy: 2.25, concerto: 14.5, offtune: 7200, forte1: -24.9 });
 var HA28 = camellyaAction("Heavy - Pruning", { node: 0, cast: 2, type: 4096, mv: 264.42, energy: 3.33, concerto: 6.66, offtune: 10641, forte1: -22.08 });
 var CrimsonBlossom = camellyaAction("Skill - Crimson Blossom", {
@@ -20705,13 +20599,38 @@ var CM_S5 = new Sequence({
 var CM_S6 = new Sequence({ name: "Camellya S6: Bloom For You Thousand Times Over" });
 var CM_SEQUENCES = [CM_S1, CM_S2, CM_S3, CM_S4, CM_S5, CM_S6];
 var VW1234 = new ActionGroup("Basic - Vining Waltz 123H4", [VW1, VW2, VW3, BlazingWaltz, VW4]);
-var BA123452 = new ActionGroup("Basic - Burgeoning 1234H5", [BA136, BA236, BA334, BA426, BA54]);
+var CM_ROTATION_16s = new Rotation([
+  INTRO,
+  CrimsonBlossom,
+  ECHO_CANCEL,
+  VW1234,
+  Liberation26,
+  VW1,
+  Ephemeral,
+  VW1234,
+  FloralRavage.swap(),
+  OUTRO
+]);
+var CM_ROTATION_16s_S6 = new Rotation([
+  INTRO,
+  CrimsonBlossom,
+  ECHO_CANCEL,
+  VW1234,
+  Liberation26,
+  VW1,
+  Ephemeral,
+  VW1234,
+  FloralRavage.swap(),
+  Perennial.swap(),
+  SWAP
+]);
 var CM_ROTATION_DOUBLE = new Rotation([
   DOUBLE_INTRO,
   CrimsonBlossom,
   ECHO_CANCEL,
   HA28,
-  BA426.swap(),
+  BA426,
+  FloralRavage.swap(),
   SWAP,
   INTRO,
   Liberation26,
@@ -20719,6 +20638,26 @@ var CM_ROTATION_DOUBLE = new Rotation([
   CrimsonBlossom,
   VW1234,
   FloralRavage,
+  ECHO_SWAP,
+  OUTRO
+]);
+var CM_ROTATION_DOUBLE_FAST_SUP = new Rotation([
+  DOUBLE_INTRO,
+  CrimsonBlossom,
+  ECHO_CANCEL,
+  HA28,
+  BA426,
+  FloralRavage.swap(),
+  SWAP,
+  INTRO,
+  Liberation26,
+  Ephemeral,
+  CrimsonBlossom,
+  VW1234,
+  ECHO_CANCEL,
+  VW1234,
+  FloralRavage,
+  ECHO_SWAP,
   OUTRO
 ]);
 var CM_ROTATION_DOUBLE_S6 = new Rotation([
@@ -20734,11 +20673,14 @@ var CM_ROTATION_DOUBLE_S6 = new Rotation([
   Ephemeral,
   CrimsonBlossom,
   VW1234,
-  FloralRavage,
+  ECHO_CANCEL,
+  VW1,
   Perennial,
-  SWAP
+  VW1234,
+  FloralRavage.swap(),
+  OUTRO
 ]);
-var CAMELLYA_DOUBLE = new Loadout({
+var CAMELLYA_DOUBLE_ALWAYS = new Loadout({
   resonator: CAMELLYA_RESONATOR,
   weapons: [RED_SPRING, EMERALD_OF_GENESIS],
   echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
@@ -20752,7 +20694,41 @@ var CAMELLYA_DOUBLE = new Loadout({
   ),
   substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
   highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
-  rotation: { 0: CM_ROTATION_DOUBLE, 6: CM_ROTATION_DOUBLE_S6 },
+  rotation: { 0: CM_ROTATION_DOUBLE_FAST_SUP, 6: CM_ROTATION_DOUBLE_S6 },
+  sequences: CM_SEQUENCES
+});
+var CAMELLYA_DOUBLE_123S6 = new Loadout({
+  resonator: CAMELLYA_RESONATOR,
+  weapons: [RED_SPRING, EMERALD_OF_GENESIS],
+  echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
+  mainstats: mainstatOptions(
+    0,
+    1,
+    6,
+    14,
+    15
+    /* Mainstat.ATK1 */
+  ),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+  rotation: { 0: CM_ROTATION_DOUBLE, 6: CM_ROTATION_16s_S6 },
+  sequences: CM_SEQUENCES
+});
+var CAMELLYA_123_ALWAYS_OUTRO = new Loadout({
+  resonator: CAMELLYA_RESONATOR,
+  weapons: [RED_SPRING, EMERALD_OF_GENESIS],
+  echoLoadouts: [new EchoLoadout(NM_CROWNLESS, HAVOC_ECLIPSE_5PC)],
+  mainstats: mainstatOptions(
+    0,
+    1,
+    6,
+    14,
+    15
+    /* Mainstat.ATK1 */
+  ),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Basic, Substat.FlatAtk, Substat.Liberation),
+  rotation: { 0: CM_ROTATION_16s },
   sequences: CM_SEQUENCES
 });
 
@@ -21147,7 +21123,7 @@ var RendingLunge = chisaAction("Basic - Rending Lunge", { node: 0, cast: 1, type
 var DeathSnip = chisaAction("Basic - Death Snip", { node: 0, cast: 1, type: 16384, mv: 149.06, energy: 2.09, concerto: 4.18, offtune: 6665, forte1: 18, ...SNIP_HEAL });
 var DeathSnipSpread = chisaAction("Basic - Death Snip With Spread", { node: 0, cast: 1, type: 16384, mv: 196.84, energy: 2.76, concerto: 5.52, offtune: 8801, forte1: 27, ...SNIP_HEAL });
 var ThreadWithdrawn = chisaAction("Basic - Thread Withdrawn", { node: 0, cast: 1, type: 4096, mv: 67.65, energy: 1.44, concerto: 2.85, offtune: 4538, forte1: 16 });
-var ReignOfSilenceMidAir = chisaAction("Mid-air - Reign of Silence", { node: 0, cast: 1, type: 4096, mv: 73.96, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 9 });
+var ReignOfSilenceMidAir = chisaAction("Mid-air - Reign of Silence Plunge", { node: 0, cast: 1, type: 4096, mv: 73.96, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 9 });
 var HA29 = chisaAction("Heavy - Reign of Silence", { node: 0, cast: 2, type: 8192, mv: 71.58, energy: 1.5, concerto: 3, offtune: 4800, forte1: 10 });
 var SeveredFacet = chisaAction("Heavy - Severed Facet (Mid-Air)", { node: 0, cast: 2, type: 8192, mv: 89.48, energy: 1.88, concerto: 3.76, offtune: 6e3, forte1: 12 });
 var HangingFinality = chisaAction("Basic - Hanging Finality", { node: 0, cast: 1, type: 4096, mv: 119.3, energy: 2.5, concerto: 5, offtune: 8e3, forte1: 16 });
@@ -21448,7 +21424,7 @@ function danjinAction(id, def2) {
 var BA139 = danjinAction("Basic - Execution 1", { node: 0, cast: 1, type: 4096, mv: 57.26, energy: 0.9, concerto: 1.08, offtune: 1680 });
 var BA239 = danjinAction("Basic - Execution 2", { node: 0, cast: 1, type: 4096, mv: 58.85, energy: 0.92, concerto: 1.11, offtune: 2960 });
 var BA336 = danjinAction("Basic - Execution 3", { node: 0, cast: 1, type: 4096, mv: 79.53, energy: 1.25, concerto: 1.5, offtune: 3120 });
-var MA44 = danjinAction("Mid-air - Execution", { node: 0, cast: 1, type: 4096, mv: 98.61, energy: 0.51, concerto: 1, offtune: 9600 });
+var MA44 = danjinAction("Mid-air - Execution Plunge", { node: 0, cast: 1, type: 4096, mv: 98.61, energy: 0.51, concerto: 1, offtune: 9600 });
 var HA30 = danjinAction("Heavy - Execution", { node: 0, cast: 2, type: 8192, mv: 111.36, energy: 1.74, concerto: 2.1, offtune: 5358 });
 var DC31 = danjinAction("Dodge Counter - Ruby Shades", { node: 0, cast: 0, type: 4096, mv: 190.86, energy: 3, concerto: 11.8, offtune: 4800 });
 var CarmineGleam = danjinAction("Skill - Carmine Gleam", { node: 1, cast: 3, type: 12288, mv: 76.36, forte1: 10.5, energy: 1.2, offtune: 2960, concerto: 8 });
@@ -21695,7 +21671,7 @@ var BA140 = rocciaAction("Basic - Pero, Easy 1", { node: 0, cast: 1, type: 4096,
 var BA240 = rocciaAction("Basic - Pero, Easy 2", { node: 0, cast: 1, type: 4096, mv: 114.42, energy: 1.71, concerto: 5.43, offtune: 5418, forte1: 33 });
 var BA337 = rocciaAction("Basic - Pero, Easy 3", { node: 0, cast: 1, type: 4096, mv: 169, energy: 2.5, concerto: 8, offtune: 8e3, forte1: 49 });
 var BA427 = rocciaAction("Basic - Pero, Easy 4", { node: 0, cast: 1, type: 4096, mv: 208.38, energy: 3.1, concerto: 9.88, offtune: 9864, forte1: 100 });
-var MA45 = rocciaAction("Mid-air - Pero, Easy", { node: 0, cast: 1, type: 4096, mv: 104.78, energy: 1.55, concerto: 4.96, offtune: 4960, forte1: 38 });
+var MA45 = rocciaAction("Mid-air - Pero, Easy Plunge", { node: 0, cast: 1, type: 4096, mv: 104.78, energy: 1.55, concerto: 4.96, offtune: 4960, forte1: 38 });
 var DC32 = rocciaAction("Dodge Counter - Pero, Easy", { node: 0, cast: 0, type: 4096, mv: 206.7, offtune: 4986, concerto: 15.01, energy: 1.56 });
 var HA31 = rocciaAction("Heavy - Pero, Easy", { node: 0, cast: 2, type: 8192, mv: 168.99, energy: 2.5, concerto: 8, offtune: 8e3, forte1: 100 });
 var Skill35 = rocciaAction("Skill - Acrobatic Trick", { node: 1, cast: 3, type: 12288, mv: 491.76, energy: 14, concerto: 20, offtune: 10992, forte1: 100 });
@@ -22038,7 +22014,7 @@ var BA_A4 = yangyangAction("Basic - Azure Sword Stance 4", {
   forte1: -48,
   updateDebuffs: () => applyEnemy(HAVOC_BANE, isHeld(XL_S3) ? 2 : 1)
 });
-var MA_A = yangyangAction("Mid-air - Azure Sword Stance", { node: 0, cast: 1, type: 4096, mv: 98.61, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: -12 });
+var MA_A = yangyangAction("Mid-air - Azure Sword Stance Plunge", { node: 0, cast: 1, type: 4096, mv: 98.61, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: -12 });
 var DC_A = yangyangAction("Dodge Counter - Azure Sword Stance 2", { node: 0, cast: 0, type: 4096, mv: 196.13, energy: 3.09, concerto: 16.18, offtune: 9865, forte1: -24 });
 var BA_F1 = yangyangAction("Basic - Feather Sword Stance 1", { node: 0, cast: 1, type: 4096, mv: 79.54, energy: 1.26, concerto: 2.5, offtune: 4e3, forte1: -12 });
 var BA_F2 = yangyangAction("Basic - Feather Sword Stance 2", { node: 0, cast: 1, type: 4096, mv: 100.68, energy: 1.59, concerto: 3.18, offtune: 5064, forte1: -24 });
@@ -22054,7 +22030,7 @@ var BA_F4 = yangyangAction("Basic - Feather Sword Stance 4", {
   forte1: -48,
   updateDebuffs: () => applyEnemy(HAVOC_BANE, isHeld(XL_S3) ? 2 : 1)
 });
-var MA_F = yangyangAction("Mid-air - Feather Sword Stance", { node: 0, cast: 1, type: 4096, mv: 98.61, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: -12 });
+var MA_F = yangyangAction("Mid-air - Feather Sword Stance Plunge", { node: 0, cast: 1, type: 4096, mv: 98.61, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: -12 });
 var DC_F = yangyangAction("Dodge Counter - Feather Sword Stance 2", { node: 0, cast: 0, type: 4096, mv: 196.11, energy: 3.09, concerto: 16.18, offtune: 9864, forte1: -24 });
 var SwitchAzure = yangyangAction("Skill - Sword Stance Switch: Azure", { node: 1, cast: 3, type: 8192, mv: 116.6, energy: 1.85, concerto: 3.67, offtune: 5865 });
 var SwitchFeather = yangyangAction("Skill - Sword Stance Switch: Feather", { node: 1, cast: 3, type: 8192, mv: 100.68, energy: 1.59, concerto: 3.18, offtune: 5064 });
@@ -22525,7 +22501,7 @@ var BA241 = jinhsiAction("Basic - Slash of Breaking Dawn 2", { node: 0, cast: 1,
 var BA338 = jinhsiAction("Basic - Slash of Breaking Dawn 3", { node: 0, cast: 1, type: 4096, mv: 106.49, energy: 2, concerto: 3.99, offtune: 6349 });
 var BA428 = jinhsiAction("Basic - Slash of Breaking Dawn 4", { node: 0, cast: 1, type: 4096, mv: 157.72, energy: 2.95, concerto: 5.89, offtune: 9400 });
 var HA34 = jinhsiAction("Heavy - Slash of Breaking Dawn", { node: 0, cast: 2, type: 8192, mv: 238.6, energy: 4, concerto: 8, offtune: 12800 });
-var MA46 = jinhsiAction("Mid-air - Slash of Breaking Dawn", { node: 0, cast: 1, type: 4096, mv: 123.28, energy: 0.54, concerto: 1, offtune: 4960 });
+var MA46 = jinhsiAction("Mid-air - Slash of Breaking Dawn Plunge", { node: 0, cast: 1, type: 4096, mv: 123.28, energy: 0.54, concerto: 1, offtune: 4960 });
 var DC33 = jinhsiAction("Dodge Counter - Slash of Breaking Dawn", { node: 0, cast: 0, type: 4096, mv: 146.78, energy: 2.78, concerto: 15.49, offtune: 8749 });
 var Skill36 = jinhsiAction("Skill - Trailing Lights of Eons", { node: 1, cast: 3, type: 12288, mv: 155.68, energy: 2.21, concerto: 4.38, offtune: 6960 });
 var Skill210 = jinhsiAction("Skill - Overflowing Radiance", {
@@ -22909,7 +22885,7 @@ var Skill38 = luukAction("Skill - Golden Reflux", { node: 1, cast: 3, type: 1228
 var Ring = luukAction("Skill - Aureole of Execution: Ring", { node: 1, cast: 3, type: 4096, mv: 221.33, energy: 8, concerto: 10, offtune: 10400, forte1: 32.5, ...AUREOLE });
 var Breach = luukAction("Skill - Aureole of Execution: Breach", { node: 1, cast: 3, type: 4096, mv: 287.73, energy: 8.01, concerto: 10.02, offtune: 10320, forte1: 32.25, ...AUREOLE });
 var Glare = luukAction("Skill - Aureole of Execution: Glare", { node: 1, cast: 3, type: 4096, mv: 354.11, energy: 6, concerto: 10, offtune: 7840, forte1: 24.5, ...AUREOLE });
-var GoldenImpale = luukAction("Basic - Golden Impale", { node: 1, cast: 1, type: 4096, mv: 155.47, energy: 2.3, concerto: 4.6, offtune: 7360, forte1: 23 });
+var GoldenImpale = luukAction("Basic - Golden Impale", { node: 1, cutscene: true, cast: 1, type: 4096, mv: 155.47, energy: 2.3, concerto: 4.6, offtune: 7360, forte1: 23 });
 var IchorDeposit = luukAction("Skill - Ichor Deposit", { node: 1, type: 4096, mv: 153.45 });
 var Gavel = luukAction("Mid-air - Gavel of Earthshaker", {
   node: 2,
@@ -23144,32 +23120,50 @@ var LK_ROTATION = new Rotation([
   START_3,
   Skill38,
   Liberation32,
-  ECHO_SWAP,
+  Skill38.swap(),
   SWAP,
   INTRO,
   MA232,
   Ring,
   GoldenImpale,
-  DODGE,
-  // TODO add dodge/jumps
   MA1233,
   Breach,
   GoldenImpale,
-  DODGE,
   MA1233,
   Glare,
   Gavel,
   Liberation32,
-  ECHO_SWAP,
+  Skill38.swap(),
   OUTRO
 ]);
-var LK_ECHOES = [
-  new EchoLoadout(NEBULOUS_CANNON, GILDED_REVELATION_5PC)
-];
+var LK_ROTATION_16s = new Rotation([
+  START_3,
+  Skill38,
+  Liberation32,
+  Skill38.swap(),
+  SWAP,
+  INTRO,
+  MA232,
+  Ring,
+  GoldenImpale,
+  MA1233,
+  Breach,
+  GoldenImpale,
+  MA1233,
+  Glare,
+  Gavel,
+  Liberation32,
+  MA113,
+  MA212,
+  Skill38.swap(),
+  OUTRO
+]);
 var LUUK = new Loadout({
   resonator: LUUK_RESONATOR,
   weapons: [DAYBREAKERS_SPINE, NEW_STD_GAUNTLET, ABYSS_SURGES],
-  echoLoadouts: LK_ECHOES,
+  echoLoadouts: [
+    new EchoLoadout(NEBULOUS_CANNON, GILDED_REVELATION_5PC)
+  ],
   mainstats: mainstatOptions(
     0,
     1,
@@ -23183,6 +23177,25 @@ var LUUK = new Loadout({
   rotation: LK_ROTATION,
   sequences: LK_SEQUENCES
 });
+var LUUK_16s = new Loadout({
+  resonator: LUUK_RESONATOR,
+  weapons: [DAYBREAKERS_SPINE, NEW_STD_GAUNTLET, ABYSS_SURGES],
+  echoLoadouts: [
+    new EchoLoadout(NEBULOUS_CANNON, GILDED_REVELATION_5PC)
+  ],
+  mainstats: mainstatOptions(
+    0,
+    1,
+    6,
+    13,
+    15
+    /* Mainstat.ATK1 */
+  ),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
+  rotation: LK_ROTATION_16s,
+  sequences: LK_SEQUENCES
+});
 
 // dist/src/resonators/spectro/lynae.js
 function lynaeAction(id, def2) {
@@ -23192,7 +23205,7 @@ var BA143 = lynaeAction("Basic - Chroma Drift 1", { node: 0, cast: 1, type: 4096
 var BA243 = lynaeAction("Basic - Chroma Drift 2", { node: 0, cast: 1, type: 4096, mv: 157.17, energy: 2.34, concerto: 8.37, offtune: 7440, forte1: 21 });
 var BA340 = lynaeAction("Basic - Chroma Drift 3", { node: 0, cast: 1, type: 4096, mv: 123.37, energy: 1.83, concerto: 6.57, offtune: 5840, forte1: 17 });
 var DC35 = lynaeAction("Dodge Counter - Chroma Drift", { node: 0, cast: 0, type: 4096, mv: 239.97, energy: 2.05, concerto: 17.38, offtune: 6560, forte1: 19 });
-var MA48 = lynaeAction("Mid-air - Chroma Drift", { node: 0, cast: 1, type: 4096, mv: 143.65, energy: 2.14, concerto: 7.66, offtune: 6800, forte1: 20 });
+var MA48 = lynaeAction("Mid-air - Chroma Drift Plunge", { node: 0, cast: 1, type: 4096, mv: 143.65, energy: 2.14, concerto: 7.66, offtune: 6800, forte1: 20 });
 var SparkCollision = lynaeAction("Basic - Spark Collision Lv. 3", { node: 0, cast: 1, type: 4096, mv: 555.56, energy: 8.22, concerto: 29.6, offtune: 26300, forte1: -120, forte2: 120 });
 var KBA1 = lynaeAction("Basic - Kaleidoscopic Parade 1", { node: 0, cast: 1, type: 4096, mv: 82.81, energy: 1.23, concerto: 4.41, offtune: 3920 });
 var KBA2 = lynaeAction("Basic - Kaleidoscopic Parade 2", { node: 0, cast: 1, type: 4096, mv: 77.74, energy: 1.16, concerto: 4.14, offtune: 3680 });
@@ -23416,198 +23429,17 @@ var build2 = (mode) => new Loadout({
 var LYNAE_RUPTURE = build2(MODE_RUPTURE2);
 var LYNAE_STRAIN = build2(MODE_STRAIN2);
 
-// dist/src/resonators/spectro/rover_spectro.js
-function roverAction3(id, def2) {
-  return new Action(id, { element: 320, scaling: 0, ...def2 });
-}
-var BA144 = roverAction3("Basic - Vibration Manifestation 1", { node: 0, cast: 1, type: 4096, mv: 59.15, energy: 0.5, concerto: 2, offtune: 2800, forte1: 3 });
-var BA244 = roverAction3("Basic - Vibration Manifestation 2", { node: 0, cast: 1, type: 4096, mv: 76.05, energy: 1, concerto: 4, offtune: 3600, forte1: 5 });
-var BA341 = roverAction3("Basic - Vibration Manifestation 3", { node: 0, cast: 1, type: 4096, mv: 76.05, energy: 1.5, concerto: 4, offtune: 3600, forte1: 5 });
-var BA430 = roverAction3("Basic - Vibration Manifestation 4", { node: 0, cast: 1, type: 4096, mv: 130.13, energy: 2, concerto: 6, offtune: 6160, forte1: 7 });
-var MA49 = roverAction3("Mid-air - Attack", { node: 0, cast: 1, type: 4096, mv: 104.78, energy: 0.51, concerto: 1, offtune: 4960 });
-var DC36 = roverAction3("Dodge Counter - Vibration Manifestation", { node: 0, cast: 0, type: 4096, mv: 195.34, energy: 2.62, concerto: 13.6, offtune: 3600 });
-var HA110 = roverAction3("Heavy - Attack", { node: 0, cast: 2, type: 8192, mv: 96.35, energy: 1.4, concerto: 4.55, offtune: 22800, forte1: 5 });
-var HA210 = roverAction3("Heavy - Resonance", { node: 0, cast: 2, type: 8192, mv: 76.05, energy: 1.12, concerto: 3.6, offtune: 3600 });
-var HA36 = roverAction3("Heavy - Aftertune", { node: 0, cast: 2, type: 8192, mv: 126.75, energy: 1.87, concerto: 6, offtune: 6e3, forte1: 45 });
-var Skill40 = roverAction3("Skill - Resonating Slashes", { node: 1, cast: 3, type: 12288, mv: 236.19, energy: 10, concerto: 10, offtune: 4800 });
-var FSkill13 = roverAction3("Forte Skill - Resonating Spin", {
-  node: 2,
-  cast: 3,
-  type: 12288,
-  mv: 258.16,
-  energy: 10,
-  concerto: 20,
-  offtune: 21840,
-  forte1: -50,
-  updateDebuffs: () => {
-    applyEnemy(SPECTRO_FRAZZLE, 2);
-    queue(ResonatingWhirl);
-  }
-});
-var ResonatingWhirl = roverAction3("Forte Skill - Resonating Whirl", { node: 2, type: 12288, mv: 39.77, energy: 2 });
-var FBA7 = roverAction3("Basic - Resonating Echoes", { node: 2, cast: 1, type: 12288, mv: 238.58, energy: 2.5, concerto: 8, offtune: 7200 });
-var Liberation34 = roverAction3("Liberation - Echoing Orchestra", {
-  node: 3,
-  cast: 4,
-  cutscene: true,
-  type: 16384,
-  mv: 874.77,
-  concerto: 20,
-  offtune: 61441,
-  resetEnergy: true,
-  updateDebuffs: () => {
-    applyCurrent(HEALS, 1);
-    applyEnemy(SPECTRO_FRAZZLE, 6);
-  }
-});
-var Intro44 = roverAction3("Intro - Waveshock", { node: 4, cast: 5, type: 20480, mv: 168.99, energy: 10, concerto: 10, offtune: 4880, forte1: 50 });
-var Outro45 = roverAction3("Outro - Instant", { cast: 6, concerto: -100, swapOut: true });
-var SPR_INHERENT_1 = new Inherent({
-  name: "Inherent: Reticence",
-  applyStats: () => {
-    if (runningAction(FBA7))
-      addStat(17, 60);
-  }
-  // TODO unsure if dmg bonus
-});
-var SILENT_LISTENER = new Buff({
-  name: "Inherent: Silent Listener",
-  stats: [[6, 15]],
-  until: 0
-});
-var SPR_INHERENT_2 = new Inherent({
-  name: "Inherent: Silent Listener",
-  grants: [{ on: onAction(HA210), buff: SILENT_LISTENER }]
-});
-var S1_CRIT2 = new Buff({
-  name: "Spectro Rover S1: Odyssey of Beginnings",
-  stats: [[9, 15]],
-  until: 0
-});
-var S6_RES_SHRED = new Debuff({
-  name: "Spectro Rover S6: Echoes of Wanderlust",
-  applyStats: () => addEnemyStat(
-    35,
-    10,
-    320
-    /* Attribute.Spectro */
-  ),
-  convertStats: () => {
-    if (casting(
-      5
-      /* Cast.Intro */
-    ) && isHeld(ROVER_SPECTRO_RESONATOR))
-      revokeEnemy(S6_RES_SHRED);
-  }
-});
-var SPR_S1 = new Sequence({
-  name: "Spectro Rover S1: Odyssey of Beginnings",
-  updateBuffs: () => {
-    if (runningAction(Skill40) || runningAction(FSkill13))
-      applyCurrent(S1_CRIT2, 1);
-  }
-});
-var SPR_S2 = new Sequence({
-  name: "Spectro Rover S2: Microcosmic Murmurs",
-  stats: [[
-    17,
-    20,
-    320
-    /* Attribute.Spectro */
-  ]]
-});
-var SPR_S3 = new Sequence({
-  name: "Spectro Rover S3: Visages of Dust",
-  stats: [[11, 20]]
-});
-var SPR_S4 = new Sequence({ name: "Spectro Rover S4: Resonating Lamella" });
-var SPR_S5 = new Sequence({
-  name: "Spectro Rover S5: Temporal Virtuoso",
-  stats: [[
-    17,
-    40,
-    16384
-    /* Type1.Liberation */
-  ]]
-});
-var SPR_S6 = new Sequence({
-  name: "Spectro Rover S6: Echoes of Wanderlust",
-  updateBuffs: () => {
-    if (runningAction(Skill40) || runningAction(FSkill13))
-      applyEnemy(S6_RES_SHRED, 1);
-  }
-});
-var ROVER_SPECTRO_TALENTS = new Talent({
-  name: "Spectro Rover: Talents",
-  stats: [[6, 12], [
-    17,
-    12,
-    320
-    /* Attribute.Spectro */
-  ]]
-});
-var ROVER_SPECTRO_RESONATOR = new Resonator({
-  name: "Spectro Rover",
-  talent: ROVER_SPECTRO_TALENTS,
-  inherent1: SPR_INHERENT_1,
-  inherent2: SPR_INHERENT_2,
-  element: 320,
-  weapon: 0,
-  intro: () => Intro44,
-  outro: () => Outro45,
-  color: "#e8d98f",
-  maxEnergy: 125,
-  maxForte1: 100,
-  tier: 2,
-  stats: [[1, 11400], [0, 375], [2, 1369]]
-});
-var SPR_ROTATION = new Rotation([
-  INTRO,
-  HA110,
-  HA210,
-  HA36,
-  FSkill13,
-  FBA7,
-  HA110,
-  HA210,
-  HA36,
-  FSkill13,
-  Liberation34,
-  ECHO_SWAP,
-  OUTRO
-]);
-var ROVER_SPECTRO = new Loadout({
-  resonator: ROVER_SPECTRO_RESONATOR,
-  weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, RED_SPRING],
-  echoLoadouts: [
-    new EchoLoadout(FALLACY, REJUV_5PC),
-    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)
-  ],
-  mainstats: mainstatOptions(
-    0,
-    1,
-    6,
-    13,
-    15
-    /* Mainstat.ATK1 */
-  ),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Skill),
-  rotation: SPR_ROTATION,
-  sequences: [SPR_S1, SPR_S2, SPR_S3, SPR_S4, SPR_S5, SPR_S6]
-});
-
 // dist/src/resonators/spectro/shorekeeper.js
 function skAction(id, def2) {
   return new Action(id, { element: 320, scaling: 0, ...def2 });
 }
-var BA145 = skAction("Basic - Origin Calculus 1", { node: 0, cast: 1, type: 4096, mv: 31.78, energy: 0.5, concerto: 1.6, offtune: 2664, forte1: 1 });
-var BA245 = skAction("Basic - Origin Calculus 2", { node: 0, cast: 1, type: 4096, mv: 47.72, energy: 0.76, concerto: 2.4, offtune: 4e3, forte1: 1 });
-var BA346 = skAction("Basic - Origin Calculus 3", { node: 0, cast: 1, type: 4096, mv: 69.96, energy: 1.11, concerto: 3.54, offtune: 5865, forte1: 2 });
-var MA50 = skAction("Mid-air - Origin Calculus", { node: 0, cast: 1, type: 4096, mv: 73.96, energy: 1.55, concerto: 5, offtune: 4960, forte1: 1 });
-var Skill41 = skAction("Skill - Chaos Theory", { node: 1, cast: 3, cutscene: true, type: 12288, mv: 156.55, energy: 10, concerto: 30, offtune: 5250 });
+var BA144 = skAction("Basic - Origin Calculus 1", { node: 0, cast: 1, type: 4096, mv: 31.78, energy: 0.5, concerto: 1.6, offtune: 2664, forte1: 1 });
+var BA244 = skAction("Basic - Origin Calculus 2", { node: 0, cast: 1, type: 4096, mv: 47.72, energy: 0.76, concerto: 2.4, offtune: 4e3, forte1: 1 });
+var BA341 = skAction("Basic - Origin Calculus 3", { node: 0, cast: 1, type: 4096, mv: 69.96, energy: 1.11, concerto: 3.54, offtune: 5865, forte1: 2 });
+var MA49 = skAction("Mid-air - Origin Calculus Plunge", { node: 0, cast: 1, type: 4096, mv: 73.96, energy: 1.55, concerto: 5, offtune: 4960, forte1: 1 });
+var Skill40 = skAction("Skill - Chaos Theory", { node: 1, cast: 3, cutscene: true, type: 12288, mv: 156.55, energy: 10, concerto: 30, offtune: 5250 });
 var FHA16 = skAction("Forte Heavy - Illation", { node: 2, cast: 2, cutscene: true, type: 8192, mv: 281.3, energy: 4.95, concerto: 11, offtune: 6360, forte1: -5 });
-var Liberation35 = skAction("Liberation - End Loop", {
+var Liberation34 = skAction("Liberation - End Loop", {
   node: 3,
   cast: 4,
   cutscene: true,
@@ -23621,7 +23453,7 @@ var Liberation35 = skAction("Liberation - End Loop", {
     applyTeam(SK_REALM, 1);
   }
 });
-var Intro45 = skAction("Intro - Enlightenment", { node: 4, cast: 5, type: 12288, mv: 226.5, energy: 10, concerto: 20, offtune: 11395 });
+var Intro44 = skAction("Intro - Enlightenment", { node: 4, cast: 5, type: 12288, mv: 226.5, energy: 10, concerto: 20, offtune: 11395 });
 var EIntro7 = skAction("Intro - Discernment", {
   node: 4,
   cast: 5,
@@ -23643,7 +23475,7 @@ var EIntro7 = skAction("Intro - Discernment", {
       revokeBuff(rover, SK_ROVER_GRAVITATION);
   }
 });
-var Outro46 = skAction("Outro - Binary Butterfly", {
+var Outro45 = skAction("Outro - Binary Butterfly", {
   cast: 6,
   concerto: -100,
   swapOut: true,
@@ -23714,14 +23546,14 @@ var SK_S2 = new Sequence({
 var SK_S3 = new Sequence({
   name: "Shorekeeper S3: Infinity Awaits Me",
   applyStats: () => {
-    if (runningAction(Liberation35))
+    if (runningAction(Liberation34))
       addStat(27, 20);
   }
 });
 var SK_S4 = new Sequence({
   name: "Shorekeeper S4: Overflowing Quietude",
   applyStats: () => {
-    if (runningAction(Skill41))
+    if (runningAction(Skill40))
       addStat(24, 70);
   }
 });
@@ -23755,68 +23587,68 @@ var SHOREKEEPER_RESONATOR = new Resonator({
   maxEnergy: 175,
   maxForte1: 5,
   // reads SK_REALM's own live stack count, already stepped by the preceding outro
-  intro: () => stacksOfTeam(SK_REALM) >= 3 ? EIntro7 : Intro45,
-  outro: () => Outro46,
+  intro: () => stacksOfTeam(SK_REALM) >= 3 ? EIntro7 : Intro44,
+  outro: () => Outro45,
   updateDebuffs: () => {
-    if (runningAction(Skill41) || runningAction(Liberation35) || runningAction(Intro45) || runningAction(EIntro7))
+    if (runningAction(Skill40) || runningAction(Liberation34) || runningAction(Intro44) || runningAction(EIntro7))
       applyCurrent(HEALS, 1);
   }
 });
-var BA12310 = new ActionGroup("Basic - Origin Calculus 123", [BA145, BA245, BA346]);
-var BA2311 = new ActionGroup("Basic - Origin Calculus 23", [BA245, BA346]);
-var BA1210 = new ActionGroup("Basic - Origin Calculus 12", [BA145, BA245]);
+var BA12310 = new ActionGroup("Basic - Origin Calculus 123", [BA144, BA244, BA341]);
+var BA2311 = new ActionGroup("Basic - Origin Calculus 23", [BA244, BA341]);
+var BA1210 = new ActionGroup("Basic - Origin Calculus 12", [BA144, BA244]);
 var SK_LOOP = new Rotation([
   START_3,
-  Skill41,
-  Liberation35,
+  Skill40,
+  Liberation34,
   ECHO_SWAP,
   SWAP,
   NOINTRO,
   BA12310,
   JUMP,
-  MA50,
+  MA49,
   FHA16,
-  Skill41,
+  Skill40,
   BA2311,
   DODGE,
   BA1210,
   FHA16,
-  Liberation35,
+  Liberation34,
   ECHO_SWAP,
   OUTRO,
   INTRO,
   BA12310,
   JUMP,
-  MA50,
+  MA49,
   FHA16,
   START_2,
-  Skill41,
+  Skill40,
   SWAP,
-  Liberation35,
+  Liberation34,
   ECHO_SWAP,
   OUTRO
 ]);
 var SK_LOOP_S3 = new Rotation([
   START_3,
-  Skill41,
-  Liberation35,
+  Skill40,
+  Liberation34,
   ECHO_SWAP,
   SWAP,
   NOINTRO,
   BA12310,
   JUMP,
-  MA50,
+  MA49,
   FHA16,
-  Skill41,
-  Liberation35,
+  Skill40,
+  Liberation34,
   ECHO_SWAP,
   OUTRO,
   INTRO,
-  BA145,
+  BA144,
   START_2,
-  Skill41,
+  Skill40,
   SWAP,
-  Liberation35,
+  Liberation34,
   ECHO_SWAP,
   OUTRO
 ]);
@@ -23851,18 +23683,18 @@ var SHOREKEEPER = new Loadout({
 function verinaAction(id, def2) {
   return new Action(id, { element: 320, scaling: 0, ...def2 });
 }
-var BA146 = verinaAction("Basic - Cultivation 1", { node: 0, cast: 1, type: 4096, mv: 37.86, energy: 0.95, concerto: 3.04, offtune: 7600 });
-var BA246 = verinaAction("Basic - Cultivation 2", { node: 0, cast: 1, type: 4096, mv: 51.16, energy: 1.28, concerto: 4.11, offtune: 10200 });
-var BA347 = verinaAction("Basic - Cultivation 3", { node: 0, cast: 1, type: 4096, mv: 51.16, energy: 1.28, concerto: 4.11, offtune: 10200 });
-var BA431 = verinaAction("Basic - Cultivation 4", { node: 0, cast: 1, type: 4096, mv: 67.32, energy: 1.69, concerto: 5.41, offtune: 13600 });
+var BA145 = verinaAction("Basic - Cultivation 1", { node: 0, cast: 1, type: 4096, mv: 37.86, energy: 0.95, concerto: 3.04, offtune: 7600 });
+var BA245 = verinaAction("Basic - Cultivation 2", { node: 0, cast: 1, type: 4096, mv: 51.16, energy: 1.28, concerto: 4.11, offtune: 10200 });
+var BA346 = verinaAction("Basic - Cultivation 3", { node: 0, cast: 1, type: 4096, mv: 51.16, energy: 1.28, concerto: 4.11, offtune: 10200 });
+var BA430 = verinaAction("Basic - Cultivation 4", { node: 0, cast: 1, type: 4096, mv: 67.32, energy: 1.69, concerto: 5.41, offtune: 13600 });
 var BA55 = verinaAction("Basic - Cultivation 5", { node: 0, cast: 1, type: 4096, mv: 71.62, energy: 1.8, concerto: 5.76, offtune: 14400, forte1: 1 });
-var HA37 = verinaAction("Heavy - Cultivation", { node: 0, cast: 2, type: 8192, mv: 99.41, energy: 2.5, concerto: 8, offtune: 2e4 });
+var HA36 = verinaAction("Heavy - Cultivation", { node: 0, cast: 2, type: 8192, mv: 99.41, energy: 2.5, concerto: 8, offtune: 2e4 });
 var MA114 = verinaAction("Mid-air - Cultivation 1", { node: 0, cast: 1, type: 4096, mv: 56.37, energy: 1.41, concerto: 4.53, offtune: 11340 });
 var MA213 = verinaAction("Mid-air - Cultivation 2", { node: 0, cast: 1, type: 4096, mv: 53.19, energy: 1.33, concerto: 4.28, offtune: 10700 });
 var MA311 = verinaAction("Mid-air - Cultivation 3", { node: 0, cast: 1, type: 4096, mv: 76.26, energy: 1.89, concerto: 6.12, offtune: 15342 });
 var MHA3 = verinaAction("Heavy - Cultivation (Mid-air)", { node: 0, cast: 2, type: 8192, mv: 61.64, energy: 0.51, concerto: 1, offtune: 12400 });
-var DC37 = verinaAction("Dodge Counter - Cultivation", { node: 0, cast: 0, type: 4096, mv: 129.23, energy: 3.25, concerto: 15.6, offtune: 14e3 });
-var Skill43 = verinaAction("Skill - Botany Experiment", { node: 1, cast: 3, type: 12288, mv: 178.95, energy: 15, concerto: 30, offtune: 26600, forte1: 1 });
+var DC36 = verinaAction("Dodge Counter - Cultivation", { node: 0, cast: 0, type: 4096, mv: 129.23, energy: 3.25, concerto: 15.6, offtune: 14e3 });
+var Skill41 = verinaAction("Skill - Botany Experiment", { node: 1, cast: 3, type: 12288, mv: 178.95, energy: 15, concerto: 30, offtune: 26600, forte1: 1 });
 var STARFLOWER_CONCERTO = { updateDebuffs: () => {
   addStat(27, 12);
   applyCurrent(HEALS, 1);
@@ -23871,7 +23703,7 @@ var StarflowerHeavy = verinaAction("Forte Heavy - Starflower Blooms", { node: 2,
 var ForteMidair1 = verinaAction("Forte Mid-air - Starflower Blooms 1", { node: 2, cast: 1, type: 4096, mv: 67.64, energy: 1.41, concerto: 4.53, offtune: 11340, forte1: -1, ...STARFLOWER_CONCERTO });
 var ForteMidair2 = verinaAction("Forte Mid-air - Starflower Blooms 2", { node: 2, cast: 1, type: 4096, mv: 63.82, energy: 1.33, concerto: 4.28, offtune: 10700, forte1: -1, ...STARFLOWER_CONCERTO });
 var ForteMidair3 = verinaAction("Forte Mid-air - Starflower Blooms 3", { node: 2, cast: 1, type: 4096, mv: 30.5 * 3, energy: 1.89, concerto: 6.12, offtune: 15342, forte1: -1, ...STARFLOWER_CONCERTO });
-var Liberation36 = verinaAction("Liberation - Arboreal Flourish", {
+var Liberation35 = verinaAction("Liberation - Arboreal Flourish", {
   node: 3,
   cast: 4,
   cutscene: true,
@@ -23890,8 +23722,8 @@ var PhotosynthesisTick = verinaAction("Liberation - Photosynthesis Mark", {
   field: PHOTOSYNTHESIS_FIELD
 });
 var S6Tick = PhotosynthesisTick.variant("Liberation - Photosynthesis Mark", { field: null });
-var Intro46 = verinaAction("Intro - Verdant Growth", { node: 4, cast: 5, type: 20480, mv: 99.41, energy: 10, concerto: 10, offtune: 11230, forte1: 1 });
-var Outro47 = verinaAction("Outro - Blossom", {
+var Intro45 = verinaAction("Intro - Verdant Growth", { node: 4, cast: 5, type: 20480, mv: 99.41, energy: 10, concerto: 10, offtune: 11230, forte1: 1 });
+var Outro46 = verinaAction("Outro - Blossom", {
   cast: 6,
   concerto: -100,
   swapOut: true,
@@ -23913,7 +23745,7 @@ var GIFT_OF_NATURE = new Buff({
 var VR_INHERENT_1 = new Inherent({
   name: "Inherent: Gift of Nature",
   updateBuffs: () => {
-    if (runningAction(StarflowerHeavy) || runningAction(ForteMidair1) || runningAction(Liberation36) || runningAction(Outro47))
+    if (runningAction(StarflowerHeavy) || runningAction(ForteMidair1) || runningAction(Liberation35) || runningAction(Outro46))
       applyTeam(GIFT_OF_NATURE, 1);
   }
 });
@@ -23926,7 +23758,7 @@ var PHOTOSYNTHESIS_MARK = coordinatedBuff("Verina: Photosynthesis Mark", 12, () 
 var VERINA_S2 = new Sequence({
   name: "Verina S2: Sprouting Reflections",
   applyStats: () => {
-    if (runningAction(Skill43)) {
+    if (runningAction(Skill41)) {
       addStat(30, 1);
       addStat(27, 10);
     }
@@ -23935,7 +23767,7 @@ var VERINA_S2 = new Sequence({
 var VERINA_S4 = new Sequence({
   name: "Verina S4: Blossoming Embrace",
   updateBuffs: () => {
-    if (runningAction(StarflowerHeavy) || runningAction(ForteMidair1) || runningAction(Liberation36) || runningAction(Outro47))
+    if (runningAction(StarflowerHeavy) || runningAction(ForteMidair1) || runningAction(Liberation35) || runningAction(Outro46))
       applyTeam(S4_TEAM2, 1);
   }
 });
@@ -23973,32 +23805,32 @@ var VERINA_RESONATOR = new Resonator({
   inherent2: VR_INHERENT_2,
   element: 320,
   weapon: 4,
-  intro: () => Intro46,
-  outro: () => Outro47,
+  intro: () => Intro45,
+  outro: () => Outro46,
   color: "#cfee7a",
   maxEnergy: 175,
   // her own real 175%, not the generic 125% default — matches Shorekeeper's own
   maxForte1: 4,
   tier: 1,
   updateDebuffs: () => {
-    if (runningAction(StarflowerHeavy) || runningAction(ForteMidair1) || runningAction(ForteMidair2) || runningAction(ForteMidair3) || runningAction(Liberation36) || runningAction(PhotosynthesisTick) || runningAction(S6Tick) || runningAction(Outro47))
+    if (runningAction(StarflowerHeavy) || runningAction(ForteMidair1) || runningAction(ForteMidair2) || runningAction(ForteMidair3) || runningAction(Liberation35) || runningAction(PhotosynthesisTick) || runningAction(S6Tick) || runningAction(Outro46))
       applyCurrent(HEALS, 1);
   }
 });
-var BA3452 = new ActionGroup("Basic - Cultivation 345", [BA347, BA431, BA55]);
+var BA3452 = new ActionGroup("Basic - Cultivation 345", [BA346, BA430, BA55]);
 var VR_LOOP = new Rotation([
   NOINTRO,
   BA3452,
-  Liberation36,
-  Skill43,
+  Liberation35,
+  Skill41,
   JUMP,
   ForteMidair1,
   ForteMidair2,
   ECHO_SWAP,
   OUTRO,
   INTRO,
-  Liberation36,
-  Skill43,
+  Liberation35,
+  Skill41,
   JUMP,
   ForteMidair1,
   ForteMidair2,
@@ -24007,16 +23839,16 @@ var VR_LOOP = new Rotation([
 ]);
 var VR_S2 = new Rotation([
   NOINTRO,
-  Liberation36,
-  Skill43,
+  Liberation35,
+  Skill41,
   JUMP,
   ForteMidair1,
   ForteMidair2,
   ECHO_SWAP,
   OUTRO,
   INTRO,
-  Liberation36,
-  Skill43,
+  Liberation35,
+  Skill41,
   JUMP,
   ForteMidair1,
   ForteMidair2,
@@ -24049,195 +23881,135 @@ var VERINA = new Loadout({
 });
 
 // dist/src/teams.js
-var INTENDED = [];
+var INTERCHANGEABLE = /* @__PURE__ */ new Set([SHOREKEEPER, MORNYE, SUISUI, BULING, VERINA, ROVER_AERO]);
 var TEAMS = [
   // suoming mdps, electro basic unison
-  INTENDED,
   [[SHOREKEEPER], [JINHSI_SUPPORT], SUOMING_MDPS],
-  INTENDED,
-  [[SHOREKEEPER], [SANHUA], SUOMING_MDPS_DOUBLE],
-  INTENDED,
-  [[SHOREKEEPER, MORNYE], [LYNAE_RUPTURE], SUOMING_MDPS],
-  INTENDED,
-  [[SHOREKEEPER], [AUGUSTA], SUOMING],
-  [[VERINA, MORNYE, SUISUI], [SANHUA, LYNAE_RUPTURE, REBECCA, JINHSI_SUPPORT], SUOMING_MDPS],
-  // dual dps long rot
-  // [[SHOREKEEPER, VERINA, BULING, MORNYE, SUISUI], [SUOMING_MDPS], [JINHSI]],
+  [[SHOREKEEPER, VERINA, MORNYE], [SANHUA], SUOMING_MDPS_DOUBLE],
+  [[SHOREKEEPER, VERINA, MORNYE], [JINHSI_SUPPORT], SUOMING_MDPS],
+  [[MORNYE], [LYNAE_RUPTURE], SUOMING_MDPS],
+  [[MORNYE], [REBECCA], SUOMING_MDPS],
   // hsin, Unison mode: Suoming or Jinhsi behind her hands over the Unison her Intro answers
-  INTENDED,
-  [[SHOREKEEPER], [SUOMING], HSIN_UNISON],
-  INTENDED,
+  [[SHOREKEEPER, VERINA, MORNYE, SUISUI, BULING], [SUOMING], HSIN_UNISON],
   [[SUOMING], HSIN_UNISON, [JINHSI_SUPPORT]],
-  [[VERINA, MORNYE, SUISUI, PHROLO_10s, BULING], [SUOMING], HSIN_UNISON],
   // hsin (Electro Flare mode): electro skill flare
-  INTENDED,
   [[SUISUI, BULING, CHISA], [ROVER_ELECTRO], HSIN_FLARE],
-  [[SHOREKEEPER, MORNYE, SUISUI, BULING, CHISA], [LYNAE_RUPTURE, REBECCA, CHISA], HSIN_FLARE],
+  [[SUISUI, SHOREKEEPER, MORNYE, BULING, CHISA], [CHISA], HSIN_FLARE],
+  [[MORNYE], [LYNAE_RUPTURE], HSIN_FLARE],
+  [[MORNYE], [REBECCA], HSIN_FLARE],
   // jinhsi: spectro skill
-  INTENDED,
-  [[SHOREKEEPER, VERINA], [ZHEZHI, CANTARELLA, SUOMING, HSIN_UNISON, YINLIN], JINHSI],
-  [[MORNYE, SUISUI, SHOREKEEPER, VERINA, BULING], [LYNAE_RUPTURE, REBECCA, ZHEZHI, CANTARELLA, SUOMING, HSIN_UNISON, YINLIN], JINHSI],
+  [[SHOREKEEPER, MORNYE, SUISUI, VERINA, BULING], [ZHEZHI, CANTARELLA, SUOMING, HSIN_UNISON, YINLIN], JINHSI],
+  [[MORNYE], [LYNAE_RUPTURE], JINHSI],
+  [[MORNYE], [REBECCA], JINHSI],
   // electro rover mdps: Apex Resonance, the Thrum of All Sounds chains
-  INTENDED,
-  [[BULING, CHISA, SHOREKEEPER, MORNYE], [LYNAE_RUPTURE], ROVER_ELECTRO_MDPS],
-  [[BULING, CHISA, SHOREKEEPER, VERINA, MORNYE, SUISUI], [LYNAE_RUPTURE, REBECCA], ROVER_ELECTRO_MDPS],
+  [[MORNYE, SHOREKEEPER, CHISA, BULING, VERINA, SUISUI], [LYNAE_RUPTURE], ROVER_ELECTRO_MDPS],
+  [[MORNYE], [REBECCA], ROVER_ELECTRO_MDPS],
   // jingran: fusion heavy shielder
-  INTENDED,
-  [[SHOREKEEPER], [IUNO, MORTEFI], JINGRAN],
-  INTENDED,
   [[LUPA], [MORTEFI, BRANT], JINGRAN],
-  INTENDED,
-  [[MORNYE], [LUPA, REBECCA], JINGRAN],
-  [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [IUNO, MORTEFI, REBECCA, LYNAE_RUPTURE, LUPA], JINGRAN],
+  [[SHOREKEEPER, VERINA, MORNYE, SUISUI, LUPA], [IUNO, MORTEFI], JINGRAN],
+  [[MORNYE, SHOREKEEPER, VERINA, SUISUI, LUPA], [LUPA, REBECCA], JINGRAN],
+  [[MORNYE], [LYNAE_RUPTURE], JINGRAN],
   // qingxiao: aero heavy/basic/liberation on tune strain
-  INTENDED,
-  [[MORNYE, SHOREKEEPER], [DENIA_STRAIN, LYNAE_STRAIN, SANHUA, MORTEFI], QINGXIAO],
   [[MORNYE, SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA], [DENIA_STRAIN, LYNAE_STRAIN, ROVER_AERO, CIACCONA, SANHUA, MORTEFI, REBECCA, JIANXIN], QINGXIAO],
   // xuanling: havoc heavy attack on Havoc Bane — Chisa's +3 to every Negative Status cap is what
   // takes Unbroken Vow off its 3-stack 30% tier onto the 4-6 stack 36% one
-  INTENDED,
-  [[SUISUI, CHISA], [MORTEFI, REBECCA, IUNO, PHROLO_10s, CHISA], XUANLING],
-  [[MORNYE, VERINA, SHOREKEEPER, SUISUI, CHISA], [MORTEFI, REBECCA, LYNAE_RUPTURE, IUNO, PHROLO_10s, ROVER_ELECTRO], XUANLING],
+  [[SUISUI, CHISA, VERINA, SHOREKEEPER], [MORTEFI, REBECCA, IUNO, PHRO_10s, CHISA], XUANLING],
   // lucy: spectro heavy on tune hack, with rebecca feeding her the outro
-  INTENDED,
-  [[MORNYE, SHOREKEEPER], [REBECCA], LUCY],
-  [[VERINA, SUISUI, MORNYE], [REBECCA, MORTEFI, LYNAE_RUPTURE], LUCY],
+  [[MORNYE, SHOREKEEPER, VERINA], [REBECCA, LYNAE_RUPTURE, MORTEFI], LUCY],
   // hiyuki: glacio chafe/bite — every stack the team lands calculates at the target's own limit,
   // which is why Chisa (+3 to it) and Lucilla's Chafe build stand behind her
-  INTENDED,
-  [[SUISUI, CHISA], [LUCILLA_CHAFE, LYNAE_RUPTURE], HIYUKI],
-  INTENDED,
-  [[MORNYE], [LYNAE_RUPTURE], HIYUKI],
-  [[SUISUI, VERINA, SHOREKEEPER, MORNYE, CHISA], [LUCILLA_CHAFE, CHISA, LYNAE_RUPTURE, JIANXIN, ROVER_ELECTRO, ZHEZHI], HIYUKI],
-  [PHROLO_10s, [LUCILLA], HIYUKI],
-  [[SUISUI], PHROLO_10s, HIYUKI],
+  [[SUISUI], PHRO_10s, HIYUKI],
   [[SUISUI], CARLOTTA, HIYUKI],
+  [PHRO_10s, [LUCILLA], HIYUKI],
   [HIYUKI, CARLOTTA, [LUCILLA_CHAFE]],
+  [[SUISUI, CHISA, MORNYE, VERINA, SHOREKEEPER], [LUCILLA_CHAFE, LYNAE_RUPTURE, CHISA, JIANXIN, ROVER_ELECTRO], HIYUKI],
   // sigrika: aero + echo
-  INTENDED,
-  [[PHROLO_10s], [QIUYUAN, LUCILLA], SIGRIKA_FAST],
-  INTENDED,
-  [[SHOREKEEPER], [QIUYUAN, LUCILLA], SIGRIKA],
-  INTENDED,
-  [[CIACCONA], [QIUYUAN], SIGRIKA],
-  INTENDED,
-  [[QIUYUAN], [LUCILLA], SIGRIKA_FAST],
-  [[SHOREKEEPER, VERINA, MORNYE], [QIUYUAN, LUCILLA, CANTARELLA, ROVER_AERO, CIACCONA, LYNAE_RUPTURE], SIGRIKA],
-  [[CIACCONA, ROVER_AERO, SUISUI], [QIUYUAN, LUCILLA, CANTARELLA, ROVER_AERO, CIACCONA, LYNAE_RUPTURE], SIGRIKA_FAST],
+  [[PHRO_10s, QIUYUAN], [QIUYUAN, LUCILLA], SIGRIKA_FAST],
   [[QIUYUAN], SIGRIKA, [IUNO]],
+  [[MORNYE], [LYNAE_RUPTURE], SIGRIKA_FAST],
+  [[CIACCONA], [QIUYUAN, LUCILLA], SIGRIKA_FAST],
+  [[SHOREKEEPER, VERINA], [LUCILLA, CANTARELLA, ROVER_AERO], SIGRIKA_FAST],
+  [[SHOREKEEPER, VERINA], [QIUYUAN, CIACCONA], SIGRIKA],
   // luuk: spectro basic, tune strain
-  INTENDED,
-  [[SHOREKEEPER, MORNYE], [LYNAE_STRAIN, SANHUA, DENIA_STRAIN], LUUK],
-  [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [LYNAE_STRAIN, SANHUA, DENIA_STRAIN, ROVER_SPECTRO], LUUK],
+  [[VERINA], [LYNAE_STRAIN], LUUK_16s],
+  [[MORNYE, SHOREKEEPER, VERINA], [SANHUA, DENIA_STRAIN], LUUK_16s],
+  [[MORNYE, SHOREKEEPER], [LYNAE_STRAIN], LUUK],
   // aemeath: fusion liberation on tune rupture — Mornye and Lynae answer the break beside her
-  INTENDED,
-  [[MORNYE], [LYNAE_RUPTURE, CHANGLI, LUPA], AEMEATH_RUPTURE],
-  INTENDED,
-  [[LUPA], [CHANGLI], AEMEATH_RUPTURE],
-  // TODO CHECK
-  [[SHOREKEEPER, VERINA, MORNYE, LUPA], [LYNAE_RUPTURE, LUPA, CHANGLI, JIANXIN], AEMEATH_RUPTURE],
-  [[MORNYE, LUPA], [BRANT], AEMEATH_RUPTURE],
+  [[MORNYE, SHOREKEEPER, VERINA], [LYNAE_RUPTURE, CHANGLI, LUPA], AEMEATH_RUPTURE],
+  [[MORNYE], [JIANXIN, DENIA_BURST], AEMEATH_RUPTURE],
+  [[LUPA], [LYNAE_RUPTURE, CHANGLI, JIANXIN, BRANT], AEMEATH_RUPTURE],
   [[DENIA_BURST], [LYNAE_RUPTURE], AEMEATH_RUPTURE],
-  [[MORNYE], [DENIA_BURST], AEMEATH_RUPTURE],
   // aemeath: fusion liberation on fusion burst — Denia's Burst mode feeds the stacks and amplifies
-  INTENDED,
   [[SUISUI, CHISA], [DENIA_BURST], AEMEATH_BURST],
-  INTENDED,
   [[DENIA_BURST], [LYNAE_RUPTURE, CHANGLI, LUPA], AEMEATH_BURST],
-  [[SHOREKEEPER, VERINA, MORNYE, LUPA, DENIA_BURST, CHISA, SUISUI], [DENIA_BURST, LUPA, JIANXIN, ROVER_ELECTRO], AEMEATH_BURST],
-  // monofus needs lupa or denia
-  [[LUPA, DENIA_BURST], [CHANGLI, BRANT], AEMEATH_BURST],
-  // lynae rupture only with denia burst 3rd slot
-  [[DENIA_BURST], [LYNAE_RUPTURE], AEMEATH_BURST],
+  [[LUPA], [CHANGLI, BRANT], AEMEATH_BURST],
+  [[SUISUI, SHOREKEEPER, VERINA, LUPA, DENIA_BURST, CHISA, MORNYE], [DENIA_BURST, LUPA, JIANXIN, ROVER_ELECTRO], AEMEATH_BURST],
   // qiuyuan: aero heavy echo
-  INTENDED,
-  [[SHOREKEEPER], [MORTEFI, IUNO, REBECCA], QIUYUAN_MDPS],
-  [[SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA, MORNYE, SUISUI], [MORTEFI, IUNO, CIACCONA, LYNAE_RUPTURE, REBECCA, ROVER_AERO, LUCILLA], QIUYUAN_MDPS],
-  [[SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA, MORNYE, SUISUI], PHROLO_10s, QIUYUAN_MDPS],
+  [[SHOREKEEPER, VERINA, CIACCONA, MORNYE, SUISUI], [MORTEFI, IUNO, CIACCONA, LUCILLA], QIUYUAN_MDPS],
+  [[MORNYE, SHOREKEEPER, VERINA, CIACCONA, SUISUI], [REBECCA, LYNAE_RUPTURE], QIUYUAN_MDPS],
+  [[SHOREKEEPER, VERINA], PHRO_10s, QIUYUAN_MDPS],
   // galbrena: fusion echo and heavy
-  INTENDED,
-  [[SHOREKEEPER], [QIUYUAN, LUCILLA], GALBRENA],
-  INTENDED,
-  [[LUPA], [MORTEFI, GALBRENA], GALBRENA],
-  INTENDED,
-  [[MORNYE], [LUPA], GALBRENA],
-  [[SHOREKEEPER, VERINA, LUPA, QIUYUAN, MORNYE, DENIA_BURST], [QIUYUAN, LUCILLA], GALBRENA],
-  [[PHROLO_10s], [QIUYUAN, LUCILLA], GALBRENA],
-  [[SHOREKEEPER, VERINA, LUPA, MORNYE, DENIA_BURST, SUISUI], [BRANT, MORTEFI, IUNO, LUPA, LYNAE_RUPTURE, REBECCA], GALBRENA],
+  [[SHOREKEEPER, VERINA, MORNYE, SUISUI, LUPA], [BRANT, MORTEFI, IUNO, QIUYUAN, LUCILLA], GALBRENA],
+  [[MORNYE, SHOREKEEPER, VERINA, SUISUI, DENIA_BURST], [LUPA], GALBRENA],
+  [[MORNYE, SHOREKEEPER, VERINA, SUISUI, DENIA_BURST], [REBECCA], GALBRENA],
+  [[MORNYE], [LYNAE_RUPTURE], GALBRENA],
   // iuno mdps: aero + echo
-  INTENDED,
-  [[SHOREKEEPER, MORNYE], [LYNAE_RUPTURE], IUNO_MDPS],
-  INTENDED,
   [[CIACCONA], [JIANXIN], IUNO_MDPS],
-  [[SHOREKEEPER, ROVER_AERO, CIACCONA, VERINA, MORNYE, SUISUI], [ROVER_AERO, CIACCONA, LYNAE_RUPTURE, JIANXIN], IUNO_MDPS],
+  [[SHOREKEEPER, ROVER_AERO, CIACCONA, VERINA, MORNYE, SUISUI], [ROVER_AERO, CIACCONA, JIANXIN], IUNO_MDPS],
+  [[MORNYE, SHOREKEEPER, ROVER_AERO, CIACCONA, VERINA, SUISUI], [LYNAE_RUPTURE], IUNO_MDPS],
   // augusta: electro heavy shielder
-  INTENDED,
-  [[SHOREKEEPER], [IUNO, MORTEFI, REBECCA], AUGUSTA],
-  [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [IUNO, MORTEFI, LYNAE_RUPTURE, REBECCA], AUGUSTA],
+  [[SHOREKEEPER], [AUGUSTA], SUOMING],
+  [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [IUNO, MORTEFI], AUGUSTA],
+  [[MORNYE, SHOREKEEPER, VERINA, SUISUI], [REBECCA], AUGUSTA],
+  [[MORNYE], [LYNAE_RUPTURE], AUGUSTA],
   // phrolova: havoc, echo, skill
-  INTENDED,
-  [PHROLO_10s, [ROCCIA, LUCILLA], [CANTARELLA]],
-  INTENDED,
-  [PHROLO_10s, [QIUYUAN], [CANTARELLA, LUCILLA]],
-  INTENDED,
-  [PHRO_12s, [SHOREKEEPER], [CANTARELLA, LUCILLA, QIUYUAN]],
-  [PHRO_14s, [VERINA], [QIUYUAN, DANJIN, LUCILLA, CANTARELLA, LYNAE_RUPTURE]],
-  [PHRO_14s, [QIUYUAN, ROCCIA, DANJIN], [VERINA]],
-  [PHRO_12s, [SHOREKEEPER, BULING, MORNYE, SUISUI], [QIUYUAN, DANJIN, LUCILLA, CANTARELLA, LYNAE_RUPTURE, ROCCIA]],
-  [PHRO_12s, [QIUYUAN, ROCCIA, DANJIN], [SHOREKEEPER, SUISUI, MORNYE]],
-  [PHROLO_10s, [QIUYUAN, LUCILLA, LYNAE_RUPTURE, DANJIN, ROCCIA], [LUCILLA, QIUYUAN, LYNAE_RUPTURE, CANTARELLA]],
-  [PHROLO_10s, [JINHSI_SUPPORT], [CANTARELLA]],
+  [PHRO_10s, [JINHSI_SUPPORT], [CANTARELLA]],
+  [PHRO_10s, [QIUYUAN, LUCILLA, LYNAE_RUPTURE, DANJIN, ROCCIA], [LUCILLA, QIUYUAN, LYNAE_RUPTURE, CANTARELLA]],
+  [PHRO_12s, [SHOREKEEPER, BULING, MORNYE, SUISUI, VERINA], [QIUYUAN, DANJIN, LUCILLA, CANTARELLA, ROCCIA]],
+  [PHRO_12s, [QIUYUAN, ROCCIA, DANJIN], [SHOREKEEPER, SUISUI, MORNYE, VERINA]],
+  [PHRO_12s, [MORNYE], [LYNAE_RUPTURE]],
   // cartethyia: aero HP-scaling basic attack on Aero Erosion — Aero Rover and Chisa both raise the
   // status's own cap, which is what her Erosion ticks and her Blade's amplification both read
-  INTENDED,
-  [[CIACCONA], [ROVER_AERO, CHISA], CARTETHYIA],
-  INTENDED,
   [[CHISA, ROVER_AERO, CIACCONA], [SANHUA, ROVER_AERO], CARTETHYIA],
-  [[SUISUI, CHISA, ROVER_AERO, CIACCONA, SHOREKEEPER, SUISUI, MORNYE], [SANHUA, ROVER_AERO, CHISA], CARTETHYIA],
+  [[ROVER_AERO, SUISUI, CHISA, CIACCONA, SHOREKEEPER, MORNYE], [SANHUA, ROVER_AERO, CHISA], CARTETHYIA],
   // brant: fusion basic
-  INTENDED,
-  [[SHOREKEEPER], [SANHUA, LUPA], BRANT_MDPS],
-  INTENDED,
-  [[MORNYE], [LUPA], BRANT_MDPS],
-  [[MORNYE, DENIA_BURST, VERINA, SHOREKEEPER, SUISUI], [SANHUA, LUPA, DENIA_BURST], BRANT_MDPS],
-  INTENDED,
+  [[SHOREKEEPER, DENIA_BURST, MORNYE, VERINA, SUISUI], [SANHUA, DENIA_BURST], BRANT_MDPS],
+  [[MORNYE, SHOREKEEPER, DENIA_BURST, VERINA, SUISUI], [LUPA], BRANT_MDPS],
   [[LUPA], BRANT, CHANGLI],
   [[LUPA], BRANT, ENCORE],
   // cantarella: havoc basic, echo
-  //INTENDED, [[SHOREKEEPER], [SANHUA, ROCCIA], CANTARELLA_MDPS],
-  [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [SANHUA, ROCCIA, LYNAE_RUPTURE, REBECCA], CANTARELLA_MDPS],
+  //[[SHOREKEEPER], [SANHUA, ROCCIA], CANTARELLA_MDPS],
+  [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [SANHUA, ROCCIA], CANTARELLA_MDPS],
+  [[MORNYE], [REBECCA], CANTARELLA_MDPS],
+  [[MORNYE], [LYNAE_RUPTURE], CANTARELLA_MDPS],
   // carlotta: glacio skill
-  INTENDED,
-  [[SHOREKEEPER, BULING], [ZHEZHI], CARLOTTA],
-  INTENDED,
+  [[SHOREKEEPER, BULING, VERINA, MORNYE, SUISUI], [BRANT, ZHEZHI, LUCILLA_CHAFE], CARLOTTA],
+  [[MORNYE], [REBECCA], CARLOTTA],
   [[MORNYE], [LYNAE_RUPTURE], CARLOTTA],
-  [[SHOREKEEPER, BULING, VERINA, MORNYE, SUISUI], [BRANT, ZHEZHI, LYNAE_RUPTURE, REBECCA, LUCILLA_CHAFE], CARLOTTA],
   // roccia: havoc heavy
-  //INTENDED, [[SHOREKEEPER], [MORTEFI, IUNO, REBECCA], ROCCIA_MDPS],
-  [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [MORTEFI, IUNO, LYNAE_RUPTURE, REBECCA], ROCCIA_MDPS],
-  [[SHOREKEEPER, VERINA, MORNYE, SUISUI], PHROLO_10s, ROCCIA_MDPS],
+  [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [MORTEFI, IUNO], ROCCIA_MDPS],
+  [[MORNYE, SHOREKEEPER, VERINA, SUISUI], [REBECCA], ROCCIA_MDPS],
+  [[MORNYE], [LYNAE_RUPTURE], ROCCIA_MDPS],
+  //[[SHOREKEEPER, VERINA, MORNYE, SUISUI], PHROLO_10s, ROCCIA_MDPS],
   // camellya: havoc basic
-  INTENDED,
-  [[SHOREKEEPER], [SANHUA, ROCCIA], CAMELLYA_DOUBLE],
-  [[VERINA, SUISUI, MORNYE], [SANHUA, ROCCIA], CAMELLYA_DOUBLE],
+  [[VERINA], [SANHUA], CAMELLYA_DOUBLE_ALWAYS],
+  [[SHOREKEEPER], [SANHUA], CAMELLYA_DOUBLE_123S6],
+  [[VERINA], [ROCCIA], CAMELLYA_DOUBLE_123S6],
+  [[SHOREKEEPER], [ROCCIA], CAMELLYA_123_ALWAYS_OUTRO],
+  [[MORNYE], [LYNAE_RUPTURE], CAMELLYA_123_ALWAYS_OUTRO],
   // xiangli yao: electro liberation
-  INTENDED,
-  [[MORNYE], [LYNAE_RUPTURE], XIANGLI_YAO],
-  INTENDED,
-  [[SHOREKEEPER], [YINLIN, LYNAE_RUPTURE], XIANGLI_YAO],
-  [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [YINLIN, LYNAE_RUPTURE, JIANXIN], XIANGLI_YAO],
+  [[SHOREKEEPER], [YINLIN], XIANGLI_YAO],
+  [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [YINLIN, JIANXIN], XIANGLI_YAO],
+  [[MORNYE, SHOREKEEPER, VERINA, SUISUI], [LYNAE_RUPTURE], XIANGLI_YAO],
   // changli: fusion skill+liberation
-  INTENDED,
-  [[MORNYE, SHOREKEEPER], [LUPA, LYNAE_RUPTURE], CHANGLI],
-  INTENDED,
   [[DENIA_BURST], [LUPA], CHANGLI],
-  [[LUPA, MORNYE, SHOREKEEPER, DENIA_BURST, VERINA, SUISUI], [DENIA_BURST, LYNAE_RUPTURE, LUPA], CHANGLI],
+  [[MORNYE, LUPA, SHOREKEEPER, DENIA_BURST, VERINA, SUISUI], [LUPA], CHANGLI],
+  [[MORNYE, LUPA, SHOREKEEPER, DENIA_BURST, VERINA, SUISUI], [LYNAE_RUPTURE], CHANGLI],
   // jiyan: aero heavy
-  INTENDED,
-  [[SHOREKEEPER], [MORTEFI, IUNO, CIACCONA, REBECCA, PHROLO_10s], JIYAN],
-  INTENDED,
   [[CIACCONA], [IUNO], JIYAN],
-  [[SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA, MORNYE, SUISUI], [MORTEFI, IUNO, CIACCONA, LYNAE_RUPTURE, REBECCA, PHROLO_10s, ROVER_AERO], JIYAN]
+  [[SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA, MORNYE, SUISUI], [MORTEFI, IUNO, CIACCONA, PHRO_10s, ROVER_AERO], JIYAN],
+  [[MORNYE, SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA, SUISUI], [REBECCA], JIYAN],
+  [[MORNYE], [LYNAE_RUPTURE], JIYAN]
   // encore: fusion basic
   //[[SHOREKEEPER, VERINA, DENIA_BURST, LUPA], [LUPA, SANHUA, DENIA_BURST], ENCORE],
   //[[LUPA], ENCORE, [CHANGLI, BRANT]],
@@ -24245,14 +24017,6 @@ var TEAMS = [
   //[[SHOREKEEPER, VERINA, MORNYE], [ROCCIA, DANJIN, SANHUA, LYNAE_RUPTURE, CANTARELLA], ROVER_HAVOC],
 ];
 var UNPLAYABLE_TEAMS = [];
-var MARKED = TEAMS.flatMap((slots, i) => {
-  if (slots !== INTENDED)
-    return [{ slots, intended: i > 0 && TEAMS[i - 1] === INTENDED }];
-  if (TEAMS[i + 1] === void 0 || TEAMS[i + 1] === INTENDED) {
-    throw new Error(`teams.ts has an INTENDED marker at index ${i} with no team entry after it`);
-  }
-  return [];
-});
 var LOADOUT_ID = /* @__PURE__ */ new Map();
 var idOf = (l) => {
   const seen = LOADOUT_ID.get(l);
@@ -24261,14 +24025,18 @@ var idOf = (l) => {
   LOADOUT_ID.set(l, LOADOUT_ID.size);
   return LOADOUT_ID.size - 1;
 };
-var EXPANDED = MARKED.flatMap(({ slots, intended }) => {
+var EXPANDED = TEAMS.flatMap((slots) => {
   const mdps = slots.map((s) => !Array.isArray(s));
   const [a, b, c] = slots.map((s) => Array.isArray(s) ? [...new Set(s)] : [s]);
   if (!mdps.some(Boolean)) {
     const names = [a, b, c].map((s) => s.map((l) => l.resonator.name).join("/")).join(", ");
     throw new Error(`the team [${names}] has no bare loadout naming its main DPS`);
   }
-  return a.flatMap((x) => b.flatMap((y) => c.map((z) => ({ loadouts: [x, y, z], mdps, intended })))).filter((team) => new Set(team.loadouts.map((l) => l.resonator)).size === team.loadouts.length).filter((team) => {
+  return a.flatMap((x, i) => b.flatMap((y, j) => c.map((z, k) => ({
+    loadouts: [x, y, z],
+    mdps,
+    lead: [[x, i], [y, j], [z, k]].find(([l]) => INTERCHANGEABLE.has(l))?.[1] ?? -1
+  })))).filter((team) => new Set(team.loadouts.map((l) => l.resonator)).size === team.loadouts.length).filter((team) => {
     const names = team.loadouts.map((l) => l.resonator.name);
     const [x, y, z] = team.loadouts.map((l) => l.rotations);
     let why = null;
@@ -24285,7 +24053,7 @@ var ALL_TEAMS = [...EXPANDED.reduce((by, team) => {
   const key = `${team.loadouts.map(idOf).join(".")}|${team.mdps.map(Number).join("")}`;
   const seen = by.get(key);
   if (seen)
-    seen.intended ||= team.intended;
+    seen.lead = Math.min(seen.lead, team.lead);
   else
     by.set(key, team);
   return by;
@@ -24293,6 +24061,18 @@ var ALL_TEAMS = [...EXPANDED.reduce((by, team) => {
 if (UNPLAYABLE_TEAMS.length) {
   throw new Error(`teams.ts lists ${UNPLAYABLE_TEAMS.length} team(s) the scheduler can't play:
 ` + UNPLAYABLE_TEAMS.map((t) => `  ${t.names.join(" / ")} \u2014 ${t.why}`).join("\n"));
+}
+var SUPPORT_GROUP = ALL_TEAMS.map(({ loadouts, mdps }) => loadouts.map((l, i) => INTERCHANGEABLE.has(l) ? "*" : `${idOf(l)}${mdps[i] ? "m" : ""}`).join("."));
+var PRIMARY_TEAM = ALL_TEAMS.map(() => false);
+{
+  const best = /* @__PURE__ */ new Map();
+  ALL_TEAMS.forEach((team, i) => {
+    const held = best.get(SUPPORT_GROUP[i]);
+    if (!held || team.lead < held.lead)
+      best.set(SUPPORT_GROUP[i], { lead: team.lead, index: i });
+  });
+  for (const { index } of best.values())
+    PRIMARY_TEAM[index] = true;
 }
 var teamKey = (index) => `t${index}`;
 var teamAt = (key) => /^t\d+$/.test(key) ? ALL_TEAMS[Number(key.slice(1))] : void 0;
@@ -24304,14 +24084,11 @@ var TEAM_COSTS = [
   "s0r0",
   "s0r1mdps",
   "s0r1",
-  "s1r1mdps",
   "s2r1mdps",
   "s3r1mdps",
   "s6r1mdps",
-  "s6r5mdps",
   "s6r5"
 ];
-var TEAM_SCOPES = ["intended", "all"];
 var scopedKey = (s) => `${s.resonator}~${s.on}~${s.value}~${s.axis}`;
 var weaponBase = (w) => w.name.replace(/ R\d$/, "");
 var gateOf = (l, p) => ({ weapon: l.refinements[p.weapon][p.refine], sequence: p.sequence, echo: l.echoLoadouts[p.echo] });
@@ -24332,7 +24109,6 @@ var echoLabel = (l, echo) => echoLines(l, echo).join(" + ");
 var defaultFilters = () => ({
   matrix: [],
   cost: "s0r1",
-  scope: "intended",
   weapons: [],
   echoes: [],
   mainstats: [],
@@ -24475,7 +24251,7 @@ function scoreMainstatsRun(teamKey2, members, picks, who, combo) {
 function rankedMainstats(scores, m, fills) {
   const ranked = [];
   scores.forEach((run2, k) => ranked.push({ mainstat: k, damage: run2.bySlot.get(m.name) ?? 0, total: run2.total }));
-  ranked.sort((a, b) => b.damage - a.damage);
+  ranked.sort((a, b) => b.total - a.total);
   const fit = ranked.filter((r) => fills(r.mainstat));
   return fit.length ? fit : ranked;
 }
@@ -24525,6 +24301,18 @@ function optimizeTeam(teamKey2, members, filters) {
     if (fix >= 0)
       picks[i] = { ...picks[i], echo: fix };
   });
+  const fillsAll = (trial) => {
+    const rolls = erRollsFor(teamKey2, members, trial.map((p, j) => comboOf(members[j].loadout, p)));
+    return rolls.every((r, j) => r <= members[j].loadout.substat.tiers[members[j].loadout.substat.tiers.length - 1].rolls);
+  };
+  const moved = (from, i, axis, option) => from.map((p, j) => {
+    if (j !== i)
+      return p;
+    if (axis === "echo")
+      return { ...p, echo: option };
+    return { ...p, weapon: option, refine: Math.min(p.refine, members[i].loadout.refinements[option].length - 1) };
+  });
+  const optionsOf = (axis, i) => axis === "weapon" ? weaponOptions(members[i], filters, sig) : members[i].loadout.echoLoadouts.map((_, e) => e);
   const sweepMainstats = () => {
     const next = bestMainstats(teamKey2, members, picks, members.map((_, i) => i));
     const changed = next.some((p, i) => p.mainstat !== picks[i].mainstat);
@@ -24533,36 +24321,88 @@ function optimizeTeam(teamKey2, members, filters) {
     });
     return changed;
   };
+  const everyone = members.map((_, k) => k);
+  const rolled = (trial) => {
+    const out = bestMainstats(teamKey2, members, trial, everyone);
+    return { picks: out, total: trialRun(teamKey2, members, out).total };
+  };
   const sweepAcross = (axis, options) => {
     let changed = false;
     let best = run2().total;
+    const gated = fillsAll(picks);
     for (let i = 0; i < members.length; i++) {
-      const home = picks[i];
-      let winner = home;
+      let winner = null;
       for (const option of options(members[i])) {
-        if (option === home[axis])
+        if (option === picks[i][axis])
           continue;
-        const at = axis === "weapon" ? { ...home, weapon: option, refine: Math.min(home.refine, members[i].loadout.refinements[option].length - 1) } : { ...home, echo: option };
-        const rerolled = bestMainstatFor(teamKey2, members, picks.map((p, j) => j === i ? at : p), i);
-        picks[i] = { ...at, mainstat: rerolled.mainstat };
-        if (rerolled.total > best) {
-          best = rerolled.total;
-          winner = picks[i];
+        const trial = rolled(moved(picks, i, axis, option));
+        if (trial.total > best && (!gated || fillsAll(trial.picks))) {
+          best = trial.total;
+          winner = trial.picks;
           changed = true;
         }
       }
-      picks[i] = winner;
+      if (winner)
+        winner.forEach((p, k) => {
+          picks[k] = p;
+        });
     }
     return changed;
   };
+  const sweepSettled = (axes) => {
+    let best = run2().total;
+    let winner = null;
+    const take = (trial, total) => {
+      if (total <= best || !fillsAll(trial))
+        return;
+      best = total;
+      winner = trial;
+    };
+    for (const axisI of axes) {
+      for (const axisJ of axes) {
+        for (let i = 0; i < members.length; i++) {
+          for (let j = 0; j < members.length; j++) {
+            if (i === j || axisI === axisJ && j < i)
+              continue;
+            for (const oi of optionsOf(axisI, i)) {
+              for (const oj of optionsOf(axisJ, j)) {
+                if (oi === picks[i][axisI] && oj === picks[j][axisJ])
+                  continue;
+                const trial = moved(moved(picks, i, axisI, oi), j, axisJ, oj);
+                take(trial, trialRun(teamKey2, members, trial).total);
+              }
+            }
+          }
+        }
+      }
+    }
+    if (!winner)
+      return false;
+    winner.forEach((p, i) => {
+      picks[i] = p;
+    });
+    return true;
+  };
   const converge = (weapons) => {
+    const axes = weapons ? ["weapon", "echo"] : ["echo"];
+    let bestTotal = fillsAll(picks) ? run2().total : -Infinity;
+    let bestPicks = picks.map((p) => ({ ...p }));
     for (let round = 0; round < 8; round++) {
       const w = weapons && sweepAcross("weapon", (m) => weaponOptions(m, filters, sig));
       const e = sweepAcross("echo", (m) => m.loadout.echoLoadouts.map((_, i) => i));
-      if (!w && !e)
+      if (!w && !e && !sweepSettled(axes))
         break;
       sweepMainstats();
+      const total = run2().total;
+      if (total > bestTotal && fillsAll(picks)) {
+        bestTotal = total;
+        bestPicks = picks.map((p) => ({ ...p }));
+      }
     }
+    if (run2().total < bestTotal)
+      bestPicks.forEach((p, i) => {
+        picks[i] = p;
+      });
   };
   sweepMainstats();
   converge(true);
@@ -24618,7 +24458,7 @@ function optimizeTeam(teamKey2, members, filters) {
     }
   }
   for (let pass = 0; pass < members.length; pass++) {
-    let moved = false;
+    let moved2 = false;
     members.forEach((m, i) => {
       if (canFill(i, picks[i]))
         return;
@@ -24638,9 +24478,9 @@ function optimizeTeam(teamKey2, members, filters) {
       if (!winner)
         return;
       picks[i] = winner;
-      moved = true;
+      moved2 = true;
     });
-    if (!moved)
+    if (!moved2)
       break;
   }
   for (let i = 0; i < members.length; i++) {
@@ -24840,6 +24680,9 @@ export {
   menuStats,
   baseSequence,
   Sonata,
+  RESONATOR_LEVEL,
+  LEVEL_90_DOT,
+  LEVEL_90_TUNE,
   mvPercent,
   effectiveShred,
   effectiveRes,
@@ -24858,13 +24701,14 @@ export {
   runTeam,
   runFromScore,
   mainstatSlotBuffs,
+  INTERCHANGEABLE,
   ALL_TEAMS,
+  PRIMARY_TEAM,
   teamKey,
   teamAt,
   member,
   AXES,
   TEAM_COSTS,
-  TEAM_SCOPES,
   scopedKey,
   weaponBase,
   gateOf,

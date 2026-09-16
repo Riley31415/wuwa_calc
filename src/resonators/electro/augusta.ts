@@ -69,7 +69,7 @@ const BA1 = augustaAction("Basic - Hunter's Path 1", { node: Node.Normal, cast: 
 const BA2 = augustaAction("Basic - Hunter's Path 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 134, energy: 1.70, concerto: 3.38, offtune: 5392, forte1: 230, forte2: 172 });
 const BA3 = augustaAction("Basic - Hunter's Path 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 196.83, energy: 2.49, concerto: 4.95, offtune: 7920, forte1: 336, forte2: 252 });
 const BA4 = augustaAction("Basic - Hunter's Path 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 193.89, energy: 2.46, concerto: 4.89, offtune: 7803, forte1: 333, forte2: 249 });
-const MA = augustaAction("Mid-air - Hunter's Path", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 119.3, energy: 1.5, concerto: 2, offtune: 7200, forte1: 50, forte2: 154 });
+const MA = augustaAction("Mid-air - Hunter's Path Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 119.3, energy: 1.5, concerto: 2, offtune: 7200, forte1: 50, forte2: 154 });
 const DC = augustaAction("Dodge Counter - Hunter's Path 2", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 134, energy: 1.7, concerto: 13.38, offtune: 5392, forte1: 230, forte2: 172 });
 const MDC = augustaAction("Dodge Counter - Hunter's Path (Mid-Air)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 119.3, energy: 1.5, concerto: 12, offtune: 7200, forte1: 50, forte2: 154 });
 

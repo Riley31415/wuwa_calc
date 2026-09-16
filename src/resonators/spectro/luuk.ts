@@ -96,7 +96,7 @@ const Skill = luukAction("Skill - Golden Reflux", { node: Node.Skill, cast: Cast
 const Ring = luukAction("Skill - Aureole of Execution: Ring", { node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 221.33, energy: 8, concerto: 10, offtune: 10400, forte1: 32.5, ...AUREOLE });
 const Breach = luukAction("Skill - Aureole of Execution: Breach", { node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 287.73, energy: 8.01, concerto: 10.02, offtune: 10320, forte1: 32.25, ...AUREOLE });
 const Glare = luukAction("Skill - Aureole of Execution: Glare", { node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 354.11, energy: 6, concerto: 10, offtune: 7840, forte1: 24.5, ...AUREOLE });
-const GoldenImpale = luukAction("Basic - Golden Impale", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 155.47, energy: 2.3, concerto: 4.6, offtune: 7360, forte1: 23 });
+const GoldenImpale = luukAction("Basic - Golden Impale", { node: Node.Skill, cutscene: true, cast: Cast.Basic, type: Type1.Basic, mv: 155.47, energy: 2.3, concerto: 4.6, offtune: 7360, forte1: 23 });
 /** Detonates 5s after Glare lays it, or the moment a Gavel of Earthshaker lands on it — queued
  *  off the Gavel here, since the rotation always follows a Glare with one. */
 const IchorDeposit = luukAction("Skill - Ichor Deposit", { node: Node.Skill, type: Type1.Basic, mv: 153.45 });
@@ -341,24 +341,44 @@ const MA123 = new ActionGroup("Mid-air - Scythe: Dissection 123", [MA1, MA2, MA3
 const MA23 = new ActionGroup("Mid-air - Scythe: Dissection 23", [MA2, MA3]);
 
 const LK_ROTATION = new Rotation([
-  START_3, Skill, Liberation, ECHO_SWAP, SWAP,
-  INTRO, MA23, Ring, GoldenImpale, DODGE,  // TODO add dodge/jumps
-  MA123, Breach, GoldenImpale, DODGE,
+  START_3, Skill, Liberation, Skill.swap(), SWAP,
+
+  INTRO, MA23, Ring, GoldenImpale,
+  MA123, Breach, GoldenImpale,
   MA123, Glare, Gavel,
-  Liberation, ECHO_SWAP, OUTRO,
+  Liberation, Skill.swap(), OUTRO,
 ]);
 
-const LK_ECHOES = [
-  new EchoLoadout(NEBULOUS_CANNON, GILDED_REVELATION_5PC),
-];
+const LK_ROTATION_16s = new Rotation([
+  START_3, Skill, Liberation, Skill.swap(), SWAP,
+  
+  INTRO, MA23, Ring, GoldenImpale,
+  MA123, Breach, GoldenImpale,
+  MA123, Glare, Gavel,
+  Liberation, MA1, MA2, Skill.swap(), OUTRO,
+]);
 
 export const LUUK = new Loadout({
   resonator: LUUK_RESONATOR,
   weapons: [DAYBREAKERS_SPINE, NEW_STD_GAUNTLET, ABYSS_SURGES],
-  echoLoadouts: LK_ECHOES,
+  echoLoadouts: [
+  new EchoLoadout(NEBULOUS_CANNON, GILDED_REVELATION_5PC),
+],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
   substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
   highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
   rotation: LK_ROTATION,
+  sequences: LK_SEQUENCES,
+});
+export const LUUK_16s = new Loadout({
+  resonator: LUUK_RESONATOR,
+  weapons: [DAYBREAKERS_SPINE, NEW_STD_GAUNTLET, ABYSS_SURGES],
+  echoLoadouts: [
+  new EchoLoadout(NEBULOUS_CANNON, GILDED_REVELATION_5PC),
+],
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Spectro3, Mainstat.ATK1),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Basic, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
+  rotation: LK_ROTATION_16s,
   sequences: LK_SEQUENCES,
 });
