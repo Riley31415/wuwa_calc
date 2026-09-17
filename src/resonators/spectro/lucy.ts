@@ -377,7 +377,7 @@ export const LUCY_RESONATOR = new Resonator({
   updateGlobal: () => tuneHackResponse(DataCrash),
 
   stats: [
-    [Stat.BaseHp, 11025], [Stat.BaseAtk, 425], [Stat.BaseDef, 1148.89],
+    [Stat.BaseHp, 11025], [Stat.BaseAtk, 425], [Stat.BaseDef, 1148.8868],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
     [Stat.Tbb, 10],
   ],

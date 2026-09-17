@@ -193,7 +193,7 @@ const LYNAE_RESONATOR = new Resonator({
   maxForte2: 120,
 
   stats: [
-    [Stat.BaseHp, 12237.5], [Stat.BaseAtk, 375], [Stat.BaseDef, 1197.8],
+    [Stat.BaseHp, 12237.5], [Stat.BaseAtk, 375], [Stat.BaseDef, 1197.7756],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
     [Stat.Tbb, 10],
   ],

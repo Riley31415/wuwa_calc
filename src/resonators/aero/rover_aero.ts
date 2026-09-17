@@ -168,7 +168,7 @@ const ROVER_AERO_TALENTS = new Talent({
  *  own base stat line. `Tier.Free` — see the file header. */
 export const ROVER_AERO_RESONATOR = new Resonator({
   name: "Aero Rover",
-  stats: [[Stat.BaseHp, 10775], [Stat.BaseAtk, 438], [Stat.BaseDef, 1137]],
+  stats: [[Stat.BaseHp, 10775], [Stat.BaseAtk, 437.5], [Stat.BaseDef, 1136.6646]],
   talent: ROVER_AERO_TALENTS,
   inherent1: AR_INHERENT_1,
   inherent2: AR_INHERENT_2,

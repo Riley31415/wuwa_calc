@@ -240,7 +240,7 @@ const LUUK_RESONATOR = new Resonator({
   },
 
   stats: [
-    [Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.2],
+    [Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.2202],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
     [Stat.Tbb, 10],
   ],

@@ -7252,7 +7252,7 @@ var CIACCONA_RESONATOR = new Resonator({
   color: "#5ac46b",
   maxEnergy: 125,
   maxForte1: 3,
-  stats: [[1, 12238], [0, 375], [2, 1198]]
+  stats: [[1, 12237.5], [0, 375], [2, 1197.7756]]
 });
 var MA12 = new ActionGroup("Mid-air - Attack 12", [MA1, MA2]);
 var BA34 = new ActionGroup("Basic - Quadruple Time Steps 34", [BA32, BA42]);
@@ -8035,7 +8035,7 @@ var IUNO_TALENTS = new Talent({
 });
 var IUNO_RESONATOR = new Resonator({
   name: "Iuno",
-  stats: [[1, 10525], [0, 450], [2, 1124]],
+  stats: [[1, 10525], [0, 450], [2, 1124.4424]],
   talent: IUNO_TALENTS,
   inherent1: IO_INHERENT_1,
   inherent2: IO_INHERENT_2,
@@ -8383,7 +8383,7 @@ var JIANXIN_RESONATOR = new Resonator({
   stats: [
     [1, 14112.5],
     [0, 337.5],
-    [2, 1124.44]
+    [2, 1124.4424]
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
   ]
 });
@@ -8837,7 +8837,7 @@ var JIYAN_RESONATOR = new Resonator({
   color: "#4fc98f",
   maxEnergy: 125,
   maxForte1: 60,
-  stats: [[1, 10487.5], [0, 437.5], [2, 1185.55]]
+  stats: [[1, 10487.5], [0, 437.5], [2, 1185.5534]]
 });
 var JY_S1 = new Sequence({ name: "Jiyan S1: Benevolence" });
 var VERSATILITY = new Buff({
@@ -9558,7 +9558,7 @@ var QINGXIAO_TALENTS = new Talent({
 var QX_STRAIN_PAYOUT = strainPayout();
 var QINGXIAO_RESONATOR = new Resonator({
   name: "Qingxiao",
-  stats: [[1, 10300], [0, 462.5], [2, 1112.22], [12, 10]],
+  stats: [[1, 10300], [0, 462.5], [2, 1112.2202], [12, 10]],
   talent: QINGXIAO_TALENTS,
   inherent1: QX_INHERENT_1,
   inherent2: QX_INHERENT_2,
@@ -9861,7 +9861,7 @@ var QIUYUAN_TALENTS = new Talent({
 });
 var QIUYUAN_RESONATOR = new Resonator({
   name: "Qiuyuan",
-  stats: [[1, 12238], [0, 375], [2, 1198]],
+  stats: [[1, 12237.5], [0, 375], [2, 1197.7756]],
   talent: QIUYUAN_TALENTS,
   inherent1: QY_INHERENT_1,
   inherent2: QY_INHERENT_2,
@@ -10169,7 +10169,7 @@ var ROVER_AERO_TALENTS = new Talent({
 });
 var ROVER_AERO_RESONATOR = new Resonator({
   name: "Aero Rover",
-  stats: [[1, 10775], [0, 438], [2, 1137]],
+  stats: [[1, 10775], [0, 437.5], [2, 1136.6646]],
   talent: ROVER_AERO_TALENTS,
   inherent1: AR_INHERENT_1,
   inherent2: AR_INHERENT_2,
@@ -10965,7 +10965,7 @@ var SIGRIKA_TALENTS = new Talent({
 });
 var SIGRIKA_RESONATOR = new Resonator({
   name: "Sigrika",
-  stats: [[1, 10775], [0, 437.5], [2, 1137]],
+  stats: [[1, 10775], [0, 437.5], [2, 1136.6646]],
   talent: SIGRIKA_TALENTS,
   inherent1: SR_INHERENT_1,
   inherent2: SR_INHERENT_2,
@@ -11734,7 +11734,7 @@ var PHROLOVA_RESONATOR = new Resonator({
     applyCurrent(NOTES, 1 << 16);
   },
   // initialize notes state
-  stats: [[1, 10775], [0, 437.5], [2, 1137]]
+  stats: [[1, 10775], [0, 437.5], [2, 1136.6646]]
 });
 var BA1232 = new ActionGroup("Basic - Movement of Life and Death 123", [BA110, BA210, BA311]);
 var BA123idash = new ActionGroup("Basic - Movement of Life and Death 123 (Cancelled)", [BA110, BA210, BA311.dodgeCancel()]);
@@ -12060,7 +12060,7 @@ var AUGUSTA_TALENTS = new Talent({
 });
 var AUGUSTA_RESONATOR = new Resonator({
   name: "Augusta",
-  stats: [[1, 10300], [0, 463], [2, 1112]],
+  stats: [[1, 10300], [0, 462.5], [2, 1112.2202]],
   talent: AUGUSTA_TALENTS,
   inherent1: AG_INHERENT_1,
   inherent2: AG_INHERENT_2,
@@ -12402,7 +12402,7 @@ var BULING_RESONATOR = new Resonator({
   maxForte1: 4,
   // the Trigram store, empty (its always-set bit alone; see TRIGRAMS)
   combatStart: () => applyCurrent(TRIGRAMS, 1 << 8),
-  stats: [[1, 10625], [0, 225], [2, 1259]]
+  stats: [[1, 10625], [0, 225], [2, 1258.8866]]
 });
 var BL_ROTATION = new Rotation([
   NOINTRO,
@@ -13021,7 +13021,7 @@ var HSIN_RESONATOR = new Resonator({
   maxEnergy: 125,
   maxForte1: 100,
   maxForte2: 300,
-  stats: [[1, 10300], [0, 462.5], [2, 1112.22]]
+  stats: [[1, 10300], [0, 462.5], [2, 1112.2202]]
 });
 var IBA12 = new ActionGroup("Basic - Illumining Form 12", [IBA1, IBA2]);
 var BA344 = new ActionGroup("Basic - Answering Form 34", [BA314, BA410]);
@@ -13417,7 +13417,7 @@ var LUCY_RESONATOR = new Resonator({
   stats: [
     [1, 11025],
     [0, 425],
-    [2, 1148.89],
+    [2, 1148.8868],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
     [12, 10]
   ]
@@ -13810,7 +13810,7 @@ var REBECCA_RESONATOR = new Resonator({
   stats: [
     [1, 11600],
     [0, 400],
-    [2, 1173.33],
+    [2, 1173.3312],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
     [12, 10]
   ]
@@ -14032,7 +14032,7 @@ var ROVER_ELECTRO_TALENTS = new Talent({
 });
 var ROVER_ELECTRO_RESONATOR = new Resonator({
   name: "Electro Rover",
-  stats: [[1, 10775], [0, 438], [2, 1137]],
+  stats: [[1, 10775], [0, 437.5], [2, 1136.6646]],
   talent: ROVER_ELECTRO_TALENTS,
   inherent1: ER_INHERENT_1,
   inherent2: ER_INHERENT_2,
@@ -14403,7 +14403,7 @@ var SUOMING_TALENTS = new Talent({
 var SM_BOON_PAYOUT = boonPayout();
 var SUOMING_RESONATOR = new Resonator({
   name: "Suoming",
-  stats: [[1, 10300], [0, 462.5], [2, 1148.89]],
+  stats: [[1, 10300], [0, 462.5], [2, 1112.2202]],
   talent: SUOMING_TALENTS,
   inherent1: RAIN_SOAKED_INHERENT,
   inherent2: SUNKEN_SEAL,
@@ -14872,7 +14872,7 @@ var YINLIN_MATRIX = matrix("Yinlin", 20, {
 });
 var YINLIN_RESONATOR = new Resonator({
   name: "Yinlin",
-  stats: [[1, 11e3], [0, 400], [2, 1283.33]],
+  stats: [[1, 11e3], [0, 400], [2, 1283.331]],
   matrix: YINLIN_MATRIX,
   talent: YINLIN_TALENTS,
   inherent1: YL_INHERENT_1,
@@ -15185,7 +15185,7 @@ var AEMEATH_RESONATOR = new Resonator({
   stats: [
     [1, 11025],
     [0, 425],
-    [2, 1148.88],
+    [2, 1148.8868],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
     [12, 10]
   ]
@@ -15733,7 +15733,7 @@ var BRANT_RESONATOR = new Resonator({
   maxEnergy: 175,
   maxForte1: 100,
   combatStart: () => applyCurrent(THEATRICAL_MOMENT, 1),
-  stats: [[1, 11675], [0, 375], [2, 1308]]
+  stats: [[1, 11675], [0, 375], [2, 1307.7754]]
 });
 var MA1H = new ActionGroup("Mid-air - Captain's Rhapsody 1 (Hold)", [MA17, MA1C, MAFlip]);
 var MA2H = new ActionGroup("Mid-air - Captain's Rhapsody 2 (Hold)", [MA25, MA2C, MAFlip]);
@@ -15976,7 +15976,7 @@ var CHANGLI_TALENTS = new Talent({
 });
 var CHANGLI_RESONATOR = new Resonator({
   name: "Changli",
-  stats: [[1, 12762], [0, 410], [2, 1181]],
+  stats: [[1, 10387.5], [0, 462.5], [2, 1099.998]],
   matrix: matrix("Changli", 25),
   talent: CHANGLI_TALENTS,
   inherent1: CH_INHERENT_1,
@@ -16443,7 +16443,7 @@ var DENIA_RESONATOR = new Resonator({
   stats: [
     [1, 11025],
     [0, 425],
-    [2, 1148.89],
+    [2, 1148.8868],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
     [12, 10]
   ]
@@ -16716,7 +16716,7 @@ var ENCORE_RESONATOR = new Resonator({
   color: "#e56b9a",
   maxEnergy: 125,
   maxForte1: 100,
-  stats: [[1, 10512.5], [0, 425], [2, 1247]]
+  stats: [[1, 10512.5], [0, 425], [2, 1246.6644]]
 });
 var UBA12343 = new ActionGroup("Basic - Cosmos: Frolicking 1234", [UBA15, UBA24, UBA35, UBA43]);
 var EN_ROTATION = new Rotation([
@@ -16924,7 +16924,7 @@ var GALBRENA_TALENTS = new Talent({
 });
 var GALBRENA_RESONATOR = new Resonator({
   name: "Galbrena",
-  stats: [[1, 10300], [0, 463], [2, 1112]],
+  stats: [[1, 10300], [0, 462.5], [2, 1112.2202]],
   talent: GALBRENA_TALENTS,
   inherent1: GB_INHERENT_1,
   inherent2: GB_INHERENT_2,
@@ -17274,7 +17274,7 @@ var JINGRAN_TALENTS = new Talent({
 });
 var JINGRAN_RESONATOR = new Resonator({
   name: "Jingran",
-  stats: [[1, 15375], [0, 313]],
+  stats: [[1, 15375], [0, 312.5]],
   talent: JINGRAN_TALENTS,
   inherent1: JR_INHERENT_1,
   inherent2: JR_INHERENT_2,
@@ -17661,7 +17661,7 @@ var LUPA_TALENTS = new Talent({
 });
 var LUPA_RESONATOR = new Resonator({
   name: "Lupa",
-  stats: [[1, 11912.5], [0, 387.5], [2, 1186]],
+  stats: [[1, 11912.5], [0, 387.5], [2, 1185.5534]],
   talent: LUPA_TALENTS,
   inherent1: LP_INHERENT_1,
   inherent2: LP_INHERENT_2,
@@ -17933,7 +17933,7 @@ var MORNYE_RESONATOR = new Resonator({
   stats: [
     [1, 15375],
     [0, 287.5],
-    [2, 1356.7],
+    [2, 1356.6642],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
     [12, 10]
   ]
@@ -18230,7 +18230,7 @@ var MORTEFI_RESONATOR = new Resonator({
   maxEnergy: 125,
   maxForte1: 100,
   tier: 2,
-  stats: [[1, 10025], [0, 250], [2, 1137]]
+  stats: [[1, 10025], [0, 250], [2, 1136.6646]]
 });
 var BA12346 = new ActionGroup("Basic - Impromptu Show 1234", [BA129, BA227, BA328, BA423]);
 var MO_ROTATION2 = new Rotation([
@@ -18480,7 +18480,7 @@ var CARLOTTA_TALENTS = new Talent({
 });
 var CARLOTTA_RESONATOR = new Resonator({
   name: "Carlotta",
-  stats: [[1, 12450], [0, 463], [2, 1198]],
+  stats: [[1, 12450], [0, 462.5], [2, 1197.7756]],
   matrix: matrix("Carlotta", 25),
   talent: CARLOTTA_TALENTS,
   inherent1: CL_INHERENT_1,
@@ -18854,7 +18854,7 @@ var LATE_BITE = new Debuff({
 });
 var HIYUKI_RESONATOR = new Resonator({
   name: "Hiyuki",
-  stats: [[1, 10300], [0, 462.5], [2, 1112.22]],
+  stats: [[1, 10300], [0, 462.5], [2, 1112.2202]],
   talent: HIYUKI_TALENTS,
   inherent1: HY_INHERENT_1,
   inherent2: HY_INHERENT_2,
@@ -19338,7 +19338,7 @@ var LUCILLA_RESONATOR = new Resonator({
   color: "#4f74c2",
   maxEnergy: 0,
   maxForte1: 150,
-  stats: [[1, 12237.5], [0, 375], [2, 1197.8]]
+  stats: [[1, 12237.5], [0, 375], [2, 1197.7756]]
 });
 var UBA1233 = new ActionGroup("Basic - Tracing Forms 123", [UBA16, UBA25, UBA36]);
 var LC_ROTATION2 = new Rotation([
@@ -19707,7 +19707,7 @@ var SANHUA_RESONATOR = new Resonator({
   color: "#5fc9e8",
   maxEnergy: 125,
   tier: 2,
-  stats: [[1, 10063], [0, 275], [2, 941]]
+  stats: [[1, 10062.5], [0, 275], [2, 941.1094]]
 });
 var SH_ROTATION_S5 = new Rotation([
   NOINTRO,
@@ -20047,7 +20047,7 @@ var SUISUI_RESONATOR = new Resonator({
   maxEnergy: 175,
   maxForte1: 120,
   maxForte2: 600,
-  stats: [[1, 16712.5], [0, 287.5], [2, 1100]]
+  stats: [[1, 16712.5], [0, 287.5], [2, 1099.998]]
 });
 var FBA12343 = new ActionGroup("Basic - Drizzle Stance 1234", [FBA15, FBA25, FBA35, FBA45]);
 var BA1237 = new ActionGroup("Basic - Zephyr Stance 123", [BA134, BA233, BA332]);
@@ -20272,7 +20272,7 @@ var ZHEZHI_RESONATOR = new Resonator({
   maxEnergy: 125,
   maxForte1: 90,
   maxForte2: 2,
-  stats: [[1, 12250], [0, 375], [2, 1198]]
+  stats: [[1, 12250], [0, 375], [2, 1197.7756]]
 });
 var BA1238 = new ActionGroup("Basic - Dimming Brush 123", [BA135, BA235, BA333]);
 var ZZ_ROTATION = new Rotation([
@@ -20544,7 +20544,7 @@ var CAMELLYA_RESONATOR = new Resonator({
   maxForte1: 100,
   // any gauge-spending cast of hers is a Crimson Pistil consumption
   grants: [{ on: () => currentAction().forte1 < 0, buff: CONSUME_CRIMSON_PISTIL }],
-  stats: [[1, 10325], [0, 450], [2, 1161]]
+  stats: [[1, 10325], [0, 450], [2, 1161.109]]
 });
 var SOMEWHERE_NO_ONE_TRAVELLED = new Buff({
   name: "Camellya S1: Somewhere No One Travelled",
@@ -20942,7 +20942,7 @@ var CANTARELLA_TALENTS = new Talent({
 });
 var CANTARELLA_RESONATOR = new Resonator({
   name: "Cantarella",
-  stats: [[1, 11600], [0, 400], [2, 1100]],
+  stats: [[1, 11600], [0, 400], [2, 1099.998]],
   matrix: matrix("Cantarella", 25),
   talent: CANTARELLA_TALENTS,
   inherent1: CA_INHERENT_1,
@@ -21555,7 +21555,7 @@ var DANJIN_RESONATOR = new Resonator({
   maxEnergy: 100,
   maxForte1: 120,
   tier: 2,
-  stats: [[1, 9438], [0, 263], [2, 1149]]
+  stats: [[1, 9437.5], [0, 262.5], [2, 1148.8868]]
 });
 var DJ_S1_STACKS = new Buff({
   name: "Danjin S1: Crimson Heart of Justice",
@@ -21777,7 +21777,7 @@ var ROCCIA_RESONATOR = new Resonator({
   color: "#9634b2",
   maxEnergy: 125,
   maxForte1: 300,
-  stats: [[1, 12250], [0, 375], [2, 1198]]
+  stats: [[1, 12250], [0, 375], [2, 1197.7756]]
 });
 function realFantasy() {
   return runningAction(FBA17) || runningAction(FBA27) || runningAction(FBA37);
@@ -22349,7 +22349,7 @@ var XUANLING_TALENTS = new Talent({
 });
 var XUANLING_RESONATOR = new Resonator({
   name: "Xuanling",
-  stats: [[1, 11025], [0, 425], [2, 1148.89]],
+  stats: [[1, 11025], [0, 425], [2, 1148.8868]],
   talent: XUANLING_TALENTS,
   inherent1: XUANLING_INHERENT_1,
   inherent2: XUANLING_INHERENT_2,
@@ -22544,11 +22544,14 @@ var Skill42 = jinhsiAction("Forte Skill - Illuminous Epiphany: Solar Flare", {
   offtune: 14400,
   updateBuffs: () => {
     revokeCurrent(ORDINATION_GLOW);
-    if (!isHeld(JX_UNISON_SPENT)) {
-      applyCurrent(UNISON, 1);
-      applyCurrent(JX_UNISON_SPENT, 1);
-    }
     queue(StellaGlamor);
+  }
+});
+var Skill4_Unison = Skill42.variant("Forte Skill - Illuminous Epiphany: Solar Flare", {
+  updateBuffs: () => {
+    revokeCurrent(ORDINATION_GLOW);
+    queue(StellaGlamor);
+    applyCurrent(UNISON, 1);
   }
 });
 var StellaGlamor = jinhsiAction("Forte Skill - Illuminous Epiphany: Stella Glamor", { node: 2, type: 12288, mv: 347.92, energy: 5.67, offtune: 42002 });
@@ -22560,9 +22563,7 @@ var Liberation31 = jinhsiAction("Liberation - Purge of Light", {
   mv: 1666.03,
   concerto: 20,
   offtune: 84e3,
-  resetEnergy: true,
-  // the once-a-rotation cast, so it is what re-arms the Unison grant (see JX_UNISON_SPENT)
-  updateBuffs: () => revokeCurrent(JX_UNISON_SPENT)
+  resetEnergy: true
 });
 var Intro41 = jinhsiAction("Intro - Loong's Halo", {
   node: 4,
@@ -22585,7 +22586,6 @@ var Outro42 = jinhsiAction("Outro - Temporal Bender", {
 var OutroUnison3 = unisonOutro(Outro42);
 var INCARNATION = new Buff({ name: "Jinhsi: Incarnation" });
 var ORDINATION_GLOW = new Buff({ name: "Jinhsi: Ordination Glow" });
-var JX_UNISON_SPENT = new Buff({});
 var ERAS_IN_UNITY = new Buff({
   name: "Jinhsi: Eras in Unity",
   maxStacks: 67108863,
@@ -22726,7 +22726,7 @@ var JINHSI_RESONATOR = new Resonator({
   maxEnergy: 150,
   // Eras in Unity is hers the moment she is on the team, well before her first turn
   combatStart: () => applyCurrent(ERAS_IN_UNITY, 1),
-  stats: [[1, 10825], [0, 412.5], [2, 1258.9]]
+  stats: [[1, 10825], [0, 412.5], [2, 1258.8866]]
 });
 var BA12348 = new ActionGroup("Basic - Slash of Breaking Dawn 1234", [BA141, BA241, BA338, BA428]);
 var IncBA12 = new ActionGroup("Basic - Incarnation 12", [IncBA1, IncBA2]);
@@ -22743,7 +22743,7 @@ var JX_ROTATION2 = new Rotation([
   IncBA2.jumpCancel(),
   IncBA3.jumpCancel(),
   IncBA4,
-  Skill42,
+  Skill4_Unison,
   OUTRO,
   DOUBLE_INTRO,
   Skill210.dodgeCancel(),
@@ -22751,7 +22751,7 @@ var JX_ROTATION2 = new Rotation([
   Skill37,
   IncBA34,
   ECHO_ONFIELD,
-  Skill42,
+  Skill4_Unison,
   OUTRO,
   INTRO,
   Skill210.dodgeCancel(),
@@ -22775,7 +22775,7 @@ var JX_ROTATION_EVERY_OTHER = new Rotation([
   IncBA2.jumpCancel(),
   IncBA3.jumpCancel(),
   IncBA4,
-  Skill42,
+  Skill4_Unison,
   OUTRO,
   DOUBLE_INTRO,
   Skill210.dodgeCancel(),
@@ -22783,7 +22783,7 @@ var JX_ROTATION_EVERY_OTHER = new Rotation([
   Skill37,
   IncBA34,
   ECHO_ONFIELD,
-  Skill42,
+  Skill4_Unison,
   OUTRO,
   INTRO,
   Skill210.dodgeCancel(),
@@ -22808,7 +22808,7 @@ var JX_ROTATION_SUPPORT = new Rotation([
   IncBA2.jumpCancel(),
   IncBA3.jumpCancel(),
   IncBA4,
-  Skill42,
+  Skill4_Unison,
   EVERY_OTHER,
   Liberation31,
   OUTRO,
@@ -22818,7 +22818,7 @@ var JX_ROTATION_SUPPORT = new Rotation([
   IncBA12,
   Skill37,
   IncBA34,
-  Skill42,
+  Skill4_Unison,
   EVERY_OTHER,
   Liberation31,
   OUTRO
@@ -23037,7 +23037,7 @@ var LUUK_RESONATOR = new Resonator({
   stats: [
     [1, 10300],
     [0, 462.5],
-    [2, 1112.2],
+    [2, 1112.2202],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
     [12, 10]
   ]
@@ -23339,7 +23339,7 @@ var LYNAE_RESONATOR = new Resonator({
   stats: [
     [1, 12237.5],
     [0, 375],
-    [2, 1197.8],
+    [2, 1197.7756],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
     [12, 10]
   ]
@@ -23577,7 +23577,7 @@ var SHOREKEEPER_TALENTS = new Talent({
 });
 var SHOREKEEPER_RESONATOR = new Resonator({
   name: "Shorekeeper",
-  stats: [[1, 16712.5], [0, 287.5], [2, 1100]],
+  stats: [[1, 16712.5], [0, 287.5], [2, 1099.998]],
   talent: SHOREKEEPER_TALENTS,
   inherent1: SK_INHERENT_1,
   inherent2: SK_INHERENT_2,
@@ -23799,7 +23799,7 @@ var VERINA_TALENTS = new Talent({
 });
 var VERINA_RESONATOR = new Resonator({
   name: "Verina",
-  stats: [[1, 14238], [0, 338], [2, 1100]],
+  stats: [[1, 14237.5], [0, 337.5], [2, 1099.998]],
   talent: VERINA_TALENTS,
   inherent1: VR_INHERENT_1,
   inherent2: VR_INHERENT_2,
@@ -23881,7 +23881,7 @@ var VERINA = new Loadout({
 });
 
 // dist/src/teams.js
-var INTERCHANGEABLE = /* @__PURE__ */ new Set([SHOREKEEPER, MORNYE, SUISUI, BULING, VERINA, ROVER_AERO]);
+var INTERCHANGEABLE = /* @__PURE__ */ new Set([SHOREKEEPER, MORNYE, SUISUI, BULING, VERINA]);
 var TEAMS = [
   // suoming mdps, electro basic unison
   [[SHOREKEEPER], [JINHSI_SUPPORT], SUOMING_MDPS],
@@ -23910,7 +23910,7 @@ var TEAMS = [
   [[MORNYE, SHOREKEEPER, VERINA, SUISUI, LUPA], [LUPA, REBECCA], JINGRAN],
   [[MORNYE], [LYNAE_RUPTURE], JINGRAN],
   // qingxiao: aero heavy/basic/liberation on tune strain
-  [[MORNYE, SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA], [DENIA_STRAIN, LYNAE_STRAIN, ROVER_AERO, CIACCONA, SANHUA, MORTEFI, REBECCA, JIANXIN], QINGXIAO],
+  [[MORNYE, SHOREKEEPER, VERINA, CIACCONA], [DENIA_STRAIN, LYNAE_STRAIN, CIACCONA, SANHUA, MORTEFI, REBECCA, JIANXIN], QINGXIAO],
   // xuanling: havoc heavy attack on Havoc Bane — Chisa's +3 to every Negative Status cap is what
   // takes Unbroken Vow off its 3-stack 30% tier onto the 4-6 stack 36% one
   [[SUISUI, CHISA, VERINA, SHOREKEEPER], [MORTEFI, REBECCA, IUNO, PHRO_10s, CHISA], XUANLING],
@@ -23955,8 +23955,8 @@ var TEAMS = [
   [[MORNYE], [LYNAE_RUPTURE], GALBRENA],
   // iuno mdps: aero + echo
   [[CIACCONA], [JIANXIN], IUNO_MDPS],
-  [[SHOREKEEPER, ROVER_AERO, CIACCONA, VERINA, MORNYE, SUISUI], [ROVER_AERO, CIACCONA, JIANXIN], IUNO_MDPS],
-  [[MORNYE, SHOREKEEPER, ROVER_AERO, CIACCONA, VERINA, SUISUI], [LYNAE_RUPTURE], IUNO_MDPS],
+  [[SHOREKEEPER, CIACCONA, VERINA, MORNYE, SUISUI], [CIACCONA, JIANXIN], IUNO_MDPS],
+  [[MORNYE, SHOREKEEPER, CIACCONA, VERINA, SUISUI], [LYNAE_RUPTURE], IUNO_MDPS],
   // augusta: electro heavy shielder
   [[SHOREKEEPER], [AUGUSTA], SUOMING],
   [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [IUNO, MORTEFI], AUGUSTA],
@@ -24007,8 +24007,8 @@ var TEAMS = [
   [[MORNYE, LUPA, SHOREKEEPER, DENIA_BURST, VERINA, SUISUI], [LYNAE_RUPTURE], CHANGLI],
   // jiyan: aero heavy
   [[CIACCONA], [IUNO], JIYAN],
-  [[SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA, MORNYE, SUISUI], [MORTEFI, IUNO, CIACCONA, PHRO_10s, ROVER_AERO], JIYAN],
-  [[MORNYE, SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA, SUISUI], [REBECCA], JIYAN],
+  [[SHOREKEEPER, VERINA, CIACCONA, MORNYE, SUISUI], [MORTEFI, IUNO, CIACCONA, PHRO_10s], JIYAN],
+  [[MORNYE, SHOREKEEPER, VERINA, CIACCONA, SUISUI], [REBECCA], JIYAN],
   [[MORNYE], [LYNAE_RUPTURE], JIYAN]
   // encore: fusion basic
   //[[SHOREKEEPER, VERINA, DENIA_BURST, LUPA], [LUPA, SANHUA, DENIA_BURST], ENCORE],

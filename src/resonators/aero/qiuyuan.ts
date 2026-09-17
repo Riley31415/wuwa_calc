@@ -173,7 +173,7 @@ const QIUYUAN_TALENTS = new Talent({
 
 const QIUYUAN_RESONATOR = new Resonator({
   name: "Qiuyuan",
-  stats: [[Stat.BaseHp, 12238], [Stat.BaseAtk, 375], [Stat.BaseDef, 1198]],
+  stats: [[Stat.BaseHp, 12237.5], [Stat.BaseAtk, 375], [Stat.BaseDef, 1197.7756]],
   talent: QIUYUAN_TALENTS,
   inherent1: QY_INHERENT_1,
   inherent2: QY_INHERENT_2,

@@ -258,7 +258,7 @@ const QX_STRAIN_PAYOUT = strainPayout();
 
 const QINGXIAO_RESONATOR = new Resonator({
   name: "Qingxiao",
-  stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.22], [Stat.Tbb, 10]],
+  stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.2202], [Stat.Tbb, 10]],
   talent: QINGXIAO_TALENTS,
   inherent1: QX_INHERENT_1,
   inherent2: QX_INHERENT_2,

@@ -325,7 +325,7 @@ const SM_BOON_PAYOUT = boonPayout();
 
 const SUOMING_RESONATOR = new Resonator({
   name: "Suoming",
-  stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1148.89]],
+  stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.2202]],
   talent: SUOMING_TALENTS,
   inherent1: RAIN_SOAKED_INHERENT,
   inherent2: SUNKEN_SEAL,

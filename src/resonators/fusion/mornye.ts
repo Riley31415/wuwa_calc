@@ -308,7 +308,7 @@ const MORNYE_RESONATOR = new Resonator({
   combatStart: () => { maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(MO_STRAIN_PAYOUT, 1); },
 
   stats: [
-    [Stat.BaseHp, 15375], [Stat.BaseAtk, 287.5], [Stat.BaseDef, 1356.7],
+    [Stat.BaseHp, 15375], [Stat.BaseAtk, 287.5], [Stat.BaseDef, 1356.6642],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
     [Stat.Tbb, 10],
   ],

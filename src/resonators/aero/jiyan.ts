@@ -187,7 +187,7 @@ const JIYAN_RESONATOR = new Resonator({
   maxEnergy: 125,
   maxForte1: 60,
 
-  stats: [[Stat.BaseHp, 10487.5], [Stat.BaseAtk, 437.5], [Stat.BaseDef, 1185.55]],
+  stats: [[Stat.BaseHp, 10487.5], [Stat.BaseAtk, 437.5], [Stat.BaseDef, 1185.5534]],
 });
 
 // Intro banks the 30 Resolve Prelude's auto-queued Finale spends; the lances ride the mode with

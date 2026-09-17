@@ -159,7 +159,7 @@ const CIACCONA_RESONATOR = new Resonator({
   maxEnergy: 125,
   maxForte1: 3,
 
-  stats: [[Stat.BaseHp, 12238], [Stat.BaseAtk, 375], [Stat.BaseDef, 1198]],
+  stats: [[Stat.BaseHp, 12237.5], [Stat.BaseAtk, 375], [Stat.BaseDef, 1197.7756]],
 });
 
 // Intro plus two Basic Stage 4s are the three Musical Essence Quadruple Downbeat spends; the Skill

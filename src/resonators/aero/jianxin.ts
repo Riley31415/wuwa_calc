@@ -209,7 +209,7 @@ const JIANXIN_RESONATOR = new Resonator({
   maxForte1: 120,
 
   stats: [
-    [Stat.BaseHp, 14112.5], [Stat.BaseAtk, 337.5], [Stat.BaseDef, 1124.44],
+    [Stat.BaseHp, 14112.5], [Stat.BaseAtk, 337.5], [Stat.BaseDef, 1124.4424],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
   ],
 });

@@ -195,7 +195,7 @@ const CHANGLI_TALENTS = new Talent({
 
 const CHANGLI_RESONATOR = new Resonator({
   name: "Changli",
-  stats: [[Stat.BaseHp, 12762], [Stat.BaseAtk, 410], [Stat.BaseDef, 1181]],
+  stats: [[Stat.BaseHp, 10387.5], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1099.998]],
   matrix: matrix("Changli", 25),
   talent: CHANGLI_TALENTS,
   inherent1: CH_INHERENT_1,

@@ -110,16 +110,20 @@ const Skill4 = jinhsiAction("Forte Skill - Illuminous Epiphany: Solar Flare", {
   node: Node.Forte, cast: Cast.Skill, cutscene: true, type: Type1.Skill, mv: 119.34, energy: 1.98, concerto: 20, offtune: 14400,
   updateBuffs: () => {
     revokeCurrent(ORDINATION_GLOW);
-    if (!isHeld(JX_UNISON_SPENT)) { applyCurrent(UNISON, 1); applyCurrent(JX_UNISON_SPENT, 1); }
     queue(StellaGlamor);
   },
+});
+const Skill4_Unison = Skill4.variant("Forte Skill - Illuminous Epiphany: Solar Flare", { 
+  updateBuffs: () => {
+    revokeCurrent(ORDINATION_GLOW);
+    queue(StellaGlamor);
+    applyCurrent(UNISON, 1);
+  }
 });
 const StellaGlamor = jinhsiAction("Forte Skill - Illuminous Epiphany: Stella Glamor", { node: Node.Forte, type: Type1.Skill, mv: 347.92, energy: 5.67, offtune: 42002 });
 
 const Liberation = jinhsiAction("Liberation - Purge of Light", {
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 1666.03, concerto: 20, offtune: 84000, resetEnergy: true,
-  // the once-a-rotation cast, so it is what re-arms the Unison grant (see JX_UNISON_SPENT)
-  updateBuffs: () => revokeCurrent(JX_UNISON_SPENT),
 });
 
 const Intro = jinhsiAction("Intro - Loong's Halo", {
@@ -142,14 +146,6 @@ const OutroUnison = unisonOutro(Outro);
  *  same way Camellya's Blossom Mode does. */
 const INCARNATION = new Buff({ name: "Jinhsi: Incarnation" });
 const ORDINATION_GLOW = new Buff({ name: "Jinhsi: Ordination Glow" });
-
-/** Unison is shared/unison.ts's; this is its "once every 25s", which is longer than a rotation.
- *  Her first Illuminous Epiphany of a rotation hands a Unison over and sets this, every Epiphany
- *  after it hands over nothing, and her Liberation clears it — one cast a rotation whichever of her
- *  rotations is being run, so the next one grants again. Written this way rather than off the
- *  double-Intro pre-visit, which not every rotation of hers has. No `name`: a spent flag is
- *  bookkeeping, and the Unison it withholds is reported by Unison's own row. */
-const JX_UNISON_SPENT = new Buff({});
 
 /* Unison itself is shared/unison.ts's: whichever of her outros holds it is the free one, and the
  * other pays the real bar. */
@@ -325,7 +321,7 @@ const JINHSI_RESONATOR = new Resonator({
   // Eras in Unity is hers the moment she is on the team, well before her first turn
   combatStart: () => applyCurrent(ERAS_IN_UNITY, 1),
 
-  stats: [[Stat.BaseHp, 10825], [Stat.BaseAtk, 412.5], [Stat.BaseDef, 1258.9]],
+  stats: [[Stat.BaseHp, 10825], [Stat.BaseAtk, 412.5], [Stat.BaseDef, 1258.8866]],
 });
 
 /* ---------------------------------------------------------------------------------- rotation */
@@ -350,11 +346,11 @@ const JX_ROTATION = new Rotation([
 
   NOINTRO, BA1234, Skill2.dodgeCancel(), ECHO_ONFIELD, 
   IncBA1, IncBA2.jumpCancel(), IncBA3.jumpCancel(), IncBA4, 
-  Skill4, OUTRO,
+  Skill4_Unison, OUTRO,
 
   DOUBLE_INTRO, Skill2.dodgeCancel(), 
   IncBA12, Skill3, IncBA34,
-  ECHO_ONFIELD, Skill4, OUTRO,
+  ECHO_ONFIELD, Skill4_Unison, OUTRO,
 
   INTRO, Skill2.dodgeCancel(),
   IncBA12, Skill3, IncBA34,
@@ -371,11 +367,11 @@ const JX_ROTATION_EVERY_OTHER = new Rotation([
 
   NOINTRO, BA1234, Skill2.dodgeCancel(), ECHO_ONFIELD, 
   IncBA1, IncBA2.jumpCancel(), IncBA3.jumpCancel(), IncBA4, 
-  Skill4, OUTRO,
+  Skill4_Unison, OUTRO,
 
   DOUBLE_INTRO, Skill2.dodgeCancel(), 
   IncBA12, Skill3, IncBA34,
-  ECHO_ONFIELD, Skill4, OUTRO,
+  ECHO_ONFIELD, Skill4_Unison, OUTRO,
 
   INTRO, Skill2.dodgeCancel(),
   IncBA12, Skill3, IncBA34,
@@ -387,11 +383,11 @@ const JX_ROTATION_SUPPORT = new Rotation([
 
   NOINTRO, BA1234, Skill2.dodgeCancel(), ECHO_ONFIELD, 
   IncBA1, IncBA2.jumpCancel(), IncBA3.jumpCancel(), IncBA4, 
-  Skill4, EVERY_OTHER, Liberation, OUTRO,
+  Skill4_Unison, EVERY_OTHER, Liberation, OUTRO,
 
   INTRO, Skill2.dodgeCancel(), ECHO_ONFIELD, 
   IncBA12, Skill3, IncBA34,
-  Skill4, EVERY_OTHER, Liberation, OUTRO,
+  Skill4_Unison, EVERY_OTHER, Liberation, OUTRO,
 ]);
 
 const JX_ECHOES = [

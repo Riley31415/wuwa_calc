@@ -346,7 +346,7 @@ const JINGRAN_TALENTS = new Talent({
 
 const JINGRAN_RESONATOR = new Resonator({
   name: "Jingran",
-  stats: [[Stat.BaseHp, 15375], [Stat.BaseAtk, 313]],
+  stats: [[Stat.BaseHp, 15375], [Stat.BaseAtk, 312.5]],
   talent: JINGRAN_TALENTS,
   inherent1: JR_INHERENT_1,
   inherent2: JR_INHERENT_2,

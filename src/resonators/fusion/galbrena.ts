@@ -259,7 +259,7 @@ const GALBRENA_TALENTS = new Talent({
 
 const GALBRENA_RESONATOR = new Resonator({
   name: "Galbrena",
-  stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 463], [Stat.BaseDef, 1112]],
+  stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.2202]],
   talent: GALBRENA_TALENTS,
   inherent1: GB_INHERENT_1,
   inherent2: GB_INHERENT_2,

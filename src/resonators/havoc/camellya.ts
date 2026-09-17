@@ -265,7 +265,7 @@ const CAMELLYA_RESONATOR = new Resonator({
   // any gauge-spending cast of hers is a Crimson Pistil consumption
   grants: [{ on: () => currentAction().forte1 < 0, buff: CONSUME_CRIMSON_PISTIL }],
 
-  stats: [[Stat.BaseHp, 10325], [Stat.BaseAtk, 450], [Stat.BaseDef, 1161]],
+  stats: [[Stat.BaseHp, 10325], [Stat.BaseAtk, 450], [Stat.BaseDef, 1161.109]],
 });
 
 /* --------------------------------------------------------------------------------- sequences */

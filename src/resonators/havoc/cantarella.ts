@@ -196,7 +196,7 @@ const CANTARELLA_TALENTS = new Talent({
 
 const CANTARELLA_RESONATOR = new Resonator({
   name: "Cantarella",
-  stats: [[Stat.BaseHp, 11600], [Stat.BaseAtk, 400], [Stat.BaseDef, 1100]],
+  stats: [[Stat.BaseHp, 11600], [Stat.BaseAtk, 400], [Stat.BaseDef, 1099.998]],
   matrix: matrix("Cantarella", 25),
   talent: CANTARELLA_TALENTS,
   inherent1: CA_INHERENT_1,

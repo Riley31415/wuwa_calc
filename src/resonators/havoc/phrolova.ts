@@ -334,7 +334,7 @@ export const PHROLOVA_RESONATOR = new Resonator({
 
   combatStart: () => { applyCurrent(NOTES, 1 << 16); }, // initialize notes state
 
-  stats: [[Stat.BaseHp, 10775], [Stat.BaseAtk, 437.5], [Stat.BaseDef, 1137]],
+  stats: [[Stat.BaseHp, 10775], [Stat.BaseAtk, 437.5], [Stat.BaseDef, 1136.6646]],
 });
 
 // INTRO resolves to plain Intro or EIntro on its own (see her own intro() above)

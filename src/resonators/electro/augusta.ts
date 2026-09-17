@@ -194,7 +194,7 @@ const AUGUSTA_TALENTS = new Talent({
 
 const AUGUSTA_RESONATOR = new Resonator({
   name: "Augusta",
-  stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 463], [Stat.BaseDef, 1112]],
+  stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.2202]],
   talent: AUGUSTA_TALENTS,
   inherent1: AG_INHERENT_1,
   inherent2: AG_INHERENT_2,

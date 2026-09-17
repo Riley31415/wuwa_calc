@@ -59,7 +59,7 @@ import {
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-EJ3NNNGB.js";
+} from "./chunk-X4VLV4G3.js";
 
 // dist/src/display.js
 var formatters = /* @__PURE__ */ new Map();

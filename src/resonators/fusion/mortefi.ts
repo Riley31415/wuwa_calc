@@ -256,7 +256,7 @@ const MORTEFI_RESONATOR = new Resonator({
   maxForte1: 100,
   tier: Tier.Free,
 
-  stats: [[Stat.BaseHp, 10025], [Stat.BaseAtk, 250], [Stat.BaseDef, 1137]],
+  stats: [[Stat.BaseHp, 10025], [Stat.BaseAtk, 250], [Stat.BaseDef, 1136.6646]],
 });
 
 /** A kit-valid line: Intro, a full Impromptu Show combo, Passionate Variation, Liberation (opens

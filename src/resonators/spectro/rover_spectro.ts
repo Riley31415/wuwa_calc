@@ -167,7 +167,7 @@ const ROVER_SPECTRO_RESONATOR = new Resonator({
   maxForte1: 100,
   tier: Tier.Free,
 
-  stats: [[Stat.BaseHp, 11400], [Stat.BaseAtk, 375], [Stat.BaseDef, 1369]],
+  stats: [[Stat.BaseHp, 11400], [Stat.BaseAtk, 375], [Stat.BaseDef, 1368.8864]],
 });
 
 const SPR_ROTATION = new Rotation([

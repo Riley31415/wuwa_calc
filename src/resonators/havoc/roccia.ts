@@ -150,7 +150,7 @@ const ROCCIA_RESONATOR = new Resonator({
   maxEnergy: 125,
   maxForte1: 300,
 
-  stats: [[Stat.BaseHp, 12250], [Stat.BaseAtk, 375], [Stat.BaseDef, 1198]],
+  stats: [[Stat.BaseHp, 12250], [Stat.BaseAtk, 375], [Stat.BaseDef, 1197.7756]],
 });
 
 /* --------------------------------------------------------------------------------- sequences */

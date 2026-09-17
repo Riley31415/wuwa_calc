@@ -231,7 +231,7 @@ const CARLOTTA_TALENTS = new Talent({
 
 const CARLOTTA_RESONATOR = new Resonator({
   name: "Carlotta",
-  stats: [[Stat.BaseHp, 12450], [Stat.BaseAtk, 463], [Stat.BaseDef, 1198]],
+  stats: [[Stat.BaseHp, 12450], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1197.7756]],
   matrix: matrix("Carlotta", 25),
   talent: CARLOTTA_TALENTS,
   inherent1: CL_INHERENT_1,

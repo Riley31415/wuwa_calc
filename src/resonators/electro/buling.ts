@@ -295,7 +295,7 @@ const BULING_RESONATOR = new Resonator({
   // the Trigram store, empty (its always-set bit alone; see TRIGRAMS)
   combatStart: () => applyCurrent(TRIGRAMS, 1 << 8),
 
-  stats: [[Stat.BaseHp, 10625], [Stat.BaseAtk, 225], [Stat.BaseDef, 1259]],
+  stats: [[Stat.BaseHp, 10625], [Stat.BaseAtk, 225], [Stat.BaseDef, 1258.8866]],
 });
 
 // the kit-valid line: Mid-air banks Thunder, Basic 2 Mountain, and the Heavy reads [T, M] as

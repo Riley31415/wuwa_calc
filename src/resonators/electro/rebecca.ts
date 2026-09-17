@@ -398,7 +398,7 @@ const REBECCA_RESONATOR = new Resonator({
   },
 
   stats: [
-    [Stat.BaseHp, 11600], [Stat.BaseAtk, 400], [Stat.BaseDef, 1173.33],
+    [Stat.BaseHp, 11600], [Stat.BaseAtk, 400], [Stat.BaseDef, 1173.3312],
     // the flat 10 every tune-break-era resonator carries (nanoka's own weakness_mastery)
     [Stat.Tbb, 10],
   ],

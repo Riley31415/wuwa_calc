@@ -153,7 +153,7 @@ const IUNO_TALENTS = new Talent({
 
 const IUNO_RESONATOR = new Resonator({
   name: "Iuno",
-  stats: [[Stat.BaseHp, 10525], [Stat.BaseAtk, 450], [Stat.BaseDef, 1124]],
+  stats: [[Stat.BaseHp, 10525], [Stat.BaseAtk, 450], [Stat.BaseDef, 1124.4424]],
   talent: IUNO_TALENTS,
   inherent1: IO_INHERENT_1,
   inherent2: IO_INHERENT_2,

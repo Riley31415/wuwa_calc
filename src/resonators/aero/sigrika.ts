@@ -254,7 +254,7 @@ const SIGRIKA_TALENTS = new Talent({
  *  own base stat line. */
 const SIGRIKA_RESONATOR = new Resonator({
   name: "Sigrika",
-  stats: [[Stat.BaseHp, 10775], [Stat.BaseAtk, 437.5], [Stat.BaseDef, 1137]],
+  stats: [[Stat.BaseHp, 10775], [Stat.BaseAtk, 437.5], [Stat.BaseDef, 1136.6646]],
   talent: SIGRIKA_TALENTS,
   inherent1: SR_INHERENT_1,
   inherent2: SR_INHERENT_2,

@@ -319,7 +319,7 @@ const LUPA_TALENTS = new Talent({
  *  own base stat line. Sequence-0 only — a limited 5-star (`Tier.Limited`). */
 const LUPA_RESONATOR = new Resonator({
   name: "Lupa",
-  stats: [[Stat.BaseHp, 11912.5], [Stat.BaseAtk, 387.5], [Stat.BaseDef, 1186]],
+  stats: [[Stat.BaseHp, 11912.5], [Stat.BaseAtk, 387.5], [Stat.BaseDef, 1185.5534]],
   talent: LUPA_TALENTS,
   inherent1: LP_INHERENT_1,
   inherent2: LP_INHERENT_2,

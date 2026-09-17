@@ -176,7 +176,7 @@ const YINLIN_MATRIX = matrix("Yinlin", 20, {
 
 const YINLIN_RESONATOR = new Resonator({
   name: "Yinlin",
-  stats: [[Stat.BaseHp, 11000], [Stat.BaseAtk, 400], [Stat.BaseDef, 1283.33]],
+  stats: [[Stat.BaseHp, 11000], [Stat.BaseAtk, 400], [Stat.BaseDef, 1283.331]],
   matrix: YINLIN_MATRIX,
   talent: YINLIN_TALENTS,
   inherent1: YL_INHERENT_1,

@@ -261,7 +261,7 @@ const BRANT_RESONATOR = new Resonator({
 
   combatStart: () => applyCurrent(THEATRICAL_MOMENT, 1),
 
-  stats: [[Stat.BaseHp, 11675], [Stat.BaseAtk, 375], [Stat.BaseDef, 1308]],
+  stats: [[Stat.BaseHp, 11675], [Stat.BaseAtk, 375], [Stat.BaseDef, 1307.7754]],
 });
 
 // he's never the team's own lead, so this same rotation covers both opener and loop

@@ -266,7 +266,7 @@ const LUCILLA_RESONATOR = new Resonator({
   maxEnergy: 0,
   maxForte1: 150,
 
-  stats: [[Stat.BaseHp, 12237.5], [Stat.BaseAtk, 375], [Stat.BaseDef, 1197.8]],
+  stats: [[Stat.BaseHp, 12237.5], [Stat.BaseAtk, 375], [Stat.BaseDef, 1197.7756]],
 });
 
 // the kit page's own line, both modes: a held Phantom Frame -> Spotlight opener, Liberation into

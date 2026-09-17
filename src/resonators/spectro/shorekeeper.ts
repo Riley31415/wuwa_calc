@@ -201,7 +201,7 @@ const SHOREKEEPER_TALENTS = new Talent({
 
 const SHOREKEEPER_RESONATOR = new Resonator({
   name: "Shorekeeper",
-  stats: [[Stat.BaseHp, 16712.5], [Stat.BaseAtk, 287.5], [Stat.BaseDef, 1100]],
+  stats: [[Stat.BaseHp, 16712.5], [Stat.BaseAtk, 287.5], [Stat.BaseDef, 1099.998]],
   talent: SHOREKEEPER_TALENTS,
   inherent1: SK_INHERENT_1,
   inherent2: SK_INHERENT_2,

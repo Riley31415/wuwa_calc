@@ -144,7 +144,7 @@ const ROVER_HAVOC_RESONATOR = new Resonator({
   maxForte1: 100,
   tier: Tier.Free,
 
-  stats: [[Stat.BaseHp, 10825], [Stat.BaseAtk, 413], [Stat.BaseDef, 1259]],
+  stats: [[Stat.BaseHp, 10825], [Stat.BaseAtk, 412.5], [Stat.BaseDef, 1258.8866]],
 });
 
 /* -------------------------------------------------------------------------------- sequences */

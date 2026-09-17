@@ -185,7 +185,7 @@ const ENCORE_RESONATOR = new Resonator({
   maxEnergy: 125,
   maxForte1: 100,
 
-  stats: [[Stat.BaseHp, 10512.5], [Stat.BaseAtk, 425], [Stat.BaseDef, 1247]],
+  stats: [[Stat.BaseHp, 10512.5], [Stat.BaseAtk, 425], [Stat.BaseDef, 1246.6644]],
 });
 
 // a kit-valid line: Intro tops Mayhem partway, Basic 1234 into Wooly Strike, Heavy Attack at 100

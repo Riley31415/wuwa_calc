@@ -175,7 +175,7 @@ const DANJIN_RESONATOR = new Resonator({
   maxForte1: 120,
   tier: Tier.Free,
 
-  stats: [[Stat.BaseHp, 9438], [Stat.BaseAtk, 263], [Stat.BaseDef, 1149]],
+  stats: [[Stat.BaseHp, 9437.5], [Stat.BaseAtk, 262.5], [Stat.BaseDef, 1148.8868]],
 });
 
 /* -------------------------------------------------------------------------------- sequences */

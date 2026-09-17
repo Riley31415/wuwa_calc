@@ -214,7 +214,7 @@ const SANHUA_RESONATOR = new Resonator({
   maxEnergy: 125,
   tier: Tier.Free,
 
-  stats: [[Stat.BaseHp, 10063], [Stat.BaseAtk, 275], [Stat.BaseDef, 941]],
+  stats: [[Stat.BaseHp, 10062.5], [Stat.BaseAtk, 275], [Stat.BaseDef, 941.1094]],
 });
 
 // Skill/Liberation first so Condensation (opened by Intro) covers the Skill cast; basics end on

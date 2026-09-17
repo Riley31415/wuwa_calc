@@ -611,7 +611,7 @@ const HSIN_RESONATOR = new Resonator({
   maxForte2: 300,
 
 
-  stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.22]],
+  stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.2202]],
 });
 
 // The Flare-mode visit as the kit reads: the Intro chains into Stage 4, the Skill into Stage 4

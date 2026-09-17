@@ -193,7 +193,7 @@ const VERINA_TALENTS = new Talent({
  *  own base stat line. `Tier.Standard` — see the file header. */
 const VERINA_RESONATOR = new Resonator({
   name: "Verina",
-  stats: [[Stat.BaseHp, 14238], [Stat.BaseAtk, 338], [Stat.BaseDef, 1100]],
+  stats: [[Stat.BaseHp, 14237.5], [Stat.BaseAtk, 337.5], [Stat.BaseDef, 1099.998]],
   talent: VERINA_TALENTS,
   inherent1: VR_INHERENT_1,
   inherent2: VR_INHERENT_2,

@@ -446,7 +446,7 @@ const XUANLING_TALENTS = new Talent({
 
 export const XUANLING_RESONATOR = new Resonator({
   name: "Xuanling",
-  stats: [[Stat.BaseHp, 11025], [Stat.BaseAtk, 425], [Stat.BaseDef, 1148.89]],
+  stats: [[Stat.BaseHp, 11025], [Stat.BaseAtk, 425], [Stat.BaseDef, 1148.8868]],
   talent: XUANLING_TALENTS,
   inherent1: XUANLING_INHERENT_1,
   inherent2: XUANLING_INHERENT_2,

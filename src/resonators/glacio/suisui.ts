@@ -395,7 +395,7 @@ const SUISUI_RESONATOR = new Resonator({
   maxForte1: 120,
   maxForte2: 600,
 
-  stats: [[Stat.BaseHp, 16712.5], [Stat.BaseAtk, 287.5], [Stat.BaseDef, 1100]],
+  stats: [[Stat.BaseHp, 16712.5], [Stat.BaseAtk, 287.5], [Stat.BaseDef, 1099.998]],
 });
 
 /* ---------------------------------------------------------------------------------- rotation */

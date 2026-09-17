@@ -64,7 +64,7 @@ type Slot = Loadout | Loadout[];
  *  until the group is opened up (page/model.ts's own `teamWanted()`). Which one is the slot list's
  *  own doing — whichever of them it names first is the one that runs, so a team leaning on Suisui
  *  or Mornye rather than Shorekeeper simply lists them in that order. */
-export const INTERCHANGEABLE = new Set<Loadout>([SHOREKEEPER, MORNYE, SUISUI, BULING, VERINA, ROVER_AERO]);
+export const INTERCHANGEABLE = new Set<Loadout>([SHOREKEEPER, MORNYE, SUISUI, BULING, VERINA]);
 
 
 const TEAMS: Slot[][] = [
@@ -102,7 +102,7 @@ const TEAMS: Slot[][] = [
   [[MORNYE], [LYNAE_RUPTURE], JINGRAN],
 
   // qingxiao: aero heavy/basic/liberation on tune strain
-  [[MORNYE, SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA], [DENIA_STRAIN, LYNAE_STRAIN, ROVER_AERO, CIACCONA, SANHUA, MORTEFI, REBECCA, JIANXIN], QINGXIAO],
+  [[MORNYE, SHOREKEEPER, VERINA, CIACCONA], [DENIA_STRAIN, LYNAE_STRAIN, CIACCONA, SANHUA, MORTEFI, REBECCA, JIANXIN], QINGXIAO],
 
   // xuanling: havoc heavy attack on Havoc Bane — Chisa's +3 to every Negative Status cap is what
   // takes Unbroken Vow off its 3-stack 30% tier onto the 4-6 stack 36% one
@@ -157,8 +157,8 @@ const TEAMS: Slot[][] = [
 
   // iuno mdps: aero + echo
   [[CIACCONA], [JIANXIN], IUNO_MDPS],
-  [[SHOREKEEPER, ROVER_AERO, CIACCONA, VERINA, MORNYE, SUISUI], [ROVER_AERO, CIACCONA, JIANXIN], IUNO_MDPS],
-  [[MORNYE, SHOREKEEPER, ROVER_AERO, CIACCONA, VERINA, SUISUI], [LYNAE_RUPTURE], IUNO_MDPS],
+  [[SHOREKEEPER, CIACCONA, VERINA, MORNYE, SUISUI], [CIACCONA, JIANXIN], IUNO_MDPS],
+  [[MORNYE, SHOREKEEPER, CIACCONA, VERINA, SUISUI], [LYNAE_RUPTURE], IUNO_MDPS],
 
   // augusta: electro heavy shielder
   [[SHOREKEEPER], [AUGUSTA], SUOMING],
@@ -222,8 +222,8 @@ const TEAMS: Slot[][] = [
 
   // jiyan: aero heavy
   [[CIACCONA], [IUNO], JIYAN],
-  [[SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA, MORNYE, SUISUI], [MORTEFI, IUNO, CIACCONA, PHRO_10s, ROVER_AERO], JIYAN],
-  [[MORNYE, SHOREKEEPER, VERINA, ROVER_AERO, CIACCONA, SUISUI], [REBECCA], JIYAN],
+  [[SHOREKEEPER, VERINA, CIACCONA, MORNYE, SUISUI], [MORTEFI, IUNO, CIACCONA, PHRO_10s], JIYAN],
+  [[MORNYE, SHOREKEEPER, VERINA, CIACCONA, SUISUI], [REBECCA], JIYAN],
   [[MORNYE], [LYNAE_RUPTURE], JIYAN],
 
   // encore: fusion basic

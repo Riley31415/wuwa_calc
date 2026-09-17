@@ -183,7 +183,7 @@ const ZHEZHI_RESONATOR = new Resonator({
   maxForte1: 90,
   maxForte2: 2,
 
-  stats: [[Stat.BaseHp, 12250], [Stat.BaseAtk, 375], [Stat.BaseDef, 1198]],
+  stats: [[Stat.BaseHp, 12250], [Stat.BaseAtk, 375], [Stat.BaseDef, 1197.7756]],
 });
 
 // the kit-valid line reconstructed from the old sheet: Intro banks Afflatus, three basics push

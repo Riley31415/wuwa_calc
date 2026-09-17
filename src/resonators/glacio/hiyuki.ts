@@ -414,7 +414,7 @@ const LATE_BITE = new Debuff({
 
 export const HIYUKI_RESONATOR = new Resonator({
   name: "Hiyuki",
-  stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.22]],
+  stats: [[Stat.BaseHp, 10300], [Stat.BaseAtk, 462.5], [Stat.BaseDef, 1112.2202]],
   talent: HIYUKI_TALENTS,
   inherent1: HY_INHERENT_1,
   inherent2: HY_INHERENT_2,
