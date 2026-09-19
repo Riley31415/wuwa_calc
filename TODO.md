@@ -1,5 +1,9 @@
 
 #
+easier way to check variants?
+
+
+#
 rank teams by substats gains or sequences gains or weapon gains etc
 rank teams by mdps sig gain
 rank teams by best subdps sig gain
@@ -11,13 +15,6 @@ add costs and max cost filter and ranking
 maybe give four stars R1
 
 #
-add frame counts and cancel frame counts to all actions
-make all durations work for all buffs
-estimate rotation times
-
-stage1 add durations to all actions, review rotation times
-stage2 add durations to all weapons, echoes, sonatas
-stage3 add durations to all kit buffs
 stage4 phrolova hecate automation
 
 #
@@ -29,3 +26,10 @@ def ignore formula
 
 #
 add er/crit/hp reccomendations for kit requirements
+
+#
+normal action = frames field
+cancel tagged action = cancel field
+instaCancelled action = 0 frames
+
+add cancel tag to action name rather than (Cancelled)

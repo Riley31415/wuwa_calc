@@ -1,5 +1,5 @@
 /**
- * Solve the roster offline into `tests/solves/` (one file per state plus index.json), so the published
+ * Solve the roster offline into `dist/solves/` (one file per state plus index.json), so the published
  * site opens onto a full table. Run after the bundle: the stamp is a hash of dist/bundle/, and a
  * stamp that doesn't match the running page means the files are ignored. Fan-out is
  * worker_threads over this same file. Only one box is open per state on purpose — rows are the
@@ -100,7 +100,7 @@ if (!isMainThread) {
   });
 
   // keyed by filter signature, the same string the page looks up; rebuilt from scratch each run
-  const dir = new URL("../../tests/solves/", import.meta.url);
+  const dir = new URL("../solves/", import.meta.url);
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   const index: { stamp: string; states: Record<string, string[]> } = { stamp, states: {} };

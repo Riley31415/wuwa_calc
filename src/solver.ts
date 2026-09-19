@@ -770,7 +770,7 @@ export interface SolveResponse extends Solved { id: number }
 export interface SolveProgress { id: number; share: number }
 export const isProgress = (m: SolveResponse | SolveProgress): m is SolveProgress => "share" in m;
 
-/** A roster's solves at rest (localStorage, tests/solves/*.json). A `stamp` that doesn't match the running build means nothing in it is used. */
+/** A roster's solves at rest (localStorage, dist/solves/*.json). A `stamp` that doesn't match the running build means nothing in it is used. */
 export interface SolveSave { stamp: string; solves: [string, Solved][]; picks: [string, Pick[]][] }
 
 // Worker entry: `document` is what a worker scope lacks; `self` keeps node (precompute) out.

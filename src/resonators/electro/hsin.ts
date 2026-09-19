@@ -12,8 +12,8 @@
  * Answering Form.
  *
  * Flare mode's own loop: every Electro Rage the team inflicts becomes Heart of Thunder on her
- * (cap 100) and is taken off the target; Skill - Illumining Form spends it five at a time for
- * Electro Flare DMG at 175% of the current rung, then dumps the rest at 35% a stack. Thunderglow
+ * (cap 100) and is taken off the target; Skill - Illumining Form (Heartward by Moon) fires it as one
+ * Electro Flare DMG instance, 35% of the current rung a stack, then clears it. Thunderglow
  * (one a stack teammates inflict, cap 10, while she is out of Heart Manifest) arms Fleeting
  * Thunder in each Manifest: while it stands the target's Flare is pinned at its cap (16 at most),
  * so every Flare anyone lands overflows straight into Electro Rage for her Heart of Thunder.
@@ -33,11 +33,13 @@
  * grants, the way Concerto Regen rows do — 60 on an Answering Intro, 300 on a Unison Illumining
  * one, 150 on the primed Heartlock collapse, 100 more on the Intro at S2. Dodge Counter -
  * Illumining Form: Pillars Aligned has no published row, so it spends nothing here. Everything
- * else comes from nanoka's 3.7.1 data for her (character 1311) — note that CDN's 3.7.0 directory
- * is a stale earlier beta, not an older patch, and disagrees with the live page throughout.
+ * else comes from nanoka's 3.7.2 data for her (character 1311), which also re-tuned the off-tune of
+ * Realm Protector, Pillars Aligned, Stilling All Horizons and Pillars Across Heaven — note that
+ * CDN's older version directories are stale earlier betas, not older patches.
  * Sequences 1-6 are modelled off that same file — see their own block below.
  *
- * Unison mode (shared/unison.ts): Formshift grants Unison, and she can trigger Unison Response.
+ * Unison mode (shared/unison.ts): the first Formshift after any of her Intros grants Unison, and
+ * she can trigger Unison Response.
  * Her four Intro forms are the mode's own smaller ones, replaced by the Manifold Unison pair —
  * Resonance Skill DMG, far larger — on a Unison Response, which also banks Source Intent, or by
  * spending Source Intent on an Intro that is no response. An Illumining Intro of either kind
@@ -52,7 +54,6 @@
 import { Tier, Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, ResonanceMode, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
-  removeStackTeam,
   addBuff,
   addStat,
   applied,
@@ -108,8 +109,8 @@ const flareHit = (name: string, mul: () => number, def: object = {}): Action =>
     ...def,
   });
 
-// --- Answering Form: basics, heavy, mid-air, dodge counter, skill (Manifold Bloom / Heartward by
-//     Moon). Every hit banks Answering Heart, and only these do.
+// --- Answering Form: basics, heavy, mid-air, dodge counter, skill (Manifold Bloom). Every hit
+//     banks Answering Heart, and only these do.
 const BA1 = hsinAction("Basic - Answering Form 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 69.60, energy: 1.25, concerto: 2.00, offtune: 4000, forte1: 7.08 });
 const BA2 = hsinAction("Basic - Answering Form 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 151.44, energy: 2.75, concerto: 4.37, offtune: 8706, forte1: 15.40 });
 const BA3 = hsinAction("Basic - Answering Form 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 157.54, energy: 2.85, concerto: 2.40, offtune: 4800, forte1: 8.51 });
@@ -122,14 +123,14 @@ const DC = hsinAction("Dodge Counter - Answering Form", { node: Node.Normal, cas
 const Skill = hsinAction("Skill - Answering Form", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 167.06, energy: 3.00, concerto: 2.40, offtune: 9600, forte1: 8.52 });
 
 // --- Answering Form: Realm Wanderer at 100 Answering Heart, Realm Protector when Resolution of
-//     Wishes (once per 25s — every visit) is spent on it. Both Skill DMG, both unlock Formshift.
+//     Wishes (once per 24s — every visit) is spent on it. Both Skill DMG, both unlock Formshift.
 const REALM = {
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Skill, concerto: 8.64, forte1: -100,
   updateBuffs: () => applyCurrent(FORMSHIFT_UNLOCKED, 1),
 };
 const RealmWanderer = hsinAction("Forte Heavy - Answering Form: Realm Wanderer", { ...REALM, mv: 570.62, energy: 5.39, offtune: 17177 });
 const RealmProtector = hsinAction("Forte Heavy - Answering Form: Realm Protector", {
-  ...REALM, mv: 1241.45, energy: 13.39, offtune: 25819,
+  ...REALM, mv: 1241.45, energy: 13.39, offtune: 64695,
   updateDebuffs: () => { if (isHeld(MODE_FLARE)) inflictElectroFlare(1); },
 });
 
@@ -146,19 +147,17 @@ const UpwardCut = hsinAction("Basic - Illumining Form: Upward Cut", { node: Node
 const IMA = hsinAction("Mid-air - Illumining Form Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 22.45, energy: 0.42, concerto: 0.65, offtune: 2080, forte2: 10.22 });
 const IDC = hsinAction("Dodge Counter - Illumining Form", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 191.36, energy: 3.44, concerto: 15.50, offtune: 11000, forte2: 73.98, ...COLLAPSE });
 
-/** One Heart of Thunder instance, a single stack apiece — 35% of the target's rung, 42% at S1 —
- *  spending its own stack on landing. The kit text's 175% instance is five of these; one row per
- *  stack is a deliberate simplification, so a cast holding 21 queues 21 that group as x21. */
+/** Heartward by Moon's last stage: one Electro Flare DMG instance at 35% of the target's rung per
+ *  Heart of Thunder she holds (42% at S1). The stacks are all cleared a moment after the cast. */
 const ThunderHit = flareHit("Skill - Illumining Form: Heart of Thunder",
-  () => (isHeld(HS_S1) ? 42 : 35) - 100, { convertStats: () => removeStackTeam(HEART_OF_THUNDER, 1) });
+  () => (isHeld(HS_S1) ? 42 : 35) * stacksOfTeam(HEART_OF_THUNDER) - 100, { convertStats: () => revokeTeam(HEART_OF_THUNDER) });
 
-/** Skill - Illumining Form: every Heart of Thunder she holds spent as a Flare instance of its own
- *  (see ThunderHit). Also a collapse. */
+/** Skill - Illumining Form (Heartward by Moon): the Heart of Thunder instance above, and a collapse. */
 const ISkill = hsinAction("Skill - Illumining Form", {
   node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 222.70, energy: 4.00, concerto: 6.40, offtune: 12800, forte2: 114.49,
   updateBuffs: () => {
     collapseHeartlock();
-    for (let left = stacksOfTeam(HEART_OF_THUNDER); left > 0; left--) queue(ThunderHit);
+    if (stacksOfTeam(HEART_OF_THUNDER) > 0) queue(ThunderHit);
   },
 });
 
@@ -172,7 +171,7 @@ const pillarFlare = (): void => {
 };
 const PILLAR_FLARE = { updateDebuffs: pillarFlare };
 const PillarsAligned = hsinAction("Skill - Illumining Form: Pillars Aligned", {
-  node: Node.Forte, cutscene: true, cast: Cast.Skill, type: Type1.Skill, mv: 897.17, energy: 5.13, concerto: 13.17, offtune: 28768,
+  node: Node.Forte, cutscene: true, cast: Cast.Skill, type: Type1.Skill, mv: 897.17, energy: 5.13, concerto: 13.17, offtune: 16268,
   applyStats: () => { setForte2(300); },
   updateDebuffs: () => { if (isHeld(MODE_FLARE)) inflictElectroFlare(5); pillarFlare(); },
   updateBuffs: () => applyCurrent(MECHANISM_DOMINION, 1),
@@ -188,14 +187,14 @@ const FBA12 = new ActionGroup("Basic - Illumining Form: Pillars Aligned 12", [FB
 const BA1234 = new ActionGroup("Basic - Answering Form 1234", [BA1, BA2, BA3, BA4]);
 
 // --- Illumining Form: Beholding All Horizons once the Heart is spent, Stilling when Law of Heaven
-//     (once per 25s — every visit) is spent on it. Both end Dominion and unlock Pillars Across Heaven.
+//     (once per 24s — every visit) is spent on it. Both end Dominion and unlock Pillars Across Heaven.
 const HORIZONS = {
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Skill, cutscene: true, resetForte2: true,
   updateBuffs: () => { revokeCurrent(MECHANISM_DOMINION); applyCurrent(PILLARS_UNLOCKED, 1); },
 };
 const Beholding = hsinAction("Forte Heavy - Illumining Form: Beholding All Horizons", { ...HORIZONS, mv: 410.78, energy: 2.09, offtune: 102 });
 const FHA = hsinAction("Forte Heavy - Illumining Form: Stilling All Horizons", {
-  ...HORIZONS, mv: 1081.69, energy: 14.09, offtune: 20160,
+  ...HORIZONS, mv: 1081.69, energy: 14.09, offtune: 47520,
   updateDebuffs: () => { if (isHeld(MODE_FLARE)) inflictElectroFlare(5); },
 });
 
@@ -214,7 +213,10 @@ const Lib1 = hsinAction("Liberation - Formshift", {
     inflictElectroFlare(5);
   },
   updateBuffs: () => {
-    if (isHeld(MODE_UNISON)) applyCurrent(UNISON, 1);
+    if (isHeld(MODE_UNISON) && isHeld(FORMSHIFT_UNISON)) {
+      applyCurrent(UNISON, 1);
+      revokeCurrent(FORMSHIFT_UNISON);
+    }
     revokeCurrent(FORMSHIFT_UNLOCKED);
     applyCurrent(ILLUMINING_FORM, 1); applyCurrent(HEART_MANIFEST, 1);
     revokeTeam(EDICT); applyTeam(EDICT, 21);
@@ -223,7 +225,7 @@ const Lib1 = hsinAction("Liberation - Formshift", {
 });
 /** The Sanctum comes down as Resonance Skill DMG: 125 Energy, and the end of Heart Manifest. */
 const Lib2 = hsinAction("Liberation - Pillars Across Heaven", {
-  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Skill, mv: 2012.67, concerto: 20, offtune: 115200, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Skill, mv: 2012.67, concerto: 20, offtune: 48962, resetEnergy: true,
   updateBuffs: () => {
     revokeCurrent(PILLARS_UNLOCKED); revokeCurrent(ILLUMINING_FORM); revokeCurrent(HEART_MANIFEST);
     revokeTeam(THUNDERGLOW); revokeCurrent(PILLAR_CHARGES); revokeEnemy(FLEETING_THUNDER);
@@ -334,7 +336,13 @@ const MODE_UNISON = new ResonanceMode({
   // the Boon is a count; the carrier the mode grants is what reads it and pays her for it, so the
   // loadout hover traces the bonus back here (shared/unison.ts)
   combatStart: () => { applyCurrent(HS_BOON_PAYOUT, 1); },
-  updateBuffs: () => { if (unisonResponse() && !isHeld(HS_BOON_RESPONSE)) { applyTeam(UNISON_BOON, 1); applyCurrent(HS_BOON_RESPONSE, 1); } },
+  updateBuffs: () => {
+    if (unisonResponse() && !isHeld(HS_BOON_RESPONSE)) {
+      applyTeam(UNISON_BOON, 1);
+      applyCurrent(HS_BOON_RESPONSE, 1);
+    }
+    if (casting(Cast.Intro)) applyCurrent(FORMSHIFT_UNISON, 1);
+  },
   updateGlobal: () => {
     const actor = currentTeam().slot;
     // `isHeld`, not applied: this runs ahead of the grant's own updateBuffs, and a Unison is held
@@ -346,6 +354,9 @@ const MODE_UNISON = new ResonanceMode({
 /** Source Intent: banked by a Unison Response, spent by the next Intro that is no response to
  *  make it a Manifold Unison one all the same. */
 const SOURCE_INTENT = new Buff({ name: "Hsin: Source Intent" });
+
+/** Any of her Intros arms the next Formshift to grant Unison; that Formshift spends it. */
+const FORMSHIFT_UNISON = new Buff({});
 
 /** Her own two Unison Boon grants — one each, refreshed after: her Unison Response (the shared
  *  rule) and Gleaning Simple Joys' off anybody's response. Neither carries a `name`, so neither
@@ -495,10 +506,10 @@ const HS_INHERENT_2 = new Inherent({
 
 /** S1. Unison: both Manifold Unison Intros hit for +15% DMG Multiplier, and +10% more a Unison
  *  Boon stack the team holds, four at most — a fourth only ever exists at S6, which is what raises
- *  the Boon's own cap that far. Flare: entering combat floors Heart of Thunder at 50 (its own 4s
- *  cooldown never binds, she enters once a loop), and the Illumining Skill's Flare instances pay
- *  42% of the rung a Heart of Thunder stack instead of 35% — a rate the hits read off this
- *  sequence themselves (`thunderHit()`), since the stacks they spend are what it multiplies.
+ *  the Boon's own cap that far. Flare: entering combat floors Heart of Thunder at 50 (a
+ *  start-of-combat effect, its 12s cooldown ignored), and the Illumining Skill's Flare instance
+ *  pays 42% of the rung a Heart of Thunder stack instead of 35% — a rate ThunderHit reads off this
+ *  sequence itself, since the stacks it clears are what it multiplies.
  *  Radiance Ward is damage reduction, out of scope. */
 const HS_S1 = new Sequence({
   name: "Hsin S1: A Boat to Cross the Rising Tide",
@@ -511,7 +522,7 @@ const HS_S1 = new Sequence({
 });
 
 /** S2: +60% DMG Multiplier on both Realm forms and both Horizons forms, and entering combat hands
- *  Answering Form 100 more Answering Heart. Its other half resets the two once-per-25s upgrades'
+ *  her 100 more Answering Heart. Its other half resets the two once-per-24s upgrades'
  *  cooldowns, which changes nothing here: the rotation already spends Resolution of Wishes and Law
  *  of Heaven every visit. */
 const HS_S2 = new Sequence({
@@ -630,7 +641,7 @@ const HS_ROTATION_FLARE = new Rotation([
   ISkill,IBA12, 
   PillarsAligned, 
   
-  FBA123, DODGE, FBA12, FHA,
+  FBA1234, FHA,
   Lib2, OUTRO,
 ]);
 
@@ -642,15 +653,12 @@ const HS_ROTATION_FLARE = new Rotation([
 // Leading, the Intro's 68 Answering Heart and its stages 1-2 are a full chain and then Stage 1-2
 // again, so the section's own Stage 3-4 continue it: 126 Heart into Realm Protector's 100.
 const HS_ROTATION_UNISON = new Rotation([
-  NOINTRO, JUMP, ReignHold, ReignPlunge, Skill, BA4,
-  RealmProtector, Lib1, OUTRO,
-
   DOUBLE_INTRO, BA34, Skill, 
   RealmProtector, Lib1, OUTRO,
 
   INTRO, 
   ECHO_ONFIELD, 
-  FBA123, DODGE, FBA12, FHA,
+  FBA1234, FHA,
   Lib2, OUTRO,
 ]);
 

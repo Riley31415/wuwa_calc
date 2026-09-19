@@ -59,7 +59,7 @@ import {
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-X4VLV4G3.js";
+} from "./chunk-5BCBHYSM.js";
 
 // dist/src/display.js
 var formatters = /* @__PURE__ */ new Map();
@@ -899,7 +899,7 @@ function leaderNeeds() {
 }
 function teamWanted(key, members) {
   const has = (name) => members.some((m) => m.name === name);
-  if (!PRIMARY_TEAMS.has(key) && !members.every((m) => INTERCHANGEABLE.has(m.loadout) || resonatorFilters.get(m.name) === "include"))
+  if (!PRIMARY_TEAMS.has(key) && !members.some((m) => INTERCHANGEABLE.has(m.loadout) && resonatorFilters.get(m.name) === "include") && !members.every((m) => INTERCHANGEABLE.has(m.loadout) || resonatorFilters.get(m.name) === "include"))
     return false;
   for (const [name, mode] of resonatorFilters)
     if (mode === "exclude" && has(name))
@@ -1102,7 +1102,7 @@ async function loadShipped(f) {
       continue;
     shippedFiles.add(file);
     try {
-      const res = await fetch(`./tests/solves/${file}`, { cache: "no-store" });
+      const res = await fetch(`./dist/solves/${file}`, { cache: "no-store" });
       if (!res.ok)
         continue;
       const saved = await res.json();
@@ -1141,7 +1141,7 @@ async function loadSolves() {
     if (live?.ok)
       buildStamp = `dev:${await live.text()}`;
     else {
-      const idx = await fetch("./tests/solves/index.json", { cache: "no-store" });
+      const idx = await fetch("./dist/solves/index.json", { cache: "no-store" });
       if (!idx.ok)
         return;
       const meta = await idx.json();
@@ -3795,6 +3795,11 @@ function flushTrack() {
 addEventListener("scroll", () => {
   if (holding)
     queueTrack();
+}, true);
+addEventListener("click", (e) => {
+  const target = e.target;
+  if (target?.closest?.(".gridwrap .grid .chain > label.r") && !target.closest(".c.action"))
+    e.preventDefault();
 }, true);
 addEventListener("keydown", (e) => {
   if (!cellSel || e.key !== "c" || !(e.ctrlKey || e.metaKey) || e.altKey)

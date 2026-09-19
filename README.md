@@ -7,7 +7,7 @@ everything under `src/` into `dist/`, mirrored one level deeper (`src/engine/gea
 ```
 python dev.py                  # compilers + server; then http://127.0.0.1:8731/index.html
 npm run build                  # tsc into dist/src/, then esbuild into dist/bundle/
-npm run precompute             # solve every team, write tests/solves/ for the published site
+npm run precompute             # solve every team, write dist/solves/ for the published site
 npx tsc --noEmit               # just typecheck
 ```
 
@@ -29,7 +29,7 @@ first and stalls ~200ms on *every* connection.
 | `src/solver.ts` | the filter/pick vocabulary and the build search; also the Worker entry point |
 | `src/teamrun.ts` | the DOM-free engine run the search scores (`runTeam`) and the lines/totals read off it |
 | `src/display.ts` | turns a run into the report/hover-trace data the page renders |
-| `src/precompute.ts` | solves the whole roster offline into `tests/solves/`, one file per filter state, so the published site opens with no search; each key is solved once and `index.json` names the files a state needs |
+| `src/precompute.ts` | solves the whole roster offline into `dist/solves/`, one file per filter state, so the published site opens with no search; each key is solved once and `index.json` names the files a state needs |
 | `src/shared/mainstats.ts` / `substats.ts` | echo main-stat builds (`mainstats()`/`mainstatOptions()`) and substat spreads (`substats()`/`chem()`) |
 | `src/resonators/<attribute>/*.ts` | one folder per attribute (`aero`, `electro`, `fusion`, `glacio`, `havoc`, `spectro`): one file per resonator — actions, buffs, the Resonator itself, talents, inherent skills, sequences, a sample rotation, a loadout |
 | `src/echoes/<region>.ts` | mainslot echoes and sonata sets, one file per region that introduced them (grouped by region, unlike the resonator folders; Black Shores' Fallacy lives in `jinzhou.ts`) |

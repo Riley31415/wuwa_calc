@@ -6,3 +6,6 @@ __pycache__/
 # GitHub Pages can serve the site straight off the branch with no CI step (see README).
 dist/*
 !dist/bundle/
+# the precomputed solve cache the published table opens on (src/precompute.ts), committed for
+# the same reason
+!dist/solves/

@@ -624,6 +624,14 @@ addEventListener("scroll", () => {
   if (holding) queueTrack();
 }, true);
 
+/** A group's row is the label for its toggle, so a click anywhere along it would open the group:
+ *  only its name does, and a click on a figure is left to that cell's panel alone. Capture, and on
+ *  the window, so it still stands under `swallowClick`'s own stopPropagation. */
+addEventListener("click", (e) => {
+  const target = e.target as Element | null;
+  if (target?.closest?.(".gridwrap .grid .chain > label.r") && !target.closest(".c.action")) e.preventDefault();
+}, true);
+
 /** Ctrl+C takes a copy of the block, a row to a line and a tab between columns — the figures as the
  *  table sets them, so what lands in a spreadsheet reads the way the log does. */
 addEventListener("keydown", (e) => {

@@ -1071,7 +1071,10 @@ main {
 .trow .c.gotodetail { color: var(--dim); text-transform: lowercase; }
 /* the Team Avg DPR figure opens its breakdown on a click, not a hover (see `wireSourcePanels`) */
 .c.teamdpr { cursor: pointer; }
-.gotodetail:hover { color: var(--ink); }
+/* the label takes the accent with its own marker rather than just lifting to ink, so the cell
+   reads as one thing lighting up — the same way a `.tcopt-name` heading does. Spelled out
+   again under `.trow .c` to out-weigh the quiet colour that context sets. */
+.gotodetail:hover, .trow .c.gotodetail:hover { color: var(--accent); }
 /* ...and the Slot headings, which open that position's own Personal DPR column rather than
    navigating — same marker, so both places that open something read the same. */
 .gotodetail .arrow, .tcopt-name .arrow, .trow.thead .c.slothead .arrow {

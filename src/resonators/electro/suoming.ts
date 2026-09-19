@@ -35,8 +35,8 @@
  * Each stack is +3% DMG dealt to the team's responders, which is her alone. Sequences 1-6 are
  * modelled from the same file — see their own block below.
  *
- * Numbers from nanoka's 3.7.1 data (character 1312 — note 3.7.0 is a *stale* directory on that CDN,
- * not an earlier patch): per-hit MV/energy/concerto/off-tune/Delusion summed per action the way
+ * Numbers from nanoka's 3.7.2 data (character 1312 — older version directories on that CDN are
+ * *stale* betas, not earlier patches): per-hit MV/energy/concerto/off-tune/Delusion summed per action the way
  * CLAUDE.md describes, each Intro's "Concerto Regen 10" added on top of its hits, and the dodge
  * counters' hidden +10. Every Intro hit's element_power is 0 here, so those Regen rows are the whole
  * of an Intro's Concerto; Engraved Heart is the same, with "Concerto Regen 40" for all of its. The
@@ -284,7 +284,10 @@ const LONE_CANOPY = new Buff({
 const SM_S3 = new Sequence({
   name: "Suoming S3: Lone Canopy, Solitary Road",
   updateBuffs: () => {
-    if ((runningAction(IntroFlashRift) || runningAction(IntroThunderRending)) && !isHeld(BOON_RESPONSE)) { applyTeam(UNISON_BOON, 1); applyCurrent(BOON_RESPONSE, 1); }
+    if ((runningAction(IntroFlashRift) || runningAction(IntroThunderRending)) && !isHeld(BOON_RESPONSE)) {
+      applyTeam(UNISON_BOON, 1);
+      applyCurrent(BOON_RESPONSE, 1);
+    }
     if (casting(Cast.Liberation)) applyCurrent(LONE_CANOPY, 1);
   },
 });
@@ -342,7 +345,10 @@ const SUOMING_RESONATOR = new Resonator({
   maxForte1: 800,
   // Unison Response: the team's Unison Boon, one stack from her, refreshed after the first
   updateBuffs: () => {
-    if (unisonResponse() && !isHeld(BOON_RESPONSE)) { applyTeam(UNISON_BOON, 1); applyCurrent(BOON_RESPONSE, 1); }
+    if (unisonResponse() && !isHeld(BOON_RESPONSE)) {
+      applyTeam(UNISON_BOON, 1);
+      applyCurrent(BOON_RESPONSE, 1);
+    }
   },
   // she can trigger Unison Response, so Unison Boon pays her (shared/unison.ts) — the carrier her
   // kit grants reads the count and takes the payout, the way Hsin's Unison mode does

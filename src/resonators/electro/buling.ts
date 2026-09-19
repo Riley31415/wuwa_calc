@@ -31,7 +31,7 @@
  *  S3 heals the team below 50% HP — out of scope, no-op.
  *  S4 flat +20% Healing Bonus, unused by the formula, tracked for completeness.
  *  S5 the Array inflicts 6 more Electro Flare the moment it is generated.
- *  S6 Heaven, Earth, Mind grants 50% Resonance Skill DMG Bonus instead of 25% — read by THUNDER_SPELL.
+ *  S6 Heaven, Earth, Mind grants 50% Resonance Skill DMG Bonus instead of 25% — its own +25 on top.
  */
 import { Tier, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
@@ -43,7 +43,6 @@ import {
   casting,
   currentAction,
   runningAction,
-  currentTeam,
   addStat,
   revokeCurrent,
   revokeTeam,
@@ -51,8 +50,10 @@ import {
   setStacksSelf,
   stacksOf,
   frozenStacks,
+  currentTeam,
+  asSource,
 } from "../../engine/context.js";
-import { Action, ActionField, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO, JUMP } from "../../engine/rotation.js";
+import { Action, ActionField, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO, JUMP, ActionGroup } from "../../engine/rotation.js";
 import { HEALS, inflictElectroFlare } from "../../shared/status.js";
 import { coordinatedBuff } from "../../shared/helpers.js";
 import { VARIATION } from "../../weapons/standard.js";
@@ -80,6 +81,7 @@ const BA4 = bulingAction("Basic - Hexagram Calls, Lightning Falls 4", { node: No
 const MA = bulingAction("Mid-air - Hexagram Calls, Lightning Falls Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.96, offtune: 4960, energy: 1.24, concerto: 4.96, ...THUNDER });
 const DC = bulingAction("Dodge Counter - Hexagram Calls, Lightning Falls 3", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 47.02, offtune: 3784, energy: 1.20, concerto: 13.80 });
 
+const BA12 = new ActionGroup("Basic - Hexagram Calls, Lightning Falls 12", [BA1, BA2])
 // The held Heavy spends the two leftmost Trigrams (spendTrigrams(), which every form runs first)
 // and is whichever form that pair makes — see HA below. Twin Mountains/Twin Thunders heal only
 // (0 mv, healing out of scope). The mixed pair banks Minor Yang, the matched one Minor Yin (and
@@ -136,6 +138,11 @@ const Harmony = bulingAction("Liberation - Flashing Thunder Spell - Harmony", {
 const FlashingThunderSpell = bulingAction("Liberation - Flashing Thunder Spell", {
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 357.86, offtune: 36000, concerto: 20, resetEnergy: true,
 });
+/** The one Liberation a rotation writes, resolved on its row the way the Heavy is: Harmony while
+ *  she holds Yin-Yang Balance, the plain cast otherwise. */
+const LIB = new Action("Liberation - Flashing Thunder Spell", {
+  resolve: () => (isHeld(YIN_YANG_BALANCE) ? Harmony : FlashingThunderSpell),
+});
 
 /** The Array's own pull: 19.89% mv and 2 Electro Flare every 2s for 24s (nanoka), twelve in all,
  *  each on her own slot whoever is on field. Energy is the migrated sheet's 25 over the whole
@@ -173,10 +180,10 @@ const THUNDER_SPELL = new Buff({
     const stage = stacksOfTeam(THUNDER_SPELL);
     if (stage === 2) addStat(Stat.DmgBonus, 10, Type1.Skill);
     else if (stage >= 3) {
-      // pays out on whoever's active, not necessarily Buling — S6 is her own local Sequence, so
-      // it's read off her own slot specifically, found by resonator identity
-      const buling = currentTeam().slots.find((s) => s.resonator === BULING_RESONATOR);
-      addStat(Stat.DmgBonus, buling?.isHeld(BL_S6) ? 50 : 25, Type1.Skill);
+      addStat(Stat.DmgBonus, 25, Type1.Skill);
+      if (currentTeam().slots.find((m) => m.resonator === BULING_RESONATOR)?.isHeld(BL_S6)) {
+        asSource(BL_S6, () => addStat(Stat.DmgBonus, 25, Type1.Skill));
+      }
     }
   },
 });
@@ -269,7 +276,9 @@ const BL_S5 = new Sequence({
   updateDebuffs: () => { if (runningAction(Harmony)) inflictElectroFlare(6); },
 });
 
-const BL_S6 = new Sequence({ name: "Buling S6" });
+const BL_S6 = new Sequence({
+  name: "Buling S6",
+});
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit.
 // Healing Bonus+ nodes are unused by the formula (healing out of scope), tracked for completeness.
@@ -303,9 +312,9 @@ const BULING_RESONATOR = new Resonator({
 // [T, T] as Twin Thunders for Minor Yin — Yin-Yang Balance, so the Liberation resolves to Harmony.
 const BL_ROTATION = new Rotation([
   NOINTRO,
-  INTRO, JUMP, MA, BA2, HA,
+  INTRO, JUMP, MA, BA12, HA,
   Skill, BA4, HA, ECHO_CANCEL,
-  FlashingThunderSpell, OUTRO,
+  LIB, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

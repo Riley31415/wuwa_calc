@@ -238,8 +238,11 @@ export function teamWanted(key: string, members: Member[]): boolean {
   const has = (name: string): boolean => members.some((m) => m.name === name);
   // the bench behind one pairing: both teammates beside the interchangeable slot named, and every
   // support who can stand in it is solved. Short of that only the group's own team is, so the ones
-  // it stands for cost nothing to leave out
+  // it stands for cost nothing to leave out — except when the name added is an interchangeable
+  // support themselves, which asks about them rather than about the pairing, and every group they
+  // are the stood-down half of has to answer for them
   if (!PRIMARY_TEAMS.has(key)
+    && !members.some((m) => INTERCHANGEABLE.has(m.loadout) && resonatorFilters.get(m.name) === "include")
     && !members.every((m) => INTERCHANGEABLE.has(m.loadout) || resonatorFilters.get(m.name) === "include")) return false;
   for (const [name, mode] of resonatorFilters) if (mode === "exclude" && has(name)) return false;
   const needs = leaderNeeds();
@@ -395,7 +398,7 @@ export function detailFor(run: TeamRun): { report: Report } {
 
 /** Solves are kept in localStorage keyed on the build: under dev.py the build is `/__livereload`'s
  *  checksum of every watched source (a kit edit changes it, and reloads the page); on a static
- *  host it is the shipped `tests/solves/index.json` stamp (a hash of the bundle), whose files are loaded
+ *  host it is the shipped `dist/solves/index.json` stamp (a hash of the bundle), whose files are loaded
  *  first and localStorage restored on top. Over quota, the save drops. */
 const SOLVES_KEY = "wuwa.solves.v1";
 let buildStamp: string | null = null;
@@ -489,7 +492,7 @@ export async function loadShipped(f: Filters): Promise<void> {
     if (shippedFiles.has(file)) continue;
     shippedFiles.add(file);
     try {
-      const res = await fetch(`./tests/solves/${file}`, { cache: "no-store" });
+      const res = await fetch(`./dist/solves/${file}`, { cache: "no-store" });
       if (!res.ok) continue;
       const saved = (await res.json()) as { solves: [string, Solved][]; picks: [string, Pick[]][] };
       for (const [k, v] of saved.solves) if (!bestPicks.has(k) && solveFits(k, v)) { bestPicks.set(k, v); shippedKeys.add(k); restoredSolves = true; }
@@ -508,7 +511,7 @@ export async function loadSolves(): Promise<void> {
     const live = await fetch("/__livereload", { cache: "no-store" }).catch(() => null);
     if (live?.ok) buildStamp = `dev:${await live.text()}`;
     else {
-      const idx = await fetch("./tests/solves/index.json", { cache: "no-store" });
+      const idx = await fetch("./dist/solves/index.json", { cache: "no-store" });
       if (!idx.ok) return;
       const meta = (await idx.json()) as { stamp: string; states: Record<string, string | string[]> };
       buildStamp = meta.stamp;

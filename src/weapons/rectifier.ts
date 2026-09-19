@@ -263,7 +263,7 @@ export const BLOOMING_JADEHAVEN = refinements((r, rank) => {
     name: `Blooming Jadehaven: Hundredfold Artifice${rank}`,
     stats: [[Stat.Amp, [36, 45, 54, 63, 72][r]!, Type1.Skill]],
     applyStats: () => {
-      if (currentAction().type1 === Type1.Skill) addStat(Stat.ResIgnore, [10, 15, 20, 25, 30][r]!, Attribute.Electro);
+      if (currentAction().type1 === Type1.Skill) addStat(Stat.ResIgnore, [10, 13.5, 17, 20.5, 24][r]!, Attribute.Electro);
       if (isActive()) addStat(Stat.Amp, [30, 37.5, 45, 52.5, 60][r]!, Type2.ElectroFlare);
     },
   });
