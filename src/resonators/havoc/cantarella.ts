@@ -53,33 +53,37 @@ function cantaAction(id: string, def: object): Action {
   return new Action(id, { element: Attribute.Havoc, scaling: Scaling.Atk, ...def });
 }
 
-const BA1 = cantaAction("Basic - Illusion Collapse 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.53, energy: 1, concerto: 2, offtune: 3200 });
-const BA2 = cantaAction("Basic - Illusion Collapse 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 145.76, energy: 1.84, concerto: 3.68, offtune: 5864 }); // 36.44%x4
-const BA3 = cantaAction("Basic - Illusion Collapse 3", { node: Node.Normal, cutscene: true, cast: Cast.Basic, type: Type1.Basic, mv: 145.14, energy: 1.84, concerto: 3.66, offtune: 5840, forte1: 1 }); // 72.57%x2
+const BA1 = cantaAction("Basic - Illusion Collapse 1", { frames: 27, cancel: 14, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.53, energy: 1, concerto: 2, offtune: 3200 });
+const BA2 = cantaAction("Basic - Illusion Collapse 2", { frames: 45, cancel: 35, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 145.76, energy: 1.84, concerto: 3.68, offtune: 5864 }); // 36.44%x4
+const BA3 = cantaAction("Basic - Illusion Collapse 3", { frames: 50, cancel: 19, node: Node.Normal, cutscene: true, cast: Cast.Basic, type: Type1.Basic, mv: 145.14, energy: 1.84, concerto: 3.66, offtune: 5840, forte1: 1 }); // 72.57%x2
 
 const EHA = cantaAction("Heavy - Delusive Dive", {
+  frames: 43, cancel: 20,
   node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 106.1, energy: 1.68, concerto: 3.34, offtune: 5336, // 53.05%x2
   updateBuffs: () => applyCurrent(MIRAGE, 1),
 });
 
-const FBA1 = cantaAction("Forte Basic - Phantom Sting 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 105.99, energy: 1.35, concerto: 2.67, offtune: 4266, forte1: -1, forte2: 1 }); // 35.33%x3
-const FBA2 = cantaAction("Forte Basic - Phantom Sting 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 125.86, energy: 1.6, concerto: 3.18, offtune: 5064, forte1: -1, forte2: 1 }); // 62.93%x2
-const FBA3 = cantaAction("Forte Basic - Phantom Sting 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 258.48, energy: 3.28, concerto: 6.52, offtune: 10400, forte1: -1, forte2: 1,
+const FBA1 = cantaAction("Forte Basic - Phantom Sting 1", { frames: 47, cancel: 28, node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 105.99, energy: 1.35, concerto: 2.67, offtune: 4266, forte1: -1, forte2: 1 }); // 35.33%x3
+const FBA2 = cantaAction("Forte Basic - Phantom Sting 2", { frames: 41, cancel: 32, node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 125.86, energy: 1.6, concerto: 3.18, offtune: 5064, forte1: -1, forte2: 1 }); // 62.93%x2
+const FBA3 = cantaAction("Forte Basic - Phantom Sting 3", { frames: 82, cancel: 45, node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 258.48, energy: 3.28, concerto: 6.52, offtune: 10400, forte1: -1, forte2: 1,
   updateBuffs: () => dreamweavers(StingDreamweaver),
 }); // 64.62%x4
 
-const Skill = cantaAction("Skill - Graceful Step", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 147.2, energy: 1.56, concerto: 10, offtune: 4936, forte1: 1 }); // 73.60%x2
+const Skill = cantaAction("Skill - Graceful Step", { frames: 38, cancel: 22, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 147.2, energy: 1.56, concerto: 10, offtune: 4936, forte1: 1 }); // 73.60%x2
 const ESkill = cantaAction("Skill - Flickering Reverie", {
+  frames: 28, cancel: 12,
   node: Node.Skill, cast: Cast.Skill, cast2: Cast.Echo, type: Type1.Skill, mv: 196.23, energy: 1.65, concerto: 10, offtune: 5264,
   updateBuffs: () => applyEnemy(HAZY_DREAM, 1),
 });
 /** At 3 Shiver, spending all of it. */
 const FSkill = cantaAction("Forte Skill - Perception Drain", {
+  frames: 80, cancel: 53,
   node: Node.Forte, cast: Cast.Skill, cast2: Cast.Echo, type: Type1.Basic, mv: 1335.98, energy: 21.1, concerto: 12, offtune: 57864, forte2: -3, // 667.99%x2
   updateBuffs: () => applyEnemy(HAZY_DREAM, 1),
 });
 
 const Liberation = cantaAction("Liberation - Beneath the Sea", {
+  frames: 0, cancel: 214,
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, cast2: Cast.Echo, type: Type1.Basic, mv: 376, concerto: 20, offtune: 48000, forte1: 3, resetEnergy: true,
   updateBuffs: () => applyTeam(DIFFUSION_WINDOW, isHeld(CA_S5) ? 26 : 21), // S5: five more Dreamweavers
 });
@@ -93,11 +97,12 @@ const ACTION_DIFFUSION = cantaAction("Liberation - Diffusion", { node: Node.Libe
  *  press's follow-up rather than that window's, so they carry neither its field nor its stacks;
  *  one action per trigger, so the report names each run after the cast it came off. */
 const DREAMWEAVER = { type: Type1.Basic, type2: Type2.Coordinated, mv: 14.54 };
-const IntroDreamweaver = cantaAction("Intro - Dreamweaver", { node: Node.Liberation, ...DREAMWEAVER });
+const IntroDreamweaver = cantaAction("Intro - Dreamweaver", { frames: 5, cancel: 5, node: Node.Liberation, ...DREAMWEAVER });
 const StingDreamweaver = cantaAction("Basic - Dreamweaver", { node: Node.Liberation, ...DREAMWEAVER });
 function dreamweavers(tick: Action): void { for (let i = 0; i < 3; i++) queue(tick); }
 
 const Intro = cantaAction("Intro - Ripple", {
+  frames: 76, cancel: 54,
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 169, energy: 3.16, concerto: 10, offtune: 10120, forte1: 1, // 42.25%x4
   updateBuffs: () => applyCurrent(ABYSSAL_REBIRTH, 6),
 });
@@ -105,10 +110,12 @@ const Intro = cantaAction("Intro - Ripple", {
  *  three Coordinated Attacks on top. Her Mirage runs 8s and is gone by her own outro, so nothing
  *  in the loop below actually reaches this — it is what a quicker swap back in would cast. */
 const EIntro = cantaAction("Intro - Tidal Surge", {
+  frames: 84, cancel: 49,
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 169, energy: 3.16, concerto: 10, offtune: 10640, forte1: 1, // 16.90%x3+118.30%
   updateBuffs: () => { applyCurrent(ABYSSAL_REBIRTH, 6); dreamweavers(IntroDreamweaver); },
 });
 const Outro = cantaAction("Outro - Gentle Tentacles", {
+  frames: 0, cancel: 0,
   cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(CANTARELLA_OUTRO),
 });
@@ -122,7 +129,7 @@ const ESKILL_JOLT = new Action("Jolt", { node: Node.Skill, element: Attribute.Ha
 const DIFFUSION_WINDOW = coordinatedBuff("Cantarella: Diffusion", 26, () => CANTARELLA_RESONATOR, ACTION_DIFFUSION);
 
 const POISON = new Buff({
-  name: "Inherent: Poison", maxStacks: 2,
+  name: "Inherent: Poison", maxStacks: 2, duration: 60 * 10,
   stats: [[Stat.DmgBonus, 6, Attribute.Havoc]], perStack: true,
   until: LifeTime.Outro,
 });
@@ -134,7 +141,7 @@ const POISON = new Buff({
  *  directly. The six charges are the stack count, spent as they fire. 25s window on a 25s
  *  cooldown, so it never lapses mid-rotation. */
 const ABYSSAL_REBIRTH = new Buff({
-  name: "Cantarella: Abyssal Rebirth", maxStacks: 6,
+  name: "Cantarella: Abyssal Rebirth", maxStacks: 6, duration: 60 * 25,
   updateGlobal: () => {
     if (!casting(Cast.Echo) || frozenStacks() <= 0) return;
     removeStack(ABYSSAL_REBIRTH, 1);
@@ -147,6 +154,7 @@ const ABYSSAL_REBIRTH = new Buff({
 // her own outro. S4's Healing Bonus rides on it.
 const MIRAGE = new Buff({
   name: "Cantarella: Mirage",
+  duration: 60 * 8,
   applyStats: () => { if (isHeld(CA_S4)) asSource(CA_S4, () => addStat(Stat.HealingBonus, 25)); },
   updateBuffs: () => { if (forte1() <= 0 || casting(Cast.Outro)) revokeCurrent(MIRAGE); },
 });
@@ -159,6 +167,7 @@ const MIRAGE = new Buff({
  *  window is no clock here: the ticks it guards against are Coordinated Attacks, which never Jolt. */
 const HAZY_DREAM = new Debuff({
   name: "Cantarella: Hazy Dream",
+  duration: 60 * 6.5,
   updateGlobal: () => {
     const a = currentAction();
     if (stacksOfEnemy(HAZY_DREAM) <= 0 || !a.mv) return;
@@ -173,6 +182,7 @@ const HAZY_DREAM = new Debuff({
 
 const CANTARELLA_OUTRO = new Buff({
   name: "Cantarella: Outro",
+  duration: 60 * 14,
   stats: [[Stat.Amp, 20, Attribute.Havoc], [Stat.Amp, 25, Type1.Skill]],
   until: LifeTime.Swap,
 });
@@ -260,6 +270,7 @@ const CA_S5 = new Sequence({ name: "Cantarella S5: Rest in Your Reflection" });
  *  The 1.2s Jolt guard is already how Hazy Dream is read here. */
 const FALL_DEEPER = new Buff({
   name: "Cantarella S6: Fall, Fall... and Fall Deeper into the Dream",
+  duration: 60 * 10,
   stats: [[Stat.DefIgnoreOld, 30]], until: LifeTime.Outro,
 });
 const CA_S6 = new Sequence({

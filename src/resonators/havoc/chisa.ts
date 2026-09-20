@@ -97,12 +97,14 @@ function chisaAction(id: string, def: object): Action {
 }
 
 const Intro = chisaAction("Intro - Reverberance - Return", {
+  frames: 55, cancel: 39,
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 95.43, energy: 10, concerto: 10, offtune: 6400, forte1: 20,
   // Resonant Thread of Closure is a 20s team buff — CLAUDE.md's own rule for one that short is
   // "lost on the applier's next intro", not left permanent
   updateBuffs: () => revokeTeam(RESONANT_THREAD_OF_CLOSURE),
 });
 const Outro = chisaAction("Outro - Unraveling - Law Zero", {
+  frames: 0, cancel: 0,
   cast: Cast.Outro, swapOut: true, concerto: -100,
   updateBuffs: () => applyTeam(RESONANT_THREAD_OF_CLOSURE, 1)
 });
@@ -127,44 +129,45 @@ const SNIP_HEAL = { updateDebuffs: () => applyCurrent(HEALS, 1) };
 // --- Reign of Silence: the ground basic chain. Stage 1 -> Stage 2 -> Rending Lunge -> Death Snip
 //     -> Thread Withdrawn is the full string; Hanging Finality and the mid-air/Heavy pieces below
 //     are reached from other points in it (Heavy Attack, mid-air) rather than this ground line.
-const BA1 = chisaAction("Basic - Reign of Silence 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 33.42, energy: 0.70, concerto: 1.40, offtune: 2240, forte1: 4 });
-const BA2 = chisaAction("Basic - Reign of Silence 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 95.45, energy: 2.00, concerto: 4.00, offtune: 6400, forte1: 14 });
+const BA1 = chisaAction("Basic - Reign of Silence 1", { frames: 23, cancel: 17, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 33.42, energy: 0.70, concerto: 1.40, offtune: 2240, forte1: 4 });
+const BA2 = chisaAction("Basic - Reign of Silence 2", { frames: 55, cancel: 38, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 95.45, energy: 2.00, concerto: 4.00, offtune: 6400, forte1: 14 });
 /** Dodge Counter's own Reign of Silence 2 — a bigger single burst than the plain combo stage,
  *  triggered off a successful Dodge rather than chained from Stage 1. Not in the rotation (nothing
  *  here models incoming attacks to dodge), defined for completeness. */
-const DodgeCounterBA2 = chisaAction("Dodge Counter - Reign of Silence 2", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 238.59, energy: 5.00, concerto: 10.00, offtune: 11200, forte1: 23 });
-const RendingLunge = chisaAction("Basic - Rending Lunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 151.10, energy: 3.19, concerto: 6.37, offtune: 10137, forte1: 20 });
+const DodgeCounterBA2 = chisaAction("Dodge Counter - Reign of Silence 2", { frames: 57, cancel: 40, node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 238.59, energy: 5.00, concerto: 10.00, offtune: 11200, forte1: 23 });
+const RendingLunge = chisaAction("Basic - Rending Lunge", { frames: 80, cancel: 58, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 151.10, energy: 3.19, concerto: 6.37, offtune: 10137, forte1: 20 });
 /** "The skill DMG is considered Resonance Liberation DMG" per the kit page — matches wuwalab's own
  *  damage_type for both hits. */
-const DeathSnip = chisaAction("Basic - Death Snip", { node: Node.Normal, cast: Cast.Basic, type: Type1.Liberation, mv: 149.06, energy: 2.09, concerto: 4.18, offtune: 6665, forte1: 18, ...SNIP_HEAL });
+const DeathSnip = chisaAction("Basic - Death Snip", { frames: 73, cancel: 65, node: Node.Normal, cast: Cast.Basic, type: Type1.Liberation, mv: 149.06, energy: 2.09, concerto: 4.18, offtune: 6665, forte1: 18, ...SNIP_HEAL });
 /** The "insert an extra hit mid-snip" variant — same Resonance Liberation typing and heal. */
-const DeathSnipSpread = chisaAction("Basic - Death Snip With Spread", { node: Node.Normal, cast: Cast.Basic, type: Type1.Liberation, mv: 196.84, energy: 2.76, concerto: 5.52, offtune: 8801, forte1: 27, ...SNIP_HEAL });
-const ThreadWithdrawn = chisaAction("Basic - Thread Withdrawn", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 67.65, energy: 1.44, concerto: 2.85, offtune: 4538, forte1: 16 });
+const DeathSnipSpread = chisaAction("Basic - Death Snip With Spread", { frames: 76, cancel: 65, node: Node.Normal, cast: Cast.Basic, type: Type1.Liberation, mv: 196.84, energy: 2.76, concerto: 5.52, offtune: 8801, forte1: 27, ...SNIP_HEAL });
+const ThreadWithdrawn = chisaAction("Basic - Thread Withdrawn", { frames: 56, cancel: 48, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 67.65, energy: 1.44, concerto: 2.85, offtune: 4538, forte1: 16 });
 /** The airborne normal attack — not part of the ground string, chains into Reign of Silence 2 in
  *  mid-air instead. Not in the rotation (nothing here models being airborne), defined for completeness. */
-const ReignOfSilenceMidAir = chisaAction("Mid-air - Reign of Silence Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.96, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: 9 });
+const ReignOfSilenceMidAir = chisaAction("Mid-air - Reign of Silence Plunge", { frames: 47, cancel: 33, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.96, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: 9 });
 
-const HA = chisaAction("Heavy - Reign of Silence", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 71.58, energy: 1.50, concerto: 3.00, offtune: 4800, forte1: 10 });
+const HA = chisaAction("Heavy - Reign of Silence", { frames: 44, cancel: 31, node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 71.58, energy: 1.50, concerto: 3.00, offtune: 4800, forte1: 10 });
 /** Heavy Attack's own mid-air follow-up, chaining into Hanging Finality. Not in the rotation. */
-const SeveredFacet = chisaAction("Heavy - Severed Facet (Mid-Air)", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 89.48, energy: 1.88, concerto: 3.76, offtune: 6000, forte1: 12 });
+const SeveredFacet = chisaAction("Heavy - Severed Facet (Mid-Air)", { frames: 53, cancel: 36, node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 89.48, energy: 1.88, concerto: 3.76, offtune: 6000, forte1: 12 });
 /** Reached off Heavy Attack, Severed Facet, or Rending Lunge in mid-air; can chain into Death Snip.
  *  Not in the rotation (the ground string reaches Death Snip via Rending Lunge instead). */
-const HangingFinality = chisaAction("Basic - Hanging Finality", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 119.30, energy: 2.50, concerto: 5.00, offtune: 8000, forte1: 16 });
+const HangingFinality = chisaAction("Basic - Hanging Finality", { frames: 77, cancel: 70, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 119.30, energy: 2.50, concerto: 5.00, offtune: 8000, forte1: 16 });
 
 // --- Resolution: Eye of Unraveling is her baseline Skill; Serrated Loop replaces it once the Ring
 //     of Chainsaw is full and is what sends her into Chainsaw Mode. All three mark Unseen Snare.
-const Skill = chisaAction("Skill - Eye of Unraveling", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 35.79, energy: 0.75, concerto: 1.50, offtune: 2400, forte1: 5, ...MARK_SNARE });
+const Skill = chisaAction("Skill - Eye of Unraveling", { frames: 20, cancel: 8, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 35.79, energy: 0.75, concerto: 1.50, offtune: 2400, forte1: 5, ...MARK_SNARE });
 /** The plain tap — released immediately. Not in the rotation; the Hold below reaches Chainsaw Mode
  *  with more hits at no extra cost this engine models, so it's the strictly better pick here. */
 
 const SERRATED = { updateDebuffs: () => applyEnemy(UNSEEN_SNARE, 1) };
-const SerratedLoop = chisaAction("Skill - Serrated Loop", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 139.60, energy: 2.96, concerto: 5.92, offtune: 9360, forte1: -100, forte2: 100,...SERRATED });
-const SerratedLoopHalfHold = chisaAction("Skill - Serrated Loop (Half Hold)", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 199.28, energy: 4.24, concerto: 8.48, offtune: 13368, forte1: -100,forte2: 100,...SERRATED });
-const SerratedLoopHold = chisaAction("Skill - Serrated Loop (Hold)", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 258.96, energy: 5.52, concerto: 11.04, offtune: 17376, forte1: -100, forte2: 100,...SERRATED });
+const SerratedLoop = chisaAction("Skill - Serrated Loop", { frames: 83, cancel: 78, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 139.60, energy: 2.96, concerto: 5.92, offtune: 9360, forte1: -100, forte2: 100,...SERRATED });
+const SerratedLoopHalfHold = chisaAction("Skill - Serrated Loop (Half Hold)", { frames: 137, cancel: 137, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 199.28, energy: 4.24, concerto: 8.48, offtune: 13368, forte1: -100,forte2: 100,...SERRATED });
+const SerratedLoopHold = chisaAction("Skill - Serrated Loop (Hold)", { frames: 174, cancel: 174, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 258.96, energy: 5.52, concerto: 11.04, offtune: 17376, forte1: -100, forte2: 100,...SERRATED });
 
 /** Moment of Nihility: 954.29% Havoc, heals the team, banks 40 Ring of Chainsaw and hands herself
  *  Woven Myriad - Convergence (+120% MV to Blitz/Eradication until Eradication resolves it). */
 const Liberation = chisaAction("Liberation - Moment of Nihility", {
+  frames: 0, cancel: 220,
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, resetEnergy: true,
   mv: 954.29, concerto: 20, offtune: 96000, forte1: 40,
   updateDebuffs: () => applyCurrent(HEALS, 1),
@@ -174,7 +177,7 @@ const Liberation = chisaAction("Liberation - Moment of Nihility", {
 // --- Chainsaw Mode's own Sawring Blitz chain, all typed Resonance Liberation DMG per the kit page.
 //     Each stage both spends the Ring of Chainsaw gauge (forte1, display only) and banks the same
 //     amount onto RING_CONSUMED (spendRing above), which only Eradication ever reads.
-const Blitz1 = chisaAction("Forte - Sawring Blitz 1", { node: Node.Forte, type: Type1.Liberation, mv: 68.94, energy: 1.02, concerto: 1.98, offtune: 3084, forte2: -18, ...blitz() });
+const Blitz1 = chisaAction("Forte - Sawring Blitz 1", { frames: 31, cancel: 26, node: Node.Forte, type: Type1.Liberation, mv: 68.94, energy: 1.02, concerto: 1.98, offtune: 3084, forte2: -18, ...blitz() });
 
 /** Stage 2, as the four inputs that reach it. The Dodge Counter and the After Plunge are the same
  *  stage entered off a dodge or out of a plunge — wuwalab gives all three the same MV, energy,
@@ -182,25 +185,26 @@ const Blitz1 = chisaAction("Forte - Sawring Blitz 1", { node: Node.Forte, type: 
  *  ("Chainsaw Mode - Dodge Counter DMG", 10.64%*8) at exactly the tap's numbers. They are separate
  *  presses all the same, so each gets its own row rather than being folded into the tap.
  *  Every one of them is a *release*, so every one chains into Discordance. */
-const Blitz2 = chisaAction("Forte - Sawring Blitz 2", { node: Node.Forte, type: Type1.Liberation, mv: 85.12, energy: 1.20, concerto: 2.40, offtune: 3808, forte2: -22, ...blitz(() => Blitz2Discordance) });
-const Blitz2DodgeCounter = chisaAction("Forte Dodge Counter - Sawring Blitz 2", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Liberation, mv: 85.12, energy: 1.20, concerto: 2.40, offtune: 3808, forte2: -22, ...blitz(() => Blitz2Discordance) });
-const Blitz2AfterPlunge = chisaAction("Forte - Sawring Blitz 2 (After Plunge)", { node: Node.Forte, type: Type1.Liberation, mv: 85.12, energy: 1.20, concerto: 2.40, offtune: 3808, forte2: -22, ...blitz(() => Blitz2Discordance) });
+const Blitz2 = chisaAction("Forte - Sawring Blitz 2", { frames: 52, cancel: 43, node: Node.Forte, type: Type1.Liberation, mv: 85.12, energy: 1.20, concerto: 2.40, offtune: 3808, forte2: -22, ...blitz(() => Blitz2Discordance) });
+const Blitz2DodgeCounter = chisaAction("Forte Dodge Counter - Sawring Blitz 2", { frames: 52, cancel: 43, node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Liberation, mv: 85.12, energy: 1.20, concerto: 2.40, offtune: 3808, forte2: -22, ...blitz(() => Blitz2Discordance) });
+const Blitz2AfterPlunge = chisaAction("Forte - Sawring Blitz 2 (After Plunge)", { frames: 43, cancel: 35, node: Node.Forte, type: Type1.Liberation, mv: 85.12, energy: 1.20, concerto: 2.40, offtune: 3808, forte2: -22, ...blitz(() => Blitz2Discordance) });
 /** What a released Stage 2 throws out on the way — queued by the stage itself, never pressed. */
 const Blitz2Discordance = chisaAction("Forte - Sawring Blitz 2: Discordance", { node: Node.Forte, type: Type1.Liberation, mv: 10.74, energy: 0.15, concerto: 0.30, offtune: 480, forte2: -3, ...blitz() });
 
 /** Stage 2 held, its own three inputs: 18 hits rather than 8 for the same press, and it chains
  *  into Stage 3 instead of releasing, so none of them throws a Discordance. */
-const Blitz2Hold = chisaAction("Forte - Sawring Blitz 2 (Hold)", { node: Node.Forte, type: Type1.Liberation, mv: 191.52, energy: 2.70, concerto: 5.40, offtune: 8568, forte2: -52, ...blitz() });
-const Blitz2HoldDodgeCounter = chisaAction("Forte Dodge Counter - Sawring Blitz 2 (Hold)", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Liberation, mv: 191.52, energy: 2.70, concerto: 5.40, offtune: 8568, forte2: -52, ...blitz() });
-const Blitz2HoldAfterPlunge = chisaAction("Forte - Sawring Blitz 2 (Hold After Plunge)", { node: Node.Forte, type: Type1.Liberation, mv: 191.52, energy: 2.70, concerto: 5.40, offtune: 8568, forte2: -52, ...blitz() });
+const Blitz2Hold = chisaAction("Forte - Sawring Blitz 2 (Hold)", { frames: 84, cancel: 78, node: Node.Forte, type: Type1.Liberation, mv: 191.52, energy: 2.70, concerto: 5.40, offtune: 8568, forte2: -52, ...blitz() });
+const Blitz2HoldDodgeCounter = chisaAction("Forte Dodge Counter - Sawring Blitz 2 (Hold)", { frames: 84, cancel: 78, node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Liberation, mv: 191.52, energy: 2.70, concerto: 5.40, offtune: 8568, forte2: -52, ...blitz() });
+const Blitz2HoldAfterPlunge = chisaAction("Forte - Sawring Blitz 2 (Hold After Plunge)", { frames: 65, cancel: 62, node: Node.Forte, type: Type1.Liberation, mv: 191.52, energy: 2.70, concerto: 5.40, offtune: 8568, forte2: -52, ...blitz() });
 
-const Blitz3 = chisaAction("Forte - Sawring Blitz 3", { node: Node.Forte, type: Type1.Liberation, mv: 127.84, energy: 1.84, concerto: 3.60, offtune: 5720, forte2: -26, ...blitz(() => Blitz3Falltone) });
+const Blitz3 = chisaAction("Forte - Sawring Blitz 3", { frames: 67, cancel: 66, node: Node.Forte, type: Type1.Liberation, mv: 127.84, energy: 1.84, concerto: 3.60, offtune: 5720, forte2: -26, ...blitz(() => Blitz3Falltone) });
 /** What a released Stage 3 throws out, the same shape as Discordance above. */
 const Blitz3Falltone = chisaAction("Forte - Sawring Blitz 3: Falltone", { node: Node.Forte, type: Type1.Liberation, mv: 10.74, energy: 0.15, concerto: 0.30, offtune: 480, forte2: -3, ...blitz() });
 /** Held Stage 3 chains into Eradication, so it throws no Falltone. */
-const Blitz3Hold = chisaAction("Forte - Sawring Blitz 3 (Hold)", { node: Node.Forte, type: Type1.Liberation, mv: 223.72, energy: 3.22, concerto: 6.30, offtune: 10010, forte2: -50, ...blitz() });
+const Blitz3Hold = chisaAction("Forte - Sawring Blitz 3 (Hold)", { frames: 99, cancel: 99, node: Node.Forte, type: Type1.Liberation, mv: 223.72, energy: 3.22, concerto: 6.30, offtune: 10010, forte2: -50, ...blitz() });
 /** Consumes whatever Ring of Chainsaw remains and ends Chainsaw Mode; shields the team. */
 const Eradication = chisaAction("Forte - Sawring Eradication", {
+  frames: 156, cancel: 68,
   node: Node.Forte, type: Type1.Liberation, mv: 257.67, energy: 22.40, concerto: 49.80, offtune: 7680, cutscene: true,
   resetForte2: true,
   updateDebuffs: () => applyCurrent(SHIELD, 1),
@@ -222,6 +226,7 @@ const BLITZ_CHAIN = new Set<Action>([
  *  resolves rather than its own 15s (a loop always reaches Eradication well inside that). */
 const WOVEN_MYRIAD_CONVERGENCE = new Buff({
   name: "Chisa: Woven Myriad - Convergence",
+  duration: 60 * 15,
   applyStats: () => { if (BLITZ_CHAIN.has(currentAction())) addStat(Stat.MulMv, 120); },
   convertStats: () => { if (runningAction(Eradication)) revokeCurrent(WOVEN_MYRIAD_CONVERGENCE); },
 });
@@ -238,6 +243,7 @@ const RING_CONSUMED = new Buff({
  *  Bonus and +20% Healing Bonus for 12s — lost after the outro like every short self window here. */
 const ALL_ENDS_HERE = new Buff({
   name: "Inherent: All Ends Here",
+  duration: 60 * 12,
   stats: [[Stat.DmgBonus, 20, Attribute.Havoc], [Stat.HealingBonus, 20]],
   convertStats: () => { if (runningAction(Outro)) revokeCurrent(ALL_ENDS_HERE); },
 });
@@ -249,6 +255,7 @@ const ALL_ENDS_HERE = new Buff({
  *  within the first visit either way. */
 const UNSEEN_SNARE = new Debuff({
   name: "Chisa: Unseen Snare",
+  duration: 60 * 30,
   display: () => `Chisa: Unseen Snare${stacksOfEnemy(SNARE_FINALITY) ? " - Finality" : ""}`,
   // The Bane is hers, not the swinging teammate's: applyEnemy() here inherits this marker's own
   // source (context.ts's `attribute()`), so an "on inflicting a Negative Status" passive worn by that
@@ -276,6 +283,7 @@ const NEGATIVE_STATUS_CAPS = [HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, FUSION_BU
  *  lives in the team pool), so both effects see every ally's own turn, not just Chisa's. */
 const RESONANT_THREAD_OF_CLOSURE = new Buff({
   name: "Chisa: Outro",
+  duration: 60 * 20,
   updateGlobal: () => {
     if (currentAction().mv > 0) for (const d of NEGATIVE_STATUS_CAPS) maxStackIncrease(d, 3);
     if (inflictedNegativeStatus() || isType(Type1.Status)) {
@@ -289,6 +297,7 @@ const RESONANT_THREAD_OF_CLOSURE = new Buff({
  *  Chisa's own specific Outro action, since any ally on the team could end up holding it. */
 const THREAD_OF_BANE = new Buff({
   name: "Chisa: Thread of Bane",
+  duration: 60 * 15,
   applyStats: () => {
     if (stacksOfEnemy(UNSEEN_SNARE) > 0) addStat(Stat.DefIgnoreNew, 18);
     // S2: every holder of the Thread is +50% DMG Bonus while she has it
@@ -302,6 +311,7 @@ const THREAD_OF_BANE = new Buff({
  *  short self window here. */
 const DESOLATE_CORRIDORS = new Buff({
   name: "Chisa S1: Wandering Through the Desolate Corridors",
+  duration: 60 * 15,
   stats: [[Stat.BonusAtk, 30]],
   convertStats: () => { if (runningAction(Outro)) revokeCurrent(DESOLATE_CORRIDORS); },
 });
@@ -356,6 +366,7 @@ const CS_S5 = new Sequence({
  *  formula. */
 const SNARE_FINALITY = new Debuff({
   name: "Chisa S6: Unseen Snare - Finality",
+  duration: 60 * 30,
   applyStats: () => {
     for (const tag of [Type2.SpectroFrazzle, Type2.FusionBurst, Type2.GlacioChafe, Type2.AeroErosion, Type2.ElectroFlare]) addStat(Stat.Amp, 30, tag);
     if (isHeld(CHISA_RESONATOR)) addStat(Stat.DamageTaken, 40);

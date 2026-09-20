@@ -31,7 +31,7 @@
  *  S3 heals the team below 50% HP — out of scope, no-op.
  *  S4 flat +20% Healing Bonus, unused by the formula, tracked for completeness.
  *  S5 the Array inflicts 6 more Electro Flare the moment it is generated.
- *  S6 Heaven, Earth, Mind grants 50% Resonance Skill DMG Bonus instead of 25% — read by THUNDER_SPELL.
+ *  S6 Heaven, Earth, Mind grants 50% Resonance Skill DMG Bonus instead of 25% — read by that stage.
  */
 import { Tier, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
@@ -74,10 +74,10 @@ const THUNDER = { updateBuffs: () => gainTrigram(2) };
 // --- basics, mid-air, dodge counter (Hexagram Calls, Lightning Falls) — Stage 2 banks Trigram:
 //     Mountain, Stage 4 and Mid-air bank Trigram: Thunder
 const BA1 = bulingAction("Basic - Hexagram Calls, Lightning Falls 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 41.46, offtune: 3336, energy: 1.06, concerto: 3.34 });
-const BA2 = bulingAction("Basic - Hexagram Calls, Lightning Falls 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 66.90, offtune: 5384, energy: 1.70, concerto: 5.40, ...MOUNTAIN });
+const BA2 = bulingAction("Basic - Hexagram Calls, Lightning Falls 2", { frames: 60, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 66.90, offtune: 5384, energy: 1.70, concerto: 5.40, ...MOUNTAIN });
 const BA3 = bulingAction("Basic - Hexagram Calls, Lightning Falls 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 47.02, offtune: 3784, energy: 1.20, concerto: 3.80 });
-const BA4 = bulingAction("Basic - Hexagram Calls, Lightning Falls 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 93.64, offtune: 7536, energy: 2.36, concerto: 7.54, ...THUNDER });
-const MA = bulingAction("Mid-air - Hexagram Calls, Lightning Falls Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.96, offtune: 4960, energy: 1.24, concerto: 4.96, ...THUNDER });
+const BA4 = bulingAction("Basic - Hexagram Calls, Lightning Falls 4", { frames: 60, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 93.64, offtune: 7536, energy: 2.36, concerto: 7.54, ...THUNDER });
+const MA = bulingAction("Mid-air - Hexagram Calls, Lightning Falls Plunge", { frames: 60, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.96, offtune: 4960, energy: 1.24, concerto: 4.96, ...THUNDER });
 const DC = bulingAction("Dodge Counter - Hexagram Calls, Lightning Falls 3", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 47.02, offtune: 3784, energy: 1.20, concerto: 13.80 });
 
 // The held Heavy spends the two leftmost Trigrams (spendTrigrams(), which every form runs first)
@@ -99,9 +99,18 @@ const YIN = {
   },
 };
 const HA_MOUNTAIN_OVER_THUNDER = bulingAction("Heavy - Mountain Over Thunder", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 178.93, offtune: 8000, energy: 3.00, concerto: 15, forte1: -2, ...YANG });
-const HA_THUNDER_OVER_MOUNTAIN = bulingAction("Heavy - Thunder Over Mountain", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 89.47, offtune: 8000, energy: 3.00, concerto: 15, forte1: -2, ...YANG });
+const HA_THUNDER_OVER_MOUNTAIN = bulingAction("Heavy - Thunder Over Mountain", { frames: 60, node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 89.47, offtune: 8000, energy: 3.00, concerto: 15, forte1: -2, ...YANG });
 const HA_TWIN_MOUNTAINS = bulingAction("Heavy - Twin Mountains", { node: Node.Normal, cast: Cast.Heavy, concerto: 15, forte1: -2, ...YIN });
-const HA_TWIN_THUNDERS = bulingAction("Heavy - Twin Thunders", { node: Node.Normal, cast: Cast.Heavy, concerto: 15, forte1: -2, ...YIN });
+const HA_TWIN_THUNDERS = bulingAction("Heavy - Twin Thunders", {
+  frames: 60, node: Node.Normal, cast: Cast.Heavy, concerto: 15, forte1: -2, ...YIN,
+  updateBuffs: () => {
+    YIN.updateBuffs();
+    applyTeam(TWIN_THUNDERS_HEALS, 8);
+  },
+});
+/** Twin Thunders heals once a second for 8s after its own heal — each tick her healing marker. */
+const TwinThundersHeal = bulingAction("Heavy - Twin Thunders: Heal", { updateDebuffs: () => applyCurrent(HEALS, 1) });
+const TWIN_THUNDERS_HEALS = coordinatedBuff("Buling: Twin Thunders (heals)", 8, () => BULING_RESONATOR, TwinThundersHeal);
 /** The failed divination — held with fewer than two Trigrams: no hit, and every Trigram lost
  *  (the 20% HP it costs is out of scope). */
 const GhostGateOmen = bulingAction("Heavy - Ghost Gate Omen", {
@@ -120,7 +129,7 @@ const HA = new Action("Heavy - Trigram", {
 });
 
 // banks a Trigram: Thunder on cast
-const Skill = bulingAction("Skill - In Shadow Thunder Stirs", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 116.8, offtune: 7832, energy: 15.00, concerto: 23, ...THUNDER });
+const Skill = bulingAction("Skill - In Shadow Thunder Stirs", { frames: 60, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 116.8, offtune: 7832, energy: 15.00, concerto: 23, ...THUNDER });
 
 // The Liberation is Harmony under Yin-Yang Balance — generating the Array, opening/refreshing
 // Thunder Spell at Primordial Qi — and the plain Flashing Thunder Spell otherwise, which does
@@ -128,7 +137,9 @@ const Skill = bulingAction("Skill - In Shadow Thunder Stirs", { node: Node.Skill
 const Harmony = bulingAction("Liberation - Flashing Thunder Spell - Harmony", {
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 536.79, offtune: 72000, concerto: 20, resetEnergy: true,
   updateBuffs: () => {
-    revokeTeam(THUNDER_SPELL); applyTeam(THUNDER_SPELL, 1); revokeCurrent(YIN_YANG_BALANCE);
+    for (const stage of THUNDER_SPELL_STAGES) revokeTeam(stage);
+    applyTeam(PRIMORDIAL_QI, 1);
+    revokeCurrent(YIN_YANG_BALANCE);
     // only one array at a time: a fresh cast starts its 24s over
     revokeTeam(FIVE_THUNDERS_ARRAY); applyTeam(FIVE_THUNDERS_ARRAY, 24);
   },
@@ -147,42 +158,58 @@ const ArrayTick = bulingAction("Liberation - Five Thunders Spell Array", {
 });
 
 const Intro = bulingAction("Intro - Summon and Smite", {
+  frames: 60,
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 131.10, offtune: 8792, concerto: 10,
   updateDebuffs: () => inflictElectroFlare(4),
 });
 const Outro = bulingAction("Outro - Exorcism Spell", {
   cast: Cast.Outro, concerto: -100, swapOut: true,
-  updateBuffs: () => applyTeam(BULING_OUTRO, 1),
+  updateBuffs: () => {
+    applyTeam(BULING_OUTRO, 1);
+    applyTeam(EXORCISM_HEALS, 16);
+  },
 });
+/** Exorcism Spell heals the active resonator once a second for 16s, credited to her. */
+const ExorcismHeal = bulingAction("Outro - Exorcism Spell: Heal", { updateDebuffs: () => applyCurrent(HEALS, 1) });
+const EXORCISM_HEALS = coordinatedBuff("Buling: Outro (heals)", 16, () => BULING_RESONATOR, ExorcismHeal);
 
 /* ------------------------------------------------------------------------------------ buffs */
 
-/** Named for its own current stage rather than a stack count, same reasoning as Shorekeeper's
- *  Stellarealm. Paid out only to whoever's active. */
-const THUNDER_SPELL_STAGE = ["Primordial Qi", "Yin and Yang", "Heaven, Earth, Mind"];
-const THUNDER_SPELL = new Buff({
-  name: "Buling: Thunder Spell", maxStacks: 3,
-  display: (): string => `Buling: Thunder Spell - ${THUNDER_SPELL_STAGE[stacksOfTeam(THUNDER_SPELL) - 1]}`,
-  // stands only while the Array does: gone on the first action after its last pull
-  updateGlobal: () => {
-    if (!stacksOfTeam(FIVE_THUNDERS_ARRAY)) { revokeTeam(THUNDER_SPELL); return; }
-    if (casting(Cast.Intro) && stacksOfTeam(THUNDER_SPELL) < 3) applyTeam(THUNDER_SPELL, 1);
-  },
-  applyStats: () => {
-    if (!isActive()) return;
-    const stage = stacksOfTeam(THUNDER_SPELL);
-    if (stage === 2) addStat(Stat.DmgBonus, 10, Type1.Skill);
-    else if (stage >= 3) {
-      // pays out on whoever's active, not necessarily Buling — S6 is her own local Sequence, so
-      // it's read off her own slot specifically, found by resonator identity
-      const buling = currentTeam().slots.find((s) => s.resonator === BULING_RESONATOR);
-      addStat(Stat.DmgBonus, buling?.isHeld(BL_S6) ? 50 : 25, Type1.Skill);
-    }
-  },
+/** Thunder Spell's three stages, a buff each: opened at Primordial Qi by Harmony, stepped up to
+ *  the next by every Intro, and standing only while the Array does — gone on the first action
+ *  after its last pull. Paid out only to whoever's active. */
+function thunderSpell(stage: string, next: (() => Buff) | null, skillBonus: () => number): Buff {
+  const self: Buff = new Buff({
+    name: `Buling: Thunder Spell - ${stage}`,
+    updateGlobal: () => {
+      if (!stacksOfTeam(FIVE_THUNDERS_ARRAY)) {
+        revokeTeam(self);
+        return;
+      }
+      if (next && casting(Cast.Intro)) {
+        revokeTeam(self);
+        applyTeam(next(), 1);
+      }
+    },
+    applyStats: () => {
+      const bonus = isActive() ? skillBonus() : 0;
+      if (bonus) addStat(Stat.DmgBonus, bonus, Type1.Skill);
+    },
+  });
+  return self;
+}
+const HEAVEN_EARTH_MIND = thunderSpell("Heaven, Earth, Mind", null, () => {
+  // pays out on whoever's active, not necessarily Buling — S6 is her own local Sequence, so
+  // it's read off her own slot specifically, found by resonator identity
+  const buling = currentTeam().slots.find((s) => s.resonator === BULING_RESONATOR);
+  return buling?.isHeld(BL_S6) ? 50 : 25;
 });
+const YIN_AND_YANG = thunderSpell("Yin and Yang", () => HEAVEN_EARTH_MIND, () => 10);
+const PRIMORDIAL_QI = thunderSpell("Primordial Qi", () => YIN_AND_YANG, () => 0);
+const THUNDER_SPELL_STAGES = [PRIMORDIAL_QI, YIN_AND_YANG, HEAVEN_EARTH_MIND];
 
-/** The Array standing: 24 of the engine's seconds, one pull every second of them (helpers.ts's
- *  own field window). Granted by the Liberation, and what Thunder Spell above lives by. */
+/** The Array standing: 24s, a pull every 2s of them (helpers.ts's own field window). Granted by
+ *  the Liberation, and what Thunder Spell above lives by. */
 const FIVE_THUNDERS_ARRAY = coordinatedBuff("Buling: Five Thunders Spell Array", 24, () => BULING_RESONATOR, ArrayTick, { every: 2 });
 
 /** Pure state markers, no stat of their own — both are consumed the instant she holds both at
@@ -228,6 +255,7 @@ function spendTrigrams(): void {
 /** +15% (unscoped) DMG Amplification, 30s — permanent uptime once granted. */
 const BULING_OUTRO = new Buff({
   name: "Buling: Outro",
+  duration: 60 * 30,
   stats: [[Stat.Amp, 15]],
 });
 

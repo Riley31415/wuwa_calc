@@ -63,51 +63,54 @@ function lupaAction(id: string, def: object): Action {
 
 // energy/concerto off the migrated sheet; offtune off the old reference's own nanoka numbers (see
 // file header). Ordinary Basic/Heavy hits feed Wolflame in this simplified model.
-const BA1 = lupaAction("Basic - Flaming Star 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 90.08, energy: 1.34, concerto: 2.67, offtune: 4264, forte1: 7.5 });
-const BA2 = lupaAction("Basic - Flaming Star 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 90.08, energy: 1.34, concerto: 2.67, offtune: 4264, forte1: 7.5 });
-const BA3 = lupaAction("Basic - Flaming Star 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 157.68, energy: 2.37, concerto: 4.68, offtune: 7464, forte1: 12.5 });
-const BA4 = lupaAction("Basic - Flaming Star 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 246.24, energy: 3.66, concerto: 7.30, offtune: 11656, forte1: 17.5 });
+const BA1 = lupaAction("Basic - Flaming Star 1", { frames: 42, cancel: 34, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 90.08, energy: 1.34, concerto: 2.67, offtune: 4264, forte1: 7.5 });
+const BA2 = lupaAction("Basic - Flaming Star 2", { frames: 32, cancel: 10, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 90.08, energy: 1.34, concerto: 2.67, offtune: 4264, forte1: 7.5 });
+const BA3 = lupaAction("Basic - Flaming Star 3", { frames: 67, cancel: 51, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 157.68, energy: 2.37, concerto: 4.68, offtune: 7464, forte1: 12.5 });
+const BA4 = lupaAction("Basic - Flaming Star 4", { frames: 89, cancel: 73, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 246.24, energy: 3.66, concerto: 7.30, offtune: 11656, forte1: 17.5 });
 /** Basic Attack - Starfall, the enhanced follow-up after a plunging attack or dodge counter. */
-const EBA = lupaAction("Basic - Flaming Star: Starfall", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 168.66, energy: 2.51, concerto: 5.02, offtune: 7985, forte1: 5 });
+const EBA = lupaAction("Basic - Flaming Star: Starfall", { frames: 73, cancel: 42, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 168.66, energy: 2.51, concerto: 5.02, offtune: 7985, forte1: 5 });
 
 /** Wolf's Descent, her plunging attack — never placed in the rotation below, kept for completeness. */
-const MA = lupaAction("Mid-air - Flaming Star: Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.79, energy: 1.56, concerto: 3.11, offtune: 4960, forte1: 5 });
+const MA = lupaAction("Mid-air - Flaming Star: Plunge", { frames: 69, cancel: 55, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.79, energy: 1.56, concerto: 3.11, offtune: 4960, forte1: 5 });
 /** Flaming Star, her dodge counter — same treatment as `MA` above. */
-const DC = lupaAction("Dodge Counter - Flaming Star", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 273.44, energy: 4.07, concerto: 18.13, offtune: 12944 });
+const DC = lupaAction("Dodge Counter - Flaming Star", { frames: 73, cancel: 49, node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 273.44, energy: 4.07, concerto: 18.13, offtune: 12944 });
 
-const MA1 = lupaAction("Mid-air - Flaming Star 1", { node: Node.Normal, cutscene: true, cast: Cast.Basic, type: Type1.Basic, mv: 76.73, energy: 1.14, concerto: 2.27, offtune: 3632, forte1: 7 });
-const MA2 = lupaAction("Mid-air - Flaming Star 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 154.47, energy: 2.31, concerto: 4.61, offtune: 7312, forte1: 13 });
-const MA3 = lupaAction("Mid-air - Flaming Star 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 56.96, energy: 0.86, concerto: 1.70, offtune: 2696 });
+const MA1 = lupaAction("Mid-air - Flaming Star 1", { frames: 30, cancel: 14, node: Node.Normal, cutscene: true, cast: Cast.Basic, type: Type1.Basic, mv: 76.73, energy: 1.14, concerto: 2.27, offtune: 3632, forte1: 7 });
+const MA2 = lupaAction("Mid-air - Flaming Star 2", { frames: 56, cancel: 36, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 154.47, energy: 2.31, concerto: 4.61, offtune: 7312, forte1: 13 });
+const MA3 = lupaAction("Mid-air - Flaming Star 3", { frames: 71, cancel: 50, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 56.96, energy: 0.86, concerto: 1.70, offtune: 2696 });
 
 // base cast, plus three 50-Wolflame-consuming enhanced forms (each earns a point of Wolfaith
 // rather than restoring the gauge)
-const HA = lupaAction("Heavy - Flaming Star", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 112.72, energy: 1.68, concerto: 3.34, offtune: 5336 });
+const HA = lupaAction("Heavy - Flaming Star", { frames: 51, cancel: 28, node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 112.72, energy: 1.68, concerto: 3.34, offtune: 5336 });
 /** Firestrike, at Wolflame 50+. Counts as Heavy Attack DMG. */
-const EMA3 = lupaAction("Mid-air - Firestrike", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 56.96, energy: 0.86, concerto: 10, offtune: 2696, forte1: -50, forte2: 1 });
+const EMA3 = lupaAction("Mid-air - Firestrike", { frames: 71, cancel: 50, node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 56.96, energy: 0.86, concerto: 10, offtune: 2696, forte1: -50, forte2: 1 });
 /** Wolf's Gnawing, at Wolflame 50+. */
-const EHA3 = lupaAction("Heavy - Wolf's Gnawing", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 112.22, energy: 1.66, concerto: 10, offtune: 5312, forte1: -50, forte2: 1 });
+const EHA3 = lupaAction("Heavy - Wolf's Gnawing", { frames: 50, cancel: 40, node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 112.22, energy: 1.66, concerto: 10, offtune: 5312, forte1: -50, forte2: 1 });
 /** Wolf's Claw, at Wolflame 50+ and Wolfaith 1+. */
-const EHA4 = lupaAction("Heavy - Wolf's Claw", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 240.5, energy: 3.58, concerto: 10, offtune: 11385, forte1: -50, forte2: 1 });
+const EHA4 = lupaAction("Heavy - Wolf's Claw", { frames: 96, cancel: 75, node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 240.5, energy: 3.58, concerto: 10, offtune: 11385, forte1: -50, forte2: 1 });
 
 // Shewolf's Hunt and its Feral Fang follow-up, each restoring 15 Wolflame
 const Skill1 = lupaAction("Skill - Shewolf's Hunt", {
+  frames: 56, cancel: 28,
   node: Node.Skill, cast: Cast.Skill, cutscene: true, type: Type1.Skill, mv: 140.77, energy: 2.09, concerto: 4.17, offtune: 6664, forte1: 15,
   updateBuffs: () => applyEnemy(LUPA_MARK, 1),
 });
 /** Feral Fang: +50% DMG Multiplier against the marked target, kept as an explicit MulMv add (see
  *  LUPA_RESONATOR's own updateBuffs() below) rather than baked into mv, so the trace shows where it comes from. */
-const Skill2 = lupaAction("Skill - Feral Fang", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 313.61, energy: 13.67, offtune: 5328, forte1: 15 });
+const Skill2 = lupaAction("Skill - Feral Fang", { frames: 63, cancel: 44, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 313.61, energy: 13.67, offtune: 5328, forte1: 15 });
 
 /** Foebreaker: consumes every point of Wolflame. Always placed right after Liberation, whose own
  *  updateBuffs() hard-resets Wolflame to exactly 100 first, so forte1: -100 always lands on 0. Opens
  *  Burning Matchpoint (see BURNING_MATCHPOINT below). */
 const USkill = lupaAction("Skill - Foebreaker", {
+  frames: 58, cancel: 48,
   node: Node.Liberation, cast: Cast.Skill, type: Type1.Skill, mv: 304.46, concerto: 20, offtune: 6448, forte1: -100,
   updateBuffs: () => applyCurrent(BURNING_MATCHPOINT, 1),
 });
 
 // tops Wolflame to 100, spends every point of Wolfaith, opens Pack Hunt/Glory
 const Liberation = lupaAction("Liberation - Fire-Kissed Glory", {
+  frames: 0, cancel: 220,
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 820.44, concerto: 20, offtune: 48000, forte1: 100, resetEnergy: true,
   // "Restores 100 points of Wolflame" is a hard top-off, not additive on top of whatever was
   // already held, and every point of Wolfaith goes: both reset ahead of the declared +100
@@ -121,18 +124,19 @@ const Liberation = lupaAction("Liberation - Fire-Kissed Glory", {
 // delta — always exactly 2 in this fixed-rotation-line, the only gate that lets either one fire)
 // both Dance With the Wolf forms put Backup Ready on the team
 const BACKUP = { updateBuffs: () => applyTeam(LUPA_BACKUP_READY, 1) };
-const FSkill = lupaAction("Forte Skill - Dance With the Wolf", { node: Node.Forte, cast: Cast.Skill, type: Type1.Liberation, mv: 560.21, energy: 30, concerto: 15.02, offtune: 16016, forte2: -2, ...BACKUP });
-const UFSkill = lupaAction("Forte Skill - Dance With the Wolf: Climax", { node: Node.Forte, cast: Cast.Skill, type: Type1.Liberation, mv: 756.26, energy: 30, concerto: 30, offtune: 54416, forte2: -2, ...BACKUP });
+const FSkill = lupaAction("Forte Skill - Dance With the Wolf", { frames: 151, cancel: 102, node: Node.Forte, cast: Cast.Skill, type: Type1.Liberation, mv: 560.21, energy: 30, concerto: 15.02, offtune: 16016, forte2: -2, ...BACKUP });
+const UFSkill = lupaAction("Forte Skill - Dance With the Wolf: Climax", { frames: 151, cancel: 102, node: Node.Forte, cast: Cast.Skill, type: Type1.Liberation, mv: 756.26, energy: 30, concerto: 30, offtune: 54416, forte2: -2, ...BACKUP });
 /** Set the Arena Ablaze — queued by LUPA_BACKUP_READY the moment a teammate's Liberation earns
  *  it, not placed in the rotation directly. */
 const fskillFUA = lupaAction("Forte Skill - Set the Arena Ablaze", { node: Node.Forte, type: Type1.Skill, mv: 211.75, offtune: 9600 });
 
-const Intro = lupaAction("Intro - Try Focusing, Eh?", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.4, energy: 10.02, concerto: 10, offtune: 9393 });
+const Intro = lupaAction("Intro - Try Focusing, Eh?", { frames: 83, cancel: 53, node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.4, energy: 10.02, concerto: 10, offtune: 9393 });
 /** Nowhere to Run! — replaces plain Intro once Pack Hunt is maxed (see LUPA_RESONATOR's own intro()
  *  selector below, which also ends Pack Hunt/Glory right there, before this hit's own damage). */
-const EIntro = lupaAction("Intro - Nowhere to Run!", { node: Node.Intro, cast: Cast.Intro, type: Type1.Liberation, mv: 991.97, energy: 10, concerto: 10, offtune: 16000 });
+const EIntro = lupaAction("Intro - Nowhere to Run!", { frames: 60, cancel: 150, node: Node.Intro, cast: Cast.Intro, type: Type1.Liberation, mv: 991.97, energy: 10, concerto: 10, offtune: 16000 });
 /** Stand by Me, Warrior: no damage of its own, just the outro handoff. */
 const Outro = lupaAction("Outro - Stand by Me, Warrior", {
+  frames: 0, cancel: 0,
   cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(LUPA_OUTRO),
 });
@@ -144,7 +148,7 @@ const Outro = lupaAction("Outro - Stand by Me, Warrior", {
  *  gate this engine has no notion of, so the +10% Fusion DMG Bonus (and its "3+ Fusion members"
  *  escalation) applies unconditionally. Ended by her own intro() selector below once maxed. */
 const PACK_HUNT = new Buff({
-  name: "Lupa: Pack Hunt", maxStacks: 3,
+  name: "Lupa: Pack Hunt", maxStacks: 3, duration: 60 * 35,
   stats: [[Stat.BonusAtk, 6]], perStack: true,
   grants: [{ on: onCast(Cast.Intro), to: BuffTarget.Team }],
   applyStats: () => {
@@ -167,7 +171,7 @@ const lupaHolds = (node: Sequence): boolean =>
  *  team's own Fusion count at her Liberation cast. Just the payout — its trigger lives on
  *  LP_INHERENT_2 below (see file header). */
 const GLORY = new Buff({
-  name: "Lupa: Glory", maxStacks: 3,
+  name: "Lupa: Glory", maxStacks: 3, duration: 60 * 35,
   // the count is who it is scaled by, not a stack of anything: it reads as the Fusion members
   display: () => `Lupa: Glory (${frozenStacks()} Fusion)`,
   applyStats: () => {
@@ -184,6 +188,7 @@ const GLORY = new Buff({
  *  own outro (see echoes/jinzhou.ts's HERON_HANDOFF). */
 const LUPA_OUTRO = new Buff({
   name: "Lupa: Outro",
+  duration: 60 * 14,
   stats: [[Stat.Amp, 20, Attribute.Fusion], [Stat.Amp, 25, Type1.Basic]],
   until: LifeTime.Swap,
 });
@@ -193,6 +198,7 @@ const LUPA_OUTRO = new Buff({
  *  Inherent Skill. Just the payout — its trigger lives on LUPA_RESONATOR's own updateBuffs() below. */
 const WILDFIRE_BANNER = new Buff({
   name: "Lupa: Wildfire Banner",
+  duration: 60 * 8,
   stats: [[Stat.BonusAtk, 12]],
   convertStats: () => { if (runningAction(fskillFUA)) revokeCurrent(WILDFIRE_BANNER); },
 });
@@ -215,6 +221,7 @@ const LP_INHERENT_2 = new Inherent({
  *  Also ends on a Liberation cast with the mark still up and unconsumed. */
 const LUPA_MARK = new Debuff({
   name: "Lupa: Mark",
+  duration: 60 * 8,
   applyStats: () => { if (runningAction(Skill2)) addStat(Stat.MulMv, 50); },
   convertStats: () => { if (runningAction(Skill2) || runningAction(Liberation)) revokeEnemy(LUPA_MARK); },
 });
@@ -223,7 +230,7 @@ const LUPA_MARK = new Debuff({
  *  is cast. While held, true Normal Attack hits (not her enhanced Heavy Attacks) restore 500%
  *  MORE Wolflame on hit — a straight +5x of the action's own declared forte1 gain. */
 const BURNING_MATCHPOINT = new Buff({
-  name: "Lupa: Burning Matchpoint",
+  name: "Lupa: Burning Matchpoint", duration: 60 * 12,
   applyStats: () => {
     const a = currentAction();
     if (isType(Type1.Basic)) addStat(Stat.AddForte1, 5 * a.forte1);
@@ -237,6 +244,7 @@ const BURNING_MATCHPOINT = new Buff({
  *  team-wide so its own applyStats() sees any teammate's Liberation cast, not just her own turn. */
 const LUPA_BACKUP_READY = new Buff({
     name: "Lupa: Set the Arena Ablaze",
+    duration: 60 * 8,
     applyStats: () => {
         if (casting(Cast.Liberation) && currentTeam().slot.resonator !== LUPA_RESONATOR) {
             queueOn(LUPA_RESONATOR, fskillFUA);
@@ -251,6 +259,7 @@ const LUPA_BACKUP_READY = new Buff({
  *  Concerto with it. The interrupt immunity is no stat. */
 const NAMELESS_ONE = new Buff({
   name: "Lupa S1: Behold the Nameless One",
+  duration: 60 * 10,
   stats: [[Stat.CritRate, 20]], until: LifeTime.Outro,
 });
 const LP_S1 = new Sequence({
@@ -262,7 +271,7 @@ const LP_S1 = new Sequence({
 /** S2: +20% Fusion DMG Bonus to the team a stack, two at most, off Fire-Kissed Glory or any of the
  *  three Wolflame-spending heavies — 30s, so permanent. */
 const HER_HUNTING_FIELD = new Buff({
-  name: "Lupa S2: Every Ground, Her Hunting Field", maxStacks: 2,
+  name: "Lupa S2: Every Ground, Her Hunting Field", maxStacks: 2, duration: 60 * 30,
   stats: [[Stat.DmgBonus, 20, Attribute.Fusion]], perStack: true,
 });
 const LP_S2 = new Sequence({
@@ -289,6 +298,7 @@ const LP_S4 = new Sequence({
 /** S5: +15% Resonance Liberation DMG Bonus for 10s off either Intro — hers alone, so until her outro. */
 const THUNDEROUS_TRIUMPH = new Buff({
   name: "Lupa S5: Embrace the Thunderous Triumph",
+  duration: 60 * 10,
   stats: [[Stat.DmgBonus, 15, Type1.Liberation]], until: LifeTime.Outro,
 });
 const LP_S5 = new Sequence({

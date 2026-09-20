@@ -15,7 +15,7 @@ import {
   applyTeam,
   revokeTeam,
   stacksOfTeam,
-  removeStack,
+  
   removeStackTeam,
   isHeld,
   casting,
@@ -29,8 +29,9 @@ import {
   queue,
   queueOn,
   queueOutro,
+  elapsed,
 } from "../../engine/context.js";
-import { lostOnSwap, oneSecondPassed } from "../../shared/helpers.js";
+import { lostOnSwap } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_SWAP, OUTRO, ActionField } from "../../engine/rotation.js";
 import { STATIC_MIST, CADENZA, NEW_STD_PISTOL } from "../../weapons/standard.js";
 import { HERON, STONEWALL_BRACER, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
@@ -47,30 +48,32 @@ function mortefiAction(id: string, def: object): Action {
 
 // --- basics, mid-air, dodge counter, heavy (Impromptu Show) — BA2/BA4 fold multiple hits into
 //     one action, same as their own mv already did
-const BA1 = mortefiAction("Basic - Impromptu Show 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 48.30, energy: 0.86, concerto: 2.77, offtune: 2800, forte1: 5 });
-const BA2 = mortefiAction("Basic - Impromptu Show 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 40.78 * 2, energy: 1.46, concerto: 4.68, offtune: 4720, forte1: 10 });
-const BA3 = mortefiAction("Basic - Impromptu Show 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 107.30, energy: 1.92, concerto: 6.16, offtune: 6160, forte1: 10 });
-const BA4 = mortefiAction("Basic - Impromptu Show 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 21.02 * 4 + 126.93, energy: 3.76, concerto: 12.09, offtune: 12080, forte1: 25 });
+const BA1 = mortefiAction("Basic - Impromptu Show 1", { frames: 21, cancel: 12, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 48.30, energy: 0.86, concerto: 2.77, offtune: 2800, forte1: 5 });
+const BA2 = mortefiAction("Basic - Impromptu Show 2", { frames: 35, cancel: 18, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 40.78 * 2, energy: 1.46, concerto: 4.68, offtune: 4720, forte1: 10 });
+const BA3 = mortefiAction("Basic - Impromptu Show 3", { frames: 40, cancel: 24, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 107.30, energy: 1.92, concerto: 6.16, offtune: 6160, forte1: 10 });
+const BA4 = mortefiAction("Basic - Impromptu Show 4", { frames: 91, cancel: 54, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 21.02 * 4 + 126.93, energy: 3.76, concerto: 12.09, offtune: 12080, forte1: 25 });
 
 const HA = mortefiAction("Heavy - Impromptu Show", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 167.01, energy: 2.4, concerto: 7.68, offtune: 9600 });
-const MA1 = mortefiAction("Mid-air - Impromptu Show 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 23.25, energy: 0.41, concerto: 1, offtune: 1360, forte1: 2 });
-const MA2 = mortefiAction("Mid-air - Impromptu Show 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 23.25, energy: 0.41, concerto: 1, offtune: 1360, forte1: 2 });
-const DC = mortefiAction("Dodge Counter - Impromptu Show", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 194.98, energy: 3.5, concerto: 16.4, offtune: 6400, forte1: 20 });
+const MA1 = mortefiAction("Mid-air - Impromptu Show 1", { frames: 11, cancel: 0, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 23.25, energy: 0.41, concerto: 1, offtune: 1360, forte1: 2 });
+const MA2 = mortefiAction("Mid-air - Impromptu Show 2", { frames: 11, cancel: 0, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 23.25, energy: 0.41, concerto: 1, offtune: 1360, forte1: 2 });
+const DC = mortefiAction("Dodge Counter - Impromptu Show", { frames: 48, cancel: 32, node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 194.98, energy: 3.5, concerto: 16.4, offtune: 6400, forte1: 20 });
 
 // --- resonance skill: Passionate Variation. Elemental DMG reads 0, so concerto is the flat
 //     Concerto Regen (18) instead, same treatment as every other such row.
 const Skill = mortefiAction("Skill - Passionate Variation", {
+  frames: 46, cancel: 16,
   node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 208.76, energy: 10, concerto: 18, offtune: 7200, forte1: 40,
-  updateBuffs: () => applyCurrent(PASSIONATE_TAIL, 5),
+  updateBuffs: () => applyCurrent(PASSIONATE_TAIL, 1),
 });
 
 // --- forte circuit: Fury Fugue — spends every point of Annoyance, considered Resonance Skill DMG
-const FSkill = mortefiAction("Forte Skill - Fury Fugue", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 326.05, energy: 10, concerto: 18, offtune: 8000, forte1: -100 });
+const FSkill = mortefiAction("Forte Skill - Fury Fugue", { frames: 67, cancel: 20, node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 326.05, energy: 10, concerto: 18, offtune: 8000, forte1: -100 });
 
 // --- resonance liberation: Violent Finale opens Burning Rhapsody — 28 coordinated attacks banked
 //     (10s / 0.35s), the window itself and its firing rules in BURNING_RHAPSODY below. A fresh
 //     window is a fresh Rhythmic Vibrato ramp, so the old one is wiped here.
 const Liberation = mortefiAction("Liberation - Violent Finale", {
+  frames: 0, cancel: 120,
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 159.05, concerto: 20, offtune: 96000, resetEnergy: true,
   updateBuffs: () => { revokeCurrent(VIBRATO); applyTeam(BURNING_RHAPSODY, 28); },
 });
@@ -95,8 +98,9 @@ const ACTION_S5_MARCATO = mortefiAction("Liberation - Marcato (S5 Funerary Quart
 });
 
 // --- intro / outro
-const Intro = mortefiAction("Intro - Dissonance", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 168.99, energy: 10, concerto: 10, offtune: 8000, forte1: 60 });
+const Intro = mortefiAction("Intro - Dissonance", { frames: 90, cancel: 44, node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 168.99, energy: 10, concerto: 10, offtune: 8000, forte1: 60 });
 const Outro = mortefiAction("Outro - Rage Transposition", {
+  frames: 0, cancel: 0,
   cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(MORTEFI_OUTRO),
 });
@@ -104,13 +108,11 @@ const Outro = mortefiAction("Outro - Rage Transposition", {
 /* ------------------------------------------------------------------------------------ buffs */
 
 /** Passionate Variation's own five seconds, in which every Impromptu Show hit that lands banks 7
- *  Annoyance on top of what the press already pays. One stack a press — the engine's second —
- *  spent in convertStats so the press that runs the window out is still paid on the way, and gone
- *  with his visit either way (five seconds cannot outlast a swap). */
+ *  Annoyance on top of what the press already pays. Gone with his visit either way (five seconds
+ *  cannot outlast a swap). */
 const PASSIONATE_TAIL = new Buff({
   name: "Mortefi: Passionate Variation",
-  maxStacks: 5,
-  display: () => `Passionate Variation (${frozenStacks()}s)`,
+  duration: 60 * 5,
   applyStats: () => {
     const a = currentAction();
     if (!casting(Cast.Basic) || a.mv <= 0) return;
@@ -118,26 +120,28 @@ const PASSIONATE_TAIL = new Buff({
     // is two shots and the fourth is five, which is what carries a whole combo to 100 Annoyance
     addStat(Stat.AddForte1, 7 * (a === BA2 ? 2 : a === BA4 ? 5 : 1));
   },
-  convertStats: () => {
-    lostOnSwap();
-    // the cast that opens it is not one of its own seconds — the window stands behind it
-    if (oneSecondPassed() && !runningAction(Skill)) removeStack(PASSIONATE_TAIL, 1);
-  },
+  convertStats: () => lostOnSwap(),
 });
 
-/** Burning Rhapsody as the countdown it is — each stack one 0.35s coordinated-attack slot,
- *  28 banked by the Liberation (10s) plus S4's own 20 (+7s), spent only by firing. On every
- *  active, non-triggered cast: a Basic (with a real hit — mv > 0) draws up to three single
+/** Burning Rhapsody: its 10s (17s with S4), and each stack one 0.35s coordinated-attack slot,
+ *  28 banked by the Liberation plus S4's own 20, spent only by firing. On every press that takes
+ *  time: a Basic (with a real hit — mv > 0) draws up to three single
  *  Marcato, a Heavy up to three doubles, each coordinated attack one stack and never more than
  *  remain; a Resonance Skill draws one free double, spending nothing. Empty is over — it outlives
  *  his swap (the ticks land on his own slot regardless), unlike the old lumped window. */
 const BURNING_RHAPSODY = new Buff({
   name: "Mortefi: Burning Rhapsody",
-  maxStacks: 48,
+  // S4's own 20 on top of the 28 is the 17s window
+  maxStacks: 48, duration: (n) => 60 * (n > 28 ? 17 : 10),
   field: MARCATO_FIELD,
   updateBuffs: () => {
-    if (!oneSecondPassed()) return;
-    if (casting(Cast.Skill)) { queueOn(MORTEFI_RESONATOR, ACTION_MARCATO); queueOn(MORTEFI_RESONATOR, ACTION_MARCATO_PAIRED); return; }
+    // a press of the active resonator's own, not a follow-up or a cancelled cast
+    if (!elapsed()) return;
+    if (casting(Cast.Skill)) {
+      queueOn(MORTEFI_RESONATOR, ACTION_MARCATO);
+      queueOn(MORTEFI_RESONATOR, ACTION_MARCATO_PAIRED);
+      return;
+    }
     const heavy = casting(Cast.Heavy);
     if (!heavy && !(casting(Cast.Basic) && currentAction().mv > 0)) return;
     const n = Math.min(3, stacksOfTeam(BURNING_RHAPSODY));
@@ -164,6 +168,7 @@ const VIBRATO = new Buff({
  *  short window, lost after the outro action gains stats. */
 const HARMONIC_CONTROL = new Buff({
   name: "Inherent: Harmonic Control",
+  duration: 60 * 8,
   applyStats: () => { if (runningAction(FSkill)) addStat(Stat.DmgBonus, 25); },
   until: LifeTime.Outro,
 });
@@ -181,6 +186,7 @@ const MO_INHERENT_2 = new Inherent({ name: "Inherent: Rhythmic Vibrato" });
  *  lost-on-swap wording, so it ends on the swap-out action rather than at the outro. */
 const MORTEFI_OUTRO = new Buff({
   name: "Mortefi: Outro",
+  duration: 60 * 14,
   stats: [[Stat.Amp, 38, Type1.Heavy]],
   until: LifeTime.Swap,
 });
@@ -188,6 +194,7 @@ const MORTEFI_OUTRO = new Buff({
 /** S6 Apoplectic Instrumental: team-wide +20% ATK, 20s — lost on the applier's own next Intro. */
 const S6_TEAM_ATK = new Buff({
   name: "Mortefi S6: Apoplectic Instrumental",
+  duration: 60 * 20,
   stats: [[Stat.BonusAtk, 20]],
   convertStats: () => { if (casting(Cast.Intro) && isHeld(MORTEFI_RESONATOR)) revokeTeam(S6_TEAM_ATK); },
 });

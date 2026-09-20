@@ -149,14 +149,16 @@ export function buffsPopover(member: string, gear: Gear[], local: HeldBuff[], gl
   const rank = (b: HeldBuff) => { const i = order.indexOf(b.source); return i === -1 ? order.length : i; };
   const sorted = (buffs: HeldBuff[]) => [...buffs]
     .sort((a, b) => rank(a) - rank(b) || a.source.localeCompare(b.source) || a.name.localeCompare(b.name));
-  const row = (name: string, hue: string) => `<tr><td class="s" style="--own:${hue}">${esc(name)}</td></tr>`;
+  // a timed buff shows what it has left, dimmed, after its name
+  const left = (frames: number) => (frames > 0 ? ` <span class="left">(${Math.round(frames / 6) / 10}s)</span>` : "");
+  const row = (name: string, hue: string, frames = 0) => `<tr><td class="s" style="--own:${hue}">${esc(name)}${left(frames)}</td></tr>`;
   const own = slotHue.get(member) ?? FALLBACK_HUE;
   const gearSection = showGear
     ? `<tr class="sec"><td>Gear</td></tr>` + gear.map((g) => row(g.name, own)).join("")
     : "";
   const section = (heading: string, buffs: HeldBuff[]) => (buffs.length
     ? `<tr class="sec"><td>${esc(heading)}</td></tr>`
-      + sorted(buffs).map((b) => row(b.name, slotHue.get(b.source) ?? TUNE_BREAK_ENEMY.color)).join("")
+      + sorted(buffs).map((b) => row(b.name, slotHue.get(b.source) ?? TUNE_BREAK_ENEMY.color, b.left)).join("")
     : "");
   const columns = [
     gearSection + section("Local buffs", local),

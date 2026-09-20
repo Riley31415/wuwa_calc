@@ -54,8 +54,8 @@ import {
   queue,
   revokeCurrent,
   revokeTeam,
-  setStacksSelf,
-  stacksOf,
+  
+  
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, START_3, SWAP, DOUBLE_INTRO, INTRO, ECHO_ONFIELD, OUTRO, NOINTRO, EVERY_OTHER } from "../../engine/rotation.js";
 import { AGES_OF_HARVEST } from "../../weapons/broadblade.js";
@@ -63,7 +63,7 @@ import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { JUE, CELESTIAL_LIGHT_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
-import { matrix, oneSecondPassed } from "../../shared/helpers.js";
+import { matrix } from "../../shared/helpers.js";
 import { UNISON, unisonOutro } from "../../shared/unison.js";
 import { STAY_TUNED, SWORN_VIGIL_5PC } from "../../echoes/mengzhou.js";
 
@@ -75,38 +75,41 @@ function jinhsiAction(id: string, def: object): Action {
 
 // --- Slash of Breaking Dawn, the chain she plays only outside Incarnation. Her real loop enters
 //     Incarnation off the Intro, so none of these are placed below.
-const BA1 = jinhsiAction("Basic - Slash of Breaking Dawn 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 66.47, energy: 1.24, concerto: 2.48, offtune: 3960 });
-const BA2 = jinhsiAction("Basic - Slash of Breaking Dawn 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 97.49, energy: 1.84, concerto: 3.65, offtune: 5810 });
-const BA3 = jinhsiAction("Basic - Slash of Breaking Dawn 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 106.49, energy: 2, concerto: 3.99, offtune: 6349 });
-const BA4 = jinhsiAction("Basic - Slash of Breaking Dawn 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 157.72, energy: 2.95, concerto: 5.89, offtune: 9400 });
-const HA = jinhsiAction("Heavy - Slash of Breaking Dawn", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 238.6, energy: 4, concerto: 8, offtune: 12800 });
-const MA = jinhsiAction("Mid-air - Slash of Breaking Dawn Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.28, energy: 0.54, concerto: 1, offtune: 4960 });
-const DC = jinhsiAction("Dodge Counter - Slash of Breaking Dawn", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 146.78, energy: 2.78, concerto: 15.49, offtune: 8749 });
+const BA1 = jinhsiAction("Basic - Slash of Breaking Dawn 1", { frames: 28, cancel: 17, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 66.47, energy: 1.24, concerto: 2.48, offtune: 3960 });
+const BA2 = jinhsiAction("Basic - Slash of Breaking Dawn 2", { frames: 45, cancel: 42, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 97.49, energy: 1.84, concerto: 3.65, offtune: 5810 });
+const BA3 = jinhsiAction("Basic - Slash of Breaking Dawn 3", { frames: 47, cancel: 39, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 106.49, energy: 2, concerto: 3.99, offtune: 6349 });
+const BA4 = jinhsiAction("Basic - Slash of Breaking Dawn 4", { frames: 74, cancel: 33, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 157.72, energy: 2.95, concerto: 5.89, offtune: 9400 });
+const HA = jinhsiAction("Heavy - Slash of Breaking Dawn", { frames: 106, cancel: 90, node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 238.6, energy: 4, concerto: 8, offtune: 12800 });
+const MA = jinhsiAction("Mid-air - Slash of Breaking Dawn Plunge", { frames: 95, cancel: 52, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.28, energy: 0.54, concerto: 1, offtune: 4960 });
+const DC = jinhsiAction("Dodge Counter - Slash of Breaking Dawn", { frames: 48, cancel: 39, node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 146.78, energy: 2.78, concerto: 15.49, offtune: 8749 });
 
 // --- Trailing Lights of Eons, and the alternative skill that opens Incarnation
-const Skill = jinhsiAction("Skill - Trailing Lights of Eons", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 155.68, energy: 2.21, concerto: 4.38, offtune: 6960 });
+const Skill = jinhsiAction("Skill - Trailing Lights of Eons", { frames: 64, cancel: 42, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 155.68, energy: 2.21, concerto: 4.38, offtune: 6960 });
 const Skill2 = jinhsiAction("Skill - Overflowing Radiance", {
+  frames: 84, cancel: 74,
   node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 197.29, energy: 1.29, concerto: 4, offtune: 3974,
   updateBuffs: () => applyCurrent(INCARNATION, 1),
 });
 
 // --- Forte Circuit (Luminal Synthesis). The Incarnation basic chain is Resonance Skill DMG by its
 //     own text, so it is tagged Skill and cast Basic; the Heavy and the Dodge Counter are not.
-const IncBA1 = jinhsiAction("Basic - Incarnation 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 88.62, energy: 1.24, concerto: 1.24, offtune: 3960 });
-const IncBA2 = jinhsiAction("Basic - Incarnation 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 129.95, energy: 1.83, concerto: 1.83, offtune: 5809 });
-const IncBA3 = jinhsiAction("Basic - Incarnation 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 165.74, energy: 2.32, concerto: 2.32, offtune: 7409 });
+const IncBA1 = jinhsiAction("Basic - Incarnation 1", { frames: 26, cancel: 15, node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 88.62, energy: 1.24, concerto: 1.24, offtune: 3960 });
+const IncBA2 = jinhsiAction("Basic - Incarnation 2", { frames: 41, cancel: 29, node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 129.95, energy: 1.83, concerto: 1.83, offtune: 5809 });
+const IncBA3 = jinhsiAction("Basic - Incarnation 3", { frames: 54, cancel: 31, node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 165.74, energy: 2.32, concerto: 2.32, offtune: 7409 });
 /** Stage 4 ends Incarnation and hands her Ordination Glow, the window Illuminous Epiphany lives in. */
 const IncBA4 = jinhsiAction("Basic - Incarnation 4", {
+  frames: 87, cancel: 71,
   node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 186.69, energy: 2.67, concerto: 2.67, offtune: 8348,
   updateBuffs: () => { revokeCurrent(INCARNATION); applyCurrent(ORDINATION_GLOW, 1); },
 });
-const IncHeavy = jinhsiAction("Heavy - Incarnation", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 159.06, energy: 2, concerto: 2, offtune: 6400 });
-const IncDodge = jinhsiAction("Dodge Counter - Incarnation", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 219.44, concerto: 13.08, offtune: 9810 });
-const Skill3 = jinhsiAction("Skill - Crescent Divinity", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 503.8, energy: 3.19, concerto: 8, offtune: 10138 });
+const IncHeavy = jinhsiAction("Heavy - Incarnation", { frames: 78, cancel: 48, node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 159.06, energy: 2, concerto: 2, offtune: 6400 });
+const IncDodge = jinhsiAction("Dodge Counter - Incarnation", { frames: 87, cancel: 87, node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 219.44, concerto: 13.08, offtune: 9810 });
+const Skill3 = jinhsiAction("Skill - Crescent Divinity", { frames: 87, cancel: 71, node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 503.8, energy: 3.19, concerto: 8, offtune: 10138 });
 
 /** Illuminous Epiphany, the one press: Solar Flare's six taps, with Stella Glamor's detonation
  *  queued behind them — the row every Incandescence held pays out on (see INCANDESCENCE below). */
 const Skill4 = jinhsiAction("Forte Skill - Illuminous Epiphany: Solar Flare", {
+  frames: 42, cancel: 174,
   node: Node.Forte, cast: Cast.Skill, cutscene: true, type: Type1.Skill, mv: 119.34, energy: 1.98, concerto: 20, offtune: 14400,
   updateBuffs: () => {
     revokeCurrent(ORDINATION_GLOW);
@@ -123,20 +126,22 @@ const Skill4_Unison = Skill4.variant("Forte Skill - Illuminous Epiphany: Solar F
 const StellaGlamor = jinhsiAction("Forte Skill - Illuminous Epiphany: Stella Glamor", { node: Node.Forte, type: Type1.Skill, mv: 347.92, energy: 5.67, offtune: 42002 });
 
 const Liberation = jinhsiAction("Liberation - Purge of Light", {
+  frames: 0, cancel: 231,
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 1666.03, concerto: 20, offtune: 84000, resetEnergy: true,
 });
 
 const Intro = jinhsiAction("Intro - Loong's Halo", {
+  frames: 60, cancel: 49,
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 159.05, energy: 10, concerto: 10, offtune: 8000,
 });
-/** Temporal Bender hands the incoming resonator nothing of their own: its 20s window is the
- *  second Eras in Unity stack, under which the channels run at one action instead of three. Both
- *  of her outros are this one cast — the first its Unison form, paid for by Unison, the second by
- *  the bar — and with two a rotation the 20s windows overlap end to end, so the stack is permanent
- *  once up. */
+/** Temporal Bender hands the incoming resonator nothing of their own: it opens her own 20s window,
+ *  under which Eras in Unity's channels run at one action instead of three. Both of her outros are
+ *  this one cast — the first its Unison form, paid for by Unison, the second by the bar — so the
+ *  window is re-opened twice a rotation. */
 const Outro = jinhsiAction("Outro - Temporal Bender", {
+  frames: 0, cancel: 0,
   cast: Cast.Outro, concerto: -100, swapOut: true,
-  updateBuffs: () => { if ((stacksOf(ERAS_IN_UNITY) & 3) < 2) applyCurrent(ERAS_IN_UNITY, 1); },
+  updateBuffs: () => applyCurrent(TEMPORAL_BENDER, 1),
 });
 const OutroUnison = unisonOutro(Outro);
 
@@ -144,8 +149,8 @@ const OutroUnison = unisonOutro(Outro);
 
 /** The two mode markers, no stat of their own — they name which replacement chain is live, the
  *  same way Camellya's Blossom Mode does. */
-const INCARNATION = new Buff({ name: "Jinhsi: Incarnation" });
-const ORDINATION_GLOW = new Buff({ name: "Jinhsi: Ordination Glow" });
+const INCARNATION = new Buff({ name: "Jinhsi: Incarnation", duration: 60 * 10 });
+const ORDINATION_GLOW = new Buff({ name: "Jinhsi: Ordination Glow", duration: 60 * 5 });
 
 /* Unison itself is shared/unison.ts's: whichever of her outros holds it is the free one, and the
  * other pays the real bar. */
@@ -153,52 +158,39 @@ const ORDINATION_GLOW = new Buff({ name: "Jinhsi: Ordination Glow" });
 /**
  * Eras in Unity — the whole Incandescence economy, held on Jinhsi's own slot and watching every
  * action from updateGlobal() (the Jingran shape: reacting to teammates' turns, paying onto her).
- * Its stack count is a packed word, the same trick as Hiyuki's Snow Rust, since kit state has to
- * live in stacks for the engine's own snapshot/restore to see it:
- *
- *   bits 0-1   the real stacks: 1 always (from combat start), 2 once Temporal Bender's window
- *              opens — her first Outro raises it and it never comes off: she outros twice a
- *              rotation, so the 20s windows overlap end to end (the ≥21s permanence convention)
- *   bits 2-25  twelve 2-bit cooldowns, one per (attribute, coordinated?) channel — the six
- *              attributes, Physical (the Tune Break) being no Attribute DMG: the actions
- *              still to wait before that channel pays again, 3..0, at bit 2 + 2*(2*attr + coord)
- *
- * Only a press that is the engine's second (helpers.ts) ticks the channels down one — a queued
- * sub-hit (a turret shot, a coordinated tick) lands inside its trigger's own second, and a
- * cutscene freezes the world, so either may still pay an open channel but never passes time; a
- * DOT tick is ignored outright. A paying action's element
- * pays +1 Incandescence off its same-attribute channel and a Coordinated Attack pays +2 off its
- * own channel beside it — both back to cooldown 3, or 1 under the outro window (the kit's own
- * 1s, which speeds both sides up). The 50 cap is INCANDESCENCE's own maxStacks.
+ * Twelve channels, one per (attribute, coordinated?) — the six attributes, Physical (the Tune
+ * Break) being no Attribute DMG — each a buff of her own that stands while the channel cools: a
+ * paying action's element pays +1 Incandescence off its same-attribute channel and a Coordinated
+ * Attack pays +2 off its own channel beside it, and each closes for 3s, or 1s while Temporal
+ * Bender stands (the kit's own 1s, which speeds both sides up). A DOT tick is ignored outright.
+ * The 50 cap is INCANDESCENCE's own maxStacks.
  */
+/** Temporal Bender's own 20s window, off either of her outros. Its only job is to speed Eras in
+ *  Unity's channels up, so it carries no stat of its own. */
+const TEMPORAL_BENDER = new Buff({ name: "Jinhsi: Temporal Bender", duration: 60 * 20 });
+
+/** The twelve channels, held on her own slot while each is cooling. */
+const ERAS_CHANNELS = new Map<Attribute, [Buff, Buff]>();
+for (const [attribute, label] of [[Attribute.Aero, "Aero"], [Attribute.Electro, "Electro"], [Attribute.Fusion, "Fusion"], [Attribute.Glacio, "Glacio"], [Attribute.Spectro, "Spectro"], [Attribute.Havoc, "Havoc"]] as [Attribute, string][]) {
+  const channel = (name: string): Buff => new Buff({ name, duration: () => (isHeld(TEMPORAL_BENDER) ? 60 : 180) });
+  ERAS_CHANNELS.set(attribute, [channel(`Jinhsi: Eras in Unity - ${label}`), channel(`Jinhsi: Eras in Unity - ${label} (Coordinated)`)]);
+}
 const ERAS_IN_UNITY = new Buff({
-  name: "Jinhsi: Eras in Unity", maxStacks: 0x3ffffff,
-  display: () => ((frozenStacks() & 3) === 2 ? "Eras in Unity (Outro)" : "Eras in Unity"),
+  name: "Jinhsi: Eras in Unity",
   updateGlobal: () => {
     const a = currentAction();
-    // a DOT tick (the Negative Status ladders) is nobody's attack — no time, no pay
-    if (a.scaling === Scaling.Dot) return;
-    let word = stacksOf(ERAS_IN_UNITY);
-    // only the engine's second passes time: a queued sub-hit lands inside its trigger's own
-    // second and a cutscene freezes the world, so either may pay an open channel but not advance it
-    if (oneSecondPassed()) {
-      for (let shift = 2; shift < 26; shift += 2) {
-        if ((word >> shift) & 3) word -= 1 << shift;
-      }
+    // a DOT tick (the Negative Status ladders) is nobody's attack, and the six attributes only: a
+    // Physical hit (the Tune Break) is no Attribute DMG
+    if (a.scaling === Scaling.Dot || !a.element || a.element === Attribute.Physical || a.mv <= 0) return;
+    const [plain, coordinated] = ERAS_CHANNELS.get(a.element)!;
+    if (!isHeld(plain)) {
+      applyCurrent(plain, 1);
+      applyTeam(INCANDESCENCE, 1);
     }
-    // the six attributes only: a Physical hit (the Tune Break) is no Attribute DMG
-    if (a.element && a.element !== Attribute.Physical && a.mv > 0) {
-      const shift = 2 + 4 * ((a.element >> 6) - 1);
-      if (!((word >> shift) & 3)) {
-        word |= ((word & 3) === 2 ? 1 : 3) << shift;
-        applyTeam(INCANDESCENCE, 1);
-      }
-      if (isType(Type2.Coordinated) && !((word >> (shift + 2)) & 3)) {
-        word |= ((word & 3) === 2 ? 1 : 3) << (shift + 2);
-        applyTeam(INCANDESCENCE, 2);
-      }
+    if (isType(Type2.Coordinated) && !isHeld(coordinated)) {
+      applyCurrent(coordinated, 1);
+      applyTeam(INCANDESCENCE, 2);
     }
-    setStacksSelf(ERAS_IN_UNITY, word);
   },
 });
 
@@ -232,7 +224,7 @@ const CONVERGED_FLASH = new Inherent({
  *  consumes the lot, the same way Incandescence does. The 6s never binds: her rotation builds the
  *  four and spends them inside one burst (BA1-3, Crescent Divinity, BA4, Epiphany). */
 const HERALD_OF_REVIVAL = new Buff({
-  name: "Jinhsi S1: Herald of Revival", maxStacks: 4,
+  name: "Jinhsi S1: Herald of Revival", maxStacks: 4, duration: 60 * 6,
   applyStats: () => {
     if (runningAction(Skill4) || runningAction(StellaGlamor)) addStat(Stat.DmgBonus, 20 * frozenStacks());
   },
@@ -258,7 +250,7 @@ const JX_S2 = new Sequence({ name: "Jinhsi S2: Chronofrost Repose" ,
  *  double-Intro pair, so the mid-loop outro — the free one Unison pays for, which she comes
  *  straight back from — keeps them and only the bar-paid outro that ends the loop drops them. */
 const IMMORTALS_DESCENDANCY = new Buff({
-  name: "Jinhsi S3: Immortal's Descendancy", maxStacks: 2,
+  name: "Jinhsi S3: Immortal's Descendancy", maxStacks: 2, duration: 60 * 20,
   stats: [[Stat.BonusAtk, 25]], perStack: true,
 });
 
@@ -271,6 +263,7 @@ const JX_S3 = new Sequence({
  *  with no attribute named, so it goes on untagged. 20s team buff — lost on her own next Intro. */
 const JX_S4_TEAM = new Buff({
   name: "Jinhsi S4: Benevolent Grace",
+  duration: 60 * 20,
   stats: [[Stat.DmgBonus, 20]],
 });
 

@@ -30,7 +30,7 @@ export const MYRIAD_SNARE = new Mainslot({
  *  wearer's own outro (see jinzhou.ts's HERON_HANDOFF) and is gone the moment he leaves the
  *  field — a stack picked up in an opener never reaches the visit after it. */
 export const LAMP_STACKS = new Buff({
-  name: "Lamp of Nether Road 5pc", maxStacks: 4,
+  name: "Lamp of Nether Road 5pc", maxStacks: 4, duration: 60 * 5,
   stats: [[Stat.CritRate, 5]], perStack: true, until: LifeTime.AfterSwap,
   applyStats: () => { if (frozenStacks() >= 4) addStat(Stat.DmgBonus, 15, Attribute.Fusion); },
 });
@@ -51,6 +51,7 @@ export const ACTION_CALAMITY_EFFIGY = new Action("Echo - Calamity Effigy", {
 });
 export const CALAMITY_EFFIGY_STRAIN = new Buff({
   name: "Calamity Effigy (strain)",
+  duration: 60 * 15,
   stats: [[Stat.DmgBonus, 10, Attribute.Aero]], until: LifeTime.Outro,
 });
 export const CALAMITY_EFFIGY = new Mainslot({
@@ -72,6 +73,7 @@ export const HEART_OF_EVILS_PURGE_5PC = new Sonata({
 });
 export const HEART_OF_EVILS_PURGE_BUFF = new Buff({
   name: "Heart of Evil's Purge 5pc",
+  duration: 60 * 15,
   stats: [[Stat.CritDmg, 20], [Stat.DmgBonus, 30, Attribute.Aero]], until: LifeTime.Outro,
 });
 
@@ -120,10 +122,12 @@ export const FEATHERED_TRACE_5PC = new Sonata({
 });
 export const XUANLINGS_FEATHER = new Buff({
   name: "Song of Feathered Trace 5pc: Xuanling's Feather",
+  duration: 60 * 15,
   stats: [[Stat.CritRate, 20], [Stat.DmgBonus, 35, Type1.Heavy]], until: LifeTime.Outro,
 });
 export const CHONGMINGS_FEATHER = new Buff({
   name: "Song of Feathered Trace 5pc: Chongming's Feather",
+  duration: 60 * 10,
   stats: [[Stat.BonusAtk, 25]],
 });
 
@@ -157,6 +161,7 @@ export const FORBIDDEN_BASTION = new Mainslot({
  *  and two lines reading "Stay tuned 4c" said nothing about which was which. */
 export const STAY_TUNED_BUFF = new Buff({
   name: "Stay tuned 4c (flare/unison)",
+  duration: 60 * 30,
   stats: [[Stat.DmgBonus, 10, Attribute.Electro]],
 });
 const STAY_TUNED_GRANTS = [{ on: either(onInflict(ELECTRO_FLARE), gainedUnison, unisonResponse), buff: STAY_TUNED_BUFF }];
@@ -213,6 +218,7 @@ export const SWORN_VIGIL_5PC = new Sonata({
 });
 export const SWORN_VIGIL_BUFF = new Buff({
   name: "Heart of Sworn Vigil 5pc",
+  duration: 60 * 30,
   stats: [[Stat.CritRate, 15], [Stat.DmgBonus, 22.5, Attribute.Electro]],
 });
 
@@ -228,6 +234,7 @@ export const ELECTRIC_REFLECTION_5PC = new Sonata({
 });
 export const ELECTRIC_REFLECTION_BUFF = new Buff({
   name: "Flash of Electric Reflection 5pc",
+  duration: 60 * 15,
   stats: [[Stat.DmgBonus, 10, Attribute.Electro]], until: LifeTime.Outro,
   grants: [{ on: onCast(Cast.Outro), buff: () => ELECTRIC_REFLECTION_HANDOFF, to: BuffTarget.Next }],
 });
@@ -261,6 +268,7 @@ export const TINGED_YEARNING_5PC = new Sonata({
 });
 export const TINGED_YEARNING_TEAM = new Buff({
   name: "Flower of Tinged Yearning 5pc (team)",
+  duration: 60 * 30,
   stats: [[Stat.BonusAtk, 10]],
   grants: [{ on: either(gainedUnison, unisonResponse), buff: () => TINGED_YEARNING_UNISON }],
 });

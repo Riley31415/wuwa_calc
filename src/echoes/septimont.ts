@@ -46,7 +46,7 @@ export const FALSE_SOVEREIGN = new Mainslot({
  *  same reading: the wearer's own outro keeps it, and nothing they built carries into their next
  *  visit. */
 export const CROWN_STACKS = new Buff({
-  name: "Crown of Valor", maxStacks: 5,
+  name: "Crown of Valor", maxStacks: 5, duration: 60 * 4,
   stats: [[Stat.BonusAtk, 6], [Stat.CritDmg, 4]], perStack: true, until: LifeTime.AfterSwap,
 });
 export const COV_3PC = new Sonata3pc({
@@ -85,8 +85,8 @@ export const LIONESS_OF_GLORY = new Mainslot({
  *  grants the team +15% Fusion DMG Bonus and the caster +20% Liberation DMG Bonus, both 35s —
  *  permanent uptime once granted (≥21s), so a one-time grant on the first cast, never revoked.
  *  2pc: +10% Fusion DMG Bonus flat. */
-export const CLAWPRINT_TEAM = new Buff({ name: "Flaming Clawprint 5pc (team)", stats: [[Stat.DmgBonus, 15, Attribute.Fusion]] });
-export const CLAWPRINT_LIBERATION = new Buff({ name: "Flaming Clawprint 5pc", stats: [[Stat.DmgBonus, 20, Type1.Liberation]] });
+export const CLAWPRINT_TEAM = new Buff({ name: "Flaming Clawprint 5pc (team)", duration: 60 * 35, stats: [[Stat.DmgBonus, 15, Attribute.Fusion]] });
+export const CLAWPRINT_LIBERATION = new Buff({ name: "Flaming Clawprint 5pc", duration: 60 * 35, stats: [[Stat.DmgBonus, 20, Type1.Liberation]] });
 export const CLAWPRINT_2PC = new Sonata2pc({ name: "Flaming Clawprint 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Fusion]] });
 export const CLAWPRINT_5PC = new Sonata({
   name: "Flaming Clawprint 5pc",
@@ -115,17 +115,19 @@ export const CORROSAURUS = new Mainslot({
  *  Fusion DMG Bonus. */
 export const FLAMEWING_SHADOW_ECHO = new Buff({
   name: "Flamewing's Shadow 3pc (echo)",
+  duration: 60 * 6,
   stats: [[Stat.CritRate, 20, Type1.Heavy]], until: LifeTime.Outro,
 });
 export const FLAMEWING_SHADOW_HEAVY = new Buff({
   name: "Flamewing's Shadow 3pc (heavy)",
+  duration: 60 * 6,
   stats: [[Stat.CritRate, 20, Type1.Echo]], until: LifeTime.Outro,
 });
 export const FLAMEWING_SHADOW_3PC = new Sonata3pc({
   name: "Flamewing's Shadow 3pc",
   grants: [
-    { on: onType(Type1.Echo), buff: FLAMEWING_SHADOW_ECHO },
-    { on: onType(Type1.Heavy), buff: FLAMEWING_SHADOW_HEAVY },
+    { on: onType(Type1.Echo), buff: FLAMEWING_SHADOW_ECHO, onHit: true },
+    { on: onType(Type1.Heavy), buff: FLAMEWING_SHADOW_HEAVY, onHit: true },
   ],
   applyStats: () => {
     if (stacksOf(FLAMEWING_SHADOW_ECHO) && stacksOf(FLAMEWING_SHADOW_HEAVY)) addStat(Stat.DmgBonus, 16, Attribute.Fusion);
@@ -150,10 +152,11 @@ export const FENRICO = new Mainslot({
  *  distinct named Echo (every cast assumed unique). */
 export const LAW_OF_HARMONY_SELF = new Buff({
   name: "Law of Harmony",
+  duration: 60 * 4,
   stats: [[Stat.DmgBonus, 30, Type1.Heavy]], until: LifeTime.Outro,
 });
 export const LAW_OF_HARMONY_TEAM = new Buff({
-  name: "Law of Harmony (team)", maxStacks: 4,
+  name: "Law of Harmony (team)", maxStacks: 4, duration: 60 * 30,
   applyStats: () => { addStat(Stat.DmgBonus, 4 * stacksOfTeam(LAW_OF_HARMONY_TEAM), Type1.Echo); },
 });
 export const LAW_OF_HARMONY_3PC = new Sonata3pc({
@@ -218,5 +221,6 @@ export const THREAD_OF_SEVERED_FATE_3PC = new Sonata3pc({
 });
 export const THREAD_OF_SEVERED_FATE_BUFF = new Buff({
   name: "Thread of Severed Fate",
+  duration: 60 * 5,
   stats: [[Stat.BonusAtk, 20], [Stat.DmgBonus, 30, Type1.Liberation]],
 });

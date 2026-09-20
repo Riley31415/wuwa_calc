@@ -87,9 +87,10 @@ function lucillaAction(id: string, def: object): Action {
 // outright. Liberation costs no Resonance Energy at all (maxEnergy: 0 below), so no energy field.
 // Clip It and Oblivion (Chafe) each inflict a stack of Glacio Chafe
 const CHAFES = { updateDebuffs: () => applyEnemy(GLACIO_CHAFE, 1) };
-const Intro = lucillaAction("Intro - Clip It", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 97.42, energy: 11.75, concerto: 14.13, offtune: 5600, forte1: 100, ...CHAFES });
+const Intro = lucillaAction("Intro - Clip It", { frames: 81, cancel: 38, node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 97.42, energy: 11.75, concerto: 14.13, offtune: 5600, forte1: 100, ...CHAFES });
 // mutually exclusive: Echo hands off MONTAGE_HANDOFF, Chafe grants MONTAGE_CHAFE team-wide
 const Outro = lucillaAction("Outro - Montage", {
+  frames: 0, cancel: 0,
   cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => {
     if (isHeld(MODE_CHAFE)) applyTeam(MONTAGE_CHAFE, 1);
@@ -98,20 +99,21 @@ const Outro = lucillaAction("Outro - Montage", {
 });
 
 // normal attacks: Basic 1/2, Basic 3 (Focus Ring, always assumed Perfect/Commendable)
-const BA1 = lucillaAction("Basic - Snapshot 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 59.29, energy: 1.07, concerto: 1.71, offtune: 3408 });
-const BA2 = lucillaAction("Basic - Snapshot 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 67.23, energy: 1.22, concerto: 1.94, offtune: 3865 });
-const BA3 = lucillaAction("Basic - Snapshot 3 - Commendable", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 235.27, energy: 4.23, concerto: 6.77, offtune: 13524, forte1: 50 });
+const BA1 = lucillaAction("Basic - Snapshot 1", { frames: 30, cancel: 14, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 59.29, energy: 1.07, concerto: 1.71, offtune: 3408 });
+const BA2 = lucillaAction("Basic - Snapshot 2", { frames: 32, cancel: 24, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 67.23, energy: 1.22, concerto: 1.94, offtune: 3865 });
+const BA3 = lucillaAction("Basic - Snapshot 3 - Commendable", { frames: 106, cancel: 50, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 235.27, energy: 4.23, concerto: 6.77, offtune: 13524, forte1: 50 });
 const MA = lucillaAction("Mid-air - Snapshot Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.29, energy: 1.55, concerto: 3.66, offtune: 4960 });
-const DC = lucillaAction("Dodge Counter - Snapshot", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 150.73, energy: 2.71, concerto: 16.4, offtune: 8665 });
+const DC = lucillaAction("Dodge Counter - Snapshot", { frames: 32, cancel: 24, node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 150.73, energy: 2.71, concerto: 16.4, offtune: 8665 });
 
 // Phantom Frame (the pull-in dash, held to deploy Focus Ring) into either Compensate (cursor
 // outside Perfect Focus) or Spotlight (cursor within it); the rotation below only places
 // Spotlight, Compensate exported for completeness.
-const PhantomFrame = lucillaAction("Skill - Phantom Frame", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 39.78, energy: 1.26, concerto: 2.07, offtune: 4002 });
+const PhantomFrame = lucillaAction("Skill - Phantom Frame", { frames: 60, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 39.78, energy: 1.26, concerto: 2.07, offtune: 4002 });
 // also reduces the Resonance Skill's own cooldown by 8s — unmodeled, no CD tracking here
-const Compensate = lucillaAction("Skill - Compensate", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 249.07, energy: 9.31, concerto: 3.08, offtune: 4176, forte1: 25 });
+const Compensate = lucillaAction("Skill - Compensate", { frames: 60, cancel: 53, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 249.07, energy: 9.31, concerto: 3.08, offtune: 4176, forte1: 25 });
 // Spotlight lays a Chafe stack too, but only in Glacio Chafe mode
 const Spotlight = lucillaAction("Skill - Spotlight", {
+  frames: 107, cancel: 143,
   node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 548.98, energy: 27.90, concerto: 6.8, offtune: 9205, forte1: 50,
   updateDebuffs: () => { if (isHeld(MODE_CHAFE)) applyEnemy(GLACIO_CHAFE, 1); },
   applyStats: () => { addStat(Stat.AddConcerto, 20); }
@@ -120,6 +122,7 @@ const Spotlight = lucillaAction("Skill - Spotlight", {
 // Echo Skill DMG under Echo mode; Chafe mode's own typeOverride makes it Basic Attack DMG instead
 // (see MODE_CHAFE) — one action, not one per mode
 const Liberation = lucillaAction("Liberation - Clear As Day", {
+  frames: 0, cancel: 266,
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Echo, mv: 142.74, concerto: 20, offtune: 38400, forte1: -150,
   applyStats: () => { addStat(Stat.AddForte1, 150); },
   updateBuffs: () => {
@@ -130,9 +133,10 @@ const Liberation = lucillaAction("Liberation - Clear As Day", {
 
 // Reminiscence: Basic Attack - Tracing Forms (unconditionally Basic Attack DMG) and Letting It Go
 // (mode-typed). Stage 3 itself triggers Oblivion once per Photo actually banked (forte1, max 3).
-const UBA1 = lucillaAction("Basic - Tracing Forms 1", { node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 76.59, energy: 1.08, concerto: 2.07, offtune: 3425 });
-const UBA2 = lucillaAction("Basic - Tracing Forms 2", { node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 149.42, energy: 12.09, concerto: 4.93, offtune: 6680 });
+const UBA1 = lucillaAction("Basic - Tracing Forms 1", { frames: 27, cancel: 19, node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 76.59, energy: 1.08, concerto: 2.07, offtune: 3425 });
+const UBA2 = lucillaAction("Basic - Tracing Forms 2", { frames: 54, cancel: 31, node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 149.42, energy: 12.09, concerto: 4.93, offtune: 6680 });
 const UBA3 = lucillaAction("Basic - Tracing Forms 3", {
+  frames: 142, cancel: 118,
   node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 416.96, energy: 5.84, concerto: 11.20, offtune: 18640,
   updateBuffs: () => {
     const photos = Math.min(3, Math.floor(forte1() / 50));
@@ -152,7 +156,7 @@ const OblivionChafe = lucillaAction("Forte - Oblivion (Chafe)", { node: Node.For
 // concerto is 7.88 off its own 3 Damage Data hits, plus a separate flat +20 the page states
 // Letting It Go "additionally restores" — both folded into the one number below.
 // Echo Skill DMG, retagged Basic Attack DMG by Chafe mode the same way the Liberation is
-const LettingGo = lucillaAction("Basic - Letting It Go", { node: Node.Liberation, type: Type1.Echo, mv: 848.07, energy: 3.36, concerto: 7.88, offtune: 36514,
+const LettingGo = lucillaAction("Basic - Letting It Go", { frames: 77, cancel: 54, node: Node.Liberation, type: Type1.Echo, mv: 848.07, energy: 3.36, concerto: 7.88, offtune: 36514,
   applyStats: () => { addStat(Stat.AddConcerto, 20); }
  });
 
@@ -175,12 +179,14 @@ const MODE_CHAFE = new ResonanceMode({
  *  turn it currently is, not just Lucilla's own. */
 const SLOW_MOTION_TEAM = new Buff({
   name: "Inherent: Slow Motion (echo)",
+  duration: 60 * 30,
   stats: [[Stat.DmgBonus, 25, Type1.Echo]],
 });
 /** Chafe-mode payout: -8% Glacio RES on the target for 30s — a genuine enemy debuff, permanent
  *  uptime once granted. */
 const SLOW_MOTION_CHAFE = new Debuff({
   name: "Inherent: Slow Motion (chafe)",
+  duration: 60 * 30,
   applyStats: () => addEnemyStat(EnemyStat.ResReduce, 8, Attribute.Glacio),
 });
 const LC_INHERENT_1 = new Inherent({
@@ -197,7 +203,7 @@ const LC_INHERENT_1 = new Inherent({
  *  for the Chafe half). Zoom is team-wide (lands on whichever teammate is attacking); Film Roll
  *  is hers alone. */
 const ZOOM = new Buff({
-  name: "Lucilla: Zoom", maxStacks: 4,
+  name: "Lucilla: Zoom", maxStacks: 4, duration: 60 * 30,
   applyStats: () => { if (isActive()) addStat(Stat.CritDmg, 10 * frozenStacks(), Type1.Echo); },
 });
 /** Any *other* active resonator inflicting Glacio Chafe spends a stack of this
@@ -207,7 +213,7 @@ const ZOOM = new Buff({
  *  in updateDebuffs, where the acting kit's own inflictions have already landed (its gear comes
  *  before team gear in the phase) and its own stacks still reach everything reading `applied()`. */
 const FILM_ROLL: Buff = new Buff({
-  name: "Lucilla: Film Roll", maxStacks: 10,
+  name: "Lucilla: Film Roll", maxStacks: 10, duration: 60 * 30,
   updateDebuffs: () => {
     if (!isActive() || currentTeam().slot.resonator === LUCILLA_RESONATOR) return;
     const n = Math.min(applied(GLACIO_CHAFE), frozenStacks());
@@ -227,6 +233,7 @@ const LC_INHERENT_2 = new Inherent({
 /** Clear As Day's own cast: +30% Basic Attack/Echo Skill DMG Bonus (Chafe/Echo), 10s. */
 const LIB_SELF_DMG = new Buff({
   name: "Lucilla: Clear As Day",
+  duration: 60 * 10,
   applyStats: () => addStat(Stat.DmgBonus, 30, isHeld(MODE_CHAFE) ? Type1.Basic : Type1.Echo),
   until: LifeTime.Outro,
 });
@@ -235,6 +242,7 @@ const LIB_SELF_DMG = new Buff({
  *  Amplification for 14s. */
 const MONTAGE_HANDOFF = new Buff({
   name: "Lucilla: Outro (echo)",
+  duration: 60 * 14,
   stats: [[Stat.Amp, 50, Type1.Echo]],
   until: LifeTime.Swap,
 });
@@ -244,6 +252,7 @@ const MONTAGE_HANDOFF = new Buff({
  *  `Type2.GlacioChafe`, the one amplification a dot hit reads (damage.ts). */
 const MONTAGE_CHAFE = new Buff({
   name: "Lucilla: Outro (chafe)",
+  duration: 60 * 30,
   stats: [[Stat.Amp, 60, Type2.GlacioChafe]],
 });
 
@@ -294,6 +303,7 @@ const LC_ROTATION = new Rotation([
  *  assume, and the interrupt immunity is no stat. */
 const DISTANT_NOON = new Buff({
   name: "Lucilla S1: Distant Noon",
+  duration: 60 * 10,
   stats: [[Stat.CritRate, 20]],
   until: LifeTime.Outro,
 });
@@ -332,7 +342,7 @@ const LC_S3 = new Sequence({
 /** S4: +10% ATK a stack off each Oblivion, up to 3 — 6s, so the three Photos Stage 3 spends and
  *  the Letting It Go behind them are the whole of it. The damage reduction is out of scope. */
 const PAST_FADES = new Buff({
-  name: "Lucilla S4: The Past Fades Into Silence", maxStacks: 3,
+  name: "Lucilla S4: The Past Fades Into Silence", maxStacks: 3, duration: 60 * 6,
   stats: [[Stat.BonusAtk, 10]], perStack: true,
   until: LifeTime.Outro,
 });

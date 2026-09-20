@@ -69,6 +69,7 @@ import {
   setForte1,
   setForte2,
   stacksOfEnemy,
+  leftOnTeam,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO, START_3, SWAP, INTRO_3 } from "../../engine/rotation.js";
 import { HAVOC_BANE, anyNegativeStatusInflicted } from "../../shared/status.js";
@@ -108,43 +109,48 @@ const FLOW = {
 
 // --- Succor and Smite: the two four-stage Basic chains, the only ordinary Basic Attack DMG she
 //     has. Stage 4 of each lands a stack of Havoc Bane.
-const BA_A1 = yangyangAction("Basic - Azure Sword Stance 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 47.72, energy: 0.75, concerto: 1.50, offtune: 2400, forte1: -12 });
-const BA_A2 = yangyangAction("Basic - Azure Sword Stance 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 100.69, energy: 1.59, concerto: 3.18, offtune: 5065, forte1: -24 });
-const BA_A3 = yangyangAction("Basic - Azure Sword Stance 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 100.69, energy: 1.59, concerto: 3.17, offtune: 5065, forte1: -26 });
+const BA_A1 = yangyangAction("Basic - Azure Sword Stance 1", { frames: 19, cancel: 14, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 47.72, energy: 0.75, concerto: 1.50, offtune: 2400, forte1: -12 });
+const BA_A2 = yangyangAction("Basic - Azure Sword Stance 2", { frames: 44, cancel: 37, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 100.69, energy: 1.59, concerto: 3.18, offtune: 5065, forte1: -24 });
+const BA_A3 = yangyangAction("Basic - Azure Sword Stance 3", { frames: 43, cancel: 35, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 100.69, energy: 1.59, concerto: 3.17, offtune: 5065, forte1: -26 });
 const BA_A4 = yangyangAction("Basic - Azure Sword Stance 4", {
+  frames: 76, cancel: 41,
   node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 185.63, energy: 2.94, concerto: 5.85, offtune: 9337, forte1: -48,
   updateDebuffs: () => applyEnemy(HAVOC_BANE, isHeld(XL_S3) ? 2 : 1),
 });
-const MA_A = yangyangAction("Mid-air - Azure Sword Stance Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: -12 });
-const DC_A = yangyangAction("Dodge Counter - Azure Sword Stance 2", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 196.13, energy: 3.09, concerto: 16.18, offtune: 9865, forte1: -24 });
+const MA_A = yangyangAction("Mid-air - Azure Sword Stance Plunge", { frames: 53, cancel: 34, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: -12 });
+const DC_A = yangyangAction("Dodge Counter - Azure Sword Stance 2", { frames: 44, cancel: 37, node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 196.13, energy: 3.09, concerto: 16.18, offtune: 9865, forte1: -24 });
 
-const BA_F1 = yangyangAction("Basic - Feather Sword Stance 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.54, energy: 1.26, concerto: 2.50, offtune: 4000, forte1: -12 });
-const BA_F2 = yangyangAction("Basic - Feather Sword Stance 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 100.68, energy: 1.59, concerto: 3.18, offtune: 5064, forte1: -24 });
-const BA_F3 = yangyangAction("Basic - Feather Sword Stance 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 74.29, energy: 1.19, concerto: 2.36, offtune: 3738, forte1: -26 });
+const BA_F1 = yangyangAction("Basic - Feather Sword Stance 1", { frames: 33, cancel: 27, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.54, energy: 1.26, concerto: 2.50, offtune: 4000, forte1: -12 });
+const BA_F2 = yangyangAction("Basic - Feather Sword Stance 2", { frames: 42, cancel: 29, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 100.68, energy: 1.59, concerto: 3.18, offtune: 5064, forte1: -24 });
+const BA_F3 = yangyangAction("Basic - Feather Sword Stance 3", { frames: 33, cancel: 54, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 74.29, energy: 1.19, concerto: 2.36, offtune: 3738, forte1: -26 });
 const BA_F4 = yangyangAction("Basic - Feather Sword Stance 4", {
+  frames: 93, cancel: 54,
   node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 238.59, energy: 3.76, concerto: 7.50, offtune: 12000, forte1: -48,
   updateDebuffs: () => applyEnemy(HAVOC_BANE, isHeld(XL_S3) ? 2 : 1),
 });
-const MA_F = yangyangAction("Mid-air - Feather Sword Stance Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: -12 });
-const DC_F = yangyangAction("Dodge Counter - Feather Sword Stance 2", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 196.11, energy: 3.09, concerto: 16.18, offtune: 9864, forte1: -24 });
+const MA_F = yangyangAction("Mid-air - Feather Sword Stance Plunge", { frames: 53, cancel: 34, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: -12 });
+const DC_F = yangyangAction("Dodge Counter - Feather Sword Stance 2", { frames: 42, cancel: 29, node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 196.11, energy: 3.09, concerto: 16.18, offtune: 9864, forte1: -24 });
 
 // --- Feather's Edge: the plain stance switch, castable any time and worth nothing but its own
 //     hit — the Flow forms below replace it the moment Melody empties.
-const SwitchAzure = yangyangAction("Skill - Sword Stance Switch: Azure", { node: Node.Skill, cast: Cast.Skill, type: Type1.Heavy, mv: 116.60, energy: 1.85, concerto: 3.67, offtune: 5865 });
-const SwitchFeather = yangyangAction("Skill - Sword Stance Switch: Feather", { node: Node.Skill, cast: Cast.Skill, type: Type1.Heavy, mv: 100.68, energy: 1.59, concerto: 3.18, offtune: 5064 });
+const SwitchAzure = yangyangAction("Skill - Sword Stance Switch: Azure", { frames: 59, cancel: 59, node: Node.Skill, cast: Cast.Skill, type: Type1.Heavy, mv: 116.60, energy: 1.85, concerto: 3.67, offtune: 5865 });
+const SwitchFeather = yangyangAction("Skill - Sword Stance Switch: Feather", { frames: 44, cancel: 44, node: Node.Skill, cast: Cast.Skill, type: Type1.Heavy, mv: 100.68, energy: 1.59, concerto: 3.18, offtune: 5064 });
 
 // --- The Way of Ten Thousand Voices. Sword Stance Flow refills Melody outright rather than
 //     adding to it, so the refill is a set (the bar is at 0 by the time either is castable).
 const FlowAzure = yangyangAction("Skill - Sword Stance Flow: Azure", {
+  frames: 59, cancel: 59,
   node: Node.Forte, cast: Cast.Skill, type: Type1.Heavy, mv: 116.60, energy: 11.61, concerto: 10.02, offtune: 5865, forte2: 1,forte1: 100,
   ...FLOW,
 });
 const FlowFeather = yangyangAction("Skill - Sword Stance Flow: Feather", {
+  frames: 44, cancel: 44,
   node: Node.Forte, cast: Cast.Skill, type: Type1.Heavy, mv: 100.68, energy: 11.61, concerto: 10.02, offtune: 5064, forte2: 1, forte1: 100,
   ...FLOW,
 });
 
 const HeavyAzure = yangyangAction("Forte Heavy - Azure Sword Stance", {
+  frames: 105, cancel: 70,
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 450.53, energy: 9.34, concerto: 15.00, offtune: 10666,
   updateDebuffs: () => applyEnemy(HAVOC_BANE, isHeld(XL_S3) ? 3 : 2),
   updateBuffs: () => { if (!isHeld(BATED_BREATH_CD)) applyCurrent(BATED_BREATH, 1); },
@@ -153,22 +159,25 @@ const HeavyAzure = yangyangAction("Forte Heavy - Azure Sword Stance", {
   forte2: -2,
 });
 const HeavyFeather = yangyangAction("Heavy - Feather Sword Stance", {
+  frames: 45, cancel: 45,
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 217.05, energy: 1.87, concerto: 4.67, offtune: 7465,
   updateDebuffs: () => applyEnemy(HAVOC_BANE, isHeld(XL_S3) ? 3 : 2),
   updateBuffs: () => { if (!isHeld(STREAMING_STORM_CD)) applyCurrent(STREAMING_STORM, 1); },
 });
 const FeatherFall = yangyangAction("Forte Mid-air - Feather Fall", {
+  frames: 76, cancel: 58,
   node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 110.97, energy: 1.26, concerto: 3.12, offtune: 4962,
   // Feather Sword Stance itself spends none — this auto-cast follow-up is what actually spends
   // the 2 Azure Plume that opened it
   forte2: -2,
 });
-const HiB1 = yangyangAction("Basic - Havoc in Bloom 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 119.37, energy: 1.35, concerto: 3.36, offtune: 5337 });
-const HiB2 = yangyangAction("Basic - Havoc in Bloom 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 223.13, energy: 2.50, concerto: 6.26, offtune: 9977 });
-const HiB3 = yangyangAction("Basic - Havoc in Bloom 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 399.59, energy: 2.67, concerto: 12.67, offtune: 10665 });
+const HiB1 = yangyangAction("Basic - Havoc in Bloom 1", { frames: 38, cancel: 26, node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 119.37, energy: 1.35, concerto: 3.36, offtune: 5337 });
+const HiB2 = yangyangAction("Basic - Havoc in Bloom 2", { frames: 69, cancel: 60, node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 223.13, energy: 2.50, concerto: 6.26, offtune: 9977 });
+const HiB3 = yangyangAction("Basic - Havoc in Bloom 3", { frames: 108, cancel: 72, node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 399.59, energy: 2.67, concerto: 12.67, offtune: 10665 });
 
 // --- Hush of a Thousand Voices. Heavy Attack DMG despite the cast, and it ends holding a plume.
 const Lib = yangyangAction("Liberation - Hush of a Thousand Voices", {
+  frames: 0, cancel: 300,
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Heavy, mv: 1988.10, concerto: 20, offtune: 136400, resetForte1: true,
   forte2: 1, resetEnergy: true,
   // One Life, One Blade's own first line: the hit raises Havoc Bane to the target's limit, which
@@ -186,11 +195,13 @@ const ShadowStrungNotes = yangyangAction("Liberation - Shadow of Xuanling: Strun
 const ShadowWitheredWood = yangyangAction("Liberation - Shadow of Xuanling: Still as Withered Wood (S6)", { type: Type1.Heavy, mv: 337.98 });
 
 const Intro = yangyangAction("Intro - Skybound Feather", {
+  frames: 47, cancel: 40,
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 116.59, energy: 10, concerto: 10, offtune: 5864,
   forte2: 1,
   updateDebuffs: () => applyEnemy(HAVOC_BANE, 1),
 });
 const Outro = yangyangAction("Outro - As the Wind Wills", {
+  frames: 0, cancel: 0,
   cast: Cast.Outro, type: Type1.Outro, mv: 300, concerto: -100, swapOut: true,
   updateBuffs: () => applyTeam(TONAL_SWITCH, 1),
 });
@@ -220,7 +231,7 @@ const STORM_ACTIONS = new Set<Action>(FEATHER_HEAVIES);
  *  than naming Chisa here. Dropped from `updateBuffs`, a phase ahead of any stat, so Stage 3 is
  *  not paid either — the window is already gone by the time it lands. */
 const FEATHERED_OATH = new Buff({
-  name: "Xuanling: Feathered Oath", maxStacks: 6,
+  name: "Xuanling: Feathered Oath", maxStacks: 6, duration: 60 * 4,
   // Stage 3 is the cast the window lapses *on*, so it is dropped here, a phase ahead of any
   // applyStats — Stage 3 itself pays nothing. The grant runs earlier still (the Resonator's own
   // updateGlobal), so a Bane landing on this very cast re-arms it before this looks.
@@ -266,6 +277,7 @@ const BATED_BREATH = new Buff({
  *  cast, so it is spent when Stage 3 ends instead. */
 const STREAMING_STORM = new Buff({
   name: "Xuanling: Streaming Storm",
+  duration: 60 * 15,
   stats: [[Stat.CritDmg, 160]], when: () => STORM_ACTIONS.has(currentAction()),
   convertStats: () => {
     if (casting(Cast.Outro)) revokeCurrent(STREAMING_STORM);
@@ -288,10 +300,11 @@ const VOICE_UPON_VOICE = new Buff({
 /** Tonal Switch (Outro Skill): 20s on every resonator in the team *but* her, and it pays out only
  *  once that resonator has inflicted Havoc Bane themselves — so the window is one buff and the
  *  payout another, granted on the turn they actually inflict. Held team-wide so it ticks on
- *  whoever is acting; the payout is local, and drops itself once her next Intro has taken the
- *  window away. */
+ *  whoever is acting; the payout is local and is granted with whatever the window has left, so the
+ *  two run out together rather than the payout outliving what it belongs to. */
 const TONAL_SWITCH = new Buff({
   name: "Xuanling: Tonal Switch",
+  duration: 60 * 20,
   updateBuffs: () => {
     if (currentTeam().slot.resonator === XUANLING_RESONATOR) return;
     // `appliedByMe`: the amplification is that resonator's for inflicting it themselves, and
@@ -302,6 +315,7 @@ const TONAL_SWITCH = new Buff({
 });
 const TONAL_SWITCH_AMP = new Buff({
   name: "Xuanling: Outro",
+  duration: () => leftOnTeam(TONAL_SWITCH) || 60 * 20,
   stats: [[Stat.Amp, 20, Attribute.Havoc]],
 });
 
@@ -349,6 +363,7 @@ const XL_S3 = new Sequence({
  *  visit's first cast and again mid-visit, so it never lapses between them. */
 const A_LETTER_AND_MY_LONGING = new Buff({
   name: "Xuanling S4: Across the Miles, a Letter and My Longing",
+  duration: 60 * 20,
   stats: [[Stat.BonusAtk, 20]],
 });
 const XL_S4 = new Sequence({
@@ -365,6 +380,7 @@ const XL_S5 = new Sequence({ name: "Xuanling S5: Take Wing. Take Wing." });
  *  Bane — permanent. */
 const VOICE_FLUX = new Buff({
   name: "Xuanling S6: Voice Flux",
+  duration: 60 * 30,
   stats: [[Stat.DamageTaken, 40, Type1.Heavy]],
 });
 /** Still as Withered Wood (S6): five charges off a Sword Stance Flow, one spent whenever *anyone*
@@ -374,7 +390,7 @@ const VOICE_FLUX = new Buff({
  *  the "if Yangyang: Xuanling is on the field" the node asks for and the Shadow is queued onto her
  *  by name. The 1s gate is no clock here: five charges are what actually binds. */
 const WITHERED_WOOD = new Buff({
-  name: "Xuanling S6: Still as Withered Wood", maxStacks: 5,
+  name: "Xuanling S6: Still as Withered Wood", maxStacks: 5, duration: 60 * 30,
   updateGlobal: () => {
     // never off its own Shadow's damage: a marker that re-inflicts on whatever hits the target
     // (Chisa's Thread of Bane) would otherwise have each summon trigger the next until the charges

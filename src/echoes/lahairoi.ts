@@ -35,12 +35,13 @@ export const NAMELESS_EXPLORER = new Mainslot({
 export const SOUND_OF_TRUE_NAME_2PC = new Sonata2pc({ name: "Sound of True Name 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Aero]] });
 export const SOUND_OF_TRUE_NAME_BUFF = new Buff({
   name: "Sound of True Name 5pc",
+  duration: 60 * 5,
   stats: [[Stat.CritRate, 20, Type1.Echo], [Stat.DmgBonus, 15, Attribute.Aero]], until: LifeTime.Outro,
 });
 export const SOUND_OF_TRUE_NAME_5PC = new Sonata({
   name: "Sound of True Name 5pc",
   sonata2pc: SOUND_OF_TRUE_NAME_2PC,
-  grants: [{ on: onType(Type1.Echo), buff: SOUND_OF_TRUE_NAME_BUFF }],
+  grants: [{ on: onType(Type1.Echo), buff: SOUND_OF_TRUE_NAME_BUFF, onHit: true }],
 });
 
 /* -------------------------------------------------------------------------------- Lynae, 3.6 */
@@ -142,17 +143,22 @@ export const QUIET_SNOWFALL_5PC = new Sonata({
 
 export const QUIET_SNOWFALL_GLACIO = new Buff({
   name: "Wishes of Quiet Snowfall 5pc (chafe)",
+  duration: 60 * 15,
   stats: [[Stat.DmgBonus, 10, Attribute.Glacio]],
 });
 
 /** The marker itself — carries no stat, it is only ever the thing one of the two branches spends. */
 export const SNOWFALL = new Buff({
   name: "Wishes of Quiet Snowfall 5pc: Snowfall",
+  duration: 60 * 15,
   updateBuffs: () => {
     if (casting(Cast.Outro)) {
       revokeCurrent(SNOWFALL);
       queueOutro(SNOWFALL_OUTRO);
-    } else if (isType(Type1.Liberation)) {
+    }
+  },
+  afterAction: () => {
+    if (isType(Type1.Liberation)) {
       revokeCurrent(SNOWFALL);
       applyCurrent(SNOWFALL_CRIT, 1);
     }
@@ -180,6 +186,7 @@ export const NEONLIGHT_LEAP_5PC = new Sonata({
 });
 export const NEONLIGHT_LEAP_HANDOFF = new Buff({
   name: "Pact of Neonlight Leap 5pc (outro)", until: LifeTime.Swap,
+  duration: 60 * 15,
   stats: [[Stat.BonusAtk, 15]],
   // the TBB half is read late so every contribution has landed this action — the era's flat 10,
   // Reel of Spliced Memories' +20, and Denia's Etched Colors, which grants from its own
@@ -201,6 +208,7 @@ export const STARRY_RADIANCE_5PC = new Sonata({
 });
 export const STARRY_RADIANCE_TEAM = new Buff({
   name: "Halo of Starry Radiance 5pc",
+  duration: 60 * 4,
   convertStats: () => {
     addStat(Stat.BonusAtk, Math.min(25, 0.2 * getStat(Stat.OfftuneBuildup)));
   }
@@ -219,6 +227,7 @@ export const CHROMATIC_FOAM_5PC = new Sonata({
  *  no end condition; only the handoff half below is lost on swap. */
 export const CHROMATIC_FOAM_BUFF = new Buff({
   name: "Chromatic Foam 5pc",
+  duration: 60 * 15,
   stats: [[Stat.DmgBonus, 10, Attribute.Fusion]],
   grants: [{ on: onCast(Cast.Outro), buff: () => CHROMATIC_FOAM_HANDOFF, to: BuffTarget.Next }],
 });
@@ -226,6 +235,7 @@ export const CHROMATIC_FOAM_BUFF = new Buff({
  *  as an outro — still paying out on it first. */
 export const CHROMATIC_FOAM_HANDOFF = new Buff({
   name: "Chromatic Foam 5pc (outro)",
+  duration: 60 * 15,
   stats: [[Stat.DmgBonus, 25, Attribute.Fusion]], until: LifeTime.AfterSwap,
 });
 
@@ -240,6 +250,7 @@ export const TRAILBLAZING_STAR_5PC = new Sonata({
 });
 export const TRAILBLAZING_STAR_BUFF = new Buff({
   name: "Trailblazing Star 5pc",
+  duration: 60 * 8,
   stats: [[Stat.CritRate, 20], [Stat.DmgBonus, 20, Attribute.Fusion]], until: LifeTime.Outro,
 });
 
@@ -252,10 +263,10 @@ export const GILDED_REVELATION_2PC = new Sonata2pc({ name: "Rite of Gilded Revel
 export const GILDED_REVELATION_5PC = new Sonata({
   name: "Rite of Gilded Revelation 5pc",
   sonata2pc: GILDED_REVELATION_2PC,
-  grants: [{ on: onType(Type1.Basic), buff: () => GILDED_REVELATION_STACKS }],
+  grants: [{ on: onType(Type1.Basic), buff: () => GILDED_REVELATION_STACKS, onHit: true }],
 });
 export const GILDED_REVELATION_STACKS = new Buff({
-  name: "Rite of Gilded Revelation 5pc", maxStacks: 3,
+  name: "Rite of Gilded Revelation 5pc", maxStacks: 3, duration: 60 * 5,
   stats: [[Stat.DmgBonus, 10, Attribute.Spectro]], perStack: true, until: LifeTime.Outro,
   applyStats: () => { if (frozenStacks() >= 3 && casting(Cast.Liberation)) addStat(Stat.DmgBonus, 40, Type1.Basic); },
 });
@@ -290,6 +301,7 @@ export const ACTION_TRICKSTER = new Action("Echo - Trickster", {
  *  any swap — still paying on it, the same clause as Chromatic Foam above. */
 export const TRICKSTER_HANDOFF = new Buff({
   name: "Trickster: Outro",
+  duration: 60 * 15,
   stats: [[Stat.DmgBonus, 12, Attribute.Fusion]], until: LifeTime.AfterSwap,
 });
 export const TRICKSTER = new Mainslot({
@@ -322,7 +334,7 @@ export const REEL_5PC = new Sonata({
   sonata2pc: REEL_2PC,
   grants: [{ on: onInflict(TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING), buff: () => REEL_TEAM, to: BuffTarget.Team }],
 });
-export const REEL_TEAM = new Buff({ name: "Reel of Spliced Memories 5pc", stats: [[Stat.Tbb, 20]] });
+export const REEL_TEAM = new Buff({ name: "Reel of Spliced Memories 5pc", duration: 60 * 30, stats: [[Stat.Tbb, 20]] });
 
 /* ---------------------------------------------------------------- Rebecca and Lucy, the collab */
 
@@ -338,6 +350,7 @@ export const REEL_TEAM = new Buff({ name: "Reel of Spliced Memories 5pc", stats:
  *  for 15s — a short self window, so lost after the outro. */
 export const SHATTERED_DREAMS = new Buff({
   name: "Shadow of Shattered Dreams",
+  duration: 60 * 15,
   stats: [[Stat.DmgBonus, 35, Type1.Basic], [Stat.DmgBonus, 35, Type1.Heavy]],
 });
 export const SHATTERED_DREAMS_1PC = new Sonata1pc({

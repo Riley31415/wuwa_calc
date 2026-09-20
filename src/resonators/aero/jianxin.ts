@@ -49,10 +49,10 @@ function jianxinAction(id: string, def: object): Action {
 
 // --- Fengyiquan. forte1 is the Chi each cast's hits bank. The dodge counter carries the hidden
 //     +10 Concerto every dodge counter gets (CLAUDE.md).
-const BA1 = jianxinAction("Basic - Fengyiquan 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 69.46, energy: 1.02, concerto: 3.28, offtune: 3280, forte1: 6 });
-const BA2 = jianxinAction("Basic - Fengyiquan 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 133.18, energy: 1.97, concerto: 6.30, offtune: 6320, forte1: 10 });
-const BA3 = jianxinAction("Basic - Fengyiquan 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 167, energy: 2.48, concerto: 7.92, offtune: 7920, forte1: 12 });
-const BA4 = jianxinAction("Basic - Fengyiquan 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 113.4, energy: 1.68, concerto: 5.37, offtune: 5360, forte1: 12 });
+const BA1 = jianxinAction("Basic - Fengyiquan 1", { frames: 60, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 69.46, energy: 1.02, concerto: 3.28, offtune: 3280, forte1: 6 });
+const BA2 = jianxinAction("Basic - Fengyiquan 2", { frames: 60, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 133.18, energy: 1.97, concerto: 6.30, offtune: 6320, forte1: 10 });
+const BA3 = jianxinAction("Basic - Fengyiquan 3", { frames: 60, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 167, energy: 2.48, concerto: 7.92, offtune: 7920, forte1: 12 });
+const BA4 = jianxinAction("Basic - Fengyiquan 4", { frames: 60, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 113.4, energy: 1.68, concerto: 5.37, offtune: 5360, forte1: 12 });
 const HA = jianxinAction("Heavy - Fengyiquan", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 126.07, energy: 1.87, concerto: 5.96, offtune: 6000, forte1: 9 });
 const MA = jianxinAction("Mid-air - Fengyiquan Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.27, energy: 0.52, concerto: 1, offtune: 4960, forte1: 6 });
 const DC = jianxinAction("Dodge Counter - Fengyiquan", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 244.94, energy: 3.10, concerto: 16.68, offtune: 13143, forte1: 17 });
@@ -61,7 +61,7 @@ const BA12 = new ActionGroup("Basic - Fengyiquan 12", [BA1, BA2]);
 // --- Calming Air: the Parry Stance (8 Concerto on the cast) ends either as Chi Parry (released)
 //     or Chi Counter (attacked — S3 makes it available after 2.5s regardless); each cast is one
 //     press of the skill, so each carries the stance's own 8 plus its own 14.
-const ChiParry = jianxinAction("Skill - Calming Air: Chi Parry", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 258.73, energy: 4, concerto: 22, offtune: 12240, forte1: 15+25 }); // assume 25 on cast?
+const ChiParry = jianxinAction("Skill - Calming Air: Chi Parry", { frames: 60, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 258.73, energy: 4, concerto: 22, offtune: 12240, forte1: 15+25 }); // assume 25 on cast?
 const ChiCounter = jianxinAction("Skill - Calming Air: Chi Counter", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 334.6, energy: 4, concerto: 22, offtune: 5200, forte1: 15+25 }); // assume 25 on cast?
 
 // --- Purification Force Field: the 3.12s field's 29.83% ticks (15 — see the file header) and the
@@ -77,6 +77,7 @@ const Liberation = jianxinAction("Liberation - Purification Force Field", {
 //     the Minor, Major Inner and Major Outer Shocks; the last leaves the Zhoutian 3 shield, the
 //     marker every shield-reading gear watches, and its 6s heal the healing one.
 const FHA = jianxinAction("Forte Heavy - Primordial Chi Spiral", {
+  frames: 60,
   node: Node.Forte, cast: Cast.Heavy, forte1: -120,
 });
 const ChiStrike = jianxinAction("Forte Heavy - Zhoutian: Chi Strike", { 
@@ -100,6 +101,7 @@ const OuterShock = jianxinAction("Forte Heavy - Major Zhoutian (Outer): Shock", 
  *  already spent by the hold, so each is just its hit, and it leaves the shield of the stage
  *  reached (the same marker, and the same 6s heal). */
 const PushingPunch = jianxinAction("Forte Heavy - Pushing Punch", {
+  frames: 60,
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 248.52, energy: 8, concerto: 10, offtune: 5280,
   updateDebuffs: () => { applyCurrent(SHIELD, 1); applyCurrent(HEALS, 1); },
 });
@@ -125,7 +127,7 @@ const ZHOUTIAN_4 = new ActionGroup("Forte Heavy - Primordial Chi Spiral (Zhoutia
   FHA, MinorShock, InnerShock, OuterShock, // missing chi strikes
 ]);
 
-const Intro = jianxinAction("Intro - Essence of Tao", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 33.8 * 3 + 67.6, energy: 10, concerto: 10, offtune: 2667 * 3 + 1600, forte1: 40 });
+const Intro = jianxinAction("Intro - Essence of Tao", { frames: 60, node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 33.8 * 3 + 67.6, energy: 10, concerto: 10, offtune: 2667 * 3 + 1600, forte1: 40 });
 const Outro = jianxinAction("Outro - Transcendence", {
   cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(TRANSCENDENCE),
@@ -137,6 +139,7 @@ const Outro = jianxinAction("Outro - Transcendence", {
  *  14s or until they switch out. */
 const TRANSCENDENCE = new Buff({
   name: "Jianxin: Outro",
+  duration: 60 * 14,
   until: LifeTime.Swap,
   stats: [[Stat.Amp, 38, Type1.Liberation]],
 });
@@ -147,6 +150,7 @@ const TRANSCENDENCE = new Buff({
  *  whatever Chi the basic itself banks. */
 const S1_BRANCHLET = new Buff({
   name: "Jianxin S1: Verdant Branchlet",
+  duration: 60 * 10,
   applyStats: () => { if (casting(Cast.Basic)) addStat(Stat.AddForte1, currentAction().forte1); },
   until: LifeTime.Outro,
 });
@@ -160,6 +164,7 @@ const S3 = new Sequence({ name: "Jianxin S3: Principles of Wuwei" });
 /** S4 Multitide Reflection: +80% Purification Force Field DMG for 14s after Primordial Chi Spiral. */
 const S4_REFLECTION = new Buff({
   name: "Jianxin S4: Multitide Reflection",
+  duration: 60 * 14,
   applyStats: () => { if (runningAction(Liberation)) addStat(Stat.DmgBonus, 80); },
   until: LifeTime.Outro,
 });
@@ -217,9 +222,13 @@ const JIANXIN_RESONATOR = new Resonator({
 /* ---------------------------------------------------------------------------------- rotation */
 
 /** Intro (40 Chi, S1 up), Chi Parry, the basic chain at double Chi, the second Chi Parry (S2), the
- *  Spiral on a full gauge, the Liberation under S4, the echo and out. Never the team's lead. */
+ *  Spiral on a full gauge, the Liberation under S4, the echo and out. Never the team's lead.
+ *
+ *  The extra BA12 behind the Intro is what pays for the Outro: the rest of the visit banks 92.9
+ *  Concerto and the swap costs 100, and two more presses are 9.58 — BA1234 again would be 22.9,
+ *  far more than the bar needs. */
 const JX_ROTATION = new Rotation([
-  INTRO, BA1234, ChiParry, Liberation, ZHOUTIAN_1, ECHO_SWAP, OUTRO,
+  INTRO, BA12, BA1234, ChiParry, Liberation, ZHOUTIAN_1, ECHO_SWAP, OUTRO,
 ]);
 const JX_ROTATION_S2 = new Rotation([
   INTRO, ChiParry, ChiParry, Liberation, ZHOUTIAN_1, ECHO_SWAP, OUTRO,

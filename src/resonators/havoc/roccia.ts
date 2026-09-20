@@ -45,10 +45,10 @@ function rocciaAction(id: string, def: object): Action {
 }
 
 // --- basics, mid-air, dodge counter (Pero, Easy)
-const BA1 = rocciaAction("Basic - Pero, Easy 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.18, energy: 1.09, concerto: 3.47, offtune: 3464, forte1: 19 });
-const BA2 = rocciaAction("Basic - Pero, Easy 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 114.42, energy: 1.71, concerto: 5.43, offtune: 5418, forte1: 33 });
-const BA3 = rocciaAction("Basic - Pero, Easy 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 169.00, energy: 2.50, concerto: 8, offtune: 8000, forte1: 49 });
-const BA4 = rocciaAction("Basic - Pero, Easy 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 208.38, energy: 3.10, concerto: 9.88, offtune: 9864, forte1: 100 });
+const BA1 = rocciaAction("Basic - Pero, Easy 1", { frames: 60, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.18, energy: 1.09, concerto: 3.47, offtune: 3464, forte1: 19 });
+const BA2 = rocciaAction("Basic - Pero, Easy 2", { frames: 60, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 114.42, energy: 1.71, concerto: 5.43, offtune: 5418, forte1: 33 });
+const BA3 = rocciaAction("Basic - Pero, Easy 3", { frames: 60, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 169.00, energy: 2.50, concerto: 8, offtune: 8000, forte1: 49 });
+const BA4 = rocciaAction("Basic - Pero, Easy 4", { frames: 60, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 208.38, energy: 3.10, concerto: 9.88, offtune: 9864, forte1: 100 });
 const MA = rocciaAction("Mid-air - Pero, Easy Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 4.96, offtune: 4960, forte1: 38 });
 const DC = rocciaAction("Dodge Counter - Pero, Easy", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 206.70, offtune: 4986, concerto: 15.01, energy: 1.56 });
 
@@ -56,17 +56,17 @@ const DC = rocciaAction("Dodge Counter - Pero, Easy", { node: Node.Normal, cast:
 const HA = rocciaAction("Heavy - Pero, Easy", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 168.99, energy: 2.50, concerto: 8, offtune: 8000, forte1: 100 });
 
 // pulls in targets and always launches Beyond Imagination
-const Skill = rocciaAction("Skill - Acrobatic Trick", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 491.76, energy: 14, concerto: 20, offtune: 10992, forte1: 100 });
+const Skill = rocciaAction("Skill - Acrobatic Trick", { frames: 60, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 491.76, energy: 14, concerto: 20, offtune: 10992, forte1: 100 });
 
 // Real Fantasy: 100 Imagination is spent once, on the first hit, not a per-stage cost
-const FBA1 = rocciaAction("Forte Basic - Real Fantasy 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 322.08, energy: 8, concerto: 10, offtune: 7200, forte1: -100 });
-const FBA2 = rocciaAction("Forte Basic - Real Fantasy 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 339.97, energy: 8, concerto: 16, offtune: 7600, forte1: -100 });
-const FBA3 = rocciaAction("Forte Basic - Real Fantasy 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 357.86, energy: 8, concerto: 25, offtune: 8000, forte1: -100 });
+const FBA1 = rocciaAction("Forte Basic - Real Fantasy 1", { frames: 60, node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 322.08, energy: 8, concerto: 10, offtune: 7200, forte1: -100 });
+const FBA2 = rocciaAction("Forte Basic - Real Fantasy 2", { frames: 60, node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 339.97, energy: 8, concerto: 16, offtune: 7600, forte1: -100 });
+const FBA3 = rocciaAction("Forte Basic - Real Fantasy 3", { frames: 60, node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 357.86, energy: 8, concerto: 25, offtune: 8000, forte1: -100 });
 
 /** S6: the Basic in Beyond Imagination after Stage 3 lands within 12s of the Liberation — 100% of
  *  Stage 3's DMG, Heavy DMG, its own nanoka row (357.86%, energy 1.2, off-tune 8000; no Concerto
  *  Regen row, so none), no Imagination spent — she relaunches off every landing. */
-const RealityRecreation = rocciaAction("Basic - Reality Recreation (S6)", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 357.86, energy: 1.2, offtune: 8000 });
+const RealityRecreation = rocciaAction("Basic - Reality Recreation (S6)", { frames: 60, node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 357.86, energy: 1.2, offtune: 8000 });
 
 // Resonance Cost 125 (maxEnergy below) is nanoka's own declared cost, not the migrated sheet's 0
 const Liberation = rocciaAction("Liberation - Commedia Improvviso!", {
@@ -74,7 +74,7 @@ const Liberation = rocciaAction("Liberation - Commedia Improvviso!", {
   updateBuffs: () => applyTeam(COMMEDIA_TEAM_ATK),
 });
 
-const Intro = rocciaAction("Intro - Pero, Help", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 168.99, energy: 10, concerto: 10, offtune: 10824, forte1: 100 });
+const Intro = rocciaAction("Intro - Pero, Help", { frames: 60, node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 168.99, energy: 10, concerto: 10, offtune: 10824, forte1: 100 });
 const Outro = rocciaAction("Outro - Applause, Please!", {
   cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(APPLAUSE_HANDOFF),
@@ -92,6 +92,7 @@ const MAGIC_BOX = rocciaAction("Utility - Super Attractive Magic Box", {
  *  Attack specifically — not Real Fantasy, a Basic Attack-button press despite Heavy Attack DMG. */
 const IMMERSIVE_PERFORMANCE = new Buff({
   name: "Inherent: Immersive Performance",
+  duration: 60 * 12,
   stats: [[Stat.BonusAtk, 20]],
   until: LifeTime.Outro,
 });
@@ -104,6 +105,7 @@ const RC_INHERENT_1 = new Inherent({
  *  replacing rather than stacking. 30s, so permanent uptime once granted. */
 const COMMEDIA_TEAM_ATK = new Buff({
   name: "Roccia: Commedia Improvviso!",
+  duration: 60 * 30,
   stats: [[Stat.FlatAtk, 200]],
 });
 
@@ -111,6 +113,7 @@ const COMMEDIA_TEAM_ATK = new Buff({
  *  follow-up is queued separately (see RC_INHERENT_2 below). */
 const APPLAUSE_HANDOFF = new Buff({
   name: "Roccia: Outro",
+  duration: 60 * 14,
   stats: [[Stat.Amp, 20, Attribute.Havoc], [Stat.Amp, 25, Type1.Basic]],
   until: LifeTime.Swap,
 });
@@ -167,7 +170,7 @@ const RC_S1 = new Sequence({
 /** S2: +10% Havoc DMG Bonus to the team a Real Fantasy cast, three stacks, and 10% more at the
  *  cap — 30s, so permanent. */
 const LUCEANITE_GLEAMS = new Buff({
-  name: "Roccia S2: When the Luceanite Gleams", maxStacks: 3,
+  name: "Roccia S2: When the Luceanite Gleams", maxStacks: 3, duration: 60 * 30,
   applyStats: () => { const n = frozenStacks(); addStat(Stat.DmgBonus, 10 * n + (n >= 3 ? 10 : 0), Attribute.Havoc); },
 });
 const RC_S2 = new Sequence({
@@ -178,6 +181,7 @@ const RC_S2 = new Sequence({
 /** S3: +10% Crit. Rate and +30% Crit. DMG for 15s off Pero, Help — until her Outro. */
 const HEART_SEES = new Buff({
   name: "Roccia S3: When the Heart Sees and Hands Feel",
+  duration: 60 * 15,
   stats: [[Stat.CritRate, 10], [Stat.CritDmg, 30]], until: LifeTime.Outro,
 });
 const RC_S3 = new Sequence({
@@ -189,6 +193,7 @@ const RC_S3 = new Sequence({
  *  572.58%), multiplicative, and Reality Recreation has the same x1.6 twin row — until her Outro. */
 const WONDERS_GATHER = new Buff({
   name: "Roccia S4: When Wonders Gather in the Box",
+  duration: 60 * 12,
   applyStats: () => { if (realFantasy() || runningAction(RealityRecreation)) addStat(Stat.MulMv, 60); },
   until: LifeTime.Outro,
 });
@@ -212,6 +217,7 @@ const RC_S5 = new Sequence({
  *  opens the Reality Recreation loop the S6 rotation presses. */
 const GOLDEN_WINGS = new Buff({
   name: "Roccia S6: When the Golden Wings Fly",
+  duration: 60 * 12,
   applyStats: () => { if (realFantasy()) addStat(Stat.DefIgnoreOld, 60); },
   until: LifeTime.Outro,
 });
@@ -282,7 +288,7 @@ const RC_ROTATION_S6_MDPS = new Rotation([
 // iterated (see gear.ts's own EchoLoadout)
 /** Matrix: her Liberation grants the team +20% Havoc DMG Bonus for 30s — permanent. */
 const ROCCIA_MATRIX_TEAM = new Buff({
-  name: "Roccia: Matrix Buff",
+  name: "Roccia: Matrix Buff", duration: 60 * 30,
   stats: [[Stat.DmgBonus, 20, Attribute.Havoc]],
 });
 

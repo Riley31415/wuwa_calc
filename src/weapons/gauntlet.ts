@@ -13,6 +13,7 @@ import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 export const VERITYS_HANDLE = refinements((r, rank) => {
   const AD_VERITATEM = new Buff({
     name: `Verity's Handle: Ad Veritatem${rank}`,
+    duration: 60 * 8,
     stats: [[Stat.DmgBonus, [48, 60, 72, 84, 96][r]!, Type1.Liberation]], until: LifeTime.Outro,
   });
   return new Weapon({
@@ -27,6 +28,7 @@ export const VERITYS_HANDLE = refinements((r, rank) => {
 export const TRAGICOMEDY = refinements((r, rank) => {
   const FOOLS_WARBLE = new Buff({
     name: `Tragicomedy: Fool's Warble${rank}`,
+    duration: 60 * 3,
     stats: [[Stat.DmgBonus, [48, 60, 72, 84, 96][r]!, Type1.Heavy]], until: LifeTime.Outro,
   });
   return new Weapon({
@@ -42,7 +44,7 @@ export const TRAGICOMEDY = refinements((r, rank) => {
  *  "Casting Basic Attack" is the cast, not the damage type. */
 export const BLAZING_JUSTICE = refinements((r, rank) => {
   const DARKNESS_BREAKER = new Buff({
-    name: `Blazing Justice: Darkness Breaker${rank}`, until: LifeTime.Outro,
+    name: `Blazing Justice: Darkness Breaker${rank}`, duration: 60 * 6, until: LifeTime.Outro,
     stats: [
       [Stat.DefIgnoreOld, [8, 10, 12, 14, 16][r]!],
       [Stat.Amp, [50, 62.5, 75, 87.5, 100][r]!, Type2.SpectroFrazzle],
@@ -60,10 +62,12 @@ export const BLAZING_JUSTICE = refinements((r, rank) => {
 export const SOLSWORN_CIPHERS = refinements((r, rank) => {
   const SUNWARD_AMP = new Buff({
     name: `Solsworn Ciphers: Sunward${rank} (intro/echo)`,
+    duration: 60 * 15,
     stats: [[Stat.Amp, [32, 40, 48, 56, 64][r]!, Type1.Echo]], until: LifeTime.Outro,
   });
   const SUNWARD_IGNORE = new Buff({
     name: `Solsworn Ciphers: Sunward${rank} (echo dmg)`,
+    duration: 60 * 6,
     stats: [[Stat.DefIgnoreNew, [10, 12.5, 15, 17.5, 20][r]!, Attribute.Aero]], until: LifeTime.Outro,
   });
   return new Weapon({
@@ -71,7 +75,7 @@ export const SOLSWORN_CIPHERS = refinements((r, rank) => {
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritDmg, 48.6], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [
       { on: onCast(Cast.Intro, Cast.Echo), buff: SUNWARD_AMP },
-      { on: onType(Type1.Echo), buff: SUNWARD_IGNORE },
+      { on: onType(Type1.Echo), buff: SUNWARD_IGNORE, onHit: true },
     ],
   });
 });
@@ -83,10 +87,11 @@ export const SOLSWORN_CIPHERS = refinements((r, rank) => {
 export const IUNO_SIG = refinements((r, rank) => {
   const PLENILUNE_DMG = new Buff({
     name: `Moongazer's Sigil: Plenilune Radiance${rank} (intro/lib)`,
+    duration: 60 * 15,
     stats: [[Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Type1.Liberation]], until: LifeTime.Outro,
   });
   const MOONGAZER_STACKS = new Buff({
-    name: `Moongazer's Sigil: Plenilune Radiance${rank} (shield)`, maxStacks: 5,
+    name: `Moongazer's Sigil: Plenilune Radiance${rank} (shield)`, maxStacks: 5, duration: 60 * 7,
     // scoped to liberation damage — most of Lunar Cycle qualifies, intro/outro/echo don't
     stats: [[Stat.DefIgnoreNew, [7.2, 8.4, 9.6, 10.8, 12][r]!, Type1.Liberation]], perStack: true,
   });
@@ -109,17 +114,18 @@ export const IUNO_SIG = refinements((r, rank) => {
 export const DAYBREAKERS_SPINE = refinements((r, rank) => {
   const SUTURING_DAYLINE_SPECTRO = new Buff({
     name: `Daybreaker's Spine: Suturing Dayline${rank} (basic)`,
+    duration: 60 * 4,
     stats: [[Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Attribute.Spectro]], until: LifeTime.Outro,
   });
   const SUTURING_DAYLINE_STRAIN = new Buff({
-    name: `Daybreaker's Spine: Suturing Dayline${rank} (strain)`, until: LifeTime.Outro,
+    name: `Daybreaker's Spine: Suturing Dayline${rank} (strain)`, duration: 60 * 6, until: LifeTime.Outro,
     stats: [[Stat.Amp, [20, 25, 30, 35, 40][r]!, Type1.Basic], [Stat.DefIgnoreNew, [10, 12.5, 15, 17.5, 20][r]!, Type1.Basic]],
   });
   return new Weapon({
     weaponType: WeaponType.Gauntlets, name: `Daybreaker's Spine${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [
-      { on: onType(Type1.Basic), buff: SUTURING_DAYLINE_SPECTRO },
+      { on: onType(Type1.Basic), buff: SUTURING_DAYLINE_SPECTRO, onHit: true },
       { on: onInflict(TUNE_STRAIN_SHIFTING), buff: SUTURING_DAYLINE_STRAIN },
     ],
   });

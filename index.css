@@ -1131,6 +1131,8 @@ main {
    are separate scopes rather than one running list. Each column is its own table so every name
    column still sizes to its own longest cell. */
 .pop.buffs .cols, .pop.gear .cols { display: flex; align-items: flex-start; gap: 26px; }
+/* a timed buff's remaining seconds, dimmed after its name */
+.pop.buffs .left { color: var(--dim); }
 /* the substat column's roll counts, in ink beside their dim stat names — a single roll fades,
    stat and count both, so the rolls that were actually chosen stand out; the total under them is
    ruled off like any panel's own foot (see `.pop .sum` below) */

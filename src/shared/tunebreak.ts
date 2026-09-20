@@ -14,7 +14,6 @@ import {
   runningAction,
   currentTeam,
   equip,
-  frozenStacks,
   getStat,
   isCast,
   isHeld,
@@ -45,20 +44,9 @@ export const BASE_RESISTANCE = new Gear({
 });
 
 /** Tune Break Cooldown: on the target from the break, and while it stands every off-tune gain is
- *  taken straight back off the bar — for the next three active presses by anyone on the team, and
- *  every triggered action in between. Its stacks are that clock: the break lands the first, each
- *  active, non-triggered action adds one, and the fourth is the one that finds it full and takes
- *  it off, a phase ahead of any stat, so that action already builds again. The break is a triggered
- *  action of its own, so `triggeredAction()` already holds it off here — it laid the first stack
- *  down in the enemy's own updateDebuffs and must not count itself off as well. */
+ *  taken straight back off the bar — for the three seconds after the break. */
 export const TUNE_BREAK_COOLDOWN: Debuff = new Debuff({
-  name: "Tune Break Cooldown", maxStacks: 4,
-  display: () => "Tune Break Cooldown",
-  updateBuffs: () => {
-    if (triggeredAction() || !isActive()) return;
-    if (stacksOfEnemy(TUNE_BREAK_COOLDOWN) >= 4) revokeEnemy(TUNE_BREAK_COOLDOWN);
-    else applyEnemy(TUNE_BREAK_COOLDOWN, 1);
-  },
+  name: "Tune Break Cooldown", duration: 60 * 3,
   // what evaluate() is about to bank of what this action *built*, negated — last of all, once
   // every AddOfftune source has landed. What a kit puts on the bar directly (DirectOfftune,
   // Denia's half-bar surge) is not a gain the cooldown holds off.
@@ -133,36 +121,15 @@ export const TUNE_BREAK = new Action("Tune Break (Auto Generated)", {
 
 /* ------------------------------------------------------------- shifting and interfered */
 
-/** How long an Interfered lasts: 8s in game, which this clockless engine takes as the next 10
- *  active, non-triggered actions.
- *  A debuff on that clock, counting the window off in its own stacks rather than through anything
- *  beside it: the break that inflicts it lands the first (and, being a triggered action itself, is
- *  passed over here), every active, non-triggered action after adds one — a break's own queued
- *  follow-ups add none — and the action that finds it already full is the one
- *  that revokes it, from updateBuffs, a phase ahead of any applyStats, so that action already pays
- *  nothing. Its stacks are the clock and nothing else, so it still reports its plain
- *  name rather than "xN".
- *  Nothing here handles a second application: a target already under Rupture/Hack Interfered can't
- *  be broken again until the window is out (the enemy above is what holds the break off), so the
- *  count is only ever started by the one break that inflicted it. A debuff that *can* land again
- *  inside its own window revokes itself first, which is what starts the count over — Mornye's own
- *  Interfered Marker, the other thing on this 8s, is the one kit that has to.  */
+/** How long an Interfered lasts: 8s from the break that inflicts it. A target already under
+ *  Rupture/Hack Interfered can't be broken again until the window is out (the enemy above is what
+ *  holds the break off), so nothing but that one break ever grants it. */
 export function interferedWindow(def: BuffDef): Debuff {
-  const self: Debuff = new Debuff({
-    ...def,
-    maxStacks: 11,
-    display: () => def.name ?? "",
-    updateBuffs: () => {
-      if (triggeredAction() || !isActive()) return;
-      if (stacksOfEnemy(self) > 10) revokeEnemy(self);
-      else applyEnemy(self, 1);
-    },
-  });
-  return self;
+  return new Debuff({ ...def, duration: 60 * 8 });
 }
 
-/** What a break leaves behind. Rupture and Hack run out on the window above, their stacks spent
- *  counting it off. Strain is left standing instead, since the kits built on it (Luuk, Lynae,
+/** What a break leaves behind. Rupture and Hack run out on the window above. Strain is left
+ *  standing instead, since the kits built on it (Luuk, Lynae,
  *  Qingxiao) pay off its stacks rather than its duration: capped at 1 as declared, with a kit that
  *  responds to it raising the target's own limit with `maxStackIncrease()`, so the real ceiling is
  *  whoever is on the team. */

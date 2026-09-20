@@ -84,28 +84,29 @@ const BA1 = camellyaAction("Basic - Burgeoning 1", { node: Node.Normal, cast: Ca
 const BA2 = camellyaAction("Basic - Burgeoning 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 92.96, energy: 1.38, concerto: 2.76, offtune: 4400, forte1: -9.14 }); // 46.48% x2
 const BA3 = camellyaAction("Basic - Burgeoning 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 152.10, energy: 2.25, concerto: 4.5, offtune: 7200, forte1: -14.94 }); // 50.70% x3
 /** Chain Basic Attack — hold Normal Attack after Stage 3 to keep striking, 20 hits. */
-const BA4 = camellyaAction("Basic - Burgeoning 4 (Hold)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 494.00, energy: 5.4, concerto: 10.8, offtune: 17280, forte1: -36 }); // 24.70% x20
+const BA4 = camellyaAction("Basic - Burgeoning 4 (Hold)", { frames: 60, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 494.00, energy: 5.4, concerto: 10.8, offtune: 17280, forte1: -36 }); // 24.70% x20
 const BA5 = camellyaAction("Basic - Burgeoning 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 192.68, energy: 2.88, concerto: 5.72, offtune: 9120, forte1: -18.96 }); // 48.17% x4
 
 const MA = camellyaAction("Mid-air - Plunging Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 131.22, energy: 1.66, concerto: 3.3, offtune: 5280, forte1: -10.96 }); // 65.61% x2
 const DC = camellyaAction("Dodge Counter - Burgeoning", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 298.20, energy: 2.25, concerto: 14.5, offtune: 7200, forte1: -24.9 }); // 99.40% x3
 /** Considered Basic Attack DMG per Seedbed's own text. */
-const HA = camellyaAction("Heavy - Pruning", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Basic, mv: 264.42, energy: 3.33, concerto: 6.66, offtune: 10641, forte1: -22.08 }); // 88.14% x3
+const HA = camellyaAction("Heavy - Pruning", { frames: 60, node: Node.Normal, cast: Cast.Heavy, type: Type1.Basic, mv: 264.42, energy: 3.33, concerto: 6.66, offtune: 10641, forte1: -22.08 }); // 88.14% x3
 
 // Crimson Blossom opens Blossom Mode; Vining Waltz/Blazing Waltz/Vining Ronde/Atonement replace
 // Basic/Dodge Counter/Jump while it's up; Floral Ravage (Skill replacement) ends it.
 const CrimsonBlossom = camellyaAction("Skill - Crimson Blossom", {
+  frames: 60,
   node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 227.24, concerto: 7, energy: 3.18, offtune: 10160, forte1: -21.1, // 113.62% x2
   updateBuffs: () => applyCurrent(BLOSSOM_MODE, 1),
 });
 
-const VW1 = camellyaAction("Basic - Vining Waltz 1", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 96.33, energy: 1.43, concerto: 2.85, offtune: 4560, forte1: -9.47 });
-const VW2 = camellyaAction("Basic - Vining Waltz 2", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 91.26, energy: 1.36, concerto: 2.7, offtune: 4320, forte1: -8.98 }); // 45.63% x2
-const VW3 = camellyaAction("Basic - Vining Waltz 3", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 131.70, energy: 1.44, concerto: 2.88, offtune: 4608, forte1: -9.6 }); // 21.95% x6
+const VW1 = camellyaAction("Basic - Vining Waltz 1", { frames: 60, node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 96.33, energy: 1.43, concerto: 2.85, offtune: 4560, forte1: -9.47 });
+const VW2 = camellyaAction("Basic - Vining Waltz 2", { frames: 60, node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 91.26, energy: 1.36, concerto: 2.7, offtune: 4320, forte1: -8.98 }); // 45.63% x2
+const VW3 = camellyaAction("Basic - Vining Waltz 3", { frames: 60, node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 131.70, energy: 1.44, concerto: 2.88, offtune: 4608, forte1: -9.6 }); // 21.95% x6
 /** Blazing Waltz — hold Normal Attack on Vining Waltz Stage 3 before it auto-continues to Stage
  *  4. Shares Vining Waltz 3's own per-hit row, multiplied out to its own real *19 hit count. */
-const BlazingWaltz = camellyaAction("Basic - Blazing Waltz", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 417.05, energy: 4.56, concerto: 9.12, offtune: 14592, forte1: -30.4 }); // 21.95% x19
-const VW4 = camellyaAction("Basic - Vining Waltz 4", { node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 202.77, energy: 3, concerto: 6, offtune: 9600, forte1: -19.92 }); // 67.59% x3
+const BlazingWaltz = camellyaAction("Basic - Blazing Waltz", { frames: 60, node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 417.05, energy: 4.56, concerto: 9.12, offtune: 14592, forte1: -30.4 }); // 21.95% x19
+const VW4 = camellyaAction("Basic - Vining Waltz 4", { frames: 60, node: Node.Skill, cast: Cast.Basic, type: Type1.Basic, mv: 202.77, energy: 3, concerto: 6, offtune: 9600, forte1: -19.92 }); // 67.59% x3
 
 /** Jump's own replacement in Blossom Mode, ends it. Never placed in the rotation below (she
  *  never jumps into one there), exported for completeness. */
@@ -113,7 +114,7 @@ const ViningRonde = camellyaAction("Basic - Vining Ronde", { node: Node.Skill, c
 const Atonement = camellyaAction("Dodge Counter - Atonement", { node: Node.Skill, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 226.66, energy: 1.36, concerto: 12.7, offtune: 4320, forte1: -18.94 }); // 113.33% x2
 
 /** The Skill replacement in Blossom Mode, ends it. Considered Basic Attack DMG. */
-const FloralRavage = camellyaAction("Skill - Floral Ravage", { node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 263.05, concerto: 7, energy: 3.7, offtune: 11760, forte1: -24.45 }); // 52.61% x5
+const FloralRavage = camellyaAction("Skill - Floral Ravage", { frames: 60, node: Node.Skill, cast: Cast.Skill, type: Type1.Basic, mv: 263.05, concerto: 7, energy: 3.7, offtune: 11760, forte1: -24.45 }); // 52.61% x5
 
 /** At full Crimson Pistil/Concerto — considered Basic Attack DMG, enters Budding Mode, genuinely
  *  recovers Crimson Pistil to a hard 100, and spends 70 Concerto off a hard-clamped-to-100
@@ -122,6 +123,7 @@ const FloralRavage = camellyaAction("Skill - Floral Ravage", { node: Node.Skill,
  *  reads short, with the 30 it keeps handed back as a stat; refills the gauge from empty, and folds
  *  every Crimson Bud held into the Budding Mode it opens. */
 const Ephemeral = camellyaAction("Forte Skill - Ephemeral", {
+  frames: 60,
   node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 1262.45, forte1: 100, resetForte1: true, concerto: -100, energy: 12, offtune: 60800,
   applyStats: () => addStat(Stat.AddConcerto, 30),
   updateBuffs: () => {
@@ -137,6 +139,7 @@ const Ephemeral = camellyaAction("Forte Skill - Ephemeral", {
  *  other 50 handed back), refunds 50 Pistils, drops every Bud and re-opens Budding Mode at Sweet
  *  Dream's 250% cap. No row of its own on nanoka: no energy/off-tune. */
 const Perennial = camellyaAction("Forte Skill - Perennial (S6)", {
+  frames: 60,
   node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 1262.45, forte1: 50, concerto: -100,
   applyStats: () => addStat(Stat.AddConcerto, 50),
   updateBuffs: () => {
@@ -149,6 +152,7 @@ const Perennial = camellyaAction("Forte Skill - Perennial (S6)", {
 const Liberation = camellyaAction("Liberation - Fervor Efflorescent", { node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 1202.81, concerto: 20, offtune: 84000, resetEnergy: true });
 
 const Intro = camellyaAction("Intro - Everblooming", {
+  frames: 60,
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81, concerto: 10, forte1: 100, resetForte1: true, energy: 10, offtune: 9600,
 });
 /** No handoff buff is described on her own kit page, unlike most other kits' outros — left as a
@@ -177,7 +181,7 @@ function inSweetDream(): boolean {
     || runningAction(ViningRonde) || runningAction(Atonement) || runningAction(CrimsonBlossom) || runningAction(FloralRavage);
 }
 const BUDDING_MODE = new Buff({
-  name: "Camellya: Sweet Dream", maxStacks: 11,
+  name: "Camellya: Sweet Dream", maxStacks: 11, duration: 60 * 15,
   // S6 lifts the flat 50 to 200 (Perennial's 11 stacks land on the 250 cap); S3 is +58% ATK while held
   applyStats: () => {
     if (isHeld(CM_S3)) asSource(CM_S3, () => addStat(Stat.BonusAtk, 58));
@@ -201,7 +205,7 @@ const BUDDING_MODE = new Buff({
  *  outside Budding Mode, capped at 10. Empty buff — Ephemeral consumes every held stack and it
  *  just decides how many of Budding Mode's own 11 stacks get granted. */
 const CRIMSON_BUD = new Buff({
-  name: "Camellya: Crimson Bud", maxStacks: 10,
+  name: "Camellya: Crimson Bud", maxStacks: 10, duration: 60 * 15,
   until: LifeTime.Outro,
 });
 
@@ -273,6 +277,7 @@ const CAMELLYA_RESONATOR = new Resonator({
 /** S1: +28% Crit. DMG for 18s off Everblooming — until her Outro. The interrupt immunity is no stat. */
 const SOMEWHERE_NO_ONE_TRAVELLED = new Buff({
   name: "Camellya S1: Somewhere No One Travelled",
+  duration: 60 * 18,
   stats: [[Stat.CritDmg, 28]], until: LifeTime.Outro,
 });
 const CM_S1 = new Sequence({
@@ -297,6 +302,7 @@ const CM_S3 = new Sequence({
 /** S4: +25% Basic Attack DMG Bonus to the team off Everblooming, 30s — permanent. */
 const ROOTS_SET_DEEP = new Buff({
   name: "Camellya S4: Roots Set Deep In Eternity",
+  duration: 60 * 30,
   stats: [[Stat.DmgBonus, 25, Type1.Basic]],
 });
 const CM_S4 = new Sequence({

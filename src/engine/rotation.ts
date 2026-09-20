@@ -101,9 +101,19 @@ export interface ActionDef extends GearDef {
    *  Everything else `run()` derives on its own; see its `triggered` local. */
   triggered?: boolean;
   /** A press whose whole animation freezes the world — a Liberation cinematic, the Tune Break,
-   *  Jinhsi's Illuminous Epiphany — so the engine's second (helpers.ts's `oneSecondPassed()`)
-   *  does not count it. */
+   *  Jinhsi's Illuminous Epiphany — declared for the report; the clock reads `frames`, which such
+   *  a press declares as 0. */
   cutscene?: boolean;
+  /** How long this press takes, in frames at 60 per second — what the fight clock (`State.frame`)
+   *  advances by once it resolves as an on-field press (context.ts's `elapsed()`), and so what
+   *  every buff duration and every buff's own tick clock is measured against. 0, the default, is a press that takes no time of the
+   *  fight's own: a follow-up, an echo's swap form, a cancelled press. A press wuwalab has measured
+   *  declares its `total_frames` less its `time_stop` (a Liberation cinematic freezes the world for
+   *  its whole length, so it is 0); one it has not declares 60, the engine's one-second stand-in. */
+  frames?: number;
+  /** The frame this press can be cancelled from without losing any of its damage — its last hit,
+   *  or wuwalab's earliest cancel where that comes later. Recorded only, nothing reads it yet. */
+  cancel?: number;
   /** The field this hit belongs to — a summon firing on its own beside the fight (a coordinated
    *  attack, Denia's Erosion Field, Jué's follow-up, Xiangli Yao's outro laser, Rebecca's turret).
    *  The same `ActionField` the Buff that opens the field names, which is what pairs a run of hits
@@ -152,6 +162,8 @@ export class Action extends Gear {
   skipNextFn?: () => boolean;
   triggered: boolean;
   cutscene: boolean;
+  frames: number;
+  cancel: number;
   /** What this was built from, kept so `variant()` can rebuild it with a change or two. */
   readonly def: ActionDef;
   /** The cast this is the dash- or jump-cancelled form of; null on every ordinary one. A cancel is
@@ -200,6 +212,8 @@ export class Action extends Gear {
     this.skipNextFn = def.skipNext;
     this.triggered = def.triggered ?? false;
     this.cutscene = def.cutscene ?? false;
+    this.frames = def.frames ?? 0;
+    this.cancel = def.cancel ?? 0;
     this.def = def;
   }
 
@@ -245,7 +259,8 @@ export class Action extends Gear {
   /** The same cast made on the way out, named "… (Swap)" — identical in every field, but
    *  a swap-out (its owner is leaving the field as it lands) and reported as triggered. */
   swap(): Action {
-    const out = this.variant(`${this.name} (Swap)`, { triggered: true, swapOut: true });
+    // no frames of its own: the press finishes off field, under the outro that follows it
+    const out = this.variant(`${this.name} (Swap)`, { triggered: true, swapOut: true, frames: 0 });
     out.formOf = this;
     return out;
   }
@@ -460,13 +475,13 @@ export const OUTRO = new Action("Outro Placeholder", {
  *  slot then plays their NOINTRO chain, which they must declare. Zero damage, and a swap-out, so
  *  every "lost on swap" buff the outgoing resonator holds drops exactly as it would on an Outro
  *  (context.ts's own `lostOnSwap()`). */
-export const SWAP = new Action("Swap", { swapOut: true, triggered: true });
+export const SWAP = new Action("Swap", { swapOut: true, triggered: true, frames: 20 });
 
 /** Filler a kit writes into a chain body where the player dodges or jumps mid-rotation: no
  *  damage, no gauges, an ordinary on-field row, reported as triggered. DODGE is also what every
  *  `Action.dodgeCancel()` form queues behind itself — the dash that cancels the cast. */
-export const DODGE = new Action("Dodge", { triggered: true });
-export const JUMP = new Action("Jump", { triggered: true });
+export const DODGE = new Action("Dodge", { triggered: true, frames: 20 });
+export const JUMP = new Action("Jump", { triggered: true, frames: 20 });
 
 /* ------------------------------------------------------------------------------ the rotation */
 

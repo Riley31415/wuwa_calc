@@ -63,8 +63,8 @@ function galbrenaAction(id: string, def: object): Action {
 // --- Threshold State basics: Slayer's Trigger. Stages 1-3 Heavy Attack DMG, Stage 4 Echo Skill.
 const BA1 = galbrenaAction("Basic - Slayer's Trigger 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 59.18, energy: 0.83, concerto: 1.16, offtune: 2646, forte1: 7.41 });
 const BA2 = galbrenaAction("Basic - Slayer's Trigger 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 131.53, energy: 1.85, concerto: 2.59, offtune: 5880, forte1: 18.52 });
-const BA3 = galbrenaAction("Basic - Slayer's Trigger 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 142.98, energy: 2.00, concerto: 2.80, offtune: 6394, forte1: 18.52 });
-const BA4 = galbrenaAction("Basic - Slayer's Trigger 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Echo, mv: 177.86, energy: 2.49, concerto: 3.48, offtune: 7952, forte1: 14.81 });
+const BA3 = galbrenaAction("Basic - Slayer's Trigger 3", { frames: 60, node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 142.98, energy: 2.00, concerto: 2.80, offtune: 6394, forte1: 18.52 });
+const BA4 = galbrenaAction("Basic - Slayer's Trigger 4", { frames: 60, node: Node.Normal, cast: Cast.Basic, type: Type1.Echo, mv: 177.86, energy: 2.49, concerto: 3.48, offtune: 7952, forte1: 14.81 });
 
 const DC = galbrenaAction("Dodge Counter - Blood for Blood", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Heavy, mv: 205.24, offtune: 6394, concerto: 12.8, energy: 2 });
 const MA = galbrenaAction("Mid-air - Ashfall Barrage (Plunge)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 143.15, energy: 2.00, concerto: 2.80, offtune: 6400 });
@@ -72,19 +72,20 @@ const MASustained = galbrenaAction("Mid-air - Ashfall Barrage (Sustained Fire)",
 
 // Threshold State heavy: Volley of Death, 3 held stages
 const HA1 = galbrenaAction("Heavy - Volley of Death 1", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 106.60, energy: 1.50, concerto: 2.10, offtune: 4766, forte1: 7.41 });
-const HA2 = galbrenaAction("Heavy - Volley of Death 2", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 69.18, energy: 0.98, concerto: 1.36, offtune: 3094, forte1: 25.93 });
-const HA3 = galbrenaAction("Heavy - Volley of Death 3", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Echo, mv: 167.70, energy: 2.37, concerto: 3.29, offtune: 7499, forte1: 18.52 });
+const HA2 = galbrenaAction("Heavy - Volley of Death 2", { frames: 60, node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 69.18, energy: 0.98, concerto: 1.36, offtune: 3094, forte1: 25.93 });
+const HA3 = galbrenaAction("Heavy - Volley of Death 3", { frames: 60, node: Node.Normal, cast: Cast.Heavy, type: Type1.Echo, mv: 167.70, energy: 2.37, concerto: 3.29, offtune: 7499, forte1: 18.52 });
 
 // Threshold State resonance skill: Encroach (base), Ascent of Malice (100 Sinflame, opens Demon
 // Hypostasis)
 // the five casts that bank a Burning Drive stack
 const DRIVE = { updateBuffs: () => applyCurrent(BURNING_DRIVE, 1) };
-const Encroach = galbrenaAction("Skill - Encroach", { node: Node.Skill, cast: Cast.Skill, type: Type1.Heavy, mv: 35.78, concerto: 2.22, energy: 6.59, offtune: 5039, forte1: 18.52, ...DRIVE });
+const Encroach = galbrenaAction("Skill - Encroach", { frames: 60, node: Node.Skill, cast: Cast.Skill, type: Type1.Heavy, mv: 35.78, concerto: 2.22, energy: 6.59, offtune: 5039, forte1: 18.52, ...DRIVE });
 /** Converts Sinflame into Purging Flame — declared as real deltas (forte1: -100, forte2:
  *  +100) so they show in the hover trace, but GALBRENA_RESONATOR's own updateBuffs() below first normalizes
  *  each gauge to what these deltas expect to land on 0/100 from (forte gauges have no floor or
  *  ceiling, so a bare relative delta could land short). */
 const AscentOfMalice = galbrenaAction("Skill - Ascent of Malice", {
+  frames: 60,
   node: Node.Skill, cast: Cast.Skill, type: Type1.Heavy, mv: 103.14, energy: 14.76, concerto: 10, offtune: 5588, forte1: -100, forte2: 100,
   // the conversion is a top-off, not a top-up: Purging Flame is emptied ahead of the +100 above,
   // so it lands on exactly 100 from wherever the enhanced chain left it
@@ -100,10 +101,10 @@ const AscentOfMalice = galbrenaAction("Skill - Ascent of Malice", {
 // completeness. Burning Drive is Seraphic Execution's own Stage 4 specifically, not Threshold
 // State's Slayer's Trigger Stage 4.
 const SeraphicExecution1 = galbrenaAction("Forte Basic - Seraphic Execution 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 58.99, energy: 1.00, concerto: 5.54, offtune: 2374, forte2: -4.88 });
-const SeraphicExecution2 = galbrenaAction("Forte Basic - Seraphic Execution 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 139.19, energy: 2.00, concerto: 6.95, offtune: 5600, forte2: -9.76 });
-const SeraphicExecution3 = galbrenaAction("Forte Basic - Seraphic Execution 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 243.17, energy: 3.34, concerto: 8.79, offtune: 9786, forte2: -18.29 });
-const SeraphicExecution4 = galbrenaAction("Forte Basic - Seraphic Execution 4", { node: Node.Forte, cast: Cast.Basic, type: Type1.Echo, mv: 181.47, energy: 2.56, concerto: 7.70, offtune: 7305, forte2: -13.41, ...DRIVE });
-const SeraphicExecution5 = galbrenaAction("Forte Basic - Seraphic Execution 5", { node: Node.Forte, cast: Cast.Basic, type: Type1.Echo, mv: 224.27, energy: 3.08, concerto: 8.46, offtune: 9025, forte2: -19.51 });
+const SeraphicExecution2 = galbrenaAction("Forte Basic - Seraphic Execution 2", { frames: 60, node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 139.19, energy: 2.00, concerto: 6.95, offtune: 5600, forte2: -9.76 });
+const SeraphicExecution3 = galbrenaAction("Forte Basic - Seraphic Execution 3", { frames: 60, node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 243.17, energy: 3.34, concerto: 8.79, offtune: 9786, forte2: -18.29 });
+const SeraphicExecution4 = galbrenaAction("Forte Basic - Seraphic Execution 4", { frames: 60, node: Node.Forte, cast: Cast.Basic, type: Type1.Echo, mv: 181.47, energy: 2.56, concerto: 7.70, offtune: 7305, forte2: -13.41, ...DRIVE });
+const SeraphicExecution5 = galbrenaAction("Forte Basic - Seraphic Execution 5", { frames: 60, node: Node.Forte, cast: Cast.Basic, type: Type1.Echo, mv: 224.27, energy: 3.08, concerto: 8.46, offtune: 9025, forte2: -19.51 });
 
 const FlamewingVerdict1 = galbrenaAction("Forte Heavy - Flamewing Verdict 1", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 118.44, energy: 1.74, concerto: 6.60, offtune: 4766, forte2: -9.76 });
 const FlamewingVerdict2 = galbrenaAction("Forte Heavy - Flamewing Verdict 2", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 76.70, energy: 1.22, concerto: 5.86, offtune: 3086, forte2: -7.32 });
@@ -120,7 +121,7 @@ const Liberation = galbrenaAction("Liberation - Hellfire Absolution", {
   updateBuffs: () => applyCurrent(HELLFIRE_WINDOW, 1),
 });
 
-const Intro = galbrenaAction("Intro - Hellflare Overload", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 94.12, energy: 10, concerto: 10, offtune: 4208, forte1: 11.11, ...DRIVE });
+const Intro = galbrenaAction("Intro - Hellflare Overload", { frames: 60, node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 94.12, energy: 10, concerto: 10, offtune: 4208, forte1: 11.11, ...DRIVE });
 /** Unlike most outros, this one deals real damage (795% MV) on top of the handoff concerto
  *  reset; `swapOut` still marks it as her leaving the field for lostOnSwap purposes. */
 const Outro = galbrenaAction("Outro - Ashen Pursuit", { cast: Cast.Outro, type: Type1.Outro, mv: 795, offtune: 30326, concerto: -100, energy: 10.03, swapOut: true });
@@ -131,6 +132,7 @@ const Outro = galbrenaAction("Outro - Ashen Pursuit", { cast: Cast.Outro, type: 
  *  Ravage (Hellstride isn't implemented, see file header, so it's dropped from this list too). */
 const BURNING_DRIVE = new Buff({
   name: "Galbrena: Burning Drive",
+  duration: 60 * 4,
   stats: [[Stat.BonusAtk, 20]],
   // S2: 350% more of the bonus, so 20% becomes 90%
   applyStats: () => {
@@ -142,13 +144,13 @@ const BURNING_DRIVE = new Buff({
 
 /** +5% DMG Dealt a stack, up to 4, 5.5s — granted on any of her own landed attacks. */
 const OATHBOUND_HUNT = new Buff({
-  name: "Galbrena: Fated End", maxStacks: 4,
+  name: "Galbrena: Fated End", maxStacks: 4, duration: 60 * 5.5,
   stats: [[Stat.Amp, 5]], perStack: true,
   until: LifeTime.Outro,
 });
 const GB_INHERENT_1 = new Inherent({
   name: "Inherent: Oathbound Hunt",
-  grants: [{ on: () => !casting(Cast.Echo), buff: OATHBOUND_HUNT }],
+  grants: [{ on: () => !casting(Cast.Echo), buff: OATHBOUND_HUNT, onHit: true }],
 });
 /** No combat-formula effect this engine models, same "still equipped, no stat" treatment
  *  Augusta's own Ruler's Realm shield gets. */
@@ -158,6 +160,7 @@ const GB_INHERENT_2 = new Inherent({ name: "Inherent: Sin Feaster" });
  *  Flame runs out, taking Afterflame down with it. */
 const DEMON_HYPOSTASIS = new Buff({
   name: "Galbrena: Demon Hypostasis",
+  duration: 60 * 50,
   updateBuffs: () => { if (forte2() <= 0) { revokeTeam(AFTERFLAME); revokeCurrent(DEMON_HYPOSTASIS); } },
 });
 
@@ -189,6 +192,7 @@ const AFTERFLAME = new Buff({
  *  Basic/Heavy Attack DMG, not Resonance Skill), 14s. */
 const HELLFIRE_WINDOW = new Buff({
   name: "Galbrena: Hellfire Absolution",
+  duration: 60 * 14,
   applyStats: () => {
     if (runningAction(SeraphicExecution1) || runningAction(SeraphicExecution2) || runningAction(SeraphicExecution3)
       || runningAction(SeraphicExecution4) || runningAction(SeraphicExecution5)
@@ -217,6 +221,7 @@ const GB_S3 = new Sequence({
  *  every echo the team casts, so it stands for the fight. */
 const CARRY_FORTH = new Buff({
   name: "Galbrena S4: Carry Forth This Fading Spark",
+  duration: 60 * 20,
   stats: [[Stat.DmgBonus, 20]],
 });
 const GB_S4 = new Sequence({

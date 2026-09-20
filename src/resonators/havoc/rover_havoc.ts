@@ -118,6 +118,7 @@ const RH_INHERENT_2 = new Inherent({
  *  lost on Rover's own next Intro rather than tracked as permanent. Trigger in `ROVER_S4` below. */
 const S4_RES_SHRED = new Debuff({
   name: "Havoc Rover S4: Annihilated Silence",
+  duration: 60 * 20,
   applyStats: () => addEnemyStat(EnemyStat.ResReduce, 10, Attribute.Havoc),
   convertStats: () => { if (casting(Cast.Intro) && isHeld(ROVER_HAVOC_RESONATOR)) revokeEnemy(S4_RES_SHRED); },
 });
@@ -165,7 +166,7 @@ const ROVER_S3 = new Sequence({ name: "Havoc Rover S3: Surging Resonance" });
 // S4 Annihilated Silence's own trigger — payout lives in S4_RES_SHRED above
 const ROVER_S4 = new Sequence({
   name: "Havoc Rover S4: Annihilated Silence",
-  updateBuffs: () => {
+  afterAction: () => {
     if (runningAction(Devastation) || runningAction(Liberation)) applyEnemy(S4_RES_SHRED, 1);
   },
 });

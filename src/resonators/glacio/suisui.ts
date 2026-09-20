@@ -64,20 +64,26 @@ import {
   currentTeam,
   isType,
   maxStackIncrease,
+  queueOn,
   queueOutro,
   removeStackTeam,
   revokeCurrent,
   revokeTeam,
   stacksOfTeam,
-  frozenStacks,
+  
   forte2,
   isActive,
+  casting,
+  currentMember,
+  ticksOfTeam,
+  isHeld,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, NOINTRO, INTRO, ECHO_CANCEL, OUTRO } from "../../engine/rotation.js";
 import {
   AERO_EROSION, ELECTRO_FLARE, ELECTRO_RAGE, FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE, HEALS, SPECTRO_FRAZZLE,
   inflictedNegativeStatusBy,
 } from "../../shared/status.js";
+import { coordinatedBuff } from "../../shared/helpers.js";
 import { FIRSTLIGHTS_HERALD } from "../../weapons/rectifier.js";
 import { VARIATION } from "../../weapons/standard.js";
 import { FORBIDDEN_BASTION, FEATHERED_TRACE_5PC } from "../../echoes/mengzhou.js";
@@ -93,39 +99,46 @@ function suisuiAction(id: string, def: object): Action {
 // --- Zephyr Stance: the chain she opens a fight from, banking Cloud Breath (forte1) for
 //     Awakening Spring. Resonance Skill - Zephyr Stance's own 40 is the kit page's, not the
 //     per-hit table's — wuwalab carries no gauge on those six hits either.
-const BA1 = suisuiAction("Basic - Zephyr Stance 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 63.15, energy: 1.00, concerto: 3.18, offtune: 3176, forte1: 24 });
-const BA2 = suisuiAction("Basic - Zephyr Stance 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 122.00, energy: 1.92, concerto: 6.14, offtune: 6136, forte1: 46 });
-const BA3 = suisuiAction("Basic - Zephyr Stance 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 139.34, energy: 2.20, concerto: 7.03, offtune: 7010, forte1: 53 });
-const BA4 = suisuiAction("Basic - Zephyr Stance 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 159.08, energy: 2.50, concerto: 8.00, offtune: 8000, forte1: 60 });
+const BA1 = suisuiAction("Basic - Zephyr Stance 1", { frames: 24, cancel: 8, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 63.15, energy: 1.00, concerto: 3.18, offtune: 3176, forte1: 24 });
+const BA2 = suisuiAction("Basic - Zephyr Stance 2", { frames: 46, cancel: 30, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 122.00, energy: 1.92, concerto: 6.14, offtune: 6136, forte1: 46 });
+const BA3 = suisuiAction("Basic - Zephyr Stance 3", { frames: 51, cancel: 41, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 139.34, energy: 2.20, concerto: 7.03, offtune: 7010, forte1: 53 });
+const BA4 = suisuiAction("Basic - Zephyr Stance 4", { frames: 60, cancel: 41, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 159.08, energy: 2.50, concerto: 8.00, offtune: 8000, forte1: 60 });
 const MA = suisuiAction("Mid-air - Zephyr Stance Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 70.72, energy: 1.86, concerto: 5.93, offtune: 5928 });
-const DC = suisuiAction("Dodge Counter - Zephyr Stance 3", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 170.67, energy: 2.70, concerto: 18.60, offtune: 8586, forte1: 30 });
+const DC = suisuiAction("Dodge Counter - Zephyr Stance 3", { frames: 35, cancel: 26, node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 170.67, energy: 2.70, concerto: 18.60, offtune: 8586, forte1: 30 });
 const Skill = suisuiAction("Skill - Vernal Screen: Zephyr Stance", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 143.16, energy: 2.28, concerto: 7.20, offtune: 7200, forte1: 40 });
 
 /** Awakening Spring: replaces the Zephyr skill at full Cloud Breath, spends the whole bar and drops
  *  her into Drizzle Stance, which clears Floral Epistle on the way in. HP-scaled, and one of the
  *  two casts Sky Over Water enhances. */
 const ESkill = suisuiAction("Skill - Awakening Spring", {
+  frames: 78, cancel: 60,
   node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, scaling: Scaling.Hp,
   mv: 28.63, energy: 5.00, concerto: 9.60, offtune: 9600, forte1: -120, resetForte2: true,
-  updateDebuffs: () => { applyEnemy(GLACIO_CHAFE, 1); applyCurrent(HEALS, 1); },
+  updateDebuffs: () => {
+    applyEnemy(GLACIO_CHAFE, 1);
+    applyCurrent(HEALS, 1);
+    applyTeam(ENRICHMENT, 2);
+  },
 });
 
 // --- Drizzle Stance: the same buttons, banking Floral Epistle (forte2) for the Outro. Illuminating
 //     Dew and Swallow's Cut are the two ways out of the Heavy, so a chain only ever takes one.
-const FBA1 = suisuiAction("Basic - Drizzle Stance 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 78.28, energy: 1.24, concerto: 3.96, offtune: 3936, forte2: 84 });
-const FBA2 = suisuiAction("Basic - Drizzle Stance 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 159.07, energy: 2.50, concerto: 8.00, offtune: 8000, forte2: 170 });
-const FBA3 = suisuiAction("Basic - Drizzle Stance 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 165.12, energy: 2.64, concerto: 8.40, offtune: 8304, forte2: 180 });
+const FBA1 = suisuiAction("Basic - Drizzle Stance 1", { frames: 31, cancel: 34, node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 78.28, energy: 1.24, concerto: 3.96, offtune: 3936, forte2: 84 });
+const FBA2 = suisuiAction("Basic - Drizzle Stance 2", { frames: 70, cancel: 51, node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 159.07, energy: 2.50, concerto: 8.00, offtune: 8000, forte2: 170 });
+const FBA3 = suisuiAction("Basic - Drizzle Stance 3", { frames: 66, cancel: 61, node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 165.12, energy: 2.64, concerto: 8.40, offtune: 8304, forte2: 180 });
 const FBA4 = suisuiAction("Basic - Drizzle Stance 4", {
+  frames: 64, cancel: 48,
   node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 159.05, energy: 2.50, concerto: 8.00, offtune: 8000, forte2: 170,
   updateDebuffs: () => applyEnemy(GLACIO_CHAFE, 1),
 });
-const FHA = suisuiAction("Heavy - Drizzle Stance", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 238.59, energy: 3.78, concerto: 12.00, offtune: 12000, forte2: 258 });
-const FHA2 = suisuiAction("Basic - Illuminating Dew", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 104.98, energy: 2.75, concerto: 8.80, offtune: 8800 });
-const FMA = suisuiAction("Basic - Swallow's Cut", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 107.65, energy: 2.82, concerto: 9.03, offtune: 9024 });
-const FSkill = suisuiAction("Skill - Vernal Screen: Drizzle Stance", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 143.16, energy: 2.27, concerto: 7.20, offtune: 7200, forte2: 100 });
+const FHA = suisuiAction("Heavy - Drizzle Stance", { frames: 97, cancel: 82, node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 238.59, energy: 3.78, concerto: 12.00, offtune: 12000, forte2: 258 });
+const FHA2 = suisuiAction("Basic - Illuminating Dew", { frames: 64, cancel: 30, node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 104.98, energy: 2.75, concerto: 8.80, offtune: 8800 });
+const FMA = suisuiAction("Basic - Swallow's Cut", { frames: 60, cancel: 33, node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 107.65, energy: 2.82, concerto: 9.03, offtune: 9024 });
+const FSkill = suisuiAction("Skill - Vernal Screen: Drizzle Stance", { frames: 54, cancel: 57, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 143.16, energy: 2.27, concerto: 7.20, offtune: 7200, forte2: 100 });
 
 /** Song of Thoroughfare: no damage of its own, just the Landscape and its 20 Concerto. */
 const Liberation = suisuiAction("Liberation - Song of Thoroughfare", {
+  frames: 0, cancel: 264,
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, concerto: 20, resetEnergy: true,
   updateBuffs: () => applyTeam(CEASELESS_LANDSCAPE, 1)
 });
@@ -133,23 +146,43 @@ const Liberation = suisuiAction("Liberation - Song of Thoroughfare", {
 /** Tinkling Jade: the other cast Sky Over Water enhances, and the ordinary way into Drizzle Stance
  *  — it spends whatever Cloud Breath she is holding whether or not the bar is full. */
 const Intro = suisuiAction("Intro - Tinkling Jade", {
+  frames: 78, cancel: 60,
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, scaling: Scaling.Hp,
   mv: 28.63, energy: 10, concerto: 19.60, offtune: 9600, resetForte1: true, resetForte2: true,
-  updateDebuffs: () => { applyEnemy(GLACIO_CHAFE, 1); applyCurrent(HEALS, 1); },
+  updateDebuffs: () => {
+    applyEnemy(GLACIO_CHAFE, 1);
+    applyCurrent(HEALS, 1);
+    applyTeam(ENRICHMENT, 2);
+  },
 });
+
+/** Enrichment: a stack on each teammate off Awakening Spring / Tinkling Jade, spent by their next
+ *  Intro for Spring's Birth — ten heals two seconds apart, hers (Sky Over Water), so every "on heal"
+ *  piece she wears sees each tick. Team-held as the pair of stacks the two teammates hold. */
+const ENRICHMENT = new Buff({
+  name: "Suisui: Enrichment", maxStacks: 2,
+  updateGlobal: () => {
+    if (!casting(Cast.Intro) || currentMember().resonator === SUISUI_RESONATOR) return;
+    removeStackTeam(ENRICHMENT, 1);
+    applyTeam(SPRINGS_BIRTH, 20);
+  },
+});
+const SpringsBirthHeal = suisuiAction("Sky Over Water - Spring's Birth: Heal", { updateDebuffs: () => applyCurrent(HEALS, 1) });
+const SPRINGS_BIRTH = coordinatedBuff("Suisui: Spring's Birth", 20, () => SUISUI_RESONATOR, SpringsBirthHeal, { every: 2 });
 
 /** Rippling Waters: the team's 25% amplification, every Floral Epistle tier, and the three-step
  *  Transcendent Dance armed for the two visits after. The bar is cleared rather than spent by a
  *  declared delta ("consumes all" has no fixed size, and the engine's gauges have no ceiling), and
  *  nothing here tests what it held: 600 consumed — the top tier — is simply taken as read. */
 const Outro = suisuiAction("Outro - Rippling Waters", {
+  frames: 0, cancel: 0,
   cast: Cast.Outro, concerto: -100, swapOut: true, resetForte2: true,
   updateBuffs: () => {
     applyTeam(RIPPLING_WATERS, 1);
     applyTeam(ROAMING_TRANSCENDENT, 1);
     // a fresh dance, not a top-up: a step the last one never got round to goes with it
     revokeTeam(TRANSCENDENT_DANCE);
-    applyTeam(TRANSCENDENT_DANCE, 3);
+    applyTeam(TRANSCENDENT_DANCE, 1);
   },
 });
 
@@ -179,6 +212,7 @@ const LANDSCAPE_CAPS: [Debuff, Type2][] = [
  *  a 30s buff a payout landing on the action after the spend never shows. */
 const CEASELESS_LANDSCAPE = new Buff({
   name: "Suisui: Ceaseless Landscape",
+  duration: 60 * 30,
   updateGlobal: () => {
     for (const [status, tag] of LANDSCAPE_CAPS) {
       if (applied(status) || isType(tag)) maxStackIncrease(status, 3);
@@ -195,18 +229,20 @@ const CEASELESS_LANDSCAPE = new Buff({
  *  Havoc RES ignore, both on their Havoc DMG alone. 30s, so it never drops once it is up. */
 const VOID_TIDE = new Buff({
   name: "Suisui: Ceaseless Landscape (bane)",
+  duration: 60 * 30,
   stats: [[Stat.DefIgnoreNew, 6, Attribute.Havoc], [Stat.ResIgnore, 12, Attribute.Havoc]],
 });
 
 /** Rippling Waters' own 25% All DMG Amplification — 30s, so permanent once granted. */
 const RIPPLING_WATERS = new Buff({
   name: "Suisui: Outro",
+  duration: 60 * 30,
   stats: [[Stat.Amp, 25]],
 });
 
 /** Reflecting Shadows: 6s to the whole team off every Plume Step, and what the 400-Epistle tier
  *  below is gated on. Nothing else reads it — its own effect is interruption resistance. */
-const REFLECTING_SHADOWS = new Buff({ name: "Suisui: Reflecting Shadows" });
+const REFLECTING_SHADOWS = new Buff({ name: "Suisui: Reflecting Shadows", duration: 60 * 6 });
 
 /** The 400-Epistle tier: the active resonator inside the Landscape deals 0.2% more DMG per 1% of
  *  Suisui's Energy Regen over 200%, capped at 12% — taken at the cap (CLAUDE.md), which wants 260%
@@ -214,36 +250,40 @@ const REFLECTING_SHADOWS = new Buff({ name: "Suisui: Reflecting Shadows" });
  *  nothing. Runs for the 30s of one Roaming Transcendent, restarted by every Outro. */
 const ROAMING_TRANSCENDENT = new Buff({
   name: "Suisui: Roaming Transcendent",
+  duration: 60 * 30,
   applyStats: () => {
     if (isActive()) addStat(Stat.DmgBonus, 12);
   },
 });
 
-/** The Transcendent Dance: her three Plume Steps, paced across the two visits after her Outro
- *  rather than all landing on the handoff, with whoever is on field as the clock — the first goes
- *  off once the resonator she handed to reaches 100 Concerto, the second and third once the one
- *  after *them* passes 50 and then 100. Stacks are steps left, so there is no counter beside it;
- *  run from `afterAction`, the one phase that sees the Concerto an action actually banked.
- *
- *  The 50 rung is "past 50 but not yet 100" precisely so it cannot fire on the resonator who has
- *  already taken the 100 one — they sit above both thresholds for the rest of their visit, and
- *  their own Outro drops them back to zero before the next resonator starts climbing. She stops the
- *  dance whenever she is the one on field, which is the kit's own rule and also what keeps a queued
- *  step from setting off the next one. */
-const TRANSCENDENT_DANCE = new Buff({
-  name: "Suisui: Transcendent Dance", maxStacks: 3,
-  afterAction: () => {
-    if (currentTeam().slot.resonator === SUISUI_RESONATOR) return;
-    const left = stacksOfTeam(TRANSCENDENT_DANCE), banked = concerto();
-    const due = left === 3 ? (banked >= 100) : left === 2 ? (banked >= 50 && banked < 100) : (banked >= 100);
-    if (!due) return;
-    
-    if (left === 3) queueOutro(UNDULATING_MIST);
-    applyEnemy(GLACIO_CHAFE, 1); 
+/** One Plume Step: no damage of its own, just the Chafe it lays and the heal it gives. A row on
+ *  her own slot (`queueOn`), not a grant made on whoever is on field — the step is hers, so her own
+ *  weapon and sonata are what read the inflict and the heal. */
+const PlumeStep = suisuiAction("Outro - Plume Step", {
+  updateDebuffs: () => {
+    applyEnemy(GLACIO_CHAFE, 1);
     applyCurrent(HEALS, 1);
-    // applyTeam(REFLECTING_SHADOWS, 1) // does nothing
+  },
+});
 
-    removeStackTeam(TRANSCENDENT_DANCE, 1);
+/** The Transcendent Dance: her three Plume Steps, spaced across the thirty seconds of one Roaming
+ *  Transcendent rather than bunched at the end of a visit — a clock of the dance's own, a step on
+ *  its first second and every tenth after. She stops the dance whenever she is the one on field,
+ *  which is the kit's own rule: its clock stands still for her presses.
+ *
+ *  The first step arms the Undulating Mist handoff rather than handing it over itself: from then on
+ *  it is each teammate's own Outro that gives the Mist to whoever intros behind them, for the rest
+ *  of the Roaming Transcendent. */
+const TRANSCENDENT_DANCE = new Buff({
+  name: "Suisui: Transcendent Dance", duration: 60 * 30,
+  tick: {
+    every: () => (currentTeam().slot.resonator === SUISUI_RESONATOR ? 0 : 60),
+    fire: (n) => { if (n % 10 === 1) queueOn(SUISUI_RESONATOR, PlumeStep); },
+  },
+  updateBuffs: () => {
+    if (currentTeam().slot.resonator === SUISUI_RESONATOR) return;
+    // the dance has ticked at all, so its first step is behind it
+    if (ticksOfTeam(TRANSCENDENT_DANCE) > 0 && casting(Cast.Outro)) queueOutro(UNDULATING_MIST);
   },
 });
 
@@ -251,11 +291,10 @@ const TRANSCENDENT_DANCE = new Buff({
  *  Suisui's Energy Regen over 200% every time they consume a Negative Status or Electro Rage stack,
  *  capped at 50% — taken at the cap, same 260% ER threshold as the tier above.
  *
- *  The two halves of it are the two stacks rather than two buffs: one stack is the Mist itself, as
- *  handed to whoever intro'd (see the Transcendent Dance's own `queueOutro`), and the second is
- *  that holder having since spent a stack off the target, which is what actually buys the ATK. One
- *  buff, because the kit ends the two together — switching the holder off field drops the Mist and
- *  the ATK with it — and because the panel then reads as one line that says which of the two it is.
+ *  Two buffs, one a stage: the Mist itself, as handed to whoever intro'd (see the Transcendent
+ *  Dance's own `queueOutro`), and the Mist consumed — that holder having since spent a stack off
+ *  the target, which is what actually buys the ATK. The kit ends the two together: switching the
+ *  holder off field drops the Mist and the ATK with it.
  *
  *  Its trigger names no particular status — any Negative Status or Electro Rage stack — so it reads
  *  `consumedAny()`. Held locally, so it only ever runs on its own holder's turn and the only member
@@ -271,14 +310,24 @@ function mistEarned(): boolean {
   return consumedAny() > 0
     || (stacksOfTeam(MOUNTAINS_WASHED) > 0 && (inflictedNegativeStatusBy(me) || NEGATIVE_STATUS_TAGS.some(isType)));
 }
-const UNDULATING_MIST = new Buff({
-  name: "Suisui: Undulating Mist", maxStacks: 2,
-  display: () => `Suisui: Undulating Mist${frozenStacks() >= 2 ? " (consumed)" : ""}`,
-  updateBuffs: () => { if (mistEarned()) applyCurrent(UNDULATING_MIST, 1); },
-  applyStats: () => { if (frozenStacks() >= 2) addStat(Stat.BonusAtk, 50); },
-  afterAction: () => { if (mistEarned()) applyCurrent(UNDULATING_MIST, 1); },
+const UNDULATING_MIST: Buff = new Buff({
+  name: "Suisui: Undulating Mist", duration: 60 * 14,
+  // a Mist handed to a holder already paid off is that Mist refreshed
+  updateBuffs: () => { if (isHeld(MIST_CONSUMED) || mistEarned()) consumeMist(); },
+  afterAction: () => { if (mistEarned()) consumeMist(); },
   until: LifeTime.Swap,
 });
+const MIST_CONSUMED: Buff = new Buff({
+  name: "Suisui: Undulating Mist (consumed)", duration: 60 * 14,
+  stats: [[Stat.BonusAtk, 50]],
+  updateBuffs: () => { if (mistEarned()) applyCurrent(MIST_CONSUMED, 1); },
+  afterAction: () => { if (mistEarned()) applyCurrent(MIST_CONSUMED, 1); },
+  until: LifeTime.Swap,
+});
+function consumeMist(): void {
+  revokeCurrent(UNDULATING_MIST);
+  applyCurrent(MIST_CONSUMED, 1);
+}
 
 /* --------------------------------------------------------------------------------- sequences */
 
@@ -302,6 +351,7 @@ const SS_S1 = new Sequence({
  *  binds against a boss standing in it. */
 const CLOUDS_POUR = new Buff({
   name: "Suisui S2: Clouds Pour Like Molten Gold",
+  duration: 60 * 30,
   stats: [[Stat.CritDmg, 50]],
 });
 /** S2's watcher, in the team pool so every member's own turn is seen: inside Ceaseless Landscape,

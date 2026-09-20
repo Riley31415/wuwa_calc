@@ -48,7 +48,7 @@ function roverAction(id: string, def: object): Action {
 const BA1 = roverAction("Basic - Wind Cutter 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 35.31, energy: 0.76, concerto: 2.41, offtune: 2408 });
 const BA2 = roverAction("Basic - Wind Cutter 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.10, energy: 1.84, concerto: 5.88, offtune: 5872 });
 const BA3 = roverAction("Basic - Wind Cutter 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.80, energy: 2.24, concerto: 7.15, offtune: 7144, forte1: 10 });
-const BA4 = roverAction("Basic - Wind Cutter 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 76.72, energy: 1.64, concerto: 5.24, offtune: 5232, forte1: 10 });
+const BA4 = roverAction("Basic - Wind Cutter 4", { frames: 60, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 76.72, energy: 1.64, concerto: 5.24, offtune: 5232, forte1: 10 });
 const HA = roverAction("Heavy - Wind Cutter", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 53.73, energy: 1.17, concerto: 3.69, offtune: 3666 });
 const RazorWind = roverAction("Heavy - Razor Wind", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 80.83, energy: 1.73, concerto: 5.53, offtune: 5513 });
 const MA = roverAction("Mid-air - Wind Cutter Plunge", { node: Node.Normal, cutscene: true, cast: Cast.Basic, type: Type1.Basic, mv: 140.76, energy: 0.52, concerto: 9.6, offtune: 9600 });
@@ -57,11 +57,12 @@ const DC = roverAction("Dodge Counter - Wind Cutter", { node: Node.Normal, cast:
 // --- resonance skill: Awakening Gale on the ground, Skyfall Severance from mid-air, which trades
 //     every other element's own Negative Status on the target for a stack of Aero Erosion each
 //     (the swap itself lives in the Resonator's updateDebuffs() below)
-const Skill = roverAction("Skill - Awakening Gale", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 166.10, energy: 5, concerto: 10, offtune: 7553 });
+const Skill = roverAction("Skill - Awakening Gale", { frames: 60, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 166.10, energy: 5, concerto: 10, offtune: 7553 });
 /** Strips every other element's Negative Status off the target and pays back a stack of Aero
  *  Erosion per stack removed — capped, as always, by the buff system, so Aeolian Realm's own +3 to
  *  that cap is what decides how much of a big strip actually lands. */
 const SkyfallSeverance = roverAction("Skill - Skyfall Severance", {
+  frames: 60,
   node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 175.26, energy: 2.52, concerto: 5, offtune: 8001,
   updateDebuffs: () => {
     let removed = 0;
@@ -77,13 +78,13 @@ const SkyfallSeverance = roverAction("Skill - Skyfall Severance", {
 //     main Windstring source), then Unbound Flow, which replaces Awakening Gale at max gauge and
 //     spends 60 Windstrings a stage.
 const Cloudburst1 = roverAction("Mid-air - Cloudburst Dance 1", { node: Node.Forte, cutscene: true, cast: Cast.Basic, type: Type1.Skill, mv: 128.80, energy: 0.92, concerto: 2.93, offtune: 2928, forte1: 25 });
-const Cloudburst2 = roverAction("Mid-air - Cloudburst Dance 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 141.47, energy: 1.01, concerto: 3.22, offtune: 3216, forte1: 25 });
-const UnboundFlow1 = roverAction("Forte Skill - Unbound Flow 1", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 171.50, energy: 10, concerto: 20, offtune: 29850, forte1: -60 });
+const Cloudburst2 = roverAction("Mid-air - Cloudburst Dance 2", { frames: 60, node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 141.47, energy: 1.01, concerto: 3.22, offtune: 3216, forte1: 25 });
+const UnboundFlow1 = roverAction("Forte Skill - Unbound Flow 1", { frames: 60, node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 171.50, energy: 10, concerto: 20, offtune: 29850, forte1: -60 });
 const UnboundFlow2 = roverAction("Forte Skill - Unbound Flow 2", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 723.03, energy: 20, concerto: 20, offtune: 28288, forte1: -60 });
 
 // --- liberation / intro / outro. Storm's Echo hands the whole team Aeolian Realm (see below).
 const Liberation = roverAction("Liberation - Omega Storm", { node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 536.79, concerto: 20, offtune: 48000, resetEnergy: true });
-const Intro = roverAction("Intro - Relentless Squall", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.82, energy: 10, concerto: 10, offtune: 11465, forte1: 20 });
+const Intro = roverAction("Intro - Relentless Squall", { frames: 60, node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.82, energy: 10, concerto: 10, offtune: 11465, forte1: 20 });
 const Outro = roverAction("Outro - Storm's Echo", {
   cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => applyTeam(AEOLIAN_REALM, 1),
@@ -94,6 +95,7 @@ const Outro = roverAction("Outro - Storm's Echo", {
 /** Sand in the Storm (Inherent Skill): +20% ATK for 10s off the Intro. */
 const SAND_IN_THE_STORM = new Buff({
   name: "Inherent: Sand in the Storm",
+  duration: 60 * 10,
   stats: [[Stat.BonusAtk, 20]],
   until: LifeTime.Outro,
 });
@@ -113,6 +115,7 @@ const AR_INHERENT_2 = new Inherent({
  *  only lets one gear raise a given cap once (see `State.enemyMaxSources`). */
 const AEOLIAN_REALM = new Buff({
   name: "Aero Rover: Aeolian Realm",
+  duration: 60 * 30,
   updateDebuffs: () => { if (currentAction().mv > 0) maxStackIncrease(AERO_EROSION, 3); },
 });
 
@@ -120,6 +123,7 @@ const AEOLIAN_REALM = new Buff({
  *  Dance. Trigger lives in AR_S4. */
 const S4_SKILL_BONUS = new Buff({
   name: "Aero Rover S4: Boundaries Shatter in an Instant",
+  duration: 60 * 5,
   stats: [[Stat.DmgBonus, 15, Type1.Skill]],
   until: LifeTime.Outro,
 });

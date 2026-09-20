@@ -32,7 +32,9 @@ import {
   applyTeam,
   isHeld,
   queue,
-  stacksOfTeam,
+  
+  currentTeam,
+  queueOn,
 } from "../../engine/context.js";
 import { coordinatedBuff, matrix } from "../../shared/helpers.js";
 import { ActionGroup, Action, Rotation, INTRO, OUTRO, SWAP, ActionField, NOINTRO, ECHO_SWAP, START_3 } from "../../engine/rotation.js";
@@ -50,34 +52,39 @@ function zhezhiAction(id: string, def: object): Action {
 }
 
 // --- basics, mid-air, dodge counter (Dimming Brush)
-const BA1 = zhezhiAction("Basic - Dimming Brush 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 83.52, energy: 1.5, concerto: 4.8, offtune: 4800, forte1: 10 });
-const BA2 = zhezhiAction("Basic - Dimming Brush 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 102.75, energy: 1.85, concerto: 5.95, offtune: 5905, forte1: 15 });
-const BA3 = zhezhiAction("Basic - Dimming Brush 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 133.61, energy: 2.4, concerto: 7.68, offtune: 7680, forte1: 25 });
+const BA1 = zhezhiAction("Basic - Dimming Brush 1", { frames: 36, cancel: 34, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 83.52, energy: 1.5, concerto: 4.8, offtune: 4800, forte1: 10 });
+const BA2 = zhezhiAction("Basic - Dimming Brush 2", { frames: 44, cancel: 46, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 102.75, energy: 1.85, concerto: 5.95, offtune: 5905, forte1: 15 });
+const BA3 = zhezhiAction("Basic - Dimming Brush 3", { frames: 60, cancel: 44, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 133.61, energy: 2.4, concerto: 7.68, offtune: 7680, forte1: 25 });
 
-const MA = zhezhiAction("Mid-air - Dimming Brush 12", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 229.53, energy: 3.4, concerto: 10.91, offtune: 10865, forte1: 25 });
-const DC = zhezhiAction("Dodge Counter - Dimming Brush", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 145.35, energy: 2.15, concerto: 20, offtune: 6880, forte1: 15 });
-const HA = zhezhiAction("Heavy - Dimming Brush", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 112.72, energy: 1.67, concerto: 5.34, offtune: 5336, forte1: 15 });
+const MA = zhezhiAction("Mid-air - Dimming Brush 12", { frames: 66, cancel: 39, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 229.53, energy: 3.4, concerto: 10.91, offtune: 10865, forte1: 25 });
+const DC = zhezhiAction("Dodge Counter - Dimming Brush", { frames: 34, cancel: 35, node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 145.35, energy: 2.15, concerto: 20, offtune: 6880, forte1: 15 });
+const HA = zhezhiAction("Heavy - Dimming Brush", { frames: 40, cancel: 34, node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 112.72, energy: 1.67, concerto: 5.34, offtune: 5336, forte1: 15 });
 
 // spends 60 Afflatus for a pair of Imprints
 const Skill = zhezhiAction("Skill - Manifestation", {
+  frames: 40, cancel: 38,
   node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 295.26, energy: 7.92, concerto: 8, offtune: 4737, forte1: -60,
 });
 
 // spends the remaining 30 Afflatus for a third Imprint, then Stroke of Genius x2, then
 // Creation's Zenith (spends both Painter's Delight frozenStacks, never tracked directly)
 const FHA = zhezhiAction("Forte Heavy - Conjuration", {
+  frames: 75, cancel: 40,
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 249.03, energy: 2.1, concerto: 6.69, offtune: 6681, forte1: -30,
 });
 const FSkill = zhezhiAction("Skill - Stroke of Genius", {
+  frames: 52, cancel: 46,
   node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 298.22, energy: 7, concerto: 13, offtune: 7736, forte2: 1,
 });
 const FSkill3 = zhezhiAction("Forte Skill - Creation's Zenith", {
+  frames: 72, cancel: 79,
   node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 357.87, energy: 7.02, concerto: 13, offtune: 10401, forte2: -2,
   updateBuffs: () => applyCurrent(IVORY_HERALD, 1),
 });
 
 // opens the Inklit Spirit window, no damage of its own — the window itself is INKLIT_SPIRITS below
 const Liberation = zhezhiAction("Liberation - Living Canvas", {
+  frames: 0, cancel: 166,
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, concerto: 20, resetEnergy: true,
   updateBuffs: () => applyTeam(INKLIT_SPIRITS, isHeld(ZZ_S2) ? 27 : 21),
 });
@@ -100,9 +107,11 @@ const ACTION_HERALD_S6 = zhezhiAction("Skill - Ivory Herald (S6)", {
 });
 
 const Intro = zhezhiAction("Intro - Radiant Ruin", {
+  frames: 80, cancel: 78,
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 258.48, energy: 10.02, concerto: 10, offtune: 10401, forte1: 45,
 });
 const Outro = zhezhiAction("Outro - Carve and Draw", {
+  frames: 0, cancel: 0,
   cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(ZHEZHI_OUTRO),
 });
@@ -112,12 +121,18 @@ const Outro = zhezhiAction("Outro - Carve and Draw", {
 /** The Inklit Spirit window: Living Canvas banks 21 team-wide, one spirit summoned per qualifying
  *  action — "the active Resonator deals DMG", once a second, read as once an action. Declared at
  *  S2's own 27, the ceiling that node raises it to; the Liberation grants the count it actually has. */
-const INKLIT_SPIRITS = coordinatedBuff("Zhezhi: Inklit Spirits", 27, () => ZHEZHI_RESONATOR, ACTION_INKLIT);
+const INKLIT_SPIRITS = coordinatedBuff("Zhezhi: Inklit Spirits", 27, () => ZHEZHI_RESONATOR, ACTION_INKLIT, {
+  // S5: one extra spirit every third one summoned. The node is her own local gear, so it is read
+  // off her slot by identity; the spirit lands on her slot like the rest.
+  onTick: (n) => {
+    if (n % 3 === 0 && currentTeam().memberOf(ZHEZHI_RESONATOR).isHeld(ZZ_S5)) queueOn(ZHEZHI_RESONATOR, ACTION_INKLIT_S5);
+  },
+});
 
 /** Calligrapher's Touch (Inherent Skill): +6% ATK a stack, up to 3, on Stroke of Genius or
  *  Creation's Zenith — 27s, permanent uptime once granted. */
 const CALLIGRAPHERS_TOUCH = new Buff({
-  name: "Inherent: Calligrapher's Touch", maxStacks: 3,
+  name: "Inherent: Calligrapher's Touch", maxStacks: 3, duration: 60 * 27,
   stats: [[Stat.BonusAtk, 6]], perStack: true,
 });
 const ZZ_INHERENT_1 = new Inherent({
@@ -129,12 +144,14 @@ const ZZ_INHERENT_1 = new Inherent({
  *  Stroke of Genius. */
 const IVORY_HERALD = new Buff({
   name: "Zhezhi: Ivory Herald",
+  duration: 60 * 27,
   stats: [[Stat.DmgBonus, 18, Type1.Basic]],
 });
 
 /** The window her outro hands the incoming resonator. */
 const ZHEZHI_OUTRO = new Buff({
   name: "Zhezhi: Outro",
+  duration: 60 * 14,
   stats: [[Stat.Amp, 20, Attribute.Glacio], [Stat.Amp, 25, Type1.Skill]],
   until: LifeTime.Swap,
 });
@@ -208,6 +225,7 @@ const ZZ_ROTATION = new Rotation([
  *  once the loop's own Zenith lands. */
 const BRUSHWORKS_FINISH = new Buff({
   name: "Zhezhi S1: Brushwork's Finish",
+  duration: 60 * 27,
   stats: [[Stat.CritRate, 10]],
 });
 const ZZ_S1 = new Sequence({
@@ -223,7 +241,7 @@ const ZZ_S2 = new Sequence({ name: "Zhezhi S2: Vivid Strokes" });
 /** S3: +15% ATK a stack, up to 3, off Manifestation/Stroke of Genius/Creation's Zenith — 27s, so
  *  permanent uptime, and the loop casts four of them. */
 const REFLECTIONS_GRACE = new Buff({
-  name: "Zhezhi S3: Reflection's Grace", maxStacks: 3,
+  name: "Zhezhi S3: Reflection's Grace", maxStacks: 3, duration: 60 * 27,
   stats: [[Stat.BonusAtk, 15]], perStack: true,
 });
 const ZZ_S3 = new Sequence({
@@ -236,6 +254,7 @@ const ZZ_S3 = new Sequence({
 /** S4: +20% team ATK off Living Canvas for 30s — permanent uptime. */
 const HUES_SPECTRUM = new Buff({
   name: "Zhezhi S4: Hue's Spectrum",
+  duration: 60 * 30,
   stats: [[Stat.BonusAtk, 20]],
 });
 const ZZ_S4 = new Sequence({
@@ -243,15 +262,9 @@ const ZZ_S4 = new Sequence({
   grants: [{ on: onAction(Liberation), buff: HUES_SPECTRUM, to: BuffTarget.Team }],
 });
 
-/** S5: one extra spirit every third one summoned. The window's stacks are that count — it runs
- *  down one a spirit, and both counts it starts from are multiples of three — and the spirit
- *  itself lands on her slot, so this node is read off it directly. */
-const ZZ_S5 = new Sequence({
-  name: "Zhezhi S5: Composition's Clue",
-  updateBuffs: () => {
-    if (runningAction(ACTION_INKLIT) && stacksOfTeam(INKLIT_SPIRITS) % 3 === 0) queue(ACTION_INKLIT_S5);
-  },
-});
+/** S5: one extra spirit every third one summoned — fired by the window itself (INKLIT_SPIRITS
+ *  above), which is what counts them. */
+const ZZ_S5 = new Sequence({ name: "Zhezhi S5: Composition's Clue" });
 
 /** S6: an extra Ivory Herald off either forte Skill. */
 const ZZ_S6 = new Sequence({
@@ -270,7 +283,7 @@ const ZZ_SEQUENCES = [ZZ_S1, ZZ_S2, ZZ_S3, ZZ_S4, ZZ_S5, ZZ_S6];
 // own EchoLoadout)
 /** Matrix: her Liberation grants the team +30% Resonance Skill DMG Bonus for 30s — permanent. */
 const ZHEZHI_MATRIX_TEAM = new Buff({
-  name: "Zhezhi: Matrix Buff",
+  name: "Zhezhi: Matrix Buff", duration: 60 * 30,
   stats: [[Stat.DmgBonus, 30, Type1.Skill]],
 });
 

@@ -6,7 +6,6 @@
  *
  * - `lostOnSwap()` — the "lost on switching out" clause, spelled out once.
  * - `handoff()` — the 15s Outro→Intro handoffs that outlast the receiver's own visit.
- * - `oneSecondPassed()` — the engine's second, which every field and status clock counts off.
  * - `coordinatedBuff()` — a Coordinated-Attack window as a per-action countdown of summons.
  * - `matrix()` — a Matrix piece, with its total-DMG figure rebased onto Matrix Mode's own +20%.
  */
@@ -21,15 +20,11 @@ import {
   currentGear,
   currentMember,
   currentTeam,
-  frozenStacks,
   isActive,
   queue,
   queueOn,
-  removeStack,
-  removeStackEnemy,
-  removeStackTeam,
   revokeCurrent,
-  triggeredAction,
+  frozenStacks,
 } from "../engine/context.js";
 import type { GearDef } from "../engine/gear.js";
 import { Stat } from "../engine/stats.js";
@@ -80,10 +75,12 @@ function handoffWindow(buff: Buff): void {
   if (!mine && !casting(Cast.Intro)) revokeCurrent(buff);
 }
 
-/** One of those handoffs: a name and whatever it grants, with the window above wired on. */
-export function handoff(name: string, applyStats: () => void): Buff {
+/** One of those handoffs: a name and whatever it grants, with the window above wired on. The
+ *  seconds are the text's own ("for 15s", every one of them so far); the window still closes it
+ *  at the next visit's first press where that comes sooner. */
+export function handoff(name: string, applyStats: () => void, seconds = 15): Buff {
   const buff: Buff = new Buff({
-    name, maxStacks: 2, applyStats,
+    name, maxStacks: 2, applyStats, duration: 60 * seconds,
     // the second stack is bookkeeping, not a doubled payout — no "x2" in the report
     display: () => name,
     updateGlobal: () => handoffWindow(buff),
@@ -91,80 +88,59 @@ export function handoff(name: string, applyStats: () => void): Buff {
   return buff;
 }
 
-/* ------------------------------------------------------------------------------- the second */
-
-/** The clockless engine's second: one on-field, non-triggered press. Every timed thing here (a
- *  field's window, a status's tick clock) counts these off as its seconds.
- *
- *  Three presses are no second at all. A cutscene, because the world is frozen for its whole
- *  animation (wuwalab's frame data: a Liberation's `time_stop` outlasts its cast, a Tune Break's is
- *  all of it) — the press says so itself (`ActionDef.cutscene`). A swap-out, which `isActive()`
- *  already answers for (an Outro, a swap marker, an echo's swap form). And a cancelled press
- *  (`cancelOf`, off `dodgeCancel()`/`jumpCancel()`): it is the cast's own effects with its animation
- *  cut, so no time goes to it — nor to the dash that cut it, the marker being triggered. */
-export function oneSecondPassed(): boolean {
-  const action = currentAction();
-  return isActive() && !triggeredAction() && !action.cutscene && action.cancelOf === null;
-}
-
 /* ------------------------------------------------------------------------- coordinated windows */
 
 /**
- * A Coordinated-Attack window as the countdown it is: whatever opens it (a Liberation, a mark on
- * the target, an echo press) banks `stacks`, and every active, non-triggered action anyone takes
- * summons one `tick` — always on the slot the window belongs to, however far the field has moved
- * on — and spends one stack. Empty is gone, and the next grant banks the window afresh. The kits'
- * own "damage dealt by the summon does not trigger this" comes free: a tick's hit is queued and
- * so triggered, and can never summon another (nor drain a teammate's window — the gate is shared).
+ * A Coordinated-Attack window as the clock it is: whatever opens it (a Liberation, a mark on the
+ * target, an echo press) banks `seconds` as its stacks — which is how long it stands, so the same
+ * window can be granted at either of two lengths (Zhezhi's 21 or 27 spirits) — and every `every`
+ * seconds of the fight clock it summons one `tick`, always on the slot the window belongs to,
+ * however far the field has moved on, until it runs out. A grant on a standing window refreshes
+ * it; the cadence runs on from where it was. The kits' own "damage dealt by the summon does not
+ * trigger this" comes free: a summon is a queued follow-up, and the clock reads only the frames
+ * a press takes.
  *
  * Three places the window can live:
  * - team-held (the default — Zhezhi's Inklit Spirits, Cantarella's Diffusion): granted with
  *   `applyTeam`, ticks onto `owner`'s slot. `owner` is a thunk purely for declaration order —
  *   these sit in a kit's buffs section, above the Resonator const they name.
- * - `enemy: true` — really a mark on the target (Verina's Photosynthesis Mark, Yinlin's
- *   Punishment Mark, their stacks the mark's own seconds): granted with `applyEnemy`, it runs out
- *   whether or not it was drawn dry.
+ * - on the target (Verina's Photosynthesis Mark, Yinlin's Punishment Mark): granted with
+ *   `applyEnemy`, nothing else about it differs.
  * - `owner: null` — held by the wearer themselves (Jué's Blessing of Time, granted with
- *   `applyCurrent` by an echo any build can carry, so there is no resonator to name): watched
- *   from updateGlobal(), which still sees every action but keeps the "current" pointers on the
- *   holder, so a plain queue()/removeStack() lands the ticks and the countdown on them.
+ *   `applyCurrent` by an echo any build can carry, so there is no resonator to name): the ticks
+ *   fire with the "current" pointers on the holder, so a plain queue() lands them on them.
  *
- * `applyStats` rides along for a window that is also a buff while it stands — held means a stack
- * remains, so it needs no gate of its own (Blessing of Time's own +16% Resonance Skill DMG).
+ * `applyStats` rides along for a window that is also a buff while it stands — held means it has
+ * time left, so it needs no gate of its own (Blessing of Time's own +16% Resonance Skill DMG).
  *
- * `hits` is how many rows one summon fires (still one stack) — for a summon whose single volley
- * is several real hits (Rebecca's turret, 5 shots), fired individually so the detail table's
- * field grouping counts them right.
+ * `hits` is how many rows one summon fires — for a summon whose single volley is several real
+ * hits (Rebecca's turret, 5 shots), fired individually so the detail table's field grouping
+ * counts them right.
  *
- * `every` spends a stack per qualifying action as usual but only summons on each nth of them —
- * for a field whose own clock is slower than the window it stands for (Denia's Erosion Field, one
- * tick per five presses across thirty-five). Fractional for a cadence that is not whole seconds
- * (Ciaccona's Tonics, one per 1.65s across thirty-three): a summon fires on each press that
- * carries the seconds spent past the next multiple (Suoming's Blight Rain: six crests over eight
- * presses at 4/3s, the 1st and 5th skipped).
+ * `every` is the summon's own cadence in seconds, fractional where it is (Ciaccona's Tonics, one
+ * per 1.65s across thirty-three; Suoming's crests at 4/3s). `onTick` runs after each summon with
+ * its ordinal, for a node that counts them (Zhezhi's S5, every third spirit).
  */
-export function coordinatedBuff(name: string, stacks: number, owner: (() => Resonator) | null, tick: Action, { enemy = false, hits = 1, every = 1, applyStats }: { enemy?: boolean; hits?: number; every?: number; applyStats?: () => void } = {}): Buff {
-  const fire = (): void => {
-    if (!oneSecondPassed()) return;
-    // `frozenStacks()` is what stood before this action, so this press is the `spent`th second of
-    // the window — the one that summons when it crosses a multiple of `every`
-    const spent = stacks - frozenStacks() + 1;
-    const summons = Math.floor(spent / every) > Math.floor((spent - 1) / every) ? hits : 0;
-    if (owner === null) { for (let k = 0; k < summons; k++) queue(tick); removeStack(buff, 1); }
-    else { for (let k = 0; k < summons; k++) queueOn(owner(), tick); (enemy ? removeStackEnemy : removeStackTeam)(buff, 1); }
-  };
-  const buff: Buff = new Buff({
-    name, maxStacks: stacks, applyStats,
+export function coordinatedBuff(name: string, seconds: number, owner: (() => Resonator) | null, tick: Action, { hits = 1, every = 1, applyStats, onTick }: { hits?: number; every?: number; applyStats?: () => void; onTick?: (n: number) => void } = {}): Buff {
+  return new Buff({
+    name, maxStacks: seconds, applyStats,
     // the window *is* the field standing, so granting it is what the report files the summons
     // under — named off the tick's own declaration rather than asked for twice
     field: tick.field,
-    // the count reads as the seconds the field has left, one qualifying press to the second —
-    // `every` spaces the summons out, it doesn't shorten the stand — so Jué's fresh window says
-    // (15s) and Rebecca's turret (14s), not a bare count that means nothing beside them
-    display: () => `${name} (${frozenStacks()}s)`,
-    ...(owner === null ? { updateGlobal: fire } : { updateBuffs: fire }),
+    // its stacks are its length, not a count worth an "xN": the engine's own "(Ns)" says what is left
+    display: () => name,
+    duration: (n) => 60 * n,
+    tick: {
+      every: Math.round(60 * every),
+      fire: (n) => {
+        for (let k = 0; k < hits; k++) {
+          if (owner === null) queue(tick);
+          else queueOn(owner(), tick);
+        }
+        onTick?.(n);
+      },
+    },
   });
-  return buff;
 }
 
 /* ------------------------------------------------------------------------------------ matrices */

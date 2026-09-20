@@ -133,6 +133,10 @@ export interface ResolvedSnapshot extends Result, Snapshot {
    *  action's own gain landed — what the Energy Requirements table reads off a resetEnergy-marked
    *  Liberation's own row to compute that loop's ER requirement. */
   realEnergyBefore: number;
+  /** The fight clock as this action's cast started, in frames (`State.frame`), and how many
+   *  frames later its hit landed — its own `frames` when it was an on-field press, else 0. */
+  frame: number;
+  frames: number;
   /** Every Buff actually held once this action resolved — local (this slot's own), global
    *  (team-wide), and enemy (debuffs on the target — `State.enemyStacks`) kept apart, since
    *  that's a real distinction to a resonator popover, not just a formatting detail. Equipped
@@ -216,6 +220,9 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
   ctx.overrideType1 = null; ctx.overrideType2 = null; ctx.droppedCast = null;
   // what this action grants and spends is recorded under this stamp (see runtime.ts's `applied`)
   ctx.actionStamp++;
+  // whatever ran out by now goes first of all, so no phase below ever visits it
+  state.expireBuffs();
+  const frameStart = state.frame;
   // Replaced rather than cleared/copied: the snapshot below keeps whichever array this action built,
   // so handing it a fresh one here is what makes that snapshot immutable at zero copying cost (the
   // old code cleared these and then cloned `totals` at the end, paying an O(entries) copy per
@@ -287,6 +294,16 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
   actionHook(action.updateBuffsFn);
   runPhase(1, true);
 
+  // The cast is over: the hit lands `frames` later, the press's own declared length. A follow-up
+  // declares none (it lands inside the press that queued it), an echo's swap form none, and a
+  // cancelled press takes nothing of its own: the dash that cut it carries the twenty. Whatever
+  // ran out in between is gone before the stat phases pay out or the popover reads the roster.
+  const frames = action.cancelOf === null ? action.frames : 0;
+  state.frame = frameStart + frames;
+  // ...and every clock the span carried past a tick fires, before what ran out is dropped
+  if (frames) state.runTicks(frameStart, state.frame);
+  state.expireBuffs();
+
   // ...then applyStats()/convertStats() pay out over what's held *now*, not what was held a
   // moment ago: a buff updateBuffs() just granted pays into this same action, and one it just
   // revoked pays nothing. Captured again at post-update counts, so a buff that gained or spent
@@ -303,7 +320,7 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
   // and so in no `frozen` below.
   const heldPools = ctx.tracing
     ? [slot.stacks, state.globalStacks, state.enemyStacks]
-      .map((pool) => pool.gears().map((g) => [g, pool.get(g) ?? 0] as const))
+      .map((pool) => pool.gears().map((g) => [g, pool.get(g) ?? 0, pool.left(g)] as const))
     : null;
   // Every held Gear's constantStats first, ahead of any applyStats. Traced, they run like any
   // other phase so the report gets its per-entry sources; untraced, the slot's cached sum for
@@ -451,10 +468,10 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
     // phases captured theirs. A live read would be wrong twice over now: a gear revoked in
     // convertStats() is out of every pool by here, and a global or enemy Gear is never in
     // `slot.stacks` to begin with.
-    const describe = ([g, n]: readonly [Gear, number]): HeldBuff => {
+    const describe = ([g, n, left]: readonly [Gear, number, number]): HeldBuff => {
       ctx.buff = g;
       ctx.stacks = frozen.get(g) ?? n;
-      return { name: g.toString(), source: state.sourceOf.get(g) ?? "" };
+      return { name: g.toString(), source: state.sourceOf.get(g) ?? "", left };
     };
     // nameless gear is engine machinery someone's setup put there, not a buff a kit put up
     // (tunebreak.ts's own watcher), so it belongs in no popover — same exclusion equipped gear gets
@@ -693,6 +710,7 @@ export function evaluate(state: State, action: Action, triggered = false, trigge
     forteShort,
     energyWiped,
     realEnergyBefore,
+    frame: frameStart, frames,
     heldLocal, heldGlobal, heldEnemy,
     opensFields,
   };
@@ -783,7 +801,7 @@ export function run(state: State, rotation: Action[]): Result[] {
     // during marker resolution `ctx.buff` is stale, so the deferred swap copy carried garbage.
     const ms = state.slot.mainslot;
     const by = ms && action.triggered && (action === ms.onfield || action === ms.outro || action === ms.cancel)
-      ? { name: ms.name, source: state.sourceOf.get(ms) ?? state.slot.name } : step.by;
+      ? { name: ms.name, source: state.sourceOf.get(ms) ?? state.slot.name, left: 0 } : step.by;
     const result = evaluate(state, action, triggered, by);
     result.group = step.group;
     result.groupEnd = step.end;

@@ -8,10 +8,10 @@ import { Stat, Attribute, Type1, Cast, Scaling, LifeTime, BuffTarget } from "../
 import { Buff, Sonata, Sonata2pc, Mainslot, EchoType } from "../engine/gear.js";
 import {
   addStat, frozenStacks, casting, applyCurrent, applyTeam, stacksOfTeam, revokeTeam, removeStackTeam, queueOutro, queue,
-  triggeredAction, isActive, onCast, onType, onApplied,
+   isActive, onCast, onType, onApplied,
 } from "../engine/context.js";
 import { Action, ActionField } from "../engine/rotation.js";
-import { coordinatedBuff, handoff, lostOnSwap, oneSecondPassed } from "../shared/helpers.js";
+import { coordinatedBuff, handoff, lostOnSwap } from "../shared/helpers.js";
 import { HEALS, SHIELD } from "../shared/status.js";
 
 /* -------------------------------------------------------------------------- generic, unowned */
@@ -22,7 +22,7 @@ import { HEALS, SHIELD } from "../shared/status.js";
  *  is nothing this engine can see, so the 15s is the whole of what bounds it. */
 export const ACTION_BELL_BORNE = new Action("Echo - Bell-Borne Geochelone", {
   cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Def, type: Type1.Echo, mv: 145.92, energy: 4.55,
-  updateBuffs: () => applyTeam(BELL_BORNE_SHIELD, 15),
+  updateBuffs: () => applyTeam(BELL_BORNE_SHIELD),
 });
 
 export const BELL_BORNE_GEOCHELONE = new Mainslot({
@@ -31,13 +31,9 @@ export const BELL_BORNE_GEOCHELONE = new Mainslot({
   echoType: EchoType.SUMMON,
 });
 
-export const BELL_BORNE_SHIELD: Buff = new Buff({
-  name: "Bell-Borne Geochelone: Bell-Borne Shield", maxStacks: 15,
-  // the stacks are its own fifteen seconds, one spent per engine second — so what the count reads as
-  // is the time it has left, not an xN (the DMG Bonus is flat while any second remains)
-  display: () => `Bell-Borne Geochelone: Bell-Borne Shield (${frozenStacks()}s)`,
+export const BELL_BORNE_SHIELD = new Buff({
+  name: "Bell-Borne Geochelone: Bell-Borne Shield", duration: 60 * 15,
   stats: [[Stat.DmgBonus, 10]],
-  updateBuffs: () => { if (oneSecondPassed()) removeStackTeam(BELL_BORNE_SHIELD, 1); },
 });
 
 /** Impermanence Heron, a generic mainslot echo. No equip passive — its own cast primes an Outro
@@ -100,7 +96,7 @@ export const REJUV_5PC = new Sonata({
   sonata2pc: REJUV_2PC,
   grants: [{ on: onApplied(HEALS), buff: () => REJUV_TEAM, to: BuffTarget.Team }],
 });
-export const REJUV_TEAM = new Buff({ name: "Rejuvenating Glow 5pc", stats: [[Stat.BonusAtk, 15]] });
+export const REJUV_TEAM = new Buff({ name: "Rejuvenating Glow 5pc", duration: 60 * 30, stats: [[Stat.BonusAtk, 15]] });
 
 /* ------------------------------------------------------------------------------- Changli, 1.1 */
 
@@ -114,6 +110,7 @@ export const MOLTEN_RIFT_5PC = new Sonata({
 });
 export const MOLTEN_RIFT_BUFF = new Buff({
   name: "Molten Rift 5pc",
+  duration: 60 * 15,
   stats: [[Stat.DmgBonus, 30, Attribute.Fusion]], until: LifeTime.Outro,
 });
 
@@ -134,12 +131,14 @@ export const NM_INFERNO_RIDER = new Mainslot({
 /** Inferno Rider (plain, not "Nightmare:") — Encore's own mainslot echo. No permanent passive:
  *  casting it grants a temporary +12%/+12% Fusion/Basic Attack DMG Bonus window. */
 export const ACTION_INFERNO_RIDER = new Action("Echo - Inferno Rider", {
+  frames: 60,
   // the three slashes of the chain, 242.40% / 282.80% / 282.80%
   cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 242.4 + 282.8 * 2, energy: 3.78 + 4.41 * 2,
-  updateBuffs: () => applyCurrent(INFERNO_RIDER_WINDOW, 1),
+  afterAction: () => applyCurrent(INFERNO_RIDER_WINDOW, 1),
 });
 export const INFERNO_RIDER_WINDOW = new Buff({
   name: "Inferno Rider",
+  duration: 60 * 15,
   stats: [[Stat.DmgBonus, 12, Attribute.Fusion], [Stat.DmgBonus, 12, Type1.Basic]], until: LifeTime.Outro,
 });
 export const INFERNO_RIDER = new Mainslot({
@@ -155,6 +154,7 @@ export const INFERNO_RIDER = new Mainslot({
  *  Havoc/Basic Attack DMG Bonus, no trigger. */
 // TODO 20% dmg bonus to echo on consecutive hits
 export const ACTION_NM_CROWNLESS = new Action("Echo - Nightmare: Crownless", {
+  frames: 60,
   cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Echo, mv: 264.6, energy: 3.67,
 });
 export const NM_CROWNLESS = new Mainslot({
@@ -173,6 +173,7 @@ export const ACTION_CROWNLESS = new Action("Echo - Crownless", {
 });
 export const CROWNLESS_WINDOW = new Buff({
   name: "Crownless",
+  duration: 60 * 15,
   stats: [[Stat.DmgBonus, 12, Attribute.Havoc], [Stat.DmgBonus, 12, Type1.Skill]], until: LifeTime.Outro,
 });
 export const CROWNLESS = new Mainslot({
@@ -190,7 +191,7 @@ export const HAVOC_ECLIPSE_5PC = new Sonata({
   grants: [{ on: onType(Type1.Basic, Type1.Heavy), buff: () => HAVOC_ECLIPSE_STACKS }],
 });
 export const HAVOC_ECLIPSE_STACKS = new Buff({
-  name: "Havoc Eclipse 5pc", maxStacks: 4,
+  name: "Havoc Eclipse 5pc", maxStacks: 4, duration: 60 * 15,
   stats: [[Stat.DmgBonus, 7.5, Attribute.Havoc]], perStack: true, until: LifeTime.Outro,
 });
 
@@ -204,7 +205,7 @@ export const ACTION_LAMPYLUMEN_MYRIAD = new Action("Echo - Lampylumen Myriad", {
   updateBuffs: () => applyCurrent(LAMPYLUMEN_MYRIAD_STACKS, 3),
 });
 export const LAMPYLUMEN_MYRIAD_STACKS = new Buff({
-  name: "Lampylumen Myriad", maxStacks: 3,
+  name: "Lampylumen Myriad", maxStacks: 3, duration: 60 * 15,
   stats: [[Stat.DmgBonus, 4, Attribute.Glacio], [Stat.DmgBonus, 4, Type1.Skill]], perStack: true, until: LifeTime.Outro,
 });
 export const LAMPYLUMEN_MYRIAD = new Mainslot({
@@ -222,7 +223,7 @@ export const FREEZING_FROST_5PC = new Sonata({
   grants: [{ on: onType(Type1.Basic, Type1.Heavy), buff: () => FREEZING_FROST_STACKS }],
 });
 export const FREEZING_FROST_STACKS = new Buff({
-  name: "Freezing Frost 5pc", maxStacks: 3,
+  name: "Freezing Frost 5pc", maxStacks: 3, duration: 60 * 15,
   stats: [[Stat.DmgBonus, 10, Attribute.Glacio]], perStack: true, until: LifeTime.Outro,
 });
 
@@ -248,6 +249,7 @@ export const SIERRA_GALE_5PC = new Sonata({
 });
 export const SIERRA_GALE_INTRO = new Buff({
   name: "Sierra Gale 5pc",
+  duration: 60 * 15,
   stats: [[Stat.DmgBonus, 30, Attribute.Aero]], until: LifeTime.Outro,
 });
 
@@ -291,6 +293,7 @@ export const CELESTIAL_LIGHT_5PC = new Sonata({
 });
 export const CELESTIAL_LIGHT_INTRO = new Buff({
   name: "Celestial Light 5pc",
+  duration: 60 * 15,
   stats: [[Stat.DmgBonus, 30, Attribute.Spectro]], until: LifeTime.Outro,
 });
 
@@ -307,6 +310,7 @@ export const ACTION_MECH_WASTE = new Action("Echo - Mech Abomination: Mech Waste
 });
 export const MECH_ABOMINATION_ATK = new Buff({
   name: "Mech Abomination",
+  duration: 60 * 15,
   stats: [[Stat.BonusAtk, 12]], until: LifeTime.Outro,
 });
 export const MECH_ABOMINATION = new Mainslot({
@@ -318,22 +322,26 @@ export const MECH_ABOMINATION = new Mainslot({
 /** Lingering Tunes, Mech Abomination's own matching sonata. 2pc: +10% ATK flat. 5pc: +60% Outro
  *  Skill DMG Bonus flat, and +5% ATK every 1.5s on field, up to 4 stacks. Modelled as 8 real
  *  stacks (matching the ~1.5s cadence) so the ATK bonus lands every *2* stacks, discrete;
- *  displayed as the 1-4 tier this actually reads as. Lost on swap — tied to being on field. */
+ *  Lost on swap — tied to being on field. */
 export const LINGERING_TUNES_2PC = new Sonata2pc({ name: "Lingering Tunes 2pc", stats: [[Stat.BonusAtk, 10]] });
 export const LINGERING_TUNES_5PC = new Sonata({
   name: "Lingering Tunes 5pc",
   sonata2pc: LINGERING_TUNES_2PC,
   stats: [[Stat.DmgBonus, 60, Type1.Outro]],
-  // the 1.5s cadence stands in for real on-field presses, so a queued follow-up, a status rung or
-  // the shared Tune Break — active casts on the wearer's slot, but not them acting again — don't
-  // advance it
-  grants: [{ on: () => !triggeredAction() && isActive(), buff: () => LINGERING_TUNES_STACKS }],
+  // the clock runs on a buff of the wearer's, put up on their first on-field press and gone with
+  // them, so it only ever counts their own time on field
+  grants: [{ on: isActive, buff: () => LINGERING_TUNES_CLOCK }],
+});
+const LINGERING_TUNES_CLOCK: Buff = new Buff({
+  name: "Lingering Tunes 5pc", hidden: true,
+  tick: { every: 90, fire: () => applyCurrent(LINGERING_TUNES_STACKS, 1) },
+  updateBuffs: () => lostOnSwap(),
 });
 export const LINGERING_TUNES_STACKS = new Buff({
-  name: "Lingering Tunes 5pc", maxStacks: 8,
-  applyStats: () => addStat(Stat.BonusAtk, 5 * Math.floor(frozenStacks() / 2)),
+  name: "Lingering Tunes 5pc", maxStacks: 4,
+  stats: [[Stat.BonusAtk, 5]], perStack: true,
   updateBuffs: () => lostOnSwap(),
-  display: () => `Lingering Tunes x${Math.ceil(frozenStacks() / 2)}`,
+  display: () => `Lingering Tunes x${frozenStacks()}`,
 });
 
 /** Nightmare: Thundering Mephis — Void Thunder's own Overlord-class mainslot echo (Xiangli Yao's
@@ -366,7 +374,7 @@ export const NM_TEMPEST_MEPHIS = new Mainslot({
  *  on their own Buff, not the Sonata: revoking the gear itself would unequip the set for good. */
 export const VOID_THUNDER_2PC = new Sonata2pc({ name: "Void Thunder 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Electro]] });
 export const VOID_THUNDER_STACKS = new Buff({
-  name: "Void Thunder 5pc: Electro", maxStacks: 2,
+  name: "Void Thunder 5pc: Electro", maxStacks: 2, duration: 60 * 15,
   stats: [[Stat.DmgBonus, 15, Attribute.Electro]], perStack: true, until: LifeTime.Outro,
 });
 export const VOID_THUNDER_5PC = new Sonata({
@@ -381,10 +389,10 @@ export const VOID_THUNDER_5PC = new Sonata({
  *  so it only ever sees its own wearer's turn), not on the global `FALLACY_TEAM` itself. */
 export const ACTION_FALLACY = new Action("Echo - Fallacy of No Return", {
   cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Hp, type: Type1.Echo, mv: 15.85, energy: 3.04,
-  updateBuffs: () => applyTeam(FALLACY_TEAM, 1),
+  afterAction: () => applyTeam(FALLACY_TEAM, 1),
 });
 
-export const FALLACY_TEAM = new Buff({ name: "Fallacy of No Return", stats: [[Stat.BonusAtk, 10]] });
+export const FALLACY_TEAM = new Buff({ name: "Fallacy of No Return", duration: 60 * 20, stats: [[Stat.BonusAtk, 10]] });
 
 export const FALLACY = new Mainslot({
   name: "Fallacy of No Return",

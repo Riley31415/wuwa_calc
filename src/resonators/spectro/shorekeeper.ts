@@ -23,7 +23,8 @@ import {
   isHeld,
   revokeTeam,
   addStat,
-  onCast,
+  
+  casting,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, START_2, START_3, SWAP, NOINTRO, INTRO, OUTRO, DODGE, JUMP, ECHO_SWAP } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
@@ -44,31 +45,33 @@ function skAction(id: string, def: object): Action {
 // Empirical Data (forte1): 1 a stage, capped at 5 — the engine floors at 0 but imposes no
 // ceiling itself, so BA3's +2/MA's +1 landing on 5 relies on this loop never running a fourth
 // basic before Forte: Illation spends the whole gauge below.
-const BA1 = skAction("Basic - Origin Calculus 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 31.78, energy: 0.5, concerto: 1.6, offtune: 2664, forte1: 1 });
-const BA2 = skAction("Basic - Origin Calculus 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 47.72, energy: 0.76, concerto: 2.4, offtune: 4000, forte1: 1 });
-const BA3 = skAction("Basic - Origin Calculus 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 69.96, energy: 1.11, concerto: 3.54, offtune: 5865, forte1: 2 });
+const BA1 = skAction("Basic - Origin Calculus 1", { frames: 23, cancel: 15, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 31.78, energy: 0.5, concerto: 1.6, offtune: 2664, forte1: 1 });
+const BA2 = skAction("Basic - Origin Calculus 2", { frames: 33, cancel: 20, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 47.72, energy: 0.76, concerto: 2.4, offtune: 4000, forte1: 1 });
+const BA3 = skAction("Basic - Origin Calculus 3", { frames: 47, cancel: 38, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 69.96, energy: 1.11, concerto: 3.54, offtune: 5865, forte1: 2 });
 
-const MA = skAction("Mid-air - Origin Calculus Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.96, energy: 1.55, concerto: 5, offtune: 4960, forte1: 1 });
+const MA = skAction("Mid-air - Origin Calculus Plunge", { frames: 50, cancel: 46, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.96, energy: 1.55, concerto: 5, offtune: 4960, forte1: 1 });
 
-const Skill = skAction("Skill - Chaos Theory", { node: Node.Skill, cast: Cast.Skill, cutscene: true, type: Type1.Skill, mv: 156.55, energy: 10, concerto: 30, offtune: 5250 });
+const Skill = skAction("Skill - Chaos Theory", { frames: 39, cancel: 65, node: Node.Skill, cast: Cast.Skill, cutscene: true, type: Type1.Skill, mv: 156.55, energy: 10, concerto: 30, offtune: 5250 });
 
-const FHA = skAction("Forte Heavy - Illation", { node: Node.Forte, cast: Cast.Heavy, cutscene: true, type: Type1.Heavy, mv: 281.3, energy: 4.95, concerto: 11, offtune: 6360, forte1: -5 });
+const FHA = skAction("Forte Heavy - Illation", { frames: 48, cancel: 64, node: Node.Forte, cast: Cast.Heavy, cutscene: true, type: Type1.Heavy, mv: 281.3, energy: 4.95, concerto: 11, offtune: 6360, forte1: -5 });
 
 const Liberation = skAction("Liberation - End Loop", {
+  frames: 0, cancel: 207,
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, concerto: 20, resetEnergy: true,
   // "Generate the Outer Stellarealm": a cast puts up a *new* realm rather than stepping the one
   // already standing, so whatever stage is up is replaced by Outer — which is what puts the realm
   // S1 carried through Discernment back at the bottom.
   updateBuffs: () => {
-    revokeTeam(SK_REALM);
-    applyTeam(SK_REALM, 1);
+    for (const realm of REALMS) revokeTeam(realm);
+    applyTeam(OUTER_REALM, 1);
   },
 });
 
-const Intro = skAction("Intro - Enlightenment", { node: Node.Intro, cast: Cast.Intro, type: Type1.Skill, mv: 226.5, energy: 10, concerto: 20, offtune: 11395 });
-// replaces plain Intro when SK_REALM is Supernal (see SHOREKEEPER_RESONATOR's own intro() below); scales
+const Intro = skAction("Intro - Enlightenment", { frames: 85, cancel: 92, node: Node.Intro, cast: Cast.Intro, type: Type1.Skill, mv: 226.5, energy: 10, concerto: 20, offtune: 11395 });
+// replaces plain Intro under a Supernal Stellarealm (see SHOREKEEPER_RESONATOR's own intro() below); scales
 // off HP, counts as liberation damage, always crits, and ends the realm on resolving
 const EIntro = skAction("Intro - Discernment", {
+  frames: 75, cancel: 167,
   node: Node.Intro, cast: Cast.Intro, type: Type1.Liberation, scaling: Scaling.Hp, mv: 58.92,
   energy: 10.02, concerto: 20, offtune: 73242,
   applyStats: () => { addStat(Stat.CritRate, 100); },
@@ -80,7 +83,7 @@ const EIntro = skAction("Intro - Discernment", {
     // stands as it is (Supernal, until her next End Loop replaces it) and Rover keeps the Self
     // Gravitation that only ever falls off with it
     if (isHeld(SK_S1)) return;
-    revokeTeam(SK_REALM);
+    for (const realm of REALMS) revokeTeam(realm);
     // doesn't fall off Rover on its own just because the realm ends
     const rover = currentTeam().slots.find((s) => s.resonator?.name.includes("Rover"))?.resonator;
     if (rover) revokeBuff(rover, SK_ROVER_GRAVITATION);
@@ -89,32 +92,40 @@ const EIntro = skAction("Intro - Discernment", {
 
 /** Puts Binary Butterfly on the team, so amplification starts with whoever she hands the field to. */
 const Outro = skAction("Outro - Binary Butterfly", {
+  frames: 0, cancel: 0,
   cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => applyTeam(SK_OUTRO, 1),
 });
 
 /* ------------------------------------------------------------------------------------ buffs */
 
-/** The realm, as one team-wide buff whose stack count *is* the stage: 1 Outer (heals only, no
- *  stat), 2 Inner (+12.5% Crit Rate), 3 Supernal (also +25% Crit Dmg). Evolves on any outro; ends
- *  only when Discernment plays (see SHOREKEEPER_RESONATOR's own updateBuffs() below). */
-const REALM_STAGE = ["Outer", "Inner", "Supernal"];
-
-const SK_REALM = new Buff({
-  name: "Shorekeeper: Stellarealm", maxStacks: 3,
-  display: (): string => `Shorekeeper: ${REALM_STAGE[stacksOfTeam(SK_REALM) - 1]} Stellarealm`,
-  grants: [{ on: onCast(Cast.Outro), to: BuffTarget.Team }],
-  applyStats: () => {
-    const stage = stacksOfTeam(SK_REALM);
-    if (stage < 2) return; // Outer pays no stat
-    addStat(Stat.CritRate, 12.5);
-    if (stage >= 3) addStat(Stat.CritDmg, 25);
-  },
-});
+/** The realm, a team-wide buff a stage: Outer (heals only, no stat), Inner (+12.5% Crit Rate),
+ *  Supernal (also +25% Crit Dmg). Evolves on any outro — each stage hands over to the next, and
+ *  Supernal is refreshed — and ends only when Discernment plays (see SHOREKEEPER_RESONATOR's own
+ *  updateBuffs() below). `realmStage()` is which one stands, 1-3, or 0 for none. */
+function stellarealm(stage: string, next: (() => Buff) | null, stats: [Stat, number][]): Buff {
+  const self: Buff = new Buff({
+    name: `Shorekeeper: ${stage} Stellarealm`, duration: 60 * 30, stats,
+    updateBuffs: () => {
+      if (!casting(Cast.Outro)) return;
+      if (next) {
+        revokeTeam(self);
+        applyTeam(next(), 1);
+      } else applyTeam(self, 1);
+    },
+  });
+  return self;
+}
+const SUPERNAL_REALM = stellarealm("Supernal", null, [[Stat.CritRate, 12.5], [Stat.CritDmg, 25]]);
+const INNER_REALM = stellarealm("Inner", () => SUPERNAL_REALM, [[Stat.CritRate, 12.5]]);
+const OUTER_REALM = stellarealm("Outer", () => INNER_REALM, []);
+const REALMS = [OUTER_REALM, INNER_REALM, SUPERNAL_REALM];
+const realmStage = (): number => REALMS.findIndex((realm) => stacksOfTeam(realm) > 0) + 1;
 
 /** Team-wide amplification her outro puts up — permanent uptime once granted, not a handoff. */
 const SK_OUTRO = new Buff({
   name: "Shorekeeper: Outro",
+  duration: 60 * 30,
   stats: [[Stat.Amp, 15]],
 });
 
@@ -122,7 +133,7 @@ const SK_OUTRO = new Buff({
  *  addBuff(), see SK_INHERENT_2 below) so the ER still traces to Shorekeeper on Rover's own row. */
 const SK_ROVER_GRAVITATION = new Buff({
   name: "Inherent: Self Gravitation",
-  applyStats: () => { if (stacksOfTeam(SK_REALM)) addStat(Stat.Er, 10); },
+  applyStats: () => { if (realmStage()) addStat(Stat.Er, 10); },
 });
 
 /** Self Gravitation (Inherent Skill): +10% ER while inside a Stellarealm — assumed always true
@@ -131,12 +142,12 @@ const SK_ROVER_GRAVITATION = new Buff({
 const SK_INHERENT_2 = new Inherent({
   name: "Inherent: Self Gravitation",
   applyStats: () => {
-    if (stacksOfTeam(SK_REALM)) addStat(Stat.Er, 10);
+    if (realmStage()) addStat(Stat.Er, 10);
   },
   updateGlobal: () => {
     // gated on the realm being up, not unconditional — otherwise this would re-grant Rover's
     // copy right back after SHOREKEEPER_RESONATOR's own updateBuffs() revokes it on EIntro
-    if (!stacksOfTeam(SK_REALM)) return;
+    if (!realmStage()) return;
     const rover = currentTeam().slots.find((s) => s.resonator?.name.includes("Rover"))?.resonator;
     if (rover) addBuff(rover, SK_ROVER_GRAVITATION);
   },
@@ -162,7 +173,7 @@ const SK_S2_TEAM = new Buff({
 const SK_S2 = new Sequence({
   name: "Shorekeeper S2: Night's Gift and Refusal",
   updateGlobal: () => {
-    if (stacksOfTeam(SK_REALM)) applyTeam(SK_S2_TEAM, 1);
+    if (realmStage()) applyTeam(SK_S2_TEAM, 1);
     else revokeTeam(SK_S2_TEAM);
   },
 });
@@ -210,8 +221,8 @@ const SHOREKEEPER_RESONATOR = new Resonator({
   color: "#728cf3",
   maxEnergy: 175,
   maxForte1: 5,
-  // reads SK_REALM's own live stack count, already stepped by the preceding outro
-  intro: () => (stacksOfTeam(SK_REALM) >= 3 ? EIntro : Intro),
+  // reads the realm as it stands, already stepped by the preceding outro
+  intro: () => (realmStage() >= 3 ? EIntro : Intro),
   outro: () => Outro,
 
   updateDebuffs: () => {

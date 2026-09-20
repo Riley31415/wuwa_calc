@@ -79,13 +79,14 @@ const DC = jiyanAction("Dodge Counter - Lone Lance", { node: Node.Normal, cast: 
 
 /** Qingloong Mode itself, opened by Prelude and over when he leaves — what Windqueller reads to
  *  know its +20% is free. Nameless: the mode is the lances on screen, not a line of its own. */
-const QINGLOONG_MODE = new Buff({ until: LifeTime.Outro });
+const QINGLOONG_MODE = new Buff({ until: LifeTime.Outro, duration: 60 * 10 });
 
 /** Windqueller, one action for its three faces. Qingloong at War (Forte Circuit): +20% DMG free
  *  inside the mode; outside it, bought with 30 Resolve when he holds that many (15 at S1, which
  *  cuts the cost), and neither below that — the plain cast. The gauge is read here before the
  *  spend lands, so it is the bar he cast on that decides. */
 const Skill = jiyanAction("Skill - Windqueller", {
+  frames: 60,
   node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 106.36 * 4, energy: 9.00, concerto: 16, offtune: 6480,
   applyStats: () => {
     if (isHeld(QINGLOONG_MODE)) {
@@ -112,11 +113,11 @@ const Liberation = jiyanAction("Liberation - Emerald Storm: Prelude", {
 const Finale = jiyanAction("Liberation - Emerald Storm: Finale", { node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Heavy, mv: 142.91 * 2 + 428.73, offtune: 107520, forte1: -30 });
 
 // Lance of Qingloong, the mode's own three-stage Heavy Attack — 8 hits a stage
-const Lance1 = jiyanAction("Heavy - Lance of Qingloong 1", { node: Node.Liberation, cast: Cast.Heavy, type: Type1.Heavy, mv: 65.52 * 8, energy: 3.76, concerto: 7.60, offtune: 12272 });
+const Lance1 = jiyanAction("Heavy - Lance of Qingloong 1", { frames: 60, node: Node.Liberation, cast: Cast.Heavy, type: Type1.Heavy, mv: 65.52 * 8, energy: 3.76, concerto: 7.60, offtune: 12272 });
 const Lance2 = jiyanAction("Heavy - Lance of Qingloong 2", { node: Node.Liberation, cast: Cast.Heavy, type: Type1.Heavy, mv: 61.55 * 8, energy: 3.60, concerto: 7.20, offtune: 11528 });
 const Lance3 = jiyanAction("Heavy - Lance of Qingloong 3", { node: Node.Liberation, cast: Cast.Heavy, type: Type1.Heavy, mv: 66.76 * 8, energy: 3.84, concerto: 7.76, offtune: 12504 });
 
-const Intro = jiyanAction("Intro - Tactical Strike", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81, energy: 10.00, concerto: 10, offtune: 7416, forte1: 30 });
+const Intro = jiyanAction("Intro - Tactical Strike", { frames: 60, node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81, energy: 10.00, concerto: 10, offtune: 7416, forte1: 30 });
 /** Discipline: no damage of its own, just the handoff — its lances are ACTION_OUTRO_COORD. */
 const Outro = jiyanAction("Outro - Discipline", {
   cast: Cast.Outro, concerto: -100, swapOut: true,
@@ -133,6 +134,7 @@ const ACTION_OUTRO_COORD = jiyanAction("Outro - Discipline (Coordinated Lance)",
 /** Heavenly Balance (Inherent Skill): +10% ATK for 15s after his Intro. */
 const HEAVENLY_BALANCE = new Buff({
   name: "Inherent: Heavenly Balance",
+  duration: 60 * 15,
   stats: [[Stat.BonusAtk, 10]],
   until: LifeTime.Outro,
 });
@@ -145,6 +147,7 @@ const JY_INHERENT_1 = new Inherent({
  *  window, lost after his outro. */
 const TEMPEST_TAMING = new Buff({
   name: "Inherent: Tempest Taming",
+  duration: 60 * 8,
   stats: [[Stat.CritDmg, 12]],
   until: LifeTime.Outro,
 });
@@ -152,7 +155,7 @@ const JY_INHERENT_2 = new Inherent({
   name: "Inherent: Tempest Taming",
   // a real on-field press: not a queued follow-up, a status rung or the shared Tune Break, all of
   // which are active casts on his slot but not him swinging again
-  updateBuffs: () => { if (!triggeredAction() && isActive()) applyCurrent(TEMPEST_TAMING, 1); },
+  afterAction: () => { if (!triggeredAction() && isActive()) applyCurrent(TEMPEST_TAMING, 1); },
 });
 
 /** Discipline — the outro handoff: 2 charges on the incoming resonator, each Heavy cast of theirs
@@ -160,7 +163,7 @@ const JY_INHERENT_2 = new Inherent({
  *  they leave the field. */
 const JIYAN_OUTRO: Buff = new Buff({
   field: DISCIPLINE_FIELD,
-  name: "Jiyan: Outro", maxStacks: 2,
+  name: "Jiyan: Outro", maxStacks: 2, duration: 60 * 8,
   updateBuffs: () => {
     if (casting(Cast.Heavy)) { queueOn(JIYAN_RESONATOR, ACTION_OUTRO_COORD); removeStack(JIYAN_OUTRO, 1); }
   },
@@ -204,6 +207,7 @@ const JY_S1 = new Sequence({ name: "Jiyan S1: Benevolence" });
  *  the in-mode Windqueller is free — and +28% ATK for 15s, so until he leaves the field. */
 const VERSATILITY = new Buff({
   name: "Jiyan S2: Versatility",
+  duration: 60 * 15,
   stats: [[Stat.BonusAtk, 28]],
   until: LifeTime.AfterSwap,
 });
@@ -218,6 +222,7 @@ const JY_S2 = new Sequence({
  *  the mode, so it holds for his whole field window and goes with his Outro. */
 const SPECTATION = new Buff({
   name: "Jiyan S3: Spectation",
+  duration: 60 * 8,
   stats: [[Stat.CritRate, 16], [Stat.CritDmg, 32]],
   until: LifeTime.AfterSwap,
 });
@@ -231,6 +236,7 @@ const JY_S3 = new Sequence({
 /** S4: +25% Heavy Attack DMG Bonus to the team off either Emerald Storm, 30s — permanent. */
 const PRUDENCE = new Buff({
   name: "Jiyan S4: Prudence",
+  duration: 60 * 30,
   stats: [[Stat.DmgBonus, 25, Type1.Heavy]],
 });
 const JY_S4 = new Sequence({
@@ -241,16 +247,16 @@ const JY_S4 = new Sequence({
 /** S5: Discipline's lances hit for +120% of their multiplier, and every hit of his is +3% ATK a
  *  stack up to 15 — maxed outright by Tactical Strike, so the full 45% for his whole window. */
 const RESOLUTION = new Buff({
-  name: "Jiyan S5: Resolution", maxStacks: 15,
+  name: "Jiyan S5: Resolution", maxStacks: 15, duration: 60 * 8,
   stats: [[Stat.BonusAtk, 3]], perStack: true,
   until: LifeTime.AfterSwap,
 });
 const JY_S5 = new Sequence({
   name: "Jiyan S5: Resolution",
   applyStats: () => { if (runningAction(ACTION_OUTRO_COORD)) addStat(Stat.MulMv, 120); },
-  updateBuffs: () => {
-    if (runningAction(Intro)) applyCurrent(RESOLUTION, 15);
-    else if (!triggeredAction() && isActive()) applyCurrent(RESOLUTION, 1);
+  updateBuffs: () => { if (runningAction(Intro)) applyCurrent(RESOLUTION, 15); },
+  afterAction: () => {
+    if (!runningAction(Intro) && !triggeredAction() && isActive()) applyCurrent(RESOLUTION, 1);
   },
 });
 

@@ -18,7 +18,13 @@ export interface StatEntry { stat: StatKey; value: number; source: string; owner
 
 /** One buff held on a member, as the report's own resonator popover shows it: its name (with a
  *  stack count where it stacks) and whose kit put it there (see `State.sourceOf`). */
-export interface HeldBuff { name: string; source: string; }
+export interface HeldBuff {
+  name: string;
+  source: string;
+  /** Frames this buff has left as the action resolved — 0 where it has no duration. The popover
+   *  prints it as a dimmed "(Xs)" after the name. */
+  left: number;
+}
 
 /** Shared stand-ins for the report-only fields of an untraced snapshot (see `ctx.tracing`) — one
  *  shared value each rather than a fresh allocation per action. Nothing on the untraced path reads
@@ -87,7 +93,7 @@ ZERO_STATS[0] = 0.5; ZERO_STATS[0] = 0;
 /** Bumped whenever a Gear with `constantStats` enters or leaves any pool — which is team setup,
  *  and then essentially never — so every slot's `constBase` cache can tell it is stale. */
 
-export interface PoolSnapshot { list: Gear[]; counts: number[]; hooks: number[][]; globalHooks: Gear[]; at: Map<Gear, number>; dead: number }
+export interface PoolSnapshot { list: Gear[]; counts: number[]; hooks: number[][]; globalHooks: Gear[]; at: Map<Gear, number>; dead: number; expires: number[]; nextExpiry: number; progress: number[]; ticks: number[] }
 /** A slot's main-stat variants' constant bases for one action tag word, and per variant the
  *  indices where that base differs from the real build's — the only stats a variant's row can
  *  differ in (see `evaluate()`). */
@@ -118,16 +124,35 @@ class Pool {
   private atCloned = false;
   /** How many entries of `list` are dropped Gear. */
   private dead = 0;
+  /** The fight frame `list[i]` runs out at (`State.frame` at its last grant plus its `duration`),
+   *  0 for a Gear with no duration. Written in place like `at` — journaled under a dry run,
+   *  cloned once while a snapshot is live (`writeExpiry()`). */
+  private expires: number[] = [];
+  private expiresCloned = false;
+  /** The earliest of `expires` that may still be live, so the per-action expiry pass can skip a
+   *  pool with nothing due. Only ever lowered eagerly; a scan recomputes it. */
+  nextExpiry = Infinity;
+  /** For a Gear with a `tick` (gear.ts): the frames `list[i]` has accrued toward its next tick,
+   *  and how many it has fired since it was first granted. Both start at 0 on a fresh grant and
+   *  ride through a refresh untouched — a re-grant extends the stand, it does not restart the
+   *  cadence. Written like `expires` (`writeTick()`). */
+  private progress: number[] = [];
+  private ticks: number[] = [];
+  private ticksCloned = false;
 
   has(gear: Gear): boolean { return this.at.has(gear); }
   /** Everything a dry run can move, by reference — the arrays are never written in place, and
-   *  `at` is cloned before a ctx.guarded write ever touches it — for `restore()` to hand back. */
+   *  `at`/`expires` are cloned before a ctx.guarded write ever touches them — for `restore()`. */
   snapshotInto(s: PoolSnapshot): void {
     s.list = this.list; s.counts = this.counts; s.hooks = this.hooks; s.globalHooks = this.globalHooks; s.at = this.at; s.dead = this.dead;
+    s.expires = this.expires; s.nextExpiry = this.nextExpiry;
+    s.progress = this.progress; s.ticks = this.ticks;
   }
   restore(s: PoolSnapshot): void {
     this.list = s.list; this.counts = s.counts; this.hooks = s.hooks; this.globalHooks = s.globalHooks; this.at = s.at; this.dead = s.dead;
-    this.atCloned = false;
+    this.expires = s.expires; this.nextExpiry = s.nextExpiry;
+    this.progress = s.progress; this.ticks = s.ticks;
+    this.atCloned = false; this.expiresCloned = false; this.ticksCloned = false;
   }
   /** Ahead of a write to `at`. Under a dry run the write is journaled for `undoDry()` to reverse;
    *  otherwise, while a snapshot is live, the first write swaps in a copy so the snapshot's own
@@ -136,6 +161,93 @@ class Pool {
     if (ctx.dryRun) dryLog.push(this.at, gear, this.at.get(gear));
     else if (ctx.guarded && !this.atCloned) { this.at = new Map(this.at); this.atCloned = true; }
   }
+  /** The same ahead of a write to `expires[i]`. */
+  private writeExpiry(i: number): void {
+    if (ctx.dryRun) dryLog.push(this.expires, i as unknown as Gear, this.expires[i]);
+    else if (ctx.guarded && !this.expiresCloned) { this.expires = this.expires.slice(); this.expiresCloned = true; }
+  }
+  /** The same ahead of a write to `progress[i]`/`ticks[i]`. */
+  private writeTick(i: number): void {
+    if (ctx.dryRun) {
+      dryLog.push(this.progress, i as unknown as Gear, this.progress[i]);
+      dryLog.push(this.ticks, i as unknown as Gear, this.ticks[i]);
+    } else if (ctx.guarded && !this.ticksCloned) {
+      this.progress = this.progress.slice(); this.ticks = this.ticks.slice(); this.ticksCloned = true;
+    }
+  }
+  /** Stamp `list[i]`'s expiry off the fight clock — every grant of a timed Gear refreshes it. */
+  private stamp(i: number, gear: Gear): void {
+    const duration = gear.durationFn ? gear.durationFn(this.counts[i]!) : gear.duration;
+    if (!duration) return;
+    const at = ctx.state!.frame + duration;
+    this.writeExpiry(i);
+    this.expires[i] = at;
+    if (at < this.nextExpiry) this.nextExpiry = at;
+  }
+  /** Refresh a held timed Gear's expiry without changing its count — a re-grant at full stacks. */
+  touch(gear: Gear): void {
+    const i = this.at.get(gear);
+    if (i !== undefined) this.stamp(i, gear);
+  }
+  /** Frames `gear` has left, or 0 where it is untimed or not held. */
+  left(gear: Gear): number {
+    const i = this.at.get(gear);
+    if (i === undefined) return 0;
+    const at = this.expires[i]!;
+    return at === 0 ? 0 : at - ctx.state!.frame;
+  }
+  /** Every live Gear whose duration has run out by frame `now`, in order — null when none has.
+   *  Recomputes `nextExpiry` over what stays, so the next pass is a number compare again. */
+  expired(now: number): Gear[] | null {
+    if (this.nextExpiry > now) return null;
+    let out: Gear[] | null = null, next = Infinity;
+    for (let i = 0; i < this.list.length; i++) {
+      const at = this.expires[i]!;
+      if (at === 0 || this.at.get(this.list[i]!) !== i) continue;
+      if (at <= now) (out ??= []).push(this.list[i]!);
+      else if (at < next) next = at;
+    }
+    this.nextExpiry = next;
+    return out;
+  }
+  /** How many ticks `gear` has fired since it was granted, 0 where it is not held. */
+  ticksOf(gear: Gear): number {
+    const i = this.at.get(gear);
+    return i === undefined ? 0 : this.ticks[i]!;
+  }
+  /** Frames until `gear`'s next tick, 0 where it has no tick or is not held. */
+  tickIn(gear: Gear): number {
+    const i = this.at.get(gear);
+    if (i === undefined || !gear.tickFn) return 0;
+    return gear.tickEvery!() - this.progress[i]!;
+  }
+  /** Run the fight clock from frame `a` to `b` over every live Gear with a tick: each accrues the
+   *  span, cut short at its own expiry so the tick that falls on its last frame still fires, and
+   *  fires once per `every` it crosses — a press longer than the cadence fires more than once.
+   *  An `every` of 0 is the clock standing still for this span. The fires are only collected
+   *  (`due`, with each tick's ordinal), for the caller to run once the pass is over: one may
+   *  grant into or revoke out of this very pool. */
+  advance(a: number, b: number, due: { gear: Gear; n: number }[]): void {
+    for (let i = 0; i < this.list.length; i++) {
+      const gear = this.list[i]!;
+      if (!gear.tickFn || this.at.get(gear) !== i) continue;
+      const at = this.expires[i]!;
+      const span = (at === 0 || at >= b ? b : at) - a;
+      if (span <= 0) continue;
+      ctx.buff = gear;
+      let every = gear.tickEvery!();
+      if (every <= 0) continue;
+      this.writeTick(i);
+      let progress = this.progress[i]! + span;
+      while (progress >= every) {
+        progress -= every;
+        due.push({ gear, n: ++this.ticks[i]! });
+        every = gear.tickEvery!();
+        if (every <= 0) break;
+      }
+      this.progress[i] = progress;
+    }
+  }
   get(gear: Gear): number | undefined {
     const i = this.at.get(gear);
     return i === undefined ? undefined : this.counts[i];
@@ -143,12 +255,15 @@ class Pool {
   /** Every live Gear, in order — for the report's popover; the phases read `hooks` instead. */
   gears(): Gear[] { return this.list.filter((g, i) => this.at.get(g) === i); }
 
-  set(gear: Gear, n: number): void {
+  /** `refresh` is whether this write restarts a timed Gear's clock: a grant does, a spend does not
+   *  — a buff that pays a stack off (Brant's S2 blasts) keeps the window it was granted with. */
+  set(gear: Gear, n: number, refresh = true): void {
     const i = this.at.get(gear);
     if (i !== undefined) {
       const counts = this.counts.slice();
       counts[i] = n;
       this.counts = counts;
+      if (refresh) this.stamp(i, gear);
       return;
     }
     const k = this.list.length;
@@ -157,6 +272,11 @@ class Pool {
     const list = this.list.slice(), counts = this.counts.slice();
     list.push(gear); counts.push(n);
     this.list = list; this.counts = counts;
+    this.writeExpiry(k);
+    this.expires[k] = 0;
+    this.writeTick(k);
+    this.progress[k] = 0; this.ticks[k] = 0;
+    this.stamp(k, gear);
     if (gear.hookMask) {
       const hooks = this.hooks.slice();
       for (let mask = gear.hookMask, p = 0; mask; mask >>= 1, p++) {
@@ -188,7 +308,7 @@ class Pool {
   }
   /** Squeeze the dropped entries out of `list`/`counts` and renumber everything after them. */
   private compact(): void {
-    const list: Gear[] = [], counts: number[] = [];
+    const list: Gear[] = [], counts: number[] = [], expires: number[] = [], progress: number[] = [], ticks: number[] = [];
     const hooks: number[][] = Array.from({ length: PHASE_COUNT }, () => []);
     for (let i = 0; i < this.list.length; i++) {
       const gear = this.list[i]!;
@@ -196,10 +316,14 @@ class Pool {
       const k = list.length;
       this.write(gear);
       this.at.set(gear, k);
-      list.push(gear); counts.push(this.counts[i]!);
+      list.push(gear); counts.push(this.counts[i]!); expires.push(this.expires[i]!);
+      progress.push(this.progress[i]!); ticks.push(this.ticks[i]!);
       for (let mask = gear.hookMask, p = 0; mask; mask >>= 1, p++) if (mask & 1) hooks[p]!.push(k);
     }
+    // a fresh array, never the snapshot's: under a guard the old one is what `restore()` hands back
     this.list = list; this.counts = counts; this.hooks = hooks; this.dead = 0;
+    this.expires = expires; this.expiresCloned = true;
+    this.progress = progress; this.ticks = ticks; this.ticksCloned = true;
   }
 }
 
@@ -342,8 +466,9 @@ export class TeamMember {
     noteMutation(gear.id, n);
     if (!ctx.dryRun) recordApplied(gear, n);
     const next = Math.min(gear.maxStacks, this.stacksOf(gear) + n);
-    // held-at-`next` already, so the pool is what it would be written to
-    if (this.stacks.get(gear) === next) return next;
+    // held-at-`next` already, so the pool is what it would be written to — the grant still
+    // refreshes a timed buff's clock
+    if (this.stacks.get(gear) === next) { this.stacks.touch(gear); return next; }
     this.stacks.set(gear, next);
     if (gear.updateGlobalFn) { this.writeHooks(gear); this.globalHooks.add(gear); }
     return next;
@@ -358,7 +483,7 @@ export class TeamMember {
       return 0;
     }
     if (this.stacks.get(gear) === next) return next;
-    this.stacks.set(gear, next);
+    this.stacks.set(gear, next, false);
     return next;
   }
   setStacks(gear: Gear, n: number): number {
@@ -371,7 +496,7 @@ export class TeamMember {
       this.writeHooks(gear); this.globalHooks.delete(gear);
       return 0;
     }
-    if (this.stacks.get(gear) === next) return next;
+    if (this.stacks.get(gear) === next) { this.stacks.touch(gear); return next; }
     this.stacks.set(gear, next);
     if (gear.updateGlobalFn) { this.writeHooks(gear); this.globalHooks.add(gear); }
     return next;
@@ -422,6 +547,10 @@ export class State {
    *  sets it right before the outro is evaluated and puts it back to +1 straight after, so a
    *  kit-queued outro — or any other path into `evaluate()` — always advances forward. */
   outroDir: 1 | -1 = 1;
+  /** The fight clock, in frames at 60 a second: how far into the fight the action being evaluated
+   *  starts. Advanced by `evaluate()` once each action resolves, by the press's own `frames`. What
+   *  every buff duration is stamped against (`Pool.expires`) and every tick clock runs on. */
+  frame = 0;
   globalStacks = new Pool(); // use Buff here? how are maxstacks even handled?
   /** Debuffs placed on the enemy rather than held by any resonator — mechanically identical to
    *  `globalStacks` (ticks on every slot's own turn regardless of who's acting), kept as its own
@@ -513,7 +642,7 @@ export class State {
     noteMutation(gear.id, n);
     const next = Math.min(gear.maxStacks, this.stacksOfGlobal(gear) + n);
     if (!ctx.dryRun) recordApplied(gear, n);
-    if (this.globalStacks.get(gear) === next) return next;
+    if (this.globalStacks.get(gear) === next) { this.globalStacks.touch(gear); return next; }
     this.globalStacks.set(gear, next);
     return next;
   }
@@ -526,7 +655,7 @@ export class State {
       return 0;
     }
     if (this.globalStacks.get(gear) === next) return next;
-    this.globalStacks.set(gear, next);
+    this.globalStacks.set(gear, next, false);
     return next;
   }
   setStacksGlobal(gear: Gear, n: number): number {
@@ -538,7 +667,7 @@ export class State {
       this.globalStacks.delete(gear);
       return 0;
     }
-    if (this.globalStacks.get(gear) === next) return next;
+    if (this.globalStacks.get(gear) === next) { this.globalStacks.touch(gear); return next; }
     this.globalStacks.set(gear, next);
     return next;
   }
@@ -563,7 +692,7 @@ export class State {
     noteMutation(gear.id, n);
     const next = Math.min(this.enemyMax(gear), this.stacksOfEnemy(gear) + n);
     if (!ctx.dryRun) recordApplied(gear, n);
-    if (this.enemyStacks.get(gear) === next) return next;
+    if (this.enemyStacks.get(gear) === next) { this.enemyStacks.touch(gear); return next; }
     this.enemyStacks.set(gear, next);
     return next;
   }
@@ -576,7 +705,7 @@ export class State {
       return 0;
     }
     if (this.enemyStacks.get(gear) === next) return next;
-    this.enemyStacks.set(gear, next);
+    this.enemyStacks.set(gear, next, false);
     return next;
   }
   setStacksEnemy(gear: Gear, n: number): number {
@@ -588,7 +717,7 @@ export class State {
       this.enemyStacks.delete(gear);
       return 0;
     }
-    if (this.enemyStacks.get(gear) === next) return next;
+    if (this.enemyStacks.get(gear) === next) { this.enemyStacks.touch(gear); return next; }
     this.enemyStacks.set(gear, next);
     return next;
   }
@@ -596,6 +725,47 @@ export class State {
     noteMutation(gear.id, -1e6);
     if (!this.enemyStacks.has(gear)) return;
     this.enemyStacks.delete(gear);
+  }
+
+  /** Drop every buff whose duration has run out by the clock — every member's own, the team's and
+   *  the enemy's — through the same revoke paths a kit uses, so hook rosters follow. Run by
+   *  `evaluate()` ahead of every action, so nothing expired is ever visited by a phase. */
+  expireBuffs(): void {
+    const now = this.frame;
+    for (const s of this.slots) {
+      const gone = s.stacks.expired(now);
+      if (gone) for (const g of gone) s.revoke(g);
+    }
+    let gone = this.globalStacks.expired(now);
+    if (gone) for (const g of gone) this.revokeGlobal(g);
+    gone = this.enemyStacks.expired(now);
+    if (gone) for (const g of gone) this.revokeEnemy(g);
+  }
+
+  /** Run every held tick from frame `a` to `b` (see `Pool.advance()`) — each member's own gear
+   *  with the "current" pointers on its holder, the team's and the enemy's on whoever is acting,
+   *  the same convention updateGlobal() keeps. Run by `evaluate()` as the clock advances, ahead
+   *  of the expiry pass, so a window's last tick lands before the window goes. */
+  runTicks(a: number, b: number): void {
+    const due: { gear: Gear; n: number; slot: TeamMember }[] = [];
+    const acting = this.slot;
+    const collect = (pool: Pool, slot: TeamMember): void => {
+      const from = due.length;
+      ctx.slot = slot;
+      pool.advance(a, b, due as { gear: Gear; n: number }[]);
+      for (let i = from; i < due.length; i++) due[i]!.slot = slot;
+    };
+    for (const s of this.slots) collect(s.stacks, s);
+    collect(this.globalStacks, acting);
+    collect(this.enemyStacks, acting);
+    for (const { gear, n, slot } of due) {
+      ctx.slot = slot;
+      ctx.buff = gear;
+      ctx.stacks = -1;
+      gear.tickFn!(n);
+    }
+    ctx.slot = acting;
+    ctx.buff = null;
   }
 }
 
@@ -615,7 +785,7 @@ export class FightSnapshot {
   enemy: PoolSnapshot;
   offtune = 0;
   constructor(state: State) {
-    const pool = (): PoolSnapshot => ({ list: [], counts: [], hooks: [], globalHooks: [], at: new Map(), dead: 0 });
+    const pool = (): PoolSnapshot => ({ list: [], counts: [], hooks: [], globalHooks: [], at: new Map(), dead: 0, expires: [], nextExpiry: Infinity, progress: [], ticks: [] });
     const member = (): MemberSnapshot => ({ pool: pool(), globalHooks: new Set(), forte: [0, 0, 0, 0, 0], concerto: 0 });
     this.members = state.slots.map(member);
     this.global = pool(); this.enemy = pool();

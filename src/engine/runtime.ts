@@ -108,12 +108,14 @@ export const tagWordOf = (action: Action): number => {
  *  that key held before — as flat triples, for `undoDry()` to reverse before a snapshot is put
  *  back. A journal rather than a copy because a variant writes two or three entries and the copy
  *  was the whole map, once per variant per action. */
-export const dryLog: (Map<Gear, number> | Set<Gear> | Gear | number | boolean | undefined)[] = [];
+export const dryLog: (Map<Gear, number> | Set<Gear> | number[] | Gear | number | boolean | undefined)[] = [];
 export function undoDry(): void {
   if (dryLog.length === 0) return;
   for (let i = dryLog.length - 3; i >= 0; i -= 3) {
     const target = dryLog[i], gear = dryLog[i + 1] as Gear, prev = dryLog[i + 2];
     if (target instanceof Map) { if (prev === undefined) target.delete(gear); else target.set(gear, prev as number); }
+    // a Pool's expiry array: the "gear" is the index written
+    else if (Array.isArray(target)) target[gear as unknown as number] = prev as number;
     else if (prev) (target as Set<Gear>).add(gear); else (target as Set<Gear>).delete(gear);
   }
   dryLog.length = 0;

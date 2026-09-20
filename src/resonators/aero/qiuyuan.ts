@@ -48,29 +48,32 @@ function qiuyuanAction(id: string, def: object): Action {
   return new Action(id, { element: Attribute.Aero, scaling: Scaling.Atk, ...def });
 }
 
-const BA1 = qiuyuanAction("Basic - Inkwash 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 41.76, energy: 0.75, concerto: 2.4, offtune: 2400 });
-const BA2 = qiuyuanAction("Basic - Inkwash 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 69.6, energy: 1.26, concerto: 4, offtune: 4000 });
-const BA3 = qiuyuanAction("Basic - Inkwash 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 164.25, energy: 2.98, concerto: 9.46, offtune: 9440, forte1: 100 });
+const BA1 = qiuyuanAction("Basic - Inkwash 1", { frames: 19, cancel: 14, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 41.76, energy: 0.75, concerto: 2.4, offtune: 2400 });
+const BA2 = qiuyuanAction("Basic - Inkwash 2", { frames: 33, cancel: 29, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 69.6, energy: 1.26, concerto: 4, offtune: 4000 });
+const BA3 = qiuyuanAction("Basic - Inkwash 3", { frames: 64, cancel: 58, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 164.25, energy: 2.98, concerto: 9.46, offtune: 9440, forte1: 100 });
 
 // grants no Soliloquy of its own; it exists to chain straight into Inkwash Stage 4
-const HA = qiuyuanAction("Heavy - Inkwash", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 165.61, energy: 2.09, concerto: 6.67, offtune: 6664 });
+const HA = qiuyuanAction("Heavy - Inkwash", { frames: 51, cancel: 20, node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 165.61, energy: 2.09, concerto: 6.67, offtune: 6664 });
 
-const EBA1 = qiuyuanAction("Basic - Thus Spoke the Blade: Inkwash 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 119.3, energy: 1.5, concerto: 4.8, offtune: 4800, forte1: 100 });
-const EBA2 = qiuyuanAction("Basic - Thus Spoke the Blade: Inkwash 2", { cutscene: true, node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 185.5, energy: 2.34, concerto: 7.47, offtune: 7464, forte1: 100 });
-const EBA3 = qiuyuanAction("Basic - Thus Spoke the Blade: Inkwash 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 145.77, energy: 3.69, concerto: 7.07, offtune: 5862, forte1: 100 });
-const EBA4 = qiuyuanAction("Basic - Thus Spoke the Blade: Inkwash 4", { cutscene: true, node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 172.37, energy: 4.34, concerto: 8.33, offtune: 6936, forte1: 100 });
+const EBA1 = qiuyuanAction("Basic - Thus Spoke the Blade: Inkwash 1", { frames: 39, cancel: 21, node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 119.3, energy: 1.5, concerto: 4.8, offtune: 4800, forte1: 100 });
+const EBA2 = qiuyuanAction("Basic - Thus Spoke the Blade: Inkwash 2", { frames: 60, cancel: 47, cutscene: true, node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 185.5, energy: 2.34, concerto: 7.47, offtune: 7464, forte1: 100 });
+const EBA3 = qiuyuanAction("Basic - Thus Spoke the Blade: Inkwash 3", { frames: 45, cancel: 110, node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 145.77, energy: 3.69, concerto: 7.07, offtune: 5862, forte1: 100 });
+const EBA4 = qiuyuanAction("Basic - Thus Spoke the Blade: Inkwash 4", { frames: 53, cancel: 6, cutscene: true, node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 172.37, energy: 4.34, concerto: 8.33, offtune: 6936, forte1: 100 });
 
-const Skill = qiuyuanAction("Skill - Through the Groves", { node: Node.Skill, cast: Cast.Skill, type: Type1.Echo, mv: 215.52, energy: 15.09, concerto: 10, offtune: 8673 });
+const Skill = qiuyuanAction("Skill - Through the Groves", { frames: 81, cancel: 64, node: Node.Skill, cast: Cast.Skill, type: Type1.Echo, mv: 215.52, energy: 15.09, concerto: 10, offtune: 8673 });
 
 const Liberation = qiuyuanAction("Liberation - Sundering Strike", {
+  frames: 0, cancel: 230,
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Echo, mv: 795.24, concerto: 20, offtune: 96000, resetEnergy: true,
   updateBuffs: () => applyTeam(SUNDERING_STRIKE, 1),
 });
 
 const Intro = qiuyuanAction("Intro - Attack the Must-Defend", {
+  frames: 74, cancel: 133,
   node: Node.Intro, cast: Cast.Intro, type: Type1.Heavy, mv: 238.62, energy: 10, concerto: 10, offtune: 9600, forte1: 400,
 });
 const Outro = qiuyuanAction("Outro - Strike Before Ready", {
+  frames: 65, cancel: 82,
   cast: Cast.Outro, type: Type1.Echo, mv: 100, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(QIUYUAN_OUTRO),
 });
@@ -80,12 +83,14 @@ const Outro = qiuyuanAction("Outro - Strike Before Ready", {
  *  shape, whose energy and off-tune it carries) and 400 Soliloquy back. It ends Quietude Within and
  *  arms the state below for the next Inksplash and the next Outro. */
 const StrawCape = qiuyuanAction("Skill - Straw Cape in Drizzly Rain (S3)", {
+  frames: 44, cancel: 85,
   node: Node.Skill, cast: Cast.Skill, type: Type1.Echo, mv: 500, energy: 15.38, concerto: -60, offtune: 4273, forte1: 400,
   updateBuffs: () => { revokeCurrent(QUIETUDE_WITHIN); applyCurrent(STRAW_CAPE, 1); },
 });
 /** The Outro Straw Cape leaves him: 500% as Echo Skill DMG (its own chain row) in place of Strike
  *  Before Ready's 100%, the handoff unchanged. */
 const OutroS3 = qiuyuanAction("Outro - Sheath Fallen, New Shoots Revealed (S3)", {
+  frames: 65, cancel: 82,
   cast: Cast.Outro, type: Type1.Echo, mv: 500, concerto: -100, swapOut: true,
   updateBuffs: () => { queueOutro(QIUYUAN_OUTRO); revokeCurrent(STRAW_CAPE); },
 });
@@ -94,9 +99,9 @@ const OutroS3 = qiuyuanAction("Outro - Sheath Fallen, New Shoots Revealed (S3)",
 const InksplashExit = qiuyuanAction("Forte - Inksplash of Mind (S6)", { node: Node.Forte, type: Type1.Echo, mv: 600 });
 
 // cast: HEAVY (real heavy-attack identity) plus cast2: ECHO ("considered as performing Echo Skill")
-const FHA1 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Teach", { node: Node.Forte, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Heavy, mv: 457.2, energy: 7.7, concerto: 14.75, offtune: 12265, forte1: -200 });
-const FHA2 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Save", { node: Node.Forte, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Heavy, mv: 209.67, energy: 3.54, concerto: 6.78, offtune: 5625, forte1: -200 });
-const FHA3 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Sacrifice", { node: Node.Forte, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Heavy, mv: 217.7, energy: 3.65, concerto: 7.01, offtune: 5840, forte1: -200 });
+const FHA1 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Teach", { frames: 99, cancel: 86, node: Node.Forte, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Heavy, mv: 457.2, energy: 7.7, concerto: 14.75, offtune: 12265, forte1: -200 });
+const FHA2 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Save", { frames: 57, cancel: 70, node: Node.Forte, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Heavy, mv: 209.67, energy: 3.54, concerto: 6.78, offtune: 5625, forte1: -200 });
+const FHA3 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Sacrifice", { frames: 47, cancel: 32, node: Node.Forte, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Heavy, mv: 217.7, energy: 3.65, concerto: 7.01, offtune: 5840, forte1: -200 });
 
 /** Thus Spoke the Blade counts as an Echo Skill the first time it is pressed each visit and not
  *  again: a second FHA123 in the same rotation is a plain Heavy chain, so nothing that pays out on
@@ -108,6 +113,7 @@ const BLADE_ECHO_SPENT = new Buff({});
 
 const FLOWING_PANACEA = new Buff({
   name: "Qiuyuan: Flowing Panacea",
+  duration: 60 * 20,
   stats: [[Stat.BonusAtk, 10]],
   until: LifeTime.Outro,
 });
@@ -116,6 +122,7 @@ const FLOWING_PANACEA = new Buff({
 // read off his own slot since the node is his local gear and this buff pays the team
 const BAMBOO_SHADE = new Buff({
   name: "Qiuyuan: Bamboo's Shade",
+  duration: 60 * 30,
   stats: [[Stat.DmgBonus, 30, Type1.Echo]],
   applyStats: () => {
     if (currentTeam().slots.find((m) => m.resonator === QIUYUAN_RESONATOR)?.isHeld(QY_S2)) {
@@ -127,7 +134,7 @@ const BAMBOO_SHADE = new Buff({
 // one stack per Inksplash entered this visit: a second Inksplash in the same visit (the MDPS
 // loops) only sees the tail of its 10s, so it pays that Inksplash's To Teach and ends there
 const QUIETUDE_WITHIN = new Buff({
-  name: "Inherent: Quietude Within", maxStacks: 2,
+  name: "Inherent: Quietude Within", maxStacks: 2, duration: 60 * 10,
   until: LifeTime.Swap,
   applyStats: () => {
     if (runningAction(FHA1) || runningAction(FHA2) || runningAction(FHA3)) addStat(Stat.TotalDmg, 50);
@@ -141,11 +148,13 @@ const QUIETUDE_WITHIN = new Buff({
 // team-wide — "all nearby active Resonators," gated on the acting resonator's own active flag
 const SUNDERING_STRIKE = new Buff({
   name: "Qiuyuan: Sundering Strike",
+  duration: 60 * 30,
   applyStats: () => { if (isActive()) addStat(Stat.CritDmg, 30); },
 });
 
 const QIUYUAN_OUTRO = new Buff({
   name: "Qiuyuan: Outro",
+  duration: 60 * 14,
   stats: [[Stat.Amp, 50, Type1.Echo]],
   until: LifeTime.Swap,
 });
@@ -235,6 +244,7 @@ const QY_S5 = new Sequence({ name: "Qiuyuan S5: O Blade, I, Who Await to be Wiel
 /** S6's crit off a Straw Cape: +100% Crit. DMG for 6s, gone the moment he switches out. */
 const THUS_I_SPOKE = new Buff({
   name: "Qiuyuan S6: Thus I Heard, Thus I Saw, Thus I Spoke",
+  duration: 60 * 6,
   stats: [[Stat.CritDmg, 100]], until: LifeTime.Swap,
 });
 /** S6: the Inksplash-ending hit above whenever he is the one on field as it ends, and the crit

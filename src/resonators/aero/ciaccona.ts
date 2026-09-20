@@ -48,12 +48,13 @@ function ciacconaAction(id: string, def: object): Action {
 
 // --- basics, heavy/aimed, mid-air, dodge counter. Stage 4 is the one that matters: it banks a
 //     segment of Musical Essence (forte1), inflicts Aero Erosion, and opens the Solo Concert.
-const BA1 = ciacconaAction("Basic - Quadruple Time Steps 1", {  node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 57.06, energy: 0.88, concerto: 2.8, offtune: 2800 });
-const BA2 = ciacconaAction("Basic - Quadruple Time Steps 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 163.04, energy: 2.51, concerto: 8, offtune: 8000 });
-const BA3 = ciacconaAction("Basic - Quadruple Time Steps 3", { cutscene: true,node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 132.08, energy: 2.04, concerto: 6.48, offtune: 6480 });
+const BA1 = ciacconaAction("Basic - Quadruple Time Steps 1", { frames: 18, cancel: 10, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 57.06, energy: 0.88, concerto: 2.8, offtune: 2800 });
+const BA2 = ciacconaAction("Basic - Quadruple Time Steps 2", { frames: 63, cancel: 56, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 163.04, energy: 2.51, concerto: 8, offtune: 8000 });
+const BA3 = ciacconaAction("Basic - Quadruple Time Steps 3", { frames: 42, cancel: 36, cutscene: true,node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 132.08, energy: 2.04, concerto: 6.48, offtune: 6480 });
 // Stage 4, Harmonic Allegro, Quadruple Downbeat and the Intro each lay one Aero Erosion
 const EROSION = { updateDebuffs: () => applyEnemy(AERO_EROSION, 1) };
 const BA4 = ciacconaAction("Basic - Quadruple Time Steps 4", {
+  frames: 90, cancel: 67,
   node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 244.56, energy: 3.76, concerto: 12, offtune: 12000, forte1: 1, ...EROSION,
   updateBuffs: () => applyTeam(SOLO_CONCERT, 1),
 });
@@ -66,13 +67,13 @@ const HA = ciacconaAction("Heavy - Attack", { node: Node.Normal, cast: Cast.Heav
 const AimedShot = ciacconaAction("Heavy - Aimed Shot", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 32.61, energy: 0.5, concerto: 1.6, offtune: 1600 });
 const ChargedShot = ciacconaAction("Heavy - Fully Charged Aimed Shot", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 73.37, energy: 1.13, concerto: 3.6, offtune: 3600 });
 const MA1 = ciacconaAction("Mid-air - Attack 1", { cutscene: true,node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 110.86, energy: 1.7, concerto: 5.44, offtune: 5440 });
-const MA2 = ciacconaAction("Mid-air - Attack 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 97.84, energy: 1.52, concerto: 4.8, offtune: 4800 });
-const DC = ciacconaAction("Dodge Counter - Quadruple Time Steps", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 228.68, energy: 2.04, concerto: 16.48, offtune: 6480 });
+const MA2 = ciacconaAction("Mid-air - Attack 2", { frames: 60, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 97.84, energy: 1.52, concerto: 4.8, offtune: 4800 });
+const DC = ciacconaAction("Dodge Counter - Quadruple Time Steps", { frames: 45, cancel: 67, node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 228.68, energy: 2.04, concerto: 16.48, offtune: 6480 });
 
-const Skill = ciacconaAction("Skill - Harmonic Allegro", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 161.56, energy: 9.6, concerto: 15, offtune: 5000, ...EROSION });
+const Skill = ciacconaAction("Skill - Harmonic Allegro", { frames: 39, cancel: 36, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 161.56, energy: 9.6, concerto: 15, offtune: 5000, ...EROSION });
 
 /** Forte Circuit: replaces the Heavy Attack at 3 segments and spends all of them. */
-const Downbeat = ciacconaAction("Forte Heavy - Quadruple Downbeat", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 628.13, energy: 14.97, concerto: 25, offtune: 9360, forte1: -3, ...EROSION });
+const Downbeat = ciacconaAction("Forte Heavy - Quadruple Downbeat", { frames: 75, cancel: 165, node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 628.13, energy: 14.97, concerto: 25, offtune: 9360, forte1: -3, ...EROSION });
 
 // --- liberation / intro / outro. The Liberation opens Recital (see file header); a fresh cast
 //     starts it over, and switching her back in ends it.
@@ -88,10 +89,12 @@ const GreenTonic = ciacconaAction("Liberation - Symphonic Poem: Tonic (green)", 
   node: Node.Liberation, type: Type1.Liberation, mv: 6.12, offtune: 2182, field: RECITAL_FIELD, ...EROSION,
 });
 const Intro = ciacconaAction("Intro - Roaming with the Wind", {
+  frames: 54, cancel: 40,
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 189.11, energy: 10, concerto: 10, offtune: 9280, forte1: 1, ...EROSION,
   updateBuffs: () => revokeTeam(RECITAL), // switching back in exits Recital
 });
 const Outro = ciacconaAction("Outro - Windcalling Tune", {
+  frames: 0, cancel: 0,
   cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => applyTeam(WINDCALLING_TUNE, 1),
 });
@@ -135,6 +138,7 @@ const CI_INHERENT_2 = new Inherent({
  *  dot row reads at all (see statuses.ts) — an unscoped one would pay nothing here. */
 const WINDCALLING_TUNE = new Buff({ 
   name: "Ciaccona: Outro",
+  duration: 60 * 30,
   stats: [[Stat.Amp, 100, Type2.AeroErosion]],
 });
 
@@ -199,6 +203,7 @@ const CI_ROTATION_S3 = new Rotation([
  *  "casting Basic Attack" — so it stands until her Outro. The interrupt immunity is no stat. */
 const WHERE_WIND_SINGS = new Buff({
   name: "Ciaccona S1: Where Wind Sings",
+  duration: 60 * 10,
   stats: [[Stat.BonusAtk, 35]],
   until: LifeTime.Outro,
 });

@@ -60,6 +60,7 @@ export const DISCORD = concertoWeapon("Discord", WeaponType.Broadblade);
 export const STATIC_MIST = refinements((r, rank) => {
   const STATIC_MIST_HANDOFF = new Buff({
     name: `Static Mist: Stormy Resolution${rank}`,
+    duration: 60 * 14,
     stats: [[Stat.BonusAtk, [10, 12.5, 15, 17.5, 20][r]!]], until: LifeTime.Outro,
   });
   return new Weapon({
@@ -72,7 +73,7 @@ export const STATIC_MIST = refinements((r, rank) => {
 /** Emerald of Genesis. +12.8% ER flat. Skill DMG stacks ATK twice over (6% a stack). */
 export const EMERALD_OF_GENESIS = refinements((r, rank) => {
   const EOG_STACKS = new Buff({
-    name: `Emerald of Genesis: Stormy Resolution${rank}`, maxStacks: 2,
+    name: `Emerald of Genesis: Stormy Resolution${rank}`, maxStacks: 2, duration: 60 * 10,
     stats: [[Stat.BonusAtk, [6, 7.5, 9, 10.5, 12][r]!]], perStack: true, until: LifeTime.Outro,
   });
   return new Weapon({
@@ -85,13 +86,13 @@ export const EMERALD_OF_GENESIS = refinements((r, rank) => {
 /** Cosmic Ripples. +12.8% ER flat. Basic Attack DMG stacks Basic DMG Bonus 5x over (3.2% a stack). */
 export const COSMIC_RIPPLES = refinements((r, rank) => {
   const COSMIC_RIPPLES_STACKS = new Buff({
-    name: `Cosmic Ripples: Stormy Resolution${rank}`, maxStacks: 5,
+    name: `Cosmic Ripples: Stormy Resolution${rank}`, maxStacks: 5, duration: 60 * 8,
     stats: [[Stat.DmgBonus, [3.2, 4, 4.8, 5.6, 6.4][r]!, Type1.Basic]], perStack: true, until: LifeTime.Outro,
   });
   return new Weapon({
     weaponType: WeaponType.Rectifier, tier: Tier.Standard, name: `Cosmic Ripples${rank}`,
     stats: [[Stat.BaseAtk, 500], [Stat.BonusAtk, 54], [Stat.Er, [12.8, 16, 19.2, 22.4, 25.6][r]!]],
-    grants: [{ on: onType(Type1.Basic), buff: COSMIC_RIPPLES_STACKS }],
+    grants: [{ on: onType(Type1.Basic), buff: COSMIC_RIPPLES_STACKS, onHit: true }],
   });
 });
 
@@ -100,18 +101,20 @@ export const COSMIC_RIPPLES = refinements((r, rank) => {
 export const ABYSS_SURGES = refinements((r, rank) => {
   const ABYSS_SKILL_HIT = new Buff({
     name: `Abyss Surges: Stormy Resolution${rank} (skill)`,
+    duration: 60 * 8,
     stats: [[Stat.DmgBonus, [10, 12.5, 15, 17.5, 20][r]!, Type1.Basic]], until: LifeTime.Outro,
   });
   const ABYSS_BASIC_HIT = new Buff({
     name: `Abyss Surges: Stormy Resolution${rank} (basic)`,
+    duration: 60 * 8,
     stats: [[Stat.DmgBonus, [10, 12.5, 15, 17.5, 20][r]!, Type1.Skill]], until: LifeTime.Outro,
   });
   return new Weapon({
     weaponType: WeaponType.Gauntlets, tier: Tier.Standard, name: `Abyss Surges${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.BonusAtk, 36.45], [Stat.Er, [12.8, 16, 19.2, 22.4, 25.6][r]!]],
     grants: [
-      { on: onType(Type1.Skill), buff: ABYSS_SKILL_HIT },
-      { on: onType(Type1.Basic), buff: ABYSS_BASIC_HIT },
+      { on: onType(Type1.Skill), buff: ABYSS_SKILL_HIT, onHit: true },
+      { on: onType(Type1.Basic), buff: ABYSS_BASIC_HIT, onHit: true },
     ],
   });
 });
@@ -119,7 +122,7 @@ export const ABYSS_SURGES = refinements((r, rank) => {
 /** Lustrous Razor. +12.8% ER flat. Skill cast stacks Liberation DMG Bonus 3x over (7% a stack). */
 export const LUSTROUS_RAZOR = refinements((r, rank) => {
   const LUSTROUS_RAZOR_STACKS = new Buff({
-    name: `Lustrous Razor: Stormy Resolution${rank}`, maxStacks: 3,
+    name: `Lustrous Razor: Stormy Resolution${rank}`, maxStacks: 3, duration: 60 * 12,
     stats: [[Stat.DmgBonus, [7, 8.75, 10.5, 12.25, 14][r]!, Type1.Liberation]], perStack: true, until: LifeTime.Outro,
   });
   return new Weapon({
@@ -146,12 +149,13 @@ const hitInterfered = (): boolean => currentAction().mv > 0 && stacksOfEnemy(TUN
 export const NEW_STD_BRAUDBLADE = refinements((r, rank) => {
   const EDGE_BREAKER_BUFF = new Buff({
     name: `Radiance Cleaver: Edge Breaker${rank}`,
+    duration: 60 * 3,
     stats: [[Stat.DmgBonus, [24, 27, 30, 33, 36][r]!, Type1.Liberation]],
   });
   return new Weapon({
     weaponType: WeaponType.Broadblade, tier: Tier.Standard, name: `Radiance Cleaver${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritDmg, 48.6], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
-    grants: [{ on: hitInterfered, buff: EDGE_BREAKER_BUFF }],
+    grants: [{ on: hitInterfered, buff: EDGE_BREAKER_BUFF, onHit: true }],
   });
 });
 
@@ -160,13 +164,13 @@ export const NEW_STD_BRAUDBLADE = refinements((r, rank) => {
  *  0.5s limit is one stack per action here. */
 export const NEW_STD_GAUNTLET = refinements((r, rank) => {
   const BARRIER_BREACHER_STACKS = new Buff({
-    name: `Pulsation Bracer: Barrier Breacher${rank}`, maxStacks: 4,
+    name: `Pulsation Bracer: Barrier Breacher${rank}`, maxStacks: 4, duration: 60 * 3,
     stats: [[Stat.DmgBonus, [6, 6.7, 7.5, 8.2, 9][r]!, Type1.Basic]], perStack: true,
   });
   return new Weapon({
     weaponType: WeaponType.Gauntlets, tier: Tier.Standard, name: `Pulsation Bracer${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
-    grants: [{ on: hitInterfered, buff: BARRIER_BREACHER_STACKS }],
+    grants: [{ on: hitInterfered, buff: BARRIER_BREACHER_STACKS, onHit: true }],
   });
 });
 
@@ -175,12 +179,13 @@ export const NEW_STD_GAUNTLET = refinements((r, rank) => {
 export const NEW_STD_SWORD = refinements((r, rank) => {
   const SIGNAL_CATCHER_BUFF = new Buff({
     name: `Laser Shearer: Signal Catcher${rank}`,
+    duration: 60 * 3,
     stats: [[Stat.DmgBonus, [24, 27, 30, 33, 36][r]!, Type1.Skill]],
   });
   return new Weapon({
     weaponType: WeaponType.Sword, tier: Tier.Standard, name: `Laser Shearer${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.Er, 38.88], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
-    grants: [{ on: hitInterfered, buff: SIGNAL_CATCHER_BUFF }],
+    grants: [{ on: hitInterfered, buff: SIGNAL_CATCHER_BUFF, onHit: true }],
   });
 });
 
@@ -193,6 +198,7 @@ export const NEW_STD_SWORD = refinements((r, rank) => {
 export const BLOODPACTS_PLEDGE = refinements((r, rank) => {
   const HARMONIOUS_VIBRANCY = new Buff({
     name: `Bloodpact's Pledge: Harmonious Vibrancy${rank}`,
+    duration: 60 * 6,
     stats: [[Stat.DmgBonus, [10, 14, 18, 22, 26][r]!, Type1.Skill]], until: LifeTime.Outro,
   });
   return new Weapon({
@@ -208,6 +214,7 @@ export const BLOODPACTS_PLEDGE = refinements((r, rank) => {
  *  comment above for why the trigger lives there rather than here. */
 export const BLOODPACT_AERO_AMP: Buff[] = [10, 14, 18, 22, 26].map((amp, r) => new Buff({
   name: `Bloodpact's Pledge: Harmonious Vibrancy R${r + 1}`,
+  duration: 60 * 30,
   stats: [[Stat.Amp, amp, Attribute.Aero]], when: isActive,
 }));
 
@@ -218,6 +225,7 @@ export const BLOODPACT_AERO_AMP: Buff[] = [10, 14, 18, 22, 26].map((amp, r) => n
 export const NEW_STD_RECTIFIER = refinements((r, rank) => {
   const PATH_OBSERVER_BUFF = new Buff({
     name: `Boson Astrolabe: Path Observer${rank}`, until: LifeTime.Outro,
+    duration: 60 * 14,
     stats: [[Stat.BonusAtk, [12, 13.5, 15, 16.5, 18][r]!], [Stat.DmgBonus, [12, 13.5, 15, 16.5, 18][r]!, Type1.Basic]],
   });
   return new Weapon({
@@ -232,6 +240,7 @@ export const NEW_STD_RECTIFIER = refinements((r, rank) => {
 export const NEW_STD_PISTOL = refinements((r, rank) => {
   const INSIGHT_BEARER_BUFF = new Buff({
     name: `Phasic Homogenizer: Insight Bearer${rank}`, until: LifeTime.Outro,
+    duration: 60 * 14,
     stats: [[Stat.DmgBonus, [20, 22.5, 25, 27.5, 30][r]!]],
   });
   return new Weapon({

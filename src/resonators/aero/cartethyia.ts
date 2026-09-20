@@ -42,7 +42,6 @@ import {
   applyEnemy,
   applyOthers,
   applyTeam,
-  addEnemyForte2,
   casting,
   currentAction,
   runningAction,
@@ -62,9 +61,9 @@ import {
   isActive,
 } from "../../engine/context.js";
 import { Action, Rotation, INTRO, ECHO_SWAP, OUTRO, ActionGroup } from "../../engine/rotation.js";
-import { oneSecondPassed } from "../../shared/helpers.js";
 import {
   AERO_EROSION, AERO_EROSION_ACTIONS, hasNegativeStatus, inflictedNegativeStatusBy, negativeStatusRung,
+  EROSION_HASTE,
 } from "../../shared/status.js";
 import { DEFIERS_THORN, RED_SPRING } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
@@ -95,15 +94,17 @@ const EROSION_BURST = {
 
 // --- Cartethyia: basics, heavy, dodge counter (Sword to Carve My Forms). Stage 4 lays the Aero
 //     Erosion and the Sword of Divinity's Shadow; the Heavy is considered Basic Attack DMG.
-const BA1 = cartethyiaAction("Basic - Sword to Carve My Forms 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 4.78, energy: 0.70, concerto: 0.98, offtune: 2240 });
-const BA2 = cartethyiaAction("Basic - Sword to Carve My Forms 2", { cutscene: true, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 13.13, energy: 1.93, concerto: 2.70, offtune: 6146 });
-const BA3 = cartethyiaAction("Basic - Sword to Carve My Forms 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 17.12, energy: 2.52, concerto: 3.52, offtune: 8016 });
+const BA1 = cartethyiaAction("Basic - Sword to Carve My Forms 1", { frames: 20, cancel: 13, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 4.78, energy: 0.70, concerto: 0.98, offtune: 2240 });
+const BA2 = cartethyiaAction("Basic - Sword to Carve My Forms 2", { frames: 49, cancel: 39, cutscene: true, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 13.13, energy: 1.93, concerto: 2.70, offtune: 6146 });
+const BA3 = cartethyiaAction("Basic - Sword to Carve My Forms 3", { frames: 60, cancel: 44, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 17.12, energy: 2.52, concerto: 3.52, offtune: 8016 });
 const BA4 = cartethyiaAction("Basic - Sword to Carve My Forms 4", {
+  frames: 62, cancel: 41,
   node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 15.10, energy: 2.22, concerto: 3.11, offtune: 7073, ...erosion(1),
   updateBuffs: () => applyCurrent(SWORD_OF_DIVINITY, 1),
 });
-const DC = cartethyiaAction("Dodge Counter - Sword to Carve My Forms", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 27.40, energy: 2.52, concerto: 5.64, offtune: 8016 });
+const DC = cartethyiaAction("Dodge Counter - Sword to Carve My Forms", { frames: 60, cancel: 44, node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 27.40, energy: 2.52, concerto: 5.64, offtune: 8016 });
 const HA = cartethyiaAction("Heavy - Sword to Carve My Forms", {
+  frames: 65, cancel: 56,
   node: Node.Normal, cast: Cast.Heavy, type: Type1.Basic, mv: 12.48, energy: 2.51, concerto: 3.52, offtune: 8002,
   updateBuffs: () => applyCurrent(SWORD_OF_DISCORD, 1),
 });
@@ -119,42 +120,45 @@ const RECALL = {
   },
 };
 const PLUNGE = { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, type2: Type2.AeroErosion, offtune: 4248, ...RECALL };
-const Plunge = cartethyiaAction("Mid-air - Plunging Attack", { ...PLUNGE, mv: 5.65, energy: 1.33, concerto: 1.86 });
-const Plunge1 = cartethyiaAction("Mid-air - Plunging Attack (1 Sword Shadow)", { ...PLUNGE, mv: 5.65, energy: 1.33, concerto: 1.86 });
-const Plunge2 = cartethyiaAction("Mid-air - Plunging Attack (2 Sword Shadows)", { ...PLUNGE, mv: 9.90, energy: 1.35, concerto: 1.86 });
-const Plunge3 = cartethyiaAction("Mid-air - Plunging Attack (3 Sword Shadows)", { ...PLUNGE, mv: 33.87, energy: 1.35, concerto: 1.86 });
+const Plunge = cartethyiaAction("Mid-air - Plunging Attack", { frames: 45, cancel: 35, ...PLUNGE, mv: 5.65, energy: 1.33, concerto: 1.86 });
+const Plunge1 = cartethyiaAction("Mid-air - Plunging Attack (1 Sword Shadow)", { frames: 45, cancel: 35, ...PLUNGE, mv: 5.65, energy: 1.33, concerto: 1.86 });
+const Plunge2 = cartethyiaAction("Mid-air - Plunging Attack (2 Sword Shadows)", { frames: 51, cancel: 48, ...PLUNGE, mv: 9.90, energy: 1.35, concerto: 1.86 });
+const Plunge3 = cartethyiaAction("Mid-air - Plunging Attack (3 Sword Shadows)", { frames: 51, cancel: 52, ...PLUNGE, mv: 33.87, energy: 1.35, concerto: 1.86 });
 
 
 
 // --- Cartethyia: skill and intro, both considered their own DMG and both laying 2 Aero Erosion
 const Skill = cartethyiaAction("Skill - Sword to Bear Their Names", {
+  frames: 61, cancel: 40,
   node: Node.Skill, cast: Cast.Skill, cutscene: true, type: Type1.Basic, mv: 29.53, energy: 16.28, concerto: 10, offtune: 7200, ...erosion(2),
   updateBuffs: () => applyCurrent(SWORD_OF_VIRTUE, 1),
 });
 const Intro = cartethyiaAction("Intro - Sword to Mark Tide's Trace", {
+  frames: 56, cancel: 65,
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 12.48, energy: 10.01, concerto: 10, offtune: 7008, ...erosion(2),
   updateBuffs: () => { revokeTeam(WINDS_DIVINE_BLESSING); applyCurrent(SWORD_OF_DISCORD, 1); },
 });
 
 // --- Fleurdelys (the Tempest forte circuit): every press banks Conviction, nothing spends it but
 //     the Blade. Her Heavy and Enhanced Heavy are considered Basic Attack DMG.
-const FBA1 = cartethyiaAction("Basic - Tempest 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 6.49, energy: 0.75, concerto: 1.05, offtune: 2400, forte1: 4 });
-const FBA2 = cartethyiaAction("Basic - Tempest 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 9.09, energy: 1.94, concerto: 2.69, offtune: 6099, forte1: 14 });
-const FBA3 = cartethyiaAction("Basic - Tempest 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 10.65, energy: 2.25, concerto: 3.15, offtune: 7200, forte1: 14 });
-const FBA4 = cartethyiaAction("Basic - Tempest 4", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 13.70, energy: 2.25, concerto: 3.15, offtune: 7200, forte1: 10 });
-const FBA5 = cartethyiaAction("Basic - Tempest 5", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 36.00, energy: 1.99, concerto: 2.78, offtune: 6337, forte1: 20, ...EROSION_BURST });
-const FDC = cartethyiaAction("Dodge Counter - Tempest", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 15.99, energy: 2.25, concerto: 3.15, offtune: 7200, forte1: 14 });
-const UpwardCut = cartethyiaAction("Basic - Tempest Upward Cut", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 9.08, energy: 1.52, concerto: 2.12, offtune: 4840, forte1: 8 });
-const FMA1 = cartethyiaAction("Mid-air - Tempest 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 9.06, energy: 2.00, concerto: 2.81, offtune: 6385, forte1: 6 });
-const FMA2 = cartethyiaAction("Mid-air - Tempest 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 29.55, energy: 2.07, concerto: 2.88, offtune: 6576, forte1: 15, ...EROSION_BURST });
-const FMA3 = cartethyiaAction("Mid-air - Tempest 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 2.20, energy: 0.48, concerto: 0.67, offtune: 1528, forte1: 10 });
-const FHA = cartethyiaAction("Heavy - Tempest", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Basic, mv: 14.25, energy: 1.76, concerto: 2.46, offtune: 5617, forte1: 8 });
+const FBA1 = cartethyiaAction("Basic - Tempest 1", { frames: 21, cancel: 16, node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 6.49, energy: 0.75, concerto: 1.05, offtune: 2400, forte1: 4 });
+const FBA2 = cartethyiaAction("Basic - Tempest 2", { frames: 55, cancel: 55, node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 9.09, energy: 1.94, concerto: 2.69, offtune: 6099, forte1: 14 });
+const FBA3 = cartethyiaAction("Basic - Tempest 3", { frames: 59, cancel: 46, node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 10.65, energy: 2.25, concerto: 3.15, offtune: 7200, forte1: 14 });
+const FBA4 = cartethyiaAction("Basic - Tempest 4", { frames: 60, cancel: 58, node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 13.70, energy: 2.25, concerto: 3.15, offtune: 7200, forte1: 10 });
+const FBA5 = cartethyiaAction("Basic - Tempest 5", { frames: 50, cancel: 58, node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 36.00, energy: 1.99, concerto: 2.78, offtune: 6337, forte1: 20, ...EROSION_BURST });
+const FDC = cartethyiaAction("Dodge Counter - Tempest", { frames: 61, cancel: 51, node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 15.99, energy: 2.25, concerto: 3.15, offtune: 7200, forte1: 14 });
+const UpwardCut = cartethyiaAction("Basic - Tempest Upward Cut", { frames: 39, cancel: 32, node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 9.08, energy: 1.52, concerto: 2.12, offtune: 4840, forte1: 8 });
+const FMA1 = cartethyiaAction("Mid-air - Tempest 1", { frames: 48, cancel: 37, node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 9.06, energy: 2.00, concerto: 2.81, offtune: 6385, forte1: 6 });
+const FMA2 = cartethyiaAction("Mid-air - Tempest 2", { frames: 71, cancel: 53, node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 29.55, energy: 2.07, concerto: 2.88, offtune: 6576, forte1: 15, ...EROSION_BURST });
+const FMA3 = cartethyiaAction("Mid-air - Tempest 3", { frames: 48, cancel: 38, node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 2.20, energy: 0.48, concerto: 0.67, offtune: 1528, forte1: 10 });
+const FHA = cartethyiaAction("Heavy - Tempest", { frames: 67, cancel: 51, node: Node.Forte, cast: Cast.Heavy, type: Type1.Basic, mv: 14.25, energy: 1.76, concerto: 2.46, offtune: 5617, forte1: 8 });
 const FEHA = cartethyiaAction("Heavy - Tempest (Enhanced)", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Basic, mv: 19.45, energy: 2.40, concerto: 3.38, offtune: 7665, forte1: 24 });
-const FSkill1 = cartethyiaAction("Skill - Sword to Answer Waves' Call", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 24.80, energy: 2.33, concerto: 10, offtune: 7340, forte1: 8 });
-const FSkill2 = cartethyiaAction("Skill - May Tempest Break the Tides", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 24.81, energy: 8.82, concerto: 10, offtune: 7339, forte1: 28, ...EROSION_BURST });
+const FSkill1 = cartethyiaAction("Skill - Sword to Answer Waves' Call", { frames: 69, cancel: 54, node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 24.80, energy: 2.33, concerto: 10, offtune: 7340, forte1: 8 });
+const FSkill2 = cartethyiaAction("Skill - May Tempest Break the Tides", { frames: 101, cancel: 92, node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 24.81, energy: 8.82, concerto: 10, offtune: 7339, forte1: 28, ...EROSION_BURST });
 /** Her Intro in Fleurdelys form — reached only by swapping out mid-Manifest and back in, which
  *  this loop never does. Conviction unknown (see the file header), so it banks none. */
 const FIntro = cartethyiaAction("Intro - Sword to Call for Freedom", {
+  frames: 71, cancel: 61,
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 14.25, energy: 1.76, concerto: 10, offtune: 5617,
   updateBuffs: () => revokeTeam(WINDS_DIVINE_BLESSING),
 });
@@ -165,6 +169,7 @@ const FBA12345 = new ActionGroup("Basic - Tempest 12345", [FBA1, FBA2, FBA3, FBA
 
 // --- the two Liberations: the transform, then the Blade once Conviction is full
 const Liberation = cartethyiaAction("Liberation - A Knight's Heartfelt Prayers", {
+  frames: 0, cancel: 198,
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 0, concerto: 20, resetEnergy: true,
   updateBuffs: () => applyCurrent(MANIFEST, 1),
 });
@@ -172,12 +177,14 @@ const Liberation = cartethyiaAction("Liberation - A Knight's Heartfelt Prayers",
  *  Erosion — 20% amplification on this one hit per stack taken, five at most. The strip waits for
  *  `afterAction` so the hit itself still reads the count it is paid for. */
 const Lib2 = cartethyiaAction("Liberation - Blade of Howling Squall", {
+  frames: 0, cancel: 314,
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 91.84, concerto: 20, offtune: 168000, forte1: -120,
   // S6 stops the strip but not the payout: the amplification still reads what the target holds
   applyStats: () => addStat(Stat.Amp, 20 * Math.min(5, stacksOfEnemy(AERO_EROSION))),
   updateBuffs: () => {
     revokeCurrent(MANIFEST); revokeCurrent(HEART_OF_VIRTUE);
     revokeCurrent(MANDATE_OF_DIVINITY); revokeCurrent(POWER_OF_DISCORD);
+    revokeEnemy(EROSION_HASTE);
   },
   afterAction: () => {
     if (isHeld(CT_S6)) applyEnemy(AERO_EROSION, currentTeam().enemyMax(AERO_EROSION));
@@ -185,6 +192,7 @@ const Lib2 = cartethyiaAction("Liberation - Blade of Howling Squall", {
   },
 });
 const Outro = cartethyiaAction("Outro - Wind's Divine Blessing", {
+  frames: 0, cancel: 0,
   cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => applyTeam(WINDS_DIVINE_BLESSING, 1),
 });
@@ -193,25 +201,28 @@ const Outro = cartethyiaAction("Outro - Wind's Divine Blessing", {
 
 /** The three Sword Shadows, one of each at a time — pure markers, spent by the Plunging Attack
  *  that recalls them (see `RECALL` above). */
-const SWORD_OF_DIVINITY = new Buff({ name: "Cartethyia: Sword of Divinity's Shadow" });
-const SWORD_OF_DISCORD = new Buff({ name: "Cartethyia: Sword of Discord's Shadow" });
-const SWORD_OF_VIRTUE = new Buff({ name: "Cartethyia: Sword of Virtue's Shadow" });
+const SWORD_OF_DIVINITY = new Buff({ name: "Cartethyia: Sword of Divinity's Shadow", duration: 60 * 20 });
+const SWORD_OF_DISCORD = new Buff({ name: "Cartethyia: Sword of Discord's Shadow", duration: 60 * 20 });
+const SWORD_OF_VIRTUE = new Buff({ name: "Cartethyia: Sword of Virtue's Shadow", duration: 60 * 20 });
 
 /** Manifest: 12s as Fleurdelys, opened by A Knight's Heartfelt Prayers and closed by the Blade.
  *  It survives a swap on purpose — that is what her Fleurdelys-form Intro is for. No stat of its
  *  own; S6 is what reads it. */
-const MANIFEST = new Buff({ name: "Cartethyia: Manifest" });
+const MANIFEST = new Buff({ name: "Cartethyia: Manifest", duration: 60 * 12 });
 
 /** Heart of Virtue: a force field and interruption resistance, so nothing the formula reads. */
 const HEART_OF_VIRTUE = new Buff({ name: "Cartethyia: Heart of Virtue" });
 
 /** Mandate of Divinity: +50% Aero Erosion DMG Amplification, and the status's own tick interval
- *  halved for as long as she is the one on field — its clock counts half-seconds, so a second of
- *  hers hands it two more (shared/status.ts). */
+ *  halved for as long as she is the one on field — a marker on the target (shared/status.ts's
+ *  EROSION_HASTE) that her presses keep up and her swap-out takes down. */
 const MANDATE_OF_DIVINITY = new Buff({
   name: "Cartethyia: Mandate of Divinity",
   stats: [[Stat.Amp, 50, Type2.AeroErosion]],
-  updateBuffs: () => { if (oneSecondPassed() && stacksOfEnemy(AERO_EROSION) > 0) addEnemyForte2(2); },
+  updateBuffs: () => {
+    if (currentAction().swapOut) revokeEnemy(EROSION_HASTE);
+    else applyEnemy(EROSION_HASTE, 1);
+  },
 });
 
 /** Power of Discord: levels the Aero Erosion stacks across every nearby target, which is nothing
@@ -253,6 +264,7 @@ const CT_INHERENT_2 = new Inherent({
  *  her own next Intro (both of them revoke it). */
 const WINDS_DIVINE_BLESSING = new Buff({
   name: "Cartethyia: Outro",
+  duration: 60 * 20,
   applyStats: () => {
     if (!isActive() || isHeld(CARTETHYIA_RESONATOR) || !hasNegativeStatus()) return;
     addStat(Stat.Amp, 17.5, Attribute.Aero);
@@ -264,7 +276,7 @@ const WINDS_DIVINE_BLESSING = new Buff({
 /** S1: Crit. DMG +25% each time Conviction reaches 30/60/90/120, four stacks, gone once the Blade
  *  is cast. The Zeal half needs a defeated enemy, which this fight never has. */
 const CROWN_OF_FATE = new Buff({
-  name: "Cartethyia S1: Crown Destined by Fate", maxStacks: 4,
+  name: "Cartethyia S1: Crown Destined by Fate", maxStacks: 4, duration: 60 * 15,
   applyStats: () => addStat(Stat.CritDmg, 25 * stacksOf(CROWN_OF_FATE)),
 });
 const CT_S1 = new Sequence({
@@ -320,6 +332,7 @@ const CT_S3 = new Sequence({
  *  20s — permanent uptime in practice, since her own line lays Aero Erosion every visit. */
 const SACRIFICE = new Buff({
   name: "Cartethyia S4: Sacrifice Made for Salvation",
+  duration: 60 * 20,
   stats: [[Stat.DmgBonus, 20]],
 });
 const CT_S4 = new Sequence({

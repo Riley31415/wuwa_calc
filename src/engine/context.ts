@@ -88,6 +88,22 @@ export function isActive(): boolean {
   return ctx.state!.slot === ctx.state!.slots[ctx.state!.onField] && !ctx.act!.swapOut;
 }
 
+/** The frames the action being evaluated runs the fight clock by: its own `frames` as a press,
+ *  0 for a follow-up (it lands inside the press that queued it) or a cancelled press (the dash
+ *  that cut it carries the time). What a rate per second scales by (Iuno's Energy a second in
+ *  her domain), and the test for "a press that takes time" where a kit fires per cast. */
+export const elapsed = (): number => (ctx.act!.cancelOf === null ? ctx.act!.frames : 0);
+
+/** The fight clock as the action being evaluated found it, in frames (`State.frame`). */
+export const currentFrame = (): number => ctx.state!.frame;
+
+/** How many ticks a held buff with a clock (`BuffDef.tick`) has fired since its grant — the
+ *  acting slot's own, the team's, the enemy's. 0 where it is not held. */
+export function ticksOf(gear: Gear): number { return ctx.slot!.stacks.ticksOf(gear); }
+export function ticksOfTeam(gear: Gear): number { return ctx.state!.globalStacks.ticksOf(gear); }
+/** Frames until a held enemy debuff's next tick — for a status's own "(tick in Ns)" display. */
+export function tickInEnemy(gear: Gear): number { return ctx.state!.enemyStacks.tickIn(gear); }
+
 /** Assign the action being evaluated a different damage type, for a kit whose state changes what a
  *  cast *counts as* rather than what it does — Denia's Breakdown Form hits becoming Resonance
  *  Liberation DMG while she holds Void Particle, Lucilla's Chafe mode making Clear As Day Basic
@@ -555,6 +571,18 @@ export function applyTeam(buff: Buff, n = 1): number {
   return ctx.state!.addStackGlobal(buff, n);
 }
 export function removeStackTeam(buff: Buff, n = 1): number { return ctx.state!.removeStackGlobal(buff, n); }
+/** Reset a held team buff's own duration without touching its count — for a buff whose stacks are
+ *  capped per granter but whose text says retriggering resets the clock (shared/unison.ts's Boon).
+ *  A no-op on a buff nobody holds, and on one with no duration to reset. */
+export function refreshTeam(buff: Buff): void {
+  noteMutation(buff.id, 8e6);
+  ctx.state!.globalStacks.touch(buff);
+}
+/** How many frames a held team buff has left — 0 where it is untimed or nobody holds it. For a
+ *  buff granted inside another's window that has to run out with it (xuanling.ts's Tonal Switch). */
+export function leftOnTeam(buff: Buff): number {
+  return ctx.state!.globalStacks.left(buff);
+}
 export function revokeTeam(buff: Buff): void { ctx.state!.revokeGlobal(buff); }
 
 // placed on the enemy rather than any resonator — same "ticks on every slot's own turn" shape as
@@ -645,7 +673,7 @@ export function queueOutro(buff: Buff): void {
 const queuedBy = (): HeldBuff | null => {
   const gear = ctx.buff;
   if (!gear?.name) return null;
-  return { name: gear.name, source: ctx.state!.sourceOf.get(gear) ?? ctx.slot!.name };
+  return { name: gear.name, source: ctx.state!.sourceOf.get(gear) ?? ctx.slot!.name, left: 0 };
 };
 export function queue(action: Action): void {
   inheritPiece(action);

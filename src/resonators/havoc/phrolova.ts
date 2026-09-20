@@ -55,16 +55,17 @@ function phroAction(id: string, def: object): Action {
 
 // energy/concerto come off the migrated sheet's combined BA12/BA23/BA123 rows — BA1/BA2 are
 // derived by subtraction, cross-checked both ways against BA12 and BA23.
-const BA1 = phroAction("Basic - Movement of Life and Death 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 106.9, offtune: 5376, energy: 1.68, concerto: 3.36 });
-const BA2 = phroAction("Basic - Movement of Life and Death 2", { node: Node.Normal, cutscene: true, cast: Cast.Basic, type: Type1.Basic, mv: 95.43, offtune: 4800, energy: 1.5, concerto: 3 });
-const BA3 = phroAction("Basic - Movement of Life and Death 3", { forte1: 1, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 196.14, offtune: 9864, energy: 3.12, concerto: 6.18, updateBuffs: () => gainNote(1) });
+const BA1 = phroAction("Basic - Movement of Life and Death 1", { frames: 44, cancel: 35, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 106.9, offtune: 5376, energy: 1.68, concerto: 3.36 });
+const BA2 = phroAction("Basic - Movement of Life and Death 2", { frames: 36, cancel: 12, node: Node.Normal, cutscene: true, cast: Cast.Basic, type: Type1.Basic, mv: 95.43, offtune: 4800, energy: 1.5, concerto: 3 });
+const BA3 = phroAction("Basic - Movement of Life and Death 3", { frames: 81, cancel: 60, forte1: 1, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 196.14, offtune: 9864, energy: 3.12, concerto: 6.18, afterAction: () => gainNote(1) });
 
-const Skill = phroAction("Skill - Whispers in a Fleeting Dream", { forte1: 1, cutscene: true, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 211.94, offtune: 4264, energy: 13.34, concerto: 10, updateBuffs: () => gainNote(2) });
+const Skill = phroAction("Skill - Whispers in a Fleeting Dream", { frames: 34, cancel: 48, forte1: 1, cutscene: true, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 211.94, offtune: 4264, energy: 13.34, concerto: 10, afterAction: () => gainNote(2) });
 
-const FBA = phroAction("Forte Basic - Movement of Fate and Finality", { forte1: 1, node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 505.01, offtune: 10161, energy: 3.21, concerto: 10.02, updateBuffs: () => gainNote(1) });
-const FSkill = phroAction("Forte Skill - Murmurs in a Haunting Dream", {forte1: 1, node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 464.07, offtune: 9338, energy: 2.95, concerto: 10, updateBuffs: () => gainNote(2) });
+const FBA = phroAction("Forte Basic - Movement of Fate and Finality", { frames: 92, cancel: 67, forte1: 1, node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 505.01, offtune: 10161, energy: 3.21, concerto: 10.02, afterAction: () => gainNote(1) });
+const FSkill = phroAction("Forte Skill - Murmurs in a Haunting Dream", { frames: 79, cancel: 81, forte1: 1, node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 464.07, offtune: 9338, energy: 2.95, concerto: 10, afterAction: () => gainNote(2) });
 
 const ScarletCoda = phroAction("Forte Heavy - Scarlet Coda", {
+  frames: 172, cancel: 139,
   node: Node.Normal, cast: Cast.Heavy, cast2: Cast.Echo, type: Type1.Skill, forte1: -6,  mv: 660.16, offtune: 166144, energy: 6.93, concerto: 40,
 });
 
@@ -72,6 +73,7 @@ const ScarletCoda = phroAction("Forte Heavy - Scarlet Coda", {
 // "Lib2" row (465.22% MV) has no matching action here — a known gap, flagged rather than guessed.
 // Opens Maestro and banks the ten auto-cast chances (NOTES' own bits 12-15).
 const Liberation = phroAction("Liberation - Waltz of Forsaken Depths", {
+  frames: 0, cancel: 240,
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, concerto: 20, resetForte1: true,
   updateBuffs: () => {
     applyCurrent(MAESTRO, 1);
@@ -80,11 +82,13 @@ const Liberation = phroAction("Liberation - Waltz of Forsaken Depths", {
 });
 
 const Intro = phroAction("Intro - Suite of Quietus", {
+  frames: 80, cancel: 59,
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 201.52, offtune: 10137, energy: 10, concerto: 10,
 });
 /** Maestro-replaced Intro — used whenever she re-enters with Maestro still open. Playing it is
  *  also what closes Maestro back out. */
 const EIntro = phroAction("Intro - Suite of Immortality", {
+  frames: 93, cancel: 60,
   node: Node.Intro, cast: Cast.Intro, type: Type1.Skill, mv: 596.43, offtune: 9600, energy: 10, concerto: 10,resetForte1: true,
   // the Waltz ends here, and everything it was playing through goes with it: the unplayed notes,
   // the chances left, the front note's play count — the store keeps only its always-set bit
@@ -94,6 +98,7 @@ const EIntro = phroAction("Intro - Suite of Immortality", {
  *  play once the next resonator has intro'd rather than on the Outro itself, so the handoff buff
  *  this queues is what watches for that (PHROLOVA_OUTRO). */
 const Outro = phroAction("Outro - Unfinished Piece", {
+  frames: 0, cancel: 0,
   cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(PHROLOVA_OUTRO),
 });
@@ -207,6 +212,7 @@ export const NOTES = new Buff({
  *  and the notes it plays through live in NOTES above. */
 export const MAESTRO = new Buff({
   name: "Phrolova: Maestro",
+  duration: 60 * 24,
   stats: [[Stat.BonusAtk, 120]],
   // Any active Echo Skill cast (hers or a teammate's) spends a chance and plays a note.
   // updateGlobal() keeps the "current" pointers on her own slot, so drawNote() resolves against her.
@@ -236,6 +242,7 @@ const PH_INHERENT_2 = new Inherent({ name: "Inherent: Octet" ,
 
 const PHROLOVA_OUTRO = new Buff({
   name: "Phrolova: Outro",
+  duration: 60 * 14,
   stats: [[Stat.Amp, 20, Attribute.Havoc], [Stat.Amp, 25, Type1.Heavy]],
   // Also the two notes her Outro owes: this is adopted on the incoming resonator's own Intro, so
   // it is the thing that sees the Intro they play — and drawNote() puts them back on her slot.
@@ -282,6 +289,7 @@ const PH_S3 = new Sequence({
  *  are the trigger — Scarlet Coda counts as one (cast2). */
 const PH_S4_TEAM = new Buff({
   name: "Phrolova S4: A Torch Illuminating the Path",
+  duration: 60 * 30,
   stats: [[Stat.DmgBonus, 20]],
 });
 const PH_S4 = new Sequence({
@@ -299,6 +307,8 @@ const PH_S6 = new Sequence({
   name: "Phrolova S6: A Night to Depart From Eternal Rest",
   updateBuffs: () => {
     if (runningAction(FBA) || runningAction(FSkill)) queue(Apparition);
+  },
+  afterAction: () => {
     if (runningAction(Apparition)) applyCurrent(AFTERSOUND, 8); // TODO check if the apparition gains the 8 stacks for its damage
   },
   applyStats: () => {

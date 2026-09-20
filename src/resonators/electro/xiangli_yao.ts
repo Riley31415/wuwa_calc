@@ -62,7 +62,7 @@ const HA = xlyAction("Heavy - Probe", { node: Node.Normal, cast: Cast.Heavy, typ
 const MA = xlyAction("Mid-air - Probe Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.27, energy: 0.52, concerto: 1.00, offtune: 4960, forte1: 13 });
 const DC = xlyAction("Dodge Counter - Probe", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 238.58, energy: 2.75, concerto: 12.50, offtune: 4000, forte1: 26 });
 
-const Skill = xlyAction("Skill - Deduction", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 198.81, energy: 6.25, concerto: 7, offtune: 4000, forte1: 40 });
+const Skill = xlyAction("Skill - Deduction", { frames: 60, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 198.81, energy: 6.25, concerto: 7, offtune: 4000, forte1: 40 });
 /** Decipher: spends the full 100 Capacity, considered Resonance Liberation DMG. */
 const FSkill = xlyAction("Forte Skill - Decipher", { node: Node.Forte, cast: Cast.Skill, type: Type1.Liberation, mv: 397.82, energy: 1.67, concerto: 7, offtune: 5336, forte1: -100 });
 
@@ -70,23 +70,23 @@ const Liberation = xlyAction("Liberation - Cogitation Model", { node: Node.Liber
 
 // Intuition's own moveset — Pivot - Impale basics, Divergence, Unfathomed; Performance Capacity
 // (forte2) deltas are the kit text's own numbers
-const UBA1 = xlyAction("Basic - Pivot: Impale 1", { node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 119.67, energy: 1.31, concerto: 2.62, offtune: 4192, forte2: 1 });
-const UBA2 = xlyAction("Basic - Pivot: Impale 2", { node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 60.92 * 4, energy: 2.68, concerto: 5.36, offtune: 8536, forte2: 2 });
-const UBA3 = xlyAction("Basic - Pivot: Impale 3", { node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 133.25 * 2, energy: 2.92, concerto: 5.84, offtune: 9336, forte2: 2 });
-const USkill = xlyAction("Skill - Divergence", { node: Node.Liberation, cast: Cast.Skill, type: Type1.Skill, mv: 49.59 * 3 + 173.55 * 2, energy: 9.94, concerto: 15.00, offtune: 9316, forte2: 2 });
+const UBA1 = xlyAction("Basic - Pivot: Impale 1", { frames: 60, node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 119.67, energy: 1.31, concerto: 2.62, offtune: 4192, forte2: 1 });
+const UBA2 = xlyAction("Basic - Pivot: Impale 2", { frames: 60, node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 60.92 * 4, energy: 2.68, concerto: 5.36, offtune: 8536, forte2: 2 });
+const UBA3 = xlyAction("Basic - Pivot: Impale 3", { frames: 60, node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 133.25 * 2, energy: 2.92, concerto: 5.84, offtune: 9336, forte2: 2 });
+const USkill = xlyAction("Skill - Divergence", { frames: 60, node: Node.Liberation, cast: Cast.Skill, type: Type1.Skill, mv: 49.59 * 3 + 173.55 * 2, energy: 9.94, concerto: 15.00, offtune: 9316, forte2: 2 });
 const UDC = xlyAction("Dodge Counter - Unfathomed", { node: Node.Liberation, cast: Cast.DodgeCounter, type: Type1.Liberation, mv: 38.83 * 2 + 310.58, energy: 4.00, concerto: 15.00, offtune: 8000, forte2: 2 });
 
 /** Law of Reigns: 5 Performance Capacity and a Hypercube a cast, considered Liberation DMG. */
-const UForte = xlyAction("Forte Skill - Law of Reigns", { node: Node.Forte, cast: Cast.Skill, type: Type1.Liberation, mv: 95.73 * 4 + 255.28, energy: 4.78, concerto: 10, offtune: 45600, forte2: -5 });
+const UForte = xlyAction("Forte Skill - Law of Reigns", { frames: 60, node: Node.Forte, cast: Cast.Skill, type: Type1.Liberation, mv: 95.73 * 4 + 255.28, energy: 4.78, concerto: 10, offtune: 45600, forte2: -5 });
 /** Revamp, the mid-air follow-up to Decipher/Divergence — considered Liberation DMG. */
-const FBA = xlyAction("Mid-air - Revamp", { node: Node.Forte, cast: Cast.Basic, type: Type1.Liberation, mv: 21.87 * 4 + 65.61 * 2, energy: 2.78, concerto: 5, offtune: 8800, forte2: 3 });
+const FBA = xlyAction("Mid-air - Revamp", { frames: 60, node: Node.Forte, cast: Cast.Basic, type: Type1.Liberation, mv: 21.87 * 4 + 65.61 * 2, energy: 2.78, concerto: 5, offtune: 8800, forte2: 3 });
 
 /** S1's Convolution Matrices: six more instances off every Law of Reigns, each worth 8% of that
  *  skill's own multiplier — 51.06% apiece, and 89.86% once S6 raises the skill (nanoka's own rows,
  *  which carry no energy, concerto or off-tune of their own). */
 const ConvolutionMatrices = xlyAction("Forte Skill - Convolution Matrices (S1)", { node: Node.Forte, type: Type1.Liberation, mv: 51.06 * 6 });
 
-const Intro = xlyAction("Intro - Principle", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 99.41 * 2, energy: 10.00, concerto: 10, offtune: 11200 });
+const Intro = xlyAction("Intro - Principle", { frames: 60, node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 99.41 * 2, energy: 10.00, concerto: 10, offtune: 11200 });
 /** Chain Rule: no damage of its own, just the handoff — its lasers are ACTION_OUTRO_COORD. */
 const Outro = xlyAction("Outro - Chain Rule", {
   cast: Cast.Outro, concerto: -100, swapOut: true,
@@ -103,7 +103,7 @@ const ACTION_OUTRO_COORD = xlyAction("Outro - Chain Rule (Laser)", { type: Type1
 /** Knowing (Inherent Skill): +5% Electro DMG Bonus a stack on casting Resonance Skill, up to 4,
  *  8s — held for his whole field window, lost after his outro. */
 const KNOWING = new Buff({
-  name: "Inherent: Knowing", maxStacks: 4,
+  name: "Inherent: Knowing", maxStacks: 4, duration: 60 * 8,
   stats: [[Stat.DmgBonus, 5, Attribute.Electro]], perStack: true,
   until: LifeTime.Outro,
 });
@@ -120,7 +120,7 @@ const XLY_INHERENT_2 = new Inherent({ name: "Inherent: Focus" });
  *  leave the field. */
 const XLY_OUTRO: Buff = new Buff({
   field: CHAIN_RULE_FIELD,
-  name: "Xiangli Yao: Outro", maxStacks: 3,
+  name: "Xiangli Yao: Outro", maxStacks: 3, duration: 60 * 8,
   updateBuffs: () => {
     if (casting(Cast.Basic)) { queueOn(XIANGLI_YAO_RESONATOR, ACTION_OUTRO_COORD); removeStack(XLY_OUTRO, 1); }
   },
@@ -163,6 +163,7 @@ const XLY_S1 = new Sequence({
  *  on one, so it stands for his whole window and goes with his outro. */
 const TRACES_OF_PREDECESSORS = new Buff({
   name: "Xiangli Yao S2: Traces of Predecessors",
+  duration: 60 * 8,
   stats: [[Stat.CritDmg, 30]],
   until: LifeTime.Outro,
 });
@@ -175,7 +176,7 @@ const XLY_S2 = new Sequence({
  *  and Law of Reigns each spend one for 63% more damage — "increases the DMG", not the multiplier,
  *  so a damage bonus. The Intuition window spends all five exactly (two Divergences, three Laws). */
 const RUINS_OF_ANCIENT = new Buff({
-  name: "Xiangli Yao S3: Ruins of Ancient", maxStacks: 5,
+  name: "Xiangli Yao S3: Ruins of Ancient", maxStacks: 5, duration: 60 * 24,
   applyStats: () => { if (RUINS_PAYS.has(currentAction())) addStat(Stat.DmgBonus, 63); },
   convertStats: () => { if (RUINS_PAYS.has(currentAction())) removeStack(RUINS_OF_ANCIENT, 1); },
 });
@@ -188,6 +189,7 @@ const XLY_S3 = new Sequence({
 /** S4: Cogitation Model hands the whole team +25% Resonance Liberation DMG Bonus for 30s. */
 const VESSEL_OF_REBIRTH = new Buff({
   name: "Xiangli Yao S4: Vessel of Rebirth",
+  duration: 60 * 30,
   stats: [[Stat.DmgBonus, 25, Type1.Liberation]],
 });
 const XLY_S4 = new Sequence({

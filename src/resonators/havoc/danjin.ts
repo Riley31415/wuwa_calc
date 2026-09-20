@@ -62,49 +62,53 @@ function danjinAction(id: string, def: object): Action {
 // convention Rover Havoc's own file established. A flat listed "Concerto Regen" adds on top of
 // whatever the table's own Elemental DMG column already gives.
 // --- basics, mid-air, dodge counter (Execution)
-const BA1 = danjinAction("Basic - Execution 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 57.26, energy: 0.9, concerto: 1.08, offtune: 1680 });
-const BA2 = danjinAction("Basic - Execution 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 58.85, energy: 0.92, concerto: 1.11, offtune: 2960 });
-const BA3 = danjinAction("Basic - Execution 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.53, energy: 1.25, concerto: 1.5, offtune: 3120 });
+const BA1 = danjinAction("Basic - Execution 1", { frames: 16, cancel: 9, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 57.26, energy: 0.9, concerto: 1.08, offtune: 1680 });
+const BA2 = danjinAction("Basic - Execution 2", { frames: 25, cancel: 10, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 58.85, energy: 0.92, concerto: 1.11, offtune: 2960 });
+const BA3 = danjinAction("Basic - Execution 3", { frames: 28, cancel: 12, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.53, energy: 1.25, concerto: 1.5, offtune: 3120 });
 
-const MA = danjinAction("Mid-air - Execution Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 0.51, concerto: 1, offtune: 9600 });
-const HA = danjinAction("Heavy - Execution", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 111.36, energy: 1.74, concerto: 2.1, offtune: 5358 }); // 37.12% x3
+const MA = danjinAction("Mid-air - Execution Plunge", { frames: 62, cancel: 36, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 98.61, energy: 0.51, concerto: 1, offtune: 9600 });
+const HA = danjinAction("Heavy - Execution", { frames: 40, cancel: 17, node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 111.36, energy: 1.74, concerto: 2.1, offtune: 5358 }); // 37.12% x3
 /** A successful Dodge Counter opens the Skill's own Crimson Erosion form, and grants Crimson Light. */
 const DC = danjinAction("Dodge Counter - Ruby Shades", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 190.86, energy: 3, concerto: 11.8, offtune: 4800 }); // 63.62% x3
 
 // three forms depending on the preceding action (see file header)
-const CarmineGleam = danjinAction("Skill - Carmine Gleam", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 76.36, forte1: 10.5, energy: 1.2, offtune: 2960, concerto: 8 }); // 38.18% x2
-const CrimsonErosion1 = danjinAction("Skill - Crimson Erosion 1", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 128.84, forte1: 10.5, energy: 2.5, offtune: 4240, concerto: 8 }); // 64.42% x2
+const CarmineGleam = danjinAction("Skill - Carmine Gleam", { frames: 29, cancel: 21, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 76.36, forte1: 10.5, energy: 1.2, offtune: 2960, concerto: 8 }); // 38.18% x2
+const CrimsonErosion1 = danjinAction("Skill - Crimson Erosion 1", { frames: 37, cancel: 18, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 128.84, forte1: 10.5, energy: 2.5, offtune: 4240, concerto: 8 }); // 64.42% x2
 const CrimsonErosion2 = danjinAction("Skill - Crimson Erosion 2", {
+  frames: 46, cancel: 20,
   node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 119.30, forte1: 10.5, energy: 2.5, offtune: 4000, concerto: 8, // 59.65% x2
   updateBuffs: () => applyEnemy(INCINERATING_WILL, 1),
 });
 
 // NOTE 40.5 forte for sanguine pulse 123, not sure on individual
-const SanguinePulse1 = danjinAction("Skill - Sanguine Pulse 1", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 112.14, forte1: 13.5, energy: 3, offtune: 3760, concerto: 8 }); // 56.07% x2
-const SanguinePulse2 = danjinAction("Skill - Sanguine Pulse 2", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 128.85, forte1: 13.5, energy: 3, offtune: 4230, concerto: 8 }); // 42.95% x3
-const SanguinePulse3 = danjinAction("Skill - Sanguine Pulse 3", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 193.26, forte1: 13.5, energy: 3.75, offtune: 6360, concerto: 8 }); // 64.42% x3
+const SanguinePulse1 = danjinAction("Skill - Sanguine Pulse 1", { frames: 33, cancel: 20, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 112.14, forte1: 13.5, energy: 3, offtune: 3760, concerto: 8 }); // 56.07% x2
+const SanguinePulse2 = danjinAction("Skill - Sanguine Pulse 2", { frames: 37, cancel: 24, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 128.85, forte1: 13.5, energy: 3, offtune: 4230, concerto: 8 }); // 42.95% x3
+const SanguinePulse3 = danjinAction("Skill - Sanguine Pulse 3", { frames: 59, cancel: 36, node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 193.26, forte1: 13.5, energy: 3.75, offtune: 6360, concerto: 8 }); // 64.42% x3
 
 // Chaoscleave (Heavy Attack DMG, at 60+ Ruby Blossom) into Scatterbloom
 // updateDebuffs on both Chaoscleaves is her own healing marker, read by every healing sonata and
 // weapon (statuses.ts) — applied to the healer alone, never the team
 const Chaoscleave = danjinAction("Forte Heavy - Chaoscleave", {
+  frames: 72, cancel: 62,
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 417.55, forte1: -60, energy: 14, concerto: 50, offtune: 11578, // 59.65% x7
   updateDebuffs: () => applyCurrent(HEALS, 1),
 });
-const Scatterbloom = danjinAction("Heavy - Scatterbloom", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 178.93, energy: 6, offtune: 5360 });
+const Scatterbloom = danjinAction("Heavy - Scatterbloom", { frames: 49, cancel: 19, node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 178.93, energy: 6, offtune: 5360 });
 /** Full Energy variants, at 120 Ruby Blossom — spends 120 instead of 60. No separate Concerto
  *  Regen is given, so it carries Chaoscleave's own. */
 const FullChaoscleave = danjinAction("Forte Heavy - Chaoscleave (Full Energy)", {
+  frames: 72, cancel: 62,
   node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 1002.05, forte1: -120, energy: 14, concerto: 50, offtune: 11578, // 143.15% x7
   updateDebuffs: () => applyCurrent(HEALS, 1),
 });
-const FullScatterbloom = danjinAction("Heavy - Scatterbloom (Full Energy)", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 429.43, energy: 6, offtune: 5360 });
+const FullScatterbloom = danjinAction("Heavy - Scatterbloom (Full Energy)", { frames: 49, cancel: 19, node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 429.43, energy: 6, offtune: 5360 });
 
 // consecutive attacks plus one Scarlet Burst, lumped into one hit
-const Liberation = danjinAction("Liberation - Crimson Bloom", { node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 785.37, concerto: 20, offtune: 61440, resetEnergy: true }); // 49.09%x8+392.65%
+const Liberation = danjinAction("Liberation - Crimson Bloom", { frames: 0, cancel: 192, node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 785.37, concerto: 20, offtune: 61440, resetEnergy: true }); // 49.09%x8+392.65%
 
-const Intro = danjinAction("Intro - Vindication", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.84, energy: 10, concerto: 10, offtune: 12240 }); // 49.71% x4
+const Intro = danjinAction("Intro - Vindication", { frames: 103, cancel: 81, node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.84, energy: 10, concerto: 10, offtune: 12240 }); // 49.71% x4
 const Outro = danjinAction("Outro - Duality", {
+  frames: 0, cancel: 0,
   cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(DANJIN_OUTRO),
 });
@@ -114,7 +118,7 @@ const Outro = danjinAction("Outro - Duality", {
 /** A genuine debuff on the enemy — applied by Crimson Erosion's own second hit, +20% (unscoped)
  *  DMG Bonus to whoever's actually landing the hit. 12s, lost after her own outro action gains stats. */
 const INCINERATING_WILL = new Debuff({
-  name: "Danjin: Incinerating Will",
+  name: "Danjin: Incinerating Will", duration: 60 * 12,
   applyStats: () => { if (isHeld(DANJIN_RESONATOR)) addStat(Stat.DmgBonus, 20); },
   convertStats: () => { if (casting(Cast.Outro) && isHeld(DANJIN_RESONATOR)) revokeEnemy(INCINERATING_WILL); },
 });
@@ -123,6 +127,7 @@ const INCINERATING_WILL = new Debuff({
  *  a real time window, lost after the outro action gains stats, not consumed by the next hit alone. */
 const OVERFLOW = new Buff({
   name: "Inherent: Overflow",
+  duration: 60 * 5,
   stats: [[Stat.DmgBonus, 30, Type1.Heavy]],
   until: LifeTime.Outro,
 });
@@ -151,6 +156,7 @@ const DJ_INHERENT_CRIMSON_LIGHT = new Inherent({
  *  lost-on-swap wording, so it ends on the swap-out action rather than at the outro. */
 const DANJIN_OUTRO = new Buff({
   name: "Danjin: Outro",
+  duration: 60 * 14,
   stats: [[Stat.Amp, 23, Attribute.Havoc]],
   until: LifeTime.Swap,
 });
@@ -185,7 +191,7 @@ const DANJIN_RESONATOR = new Resonator({
 /** +5% ATK a stack, up to 6, 6s, on any hit landed while Incinerating Will is up. "Loses 1 stack
  *  each time she takes damage" isn't modelled — no damage-taken tracking here. */
 const DJ_S1_STACKS = new Buff({
-  name: "Danjin S1: Crimson Heart of Justice", maxStacks: 6,
+  name: "Danjin S1: Crimson Heart of Justice", maxStacks: 6, duration: 60 * 6,
   stats: [[Stat.BonusAtk, 5]], perStack: true,
   until: LifeTime.Outro,
 });
@@ -231,6 +237,7 @@ const DJ_S5 = new Sequence({
 /** S6: Chaoscleave grants the whole team +20% ATK, 20s — lost on her own next Intro. */
 const DJ_S6_TEAM = new Buff({
   name: "Danjin S6: Bloodied Jade",
+  duration: 60 * 20,
   stats: [[Stat.BonusAtk, 20]],
   convertStats: () => { if (casting(Cast.Intro) && isHeld(DANJIN_RESONATOR)) revokeTeam(DJ_S6_TEAM); },
 });

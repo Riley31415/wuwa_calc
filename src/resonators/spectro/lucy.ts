@@ -77,50 +77,54 @@ function lucyAction(id: string, def: object): Action {
 }
 
 // --- Locked Thread, the ordinary chain. Everything here banks TCP.
-const BA1 = lucyAction("Basic - Locked Thread 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 121.49, energy: 1.9, concerto: 6.17, offtune: 7520, forte1: 16 });
-const BA2 = lucyAction("Basic - Locked Thread 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 60.76, energy: 0.96, concerto: 3.07, offtune: 3761, forte1: 12 });
-const BA3 = lucyAction("Basic - Locked Thread 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 120.2, energy: 1.87, concerto: 6.06, offtune: 7440, forte1: 18 });
-const BA4 = lucyAction("Basic - Locked Thread 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 155.09, energy: 2.4, concerto: 7.8, offtune: 9600, forte1: 26 });
-const MA = lucyAction("Mid-air - Locked Thread Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 116.32, energy: 2.26, concerto: 5.86, offtune: 7200, forte1: 8 });
-const DC = lucyAction("Dodge Counter - Locked Thread", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 197.73, energy: 3.83, concerto: 19.96, offtune: 12240, forte1: 12 });
-const HA1 = lucyAction("Heavy - Locked Thread 1", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 73.67, energy: 1.43, concerto: 3.73, offtune: 4560, forte1: 10 });
-const HA2 = lucyAction("Heavy - Locked Thread 2", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 284.32, energy: 5.51, concerto: 14.32, offtune: 17602, forte1: 20.02 });
+const BA1 = lucyAction("Basic - Locked Thread 1", { frames: 31, cancel: 19, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 121.49, energy: 1.9, concerto: 6.17, offtune: 7520, forte1: 16 });
+const BA2 = lucyAction("Basic - Locked Thread 2", { frames: 37, cancel: 26, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 60.76, energy: 0.96, concerto: 3.07, offtune: 3761, forte1: 12 });
+const BA3 = lucyAction("Basic - Locked Thread 3", { frames: 69, cancel: 53, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 120.2, energy: 1.87, concerto: 6.06, offtune: 7440, forte1: 18 });
+const BA4 = lucyAction("Basic - Locked Thread 4", { frames: 75, cancel: 63, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 155.09, energy: 2.4, concerto: 7.8, offtune: 9600, forte1: 26 });
+const MA = lucyAction("Mid-air - Locked Thread Plunge", { frames: 97, cancel: 79, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 116.32, energy: 2.26, concerto: 5.86, offtune: 7200, forte1: 8 });
+const DC = lucyAction("Dodge Counter - Locked Thread", { frames: 70, cancel: 54, node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 197.73, energy: 3.83, concerto: 19.96, offtune: 12240, forte1: 12 });
+const HA1 = lucyAction("Heavy - Locked Thread 1", { frames: 48, cancel: 43, node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 73.67, energy: 1.43, concerto: 3.73, offtune: 4560, forte1: 10 });
+const HA2 = lucyAction("Heavy - Locked Thread 2", { frames: 109, cancel: 73, node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 284.32, energy: 5.51, concerto: 14.32, offtune: 17602, forte1: 20.02 });
 
 // --- Algorithm Compaction replaces the whole chain. Thread Shredding is Basic-cast but Heavy
 //     Attack DMG; the mid-air and dodge counter forms stay Basic. All of it banks Root Access.
-const EBA1 = lucyAction("Basic - Thread Shredding 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 77.96, energy: 1.12, concerto: 4.48, offtune: 4480, forte2: 16.2 });
-const EBA2 = lucyAction("Basic - Thread Shredding 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 111.35, energy: 1.6, concerto: 6.4, offtune: 6400, forte2: 29.55 });
-const EBA3 = lucyAction("Basic - Thread Shredding 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 140.6, energy: 2.05, concerto: 8.1, offtune: 8080, forte2: 37.3 });
-const EBA4 = lucyAction("Basic - Thread Shredding 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 125.3, energy: 1.8, concerto: 7.2, offtune: 7200, forte2: 33.25 });
-const EMA = lucyAction("Mid-air - Algorithm Compaction Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 125.26, energy: 2.26, concerto: 5.86, offtune: 7200, forte2: 33.22 });
+const EBA1 = lucyAction("Basic - Thread Shredding 1", { frames: 34, cancel: 23, node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 77.96, energy: 1.12, concerto: 4.48, offtune: 4480, forte2: 16.2 });
+const EBA2 = lucyAction("Basic - Thread Shredding 2", { frames: 55, cancel: 41, node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 111.35, energy: 1.6, concerto: 6.4, offtune: 6400, forte2: 29.55 });
+const EBA3 = lucyAction("Basic - Thread Shredding 3", { frames: 67, cancel: 49, node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 140.6, energy: 2.05, concerto: 8.1, offtune: 8080, forte2: 37.3 });
+const EBA4 = lucyAction("Basic - Thread Shredding 4", { frames: 57, cancel: 26, node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 125.3, energy: 1.8, concerto: 7.2, offtune: 7200, forte2: 33.25 });
+const EMA = lucyAction("Mid-air - Algorithm Compaction Plunge", { frames: 67, cancel: 43, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 125.26, energy: 2.26, concerto: 5.86, offtune: 7200, forte2: 33.22 });
 const EDC = lucyAction("Dodge Counter - Algorithm Compaction", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 194.85, energy: 3.5, concerto: 21.2, offtune: 11200, forte2: 29.55 });
-const EHA = lucyAction("Heavy - Single Threading", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 116.95, energy: 1.7, concerto: 6.75, offtune: 6720, forte2: 31 });
+const EHA = lucyAction("Heavy - Single Threading", { frames: 120, cancel: 38, node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 116.95, energy: 1.7, concerto: 6.75, offtune: 6720, forte2: 31 });
 // Payload's charge, Deadlock and Multi-threading each land a Tune Hack
 const HACKS = { updateDebuffs: () => applyHack() };
 // each gauge's own ceiling is applied on the one cast that spends it rather than on every action
 // — so that cast's own -100 lands exactly on empty, and everything before it still reports what
 // the gauge really banked
 const DualThreading = lucyAction("Heavy - Dual Threading", {
+  frames: 120, cancel: 48,
   node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 167.05, energy: 3, concerto: 8, offtune: 6720, forte2: -100,
 });
 /** Multi-threading, at its bare values — the SQL form is the same cast with SQL's own additions on
  *  top (see SQL below), which is how nanoka lists it. */
-const MultiThreading = lucyAction("Heavy - Multi-threading", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 238.6, energy: 3, concerto: 8, offtune: 10080, ...HACKS });
+const MultiThreading = lucyAction("Heavy - Multi-threading", { frames: 61, cancel: 55, node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 238.6, energy: 3, concerto: 8, offtune: 10080, ...HACKS });
 
 // --- Protocol Breach. Payload is the charge; hitting with it automatically triggers the follow-up,
 //     which is in turn what activates Pulse Interference — so the follow-up is queued off the charge
 //     rather than named by a rotation. Deadlock replaces both Payload and Pulse Interference at 100
 //     TCP and is Heavy Attack DMG rather than Resonance Skill DMG.
 const Skill1 = lucyAction("Skill - Payload (Charge)", {
+  frames: 55, cancel: 46,
   node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 30.08, energy: 1.5, concerto: 2.4, offtune: 1512, forte1: 3.6, ...HACKS,
   updateBuffs: () => queue(Skill2), // hitting with the charge triggers the follow-up on its own
 });
 const Skill2 = lucyAction("Skill - Payload (Follow-Up)", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 70.17, energy: 3.5, concerto: 5.6, offtune: 3528, forte1: 8.4 });
 const Skill3 = lucyAction("Skill - Pulse Interference", {
+  frames: 156, cancel: 128,
   node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 308.6, energy: 5, concerto: 8, offtune: 15520, forte1: 12,
   updateBuffs: () => applyCurrent(DIGITAL_HANDSHAKE, 1),  // DIGITAL_HANDSHAKE grants no stat and nothing reads it
 });
 const Deadlock = lucyAction("Skill - Deadlock", {
+  frames: 12, cancel: 72,
   node: Node.Skill, cast: Cast.Skill, type: Type1.Heavy, mv: 258.47, energy: 10, concerto: 8, forte1: -100, ...HACKS,
   updateBuffs: () => {
     // enters Algorithm Compaction with one SQL; casting it again inside the state grants neither
@@ -141,9 +145,11 @@ const OVERRIDE = {
   },
 };
 const Lib = lucyAction("Liberation - Netrunner: Override", {
+  frames: 60, cancel: 262,
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Heavy, mv: 894.65, concerto: 20, offtune: 43200, resetEnergy: true, ...OVERRIDE,
 });
 const ELib = lucyAction("Liberation - Old Net Deep Dive: Override", {
+  frames: 0, cancel: 262,
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Heavy, mv: 1789.29, concerto: 20, offtune: 86400, resetEnergy: true, ...OVERRIDE,
 });
 // queued off the Liberation rather than played, but active casts all the same — she fires them from
@@ -156,10 +162,12 @@ const CrippleMovement = lucyAction("Liberation - Spoofing Program: Cripple Movem
 });
 
 const Intro = lucyAction("Intro - Outdated Hallucination", {
+  frames: 57, cancel: 39,
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 138.28, energy: 10, concerto: 10, offtune: 8560,
   updateBuffs: () => applyCurrent(OUTDATED_HALLUCINATION, 1),
 });
 const Outro = lucyAction("Outro - Countermeasure Program", {
+  frames: 0, cancel: 0,
   cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => { queueOutro(COUNTERMEASURE_HANDOFF); applyTeam(COUNTERMEASURE_MARKER, 1); }
 });
@@ -179,6 +187,7 @@ const DataCrash = lucyAction("Tune Hack Response - Data Crash", {
  *  Liberation ends it — which is the same beat, her loop spending the state in one pass. */
 const ALGORITHM_COMPACTION = new Buff({
   name: "Lucy: Algorithm Compaction",
+  duration: 60 * 8,
   stats: [[Stat.DmgBonus, 65, Attribute.Spectro]],
   convertStats: () => { if (runningAction(Outro)) revokeCurrent(ALGORITHM_COMPACTION); },
 });
@@ -224,12 +233,14 @@ const DIGITAL_HANDSHAKE = new Buff({
  *  gear runs through whoever is acting, so every attacker reads the identical 5%. */
 const CYBERWARE_MALFUNCTION = new Debuff({
   name: "Spoofing Program: Cyberware Malfunction",
+  duration: 60 * 30,
   stats: [[Stat.DamageTaken, 5]],
 });
 
 /** Spoofing Program: Breach Protocol — marked targets' DEF reduced 5% for 30s, permanent uptime. */
 const BREACH_PROTOCOL = new Debuff({
   name: "Spoofing Program: Breach Protocol",
+  duration: 60 * 30,
   applyStats: () => addEnemyStat(EnemyStat.DefReduce, 5),
 });
 
@@ -237,6 +248,7 @@ const BREACH_PROTOCOL = new Debuff({
  *  DMG Amplification for 14s or until they switch out. */
 const COUNTERMEASURE_HANDOFF = new Buff({
   name: "Lucy: Outro",
+  duration: 60 * 14,
   until: LifeTime.Swap,
   stats: [[Stat.Amp, 25, Type1.Basic]],
 });
@@ -247,6 +259,7 @@ const COUNTERMEASURE_HANDOFF = new Buff({
  *  DMG-reduction and Stagnate halves are defensive and carry no stat. */
 const COUNTERMEASURE_MARKER = new Buff({
   name: "Lucy: Countermeasure Program (team)",
+  duration: 60 * 25,
   updateBuffs: () => { 
     if (applied(TUNE_HACK_SHIFTING) && !isHeld(LUCY_RESONATOR)) {
       applyCurrent(COUNTERMEASURE_AMP, 1); 
@@ -270,6 +283,7 @@ const COUNTERMEASURE_AMP = new Buff({
  *  which covers the visit it opens and goes with her outro. */
 const LC_S1_ATK = new Buff({
   name: "Lucy S1: The Moon, a Ticket, and a Dream",
+  duration: 60 * 14,
   stats: [[Stat.BonusAtk, 20]],
   until: LifeTime.Outro,
 });
@@ -286,7 +300,10 @@ const LC_S1 = new Sequence({
  *  concerto or off-tune and a chain hit has no row of its own in nanoka's table, so it declares none. */
 const S2Instance = lucyAction("Skill - Pulse Interference (S2 Additional)", {
   node: Node.Skill, type: Type1.Heavy, mv: 450,
-  updateDebuffs: () => { applyEnemy(CYBERWARE_MALFUNCTION, 1); applyEnemy(BREACH_PROTOCOL, 1); },
+  afterAction: () => {
+    applyEnemy(CYBERWARE_MALFUNCTION, 1);
+    applyEnemy(BREACH_PROTOCOL, 1);
+  },
 });
 
 /** S2. Its first clause is the starting RAM, 24 up to 32 — which is every Spoofing Program at once
@@ -314,6 +331,7 @@ const LC_S3 = new Sequence({
  *  goes on her own next Intro; "All-Attribute DMG Bonus" is a plain untagged bonus (CLAUDE.md). */
 const LC_S4_TEAM = new Buff({
   name: "Lucy S4: No Living Legends in Night City",
+  duration: 60 * 20,
   stats: [[Stat.DmgBonus, 20]],
 });
 
@@ -423,7 +441,7 @@ const LC_ECHOES = [
  *  Hack half is a motion-value multiplier scoped to Hack, so it lands on Cripple Movement and Data
  *  Crash and nothing else. */
 const NETWORK_BACKDOOR = new Buff({
-  name: "Lucy: Network Backdoor", maxStacks: 2,
+  name: "Lucy: Network Backdoor", maxStacks: 2, duration: 60 * 120,
   applyStats: () => {
     const bonus = 10 * frozenStacks() + (frozenStacks() >= 2 ? 5 : 0);
     addStat(Stat.Amp, bonus);

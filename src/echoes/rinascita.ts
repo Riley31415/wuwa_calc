@@ -27,10 +27,11 @@ export const SENTRY_CONSTRUCT = new Mainslot({
 export const FROSTY_RESOLVE_2PC = new Sonata2pc({ name: "Frosty Resolve 2pc", stats: [[Stat.DmgBonus, 12, Type1.Skill]] });
 export const FROSTY_RESOLVE_GLACIO = new Buff({
   name: "Frosty Resolve 5pc: Glacio",
+  duration: 60 * 15,
   stats: [[Stat.DmgBonus, 22.5, Attribute.Glacio]], until: LifeTime.Outro,
 });
 export const FROSTY_RESOLVE_SKILL_DMG = new Buff({
-  name: "Frosty Resolve 5pc: Resonance Skill", maxStacks: 2,
+  name: "Frosty Resolve 5pc: Resonance Skill", maxStacks: 2, duration: 60 * 5,
   stats: [[Stat.DmgBonus, 18, Type1.Skill]], perStack: true, until: LifeTime.Outro,
 });
 export const FROSTY_RESOLVE_5PC = new Sonata({
@@ -78,6 +79,7 @@ export const ACTION_MIDNIGHT_VEIL_BURST = new Action("Outro - Midnight Veil", {
 });
 export const MIDNIGHT_VEIL_HANDOFF = new Buff({
   name: "Midnight Veil 5pc (outro)",
+  duration: 60 * 15,
   stats: [[Stat.DmgBonus, 15, Attribute.Havoc]], until: LifeTime.Outro,
 });
 export const MIDNIGHT_VEIL_5PC = new Sonata({
@@ -117,6 +119,7 @@ export const TIDEBREAKING_5PC = new Sonata({
 
 /** Nightmare: Hecate, Phrolova's own mainslot echo — flat Havoc/Echo Skill DMG Bonus, no trigger. */
 export const ACTION_NM_HECATE = new Action("Echo - Nightmare: Hecate", {
+  frames: 60,
   cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Echo, mv: 457.17, energy: 3.15,
 });
 export const NM_HECATE = new Mainslot({
@@ -159,10 +162,11 @@ export const EMPYREAN_ANTHEM_5PC = new Sonata({
   name: "Empyrean Anthem 5pc",
   sonata2pc: EMPYREAN_ANTHEM_2PC,
   stats: [[Stat.DmgBonus, 80, Type2.Coordinated]],
-  grants: [{ on: onType(Type2.Coordinated), buff: () => EMPYREAN_ANTHEM_TEAM, to: BuffTarget.Team }],
+  grants: [{ on: onType(Type2.Coordinated), buff: () => EMPYREAN_ANTHEM_TEAM, to: BuffTarget.Team, onHit: true }],
 });
 export const EMPYREAN_ANTHEM_TEAM = new Buff({
   name: "Empyrean Anthem 5pc",
+  duration: 60 * 4,
   stats: [[Stat.BonusAtk, 20]], when: isActive,
 });
 
@@ -193,10 +197,12 @@ export const NM_KELPIE = new Mainslot({
  *  outro, per the standing duration rules. */
 export const GUSTS_OF_WELKIN_TEAM = new Buff({
   name: "Gusts of Welkin 5pc (team)",
+  duration: 60 * 20,
   stats: [[Stat.DmgBonus, 15, Attribute.Aero]],
 });
 export const GUSTS_OF_WELKIN_SELF = new Buff({
   name: "Gusts of Welkin 5pc",
+  duration: 60 * 20,
   stats: [[Stat.DmgBonus, 15, Attribute.Aero]],
 });
 export const GUSTS_OF_WELKIN_2PC = new Sonata2pc({ name: "Gusts of Welkin 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Aero]] });
@@ -240,9 +246,10 @@ export const WINDWARD_2PC = new Sonata2pc({ name: "Windward Pilgrimage 2pc", sta
 export const WINDWARD_5PC = new Sonata({
   name: "Windward Pilgrimage 5pc",
   sonata2pc: WINDWARD_2PC,
-  grants: [{ on: () => stacksOfEnemy(AERO_EROSION) > 0, buff: () => WINDWARD_BUFF }],
+  grants: [{ on: () => stacksOfEnemy(AERO_EROSION) > 0, buff: () => WINDWARD_BUFF, onHit: true }],
 });
 export const WINDWARD_BUFF = new Buff({
   name: "Windward Pilgrimage 5pc",
+  duration: 60 * 10,
   stats: [[Stat.CritRate, 10], [Stat.DmgBonus, 30, Attribute.Aero]], until: LifeTime.Outro,
 });

@@ -41,34 +41,39 @@ function sanhuaAction(id: string, def: object): Action {
 // under S5) and arms Blade Mastery (S4) — each marker granted by the cast that makes it, for
 // Detonate to spend below.
 const Intro = sanhuaAction("Intro - Freezing Thorns", {
+  frames: 60, cancel: 54,
   node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 139.17, energy: 10, concerto: 10, offtune: 2800,
   updateBuffs: () => applyCurrent(THORN_BUFF, 1),
 });
 const Outro = sanhuaAction("Outro - Silversnow", {
+  frames: 0, cancel: 0,
   cast: Cast.Outro, concerto: -100, swapOut: true,
   updateBuffs: () => queueOutro(SANHUA_OUTRO),
 });
 
 const Skill = sanhuaAction("Skill - Eternal Frost", {
+  frames: 60, cancel: 18,
   node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, cutscene: true, mv: 359.85, offtune: 8000, energy: 10, concerto: 15,
   updateBuffs: () => applyCurrent(PRISM_BUFF, 1),
 });
 const Liberation = sanhuaAction("Liberation - Glacial Gaze", {
+  frames: 7, cancel: 97,
   node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 809.48, offtune: 61440, energy: 10, concerto: 20, resetEnergy: true,
   updateBuffs: () => applyCurrent(GLACIER_BUFF, 1),
 });
 
-const BA1 = sanhuaAction("Basic - Frigid Light 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 48.71, energy: 0.87, concerto: 2, offtune: 2800 });
-const BA2 = sanhuaAction("Basic - Frigid Light 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.76, energy: 1.32, concerto: 4, offtune: 4240 });
-const BA3 = sanhuaAction("Basic - Frigid Light 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.32, energy: 1.52, concerto: 8, offtune: 4960 });
-const BA4 = sanhuaAction("Basic - Frigid Light 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.34, energy: 1.42, concerto: 8, offtune: 4560 });
-const BA5 = sanhuaAction("Basic - Frigid Light 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 233.81, energy: 4.2, concerto: 10, offtune: 13440 });
-const HA = sanhuaAction("Heavy - Frigid Light", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 111.35, energy: 2, concerto: 8, offtune: 8000 });
-const MA = sanhuaAction("Mid-air - Frigid Light Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.29, energy: 0.51, concerto: 1, offtune: 9520 });
+const BA1 = sanhuaAction("Basic - Frigid Light 1", { frames: 23, cancel: 13, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 48.71, energy: 0.87, concerto: 2, offtune: 2800 });
+const BA2 = sanhuaAction("Basic - Frigid Light 2", { frames: 33, cancel: 24, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.76, energy: 1.32, concerto: 4, offtune: 4240 });
+const BA3 = sanhuaAction("Basic - Frigid Light 3", { frames: 36, cancel: 36, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.32, energy: 1.52, concerto: 8, offtune: 4960 });
+const BA4 = sanhuaAction("Basic - Frigid Light 4", { frames: 36, cancel: 24, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.34, energy: 1.42, concerto: 8, offtune: 4560 });
+const BA5 = sanhuaAction("Basic - Frigid Light 5", { frames: 109, cancel: 32, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 233.81, energy: 4.2, concerto: 10, offtune: 13440 });
+const HA = sanhuaAction("Heavy - Frigid Light", { frames: 50, cancel: 36, node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 111.35, energy: 2, concerto: 8, offtune: 8000 });
+const MA = sanhuaAction("Mid-air - Frigid Light Plunge", { frames: 60, cancel: 34, node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.29, energy: 0.51, concerto: 1, offtune: 9520 });
 
 // Ice Thorn's own burst is a real exception, not a data gap: 0 concerto (every other burst pays
 // 1500), just 200 Energy — kept as given rather than smoothed over.
 const FHA = sanhuaAction("Forte Heavy - Detonate", {
+  frames: 101, cancel: 101,
   node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 372.58, offtune: 14992, energy: 4.68, concerto: 15,
   // spends whichever Ice Creations are up and queues the matching burst(s)
   updateBuffs: () => {
@@ -88,6 +93,7 @@ const DETONATE_GLACIER = sanhuaAction("Forte - Ice Burst (Glacier)", { node: Nod
 /** Condensation (Inherent Skill): +20% Resonance Skill DMG for 8s after Intro. */
 const CONDENSATION = new Buff({
   name: "Inherent: Condensation",
+  duration: 60 * 8,
   stats: [[Stat.DmgBonus, 20, Type1.Skill]],
   until: LifeTime.Outro,
 });
@@ -101,6 +107,7 @@ const SH_INHERENT_1 = new Inherent({
  *  the three Ice Burst actions directly — not Type2.FusionBurst, which is Fusion's own proc type. */
 const AVALANCHE = new Buff({
   name: "Inherent: Avalanche",
+  duration: 60 * 8,
   applyStats: () => {
     if (runningAction(DETONATE_THORN) || runningAction(DETONATE_PRISM) || runningAction(DETONATE_GLACIER)) addStat(Stat.DmgBonus, 20);
   },
@@ -115,6 +122,7 @@ const SH_INHERENT_2 = new Inherent({
 /** S1 Solitude's Embrace: Basic Attack 5 grants +15% Crit Rate, 10s. Trigger lives in SANHUA_S1. */
 const S1_CRIT = new Buff({
   name: "Sanhua S1: Solitude's Embrace",
+  duration: 60 * 10,
   stats: [[Stat.CritRate, 15]],
   until: LifeTime.Outro,
 });
@@ -123,6 +131,7 @@ const S1_CRIT = new Buff({
  *  or lost on outro if Detonate never comes. Trigger lives in SANHUA_S4. */
 const S4_WINDOW = new Buff({
   name: "Sanhua S4: Blade Mastery",
+  duration: 60 * 5,
   applyStats: () => { if (runningAction(FHA)) addStat(Stat.DmgBonus, 120); },
   convertStats: () => { if (runningAction(FHA) || casting(Cast.Outro)) revokeCurrent(S4_WINDOW); },
 });
@@ -130,7 +139,7 @@ const S4_WINDOW = new Buff({
 /** S6 Daybreak Radiance: detonating an Ice Prism/Glacier grants the *other* two members +10% ATK,
  *  excluding Sanhua herself. Lost on her own next Intro, same shape as Verina's Gift of Nature. */
 const S6_ATK = new Buff({
-  name: "Sanhua S6: Daybreak Radiance", maxStacks: 2,
+  name: "Sanhua S6: Daybreak Radiance", maxStacks: 2, duration: 60 * 20,
   applyStats: () => { if (!isHeld(SANHUA_RESONATOR)) addStat(Stat.BonusAtk, 10 * frozenStacks()); },
   convertStats: () => { if (casting(Cast.Intro) && isHeld(SANHUA_RESONATOR)) revokeTeam(S6_ATK); },
 });
@@ -144,11 +153,12 @@ const PRISM_BUFF = new Buff({
   name: "Sanhua: Ice Prism", until: LifeTime.Outro,
 });
 const GLACIER_BUFF = new Buff({
-  name: "Sanhua: Glacier", maxStacks: 2, until: LifeTime.Outro,
+  name: "Sanhua: Glacier", maxStacks: 2, until: LifeTime.Outro, duration: 60 * 5,
 });
 
 const SANHUA_OUTRO = new Buff({
   name: "Sanhua: Outro",
+  duration: 60 * 14,
   stats: [[Stat.Amp, 38, Type1.Basic]],
   until: LifeTime.Swap,
 });

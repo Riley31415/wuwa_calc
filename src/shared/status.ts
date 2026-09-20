@@ -16,7 +16,7 @@
  *
  * Frostbite and Implosion key off stack gains, which this engine sees, so they fire themselves.
  * Electromagnetic (every 5s) and Wind Erosion (3s) run on the engine's approximated second
- * (helpers.ts's `oneSecondPassed()`) and tick themselves. Light Noise (3s) still has no clock:
+ * on their own clocks (`tick`) and tick themselves. Light Noise (3s) still has no clock:
  * ladder and stack spend are in place, nothing triggers it, and a rotation can name a rung
  * directly meanwhile — how the migrated sheet placed its ticks.
  *
@@ -41,16 +41,11 @@ import {
   frozenStacks,
   stacksOfEnemy,
   queueOn,
-  enemyForte1,
-  setEnemyForte1,
-  addEnemyForte1,
-  enemyForte2,
-  addEnemyForte2,
+  tickInEnemy,
   asSource,
 } from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
 import type { TeamMember } from "../engine/state.js";
-import { oneSecondPassed } from "./helpers.js";
 
 /** A shield going up, on the caster never applied to the team `applied()` being how
  *  many this cast granted. Never a stat. */
@@ -87,7 +82,7 @@ export const negativeStatusRung = (ladder: (Action | null)[], held: number): Act
 /** Void Annihilation: 25s a stack, cleared when it ends, cap 3 (+12 raisable). No damage of its
  *  own — each stack is 2% DEF reduce. */
 export const HAVOC_BANE = new Debuff({
-    name: "Havoc Bane", maxStacks: 3,
+    name: "Havoc Bane", maxStacks: 3, duration: 60 * 25,
     applyStats: ()=> {
         addEnemyStat(EnemyStat.DefReduce, 2*frozenStacks());
     }
@@ -108,7 +103,7 @@ export const GLACIO_CHAFE_ACTIONS = negativeStatusActions("Glacio Chafe", Attrib
 ]);
 
 export const GLACIO_CHAFE = new Debuff({
-    name: "Glacio Chafe", maxStacks: 10,
+    name: "Glacio Chafe", maxStacks: 10, duration: 60 * 15,
     applyStats: () => { 
         const held = frozenStacks();
         for (let n = Math.max(1, held - applied(GLACIO_CHAFE) + 1); n <= held; n++) {
@@ -126,7 +121,7 @@ export const FUSION_BURST_ACTIONS = negativeStatusActions("Fusion Burst", Attrib
   1630.13, 1863.01, 2095.88,
 ]);
 export const FUSION_BURST = new Debuff({
-  name: "Fusion Burst", maxStacks: 10,
+  name: "Fusion Burst", maxStacks: 10, duration: 60 * 15,
   // A kit's own Fusion Burst DMG instance carries no motion value of its own (Aemeath's Seraphic
   // Duet): what it is worth is the cap rung — a Fusion Burst only ever calculates at the cap,
   // unlike Electro Flare's ticks at the current count (below) — and the kit's own percentage
@@ -149,7 +144,7 @@ export const FUSION_BURST = new Debuff({
 
 /** Wind Erosion: 14.8s a stack, refreshed on gain, cap 3; calculates every 3s at the current
  *  count, spending nothing. Same shape as Electro Flare below — its tick clock is enemy forte 2,
- *  the duration taken as always refreshed, the tick on whoever last inflicted it.
+ *  the 14.8s refreshed by every inflict, the tick on whoever last inflicted it.
  *
  *  That clock counts half-seconds, two to the second, so a kit that halves the interval can add
  *  its own two on top (Cartethyia's Mandate of Divinity). The remainder carries rather than
@@ -161,16 +156,23 @@ export const AERO_EROSION_ACTIONS = negativeStatusActions("Aero Erosion", Attrib
   1012.5, 1125, 1237.5, 
   1350, 1462.5, 1575,
 ]);
-export const AERO_EROSION = new Debuff({
-  name: "Aero Erosion", maxStacks: 3,
-  display: () => `Aero Erosion x${frozenStacks()} (tick in ${(6 - enemyForte2()) / 2}s)`,
-  updateBuffs: () => {
-    const rung = negativeStatusRung(AERO_EROSION_ACTIONS, stacksOfEnemy(AERO_EROSION));
-    if (!rung || !oneSecondPassed() || addEnemyForte2(2) < 6) return;
-    addEnemyForte2(-6);
-    queueOnApplier(AERO_EROSION, rung);
+export const AERO_EROSION: Debuff = new Debuff({
+  name: "Aero Erosion", maxStacks: 3, duration: 60 * 14.8,
+  display: () => `Aero Erosion x${frozenStacks()} (tick in ${Math.round(tickInEnemy(AERO_EROSION) / 6) / 10}s)`,
+  // every 3s of its own clock, at the count it finds — 1.5s while Cartethyia's Mandate of
+  // Divinity holds the target (below)
+  tick: {
+    every: () => (stacksOfEnemy(EROSION_HASTE) ? 90 : 180),
+    fire: () => {
+      const rung = negativeStatusRung(AERO_EROSION_ACTIONS, stacksOfEnemy(AERO_EROSION));
+      if (rung) queueOnApplier(AERO_EROSION, rung);
+    },
   },
 });
+/** Cartethyia's Mandate of Divinity on the target: Aero Erosion's clock runs twice as fast while
+ *  it stands. Put up and taken down by her own kit (cartethyia.ts); nameless, so the popover
+ *  carries no row for it. */
+export const EROSION_HASTE = new Debuff({});
 
 /** Light Noise: 3s a stack, no refresh on gain, cap 10; calculates every 3s, dropping one stack
  *  each time. Untriggered — no clock. */
@@ -214,15 +216,13 @@ export const FLARE_RETAINED = new Debuff({});
  *  current count and halves the stacks (rounded down); what lands past the cap banks as Electro
  *  Rage (cap 10), which adds its own multiplier onto the next calculation and is spent by it.
  *
- *  Its tick clock lives on the target's own gauge (context.ts's enemy forte 1): seconds since the
- *  last tick, advanced from here on every engine second (helpers.ts's `oneSecondPassed()`) while
- *  the status is up. The 15s duration is not kept — every rotation re-inflicts well inside it, so
- *  it is taken as always refreshed. A tick resolves on the slot of whoever last inflicted the
- *  status — they are on field for none of it, but the damage is theirs — so a Buling array
- *  ticking through the DPS's turn still lands in her column. */
-export const ELECTRO_FLARE = new Debuff({
-  name: "Electro Flare", maxStacks: 10,
-  display: () => `Electro Flare x${frozenStacks()} (tick in ${5 - enemyForte1()}s)`,
+ *  The 5s is the status's own clock (`tick`), running from the first inflict and untouched by the
+ *  refreshes after it. A tick resolves on the slot of whoever last inflicted the status — they are
+ *  on field for none of it, but the damage is theirs — so a Buling array ticking through the
+ *  DPS's turn still lands in her column. */
+export const ELECTRO_FLARE: Debuff = new Debuff({
+  name: "Electro Flare", maxStacks: 10, duration: 60 * 15,
+  display: () => `Electro Flare x${frozenStacks()} (tick in ${Math.round(tickInEnemy(ELECTRO_FLARE) / 6) / 10}s)`,
   // A kit's own Electro Flare DMG instance carries no motion value of its own (Hsin's Heart of
   // Thunder hits): what it is worth is "the Electro Flare DMG Multiplier corresponding to the
   // current Electro Flare stacks on the target" — the count it finds, the same rung the status's
@@ -235,15 +235,20 @@ export const ELECTRO_FLARE = new Debuff({
     const rung = negativeStatusRung(ELECTRO_FLARE_DMG, frozenStacks());
     if (rung) asSource(rung, () => addStat(Stat.AddMv, rung.mv));
   },
-  updateBuffs: () => {
-    const held = stacksOfEnemy(ELECTRO_FLARE);
-    const rung = negativeStatusRung(ELECTRO_FLARE_DMG, held);
-    if (!rung || !oneSecondPassed() || addEnemyForte1(1) < 5) return;
-    setEnemyForte1(0);
-    queueOnApplier(ELECTRO_FLARE, rung);
-    const rage = negativeStatusRung(ELECTRO_RAGE_ACTIONS, stacksOfEnemy(ELECTRO_RAGE));
-    if (rage) { queueOnApplier(ELECTRO_FLARE, rage); revokeEnemy(ELECTRO_RAGE); }
-    if (!stacksOfEnemy(FLARE_RETAINED)) removeStackEnemy(ELECTRO_FLARE, held - Math.floor(held / 2));
+  tick: {
+    every: 300,
+    fire: () => {
+      const held = stacksOfEnemy(ELECTRO_FLARE);
+      const rung = negativeStatusRung(ELECTRO_FLARE_DMG, held);
+      if (!rung) return;
+      queueOnApplier(ELECTRO_FLARE, rung);
+      const rage = negativeStatusRung(ELECTRO_RAGE_ACTIONS, stacksOfEnemy(ELECTRO_RAGE));
+      if (rage) {
+        queueOnApplier(ELECTRO_FLARE, rage);
+        revokeEnemy(ELECTRO_RAGE);
+      }
+      if (!stacksOfEnemy(FLARE_RETAINED)) removeStackEnemy(ELECTRO_FLARE, held - Math.floor(held / 2));
+    },
   },
 });
 

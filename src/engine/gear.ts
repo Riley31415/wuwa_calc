@@ -24,8 +24,10 @@ export type Trigger = () => boolean;
  *  (a `Debuff`), or `next` — published for whoever intros next (`queueOutro`). `stacks` may read
  *  the action (`() => applied(SHIELD)`). `buff` left out means the declaring Buff itself — a buff
  *  that stacks itself up on a trigger; a thunk (`() => LATER_BUFF`) reaches one declared further
- *  down the file. */
-export interface Grant { on: Trigger; buff?: Buff | (() => Buff); stacks?: number | (() => number); to?: BuffTarget }
+ *  down the file. `onHit` grants when the hit lands rather than when the press starts — the
+ *  afterAction phase, `frames` later on the fight clock and after the hit's own damage — for a
+ *  "when X hits / upon dealing Y DMG" clause; the default is the cast phase (updateBuffs). */
+export interface Grant { on: Trigger; buff?: Buff | (() => Buff); stacks?: number | (() => number); to?: BuffTarget; onHit?: boolean }
 
 export interface GearDef {
   /** Optional only because `toString` can cover for it entirely — a Gear whose display name is
@@ -59,7 +61,8 @@ export interface GearDef {
    *  after `updateDebuffs`, so a teammate's own Shifting/status/shield from this action is visible. */
   updateGlobal?: () => void;
   /** Grant/revoke/queue/spend — never a stat contribution. Runs across every held Gear, after
-   *  `updateDebuffs` and `updateGlobal`. */
+   *  `updateDebuffs` and `updateGlobal`. The cast phase: the fight clock still reads the frame the
+   *  press started on, so a buff granted here dates from the cast. */
   updateBuffs?: () => void;
   /** A stat contribution that depends on nothing but what the action *is* — `addStat()` calls,
    *  plain or scoped to an element/type, and nothing else: no stacks, no gauges, no `casting()`
@@ -77,7 +80,9 @@ export interface GearDef {
    *  only phase that sees the gauges as the action actually leaves them. For machinery reacting to
    *  a gauge crossing a threshold rather than to the action itself: tunebreak.ts's own watcher
    *  fires the break from here, which is why the engine needs no idea the mechanic exists. Grant/
-   *  revoke/queue only, never a stat — stats are long since resolved by now. */
+   *  revoke/queue only, never a stat — stats are long since resolved by now. The on-hit phase: the
+   *  clock has moved on by the press's `frames`, so a buff granted here dates from the hit and
+   *  pays from the next action on, never on the hit that granted it. */
   afterAction?: () => void;
   /** Same shape as `convertStats`, one phase later — for a conversion that reads a stat *another*
    *  gear's convertStats() grants, which it would otherwise race (the roster runs the acting slot's
@@ -133,6 +138,13 @@ export class Gear {
    *  off a plain Gear: `equip()` puts a Resonator/weapon/echo onto a slot through exactly the
    *  same path a buff goes through. */
   maxStacks = 1;
+  /** See `BuffDef.duration` — frames a grant of this stands for, 0 for unlimited. On Gear rather
+   *  than Buff because a pool holds every kind of Gear and reads it off each entry it stamps. */
+  duration = 0;
+  durationFn?: (stacks: number) => number;
+  /** See `BuffDef.tick` — the cadence in frames, and what fires on it. */
+  tickEvery?: () => number;
+  tickFn?: (n: number) => void;
   /** See `GearDef.field` — the field this Gear's own presence stands for, or null. */
   field: ActionField | null;
   combatStartFn?: () => void;
@@ -179,9 +191,7 @@ export class Gear {
       this.constantStatsFn = () => { for (const line of lines) addStat(line[0] as Stat, line[1], line[2]); own?.(); };
     }
     if (def.grants?.length) {
-      const grants = def.grants, own = def.updateBuffs;
-      this.updateBuffsFn = () => {
-        own?.();
+      const fire = (grants: Grant[]): void => {
         for (const g of grants) {
           if (!g.on()) continue;
           const n = typeof g.stacks === "function" ? g.stacks() : g.stacks ?? 1;
@@ -193,6 +203,22 @@ export class Gear {
           else applyCurrent(buff, n);
         }
       };
+      // on-cast grants land in the cast phase, on-hit ones once the hit has resolved
+      const onCast = def.grants.filter((g) => !g.onHit), onHit = def.grants.filter((g) => g.onHit);
+      if (onCast.length) {
+        const own = def.updateBuffs;
+        this.updateBuffsFn = () => {
+          own?.();
+          fire(onCast);
+        };
+      }
+      if (onHit.length) {
+        const own = def.afterAction;
+        this.afterActionFn = () => {
+          own?.();
+          fire(onHit);
+        };
+      }
     }
     this.wire();
   }
@@ -235,12 +261,34 @@ export interface BuffDef extends GearDef {
   early?: boolean;
   /** When the buff goes — see `LifeTime` (stats.ts). Unset is permanent. */
   until?: LifeTime;
+  /** How long this stands once granted, in frames at 60 a second (`60 * 30` for thirty seconds).
+   *  Every grant refreshes it, and it is dropped ahead of the first action that starts at or past
+   *  its end (evaluate.ts's expiry pass). 0, the default, is unlimited. Independent of `until`:
+   *  whichever comes first ends the buff. A function is read at each grant, after the stacks have
+   *  landed and with the count it landed on, for a length that depends on the moment ("extended
+   *  to 30s at max stacks", a window whose stacks are its seconds). */
+  duration?: number | ((stacks: number) => number);
+  /** A clock of the buff's own: `fire` runs every `every` frames of fight time it stands, with
+   *  the tick's ordinal since the grant, on whichever action's press carries the clock past it —
+   *  a field's summons, a status's own damage, a stack gained every 0.2s. Fired as the clock
+   *  advances (state.ts's `runTicks()`), with the "current" pointers on the holder for a member's
+   *  own buff and on whoever is acting for the team's and the enemy's. `every` as a function is
+   *  read each span, and 0 from it holds the clock still for that span (a dance that pauses while
+   *  its owner is on field). A refresh does not restart the cadence. */
+  tick?: { every: number | (() => number); fire: (n: number) => void };
 }
 
 export class Buff extends Gear {
   constructor(def: BuffDef) {
     super(def);
     this.maxStacks = def.maxStacks ?? 1;
+    if (typeof def.duration === "function") this.durationFn = def.duration;
+    else this.duration = def.duration ?? 0;
+    if (def.tick) {
+      const every = def.tick.every;
+      this.tickEvery = typeof every === "function" ? every : () => every;
+      this.tickFn = def.tick.fire;
+    }
     if (def.stats?.length) {
       const lines = def.stats, when = def.when, perStack = def.perStack;
       const pay = (): void => {
