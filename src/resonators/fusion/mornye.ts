@@ -36,11 +36,10 @@ import {
   applyEnemy,
   revokeEnemy,
   stacksOfEnemy,
-  triggeredAction,
-  isActive,
   currentTeam,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, START_2, SWAP, NOINTRO, INTRO, ECHO_SWAP, OUTRO, START_3 } from "../../engine/rotation.js";
+import { oneSecondPassed } from "../../shared/helpers.js";
 import { HEALS } from "../../shared/status.js";
 import {
   TUNE_BREAK, TUNE_RUPTURE_INTERFERED, TUNE_STRAIN_INTERFERED, tuneRuptureResponse, strainPayout,
@@ -187,16 +186,24 @@ const OBSERVATION_MARKER = new Debuff({
 /** Interfered Marker: while the target is under Tune Rupture/Strain - Interfered, whoever's on
  *  field deals +0.25% DMG per 1% of Mornye's ER past 100%, up to 40% — taken at the cap, same
  *  260%-ER build call as Critical Protocol above. 8s, the same window every Interfered runs on
- *  (tunebreak.ts, counted off in actions) rather than a clock of its own, refreshed by every break
- *  the marker answers — written out here instead of through `interferedWindow()` because S1 both
- *  stretches that window to 20s and drops the Interfered requirement. */
+ *  rather than a clock of its own, refreshed by every break the marker answers — written out here
+ *  instead of through `interferedWindow()` because S1 both stretches that window to 20s and drops
+ *  the Interfered requirement. */
 const INTERFERED_MARKER: Debuff = new Debuff({
-  name: "Mornye: Interfered Marker", maxStacks: 26,
-  display: () => "Mornye: Interfered Marker",
-  updateBuffs: () => {
-    if (triggeredAction() || !isActive()) return;
+  name: "Mornye: Interfered Marker", maxStacks: 20,
+  // the stacks are the engine's seconds, one per qualifying press, so the count is the window's
+  // age and 8 (or 20) less it is what the marker has left
+  display: () => {
     const s1 = currentTeam().slots.find((m) => m.resonator === MORNYE_RESONATOR)?.isHeld(MO_S1);
-    if (stacksOfEnemy(INTERFERED_MARKER) > (s1 ? 25 : 10)) revokeEnemy(INTERFERED_MARKER);
+    return `Mornye: Interfered Marker (${(s1 ? 20 : 8) + 1 - frozenStacks()}s)`;
+  },
+  // counted in convertStats, after applyStats has paid: the press that spends the eighth second is
+  // still inside the window, and closing it in updateBuffs would take it off that press before it
+  // read anything, leaving an 8s debuff paying seven (Changli's Outro, the same shape)
+  convertStats: () => {
+    if (!oneSecondPassed()) return;
+    const s1 = currentTeam().slots.find((m) => m.resonator === MORNYE_RESONATOR)?.isHeld(MO_S1);
+    if (frozenStacks() >= (s1 ? 20 : 8)) revokeEnemy(INTERFERED_MARKER);
     else applyEnemy(INTERFERED_MARKER, 1);
   },
   // pays out on whoever's active; both sequences are her own local gear, so they are read off her

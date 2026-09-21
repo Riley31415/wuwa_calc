@@ -12,6 +12,7 @@ import {
   applyCurrent,
   removeStack,
   applyTeam,
+  stacksOf,
   stacksOfEnemy,
   revokeTeam,
   isActive,
@@ -27,11 +28,17 @@ import { TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../shared/tunebreak
 import { AERO_EROSION, FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE } from "../shared/status.js";
 
 /** Changli's sig: Crimson Phoenix. +12% ATK flat. Resonance Skill grants 5 stacks of Searing
- *  Feather outright (up to 14) — the per-hit 0.5s-ICD trickle isn't modelled. */
+ *  Feather outright, and dealing damage one more every 0.5s — two an engine second, up to 14.
+ *  At the cap the whole lot goes 12s later, which is the outro the visit ends on: only an outro
+ *  cast at max stacks takes them, and short of it they carry into the next visit. */
 export const BLAZING_BRILLIANCE = refinements((r, rank) => {
-  const SEARING_FEATHER = new Buff({
+  const SEARING_FEATHER: Buff = new Buff({
     name: `Blazing Brilliance: Crimson Phoenix${rank}`, maxStacks: 14,
-    stats: [[Stat.DmgBonus, [4, 5, 6, 7, 8][r]!, Type1.Skill]], perStack: true, early: true, until: LifeTime.Outro,
+    stats: [[Stat.DmgBonus, [4, 5, 6, 7, 8][r]!, Type1.Skill]], perStack: true, early: true,
+    updateBuffs: () => {
+      if (oneSecondPassed()) applyCurrent(SEARING_FEATHER, 2);
+      if (casting(Cast.Outro) && stacksOf(SEARING_FEATHER) >= 14) revokeCurrent(SEARING_FEATHER);
+    },
   });
   return new Weapon({
     weaponType: WeaponType.Sword, name: `Blazing Brilliance${rank}`,

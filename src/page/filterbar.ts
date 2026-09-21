@@ -14,8 +14,9 @@ const app = document.getElementById("app")!;
 /* ---------------------------------------------------------------------------------- search */
 
 let searchText = "";
-/** Which hit Tab has walked to, an index into `searchHits()` — -1 while none has been, where the
- *  first is what Enter takes anyway. Reset by every keystroke, since the list is rebuilt. */
+/** Which hit the keys have walked to, an index into `searchHits()` — -1 while the bar itself holds
+ *  the highlight, where the first hit is what Enter takes anyway. Reset by every keystroke, since
+ *  the list is rebuilt. */
 let searchAt = -1;
 export type SearchKind = "resonator" | OptionKind | "compare" | "matrix";
 /** One offer in the list. `axis`/`resonator` are the compares' own — what `setCompare` needs, since
@@ -112,12 +113,13 @@ export function searchHits(): SearchHit[] {
     .slice(0, 10);
 }
 
-/** Walk the highlight `step` places, wrapping at both ends, and redraw. */
+/** Walk the highlight `step` places and redraw. The bar itself is the place before the first hit,
+ *  so walking past either end lands back on it with nothing highlighted, and one more step on
+ *  comes round to the other end of the list. */
 export function cycleSearch(step: number): void {
   const n = searchHits().length;
   if (!n) return;
-  // the first Tab lands on an end, every one after walks and wraps
-  searchAt = searchAt < 0 ? (step > 0 ? 0 : n - 1) : (searchAt + step + n) % n;
+  searchAt = (searchAt + 1 + step + n + 1) % (n + 1) - 1;
   drawSearch();
   document.querySelector(".sresult.sel")?.scrollIntoView({ block: "nearest" });
 }

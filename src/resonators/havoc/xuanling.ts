@@ -30,9 +30,9 @@
  * Two pieces are deliberately absent. **Refrain** propagates the highest Havoc Bane count across
  * targets in range, which does nothing to the single boss this calculator fights. **Wraith of
  * Sound** (a fixed 523 Havoc hit) only fires when a Sword Stance Flow resets the Basic chain,
- * which the rotation below never does. The 1s gate on Windbound and Feathered Oath is a clock this
- * engine has none of, so both are taken as available; the 25s on the two Crit. DMG windows is
- * modelled as once a visit instead (see Bated Breath below).
+ * which the rotation below never does. The 1s gate on Windbound and Feathered Oath is the engine's
+ * own second (`oneSecondPassed()`), so neither can take more than a stack a press; the 25s on the
+ * two Crit. DMG windows is modelled as once a visit instead (see Bated Breath below).
  *
  * MVs off nanoka.cc (character 1610) at level 10, per-hit x hit count as CLAUDE.md describes, with
  * the flat Concerto Regen rows folded in (the Liberation 20, the Intro 10) and the hidden +10 on
@@ -71,6 +71,7 @@ import {
   stacksOfEnemy,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO, START_3, SWAP, INTRO_3 } from "../../engine/rotation.js";
+import { oneSecondPassed } from "../../shared/helpers.js";
 import { HAVOC_BANE, anyNegativeStatusInflicted } from "../../shared/status.js";
 import { AZURE_OATH, EMERALD_SENTENCE } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
@@ -136,11 +137,11 @@ const SwitchFeather = yangyangAction("Skill - Sword Stance Switch: Feather", { n
 // --- The Way of Ten Thousand Voices. Sword Stance Flow refills Melody outright rather than
 //     adding to it, so the refill is a set (the bar is at 0 by the time either is castable).
 const FlowAzure = yangyangAction("Skill - Sword Stance Flow: Azure", {
-  node: Node.Forte, cast: Cast.Skill, type: Type1.Heavy, mv: 116.60, energy: 11.61, concerto: 10.02, offtune: 5865, forte2: 1,forte1: 100,
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Heavy, mv: 116.60, energy: 11.61, concerto: 10.02, offtune: 5865, forte2: 1,forte1: 100, cutscene: true,
   ...FLOW,
 });
 const FlowFeather = yangyangAction("Skill - Sword Stance Flow: Feather", {
-  node: Node.Forte, cast: Cast.Skill, type: Type1.Heavy, mv: 100.68, energy: 11.61, concerto: 10.02, offtune: 5064, forte2: 1, forte1: 100,
+  node: Node.Forte, cast: Cast.Skill, type: Type1.Heavy, mv: 100.68, energy: 11.61, concerto: 10.02, offtune: 5064, forte2: 1, forte1: 100, cutscene: true,
   ...FLOW,
 });
 
@@ -204,9 +205,9 @@ const FEATHER_HEAVIES: Action[] = [HeavyFeather, FeatherFall, HiB1, HiB2, HiB3];
 const OATH_ACTIONS = new Set<Action>([HeavyAzure, ...FEATHER_HEAVIES]);
 const STORM_ACTIONS = new Set<Action>(FEATHER_HEAVIES);
 
-/** Feathered Oath (Forte Circuit): a stack every time anyone on the team inflicts Havoc Bane, up
- *  to 6, each +25% Crit. DMG on the casts above. "While Yangyang is the active Resonator" needs no
- *  check — every cast it names is one of hers, made on field.
+/** Feathered Oath (Forte Circuit): a stack whenever anyone on the team inflicts Havoc Bane, at
+ *  most one a second, up to 6, each +25% Crit. DMG on the casts above. "While Yangyang is the
+ *  active Resonator" needs no check — every cast it names is one of hers, made on field.
  *
  *  A stack lasts 4s and every fresh Havoc Bane on the team renews the set, so what actually ends
  *  it is a gap with no Bane in it. Her visit has exactly one: the Havoc in Bloom chain, which
@@ -432,7 +433,7 @@ const XUANLING_INHERENT_1 = new Inherent({
 const XUANLING_INHERENT_2 = new Inherent({
   name: "Inherent: One Life, One Blade",
   updateGlobal: () => {
-    if (!applied(HAVOC_BANE) || isHeld(ONE_WITH_THE_WIND)) return;
+    if (!oneSecondPassed() || !applied(HAVOC_BANE) || isHeld(ONE_WITH_THE_WIND)) return;
     if (applyCurrent(WINDBOUND, 1) < 6) return;
     revokeCurrent(WINDBOUND);
     applyCurrent(ONE_WITH_THE_WIND, 1);
@@ -462,7 +463,7 @@ export const XUANLING_RESONATOR = new Resonator({
   /* Feathered Oath is Forte Circuit machinery, which lives on the Resonator rather than a loadout
    * slot of its own. Same trigger as Windbound above and the same `updateGlobal` reason: it counts
    * Havoc Bane inflicted by anyone on the team, her own casts included. */
-  updateGlobal: () => { if (applied(HAVOC_BANE)) applyCurrent(FEATHERED_OATH, 1); },
+  updateGlobal: () => { if (oneSecondPassed() && applied(HAVOC_BANE)) applyCurrent(FEATHERED_OATH, 1); },
 
   /* Melody starts a fight full, unlike every other gauge in this engine. */
   combatStart: () => setForte1(100),
@@ -496,27 +497,11 @@ const XUANLING_ROTATION = new Rotation([
   OUTRO,
 ]);
 
-const XUANLING_ROTATION_2F = new Rotation([
-  START_3, BA_A1234, SWAP,
-
-  INTRO_3, FlowFeather, ECHO_ONFIELD, HeavyFeather, FeatherFall, HiB123, SwitchAzure,
-  Lib, FlowFeather, HeavyFeather, FeatherFall, HiB123, BA_F1234, SwitchAzure.swap(),
-  OUTRO,
-]);
-
 const XUANLING_ROTATION_S1 = new Rotation([
   START_3, HeavyAzure, SwitchFeather, SWAP, // start in feather stance, so the first cast is a switch to Azure
 
   INTRO_3, BA_F1234, FlowAzure, ECHO_ONFIELD, HeavyAzure, 
   Lib, FlowFeather, HeavyFeather, FeatherFall, HiB123,
-  OUTRO,
-]);
-
-const XUANLING_ROTATION_2F_S1 = new Rotation([
-  START_3, BA_A1234, HeavyAzure, SWAP,
-
-  INTRO_3, FlowFeather, ECHO_ONFIELD, HeavyFeather, FeatherFall, HiB123, SwitchAzure,
-  Lib, FlowFeather, HeavyFeather, FeatherFall, HiB123, BA_A1234, SwitchAzure.swap(),
   OUTRO,
 ]);
 
@@ -532,16 +517,5 @@ export const XUANLING = new Loadout({
   substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
   highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
   rotation: { 0: XUANLING_ROTATION, 1: XUANLING_ROTATION_S1 },
-  sequences: XL_SEQUENCES,
-});
-
-export const XUANLING_2F = new Loadout({
-  resonator: XUANLING_RESONATOR,
-  weapons: [AZURE_OATH, EMERALD_OF_GENESIS, EMERALD_SENTENCE],
-  echoLoadouts: XUANLING_ECHOES,
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
-  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
-  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Heavy, Substat.AtkPct, Substat.FlatAtk, Substat.Basic),
-  rotation: { 0: XUANLING_ROTATION_2F, 1: XUANLING_ROTATION_2F_S1 },
   sequences: XL_SEQUENCES,
 });

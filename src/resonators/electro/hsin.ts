@@ -321,7 +321,8 @@ const MODE_FLARE = new ResonanceMode({ name: "Resonance Mode - Electro Flare",
     if (!isHeld(MODE_FLARE)) return;
     const rage = applied(ELECTRO_RAGE);
     if (rage > 0) applyTeam(HEART_OF_THUNDER, rage);
-    if (stacksOfEnemy(ELECTRO_RAGE) > 0) consume(ELECTRO_RAGE, stacksOfEnemy(ELECTRO_RAGE));
+    revokeEnemy(ELECTRO_RAGE);
+    //if (stacksOfEnemy(ELECTRO_RAGE) > 0) consume(ELECTRO_RAGE, stacksOfEnemy(ELECTRO_RAGE));
   },
 });
 

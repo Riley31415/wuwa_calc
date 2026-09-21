@@ -24,7 +24,7 @@ import {
   queue,
   queueOutro,
 } from "../../engine/context.js";
-import { Action, Rotation, INTRO, ECHO_SWAP, OUTRO, NOINTRO } from "../../engine/rotation.js";
+import { Action, Rotation, INTRO, ECHO_SWAP, OUTRO, NOINTRO, ActionGroup } from "../../engine/rotation.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
@@ -65,6 +65,8 @@ const BA4 = sanhuaAction("Basic - Frigid Light 4", { node: Node.Normal, cast: Ca
 const BA5 = sanhuaAction("Basic - Frigid Light 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 233.81, energy: 4.2, concerto: 10, offtune: 13440 });
 const HA = sanhuaAction("Heavy - Frigid Light", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 111.35, energy: 2, concerto: 8, offtune: 8000 });
 const MA = sanhuaAction("Mid-air - Frigid Light Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 86.29, energy: 0.51, concerto: 1, offtune: 9520 });
+const BA23 = new ActionGroup("Basic - Frigid Light 23", [BA2, BA3]);
+const BA234 = new ActionGroup("Basic - Frigid Light 234", [BA2, BA3, BA4]);
 
 // Ice Thorn's own burst is a real exception, not a data gap: 0 concerto (every other burst pays
 // 1500), just 200 Energy — kept as given rather than smoothed over.
@@ -222,12 +224,12 @@ const SANHUA_RESONATOR = new Resonator({
 // this same rotation covers both opener and loop.
 
 const SH_ROTATION_S5 = new Rotation([
-  NOINTRO, FHA,
+  NOINTRO, BA23,
   INTRO, Skill, Liberation, FHA, ECHO_SWAP, OUTRO,
 ]);
 const SH_ROTATION = new Rotation([
-  NOINTRO, FHA, Skill, FHA, Liberation, FHA, ECHO_SWAP, OUTRO,
-  INTRO, FHA, Skill, Liberation, FHA, ECHO_SWAP, OUTRO,
+  NOINTRO, BA234, Skill, Liberation, FHA, ECHO_SWAP, OUTRO,
+  INTRO, BA23, Skill, Liberation, FHA, ECHO_SWAP, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */
@@ -236,7 +238,7 @@ const SH_ROTATION = new Rotation([
 // (Tier.Free — see file header), weapon, mainslot echo, sonata pieces, mainstat/substat
 export const SANHUA = new Loadout({
   resonator: SANHUA_RESONATOR,
-  weapons: [EMERALD_OF_GENESIS, BLAZING_BRILLIANCE, OVERTURE],
+  weapons: [BLAZING_BRILLIANCE, EMERALD_OF_GENESIS, OVERTURE],
   echoLoadouts: [new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC)],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
   substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Skill, Substat.FlatAtk, Substat.Liberation),

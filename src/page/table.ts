@@ -441,7 +441,21 @@ function comparisonTable(rows: TeamRow[]): string {
   const onScreen = new Set(rows.map((r) => r.key));
   const teamsOnScreen = new Set(rows.map((r) => r.teamKey));
   const openAxes = CMP_AXES.filter((axis) => openAt[axis].some((_, pos) => cmpAt(axis, pos)));
-  const twins = new Map<string, { combo: Combo; dpr: number; shown: boolean }[]>();
+  // which options each team still has on screen at a compared position: a twin wearing one the
+  // filters took off the table stands for nothing the reader can see, so it can't hold a baseline
+  const offeredAt = new Map<string, Set<string>>();
+  for (const row of rows) {
+    row.members.forEach((m, pos) => {
+      for (const axis of openAxes) {
+        if (!cmpAt(axis, pos)) continue;
+        const key = `${axis}|${pos}|${row.teamKey}`;
+        let seen = offeredAt.get(key);
+        if (!seen) offeredAt.set(key, seen = new Set());
+        seen.add(optionOf(axis, m, row.combo[pos]!));
+      }
+    });
+  }
+  const twins = new Map<string, { combo: Combo; dpr: number; shown: boolean; offered: boolean }[]>();
   for (const [key, run] of results) {
     if (!openAxes.length || !teamsOnScreen.has(run.teamKey)) continue;
     run.members.forEach((m, pos) => {
@@ -449,7 +463,8 @@ function comparisonTable(rows: TeamRow[]): string {
         if (!cmpAt(axis, pos)) continue;
         const twin = twinKey(run, pos, axis);
         const list = twins.get(twin) ?? [];
-        list.push({ combo: run.combo[pos]!, dpr: run.bySlot.get(m.name) ?? 0, shown: onScreen.has(key) });
+        const offered = offeredAt.get(`${axis}|${pos}|${run.teamKey}`)?.has(optionOf(axis, m, run.combo[pos]!)) ?? false;
+        list.push({ combo: run.combo[pos]!, dpr: run.bySlot.get(m.name) ?? 0, shown: onScreen.has(key), offered });
         twins.set(twin, list);
       }
     });
@@ -478,11 +493,17 @@ function comparisonTable(rows: TeamRow[]): string {
     const dpr = run.bySlot.get(run.members[pos]!.name) ?? 0;
     const all = twins.get(twinKey(run, pos, axis)) ?? [];
     const shown = all.filter((t) => t.shown);
-    for (const pool of [shown, all]) {
+    const offered = all.filter((t) => t.offered);
+    for (const pool of [shown, offered]) {
       const base = bestOf(pool, run, pos, axis);
       if (base > 0) return dpr / base;
     }
-    return null;
+    // ...and with the baseline itself filtered away the weakest option still on the table takes its
+    // place, so the column reads against something on screen rather than a row nobody can see
+    const left = shown.length ? shown : offered;
+    if (!left.length) return null;
+    const low = Math.min(...left.map((t) => t.dpr));
+    return low > 0 ? dpr / low : null;
   };
   const gearCompare = (run: TeamRun, pos: number, axis: CmpAxis): string => {
     const ratio = gearRatio(run, pos, axis);
@@ -1107,6 +1128,34 @@ document.addEventListener("keydown", (e) => {
   if (!ring.length || (at < 0 && el !== document.body)) return;
   e.preventDefault();
   ring[at < 0 ? (e.shiftKey ? ring.length - 1 : 0) : (at + (e.shiftKey ? -1 : 1) + ring.length) % ring.length]!.focus();
+});
+
+// The arrows walk the same ring as one axis — left/up back towards the search bar, right/down on
+// towards Clear Filters — and stop at its ends rather than wrapping the way Tab does. An arrow
+// pressed with nothing in the ring focused is the way in: it lands on the first bubble, or on the
+// bar itself where no filter is set. In the bar the up/down pair belongs to the hits while there
+// are any, and left/right to the caret while there is text for it to move through.
+document.addEventListener("keydown", (e) => {
+  const step = e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1
+    : e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : 0;
+  if (!step || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+  const ring = tabRing();
+  if (!ring.length) return;
+  const el = e.target as HTMLElement | null;
+  const at = el ? ring.indexOf(el) : -1;
+  if (at === 0) {
+    const vertical = e.key === "ArrowUp" || e.key === "ArrowDown";
+    if (vertical && searchHits().length) {
+      e.preventDefault();
+      cycleSearch(step);
+      return;
+    }
+    if (!vertical && (el as HTMLInputElement).value) return;
+  }
+  // a field, a select or an editor keeps its own arrows, so the keyboard is never taken off them
+  if (at < 0 && (el?.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el?.tagName ?? ""))) return;
+  e.preventDefault();
+  ring[at < 0 ? Math.min(1, ring.length - 1) : Math.min(Math.max(at + step, 0), ring.length - 1)]!.focus();
 });
 
 // Enter or Backspace on a bubble takes it off and steps on to the one after it, or to the search

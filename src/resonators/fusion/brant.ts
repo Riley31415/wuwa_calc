@@ -288,7 +288,7 @@ export const BRANT = new Loadout({
   weapons: [UNFLICKERING_VALOR, EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE[4]!], // the craftable at its real R5
   echoLoadouts: [
     new EchoLoadout(DRAGON_OF_DIRGE, TIDEBREAKING_5PC),
-    new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC),
+    //new EchoLoadout(HERON, MOONLIT_CLOUDS_5PC), cant heron midair
   ],
   mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ER3, Mainstat.Fusion3, Mainstat.ATK1),
   substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Er, Substat.Basic, Substat.AtkPct, Substat.FlatAtk),

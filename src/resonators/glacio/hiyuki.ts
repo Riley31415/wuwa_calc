@@ -617,7 +617,7 @@ export const HIYUKI = new Loadout({
   resonator: HIYUKI_RESONATOR,
   weapons: [FROSTBURN, EMERALD_OF_GENESIS],
   echoLoadouts: HY_ECHOES,
-  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
+  mainstats: mainstatOptions(Mainstat.CR4, Mainstat.ATK4, Mainstat.CD4, Mainstat.ATK3, Mainstat.Glacio3, Mainstat.ATK1),
   substat: substats(Substat.CritDmg, Substat.CritRate, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
   highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.Liberation, Substat.AtkPct, Substat.FlatAtk, Substat.Skill),
   rotation: { 0: HY_ROTATION, 2: HY_ROTATION_S2 },

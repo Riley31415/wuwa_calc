@@ -332,7 +332,7 @@ const SR_ROTATION = new Rotation([
   INTRO, ECHO_ONFIELD, 
   BA234, EBA, FHA, Liberation,
   BA234, EBA, FHA, FSkill,
-  Skill, BA34, EBA,
+  Skill, BA34, EBA.swap(),
   OUTRO,
 ]);
 

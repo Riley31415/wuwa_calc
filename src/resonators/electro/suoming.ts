@@ -375,7 +375,7 @@ const SM_ROTATION = new Rotation([
   NOINTRO, BA123, BA123, SealedDelusion,
   DOUBLE_INTRO, Liberation, OUTRO,
 
-  INTRO, UHA2, UBA12,
+  INTRO, UHA2, DODGE, UBA12,
   UnforsakenMind, EngravedHeart, ECHO_SWAP, OUTRO,
 ]);
 
@@ -389,22 +389,23 @@ const SM_ROTATION = new Rotation([
 const SM_ROTATION_MDPS = new Rotation([
 
   INTRO, Liberation, 
-  RiftCleaver, UBA34, DODGE,
-  UBA1234, DODGE,
-  UBA1, // add uba2 for 1s
+  RiftCleaver, DODGE,
+  UBA12, UHA12, DODGE,
+  UBA12, UHA12,
   UnforsakenMind, EngravedHeart,
   ECHO_SWAP, OUTRO,
 ]);
 const SM_ROTATION_MDPS_DOUBLE = new Rotation([
   DOUBLE_INTRO,
-  UBA1234,
+  UBA12,
   SWAP,
 
   INTRO,
   Liberation, 
-  RiftCleaver, UBA34, DODGE,
-  UBA1234, DODGE,
-  UBA12,
+  RiftCleaver, DODGE,
+  UBA12, UHA12, DODGE,
+  UBA12, UHA12, DODGE,
+  UBA1,
   UnforsakenMind, EngravedHeart,
   ECHO_SWAP, OUTRO,
 ]);

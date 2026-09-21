@@ -62,7 +62,7 @@ function galbrenaAction(id: string, def: object): Action {
 // confirming they're the real spend. Ravage has no forte2 row at all, so it's left bare (0 cost).
 // --- Threshold State basics: Slayer's Trigger. Stages 1-3 Heavy Attack DMG, Stage 4 Echo Skill.
 const BA1 = galbrenaAction("Basic - Slayer's Trigger 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 59.18, energy: 0.83, concerto: 1.16, offtune: 2646, forte1: 7.41 });
-const BA2 = galbrenaAction("Basic - Slayer's Trigger 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 131.53, energy: 1.85, concerto: 2.59, offtune: 5880, forte1: 18.52 });
+const BA2 = galbrenaAction("Basic - Slayer's Trigger 2", { node: Node.Normal,cast: Cast.Basic, type: Type1.Heavy, mv: 131.53, energy: 1.85, concerto: 2.59, offtune: 5880, forte1: 18.52 });
 const BA3 = galbrenaAction("Basic - Slayer's Trigger 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Heavy, mv: 142.98, energy: 2.00, concerto: 2.80, offtune: 6394, forte1: 18.52 });
 const BA4 = galbrenaAction("Basic - Slayer's Trigger 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Echo, mv: 177.86, energy: 2.49, concerto: 3.48, offtune: 7952, forte1: 14.81 });
 
@@ -79,7 +79,7 @@ const HA3 = galbrenaAction("Heavy - Volley of Death 3", { node: Node.Normal, cas
 // Hypostasis)
 // the five casts that bank a Burning Drive stack
 const DRIVE = { updateBuffs: () => applyCurrent(BURNING_DRIVE, 1) };
-const Encroach = galbrenaAction("Skill - Encroach", { node: Node.Skill, cast: Cast.Skill, type: Type1.Heavy, mv: 35.78, concerto: 2.22, energy: 6.59, offtune: 5039, forte1: 18.52, ...DRIVE });
+const Encroach = galbrenaAction("Skill - Encroach", { node: Node.Skill, cutscene: true, cast: Cast.Skill, type: Type1.Heavy, mv: 35.78, concerto: 2.22, energy: 6.59, offtune: 5039, forte1: 18.52, ...DRIVE });
 /** Converts Sinflame into Purging Flame — declared as real deltas (forte1: -100, forte2:
  *  +100) so they show in the hover trace, but GALBRENA_RESONATOR's own updateBuffs() below first normalizes
  *  each gauge to what these deltas expect to land on 0/100 from (forte gauges have no floor or
@@ -100,7 +100,7 @@ const AscentOfMalice = galbrenaAction("Skill - Ascent of Malice", {
 // completeness. Burning Drive is Seraphic Execution's own Stage 4 specifically, not Threshold
 // State's Slayer's Trigger Stage 4.
 const SeraphicExecution1 = galbrenaAction("Forte Basic - Seraphic Execution 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 58.99, energy: 1.00, concerto: 5.54, offtune: 2374, forte2: -4.88 });
-const SeraphicExecution2 = galbrenaAction("Forte Basic - Seraphic Execution 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 139.19, energy: 2.00, concerto: 6.95, offtune: 5600, forte2: -9.76 });
+const SeraphicExecution2 = galbrenaAction("Forte Basic - Seraphic Execution 2", { node: Node.Forte, cutscene: true, cast: Cast.Basic, type: Type1.Heavy, mv: 139.19, energy: 2.00, concerto: 6.95, offtune: 5600, forte2: -9.76 });
 const SeraphicExecution3 = galbrenaAction("Forte Basic - Seraphic Execution 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Heavy, mv: 243.17, energy: 3.34, concerto: 8.79, offtune: 9786, forte2: -18.29 });
 const SeraphicExecution4 = galbrenaAction("Forte Basic - Seraphic Execution 4", { node: Node.Forte, cast: Cast.Basic, type: Type1.Echo, mv: 181.47, energy: 2.56, concerto: 7.70, offtune: 7305, forte2: -13.41, ...DRIVE });
 const SeraphicExecution5 = galbrenaAction("Forte Basic - Seraphic Execution 5", { node: Node.Forte, cast: Cast.Basic, type: Type1.Echo, mv: 224.27, energy: 3.08, concerto: 8.46, offtune: 9025, forte2: -19.51 });

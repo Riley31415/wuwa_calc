@@ -59,7 +59,7 @@ import {
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-5BCBHYSM.js";
+} from "./chunk-JG6UQETC.js";
 
 // dist/src/display.js
 var formatters = /* @__PURE__ */ new Map();
@@ -2223,7 +2223,7 @@ function cycleSearch(step) {
   const n = searchHits().length;
   if (!n)
     return;
-  searchAt = searchAt < 0 ? step > 0 ? 0 : n - 1 : (searchAt + step + n) % n;
+  searchAt = (searchAt + 1 + step + n + 1) % (n + 1) - 1;
   drawSearch();
   document.querySelector(".sresult.sel")?.scrollIntoView({ block: "nearest" });
 }
@@ -2697,6 +2697,20 @@ function comparisonTable(rows) {
   const onScreen = new Set(rows.map((r) => r.key));
   const teamsOnScreen = new Set(rows.map((r) => r.teamKey));
   const openAxes = CMP_AXES.filter((axis) => openAt[axis].some((_, pos) => cmpAt(axis, pos)));
+  const offeredAt = /* @__PURE__ */ new Map();
+  for (const row of rows) {
+    row.members.forEach((m, pos) => {
+      for (const axis of openAxes) {
+        if (!cmpAt(axis, pos))
+          continue;
+        const key = `${axis}|${pos}|${row.teamKey}`;
+        let seen = offeredAt.get(key);
+        if (!seen)
+          offeredAt.set(key, seen = /* @__PURE__ */ new Set());
+        seen.add(optionOf(axis, m, row.combo[pos]));
+      }
+    });
+  }
   const twins = /* @__PURE__ */ new Map();
   for (const [key, run] of results) {
     if (!openAxes.length || !teamsOnScreen.has(run.teamKey))
@@ -2707,7 +2721,8 @@ function comparisonTable(rows) {
           continue;
         const twin = twinKey(run, pos, axis);
         const list = twins.get(twin) ?? [];
-        list.push({ combo: run.combo[pos], dpr: run.bySlot.get(m.name) ?? 0, shown: onScreen.has(key) });
+        const offered = offeredAt.get(`${axis}|${pos}|${run.teamKey}`)?.has(optionOf(axis, m, run.combo[pos])) ?? false;
+        list.push({ combo: run.combo[pos], dpr: run.bySlot.get(m.name) ?? 0, shown: onScreen.has(key), offered });
         twins.set(twin, list);
       }
     });
@@ -2736,12 +2751,17 @@ function comparisonTable(rows) {
     const dpr = run.bySlot.get(run.members[pos].name) ?? 0;
     const all = twins.get(twinKey(run, pos, axis)) ?? [];
     const shown = all.filter((t) => t.shown);
-    for (const pool2 of [shown, all]) {
+    const offered = all.filter((t) => t.offered);
+    for (const pool2 of [shown, offered]) {
       const base = bestOf(pool2, run, pos, axis);
       if (base > 0)
         return dpr / base;
     }
-    return null;
+    const left = shown.length ? shown : offered;
+    if (!left.length)
+      return null;
+    const low = Math.min(...left.map((t) => t.dpr));
+    return low > 0 ? dpr / low : null;
   };
   const gearCompare = (run, pos, axis) => {
     const ratio = gearRatio(run, pos, axis);
@@ -3293,6 +3313,30 @@ document.addEventListener("keydown", (e) => {
     return;
   e.preventDefault();
   ring[at < 0 ? e.shiftKey ? ring.length - 1 : 0 : (at + (e.shiftKey ? -1 : 1) + ring.length) % ring.length].focus();
+});
+document.addEventListener("keydown", (e) => {
+  const step = e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : 0;
+  if (!step || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey)
+    return;
+  const ring = tabRing();
+  if (!ring.length)
+    return;
+  const el = e.target;
+  const at = el ? ring.indexOf(el) : -1;
+  if (at === 0) {
+    const vertical = e.key === "ArrowUp" || e.key === "ArrowDown";
+    if (vertical && searchHits().length) {
+      e.preventDefault();
+      cycleSearch(step);
+      return;
+    }
+    if (!vertical && el.value)
+      return;
+  }
+  if (at < 0 && (el?.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el?.tagName ?? "")))
+    return;
+  e.preventDefault();
+  ring[at < 0 ? Math.min(1, ring.length - 1) : Math.min(Math.max(at + step, 0), ring.length - 1)].focus();
 });
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Enter" && e.key !== "Backspace" || e.ctrlKey || e.metaKey || e.altKey)

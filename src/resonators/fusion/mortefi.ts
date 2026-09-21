@@ -129,15 +129,15 @@ const PASSIONATE_TAIL = new Buff({
  *  28 banked by the Liberation (10s) plus S4's own 20 (+7s), spent only by firing. On every
  *  active, non-triggered cast: a Basic (with a real hit — mv > 0) draws up to three single
  *  Marcato, a Heavy up to three doubles, each coordinated attack one stack and never more than
- *  remain; a Resonance Skill draws one free double, spending nothing. Empty is over — it outlives
- *  his swap (the ticks land on his own slot regardless), unlike the old lumped window. */
+ *  remain. A Resonance Skill draws one of its own only at S1 (MORTEFI_S1 below), which takes
+ *  nothing from this count. Empty is over — it outlives his swap (the ticks land on his own slot
+ *  regardless), unlike the old lumped window. */
 const BURNING_RHAPSODY = new Buff({
   name: "Mortefi: Burning Rhapsody",
   maxStacks: 48,
   field: MARCATO_FIELD,
   updateBuffs: () => {
     if (!oneSecondPassed()) return;
-    if (casting(Cast.Skill)) { queueOn(MORTEFI_RESONATOR, ACTION_MARCATO); queueOn(MORTEFI_RESONATOR, ACTION_MARCATO_PAIRED); return; }
     const heavy = casting(Cast.Heavy);
     if (!heavy && !(casting(Cast.Basic) && currentAction().mv > 0)) return;
     const n = Math.min(3, stacksOfTeam(BURNING_RHAPSODY));
@@ -192,9 +192,22 @@ const S6_TEAM_ATK = new Buff({
   convertStats: () => { if (casting(Cast.Intro) && isHeld(MORTEFI_RESONATOR)) revokeTeam(S6_TEAM_ATK); },
 });
 
-/** S1 Solitary Etude: extra Marcato off a teammate's own Resonance Skill cast — depends on their
- *  own kit, so it's a documentary no-op, same reasoning as Rover Havoc's S2/S3. */
-const MORTEFI_S1 = new Sequence({ name: "Mortefi S1: Solitary Etude" });
+/** S1 Solitary Etude: while Burning Rhapsody stands, the active resonator's own Resonance Skill
+ *  draws a coordinated attack of two Marcato — whoever is on field, his own cast included, fired
+ *  on his slot like every other tick. Every Skill cast counts, cutscene casts included — no
+ *  `oneSecondPassed()` gate, unlike the window's own Basic/Heavy draws — and it spends none of the
+ *  window's count: those stacks are the 0.35s slots the Basic/Heavy draws bid for, and a visit's
+ *  presses already empty them, so charging this too would only move hits from one press to another
+ *  and the node would pay nothing at all. `updateGlobal` because the cast it watches is a
+ *  teammate's. */
+const MORTEFI_S1 = new Sequence({
+  name: "Mortefi S1: Solitary Etude",
+  updateGlobal: () => {
+    if (!casting(Cast.Skill) || stacksOfTeam(BURNING_RHAPSODY) === 0) return;
+    queueOn(MORTEFI_RESONATOR, ACTION_MARCATO);
+    queueOn(MORTEFI_RESONATOR, ACTION_MARCATO_PAIRED);
+  },
+});
 
 /** S2 Hypocritical Hymn: +10 Energy on Echo Skill — its own 20s ICD dropped, per the standing
  *  ICD simplification. */

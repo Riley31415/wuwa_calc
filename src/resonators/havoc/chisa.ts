@@ -413,15 +413,27 @@ const CHISA_RESONATOR = new Resonator({
  *  Convergence buff away. Released rather than held: the Holds are the bigger presses, but nothing
  *  here models the timing that earns them, so the chain reads as the plain taps it is. */
 
-const CS_ROTATION = new Rotation([
+const CS_ROTATION_FAST = new Rotation([
   START_2, START_3, Skill, SWAP,
 
   NOINTRO, BA1, BA2, Skill, RendingLunge, DeathSnipSpread, ThreadWithdrawn, ECHO_CANCEL, Liberation,
-  SerratedLoop, Blitz2, Blitz3, Eradication,
+  SerratedLoop, Blitz2Hold, Blitz3Hold, Eradication,
   OUTRO,
 
   INTRO, BA2, RendingLunge, DeathSnip, ECHO_CANCEL, Liberation,
   SerratedLoop, Blitz2, Blitz3, Eradication,
+  OUTRO,
+]);
+
+const CS_ROTATION = new Rotation([
+  START_2, START_3, Skill, SWAP,
+
+  NOINTRO, BA1, BA2, Skill, RendingLunge, DeathSnipSpread, ThreadWithdrawn, ECHO_CANCEL, Liberation,
+  SerratedLoop, Blitz2Hold, Blitz3Hold, Eradication,
+  OUTRO,
+
+  INTRO, BA2, RendingLunge, DeathSnip, DeathSnipSpread, ECHO_CANCEL, Liberation,
+  SerratedLoop, Blitz2Hold, Blitz3Hold, Eradication,
   OUTRO,
 ]);
 
@@ -443,5 +455,15 @@ export const CHISA = new Loadout({
   substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Basic),
   highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Basic),
   rotation: CS_ROTATION,
+  sequences: CS_SEQUENCES,
+});
+export const CHISA_FAST = new Loadout({
+  resonator: CHISA_RESONATOR,
+  weapons: [KUMOKIRI, LUSTROUS_RAZOR, NEW_STD_BRAUDBLADE, DISCORD, WILDFIRE_MARK],
+  echoLoadouts: CS_ECHOES,
+  mainstats: mainstatOptions(Mainstat.CD4, Mainstat.CR4, Mainstat.ER3, Mainstat.ATK3, Mainstat.Havoc3, Mainstat.ATK1),
+  substat: substats(Substat.CritDmg, Substat.CritRate, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Basic),
+  highSubstat: highSubs(Substat.CritRate, Substat.CritDmg, Substat.AtkPct, Substat.Liberation, Substat.FlatAtk, Substat.Basic),
+  rotation: CS_ROTATION_FAST,
   sequences: CS_SEQUENCES,
 });

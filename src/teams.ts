@@ -42,12 +42,12 @@ import { SUISUI } from "./resonators/glacio/suisui.js";
 import { ZHEZHI } from "./resonators/glacio/zhezhi.js";
 import { CAMELLYA_123_ALWAYS_OUTRO as CAMELLYA_123_ALWAYS, CAMELLYA_DOUBLE_123S6, CAMELLYA_DOUBLE_ALWAYS} from "./resonators/havoc/camellya.js";
 import { CANTARELLA, CANTARELLA_MDPS } from "./resonators/havoc/cantarella.js";
-import { CHISA } from "./resonators/havoc/chisa.js";
+import { CHISA, CHISA_FAST } from "./resonators/havoc/chisa.js";
 import { DANJIN } from "./resonators/havoc/danjin.js";
 import { PHRO_12s, PHRO_10s } from "./resonators/havoc/phrolova.js";
 import { ROCCIA, ROCCIA_MDPS } from "./resonators/havoc/roccia.js";
 import { ROVER_HAVOC } from "./resonators/havoc/rover_havoc.js";
-import { XUANLING, XUANLING_2F } from "./resonators/havoc/xuanling.js";
+import { XUANLING,  } from "./resonators/havoc/xuanling.js";
 import { JINHSI, JINHSI_SUPPORT } from "./resonators/spectro/jinhsi.js";
 import { LUCY } from "./resonators/spectro/lucy.js";
 import { LUUK, LUUK_16s } from "./resonators/spectro/luuk.js";
@@ -73,18 +73,18 @@ const TEAMS: Slot[][] = [
   [[SHOREKEEPER], [JINHSI_SUPPORT], SUOMING_MDPS],
   [[SHOREKEEPER, VERINA, MORNYE], [SANHUA], SUOMING_MDPS_DOUBLE],
   [[SHOREKEEPER, VERINA, MORNYE], [JINHSI_SUPPORT], SUOMING_MDPS],
-  [[MORNYE], [LYNAE_RUPTURE], SUOMING_MDPS],
-  [[MORNYE], [REBECCA], SUOMING_MDPS],
+  [[MORNYE, SHOREKEEPER, VERINA], [LYNAE_RUPTURE, REBECCA], SUOMING_MDPS],
 
   // hsin, Unison mode: Suoming or Jinhsi behind her hands over the Unison her Intro answers
   [[SHOREKEEPER, VERINA, MORNYE, SUISUI, BULING], [SUOMING], HSIN_UNISON],
   [[SUOMING], HSIN_UNISON, [JINHSI_SUPPORT]],
 
   // hsin (Electro Flare mode): electro skill flare
-  [[SUISUI, BULING, CHISA], [ROVER_ELECTRO], HSIN_FLARE],
-  [[SUISUI, SHOREKEEPER, MORNYE, BULING, CHISA], [CHISA], HSIN_FLARE],
-  [[MORNYE], [LYNAE_RUPTURE], HSIN_FLARE],
-  [[MORNYE], [REBECCA], HSIN_FLARE],
+  [[SUISUI, BULING, CHISA_FAST, SHOREKEEPER, MORNYE, VERINA], [ROVER_ELECTRO], HSIN_FLARE],
+  [[SUISUI, SHOREKEEPER, MORNYE, VERINA], [CHISA], HSIN_FLARE],
+  [[BULING], [SUISUI, CHISA], HSIN_FLARE],
+  [[MORNYE, SHOREKEEPER, VERINA], [LYNAE_RUPTURE], HSIN_FLARE],
+  [[MORNYE, SHOREKEEPER, VERINA], [REBECCA], HSIN_FLARE],
 
   // jinhsi: spectro skill
   [[SHOREKEEPER, MORNYE, SUISUI, VERINA, BULING], [ZHEZHI, CANTARELLA, SUOMING, HSIN_UNISON, YINLIN], JINHSI],
@@ -92,7 +92,7 @@ const TEAMS: Slot[][] = [
   [[MORNYE], [REBECCA], JINHSI],
 
   // electro rover mdps: Apex Resonance, the Thrum of All Sounds chains
-  [[MORNYE, SHOREKEEPER, CHISA, BULING, VERINA, SUISUI], [LYNAE_RUPTURE], ROVER_ELECTRO_MDPS],
+  [[MORNYE, SHOREKEEPER, CHISA_FAST, BULING, VERINA, SUISUI], [LYNAE_RUPTURE], ROVER_ELECTRO_MDPS],
   [[MORNYE], [REBECCA], ROVER_ELECTRO_MDPS],
 
   // jingran: fusion heavy shielder
@@ -106,7 +106,7 @@ const TEAMS: Slot[][] = [
 
   // xuanling: havoc heavy attack on Havoc Bane — Chisa's +3 to every Negative Status cap is what
   // takes Unbroken Vow off its 3-stack 30% tier onto the 4-6 stack 36% one
-  [[SUISUI, CHISA, VERINA, SHOREKEEPER], [MORTEFI, REBECCA, IUNO, PHRO_10s, CHISA], XUANLING],
+  [[SUISUI, CHISA_FAST, VERINA, SHOREKEEPER], [MORTEFI, REBECCA, IUNO, PHRO_10s, CHISA], XUANLING],
 
   // lucy: spectro heavy on tune hack, with rebecca feeding her the outro
   [[MORNYE, SHOREKEEPER, VERINA], [REBECCA, LYNAE_RUPTURE, MORTEFI], LUCY],
@@ -117,7 +117,7 @@ const TEAMS: Slot[][] = [
   [[SUISUI], CARLOTTA, HIYUKI],
   [PHRO_10s, [LUCILLA], HIYUKI],
   [HIYUKI, CARLOTTA, [LUCILLA_CHAFE]],
-  [[SUISUI, CHISA, MORNYE, VERINA, SHOREKEEPER], [LUCILLA_CHAFE, LYNAE_RUPTURE, CHISA, JIANXIN, ROVER_ELECTRO], HIYUKI],
+  [[SUISUI, CHISA_FAST, MORNYE, VERINA, SHOREKEEPER], [LUCILLA_CHAFE, LYNAE_RUPTURE, CHISA, JIANXIN, ROVER_ELECTRO], HIYUKI],
 
   // sigrika: aero + echo
   [[PHRO_10s, QIUYUAN], [QIUYUAN, LUCILLA], SIGRIKA_FAST],
@@ -139,10 +139,10 @@ const TEAMS: Slot[][] = [
   [[DENIA_BURST], [LYNAE_RUPTURE], AEMEATH_RUPTURE],
 
   // aemeath: fusion liberation on fusion burst — Denia's Burst mode feeds the stacks and amplifies
-  [[SUISUI, CHISA], [DENIA_BURST], AEMEATH_BURST],
+  [[SUISUI, CHISA_FAST], [DENIA_BURST], AEMEATH_BURST],
   [[DENIA_BURST], [LYNAE_RUPTURE, CHANGLI, LUPA], AEMEATH_BURST],
   [[LUPA], [CHANGLI, BRANT], AEMEATH_BURST],
-  [[SUISUI, SHOREKEEPER, VERINA, LUPA, DENIA_BURST, CHISA, MORNYE], [DENIA_BURST, LUPA, JIANXIN, ROVER_ELECTRO], AEMEATH_BURST],
+  [[SUISUI, SHOREKEEPER, VERINA, LUPA, DENIA_BURST, CHISA_FAST, MORNYE], [DENIA_BURST, LUPA, JIANXIN, ROVER_ELECTRO], AEMEATH_BURST],
 
   // qiuyuan: aero heavy echo
   [[SHOREKEEPER, VERINA, CIACCONA, MORNYE, SUISUI], [MORTEFI, IUNO, CIACCONA, LUCILLA], QIUYUAN_MDPS],
@@ -177,8 +177,8 @@ const TEAMS: Slot[][] = [
 
   // cartethyia: aero HP-scaling basic attack on Aero Erosion — Aero Rover and Chisa both raise the
   // status's own cap, which is what her Erosion ticks and her Blade's amplification both read
-  [[CHISA, ROVER_AERO, CIACCONA], [SANHUA, ROVER_AERO], CARTETHYIA],
-  [[ROVER_AERO, SUISUI, CHISA, CIACCONA, SHOREKEEPER, MORNYE], [SANHUA, ROVER_AERO, CHISA], CARTETHYIA],
+  [[CHISA_FAST, ROVER_AERO, CIACCONA], [SANHUA, ROVER_AERO], CARTETHYIA],
+  [[ROVER_AERO, SUISUI, CHISA_FAST, CIACCONA, SHOREKEEPER, MORNYE], [SANHUA, ROVER_AERO, CHISA], CARTETHYIA],
 
   // brant: fusion basic
   [[SHOREKEEPER, DENIA_BURST, MORNYE, VERINA, SUISUI], [SANHUA, DENIA_BURST], BRANT_MDPS],
@@ -237,8 +237,9 @@ const TEAMS: Slot[][] = [
 /** `mdps[i]`: whether slot i is one of the team's main DPS — per team, never stamped on the shared
  *  Loadout. `lead`: where this team's interchangeable support stood in the slot list it was picked
  *  from, so the list's own order says which of them the group runs (`PRIMARY_TEAM`); -1 for a team
- *  with no interchangeable support at all. */
-export interface TeamEntry { loadouts: Loadout[]; mdps: boolean[]; lead: number }
+ *  with no interchangeable support at all. `from`: which line of `TEAMS` named it, which is as far
+ *  as a support group reaches (`SUPPORT_GROUP`). */
+export interface TeamEntry { loadouts: Loadout[]; mdps: boolean[]; lead: number; from: number }
 
 /** Teams the scheduler can't play — thrown below so the roster's mistake shows on the loading screen. */
 const UNPLAYABLE_TEAMS: { names: string[]; why: string }[] = [];
@@ -254,7 +255,7 @@ const idOf = (l: Loadout): number => {
 };
 
 /** `TEAMS` expanded: every pick of one loadout per slot, minus any that repeats a resonator. */
-const EXPANDED: TeamEntry[] = TEAMS.flatMap((slots) => {
+const EXPANDED: TeamEntry[] = TEAMS.flatMap((slots, from) => {
   // a bare loadout is a main DPS; a list is a support position, however many choices it holds
   const mdps = slots.map((s) => !Array.isArray(s));
   const [a, b, c] = slots.map((s) => (Array.isArray(s) ? [...new Set(s)] : [s]));
@@ -263,7 +264,7 @@ const EXPANDED: TeamEntry[] = TEAMS.flatMap((slots) => {
     throw new Error(`the team [${names}] has no bare loadout naming its main DPS`);
   }
   return a!.flatMap((x, i) => b!.flatMap((y, j) => c!.map((z, k) => ({
-    loadouts: [x, y, z], mdps,
+    loadouts: [x, y, z], mdps, from,
     lead: ([[x, i], [y, j], [z, k]] as const).find(([l]) => INTERCHANGEABLE.has(l))?.[1] ?? -1,
   }))))
     .filter((team) => new Set(team.loadouts.map((l) => l.resonator)).size === team.loadouts.length)
@@ -277,6 +278,16 @@ const EXPANDED: TeamEntry[] = TEAMS.flatMap((slots) => {
       return why === null;
     });
 });
+/** What a team is besides its interchangeable supports — those slots blanked, the rest kept in
+ *  place, since a support two positions apart opens a different rotation. */
+const skeleton = ({ loadouts, mdps }: TeamEntry): string => loadouts
+  .map((l, i) => (INTERCHANGEABLE.has(l) ? "*" : `${idOf(l)}${mdps[i] ? "m" : ""}`))
+  .join(".");
+
+/** A later line's bench by the earlier line's it turned out to be naming, for the lines that reach
+ *  one of the same teams — `${from}|${skeleton}` either side (see `SUPPORT_GROUP`). */
+const FOLDED = new Map<string, string>();
+
 /** One row per distinct team. The same three loadouts, in the same three positions, with the same
  *  main-DPS slots, is the same fight however many entries produced it — the rosters overlap
  *  constantly. First occurrence keeps its place. */
@@ -285,8 +296,12 @@ export const ALL_TEAMS: TeamEntry[] = [...EXPANDED.reduce((by, team) => {
   const seen = by.get(key);
   // the earliest list that named it wins: two entries can reach the same team from lists that
   // disagree about its support's place, and the table runs the one some list puts first
-  if (seen) seen.lead = Math.min(seen.lead, team.lead);
-  else by.set(key, team);
+  if (!seen) {
+    by.set(key, team);
+    return by;
+  }
+  seen.lead = Math.min(seen.lead, team.lead);
+  if (seen.from !== team.from) FOLDED.set(`${team.from}|${skeleton(team)}`, `${seen.from}|${skeleton(team)}`);
   return by;
 }, new Map<string, TeamEntry>()).values()];
 
@@ -295,12 +310,17 @@ if (UNPLAYABLE_TEAMS.length) {
     + UNPLAYABLE_TEAMS.map((t) => `  ${t.names.join(" / ")} — ${t.why}`).join("\n"));
 }
 
-/** Per team, what it is *besides* its interchangeable support — those slots blanked, the rest kept
- *  in place, since a support two positions apart opens a different rotation. Teams sharing one of
- *  these are the same line on the table. */
-const SUPPORT_GROUP: string[] = ALL_TEAMS.map(({ loadouts, mdps }) => loadouts
-  .map((l, i) => (INTERCHANGEABLE.has(l) ? "*" : `${idOf(l)}${mdps[i] ? "m" : ""}`))
-  .join("."));
+/** Per team, the bench it stands in: the line of `TEAMS` that named it and what the team is
+ *  *besides* its interchangeable supports. Teams sharing one of these are the same line on the
+ *  table. A slot list stands its own supports in front of one another and never another list's, so
+ *  a team written out on a line of its own shows however much some other line's bench looks like
+ *  it — unless the two lines named one of the same teams (`FOLDED`), where they are the one bench
+ *  after all and only its first support stands. */
+const SUPPORT_GROUP: string[] = ALL_TEAMS.map((team) => {
+  let key = `${team.from}|${skeleton(team)}`;
+  while (FOLDED.has(key)) key = FOLDED.get(key)!;
+  return key;
+});
 
 /** The one team of each group that runs by default — the rest are never solved until the group is
  *  opened (page/model.ts's own `teamWanted()`). A team with no interchangeable support is its own
