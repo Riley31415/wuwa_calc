@@ -23,14 +23,15 @@ import {
   addEnemyStat,
   queue,
 } from "../../engine/context.js";
-import { Action, Rotation, INTRO, ECHO_SWAP, OUTRO } from "../../engine/rotation.js";
-import { SPECTRO_FRAZZLE, HEALS } from "../../shared/status.js";
+import { Action, Rotation, INTRO, NOINTRO, ECHO_SWAP, OUTRO, ActionGroup, START_2, START_1, SWAP } from "../../engine/rotation.js";
+import { SPECTRO_FRAZZLE, SHIMMER, HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";
 import { REJUV_5PC, HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { FALLACY } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
 import { substats, highSubs, Substat } from "../../shared/substats.js";
+import { ACTION_ADAM_SMASHER_LUCY } from "../../echoes/lahairoi.js";
 
 /* ----------------------------------------------------------------------------------- actions */
 
@@ -44,12 +45,13 @@ const BA1 = roverAction("Basic - Vibration Manifestation 1", { node: Node.Normal
 const BA2 = roverAction("Basic - Vibration Manifestation 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 76.05, energy: 1, concerto: 4, offtune: 3600, forte1: 5 });
 const BA3 = roverAction("Basic - Vibration Manifestation 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 76.05, energy: 1.5, concerto: 4, offtune: 3600, forte1: 5 });
 const BA4 = roverAction("Basic - Vibration Manifestation 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 130.13, energy: 2, concerto: 6, offtune: 6160, forte1: 7 });
-const MA = roverAction("Mid-air - Plunging Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 0.51, concerto: 1, offtune: 4960 });
+const MA = roverAction("Mid-air - Vibration Manifestation Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 0.51, concerto: 1, offtune: 4960 });
 const DC = roverAction("Dodge Counter - Vibration Manifestation", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 195.34, energy: 2.62, concerto: 13.6, offtune: 3600 });
 
-const HA1 = roverAction("Heavy - Attack", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 96.35, energy: 1.4, concerto: 4.55, offtune: 22800, forte1: 5 });
+const HA1 = roverAction("Heavy - Vibration Manifestation", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 96.35, energy: 1.4, concerto: 4.55, offtune: 22800, forte1: 5 });
 const HA2 = roverAction("Heavy - Resonance", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 76.05, energy: 1.12, concerto: 3.6, offtune: 3600 });
 const HA3 = roverAction("Heavy - Aftertune", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 126.75, energy: 1.87, concerto: 6, offtune: 6000, forte1: 45 });
+const HA123 = new ActionGroup("Heavy - Attack + Resonance + Aftertune", [HA1, HA2, HA3]);
 
 // --- resonance skill, and the forte circuit that replaces it at 50 Diminutive Sound: Resonating
 //     Spin (two hits, plus the 39.77% Resonating Whirl tick the page lists without describing —
@@ -58,7 +60,13 @@ const HA3 = roverAction("Heavy - Aftertune", { node: Node.Normal, cast: Cast.Hea
 const Skill = roverAction("Skill - Resonating Slashes", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 236.19, energy: 10, concerto: 10, offtune: 4800 });
 const FSkill1 = roverAction("Forte Skill - Resonating Spin", {
   node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 258.16, energy: 10, concerto: 20, offtune: 21840, forte1: -50,
-  updateDebuffs: () => {applyEnemy(SPECTRO_FRAZZLE, 2); queue(ResonatingWhirl); }
+  // Shimmer rides along with the two stacks, and holds every Frazzle stack on the target for its
+  // own 9s rather than letting the ticks eat them (shared/status.ts)
+  updateDebuffs: () => {
+    applyEnemy(SPECTRO_FRAZZLE, 2);
+    applyEnemy(SHIMMER, 9);
+    queue(ResonatingWhirl);
+  },
 });
 const ResonatingWhirl = roverAction("Forte Skill - Resonating Whirl", { node: Node.Forte, type: Type1.Skill, mv: 39.77, energy: 2 });
 const FBA = roverAction("Basic - Resonating Echoes", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 238.58, energy: 2.5, concerto: 8, offtune: 7200 });
@@ -170,11 +178,17 @@ const ROVER_SPECTRO_RESONATOR = new Resonator({
   stats: [[Stat.BaseHp, 11400], [Stat.BaseAtk, 375], [Stat.BaseDef, 1368.8864]],
 });
 
+/** The no-Intro chain runs straight through the INTRO marker into the same body, so leading the
+ *  team costs him only the Intro's own 50 Diminutive Sound — the first Heavy chain banks the 50
+ *  that Resonating Spin needs either way. */
 const SPR_ROTATION = new Rotation([
-  INTRO, 
-  HA1, HA2, HA3, FSkill1, FBA,
-  HA1, HA2, HA3, FSkill1, Liberation, ECHO_SWAP,
-  OUTRO,
+  NOINTRO, HA123, FSkill1, Liberation, 
+  HA123, HA123, FSkill1,
+  ECHO_SWAP, OUTRO,
+
+  INTRO, FSkill1, FBA, Liberation, 
+  HA123, HA123, FSkill1,
+  ECHO_SWAP, OUTRO,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

@@ -430,6 +430,9 @@ function enemyGauge(i: 0 | 1 | 2 | 3 | 4) {
 }
 export const { get: enemyForte1, set: setEnemyForte1, add: addEnemyForte1 } = enemyGauge(0);
 export const { get: enemyForte2, set: setEnemyForte2, add: addEnemyForte2 } = enemyGauge(1);
+export const { get: enemyForte3, set: setEnemyForte3, add: addEnemyForte3 } = enemyGauge(2);
+export const { get: enemyForte4, set: setEnemyForte4, add: addEnemyForte4 } = enemyGauge(3);
+export const { get: enemyForte5, set: setEnemyForte5, add: addEnemyForte5 } = enemyGauge(4);
 
 /** The acting resonator's own running Concerto Energy — same "a kit clamps its own gauge's real
  *  bounds itself, by calling this directly" shape as `setForteN` above (Camellya's own Ephemeral:

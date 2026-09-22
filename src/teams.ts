@@ -52,9 +52,11 @@ import { JINHSI, JINHSI_SUPPORT } from "./resonators/spectro/jinhsi.js";
 import { LUCY } from "./resonators/spectro/lucy.js";
 import { LUUK, LUUK_16s } from "./resonators/spectro/luuk.js";
 import { LYNAE_RUPTURE, LYNAE_STRAIN } from "./resonators/spectro/lynae.js";
+import { PHOEBE_ABSOLUTION, PHOEBE_CONFESSION } from "./resonators/spectro/phoebe.js";
 import { ROVER_SPECTRO } from "./resonators/spectro/rover_spectro.js";
 import { SHOREKEEPER } from "./resonators/spectro/shorekeeper.js";
 import { VERINA } from "./resonators/spectro/verina.js";
+import { ZANI } from "./resonators/spectro/zani.js";
 
 /** One position in a team: the main DPS bare, or the list of loadouts a support position runs. */
 type Slot = Loadout | Loadout[];
@@ -183,6 +185,13 @@ const TEAMS: Slot[][] = [
   [[CHISA_FAST, ROVER_AERO, CIACCONA], [SANHUA, ROVER_AERO], CARTETHYIA],
   [[ROVER_AERO, SUISUI, CHISA_FAST, CIACCONA, SHOREKEEPER, MORNYE], [SANHUA, ROVER_AERO, CHISA], CARTETHYIA],
 
+  // zani: spectro frazzle heavy
+  [[SHOREKEEPER, SUISUI, VERINA, MORNYE, ROVER_SPECTRO, CHISA], [PHOEBE_CONFESSION], ZANI],
+
+  // phoebe - spectro frazzle heavy
+  [[SHOREKEEPER, CHISA, SUISUI, VERINA, MORNYE], [ROVER_SPECTRO], PHOEBE_ABSOLUTION],
+  [[ROVER_SPECTRO], [LYNAE_RUPTURE, MORTEFI, REBECCA], PHOEBE_ABSOLUTION],
+
   // brant: fusion basic
   [[SHOREKEEPER, DENIA_BURST, MORNYE, VERINA, SUISUI], [SANHUA, DENIA_BURST], BRANT_MDPS],
   [[MORNYE, SHOREKEEPER, DENIA_BURST, VERINA, SUISUI], [LUPA], BRANT_MDPS],
@@ -190,7 +199,7 @@ const TEAMS: Slot[][] = [
   [[LUPA], BRANT, ENCORE],
 
   // cantarella: havoc basic, echo
-  //[[SHOREKEEPER], [SANHUA, ROCCIA], CANTARELLA_MDPS],
+  [[SHOREKEEPER], [SANHUA, ROCCIA], CANTARELLA_MDPS],
   [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [SANHUA, ROCCIA], CANTARELLA_MDPS],
   [[MORNYE], [REBECCA], CANTARELLA_MDPS],
   [[MORNYE], [LYNAE_RUPTURE], CANTARELLA_MDPS],
@@ -204,7 +213,6 @@ const TEAMS: Slot[][] = [
   [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [MORTEFI, IUNO], ROCCIA_MDPS],
   [[MORNYE, SHOREKEEPER, VERINA, SUISUI], [REBECCA], ROCCIA_MDPS],
   [[MORNYE], [LYNAE_RUPTURE], ROCCIA_MDPS],
-  //[[SHOREKEEPER, VERINA, MORNYE, SUISUI], PHROLO_10s, ROCCIA_MDPS],
 
   // camellya: havoc basic
   [[VERINA], [SANHUA], CAMELLYA_DOUBLE_ALWAYS],

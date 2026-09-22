@@ -273,6 +273,7 @@ const CA_SEQUENCES = [CA_S1, CA_S2, CA_S3, CA_S4, CA_S5, CA_S6];
 /* ---------------------------------------------------------------------------------- rotation */
 
 const FBA123 = new ActionGroup("Forte Basic - Phantom Sting 123", [FBA1, FBA2, FBA3]);
+const BA123 = new ActionGroup("Basic - Illusion Collapse 123", [BA1, BA2, BA3]);
 
 // Delusive Dive opens Mirage before the Liberation rather than after it, so Flickering Reverie is
 // the first of her own hits behind Beneath the Sea: from S2 that Jolts on the Hazy Dream the
@@ -285,7 +286,7 @@ const CA_ROTATION = new Rotation([
 const CA_ROTATION_MDPS = new Rotation([
   INTRO, BA3, Skill, ECHO_ONFIELD, Liberation,
   EHA, ESkill, FBA123, FSkill, ECHO_ONFIELD, 
-  FBA1, FBA2, OUTRO,
+  FBA1, FBA2, BA123, Skill, OUTRO,
 ]);
 
 
