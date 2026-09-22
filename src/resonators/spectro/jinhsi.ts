@@ -340,6 +340,7 @@ const BA1234 = new ActionGroup("Basic - Slash of Breaking Dawn 1234", [BA1, BA2,
 
 const IncBA12 = new ActionGroup("Basic - Incarnation 12", [IncBA1, IncBA2]);
 const IncBA34 = new ActionGroup("Basic - Incarnation 34", [IncBA3, IncBA4]);
+const IncBA123 = new ActionGroup("Basic - Incarnation 123", [IncBA1, IncBA2, IncBA3]);
 
 const JX_ROTATION = new Rotation([
   START_3, Liberation, SWAP,

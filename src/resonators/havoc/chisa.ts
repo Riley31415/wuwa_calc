@@ -138,7 +138,7 @@ const RendingLunge = chisaAction("Basic - Rending Lunge", { node: Node.Normal, c
  *  damage_type for both hits. */
 const DeathSnip = chisaAction("Basic - Death Snip", { node: Node.Normal, cast: Cast.Basic, type: Type1.Liberation, mv: 149.06, energy: 2.09, concerto: 4.18, offtune: 6665, forte1: 18, ...SNIP_HEAL });
 /** The "insert an extra hit mid-snip" variant — same Resonance Liberation typing and heal. */
-const DeathSnipSpread = chisaAction("Basic - Death Snip With Spread", { node: Node.Normal, cast: Cast.Basic, type: Type1.Liberation, mv: 196.84, energy: 2.76, concerto: 5.52, offtune: 8801, forte1: 27, ...SNIP_HEAL });
+const DeathSnipSpread = chisaAction("Basic - Death Snip + Spread", { node: Node.Normal, cast: Cast.Basic, type: Type1.Liberation, mv: 196.84, energy: 2.76, concerto: 5.52, offtune: 8801, forte1: 27, ...SNIP_HEAL });
 const ThreadWithdrawn = chisaAction("Basic - Thread Withdrawn", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 67.65, energy: 1.44, concerto: 2.85, offtune: 4538, forte1: 16 });
 /** The airborne normal attack — not part of the ground string, chains into Reign of Silence 2 in
  *  mid-air instead. Not in the rotation (nothing here models being airborne), defined for completeness. */
@@ -420,7 +420,7 @@ const CS_ROTATION_FAST = new Rotation([
   SerratedLoop, Blitz2Hold, Blitz3Hold, Eradication,
   OUTRO,
 
-  INTRO, BA2, RendingLunge, DeathSnip, ECHO_CANCEL, Liberation,
+  INTRO, BA2, RendingLunge, DeathSnipSpread, ECHO_CANCEL, Liberation,
   SerratedLoop, Blitz2, Blitz3, Eradication,
   OUTRO,
 ]);
@@ -432,7 +432,7 @@ const CS_ROTATION = new Rotation([
   SerratedLoop, Blitz2Hold, Blitz3Hold, Eradication,
   OUTRO,
 
-  INTRO, BA2, RendingLunge, DeathSnip, DeathSnipSpread, ECHO_CANCEL, Liberation,
+  INTRO, BA2, RendingLunge, DeathSnipSpread, ECHO_CANCEL, Liberation,
   SerratedLoop, Blitz2Hold, Blitz3Hold, Eradication,
   OUTRO,
 ]);

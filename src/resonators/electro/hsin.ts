@@ -57,6 +57,7 @@ import {
   addBuff,
   addStat,
   applied,
+  asSource,
   appliedByMember,
   applyCurrent,
   applyEnemy,
@@ -101,11 +102,17 @@ function hsinAction(id: string, def: object): Action {
 /** One of her own Electro Flare DMG instances: a dot-scaled Status hit carrying no motion value of
  *  its own — the rung the target is standing on is what it is worth, added by the status itself
  *  (status.ts's own ELECTRO_FLARE, so the value is sourced to the Flare that set it) — and `mul`
- *  is the percentage the kit text puts on top of that rung: +75 for a 175% instance, -65 for 35%. */
-const flareHit = (name: string, mul: () => number, def: object = {}): Action =>
+ *  is the percentage the kit text puts on top of that rung: +75 for a 175% instance, -65 for 35%.
+ *  `source`, where the percentage is a count's rather than the cast's, names the gear the panel
+ *  files it under, the same way the rung itself is filed under the Flare (read late, since the
+ *  buffs are declared below the actions). */
+const flareHit = (name: string, mul: () => number, def: object = {}, source: (() => Buff) | null = null): Action =>
   new Action(name, {
     element: Attribute.Electro, type: Type1.Status, type2: Type2.ElectroFlare, scaling: Scaling.Dot, mv: 0,
-    applyStats: () => addStat(Stat.MulMv, mul()),
+    applyStats: () => {
+      if (source) asSource(source(), () => addStat(Stat.MulMv, mul()));
+      else addStat(Stat.MulMv, mul());
+    },
     ...def,
   });
 
@@ -150,7 +157,8 @@ const IDC = hsinAction("Dodge Counter - Illumining Form", { node: Node.Normal, c
 /** Heartward by Moon's last stage: one Electro Flare DMG instance at 35% of the target's rung per
  *  Heart of Thunder she holds (42% at S1). The stacks are all cleared a moment after the cast. */
 const ThunderHit = flareHit("Skill - Illumining Form: Heart of Thunder",
-  () => (isHeld(HS_S1) ? 42 : 35) * stacksOfTeam(HEART_OF_THUNDER) - 100, { convertStats: () => revokeTeam(HEART_OF_THUNDER) });
+  () => (isHeld(HS_S1) ? 42 : 35) * stacksOfTeam(HEART_OF_THUNDER) - 100,
+  { convertStats: () => revokeTeam(HEART_OF_THUNDER) }, () => HEART_OF_THUNDER);
 
 /** Skill - Illumining Form (Heartward by Moon): the Heart of Thunder instance above, and a collapse. */
 const ISkill = hsinAction("Skill - Illumining Form", {
@@ -321,8 +329,7 @@ const MODE_FLARE = new ResonanceMode({ name: "Resonance Mode - Electro Flare",
     if (!isHeld(MODE_FLARE)) return;
     const rage = applied(ELECTRO_RAGE);
     if (rage > 0) applyTeam(HEART_OF_THUNDER, rage);
-    revokeEnemy(ELECTRO_RAGE);
-    //if (stacksOfEnemy(ELECTRO_RAGE) > 0) consume(ELECTRO_RAGE, stacksOfEnemy(ELECTRO_RAGE));
+    if (stacksOfEnemy(ELECTRO_RAGE) > 0) consume(ELECTRO_RAGE, stacksOfEnemy(ELECTRO_RAGE));
   },
 });
 
@@ -406,7 +413,12 @@ const PILLAR_CHARGES = new Buff({ name: "Hsin: Pillars Aligned Flare Charges", m
 /** Heart of Thunder: the team's Electro Rage, taken off the target and banked on her, 100 at most.
  *  Spent by Skill - Illumining Form. Held team-wide so the count reads on every row of the log,
  *  though only her own casts ever read or spend it. */
-const HEART_OF_THUNDER = new Buff({ name: "Hsin: Heart of Thunder", maxStacks: 100 });
+const HEART_OF_THUNDER: Buff = new Buff({
+  name: "Hsin: Heart of Thunder", maxStacks: 100,
+  // the count is the shared one, and a source row reads it off the slot it is filed on — which
+  // holds none of it (`asSource` on ThunderHit's multiplier), so the stacks are named here
+  display: () => `Hsin: Heart of Thunder x${stacksOfTeam(HEART_OF_THUNDER)}`,
+});
 
 /** Thunderglow: one per stack of Electro Flare a teammate inflicts while she is out of Heart
  *  Manifest, cap 10 — full, her next Manifest pins the target's Flare at its cap. Overflow past the target's

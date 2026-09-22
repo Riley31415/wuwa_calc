@@ -219,7 +219,7 @@ const ROVER_ELECTRO_TALENTS = new Talent({
 
 /** Them, as a Resonator: name/element/weapon, every grant/spend/queue rule their kit needs, and
  *  their own base stat line. `Tier.Free` — see the file header. */
-const ROVER_ELECTRO_RESONATOR = new Resonator({
+export const ROVER_ELECTRO_RESONATOR = new Resonator({
   name: "Electro Rover",
   stats: [[Stat.BaseHp, 10775], [Stat.BaseAtk, 437.5], [Stat.BaseDef, 1136.6646]],
   talent: ROVER_ELECTRO_TALENTS,

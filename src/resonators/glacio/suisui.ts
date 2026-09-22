@@ -78,6 +78,7 @@ import {
   AERO_EROSION, ELECTRO_FLARE, ELECTRO_RAGE, FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE, HEALS, SPECTRO_FRAZZLE,
   inflictedNegativeStatusBy,
 } from "../../shared/status.js";
+import { ROVER_ELECTRO_RESONATOR } from "../electro/rover_electro.js";
 import { FIRSTLIGHTS_HERALD } from "../../weapons/rectifier.js";
 import { VARIATION } from "../../weapons/standard.js";
 import { FORBIDDEN_BASTION, FEATHERED_TRACE_5PC } from "../../echoes/mengzhou.js";
@@ -268,6 +269,10 @@ const TRANSCENDENT_DANCE = new Buff({
 function mistEarned(): boolean {
   // S1 widens the trigger to inflicting any Negative Status, or dealing its damage
   const me = currentTeam().slot;
+  // ...and never with Electro Rover in the team: sitting in the sub-DPS slot they take the handoff
+  // and hold the Mist out, so nothing anyone spends behind them earns the ATK and the 600 tier
+  // pays that team nothing
+  if (currentTeam().slots.some((s) => s.resonator === ROVER_ELECTRO_RESONATOR)) return false;
   return consumedAny() > 0
     || (stacksOfTeam(MOUNTAINS_WASHED) > 0 && (inflictedNegativeStatusBy(me) || NEGATIVE_STATUS_TAGS.some(isType)));
 }

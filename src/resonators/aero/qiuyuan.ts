@@ -128,6 +128,7 @@ const BAMBOO_SHADE = new Buff({
 // loops) only sees the tail of its 10s, so it pays that Inksplash's To Teach and ends there
 const QUIETUDE_WITHIN = new Buff({
   name: "Inherent: Quietude Within", maxStacks: 2,
+  display: () => "Inherent: Quietude Within",
   until: LifeTime.Swap,
   applyStats: () => {
     if (runningAction(FHA1) || runningAction(FHA2) || runningAction(FHA3)) addStat(Stat.TotalDmg, 50);

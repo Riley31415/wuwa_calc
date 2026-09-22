@@ -363,13 +363,14 @@ const SUOMING_RESONATOR = new Resonator({
  *  brings her round again for the real visit: her Intro (its Unison form when the outro she
  *  answers carried one) banks 200 Delusion in Deep Mind, the Unfurled chain carries it past 800
  *  for Unforsaken Mind, and Engraved Heart spends the lot. */
-const UHA12 = new ActionGroup("Basic - Unfurled Canopy: Whirling Thunder 12", [UHA1, UHA2]);
+const BA123 = new ActionGroup("Basic - Furled Canopy 123", [BA1, BA2, BA3]);
+
+const UBA12UHA12 = new ActionGroup("Basic - Unfurled Canopy 12 + Whirling Thunder 12", [UBA1, UBA2, UHA1, UHA2]);
 const UBA234 = new ActionGroup("Basic - Unfurled Canopy 234", [UBA2, UBA3, UBA4]);
 const UBA34 = new ActionGroup("Basic - Unfurled Canopy 34", [UBA3, UBA4]);
 const UBA12 = new ActionGroup("Basic - Unfurled Canopy 12", [UBA1, UBA2]);
 const UBA1234 = new ActionGroup("Basic - Unfurled Canopy 1234", [UBA1, UBA2, UBA3, UBA4]);
 const UBA123 = new ActionGroup("Basic - Unfurled Canopy 123", [UBA1, UBA2, UBA3]);
-const BA123 = new ActionGroup("Basic - Furled Canopy 123", [BA1, BA2, BA3]);
 
 const SM_ROTATION = new Rotation([
   NOINTRO, BA123, BA123, SealedDelusion,
@@ -390,22 +391,19 @@ const SM_ROTATION_MDPS = new Rotation([
 
   INTRO, Liberation, 
   RiftCleaver, DODGE,
-  UBA12, UHA12, DODGE,
-  UBA12, UHA12,
+  UBA12UHA12, DODGE,
+  UBA12UHA12,
   UnforsakenMind, EngravedHeart,
   ECHO_SWAP, OUTRO,
 ]);
 const SM_ROTATION_MDPS_DOUBLE = new Rotation([
-  DOUBLE_INTRO,
-  UBA12,
-  SWAP,
+  DOUBLE_INTRO, UBA12, SWAP,
 
-  INTRO,
+  INTRO, UHA2,
   Liberation, 
   RiftCleaver, DODGE,
-  UBA12, UHA12, DODGE,
-  UBA12, UHA12, DODGE,
-  UBA1,
+  UBA12UHA12, DODGE,
+  UBA12UHA12,
   UnforsakenMind, EngravedHeart,
   ECHO_SWAP, OUTRO,
 ]);

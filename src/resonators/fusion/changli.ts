@@ -217,14 +217,15 @@ const CHANGLI_RESONATOR = new Resonator({
 });
 
 const BA1234 = new ActionGroup("Basic - Blazing Enlightenment 1234", [BA1, BA2, BA3, BA4]);
+const BA34 = new ActionGroup("Basic - Blazing Enlightenment 34", [BA3, BA4]);
 
 const CH_ROTATION = new Rotation([
   START_3, Skill, Liberation, FlamingSacrifice.swap(), SWAP,
-  // TODO get cancels
+
   INTRO, SMA,
-  Skill, SBA,
-  Skill, SBA,
-  BA1234, DODGE, SBA,
+  Skill, SMA,
+  Skill, SMA, 
+  MHA, BA34, DODGE, SBA,
   FlamingSacrifice,
   Liberation, FlamingSacrifice, ECHO_SWAP,
   OUTRO,

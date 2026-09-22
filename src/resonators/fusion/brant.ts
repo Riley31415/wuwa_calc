@@ -32,7 +32,7 @@ import {
   onType,
 } from "../../engine/context.js";
 import { matrix, oneSecondPassed } from "../../shared/helpers.js";
-import { Action, Rotation, INTRO, OUTRO, SWAP, DOUBLE_INTRO, ECHO_CANCEL, ActionGroup } from "../../engine/rotation.js";
+import { Action, Rotation, INTRO, OUTRO, SWAP, DOUBLE_INTRO, ECHO_CANCEL, ActionGroup, ECHO_ONFIELD, DODGE } from "../../engine/rotation.js";
 import { SHIELD, HEALS } from "../../shared/status.js";
 import { UNFLICKERING_VALOR } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE } from "../../weapons/standard.js";
@@ -270,7 +270,7 @@ const MA1H = new ActionGroup("Mid-air - Captain's Rhapsody 1 (Hold)", [MA1, MA1C
 const MA2H = new ActionGroup("Mid-air - Captain's Rhapsody 2 (Hold)", [MA2, MA2C, MAFlip]);
 
 const BR_ROTATION = new Rotation([
-  INTRO, Liberation, MA2H, MA3, ECHO_CANCEL, MA3, FSkill, OUTRO,
+  INTRO, Liberation, MA2H, MA3, ECHO_ONFIELD, DODGE, MA3, FSkill, OUTRO,
 ]);
 
 const BR_ROTATION_MDPS = new Rotation([

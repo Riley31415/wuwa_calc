@@ -9822,6 +9822,7 @@ var BAMBOO_SHADE = new Buff({
 var QUIETUDE_WITHIN = new Buff({
   name: "Inherent: Quietude Within",
   maxStacks: 2,
+  display: () => "Inherent: Quietude Within",
   until: 1,
   applyStats: () => {
     if (runningAction(FHA1) || runningAction(FHA22) || runningAction(FHA32))
@@ -12463,13 +12464,18 @@ var BULING = new Loadout({
 function hsinAction(id, def2) {
   return new Action(id, { element: 128, scaling: 0, ...def2 });
 }
-var flareHit = (name, mul, def2 = {}) => new Action(name, {
+var flareHit = (name, mul, def2 = {}, source = null) => new Action(name, {
   element: 128,
   type: 32768,
   type2: 1572864,
   scaling: 3,
   mv: 0,
-  applyStats: () => addStat(16, mul()),
+  applyStats: () => {
+    if (source)
+      asSource(source(), () => addStat(16, mul()));
+    else
+      addStat(16, mul());
+  },
   ...def2
 });
 var BA113 = hsinAction("Basic - Answering Form 1", { node: 0, cast: 1, type: 4096, mv: 69.6, energy: 1.25, concerto: 2, offtune: 4e3, forte1: 7.08 });
@@ -12516,7 +12522,7 @@ var IHA = hsinAction("Heavy - Illumining Form", { node: 0, cast: 2, type: 8192, 
 var UpwardCut2 = hsinAction("Basic - Illumining Form: Upward Cut", { node: 0, cast: 1, type: 4096, mv: 87.57, energy: 1.58, concerto: 2.53, offtune: 5035, forte2: 39.84 });
 var IMA = hsinAction("Mid-air - Illumining Form Plunge", { node: 0, cast: 1, type: 4096, mv: 22.45, energy: 0.42, concerto: 0.65, offtune: 2080, forte2: 10.22 });
 var IDC = hsinAction("Dodge Counter - Illumining Form", { node: 0, cast: 0, type: 4096, mv: 191.36, energy: 3.44, concerto: 15.5, offtune: 11e3, forte2: 73.98, ...COLLAPSE });
-var ThunderHit = flareHit("Skill - Illumining Form: Heart of Thunder", () => (isHeld(HS_S1) ? 42 : 35) * stacksOfTeam(HEART_OF_THUNDER) - 100, { convertStats: () => revokeTeam(HEART_OF_THUNDER) });
+var ThunderHit = flareHit("Skill - Illumining Form: Heart of Thunder", () => (isHeld(HS_S1) ? 42 : 35) * stacksOfTeam(HEART_OF_THUNDER) - 100, { convertStats: () => revokeTeam(HEART_OF_THUNDER) }, () => HEART_OF_THUNDER);
 var ISkill = hsinAction("Skill - Illumining Form", {
   node: 1,
   cast: 3,
@@ -12791,7 +12797,8 @@ var MODE_FLARE = new ResonanceMode({
     const rage = applied2(ELECTRO_RAGE);
     if (rage > 0)
       applyTeam(HEART_OF_THUNDER, rage);
-    revokeEnemy(ELECTRO_RAGE);
+    if (stacksOfEnemy(ELECTRO_RAGE) > 0)
+      consume(ELECTRO_RAGE, stacksOfEnemy(ELECTRO_RAGE));
   }
 });
 var HS_BOON_PAYOUT = boonPayout();
@@ -12850,7 +12857,13 @@ var HEARTLOCK_PRIMED = new Buff({
 });
 var EDICT = coordinatedBuff("Hsin: Edict", 21, () => HSIN_RESONATOR, SoaringPillar);
 var PILLAR_CHARGES = new Buff({ name: "Hsin: Pillars Aligned Flare Charges", maxStacks: 5 });
-var HEART_OF_THUNDER = new Buff({ name: "Hsin: Heart of Thunder", maxStacks: 100 });
+var HEART_OF_THUNDER = new Buff({
+  name: "Hsin: Heart of Thunder",
+  maxStacks: 100,
+  // the count is the shared one, and a source row reads it off the slot it is filed on — which
+  // holds none of it (`asSource` on ThunderHit's multiplier), so the stacks are named here
+  display: () => `Hsin: Heart of Thunder x${stacksOfTeam(HEART_OF_THUNDER)}`
+});
 var THUNDERGLOW = new Buff({ name: "Hsin: Thunderglow", maxStacks: 10 });
 var FLEETING_THUNDER = new Debuff({ name: "Hsin: Fleeting Thunder" });
 var tidesPayers = () => {
@@ -14444,13 +14457,13 @@ var SUOMING_RESONATOR = new Resonator({
     applyCurrent(SM_BOON_PAYOUT, 1);
   }
 });
-var UHA12 = new ActionGroup("Basic - Unfurled Canopy: Whirling Thunder 12", [UHA1, UHA2]);
+var BA1233 = new ActionGroup("Basic - Furled Canopy 123", [BA116, BA216, BA317]);
+var UBA12UHA12 = new ActionGroup("Basic - Unfurled Canopy 12 + Whirling Thunder 12", [UBA1, UBA2, UHA1, UHA2]);
 var UBA234 = new ActionGroup("Basic - Unfurled Canopy 234", [UBA2, UBA3, UBA4]);
 var UBA34 = new ActionGroup("Basic - Unfurled Canopy 34", [UBA3, UBA4]);
 var UBA12 = new ActionGroup("Basic - Unfurled Canopy 12", [UBA1, UBA2]);
 var UBA1234 = new ActionGroup("Basic - Unfurled Canopy 1234", [UBA1, UBA2, UBA3, UBA4]);
 var UBA123 = new ActionGroup("Basic - Unfurled Canopy 123", [UBA1, UBA2, UBA3]);
-var BA1233 = new ActionGroup("Basic - Furled Canopy 123", [BA116, BA216, BA317]);
 var SM_ROTATION = new Rotation([
   NOINTRO,
   BA1233,
@@ -14473,11 +14486,9 @@ var SM_ROTATION_MDPS = new Rotation([
   Liberation12,
   RiftCleaver,
   DODGE,
-  UBA12,
-  UHA12,
+  UBA12UHA12,
   DODGE,
-  UBA12,
-  UHA12,
+  UBA12UHA12,
   UnforsakenMind,
   EngravedHeart,
   ECHO_SWAP,
@@ -14488,16 +14499,13 @@ var SM_ROTATION_MDPS_DOUBLE = new Rotation([
   UBA12,
   SWAP,
   INTRO,
+  UHA2,
   Liberation12,
   RiftCleaver,
   DODGE,
-  UBA12,
-  UHA12,
+  UBA12UHA12,
   DODGE,
-  UBA12,
-  UHA12,
-  DODGE,
-  UBA1,
+  UBA12UHA12,
   UnforsakenMind,
   EngravedHeart,
   ECHO_SWAP,
@@ -15761,7 +15769,8 @@ var BR_ROTATION = new Rotation([
   Liberation15,
   MA2H,
   MA34,
-  ECHO_CANCEL,
+  ECHO_ONFIELD,
+  DODGE,
   MA34,
   FSkill5,
   OUTRO
@@ -16016,20 +16025,21 @@ var CHANGLI_RESONATOR = new Resonator({
   }
 });
 var BA12345 = new ActionGroup("Basic - Blazing Enlightenment 1234", [BA120, BA220, BA321, BA416]);
+var BA345 = new ActionGroup("Basic - Blazing Enlightenment 34", [BA321, BA416]);
 var CH_ROTATION = new Rotation([
   START_3,
   Skill18,
   Liberation16,
   FlamingSacrifice.swap(),
   SWAP,
-  // TODO get cancels
   INTRO,
   SMA,
   Skill18,
-  SBA,
+  SMA,
   Skill18,
-  SBA,
-  BA12345,
+  SMA,
+  MHA,
+  BA345,
   DODGE,
   SBA,
   FlamingSacrifice,
@@ -16967,13 +16977,13 @@ var GALBRENA_RESONATOR = new Resonator({
 var SeraphicExecution2345 = new ActionGroup("Forte Basic - Seraphic Execution 2345", [SeraphicExecution2, SeraphicExecution3, SeraphicExecution4, SeraphicExecution5]);
 var SeraphicExecution345 = new ActionGroup("Forte Basic - Seraphic Execution 345", [SeraphicExecution3, SeraphicExecution4, SeraphicExecution5]);
 var BA2344 = new ActionGroup("Basic - Slayer's Trigger 234", [BA223, BA324, BA419]);
-var BA345 = new ActionGroup("Basic - Slayer's Trigger 34", [BA324, BA419]);
+var BA346 = new ActionGroup("Basic - Slayer's Trigger 34", [BA324, BA419]);
 var GB_ROTATION = new Rotation([
   INTRO,
   ECHO_CANCEL,
   HA24,
   HA33,
-  BA345,
+  BA346,
   Encroach,
   AscentOfMalice,
   Liberation18,
@@ -19954,6 +19964,8 @@ var TRANSCENDENT_DANCE = new Buff({
 });
 function mistEarned() {
   const me = currentTeam().slot;
+  if (currentTeam().slots.some((s) => s.resonator === ROVER_ELECTRO_RESONATOR))
+    return false;
   return consumedAny() > 0 || stacksOfTeam(MOUNTAINS_WASHED) > 0 && (inflictedNegativeStatusBy(me) || NEGATIVE_STATUS_TAGS.some(isType));
 }
 var UNDULATING_MIST = new Buff({
@@ -21153,7 +21165,7 @@ var BA239 = chisaAction("Basic - Reign of Silence 2", { node: 0, cast: 1, type: 
 var DodgeCounterBA2 = chisaAction("Dodge Counter - Reign of Silence 2", { node: 0, cast: 0, type: 4096, mv: 238.59, energy: 5, concerto: 10, offtune: 11200, forte1: 23 });
 var RendingLunge = chisaAction("Basic - Rending Lunge", { node: 0, cast: 1, type: 4096, mv: 151.1, energy: 3.19, concerto: 6.37, offtune: 10137, forte1: 20 });
 var DeathSnip = chisaAction("Basic - Death Snip", { node: 0, cast: 1, type: 16384, mv: 149.06, energy: 2.09, concerto: 4.18, offtune: 6665, forte1: 18, ...SNIP_HEAL });
-var DeathSnipSpread = chisaAction("Basic - Death Snip With Spread", { node: 0, cast: 1, type: 16384, mv: 196.84, energy: 2.76, concerto: 5.52, offtune: 8801, forte1: 27, ...SNIP_HEAL });
+var DeathSnipSpread = chisaAction("Basic - Death Snip + Spread", { node: 0, cast: 1, type: 16384, mv: 196.84, energy: 2.76, concerto: 5.52, offtune: 8801, forte1: 27, ...SNIP_HEAL });
 var ThreadWithdrawn = chisaAction("Basic - Thread Withdrawn", { node: 0, cast: 1, type: 4096, mv: 67.65, energy: 1.44, concerto: 2.85, offtune: 4538, forte1: 16 });
 var ReignOfSilenceMidAir = chisaAction("Mid-air - Reign of Silence Plunge", { node: 0, cast: 1, type: 4096, mv: 73.96, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 9 });
 var HA29 = chisaAction("Heavy - Reign of Silence", { node: 0, cast: 2, type: 8192, mv: 71.58, energy: 1.5, concerto: 3, offtune: 4800, forte1: 10 });
@@ -21412,7 +21424,7 @@ var CS_ROTATION_FAST = new Rotation([
   INTRO,
   BA239,
   RendingLunge,
-  DeathSnip,
+  DeathSnipSpread,
   ECHO_CANCEL,
   Liberation28,
   SerratedLoop,
@@ -21443,7 +21455,6 @@ var CS_ROTATION = new Rotation([
   INTRO,
   BA239,
   RendingLunge,
-  DeathSnip,
   DeathSnipSpread,
   ECHO_CANCEL,
   Liberation28,
@@ -22757,6 +22768,7 @@ var JINHSI_RESONATOR = new Resonator({
 var BA12348 = new ActionGroup("Basic - Slash of Breaking Dawn 1234", [BA142, BA242, BA338, BA428]);
 var IncBA12 = new ActionGroup("Basic - Incarnation 12", [IncBA1, IncBA2]);
 var IncBA34 = new ActionGroup("Basic - Incarnation 34", [IncBA3, IncBA4]);
+var IncBA123 = new ActionGroup("Basic - Incarnation 123", [IncBA1, IncBA2, IncBA3]);
 var JX_ROTATION2 = new Rotation([
   START_3,
   Liberation31,
@@ -23711,7 +23723,7 @@ function verinaAction(id, def2) {
 }
 var BA146 = verinaAction("Basic - Cultivation 1", { node: 0, cast: 1, type: 4096, mv: 37.86, energy: 0.95, concerto: 3.04, offtune: 7600 });
 var BA246 = verinaAction("Basic - Cultivation 2", { node: 0, cast: 1, type: 4096, mv: 51.16, energy: 1.28, concerto: 4.11, offtune: 10200 });
-var BA346 = verinaAction("Basic - Cultivation 3", { node: 0, cast: 1, type: 4096, mv: 51.16, energy: 1.28, concerto: 4.11, offtune: 10200 });
+var BA347 = verinaAction("Basic - Cultivation 3", { node: 0, cast: 1, type: 4096, mv: 51.16, energy: 1.28, concerto: 4.11, offtune: 10200 });
 var BA430 = verinaAction("Basic - Cultivation 4", { node: 0, cast: 1, type: 4096, mv: 67.32, energy: 1.69, concerto: 5.41, offtune: 13600 });
 var BA55 = verinaAction("Basic - Cultivation 5", { node: 0, cast: 1, type: 4096, mv: 71.62, energy: 1.8, concerto: 5.76, offtune: 14400, forte1: 1 });
 var HA36 = verinaAction("Heavy - Cultivation", { node: 0, cast: 2, type: 8192, mv: 99.41, energy: 2.5, concerto: 8, offtune: 2e4 });
@@ -23843,7 +23855,7 @@ var VERINA_RESONATOR = new Resonator({
       applyCurrent(HEALS, 1);
   }
 });
-var BA3452 = new ActionGroup("Basic - Cultivation 345", [BA346, BA430, BA55]);
+var BA3452 = new ActionGroup("Basic - Cultivation 345", [BA347, BA430, BA55]);
 var VR_LOOP = new Rotation([
   NOINTRO,
   BA3452,
@@ -23915,16 +23927,18 @@ var TEAMS = [
   [[SHOREKEEPER, VERINA, MORNYE], [JINHSI_SUPPORT], SUOMING_MDPS],
   [[MORNYE, SHOREKEEPER, VERINA], [LYNAE_RUPTURE, REBECCA], SUOMING_MDPS],
   // hsin, Unison mode: Suoming or Jinhsi behind her hands over the Unison her Intro answers
-  [[SHOREKEEPER, VERINA, MORNYE, SUISUI, BULING], [SUOMING], HSIN_UNISON],
+  [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [SUOMING], HSIN_UNISON],
+  [[BULING], [SUOMING], HSIN_UNISON],
   [[SUOMING], HSIN_UNISON, [JINHSI_SUPPORT]],
   // hsin (Electro Flare mode): electro skill flare
-  [[SUISUI, BULING, CHISA_FAST, SHOREKEEPER, MORNYE, VERINA], [ROVER_ELECTRO], HSIN_FLARE],
-  [[SUISUI, SHOREKEEPER, MORNYE, VERINA], [CHISA], HSIN_FLARE],
-  [[BULING], [SUISUI, CHISA], HSIN_FLARE],
-  [[MORNYE, SHOREKEEPER, VERINA], [LYNAE_RUPTURE], HSIN_FLARE],
-  [[MORNYE, SHOREKEEPER, VERINA], [REBECCA], HSIN_FLARE],
+  [[SUISUI, CHISA_FAST, SHOREKEEPER, MORNYE, VERINA], [ROVER_ELECTRO, CHISA], HSIN_FLARE],
+  [[BULING], [CHISA, ROVER_ELECTRO], HSIN_FLARE],
+  [[SUISUI], [BULING], HSIN_FLARE],
+  [[SUISUI, MORNYE, SHOREKEEPER, VERINA], [LYNAE_RUPTURE, REBECCA], HSIN_FLARE],
+  [[BULING], [LYNAE_RUPTURE, REBECCA], HSIN_FLARE],
   // jinhsi: spectro skill
-  [[SHOREKEEPER, MORNYE, SUISUI, VERINA, BULING], [ZHEZHI, CANTARELLA, SUOMING, HSIN_UNISON, YINLIN], JINHSI],
+  [[SHOREKEEPER, MORNYE, SUISUI, VERINA, BULING], [ZHEZHI, CANTARELLA, SUOMING, YINLIN], JINHSI],
+  [[SHOREKEEPER, MORNYE, SUISUI, VERINA, BULING], JINHSI, [HSIN_UNISON]],
   [[MORNYE], [LYNAE_RUPTURE], JINHSI],
   [[MORNYE], [REBECCA], JINHSI],
   // electro rover mdps: Apex Resonance, the Thrum of All Sounds chains
