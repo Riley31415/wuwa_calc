@@ -3651,7 +3651,7 @@ function runRotations(state, rotations, sections) {
 }
 
 // dist/src/shared/tunebreak.js
-var ENEMY_MAX_OFFTUNE = 384e3;
+var ENEMY_MAX_OFFTUNE = 392e3;
 var BASE_RESISTANCE = new Gear({
   name: "Base Resistance",
   constantStats: () => {
@@ -14233,8 +14233,8 @@ var ER_ROTATION = new Rotation([
   BA12343,
   Skill14,
   Repel,
-  Overshock,
   Liberation11,
+  Overshock,
   ECHO_SWAP,
   OUTRO
 ]);
@@ -14341,6 +14341,9 @@ var RiftCleaver = suomingAction("Skill - Furled Canopy: Rift Cleaver", {
     addStat(27, -20);
     setForte1(0);
     revokeCurrent(UNISON);
+    if (isHeld(BOON_RESPONSE))
+      removeStackTeam(UNISON_BOON, 1);
+    revokeCurrent(BOON_RESPONSE);
     if (!isHeld(ALIGNED_SEALS))
       applyCurrent(SEAL_MASTER, 1);
   }
@@ -14642,9 +14645,9 @@ var SM_ROTATION_MDPS = new Rotation([
 var SM_ROTATION_MDPS_DOUBLE = new Rotation([
   DOUBLE_INTRO,
   UBA12,
+  UHA1.swap(),
   SWAP,
   INTRO,
-  UHA2,
   Liberation12,
   RiftCleaver,
   DODGE,
@@ -24974,7 +24977,8 @@ var TEAMS = [
   [[SUISUI, CHISA_FAST], [DENIA_BURST], AEMEATH_BURST],
   [[DENIA_BURST], [LYNAE_RUPTURE, CHANGLI, LUPA], AEMEATH_BURST],
   [[LUPA], [CHANGLI, BRANT], AEMEATH_BURST],
-  [[SUISUI, SHOREKEEPER, VERINA, LUPA, DENIA_BURST, CHISA_FAST, MORNYE], [DENIA_BURST, LUPA, JIANXIN, ROVER_ELECTRO], AEMEATH_BURST],
+  [[SUISUI, SHOREKEEPER, VERINA, DENIA_BURST, CHISA_FAST, MORNYE], [DENIA_BURST], AEMEATH_BURST],
+  [[SUISUI, SHOREKEEPER, VERINA, LUPA, DENIA_BURST, CHISA_FAST], [LUPA, JIANXIN, ROVER_ELECTRO], AEMEATH_BURST],
   // qiuyuan: aero heavy echo
   [[SHOREKEEPER, VERINA, CIACCONA, MORNYE, SUISUI], [MORTEFI, IUNO, CIACCONA, LUCILLA], QIUYUAN_MDPS],
   [[MORNYE, SHOREKEEPER, VERINA, CIACCONA, SUISUI], [REBECCA, LYNAE_RUPTURE], QIUYUAN_MDPS],
@@ -24989,7 +24993,6 @@ var TEAMS = [
   [[SHOREKEEPER, CIACCONA, VERINA, MORNYE, SUISUI], [CIACCONA, JIANXIN], IUNO_MDPS],
   [[MORNYE, SHOREKEEPER, CIACCONA, VERINA, SUISUI], [LYNAE_RUPTURE], IUNO_MDPS],
   // augusta: electro heavy shielder
-  [[SHOREKEEPER], [AUGUSTA], SUOMING],
   [[SHOREKEEPER, VERINA, MORNYE, SUISUI], [IUNO, MORTEFI], AUGUSTA],
   [[MORNYE, SHOREKEEPER, VERINA, SUISUI], [REBECCA], AUGUSTA],
   [[MORNYE], [LYNAE_RUPTURE], AUGUSTA],
@@ -25124,6 +25127,7 @@ var teamKey = (index) => `t${index}`;
 var teamAt = (key) => /^t\d+$/.test(key) ? ALL_TEAMS[Number(key.slice(1))] : void 0;
 
 // dist/src/solver.js
+var loadoutName = (l) => l.mode ? `${l.resonator.name} (${l.mode.name.split(" ").pop()})` : l.resonator.name;
 var member = (loadout, mainDps = false) => ({ name: loadout.resonator.name, color: loadout.resonator.color, loadout, mainDps });
 var AXES = ["weapons", "echoes", "mainstats", "sequences", "refines", "substats"];
 var TEAM_COSTS = [
@@ -25752,6 +25756,7 @@ export {
   PRIMARY_TEAM,
   teamKey,
   teamAt,
+  loadoutName,
   member,
   AXES,
   TEAM_COSTS,

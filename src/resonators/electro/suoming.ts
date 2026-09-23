@@ -18,8 +18,8 @@
  * **Unison** (shared/unison.ts): the Liberation grants it, 5s, once every 25s — one Liberation a
  * loop, so always. Two ways to spend it, and a loadout takes one:
  *
- * - Rift Cleaver with Unison (Sunken Seal, Forged Lock) removes it, spends 20 Concerto, clears
- *   Delusion and grants **Seal Master**: +100% DMG Multiplier on Unfurled Canopy and Whirling
+ * - Rift Cleaver with Unison (Sunken Seal, Forged Lock) removes it and the Unison Boon stack she
+ *   granted, spends 20 Concerto, clears Delusion and grants **Seal Master**: +100% DMG Multiplier on Unfurled Canopy and Whirling
  *   Thunder, +5 Concerto a stage on hit, +100% Crit. DMG, 12s or until switched out — the main-DPS
  *   way to play her, and the whole of SM_ROTATION_MDPS below.
  * - Swapping out with it (a Unison outro, the bar handed back) grants **Aligned Seals**, 30s, and
@@ -35,7 +35,7 @@
  * Each stack is +3% DMG dealt to the team's responders, which is her alone. Sequences 1-6 are
  * modelled from the same file — see their own block below.
  *
- * Numbers from nanoka's 3.7.2 data (character 1312 — older version directories on that CDN are
+ * Numbers from nanoka's 3.7.4 data (character 1312 — older version directories on that CDN are
  * *stale* betas, not earlier patches): per-hit MV/energy/concerto/off-tune/Delusion summed per action the way
  * CLAUDE.md describes, each Intro's "Concerto Regen 10" added on top of its hits, and the dodge
  * counters' hidden +10. Every Intro hit's element_power is 0 here, so those Regen rows are the whole
@@ -58,6 +58,7 @@ import {
   forte1,
   isHeld,
   queueOutro,
+  removeStackTeam,
   revokeCurrent,
   setForte1,
   stacksOfTeam,
@@ -96,7 +97,7 @@ const UHA2 = suomingAction("Heavy - Unfurled Canopy: Whirling Thunder 2", { node
 const UDC = suomingAction("Dodge Counter - Unfurled Canopy", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 174.04 + 58.02 * 3, energy: 4.21 + 1.41 * 3, concerto: 3.51 + 1.17 * 3 + 10, offtune: 7004 + 2335 * 3, forte1: 80 + 27 * 3 });
 
 // --- Rift Cleaver, the plain Resonance Skill in either state. Holding Unison additionally spends
-//     it, 20 Concerto, and every point of Delusion, for Seal Master (see SUNKEN_SEAL below).
+//     it, her Unison Boon stack, 20 Concerto, and every point of Delusion, for Seal Master (see SUNKEN_SEAL below).
 //     Crimson Gleam is the follow-up a counter-cast Rift Cleaver triggers, which needs the target
 //     to attack into it — left for a rotation to name.
 const RiftCleaver = suomingAction("Skill - Furled Canopy: Rift Cleaver", {
@@ -106,6 +107,9 @@ const RiftCleaver = suomingAction("Skill - Furled Canopy: Rift Cleaver", {
     addStat(Stat.AddConcerto, -20);
     setForte1(0);
     revokeCurrent(UNISON);
+    // 3.7.4: the one Boon stack she granted goes too, so her next Unison Response grants afresh
+    if (isHeld(BOON_RESPONSE)) removeStackTeam(UNISON_BOON, 1);
+    revokeCurrent(BOON_RESPONSE);
     if (!isHeld(ALIGNED_SEALS)) applyCurrent(SEAL_MASTER, 1);
   },
 });
@@ -397,9 +401,9 @@ const SM_ROTATION_MDPS = new Rotation([
   ECHO_SWAP, OUTRO,
 ]);
 const SM_ROTATION_MDPS_DOUBLE = new Rotation([
-  DOUBLE_INTRO, UBA12, SWAP,
+  DOUBLE_INTRO, UBA12, UHA1.swap(), SWAP,
 
-  INTRO, UHA2,
+  INTRO,
   Liberation, 
   RiftCleaver, DODGE,
   UBA12UHA12, DODGE,

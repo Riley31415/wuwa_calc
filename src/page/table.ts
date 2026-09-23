@@ -4,7 +4,7 @@
  */
 import { Tier } from "../engine/stats.js";
 import { fmt } from "../display.js";
-import { sequenceLevels, scopedKey, axisUsed, compares, weaponBase, echoLines, echoLabel, axisOpen, AXES } from "../solver.js";
+import { loadoutName, sequenceLevels, scopedKey, axisUsed, compares, weaponBase, echoLines, echoLabel, axisOpen, AXES } from "../solver.js";
 import type { Member, Combo, Axis, TeamCost, ScopedCompare } from "../solver.js";
 import type { TeamRun } from "../teamrun.js";
 import {
@@ -243,7 +243,7 @@ function showMenu(x: number, y: number, items: MenuItem[]): void {
 /** A member's name cell: the resonator, then `S?R?` — the name cell's menu offers the level and
  *  rank as filter lines of its own (`openNameMenu`). */
 function memberLabel(m: Member, combo: Combo): string {
-  return [m.loadout.resonator.name, combo.matrix ? "(Matrix)" : "", `${seqToken(m, combo)}${rankToken(m, combo)}`]
+  return [m.mainDps ? loadoutName(m.loadout) : m.name, combo.matrix ? "(Matrix)" : "", `${seqToken(m, combo)}${rankToken(m, combo)}`]
     .filter(Boolean).join(" ");
 }
 /** Any level above S0 is named — the one a chain comes with, and the one a cost mode hands out —

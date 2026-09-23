@@ -55,7 +55,7 @@
 # nanoka data
 the damage table is client-rendered — read the CDN json, not the html:
 `https://static.nanoka.cc/ww/<ver>/en/character/<id>.json`, `<ver>` from a page's `data-url` —
-**a page carries more than one, so take the highest** (3.7.3 now, beside a stale 3.6), and the CDN
+**a page carries more than one, so take the highest** (3.7.3 on the page now, beside a stale 3.6 — though the CDN already serves 3.7.4, so probe one version up), and the CDN
 keeps old directories that are earlier betas rather than earlier patches. `<id>` 1101-1610 (404s on
 gaps). plain curl works for the json; WebFetch gets 403, and the html needs a browser UA or it comes
 back empty.

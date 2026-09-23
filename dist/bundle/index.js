@@ -40,6 +40,7 @@ import {
   isPercent,
   isProgress,
   litStats,
+  loadoutName,
   mainstatSlotBuffs,
   member,
   menuStats,
@@ -59,7 +60,7 @@ import {
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-5FFXXBAS.js";
+} from "./chunk-AOOCY3AJ.js";
 
 // dist/src/display.js
 var formatters = /* @__PURE__ */ new Map();
@@ -2583,7 +2584,7 @@ function showMenu(x, y, items) {
   });
 }
 function memberLabel(m, combo) {
-  return [m.loadout.resonator.name, combo.matrix ? "(Matrix)" : "", `${seqToken(m, combo)}${rankToken(m, combo)}`].filter(Boolean).join(" ");
+  return [m.mainDps ? loadoutName(m.loadout) : m.name, combo.matrix ? "(Matrix)" : "", `${seqToken(m, combo)}${rankToken(m, combo)}`].filter(Boolean).join(" ");
 }
 var seqToken = (m, combo) => combo.sequence > 0 || axisOpen(m, filters, "sequences") ? `S${combo.sequence}` : "";
 var rankToken = (m, combo) => axisUsed(m, filters, "weapons") ? "" : compares(m, filters, "refines", combo) || combo.weapon.refinement > 1 || combo.weapon.tier === 0 ? `R${combo.weapon.refinement}` : "R0";

@@ -18,6 +18,11 @@ export interface Member {
   mainDps: boolean;
 }
 
+/** The resonator's name, plus the last word of a Resonance Mode ("Lynae (Rupture)") — display only;
+ *  filters still key on the plain name. */
+export const loadoutName = (l: Loadout): string =>
+  l.mode ? `${l.resonator.name} (${l.mode.name.split(" ").pop()})` : l.resonator.name;
+
 export const member = (loadout: Loadout, mainDps = false): Member =>
   ({ name: loadout.resonator.name, color: loadout.resonator.color, loadout, mainDps });
 

@@ -252,7 +252,7 @@ export const ROVER_ELECTRO_RESONATOR = new Resonator({
 const BA1234 = new ActionGroup("Basic - Deterrence 1234", [BA1, BA2, BA3, BA4]);
 
 const ER_ROTATION = new Rotation([
-  INTRO, BA1234, Skill, Repel, Overshock, Liberation, ECHO_SWAP, OUTRO,
+  INTRO, BA1234, Skill, Repel, Liberation, Overshock, ECHO_SWAP, OUTRO,
 ]);
 
 // The main-DPS loop: the same fill, the Liberation while the Surge is being built, then Overshock

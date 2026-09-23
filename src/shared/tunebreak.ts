@@ -31,7 +31,7 @@ import { Action } from "../engine/rotation.js";
 /* ---------------------------------------------------------------------------- the enemy */
 
 /** The bar's own ceiling, x10000 like every `offtune` an action declares */
-export const ENEMY_MAX_OFFTUNE = 384000;
+export const ENEMY_MAX_OFFTUNE = 392_000;
 
 /** The enemy's own 20% resistance to every attribute, as seven scoped RES Reduce entries of -20 —
  *  so the res column's own trace lists it beside every shred and ignore and foots to the total. */

@@ -17,6 +17,7 @@ import {
   hasBuild,
   isProgress,
   isSignature,
+  loadoutName,
   matrixOn,
   member,
   optimizeTeam,
@@ -33,7 +34,7 @@ import {
   teamFromKey,
   weaponBase,
   weaponOptions
-} from "./chunk-5FFXXBAS.js";
+} from "./chunk-AOOCY3AJ.js";
 export {
   AXES,
   MAINSTAT_ROWS,
@@ -53,6 +54,7 @@ export {
   hasBuild,
   isProgress,
   isSignature,
+  loadoutName,
   matrixOn,
   member,
   optimizeTeam,
