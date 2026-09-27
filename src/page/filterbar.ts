@@ -173,16 +173,9 @@ const COST_HELP = [
 /** Shown on the Matrix bubble and on the name menu's own line — the box this used to describe is
  *  gone, the option is per resonator now. */
 export const MATRIX_HELP = "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.";
-const STANDARDS = [
-  "Rotations are 123, 1323, or 12323 for double intro and unison (jinhsi, brant, hsin, etc).",
-  "A resonator may use their liberation at the start of the fight for free damage or buffs.",
-  "Each rotation is achievable in 25-28 seconds, and we assume 4 rotations in 2 minutes.",
-  "Combat is performed against a single level 100 boss with 20% resistance to all attributes.",
-  "Resonators and weapons are level 90, with all skill nodes at level 10.",
-  "Shorekeeper, Mornye, Suisui, Buling and Verina fill one another's slot, so a team that differs only in which of them it runs shows once, behind the support it leans on - Suisui in front of a Negative Status DPS, Mornye beside Lupa or Lynae, Shorekeeper otherwise. Filter for the other two teammates to run and see the whole bench.",
-];
 const README = [
   "All beta calculations are subject to change!",
+  "Enemy lv100, 20% res, Resonator lv 90, Nodes lv10",
   "If you find any bug or issue ping me on discord @rileyy._.",
 ];
 
@@ -218,7 +211,6 @@ export function comparisonFilters(): string {
   return `<div class="tcfilters">
     <div class="tcfilter-row note">
       ${note("readme", "README", README, `<li><button type="button" class="tutstart">How do I use this website? ${CLICK} here.</button></li>`)}
-      ${note("standards", "Standards and Assumptions", STANDARDS)}
       ${costBox()}
       <div class="tcsearchrow">
         <div class="tcsearch">

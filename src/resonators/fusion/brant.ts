@@ -14,8 +14,8 @@
  * rotation below goes straight from Intro into Liberation. Healing is out of scope, per the
  * standing rule; Returned from Ashes' own shield isn't modelled for HP value, only as the marker.
  */
-import { Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
+import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, matrix } from "../../engine/gear.js";
 import {
   applyCurrent,
   revokeCurrent,
@@ -30,10 +30,10 @@ import {
   removeStack,
   queueOn,
   onType,
+  elapsed,
 } from "../../engine/context.js";
-import { matrix, oneSecondPassed } from "../../shared/helpers.js";
-import { Action, Rotation, INTRO, OUTRO, SWAP, DOUBLE_INTRO, ECHO_CANCEL, ActionGroup, ECHO_ONFIELD, DODGE } from "../../engine/rotation.js";
-import { SHIELD, HEALS } from "../../shared/status.js";
+import { Action, Rotation, ECHO, ActionGroup, INTRO, DOUBLE_INTRO } from "../../engine/rotation.js";
+import { SHIELD, HEALS, gainShield } from "../../shared/status.js";
 import { UNFLICKERING_VALOR } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS, NEW_STD_SWORD, BLOODPACTS_PLEDGE } from "../../weapons/standard.js";
 import { DRAGON_OF_DIRGE, TIDEBREAKING_5PC } from "../../echoes/rinascita.js";
@@ -57,15 +57,18 @@ function brantAction(id: string, def: object): Action {
 // updateDebuffs is his own healing marker, read by every healing sonata and weapon (statuses.ts)
 // — applied to the healer alone, never the team
 const Intro = brantAction("Intro - Applaud for Me!", {
-  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 253.49, offtune: 12000, concerto: 10, forte1: 25,
+  frames: 106,
+  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 253.49, offtune: 12000, castConcerto: 10, forte1: 25,
   updateDebuffs: () => applyCurrent(HEALS, 1),
 });
-const Outro = brantAction("Outro - The Course is Set!", { cast: Cast.Outro, concerto: -100, swapOut: true, updateBuffs: () => queueOutro(BRANT_OUTRO) });
+const Outro = brantAction("Outro - The Course is Set!", { cast: Cast.Outro, castConcerto: -100, updateBuffs: () => queueOutro(BRANT_OUTRO) });
 
 // --- resonance skill: Anchors Aweigh!, and liberation: To the Horizon (opens Aflame)
-const Skill = brantAction("Skill - Anchors Aweigh!", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 333.92, offtune: 10160, energy: 7.18, concerto: 10, forte1: 7.88 });
+const Skill = brantAction("Skill - Anchors Aweigh!", { frames: 46, cancelFrames: 21, cooldown: 60 * 4, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 333.92, offtune: 10160, energy: 7.18, castConcerto: 10, forte1: 7.88 });
 const Liberation = brantAction("Liberation - To the Horizon", {
-  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 680.45, offtune: 48000, concerto: 20, resetEnergy: true,
+  frames: 247, timestop: 247,
+  cooldown: 60 * 24,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, mv: 680.45, offtune: 48000, castConcerto: 20, resetEnergy: true,
   // Aflame swaps his conversion up to its "My" Moment rate for as long as it lasts
   updateBuffs: () => { applyCurrent(AFLAME, 1); revokeCurrent(THEATRICAL_MOMENT); applyCurrent(MY_MOMENT, 1); },
 });
@@ -75,8 +78,9 @@ const Liberation = brantAction("Liberation - To the Horizon", {
  *  overshot Bravo back to exactly 100 so its own declared `forte1: -100` lands exactly on 0;
  *  under 100, left alone (matches Galbrena's own Purging Flame). */
 const FSkill = brantAction("Forte Skill - Returned from Ashes", {
-  node: Node.Forte, cast: Cast.Skill, type: Type1.Basic, mv: 1888.71, offtune: 63200, energy: 30, concerto: 50, forte1: -100,
-  updateDebuffs: () => applyCurrent(SHIELD, 1),
+  frames: 139, cancelFrames: 109,
+  node: Node.Forte, cast: Cast.Skill, type: Type.Basic, mv: 1888.71, offtune: 63200, energy: 30, concerto: 30, castConcerto: 20, castForte1: -100,
+  updateDebuffs: () => gainShield(1),
 });
 
 
@@ -84,14 +88,14 @@ const FSkill = brantAction("Forte Skill - Returned from Ashes", {
 // --- ground Captain's Rhapsody: the 4-stage Basic chain, both Heavy Attacks (the table's only
 //     type=1 rows), Dodge Counter (hidden +10 concerto, per the standing rule) and the Plunging
 //     Attack the Skill tree carries as a type=0 (Basic) row. None sit in a rotation.
-const BA1 = brantAction("Basic - Captain's Rhapsody 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 50.53, energy: 0.75, concerto: 1.5, offtune: 2392, forte1: 1.3 });
-const BA2 = brantAction("Basic - Captain's Rhapsody 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 101.40, energy: 1.5, concerto: 3, offtune: 4800, forte1: 2.62 }); // 50.70%x2
-const BA3 = brantAction("Basic - Captain's Rhapsody 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 132.34, energy: 1.97, concerto: 3.94, offtune: 6264, forte1: 3.41 }); // 22.06%x3+33.08%x2
-const BA4 = brantAction("Basic - Captain's Rhapsody 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 140.12, energy: 2.12, concerto: 4.18, offtune: 6631, forte1: 3.62 }); // 28.02%+22.42%x5
-const HA = brantAction("Heavy - Captain's Rhapsody", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 197.55, energy: 2.93, concerto: 5.85, offtune: 9352, forte1: 7.25 });
-const HARiff = brantAction("Heavy - Rhapsodic Riff", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 168.99, energy: 2.5, concerto: 5, offtune: 8000, forte1: 6.2 });
-const DC = brantAction("Dodge Counter - Captain's Rhapsody", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 228.17, energy: 3.41, concerto: 16.77, offtune: 10800 }); // 38.03%x3+57.04%x2
-const Plunge = brantAction("Mid-air - Plunging Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 3.83 });
+const BA1 = brantAction("Basic - Captain's Rhapsody 1", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 50.53, energy: 0.75, concerto: 1.5, offtune: 2392, forte1: 1.3 });
+const BA2 = brantAction("Basic - Captain's Rhapsody 2", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 101.40, energy: 1.5, concerto: 3, offtune: 4800, forte1: 2.62 }); // 50.70%x2
+const BA3 = brantAction("Basic - Captain's Rhapsody 3", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 132.34, energy: 1.97, concerto: 3.94, offtune: 6264, forte1: 3.41 }); // 22.06%x3+33.08%x2
+const BA4 = brantAction("Basic - Captain's Rhapsody 4", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 140.12, energy: 2.12, concerto: 4.18, offtune: 6631, forte1: 3.62 }); // 28.02%+22.42%x5
+const HA = brantAction("Heavy - Captain's Rhapsody", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 197.55, energy: 2.93, concerto: 5.85, offtune: 9352, forte1: 7.25 });
+const HARiff = brantAction("Heavy - Rhapsodic Riff", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 168.99, energy: 2.5, concerto: 5, offtune: 8000, forte1: 6.2 });
+const DC = brantAction("Dodge Counter - Captain's Rhapsody", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, mv: 228.17, energy: 3.41, concerto: 6.77, castConcerto: 10, offtune: 10800 }); // 38.03%x3+57.04%x2
+const Plunge = brantAction("Mid-air - Plunging Attack", { frames: 55, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 104.78, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 3.83 });
 
 // --- mid-air Captain's Rhapsody, one action per hit family off the table: each stage's own hit,
 //     its Charged Attack insert, the automatic backward Flip (identical rows on stages 1-3) and
@@ -100,14 +104,14 @@ const Plunge = brantAction("Mid-air - Plunging Attack", { node: Node.Normal, cas
 //     stages 1-2 (the MA1/MA2 variants below), the hold finishers, and stage 3's automatic one —
 //     stage 4 has none. forte1 is the base (un-doubled) Bravo gain, AFLAME doubles it live. The
 //     Slash has no recorded Bravo value, so it declares none.
-const MA1 = brantAction("Mid-air - Captain's Rhapsody 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 122.86, energy: 1.82, concerto: 3.64, offtune: 5816, forte1: 4.51 });
-const MA1C = brantAction("Mid-air - Captain's Rhapsody 1 (Charged)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 332.48, energy: 4.96, concerto: 9.85, offtune: 15736, forte1: 12.23 }); // 33.25%+49.87%+41.56%x6
-const MA2 = brantAction("Mid-air - Captain's Rhapsody 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 169.84, energy: 2.52, concerto: 5.04, offtune: 8040, forte1: 6.24 }); // 84.92%x2
-const MA2C = brantAction("Mid-air - Captain's Rhapsody 2 (Charged)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 197.22, energy: 2.94, concerto: 5.88, offtune: 9336, forte1: 12.66 }); // 32.87%x6
-const MA3 = brantAction("Mid-air - Captain's Rhapsody 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 169.02, energy: 2.52, concerto: 5.04, offtune: 7998, forte1: 9.3 }); // 28.17%x6
-const MAFlip = brantAction("Mid-air - Captain's Rhapsody Flip", { node: Node.Normal, cutscene: true, cast: Cast.Basic, type: Type1.Basic, mv: 92.95, energy: 1.38, concerto: 2.75, offtune: 4400, forte1: 5.12 }); // 33.80%+59.15%
-const MASlash = brantAction("Mid-air - Captain's Rhapsody 1 Slash", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 84.51, energy: 1.26, concerto: 2.52, offtune: 3999 }); // 28.17%x3
-const MA4 = brantAction("Mid-air - Captain's Rhapsody 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 253.85, energy: 3.78, concerto: 7.55, offtune: 12017, forte1: 9.35 }); // 101.53%+25.39%x3+76.15%
+const MA1 = brantAction("Mid-air - Captain's Rhapsody 1", { frames: 48, cancelFrames: 34, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 122.86, energy: 1.82, concerto: 3.64, offtune: 5816, forte1: 4.51 });
+const MA1C = brantAction("Mid-air - Captain's Rhapsody 1 (Charged)", { frames: 181-48, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 332.48, energy: 4.96, concerto: 9.85, offtune: 15736, forte1: 12.23 }); // 33.25%+49.87%+41.56%x6
+const MA2 = brantAction("Mid-air - Captain's Rhapsody 2", { frames: 88, cancelFrames: 74, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 169.84, energy: 2.52, concerto: 5.04, offtune: 8040, forte1: 6.24 }); // 84.92%x2
+const MA2C = brantAction("Mid-air - Captain's Rhapsody 2 (Charged)", { frames: 154-88, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 197.22, energy: 2.94, concerto: 5.88, offtune: 9336, forte1: 12.66 }); // 32.87%x6
+const MA3 = brantAction("Mid-air - Captain's Rhapsody 3", { frames: 95, cancelFrames: 56, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 169.02, energy: 2.52, concerto: 5.04, offtune: 7998, forte1: 9.3 }); // 28.17%x6
+const MAFlip = brantAction("Mid-air - Captain's Rhapsody Flip", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 92.95, energy: 1.38, concerto: 2.75, offtune: 4400, forte1: 5.12 }); // 33.80%+59.15%
+const MASlash = brantAction("Mid-air - Captain's Rhapsody 1 Slash", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 84.51, energy: 1.26, concerto: 2.52, offtune: 3999 }); // 28.17%x3
+const MA4 = brantAction("Mid-air - Captain's Rhapsody 4", { frames: 73, cancelFrames: 44, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 253.85, energy: 3.78, concerto: 7.55, offtune: 12017, forte1: 9.35 }); // 101.53%+25.39%x3+76.15%
 
 /** Every press the kit calls a Mid-air Attack: the eight of them, plus the flip-queuing variants
  *  above — a `variant()` is its own Action, so it has to be named here alongside the press it
@@ -118,12 +122,12 @@ const midAir = (): boolean => runningAction(MA1) || runningAction(MA1C) || runni
 
 /* ------------------------------------------------------------------------------------ buffs */
 
-/** 12s, opened by Liberation — lost after the outro action gains stats, or the instant Returned
+/** 12s, opened by Liberation — lost the instant Returned
  *  from Ashes is cast while it's up (checked in convertStats() so that same action still gets the
  *  doubling first). Doubles Bravo gain on mid-air combo/Resonance Skill hits (not Intro) by
  *  re-adding the same forte1 amount through AddForte1. */
 const AFLAME = new Buff({
-  name: "Brant: Aflame",
+  name: "Brant: Aflame", duration: 60 * 12,
   applyStats: () => {
     const a = currentAction();
     if (a.node === Node.Normal || a.node === Node.Skill) addStat(Stat.AddForte1, a.forte1);
@@ -153,8 +157,9 @@ const MY_MOMENT = new Buff({
 /** The outro handoff. */
 const BRANT_OUTRO = new Buff({
   name: "Brant: Outro",
-  stats: [[Stat.Amp, 20, Attribute.Fusion], [Stat.Amp, 25, Type1.Skill]],
-    until: LifeTime.Swap,
+  duration: 60 * 14,
+  stats: [[Stat.Amp, 20, Attribute.Fusion], [Stat.Amp, 25, Type.Skill]],
+    lostOnSwap: true,
 });
 
 /** Trial by Fire and Tide (Inherent Skill) — genuinely unconditional, always equipped. */
@@ -174,9 +179,8 @@ const BR_VOYAGE_INHERENT = new Inherent({
 /** S1's stacks: +20% DMG dealt apiece, up to 3, off the Intro and every mid-air Flip — the 5s
  *  re-ups on each Flip through the chain, so it stands until the outro. */
 const BY_CURRENTS = new Buff({
-  name: "Brant S1: By Currents and Winds", maxStacks: 3,
+  name: "Brant S1: By Currents and Winds", maxStacks: 3, duration: 60 * 5,
   stats: [[Stat.DmgBonus, 20]], perStack: true,
-  until: LifeTime.Outro,
 });
 const BR_S1 = new Sequence({
   name: "Brant S1: By Currents and Winds",
@@ -187,14 +191,16 @@ const BR_S1 = new Sequence({
  *  Skill hits blast the target for 440% of Brant's ATK (Basic Attack DMG), once a second, twice at
  *  most. Handed to the incoming resonator like the outro itself — queued twice, one stack a blast
  *  — and fired onto Brant's own slot off their active Skill casts; gone when they swap out. */
-const CourseBlast = brantAction("Outro - The Course is Set! (S2 Blast)", { node: Node.Normal, type: Type1.Basic, mv: 440 });
+const CourseBlast = brantAction("Outro - The Course is Set! (S2 Blast)", { node: Node.Normal, type: Type.Basic, mv: 440 });
 const COURSE_BLAST = new Buff({
-  name: "Brant S2: The Course is Set!", maxStacks: 2,
+  name: "Brant S2: The Course is Set!", maxStacks: 2, duration: 60 * 20,
   updateBuffs: () => {
-    if (!oneSecondPassed() || !casting(Cast.Skill)) return;
-    queueOn(BRANT_RESONATOR, CourseBlast); removeStack(COURSE_BLAST, 1);
+    // a Skill press of their own, not a follow-up: no two Skill presses fit inside one second
+    if (!elapsed() || !casting(Cast.Skill)) return;
+    queueOn(BRANT_RESONATOR, CourseBlast);
+    removeStack(COURSE_BLAST, 1);
   },
-  until: LifeTime.Swap,
+  lostOnSwap: true,
 });
 const BR_S2 = new Sequence({
   name: "Brant S2: For Smiles and Cheers",
@@ -221,18 +227,18 @@ const BR_S4 = new Sequence({
  *  stands until the outro. */
 const ACTORS_STAGE = new Buff({
   name: "Brant S5: All the World's an Actor's Stage",
-  stats: [[Stat.DmgBonus, 15, Type1.Basic]],
-  until: LifeTime.Outro,
+  duration: 60 * 10,
+  stats: [[Stat.DmgBonus, 15, Type.Basic]],
 });
 const BR_S5 = new Sequence({
   name: "Brant S5: All the World's an Actor's Stage",
-  grants: [{ on: onType(Type1.Basic), buff: ACTORS_STAGE }],
+  grants: [{ on: onType(Type.Basic), buff: ACTORS_STAGE, onHit: true }],
 });
 
 /** S6: mid-air attacks' multiplier +30%, and Returned from Ashes fires a secondary blast worth 30%
  *  of its own hit — a second Basic Attack DMG hit at 30% of its MV queued behind it, lifted by S3
  *  the same way. No gauge/energy/concerto of its own. */
-const AshesBlast = brantAction("Forte - Returned from Ashes (S6 Blast)", { node: Node.Forte, type: Type1.Basic, mv: 1888.71 * 0.3 });
+const AshesBlast = brantAction("Forte - Returned from Ashes (S6 Blast)", { node: Node.Forte, type: Type.Basic, mv: 1888.71 * 0.3 });
 const BR_S6 = new Sequence({
   name: "Brant S6: All the World's a Captain's Carnevale",
   applyStats: () => { if (midAir()) addStat(Stat.MulMv, 30); },
@@ -253,9 +259,8 @@ const BRANT_RESONATOR = new Resonator({
   inherent2: BR_VOYAGE_INHERENT,
   element: Attribute.Fusion,
   weapon: WeaponType.Sword,
-  intro: () => Intro,
-  outro: () => Outro,
   color: "#d1257f",
+  intro: Intro,
   maxEnergy: 175,
   maxForte1: 100,
 
@@ -270,12 +275,12 @@ const MA1H = new ActionGroup("Mid-air - Captain's Rhapsody 1 (Hold)", [MA1, MA1C
 const MA2H = new ActionGroup("Mid-air - Captain's Rhapsody 2 (Hold)", [MA2, MA2C, MAFlip]);
 
 const BR_ROTATION = new Rotation([
-  INTRO, Liberation, MA2H, MA3, ECHO_ONFIELD, DODGE, MA3, FSkill, OUTRO,
+  INTRO, Liberation, MA2H, MA3.cancel(), ECHO.instaDodge(), MA3.cancel(), FSkill.swapCancel(), Outro,
 ]);
 
 const BR_ROTATION_MDPS = new Rotation([
-  DOUBLE_INTRO, MA2H, MA3, ECHO_CANCEL, MA3, MAFlip, MA4.swap(), SWAP,
-  INTRO, FSkill, Liberation, MA1H, MA2H, MA3, FSkill, OUTRO,
+  DOUBLE_INTRO, MA2H, MA3.cancel(), ECHO.instaDodge(), MA3, MAFlip, MA4.instaSwap(),
+  INTRO, FSkill.cancel(), Liberation, MA1H, MA2H, MA3.cancel(), FSkill.swapCancel(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

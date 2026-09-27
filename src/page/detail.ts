@@ -2,7 +2,7 @@
  * The detail page: the DPR and energy tables, the action log grid, and the log's draggable
  * column order (kept in localStorage) with its pointer handlers.
  */
-import { Stat, Cast, SCALING_NAME } from "../engine/stats.js";
+import { Stat, Cast, SCALING_NAME, ActionTag } from "../engine/stats.js";
 import type { Gear } from "../engine/gear.js";
 import { menuStats } from "../engine/context.js";
 import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
@@ -13,7 +13,7 @@ import type { TeamRun } from "../teamrun.js";
 import { hitsOf, erRollsFor } from "../teamrun.js";
 import { ER_TOLERANCE } from "../shared/substats.js";
 import { results, detailFor, FALLBACK_HUE } from "./model.js";
-import { esc, lazyPop, rect, zoom, clearPops, panelRow, popover, infoPopover, buffsPopover, equippedGear, dprTable, loadoutTable, wireDistribution, drivePanel, dropPanel, holdPanels } from "./panels.js";
+import { esc, lazyPop, rect, zoom, clearPops, panelRow, popover, infoPopover, buffsPopover, framesPopover, equippedGear, dprTable, loadoutTable, wireDistribution, drivePanel, dropPanel, holdPanels } from "./panels.js";
 import { rememberTableScroll } from "./table.js";
 
 const app = document.getElementById("app")!;
@@ -32,6 +32,13 @@ function cell(col: Column, { cls = [], html = "", pop = "", style = "", attr = "
   const classes = ["c", col.align === "left" ? "" : "num", ...cls].filter(Boolean).join(" ");
   return `<span class="${classes}"${style ? ` style="${style}"` : ""}${attr}${pop}>${html}</span>`;
 }
+
+/** Which colour a cut's tag box wears (index.css `.ctag-*`). */
+const TAG_KIND: Partial<Record<ActionTag, string>> = {
+  [ActionTag.InstaCancel]: "insta", [ActionTag.InstaDodge]: "insta", [ActionTag.InstaJump]: "insta", [ActionTag.InstaSwap]: "insta",
+  [ActionTag.SwapCancel]: "swap", [ActionTag.EasyCancel]: "easy", [ActionTag.Field]: "field",
+  [ActionTag.DodgeCancel]: "dash", [ActionTag.JumpCancel]: "jump", [ActionTag.Cancel]: "cancel",
+};
 
 /** One row of the log. A running column is blank where the row left it exactly as it came in
  *  (`before:`), unless something fed it; `buffed` underlines a cell a buff actually moved, or a
@@ -69,6 +76,7 @@ function stepRow(
     if (col.key.startsWith("gauge:") && Number(row.raw[`clear:${col.key}`])) cls.push("buffed");
     if (col.key === "concerto" && Number(row.raw["short:concerto"])) cls.push("underspent");
     if (col.key.startsWith("gauge:") && Number(row.raw[`short:${col.key}`])) cls.push("negative");
+    if (col.key === "time" && Number(row.raw["end:time"]) > 60 * 120) cls.push("negative");
 
     const text = esc(fmt(v, digitsOf(row.raw, col), PAD_DIGITS_COLUMNS.has(col.key), GROUPED_COLUMNS.has(col.key)))
       + (col.percent && typeof v === "number" ? "%" : "") + gaugeSuffix(row.raw, col.key);
@@ -76,12 +84,23 @@ function stepRow(
     if (col.key === "action" && caret && !part && "parts" in row && row.parts.length) {
       html = `${html}<span class="caret">▸</span>`;
     }
+    const tag = col.key === "action" ? String(row.raw["tag:action"] ?? "") : "";
+    // the tag's own box, coloured by what cut the press — an insta anything red (insta swap too), a
+    // swap cancel yellow, an easy cancel green, then a dash, a jump, and a plain cancel — or gray
+    // for a press beside the fight
+    if (tag) {
+      const kind = TAG_KIND[tag as ActionTag] ?? "cancel";
+      html = `<span class="ctag ctag-${kind}">${esc(tag.toUpperCase())}</span>${html}`;
+    }
     const suffix = col.key === "mv" && row.scaling !== null ? ` ${SCALING_NAME[row.scaling]}` : "";
     let pop = "";
     if (col.key === "action") {
       // a group's name is its expand control, no panel
       const group = "parts" in row && row.parts.length > 0;
       pop = group ? "" : infoPopover(row.info, slotHue);
+    } else if (col.key === "time") {
+      const snaps = "line" in row ? (row.line.members?.length ? row.line.members : [row.line.snap]) : [row.snap];
+      pop = framesPopover(snaps);
     } else if (col.key === "member") {
       const snap = "line" in row ? row.line.snap : row.snap;
       const gear = gearByMember.get(snap.member) ?? [];
@@ -96,6 +115,14 @@ function stepRow(
       : col.key === "avg" ? `--mem:${slotHue.get(String(row.raw["member"] ?? "")) ?? FALLBACK_HUE}` : "";
     // the figure itself, unformatted, for the run a press down the column adds up (`blockPanel`)
     if (col.key === "avg" && typeof v === "number") attr = ` data-avg="${v}"`;
+    // ...and the frames the row's presses took, for the time a block of them spent
+    if (col.key === "time") {
+      const snaps = "line" in row ? (row.line.members?.length ? row.line.members : [row.line.snap]) : [row.snap];
+      // time off the field isn't the fight's: a press made by someone not on field adds none of its
+      // own frames, though the swap frames a handoff row carries are the fight's all the same
+      const frames = snaps.reduce((n, s) => n + (s.active ? s.frames : 0) + (s.swapFrames ?? 0), 0);
+      attr = ` data-frames="${frames}"`;
+    }
     return cell(col, { cls, html, pop, style, attr });
   }).join("");
 }
@@ -232,7 +259,7 @@ function erRequirement(flat: ChainGroup[], resetIdx: number, member: string, max
       if (s.member !== member) continue;
       if (s.action.resetEnergy) break walk;
       if (s.energyWiped) continue;
-      const gain = (s.action.energy + s.stat(Stat.AddEnergy)) * (1 + s.stat(Stat.EnergyRegenMult) / 100);
+      const gain = (s.action.energy + s.stat(Stat.AddEnergy) + s.stat(Stat.AddCastEnergy)) * (1 + s.stat(Stat.EnergyRegenMult) / 100);
       buffed += gain * (s.stat(Stat.Er) - constant);
     }
   }
@@ -292,7 +319,7 @@ function page(run: TeamRun): string {
   const slotHue = new Map([...members.map((m): [string, string] => [m.name, m.color]), [TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color]]);
   const erRolls = erRollsFor(run.teamKey, run.members, run.combo);
   const gearByMember = new Map(members.map((m, i): [string, Gear[]] => [m.name, equippedGear(m, run.combo[i]!, erRolls[i]!).map(([, g]) => g)]));
-  // where Loop 1-3 begin in the log, by loop number
+  // where each loop begins in the log, by loop number
   const starts = new Map<number, number>();
   lines.reduce((n, sec, k) => { if (k) starts.set(n, k); return n + sec.length; }, 0);
 
@@ -453,7 +480,7 @@ function doubled(row: HTMLElement, held: Set<HTMLElement>): boolean {
 }
 
 /** What the held block is worth, in place of the cell panel a column carries the rest of the
- *  time: the avg cells' total, and — off-tune being the one bar the whole team fills — what the
+ *  time: the avg cells' total, the time its rows spent, and — off-tune being the one bar the whole team fills — what the
  *  block gained of it: each row's balance less the one it was entered on, added up, so the run
  *  reads from the balance standing before the block (0 at the top of the run) and the Tune Break
  *  that takes the whole bar drops out rather than reading as a loss across it. A member's own
@@ -462,6 +489,7 @@ function doubled(row: HTMLElement, held: Set<HTMLElement>): boolean {
  *  block holds the rows it opened onto (`doubled`). */
 function blockPanel(sel: CellSel): string {
   let dmg = 0, dmgCells = 0;
+  let frames = 0, timeCells = 0;
   let gained = 0, tuneCells = 0, tuneDigits = 2;
   const held = new Set(sel.rows.slice(sel.r0, sel.r1 + 1));
   const rows = blockCells(sel);
@@ -473,6 +501,11 @@ function blockPanel(sel: CellSel): string {
         dmgCells++;
         continue;
       }
+      if (c.dataset.frames !== undefined) {
+        frames += Number(c.dataset.frames) || 0;
+        timeCells++;
+        continue;
+      }
       if (c.dataset.val === undefined) continue;
       const col = logColumns[[...c.parentElement!.children].indexOf(c)]!;
       if (col.key !== "offtune") continue;
@@ -482,6 +515,7 @@ function blockPanel(sel: CellSel): string {
     }
   }
   const lines: [string, string][] = dmgCells > 1 ? [["Total Dmg", fmt(dmg, 0)]] : [];
+  if (timeCells > 1) lines.push(["Total Time", `${(frames / 60).toFixed(2)}s`]);
   if (tuneCells) lines.push(["Total Offtune", fmt(gained, tuneDigits, true, false)]);
   if (!lines.length) return "";
   return `<span class="pop stat"><table>`

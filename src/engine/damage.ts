@@ -22,14 +22,14 @@ export interface Snapshot {
   hp: number;
   def: number;
   amp: number;
-  /** The part of `amp` that came in scoped to a `Type2` — all a dot hit reads (see `ampFactor`). */
-  type2Amp: number;
-  /** The parts of Crit Rate/Crit DMG scoped to a `Type2` — the only crit a dot or tune hit has. */
-  type2CritRate: number;
-  type2CritDmg: number;
-  /** The parts of Total Damage / Damage Taken scoped to a `Type2` — all a dot hit reads of either. */
-  type2TotalDmg: number;
-  type2DamageTaken: number;
+  /** The part of `amp` that came in scoped to a `Subtype` — all a dot hit reads (see `ampFactor`). */
+  subtypeAmp: number;
+  /** The parts of Crit Rate/Crit DMG scoped to a `Subtype` — the only crit a dot or tune hit has. */
+  subtypeCritRate: number;
+  subtypeCritDmg: number;
+  /** The parts of Total Damage / Damage Taken scoped to a `Subtype` — all a dot hit reads of either. */
+  subtypeTotalDmg: number;
+  subtypeDamageTaken: number;
   dmgBonus: number;
   /** The enemy's own current resistance to this action's element, and current defence — both
    *  read off `Enemy` at resolve time (base plus whatever debuffs contributed this pass). */
@@ -133,7 +133,7 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
   const s = (k: Stat) => snapshot.stats[k]! / 100;   // ratio stats
   const { scaling } = action;
 
-  // A rotation marker rather than a cast (rotation.ts's own SWAP and friends): no scaling, and
+  // A rotation marker rather than a cast (rotation.ts's own INTRO and friends): no scaling, and
   // the Action constructor forbids that on anything carrying a motion value, so there is nothing
   // to multiply and every term is reported as the neutral value it would have been.
   if (scaling === null) {
@@ -174,8 +174,8 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
   // Amplification is the one thing a dot hit does read (the migrated sheet's own `specialAmp`
   // column) — but only the part scoped to the Negative Status it is, never plain or element-scoped
   // amplification. That split can't be made from `amp` here, since every matching scope is already
-  // summed into it, so evaluate.ts keeps the scoped part alongside (see `type2Amp` there).
-  const ampFactor = 1 + ((notDot ? snapshot.amp : snapshot.type2Amp) / 100) * notTune;
+  // summed into it, so evaluate.ts keeps the scoped part alongside (see `subtypeAmp` there).
+  const ampFactor = 1 + ((notDot ? snapshot.amp : snapshot.subtypeAmp) / 100) * notTune;
   const bonusFactor = 1 + (snapshot.dmgBonus / 100) * notDot * notTune;
   // Tune break boost multiplies tune damage and nothing else. It is part of the formula rather
   // than something the tune break converts into amplification on itself: the ordinary damage
@@ -190,13 +190,13 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
   // and nothing the attacker stacks onto their own hits carries into it. Damage Taken is the
   // target-side half of the same line ("targets take N% more DMG from X") and is a factor of its
   // own: the two multiply rather than summing.
-  const dealtFactor = 1 + (notDot ? s(Stat.TotalDmg) : snapshot.type2TotalDmg / 100);
-  const takenFactor = 1 + (notDot ? s(Stat.DamageTaken) : snapshot.type2DamageTaken / 100);
+  const dealtFactor = 1 + (notDot ? s(Stat.TotalDmg) : snapshot.subtypeTotalDmg / 100);
+  const takenFactor = 1 + (notDot ? s(Stat.DamageTaken) : snapshot.subtypeDamageTaken / 100);
 
   // dot and tune crit only off the Negative-Status-scoped crit (Hsin's S6) — with none, a flat 1
   const special = !(notDot * notTune);
-  const critMult = special ? (snapshot.type2CritDmg ? snapshot.type2CritDmg / 100 : 1) : s(Stat.CritDmg);
-  const cr = special ? snapshot.type2CritRate / 100 : s(Stat.CritRate);
+  const critMult = special ? (snapshot.subtypeCritDmg ? snapshot.subtypeCritDmg / 100 : 1) : s(Stat.CritDmg);
+  const cr = special ? snapshot.subtypeCritRate / 100 : s(Stat.CritRate);
   // what an average hit is worth: every hit crits above 100% rate, otherwise the blend
   const critFactor = cr >= 1 ? critMult : (1 - cr) + critMult * cr;
 
@@ -231,8 +231,8 @@ export const foldStat = (stats: number[], base: Stat, bonus: Stat, flat: Stat): 
  *  the same order, with nothing allocated. The search calls this once per variant per action. */
 export function damageAvgOf(
   action: Action, stats: number[], atk: number, hp: number, def: number,
-  amp: number, type2Amp: number, dmgBonus: number, type2CritRate: number, type2CritDmg: number,
-  type2TotalDmg: number, type2DamageTaken: number, enemyRes: number, enemyDef: number,
+  amp: number, subtypeAmp: number, dmgBonus: number, subtypeCritRate: number, subtypeCritDmg: number,
+  subtypeTotalDmg: number, subtypeDamageTaken: number, enemyRes: number, enemyDef: number,
 ): number {
   const { scaling } = action;
   if (scaling === null) return 0;
@@ -248,16 +248,16 @@ export function damageAvgOf(
     : NaN
   );
   const finalMv = (action.mv + stats[Stat.AddMv]!) * (1 + stats[Stat.MulMv]! / 100) / 100;
-  const ampFactor = 1 + ((notDot ? amp : type2Amp) / 100) * notTune;
+  const ampFactor = 1 + ((notDot ? amp : subtypeAmp) / 100) * notTune;
   const bonusFactor = 1 + (dmgBonus / 100) * notDot * notTune;
   const tbbFactor = 1 + (stats[Stat.Tbb]! / 100) * (1 - notTune);
   const resFactor = resFactorFrom(resOf(stats, notDot, enemyRes) / 100);
   const defFactor = defFactorFrom((1 - shredOf(stats, notDot, enemyDef)) * enemyDef);
-  const dealtFactor = 1 + (notDot ? stats[Stat.TotalDmg]! : type2TotalDmg) / 100;
-  const takenFactor = 1 + (notDot ? stats[Stat.DamageTaken]! : type2DamageTaken) / 100;
+  const dealtFactor = 1 + (notDot ? stats[Stat.TotalDmg]! : subtypeTotalDmg) / 100;
+  const takenFactor = 1 + (notDot ? stats[Stat.DamageTaken]! : subtypeDamageTaken) / 100;
   const special = !(notDot * notTune);
-  const critMult = special ? (type2CritDmg ? type2CritDmg / 100 : 1) : stats[Stat.CritDmg]! / 100;
-  const cr = special ? type2CritRate / 100 : stats[Stat.CritRate]! / 100;
+  const critMult = special ? (subtypeCritDmg ? subtypeCritDmg / 100 : 1) : stats[Stat.CritDmg]! / 100;
+  const cr = special ? subtypeCritRate / 100 : stats[Stat.CritRate]! / 100;
   const critFactor = cr >= 1 ? critMult : (1 - cr) + critMult * cr;
   const noCrit = finalMv * finalStat * ampFactor * bonusFactor * tbbFactor
     * resFactor * defFactor * dealtFactor * takenFactor;
@@ -265,8 +265,8 @@ export function damageAvgOf(
 }
 
 export const damageAvg = (s: Snapshot): number => damageAvgOf(
-  s.action, s.stats, s.atk, s.hp, s.def, s.amp, s.type2Amp, s.dmgBonus, s.type2CritRate, s.type2CritDmg,
-  s.type2TotalDmg, s.type2DamageTaken, s.enemyRes, s.enemyDef,
+  s.action, s.stats, s.atk, s.hp, s.def, s.amp, s.subtypeAmp, s.dmgBonus, s.subtypeCritRate, s.subtypeCritDmg,
+  s.subtypeTotalDmg, s.subtypeDamageTaken, s.enemyRes, s.enemyDef,
 );
 
 export interface Damage {

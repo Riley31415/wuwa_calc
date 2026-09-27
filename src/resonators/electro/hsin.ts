@@ -51,8 +51,8 @@
  * visit ending on Formshift's Unison outro, the resonator behind her plays, and their outro
  * brings her back in Illumining Form for Dominion, Stilling and Pillars Across Heaven.
  */
-import { Tier, Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
-import { Buff, Debuff, Talent, Inherent, ResonanceMode, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
+import { Tier, Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Debuff, Talent, Inherent, ResonanceMode, Sequence, Resonator, Loadout, EchoLoadout, coordinatedBuff } from "../../engine/gear.js";
 import {
   addBuff,
   addStat,
@@ -65,6 +65,7 @@ import {
   casting,
   consume,
   currentAction,
+  runningAnyOf,
   runningAction,
   currentTeam,
   frozenStacks,
@@ -83,9 +84,8 @@ import {
   setForte2,
   addForte1,
 } from "../../engine/context.js";
-import { Action, ActionField, ActionGroup, Rotation, DOUBLE_INTRO, INTRO, OUTRO, ECHO_ONFIELD, NOINTRO, DODGE, JUMP } from "../../engine/rotation.js";
-import { coordinatedBuff } from "../../shared/helpers.js";
-import { UNISON, UNISON_BOON, UNISON_RESPONSE, respondToUnison, boonPayout, unisonIntro, unisonOutro, unisonResponse } from "../../shared/unison.js";
+import { Action, ActionField, ActionGroup, Rotation, ECHO, NOINTRO, ActionTag, INTRO, START_3, DOUBLE_INTRO } from "../../engine/rotation.js";
+import { UNISON, UNISON_BOON, UNISON_RESPONSE, grantBoon, respondToUnison, boonPayout, unisonIntro, unisonOutro, unisonResponse } from "../../shared/unison.js";
 import { ELECTRO_FLARE, ELECTRO_RAGE, FLARE_RETAINED, inflictElectroFlare } from "../../shared/status.js";
 import { BLOOMING_JADEHAVEN, FREEZE_FRAME, LETHEAN_ELEGY, STRINGMASTER } from "../../weapons/rectifier.js";
 import { COSMIC_RIPPLES } from "../../weapons/standard.js";
@@ -108,7 +108,7 @@ function hsinAction(id: string, def: object): Action {
  *  buffs are declared below the actions). */
 const flareHit = (name: string, mul: () => number, def: object = {}, source: (() => Buff) | null = null): Action =>
   new Action(name, {
-    element: Attribute.Electro, type: Type1.Status, type2: Type2.ElectroFlare, scaling: Scaling.Dot, mv: 0,
+    element: Attribute.Electro, type: Type.Status, subtype: Subtype.ElectroFlare, scaling: Scaling.Dot, mv: 0,
     applyStats: () => {
       if (source) asSource(source(), () => addStat(Stat.MulMv, mul()));
       else addStat(Stat.MulMv, mul());
@@ -118,25 +118,26 @@ const flareHit = (name: string, mul: () => number, def: object = {}, source: (()
 
 // --- Answering Form: basics, heavy, mid-air, dodge counter, skill (Manifold Bloom). Every hit
 //     banks Answering Heart, and only these do.
-const BA1 = hsinAction("Basic - Answering Form 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 69.60, energy: 1.25, concerto: 2.00, offtune: 4000, forte1: 7.08 });
-const BA2 = hsinAction("Basic - Answering Form 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 151.44, energy: 2.75, concerto: 4.37, offtune: 8706, forte1: 15.40 });
-const BA3 = hsinAction("Basic - Answering Form 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 157.54, energy: 2.85, concerto: 2.40, offtune: 4800, forte1: 8.51 });
-const BA4 = hsinAction("Basic - Answering Form 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 198.59, energy: 3.59, concerto: 7.85, offtune: 15673, forte1: 27.70 });
-const HA = hsinAction("Heavy - Answering Form", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 102.76, energy: 1.86, concerto: 3.00, offtune: 5906, forte1: 10.46 });
-const MA = hsinAction("Mid-air - Answering Form Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 22.44, energy: 0.41, concerto: 0.65, offtune: 2080, forte1: 2.28 });
-const ReignHold = hsinAction("Heavy - Answering Form: Reign at Ease (Mid-Air)", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 696.00, energy: 12.50, concerto: 20.00, offtune: 40000, forte1: 76.50 });
-const ReignPlunge = hsinAction("Mid-air - Answering Form: Reign at Ease Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 22.44, energy: 0.41, concerto: 0.65, offtune: 2080, forte1: 2.28 });
-const DC = hsinAction("Dodge Counter - Answering Form", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 224.90, energy: 4.06, concerto: 16.48, offtune: 12930, forte1: 22.86 });
-const Skill = hsinAction("Skill - Answering Form", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 167.06, energy: 3.00, concerto: 2.40, offtune: 9600, forte1: 8.52 });
+const BA1 = hsinAction("Basic - Answering Form 1", { frames: 30, cancelFrames: 16, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 69.60, energy: 1.25, concerto: 2.00, offtune: 4000, forte1: 7.08 });
+const BA2 = hsinAction("Basic - Answering Form 2", { frames: 64, cancelFrames: 42, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 151.44, energy: 2.75, concerto: 4.37, offtune: 8706, forte1: 15.40 });
+const BA3 = hsinAction("Basic - Answering Form 3", { frames: 66, cancelFrames: 12, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 157.54, energy: 2.85, concerto: 2.40, offtune: 4800, forte1: 8.51 });
+const BA4 = hsinAction("Basic - Answering Form 4", { frames: 89, cancelFrames: 77, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 198.59, energy: 3.59, concerto: 7.85, offtune: 15673, forte1: 27.70 });
+const HA = hsinAction("Heavy - Answering Form", { frames: 44, cancelFrames: 0, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 102.76, energy: 1.86, concerto: 3.00, offtune: 5906, forte1: 10.46 });
+const MA = hsinAction("Mid-air - Answering Form Plunge", { frames: 58, cancelFrames: 40, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 22.44, energy: 0.41, concerto: 0.65, offtune: 2080, forte1: 2.28 });
+const ReignHold = hsinAction("Heavy - Answering Form: Reign at Ease (Mid-Air)", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 696.00, energy: 12.50, concerto: 20.00, offtune: 40000, forte1: 76.50 });
+const ReignPlunge = hsinAction("Mid-air - Answering Form: Reign at Ease Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 22.44, energy: 0.41, concerto: 0.65, offtune: 2080, forte1: 2.28 });
+const DC = hsinAction("Dodge Counter - Answering Form", { frames: 61, cancelFrames: 38, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, mv: 224.90, energy: 4.06, concerto: 6.48, castConcerto: 10, offtune: 12930, forte1: 22.86 });
+const Skill = hsinAction("Skill - Answering Form", { frames: 95, cancelFrames: 69, cooldown: 60 * 12, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 167.06, energy: 3.00, concerto: 2.40, offtune: 9600, forte1: 8.52 });
 
 // --- Answering Form: Realm Wanderer at 100 Answering Heart, Realm Protector when Resolution of
 //     Wishes (once per 24s — every visit) is spent on it. Both Skill DMG, both unlock Formshift.
 const REALM = {
-  node: Node.Forte, cast: Cast.Heavy, type: Type1.Skill, concerto: 8.64, forte1: -100,
+  node: Node.Forte, cast: Cast.Heavy, type: Type.Skill, concerto: 8.64, castForte1: -100,
   updateBuffs: () => applyCurrent(FORMSHIFT_UNLOCKED, 1),
 };
-const RealmWanderer = hsinAction("Forte Heavy - Answering Form: Realm Wanderer", { ...REALM, mv: 570.62, energy: 5.39, offtune: 17177 });
+const RealmWanderer = hsinAction("Forte Heavy - Answering Form: Realm Wanderer", { frames: 122, cancelFrames: 106, ...REALM, mv: 570.62, energy: 5.39, offtune: 17177 });
 const RealmProtector = hsinAction("Forte Heavy - Answering Form: Realm Protector", {
+  frames: 122, cancelFrames: 107,
   ...REALM, mv: 1241.45, energy: 13.39, offtune: 64695,
   updateDebuffs: () => { if (isHeld(MODE_FLARE)) inflictElectroFlare(1); },
 });
@@ -145,14 +146,14 @@ const RealmProtector = hsinAction("Forte Heavy - Answering Form: Realm Protector
 //     the Heavy, the Dodge Counter and the Skill collapse it. Every hit banks Illumining Heart.
 const collapseHeartlock = (): void => { if (isHeld(HEARTLOCK)) { revokeCurrent(HEARTLOCK); queue(Heartlock); } };
 const COLLAPSE = { updateBuffs: collapseHeartlock };
-const IBA1 = hsinAction("Basic - Illumining Form 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 62.75, energy: 1.14, concerto: 1.83, offtune: 3609, forte2: 28.55, updateBuffs: () => applyCurrent(HEARTLOCK, 1) });
-const IBA2 = hsinAction("Basic - Illumining Form 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 69.60, energy: 1.26, concerto: 2.00, offtune: 4000, forte2: 31.66, ...COLLAPSE });
-const IBA3 = hsinAction("Basic - Illumining Form 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 182.10, energy: 3.34, concerto: 5.30, offtune: 10470, forte2: 82.80 });
-const Heartlock = hsinAction("Basic - Illumining Form: Modular Heartlock", { node: Node.Normal, type: Type1.Basic, mv: 41.84, energy: 0.76, concerto: 1.22, offtune: 2406, forte2: 19.04 });
-const IHA = hsinAction("Heavy - Illumining Form", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 107.86, energy: 1.94, concerto: 3.10, offtune: 6200, forte2: 31.66, ...COLLAPSE });
-const UpwardCut = hsinAction("Basic - Illumining Form: Upward Cut", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 87.57, energy: 1.58, concerto: 2.53, offtune: 5035, forte2: 39.84 });
-const IMA = hsinAction("Mid-air - Illumining Form Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 22.45, energy: 0.42, concerto: 0.65, offtune: 2080, forte2: 10.22 });
-const IDC = hsinAction("Dodge Counter - Illumining Form", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 191.36, energy: 3.44, concerto: 15.50, offtune: 11000, forte2: 73.98, ...COLLAPSE });
+const IBA1 = hsinAction("Basic - Illumining Form 1", { frames: 45, cancelFrames: 30, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 62.75, energy: 1.14, concerto: 1.83, offtune: 3609, forte2: 28.55, updateBuffs: () => applyCurrent(HEARTLOCK, 1) });
+const IBA2 = hsinAction("Basic - Illumining Form 2", { frames: 30, cancelFrames: 18, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 69.60, energy: 1.26, concerto: 2.00, offtune: 4000, forte2: 31.66, ...COLLAPSE });
+const IBA3 = hsinAction("Basic - Illumining Form 3", { frames: 98, cancelFrames: 53, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 182.10, energy: 3.34, concerto: 5.30, offtune: 10470, forte2: 82.80 });
+const Heartlock = hsinAction("Basic - Illumining Form: Modular Heartlock", { frames: 7, cancelFrames: 0, node: Node.Normal, type: Type.Basic, mv: 41.84, energy: 0.76, concerto: 1.22, offtune: 2406, forte2: 19.04 });
+const IHA = hsinAction("Heavy - Illumining Form", { frames: 43, cancelFrames: 32, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 107.86, energy: 1.94, concerto: 3.10, offtune: 6200, forte2: 31.66, ...COLLAPSE });
+const UpwardCut = hsinAction("Basic - Illumining Form: Upward Cut", { frames: 38, cancelFrames: 34, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 87.57, energy: 1.58, concerto: 2.53, offtune: 5035, forte2: 39.84 });
+const IMA = hsinAction("Mid-air - Illumining Form Plunge", { frames: 53, cancelFrames: 47, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 22.45, energy: 0.42, concerto: 0.65, offtune: 2080, forte2: 10.22 });
+const IDC = hsinAction("Dodge Counter - Illumining Form", { frames: 43, cancelFrames: 32, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, mv: 191.36, energy: 3.44, concerto: 5.5, castConcerto: 10, offtune: 11000, forte2: 73.98, ...COLLAPSE });
 
 /** Heartward by Moon's last stage: one Electro Flare DMG instance at 35% of the target's rung per
  *  Heart of Thunder she holds (42% at S1). The stacks are all cleared a moment after the cast. */
@@ -161,8 +162,8 @@ const ThunderHit = flareHit("Skill - Illumining Form: Heart of Thunder",
   { convertStats: () => revokeTeam(HEART_OF_THUNDER) }, () => HEART_OF_THUNDER);
 
 /** Skill - Illumining Form (Heartward by Moon): the Heart of Thunder instance above, and a collapse. */
-const ISkill = hsinAction("Skill - Illumining Form", {
-  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 222.70, energy: 4.00, concerto: 6.40, offtune: 12800, forte2: 114.49,
+const ISkill = hsinAction("Skill - Illumining Form", { frames: 100, cancelFrames: 90, cooldown: 60 * 20,
+  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 222.70, energy: 4.00, concerto: 6.40, offtune: 12800, forte2: 114.49,
   updateBuffs: () => {
     collapseHeartlock();
     if (stacksOfTeam(HEART_OF_THUNDER) > 0) queue(ThunderHit);
@@ -178,17 +179,19 @@ const pillarFlare = (): void => {
   inflictElectroFlare(1); removeStack(PILLAR_CHARGES, 1);
 };
 const PILLAR_FLARE = { updateDebuffs: pillarFlare };
-const PillarsAligned = hsinAction("Skill - Illumining Form: Pillars Aligned", {
-  node: Node.Forte, cutscene: true, cast: Cast.Skill, type: Type1.Skill, mv: 897.17, energy: 5.13, concerto: 13.17, offtune: 16268,
+const PillarsAligned = hsinAction("Forte Skill - Illumining Form: Pillars Aligned", {
+  frames: 152, cancelFrames: 122, timestop: 30, motionStop: 152,
+  cooldown: 60 * 12,
+  node: Node.Forte, cast: Cast.Skill, type: Type.Skill, mv: 897.17, energy: 5.13, concerto: 13.17, offtune: 16268,
   applyStats: () => { setForte2(300); },
   updateDebuffs: () => { if (isHeld(MODE_FLARE)) inflictElectroFlare(5); pillarFlare(); },
   updateBuffs: () => applyCurrent(MECHANISM_DOMINION, 1),
 });
-const FBA1 = hsinAction("Basic - Illumining Form: Pillars Aligned 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 86.58, energy: 1.56, concerto: 2.49, offtune: 4977, forte2: -59.16, ...PILLAR_FLARE });
-const FBA2 = hsinAction("Basic - Illumining Form: Pillars Aligned 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 114.69, energy: 2.07, concerto: 3.30, offtune: 6594, forte2: -78.36, ...PILLAR_FLARE });
-const FBA3 = hsinAction("Basic - Illumining Form: Pillars Aligned 3", { cutscene: true, node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 106.75, energy: 1.95, concerto: 3.10, offtune: 6140, forte2: -72.95, ...PILLAR_FLARE });
-const FBA4 = hsinAction("Basic - Illumining Form: Pillars Aligned 4", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 166.38, energy: 3.00, concerto: 4.80, offtune: 9560, forte2: -113.68, ...PILLAR_FLARE });
-const FADC = hsinAction("Dodge Counter - Illumining Form: Pillars Aligned", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 198.21, energy: 3.57, concerto: 5.70 + 10, offtune: 11394, ...PILLAR_FLARE });
+const FBA1 = hsinAction("Basic - Illumining Form: Pillars Aligned 1", { frames: 35, cancelFrames: 12, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, mv: 86.58, energy: 1.56, concerto: 2.49, offtune: 4977, castForte2: -59.16, ...PILLAR_FLARE });
+const FBA2 = hsinAction("Basic - Illumining Form: Pillars Aligned 2", { frames: 49, cancelFrames: 15, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, mv: 114.69, energy: 2.07, concerto: 3.30, offtune: 6594, castForte2: -78.36, ...PILLAR_FLARE });
+const FBA3 = hsinAction("Basic - Illumining Form: Pillars Aligned 3", { frames: 46, cancelFrames: 39, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, mv: 106.75, energy: 1.95, concerto: 3.10, offtune: 6140, castForte2: -72.95, ...PILLAR_FLARE });
+const FBA4 = hsinAction("Basic - Illumining Form: Pillars Aligned 4", { frames: 90, cancelFrames: 67, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, mv: 166.38, energy: 3.00, concerto: 4.80, offtune: 9560, castForte2: -113.68, ...PILLAR_FLARE });
+const FADC = hsinAction("Dodge Counter - Illumining Form: Pillars Aligned", { frames: 49, cancelFrames: 15, node: Node.Forte, cast: Cast.DodgeCounter, type: Type.Basic, mv: 198.21, energy: 3.57, concerto: 5.70 + 10, offtune: 11394, ...PILLAR_FLARE });
 const FBA1234 = new ActionGroup("Basic - Illumining Form: Pillars Aligned 1234", [FBA1, FBA2, FBA3, FBA4]);
 const FBA123 = new ActionGroup("Basic - Illumining Form: Pillars Aligned 123", [FBA1, FBA2, FBA3]);
 const FBA12 = new ActionGroup("Basic - Illumining Form: Pillars Aligned 12", [FBA1, FBA2]);
@@ -197,18 +200,21 @@ const BA1234 = new ActionGroup("Basic - Answering Form 1234", [BA1, BA2, BA3, BA
 // --- Illumining Form: Beholding All Horizons once the Heart is spent, Stilling when Law of Heaven
 //     (once per 24s — every visit) is spent on it. Both end Dominion and unlock Pillars Across Heaven.
 const HORIZONS = {
-  node: Node.Forte, cast: Cast.Heavy, type: Type1.Skill, cutscene: true, resetForte2: true,
+  node: Node.Forte, cast: Cast.Heavy, type: Type.Skill, resetForte2: true,
   updateBuffs: () => { revokeCurrent(MECHANISM_DOMINION); applyCurrent(PILLARS_UNLOCKED, 1); },
 };
-const Beholding = hsinAction("Forte Heavy - Illumining Form: Beholding All Horizons", { ...HORIZONS, mv: 410.78, energy: 2.09, offtune: 102 });
+const Beholding = hsinAction("Forte Heavy - Illumining Form: Beholding All Horizons", { frames: 150, cancelFrames: 150, timestop: 150, motionStop: 150, ...HORIZONS, mv: 410.78, energy: 2.09, offtune: 102 });
 const FHA = hsinAction("Forte Heavy - Illumining Form: Stilling All Horizons", {
+  frames: 150, cancelFrames: 150, timestop: 150, motionStop: 150,
   ...HORIZONS, mv: 1081.69, energy: 14.09, offtune: 47520,
   updateDebuffs: () => { if (isHeld(MODE_FLARE)) inflictElectroFlare(5); },
 });
 
 // --- the two Liberations: Formshift into Illumining Form, Pillars Across Heaven back out of it
 const Lib1 = hsinAction("Liberation - Formshift", {
-  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, concerto: 20, resetForte2: true,
+  frames: 254, cancelFrames: 254, timestop: 254, motionStop: 254,
+  cooldown: 60 * 25,
+  node: Node.Liberation, cast: Cast.Liberation, concerto: 20, resetForte2: true,
   // Flare mode: the Heart Manifest it opens pins the target's Flare at the cap, and forces it up
   // there the moment it starts — so her own 5 Flare all overflow into Electro Rage and bank as
   // Heart of Thunder through Forms Turn, Heart Abides (MODE_FLARE): 6 Flare, Formshift, 13 Flare
@@ -233,7 +239,8 @@ const Lib1 = hsinAction("Liberation - Formshift", {
 });
 /** The Sanctum comes down as Resonance Skill DMG: 125 Energy, and the end of Heart Manifest. */
 const Lib2 = hsinAction("Liberation - Pillars Across Heaven", {
-  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Skill, mv: 2012.67, concerto: 20, offtune: 48962, resetEnergy: true,
+  frames: 305, cancelFrames: 302, timestop: 302, motionStop: 302,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Skill, mv: 2012.67, concerto: 20, offtune: 48962, resetEnergy: true,
   updateBuffs: () => {
     revokeCurrent(PILLARS_UNLOCKED); revokeCurrent(ILLUMINING_FORM); revokeCurrent(HEART_MANIFEST);
     revokeTeam(THUNDERGLOW); revokeCurrent(PILLAR_CHARGES); revokeEnemy(FLEETING_THUNDER);
@@ -245,7 +252,7 @@ const Lib2 = hsinAction("Liberation - Pillars Across Heaven", {
  *  Resonance Liberation DMG. */
 const SANCTUM = new ActionField("Hsin: Manifold Sanctum");
 const SoaringPillar = hsinAction("Liberation - Soaring Pillar", {
-  type: Type1.Liberation, type2: Type2.Coordinated, mv: 11.37, field: SANCTUM,
+  tag: ActionTag.Field, type: Type.Liberation, subtype: Subtype.Coordinated, mv: 11.37, field: SANCTUM,
 });
 
 // --- intros: the Flare-mode forms, then the Unison mode's own four — its plain pair, and the
@@ -257,32 +264,47 @@ const MANIFOLD = {
   updateBuffs: () => { if (unisonResponse()) applyCurrent(SOURCE_INTENT, 1); else revokeCurrent(SOURCE_INTENT); },
 };
 const UIntro = hsinAction("Intro - Answering Form", {
-  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 10.28 * 2 + 20.55 * 4, energy: 7.5, concerto: 3 + 10, offtune: 591 * 2 + 1181 * 4, forte1: 60 + 8.38,
+
+  frames: 44, cancelFrames: 44, motionStop: 14,
+
+  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 10.28 * 2 + 20.55 * 4, energy: 7.5, concerto: 3, castConcerto: 10, offtune: 591 * 2 + 1181 * 4, forte1: 60 + 8.38,
 });
 const ManifoldAnswering = hsinAction("Intro - Answering Form: Manifold Unison", {
-  node: Node.Intro, cast: Cast.Intro, type: Type1.Skill, mv: 60.59 * 2 + 121.18 * 4, energy: 7.5, concerto: 3 + 10, offtune: 591 * 2 + 1181 * 4, forte1: 60 + 8.38,
+
+  frames: 44, cancelFrames: 44, motionStop: 14,
+
+  node: Node.Intro, cast: Cast.Intro, type: Type.Skill, mv: 60.59 * 2 + 121.18 * 4, energy: 7.5, concerto: 3, castConcerto: 10, offtune: 591 * 2 + 1181 * 4, forte1: 60 + 8.38,
   ...MANIFOLD,
 });
 const UIIntro = hsinAction("Intro - Illumining Form", {
-  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 56.59 * 4 + 5.66 + 11.32 * 2 + 14.15 * 2, energy: 7.51, concerto: 1.63 * 4 + 0.17 + 0.33 * 2 + 0.41 * 2 + 10, offtune: 3253 * 4 + 326 + 651 * 2 + 814 * 2, forte2: 300,
+  frames: 152, cancelFrames: 152, timestop: 30, motionStop: 152,
+  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 56.59 * 4 + 5.66 + 11.32 * 2 + 14.15 * 2, energy: 7.51, concerto: 8.17, castConcerto: 10, offtune: 3253 * 4 + 326 + 651 * 2 + 814 * 2, forte2: 300,
   // lands straight in Mechanism Dominion at 300 Illumining Heart
   updateBuffs: () => applyCurrent(MECHANISM_DOMINION, 1),
 });
 const ManifoldIllumining = hsinAction("Intro - Illumining Form: Manifold Unison", {
-  node: Node.Intro, cast: Cast.Intro, type: Type1.Skill, mv: 157.22 * 4 + 15.73 + 31.45 * 2 + 39.31 * 2, energy: 7.51, concerto: 2.63 * 4 + 0.27 + 0.53 * 2 + 0.66 * 2 + 10, offtune: 3253 * 4 + 326 + 651 * 2 + 814 * 2, forte2: 300,
+  frames: 152, cancelFrames: 152, timestop: 30, motionStop: 152,
+  node: Node.Intro, cast: Cast.Intro, type: Type.Skill, mv: 157.22 * 4 + 15.73 + 31.45 * 2 + 39.31 * 2, energy: 7.51, concerto: 13.17, castConcerto: 10, offtune: 3253 * 4 + 326 + 651 * 2 + 814 * 2, forte2: 300,
   updateDebuffs: MANIFOLD.updateDebuffs,
   updateBuffs: () => { MANIFOLD.updateBuffs(); applyCurrent(MECHANISM_DOMINION, 1); },
 });
-const Intro = hsinAction("Intro - Answering Form", {
-  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 157.54, energy: 10.00, concerto: 14.55, offtune: 9057, forte1: 60 + 14.97,
+const FlareIntro = hsinAction("Intro - Answering Form (Flare)", {
+
+  frames: 66, cancelFrames: 66, motionStop: 39,
+
+  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 157.54, energy: 10.00, concerto: 14.55, offtune: 9057, forte1: 60 + 14.97,
   updateDebuffs: () => { if (isHeld(MODE_FLARE)) inflictElectroFlare(1); },
 });
-const IIntro = hsinAction("Intro - Illumining Form", {
-  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 228.40, energy: 10.00, concerto: 16.58, offtune: 13134, forte2: 51.96,
+const FlareIIntro = hsinAction("Intro - Illumining Form (Flare)", {
+
+  frames: 98, cancelFrames: 98, motionStop: 18,
+
+  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 228.40, energy: 10.00, concerto: 6.58, castConcerto: 10, offtune: 13134, forte2: 51.96,
   updateDebuffs: () => { if (isHeld(MODE_FLARE)) inflictElectroFlare(1); },
 });
 const Outro = hsinAction("Outro - Herself a Thousand Lanterns", {
-  cast: Cast.Outro, type: Type1.Outro, mv: 100, concerto: -100, swapOut: true,
+  frames: 0, cancelFrames: 0,
+  cast: Cast.Outro, type: Type.Outro, mv: 100, castConcerto: -100,
   updateBuffs: () => {
     if (!isHeld(NIGHTGLOW)) return;
     revokeCurrent(NIGHTGLOW); 
@@ -304,6 +326,7 @@ const NIGHTGLOW = new Buff({ name: "Hsin: Nightglow" });
  *  short is lost on her own next Intro. */
 const OUTRO_FLARE = new Buff({
   name: "Hsin: Outro (flare)",
+  duration: 60 * 20,
   applyStats: () => { if (isActive() && !isHeld(HSIN_RESONATOR)) addStat(Stat.Amp, 20, Attribute.Electro); },
 });
 
@@ -311,7 +334,7 @@ const OUTRO_FLARE = new Buff({
  *  turns it into +20% All DMG Amplification for 30s — permanent once granted. */
 const SHARED_LIGHT = new Buff({ name: "Hsin: Shared Light" });
 const OUTRO_UNISON = new Buff({ 
-  name: "Hsin: Outro (unison)", applyStats: () => { if(isHeld(SHARED_LIGHT)) addStat(Stat.Amp, 20); }
+  name: "Hsin: Outro (unison)", duration: 60 * 30, applyStats: () => { if(isHeld(SHARED_LIGHT)) addStat(Stat.Amp, 20); }
 });
 
 /* ------------------------------------------------------------------------------------ buffs */
@@ -345,10 +368,7 @@ const MODE_UNISON = new ResonanceMode({
   // loadout hover traces the bonus back here (shared/unison.ts)
   combatStart: () => { applyCurrent(HS_BOON_PAYOUT, 1); },
   updateBuffs: () => {
-    if (unisonResponse() && !isHeld(HS_BOON_RESPONSE)) {
-      applyTeam(UNISON_BOON, 1);
-      applyCurrent(HS_BOON_RESPONSE, 1);
-    }
+    if (unisonResponse()) grantBoon(HS_BOON_RESPONSE);
     if (casting(Cast.Intro)) applyCurrent(FORMSHIFT_UNISON, 1);
   },
   updateGlobal: () => {
@@ -379,7 +399,7 @@ const HS_BOON_GLEANING = new Buff({});
 const ILLUMINING_FORM = new Buff({ name: "Hsin: Illumining Form" });
 const FORMSHIFT_UNLOCKED = new Buff({});
 const PILLARS_UNLOCKED = new Buff({});
-const HEART_MANIFEST = new Buff({ name: "Hsin: Heart Manifest" });
+const HEART_MANIFEST = new Buff({ name: "Hsin: Heart Manifest", duration: 60 * 45 });
 
 /** Illumining Heart's own gate: a Normal Attack - Illumining Form or Resonance Skill - Illumining
  *  Form hit only banks it "not in the Mechanism Dominion state" — held from Pillars Aligned (or an
@@ -389,9 +409,10 @@ const HEART_MANIFEST = new Buff({ name: "Hsin: Heart Manifest" });
 const DOMINION_GATED = [IBA1, IBA2, IBA3, Heartlock, IHA, UpwardCut, IMA, IDC, ISkill];
 const MECHANISM_DOMINION = new Buff({
   name: "Hsin: Mechanism Dominion",
+  duration: 60 * 13,
   applyStats: () => {
     const a = currentAction();
-    if (DOMINION_GATED.includes(a)) addStat(Stat.AddForte2, -a.forte2);
+    if (DOMINION_GATED.includes(a)) addStat(Stat.AddCastForte2, -a.forte2);
   },
 });
 
@@ -445,7 +466,8 @@ const tidesPayers = (): number => {
  *  switching out. */
 const TIDES_UNISON = new Buff({
   name: "Inherent: Tides of Succession (Manifold Unison)",
-  until: LifeTime.Swap,
+  duration: 60 * 8,
+  lostOnSwap: true,
   stats: [[Stat.BonusAtk, 50]],
 });
 /** Tides of Succession, Flare mode: +25% Electro DMG Bonus per resonator on the team who has
@@ -457,9 +479,11 @@ const TIDES_OF_SUCCESSION = new Buff({
   applyStats: () => addStat(Stat.DmgBonus, 25 * Math.min(2, tidesPayers()), Attribute.Electro),
 });
 /** Tides of Succession's Rover clause: Electro Rover's own Intro hands him and Hsin +20% Electro
- *  DMG Bonus for 30s — gone at his Outro, and at her own next Intro. */
+ *  DMG Bonus for 30s. The kit text says 7s and is wrong — 30s is the real window, so don't let a
+ *  re-sync against the page put 7 back. */
 const THUNDEROUS_BOND = new Buff({
   name: "Inherent: Tides of Succession (Electro Rover)",
+  duration: 60 * 30,
   stats: [[Stat.DmgBonus, 20, Attribute.Electro]],
 });
 const HS_INHERENT_1 = new Inherent({
@@ -493,7 +517,7 @@ const HS_INHERENT_2 = new Inherent({
   updateGlobal: () => {
     const actor = currentTeam().slot;
     if (isHeld(MODE_UNISON)) {
-      if (appliedByMember(UNISON_RESPONSE, actor) && !isHeld(HS_BOON_GLEANING)) { applyTeam(UNISON_BOON, 1); applyCurrent(HS_BOON_GLEANING, 1); }
+      if (appliedByMember(UNISON_RESPONSE, actor)) grantBoon(HS_BOON_GLEANING);
       return;
     }
     if (!isHeld(MODE_FLARE)) return;
@@ -568,6 +592,7 @@ const HS_S3 = new Sequence({
  *  the first action that lays a status or a Unison. */
 const RIVER_OF_LANTERNS = new Buff({
   name: "Hsin S4: A River of Lanterns, a River of Wishes",
+  duration: 60 * 30,
   stats: [[Stat.DmgBonus, 20]],
 });
 const HS_S4 = new Sequence({
@@ -594,13 +619,13 @@ const HS_BOON_S6 = new Buff({});
 const HS_S6 = new Sequence({
   name: "Hsin S6: The Moon Owes Its Light to the Living",
   updateGlobal: () => {
-    if (!isHeld(MODE_UNISON) || isHeld(HS_BOON_S6)) return;
-    if (appliedByMember(UNISON_RESPONSE, currentTeam().slot)) { applyTeam(UNISON_BOON, 1); applyCurrent(HS_BOON_S6, 1); }
+    if (!isHeld(MODE_UNISON)) return;
+    if (appliedByMember(UNISON_RESPONSE, currentTeam().slot)) grantBoon(HS_BOON_S6);
   },
   applyStats: () => {
-    addStat(Stat.DamageTaken, 40, Type1.Skill);
-    addStat(Stat.DefIgnoreNew, 20, Type1.Skill);
-    if (isHeld(MODE_FLARE)) { addStat(Stat.CritRate, 80, Type2.ElectroFlare); addStat(Stat.CritDmg, 230, Type2.ElectroFlare); }
+    addStat(Stat.DamageTaken, 40, Type.Skill);
+    addStat(Stat.DefIgnoreNew, 20, Type.Skill);
+    if (isHeld(MODE_FLARE)) { addStat(Stat.CritRate, 80, Subtype.ElectroFlare); addStat(Stat.CritDmg, 230, Subtype.ElectroFlare); }
   },
 });
 
@@ -613,6 +638,10 @@ const HSIN_TALENTS = new Talent({
   stats: [[Stat.CritRate, 8], [Stat.BonusAtk, 12]],
 });
 
+/** Normal Attack, Resonance Skill and Intro Skill - Answering Form (Manifold included): the hits that
+ *  bank Answering Heart, and only while she is on field when they land. */
+const ANSWERING_HEART_HITS = new Set<Action>([BA1, BA2, BA3, BA4, HA, MA, ReignHold, ReignPlunge, DC, Skill, UIntro, ManifoldAnswering, FlareIntro]);
+
 const HSIN_RESONATOR = new Resonator({
   name: "Hsin",
   talent: HSIN_TALENTS,
@@ -623,13 +652,19 @@ const HSIN_RESONATOR = new Resonator({
   weapon: WeaponType.Rectifier,
   // Unison mode: the Manifold form on a Unison Response, or on a held Source Intent
   combatStart: () => applyCurrent(NIGHTGLOW, 1),
-  intro: () => {
-    if (!isHeld(MODE_UNISON)) return isHeld(ILLUMINING_FORM) ? IIntro : Intro;
-    const manifold = unisonIntro() || isHeld(SOURCE_INTENT);
-    return isHeld(ILLUMINING_FORM) ? (manifold ? ManifoldIllumining : UIIntro) : (manifold ? ManifoldAnswering : UIntro);
+  // Answering Heart comes off an Answering Form hit only while she is the active resonator: a hit
+  // landing after she has left (a swap-out's) banks none of its own
+  applyStats: () => {
+    const a = currentAction();
+    if (!isActive() && runningAnyOf(ANSWERING_HEART_HITS)) addStat(Stat.AddForte1, -(a.forte1 - a.castForte[0]!));
   },
-  outro: () => (isHeld(UNISON) ? OutroUnison : Outro),
   color: "#f1a49b",
+  // resolved when its row is reached: whichever Intro the kit's state calls for there
+  intro: new Action("Intro Resolver", { cast: Cast.Intro, resolve: () => {
+      if (!isHeld(MODE_UNISON)) return isHeld(ILLUMINING_FORM) ? FlareIIntro : FlareIntro;
+      const manifold = unisonIntro() || isHeld(SOURCE_INTENT);
+      return isHeld(ILLUMINING_FORM) ? (manifold ? ManifoldIllumining : UIIntro) : (manifold ? ManifoldAnswering : UIntro);
+    } }),
   maxEnergy: 125,
   maxForte1: 100,
   maxForte2: 300,
@@ -646,16 +681,19 @@ const HSIN_RESONATOR = new Resonator({
 const IBA12 = new ActionGroup("Basic - Illumining Form 12", [IBA1, IBA2]);
 const BA34 = new ActionGroup("Basic - Answering Form 34", [BA3, BA4]);
 
+/** Which Outro this resonator casts, resolved when its row is reached — whichever the
+ *  kit's state calls for there. */
+const OutroResolver = new Action("Outro Resolver", { cast: Cast.Outro, resolve: () => (isHeld(UNISON) ? OutroUnison : Outro) });
+
 const HS_ROTATION_FLARE = new Rotation([
-  INTRO, BA4, Skill,
-  ECHO_ONFIELD, 
-  RealmProtector, Lib1, 
+  INTRO, BA4.easyCancel(),
+  RealmProtector.easyCancel(), Lib1, ECHO, 
   
-  ISkill,IBA12, 
+  ISkill,IBA12.easyCancel(), 
   PillarsAligned, 
   
-  FBA1234, FHA,
-  Lib2, OUTRO,
+  FBA1234.cancel(), FHA,
+  Lib2, Skill.instaSwap(), OutroResolver,
 ]);
 
 // The Unison-mode loop, Jinhsi's double-Intro shape. The Answering pre-visit: the Intro (its
@@ -666,13 +704,13 @@ const HS_ROTATION_FLARE = new Rotation([
 // Leading, the Intro's 68 Answering Heart and its stages 1-2 are a full chain and then Stage 1-2
 // again, so the section's own Stage 3-4 continue it: 126 Heart into Realm Protector's 100.
 const HS_ROTATION_UNISON = new Rotation([
-  DOUBLE_INTRO, BA34, Skill, 
-  RealmProtector, Lib1, OUTRO,
+  DOUBLE_INTRO, BA34.easyCancel(),
+  RealmProtector.easyCancel(), Lib1, OutroResolver,
 
   INTRO, 
-  ECHO_ONFIELD, 
+  ECHO, 
   FBA1234, FHA,
-  Lib2, OUTRO,
+  Lib2, Skill.instaSwap(), OutroResolver,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

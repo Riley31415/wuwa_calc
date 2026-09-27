@@ -2,9 +2,9 @@
  * The shield marker and the six elemental Negative Statuses (Tune Shifting is tunebreak.ts's).
  *
  * Each is an enemy `Debuff` a kit inflicts from `updateDebuffs()`, plus a ladder of dot-scaled
- * `Type1.Status` casts, one per stack count — motion values are the migrated sheet's own
+ * `Type.Status` casts, one per stack count — motion values are the migrated sheet's own
  * `Glacio Chafe: 1`..`16` rows, x100 into percent. A dot hit reads no ATK, crit, damage bonus or
- * res/def ignore, only amplification scoped to its own `Type2` (damage.ts).
+ * res/def ignore, only amplification scoped to its own `Subtype` (damage.ts).
  *
  * A rung resolves on whoever is on field, the same way a Tune Break does, so that the one thing it
  * does read is the *acting resonator's* own — Hiyuki's Fine Snow, Frostburn's Self No More. Unlike
@@ -15,13 +15,14 @@
  * named by a rotation), which is what a passive counting real on-field presses tests instead.
  *
  * Frostbite and Implosion key off stack gains, which this engine sees, so they fire themselves.
- * Electromagnetic (every 5s), Wind Erosion (3s) and Light Noise (3s) run on the engine's
- * approximated second (helpers.ts's `oneSecondPassed()`) and tick themselves.
+ * Electromagnetic (every 5s), Wind Erosion (3s) and Light Noise (3s) run on their own clocks
+ * (`tick`) and tick themselves.
  *
  * Caps are each Debuff's own `maxStacks`, raised for a fight with `maxStackIncrease()`.
  */
-import { Attribute, EnemyStat, Scaling, Stat, Type1, Type2 } from "../engine/stats.js";
+import { Attribute, EnemyStat, Scaling, Stat, Type, Subtype } from "../engine/stats.js";
 import { Buff, Debuff } from "../engine/gear.js";
+import type { Resonator } from "../engine/gear.js";
 import {
   addEnemyStat,
   addStat,
@@ -29,6 +30,7 @@ import {
   appliedByMe,
   appliedByMember,
   applyEnemy,
+  applyCurrent,
   currentAction,
   currentTeam,
   isType,
@@ -39,24 +41,17 @@ import {
   frozenStacks,
   stacksOfEnemy,
   queueOn,
-  enemyForte1,
-  setEnemyForte1,
-  addEnemyForte1,
-  enemyForte2,
-  setEnemyForte2,
-  addEnemyForte2,
-  enemyForte3,
-  addEnemyForte3,
-  enemyForte4,
-  setEnemyForte4,
-  addEnemyForte4,
-  enemyForte5,
-  addEnemyForte5,
+  tickInEnemy,
   asSource,
+  elapsed,
+  setStacksSelf,
+  stacksOf,
+  withMoment,
+  fireHeldGrants,
+  currentMember,
 } from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
 import type { TeamMember } from "../engine/state.js";
-import { oneSecondPassed } from "./helpers.js";
 
 /** A shield going up, on the caster never applied to the team `applied()` being how
  *  many this cast granted. Never a stat. */
@@ -65,6 +60,50 @@ export const SHIELD = new Buff({
     convertStats: ()=> revokeCurrent(SHIELD),
 });
 
+/** The frame a resonator can next gain a shield — held as its stack count, so a variant replay
+ *  restores it with everything else — and the same as it stood before the action now being
+ *  evaluated (keyed by that action's cast frame + 1), what a gain on the cast itself checks. */
+const SHIELD_READY = new Buff({ name: "Shield Cooldown", maxStacks: 1e9, hidden: true });
+const SHIELD_ACTION = new Buff({ name: "Shield Cooldown (action)", maxStacks: 1e9, hidden: true });
+const SHIELD_BEFORE = new Buff({ name: "Shield Cooldown (before)", maxStacks: 1e9, hidden: true });
+
+/** The shield cooldown as this action found it, noted the first time it is asked. */
+function readyBefore(start: number): number {
+  if (stacksOf(SHIELD_ACTION) !== start + 1) {
+    setStacksSelf(SHIELD_ACTION, start + 1);
+    setStacksSelf(SHIELD_BEFORE, stacksOf(SHIELD_READY));
+  }
+  return stacksOf(SHIELD_BEFORE);
+}
+
+/** Gain up to `n` shields off the action being evaluated, at a 0.5s (30f) cooldown per resonator:
+ *  the action's first lands 30 frames after its cast, any more at 60, 90, ... only while it still
+ *  plays (a cut press has fewer), and each at least 30 frames after that resonator's last. */
+export function gainShield(n = 1): void {
+  const start = currentTeam().frame;
+  readyBefore(start);
+  const slots = Math.max(1, Math.floor(elapsed() / 30));
+  let ready = stacksOf(SHIELD_READY), got = 0;
+  for (let k = 1; k <= slots && got < n; k++) {
+    const at = start + 30 * k;
+    if (at < ready) continue;
+    got++;
+    ready = at + 30;
+  }
+  if (!got) return;
+  applyCurrent(SHIELD, got);
+  setStacksSelf(SHIELD_READY, ready);
+}
+
+/** One shield on the cast itself (Ruler's Realm's on an Intro), ahead of the 30f an on-hit gain
+ *  waits — so it checks the cooldown as the action found it, whatever the hits have since taken. */
+export function gainShieldOnCast(): void {
+  const start = currentTeam().frame;
+  if (start < readyBefore(start)) return;
+  applyCurrent(SHIELD, 1);
+  setStacksSelf(SHIELD_READY, Math.max(stacksOf(SHIELD_READY), start + 30));
+}
+
 /** Healing any resonator in the team never applied to the team only applied on the healer who cast it
  *  many this cast granted. Never a stat. */
 export const HEALS = new Buff({
@@ -72,11 +111,23 @@ export const HEALS = new Buff({
     convertStats: ()=> revokeCurrent(HEALS),
 });
 
+/** The moment a heal tick lands in, outside any press: no cast, no type, nothing but the heal. */
+const HEAL_MOMENT = new Action("Heal");
+
+/** One heal from the current slot, landing on its own (a heal window's tick, `coordinatedBuff`):
+ *  the Healed marker, and every "on heal" grant the healer's gear declares answering it. */
+export function heal(): void {
+  withMoment(HEAL_MOMENT, () => {
+    applyCurrent(HEALS, 1);
+    fireHeldGrants();
+  });
+}
+
 /** One status's damage ladder: an Action per stack count, indexed by that count. Index 0 is empty
  *  — no stacks means the status isn't on the target. */
-const negativeStatusActions = (name: string, element: Attribute, type2: Type2, mvs: number[]): (Action | null)[] =>
+const negativeStatusActions = (name: string, element: Attribute, subtype: Subtype, mvs: number[]): (Action | null)[] =>
   [null, ...mvs.map((mv, i) => new Action(`${name} - ${i + 1} Stack${(i+1)>1 ? "s" : ""}`, {
-    element, type: Type1.Status, type2, scaling: Scaling.Dot, mv,
+    element, type: Type.Status, subtype, scaling: Scaling.Dot, mv,
   }))];
 
 /** The rung a live stack count names, or null when there is none to fire. Every caller reads the
@@ -93,7 +144,7 @@ export const negativeStatusRung = (ladder: (Action | null)[], held: number): Act
 /** Void Annihilation: 25s a stack, cleared when it ends, cap 3 (+12 raisable). No damage of its
  *  own — each stack is 2% DEF reduce. */
 export const HAVOC_BANE = new Debuff({
-    name: "Havoc Bane", maxStacks: 3,
+    name: "Havoc Bane", maxStacks: 3, duration: 60 * 25,
     applyStats: ()=> {
         addEnemyStat(EnemyStat.DefReduce, 2*frozenStacks());
     }
@@ -106,33 +157,40 @@ export const HAVOC_BANE = new Debuff({
  *  off `frozenStacks()`. That is Frost Creep's rule — live Frostbite calculates every gain at the
  *  max-stack rung instead, which is also what Hiyuki's Glacio Bite does with the same ladder: her
  *  own file converts the stacks and fires these rungs itself, and nothing here needs to know. */
-export const GLACIO_CHAFE_ACTIONS = negativeStatusActions("Glacio Chafe", Attribute.Glacio, Type2.GlacioChafe, [
+export const GLACIO_CHAFE_ACTIONS = negativeStatusActions("Glacio Chafe", Attribute.Glacio, Subtype.GlacioChafe, [
   24.5, 44.42, 64.34, 84.26, 104.17, 
   124.09, 144.01, 163.93, 183.85, 203.77,
   271.69, 339.61, 407.53, 
   475.46, 543.38, 611.3,
 ]);
 
+/** A resonator's own copy of the rungs, filed under a field of theirs (`ActionField`): what their
+ *  Glacio Chafe hits read as while they are the one on field, so the table groups them (Lucilla's). */
+export const OWN_CHAFE_RUNGS = new Map<Resonator, (Action | null)[]>();
+
 export const GLACIO_CHAFE = new Debuff({
-    name: "Glacio Chafe", maxStacks: 10,
-    applyStats: () => { 
+    name: "Glacio Chafe", maxStacks: 10, duration: 60 * 15,
+    applyStats: () => {
         const held = frozenStacks();
+        const team = currentTeam(), me = currentMember();
+        const own = team.slots[team.onField] === me && me.resonator ? OWN_CHAFE_RUNGS.get(me.resonator) : undefined;
+        const rungs = own ?? GLACIO_CHAFE_ACTIONS;
         for (let n = Math.max(1, held - applied(GLACIO_CHAFE) + 1); n <= held; n++) {
-            queue(GLACIO_CHAFE_ACTIONS[n]!);
+            queue(rungs[n]!);
         }
     },
 });
 
 /** Implosion: 15s a stack, refreshed on gain, cap 10; reaching the cap calculates in a 3m radius,
  *  0.2s cooldown. */
-export const FUSION_BURST_ACTIONS = negativeStatusActions("Fusion Burst", Attribute.Fusion, Type2.FusionBurst, [
+export const FUSION_BURST_ACTIONS = negativeStatusActions("Fusion Burst", Attribute.Fusion, Subtype.FusionBurst, [
   84, 152.29, 220.58, 288.88, 357.17, 
   425.46, 493.75, 562.04, 630.34, 698.63,
   931.5, 1164.38, 1397.26, 
   1630.13, 1863.01, 2095.88,
 ]);
 export const FUSION_BURST = new Debuff({
-  name: "Fusion Burst", maxStacks: 10,
+  name: "Fusion Burst", maxStacks: 10, duration: 60 * 15,
   // A kit's own Fusion Burst DMG instance carries no motion value of its own (Aemeath's Seraphic
   // Duet): what it is worth is the cap rung — a Fusion Burst only ever calculates at the cap,
   // unlike Electro Flare's ticks at the current count (below) — and the kit's own percentage
@@ -140,7 +198,7 @@ export const FUSION_BURST = new Debuff({
   // which is where the number comes from; the cap is the fight's (Chisa raises it), not the
   // declared 10.
   applyStats: () => {
-    if (!isType(Type2.FusionBurst) || currentAction().mv !== 0) return;
+    if (!isType(Subtype.FusionBurst) || currentAction().mv !== 0) return;
     const rung = FUSION_BURST_ACTIONS[currentTeam().enemyMax(FUSION_BURST)];
     if (rung) asSource(rung, () => addStat(Stat.AddMv, rung.mv));
   },
@@ -154,7 +212,8 @@ export const FUSION_BURST = new Debuff({
 });
 
 /** Wind Erosion: 14.8s a stack, refreshed on gain, cap 3; calculates every 3s at the current
- *  count, spending nothing. The tick lands on whoever last inflicted it.
+ *  count, spending nothing. Same shape as Electro Flare below — its own clock (`tick`), the
+ *  14.8s refreshed by every inflict, the tick on whoever last inflicted it.
  *
  *  Two clocks, both on the target. The tick is enemy forte 2, counting half-seconds so a kit that
  *  halves the interval can add its own two on top (Cartethyia's Mandate of Divinity); its
@@ -165,30 +224,30 @@ export const FUSION_BURST = new Debuff({
  *  runs out the whole status goes, and both clocks reset so the next application starts clean.
  *  This is the one Negative Status whose duration is kept: unlike Electro Flare or Spectro
  *  Frazzle, a rotation can easily leave 15s between applications. */
-export const AERO_EROSION_ACTIONS = negativeStatusActions("Aero Erosion", Attribute.Aero, Type2.AeroErosion, [
+export const AERO_EROSION_ACTIONS = negativeStatusActions("Aero Erosion", Attribute.Aero, Subtype.AeroErosion, [
   45, 112.5, 225, 
   337.5, 450, 562.5, 
   675, 787.5, 900, 
   1012.5, 1125, 1237.5, 
   1350, 1462.5, 1575,
 ]);
-export const AERO_EROSION = new Debuff({
-  name: "Aero Erosion", maxStacks: 3,
-  display: () => `Aero Erosion x${frozenStacks()} (tick in ${(6 - enemyForte2()) / 2}s, ends in ${15 - enemyForte4()}s)`,
-  updateBuffs: () => {
-    if (applied(AERO_EROSION) > 0) setEnemyForte4(0);
-    else if (stacksOfEnemy(AERO_EROSION) > 0 && oneSecondPassed() && addEnemyForte4(1) >= 15) {
-      revokeEnemy(AERO_EROSION);
-      setEnemyForte2(0);
-      setEnemyForte4(0);
-      return;
-    }
-    const rung = negativeStatusRung(AERO_EROSION_ACTIONS, stacksOfEnemy(AERO_EROSION));
-    if (!rung || !oneSecondPassed() || addEnemyForte2(2) < 6) return;
-    addEnemyForte2(-6);
-    queueOnApplier(AERO_EROSION, rung);
+export const AERO_EROSION: Debuff = new Debuff({
+  name: "Aero Erosion", maxStacks: 3, duration: 60 * 14.8,
+  display: () => `Aero Erosion x${frozenStacks()} (tick in ${Math.round(tickInEnemy(AERO_EROSION) / 6) / 10}s)`,
+  // every 3s of its own clock, at the count it finds — 1.5s while Cartethyia's Mandate of
+  // Divinity holds the target (below)
+  tick: {
+    every: () => (stacksOfEnemy(EROSION_HASTE) ? 90 : 180),
+    fire: () => {
+      const rung = negativeStatusRung(AERO_EROSION_ACTIONS, stacksOfEnemy(AERO_EROSION));
+      if (rung) queueOnApplier(AERO_EROSION, rung);
+    },
   },
 });
+/** Cartethyia's Mandate of Divinity on the target: Aero Erosion's clock runs twice as fast while
+ *  it stands. Put up and taken down by her own kit (cartethyia.ts); nameless, so the popover
+ *  carries no row for it. */
+export const EROSION_HASTE = new Debuff({});
 
 /** Light Noise: 3s a stack, no refresh on gain, cap 10; calculates every 3s at its own count and
  *  drops one stack each time. Its tick clock is enemy forte 3, counting half-seconds so Phoebe's
@@ -201,10 +260,9 @@ const SPECTRO_FRAZZLE_MVS = [
   332.68, 415.85, 499.02, 
   582.19, 665.36, 748.53,
 ];
-export const SPECTRO_FRAZZLE_ACTIONS = negativeStatusActions("Spectro Frazzle", Attribute.Spectro, Type2.SpectroFrazzle, SPECTRO_FRAZZLE_MVS);
+export const SPECTRO_FRAZZLE_ACTIONS = negativeStatusActions("Spectro Frazzle", Attribute.Spectro, Subtype.SpectroFrazzle, SPECTRO_FRAZZLE_MVS);
 /** Phoebe's Silent Prayer, the half of it that reaches this file: "extend Spectro Frazzle's
- *  damage interval by 50%" — 3s between ticks becomes 4.5s, which is why the clock below counts
- *  half-seconds rather than whole ones. Nameless, the same way Hsin's FLARE_RETAINED is: one
+ *  damage interval by 50%" — 3s between ticks becomes 4.5s on the clock below. Nameless, the same way Hsin's FLARE_RETAINED is: one
  *  clause of one kit reaching the status machinery, not a debuff the target's popover lists. */
 export const FRAZZLE_SLOWED = new Debuff({});
 
@@ -212,29 +270,22 @@ export const FRAZZLE_SLOWED = new Debuff({});
  *  prevents Spectro Frazzle stacks from reducing over time", so while it stands a tick still
  *  fires and still costs the target nothing. Hsin's FLARE_RETAINED is the same clause for Electro
  *  Flare — but hers is keyed to entering combat and stands all fight, while this is a real 9s
- *  window, so its stacks are the seconds it has left and one comes off every engine second.
- *
- *  Counted down in `afterAction`, the phase that runs last: the Frazzle tick below reads it in
- *  `updateBuffs`, and a countdown sharing that phase would race it on the action that empties. */
-export const SHIMMER = new Debuff({
-  name: "Shimmer", maxStacks: 9,
-  display: () => `Shimmer (${frozenStacks()}s)`,
-  afterAction: () => { if (oneSecondPassed()) removeStackEnemy(SHIMMER, 1); },
-});
+ *  window. */
+export const SHIMMER = new Debuff({ name: "Shimmer", duration: 60 * 9 });
 
-/** Half-seconds between Spectro Frazzle ticks: six for the ordinary 3s, nine while Silent Prayer
- *  stands. */
-const frazzleInterval = (): number => (stacksOfEnemy(FRAZZLE_SLOWED) ? 9 : 6);
-
-export const SPECTRO_FRAZZLE = new Debuff({
+/** Light Noise's own clock: every 3s, 4.5s while Silent Prayer stands, at the count it finds and
+ *  a stack less after — none while Shimmer holds the target. */
+export const SPECTRO_FRAZZLE: Debuff = new Debuff({
   name: "Spectro Frazzle", maxStacks: 10,
-  display: () => `Spectro Frazzle x${frozenStacks()} (tick in ${(frazzleInterval() - enemyForte3()) / 2}s)`,
-  updateBuffs: () => {
-    const rung = negativeStatusRung(SPECTRO_FRAZZLE_ACTIONS, stacksOfEnemy(SPECTRO_FRAZZLE));
-    if (!rung || !oneSecondPassed() || addEnemyForte3(2) < frazzleInterval()) return;
-    addEnemyForte3(-frazzleInterval());
-    queueOnApplier(SPECTRO_FRAZZLE, rung);
-    if (!stacksOfEnemy(SHIMMER)) removeStackEnemy(SPECTRO_FRAZZLE, 1);
+  display: () => `Spectro Frazzle x${frozenStacks()} (tick in ${Math.round(tickInEnemy(SPECTRO_FRAZZLE) / 6) / 10}s)`,
+  tick: {
+    every: () => (stacksOfEnemy(FRAZZLE_SLOWED) ? 270 : 180),
+    fire: () => {
+      const rung = negativeStatusRung(SPECTRO_FRAZZLE_ACTIONS, stacksOfEnemy(SPECTRO_FRAZZLE));
+      if (!rung) return;
+      queueOnApplier(SPECTRO_FRAZZLE, rung);
+      if (!stacksOfEnemy(SHIMMER)) removeStackEnemy(SPECTRO_FRAZZLE, 1);
+    },
   },
 });
 
@@ -252,18 +303,10 @@ export const HELIACAL_EMBER: Debuff = new Debuff({
   // `stacksOfEnemy`, not `frozenStacks()`: this Gear gets borrowed as a stat *source*
   // (`asSource` in zani.ts, for the Outro's per-stack payout) and outside the enemy pool walk
   // a frozen count reads 0, which had the hover claiming the bonus came from no stacks at all.
-  display: () => `Heliacal Ember x${stacksOfEnemy(HELIACAL_EMBER)} (next expires in ${6 - enemyForte5()}s)`,
-  // 6s a stack, and one stack is all that goes — no damage, no Blaze, nothing else. The clock
-  // (enemy forte 5) runs on while any Ember stands and is deliberately *not* restarted by a fresh
-  // conversion, so a stack falls off every 6s however often she re-applies. Counted in
-  // `afterAction`, the phase after every reader: Eternal Radiance's ten-stack tier and her Outro's
-  // per-stack payout both read the count in earlier phases, and a decay sharing one would shave a
-  // stack off the action being evaluated.
-  afterAction: () => {
-    if (!stacksOfEnemy(HELIACAL_EMBER) || !oneSecondPassed() || addEnemyForte5(1) < 6) return;
-    addEnemyForte5(-6);
-    removeStackEnemy(HELIACAL_EMBER, 1);
-  },
+  display: () => `Heliacal Ember x${stacksOfEnemy(HELIACAL_EMBER)} (next expires in ${Math.round(tickInEnemy(HELIACAL_EMBER) / 6) / 10}s)`,
+  // 6s a stack, one stack at a time — no damage, no Blaze. A re-grant keeps the clock's progress,
+  // so a stack falls off every 6s however often she re-applies
+  tick: { every: 360, fire: () => removeStackEnemy(HELIACAL_EMBER, 1) },
 });
 
 /** The conversion's own damage, one row per stack count converted. Turning n Spectro Frazzle into
@@ -276,7 +319,7 @@ export const HELIACAL_EMBER: Debuff = new Debuff({
  *  Same shape Fusion Burst and Electro Flare use for a kit's own status instance. */
 export const HELIACAL_EMBER_ACTIONS: (Action | null)[] = [null, ...SPECTRO_FRAZZLE_MVS.map((_, i) =>
   new Action(`Heliacal Ember - ${i + 1} Stack${i ? "s" : ""}`, {
-    element: Attribute.Spectro, type: Type1.Status, type2: Type2.SpectroFrazzle, scaling: Scaling.Dot, mv: 0,
+    element: Attribute.Spectro, type: Type.Status, subtype: Subtype.SpectroFrazzle, scaling: Scaling.Dot, mv: 0,
     applyStats: () => {
       for (let n = i; n >= 0; n--) {
         const rung = SPECTRO_FRAZZLE_ACTIONS[n + 1]!;
@@ -287,13 +330,13 @@ export const HELIACAL_EMBER_ACTIONS: (Action | null)[] = [null, ...SPECTRO_FRAZZ
 
 /** Electromagnetic's two ladders: the tick at its own count, and Electro Rage's extra multiplier
  *  on top of it (the same table). Both fired by ELECTRO_FLARE's own clock below. */
-export const ELECTRO_FLARE_DMG = negativeStatusActions("Electro Flare", Attribute.Electro, Type2.ElectroFlare, [
+export const ELECTRO_FLARE_DMG = negativeStatusActions("Electro Flare", Attribute.Electro, Subtype.ElectroFlare, [
   50, 90.65, 131.3, 171.95, 212.6, 
   253.25, 293.9, 334.55, 375.2, 415.85,
   554.47, 693.08, 831.7, 970.32, 1108.93, 1247.55,
 ]);
 
-export const ELECTRO_RAGE_ACTIONS = negativeStatusActions("Electro Rage", Attribute.Electro, Type2.ElectroFlare, [
+export const ELECTRO_RAGE_ACTIONS = negativeStatusActions("Electro Rage", Attribute.Electro, Subtype.ElectroFlare, [
   50, 90.65, 131.3, 171.95, 212.6, 
   253.25, 293.9, 334.55, 375.2, 415.85,
   554.47, 693.08, 831.7, 970.32, 1108.93, 1247.55,
@@ -315,15 +358,13 @@ export const FLARE_RETAINED = new Debuff({});
  *  current count and halves the stacks (rounded down); what lands past the cap banks as Electro
  *  Rage (cap 10), which adds its own multiplier onto the next calculation and is spent by it.
  *
- *  Its tick clock lives on the target's own gauge (context.ts's enemy forte 1): seconds since the
- *  last tick, advanced from here on every engine second (helpers.ts's `oneSecondPassed()`) while
- *  the status is up. The 15s duration is not kept — every rotation re-inflicts well inside it, so
- *  it is taken as always refreshed. A tick resolves on the slot of whoever last inflicted the
- *  status — they are on field for none of it, but the damage is theirs — so a Buling array
- *  ticking through the DPS's turn still lands in her column. */
-export const ELECTRO_FLARE = new Debuff({
-  name: "Electro Flare", maxStacks: 10,
-  display: () => `Electro Flare x${frozenStacks()} (tick in ${5 - enemyForte1()}s)`,
+ *  The 5s is the status's own clock (`tick`), running from the first inflict and untouched by the
+ *  refreshes after it. A tick resolves on the slot of whoever last inflicted the status — they are
+ *  on field for none of it, but the damage is theirs — so a Buling array ticking through the
+ *  DPS's turn still lands in her column. */
+export const ELECTRO_FLARE: Debuff = new Debuff({
+  name: "Electro Flare", maxStacks: 10, duration: 60 * 15,
+  display: () => `Electro Flare x${frozenStacks()} (tick in ${Math.round(tickInEnemy(ELECTRO_FLARE) / 6) / 10}s)`,
   // A kit's own Electro Flare DMG instance carries no motion value of its own (Hsin's Heart of
   // Thunder hits): what it is worth is "the Electro Flare DMG Multiplier corresponding to the
   // current Electro Flare stacks on the target" — the count it finds, the same rung the status's
@@ -332,19 +373,24 @@ export const ELECTRO_FLARE = new Debuff({
   // comes from. Hsin's own instances land while her cap pin holds the target full, so for her the
   // two read alike; a kit firing one on a target below the cap pays the lower rung.
   applyStats: () => {
-    if (!isType(Type2.ElectroFlare) || currentAction().mv !== 0) return;
+    if (!isType(Subtype.ElectroFlare) || currentAction().mv !== 0) return;
     const rung = negativeStatusRung(ELECTRO_FLARE_DMG, frozenStacks());
     if (rung) asSource(rung, () => addStat(Stat.AddMv, rung.mv));
   },
-  updateBuffs: () => {
-    const held = stacksOfEnemy(ELECTRO_FLARE);
-    const rung = negativeStatusRung(ELECTRO_FLARE_DMG, held);
-    if (!rung || !oneSecondPassed() || addEnemyForte1(1) < 5) return;
-    setEnemyForte1(0);
-    queueOnApplier(ELECTRO_FLARE, rung);
-    const rage = negativeStatusRung(ELECTRO_RAGE_ACTIONS, stacksOfEnemy(ELECTRO_RAGE));
-    if (rage) { queueOnApplier(ELECTRO_FLARE, rage); revokeEnemy(ELECTRO_RAGE); }
-    if (!stacksOfEnemy(FLARE_RETAINED)) removeStackEnemy(ELECTRO_FLARE, held - Math.floor(held / 2));
+  tick: {
+    every: 300,
+    fire: () => {
+      const held = stacksOfEnemy(ELECTRO_FLARE);
+      const rung = negativeStatusRung(ELECTRO_FLARE_DMG, held);
+      if (!rung) return;
+      queueOnApplier(ELECTRO_FLARE, rung);
+      const rage = negativeStatusRung(ELECTRO_RAGE_ACTIONS, stacksOfEnemy(ELECTRO_RAGE));
+      if (rage) {
+        queueOnApplier(ELECTRO_FLARE, rage);
+        revokeEnemy(ELECTRO_RAGE);
+      }
+      if (!stacksOfEnemy(FLARE_RETAINED)) removeStackEnemy(ELECTRO_FLARE, held - Math.floor(held / 2));
+    },
   },
 });
 

@@ -1,7 +1,7 @@
 /** Signature Sword weapons. Every piece works if equipped on any resonator, not just its own.
  *  Each export is the weapon's five refinements, R1 first (gear.ts's own `refinements()`); a
  *  number that grows with rank is written as its five values. */
-import { WeaponType, Stat, Attribute, Type1, Type2, Cast, LifeTime, BuffTarget } from "../engine/stats.js";
+import { WeaponType, Stat, Attribute, Type, Subtype, Cast, BuffTarget } from "../engine/stats.js";
 import { Buff, Weapon, refinements } from "../engine/gear.js";
 import {
   addStat,
@@ -12,7 +12,6 @@ import {
   applyCurrent,
   removeStack,
   applyTeam,
-  stacksOf,
   stacksOfEnemy,
   revokeTeam,
   isActive,
@@ -21,53 +20,57 @@ import {
   onInflict,
   either,
   isHeld,
+  stacksOf,
+  lostOnSwap,
 } from "../engine/context.js";
-import { oneSecondPassed } from "../shared/helpers.js";
 import { consumedConcerto, gainedUnison } from "../shared/unison.js";
 import { TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 import { AERO_EROSION, FUSION_BURST, GLACIO_CHAFE, HAVOC_BANE } from "../shared/status.js";
 
-/** Changli's sig: Crimson Phoenix. +12% ATK flat. Resonance Skill grants 5 stacks of Searing
- *  Feather outright, and dealing damage one more every 0.5s — two an engine second, up to 14.
- *  At the cap the whole lot goes 12s later, which is the outro the visit ends on: only an outro
- *  cast at max stacks takes them, and short of it they carry into the next visit. */
+/** Changli's sig: Crimson Phoenix. +12% ATK flat. Searing Feather: a stack per hit at a 0.5s
+ *  ICD — one every 30 frames of the wielder's own field time, on a clock their presses keep up
+ *  and their swap-out drops — and five outright on a Resonance Skill, up to 14, each +4% Resonance Skill
+ *  DMG Bonus. The stacks carry across visits: the kit's "removed 12s after reaching max" is taken
+ *  as the Outro cast at max stacks dropping them, paid on that outro first. */
 export const BLAZING_BRILLIANCE = refinements((r, rank) => {
   const SEARING_FEATHER: Buff = new Buff({
     name: `Blazing Brilliance: Crimson Phoenix${rank}`, maxStacks: 14,
-    stats: [[Stat.DmgBonus, [4, 5, 6, 7, 8][r]!, Type1.Skill]], perStack: true, early: true,
-    updateBuffs: () => {
-      if (oneSecondPassed()) applyCurrent(SEARING_FEATHER, 2);
-      if (casting(Cast.Outro) && stacksOf(SEARING_FEATHER) >= 14) revokeCurrent(SEARING_FEATHER);
-    },
+    stats: [[Stat.DmgBonus, [4, 5, 6, 7, 8][r]!, Type.Skill]], perStack: true, early: true,
+    convertStats: () => { if (casting(Cast.Outro) && frozenStacks() >= 14) revokeCurrent(SEARING_FEATHER); },
+  });
+  const SEARING_CLOCK = new Buff({
+    name: `Blazing Brilliance: Crimson Phoenix${rank}`, hidden: true,
+    tick: { every: 30, fire: () => applyCurrent(SEARING_FEATHER, 1) },
+    updateBuffs: () => lostOnSwap(),
   });
   return new Weapon({
     weaponType: WeaponType.Sword, name: `Blazing Brilliance${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritDmg, 48.6], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
-    grants: [{ on: onType(Type1.Skill), buff: SEARING_FEATHER, stacks: 5 }],
+    grants: [
+      { on: isActive, buff: SEARING_CLOCK },
+      { on: onType(Type.Skill), buff: SEARING_FEATHER, stacks: 5 },
+    ],
   });
 });
 
 /** Camellya's sig: Beyond the Cycle. +12% ATK flat. Basic Attack DMG grants +10% Basic DMG
  *  Bonus for 14s, up to 3 stacks (ICD not modelled). Consuming Concerto grants +40% Basic DMG
- *  Bonus for 10s — ten engine seconds, counted down a stack apiece and refreshed by every spend. */
+ *  Bonus for 10s, refreshed by every spend. */
 export const RED_SPRING = refinements((r, rank) => {
   const RED_SPRING_BASIC = new Buff({
-    name: `Red Spring: Beyond the Cycle${rank}`, maxStacks: 3,
-    stats: [[Stat.DmgBonus, [10, 12.5, 15, 17.5, 20][r]!, Type1.Basic]], perStack: true, until: LifeTime.Outro,
+    name: `Red Spring: Beyond the Cycle${rank}`, maxStacks: 3, duration: 60 * 14,
+    stats: [[Stat.DmgBonus, [10, 12.5, 15, 17.5, 20][r]!, Type.Basic]], perStack: true,
   });
-  const RED_SPRING_CONSUME: Buff = new Buff({
-    name: `Red Spring: Beyond the Cycle${rank}`, maxStacks: 10,
-    // the stacks are its 10s, not a multiplied payout — one spent per engine second, gone at zero
-    display: () => `Red Spring: Beyond the Cycle${rank} (${frozenStacks()}s)`,
-    updateBuffs: () => { if (oneSecondPassed()) removeStack(RED_SPRING_CONSUME, 1); },
-    stats: [[Stat.DmgBonus, [40, 50, 60, 70, 80][r]!, Type1.Basic]], until: LifeTime.Outro,
+  const RED_SPRING_CONSUME = new Buff({
+    name: `Red Spring: Beyond the Cycle${rank}`, duration: 60 * 10,
+    stats: [[Stat.DmgBonus, [40, 50, 60, 70, 80][r]!, Type.Basic]],
   });
   return new Weapon({
     weaponType: WeaponType.Sword, name: `Red Spring${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [
-      { on: onType(Type1.Basic), buff: RED_SPRING_BASIC },
-      { on: consumedConcerto, buff: RED_SPRING_CONSUME, stacks: 10 },
+      { on: onType(Type.Basic), buff: RED_SPRING_BASIC, onHit: true },
+      { on: consumedConcerto, buff: RED_SPRING_CONSUME },
     ],
   });
 });
@@ -77,18 +80,20 @@ export const RED_SPRING = refinements((r, rank) => {
 export const UNFLICKERING_VALOR = refinements((r, rank) => {
   const LAUGHTER_PREVAILS_LIB = new Buff({
     name: `Unflickering Valor: Laughter Prevails${rank} (liberation)`,
-    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type1.Basic]], until: LifeTime.Outro,
+    duration: 60 * 10,
+    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type.Basic]],
   });
   const LAUGHTER_PREVAILS_BASIC = new Buff({
     name: `Unflickering Valor: Laughter Prevails${rank} (basic)`,
-    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type1.Basic]], until: LifeTime.Outro,
+    duration: 60 * 4,
+    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type.Basic]],
   });
   return new Weapon({
     weaponType: WeaponType.Sword, name: `Unflickering Valor${rank}`,
     stats: [[Stat.BaseAtk, 412.5], [Stat.Er, 77.04], [Stat.CritRate, [8, 10, 12, 14, 16][r]!]],
     grants: [
       { on: onCast(Cast.Liberation), buff: LAUGHTER_PREVAILS_LIB },
-      { on: onType(Type1.Basic), buff: LAUGHTER_PREVAILS_BASIC },
+      { on: onType(Type.Basic), buff: LAUGHTER_PREVAILS_BASIC, onHit: true },
     ],
   });
 });
@@ -100,15 +105,16 @@ export const UNFLICKERING_VALOR = refinements((r, rank) => {
 export const EMERALD_SENTENCE = refinements((r, rank) => {
   const HEART_SETTLES_TEAM = new Buff({
     name: `Emerald Sentence: When A Heart Settles${rank}`,
-    stats: [[Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Type1.Echo]],
+    duration: 60 * 30,
+    stats: [[Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Type.Echo]],
   });
   /** The window an Intro or Basic opens for the next Echo Skills — nameless, so it stays out of
    *  the held list: it says only that the stacks below can be earned, and pays nothing itself. */
-  const BAMBOO_READY = new Buff({ until: LifeTime.Swap });
+  const BAMBOO_READY = new Buff({ lostOnSwap: true });
   /** Lost entirely if switched off field, same as Quietude Within. */
   const BAMBOO_CLEAVER: Buff = new Buff({
-    name: `Emerald Sentence: Bamboo Cleaver${rank}`, maxStacks: 2, until: LifeTime.Swap,
-    stats: [[Stat.DmgBonus, [30, 37.5, 45, 52.5, 60][r]!, Type1.Heavy]], perStack: true,
+    name: `Emerald Sentence: Bamboo Cleaver${rank}`, maxStacks: 2, duration: 60 * 12, lostOnSwap: true,
+    stats: [[Stat.DmgBonus, [30, 37.5, 45, 52.5, 60][r]!, Type.Heavy]], perStack: true,
   });
   return new Weapon({
     weaponType: WeaponType.Sword, name: `Emerald Sentence${rank}`,
@@ -124,11 +130,12 @@ export const EMERALD_SENTENCE = refinements((r, rank) => {
 /** Glint of Clouds, Qingxiao's sig: Evil's Scourge. +12% ATK flat. Inflicting Tune Strain -
  *  Shifting grants +11.2% Aero DMG Bonus a stack, up to 5, 2s each (once per 0.5s) — short, but
  *  every cast of hers re-inflicts, so it climbs straight to five and stays: at max the window
- *  becomes 30s (permanent uptime) and her Aero DMG ignores 10% of the target's DEF. Short of
- *  five it's lost after the outro. */
+ *  becomes 30s and her Aero DMG ignores 10% of the target's DEF. Short of five it's lost after
+ *  the outro. */
 export const GLINT_OF_CLOUDS = refinements((r, rank) => {
   const EVILS_SCOURGE: Buff = new Buff({
     name: `Glint of Clouds: Evil's Scourge${rank}`, maxStacks: 5,
+    duration: () => (stacksOf(EVILS_SCOURGE) >= 5 ? 60 * 30 : 60 * 2),
     stats: [[Stat.DmgBonus, [11.2, 14, 16.8, 19.6, 22.4][r]!, Attribute.Aero]], perStack: true,
     applyStats: () => { if (frozenStacks() >= 5) addStat(Stat.DefIgnoreNew, [10, 12.5, 15, 17.5, 20][r]!, Attribute.Aero); },
     convertStats: () => { if (casting(Cast.Outro) && frozenStacks() < 5) revokeCurrent(EVILS_SCOURGE); },
@@ -142,22 +149,28 @@ export const GLINT_OF_CLOUDS = refinements((r, rank) => {
 
 /** Frostburn, Hiyuki's sig: Self No More. +12% ATK flat, and two payouts off the wielder's own
  *  Glacio Chafe. The page states no duration on the first pair, so they stand once granted; the
- *  Glacio Chafe DMG amplification is a 6s window, so lost after the outro. Both are ordinary self
+ *  Glacio Chafe DMG amplification is a 6s window. Both are ordinary self
  *  buffs — "if the wielder is the active Resonator" needs no check of its own, because a Glacio
  *  Chafe hit resolves on whoever is on field (evaluate.ts's own `evaluate()`), so the wielder's own
  *  amplification reaches it exactly when they are the one holding the field. */
 export const FROSTBURN = refinements((r, rank) => {
   const SELF_NO_MORE = new Buff({
-    name: `Frostburn: Self No More${rank}`, until: LifeTime.Outro,
-    stats: [[Stat.Amp, [28, 35, 42, 49, 56][r]!, Attribute.Glacio], [Stat.DefIgnoreNew, [10, 12.5, 15, 17.5, 20][r]!, Type1.Liberation]],
-    applyStats: () => { if (isActive()) addStat(Stat.Amp, [20, 25, 30, 35, 40][r]!, Type2.GlacioChafe); },
+    name: `Frostburn: Self No More${rank}`,
+    stats: [[Stat.Amp, [28, 35, 42, 49, 56][r]!, Attribute.Glacio], [Stat.DefIgnoreNew, [10, 12.5, 15, 17.5, 20][r]!, Type.Liberation]],
+  });
+  const SELF_NO_MORE_CHAFE = new Buff({
+    name: `Frostburn: Self No More${rank} (chafe)`, duration: 60 * 6,
+    stats: [[Stat.Amp, [20, 25, 30, 35, 40][r]!, Subtype.GlacioChafe]], when: isActive,
   });
   return new Weapon({
     weaponType: WeaponType.Sword, name: `Frostburn${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     // `onInflict`: a "when *you* inflict" payout, so the two extra stacks Lucilla's Film Roll
     // adds to the wielder's own are hers and pay nothing here
-    grants: [{ on: onInflict(GLACIO_CHAFE), buff: SELF_NO_MORE }],
+    grants: [
+      { on: onInflict(GLACIO_CHAFE), buff: SELF_NO_MORE },
+      { on: onInflict(GLACIO_CHAFE), buff: SELF_NO_MORE_CHAFE },
+    ],
   });
 });
 
@@ -168,8 +181,9 @@ export const FROSTBURN = refinements((r, rank) => {
  *  out off the wielder's swing is hers and pays nothing here. */
 export const AZURE_OATH = refinements((r, rank) => {
   const UNBENDING = new Buff({
-    name: `Azure Oath: Unbending${rank}`, until: LifeTime.Outro,
-    stats: [[Stat.Amp, [36, 45, 54, 63, 72][r]!, Type1.Heavy], [Stat.DefIgnoreNew, [12, 15, 18, 21, 24][r]!, Type1.Heavy]],
+    name: `Azure Oath: Unbending${rank}`,
+    duration: 60 * 8,
+    stats: [[Stat.Amp, [36, 45, 54, 63, 72][r]!, Type.Heavy], [Stat.DefIgnoreNew, [12, 15, 18, 21, 24][r]!, Type.Heavy]],
   });
   return new Weapon({
     weaponType: WeaponType.Sword, name: `Azure Oath${rank}`,
@@ -181,12 +195,13 @@ export const AZURE_OATH = refinements((r, rank) => {
 /** Everbright Polestar, Aemeath's sig: Starchaser. +12% All-Attribute DMG Bonus flat (plain
  *  Dmg Bonus, no tag), and inflicting Tune Rupture - Shifting or Fusion Burst has the wielder's
  *  Resonance Liberation DMG ignore 32% DEF and 10% Fusion RES for 8s — a short self window, so
- *  lost after the outro. `onInflict`: a "when *you* inflict" payout. */
+ * . `onInflict`: a "when *you* inflict" payout. */
 export const EVERBRIGHT_POLESTAR = refinements((r, rank) => {
   const STARCHASER = new Buff({
-    name: `Everbright Polestar: Starchaser${rank}`, until: LifeTime.Outro,
-    stats: [[Stat.DefIgnoreNew, [32, 40, 48, 56, 64][r]!, Type1.Liberation]],
-    applyStats: () => { if (currentAction().type1 === Type1.Liberation) addStat(Stat.ResIgnore, [10, 15, 20, 25, 30][r]!, Attribute.Fusion); },
+    name: `Everbright Polestar: Starchaser${rank}`,
+    duration: 60 * 8,
+    stats: [[Stat.DefIgnoreNew, [32, 40, 48, 56, 64][r]!, Type.Liberation]],
+    applyStats: () => { if (currentAction().type === Type.Liberation) addStat(Stat.ResIgnore, [10, 15, 20, 25, 30][r]!, Attribute.Fusion); },
   });
   return new Weapon({
     weaponType: WeaponType.Sword, name: `Everbright Polestar${rank}`,
@@ -199,10 +214,11 @@ export const EVERBRIGHT_POLESTAR = refinements((r, rank) => {
  *  Skill or any Basic Attack DMG opens a 15s window: the wielder's damage ignores 8% of the
  *  target's DEF, and takes 20% amplification while the target holds at least one Aero Erosion,
  *  whoever put it there. The Erosion is read live, so that half pays nothing once the stacks
- *  lapse; the window itself is short, so it is lost after the outro. */
+ *  lapse; the window itself is short, so it is. */
 export const DEFIERS_THORN = refinements((r, rank) => {
   const FREE_KNIGHTS_TARANTELLA = new Buff({
-    name: `Defier's Thorn: A Free Knight's Tarantella${rank}`, until: LifeTime.Outro,
+    name: `Defier's Thorn: A Free Knight's Tarantella${rank}`,
+    duration: 60 * 15,
     stats: [[Stat.DefIgnoreOld, [8, 10, 12, 14, 16][r]!]],
     applyStats: () => { if (stacksOfEnemy(AERO_EROSION) > 0) addStat(Stat.Amp, [20, 25, 30, 35, 40][r]!); },
   });
@@ -210,7 +226,7 @@ export const DEFIERS_THORN = refinements((r, rank) => {
     weaponType: WeaponType.Sword, name: `Defier's Thorn${rank}`,
     // the 12% is A Free Knight's Tarantella's own flat half
     stats: [[Stat.BaseAtk, 412.5], [Stat.BonusHp, 72.225], [Stat.BonusHp, [12, 15, 18, 21, 24][r]!]],
-    grants: [{ on: either(onCast(Cast.Intro), onType(Type1.Basic)), buff: FREE_KNIGHTS_TARANTELLA }],
+    grants: [{ on: either(onCast(Cast.Intro), onType(Type.Basic)), buff: FREE_KNIGHTS_TARANTELLA }],
   });
 });
 
@@ -223,14 +239,17 @@ export const DEFIERS_THORN = refinements((r, rank) => {
 export const UNSPOKEN_RUE = refinements((r, rank) => {
   const LOCKED_THUNDER = new Buff({
     name: `Unspoken Rue: Locked Thunder, Trapped Rain${rank}`,
+    duration: 60 * 30,
     stats: [[Stat.DmgBonus, [30, 37.5, 45, 52.5, 60][r]!, Attribute.Electro]],
   });
   const BINDING_MIND = new Buff({
     name: `Unspoken Rue: Binding Mind${rank}`,
+    duration: 60 * 30,
     stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Attribute.Electro]],
   });
   const YEARNING_MIND = new Buff({
-    name: `Unspoken Rue: Yearning Mind${rank}`, until: LifeTime.Swap,
+    name: `Unspoken Rue: Yearning Mind${rank}`, lostOnSwap: true,
+    duration: 60 * 14,
     stats: [[Stat.DmgBonus, [40, 50, 60, 70, 80][r]!, Attribute.Electro]],
   });
   return new Weapon({

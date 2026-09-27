@@ -37,7 +37,7 @@
  * Liberation, x 5.8 that same cast at S1, so each "increase the DMG Multiplier by N%" is a
  * multiplier on the row rather than points added to it. Base stats from the same nanoka file.
  */
-import { Stat, EnemyStat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, LifeTime, BuffTarget } from "../../engine/stats.js";
+import { Stat, EnemyStat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling, BuffTarget } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   addStat,
@@ -54,7 +54,7 @@ import {
   setForte2,
   stacksOfEnemy,
 } from "../../engine/context.js";
-import { Action, ActionGroup, Rotation, ECHO_SWAP, INTRO, OUTRO, DODGE, NOINTRO } from "../../engine/rotation.js";
+import { Action, ActionGroup, Rotation, ECHO, NOINTRO, ActionTag, INTRO } from "../../engine/rotation.js";
 import { FRAZZLE_SLOWED, SPECTRO_FRAZZLE } from "../../shared/status.js";
 import { LUMINOUS_HYMN, STRINGMASTER } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
@@ -71,37 +71,43 @@ function phoebeAction(id: string, def: object): Action {
 }
 
 // --- O Come Divine Light: her chain outside the Ring of Mirrors.
-const BA1 = phoebeAction("Basic - O Come Divine Light 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 29.53, energy: 1.00, concerto: 1.99, offtune: 3184 });
-const BA2 = phoebeAction("Basic - O Come Divine Light 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 49.71, energy: 1.34, concerto: 2.67, offtune: 4267 });
-const BA3 = phoebeAction("Basic - O Come Divine Light 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 113.92, energy: 2.96, concerto: 5.84, offtune: 9312 });
-const DC = phoebeAction("Dodge Counter - O Come Divine Light", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 172.64, energy: 4.48, concerto: 8.88 + 10, offtune: 14112 });
-const MA = phoebeAction("Mid-air - O Come Divine Light", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 92.46, energy: 3.00, concerto: 6.00, offtune: 9600 });
-const HA = phoebeAction("Heavy - O Come Divine Light", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 165.40, energy: 2.80, concerto: 5.56, offtune: 8872 });
+const BA1 = phoebeAction("Basic - O Come Divine Light 1", { frames: 26, cancelFrames: 16, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 29.53, energy: 1.00, concerto: 1.99, offtune: 3184 });
+const BA2 = phoebeAction("Basic - O Come Divine Light 2", { frames: 33, cancelFrames: 26, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 49.71, energy: 1.34, concerto: 2.67, offtune: 4267 });
+const BA3 = phoebeAction("Basic - O Come Divine Light 3", { frames: 60, cancelFrames: 36, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 113.92, energy: 2.96, concerto: 5.84, offtune: 9312 });
+const DC = phoebeAction("Dodge Counter - O Come Divine Light", { frames: 60, cancelFrames: 36, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, mv: 172.64, energy: 4.48, concerto: 8.88 + 10, offtune: 14112 });
+const MA = phoebeAction("Mid-air - O Come Divine Light", { frames: 78, cancelFrames: 27, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 92.46, energy: 3.00, concerto: 6.00, offtune: 9600 });
+const HA = phoebeAction("Heavy - O Come Divine Light", { frames: 61, cancelFrames: 40, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 165.40, energy: 2.80, concerto: 5.56, offtune: 8872 });
 
 // --- Chamuel's Star: the same chain while she stands inside the Ring of Mirrors. Basic Attack
 //     DMG, and the presses a rotation names after summoning the ring.
-const CBA1 = phoebeAction("Basic - Chamuel's Star 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 59.35, energy: 1.00, concerto: 1.99, offtune: 3184 });
-const CBA2 = phoebeAction("Basic - Chamuel's Star 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.54, energy: 1.34, concerto: 2.68, offtune: 4268 });
-const CBA3 = phoebeAction("Basic - Chamuel's Star 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 173.58, energy: 2.94, concerto: 5.82, offtune: 9312 });
-const CDC = phoebeAction("Dodge Counter - Chamuel's Star", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 263.04, energy: 4.44, concerto: 8.82 + 10, offtune: 14112 });
+const CBA1 = phoebeAction("Basic - Chamuel's Star 1", { frames: 22, cancelFrames: 18, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 59.35, energy: 1.00, concerto: 1.99, offtune: 3184 });
+const CBA2 = phoebeAction("Basic - Chamuel's Star 2", { frames: 32, cancelFrames: 0, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 79.54, energy: 1.34, concerto: 2.68, offtune: 4268 });
+const CBA3 = phoebeAction("Basic - Chamuel's Star 3", { frames: 61, cancelFrames: 0, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 173.58, energy: 2.94, concerto: 5.82, offtune: 9312 });
+const CDC = phoebeAction("Dodge Counter - Chamuel's Star", { frames: 60, cancelFrames: 0, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, mv: 263.04, energy: 4.44, concerto: 8.82 + 10, offtune: 14112 });
 const CBA123 = new ActionGroup("Basic - Chamuel's Star 123", [CBA1, CBA2, CBA3]);
 
 // --- To Where Light Shines: the ring itself, the re-press that teleports her to it, and the
 //     refraction a Basic or Dodge Counter causes while she is outside it.
 const Skill = phoebeAction("Skill - To Where Light Shines", {
-  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 125.26, energy: 1.14, concerto: 2.28, offtune: 6720,
+  frames: 70, cancelFrames: 0,
+  cooldown: 60 * 12,
+  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 125.26, energy: 1.14, concerto: 2.28, offtune: 6720,
 });
 const SkillTeleport = phoebeAction("Skill - To Where Light Shines (Teleport)", {
-  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 125.26, energy: 1.14, concerto: 2.28, offtune: 6720,
+  cooldown: 42,
+  frames: 91, cancelFrames: 53,
+  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 125.26, energy: 1.14, concerto: 2.28, offtune: 6720,
 });
 const Refracted = phoebeAction("Skill - Ring of Mirrors: Refracted Holy Light", {
-  node: Node.Skill, type: Type1.Basic, mv: 29.84,
+  frames: 18, cancelFrames: 18,
+  node: Node.Skill, type: Type.Basic, mv: 29.84,
 });
 
 // --- Radiant Invocation: the two stance casts, and the Starflash that spends what they restore.
 const HeavyAbs = phoebeAction("Forte Heavy - Absolution Litany", {
-  node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 638.19, energy: 10.00, concerto: 10, offtune: 32872,
-  forte2: 60,
+  frames: 66, cancelFrames: 0,
+  node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, mv: 638.19, energy: 10.00, castConcerto: 10, offtune: 32872,
+  castForte2: 60,
   updateDebuffs: () => applyEnemy(SPECTRO_FRAZZLE, 1),
   updateBuffs: () => {
     revokeCurrent(CONFESSION);
@@ -109,8 +115,9 @@ const HeavyAbs = phoebeAction("Forte Heavy - Absolution Litany", {
   },
 });
 const SkillConf = phoebeAction("Forte Skill - Utter Confession", {
-  node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 187.88, energy: 18.00, concerto: 40, offtune: 24720,
-  forte2: 60,
+  frames: 66, cancelFrames: 0,
+  node: Node.Forte, cast: Cast.Skill, type: Type.Skill, mv: 187.88, energy: 18.00, castConcerto: 40, offtune: 24720,
+  castForte2: 60,
   updateDebuffs: () => applyEnemy(SPECTRO_FRAZZLE, 1),
   updateBuffs: () => {
     revokeCurrent(ABSOLUTION);
@@ -122,19 +129,22 @@ const SkillConf = phoebeAction("Forte Skill - Utter Confession", {
  *  below, through AddForte2 rather than a second action). Confession lays five Spectro Frazzle
  *  with it; Absolution amplifies it instead. */
 const FHA = phoebeAction("Forte Heavy - Starflash", {
-  node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 248.07, energy: 4.59, concerto: 4.14, offtune: 19401,
-  forte2: -30,
+  frames: 55, cancelFrames: 28,
+  node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, mv: 248.07, energy: 4.59, concerto: 4.14, offtune: 19401,
+  castForte2: -30,
   updateDebuffs: () => { if (isHeld(CONFESSION)) applyEnemy(SPECTRO_FRAZZLE, 5); },
 });
 /** S6's extra Starflash at the ring's location: no Divine Voice, and not a Heavy Attack cast —
  *  so it can never open or close anything that counts her presses. */
 const StarflashFree = FHA.variant("Forte Heavy - Starflash (Ring of Mirrors)", {
-  cast: null, forte2: 0, triggered: true,
+  cast: null, forte2: 0, tag: ActionTag.Field,
 });
 
 const Liberation = phoebeAction("Liberation - Dawn of Enlightenment", {
-  node: Node.Liberation, cast: Cast.Liberation, type: Type1.Liberation, cutscene: true,
-  mv: 401.60, concerto: 20, offtune: 48000, resetEnergy: true,
+  frames: 220, cancelFrames: 220, timestop: 220, motionStop: 218,
+  cooldown: 60 * 25,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, 
+  mv: 401.60, castConcerto: 20, offtune: 48000, resetEnergy: true,
   updateDebuffs: () => {
     if (!isHeld(CONFESSION)) return;
     // S1 puts on the most the target can hold instead of the flat eight
@@ -147,13 +157,16 @@ const Liberation = phoebeAction("Liberation - Dawn of Enlightenment", {
 });
 
 const Intro = phoebeAction("Intro - Golden Grace", {
-  node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81, energy: 10.00, concerto: 10, offtune: 8000,
+  frames: 98, cancelFrames: 69, motionStop: 43,
+  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 198.81, energy: 10.00, castConcerto: 10, offtune: 8000,
 });
 
 /** Attentive Heart: 528.41% of ATK, x3.55 in Absolution, and in Confession Silent Prayer onto the
  *  whole team, with the slowed tick interval onto the target. */
 const Outro = phoebeAction("Outro - Attentive Heart", {
-  cast: Cast.Outro, type: Type1.Outro, mv: 528.48, concerto: -100, swapOut: true,
+  frames: 180,
+  cancelFrames: 135,
+  cast: Cast.Outro, type: Type.Outro, mv: 528.48, castConcerto: -100,
   applyStats: () => {
     if (isHeld(ABSOLUTION)) addStat(Stat.MulMv, 255);
     if (isHeld(PHOEBE_S2) && isHeld(ABSOLUTION) && stacksOfEnemy(SPECTRO_FRAZZLE) > 0) addStat(Stat.Amp, 120);
@@ -210,7 +223,7 @@ const PHOEBE_INHERENT_2 = new Inherent({
  *  target-side anyway and reaches every attacker once any member holds this. */
 const SILENT_PRAYER = new Buff({
   name: "Phoebe: Silent Prayer",
-  stats: [[Stat.Amp, 100, Type2.SpectroFrazzle]],
+  stats: [[Stat.Amp, 100, Subtype.SpectroFrazzle]],
   applyStats: () => addEnemyStat(EnemyStat.ResReduce, 10, Attribute.Spectro),
 });
 
@@ -218,7 +231,7 @@ const SILENT_PRAYER = new Buff({
  *  rather than the buff above having to know which sequence level put it up. */
 const SILENT_PRAYER_S2 = new Buff({
   name: "Phoebe S2: A Boat Adrift in Tears",
-  stats: [[Stat.Amp, 120, Type2.SpectroFrazzle]],
+  stats: [[Stat.Amp, 120, Subtype.SpectroFrazzle]],
 });
 
 /* -------------------------------------------------------------------------------- sequences */
@@ -256,8 +269,8 @@ const PHOEBE_S4 = new Sequence({
 /** S5: +12% Spectro DMG Bonus for 15s off Intro Skill Golden Grace — a short self window, lost
  *  after her outro. */
 const S5_SPECTRO = new Buff({
-  name: "Phoebe S5: Prayer to the Distant Light",
-  stats: [[Stat.DmgBonus, 12, Attribute.Spectro]], until: LifeTime.Outro,
+  name: "Phoebe S5: Prayer to the Distant Light", duration: 60 * 15,
+  stats: [[Stat.DmgBonus, 12, Attribute.Spectro]],
 });
 const PHOEBE_S5 = new Sequence({
   name: "Phoebe S5: Prayer to the Distant Light",
@@ -267,8 +280,8 @@ const PHOEBE_S5 = new Sequence({
 /** S6: summoning the ring in either stance grants +10% ATK for 20s and fires a free Starflash at
  *  it. The extra stagnation the node also grants is nothing this engine models. */
 const S6_ATK = new Buff({
-  name: "Phoebe S6: Whispering Chirps in Silence",
-  stats: [[Stat.BonusAtk, 10]], until: LifeTime.Outro,
+  name: "Phoebe S6: Whispering Chirps in Silence", duration: 60 * 20,
+  stats: [[Stat.BonusAtk, 10]],
 });
 const PHOEBE_S6 = new Sequence({
   name: "Phoebe S6: Whispering Chirps in Silence",
@@ -295,9 +308,8 @@ const PHOEBE_RESONATOR = new Resonator({
   inherent2: PHOEBE_INHERENT_2,
   element: Attribute.Spectro,
   weapon: WeaponType.Rectifier,
-  intro: () => Intro,
-  outro: () => Outro,
   color: "#f2e5c0",
+  intro: Intro,
   maxEnergy: 125,
   maxForte2: 60,
 
@@ -314,22 +326,22 @@ const PHOEBE_RESONATOR = new Resonator({
  *  Confession to refill it and re-enter the stance, the Liberation's eight stacks, and the Outro
  *  that hands Silent Prayer on. 101.5 Concerto over the visit, so the Outro fires. */
 const PHOEBE_CONFESSION_ROTATION = new Rotation([
-  INTRO, SkillConf, Liberation, Skill,
-  CBA123, DODGE, FHA,
-  CBA123, DODGE, FHA,
-  ECHO_SWAP, OUTRO,
+  INTRO, SkillConf.instaCancel(), Liberation, Skill.instaDodge(),
+  CBA123.instaDodge(), FHA,
+  CBA123.instaDodge(), FHA,
+  ECHO.instaSwap(), Outro,
 ]);
 
 /** Absolution: Starflash costs 15 instead of 30, so the same bar pays for four of them, and it is
  *  those four the stance is built around. Absolution Litany banks only 10 Concerto against Utter
  *  Confession's 40, which is exactly why this loop needs the two extra chains to reach 100. */
 const PHOEBE_ABSOLUTION_ROTATION = new Rotation([
-  INTRO, HeavyAbs, Liberation, Skill,
-  CBA123, DODGE, FHA,
-  CBA123, DODGE, FHA,
-  CBA123, DODGE, FHA,
-  CBA123, DODGE, FHA,
-  ECHO_SWAP, OUTRO,
+  INTRO, HeavyAbs.instaCancel(), Liberation, Skill.instaDodge(),
+  CBA123.instaDodge(), FHA,
+  CBA123.instaDodge(), FHA,
+  CBA123.instaDodge(), FHA,
+  CBA123.instaDodge(), FHA,
+  ECHO.instaSwap(), Outro,
 ]);
 
 /* ---------------------------------------------------------------------------------- loadouts */

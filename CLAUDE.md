@@ -26,18 +26,25 @@
   (`if (forte1() > 200) setForte1(200)`) so the delta lands exactly at 0. never a bare `setForteN(0)`
 - forte/concerto/energy a kit lists elsewhere for a cast go directly on that action
 - an inherent that applies only to specific actions = a buff added and removed on just those actions
-- flat, unconditional equipment stats go in `stats: [[Stat.X, n, tag?], ...]` (a Buff's `stats` pay while held; `perStack`, `when`, `until: LifeTime.Outro | LifeTime.Swap | LifeTime.AfterSwap`); a trigger that grants a buff is `grants: [{ on: onCast(...) | onType(...) | onInflict(...) | onApplied(...), buff, stacks?, to?: BuffTarget.Team | BuffTarget.Enemy | BuffTarget.Next }]`; anything the form doesn't fit stays a closure (`applyStats`, `updateBuffs`, ...)
+- flat, unconditional equipment stats go in `stats: [[Stat.X, n, tag?], ...]` (a Buff's `stats` pay while held; `perStack`, `when`, `duration`, `lostOnSwap: true`); a trigger that grants a buff is `grants: [{ on: onCast(...) | onType(...) | onInflict(...) | onApplied(...), buff, stacks?, to?: BuffTarget.Team | BuffTarget.Enemy | BuffTarget.Next }]`; anything the form doesn't fit stays a closure (`applyStats`, `updateBuffs`, ...)
 - `ResonanceMode` on a loadout's `mode` is only for a stance a build *commits to* with no cast entering it
   (Hsin's Flare/Unison, Lucilla's Echo/Chafe, Denia's, Aemeath's) — it stands from combat start. a stance
   a cast actually enters is an ordinary Buff that cast grants and the opposite cast revokes (Phoebe's
   Absolution/Confession), so she is in neither until it lands, opening visit included
 - slot 1 of a team leads, so its loadout must declare a `NOINTRO` chain or the team is unplayable; writing
-  `NOINTRO,` immediately before `INTRO,` shares the whole body with no second copy
+  `NOINTRO,` immediately before the Intro shares the whole body with no second copy
+- a rotation writes `INTRO` (never the kit's Intro action — that throws) and its own Outro cast
+  (`INTRO, ..., Outro`). The Resonator names the Intro INTRO resolves to as `intro:` — the Intro, or
+  an `IntroResolver` (`new Action("Intro Resolver", { cast: Cast.Intro, resolve })`) for a kit with
+  more than one; a kit with more than one Outro declares an `OutroResolver` and writes that. A
+  double-Intro section opens on `DOUBLE_INTRO`; `DOUBLE_INTRO` / `FIRST_INTRO` / `INTRO_n` cast INTRO on
+  their own, cut by cutting the marker (`INTRO_2.cancel()`) or by writing the cut one right after
+  them (`INTRO_2, INTRO.cancel()`)
 - a loadout's `weapons` list its best signature first and its best standard weapon second — with the weapons box closed the solver runs only that one
 
 # wording of buffs
-- "lost on swap / switching out" = lost on the swap-out action — an Outro, a swap marker, an echo swap form (`lostOnSwap`); "while on field" = `isActive()`
-- ≤20s self buff = lost after outro via conversion; ≤20s team buff = lost on the applier's next intro; ≥21s = permanent
+- "lost on swap / switching out" = `lostOnSwap: true` (or `lostOnSwap()` in a hook): lost on the swap-out action — an Outro or insta swap before it pays, a swap cancel after; "while on field" = `isActive()`
+- a buff lasts its stated `duration`; with none stated it is permanent
 - "all active resonators" = no stat on inactive actions; "all nearby resonators" = applies even when inactive
 - "all attribute dmg bonus/amp" = plain dmg bonus/amp, no tag
 - a team buff scaled by the applier's own stats: assume the maximum threshold is met
@@ -49,7 +56,7 @@
 - mid-air presses are Basic Attacks: `cast: Cast.Basic` and `Mid-air - <name>` (no "(Mid-Air)" suffix), so `casting(Cast.Basic)` already covers them; there is no mid-air cast type, so a "mid-air attack" clause names its presses with `runningAction(X)`; mid-air heavies/dodge counters keep their own cast and carry "(Mid-Air)" in the name
 - a plunging attack is a mid-air press too: `Mid-air - <name>` (`Mid-air - Plunging Attack` for a bare one), and a "mid-air attack" clause lists it alongside the aerial chain — unless its cast is not Basic (`Forte Skill - Undying Sunlight: Plunge`), which keeps its own prefix like any other mid-air non-Basic
 - every dodge counter is `cast: Cast.DodgeCounter`, named `Dodge Counter - <chain name>` (a bare one takes the basic chain's name: `Dodge Counter - Captain's Rhapsody`)
-- extras after the name go in parentheses: `(Charged)`, `(Hold)`, `(Follow-Up)`, `(Swap)`, `(S6 Blast)`; sub-moves after a colon: `Thrum: Aero Plunge`
+- extras after the name go in parentheses: `(Charged)`, `(Hold)`, `(Follow-Up)`, `(S6 Blast)`; sub-moves after a colon: `Thrum: Aero Plunge`. A `.swap()` form keeps its cast's name: the SWAP tag marks it
 - actions with no cast (coordinated hits, ticks, fields, responses) carry the source they belong to instead: `Liberation - Marcato`, `Tune Rupture Response - Starburst`
 
 # nanoka data
@@ -80,6 +87,28 @@ cost: 0 Common = 1 cost, 1 Elite = 3, 2 Overlord = 4, 3 Calamity = 4. so a set c
 4-cost and still have good 3-cost mainslots — Eternal Radiance's only Overlord is Nightmare:
 Mourning Aix, but Zani wears Capitaneus, an Elite. slot costs are ceilings, not requirements, so a
 3-cost in the main slot is legal and just leaves a point unspent.
+
+# frames
+every pressed action declares `frames`; a field's own hits and coordinated/response hits (FIELD-tagged,
+no `cast`) don't. read them off wuwalab — `abilities[*]` of `api.wuwalab.com/api/app/characters/<slug>` —
+or, for a kit wuwalab lacks, off a frame table the user pastes (the same columns):
+
+- `frames` = `total_frames`; `cancelFrames` = `earliest_frame_cancel` exactly as given, 0 included —
+  never a later hit, never a fallback. left out, it defaults to `frames`, so any cut of that press
+  throws (a cancel can't end later than the press does); only an insta cut can be made
+- `timestop` / `motionStop` are frame ranges, start..end inclusive where a start of 0 is frame 1:
+  the span is `end - max(start, 1) + 1` (Qingxiao's Intro motion stop 3-31 = 29, a 0-180 time stop
+  = 180). a table's `5-37F` tag reads the same way (33); a bare `122F` is the whole 122. a zero
+  stop is left out
+- `priority_timeline` ("0:11, 60:0"): a cancel frame can't fall inside a stretch of priority 11+ —
+  move it to the frame that stretch ends, or to `frames` if it never drops (Jingran's Intro 43 -> 60)
+- pair an engine action to its ability by name, then check off-tune/MV agree; a row the kit has no
+  action for is left alone, and a kit action with no row keeps what it has — say which
+- Tune Break: each weapon class has its own default (tunebreak.ts); a kit whose "Tune Break Skill"
+  differs declares `tuneBreak: tuneBreak(frames, timestop, motionStop)` on its Resonator, or a
+  resolver where it depends on form (Aemeath's Mech, Cartethyia's Fleurdelys)
+- cooldowns: `cooldown: 60 * s` off the ability's `cooldown` (frames) or nanoka's "... Cooldown" row;
+  two presses on one button share a `new Cooldown({ frames })`
 
 # concerto
 a kit is done only when all three sources are read:

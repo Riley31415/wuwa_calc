@@ -73,6 +73,16 @@ export const enum Stat {
   AddForte3,
   AddForte4,
   AddForte5,
+  /** The same, banked with the *cast* rather than the hit (`ActionDef.castConcerto`): a gain a
+   *  buff pays on the press itself — "casting X restores N Concerto" — which a press whose hit
+   *  lands later, or never (an insta cut), still pays then. */
+  AddCastEnergy,
+  AddCastConcerto,
+  AddCastForte1,
+  AddCastForte2,
+  AddCastForte3,
+  AddCastForte4,
+  AddCastForte5,
 }
 
 /** Stats that describe the *enemy* itself — a real debuff on the target that every attacker reads
@@ -82,7 +92,7 @@ export const enum Stat {
  *  so a kit can't reach for the wrong pool by mistake. Numbered on from `Stat`'s last member so
  *  the two share one index space (see the header). */
 export const enum EnemyStat {
-  ResReduce = Stat.AddForte5 + 1,
+  ResReduce = Stat.AddCastForte5 + 1,
   DefReduce,
 }
 
@@ -106,22 +116,25 @@ export const STAT_NAME: Record<Stat | EnemyStat, string> = {
   [Stat.DirectOfftune]: "DirectOfftune",
   [Stat.AddForte1]: "Forte1", [Stat.AddForte2]: "Forte2", [Stat.AddForte3]: "Forte3",
   [Stat.AddForte4]: "Forte4", [Stat.AddForte5]: "Forte5",
+  [Stat.AddCastEnergy]: "Energy (cast)", [Stat.AddCastConcerto]: "Concerto (cast)",
+  [Stat.AddCastForte1]: "Forte1 (cast)", [Stat.AddCastForte2]: "Forte2 (cast)", [Stat.AddCastForte3]: "Forte3 (cast)",
+  [Stat.AddCastForte4]: "Forte4 (cast)", [Stat.AddCastForte5]: "Forte5 (cast)",
   [EnemyStat.ResReduce]: "Res Reduce", [EnemyStat.DefReduce]: "Def Reduce",
 };
 
 /* --- the tag vocabulary: what a conditional, an element field or a type field may say ------ */
 /* One 32-bit word holds a stat and all three tags, six bits each: the stat in bits 0-5, the
- * attribute in 6-11, Type1 in 12-17, Type2 in 18-23. The tag enums are numbered *in place* — an
- * Attribute is already `n << 6`, a Type1 `n << 12` — so a scoped stat is just `stat | tag`
- * (`scopedStat()`), an action's own element/type/type2 OR together into one word with no shifting
+ * attribute in 6-11, Type in 12-17, Subtype in 18-23. The tag enums are numbered *in place* — an
+ * Attribute is already `n << 6`, a Type `n << 12` — so a scoped stat is just `stat | tag`
+ * (`scopedStat()`), an action's own element/type/subtype OR together into one word with no shifting
  * (runtime.ts's own `tagWordOf()`), and "does this scope match the action" is that word masked to the
  * tag's own band and compared. 0 in a band means none: unscoped, or an action with no such tag. */
 
 const STAT_BITS = 0x3f;
 const ATTRIBUTE_BITS = 0x3f << 6;
-const TYPE1_BITS = 0x3f << 12;
-export const TYPE2_BITS = 0x3f << 18;
-const TAG_BITS = ATTRIBUTE_BITS | TYPE1_BITS | TYPE2_BITS;
+const TYPE_BITS = 0x3f << 12;
+export const SUBTYPE_BITS = 0x3f << 18;
+const TAG_BITS = ATTRIBUTE_BITS | TYPE_BITS | SUBTYPE_BITS;
 if (STAT_COUNT > STAT_BITS + 1) throw new Error("stats.ts: more stats than fit in the six-bit stat field");
 
 export const enum Attribute {
@@ -136,7 +149,7 @@ export const enum Attribute {
 
 /** `type`/`cast` share one vocabulary onto two independent fields — they can genuinely disagree
  *  (Jingran's basic stage 3 is `cast: Basic, type: Heavy`). */
-export const enum Type1 {
+export const enum Type {
   Basic = 1 << 12,
   Heavy = 2 << 12,
   Skill = 3 << 12,
@@ -152,7 +165,7 @@ export const enum Type1 {
 }
 
 /** A second, independent damage-type tag some hits carry alongside `type`, scoped the same way. */
-export const enum Type2 {
+export const enum Subtype {
   Coordinated = 1 << 18,
   SpectroFrazzle = 2 << 18,
   AeroErosion = 3 << 18,
@@ -161,28 +174,28 @@ export const enum Type2 {
   ElectroFlare = 6 << 18,
 }
 /** Any of the three — what a scoped stat, a conditional or an action's own element/type fields hold. */
-export type Tag = Attribute | Type1 | Type2;
+export type Tag = Attribute | Type | Subtype;
 
 /** The band a tag sits in — the six bits of a word to compare it against. */
 export const tagBand = (tag: Tag): number =>
-  (tag & TYPE2_BITS ? TYPE2_BITS : tag & TYPE1_BITS ? TYPE1_BITS : ATTRIBUTE_BITS);
+  (tag & SUBTYPE_BITS ? SUBTYPE_BITS : tag & TYPE_BITS ? TYPE_BITS : ATTRIBUTE_BITS);
 
-/** Which band a tag falls in: 1 attribute, 2 Type1, 3 Type2 — the order a hover panel lists
+/** Which band a tag falls in: 1 attribute, 2 Type, 3 Subtype — the order a hover panel lists
  *  scopes in, broadest first (see display.ts's own tagRank). */
 export const tagKind = (tag: Tag): 1 | 2 | 3 =>
-  (tag & TYPE2_BITS ? 3 : tag & TYPE1_BITS ? 2 : 1);
+  (tag & SUBTYPE_BITS ? 3 : tag & TYPE_BITS ? 2 : 1);
 
 export const TAG_NAME: Record<Tag, string> = {
   [Attribute.Aero]: "Aero", [Attribute.Electro]: "Electro", [Attribute.Fusion]: "Fusion",
   [Attribute.Glacio]: "Glacio", [Attribute.Spectro]: "Spectro", [Attribute.Havoc]: "Havoc",
   [Attribute.Physical]: "Physical",
-  [Type1.Basic]: "Basic", [Type1.Heavy]: "Heavy", [Type1.Skill]: "Skill", [Type1.Liberation]: "Liberation",
-  [Type1.Intro]: "Intro", [Type1.Outro]: "Outro", [Type1.Echo]: "Echo", [Type1.Status]: "Status",
-  [Type1.Break]: "Tune Break", [Type1.Rupture]: "Tune Rupture",
-  [Type1.Hack]: "Tune Hack", [Type1.Utility]: "Utility",
-  [Type2.Coordinated]: "Coordinated", [Type2.SpectroFrazzle]: "Spectro Frazzle",
-  [Type2.AeroErosion]: "Aero Erosion", [Type2.FusionBurst]: "Fusion Burst",
-  [Type2.GlacioChafe]: "Glacio Chafe", [Type2.ElectroFlare]: "Electro Flare",
+  [Type.Basic]: "Basic", [Type.Heavy]: "Heavy", [Type.Skill]: "Skill", [Type.Liberation]: "Liberation",
+  [Type.Intro]: "Intro", [Type.Outro]: "Outro", [Type.Echo]: "Echo", [Type.Status]: "Status",
+  [Type.Break]: "Tune Break", [Type.Rupture]: "Tune Rupture",
+  [Type.Hack]: "Tune Hack", [Type.Utility]: "Utility",
+  [Subtype.Coordinated]: "Coordinated", [Subtype.SpectroFrazzle]: "Spectro Frazzle",
+  [Subtype.AeroErosion]: "Aero Erosion", [Subtype.FusionBurst]: "Fusion Burst",
+  [Subtype.GlacioChafe]: "Glacio Chafe", [Subtype.ElectroFlare]: "Electro Flare",
 };
 
 /* ------------------------------------------------------------ scoped stats */
@@ -217,6 +230,8 @@ export const enum WeaponType {
  *  - `Standard` — a standard 5-star, permanently available and pulled into over time (Encore,
  *    Jianxin, Verina): S0, same as a limited one — the chain is still a build choice, not owned.
  *  - `Free` — a 4-star or a Rover, handed out freely: S6, the full chain.
+ *  - `FreeS2` — a standard 5-star whose kit has no rotation below S2 (Jianxin): S2 as the baseline,
+ *    costed like `Standard` above it.
  *
  *  For the first two that level is a *baseline*, not a ceiling — with that role's own Sequences box
  *  open, every level from it up to S6 gets a row of its own (`sequenceLevels()`). A `Free`
@@ -225,24 +240,32 @@ export const enum Tier {
   Limited,
   Standard,
   Free,
+  FreeS2,
 }
 
-/** How long a Buff stands once granted (`BuffDef.until`): revoked on the holder's Outro after
- *  paying on it (the usual "short self buff, lost after the outro"); on the action that takes the
- *  holder off field, before it pays ("lost on switching out"); or on that same action after it
- *  pays (a handoff that still counts on the leaving row). Unset is permanent. */
 /** Who a `Grant` puts its buff on: the wielder (the default), the whole team, the target, or
  *  whoever intros next (an outro handoff, `queueOutro`). */
 export const enum BuffTarget { Self, Team, Enemy, Next }
 
-export const enum LifeTime {
-  Outro,
-  Swap,
-  AfterSwap,
+/** Cast identities with no damage type of their own (a Dodge Counter deals whatever `type` says);
+ *  kept out of `Type` so they can't be reached for `type`/`subtype` by mistake. */
+/** An action's one tag — the one its row carries, and what `cancelCost()` charges. Whether its
+ *  owner is on field is the engine's (`State.onField`), not the tag's: a `Field` row reads FIELD
+ *  or OFF-FIELD by it. */
+export enum ActionTag {
+  Default = "",
+  Field = "field",
+  Cancel = "cancel",
+  InstaCancel = "instant cancel",
+  EasyCancel = "easy cancel",
+  DodgeCancel = "dodge cancel",
+  InstaDodge = "instant dodge",
+  JumpCancel = "jump cancel",
+  InstaJump = "instant jump",
+  SwapCancel = "swap on hit",
+  InstaSwap = "instant swap",
 }
 
-/** Cast identities with no damage type of their own (a Dodge Counter deals whatever `type` says);
- *  kept out of `Type1` so they can't be reached for `type`/`type2` by mistake. */
 export const enum Cast {
   DodgeCounter,
   Basic,

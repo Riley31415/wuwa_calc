@@ -3,7 +3,7 @@
  * enemy states around it. The engine owns nothing but the off-tune bar as a counter — the rest is
  * here, equipped onto `State.enemy` the way a member's own kit is equipped onto them.
  */
-import { Attribute, Cast, EnemyStat, Scaling, Stat, Type1, WeaponType } from "../engine/stats.js";
+import { Attribute, Cast, EnemyStat, Scaling, Stat, Type, WeaponType } from "../engine/stats.js";
 import { Buff, BuffDef, Debuff, Gear, Resonator } from "../engine/gear.js";
 import {
   addEnemyStat,
@@ -14,7 +14,6 @@ import {
   runningAction,
   currentTeam,
   equip,
-  frozenStacks,
   getStat,
   isCast,
   isHeld,
@@ -27,6 +26,7 @@ import {
   isActive,
 } from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
+import { currentMember } from "../engine/context.js";
 
 /* ---------------------------------------------------------------------------- the enemy */
 
@@ -45,20 +45,9 @@ export const BASE_RESISTANCE = new Gear({
 });
 
 /** Tune Break Cooldown: on the target from the break, and while it stands every off-tune gain is
- *  taken straight back off the bar — for the next three active presses by anyone on the team, and
- *  every triggered action in between. Its stacks are that clock: the break lands the first, each
- *  active, non-triggered action adds one, and the fourth is the one that finds it full and takes
- *  it off, a phase ahead of any stat, so that action already builds again. The break is a triggered
- *  action of its own, so `triggeredAction()` already holds it off here — it laid the first stack
- *  down in the enemy's own updateDebuffs and must not count itself off as well. */
+ *  taken straight back off the bar — for the three seconds after the break. */
 export const TUNE_BREAK_COOLDOWN: Debuff = new Debuff({
-  name: "Tune Break Cooldown", maxStacks: 4,
-  display: () => "Tune Break Cooldown",
-  updateBuffs: () => {
-    if (triggeredAction() || !isActive()) return;
-    if (stacksOfEnemy(TUNE_BREAK_COOLDOWN) >= 4) revokeEnemy(TUNE_BREAK_COOLDOWN);
-    else applyEnemy(TUNE_BREAK_COOLDOWN, 1);
-  },
+  name: "Tune Break Cooldown", duration: 60 * 3,
   // what evaluate() is about to bank of what this action *built*, negated — last of all, once
   // every AddOfftune source has landed. What a kit puts on the bar directly (DirectOfftune,
   // Denia's half-bar surge) is not a gain the cooldown holds off.
@@ -78,8 +67,6 @@ export const TUNE_BREAK_ENEMY = new Resonator({
   element: Attribute.Physical, weapon: WeaponType.Sword,
   // deliberately paler than any resonator's hue: it marks a row as *not* somebody's damage
   color: "#c9d2de",
-  intro: () => { throw new Error("the enemy casts no Intro"); },
-  outro: () => { throw new Error("the enemy casts no Outro"); },
   combatStart: () => equip(BASE_RESISTANCE),
 
   // A break drops whatever the bar overshot by and starts the cooldown, so the break's own
@@ -108,9 +95,8 @@ export const TUNE_BREAK_ENEMY = new Resonator({
     if (stacksOfEnemy(TUNE_RUPTURE_INTERFERED) > 0 || stacksOfEnemy(TUNE_HACK_INTERFERED) > 0) return;
 
 
-    //if ((isCast(currentAction(), Cast.Liberation) && currentAction().cutscene)) return;
     if (isCast(currentAction(), Cast.Intro)) return;
-    if (currentTeam().offtune >= ENEMY_MAX_OFFTUNE) queueEvent(TUNE_BREAK);
+    if (currentTeam().offtune >= ENEMY_MAX_OFFTUNE) queueEvent(TUNE_BREAK_PRESS);
   },
 });
 
@@ -118,51 +104,58 @@ export const TUNE_BREAK_ENEMY = new Resonator({
  *  Break, and the Shifting only decides which Interfered it leaves behind. Reports under the
  *  enemy's own bucket rather than whoever was on field. */
 export const TUNE_BREAK = new Action("Tune Break (Auto Generated)", {
-  element: Attribute.Physical, scaling: Scaling.Tune, cast: Cast.TuneBreak, cutscene: true, type: Type1.Break,
+  element: Attribute.Physical, scaling: Scaling.Tune, cast: Cast.TuneBreak, type: Type.Break,
   mv: 1600, slot: TUNE_BREAK_ENEMY.name,
-  // A cast nobody pressed, so a triggered one like any other queued hit (`ActionDef.triggered`):
-  // every per-action clock in the fight — the two below, a sonata's own cadence, an inherent
-  // counting presses — reads `triggeredAction()` and passes it over, rather than each having to
-  // know the break by name.
-  triggered: true,
+  // the world stands still for all of it, so the clock charges none
+  frames: 90, timestop: 90, motionStop: 70,
+  // A cast nobody pressed, so `run()` counts it triggered by its cast: every per-action clock in
+  // the fight — the two below, a sonata's own cadence, an inherent counting presses — reads
+  // `triggeredAction()` and passes it over, rather than each having to know the break by name.
   // The whole bar, straight off it: `DirectOfftune` rather than a declared `offtune`, because a
   // drain is an amount the bar moves by, not something the team's Off-Tune Buildup Rate builds
   // (see evaluate.ts's own evaluate()). Sourced to the break itself, so the off-tune panel names it.
   applyStats: () => { addStat(Stat.DirectOfftune, -ENEMY_MAX_OFFTUNE); },
 });
 
-/* ------------------------------------------------------------- shifting and interfered */
-
-/** How long an Interfered lasts: 8s in game, which this clockless engine takes as the next 10
- *  active, non-triggered actions.
- *  A debuff on that clock, counting the window off in its own stacks rather than through anything
- *  beside it: the break that inflicts it lands the first (and, being a triggered action itself, is
- *  passed over here), every active, non-triggered action after adds one — a break's own queued
- *  follow-ups add none — and the action that finds it already full is the one
- *  that revokes it, from updateBuffs, a phase ahead of any applyStats, so that action already pays
- *  nothing. Its stacks are the clock and nothing else, so it still reports its plain
- *  name rather than "xN".
- *  Nothing here handles a second application: a target already under Rupture/Hack Interfered can't
- *  be broken again until the window is out (the enemy above is what holds the break off), so the
- *  count is only ever started by the one break that inflicted it. A debuff that *can* land again
- *  inside its own window revokes itself first, which is what starts the count over — Mornye's own
- *  Interfered Marker, the other thing on this 8s, is the one kit that has to.  */
-export function interferedWindow(def: BuffDef): Debuff {
-  const self: Debuff = new Debuff({
-    ...def,
-    maxStacks: 11,
-    display: () => def.name ?? "",
-    updateBuffs: () => {
-      if (triggeredAction() || !isActive()) return;
-      if (stacksOfEnemy(self) > 10) revokeEnemy(self);
-      else applyEnemy(self, 1);
-    },
-  });
-  return self;
+/** The break as one resonator performs it: the same hit, played over their own frames — a form of
+ *  `TUNE_BREAK`, so every `runningAction(TUNE_BREAK)` still reads it. */
+export function tuneBreak(frames: number, timestop: number, motionStop: number): Action {
+  const out = TUNE_BREAK.variant(TUNE_BREAK.name, { frames, timestop, motionStop });
+  out.formOf = TUNE_BREAK;
+  return out;
 }
 
-/** What a break leaves behind. Rupture and Hack run out on the window above, their stacks spent
- *  counting it off. Strain is left standing instead, since the kits built on it (Luuk, Lynae,
+/** Each weapon class's own Tune Break (wuwalab's "Tune Break Skill", the class's usual one). */
+const CLASS_TUNE_BREAK: Record<WeaponType, Action> = {
+  [WeaponType.Sword]: tuneBreak(90, 90, 70),
+  [WeaponType.Broadblade]: tuneBreak(94, 94, 64),
+  [WeaponType.Rectifier]: tuneBreak(90, 90, 54),
+  [WeaponType.Pistols]: tuneBreak(96, 96, 70),
+  [WeaponType.Gauntlets]: tuneBreak(92, 92, 70),
+};
+
+/** What a full bar queues: resolved when reached to the on-field resonator's own break — their kit's
+ *  (`ResonatorDef.tuneBreak`, itself resolved where it has one), else their weapon class's. */
+const TUNE_BREAK_PRESS = new Action("Tune Break Placeholder", {
+  resolve: () => {
+    const resonator = currentMember().resonator;
+    const own = resonator?.tuneBreak;
+    if (own) return own.resolveFn ? own.resolveFn() : own;
+    return resonator ? CLASS_TUNE_BREAK[resonator.weapon] : TUNE_BREAK;
+  },
+});
+
+/* ------------------------------------------------------------- shifting and interfered */
+
+/** How long an Interfered lasts: 8s from the break that inflicts it. A target already under
+ *  Rupture/Hack Interfered can't be broken again until the window is out (the enemy above is what
+ *  holds the break off), so nothing but that one break ever grants it. */
+export function interferedWindow(def: BuffDef): Debuff {
+  return new Debuff({ ...def, duration: 60 * 8 });
+}
+
+/** What a break leaves behind. Rupture and Hack run out on the window above. Strain is left
+ *  standing instead, since the kits built on it (Luuk, Lynae,
  *  Qingxiao) pay off its stacks rather than its duration: capped at 1 as declared, with a kit that
  *  responds to it raising the target's own limit with `maxStackIncrease()`, so the real ceiling is
  *  whoever is on the team. */

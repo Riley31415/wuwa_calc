@@ -278,26 +278,23 @@ const personalOpen = [false, false, false];
 /** The `axis|position` Compare columns standing on the last draw — a key arriving is the edge
  *  `personalOpen` opens on, so each new Compare opens the figure it is a share of. */
 const cmpDrawn = new Set<string>();
-/** The Personal and Team DPR columns each print exact figures (12,345,678) or abbreviated ones —
- *  the same digits with the separator moved and a K/M on the end (1.00K, 12.3K, 123K, 1.234M,
- *  2.600M), always truncated, never rounded up to a figure the team didn't make. Millions carry
- *  three decimals, the thousands three significant figures, so the column reads down at one width
- *  and every row says as much as every other. Under a thousand there is nothing to abbreviate and
- *  the figure stands as it is. Each column is toggled on its own by clicking its header, and the
- *  exact figure is what it opens on — abbreviating is the marked state, and says so in full ink. */
-const dprExact = { personal: true, team: true };
-type DprColumn = keyof typeof dprExact;
-const dprFmt = (v: number, exact: boolean): string => {
-  if (exact) return fmt(v);
-  if (v >= 1e6) return `${fmt(Math.floor(v / 1e3) / 1e3, 3, true, false)}M`;
-  // the whole number, no K and nothing after the point — 0.123K said less than 123 does
-  if (v < 1e3) return fmt(Math.floor(v), 0, false, false);
-  // three significant figures: 123K, 12.3K, 1.23K
-  const decimals = v >= 1e5 ? 0 : v >= 1e4 ? 1 : 2;
-  // divided down before the floor rather than scaled up after it — `Math.trunc(12.3 * 10)` is 122
-  const step = 10 ** (3 - decimals);
-  return `${fmt(Math.floor(v / step) / 10 ** decimals, decimals, true, false)}K`;
-};
+/** What the team column reads, switched by clicking its heading — and what the table ranks by: the
+ *  opener and the loops that ran whole, as the damage one of them does on average (DPR, beside how
+ *  long one takes) or as the rate over the time they took (DPS). */
+let teamMode: "dpr" | "dps" = "dpr";
+const TEAM_HEAD = { dpr: "Team Average DPR (time)", dps: "Team DPS" };
+const wholeDamage = (run: TeamRun): number => run.sectionTotals.reduce((a, b) => a + b, 0);
+const teamFigure = (run: TeamRun): number =>
+  Math.floor(wholeDamage(run) / (teamMode === "dpr" ? Math.max(1, run.sectionTotals.length) : run.seconds));
+/** The same for one member: their share of those sections, per section or per second. */
+const personalFigure = (run: TeamRun, name: string): number =>
+  Math.floor(run.sectionBySlot.reduce((a, by) => a + (by.get(name) ?? 0), 0) / (teamMode === "dpr" ? Math.max(1, run.sectionTotals.length) : run.seconds));
+/** The team cell's text: DPR beside how long one of those sections takes on average — plain for
+ *  the sizing row, the time dimmed in the cell itself. */
+const loopTime = (run: TeamRun): string => `(${(run.seconds / Math.max(1, run.sectionTotals.length)).toFixed(1)}s)`;
+const teamText = (run: TeamRun): string => (teamMode === "dpr" ? `${fmt(teamFigure(run))} ${loopTime(run)}` : fmt(teamFigure(run)));
+const teamHtml = (run: TeamRun): string =>
+  (teamMode === "dpr" ? `${fmt(teamFigure(run))} <span class="looptime">${loopTime(run)}</span>` : fmt(teamFigure(run)));
 /** A compare's share, one decimal truncated — never rounded up to a gain it didn't make. */
 const pctTrunc = (ratio: number): string => `${fmt(Math.trunc(ratio * 1000) / 10, 1, true)}%`;
 
@@ -305,8 +302,8 @@ interface TableView {
   sorted: (readonly [string, TeamRun])[];
   ranks: RowRank[];
   head: string;
-  /** The zero-height sizing row for the DPR columns' current modes (see `dprExact`). */
-  ghost: (personalExact: boolean, teamExact: boolean) => string;
+  /** The zero-height sizing row, for the team column's current mode (see `teamMode`). */
+  ghost: () => string;
   rowHtml: (key: string, run: TeamRun, rank: RowRank) => string;
   /** Lines per row (echo cells stack a line per set) and the running extra-line count above each. */
   lines: number[];
@@ -348,16 +345,16 @@ function comparisonTable(rows: TeamRow[]): string {
   const groupBest = new Map<string, TeamRun>();
   for (const { run, keys } of keyed) for (const k of keys) {
     const held = groupBest.get(k);
-    if (!held || run.total > held.total) groupBest.set(k, run);
+    if (!held || teamFigure(run) > teamFigure(held)) groupBest.set(k, run);
   }
   const sorted = keyed.sort((a, b) => {
     for (let i = 0; i < a.keys.length; i++) {
       const [ka, kb] = [a.keys[i]!, b.keys[i]!];
       if (ka === kb) continue;
       const [ra, rb] = [groupBest.get(ka)!, groupBest.get(kb)!];
-      return rb.total - ra.total || seq(rb) - seq(ra) || rank(rb) - rank(ra) || (ka < kb ? -1 : 1);
+      return teamFigure(rb) - teamFigure(ra) || seq(rb) - seq(ra) || rank(rb) - rank(ra) || (ka < kb ? -1 : 1);
     }
-    return b.run.total - a.run.total || seq(b.run) - seq(a.run) || rank(b.run) - rank(a.run);
+    return teamFigure(b.run) - teamFigure(a.run) || seq(b.run) - seq(a.run) || rank(b.run) - rank(a.run);
   }).map((k) => k.pair);
 
   // column order, left to right — the same order the name menu offers the compares in
@@ -464,7 +461,7 @@ function comparisonTable(rows: TeamRow[]): string {
         const twin = twinKey(run, pos, axis);
         const list = twins.get(twin) ?? [];
         const offered = offeredAt.get(`${axis}|${pos}|${run.teamKey}`)?.has(optionOf(axis, m, run.combo[pos]!)) ?? false;
-        list.push({ combo: run.combo[pos]!, dpr: run.bySlot.get(m.name) ?? 0, shown: onScreen.has(key), offered });
+        list.push({ combo: run.combo[pos]!, dpr: personalFigure(run, m.name), shown: onScreen.has(key), offered });
         twins.set(twin, list);
       }
     });
@@ -490,7 +487,7 @@ function comparisonTable(rows: TeamRow[]): string {
     return base;
   };
   const gearRatio = (run: TeamRun, pos: number, axis: CmpAxis): number | null => {
-    const dpr = run.bySlot.get(run.members[pos]!.name) ?? 0;
+    const dpr = personalFigure(run, run.members[pos]!.name);
     const all = twins.get(twinKey(run, pos, axis)) ?? [];
     const shown = all.filter((t) => t.shown);
     const offered = all.filter((t) => t.offered);
@@ -523,7 +520,7 @@ function comparisonTable(rows: TeamRow[]): string {
   }
   const dprAt = (i: number): boolean => !!personalOpen[i];
   const rowHtml = (key: string, run: TeamRun, rank: RowRank): string => {
-    const grand = run.total;
+    const grand = teamFigure(run);
     const memberNames = run.members.map((m) => m.name).join("|");
     const memberCell = (m: Member, combo: Combo, i: number) => {
       // the level and rank ride on the name cell as filter tags wherever the rows differ on them;
@@ -536,7 +533,7 @@ function comparisonTable(rows: TeamRow[]): string {
         + ` style="--mem:${m.color};color:${m.color}">`
         + `<span class="res-label">${esc(memberLabel(m, combo))}</span>`
         + `</div>`;
-      const dpr = dprAt(i) ? `<div class="c num slotdpr" style="--mem:${m.color}">${dprFmt(run.bySlot.get(m.name) ?? 0, dprExact.personal)}</div>` : "";
+      const dpr = dprAt(i) ? `<div class="c num slotdpr" style="--mem:${m.color}">${fmt(personalFigure(run, m.name))}</div>` : "";
       const seqCmp = cmpAt("sequences", i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${axisOpen(m, filters, "sequences") ? gearCompare(run, i, "sequences") : ""}</div>` : "";
       const refCmp = cmpAt("refines", i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${compares(m, filters, "refines", combo) ? gearCompare(run, i, "refines") : ""}</div>` : "";
       const gear = GEAR_AXES.map((axis) => {
@@ -558,7 +555,7 @@ function comparisonTable(rows: TeamRow[]): string {
     return `<div class="trow${rank.pinned ? " isbaseline" : ""}" style="--hue:${rank.hue}" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}"`
       + ` data-members="${esc(memberNames)}" data-total="${grand}">`
       + memberCells
-      + `<div class="c num total teamdpr" title="${CLICK} to view the team's damage breakdown"${deferredPop("dpr", key)}>${dprFmt(grand, dprExact.team)}</div>`
+      + `<div class="c num total teamdpr" title="${CLICK} to view the team's damage breakdown"${deferredPop("dpr", key)}>${teamHtml(run)}</div>`
       + `<div class="c num total baseline" data-team="${esc(key)}" title="${CLICK} to measure every team against this one">${rank.pct}</div>`
       + `<div class="c gotodetail" data-team="${esc(key)}">view rotation<span class="arrow">›</span></div>`
       + `</div>`;
@@ -569,10 +566,10 @@ function comparisonTable(rows: TeamRow[]): string {
     + (cmpAt("sequences", i) ? `<div class="c num">Compare</div>` : "")
     + (cmpAt("refines", i) ? `<div class="c num">Compare</div>` : "")
     + GEAR_AXES.map((axis) => (openAt[axis][i] ? `<div class="c">${AXIS_HEAD[axis]}</div>${cmpAt(axis, i) ? `<div class="c num">Compare</div>` : ""}` : "")).join("")
-    + (dprAt(i) ? `<div class="c num dprhead" data-dpr="personal" title="${CLICK} to switch between abbreviated and exact figures">Personal</div>` : "");
+    + (dprAt(i) ? `<div class="c num">Personal</div>` : "");
   const head = `<div class="trow thead">`
     + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2)
-    + `<div class="c num dprhead" data-dpr="team" title="${CLICK} to switch between abbreviated and exact figures">Team Avg DPR</div>`
+    + `<div class="c num dprhead" title="${CLICK} to switch between DPR and DPS">${TEAM_HEAD[teamMode]}</div>`
     + `<div class="c num huehead" title="${CLICK} to colour the column by rank">Compare</div>`
     + `<div class="c"></div>`
     + `</div>`;
@@ -594,7 +591,7 @@ function comparisonTable(rows: TeamRow[]): string {
   const widest = (a: string, b: string): string => (b.length > a.length ? b : a);
   const blank = (): string[] => ["", "", ""];
   const wide = {
-    name: blank(), dpr: blank(), dprAbbr: blank(), seqcmp: blank(), refcmp: blank(), total: "", totalAbbr: "", pct: "",
+    name: blank(), dpr: blank(), seqcmp: blank(), refcmp: blank(), total: "", pct: "",
     gear: { weapons: blank(), echoes: blank(), mainstats: blank(), substats: blank() } as Record<GearAxis, string[]>,
     cmp: { weapons: blank(), echoes: blank(), mainstats: blank(), substats: blank() } as Record<GearAxis, string[]>,
   };
@@ -602,8 +599,7 @@ function comparisonTable(rows: TeamRow[]): string {
     run.members.forEach((m, pos) => {
       const combo = run.combo[pos]!;
       wide.name[pos] = widest(wide.name[pos]!, memberLabel(m, combo));
-      wide.dpr[pos] = widest(wide.dpr[pos]!, dprFmt(run.bySlot.get(m.name) ?? 0, true));
-      wide.dprAbbr[pos] = widest(wide.dprAbbr[pos]!, dprFmt(run.bySlot.get(m.name) ?? 0, false));
+      wide.dpr[pos] = widest(wide.dpr[pos]!, fmt(personalFigure(run, m.name)));
       if (axisOpen(m, filters, "sequences")) wide.seqcmp[pos] = widest(wide.seqcmp[pos]!, gearCompare(run, pos, "sequences"));
       if (compares(m, filters, "refines", combo)) wide.refcmp[pos] = widest(wide.refcmp[pos]!, gearCompare(run, pos, "refines"));
       for (const axis of GEAR_AXES) {
@@ -614,33 +610,32 @@ function comparisonTable(rows: TeamRow[]): string {
         wide.cmp[axis][pos] = widest(wide.cmp[axis][pos]!, gearCompare(run, pos, axis));
       }
     });
-    wide.total = widest(wide.total, dprFmt(run.total, true));
-    wide.totalAbbr = widest(wide.totalAbbr, dprFmt(run.total, false));
+    wide.total = widest(wide.total, teamText(run));
     wide.pct = widest(wide.pct, ranks[i]!.pct);
   });
   // a zero-height ghost row (index.css `.tghost`) sizing every track to its final width
-  const ghostPos = (i: number, dpr: string[]) =>
+  const ghostPos = (i: number) =>
     `<div class="c name res"><span class="res-label">${esc(wide.name[i]!)}</span></div>`
     + (cmpAt("sequences", i) ? `<div class="c num slotcompare">${esc(wide.seqcmp[i]!)}</div>` : "")
     + (cmpAt("refines", i) ? `<div class="c num slotcompare">${esc(wide.refcmp[i]!)}</div>` : "")
     + GEAR_AXES.map((axis) => (openAt[axis][i]
       ? `<div class="c option">${esc(wide.gear[axis][i]!)}</div>${cmpAt(axis, i) ? `<div class="c num slotcompare">${esc(wide.cmp[axis][i]!)}</div>` : ""}` : "")).join("")
-    + (dprAt(i) ? `<div class="c num slotdpr">${esc(dpr[i]!)}</div>` : "");
+    + (dprAt(i) ? `<div class="c num slotdpr">${esc(wide.dpr[i]!)}</div>` : "");
   // no `.teamdpr` on the ghost's Total cell: `drawWindow()` measures the row pitch off it
-  const ghostFor = (dpr: string[], total: string): string => `<div class="trow tghost" aria-hidden="true">`
-    + ghostPos(0, dpr) + ghostPos(1, dpr) + ghostPos(2, dpr)
-    + `<div class="c num total">${esc(total)}</div>`
+  // the heading is as wide as the figures under it can be too
+  const ghost = (): string => `<div class="trow tghost" aria-hidden="true">`
+    + ghostPos(0) + ghostPos(1) + ghostPos(2)
+    + `<div class="c num total">${esc(widest(wide.total, TEAM_HEAD[teamMode]))}</div>`
     + `<div class="c num total baseline">${esc(wide.pct)}</div>`
     + `<div class="c gotodetail">view rotation<span class="arrow">›</span></div>`
     + `</div>`;
-  const ghost = (personalExact: boolean, teamExact: boolean): string => ghostFor(personalExact ? wide.dpr : wide.dprAbbr, teamExact ? wide.total : wide.totalAbbr);
   tableView = { sorted, ranks, head, ghost, rowHtml, lines, extra };
   return `<main><div class="tclayout">`
     + `<aside class="tcside">${comparisonFilters()}</aside>`
     + `<div class="tcbody">`
     + `<h2 class="summary-label" id="teamCount">${fmt(sorted.length)} teams`
     + `<span class="hint">${CLICK} on a Resonator to filter and compare sequences, weapons, echoes</span></h2>`
-    + `<div class="tcwrap"><div class="tgrid${hueShown ? " hued" : ""}${dprExact.personal ? " personalexact" : ""}${dprExact.team ? " teamexact" : ""}" style="${gridStyle}">${head}${ghost(dprExact.personal, dprExact.team)}</div></div>`
+    + `<div class="tcwrap"><div class="tgrid${hueShown ? " hued" : ""}" style="${gridStyle}">${head}${ghost()}</div></div>`
     + `</div></div></main>`;
 }
 
@@ -664,7 +659,7 @@ function setBaseline(team: string | null): void {
 
 /** Ranked over the sorted rows as data (only a window is in the DOM); the ratio spreads straight. */
 function rankAll(sorted: TableView["sorted"]): RowRank[] {
-  const totals = sorted.map(([, run]) => run.total);
+  const totals = sorted.map(([, run]) => teamFigure(run));
   const pinned = baselineTeam == null ? -1 : sorted.findIndex(([key]) => key === baselineTeam);
   const base = pinned >= 0 ? totals[pinned]! : Math.min(...totals);
   const maxRatio = Math.max(...totals.map((t) => (base ? t / base : 1)), 1);
@@ -712,7 +707,7 @@ export function drawWindow(force = false, scrollTop?: number): void {
     const [key, run] = view.sorted[i]!;
     body += view.rowHtml(key, run, view.ranks[i]!);
   }
-  grid.innerHTML = view.head + view.ghost(dprExact.personal, dprExact.team) + spacer(0, from) + body + spacer(to, n);
+  grid.innerHTML = view.head + view.ghost() + spacer(0, from) + body + spacer(to, n);
   drawnFrom = from; drawnTo = to;
 
   // measure the real pitch off the rows just drawn, and redo the spacers once if the guess was off
@@ -860,12 +855,11 @@ document.addEventListener("click", (e) => {
   personalOpen[Number(slot)] = !personalOpen[Number(slot)];
   renderComparison();
 });
+/** The team column's heading switches what it reads (`teamMode`) — every figure and its width. */
 document.addEventListener("click", (e) => {
-  const column = (e.target as Element).closest<HTMLElement>(".c.dprhead")?.dataset.dpr as DprColumn | undefined;
-  if (!column) return;
-  dprExact[column] = !dprExact[column];
-  document.querySelector(".tgrid")?.classList.toggle(`${column}exact`, dprExact[column]);
-  drawWindow(true);
+  if (!(e.target as Element).closest(".c.dprhead")) return;
+  teamMode = teamMode === "dpr" ? "dps" : "dpr";
+  renderComparison();
 });
 document.addEventListener("change", (e) => {
   const select = e.target as HTMLSelectElement;

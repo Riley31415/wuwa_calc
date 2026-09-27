@@ -4,15 +4,14 @@
  *  Cyberpunk collab echo at the bottom) — split them out when that region gets a name. Buling and
  *  Lucilla, also Lahairoi-era, own no mainslot echo/sonata of their own — Lucilla reuses
  *  Bell-Borne Geochelone/Moonlit Clouds from jinzhou.ts and Dream of the Lost from septimont.ts. */
-import { Stat, Attribute, Type1, Cast, Scaling, LifeTime, BuffTarget } from "../engine/stats.js";
-import { Buff, Sonata, Sonata2pc, Sonata1pc, Mainslot, EchoType } from "../engine/gear.js";
+import { Stat, Attribute, Type, Cast, Scaling, BuffTarget } from "../engine/stats.js";
+import { Buff, Sonata, Sonata2pc, Sonata1pc, Mainslot, handoff } from "../engine/gear.js";
 import {
   isType, addStat, applyCurrent, casting, getStat, queueOutro, revokeCurrent, frozenStacks, isHeld, currentMember,
   appliedByMe, onType, onCast, onApplied, onInflict,
 } from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
-import { handoff } from "../shared/helpers.js";
-import { SHIELD, FUSION_BURST, HEALS, GLACIO_CHAFE } from "../shared/status.js";
+import { SHIELD, FUSION_BURST, HEALS, GLACIO_CHAFE, gainShield } from "../shared/status.js";
 import { TUNE_HACK_SHIFTING, TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 
 /* ------------------------------------------------------------------------------ Sigrika, 3.2 */
@@ -20,27 +19,28 @@ import { TUNE_HACK_SHIFTING, TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING } from 
 /** Nameless Explorer, Sigrika's own mainslot echo — flat Aero/Echo Skill DMG Bonus for whoever
  *  wears it, no trigger. */
 export const ACTION_NAMELESS_EXPLORER = new Action("Echo - Nameless Explorer", {
-  cast: Cast.Echo, element: Attribute.Aero, scaling: Scaling.Atk, type: Type1.Echo, mv: 273.6, energy: 3.8,
+  cooldown: 60 * 20,
+  cast: Cast.Echo, element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo, mv: 273.6, energy: 3.8,
 });
 export const NAMELESS_EXPLORER = new Mainslot({
   name: "Nameless Explorer",
   action: ACTION_NAMELESS_EXPLORER,
-  echoType: EchoType.SUMMON,
-  stats: [[Stat.DmgBonus, 12, Attribute.Aero], [Stat.DmgBonus, 20, Type1.Echo]],
+  stats: [[Stat.DmgBonus, 12, Attribute.Aero], [Stat.DmgBonus, 20, Type.Echo]],
 });
 
 /** Sound of True Name, Sigrika's own sonata (paired directly with Nameless Explorer above).
  *  2pc: +10% Aero DMG Bonus flat. 5pc: dealing Echo Skill DMG grants +20% Echo Skill Crit Rate
- *  and +15% Aero DMG Bonus for 5s — short window, lost after the outro action gains stats. */
+ *  and +15% Aero DMG Bonus for 5s. */
 export const SOUND_OF_TRUE_NAME_2PC = new Sonata2pc({ name: "Sound of True Name 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Aero]] });
 export const SOUND_OF_TRUE_NAME_BUFF = new Buff({
   name: "Sound of True Name 5pc",
-  stats: [[Stat.CritRate, 20, Type1.Echo], [Stat.DmgBonus, 15, Attribute.Aero]], until: LifeTime.Outro,
+  duration: 60 * 5,
+  stats: [[Stat.CritRate, 20, Type.Echo], [Stat.DmgBonus, 15, Attribute.Aero]],
 });
 export const SOUND_OF_TRUE_NAME_5PC = new Sonata({
   name: "Sound of True Name 5pc",
   sonata2pc: SOUND_OF_TRUE_NAME_2PC,
-  grants: [{ on: onType(Type1.Echo), buff: SOUND_OF_TRUE_NAME_BUFF }],
+  grants: [{ on: onType(Type.Echo), buff: SOUND_OF_TRUE_NAME_BUFF, onHit: true }],
 });
 
 /* -------------------------------------------------------------------------------- Lynae, 3.6 */
@@ -48,20 +48,20 @@ export const SOUND_OF_TRUE_NAME_5PC = new Sonata({
 /** Hyvatia: ten lasers at 27.36% apiece, and 0.03 energy each — a tenth of what a hit that size
  *  usually pays, which is what its own damage row gives. */
 export const ACTION_HYVATIA = new Action("Echo - Hyvatia", {
-  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Echo,
+  cooldown: 60 * 20,
+  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo,
   mv: 27.36 * 10, energy: 0.03 * 10,
   updateBuffs: () => queueOutro(HYVATIA_HANDOFF),
 });
 
 /** Its own handoff: an Outro within 15s of the summon hands the next resonator's Intro +10%
  *  All-Attribute DMG Bonus for 15s — the summon window is one a rotation never misses, and the
- *  15s it grants runs to the end of the next handoff (shared/helpers.ts). */
+ *  15s it grants runs to the end of the next handoff (gear.ts's `handoff`). */
 export const HYVATIA_HANDOFF = handoff("Hyvatia: Outro", () => addStat(Stat.DmgBonus, 10));
 
 export const HYVATIA = new Mainslot({
   name: "Hyvatia",
   action: ACTION_HYVATIA,
-  echoType: EchoType.SUMMON,
 });
 
 /* ------------------------------------------------------------------------------- Mornye, 3.6 */
@@ -70,24 +70,25 @@ export const HYVATIA = new Mainslot({
  *  which is the reason Mornye wants it, her Liberation turning every point of ER past 100% into
  *  crit. */
 export const ACTION_REACTOR_HUSK = new Action("Echo - Reactor Husk", {
-  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 351, energy: 4.87,
+  frames: 60, cancelFrames: 46,
+  cooldown: 60 * 20,
+  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, mv: 351, energy: 4.87,
 });
 export const REACTOR_HUSK = new Mainslot({
   name: "Reactor Husk",
   action: ACTION_REACTOR_HUSK,
-  echoType: EchoType.TRANSFORM,
   stats: [[Stat.Er, 10]],
 });
 
 /** Spacetrek Explorer: a 10%-of-Max-HP team shield and nothing else — no damage of its own, so
  *  only the cast exists here. Kept because it is a real mainslot option for a sustain build. */
 export const ACTION_SPACETREK = new Action("Echo - Spacetrek Explorer", {
-  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, updateDebuffs: () => applyCurrent(SHIELD, 1)
+  cooldown: 60 * 20,
+  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, updateDebuffs: () => gainShield(1)
 });
 export const SPACETREK_EXPLORER = new Mainslot({
   name: "Spacetrek Explorer",
   action: ACTION_SPACETREK,
-  echoType: EchoType.SUMMON,
 });
 
 /* ------------------------------------------------------------------------------- Hiyuki, 3.6 */
@@ -96,27 +97,27 @@ export const SPACETREK_EXPLORER = new Mainslot({
  *  lands five 21.88% Glacio hits and one 164.16%. The main-slot wearer also gets a flat +12%
  *  Glacio DMG Bonus and +12% Resonance Liberation DMG Bonus. */
 export const ACTION_VOIDBORNE_CONSTRUCT = new Action("Echo - Reminiscence: Voidborne Construct", {
-  cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Atk, type: Type1.Echo,
+  cooldown: 60 * 20,
+  cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo,
   mv: 21.88 * 5 + 164.16, energy: 0.12 * 5 + 1.36,
 });
 export const VOIDBORNE_CONSTRUCT = new Mainslot({
   name: "Reminiscence: Threnodian - Voidborne",
   action: ACTION_VOIDBORNE_CONSTRUCT,
-  echoType: EchoType.SUMMON,
-  stats: [[Stat.DmgBonus, 12, Attribute.Glacio], [Stat.DmgBonus, 12, Type1.Liberation]],
+  stats: [[Stat.DmgBonus, 12, Attribute.Glacio], [Stat.DmgBonus, 12, Type.Liberation]],
 });
 
 /** Glommoth: one 273.6% Glacio stomp, and an Outro within 15s of the summon hands the incoming
  *  resonator +12% Glacio DMG Bonus for 15s — the same shape as Hyvatia's own handoff above. */
 export const ACTION_GLOMMOTH = new Action("Echo - Glommoth", {
-  cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Atk, type: Type1.Echo, mv: 273.6, energy: 3.8,
+  cooldown: 60 * 20,
+  cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo, mv: 273.6, energy: 3.8,
   updateBuffs: () => queueOutro(GLOMMOTH_HANDOFF),
 });
 export const GLOMMOTH_HANDOFF = handoff("Glommoth: Outro", () => addStat(Stat.DmgBonus, 12, Attribute.Glacio));
 export const GLOMMOTH = new Mainslot({
   name: "Glommoth",
   action: ACTION_GLOMMOTH,
-  echoType: EchoType.SUMMON,
 });
 
 /** Wishes of Quiet Snowfall, the Glacio Chafe sonata (paired with either echo above). 2pc: +10%
@@ -142,17 +143,22 @@ export const QUIET_SNOWFALL_5PC = new Sonata({
 
 export const QUIET_SNOWFALL_GLACIO = new Buff({
   name: "Wishes of Quiet Snowfall 5pc (chafe)",
+  duration: 60 * 15,
   stats: [[Stat.DmgBonus, 10, Attribute.Glacio]],
 });
 
 /** The marker itself — carries no stat, it is only ever the thing one of the two branches spends. */
 export const SNOWFALL = new Buff({
   name: "Wishes of Quiet Snowfall 5pc: Snowfall",
+  duration: 60 * 15,
   updateBuffs: () => {
     if (casting(Cast.Outro)) {
       revokeCurrent(SNOWFALL);
       queueOutro(SNOWFALL_OUTRO);
-    } else if (isType(Type1.Liberation)) {
+    }
+  },
+  afterAction: () => {
+    if (isType(Type.Liberation)) {
       revokeCurrent(SNOWFALL);
       applyCurrent(SNOWFALL_CRIT, 1);
     }
@@ -179,7 +185,8 @@ export const NEONLIGHT_LEAP_5PC = new Sonata({
   grants: [{ on: onCast(Cast.Outro), buff: () => NEONLIGHT_LEAP_HANDOFF, to: BuffTarget.Next }],
 });
 export const NEONLIGHT_LEAP_HANDOFF = new Buff({
-  name: "Pact of Neonlight Leap 5pc (outro)", until: LifeTime.Swap,
+  name: "Pact of Neonlight Leap 5pc (outro)", lostOnSwap: true,
+  duration: 60 * 15,
   stats: [[Stat.BonusAtk, 15]],
   // the TBB half is read late so every contribution has landed this action — the era's flat 10,
   // Reel of Spliced Memories' +20, and Denia's Etched Colors, which grants from its own
@@ -201,6 +208,7 @@ export const STARRY_RADIANCE_5PC = new Sonata({
 });
 export const STARRY_RADIANCE_TEAM = new Buff({
   name: "Halo of Starry Radiance 5pc",
+  duration: 60 * 4,
   convertStats: () => {
     addStat(Stat.BonusAtk, Math.min(25, 0.2 * getStat(Stat.OfftuneBuildup)));
   }
@@ -219,6 +227,7 @@ export const CHROMATIC_FOAM_5PC = new Sonata({
  *  no end condition; only the handoff half below is lost on swap. */
 export const CHROMATIC_FOAM_BUFF = new Buff({
   name: "Chromatic Foam 5pc",
+  duration: 60 * 15,
   stats: [[Stat.DmgBonus, 10, Attribute.Fusion]],
   grants: [{ on: onCast(Cast.Outro), buff: () => CHROMATIC_FOAM_HANDOFF, to: BuffTarget.Next }],
 });
@@ -226,12 +235,13 @@ export const CHROMATIC_FOAM_BUFF = new Buff({
  *  as an outro — still paying out on it first. */
 export const CHROMATIC_FOAM_HANDOFF = new Buff({
   name: "Chromatic Foam 5pc (outro)",
-  stats: [[Stat.DmgBonus, 25, Attribute.Fusion]], until: LifeTime.AfterSwap,
+  duration: 60 * 15,
+  stats: [[Stat.DmgBonus, 25, Attribute.Fusion]], lostOnSwap: true,
 });
 
 /** Trailblazing Star, the other Fusion sonata of the era. 2pc: +10% Fusion DMG Bonus flat. 5pc:
  *  inflicting either Fusion Burst or Tune Rupture - Shifting grants +20% Crit. Rate and +20%
- *  Fusion DMG Bonus for 8s — a short self window, so lost after the outro. */
+ *  Fusion DMG Bonus for 8s. */
 export const TRAILBLAZING_STAR_2PC = new Sonata2pc({ name: "Trailblazing Star 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Fusion]] });
 export const TRAILBLAZING_STAR_5PC = new Sonata({
   name: "Trailblazing Star 5pc",
@@ -240,7 +250,8 @@ export const TRAILBLAZING_STAR_5PC = new Sonata({
 });
 export const TRAILBLAZING_STAR_BUFF = new Buff({
   name: "Trailblazing Star 5pc",
-  stats: [[Stat.CritRate, 20], [Stat.DmgBonus, 20, Attribute.Fusion]], until: LifeTime.Outro,
+  duration: 60 * 8,
+  stats: [[Stat.CritRate, 20], [Stat.DmgBonus, 20, Attribute.Fusion]],
 });
 
 /** Rite of Gilded Revelation, Luuk's own sonata. 2pc: +10% Spectro DMG Bonus flat. 5pc: dealing
@@ -252,12 +263,12 @@ export const GILDED_REVELATION_2PC = new Sonata2pc({ name: "Rite of Gilded Revel
 export const GILDED_REVELATION_5PC = new Sonata({
   name: "Rite of Gilded Revelation 5pc",
   sonata2pc: GILDED_REVELATION_2PC,
-  grants: [{ on: onType(Type1.Basic), buff: () => GILDED_REVELATION_STACKS }],
+  grants: [{ on: onType(Type.Basic), buff: () => GILDED_REVELATION_STACKS, onHit: true }],
 });
 export const GILDED_REVELATION_STACKS = new Buff({
-  name: "Rite of Gilded Revelation 5pc", maxStacks: 3,
-  stats: [[Stat.DmgBonus, 10, Attribute.Spectro]], perStack: true, until: LifeTime.Outro,
-  applyStats: () => { if (frozenStacks() >= 3 && casting(Cast.Liberation)) addStat(Stat.DmgBonus, 40, Type1.Basic); },
+  name: "Rite of Gilded Revelation 5pc", maxStacks: 3, duration: 60 * 5,
+  stats: [[Stat.DmgBonus, 10, Attribute.Spectro]], perStack: true,
+  applyStats: () => { if (frozenStacks() >= 3 && casting(Cast.Liberation)) addStat(Stat.DmgBonus, 40, Type.Basic); },
 });
 
 /* --------------------------------------------------------------------------------- Luuk, 3.6 */
@@ -268,13 +279,14 @@ export const GILDED_REVELATION_STACKS = new Buff({
  *  Blade in a second 4-cost slot and the Blade's own hit count, which the page doesn't give — not
  *  modelled; this is the Cannon on its own. */
 export const ACTION_NEBULOUS_CANNON = new Action("Echo - Twin Nova: Nebulous Cannon", {
-  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Echo, mv: 80.51 * 2, energy: 0.55 * 2,
+  frames: 60, cancelFrames: 46,
+  cooldown: 60 * 8,
+  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo, mv: 80.51 * 2, energy: 0.55 * 2,
 });
 export const NEBULOUS_CANNON = new Mainslot({
   name: "Twin Nova: Nebulous Cannon",
   action: ACTION_NEBULOUS_CANNON,
-  echoType: EchoType.TRANSFORM,
-  stats: [[Stat.DmgBonus, 12, Attribute.Spectro], [Stat.DmgBonus, 12, Type1.Basic]],
+  stats: [[Stat.DmgBonus, 12, Attribute.Spectro], [Stat.DmgBonus, 12, Type.Basic]],
 });
 
 /* -------------------------------------------------------------------------------- Denia, 3.6 */
@@ -283,33 +295,35 @@ export const NEBULOUS_CANNON = new Mainslot({
  *  within 15s of the summon hands the incoming resonator +12% Fusion DMG Bonus for 15s. Pairs
  *  with Chromatic Foam above. */
 export const ACTION_TRICKSTER = new Action("Echo - Trickster", {
-  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 273.6, energy: 3.8,
+  cooldown: 60 * 20,
+  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, mv: 273.6, energy: 3.8,
   updateBuffs: () => queueOutro(TRICKSTER_HANDOFF),
 });
 /** Not the usual 15s `handoff()` window: lost after the receiver's own inactive row — outro or
  *  any swap — still paying on it, the same clause as Chromatic Foam above. */
 export const TRICKSTER_HANDOFF = new Buff({
   name: "Trickster: Outro",
-  stats: [[Stat.DmgBonus, 12, Attribute.Fusion]], until: LifeTime.AfterSwap,
+  duration: 60 * 15,
+  stats: [[Stat.DmgBonus, 12, Attribute.Fusion]], lostOnSwap: true,
 });
 export const TRICKSTER = new Mainslot({
   name: "Reminiscence: Denia",
   action: ACTION_TRICKSTER,
-  echoType: EchoType.SUMMON,
 });
 
 /** Voidwing Moth: a 405% Spectro tap, or held on for twelve more 49.33% hits. The tap is what a
  *  rotation places (the hold is a long channel), the hold kept as its own cast. Either way an
  *  Outro within 15s hands the incoming resonator +12% ATK for 15s. */
 export const ACTION_VOIDWING_MOTH = new Action("Echo - Voidwing Moth", {
-  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Echo, mv: 405, energy: 5.62,
+  frames: 60, cancelFrames: 46,
+  cooldown: 60 * 25,
+  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo, mv: 405, energy: 5.62,
   updateBuffs: () => queueOutro(VOIDWING_HANDOFF),
 });
 export const VOIDWING_HANDOFF = handoff("Voidwing Moth: Outro", () => addStat(Stat.BonusAtk, 12));
 export const VOIDWING_MOTH = new Mainslot({
   name: "Voidwing Moth",
   action: ACTION_VOIDWING_MOTH,
-  echoType: EchoType.TRANSFORM,
 });
 
 /** Reel of Spliced Memories, Voidwing Moth's own sonata. 2pc: +10% ATK flat. 5pc: the wearer
@@ -322,7 +336,7 @@ export const REEL_5PC = new Sonata({
   sonata2pc: REEL_2PC,
   grants: [{ on: onInflict(TUNE_RUPTURE_SHIFTING, TUNE_STRAIN_SHIFTING), buff: () => REEL_TEAM, to: BuffTarget.Team }],
 });
-export const REEL_TEAM = new Buff({ name: "Reel of Spliced Memories 5pc", stats: [[Stat.Tbb, 20]] });
+export const REEL_TEAM = new Buff({ name: "Reel of Spliced Memories 5pc", duration: 60 * 30, stats: [[Stat.Tbb, 20]] });
 
 /* ---------------------------------------------------------------- Rebecca and Lucy, the collab */
 
@@ -335,10 +349,11 @@ export const REEL_TEAM = new Buff({ name: "Reel of Spliced Memories 5pc", stats:
  *  Its sonata, Shadow of Shattered Dreams, has a *one*-piece bonus and nothing else, so it is a
  *  `Sonata1pc` worn beside two ordinary 2-piece sets — see each resonator's own `echoLoadouts`.
  *  Inflicting Hack - Shifting grants +35% Basic Attack DMG Bonus and +35% Heavy Attack DMG Bonus
- *  for 15s — a short self window, so lost after the outro. */
+ *  for 15s. */
 export const SHATTERED_DREAMS = new Buff({
   name: "Shadow of Shattered Dreams",
-  stats: [[Stat.DmgBonus, 35, Type1.Basic], [Stat.DmgBonus, 35, Type1.Heavy]],
+  duration: 60 * 15,
+  stats: [[Stat.DmgBonus, 35, Type.Basic], [Stat.DmgBonus, 35, Type.Heavy]],
 });
 export const SHATTERED_DREAMS_1PC = new Sonata1pc({
   name: "Shadow of Shattered Dreams 1pc",
@@ -346,23 +361,23 @@ export const SHATTERED_DREAMS_1PC = new Sonata1pc({
 });
 
 export const ACTION_ADAM_SMASHER_LUCY = new Action("Echo - Adam Smasher", {
-  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type1.Echo, mv: 273.6, energy: 3.8,
+  cooldown: 60 * 20,
+  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo, mv: 273.6, energy: 3.8,
 });
 export const ADAM_SMASHER_LUCY = new Mainslot({
   name: "Nightmare: Adam Smasher",
   action: ACTION_ADAM_SMASHER_LUCY,
-  echoType: EchoType.SUMMON,
   stats: [[Stat.CritRate, 15]],
 });
 
 export const ACTION_ADAM_SMASHER_REBECCA = new Action("Echo - Adam Smasher", {
-  cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type1.Echo,
+  cooldown: 60 * 20,
+  cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
   mv: 17.1 * 16, energy: 0.23 * 16,
 });
 export const ADAM_SMASHER_REBECCA = new Mainslot({
   name: "Nightmare: Adam Smasher",
   action: ACTION_ADAM_SMASHER_REBECCA,
-  echoType: EchoType.SUMMON,
   stats: [[Stat.CritRate, 15]],
 });
 
@@ -372,11 +387,11 @@ export const ADAM_SMASHER_REBECCA = new Mainslot({
  *  Liberation DMG Bonus is "when equipped in the main slot by Aemeath" — only her loadouts list
  *  it, so it is granted flat here. Pairs with Trailblazing Star above. */
 export const ACTION_SIGILLUM = new Action("Echo - Sigillum", {
-  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 68.4 + 205.2, energy: 0.23 + 2.13,
+  cooldown: 60 * 20,
+  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, mv: 68.4 + 205.2, energy: 0.23 + 2.13,
 });
 export const SIGILLUM = new Mainslot({
   name: "Sigillum",
   action: ACTION_SIGILLUM,
-  echoType: EchoType.SUMMON,
-  constantStats: () => { if (currentMember().resonator?.name === "Aemeath") addStat(Stat.DmgBonus, 25, Type1.Liberation); },
+  constantStats: () => { if (currentMember().resonator?.name === "Aemeath") addStat(Stat.DmgBonus, 25, Type.Liberation); },
 });

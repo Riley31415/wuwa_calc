@@ -3,7 +3,7 @@
  * scratch maps, the dry-run journal and the pending-cast queue. The leaf of the engine: it holds
  * what `context.ts` and `evaluate.ts` both write, and imports nothing from either.
  */
-import { Stat, Attribute, Type1, Type2 } from "./stats.js";
+import { Stat, Attribute, Type, Subtype } from "./stats.js";
 import type { Cast } from "./stats.js";
 import type { Action } from "./rotation.js";
 import type { Gear } from "./gear.js";
@@ -19,9 +19,14 @@ export const ctx: {
   slot: TeamMember | null;
   buff: Gear | null;
   act: Action | null;
+  /** The frames the clock charges the action being evaluated (`Action.cost()`) — `elapsed()`. */
+  actFrames: number;
   /** Whether the action being evaluated is the report's own "not really this resonator's turn" kind
    *  — see `triggeredAction()`. Passed in by `run()`, which is the only thing that knows. */
   triggered: boolean;
+  /** The fight frame the tick being fired falls on (`State.runTicks()`), or null outside one:
+   *  whatever it queues lands then, on `State.timed`, not behind the press it ran inside. */
+  tickAt: number | null;
   /** The frozen stack count of whichever Gear is mid-callback, or -1 outside any phase — see
    *  `frozenStacks()`. */
   stacks: number;
@@ -60,10 +65,13 @@ export const ctx: {
    *  and then essentially never — so every slot's `constBase` cache can tell it is stale. */
   constVersion: number;
   /** What a held Gear assigned for the action being evaluated (see `typeOverride()`) — the engine's
-   *  own "override type1 / override type2", null when nothing did. Cleared by `evaluate()` for every
+   *  own "override type / override subtype", null when nothing did. Cleared by `evaluate()` for every
    *  action; read by `isType()`, the tag list, and the snapshot. */
-  overrideType1: Type1 | null;
-  overrideType2: Type2 | null;
+  overrideType: Type | null;
+  overrideSubtype: Subtype | null;
+  /** "Lost on swap" buffs a swap cancel keeps paying on: revoked once the press is done
+   *  (`lostOnSwap()`, `BuffDef.lostOnSwap`). Cleared by `evaluate()` for every action. */
+  swapLosses: Set<Gear>;
   /** A second cast this action would otherwise also count as, dropped for this action alone (see
    *  `dropCast()`). Cleared by `evaluate()` every action, like the type overrides above. */
   droppedCast: Cast | null;
@@ -77,7 +85,9 @@ export const ctx: {
   slot: null,
   buff: null,
   act: null,
+  actFrames: 0,
   triggered: false,
+  tickAt: null,
   stacks: -1,
   tagWord: 0,
   dryRun: false,
@@ -88,19 +98,20 @@ export const ctx: {
   readPhase: 0,
   readStamp: 0,
   constVersion: 0,
-  overrideType1: null,
-  overrideType2: null,
+  overrideType: null,
+  overrideSubtype: null,
+  swapLosses: new Set(),
   droppedCast: null,
   actionStamp: 0,
   tracing: false,
   insideGroup: false,
 };
 
-export const tagWord = (element: Attribute | null, type: Type1 | null, type2: Type2 | null): number =>
-  (element ?? 0) | (type ?? 0) | (type2 ?? 0);
+export const tagWord = (element: Attribute | null, type: Type | null, subtype: Subtype | null): number =>
+  (element ?? 0) | (type ?? 0) | (subtype ?? 0);
 export const tagWordOf = (action: Action): number => {
   let word = action._tagWord;
-  if (word === undefined) action._tagWord = word = tagWord(action.element, action.type1, action.type2);
+  if (word === undefined) action._tagWord = word = tagWord(action.element, action.type, action.subtype);
   return word;
 };
 
@@ -108,12 +119,14 @@ export const tagWordOf = (action: Action): number => {
  *  that key held before — as flat triples, for `undoDry()` to reverse before a snapshot is put
  *  back. A journal rather than a copy because a variant writes two or three entries and the copy
  *  was the whole map, once per variant per action. */
-export const dryLog: (Map<Gear, number> | Set<Gear> | Gear | number | boolean | undefined)[] = [];
+export const dryLog: (Map<Gear, number> | Set<Gear> | number[] | Gear | number | boolean | undefined)[] = [];
 export function undoDry(): void {
   if (dryLog.length === 0) return;
   for (let i = dryLog.length - 3; i >= 0; i -= 3) {
     const target = dryLog[i], gear = dryLog[i + 1] as Gear, prev = dryLog[i + 2];
     if (target instanceof Map) { if (prev === undefined) target.delete(gear); else target.set(gear, prev as number); }
+    // a Pool's expiry array: the "gear" is the index written
+    else if (Array.isArray(target)) target[gear as unknown as number] = prev as number;
     else if (prev) (target as Set<Gear>).add(gear); else (target as Set<Gear>).delete(gear);
   }
   dryLog.length = 0;
@@ -152,6 +165,8 @@ export const noteMutation = (id: number, n: number): void => { ctx.mutHash = (Ma
 export const RESOURCE_STATS: Stat[] = [
   Stat.AddEnergy, Stat.AddConcerto, Stat.AddOfftune, Stat.DirectOfftune, Stat.OfftuneBuildup, Stat.EnergyRegenMult,
   Stat.AddForte1, Stat.AddForte2, Stat.AddForte3, Stat.AddForte4, Stat.AddForte5,
+  Stat.AddCastEnergy, Stat.AddCastConcerto,
+  Stat.AddCastForte1, Stat.AddCastForte2, Stat.AddCastForte3, Stat.AddCastForte4, Stat.AddCastForte5,
 ];
 
 /** What was granted (or spent) during the action being evaluated, by Gear and by whose doing —

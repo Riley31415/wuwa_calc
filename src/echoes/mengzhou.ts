@@ -1,12 +1,11 @@
 /** Mainslot echoes and sonatas from Mengzhou (versions 3.5-3.8). */
-import { Stat, Attribute, Type1, Cast, Scaling, LifeTime, BuffTarget } from "../engine/stats.js";
-import { Buff, Sonata, Sonata2pc, Mainslot, EchoType } from "../engine/gear.js";
+import { Stat, Attribute, Type, Cast, Scaling, BuffTarget } from "../engine/stats.js";
+import { Buff, Sonata, Sonata2pc, Mainslot, handoff } from "../engine/gear.js";
 import {
   addStat, frozenStacks, queue, queueOutro, applied, onApplied, onInflict, onCast, either,
 } from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
 import { SHIELD, HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, HEALS } from "../shared/status.js";
-import { handoff } from "../shared/helpers.js";
 import { gainedUnison, unisonResponse } from "../shared/unison.js";
 import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 
@@ -15,13 +14,13 @@ import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 /** Myriad Snare, Jingran's own mainslot echo — flat Fusion/Heavy Attack DMG Bonus for whoever
  *  wears it, no trigger. */
 export const ACTION_MYRIAD_SNARE = new Action("Echo - Myriad Snare", {
-  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Hp, type: Type1.Echo, mv: 17.23, energy: 3.8,
+  cooldown: 60 * 20,
+  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Hp, type: Type.Echo, mv: 17.23, energy: 3.8,
 });
 export const MYRIAD_SNARE = new Mainslot({
   name: "Myriad Snare: Rustfire Chassis",
   action: ACTION_MYRIAD_SNARE,
-  echoType: EchoType.SUMMON,
-  stats: [[Stat.DmgBonus, 12, Attribute.Fusion], [Stat.DmgBonus, 12, Type1.Heavy]],
+  stats: [[Stat.DmgBonus, 12, Attribute.Fusion], [Stat.DmgBonus, 12, Type.Heavy]],
 });
 
 /** Lamp of Nether Road, Jingran's own sonata (paired directly with Myriad Snare above). 5pc: a
@@ -30,8 +29,8 @@ export const MYRIAD_SNARE = new Mainslot({
  *  wearer's own outro (see jinzhou.ts's HERON_HANDOFF) and is gone the moment he leaves the
  *  field — a stack picked up in an opener never reaches the visit after it. */
 export const LAMP_STACKS = new Buff({
-  name: "Lamp of Nether Road 5pc", maxStacks: 4,
-  stats: [[Stat.CritRate, 5]], perStack: true, until: LifeTime.AfterSwap,
+  name: "Lamp of Nether Road 5pc", maxStacks: 4, duration: 60 * 5,
+  stats: [[Stat.CritRate, 5]], perStack: true,
   applyStats: () => { if (frozenStacks() >= 4) addStat(Stat.DmgBonus, 15, Attribute.Fusion); },
 });
 export const LAMP_2PC = new Sonata2pc({ name: "Lamp of Nether Road 2pc", stats: [[Stat.BonusHp, 10]] });
@@ -45,25 +44,27 @@ export const LAMP_5PC = new Sonata({
 
 /** Calamity Effigy, Qingxiao's own mainslot echo: one 405% Aero hit. Whoever wears it gets +10%
  *  Aero DMG Bonus flat, and +10% more for 15s on inflicting Tune Strain - Shifting — short and
- *  their own, so lost after the outro. Pairs with Heart of Evil's Purge below. */
+ *  their own. Pairs with Heart of Evil's Purge below. */
 export const ACTION_CALAMITY_EFFIGY = new Action("Echo - Calamity Effigy", {
-  cast: Cast.Echo, element: Attribute.Aero, scaling: Scaling.Atk, type: Type1.Echo, mv: 405, energy: 5.62,
+  frames: 60, cancelFrames: 46,
+  cooldown: 60 * 25,
+  cast: Cast.Echo, element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo, mv: 405, energy: 5.62,
 });
 export const CALAMITY_EFFIGY_STRAIN = new Buff({
   name: "Calamity Effigy (strain)",
-  stats: [[Stat.DmgBonus, 10, Attribute.Aero]], until: LifeTime.Outro,
+  duration: 60 * 15,
+  stats: [[Stat.DmgBonus, 10, Attribute.Aero]],
 });
 export const CALAMITY_EFFIGY = new Mainslot({
   name: "Calamity Effigy",
   action: ACTION_CALAMITY_EFFIGY,
-  echoType: EchoType.TRANSFORM,
   stats: [[Stat.DmgBonus, 10, Attribute.Aero]],
   grants: [{ on: onInflict(TUNE_STRAIN_SHIFTING), buff: CALAMITY_EFFIGY_STRAIN }],
 });
 
 /** Heart of Evil's Purge, Calamity Effigy's own sonata. 2pc: +10% Aero DMG Bonus flat. 5pc:
  *  inflicting Tune Strain - Shifting grants +20% Crit. DMG and +30% Aero DMG Bonus for 15s — the
- *  wearer's own short window, lost after the outro. */
+ *  wearer's own short window. */
 export const HEART_OF_EVILS_PURGE_2PC = new Sonata2pc({ name: "Heart of Evil's Purge 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Aero]] });
 export const HEART_OF_EVILS_PURGE_5PC = new Sonata({
   name: "Heart of Evil's Purge 5pc",
@@ -72,7 +73,8 @@ export const HEART_OF_EVILS_PURGE_5PC = new Sonata({
 });
 export const HEART_OF_EVILS_PURGE_BUFF = new Buff({
   name: "Heart of Evil's Purge 5pc",
-  stats: [[Stat.CritDmg, 20], [Stat.DmgBonus, 30, Attribute.Aero]], until: LifeTime.Outro,
+  duration: 60 * 15,
+  stats: [[Stat.CritDmg, 20], [Stat.DmgBonus, 30, Attribute.Aero]],
 });
 
 /* ------------------------------------------------------------------ Yangyang: Xuanling */
@@ -86,17 +88,17 @@ export const HEART_OF_EVILS_PURGE_BUFF = new Buff({
  *  triggered action, which is what stops one blade's own hit from spending the next three beside a
  *  kit that inflicts on every hit. */
 export const ACTION_THOUSAND_PUPPET_PAVILION = new Action("Echo - Thousand-Puppet Pavilion", {
-  cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Echo, mv: 	109.44, energy: 1.52,
+  cooldown: 60 * 20, frames: 5,
+  cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo, mv: 	109.44, energy: 1.52,
   updateBuffs: () => queue(ACTION_BLADE_OF_THOUSAND_MEMORIES),
 });
 export const ACTION_BLADE_OF_THOUSAND_MEMORIES = new Action("Echo - Blade of Thousand Memories x4", {
-  element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Echo, mv: 41.04*4, energy: 0.57*4,
+  element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo, mv: 41.04*4, energy: 0.57*4,
 });
 export const THOUSAND_PUPPET_PAVILION = new Mainslot({
-  name: "Thousand-Puppet Pavilion",
+  name: "Thousand-Puppet Pavilion", 
   action: ACTION_THOUSAND_PUPPET_PAVILION,
-  echoType: EchoType.SUMMON,
-  stats: [[Stat.DmgBonus, 12, Attribute.Havoc], [Stat.DmgBonus, 12, Type1.Heavy]],
+  stats: [[Stat.DmgBonus, 12, Attribute.Havoc], [Stat.DmgBonus, 12, Type.Heavy]],
 });
 
 /** Song of Feathered Trace, Thousand-Puppet Pavilion's own sonata. 2pc: +10% Energy Regen flat.
@@ -120,10 +122,12 @@ export const FEATHERED_TRACE_5PC = new Sonata({
 });
 export const XUANLINGS_FEATHER = new Buff({
   name: "Song of Feathered Trace 5pc: Xuanling's Feather",
-  stats: [[Stat.CritRate, 20], [Stat.DmgBonus, 35, Type1.Heavy]], until: LifeTime.Outro,
+  duration: 60 * 15,
+  stats: [[Stat.CritRate, 20], [Stat.DmgBonus, 35, Type.Heavy]],
 });
 export const CHONGMINGS_FEATHER = new Buff({
   name: "Song of Feathered Trace 5pc: Chongming's Feather",
+  duration: 60 * 10,
   stats: [[Stat.BonusAtk, 25]],
 });
 
@@ -135,12 +139,12 @@ export const CHONGMINGS_FEATHER = new Buff({
  *  with Song of Feathered Trace above, whose Chongming's Feather branch is written for exactly her
  *  — Glacio Chafe into an Energy-Regen-scaled team ATK buff. */
 export const ACTION_FORBIDDEN_BASTION = new Action("Echo - Forbidden Bastion", {
-  cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Atk, type: Type1.Echo, mv: 237.60, energy: 3.30,
+  cooldown: 60 * 20,
+  cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo, mv: 237.60, energy: 3.30,
 });
 export const FORBIDDEN_BASTION = new Mainslot({
   name: "Forbidden Bastion",
   action: ACTION_FORBIDDEN_BASTION,
-  echoType: EchoType.SUMMON,
   stats: [[Stat.HealingBonus, 10]],
 });
 
@@ -157,30 +161,31 @@ export const FORBIDDEN_BASTION = new Mainslot({
  *  and two lines reading "Stay tuned 4c" said nothing about which was which. */
 export const STAY_TUNED_BUFF = new Buff({
   name: "Stay tuned 4c (flare/unison)",
+  duration: 60 * 30,
   stats: [[Stat.DmgBonus, 10, Attribute.Electro]],
 });
 const STAY_TUNED_GRANTS = [{ on: either(onInflict(ELECTRO_FLARE), gainedUnison, unisonResponse), buff: STAY_TUNED_BUFF }];
 export const ACTION_STAY_TUNED = new Action("Echo - Stay tuned 4c", {
-  cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type1.Echo,
+  cooldown: 60 * 20,
+  cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
   mv: 27.36 * 4 + 164.16, energy: 0.38 * 4 + 2.28,
 });
 export const STAY_TUNED = new Mainslot({
   name: "Stay tuned 4c",
   action: ACTION_STAY_TUNED,
-  echoType: EchoType.SUMMON,
   stats: [[Stat.DmgBonus, 10, Attribute.Electro]],
   grants: STAY_TUNED_GRANTS,
 });
 
 /** Hsin's own form of it — her loadouts name this one instead. */
 export const ACTION_STAY_TUNED_HSIN = new Action("Echo - Stay tuned 4c (Hsin)", {
-  cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type1.Echo,
+  cooldown: 60 * 20,
+  cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
   mv: 13.68 * 5 + 232.56, energy: 0.19 * 5 + 3.23,
 });
 export const STAY_TUNED_HSIN = new Mainslot({
   name: "Stay tuned 4c",
   action: ACTION_STAY_TUNED_HSIN,
-  echoType: EchoType.SUMMON,
   stats: [[Stat.DmgBonus, 10, Attribute.Electro]],
   grants: STAY_TUNED_GRANTS,
 });
@@ -188,16 +193,16 @@ export const STAY_TUNED_HSIN = new Mainslot({
 /** Soul of Despair (6000224, the 3-cost "Stay tuned"), Electro Rover's own mainslot: three
  *  91.18% Electro hits, and the Impermanence Heron shape — its cast primes an Outro handoff, the
  *  incoming resonator's +12% Electro DMG Bonus for 15s, long enough to outlast their own visit
- *  (helpers.ts's `handoff`). Text is the CN translation ("conductive" = Electro); encore's own
+ *  (gear.ts's `handoff`). Text is the CN translation ("conductive" = Electro); encore's own
  *  data lists the hit once — the three instances are the CN text's. Summon by that text. */
 export const ACTION_STAY_TUNED_3C = new Action("Echo - Soulfrayer", {
-  cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type1.Echo, mv: 91.18 * 3, energy: 1.26 * 3,
+  cooldown: 60 * 20,
+  cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo, mv: 91.18 * 3, energy: 1.26 * 3,
   updateBuffs: () => queueOutro(STAY_TUNED_3C_OUTRO),
 });
 export const STAY_TUNED_3C = new Mainslot({
   name: "Soulfrayer",
   action: ACTION_STAY_TUNED_3C,
-  echoType: EchoType.SUMMON,
 });
 export const STAY_TUNED_3C_OUTRO = handoff("Soulfrayer: Outro", () => addStat(Stat.DmgBonus, 12, Attribute.Electro));
 
@@ -213,11 +218,12 @@ export const SWORN_VIGIL_5PC = new Sonata({
 });
 export const SWORN_VIGIL_BUFF = new Buff({
   name: "Heart of Sworn Vigil 5pc",
+  duration: 60 * 30,
   stats: [[Stat.CritRate, 15], [Stat.DmgBonus, 22.5, Attribute.Electro]],
 });
 
 /** Flash of Electric Reflection. 2pc: +10% Electro DMG Bonus flat. 5pc: inflicting Electro Flare
- *  grants +10% Electro DMG Bonus for 15s — a short self window, lost after the outro — and an
+ *  grants +10% Electro DMG Bonus for 15s — and an
  *  Outro cast while it stands hands the incoming resonator +25% Electro DMG Bonus for 15s, the
  *  Impermanence Heron-style handoff that outlasts their own visit. */
 export const ELECTRIC_REFLECTION_2PC = new Sonata2pc({ name: "Flash of Electric Reflection 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Electro]] });
@@ -228,7 +234,8 @@ export const ELECTRIC_REFLECTION_5PC = new Sonata({
 });
 export const ELECTRIC_REFLECTION_BUFF = new Buff({
   name: "Flash of Electric Reflection 5pc",
-  stats: [[Stat.DmgBonus, 10, Attribute.Electro]], until: LifeTime.Outro,
+  duration: 60 * 15,
+  stats: [[Stat.DmgBonus, 10, Attribute.Electro]],
   grants: [{ on: onCast(Cast.Outro), buff: () => ELECTRIC_REFLECTION_HANDOFF, to: BuffTarget.Next }],
 });
 export const ELECTRIC_REFLECTION_HANDOFF = handoff("Flash of Electric Reflection 5pc (outro)", () => addStat(Stat.DmgBonus, 25, Attribute.Electro));
@@ -238,12 +245,12 @@ export const ELECTRIC_REFLECTION_HANDOFF = handoff("Flash of Electric Reflection
  *  Regen for whoever wears it. Pairs with Flower of Tinged Yearning below. Summon by its text
  *  ("summon the Formless Demon"). */
 export const ACTION_FORMLESS_DEMON = new Action("Echo - Formrender", {
-  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 273.6, energy: 3.8,
+  cooldown: 60 * 20,
+  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, mv: 273.6, energy: 3.8,
 });
 export const FORMLESS_DEMON = new Mainslot({
   name: "Formrender",
   action: ACTION_FORMLESS_DEMON,
-  echoType: EchoType.SUMMON,
   stats: [[Stat.Er, 10]],
 });
 
@@ -261,6 +268,7 @@ export const TINGED_YEARNING_5PC = new Sonata({
 });
 export const TINGED_YEARNING_TEAM = new Buff({
   name: "Flower of Tinged Yearning 5pc (team)",
+  duration: 60 * 30,
   stats: [[Stat.BonusAtk, 10]],
   grants: [{ on: either(gainedUnison, unisonResponse), buff: () => TINGED_YEARNING_UNISON }],
 });

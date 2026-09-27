@@ -3,13 +3,13 @@
  * `addStat`, the `applied`/`consumed` questions, the forte gauges and concerto, every
  * grant/spend/revoke path, and the queues. All of it reads `ctx` for whose turn it is.
  */
-import { Stat, EnemyStat, Attribute, Type1, Type2, Cast, scopedStat, tagBand, TYPE2_BITS } from "./stats.js";
+import { Stat, EnemyStat, Attribute, Type, Subtype, Cast, scopedStat, tagBand, SUBTYPE_BITS } from "./stats.js";
 import type { Tag } from "./stats.js";
-import type { Action } from "./rotation.js";
+import type { Action, Cooldown } from "./rotation.js";
 import { ctx, noteMutation, recordConsumed, pendingQueue, tagWord, recordWrite, recordRead, applied as appliedRecord, consumed as consumedRecord } from "./runtime.js";
 import { Gear, Buff, Debuff, Resonator, Mainslot } from "./gear.js";
 import type { Trigger } from "./gear.js";
-import { State, TeamMember, StatEntry, HeldBuff, TYPE2_AMP_INDEX, TYPE2_CRIT_RATE_INDEX, TYPE2_CRIT_DMG_INDEX, TYPE2_TOTAL_DMG_INDEX, TYPE2_DAMAGE_TAKEN_INDEX, BASIC_DMG_BONUS_INDEX } from "./state.js";
+import { State, TeamMember, StatEntry, HeldBuff, SUBTYPE_AMP_INDEX, SUBTYPE_CRIT_RATE_INDEX, SUBTYPE_CRIT_DMG_INDEX, SUBTYPE_TOTAL_DMG_INDEX, SUBTYPE_DAMAGE_TAKEN_INDEX, BASIC_DMG_BONUS_INDEX } from "./state.js";
 
 /** The three pools a phase reads — the acting slot's own, then team-wide, then enemy — as the
  *  arrays they held when `capture()` last ran. Three references apiece, nothing copied: a Pool's
@@ -46,7 +46,7 @@ export const currentTeam = (): State => ctx.state!;
  *  `resolve()` reads to find the resonator/mainslot it stands in for. */
 export const currentMember = (): TeamMember => ctx.slot!;
 
-/** Is the action being evaluated this cast type — checks both `cast` and `cast2`. */
+/** Is the action being evaluated this cast type — checks both `cast` and `subcast`. */
 export function casting(cast: Cast): boolean {
   return isCast(ctx.act!, cast) && ctx.droppedCast !== cast;
 }
@@ -68,31 +68,79 @@ export function dropCast(cast: Cast): void {
 }
 
 /** Is the action being evaluated this one — counting its dash- or jump-cancelled form as the same
- *  cast. A cancel is a fresh Action carrying the original's hooks (rotation.ts's own `cancelled()`),
+ *  cast. A cancel is a fresh Action carrying the original's hooks (rotation.ts's own insta forms),
  *  so `currentAction() === X` silently reads false on one and a kit's node quietly stops paying.
  *  Always prefer this to comparing `currentAction()` by identity. */
 export function runningAction(action: Action): boolean {
-  const a = ctx.act!;
   // a cancel, a swap-out form or a Unison outro is the cast a kit named, told apart only by how
-  // it ended (rotation.ts's `cancelOf`/`formOf`) — Jiyan's S6 banks Momentum off the Skill he
-  // swaps out on as readily as off the one he stands through
-  return a === action || a.cancelOf === action || a.formOf === action;
+  // it ended (rotation.ts's `cancelOf`/`formOf`) — followed all the way down, since an off-field
+  // outro is a form of a Unison outro that is a form of the plain one
+  // a dodge/jump cut's cast half isn't the press: its hit, where the press's hooks all went, is
+  if (ctx.act!.dashCast) return false;
+  for (let a: Action | null = ctx.act!; a; a = a.cancelOf ?? a.formOf) if (a === action) return true;
+  return false;
 }
 
-/** Is the action being evaluated an on-field one: the member acting is the resonator the scheduler
- *  has on field (`State.onField`), and the action is not a swap-out (an Outro, a swap marker, an
- *  echo's swap form). False on a follow-up landing on an off-field slot (a coordinated tick, a
- *  status rung fired on its applier), true on one landing on the on-field slot's own. The *acting*
- *  member, so inside updateGlobal it still asks about the action rather than the gear's holder. */
-export function isActive(): boolean {
-  return ctx.state!.slot === ctx.state!.slots[ctx.state!.onField] && !ctx.act!.swapOut;
+/** `runningAction()` over a set: is the acting press any of `actions`, cut or swapped out or not? */
+export function runningAnyOf(actions: ReadonlySet<Action>): boolean {
+  if (ctx.act!.dashCast) return false;
+  for (let a: Action | null = ctx.act!; a; a = a.cancelOf ?? a.formOf) if (actions.has(a)) return true;
+  return false;
 }
+
+/** Is the member acting the resonator on field — the engine's own `State.onField`, whatever the
+ *  action is: a coordinated hit landing on the on-field slot is active, a follow-up on an off-field
+ *  slot is not. The *acting* member, so inside updateGlobal it still asks about the action rather
+ *  than the gear's holder. */
+export function isActive(): boolean {
+  return ctx.state!.slot === ctx.state!.slots[ctx.state!.onField];
+}
+
+/** The frames the action being evaluated runs the fight clock by: its own `frames` as a press,
+ *  0 for a follow-up (it lands inside the press that queued it) or a cancelled press (the dash
+ *  that cut it carries the time). What a rate per second scales by (Iuno's Energy a second in
+ *  her domain), and the test for "a press that takes time" where a kit fires per cast. */
+export const elapsed = (): number => ctx.actFrames;
+
+/** The fight clock as the action being evaluated found it, in frames (`State.frame`). */
+export const currentFrame = (): number => ctx.state!.frame;
+
+const cooldownOf = (of: Action | Cooldown): Cooldown | null => ("wait" in of ? of : of.cooldown);
+
+/** Give back `charges` of the acting member's cooldown on `of` (a cast or a shared Cooldown) —
+ *  every charge where none is named, the kit text's "resets the Cooldown". */
+export function resetCooldown(of: Action | Cooldown, charges = Infinity): void {
+  noteMutation(0x5c, 1);
+  const cd = cooldownOf(of);
+  if (ctx.dryRun || !cd) return;
+  const s = ctx.slot!.cooldownAt(cd, ctx.state!.frame);
+  s.charges = Math.min(cd.charges(), s.charges + charges);
+  if (s.charges === cd.charges()) s.next = Infinity;
+}
+
+/** Bring the acting member's next charge of `of` forward by `frames` ("reduces the Cooldown by Ns"). */
+export function reduceCooldown(of: Action | Cooldown, frames: number): void {
+  noteMutation(0x5d, frames);
+  const cd = cooldownOf(of);
+  if (ctx.dryRun || !cd) return;
+  const s = ctx.slot!.cooldownAt(cd, ctx.state!.frame);
+  if (s.next === Infinity) return;
+  s.next -= frames;
+  ctx.slot!.cooldownAt(cd, ctx.state!.frame);
+}
+
+/** How many ticks a held buff with a clock (`BuffDef.tick`) has fired since its grant — the
+ *  acting slot's own, the team's, the enemy's. 0 where it is not held. */
+export function ticksOf(gear: Gear): number { return ctx.slot!.stacks.ticksOf(gear); }
+export function ticksOfTeam(gear: Gear): number { return ctx.state!.globalStacks.ticksOf(gear); }
+/** Frames until a held enemy debuff's next tick — for a status's own "(tick in Ns)" display. */
+export function tickInEnemy(gear: Gear): number { return ctx.state!.enemyStacks.tickIn(gear); }
 
 /** Assign the action being evaluated a different damage type, for a kit whose state changes what a
  *  cast *counts as* rather than what it does — Denia's Breakdown Form hits becoming Resonance
  *  Liberation DMG while she holds Void Particle, Lucilla's Chafe mode making Clear As Day Basic
- *  Attack DMG. Pass a `Type1` to stand in for the action's own `type`, or a `Type2` for its
- *  `type2`; the assignment *replaces* that slot, so a Basic hit assigned Liberation is not Basic
+ *  Attack DMG. Pass a `Type` to stand in for the action's own `type`, or a `Subtype` for its
+ *  `subtype`; the assignment *replaces* that slot, so a Basic hit assigned Liberation is not Basic
  *  any more, and it lasts the one action (every action starts clean).
  *
  *  **Call it from `updateDebuffs()`** — not a debuff, but that is the first phase of the action,
@@ -105,13 +153,13 @@ export function isActive(): boolean {
  *
  *  The Action is never touched — kits compare actions by identity, and a mutated singleton would
  *  leak across the teams a worker runs. */
-export function typeOverride(type: Type1 | Type2): void {
+export function typeOverride(type: Type | Subtype): void {
   const a = ctx.act!;
-  if (type & TYPE2_BITS) ctx.overrideType2 = type as Type2;
-  else ctx.overrideType1 = type as Type1;
+  if (type & SUBTYPE_BITS) ctx.overrideSubtype = type as Subtype;
+  else ctx.overrideType = type as Type;
   // the same three tags `tagWordOf()` folds, with the assignment standing in for whichever slot
   // it claimed
-  ctx.tagWord = tagWord(a.element, ctx.overrideType1 ?? a.type1, ctx.overrideType2 ?? a.type2);
+  ctx.tagWord = tagWord(a.element, ctx.overrideType ?? a.type, ctx.overrideSubtype ?? a.subtype);
 }
 
 /* ---------------------------------------------------------------------------------- triggers */
@@ -122,28 +170,28 @@ export function typeOverride(type: Type1 | Type2): void {
  *  which is what a resonator's own kit reaches for where a weapon only knows the cast. */
 export const onCast = (...casts: Cast[]): Trigger => () => casts.some((c) => casting(c));
 export const onAction = (...actions: Action[]): Trigger => () => actions.some((a) => runningAction(a));
-export const onType = (...types: (Type1 | Type2)[]): Trigger => () => types.some((t) => isType(t));
+export const onType = (...types: (Type | Subtype)[]): Trigger => () => types.some((t) => isType(t));
 export const onInflict = (...gears: Gear[]): Trigger => () => gears.some((g) => appliedByMe(g) > 0);
 export const onApplied = (...gears: Gear[]): Trigger => () => gears.some((g) => applied(g) > 0);
 export const either = (...triggers: Trigger[]): Trigger => () => triggers.some((t) => t());
 export const both = (...triggers: Trigger[]): Trigger => () => triggers.every((t) => t());
 
-/** Is the action being evaluated this damage type — its own `type` or `type2`, or whichever of
+/** Is the action being evaluated this damage type — its own `type` or `subtype`, or whichever of
  *  the two a held Gear's `typeOverride` assigned for this evaluation, which stands in for that
  *  slot (a Basic hit assigned Liberation answers Liberation, not Basic). Kits ask this, never
  *  `currentAction().type` directly, so an assignment is seen by every check everywhere. */
-export function isType(type: Type1 | Type2): boolean {
+export function isType(type: Type | Subtype): boolean {
   const a = ctx.act!;
-  return (ctx.overrideType1 ?? a.type1) === type || (ctx.overrideType2 ?? a.type2) === type;
+  return (ctx.overrideType ?? a.type) === type || (ctx.overrideSubtype ?? a.subtype) === type;
 }
 
 /** The same question about an action that isn't the one being evaluated — a snapshot's own, after
- *  the fact. Nothing outside this file should ever read `.cast`/`.cast2` directly: an action can
+ *  the fact. Nothing outside this file should ever read `.cast`/`.subcast` directly: an action can
  *  count as two casts at once (Qiuyuan's Thus Spoke the Blade trio are Heavy Attacks whose
  *  performance also counts as performing an Echo Skill, which is what feeds Sigrika's own
  *  Soliskin Vitality), and a bare `.cast === X` silently misses every one of them. */
 export function isCast(action: Action, cast: Cast): boolean {
-  return action.cast === cast || action.cast2 === cast;
+  return action.cast === cast || action.subcast === cast;
 }
 
 /** How many stacks of this Gear were applied *during the action being evaluated* — 0 if none.
@@ -272,19 +320,19 @@ function pushStat(stat: Stat | EnemyStat, tag: Tag | undefined, value: number): 
   if (tag === undefined || (ctx.tagWord & tagBand(tag)) === tag) {
     write(slot.effective, stat, value);
     // ...and again into the Negative-Status-scoped subtotal, if that's what this is (see
-    // TYPE2_AMP_INDEX). Only reached by an amplification that carried a scope at all, so it
+    // SUBTYPE_AMP_INDEX). Only reached by an amplification that carried a scope at all, so it
     // costs nothing on the ordinary path.
-    if (tag !== undefined && (tag & TYPE2_BITS) !== 0) {
-      if (stat === Stat.Amp) write(slot.effective, TYPE2_AMP_INDEX, value);
+    if (tag !== undefined && (tag & SUBTYPE_BITS) !== 0) {
+      if (stat === Stat.Amp) write(slot.effective, SUBTYPE_AMP_INDEX, value);
       // ...and the Negative-Status-scoped crit the same way — all a dot/tune row crits off
-      else if (stat === Stat.CritRate) write(slot.effective, TYPE2_CRIT_RATE_INDEX, value);
-      else if (stat === Stat.CritDmg) write(slot.effective, TYPE2_CRIT_DMG_INDEX, value);
+      else if (stat === Stat.CritRate) write(slot.effective, SUBTYPE_CRIT_RATE_INDEX, value);
+      else if (stat === Stat.CritDmg) write(slot.effective, SUBTYPE_CRIT_DMG_INDEX, value);
       // ...and the scoped "deals more" / "takes more", the only ones a dot row reads
-      else if (stat === Stat.TotalDmg) write(slot.effective, TYPE2_TOTAL_DMG_INDEX, value);
-      else if (stat === Stat.DamageTaken) write(slot.effective, TYPE2_DAMAGE_TAKEN_INDEX, value);
+      else if (stat === Stat.TotalDmg) write(slot.effective, SUBTYPE_TOTAL_DMG_INDEX, value);
+      else if (stat === Stat.DamageTaken) write(slot.effective, SUBTYPE_DAMAGE_TAKEN_INDEX, value);
     }
     // ...and the Basic-scoped part of DMG Bonus into its own (see BASIC_DMG_BONUS_INDEX)
-    if (stat === Stat.DmgBonus && tag === Type1.Basic) write(slot.effective, BASIC_DMG_BONUS_INDEX, value);
+    if (stat === Stat.DmgBonus && tag === Type.Basic) write(slot.effective, BASIC_DMG_BONUS_INDEX, value);
   }
 
   if (!ctx.tracing) return;
@@ -326,22 +374,22 @@ const ALL_ATTRIBUTES: Attribute[] = [
   Attribute.Aero, Attribute.Electro, Attribute.Fusion, Attribute.Glacio,
   Attribute.Spectro, Attribute.Havoc, Attribute.Physical,
 ];
-const ALL_TYPE1: Type1[] = [
-  Type1.Basic, Type1.Heavy, Type1.Skill, Type1.Liberation, Type1.Intro, Type1.Outro,
-  Type1.Echo, Type1.Status, Type1.Break, Type1.Rupture, Type1.Hack, Type1.Utility,
+const ALL_TYPES: Type[] = [
+  Type.Basic, Type.Heavy, Type.Skill, Type.Liberation, Type.Intro, Type.Outro,
+  Type.Echo, Type.Status, Type.Break, Type.Rupture, Type.Hack, Type.Utility,
 ];
-const ALL_TYPE2: Type2[] = [
-  Type2.Coordinated, Type2.SpectroFrazzle, Type2.AeroErosion,
-  Type2.FusionBurst, Type2.GlacioChafe, Type2.ElectroFlare,
+const ALL_SUBTYPES: Subtype[] = [
+  Subtype.Coordinated, Subtype.SpectroFrazzle, Subtype.AeroErosion,
+  Subtype.FusionBurst, Subtype.GlacioChafe, Subtype.ElectroFlare,
 ];
 
 /**
  * A loadout's own equipped gear, read cold — no action ever cast, just every `constantStats()`
  * call each piece makes. Drives the ordinary `addStat()`/`pushStat()` path exactly as a real
  * action would, unmodified: since there is no acting action here, a scoped call (a mainslot's
- * own attribute+type dmg bonus, a sonata 2pc's) is replayed once per Attribute/Type1/Type2 value
+ * own attribute+type dmg bonus, a sonata 2pc's) is replayed once per Attribute/Type/Subtype value
  * so it lands on whichever pass actually matches its own tag — the three bands are independent,
- * so one pass tests one attribute and one Type1 and one Type2 candidate at once, `ALL_TYPE1`'s
+ * so one pass tests one attribute and one Type and one Subtype candidate at once, `ALL_TYPES`'s
  * own length many passes covering the lot. An unscoped call (`tag === undefined`) matches every
  * pass regardless, so it is deduped back down to the one entry it actually is afterward. For the
  * loadout hover's own "menu stats" section (index.ts).
@@ -356,12 +404,12 @@ export function menuStats(gear: Gear[]): StatEntry[] {
   ctx.state = state;
   ctx.stacks = 1;
   ctx.tracing = true;
-  const passes = ALL_TYPE1.length;
+  const passes = ALL_TYPES.length;
   for (const g of gear) {
     if (!g.constantStatsFn) continue;
     ctx.buff = g;
     for (let i = 0; i < passes; i++) {
-      ctx.tagWord = (ALL_ATTRIBUTES[i] ?? 0) | ALL_TYPE1[i]! | (ALL_TYPE2[i] ?? 0);
+      ctx.tagWord = (ALL_ATTRIBUTES[i] ?? 0) | ALL_TYPES[i]! | (ALL_SUBTYPES[i] ?? 0);
       g.constantStatsFn();
     }
   }
@@ -385,7 +433,7 @@ export function getStat(stat: Stat): number {
   return ctx.slot!.effective[stat]!;
 }
 export function pct(stat: Stat): number { return getStat(stat) / 100; }
-/** The Basic Attack DMG Bonus alone — every `addStat(Stat.DmgBonus, n, Type1.Basic)` this action
+/** The Basic Attack DMG Bonus alone — every `addStat(Stat.DmgBonus, n, Type.Basic)` this action
  *  counted, and nothing plain or element-scoped. The one scoped subtotal kept outside tracing
  *  (see state.ts's own BASIC_DMG_BONUS_INDEX); 0 on an action the scope didn't match. */
 export function basicDmgBonus(): number { if (ctx.recording) recordRead(BASIC_DMG_BONUS_INDEX); return ctx.slot!.effective[BASIC_DMG_BONUS_INDEX]!; }
@@ -466,7 +514,7 @@ function attribute(gear: Gear): void {
 function inheritPiece(gear: Gear): void {
   if (!ctx.tracing || !ctx.buff) return;
   // First put-up wins. A buff is re-granted all through its life — a stack on top, a handoff
-  // window stepping its own count on (shared/helpers.ts) — and whoever does that later is not who
+  // window stepping its own count on (gear.ts's `handoff`) — and whoever does that later is not who
   // it came from: Impermanence Heron's handoff is re-applied on the *receiver's* Outro, which
   // would credit the echo's payout to whoever it was handed to.
   const state = ctx.state!;
@@ -517,10 +565,21 @@ export function setStacksSelf(buff: Buff, n: number): number {
 export function removeStack(buff: Buff, n = 1): number { return ctx.slot!.removeStack(buff, n); }
 export function revokeCurrent(buff: Buff): void { ctx.slot!.revoke(buff); }
 
-/** The Gear whose hook is running right now. Exported for the kit-authoring shortcuts in
- *  shared/helpers.ts (`lostOnSwap()`), which are ordinary callers of this API rather than part of
- *  the engine; nothing inside a kit needs it, since a hook already knows which gear it belongs to. */
+/** The Gear whose hook is running right now — what `lostOnSwap()` below revokes; nothing inside a
+ *  kit needs it, since a hook already knows which gear it belongs to. */
 export function currentGear(): Gear { return ctx.buff!; }
+
+/** Shortcut for a buff whose own kit text says "lost on swap" — revokes itself on the action that
+ *  takes its holder off the field (`Action.swapOut`, off its tag: an Outro, a `.swap()` form, an echo's swap
+ *  form). Call it from `updateBuffs()` if it should stop contributing before that same action's own
+ *  stats apply, or from `convertStats()` if it should still pay out on it first — same choice as any
+ *  other revoke, just this one condition spelled out once instead of copied at every call site. */
+export function lostOnSwap(): void {
+  const a = currentAction();
+  // a swap cancel still hits on field: the buff pays on it and is revoked once it is done
+  if (a.swapsAfterHit) ctx.swapLosses.add(currentGear());
+  else if (a.swapOut) revokeCurrent(currentGear() as Buff);
+}
 
 /** Run `fn` with its stats sourced to `gear` rather than to the Gear whose hook is running — for
  *  a value a status contributes on another Gear's behalf, where the source that reads is the one
@@ -558,6 +617,18 @@ export function applyTeam(buff: Buff, n = 1): number {
   return ctx.state!.addStackGlobal(buff, n);
 }
 export function removeStackTeam(buff: Buff, n = 1): number { return ctx.state!.removeStackGlobal(buff, n); }
+/** Reset a held team buff's own duration without touching its count — for a buff whose stacks are
+ *  capped per granter but whose text says retriggering resets the clock (shared/unison.ts's Boon).
+ *  A no-op on a buff nobody holds, and on one with no duration to reset. */
+export function refreshTeam(buff: Buff): void {
+  noteMutation(buff.id, 8e6);
+  ctx.state!.globalStacks.touch(buff);
+}
+/** How many frames a held team buff has left — 0 where it is untimed or nobody holds it. For a
+ *  buff granted inside another's window that has to run out with it (xuanling.ts's Tonal Switch). */
+export function leftOnTeam(buff: Buff): number {
+  return ctx.state!.globalStacks.left(buff);
+}
 export function revokeTeam(buff: Buff): void { ctx.state!.revokeGlobal(buff); }
 
 // placed on the enemy rather than any resonator — same "ticks on every slot's own turn" shape as
@@ -637,7 +708,7 @@ export function queueOutro(buff: Buff): void {
  *  it happens to be by then (matches the old engine's `ctx.queue()`). */
 /** Whichever Gear's hook is running right now, as the same `{ name, source }` pair a held buff
  *  reports itself with — what a follow-up queued from it names as having triggered it
- *  (`ResolvedSnapshot.triggeredBy`). `ctx.buff` is every kind of Gear at once here, which is
+ *  (`ResolvedSnapshot.source`). `ctx.buff` is every kind of Gear at once here, which is
  *  exactly the point: the acting Action is one too, so a hit a cast spawns names that cast, a hit a
  *  buff spawns names the buff, and one a weapon or sonata spawns names the piece.
  *
@@ -648,13 +719,24 @@ export function queueOutro(buff: Buff): void {
 const queuedBy = (): HeldBuff | null => {
   const gear = ctx.buff;
   if (!gear?.name) return null;
-  return { name: gear.name, source: ctx.state!.sourceOf.get(gear) ?? ctx.slot!.name };
+  return { name: gear.name, source: ctx.state!.sourceOf.get(gear) ?? ctx.slot!.name, left: 0 };
 };
 export function queue(action: Action): void {
   inheritPiece(action);
   noteMutation(action.id, 4e6);
   if (ctx.dryRun) return;
-  pendingQueue.push({ action, slot: ctx.state!.slots.indexOf(ctx.slot!), by: queuedBy(), event: false });
+  queueOnSlot(ctx.state!.slots.indexOf(ctx.slot!), action);
+}
+
+/** Behind the action being evaluated — or, queued from a tick, at the tick's own frame. */
+function queueOnSlot(slot: number, action: Action): void {
+  if (ctx.tickAt === null) {
+    pendingQueue.push({ action, slot, by: queuedBy(), event: false });
+    return;
+  }
+  const timed = ctx.state!.timed;
+  timed.push({ due: ctx.tickAt, action, slot, into: null, by: queuedBy(), away: false });
+  timed.sort((p, q) => p.due - q.due);
 }
 
 /** Queue an action behind the *next Intro anyone casts* rather than behind this action — for a
@@ -693,7 +775,45 @@ export function queueOn(resonator: Resonator, action: Action): void {
   inheritPiece(action);
   noteMutation(action.id, 6e6);
   if (ctx.dryRun) return;
-  pendingQueue.push({ action, slot: ctx.state!.slots.indexOf(ctx.state!.memberOf(resonator)), by: queuedBy(), event: false });
+  queueOnSlot(ctx.state!.slots.indexOf(ctx.state!.memberOf(resonator)), action);
+}
+
+/** Run `fn` on `resonator`'s slot (the current one for null) — now, or, from a tick, at the tick's
+ *  own frame (`State.timed`), with no press of its own: a heal window's heal. */
+export function applyOn(resonator: Resonator | null, fn: () => void): void {
+  if (ctx.dryRun) return;
+  const slot = resonator ? ctx.state!.slots.indexOf(ctx.state!.memberOf(resonator)) : ctx.state!.slots.indexOf(ctx.slot!);
+  if (ctx.tickAt === null) {
+    const prev = ctx.slot;
+    ctx.slot = ctx.state!.slots[slot]!;
+    try { fn(); } finally { ctx.slot = prev; }
+    return;
+  }
+  const timed = ctx.state!.timed;
+  timed.push({ due: ctx.tickAt, action: null, slot, into: null, by: queuedBy(), apply: fn });
+  timed.sort((p, q) => p.due - q.due);
+}
+
+/** Run `fn` as a moment of its own, outside any press: `act` stands in for the action (one with no
+ *  cast or type, so no "on cast" trigger holds), and a fresh stamp means only what `fn` applies
+ *  reads as applied. */
+export function withMoment(act: Action, fn: () => void): void {
+  const prev = ctx.act;
+  ctx.act = act;
+  ctx.actionStamp++;
+  try { fn(); } finally { ctx.act = prev; }
+}
+
+/** Fire the declared on-cast grants of every Gear the current slot holds, where their triggers
+ *  hold — how "on heal" gear answers a heal that lands outside any press. */
+export function fireHeldGrants(): void {
+  const slot = ctx.slot!, prevBuff = ctx.buff;
+  for (const gear of [...slot.stacks.list]) {
+    if (!gear.fireGrantsFn || !slot.isHeld(gear)) continue;
+    ctx.buff = gear;
+    gear.fireGrantsFn();
+  }
+  ctx.buff = prevBuff;
 }
 
 /** Run `fn` (a resonator's initial grants, before any rotation has evaluated) with the "current"

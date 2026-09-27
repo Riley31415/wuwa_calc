@@ -9,7 +9,7 @@
  * skill's own Skill Attributes row; energy/concerto/offtune/forte off the migrated sheet's own
  * SRover rows (offtune x10000 into this engine's units). Rotation is the sheet's own "srover 3nf".
  */
-import { Tier, Stat, EnemyStat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
+import { Tier, Stat, EnemyStat, Attribute, WeaponType, Type, Cast, Node, Scaling } from "../../engine/stats.js";
 import { Buff, Debuff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   applyCurrent,
@@ -23,7 +23,8 @@ import {
   addEnemyStat,
   queue,
 } from "../../engine/context.js";
-import { Action, Rotation, INTRO, NOINTRO, ECHO_SWAP, OUTRO, ActionGroup, START_2, START_1, SWAP } from "../../engine/rotation.js";
+import { Action, Rotation, NOINTRO, ECHO, ActionGroup, START_2, START_1, INTRO, Cooldown } from "../../engine/rotation.js";
+import { tuneBreak } from "../../shared/tunebreak.js";
 import { SPECTRO_FRAZZLE, SHIMMER, HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";
@@ -41,45 +42,50 @@ function roverAction(id: string, def: object): Action {
 
 // --- basics, heavies, mid-air, dodge counter. Every Normal Attack banks a little Diminutive
 //     Sound (forte1); Heavy Attack Aftertune is the big one at 45.
-const BA1 = roverAction("Basic - Vibration Manifestation 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 59.15, energy: 0.5, concerto: 2, offtune: 2800, forte1: 3 });
-const BA2 = roverAction("Basic - Vibration Manifestation 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 76.05, energy: 1, concerto: 4, offtune: 3600, forte1: 5 });
-const BA3 = roverAction("Basic - Vibration Manifestation 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 76.05, energy: 1.5, concerto: 4, offtune: 3600, forte1: 5 });
-const BA4 = roverAction("Basic - Vibration Manifestation 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 130.13, energy: 2, concerto: 6, offtune: 6160, forte1: 7 });
-const MA = roverAction("Mid-air - Vibration Manifestation Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 104.78, energy: 0.51, concerto: 1, offtune: 4960 });
-const DC = roverAction("Dodge Counter - Vibration Manifestation", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 195.34, energy: 2.62, concerto: 13.6, offtune: 3600 });
+const BA1 = roverAction("Basic - Vibration Manifestation 1", { frames: 21, cancelFrames: 10, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 59.15, energy: 0.5, concerto: 2, offtune: 2800, forte1: 3 });
+const BA2 = roverAction("Basic - Vibration Manifestation 2", { frames: 25, cancelFrames: 12, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 76.05, energy: 1, concerto: 4, offtune: 3600, forte1: 5 });
+const BA3 = roverAction("Basic - Vibration Manifestation 3", { frames: 24, cancelFrames: 14, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 76.05, energy: 1.5, concerto: 4, offtune: 3600, forte1: 5 });
+const BA4 = roverAction("Basic - Vibration Manifestation 4", { frames: 49, cancelFrames: 20, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 130.13, energy: 2, concerto: 6, offtune: 6160, forte1: 7 });
+const MA = roverAction("Mid-air - Vibration Manifestation Plunge", { frames: 54, cancelFrames: 39, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 104.78, energy: 0.51, concerto: 1, offtune: 4960 });
+const DC = roverAction("Dodge Counter - Vibration Manifestation", { frames: 27, cancelFrames: 17, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, mv: 195.34, energy: 2.62, concerto: 13.6, offtune: 3600 });
 
-const HA1 = roverAction("Heavy - Vibration Manifestation", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 96.35, energy: 1.4, concerto: 4.55, offtune: 22800, forte1: 5 });
-const HA2 = roverAction("Heavy - Resonance", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 76.05, energy: 1.12, concerto: 3.6, offtune: 3600 });
-const HA3 = roverAction("Heavy - Aftertune", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 126.75, energy: 1.87, concerto: 6, offtune: 6000, forte1: 45 });
+const HA1 = roverAction("Heavy - Vibration Manifestation", { frames: 33, cancelFrames: 12, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 96.35, energy: 1.4, concerto: 4.55, offtune: 22800, forte1: 5 });
+const HA2 = roverAction("Heavy - Resonance", { frames: 27, cancelFrames: 17, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 76.05, energy: 1.12, concerto: 3.6, offtune: 3600 });
+const HA3 = roverAction("Heavy - Aftertune", { frames: 41, cancelFrames: 0, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 126.75, energy: 1.87, concerto: 6, offtune: 6000, forte1: 45 });
 const HA123 = new ActionGroup("Heavy - Attack + Resonance + Aftertune", [HA1, HA2, HA3]);
 
 // --- resonance skill, and the forte circuit that replaces it at 50 Diminutive Sound: Resonating
 //     Spin (two hits, plus the 39.77% Resonating Whirl tick the page lists without describing —
 //     the sheet's own FSkill row is all three together, so Whirl is queued off the Spin) into the
 //     Resonating Echoes follow-up, whose two stages the sheet keeps as one row.
-const Skill = roverAction("Skill - Resonating Slashes", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 236.19, energy: 10, concerto: 10, offtune: 4800 });
+/** Resonating Spin is the same Skill button, enhanced: one 6s cooldown between them. */
+const SKILL_CD = new Cooldown({ frames: 60 * 6 });
+const Skill = roverAction("Skill - Resonating Slashes", { frames: 41, cancelFrames: 16, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 236.19, energy: 10, castConcerto: 10, offtune: 4800 });
 const FSkill1 = roverAction("Forte Skill - Resonating Spin", {
-  node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 258.16, energy: 10, concerto: 20, offtune: 21840, forte1: -50,
+  cooldown: SKILL_CD,
+  frames: 58, cancelFrames: 31,
+  node: Node.Forte, cast: Cast.Skill, type: Type.Skill, mv: 258.16, energy: 10, castConcerto: 20, offtune: 21840, castForte1: -50,
   // Shimmer rides along with the two stacks, and holds every Frazzle stack on the target for its
   // own 9s rather than letting the ticks eat them (shared/status.ts)
   updateDebuffs: () => {
     applyEnemy(SPECTRO_FRAZZLE, 2);
-    applyEnemy(SHIMMER, 9);
+    applyEnemy(SHIMMER, 1);
     queue(ResonatingWhirl);
   },
 });
-const ResonatingWhirl = roverAction("Forte Skill - Resonating Whirl", { node: Node.Forte, type: Type1.Skill, mv: 39.77, energy: 2 });
-const FBA = roverAction("Basic - Resonating Echoes", { node: Node.Forte, cast: Cast.Basic, type: Type1.Skill, mv: 238.58, energy: 2.5, concerto: 8, offtune: 7200 });
+const ResonatingWhirl = roverAction("Forte Skill - Resonating Whirl", { node: Node.Forte, type: Type.Skill, mv: 39.77, energy: 2 });
+const FBA = roverAction("Basic - Resonating Echoes", { frames: 60, cancelFrames: 36, node: Node.Forte, cast: Cast.Basic, type: Type.Skill, mv: 238.58, energy: 2.5, concerto: 8, offtune: 7200 });
 
 // --- liberation / intro / outro. Instant is a stasis field only — no damage, no stat.
 // HEALS is her own healing marker, read by every healing sonata and weapon (statuses.ts) —
 // applied to the healer alone, never the team
 const Liberation = roverAction("Liberation - Echoing Orchestra", {
-  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 874.77, concerto: 20, offtune: 61441, resetEnergy: true,
+  frames: 129, cancelFrames: 129, timestop: 129, motionStop: 79, cooldown: 60 * 20,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, mv: 874.77, castConcerto: 20, offtune: 61441, resetEnergy: true,
   updateDebuffs: () => { applyCurrent(HEALS, 1); applyEnemy(SPECTRO_FRAZZLE, 6); },
 });
-const Intro = roverAction("Intro - Waveshock", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 168.99, energy: 10, concerto: 10, offtune: 4880, forte1: 50 });
-const Outro = roverAction("Outro - Instant", { cast: Cast.Outro, concerto: -100, swapOut: true });
+const Intro = roverAction("Intro - Waveshock", { frames: 72, cancelFrames: 72, motionStop: 48, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 168.99, energy: 10, castConcerto: 10, offtune: 4880, castForte1: 50});
+const Outro = roverAction("Outro - Instant", { frames: 0, cancelFrames: 0, cast: Cast.Outro, castConcerto: -100});
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -93,8 +99,8 @@ const SPR_INHERENT_1 = new Inherent({
 /** Silent Listener (Inherent Skill): +15% ATK for 5s off Heavy Attack Resonance. */
 const SILENT_LISTENER = new Buff({
   name: "Inherent: Silent Listener",
+  duration: 60 * 5,
   stats: [[Stat.BonusAtk, 15]],
-  until: LifeTime.Outro,
 });
 const SPR_INHERENT_2 = new Inherent({
   name: "Inherent: Silent Listener",
@@ -104,14 +110,15 @@ const SPR_INHERENT_2 = new Inherent({
 /** S1 Odyssey of Beginnings: +15% Crit Rate for 7s off either Resonance Skill. Trigger in SPR_S1. */
 const S1_CRIT = new Buff({
   name: "Spectro Rover S1: Odyssey of Beginnings",
+  duration: 60 * 7,
   stats: [[Stat.CritRate, 15]],
-  until: LifeTime.Outro,
 });
 
 /** S6 Echoes of Wanderlust: a real target-side Spectro RES shred, not a personal ignore — lost on
  *  his own next Intro rather than tracked as permanent, same shape as Havoc Rover's own S4. */
 const S6_RES_SHRED = new Debuff({
   name: "Spectro Rover S6: Echoes of Wanderlust",
+  duration: 60 * 20,
   applyStats: () => addEnemyStat(EnemyStat.ResReduce, 10, Attribute.Spectro),
   convertStats: () => { if (casting(Cast.Intro) && isHeld(ROVER_SPECTRO_RESONATOR)) revokeEnemy(S6_RES_SHRED); },
 });
@@ -142,13 +149,13 @@ const SPR_S4 = new Sequence({ name: "Spectro Rover S4: Resonating Lamella" });
 
 const SPR_S5 = new Sequence({
   name: "Spectro Rover S5: Temporal Virtuoso",
-  stats: [[Stat.DmgBonus, 40, Type1.Liberation]],
+  stats: [[Stat.DmgBonus, 40, Type.Liberation]],
 });
 
 // S6 Echoes of Wanderlust's own trigger — payout lives in S6_RES_SHRED above
 const SPR_S6 = new Sequence({
   name: "Spectro Rover S6: Echoes of Wanderlust",
-  updateBuffs: () => {
+  afterAction: () => {
     if (runningAction(Skill) || runningAction(FSkill1)) applyEnemy(S6_RES_SHRED, 1);
   },
 });
@@ -168,9 +175,9 @@ const ROVER_SPECTRO_RESONATOR = new Resonator({
   inherent2: SPR_INHERENT_2,
   element: Attribute.Spectro,
   weapon: WeaponType.Sword,
-  intro: () => Intro,
-  outro: () => Outro,
   color: "#e8d98f",
+  intro: Intro,
+  tuneBreak: tuneBreak(91, 91, 70),
   maxEnergy: 125,
   maxForte1: 100,
   tier: Tier.Free,
@@ -184,11 +191,11 @@ const ROVER_SPECTRO_RESONATOR = new Resonator({
 const SPR_ROTATION = new Rotation([
   NOINTRO, HA123, FSkill1, Liberation, 
   HA123, HA123, FSkill1,
-  ECHO_SWAP, OUTRO,
+  ECHO.instaSwap(), Outro,
 
-  INTRO, FSkill1, FBA, Liberation, 
+  INTRO, FSkill1, FBA.cancel(), Liberation, 
   HA123, HA123, FSkill1,
-  ECHO_SWAP, OUTRO,
+  ECHO.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

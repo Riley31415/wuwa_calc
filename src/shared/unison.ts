@@ -27,12 +27,14 @@ import {
   addStat,
   applied,
   applyCurrent,
+  applyTeam,
   casting,
   currentAction,
   currentTeam,
   getStat,
   isHeld,
   queueOutro,
+  refreshTeam,
   revokeCurrent,
   stacksOfTeam,
 } from "../engine/context.js";
@@ -52,7 +54,7 @@ export const UNISON = new Buff({
  *  its `outro` fn picks it while Unison is held (`isHeld(UNISON)`), the way an Intro fn picks its
  *  Unison form off `unisonIntro()`. */
 export const unisonOutro = (outro: Action): Action => {
-  const out = outro.variant(`${outro.name} (Unison)`, { concerto: 0 });
+  const out = outro.variant(`${outro.name} (Unison)`, { concerto: 0, castConcerto: 0 });
   out.formOf = outro;
   return out;
 };
@@ -72,7 +74,7 @@ export const UNISON_INTRO = new Buff({
   convertStats: () => { if (casting(Cast.Intro)) revokeCurrent(UNISON_INTRO); },
 });
 
-/** Is the Intro being resolved or evaluated answering a Unison outro? True from an `introFn` —
+/** Is the Intro being resolved or evaluated answering a Unison outro? True from an Intro Resolver —
  *  the handoff is still queued then, adopted only once the Intro row itself is evaluated — and
  *  true on the Intro row's own hooks after that. */
 export function unisonIntro(): boolean {
@@ -101,15 +103,29 @@ export const unisonResponse = (): boolean => applied(UNISON_RESPONSE) > 0;
  *  updateBuffs runs ahead of every held Gear's in the same phase, so that addition is in `getStat`
  *  before this is ever checked. */
 export const consumedConcerto = (): boolean =>
-  currentAction().concerto + getStat(Stat.AddConcerto) < 0 && !casting(Cast.Outro);
+  currentAction().concerto + getStat(Stat.AddConcerto) + getStat(Stat.AddCastConcerto) < 0 && !casting(Cast.Outro);
 
 /** Unison Boon: +3% DMG dealt a stack, two at most — three with Hsin's Gleaning Simple Joys and
- *  four with her S6, each of which is both a cap raise and the extra grant that reaches it — 30s
- *  and refreshed by every grant so permanent once up. It pays only a slot holding
+ *  four with her S6, each of which is both a cap raise and the extra grant that reaches it — 30s,
+ *  refreshed by every grant. It pays only a slot holding
  *  a `boonPayout()`. The cap is declared at its highest here rather than raised at runtime
  *  (`maxStackIncrease` is enemy-debuff only): without those two pieces nothing grants a third
  *  stack anyway. */
-export const UNISON_BOON = new Buff({ name: "Unison Boon", maxStacks: 4 });
+export const UNISON_BOON = new Buff({ name: "Unison Boon", maxStacks: 4, duration: 60 * 30 });
+
+/** One granter's stack of the Boon: theirs to give once while it stands, and every retrigger after
+ *  that resets its 30s rather than adding a second ("Suoming can grant up to 1 stack of Unison Boon
+ *  this way. Gaining it again only resets the duration"). `marker` is that granter's own latch, so
+ *  two granters on a team still make two stacks — and once the Boon has lapsed entirely the latch
+ *  means nothing and the next response grants afresh. */
+export function grantBoon(marker: Buff): void {
+  if (stacksOfTeam(UNISON_BOON) > 0 && isHeld(marker)) {
+    refreshTeam(UNISON_BOON);
+    return;
+  }
+  applyTeam(UNISON_BOON, 1);
+  applyCurrent(marker, 1);
+}
 
 /** The Boon's payout: +3% DMG Amplification a stack, +4.5% beside Suoming's S6. Carried by a
  *  responder's own `boonPayout()` buff rather than by the Boon itself — the Boon is one shared

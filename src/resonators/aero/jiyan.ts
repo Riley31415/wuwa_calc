@@ -16,14 +16,14 @@
  * His two Inherent Skills, off the page's own "INHERENT SKILLS" section:
  *  - Heavenly Balance: +10% ATK for 15s after his Intro.
  *  - Tempest Taming: +12% Crit DMG for 8s whenever his attacks hit — held for his whole field
- *    window, lost after his outro.
+ *    window.
  * Discipline (Outro): the incoming resonator holds "Jiyan: Outro" x2, and each of their Heavy
  * casts consumes a charge to fire one 313.40% coordinated lance on Jiyan's own slot — same
  * "queued and owned by the kit that earned it" shape as Lupa's Set the Arena Ablaze; the 1s
  * trigger ICD isn't modelled.
  */
-import { Stat, Attribute, WeaponType, Type1, Type2, Cast, Node, Scaling, LifeTime } from "../../engine/stats.js";
-import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
+import { Stat, Attribute, WeaponType, Type, Subtype, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence, matrix } from "../../engine/gear.js";
 import {
   applyCurrent,
   onAction,
@@ -43,8 +43,7 @@ import {
   frozenStacks,
   onCast,
 } from "../../engine/context.js";
-import { matrix } from "../../shared/helpers.js";
-import { Action, Rotation, START_3, SWAP, INTRO, ECHO_CANCEL, OUTRO, ActionField, DODGE, ECHO_ONFIELD, ECHO_SWAP } from "../../engine/rotation.js";
+import { Action, Cooldown, Rotation, START_3, ECHO, ActionField, INTRO } from "../../engine/rotation.js";
 import { VERDANT_SUMMIT } from "../../weapons/broadblade.js";
 import { NEW_STD_BRAUDBLADE, LUSTROUS_RAZOR } from "../../weapons/standard.js";
 import { NM_FEILIAN_BERINGAL, SIERRA_GALE_5PC } from "../../echoes/jinzhou.js";
@@ -59,34 +58,37 @@ function jiyanAction(id: string, def: object): Action {
 }
 
 // --- basics, heavies, mid-air, dodge counter (Lone Lance) — every hit feeds Resolve TODO get actual forte values
-const BA1 = jiyanAction("Basic - Lone Lance 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 73.16, energy: 0.92, concerto: 1.84, offtune: 2944 });
-const BA2 = jiyanAction("Basic - Lone Lance 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 43.73, energy: 0.55, concerto: 1.10, offtune: 1760 });
-const BA3 = jiyanAction("Basic - Lone Lance 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 36.38 * 5, energy: 2.25, concerto: 4.55, offtune: 7320 });
-const BA4 = jiyanAction("Basic - Lone Lance 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 66.20 * 2, energy: 1.66, concerto: 3.32, offtune: 5328 });
-const BA5 = jiyanAction("Basic - Lone Lance 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 23.60 * 7 + 153.45 * 2, energy: 5.87, concerto: 11.83, offtune: 19000 });
+const BA1 = jiyanAction("Basic - Lone Lance 1", { frames: 14, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 73.16, energy: 0.92, concerto: 1.84, offtune: 2944 });
+const BA2 = jiyanAction("Basic - Lone Lance 2", { frames: 24, cancelFrames: 23, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 43.73, energy: 0.55, concerto: 1.10, offtune: 1760 });
+const BA3 = jiyanAction("Basic - Lone Lance 3", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 36.38 * 5, energy: 2.25, concerto: 4.55, offtune: 7320 });
+const BA4 = jiyanAction("Basic - Lone Lance 4", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 66.20 * 2, energy: 1.66, concerto: 3.32, offtune: 5328 });
+const BA5 = jiyanAction("Basic - Lone Lance 5", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 23.60 * 7 + 153.45 * 2, energy: 5.87, concerto: 11.83, offtune: 19000 });
 
-const HA = jiyanAction("Heavy - Lone Lance", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 22.20 * 6, energy: 1.62, concerto: 3.30, offtune: 5364 });
+const HA = jiyanAction("Heavy - Lone Lance", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 22.20 * 6, energy: 1.62, concerto: 3.30, offtune: 5364 });
 /** Windborne Strike, holding Basic during the Heavy Attack. */
-const HA2 = jiyanAction("Heavy - Windborne Strike", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 105.96, energy: 1.33, concerto: 2.66, offtune: 4264 });
+const HA2 = jiyanAction("Heavy - Windborne Strike", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 105.96, energy: 1.33, concerto: 2.66, offtune: 4264 });
 /** Abyssal Slash, releasing Basic during the Heavy Attack. */
-const HA3 = jiyanAction("Heavy - Abyssal Slash", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 81.71, energy: 1.02, concerto: 2.05, offtune: 3288 });
+const HA3 = jiyanAction("Heavy - Abyssal Slash", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 81.71, energy: 1.02, concerto: 2.05, offtune: 3288 });
 
-const MA = jiyanAction("Mid-air - Lone Lance Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.26, energy: 0.51, concerto: 1.00, offtune: 4960 });
-const MA2 = jiyanAction("Mid-air - Lone Lance Plunge (Follow-Up)", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 155.66, energy: 1.95, concerto: 3.91, offtune: 6264 });
+const MA = jiyanAction("Mid-air - Lone Lance Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 123.26, energy: 0.51, concerto: 1.00, offtune: 4960 });
+const MA2 = jiyanAction("Mid-air - Lone Lance Plunge (Follow-Up)", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 155.66, energy: 1.95, concerto: 3.91, offtune: 6264 });
 /** Banner of Triumph, the mid-air attack after Windborne Strike or a mid-air Windqueller. */
-const MA3 = jiyanAction("Basic - Banner of Triumph", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 79.52, energy: 1.00, concerto: 2.00, offtune: 3200 });
-const DC = jiyanAction("Dodge Counter - Lone Lance", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 125.84 * 2, energy: 3.16, concerto: 13.32, offtune: 5328 });
+const MA3 = jiyanAction("Basic - Banner of Triumph", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 79.52, energy: 1.00, concerto: 2.00, offtune: 3200 });
+const DC = jiyanAction("Dodge Counter - Lone Lance", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, mv: 125.84 * 2, energy: 3.16, concerto: 3.32, castConcerto: 10, offtune: 5328 });
 
 /** Qingloong Mode itself, opened by Prelude and over when he leaves — what Windqueller reads to
  *  know its +20% is free. Nameless: the mode is the lances on screen, not a line of its own. */
-const QINGLOONG_MODE = new Buff({ until: LifeTime.Outro });
+const QINGLOONG_MODE = new Buff({ duration: 60 * 10 });
 
 /** Windqueller, one action for its three faces. Qingloong at War (Forte Circuit): +20% DMG free
  *  inside the mode; outside it, bought with 30 Resolve when he holds that many (15 at S1, which
  *  cuts the cost), and neither below that — the plain cast. The gauge is read here before the
  *  spend lands, so it is the bar he cast on that decides. */
+// S1 "can be used 1 more time": a second charge on the 7s cooldown
+const SKILL_CD = new Cooldown({ frames: 60 * 7, charges: () => (isHeld(JY_S1) ? 2 : 1) });
 const Skill = jiyanAction("Skill - Windqueller", {
-  node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 106.36 * 4, energy: 9.00, concerto: 16, offtune: 6480,
+  frames: 43, cancelFrames: 30, cooldown: SKILL_CD,
+  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 106.36 * 4, energy: 9.00, castConcerto: 16, offtune: 6480,
   applyStats: () => {
     if (isHeld(QINGLOONG_MODE)) {
       addStat(Stat.DmgBonus, 20);
@@ -94,7 +96,7 @@ const Skill = jiyanAction("Skill - Windqueller", {
     }
     const cost = isHeld(JY_S1) ? 15 : 30;
     if (forte1() < cost) return;
-    addStat(Stat.AddForte1, -cost);
+    addStat(Stat.AddCastForte1, -cost);
     addStat(Stat.DmgBonus, 20);
   },
 });
@@ -102,39 +104,41 @@ const Skill = jiyanAction("Skill - Windqueller", {
 /** Emerald Storm - Prelude: no damage of its own, just opens Qingloong Mode. */
 // Prelude releases Finale itself whenever the 30 Resolve it spends is banked
 const Liberation = jiyanAction("Liberation - Emerald Storm: Prelude", {
-  node: Node.Liberation, cast: Cast.Liberation, cutscene: true, concerto: 20, resetEnergy: true,
+  frames: 60, timestop: 60,
+  cooldown: 60 * 16,
+  node: Node.Liberation, cast: Cast.Liberation, concerto: 20, resetEnergy: true,
   updateBuffs: () => {
     applyCurrent(QINGLOONG_MODE, 1);
     if (forte1() >= 30) queue(Finale);
   },
 });
 /** Emerald Storm - Finale, released by Prelude at 30+ Resolve — considered Heavy Attack DMG. */
-const Finale = jiyanAction("Liberation - Emerald Storm: Finale", { node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Heavy, mv: 142.91 * 2 + 428.73, offtune: 107520, forte1: -30 });
+const Finale = jiyanAction("Liberation - Emerald Storm: Finale", { frames: 60, timestop: 60, node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, mv: 142.91 * 2 + 428.73, offtune: 107520, castForte1: -30});
 
 // Lance of Qingloong, the mode's own three-stage Heavy Attack — 8 hits a stage
-const Lance1 = jiyanAction("Heavy - Lance of Qingloong 1", { node: Node.Liberation, cast: Cast.Heavy, type: Type1.Heavy, mv: 65.52 * 8, energy: 3.76, concerto: 7.60, offtune: 12272 });
-const Lance2 = jiyanAction("Heavy - Lance of Qingloong 2", { node: Node.Liberation, cast: Cast.Heavy, type: Type1.Heavy, mv: 61.55 * 8, energy: 3.60, concerto: 7.20, offtune: 11528 });
-const Lance3 = jiyanAction("Heavy - Lance of Qingloong 3", { node: Node.Liberation, cast: Cast.Heavy, type: Type1.Heavy, mv: 66.76 * 8, energy: 3.84, concerto: 7.76, offtune: 12504 });
+const Lance1 = jiyanAction("Heavy - Lance of Qingloong 1", { frames: 90, cancelFrames: 58, node: Node.Liberation, cast: Cast.Heavy, type: Type.Heavy, mv: 65.52 * 8, energy: 3.76, concerto: 7.60, offtune: 12272 });
+const Lance2 = jiyanAction("Heavy - Lance of Qingloong 2", { frames: 87, node: Node.Liberation, cast: Cast.Heavy, type: Type.Heavy, mv: 61.55 * 8, energy: 3.60, concerto: 7.20, offtune: 11528 });
+const Lance3 = jiyanAction("Heavy - Lance of Qingloong 3", { frames: 96, node: Node.Liberation, cast: Cast.Heavy, type: Type.Heavy, mv: 66.76 * 8, energy: 3.84, concerto: 7.76, offtune: 12504 });
 
-const Intro = jiyanAction("Intro - Tactical Strike", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81, energy: 10.00, concerto: 10, offtune: 7416, forte1: 30 });
+const Intro = jiyanAction("Intro - Tactical Strike", { frames: 129, cancelFrames: 50, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 198.81, energy: 10.00, castConcerto: 10, offtune: 7416, forte1: 30 });
 /** Discipline: no damage of its own, just the handoff — its lances are ACTION_OUTRO_COORD. */
 const Outro = jiyanAction("Outro - Discipline", {
-  cast: Cast.Outro, concerto: -100, swapOut: true,
+  cast: Cast.Outro, castConcerto: -100,
   // queued twice so the adopter picks the buff up at both charges
   updateBuffs: () => { queueOutro(JIYAN_OUTRO); queueOutro(JIYAN_OUTRO); },
 });
 /** One coordinated lance strike — queued onto his own slot by JIYAN_OUTRO below, once per stack
  *  the incoming resonator's Heavy casts consume. */
 const DISCIPLINE_FIELD = new ActionField("Jiyan: Discipline");
-const ACTION_OUTRO_COORD = jiyanAction("Outro - Discipline (Coordinated Lance)", { type: Type1.Outro, type2: Type2.Coordinated, mv: 313.40, field: DISCIPLINE_FIELD });
+const ACTION_OUTRO_COORD = jiyanAction("Outro - Discipline (Coordinated Lance)", { type: Type.Outro, subtype: Subtype.Coordinated, mv: 313.40, field: DISCIPLINE_FIELD });
 
 /* ------------------------------------------------------------------------------------ buffs */
 
 /** Heavenly Balance (Inherent Skill): +10% ATK for 15s after his Intro. */
 const HEAVENLY_BALANCE = new Buff({
   name: "Inherent: Heavenly Balance",
+  duration: 60 * 15,
   stats: [[Stat.BonusAtk, 10]],
-  until: LifeTime.Outro,
 });
 const JY_INHERENT_1 = new Inherent({
   name: "Inherent: Heavenly Balance",
@@ -142,17 +146,17 @@ const JY_INHERENT_1 = new Inherent({
 });
 
 /** Tempest Taming (Inherent Skill): +12% Crit DMG for 8s on hit — held for his whole field
- *  window, lost after his outro. */
+ *  window. */
 const TEMPEST_TAMING = new Buff({
   name: "Inherent: Tempest Taming",
+  duration: 60 * 8,
   stats: [[Stat.CritDmg, 12]],
-  until: LifeTime.Outro,
 });
 const JY_INHERENT_2 = new Inherent({
   name: "Inherent: Tempest Taming",
   // a real on-field press: not a queued follow-up, a status rung or the shared Tune Break, all of
   // which are active casts on his slot but not him swinging again
-  updateBuffs: () => { if (!triggeredAction() && isActive()) applyCurrent(TEMPEST_TAMING, 1); },
+  afterAction: () => { if (!triggeredAction() && isActive()) applyCurrent(TEMPEST_TAMING, 1); },
 });
 
 /** Discipline — the outro handoff: 2 charges on the incoming resonator, each Heavy cast of theirs
@@ -160,11 +164,10 @@ const JY_INHERENT_2 = new Inherent({
  *  they leave the field. */
 const JIYAN_OUTRO: Buff = new Buff({
   field: DISCIPLINE_FIELD,
-  name: "Jiyan: Outro", maxStacks: 2,
+  name: "Jiyan: Outro", maxStacks: 2, duration: 60 * 8,
   updateBuffs: () => {
     if (casting(Cast.Heavy)) { queueOn(JIYAN_RESONATOR, ACTION_OUTRO_COORD); removeStack(JIYAN_OUTRO, 1); }
   },
-  until: LifeTime.Outro,
 });
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit
@@ -181,9 +184,8 @@ const JIYAN_RESONATOR = new Resonator({
   inherent2: JY_INHERENT_2,
   element: Attribute.Aero,
   weapon: WeaponType.Broadblade,
-  intro: () => Intro,
-  outro: () => Outro,
   color: "#4fc98f",
+  intro: Intro,
   maxEnergy: 125,
   maxForte1: 60,
 
@@ -204,12 +206,12 @@ const JY_S1 = new Sequence({ name: "Jiyan S1: Benevolence" });
  *  the in-mode Windqueller is free — and +28% ATK for 15s, so until he leaves the field. */
 const VERSATILITY = new Buff({
   name: "Jiyan S2: Versatility",
+  duration: 60 * 15,
   stats: [[Stat.BonusAtk, 28]],
-  until: LifeTime.AfterSwap,
 });
 const JY_S2 = new Sequence({
   name: "Jiyan S2: Versatility",
-  applyStats: () => { if (runningAction(Intro)) addStat(Stat.AddForte1, 30); },
+  applyStats: () => { if (runningAction(Intro)) addStat(Stat.AddCastForte1, 30); },
   grants: [{ on: onAction(Intro), buff: VERSATILITY }],
 });
 
@@ -218,8 +220,8 @@ const JY_S2 = new Sequence({
  *  the mode, so it holds for his whole field window and goes with his Outro. */
 const SPECTATION = new Buff({
   name: "Jiyan S3: Spectation",
+  duration: 60 * 8,
   stats: [[Stat.CritRate, 16], [Stat.CritDmg, 32]],
-  until: LifeTime.AfterSwap,
 });
 const JY_S3 = new Sequence({
   name: "Jiyan S3: Spectation",
@@ -231,7 +233,8 @@ const JY_S3 = new Sequence({
 /** S4: +25% Heavy Attack DMG Bonus to the team off either Emerald Storm, 30s — permanent. */
 const PRUDENCE = new Buff({
   name: "Jiyan S4: Prudence",
-  stats: [[Stat.DmgBonus, 25, Type1.Heavy]],
+  duration: 60 * 30,
+  stats: [[Stat.DmgBonus, 25, Type.Heavy]],
 });
 const JY_S4 = new Sequence({
   name: "Jiyan S4: Prudence",
@@ -241,16 +244,15 @@ const JY_S4 = new Sequence({
 /** S5: Discipline's lances hit for +120% of their multiplier, and every hit of his is +3% ATK a
  *  stack up to 15 — maxed outright by Tactical Strike, so the full 45% for his whole window. */
 const RESOLUTION = new Buff({
-  name: "Jiyan S5: Resolution", maxStacks: 15,
+  name: "Jiyan S5: Resolution", maxStacks: 15, duration: 60 * 8,
   stats: [[Stat.BonusAtk, 3]], perStack: true,
-  until: LifeTime.AfterSwap,
 });
 const JY_S5 = new Sequence({
   name: "Jiyan S5: Resolution",
   applyStats: () => { if (runningAction(ACTION_OUTRO_COORD)) addStat(Stat.MulMv, 120); },
-  updateBuffs: () => {
-    if (runningAction(Intro)) applyCurrent(RESOLUTION, 15);
-    else if (!triggeredAction() && isActive()) applyCurrent(RESOLUTION, 1);
+  updateBuffs: () => { if (runningAction(Intro)) applyCurrent(RESOLUTION, 15); },
+  afterAction: () => {
+    if (!runningAction(Intro) && !triggeredAction() && isActive()) applyCurrent(RESOLUTION, 1);
   },
 });
 
@@ -272,33 +274,33 @@ const JY_S6 = new Sequence({
 const JY_SEQUENCES = [JY_S1, JY_S2, JY_S3, JY_S4, JY_S5, JY_S6];
 
 const JY_ROTATION = new Rotation([
-  START_3, Skill.swap(), SWAP,
+  START_3, Skill.instaSwap(),
 
   INTRO, 
   Liberation,
-  Lance1, Skill, 
-  Lance1, DODGE,
-  Lance1, DODGE,
-  Lance1, DODGE,
-  Lance1, DODGE,
-  Lance1, DODGE,
-  Lance1, DODGE,
-  Skill, ECHO_SWAP, OUTRO,
+  Lance1.cancel(), Skill, 
+  Lance1.dodgeCancel(),
+  Lance1.dodgeCancel(),
+  Lance1.dodgeCancel(),
+  Lance1.dodgeCancel(),
+  Lance1.dodgeCancel(),
+  Lance1.dodgeCancel(),
+  Skill, ECHO.instaSwap(), Outro,
 ]);
 
 const JY_ROTATION_S6 = new Rotation([
-  START_3, Skill.swap(), SWAP,
+  START_3, Skill.instaSwap(),
 
   INTRO, 
   Liberation,
-  Lance1, Skill, 
-  Lance1, DODGE,
-  Lance1, DODGE,
-  Lance1, DODGE,
-  Lance1, DODGE,
-  Lance1, DODGE,
-  Lance1, DODGE,
-  Skill, ECHO_SWAP, OUTRO,
+  Lance1.cancel(), Skill, 
+  Lance1.dodgeCancel(),
+  Lance1.dodgeCancel(),
+  Lance1.dodgeCancel(),
+  Lance1.dodgeCancel(),
+  Lance1.dodgeCancel(),
+  Lance1.dodgeCancel(),
+  Skill, ECHO.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

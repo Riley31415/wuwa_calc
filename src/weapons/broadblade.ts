@@ -1,7 +1,7 @@
 /** Signature Broadblade weapons. Every piece works if equipped on any resonator, not just its
  *  own. Each export is the weapon's five refinements, R1 first (gear.ts's own `refinements()`);
  *  a number that grows with rank is written as its five values. */
-import { WeaponType, Stat, Attribute, Type1, Cast, LifeTime, BuffTarget } from "../engine/stats.js";
+import { WeaponType, Stat, Attribute, Type, Cast, BuffTarget } from "../engine/stats.js";
 import { Buff, Weapon, refinements } from "../engine/gear.js";
 import {
   addStat, frozenStacks, casting, currentTeam, addBuff, applyCurrent, removeStack, revokeCurrent, applied,
@@ -13,8 +13,8 @@ import { SHIELD, HEALS, inflictedNegativeStatus, inflictedNegativeStatusBy } fro
  *  grants +24% Heavy Attack DMG Bonus, up to 2 stacks, 14s. */
 export const VERDANT_SUMMIT = refinements((r, rank) => {
   const SWORDSWORN_STACKS = new Buff({
-    name: `Verdant Summit: Swordsworn${rank}`, maxStacks: 2,
-    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type1.Heavy]], perStack: true, early: true, until: LifeTime.Outro,
+    name: `Verdant Summit: Swordsworn${rank}`, maxStacks: 2, duration: 60 * 14,
+    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type.Heavy]], perStack: true, early: true,
   });
   return new Weapon({
     weaponType: WeaponType.Broadblade, name: `Verdant Summit${rank}`,
@@ -29,11 +29,13 @@ export const VERDANT_SUMMIT = refinements((r, rank) => {
 export const AGES_OF_HARVEST = refinements((r, rank) => {
   const AGELESS_MARKING = new Buff({
     name: `Ages of Harvest: Ageless Marking${rank}`,
-    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type1.Skill]], until: LifeTime.Outro,
+    duration: 60 * 12,
+    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type.Skill]],
   });
   const ETHEREAL_ENDOWMENT = new Buff({
     name: `Ages of Harvest: Ethereal Endowment${rank}`,
-    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type1.Skill]], until: LifeTime.Outro,
+    duration: 60 * 12,
+    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type.Skill]],
   });
   return new Weapon({
     weaponType: WeaponType.Broadblade, name: `Ages of Harvest${rank}`,
@@ -50,11 +52,12 @@ export const AGES_OF_HARVEST = refinements((r, rank) => {
 export const THUNDERFLARE_DOMINION = refinements((r, rank) => {
   const THUNDERBLAZE_DMG = new Buff({
     name: `Thunderflare Dominion: Thunderblaze Eminence${rank} (intro/skill)`,
-    stats: [[Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Type1.Heavy]], until: LifeTime.Outro,
+    duration: 60 * 15,
+    stats: [[Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Type.Heavy]],
   });
   const THUNDERBLAZE_DEF = new Buff({
-    name: `Thunderflare Dominion: Thunderblaze Eminence${rank} (shield)`, maxStacks: 5,
-    stats: [[Stat.DefIgnoreNew, [7.2, 8.4, 9.6, 10.8, 12][r]!, Type1.Heavy]], perStack: true, early: true, until: LifeTime.Outro,
+    name: `Thunderflare Dominion: Thunderblaze Eminence${rank} (shield)`, maxStacks: 5, duration: 60 * 7,
+    stats: [[Stat.DefIgnoreNew, [7.2, 8.4, 9.6, 10.8, 12][r]!, Type.Heavy]], perStack: true, early: true,
   });
   return new Weapon({
     weaponType: WeaponType.Broadblade, name: `Thunderflare Dominion${rank}`,
@@ -73,12 +76,14 @@ export const THUNDERFLARE_DOMINION = refinements((r, rank) => {
 export const WILDFIRE_MARK = refinements((r, rank) => {
   const WILDFIRE_TEAM = new Buff({
     name: `Wildfire Mark: Blazing Starfire${rank} (team)`,
+    duration: 60 * 30,
     stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Attribute.Fusion]],
   });
   const WILDFIRE_LIB_DMG = new Buff({
     name: `Wildfire Mark: Blazing Starfire${rank}`,
-    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type1.Liberation]], until: LifeTime.Outro,
-    grants: [{ on: onType(Type1.Heavy), buff: WILDFIRE_TEAM, to: BuffTarget.Team }],
+    duration: 60 * 6,
+    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type.Liberation]],
+    grants: [{ on: onType(Type.Heavy), buff: WILDFIRE_TEAM, to: BuffTarget.Team, onHit: true }],
   });
   return new Weapon({
     weaponType: WeaponType.Broadblade, name: `Wildfire Mark${rank}`,
@@ -93,9 +98,9 @@ export const WILDFIRE_MARK = refinements((r, rank) => {
  *  are two triggers rather than one — his Intro shields as well, so that cast pays +2. */
 export const JINGRAN_SIG = refinements((r, rank) => {
   const NATURES_ORDER = new Buff({
-    name: `Thousandfold Deliverance: Nature's Order${rank}`, maxStacks: 6, until: LifeTime.Swap,
+    name: `Thousandfold Deliverance: Nature's Order${rank}`, maxStacks: 6, duration: 60 * 7, lostOnSwap: true,
     stats: [[Stat.CritDmg, [4, 5, 6, 7, 8][r]!]], perStack: true,
-    applyStats: () => { if (frozenStacks() >= 6) addStat(Stat.CritRate, [12, 15, 18, 21, 24][r]!, Type1.Heavy); },
+    applyStats: () => { if (frozenStacks() >= 6) addStat(Stat.CritRate, [12, 15, 18, 21, 24][r]!, Type.Heavy); },
   });
   /** What a heavy's spend actually pays out, held at the stacks it spent. The press and the
    *  summons it queues — Jingran's Chimei Wangliang, Fire of Life's own and the Parade's at S6 —
@@ -103,17 +108,17 @@ export const JINGRAN_SIG = refinements((r, rank) => {
    *  stat paid on the press alone stopped at the press. Anything he does that is neither another
    *  heavy nor one of those Heavy-typed follow-ups closes it. */
   const CRADLE_SPENT: Buff = new Buff({
-    name: `Thousandfold Deliverance: Cradle of Life${rank} (spent)`, maxStacks: 2,
-    stats: [[Stat.DefIgnoreNew, [15, 17.5, 20, 22.5, 25][r]!, Type1.Heavy]], perStack: true,
+    name: `Thousandfold Deliverance: Cradle of Life${rank} (spent)`, maxStacks: 2, duration: 60 * 2,
+    stats: [[Stat.DefIgnoreNew, [15, 17.5, 20, 22.5, 25][r]!, Type.Heavy]], perStack: true,
     updateBuffs: () => {
-      if (casting(Cast.Heavy) || (triggeredAction() && isType(Type1.Heavy))) return;
+      if (casting(Cast.Heavy) || (triggeredAction() && isType(Type.Heavy))) return;
       revokeCurrent(CRADLE_SPENT);
     },
   });
   /** Spent by a heavy attack: up to two stacks, each piercing 15% defence. "Heavy attack" is the
    *  cast, not the damage type. Also ends on switching resonator. */
   const CRADLE_OF_LIFE: Buff = new Buff({
-    name: `Thousandfold Deliverance: Cradle of Life${rank}`, maxStacks: 6, until: LifeTime.Swap,
+    name: `Thousandfold Deliverance: Cradle of Life${rank}`, maxStacks: 6, duration: 60 * 7, lostOnSwap: true,
     updateBuffs: () => {
       if (!casting(Cast.Heavy)) return;
       const spent = Math.min(frozenStacks(), 2);
@@ -146,6 +151,7 @@ export const JINGRAN_SIG = refinements((r, rank) => {
 export const STARFIELD_CALIBRATOR = refinements((r, rank) => {
   const DEFINITE_SOLUTION_TEAM = new Buff({
     name: `Starfield Calibrator: Definite Solution${rank} (team)`,
+    duration: 60 * 4,
     stats: [[Stat.CritDmg, [20, 25, 30, 35, 40][r]!]], when: isActive,
   });
   /** The charge the Skill spends: held from the moment the weapon is equipped, gone the cast it
@@ -154,7 +160,7 @@ export const STARFIELD_CALIBRATOR = refinements((r, rank) => {
     name: `Starfield Calibrator: Definite Solution${rank}`,
     applyStats: () => {
       if (!casting(Cast.Skill)) return;
-      addStat(Stat.AddConcerto, [8, 10, 12, 14, 16][r]!);
+      addStat(Stat.AddCastConcerto, [8, 10, 12, 14, 16][r]!);
       revokeCurrent(DEFINITE_SOLUTION);
     },
   });
@@ -171,18 +177,19 @@ export const STARFIELD_CALIBRATOR = refinements((r, rank) => {
 
 /** Kumokiri, Chisa's sig: Thread of Fate. +12% ATK flat. Casting her Intro or inflicting a
  *  Negative Status (Havoc Bane counts) grants a stack of +8% Resonance Liberation DMG Bonus, up to
- *  3, 15s each — lost after the outro like every short self window here. At 3 stacks, each
+ *  3, 15s each. At 3 stacks, each
  *  resonator on the team who inflicts a Negative Status gets +24% All-Attribute DMG Bonus for 15s
  *  — theirs alone, a short self window lost after their own outro; a teammate who never inflicts
  *  one never has it. "Effects of the same name" so it doesn't restack itself. */
 export const KUMOKIRI = refinements((r, rank) => {
   const THREAD_OF_FATE_BONUS = new Buff({
     name: `Kumokiri: Thread of Fate${rank} (team)`,
+    duration: 60 * 15,
     stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!]],
   });
   const THREAD_OF_FATE_STACKS = new Buff({
-    name: `Kumokiri: Thread of Fate${rank}`, maxStacks: 3,
-    stats: [[Stat.DmgBonus, [8, 10, 12, 14, 16][r]!, Type1.Liberation]], perStack: true,
+    name: `Kumokiri: Thread of Fate${rank}`, maxStacks: 3, duration: 60 * 15,
+    stats: [[Stat.DmgBonus, [8, 10, 12, 14, 16][r]!, Type.Liberation]], perStack: true,
     // watched from updateGlobal so a teammate's own cast is seen — where `currentSlot` is this
     // buff's holder, so the actor is read off the team and the payout put on their slot by name
     updateGlobal() {

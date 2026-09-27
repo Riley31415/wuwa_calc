@@ -3,13 +3,13 @@
  * (`Tier.Free`), all six sequence nodes folded into the loadout unconditionally,
  * each owning its own trigger. Umbra (forte1, 0-100) gates Dark Surge: at full, Devastation opens
  * it, re-numbering Basic/Heavy Attack into Enhanced forms and replacing Wingblade with Lifetaker —
- * no stated duration, so lost after the outro action per the standing rule.
+ * no stated duration action per the standing rule.
  *
  * Numbers from nanoka.cc (character 1605, https://ww.nanoka.cc/character/1605) — no migrated-sheet
  * row exists for this character, so this is nanoka's own tables throughout (energy/concerto off
  * Damage Data's own Energy/Elemental DMG columns, offtune off Weakness Break DMG x10000).
  */
-import { Tier, Stat, EnemyStat, Attribute, WeaponType, Type1, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Tier, Stat, EnemyStat, Attribute, WeaponType, Type, Cast, Node, Scaling } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout, Debuff } from "../../engine/gear.js";
 import {
   applyCurrent,
@@ -21,8 +21,9 @@ import {
   runningAction,
   addStat,
   addEnemyStat,
+  resetCooldown,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, START_2, SWAP, INTRO, ECHO_SWAP, OUTRO, START_3 } from "../../engine/rotation.js";
+import { ActionGroup, Action, Cooldown, Rotation, START_2, ECHO, START_3, INTRO } from "../../engine/rotation.js";
 import { HEALS } from "../../shared/status.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
 import { BLAZING_BRILLIANCE, RED_SPRING } from "../../weapons/sword.js";
@@ -39,56 +40,64 @@ function roverAction(id: string, def: object): Action {
 // --- basics, mid-air, dodge counter (Tuneslayer), outside Dark Surge. forte1 (Umbra) gains are
 //     nanoka's own per-action list, resolved to a per-stage delta by differencing against shorter
 //     combos sharing a prefix (cross-checked two ways, all consistent).
-const BA1 = roverAction("Basic - Tuneslayer 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 56.67, energy: 0.6, concerto: 0.74, offtune: 2400, forte1: 3 });
-const BA2 = roverAction("Basic - Tuneslayer 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 113.34, energy: 1.2, concerto: 1.48, offtune: 4800, forte1: 6 });
-const BA3 = roverAction("Basic - Tuneslayer 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 85.00, energy: 0.9, concerto: 1.11, offtune: 2800, forte1: 4 });
-const BA4 = roverAction("Basic - Tuneslayer 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 120.90, energy: 1.26, concerto: 1.56, offtune: 5121, forte1: 9 });
-const BA5 = roverAction("Basic - Tuneslayer 5", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 188.88, energy: 2, concerto: 2.48, offtune: 8000, forte1: 10 });
+const BA1 = roverAction("Basic - Tuneslayer 1", { frames: 18, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 56.67, energy: 0.6, concerto: 0.74, offtune: 2400, forte1: 3 });
+const BA2 = roverAction("Basic - Tuneslayer 2", { frames: 33, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 113.34, energy: 1.2, concerto: 1.48, offtune: 4800, forte1: 6 });
+const BA3 = roverAction("Basic - Tuneslayer 3", { frames: 33, cancelFrames: 27, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 85.00, energy: 0.9, concerto: 1.11, offtune: 2800, forte1: 4 });
+const BA4 = roverAction("Basic - Tuneslayer 4", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 120.90, energy: 1.26, concerto: 1.56, offtune: 5121, forte1: 9 });
+const BA5 = roverAction("Basic - Tuneslayer 5", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 188.88, energy: 2, concerto: 2.48, offtune: 8000, forte1: 10 });
 
-const MA = roverAction("Mid-air - Plunging Attack", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 117.10, energy: 0.41, concerto: 1, offtune: 9600, forte1: 9 });
-const DC = roverAction("Dodge Counter - Tuneslayer", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 179.43, energy: 1.9, concerto: 10.86, offtune: 4640 });
-const HA = roverAction("Heavy - Attack", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 95.43, energy: 0.96, concerto: 1.19, offtune: 5360 });
+const MA = roverAction("Mid-air - Plunging Attack", { frames: 37, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 117.10, energy: 0.41, concerto: 1, offtune: 9600, forte1: 9 });
+const DC = roverAction("Dodge Counter - Tuneslayer", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, mv: 179.43, energy: 1.9, concerto: 0.86, castConcerto: 10, offtune: 4640 });
+const HA = roverAction("Heavy - Attack", { node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 95.43, energy: 0.96, concerto: 1.19, offtune: 5360 });
 
 // --- forte circuit: Devastation, at full Umbra — enters Dark Surge, considered Heavy Attack DMG,
 //     and (S4) shreds the target's own Havoc RES
 const Devastation = roverAction("Forte Heavy - Devastation", {
-  node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 228.14, energy: 1.7, offtune: 56320, forte1: -100,
-  updateBuffs: () => applyCurrent(DARK_SURGE, 1),
+  frames: 62, cancelFrames: 15,
+  node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, mv: 228.14, energy: 1.7, offtune: 56320, castForte1: -100,
+  updateBuffs: () => {
+    applyCurrent(DARK_SURGE, 1);
+    // S2: entering Dark Surge through Devastation resets Wingblade's cooldown
+    if (isHeld(ROVER_S2)) resetCooldown(Skill);
+  },
 });
 
 // --- Dark Surge: Enhanced Basic 1-5, Enhanced Heavy -> Thwackblade -> re-entry into Enhanced
 //     Basic 3, Enhanced Mid-air/Dodge Counter — all their own base damage types (only the
 //     Heavy/Thwackblade pair counts as Heavy Attack DMG; basics stay Basic Attack DMG).
-const EBA1 = roverAction("Basic - Umbra 1", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 56.37, energy: 0.42, concerto: 0.72, offtune: 1440 });
-const EBA2 = roverAction("Basic - Umbra 2", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 93.94, energy: 0.7, concerto: 1.2, offtune: 2560 });
-const EBA3 = roverAction("Basic - Umbra 3", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 155.67, energy: 1.16, concerto: 1.98, offtune: 4480 });
-const EBA4 = roverAction("Basic - Umbra 4", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 222.78, energy: 1.64, concerto: 2.83, offtune: 13280 });
+const EBA1 = roverAction("Basic - Umbra 1", { node: Node.Forte, cast: Cast.Basic, type: Type.Basic, mv: 56.37, energy: 0.42, concerto: 0.72, offtune: 1440 });
+const EBA2 = roverAction("Basic - Umbra 2", { node: Node.Forte, cast: Cast.Basic, type: Type.Basic, mv: 93.94, energy: 0.7, concerto: 1.2, offtune: 2560 });
+const EBA3 = roverAction("Basic - Umbra 3", { node: Node.Forte, cast: Cast.Basic, type: Type.Basic, mv: 155.67, energy: 1.16, concerto: 1.98, offtune: 4480 });
+const EBA4 = roverAction("Basic - Umbra 4", { node: Node.Forte, cast: Cast.Basic, type: Type.Basic, mv: 222.78, energy: 1.64, concerto: 2.83, offtune: 13280 });
 // updateDebuffs is her own healing marker, read by every healing sonata and weapon (statuses.ts)
 // — applied to the healer alone, never the team
 const EBA5 = roverAction("Basic - Umbra 5", {
-  node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 228.15, energy: 1.7, concerto: 1.81, offtune: 56320,
+  frames: 63, cancelFrames: 24,
+  node: Node.Forte, cast: Cast.Basic, type: Type.Basic, mv: 228.15, energy: 1.7, concerto: 1.81, offtune: 56320,
   updateDebuffs: () => applyCurrent(HEALS, 1),
 });
 
-const EMA = roverAction("Mid-air - Umbra Plunge", { node: Node.Forte, cast: Cast.Basic, type: Type1.Basic, mv: 123.27, energy: 0.41, concerto: 1, offtune: 9600 });
-const EDC = roverAction("Dodge Counter - Umbra", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 316.71, energy: 2.36, concerto: 11.98, offtune: 4640 });
+const EMA = roverAction("Mid-air - Umbra Plunge", { node: Node.Forte, cast: Cast.Basic, type: Type.Basic, mv: 123.27, energy: 0.41, concerto: 1, offtune: 9600 });
+const EDC = roverAction("Dodge Counter - Umbra", { node: Node.Forte, cast: Cast.DodgeCounter, type: Type.Basic, mv: 316.71, energy: 2.36, concerto: 1.98, castConcerto: 10, offtune: 4640 });
 
-const EHA = roverAction("Heavy - Umbra", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 128.83, energy: 0.96, concerto: 1.64, offtune: 6400 });
-const EHA2 = roverAction("Heavy - Umbra: Thwackblade", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Heavy, mv: 166.45, energy: 1.24, concerto: 2.12, offtune: 8704 });
+const EHA = roverAction("Heavy - Umbra", { frames: 43, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, mv: 128.83, energy: 0.96, concerto: 1.64, offtune: 6400 });
+const EHA2 = roverAction("Heavy - Umbra: Thwackblade", { frames: 42, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, mv: 166.45, energy: 1.24, concerto: 2.12, offtune: 8704 });
 
 // --- resonance skill: Wingblade outside Dark Surge, Lifetaker inside it — both share
 //     cast: Cast.Skill (S1's own "Resonance Skill DMG" wording covers either).
-const Skill = roverAction("Skill - Wingblade", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 572.58, energy: 12, concerto: 15, offtune: 8640, forte1: 39 });
-const ESkill = roverAction("Skill - Umbra: Lifetaker", { node: Node.Forte, cast: Cast.Skill, type: Type1.Skill, mv: 592.50, energy: 8, concerto: 15, offtune: 11664, forte1: 39 });
+/** Wingblade and Umbra: Lifetaker share one 12s cooldown. */
+const SKILL_CD = new Cooldown({ frames: 60 * 12 });
+const Skill = roverAction("Skill - Wingblade", { frames: 66, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 572.58, energy: 12, castConcerto: 15, offtune: 8640, forte1: 39 });
+const ESkill = roverAction("Skill - Umbra: Lifetaker", { frames: 66, cooldown: SKILL_CD, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, mv: 592.50, energy: 8, castConcerto: 15, offtune: 11664, forte1: 39 });
 
 // --- liberation: Deadening Abyss — also shreds the target's own Havoc RES (S4)
-const Liberation = roverAction("Liberation - Deadening Abyss", { node: Node.Liberation, cast: Cast.Liberation, cutscene: true, type: Type1.Liberation, mv: 1520.90, concerto: 20, offtune: 53760, resetEnergy: true });
+const Liberation = roverAction("Liberation - Deadening Abyss", { frames: 139, timestop: 139, cooldown: 60 * 16, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, mv: 1520.90, castConcerto: 20, offtune: 53760, resetEnergy: true });
 
 // --- intro / outro
-const Intro = roverAction("Intro - Instant of Annihilation", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, forte1: 29, mv: 198.81, energy: 10, concerto: 10, offtune: 1867 });
+const Intro = roverAction("Intro - Instant of Annihilation", { frames: 60, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, forte1: 29, mv: 198.81, energy: 10, castConcerto: 10, offtune: 1867 });
 /** Soundweaver: a Havoc Field, 3 ticks over 6s, lumped into one action. No Skill Attributes/
  *  Damage Data table on the page at all, so energy/concerto/offtune stay 0 — a real absence. */
-const Outro = roverAction("Outro - Soundweaver", { cast: Cast.Outro, type: Type1.Outro, mv: 429.9, concerto: -100, swapOut: true });
+const Outro = roverAction("Outro - Soundweaver", { cast: Cast.Outro, type: Type.Outro, mv: 429.9, castConcerto: -100});
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -109,7 +118,7 @@ const RH_INHERENT_2 = new Inherent({
   name: "Inherent: Bleak Crescendo",
   applyStats: () => {
     if (isHeld(DARK_SURGE) && casting(Cast.Basic)) {
-      addStat(Stat.AddEnergy, 1);
+      addStat(Stat.AddCastEnergy, 1);
     }
   }
 });
@@ -118,6 +127,7 @@ const RH_INHERENT_2 = new Inherent({
  *  lost on Rover's own next Intro rather than tracked as permanent. Trigger in `ROVER_S4` below. */
 const S4_RES_SHRED = new Debuff({
   name: "Havoc Rover S4: Annihilated Silence",
+  duration: 60 * 20,
   applyStats: () => addEnemyStat(EnemyStat.ResReduce, 10, Attribute.Havoc),
   convertStats: () => { if (casting(Cast.Intro) && isHeld(ROVER_HAVOC_RESONATOR)) revokeEnemy(S4_RES_SHRED); },
 });
@@ -137,9 +147,8 @@ const ROVER_HAVOC_RESONATOR = new Resonator({
   inherent2: RH_INHERENT_2,
   element: Attribute.Havoc,
   weapon: WeaponType.Sword,
-  intro: () => Intro,
-  outro: () => Outro,
   color: "#823ac6",
+  intro: Intro,
   maxEnergy: 125,
   maxForte1: 100,
   tier: Tier.Free,
@@ -152,11 +161,11 @@ const ROVER_HAVOC_RESONATOR = new Resonator({
 // its own trigger rather than the central Resonator updateBuffs() above.
 
 const ROVER_S1 = new Sequence({
-  name: "Havoc Rover S1: Cryptic Insight", stats: [[Stat.DmgBonus, 30, Type1.Skill]],
+  name: "Havoc Rover S1: Cryptic Insight", stats: [[Stat.DmgBonus, 30, Type.Skill]],
 });
 
-// S2 Waning Crescent: resets Resonance Skill's cooldown on entering Dark Surge — no real-time
-// clock here, a genuine no-op, held for the name only
+// S2 Waning Crescent: resets Resonance Skill's cooldown on entering Dark Surge — read off this
+// node by Devastation itself
 const ROVER_S2 = new Sequence({ name: "Havoc Rover S2: Waning Crescent" });
 
 // S3 Surging Resonance: a heal — out of scope, a genuine no-op, held for the name only
@@ -165,7 +174,7 @@ const ROVER_S3 = new Sequence({ name: "Havoc Rover S3: Surging Resonance" });
 // S4 Annihilated Silence's own trigger — payout lives in S4_RES_SHRED above
 const ROVER_S4 = new Sequence({
   name: "Havoc Rover S4: Annihilated Silence",
-  updateBuffs: () => {
+  afterAction: () => {
     if (runningAction(Devastation) || runningAction(Liberation)) applyEnemy(S4_RES_SHRED, 1);
   },
 });
@@ -186,12 +195,12 @@ const BA12345 = new ActionGroup("Basic - Tuneslayer 12345", [BA1, BA2, BA3, BA4,
 const EBA12345 = new ActionGroup("Forte Basic - Umbra 12345", [EBA1, EBA2, EBA3, EBA4, EBA5]);
 
 const RH_ROTATION = new Rotation([
-  START_3, START_2, Liberation, ECHO_SWAP, SWAP,
+  START_3, START_2, Liberation, ECHO.instaSwap(),
 
   INTRO, BA12345,
   Skill, Devastation, ESkill,
   EBA12345, EBA12345, EBA1,
-  Liberation, Skill, ECHO_SWAP, OUTRO,
+  Liberation, Skill, ECHO.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

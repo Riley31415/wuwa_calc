@@ -24,7 +24,7 @@
  * relative to this file's own scale. Her mainslot echo is Inferno Rider (plain, not
  * "Nightmare:") — see echoes/jinzhou.ts's own INFERNO_RIDER.
  */
-import { Tier, Stat, Attribute, WeaponType, Type1, Cast, Node, Scaling, LifeTime, BuffTarget } from "../../engine/stats.js";
+import { Tier, Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Sequence, Resonator, Loadout, EchoLoadout } from "../../engine/gear.js";
 import {
   applyCurrent,
@@ -36,7 +36,7 @@ import {
   forte1,
   onCast,
 } from "../../engine/context.js";
-import { ActionGroup, Action, Rotation, INTRO, ECHO_ONFIELD, OUTRO } from "../../engine/rotation.js";
+import { ActionGroup, Action, Rotation, ECHO, INTRO } from "../../engine/rotation.js";
 import { LETHEAN_ELEGY, RIME_DRAPED_SPROUTS, STRINGMASTER, WHISPERS_OF_SIRENS } from "../../weapons/rectifier.js";
 import { NEW_STD_RECTIFIER, COSMIC_RIPPLES } from "../../weapons/standard.js";
 import { INFERNO_RIDER, MOLTEN_RIFT_5PC } from "../../echoes/jinzhou.js";
@@ -52,53 +52,53 @@ function encoreAction(id: string, def: object): Action {
 // energy/concerto come off the old reference file's own numbers (÷100 — see file header); offtune
 // carries over unscaled, same as everywhere else in this project.
 // --- basics, mid-air, dodge counter, heavy (Wooly Attack)
-const BA1 = encoreAction("Basic - Wooly Attack 1", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 55.66, energy: 0.70, concerto: 1.40, offtune: 3360, forte1: 3 });
-const BA2 = encoreAction("Basic - Wooly Attack 2", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 66.20, energy: 0.83, concerto: 1.66, offtune: 3996, forte1: 5 });
-const BA3 = encoreAction("Basic - Wooly Attack 3", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 132.60, energy: 1.66, concerto: 3.32, offtune: 8004, forte1: 6 });
-const BA4 = encoreAction("Basic - Wooly Attack 4", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 153.08, energy: 1.92, concerto: 3.84, offtune: 9240, forte1: 4 });
-const WoolyStrike = encoreAction("Basic - Wooly Strike", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 238.57, energy: 3.00, concerto: 6.00, offtune: 14400, forte1: 25 });
-const HA = encoreAction("Heavy - Wooly Attack", { node: Node.Normal, cast: Cast.Heavy, type: Type1.Heavy, mv: 187.08, energy: 2.35, concerto: 4.70, offtune: 11292, forte1: 5 });
-const MA = encoreAction("Mid-air - Wooly Attack Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type1.Basic, mv: 123.26, energy: 0.51, concerto: 1.00, offtune: 14400, forte1: 11 });
-const DC = encoreAction("Dodge Counter - Wooly Attack", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 251.88, energy: 3.16, concerto: 13.32, offtune: 8004, forte1: 6 });
+const BA1 = encoreAction("Basic - Wooly Attack 1", { frames: 18, cancelFrames: 10, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 55.66, energy: 0.70, concerto: 1.40, offtune: 3360, forte1: 3 });
+const BA2 = encoreAction("Basic - Wooly Attack 2", { frames: 22, cancelFrames: 11, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 66.20, energy: 0.83, concerto: 1.66, offtune: 3996, forte1: 5 });
+const BA3 = encoreAction("Basic - Wooly Attack 3", { frames: 45, cancelFrames: 5, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 132.60, energy: 1.66, concerto: 3.32, offtune: 8004, forte1: 6 });
+const BA4 = encoreAction("Basic - Wooly Attack 4", { frames: 46, cancelFrames: 46, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 153.08, energy: 1.92, concerto: 3.84, offtune: 9240, forte1: 4 });
+const WoolyStrike = encoreAction("Basic - Wooly Strike", { frames: 76, cancelFrames: 0, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 238.57, energy: 3.00, concerto: 6.00, offtune: 14400, forte1: 25 });
+const HA = encoreAction("Heavy - Wooly Attack", { frames: 56, cancelFrames: 24, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 187.08, energy: 2.35, concerto: 4.70, offtune: 11292, forte1: 5 });
+const MA = encoreAction("Mid-air - Wooly Attack Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 123.26, energy: 0.51, concerto: 1.00, offtune: 14400, forte1: 11 });
+const DC = encoreAction("Dodge Counter - Wooly Attack", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, mv: 251.88, energy: 3.16, concerto: 13.32, offtune: 8004, forte1: 6 });
 
 // Flaming Woolies, then Energetic Welcome (press again shortly after)
-const Skill1 = encoreAction("Skill - Flaming Woolies", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 612.88, energy: 15.28, concerto: 15.00, offtune: 25600, forte1: 32 });
-const Skill2 = encoreAction("Skill - Energetic Welcome", { node: Node.Skill, cast: Cast.Skill, type: Type1.Skill, mv: 339.16, energy: 0.75, concerto: 6.51, offtune: 9072, forte1: 30 });
+const Skill1 = encoreAction("Skill - Flaming Woolies", { frames: 110, cancelFrames: 105, cooldown: 60 * 10, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 612.88, energy: 15.28, castConcerto: 15, offtune: 25600, forte1: 32 });
+const Skill2 = encoreAction("Skill - Energetic Welcome", { frames: 48, cancelFrames: 14, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 339.16, energy: 0.75, concerto: 1.51, castConcerto: 5, offtune: 9072, forte1: 30 });
 
 // Cloudy Frenzy (Threshold), spends the full Mayhem gauge
 // Cloudy Frenzy/Cosmos Rupture each spend the whole Mayhem gauge — both fire only at 100, so the
 // declared cap as a negative delta lands exactly on 0 (maxForte1: 100 below), same as Electro
 // Rover's own Overshock.
-const SPEND_MAYHEM = { forte1: -100 };
-const CloudyFrenzy = encoreAction("Forte Heavy - Cloudy Frenzy", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Liberation, mv: 773.73, concerto: 10.00, offtune: 46709, ...SPEND_MAYHEM });
+const SPEND_MAYHEM = { castForte1: -100 };
+const CloudyFrenzy = encoreAction("Forte Heavy - Cloudy Frenzy", { frames: 202, cancelFrames: 138, node: Node.Forte, cast: Cast.Heavy, type: Type.Liberation, mv: 773.73, castConcerto: 10, offtune: 46709, ...SPEND_MAYHEM });
 
 /** No damage of its own, just opens the state. */
-const Liberation = encoreAction("Liberation - Cosmos Rave", { node: Node.Liberation, cast: Cast.Liberation, cutscene: true, concerto: 20, resetEnergy: true });
+const Liberation = encoreAction("Liberation - Cosmos Rave", { frames: 140, cancelFrames: 140, timestop: 140, motionStop: 137, cooldown: 60 * 16, node: Node.Liberation, cast: Cast.Liberation, castConcerto: 20, resetEnergy: true });
 
 // Cosmos Rave's own moveset: Frolicking (Basic), Cosmos Heavy Attack, Cosmos - Rampage (Skill),
 // Cosmos Dodge Counter, Cosmos Rupture (Forte) — all "considered" their Threshold-state damage type
-const UBA1 = encoreAction("Basic - Cosmos: Frolicking 1", { node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 180.36, energy: 1.32, concerto: 2.66, offtune: 6396, forte1: 8 });
-const UBA2 = encoreAction("Basic - Cosmos: Frolicking 2", { node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 169.20, energy: 1.23, concerto: 2.49, offtune: 6000, forte1: 12 });
-const UBA3 = encoreAction("Basic - Cosmos: Frolicking 3", { node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 263.96, energy: 1.92, concerto: 3.88, offtune: 9360, forte1: 16 });
-const UBA4 = encoreAction("Basic - Cosmos: Frolicking 4", { node: Node.Liberation, cast: Cast.Basic, type: Type1.Basic, mv: 582.03, energy: 4.29, concerto: 8.58, offtune: 20640, forte1: 27 });
+const UBA1 = encoreAction("Basic - Cosmos: Frolicking 1", { frames: 29, cancelFrames: 22, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, mv: 180.36, energy: 1.32, concerto: 2.66, offtune: 6396, forte1: 8 });
+const UBA2 = encoreAction("Basic - Cosmos: Frolicking 2", { frames: 43, cancelFrames: 37, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, mv: 169.20, energy: 1.23, concerto: 2.49, offtune: 6000, forte1: 12 });
+const UBA3 = encoreAction("Basic - Cosmos: Frolicking 3", { frames: 47, cancelFrames: 43, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, mv: 263.96, energy: 1.92, concerto: 3.88, offtune: 9360, forte1: 16 });
+const UBA4 = encoreAction("Basic - Cosmos: Frolicking 4", { frames: 110, cancelFrames: 26, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, mv: 582.03, energy: 4.29, concerto: 8.58, offtune: 20640, forte1: 27 });
 
-const CosmosHeavy = encoreAction("Heavy - Cosmos: Heavy Attack", { node: Node.Liberation, cast: Cast.Heavy, type: Type1.Heavy, mv: 217.58, energy: 1.60, concerto: 3.21, offtune: 7716, forte1: 9 });
-const USkill = encoreAction("Skill - Cosmos: Rampage", { node: Node.Liberation, cast: Cast.Skill, type: Type1.Skill, mv: 253.28, energy: 6.56, concerto: 8.00, offtune: 6168, forte1: 28 });
-const CosmosDodgeCounter = encoreAction("Dodge Counter - Cosmos", { node: Node.Liberation, cast: Cast.DodgeCounter, type: Type1.Basic, mv: 263.96, energy: 1.92, concerto: 13.88, offtune: 9360, forte1: 16 });
-const FHA = encoreAction("Forte Heavy - Cosmos Rupture", { node: Node.Forte, cast: Cast.Heavy, type: Type1.Liberation, mv: 773.73, concerto: 10.00, offtune: 46709, ...SPEND_MAYHEM });
+const CosmosHeavy = encoreAction("Heavy - Cosmos: Heavy Attack", { node: Node.Liberation, cast: Cast.Heavy, type: Type.Heavy, mv: 217.58, energy: 1.60, concerto: 3.21, offtune: 7716, forte1: 9 });
+const USkill = encoreAction("Skill - Cosmos: Rampage", { frames: 47, cancelFrames: 35, cooldown: 60 * 4, node: Node.Liberation, cast: Cast.Skill, type: Type.Skill, mv: 253.28, energy: 6.56, concerto: 3.56, castConcerto: 4.44, offtune: 6168, forte1: 28 });
+const CosmosDodgeCounter = encoreAction("Dodge Counter - Cosmos", { node: Node.Liberation, cast: Cast.DodgeCounter, type: Type.Basic, mv: 263.96, energy: 1.92, concerto: 13.88, offtune: 9360, forte1: 16 });
+const FHA = encoreAction("Forte Heavy - Cosmos Rupture", { frames: 239, cancelFrames: 203, node: Node.Forte, cast: Cast.Heavy, type: Type.Liberation, mv: 773.73, castConcerto: 10, offtune: 46709, ...SPEND_MAYHEM });
 
-const Intro = encoreAction("Intro - Woolies Helpers", { node: Node.Intro, cast: Cast.Intro, type: Type1.Intro, mv: 198.81, energy: 10.00, concerto: 10.00, offtune: 15132, forte1: 40 });
+const Intro = encoreAction("Intro - Woolies Helpers", { frames: 80, cancelFrames: 92, motionStop: 56, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 198.81, energy: 10.00, castConcerto: 10, offtune: 15132, forte1: 40 });
 /** A burn zone, 4 ticks over 6s, lumped into one action same as every other periodic effect
  *  elsewhere. No handoff buff is described on her own kit page — left as a plain hit. */
-const Outro = encoreAction("Outro - Thermal Field", { cast: Cast.Outro, type: Type1.Outro, mv: 707.04, concerto: -100, swapOut: true });
+const Outro = encoreAction("Outro - Thermal Field", { frames: 0, cancelFrames: 0, cast: Cast.Outro, type: Type.Outro, mv: 707.04, castConcerto: -100});
 
 /* ------------------------------------------------------------------------------------ buffs */
 
 /** +10% Fusion DMG Bonus for 10s on casting Flaming Woolies or Cosmos - Rampage. */
 const WOOLIES_CHEER_DANCE = new Buff({
   name: "Inherent: Woolies Cheer Dance",
+  duration: 60 * 10,
   stats: [[Stat.DmgBonus, 10, Attribute.Fusion]],
-  until: LifeTime.Outro,
 });
 const EN_INHERENT_2 = new Inherent({
   name: "Inherent: Woolies Cheer Dance",
@@ -108,7 +108,7 @@ const EN_INHERENT_2 = new Inherent({
 /** Assumed always true — see file header. Granted/revoked alongside Cosmos Rave itself, so
  *  applyStats() doesn't need to check any particular action. */
 const ANGRY_COSMOS = new Buff({
-  name: "Inherent: Angry Cosmos",
+  name: "Inherent: Angry Cosmos", duration: 60 * 10,
   stats: [[Stat.DmgBonus, 10]],
   convertStats: () => { if (runningAction(FHA)) revokeCurrent(ANGRY_COSMOS); },
 });
@@ -120,13 +120,12 @@ const EN_INHERENT_1 = new Inherent({
 /* ------------------------------------------------------------------------------- sequences */
 
 const S1_STACKS = new Buff({
-  name: "Encore S1: Wooly's Fairy Tale", maxStacks: 4,
+  name: "Encore S1: Wooly's Fairy Tale", maxStacks: 4, duration: 60 * 6,
   stats: [[Stat.DmgBonus, 3, Attribute.Fusion]], perStack: true,
-  until: LifeTime.Outro,
 });
 const S1 = new Sequence({
   name: "Encore S1",
-  grants: [{ on: onCast(Cast.Basic), buff: S1_STACKS }],
+  grants: [{ on: onCast(Cast.Basic), buff: S1_STACKS, onHit: true }],
 });
 
 // 10s ICD isn't modelled, so it pays every cast instead of once per window
@@ -143,6 +142,7 @@ const S3 = new Sequence({
 /** Permanent uptime once granted, per the standing duration rule (30s). */
 const S4_TEAM = new Buff({
   name: "Encore S4: Adventure? Let's go!",
+  duration: 60 * 30,
   stats: [[Stat.DmgBonus, 20, Attribute.Fusion]],
 });
 const S4 = new Sequence({
@@ -152,17 +152,16 @@ const S4 = new Sequence({
 
 const S5 = new Sequence({
   name: "Encore S5",
-  stats: [[Stat.DmgBonus, 35, Type1.Skill]],
+  stats: [[Stat.DmgBonus, 35, Type.Skill]],
 });
 
 const S6_LOST_LAMB = new Buff({
-  name: "Encore S6: Lost Lamb", maxStacks: 5,
+  name: "Encore S6: Lost Lamb", maxStacks: 5, duration: 60 * 10,
   stats: [[Stat.BonusAtk, 5]], perStack: true,
-  until: LifeTime.Outro,
 });
 const S6 = new Sequence({
   name: "Encore S6",
-  grants: [{ on: () => isHeld(WOOLIES_CHEER_DANCE), buff: S6_LOST_LAMB }],
+  grants: [{ on: () => isHeld(WOOLIES_CHEER_DANCE), buff: S6_LOST_LAMB, onHit: true }],
 });
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from her kit
@@ -179,9 +178,8 @@ const ENCORE_RESONATOR = new Resonator({
   tier: Tier.Standard,
   element: Attribute.Fusion,
   weapon: WeaponType.Rectifier,
-  intro: () => Intro,
-  outro: () => Outro,
   color: "#e56b9a",
+  intro: Intro,
   maxEnergy: 125,
   maxForte1: 100,
 
@@ -196,15 +194,15 @@ const ENCORE_RESONATOR = new Resonator({
 const UBA1234 = new ActionGroup("Basic - Cosmos: Frolicking 1234", [UBA1, UBA2, UBA3, UBA4]);
 
 const EN_ROTATION = new Rotation([
-  INTRO, ECHO_ONFIELD,  // would be swapped
+  INTRO, ECHO,  // would be swapped
   Skill1, // would be swapped
   Liberation,
   USkill,
-  UBA1234,
+  UBA1234.cancel(),
   USkill,
-  UBA1234,
-  USkill,
-  FHA.swap(), OUTRO,
+  UBA1234.cancel(),
+  USkill.cancel(),
+  FHA.instaSwap(), Outro,
 ]);
 
 /* ----------------------------------------------------------------------------------- loadout */

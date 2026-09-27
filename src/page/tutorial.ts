@@ -55,7 +55,7 @@ const TEXT = [
   "Try viewing a team's rotation and loadout",
   "Hover over equipment to see its stats and buffs",
   `${CLICK} on a member's damage number to see their damage distribution and node leveling priority`,
-  `${CLICK} on the team total for a loop to see the damage over time graph and strongest actions`,
+  `${CLICK} on the team total for a loop to see its damage over time`,
   "Scroll down to read the rotation, buffs, and stats",
 ];
 /** The stage the rotation page's own begin at: below this the card belongs to the comparison
@@ -107,9 +107,10 @@ function substatsCell(): HTMLElement | null {
 }
 function totalCell(): HTMLElement | null {
   const rows = [...document.querySelectorAll<HTMLElement>(".rtable.dpr .rtrow:not(.rthead):not(.total)")];
-  return (rows[2] ?? rows[rows.length - 1])?.querySelector<HTMLElement>(`[data-dist$="|4"]`) ?? null;
+  // the Total column is the last figure in the row, however many loops ran whole
+  return (rows[2] ?? rows[rows.length - 1])?.querySelector<HTMLElement>(".c.tot[data-dist]") ?? null;
 }
-/** The team's own row at Loop 3 — section three of the four the columns run through. */
+/** The team's own row at Loop 3 — section three of the columns the loops run through. */
 const loopCell = (): HTMLElement | null =>
   document.querySelector<HTMLElement>(`.rtable.dpr .rtrow.total [data-dist$="|3"]`);
 /** The `n`th line of the action log, counting the rotation's own steps alone: a chain's parts and

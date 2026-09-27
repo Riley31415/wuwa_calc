@@ -285,6 +285,7 @@ function scoreMainstatsRun(teamKey: string, members: Member[], picks: Pick[], wh
       const scored: TeamRun = {
         state: run.state, teamKey, members, combo: c, rotationLines: null, variantRuns: [],
         total: variant.total, bySlot: variant.bySlot, sectionTotals: variant.sectionTotals, sectionBySlot: variant.sectionBySlot,
+        fightTotal: variant.fightTotal, fightBySlot: variant.fightBySlot, seconds: variant.seconds,
       };
       trialCache.set(trialKey(teamKey, c), scored);
       scores[k] = scored;

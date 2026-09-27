@@ -1,6 +1,6 @@
 /** Signature Gauntlets weapons. Each export is the weapon's five refinements, R1 first (gear.ts's
  *  own `refinements()`); a number that grows with rank is written as its five values. */
-import { WeaponType, Stat, Attribute, Type1, Type2, Cast, LifeTime } from "../engine/stats.js";
+import { WeaponType, Stat, Attribute, Type, Subtype, Cast } from "../engine/stats.js";
 import { Buff, Weapon, refinements } from "../engine/gear.js";
 import { applyCurrent, setStacksSelf, casting, applied, onCast, onType, onInflict } from "../engine/context.js";
 import { SHIELD } from "../shared/status.js";
@@ -13,7 +13,8 @@ import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 export const VERITYS_HANDLE = refinements((r, rank) => {
   const AD_VERITATEM = new Buff({
     name: `Verity's Handle: Ad Veritatem${rank}`,
-    stats: [[Stat.DmgBonus, [48, 60, 72, 84, 96][r]!, Type1.Liberation]], until: LifeTime.Outro,
+    duration: 60 * 8,
+    stats: [[Stat.DmgBonus, [48, 60, 72, 84, 96][r]!, Type.Liberation]],
   });
   return new Weapon({
     weaponType: WeaponType.Gauntlets, name: `Verity's Handle${rank}`,
@@ -27,7 +28,8 @@ export const VERITYS_HANDLE = refinements((r, rank) => {
 export const TRAGICOMEDY = refinements((r, rank) => {
   const FOOLS_WARBLE = new Buff({
     name: `Tragicomedy: Fool's Warble${rank}`,
-    stats: [[Stat.DmgBonus, [48, 60, 72, 84, 96][r]!, Type1.Heavy]], until: LifeTime.Outro,
+    duration: 60 * 3,
+    stats: [[Stat.DmgBonus, [48, 60, 72, 84, 96][r]!, Type.Heavy]],
   });
   return new Weapon({
     weaponType: WeaponType.Gauntlets, name: `Tragicomedy${rank}`,
@@ -38,14 +40,14 @@ export const TRAGICOMEDY = refinements((r, rank) => {
 
 /** Blazing Justice, Zani's sig: Darkness Breaker. +12% ATK flat. A Basic Attack cast opens a 6s
  *  window in which the wielder's damage ignores 8% of the target's DEF and their Spectro Frazzle
- *  DMG is amplified 50% — a short self window, re-opened by every Basic, lost after the outro.
+ *  DMG is amplified 50% — a short self window, re-opened by every Basic.
  *  "Casting Basic Attack" is the cast, not the damage type. */
 export const BLAZING_JUSTICE = refinements((r, rank) => {
   const DARKNESS_BREAKER = new Buff({
-    name: `Blazing Justice: Darkness Breaker${rank}`, until: LifeTime.Outro,
+    name: `Blazing Justice: Darkness Breaker${rank}`, duration: 60 * 6,
     stats: [
       [Stat.DefIgnoreOld, [8, 10, 12, 14, 16][r]!],
-      [Stat.Amp, [50, 62.5, 75, 87.5, 100][r]!, Type2.SpectroFrazzle],
+      [Stat.Amp, [50, 62.5, 75, 87.5, 100][r]!, Subtype.SpectroFrazzle],
     ],
   });
   return new Weapon({
@@ -60,35 +62,38 @@ export const BLAZING_JUSTICE = refinements((r, rank) => {
 export const SOLSWORN_CIPHERS = refinements((r, rank) => {
   const SUNWARD_AMP = new Buff({
     name: `Solsworn Ciphers: Sunward${rank} (intro/echo)`,
-    stats: [[Stat.Amp, [32, 40, 48, 56, 64][r]!, Type1.Echo]], until: LifeTime.Outro,
+    duration: 60 * 15,
+    stats: [[Stat.Amp, [32, 40, 48, 56, 64][r]!, Type.Echo]],
   });
   const SUNWARD_IGNORE = new Buff({
     name: `Solsworn Ciphers: Sunward${rank} (echo dmg)`,
-    stats: [[Stat.DefIgnoreNew, [10, 12.5, 15, 17.5, 20][r]!, Attribute.Aero]], until: LifeTime.Outro,
+    duration: 60 * 6,
+    stats: [[Stat.DefIgnoreNew, [10, 12.5, 15, 17.5, 20][r]!, Attribute.Aero]],
   });
   return new Weapon({
     weaponType: WeaponType.Gauntlets, name: `Solsworn Ciphers${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritDmg, 48.6], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [
       { on: onCast(Cast.Intro, Cast.Echo), buff: SUNWARD_AMP },
-      { on: onType(Type1.Echo), buff: SUNWARD_IGNORE },
+      { on: onType(Type.Echo), buff: SUNWARD_IGNORE, onHit: true },
     ],
   });
 });
 
 /** Moongazer's Sigil, Iuno's sig: Plenilune Radiance. +12% ATK flat. An Intro or Liberation cast
- *  grants +20% Liberation DMG Bonus for 15s — a short self window, so lost after the outro. Per
+ *  grants +20% Liberation DMG Bonus for 15s. Per
  *  shield stack her Liberation damage also pierces defence — her own Intro takes that stack
  *  straight to the ceiling, every other shielding cast adds one per shield it declares. */
 export const IUNO_SIG = refinements((r, rank) => {
   const PLENILUNE_DMG = new Buff({
     name: `Moongazer's Sigil: Plenilune Radiance${rank} (intro/lib)`,
-    stats: [[Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Type1.Liberation]], until: LifeTime.Outro,
+    duration: 60 * 15,
+    stats: [[Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Type.Liberation]],
   });
   const MOONGAZER_STACKS = new Buff({
-    name: `Moongazer's Sigil: Plenilune Radiance${rank} (shield)`, maxStacks: 5,
+    name: `Moongazer's Sigil: Plenilune Radiance${rank} (shield)`, maxStacks: 5, duration: 60 * 7,
     // scoped to liberation damage — most of Lunar Cycle qualifies, intro/outro/echo don't
-    stats: [[Stat.DefIgnoreNew, [7.2, 8.4, 9.6, 10.8, 12][r]!, Type1.Liberation]], perStack: true,
+    stats: [[Stat.DefIgnoreNew, [7.2, 8.4, 9.6, 10.8, 12][r]!, Type.Liberation]], perStack: true,
   });
   return new Weapon({
     weaponType: WeaponType.Gauntlets, name: `Moongazer's Sigil${rank}`,
@@ -109,17 +114,18 @@ export const IUNO_SIG = refinements((r, rank) => {
 export const DAYBREAKERS_SPINE = refinements((r, rank) => {
   const SUTURING_DAYLINE_SPECTRO = new Buff({
     name: `Daybreaker's Spine: Suturing Dayline${rank} (basic)`,
-    stats: [[Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Attribute.Spectro]], until: LifeTime.Outro,
+    duration: 60 * 4,
+    stats: [[Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Attribute.Spectro]],
   });
   const SUTURING_DAYLINE_STRAIN = new Buff({
-    name: `Daybreaker's Spine: Suturing Dayline${rank} (strain)`, until: LifeTime.Outro,
-    stats: [[Stat.Amp, [20, 25, 30, 35, 40][r]!, Type1.Basic], [Stat.DefIgnoreNew, [10, 12.5, 15, 17.5, 20][r]!, Type1.Basic]],
+    name: `Daybreaker's Spine: Suturing Dayline${rank} (strain)`, duration: 60 * 6,
+    stats: [[Stat.Amp, [20, 25, 30, 35, 40][r]!, Type.Basic], [Stat.DefIgnoreNew, [10, 12.5, 15, 17.5, 20][r]!, Type.Basic]],
   });
   return new Weapon({
     weaponType: WeaponType.Gauntlets, name: `Daybreaker's Spine${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [
-      { on: onType(Type1.Basic), buff: SUTURING_DAYLINE_SPECTRO },
+      { on: onType(Type.Basic), buff: SUTURING_DAYLINE_SPECTRO, onHit: true },
       { on: onInflict(TUNE_STRAIN_SHIFTING), buff: SUTURING_DAYLINE_STRAIN },
     ],
   });

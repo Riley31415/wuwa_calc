@@ -1,11 +1,11 @@
 /** Mainslot echoes and sonatas from Septimont (versions 2.5-2.7). */
-import { Stat, Attribute, Type1, Cast, Scaling, LifeTime, BuffTarget } from "../engine/stats.js";
-import { Buff, Sonata, Sonata3pc, Sonata2pc, Mainslot, EchoType } from "../engine/gear.js";
+import { Stat, Attribute, Type, Cast, Scaling, BuffTarget } from "../engine/stats.js";
+import { Buff, Sonata, Sonata3pc, Sonata2pc, Mainslot } from "../engine/gear.js";
 import {
   addStat, stacksOf, stacksOfEnemy, stacksOfTeam, applyCurrent, casting, maxEnergy, queue, applied, appliedByMe,
   onCast, onType, onApplied,
 } from "../engine/context.js";
-import { Action } from "../engine/rotation.js";
+import { Action, Cooldown } from "../engine/rotation.js";
 import { SHIELD, HAVOC_BANE } from "../shared/status.js";
 
 /* --------------------------------------------------------------------------------- Phrolova, 2.5 */
@@ -17,28 +17,29 @@ export const DREAM_OF_THE_LOST_3PC = new Sonata3pc({
   applyStats: () => {
     if (maxEnergy() !== 0) return;
     addStat(Stat.CritRate, 20);
-    addStat(Stat.DmgBonus, 35, Type1.Echo);
+    addStat(Stat.DmgBonus, 35, Type.Echo);
   },
 });
 
 /* ----------------------------------------------------------------------------- Augusta, 2.6 */
 
 /** False Sovereign, Augusta's own mainslot echo — flat Electro/Heavy Attack DMG Bonus. Casting
- *  Intro also summons it for a bonus hit — the 2-charge/8s-CD gating isn't modelled, assumed
- *  available whenever an Intro lands. */
+ *  Intro also summons it for a bonus hit. The Echo Skill holds 2 charges, one back every 8s; the
+ *  Intro summon is assumed to draw on none, available whenever an Intro lands. */
 export const ACTION_FALSE_SOVEREIGN = new Action("Echo - False Sovereign", {
-  cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type1.Echo, mv: 221.4, energy: 3.04,
+  frames: 60, cancelFrames: 46,
+  cooldown: new Cooldown({ frames: 60 * 8, charges: 2 }),
+  cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo, mv: 221.4, energy: 3.04,
 });
 // no energy: the Intro summon has its own damage row and, unlike the transform strike, pays none
 export const ACTION_FALSE_SOVEREIGN_INTRO = new Action("Echo - False Sovereign (Intro)", {
-  element: Attribute.Electro, scaling: Scaling.Atk, type: Type1.Echo, mv: 405,
+  element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo, mv: 405,
 });
 export const FALSE_SOVEREIGN = new Mainslot({
   name: "False Sovereign",
   action: ACTION_FALSE_SOVEREIGN,
-  echoType: EchoType.TRANSFORM,
   updateBuffs: () => { if (casting(Cast.Intro)) queue(ACTION_FALSE_SOVEREIGN_INTRO); },
-  stats: [[Stat.DmgBonus, 12, Attribute.Electro], [Stat.DmgBonus, 12, Type1.Heavy]],
+  stats: [[Stat.DmgBonus, 12, Attribute.Electro], [Stat.DmgBonus, 12, Type.Heavy]],
 });
 
 /** Crown of Valor, Augusta's own sonata — also reused by Iuno and Jingran. 3pc: a shield stacks
@@ -46,8 +47,8 @@ export const FALSE_SOVEREIGN = new Mainslot({
  *  same reading: the wearer's own outro keeps it, and nothing they built carries into their next
  *  visit. */
 export const CROWN_STACKS = new Buff({
-  name: "Crown of Valor", maxStacks: 5,
-  stats: [[Stat.BonusAtk, 6], [Stat.CritDmg, 4]], perStack: true, until: LifeTime.AfterSwap,
+  name: "Crown of Valor", maxStacks: 5, duration: 60 * 4,
+  stats: [[Stat.BonusAtk, 6], [Stat.CritDmg, 4]], perStack: true,
 });
 export const COV_3PC = new Sonata3pc({
   name: "Crown of Valor 3pc",
@@ -59,34 +60,34 @@ export const COV_3PC = new Sonata3pc({
 /** Lady of the Sea, Iuno's own mainslot echo. (Her own sonata pick, Sierra Gale, is a
  *  Jinzhou-era set — see jinzhou.ts — she just reuses it.) */
 export const ACTION_MYA = new Action("Echo - Lady of the Sea", {
-  cast: Cast.Echo, element: Attribute.Aero, scaling: Scaling.Atk, type: Type1.Echo, mv: 300.96, energy: 4.18,
+  cooldown: 60 * 20,
+  cast: Cast.Echo, element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo, mv: 300.96, energy: 4.18,
 });
 export const MYA = new Mainslot({
   name: "Lady of the Sea",
   action: ACTION_MYA,
-  echoType: EchoType.SUMMON,
-  stats: [[Stat.DmgBonus, 12, Type1.Liberation], [Stat.DmgBonus, 12, Attribute.Aero]],
+  stats: [[Stat.DmgBonus, 12, Type.Liberation], [Stat.DmgBonus, 12, Attribute.Aero]],
 });
 
 /* ----------------------------------------------------------------------------------- Lupa, 2.4 */
 
 /** Lioness of Glory, Lupa's own mainslot echo — flat Resonance Liberation/Fusion DMG Bonus, no trigger. */
 export const ACTION_LIONESS = new Action("Echo - Lioness of Glory", {
-  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 273.6, energy: 3.8,
+  cooldown: 60 * 20,
+  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, mv: 273.6, energy: 3.8,
 });
 export const LIONESS_OF_GLORY = new Mainslot({
   name: "Lioness of Glory",
   action: ACTION_LIONESS,
-  echoType: EchoType.SUMMON,
-  stats: [[Stat.DmgBonus, 12, Type1.Liberation], [Stat.DmgBonus, 12, Attribute.Fusion]],
+  stats: [[Stat.DmgBonus, 12, Type.Liberation], [Stat.DmgBonus, 12, Attribute.Fusion]],
 });
 
 /** Flaming Clawprint, Lupa's own sonata — also reused by Galbrena. 5pc: Resonance Liberation
  *  grants the team +15% Fusion DMG Bonus and the caster +20% Liberation DMG Bonus, both 35s —
  *  permanent uptime once granted (≥21s), so a one-time grant on the first cast, never revoked.
  *  2pc: +10% Fusion DMG Bonus flat. */
-export const CLAWPRINT_TEAM = new Buff({ name: "Flaming Clawprint 5pc (team)", stats: [[Stat.DmgBonus, 15, Attribute.Fusion]] });
-export const CLAWPRINT_LIBERATION = new Buff({ name: "Flaming Clawprint 5pc", stats: [[Stat.DmgBonus, 20, Type1.Liberation]] });
+export const CLAWPRINT_TEAM = new Buff({ name: "Flaming Clawprint 5pc (team)", duration: 60 * 35, stats: [[Stat.DmgBonus, 15, Attribute.Fusion]] });
+export const CLAWPRINT_LIBERATION = new Buff({ name: "Flaming Clawprint 5pc", duration: 60 * 35, stats: [[Stat.DmgBonus, 20, Type.Liberation]] });
 export const CLAWPRINT_2PC = new Sonata2pc({ name: "Flaming Clawprint 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Fusion]] });
 export const CLAWPRINT_5PC = new Sonata({
   name: "Flaming Clawprint 5pc",
@@ -101,13 +102,13 @@ export const CLAWPRINT_5PC = new Sonata({
 
 /** Corrosaurus, Galbrena's own mainslot echo — flat Fusion/Echo Skill DMG Bonus, no trigger. */
 export const ACTION_CORROSAURUS = new Action("Echo - Corrosaurus", {
-  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type1.Echo, mv: 273.6, energy: 3.8,
+  cooldown: 60 * 20,
+  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, mv: 273.6, energy: 3.8,
 });
 export const CORROSAURUS = new Mainslot({
   name: "Corrosaurus",
   action: ACTION_CORROSAURUS,
-  echoType: EchoType.SUMMON,
-  stats: [[Stat.DmgBonus, 12, Attribute.Fusion], [Stat.DmgBonus, 20, Type1.Echo]],
+  stats: [[Stat.DmgBonus, 12, Attribute.Fusion], [Stat.DmgBonus, 20, Type.Echo]],
 });
 
 /** Flamewing's Shadow 3pc, Galbrena's own sonata: Echo Skill DMG grants +20% Heavy Attack Crit
@@ -115,17 +116,19 @@ export const CORROSAURUS = new Mainslot({
  *  Fusion DMG Bonus. */
 export const FLAMEWING_SHADOW_ECHO = new Buff({
   name: "Flamewing's Shadow 3pc (echo)",
-  stats: [[Stat.CritRate, 20, Type1.Heavy]], until: LifeTime.Outro,
+  duration: 60 * 6,
+  stats: [[Stat.CritRate, 20, Type.Heavy]],
 });
 export const FLAMEWING_SHADOW_HEAVY = new Buff({
   name: "Flamewing's Shadow 3pc (heavy)",
-  stats: [[Stat.CritRate, 20, Type1.Echo]], until: LifeTime.Outro,
+  duration: 60 * 6,
+  stats: [[Stat.CritRate, 20, Type.Echo]],
 });
 export const FLAMEWING_SHADOW_3PC = new Sonata3pc({
   name: "Flamewing's Shadow 3pc",
   grants: [
-    { on: onType(Type1.Echo), buff: FLAMEWING_SHADOW_ECHO },
-    { on: onType(Type1.Heavy), buff: FLAMEWING_SHADOW_HEAVY },
+    { on: onType(Type.Echo), buff: FLAMEWING_SHADOW_ECHO, onHit: true },
+    { on: onType(Type.Heavy), buff: FLAMEWING_SHADOW_HEAVY, onHit: true },
   ],
   applyStats: () => {
     if (stacksOf(FLAMEWING_SHADOW_ECHO) && stacksOf(FLAMEWING_SHADOW_HEAVY)) addStat(Stat.DmgBonus, 16, Attribute.Fusion);
@@ -136,13 +139,13 @@ export const FLAMEWING_SHADOW_3PC = new Sonata3pc({
 
 /** Reminiscence: Fenrico, Qiuyuan's own mainslot echo — flat Aero/Heavy DMG Bonus, no trigger. */
 export const ACTION_FENRICO = new Action("Echo - Reminiscence: Fenrico", {
-  cast: Cast.Echo, element: Attribute.Aero, scaling: Scaling.Atk, type: Type1.Echo, mv: 273.6, energy: 3.8,
+  cooldown: 60 * 20,
+  cast: Cast.Echo, element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo, mv: 273.6, energy: 3.8,
 });
 export const FENRICO = new Mainslot({
   name: "Reminiscence: Fenrico",
   action: ACTION_FENRICO,
-  echoType: EchoType.SUMMON,
-  stats: [[Stat.DmgBonus, 12, Attribute.Aero], [Stat.DmgBonus, 12, Type1.Heavy]],
+  stats: [[Stat.DmgBonus, 12, Attribute.Aero], [Stat.DmgBonus, 12, Type.Heavy]],
 });
 
 /** Law of Harmony 3pc, Qiuyuan's own sonata: Echo Skill grants the caster +30% Heavy Attack DMG
@@ -150,11 +153,12 @@ export const FENRICO = new Mainslot({
  *  distinct named Echo (every cast assumed unique). */
 export const LAW_OF_HARMONY_SELF = new Buff({
   name: "Law of Harmony",
-  stats: [[Stat.DmgBonus, 30, Type1.Heavy]], until: LifeTime.Outro,
+  duration: 60 * 4,
+  stats: [[Stat.DmgBonus, 30, Type.Heavy]],
 });
 export const LAW_OF_HARMONY_TEAM = new Buff({
-  name: "Law of Harmony (team)", maxStacks: 4,
-  applyStats: () => { addStat(Stat.DmgBonus, 4 * stacksOfTeam(LAW_OF_HARMONY_TEAM), Type1.Echo); },
+  name: "Law of Harmony (team)", maxStacks: 4, duration: 60 * 30,
+  applyStats: () => { addStat(Stat.DmgBonus, 4 * stacksOfTeam(LAW_OF_HARMONY_TEAM), Type.Echo); },
 });
 export const LAW_OF_HARMONY_3PC = new Sonata3pc({
   name: "Law of Harmony 3pc",
@@ -179,7 +183,8 @@ export const LAW_OF_HARMONY_3PC = new Sonata3pc({
  *  wearer's own slot and stats, since `queue()` inside updateGlobal pins to the holder rather than
  *  to whoever is acting. */
 export const ACTION_THRENODIAN_LEVIATHAN = new Action("Echo - Reminiscence: Leviathan", {
-  cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Echo,
+  cooldown: 60 * 25,
+  cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
   mv: 131.04 * 2, energy: 0.91 * 2,
   updateBuffs: () => queue(ACTION_CORE_OF_COLLAPSE),
 });
@@ -188,22 +193,21 @@ export const ACTION_THRENODIAN_LEVIATHAN = new Action("Echo - Reminiscence: Levi
  *  motion value, so the report names what it is. Carries no energy or
  *  concerto — nanoka gives the summon one damage row and these hits none of their own. */
 export const ACTION_CORE_OF_COLLAPSE = new Action("Echo - Core of Collapse", {
-  element: Attribute.Havoc, scaling: Scaling.Atk, type: Type1.Echo,
+  element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo, frames: 5,
   mv: 24.57 * 8,
   applyStats: () => { if (stacksOfEnemy(HAVOC_BANE) > 0) addStat(Stat.DamageTaken, 100); },
 });
 
 export const THRENODIAN_LEVIATHAN = new Mainslot({
-  name: "Reminiscence: Threnodian - Leviathan",
+  name: "Reminiscence: Threnodian - Leviathan", 
   action: ACTION_THRENODIAN_LEVIATHAN,
-  echoType: EchoType.SUMMON,
-  stats: [[Stat.DmgBonus, 12, Attribute.Havoc], [Stat.DmgBonus, 12, Type1.Liberation]],
+  stats: [[Stat.DmgBonus, 12, Attribute.Havoc], [Stat.DmgBonus, 12, Type.Liberation]],
 });
 
 /** Thread of Severed Fate, Chisa's own sonata — a 3pc-only set (no 5pc of its own), paired with a
  *  plain 2pc from elsewhere the way Galbrena's Flamewing's Shadow 3pc pairs with Clawprint 2pc.
  *  3pc: inflicting Havoc Bane grants +20% ATK and +30% Resonance Liberation DMG Bonus for 5s — a
- *  short self window, lost after the outro like every other one here.
+ * 
  *
  *  updateGlobal rather than updateBuffs, so it still pays out while its wearer is *off* field: a
  *  marker that keeps inflicting Bane off teammates' casts (Chisa's Unseen Snare) is the wearer's
@@ -218,5 +222,6 @@ export const THREAD_OF_SEVERED_FATE_3PC = new Sonata3pc({
 });
 export const THREAD_OF_SEVERED_FATE_BUFF = new Buff({
   name: "Thread of Severed Fate",
-  stats: [[Stat.BonusAtk, 20], [Stat.DmgBonus, 30, Type1.Liberation]],
+  duration: 60 * 5,
+  stats: [[Stat.BonusAtk, 20], [Stat.DmgBonus, 30, Type.Liberation]],
 });

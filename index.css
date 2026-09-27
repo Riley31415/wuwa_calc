@@ -327,7 +327,7 @@ body {
    figure — the table is as wide as its contents, not the page. The pies' row spans every track and
    is wider than the figures come to (`.chartwrap`'s own minimum), and that slack goes to the five
    figure columns alone: the two Energy columns (`.energy`, the detail page's) hold their width. */
-.rtable.dpr { grid-template-columns: max-content repeat(5, minmax(max-content, 1fr)); width: max-content; }
+.rtable.dpr { grid-template-columns: max-content repeat(var(--secs, 5), minmax(max-content, 1fr)); width: max-content; }
 /* ...and on the page it takes the whole of its block's height, which is Equipment's height */
 .rtable-block > .rtable.dpr { flex: 1; }
 /* Loadouts turns the other two on their side — the row label down the left, one column per member
@@ -431,10 +431,10 @@ body {
    The team's own row ruled off from the resonators above it. `.c` already reserves a transparent
    1px top border, so colouring it in shifts nothing. */
 .rtable.dpr .rtrow.total .c { border-top-color: var(--line-2); }
-/* ...and the Total column ruled off from the four loops, down the five rows that carry a figure —
-   the heading above them keeps the band it shares with the rest. An inset shadow rather than a left
-   border: the track is `max-content`, so a border would widen the column and shift the figures. */
-.rtable.dpr .rtrow:not(.rthead):not(.dist) .c:nth-child(6) { box-shadow: inset 1px 0 0 var(--line-2); }
+/* ...and the Total column ruled off from the loops, down the rows that carry a figure — the heading
+   above them keeps the band it shares with the rest. An inset shadow rather than a left border: the
+   track is `max-content`, so a border would widen the column and shift the figures. */
+.rtable.dpr .rtrow:not(.rthead):not(.dist) .c.tot { box-shadow: inset 1px 0 0 var(--line-2); }
 /* ------------------------------------------------- Damage Contribution: the Distribution row */
 
 /* Every figure in the table is a cell the pies below can be read for; the one they are showing
@@ -515,19 +515,43 @@ svg.pie .leader, svg.pie text { pointer-events: none; }
 /* glyphs positioned at full precision rather than snapped to the device pixel, so a repaint of the
    box they sit in can never land them anywhere else */
 svg.pie text { text-rendering: geometricPrecision; }
-/* The team's own figure opens two panes rather than two pies: the rotation drawn out, and the
-   ranking. Both take the full height of the row — the ranking needs it, since how much of it shows
-   is exactly how much fits. */
+/* The team's own figure opens one pane rather than two pies: the rotation drawn out, across the
+   row's whole width and height. */
 .rtrow.dist .c.distbody:has(.teampanes) { padding-bottom: 12px; }
-.teampanes { flex: 1; align-self: stretch; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.teampanes { flex: 1; align-self: stretch; display: grid; grid-template-columns: 1fr; }
 /* Sized off nothing inside: the chart's height is definite here (the figure fills the row) and a
    chart with an aspect ratio then asks for the width that height comes to, which widened the panes
    — and the table — past the pies'. The floor is the pies' own (`.chartwrap`), so the two rows agree. */
 .teampanes .piefig { height: 100%; contain: inline-size; min-width: 330px; }
+/* the chart alone takes the whole row's width, not a pie's */
+.teampanes .chartwrap { max-width: none; }
 /* sized like the pies beside it, so the team's figures and a resonator's leave the table the same
    width; the chart takes the middle of what its title leaves, the way a pie does */
 /* takes the height the pane leaves between the title and the key, which is pinned under it */
 svg.bars .axis { stroke: var(--line-2); }
+/* every bar of the hovered action lit, a touch taller off the axis it stands on */
+svg.bars rect { transform-box: fill-box; transform-origin: bottom; }
+svg.bars rect.lit { filter: brightness(1.35); transform: scaleY(1.08); }
+/* A hovered bar's action at the cursor (panels.ts's `showBarPop`): its caster's bar and wash, the
+   name and its summed damage in full ink, its share of the figure dimmed. */
+.barpop {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  display: flex;
+  gap: 14px;
+  padding: 0 8px 0 10px;
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--own, transparent) 70%, transparent);
+  background: color-mix(in srgb, var(--own, transparent) 18%, var(--surface));
+  outline: 1px solid var(--line-2);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 21px;
+  white-space: nowrap;
+}
+.barpop .v { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.barpop .pct { color: var(--dim); font-family: var(--mono); }
+.barpop[hidden] { display: none; }
 /* the chart's key, right under the chart rather than out on the slack below it: one even column
    per caster, whoever they are */
 .barkey {
@@ -544,75 +568,6 @@ svg.bars .axis { stroke: var(--line-2); }
 }
 .barkey li { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; }
 .barkey .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
-/* The ranking runs to as many rows as the half has room for — it is rendered whole and cut down by
-   `fitTopActions`. Absolute inside its own box, so a forty-row ranking contributes nothing to how
-   tall the row wants to be: the row is Equipment's height, and the list is cut to that rather than
-   stretching it. The chart beside it is what keeps the pair from collapsing when there is no
-   height to inherit. `overflow` clips whatever slips past a re-measure. */
-.topwrap { position: relative; flex: 1; width: 100%; min-height: 0; }
-.topacts {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  /* Two columns: the name from the left with the slack behind it, the figure hard right. No padding
-     inside a row and no gap between them — a row is exactly as tall as its line, which is what lets
-     the bar and the band agree on a height and leaves each band flush with the one above and below
-     it, the way the action log's own rows butt up. */
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) max-content;
-  align-content: start;
-  column-gap: 14px;
-}
-/* each row wears its caster's colour as a left bar, the way a source row does in a panel (`.pop
-   td.s`) and a member does down the side of the table (`.c.name`) */
-/* The row is a band in its caster's own wash, as far across the column as its damage is of the
-   leader's (`--fill`, off panels.ts) — so the top action's runs the whole width, behind its figure
-   and all, and the rest are read against it. A hard stop, not a fade: the band has an end. The wash
-   is the table's own member column (`.c.name`): 18% of the colour over the surface.
-   `subgrid` is what lets the row be a real box, which it must be to carry that band, and still put
-   its name and figure in the list's own two columns so those stay aligned from row to row. */
-.topacts li {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: subgrid;
-  align-items: stretch;
-  /* the bar stays at the left edge whatever the band does, so even a thin one names its caster */
-  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--own, transparent) 70%, transparent);
-  background: linear-gradient(to right,
-    color-mix(in srgb, var(--own, transparent) 18%, var(--surface)) var(--fill, 0%),
-    transparent var(--fill, 0%));
-  font-size: 13px;
-  line-height: 21px;
-}
-/* the name carries no ground of its own any more — the row behind it is the ground, and the
-   column gap is all that separates it from the figure */
-.topacts .nm {
-  grid-column: 1;
-  min-width: 0;
-  /* the bar's own 2px first, then the 8 the log gives its action names (`.c.action`) */
-  padding-left: 10px;
-  color: var(--ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-/* ...and the figure is what the list is read for, so it takes the brightest ink and the far end */
-.topacts .v {
-  grid-column: 2;
-  padding-right: 8px;
-  text-align: right;
-  color: var(--ink);
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.topacts .pct { color: var(--dim); }
-/* `fitTopActions` cuts a row by hiding it, and the rule above would otherwise out-specify the
-   browser's own `[hidden] { display: none }` and keep painting it */
-.topacts li[hidden] { display: none; }
 .nodist { grid-column: 1 / -1; margin: 0; color: var(--dim); font-size: 12px; }
 
 /* ---------------------------------------------------------------------- main */
@@ -722,7 +677,7 @@ main {
 /* The bar keeps its own width and its own place on the line whatever the chips beside it do, so
    a first chip appearing never steps it down (they wrap under it only when the column is too
    narrow to hold both). */
-/* In the note group with Standards rather than a row of its own under every group: there, any
+/* In the note group rather than a row of its own under every group: there, any
    column's boxes opening pushed it down; here only that one box does. */
 /* the search bar, and the filter chips under it — the results list floats over the chips while
    the bar is in use (`.tcsearch-results`) */
@@ -1023,13 +978,11 @@ main {
 .trow.thead .c.slothead:hover, .trow.thead .c.slothead.open { color: var(--ink); }
 .trow.thead .c.slothead .arrow { transform: rotate(90deg); }
 .trow.thead .c.slothead.open .arrow { transform: none; }
-/* each DPR header toggles its own column between exact and abbreviated figures (table.ts's own
-   `dprExact`); the Team column opens on the exact figure, so abbreviating is its marked state, in
-   full ink. Personal carries no mark: its Slot heading beside it is already in ink while the column
-   is open, and a second white heading in the same block read as a second thing being said. */
+/* the team column's heading switches it between adjusted DPR and DPS (table.ts's own `teamMode`) */
 .trow.thead .c.dprhead { cursor: pointer; }
-.trow.thead .c.dprhead:hover,
-.tgrid:not(.teamexact) .trow.thead .c.dprhead[data-dpr="team"] { color: var(--ink); }
+.trow.thead .c.dprhead:hover { color: var(--ink); }
+/* the loop time beside a team's DPR, read second */
+.c.teamdpr .looptime { color: var(--dim); }
 
 /* The `% of Baseline` column: one continuous hue ramp, written per row as `--hue` by
    `rankVisible()` — red at the strongest team, green at the baseline, purple at the weakest.
@@ -1118,6 +1071,34 @@ main {
    nothing next to each other. */
 .pop.info td.v { text-align: left; }
 
+/* The Time hover: laid out like a stat panel, the frames right-aligned the way a stat's figures are. */
+.pop.frames td.v, .pop.frames .sec td { text-align: right; }
+
+/* A cancelled press's tag, boxed at the right of its name: outlined in the cancel's colour over a
+   faint wash of it — a plain cancel purple, a dash blue, a jump orange, an insta (swap included)
+   red, a swap cancel yellow, an easy cancel green, and an off-field press gray. */
+.ctag {
+  float: right;
+  margin-left: 6px;
+  padding: 0 4px;
+  border: 1px solid var(--tag);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--tag) 14%, transparent);
+  color: var(--tag);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: .4px;
+  line-height: 16px;
+}
+.ctag-cancel { --tag: #8e6cef; }
+.ctag-dash { --tag: #3e8ef7; }
+.ctag-jump { --tag: #f08a24; }
+.ctag-insta { --tag: #e5484d; }
+.ctag-field { --tag: #8b8d98; }
+/* a swap cancel, whose hit lands on field before the swap */
+.ctag-swap { --tag: #f5c542; }
+.ctag-easy { --tag: #3ddc7a; }
+
 /* The comparison table's own Total DPR hover is the detail page's damage-per-rotation table
    whole, not a panel of rows — so the panel is only the frame around it: no padding of its own,
    and the radius moved up here onto the box that already carries the border and shadow, with the
@@ -1134,6 +1115,8 @@ main {
    are separate scopes rather than one running list. Each column is its own table so every name
    column still sizes to its own longest cell. */
 .pop.buffs .cols, .pop.gear .cols { display: flex; align-items: flex-start; gap: 26px; }
+/* a timed buff's remaining seconds, dimmed after its name */
+.pop.buffs .left { color: var(--dim); }
 /* the substat column's roll counts, in ink beside their dim stat names — a single roll fades,
    stat and count both, so the rolls that were actually chosen stand out; the total under them is
    ruled off like any panel's own foot (see `.pop .sum` below) */

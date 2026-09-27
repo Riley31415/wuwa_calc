@@ -1,13 +1,12 @@
 import {
   ALL_TEAMS,
   AXES,
+  ActionTag,
   BASE_RESISTANCE,
   CAST_NAME,
-  DODGE,
   ENEMY_MAX_OFFTUNE,
   ER_TOLERANCE,
   INTERCHANGEABLE,
-  JUMP,
   LEVEL_90_DOT,
   LEVEL_90_TUNE,
   MAINSTAT_ROWS,
@@ -16,7 +15,6 @@ import {
   RESONATOR_LEVEL,
   RESOURCE_NAME,
   SCALING_NAME,
-  SWAP,
   Sonata,
   TAG_NAME,
   TUNE_BREAK_ENEMY,
@@ -60,7 +58,7 @@ import {
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-AOOCY3AJ.js";
+} from "./chunk-EB3R4S3A.js";
 
 // dist/src/display.js
 var formatters = /* @__PURE__ */ new Map();
@@ -85,6 +83,12 @@ var FORTE_GAUGES = [
   7
   /* Resource.Forte5 */
 ];
+var clockAt = (frame) => {
+  const left = 60 * 120 - frame;
+  const cs = Math.floor(Math.abs(left) * 100 / 60);
+  const sec = String(Math.floor(cs / 100) % 60).padStart(2, "0");
+  return `${left < 0 ? "-" : ""}${Math.floor(cs / 6e3)}:${sec}.${String(cs % 100).padStart(2, "0")}`;
+};
 var PAD_DIGITS_COLUMNS = /* @__PURE__ */ new Set([
   "energy",
   "concerto",
@@ -109,7 +113,7 @@ var digitsOf = (raw, col) => {
 };
 var keysFor = (action, ...stats) => stats.flatMap((stat) => [
   stat,
-  ...[action.element, action.type1, action.type2].filter((tag) => tag !== null).map((tag) => scopedStat(tag, stat))
+  ...[action.element, action.type, action.subtype].filter((tag) => tag !== null).map((tag) => scopedStat(tag, stat))
 ]);
 var special = (action) => action.scaling === 3 || action.scaling === 4 || action.scaling === 5;
 var fixed = (action) => action.scaling === 5;
@@ -169,8 +173,8 @@ var FEEDS = {
     a,
     9
     /* Stat.CritRate */
-  ) : a.type2 === null ? [] : [scopedStat(
-    a.type2,
+  ) : a.subtype === null ? [] : [scopedStat(
+    a.subtype,
     9
     /* Stat.CritRate */
   )],
@@ -178,8 +182,8 @@ var FEEDS = {
     a,
     10
     /* Stat.CritDmg */
-  ) : a.type2 === null ? [] : [scopedStat(
-    a.type2,
+  ) : a.subtype === null ? [] : [scopedStat(
+    a.subtype,
     10
     /* Stat.CritDmg */
   )],
@@ -192,8 +196,8 @@ var FEEDS = {
     a,
     18
     /* Stat.Amp */
-  ) : a.type2 === null ? [] : [scopedStat(
-    a.type2,
+  ) : a.subtype === null ? [] : [scopedStat(
+    a.subtype,
     18
     /* Stat.Amp */
   )],
@@ -202,34 +206,34 @@ var FEEDS = {
     19,
     20
     /* Stat.DamageTaken */
-  ) : a.type2 === null ? [] : [scopedStat(
-    a.type2,
+  ) : a.subtype === null ? [] : [scopedStat(
+    a.subtype,
     19
     /* Stat.TotalDmg */
   ), scopedStat(
-    a.type2,
+    a.subtype,
     20
     /* Stat.DamageTaken */
   )],
   effDef: (a) => fixed(a) ? [] : a.scaling === 3 ? keysFor(
     a,
-    36
+    43
     /* EnemyStat.DefReduce */
   ) : keysFor(
     a,
     22,
     23,
-    36
+    43
     /* EnemyStat.DefReduce */
   ),
   effRes: (a) => a.scaling === 3 ? keysFor(
     a,
-    35
+    42
     /* EnemyStat.ResReduce */
   ) : fixed(a) ? [] : keysFor(
     a,
     21,
-    35
+    42
     /* EnemyStat.ResReduce */
   )
   // energy/concerto/offtune are running totals — `rowValues()` builds their panels by hand
@@ -280,7 +284,7 @@ var SECTION_OF = {
     /* Stat.DefIgnoreOld */
   ]: "DEF Ignore (old)",
   [
-    36
+    43
     /* EnemyStat.DefReduce */
   ]: "DEF Reduce",
   [
@@ -288,7 +292,7 @@ var SECTION_OF = {
     /* Stat.ResIgnore */
   ]: "RES Ignore",
   [
-    35
+    42
     /* EnemyStat.ResReduce */
   ]: "RES Reduce",
   [
@@ -300,7 +304,7 @@ var SECTION_OF = {
     /* Stat.DamageTaken */
   ]: "Damage Taken"
 };
-var actionInfo = (action, type, triggered, triggeredBy) => {
+var actionInfo = (action, type, source) => {
   const info = [];
   const push = (label, value) => {
     if (value)
@@ -308,16 +312,18 @@ var actionInfo = (action, type, triggered, triggeredBy) => {
   };
   push("Node", action.node === null ? null : NODE_NAME[action.node]);
   push("Cast", action.cast === null ? null : CAST_NAME[action.cast]);
-  push("Cast 2", action.cast2 === null ? null : CAST_NAME[action.cast2]);
+  push("Subcast", action.subcast === null ? null : CAST_NAME[action.subcast]);
   push("Attribute", action.element === null ? null : TAG_NAME[action.element]);
   push("Scaling", action.scaling === null ? null : SCALING_NAME[action.scaling]);
   push("Type", type === null ? null : TAG_NAME[type]);
-  push("Type 2", action.type2 === null ? null : TAG_NAME[action.type2]);
-  push("Cutscene", String(action.cutscene));
-  push("Swap out", String(action.swapOut));
-  push("Triggered", String(triggered));
-  if (triggeredBy)
-    info.push({ label: triggeredBy.name, value: "", source: triggeredBy.source });
+  push("Subtype", action.subtype === null ? null : TAG_NAME[action.subtype]);
+  push("Frames", String(action.frames));
+  if (action.def.cancelFrames !== void 0)
+    push("Cancel Frames", String(action.cancelFrames));
+  push("Time Stop", action.timestop ? String(action.timestop) : null);
+  push("Motion Stop", action.motionStop ? String(action.motionStop) : null);
+  if (source)
+    info.push({ label: "Source", value: source.name, source: source.source });
   return info;
 };
 var STAT_SOURCE = {
@@ -409,9 +415,19 @@ function foldDuplicates(rows) {
 var OFFTUNE_RATE = "Buildup Rate";
 var ENERGY_RATE = "Regen Multiplier";
 var MV_MULTIPLIER = "MV Multiplier";
+var tagOf = (snap) => snap.tag === ActionTag.Field ? "" : snap.tag;
+function ownShares(snap, total, cast) {
+  const hit = total - cast;
+  if (cast && hit) {
+    return [
+      { source: snap.action.name, value: cast, owner: snap.member },
+      { source: snap.action.name, value: hit, owner: snap.member }
+    ];
+  }
+  return total ? [{ source: snap.action.name, value: total, owner: snap.member }] : [];
+}
 function rowValues(snap, { mv, avg }, members = []) {
   const dealsDamage = mv !== 0;
-  const filler = snap.action === SWAP || snap.action === DODGE || snap.action === JUMP;
   const scaler = scalerOf(snap.action);
   const constant = constantScalerOf(snap.action);
   const buffed = /* @__PURE__ */ new Set();
@@ -423,27 +439,27 @@ function rowValues(snap, { mv, avg }, members = []) {
     // a fixed hit's motion value *is* its damage rather than a multiplier, so no mv cell either
     mv: dealsDamage && !fixed(snap.action) ? mv : null,
     // what a dot/tune/fixed hit doesn't read is blank, matching `FEEDS`
-    dmgBonus: filler || special(snap.action) ? null : snap.dmgBonus,
-    amp: filler || fixed(snap.action) ? null : snap.action.scaling === 4 ? null : snap.action.scaling === 3 ? snap.type2Amp : snap.amp,
-    cr: filler || fixed(snap.action) ? null : special(snap.action) ? snap.type2CritRate : snap.stat(
+    dmgBonus: special(snap.action) ? null : snap.dmgBonus,
+    amp: fixed(snap.action) ? null : snap.action.scaling === 4 ? null : snap.action.scaling === 3 ? snap.subtypeAmp : snap.amp,
+    cr: fixed(snap.action) ? null : special(snap.action) ? snap.subtypeCritRate : snap.stat(
       9
       /* Stat.CritRate */
     ),
-    cd: filler || fixed(snap.action) ? null : special(snap.action) ? snap.type2CritDmg : snap.stat(
+    cd: fixed(snap.action) ? null : special(snap.action) ? snap.subtypeCritDmg : snap.stat(
       10
       /* Stat.CritDmg */
     ),
     // the column is the pair's combined lift, since Total Damage and Damage Taken multiply; a dot
     // reads only its status-scoped halves, the way `amp` above does
-    dealt: filler || fixed(snap.action) ? null : snap.action.scaling === 3 ? ((1 + snap.type2TotalDmg / 100) * (1 + snap.type2DamageTaken / 100) - 1) * 100 : ((1 + snap.stat(
+    dealt: fixed(snap.action) ? null : snap.action.scaling === 3 ? ((1 + snap.subtypeTotalDmg / 100) * (1 + snap.subtypeDamageTaken / 100) - 1) * 100 : ((1 + snap.stat(
       19
       /* Stat.TotalDmg */
     ) / 100) * (1 + snap.stat(
       20
       /* Stat.DamageTaken */
     ) / 100) - 1) * 100,
-    effDef: filler || fixed(snap.action) ? null : effectiveShred(snap) * 100,
-    effRes: filler || fixed(snap.action) ? null : effectiveRes(snap),
+    effDef: fixed(snap.action) ? null : effectiveShred(snap) * 100,
+    effRes: fixed(snap.action) ? null : effectiveRes(snap),
     energy: snap.energy / RESOURCE_SCALE.energy,
     concerto: snap.concerto / RESOURCE_SCALE.concerto,
     offtune: snap.offtune / RESOURCE_SCALE.offtune,
@@ -471,25 +487,29 @@ function rowValues(snap, { mv, avg }, members = []) {
   if (constant)
     raw["empty:scaler"] = constant.label;
   sources.effRes = (sources.effRes ?? []).map((r) => ({ ...r, value: -r.value }));
-  const RESOURCE_STAT = { energy: [
-    26
-    /* Stat.AddEnergy */
-  ], concerto: [
-    27
-    /* Stat.AddConcerto */
-  ], offtune: [
-    28
-    /* Stat.AddOfftune */
-  ] };
+  const RESOURCE_STAT = {
+    energy: [
+      26,
+      35
+      /* Stat.AddCastEnergy */
+    ],
+    concerto: [
+      27,
+      36
+      /* Stat.AddCastConcerto */
+    ],
+    offtune: [
+      28
+      /* Stat.AddOfftune */
+    ]
+  };
+  const CAST_SHARE = { energy: snap.action.castEnergy, concerto: snap.action.castConcerto, offtune: 0 };
   for (const key of ["energy", "concerto", "offtune"]) {
     const wiped = key === "energy" && snap.energyWiped;
-    const declared = wiped ? 0 : snap.action[key] / RESOURCE_SCALE[key];
     const traced = wiped ? [] : RESOURCE_STAT[key].flatMap((st) => tracing(snap, keysFor(snap.action, st), false)).map((r) => ({ ...r, value: r.value / RESOURCE_SCALE[key] }));
-    const rows = [];
-    if (declared)
-      rows.push({ source: snap.action.name, value: declared, owner: snap.member });
-    rows.push(...traced);
-    const folded = foldDuplicates(rows);
+    const own = wiped ? [] : ownShares(snap, snap.action[key] / RESOURCE_SCALE[key], CAST_SHARE[key] / RESOURCE_SCALE[key]);
+    const rows = [...own, ...traced];
+    const folded = [...own, ...foldDuplicates(traced)];
     if (folded.length || wiped)
       sources[key] = folded;
     if (traced.length)
@@ -550,15 +570,22 @@ function rowValues(snap, { mv, avg }, members = []) {
     34
     /* Stat.AddForte5 */
   ];
+  const CAST_FORTE_STAT = [
+    37,
+    38,
+    39,
+    40,
+    41
+    /* Stat.AddCastForte5 */
+  ];
   FORTE_GAUGES.forEach((key, i) => {
     const declared = snap.action[FORTE_FIELD[i]];
-    const traced = tracing(snap, keysFor(snap.action, FORTE_STAT[i]));
+    const traced = [FORTE_STAT[i], CAST_FORTE_STAT[i]].flatMap((st) => tracing(snap, keysFor(snap.action, st)));
     const rows = [];
     if (snap.action.resetForte[i]) {
       rows.push({ source: snap.action.name, value: 0, text: "RESET", owner: snap.member });
     }
-    if (declared)
-      rows.push({ source: snap.action.name, value: declared, owner: snap.member });
+    rows.push(...ownShares(snap, declared, snap.action.castForte[i]));
     rows.push(...traced);
     if (rows.length)
       sources[`gauge:${RESOURCE_NAME[key]}`] = rows;
@@ -665,6 +692,8 @@ function buildReport(lines) {
   const columns = [
     { key: "member", label: "member", align: "left" },
     { key: "action", label: "action", align: "left" },
+    // the clock as the row's own press ends, counting down from 2:00.00 (`clockAt`)
+    { key: "time", label: "time", noTotal: true, full: "Time" },
     { key: "avg", label: "avg dmg", full: "Final Damage" },
     { key: "mv", label: "mv%", digits: 2, percent: true, full: "Motion Value" },
     // whichever stat the action scales off, blank where it scales off a constant
@@ -696,9 +725,14 @@ function buildReport(lines) {
   const partOf = (snap, avg, shown2) => {
     const part = rowValues(snap, { mv: mvPercent(snap), avg });
     part.raw.action = snap.action.name;
+    if (tagOf(snap))
+      part.raw["tag:action"] = tagOf(snap);
+    const end = snap.hitAt ?? snap.ends;
+    part.raw.time = clockAt(end);
+    part.raw["end:time"] = end;
     return {
       ...part,
-      info: actionInfo(snap.action, snap.type, snap.triggered, snap.triggeredBy),
+      info: actionInfo(snap.action, snap.type, snap.source),
       type: snap.type,
       scaling: snap.action.scaling,
       isShown: snap === shown2,
@@ -710,13 +744,18 @@ function buildReport(lines) {
     const snap = line.snap;
     const { raw, sources, buffed } = rowValues(snap, { mv: line.mv, avg: line.avg }, line.members ?? []);
     raw.action = line.id;
+    if (tagOf(snap))
+      raw["tag:action"] = tagOf(snap);
+    const end = Math.max(...(line.members?.length ? line.members : [snap]).map((s) => s.hitAt ?? s.ends));
+    raw.time = clockAt(end);
+    raw["end:time"] = end;
     return {
       line,
       raw,
       sources,
       buffed,
       // `snap.type`, not `action.type`: the type it was actually evaluated as (typeOverride)
-      info: actionInfo(snap.action, snap.type, snap.triggered, snap.triggeredBy),
+      info: actionInfo(snap.action, snap.type, snap.source),
       scaling: snap.action.scaling,
       short: isShortLine(line),
       parts: line.isChain ? line.parts.map((p) => partOf(p.snap, p.dmg.avg, snap)) : []
@@ -749,12 +788,13 @@ function buildReport(lines) {
     const v = r.raw[c.key];
     return typeof v === "number" ? fmt(v, digitsOf(r.raw, c), PAD_DIGITS_COLUMNS.has(c.key), GROUPED_COLUMNS.has(c.key)) + (c.percent ? "%" : "") + gaugeSuffix(r.raw, c.key) : String(v ?? "");
   };
+  const tagLen = (r, c) => c.key === "action" && r.raw["tag:action"] ? Math.ceil(String(r.raw["tag:action"]).length * 0.82 + 2.6) : 0;
   const sized = used.map((c) => {
     const lens = [c.label.length];
     for (const r of rows) {
-      lens.push(shown(r, c).length);
+      lens.push(shown(r, c).length + tagLen(r, c));
       for (const p of r.parts)
-        lens.push(shown(p, c).length + (c.key === "action" ? 3 : 0));
+        lens.push(shown(p, c).length + (c.key === "action" ? 3 : 0) + tagLen(p, c));
     }
     return { ...c, width: Math.max(...lens) + 1 };
   });
@@ -1389,11 +1429,36 @@ function infoPopover(info, slotHue) {
   const rows = info.map((e) => {
     if (e.source !== void 0) {
       const hue = slotHue.get(e.source) ?? TUNE_BREAK_ENEMY.color;
-      return `<tr><td class="s" colspan="2" style="--own:${hue}">${esc(e.label)}</td></tr>`;
+      return `<tr><td class="k">${esc(e.label)}</td><td class="v s" style="--own:${hue}">${esc(e.value)}</td></tr>`;
     }
     return `<tr><td class="k">${esc(e.label)}</td><td class="v">${esc(e.value)}</td></tr>`;
   }).join("");
   return lazyPop(`<span class="pop info"><table>${rows}</table></span>`);
+}
+function framesPopover(snaps) {
+  const line = (k, v, cls = "") => `<tr${cls}><td class="k">${esc(k)}</td><td class="v">${v}</td></tr>`;
+  const rows = [];
+  let total = 0, banks = 0;
+  for (const s of snaps) {
+    const cost = (s.hitAt !== void 0 ? s.action.castPart(s.tag) : s.action).cost(s.tag);
+    total += cost.total - s.timestopBanked;
+    const insta = s.tag === ActionTag.InstaCancel || s.tag === ActionTag.InstaDodge || s.tag === ActionTag.InstaJump || s.tag === ActionTag.InstaSwap;
+    const fast = s.tag === ActionTag.EasyCancel;
+    const cut = s.tag === ActionTag.Cancel || s.tag === ActionTag.EasyCancel || s.tag === ActionTag.DodgeCancel || s.tag === ActionTag.JumpCancel || s.tag === ActionTag.SwapCancel;
+    if (!insta)
+      rows.push(line(`${s.action.name}${cut ? " (c)" : ""}`, cost.action));
+    if (cost.timestop)
+      rows.push(line("Timestop", -cost.timestop));
+    if (cost.global)
+      rows.push(line(insta ? "Input Delay" : fast ? "Mash/Hold delay" : "Cancel Timing", cost.global));
+    if (s.timestopBanked)
+      rows.push(line("Banked Timestop", -s.timestopBanked));
+    if (s.swapFrames)
+      rows.push(line("Swap", s.swapFrames));
+    total += s.swapFrames ?? 0;
+    banks += Math.max(0, s.action.timestop - cost.timestop);
+  }
+  return lazyPop(`<span class="pop frames"><table><tr class="sec"><td colspan="2">Frames</td></tr>` + rows.join("") + line("Total", total, ' class="sum"') + (banks ? line("Timestop Banked", banks) : "") + `</table></span>`);
 }
 var GEAR_SECTION_ENABLED = false;
 function buffsPopover(member2, gear, local, global, enemy, slotHue) {
@@ -1407,10 +1472,11 @@ function buffsPopover(member2, gear, local, global, enemy, slotHue) {
     return i === -1 ? order.length : i;
   };
   const sorted = (buffs) => [...buffs].sort((a, b) => rank(a) - rank(b) || a.source.localeCompare(b.source) || a.name.localeCompare(b.name));
-  const row = (name, hue) => `<tr><td class="s" style="--own:${hue}">${esc(name)}</td></tr>`;
+  const left = (frames) => frames > 0 ? ` <span class="left">(${Math.round(frames / 6) / 10}s)</span>` : "";
+  const row = (name, hue, frames = 0) => `<tr><td class="s" style="--own:${hue}">${esc(name)}${left(frames)}</td></tr>`;
   const own = slotHue.get(member2) ?? FALLBACK_HUE;
   const gearSection = showGear ? `<tr class="sec"><td>Gear</td></tr>` + gear.map((g) => row(g.name, own)).join("") : "";
-  const section = (heading, buffs) => buffs.length ? `<tr class="sec"><td>${esc(heading)}</td></tr>` + sorted(buffs).map((b) => row(b.name, slotHue.get(b.source) ?? TUNE_BREAK_ENEMY.color)).join("") : "";
+  const section = (heading, buffs) => buffs.length ? `<tr class="sec"><td>${esc(heading)}</td></tr>` + sorted(buffs).map((b) => row(b.name, slotHue.get(b.source) ?? TUNE_BREAK_ENEMY.color, b.left)).join("") : "";
   const columns = [
     gearSection + section("Local buffs", local),
     section("Global buffs", global),
@@ -1456,12 +1522,12 @@ var ATTRIBUTE_SCOPES = [
   384,
   448
 ];
-var CORE_TYPE1_SCOPES = [
+var CORE_TYPE_SCOPES = [
   4096,
   8192,
   12288,
   16384
-  /* Type1.Liberation */
+  /* Type.Liberation */
 ];
 var OTHER_SCOPES = [
   20480,
@@ -1560,7 +1626,7 @@ function menuStatRows(member2, combo, erRolls) {
     /* Stat.Tbb */
   ), false);
   pushBest(ATTRIBUTE_SCOPES);
-  pushBest(CORE_TYPE1_SCOPES);
+  pushBest(CORE_TYPE_SCOPES);
   pushBest(OTHER_SCOPES);
   return rows;
 }
@@ -1718,39 +1784,40 @@ function loadoutTable(run, erReq) {
   return `<div class="rtable loadout" style="--cols:${builds.length}">${head}${rows.join("")}</div>`;
 }
 function dprTable(run, lines) {
-  const grand = run.sectionTotals.reduce((a, b) => a + b, 0);
+  const grand = run.fightTotal;
   const flat = lines?.flat();
+  const whole = run.sectionTotals.length;
   const slots = [...run.members.map((m) => m.name), TUNE_BREAK_ENEMY.name];
   const slotHue = new Map([
     ...run.members.map((m) => [m.name, m.color]),
     [TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color]
   ]);
-  const sections = ["Opener", "Loop 1", "Loop 2", "Loop 3"];
-  const ownTotal = (slot) => run.sectionBySlot.reduce((a, by) => a + (by.get(slot) ?? 0), 0);
-  const selected2 = flat ? `${TEAM_ROW}|4` : "";
+  const sections = ["Opener", ...Array.from({ length: whole - 1 }, (_, i) => `Loop ${i + 1}`), "2min"];
+  const ownTotal = (slot) => run.fightBySlot.get(slot) ?? 0;
+  const selected2 = flat ? `${TEAM_ROW}|${whole}` : "";
   if (lines)
     distCells = new Map([
-      ...slots.flatMap((slot) => [...lines, lines.flat()].map((sec, i) => [
+      ...slots.flatMap((slot) => [...lines.slice(0, whole), lines.flat()].map((sec, i) => [
         `${slot}|${i}`,
         distCell(sec, slot, sections[i] ?? "", slotHue.get(slot) ?? TUNE_BREAK_ENEMY.color)
       ])),
       // the team's own row reads the rotation itself rather than one slot's share of it: one section
-      // for each of the four loop columns, all four in order for the Total
-      ...[...lines.map((sec) => [sec]), lines].map((secs, i) => [`${TEAM_ROW}|${i}`, teamCell(secs, sections[i] ?? "", slotHue)])
+      // for each loop column, the whole fight in order for the Total
+      ...[...lines.slice(0, whole).map((sec) => [sec]), lines].map((secs, i) => [`${TEAM_ROW}|${i}`, teamCell(secs, sections[i] ?? "", slotHue)])
     ]);
-  const head = `<div class="rtrow rthead"><div class="c"></div>` + sections.map((n) => `<div class="c num">${n}</div>`).join("") + `<div class="c num">Total</div></div>`;
-  const valueCell = (sec, value, key) => sec ? `<div class="c num dist-cell${key === selected2 ? " sel" : ""}" data-dist="${key}">${fmt(value)}</div>` : `<div class="c num">${fmt(value)}</div>`;
+  const head = `<div class="rtrow rthead"><div class="c"></div>` + sections.slice(0, whole).map((n) => `<div class="c num">${n}</div>`).join("") + `<div class="c num tot">Total (2min)</div></div>`;
+  const valueCell = (sec, value, key, cls = "") => sec ? `<div class="c num dist-cell${cls}${key === selected2 ? " sel" : ""}" data-dist="${key}">${fmt(value)}</div>` : `<div class="c num${cls}">${fmt(value)}</div>`;
   const rowLabel = (slot, mem) => `<div class="c name"${mem}${lines ? ` data-dist-row="${esc(slot)}"` : ""}>${esc(slot)}</div>`;
   const dataRow = (slot, color) => {
     const own = ownTotal(slot);
-    return `<div class="rtrow">` + rowLabel(slot, ` style="--mem:${color}"`) + run.sectionBySlot.map((by, i) => valueCell(lines?.[i], by.get(slot) ?? 0, `${slot}|${i}`)).join("") + valueCell(flat, own, `${slot}|4`) + `</div>`;
+    return `<div class="rtrow">` + rowLabel(slot, ` style="--mem:${color}"`) + run.sectionBySlot.map((by, i) => valueCell(lines?.[i], by.get(slot) ?? 0, `${slot}|${i}`)).join("") + valueCell(flat, own, `${slot}|${whole}`, " tot") + `</div>`;
   };
   const memberRows = run.members.map((m) => dataRow(m.name, m.color)).join("");
   const tuneBreakRow = dataRow(TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color);
-  const totalRow = `<div class="rtrow total">` + rowLabel(TEAM_ROW, "") + run.sectionTotals.map((v, i) => valueCell(lines?.[i], v, `${TEAM_ROW}|${i}`)).join("") + valueCell(flat, grand, `${TEAM_ROW}|4`) + `</div>`;
+  const totalRow = `<div class="rtrow total">` + rowLabel(TEAM_ROW, "") + run.sectionTotals.map((v, i) => valueCell(lines?.[i], v, `${TEAM_ROW}|${i}`)).join("") + valueCell(flat, grand, `${TEAM_ROW}|${whole}`, " tot") + `</div>`;
   const distRow = lines ? distributionRow(selected2) : "";
-  const tracks = lines ? ` style="grid-template-rows:repeat(${run.members.length + 3}, max-content) 1fr"` : "";
-  return `<div class="rtable dpr"${tracks}>${head}${memberRows}${tuneBreakRow}${totalRow}${distRow}</div>`;
+  const rowsCss = lines ? `;grid-template-rows:repeat(${run.members.length + 3}, max-content) 1fr` : "";
+  return `<div class="rtable dpr" data-total-col="${whole}" style="--secs:${whole + 1}${rowsCss}">${head}${memberRows}${tuneBreakRow}${totalRow}${distRow}</div>`;
 }
 var driver = null;
 var drivePanel = (cell2, html) => driver?.show(cell2, html);
@@ -1930,7 +1997,7 @@ function toHsl(hex) {
   const h = max === r ? (g - b) / spread + (g < b ? 6 : 0) : max === g ? (b - r) / spread + 2 : (r - g) / spread + 4;
   return [h * 60, spread / (1 - Math.abs(2 * l - 1)) * 100, l * 100];
 }
-var typeLabel = (type1, type2) => [type2, type1].filter((t) => t !== null).map((t) => TAG_NAME[t]).join(" ") || "Untyped";
+var typeLabel = (type, subtype) => [subtype, type].filter((t) => t !== null).map((t) => TAG_NAME[t]).join(" ") || "Untyped";
 function distCell(lines, slot, section, hue) {
   const types = /* @__PURE__ */ new Map();
   const nodes = /* @__PURE__ */ new Map();
@@ -1938,14 +2005,14 @@ function distCell(lines, slot, section, hue) {
   let nodeless = 0;
   eachHit(lines, slot, (snap, avg) => {
     total += avg;
-    const type2 = snap.action.type2;
-    const type1 = snap.type === 32768 && type2 !== null ? null : snap.type;
-    const key = (type1 ?? 0) | (type2 ?? 0);
-    const type = types.get(key);
-    if (type)
-      type.value += avg;
+    const subtype = snap.action.subtype;
+    const type = snap.type === 32768 && subtype !== null ? null : snap.type;
+    const key = (type ?? 0) | (subtype ?? 0);
+    const slice = types.get(key);
+    if (slice)
+      slice.value += avg;
     else
-      types.set(key, { label: typeLabel(type1, type2), value: avg, color: "" });
+      types.set(key, { label: typeLabel(type, subtype), value: avg, color: "" });
     const node = snap.action.node;
     if (node === null) {
       nodeless += avg;
@@ -2051,6 +2118,7 @@ function pieSvg(slices, total) {
 var pieFigure = (heading, slices, total) => `<figure class="piefig"><figcaption>${esc(heading)}</figcaption><div class="chartwrap">${pieSvg(slices, total)}</div></figure>`;
 function teamCell(sections, section, slotHue) {
   const bars = [];
+  const acts = [];
   const by = /* @__PURE__ */ new Map();
   let total = 0;
   sections.forEach((lines) => {
@@ -2059,58 +2127,100 @@ function teamCell(sections, section, slotHue) {
         return;
       total += avg;
       const color = slotHue.get(snap.slot) ?? TUNE_BREAK_ENEMY.color;
-      bars.push({ dmg: avg, color });
       let act = snap.action;
       while (act.cancelOf ?? act.formOf)
         act = act.cancelOf ?? act.formOf;
       const key = `${snap.slot} ${act.name}`;
-      const cur = by.get(key) ?? { name: act.name, color, dmg: 0, casts: 0 };
-      cur.dmg += avg;
-      cur.casts++;
-      by.set(key, cur);
+      let at = by.get(key);
+      if (at === void 0) {
+        at = acts.push({ name: act.name, color, dmg: 0, casts: 0 }) - 1;
+        by.set(key, at);
+      }
+      acts[at].dmg += avg;
+      acts[at].casts++;
+      bars.push({ dmg: avg, color, act: at });
     });
   });
-  const top = [...by.values()].sort((a, b) => b.dmg - a.dmg);
   const roster = [...slotHue].map(([name, color]) => ({ name, color }));
-  return { kind: "team", section, total, bars, roster, top };
+  return { kind: "team", section, total, bars, roster, acts };
 }
 function barChart(bars) {
   const width = 480, height = 210, left = 2, right = 2, top = 10, foot = 12;
   const plotW = width - left - right, plotH = height - top - foot;
   const f = (n) => n.toFixed(2);
   const peak = Math.max(...bars.map((b) => b.dmg));
-  const slot = plotW / bars.length;
+  const weights = bars.map((b) => 0.15 + Math.sqrt(b.dmg / peak));
+  const unit2 = plotW / weights.reduce((a, w) => a + w, 0);
+  let x = left;
   const rects = bars.map((b, i) => {
-    const h = b.dmg / peak * plotH;
-    return `<rect x="${f(left + i * slot)}" y="${f(top + plotH - h)}" width="${f(Math.max(slot * 0.9, 0.6))}" height="${f(h)}" fill="${b.color}"/>`;
+    const h = b.dmg / peak * plotH, slot = weights[i] * unit2;
+    const rect2 = `<rect data-act="${b.act}" x="${f(x)}" y="${f(top + plotH - h)}" width="${f(Math.max(slot * 0.9, 0.6))}" height="${f(h)}" fill="${b.color}"/>`;
+    x += slot;
+    return rect2;
   }).join("");
   return `<svg class="bars" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img"><line class="axis" vector-effect="non-scaling-stroke" x1="${left}" y1="${top + plotH}" x2="${width - right}" y2="${top + plotH}"/>` + rects + `</svg>`;
 }
 var barKey = (roster) => `<ul class="barkey" style="--keys:${roster.length}">${roster.map((c) => `<li><span class="dot" style="background:${c.color}"></span>${esc(c.name)}</li>`).join("")}</ul>`;
-var topActions = (top, total) => `<div class="topwrap"><ol class="topacts">${top.map((a) => `<li style="--own:${a.color};--fill:${(a.dmg / (top[0]?.dmg ?? a.dmg) * 100).toFixed(2)}%"><span class="nm">${esc(a.name)}${a.casts > 1 ? ` x${a.casts}` : ""}</span><span class="v">${fmt(a.dmg)} <span class="pct">(${fmt(a.dmg / total * 100)}%)</span></span></li>`).join("")}</ol></div>`;
 function distBody(cell2) {
   if (!cell2 || cell2.total <= 0)
     return `<div class="pies"><p class="nodist">No damage in this section.</p></div>`;
   const section = cell2.section ? ` (${cell2.section})` : "";
   if (cell2.kind === "team") {
-    return `<div class="teampanes"><figure class="piefig"><figcaption>Damage Over Time${section}</figcaption><div class="chartwrap">${barChart(cell2.bars)}</div>${barKey(cell2.roster)}</figure><figure class="piefig"><figcaption>Strongest Actions${section}</figcaption>${topActions(cell2.top, cell2.total)}</figure></div>`;
+    shownChart = cell2;
+    return `<div class="teampanes"><figure class="piefig"><figcaption>Damage Over Time${section}</figcaption><div class="chartwrap">${barChart(cell2.bars)}</div>${barKey(cell2.roster)}</figure></div>`;
   }
   return `<div class="pies">${pieFigure(`${cell2.slot} Damage Distribution${section}`, cell2.types, cell2.total)}${pieFigure(`${cell2.slot} Node Priority${section}`, cell2.nodes, cell2.total)}</div>`;
 }
+var shownChart = null;
 var distCells = /* @__PURE__ */ new Map();
 var distributionRow = (selected2) => `<div class="rtrow dist"><div class="c distbody">${distBody(distCells.get(selected2))}</div></div>`;
-function fitTopActions(body) {
-  const list = body.querySelector(".topacts");
-  if (!list)
-    return;
-  const items = [...list.children];
-  for (const li of items)
-    li.hidden = false;
-  const floor = list.getBoundingClientRect().bottom;
-  for (const li of items.filter((el) => el.getBoundingClientRect().bottom > floor + 0.5))
-    li.hidden = true;
+var barPop = null;
+function showBarPop(act, total, x, y) {
+  if (!barPop) {
+    barPop = document.createElement("div");
+    barPop.className = "barpop";
+    document.body.append(barPop);
+  }
+  barPop.style.setProperty("--own", act.color);
+  barPop.innerHTML = `<span class="nm">${esc(act.name)}${act.casts > 1 ? ` x${act.casts}` : ""}</span><span class="v">${fmt(act.dmg)}</span><span class="pct">${fmt(act.dmg / total * 100, 1)}%</span>`;
+  barPop.hidden = false;
+  const { width, height } = barPop.getBoundingClientRect();
+  barPop.style.left = `${x - width < 0 ? x : x - width}px`;
+  barPop.style.top = `${y - height}px`;
 }
-var rowObserver = null;
+function wireBarHover(body) {
+  let lit = -1;
+  const light = (act) => {
+    if (act === lit)
+      return;
+    lit = act;
+    for (const r of body.querySelectorAll("svg.bars rect[data-act]"))
+      r.classList.toggle("lit", Number(r.dataset.act) === act);
+  };
+  body.addEventListener("mousemove", (e) => {
+    const svg = e.target.closest("svg.bars");
+    const bars = svg ? [...svg.querySelectorAll("rect[data-act]")] : [];
+    if (!svg || !shownChart || !bars.length) {
+      light(-1);
+      if (barPop)
+        barPop.hidden = true;
+      return;
+    }
+    const box = svg.getBoundingClientRect(), view = svg.viewBox.baseVal;
+    const at = (e.clientX - box.left) / box.width * view.width;
+    let i = 0;
+    while (i + 1 < bars.length && bars[i + 1].x.baseVal.value <= at)
+      i++;
+    const act = Number(bars[i].dataset.act);
+    light(act);
+    showBarPop(shownChart.acts[act], shownChart.total, e.clientX, e.clientY);
+  });
+  body.addEventListener("mouseleave", () => {
+    light(-1);
+    if (barPop)
+      barPop.hidden = true;
+  });
+}
 function wireDistribution(root) {
   const table = root.querySelector(".rtable.dpr");
   const body = root.querySelector(".c.distbody");
@@ -2120,16 +2230,13 @@ function wireDistribution(root) {
     const hit = e.target?.closest(".c[data-dist], .c[data-dist-row]");
     if (!hit)
       return;
-    const key = hit.dataset.dist ?? `${hit.dataset.distRow}|4`;
+    const key = hit.dataset.dist ?? `${hit.dataset.distRow}|${table.dataset.totalCol}`;
     const cell2 = table.querySelector(`.c[data-dist="${key}"]`);
     for (const c of table.querySelectorAll(".c[data-dist]"))
       c.classList.toggle("sel", c === cell2);
     body.innerHTML = distBody(distCells.get(key));
-    fitTopActions(body);
   });
-  rowObserver?.disconnect();
-  rowObserver = new ResizeObserver(() => fitTopActions(body));
-  rowObserver.observe(body);
+  wireBarHover(body);
 }
 
 // dist/src/page/filterbar.js
@@ -2262,16 +2369,9 @@ var COST_HELP = [
   "s6r5 all - Every resonator is S6 with their best weapon at R5."
 ];
 var MATRIX_HELP = "Enables matrix exclusive buffs for older characters, scaled down to a neutral environment. Lucy also activates 1 stack of her boss kill inherent.";
-var STANDARDS = [
-  "Rotations are 123, 1323, or 12323 for double intro and unison (jinhsi, brant, hsin, etc).",
-  "A resonator may use their liberation at the start of the fight for free damage or buffs.",
-  "Each rotation is achievable in 25-28 seconds, and we assume 4 rotations in 2 minutes.",
-  "Combat is performed against a single level 100 boss with 20% resistance to all attributes.",
-  "Resonators and weapons are level 90, with all skill nodes at level 10.",
-  "Shorekeeper, Mornye, Suisui, Buling and Verina fill one another's slot, so a team that differs only in which of them it runs shows once, behind the support it leans on - Suisui in front of a Negative Status DPS, Mornye beside Lupa or Lynae, Shorekeeper otherwise. Filter for the other two teammates to run and see the whole bench."
-];
 var README = [
   "All beta calculations are subject to change!",
+  "Enemy lv100, 20% res, Resonator lv 90, Nodes lv10",
   "If you find any bug or issue ping me on discord @rileyy._."
 ];
 var openHelp = /* @__PURE__ */ new Set(["readme"]);
@@ -2288,7 +2388,6 @@ function comparisonFilters() {
   return `<div class="tcfilters">
     <div class="tcfilter-row note">
       ${note("readme", "README", README, `<li><button type="button" class="tutstart">How do I use this website? ${CLICK} here.</button></li>`)}
-      ${note("standards", "Standards and Assumptions", STANDARDS)}
       ${costBox()}
       <div class="tcsearchrow">
         <div class="tcsearch">
@@ -2597,18 +2696,14 @@ function optionCell(kind, value, color, lines = [value], resonator = "") {
 var hueShown = true;
 var personalOpen = [false, false, false];
 var cmpDrawn = /* @__PURE__ */ new Set();
-var dprExact = { personal: true, team: true };
-var dprFmt = (v, exact2) => {
-  if (exact2)
-    return fmt(v);
-  if (v >= 1e6)
-    return `${fmt(Math.floor(v / 1e3) / 1e3, 3, true, false)}M`;
-  if (v < 1e3)
-    return fmt(Math.floor(v), 0, false, false);
-  const decimals = v >= 1e5 ? 0 : v >= 1e4 ? 1 : 2;
-  const step = 10 ** (3 - decimals);
-  return `${fmt(Math.floor(v / step) / 10 ** decimals, decimals, true, false)}K`;
-};
+var teamMode = "dpr";
+var TEAM_HEAD = { dpr: "Team Average DPR (time)", dps: "Team DPS" };
+var wholeDamage = (run) => run.sectionTotals.reduce((a, b) => a + b, 0);
+var teamFigure = (run) => Math.floor(wholeDamage(run) / (teamMode === "dpr" ? Math.max(1, run.sectionTotals.length) : run.seconds));
+var personalFigure = (run, name) => Math.floor(run.sectionBySlot.reduce((a, by) => a + (by.get(name) ?? 0), 0) / (teamMode === "dpr" ? Math.max(1, run.sectionTotals.length) : run.seconds));
+var loopTime = (run) => `(${(run.seconds / Math.max(1, run.sectionTotals.length)).toFixed(1)}s)`;
+var teamText = (run) => teamMode === "dpr" ? `${fmt(teamFigure(run))} ${loopTime(run)}` : fmt(teamFigure(run));
+var teamHtml = (run) => teamMode === "dpr" ? `${fmt(teamFigure(run))} <span class="looptime">${loopTime(run)}</span>` : fmt(teamFigure(run));
 var pctTrunc = (ratio) => `${fmt(Math.trunc(ratio * 1e3) / 10, 1, true)}%`;
 var tableView = null;
 function comparisonTable(rows) {
@@ -2633,7 +2728,7 @@ function comparisonTable(rows) {
   for (const { run, keys } of keyed)
     for (const k of keys) {
       const held = groupBest.get(k);
-      if (!held || run.total > held.total)
+      if (!held || teamFigure(run) > teamFigure(held))
         groupBest.set(k, run);
     }
   const sorted = keyed.sort((a, b) => {
@@ -2642,9 +2737,9 @@ function comparisonTable(rows) {
       if (ka === kb)
         continue;
       const [ra, rb] = [groupBest.get(ka), groupBest.get(kb)];
-      return rb.total - ra.total || seq(rb) - seq(ra) || rank(rb) - rank(ra) || (ka < kb ? -1 : 1);
+      return teamFigure(rb) - teamFigure(ra) || seq(rb) - seq(ra) || rank(rb) - rank(ra) || (ka < kb ? -1 : 1);
     }
-    return b.run.total - a.run.total || seq(b.run) - seq(a.run) || rank(b.run) - rank(a.run);
+    return teamFigure(b.run) - teamFigure(a.run) || seq(b.run) - seq(a.run) || rank(b.run) - rank(a.run);
   }).map((k) => k.pair);
   const GEAR_AXES = ["weapons", "echoes", "mainstats", "substats"];
   const CMP_AXES = [...GEAR_AXES, "sequences", "refines"];
@@ -2723,7 +2818,7 @@ function comparisonTable(rows) {
         const twin = twinKey(run, pos, axis);
         const list = twins.get(twin) ?? [];
         const offered = offeredAt.get(`${axis}|${pos}|${run.teamKey}`)?.has(optionOf(axis, m, run.combo[pos])) ?? false;
-        list.push({ combo: run.combo[pos], dpr: run.bySlot.get(m.name) ?? 0, shown: onScreen.has(key), offered });
+        list.push({ combo: run.combo[pos], dpr: personalFigure(run, m.name), shown: onScreen.has(key), offered });
         twins.set(twin, list);
       }
     });
@@ -2749,7 +2844,7 @@ function comparisonTable(rows) {
     return base;
   };
   const gearRatio = (run, pos, axis) => {
-    const dpr = run.bySlot.get(run.members[pos].name) ?? 0;
+    const dpr = personalFigure(run, run.members[pos].name);
     const all = twins.get(twinKey(run, pos, axis)) ?? [];
     const shown = all.filter((t) => t.shown);
     const offered = all.filter((t) => t.offered);
@@ -2780,13 +2875,13 @@ function comparisonTable(rows) {
     }
   const dprAt = (i) => !!personalOpen[i];
   const rowHtml = (key, run, rank2) => {
-    const grand = run.total;
+    const grand = teamFigure(run);
     const memberNames = run.members.map((m) => m.name).join("|");
     const memberCell = (m, combo, i) => {
       const seqTag = sequenceTag(m, combo);
       const refTag = axisUsed(m, filters, "refines") && !openAt.weapons[i] ? refineTag(m, combo) : null;
       const name = `<div class="c name res" data-resonator="${esc(m.name)}"` + (seqTag ? ` data-sequence="${esc(seqTag)}" data-seq-gate="${combo.sequence}"` : "") + (refTag ? ` data-refine="${esc(refTag)}" data-ref-gate="${combo.weapon.refinement}"` : "") + ` style="--mem:${m.color};color:${m.color}"><span class="res-label">${esc(memberLabel(m, combo))}</span></div>`;
-      const dpr = dprAt(i) ? `<div class="c num slotdpr" style="--mem:${m.color}">${dprFmt(run.bySlot.get(m.name) ?? 0, dprExact.personal)}</div>` : "";
+      const dpr = dprAt(i) ? `<div class="c num slotdpr" style="--mem:${m.color}">${fmt(personalFigure(run, m.name))}</div>` : "";
       const seqCmp = cmpAt("sequences", i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${axisOpen(m, filters, "sequences") ? gearCompare(run, i, "sequences") : ""}</div>` : "";
       const refCmp = cmpAt("refines", i) ? `<div class="c num slotcompare" style="--mem:${m.color}">${compares(m, filters, "refines", combo) ? gearCompare(run, i, "refines") : ""}</div>` : "";
       const gear = GEAR_AXES.map((axis) => {
@@ -2799,10 +2894,10 @@ function comparisonTable(rows) {
       return name + seqCmp + refCmp + gear + dpr;
     };
     const memberCells = run.members.map((m, i) => memberCell(m, run.combo[i], i)).join("");
-    return `<div class="trow${rank2.pinned ? " isbaseline" : ""}" style="--hue:${rank2.hue}" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}" data-members="${esc(memberNames)}" data-total="${grand}">` + memberCells + `<div class="c num total teamdpr" title="${CLICK} to view the team's damage breakdown"${deferredPop("dpr", key)}>${dprFmt(grand, dprExact.team)}</div><div class="c num total baseline" data-team="${esc(key)}" title="${CLICK} to measure every team against this one">${rank2.pct}</div><div class="c gotodetail" data-team="${esc(key)}">view rotation<span class="arrow">\u203A</span></div></div>`;
+    return `<div class="trow${rank2.pinned ? " isbaseline" : ""}" style="--hue:${rank2.hue}" data-team="${esc(key)}" data-team-key="${esc(run.teamKey)}" data-members="${esc(memberNames)}" data-total="${grand}">` + memberCells + `<div class="c num total teamdpr" title="${CLICK} to view the team's damage breakdown"${deferredPop("dpr", key)}>${teamHtml(run)}</div><div class="c num total baseline" data-team="${esc(key)}" title="${CLICK} to measure every team against this one">${rank2.pct}</div><div class="c gotodetail" data-team="${esc(key)}">view rotation<span class="arrow">\u203A</span></div></div>`;
   };
-  const memberHead = (n, i) => `<div class="c slothead${dprAt(i) ? " open" : ""}" data-slot="${i}" title="${CLICK} to ${dprAt(i) ? "hide" : "show"} this slot's Personal DPR">Slot ${n}<span class="arrow">\u203A</span></div>` + (cmpAt("sequences", i) ? `<div class="c num">Compare</div>` : "") + (cmpAt("refines", i) ? `<div class="c num">Compare</div>` : "") + GEAR_AXES.map((axis) => openAt[axis][i] ? `<div class="c">${AXIS_HEAD[axis]}</div>${cmpAt(axis, i) ? `<div class="c num">Compare</div>` : ""}` : "").join("") + (dprAt(i) ? `<div class="c num dprhead" data-dpr="personal" title="${CLICK} to switch between abbreviated and exact figures">Personal</div>` : "");
-  const head = `<div class="trow thead">` + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2) + `<div class="c num dprhead" data-dpr="team" title="${CLICK} to switch between abbreviated and exact figures">Team Avg DPR</div><div class="c num huehead" title="${CLICK} to colour the column by rank">Compare</div><div class="c"></div></div>`;
+  const memberHead = (n, i) => `<div class="c slothead${dprAt(i) ? " open" : ""}" data-slot="${i}" title="${CLICK} to ${dprAt(i) ? "hide" : "show"} this slot's Personal DPR">Slot ${n}<span class="arrow">\u203A</span></div>` + (cmpAt("sequences", i) ? `<div class="c num">Compare</div>` : "") + (cmpAt("refines", i) ? `<div class="c num">Compare</div>` : "") + GEAR_AXES.map((axis) => openAt[axis][i] ? `<div class="c">${AXIS_HEAD[axis]}</div>${cmpAt(axis, i) ? `<div class="c num">Compare</div>` : ""}` : "").join("") + (dprAt(i) ? `<div class="c num">Personal</div>` : "");
+  const head = `<div class="trow thead">` + memberHead(3, 0) + memberHead(2, 1) + memberHead(1, 2) + `<div class="c num dprhead" title="${CLICK} to switch between DPR and DPS">${TEAM_HEAD[teamMode]}</div><div class="c num huehead" title="${CLICK} to colour the column by rank">Compare</div><div class="c"></div></div>`;
   const posCols = (i) => `max-content${cmpAt("sequences", i) ? " max-content" : ""}${cmpAt("refines", i) ? " max-content" : ""}${GEAR_AXES.map((axis) => openAt[axis][i] ? ` max-content${cmpAt(axis, i) ? " max-content" : ""}` : "").join("")}${dprAt(i) ? " max-content" : ""}`;
   const gridStyle = `grid-template-columns:${posCols(0)} ${posCols(1)} ${posCols(2)} max-content max-content max-content`;
   const rowLines = (run) => Math.max(1, ...run.members.map((m, i) => openAt.echoes[i] && axisOpen(m, filters, "echoes") ? echoLines(m.loadout, run.combo[i].echo).length : 1));
@@ -2816,11 +2911,9 @@ function comparisonTable(rows) {
   const wide = {
     name: blank(),
     dpr: blank(),
-    dprAbbr: blank(),
     seqcmp: blank(),
     refcmp: blank(),
     total: "",
-    totalAbbr: "",
     pct: "",
     gear: { weapons: blank(), echoes: blank(), mainstats: blank(), substats: blank() },
     cmp: { weapons: blank(), echoes: blank(), mainstats: blank(), substats: blank() }
@@ -2829,8 +2922,7 @@ function comparisonTable(rows) {
     run.members.forEach((m, pos) => {
       const combo = run.combo[pos];
       wide.name[pos] = widest(wide.name[pos], memberLabel(m, combo));
-      wide.dpr[pos] = widest(wide.dpr[pos], dprFmt(run.bySlot.get(m.name) ?? 0, true));
-      wide.dprAbbr[pos] = widest(wide.dprAbbr[pos], dprFmt(run.bySlot.get(m.name) ?? 0, false));
+      wide.dpr[pos] = widest(wide.dpr[pos], fmt(personalFigure(run, m.name)));
       if (axisOpen(m, filters, "sequences"))
         wide.seqcmp[pos] = widest(wide.seqcmp[pos], gearCompare(run, pos, "sequences"));
       if (compares(m, filters, "refines", combo))
@@ -2844,15 +2936,13 @@ function comparisonTable(rows) {
         wide.cmp[axis][pos] = widest(wide.cmp[axis][pos], gearCompare(run, pos, axis));
       }
     });
-    wide.total = widest(wide.total, dprFmt(run.total, true));
-    wide.totalAbbr = widest(wide.totalAbbr, dprFmt(run.total, false));
+    wide.total = widest(wide.total, teamText(run));
     wide.pct = widest(wide.pct, ranks[i].pct);
   });
-  const ghostPos = (i, dpr) => `<div class="c name res"><span class="res-label">${esc(wide.name[i])}</span></div>` + (cmpAt("sequences", i) ? `<div class="c num slotcompare">${esc(wide.seqcmp[i])}</div>` : "") + (cmpAt("refines", i) ? `<div class="c num slotcompare">${esc(wide.refcmp[i])}</div>` : "") + GEAR_AXES.map((axis) => openAt[axis][i] ? `<div class="c option">${esc(wide.gear[axis][i])}</div>${cmpAt(axis, i) ? `<div class="c num slotcompare">${esc(wide.cmp[axis][i])}</div>` : ""}` : "").join("") + (dprAt(i) ? `<div class="c num slotdpr">${esc(dpr[i])}</div>` : "");
-  const ghostFor = (dpr, total) => `<div class="trow tghost" aria-hidden="true">` + ghostPos(0, dpr) + ghostPos(1, dpr) + ghostPos(2, dpr) + `<div class="c num total">${esc(total)}</div><div class="c num total baseline">${esc(wide.pct)}</div><div class="c gotodetail">view rotation<span class="arrow">\u203A</span></div></div>`;
-  const ghost = (personalExact, teamExact) => ghostFor(personalExact ? wide.dpr : wide.dprAbbr, teamExact ? wide.total : wide.totalAbbr);
+  const ghostPos = (i) => `<div class="c name res"><span class="res-label">${esc(wide.name[i])}</span></div>` + (cmpAt("sequences", i) ? `<div class="c num slotcompare">${esc(wide.seqcmp[i])}</div>` : "") + (cmpAt("refines", i) ? `<div class="c num slotcompare">${esc(wide.refcmp[i])}</div>` : "") + GEAR_AXES.map((axis) => openAt[axis][i] ? `<div class="c option">${esc(wide.gear[axis][i])}</div>${cmpAt(axis, i) ? `<div class="c num slotcompare">${esc(wide.cmp[axis][i])}</div>` : ""}` : "").join("") + (dprAt(i) ? `<div class="c num slotdpr">${esc(wide.dpr[i])}</div>` : "");
+  const ghost = () => `<div class="trow tghost" aria-hidden="true">` + ghostPos(0) + ghostPos(1) + ghostPos(2) + `<div class="c num total">${esc(widest(wide.total, TEAM_HEAD[teamMode]))}</div><div class="c num total baseline">${esc(wide.pct)}</div><div class="c gotodetail">view rotation<span class="arrow">\u203A</span></div></div>`;
   tableView = { sorted, ranks, head, ghost, rowHtml, lines, extra };
-  return `<main><div class="tclayout"><aside class="tcside">${comparisonFilters()}</aside><div class="tcbody"><h2 class="summary-label" id="teamCount">${fmt(sorted.length)} teams<span class="hint">${CLICK} on a Resonator to filter and compare sequences, weapons, echoes</span></h2><div class="tcwrap"><div class="tgrid${hueShown ? " hued" : ""}${dprExact.personal ? " personalexact" : ""}${dprExact.team ? " teamexact" : ""}" style="${gridStyle}">${head}${ghost(dprExact.personal, dprExact.team)}</div></div></div></div></main>`;
+  return `<main><div class="tclayout"><aside class="tcside">${comparisonFilters()}</aside><div class="tcbody"><h2 class="summary-label" id="teamCount">${fmt(sorted.length)} teams<span class="hint">${CLICK} on a Resonator to filter and compare sequences, weapons, echoes</span></h2><div class="tcwrap"><div class="tgrid${hueShown ? " hued" : ""}" style="${gridStyle}">${head}${ghost()}</div></div></div></div></main>`;
 }
 var rowHeight = 30;
 var lineHeight = 17;
@@ -2872,7 +2962,7 @@ function setBaseline(team) {
   }
 }
 function rankAll(sorted) {
-  const totals = sorted.map(([, run]) => run.total);
+  const totals = sorted.map(([, run]) => teamFigure(run));
   const pinned = baselineTeam == null ? -1 : sorted.findIndex(([key]) => key === baselineTeam);
   const base = pinned >= 0 ? totals[pinned] : Math.min(...totals);
   const maxRatio = Math.max(...totals.map((t) => base ? t / base : 1), 1);
@@ -2919,7 +3009,7 @@ function drawWindow(force = false, scrollTop) {
     const [key, run] = view.sorted[i];
     body += view.rowHtml(key, run, view.ranks[i]);
   }
-  grid.innerHTML = view.head + view.ghost(dprExact.personal, dprExact.team) + spacer(0, from) + body + spacer(to, n);
+  grid.innerHTML = view.head + view.ghost() + spacer(0, from) + body + spacer(to, n);
   drawnFrom = from;
   drawnTo = to;
   if (!measured && to - from >= 2) {
@@ -3053,12 +3143,10 @@ document.addEventListener("click", (e) => {
   renderComparison();
 });
 document.addEventListener("click", (e) => {
-  const column = e.target.closest(".c.dprhead")?.dataset.dpr;
-  if (!column)
+  if (!e.target.closest(".c.dprhead"))
     return;
-  dprExact[column] = !dprExact[column];
-  document.querySelector(".tgrid")?.classList.toggle(`${column}exact`, dprExact[column]);
-  drawWindow(true);
+  teamMode = teamMode === "dpr" ? "dps" : "dpr";
+  renderComparison();
 });
 document.addEventListener("change", (e) => {
   const select = e.target;
@@ -3391,6 +3479,18 @@ function cell(col, { cls = [], html = "", pop = "", style = "", attr = "" } = {}
   const classes = ["c", col.align === "left" ? "" : "num", ...cls].filter(Boolean).join(" ");
   return `<span class="${classes}"${style ? ` style="${style}"` : ""}${attr}${pop}>${html}</span>`;
 }
+var TAG_KIND = {
+  [ActionTag.InstaCancel]: "insta",
+  [ActionTag.InstaDodge]: "insta",
+  [ActionTag.InstaJump]: "insta",
+  [ActionTag.InstaSwap]: "insta",
+  [ActionTag.SwapCancel]: "swap",
+  [ActionTag.EasyCancel]: "easy",
+  [ActionTag.Field]: "field",
+  [ActionTag.DodgeCancel]: "dash",
+  [ActionTag.JumpCancel]: "jump",
+  [ActionTag.Cancel]: "cancel"
+};
 function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = true } = {}) {
   return columns.map((col) => {
     const v = row.raw[col.key];
@@ -3423,16 +3523,26 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
       cls.push("underspent");
     if (col.key.startsWith("gauge:") && Number(row.raw[`short:${col.key}`]))
       cls.push("negative");
+    if (col.key === "time" && Number(row.raw["end:time"]) > 60 * 120)
+      cls.push("negative");
     const text = esc(fmt(v, digitsOf(row.raw, col), PAD_DIGITS_COLUMNS.has(col.key), GROUPED_COLUMNS.has(col.key))) + (col.percent && typeof v === "number" ? "%" : "") + gaugeSuffix(row.raw, col.key);
     let html = sources && text ? `<span class="has">${text}</span>` : text;
     if (col.key === "action" && caret && !part && "parts" in row && row.parts.length) {
       html = `${html}<span class="caret">\u25B8</span>`;
+    }
+    const tag = col.key === "action" ? String(row.raw["tag:action"] ?? "") : "";
+    if (tag) {
+      const kind = TAG_KIND[tag] ?? "cancel";
+      html = `<span class="ctag ctag-${kind}">${esc(tag.toUpperCase())}</span>${html}`;
     }
     const suffix = col.key === "mv" && row.scaling !== null ? ` ${SCALING_NAME[row.scaling]}` : "";
     let pop = "";
     if (col.key === "action") {
       const group = "parts" in row && row.parts.length > 0;
       pop = group ? "" : infoPopover(row.info, slotHue);
+    } else if (col.key === "time") {
+      const snaps = "line" in row ? row.line.members?.length ? row.line.members : [row.line.snap] : [row.snap];
+      pop = framesPopover(snaps);
     } else if (col.key === "member") {
       const snap = "line" in row ? row.line.snap : row.snap;
       const gear = gearByMember.get(snap.member) ?? [];
@@ -3444,6 +3554,11 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
     const style = col.key === "member" ? `--mem:${mem};color:${mem}` : col.key === "avg" ? `--mem:${slotHue.get(String(row.raw["member"] ?? "")) ?? FALLBACK_HUE}` : "";
     if (col.key === "avg" && typeof v === "number")
       attr = ` data-avg="${v}"`;
+    if (col.key === "time") {
+      const snaps = "line" in row ? row.line.members?.length ? row.line.members : [row.line.snap] : [row.snap];
+      const frames = snaps.reduce((n, s) => n + (s.active ? s.frames : 0) + (s.swapFrames ?? 0), 0);
+      attr = ` data-frames="${frames}"`;
+    }
     return cell(col, { cls, html, pop, style, attr });
   }).join("");
 }
@@ -3562,6 +3677,9 @@ function erRequirement(flat, resetIdx, member2, maxEnergy, constant) {
       const gain = (s.action.energy + s.stat(
         26
         /* Stat.AddEnergy */
+      ) + s.stat(
+        35
+        /* Stat.AddCastEnergy */
       )) * (1 + s.stat(
         14
         /* Stat.EnergyRegenMult */
@@ -3727,6 +3845,7 @@ function doubled(row, held) {
 }
 function blockPanel(sel) {
   let dmg = 0, dmgCells = 0;
+  let frames = 0, timeCells = 0;
   let gained = 0, tuneCells = 0, tuneDigits = 2;
   const held = new Set(sel.rows.slice(sel.r0, sel.r1 + 1));
   const rows = blockCells(sel);
@@ -3737,6 +3856,11 @@ function blockPanel(sel) {
       if (c.dataset.avg !== void 0) {
         dmg += Number(c.dataset.avg) || 0;
         dmgCells++;
+        continue;
+      }
+      if (c.dataset.frames !== void 0) {
+        frames += Number(c.dataset.frames) || 0;
+        timeCells++;
         continue;
       }
       if (c.dataset.val === void 0)
@@ -3750,6 +3874,8 @@ function blockPanel(sel) {
     }
   }
   const lines = dmgCells > 1 ? [["Total Dmg", fmt(dmg, 0)]] : [];
+  if (timeCells > 1)
+    lines.push(["Total Time", `${(frames / 60).toFixed(2)}s`]);
   if (tuneCells)
     lines.push(["Total Offtune", fmt(gained, tuneDigits, true, false)]);
   if (!lines.length)
@@ -4193,7 +4319,7 @@ var TEXT = [
   "Try viewing a team's rotation and loadout",
   "Hover over equipment to see its stats and buffs",
   `${CLICK} on a member's damage number to see their damage distribution and node leveling priority`,
-  `${CLICK} on the team total for a loop to see the damage over time graph and strongest actions`,
+  `${CLICK} on the team total for a loop to see its damage over time`,
   "Scroll down to read the rotation, buffs, and stats"
 ];
 var DETAIL_STAGE = 5;
@@ -4223,7 +4349,7 @@ function substatsCell() {
 }
 function totalCell() {
   const rows = [...document.querySelectorAll(".rtable.dpr .rtrow:not(.rthead):not(.total)")];
-  return (rows[2] ?? rows[rows.length - 1])?.querySelector(`[data-dist$="|4"]`) ?? null;
+  return (rows[2] ?? rows[rows.length - 1])?.querySelector(".c.tot[data-dist]") ?? null;
 }
 var loopCell = () => document.querySelector(`.rtable.dpr .rtrow.total [data-dist$="|3"]`);
 function actionRow(n) {

@@ -4,7 +4,7 @@
 import { Buff } from "../engine/gear.js";
 import type { StatLine } from "../engine/gear.js";
 import { addStat } from "../engine/context.js";
-import { Stat, Type1, scopedStat, statLabel } from "../engine/stats.js";
+import { Stat, Type, scopedStat, statLabel } from "../engine/stats.js";
 import type { StatKey, Tag } from "../engine/stats.js";
 
 /** The spread's rolls as one buff apiece: each named for the spread and the stat it rolls as that
@@ -46,10 +46,10 @@ const ROLL: Record<Substat, { stat: Stat; tag?: Tag; values: number[]; weights: 
   [Substat.FlatHp]: { stat: Stat.FlatHp, values: [320, 360, 390, 430, 470, 510, 540, 580], weights: WEIGHTS, label: "HP" },
   [Substat.DefPct]: { stat: Stat.BonusDef, values: [8.1, 9, 10, 10.9, 11.8, 12.8, 13.8, 14.7], weights: WEIGHTS, label: "DEF" },
   [Substat.FlatDef]: { stat: Stat.FlatDef, values: [40, 50, 60, 70], weights: [15, 46, 33, 9], label: "DEF" },
-  [Substat.Basic]: { stat: Stat.DmgBonus, tag: Type1.Basic, values: PCT, weights: WEIGHTS, label: "Basic" },
-  [Substat.Heavy]: { stat: Stat.DmgBonus, tag: Type1.Heavy, values: PCT, weights: WEIGHTS, label: "Heavy" },
-  [Substat.Skill]: { stat: Stat.DmgBonus, tag: Type1.Skill, values: PCT, weights: WEIGHTS, label: "Skill" },
-  [Substat.Liberation]: { stat: Stat.DmgBonus, tag: Type1.Liberation, values: PCT, weights: WEIGHTS, label: "Liberation" },
+  [Substat.Basic]: { stat: Stat.DmgBonus, tag: Type.Basic, values: PCT, weights: WEIGHTS, label: "Basic" },
+  [Substat.Heavy]: { stat: Stat.DmgBonus, tag: Type.Heavy, values: PCT, weights: WEIGHTS, label: "Heavy" },
+  [Substat.Skill]: { stat: Stat.DmgBonus, tag: Type.Skill, values: PCT, weights: WEIGHTS, label: "Skill" },
+  [Substat.Liberation]: { stat: Stat.DmgBonus, tag: Type.Liberation, values: PCT, weights: WEIGHTS, label: "Liberation" },
 };
 
 /** What a roll of `s` is worth at percentile `p` of its own spread: the lowest value its weights

@@ -4,28 +4,30 @@
  * `Weapon`/`Resonator`), plus `EchoLoadout` and `Loadout`. Definitions only — what a piece
  * *does* is the hooks it declares, which `evaluate.ts` runs.
  */
-import { Stat, EnemyStat, Attribute, WeaponType, Tier, Cast, LifeTime, BuffTarget } from "./stats.js";
+import { Stat, EnemyStat, Attribute, WeaponType, Tier, Cast, BuffTarget, ActionTag } from "./stats.js";
 import type { Tag } from "./stats.js";
 import type { Rotation, Action, ActionField } from "./rotation.js";
 import { ctx } from "./runtime.js";
 import type { ErSpread } from "../shared/substats.js";
 // the one edge back up the stack: a Resonator's own combatStart banks its base stats through
 // the ordinary API. Both names are function declarations, so the import cycle is inert at load.
-import { addStat, frozenStacks, casting, currentAction, applyCurrent, applyTeam, applyEnemy, queueOutro, revokeCurrent } from "./context.js";
+import { addStat, frozenStacks, casting, currentAction, applyCurrent, applyTeam, applyEnemy, queueOutro, revokeCurrent, currentMember, currentTeam, queue, queueOn, applyOn, stacksOf, stacksOfTeam, removeStack, removeStackTeam, removeStackEnemy } from "./context.js";
 
 /** One stat line as a kit writes it: `[stat, value]`, or `[stat, value, tag]` scoped to an
  *  element or damage type. On a piece of gear these are its constant stats; on a `Buff` they are
  *  what it contributes while held (see `BuffDef.stats`). */
 export type StatLine = readonly [Stat | EnemyStat, number] | readonly [Stat | EnemyStat, number, Tag];
-/** A condition read off the action being evaluated — `onCast(Cast.Skill)`, `onType(Type1.Basic)`,
+/** A condition read off the action being evaluated — `onCast(Cast.Skill)`, `onType(Type.Basic)`,
  *  `onInflict(STATUS)` (context.ts), or any predicate over the kit API. */
 export type Trigger = () => boolean;
 /** "On `on`, grant `stacks` of `buff`": to the wielder (`self`, the default), the team, the enemy
  *  (a `Debuff`), or `next` — published for whoever intros next (`queueOutro`). `stacks` may read
  *  the action (`() => applied(SHIELD)`). `buff` left out means the declaring Buff itself — a buff
  *  that stacks itself up on a trigger; a thunk (`() => LATER_BUFF`) reaches one declared further
- *  down the file. */
-export interface Grant { on: Trigger; buff?: Buff | (() => Buff); stacks?: number | (() => number); to?: BuffTarget }
+ *  down the file. `onHit` grants when the hit lands rather than when the press starts — the
+ *  afterAction phase, `frames` later on the fight clock and after the hit's own damage — for a
+ *  "when X hits / upon dealing Y DMG" clause; the default is the cast phase (updateBuffs). */
+export interface Grant { on: Trigger; buff?: Buff | (() => Buff); stacks?: number | (() => number); to?: BuffTarget; onHit?: boolean }
 
 export interface GearDef {
   /** Optional only because `toString` can cover for it entirely — a Gear whose display name is
@@ -59,7 +61,8 @@ export interface GearDef {
    *  after `updateDebuffs`, so a teammate's own Shifting/status/shield from this action is visible. */
   updateGlobal?: () => void;
   /** Grant/revoke/queue/spend — never a stat contribution. Runs across every held Gear, after
-   *  `updateDebuffs` and `updateGlobal`. */
+   *  `updateDebuffs` and `updateGlobal`. The cast phase: the fight clock still reads the frame the
+   *  press started on, so a buff granted here dates from the cast. */
   updateBuffs?: () => void;
   /** A stat contribution that depends on nothing but what the action *is* — `addStat()` calls,
    *  plain or scoped to an element/type, and nothing else: no stacks, no gauges, no `casting()`
@@ -77,7 +80,9 @@ export interface GearDef {
    *  only phase that sees the gauges as the action actually leaves them. For machinery reacting to
    *  a gauge crossing a threshold rather than to the action itself: tunebreak.ts's own watcher
    *  fires the break from here, which is why the engine needs no idea the mechanic exists. Grant/
-   *  revoke/queue only, never a stat — stats are long since resolved by now. */
+   *  revoke/queue only, never a stat — stats are long since resolved by now. The on-hit phase: the
+   *  clock has moved on by the press's `frames`, so a buff granted here dates from the hit and
+   *  pays from the next action on, never on the hit that granted it. */
   afterAction?: () => void;
   /** Same shape as `convertStats`, one phase later — for a conversion that reads a stat *another*
    *  gear's convertStats() grants, which it would otherwise race (the roster runs the acting slot's
@@ -133,6 +138,15 @@ export class Gear {
    *  off a plain Gear: `equip()` puts a Resonator/weapon/echo onto a slot through exactly the
    *  same path a buff goes through. */
   maxStacks = 1;
+  /** See `BuffDef.duration` — frames a grant of this stands for, 0 for unlimited. On Gear rather
+   *  than Buff because a pool holds every kind of Gear and reads it off each entry it stamps. */
+  duration = 0;
+  durationFn?: (stacks: number) => number;
+  /** See `BuffDef.tick` — the cadence in frames, and what fires on it. */
+  tickEvery?: () => number;
+  tickFn?: (n: number) => void;
+  /** See `BuffDef.tick.skipMotionStop`. */
+  tickSkipsMotionStop = false;
   /** See `GearDef.field` — the field this Gear's own presence stands for, or null. */
   field: ActionField | null;
   combatStartFn?: () => void;
@@ -179,9 +193,7 @@ export class Gear {
       this.constantStatsFn = () => { for (const line of lines) addStat(line[0] as Stat, line[1], line[2]); own?.(); };
     }
     if (def.grants?.length) {
-      const grants = def.grants, own = def.updateBuffs;
-      this.updateBuffsFn = () => {
-        own?.();
+      const fire = (grants: Grant[]): void => {
         for (const g of grants) {
           if (!g.on()) continue;
           const n = typeof g.stacks === "function" ? g.stacks() : g.stacks ?? 1;
@@ -193,11 +205,31 @@ export class Gear {
           else applyCurrent(buff, n);
         }
       };
+      // on-cast grants land in the cast phase, on-hit ones once the hit has resolved
+      const onCast = def.grants.filter((g) => !g.onHit), onHit = def.grants.filter((g) => g.onHit);
+      this.fireGrantsFn = () => fire(onCast);
+      if (onCast.length) {
+        const own = def.updateBuffs;
+        this.updateBuffsFn = () => {
+          own?.();
+          fire(onCast);
+        };
+      }
+      if (onHit.length) {
+        const own = def.afterAction;
+        this.afterActionFn = () => {
+          own?.();
+          fire(onHit);
+        };
+      }
     }
     this.wire();
   }
   /** What the data half of this Gear's def declared — kept for the engine to introspect. */
   decl: { stats: StatLine[]; grants: Grant[] };
+  /** Its declared on-cast grants, fired wherever their triggers hold — for a status landing outside
+   *  any press (context.ts's `fireHeldGrants()`, a heal tick's). Unset without grants. */
+  fireGrantsFn?: () => void;
   /** `hookMask`/`hookFns` off whatever hooks stand now — called once every compiled hook is in place. */
   protected wire(): void {
     this.hookMask = (this.updateDebuffsFn ? PHASE_DEBUFFS : 0) | (this.updateBuffsFn ? PHASE_BUFFS : 0)
@@ -233,14 +265,38 @@ export interface BuffDef extends GearDef {
    *  so the cast that grants stacks pays for those it held already, not the ones it just added.
    *  The default (applyStats) pays the count after this action's grants. */
   early?: boolean;
-  /** When the buff goes — see `LifeTime` (stats.ts). Unset is permanent. */
-  until?: LifeTime;
+  /** "Lost on switching out": revoked by the action that takes its holder off field — before that
+   *  action pays, bar a swap cancel, whose hit lands on field and pays first (`lostOnSwap()`). */
+  lostOnSwap?: boolean;
+  /** How long this stands once granted, in frames at 60 a second (`60 * 30` for thirty seconds).
+   *  Every grant refreshes it, and it is dropped ahead of the first action that starts at or past
+   *  its end (evaluate.ts's expiry pass). 0, the default, is unlimited. Independent of `until`:
+   *  whichever comes first ends the buff. A function is read at each grant, after the stacks have
+   *  landed and with the count it landed on, for a length that depends on the moment ("extended
+   *  to 30s at max stacks", a window whose stacks are its seconds). */
+  duration?: number | ((stacks: number) => number);
+  /** A clock of the buff's own: `fire` runs every `every` frames of fight time it stands, with
+   *  the tick's ordinal since the grant, on whichever action's press carries the clock past it —
+   *  a field's summons, a status's own damage, a stack gained every 0.2s. Fired as the clock
+   *  advances (state.ts's `runTicks()`), with the "current" pointers on the holder for a member's
+   *  own buff and on whoever is acting for the team's and the enemy's. `every` as a function is
+   *  read each span, and 0 from it holds the clock still for that span (a dance that pauses while
+   *  its owner is on field). A refresh does not restart the cadence. */
+  tick?: { every: number | (() => number); fire: (n: number) => void; skipMotionStop?: boolean };
 }
 
 export class Buff extends Gear {
   constructor(def: BuffDef) {
     super(def);
     this.maxStacks = def.maxStacks ?? 1;
+    if (typeof def.duration === "function") this.durationFn = def.duration;
+    else this.duration = def.duration ?? 0;
+    if (def.tick) {
+      const every = def.tick.every;
+      this.tickEvery = typeof every === "function" ? every : () => every;
+      this.tickFn = def.tick.fire;
+      this.tickSkipsMotionStop = !!def.tick.skipMotionStop;
+    }
     if (def.stats?.length) {
       const lines = def.stats, when = def.when, perStack = def.perStack;
       const pay = (): void => {
@@ -251,15 +307,14 @@ export class Buff extends Gear {
       if (def.early) { const own = this.updateBuffsFn; this.updateBuffsFn = () => { pay(); own?.(); }; }
       else { const own = def.applyStats; this.applyStatsFn = () => { pay(); own?.(); }; }
     }
-    if (def.until === LifeTime.Outro) {
-      const own = def.convertStats;
-      this.convertStatsFn = () => { own?.(); if (casting(Cast.Outro)) revokeCurrent(this); };
-    } else if (def.until === LifeTime.Swap) {
+    if (def.lostOnSwap) {
       const own = this.updateBuffsFn;
-      this.updateBuffsFn = () => { if (currentAction().swapOut) revokeCurrent(this); own?.(); };
-    } else if (def.until === LifeTime.AfterSwap) {
-      const own = def.convertStats;
-      this.convertStatsFn = () => { own?.(); if (currentAction().swapOut) revokeCurrent(this); };
+      this.updateBuffsFn = () => {
+        // a swap cancel pays first (`lostOnSwap()`)
+        if (currentAction().swapsAfterHit) ctx.swapLosses.add(this);
+        else if (currentAction().swapOut) revokeCurrent(this);
+        own?.();
+      };
     }
     this.wire();
   }
@@ -278,7 +333,7 @@ export class Sequence extends Gear {}
  *  — the baseline every other level is compared against. See `Tier` for why each is what it is.
  *  Capped by however many nodes the loadout actually declares. */
 export const baseSequence = (r: Resonator): number =>
-  ({ [Tier.Limited]: 0, [Tier.Standard]: 0, [Tier.Free]: 6 })[r.tier];
+  ({ [Tier.Limited]: 0, [Tier.Standard]: 0, [Tier.Free]: 6, [Tier.FreeS2]: 2 })[r.tier];
 
 /** A resonator's own Resonance Mode — a fixed stance a loadout commits to for the whole fight
  *  (Lucilla's Echo/Glacio Chafe split), not something toggled mid-rotation. Other pieces of that
@@ -307,6 +362,138 @@ export class Sonata3pc extends Gear { readonly size = 3 as const; }
 export class Sonata1pc extends Gear { readonly size = 1 as const; }
 /** A resonator's own Matrix — equipped only in Matrix Mode (see shared/matrix.ts). */
 export class Matrix extends Gear {}
+
+/**
+ * Matrices — one optional piece per kit, worn only in Matrix Mode (the comparison table's own
+ * box; see gear.ts's `Loadout.matrix`). Matrix Mode itself already hands every resonator a flat
+ * +20% total DMG, so a Matrix's own "deal 25% more total DMG" is worth (1.20 + 0.25) / 1.20 over
+ * that baseline, not a full 1.25x — which is `pct / 1.2` as an additive Total Damage stat: 20.83%
+ * for a 25% Matrix, 16.67% for a 20% one. Teams without a single Matrix are left exactly as they
+ * were, since the baseline cancels out of every comparison.
+ */
+
+/** `<resonator>: Matrix` — `totalDmg` is the listed "deal N% more total DMG", rebased onto Matrix
+ *  Mode's own +20%. Anything else the Matrix does (a Liberation-triggered team buff) goes in `def`.
+ *  0 is for a Matrix carrying no total-DMG line at all (Lucy's Function Cracking, which is only its
+ *  own effect): worth (1.20 + 0) / 1.20 over the baseline, i.e. nothing, and contributed as nothing
+ *  rather than as a 0 the report would carry a row for. */
+export const matrix = (resonator: string, totalDmg: number, def: Omit<GearDef, "name" | "constantStats"> = {}): Matrix =>
+  new Matrix({
+    name: `${resonator}: Matrix Buff`,
+    constantStats: () => { if (totalDmg) addStat(Stat.TotalDmg, totalDmg / 1.2); },
+    ...def,
+  });
+
+/* ------------------------------------------------------------------------------ buff shapes */
+
+/**
+ * The 15s Outro→Intro handoffs that carry no "lost on switching out" clause — Impermanence Heron,
+ * Moonlit Clouds, Hyvatia, Glommoth, Trickster, Voidwing Moth, and Wishes of Quiet Snowfall's own
+ * outro branch.
+ *
+ * Fifteen seconds of real time outlast the receiver's own visit, so one of these does not stop at
+ * their Outro the way a "lost on swap" handoff does (Pact of Neonlight Leap, which keeps plain
+ * `lostOnSwap()`): it also covers everything that Outro triggers, the incoming resonator's Intro,
+ * and everything *that* triggers — Phrolova's two Unfinished Piece notes, drawn on the incoming
+ * Intro, land inside it. Only from the first ordinary press of the next visit is it gone.
+ */
+
+/** The window, as a two-state count: one stack is the ordinary visit, the second is "the holder
+ *  has swapped out and the handoff is closing". Watched from updateGlobal() because the holder is
+ *  off field for most of it — their local hooks only run on their own queued follow-ups, which
+ *  are the rows to keep, never the row that ends it. */
+function handoffWindow(buff: Buff): void {
+  // `mine`: is the row being evaluated this holder's own? True on their presses, and true again
+  // on a follow-up queued back onto their slot, which run() makes the active slot for it.
+  const mine = currentTeam().slot === currentMember();
+  // their own Outro opens the closing window; every row before it is an ordinary visit — and the
+  // stack gate is what keeps a *teammate's* off-field follow-up mid-visit from ending it early
+  if (frozenStacks() < 2) {
+    if (mine && casting(Cast.Outro)) applyCurrent(buff, 1);
+    return;
+  }
+  // inside it: the follow-ups that Outro queues back onto the holder's slot, the incoming Intro,
+  // and the follow-ups that Intro queues back onto it too (queued from updateGlobal, so they
+  // splice in ahead of anything the Intro's own hooks queue). The first row belonging to somebody
+  // else is the next visit proper — the handoff is over.
+  if (!mine && !casting(Cast.Intro)) revokeCurrent(buff);
+}
+
+/** One of those handoffs: a name and whatever it grants, with the window above wired on. The
+ *  seconds are the text's own ("for 15s", every one of them so far); the window still closes it
+ *  at the next visit's first press where that comes sooner. */
+export function handoff(name: string, applyStats: () => void, seconds = 15): Buff {
+  const buff: Buff = new Buff({
+    name, maxStacks: 2, applyStats, duration: 60 * seconds,
+    // the second stack is bookkeeping, not a doubled payout — no "x2" in the report
+    display: () => name,
+    updateGlobal: () => handoffWindow(buff),
+  });
+  return buff;
+}
+
+/**
+ * A Coordinated-Attack window as the clock it is: whatever opens it (a Liberation, a mark on the
+ * target, an echo press) banks the summons it has left as its stacks — `seconds / every` of them
+ * for a full window (`maxStacks`), fewer where a kit grants a shorter one (Zhezhi's 21 of 27
+ * spirits) — and every `every` seconds of the fight clock it summons one `tick` and spends a
+ * stack, always on the slot the window belongs to, however far the field has moved on, until the
+ * last. A grant on a standing window adds to what it has left (up to `maxStacks`); the cadence
+ * runs on from where it was. The kits' own "damage dealt by the summon does not
+ * trigger this" comes free: a summon is a queued follow-up, and the clock reads only the frames
+ * a press takes.
+ *
+ * Three places the window can live:
+ * - team-held (the default — Zhezhi's Inklit Spirits, Cantarella's Diffusion): granted with
+ *   `applyTeam`, ticks onto `owner`'s slot. `owner` is a thunk purely for declaration order —
+ *   these sit in a kit's buffs section, above the Resonator const they name.
+ * - on the target (Verina's Photosynthesis Mark, Yinlin's Punishment Mark): granted with
+ *   `applyEnemy`, nothing else about it differs.
+ * - `owner: null` — held by the wearer themselves (Jué's Blessing of Time, granted with
+ *   `applyCurrent` by an echo any build can carry, so there is no resonator to name): the ticks
+ *   fire with the "current" pointers on the holder, so a plain queue() lands them on them.
+ *
+ * `applyStats` rides along for a window that is also a buff while it stands — held means it has
+ * time left, so it needs no gate of its own (Blessing of Time's own +16% Resonance Skill DMG).
+ *
+ * `tick` may be a function rather than a summon: then nothing is queued and nothing gets a row —
+ * each tick runs it on the owner at its own frame (`applyOn()`), a heal window's heal.
+ *
+ * `hits` is how many rows one summon fires — for a summon whose single volley is several real
+ * hits (Rebecca's turret, 5 shots), fired individually so the detail table's field grouping
+ * counts them right.
+ *
+ * `every` is the summon's own cadence in seconds, fractional where it is (Ciaccona's Tonics, one
+ * per 1.65s across thirty-three; Suoming's crests at 4/3s). `onTick` runs after each summon with
+ * its ordinal, for a node that counts them (Zhezhi's S5, every third spirit).
+ */
+export function coordinatedBuff(name: string, seconds: number, owner: (() => Resonator) | null, tick: Action | (() => void), { hits = 1, every = 1, applyStats, onTick }: { hits?: number; every?: number; applyStats?: () => void; onTick?: (n: number) => void } = {}): Buff {
+  // Its stacks are the summons it has left: granted at `maxStacks` (a full window), one spent a
+  // tick, and gone with the last. The cadence is the pool's own per-buff tick clock.
+  const window: Buff = new Buff({
+    name, maxStacks: Math.floor(seconds / every + 1e-9), applyStats,
+    // the window *is* the field standing, so granting it is what the report files the summons
+    // under — named off the tick's own declaration rather than asked for twice
+    field: typeof tick === "function" ? null : tick.field,
+    tick: {
+      every: Math.round(60 * every),
+      fire: (n) => {
+        for (let k = 0; k < hits; k++) {
+          // a function tick is no summon: it runs on the owner, at the tick's own frame (a heal)
+          if (typeof tick === "function") applyOn(owner?.() ?? null, tick);
+          else if (owner === null) queue(tick);
+          else queueOn(owner(), tick);
+        }
+        onTick?.(n);
+        // spent from wherever it is held: its wearer, the team, or the target
+        if (stacksOf(window)) removeStack(window, 1);
+        else if (stacksOfTeam(window)) removeStackTeam(window, 1);
+        else removeStackEnemy(window as Debuff, 1);
+      },
+    },
+  });
+  return window;
+}
 
 /** One echo choice — a mainslot plus one of the three shapes five echoes can make: a 5pc (its
  *  2pc implied), a 3pc + 2pc, or a 1pc + 2pc + 2pc. `sets` is the shape as a build reads it, one
@@ -489,19 +676,18 @@ export interface ResonatorDef extends GearDef {
    *  damage popovers all key off it, read straight off the Resonator rather than re-declared per
    *  team in index.ts. */
   color: string;
-  /** Which Intro-cast action to use right now — resolved every time the `INTRO` rotation marker
-   *  below is reached, not baked into a fixed opener/loop split. Most kits only ever have the
-   *  one Intro, so this is just `() => Intro`; a kit with more than one (Phrolova's EIntro once
-   *  Maestro's already open, Shorekeeper's Discernment once the realm's Supernal) puts the real
-   *  check here instead of the rotation author having to know which visit needs which. Called
-   *  with the "current" pointers already aimed at the acting slot, so it can read
-   *  stacksOf()/stacksOfTeam() etc. same as any other kit logic. */
-  intro: () => Action;
-  /** Which Outro-cast action to use right now — the same shape as `intro` above, and resolved the
-   *  same way: a rotation holds an OUTRO marker rather than naming the cast, and
-   *  the scheduler asks here when it reaches one. Almost every kit has exactly one, so this is
-   *  just `() => Outro`. */
-  outro: () => Action;
+  /** The Intro this resonator casts — the kit's Intro, or its Intro Resolver where it has more than
+   *  one. What a FIRST_INTRO / INTRO_n marker casts when no Intro is written after it. */
+  intro?: Action;
+  /** This resonator's own Tune Break, where it isn't their weapon class's (Qingxiao's) — an Intro
+   *  Resolver-style `resolve` where it depends on their form. Unset is the class's (tunebreak.ts). */
+  tuneBreak?: Action;
+  /** The dash this resonator makes cutting `after` short, where it has one of its own (Jingran's
+   *  Shadow Step, Hiyuki's Iai Stance flash) — resolved like `intro` when the dash is reached;
+   *  null, or unset, is the plain DODGE. */
+  dodge?: (after: Action) => Action | null;
+  /** The same for a jump. */
+  jump?: (after: Action) => Action | null;
   /** How hard this resonator is to own, which is what sets the resonance-chain level their build
    *  is costed at — see stats.ts's own `Tier` and `baseSequence()`. Unset means `Tier.Limited`. */
   tier?: Tier;
@@ -530,8 +716,10 @@ export class Resonator extends Gear {
   /** `maxForte1`-`maxForte5` as one array, indexed the way `TeamMember.forte` is. */
   maxForte: [number, number, number, number, number];
   color: string;
-  introFn: () => Action;
-  outroFn: () => Action;
+  intro?: Action;
+  tuneBreak?: Action;
+  dodgeFn?: (after: Action) => Action | null;
+  jumpFn?: (after: Action) => Action | null;
   tier: Tier;
   constructor(def: ResonatorDef) {
     super({
@@ -575,8 +763,10 @@ export class Resonator extends Gear {
     this.maxEnergy = def.maxEnergy ?? 0;
     this.maxForte = [def.maxForte1 ?? 0, def.maxForte2 ?? 0, def.maxForte3 ?? 0, def.maxForte4 ?? 0, def.maxForte5 ?? 0];
     this.color = def.color;
-    this.introFn = def.intro;
-    this.outroFn = def.outro;
+    this.intro = def.intro;
+    this.tuneBreak = def.tuneBreak;
+    this.dodgeFn = def.dodge;
+    this.jumpFn = def.jump;
     this.tier = def.tier ?? Tier.Limited;
   }
 }
@@ -584,14 +774,13 @@ export class Resonator extends Gear {
 /** How a mainslot echo's skill plays out. A SUMMON calls the creature in beside the resonator,
  *  who carries on — its hit is a follow-up wherever it is pressed. A TRANSFORM turns the resonator
  *  *into* it — a press of their own, and one that can be dash-cancelled or finish after they've
- *  swapped out. rotation.ts's ECHO_ONFIELD/ECHO_CANCEL/ECHO_SWAP markers key off this. */
-export const enum EchoType { SUMMON, TRANSFORM }
+ *  swapped out. rotation.ts's ECHO marker and its `swap()`/`instaDodge()` forms key off this. Told apart by the
+ *  action's own frames: 0 is a summon, anything more a transform. */
 
 export interface MainslotDef extends GearDef {
   /** The cast this echo performs — what rotation.ts's ECHO_* markers place, in the form each
    *  calls for (see `Mainslot`). */
   action: Action;
-  echoType: EchoType;
 }
 
 /** A mainslot echo: gear that also carries its own cast. Every build equips exactly one, so a
@@ -601,29 +790,32 @@ export interface MainslotDef extends GearDef {
  *  - `onfield`: the cast as declared. A SUMMON's is reported as a triggered row — the creature
  *    attacks, not the resonator — and is the one form a summon has, wherever it is pressed:
  *    always active, no special name, whichever marker placed it.
- *  - `outro`: what ECHO_SWAP lands, right where it stands. A TRANSFORM pressed on the way out
- *    finishes off field, so its copy is `Action.swap()`'s form — named "… (Swap)", inactive and
+ *  - `outro`: what `ECHO.swap()` lands, right where it stands. A TRANSFORM pressed on the way out
+ *    finishes off field, so its copy is `Action.swap()`'s form — the same name under a SWAP tag, inactive and
  *    triggered. A SUMMON's is just its one form again.
- *  - `cancel`: a TRANSFORM dash-cancelled the moment it is pressed — `Action.dodgeCancel()`'s form:
- *    the cast's own effects with none of its hit. */
+ *  - `cancel`: a TRANSFORM dash-cancelled the moment it is pressed — `Action.instaDodge()`'s form:
+ *    the cast's own effects with none of its hit.
+ *  - `instaOut`: what `ECHO.instaSwap()` lands — `Action.instaSwap()`'s form, its hit landing off
+ *    field after the swap. */
 export class Mainslot extends Gear {
   action: Action;
-  echoType: EchoType;
   onfield: Action;
   outro: Action;
   cancel: Action;
+  instaOut: Action;
   constructor(def: MainslotDef) {
     super(def);
     this.action = def.action;
-    this.echoType = def.echoType;
     const a = def.action;
-    if (def.echoType === EchoType.SUMMON) {
-      this.onfield = this.cancel = this.outro = a.variant(a.name, { triggered: true });
+    // a summon takes none of its wearer's time; a transform's cast is theirs, frames and all
+    if (a.frames === 0) {
+      this.onfield = this.cancel = this.outro = this.instaOut = a.variant(a.name, {});
       return;
     }
     this.onfield = a;
-    this.outro = a.swap();
-    this.cancel = a.dodgeCancel();
+    this.outro = a.swapCancel();
+    this.cancel = a.instaForm(ActionTag.InstaDodge);
+    this.instaOut = a.instaSwap();
   }
 }
 
