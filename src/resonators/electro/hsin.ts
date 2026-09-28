@@ -83,6 +83,7 @@ import {
   forte2,
   setForte2,
   addForte1,
+  pressed,
 } from "../../engine/context.js";
 import { Action, ActionField, ActionGroup, Rotation, ECHO, NOINTRO, ActionTag, INTRO, START_3, DOUBLE_INTRO } from "../../engine/rotation.js";
 import { UNISON, UNISON_BOON, UNISON_RESPONSE, grantBoon, respondToUnison, boonPayout, unisonIntro, unisonOutro, unisonResponse } from "../../shared/unison.js";
@@ -218,8 +219,8 @@ const Lib1 = hsinAction("Liberation - Formshift", {
   // Flare mode: the Heart Manifest it opens pins the target's Flare at the cap, and forces it up
   // there the moment it starts — so her own 5 Flare all overflow into Electro Rage and bank as
   // Heart of Thunder through Forms Turn, Heart Abides (MODE_FLARE): 6 Flare, Formshift, 13 Flare
-  // and +5 Heart. Filled here, ahead of the inflict, since the Manifest itself only goes up in
-  // updateBuffs below.
+  // and +5 Heart. Filled here, ahead of the inflict, since Gleaning's own fill only follows in
+  // its hitGlobal.
   updateDebuffs: () => {
     if (!isHeld(MODE_FLARE)) return;
     const room = currentTeam().enemyMax(ELECTRO_FLARE) - stacksOfEnemy(ELECTRO_FLARE);
@@ -259,9 +260,12 @@ const SoaringPillar = hsinAction("Liberation - Soaring Pillar", {
 //     Manifold Unison pair (Resonance Skill DMG) a Unison Response or a held Source Intent puts
 //     in their place. An Illumining Intro of either kind opens Mechanism Dominion at 300 Heart.
 const MANIFOLD = {
-  updateDebuffs: respondToUnison,
   // a response banks Source Intent for a later Intro; an Intro that is no response spent it
-  updateBuffs: () => { if (unisonResponse()) applyCurrent(SOURCE_INTENT, 1); else revokeCurrent(SOURCE_INTENT); },
+  updateBuffs: () => {
+    respondToUnison();
+    if (unisonResponse()) applyCurrent(SOURCE_INTENT, 1);
+    else revokeCurrent(SOURCE_INTENT);
+  },
 };
 const UIntro = hsinAction("Intro - Answering Form", {
 
@@ -285,8 +289,10 @@ const UIIntro = hsinAction("Intro - Illumining Form", {
 const ManifoldIllumining = hsinAction("Intro - Illumining Form: Manifold Unison", {
   frames: 152, cancelFrames: 152, timestop: 30, motionStop: 152,
   node: Node.Intro, cast: Cast.Intro, type: Type.Skill, mv: 157.22 * 4 + 15.73 + 31.45 * 2 + 39.31 * 2, energy: 7.51, concerto: 13.17, castConcerto: 10, offtune: 3253 * 4 + 326 + 651 * 2 + 814 * 2, forte2: 300,
-  updateDebuffs: MANIFOLD.updateDebuffs,
-  updateBuffs: () => { MANIFOLD.updateBuffs(); applyCurrent(MECHANISM_DOMINION, 1); },
+  updateBuffs: () => {
+    MANIFOLD.updateBuffs();
+    applyCurrent(MECHANISM_DOMINION, 1);
+  },
 });
 const FlareIntro = hsinAction("Intro - Answering Form (Flare)", {
 
@@ -347,8 +353,8 @@ const MODE_FLARE = new ResonanceMode({ name: "Resonance Mode - Electro Flare",
   // tick reads FLARE_RETAINED for exactly this.
   combatStart: () => applyEnemy(FLARE_RETAINED, 1),
   // Forms Turn, Heart Abides, Flare mode: every Electro Rage the team inflicts is hers, and comes
-  // off the target — watched from her own slot on every action, so a teammate's overflow lands on her
-  updateGlobal: () => {
+  // off the target — watched from her own slot on every hit, so a teammate's overflow lands on her
+  hitGlobal: () => {
     if (!isHeld(MODE_FLARE)) return;
     const rage = applied(ELECTRO_RAGE);
     if (rage > 0) applyTeam(HEART_OF_THUNDER, rage);
@@ -412,7 +418,7 @@ const MECHANISM_DOMINION = new Buff({
   duration: 60 * 13,
   applyStats: () => {
     const a = currentAction();
-    if (DOMINION_GATED.includes(a)) addStat(Stat.AddCastForte2, -a.forte2);
+    if (DOMINION_GATED.includes(pressed())) addStat(Stat.AddCastForte2, -a.forte2);
   },
 });
 
@@ -494,13 +500,17 @@ const HS_INHERENT_1 = new Inherent({
   updateGlobal: () => {
     if (!isHeld(MODE_FLARE)) return;
     const actor = currentTeam().slot;
+    if (casting(Cast.Intro) && actor.resonator?.name === "Electro Rover") {
+      applyCurrent(THUNDEROUS_BOND, 1);
+      addBuff(actor.resonator, THUNDEROUS_BOND, 1);
+    }
+  },
+  hitGlobal: () => {
+    if (!isHeld(MODE_FLARE)) return;
     // the applier's own bit — already up means this slot has had its stack and gets no second
     const slot = 1 << currentTeam().active;
-    if (appliedByMember(ELECTRO_FLARE, actor) && (stacksOf(TIDES_OF_SUCCESSION) & slot) === 0) {
+    if (appliedByMember(ELECTRO_FLARE, currentTeam().slot) && (stacksOf(TIDES_OF_SUCCESSION) & slot) === 0) {
       applyCurrent(TIDES_OF_SUCCESSION, slot);
-    }
-    if (casting(Cast.Intro) && actor.resonator?.name === "Electro Rover") {
-      applyCurrent(THUNDEROUS_BOND, 1); addBuff(actor.resonator, THUNDEROUS_BOND, 1);
     }
   },
 });
@@ -514,10 +524,11 @@ const HS_INHERENT_1 = new Inherent({
  *  doing and outlives it (status.ts's FLARE_RETAINED). */
 const HS_INHERENT_2 = new Inherent({
   name: "Inherent: Gleaning Simple Joys",
-  updateGlobal: () => {
+  hitGlobal: () => {
     const actor = currentTeam().slot;
     if (isHeld(MODE_UNISON)) {
-      if (appliedByMember(UNISON_RESPONSE, actor)) grantBoon(HS_BOON_GLEANING);
+      // the response went up on the Intro's cast and stands until its hit pays out
+      if (actor.isHeld(UNISON_RESPONSE)) grantBoon(HS_BOON_GLEANING);
       return;
     }
     if (!isHeld(MODE_FLARE)) return;
@@ -578,7 +589,8 @@ const PillarsFlare = flareHit("Liberation - Pillars Across Heaven: Electro Flare
  *  15% a Unison Boon stack, four at most; in Flare mode it fires the instance above. */
 const HS_S3 = new Sequence({
   name: "Hsin S3: A Dream of Return Among the Hills",
-  updateBuffs: () => {
+  // off the last stage, so on the hit
+  updateDebuffs: () => {
     if (runningAction(Lib2) && isHeld(MODE_FLARE) && stacksOfEnemy(ELECTRO_FLARE) > 0) queue(PillarsFlare);
   },
   applyStats: () => {
@@ -597,11 +609,12 @@ const RIVER_OF_LANTERNS = new Buff({
 });
 const HS_S4 = new Sequence({
   name: "Hsin S4: A River of Lanterns, a River of Wishes",
-  // from updateGlobal "me" is the holder, so the acting slot has to be named (status.ts)
-  updateGlobal: () => {
+  // from hitGlobal "me" is the holder, so the acting slot has to be named (status.ts); a Unison or
+  // response goes up on the cast, so the hit reads it held rather than applied
+  hitGlobal: () => {
     const actor = currentTeam().slot;
     if (appliedByMember(ELECTRO_FLARE, actor) || appliedByMember(ELECTRO_RAGE, actor)
-      || appliedByMember(UNISON, actor) || appliedByMember(UNISON_RESPONSE, actor)) applyTeam(RIVER_OF_LANTERNS, 1);
+      || actor.isHeld(UNISON) || actor.isHeld(UNISON_RESPONSE)) applyTeam(RIVER_OF_LANTERNS, 1);
   },
 });
 
@@ -618,9 +631,10 @@ const HS_BOON_S6 = new Buff({});
  *  dot row reads (damage.ts), so "fixed" needs no override: nothing else ever pays into it. */
 const HS_S6 = new Sequence({
   name: "Hsin S6: The Moon Owes Its Light to the Living",
-  updateGlobal: () => {
+  // held, not applied: the response went up on the Intro's cast and stands until its hit
+  hitGlobal: () => {
     if (!isHeld(MODE_UNISON)) return;
-    if (appliedByMember(UNISON_RESPONSE, currentTeam().slot)) grantBoon(HS_BOON_S6);
+    if (currentTeam().slot.isHeld(UNISON_RESPONSE)) grantBoon(HS_BOON_S6);
   },
   applyStats: () => {
     addStat(Stat.DamageTaken, 40, Type.Skill);

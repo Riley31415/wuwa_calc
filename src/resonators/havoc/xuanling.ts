@@ -46,7 +46,6 @@ import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } fro
 import {
   addStat,
   applied,
-  appliedByMe,
   applyCurrent,
   applyEnemy,
   applyTeam,
@@ -70,6 +69,9 @@ import {
   stacksOfEnemy,
   leftOnTeam,
   runningAnyOf,
+  both,
+  onInflict,
+  onApplied,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, ECHO, START_3, INTRO_3, ActionTag } from "../../engine/rotation.js";
 import { HAVOC_BANE, anyNegativeStatusInflicted } from "../../shared/status.js";
@@ -86,7 +88,7 @@ function yangyangAction(id: string, def: object): Action {
 }
 
 /** Both Sword Stance Flow forms, which are where every stored payout is cashed. Feather Release
- *  inflicts in `updateDebuffs`, the first phase, so the team's own "on inflicting Havoc Bane"
+ *  inflicts in `updateDebuffs`, the hit's first phase, so the team's own "on inflicting Havoc Bane"
  *  passives see all six stacks this action; the Flow's own "consume 1 stack on hit" waits for
  *  `afterAction` so this cast still reads the full count for Unbroken Vow. */
 const FLOW = {
@@ -285,13 +287,12 @@ const VOICE_UPON_VOICE = new Buff({
 const TONAL_SWITCH = new Buff({
   name: "Xuanling: Tonal Switch",
   duration: 60 * 20,
-  updateBuffs: () => {
-    if (currentTeam().slot.resonator === XUANLING_RESONATOR) return;
-    // `appliedByMe`: the amplification is that resonator's for inflicting it themselves, and
-    // Chisa's Unseen Snare hands Havoc Bane out off whoever happens to be hitting her marked
-    // target — which the kit text credits to Chisa, not to them
-    if (appliedByMe(HAVOC_BANE)) applyCurrent(TONAL_SWITCH_AMP, 1);
-  },
+  // `onInflict` (`appliedByMe`): the amplification is that resonator's for inflicting it themselves,
+  // and Chisa's Unseen Snare hands Havoc Bane out off whoever is hitting her marked target
+  grants: [{
+    on: both(onInflict(HAVOC_BANE), () => currentTeam().slot.resonator !== XUANLING_RESONATOR),
+    buff: (): Buff => TONAL_SWITCH_AMP,
+  }],
 });
 const TONAL_SWITCH_AMP = new Buff({
   name: "Xuanling: Outro",
@@ -366,12 +367,12 @@ const VOICE_FLUX = new Buff({
 /** Still as Withered Wood (S6): five charges off a Sword Stance Flow, one spent whenever *anyone*
  *  on the team inflicts any of the six Negative Statuses while she is on field — hers, a teammate's,
  *  or a marker's, which is why this reads `anyNegativeStatusInflicted()` rather than her own share.
- *  Watched from updateGlobal so a teammate's turn reaches it; "me" there is her, so `isActive()` is
+ *  Watched from hitGlobal so a teammate's hit reaches it; "me" there is her, so `isActive()` is
  *  the "if Yangyang: Xuanling is on the field" the node asks for and the Shadow is queued onto her
  *  by name. A Shadow comes at most once a second (`WITHERED_WOOD_ICD`). */
 const WITHERED_WOOD = new Buff({
   name: "Xuanling S6: Still as Withered Wood", maxStacks: 5, duration: 60 * 30,
-  updateGlobal: () => {
+  hitGlobal: () => {
     // never off its own Shadow's damage: a marker that re-inflicts on whatever hits the target
     // (Chisa's Thread of Bane) would otherwise have each summon trigger the next until the charges
     // ran out, which is the runaway the node's own 1s limiter stops in game
@@ -389,12 +390,12 @@ const WITHERED_WOOD_CD = new Buff({ duration: 60 * 25 });
 const WITHERED_WOOD_ICD = new Buff({ duration: 60 });
 const XL_S6 = new Sequence({
   name: "Xuanling S6: Let the Azure Keep Its Light",
-  updateBuffs: () => {
-    // her own Havoc Bane, read as the action's own inflict — Chisa's marker re-sources it onto
-    // herself, which `appliedByMe()` would then read as nobody's
-    if (applied(HAVOC_BANE)) applyCurrent(VOICE_FLUX, 1);
-    // opened after the window above has had its look at this cast, so the Flow that opens it never
-    // spends a charge on its own Feather Release
+  // her own Havoc Bane, read as the action's own inflict — Chisa's marker re-sources it onto
+  // herself, which `appliedByMe()` (`onInflict`) would then read as nobody's
+  grants: [{ on: onApplied(HAVOC_BANE), buff: VOICE_FLUX }],
+  // opened after the window above has had its look at this hit, so the Flow that opens it never
+  // spends a charge on its own Feather Release
+  afterAction: () => {
     if (isFlow() && !isHeld(WITHERED_WOOD_CD)) {
       applyCurrent(WITHERED_WOOD, 5);
       applyCurrent(WITHERED_WOOD_CD, 1);
@@ -421,11 +422,11 @@ const XUANLING_INHERENT_1 = new Inherent({
 });
 
 /** One Life, One Blade (Inherent Skill), the Windbound half — its other line rides on the
- *  Liberation itself. From `updateGlobal`, so a teammate's own cast is seen; that runs with the
+ *  Liberation itself. From `hitGlobal`, so a teammate's own hit is seen; that runs with the
  *  "current" slot already pointed at her, so every read and grant below is hers. */
 const XUANLING_INHERENT_2 = new Inherent({
   name: "Inherent: One Life, One Blade",
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (isHeld(WINDBOUND_ICD) || !applied(HAVOC_BANE) || isHeld(ONE_WITH_THE_WIND)) return;
     applyCurrent(WINDBOUND_ICD, 1);
     if (applyCurrent(WINDBOUND, 1) < 6) return;
@@ -454,9 +455,9 @@ export const XUANLING_RESONATOR = new Resonator({
   maxForte2: 2,
 
   /* Feathered Oath is Forte Circuit machinery, which lives on the Resonator rather than a loadout
-   * slot of its own. Same trigger as Windbound above and the same `updateGlobal` reason: it counts
+   * slot of its own. Same trigger as Windbound above and the same `hitGlobal` reason: it counts
    * Havoc Bane inflicted by anyone on the team, her own casts included. */
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (isHeld(OATH_ICD) || !applied(HAVOC_BANE)) return;
     applyCurrent(OATH_ICD, 1);
     applyCurrent(FEATHERED_OATH, 1);

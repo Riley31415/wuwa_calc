@@ -242,7 +242,7 @@ const AshesBlast = brantAction("Forte - Returned from Ashes (S6 Blast)", { node:
 const BR_S6 = new Sequence({
   name: "Brant S6: All the World's a Captain's Carnevale",
   applyStats: () => { if (midAir()) addStat(Stat.MulMv, 30); },
-  updateBuffs: () => { if (runningAction(FSkill)) queue(AshesBlast); },
+  updateDebuffs: () => { if (runningAction(FSkill)) queue(AshesBlast); },
 });
 
 // stat-tree bonus alone, its own piece of gear so it's independently identifiable from his kit

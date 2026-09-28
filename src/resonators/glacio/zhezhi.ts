@@ -106,7 +106,7 @@ const ACTION_HERALD_S6 = zhezhiAction("Skill - Ivory Herald (S6)", {
 });
 
 const Intro = zhezhiAction("Intro - Radiant Ruin", {
-  frames: 80, cancelFrames: 80, motionStop: 55,
+  frames: 80, cancelFrames: 80, hitFrame: 78, motionStop: 55,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 258.48, energy: 10.02, castConcerto: 10, offtune: 10401, castForte1: 45,
 });
 const Outro = zhezhiAction("Outro - Carve and Draw", {
@@ -267,7 +267,8 @@ const ZZ_S5 = new Sequence({ name: "Zhezhi S5: Composition's Clue" });
 /** S6: an extra Ivory Herald off either forte Skill. */
 const ZZ_S6 = new Sequence({
   name: "Zhezhi S6: Infinite Legacy",
-  updateBuffs: () => {
+  // off the forte Skill's hit
+  updateDebuffs: () => {
     if (runningAction(FSkill) || runningAction(FSkill3)) queue(ACTION_HERALD_S6);
   },
 });

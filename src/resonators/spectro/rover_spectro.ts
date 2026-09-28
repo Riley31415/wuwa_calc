@@ -84,7 +84,7 @@ const Liberation = roverAction("Liberation - Echoing Orchestra", {
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, mv: 874.77, castConcerto: 20, offtune: 61441, resetEnergy: true,
   updateDebuffs: () => { applyCurrent(HEALS, 1); applyEnemy(SPECTRO_FRAZZLE, 6); },
 });
-const Intro = roverAction("Intro - Waveshock", { frames: 72, cancelFrames: 72, motionStop: 48, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 168.99, energy: 10, castConcerto: 10, offtune: 4880, castForte1: 50});
+const Intro = roverAction("Intro - Waveshock", { frames: 72, cancelFrames: 72, hitFrame: 56, motionStop: 48, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 168.99, energy: 10, castConcerto: 10, offtune: 4880, castForte1: 50});
 const Outro = roverAction("Outro - Instant", { frames: 0, cancelFrames: 0, cast: Cast.Outro, castConcerto: -100});
 
 /* ------------------------------------------------------------------------------------ buffs */

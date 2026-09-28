@@ -11,8 +11,8 @@
  * target's own stack *limit* rather than the rung it just reached. On a bare team that is the
  * 10-stack rung on every single application; with a kit that raises the cap (Chisa's Resonant
  * Thread of Closure, +3) it is the 13-stack rung instead, which is where the pairing below comes
- * from. The conversion itself is her Resonator's own `updateGlobal` below — it sees a teammate's
- * cast as readily as her own. Glacio Bite DMG *is* Glacio Chafe DMG, so it reuses status.ts's
+ * from. The conversion itself is her Resonator's own `hitGlobal` below — it sees a teammate's
+ * hit as readily as her own. Glacio Bite DMG *is* Glacio Chafe DMG, so it reuses status.ts's
  * shared ladder; every other part of the mechanic lives in this file.
  *
  * Her loop is two forms five counters. The three real bars are forte gauges; the two that are
@@ -124,13 +124,10 @@ const CHAFE = { updateDebuffs: () => applyEnemy(GLACIO_CHAFE, 1) };
  *  them. Purely a lockdown — no damage, and under Bite the rung is the cap rather than the count,
  *  so spending them costs nothing either.
  *
- *  In `updateBuffs`, which is after the conversion below has both taken this cast's Chafe stacks
- *  and queued the cap rung each of them calculates at (`updateGlobal`), so taking ten back can't
- *  change what these hits are worth — and still before the buff counts `applyStats` pays over are
- *  frozen, so a "when you consume" payout can reach the very cast that consumed. That is what buys
- *  Suisui's Undulating Mist its ATK on the first Iai rather than the second. */
+ *  On the hit, ahead of every held gear's `updateDebuffs`, so a "when you consume" payout (Suisui's
+ *  Undulating Mist) reaches the very hit that consumed. It reads the Bite banked before this hit. */
 const FROSTBIND = {
-  updateBuffs: () => { if (stacksOfEnemy(GLACIO_BITE) >= 10) consume(GLACIO_BITE, 10); },
+  updateDebuffs: () => { if (stacksOfEnemy(GLACIO_BITE) >= 10) consume(GLACIO_BITE, 10); },
 };
 
 // --- Present Self: the chain she opens from, and the only ordinary Basic Attack DMG she has.
@@ -190,10 +187,13 @@ const Lib1 = hiyukiAction("Liberation - Foreclaiming: Inward Vision", {
   frames: 240, cancelFrames: 240, timestop: 240, motionStop: 240, cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, mv: 397.62, castConcerto: 20, offtune: 84000,
   castForte2: 50, resetForte1: true, resetForte2: true,
-  updateDebuffs: () => applyEnemy(GLACIO_CHAFE, 4),
-  // its own three points, then Frostbind's spend — the same phase, so spread by hand rather than
+  updateBuffs: () => applyCurrent(FROSTHARDEN_IAI, 3),
+  // its own four stacks, then Frostbind's spend — the same phase, so spread by hand rather than
   // through `...FROSTBIND`
-  updateBuffs: () => { applyCurrent(FROSTHARDEN_IAI, 3); FROSTBIND.updateBuffs(); },
+  updateDebuffs: () => {
+    applyEnemy(GLACIO_CHAFE, 4);
+    FROSTBIND.updateDebuffs();
+  },
 });
 /** Held rather than tapped (see the file header), so it spends whatever Snowforged Blade is
  *  banked, at +795.24% on its own multiplier apiece. Tap and hold are one press, one cooldown. */
@@ -223,7 +223,7 @@ const Iai = hiyukiAction("Forte Basic - Iai", {
 });
 
 const Intro = hiyukiAction("Intro - Frostedge", {
-  frames: 64, cancelFrames: 64, motionStop: 33,
+  frames: 64, cancelFrames: 64, hitFrame: 42, motionStop: 33,
   node: Node.Intro, cast: Cast.Intro, type: Type.Liberation, mv: 156.15, energy: 10, castConcerto: 10, offtune: 8976,
   castForte1: 200,
   updateDebuffs: () => applyEnemy(GLACIO_CHAFE, 1),
@@ -312,19 +312,13 @@ const SNOW_RUST = new Buff({
   name: "Hiyuki: Snow Rust", maxStacks: 1 + 2 + 4 + 8,
   display: () => `Hiyuki: Snow Rust x${snowRust()}`,
   // At 2 stacks, one fixed-multiplier Bite hit per stack of Chafe *she* applies, and only while
-  // she is the one on field. Held locally, so it runs on the acting slot's own turn and no other;
-  // `appliedByMe` is what makes the count hers alone, so a stack Lucilla's Film Roll adds to her
-  // cast buys no extra hit.
+  // she is the one on field. `appliedByMe` is what makes the count hers alone, so a stack Lucilla's
+  // Film Roll adds to her cast buys no extra hit.
   //
-  // Counted in `updateBuffs`, a phase after the one every kit inflicts in, so that it sees the
-  // whole cast however the stacks got there. In `updateDebuffs` it only ever saw what the *action*
-  // itself had already declared: a sibling buff of hers inflicting in that same phase (Frostharden
-  // Iai's 3, which is every Iai in the rotation) lands after her in the local roster, and she read
-  // 0 and queued nothing. Frostburn and Quiet Snowfall read the same count a phase later for the
-  // same reason. The conversion to Glacio Bite in between takes the stacks straight back off, but
-  // `appliedByMe` is a record of what this action applied, not of what is still on the target.
-  updateBuffs: () => {
-    if (snowRust() < 2) return;
+  // In `hitGlobal`, past every `updateDebuffs`, so a sibling's inflicting (Frostharden Iai's 3) is
+  // counted; it runs on every member's hit, so it bails unless she is the one hitting.
+  hitGlobal: () => {
+    if (currentTeam().slot !== currentMember() || snowRust() < 2) return;
     // S6 widens the trigger from the Chafe *she* applies to the team's, which on her own turn is
     // what a marker of somebody else's lands off her swing (Lucilla's Film Roll)
     for (let i = isHeld(HY_S6) ? applied(GLACIO_CHAFE) : appliedByMe(GLACIO_CHAFE); i > 0; i--) queue(FineSnowBite);
@@ -356,21 +350,16 @@ const SNOWLIGHT_BLESSING = new Buff({
 /* --------------------------------------------------------------------------- kit and loadout */
 
 /** Fine Snow (Inherent Skill): banks Snow Rust off the first Glacio Chafe or Havoc Bane each
- *  resonator on the team inflicts. From `updateGlobal`, so a teammate's own cast is seen — which
- *  runs with the "current" slot pointed at Hiyuki, so the applier is read off the team instead.
- *
- *  Each slot has to land its own: `appliedByMember` against the acting slot, not plain `applied`,
- *  so a stack that a marker put on off somebody's swing (Chisa's Thread of Bane, Lucilla's Film
- *  Roll) banks a bit for its own owner rather than for whoever happened to be hitting. */
+ *  resonator on the team inflicts — `appliedByMember`, so a marker's stack off somebody else's
+ *  swing (Chisa's Snare Bane, Lucilla's Film Roll) banks a bit for its owner, not the hitter. */
 const HY_INHERENT_1 = new Inherent({
   name: "Inherent: Fine Snow",
-  updateGlobal: () => {
-    const actor = currentTeam().slot;
-    if (!appliedByMember(GLACIO_CHAFE, actor) && !appliedByMember(HAVOC_BANE, actor)) return;
-    // the applier's own bit — already up means this slot has banked its stack and gets no second
-    const slot = 1 << currentTeam().active;
-    if ((stacksOf(SNOW_RUST) & slot) !== 0) return;
-    applyCurrent(SNOW_RUST, slot);
+  hitGlobal: () => {
+    currentTeam().slots.forEach((m, i) => {
+      if (!appliedByMember(GLACIO_CHAFE, m) && !appliedByMember(HAVOC_BANE, m)) return;
+      const slot = 1 << i;
+      if ((stacksOf(SNOW_RUST) & slot) === 0) applyCurrent(SNOW_RUST, slot);
+    });
   },
 });
 
@@ -452,7 +441,7 @@ export const HIYUKI_RESONATOR = new Resonator({
    * reached. On a bare team that is the 10-stack rung on every single application; with Chisa's
    * +3 to the cap it is the 13-stack rung instead, which is where her pairing comes from.
    *
-   * From `updateGlobal` so it sees a teammate's cast as readily as her own, and because that phase
+   * From `hitGlobal` so it sees a teammate's hit as readily as her own, and because that phase
    * is past every `updateDebuffs` (where a kit inflicts, Lucilla's Film Roll included) and still
    * ahead of the roster the stat phases are captured from. That last part is what lets the plain
    * stacks be taken straight back off — which is both what the kit says and what keeps status.ts's
@@ -462,7 +451,7 @@ export const HIYUKI_RESONATOR = new Resonator({
    * carrying a copy of those motion values, and the limit it indexes is Glacio Chafe's — Bite
    * counts as Chafe for every cap a teammate raises.
    *
-   * `queueOn` rather than `queue`: a resonator's own gear runs `updateGlobal` with the current
+   * `queueOn` rather than `queue`: a resonator's own gear runs `hitGlobal` with the current
    * slot switched to *her*, so a plain queue would pin every hit to her and have it read her Fine
    * Snow and Frostburn amplification even on a stack Lucilla laid while on field. The hits belong
    * to whoever actually inflicted.
@@ -470,7 +459,7 @@ export const HIYUKI_RESONATOR = new Resonator({
    * "When Hiyuki joins the team, remove all stacks of Glacio Chafe from the targets" needs nothing
    * of its own: a fight starts with none on the target, and from the first one onward this is what
    * takes them off. */
-  updateGlobal: () => {
+  hitGlobal: () => {
     for (const s of currentTeam().slots) converted[s.index] = appliedByMember(GLACIO_CHAFE, s);
     const inflicted = applied(GLACIO_CHAFE);
     if (inflicted === 0) return;

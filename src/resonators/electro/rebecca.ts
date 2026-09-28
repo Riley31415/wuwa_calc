@@ -60,7 +60,7 @@ import {
   isActive,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Cooldown, Rotation, ECHO, ActionField, FIRST_INTRO, ActionTag, INTRO } from "../../engine/rotation.js";
-import { applied } from "../../engine/context.js";
+import { applied, inflicting } from "../../engine/context.js";
 import { applyHack, tuneHackResponse, TUNE_HACK_SHIFTING } from "../../shared/tunebreak.js";
 import { SKULL_THRASHER } from "../../weapons/pistol.js";
 import { NEW_STD_PISTOL, STATIC_MIST } from "../../weapons/standard.js";
@@ -157,8 +157,8 @@ const Boom = rebeccaAction("Liberation - BOOM! Fireworks!", { tag: ActionTag.Fie
 
 // --- My Turn!: one Intro per mode, each ending in the other one, each worth 50 Fervor through A
 //     Girl Gets What She Wants! (see A_GIRL) rather than on the action itself.
-const Intro = rebeccaAction("Intro - Yo, It's Big Boomin' Time!", { frames: 96, cancelFrames: 96, motionStop: 90, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 270.4, energy: 10, castConcerto: 10, offtune: 12800, updateDebuffs: () => applyHack(), ...TO_GUTS });
-const EIntro = rebeccaAction("Intro - Hey, Leadhead, Come 'n' Get Me!", { frames: 89, cancelFrames: 69, motionStop: 58, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 202.8, energy: 10, castConcerto: 10, offtune: 9600, updateDebuffs: () => applyHack(), ...TO_HUNTRESS });
+const Intro = rebeccaAction("Intro - Yo, It's Big Boomin' Time!", { frames: 96, cancelFrames: 96, hitFrame: 72, motionStop: 90, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 270.4, energy: 10, castConcerto: 10, offtune: 12800, updateDebuffs: () => applyHack(), ...TO_GUTS });
+const EIntro = rebeccaAction("Intro - Hey, Leadhead, Come 'n' Get Me!", { frames: 89, cancelFrames: 69, hitFrame: 59, motionStop: 58, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 202.8, energy: 10, castConcerto: 10, offtune: 9600, updateDebuffs: () => applyHack(), ...TO_HUNTRESS });
 
 /** Preem Choom (Outro): the turret is the pair of windows below — the outro row itself deals
  *  nothing any more. Handing to Lucy, she enhances it: +250% DMG Multiplier at 4s on field
@@ -306,7 +306,7 @@ const OH_HEY_CHOOM_HACK = new Buff({
 });
 const RB_S2 = new Sequence({
   name: "Rebecca S2: Oh, Hey Choom!",
-  updateGlobal: () => {
+  hitGlobal: () => {
     const acting = currentTeam().slot.resonator;
     if (acting && applied(TUNE_HACK_SHIFTING)) addBuff(acting, OH_HEY_CHOOM_HACK, 1);
   },
@@ -338,7 +338,7 @@ const DREAMIN_ON_THE_EDGE = new Buff({
 });
 const RB_S5 = new Sequence({
   name: "Rebecca S5: Dreamin' on the Edge",
-  updateBuffs: () => { if (isActive() && applied(TUNE_HACK_SHIFTING)) applyCurrent(DREAMIN_ON_THE_EDGE, 1); },
+  grants: [{ on: inflicting(() => isActive() && applied(TUNE_HACK_SHIFTING) > 0), buff: DREAMIN_ON_THE_EDGE }],
 });
 
 /** S6: her Basic Attack DMG Bonus from every source is 40% higher — a conversion off the
@@ -365,10 +365,10 @@ const RB_S6 = new Sequence({
 const RB_INHERENT_1 = new Inherent({
   name: "Inherent: Tag, You're It!",
   // Watched from her own inherent rather than through a team-wide marker: the Tune Break Boost is
-  // the *inflicter's*, so it has to land on whoever is actually acting — and updateGlobal's own
+  // the *inflicter's*, so it has to land on whoever is actually acting — and hitGlobal's own
   // currentSlot is Rebecca (this gear's holder), not them, so it goes through the acting slot's
   // resonator instead of applySelf.
-  updateGlobal: () => {
+  hitGlobal: () => {
     const acting = currentTeam().slot.resonator;
     if (acting && applied(TUNE_HACK_SHIFTING)) addBuff(acting, TAG_TBB, 1);
   },
@@ -411,7 +411,7 @@ const REBECCA_RESONATOR = new Resonator({
   // she starts in Huntress with a full Hot Hand bar
   combatStart: () => { applyCurrent(HUNTRESS, 1); setForte2(120); },
 
-  updateGlobal: () => tuneHackResponse(Meltdown),
+  hitGlobal: () => tuneHackResponse(Meltdown),
 
   // at a full Hot Hand bar, a Resonance Skill or Intro Skill trades it for the 12s window
   updateBuffs: () => {

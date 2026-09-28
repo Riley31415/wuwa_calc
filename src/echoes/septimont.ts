@@ -177,16 +177,13 @@ export const LAW_OF_HARMONY_3PC = new Sonata3pc({
  *  Its own passive is Core of Collapse: another 24.57% Havoc hit whenever the active resonator
  *  deals damage, 0.5s apart, up to 8 times over the summon's 15s, and doubled against a target
  *  carrying Havoc Bane. The 0.5s cadence runs on a clock this engine has none of, so all eight are
- *  bundled into one triggered hit — the whole 196.56% at once, on the next real damaging press
- *  after the summon. That press is nearly always the *next* resonator's (the wearer's rotation
- *  puts the echo last), which is the point of the echo on a support; the hit still resolves on the
- *  wearer's own slot and stats, since `queue()` inside updateGlobal pins to the holder rather than
- *  to whoever is acting. */
+ *  bundled into one triggered hit — the whole 196.56% at once, queued off the summon's own hit
+ *  and resolved on the wearer's own slot and stats. */
 export const ACTION_THRENODIAN_LEVIATHAN = new Action("Echo - Reminiscence: Leviathan", {
   cooldown: 60 * 25,
   cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo,
   mv: 131.04 * 2, energy: 0.91 * 2,
-  updateBuffs: () => queue(ACTION_CORE_OF_COLLAPSE),
+  updateDebuffs: () => queue(ACTION_CORE_OF_COLLAPSE),
 });
 /** The bundle: eight 24.57% hits as one row, with the Havoc Bane doubling as its own Damage Taken
  *  ("Enemies with Havoc Bane take 100% more DMG from this effect") rather than folded into the
@@ -206,19 +203,18 @@ export const THRENODIAN_LEVIATHAN = new Mainslot({
 
 /** Thread of Severed Fate, Chisa's own sonata — a 3pc-only set (no 5pc of its own), paired with a
  *  plain 2pc from elsewhere the way Galbrena's Flamewing's Shadow 3pc pairs with Clawprint 2pc.
- *  3pc: inflicting Havoc Bane grants +20% ATK and +30% Resonance Liberation DMG Bonus for 5s — a
- * 
+ *  3pc: inflicting Havoc Bane grants +20% ATK and +30% Resonance Liberation DMG Bonus for 5s.
  *
- *  updateGlobal rather than updateBuffs, so it still pays out while its wearer is *off* field: a
- *  marker that keeps inflicting Bane off teammates' casts (Chisa's Unseen Snare) is the wearer's
- *  own doing wherever they happen to be standing, and updateBuffs only ever runs on the wearer's
- *  own turn. `appliedByMe` is what keeps that honest — inside updateGlobal a locally-held gear runs
+ *  hitGlobal rather than a grant, so it still pays out while its wearer is *off* field: a
+ *  marker that keeps inflicting Bane off teammates' hits (Chisa's Unseen Snare) is the wearer's
+ *  own doing wherever they happen to be standing, and a grant only ever runs on the wearer's
+ *  own turn. `appliedByMe` is what keeps that honest — inside hitGlobal a locally-held gear runs
  *  with `currentSlot` aimed at its own holder, so it grants only when the Bane traces back to that
  *  holder, and a teammate wearing this set whose swing merely tripped somebody else's marker still
  *  reads 0. */
 export const THREAD_OF_SEVERED_FATE_3PC = new Sonata3pc({
   name: "Thread of Severed Fate 3pc",
-  updateGlobal: () => { if (appliedByMe(HAVOC_BANE)) applyCurrent(THREAD_OF_SEVERED_FATE_BUFF, 1); },
+  hitGlobal: () => { if (appliedByMe(HAVOC_BANE)) applyCurrent(THREAD_OF_SEVERED_FATE_BUFF, 1); },
 });
 export const THREAD_OF_SEVERED_FATE_BUFF = new Buff({
   name: "Thread of Severed Fate",

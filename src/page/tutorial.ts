@@ -182,7 +182,7 @@ function build(): HTMLElement {
     + `<path class="tut-path" marker-end="url(#tutHead)" d=""></path></svg>`
     + `<div class="tut-box" role="dialog" aria-label="Tutorial">`
     + `<p></p>`
-    + `<div class="tut-buttons"><button type="button" class="tut-skip">Don't show again</button></div>`
+    + `<div class="tut-buttons"><button type="button" class="tut-skip">Skip Tutorial</button></div>`
     + `</div>`;
   el.querySelector(".tut-skip")!.addEventListener("click", () => {
     done = true;

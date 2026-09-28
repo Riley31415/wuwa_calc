@@ -72,7 +72,7 @@ const Liberation = changliAction("Liberation - Radiance of Fealty", {
 });
 
 // --- intro / outro. Intro also opens True Sight.
-const Intro = changliAction("Intro - Obedience of Rules", { frames: 45, cancelFrames: 45, motionStop: 40, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 148.34, offtune: 5971, energy: 10, castConcerto: 10});
+const Intro = changliAction("Intro - Obedience of Rules", { frames: 45, cancelFrames: 45, hitFrame: 35, motionStop: 40, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 148.34, offtune: 5971, energy: 10, castConcerto: 10});
 const Outro = changliAction("Outro - Strategy of Duality", {
   frames: 0, cancelFrames: 0,
   cast: Cast.Outro, castConcerto: -100,

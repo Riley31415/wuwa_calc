@@ -146,7 +146,7 @@ const Liberation = suisuiAction("Liberation - Song of Thoroughfare", {
 /** Tinkling Jade: the other cast Sky Over Water enhances, and the ordinary way into Drizzle Stance
  *  — it spends whatever Cloud Breath she is holding whether or not the bar is full. */
 const Intro = suisuiAction("Intro - Tinkling Jade", {
-  frames: 78, cancelFrames: 78, motionStop: 55,
+  frames: 78, cancelFrames: 78, hitFrame: 60, motionStop: 55,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, scaling: Scaling.Hp,
   mv: 28.63, energy: 10, concerto: 9.6, castConcerto: 10, offtune: 9600, resetForte1: true, resetForte2: true,
   updateDebuffs: () => {
@@ -201,7 +201,7 @@ const LANDSCAPE_CAPS: [Debuff, Subtype][] = [
  *  the team pool) so every ally's own turn counts, not just hers. The real raise is 15s and
  *  unstackable; this engine's maxStackIncrease() only ever raises a cap for the rest of the fight,
  *  which is the closest that gets — the same reading Chisa's Resonant Thread of Closure uses. From
- *  updateGlobal the team pool runs behind every slot's own gear, so the very first Chafe of a fight
+ *  hitGlobal the team pool runs behind every slot's own gear, so the very first Chafe of a fight
  *  is still calculated at the unraised cap and everything after it at +3.
  *
  *  The Havoc branch reads the engine's own consumption log (context.ts's `consume()`/`consumedByMe()`)
@@ -212,7 +212,7 @@ const LANDSCAPE_CAPS: [Debuff, Subtype][] = [
 const CEASELESS_LANDSCAPE = new Buff({
   name: "Suisui: Ceaseless Landscape",
   duration: 60 * 30,
-  updateGlobal: () => {
+  hitGlobal: () => {
     for (const [status, tag] of LANDSCAPE_CAPS) {
       if (applied(status) || isType(tag)) maxStackIncrease(status, 3);
     }
@@ -301,10 +301,9 @@ const TRANSCENDENT_DANCE = new Buff({
  *  `consumedAny()`. Held locally, so it only ever runs on its own holder's turn and the only member
  *  who could have spent anything is them.
  *
- *  Watched twice, because a kit declares its spend in whichever phase suits it. `updateBuffs` is
- *  the last phase before the count `applyStats` reads is frozen, so a cast that spends there
- *  (Hiyuki's Frostbind, on the Iai that does the spending) is paid for its own hits; `afterAction`,
- *  the usual place, is past that freeze, so those casts start being paid from the next one. */
+ *  Watched twice, because a kit declares its spend in whichever phase suits it. `hitGlobal`, on the
+ *  holder's own hit, sees a spend in `updateDebuffs` or another `hitGlobal` (Hiyuki's Frostbind,
+ *  Hsin's Rage), so it is paid for itself; one in `afterAction` pays from the next action. */
 function mistEarned(): boolean {
   // S1 widens the trigger to inflicting any Negative Status, or dealing its damage
   const me = currentTeam().slot;
@@ -317,14 +316,15 @@ function mistEarned(): boolean {
 const UNDULATING_MIST: Buff = new Buff({
   name: "Suisui: Undulating Mist", duration: 60 * 14,
   // a Mist handed to a holder already paid off is that Mist refreshed
-  updateBuffs: () => { if (isHeld(MIST_CONSUMED) || mistEarned()) consumeMist(); },
+  updateBuffs: () => { if (isHeld(MIST_CONSUMED)) consumeMist(); },
+  hitGlobal: () => { if (currentTeam().slot === currentMember() && mistEarned()) consumeMist(); },
   afterAction: () => { if (mistEarned()) consumeMist(); },
   lostOnSwap: true,
 });
 const MIST_CONSUMED: Buff = new Buff({
   name: "Suisui: Undulating Mist (consumed)", duration: 60 * 14,
   stats: [[Stat.BonusAtk, 50]],
-  updateBuffs: () => { if (mistEarned()) applyCurrent(MIST_CONSUMED, 1); },
+  hitGlobal: () => { if (currentTeam().slot === currentMember() && mistEarned()) applyCurrent(MIST_CONSUMED, 1); },
   afterAction: () => { if (mistEarned()) applyCurrent(MIST_CONSUMED, 1); },
   lostOnSwap: true,
 });
@@ -364,7 +364,7 @@ const CLOUDS_POUR = new Buff({
  *  reason), hands that member the payout. No `name`, so the watcher itself stays out of the
  *  held-buffs list — what it hands over is Clouds Pour, which has its own row. */
 const CLOUDS_POUR_WATCH = new Buff({
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (!stacksOfTeam(CEASELESS_LANDSCAPE)) return;
     const actor = currentTeam().slot;
     // inflicting Havoc Bane is deliberately not here — only spending it pays, below

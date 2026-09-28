@@ -110,7 +110,7 @@ const ThrumMaAero2 = roverAction("Skill - Thrum: Aero Mid-air 2", { frames: 21, 
 const ThrumMaAeroPlunge = roverAction("Skill - Thrum: Aero Plunge", { frames: 50, cancelFrames: 38, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, element: Attribute.Aero, mv: 282.48, energy: 2.08, concerto: 7.48, offtune: 16613, forte2: 9.14 });
 
 /** Thunder Bane: one per Thrum hit, considered Resonance Skill DMG. Queued by the Thrum actions
- *  themselves (see the Resonator's own updateBuffs() below), never cast directly. */
+ *  themselves (see the Resonator's own updateDebuffs() below), never cast directly. */
 const ThunderBane = roverAction("Forte Skill - Thunder Bane", { node: Node.Forte, type: Type.Skill, mv: 39.77 });
 
 const THRUMS = new Set<Action>([
@@ -171,8 +171,11 @@ const ER_INHERENT_2 = new Inherent({
 const ELECTRO_CORE = new Buff({
   name: "Electro Rover: Electro Core",
   duration: 60 * 20,
-  updateBuffs: () => {
-    if (inflictedNegativeStatus()) { applyCurrent(ER_OUTRO, 1); revokeCurrent(ELECTRO_CORE); }
+  updateDebuffs: () => {
+    if (inflictedNegativeStatus()) {
+      applyCurrent(ER_OUTRO, 1);
+      revokeCurrent(ELECTRO_CORE);
+    }
   },
   lostOnSwap: true,
 });
@@ -249,9 +252,9 @@ const ROVER_ELECTRO_RESONATOR = new Resonator({
     // her own healing marker, read by every healing sonata and weapon (statuses.ts) —
     // applied to the healer alone, never the team
     if (runningAction(ThrumMaAero1) || runningAction(ThrumMaAero2)) applyCurrent(HEALS, 1);
+    // one Thunder Bane a Thrum hit, so it lands with the hit
+    if (runningAnyOf(THRUMS)) queue(ThunderBane);
   },
-
-  updateBuffs: () => { if (runningAnyOf(THRUMS)) queue(ThunderBane); },
 
 });
 
@@ -268,7 +271,7 @@ const ER_ROTATION = new Rotation([
 // The main-DPS loop: the same fill, the Liberation while the Surge is being built, then Overshock
 // held for Apex and one pass of Thrum of All Sounds as the kit lays it out — seven ground stages,
 // the held Aero leap into the six mid-air stages, and the Silencing Blade a press on landing
-// chains into. Every Thrum hit queues its Thunder Bane (the Resonator's own updateBuffs). Never
+// chains into. Every Thrum hit queues its Thunder Bane (the Resonator's own updateDebuffs). Never
 // the team's lead, so this is opener and loop both.
 const THRUM_SPECTRO = new ActionGroup("Skill - Thrum: Spectro 123", [
   ThrumSpectro1, ThrumSpectro2, ThrumSpectro3, 

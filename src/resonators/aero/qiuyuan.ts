@@ -20,7 +20,7 @@ import {
   casting,
   dropCast,
   forte1,
-  currentAction,
+  pressed,
   onAction,
   runningAction,
   queueOutro,
@@ -69,7 +69,7 @@ const Liberation = qiuyuanAction("Liberation - Sundering Strike", {
 });
 
 const Intro = qiuyuanAction("Intro - Attack the Must-Defend", {
-  frames: 74, cancelFrames: 74, motionStop: 49,
+  frames: 74, cancelFrames: 74, hitFrame: 133, motionStop: 49,
   node: Node.Intro, cast: Cast.Intro, type: Type.Heavy, mv: 238.62, energy: 10, castConcerto: 10, offtune: 9600, castForte1: 400,
 });
 const Outro = qiuyuanAction("Outro - Strike Before Ready", {
@@ -98,10 +98,21 @@ const OutroS3 = qiuyuanAction("Outro - Sheath Fallen, New Shoots Revealed (S3)",
  *  Sacrifice spends the last of the Soliloquy, so it fires off that. */
 const InksplashExit = qiuyuanAction("Forte - Inksplash of Mind (S6)", { node: Node.Forte, type: Type.Echo, mv: 600 });
 
+/** The Echo Skill half of Thus Spoke the Blade, spent once a visit (see BLADE_ECHO_SPENT) — the
+ *  press's own hooks, first in each half, so every `casting(Cast.Echo)` on either side sees it. */
+const BLADE_ECHO = {
+  updateGlobal: () => { if (isHeld(BLADE_ECHO_SPENT)) dropCast(Cast.Echo); },
+  updateDebuffs: () => {
+    if (isHeld(BLADE_ECHO_SPENT)) dropCast(Cast.Echo);
+    // the chain is one use: the third press's hit is what closes it
+    else if (runningAction(FHA3)) applyCurrent(BLADE_ECHO_SPENT, 1);
+  },
+};
+
 // cast: HEAVY (real heavy-attack identity) plus subcast: ECHO ("considered as performing Echo Skill")
-const FHA1 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Teach", { frames: 99, cancelFrames: 86, node: Node.Forte, cast: Cast.Heavy, subcast: Cast.Echo, type: Type.Heavy, mv: 457.2, energy: 3.78, castEnergy: 3.92, concerto: 14.75, offtune: 12265, castForte1: -200});
-const FHA2 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Save", { frames: 57, cancelFrames: 57, node: Node.Forte, cast: Cast.Heavy, subcast: Cast.Echo, type: Type.Heavy, mv: 209.67, energy: 1.09, castEnergy: 2.45, concerto: 6.78, offtune: 5625, castForte1: -200});
-const FHA3 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Sacrifice", { frames: 47, cancelFrames: 32, node: Node.Forte, cast: Cast.Heavy, subcast: Cast.Echo, type: Type.Heavy, mv: 217.7, energy: 1.14, castEnergy: 2.51, concerto: 7.01, offtune: 5840, castForte1: -200});
+const FHA1 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Teach", { frames: 99, cancelFrames: 86, node: Node.Forte, cast: Cast.Heavy, subcast: Cast.Echo, type: Type.Heavy, mv: 457.2, energy: 3.78, castEnergy: 3.92, concerto: 14.75, offtune: 12265, castForte1: -200, ...BLADE_ECHO });
+const FHA2 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Save", { frames: 57, cancelFrames: 57, node: Node.Forte, cast: Cast.Heavy, subcast: Cast.Echo, type: Type.Heavy, mv: 209.67, energy: 1.09, castEnergy: 2.45, concerto: 6.78, offtune: 5625, castForte1: -200, ...BLADE_ECHO });
+const FHA3 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Sacrifice", { frames: 47, cancelFrames: 32, node: Node.Forte, cast: Cast.Heavy, subcast: Cast.Echo, type: Type.Heavy, mv: 217.7, energy: 1.14, castEnergy: 2.51, concerto: 7.01, offtune: 5840, castForte1: -200, ...BLADE_ECHO });
 
 /** Thus Spoke the Blade counts as an Echo Skill the first time it is pressed each visit and not
  *  again: a second FHA123 in the same rotation is a plain Heavy chain, so nothing that pays out on
@@ -160,7 +171,7 @@ const QIUYUAN_OUTRO = new Buff({
 
 const QY_INHERENT_2 = new Inherent({
   name: "Inherent: Drink Away Woes Age-Old",
-  grants: [{ on: () => currentAction().forte1 > 0, buff: FLOWING_PANACEA }],
+  grants: [{ on: () => pressed().forte1 > 0, buff: FLOWING_PANACEA }],
 });
 
 const QY_INHERENT_1 = new Inherent({
@@ -168,7 +179,7 @@ const QY_INHERENT_1 = new Inherent({
   updateBuffs: () => {
     // on the cast that fills the bar, not every cast at a full one (a stack an Inksplash entered);
     // no Quietude on the Inksplash a Straw Cape opens (S3) — the Straw Cape state pays instead
-    const soliloquy = forte1() + currentAction().forte1;
+    const soliloquy = forte1() + pressed().forte1;
     if (forte1() < 600 && soliloquy >= 600 && !isHeld(STRAW_CAPE)) applyCurrent(QUIETUDE_WITHIN, 1);
   },
 });
@@ -191,19 +202,12 @@ const QIUYUAN_RESONATOR = new Resonator({
   intro: Intro,
   maxEnergy: 125,
   maxForte1: 600,
-  // the Echo Skill half of Thus Spoke the Blade, spent once a visit (see BLADE_ECHO_SPENT). From
-  // updateDebuffs, the first phase, so every `casting(Cast.Echo)` this action reaches sees it
-  updateDebuffs: () => {
-    if (casting(Cast.Intro)) revokeCurrent(BLADE_ECHO_SPENT);
-    if (!runningAction(FHA1) && !runningAction(FHA2) && !runningAction(FHA3)) return;
-    if (isHeld(BLADE_ECHO_SPENT)) dropCast(Cast.Echo);
-    // the chain is one use: the third press is what closes it
-    else if (runningAction(FHA3)) applyCurrent(BLADE_ECHO_SPENT, 1);
-  },
+  // a new visit opens the Echo Skill half of Thus Spoke the Blade again (see BLADE_ECHO)
   updateBuffs: () => {
+    if (casting(Cast.Intro)) revokeCurrent(BLADE_ECHO_SPENT);
     // forte1() only reflects every *prior* action's own contribution, so what the gauge is about
     // to become (forte1() + a.forte1) is what has to be checked, not what it reads right now
-    const soliloquy = forte1() + currentAction().forte1;
+    const soliloquy = forte1() + pressed().forte1;
     if (soliloquy >= 400) applyTeam(BAMBOO_SHADE, 1);
   },
 

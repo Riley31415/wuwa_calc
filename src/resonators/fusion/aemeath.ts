@@ -60,6 +60,7 @@ import {
   stacksOfEnemy,
   forte1,
   forte2,
+  inflicting,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, ECHO, START_3, START_2, START_1, INTRO } from "../../engine/rotation.js";
 import { TUNE_RUPTURE_SHIFTING, applyRupture, tuneRuptureResponse, tuneBreak } from "../../shared/tunebreak.js";
@@ -131,8 +132,8 @@ const Lib2 = aemeathAction("Liberation - Heavenfall Edict: Finale", {
 
 // --- Intros, one per form: 40 Synchronization Rate and Starlume Acceleration
 const INTRO_DEF = { node: Node.Intro, cast: Cast.Intro, type: Type.Intro, energy: 10, concerto: 10, forte1: 40, updateBuffs: () => applyCurrent(STARLUME, 1) };
-const Intro = aemeathAction("Intro - Songs Across the Universe", { frames: 72, cancelFrames: 74, motionStop: 45, ...INTRO_DEF, mv: 134.58, offtune: 7737 });
-const EIntro = aemeathAction("Intro - Debut of Meteoric Radiance", { frames: 74, cancelFrames: 76, motionStop: 40, ...INTRO_DEF, mv: 163.25, offtune: 9385 });
+const Intro = aemeathAction("Intro - Songs Across the Universe", { frames: 72, cancelFrames: 74, hitFrame: 59, motionStop: 45, ...INTRO_DEF, mv: 134.58, offtune: 7737 });
+const EIntro = aemeathAction("Intro - Debut of Meteoric Radiance", { frames: 74, cancelFrames: 76, hitFrame: 60, motionStop: 40, ...INTRO_DEF, mv: 163.25, offtune: 9385 });
 
 /** Silent Protection: everyone but her, and "casting this skill resets the effects above" — so a
  *  member's old one comes off before the fresh grant rather than stacking. */
@@ -224,14 +225,14 @@ const AEMEATH_TALENTS = new Talent({
   stats: [[Stat.BonusAtk, 12], [Stat.CritRate, 8]],
 });
 
-/** Between the Stars' own grant, from `updateGlobal` so a teammate's own cast is seen — which runs
+/** Between the Stars' own grant, from `hitGlobal` so a teammate's own hit is seen — which runs
  *  with the "current" slot pointed at her, so the actor is read off the team (a queued response
  *  lands on the slot that queued it, so Mornye's Particle Jet counts Mornye). Both modes' payout
  *  buffs are declared further down; only this hook's own body reads them, so it never runs before
  *  they exist. */
 const AE_INHERENT_2 = new Inherent({
   name: "Inherent: Between the Stars",
-  updateGlobal: () => {
+  hitGlobal: () => {
     const actor = currentTeam().slot;
     const slot = 1 << currentTeam().active;
     if (isHeld(MODE_BURST)) {
@@ -342,12 +343,14 @@ const AE_S5 = new Sequence({ name: "Aemeath S5: Voyage to the Astral Shore" });
  *  by that a kit can reach, where a motion-value bonus would only sum with the Trail's own. */
 const AE_S6 = new Sequence({
   name: "Aemeath S6: A Zephyr-Kissed Journey to You",
-  // her Resonance Mode isn't equipped yet at combatStart, so both standing lines are asserted from
-  // updateGlobal instead — the first action of the fight, whoever casts it, and `maxStackIncrease`
-  // takes one raise a source however often it is called
+  // her Resonance Mode isn't equipped yet at combatStart, so the Trail's cap is raised from
+  // updateGlobal instead — the first cast of the fight, whoever casts it, ahead of any hit laying it
   updateGlobal: () => {
     if (!isHeld(MODE_BURST)) { maxStackIncrease(RUPTUROUS_TRAIL, 30); return; }
     maxStackIncrease(FUSION_TRAIL, 30);
+  },
+  hitGlobal: () => {
+    if (!isHeld(MODE_BURST)) return;
     // the fixed crit itself, written straight out rather than through a buff of its own: onto the
     // cast being evaluated (`asActor`, since this hook runs as her whoever is up), so a burst that
     // calculates on a teammate's turn crits the same way hers does. Scoped to Fusion Burst, which
@@ -422,7 +425,7 @@ const BETWEEN_THE_STARS_RUPTURE = new Buff({
  *  A 20s team buff, so lost on her next Intro. */
 const SILENT_PROTECTION_RUPTURE = new Buff({
   name: "Aemeath: Outro (rupture)", maxStacks: 2, duration: 60 * 20,
-  grants: [{ on: () => appliedByMember(TUNE_RUPTURE_SHIFTING, currentMember()) > 0 }],
+  grants: [{ on: inflicting(() => appliedByMember(TUNE_RUPTURE_SHIFTING, currentMember()) > 0) }],
   applyStats: () => addStat(Stat.Amp, frozenStacks() === 2 ? 20 : 10),
 });
 
@@ -432,17 +435,20 @@ const inflicts = (): boolean =>
   // S3: in Instant Response either form's heavy lays it too
   || (isHeld(AE_S3) && isHeld(INSTANT_RESPONSE) && casting(Cast.Heavy));
 
-/** Held on her slot, so its updateGlobal runs as her whoever is acting: the Starburst response and
- *  the Trail are hers. A response is any Rupture-typed hit that isn't her own Duet volley. */
+/** Held on her slot, so its hitGlobal runs as her whoever is acting: the Starburst response and
+ *  the Trail are hers. A response is any Rupture-typed hit that isn't her own Duet volley. The
+ *  volley follows the Duet's hit, after S6 has laid its stacks. */
 const MODE_RUPTURE = new ResonanceMode({
   name: "Resonance Mode - Tune Rupture",
-  updateDebuffs: () => { if (inflicts()) applyRupture(); },
-  updateGlobal: () => {
+  updateDebuffs: () => {
+    if (inflicts()) applyRupture();
+    if (isDuet()) queue(Volley);
+  },
+  hitGlobal: () => {
     tuneRuptureResponse(Starburst);
     const a = currentAction();
     if (a.type === Type.Rupture && !runningAction(Volley)) applyEnemy(RUPTUROUS_TRAIL, isHeld(AE_S6) ? 20 : 10);
   },
-  updateBuffs: () => { if (isDuet()) queue(Volley); },
 });
 
 /* ---------------------------------------------------------------------------------- rotation */
@@ -533,19 +539,22 @@ const BETWEEN_THE_STARS_BURST = new Buff({
  *  20s, 20% once they lay Fusion Burst of their own — stack 2 is that upgraded state. */
 const SILENT_PROTECTION_BURST = new Buff({
   name: "Aemeath: Outro (burst)", maxStacks: 2, duration: 60 * 20,
-  grants: [{ on: () => appliedByMember(FUSION_BURST, currentMember()) > 0 }],
+  grants: [{ on: inflicting(() => appliedByMember(FUSION_BURST, currentMember()) > 0) }],
   applyStats: () => addStat(Stat.Amp, frozenStacks() === 2 ? 20 : 10),
 });
 
-/** Held on her slot, so its updateGlobal runs as her whoever is acting. Her listed casts lay a
+/** Held on her slot, so its hitGlobal runs as her whoever is acting. Her listed casts lay a
  *  stack; every stack the team lands mirrors into Fusion Trail; and the mode's own upkeep — past 5
  *  stacks the status calculates at the cap's rung on whoever is on field (the ladder's own rule,
  *  status.ts) and clears, and a target left on 0 gets a stack back, hers. The fight opens on that
- *  stack too. A Duet queues its own calculation. */
+ *  stack too. A Duet's hit queues its own calculation. */
 const MODE_BURST = new ResonanceMode({
   name: "Resonance Mode - Fusion Burst",
-  updateDebuffs: () => { if (inflicts()) applyEnemy(FUSION_BURST, 1); },
-  updateGlobal: () => {
+  updateDebuffs: () => {
+    if (inflicts()) applyEnemy(FUSION_BURST, 1);
+    if (isDuet()) queue(DuetBurst);
+  },
+  hitGlobal: () => {
     const team = currentTeam();
     if (stacksOfEnemy(FUSION_BURST) > 5) {
       queueOn(team.slot.resonator!, FUSION_BURST_ACTIONS[team.enemyMax(FUSION_BURST)]!);
@@ -557,7 +566,6 @@ const MODE_BURST = new ResonanceMode({
     const landed = applied(FUSION_BURST);
     if (landed > 0) applyEnemy(FUSION_TRAIL, isHeld(AE_S6) ? landed * 2 : landed);
   },
-  updateBuffs: () => { if (isDuet()) queue(DuetBurst); },
 });
 
 export const AEMEATH_BURST = new Loadout({

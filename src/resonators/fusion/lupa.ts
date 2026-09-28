@@ -93,7 +93,7 @@ const EHA4 = lupaAction("Heavy - Wolf's Claw", { frames: 96, cancelFrames: 75, n
 const Skill1 = lupaAction("Skill - Shewolf's Hunt", {
   frames: 56, cancelFrames: 28, cooldown: 60 * 12,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 140.77, energy: 2.09, concerto: 4.17, offtune: 6664, forte1: 15,
-  updateBuffs: () => applyEnemy(LUPA_MARK, 1),
+  updateDebuffs: () => applyEnemy(LUPA_MARK, 1),
 });
 /** Feral Fang: +50% DMG Multiplier against the marked target, kept as an explicit MulMv add (see
  *  LUPA_RESONATOR's own updateBuffs() below) rather than baked into mv, so the trace shows where it comes from. */
@@ -130,7 +130,7 @@ const UFSkill = lupaAction("Forte Skill - Dance With the Wolf: Climax", { frames
  *  it, not placed in the rotation directly. */
 const fskillFUA = lupaAction("Forte Skill - Set the Arena Ablaze", { tag: ActionTag.Field, frames: 96, cancelFrames: 70, node: Node.Forte, type: Type.Skill, mv: 211.75, offtune: 9600 });
 
-const Intro = lupaAction("Intro - Try Focusing, Eh?", { frames: 70, cancelFrames: 60, motionStop: 55, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 198.4, energy: 10.02, castConcerto: 10, offtune: 9393 });
+const Intro = lupaAction("Intro - Try Focusing, Eh?", { frames: 70, cancelFrames: 60, hitFrame: 47, motionStop: 55, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 198.4, energy: 10.02, castConcerto: 10, offtune: 9393 });
 /** Nowhere to Run! — replaces plain Intro once Pack Hunt is maxed (see LUPA_RESONATOR's own intro()
  *  selector below, which also ends Pack Hunt/Glory right there, before this hit's own damage). */
 const EIntro = lupaAction("Intro - Nowhere to Run!", { frames: 150, cancelFrames: 140, timestop: 85, motionStop: 145, node: Node.Intro, cast: Cast.Intro, type: Type.Liberation, mv: 991.97, energy: 10, castConcerto: 10, offtune: 16000 });

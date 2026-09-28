@@ -93,7 +93,7 @@ const GreenTonic = ciacconaAction("Liberation - Symphonic Poem: Tonic (green)", 
   node: Node.Liberation, type: Type.Liberation, mv: 6.12, offtune: 2182, field: RECITAL_FIELD, ...EROSION,
 });
 const Intro = ciacconaAction("Intro - Roaming with the Wind", {
-  frames: 54, cancelFrames: 54, motionStop: 39,
+  frames: 54, cancelFrames: 54, hitFrame: 40, motionStop: 39,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 189.11, energy: 10, castConcerto: 10, offtune: 9280, castForte1: 1, ...EROSION,
   updateBuffs: () => revokeTeam(RECITAL), // switching back in exits Recital
 });

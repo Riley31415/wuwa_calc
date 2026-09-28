@@ -51,8 +51,8 @@ function sigrikaAction(id: string, def: object): Action {
 }
 
 // a hit that banks a Rune (gainRune() below): the store takes the kind, forte1 the count
-const RUNE_TRUST = { updateBuffs: () => gainRune(1) };
-const RUNE_ANSWER = { updateBuffs: () => gainRune(2) };
+const RUNE_TRUST = { updateDebuffs: () => gainRune(1) };
+const RUNE_ANSWER = { updateDebuffs: () => gainRune(2) };
 
 // --- basics, mid-air, dodge counter (One, Two, Three) — Stage 4 opens Decipher
 const BA1 = sigrikaAction("Basic - One, Two, Three 1", { frames: 22, cancelFrames: 14, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 52.97, energy: 0.84, concerto: 1.67, offtune: 2664 });
@@ -119,7 +119,7 @@ const Liberation = sigrikaAction("Liberation - Where Trust Leads Me!", {
   updateBuffs: () => applyCurrent(DIVERGENT),
 });
 
-const Intro = sigrikaAction("Intro - Solsworn Etymology", { frames: 58, cancelFrames: 58, motionStop: 38, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 163.42, energy: 10, castConcerto: 10, offtune: 7736 });
+const Intro = sigrikaAction("Intro - Solsworn Etymology", { frames: 58, cancelFrames: 58, hitFrame: 46, motionStop: 38, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 163.42, energy: 10, castConcerto: 10, offtune: 7736 });
 /** In This Very Moment carries no team buff on her own page (unlike most other kits' outros). */
 const Outro = sigrikaAction("Outro - In This Very Moment", { frames: 48, cancelFrames: 18, cast: Cast.Outro, type: Type.Outro, mv: 795, castConcerto: -100});
 
@@ -225,11 +225,20 @@ const INNATE_GIFT = new Buff({
         if (isHeld(SR_S6)) {
           asSource(SR_S6, () => { addStat(Stat.Amp, Math.min(60, 15 * n)); addStat(Stat.DefIgnoreNew, Math.min(30, 7.5 * n)); });
         }
-        if (runningAction(FSkill) && !isHeld(SR_S3)) revokeCurrent(INNATE_GIFT);
     }
   },
-  updateBuffs: () => { if (!isHeld(SR_S3)) lostOnSwap(); },
+  updateBuffs: () => {
+    if (isHeld(SR_S3)) return;
+    lostOnSwap();
+    // spent once Learn My True Name has hit: a Runic follow-up still in flight lands with it
+    if (isHeld(INNATE_SPENT) && !runningAction(RunicOutburst) && !runningAction(RunicChainWhip) && !runningAction(RunicSoliskin)) {
+      revokeCurrent(INNATE_GIFT);
+      revokeCurrent(INNATE_SPENT);
+    }
+  },
+  afterAction: () => { if (runningAction(FSkill) && !isHeld(SR_S3)) applyCurrent(INNATE_SPENT, 1); },
 });
+const INNATE_SPENT = new Buff({ name: "Sigrika: Innate Gift? (spent)", hidden: true, lostOnSwap: true });
 
 /** Soliskin Vitality: a genuine 0-60 gauge, +10 whenever any team member casts an Echo Skill
  *  (granted via `SIGRIKA_RESONATOR`'s own updateGlobal(), same reasoning as Blessing of Runes above). Spent

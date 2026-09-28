@@ -8,7 +8,8 @@ import { Stat, Attribute, Type, Cast, Scaling, BuffTarget } from "../engine/stat
 import { Buff, Sonata, Sonata2pc, Sonata1pc, Mainslot, handoff } from "../engine/gear.js";
 import {
   isType, addStat, applyCurrent, casting, getStat, queueOutro, revokeCurrent, frozenStacks, isHeld, currentMember,
-  appliedByMe, onType, onCast, onApplied, onInflict,
+  currentAction, extendCurrent, stacksOf,
+  onType, onCast, onApplied, onInflict, both,
 } from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
 import { SHIELD, FUSION_BURST, HEALS, GLACIO_CHAFE, gainShield } from "../shared/status.js";
@@ -120,26 +121,23 @@ export const GLOMMOTH = new Mainslot({
   action: ACTION_GLOMMOTH,
 });
 
-/** Wishes of Quiet Snowfall, the Glacio Chafe sonata (paired with either echo above). 2pc: +10%
- *  Glacio DMG Bonus flat. 5pc: inflicting Glacio Chafe grants +10% Glacio DMG for 15s, and — once
- *  every 25s — Snowfall, which is then spent one of two ways and one only. Dealing Resonance
- *  Liberation DMG spends it for +25% Crit. Rate (6s, extended 4s by every Liberation hit after,
- *  up to six times, so it stands for the rest of the visit); casting an Outro instead spends it
- *  to hand the incoming resonator +25% Glacio DMG Bonus. The Liberation branch is what actually
- *  reaches it — the kits that wear this deal Resonance Liberation DMG long before their outro —
- *  so that is the one modelled, and the outro branch is left out rather than double-counted. The
- *  25s the grant sits behind carries no stat of its own, so nothing here counts it off.
- *  `onInflict`: a "when *you* inflict" payout, so the two extra stacks Lucilla's Film Roll adds
- *  to the wearer's own are hers and pay nothing here. */
+/** Wishes of Quiet Snowfall, the Glacio Chafe sonata. 2pc: +10% Glacio DMG Bonus. 5pc: inflicting
+ *  Glacio Chafe grants +10% Glacio DMG for 15s and, once every 25s, Snowfall (15s), spent one way
+ *  only: Resonance Liberation DMG for +25% Crit. Rate, or an Outro for +25% Glacio DMG to the
+ *  incoming resonator. `onInflict`: the stacks Lucilla's Film Roll adds are hers, not the wearer's. */
 export const QUIET_SNOWFALL_2PC = new Sonata2pc({ name: "Wishes of Quiet Snowfall 2pc", stats: [[Stat.DmgBonus, 10, Attribute.Glacio]] });
 export const QUIET_SNOWFALL_5PC = new Sonata({
   name: "Wishes of Quiet Snowfall 5pc",
   sonata2pc: QUIET_SNOWFALL_2PC,
   grants: [
-    { on: () => appliedByMe(GLACIO_CHAFE) > 0 && !isHeld(SNOWFALL_CRIT), buff: () => QUIET_SNOWFALL_GLACIO },
-    { on: () => appliedByMe(GLACIO_CHAFE) > 0 && !isHeld(SNOWFALL_CRIT), buff: () => SNOWFALL },
+    { on: onInflict(GLACIO_CHAFE), buff: () => QUIET_SNOWFALL_GLACIO },
+    // Snowfall once every 25s: the cooldown marker goes up with it
+    { on: both(onInflict(GLACIO_CHAFE), () => !isHeld(SNOWFALL_COOLDOWN)), buff: () => SNOWFALL },
+    { on: both(onInflict(GLACIO_CHAFE), () => !isHeld(SNOWFALL_COOLDOWN)), buff: () => SNOWFALL_COOLDOWN },
   ],
 });
+
+const SNOWFALL_COOLDOWN = new Buff({ name: "Wishes of Quiet Snowfall 5pc: Snowfall Cooldown", duration: 60 * 25, hidden: true });
 
 export const QUIET_SNOWFALL_GLACIO = new Buff({
   name: "Wishes of Quiet Snowfall 5pc (chafe)",
@@ -158,17 +156,29 @@ export const SNOWFALL = new Buff({
     }
   },
   afterAction: () => {
-    if (isType(Type.Liberation)) {
+    if (isType(Type.Liberation) && currentAction().mv > 0) {
       revokeCurrent(SNOWFALL);
+      revokeCurrent(SNOWFALL_EXTENDS);
       applyCurrent(SNOWFALL_CRIT, 1);
     }
   },
 });
 
+/** 6s of Crit Rate; Resonance Liberation DMG while it is up adds 4s, once every 0.5s, 6 times. */
 export const SNOWFALL_CRIT = new Buff({
   name: "Wishes of Quiet Snowfall 5pc (liberation)",
+  duration: 60 * 6,
   stats: [[Stat.CritRate, 25]],
+  afterAction: () => {
+    if (!isType(Type.Liberation) || currentAction().mv <= 0) return;
+    if (isHeld(SNOWFALL_EXTEND_GAP) || stacksOf(SNOWFALL_EXTENDS) >= 6) return;
+    extendCurrent(SNOWFALL_CRIT, 60 * 4);
+    applyCurrent(SNOWFALL_EXTENDS, 1);
+    applyCurrent(SNOWFALL_EXTEND_GAP, 1);
+  },
 });
+const SNOWFALL_EXTENDS = new Buff({ name: "Wishes of Quiet Snowfall 5pc: Extensions", maxStacks: 6, hidden: true });
+const SNOWFALL_EXTEND_GAP = new Buff({ name: "Wishes of Quiet Snowfall 5pc: Extension Cooldown", duration: 30, hidden: true });
 
 export const SNOWFALL_OUTRO = handoff("Wishes of Quiet Snowfall 5pc (outro)", () => addStat(Stat.DmgBonus, 25, Attribute.Glacio));
 

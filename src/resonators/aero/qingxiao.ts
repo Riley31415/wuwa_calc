@@ -58,6 +58,7 @@ import {
   appliedByMember,
   addBuff,
   runningAnyOf,
+  pressed,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, ECHO, START_3, INTRO } from "../../engine/rotation.js";
 import { applyStrain, TUNE_BREAK, TUNE_STRAIN_SHIFTING, TUNE_STRAIN_INTERFERED, strainPayout, tuneBreak } from "../../shared/tunebreak.js";
@@ -137,7 +138,7 @@ const Liberation = qxAction("Liberation - Billows Beneath Heaven", {
 /** Banks nothing on the table — the page's "restores 30 Sword Cadence" isn't there — and arms
  *  Resonant Chime. */
 const Intro = qxAction("Intro - Tonality Shift", {
-  frames: 64, cancelFrames: 64, motionStop: 29,
+  frames: 64, cancelFrames: 64, hitFrame: 52, motionStop: 29,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 132.63, energy: 10, castConcerto: 10, offtune: 7626, castForte2: 30,
   updateBuffs: () => applyCurrent(RESONANT_CHIME, 1),
 });
@@ -208,7 +209,7 @@ const HEAVENS_CLARITY = new Buff({
     const a = currentAction();
     // Sheathed/Drawn stance hits only — Heart Sword Intent rides forte1 as well, and Ephemeral
     // Transcendence is neither stance, so its own gains are never doubled
-    if (CLARITY_FORTE.has(a)) {
+    if (CLARITY_FORTE.has(pressed())) {
       if (a.forte1 > 0) addStat(Stat.AddForte1, a.forte1);
       if (a.forte2 > 0) addStat(Stat.AddForte2, a.forte2);
     }
@@ -237,12 +238,12 @@ const QX_INHERENT_1 = new Inherent({
  *  2% more DMG per stack of Mindlock, and 5% more again per stack for the first seven — and the
  *  Forte Circuit's own Mindlock line amplifies those same casts by the same amount, so both halves
  *  are read off the target here (the migrated sheet's own split: one Amp, one DMG Bonus). The extra
- *  Mindlock per Interfered is inflicted with the break itself, see QINGXIAO_RESONATOR's own updateGlobal. */
+ *  Mindlock per Interfered is inflicted with the break itself, see QINGXIAO_RESONATOR's own hitGlobal. */
 const QX_INHERENT_2 = new Inherent({
   name: "Inherent: To Know, To Banish",
   // its own Mindlock, on top of the Forte Circuit's: one more per Tune Strain - Interfered the team
   // inflicts, since the target is Overlord/Calamity Class (assumed — this project's is a boss)
-  updateGlobal: () => {
+  hitGlobal: () => {
     const interfered = applied(TUNE_STRAIN_INTERFERED);
     if (interfered) applyEnemy(MINDLOCK, interfered);
   },
@@ -293,7 +294,7 @@ const QINGXIAO_RESONATOR = new Resonator({
   // The Forte Circuit's own Mindlock line: +1 for every Tune Strain - Interfered the team inflicts.
   // To Know, To Banish adds its own on top (QX_INHERENT_2) and Heaven's Clarity its three, each
   // from the piece that grants them.
-  updateGlobal: () => {
+  hitGlobal: () => {
     // 1 mindlock per interfered baseline
     const interfered = applied(TUNE_STRAIN_INTERFERED);
     if (interfered) applyEnemy(MINDLOCK, interfered);
@@ -313,7 +314,7 @@ const QX_S1 = new Sequence({
   name: "Qingxiao S1: Like Clouds That Meet and Drift Apart",
   stats: [[Stat.CritRate, 16]],
   combatStart: () => applyCurrent(EXORCISING_SEAL, 25),
-  updateBuffs: () => { if (runningAnyOf(SEAL_SPENDERS) && stacksOf(EXORCISING_SEAL) > 0) queue(JuquePerdition); },
+  updateDebuffs: () => { if (runningAnyOf(SEAL_SPENDERS) && stacksOf(EXORCISING_SEAL) > 0) queue(JuquePerdition); },
 });
 
 /** S2: +40% multiplier on Heavy Attack - Stringblade, Mindlock stacks to 25, and Heaven's Clarity
@@ -338,7 +339,8 @@ const WORLD_IN_CHORUS = new Buff({
 const QX_S3 = new Sequence({
   name: "Qingxiao S3: Dreams Fade, Sword Abides",
   applyStats: () => { if (runningAction(Liberation)) addStat(Stat.CritDmg, 100); },
-  updateBuffs: () => { if (runningAction(HA)) applyCurrent(WORLD_IN_CHORUS, stacksOfEnemy(MINDLOCK)); },
+  // on the hit, once every updateDebuffs has laid that Heavy's own Mindlock
+  hitGlobal: () => { if (runningAction(HA)) applyCurrent(WORLD_IN_CHORUS, stacksOfEnemy(MINDLOCK)); },
 });
 
 /** S4: +20% ATK for 8s to whoever on the team lays Tune Strain - Shifting — every damaging cast of
@@ -350,8 +352,8 @@ const SIDE_BY_SIDE = new Buff({
 });
 const QX_S4 = new Sequence({
   name: "Qingxiao S4: Wherever the Road Leads, Side by Side",
-  // from updateGlobal "me" is the holder, so the acting slot has to be named (status.ts)
-  updateGlobal: () => {
+  // from hitGlobal "me" is the holder, so the acting slot has to be named (status.ts)
+  hitGlobal: () => {
     const acting = currentTeam().slot;
     if (acting.resonator && appliedByMember(TUNE_STRAIN_SHIFTING, acting)) addBuff(acting.resonator, SIDE_BY_SIDE, 1);
   },
@@ -370,7 +372,7 @@ const QX_S5 = new Sequence({
  *  Boost, late, once every Tbb source has landed. */
 const QX_S6 = new Sequence({
   name: "Qingxiao S6: Cleanse This Tarnished Age, Till All Runs Clear",
-  updateBuffs: () => { if (runningAction(HA)) applyCurrent(EXORCISING_SEAL, stacksOfEnemy(MINDLOCK)); },
+  hitGlobal: () => { if (runningAction(HA)) applyCurrent(EXORCISING_SEAL, stacksOfEnemy(MINDLOCK)); },
   applyStats: () => {
     if (runningAction(HA) || runningAction(FHA) || runningAction(Liberation) || runningAction(JuquePerdition)) addStat(Stat.DamageTaken, 40);
   },

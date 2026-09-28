@@ -122,7 +122,7 @@ const inflictsFlux = (): boolean =>
 const MODE_RUPTURE = new ResonanceMode({
   name: "Resonance Mode - Tune Rupture",
   updateDebuffs: () => { if (inflictsFlux()) applyRupture(); },
-  updateGlobal: () => tuneRuptureResponse(SpectralAnalysis),
+  hitGlobal: () => tuneRuptureResponse(SpectralAnalysis),
 });
 /** This kit's own carrier for the Tune Strain payout (tunebreak.ts's `strainPayout`). */
 const LY_STRAIN_PAYOUT = strainPayout();

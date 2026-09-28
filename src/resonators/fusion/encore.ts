@@ -87,7 +87,7 @@ const USkill = encoreAction("Skill - Cosmos: Rampage", { frames: 47, cancelFrame
 const CosmosDodgeCounter = encoreAction("Dodge Counter - Cosmos", { node: Node.Liberation, cast: Cast.DodgeCounter, type: Type.Basic, mv: 263.96, energy: 1.92, concerto: 13.88, offtune: 9360, forte1: 16 });
 const FHA = encoreAction("Forte Heavy - Cosmos Rupture", { frames: 239, cancelFrames: 203, node: Node.Forte, cast: Cast.Heavy, type: Type.Liberation, mv: 773.73, castConcerto: 10, offtune: 46709, ...SPEND_MAYHEM });
 
-const Intro = encoreAction("Intro - Woolies Helpers", { frames: 80, cancelFrames: 92, motionStop: 56, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 198.81, energy: 10.00, castConcerto: 10, offtune: 15132, forte1: 40 });
+const Intro = encoreAction("Intro - Woolies Helpers", { frames: 80, cancelFrames: 92, hitFrame: 60, motionStop: 56, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 198.81, energy: 10.00, castConcerto: 10, offtune: 15132, forte1: 40 });
 /** A burn zone, 4 ticks over 6s, lumped into one action same as every other periodic effect
  *  elsewhere. No handoff buff is described on her own kit page — left as a plain hit. */
 const Outro = encoreAction("Outro - Thermal Field", { frames: 0, cancelFrames: 0, cast: Cast.Outro, type: Type.Outro, mv: 707.04, castConcerto: -100});
@@ -131,7 +131,7 @@ const S1 = new Sequence({
 // 10s ICD isn't modelled, so it pays every cast instead of once per window
 const S2 = new Sequence({
   name: "Encore S2", // note removed ba5 trigger to model 10s cooldown
-  updateBuffs: () => { if (runningAction(Skill2)) addStat(Stat.AddEnergy, 10); },
+  applyStats: () => { if (runningAction(Skill2)) addStat(Stat.AddEnergy, 10); },
 });
 
 const S3 = new Sequence({

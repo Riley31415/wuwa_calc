@@ -171,7 +171,7 @@ const ArrayTick = bulingAction("Liberation - Five Thunders Spell Array", {
 });
 
 const Intro = bulingAction("Intro - Summon and Smite", {
-  frames: 80, motionStop: 54, cancelFrames: 70,
+  frames: 80, motionStop: 54, cancelFrames: 70, hitFrame: 61,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 131.10, offtune: 8792, castConcerto: 10,
   updateDebuffs: () => inflictElectroFlare(4),
 });

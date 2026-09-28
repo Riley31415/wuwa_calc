@@ -3,7 +3,7 @@ import { Stat, Attribute, Type, Subtype, Cast, Scaling, BuffTarget } from "../en
 import { Buff, Sonata, Sonata2pc, Mainslot } from "../engine/gear.js";
 import {
   addStat, casting, currentAction, getStat, queue, queueOutro, stacksOfEnemy, currentMember, isActive,
-  onApplied, onCast, onType, onInflict,
+  onApplied, onCast, onType, onInflict, inflicting,
 } from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
 import { AERO_EROSION, HELIACAL_EMBER, SPECTRO_FRAZZLE } from "../shared/status.js";
@@ -327,9 +327,10 @@ export const ETERNAL_RADIANCE_5PC = new Sonata({
   sonata2pc: ETERNAL_RADIANCE_2PC,
   grants: [
     { on: onApplied(SPECTRO_FRAZZLE, HELIACAL_EMBER), buff: ETERNAL_RADIANCE_CRIT },
+    // read on the hit, after its own inflictions, and pays into that same hit
     {
-      on: () => currentAction().mv > 0
-        && stacksOfEnemy(SPECTRO_FRAZZLE) + stacksOfEnemy(HELIACAL_EMBER) >= 10,
+      on: inflicting(() => currentAction().mv > 0
+        && stacksOfEnemy(SPECTRO_FRAZZLE) + stacksOfEnemy(HELIACAL_EMBER) >= 10),
       buff: ETERNAL_RADIANCE_SPECTRO,
     },
   ],

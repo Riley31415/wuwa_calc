@@ -83,10 +83,10 @@ function cartethyiaAction(id: string, def: object): Action {
 const erosion = (n: number) => ({ updateDebuffs: () => applyEnemy(AERO_EROSION, n) });
 
 /** "Instantly trigger 1 instance of Aero Erosion DMG and reduce the stack by 1" — Fleurdelys's
- *  Basic Stage 5, Mid-air Stage 2 and May Tempest Break the Tides. The rung fires at the count
- *  standing after whatever this same cast inflicted, then the stack goes. */
+ *  Basic Stage 5, Mid-air Stage 2 and May Tempest Break the Tides. Once the hit is in, so S6's
+ *  at-cap check still sees what it inflicted: the rung fires at that count, then the stack goes. */
 const EROSION_BURST = {
-  updateBuffs: () => {
+  afterAction: () => {
     const rung = negativeStatusRung(AERO_EROSION_ACTIONS, stacksOfEnemy(AERO_EROSION));
     if (!rung) return;
     queue(rung);
@@ -139,7 +139,7 @@ const Skill = cartethyiaAction("Skill - Sword to Bear Their Names", {
   updateBuffs: () => applyCurrent(SWORD_OF_VIRTUE, 1),
 });
 const Intro = cartethyiaAction("Intro - Sword to Mark Tide's Trace", {
-  frames: 56, cancelFrames: 56, motionStop: 29,
+  frames: 56, cancelFrames: 56, hitFrame: 65, motionStop: 29,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 12.48, energy: 10.01, castConcerto: 10, offtune: 7008, ...erosion(2),
   updateBuffs: () => { revokeTeam(WINDS_DIVINE_BLESSING); applyCurrent(SWORD_OF_DISCORD, 1); },
 });
@@ -163,7 +163,7 @@ const FSkill2 = cartethyiaAction("Skill - May Tempest Break the Tides", { frames
 /** Her Intro in Fleurdelys form — reached only by swapping out mid-Manifest and back in, which
  *  this loop never does. Conviction unknown (see the file header), so it banks none. */
 const FIntro = cartethyiaAction("Intro - Sword to Call for Freedom", {
-  frames: 71, cancelFrames: 71, motionStop: 43,
+  frames: 71, cancelFrames: 71, hitFrame: 61, motionStop: 43,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 14.25, energy: 1.76, castConcerto: 10, offtune: 5617,
   updateBuffs: () => revokeTeam(WINDS_DIVINE_BLESSING),
 });
@@ -300,9 +300,9 @@ const CT_S1 = new Sequence({
  *  not hers for this. */
 const BROKEN_BLADE = new Buff({
   name: "Cartethyia S2: Blade Broken by Tempest",
-  updateDebuffs: () => { if (currentAction().mv > 0) applyEnemy(AERO_EROSION, 3); },
-  updateBuffs: () => {
+  updateDebuffs: () => {
     if (currentAction().mv <= 0) return;
+    applyEnemy(AERO_EROSION, 3);
     const rung = negativeStatusRung(AERO_EROSION_ACTIONS, stacksOfEnemy(AERO_EROSION));
     if (rung) queue(rung);
     revokeCurrent(BROKEN_BLADE);
@@ -342,8 +342,8 @@ const SACRIFICE = new Buff({
 });
 const CT_S4 = new Sequence({
   name: "Cartethyia S4: Sacrifice Made for Salvation",
-  // from updateGlobal "me" is the holder, so the acting slot has to be named (status.ts)
-  updateGlobal: () => { if (inflictedNegativeStatusBy(currentTeam().slot)) applyTeam(SACRIFICE, 1); },
+  // from hitGlobal "me" is the holder, so the acting slot has to be named (status.ts)
+  hitGlobal: () => { if (inflictedNegativeStatusBy(currentTeam().slot)) applyTeam(SACRIFICE, 1); },
 });
 
 /** S5: a once-per-10-minutes death save and a cheaper Liberation HP cost — neither reaches the
@@ -356,7 +356,7 @@ const CT_S5 = new Sequence({ name: "Cartethyia S5: Hope Reshaped in Storms" });
  *  loop — her Intro and both Liberations all open it — so it is simply always on. */
 const CT_S6 = new Sequence({
   name: "Cartethyia S6: Freedom Found in Storm's Wake",
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (!appliedByMember(AERO_EROSION, currentTeam().slot)) return;
     if (stacksOfEnemy(AERO_EROSION) < currentTeam().enemyMax(AERO_EROSION)) return;
     const rung = negativeStatusRung(AERO_EROSION_ACTIONS, stacksOfEnemy(AERO_EROSION));

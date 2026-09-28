@@ -20,10 +20,10 @@
  *    own shield lands, Jingran gains 2 Ghost Shroud a shield — bundled with Fixation, its own
  *    one-shot bonus on that same trigger (granted on combat start and his own Outro, pays a flat
  *    +15 more on top the next time a teammate shields, then is spent).
- * Both react to *any* team member's shield via updateGlobal(), rather than needing to be
+ * Both react to *any* team member's shield via hitGlobal(), rather than needing to be
  * genuinely team-wide buffs just to be reachable from a teammate's turn.
  */
-import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling } from "../../engine/stats.js";
+import { Stat, Attribute, WeaponType, Type, Cast, Node, Scaling, BuffTarget } from "../../engine/stats.js";
 import { Buff, Talent, Inherent, Resonator, Loadout, EchoLoadout, Sequence } from "../../engine/gear.js";
 import {
   asSource,
@@ -43,6 +43,7 @@ import {
   addStat,
   getStat,
   frozenStacks,
+  inflicting,
 } from "../../engine/context.js";
 import { ActionGroup, Action, ActionField, Rotation, ECHO, START_3, START_2, START_1, ActionTag, INTRO } from "../../engine/rotation.js";
 import { applied, applyTeam } from "../../engine/context.js";
@@ -97,7 +98,7 @@ const ACTION_LIB_FUA = jingranAction("Liberation - Chimei Wangliang", { tag: Act
 // ahead of JINGRAN_RESONATOR's own per-shield grant, so a shield the Intro itself grants carries into the
 // next cycle rather than being spent by that same cast
 const Intro = jingranAction("Intro - Question the Tombs", {
-  frames: 63, cancelFrames: 60, motionStop: 54,
+  frames: 63, cancelFrames: 60, hitFrame: 46, motionStop: 54,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 198.81, energy: 10, castConcerto: 10, offtune: 8000, castForte1: 100,
   updateBuffs: () => {
     const shroud = stacksOfTeam(JINGRAN_GHOST_SHROUD);
@@ -181,10 +182,12 @@ const JR_INHERENT_2 = new Inherent({
   grants: [{ on: onAction(Outro), buff: JINGRAN_FIXATION }],
   // `currentSlot` is switched to Jingran's own slot for this call regardless of who's actually
   // acting, so `applySelf()`/`isHeld()` below always resolve against him specifically.
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (currentTeam().slot.resonator === JINGRAN_RESONATOR || !applied(SHIELD)) return;
     applyTeam(JINGRAN_GHOST_SHROUD, 2 * applied(SHIELD));
-    if (isHeld(JINGRAN_FIXATION)) { revokeCurrent(JINGRAN_FIXATION); applyTeam(JINGRAN_GHOST_SHROUD, 15); }
+    if (!isHeld(JINGRAN_FIXATION)) return;
+    revokeCurrent(JINGRAN_FIXATION);
+    applyTeam(JINGRAN_GHOST_SHROUD, 15);
   },
 });
 
@@ -294,7 +297,7 @@ const WHERE_REALITY_MEETS = new Buff({
 });
 const JR_S4 = new Sequence({
   name: "Jingran S4: Where Reality Meets Illusion, Where Living Meet Dead",
-  updateGlobal: () => { if (applied(SHIELD)) applyTeam(WHERE_REALITY_MEETS, 1); },
+  hitGlobal: () => { if (applied(SHIELD)) applyTeam(WHERE_REALITY_MEETS, 1); },
 });
 
 /** S5: a once-per-fight cheat death. No formula effect. */
@@ -314,8 +317,9 @@ const JR_PARADE = new Buff({
   name: "Jingran S6: Parade of Thousand Souls", maxStacks: 8, duration: 60 * 15,
   field: PARADE_FIELD,
   // it ends with Yinghuo, which nothing here marks — its own 15s is his visit either way, so the
-  // window is what carries it rather than a poke at the Mingfire gauge, which is a different thing
-  updateBuffs: () => {
+  // window is what carries it rather than a poke at the Mingfire gauge, which is a different thing;
+  // on the hit, where a press's motion value is
+  updateDebuffs: () => {
     const a = currentAction();
     // never off a summon's own damage, or each would call up the next until the charges ran out
     if (runningAction(Lib) || runningAction(ACTION_LIB_FUA) || runningAction(ACTION_PARADE_FUA) || a.mv <= 0) return;
@@ -376,12 +380,12 @@ const JINGRAN_RESONATOR = new Resonator({
   // every cast of his shields — two off the chain closers, both enhanced skills, the Liberation
   // and both Forte heavies, one off everything else
   updateDebuffs: () => {
-    const n = SHIELDS.get(currentAction());
+    const n = SHIELDS.get(currentAction().formOf ?? currentAction());
     if (n) gainShield(n);
   },
 
   // base kit: +1 Ghost Shroud per shield whenever he gains one of his own
-  updateBuffs: () => { if (applied(SHIELD)) applyTeam(JINGRAN_GHOST_SHROUD, applied(SHIELD)); },
+  grants: [{ on: inflicting(() => applied(SHIELD) > 0), buff: JINGRAN_GHOST_SHROUD, stacks: () => applied(SHIELD), to: BuffTarget.Team }],
 
 });
 

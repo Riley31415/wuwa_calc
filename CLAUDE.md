@@ -42,6 +42,17 @@
   them (`INTRO_2, INTRO.cancel()`)
 - a loadout's `weapons` list its best signature first and its best standard weapon second — with the weapons box closed the solver runs only that one
 
+# cast and hit
+every press with a motion value is a cast plus a hit queued at its `hitFrame` (default `cancelFrames`);
+a 0-MV press plays whole at its cast, an insta cut drops the hit. Hooks run on one side only:
+- cast: `updateGlobal` (every slot's gear), then `updateBuffs` and plain `grants`. `casting()` grants,
+  stance switches, spends on cast, Outro handoffs (`queueOutro` — an Outro's hit lands after the next
+  Intro), `respondToUnison`
+- hit: `updateDebuffs` (what it inflicts), `hitGlobal` (every slot's gear — inflictions, damage dealt,
+  Tune Rupture/Hack responses), grants whose trigger reads inflictions (`onInflict`/`onApplied`/
+  `inflicting(...)`, fired wherever the infliction was), the stat phases, `afterAction` (`onHit` grants)
+- stats only ever apply on the hit; `applied()` and friends see only the half being run
+
 # wording of buffs
 - "lost on swap / switching out" = `lostOnSwap: true` (or `lostOnSwap()` in a hook): lost on the swap-out action — an Outro or insta swap before it pays, a swap cancel after; "while on field" = `isActive()`
 - a buff lasts its stated `duration`; with none stated it is permanent

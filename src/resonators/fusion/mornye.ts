@@ -80,7 +80,7 @@ const GeopotentialShift = mornyeAction("Forte Heavy - Geopotential Shift", { fra
 const Inversion = mornyeAction("Forte Heavy - Inversion", {
   frames: 76, cancelFrames: 76, motionStop: 76,
   node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, mv: 258.46, energy: 3.25, concerto: 11.96, offtune: 10400, castForte2: -100,
-  updateBuffs: () => applyEnemy(OBSERVATION_MARKER, 1),
+  updateDebuffs: () => applyEnemy(OBSERVATION_MARKER, 1),
 });
 
 /** The field's own opening hit, counted as Resonance Liberation DMG by the kit page. */
@@ -131,14 +131,14 @@ const Liberation = mornyeAction("Liberation - Critical Protocol", {
   },
 });
 
-const Intro = mornyeAction("Intro - Convergence", { frames: 105, cancelFrames: 80, motionStop: 76, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 202.79, energy: 10, castConcerto: 10, offtune: 13600, ...FIELD });
+const Intro = mornyeAction("Intro - Convergence", { frames: 105, cancelFrames: 80, hitFrame: 178, motionStop: 76, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 202.79, energy: 10, castConcerto: 10, offtune: 13600, ...FIELD });
 const Outro = mornyeAction("Outro - Recursion", {
   frames: 0, cancelFrames: 0,
   cast: Cast.Outro, castConcerto: -100,
   updateBuffs: () => applyTeam(RECURSION)
 });
 
-/** Her answer to a Rupture break, queued by the engine's own break (see MORNYE_RESONATOR's updateBuffs())
+/** Her answer to a Rupture break, queued by the engine's own break (see MORNYE_RESONATOR's hitGlobal())
  *  rather than played. An ordinary active cast, like every Tune Break response: it is her own hit,
  *  and marking it inactive would have every "lost on switching out" buff she holds revoke itself
  *  the moment a break went off. */
@@ -202,7 +202,7 @@ const OBSERVATION_MARKER = new Debuff({
   // and unlike a Rupture/Hack Interfered it can be re-marked inside that window — a break that
   // leaves a Strain, or none at all, is held off by nothing — so a fresh one starts the count over
   // rather than pushing the old one along.
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (!runningAction(TUNE_BREAK)) return;
     revokeEnemy(INTERFERED_MARKER);
     applyEnemy(INTERFERED_MARKER, 1);
@@ -236,7 +236,7 @@ const INTERFERED_MARKER: Debuff = new Debuff({
  *  Marker now lays the Interfered Marker with it rather than waiting for a break. */
 const MO_S1 = new Sequence({
   name: "Mornye S1: The Silent Observer",
-  updateBuffs: () => {
+  updateDebuffs: () => {
     if (!runningAction(Inversion)) return;
     revokeEnemy(INTERFERED_MARKER);
     applyEnemy(INTERFERED_MARKER, 1);
@@ -321,7 +321,7 @@ const MORNYE_RESONATOR = new Resonator({
   maxForte1: 100,
   maxForte2: 100,
 
-  updateGlobal: () => tuneRuptureResponse(ParticleJet),
+  hitGlobal: () => tuneRuptureResponse(ParticleJet),
   combatStart: () => { maxStackIncrease(TUNE_STRAIN_INTERFERED, 1); applyCurrent(MO_STRAIN_PAYOUT, 1); },
 
   stats: [

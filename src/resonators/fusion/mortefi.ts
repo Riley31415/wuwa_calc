@@ -98,7 +98,7 @@ const ACTION_S5_MARCATO = mortefiAction("Liberation - Marcato (S5 Funerary Quart
 });
 
 // --- intro / outro
-const Intro = mortefiAction("Intro - Dissonance", { frames: 90, cancelFrames: 90, motionStop: 46, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 168.99, energy: 10, castConcerto: 10, offtune: 8000, forte1: 60 });
+const Intro = mortefiAction("Intro - Dissonance", { frames: 90, cancelFrames: 90, hitFrame: 44, motionStop: 46, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 168.99, energy: 10, castConcerto: 10, offtune: 8000, forte1: 60 });
 const Outro = mortefiAction("Outro - Rage Transposition", {
   frames: 0, cancelFrames: 0,
   cast: Cast.Outro, castConcerto: -100,
@@ -118,7 +118,7 @@ const PASSIONATE_TAIL = new Buff({
     if (!casting(Cast.Basic) || a.mv <= 0) return;
     // per hit, so the presses this file folds into one action pay for each of theirs: the second
     // is two shots and the fourth is five, which is what carries a whole combo to 100 Annoyance
-    addStat(Stat.AddForte1, 7 * (a === BA2 ? 2 : a === BA4 ? 5 : 1));
+    addStat(Stat.AddForte1, 7 * (runningAction(BA2) ? 2 : runningAction(BA4) ? 5 : 1));
   },
   convertStats: () => lostOnSwap(),
 });
@@ -139,7 +139,9 @@ const BURNING_RHAPSODY = new Buff({
     // a press of the active resonator's own, not a follow-up or a cancelled cast
     if (!elapsed()) return;
     const heavy = casting(Cast.Heavy);
-    if (!heavy && !(casting(Cast.Basic) && currentAction().mv > 0)) return;
+    // the cast carries no motion value of its own: the press it was cast from does
+    const press = currentAction().formOf ?? currentAction();
+    if (!heavy && !(casting(Cast.Basic) && press.mv > 0)) return;
     const n = Math.min(3, stacksOfTeam(BURNING_RHAPSODY));
     for (let i = 0; i < n; i++) {
       queueOn(MORTEFI_RESONATOR, ACTION_MARCATO);
@@ -215,7 +217,7 @@ const MORTEFI_S1 = new Sequence({
  *  ICD simplification. */
 const MORTEFI_S2 = new Sequence({
   name: "Mortefi S2: Hypocritical Hymn",
-  updateBuffs: () => { if (casting(Cast.Echo)) addStat(Stat.AddCastEnergy, 10); },
+  applyStats: () => { if (casting(Cast.Echo)) addStat(Stat.AddCastEnergy, 10); },
 });
 
 /** S3 Flaming Recitativo: +30% Crit DMG on Marcato hits, scoped to `Subtype.Coordinated` (covers
@@ -237,7 +239,7 @@ const MORTEFI_S4 = new Sequence({
  *  Burning Rhapsody stands. */
 const MORTEFI_S5 = new Sequence({
   name: "Mortefi S5: Funerary Quartet",
-  updateBuffs: () => {
+  updateDebuffs: () => {
     if (runningAction(Skill) || runningAction(FSkill)) for (let i = 0; i < 4; i++) queue(ACTION_S5_MARCATO);
   },
 });

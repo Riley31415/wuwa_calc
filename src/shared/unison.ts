@@ -32,6 +32,7 @@ import {
   currentAction,
   currentTeam,
   getStat,
+  inflicting,
   isHeld,
   queueOutro,
   refreshTeam,
@@ -39,13 +40,17 @@ import {
   stacksOfTeam,
 } from "../engine/context.js";
 
-/** Unison itself: spent by the outro it pays for — from convertStats, so the outro row still shows
- *  it — publishing the handoff the next Intro reads. The bar it stands in for is not paid back
+/** Unison itself: spent by the outro it pays for, on its cast — ahead of the Intro it hands to —
+ *  publishing the handoff the next Intro reads. The bar it stands in for is not paid back
  *  here: the outro a kit resolves to while this is held is its Unison form (`unisonOutro()`),
  *  which declares no spend at all. */
 export const UNISON = new Buff({
   name: "Unison",
-  convertStats: () => { if (casting(Cast.Outro)) { revokeCurrent(UNISON); queueOutro(UNISON_INTRO); } },
+  updateBuffs: () => {
+    if (!casting(Cast.Outro)) return;
+    revokeCurrent(UNISON);
+    queueOutro(UNISON_INTRO);
+  },
 });
 
 /** The Unison form of a kit's Outro: the same cast declaring no Concerto spend, since Unison pays
@@ -65,7 +70,7 @@ export const unisonOutro = (outro: Action): Action => {
 export const isDoubleIntro = (): boolean => currentTeam().outroDir === -1;
 
 /** "Upon obtaining Unison" — did the action being evaluated grant it? */
-export const gainedUnison = (): boolean => applied(UNISON) > 0;
+export const gainedUnison = inflicting(() => applied(UNISON) > 0);
 
 /** What a Unison outro publishes for the next Intro: adopted at that Intro, read by its own hooks,
  *  and gone once the Intro row has paid out. */
@@ -82,20 +87,20 @@ export function unisonIntro(): boolean {
 }
 
 /** The response itself, for the one Intro row it happens on: put up by the responder's Unison
- *  Intro in its updateDebuffs, the first phase, so every weapon and sonata's updateBuffs sees it. */
+ *  Intro in its own updateBuffs, which runs ahead of every held Gear's, so all of them see it. */
 export const UNISON_RESPONSE = new Buff({
   //name: "Unison Response",
   convertStats: () => { if (casting(Cast.Intro)) revokeCurrent(UNISON_RESPONSE); },
 });
 
-/** What a responder's Unison Intro form declares — the Intro is adopted ahead of updateDebuffs,
- *  so the marker is already held here. */
+/** What a responder's Unison Intro form declares in its updateBuffs — the handoff is adopted ahead
+ *  of the cast's hooks, so the marker is already held here. */
 export function respondToUnison(): void {
   if (isHeld(UNISON_INTRO)) applyCurrent(UNISON_RESPONSE, 1);
 }
 
 /** "Triggering Unison Response" — is the action being evaluated a responder's Unison Intro? */
-export const unisonResponse = (): boolean => applied(UNISON_RESPONSE) > 0;
+export const unisonResponse = inflicting(() => applied(UNISON_RESPONSE) > 0);
 
 /** "When the wielder consumes Concerto Energy" — a cast of their own that spends some, which an
  *  outro's own bar is not. Reads the declared field plus whatever a held buff's own conditional

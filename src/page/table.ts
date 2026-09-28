@@ -282,7 +282,7 @@ const cmpDrawn = new Set<string>();
  *  opener and the loops that ran whole, as the damage one of them does on average (DPR, beside how
  *  long one takes) or as the rate over the time they took (DPS). */
 let teamMode: "dpr" | "dps" = "dpr";
-const TEAM_HEAD = { dpr: "Team Average DPR (time)", dps: "Team DPS" };
+const TEAM_HEAD = { dpr: "Team Average DPR", dps: "Team DPS (2min)" };
 const wholeDamage = (run: TeamRun): number => run.sectionTotals.reduce((a, b) => a + b, 0);
 const teamFigure = (run: TeamRun): number =>
   Math.floor(wholeDamage(run) / (teamMode === "dpr" ? Math.max(1, run.sectionTotals.length) : run.seconds));

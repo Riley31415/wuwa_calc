@@ -58,7 +58,7 @@ import {
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-EB3R4S3A.js";
+} from "./chunk-T57A3OYQ.js";
 
 // dist/src/display.js
 var formatters = /* @__PURE__ */ new Map();
@@ -1440,7 +1440,7 @@ function framesPopover(snaps) {
   const rows = [];
   let total = 0, banks = 0;
   for (const s of snaps) {
-    const cost = (s.hitAt !== void 0 ? s.action.castPart(s.tag) : s.action).cost(s.tag);
+    const cost = (s.hitAt !== void 0 ? s.action.castPart() : s.action).cost(s.tag);
     total += cost.total - s.timestopBanked;
     const insta = s.tag === ActionTag.InstaCancel || s.tag === ActionTag.InstaDodge || s.tag === ActionTag.InstaJump || s.tag === ActionTag.InstaSwap;
     const fast = s.tag === ActionTag.EasyCancel;
@@ -2697,7 +2697,7 @@ var hueShown = true;
 var personalOpen = [false, false, false];
 var cmpDrawn = /* @__PURE__ */ new Set();
 var teamMode = "dpr";
-var TEAM_HEAD = { dpr: "Team Average DPR (time)", dps: "Team DPS" };
+var TEAM_HEAD = { dpr: "Team Average DPR", dps: "Team DPS (2min)" };
 var wholeDamage = (run) => run.sectionTotals.reduce((a, b) => a + b, 0);
 var teamFigure = (run) => Math.floor(wholeDamage(run) / (teamMode === "dpr" ? Math.max(1, run.sectionTotals.length) : run.seconds));
 var personalFigure = (run, name) => Math.floor(run.sectionBySlot.reduce((a, by) => a + (by.get(name) ?? 0), 0) / (teamMode === "dpr" ? Math.max(1, run.sectionTotals.length) : run.seconds));
@@ -4397,7 +4397,7 @@ function settle() {
 function build() {
   const el = document.createElement("div");
   el.className = "tut";
-  el.innerHTML = `<svg class="tut-arrow" aria-hidden="true"><defs><marker id="tutHead" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="12" refX="0" refY="6" orient="auto"><path d="M0,0 L14,6 L0,12 Z"></path></marker></defs><path class="tut-path" marker-end="url(#tutHead)" d=""></path></svg><div class="tut-box" role="dialog" aria-label="Tutorial"><p></p><div class="tut-buttons"><button type="button" class="tut-skip">Don't show again</button></div></div>`;
+  el.innerHTML = `<svg class="tut-arrow" aria-hidden="true"><defs><marker id="tutHead" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="12" refX="0" refY="6" orient="auto"><path d="M0,0 L14,6 L0,12 Z"></path></marker></defs><path class="tut-path" marker-end="url(#tutHead)" d=""></path></svg><div class="tut-box" role="dialog" aria-label="Tutorial"><p></p><div class="tut-buttons"><button type="button" class="tut-skip">Skip Tutorial</button></div></div>`;
   el.querySelector(".tut-skip").addEventListener("click", () => {
     done = true;
     try {

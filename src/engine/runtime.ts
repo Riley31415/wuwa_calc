@@ -75,6 +75,11 @@ export const ctx: {
   /** A second cast this action would otherwise also count as, dropped for this action alone (see
    *  `dropCast()`). Cleared by `evaluate()` every action, like the type overrides above. */
   droppedCast: Cast | null;
+  /** The clock frames of the press a queued hit belongs to — what `elapsed()` reads on that hit,
+   *  which plays none of its own. Set by `run()` before each hit. */
+  pressFrames: number;
+  /** The frame that press was cast (`castFrame()`), set with `pressFrames`. */
+  pressStart: number;
   /** Bumped at the top of every `evaluate()`: what stamps this action's grant records (`applied`,
    *  `consumed`) as current, so neither is ever cleared. */
   actionStamp: number;
@@ -102,6 +107,8 @@ export const ctx: {
   overrideSubtype: null,
   swapLosses: new Set(),
   droppedCast: null,
+  pressFrames: 0,
+  pressStart: 0,
   actionStamp: 0,
   tracing: false,
   insideGroup: false,

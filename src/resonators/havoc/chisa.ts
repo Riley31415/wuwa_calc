@@ -31,19 +31,17 @@
  * Falltone off Stage 3 — written in the rotation as its own chain (`Blitz2D`, `Blitz3F`). A Hold
  * chains into the next stage instead and throws none.
  *
- * Her Skill (Eye of Unraveling) and Serrated Loop both mark the target with Unseen Snare; while
- * marked, *any* hit that lands — hers or a teammate's — inflicts a stack of the shared Havoc Bane
- * debuff (statuses.ts), watched globally off Unseen Snare's own updateGlobal rather than her own
- * updateDebuffs, so a teammate's hit counts too. Her Outro (Unraveling - Law Zero) hands the *team*
- * Resonant Thread of Closure — a 20s marker, so per CLAUDE.md's own wording rule it's revoked on her
- * own next Intro rather than left permanent. While it's up, any hit landing (anyone's) raises every
+ * Every hit of her Skill (Eye of Unraveling) and Serrated Loop marks the target with Unseen Snare;
+ * while marked, any Resonator's direct hit — hers or a teammate's — inflicts a stack of her Havoc
+ * Bane (statuses.ts), off the enemy marker's own updateDebuffs so a teammate's hit counts too. Her
+ * Outro (Unraveling - Law Zero) hands the *team* Resonant Thread of Closure for 20s. While it's up,
+ * any hit landing (anyone's) raises every
  * Negative Status/Electro Rage debuff's cap +3 — this engine's maxStackIncrease() only ever raises a
  * cap for the rest of the fight, so the in-game "for 15s, unstackable" window collapses to "raised
  * once conditions first arise and never lowered again," the closest this engine can get rather than
- * a made-up temporary cap; and inflicting/dealing Negative Status DMG while Resonant Thread of
- * Closure is up grants whoever's acting Thread of Bane (+18% DEF Ignore, 15s) — again watched
- * globally (Resonant Thread of Closure lives in the team pool), so it pays out to whichever ally
- * actually landed the status, not just Chisa.
+ * a made-up temporary cap; and each holder who inflicts a Negative Status or deals its DMG gains
+ * Thread of Bane (+18% DEF Ignore vs a Snared target, 15s) — Chisa included, off-field, when her
+ * Snare's Bane lands on an ally's hit.
  *
  * Two mechanics carry no stat and are left out entirely: Inescapable Fate (Inherent 1, a Skill-
  * cooldown reset off an ally's kill) and the second half of All Ends Here (Inherent 2's own on-kill
@@ -64,7 +62,7 @@ import {
   appliedByMe,
   applyCurrent,
   applyTeam,
-  revokeTeam,
+  addBuff,
   currentAction,
   runningAction,
   revokeCurrent,
@@ -79,11 +77,12 @@ import {
   runningAnyOf,
   currentTeam,
   elapsed,
+  castFrame,
 } from "../../engine/context.js";
 import { Action, ActionGroup, Rotation, NOINTRO, ECHO, START_2, START_3, ActionTag, INTRO, INTRO_2 } from "../../engine/rotation.js";
 import {
   HEALS, SHIELD, HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, FUSION_BURST, AERO_EROSION, SPECTRO_FRAZZLE, ELECTRO_RAGE,
-  inflictedNegativeStatus, gainShield } from "../../shared/status.js";
+  inflictedNegativeStatusBy, gainShield } from "../../shared/status.js";
 import { KUMOKIRI, WILDFIRE_MARK } from "../../weapons/broadblade.js";
 import { DISCORD, LUSTROUS_RAZOR, NEW_STD_BRAUDBLADE } from "../../weapons/standard.js";
 import { THRENODIAN_LEVIATHAN, THREAD_OF_SEVERED_FATE_3PC } from "../../echoes/septimont.js";
@@ -98,11 +97,8 @@ function chisaAction(id: string, def: object): Action {
 }
 
 const Intro = chisaAction("Intro - Reverberance - Return", {
-  frames: 55, cancelFrames: 55, motionStop: 32,
+  frames: 55, cancelFrames: 55, hitFrame: 39, motionStop: 32,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 95.43, energy: 10, castConcerto: 10, offtune: 6400, castForte1: 20,
-  // Resonant Thread of Closure is a 20s team buff — CLAUDE.md's own rule for one that short is
-  // "lost on the applier's next intro", not left permanent
-  updateBuffs: () => revokeTeam(RESONANT_THREAD_OF_CLOSURE),
 });
 const Outro = chisaAction("Outro - Unraveling - Law Zero", {
   frames: 0, cancelFrames: 0,
@@ -116,8 +112,8 @@ const Outro = chisaAction("Outro - Unraveling - Law Zero", {
 const blitz = () => ({
   updateBuffs: () => applyCurrent(RING_CONSUMED, -currentAction().forte2),
 });
-/** Applied by Skill/Serrated Loop; two more of the game's four ways to mark Unseen Snare have no
- *  wuwalab entry (see file header) and aren't modelled. */
+/** Every hit of Skill and Serrated Loop marks Unseen Snare; Retraction and lock-on have no wuwalab
+ *  entry (see file header) and aren't modelled. */
 const MARK_SNARE = { updateDebuffs: () => applyEnemy(UNSEEN_SNARE, 1) };
 /** Death Snip's second hit ("the scissors snip") heals the team. */
 const SNIP_HEAL = { updateDebuffs: () => applyCurrent(HEALS, 1) };
@@ -155,10 +151,9 @@ const Skill = chisaAction("Skill - Eye of Unraveling", { frames: 20, cancelFrame
 /** The plain tap — released immediately. Not in the rotation; the Hold below reaches Chainsaw Mode
  *  with more hits at no extra cost this engine models, so it's the strictly better pick here. */
 
-const SERRATED = { updateDebuffs: () => applyEnemy(UNSEEN_SNARE, 1) };
-const SerratedLoop = chisaAction("Forte Skill - Serrated Loop", { frames: 83, cancelFrames: 78, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 139.60, energy: 2.96, concerto: 5.92, offtune: 9360, castForte1: -100, forte2: 100,...SERRATED });
-const SerratedLoopHalfHold = chisaAction("Forte Skill - Serrated Loop (Half Hold)", { frames: 137, cancelFrames: 137, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 199.28, energy: 4.24, concerto: 8.48, offtune: 13368, castForte1: -100,forte2: 100,...SERRATED });
-const SerratedLoopHold = chisaAction("Forte Skill - Serrated Loop (Hold)", { frames: 174, cancelFrames: 174, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 258.96, energy: 5.52, concerto: 11.04, offtune: 17376, castForte1: -100, forte2: 100,...SERRATED });
+const SerratedLoop = chisaAction("Forte Skill - Serrated Loop", { frames: 83, cancelFrames: 78, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 139.60, energy: 2.96, concerto: 5.92, offtune: 9360, castForte1: -100, forte2: 100,...MARK_SNARE });
+const SerratedLoopHalfHold = chisaAction("Forte Skill - Serrated Loop (Half Hold)", { frames: 137, cancelFrames: 137, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 199.28, energy: 4.24, concerto: 8.48, offtune: 13368, castForte1: -100,forte2: 100,...MARK_SNARE });
+const SerratedLoopHold = chisaAction("Forte Skill - Serrated Loop (Hold)", { frames: 174, cancelFrames: 174, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 258.96, energy: 5.52, concerto: 11.04, offtune: 17376, castForte1: -100, forte2: 100,...MARK_SNARE });
 
 /** Moment of Nihility: 954.29% Havoc, heals the team, banks 40 Ring of Chainsaw and hands herself
  *  Woven Myriad - Convergence (+120% MV to Blitz/Eradication until Eradication resolves it). */
@@ -253,10 +248,8 @@ const ALL_ENDS_HERE = new Buff({
 const SNARE_READY = new Debuff({ name: "Unseen Snare Cooldown", maxStacks: 1e9, hidden: true });
 const SNARE_HASTE = new Debuff({ name: "Unseen Snare Cooldown (S4)", hidden: true });
 
-/** Unseen Snare: an enemy marker, 30s (permanent uptime — Skill/Serrated Loop both refresh it every
- *  loop well inside that). While up, *any* hit that lands — watched globally, so a teammate's own
- *  hit counts too, not just Chisa's — inflicts a stack of the shared Havoc Bane debuff, once every
- *  2s (1s at S4). Timed the way shields are (`gainShield()`): an action's first lands 30 frames
+/** Unseen Snare: an enemy marker, 30s. While up, any Resonator's direct damage (not Negative
+ *  Status DMG) inflicts a stack of her Havoc Bane, once every 2s (1s at S4). Timed the way shields are (`gainShield()`): an action's first lands 30 frames
  *  after its cast, any more a cooldown apart while it still plays. */
 const UNSEEN_SNARE = new Debuff({
   name: "Chisa: Unseen Snare",
@@ -267,14 +260,14 @@ const UNSEEN_SNARE = new Debuff({
   // teammate — Kumokiri, Thread of Severed Fate — reads 0 for it and doesn't pay out. See
   // `appliedByMe()`, which is what every such passive checks.
   //
-  // updateDebuffs, not updateGlobal, even though it fires off everyone's casts: this is an enemy-
-  // pool Debuff, so its updateDebuffs already runs on every member's action, and that phase is
-  // ahead of *all* updateGlobal. From updateGlobal the enemy pool goes last of the three, so the
+  // updateDebuffs, not hitGlobal, even though it fires off everyone's hits: this is an enemy-
+  // pool Debuff, so its updateDebuffs already runs on every member's hit, and that phase is
+  // ahead of *all* hitGlobal. From hitGlobal the enemy pool goes last of the three, so the
   // Bane landed after every cross-slot watcher had already looked — including her own sonata (see
   // THREAD_OF_SEVERED_FATE_3PC), which could never see it.
   updateDebuffs: () => {
-    if (currentAction().mv <= 0) return;
-    const start = currentTeam().frame, cd = stacksOfEnemy(SNARE_HASTE) ? 60 : 120;
+    if (currentAction().mv <= 0 || isType(Type.Status)) return;
+    const start = castFrame(), cd = stacksOfEnemy(SNARE_HASTE) ? 60 : 120;
     const was = stacksOfEnemy(SNARE_READY);
     let ready = was, got = 0;
     for (let at = start + 30; at <= start + Math.max(30, elapsed()); at += 30) {
@@ -292,27 +285,23 @@ const UNSEEN_SNARE = new Debuff({
  *  cap raise below applies to, matching the kit page's generic "Negative Status and Electro Rage". */
 const NEGATIVE_STATUS_CAPS = [HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, FUSION_BURST, AERO_EROSION, SPECTRO_FRAZZLE, ELECTRO_RAGE];
 
-/** Resonant Thread of Closure (Outro): a 20s team marker, revoked on Chisa's own next Intro (see
- *  Intro above) rather than a made-up expiry. While held: any hit landing raises every Negative
+/** Resonant Thread of Closure (Outro): a 20s team marker. While held: any hit landing raises every Negative
  *  Status/Electro Rage cap +3 — this engine's maxStackIncrease() only ever raises a cap for the rest
  *  of the fight (no way to lower it again once the real 15s lapses), so this is the closest a "for
- *  15s, unstackable" raise gets here rather than invented decay. Inflicting/dealing Negative Status
- *  DMG while Unseen Snare is up also grants whoever's acting Thread of Bane. Watched globally (it
- *  lives in the team pool), so both effects see every ally's own turn, not just Chisa's. */
+ *  15s, unstackable" raise gets here rather than invented decay. Each holder who inflicts a Negative
+ *  Status gains Thread of Bane — Chisa too, off-field, when Snare's Bane lands on an ally's hit — as
+ *  does whoever deals Negative Status DMG. */
 const RESONANT_THREAD_OF_CLOSURE = new Buff({
   name: "Chisa: Outro",
   duration: 60 * 20,
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (currentAction().mv > 0) for (const d of NEGATIVE_STATUS_CAPS) maxStackIncrease(d, 3);
-    if (inflictedNegativeStatus() || isType(Type.Status)) {
-      applyCurrent(THREAD_OF_BANE, 1);
-    }
+    for (const m of currentTeam().slots) if (m.resonator && inflictedNegativeStatusBy(m)) addBuff(m.resonator, THREAD_OF_BANE, 1);
+    if (isType(Type.Status)) applyCurrent(THREAD_OF_BANE, 1);
   },
 });
 
-/** Thread of Bane: +18% DEF Ignore, 15s.
- *  Granted per-holder (see Resonant Thread of Closure above), so `casting(Cast.Outro)` rather than
- *  Chisa's own specific Outro action, since any ally on the team could end up holding it. */
+/** Thread of Bane: +18% DEF Ignore against a Snared target, 15s, on each holder who earned it. */
 const THREAD_OF_BANE = new Buff({
   name: "Chisa: Thread of Bane",
   duration: 60 * 15,
@@ -341,10 +330,14 @@ const SnareStrike = chisaAction("Basic - Unseen Snare (S1)", { type: Type.Basic,
 const SNARE_STRUCK = new Buff({});
 const CS_S1 = new Sequence({
   name: "Chisa S1: Wandering Through the Desolate Corridors",
-  updateBuffs: () => {
+  // on the hit, behind the Snare its own updateDebuffs lays
+  updateDebuffs: () => {
     if (!appliedByMe(UNSEEN_SNARE)) return;
     applyCurrent(DESOLATE_CORRIDORS, 1);
-    if (!isHeld(SNARE_STRUCK)) { applyCurrent(SNARE_STRUCK, 1); queue(SnareStrike); }
+    if (!isHeld(SNARE_STRUCK)) {
+      applyCurrent(SNARE_STRUCK, 1);
+      queue(SnareStrike);
+    }
   },
 });
 

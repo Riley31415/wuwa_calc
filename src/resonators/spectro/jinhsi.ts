@@ -115,15 +115,13 @@ const Skill3 = jinhsiAction("Skill - Crescent Divinity", { frames: 87, cancelFra
 const Skill4 = jinhsiAction("Forte Skill - Illuminous Epiphany: Solar Flare", {
   frames: 174, cancelFrames: 174, timestop: 132, motionStop: 174,
   node: Node.Forte, cast: Cast.Skill, type: Type.Skill, mv: 119.34, energy: 1.98, castConcerto: 20, offtune: 14400,
-  updateBuffs: () => {
-    revokeCurrent(ORDINATION_GLOW);
-    queue(StellaGlamor);
-  },
+  updateBuffs: () => revokeCurrent(ORDINATION_GLOW),
+  // the detonation lands behind the taps' hit, not at the press
+  updateDebuffs: () => queue(StellaGlamor),
 });
 const Skill4_Unison = Skill4.variant("Forte Skill - Illuminous Epiphany: Solar Flare", { 
   updateBuffs: () => {
     revokeCurrent(ORDINATION_GLOW);
-    queue(StellaGlamor);
     applyCurrent(UNISON, 1);
   }
 });
@@ -135,7 +133,7 @@ const Liberation = jinhsiAction("Liberation - Purge of Light", {
 });
 
 const Intro = jinhsiAction("Intro - Loong's Halo", {
-  frames: 60, cancelFrames: 60, motionStop: 34,
+  frames: 60, cancelFrames: 60, hitFrame: 49, motionStop: 34,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 159.05, energy: 10, castConcerto: 10, offtune: 8000,
 });
 /** Temporal Bender hands the incoming resonator nothing of their own: it opens her own 20s window,
@@ -161,7 +159,7 @@ const ORDINATION_GLOW = new Buff({ name: "Jinhsi: Ordination Glow", duration: 60
 
 /**
  * Eras in Unity — the whole Incandescence economy, held on Jinhsi's own slot and watching every
- * action from updateGlobal() (the Jingran shape: reacting to teammates' turns, paying onto her).
+ * hit from hitGlobal() (the Jingran shape: reacting to teammates' turns, paying onto her).
  * Twelve channels, one per (attribute, coordinated?) — the six attributes, Physical (the Tune
  * Break) being no Attribute DMG — each a buff of her own that stands while the channel cools: a
  * paying action's element pays +1 Incandescence off its same-attribute channel and a Coordinated
@@ -182,7 +180,7 @@ for (const [attribute, label] of [[Attribute.Aero, "Aero"], [Attribute.Electro, 
 }
 const ERAS_IN_UNITY = new Buff({
   name: "Jinhsi: Eras in Unity",
-  updateGlobal: () => {
+  hitGlobal: () => {
     const a = currentAction();
     // a DOT tick (the Negative Status ladders) is nobody's attack, and the six attributes only: a
     // Physical hit (the Tune Break) is no Attribute DMG

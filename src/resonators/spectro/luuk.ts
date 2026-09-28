@@ -108,7 +108,7 @@ const IchorDeposit = luukAction("Skill - Ichor Deposit", { frames: 0, node: Node
 const Gavel = luukAction("Mid-air - Gavel of Earthshaker", {
   frames: 41, cancelFrames: 26,
   node: Node.Forte, cast: Cast.Basic, type: Type.Basic, mv: 306.9, energy: 6, concerto: 10, offtune: 8080, forte1: 25.25,
-  updateBuffs: () => queue(IchorDeposit),
+  updateDebuffs: () => queue(IchorDeposit),
 });
 
 /** Ichor Blade: 10 flat Spectro DMG every 0.15s for 5s, counted as Basic Attack DMG but immune to
@@ -123,7 +123,7 @@ const Liberation = luukAction("Liberation - Rewritten in Winter's Margins", {
 });
 
 const Intro = luukAction("Intro - Before Injection of Dawn", {
-  frames: 75, cancelFrames: 73, motionStop: 21,
+  frames: 75, cancelFrames: 73, hitFrame: 39, motionStop: 21,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 218.01, energy: 10.02, castConcerto: 10, offtune: 10320, forte1: 100, ...STRAIN,
   // updateBuffs: () => applyCurrent(DAWNLIT_KEEP, 1),  // DAWNLIT_KEEP grants no stat and nothing reads it
 });
@@ -204,10 +204,10 @@ const LK_INHERENT_1 = new Inherent({ name: "Inherent: Pulses Under the Snow" });
 /** Uncaused Diagnosis (Inherent Skill): against a target under Tune Strain - Interfered, every 10
  *  points of his Tune Break Boost amplifies his own hits by 5%, up to 30% — read live in convertStats()
  *  so every Tbb contribution has landed (the era's flat 10, Reel's +20, ...). The ATK half watches
- *  the whole team's casts from updateGlobal(), see UNCAUSED_DIAGNOSIS_ATK. */
+ *  the whole team's hits from hitGlobal(), see UNCAUSED_DIAGNOSIS_ATK. */
 const LK_INHERENT_2 = new Inherent({
   name: "Inherent: Uncaused Diagnosis",
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (applied(TUNE_STRAIN_SHIFTING) || runningAction(TUNE_BREAK)) applyCurrent(UNCAUSED_DIAGNOSIS_ATK, 1);
   },
   // late, like every Tune Break Boost read — a team's own Tbb can arrive from another gear's
@@ -295,7 +295,7 @@ const LK_S3 = new Sequence({
 const PULSE_UNDER_RIME = new Buff({ name: "Luuk S4: Pulse Thrumming Under Rime", duration: 60 * 20, stats: [[Stat.DmgBonus, 20]] });
 const LK_S4 = new Sequence({
   name: "Luuk S4: Pulse Thrumming Under Rime",
-  updateGlobal: () => { if (runningAction(TUNE_BREAK)) applyTeam(PULSE_UNDER_RIME, 1); },
+  hitGlobal: () => { if (runningAction(TUNE_BREAK)) applyTeam(PULSE_UNDER_RIME, 1); },
 });
 
 /** S5: +80% DMG Bonus on his Intro and Outro, and Golden Reflux at x1.5 — multiplicative, its own
@@ -325,7 +325,7 @@ const DAWN_UNFURLING = new Buff({
 const LK_S6 = new Sequence({
   name: "Luuk S6: Dawn Unfurling over Frostlands",
   combatStart: () => maxStackIncrease(TUNE_STRAIN_INTERFERED, 2),
-  updateGlobal: () => { if (runningAction(TUNE_BREAK)) applyCurrent(DAWN_UNFURLING, 1); },
+  hitGlobal: () => { if (runningAction(TUNE_BREAK)) applyCurrent(DAWN_UNFURLING, 1); },
   afterAction: () => {
     if (currentAction().mv > 0 && stacksOfEnemy(TUNE_STRAIN_INTERFERED) > 0) applyEnemy(TUNE_STRAIN_INTERFERED, 2);
   },

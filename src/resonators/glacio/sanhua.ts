@@ -78,8 +78,8 @@ const BA234 = new ActionGroup("Basic - Frigid Light 234", [BA2, BA3, BA4]);
 const FHA = sanhuaAction("Forte Heavy - Detonate", {
   frames: 101, cancelFrames: 101,
   node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 372.58, offtune: 14992, energy: 4.68, concerto: 15,
-  // spends whichever Ice Creations are up and queues the matching burst(s)
-  updateBuffs: () => {
+  // on its hit, spends whichever Ice Creations are up and queues the matching burst(s)
+  updateDebuffs: () => {
     if (stacksOf(THORN_BUFF)) { queue(DETONATE_THORN); removeStack(THORN_BUFF, 1); }
     if (stacksOf(PRISM_BUFF)) { queue(DETONATE_PRISM); removeStack(PRISM_BUFF, 1); }
     const glaciers = stacksOf(GLACIER_BUFF);
@@ -145,7 +145,7 @@ const S6_ATK = new Buff({
 });
 
 /** Ice Creations: one stackable marker each, granted by the cast that makes it and consumed by
- *  Detonate's own updateBuffs() below, which queues the matching burst(s). No stat of their own. */
+ *  Detonate's own updateDebuffs() below, which queues the matching burst(s). No stat of their own. */
 const THORN_BUFF = new Buff({
   name: "Sanhua: Ice Thorn",
 });

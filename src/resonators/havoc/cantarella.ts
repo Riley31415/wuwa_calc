@@ -21,6 +21,7 @@ import {
   currentAction,
   onAction,
   runningAction,
+  runningAnyOf,
   casting,
   queue,
   queueOutro,
@@ -75,13 +76,14 @@ const Skill = cantaAction("Skill - Graceful Step", { frames: 38, cancelFrames: 2
 const ESkill = cantaAction("Skill - Flickering Reverie", {
   frames: 28, cancelFrames: 12, cooldown: 60 * 12,
   node: Node.Skill, cast: Cast.Skill, subcast: Cast.Echo, type: Type.Skill, mv: 196.23, energy: 1.65, castConcerto: 10, offtune: 5264,
-  updateBuffs: () => applyEnemy(HAZY_DREAM, 1),
+  // laid behind its own hit, which Jolts any Hazy Dream already standing
+  afterAction: () => applyEnemy(HAZY_DREAM, 1),
 });
 /** At 3 Shiver, spending all of it. */
 const FSkill = cantaAction("Forte Skill - Perception Drain", {
   frames: 80, cancelFrames: 53, cooldown: 60 * 18,
   node: Node.Forte, cast: Cast.Skill, subcast: Cast.Echo, type: Type.Basic, mv: 1335.98, energy: 21.1, castConcerto: 12, offtune: 57864, castForte2: -3, // 667.99%x2
-  updateBuffs: () => applyEnemy(HAZY_DREAM, 1),
+  afterAction: () => applyEnemy(HAZY_DREAM, 1),
 });
 
 const Liberation = cantaAction("Liberation - Beneath the Sea", {
@@ -104,7 +106,7 @@ const StingDreamweaver = cantaAction("Basic - Dreamweaver", { frames: 5, node: N
 function dreamweavers(tick: Action): void { for (let i = 0; i < 3; i++) queue(tick); }
 
 const Intro = cantaAction("Intro - Ripple", {
-  frames: 76, cancelFrames: 76, motionStop: 27,
+  frames: 76, cancelFrames: 76, hitFrame: 54, motionStop: 27,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 169, energy: 3.16, castConcerto: 10, offtune: 10120, castForte1: 1, // 42.25%x4
   updateBuffs: () => applyCurrent(ABYSSAL_REBIRTH, 6),
 });
@@ -112,7 +114,7 @@ const Intro = cantaAction("Intro - Ripple", {
  *  three Coordinated Attacks on top. Her Mirage runs 8s and is gone by her own outro, so nothing
  *  in the loop below actually reaches this — it is what a quicker swap back in would cast. */
 const EIntro = cantaAction("Intro - Tidal Surge", {
-  frames: 83, cancelFrames: 83, motionStop: 46,
+  frames: 83, cancelFrames: 83, hitFrame: 48, motionStop: 46,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 169, energy: 3.16, castConcerto: 10, offtune: 10640, castForte1: 1, // 16.90%x3+118.30%
   updateBuffs: () => { applyCurrent(ABYSSAL_REBIRTH, 6); dreamweavers(IntroDreamweaver); },
 });
@@ -162,20 +164,20 @@ const MIRAGE = new Buff({
 
 /** Hazy Dream, on the target: 6.5s, and the next instance of damage it takes clears it. Hers
  *  triggers Jolt on the way; a teammate's clears it and no Jolt, and a Coordinated Attack or
- *  Utility damage is neither. Checked from updateGlobal (which runs for every member's action, and
- *  ahead of every updateBuffs) so a cast that sends the target into Hazy Dream still Jolts the one
- *  already on it — the Flickering Reverie behind a Flowing Suffocation, S2's own line. S6's 1.2s
+ *  Utility damage is neither. Checked from hitGlobal (every member's hit), and laid after its
+ *  applier's own hit, so that hit still Jolts the one already on it — the Flickering Reverie
+ *  behind a Flowing Suffocation, S2's own line. S6's 1.2s
  *  window is no clock here: the ticks it guards against are Coordinated Attacks, which never Jolt. */
 const HAZY_DREAM = new Debuff({
   name: "Cantarella: Hazy Dream",
   duration: 60 * 6.5,
-  updateGlobal: () => {
+  hitGlobal: () => {
     const a = currentAction();
     if (stacksOfEnemy(HAZY_DREAM) <= 0 || !a.mv) return;
     // never the Jolt's own damage, a Coordinated Attack, a Utility's, or a summon firing from a
     // field beside the fight; nor Hecate's, which her own kit exempts by name
     if (runningAction(ESKILL_JOLT) || a.field || isType(Subtype.Coordinated) || isType(Type.Utility)) return;
-    if (HECATE_ACTIONS.has(a)) return;
+    if (runningAnyOf(HECATE_ACTIONS)) return;
     revokeEnemy(HAZY_DREAM);
     if (currentTeam().slot.resonator === CANTARELLA_RESONATOR) queue(ESKILL_JOLT);
   },
@@ -248,7 +250,7 @@ const CA_S1 = new Sequence({
  *  (row 685.90% against 198.81%, multiplicative). */
 const CA_S2 = new Sequence({
   name: "Cantarella S2: Surrender to the Illusive Reverie",
-  grants: [{ on: onAction(Liberation), buff: HAZY_DREAM, to: BuffTarget.Enemy }],
+  grants: [{ on: onAction(Liberation), buff: HAZY_DREAM, to: BuffTarget.Enemy, onHit: true }],
   applyStats: () => { if (runningAction(ESKILL_JOLT)) addStat(Stat.MulMv, 245); },
 });
 

@@ -27,6 +27,7 @@ import {
   elapsed,
   resetCooldown,
   runningAnyOf,
+  onApplied,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Cooldown, Rotation, ECHO, INTRO } from "../../engine/rotation.js";
 import { SHIELD, gainShield } from "../../shared/status.js";
@@ -76,7 +77,7 @@ const Liberation = iunoAction("Liberation - Beneath Lunar Tides", {
 
 // --- intro / outro
 const Intro = iunoAction("Intro - Illuminated Manifestation", {
-  frames: 81, cancelFrames: 81, motionStop: 27,
+  frames: 81, cancelFrames: 81, hitFrame: 76, motionStop: 27,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 159.09,
   energy: 10, castConcerto: 10, offtune: 10400, castForte1: 40,
 });
@@ -119,11 +120,11 @@ const IUNO_BLESSING = new Buff({
   lostOnSwap: true,
 });
 
-/** What FHA leaves at her feet — team-wide, permanent uptime. Its own updateBuffs() runs on every
- *  member's turn; Blessing still stacks per-member off their own shielding. */
+/** What FHA leaves at her feet — team-wide, permanent uptime. Its grant fires on every member's
+ *  hit; Blessing still stacks per-member off their own shielding. */
 const IUNO_DOMAIN = new Buff({
   name: "Iuno: Full Moon Domain", duration: 60 * 30,
-  updateBuffs: () => { if (applied(SHIELD)) applyCurrent(IUNO_BLESSING, applied(SHIELD)); },
+  grants: [{ on: onApplied(SHIELD), buff: IUNO_BLESSING, stacks: () => applied(SHIELD) }],
   // S1's own point of Energy a second is paid by that node (it reads this domain instead)
 });
 
@@ -210,7 +211,7 @@ const IO_S3 = new Sequence({
  *  is a Blessing stack — she gains her own off that cast already, so the others get theirs here. */
 const IO_S4 = new Sequence({
   name: "Iuno S4: Rainy Season Dwell in My Eyes",
-  updateBuffs: () => { if (runningAction(FHA)) applyOthers(IUNO_BLESSING, 1); },
+  updateDebuffs: () => { if (runningAction(FHA)) applyOthers(IUNO_BLESSING, 1); },
 });
 
 /** S5: +20% Resonance Liberation DMG Bonus. */

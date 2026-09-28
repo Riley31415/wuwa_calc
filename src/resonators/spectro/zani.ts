@@ -204,7 +204,7 @@ const INFERNO_MODE = new Buff({
 
 /** Blaze, her whole Forte Circuit resource — a team-wide stacking buff rather than a forte gauge.
  *  Most of it is banked by the Heliacal Ember conversion, which fires off a *teammate's* cast (the
- *  Resonator's own updateGlobal below), so a team buff is the one thing every slot can already
+ *  Resonator's own hitGlobal below), so a team buff is the one thing every slot can already
  *  reach without writing across to hers. 150 is Inferno Mode's ceiling and `applyTeam` clamps to
  *  it, so the count can never read past what she could really hold.
  *
@@ -310,8 +310,8 @@ const ZANI_TALENTS = new Talent({
 });
 
 /** Her, as a Resonator — and the Heliacal Ember conversion, which lives here because it is the
- *  Forte Circuit's and has to answer a *teammate's* cast: `updateGlobal` runs her own gear on
- *  every action anyone takes, with the pointers still on her, so the Blaze lands on her bar while
+ *  Forte Circuit's and has to answer a *teammate's* hit: `hitGlobal` runs her own gear on
+ *  every hit anyone lands, with the pointers still on her, so the Blaze lands on her bar while
  *  she is off field. The rung fires on whoever put the Frazzle there — Negative Status damage is
  *  theirs, not hers. The clamp after it is Blaze's real ceiling, 100 until Inferno Mode raises it
  *  (the Resonator can only declare the one number, so the lower tier is enforced here). */
@@ -329,7 +329,7 @@ const ZANI_RESONATOR = new Resonator({
   maxForte1: 100,
 
   stats: [[Stat.BaseHp, 10775], [Stat.BaseAtk, 437.5], [Stat.BaseDef, 1136.6646]],
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (applied(SPECTRO_FRAZZLE) > 0) {
       const held = stacksOfEnemy(SPECTRO_FRAZZLE);
       // the whole ladder as the stacks come off — 6 converted fires 6+5+4+3+2+1 — reported as

@@ -49,6 +49,7 @@ import {
   withMoment,
   fireHeldGrants,
   currentMember,
+  castFrame,
 } from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
 import type { TeamMember } from "../engine/state.js";
@@ -80,7 +81,7 @@ function readyBefore(start: number): number {
  *  the action's first lands 30 frames after its cast, any more at 60, 90, ... only while it still
  *  plays (a cut press has fewer), and each at least 30 frames after that resonator's last. */
 export function gainShield(n = 1): void {
-  const start = currentTeam().frame;
+  const start = castFrame();
   readyBefore(start);
   const slots = Math.max(1, Math.floor(elapsed() / 30));
   let ready = stacksOf(SHIELD_READY), got = 0;
@@ -98,7 +99,7 @@ export function gainShield(n = 1): void {
 /** One shield on the cast itself (Ruler's Realm's on an Intro), ahead of the 30f an on-hit gain
  *  waits — so it checks the cooldown as the action found it, whatever the hits have since taken. */
 export function gainShieldOnCast(): void {
-  const start = currentTeam().frame;
+  const start = castFrame();
   if (start < readyBefore(start)) return;
   applyCurrent(SHIELD, 1);
   setStacksSelf(SHIELD_READY, Math.max(stacksOf(SHIELD_READY), start + 30));
@@ -203,8 +204,9 @@ export const FUSION_BURST = new Debuff({
     if (rung) asSource(rung, () => addStat(Stat.AddMv, rung.mv));
   },
   // the burst takes the stacks with it and whatever landed past the cap is lost, so the target
-  // rebuilds from empty. Cap is the fight's, not the declared 10.
-  updateBuffs: () => {
+  // rebuilds from empty. Cap is the fight's, not the declared 10. On the hit that filled it: the
+  // enemy pool runs last in the phase, after every inflict.
+  updateDebuffs: () => {
     if (frozenStacks() < currentTeam().enemyMax(FUSION_BURST)) return;
     queue(FUSION_BURST_ACTIONS[frozenStacks()]!);
     revokeEnemy(FUSION_BURST);

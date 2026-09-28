@@ -84,8 +84,12 @@ const Liberation = yinlinAction("Liberation - Thundering Wrath", { frames: 191, 
 const FHA = yinlinAction("Forte Heavy - Chameleon Cipher", {
   frames: 103, cancelFrames: 45,
   node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, mv: 178.93 * 2, energy: 10.00, concerto: 20.00, offtune: 52000, castForte1: -100,
-  updateBuffs: () => {
-    if (stacksOfEnemy(SINNERS_MARK)) { revokeEnemy(SINNERS_MARK); applyEnemy(PUNISHMENT_MARK, 18); }
+  // the upgrade is its hit on a Sinner-marked target
+  updateDebuffs: () => {
+    if (stacksOfEnemy(SINNERS_MARK)) {
+      revokeEnemy(SINNERS_MARK);
+      applyEnemy(PUNISHMENT_MARK, 18);
+    }
   },
 });
 /** One Judgment Strike — Resonance Skill DMG, drawn per qualifying action by PUNISHMENT_MARK. */
@@ -189,9 +193,8 @@ const YINLIN_RESONATOR = new Resonator({
   maxEnergy: 125,
   maxForte1: 100,
 
-  updateBuffs: () => {
-    // this runs ahead of EXECUTION_MODE's own update (equipped gear first), so a Basic's own
-    // fresh mark already gates that same cast's Blast
+  // the mark goes on with the hit, so a Basic's Blast is gated by the mark it found at its cast
+  updateDebuffs: () => {
     if (casting(Cast.Basic) || casting(Cast.DodgeCounter) || casting(Cast.Intro) || runningAction(Liberation)) {
       applyEnemy(SINNERS_MARK, 1);
     }
@@ -238,7 +241,7 @@ const YL_S4 = new Sequence({
 });
 
 /** S5: Thundering Wrath deals 100% extra to a marked target — her Liberation lays Sinner's Mark
- *  itself, ahead of this (the resonator's own updateBuffs), so it always reads one. */
+ *  itself, ahead of this (the resonator's own updateDebuffs), so it always reads one. */
 const YL_S5 = new Sequence({
   name: "Yinlin S5: Resounding Will",
   applyStats: () => {
@@ -252,7 +255,8 @@ const YL_S5 = new Sequence({
  *  Basics of her next visit spend what the last one left. */
 const PURSUIT_OF_JUSTICE = new Buff({
   name: "Yinlin S6: Pursuit of Justice", maxStacks: 4, duration: 60 * 30,
-  updateBuffs: () => {
+  // spent by a Basic that lands, so on its hit
+  updateDebuffs: () => {
     if (!casting(Cast.Basic) || frozenStacks() <= 0) return;
     removeStack(PURSUIT_OF_JUSTICE, 1);
     queue(FuriousThunder);

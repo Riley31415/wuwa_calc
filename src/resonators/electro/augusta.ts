@@ -47,6 +47,7 @@ import {
   isHeld,
   stacksOf,
   runningAnyOf,
+  pressed,
 } from "../../engine/context.js";
 import { Action, Rotation, ECHO, INTRO } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
@@ -124,7 +125,7 @@ const Lib3 = augustaAction("Liberation - Sublime is the Sun: Everbright Protecto
  *  casts Spinslash or Uppercut. Not a row on the kit page, so no energy, concerto or off-tune. */
 const ThunderRage = augustaAction("Heavy - Thunder Rage (S6)", { node: Node.Forte, type: Type.Heavy, mv: 200 });
 
-const Intro = augustaAction("Intro - Stride of Goldenflare", { frames: 73, cancelFrames: 73, motionStop: 10, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 198.82, energy: 10, castConcerto: 10, offtune: 9600, castForte1: 660, castForte2: 800});
+const Intro = augustaAction("Intro - Stride of Goldenflare", { frames: 73, cancelFrames: 73, hitFrame: 63, motionStop: 10, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 198.82, energy: 10, castConcerto: 10, offtune: 9600, castForte1: 660, castForte2: 800});
 /** No damage of its own, just the outro handoff (BATTLESONG) — her own Majesty/Crown of Wills
  *  grant is earned later, off the recipient's own Outro. */
 const Outro = augustaAction("Outro - Battlesong of the Unyielding", {
@@ -164,7 +165,7 @@ function gainCrown(n: number): void {
 const RULERS_REALM = new Buff({
   name: "Augusta: Ruler's Realm",
   duration: 60 * 30,
-  updateDebuffs: () => { if (casting(Cast.Intro)) gainShieldOnCast(); },
+  updateBuffs: () => { if (casting(Cast.Intro)) gainShieldOnCast(); },
 });
 
 /** Hands the incoming resonator +15% DMG Amplification (all attributes) for 14s. */
@@ -185,7 +186,7 @@ const SHIELDS = new Map<Action, number>([
 const AG_INHERENT_1 = new Inherent({
   name: "Inherent: Glory's Favor",
   updateDebuffs: () => {
-    const n = SHIELDS.get(currentAction());
+    const n = SHIELDS.get(pressed());
     if (n) gainShield(n);
   },
 });

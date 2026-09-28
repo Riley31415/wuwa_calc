@@ -46,6 +46,8 @@ import {
   addBuff,
   addStat,
   appliedByMember,
+  appliedByMe,
+  onApplied,
   currentTeam,
   isType,
   queue,
@@ -159,9 +161,9 @@ const Lib2 = deniaAction("Liberation - Final Act (Breakdown)", {
     const field = isHeld(DN_S4) ? EROSION_FIELD_S4 : EROSION_FIELD;
     revokeTeam(field);
     applyTeam(field, field.maxStacks);
-    // the field pulls as it lands — after this cast, so the Breakdown shift is already off it
-    queue(ErosionField);
   },
+  // the field pulls as the Final Act lands, its first pull queued off the hit
+  updateDebuffs: () => queue(ErosionField),
 });
 /** Her field, and the one pull of it — the pair sits together the way a status ladder sits with
  *  its own gear (shared/status.ts): EROSION_FIELD below is the window standing, and granting that
@@ -173,13 +175,13 @@ const ErosionField = deniaAction("Forte - Erosion Field", {
 
 // --- Intros, one per form. Both bank a Dark Core and 25 Void Particle.
 const Intro = deniaAction("Intro - It's Been A While!", {
-  frames: 53, cancelFrames: 50, motionStop: 42,
+  frames: 53, cancelFrames: 50, hitFrame: 28, motionStop: 42,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 104.62, energy: 10, castConcerto: 10, offtune: 7016, castForte1: 25,
   updateBuffs: () => applyCurrent(DARK_CORE),
 });
 // Knock Knock is the Breakdown-form Intro, so it shifts form as well as banking its own Dark Core
 const EIntro = deniaAction("Intro - Knock Knock", {
-  frames: 81, cancelFrames: 77, motionStop: 39,
+  frames: 81, cancelFrames: 77, hitFrame: 87, motionStop: 39,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 155.22, energy: 10.02, castConcerto: 10, offtune: 10410, castForte1: 25,
   updateBuffs: () => {
     revokeCurrent(ENTROPY_STAGECRAFT);
@@ -258,7 +260,13 @@ const OFFTUNE_SURGE = new Buff({
  *  so nothing here lists them; the dodge counter is Stage 3 and carries Stage 3's, so it enhances
  *  like any other. Held from Final Act - Stagecraft (which opens Breakdown Form) until
  *  Final Act - Breakdown spends everything and flips her back. */
-const spendsVoid = (a: Action): boolean => a.forte1 < 0 && a.forte2 > 0;
+const pressed = (): Action => currentAction().formOf ?? currentAction();
+/** On a queued hit the press's own cast has already paid its Void Particle, so it is added back. */
+const spendsVoid = (): boolean => {
+  const a = pressed();
+  const paid = currentAction().half === "hit" ? a.castForte[0]! : 0;
+  return a.forte1 < 0 && a.forte2 > 0 && forte1() - paid > 0;
+};
 
 /** Entropy Shift: Breakdown Form — +30% ATK for 12s, granted by Final Act - Stagecraft and Knock
  *  Knock. Replaced by Final Act - Breakdown's own Stagecraft shift — after that cast rather than
@@ -273,16 +281,15 @@ const ENTROPY_BREAKDOWN = new Buff({
   },
 
   // the retag has to land in the first phase, before anything reads the type (see typeOverride)
-  updateDebuffs: () => { if (spendsVoid(currentAction()) && forte1() > 0) typeOverride(Type.Liberation); },
+  updateDebuffs: () => { if (spendsVoid()) typeOverride(Type.Liberation); },
 
   applyStats: () => {
     // S3 has Final Act - Breakdown hand back 30 Concerto; S6's own standing pair is on its node
     if (isHeld(DN_S3) && runningAction(Lib2)) asSource(DN_S3, () => addStat(Stat.AddConcerto, 30));
 
-    const a = currentAction();
-    if (!spendsVoid(a) || forte1() <= 0) return;
+    if (!spendsVoid()) return;
     addStat(Stat.MulMv, 50);
-    addStat(Stat.AddForte2, a.forte2);
+    addStat(Stat.AddForte2, pressed().forte2);
   },
 });
 
@@ -382,7 +389,13 @@ const UNFINISHED_LIES_STRAIN: Buff = new Buff({
   stats: [[Stat.Amp, 15]],
   updateBuffs: () => {
     // handed to a holder already upgraded, it is that upgrade refreshed
-    if (!isHeld(UNFINISHED_LIES_SHIFTING) && !applied(TUNE_STRAIN_SHIFTING)) return;
+    if (!isHeld(UNFINISHED_LIES_SHIFTING)) return;
+    revokeCurrent(UNFINISHED_LIES_STRAIN);
+    applyCurrent(UNFINISHED_LIES_SHIFTING, 1);
+  },
+  // the holder's own Shifting upgrades it on the hit that lays it
+  hitGlobal: () => {
+    if (!appliedByMe(TUNE_STRAIN_SHIFTING)) return;
     revokeCurrent(UNFINISHED_LIES_STRAIN);
     applyCurrent(UNFINISHED_LIES_SHIFTING, 1);
   },
@@ -391,7 +404,7 @@ const UNFINISHED_LIES_STRAIN: Buff = new Buff({
 const UNFINISHED_LIES_SHIFTING: Buff = new Buff({
   name: "Denia: Outro (shifting)", duration: 60 * 16,
   stats: [[Stat.Amp, 40]],
-  updateBuffs: () => { if (applied(TUNE_STRAIN_SHIFTING)) applyCurrent(UNFINISHED_LIES_SHIFTING, 1); },
+  grants: [{ on: onApplied(TUNE_STRAIN_SHIFTING) }],
   lostOnSwap: true,
 });
 
@@ -429,8 +442,8 @@ const TIDES_STRAIN = new Buff({
  *  multiplicative, and over the Dark Core ladder rather than under it. */
 const DN_S2 = new Sequence({
   name: "Denia S2: Tossed in the Tides of Reality",
-  // from updateGlobal "me" is Denia, so the acting slot has to be named (status.ts)
-  updateGlobal: () => {
+  // from hitGlobal "me" is Denia, so the acting slot has to be named (status.ts)
+  hitGlobal: () => {
     const acting = currentTeam().slot;
     if (!isHeld(MODE_BURST)) {
       if (acting.resonator && appliedByMember(TUNE_STRAIN_SHIFTING, acting)) addBuff(acting.resonator, TIDES_STRAIN, 1);
@@ -502,7 +515,7 @@ const DN_S6 = new Sequence({
     if (!isHeld(MODE_BURST) || !runningAction(ErosionField)) return;
     queue(FUSION_BURST_ACTIONS[currentTeam().enemyMax(FUSION_BURST)]!);
   },
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (isHeld(MODE_BURST) || currentAction().type !== Type.Break) return;
     if (stacksOfEnemy(TUNE_STRAIN_SHIFTING) > 0) applyEnemy(TUNE_STRAIN_INTERFERED, 1);
   },

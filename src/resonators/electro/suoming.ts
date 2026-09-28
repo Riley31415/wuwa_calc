@@ -146,9 +146,10 @@ const IntroFlashRift = suomingAction("Intro - Furled Canopy: Flash Rift", {
 });
 const IntroSealedDelusion = suomingAction("Intro - Furled Canopy: Sealed Delusion (Unison)", {
   frames: 103, cancelFrames: 88, motionStop: 90,
-  ...INTRO_FURLED, updateDebuffs: respondToUnison,
+  ...INTRO_FURLED,
   // entering Deep Mind resets Rift Cleaver's cooldown
   updateBuffs: () => {
+    respondToUnison();
     applyCurrent(DEEP_MIND, 1);
     resetCooldown(RiftCleaver);
   },
@@ -156,7 +157,7 @@ const IntroSealedDelusion = suomingAction("Intro - Furled Canopy: Sealed Delusio
 
 const INTRO_UNFURLED = { frames: 83, cancelFrames: 66, motionStop: 68, node: Node.Intro, cast: Cast.Intro, type: Type.Basic, mv: 131.43 * 3 + 65.72 * 2, energy: 2.5 * 3 + 1.25 * 2, concerto: 10, offtune: 4407 * 3 + 2204 * 2, forte1: 200 };
 const IntroThunderRending = suomingAction("Intro - Unfurled Canopy: Thunder Rending", INTRO_UNFURLED);
-const IntroWhirlingThunder = suomingAction("Intro - Unfurled Canopy: Whirling Thunder (Unison)", { ...INTRO_UNFURLED, updateDebuffs: respondToUnison });
+const IntroWhirlingThunder = suomingAction("Intro - Unfurled Canopy: Whirling Thunder (Unison)", { ...INTRO_UNFURLED, updateBuffs: respondToUnison });
 
 
 const INTROS = new Set<Action>([IntroFlashRift, IntroThunderRending, IntroSealedDelusion, IntroWhirlingThunder]);
@@ -178,15 +179,15 @@ const UnforsakenMind = suomingAction("Skill - Unfurled Canopy: Unforsaken Mind",
 });
 /** Calamity Mind for its own duration, Awakened Mind once it ends: Deep Mind is simply over. */
 const EngravedHeart = suomingAction("Forte Basic - Umbral Canopy: Engraved Heart", {
-  // 263 frames the prio drops to 2
-  frames: 308, cancelFrames: 263, timestop: 134, motionStop: 134,
+  // 263 frames the prio drops to 2; the last hit is in at 250
+  frames: 308, cancelFrames: 263, hitFrame: 250, timestop: 134, motionStop: 134,
   node: Node.Forte, cast: Cast.Basic, type: Type.Basic, mv: 155.14 * 3 + 77.57 * 4 + 38.79 * 4 + 620.55 + 19.4 * 10 + 24.24 * 8, energy: 2.05 * 3 + 1.03 * 4 + 0.52 * 4 + 8.18, concerto: 40, offtune: 2602 * 3 + 1301 * 4 + 651 * 4 + 10405,
   updateBuffs: () => revokeCurrent(DEEP_MIND),
 });
 
 /** Canopy Rumble. With Unison still held this is the Unison outro: Aligned Seals, the Crest
  *  window, and the Aligned handoff on top of the ordinary one. Unison itself is spent by its own
- *  conversion, after these hooks. */
+ *  updateBuffs, after these hooks. */
 const Outro = suomingAction("Outro - Canopy Rumble", {
   frames: 0, cancelFrames: 0,
   cast: Cast.Outro, castConcerto: -100,
@@ -424,7 +425,7 @@ const SM_ROTATION_MDPS = new Rotation([
   INTRO.cancel(), Liberation, ECHO,
   RiftCleaver.instaDodge(),
   UBA12UHA12.dodgeCancel(),
-  UBA12UHA12.cancel(),
+  UBA12UHA12.easyCancel(),
   UnforsakenMind, EngravedHeart.swapCancel(),
   OutroResolver,
 ]);
@@ -435,7 +436,7 @@ const SM_ROTATION_MDPS_DOUBLE = new Rotation([
   Liberation, ECHO,
   RiftCleaver.instaDodge(),
   UBA12UHA12.dodgeCancel(),
-  UBA12UHA12.cancel(),
+  UBA12UHA12.easyCancel(),
   UnforsakenMind, EngravedHeart.swapCancel(),
   OutroResolver,
 ]);

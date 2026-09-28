@@ -114,8 +114,12 @@ const MultiThreading = lucyAction("Heavy - Multi-threading", { frames: 61, cance
 //     TCP and is Heavy Attack DMG rather than Resonance Skill DMG.
 const Skill1 = lucyAction("Skill - Payload (Charge)", {
   frames: 55, cancelFrames: 46, cooldown: 60 * 15,
-  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 30.08, energy: 1.5, concerto: 2.4, offtune: 1512, forte1: 3.6, ...HACKS,
-  updateBuffs: () => queue(Skill2), // hitting with the charge triggers the follow-up on its own
+  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 30.08, energy: 1.5, concerto: 2.4, offtune: 1512, forte1: 3.6,
+  // hitting with the charge triggers the follow-up on its own
+  updateDebuffs: () => {
+    applyHack();
+    queue(Skill2);
+  },
 });
 const Skill2 = lucyAction("Skill - Payload (Follow-Up)", { node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 70.17, energy: 3.5, concerto: 5.6, offtune: 3528, forte1: 8.4 });
 const Skill3 = lucyAction("Skill - Pulse Interference", {
@@ -141,11 +145,14 @@ const LIB_CD = new Cooldown({ frames: 60 * 25 });
 const OVERRIDE = {
   resetForte1: true,
   cooldown: LIB_CD,
-  updateBuffs: () => {
-    resetCooldown(Deadlock);
+  updateBuffs: () => resetCooldown(Deadlock),
+  // the Spoofing debuffs and programs come off the Liberation's hit, ahead of its own stats
+  updateDebuffs: () => {
     applyEnemy(CYBERWARE_MALFUNCTION, 1);
     applyEnemy(BREACH_PROTOCOL, 1);
-    queue(Ping); queue(SynapseBurnout); queue(CrippleMovement);
+    queue(Ping);
+    queue(SynapseBurnout);
+    queue(CrippleMovement);
   },
 };
 const Lib = lucyAction("Liberation - Netrunner: Override", {
@@ -166,7 +173,7 @@ const CrippleMovement = lucyAction("Liberation - Spoofing Program: Cripple Movem
 });
 
 const Intro = lucyAction("Intro - Outdated Hallucination", {
-  frames: 57, cancelFrames: 45, motionStop: 28,
+  frames: 57, cancelFrames: 45, hitFrame: 39, motionStop: 28,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 138.28, energy: 10, castConcerto: 10, offtune: 8560,
   updateBuffs: () => applyCurrent(OUTDATED_HALLUCINATION, 1),
 });
@@ -265,7 +272,7 @@ const COUNTERMEASURE_HANDOFF = new Buff({
 const COUNTERMEASURE_MARKER = new Buff({
   name: "Lucy: Countermeasure Program (team)",
   duration: 60 * 25,
-  updateBuffs: () => { 
+  updateDebuffs: () => {
     if (applied(TUNE_HACK_SHIFTING) && !isHeld(LUCY_RESONATOR)) {
       applyCurrent(COUNTERMEASURE_AMP, 1); 
       // revokeTeam, not revoke: the marker was handed out with applyTeam, so it lives in the
@@ -331,7 +338,7 @@ const LC_S3 = new Sequence({
 });
 
 /** S4: anyone on the team inflicting Hack - Shifting, not just her, so it is watched from
- *  updateGlobal — the same `applied()` her own Countermeasure Program reads. 20s team buff, so it
+ *  hitGlobal — the same `applied()` her own Countermeasure Program reads. 20s team buff, so it
  *  goes on her own next Intro; "All-Attribute DMG Bonus" is a plain untagged bonus (CLAUDE.md). */
 const LC_S4_TEAM = new Buff({
   name: "Lucy S4: No Living Legends in Night City",
@@ -341,7 +348,7 @@ const LC_S4_TEAM = new Buff({
 
 const LC_S4 = new Sequence({
   name: "Lucy S4: No Living Legends in Night City",
-  updateGlobal: () => { if (applied(TUNE_HACK_SHIFTING)) applyTeam(LC_S4_TEAM, 1); },
+  hitGlobal: () => { if (applied(TUNE_HACK_SHIFTING)) applyTeam(LC_S4_TEAM, 1); },
 });
 
 /** S5: a second Optical Illusion stack and a shield off it. Both are defensive and Ghost Cyberware
@@ -395,7 +402,7 @@ export const LUCY_RESONATOR = new Resonator({
   maxForte1: 100,
   maxForte2: 100,
 
-  updateGlobal: () => tuneHackResponse(DataCrash),
+  hitGlobal: () => tuneHackResponse(DataCrash),
 
   stats: [
     [Stat.BaseHp, 11025], [Stat.BaseAtk, 425], [Stat.BaseDef, 1148.8868],

@@ -477,6 +477,8 @@ var ctx = {
   overrideSubtype: null,
   swapLosses: /* @__PURE__ */ new Set(),
   droppedCast: null,
+  pressFrames: 0,
+  pressStart: 0,
   actionStamp: 0,
   tracing: false,
   insideGroup: false
@@ -764,6 +766,14 @@ var Pool = class {
     const i = this.at.get(gear);
     if (i !== void 0)
       this.stamp(i, gear);
+  }
+  /** Push a held timed Gear's expiry `frames` later, its count untouched — "extends its duration". */
+  extend(gear, frames) {
+    const i = this.at.get(gear);
+    if (i === void 0 || !this.expires[i])
+      return;
+    this.writeExpiry(i);
+    this.expires[i] += frames;
   }
   /** Frames `gear` has left, or 0 where it is untimed or not held. */
   left(gear) {
@@ -1212,6 +1222,10 @@ var State = class {
    *  are charged to (`run()`). */
   presser = -1;
   swapRow = null;
+  /** Where the last press (or the handoff's swap frames) ends, and how much of its motion stop is
+   *  still to play: `run()` walks the clock there, landing every queued hit due on the way. */
+  playsTo = 0;
+  playStop = 0;
   /** Which way the next Outro hands the field over: +1 for the ordinary handoff to the next
    *  resonator in team order, -1 for the outro closing a DOUBLE_INTRO section (rotation.ts). The scheduler
    *  sets it right before the outro is evaluated and puts it back to +1 straight after, so a
@@ -1252,10 +1266,10 @@ var State = class {
   // TODO change Gear to Debuff
   outroQueue = [];
   /** Hits waiting on the clock, each landing on its owner at `due` — earliest first; `run()` plays
-   *  them once the clock has passed it. A hit split off a press that left the field first (an
-   *  outro's, an insta swap's) fills in `into`, the cast's own row; one a tick queued (`ctx.tickAt`)
-   *  is a row of its own, credited to `by`; one with `apply` and no action is run there instead
-   *  (`applyOn()`, a heal tick's), no row at all. */
+   *  them before any cast the clock has passed them for. A press's own queued hit fills in `into`,
+   *  the cast's row, and takes with it what its swap cancel loses once it lands (`losses`); one a
+   *  tick queued (`ctx.tickAt`) is a row of its own, credited to `by`; one with `apply` and no
+   *  action is run there instead (`applyOn()`, a heal tick's), no row at all. */
   timed = [];
   /** Casts waiting for the next Intro — queued behind it, on the slot that queued them, the
    *  moment an Intro-cast action is evaluated (see `queueOnIntro()`). */
@@ -1541,6 +1555,7 @@ function setTracing(on) {
   ctx.tracing = on;
 }
 var currentAction = () => ctx.act;
+var pressed = () => ctx.act.half !== null ? ctx.act.formOf ?? ctx.act : ctx.act;
 var midActionGroup = () => ctx.insideGroup;
 var triggeredAction = () => ctx.triggered;
 var currentTeam = () => ctx.state;
@@ -1552,16 +1567,12 @@ function dropCast(cast) {
   ctx.droppedCast = cast;
 }
 function runningAction(action) {
-  if (ctx.act.dashCast)
-    return false;
   for (let a = ctx.act; a; a = a.cancelOf ?? a.formOf)
     if (a === action)
       return true;
   return false;
 }
 function runningAnyOf(actions) {
-  if (ctx.act.dashCast)
-    return false;
   for (let a = ctx.act; a; a = a.cancelOf ?? a.formOf)
     if (actions.has(a))
       return true;
@@ -1570,7 +1581,8 @@ function runningAnyOf(actions) {
 function isActive() {
   return ctx.state.slot === ctx.state.slots[ctx.state.onField];
 }
-var elapsed = () => ctx.actFrames;
+var elapsed = () => ctx.act.half === "hit" ? ctx.pressFrames : ctx.actFrames;
+var castFrame = () => ctx.act.half === "hit" ? ctx.pressStart : ctx.state.frame;
 var cooldownOf = (of) => "wait" in of ? of : of.cooldown;
 function resetCooldown(of, charges = Infinity) {
   noteMutation(92, 1);
@@ -1610,10 +1622,21 @@ function typeOverride(type) {
 var onCast = (...casts) => () => casts.some((c) => casting(c));
 var onAction = (...actions) => () => actions.some((a) => runningAction(a));
 var onType = (...types) => () => types.some((t) => isType(t));
-var onInflict = (...gears) => () => gears.some((g) => appliedByMe(g) > 0);
-var onApplied = (...gears) => () => gears.some((g) => applied2(g) > 0);
-var either = (...triggers) => () => triggers.some((t) => t());
-var both = (...triggers) => () => triggers.every((t) => t());
+var onInflict = (...gears) => inflicting(() => gears.some((g) => appliedByMe(g) > 0));
+var onApplied = (...gears) => inflicting(() => gears.some((g) => applied2(g) > 0));
+var either = (...triggers) => combined(() => triggers.some((t) => t()), triggers);
+var both = (...triggers) => combined(() => triggers.every((t) => t()), triggers);
+function inflicting(fn) {
+  const t = fn;
+  t.inflicts = true;
+  return t;
+}
+function combined(fn, parts) {
+  const t = fn;
+  if (parts.some((p) => p.inflicts))
+    t.inflicts = true;
+  return t;
+}
 function isType(type) {
   const a = ctx.act;
   return (ctx.overrideType ?? a.type) === type || (ctx.overrideSubtype ?? a.subtype) === type;
@@ -1866,6 +1889,10 @@ function removeStack(buff, n = 1) {
 function revokeCurrent(buff) {
   ctx.slot.revoke(buff);
 }
+function extendCurrent(buff, frames) {
+  noteMutation(buff.id, 9e6 + frames);
+  ctx.slot.stacks.extend(buff, frames);
+}
 function currentGear() {
   return ctx.buff;
 }
@@ -2055,7 +2082,10 @@ var PHASE_CONVERT = 8;
 var PHASE_LATE = 16;
 var PHASE_AFTER = 32;
 var PHASE_CONST = 64;
-var PHASE_COUNT = 7;
+var PHASE_HIT_GRANTS = 128;
+var PHASE_COUNT = 8;
+var NO_GLOBAL = () => {
+};
 var nextGearId = 1;
 var Gear = class {
   /** See `GearDef.hidden` — named for a stat's hover, absent from the held-buff popovers. */
@@ -2081,12 +2111,14 @@ var Gear = class {
   combatStartFn;
   updateDebuffsFn;
   updateGlobalFn;
+  hitGlobalFn;
   updateBuffsFn;
   constantStatsFn;
   applyStatsFn;
   convertStatsFn;
   afterActionFn;
   lateConvertStatsFn;
+  hitGrantsFn;
   displayFn;
   /** Which of the six per-action phases this Gear has a hook for, one bit each (see `PHASE_*`),
    *  fixed here since the hooks themselves are — a `Pool` reads this one field to sort a
@@ -2106,7 +2138,8 @@ var Gear = class {
     this.field = def2.field ?? null;
     this.combatStartFn = def2.combatStart;
     this.updateDebuffsFn = def2.updateDebuffs;
-    this.updateGlobalFn = def2.updateGlobal;
+    this.hitGlobalFn = def2.hitGlobal;
+    this.updateGlobalFn = def2.updateGlobal ?? (def2.hitGlobal ? NO_GLOBAL : void 0);
     this.updateBuffsFn = def2.updateBuffs;
     this.constantStatsFn = def2.constantStats;
     this.applyStatsFn = def2.applyStats;
@@ -2142,15 +2175,24 @@ var Gear = class {
             applyCurrent(buff, n);
         }
       };
-      const onCast2 = def2.grants.filter((g) => !g.onHit), onHit = def2.grants.filter((g) => g.onHit);
-      this.fireGrantsFn = () => fire(onCast2);
-      if (onCast2.length) {
+      const onHit = def2.grants.filter((g) => g.onHit);
+      const onInflict2 = def2.grants.filter((g) => !g.onHit && g.on.inflicts);
+      const onCast2 = def2.grants.filter((g) => !g.onHit && !g.on.inflicts);
+      this.fireGrantsFn = () => {
+        fire(onCast2);
+        fire(onInflict2);
+      };
+      if (onCast2.length || onInflict2.length) {
         const own = def2.updateBuffs;
         this.updateBuffsFn = () => {
           own?.();
           fire(onCast2);
+          if (currentAction().half === "cast")
+            fire(onInflict2);
         };
       }
+      if (onInflict2.length)
+        this.hitGrantsFn = () => fire(onInflict2);
       if (onHit.length) {
         const own = def2.afterAction;
         this.afterActionFn = () => {
@@ -2168,8 +2210,8 @@ var Gear = class {
   fireGrantsFn;
   /** `hookMask`/`hookFns` off whatever hooks stand now — called once every compiled hook is in place. */
   wire() {
-    this.hookMask = (this.updateDebuffsFn ? PHASE_DEBUFFS : 0) | (this.updateBuffsFn ? PHASE_BUFFS : 0) | (this.applyStatsFn ? PHASE_APPLY : 0) | (this.convertStatsFn ? PHASE_CONVERT : 0) | (this.lateConvertStatsFn ? PHASE_LATE : 0) | (this.afterActionFn ? PHASE_AFTER : 0) | (this.constantStatsFn ? PHASE_CONST : 0);
-    this.hookFns = [this.updateDebuffsFn, this.updateBuffsFn, this.applyStatsFn, this.convertStatsFn, this.lateConvertStatsFn, this.afterActionFn, this.constantStatsFn];
+    this.hookMask = (this.updateDebuffsFn ? PHASE_DEBUFFS : 0) | (this.updateBuffsFn ? PHASE_BUFFS : 0) | (this.applyStatsFn ? PHASE_APPLY : 0) | (this.convertStatsFn ? PHASE_CONVERT : 0) | (this.lateConvertStatsFn ? PHASE_LATE : 0) | (this.afterActionFn ? PHASE_AFTER : 0) | (this.constantStatsFn ? PHASE_CONST : 0) | (this.hitGrantsFn ? PHASE_HIT_GRANTS : 0);
+    this.hookFns = [this.updateDebuffsFn, this.updateBuffsFn, this.applyStatsFn, this.convertStatsFn, this.lateConvertStatsFn, this.afterActionFn, this.constantStatsFn, this.hitGrantsFn];
   }
   /** "Name xN" for anything that stacks — by its own declared cap, or in fact: a debuff declared at 1
    *  can be standing at 2 or 3 once a kit's `maxStackIncrease()` raised the target's own ceiling
@@ -2204,19 +2246,11 @@ var Buff = class extends Gear {
         for (const line of lines)
           addStat(line[0], perStack ? line[1] * n : line[1], line[2]);
       };
-      if (def2.early) {
-        const own = this.updateBuffsFn;
-        this.updateBuffsFn = () => {
-          pay();
-          own?.();
-        };
-      } else {
-        const own = def2.applyStats;
-        this.applyStatsFn = () => {
-          pay();
-          own?.();
-        };
-      }
+      const own = def2.applyStats;
+      this.applyStatsFn = () => {
+        pay();
+        own?.();
+      };
     }
     if (def2.lostOnSwap) {
       const own = this.updateBuffsFn;
@@ -2889,6 +2923,8 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
   ctx.state = state;
   ctx.slot = slot;
   ctx.act = action;
+  const castSide = action.half !== "hit", hitSide = action.half !== "cast";
+  phaseMask = (castSide ? CAST_PHASES : 0) | (hitSide ? HIT_PHASES : 0);
   const tag = cut ?? action.tag;
   const charged = action.cost(tag);
   const timestopBanked = Math.min(state.timestopBank, charged.total);
@@ -2915,7 +2951,7 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
     slot.entries = [];
     slot.totals = /* @__PURE__ */ new Map();
   }
-  if (casting(
+  if (castSide && casting(
     5
     /* Cast.Intro */
   )) {
@@ -2923,39 +2959,31 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
       slot.addStack(gear, 1);
     pendingQueue.push(...state.introQueue.splice(0));
   }
-  capture(slot, state);
-  actionHook(action.updateDebuffsFn);
-  runPhase(0, true);
-  actionHook(action.updateGlobalFn);
-  for (const s of state.slots) {
-    for (const gear of s.globalHooks) {
-      ctx.slot = s;
-      ctx.buff = gear;
-      ctx.stacks = -1;
-      gear.updateGlobalFn();
-    }
+  if (castSide) {
+    actionHook(action.updateGlobalFn, 1);
+    runGlobals(state, slot, false);
+    capture(slot, state);
+    actionHook(action.updateBuffsFn, 1);
+    runPhase(1, true);
   }
-  ctx.slot = slot;
-  const globalHooks = state.globalStacks.globalHooks, enemyHooks = state.enemyStacks.globalHooks;
-  for (let i = 0; i < globalHooks.length; i++) {
-    ctx.buff = globalHooks[i];
-    ctx.buff.updateGlobalFn();
-  }
-  for (let i = 0; i < enemyHooks.length; i++) {
-    ctx.buff = enemyHooks[i];
-    ctx.buff.updateGlobalFn();
-  }
-  ctx.buff = null;
-  capture(slot, state);
-  actionHook(action.updateBuffsFn);
-  runPhase(1, true);
   const frames = ctx.actFrames;
-  state.frame = frameStart + frames;
+  const hitClock = !hitSide || action.mv <= 0 ? 0 : Math.min(frames, Math.max(0, action.hitClock(tag) - timestopBanked));
+  state.frame = frameStart + hitClock;
   const cost = action.cost(tag);
   const motionStop = Math.max(0, Math.min(action.motionStop, cost.action) - cost.timestop);
-  if (frames)
-    state.runTicks(frameStart, state.frame, motionStop);
+  const hitStop = Math.min(motionStop, hitClock);
+  if (hitClock)
+    state.runTicks(frameStart, state.frame, hitStop);
   state.expireBuffs();
+  if (hitSide) {
+    capture(slot, state);
+    actionHook(action.updateDebuffsFn, 0);
+    runPhase(0, true);
+    actionHook(action.hitGlobalFn, 0);
+    runGlobals(state, slot, true);
+    capture(slot, state);
+    runPhase(7, true);
+  }
   capture(slot, state);
   const heldPools = ctx.tracing ? [slot.stacks, state.globalStacks, state.enemyStacks].map((pool) => pool.gears().map((g) => [g, pool.get(g) ?? 0, pool.left(g)])) : null;
   let pre = null;
@@ -2996,7 +3024,7 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
   ctx.readStamp++;
   ctx.readPhase = READ_APPLY;
   replay.length = 0;
-  actionHook(action.applyStatsFn);
+  actionHook(action.applyStatsFn, 2);
   runPhase(2, true);
   const replay2 = replay.length, applyMoved = ctx.mutHash !== 0;
   if (pre !== null) {
@@ -3005,9 +3033,9 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
       post2[i] = slot.effective[i];
   }
   ctx.readPhase = READ_CONVERT;
-  actionHook(action.convertStatsFn);
+  actionHook(action.convertStatsFn, 3);
   runPhase(3, true);
-  actionHook(action.lateConvertStatsFn);
+  actionHook(action.lateConvertStatsFn, 4);
   runPhase(4, true);
   ctx.recording = false;
   let variantEff = null;
@@ -3055,12 +3083,12 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
       before.restore(state);
       ctx.mutHash = 0;
       if (!replayable) {
-        actionHook(action.applyStatsFn);
+        actionHook(action.applyStatsFn, 2);
         runPhase(2, true);
       }
-      actionHook(action.convertStatsFn);
+      actionHook(action.convertStatsFn, 3);
       runPhase(3, true);
-      actionHook(action.lateConvertStatsFn);
+      actionHook(action.lateConvertStatsFn, 4);
       runPhase(4, true);
       let unsafe = ctx.mutHash !== primaryHash;
       for (const s of RESOURCE_STATS)
@@ -3110,20 +3138,19 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
   }
   const effective = slot.effective;
   const stat = (k) => effective[k];
-  const onHit = action.half !== "cast", onCast2 = action.half !== "hit";
-  const addEnergy = (onHit ? effective[
+  const addEnergy = effective[
     26
     /* Stat.AddEnergy */
-  ] : 0) + (onCast2 ? effective[
+  ] + effective[
     35
     /* Stat.AddCastEnergy */
-  ] : 0);
+  ];
   const energyGain = (action.energy + addEnergy) * (1 + effective[
     14
     /* Stat.EnergyRegenMult */
   ] / 100);
   slot.energy = Math.max(0, slot.energy + energyGain);
-  const outro = casting(
+  const outro = castSide && casting(
     6
     /* Cast.Outro */
   );
@@ -3134,13 +3161,13 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
   const concertoShort = spend > 0 && slot.concerto < spend;
   if ((spend > 0 || outro) && slot.concerto > 100)
     slot.concerto = 100;
-  const addConcerto = (onHit ? effective[
+  const addConcerto = effective[
     27
     /* Stat.AddConcerto */
-  ] : 0) + (onCast2 ? effective[
+  ] + effective[
     36
     /* Stat.AddCastConcerto */
-  ] : 0);
+  ];
   const concerto2 = slot.concerto + action.concerto + addConcerto;
   slot.concerto = spend > 0 ? concerto2 : Math.max(0, concerto2);
   const built = action.offtune + effective[
@@ -3189,7 +3216,7 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
   const forte = slot.forte, forteShort = [false, false, false, false, false];
   for (let i = 0; i < 5; i++) {
     const cap = slot.resonator?.maxForte[i] ?? 0;
-    const delta = action.forteDeltas[i] + (onHit ? effective[ADD_FORTE[i]] : 0) + (onCast2 ? effective[ADD_CAST_FORTE[i]] : 0);
+    const delta = action.forteDeltas[i] + effective[ADD_FORTE[i]] + effective[ADD_CAST_FORTE[i]];
     if (action.resetForte[i])
       forte[i] = 0;
     if (cap > 0 && delta < 0 && forte[i] > cap)
@@ -3236,7 +3263,7 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
     ctx.mutHash = 0;
     ctx.recording = true;
     ctx.readPhase = READ_AFTER;
-    actionHook(action.afterActionFn);
+    actionHook(action.afterActionFn, 5);
     runPhase(5, false);
     ctx.recording = false;
     ctx.buff = null;
@@ -3266,7 +3293,7 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
         banked.restore(state);
         ctx.mutHash = 0;
         ctx.stacks = -1;
-        actionHook(action.afterActionFn);
+        actionHook(action.afterActionFn, 5);
         runPhase(5, false);
         if (ctx.mutHash !== primaryHash)
           slot.variantUnsafe[v] = true;
@@ -3282,12 +3309,17 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
     ctx.guarded = false;
   } else {
     ctx.mutHash = 0;
-    actionHook(action.afterActionFn);
+    actionHook(action.afterActionFn, 5);
     runPhase(5, false);
     ctx.buff = null;
   }
-  for (const gear of ctx.swapLosses)
-    slot.revoke(gear);
+  if (action.half !== "cast")
+    for (const gear of ctx.swapLosses)
+      slot.revoke(gear);
+  if (frameStart + frames > state.playsTo) {
+    state.playsTo = frameStart + frames;
+    state.playStop = motionStop - hitStop;
+  }
   const atk = foldStat(
     effective,
     0,
@@ -3337,8 +3369,8 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
     avg,
     variantAvg,
     starts: frameStart,
-    // the hit is in at the cut, not after the 6/12 frames the cut itself costs
-    ends: frameStart + Math.max(0, frames - cost.global)
+    // the hit is in at its hit frame, not at the press's end or after the 6/12 frames a cut costs
+    ends: frameStart + (hitSide ? hitClock : Math.min(frames, Math.max(0, (action.formOf ?? action).hitClock(tag) - timestopBanked)))
   };
   const snapshot = !ctx.tracing ? null : {
     ...result,
@@ -3388,7 +3420,7 @@ function evaluate(state, action, triggered = false, source = null, cut = null) {
     heldEnemy,
     opensFields
   };
-  if (casting(
+  if (castSide && casting(
     6
     /* Cast.Outro */
   )) {
@@ -3410,11 +3442,28 @@ function run(state, rotation, flush = false) {
     });
   }
   ctx.insideGroup = false;
-  const releaseDashHits = (step) => {
-    if (step.action.after === void 0)
-      return;
-    for (const h of state.timed)
-      h.hold = false;
+  const walk = () => {
+    while (state.frame < state.playsTo) {
+      let next = Infinity;
+      for (const h of state.timed)
+        next = Math.min(next, h.due);
+      const to = next < state.playsTo ? Math.max(state.frame, next) : state.playsTo;
+      const stop = Math.min(state.playStop, to - state.frame);
+      state.playStop -= stop;
+      ctx.state = state;
+      ctx.slot = state.slot;
+      state.runTicks(state.frame, to, stop);
+      state.frame = to;
+      state.expireBuffs();
+      if (pendingQueue.length) {
+        steps.splice(i, 0, ...pendingQueue.map((q) => ({ action: q.action, slot: q.slot, by: q.by, group: null, end: false, spill: null, queued: true, cut: null })));
+        pendingQueue.length = 0;
+      }
+      if (to < state.playsTo)
+        return true;
+    }
+    state.playStop = 0;
+    return false;
   };
   let spillGroup = null;
   let i = 0, guard = 0;
@@ -3430,7 +3479,8 @@ function run(state, rotation, flush = false) {
     }
     if (++guard > 1e4)
       throw new Error("action queue did not drain");
-    const due = state.timed.filter((h) => h.due < state.frame && !h.hold || flush && i >= steps.length);
+    const walking = steps[i]?.queued ? state.frame < state.playsTo : walk();
+    const due = state.timed.filter((h) => h.due < state.frame || h.due === state.frame && (walking || !h.away) || flush && i >= steps.length);
     if (due.length) {
       state.timed = state.timed.filter((h) => !due.includes(h));
       for (const h of due) {
@@ -3444,24 +3494,18 @@ function run(state, rotation, flush = false) {
         state.frame = Math.max(now2, state.frame);
       }
       const spill = ctx.insideGroup ? spillGroup : null;
-      steps.splice(i, 0, ...due.filter((h) => h.action).map((h) => ({ action: h.action, slot: h.slot, by: h.by, group: null, end: false, spill, queued: true, cut: null, at: h.due, into: h.into, away: h.away })));
+      steps.splice(i, 0, ...due.filter((h) => h.action).map((h) => ({ action: h.action, slot: h.slot, by: h.by, group: null, end: false, spill, queued: true, cut: null, at: h.due, into: h.into, away: h.away, losses: h.losses, frames: h.frames })));
     }
     const step = steps[i++];
     if (!step.queued && state.presser >= 0 && state.presser !== state.active) {
-      const from = state.frame;
-      state.frame += 15;
       if (state.swapRow)
         state.swapRow.swapFrames = (state.swapRow.swapFrames ?? 0) + 15;
       state.swapRow = null;
       state.presser = state.active;
-      ctx.state = state;
-      ctx.slot = state.slot;
-      state.runTicks(from, state.frame);
-      if (pendingQueue.length) {
-        steps.splice(--i, 0, ...pendingQueue.map((q) => ({ action: q.action, slot: q.slot, by: q.by, group: null, end: false, spill: null, queued: true, cut: null })));
-        pendingQueue.length = 0;
-        continue;
-      }
+      state.playsTo = state.frame + 15;
+      state.playStop = 0;
+      i--;
+      continue;
     }
     if (!step.queued) {
       state.onField = state.active;
@@ -3490,10 +3534,8 @@ function run(state, rotation, flush = false) {
       ctx.state = state;
       ctx.slot = state.slot;
       action = step.action.resolveFn();
-      if (!action) {
-        releaseDashHits(step);
+      if (!action)
         continue;
-      }
     }
     if (step.slot < 0 && action.cooldown) {
       ctx.state = state;
@@ -3514,35 +3556,44 @@ function run(state, rotation, flush = false) {
     const nextPress = steps[i]?.action;
     const dash = step.action.after !== void 0 && !!nextPress && !nextPress.resolveFn && nextPress.timestop > 0;
     let cut = summon ? null : dash ? ActionTag.InstaCancel : step.cut;
-    const pressed = action;
+    const pressed3 = action;
     if (cut && !dash)
       [action, cut] = action.cutAs(cut);
     const kind = cut ?? action.tag;
-    if (!dash && LENGTH_CHECKED.has(kind))
-      checkCutLength(pressed.cancelOf ?? pressed, kind);
-    if (!dash && SLOW_CUTS.has(kind) && action.cancelFrames <= 6) {
+    const checked = !dash && action.half === null;
+    if (checked && LENGTH_CHECKED.has(kind))
+      checkCutLength(pressed3.cancelOf ?? pressed3, kind);
+    if (checked && SLOW_CUTS.has(kind) && action.cancelFrames <= 6) {
       throw new Error(`${action.name}: cancels at frame ${action.cancelFrames}, inside an insta cut's 6 \u2014 write it as ${INSTA_OF[kind]} instead of ${kind}`);
     }
-    const split = action.splitsHit(cut) ? { due: (step.at ?? state.frame) + action.hitDelay(cut), action: action.hitPart(cut), slot: state.active, into: null, by: null, away: action.hitsAway(cut), hold: cut === ActionTag.DodgeCancel || cut === ActionTag.JumpCancel } : null;
+    const split = action.splitsHit(cut) ? { due: (step.at ?? state.frame) + action.hitDelay(cut), action: action.hitPart(), slot: state.active, into: null, by: null, away: action.hitsAway(cut), losses: void 0, frames: 0 } : null;
     if (split) {
       state.timed.push(split);
       state.timed.sort((p, q) => p.due - q.due);
-      action = action.castPart(cut);
+      action = action.castPart();
     }
     const n = state.slots.length, next = (state.active + state.outroDir + n) % n;
     if (isCast(
       action,
       6
       /* Cast.Outro */
-    ))
+    ) && action.half !== "hit")
       state.onField = next;
     const now = state.frame, field = state.onField;
     if (step.at !== void 0)
       state.frame = step.at;
     if (step.away)
       state.onField = -1;
+    ctx.pressFrames = step.frames ?? 0;
+    ctx.pressStart = step.into?.starts ?? state.frame;
     const result = evaluate(state, action, triggered, by, cut);
-    releaseDashHits(step);
+    if (split)
+      split.frames = ctx.actFrames;
+    if (split && ctx.swapLosses.size)
+      split.losses = [...ctx.swapLosses];
+    if (step.losses)
+      for (const gear of step.losses)
+        state.slots[step.slot].revoke(gear);
     if (step.at !== void 0) {
       state.frame = Math.max(now, state.frame);
       state.onField = field;
@@ -3572,10 +3623,12 @@ function run(state, rotation, flush = false) {
       state.active = before;
     if (pendingQueue.length) {
       const queued = [];
-      const at = step.at ?? (result.ends < state.frame ? result.ends : void 0);
+      const from = split ? result.starts : result.ends;
+      const at = step.at ?? (from < state.frame ? from : void 0);
       for (const p of pendingQueue)
         queued.push({ action: p.action, slot: p.slot, by: p.by, group: null, end: false, spill: p.event ? null : spillGroup, queued: true, cut: null, at });
       steps.splice(i, 0, ...queued);
+      pendingQueue.length = 0;
     }
   }
   return out;
@@ -3611,9 +3664,6 @@ var CAST_KEEPS = /* @__PURE__ */ new Set([
   "tag",
   "active",
   "timestopBanked",
-  "heldLocal",
-  "heldGlobal",
-  "heldEnemy",
   "energyWiped",
   "concertoShort",
   "realEnergyBefore",
@@ -3721,7 +3771,12 @@ function constBaseOf(slot, from, to, from2 = null, to2 = null) {
   slot.effective = live;
   return base;
 }
+var CAST_PHASES = 1 << 1 | 1 << 6;
+var HIT_PHASES = 1 << 0 | 1 << 2 | 1 << 3 | 1 << 4 | 1 << 5 | 1 << 6 | 1 << 7;
+var phaseMask = CAST_PHASES | HIT_PHASES;
 function runPhase(p, withStacks) {
+  if (!(phaseMask >> p & 1))
+    return;
   for (let q = 0; q < 3; q++) {
     const list = capList[q], counts = capCounts[q], hooks = capHooks[q][p];
     for (let i = 0, m = hooks.length; i < m; i++) {
@@ -3734,8 +3789,29 @@ function runPhase(p, withStacks) {
     }
   }
 }
-function actionHook(fn) {
-  if (!fn)
+function runGlobals(state, slot, hit) {
+  for (const s of state.slots) {
+    for (const gear of s.globalHooks) {
+      ctx.slot = s;
+      ctx.buff = gear;
+      ctx.stacks = -1;
+      (hit ? gear.hitGlobalFn : gear.updateGlobalFn)?.();
+    }
+  }
+  ctx.slot = slot;
+  const globalHooks = state.globalStacks.globalHooks, enemyHooks = state.enemyStacks.globalHooks;
+  for (let i = 0; i < globalHooks.length; i++) {
+    ctx.buff = globalHooks[i];
+    (hit ? ctx.buff.hitGlobalFn : ctx.buff.updateGlobalFn)?.();
+  }
+  for (let i = 0; i < enemyHooks.length; i++) {
+    ctx.buff = enemyHooks[i];
+    (hit ? ctx.buff.hitGlobalFn : ctx.buff.updateGlobalFn)?.();
+  }
+  ctx.buff = null;
+}
+function actionHook(fn, p) {
+  if (!fn || !(phaseMask >> p & 1))
     return;
   ctx.buff = ctx.act;
   ctx.stacks = 1;
@@ -3778,13 +3854,10 @@ var Action = class _Action extends Gear {
   energy;
   concerto;
   offtune;
-  /** Which half of a press this plays, where it plays only one: its cast (a split press's cast
-   *  half, an insta cut) banks only the cast's gains, its landing hit only the hit's. Null on a
-   *  whole press, which banks both. */
+  /** Which half of a press this plays, where it plays only one: its cast (a queued-hit press's cast,
+   *  an insta cut) runs only the cast's hooks and banks its gains, its queued hit only the hit's.
+   *  Null on a whole press (no motion value, or its hit on the cast frame), which runs both. */
   half = null;
-  /** A dodge/jump cancel's cast half: the press up to its cut, none of its hooks — which are its
-   *  hit's (`castPart()`), so it doesn't read as the press (`runningAction()`). */
-  dashCast = false;
   /** The cast's own share of `energy` / `concerto` / forte1-5. */
   castEnergy;
   castConcerto;
@@ -3804,6 +3877,7 @@ var Action = class _Action extends Gear {
   skipNextFn;
   frames;
   cancelFrames;
+  hitFrame;
   timestop;
   motionStop;
   cooldown;
@@ -3856,6 +3930,7 @@ var Action = class _Action extends Gear {
     this.skipNextFn = def2.skipNext;
     this.frames = def2.frames ?? 0;
     this.cancelFrames = def2.cancelFrames ?? this.frames;
+    this.hitFrame = def2.hitFrame ?? this.cancelFrames;
     this.timestop = def2.timestop ?? 0;
     this.motionStop = def2.motionStop ?? 0;
     this.tag = def2.tag ?? (def2.cast === 6 ? ActionTag.Field : ActionTag.Default);
@@ -3957,63 +4032,45 @@ var Action = class _Action extends Gear {
     (this.hitlessForms ??= /* @__PURE__ */ new Map()).set(kind, out);
     return out;
   }
-  /** Does this press's hit land after its cast — an Outro or an insta swap (its owner gone by
-   *  then), a FIELD summon whose frames are the time its hit takes, or a dodge/jump cancel, whose
-   *  dash is made before the hit is in? `run()` then casts `castPart()` and lands `hitPart()` later.
-   *  A swap cancel's hit lands on field, before it swaps. */
+  /** Does this press queue its hit, landing it `hitDelay()` after the cast: any press with a motion
+   *  value whose hit is later than the cast, and always an Outro's or an insta swap's (the incoming
+   *  resonator casts first). A half, an insta cut that lost its hit, or a 0-MV press plays whole. */
   splitsHit(cut) {
-    const tag = cut ?? this.tag;
-    return this.mv > 0 && (this.cast === 6 || tag === ActionTag.InstaSwap || dashCut(tag) || tag === ActionTag.Field && this.frames > 0);
+    if (this.half !== null || this.mv <= 0)
+      return false;
+    return this.cast === 6 || this.tag === ActionTag.InstaSwap || this.hitDelay(cut) > 0;
   }
-  /** Does the split hit land with its owner off the field — an Outro's or an insta swap's, not a
+  /** Does the queued hit land with its owner off the field — an Outro's or an insta swap's, not a
    *  summon's, which lands wherever the field then stands. */
   hitsAway(cut) {
     return this.cast === 6 || (cut ?? this.tag) === ActionTag.InstaSwap;
   }
-  /** Frames from the cast to its hit: an outro's or a summon's whole animation, an insta swap's
-   *  cancel frame (its last hit), less any time stop either way — a dodge/jump cancel's its cancel
-   *  frame too, none of the cut's own frames (`run()` holds it until the dash has played). */
+  /** Does the cast take none of the clock — an Outro, an insta swap (their 15 swap frames are the
+   *  handoff's), a FIELD hit (its frames are only the time its hit takes). */
+  get castsInstantly() {
+    return this.cast === 6 || this.tag === ActionTag.InstaSwap || this.tag === ActionTag.Field;
+  }
+  /** Fight-clock frames from the cast to its hit as `cut` plays it: `hitFrame`, never past where
+   *  the cut ends it, less the time stop ahead of it. */
+  hitClock(cut = null) {
+    const at = Math.min(this.hitFrame, this.cost(cut).action);
+    return Math.max(0, at - Math.min(this.timestop, at));
+  }
+  /** Frames from the cast to its queued hit: `hitClock()`, or for a press that casts instantly its
+   *  `hitFrame` into its own frames. */
   hitDelay(cut = null) {
-    if (dashCut(cut ?? this.tag)) {
-      const c = this.cost(cut);
-      return Math.max(0, c.action - c.timestop);
-    }
-    const at = this.tag === ActionTag.InstaSwap ? Math.min(this.cancelFrames, this.frames) : this.frames;
-    return Math.max(0, at - this.timestop);
+    if (!this.castsInstantly)
+      return this.hitClock(cut);
+    const at = Math.min(this.hitFrame, this.frames);
+    return Math.max(0, at - Math.min(this.timestop, at));
   }
   castCopy;
-  dashCastCopy;
-  dashHitCopy;
   hitCopy;
-  /** The leaving half of a split press: everything but the hit — its spend, its hand-offs, the swap.
-   *  A dodge/jump cancel's plays its own frames to the cut; every other takes none. */
-  castPart(cut = null) {
-    if (dashCut(cut ?? this.tag)) {
-      if (!this.dashCastCopy) {
-        this.dashCastCopy = this.variant(this.name, {
-          mv: 0,
-          energy: 0,
-          offtune: 0,
-          concerto: 0,
-          forte1: 0,
-          forte2: 0,
-          forte3: 0,
-          forte4: 0,
-          forte5: 0,
-          updateDebuffs: void 0,
-          applyStats: void 0,
-          convertStats: void 0,
-          lateConvertStats: void 0,
-          afterAction: void 0
-        });
-        this.dashCastCopy.formOf = this;
-        this.dashCastCopy.half = "cast";
-        this.dashCastCopy.dashCast = true;
-      }
-      return this.dashCastCopy;
-    }
+  /** The cast of a press whose hit is queued: its frames (none where it casts instantly), what its
+   *  cast banks, and every hook — evaluate() runs only the cast's (`updateBuffs`, `updateGlobal`). */
+  castPart() {
     if (!this.castCopy) {
-      const d = this.def;
+      const instant = this.castsInstantly ? { frames: 0, cancelFrames: 0, hitFrame: 0, timestop: 0 } : {};
       this.castCopy = this.variant(this.name, {
         mv: 0,
         energy: 0,
@@ -4024,69 +4081,39 @@ var Action = class _Action extends Gear {
         forte3: 0,
         forte4: 0,
         forte5: 0,
-        updateDebuffs: void 0,
-        frames: 0,
-        cancelFrames: 0,
-        timestop: 0
+        ...instant
       });
       this.castCopy.formOf = this;
       this.castCopy.half = "cast";
     }
     return this.castCopy;
   }
-  /** The landing half: the hit alone, off field — its damage, what it banks, what it inflicts. */
-  hitPart(cut = null) {
-    if (dashCut(cut ?? this.tag)) {
-      if (!this.dashHitCopy) {
-        const d = this.def;
-        this.dashHitCopy = new _Action(this.name, {
-          element: d.element,
-          type: d.type,
-          subtype: d.subtype,
-          node: d.node,
-          scaling: d.scaling,
-          mv: d.mv,
-          energy: d.energy,
-          offtune: d.offtune,
-          concerto: d.concerto,
-          field: d.field,
-          forte1: d.forte1,
-          forte2: d.forte2,
-          forte3: d.forte3,
-          forte4: d.forte4,
-          forte5: d.forte5,
-          updateDebuffs: d.updateDebuffs,
-          applyStats: d.applyStats,
-          convertStats: d.convertStats,
-          lateConvertStats: d.lateConvertStats,
-          afterAction: d.afterAction
-        });
-        this.dashHitCopy.formOf = this;
-        this.dashHitCopy.half = "hit";
-      }
-      return this.dashHitCopy;
-    }
+  /** The queued hit: no frames, what the hit banks, and every hook — evaluate() runs only the hit's
+   *  (`updateDebuffs`, `hitGlobal`, the stat phases, `afterAction`). */
+  hitPart() {
     if (!this.hitCopy) {
-      const d = this.def;
-      this.hitCopy = new _Action(this.name, {
-        element: d.element,
-        type: d.type,
-        subtype: d.subtype,
-        node: d.node,
-        scaling: d.scaling,
-        mv: d.mv,
-        energy: d.energy,
-        offtune: d.offtune,
-        concerto: d.concerto,
-        field: d.field,
-        forte1: d.forte1,
-        forte2: d.forte2,
-        forte3: d.forte3,
-        forte4: d.forte4,
-        forte5: d.forte5,
-        applyStats: d.applyStats,
-        updateDebuffs: d.updateDebuffs,
-        tag: ActionTag.Field
+      this.hitCopy = this.variant(this.name, {
+        frames: 0,
+        cancelFrames: 0,
+        hitFrame: 0,
+        timestop: 0,
+        motionStop: 0,
+        cooldown: void 0,
+        castEnergy: 0,
+        castConcerto: 0,
+        castForte1: 0,
+        castForte2: 0,
+        castForte3: 0,
+        castForte4: 0,
+        castForte5: 0,
+        resetEnergy: false,
+        resetForte1: false,
+        resetForte2: false,
+        resetForte3: false,
+        resetForte4: false,
+        resetForte5: false,
+        // the swap was the cast's; the hit is no cut of its own
+        tag: this.tag === ActionTag.SwapCancel || this.tag === ActionTag.InstaSwap ? ActionTag.Default : this.tag
       });
       this.hitCopy.formOf = this;
       this.hitCopy.half = "hit";
@@ -4170,14 +4197,13 @@ var ActionGroup = class _ActionGroup extends Action {
     return new _ActionGroup(this.name, [...this.actions.slice(0, -1), ...tail.actions], tail.trailing);
   }
 };
-var dashCut = (tag) => tag === ActionTag.DodgeCancel || tag === ActionTag.JumpCancel;
 function dashed(after, kind) {
   const insta = kind === ActionTag.InstaDodge || kind === ActionTag.InstaJump;
   const cut = insta ? after.instaForm(kind) : new CancelledStep(after, kind);
   const jump = kind === ActionTag.JumpCancel || kind === ActionTag.InstaJump;
   return new ActionGroup(after.resolveFn ? "" : after.name, [cut, new DashMarker(jump, after)], 1);
 }
-var DODGE = new Action("Dodge", { frames: 22 });
+var DODGE = new Action("Dodge", { frames: 20 });
 var JUMP = new Action("Jump", { frames: 15 });
 var DashMarker = class extends Action {
   after;
@@ -4188,8 +4214,8 @@ var DashMarker = class extends Action {
         if (after === ECHO && mainslot && (mainslot.onfield === mainslot.outro || echoPressedWhole(mainslot)))
           return null;
         const resonator = currentMember().resonator;
-        const pressed = after === INTRO ? resonator?.intro ?? after : after;
-        return (isJump ? resonator?.jumpFn?.(pressed) : resonator?.dodgeFn?.(pressed)) ?? (isJump ? JUMP : DODGE);
+        const pressed3 = after === INTRO ? resonator?.intro ?? after : after;
+        return (isJump ? resonator?.jumpFn?.(pressed3) : resonator?.dodgeFn?.(pressed3)) ?? (isJump ? JUMP : DODGE);
       }
     });
     this.after = after;
@@ -5434,7 +5460,7 @@ function readyBefore(start) {
   return stacksOf(SHIELD_BEFORE);
 }
 function gainShield(n = 1) {
-  const start = currentTeam().frame;
+  const start = castFrame();
   readyBefore(start);
   const slots = Math.max(1, Math.floor(elapsed() / 30));
   let ready = stacksOf(SHIELD_READY), got = 0;
@@ -5451,7 +5477,7 @@ function gainShield(n = 1) {
   setStacksSelf(SHIELD_READY, ready);
 }
 function gainShieldOnCast() {
-  const start = currentTeam().frame;
+  const start = castFrame();
   if (start < readyBefore(start))
     return;
   applyCurrent(SHIELD, 1);
@@ -5557,8 +5583,9 @@ var FUSION_BURST = new Debuff({
       asSource(rung, () => addStat(15, rung.mv));
   },
   // the burst takes the stacks with it and whatever landed past the cap is lost, so the target
-  // rebuilds from empty. Cap is the fight's, not the declared 10.
-  updateBuffs: () => {
+  // rebuilds from empty. Cap is the fight's, not the declared 10. On the hit that filled it: the
+  // enemy pool runs last in the phase, after every inflict.
+  updateDebuffs: () => {
     if (frozenStacks() < currentTeam().enemyMax(FUSION_BURST))
       return;
     queue(FUSION_BURST_ACTIONS[frozenStacks()]);
@@ -5761,14 +5788,14 @@ var inflictedNegativeStatusBy = (member2) => NEGATIVE_STATUSES.some((d) => appli
 // dist/src/shared/unison.js
 var UNISON = new Buff({
   name: "Unison",
-  convertStats: () => {
-    if (casting(
+  updateBuffs: () => {
+    if (!casting(
       6
       /* Cast.Outro */
-    )) {
-      revokeCurrent(UNISON);
-      queueOutro(UNISON_INTRO);
-    }
+    ))
+      return;
+    revokeCurrent(UNISON);
+    queueOutro(UNISON_INTRO);
   }
 });
 var unisonOutro = (outro) => {
@@ -5776,7 +5803,7 @@ var unisonOutro = (outro) => {
   out.formOf = outro;
   return out;
 };
-var gainedUnison = () => applied2(UNISON) > 0;
+var gainedUnison = inflicting(() => applied2(UNISON) > 0);
 var UNISON_INTRO = new Buff({
   //name: "Unison Intro",
   convertStats: () => {
@@ -5804,7 +5831,7 @@ function respondToUnison() {
   if (isHeld(UNISON_INTRO))
     applyCurrent(UNISON_RESPONSE, 1);
 }
-var unisonResponse = () => applied2(UNISON_RESPONSE) > 0;
+var unisonResponse = inflicting(() => applied2(UNISON_RESPONSE) > 0);
 var consumedConcerto = () => currentAction().concerto + getStat(
   27
   /* Stat.AddConcerto */
@@ -5848,7 +5875,6 @@ var BLAZING_BRILLIANCE = refinements((r, rank) => {
       /* Type.Skill */
     ]],
     perStack: true,
-    early: true,
     convertStats: () => {
       if (casting(
         6
@@ -7004,8 +7030,9 @@ var ETERNAL_RADIANCE_5PC = new Sonata({
   sonata2pc: ETERNAL_RADIANCE_2PC,
   grants: [
     { on: onApplied(SPECTRO_FRAZZLE, HELIACAL_EMBER), buff: ETERNAL_RADIANCE_CRIT },
+    // read on the hit, after its own inflictions, and pays into that same hit
     {
-      on: () => currentAction().mv > 0 && stacksOfEnemy(SPECTRO_FRAZZLE) + stacksOfEnemy(HELIACAL_EMBER) >= 10,
+      on: inflicting(() => currentAction().mv > 0 && stacksOfEnemy(SPECTRO_FRAZZLE) + stacksOfEnemy(HELIACAL_EMBER) >= 10),
       buff: ETERNAL_RADIANCE_SPECTRO
     }
   ]
@@ -7266,7 +7293,7 @@ function cartethyiaAction(id, def2) {
 }
 var erosion = (n) => ({ updateDebuffs: () => applyEnemy(AERO_EROSION, n) });
 var EROSION_BURST = {
-  updateBuffs: () => {
+  afterAction: () => {
     const rung = negativeStatusRung(AERO_EROSION_ACTIONS, stacksOfEnemy(AERO_EROSION));
     if (!rung)
       return;
@@ -7345,6 +7372,7 @@ var Skill = cartethyiaAction("Skill - Sword to Bear Their Names", {
 var Intro = cartethyiaAction("Intro - Sword to Mark Tide's Trace", {
   frames: 56,
   cancelFrames: 56,
+  hitFrame: 65,
   motionStop: 29,
   node: 4,
   cast: 5,
@@ -7376,6 +7404,7 @@ var FSkill2 = cartethyiaAction("Skill - May Tempest Break the Tides", { frames: 
 var FIntro = cartethyiaAction("Intro - Sword to Call for Freedom", {
   frames: 71,
   cancelFrames: 71,
+  hitFrame: 61,
   motionStop: 43,
   node: 4,
   cast: 5,
@@ -7519,12 +7548,9 @@ var CT_S1 = new Sequence({
 var BROKEN_BLADE = new Buff({
   name: "Cartethyia S2: Blade Broken by Tempest",
   updateDebuffs: () => {
-    if (currentAction().mv > 0)
-      applyEnemy(AERO_EROSION, 3);
-  },
-  updateBuffs: () => {
     if (currentAction().mv <= 0)
       return;
+    applyEnemy(AERO_EROSION, 3);
     const rung = negativeStatusRung(AERO_EROSION_ACTIONS, stacksOfEnemy(AERO_EROSION));
     if (rung)
       queue(rung);
@@ -7579,8 +7605,8 @@ var SACRIFICE = new Buff({
 });
 var CT_S4 = new Sequence({
   name: "Cartethyia S4: Sacrifice Made for Salvation",
-  // from updateGlobal "me" is the holder, so the acting slot has to be named (status.ts)
-  updateGlobal: () => {
+  // from hitGlobal "me" is the holder, so the acting slot has to be named (status.ts)
+  hitGlobal: () => {
     if (inflictedNegativeStatusBy(currentTeam().slot))
       applyTeam(SACRIFICE, 1);
   }
@@ -7588,7 +7614,7 @@ var CT_S4 = new Sequence({
 var CT_S5 = new Sequence({ name: "Cartethyia S5: Hope Reshaped in Storms" });
 var CT_S6 = new Sequence({
   name: "Cartethyia S6: Freedom Found in Storm's Wake",
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (!appliedByMember(AERO_EROSION, currentTeam().slot))
       return;
     if (stacksOfEnemy(AERO_EROSION) < currentTeam().enemyMax(AERO_EROSION))
@@ -8147,7 +8173,7 @@ var ACTION_LAMPYLUMEN_MYRIAD = new Action("Echo - Lampylumen Myriad", {
   mv: 667.2,
   energy: 3.12 * 2 + 4.17,
   // 200.16%+200.16%+266.88%
-  updateBuffs: () => applyCurrent(LAMPYLUMEN_MYRIAD_STACKS, 3)
+  updateDebuffs: () => applyCurrent(LAMPYLUMEN_MYRIAD_STACKS, 3)
 });
 var LAMPYLUMEN_MYRIAD_STACKS = new Buff({
   name: "Lampylumen Myriad",
@@ -8311,7 +8337,8 @@ var ACTION_MECH_ABOMINATION = new Action("Echo - Mech Abomination", {
   type: 28672,
   mv: 48.64,
   energy: 0.76,
-  updateBuffs: () => {
+  // the strike's: on the hit, so Mech Waste lands after it
+  updateDebuffs: () => {
     applyCurrent(MECH_ABOMINATION_ATK, 1);
     queue(ACTION_MECH_WASTE);
   }
@@ -8528,6 +8555,7 @@ var GreenTonic = ciacconaAction("Liberation - Symphonic Poem: Tonic (green)", {
 var Intro2 = ciacconaAction("Intro - Roaming with the Wind", {
   frames: 54,
   cancelFrames: 54,
+  hitFrame: 40,
   motionStop: 39,
   node: 4,
   cast: 5,
@@ -8861,19 +8889,20 @@ var IUNO_SIG = refinements((r, rank) => {
     weaponType: 3,
     name: `Moongazer's Sigil${rank}`,
     stats: [[0, 500], [9, 36], [6, [12, 15, 18, 21, 24][r]]],
-    grants: [{ on: onCast(
-      5,
-      4
-      /* Cast.Liberation */
-    ), buff: PLENILUNE_DMG }],
+    grants: [
+      { on: onCast(
+        5,
+        4
+        /* Cast.Liberation */
+      ), buff: PLENILUNE_DMG },
+      { on: onApplied(SHIELD), buff: MOONGAZER_STACKS, stacks: () => applied2(SHIELD) }
+    ],
     updateBuffs: () => {
       if (casting(
         5
         /* Cast.Intro */
       ))
         setStacksSelf(MOONGAZER_STACKS, 5);
-      else if (applied2(SHIELD))
-        applyCurrent(MOONGAZER_STACKS, applied2(SHIELD));
     }
   });
 });
@@ -9206,7 +9235,7 @@ var ACTION_THRENODIAN_LEVIATHAN = new Action("Echo - Reminiscence: Leviathan", {
   type: 28672,
   mv: 131.04 * 2,
   energy: 0.91 * 2,
-  updateBuffs: () => queue(ACTION_CORE_OF_COLLAPSE)
+  updateDebuffs: () => queue(ACTION_CORE_OF_COLLAPSE)
 });
 var ACTION_CORE_OF_COLLAPSE = new Action("Echo - Core of Collapse", {
   element: 384,
@@ -9236,7 +9265,7 @@ var THRENODIAN_LEVIATHAN = new Mainslot({
 });
 var THREAD_OF_SEVERED_FATE_3PC = new Sonata3pc({
   name: "Thread of Severed Fate 3pc",
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (appliedByMe(HAVOC_BANE))
       applyCurrent(THREAD_OF_SEVERED_FATE_BUFF, 1);
   }
@@ -9288,6 +9317,7 @@ var Liberation3 = iunoAction("Liberation - Beneath Lunar Tides", {
 var Intro3 = iunoAction("Intro - Illuminated Manifestation", {
   frames: 81,
   cancelFrames: 81,
+  hitFrame: 76,
   motionStop: 27,
   node: 4,
   cast: 5,
@@ -9341,10 +9371,7 @@ var IUNO_BLESSING = new Buff({
 var IUNO_DOMAIN = new Buff({
   name: "Iuno: Full Moon Domain",
   duration: 60 * 30,
-  updateBuffs: () => {
-    if (applied2(SHIELD))
-      applyCurrent(IUNO_BLESSING, applied2(SHIELD));
-  }
+  grants: [{ on: onApplied(SHIELD), buff: IUNO_BLESSING, stacks: () => applied2(SHIELD) }]
   // S1's own point of Energy a second is paid by that node (it reads this domain instead)
 });
 var IO_INHERENT_2 = new Inherent({
@@ -9437,7 +9464,7 @@ var IO_S3 = new Sequence({
 });
 var IO_S4 = new Sequence({
   name: "Iuno S4: Rainy Season Dwell in My Eyes",
-  updateBuffs: () => {
+  updateDebuffs: () => {
     if (runningAction(FHA2))
       applyOthers(IUNO_BLESSING, 1);
   }
@@ -9801,8 +9828,7 @@ var VERDANT_SUMMIT = refinements((r, rank) => {
       8192
       /* Type.Heavy */
     ]],
-    perStack: true,
-    early: true
+    perStack: true
   });
   return new Weapon({
     weaponType: 1,
@@ -9873,8 +9899,7 @@ var THUNDERFLARE_DOMINION = refinements((r, rank) => {
       8192
       /* Type.Heavy */
     ]],
-    perStack: true,
-    early: true
+    perStack: true
   });
   return new Weapon({
     weaponType: 1,
@@ -9901,6 +9926,7 @@ var WILDFIRE_MARK = refinements((r, rank) => {
       /* Attribute.Fusion */
     ]]
   });
+  const WILDFIRE_EXTENDED = new Buff({ name: `Wildfire Mark: Blazing Starfire${rank} (extended)`, hidden: true });
   const WILDFIRE_LIB_DMG = new Buff({
     name: `Wildfire Mark: Blazing Starfire${rank}`,
     duration: 60 * 6,
@@ -9910,10 +9936,16 @@ var WILDFIRE_MARK = refinements((r, rank) => {
       16384
       /* Type.Liberation */
     ]],
-    grants: [{ on: onType(
-      8192
-      /* Type.Heavy */
-    ), buff: WILDFIRE_TEAM, to: 1, onHit: true }]
+    afterAction: () => {
+      if (!isType(
+        8192
+        /* Type.Heavy */
+      ) || currentAction().mv <= 0 || isHeld(WILDFIRE_EXTENDED))
+        return;
+      extendCurrent(WILDFIRE_LIB_DMG, 60 * 4);
+      applyCurrent(WILDFIRE_EXTENDED, 1);
+      applyTeam(WILDFIRE_TEAM, 1);
+    }
   });
   return new Weapon({
     weaponType: 1,
@@ -9923,7 +9955,18 @@ var WILDFIRE_MARK = refinements((r, rank) => {
       5,
       4
       /* Cast.Liberation */
-    ), buff: WILDFIRE_LIB_DMG }]
+    ), buff: WILDFIRE_LIB_DMG }],
+    // a fresh grant can be extended again
+    updateBuffs: () => {
+      if (casting(
+        5
+        /* Cast.Intro */
+      ) || casting(
+        4
+        /* Cast.Liberation */
+      ))
+        revokeCurrent(WILDFIRE_EXTENDED);
+    }
   });
 });
 var JINGRAN_SIG = refinements((r, rank) => {
@@ -9989,16 +10032,19 @@ var JINGRAN_SIG = refinements((r, rank) => {
     weaponType: 1,
     name: `Thousandfold Deliverance${rank}`,
     stats: [[0, 412.5], [7, 72.225], [17, [12, 15, 18, 21, 24][r]]],
-    updateBuffs: () => {
-      const n = (casting(
+    // two separate triggers, so his Intro — which also shields — pays both and stacks twice
+    grants: [
+      { on: onCast(
         5
         /* Cast.Intro */
-      ) ? 1 : 0) + applied2(SHIELD);
-      if (!n)
-        return;
-      applyCurrent(NATURES_ORDER, n);
-      applyCurrent(CRADLE_OF_LIFE, n);
-    }
+      ), buff: NATURES_ORDER },
+      { on: onCast(
+        5
+        /* Cast.Intro */
+      ), buff: CRADLE_OF_LIFE },
+      { on: onApplied(SHIELD), buff: NATURES_ORDER, stacks: () => applied2(SHIELD) },
+      { on: onApplied(SHIELD), buff: CRADLE_OF_LIFE, stacks: () => applied2(SHIELD) }
+    ]
   });
 });
 var STARFIELD_CALIBRATOR = refinements((r, rank) => {
@@ -10056,22 +10102,28 @@ var KUMOKIRI = refinements((r, rank) => {
       /* Type.Liberation */
     ]],
     perStack: true,
-    // watched from updateGlobal so a teammate's own cast is seen — where `currentSlot` is this
-    // buff's holder, so the actor is read off the team and the payout put on their slot by name
-    updateGlobal() {
-      const actor = currentTeam().slot;
-      if (frozenStacks() >= 3 && actor.resonator && inflictedNegativeStatusBy(actor))
-        addBuff(actor.resonator, THREAD_OF_FATE_BONUS, 1);
+    // on every hit, to each member credited with an inflict on it — whoever's hit it was
+    hitGlobal() {
+      if (frozenStacks() < 3)
+        return;
+      for (const m of currentTeam().slots)
+        if (m.resonator && inflictedNegativeStatusBy(m))
+          addBuff(m.resonator, THREAD_OF_FATE_BONUS, 1);
     }
   });
   return new Weapon({
     weaponType: 1,
     name: `Kumokiri${rank}`,
     stats: [[0, 500], [9, 36], [6, [12, 15, 18, 21, 24][r]]],
-    grants: [{ on: either(onCast(
+    grants: [{ on: onCast(
       5
       /* Cast.Intro */
-    ), inflictedNegativeStatus), buff: THREAD_OF_FATE_STACKS }]
+    ), buff: THREAD_OF_FATE_STACKS }],
+    // any hit her own inflict is credited on — her Snare's Bane off a teammate's swing included
+    hitGlobal: () => {
+      if (inflictedNegativeStatusBy(currentMember()))
+        applyCurrent(THREAD_OF_FATE_STACKS, 1);
+    }
   });
 });
 
@@ -10829,6 +10881,7 @@ var Liberation6 = qxAction("Liberation - Billows Beneath Heaven", {
 var Intro6 = qxAction("Intro - Tonality Shift", {
   frames: 64,
   cancelFrames: 64,
+  hitFrame: 52,
   motionStop: 29,
   node: 4,
   cast: 5,
@@ -10892,7 +10945,7 @@ var HEAVENS_CLARITY = new Buff({
   grants: [{ on: onAction(HA5), buff: () => RECKONING_ENHANCED }],
   applyStats: () => {
     const a = currentAction();
-    if (CLARITY_FORTE.has(a)) {
+    if (CLARITY_FORTE.has(pressed())) {
       if (a.forte1 > 0)
         addStat(30, a.forte1);
       if (a.forte2 > 0)
@@ -10925,7 +10978,7 @@ var QX_INHERENT_2 = new Inherent({
   name: "Inherent: To Know, To Banish",
   // its own Mindlock, on top of the Forte Circuit's: one more per Tune Strain - Interfered the team
   // inflicts, since the target is Overlord/Calamity Class (assumed — this project's is a boss)
-  updateGlobal: () => {
+  hitGlobal: () => {
     const interfered = applied2(TUNE_STRAIN_INTERFERED);
     if (interfered)
       applyEnemy(MINDLOCK, interfered);
@@ -10972,7 +11025,7 @@ var QINGXIAO_RESONATOR = new Resonator({
   // The Forte Circuit's own Mindlock line: +1 for every Tune Strain - Interfered the team inflicts.
   // To Know, To Banish adds its own on top (QX_INHERENT_2) and Heaven's Clarity its three, each
   // from the piece that grants them.
-  updateGlobal: () => {
+  hitGlobal: () => {
     const interfered = applied2(TUNE_STRAIN_INTERFERED);
     if (interfered)
       applyEnemy(MINDLOCK, interfered);
@@ -10984,7 +11037,7 @@ var QX_S1 = new Sequence({
   name: "Qingxiao S1: Like Clouds That Meet and Drift Apart",
   stats: [[9, 16]],
   combatStart: () => applyCurrent(EXORCISING_SEAL, 25),
-  updateBuffs: () => {
+  updateDebuffs: () => {
     if (runningAnyOf(SEAL_SPENDERS) && stacksOf(EXORCISING_SEAL) > 0)
       queue(JuquePerdition);
   }
@@ -11019,7 +11072,8 @@ var QX_S3 = new Sequence({
     if (runningAction(Liberation6))
       addStat(10, 100);
   },
-  updateBuffs: () => {
+  // on the hit, once every updateDebuffs has laid that Heavy's own Mindlock
+  hitGlobal: () => {
     if (runningAction(HA5))
       applyCurrent(WORLD_IN_CHORUS, stacksOfEnemy(MINDLOCK));
   }
@@ -11031,8 +11085,8 @@ var SIDE_BY_SIDE = new Buff({
 });
 var QX_S4 = new Sequence({
   name: "Qingxiao S4: Wherever the Road Leads, Side by Side",
-  // from updateGlobal "me" is the holder, so the acting slot has to be named (status.ts)
-  updateGlobal: () => {
+  // from hitGlobal "me" is the holder, so the acting slot has to be named (status.ts)
+  hitGlobal: () => {
     const acting = currentTeam().slot;
     if (acting.resonator && appliedByMember(TUNE_STRAIN_SHIFTING, acting))
       addBuff(acting.resonator, SIDE_BY_SIDE, 1);
@@ -11047,7 +11101,7 @@ var QX_S5 = new Sequence({
 });
 var QX_S6 = new Sequence({
   name: "Qingxiao S6: Cleanse This Tarnished Age, Till All Runs Clear",
-  updateBuffs: () => {
+  hitGlobal: () => {
     if (runningAction(HA5))
       applyCurrent(EXORCISING_SEAL, stacksOfEnemy(MINDLOCK));
   },
@@ -11131,6 +11185,7 @@ var Liberation7 = qiuyuanAction("Liberation - Sundering Strike", {
 var Intro7 = qiuyuanAction("Intro - Attack the Must-Defend", {
   frames: 74,
   cancelFrames: 74,
+  hitFrame: 133,
   motionStop: 49,
   node: 4,
   cast: 5,
@@ -11180,9 +11235,27 @@ var OutroS3 = qiuyuanAction("Outro - Sheath Fallen, New Shoots Revealed (S3)", {
   }
 });
 var InksplashExit = qiuyuanAction("Forte - Inksplash of Mind (S6)", { node: 2, type: 28672, mv: 600 });
-var FHA1 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Teach", { frames: 99, cancelFrames: 86, node: 2, cast: 2, subcast: 7, type: 8192, mv: 457.2, energy: 3.78, castEnergy: 3.92, concerto: 14.75, offtune: 12265, castForte1: -200 });
-var FHA22 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Save", { frames: 57, cancelFrames: 57, node: 2, cast: 2, subcast: 7, type: 8192, mv: 209.67, energy: 1.09, castEnergy: 2.45, concerto: 6.78, offtune: 5625, castForte1: -200 });
-var FHA32 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Sacrifice", { frames: 47, cancelFrames: 32, node: 2, cast: 2, subcast: 7, type: 8192, mv: 217.7, energy: 1.14, castEnergy: 2.51, concerto: 7.01, offtune: 5840, castForte1: -200 });
+var BLADE_ECHO = {
+  updateGlobal: () => {
+    if (isHeld(BLADE_ECHO_SPENT))
+      dropCast(
+        7
+        /* Cast.Echo */
+      );
+  },
+  updateDebuffs: () => {
+    if (isHeld(BLADE_ECHO_SPENT))
+      dropCast(
+        7
+        /* Cast.Echo */
+      );
+    else if (runningAction(FHA32))
+      applyCurrent(BLADE_ECHO_SPENT, 1);
+  }
+};
+var FHA1 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Teach", { frames: 99, cancelFrames: 86, node: 2, cast: 2, subcast: 7, type: 8192, mv: 457.2, energy: 3.78, castEnergy: 3.92, concerto: 14.75, offtune: 12265, castForte1: -200, ...BLADE_ECHO });
+var FHA22 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Save", { frames: 57, cancelFrames: 57, node: 2, cast: 2, subcast: 7, type: 8192, mv: 209.67, energy: 1.09, castEnergy: 2.45, concerto: 6.78, offtune: 5625, castForte1: -200, ...BLADE_ECHO });
+var FHA32 = qiuyuanAction("Forte Heavy - Thus Spoke the Blade: To Sacrifice", { frames: 47, cancelFrames: 32, node: 2, cast: 2, subcast: 7, type: 8192, mv: 217.7, energy: 1.14, castEnergy: 2.51, concerto: 7.01, offtune: 5840, castForte1: -200, ...BLADE_ECHO });
 var BLADE_ECHO_SPENT = new Buff({});
 var FLOWING_PANACEA = new Buff({
   name: "Qiuyuan: Flowing Panacea",
@@ -11242,12 +11315,12 @@ var QIUYUAN_OUTRO = new Buff({
 });
 var QY_INHERENT_2 = new Inherent({
   name: "Inherent: Drink Away Woes Age-Old",
-  grants: [{ on: () => currentAction().forte1 > 0, buff: FLOWING_PANACEA }]
+  grants: [{ on: () => pressed().forte1 > 0, buff: FLOWING_PANACEA }]
 });
 var QY_INHERENT_1 = new Inherent({
   name: "Inherent: Quietude Within",
   updateBuffs: () => {
-    const soliloquy = forte1() + currentAction().forte1;
+    const soliloquy = forte1() + pressed().forte1;
     if (forte1() < 600 && soliloquy >= 600 && !isHeld(STRAW_CAPE))
       applyCurrent(QUIETUDE_WITHIN, 1);
   }
@@ -11268,26 +11341,14 @@ var QIUYUAN_RESONATOR = new Resonator({
   intro: Intro7,
   maxEnergy: 125,
   maxForte1: 600,
-  // the Echo Skill half of Thus Spoke the Blade, spent once a visit (see BLADE_ECHO_SPENT). From
-  // updateDebuffs, the first phase, so every `casting(Cast.Echo)` this action reaches sees it
-  updateDebuffs: () => {
+  // a new visit opens the Echo Skill half of Thus Spoke the Blade again (see BLADE_ECHO)
+  updateBuffs: () => {
     if (casting(
       5
       /* Cast.Intro */
     ))
       revokeCurrent(BLADE_ECHO_SPENT);
-    if (!runningAction(FHA1) && !runningAction(FHA22) && !runningAction(FHA32))
-      return;
-    if (isHeld(BLADE_ECHO_SPENT))
-      dropCast(
-        7
-        /* Cast.Echo */
-      );
-    else if (runningAction(FHA32))
-      applyCurrent(BLADE_ECHO_SPENT, 1);
-  },
-  updateBuffs: () => {
-    const soliloquy = forte1() + currentAction().forte1;
+    const soliloquy = forte1() + pressed().forte1;
     if (soliloquy >= 400)
       applyTeam(BAMBOO_SHADE, 1);
   }
@@ -11771,10 +11832,13 @@ var QUIET_SNOWFALL_5PC = new Sonata({
   name: "Wishes of Quiet Snowfall 5pc",
   sonata2pc: QUIET_SNOWFALL_2PC,
   grants: [
-    { on: () => appliedByMe(GLACIO_CHAFE) > 0 && !isHeld(SNOWFALL_CRIT), buff: () => QUIET_SNOWFALL_GLACIO },
-    { on: () => appliedByMe(GLACIO_CHAFE) > 0 && !isHeld(SNOWFALL_CRIT), buff: () => SNOWFALL }
+    { on: onInflict(GLACIO_CHAFE), buff: () => QUIET_SNOWFALL_GLACIO },
+    // Snowfall once every 25s: the cooldown marker goes up with it
+    { on: both(onInflict(GLACIO_CHAFE), () => !isHeld(SNOWFALL_COOLDOWN)), buff: () => SNOWFALL },
+    { on: both(onInflict(GLACIO_CHAFE), () => !isHeld(SNOWFALL_COOLDOWN)), buff: () => SNOWFALL_COOLDOWN }
   ]
 });
+var SNOWFALL_COOLDOWN = new Buff({ name: "Wishes of Quiet Snowfall 5pc: Snowfall Cooldown", duration: 60 * 25, hidden: true });
 var QUIET_SNOWFALL_GLACIO = new Buff({
   name: "Wishes of Quiet Snowfall 5pc (chafe)",
   duration: 60 * 15,
@@ -11801,16 +11865,32 @@ var SNOWFALL = new Buff({
     if (isType(
       16384
       /* Type.Liberation */
-    )) {
+    ) && currentAction().mv > 0) {
       revokeCurrent(SNOWFALL);
+      revokeCurrent(SNOWFALL_EXTENDS);
       applyCurrent(SNOWFALL_CRIT, 1);
     }
   }
 });
 var SNOWFALL_CRIT = new Buff({
   name: "Wishes of Quiet Snowfall 5pc (liberation)",
-  stats: [[9, 25]]
+  duration: 60 * 6,
+  stats: [[9, 25]],
+  afterAction: () => {
+    if (!isType(
+      16384
+      /* Type.Liberation */
+    ) || currentAction().mv <= 0)
+      return;
+    if (isHeld(SNOWFALL_EXTEND_GAP) || stacksOf(SNOWFALL_EXTENDS) >= 6)
+      return;
+    extendCurrent(SNOWFALL_CRIT, 60 * 4);
+    applyCurrent(SNOWFALL_EXTENDS, 1);
+    applyCurrent(SNOWFALL_EXTEND_GAP, 1);
+  }
 });
+var SNOWFALL_EXTENDS = new Buff({ name: "Wishes of Quiet Snowfall 5pc: Extensions", maxStacks: 6, hidden: true });
+var SNOWFALL_EXTEND_GAP = new Buff({ name: "Wishes of Quiet Snowfall 5pc: Extension Cooldown", duration: 30, hidden: true });
 var SNOWFALL_OUTRO = handoff("Wishes of Quiet Snowfall 5pc (outro)", () => addStat(
   17,
   25,
@@ -12126,8 +12206,8 @@ var SIGILLUM = new Mainslot({
 function sigrikaAction(id, def2) {
   return new Action(id, { element: 64, scaling: 0, ...def2 });
 }
-var RUNE_TRUST = { updateBuffs: () => gainRune(1) };
-var RUNE_ANSWER = { updateBuffs: () => gainRune(2) };
+var RUNE_TRUST = { updateDebuffs: () => gainRune(1) };
+var RUNE_ANSWER = { updateDebuffs: () => gainRune(2) };
 var BA19 = sigrikaAction("Basic - One, Two, Three 1", { frames: 22, cancelFrames: 14, node: 0, cast: 1, type: 4096, mv: 52.97, energy: 0.84, concerto: 1.67, offtune: 2664 });
 var BA29 = sigrikaAction("Basic - One, Two, Three 2", { frames: 41, cancelFrames: 30, node: 0, cast: 1, type: 4096, mv: 100.68, energy: 1.6, concerto: 3.18, offtune: 5064 });
 var BA310 = sigrikaAction("Basic - One, Two, Three 3", { frames: 44, cancelFrames: 34, node: 0, cast: 1, type: 4096, mv: 111.36, energy: 1.76, concerto: 3.5, offtune: 5600 });
@@ -12233,7 +12313,7 @@ var Liberation9 = sigrikaAction("Liberation - Where Trust Leads Me!", {
   resetEnergy: true,
   updateBuffs: () => applyCurrent(DIVERGENT)
 });
-var Intro9 = sigrikaAction("Intro - Solsworn Etymology", { frames: 58, cancelFrames: 58, motionStop: 38, node: 4, cast: 5, type: 20480, mv: 163.42, energy: 10, castConcerto: 10, offtune: 7736 });
+var Intro9 = sigrikaAction("Intro - Solsworn Etymology", { frames: 58, cancelFrames: 58, hitFrame: 46, motionStop: 38, node: 4, cast: 5, type: 20480, mv: 163.42, energy: 10, castConcerto: 10, offtune: 7736 });
 var Outro9 = sigrikaAction("Outro - In This Very Moment", { frames: 48, cancelFrames: 18, cast: 6, type: 24576, mv: 795, castConcerto: -100 });
 var BLESSING_OF_RUNES = new Buff({
   name: "Sigrika: Blessing of Runes",
@@ -12365,15 +12445,23 @@ var INNATE_GIFT = new Buff({
           addStat(22, Math.min(30, 7.5 * n));
         });
       }
-      if (runningAction(FSkill) && !isHeld(SR_S3))
-        revokeCurrent(INNATE_GIFT);
     }
   },
   updateBuffs: () => {
-    if (!isHeld(SR_S3))
-      lostOnSwap();
+    if (isHeld(SR_S3))
+      return;
+    lostOnSwap();
+    if (isHeld(INNATE_SPENT) && !runningAction(RunicOutburst) && !runningAction(RunicChainWhip) && !runningAction(RunicSoliskin)) {
+      revokeCurrent(INNATE_GIFT);
+      revokeCurrent(INNATE_SPENT);
+    }
+  },
+  afterAction: () => {
+    if (runningAction(FSkill) && !isHeld(SR_S3))
+      applyCurrent(INNATE_SPENT, 1);
   }
 });
+var INNATE_SPENT = new Buff({ name: "Sigrika: Innate Gift? (spent)", hidden: true, lostOnSwap: true });
 var SOLISKIN_VITALITY = new Buff({
   name: "Sigrika: Soliskin Vitality",
   maxStacks: 60,
@@ -12800,9 +12888,9 @@ var FORGED_DWARF_STAR = refinements((r, rank) => {
       16384
       /* Type.Liberation */
     ]],
-    // the team half reacts to *anyone's* cast, so it watches from updateGlobal (runs every action
-    // for a locally-held buff) rather than update (the wielder's own turns only)
-    updateGlobal: () => {
+    // the team half reacts to *anyone's* infliction, so it watches from hitGlobal (runs every hit
+    // for a locally-held buff) rather than the wielder's own hooks
+    hitGlobal: () => {
       if (applied2(FUSION_BURST) || applied2(TUNE_STRAIN_SHIFTING))
         applyTeam(DISSOLUTION_TEAM, 1);
     }
@@ -12843,8 +12931,9 @@ var FIRSTLIGHTS_HERALD = refinements((r, rank) => {
     grants: [
       { on: onInflict(GLACIO_CHAFE), buff: SNOW_TAINT },
       { on: onApplied(HEALS), buff: RIPPLES },
+      // read after the marks land, wherever the inflicting was
       {
-        on: bothMarks,
+        on: inflicting(bothMarks),
         buff: SPRING_WREATH_TEAM,
         to: 1
         /* BuffTarget.Team */
@@ -12954,6 +13043,7 @@ var Liberation10 = phroAction("Liberation - Waltz of Forsaken Depths", {
 var Intro10 = phroAction("Intro - Suite of Quietus", {
   frames: 80,
   cancelFrames: 80,
+  hitFrame: 62,
   motionStop: 33,
   node: 4,
   cast: 5,
@@ -12966,6 +13056,7 @@ var Intro10 = phroAction("Intro - Suite of Quietus", {
 var EIntro = phroAction("Intro - Suite of Immortality", {
   frames: 93,
   cancelFrames: 93,
+  hitFrame: 60,
   motionStop: 51,
   node: 4,
   cast: 5,
@@ -13463,7 +13554,7 @@ var Lib3 = augustaAction("Liberation - Sublime is the Sun: Everbright Protector"
   }
 });
 var ThunderRage = augustaAction("Heavy - Thunder Rage (S6)", { node: 2, type: 8192, mv: 200 });
-var Intro11 = augustaAction("Intro - Stride of Goldenflare", { frames: 73, cancelFrames: 73, motionStop: 10, node: 4, cast: 5, type: 20480, mv: 198.82, energy: 10, castConcerto: 10, offtune: 9600, castForte1: 660, castForte2: 800 });
+var Intro11 = augustaAction("Intro - Stride of Goldenflare", { frames: 73, cancelFrames: 73, hitFrame: 63, motionStop: 10, node: 4, cast: 5, type: 20480, mv: 198.82, energy: 10, castConcerto: 10, offtune: 9600, castForte1: 660, castForte2: 800 });
 var Outro11 = augustaAction("Outro - Battlesong of the Unyielding", {
   frames: 0,
   cancelFrames: 0,
@@ -13502,7 +13593,7 @@ function gainCrown(n) {
 var RULERS_REALM = new Buff({
   name: "Augusta: Ruler's Realm",
   duration: 60 * 30,
-  updateDebuffs: () => {
+  updateBuffs: () => {
     if (casting(
       5
       /* Cast.Intro */
@@ -13525,7 +13616,7 @@ var SHIELDS = new Map([
 var AG_INHERENT_1 = new Inherent({
   name: "Inherent: Glory's Favor",
   updateDebuffs: () => {
-    const n = SHIELDS.get(currentAction());
+    const n = SHIELDS.get(pressed());
     if (n)
       gainShield(n);
   }
@@ -13769,6 +13860,7 @@ var Intro12 = bulingAction("Intro - Summon and Smite", {
   frames: 80,
   motionStop: 54,
   cancelFrames: 70,
+  hitFrame: 61,
   node: 4,
   cast: 5,
   type: 20480,
@@ -14118,8 +14210,8 @@ var Lib12 = hsinAction("Liberation - Formshift", {
   // Flare mode: the Heart Manifest it opens pins the target's Flare at the cap, and forces it up
   // there the moment it starts — so her own 5 Flare all overflow into Electro Rage and bank as
   // Heart of Thunder through Forms Turn, Heart Abides (MODE_FLARE): 6 Flare, Formshift, 13 Flare
-  // and +5 Heart. Filled here, ahead of the inflict, since the Manifest itself only goes up in
-  // updateBuffs below.
+  // and +5 Heart. Filled here, ahead of the inflict, since Gleaning's own fill only follows in
+  // its hitGlobal.
   updateDebuffs: () => {
     if (!isHeld(MODE_FLARE))
       return;
@@ -14175,9 +14267,9 @@ var SoaringPillar = hsinAction("Liberation - Soaring Pillar", {
   field: SANCTUM
 });
 var MANIFOLD = {
-  updateDebuffs: respondToUnison,
   // a response banks Source Intent for a later Intro; an Intro that is no response spent it
   updateBuffs: () => {
+    respondToUnison();
     if (unisonResponse())
       applyCurrent(SOURCE_INTENT, 1);
     else
@@ -14244,7 +14336,6 @@ var ManifoldIllumining = hsinAction("Intro - Illumining Form: Manifold Unison", 
   castConcerto: 10,
   offtune: 3253 * 4 + 326 + 651 * 2 + 814 * 2,
   forte2: 300,
-  updateDebuffs: MANIFOLD.updateDebuffs,
   updateBuffs: () => {
     MANIFOLD.updateBuffs();
     applyCurrent(MECHANISM_DOMINION, 1);
@@ -14336,8 +14427,8 @@ var MODE_FLARE = new ResonanceMode({
   // tick reads FLARE_RETAINED for exactly this.
   combatStart: () => applyEnemy(FLARE_RETAINED, 1),
   // Forms Turn, Heart Abides, Flare mode: every Electro Rage the team inflicts is hers, and comes
-  // off the target — watched from her own slot on every action, so a teammate's overflow lands on her
-  updateGlobal: () => {
+  // off the target — watched from her own slot on every hit, so a teammate's overflow lands on her
+  hitGlobal: () => {
     if (!isHeld(MODE_FLARE))
       return;
     const rage = applied2(ELECTRO_RAGE);
@@ -14384,7 +14475,7 @@ var MECHANISM_DOMINION = new Buff({
   duration: 60 * 13,
   applyStats: () => {
     const a = currentAction();
-    if (DOMINION_GATED.includes(a))
+    if (DOMINION_GATED.includes(pressed()))
       addStat(38, -a.forte2);
   }
 });
@@ -14452,10 +14543,6 @@ var HS_INHERENT_1 = new Inherent({
     if (!isHeld(MODE_FLARE))
       return;
     const actor = currentTeam().slot;
-    const slot = 1 << currentTeam().active;
-    if (appliedByMember(ELECTRO_FLARE, actor) && (stacksOf(TIDES_OF_SUCCESSION) & slot) === 0) {
-      applyCurrent(TIDES_OF_SUCCESSION, slot);
-    }
     if (casting(
       5
       /* Cast.Intro */
@@ -14463,14 +14550,22 @@ var HS_INHERENT_1 = new Inherent({
       applyCurrent(THUNDEROUS_BOND, 1);
       addBuff(actor.resonator, THUNDEROUS_BOND, 1);
     }
+  },
+  hitGlobal: () => {
+    if (!isHeld(MODE_FLARE))
+      return;
+    const slot = 1 << currentTeam().active;
+    if (appliedByMember(ELECTRO_FLARE, currentTeam().slot) && (stacksOf(TIDES_OF_SUCCESSION) & slot) === 0) {
+      applyCurrent(TIDES_OF_SUCCESSION, slot);
+    }
   }
 });
 var HS_INHERENT_2 = new Inherent({
   name: "Inherent: Gleaning Simple Joys",
-  updateGlobal: () => {
+  hitGlobal: () => {
     const actor = currentTeam().slot;
     if (isHeld(MODE_UNISON)) {
-      if (appliedByMember(UNISON_RESPONSE, actor))
+      if (actor.isHeld(UNISON_RESPONSE))
         grantBoon(HS_BOON_GLEANING);
       return;
     }
@@ -14515,7 +14610,8 @@ var HS_S2 = new Sequence({
 var PillarsFlare = flareHit("Liberation - Pillars Across Heaven: Electro Flare", () => 1400);
 var HS_S3 = new Sequence({
   name: "Hsin S3: A Dream of Return Among the Hills",
-  updateBuffs: () => {
+  // off the last stage, so on the hit
+  updateDebuffs: () => {
     if (runningAction(Lib23) && isHeld(MODE_FLARE) && stacksOfEnemy(ELECTRO_FLARE) > 0)
       queue(PillarsFlare);
   },
@@ -14534,10 +14630,11 @@ var RIVER_OF_LANTERNS = new Buff({
 });
 var HS_S4 = new Sequence({
   name: "Hsin S4: A River of Lanterns, a River of Wishes",
-  // from updateGlobal "me" is the holder, so the acting slot has to be named (status.ts)
-  updateGlobal: () => {
+  // from hitGlobal "me" is the holder, so the acting slot has to be named (status.ts); a Unison or
+  // response goes up on the cast, so the hit reads it held rather than applied
+  hitGlobal: () => {
     const actor = currentTeam().slot;
-    if (appliedByMember(ELECTRO_FLARE, actor) || appliedByMember(ELECTRO_RAGE, actor) || appliedByMember(UNISON, actor) || appliedByMember(UNISON_RESPONSE, actor))
+    if (appliedByMember(ELECTRO_FLARE, actor) || appliedByMember(ELECTRO_RAGE, actor) || actor.isHeld(UNISON) || actor.isHeld(UNISON_RESPONSE))
       applyTeam(RIVER_OF_LANTERNS, 1);
   }
 });
@@ -14545,10 +14642,11 @@ var HS_S5 = new Sequence({ name: "Hsin S5: Forms Turn as the Heart Wills" });
 var HS_BOON_S6 = new Buff({});
 var HS_S6 = new Sequence({
   name: "Hsin S6: The Moon Owes Its Light to the Living",
-  updateGlobal: () => {
+  // held, not applied: the response went up on the Intro's cast and stands until its hit
+  hitGlobal: () => {
     if (!isHeld(MODE_UNISON))
       return;
-    if (appliedByMember(UNISON_RESPONSE, currentTeam().slot))
+    if (currentTeam().slot.isHeld(UNISON_RESPONSE))
       grantBoon(HS_BOON_S6);
   },
   applyStats: () => {
@@ -14730,9 +14828,11 @@ var Skill1 = lucyAction("Skill - Payload (Charge)", {
   concerto: 2.4,
   offtune: 1512,
   forte1: 3.6,
-  ...HACKS,
-  updateBuffs: () => queue(Skill22)
   // hitting with the charge triggers the follow-up on its own
+  updateDebuffs: () => {
+    applyHack();
+    queue(Skill22);
+  }
 });
 var Skill22 = lucyAction("Skill - Payload (Follow-Up)", { node: 1, cast: 3, type: 12288, mv: 70.17, energy: 3.5, concerto: 5.6, offtune: 3528, forte1: 8.4 });
 var Skill32 = lucyAction("Skill - Pulse Interference", {
@@ -14775,8 +14875,9 @@ var LIB_CD2 = new Cooldown({ frames: 60 * 25 });
 var OVERRIDE = {
   resetForte1: true,
   cooldown: LIB_CD2,
-  updateBuffs: () => {
-    resetCooldown(Deadlock);
+  updateBuffs: () => resetCooldown(Deadlock),
+  // the Spoofing debuffs and programs come off the Liberation's hit, ahead of its own stats
+  updateDebuffs: () => {
     applyEnemy(CYBERWARE_MALFUNCTION, 1);
     applyEnemy(BREACH_PROTOCOL, 1);
     queue(Ping);
@@ -14823,6 +14924,7 @@ var CrippleMovement = lucyAction("Liberation - Spoofing Program: Cripple Movemen
 var Intro13 = lucyAction("Intro - Outdated Hallucination", {
   frames: 57,
   cancelFrames: 45,
+  hitFrame: 39,
   motionStop: 28,
   node: 4,
   cast: 5,
@@ -14921,7 +15023,7 @@ var COUNTERMEASURE_HANDOFF = new Buff({
 var COUNTERMEASURE_MARKER = new Buff({
   name: "Lucy: Countermeasure Program (team)",
   duration: 60 * 25,
-  updateBuffs: () => {
+  updateDebuffs: () => {
     if (applied2(TUNE_HACK_SHIFTING) && !isHeld(LUCY_RESONATOR)) {
       applyCurrent(COUNTERMEASURE_AMP, 1);
       revokeTeam(COUNTERMEASURE_MARKER);
@@ -14976,7 +15078,7 @@ var LC_S4_TEAM = new Buff({
 });
 var LC_S4 = new Sequence({
   name: "Lucy S4: No Living Legends in Night City",
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (applied2(TUNE_HACK_SHIFTING))
       applyTeam(LC_S4_TEAM, 1);
   }
@@ -15026,7 +15128,7 @@ var LUCY_RESONATOR = new Resonator({
   maxEnergy: 125,
   maxForte1: 100,
   maxForte2: 100,
-  updateGlobal: () => tuneHackResponse(DataCrash),
+  hitGlobal: () => tuneHackResponse(DataCrash),
   stats: [
     [1, 11025],
     [0, 425],
@@ -15184,8 +15286,8 @@ var Boom = rebeccaAction("Liberation - BOOM! Fireworks!", {
   offtune: 31025,
   updateDebuffs: () => applyHack()
 });
-var Intro14 = rebeccaAction("Intro - Yo, It's Big Boomin' Time!", { frames: 96, cancelFrames: 96, motionStop: 90, node: 4, cast: 5, type: 20480, mv: 270.4, energy: 10, castConcerto: 10, offtune: 12800, updateDebuffs: () => applyHack(), ...TO_GUTS });
-var EIntro2 = rebeccaAction("Intro - Hey, Leadhead, Come 'n' Get Me!", { frames: 89, cancelFrames: 69, motionStop: 58, node: 4, cast: 5, type: 20480, mv: 202.8, energy: 10, castConcerto: 10, offtune: 9600, updateDebuffs: () => applyHack(), ...TO_HUNTRESS });
+var Intro14 = rebeccaAction("Intro - Yo, It's Big Boomin' Time!", { frames: 96, cancelFrames: 96, hitFrame: 72, motionStop: 90, node: 4, cast: 5, type: 20480, mv: 270.4, energy: 10, castConcerto: 10, offtune: 12800, updateDebuffs: () => applyHack(), ...TO_GUTS });
+var EIntro2 = rebeccaAction("Intro - Hey, Leadhead, Come 'n' Get Me!", { frames: 89, cancelFrames: 69, hitFrame: 59, motionStop: 58, node: 4, cast: 5, type: 20480, mv: 202.8, energy: 10, castConcerto: 10, offtune: 9600, updateDebuffs: () => applyHack(), ...TO_HUNTRESS });
 var Outro15 = rebeccaAction("Outro - Preem Choom", {
   frames: 0,
   cast: 6,
@@ -15309,7 +15411,7 @@ var OH_HEY_CHOOM_HACK = new Buff({
 });
 var RB_S2 = new Sequence({
   name: "Rebecca S2: Oh, Hey Choom!",
-  updateGlobal: () => {
+  hitGlobal: () => {
     const acting = currentTeam().slot.resonator;
     if (acting && applied2(TUNE_HACK_SHIFTING))
       addBuff(acting, OH_HEY_CHOOM_HACK, 1);
@@ -15344,10 +15446,7 @@ var DREAMIN_ON_THE_EDGE = new Buff({
 });
 var RB_S5 = new Sequence({
   name: "Rebecca S5: Dreamin' on the Edge",
-  updateBuffs: () => {
-    if (isActive() && applied2(TUNE_HACK_SHIFTING))
-      applyCurrent(DREAMIN_ON_THE_EDGE, 1);
-  }
+  grants: [{ on: inflicting(() => isActive() && applied2(TUNE_HACK_SHIFTING) > 0), buff: DREAMIN_ON_THE_EDGE }]
 });
 var S6Hunt = rebeccaAction("Forte Heavy - Rat-tat-tat!: Huntress (S6 Strike)", { node: 2, type: 4096, mv: 900 });
 var S6Guts = rebeccaAction("Forte Heavy - Bang-bang-bang!: Guts (S6 Strike)", { node: 2, type: 4096, mv: 900 });
@@ -15375,10 +15474,10 @@ var RB_S6 = new Sequence({
 var RB_INHERENT_1 = new Inherent({
   name: "Inherent: Tag, You're It!",
   // Watched from her own inherent rather than through a team-wide marker: the Tune Break Boost is
-  // the *inflicter's*, so it has to land on whoever is actually acting — and updateGlobal's own
+  // the *inflicter's*, so it has to land on whoever is actually acting — and hitGlobal's own
   // currentSlot is Rebecca (this gear's holder), not them, so it goes through the acting slot's
   // resonator instead of applySelf.
-  updateGlobal: () => {
+  hitGlobal: () => {
     const acting = currentTeam().slot.resonator;
     if (acting && applied2(TUNE_HACK_SHIFTING))
       addBuff(acting, TAG_TBB, 1);
@@ -15427,7 +15526,7 @@ var REBECCA_RESONATOR = new Resonator({
     applyCurrent(HUNTRESS, 1);
     setForte2(120);
   },
-  updateGlobal: () => tuneHackResponse(Meltdown),
+  hitGlobal: () => tuneHackResponse(Meltdown),
   // at a full Hot Hand bar, a Resonance Skill or Intro Skill trades it for the 12s window
   updateBuffs: () => {
     if (forte2() >= 120 && (casting(
@@ -15638,7 +15737,7 @@ var ER_INHERENT_2 = new Inherent({
 var ELECTRO_CORE = new Buff({
   name: "Electro Rover: Electro Core",
   duration: 60 * 20,
-  updateBuffs: () => {
+  updateDebuffs: () => {
     if (inflictedNegativeStatus()) {
       applyCurrent(ER_OUTRO, 1);
       revokeCurrent(ELECTRO_CORE);
@@ -15711,8 +15810,6 @@ var ROVER_ELECTRO_RESONATOR = new Resonator({
   updateDebuffs: () => {
     if (runningAction(ThrumMaAero1) || runningAction(ThrumMaAero2))
       applyCurrent(HEALS, 1);
-  },
-  updateBuffs: () => {
     if (runningAnyOf(THRUMS))
       queue(ThunderBane);
   }
@@ -15888,16 +15985,16 @@ var IntroSealedDelusion = suomingAction("Intro - Furled Canopy: Sealed Delusion 
   cancelFrames: 88,
   motionStop: 90,
   ...INTRO_FURLED,
-  updateDebuffs: respondToUnison,
   // entering Deep Mind resets Rift Cleaver's cooldown
   updateBuffs: () => {
+    respondToUnison();
     applyCurrent(DEEP_MIND, 1);
     resetCooldown(RiftCleaver);
   }
 });
 var INTRO_UNFURLED = { frames: 83, cancelFrames: 66, motionStop: 68, node: 4, cast: 5, type: 4096, mv: 131.43 * 3 + 65.72 * 2, energy: 2.5 * 3 + 1.25 * 2, concerto: 10, offtune: 4407 * 3 + 2204 * 2, forte1: 200 };
 var IntroThunderRending = suomingAction("Intro - Unfurled Canopy: Thunder Rending", INTRO_UNFURLED);
-var IntroWhirlingThunder = suomingAction("Intro - Unfurled Canopy: Whirling Thunder (Unison)", { ...INTRO_UNFURLED, updateDebuffs: respondToUnison });
+var IntroWhirlingThunder = suomingAction("Intro - Unfurled Canopy: Whirling Thunder (Unison)", { ...INTRO_UNFURLED, updateBuffs: respondToUnison });
 var INTROS2 = /* @__PURE__ */ new Set([IntroFlashRift, IntroThunderRending, IntroSealedDelusion, IntroWhirlingThunder]);
 var SealedDelusion = suomingAction("Forte Skill - Furled Canopy: Sealed Delusion", {
   frames: 107,
@@ -15929,9 +16026,10 @@ var UnforsakenMind = suomingAction("Skill - Unfurled Canopy: Unforsaken Mind", {
   castForte1: -800
 });
 var EngravedHeart = suomingAction("Forte Basic - Umbral Canopy: Engraved Heart", {
-  // 263 frames the prio drops to 2
+  // 263 frames the prio drops to 2; the last hit is in at 250
   frames: 308,
   cancelFrames: 263,
+  hitFrame: 250,
   timestop: 134,
   motionStop: 134,
   node: 2,
@@ -16171,7 +16269,7 @@ var SM_ROTATION_MDPS = new Rotation([
   ECHO,
   RiftCleaver.instaDodge(),
   UBA12UHA12.dodgeCancel(),
-  UBA12UHA12.cancel(),
+  UBA12UHA12.easyCancel(),
   UnforsakenMind,
   EngravedHeart.swapCancel(),
   OutroResolver3
@@ -16185,7 +16283,7 @@ var SM_ROTATION_MDPS_DOUBLE = new Rotation([
   ECHO,
   RiftCleaver.instaDodge(),
   UBA12UHA12.dodgeCancel(),
-  UBA12UHA12.cancel(),
+  UBA12UHA12.easyCancel(),
   UnforsakenMind,
   EngravedHeart.swapCancel(),
   OutroResolver3
@@ -16484,7 +16582,8 @@ var FHA7 = yinlinAction("Forte Heavy - Chameleon Cipher", {
   concerto: 20,
   offtune: 52e3,
   castForte1: -100,
-  updateBuffs: () => {
+  // the upgrade is its hit on a Sinner-marked target
+  updateDebuffs: () => {
     if (stacksOfEnemy(SINNERS_MARK)) {
       revokeEnemy(SINNERS_MARK);
       applyEnemy(PUNISHMENT_MARK, 18);
@@ -16592,7 +16691,8 @@ var YINLIN_RESONATOR = new Resonator({
   intro: Intro17,
   maxEnergy: 125,
   maxForte1: 100,
-  updateBuffs: () => {
+  // the mark goes on with the hit, so a Basic's Blast is gated by the mark it found at its cast
+  updateDebuffs: () => {
     if (casting(
       1
       /* Cast.Basic */
@@ -16648,7 +16748,8 @@ var PURSUIT_OF_JUSTICE = new Buff({
   name: "Yinlin S6: Pursuit of Justice",
   maxStacks: 4,
   duration: 60 * 30,
-  updateBuffs: () => {
+  // spent by a Basic that lands, so on its hit
+  updateDebuffs: () => {
     if (!casting(
       1
       /* Cast.Basic */
@@ -16772,8 +16873,8 @@ var Lib25 = aemeathAction("Liberation - Heavenfall Edict: Finale", {
   updateBuffs: () => revokeCurrent(MECH_FORM)
 });
 var INTRO_DEF = { node: 4, cast: 5, type: 20480, energy: 10, concerto: 10, forte1: 40, updateBuffs: () => applyCurrent(STARLUME, 1) };
-var Intro18 = aemeathAction("Intro - Songs Across the Universe", { frames: 72, cancelFrames: 74, motionStop: 45, ...INTRO_DEF, mv: 134.58, offtune: 7737 });
-var EIntro3 = aemeathAction("Intro - Debut of Meteoric Radiance", { frames: 74, cancelFrames: 76, motionStop: 40, ...INTRO_DEF, mv: 163.25, offtune: 9385 });
+var Intro18 = aemeathAction("Intro - Songs Across the Universe", { frames: 72, cancelFrames: 74, hitFrame: 59, motionStop: 45, ...INTRO_DEF, mv: 134.58, offtune: 7737 });
+var EIntro3 = aemeathAction("Intro - Debut of Meteoric Radiance", { frames: 74, cancelFrames: 76, hitFrame: 60, motionStop: 40, ...INTRO_DEF, mv: 163.25, offtune: 9385 });
 var Outro20 = aemeathAction("Outro - Silent Protection", {
   frames: 0,
   cancelFrames: 0,
@@ -16871,7 +16972,7 @@ var AEMEATH_TALENTS = new Talent({
 });
 var AE_INHERENT_2 = new Inherent({
   name: "Inherent: Between the Stars",
-  updateGlobal: () => {
+  hitGlobal: () => {
     const actor = currentTeam().slot;
     const slot = 1 << currentTeam().active;
     if (isHeld(MODE_BURST)) {
@@ -16967,15 +17068,18 @@ var AE_S4 = new Sequence({
 var AE_S5 = new Sequence({ name: "Aemeath S5: Voyage to the Astral Shore" });
 var AE_S6 = new Sequence({
   name: "Aemeath S6: A Zephyr-Kissed Journey to You",
-  // her Resonance Mode isn't equipped yet at combatStart, so both standing lines are asserted from
-  // updateGlobal instead — the first action of the fight, whoever casts it, and `maxStackIncrease`
-  // takes one raise a source however often it is called
+  // her Resonance Mode isn't equipped yet at combatStart, so the Trail's cap is raised from
+  // updateGlobal instead — the first cast of the fight, whoever casts it, ahead of any hit laying it
   updateGlobal: () => {
     if (!isHeld(MODE_BURST)) {
       maxStackIncrease(RUPTUROUS_TRAIL, 30);
       return;
     }
     maxStackIncrease(FUSION_TRAIL, 30);
+  },
+  hitGlobal: () => {
+    if (!isHeld(MODE_BURST))
+      return;
     asActor(() => {
       addStat(
         9,
@@ -17065,7 +17169,7 @@ var SILENT_PROTECTION_RUPTURE = new Buff({
   name: "Aemeath: Outro (rupture)",
   maxStacks: 2,
   duration: 60 * 20,
-  grants: [{ on: () => appliedByMember(TUNE_RUPTURE_SHIFTING, currentMember()) > 0 }],
+  grants: [{ on: inflicting(() => appliedByMember(TUNE_RUPTURE_SHIFTING, currentMember()) > 0) }],
   applyStats: () => addStat(18, frozenStacks() === 2 ? 20 : 10)
 });
 var inflicts = () => runningAction(ABA3) || runningAction(ABA4) || runningAction(MBA3) || runningAction(MBA4) || runningAction(ArmamentMerge) || runningAction(CallOfDawn) || runningAction(Intro18) || runningAction(EIntro3) || isHeld(AE_S3) && isHeld(INSTANT_RESPONSE) && casting(
@@ -17077,16 +17181,14 @@ var MODE_RUPTURE = new ResonanceMode({
   updateDebuffs: () => {
     if (inflicts())
       applyRupture();
+    if (isDuet())
+      queue(Volley);
   },
-  updateGlobal: () => {
+  hitGlobal: () => {
     tuneRuptureResponse(Starburst);
     const a = currentAction();
     if (a.type === 40960 && !runningAction(Volley))
       applyEnemy(RUPTUROUS_TRAIL, isHeld(AE_S6) ? 20 : 10);
-  },
-  updateBuffs: () => {
-    if (isDuet())
-      queue(Volley);
   }
 });
 var ABA234 = new ActionGroup("Basic - Aemeath 234", [ABA2, ABA3, ABA4]);
@@ -17186,7 +17288,7 @@ var SILENT_PROTECTION_BURST = new Buff({
   name: "Aemeath: Outro (burst)",
   maxStacks: 2,
   duration: 60 * 20,
-  grants: [{ on: () => appliedByMember(FUSION_BURST, currentMember()) > 0 }],
+  grants: [{ on: inflicting(() => appliedByMember(FUSION_BURST, currentMember()) > 0) }],
   applyStats: () => addStat(18, frozenStacks() === 2 ? 20 : 10)
 });
 var MODE_BURST = new ResonanceMode({
@@ -17194,8 +17296,10 @@ var MODE_BURST = new ResonanceMode({
   updateDebuffs: () => {
     if (inflicts())
       applyEnemy(FUSION_BURST, 1);
+    if (isDuet())
+      queue(DuetBurst);
   },
-  updateGlobal: () => {
+  hitGlobal: () => {
     const team = currentTeam();
     if (stacksOfEnemy(FUSION_BURST) > 5) {
       queueOn(team.slot.resonator, FUSION_BURST_ACTIONS[team.enemyMax(FUSION_BURST)]);
@@ -17207,10 +17311,6 @@ var MODE_BURST = new ResonanceMode({
     const landed = applied2(FUSION_BURST);
     if (landed > 0)
       applyEnemy(FUSION_TRAIL, isHeld(AE_S6) ? landed * 2 : landed);
-  },
-  updateBuffs: () => {
-    if (isDuet())
-      queue(DuetBurst);
   }
 });
 var AEMEATH_BURST = new Loadout({
@@ -17446,7 +17546,7 @@ var BR_S6 = new Sequence({
     if (midAir())
       addStat(16, 30);
   },
-  updateBuffs: () => {
+  updateDebuffs: () => {
     if (runningAction(FSkill5))
       queue(AshesBlast);
   }
@@ -17576,7 +17676,7 @@ var Liberation16 = changliAction("Liberation - Radiance of Fealty", {
   resetEnergy: true,
   updateBuffs: () => applyCurrent(FIERY_FEATHER, 1)
 });
-var Intro20 = changliAction("Intro - Obedience of Rules", { frames: 45, cancelFrames: 45, motionStop: 40, node: 4, cast: 5, type: 20480, mv: 148.34, offtune: 5971, energy: 10, castConcerto: 10 });
+var Intro20 = changliAction("Intro - Obedience of Rules", { frames: 45, cancelFrames: 45, hitFrame: 35, motionStop: 40, node: 4, cast: 5, type: 20480, mv: 148.34, offtune: 5971, energy: 10, castConcerto: 10 });
 var Outro22 = changliAction("Outro - Strategy of Duality", {
   frames: 0,
   cancelFrames: 0,
@@ -17826,8 +17926,9 @@ var Lib26 = deniaAction("Liberation - Final Act (Breakdown)", {
     const field = isHeld(DN_S4) ? EROSION_FIELD_S4 : EROSION_FIELD;
     revokeTeam(field);
     applyTeam(field, field.maxStacks);
-    queue(ErosionField);
-  }
+  },
+  // the field pulls as the Final Act lands, its first pull queued off the hit
+  updateDebuffs: () => queue(ErosionField)
 });
 var EROSION2 = new ActionField("Denia: Erosion Field");
 var ErosionField = deniaAction("Forte - Erosion Field", {
@@ -17839,6 +17940,7 @@ var ErosionField = deniaAction("Forte - Erosion Field", {
 var Intro21 = deniaAction("Intro - It's Been A While!", {
   frames: 53,
   cancelFrames: 50,
+  hitFrame: 28,
   motionStop: 42,
   node: 4,
   cast: 5,
@@ -17853,6 +17955,7 @@ var Intro21 = deniaAction("Intro - It's Been A While!", {
 var EIntro4 = deniaAction("Intro - Knock Knock", {
   frames: 81,
   cancelFrames: 77,
+  hitFrame: 87,
   motionStop: 39,
   node: 4,
   cast: 5,
@@ -17920,7 +18023,12 @@ var OFFTUNE_SURGE = new Buff({
       revokeTeam(OFFTUNE_SURGE);
   }
 });
-var spendsVoid = (a) => a.forte1 < 0 && a.forte2 > 0;
+var pressed2 = () => currentAction().formOf ?? currentAction();
+var spendsVoid = () => {
+  const a = pressed2();
+  const paid = currentAction().half === "hit" ? a.castForte[0] : 0;
+  return a.forte1 < 0 && a.forte2 > 0 && forte1() - paid > 0;
+};
 var ENTROPY_BREAKDOWN = new Buff({
   name: "Entropy Shift: Breakdown Form",
   duration: 60 * 12,
@@ -17931,7 +18039,7 @@ var ENTROPY_BREAKDOWN = new Buff({
   },
   // the retag has to land in the first phase, before anything reads the type (see typeOverride)
   updateDebuffs: () => {
-    if (spendsVoid(currentAction()) && forte1() > 0)
+    if (spendsVoid())
       typeOverride(
         16384
         /* Type.Liberation */
@@ -17940,11 +18048,10 @@ var ENTROPY_BREAKDOWN = new Buff({
   applyStats: () => {
     if (isHeld(DN_S3) && runningAction(Lib26))
       asSource(DN_S3, () => addStat(27, 30));
-    const a = currentAction();
-    if (!spendsVoid(a) || forte1() <= 0)
+    if (!spendsVoid())
       return;
     addStat(16, 50);
-    addStat(31, a.forte2);
+    addStat(31, pressed2().forte2);
   }
 });
 var EROSION_FIELD = coordinatedBuff("Denia: Erosion Field", 30, () => DENIA_RESONATOR, ErosionField, { every: 4 });
@@ -18030,7 +18137,14 @@ var UNFINISHED_LIES_STRAIN = new Buff({
   duration: 60 * 16,
   stats: [[18, 15]],
   updateBuffs: () => {
-    if (!isHeld(UNFINISHED_LIES_SHIFTING) && !applied2(TUNE_STRAIN_SHIFTING))
+    if (!isHeld(UNFINISHED_LIES_SHIFTING))
+      return;
+    revokeCurrent(UNFINISHED_LIES_STRAIN);
+    applyCurrent(UNFINISHED_LIES_SHIFTING, 1);
+  },
+  // the holder's own Shifting upgrades it on the hit that lays it
+  hitGlobal: () => {
+    if (!appliedByMe(TUNE_STRAIN_SHIFTING))
       return;
     revokeCurrent(UNFINISHED_LIES_STRAIN);
     applyCurrent(UNFINISHED_LIES_SHIFTING, 1);
@@ -18041,10 +18155,7 @@ var UNFINISHED_LIES_SHIFTING = new Buff({
   name: "Denia: Outro (shifting)",
   duration: 60 * 16,
   stats: [[18, 40]],
-  updateBuffs: () => {
-    if (applied2(TUNE_STRAIN_SHIFTING))
-      applyCurrent(UNFINISHED_LIES_SHIFTING, 1);
-  },
+  grants: [{ on: onApplied(TUNE_STRAIN_SHIFTING) }],
   lostOnSwap: true
 });
 var DN_S1 = new Sequence({
@@ -18081,8 +18192,8 @@ var TIDES_STRAIN = new Buff({
 });
 var DN_S2 = new Sequence({
   name: "Denia S2: Tossed in the Tides of Reality",
-  // from updateGlobal "me" is Denia, so the acting slot has to be named (status.ts)
-  updateGlobal: () => {
+  // from hitGlobal "me" is Denia, so the acting slot has to be named (status.ts)
+  hitGlobal: () => {
     const acting = currentTeam().slot;
     if (!isHeld(MODE_BURST2)) {
       if (acting.resonator && appliedByMember(TUNE_STRAIN_SHIFTING, acting))
@@ -18161,7 +18272,7 @@ var DN_S6 = new Sequence({
       return;
     queue(FUSION_BURST_ACTIONS[currentTeam().enemyMax(FUSION_BURST)]);
   },
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (isHeld(MODE_BURST2) || currentAction().type !== 36864)
       return;
     if (stacksOfEnemy(TUNE_STRAIN_SHIFTING) > 0)
@@ -18340,7 +18451,7 @@ var CosmosHeavy = encoreAction("Heavy - Cosmos: Heavy Attack", { node: 3, cast: 
 var USkill2 = encoreAction("Skill - Cosmos: Rampage", { frames: 47, cancelFrames: 35, cooldown: 60 * 4, node: 3, cast: 3, type: 12288, mv: 253.28, energy: 6.56, concerto: 3.56, castConcerto: 4.44, offtune: 6168, forte1: 28 });
 var CosmosDodgeCounter = encoreAction("Dodge Counter - Cosmos", { node: 3, cast: 0, type: 4096, mv: 263.96, energy: 1.92, concerto: 13.88, offtune: 9360, forte1: 16 });
 var FHA8 = encoreAction("Forte Heavy - Cosmos Rupture", { frames: 239, cancelFrames: 203, node: 2, cast: 2, type: 16384, mv: 773.73, castConcerto: 10, offtune: 46709, ...SPEND_MAYHEM });
-var Intro22 = encoreAction("Intro - Woolies Helpers", { frames: 80, cancelFrames: 92, motionStop: 56, node: 4, cast: 5, type: 20480, mv: 198.81, energy: 10, castConcerto: 10, offtune: 15132, forte1: 40 });
+var Intro22 = encoreAction("Intro - Woolies Helpers", { frames: 80, cancelFrames: 92, hitFrame: 60, motionStop: 56, node: 4, cast: 5, type: 20480, mv: 198.81, energy: 10, castConcerto: 10, offtune: 15132, forte1: 40 });
 var Outro24 = encoreAction("Outro - Thermal Field", { frames: 0, cancelFrames: 0, cast: 6, type: 24576, mv: 707.04, castConcerto: -100 });
 var WOOLIES_CHEER_DANCE = new Buff({
   name: "Inherent: Woolies Cheer Dance",
@@ -18394,7 +18505,7 @@ var S12 = new Sequence({
 var S22 = new Sequence({
   name: "Encore S2",
   // note removed ba5 trigger to model 10s cooldown
-  updateBuffs: () => {
+  applyStats: () => {
     if (runningAction(Skill24))
       addStat(26, 10);
   }
@@ -18783,6 +18894,7 @@ var ACTION_LIB_FUA = jingranAction("Liberation - Chimei Wangliang", { tag: Actio
 var Intro24 = jingranAction("Intro - Question the Tombs", {
   frames: 63,
   cancelFrames: 60,
+  hitFrame: 46,
   motionStop: 54,
   node: 4,
   cast: 5,
@@ -18878,14 +18990,14 @@ var JR_INHERENT_2 = new Inherent({
   grants: [{ on: onAction(Outro26), buff: JINGRAN_FIXATION }],
   // `currentSlot` is switched to Jingran's own slot for this call regardless of who's actually
   // acting, so `applySelf()`/`isHeld()` below always resolve against him specifically.
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (currentTeam().slot.resonator === JINGRAN_RESONATOR || !applied2(SHIELD))
       return;
     applyTeam(JINGRAN_GHOST_SHROUD, 2 * applied2(SHIELD));
-    if (isHeld(JINGRAN_FIXATION)) {
-      revokeCurrent(JINGRAN_FIXATION);
-      applyTeam(JINGRAN_GHOST_SHROUD, 15);
-    }
+    if (!isHeld(JINGRAN_FIXATION))
+      return;
+    revokeCurrent(JINGRAN_FIXATION);
+    applyTeam(JINGRAN_GHOST_SHROUD, 15);
   }
 });
 var JINGRAN_HP_TO_FUSION = new Buff({
@@ -18977,7 +19089,7 @@ var WHERE_REALITY_MEETS = new Buff({
 });
 var JR_S4 = new Sequence({
   name: "Jingran S4: Where Reality Meets Illusion, Where Living Meet Dead",
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (applied2(SHIELD))
       applyTeam(WHERE_REALITY_MEETS, 1);
   }
@@ -18991,8 +19103,9 @@ var JR_PARADE = new Buff({
   duration: 60 * 15,
   field: PARADE_FIELD,
   // it ends with Yinghuo, which nothing here marks — its own 15s is his visit either way, so the
-  // window is what carries it rather than a poke at the Mingfire gauge, which is a different thing
-  updateBuffs: () => {
+  // window is what carries it rather than a poke at the Mingfire gauge, which is a different thing;
+  // on the hit, where a press's motion value is
+  updateDebuffs: () => {
     const a = currentAction();
     if (runningAction(Lib5) || runningAction(ACTION_LIB_FUA) || runningAction(ACTION_PARADE_FUA) || a.mv <= 0)
       return;
@@ -19064,15 +19177,18 @@ var JINGRAN_RESONATOR = new Resonator({
   // every cast of his shields — two off the chain closers, both enhanced skills, the Liberation
   // and both Forte heavies, one off everything else
   updateDebuffs: () => {
-    const n = SHIELDS2.get(currentAction());
+    const n = SHIELDS2.get(currentAction().formOf ?? currentAction());
     if (n)
       gainShield(n);
   },
   // base kit: +1 Ghost Shroud per shield whenever he gains one of his own
-  updateBuffs: () => {
-    if (applied2(SHIELD))
-      applyTeam(JINGRAN_GHOST_SHROUD, applied2(SHIELD));
-  }
+  grants: [{
+    on: inflicting(() => applied2(SHIELD) > 0),
+    buff: JINGRAN_GHOST_SHROUD,
+    stacks: () => applied2(SHIELD),
+    to: 1
+    /* BuffTarget.Team */
+  }]
 });
 var EBA2342 = new ActionGroup("Basic - Drink Soul 234", [EBA23, EBA33, EBA43]);
 var BA2346 = new ActionGroup("Basic - Devil's Bane 234", [BA224, BA325, BA420]);
@@ -19162,7 +19278,7 @@ var Skill112 = lupaAction("Skill - Shewolf's Hunt", {
   concerto: 4.17,
   offtune: 6664,
   forte1: 15,
-  updateBuffs: () => applyEnemy(LUPA_MARK, 1)
+  updateDebuffs: () => applyEnemy(LUPA_MARK, 1)
 });
 var Skill26 = lupaAction("Skill - Feral Fang", { frames: 63, cancelFrames: 44, node: 1, cast: 3, type: 12288, mv: 313.61, energy: 13.67, offtune: 5328, forte1: 15 });
 var USkill3 = lupaAction("Skill - Foebreaker", {
@@ -19206,7 +19322,7 @@ var BACKUP = { updateBuffs: () => applyTeam(LUPA_BACKUP_READY, 1) };
 var FSkill6 = lupaAction("Forte Skill - Dance With the Wolf", { frames: 151, cancelFrames: 102, node: 2, cast: 3, type: 16384, mv: 560.21, energy: 30, concerto: 15.02, offtune: 16016, castForte2: -2, ...BACKUP });
 var UFSkill = lupaAction("Forte Skill - Dance With the Wolf: Climax", { frames: 151, cancelFrames: 102, node: 2, cast: 3, type: 16384, mv: 756.26, energy: 30, concerto: 30, offtune: 54416, castForte2: -2, ...BACKUP });
 var fskillFUA = lupaAction("Forte Skill - Set the Arena Ablaze", { tag: ActionTag.Field, frames: 96, cancelFrames: 70, node: 2, type: 12288, mv: 211.75, offtune: 9600 });
-var Intro25 = lupaAction("Intro - Try Focusing, Eh?", { frames: 70, cancelFrames: 60, motionStop: 55, node: 4, cast: 5, type: 20480, mv: 198.4, energy: 10.02, castConcerto: 10, offtune: 9393 });
+var Intro25 = lupaAction("Intro - Try Focusing, Eh?", { frames: 70, cancelFrames: 60, hitFrame: 47, motionStop: 55, node: 4, cast: 5, type: 20480, mv: 198.4, energy: 10.02, castConcerto: 10, offtune: 9393 });
 var EIntro5 = lupaAction("Intro - Nowhere to Run!", { frames: 150, cancelFrames: 140, timestop: 85, motionStop: 145, node: 4, cast: 5, type: 16384, mv: 991.97, energy: 10, castConcerto: 10, offtune: 16e3 });
 var Outro27 = lupaAction("Outro - Stand by Me, Warrior", {
   frames: 0,
@@ -19538,7 +19654,7 @@ var Inversion = mornyeAction("Forte Heavy - Inversion", {
   concerto: 11.96,
   offtune: 10400,
   castForte2: -100,
-  updateBuffs: () => applyEnemy(OBSERVATION_MARKER, 1)
+  updateDebuffs: () => applyEnemy(OBSERVATION_MARKER, 1)
 });
 var SyntonyFieldHit = mornyeAction("Forte - Syntony Field", {
   frames: 0,
@@ -19594,7 +19710,7 @@ var Liberation20 = mornyeAction("Liberation - Critical Protocol", {
     }
   }
 });
-var Intro26 = mornyeAction("Intro - Convergence", { frames: 105, cancelFrames: 80, motionStop: 76, node: 4, cast: 5, type: 20480, mv: 202.79, energy: 10, castConcerto: 10, offtune: 13600, ...FIELD });
+var Intro26 = mornyeAction("Intro - Convergence", { frames: 105, cancelFrames: 80, hitFrame: 178, motionStop: 76, node: 4, cast: 5, type: 20480, mv: 202.79, energy: 10, castConcerto: 10, offtune: 13600, ...FIELD });
 var Outro28 = mornyeAction("Outro - Recursion", {
   frames: 0,
   cancelFrames: 0,
@@ -19647,7 +19763,7 @@ var OBSERVATION_MARKER = new Debuff({
   // and unlike a Rupture/Hack Interfered it can be re-marked inside that window — a break that
   // leaves a Strain, or none at all, is held off by nothing — so a fresh one starts the count over
   // rather than pushing the old one along.
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (!runningAction(TUNE_BREAK))
       return;
     revokeEnemy(INTERFERED_MARKER);
@@ -19672,7 +19788,7 @@ var INTERFERED_MARKER = new Debuff({
 });
 var MO_S1 = new Sequence({
   name: "Mornye S1: The Silent Observer",
-  updateBuffs: () => {
+  updateDebuffs: () => {
     if (!runningAction(Inversion))
       return;
     revokeEnemy(INTERFERED_MARKER);
@@ -19733,7 +19849,7 @@ var MORNYE_RESONATOR = new Resonator({
   maxEnergy: 175,
   maxForte1: 100,
   maxForte2: 100,
-  updateGlobal: () => tuneRuptureResponse(ParticleJet),
+  hitGlobal: () => tuneRuptureResponse(ParticleJet),
   combatStart: () => {
     maxStackIncrease(TUNE_STRAIN_INTERFERED, 1);
     applyCurrent(MO_STRAIN_PAYOUT, 1);
@@ -19877,7 +19993,7 @@ var ACTION_S5_MARCATO = mortefiAction("Liberation - Marcato (S5 Funerary Quartet
   updateBuffs: () => applyCurrent(VIBRATO, 1),
   applyStats: () => addStat(17, -50)
 });
-var Intro27 = mortefiAction("Intro - Dissonance", { frames: 90, cancelFrames: 90, motionStop: 46, node: 4, cast: 5, type: 20480, mv: 168.99, energy: 10, castConcerto: 10, offtune: 8e3, forte1: 60 });
+var Intro27 = mortefiAction("Intro - Dissonance", { frames: 90, cancelFrames: 90, hitFrame: 44, motionStop: 46, node: 4, cast: 5, type: 20480, mv: 168.99, energy: 10, castConcerto: 10, offtune: 8e3, forte1: 60 });
 var Outro29 = mortefiAction("Outro - Rage Transposition", {
   frames: 0,
   cancelFrames: 0,
@@ -19895,7 +20011,7 @@ var PASSIONATE_TAIL = new Buff({
       /* Cast.Basic */
     ) || a.mv <= 0)
       return;
-    addStat(30, 7 * (a === BA227 ? 2 : a === BA423 ? 5 : 1));
+    addStat(30, 7 * (runningAction(BA227) ? 2 : runningAction(BA423) ? 5 : 1));
   },
   convertStats: () => lostOnSwap()
 });
@@ -19912,10 +20028,11 @@ var BURNING_RHAPSODY = new Buff({
       2
       /* Cast.Heavy */
     );
+    const press = currentAction().formOf ?? currentAction();
     if (!heavy && !(casting(
       1
       /* Cast.Basic */
-    ) && currentAction().mv > 0))
+    ) && press.mv > 0))
       return;
     const n = Math.min(3, stacksOfTeam(BURNING_RHAPSODY));
     for (let i = 0; i < n; i++) {
@@ -19988,7 +20105,7 @@ var MORTEFI_S1 = new Sequence({
 });
 var MORTEFI_S2 = new Sequence({
   name: "Mortefi S2: Hypocritical Hymn",
-  updateBuffs: () => {
+  applyStats: () => {
     if (casting(
       7
       /* Cast.Echo */
@@ -20017,7 +20134,7 @@ var MORTEFI_S4 = new Sequence({
 });
 var MORTEFI_S5 = new Sequence({
   name: "Mortefi S5: Funerary Quartet",
-  updateBuffs: () => {
+  updateDebuffs: () => {
     if (runningAction(Skill21) || runningAction(FSkill7))
       for (let i = 0; i < 4; i++)
         queue(ACTION_S5_MARCATO);
@@ -20173,10 +20290,8 @@ var Lib16 = carlottaAction("Liberation - Era of New Wave", {
   resetEnergy: true,
   resetForte2: true,
   // Twilight Tango removes all Substance on opening
-  updateBuffs: () => {
-    applyEnemy(DECONSTRUCTION, 1);
-    applyCurrent(TWILIGHT_TANGO, 1);
-  }
+  updateBuffs: () => applyCurrent(TWILIGHT_TANGO, 1),
+  updateDebuffs: () => applyEnemy(DECONSTRUCTION, 1)
 });
 var DeathKnell = carlottaAction("Liberation - Death Knell", {
   frames: 70,
@@ -20207,6 +20322,7 @@ var Intro28 = carlottaAction("Intro - Wintertime Aria", {
   frames: 84,
   motionStop: 84,
   cancelFrames: 70,
+  hitFrame: 80,
   node: 4,
   cast: 5,
   type: 20480,
@@ -20239,7 +20355,7 @@ var CL_INHERENT_1 = new Inherent({
 });
 var CL_INHERENT_2 = new Inherent({
   name: "Inherent: Ars Gratia Artis",
-  updateBuffs: () => {
+  updateDebuffs: () => {
     if (runningAction(Intro28) || runningAction(Skill27) || runningAction(DeathKnell) || runningAction(FHA10))
       applyEnemy(DECONSTRUCTION, 1);
   }
@@ -20288,7 +20404,7 @@ var CL_S3 = new Sequence({
     if (runningAction(Skill113) || runningAction(Skill27))
       addStat(16, 93);
   },
-  updateBuffs: () => {
+  updateDebuffs: () => {
     if (runningAction(Outro30))
       queue(Sparks);
   }
@@ -20400,7 +20516,7 @@ function hiyukiAction(id, def2) {
 }
 var CHAFE = { updateDebuffs: () => applyEnemy(GLACIO_CHAFE, 1) };
 var FROSTBIND = {
-  updateBuffs: () => {
+  updateDebuffs: () => {
     if (stacksOfEnemy(GLACIO_BITE) >= 10)
       consume(GLACIO_BITE, 10);
   }
@@ -20482,12 +20598,12 @@ var Lib17 = hiyukiAction("Liberation - Foreclaiming: Inward Vision", {
   castForte2: 50,
   resetForte1: true,
   resetForte2: true,
-  updateDebuffs: () => applyEnemy(GLACIO_CHAFE, 4),
-  // its own three points, then Frostbind's spend — the same phase, so spread by hand rather than
+  updateBuffs: () => applyCurrent(FROSTHARDEN_IAI, 3),
+  // its own four stacks, then Frostbind's spend — the same phase, so spread by hand rather than
   // through `...FROSTBIND`
-  updateBuffs: () => {
-    applyCurrent(FROSTHARDEN_IAI, 3);
-    FROSTBIND.updateBuffs();
+  updateDebuffs: () => {
+    applyEnemy(GLACIO_CHAFE, 4);
+    FROSTBIND.updateDebuffs();
   }
 });
 var LIB2_CD = new Cooldown({ frames: 60 * 25 });
@@ -20541,6 +20657,7 @@ var Iai = hiyukiAction("Forte Basic - Iai", {
 var Intro29 = hiyukiAction("Intro - Frostedge", {
   frames: 64,
   cancelFrames: 64,
+  hitFrame: 42,
   motionStop: 33,
   node: 4,
   cast: 5,
@@ -20622,19 +20739,13 @@ var SNOW_RUST = new Buff({
   maxStacks: 1 + 2 + 4 + 8,
   display: () => `Hiyuki: Snow Rust x${snowRust()}`,
   // At 2 stacks, one fixed-multiplier Bite hit per stack of Chafe *she* applies, and only while
-  // she is the one on field. Held locally, so it runs on the acting slot's own turn and no other;
-  // `appliedByMe` is what makes the count hers alone, so a stack Lucilla's Film Roll adds to her
-  // cast buys no extra hit.
+  // she is the one on field. `appliedByMe` is what makes the count hers alone, so a stack Lucilla's
+  // Film Roll adds to her cast buys no extra hit.
   //
-  // Counted in `updateBuffs`, a phase after the one every kit inflicts in, so that it sees the
-  // whole cast however the stacks got there. In `updateDebuffs` it only ever saw what the *action*
-  // itself had already declared: a sibling buff of hers inflicting in that same phase (Frostharden
-  // Iai's 3, which is every Iai in the rotation) lands after her in the local roster, and she read
-  // 0 and queued nothing. Frostburn and Quiet Snowfall read the same count a phase later for the
-  // same reason. The conversion to Glacio Bite in between takes the stacks straight back off, but
-  // `appliedByMe` is a record of what this action applied, not of what is still on the target.
-  updateBuffs: () => {
-    if (snowRust() < 2)
+  // In `hitGlobal`, past every `updateDebuffs`, so a sibling's inflicting (Frostharden Iai's 3) is
+  // counted; it runs on every member's hit, so it bails unless she is the one hitting.
+  hitGlobal: () => {
+    if (currentTeam().slot !== currentMember() || snowRust() < 2)
       return;
     for (let i = isHeld(HY_S6) ? applied2(GLACIO_CHAFE) : appliedByMe(GLACIO_CHAFE); i > 0; i--)
       queue(FineSnowBite);
@@ -20678,14 +20789,14 @@ var SNOWLIGHT_BLESSING = new Buff({
 });
 var HY_INHERENT_1 = new Inherent({
   name: "Inherent: Fine Snow",
-  updateGlobal: () => {
-    const actor = currentTeam().slot;
-    if (!appliedByMember(GLACIO_CHAFE, actor) && !appliedByMember(HAVOC_BANE, actor))
-      return;
-    const slot = 1 << currentTeam().active;
-    if ((stacksOf(SNOW_RUST) & slot) !== 0)
-      return;
-    applyCurrent(SNOW_RUST, slot);
+  hitGlobal: () => {
+    currentTeam().slots.forEach((m, i) => {
+      if (!appliedByMember(GLACIO_CHAFE, m) && !appliedByMember(HAVOC_BANE, m))
+        return;
+      const slot = 1 << i;
+      if ((stacksOf(SNOW_RUST) & slot) === 0)
+        applyCurrent(SNOW_RUST, slot);
+    });
   }
 });
 var HY_INHERENT_2 = new Inherent({
@@ -20751,7 +20862,7 @@ var HIYUKI_RESONATOR = new Resonator({
    * reached. On a bare team that is the 10-stack rung on every single application; with Chisa's
    * +3 to the cap it is the 13-stack rung instead, which is where her pairing comes from.
    *
-   * From `updateGlobal` so it sees a teammate's cast as readily as her own, and because that phase
+   * From `hitGlobal` so it sees a teammate's hit as readily as her own, and because that phase
    * is past every `updateDebuffs` (where a kit inflicts, Lucilla's Film Roll included) and still
    * ahead of the roster the stat phases are captured from. That last part is what lets the plain
    * stacks be taken straight back off — which is both what the kit says and what keeps status.ts's
@@ -20761,7 +20872,7 @@ var HIYUKI_RESONATOR = new Resonator({
    * carrying a copy of those motion values, and the limit it indexes is Glacio Chafe's — Bite
    * counts as Chafe for every cap a teammate raises.
    *
-   * `queueOn` rather than `queue`: a resonator's own gear runs `updateGlobal` with the current
+   * `queueOn` rather than `queue`: a resonator's own gear runs `hitGlobal` with the current
    * slot switched to *her*, so a plain queue would pin every hit to her and have it read her Fine
    * Snow and Frostburn amplification even on a stack Lucilla laid while on field. The hits belong
    * to whoever actually inflicted.
@@ -20769,7 +20880,7 @@ var HIYUKI_RESONATOR = new Resonator({
    * "When Hiyuki joins the team, remove all stacks of Glacio Chafe from the targets" needs nothing
    * of its own: a fight starts with none on the target, and from the first one onward this is what
    * takes them off. */
-  updateGlobal: () => {
+  hitGlobal: () => {
     for (const s of currentTeam().slots)
       converted[s.index] = appliedByMember(GLACIO_CHAFE, s);
     const inflicted = applied2(GLACIO_CHAFE);
@@ -20987,6 +21098,7 @@ var CHAFE_RUNGS = GLACIO_CHAFE_ACTIONS.map((a) => a?.variant(a.name, { field: CH
 var Intro30 = lucillaAction("Intro - Clip It", {
   frames: 81,
   cancelFrames: 42,
+  hitFrame: 38,
   motionStop: 74,
   node: 4,
   cast: 5,
@@ -21088,7 +21200,8 @@ var UBA36 = lucillaAction("Basic - Tracing Forms 3", {
   energy: 5.84,
   concerto: 11.2,
   offtune: 18640,
-  updateBuffs: () => {
+  // on Stage 3's hit
+  updateDebuffs: () => {
     const photos = Math.min(3, Math.floor(forte1() / 50));
     for (let i = 0; i < photos; i++)
       queue(isHeld(MODE_CHAFE) ? OblivionChafe : OblivionEcho);
@@ -21112,7 +21225,7 @@ var LettingGo = lucillaAction("Basic - Letting It Go", {
 var MODE_ECHO = new ResonanceMode({ name: "Resonance Mode - Echo" });
 var MODE_CHAFE = new ResonanceMode({
   name: "Resonance Mode - Glacio Chafe",
-  // the retag has to land in the first phase, before anything reads the type (see typeOverride)
+  // the retag has to land in the hit's first phase, before anything there reads the type
   updateDebuffs: () => {
     if (runningAction(Liberation22) || runningAction(LettingGo))
       typeOverride(
@@ -21470,8 +21583,8 @@ var FHA13 = sanhuaAction("Forte Heavy - Detonate", {
   offtune: 14992,
   energy: 4.68,
   concerto: 15,
-  // spends whichever Ice Creations are up and queues the matching burst(s)
-  updateBuffs: () => {
+  // on its hit, spends whichever Ice Creations are up and queues the matching burst(s)
+  updateDebuffs: () => {
     if (stacksOf(THORN_BUFF)) {
       queue(DETONATE_THORN);
       removeStack(THORN_BUFF, 1);
@@ -21736,6 +21849,7 @@ var Liberation24 = suisuiAction("Liberation - Song of Thoroughfare", {
 var Intro32 = suisuiAction("Intro - Tinkling Jade", {
   frames: 78,
   cancelFrames: 78,
+  hitFrame: 60,
   motionStop: 55,
   node: 4,
   cast: 5,
@@ -21806,7 +21920,7 @@ var LANDSCAPE_CAPS = [
 var CEASELESS_LANDSCAPE = new Buff({
   name: "Suisui: Ceaseless Landscape",
   duration: 60 * 30,
-  updateGlobal: () => {
+  hitGlobal: () => {
     for (const [status, tag] of LANDSCAPE_CAPS) {
       if (applied2(status) || isType(tag))
         maxStackIncrease(status, 3);
@@ -21890,7 +22004,11 @@ var UNDULATING_MIST = new Buff({
   duration: 60 * 14,
   // a Mist handed to a holder already paid off is that Mist refreshed
   updateBuffs: () => {
-    if (isHeld(MIST_CONSUMED) || mistEarned())
+    if (isHeld(MIST_CONSUMED))
+      consumeMist();
+  },
+  hitGlobal: () => {
+    if (currentTeam().slot === currentMember() && mistEarned())
       consumeMist();
   },
   afterAction: () => {
@@ -21903,8 +22021,8 @@ var MIST_CONSUMED = new Buff({
   name: "Suisui: Undulating Mist (consumed)",
   duration: 60 * 14,
   stats: [[6, 50]],
-  updateBuffs: () => {
-    if (mistEarned())
+  hitGlobal: () => {
+    if (currentTeam().slot === currentMember() && mistEarned())
       applyCurrent(MIST_CONSUMED, 1);
   },
   afterAction: () => {
@@ -21934,7 +22052,7 @@ var CLOUDS_POUR = new Buff({
   stats: [[10, 50]]
 });
 var CLOUDS_POUR_WATCH = new Buff({
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (!stacksOfTeam(CEASELESS_LANDSCAPE))
       return;
     const actor = currentTeam().slot;
@@ -22169,6 +22287,7 @@ var ACTION_HERALD_S6 = zhezhiAction("Skill - Ivory Herald (S6)", {
 var Intro33 = zhezhiAction("Intro - Radiant Ruin", {
   frames: 80,
   cancelFrames: 80,
+  hitFrame: 78,
   motionStop: 55,
   node: 4,
   cast: 5,
@@ -22337,7 +22456,8 @@ var ZZ_S4 = new Sequence({
 var ZZ_S5 = new Sequence({ name: "Zhezhi S5: Composition's Clue" });
 var ZZ_S6 = new Sequence({
   name: "Zhezhi S6: Infinite Legacy",
-  updateBuffs: () => {
+  // off the forte Skill's hit
+  updateDebuffs: () => {
     if (runningAction(FSkill9) || runningAction(FSkill33))
       queue(ACTION_HERALD_S6);
   }
@@ -22520,17 +22640,11 @@ var EPIPHYTE = new Inherent({
 });
 var CONSUME_CRIMSON_PISTIL = new Buff({
   name: "Camellya: Consume Crimson Pistil",
+  maxStacks: 11,
+  // one stack for the consumption itself, one more per full 10 it took (granted at the cast)
   applyStats: () => {
-    const a = currentAction();
-    const before = forte1();
-    const after = before + a.forte1;
-    const buds = Math.floor((100 - Math.max(0, after)) / 10) - Math.floor((100 - before) / 10);
-    if (buds > 0) {
-      if (!isHeld(BUDDING_MODE))
-        applyCurrent(CRIMSON_BUD, buds);
-      for (let i = 0; i < buds; i++) {
-        addStat(27, 4);
-      }
+    for (let i = 1; i < frozenStacks(); i++) {
+      addStat(27, 4);
     }
     addStat(14, isHeld(BUDDING_MODE) ? -100 : 150);
   },
@@ -22552,8 +22666,17 @@ var CAMELLYA_RESONATOR = new Resonator({
   intro: Intro34,
   maxEnergy: 125,
   maxForte1: 100,
-  // any gauge-spending cast of hers is a Crimson Pistil consumption
-  grants: [{ on: () => currentAction().forte1 < 0, buff: CONSUME_CRIMSON_PISTIL }],
+  // any gauge-spending cast of hers is a Crimson Pistil consumption, counted as the cast spends it
+  updateBuffs: () => {
+    const spent = currentAction().forte1;
+    if (spent >= 0)
+      return;
+    const before = forte1();
+    const buds = Math.max(0, Math.floor((100 - Math.max(0, before + spent)) / 10) - Math.floor((100 - before) / 10));
+    if (buds > 0 && !isHeld(BUDDING_MODE))
+      applyCurrent(CRIMSON_BUD, buds);
+    applyCurrent(CONSUME_CRIMSON_PISTIL, 1 + buds);
+  },
   stats: [[1, 10325], [0, 450], [2, 1161.109]]
 });
 var SOMEWHERE_NO_ONE_TRAVELLED = new Buff({
@@ -22789,7 +22912,8 @@ var ESkill5 = cantaAction("Skill - Flickering Reverie", {
   energy: 1.65,
   castConcerto: 10,
   offtune: 5264,
-  updateBuffs: () => applyEnemy(HAZY_DREAM, 1)
+  // laid behind its own hit, which Jolts any Hazy Dream already standing
+  afterAction: () => applyEnemy(HAZY_DREAM, 1)
 });
 var FSkill10 = cantaAction("Forte Skill - Perception Drain", {
   frames: 80,
@@ -22805,7 +22929,7 @@ var FSkill10 = cantaAction("Forte Skill - Perception Drain", {
   offtune: 57864,
   castForte2: -3,
   // 667.99%x2
-  updateBuffs: () => applyEnemy(HAZY_DREAM, 1)
+  afterAction: () => applyEnemy(HAZY_DREAM, 1)
 });
 var Liberation27 = cantaAction("Liberation - Beneath the Sea", {
   frames: 214,
@@ -22838,6 +22962,7 @@ function dreamweavers(tick) {
 var Intro35 = cantaAction("Intro - Ripple", {
   frames: 76,
   cancelFrames: 76,
+  hitFrame: 54,
   motionStop: 27,
   node: 4,
   cast: 5,
@@ -22853,6 +22978,7 @@ var Intro35 = cantaAction("Intro - Ripple", {
 var EIntro6 = cantaAction("Intro - Tidal Surge", {
   frames: 83,
   cancelFrames: 83,
+  hitFrame: 48,
   motionStop: 46,
   node: 4,
   cast: 5,
@@ -22924,7 +23050,7 @@ var MIRAGE = new Buff({
 var HAZY_DREAM = new Debuff({
   name: "Cantarella: Hazy Dream",
   duration: 60 * 6.5,
-  updateGlobal: () => {
+  hitGlobal: () => {
     const a = currentAction();
     if (stacksOfEnemy(HAZY_DREAM) <= 0 || !a.mv)
       return;
@@ -22936,7 +23062,7 @@ var HAZY_DREAM = new Debuff({
       /* Type.Utility */
     ))
       return;
-    if (HECATE_ACTIONS.has(a))
+    if (runningAnyOf(HECATE_ACTIONS))
       return;
     revokeEnemy(HAZY_DREAM);
     if (currentTeam().slot.resonator === CANTARELLA_RESONATOR)
@@ -23005,12 +23131,7 @@ var CA_S1 = new Sequence({
 });
 var CA_S2 = new Sequence({
   name: "Cantarella S2: Surrender to the Illusive Reverie",
-  grants: [{
-    on: onAction(Liberation27),
-    buff: HAZY_DREAM,
-    to: 2
-    /* BuffTarget.Enemy */
-  }],
+  grants: [{ on: onAction(Liberation27), buff: HAZY_DREAM, to: 2, onHit: true }],
   applyStats: () => {
     if (runningAction(ESKILL_JOLT))
       addStat(16, 245);
@@ -23128,6 +23249,7 @@ function chisaAction(id, def2) {
 var Intro36 = chisaAction("Intro - Reverberance - Return", {
   frames: 55,
   cancelFrames: 55,
+  hitFrame: 39,
   motionStop: 32,
   node: 4,
   cast: 5,
@@ -23136,10 +23258,7 @@ var Intro36 = chisaAction("Intro - Reverberance - Return", {
   energy: 10,
   castConcerto: 10,
   offtune: 6400,
-  castForte1: 20,
-  // Resonant Thread of Closure is a 20s team buff — CLAUDE.md's own rule for one that short is
-  // "lost on the applier's next intro", not left permanent
-  updateBuffs: () => revokeTeam(RESONANT_THREAD_OF_CLOSURE)
+  castForte1: 20
 });
 var Outro38 = chisaAction("Outro - Unraveling - Law Zero", {
   frames: 0,
@@ -23165,10 +23284,9 @@ var HA29 = chisaAction("Heavy - Reign of Silence", { frames: 44, cancelFrames: 3
 var SeveredFacet = chisaAction("Heavy - Severed Facet (Mid-Air)", { frames: 53, cancelFrames: 36, node: 0, cast: 2, type: 8192, mv: 89.48, energy: 1.88, concerto: 3.76, offtune: 6e3, forte1: 12 });
 var HangingFinality = chisaAction("Basic - Hanging Finality", { frames: 77, cancelFrames: 70, node: 0, cast: 1, type: 4096, mv: 119.3, energy: 2.5, concerto: 5, offtune: 8e3, forte1: 16 });
 var Skill34 = chisaAction("Skill - Eye of Unraveling", { frames: 20, cancelFrames: 8, cooldown: 60 * 12, node: 1, cast: 3, type: 12288, mv: 35.79, energy: 0.75, concerto: 1.5, offtune: 2400, forte1: 5, ...MARK_SNARE });
-var SERRATED = { updateDebuffs: () => applyEnemy(UNSEEN_SNARE, 1) };
-var SerratedLoop = chisaAction("Forte Skill - Serrated Loop", { frames: 83, cancelFrames: 78, node: 1, cast: 3, type: 12288, mv: 139.6, energy: 2.96, concerto: 5.92, offtune: 9360, castForte1: -100, forte2: 100, ...SERRATED });
-var SerratedLoopHalfHold = chisaAction("Forte Skill - Serrated Loop (Half Hold)", { frames: 137, cancelFrames: 137, node: 1, cast: 3, type: 12288, mv: 199.28, energy: 4.24, concerto: 8.48, offtune: 13368, castForte1: -100, forte2: 100, ...SERRATED });
-var SerratedLoopHold = chisaAction("Forte Skill - Serrated Loop (Hold)", { frames: 174, cancelFrames: 174, node: 1, cast: 3, type: 12288, mv: 258.96, energy: 5.52, concerto: 11.04, offtune: 17376, castForte1: -100, forte2: 100, ...SERRATED });
+var SerratedLoop = chisaAction("Forte Skill - Serrated Loop", { frames: 83, cancelFrames: 78, node: 1, cast: 3, type: 12288, mv: 139.6, energy: 2.96, concerto: 5.92, offtune: 9360, castForte1: -100, forte2: 100, ...MARK_SNARE });
+var SerratedLoopHalfHold = chisaAction("Forte Skill - Serrated Loop (Half Hold)", { frames: 137, cancelFrames: 137, node: 1, cast: 3, type: 12288, mv: 199.28, energy: 4.24, concerto: 8.48, offtune: 13368, castForte1: -100, forte2: 100, ...MARK_SNARE });
+var SerratedLoopHold = chisaAction("Forte Skill - Serrated Loop (Hold)", { frames: 174, cancelFrames: 174, node: 1, cast: 3, type: 12288, mv: 258.96, energy: 5.52, concerto: 11.04, offtune: 17376, castForte1: -100, forte2: 100, ...MARK_SNARE });
 var Liberation28 = chisaAction("Liberation - Moment of Nihility", {
   frames: 220,
   cancelFrames: 220,
@@ -23275,15 +23393,18 @@ var UNSEEN_SNARE = new Debuff({
   // teammate — Kumokiri, Thread of Severed Fate — reads 0 for it and doesn't pay out. See
   // `appliedByMe()`, which is what every such passive checks.
   //
-  // updateDebuffs, not updateGlobal, even though it fires off everyone's casts: this is an enemy-
-  // pool Debuff, so its updateDebuffs already runs on every member's action, and that phase is
-  // ahead of *all* updateGlobal. From updateGlobal the enemy pool goes last of the three, so the
+  // updateDebuffs, not hitGlobal, even though it fires off everyone's hits: this is an enemy-
+  // pool Debuff, so its updateDebuffs already runs on every member's hit, and that phase is
+  // ahead of *all* hitGlobal. From hitGlobal the enemy pool goes last of the three, so the
   // Bane landed after every cross-slot watcher had already looked — including her own sonata (see
   // THREAD_OF_SEVERED_FATE_3PC), which could never see it.
   updateDebuffs: () => {
-    if (currentAction().mv <= 0)
+    if (currentAction().mv <= 0 || isType(
+      32768
+      /* Type.Status */
+    ))
       return;
-    const start = currentTeam().frame, cd = stacksOfEnemy(SNARE_HASTE) ? 60 : 120;
+    const start = castFrame(), cd = stacksOfEnemy(SNARE_HASTE) ? 60 : 120;
     const was = stacksOfEnemy(SNARE_READY);
     let ready = was, got = 0;
     for (let at = start + 30; at <= start + Math.max(30, elapsed()); at += 30) {
@@ -23302,16 +23423,18 @@ var NEGATIVE_STATUS_CAPS = [HAVOC_BANE, GLACIO_CHAFE, ELECTRO_FLARE, FUSION_BURS
 var RESONANT_THREAD_OF_CLOSURE = new Buff({
   name: "Chisa: Outro",
   duration: 60 * 20,
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (currentAction().mv > 0)
       for (const d of NEGATIVE_STATUS_CAPS)
         maxStackIncrease(d, 3);
-    if (inflictedNegativeStatus() || isType(
+    for (const m of currentTeam().slots)
+      if (m.resonator && inflictedNegativeStatusBy(m))
+        addBuff(m.resonator, THREAD_OF_BANE, 1);
+    if (isType(
       32768
       /* Type.Status */
-    )) {
+    ))
       applyCurrent(THREAD_OF_BANE, 1);
-    }
   }
 });
 var THREAD_OF_BANE = new Buff({
@@ -23337,7 +23460,8 @@ var SnareStrike = chisaAction("Basic - Unseen Snare (S1)", { type: 4096, scaling
 var SNARE_STRUCK = new Buff({});
 var CS_S1 = new Sequence({
   name: "Chisa S1: Wandering Through the Desolate Corridors",
-  updateBuffs: () => {
+  // on the hit, behind the Snare its own updateDebuffs lays
+  updateDebuffs: () => {
     if (!appliedByMe(UNSEEN_SNARE))
       return;
     applyCurrent(DESOLATE_CORRIDORS, 1);
@@ -23506,7 +23630,7 @@ var CrimsonErosion2 = danjinAction("Skill - Crimson Erosion 2", {
   offtune: 4e3,
   castConcerto: 8,
   // 59.65% x2
-  updateBuffs: () => applyEnemy(INCINERATING_WILL, 1)
+  updateDebuffs: () => applyEnemy(INCINERATING_WILL, 1)
 });
 var SanguinePulse1 = danjinAction("Skill - Sanguine Pulse 1", { frames: 33, cancelFrames: 20, node: 1, cast: 3, type: 12288, mv: 112.14, castForte1: 13.5, energy: 3, offtune: 3760, castConcerto: 8 });
 var SanguinePulse2 = danjinAction("Skill - Sanguine Pulse 2", { frames: 37, cancelFrames: 24, node: 1, cast: 3, type: 12288, mv: 128.85, castForte1: 13.5, energy: 3, offtune: 4230, castConcerto: 8 });
@@ -23542,7 +23666,7 @@ var FullChaoscleave = danjinAction("Forte Heavy - Chaoscleave (Full Energy)", {
 });
 var FullScatterbloom = danjinAction("Heavy - Scatterbloom (Full Energy)", { frames: 49, cancelFrames: 19, node: 2, cast: 2, type: 8192, mv: 429.43, energy: 6, offtune: 5360 });
 var Liberation29 = danjinAction("Liberation - Crimson Bloom", { frames: 192, cancelFrames: 192, timestop: 195, motionStop: 180, cooldown: 60 * 16, node: 3, cast: 4, type: 16384, mv: 785.37, castConcerto: 20, offtune: 61440, resetEnergy: true });
-var Intro37 = danjinAction("Intro - Vindication", { frames: 103, cancelFrames: 99, motionStop: 48, node: 4, cast: 5, type: 20480, mv: 198.84, energy: 5, castEnergy: 5, castConcerto: 10, offtune: 12240 });
+var Intro37 = danjinAction("Intro - Vindication", { frames: 103, cancelFrames: 99, hitFrame: 81, motionStop: 48, node: 4, cast: 5, type: 20480, mv: 198.84, energy: 5, castEnergy: 5, castConcerto: 10, offtune: 12240 });
 var Outro39 = danjinAction("Outro - Duality", {
   frames: 0,
   cancelFrames: 0,
@@ -23640,7 +23764,11 @@ var DJ_S1_STACKS = new Buff({
 });
 var DJ_S1 = new Sequence({
   name: "Danjin S1: Crimson Heart of Justice",
-  grants: [{ on: () => stacksOfEnemy(INCINERATING_WILL) > 0, buff: DJ_S1_STACKS }]
+  // on the hit, behind the Incinerating Will Crimson Erosion 2's own hit lays
+  updateDebuffs: () => {
+    if (stacksOfEnemy(INCINERATING_WILL) > 0)
+      applyCurrent(DJ_S1_STACKS, 1);
+  }
 });
 var DJ_S2 = new Sequence({
   name: "Danjin S2: Dusted Mirror",
@@ -24278,12 +24406,12 @@ var VOICE_UPON_VOICE = new Buff({
 var TONAL_SWITCH = new Buff({
   name: "Xuanling: Tonal Switch",
   duration: 60 * 20,
-  updateBuffs: () => {
-    if (currentTeam().slot.resonator === XUANLING_RESONATOR)
-      return;
-    if (appliedByMe(HAVOC_BANE))
-      applyCurrent(TONAL_SWITCH_AMP, 1);
-  }
+  // `onInflict` (`appliedByMe`): the amplification is that resonator's for inflicting it themselves,
+  // and Chisa's Unseen Snare hands Havoc Bane out off whoever is hitting her marked target
+  grants: [{
+    on: both(onInflict(HAVOC_BANE), () => currentTeam().slot.resonator !== XUANLING_RESONATOR),
+    buff: () => TONAL_SWITCH_AMP
+  }]
 });
 var TONAL_SWITCH_AMP = new Buff({
   name: "Xuanling: Outro",
@@ -24364,7 +24492,7 @@ var WITHERED_WOOD = new Buff({
   name: "Xuanling S6: Still as Withered Wood",
   maxStacks: 5,
   duration: 60 * 30,
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (!isActive() || isHeld(WITHERED_WOOD_ICD) || runningAction(ShadowWitheredWood) || !anyNegativeStatusInflicted() || triggeredAction())
       return;
     applyCurrent(WITHERED_WOOD_ICD, 1);
@@ -24376,9 +24504,12 @@ var WITHERED_WOOD_CD = new Buff({ duration: 60 * 25 });
 var WITHERED_WOOD_ICD = new Buff({ duration: 60 });
 var XL_S6 = new Sequence({
   name: "Xuanling S6: Let the Azure Keep Its Light",
-  updateBuffs: () => {
-    if (applied2(HAVOC_BANE))
-      applyCurrent(VOICE_FLUX, 1);
+  // her own Havoc Bane, read as the action's own inflict — Chisa's marker re-sources it onto
+  // herself, which `appliedByMe()` (`onInflict`) would then read as nobody's
+  grants: [{ on: onApplied(HAVOC_BANE), buff: VOICE_FLUX }],
+  // opened after the window above has had its look at this hit, so the Flow that opens it never
+  // spends a charge on its own Feather Release
+  afterAction: () => {
     if (isFlow() && !isHeld(WITHERED_WOOD_CD)) {
       applyCurrent(WITHERED_WOOD, 5);
       applyCurrent(WITHERED_WOOD_CD, 1);
@@ -24401,7 +24532,7 @@ var XUANLING_INHERENT_1 = new Inherent({
 });
 var XUANLING_INHERENT_2 = new Inherent({
   name: "Inherent: One Life, One Blade",
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (isHeld(WINDBOUND_ICD) || !applied2(HAVOC_BANE) || isHeld(ONE_WITH_THE_WIND))
       return;
     applyCurrent(WINDBOUND_ICD, 1);
@@ -24429,9 +24560,9 @@ var XUANLING_RESONATOR = new Resonator({
   maxForte1: 100,
   maxForte2: 2,
   /* Feathered Oath is Forte Circuit machinery, which lives on the Resonator rather than a loadout
-   * slot of its own. Same trigger as Windbound above and the same `updateGlobal` reason: it counts
+   * slot of its own. Same trigger as Windbound above and the same `hitGlobal` reason: it counts
    * Havoc Bane inflicted by anyone on the team, her own casts included. */
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (isHeld(OATH_ICD) || !applied2(HAVOC_BANE))
       return;
     applyCurrent(OATH_ICD, 1);
@@ -24560,15 +24691,13 @@ var Skill42 = jinhsiAction("Forte Skill - Illuminous Epiphany: Solar Flare", {
   energy: 1.98,
   castConcerto: 20,
   offtune: 14400,
-  updateBuffs: () => {
-    revokeCurrent(ORDINATION_GLOW);
-    queue(StellaGlamor);
-  }
+  updateBuffs: () => revokeCurrent(ORDINATION_GLOW),
+  // the detonation lands behind the taps' hit, not at the press
+  updateDebuffs: () => queue(StellaGlamor)
 });
 var Skill4_Unison = Skill42.variant("Forte Skill - Illuminous Epiphany: Solar Flare", {
   updateBuffs: () => {
     revokeCurrent(ORDINATION_GLOW);
-    queue(StellaGlamor);
     applyCurrent(UNISON, 1);
   }
 });
@@ -24590,6 +24719,7 @@ var Liberation31 = jinhsiAction("Liberation - Purge of Light", {
 var Intro40 = jinhsiAction("Intro - Loong's Halo", {
   frames: 60,
   cancelFrames: 60,
+  hitFrame: 49,
   motionStop: 34,
   node: 4,
   cast: 5,
@@ -24617,7 +24747,7 @@ for (const [attribute2, label2] of [[64, "Aero"], [128, "Electro"], [192, "Fusio
 }
 var ERAS_IN_UNITY = new Buff({
   name: "Jinhsi: Eras in Unity",
-  updateGlobal: () => {
+  hitGlobal: () => {
     const a = currentAction();
     if (a.scaling === 3 || !a.element || a.element === 448 || a.mv <= 0)
       return;
@@ -24918,7 +25048,7 @@ var Gavel = luukAction("Mid-air - Gavel of Earthshaker", {
   concerto: 10,
   offtune: 8080,
   forte1: 25.25,
-  updateBuffs: () => queue(IchorDeposit)
+  updateDebuffs: () => queue(IchorDeposit)
 });
 var IchorBlade = luukAction("Forte - Ichor Blade", { frames: 357, cancelFrames: 357, node: 2, type: 4096, scaling: 5, mv: 10 * 33 });
 var Liberation32 = luukAction("Liberation - Rewritten in Winter's Margins", {
@@ -24938,6 +25068,7 @@ var Liberation32 = luukAction("Liberation - Rewritten in Winter's Margins", {
 var Intro41 = luukAction("Intro - Before Injection of Dawn", {
   frames: 75,
   cancelFrames: 73,
+  hitFrame: 39,
   motionStop: 21,
   node: 4,
   cast: 5,
@@ -25023,7 +25154,7 @@ var DAWNLIT_KEEP = new Buff({ name: "Luuk: Dawnlit Keep", maxStacks: 1 });
 var LK_INHERENT_1 = new Inherent({ name: "Inherent: Pulses Under the Snow" });
 var LK_INHERENT_2 = new Inherent({
   name: "Inherent: Uncaused Diagnosis",
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (applied2(TUNE_STRAIN_SHIFTING) || runningAction(TUNE_BREAK))
       applyCurrent(UNCAUSED_DIAGNOSIS_ATK, 1);
   },
@@ -25107,7 +25238,7 @@ var LK_S3 = new Sequence({
 var PULSE_UNDER_RIME = new Buff({ name: "Luuk S4: Pulse Thrumming Under Rime", duration: 60 * 20, stats: [[17, 20]] });
 var LK_S4 = new Sequence({
   name: "Luuk S4: Pulse Thrumming Under Rime",
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (runningAction(TUNE_BREAK))
       applyTeam(PULSE_UNDER_RIME, 1);
   }
@@ -25132,7 +25263,7 @@ var DAWN_UNFURLING = new Buff({
 var LK_S6 = new Sequence({
   name: "Luuk S6: Dawn Unfurling over Frostlands",
   combatStart: () => maxStackIncrease(TUNE_STRAIN_INTERFERED, 2),
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (runningAction(TUNE_BREAK))
       applyCurrent(DAWN_UNFURLING, 1);
   },
@@ -25306,7 +25437,7 @@ var MODE_RUPTURE2 = new ResonanceMode({
     if (inflictsFlux())
       applyRupture();
   },
-  updateGlobal: () => tuneRuptureResponse(SpectralAnalysis)
+  hitGlobal: () => tuneRuptureResponse(SpectralAnalysis)
 });
 var LY_STRAIN_PAYOUT = strainPayout();
 var MODE_STRAIN2 = new ResonanceMode({
@@ -25601,6 +25732,7 @@ var Liberation34 = phoebeAction("Liberation - Dawn of Enlightenment", {
 var Intro43 = phoebeAction("Intro - Golden Grace", {
   frames: 98,
   cancelFrames: 69,
+  hitFrame: 45,
   motionStop: 43,
   node: 4,
   cast: 5,
@@ -25869,7 +26001,7 @@ var Liberation35 = roverAction3("Liberation - Echoing Orchestra", {
     applyEnemy(SPECTRO_FRAZZLE, 6);
   }
 });
-var Intro44 = roverAction3("Intro - Waveshock", { frames: 72, cancelFrames: 72, motionStop: 48, node: 4, cast: 5, type: 20480, mv: 168.99, energy: 10, castConcerto: 10, offtune: 4880, castForte1: 50 });
+var Intro44 = roverAction3("Intro - Waveshock", { frames: 72, cancelFrames: 72, hitFrame: 56, motionStop: 48, node: 4, cast: 5, type: 20480, mv: 168.99, energy: 10, castConcerto: 10, offtune: 4880, castForte1: 50 });
 var Outro46 = roverAction3("Outro - Instant", { frames: 0, cancelFrames: 0, cast: 6, castConcerto: -100 });
 var SPR_INHERENT_1 = new Inherent({
   name: "Inherent: Reticence",
@@ -26759,7 +26891,7 @@ var ZANI_RESONATOR = new Resonator({
   maxEnergy: 125,
   maxForte1: 100,
   stats: [[1, 10775], [0, 437.5], [2, 1136.6646]],
-  updateGlobal: () => {
+  hitGlobal: () => {
     if (applied2(SPECTRO_FRAZZLE) > 0) {
       const held = stacksOfEnemy(SPECTRO_FRAZZLE);
       const rung = negativeStatusRung(HELIACAL_EMBER_ACTIONS, held);

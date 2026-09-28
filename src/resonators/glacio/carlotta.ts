@@ -118,10 +118,8 @@ const Lib1 = carlottaAction("Liberation - Era of New Wave", {
   cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, type: Type.Skill, mv: 402.71, castConcerto: 20, offtune: 33600, resetEnergy: true,
   resetForte2: true, // Twilight Tango removes all Substance on opening
-  updateBuffs: () => {
-    applyEnemy(DECONSTRUCTION, 1);
-    applyCurrent(TWILIGHT_TANGO, 1);
-  },
+  updateBuffs: () => applyCurrent(TWILIGHT_TANGO, 1),
+  updateDebuffs: () => applyEnemy(DECONSTRUCTION, 1),
 });
 const DeathKnell = carlottaAction("Liberation - Death Knell", {
   frames: 70, cancelFrames: 52,
@@ -134,7 +132,7 @@ const FatalFinale = carlottaAction("Liberation - Fatal Finale", {
 });
 
 const Intro = carlottaAction("Intro - Wintertime Aria", {
-  frames: 84, motionStop: 84, cancelFrames: 70,
+  frames: 84, motionStop: 84, cancelFrames: 70, hitFrame: 80,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 298.23, energy: 10, castConcerto: 10, offtune: 9335, forte2: 30, castForte1: 3,
 });
 /** No handoff buff of any kind is described on her own kit page — left as a plain damage hit. */
@@ -158,7 +156,7 @@ const CL_INHERENT_1 = new Inherent({
 
 const CL_INHERENT_2 = new Inherent({
   name: "Inherent: Ars Gratia Artis",
-  updateBuffs: () => {
+  updateDebuffs: () => {
     if (runningAction(Intro) || runningAction(Skill2) || runningAction(DeathKnell) || runningAction(FHA)) applyEnemy(DECONSTRUCTION, 1);
   },
 });
@@ -210,7 +208,7 @@ const Sparks = carlottaAction("Outro - Kaleidoscope Sparks", { frames: 0, type: 
 const CL_S3 = new Sequence({
   name: "Carlotta S3: Adelante, Cortado, Spinning in Grace",
   applyStats: () => { if (runningAction(Skill1) || runningAction(Skill2)) addStat(Stat.MulMv, 93); },
-  updateBuffs: () => { if (runningAction(Outro)) queue(Sparks); },
+  updateDebuffs: () => { if (runningAction(Outro)) queue(Sparks); },
 });
 
 /** S4: any of her three Heavy Attacks gives the whole team +25% Resonance Skill DMG Bonus for 30s —

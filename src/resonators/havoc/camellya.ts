@@ -27,9 +27,10 @@
  * the bar held less. "Consuming 10 Crimson Pistils
  * recovers 4 Concerto Energy and obtains 1 Crimson Bud" is checked as every full 10 consumed
  * from the 100 top (first at 90 or less) by *that one hit's own consumption*, read
- * off forte1() before vs. after — not a flat 1-per-hit rate — in CONSUME_CRIMSON_PISTIL's own
- * applyStats(), gated off entirely while Budding Mode is held. Its Energy Regen Multiplier is the
- * real stat (Stat.EnergyRegenMult): +150% outside Budding Mode, -100 (a x0 factor) while it's held.
+ * off forte1() before vs. after — not a flat 1-per-hit rate — at the cast that banks the spend
+ * (CAMELLYA_RESONATOR's updateBuffs()), gated off entirely while Budding Mode is held. Its Energy
+ * Regen Multiplier is the real stat (Stat.EnergyRegenMult): +150% outside Budding Mode, -100 (a x0
+ * factor) while it's held.
  *
  * Seedbed/Epiphyte (Inherent Skills, always assumed known): +15% Havoc DMG Bonus flat; +15%
  * Basic DMG Bonus flat (interruption-resistance half not modelled) — both genuinely
@@ -227,19 +228,11 @@ const EPIPHYTE = new Inherent({
  *  Concerto Energy + Crimson Bud gain, per full 10 Pistils *this hit's own* consumption takes
  *  from the 100 top, not a flat 1-per-hit rate) and the Energy Regen Multiplier. */
 const CONSUME_CRIMSON_PISTIL = new Buff({
-  name: "Camellya: Consume Crimson Pistil",
+  name: "Camellya: Consume Crimson Pistil", maxStacks: 11,
+  // one stack for the consumption itself, one more per full 10 it took (granted at the cast)
   applyStats: () => {
-    const a = currentAction();
-    const before = forte1();
-    const after = before + a.forte1;
-    // a bud per full 10 *consumed* from the 100 top — the first lands at 90 or less, so a
-    // 100 -> 95 hit grants nothing (floor-of-forte would count crossing 100's own decade)
-    const buds = Math.floor((100 - Math.max(0, after)) / 10) - Math.floor((100 - before) / 10);
-    if (buds > 0) {
-      if (!isHeld(BUDDING_MODE)) applyCurrent(CRIMSON_BUD, buds);
-      for (let i = 0; i < buds; i++) {
-        addStat(Stat.AddConcerto, 4);
-      }
+    for (let i = 1; i < frozenStacks(); i++) {
+      addStat(Stat.AddConcerto, 4);
     }
     addStat(Stat.EnergyRegenMult, isHeld(BUDDING_MODE) ? -100 : 150);
   },
@@ -265,8 +258,17 @@ const CAMELLYA_RESONATOR = new Resonator({
   maxEnergy: 125,
   maxForte1: 100,
 
-  // any gauge-spending cast of hers is a Crimson Pistil consumption
-  grants: [{ on: () => currentAction().forte1 < 0, buff: CONSUME_CRIMSON_PISTIL }],
+  // any gauge-spending cast of hers is a Crimson Pistil consumption, counted as the cast spends it
+  updateBuffs: () => {
+    const spent = currentAction().forte1;
+    if (spent >= 0) return;
+    const before = forte1();
+    // a bud per full 10 *consumed* from the 100 top — the first lands at 90 or less, so a
+    // 100 -> 95 hit grants nothing (floor-of-forte would count crossing 100's own decade)
+    const buds = Math.max(0, Math.floor((100 - Math.max(0, before + spent)) / 10) - Math.floor((100 - before) / 10));
+    if (buds > 0 && !isHeld(BUDDING_MODE)) applyCurrent(CRIMSON_BUD, buds);
+    applyCurrent(CONSUME_CRIMSON_PISTIL, 1 + buds);
+  },
 
   stats: [[Stat.BaseHp, 10325], [Stat.BaseAtk, 450], [Stat.BaseDef, 1161.109]],
 });

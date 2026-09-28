@@ -114,6 +114,9 @@ export interface ActionDef extends GearDef {
    *  (`cancelCost()`). Unmeasured, it is the press's own `frames`: a cut there runs longer than the
    *  press, which `run()`'s length check throws on, so only an insta cut can be made. */
   cancelFrames?: number;
+  /** The frame its (last) hit lands, cut or not — for a press whose cancel frame comes after it.
+   *  Unset, the hit is at `cancelFrames`; the rest of the press is only time on the clock. */
+  hitFrame?: number;
   /** The frames of `frames` the world stands still for (wuwalab's `time_stop`) — part of the
    *  animation, but none of the fight's time: `cancelCost()` takes it back off. */
   timestop?: number;
@@ -207,13 +210,10 @@ export class Action extends Gear {
   energy: number;
   concerto: number;
   offtune: number;
-  /** Which half of a press this plays, where it plays only one: its cast (a split press's cast
-   *  half, an insta cut) banks only the cast's gains, its landing hit only the hit's. Null on a
-   *  whole press, which banks both. */
+  /** Which half of a press this plays, where it plays only one: its cast (a queued-hit press's cast,
+   *  an insta cut) runs only the cast's hooks and banks its gains, its queued hit only the hit's.
+   *  Null on a whole press (no motion value, or its hit on the cast frame), which runs both. */
   half: "cast" | "hit" | null = null;
-  /** A dodge/jump cancel's cast half: the press up to its cut, none of its hooks — which are its
-   *  hit's (`castPart()`), so it doesn't read as the press (`runningAction()`). */
-  dashCast = false;
   /** The cast's own share of `energy` / `concerto` / forte1-5. */
   castEnergy: number;
   castConcerto: number;
@@ -233,6 +233,7 @@ export class Action extends Gear {
   skipNextFn?: () => boolean;
   frames: number;
   cancelFrames: number;
+  hitFrame: number;
   timestop: number;
   motionStop: number;
   cooldown: Cooldown | null;
@@ -289,6 +290,7 @@ export class Action extends Gear {
     this.skipNextFn = def.skipNext;
     this.frames = def.frames ?? 0;
     this.cancelFrames = def.cancelFrames ?? this.frames;
+    this.hitFrame = def.hitFrame ?? this.cancelFrames;
     this.timestop = def.timestop ?? 0;
     this.motionStop = def.motionStop ?? 0;
     this.tag = def.tag ?? (def.cast === Cast.Outro ? ActionTag.Field : ActionTag.Default);
@@ -363,91 +365,61 @@ export class Action extends Gear {
     return out;
   }
 
-  /** Does this press's hit land after its cast — an Outro or an insta swap (its owner gone by
-   *  then), a FIELD summon whose frames are the time its hit takes, or a dodge/jump cancel, whose
-   *  dash is made before the hit is in? `run()` then casts `castPart()` and lands `hitPart()` later.
-   *  A swap cancel's hit lands on field, before it swaps. */
+  /** Does this press queue its hit, landing it `hitDelay()` after the cast: any press with a motion
+   *  value whose hit is later than the cast, and always an Outro's or an insta swap's (the incoming
+   *  resonator casts first). A half, an insta cut that lost its hit, or a 0-MV press plays whole. */
   splitsHit(cut: ActionTag | null): boolean {
-    const tag = cut ?? this.tag;
-    return this.mv > 0 && (this.cast === Cast.Outro || tag === ActionTag.InstaSwap || dashCut(tag) || (tag === ActionTag.Field && this.frames > 0));
+    if (this.half !== null || this.mv <= 0) return false;
+    return this.cast === Cast.Outro || this.tag === ActionTag.InstaSwap || this.hitDelay(cut) > 0;
   }
-  /** Does the split hit land with its owner off the field — an Outro's or an insta swap's, not a
+  /** Does the queued hit land with its owner off the field — an Outro's or an insta swap's, not a
    *  summon's, which lands wherever the field then stands. */
   hitsAway(cut: ActionTag | null): boolean {
     return this.cast === Cast.Outro || (cut ?? this.tag) === ActionTag.InstaSwap;
   }
-  /** Frames from the cast to its hit: an outro's or a summon's whole animation, an insta swap's
-   *  cancel frame (its last hit), less any time stop either way — a dodge/jump cancel's its cancel
-   *  frame too, none of the cut's own frames (`run()` holds it until the dash has played). */
+  /** Does the cast take none of the clock — an Outro, an insta swap (their 15 swap frames are the
+   *  handoff's), a FIELD hit (its frames are only the time its hit takes). */
+  private get castsInstantly(): boolean {
+    return this.cast === Cast.Outro || this.tag === ActionTag.InstaSwap || this.tag === ActionTag.Field;
+  }
+  /** Fight-clock frames from the cast to its hit as `cut` plays it: `hitFrame`, never past where
+   *  the cut ends it, less the time stop ahead of it. */
+  hitClock(cut: ActionTag | null = null): number {
+    const at = Math.min(this.hitFrame, this.cost(cut).action);
+    return Math.max(0, at - Math.min(this.timestop, at));
+  }
+  /** Frames from the cast to its queued hit: `hitClock()`, or for a press that casts instantly its
+   *  `hitFrame` into its own frames. */
   hitDelay(cut: ActionTag | null = null): number {
-    if (dashCut(cut ?? this.tag)) {
-      const c = this.cost(cut);
-      return Math.max(0, c.action - c.timestop);
-    }
-    const at = this.tag === ActionTag.InstaSwap ? Math.min(this.cancelFrames, this.frames) : this.frames;
-    return Math.max(0, at - this.timestop);
+    if (!this.castsInstantly) return this.hitClock(cut);
+    const at = Math.min(this.hitFrame, this.frames);
+    return Math.max(0, at - Math.min(this.timestop, at));
   }
   private castCopy?: Action;
-  private dashCastCopy?: Action;
-  private dashHitCopy?: Action;
   private hitCopy?: Action;
-  /** The leaving half of a split press: everything but the hit — its spend, its hand-offs, the swap.
-   *  A dodge/jump cancel's plays its own frames to the cut; every other takes none. */
-  castPart(cut: ActionTag | null = null): Action {
-    if (dashCut(cut ?? this.tag)) {
-      if (!this.dashCastCopy) {
-        // the press up to its cut, what its cast banks and its cast hooks (`updateBuffs`); its hit's
-        // own (`updateDebuffs`, the stat phases) wait for the hit
-        this.dashCastCopy = this.variant(this.name, {
-          mv: 0, energy: 0, offtune: 0, concerto: 0, forte1: 0, forte2: 0, forte3: 0, forte4: 0, forte5: 0,
-          updateDebuffs: undefined, applyStats: undefined, convertStats: undefined,
-          lateConvertStats: undefined, afterAction: undefined,
-        });
-        this.dashCastCopy.formOf = this;
-        this.dashCastCopy.half = "cast";
-        this.dashCastCopy.dashCast = true;
-      }
-      return this.dashCastCopy;
-    }
+  /** The cast of a press whose hit is queued: its frames (none where it casts instantly), what its
+   *  cast banks, and every hook — evaluate() runs only the cast's (`updateBuffs`, `updateGlobal`). */
+  castPart(): Action {
     if (!this.castCopy) {
-      const d = this.def;
-      // a cast leaves the moment it is pressed: its frames are the hit's to wait out
-      // the cast's own share of what the press banks, none of the hit's
+      const instant = this.castsInstantly ? { frames: 0, cancelFrames: 0, hitFrame: 0, timestop: 0 } : {};
       this.castCopy = this.variant(this.name, {
-        mv: 0, energy: 0, offtune: 0, concerto: 0, forte1: 0, forte2: 0, forte3: 0, forte4: 0, forte5: 0,
-        updateDebuffs: undefined, frames: 0, cancelFrames: 0, timestop: 0,
+        mv: 0, energy: 0, offtune: 0, concerto: 0, forte1: 0, forte2: 0, forte3: 0, forte4: 0, forte5: 0, ...instant,
       });
       this.castCopy.formOf = this;
       this.castCopy.half = "cast";
     }
     return this.castCopy;
   }
-  /** The landing half: the hit alone, off field — its damage, what it banks, what it inflicts. */
-  hitPart(cut: ActionTag | null = null): Action {
-    if (dashCut(cut ?? this.tag)) {
-      // a dodge/jump cancel's hit is the press's own, landed after the dash: its hit hooks
-      // (`updateDebuffs`, the stat phases) but not its cast's (`updateBuffs`), playing no frames
-      if (!this.dashHitCopy) {
-        const d = this.def;
-        this.dashHitCopy = new Action(this.name, {
-          element: d.element, type: d.type, subtype: d.subtype, node: d.node, scaling: d.scaling, mv: d.mv,
-          energy: d.energy, offtune: d.offtune, concerto: d.concerto, field: d.field,
-          forte1: d.forte1, forte2: d.forte2, forte3: d.forte3, forte4: d.forte4, forte5: d.forte5,
-          updateDebuffs: d.updateDebuffs, applyStats: d.applyStats, convertStats: d.convertStats,
-          lateConvertStats: d.lateConvertStats, afterAction: d.afterAction,
-        });
-        this.dashHitCopy.formOf = this;
-        this.dashHitCopy.half = "hit";
-      }
-      return this.dashHitCopy;
-    }
+  /** The queued hit: no frames, what the hit banks, and every hook — evaluate() runs only the hit's
+   *  (`updateDebuffs`, `hitGlobal`, the stat phases, `afterAction`). */
+  hitPart(): Action {
     if (!this.hitCopy) {
-      const d = this.def;
-      this.hitCopy = new Action(this.name, {
-        element: d.element, type: d.type, subtype: d.subtype, node: d.node, scaling: d.scaling, mv: d.mv,
-        energy: d.energy, offtune: d.offtune, concerto: d.concerto, field: d.field,
-        forte1: d.forte1, forte2: d.forte2, forte3: d.forte3, forte4: d.forte4, forte5: d.forte5,
-        applyStats: d.applyStats, updateDebuffs: d.updateDebuffs, tag: ActionTag.Field,
+      this.hitCopy = this.variant(this.name, {
+        frames: 0, cancelFrames: 0, hitFrame: 0, timestop: 0, motionStop: 0, cooldown: undefined,
+        castEnergy: 0, castConcerto: 0, castForte1: 0, castForte2: 0, castForte3: 0, castForte4: 0, castForte5: 0,
+        resetEnergy: false, resetForte1: false, resetForte2: false, resetForte3: false, resetForte4: false, resetForte5: false,
+        // the swap was the cast's; the hit is no cut of its own
+        tag: this.tag === ActionTag.SwapCancel || this.tag === ActionTag.InstaSwap ? ActionTag.Default : this.tag,
       });
       this.hitCopy.formOf = this;
       this.hitCopy.half = "hit";
@@ -545,7 +517,7 @@ function dashed(after: Action, kind: ActionTag): ActionGroup {
 
 
 /** The plain dash and jump — what a resonator without one of its own makes (`ResonatorDef.dodge`). */
-export const DODGE = new Action("Dodge", { frames: 22 });
+export const DODGE = new Action("Dodge", { frames: 20 });
 export const JUMP = new Action("Jump", { frames: 15 });
 
 /** The dash (or jump) a `dodge()`/`jump()` cut makes after `after`, resolved when reached the way

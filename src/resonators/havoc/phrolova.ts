@@ -86,13 +86,13 @@ const Liberation = phroAction("Liberation - Waltz of Forsaken Depths", {
 });
 
 const Intro = phroAction("Intro - Suite of Quietus", {
-  frames: 80, cancelFrames: 80, motionStop: 33,
+  frames: 80, cancelFrames: 80, hitFrame: 62, motionStop: 33,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 201.52, offtune: 10137, energy: 10, castConcerto: 10,
 });
 /** Maestro-replaced Intro — used whenever she re-enters with Maestro still open. Playing it is
  *  also what closes Maestro back out. */
 const EIntro = phroAction("Intro - Suite of Immortality", {
-  frames: 93, cancelFrames: 93, motionStop: 51,
+  frames: 93, cancelFrames: 93, hitFrame: 60, motionStop: 51,
   node: Node.Intro, cast: Cast.Intro, type: Type.Skill, mv: 596.43, offtune: 9600, energy: 10, castConcerto: 10,resetForte1: true,
   // the Waltz ends here, and everything it was playing through goes with it: the unplayed notes,
   // the chances left, the front note's play count — the store keeps only its always-set bit

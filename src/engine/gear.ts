@@ -19,7 +19,9 @@ import { addStat, frozenStacks, casting, currentAction, applyCurrent, applyTeam,
 export type StatLine = readonly [Stat | EnemyStat, number] | readonly [Stat | EnemyStat, number, Tag];
 /** A condition read off the action being evaluated — `onCast(Cast.Skill)`, `onType(Type.Basic)`,
  *  `onInflict(STATUS)` (context.ts), or any predicate over the kit API. */
-export type Trigger = () => boolean;
+/** `inflicts`: the trigger reads what the action put on the target (`onInflict`/`onApplied`), so
+ *  its grant fires in whichever half of the press did the inflicting, cast or hit. */
+export type Trigger = (() => boolean) & { inflicts?: boolean };
 /** "On `on`, grant `stacks` of `buff`": to the wielder (`self`, the default), the team, the enemy
  *  (a `Debuff`), or `next` — published for whoever intros next (`queueOutro`). `stacks` may read
  *  the action (`() => applied(SHIELD)`). `buff` left out means the declaring Buff itself — a buff
@@ -44,25 +46,21 @@ export interface GearDef {
    *  For anything that happens on entering combat, not on a specific cast (Phrolova's Octet:
    *  10 Aftersound the instant she's on the team, regardless of when she first acts). */
   combatStart?: () => void;
-  /** What this cast *inflicts* — the enemy debuffs (Tune Shifting, the elemental Negative
-   *  Statuses) and the shield marker (see statuses.ts) it puts up. Runs first of all, across every
-   *  held Gear, so that by the time anything else looks, `applied()` already answers "did this
-   *  action inflict X" — the same shape as `updateBuffs` (grant/revoke, never a stat), split out
-   *  purely for that ordering. */
+  /** The hit phase's first hook: what the hit *inflicts* — the enemy debuffs (Tune Shifting, the
+   *  elemental Negative Statuses) and the shield marker (see statuses.ts) it puts up — and anything
+   *  else that happens as it lands. Runs across every held Gear as the hit lands, ahead of
+   *  `hitGlobal` and the stat phases. Grant/revoke/queue/spend, never a stat. */
   updateDebuffs?: () => void;
-  /** Same shape as `updateBuffs` below — grant/revoke/queue/spend, never a stat contribution — but
-   *  runs one step ahead of it, and runs for this Gear no matter who actually took the action:
-   *  every slot's own held gear gets its own `updateGlobal()` called every single action, not
-   *  just when this Gear's own holder is the one acting. `updateBuffs` still only runs when this
-   *  Gear is actually in the acting slot's own held set (or global) — `updateGlobal` is what a
-   *  self-held buff needs to react to a *teammate's* action without being promoted to a real
-   *  team-wide buff just to be reachable from their turn (Jingran's Trace the Vestige/Fixation:
-   *  both react to any team member's own shield, but pay out onto his slot specifically). Runs
-   *  after `updateDebuffs`, so a teammate's own Shifting/status/shield from this action is visible. */
+  /** The cast's watcher over the whole team: same shape as `updateBuffs`, but run for this Gear
+   *  whoever casts — every slot's own held gear, not just the caster's. What a self-held buff needs
+   *  to react to a *teammate's* cast without being made team-wide (an Echo Skill cast anywhere on
+   *  the team). Runs ahead of `updateBuffs`. Its hit-side twin is `hitGlobal`. */
   updateGlobal?: () => void;
-  /** Grant/revoke/queue/spend — never a stat contribution. Runs across every held Gear, after
-   *  `updateDebuffs` and `updateGlobal`. The cast phase: the fight clock still reads the frame the
-   *  press started on, so a buff granted here dates from the cast. */
+  /** `updateGlobal` on the hit: run for this Gear whoever's hit lands, after every `updateDebuffs`,
+   *  so what that hit inflicted (a teammate's Shifting, status or shield) is visible. */
+  hitGlobal?: () => void;
+  /** The cast phase: grant/revoke/queue/spend — never a stat contribution. Runs across every held
+   *  Gear as the press is cast, after `updateGlobal`, the clock on the frame the press started. */
   updateBuffs?: () => void;
   /** A stat contribution that depends on nothing but what the action *is* — `addStat()` calls,
    *  plain or scoped to an element/type, and nothing else: no stacks, no gauges, no `casting()`
@@ -72,7 +70,7 @@ export interface GearDef {
    *  in `applyStats` below, which runs every action. Contributes in the applyStats phase, ahead of
    *  every `applyStats`. */
   constantStats?: () => void;
-  /** A flat stat contribution. Runs after every held Gear's own updateBuffs(). */
+  /** A flat stat contribution, on the hit only. */
   applyStats?: () => void;
   /** Reads a total applyStats() already built this action (an ER threshold, an HP fold). */
   convertStats?: () => void;
@@ -110,8 +108,8 @@ export interface GearDef {
   /** Flat, unconditional stat lines — the data form of `constantStats` (on a `Buff`, of
    *  `applyStats`, since a buff comes and goes). Both may be given; the lines land first. */
   stats?: StatLine[];
-  /** What this Gear grants, and when — the data form of `updateBuffs`. Runs after any closure
-   *  `updateBuffs` the same def declares. */
+  /** What this Gear grants, and when: on the cast (after any closure `updateBuffs`), on the hit
+   *  after its damage (`onHit`), or — a trigger reading inflictions — wherever the inflicting was. */
   grants?: Grant[];
 }
 
@@ -121,7 +119,11 @@ const PHASE_DEBUFFS = 1, PHASE_BUFFS = 2, PHASE_APPLY = 4, PHASE_CONVERT = 8, PH
 /** Not a phase of its own: constantStats contributes inside the applyStats phase, but it is
  *  listed like one so a `Pool` can hand `evaluate()` exactly the Gear that declares it. */
 const PHASE_CONST = 64;
-export const PHASE_COUNT = 7;
+/** The hit's infliction-triggered grants, once every `updateDebuffs`/`hitGlobal` has landed. */
+const PHASE_HIT_GRANTS = 128;
+export const PHASE_COUNT = 8;
+/** A Gear with only a `hitGlobal` still sits in its pool's `globalHooks` through this stand-in. */
+const NO_GLOBAL = (): void => {};
 
 let nextGearId = 1;
 
@@ -152,12 +154,14 @@ export class Gear {
   combatStartFn?: () => void;
   updateDebuffsFn?: () => void;
   updateGlobalFn?: () => void;
+  hitGlobalFn?: () => void;
   updateBuffsFn?: () => void;
   constantStatsFn?: () => void;
   applyStatsFn?: () => void;
   convertStatsFn?: () => void;
   afterActionFn?: () => void;
   lateConvertStatsFn?: () => void;
+  hitGrantsFn?: () => void;
   displayFn?: () => string;
   /** Which of the six per-action phases this Gear has a hook for, one bit each (see `PHASE_*`),
    *  fixed here since the hooks themselves are — a `Pool` reads this one field to sort a
@@ -178,7 +182,8 @@ export class Gear {
     this.field = def.field ?? null;
     this.combatStartFn = def.combatStart;
     this.updateDebuffsFn = def.updateDebuffs;
-    this.updateGlobalFn = def.updateGlobal;
+    this.hitGlobalFn = def.hitGlobal;
+    this.updateGlobalFn = def.updateGlobal ?? (def.hitGlobal ? NO_GLOBAL : undefined);
     this.updateBuffsFn = def.updateBuffs;
     this.constantStatsFn = def.constantStats;
     this.applyStatsFn = def.applyStats;
@@ -205,16 +210,24 @@ export class Gear {
           else applyCurrent(buff, n);
         }
       };
-      // on-cast grants land in the cast phase, on-hit ones once the hit has resolved
-      const onCast = def.grants.filter((g) => !g.onHit), onHit = def.grants.filter((g) => g.onHit);
-      this.fireGrantsFn = () => fire(onCast);
-      if (onCast.length) {
+      // on-cast grants land in the cast phase, on-hit ones once the hit has resolved, and one on an
+      // infliction wherever it was: a split press's cast, else its hit (`PHASE_HIT_GRANTS`)
+      const onHit = def.grants.filter((g) => g.onHit);
+      const onInflict = def.grants.filter((g) => !g.onHit && g.on.inflicts);
+      const onCast = def.grants.filter((g) => !g.onHit && !g.on.inflicts);
+      this.fireGrantsFn = () => {
+        fire(onCast);
+        fire(onInflict);
+      };
+      if (onCast.length || onInflict.length) {
         const own = def.updateBuffs;
         this.updateBuffsFn = () => {
           own?.();
           fire(onCast);
+          if (currentAction().half === "cast") fire(onInflict);
         };
       }
+      if (onInflict.length) this.hitGrantsFn = () => fire(onInflict);
       if (onHit.length) {
         const own = def.afterAction;
         this.afterActionFn = () => {
@@ -235,8 +248,8 @@ export class Gear {
     this.hookMask = (this.updateDebuffsFn ? PHASE_DEBUFFS : 0) | (this.updateBuffsFn ? PHASE_BUFFS : 0)
       | (this.applyStatsFn ? PHASE_APPLY : 0) | (this.convertStatsFn ? PHASE_CONVERT : 0)
       | (this.lateConvertStatsFn ? PHASE_LATE : 0) | (this.afterActionFn ? PHASE_AFTER : 0)
-      | (this.constantStatsFn ? PHASE_CONST : 0);
-    this.hookFns = [this.updateDebuffsFn, this.updateBuffsFn, this.applyStatsFn, this.convertStatsFn, this.lateConvertStatsFn, this.afterActionFn, this.constantStatsFn];
+      | (this.constantStatsFn ? PHASE_CONST : 0) | (this.hitGrantsFn ? PHASE_HIT_GRANTS : 0);
+    this.hookFns = [this.updateDebuffsFn, this.updateBuffsFn, this.applyStatsFn, this.convertStatsFn, this.lateConvertStatsFn, this.afterActionFn, this.constantStatsFn, this.hitGrantsFn];
   }
   /** "Name xN" for anything that stacks — by its own declared cap, or in fact: a debuff declared at 1
    *  can be standing at 2 or 3 once a kit's `maxStackIncrease()` raised the target's own ceiling
@@ -261,10 +274,6 @@ export interface BuffDef extends GearDef {
   perStack?: boolean;
   /** `stats` pay only while this holds (`() => isActive()`, say). */
   when?: Trigger;
-  /** `stats` pay in the updateBuffs phase, off the stack count held *coming into* the action —
-   *  so the cast that grants stacks pays for those it held already, not the ones it just added.
-   *  The default (applyStats) pays the count after this action's grants. */
-  early?: boolean;
   /** "Lost on switching out": revoked by the action that takes its holder off field — before that
    *  action pays, bar a swap cancel, whose hit lands on field and pays first (`lostOnSwap()`). */
   lostOnSwap?: boolean;
@@ -304,8 +313,11 @@ export class Buff extends Gear {
         const n = perStack ? frozenStacks() : 1;
         for (const line of lines) addStat(line[0] as Stat, perStack ? line[1] * n : line[1], line[2]);
       };
-      if (def.early) { const own = this.updateBuffsFn; this.updateBuffsFn = () => { pay(); own?.(); }; }
-      else { const own = def.applyStats; this.applyStatsFn = () => { pay(); own?.(); }; }
+      const own = def.applyStats;
+      this.applyStatsFn = () => {
+        pay();
+        own?.();
+      };
     }
     if (def.lostOnSwap) {
       const own = this.updateBuffsFn;

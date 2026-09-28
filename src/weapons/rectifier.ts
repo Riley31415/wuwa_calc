@@ -22,6 +22,7 @@ import {
   onApplied,
   either,
   both,
+  inflicting,
 } from "../engine/context.js";
 import { GLACIO_CHAFE, FUSION_BURST, HEALS, ELECTRO_FLARE, SPECTRO_FRAZZLE } from "../shared/status.js";
 import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
@@ -212,9 +213,9 @@ export const FORGED_DWARF_STAR = refinements((r, rank) => {
     name: `Forged Dwarf Star: Dissolution${rank}`,
     duration: 60 * 5,
     stats: [[Stat.DmgBonus, [36, 45, 54, 63, 72][r]!, Type.Liberation]],
-    // the team half reacts to *anyone's* cast, so it watches from updateGlobal (runs every action
-    // for a locally-held buff) rather than update (the wielder's own turns only)
-    updateGlobal: () => { if (applied(FUSION_BURST) || applied(TUNE_STRAIN_SHIFTING)) applyTeam(DISSOLUTION_TEAM, 1); },
+    // the team half reacts to *anyone's* infliction, so it watches from hitGlobal (runs every hit
+    // for a locally-held buff) rather than the wielder's own hooks
+    hitGlobal: () => { if (applied(FUSION_BURST) || applied(TUNE_STRAIN_SHIFTING)) applyTeam(DISSOLUTION_TEAM, 1); },
   });
   return new Weapon({
     weaponType: WeaponType.Rectifier, name: `Forged Dwarf Star${rank}`,
@@ -254,7 +255,8 @@ export const FIRSTLIGHTS_HERALD = refinements((r, rank) => {
     grants: [
       { on: onInflict(GLACIO_CHAFE), buff: SNOW_TAINT },
       { on: onApplied(HEALS), buff: RIPPLES },
-      { on: bothMarks, buff: SPRING_WREATH_TEAM, to: BuffTarget.Team },
+      // read after the marks land, wherever the inflicting was
+      { on: inflicting(bothMarks), buff: SPRING_WREATH_TEAM, to: BuffTarget.Team },
       { on: () => casting(Cast.Outro) && bothMarks(), buff: SNOW_TAINT },
       { on: () => casting(Cast.Outro) && bothMarks(), buff: RIPPLES },
       { on: onCast(Cast.Outro), buff: SPRING_WREATH },

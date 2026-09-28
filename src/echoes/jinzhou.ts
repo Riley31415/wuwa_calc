@@ -204,7 +204,7 @@ export const ACTION_LAMPYLUMEN_MYRIAD = new Action("Echo - Lampylumen Myriad", {
   frames: 60, cancelFrames: 46,
   cooldown: 60 * 20,
   cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo, mv: 667.20, energy: 3.12 * 2 + 4.17, // 200.16%+200.16%+266.88%
-  updateBuffs: () => applyCurrent(LAMPYLUMEN_MYRIAD_STACKS, 3),
+  updateDebuffs: () => applyCurrent(LAMPYLUMEN_MYRIAD_STACKS, 3),
 });
 export const LAMPYLUMEN_MYRIAD_STACKS = new Buff({
   name: "Lampylumen Myriad", maxStacks: 3, duration: 60 * 15,
@@ -306,7 +306,11 @@ export const ACTION_MECH_ABOMINATION = new Action("Echo - Mech Abomination", {
   frames: 60, cancelFrames: 46,
   cooldown: 60 * 20,
   cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo, mv: 48.64, energy: 0.76,
-  updateBuffs: () => { applyCurrent(MECH_ABOMINATION_ATK, 1); queue(ACTION_MECH_WASTE); },
+  // the strike's: on the hit, so Mech Waste lands after it
+  updateDebuffs: () => {
+    applyCurrent(MECH_ABOMINATION_ATK, 1);
+    queue(ACTION_MECH_WASTE);
+  },
 });
 export const ACTION_MECH_WASTE = new Action("Echo - Mech Abomination: Mech Waste", {
   cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Outro, mv: 480, energy: 1.52,

@@ -29,6 +29,9 @@ import { State, TeamMember, StatEntry, HeldBuff, SUBTYPE_AMP_INDEX, SUBTYPE_CRIT
 export function setTracing(on: boolean): void { ctx.tracing = on; }
 
 export const currentAction = (): Action => ctx.act!;
+/** The whole press being evaluated, from either half of it: what the press banks in all (its
+ *  `forteN` cast and hit together), where `currentAction()` is only the half being run. */
+export const pressed = (): Action => (ctx.act!.half !== null ? ctx.act!.formOf ?? ctx.act! : ctx.act!);
 
 /** True while the fight is part-way through an `ActionGroup` — set on every member but the last
  *  (see `run()`), and so still true across any follow-up queued off a mid-group cast. Only
@@ -54,9 +57,8 @@ export function casting(cast: Cast): boolean {
 /**
  * Stop this action counting as `cast` — for a press that is two casts at once (Qiuyuan's Thus
  * Spoke the Blade trio are Heavy Attacks that also count as an Echo Skill) whose second half its
- * own kit only pays out some of the time. Assign from `updateDebuffs`, the first phase, the way
- * `typeOverride()` is: everything that reads `casting()` runs after it — every `grants` trigger,
- * every `applyStats`, every `updateGlobal`.
+ * own kit only pays out some of the time. It lasts one half: assign it from the action's own
+ * `updateGlobal` for the cast (ahead of every reader there) and its own `updateDebuffs` for the hit.
  *
  * The action's primary `cast` can be dropped too, and the Action itself is never touched — kits
  * compare actions by identity, and a mutated singleton would leak across the teams a worker runs.
@@ -75,15 +77,12 @@ export function runningAction(action: Action): boolean {
   // a cancel, a swap-out form or a Unison outro is the cast a kit named, told apart only by how
   // it ended (rotation.ts's `cancelOf`/`formOf`) — followed all the way down, since an off-field
   // outro is a form of a Unison outro that is a form of the plain one
-  // a dodge/jump cut's cast half isn't the press: its hit, where the press's hooks all went, is
-  if (ctx.act!.dashCast) return false;
   for (let a: Action | null = ctx.act!; a; a = a.cancelOf ?? a.formOf) if (a === action) return true;
   return false;
 }
 
 /** `runningAction()` over a set: is the acting press any of `actions`, cut or swapped out or not? */
 export function runningAnyOf(actions: ReadonlySet<Action>): boolean {
-  if (ctx.act!.dashCast) return false;
   for (let a: Action | null = ctx.act!; a; a = a.cancelOf ?? a.formOf) if (actions.has(a)) return true;
   return false;
 }
@@ -98,12 +97,15 @@ export function isActive(): boolean {
 
 /** The frames the action being evaluated runs the fight clock by: its own `frames` as a press,
  *  0 for a follow-up (it lands inside the press that queued it) or a cancelled press (the dash
- *  that cut it carries the time). What a rate per second scales by (Iuno's Energy a second in
- *  her domain), and the test for "a press that takes time" where a kit fires per cast. */
-export const elapsed = (): number => ctx.actFrames;
+ *  that cut it carries the time); on a queued hit, its press's. What a rate per second scales by
+ *  (Iuno's Energy a second in her domain), and the test for "a press that takes time". */
+export const elapsed = (): number => (ctx.act!.half === "hit" ? ctx.pressFrames : ctx.actFrames);
 
 /** The fight clock as the action being evaluated found it, in frames (`State.frame`). */
 export const currentFrame = (): number => ctx.state!.frame;
+/** The frame the press being evaluated was cast — its own start, or on a queued hit its cast's:
+ *  what a count spread over the press's frames (`elapsed()`) is laid from. */
+export const castFrame = (): number => (ctx.act!.half === "hit" ? ctx.pressStart : ctx.state!.frame);
 
 const cooldownOf = (of: Action | Cooldown): Cooldown | null => ("wait" in of ? of : of.cooldown);
 
@@ -171,10 +173,21 @@ export function typeOverride(type: Type | Subtype): void {
 export const onCast = (...casts: Cast[]): Trigger => () => casts.some((c) => casting(c));
 export const onAction = (...actions: Action[]): Trigger => () => actions.some((a) => runningAction(a));
 export const onType = (...types: (Type | Subtype)[]): Trigger => () => types.some((t) => isType(t));
-export const onInflict = (...gears: Gear[]): Trigger => () => gears.some((g) => appliedByMe(g) > 0);
-export const onApplied = (...gears: Gear[]): Trigger => () => gears.some((g) => applied(g) > 0);
-export const either = (...triggers: Trigger[]): Trigger => () => triggers.some((t) => t());
-export const both = (...triggers: Trigger[]): Trigger => () => triggers.every((t) => t());
+export const onInflict = (...gears: Gear[]): Trigger => inflicting(() => gears.some((g) => appliedByMe(g) > 0));
+export const onApplied = (...gears: Gear[]): Trigger => inflicting(() => gears.some((g) => applied(g) > 0));
+export const either = (...triggers: Trigger[]): Trigger => combined(() => triggers.some((t) => t()), triggers);
+export const both = (...triggers: Trigger[]): Trigger => combined(() => triggers.every((t) => t()), triggers);
+/** A trigger reading what the action inflicted: its grant fires wherever the inflicting was. */
+export function inflicting(fn: () => boolean): Trigger {
+  const t: Trigger = fn;
+  t.inflicts = true;
+  return t;
+}
+function combined(fn: () => boolean, parts: Trigger[]): Trigger {
+  const t: Trigger = fn;
+  if (parts.some((p) => p.inflicts)) t.inflicts = true;
+  return t;
+}
 
 /** Is the action being evaluated this damage type — its own `type` or `subtype`, or whichever of
  *  the two a held Gear's `typeOverride` assigned for this evaluation, which stands in for that
@@ -564,6 +577,11 @@ export function setStacksSelf(buff: Buff, n: number): number {
 }
 export function removeStack(buff: Buff, n = 1): number { return ctx.slot!.removeStack(buff, n); }
 export function revokeCurrent(buff: Buff): void { ctx.slot!.revoke(buff); }
+/** Push a held buff's own expiry `frames` later — "extends its duration by Ns". */
+export function extendCurrent(buff: Buff, frames: number): void {
+  noteMutation(buff.id, 9e6 + frames);
+  ctx.slot!.stacks.extend(buff, frames);
+}
 
 /** The Gear whose hook is running right now — what `lostOnSwap()` below revokes; nothing inside a
  *  kit needs it, since a hook already knows which gear it belongs to. */

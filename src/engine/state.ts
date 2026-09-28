@@ -190,6 +190,13 @@ class Pool {
     const i = this.at.get(gear);
     if (i !== undefined) this.stamp(i, gear);
   }
+  /** Push a held timed Gear's expiry `frames` later, its count untouched — "extends its duration". */
+  extend(gear: Gear, frames: number): void {
+    const i = this.at.get(gear);
+    if (i === undefined || !this.expires[i]) return;
+    this.writeExpiry(i);
+    this.expires[i] += frames;
+  }
   /** Frames `gear` has left, or 0 where it is untimed or not held. */
   left(gear: Gear): number {
     const i = this.at.get(gear);
@@ -583,6 +590,10 @@ export class State {
    *  are charged to (`run()`). */
   presser = -1;
   swapRow: Result | null = null;
+  /** Where the last press (or the handoff's swap frames) ends, and how much of its motion stop is
+   *  still to play: `run()` walks the clock there, landing every queued hit due on the way. */
+  playsTo = 0;
+  playStop = 0;
   /** Which way the next Outro hands the field over: +1 for the ordinary handoff to the next
    *  resonator in team order, -1 for the outro closing a DOUBLE_INTRO section (rotation.ts). The scheduler
    *  sets it right before the outro is evaluated and puts it back to +1 straight after, so a
@@ -618,11 +629,11 @@ export class State {
   enemyMaxSources = new Map<Gear, Set<string>>(); // TODO change Gear to Debuff
   outroQueue: Buff[] = [];
   /** Hits waiting on the clock, each landing on its owner at `due` — earliest first; `run()` plays
-   *  them once the clock has passed it. A hit split off a press that left the field first (an
-   *  outro's, an insta swap's) fills in `into`, the cast's own row; one a tick queued (`ctx.tickAt`)
-   *  is a row of its own, credited to `by`; one with `apply` and no action is run there instead
-   *  (`applyOn()`, a heal tick's), no row at all. */
-  timed: { due: number; action: Action | null; slot: number; into: Result | null; by: HeldBuff | null; away?: boolean; apply?: () => void; hold?: boolean }[] = [];
+   *  them before any cast the clock has passed them for. A press's own queued hit fills in `into`,
+   *  the cast's row, and takes with it what its swap cancel loses once it lands (`losses`); one a
+   *  tick queued (`ctx.tickAt`) is a row of its own, credited to `by`; one with `apply` and no
+   *  action is run there instead (`applyOn()`, a heal tick's), no row at all. */
+  timed: { due: number; action: Action | null; slot: number; into: Result | null; by: HeldBuff | null; away?: boolean; apply?: () => void; losses?: Gear[]; frames?: number }[] = [];
   /** Casts waiting for the next Intro — queued behind it, on the slot that queued them, the
    *  moment an Intro-cast action is evaluated (see `queueOnIntro()`). */
   introQueue: { action: Action; slot: number; by: HeldBuff | null; event: boolean }[] = [];

@@ -4,8 +4,9 @@
 import { WeaponType, Stat, Attribute, Type, Cast, BuffTarget } from "../engine/stats.js";
 import { Buff, Weapon, refinements } from "../engine/gear.js";
 import {
-  addStat, frozenStacks, casting, currentTeam, addBuff, applyCurrent, removeStack, revokeCurrent, applied,
-  onCast, onType, onApplied, either, isActive, isType, setStacksSelf, triggeredAction,
+  addStat, frozenStacks, casting, currentTeam, currentMember, addBuff, applyCurrent, removeStack, revokeCurrent, applied,
+  onCast, onType, onApplied, isActive, isType, setStacksSelf, triggeredAction,
+  applyTeam, currentAction, extendCurrent, isHeld, inflicting,
 } from "../engine/context.js";
 import { SHIELD, HEALS, inflictedNegativeStatus, inflictedNegativeStatusBy } from "../shared/status.js";
 
@@ -14,7 +15,7 @@ import { SHIELD, HEALS, inflictedNegativeStatus, inflictedNegativeStatusBy } fro
 export const VERDANT_SUMMIT = refinements((r, rank) => {
   const SWORDSWORN_STACKS = new Buff({
     name: `Verdant Summit: Swordsworn${rank}`, maxStacks: 2, duration: 60 * 14,
-    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type.Heavy]], perStack: true, early: true,
+    stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type.Heavy]], perStack: true,
   });
   return new Weapon({
     weaponType: WeaponType.Broadblade, name: `Verdant Summit${rank}`,
@@ -57,7 +58,7 @@ export const THUNDERFLARE_DOMINION = refinements((r, rank) => {
   });
   const THUNDERBLAZE_DEF = new Buff({
     name: `Thunderflare Dominion: Thunderblaze Eminence${rank} (shield)`, maxStacks: 5, duration: 60 * 7,
-    stats: [[Stat.DefIgnoreNew, [7.2, 8.4, 9.6, 10.8, 12][r]!, Type.Heavy]], perStack: true, early: true,
+    stats: [[Stat.DefIgnoreNew, [7.2, 8.4, 9.6, 10.8, 12][r]!, Type.Heavy]], perStack: true,
   });
   return new Weapon({
     weaponType: WeaponType.Broadblade, name: `Thunderflare Dominion${rank}`,
@@ -70,25 +71,32 @@ export const THUNDERFLARE_DOMINION = refinements((r, rank) => {
 });
 
 /** Lupa's sig: Wildfire Mark. +12% ATK flat. Intro/Liberation grants her own +24% Liberation
- *  DMG Bonus for 6s (re-granted, not stacked, by a fresh cast). While up, the first Heavy Attack
- *  DMG dealt extends it and hands the team +24% Fusion DMG Bonus for 30s, permanent uptime once
- *  granted. "Heavy Attack DMG" is the damage type, not the cast. */
+ *  DMG Bonus for 6s. Heavy Attack DMG (the type, not the cast) extends it 4s, once a grant, and
+ *  that extension hands the team +24% Fusion DMG Bonus for 30s. */
 export const WILDFIRE_MARK = refinements((r, rank) => {
   const WILDFIRE_TEAM = new Buff({
     name: `Wildfire Mark: Blazing Starfire${rank} (team)`,
     duration: 60 * 30,
     stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Attribute.Fusion]],
   });
-  const WILDFIRE_LIB_DMG = new Buff({
+  const WILDFIRE_EXTENDED = new Buff({ name: `Wildfire Mark: Blazing Starfire${rank} (extended)`, hidden: true });
+  const WILDFIRE_LIB_DMG: Buff = new Buff({
     name: `Wildfire Mark: Blazing Starfire${rank}`,
     duration: 60 * 6,
     stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type.Liberation]],
-    grants: [{ on: onType(Type.Heavy), buff: WILDFIRE_TEAM, to: BuffTarget.Team, onHit: true }],
+    afterAction: () => {
+      if (!isType(Type.Heavy) || currentAction().mv <= 0 || isHeld(WILDFIRE_EXTENDED)) return;
+      extendCurrent(WILDFIRE_LIB_DMG, 60 * 4);
+      applyCurrent(WILDFIRE_EXTENDED, 1);
+      applyTeam(WILDFIRE_TEAM, 1);
+    },
   });
   return new Weapon({
     weaponType: WeaponType.Broadblade, name: `Wildfire Mark${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritDmg, 48.6], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [{ on: onCast(Cast.Intro, Cast.Liberation), buff: WILDFIRE_LIB_DMG }],
+    // a fresh grant can be extended again
+    updateBuffs: () => { if (casting(Cast.Intro) || casting(Cast.Liberation)) revokeCurrent(WILDFIRE_EXTENDED); },
   });
 });
 
@@ -132,13 +140,13 @@ export const JINGRAN_SIG = refinements((r, rank) => {
   return new Weapon({
     weaponType: WeaponType.Broadblade, name: `Thousandfold Deliverance${rank}`,
     stats: [[Stat.BaseAtk, 412.5], [Stat.BonusHp, 72.225], [Stat.DmgBonus, [12, 15, 18, 21, 24][r]!]],
-    updateBuffs: () => {
-      // two separate triggers, so his Intro — which also shields — pays both and stacks twice
-      const n = (casting(Cast.Intro) ? 1 : 0) + applied(SHIELD);
-      if (!n) return;
-      applyCurrent(NATURES_ORDER, n);
-      applyCurrent(CRADLE_OF_LIFE, n);
-    },
+    // two separate triggers, so his Intro — which also shields — pays both and stacks twice
+    grants: [
+      { on: onCast(Cast.Intro), buff: NATURES_ORDER },
+      { on: onCast(Cast.Intro), buff: CRADLE_OF_LIFE },
+      { on: onApplied(SHIELD), buff: NATURES_ORDER, stacks: () => applied(SHIELD) },
+      { on: onApplied(SHIELD), buff: CRADLE_OF_LIFE, stacks: () => applied(SHIELD) },
+    ],
   });
 });
 
@@ -190,16 +198,17 @@ export const KUMOKIRI = refinements((r, rank) => {
   const THREAD_OF_FATE_STACKS = new Buff({
     name: `Kumokiri: Thread of Fate${rank}`, maxStacks: 3, duration: 60 * 15,
     stats: [[Stat.DmgBonus, [8, 10, 12, 14, 16][r]!, Type.Liberation]], perStack: true,
-    // watched from updateGlobal so a teammate's own cast is seen — where `currentSlot` is this
-    // buff's holder, so the actor is read off the team and the payout put on their slot by name
-    updateGlobal() {
-      const actor = currentTeam().slot;
-      if (frozenStacks() >= 3 && actor.resonator && inflictedNegativeStatusBy(actor)) addBuff(actor.resonator, THREAD_OF_FATE_BONUS, 1);
+    // on every hit, to each member credited with an inflict on it — whoever's hit it was
+    hitGlobal() {
+      if (frozenStacks() < 3) return;
+      for (const m of currentTeam().slots) if (m.resonator && inflictedNegativeStatusBy(m)) addBuff(m.resonator, THREAD_OF_FATE_BONUS, 1);
     },
   });
   return new Weapon({
     weaponType: WeaponType.Broadblade, name: `Kumokiri${rank}`,
     stats: [[Stat.BaseAtk, 500], [Stat.CritRate, 36], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
-    grants: [{ on: either(onCast(Cast.Intro), inflictedNegativeStatus), buff: THREAD_OF_FATE_STACKS }],
+    grants: [{ on: onCast(Cast.Intro), buff: THREAD_OF_FATE_STACKS }],
+    // any hit her own inflict is credited on — her Snare's Bane off a teammate's swing included
+    hitGlobal: () => { if (inflictedNegativeStatusBy(currentMember())) applyCurrent(THREAD_OF_FATE_STACKS, 1); },
   });
 });

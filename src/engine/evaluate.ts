@@ -203,13 +203,12 @@ export interface ChainGroup<S extends Result = ResolvedSnapshot> {
   fieldKey?: string;
 }
 
-/** Evaluate one action on `state`'s active slot: an Intro-cast adopts whatever's queued for it
- *  first; then every held Gear's updateDebuffs() runs — local (acting slot), global, and enemy
- *  together — so what this cast inflicts is on the target before anything reacts; then every
- *  held Gear's updateGlobal() (every slot's own gear, not just the acting one — see its own
- *  comment below); then every held Gear's updateBuffs(); then every applyStats(), then every
- *  convertStats(), then every lateConvertStats(); an Outro-cast advances the active slot
- *  afterward.
+/** Evaluate one action on `state`'s active slot — a whole press, or one half of a press whose hit is
+ *  queued (`Action.half`). The cast: an Intro adopts whatever's queued for it, then every held
+ *  Gear's updateGlobal() (every slot's own gear, see `runGlobals`), then updateBuffs(). The hit, at
+ *  its hit frame: updateDebuffs(), hitGlobal(), the grants its inflictions trigger, then
+ *  applyStats(), convertStats(), lateConvertStats(), and afterAction() once it has banked. An
+ *  Outro's cast advances the active slot afterward.
  *
  *  The action itself is a Gear too, and its own hook for a phase runs first in that phase, ahead
  *  of every held Gear's (see `actionHook`) — so a cast's own effect is in place before anything
@@ -228,6 +227,9 @@ export function evaluate(state: State, action: Action, triggered = false, source
   ctx.state = state;
   ctx.slot = slot;
   ctx.act = action;
+  // a queued hit's two halves each run their own side; a whole press runs both, cast then hit
+  const castSide = action.half !== "hit", hitSide = action.half !== "cast";
+  phaseMask = (castSide ? CAST_PHASES : 0) | (hitSide ? HIT_PHASES : 0);
   // a step's own cut, else the form's (an insta cancel, a swap)
   const tag = cut ?? action.tag;
   // time stop outlasting this press is banked, and a bank already standing is spent on it first
@@ -265,7 +267,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
   const energyBefore = slot.energy, concertoBefore = slot.concerto, offtuneBefore = state.offtune;
   if (ctx.tracing) { slot.entries = []; slot.totals = new Map(); }
 
-  if (casting(Cast.Intro)) {
+  if (castSide && casting(Cast.Intro)) {
     for (const gear of state.outroQueue.splice(0)) slot.addStack(gear, 1);
     // ...and whatever was waiting on this Intro lands right behind it (see `queueOnIntro()`)
     pendingQueue.push(...state.introQueue.splice(0));
@@ -274,61 +276,46 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // A phase's own roster and stack counts are captured before it runs (see `capture()`), so
   // nothing a gear does mid-phase shifts the ground under whatever this engine iterates to next.
   //
-  // updateDebuffs() first of all: what this cast inflicts (Shifting, Negative Statuses, the shield
-  // marker) goes on the target before anything — updateGlobal() included — looks at `applied()`.
-  capture(slot, state);
-  actionHook(action.updateDebuffsFn);
-  runPhase(0, true);
-
-  // updateGlobal() runs next, and runs for every slot's own held gear — not just the acting
-  // slot's — plus global and enemy gear, regardless of whose turn this actually is. That's what
-  // lets a kit react to "any team member's own action" through gear held locally (a self buff)
-  // instead of needing the whole thing to live in globalStacks just to be reachable from someone
-  // else's turn. For a locally-held gear, `ctx.slot` is switched to *its own holder* for the
-  // call (not the slot actually acting) — so `revoke()`/`applySelf()`/`stacksOf()` inside it
-  // still resolve against whoever holds it, the same way they would if that holder were the one
-  // acting. Global and enemy gear keep the ordinary convention instead: `ctx.slot` stays the
-  // real acting slot, matching every other global buff's own updateBuffs().
-  actionHook(action.updateGlobalFn);
-  for (const s of state.slots) {
-    for (const gear of s.globalHooks) {
-      ctx.slot = s;
-      ctx.buff = gear;
-      // -1, not a captured count: this phase walks each slot's live hook set rather than a frozen
-      // roster, so there is no "count at phase start" to hand over and `frozenStacks()` reads the
-      // holder's own live one instead (its documented fallback). Without this it kept whatever the
-      // *previous* phase's last gear happened to hold — a number belonging to another buff
-      // entirely, which silently broke every `frozenStacks()` read in an updateGlobal.
-      ctx.stacks = -1;
-      gear.updateGlobalFn!();
-    }
+  // The cast: updateGlobal() first, for every slot's own held gear — not just the acting slot's —
+  // plus global and enemy gear, whoever is casting. That's what lets a kit react to "any team
+  // member's cast" through gear held locally (a self buff) instead of making it team-wide just to
+  // be reachable. For a locally-held gear `ctx.slot` is switched to *its own holder* for the call,
+  // so `revoke()`/`applySelf()`/`stacksOf()` inside it resolve against whoever holds it; global and
+  // enemy gear keep `ctx.slot` on the actor. Then updateBuffs() over what that left.
+  if (castSide) {
+    actionHook(action.updateGlobalFn, 1);
+    runGlobals(state, slot, false);
+    capture(slot, state);
+    actionHook(action.updateBuffsFn, 1);
+    runPhase(1, true);
   }
-  ctx.slot = slot;
-  // Both lists are read before either runs: a hook here may put up another team-wide or enemy
-  // buff, and that lands in a new array (see `Pool`) — the ones in hand are the roster as it
-  // stood, which is the behaviour. Not deduplicated across the two pools, as it never was.
-  const globalHooks = state.globalStacks.globalHooks, enemyHooks = state.enemyStacks.globalHooks;
-  for (let i = 0; i < globalHooks.length; i++) { ctx.buff = globalHooks[i]!; ctx.buff.updateGlobalFn!(); }
-  for (let i = 0; i < enemyHooks.length; i++) { ctx.buff = enemyHooks[i]!; ctx.buff.updateGlobalFn!(); }
-  ctx.buff = null;
 
-  // updateBuffs() decides what's held; it runs over whatever updateDebuffs()/updateGlobal() left —
-  // a debuff those just put up gets its own updateBuffs() this same action.
-  capture(slot, state);
-  actionHook(action.updateBuffsFn);
-  runPhase(1, true);
-
-  // The cast is over: the hit lands `frames` later, the press's own declared length, or what its
-  // cut charges (`cancelCost()`). A follow-up declares none (it lands inside the press that queued
-  // it). Whatever ran out in between is gone before the stat phases pay out or the popover reads.
+  // The hit lands at its `hitFrame` (its cancel frame unless declared) — at the cast itself for a
+  // press with no hit, or a cast whose hit is queued — and the rest of the press, cut or whole, is
+  // only time on the clock, which `run()` walks after it. Whatever ran out before the hit is gone
+  // before its phases run or the popover reads.
   const frames = ctx.actFrames;
-  state.frame = frameStart + frames;
+  const hitClock = !hitSide || action.mv <= 0 ? 0 : Math.min(frames, Math.max(0, action.hitClock(tag) - timestopBanked));
+  state.frame = frameStart + hitClock;
   // ...and every clock the span carried past a tick fires, before what ran out is dropped
   // the motion stop the press actually played, beyond the time stop already off its frames
   const cost = action.cost(tag);
   const motionStop = Math.max(0, Math.min(action.motionStop, cost.action) - cost.timestop);
-  if (frames) state.runTicks(frameStart, state.frame, motionStop);
+  const hitStop = Math.min(motionStop, hitClock);
+  if (hitClock) state.runTicks(frameStart, state.frame, hitStop);
   state.expireBuffs();
+
+  // The hit: updateDebuffs() first — what it inflicts goes on the target before anything looks at
+  // `applied()` — then every slot's hitGlobal(), then the grants its inflictions trigger.
+  if (hitSide) {
+    capture(slot, state);
+    actionHook(action.updateDebuffsFn, 0);
+    runPhase(0, true);
+    actionHook(action.hitGlobalFn, 0);
+    runGlobals(state, slot, true);
+    capture(slot, state);
+    runPhase(7, true);
+  }
 
   // ...then applyStats()/convertStats() pay out over what's held *now*, not what was held a
   // moment ago: a buff updateBuffs() just granted pays into this same action, and one it just
@@ -391,7 +378,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
   ctx.readStamp++;
   ctx.readPhase = READ_APPLY;
   replay.length = 0;
-  actionHook(action.applyStatsFn);
+  actionHook(action.applyStatsFn, 2);
   runPhase(2, true);
   // the applyStats journal alone, and whether the phase moved anything, for a variant that must
   // still re-run the conversions: a replayed applyStats can stand in only if it moved nothing,
@@ -400,11 +387,11 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // ...and the real build's row as applyStats left it, the same variant's own starting point
   if (pre !== null) { const post2 = slot.post2; for (let i = 0; i < post2.length; i++) post2[i] = slot.effective[i]!; }
   ctx.readPhase = READ_CONVERT;
-  actionHook(action.convertStatsFn);
+  actionHook(action.convertStatsFn, 3);
   runPhase(3, true);
   // ...and one phase later again, for a conversion that reads what another gear's convertStats()
   // just granted (see GearDef.lateConvertStats).
-  actionHook(action.lateConvertStatsFn);
+  actionHook(action.lateConvertStatsFn, 4);
   runPhase(4, true);
   ctx.recording = false;
 
@@ -450,10 +437,10 @@ export function evaluate(state: State, action: Action, triggered = false, source
       slot.effective = eff;
       before.restore(state);
       ctx.mutHash = 0;
-      if (!replayable) { actionHook(action.applyStatsFn); runPhase(2, true); }
-      actionHook(action.convertStatsFn);
+      if (!replayable) { actionHook(action.applyStatsFn, 2); runPhase(2, true); }
+      actionHook(action.convertStatsFn, 3);
       runPhase(3, true);
-      actionHook(action.lateConvertStatsFn);
+      actionHook(action.lateConvertStatsFn, 4);
       runPhase(4, true);
       let unsafe = ctx.mutHash !== primaryHash;
       for (const s of RESOURCE_STATS) if (eff[s] !== primaryEff[s]) unsafe = true;
@@ -535,8 +522,8 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // the real running totals — no kit ever touches these directly, same as forte.
   // Energy alone carries a multiplier: `(base + AddEnergy) x (1 + Energy Regen Multiplier)`.
   // a buff's gains bank with the half they belong to: the hit's with a hit, the cast's with a cast
-  const onHit = action.half !== "cast", onCast = action.half !== "hit";
-  const addEnergy = (onHit ? effective[Stat.AddEnergy]! : 0) + (onCast ? effective[Stat.AddCastEnergy]! : 0);
+  // each half banks what its own hooks granted: the stat phases' on the hit, updateBuffs' on the cast
+  const addEnergy = effective[Stat.AddEnergy]! + effective[Stat.AddCastEnergy]!;
   const energyGain = (action.energy + addEnergy) * (1 + effective[Stat.EnergyRegenMult]! / 100);
   slot.energy = Math.max(0, slot.energy + energyGain);
   // An outro leaves the field with no Energy at all — not a spend of a known size, so it is simply
@@ -545,7 +532,8 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // that visit is half of one loop, not the end of one, so the Energy column runs on across both
   // halves and only the outro that actually ends the loop wipes it. Jinhsi is the case — Unison
   // pays for the first of her two outros, and her banking is one figure across the pair.
-  const outro = casting(Cast.Outro);
+  // an Outro's own bookkeeping is its cast's
+  const outro = castSide && casting(Cast.Outro);
   const energyWiped = outro && state.outroDir > 0;
   if (outro && energyWiped) slot.energy = 0;
   // A cast that spends Concerto outright — the `concerto: -100` every real outro declares — spends
@@ -562,7 +550,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // the bar goes below empty until that hit lands
   const concertoShort = spend > 0 && slot.concerto < spend;
   if ((spend > 0 || outro) && slot.concerto > 100) slot.concerto = 100;
-  const addConcerto = (onHit ? effective[Stat.AddConcerto]! : 0) + (onCast ? effective[Stat.AddCastConcerto]! : 0);
+  const addConcerto = effective[Stat.AddConcerto]! + effective[Stat.AddCastConcerto]!;
   const concerto = slot.concerto + action.concerto + addConcerto;
   slot.concerto = spend > 0 ? concerto : Math.max(0, concerto);
   // Off-Tune Buildup Rate scales what an action *builds*, never what lands on the bar directly:
@@ -629,7 +617,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
   const forte = slot.forte, forteShort: [boolean, boolean, boolean, boolean, boolean] = [false, false, false, false, false];
   for (let i = 0; i < 5; i++) {
     const cap = slot.resonator?.maxForte[i] ?? 0;
-    const delta = action.forteDeltas[i]! + (onHit ? effective[ADD_FORTE[i]!]! : 0) + (onCast ? effective[ADD_CAST_FORTE[i]!]! : 0);
+    const delta = action.forteDeltas[i]! + effective[ADD_FORTE[i]!]! + effective[ADD_CAST_FORTE[i]!]!;
     if (action.resetForte[i]) forte[i] = 0;
     if (cap > 0 && delta < 0 && forte[i]! > cap) forte[i] = cap;
     if (delta > 0 && forte[i]! < 0) forte[i] = 0;
@@ -668,7 +656,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
     ctx.mutHash = 0;
     ctx.recording = true;
     ctx.readPhase = READ_AFTER;
-    actionHook(action.afterActionFn);
+    actionHook(action.afterActionFn, 5);
     runPhase(5, false);
     ctx.recording = false;
     ctx.buff = null;
@@ -692,7 +680,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
         banked.restore(state);
         ctx.mutHash = 0;
         ctx.stacks = -1;
-        actionHook(action.afterActionFn);
+        actionHook(action.afterActionFn, 5);
         runPhase(5, false);
         if (ctx.mutHash !== primaryHash) slot.variantUnsafe[v] = true;
       }
@@ -702,12 +690,17 @@ export function evaluate(state: State, action: Action, triggered = false, source
     ctx.guarded = false;
   } else {
     ctx.mutHash = 0;
-    actionHook(action.afterActionFn);
+    actionHook(action.afterActionFn, 5);
     runPhase(5, false);
     ctx.buff = null;
   }
-  // what a swap cancel paid on for the last time goes with it
-  for (const gear of ctx.swapLosses) slot.revoke(gear);
+  // what a swap cancel paid on for the last time goes with it — after its hit, where it queued one
+  if (action.half !== "cast") for (const gear of ctx.swapLosses) slot.revoke(gear);
+  // the rest of the press is `run()`'s to walk, landing whatever hit falls due inside it
+  if (frameStart + frames > state.playsTo) {
+    state.playsTo = frameStart + frames;
+    state.playStop = motionStop - hitStop;
+  }
   const atk = foldStat(effective, Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk);
   const hp = foldStat(effective, Stat.BaseHp, Stat.BonusHp, Stat.FlatHp);
   const def = foldStat(effective, Stat.BaseDef, Stat.BonusDef, Stat.FlatDef);
@@ -722,8 +715,8 @@ export function evaluate(state: State, action: Action, triggered = false, source
   const result: Result = {
     action, member: slot.name, slot: action.slot ?? slot.name, triggered, source,
     group: null, groupEnd: false, groupSpill: null, queued: false, mv, avg, variantAvg, starts: frameStart,
-    // the hit is in at the cut, not after the 6/12 frames the cut itself costs
-    ends: frameStart + Math.max(0, frames - cost.global),
+    // the hit is in at its hit frame, not at the press's end or after the 6/12 frames a cut costs
+    ends: frameStart + (hitSide ? hitClock : Math.min(frames, Math.max(0, (action.formOf ?? action).hitClock(tag) - timestopBanked))),
   };
   const snapshot: ResolvedSnapshot | null = !ctx.tracing ? null : {
     ...result,
@@ -753,7 +746,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
     opensFields,
   };
 
-  if (casting(Cast.Outro)) {
+  if (castSide && casting(Cast.Outro)) {
     const n = state.slots.length;
     state.active = (state.active + state.outroDir + n) % n;
   }
@@ -773,7 +766,7 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
   // follow-up spliced in right behind whatever queued it. An ActionGroup is expanded here, before
   // anything runs: from this point down only real casts exist, and a group survives purely as the
   // `group`/`end` tags the report reads back off each result.
-  interface Step { action: Action; slot: number; by: HeldBuff | null; group: ActionGroup | null; end: boolean; spill: ActionGroup | null; queued: boolean; cut: ActionTag | null; at?: number; into?: Result | null; away?: boolean }
+  interface Step { action: Action; slot: number; by: HeldBuff | null; group: ActionGroup | null; end: boolean; spill: ActionGroup | null; queued: boolean; cut: ActionTag | null; at?: number; into?: Result | null; away?: boolean; losses?: Gear[]; frames?: number }
   // a cancelled step plays its own Action (duck-checked, the class being rotation.ts's)
   const unwrap = (a: Action): [Action, ActionTag | null] => ((a as CancelledStep).of !== undefined ? [(a as CancelledStep).of, (a as CancelledStep).kind] : [a, null]);
   const steps: Step[] = [];
@@ -791,10 +784,29 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
   // The group whose beat is still resolving — its own members, then the follow-ups they queued,
   // the last member's included. Every cast spliced in while this stands is that group's spill, and
   // the next rotation entry (or an engine event) clears it.
-  // a dash played lets go of the hit its cut press held back (`hold`), due at its cancel frame
-  const releaseDashHits = (step: Step): void => {
-    if ((step.action as unknown as DashMarker).after === undefined) return;
-    for (const h of state.timed) h.hold = false;
+  // Walk the clock toward where the last press ends, stopping at the first queued hit due before
+  // then: the timers run up to it, and it lands there. True while the walk is still short of its end.
+  const walk = (): boolean => {
+    while (state.frame < state.playsTo) {
+      // the earliest due: a tick's hits join the queue unsorted
+      let next = Infinity;
+      for (const h of state.timed) next = Math.min(next, h.due);
+      const to = next < state.playsTo ? Math.max(state.frame, next) : state.playsTo;
+      const stop = Math.min(state.playStop, to - state.frame);
+      state.playStop -= stop;
+      ctx.state = state;
+      ctx.slot = state.slot;
+      state.runTicks(state.frame, to, stop);
+      state.frame = to;
+      state.expireBuffs();
+      if (pendingQueue.length) {
+        steps.splice(i, 0, ...pendingQueue.map((q): Step => ({ action: q.action, slot: q.slot, by: q.by, group: null, end: false, spill: null, queued: true, cut: null })));
+        pendingQueue.length = 0;
+      }
+      if (to < state.playsTo) return true;
+    }
+    state.playStop = 0;
+    return false;
   };
   let spillGroup: ActionGroup | null = null;
   let i = 0, guard = 0;
@@ -810,9 +822,12 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
       break;
     }
     if (++guard > 10000) throw new Error("action queue did not drain");
-    // a hit on the clock whose time has passed lands first, at its own frame — one due on the very
-    // frame the next press starts lands after it, so the incoming Intro is always cast first
-    const due = state.timed.filter((h) => (h.due < state.frame && !h.hold) || (flush && i >= steps.length));
+    // whatever is already queued plays before the clock moves on
+    const walking = steps[i]?.queued ? state.frame < state.playsTo : walk();
+    // a hit on the clock whose time has come lands before the next cast, at its own frame — but one
+    // landing off field (an Outro's, an insta swap's) due on the very frame the next press starts
+    // lands after it, so the incoming Intro is cast first
+    const due = state.timed.filter((h) => h.due < state.frame || (h.due === state.frame && (walking || !h.away)) || (flush && i >= steps.length));
     if (due.length) {
       state.timed = state.timed.filter((h) => !due.includes(h));
       // a function on the clock (a heal tick's) runs on its slot at its frame, no row of its own
@@ -827,26 +842,20 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
       }
       // one landing mid-group is that group's spill, like any follow-up there, so its row stays whole
       const spill = ctx.insideGroup ? spillGroup : null;
-      steps.splice(i, 0, ...due.filter((h) => h.action).map((h): Step => ({ action: h.action!, slot: h.slot, by: h.by, group: null, end: false, spill, queued: true, cut: null, at: h.due, into: h.into, away: h.away })));
+      steps.splice(i, 0, ...due.filter((h) => h.action).map((h): Step => ({ action: h.action!, slot: h.slot, by: h.by, group: null, end: false, spill, queued: true, cut: null, at: h.due, into: h.into, away: h.away, losses: h.losses, frames: h.frames })));
     }
     const step = steps[i++]!;
     // A new resonator's first press pays the swap: 15 frames on the clock, charged to the row that
     // handed the field over. The buff clocks run through them, and what a tick queues there plays
     // ahead of the press.
     if (!step.queued && state.presser >= 0 && state.presser !== state.active) {
-      const from = state.frame;
-      state.frame += 15;
       if (state.swapRow) state.swapRow.swapFrames = (state.swapRow.swapFrames ?? 0) + 15;
       state.swapRow = null;
       state.presser = state.active;
-      ctx.state = state;
-      ctx.slot = state.slot;
-      state.runTicks(from, state.frame);
-      if (pendingQueue.length) {
-        steps.splice(--i, 0, ...pendingQueue.map((q): Step => ({ action: q.action, slot: q.slot, by: q.by, group: null, end: false, spill: null, queued: true, cut: null })));
-        pendingQueue.length = 0;
-        continue;
-      }
+      state.playsTo = state.frame + 15;
+      state.playStop = 0;
+      i--;
+      continue;
     }
     // the field is whoever makes the next press: a swap hands nothing over, the next press takes it
     if (!step.queued) {
@@ -881,10 +890,7 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
       ctx.slot = state.slot;
       action = step.action.resolveFn();
       // resolved to no cast at all this step (deferred onto a later one — see `queueOnIntro()`)
-      if (!action) {
-        releaseDashHits(step);
-        continue;
-      }
+      if (!action) continue;
     }
     // a rotation entry with no charge left waits it out on a row of its own, spliced in ahead of
     // it so whatever the wait queues runs first, and then comes round again
@@ -929,28 +935,33 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
     const pressed = action;
     if (cut && !dash) [action, cut] = action.cutAs(cut);
     const kind = cut ?? action.tag;
-    if (!dash && LENGTH_CHECKED.has(kind)) checkCutLength(pressed.cancelOf ?? pressed, kind);
-    if (!dash && SLOW_CUTS.has(kind) && action.cancelFrames <= 6) {
+    const checked = !dash && action.half === null;
+    if (checked && LENGTH_CHECKED.has(kind)) checkCutLength(pressed.cancelOf ?? pressed, kind);
+    if (checked && SLOW_CUTS.has(kind) && action.cancelFrames <= 6) {
       throw new Error(`${action.name}: cancels at frame ${action.cancelFrames}, inside an insta cut's 6 — write it as ${INSTA_OF[kind as ActionTag]} instead of ${kind}`);
     }
-    // a press that leaves before its hit lands casts now and hits later, on the time-ordered queue
-    // a dodge/jump cut's hit is held until its dash has played (it lands at its cancel frame all the same)
-    const split = action.splitsHit(cut) ? { due: (step.at ?? state.frame) + action.hitDelay(cut), action: action.hitPart(cut), slot: state.active, into: null as Result | null, by: null, away: action.hitsAway(cut), hold: cut === ActionTag.DodgeCancel || cut === ActionTag.JumpCancel } : null;
+    // a press with a hit casts now and queues its hit on the time-ordered queue, at its hit frame
+    const split = action.splitsHit(cut) ? { due: (step.at ?? state.frame) + action.hitDelay(cut), action: action.hitPart(), slot: state.active, into: null as Result | null, by: null, away: action.hitsAway(cut), losses: undefined as Gear[] | undefined, frames: 0 } : null;
     if (split) {
       state.timed.push(split);
       state.timed.sort((p, q) => p.due - q.due);
-      action = action.castPart(cut);
+      action = action.castPart();
     }
     // an Outro hands the field on as it is cast
     const n = state.slots.length, next = (state.active + state.outroDir + n) % n;
-    if (isCast(action, Cast.Outro)) state.onField = next;
+    if (isCast(action, Cast.Outro) && action.half !== "hit") state.onField = next;
     // a landing hit is played at its own frame, then the clock goes back to where the fight is —
     // a split one off field whoever holds it: its owner left on the press it split from
     const now = state.frame, field = state.onField;
     if (step.at !== undefined) state.frame = step.at;
     if (step.away) state.onField = -1;
+    ctx.pressFrames = step.frames ?? 0;
+    ctx.pressStart = step.into?.starts ?? state.frame;
     const result = evaluate(state, action, triggered, by, cut);
-    releaseDashHits(step);
+    // the hit carries its press's length, and what a swap cancel loses goes once it has landed
+    if (split) split.frames = ctx.actFrames;
+    if (split && ctx.swapLosses.size) split.losses = [...ctx.swapLosses];
+    if (step.losses) for (const gear of step.losses) state.slots[step.slot]!.revoke(gear);
     if (step.at !== undefined) {
       state.frame = Math.max(now, state.frame);
       state.onField = field;
@@ -982,11 +993,13 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
       // is never one of the casts a group names, whatever it was queued from; it belongs to
       // whatever beat spawned it — an engine event to nobody (`queueEvent`)
       const queued: Step[] = [];
-      // a follow-up lands with the hit that queued it: a hit at its own frame (a tick's, a split
-      // hit's), or a cut press's at its cancel frame rather than after the cut's own frames
-      const at = step.at ?? (result.ends < state.frame ? result.ends : undefined);
+      // a follow-up lands with whatever queued it: a hit at its own frame (a tick's, a queued hit's),
+      // a cast at its cast, a whole press at its hit rather than after the rest of its frames
+      const from = split ? result.starts : result.ends;
+      const at = step.at ?? (from < state.frame ? from : undefined);
       for (const p of pendingQueue) queued.push({ action: p.action, slot: p.slot, by: p.by, group: null, end: false, spill: p.event ? null : spillGroup, queued: true, cut: null, at });
       steps.splice(i, 0, ...queued);
+      pendingQueue.length = 0;
     }
   }
   return out;
@@ -1013,10 +1026,10 @@ function checkCutLength(base: Action, kind: ActionTag): void {
   if (cut > base.frames) throw new Error(`${base.name}: its ${kind} takes ${cut} frames, longer than the ${base.frames} it plays uncut`);
 }
 
-/** What a split press's row keeps of its cast when the hit lands: who pressed it, how, when, and
- *  what was held then. Everything else — damage, stats, what the hit banked — is the hit's. */
+/** What a queued hit's row keeps of its cast when the hit lands: who pressed it, how and when.
+ *  Everything else — damage, stats, the buffs that paid, what the hit banked — is the hit's. */
 const CAST_KEEPS = new Set(["action", "member", "slot", "triggered", "group", "groupEnd", "groupSpill", "source", "queued",
-  "frame", "frames", "tag", "active", "timestopBanked", "heldLocal", "heldGlobal", "heldEnemy", "energyWiped", "concertoShort", "realEnergyBefore",
+  "frame", "frames", "tag", "active", "timestopBanked", "energyWiped", "concertoShort", "realEnergyBefore",
   "energyBefore", "concertoBefore", "offtuneBefore", "forteBefore", "energy", "concerto", "offtune", "forte"]);
 
 /** Fill a split press's cast row in with its hit, landed at `at`. */
@@ -1108,7 +1121,13 @@ function constBaseOf(slot: TeamMember, from: Gear | null, to: Gear | null, from2
  *  each in turn. `withStacks` hands each hook its own captured stack count (see `frozenStacks()`);
  *  afterAction runs without, reading the live count instead, since it is the one phase that
  *  runs after a gear may already have spent itself down. */
+/** Which of `runPhase()`'s phases run for the action being evaluated: a cast half only the cast's
+ *  (`updateBuffs`, and the popover's constant stats), a queued hit only the hit's, a whole press both. */
+const CAST_PHASES = (1 << 1) | (1 << 6);
+const HIT_PHASES = (1 << 0) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7);
+let phaseMask = CAST_PHASES | HIT_PHASES;
 function runPhase(p: number, withStacks: boolean): void {
+  if (!((phaseMask >> p) & 1)) return;
   for (let q = 0; q < 3; q++) {
     const list = capList[q]!, counts = capCounts[q]!, hooks = capHooks[q]![p]!;
     for (let i = 0, m = hooks.length; i < m; i++) {
@@ -1121,12 +1140,39 @@ function runPhase(p: number, withStacks: boolean): void {
   }
 }
 
+/** Every slot's own held gear's global watcher, then the team's and the enemy's — `updateGlobal` on
+ *  the cast, `hitGlobal` on the hit. A locally-held gear runs as its own holder (`ctx.slot`), with
+ *  `frozenStacks()` reading its live count (-1: this walks live hook sets, not a frozen roster). */
+function runGlobals(state: State, slot: TeamMember, hit: boolean): void {
+  for (const s of state.slots) {
+    for (const gear of s.globalHooks) {
+      ctx.slot = s;
+      ctx.buff = gear;
+      ctx.stacks = -1;
+      (hit ? gear.hitGlobalFn : gear.updateGlobalFn)?.();
+    }
+  }
+  ctx.slot = slot;
+  // both lists read before either runs: a hook here may put up another team-wide or enemy buff,
+  // which lands in a new array (see `Pool`) — the ones in hand are the roster as it stood
+  const globalHooks = state.globalStacks.globalHooks, enemyHooks = state.enemyStacks.globalHooks;
+  for (let i = 0; i < globalHooks.length; i++) {
+    ctx.buff = globalHooks[i]!;
+    (hit ? ctx.buff.hitGlobalFn : ctx.buff.updateGlobalFn)?.();
+  }
+  for (let i = 0; i < enemyHooks.length; i++) {
+    ctx.buff = enemyHooks[i]!;
+    (hit ? ctx.buff.hitGlobalFn : ctx.buff.updateGlobalFn)?.();
+  }
+  ctx.buff = null;
+}
+
 /** Run one of the acting Action's own hooks (see the `Action` class), with the "current" pointers
  *  aimed at the action itself: whatever it grants is attributed through it and every stat it
  *  contributes is sourced to its own name. Called first in each phase, ahead of every held Gear's
  *  own hook, so an action's own effect is in place before anything reacting to it looks. */
-function actionHook(fn: (() => void) | undefined): void {
-  if (!fn) return;
+function actionHook(fn: (() => void) | undefined, p: number): void {
+  if (!fn || !((phaseMask >> p) & 1)) return;
   ctx.buff = ctx.act;
   ctx.stacks = 1;
   fn();

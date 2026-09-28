@@ -78,7 +78,7 @@ const CrimsonErosion1 = danjinAction("Skill - Crimson Erosion 1", { frames: 37, 
 const CrimsonErosion2 = danjinAction("Skill - Crimson Erosion 2", {
   frames: 46, cancelFrames: 20,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 119.30, castForte1: 10.5, energy: 2.5, offtune: 4000, castConcerto: 8, // 59.65% x2
-  updateBuffs: () => applyEnemy(INCINERATING_WILL, 1),
+  updateDebuffs: () => applyEnemy(INCINERATING_WILL, 1),
 });
 
 // NOTE 40.5 forte for sanguine pulse 123, not sure on individual
@@ -107,7 +107,7 @@ const FullScatterbloom = danjinAction("Heavy - Scatterbloom (Full Energy)", { fr
 // consecutive attacks plus one Scarlet Burst, lumped into one hit
 const Liberation = danjinAction("Liberation - Crimson Bloom", { frames: 192, cancelFrames: 192, timestop: 195, motionStop: 180, cooldown: 60 * 16, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, mv: 785.37, castConcerto: 20, offtune: 61440, resetEnergy: true }); // 49.09%x8+392.65%
 
-const Intro = danjinAction("Intro - Vindication", { frames: 103, cancelFrames: 99, motionStop: 48, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 198.84, energy: 5, castEnergy: 5, castConcerto: 10, offtune: 12240 }); // 49.71% x4
+const Intro = danjinAction("Intro - Vindication", { frames: 103, cancelFrames: 99, hitFrame: 81, motionStop: 48, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 198.84, energy: 5, castEnergy: 5, castConcerto: 10, offtune: 12240 }); // 49.71% x4
 const Outro = danjinAction("Outro - Duality", {
   frames: 0, cancelFrames: 0,
   cast: Cast.Outro, castConcerto: -100,
@@ -196,7 +196,8 @@ const DJ_S1_STACKS = new Buff({
 });
 const DJ_S1 = new Sequence({
   name: "Danjin S1: Crimson Heart of Justice",
-  grants: [{ on: () => stacksOfEnemy(INCINERATING_WILL) > 0, buff: DJ_S1_STACKS }],
+  // on the hit, behind the Incinerating Will Crimson Erosion 2's own hit lays
+  updateDebuffs: () => { if (stacksOfEnemy(INCINERATING_WILL) > 0) applyCurrent(DJ_S1_STACKS, 1); },
 });
 
 /** S2: +20% (unscoped) DMG Bonus on any hit landed while Incinerating Will is up. */

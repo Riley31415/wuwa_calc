@@ -94,7 +94,7 @@ const CHAFE_FIELD = new ActionField("Lucilla: Glacio Chafe");
 const CHAFE_WINDOW = new Buff({ field: CHAFE_FIELD });
 const CHAFE_RUNGS: (Action | null)[] = GLACIO_CHAFE_ACTIONS.map((a) => a?.variant(a.name, { field: CHAFE_FIELD }) ?? null);
 const Intro = lucillaAction("Intro - Clip It", {
-  frames: 81, cancelFrames: 42, motionStop: 74, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 97.42, energy: 11.75, concerto: 4.13, castConcerto: 10, offtune: 5600, forte1: 100,
+  frames: 81, cancelFrames: 42, hitFrame: 38, motionStop: 74, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 97.42, energy: 11.75, concerto: 4.13, castConcerto: 10, offtune: 5600, forte1: 100,
   ...CHAFES,
   updateBuffs: () => applyCurrent(CHAFE_WINDOW, 1),
 });
@@ -153,7 +153,8 @@ const UBA2 = lucillaAction("Basic - Tracing Forms 2", { frames: 54, cancelFrames
 const UBA3 = lucillaAction("Basic - Tracing Forms 3", {
   frames: 142, cancelFrames: 118,
   node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, mv: 416.96, energy: 5.84, concerto: 11.20, offtune: 18640,
-  updateBuffs: () => {
+  // on Stage 3's hit
+  updateDebuffs: () => {
     const photos = Math.min(3, Math.floor(forte1() / 50));
     for (let i = 0; i < photos; i++) queue(isHeld(MODE_CHAFE) ? OblivionChafe : OblivionEcho);
   },
@@ -181,11 +182,11 @@ const LettingGo = lucillaAction("Basic - Letting It Go", { frames: 77, cancelFra
  *  pieces read via `isHeld(MODE_ECHO)`, same as checking a sequence Gear. */
 const MODE_ECHO = new ResonanceMode({ name: "Resonance Mode - Echo" });
 /** Chafe mode is also what makes Clear As Day and Letting It Go Basic Attack DMG rather than Echo
- *  Skill DMG — assigned through typeOverride, the first phase of the action, so every scoped stat
- *  and isType() check sees Basic. */
+ *  Skill DMG — assigned through typeOverride, the first phase of the hit, so every scoped stat
+ *  and hit-side isType() check sees Basic. */
 const MODE_CHAFE = new ResonanceMode({
   name: "Resonance Mode - Glacio Chafe",
-  // the retag has to land in the first phase, before anything reads the type (see typeOverride)
+  // the retag has to land in the hit's first phase, before anything there reads the type
   updateDebuffs: () => { if (runningAction(Liberation) || runningAction(LettingGo)) typeOverride(Type.Basic); },
 });
 

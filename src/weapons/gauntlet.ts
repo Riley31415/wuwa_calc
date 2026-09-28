@@ -2,7 +2,7 @@
  *  own `refinements()`); a number that grows with rank is written as its five values. */
 import { WeaponType, Stat, Attribute, Type, Subtype, Cast } from "../engine/stats.js";
 import { Buff, Weapon, refinements } from "../engine/gear.js";
-import { applyCurrent, setStacksSelf, casting, applied, onCast, onType, onInflict } from "../engine/context.js";
+import { setStacksSelf, casting, applied, onCast, onType, onInflict, onApplied } from "../engine/context.js";
 import { SHIELD } from "../shared/status.js";
 import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
 
@@ -98,11 +98,11 @@ export const IUNO_SIG = refinements((r, rank) => {
   return new Weapon({
     weaponType: WeaponType.Gauntlets, name: `Moongazer's Sigil${rank}`,
     stats: [[Stat.BaseAtk, 500], [Stat.CritRate, 36], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
-    grants: [{ on: onCast(Cast.Intro, Cast.Liberation), buff: PLENILUNE_DMG }],
-    updateBuffs: () => {
-      if (casting(Cast.Intro)) setStacksSelf(MOONGAZER_STACKS, 5);
-      else if (applied(SHIELD)) applyCurrent(MOONGAZER_STACKS, applied(SHIELD));
-    },
+    grants: [
+      { on: onCast(Cast.Intro, Cast.Liberation), buff: PLENILUNE_DMG },
+      { on: onApplied(SHIELD), buff: MOONGAZER_STACKS, stacks: () => applied(SHIELD) },
+    ],
+    updateBuffs: () => { if (casting(Cast.Intro)) setStacksSelf(MOONGAZER_STACKS, 5); },
   });
 });
 

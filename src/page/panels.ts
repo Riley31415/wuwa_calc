@@ -145,7 +145,7 @@ export function framesPopover(snaps: ResolvedSnapshot[]): string {
   let total = 0, banks = 0;
   for (const s of snaps) {
     // a split press's row shows its cast, which played none of the hit's frames
-    const cost = (s.hitAt !== undefined ? s.action.castPart(s.tag) : s.action).cost(s.tag);
+    const cost = (s.hitAt !== undefined ? s.action.castPart() : s.action).cost(s.tag);
     total += cost.total - s.timestopBanked;
     const insta = s.tag === ActionTag.InstaCancel || s.tag === ActionTag.InstaDodge || s.tag === ActionTag.InstaJump || s.tag === ActionTag.InstaSwap;
     const fast = s.tag === ActionTag.EasyCancel;

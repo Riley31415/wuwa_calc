@@ -157,7 +157,7 @@ const Liberation = phoebeAction("Liberation - Dawn of Enlightenment", {
 });
 
 const Intro = phoebeAction("Intro - Golden Grace", {
-  frames: 98, cancelFrames: 69, motionStop: 43,
+  frames: 98, cancelFrames: 69, hitFrame: 45, motionStop: 43,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 198.81, energy: 10.00, castConcerto: 10, offtune: 8000,
 });
 
