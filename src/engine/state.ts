@@ -235,25 +235,27 @@ class Pool {
    *  An `every` of 0 is the clock standing still for this span. The fires are only collected
    *  (`due`, with each tick's ordinal and the frame it falls on), for the caller to run once the
    *  pass is over: one may grant into or revoke out of this very pool. */
-  advance(a: number, b: number, due: { gear: Gear; n: number; at: number }[], motionStop = 0): void {
+  advance(a: number, b: number, due: { gear: Gear; n: number; at: number }[], motionStop = 0, offField: (gear: Gear) => boolean = () => false): void {
     for (let i = 0; i < this.list.length; i++) {
       const gear = this.list[i]!;
       if (!gear.tickFn || this.at.get(gear) !== i) continue;
       const at = this.expires[i]!;
-      // a clock that skips motion stop loses the press's own frozen frames from its span
-      const span = (at === 0 || at >= b ? b : at) - a - (gear.tickSkipsMotionStop ? motionStop : 0);
+      // an off-field clock loses the press's motion-stopped frames, or gains its free time stop
+      const skip = offField(gear) ? motionStop : 0;
+      const span = (at === 0 || at >= b ? b : at) - a - skip;
       if (span <= 0) continue;
       ctx.buff = gear;
       let every = gear.tickEvery!();
       if (every <= 0) continue;
       this.writeTick(i);
       // the last tick fell `progress` frames before `a` (later by any motion stop the clock skips)
-      let tick = a - this.progress[i]! + (gear.tickSkipsMotionStop ? motionStop : 0);
+      let tick = a - this.progress[i]! + skip;
       let progress = this.progress[i]! + span;
       while (progress >= every) {
         progress -= every;
         tick += every;
-        due.push({ gear, n: ++this.ticks[i]!, at: Math.round(tick) });
+        // one that falls inside time stop lands where the clock stands still
+        due.push({ gear, n: ++this.ticks[i]!, at: Math.max(a, Math.round(tick)) });
         every = gear.tickEvery!();
         if (every <= 0) break;
       }
@@ -590,8 +592,8 @@ export class State {
    *  are charged to (`run()`). */
   presser = -1;
   swapRow: Result | null = null;
-  /** Where the last press (or the handoff's swap frames) ends, and how much of its motion stop is
-   *  still to play: `run()` walks the clock there, landing every queued hit due on the way. */
+  /** Where the last press (or the handoff's swap frames) ends, and how much of its off-field
+   *  pause is still to play: `run()` walks the clock there, landing every queued hit due on the way. */
   playsTo = 0;
   playStop = 0;
   /** Which way the next Outro hands the field over: +1 for the ordinary handoff to the next
@@ -600,12 +602,14 @@ export class State {
    *  kit-queued outro — or any other path into `evaluate()` — always advances forward. */
   outroDir: 1 | -1 = 1;
   /** The fight clock, in frames at 60 a second: how far into the fight the action being evaluated
-   *  starts. Advanced by `evaluate()` once each action resolves, by the press's own `frames`. What
+   *  starts. Advanced by `run()` past each press's own `animFrames` (or its cut). What
    *  every buff duration is stamped against (`Pool.expires`) and every tick clock runs on. */
   frame = 0;
   /** Time stop that outlasted the press that stopped the world (Xiangli Yao's Liberation), still
    *  frozen: the presses after it play inside it, and the clock charges them only past it. */
   timestopBank = 0;
+  /** The same for motion stop: what outlasted its press still holds off-field time for the next. */
+  motionStopBank = 0;
   globalStacks = new Pool(); // use Buff here? how are maxstacks even handled?
   /** Debuffs placed on the enemy rather than held by any resonator — mechanically identical to
    *  `globalStacks` (ticks on every slot's own turn regardless of who's acting), kept as its own
@@ -633,7 +637,7 @@ export class State {
    *  the cast's row, and takes with it what its swap cancel loses once it lands (`losses`); one a
    *  tick queued (`ctx.tickAt`) is a row of its own, credited to `by`; one with `apply` and no
    *  action is run there instead (`applyOn()`, a heal tick's), no row at all. */
-  timed: { due: number; action: Action | null; slot: number; into: Result | null; by: HeldBuff | null; away?: boolean; apply?: () => void; losses?: Gear[]; frames?: number }[] = [];
+  timed: { due: number; action: Action | null; slot: number; into: Result | null; by: HeldBuff | null; away?: boolean; apply?: () => void; losses?: Gear[]; frames?: number; closes?: boolean; triggered?: boolean }[] = [];
   /** Casts waiting for the next Intro — queued behind it, on the slot that queued them, the
    *  moment an Intro-cast action is evaluated (see `queueOnIntro()`). */
   introQueue: { action: Action; slot: number; by: HeldBuff | null; event: boolean }[] = [];
@@ -672,6 +676,8 @@ export class State {
   /** The three fight snapshots `evaluate()` takes around a varied action — before the stat phases,
    *  after them, and after banking — made once, the first time this team needs them. */
   snapshots: [FightSnapshot, FightSnapshot, FightSnapshot, FightSnapshot] | null = null;
+  /** The fight going into a non-final hit's stat phases, put back after them (`evaluate()`). */
+  deferSnap: FightSnapshot | null = null;
 
   constructor(names: string[]) {
     this.slots = names.map((n, i) => { const m = new TeamMember(n); m.index = i; return m; });
@@ -810,15 +816,22 @@ export class State {
   runTicks(a: number, b: number, motionStop = 0): void {
     const due: { gear: Gear; n: number; at: number; slot: TeamMember }[] = [];
     const acting = this.slot;
-    const collect = (pool: Pool, slot: TeamMember): void => {
+    // an off-field resonator's clocks take the press's off-field shift (see `offFieldShift()`)
+    const presser = this.slots[this.presser];
+    const offField = (holder: TeamMember | null) => (gear: Gear): boolean => {
+      if (gear.tickSkipsMotionStop) return true;
+      const owner = gear.tickOwner ? this.memberOf(gear.tickOwner()) : holder;
+      return !!owner && !!presser && owner !== presser;
+    };
+    const collect = (pool: Pool, slot: TeamMember, holder: TeamMember | null): void => {
       const from = due.length;
       ctx.slot = slot;
-      pool.advance(a, b, due as { gear: Gear; n: number; at: number }[], motionStop);
+      pool.advance(a, b, due as { gear: Gear; n: number; at: number }[], motionStop, offField(holder));
       for (let i = from; i < due.length; i++) due[i]!.slot = slot;
     };
-    for (const s of this.slots) collect(s.stacks, s);
-    collect(this.globalStacks, acting);
-    collect(this.enemyStacks, acting);
+    for (const s of this.slots) collect(s.stacks, s, s);
+    collect(this.globalStacks, acting, null);
+    collect(this.enemyStacks, acting, null);
     for (const { gear, n, at, slot } of due) {
       ctx.slot = slot;
       ctx.buff = gear;

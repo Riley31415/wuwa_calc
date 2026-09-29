@@ -35,6 +35,7 @@ import type { Attribute, Type, Subtype, Node, Scaling } from "./stats.js";
 /* ------------------------------------------------------------------------------- the action */
 
 export interface ActionDef extends GearDef {
+  /** What every hit that names none of its own deals as — the action itself has no tags. */
   element?: Attribute | null;
   type?: Type | null;
   subtype?: Subtype | null;
@@ -108,21 +109,18 @@ export interface ActionDef extends GearDef {
    *  (`cancelCost()`, context.ts's `elapsed()`), and every buff duration and tick clock is measured
    *  against that. 0, the default, is a press that takes no time of the fight's own: a follow-up,
    *  a summon echo. One nothing has measured declares 60, the engine's one-second stand-in. */
-  frames?: number;
-  /** The frame this press can be cancelled from without losing any of its damage — its last hit,
-   *  or wuwalab's earliest cancel where that comes later. Where a cancelled press is cut
-   *  (`cancelCost()`). Unmeasured, it is the press's own `frames`: a cut there runs longer than the
-   *  press, which `run()`'s length check throws on, so only an insta cut can be made. */
-  cancelFrames?: number;
-  /** The frame its (last) hit lands, cut or not — for a press whose cancel frame comes after it.
-   *  Unset, the hit is at `cancelFrames`; the rest of the press is only time on the clock. */
-  hitFrame?: number;
-  /** The frames of `frames` the world stands still for (wuwalab's `time_stop`) — part of the
+  animFrames?: number;
+  /** Where a cut press is cut (`cancelCost()`), every hit committed by then: wuwalab's earliest cancel,
+   *  past any priority 11+ stretch. Unset, it is `animFrames`: only an insta cut can be made. */
+  commitFrames?: number;
+  /** The press's hits, each landing on its own frame (wuwalab's `hits`), each with what it deals
+   *  and banks. Unset, a press with a motion value is one hit at `commitFrames`; empty, a cast alone. */
+  hits?: HitDef[];
+  /** The frames of `animFrames` the world stands still for (wuwalab's `time_stop`) — part of the
    *  animation, but none of the fight's time: `cancelCost()` takes it back off. */
   timestop?: number;
-  /** The frames of `total_frames` the hit freezes the animation for (wuwalab's `motion_stop`).
-   *  Shown in the Time hover only; the one clock that skips it is a tick declaring
-   *  `skipMotionStop` (Suisui's dance). */
+  /** The frames of `total_frames` the hit freezes the animation for (wuwalab's `motion_stop`):
+   *  every inactive resonator's queued hits and clocks pause through it (`shiftOffField()`). */
   motionStop?: number;
   /** The field this hit belongs to — a summon firing on its own beside the fight (a coordinated
    *  attack, Denia's Erosion Field, Jué's follow-up, Xiangli Yao's outro laser, Rebecca's turret).
@@ -145,19 +143,49 @@ export interface ActionDef extends GearDef {
 
 export { ActionTag };
 
+/** One hit of a press: its frame from the press's start (time stop included), what it deals and
+ *  banks, what it deals as (the def's own element/type/subtype where it names none), and its hooks. */
+export interface HitDef {
+  at: number;
+  mv?: number;
+  energy?: number;
+  concerto?: number;
+  offtune?: number;
+  forte1?: number;
+  forte2?: number;
+  forte3?: number;
+  forte4?: number;
+  forte5?: number;
+  element?: Attribute | null;
+  type?: Type | null;
+  subtype?: Subtype | null;
+  /** What this hit alone inflicts as it lands, beside the action's own `updateDebuffs` (which runs
+   *  on every hit): an infliction the press makes once goes on the hit that makes it. */
+  updateDebuffs?: () => void;
+  /** This hit's own `hitGlobal`, beside the action's (every hit). */
+  hitGlobal?: () => void;
+}
+/** A hit as the action holds it: every tag resolved. */
+export interface Hit extends HitDef {
+  element: Attribute | null;
+  type: Type | null;
+  subtype: Subtype | null;
+}
+
 /** A press's frames as the clock charges them: the action up to its cut (its whole length when
  *  it runs out), less the world's time stop inside that, plus the cut — a plain, dodge or jump
  *  cancel's 12, a fast cancel's 6, an insta cut's 6; a swap's 12 are the handoff's (`run()`). An
  *  insta cut is made on the press and a field press lands beside the fight, so neither plays any of its own. */
 export function cancelCost(a: Action, cut: ActionTag | null): { action: number; timestop: number; global: number; total: number } {
-  const full = a.frames;
+  const full = a.animFrames;
   const tag = cut ?? a.tag;
   const insta = tag === ActionTag.InstaCancel || tag === ActionTag.InstaDodge || tag === ActionTag.InstaJump || tag === ActionTag.InstaSwap;
   // a cut plays its cancel frame in place of its frames (0 where none is measured), never past its end
-  const action = tag === ActionTag.Default ? full : tag === ActionTag.Field || insta ? 0 : Math.min(a.cancelFrames, full);
+  const action = tag === ActionTag.Default ? full : tag === ActionTag.Field || insta ? 0 : Math.min(a.commitFrames, full);
   const timestop = Math.min(a.timestop, action);
   // a swap's own frames are the handoff's (15), charged when the next resonator comes in (`run()`'s swap frames)
-  const global = tag === ActionTag.InstaSwap || tag === ActionTag.SwapCancel ? 0 : insta || tag === ActionTag.EasyCancel ? 6 : tag === ActionTag.Cancel || tag === ActionTag.DodgeCancel || tag === ActionTag.JumpCancel ? 12 : 0;
+  const global = tag === ActionTag.InstaSwap || tag === ActionTag.SwapCancel ? 0 : insta || tag === ActionTag.EasyCancel ? 6
+    : tag === ActionTag.Cancel || tag === ActionTag.DodgeCancel || tag === ActionTag.JumpCancel || tag === ActionTag.HitCancel ? 12 : 0;
   return { action, timestop, global, total: action - timestop + global };
 }
 
@@ -182,7 +210,7 @@ export class Cooldown {
   }
   /** The row a press on this stands behind while no charge is left: nothing but the frames. */
   wait(frames: number): Action {
-    return new Action(`Wait ${(frames / 60).toFixed(2)}s`, { frames });
+    return new Action(`Wait ${(frames / 60).toFixed(2)}s`, { animFrames: frames });
   }
 }
 
@@ -198,9 +226,6 @@ export class Cooldown {
  *  beside the markers they belong with. gear.ts refers to it strictly through
  *  `import type`, which is what keeps the two modules from being a load-order cycle. */
 export class Action extends Gear {
-  element: Attribute | null;
-  type: Type | null;
-  subtype: Subtype | null;
   cast: Cast | null;
   subcast: Cast | null;
   node: Node | null;
@@ -210,10 +235,22 @@ export class Action extends Gear {
   energy: number;
   concerto: number;
   offtune: number;
-  /** Which half of a press this plays, where it plays only one: its cast (a queued-hit press's cast,
-   *  an insta cut) runs only the cast's hooks and banks its gains, its queued hit only the hit's.
-   *  Null on a whole press (no motion value, or its hit on the cast frame), which runs both. */
-  half: "cast" | "hit" | null = null;
+  /** Which part of a split press this plays — its cast, one hit, or its end (`afterAction` alone) —
+   *  each running only its own hooks; null on a whole press, which runs all three. */
+  half: "cast" | "hit" | "end" | null = null;
+  /** Which of its press's hits a hit part is; -1 on anything else. The action's own hit hooks
+   *  (`updateDebuffs`, `hitGlobal`) run on its first hit alone. */
+  hitIndex = -1;
+  /** A hitless press's cast part: it runs the hit's hooks too, there being no hit to run them. */
+  hitsAtCast = false;
+  /** A hit part's share of its press's motion value — what it takes of a buff's per-press adds
+   *  (evaluate.ts's `PER_PRESS`). 1 on anything else. */
+  mvShare = 1;
+  /** The hits this press lands (see `ActionDef.hits`). */
+  hits: Hit[];
+  /** The hit whose tags a part or a whole press deals as — its last (a part holds one) — or null
+   *  on a cast with no hit, which deals as nothing. */
+  get lastHit(): Hit | null { return this.hits[this.hits.length - 1] ?? null; }
   /** The cast's own share of `energy` / `concerto` / forte1-5. */
   castEnergy: number;
   castConcerto: number;
@@ -231,9 +268,8 @@ export class Action extends Gear {
   resetForte: [boolean, boolean, boolean, boolean, boolean];
   resolveFn?: () => Action | null;
   skipNextFn?: () => boolean;
-  frames: number;
-  cancelFrames: number;
-  hitFrame: number;
+  animFrames: number;
+  commitFrames: number;
   timestop: number;
   motionStop: number;
   cooldown: Cooldown | null;
@@ -258,14 +294,21 @@ export class Action extends Gear {
 
   constructor(name: string, def: ActionDef = {}) {
     super({ ...def, name });
-    this.element = def.element ?? null;
-    this.type = def.type ?? null;
-    this.subtype = def.subtype ?? null;
     this.cast = def.cast ?? null;
     this.subcast = def.subcast ?? null;
     this.node = def.node ?? null;
     this.scaling = def.scaling ?? null;
-    this.mv = def.mv ?? 0;
+    this.animFrames = def.animFrames ?? 0;
+    this.commitFrames = def.commitFrames ?? this.animFrames;
+    // declared hits sum to the action's own totals; with none, a motion value is one implicit hit
+    const sum = (k: keyof HitDef): number | undefined => (def.hits ? def.hits.reduce((n, h) => n + ((h[k] as number | undefined) ?? 0), 0) : undefined);
+    this.mv = sum("mv") ?? def.mv ?? 0;
+    const hits: HitDef[] = def.hits ?? (this.mv ? [{
+      at: this.commitFrames, mv: this.mv, energy: def.energy, concerto: def.concerto, offtune: def.offtune,
+      forte1: def.forte1, forte2: def.forte2, forte3: def.forte3, forte4: def.forte4, forte5: def.forte5,
+    }] : []);
+    const tag = <T>(own: T | null | undefined, shared: T | null | undefined): T | null => (own !== undefined ? own : shared ?? null);
+    this.hits = hits.map((h) => ({ ...h, element: tag(h.element, def.element), type: tag(h.type, def.type), subtype: tag(h.subtype, def.subtype) }));
     // No default: an action that deals damage says what it multiplies, so a kit that forgets
     // fails here rather than silently scaling off ATK. Only a rotation marker (INTRO and
     // friends below), which carries no motion value, is allowed to leave it null.
@@ -273,24 +316,21 @@ export class Action extends Gear {
     // the Action's own fields hold cast and hit together — what a press banks in all
     this.castEnergy = def.castEnergy ?? 0;
     this.castConcerto = def.castConcerto ?? 0;
-    this.energy = (def.energy ?? 0) + this.castEnergy;
-    this.concerto = (def.concerto ?? 0) + this.castConcerto;
-    this.offtune = def.offtune ?? 0;
+    this.energy = (sum("energy") ?? def.energy ?? 0) + this.castEnergy;
+    this.concerto = (sum("concerto") ?? def.concerto ?? 0) + this.castConcerto;
+    this.offtune = sum("offtune") ?? def.offtune ?? 0;
     this.slot = def.slot ?? null;
     this.resetEnergy = def.resetEnergy ?? false;
     this.castForte = [def.castForte1 ?? 0, def.castForte2 ?? 0, def.castForte3 ?? 0, def.castForte4 ?? 0, def.castForte5 ?? 0];
-    this.forte1 = (def.forte1 ?? 0) + this.castForte[0]!;
-    this.forte2 = (def.forte2 ?? 0) + this.castForte[1]!;
-    this.forte3 = (def.forte3 ?? 0) + this.castForte[2]!;
-    this.forte4 = (def.forte4 ?? 0) + this.castForte[3]!;
-    this.forte5 = (def.forte5 ?? 0) + this.castForte[4]!;
+    this.forte1 = (sum("forte1") ?? def.forte1 ?? 0) + this.castForte[0]!;
+    this.forte2 = (sum("forte2") ?? def.forte2 ?? 0) + this.castForte[1]!;
+    this.forte3 = (sum("forte3") ?? def.forte3 ?? 0) + this.castForte[2]!;
+    this.forte4 = (sum("forte4") ?? def.forte4 ?? 0) + this.castForte[3]!;
+    this.forte5 = (sum("forte5") ?? def.forte5 ?? 0) + this.castForte[4]!;
     this.forteDeltas = [this.forte1, this.forte2, this.forte3, this.forte4, this.forte5];
     this.resetForte = [!!def.resetForte1, !!def.resetForte2, !!def.resetForte3, !!def.resetForte4, !!def.resetForte5];
     this.resolveFn = def.resolve;
     this.skipNextFn = def.skipNext;
-    this.frames = def.frames ?? 0;
-    this.cancelFrames = def.cancelFrames ?? this.frames;
-    this.hitFrame = def.hitFrame ?? this.cancelFrames;
     this.timestop = def.timestop ?? 0;
     this.motionStop = def.motionStop ?? 0;
     this.tag = def.tag ?? (def.cast === Cast.Outro ? ActionTag.Field : ActionTag.Default);
@@ -336,8 +376,7 @@ export class Action extends Gear {
   instaJump(): Action { return dashed(this, ActionTag.InstaJump); }
 
   /** The insta forms, pointed back at the cast they cancel so `runningAction()` still reads the two
-   *  as one: the cast's own effects with none of its hit — unless its hit lands inside the 6 frames
-   *  an insta cut takes anyway (a cancel frame of 6 or less), when it keeps the whole press. */
+   *  as one: the cast's own effects and the hits the 6 frames an insta cut takes commit. */
   instaForm(kind: ActionTag): Action {
     // a marker has no hit of its own to strip yet: the step carries the cut to whatever it resolves to
     if (this.resolveFn) return new CancelledStep(this, kind);
@@ -348,83 +387,109 @@ export class Action extends Gear {
   private hitless(kind: ActionTag): Action {
     const seen = this.hitlessForms?.get(kind);
     if (seen) return seen;
-    const d = this.def;
-    const out = this.cancelFrames <= 6 ? this.variant(this.name, { tag: kind }) : new Action(this.name, {
-      cast: d.cast, cooldown: d.cooldown, cooldownFrames: d.cooldownFrames, tag: kind,
-      // the hit is lost, the cast's own banking stands
-      castEnergy: d.castEnergy, castConcerto: d.castConcerto,
-      castForte1: d.castForte1, castForte2: d.castForte2, castForte3: d.castForte3, castForte4: d.castForte4, castForte5: d.castForte5,
-      combatStart: d.combatStart, updateDebuffs: d.updateDebuffs, updateGlobal: d.updateGlobal, updateBuffs: d.updateBuffs,
-      applyStats: d.applyStats, convertStats: d.convertStats, afterAction: d.afterAction, lateConvertStats: d.lateConvertStats,
-      display: d.display,
+    // a press committed inside the insta cut's 6 frames keeps every hit; else only those landed by then
+    const kept = this.commitFrames <= 6 ? this.hits : this.hits.filter((h) => h.at <= 6);
+    const out = kept.length || !this.hits.length ? this.variant(this.name, kept.length ? { tag: kind, hits: kept } : { tag: kind }) : new Action(this.name, {
+      ...this.def, tag: kind, hits: [],
+      // every hit lost, the cast's own banking stands
+      mv: 0, energy: 0, concerto: 0, offtune: 0, forte1: 0, forte2: 0, forte3: 0, forte4: 0, forte5: 0,
     });
     out.cancelOf = this;
-    // an insta cut that lost its hit is its cast alone
-    if (this.cancelFrames > 6) out.half = "cast";
+    // an insta cut that lost every hit is its cast alone
+    if (!kept.length && this.hits.length) out.half = "cast";
     (this.hitlessForms ??= new Map()).set(kind, out);
     return out;
   }
 
-  /** Does this press queue its hit, landing it `hitDelay()` after the cast: any press with a motion
-   *  value whose hit is later than the cast, and always an Outro's or an insta swap's (the incoming
-   *  resonator casts first). A half, an insta cut that lost its hit, or a 0-MV press plays whole. */
+  /** Does this press queue its hits and its end: any press that takes time, and always an Outro's or
+   *  an insta swap's (the incoming resonator casts first). One taking no time plays whole. */
   splitsHit(cut: ActionTag | null): boolean {
-    if (this.half !== null || this.mv <= 0) return false;
-    return this.cast === Cast.Outro || this.tag === ActionTag.InstaSwap || this.hitDelay(cut) > 0;
+    if (this.half !== null) return false;
+    if (!this.hits.length) return !this.castsInstantly && this.cost(cut).total > 0;
+    if (this.cast === Cast.Outro || this.tag === ActionTag.InstaSwap || this.hits.length > 1) return true;
+    return this.hitDelay(0) > 0 || (!this.castsInstantly && this.cost(cut).total > 0);
   }
-  /** Does the queued hit land with its owner off the field — an Outro's or an insta swap's, not a
+  /** Do the queued hits land with their owner off the field — an Outro's or an insta swap's, not a
    *  summon's, which lands wherever the field then stands. */
   hitsAway(cut: ActionTag | null): boolean {
     return this.cast === Cast.Outro || (cut ?? this.tag) === ActionTag.InstaSwap;
   }
   /** Does the cast take none of the clock — an Outro, an insta swap (their 15 swap frames are the
-   *  handoff's), a FIELD hit (its frames are only the time its hit takes). */
-  private get castsInstantly(): boolean {
+   *  handoff's), a FIELD hit (its frames are only the time its hits take). */
+  get castsInstantly(): boolean {
     return this.cast === Cast.Outro || this.tag === ActionTag.InstaSwap || this.tag === ActionTag.Field;
   }
-  /** Fight-clock frames from the cast to its hit as `cut` plays it: `hitFrame`, never past where
-   *  the cut ends it, less the time stop ahead of it. */
-  hitClock(cut: ActionTag | null = null): number {
-    const at = Math.min(this.hitFrame, this.cost(cut).action);
+  /** Fight-clock frames from the cast to hit `k`: its frame less the time stop ahead of it. A
+   *  committed hit lands whatever cuts the animation after the cast. */
+  hitDelay(k: number): number {
+    const at = this.hits[k]?.at ?? 0;
     return Math.max(0, at - Math.min(this.timestop, at));
   }
-  /** Frames from the cast to its queued hit: `hitClock()`, or for a press that casts instantly its
-   *  `hitFrame` into its own frames. */
-  hitDelay(cut: ActionTag | null = null): number {
-    if (!this.castsInstantly) return this.hitClock(cut);
-    const at = Math.min(this.hitFrame, this.frames);
-    return Math.max(0, at - Math.min(this.timestop, at));
+  /** Fight-clock frames from the cast to its last hit. */
+  lastHitDelay(): number {
+    let most = 0;
+    for (let k = 0; k < this.hits.length; k++) most = Math.max(most, this.hitDelay(k));
+    return most;
+  }
+  /** Fight-clock frames from an instantly-cast press to its end: its animation less its time stop. */
+  instantEnd(): number {
+    return Math.max(0, this.animFrames - this.timestop);
   }
   private castCopy?: Action;
-  private hitCopy?: Action;
-  /** The cast of a press whose hit is queued: its frames (none where it casts instantly), what its
-   *  cast banks, and every hook — evaluate() runs only the cast's (`updateBuffs`, `updateGlobal`). */
+  private hitCopies?: Action[];
+  private endCopy?: Action;
+  /** The cast of a press whose hits are queued: its frames (none where it casts instantly), what
+   *  its cast banks, and every hook — evaluate() runs only the cast's (`updateGlobal`, `updateBuffs`). */
   castPart(): Action {
     if (!this.castCopy) {
-      const instant = this.castsInstantly ? { frames: 0, cancelFrames: 0, hitFrame: 0, timestop: 0 } : {};
-      this.castCopy = this.variant(this.name, {
-        mv: 0, energy: 0, offtune: 0, concerto: 0, forte1: 0, forte2: 0, forte3: 0, forte4: 0, forte5: 0, ...instant,
-      });
+      const instant = this.castsInstantly ? { animFrames: 0, commitFrames: 0, timestop: 0 } : {};
+      // a hitless press banks what it declares on its cast
+      this.castCopy = this.variant(this.name, this.hits.length ? {
+        hits: [], mv: 0, energy: 0, offtune: 0, concerto: 0, forte1: 0, forte2: 0, forte3: 0, forte4: 0, forte5: 0, ...instant,
+      } : instant);
       this.castCopy.formOf = this;
       this.castCopy.half = "cast";
+      this.castCopy.hitsAtCast = !this.hits.length;
     }
     return this.castCopy;
   }
-  /** The queued hit: no frames, what the hit banks, and every hook — evaluate() runs only the hit's
-   *  (`updateDebuffs`, `hitGlobal`, the stat phases, `afterAction`). */
-  hitPart(): Action {
-    if (!this.hitCopy) {
-      this.hitCopy = this.variant(this.name, {
-        frames: 0, cancelFrames: 0, hitFrame: 0, timestop: 0, motionStop: 0, cooldown: undefined,
+  /** Hit `k`, queued: no frames, what it deals and banks, its own element/type/subtype, and every
+   *  hook — evaluate() runs only a hit's (`updateDebuffs`, `hitGlobal`, the stat phases, `onHit`). */
+  hitPart(k: number): Action {
+    const copies = (this.hitCopies ??= []);
+    if (!copies[k]) {
+      const h = this.hits[k]!;
+      const copy = this.variant(this.name, {
+        hits: [{ ...h, at: 0 }],
+        animFrames: 0, commitFrames: 0, timestop: 0, motionStop: 0, cooldown: undefined,
         castEnergy: 0, castConcerto: 0, castForte1: 0, castForte2: 0, castForte3: 0, castForte4: 0, castForte5: 0,
         resetEnergy: false, resetForte1: false, resetForte2: false, resetForte3: false, resetForte4: false, resetForte5: false,
         // the swap was the cast's; the hit is no cut of its own
-        tag: this.tag === ActionTag.SwapCancel || this.tag === ActionTag.InstaSwap ? ActionTag.Default : this.tag,
+        tag: this.tag === ActionTag.Field ? ActionTag.Field : ActionTag.Default,
       });
-      this.hitCopy.formOf = this;
-      this.hitCopy.half = "hit";
+      copy.formOf = this;
+      copy.half = "hit";
+      copy.hitIndex = k;
+      copy.mvShare = this.mv ? (h.mv ?? 0) / this.mv : 1 / this.hits.length;
+      copies[k] = copy;
     }
-    return this.hitCopy;
+    return copies[k]!;
+  }
+  /** The press's end, queued where its animation (or its cut) runs out: nothing dealt or banked,
+   *  and only `afterAction` run. */
+  endPart(): Action {
+    if (!this.endCopy) {
+      this.endCopy = this.variant(this.name, {
+        hits: [], mv: 0, energy: 0, offtune: 0, concerto: 0, forte1: 0, forte2: 0, forte3: 0, forte4: 0, forte5: 0,
+        animFrames: 0, commitFrames: 0, timestop: 0, motionStop: 0, cooldown: undefined,
+        castEnergy: 0, castConcerto: 0, castForte1: 0, castForte2: 0, castForte3: 0, castForte4: 0, castForte5: 0,
+        resetEnergy: false, resetForte1: false, resetForte2: false, resetForte3: false, resetForte4: false, resetForte5: false,
+        tag: this.tag === ActionTag.Field ? ActionTag.Field : ActionTag.Default,
+      });
+      this.endCopy.formOf = this;
+      this.endCopy.half = "end";
+    }
+    return this.endCopy;
   }
 
   /** This press as a step's `kind` plays it: an insta cut is its insta form, which carries the
@@ -443,10 +508,22 @@ export class Action extends Gear {
     return this.variant(this.name, { updateBuffs: undefined });
   }
 
+  /** The press cut 12 frames after its first hit, which alone lands (and any on the same frame):
+   *  HIT CANCEL. Only for a press whose hits fall on more than one frame. */
+  hitCancel(): Action {
+    if (this.resolveFn) return this.swapResolver((a) => a.hitCancel());
+    const first = Math.min(...this.hits.map((h) => h.at));
+    if (this.hits.length < 2 || this.hits.every((h) => h.at === first)) throw new Error(`${this.name}: a hit cancel needs hits on more than one frame`);
+    const out = this.variant(this.name, { tag: ActionTag.HitCancel, commitFrames: first, hits: this.hits.filter((h) => h.at === first) });
+    out.cancelOf = this;
+    return out;
+  }
+
   /** The same cast made on the way out, under its own name and a SWAP CANCEL tag — identical in
    *  every field, but a swap-out: it plays to its cancel frame, its hit landing on field, and swaps
    *  out after it (the handoff's 15 swap frames, `run()`). */
   swapCancel(): Action {
+    if (this.resolveFn) return this.swapResolver((a) => a.swapCancel());
     const out = this.variant(this.name, { tag: ActionTag.SwapCancel });
     out.formOf = this;
     return out;
@@ -454,9 +531,24 @@ export class Action extends Gear {
   /** The same cast swapped out of the moment it is pressed — the handoff's 15 frames — its hit still landing,
    *  off field, once the press would have reached it (`splitsHit()`). */
   instaSwap(): Action {
+    if (this.resolveFn) return this.swapResolver((a) => a.instaSwap());
     const out = this.variant(this.name, { tag: ActionTag.InstaSwap });
     out.formOf = this;
     return out;
+  }
+  /** A marker's swap form: a marker resolving to the swap form of whatever it resolves to, each
+   *  made once. */
+  private swapResolver(swap: (a: Action) => Action): Action {
+    const resolve = this.resolveFn!, made = new Map<Action, Action>();
+    return new Action(this.name, {
+      resolve: () => {
+        const a = resolve();
+        if (!a) return null;
+        let out = made.get(a);
+        if (!out) made.set(a, (out = swap(a)));
+        return out;
+      },
+    });
   }
 }
 
@@ -490,6 +582,7 @@ export class ActionGroup extends Action {
   override instaDodge(): Action { return this.dashLast((a) => a.instaDodge()); }
   override instaJump(): Action { return this.dashLast((a) => a.instaJump()); }
   override swapCancel(): Action { return this.withLast((a) => a.swapCancel()); }
+  override hitCancel(): Action { return this.withLast((a) => a.hitCancel()); }
   override instaSwap(): Action { return this.withLast((a) => a.instaSwap()); }
   private withLast(cut: (a: Action) => Action): ActionGroup {
     return new ActionGroup(this.name, [...this.actions.slice(0, -1), cut(this.actions[this.actions.length - 1]!)]);
@@ -517,8 +610,8 @@ function dashed(after: Action, kind: ActionTag): ActionGroup {
 
 
 /** The plain dash and jump — what a resonator without one of its own makes (`ResonatorDef.dodge`). */
-export const DODGE = new Action("Dodge", { frames: 20 });
-export const JUMP = new Action("Jump", { frames: 15 });
+export const DODGE = new Action("Dodge", { animFrames: 20 });
+export const JUMP = new Action("Jump", { animFrames: 15 });
 
 /** The dash (or jump) a `dodge()`/`jump()` cut makes after `after`, resolved when reached the way
  *  INTRO is: the resonator's own for that press (Jingran's Shadow Step, Galbrena's Hellstride),
@@ -648,7 +741,7 @@ const ECHO_SWAP_FORM = echoForm("Echo Placeholder (swap)", "ECHO.swap()", (m) =>
 /** Is the equipped echo no longer than its wearer's own dash out of it plus an insta cut — pressed
  *  whole rather than dashed out of (`ECHO.instaDodge()`)? */
 const echoPressedWhole = (m: Mainslot): boolean =>
-  m.onfield.frames <= (currentMember().resonator?.dodgeFn?.(ECHO) ?? DODGE).frames + 6;
+  m.onfield.animFrames <= (currentMember().resonator?.dodgeFn?.(ECHO) ?? DODGE).animFrames + 6;
 const ECHO_INSTA_FORM = echoForm("Echo Placeholder (insta dash)", "ECHO.instaDodge()", (m) => (echoPressedWhole(m) ? m.onfield : m.cancel));
 const ECHO_INSTA_SWAP_FORM = echoForm("Echo Placeholder (insta swap)", "ECHO.instaSwap()", (m) => m.instaOut);
 
@@ -1004,8 +1097,8 @@ function staysOnField(a: Action): Action {
  * A section closes on the Intro the *last* slot's own Outro hands into — one full trip round the
  * team, ending where the next begins. The outro's own follow-ups, that Intro, and whatever the
  * Intro itself queued all belong to the section they close; the first rotation cast of the visit
- * opens the next one. Trips go on until the fight's clock passes `untilFrame`; the caller cuts the
- * last of them where the time runs out (teamrun.ts).
+ * opens the next one. Trips go on until `count` sections have closed; the hits still in flight
+ * then land, and the fight ends where the next section's Intro would have begun.
  */
 /** Why a team can't be scheduled at all, or `null` if it can — the checks the scheduler makes
  *  up front, per team, so a failure names the composition rather than surfacing mid-fight. Also
@@ -1041,7 +1134,7 @@ export function teamPlayable(rotations: Rotation[], names: string[]): string | n
   return null;
 }
 
-export function runRotations(state: State, rotations: Rotation[], untilFrame: number): Result[][] {
+export function runRotations(state: State, rotations: Rotation[], count: number): { sections: Result[][]; end: number } {
   const why = teamPlayable(rotations, state.slots.map((s) => s.name));
   if (why) throw new Error(why);
   // Whoever has already played, and so which of the two forms of a chain an arrival takes: the
@@ -1058,8 +1151,15 @@ export function runRotations(state: State, rotations: Rotation[], untilFrame: nu
   const last = state.slots.length - 1;
   const out: Result[][] = [[]];
   let section = 0;
-  // another visit is due while the clock has not yet passed the fight's end
-  const going = (): boolean => state.frame <= untilFrame;
+  // another visit is due until `count` sections have closed
+  const going = (): boolean => section + (closing ? 1 : 0) < count;
+  // the fight ends past the last handoff's swap, where the next Intro would have begun; the hits
+  // still in flight land then, in the section that cast them
+  const finish = (): { sections: Result[][]; end: number } => {
+    const end = Math.max(state.frame, state.playsTo) + 15;
+    if (state.timed.length) out[section]!.push(...run(state, [], true));
+    return { sections: out, end };
+  };
 
   // The section the last slot has just outro'd out of ends with that visit — its outro and every
   // follow-up the outro queued behind it: `closing` says the next rows to land open the next
@@ -1259,7 +1359,7 @@ export function runRotations(state: State, rotations: Rotation[], untilFrame: nu
   if (rotations[0]!.doubleIntro) {
     let first = true, trips = 0;
     while (going()) {
-      if (++trips > 1000) throw new Error("rotation scheduler never reached the end of the fight");
+      if (++trips > 1000) throw new Error("rotation scheduler never closed its sections");
       // the opener already stood in for the leader's first pre-visit
       for (let i = first ? 1 : 0; i < rotations.length && going(); i++) {
         const d = rotations[i]!.doubleIntro;
@@ -1268,15 +1368,13 @@ export function runRotations(state: State, rotations: Rotation[], untilFrame: nu
       first = false;
       for (let i = 0; i < rotations.length && going(); i++) runChain(i, arrival(i));
     }
-    return out;
+    return finish();
   }
 
   let guard = 0;
   while (going()) {
-    if (++guard > 1000) throw new Error("rotation scheduler never reached the end of the fight");
+    if (++guard > 1000) throw new Error("rotation scheduler never closed its sections");
     visit(state.active);
   }
-  // hits still in flight when the fight ends land then
-  if (state.timed.length) out[out.length - 1]!.push(...run(state, [], true));
-  return out;
+  return finish();
 }

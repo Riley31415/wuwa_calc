@@ -52,41 +52,104 @@ function xlyAction(id: string, def: object): Action {
 }
 
 // --- basics, heavy, mid-air, dodge counter (Probe) — every hit feeds Capacity
-const BA1 = xlyAction("Basic - Probe 1", { frames: 20, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 33.11 * 2, energy: 0.84, concerto: 1.68, offtune: 2664, forte1: 8 });
-const BA2 = xlyAction("Basic - Probe 2", { frames: 20, cancelFrames: 15, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 99.61, energy: 1.26, concerto: 2.51, offtune: 4008, forte1: 14 });
-const BA3 = xlyAction("Basic - Probe 3", { frames: 48, cancelFrames: 40, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 39.76 * 3, energy: 1.50, concerto: 3.00, offtune: 4800, forte1: 15 });
-const BA4 = xlyAction("Basic - Probe 4", { frames: 48, cancelFrames: 32, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 53.05 * 2 + 26.53, energy: 1.68, concerto: 3.35, offtune: 5338, forte1: 18 });
-const BA5 = xlyAction("Basic - Probe 5", { frames: 64, cancelFrames: 33, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 198.81, energy: 2.50, concerto: 5.00, offtune: 8000, forte1: 20 });
+// PLACEHOLDER FRAMES
+const BA1 = xlyAction("Basic - Probe 1", { animFrames: 20, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 20, mv: 33.11, energy: 0.42, concerto: 0.84, offtune: 1332 },
+    { at: 20, mv: 33.11, energy: 0.42, concerto: 0.84, offtune: 1332, forte1: 8 },
+  ]});
+const BA2 = xlyAction("Basic - Probe 2", { animFrames: 20, commitFrames: 15, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 99.61, energy: 1.26, concerto: 2.51, offtune: 4008, forte1: 14 });
+// PLACEHOLDER FRAMES
+const BA3 = xlyAction("Basic - Probe 3", { animFrames: 48, commitFrames: 40, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 40, mv: 39.76, energy: 0.5, concerto: 1, offtune: 1600 },
+    { at: 40, mv: 39.76, energy: 0.5, concerto: 1, offtune: 1600 },
+    { at: 40, mv: 39.76, energy: 0.5, concerto: 1, offtune: 1600, forte1: 15 },
+  ]});
+// PLACEHOLDER FRAMES
+const BA4 = xlyAction("Basic - Probe 4", { animFrames: 48, commitFrames: 32, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 32, mv: 53.05, energy: 0.672, concerto: 1.3399, offtune: 2135.1195 },
+    { at: 32, mv: 53.05, energy: 0.672, concerto: 1.3399, offtune: 2135.1195 },
+    { at: 32, mv: 26.53, energy: 0.336, concerto: 0.6702, offtune: 1067.761, forte1: 18 },
+  ]});
+const BA5 = xlyAction("Basic - Probe 5", { animFrames: 64, commitFrames: 33, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 198.81, energy: 2.50, concerto: 5.00, offtune: 8000, forte1: 20 });
 
-const HA = xlyAction("Heavy - Probe", { frames: 58, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 82.81 * 2, energy: 2.10, concerto: 4.18, offtune: 6664, forte1: 18 });
-const MA = xlyAction("Mid-air - Probe Plunge", { frames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 123.27, energy: 0.52, concerto: 1.00, offtune: 4960, forte1: 13 });
+// PLACEHOLDER FRAMES
+const HA = xlyAction("Heavy - Probe", { animFrames: 58, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, hits: [
+    { at: 58, mv: 82.81, energy: 1.05, concerto: 2.09, offtune: 3332 },
+    { at: 58, mv: 82.81, energy: 1.05, concerto: 2.09, offtune: 3332, forte1: 18 },
+  ]});
+const MA = xlyAction("Mid-air - Probe Plunge", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 123.27, energy: 0.52, concerto: 1.00, offtune: 4960, forte1: 13 });
 const DC = xlyAction("Dodge Counter - Probe", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, mv: 238.58, energy: 2.75, concerto: 2.5, castConcerto: 10, offtune: 4000, forte1: 26 });
 
-const Skill = xlyAction("Skill - Deduction", { frames: 41, cancelFrames: 15, cooldown: 60 * 5, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 198.81, energy: 6.25, concerto: 7, offtune: 4000, forte1: 40 });
+// PLACEHOLDER FRAMES
+const Skill = xlyAction("Skill - Deduction", { animFrames: 41, commitFrames: 15, cooldown: 60 * 5, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, hits: [
+    { at: 15, mv: 99.41, energy: 3.125, concerto: 3.5, offtune: 2000 },
+    { at: 15, mv: 99.4, energy: 3.125, concerto: 3.5, offtune: 2000, forte1: 40 },
+  ]});
 /** Decipher: spends the full 100 Capacity, considered Resonance Liberation DMG. */
-const FSkill = xlyAction("Forte Skill - Decipher", { frames: 45, node: Node.Forte, cast: Cast.Skill, type: Type.Liberation, mv: 397.82, energy: 1.67, castConcerto: 7, offtune: 5336, castForte1: -100});
+const FSkill = xlyAction("Forte Skill - Decipher", { animFrames: 45, node: Node.Forte, cast: Cast.Skill, type: Type.Liberation, mv: 397.82, energy: 1.67, castConcerto: 7, offtune: 5336, castForte1: -100});
 
-const Liberation = xlyAction("Liberation - Cogitation Model", { frames: 191, timestop: 270, cooldown: 60 * 25, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, mv: 1466.06, castConcerto: 20, offtune: 67200, resetEnergy: true });
+const Liberation = xlyAction("Liberation - Cogitation Model", { animFrames: 191, timestop: 270, cooldown: 60 * 25, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, mv: 1466.06, castConcerto: 20, offtune: 67200, resetEnergy: true });
 
 // Intuition's own moveset — Pivot - Impale basics, Divergence, Unfathomed; Performance Capacity
 // (forte2) deltas are the kit text's own numbers
-const UBA1 = xlyAction("Basic - Pivot: Impale 1", { frames: 60, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, mv: 119.67, energy: 1.31, concerto: 2.62, offtune: 4192, forte2: 1 });
-const UBA2 = xlyAction("Basic - Pivot: Impale 2", { frames: 60, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, mv: 60.92 * 4, energy: 2.68, concerto: 5.36, offtune: 8536, forte2: 2 });
-const UBA3 = xlyAction("Basic - Pivot: Impale 3", { frames: 60, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, mv: 133.25 * 2, energy: 2.92, concerto: 5.84, offtune: 9336, forte2: 2 });
-const USkill = xlyAction("Skill - Divergence", { frames: 85, cooldown: 60 * 7, node: Node.Liberation, cast: Cast.Skill, type: Type.Skill, mv: 49.59 * 3 + 173.55 * 2, energy: 9.94, concerto: 5, castConcerto: 10, offtune: 9316, forte2: 2 });
-const UDC = xlyAction("Dodge Counter - Unfathomed", { node: Node.Liberation, cast: Cast.DodgeCounter, type: Type.Liberation, mv: 38.83 * 2 + 310.58, energy: 4.00, concerto: 5, castConcerto: 10, offtune: 8000, forte2: 2 });
+const UBA1 = xlyAction("Basic - Pivot: Impale 1", { animFrames: 60, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, mv: 119.67, energy: 1.31, concerto: 2.62, offtune: 4192, forte2: 1 });
+// PLACEHOLDER FRAMES
+const UBA2 = xlyAction("Basic - Pivot: Impale 2", { animFrames: 60, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 60, mv: 60.92, energy: 0.67, concerto: 1.34, offtune: 2134 },
+    { at: 60, mv: 60.92, energy: 0.67, concerto: 1.34, offtune: 2134 },
+    { at: 60, mv: 60.92, energy: 0.67, concerto: 1.34, offtune: 2134 },
+    { at: 60, mv: 60.92, energy: 0.67, concerto: 1.34, offtune: 2134, forte2: 2 },
+  ]});
+// PLACEHOLDER FRAMES
+const UBA3 = xlyAction("Basic - Pivot: Impale 3", { animFrames: 60, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 60, mv: 133.25, energy: 1.46, concerto: 2.92, offtune: 4668 },
+    { at: 60, mv: 133.25, energy: 1.46, concerto: 2.92, offtune: 4668, forte2: 2 },
+  ]});
+// PLACEHOLDER FRAMES
+const USkill = xlyAction("Skill - Divergence", { animFrames: 85, cooldown: 60 * 7, node: Node.Liberation, cast: Cast.Skill, type: Type.Skill, hits: [
+    { at: 85, mv: 49.59, energy: 0.9941, concerto: 0.5, offtune: 931.6564 },
+    { at: 85, mv: 49.59, energy: 0.9941, concerto: 0.5, offtune: 931.6564 },
+    { at: 85, mv: 49.59, energy: 0.9941, concerto: 0.5, offtune: 931.6564 },
+    { at: 85, mv: 173.55, energy: 3.4789, concerto: 1.75, offtune: 3260.5155 },
+    { at: 85, mv: 173.55, energy: 3.4788, concerto: 1.75, offtune: 3260.5153, forte2: 2 },
+  ], castConcerto: 10});
+// PLACEHOLDER FRAMES
+const UDC = xlyAction("Dodge Counter - Unfathomed", { node: Node.Liberation, cast: Cast.DodgeCounter, type: Type.Liberation, hits: [
+    { at: 0, mv: 38.83, energy: 0.4001, concerto: 0.5001, offtune: 800.1236 },
+    { at: 0, mv: 38.83, energy: 0.4001, concerto: 0.5001, offtune: 800.1236 },
+    { at: 0, mv: 310.58, energy: 3.1998, concerto: 3.9998, offtune: 6399.7528, forte2: 2 },
+  ], castConcerto: 10});
 
 /** Law of Reigns: 5 Performance Capacity and a Hypercube a cast, considered Liberation DMG. */
-const UForte = xlyAction("Forte Skill - Law of Reigns", { frames: 93, cancelFrames: 85, node: Node.Forte, cast: Cast.Skill, type: Type.Liberation, mv: 95.73 * 4 + 255.28, energy: 4.78, castConcerto: 10, offtune: 45600, castForte2: -5});
+// PLACEHOLDER FRAMES
+const UForte = xlyAction("Forte Skill - Law of Reigns", { animFrames: 93, commitFrames: 85, node: Node.Forte, cast: Cast.Skill, type: Type.Liberation, hits: [
+    { at: 85, mv: 95.73, energy: 0.717, offtune: 6840 },
+    { at: 85, mv: 95.73, energy: 0.717, offtune: 6840 },
+    { at: 85, mv: 95.73, energy: 0.717, offtune: 6840 },
+    { at: 85, mv: 95.73, energy: 0.717, offtune: 6840 },
+    { at: 85, mv: 255.28, energy: 1.912, offtune: 18240 },
+  ], castConcerto: 10, castForte2: -5});
 /** Revamp, the mid-air follow-up to Decipher/Divergence — considered Liberation DMG. */
-const FBA = xlyAction("Mid-air - Revamp", { frames: 95, cancelFrames: 67, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, mv: 21.87 * 4 + 65.61 * 2, energy: 2.78, castConcerto: 5, offtune: 8800, forte2: 3 });
+// PLACEHOLDER FRAMES
+const FBA = xlyAction("Mid-air - Revamp", { animFrames: 95, commitFrames: 67, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, hits: [
+    { at: 67, mv: 21.87, energy: 0.278, offtune: 880 },
+    { at: 67, mv: 21.87, energy: 0.278, offtune: 880 },
+    { at: 67, mv: 21.87, energy: 0.278, offtune: 880 },
+    { at: 67, mv: 21.87, energy: 0.278, offtune: 880 },
+    { at: 67, mv: 65.61, energy: 0.834, offtune: 2640 },
+    { at: 67, mv: 65.61, energy: 0.834, offtune: 2640, forte2: 3 },
+  ], castConcerto: 5});
 
 /** S1's Convolution Matrices: six more instances off every Law of Reigns, each worth 8% of that
  *  skill's own multiplier — 51.06% apiece, and 89.86% once S6 raises the skill (nanoka's own rows,
  *  which carry no energy, concerto or off-tune of their own). */
 const ConvolutionMatrices = xlyAction("Forte Skill - Convolution Matrices (S1)", { node: Node.Forte, type: Type.Liberation, mv: 51.06 * 6 });
 
-const Intro = xlyAction("Intro - Principle", { frames: 84, cancelFrames: 60, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 99.41 * 2, energy: 10.00, concerto: 10, offtune: 11200 });
+// PLACEHOLDER FRAMES
+const Intro = xlyAction("Intro - Principle", { animFrames: 84, commitFrames: 60, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, hits: [
+    { at: 60, mv: 99.41, energy: 5, concerto: 5, offtune: 5600 },
+    { at: 60, mv: 99.41, energy: 5, concerto: 5, offtune: 5600 },
+  ]});
 /** Chain Rule: no damage of its own, just the handoff — its lasers are ACTION_OUTRO_COORD. */
 const Outro = xlyAction("Outro - Chain Rule", {
   cast: Cast.Outro, castConcerto: -100,

@@ -97,12 +97,30 @@ function suisuiAction(id: string, def: object): Action {
 // --- Zephyr Stance: the chain she opens a fight from, banking Cloud Breath (forte1) for
 //     Awakening Spring. Resonance Skill - Zephyr Stance's own 40 is the kit page's, not the
 //     per-hit table's — wuwalab carries no gauge on those six hits either.
-const BA1 = suisuiAction("Basic - Zephyr Stance 1", { frames: 24, cancelFrames: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 63.15, energy: 1.00, concerto: 3.18, offtune: 3176, forte1: 24 });
-const BA2 = suisuiAction("Basic - Zephyr Stance 2", { frames: 46, cancelFrames: 27, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 122.00, energy: 1.92, concerto: 6.14, offtune: 6136, forte1: 46 });
-const BA3 = suisuiAction("Basic - Zephyr Stance 3", { frames: 51, cancelFrames: 35, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 139.34, energy: 2.20, concerto: 7.03, offtune: 7010, forte1: 53 });
-const BA4 = suisuiAction("Basic - Zephyr Stance 4", { frames: 60, cancelFrames: 0, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 159.08, energy: 2.50, concerto: 8.00, offtune: 8000, forte1: 60 });
+const BA1 = suisuiAction("Basic - Zephyr Stance 1", { animFrames: 24, commitFrames: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 8, mv: 63.15, energy: 1, concerto: 3.18, offtune: 3176, forte1: 24 }]});
+const BA2 = suisuiAction("Basic - Zephyr Stance 2", { animFrames: 46, commitFrames: 27, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 12, mv: 61, energy: 0.96, concerto: 3.07, offtune: 3068, forte1: 23 },
+    { at: 30, mv: 61, energy: 0.96, concerto: 3.07, offtune: 3068, forte1: 23 },
+  ]});
+const BA3 = suisuiAction("Basic - Zephyr Stance 3", { animFrames: 51, commitFrames: 35, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 22, mv: 41.8, energy: 0.66, concerto: 2.11, offtune: 2103, forte1: 16 },
+    { at: 29, mv: 41.8, energy: 0.66, concerto: 2.11, offtune: 2103, forte1: 16 },
+    { at: 41, mv: 55.74, energy: 0.88, concerto: 2.81, offtune: 2804, forte1: 21 },
+  ]});
+const BA4 = suisuiAction("Basic - Zephyr Stance 4", { animFrames: 60, commitFrames: 0, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 2, mv: 15.91, energy: 0.25, concerto: 0.8, offtune: 800, forte1: 6 },
+    { at: 8, mv: 15.91, energy: 0.25, concerto: 0.8, offtune: 800, forte1: 6 },
+    { at: 14, mv: 15.91, energy: 0.25, concerto: 0.8, offtune: 800, forte1: 6 },
+    { at: 20, mv: 15.91, energy: 0.25, concerto: 0.8, offtune: 800, forte1: 6 },
+    { at: 26, mv: 15.91, energy: 0.25, concerto: 0.8, offtune: 800, forte1: 6 },
+    { at: 41, mv: 79.53, energy: 1.25, concerto: 4, offtune: 4000, forte1: 30 },
+  ]});
 const MA = suisuiAction("Mid-air - Zephyr Stance Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 70.72, energy: 1.86, concerto: 5.93, offtune: 5928 });
-const DC = suisuiAction("Dodge Counter - Zephyr Stance 3", { frames: 35, cancelFrames: 26, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, mv: 170.67, energy: 2.70, concerto: 18.60, offtune: 8586, forte1: 30 });
+const DC = suisuiAction("Dodge Counter - Zephyr Stance 3", { animFrames: 35, commitFrames: 26, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, hits: [
+    { at: 13, mv: 51.2, energy: 0.81, concerto: 5.58, offtune: 2576, forte1: 9 },
+    { at: 17, mv: 51.2, energy: 0.81, concerto: 5.58, offtune: 2576, forte1: 9 },
+    { at: 26, mv: 68.27, energy: 1.08, concerto: 7.44, offtune: 3434, forte1: 12 },
+  ]});
 // the Zephyr and Drizzle Stance skills share one 6s cooldown
 const SKILL_CD = new Cooldown({ frames: 60 * 6 });
 const Skill = suisuiAction("Skill - Vernal Screen: Zephyr Stance", { cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 143.16, energy: 2.28, concerto: 7.20, offtune: 7200, forte1: 40 });
@@ -111,9 +129,9 @@ const Skill = suisuiAction("Skill - Vernal Screen: Zephyr Stance", { cooldown: S
  *  her into Drizzle Stance, which clears Floral Epistle on the way in. HP-scaled, and one of the
  *  two casts Sky Over Water enhances. */
 const ESkill = suisuiAction("Skill - Awakening Spring", {
-  frames: 78, cancelFrames: 60, cooldown: 60 * 15,
+  animFrames: 78, commitFrames: 60, cooldown: 60 * 15,
   node: Node.Skill, cast: Cast.Skill, type: Type.Skill, scaling: Scaling.Hp,
-  mv: 28.63, energy: 5.00, concerto: 9.60, offtune: 9600, castForte1: -120, resetForte2: true,
+  hits: [{ at: 60, mv: 28.63, energy: 5, concerto: 9.6, offtune: 9600 }], castForte1: -120, resetForte2: true,
   updateDebuffs: () => {
     applyEnemy(GLACIO_CHAFE, 1);
     applyCurrent(HEALS, 1);
@@ -123,22 +141,68 @@ const ESkill = suisuiAction("Skill - Awakening Spring", {
 
 // --- Drizzle Stance: the same buttons, banking Floral Epistle (forte2) for the Outro. Illuminating
 //     Dew and Swallow's Cut are the two ways out of the Heavy, so a chain only ever takes one.
-const FBA1 = suisuiAction("Basic - Drizzle Stance 1", { frames: 31, cancelFrames: 28, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, mv: 78.28, energy: 1.24, concerto: 3.96, offtune: 3936, forte2: 84 });
-const FBA2 = suisuiAction("Basic - Drizzle Stance 2", { frames: 70, cancelFrames: 36, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, mv: 159.07, energy: 2.50, concerto: 8.00, offtune: 8000, forte2: 170 });
-const FBA3 = suisuiAction("Basic - Drizzle Stance 3", { frames: 66, cancelFrames: 56, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, mv: 165.12, energy: 2.64, concerto: 8.40, offtune: 8304, forte2: 180 });
+const FBA1 = suisuiAction("Basic - Drizzle Stance 1", { animFrames: 31, commitFrames: 28, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 20, mv: 19.57, energy: 0.31, concerto: 0.99, offtune: 984, forte2: 21 },
+    { at: 24, mv: 19.57, energy: 0.31, concerto: 0.99, offtune: 984, forte2: 21 },
+    { at: 31, mv: 19.57, energy: 0.31, concerto: 0.99, offtune: 984, forte2: 21 },
+    { at: 34, mv: 19.57, energy: 0.31, concerto: 0.99, offtune: 984, forte2: 21 },
+  ]});
+const FBA2 = suisuiAction("Basic - Drizzle Stance 2", { animFrames: 70, commitFrames: 36, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 23, mv: 31.81, energy: 0.5, concerto: 1.6, offtune: 1600, forte2: 34 },
+    { at: 32, mv: 31.81, energy: 0.5, concerto: 1.6, offtune: 1600, forte2: 34 },
+    { at: 36, mv: 15.91, energy: 0.25, concerto: 0.8, offtune: 800, forte2: 17 },
+    { at: 40, mv: 15.91, energy: 0.25, concerto: 0.8, offtune: 800, forte2: 17 },
+    { at: 43, mv: 15.91, energy: 0.25, concerto: 0.8, offtune: 800, forte2: 17 },
+    { at: 47, mv: 15.91, energy: 0.25, concerto: 0.8, offtune: 800, forte2: 17 },
+    { at: 51, mv: 31.81, energy: 0.5, concerto: 1.6, offtune: 1600, forte2: 34 },
+  ]});
+const FBA3 = suisuiAction("Basic - Drizzle Stance 3", { animFrames: 66, commitFrames: 56, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 11, mv: 13.76, energy: 0.22, concerto: 0.7, offtune: 692, forte2: 15 },
+    { at: 16, mv: 13.76, energy: 0.22, concerto: 0.7, offtune: 692, forte2: 15 },
+    { at: 20, mv: 13.76, energy: 0.22, concerto: 0.7, offtune: 692, forte2: 15 },
+    { at: 25, mv: 13.76, energy: 0.22, concerto: 0.7, offtune: 692, forte2: 15 },
+    { at: 29, mv: 13.76, energy: 0.22, concerto: 0.7, offtune: 692, forte2: 15 },
+    { at: 34, mv: 13.76, energy: 0.22, concerto: 0.7, offtune: 692, forte2: 15 },
+    { at: 38, mv: 13.76, energy: 0.22, concerto: 0.7, offtune: 692, forte2: 15 },
+    { at: 43, mv: 13.76, energy: 0.22, concerto: 0.7, offtune: 692, forte2: 15 },
+    { at: 47, mv: 13.76, energy: 0.22, concerto: 0.7, offtune: 692, forte2: 15 },
+    { at: 52, mv: 13.76, energy: 0.22, concerto: 0.7, offtune: 692, forte2: 15 },
+    { at: 56, mv: 13.76, energy: 0.22, concerto: 0.7, offtune: 692, forte2: 15 },
+    { at: 61, mv: 13.76, energy: 0.22, concerto: 0.7, offtune: 692, forte2: 15 },
+  ]});
 const FBA4 = suisuiAction("Basic - Drizzle Stance 4", {
-  frames: 64, cancelFrames: 48,
-  node: Node.Forte, cast: Cast.Basic, type: Type.Basic, mv: 159.05, energy: 2.50, concerto: 8.00, offtune: 8000, forte2: 170,
+  animFrames: 64, commitFrames: 48,
+  node: Node.Forte, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 48, mv: 159.05, energy: 2.5, concerto: 8, offtune: 8000, forte2: 170 }],
   updateDebuffs: () => applyEnemy(GLACIO_CHAFE, 1),
 });
-const FHA = suisuiAction("Heavy - Drizzle Stance", { frames: 97, cancelFrames: 82, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, mv: 238.59, energy: 3.78, concerto: 12.00, offtune: 12000, forte2: 258 });
-const FHA2 = suisuiAction("Basic - Illuminating Dew", { frames: 64, cancelFrames: 30, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, mv: 104.98, energy: 2.75, concerto: 8.80, offtune: 8800 });
-const FMA = suisuiAction("Basic - Swallow's Cut", { frames: 60, cancelFrames: 33, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, mv: 107.65, energy: 2.82, concerto: 9.03, offtune: 9024 });
-const FSkill = suisuiAction("Skill - Vernal Screen: Drizzle Stance", { frames: 54, cancelFrames: 54, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 143.16, energy: 2.27, concerto: 7.20, offtune: 7200, forte2: 100 });
+const FHA = suisuiAction("Heavy - Drizzle Stance", { animFrames: 97, commitFrames: 82, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, hits: [
+    { at: 14, mv: 11.93, energy: 0.19, concerto: 0.6, offtune: 600, forte2: 13 },
+    { at: 17, mv: 11.93, energy: 0.19, concerto: 0.6, offtune: 600, forte2: 13 },
+    { at: 20, mv: 11.93, energy: 0.19, concerto: 0.6, offtune: 600, forte2: 13 },
+    { at: 23, mv: 11.93, energy: 0.19, concerto: 0.6, offtune: 600, forte2: 13 },
+    { at: 26, mv: 11.93, energy: 0.19, concerto: 0.6, offtune: 600, forte2: 13 },
+    { at: 29, mv: 11.93, energy: 0.19, concerto: 0.6, offtune: 600, forte2: 13 },
+    { at: 32, mv: 11.93, energy: 0.19, concerto: 0.6, offtune: 600, forte2: 13 },
+    { at: 35, mv: 11.93, energy: 0.19, concerto: 0.6, offtune: 600, forte2: 13 },
+    { at: 38, mv: 11.93, energy: 0.19, concerto: 0.6, offtune: 600, forte2: 13 },
+    { at: 41, mv: 11.93, energy: 0.19, concerto: 0.6, offtune: 600, forte2: 13 },
+    { at: 82, mv: 119.29, energy: 1.88, concerto: 6, offtune: 6000, forte2: 128 },
+  ]});
+const FHA2 = suisuiAction("Basic - Illuminating Dew", { animFrames: 64, commitFrames: 30, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 30, mv: 104.98, energy: 2.75, concerto: 8.8, offtune: 8800 }]});
+const FMA = suisuiAction("Basic - Swallow's Cut", { animFrames: 60, commitFrames: 33, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 33, mv: 107.65, energy: 2.82, concerto: 9.03, offtune: 9024 }]});
+const FSkill = suisuiAction("Skill - Vernal Screen: Drizzle Stance", { animFrames: 54, commitFrames: 54, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, hits: [
+    { at: 26, mv: 11.93, energy: 0.19, concerto: 0.6, offtune: 600, forte2: 100 },
+    { at: 30, mv: 11.93, energy: 0.19, concerto: 0.6, offtune: 600 },
+    { at: 35, mv: 11.93, energy: 0.19, concerto: 0.6, offtune: 600 },
+    { at: 40, mv: 11.93, energy: 0.19, concerto: 0.6, offtune: 600 },
+    { at: 45, mv: 11.93, energy: 0.19, concerto: 0.6, offtune: 600 },
+    { at: 50, mv: 11.93, energy: 0.19, concerto: 0.6, offtune: 600 },
+    { at: 57, mv: 71.58, energy: 1.13, concerto: 3.6, offtune: 3600 },
+  ]});
 
 /** Song of Thoroughfare: no damage of its own, just the Landscape and its 20 Concerto. */
 const Liberation = suisuiAction("Liberation - Song of Thoroughfare", {
-  frames: 264, cancelFrames: 264, timestop: 264, motionStop: 264, cooldown: 60 * 25,
+  animFrames: 264, commitFrames: 264, timestop: 264, motionStop: 264, cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, castConcerto: 20, resetEnergy: true,
   updateBuffs: () => applyTeam(CEASELESS_LANDSCAPE, 1)
 });
@@ -146,9 +210,9 @@ const Liberation = suisuiAction("Liberation - Song of Thoroughfare", {
 /** Tinkling Jade: the other cast Sky Over Water enhances, and the ordinary way into Drizzle Stance
  *  — it spends whatever Cloud Breath she is holding whether or not the bar is full. */
 const Intro = suisuiAction("Intro - Tinkling Jade", {
-  frames: 78, cancelFrames: 78, hitFrame: 60, motionStop: 55,
+  animFrames: 78, commitFrames: 78, motionStop: 55,
   node: Node.Intro, cast: Cast.Intro, type: Type.Intro, scaling: Scaling.Hp,
-  mv: 28.63, energy: 10, concerto: 9.6, castConcerto: 10, offtune: 9600, resetForte1: true, resetForte2: true,
+  hits: [{ at: 60, mv: 28.63, energy: 10, concerto: 9.6, offtune: 9600 }], castConcerto: 10, resetForte1: true, resetForte2: true,
   updateDebuffs: () => {
     applyEnemy(GLACIO_CHAFE, 1);
     applyCurrent(HEALS, 1);
@@ -174,7 +238,7 @@ const SPRINGS_BIRTH = coordinatedBuff("Suisui: Spring's Birth", 20, () => SUISUI
  *  declared delta ("consumes all" has no fixed size, and the engine's gauges have no ceiling), and
  *  nothing here tests what it held: 600 consumed — the top tier — is simply taken as read. */
 const Outro = suisuiAction("Outro - Rippling Waters", {
-  frames: 0, cancelFrames: 0,
+  animFrames: 0, commitFrames: 0,
   cast: Cast.Outro, castConcerto: -100, resetForte2: true,
   updateBuffs: () => {
     applyTeam(RIPPLING_WATERS, 1);
@@ -259,7 +323,7 @@ const ROAMING_TRANSCENDENT = new Buff({
  *  her own slot (`queueOn`), not a grant made on whoever is on field — the step is hers, so her own
  *  weapon and sonata are what read the inflict and the heal. */
 const PlumeStep = suisuiAction("Outro - Plume Step", {
-  frames: 0,
+  animFrames: 0,
   updateDebuffs: () => {
     applyEnemy(GLACIO_CHAFE, 1);
     applyCurrent(HEALS, 1);

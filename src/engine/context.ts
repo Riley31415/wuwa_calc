@@ -95,17 +95,17 @@ export function isActive(): boolean {
   return ctx.state!.slot === ctx.state!.slots[ctx.state!.onField];
 }
 
-/** The frames the action being evaluated runs the fight clock by: its own `frames` as a press,
+/** The frames the action being evaluated runs the fight clock by: its `animFrames` (or cut) as a press,
  *  0 for a follow-up (it lands inside the press that queued it) or a cancelled press (the dash
  *  that cut it carries the time); on a queued hit, its press's. What a rate per second scales by
  *  (Iuno's Energy a second in her domain), and the test for "a press that takes time". */
-export const elapsed = (): number => (ctx.act!.half === "hit" ? ctx.pressFrames : ctx.actFrames);
+export const elapsed = (): number => (ctx.act!.half === "hit" || ctx.act!.half === "end" ? ctx.pressFrames : ctx.actFrames);
 
 /** The fight clock as the action being evaluated found it, in frames (`State.frame`). */
 export const currentFrame = (): number => ctx.state!.frame;
 /** The frame the press being evaluated was cast — its own start, or on a queued hit its cast's:
  *  what a count spread over the press's frames (`elapsed()`) is laid from. */
-export const castFrame = (): number => (ctx.act!.half === "hit" ? ctx.pressStart : ctx.state!.frame);
+export const castFrame = (): number => (ctx.act!.half === "hit" || ctx.act!.half === "end" ? ctx.pressStart : ctx.state!.frame);
 
 const cooldownOf = (of: Action | Cooldown): Cooldown | null => ("wait" in of ? of : of.cooldown);
 
@@ -156,12 +156,12 @@ export function tickInEnemy(gear: Gear): number { return ctx.state!.enemyStacks.
  *  The Action is never touched — kits compare actions by identity, and a mutated singleton would
  *  leak across the teams a worker runs. */
 export function typeOverride(type: Type | Subtype): void {
-  const a = ctx.act!;
+  const h = ctx.act!.lastHit;
   if (type & SUBTYPE_BITS) ctx.overrideSubtype = type as Subtype;
   else ctx.overrideType = type as Type;
   // the same three tags `tagWordOf()` folds, with the assignment standing in for whichever slot
   // it claimed
-  ctx.tagWord = tagWord(a.element, ctx.overrideType ?? a.type, ctx.overrideSubtype ?? a.subtype);
+  ctx.tagWord = tagWord(h?.element ?? null, ctx.overrideType ?? h?.type ?? null, ctx.overrideSubtype ?? h?.subtype ?? null);
 }
 
 /* ---------------------------------------------------------------------------------- triggers */
@@ -189,13 +189,13 @@ function combined(fn: () => boolean, parts: Trigger[]): Trigger {
   return t;
 }
 
-/** Is the action being evaluated this damage type — its own `type` or `subtype`, or whichever of
- *  the two a held Gear's `typeOverride` assigned for this evaluation, which stands in for that
- *  slot (a Basic hit assigned Liberation answers Liberation, not Basic). Kits ask this, never
- *  `currentAction().type` directly, so an assignment is seen by every check everywhere. */
+/** Is the hit being evaluated this damage type — its own `type` or `subtype`, or whichever of the
+ *  two a held Gear's `typeOverride` assigned for this evaluation (a Basic hit assigned Liberation
+ *  answers Liberation, not Basic). A cast has no type: false there, always. */
 export function isType(type: Type | Subtype): boolean {
-  const a = ctx.act!;
-  return (ctx.overrideType ?? a.type) === type || (ctx.overrideSubtype ?? a.subtype) === type;
+  const h = ctx.act!.lastHit;
+  if (!h) return false;
+  return (ctx.overrideType ?? h.type) === type || (ctx.overrideSubtype ?? h.subtype) === type;
 }
 
 /** The same question about an action that isn't the one being evaluated — a snapshot's own, after
@@ -810,6 +810,18 @@ export function applyOn(resonator: Resonator | null, fn: () => void): void {
   const timed = ctx.state!.timed;
   timed.push({ due: ctx.tickAt, action: null, slot, into: null, by: queuedBy(), apply: fn });
   timed.sort((p, q) => p.due - q.due);
+}
+
+/** Take back every hit and end still queued of a press in `presses` (or a form of one): an attack
+ *  cut off mid-animation keeps what already landed and nothing after (Phrolova's Hecate). */
+export function cancelHits(presses: Set<Action>): void {
+  if (ctx.dryRun) return;
+  const state = ctx.state!;
+  const cut = (a: Action | null): boolean => {
+    for (let x = a; x; x = x.cancelOf ?? x.formOf) if (presses.has(x)) return true;
+    return false;
+  };
+  state.timed = state.timed.filter((h) => !cut(h.action));
 }
 
 /** Run `fn` as a moment of its own, outside any press: `act` stands in for the action (one with no

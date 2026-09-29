@@ -1076,7 +1076,7 @@ main {
 
 /* A cancelled press's tag, boxed at the right of its name: outlined in the cancel's colour over a
    faint wash of it — a plain cancel purple, a dash blue, a jump orange, an insta (swap included)
-   red, a swap cancel yellow, an easy cancel green, and an off-field press gray. */
+   red, a swap cancel gold, a hit cancel yellow, an easy cancel green, and an off-field press gray. */
 .ctag {
   float: right;
   margin-left: 6px;
@@ -1098,6 +1098,8 @@ main {
 /* a swap cancel, whose hit lands on field before the swap */
 .ctag-swap { --tag: #f5c542; }
 .ctag-easy { --tag: #3ddc7a; }
+/* a hit cancel, cut 12 frames after its first hit */
+.ctag-hit { --tag: #e3e32b; }
 
 /* The comparison table's own Total DPR hover is the detail page's damage-per-rotation table
    whole, not a panel of rows — so the panel is only the frame around it: no padding of its own,

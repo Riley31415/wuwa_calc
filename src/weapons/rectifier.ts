@@ -12,7 +12,7 @@ import {
   applyTeam,
   revokeCurrent,
   casting,
-  currentAction,
+  currentAction, isType,
   isActive,
   applied,
   stacksOfEnemy,
@@ -40,10 +40,10 @@ export const RIME_DRAPED_SPROUTS = refinements((r, rank) => {
   const PANORAMA_STACKS: Buff = new Buff({
     name: `Rime-Draped Sprouts: Panorama${rank} (skill)`, maxStacks: 3, duration: 60 * 6,
     stats: [[Stat.DmgBonus, [12, 15, 18, 21, 24][r]!, Type.Basic]], perStack: true,
-    // on outro: 3+ stacks convert into the permanent off-field version, short of 3 they're just lost
+    // on outro: 3+ stacks convert into the off-field version; short of 3 the outro leaves them be
     updateBuffs: () => {
-      if (casting(Cast.Outro)) {
-        if (frozenStacks() >= 3) applyCurrent(PANORAMA_OFFIELD, 1);
+      if (casting(Cast.Outro) && frozenStacks() >= 3) {
+        applyCurrent(PANORAMA_OFFIELD, 1);
         revokeCurrent(PANORAMA_STACKS);
       }
     },
@@ -192,7 +192,7 @@ export const LUMINOUS_HYMN = refinements((r, rank) => {
     weaponType: WeaponType.Rectifier, name: `Luminous Hymn${rank}`,
     stats: [[Stat.BaseAtk, 500], [Stat.CritRate, 36], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [
-      { on: () => currentAction().mv > 0 && stacksOfEnemy(SPECTRO_FRAZZLE) > 0, buff: HOMEBUILDERS_STACKS, onHit: true },
+      { on: () => currentAction().hits.length > 0 && stacksOfEnemy(SPECTRO_FRAZZLE) > 0, buff: HOMEBUILDERS_STACKS, onHit: true },
       { on: onCast(Cast.Outro), buff: HOMEBUILDERS_FRAZZLE, to: BuffTarget.Enemy },
     ],
   });
@@ -274,7 +274,7 @@ export const BLOOMING_JADEHAVEN = refinements((r, rank) => {
     name: `Blooming Jadehaven: Hundredfold Artifice${rank}`,
     stats: [[Stat.Amp, [36, 45, 54, 63, 72][r]!, Type.Skill]],
     applyStats: () => {
-      if (currentAction().type === Type.Skill) addStat(Stat.ResIgnore, [10, 13.5, 17, 20.5, 24][r]!, Attribute.Electro);
+      if (isType(Type.Skill)) addStat(Stat.ResIgnore, [10, 13.5, 17, 20.5, 24][r]!, Attribute.Electro);
       if (isActive()) addStat(Stat.Amp, [30, 37.5, 45, 52.5, 60][r]!, Subtype.ElectroFlare);
     },
   });

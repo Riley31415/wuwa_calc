@@ -142,7 +142,7 @@ export const LUSTROUS_RAZOR = refinements((r, rank) => {
 
 /** Whether the action being evaluated is the wielder's own hit on a Tune Strain - Interfered
  *  target — what Radiance Cleaver, Laser Shearer and Pulsation Bracer all trigger on. */
-const hitInterfered = (): boolean => currentAction().mv > 0 && stacksOfEnemy(TUNE_STRAIN_INTERFERED) > 0;
+const hitInterfered = (): boolean => currentAction().hits.length > 0 && stacksOfEnemy(TUNE_STRAIN_INTERFERED) > 0;
 
 /** Radiance Cleaver: Edge Breaker, +12% ATK flat. Hitting a Tune Strain - Interfered target
  *  grants +24% Resonance Liberation DMG Bonus for 3s, retriggered by every hit. */
@@ -231,11 +231,11 @@ export const NEW_STD_RECTIFIER = refinements((r, rank) => {
   return new Weapon({
     weaponType: WeaponType.Rectifier, tier: Tier.Standard, name: `Boson Astrolabe${rank}`,
     stats: [[Stat.BaseAtk, 525], [Stat.Er, 38.88], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
-    updateGlobal: () => { if (casting(Cast.TuneBreak)) applyCurrent(PATH_OBSERVER_BUFF, 1); },
+    hitGlobal: () => { if (casting(Cast.TuneBreak)) applyCurrent(PATH_OBSERVER_BUFF, 1); },
   });
 });
 
-/** Phasic Homogenizer: Insight Bearer, +12% ATK flat. Any team member's Tune Break cast grants
+/** Phasic Homogenizer: Insight Bearer, +12% ATK flat. Any team member's Tune Break landing grants
  *  the wielder +20% All-Attribute DMG Bonus for 14s — same shape as Boson Astrolabe above. */
 export const NEW_STD_PISTOL = refinements((r, rank) => {
   const INSIGHT_BEARER_BUFF = new Buff({
@@ -246,6 +246,6 @@ export const NEW_STD_PISTOL = refinements((r, rank) => {
   return new Weapon({
     weaponType: WeaponType.Pistols, tier: Tier.Standard, name: `Phasic Homogenizer${rank}`,
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritDmg, 48.6], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
-    updateGlobal: () => { if (casting(Cast.TuneBreak)) applyCurrent(INSIGHT_BEARER_BUFF, 1); },
+    hitGlobal: () => { if (casting(Cast.TuneBreak)) applyCurrent(INSIGHT_BEARER_BUFF, 1); },
   });
 });

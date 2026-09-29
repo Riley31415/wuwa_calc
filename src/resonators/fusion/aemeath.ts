@@ -42,7 +42,7 @@ import {
   applied,
   appliedByMember,
   casting,
-  currentAction,
+  currentAction, isType,
   runningAction,
   currentMember,
   currentTeam,
@@ -63,7 +63,7 @@ import {
   inflicting,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Rotation, ECHO, START_3, START_2, START_1, INTRO } from "../../engine/rotation.js";
-import { TUNE_RUPTURE_SHIFTING, applyRupture, tuneRuptureResponse, tuneBreak } from "../../shared/tunebreak.js";
+import { TUNE_RUPTURE_SHIFTING, applyRupture, tuneRuptureResponse, tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { FUSION_BURST, FUSION_BURST_ACTIONS } from "../../shared/status.js";
 import { EVERBRIGHT_POLESTAR } from "../../weapons/sword.js";
 import { EMERALD_OF_GENESIS } from "../../weapons/standard.js";
@@ -85,33 +85,122 @@ const DUO = { updateBuffs: () => applyCurrent(SERAPHIC_DUO, 1) };
 
 // --- Aemeath form. forte1 is the Synchronization Rate each hit recovers; heavies recover none.
 //     The dodge counter carries the hidden +10 Concerto every dodge counter gets (CLAUDE.md).
-const ABA1 = aemeathAction("Basic - Aemeath 1", { frames: 23, cancelFrames: 16, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 46.35, energy: 0.84, concerto: 1.67, offtune: 2664, forte1: 3.29 });
-const ABA2 = aemeathAction("Basic - Aemeath 2", { frames: 43, cancelFrames: 23, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 69.46, energy: 1.26, concerto: 2.50, offtune: 3993, forte1: 6.44 });
-const ABA3 = aemeathAction("Basic - Aemeath 3", { frames: 46, cancelFrames: 27, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 93.15, energy: 1.69, concerto: 3.37, offtune: 5355, forte1: 16.66 });
-const ABA4 = aemeathAction("Basic - Aemeath 4", { frames: 60, cancelFrames: 46, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 134.59, energy: 2.47, concerto: 4.88, offtune: 7737, forte1: 23.31, ...DUO });
-const AHA1 = aemeathAction("Heavy - Aemeath: Charged I", { node: Node.Normal, cast: Cast.Heavy, type: Type.Liberation, mv: 92.83, energy: 1.68, concerto: 3.34, offtune: 5337 });
-const AHA2 = aemeathAction("Heavy - Aemeath: Charged II", { frames: 95, cancelFrames: 81, node: Node.Normal, cast: Cast.Heavy, type: Type.Liberation, mv: 232, energy: 4.18, concerto: 8.35, offtune: 13337 });
-const AMA = aemeathAction("Mid-air - Aemeath Plunge", { frames: 53, cancelFrames: 42, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 86.29, energy: 1.55, concerto: 3.10, offtune: 4960, forte1: 11.71 });
-const ADC = aemeathAction("Dodge Counter - Aemeath", { frames: 54, cancelFrames: 27, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, mv: 260.15, energy: 3.19, concerto: 16.37, offtune: 10155, forte1: 28.99 });
+const ABA1 = aemeathAction("Basic - Aemeath 1", { animFrames: 23, commitFrames: 16, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 16, mv: 46.35, energy: 0.84, concerto: 1.67, offtune: 2664, forte1: 3.29 }]});
+const ABA2 = aemeathAction("Basic - Aemeath 2", { animFrames: 43, commitFrames: 23, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 6, mv: 13.89, energy: 0.25, concerto: 0.5, offtune: 799 },
+    { at: 11, mv: 20.84, energy: 0.38, concerto: 0.75, offtune: 1198 },
+    { at: 23, mv: 34.73, energy: 0.63, concerto: 1.25, offtune: 1996, forte1: 6.44 },
+  ]});
+const ABA3 = aemeathAction("Basic - Aemeath 3", { animFrames: 46, commitFrames: 27, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 4, mv: 9.32, energy: 0.17, concerto: 0.34, offtune: 536, updateDebuffs: () => aemeathLays() },
+    { at: 12, mv: 9.32, energy: 0.17, concerto: 0.34, offtune: 536 },
+    { at: 18, mv: 9.32, energy: 0.17, concerto: 0.34, offtune: 536 },
+    { at: 25, mv: 18.63, energy: 0.34, concerto: 0.67, offtune: 1071 },
+    { at: 27, mv: 46.56, energy: 0.84, concerto: 1.68, offtune: 2676, forte1: 16.66 },
+  ]});
+const ABA4 = aemeathAction("Basic - Aemeath 4", { animFrames: 60, commitFrames: 46, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 0, mv: 6.73, energy: 0.13, concerto: 0.25, offtune: 387, updateDebuffs: () => aemeathLays() },
+    { at: 2, mv: 6.73, energy: 0.13, concerto: 0.25, offtune: 387 },
+    { at: 11, mv: 6.73, energy: 0.13, concerto: 0.25, offtune: 387 },
+    { at: 20, mv: 6.73, energy: 0.13, concerto: 0.25, offtune: 387 },
+    { at: 29, mv: 6.73, energy: 0.13, concerto: 0.25, offtune: 387 },
+    { at: 46, mv: 100.94, energy: 1.82, concerto: 3.63, offtune: 5802, forte1: 23.31 },
+  ], ...DUO });
+const AHA1 = aemeathAction("Heavy - Aemeath: Charged I", { node: Node.Normal, cast: Cast.Heavy, type: Type.Liberation, mv: 92.83, energy: 1.68, concerto: 3.34, offtune: 5337, updateDebuffs: () => { if (isHeld(AE_S3) && isHeld(INSTANT_RESPONSE)) aemeathLays(); } });
+const AHA2 = aemeathAction("Heavy - Aemeath: Charged II", { animFrames: 95, commitFrames: 81, node: Node.Normal, cast: Cast.Heavy, type: Type.Liberation, hits: [
+    { at: 44, mv: 11.6, energy: 0.21, concerto: 0.42, offtune: 667, updateDebuffs: () => { if (isHeld(AE_S3) && isHeld(INSTANT_RESPONSE)) aemeathLays(); } },
+    { at: 49, mv: 11.6, energy: 0.21, concerto: 0.42, offtune: 667 },
+    { at: 60, mv: 11.6, energy: 0.21, concerto: 0.42, offtune: 667 },
+    { at: 66, mv: 11.6, energy: 0.21, concerto: 0.42, offtune: 667 },
+    { at: 81, mv: 185.6, energy: 3.34, concerto: 6.67, offtune: 10669 },
+  ]});
+const AMA = aemeathAction("Mid-air - Aemeath Plunge", { animFrames: 53, commitFrames: 42, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 42, mv: 86.29, energy: 1.55, concerto: 3.1, offtune: 4960, forte1: 11.71 }]});
+const ADC = aemeathAction("Dodge Counter - Aemeath", { animFrames: 54, commitFrames: 27, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, hits: [
+    { at: 4, mv: 26.02, energy: 0.32, concerto: 1.6447, offtune: 1016 },
+    { at: 12, mv: 26.02, energy: 0.32, concerto: 1.6447, offtune: 1016 },
+    { at: 18, mv: 26.02, energy: 0.32, concerto: 1.6447, offtune: 1016 },
+    { at: 25, mv: 52.03, energy: 0.64, concerto: 3.2637, offtune: 2031 },
+    { at: 27, mv: 130.06, energy: 1.59, concerto: 8.1722, offtune: 5076, forte1: 28.99 },
+  ]});
 
 // --- Mech form
-const MBA1 = aemeathAction("Basic - Mech 1", { frames: 33, cancelFrames: 12, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 69.60, energy: 1.26, concerto: 2.52, offtune: 4002, forte1: 6.45 });
-const MBA2 = aemeathAction("Basic - Mech 2", { frames: 47, cancelFrames: 31, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 92.83, energy: 1.68, concerto: 3.34, offtune: 5337, forte1: 9.60 });
-const MBA3 = aemeathAction("Basic - Mech 3", { frames: 64, cancelFrames: 51, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 116.53, energy: 2.10, concerto: 4.19, offtune: 6702, forte1: 19.88 });
-const MBA4 = aemeathAction("Basic - Mech 4", { frames: 62, cancelFrames: 38, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 134.59, energy: 2.43, concerto: 4.85, offtune: 7737, forte1: 23.28, ...DUO });
-const MHA1 = aemeathAction("Heavy - Mech: Charged I", { node: Node.Normal, cast: Cast.Heavy, type: Type.Liberation, mv: 92.83, energy: 1.67, concerto: 3.34, offtune: 5336 });
-const MHA2 = aemeathAction("Heavy - Mech: Charged II", { frames: 56, cancelFrames: 40, node: Node.Normal, cast: Cast.Heavy, type: Type.Liberation, mv: 232, energy: 4.17, concerto: 8.34, offtune: 13336 });
-const MDC = aemeathAction("Dodge Counter - Mech", { frames: 66, cancelFrames: 51, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, mv: 283.49, energy: 3.60, concerto: 17.19, offtune: 11502, forte1: 32.20 });
+const MBA1 = aemeathAction("Basic - Mech 1", { animFrames: 33, commitFrames: 12, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 12, mv: 23.2, energy: 0.42, concerto: 0.84, offtune: 1334 },
+    { at: 20, mv: 23.2, energy: 0.42, concerto: 0.84, offtune: 1334 },
+    { at: 28, mv: 23.2, energy: 0.42, concerto: 0.84, offtune: 1334, forte1: 6.45 },
+  ]});
+const MBA2 = aemeathAction("Basic - Mech 2", { animFrames: 47, commitFrames: 31, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 10, mv: 18.57, energy: 0.34, concerto: 0.67, offtune: 1068 },
+    { at: 31, mv: 74.26, energy: 1.34, concerto: 2.67, offtune: 4269, forte1: 9.6 },
+  ]});
+const MBA3 = aemeathAction("Basic - Mech 3", { animFrames: 64, commitFrames: 51, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 0, mv: 11.65, energy: 0.21, concerto: 0.42, offtune: 670, updateDebuffs: () => aemeathLays() },
+    { at: 10, mv: 3.89, energy: 0.07, concerto: 0.14, offtune: 224 },
+    { at: 14, mv: 3.89, energy: 0.07, concerto: 0.14, offtune: 224 },
+    { at: 19, mv: 3.89, energy: 0.07, concerto: 0.14, offtune: 224 },
+    { at: 23, mv: 3.89, energy: 0.07, concerto: 0.14, offtune: 224 },
+    { at: 28, mv: 3.89, energy: 0.07, concerto: 0.14, offtune: 224 },
+    { at: 32, mv: 3.89, energy: 0.07, concerto: 0.14, offtune: 224 },
+    { at: 51, mv: 81.54, energy: 1.47, concerto: 2.93, offtune: 4688, forte1: 19.88 },
+  ]});
+const MBA4 = aemeathAction("Basic - Mech 4", { animFrames: 62, commitFrames: 38, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 38, mv: 40.38, energy: 0.73, concerto: 1.46, offtune: 2321, updateDebuffs: () => aemeathLays() },
+    { at: 71, mv: 94.21, energy: 1.7, concerto: 3.39, offtune: 5416, forte1: 23.28 },
+  ], ...DUO });
+const MHA1 = aemeathAction("Heavy - Mech: Charged I", { node: Node.Normal, cast: Cast.Heavy, type: Type.Liberation, mv: 92.83, energy: 1.67, concerto: 3.34, offtune: 5336, updateDebuffs: () => { if (isHeld(AE_S3) && isHeld(INSTANT_RESPONSE)) aemeathLays(); } });
+const MHA2 = aemeathAction("Heavy - Mech: Charged II", { animFrames: 56, commitFrames: 40, node: Node.Normal, cast: Cast.Heavy, type: Type.Liberation, hits: [{ at: 40, mv: 232, energy: 4.17, concerto: 8.34, offtune: 13336, updateDebuffs: () => { if (isHeld(AE_S3) && isHeld(INSTANT_RESPONSE)) aemeathLays(); } }]});
+const MDC = aemeathAction("Dodge Counter - Mech", { animFrames: 66, commitFrames: 51, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, hits: [
+    { at: 0, mv: 28.35, energy: 0.36, concerto: 1.7214, offtune: 1150 },
+    { at: 10, mv: 9.45, energy: 0.12, concerto: 0.5738, offtune: 384 },
+    { at: 14, mv: 9.45, energy: 0.12, concerto: 0.5738, offtune: 384 },
+    { at: 19, mv: 9.45, energy: 0.12, concerto: 0.5738, offtune: 384 },
+    { at: 23, mv: 9.45, energy: 0.12, concerto: 0.5738, offtune: 384 },
+    { at: 28, mv: 9.45, energy: 0.12, concerto: 0.5738, offtune: 384 },
+    { at: 32, mv: 9.45, energy: 0.12, concerto: 0.5738, offtune: 384 },
+    { at: 51, mv: 198.44, energy: 2.52, concerto: 12.0258, offtune: 8048, forte1: 32.2 },
+  ]});
 
 // --- Resonance Skill: the Sync Strikes, combo follow-ups off Stage 2-4, a heavy or a dodge counter
-const ArmamentMerge = aemeathAction("Skill - Sync Strike: Armament Merge", { frames: 79, cancelFrames: 65, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 134.59, energy: 2.43, concerto: 4.85, offtune: 7737, forte1: 18.29, ...TO_MECH });
-const CallOfDawn = aemeathAction("Skill - Sync Strike: Call of Dawn", { frames: 72, cancelFrames: 59, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 163.27, energy: 2.96, concerto: 5.88, offtune: 9386, forte1: 22.18, ...TO_AEMEATH });
+const ArmamentMerge = aemeathAction("Skill - Sync Strike: Armament Merge", { animFrames: 79, commitFrames: 65, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, hits: [
+    { at: 6, mv: 67.29, energy: 1.21, concerto: 2.42, offtune: 3868, updateDebuffs: () => aemeathLays() },
+    { at: 44, mv: 26.92, energy: 0.49, concerto: 0.97, offtune: 1548 },
+    { at: 65, mv: 40.38, energy: 0.73, concerto: 1.46, offtune: 2321, forte1: 18.29 },
+  ], ...TO_MECH });
+const CallOfDawn = aemeathAction("Skill - Sync Strike: Call of Dawn", { animFrames: 72, commitFrames: 59, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, hits: [
+    { at: 10, mv: 16.33, energy: 0.3, concerto: 0.59, offtune: 939, updateDebuffs: () => aemeathLays() },
+    { at: 52, mv: 16.33, energy: 0.3, concerto: 0.59, offtune: 939 },
+    { at: 56, mv: 16.33, energy: 0.3, concerto: 0.59, offtune: 939 },
+    { at: 59, mv: 114.28, energy: 2.06, concerto: 4.11, offtune: 6569, forte1: 22.18 },
+  ], ...TO_AEMEATH });
 
 // --- Forte Circuit: the Seraphic Duets, Resonance Liberation DMG off Seraphic Duo, 100
 //     Synchronization Rate apiece and +1 Resonance Rate. Overture is Aemeath's, Encore the Mech's.
 const DUET = { node: Node.Forte, cast: Cast.Skill, type: Type.Liberation, castForte1: -100, forte2: 1 };
-const AmyFSkill = aemeathAction("Forte - Seraphic Duet: Overture", { frames: 180, cancelFrames: 180, timestop: 99, motionStop: 99, ...DUET, mv: 357.95, energy: 5.05, concerto: 10.04, offtune: 16004, ...TO_MECH });
-const MechFSkill = aemeathAction("Forte - Seraphic Duet: Encore", { frames: 145, cancelFrames: 145, timestop: 60, motionStop: 60, ...DUET, mv: 357.9, energy: 5, concerto: 10, offtune: 16000, ...TO_AEMEATH });
+const AmyFSkill = aemeathAction("Forte - Seraphic Duet: Overture", { animFrames: 180, commitFrames: 180, timestop: 99, motionStop: 99, ...DUET, hits: [
+    { at: 0, mv: 17.9, energy: 0.25, concerto: 0.5, offtune: 800, updateDebuffs: () => duetLands() },
+    { at: 40, mv: 14.92, energy: 0.21, concerto: 0.42, offtune: 667 },
+    { at: 44, mv: 14.92, energy: 0.21, concerto: 0.42, offtune: 667 },
+    { at: 48, mv: 14.92, energy: 0.21, concerto: 0.42, offtune: 667 },
+    { at: 52, mv: 14.92, energy: 0.21, concerto: 0.42, offtune: 667 },
+    { at: 56, mv: 14.92, energy: 0.21, concerto: 0.42, offtune: 667 },
+    { at: 60, mv: 14.92, energy: 0.21, concerto: 0.42, offtune: 667 },
+    { at: 120, mv: 23.86, energy: 0.34, concerto: 0.67, offtune: 1067 },
+    { at: 124, mv: 23.86, energy: 0.34, concerto: 0.67, offtune: 1067 },
+    { at: 128, mv: 23.86, energy: 0.34, concerto: 0.67, offtune: 1067 },
+    { at: 153, mv: 59.65, energy: 0.84, concerto: 1.67, offtune: 2667 },
+    { at: 159, mv: 59.65, energy: 0.84, concerto: 1.67, offtune: 2667 },
+    { at: 165, mv: 59.65, energy: 0.84, concerto: 1.67, offtune: 2667, forte2: 1 },
+  ], ...TO_MECH });
+const MechFSkill = aemeathAction("Forte - Seraphic Duet: Encore", { animFrames: 145, commitFrames: 145, timestop: 60, motionStop: 60, ...DUET, hits: [
+    { at: 0, mv: 17.9, energy: 0.25, concerto: 0.5, offtune: 800, updateDebuffs: () => duetLands() },
+    { at: 6, mv: 17.9, energy: 0.25, concerto: 0.5, offtune: 800 },
+    { at: 68, mv: 35.79, energy: 0.5, concerto: 1, offtune: 1600 },
+    { at: 80, mv: 35.79, energy: 0.5, concerto: 1, offtune: 1600 },
+    { at: 89, mv: 17.9, energy: 0.25, concerto: 0.5, offtune: 800 },
+    { at: 101, mv: 17.9, energy: 0.25, concerto: 0.5, offtune: 800 },
+    { at: 120, mv: 178.93, energy: 2.5, concerto: 5, offtune: 8000 },
+    { at: 124, mv: 35.79, energy: 0.5, concerto: 1, offtune: 1600, forte2: 1 },
+  ], ...TO_AEMEATH });
 const isDuet = (): boolean => runningAction(AmyFSkill) || runningAction(MechFSkill);
 
 // --- Resonance Liberation. Overdrive spends the Energy bar (125), banks 30 Synchronization Rate
@@ -119,26 +208,38 @@ const isDuet = (): boolean => runningAction(AmyFSkill) || runningAction(MechFSki
 //     spends both gauges whole — the caps as its deltas, clamped to them first so it lands on 0;
 //     what it closes, each buff closes itself. Both carry their flat 20 Concerto Regen.
 const Lib1 = aemeathAction("Liberation - Heavenfall Edict: Overdrive", {
-  frames: 262, cancelFrames: 262, timestop: 262, motionStop: 262, cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, mv: 1004.02, castConcerto: 20, offtune: 84000,
+  animFrames: 262, commitFrames: 262, timestop: 262, motionStop: 262, cooldown: 60 * 25,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, hits: [
+    { at: 214, mv: 200.8, offtune: 16800 },
+    { at: 238, mv: 267.74, offtune: 22400 },
+    { at: 245, mv: 267.74, offtune: 22400 },
+    { at: 252, mv: 267.74, offtune: 22400 },
+  ], castConcerto: 20,
   resetEnergy: true, castForte1: 30, castForte2: 1,
   updateBuffs: () => { applyCurrent(MECH_FORM, 1); applyCurrent(UNBOUND, 1); applyCurrent(STARDUST, 2); },
 });
 const Lib2 = aemeathAction("Liberation - Heavenfall Edict: Finale", {
-  frames: 340, cancelFrames: 340, timestop: 340, motionStop: 340, cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, mv: 1789.29, energy: 20, castConcerto: 20, offtune: 84000, castForte1: -200, castForte2: -4,
+  animFrames: 340, commitFrames: 340, timestop: 340, motionStop: 340, cooldown: 60 * 25,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, hits: [{ at: 260, mv: 1789.29, energy: 20, offtune: 84000 }], castConcerto: 20, castForte1: -200, castForte2: -4,
   updateBuffs: () => revokeCurrent(MECH_FORM),
 });
 
 // --- Intros, one per form: 40 Synchronization Rate and Starlume Acceleration
 const INTRO_DEF = { node: Node.Intro, cast: Cast.Intro, type: Type.Intro, energy: 10, concerto: 10, forte1: 40, updateBuffs: () => applyCurrent(STARLUME, 1) };
-const Intro = aemeathAction("Intro - Songs Across the Universe", { frames: 72, cancelFrames: 74, hitFrame: 59, motionStop: 45, ...INTRO_DEF, mv: 134.58, offtune: 7737 });
-const EIntro = aemeathAction("Intro - Debut of Meteoric Radiance", { frames: 74, cancelFrames: 76, hitFrame: 60, motionStop: 40, ...INTRO_DEF, mv: 163.25, offtune: 9385 });
+const Intro = aemeathAction("Intro - Songs Across the Universe", { animFrames: 72, commitFrames: 74, motionStop: 45, ...INTRO_DEF, hits: [
+    { at: 52, mv: 13.46, energy: 1, concerto: 1.0001, offtune: 774, updateDebuffs: () => aemeathLays() },
+    { at: 56, mv: 13.46, energy: 1, concerto: 1.0001, offtune: 774 },
+    { at: 59, mv: 107.66, energy: 8, concerto: 7.9998, offtune: 6189, forte1: 40 },
+  ]});
+const EIntro = aemeathAction("Intro - Debut of Meteoric Radiance", { animFrames: 74, commitFrames: 76, motionStop: 40, ...INTRO_DEF, hits: [
+    { at: 42, mv: 65.3, energy: 4, concerto: 4, offtune: 3754, updateDebuffs: () => aemeathLays() },
+    { at: 60, mv: 97.95, energy: 6, concerto: 6, offtune: 5631, forte1: 40 },
+  ]});
 
 /** Silent Protection: everyone but her, and "casting this skill resets the effects above" — so a
  *  member's old one comes off before the fresh grant rather than stacking. */
 const Outro = aemeathAction("Outro - Silent Protection", {
-  frames: 0, cancelFrames: 0,
+  animFrames: 0, commitFrames: 0,
   cast: Cast.Outro, castConcerto: -100,
   updateBuffs: () => {
     const buff = isHeld(MODE_BURST) ? SILENT_PROTECTION_BURST : SILENT_PROTECTION_RUPTURE;
@@ -158,18 +259,15 @@ const MECH_FORM = new Buff({ name: "Aemeath: Mech Form" });
 const SERAPHIC_DUO = new Buff({
   name: "Aemeath: Seraphic Duo",
   duration: 60 * 5,
-  updateBuffs: () => {
-    if (runningAction(Outro)) revokeCurrent(SERAPHIC_DUO);
-  },
 });
 
 /** Starlume Acceleration: 15s off the Intro; Overdrive restores one more Resonance Rate and ends
- *  it. Short, so gone after the outro if she never cast it. */
+ *  it. */
 const STARLUME = new Buff({
   name: "Aemeath: Starlume Acceleration",
   duration: 60 * 15,
   applyStats: () => { if (runningAction(Lib1)) addStat(Stat.AddForte2, 1); },
-  convertStats: () => { if (runningAction(Lib1) || casting(Cast.Outro)) revokeCurrent(STARLUME); },
+  convertStats: () => { if (runningAction(Lib1)) revokeCurrent(STARLUME); },
 });
 
 /** Stardust Resonance: 30s off Overdrive, enhancing the next two Seraphic Duets — held as two
@@ -240,14 +338,14 @@ const AE_INHERENT_2 = new Inherent({
       applyCurrent(BETWEEN_THE_STARS_BURST, slot);
       return;
     }
-    if (!appliedByMember(TUNE_RUPTURE_SHIFTING, actor) && currentAction().type !== Type.Rupture) return;
+    if (!appliedByMember(TUNE_RUPTURE_SHIFTING, actor) && !isType(Type.Rupture)) return;
     if ((stacksOf(BETWEEN_THE_STARS_RUPTURE) & slot) !== 0) return;
     applyCurrent(BETWEEN_THE_STARS_RUPTURE, slot);
   },
 });
 
-const TB_BASE = tuneBreak(90, 89, 68);
-const TB_FORM = tuneBreak(94, 94, 64);
+const TB_BASE = tuneBreak(90, 89, 68, SWORD_BREAK);
+const TB_FORM = tuneBreak(94, 94, 64, [[4, 173.34], [48, 226.66], [74, 1200]]);
 
 export const AEMEATH_RESONATOR = new Resonator({
   name: "Aemeath",
@@ -360,12 +458,6 @@ const AE_S6 = new Sequence({
       addStat(Stat.CritDmg, 275, Subtype.FusionBurst);
     });
   },
-  // the Duet's own 10 stacks, laid from here rather than from the Trail: an empty Trail is not held
-  // and would run no hook of its own, which is exactly when the first Duet of a visit lands
-  updateDebuffs: () => {
-    if (!isDuet()) return;
-    applyEnemy(isHeld(MODE_BURST) ? FUSION_TRAIL : RUPTUROUS_TRAIL, 10);
-  },
   applyStats: () => {
     addStat(Stat.DamageTaken, 40, Type.Liberation);
     if (runningAction(Volley) || runningAction(Starburst)) addStat(Stat.TotalDmg, 140);
@@ -379,7 +471,7 @@ const AE_SEQUENCES = [AE_S1, AE_S2, AE_S3, AE_S4, AE_S5, AE_S6];
 /** Her answer to a Rupture break, queued by the engine's own break (MODE_RUPTURE) rather than
  *  played — active, like every Tune Break response (see Mornye's Particle Jet). The 8s per-target
  *  cooldown is the Interfered window itself: no second break lands inside it. */
-const Starburst = aemeathAction("Tune Rupture Response - Starburst", { frames: 0, node: Node.Forte, type: Type.Rupture, mv: 596.43, scaling: Scaling.Tune });
+const Starburst = aemeathAction("Tune Rupture Response - Starburst", { animFrames: 0, node: Node.Forte, type: Type.Rupture, hits: [{ at: 0, mv: 596.43 }], scaling: Scaling.Tune });
 
 /** The Duet's own Tune Rupture DMG: 5 instances of 109.35%, queued off the Duet. Stardust makes it
  *  10 and the Rupturous Trail multiplies it — each from its own buff. */
@@ -429,25 +521,29 @@ const SILENT_PROTECTION_RUPTURE = new Buff({
   applyStats: () => addStat(Stat.Amp, frozenStacks() === 2 ? 20 : 10),
 });
 
-/** The casts that lay the mode's Shifting (or, in the other mode, its Fusion Burst). */
-const inflicts = (): boolean =>
-  runningAction(ABA3) || runningAction(ABA4) || runningAction(MBA3) || runningAction(MBA4) || runningAction(ArmamentMerge) || runningAction(CallOfDawn) || runningAction(Intro) || runningAction(EIntro)
-  // S3: in Instant Response either form's heavy lays it too
-  || (isHeld(AE_S3) && isHeld(INSTANT_RESPONSE) && casting(Cast.Heavy));
+/** The mode's Shifting, or in the other mode a Fusion Burst stack: the first hit of Stage 3-4 of
+ *  either form, both Sync Strikes and both Intros — and S3's heavies in Instant Response. */
+function aemeathLays(): void {
+  if (isHeld(MODE_BURST)) applyEnemy(FUSION_BURST, 1);
+  else if (isHeld(MODE_RUPTURE)) applyRupture();
+}
+/** A Duet's first hit: S6's own 10 stacks (from here rather than the Trail, which an empty target
+ *  doesn't hold), then the mode's follow-up. */
+function duetLands(): void {
+  if (isHeld(AE_S6)) applyEnemy(isHeld(MODE_BURST) ? FUSION_TRAIL : RUPTUROUS_TRAIL, 10);
+  if (isHeld(MODE_BURST)) queue(DuetBurst);
+  else if (isHeld(MODE_RUPTURE)) queue(Volley);
+}
 
 /** Held on her slot, so its hitGlobal runs as her whoever is acting: the Starburst response and
  *  the Trail are hers. A response is any Rupture-typed hit that isn't her own Duet volley. The
  *  volley follows the Duet's hit, after S6 has laid its stacks. */
 const MODE_RUPTURE = new ResonanceMode({
   name: "Resonance Mode - Tune Rupture",
-  updateDebuffs: () => {
-    if (inflicts()) applyRupture();
-    if (isDuet()) queue(Volley);
-  },
   hitGlobal: () => {
     tuneRuptureResponse(Starburst);
     const a = currentAction();
-    if (a.type === Type.Rupture && !runningAction(Volley)) applyEnemy(RUPTUROUS_TRAIL, isHeld(AE_S6) ? 20 : 10);
+    if (isType(Type.Rupture) && !runningAction(Volley)) applyEnemy(RUPTUROUS_TRAIL, isHeld(AE_S6) ? 20 : 10);
   },
 });
 
@@ -501,7 +597,7 @@ export const AEMEATH_RUPTURE = new Loadout({
  *  it and reads the fight's cap), the way Hsin's Heart of Thunder reads Electro Flare. The Trail
  *  and Stardust multiply it from their own buffs. */
 const DuetBurst = new Action("Forte - Seraphic Duet: Fusion Burst", {
-  element: Attribute.Fusion, type: Type.Status, subtype: Subtype.FusionBurst, scaling: Scaling.Dot, mv: 0,
+  element: Attribute.Fusion, type: Type.Status, subtype: Subtype.FusionBurst, scaling: Scaling.Dot, hits: [{ at: 0 }],
 });
 
 /** Fusion Trail: a stack for every Fusion Burst stack anyone on the team lands, cap 30, 30s
@@ -550,10 +646,6 @@ const SILENT_PROTECTION_BURST = new Buff({
  *  stack too. A Duet's hit queues its own calculation. */
 const MODE_BURST = new ResonanceMode({
   name: "Resonance Mode - Fusion Burst",
-  updateDebuffs: () => {
-    if (inflicts()) applyEnemy(FUSION_BURST, 1);
-    if (isDuet()) queue(DuetBurst);
-  },
   hitGlobal: () => {
     const team = currentTeam();
     if (stacksOfEnemy(FUSION_BURST) > 5) {

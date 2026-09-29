@@ -1,16 +1,16 @@
+#
+check shield application
 
 #
-rank teams by substats gains or sequences gains or weapon gains etc
-rank teams by mdps sig gain
-rank teams by best subdps sig gain
-rank by best high invest substats gain
-rank by best sequence gain
-have it re order teams?
-add costs and max cost filter and ranking
+also add a new forced wait for phrolova: if she would cast any action that would end maestro while an enhanced hecate is in progress or is in queue, she must wait until all of them have fully completed
+
+also verify that if the stat ends after an HBA1 cast before it hits, it just shows as a 0 damage cast in the action log
+
+# todo
+add qte frame
 
 #
-stage4 phrolova hecate automation
-make canta/qy/lucilla wait if needed
+better wait Xs visual
 
 #
 fix rebecca rotation time
@@ -32,3 +32,12 @@ luumi
 taoqi
 yangyang
 aalto 
+
+#
+rank teams by substats gains or sequences gains or weapon gains etc
+rank teams by mdps sig gain
+rank teams by best subdps sig gain
+rank by best high invest substats gain
+rank by best sequence gain
+have it re order teams?
+add costs and max cost filter and ranking

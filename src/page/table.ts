@@ -279,10 +279,10 @@ const personalOpen = [false, false, false];
  *  `personalOpen` opens on, so each new Compare opens the figure it is a share of. */
 const cmpDrawn = new Set<string>();
 /** What the team column reads, switched by clicking its heading — and what the table ranks by: the
- *  opener and the loops that ran whole, as the damage one of them does on average (DPR, beside how
- *  long one takes) or as the rate over the time they took (DPS). */
+ *  four rotations, as the damage one of them does on average (DPR, beside how long one takes) or as
+ *  the rate over the time they took (DPS). */
 let teamMode: "dpr" | "dps" = "dpr";
-const TEAM_HEAD = { dpr: "Team Average DPR", dps: "Team DPS (2min)" };
+const TEAM_HEAD = { dpr: "Team Average DPR", dps: "Team DPS (4 Rot)" };
 const wholeDamage = (run: TeamRun): number => run.sectionTotals.reduce((a, b) => a + b, 0);
 const teamFigure = (run: TeamRun): number =>
   Math.floor(wholeDamage(run) / (teamMode === "dpr" ? Math.max(1, run.sectionTotals.length) : run.seconds));

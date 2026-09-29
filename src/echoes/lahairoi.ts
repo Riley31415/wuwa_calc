@@ -8,7 +8,7 @@ import { Stat, Attribute, Type, Cast, Scaling, BuffTarget } from "../engine/stat
 import { Buff, Sonata, Sonata2pc, Sonata1pc, Mainslot, handoff } from "../engine/gear.js";
 import {
   isType, addStat, applyCurrent, casting, getStat, queueOutro, revokeCurrent, frozenStacks, isHeld, currentMember,
-  currentAction, extendCurrent, stacksOf,
+  currentAction, pressed, extendCurrent, stacksOf,
   onType, onCast, onApplied, onInflict, both,
 } from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
@@ -71,7 +71,7 @@ export const HYVATIA = new Mainslot({
  *  which is the reason Mornye wants it, her Liberation turning every point of ER past 100% into
  *  crit. */
 export const ACTION_REACTOR_HUSK = new Action("Echo - Reactor Husk", {
-  frames: 60, cancelFrames: 46,
+  animFrames: 60, commitFrames: 46,
   cooldown: 60 * 20,
   cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, mv: 351, energy: 4.87,
 });
@@ -85,7 +85,7 @@ export const REACTOR_HUSK = new Mainslot({
  *  only the cast exists here. Kept because it is a real mainslot option for a sustain build. */
 export const ACTION_SPACETREK = new Action("Echo - Spacetrek Explorer", {
   cooldown: 60 * 20,
-  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, updateDebuffs: () => gainShield(1)
+  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, updateDebuffs: () => gainShield()
 });
 export const SPACETREK_EXPLORER = new Mainslot({
   name: "Spacetrek Explorer",
@@ -155,8 +155,8 @@ export const SNOWFALL = new Buff({
       queueOutro(SNOWFALL_OUTRO);
     }
   },
-  afterAction: () => {
-    if (isType(Type.Liberation) && currentAction().mv > 0) {
+  afterHit: () => {
+    if (isType(Type.Liberation)) {
       revokeCurrent(SNOWFALL);
       revokeCurrent(SNOWFALL_EXTENDS);
       applyCurrent(SNOWFALL_CRIT, 1);
@@ -169,8 +169,8 @@ export const SNOWFALL_CRIT = new Buff({
   name: "Wishes of Quiet Snowfall 5pc (liberation)",
   duration: 60 * 6,
   stats: [[Stat.CritRate, 25]],
-  afterAction: () => {
-    if (!isType(Type.Liberation) || currentAction().mv <= 0) return;
+  afterHit: () => {
+    if (!isType(Type.Liberation)) return;
     if (isHeld(SNOWFALL_EXTEND_GAP) || stacksOf(SNOWFALL_EXTENDS) >= 6) return;
     extendCurrent(SNOWFALL_CRIT, 60 * 4);
     applyCurrent(SNOWFALL_EXTENDS, 1);
@@ -234,19 +234,18 @@ export const CHROMATIC_FOAM_5PC = new Sonata({
   grants: [{ on: onInflict(FUSION_BURST), buff: () => CHROMATIC_FOAM_BUFF }],
 });
 /** Permanent uptime once triggered — the wearer's off-field inflictions keep it live anyway, so
- *  no end condition; only the handoff half below is lost on swap. */
+ *  no end condition beyond its 15s. */
 export const CHROMATIC_FOAM_BUFF = new Buff({
   name: "Chromatic Foam 5pc",
   duration: 60 * 15,
   stats: [[Stat.DmgBonus, 10, Attribute.Fusion]],
   grants: [{ on: onCast(Cast.Outro), buff: () => CHROMATIC_FOAM_HANDOFF, to: BuffTarget.Next }],
 });
-/** The receiver's half: lost after their own leaving row — a double-Intro section's swap as much
- *  as an outro — still paying out on it first. */
+/** The receiver's half: the text's plain 15s, with no end on switching out. */
 export const CHROMATIC_FOAM_HANDOFF = new Buff({
   name: "Chromatic Foam 5pc (outro)",
   duration: 60 * 15,
-  stats: [[Stat.DmgBonus, 25, Attribute.Fusion]], lostOnSwap: true,
+  stats: [[Stat.DmgBonus, 25, Attribute.Fusion]],
 });
 
 /** Trailblazing Star, the other Fusion sonata of the era. 2pc: +10% Fusion DMG Bonus flat. 5pc:
@@ -289,7 +288,7 @@ export const GILDED_REVELATION_STACKS = new Buff({
  *  Blade in a second 4-cost slot and the Blade's own hit count, which the page doesn't give — not
  *  modelled; this is the Cannon on its own. */
 export const ACTION_NEBULOUS_CANNON = new Action("Echo - Twin Nova: Nebulous Cannon", {
-  frames: 60, cancelFrames: 46,
+  animFrames: 60, commitFrames: 46,
   cooldown: 60 * 8,
   cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo, mv: 80.51 * 2, energy: 0.55 * 2,
 });
@@ -309,12 +308,12 @@ export const ACTION_TRICKSTER = new Action("Echo - Trickster", {
   cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, mv: 273.6, energy: 3.8,
   updateBuffs: () => queueOutro(TRICKSTER_HANDOFF),
 });
-/** Not the usual 15s `handoff()` window: lost after the receiver's own inactive row — outro or
- *  any swap — still paying on it, the same clause as Chromatic Foam above. */
+/** Not the `handoff()` window: the text's plain 15s, with no end on switching out — the same
+ *  as Chromatic Foam's above. */
 export const TRICKSTER_HANDOFF = new Buff({
   name: "Trickster: Outro",
   duration: 60 * 15,
-  stats: [[Stat.DmgBonus, 12, Attribute.Fusion]], lostOnSwap: true,
+  stats: [[Stat.DmgBonus, 12, Attribute.Fusion]],
 });
 export const TRICKSTER = new Mainslot({
   name: "Reminiscence: Denia",
@@ -325,7 +324,7 @@ export const TRICKSTER = new Mainslot({
  *  rotation places (the hold is a long channel), the hold kept as its own cast. Either way an
  *  Outro within 15s hands the incoming resonator +12% ATK for 15s. */
 export const ACTION_VOIDWING_MOTH = new Action("Echo - Voidwing Moth", {
-  frames: 60, cancelFrames: 46,
+  animFrames: 60, commitFrames: 46,
   cooldown: 60 * 25,
   cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo, mv: 405, energy: 5.62,
   updateBuffs: () => queueOutro(VOIDWING_HANDOFF),

@@ -26,9 +26,8 @@ export type Trigger = (() => boolean) & { inflicts?: boolean };
  *  (a `Debuff`), or `next` — published for whoever intros next (`queueOutro`). `stacks` may read
  *  the action (`() => applied(SHIELD)`). `buff` left out means the declaring Buff itself — a buff
  *  that stacks itself up on a trigger; a thunk (`() => LATER_BUFF`) reaches one declared further
- *  down the file. `onHit` grants when the hit lands rather than when the press starts — the
- *  afterAction phase, `frames` later on the fight clock and after the hit's own damage — for a
- *  "when X hits / upon dealing Y DMG" clause; the default is the cast phase (updateBuffs). */
+ *  down the file. `onHit` grants after every hit lands, once its damage is dealt — a "when X hits /
+ *  upon dealing Y DMG" clause; the default is the cast phase (updateBuffs). */
 export interface Grant { on: Trigger; buff?: Buff | (() => Buff); stacks?: number | (() => number); to?: BuffTarget; onHit?: boolean }
 
 export interface GearDef {
@@ -47,9 +46,9 @@ export interface GearDef {
    *  10 Aftersound the instant she's on the team, regardless of when she first acts). */
   combatStart?: () => void;
   /** The hit phase's first hook: what the hit *inflicts* — the enemy debuffs (Tune Shifting, the
-   *  elemental Negative Statuses) and the shield marker (see statuses.ts) it puts up — and anything
-   *  else that happens as it lands. Runs across every held Gear as the hit lands, ahead of
-   *  `hitGlobal` and the stat phases. Grant/revoke/queue/spend, never a stat. */
+   *  elemental Negative Statuses) and the shield marker (see statuses.ts) it puts up. Runs on every
+   *  hit, ahead of `hitGlobal` and the stat phases — an action's own too; an infliction a press makes
+   *  once goes on the hit that makes it (`HitDef.updateDebuffs`). Never a stat. */
   updateDebuffs?: () => void;
   /** The cast's watcher over the whole team: same shape as `updateBuffs`, but run for this Gear
    *  whoever casts — every slot's own held gear, not just the caster's. What a self-held buff needs
@@ -78,10 +77,12 @@ export interface GearDef {
    *  only phase that sees the gauges as the action actually leaves them. For machinery reacting to
    *  a gauge crossing a threshold rather than to the action itself: tunebreak.ts's own watcher
    *  fires the break from here, which is why the engine needs no idea the mechanic exists. Grant/
-   *  revoke/queue only, never a stat — stats are long since resolved by now. The on-hit phase: the
-   *  clock has moved on by the press's `frames`, so a buff granted here dates from the hit and
-   *  pays from the next action on, never on the hit that granted it. */
+   *  revoke/queue only, never a stat — stats are long since resolved by now. Runs once the press
+   *  ends — its animation, or its cut's commit frame plus the cut — after every hit it landed. */
   afterAction?: () => void;
+  /** After each hit's damage and banking, beside the `onHit` grants: a reaction to the hit that
+   *  pays from the next one on (Snowfall's crit off Liberation DMG). Never a stat. */
+  afterHit?: () => void;
   /** Same shape as `convertStats`, one phase later — for a conversion that reads a stat *another*
    *  gear's convertStats() grants, which it would otherwise race (the roster runs the acting slot's
    *  own gear before team buffs, so a team buff's grant would land too late). Tune Strain's own
@@ -109,7 +110,7 @@ export interface GearDef {
    *  `applyStats`, since a buff comes and goes). Both may be given; the lines land first. */
   stats?: StatLine[];
   /** What this Gear grants, and when: on the cast (after any closure `updateBuffs`), on the hit
-   *  after its damage (`onHit`), or — a trigger reading inflictions — wherever the inflicting was. */
+   *  ahead of its damage (`onHit`), or — a trigger reading inflictions — wherever the inflicting was. */
   grants?: Grant[];
 }
 
@@ -121,7 +122,9 @@ const PHASE_DEBUFFS = 1, PHASE_BUFFS = 2, PHASE_APPLY = 4, PHASE_CONVERT = 8, PH
 const PHASE_CONST = 64;
 /** The hit's infliction-triggered grants, once every `updateDebuffs`/`hitGlobal` has landed. */
 const PHASE_HIT_GRANTS = 128;
-export const PHASE_COUNT = 8;
+/** The `onHit` grants, after each hit's damage. */
+const PHASE_ON_HIT = 256;
+export const PHASE_COUNT = 9;
 /** A Gear with only a `hitGlobal` still sits in its pool's `globalHooks` through this stand-in. */
 const NO_GLOBAL = (): void => {};
 
@@ -149,6 +152,9 @@ export class Gear {
   tickFn?: (n: number) => void;
   /** See `BuffDef.tick.skipMotionStop`. */
   tickSkipsMotionStop = false;
+  /** Whose off-field clock the tick runs on, for a window held by the team or the target
+   *  (`coordinatedBuff`'s owner); a member's own gear runs on its holder's. */
+  tickOwner?: () => Resonator;
   /** See `GearDef.field` — the field this Gear's own presence stands for, or null. */
   field: ActionField | null;
   combatStartFn?: () => void;
@@ -162,6 +168,7 @@ export class Gear {
   afterActionFn?: () => void;
   lateConvertStatsFn?: () => void;
   hitGrantsFn?: () => void;
+  onHitFn?: () => void;
   displayFn?: () => string;
   /** Which of the six per-action phases this Gear has a hook for, one bit each (see `PHASE_*`),
    *  fixed here since the hooks themselves are — a `Pool` reads this one field to sort a
@@ -189,6 +196,7 @@ export class Gear {
     this.applyStatsFn = def.applyStats;
     this.convertStatsFn = def.convertStats;
     this.afterActionFn = def.afterAction;
+    this.onHitFn = def.afterHit;
     this.lateConvertStatsFn = def.lateConvertStats;
     this.displayFn = def.display;
     this.decl = { stats: def.stats ?? [], grants: def.grants ?? [] };
@@ -210,8 +218,8 @@ export class Gear {
           else applyCurrent(buff, n);
         }
       };
-      // on-cast grants land in the cast phase, on-hit ones once the hit has resolved, and one on an
-      // infliction wherever it was: a split press's cast, else its hit (`PHASE_HIT_GRANTS`)
+      // on-cast grants land in the cast phase, on-hit ones after each hit (`PHASE_ON_HIT`), and one
+      // on an infliction wherever it was: a split press's cast, else its hit (`PHASE_HIT_GRANTS`)
       const onHit = def.grants.filter((g) => g.onHit);
       const onInflict = def.grants.filter((g) => !g.onHit && g.on.inflicts);
       const onCast = def.grants.filter((g) => !g.onHit && !g.on.inflicts);
@@ -228,13 +236,10 @@ export class Gear {
         };
       }
       if (onInflict.length) this.hitGrantsFn = () => fire(onInflict);
-      if (onHit.length) {
-        const own = def.afterAction;
-        this.afterActionFn = () => {
-          own?.();
-          fire(onHit);
-        };
-      }
+      if (onHit.length) this.onHitFn = () => {
+        def.afterHit?.();
+        fire(onHit);
+      };
     }
     this.wire();
   }
@@ -248,8 +253,10 @@ export class Gear {
     this.hookMask = (this.updateDebuffsFn ? PHASE_DEBUFFS : 0) | (this.updateBuffsFn ? PHASE_BUFFS : 0)
       | (this.applyStatsFn ? PHASE_APPLY : 0) | (this.convertStatsFn ? PHASE_CONVERT : 0)
       | (this.lateConvertStatsFn ? PHASE_LATE : 0) | (this.afterActionFn ? PHASE_AFTER : 0)
-      | (this.constantStatsFn ? PHASE_CONST : 0) | (this.hitGrantsFn ? PHASE_HIT_GRANTS : 0);
-    this.hookFns = [this.updateDebuffsFn, this.updateBuffsFn, this.applyStatsFn, this.convertStatsFn, this.lateConvertStatsFn, this.afterActionFn, this.constantStatsFn, this.hitGrantsFn];
+      | (this.constantStatsFn ? PHASE_CONST : 0) | (this.hitGrantsFn ? PHASE_HIT_GRANTS : 0)
+      | (this.onHitFn ? PHASE_ON_HIT : 0);
+    this.hookFns = [this.updateDebuffsFn, this.updateBuffsFn, this.applyStatsFn, this.convertStatsFn, this.lateConvertStatsFn, this.afterActionFn,
+      this.constantStatsFn, this.hitGrantsFn, this.onHitFn];
   }
   /** "Name xN" for anything that stacks — by its own declared cap, or in fact: a debuff declared at 1
    *  can be standing at 2 or 3 once a kit's `maxStackIncrease()` raised the target's own ceiling
@@ -292,6 +299,8 @@ export interface BuffDef extends GearDef {
    *  read each span, and 0 from it holds the clock still for that span (a dance that pauses while
    *  its owner is on field). A refresh does not restart the cadence. */
   tick?: { every: number | (() => number); fire: (n: number) => void; skipMotionStop?: boolean };
+  /** See `Gear.tickOwner`. */
+  tickOwner?: () => Resonator;
 }
 
 export class Buff extends Gear {
@@ -305,6 +314,7 @@ export class Buff extends Gear {
       this.tickEvery = typeof every === "function" ? every : () => every;
       this.tickFn = def.tick.fire;
       this.tickSkipsMotionStop = !!def.tick.skipMotionStop;
+      this.tickOwner = def.tickOwner;
     }
     if (def.stats?.length) {
       const lines = def.stats, when = def.when, perStack = def.perStack;
@@ -487,6 +497,7 @@ export function coordinatedBuff(name: string, seconds: number, owner: (() => Res
     // the window *is* the field standing, so granting it is what the report files the summons
     // under — named off the tick's own declaration rather than asked for twice
     field: typeof tick === "function" ? null : tick.field,
+    tickOwner: owner ?? undefined,
     tick: {
       every: Math.round(60 * every),
       fire: (n) => {
@@ -820,7 +831,7 @@ export class Mainslot extends Gear {
     this.action = def.action;
     const a = def.action;
     // a summon takes none of its wearer's time; a transform's cast is theirs, frames and all
-    if (a.frames === 0) {
+    if (a.animFrames === 0) {
       this.onfield = this.cancel = this.outro = this.instaOut = a.variant(a.name, {});
       return;
     }

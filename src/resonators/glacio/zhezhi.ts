@@ -51,39 +51,66 @@ function zhezhiAction(id: string, def: object): Action {
 }
 
 // --- basics, mid-air, dodge counter (Dimming Brush)
-const BA1 = zhezhiAction("Basic - Dimming Brush 1", { frames: 36, cancelFrames: 28, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 83.52, energy: 1.5, concerto: 4.8, offtune: 4800, forte1: 10 });
-const BA2 = zhezhiAction("Basic - Dimming Brush 2", { frames: 44, cancelFrames: 24, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 102.75, energy: 1.85, concerto: 5.95, offtune: 5905, forte1: 15 });
-const BA3 = zhezhiAction("Basic - Dimming Brush 3", { frames: 60, cancelFrames: 40, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 133.61, energy: 2.4, concerto: 7.68, offtune: 7680, forte1: 25 });
+const BA1 = zhezhiAction("Basic - Dimming Brush 1", { animFrames: 36, commitFrames: 28, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 18, mv: 41.76, energy: 0.75, concerto: 2.4, offtune: 2400, forte1: 5 },
+    { at: 34, mv: 41.76, energy: 0.75, concerto: 2.4, offtune: 2400, forte1: 5 },
+  ]});
+const BA2 = zhezhiAction("Basic - Dimming Brush 2", { animFrames: 44, commitFrames: 24, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 30, mv: 20.55, energy: 0.37, concerto: 1.19, offtune: 1181, forte1: 3 },
+    { at: 34, mv: 20.55, energy: 0.37, concerto: 1.19, offtune: 1181, forte1: 3 },
+    { at: 38, mv: 20.55, energy: 0.37, concerto: 1.19, offtune: 1181, forte1: 3 },
+    { at: 42, mv: 20.55, energy: 0.37, concerto: 1.19, offtune: 1181, forte1: 3 },
+    { at: 46, mv: 20.55, energy: 0.37, concerto: 1.19, offtune: 1181, forte1: 3 },
+  ]});
+const BA3 = zhezhiAction("Basic - Dimming Brush 3", { animFrames: 60, commitFrames: 40, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 44, mv: 133.61, energy: 2.4, concerto: 7.68, offtune: 7680, forte1: 25 }]});
 
-const MA = zhezhiAction("Mid-air - Dimming Brush 12", { frames: 66, cancelFrames: 36, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 229.53, energy: 3.4, concerto: 10.91, offtune: 10865, forte1: 25 });
-const DC = zhezhiAction("Dodge Counter - Dimming Brush", { frames: 34, cancelFrames: 13, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, mv: 145.35, energy: 2.15, concerto: 20, offtune: 6880, forte1: 15 });
-const HA = zhezhiAction("Heavy - Dimming Brush", { frames: 40, cancelFrames: 32, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 112.72, energy: 1.67, concerto: 5.34, offtune: 5336, forte1: 15 });
+const MA = zhezhiAction("Mid-air - Dimming Brush 12", { animFrames: 66, commitFrames: 36, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 39, mv: 229.53, energy: 3.4, concerto: 10.91, offtune: 10865, forte1: 25 }]});
+const DC = zhezhiAction("Dodge Counter - Dimming Brush", { animFrames: 34, commitFrames: 13, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, hits: [
+    { at: 18, mv: 29.07, energy: 0.43, concerto: 4, offtune: 1376, forte1: 3 },
+    { at: 23, mv: 29.07, energy: 0.43, concerto: 4, offtune: 1376, forte1: 3 },
+    { at: 26, mv: 29.07, energy: 0.43, concerto: 4, offtune: 1376, forte1: 3 },
+    { at: 30, mv: 29.07, energy: 0.43, concerto: 4, offtune: 1376, forte1: 3 },
+    { at: 35, mv: 29.07, energy: 0.43, concerto: 4, offtune: 1376, forte1: 3 },
+  ]});
+const HA = zhezhiAction("Heavy - Dimming Brush", { animFrames: 40, commitFrames: 32, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, hits: [{ at: 34, mv: 112.72, energy: 1.67, concerto: 5.34, offtune: 5336, forte1: 15 }]});
 
 // spends 60 Afflatus for a pair of Imprints
 const Skill = zhezhiAction("Skill - Manifestation", {
-  frames: 40, cancelFrames: 24, cooldown: 60 * 6,
-  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 295.26, energy: 7.92, castConcerto: 8, offtune: 4737, castForte1: -60,
+  animFrames: 40, commitFrames: 24, cooldown: 60 * 6,
+  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, hits: [
+    { at: 26, mv: 98.42, energy: 2.64, offtune: 1579 },
+    { at: 32, mv: 98.42, energy: 2.64, offtune: 1579 },
+    { at: 38, mv: 98.42, energy: 2.64, offtune: 1579 },
+  ], castConcerto: 8, castForte1: -60,
 });
 
 // spends the remaining 30 Afflatus for a third Imprint, then Stroke of Genius x2, then
 // Creation's Zenith (spends both Painter's Delight frozenStacks, never tracked directly)
 const FHA = zhezhiAction("Forte Heavy - Conjuration", {
-  frames: 75, cancelFrames: 28,
-  node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, mv: 249.03, energy: 2.1, concerto: 6.69, offtune: 6681, castForte1: -30,
+  animFrames: 75, commitFrames: 28,
+  node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, hits: [
+    { at: 28, mv: 83.01, energy: 0.7, concerto: 2.23, offtune: 2227 },
+    { at: 34, mv: 83.01, energy: 0.7, concerto: 2.23, offtune: 2227 },
+    { at: 40, mv: 83.01, energy: 0.7, concerto: 2.23, offtune: 2227 },
+  ], castForte1: -30,
 });
 const FSkill = zhezhiAction("Skill - Stroke of Genius", {
-  frames: 52, cancelFrames: 18, motionStop: 12,
-  node: Node.Forte, cast: Cast.Skill, type: Type.Basic, mv: 298.22, energy: 7, castConcerto: 13, offtune: 7736, forte2: 1,
+  animFrames: 52, commitFrames: 18, motionStop: 12,
+  node: Node.Forte, cast: Cast.Skill, type: Type.Basic, hits: [{ at: 46, mv: 298.22, energy: 7, offtune: 7736, forte2: 1, updateDebuffs: () => { if (isHeld(ZZ_S6)) queue(ACTION_HERALD_S6); } }], castConcerto: 13,
 });
 const FSkill3 = zhezhiAction("Forte Skill - Creation's Zenith", {
-  frames: 72, cancelFrames: 28, motionStop: 52,
-  node: Node.Forte, cast: Cast.Skill, type: Type.Basic, mv: 357.87, energy: 7.02, castConcerto: 13, offtune: 10401, castForte2: -2,
+  animFrames: 72, commitFrames: 28, motionStop: 52,
+  node: Node.Forte, cast: Cast.Skill, type: Type.Basic, hits: [
+    { at: 56, mv: 119.29, energy: 2.34, offtune: 3467, updateDebuffs: () => { if (isHeld(ZZ_S6)) queue(ACTION_HERALD_S6); } },
+    { at: 68, mv: 119.29, energy: 2.34, offtune: 3467 },
+    { at: 79, mv: 119.29, energy: 2.34, offtune: 3467 },
+  ], castConcerto: 13, castForte2: -2,
   updateBuffs: () => applyCurrent(IVORY_HERALD, 1),
 });
 
 // opens the Inklit Spirit window, no damage of its own — the window itself is INKLIT_SPIRITS below
 const Liberation = zhezhiAction("Liberation - Living Canvas", {
-  frames: 166, cancelFrames: 166, timestop: 166, motionStop: 166, cooldown: 60 * 25,
+  animFrames: 166, commitFrames: 166, timestop: 166, motionStop: 166, cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, castConcerto: 20, resetEnergy: true,
   updateBuffs: () => applyTeam(INKLIT_SPIRITS, isHeld(ZZ_S2) ? 27 : 21),
 });
@@ -91,13 +118,13 @@ const INKLIT_FIELD = new ActionField("Zhezhi: Inklit Spirits");
 /** One Inklit Spirit — a real Coordinated Attack, summoned one per qualifying action by
  *  INKLIT_SPIRITS below, always on her own slot however far the field has moved on. */
 const ACTION_INKLIT = zhezhiAction("Liberation - Inklit Spirit", {
-  node: Node.Liberation, type: Type.Basic, subtype: Subtype.Coordinated, mv: 65.21, offtune: 4572, field: INKLIT_FIELD,
+  node: Node.Liberation, type: Type.Basic, subtype: Subtype.Coordinated, hits: [{ at: 37, mv: 65.21, offtune: 4572 }], field: INKLIT_FIELD,
 });
 
 /** S5's extra spirit: 140% of one Inklit Spirit, its own row on the kit page (91.30%, and no
  *  off-tune of its own) — Basic Attack DMG, and it never summons a spirit of its own. */
 const ACTION_INKLIT_S5 = zhezhiAction("Liberation - Inklit Spirit (S5)", {
-  node: Node.Liberation, type: Type.Basic, subtype: Subtype.Coordinated, mv: 91.30, field: INKLIT_FIELD,
+  node: Node.Liberation, type: Type.Basic, subtype: Subtype.Coordinated, hits: [{ at: 37, mv: 91.3 }], field: INKLIT_FIELD,
 });
 /** S6's extra Herald: 120% of Stroke of Genius, likewise its own row (357.86%, no energy, concerto
  *  or off-tune) — Basic Attack DMG, summoned rather than cast. */
@@ -106,11 +133,15 @@ const ACTION_HERALD_S6 = zhezhiAction("Skill - Ivory Herald (S6)", {
 });
 
 const Intro = zhezhiAction("Intro - Radiant Ruin", {
-  frames: 80, cancelFrames: 80, hitFrame: 78, motionStop: 55,
-  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 258.48, energy: 10.02, castConcerto: 10, offtune: 10401, castForte1: 45,
+  animFrames: 80, commitFrames: 80, motionStop: 55,
+  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, hits: [
+    { at: 66, mv: 86.16, energy: 3.34, offtune: 3467 },
+    { at: 72, mv: 86.16, energy: 3.34, offtune: 3467 },
+    { at: 78, mv: 86.16, energy: 3.34, offtune: 3467 },
+  ], castConcerto: 10, castForte1: 45,
 });
 const Outro = zhezhiAction("Outro - Carve and Draw", {
-  frames: 0, cancelFrames: 0,
+  animFrames: 0, commitFrames: 0,
   cast: Cast.Outro, castConcerto: -100,
   updateBuffs: () => queueOutro(ZHEZHI_OUTRO),
 });
@@ -265,13 +296,7 @@ const ZZ_S4 = new Sequence({
 const ZZ_S5 = new Sequence({ name: "Zhezhi S5: Composition's Clue" });
 
 /** S6: an extra Ivory Herald off either forte Skill. */
-const ZZ_S6 = new Sequence({
-  name: "Zhezhi S6: Infinite Legacy",
-  // off the forte Skill's hit
-  updateDebuffs: () => {
-    if (runningAction(FSkill) || runningAction(FSkill3)) queue(ACTION_HERALD_S6);
-  },
-});
+const ZZ_S6 = new Sequence({ name: "Zhezhi S6: Infinite Legacy" });
 
 const ZZ_SEQUENCES = [ZZ_S1, ZZ_S2, ZZ_S3, ZZ_S4, ZZ_S5, ZZ_S6];
 

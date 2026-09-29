@@ -25,7 +25,7 @@ import {
   queueOutro,
 } from "../../engine/context.js";
 import { Action, Rotation, ECHO, NOINTRO, ActionGroup, INTRO } from "../../engine/rotation.js";
-import { tuneBreak } from "../../shared/tunebreak.js";
+import { tuneBreak, SWORD_BREAK } from "../../shared/tunebreak.js";
 import { EMERALD_OF_GENESIS, OVERTURE } from "../../weapons/standard.js";
 import { HERON, MOONLIT_CLOUDS_5PC } from "../../echoes/jinzhou.js";
 import { mainstatOptions, Mainstat } from "../../shared/mainstats.js";
@@ -42,50 +42,67 @@ function sanhuaAction(id: string, def: object): Action {
 // under S5) and arms Blade Mastery (S4) — each marker granted by the cast that makes it, for
 // Detonate to spend below.
 const Intro = sanhuaAction("Intro - Freezing Thorns", {
-  frames: 60, cancelFrames: 54, motionStop: 52,
-  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 139.17, energy: 10, castConcerto: 10, offtune: 2800,
+  animFrames: 60, commitFrames: 54, motionStop: 52,
+  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, hits: [{ at: 54, mv: 139.17, energy: 10, offtune: 2800 }], castConcerto: 10,
   updateBuffs: () => applyCurrent(THORN_BUFF, 1),
 });
 const Outro = sanhuaAction("Outro - Silversnow", {
-  frames: 0, cancelFrames: 0,
+  animFrames: 0, commitFrames: 0,
   cast: Cast.Outro, castConcerto: -100,
   updateBuffs: () => queueOutro(SANHUA_OUTRO),
 });
 
 const Skill = sanhuaAction("Skill - Eternal Frost", {
-  frames: 60, cancelFrames: 18, cooldown: 60 * 10,
-  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 359.85, offtune: 8000, energy: 10, castConcerto: 15,
+  animFrames: 60, commitFrames: 18, cooldown: 60 * 10,
+  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, hits: [{ at: 18, mv: 359.85, energy: 10, offtune: 8000 }], castConcerto: 15,
   updateBuffs: () => applyCurrent(PRISM_BUFF, 1),
 });
 const Liberation = sanhuaAction("Liberation - Glacial Gaze", {
-  frames: 97, cancelFrames: 97, timestop: 90, motionStop: 90, cooldown: 60 * 16,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, mv: 809.48, offtune: 61440, energy: 10, castConcerto: 20, resetEnergy: true,
+  animFrames: 97, commitFrames: 97, timestop: 90, motionStop: 90, cooldown: 60 * 16,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, hits: [{ at: 72, mv: 809.48, energy: 10, offtune: 61440 }], castConcerto: 20, resetEnergy: true,
   updateBuffs: () => applyCurrent(GLACIER_BUFF, 1),
 });
 
-const BA1 = sanhuaAction("Basic - Frigid Light 1", { frames: 23, cancelFrames: 13, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 48.71, energy: 0.87, concerto: 2, offtune: 2800 });
-const BA2 = sanhuaAction("Basic - Frigid Light 2", { frames: 33, cancelFrames: 24, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 73.76, energy: 1.32, concerto: 4, offtune: 4240 });
-const BA3 = sanhuaAction("Basic - Frigid Light 3", { frames: 36, cancelFrames: 36, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 86.32, energy: 1.52, concerto: 8, offtune: 4960 });
-const BA4 = sanhuaAction("Basic - Frigid Light 4", { frames: 36, cancelFrames: 24, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 79.34, energy: 1.42, concerto: 8, offtune: 4560 });
-const BA5 = sanhuaAction("Basic - Frigid Light 5", { frames: 109, cancelFrames: 32, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 233.81, energy: 4.2, concerto: 10, offtune: 13440 });
-const HA = sanhuaAction("Heavy - Frigid Light", { frames: 50, cancelFrames: 36, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 111.35, energy: 2, concerto: 8, offtune: 8000 });
-const MA = sanhuaAction("Mid-air - Frigid Light Plunge", { frames: 60, cancelFrames: 34, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 86.29, energy: 0.51, concerto: 1, offtune: 9520 });
+const BA1 = sanhuaAction("Basic - Frigid Light 1", { animFrames: 23, commitFrames: 13, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 13, mv: 48.71, energy: 0.87, concerto: 2, offtune: 2800 }]});
+const BA2 = sanhuaAction("Basic - Frigid Light 2", { animFrames: 33, commitFrames: 24, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 24, mv: 73.76, energy: 1.32, concerto: 4, offtune: 4240 }]});
+const BA3 = sanhuaAction("Basic - Frigid Light 3", { animFrames: 36, commitFrames: 36, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 18, mv: 21.58, energy: 0.38, concerto: 2, offtune: 1240 },
+    { at: 24, mv: 21.58, energy: 0.38, concerto: 2, offtune: 1240 },
+    { at: 30, mv: 21.58, energy: 0.38, concerto: 2, offtune: 1240 },
+    { at: 36, mv: 21.58, energy: 0.38, concerto: 2, offtune: 1240 },
+  ]});
+const BA4 = sanhuaAction("Basic - Frigid Light 4", { animFrames: 36, commitFrames: 24, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 12, mv: 39.67, energy: 0.71, concerto: 4, offtune: 2280 },
+    { at: 24, mv: 39.67, energy: 0.71, concerto: 4, offtune: 2280 },
+  ]});
+const BA5 = sanhuaAction("Basic - Frigid Light 5", { animFrames: 109, commitFrames: 32, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 32, mv: 233.81, energy: 4.2, concerto: 10, offtune: 13440 }]});
+const HA = sanhuaAction("Heavy - Frigid Light", { animFrames: 50, commitFrames: 36, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, hits: [
+    { at: 10, mv: 22.27, energy: 0.4, concerto: 1.6, offtune: 1600 },
+    { at: 14, mv: 22.27, energy: 0.4, concerto: 1.6, offtune: 1600 },
+    { at: 18, mv: 22.27, energy: 0.4, concerto: 1.6, offtune: 1600 },
+    { at: 22, mv: 22.27, energy: 0.4, concerto: 1.6, offtune: 1600 },
+    { at: 36, mv: 22.27, energy: 0.4, concerto: 1.6, offtune: 1600 },
+  ]});
+const MA = sanhuaAction("Mid-air - Frigid Light Plunge", { animFrames: 60, commitFrames: 34, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 34, mv: 86.29, energy: 0.51, concerto: 1, offtune: 9520 }]});
 const BA23 = new ActionGroup("Basic - Frigid Light 23", [BA2, BA3]);
 const BA234 = new ActionGroup("Basic - Frigid Light 234", [BA2, BA3, BA4]);
 
 // Ice Thorn's own burst is a real exception, not a data gap: 0 concerto (every other burst pays
 // 1500), just 200 Energy — kept as given rather than smoothed over.
 const FHA = sanhuaAction("Forte Heavy - Detonate", {
-  frames: 101, cancelFrames: 101,
-  node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 372.58, offtune: 14992, energy: 4.68, concerto: 15,
-  // on its hit, spends whichever Ice Creations are up and queues the matching burst(s)
-  updateDebuffs: () => {
-    if (stacksOf(THORN_BUFF)) { queue(DETONATE_THORN); removeStack(THORN_BUFF, 1); }
-    if (stacksOf(PRISM_BUFF)) { queue(DETONATE_PRISM); removeStack(PRISM_BUFF, 1); }
-    const glaciers = stacksOf(GLACIER_BUFF);
-    for (let i = 0; i < glaciers; i++) queue(DETONATE_GLACIER);
-    if (glaciers) removeStack(GLACIER_BUFF, glaciers);
-  },
+  animFrames: 101, commitFrames: 101,
+  node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, hits: [
+    { at: 51, mv: 186.29, energy: 2.34, concerto: 7.5, offtune: 7496,
+      // on its hit, spends whichever Ice Creations are up and queues the matching burst(s)
+      updateDebuffs: () => {
+        if (stacksOf(THORN_BUFF)) { queue(DETONATE_THORN); removeStack(THORN_BUFF, 1); }
+        if (stacksOf(PRISM_BUFF)) { queue(DETONATE_PRISM); removeStack(PRISM_BUFF, 1); }
+        const glaciers = stacksOf(GLACIER_BUFF);
+        for (let i = 0; i < glaciers; i++) queue(DETONATE_GLACIER);
+        if (glaciers) removeStack(GLACIER_BUFF, glaciers);
+      } },
+    { at: 101, mv: 186.29, energy: 2.34, concerto: 7.5, offtune: 7496 },
+  ],
 });
 const DETONATE_THORN = sanhuaAction("Forte - Ice Burst (Thorn)", { node: Node.Normal, type: Type.Skill, mv: 59.65, energy: 2, concerto: 0 });
 const DETONATE_PRISM = sanhuaAction("Forte - Ice Burst (Prism)", { node: Node.Normal, type: Type.Skill, mv: 79.53, energy: 7, concerto: 15 });
@@ -127,13 +144,13 @@ const S1_CRIT = new Buff({
   stats: [[Stat.CritRate, 15]],
 });
 
-/** S4 Blade Mastery: arms a one-shot +120% DMG Bonus for the next Detonate, consumed on landing
- *  or lost on outro if Detonate never comes. Trigger lives in SANHUA_S4. */
+/** S4 Blade Mastery: arms a one-shot +120% DMG Bonus for the next Detonate within 5s, consumed on
+ *  landing. Trigger lives in SANHUA_S4. */
 const S4_WINDOW = new Buff({
   name: "Sanhua S4: Blade Mastery",
   duration: 60 * 5,
   applyStats: () => { if (runningAction(FHA)) addStat(Stat.DmgBonus, 120); },
-  convertStats: () => { if (runningAction(FHA) || casting(Cast.Outro)) revokeCurrent(S4_WINDOW); },
+  convertStats: () => { if (runningAction(FHA)) revokeCurrent(S4_WINDOW); },
 });
 
 /** S6 Daybreak Radiance: detonating an Ice Prism/Glacier grants the *other* two members +10% ATK,
@@ -220,7 +237,7 @@ const SANHUA_RESONATOR = new Resonator({
   weapon: WeaponType.Sword,
   color: "#5fc9e8",
   intro: Intro,
-  tuneBreak: tuneBreak(92, 92, 70),
+  tuneBreak: tuneBreak(92, 92, 70, SWORD_BREAK),
   maxEnergy: 125,
   tier: Tier.Free,
 

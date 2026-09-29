@@ -7,7 +7,7 @@ import {
   addStat,
   frozenStacks,
   casting,
-  currentAction,
+  currentAction, isType,
   revokeCurrent,
   applyCurrent,
   removeStack,
@@ -48,7 +48,7 @@ export const BLAZING_BRILLIANCE = refinements((r, rank) => {
     stats: [[Stat.BaseAtk, 587.5], [Stat.CritDmg, 48.6], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
     grants: [
       { on: isActive, buff: SEARING_CLOCK },
-      { on: onType(Type.Skill), buff: SEARING_FEATHER, stacks: 5 },
+      { on: onCast(Cast.Skill), buff: SEARING_FEATHER, stacks: 5 },
     ],
   });
 });
@@ -100,17 +100,16 @@ export const UNFLICKERING_VALOR = refinements((r, rank) => {
 
 /** Qiuyuan's sig: When A Heart Settles. +12% ATK flat; his Intro grants the team +20% Echo
  *  Skill DMG Bonus, permanent once granted. Bamboo Cleaver: an Echo Skill cast within 10s of an
- *  Intro/Basic grants a stack, up to two — no literal timer here, so the window an Intro or Basic
- *  opens simply stands until he leaves the field. */
+ *  Intro/Basic grants a stack, up to two. */
 export const EMERALD_SENTENCE = refinements((r, rank) => {
   const HEART_SETTLES_TEAM = new Buff({
     name: `Emerald Sentence: When A Heart Settles${rank}`,
     duration: 60 * 30,
     stats: [[Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Type.Echo]],
   });
-  /** The window an Intro or Basic opens for the next Echo Skills — nameless, so it stays out of
-   *  the held list: it says only that the stacks below can be earned, and pays nothing itself. */
-  const BAMBOO_READY = new Buff({ lostOnSwap: true });
+  /** The 10s window an Intro or Basic opens for the next Echo Skills — nameless, so it stays out
+   *  of the held list: it says only that the stacks below can be earned, and pays nothing itself. */
+  const BAMBOO_READY = new Buff({ duration: 60 * 10 });
   /** Lost entirely if switched off field, same as Quietude Within. */
   const BAMBOO_CLEAVER: Buff = new Buff({
     name: `Emerald Sentence: Bamboo Cleaver${rank}`, maxStacks: 2, duration: 60 * 12, lostOnSwap: true,
@@ -130,15 +129,13 @@ export const EMERALD_SENTENCE = refinements((r, rank) => {
 /** Glint of Clouds, Qingxiao's sig: Evil's Scourge. +12% ATK flat. Inflicting Tune Strain -
  *  Shifting grants +11.2% Aero DMG Bonus a stack, up to 5, 2s each (once per 0.5s) — short, but
  *  every cast of hers re-inflicts, so it climbs straight to five and stays: at max the window
- *  becomes 30s and her Aero DMG ignores 10% of the target's DEF. Short of five it's lost after
- *  the outro. */
+ *  becomes 30s and her Aero DMG ignores 10% of the target's DEF. */
 export const GLINT_OF_CLOUDS = refinements((r, rank) => {
   const EVILS_SCOURGE: Buff = new Buff({
     name: `Glint of Clouds: Evil's Scourge${rank}`, maxStacks: 5,
     duration: () => (stacksOf(EVILS_SCOURGE) >= 5 ? 60 * 30 : 60 * 2),
     stats: [[Stat.DmgBonus, [11.2, 14, 16.8, 19.6, 22.4][r]!, Attribute.Aero]], perStack: true,
     applyStats: () => { if (frozenStacks() >= 5) addStat(Stat.DefIgnoreNew, [10, 12.5, 15, 17.5, 20][r]!, Attribute.Aero); },
-    convertStats: () => { if (casting(Cast.Outro) && frozenStacks() < 5) revokeCurrent(EVILS_SCOURGE); },
   });
   return new Weapon({
     weaponType: WeaponType.Sword, name: `Glint of Clouds${rank}`,
@@ -201,7 +198,7 @@ export const EVERBRIGHT_POLESTAR = refinements((r, rank) => {
     name: `Everbright Polestar: Starchaser${rank}`,
     duration: 60 * 8,
     stats: [[Stat.DefIgnoreNew, [32, 40, 48, 56, 64][r]!, Type.Liberation]],
-    applyStats: () => { if (currentAction().type === Type.Liberation) addStat(Stat.ResIgnore, [10, 15, 20, 25, 30][r]!, Attribute.Fusion); },
+    applyStats: () => { if (isType(Type.Liberation)) addStat(Stat.ResIgnore, [10, 15, 20, 25, 30][r]!, Attribute.Fusion); },
   });
   return new Weapon({
     weaponType: WeaponType.Sword, name: `Everbright Polestar${rank}`,
@@ -226,7 +223,7 @@ export const DEFIERS_THORN = refinements((r, rank) => {
     weaponType: WeaponType.Sword, name: `Defier's Thorn${rank}`,
     // the 12% is A Free Knight's Tarantella's own flat half
     stats: [[Stat.BaseAtk, 412.5], [Stat.BonusHp, 72.225], [Stat.BonusHp, [12, 15, 18, 21, 24][r]!]],
-    grants: [{ on: either(onCast(Cast.Intro), onType(Type.Basic)), buff: FREE_KNIGHTS_TARANTELLA }],
+    grants: [{ on: onCast(Cast.Intro, Cast.Basic), buff: FREE_KNIGHTS_TARANTELLA }],
   });
 });
 

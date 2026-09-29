@@ -37,7 +37,7 @@ function cell(col: Column, { cls = [], html = "", pop = "", style = "", attr = "
 const TAG_KIND: Partial<Record<ActionTag, string>> = {
   [ActionTag.InstaCancel]: "insta", [ActionTag.InstaDodge]: "insta", [ActionTag.InstaJump]: "insta", [ActionTag.InstaSwap]: "insta",
   [ActionTag.SwapCancel]: "swap", [ActionTag.EasyCancel]: "easy", [ActionTag.Field]: "field",
-  [ActionTag.DodgeCancel]: "dash", [ActionTag.JumpCancel]: "jump", [ActionTag.Cancel]: "cancel",
+  [ActionTag.DodgeCancel]: "dash", [ActionTag.JumpCancel]: "jump", [ActionTag.Cancel]: "cancel", [ActionTag.HitCancel]: "hit",
 };
 
 /** One row of the log. A running column is blank where the row left it exactly as it came in
@@ -76,7 +76,6 @@ function stepRow(
     if (col.key.startsWith("gauge:") && Number(row.raw[`clear:${col.key}`])) cls.push("buffed");
     if (col.key === "concerto" && Number(row.raw["short:concerto"])) cls.push("underspent");
     if (col.key.startsWith("gauge:") && Number(row.raw[`short:${col.key}`])) cls.push("negative");
-    if (col.key === "time" && Number(row.raw["end:time"]) > 60 * 120) cls.push("negative");
 
     const text = esc(fmt(v, digitsOf(row.raw, col), PAD_DIGITS_COLUMNS.has(col.key), GROUPED_COLUMNS.has(col.key)))
       + (col.percent && typeof v === "number" ? "%" : "") + gaugeSuffix(row.raw, col.key);

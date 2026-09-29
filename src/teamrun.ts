@@ -23,20 +23,19 @@ export interface TeamRun {
   teamKey: string;
   members: Member[];
   combo: Combo[];
-  /** [opener, loop 1, ...] up to where the 2 minutes run out, the last one cut there — only kept
-   *  on a traced run; the table never reads them. */
+  /** [opener, loop 1, loop 2, loop 3] — only kept on a traced run; the table never reads them. */
   rotationLines: ChainGroup[][] | null;
-  /** Adjusted DPR: the opener and the loops that ran whole, their damage over the time they took as
-   *  a rate, over 26 seconds (DPS × 26). */
+  /** Adjusted DPR: the four rotations' damage over the time they took as a rate, over 26 seconds
+   *  (DPS × 26). */
   total: number;
   bySlot: Map<string, number>;
-  /** The sections that ran whole — the opener and every completed loop. */
+  /** Each rotation's damage — the opener and the three loops. */
   sectionTotals: number[];
   sectionBySlot: Map<string, number>[];
-  /** Every hit that landed inside the 2 minutes. */
+  /** Every hit of the four rotations. */
   fightTotal: number;
   fightBySlot: Map<string, number>;
-  /** How long the sections that ran whole took, in seconds — what DPS and the loop length divide by. */
+  /** How long the four rotations took, in seconds — what DPS and the loop length divide by. */
   seconds: number;
   /** Per member, per main-stat variant scored alongside this run (state.ts's `TeamMember.variants`). */
   variantRuns: VariantRun[][];
@@ -223,7 +222,7 @@ function sumSection(lines: ChainGroup<Result>[], avgOf: (line: ChainGroup<Result
 /** Adjusted DPR: `damage` dealt over `frames`, as a rate per second, over 26 seconds. */
 const adjusted = (damage: number, frames: number): number => Math.floor((damage * 26 * 60) / frames);
 
-/** The table's figures: the opener and every loop that ran whole (the first `complete` sections),
+/** The table's figures: the rotations (the first `complete` sections),
  *  each on its own and together as adjusted DPR over the `frames` they took, and the whole fight's
  *  damage beside them. */
 function sumRun(rotationLines: ChainGroup<Result>[][], complete: number, frames: number, avgOf: (line: ChainGroup<Result>) => number) {
@@ -510,23 +509,6 @@ export function runTeam(teamKey: string, members: Member[], combo: Combo[], trac
   }
 }
 
-/** The fight cut where its time runs out: the first hit (in cast order) landing past `end` goes, and
- *  everything cast after it, even a hit that would have landed in time. `complete` is how many
- *  sections ran whole — every one ahead of the one the cut falls in — and `frames` how long they
- *  took: up to where the next one's first cast starts. */
-function cutAtTime(sections: Result[][], end: number): { sections: Result[][]; complete: number; frames: number } {
-  let complete = sections.length - 1, kept = sections;
-  for (let k = 0; k < sections.length; k++) {
-    const at = sections[k]!.findIndex((r) => r.avg > 0 && (r.hitAt ?? r.ends) > end);
-    if (at < 0) continue;
-    const cut = sections[k]!.slice(0, at);
-    complete = k;
-    kept = cut.length ? [...sections.slice(0, k), cut] : sections.slice(0, k);
-    break;
-  }
-  return { sections: kept, complete, frames: Math.max(1, sections[complete]?.[0]?.starts ?? end) };
-}
-
 function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace: boolean, variants: (Combo[] | null)[] | null, erRolls = erRollsFor(teamKey, members, combo), guard: boolean[] = []): TeamRun {
   const state = new State(members.map((m) => m.name));
   members.forEach((m, i) => {
@@ -560,9 +542,9 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
   // the enemy is equipped like a member: the Tune Break resonator fires the break itself (tunebreak.ts)
   withTeam(state, () => equipEnemy(TUNE_BREAK_ENEMY));
 
-  // one continuous 2 minute fight, the rotation looped until it runs out
-  const played = runRotations(state, members.map((m, i) => m.loadout.rotationAt(combo[i]!.sequence)), 60 * 120);
-  const { sections, complete, frames } = cutAtTime(played, 60 * 120);
+  // one continuous fight of four rotations, whatever the team, the opener the first of them
+  const { sections, end: frames } = runRotations(state, members.map((m, i) => m.loadout.rotationAt(combo[i]!.sequence)), 4);
+  const complete = sections.length;
   const rotationLines = sections.map(toLines);
 
   const { total, bySlot, sectionTotals, sectionBySlot, fightTotal, fightBySlot, seconds } = sumRun(rotationLines, complete, frames, (line) => line.avg);
@@ -590,7 +572,7 @@ export const runFromScore = (teamKey: string, members: Member[], combo: Combo[],
   state: null, teamKey, members, combo, rotationLines: null, variantRuns: [],
   total: score.total, bySlot: new Map(score.bySlot), sectionTotals: score.sectionTotals,
   sectionBySlot: score.sectionBySlot.map((by) => new Map(by)),
-  // a score saved before the 2 minute fight carries none: read back off the adjusted figures
+  // a score saved before the whole-fight figures carries none: read back off the adjusted ones
   fightTotal: score.fightTotal ?? (score.total * 120) / 26,
   fightBySlot: new Map(score.fightBySlot ?? score.bySlot.map(([slot, v]): [string, number] => [slot, (v * 120) / 26])),
   // a score saved before it: the time the sections took, off their damage and its rate

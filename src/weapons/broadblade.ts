@@ -6,7 +6,7 @@ import { Buff, Weapon, refinements } from "../engine/gear.js";
 import {
   addStat, frozenStacks, casting, currentTeam, currentMember, addBuff, applyCurrent, removeStack, revokeCurrent, applied,
   onCast, onType, onApplied, isActive, isType, setStacksSelf, triggeredAction,
-  applyTeam, currentAction, extendCurrent, isHeld, inflicting,
+  applyTeam, currentAction, pressed, extendCurrent, isHeld, inflicting,
 } from "../engine/context.js";
 import { SHIELD, HEALS, inflictedNegativeStatus, inflictedNegativeStatusBy } from "../shared/status.js";
 
@@ -84,8 +84,8 @@ export const WILDFIRE_MARK = refinements((r, rank) => {
     name: `Wildfire Mark: Blazing Starfire${rank}`,
     duration: 60 * 6,
     stats: [[Stat.DmgBonus, [24, 30, 36, 42, 48][r]!, Type.Liberation]],
-    afterAction: () => {
-      if (!isType(Type.Heavy) || currentAction().mv <= 0 || isHeld(WILDFIRE_EXTENDED)) return;
+    updateDebuffs: () => {
+      if (!isType(Type.Heavy) || isHeld(WILDFIRE_EXTENDED)) return;
       extendCurrent(WILDFIRE_LIB_DMG, 60 * 4);
       applyCurrent(WILDFIRE_EXTENDED, 1);
       applyTeam(WILDFIRE_TEAM, 1);
@@ -113,15 +113,10 @@ export const JINGRAN_SIG = refinements((r, rank) => {
   /** What a heavy's spend actually pays out, held at the stacks it spent. The press and the
    *  summons it queues — Jingran's Chimei Wangliang, Fire of Life's own and the Parade's at S6 —
    *  are separate actions, so one buff covering the window is what gets them the same figure; a
-   *  stat paid on the press alone stopped at the press. Anything he does that is neither another
-   *  heavy nor one of those Heavy-typed follow-ups closes it. */
+   *  stat paid on the press alone stopped at the press. It runs its 2s. */
   const CRADLE_SPENT: Buff = new Buff({
     name: `Thousandfold Deliverance: Cradle of Life${rank} (spent)`, maxStacks: 2, duration: 60 * 2,
     stats: [[Stat.DefIgnoreNew, [15, 17.5, 20, 22.5, 25][r]!, Type.Heavy]], perStack: true,
-    updateBuffs: () => {
-      if (casting(Cast.Heavy) || (triggeredAction() && isType(Type.Heavy))) return;
-      revokeCurrent(CRADLE_SPENT);
-    },
   });
   /** Spent by a heavy attack: up to two stacks, each piercing 15% defence. "Heavy attack" is the
    *  cast, not the damage type. Also ends on switching resonator. */

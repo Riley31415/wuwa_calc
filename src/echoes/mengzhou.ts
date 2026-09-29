@@ -46,7 +46,7 @@ export const LAMP_5PC = new Sonata({
  *  Aero DMG Bonus flat, and +10% more for 15s on inflicting Tune Strain - Shifting — short and
  *  their own. Pairs with Heart of Evil's Purge below. */
 export const ACTION_CALAMITY_EFFIGY = new Action("Echo - Calamity Effigy", {
-  frames: 60, cancelFrames: 46,
+  animFrames: 60, commitFrames: 46,
   cooldown: 60 * 25,
   cast: Cast.Echo, element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo, mv: 405, energy: 5.62,
 });
@@ -88,7 +88,7 @@ export const HEART_OF_EVILS_PURGE_BUFF = new Buff({
  *  triggered action, which is what stops one blade's own hit from spending the next three beside a
  *  kit that inflicts on every hit. */
 export const ACTION_THOUSAND_PUPPET_PAVILION = new Action("Echo - Thousand-Puppet Pavilion", {
-  cooldown: 60 * 20, frames: 5,
+  cooldown: 60 * 20, animFrames: 5,
   cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo, mv: 	109.44, energy: 1.52,
   updateBuffs: () => queue(ACTION_BLADE_OF_THOUSAND_MEMORIES),
 });

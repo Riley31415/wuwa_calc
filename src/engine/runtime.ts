@@ -78,6 +78,9 @@ export const ctx: {
   /** The clock frames of the press a queued hit belongs to — what `elapsed()` reads on that hit,
    *  which plays none of its own. Set by `run()` before each hit. */
   pressFrames: number;
+  /** How far an off-field resonator's time fell behind the clock over the press just evaluated
+   *  (`evaluate()`): + its motion stop, - time stop it didn't cover. `run()` applies it. */
+  offFieldShift: number;
   /** The frame that press was cast (`castFrame()`), set with `pressFrames`. */
   pressStart: number;
   /** Bumped at the top of every `evaluate()`: what stamps this action's grant records (`applied`,
@@ -108,6 +111,7 @@ export const ctx: {
   swapLosses: new Set(),
   droppedCast: null,
   pressFrames: 0,
+  offFieldShift: 0,
   pressStart: 0,
   actionStamp: 0,
   tracing: false,
@@ -118,7 +122,10 @@ export const tagWord = (element: Attribute | null, type: Type | null, subtype: S
   (element ?? 0) | (type ?? 0) | (subtype ?? 0);
 export const tagWordOf = (action: Action): number => {
   let word = action._tagWord;
-  if (word === undefined) action._tagWord = word = tagWord(action.element, action.type, action.subtype);
+  if (word === undefined) {
+    const h = action.lastHit;
+    action._tagWord = word = h ? tagWord(h.element, h.type, h.subtype) : 0;
+  }
   return word;
 };
 

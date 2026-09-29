@@ -12,7 +12,7 @@ import { AERO_EROSION, HELIACAL_EMBER, SPECTRO_FRAZZLE } from "../shared/status.
 
 /** Sentry Construct, Carlotta's own mainslot echo — flat Glacio/Resonance Skill DMG Bonus, no trigger. */
 export const ACTION_SENTRY_CONSTRUCT = new Action("Echo - Sentry Construct", {
-  frames: 60, cancelFrames: 46,
+  animFrames: 60, commitFrames: 46,
   cooldown: 60 * 25,
   cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo, mv: 405, energy: 5.62,
 });
@@ -50,7 +50,7 @@ export const FROSTY_RESOLVE_5PC = new Sonata({
 /** Nightmare: Impermanence Heron, Roccia's own mainslot echo — flat Havoc/Heavy Attack DMG
  *  Bonus, no trigger. */
 export const ACTION_NM_HERON = new Action("Echo - Nightmare: Impermanence Heron", {
-  frames: 60, cancelFrames: 46,
+  animFrames: 60, commitFrames: 46,
   cooldown: 60 * 25,
   cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo, mv: 405, energy: 5.6,
 });
@@ -64,7 +64,7 @@ export const NM_HERON = new Mainslot({
 
 /** Lorelei, Cantarella's own mainslot echo — flat Havoc/Basic DMG Bonus, no trigger. */
 export const ACTION_LORELEI = new Action("Echo - Lorelei", {
-  frames: 60, cancelFrames: 46,
+  animFrames: 60, commitFrames: 46,
   cooldown: 60 * 25,
   cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo, mv: 405, energy: 5.62,
 });
@@ -99,7 +99,7 @@ export const MIDNIGHT_VEIL_5PC = new Sonata({
 // TODO check how many hits for real
 /** Dragon of Dirge, Brant's own mainslot echo — flat Fusion/Basic Attack DMG Bonus, no trigger. */
 export const ACTION_DRAGON_OF_DIRGE = new Action("Echo - Dragon of Dirge", {
-  frames: 60, cancelFrames: 46,
+  animFrames: 60, commitFrames: 46,
   cooldown: 60 * 25,
   cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, mv: 36.81 * 8, energy: 0.51 * 8,
 });
@@ -123,7 +123,7 @@ export const TIDEBREAKING_5PC = new Sonata({
 /* --------------------------------------------------------------------------------- Phrolova */
 
 /** Nightmare: Hecate, Phrolova's own mainslot echo — flat Havoc/Echo Skill DMG Bonus, no trigger. */
-export const ACTION_NM_HECATE = new Action("Echo - Nightmare: Hecate", { frames: 50, cancelFrames: 36, cooldown: 60 * 25,
+export const ACTION_NM_HECATE = new Action("Echo - Nightmare: Hecate", { animFrames: 50, commitFrames: 36, cooldown: 60 * 25,
   cast: Cast.Echo, element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo, mv: 457.17, energy: 3.15,
 });
 export const NM_HECATE = new Mainslot({
@@ -179,7 +179,7 @@ export const EMPYREAN_ANTHEM_TEAM = new Buff({
  *  it. The Echo Skill itself is Glacio; switching the wearer out with an Outro summons Kelpie once
  *  more for the same multiplier as Aero DMG, which is what ACTION_NM_KELPIE_OUTRO below is. */
 export const ACTION_NM_KELPIE = new Action("Echo - Nightmare: Kelpie", {
-  frames: 60, cancelFrames: 46,
+  animFrames: 60, commitFrames: 46,
   cooldown: 60 * 25,
   cast: Cast.Echo, element: Attribute.Glacio, scaling: Scaling.Atk, type: Type.Echo, mv: 405, energy: 2.81,
 });
@@ -329,7 +329,7 @@ export const ETERNAL_RADIANCE_5PC = new Sonata({
     { on: onApplied(SPECTRO_FRAZZLE, HELIACAL_EMBER), buff: ETERNAL_RADIANCE_CRIT },
     // read on the hit, after its own inflictions, and pays into that same hit
     {
-      on: inflicting(() => currentAction().mv > 0
+      on: inflicting(() => currentAction().hits.length > 0
         && stacksOfEnemy(SPECTRO_FRAZZLE) + stacksOfEnemy(HELIACAL_EMBER) >= 10),
       buff: ETERNAL_RADIANCE_SPECTRO,
     },

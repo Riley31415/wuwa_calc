@@ -16,9 +16,8 @@
  * Moldable Crystal (forte1, 0-6): restored by several actions (+3 each, declarative) and spent 1
  * a strike by Necessary Measures/Dodge Counter (also declarative). The one genuinely dynamic
  * spend is Chromatic Splendor, which consumes *every* crystal held and converts each into 10
- * Substance — a ratio, not a fixed number, so it's `CHROMATIC_SPLENDOR_SPEND` below, a
- * self-applied Buff whose own convertStats() reads forte1() before zeroing it, same shape as
- * Jingran's Fire of Life.
+ * Substance — a ratio, not a fixed number, so Chromatic Splendor's own updateBuffs() spends it
+ * on the cast, reading forte1() before zeroing it.
  *
  * Deconstruction (Ars Gratia Artis, Inherent Skill, always assumed known): several actions
  * inflict it. Modelled as a genuine enemy debuff (not a team buff) whose 18% DEF Shred only
@@ -38,13 +37,11 @@ import {
   applyCurrent,
   applyTeam,
   applyEnemy,
-  revokeEnemy,
   stacksOfEnemy,
   queue,
   isHeld,
   currentAction,
   runningAction,
-  casting,
   revokeCurrent,
   addStat,
   forte1,
@@ -65,22 +62,32 @@ function carlottaAction(id: string, def: object): Action {
 }
 
 // --- basics, mid-air, dodge counter (Silent Execution)
-const BA1 = carlottaAction("Basic - Silent Execution 1", { frames: 16, cancelFrames: 13, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 54.08, energy: 0.8, concerto: 1.6, offtune: 2560 });
-const BA2 = carlottaAction("Basic - Silent Execution 2", { frames: 44, cancelFrames: 38, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 131.83, energy: 1.96, concerto: 3.9, offtune: 6240, forte1: 3 });
-const MA1 = carlottaAction("Mid-air - Silent Execution Plunge", { frames: 47, cancelFrames: 36, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 104.78, energy: 3, concerto: 6, offtune: 9600 });
-const MA2 = carlottaAction("Basic - Silent Execution: Customary Greetings", { frames: 56, cancelFrames: 46, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 239.98, energy: 2.11, concerto: 4.2, offtune: 6720, forte1: 3 });
+const BA1 = carlottaAction("Basic - Silent Execution 1", { animFrames: 16, commitFrames: 13, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 13, mv: 54.08, energy: 0.8, concerto: 1.6, offtune: 2560 }]});
+const BA2 = carlottaAction("Basic - Silent Execution 2", { animFrames: 44, commitFrames: 38, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 16, mv: 39.55, energy: 0.59, concerto: 1.17, offtune: 1872 },
+    { at: 30, mv: 39.55, energy: 0.59, concerto: 1.17, offtune: 1872 },
+    { at: 38, mv: 52.73, energy: 0.78, concerto: 1.56, offtune: 2496, forte1: 3 },
+  ]});
+const MA1 = carlottaAction("Mid-air - Silent Execution Plunge", { animFrames: 47, commitFrames: 36, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 104.78, energy: 3, concerto: 6, offtune: 9600 });
+const MA2 = carlottaAction("Basic - Silent Execution: Customary Greetings", { animFrames: 56, commitFrames: 46, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 239.98, energy: 2.11, concerto: 4.2, offtune: 6720, forte1: 3 });
 const DC = carlottaAction("Dodge Counter - Silent Execution", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, mv: 241.32, energy: 3.58, concerto: 17.15, offtune: 11425, forte2: 10, castForte1: -1});
 
 // Necessary Measures: Basic Attack replaced while holding Moldable Crystals, each stage spending
 // one. Not placed in the rotation below (see file header), kept for completeness.
-const NM1 = carlottaAction("Basic - Silent Execution: Necessary Measures 1", { frames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 65.91, energy: 0.98, concerto: 1.95, offtune: 3120, forte2: 10, castForte1: -1});
-const NM2 = carlottaAction("Basic - Silent Execution: Necessary Measures 2", { frames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 133.51, energy: 1.98, concerto: 3.96, offtune: 6320, forte2: 10, castForte1: -1});
-const NM3 = carlottaAction("Basic - Silent Execution: Necessary Measures 3", { frames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 233.25, energy: 3.47, concerto: 6.9, offtune: 11040, forte2: 10, castForte1: -1});
+const NM1 = carlottaAction("Basic - Silent Execution: Necessary Measures 1", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 65.91, energy: 0.98, concerto: 1.95, offtune: 3120, forte2: 10, castForte1: -1});
+const NM2 = carlottaAction("Basic - Silent Execution: Necessary Measures 2", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 133.51, energy: 1.98, concerto: 3.96, offtune: 6320, forte2: 10, castForte1: -1});
+const NM3 = carlottaAction("Basic - Silent Execution: Necessary Measures 3", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 233.25, energy: 3.47, concerto: 6.9, offtune: 11040, forte2: 10, castForte1: -1});
 
 // base cast, and Containment Tactics once Substance is full
-const HA = carlottaAction("Heavy - Silent Execution", { frames: 54, cancelFrames: 38, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 152.12, energy: 2.26, concerto: 4.52, offtune: 7200, forte1: 3 });
+const HA = carlottaAction("Heavy - Silent Execution", { animFrames: 54, commitFrames: 38, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, hits: [
+    { at: 15, mv: 22.82, energy: 0.34, concerto: 0.68, offtune: 1080 },
+    { at: 16, mv: 22.82, energy: 0.34, concerto: 0.68, offtune: 1080 },
+    { at: 18, mv: 22.82, energy: 0.34, concerto: 0.68, offtune: 1080 },
+    { at: 19, mv: 22.82, energy: 0.34, concerto: 0.68, offtune: 1080 },
+    { at: 38, mv: 60.84, energy: 0.9, concerto: 1.8, offtune: 2880, forte1: 3 },
+  ]});
 const EHA = carlottaAction("Heavy - Silent Execution: Containment Tactics", {
-  frames: 54, cancelFrames: 38,
+  animFrames: 54, commitFrames: 38,
   node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 228.18, energy: 2.26, concerto: 15, offtune: 7200, castForte2: -120,
   updateBuffs: () => reduceCooldown(Skill1, 60 * 6),
 });
@@ -88,14 +95,21 @@ const EHA = carlottaAction("Heavy - Silent Execution: Containment Tactics", {
 // Art of Violence, then Chromatic Splendor (press again shortly after) — Chromatic Splendor's
 // own Substance gain/crystal spend is dynamic (see CHROMATIC_SPLENDOR_SPEND below)
 const Skill1 = carlottaAction("Skill - Art of Violence", {
-  frames: 46, cancelFrames: 35, cooldown: 60 * 14,
-  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 288.22, energy: 2, castConcerto: 5, offtune: 6136, forte1: 3,
+  animFrames: 46, commitFrames: 35, cooldown: 60 * 14,
+  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, hits: [
+    { at: 8, mv: 144.11, energy: 1, offtune: 3068 },
+    { at: 35, mv: 144.11, energy: 1, offtune: 3068, forte1: 3 },
+  ], castConcerto: 5,
 });
 const Skill2 = carlottaAction("Skill - Chromatic Splendor", {
-  frames: 121, cancelFrames: 82,
-  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 563.64, energy: 3, castConcerto: 5, offtune: 12000,
-  // the crystal-to-Substance conversion
-  convertStats: () => {
+  animFrames: 121, commitFrames: 82,
+  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, hits: [
+    { at: 40, mv: 112.73, energy: 0.6, offtune: 2400 },
+    { at: 53, mv: 112.73, energy: 0.6, offtune: 2400 },
+    { at: 82, mv: 338.18, energy: 1.8, offtune: 7200 },
+  ], castConcerto: 5,
+  // the crystal-to-Substance conversion, spent on the cast off the crystals it found
+  updateBuffs: () => {
     const crystals = Math.min(6, forte1());
     addStat(Stat.AddCastForte1, -crystals);
     addStat(Stat.AddCastForte2, 10 * crystals);
@@ -104,8 +118,15 @@ const Skill2 = carlottaAction("Skill - Chromatic Splendor", {
 
 // considered Resonance Skill DMG, spends all Substance; Tinted Crystal's 22s cooldown is this cast's
 const FHA = carlottaAction("Forte Heavy - Imminent Oblivion", {
-  frames: 124, cancelFrames: 92, cooldown: 60 * 22,
-  node: Node.Forte, cast: Cast.Heavy, type: Type.Skill, mv: 835.36, energy: 17, castConcerto: 15, offtune: 97361, castForte2: -120,
+  animFrames: 124, commitFrames: 92, cooldown: 60 * 22,
+  node: Node.Forte, cast: Cast.Heavy, type: Type.Skill, hits: [
+    { at: 18, mv: 66.83, energy: 1.36, offtune: 7789 },
+    { at: 25, mv: 66.83, energy: 1.36, offtune: 7789 },
+    { at: 31, mv: 66.83, energy: 1.36, offtune: 7789 },
+    { at: 38, mv: 66.83, energy: 1.36, offtune: 7789 },
+    { at: 42, mv: 66.83, energy: 1.36, offtune: 7789 },
+    { at: 92, mv: 501.21, energy: 10.2, offtune: 58416 },
+  ], castConcerto: 15, castForte2: -120,
   updateBuffs: () => reduceCooldown(Skill1, 60 * 6),
 });
 
@@ -113,30 +134,40 @@ const FHA = carlottaAction("Forte Heavy - Imminent Oblivion", {
 // Fatal Finale (requires and spends all 4) close it out. Death Knell's shots are real presses of
 // about a second each, not a frozen-world cinematic, so they carry no time stop and count as time
 const Lib1 = carlottaAction("Liberation - Era of New Wave", {
-  frames: 182, timestop: 182, motionStop: 138,
-  cancelFrames: 130,
+  animFrames: 182, timestop: 182, motionStop: 138,
+  commitFrames: 130,
   cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Skill, mv: 402.71, castConcerto: 20, offtune: 33600, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Skill, hits: [{ at: 130, mv: 402.71, offtune: 33600 }], castConcerto: 20, resetEnergy: true,
   resetForte2: true, // Twilight Tango removes all Substance on opening
   updateBuffs: () => applyCurrent(TWILIGHT_TANGO, 1),
   updateDebuffs: () => applyEnemy(DECONSTRUCTION, 1),
 });
 const DeathKnell = carlottaAction("Liberation - Death Knell", {
-  frames: 70, cancelFrames: 52,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Skill, mv: 241.64, energy: 5, castConcerto: 7, offtune: 9600, castForte3: 1,
+  animFrames: 70, commitFrames: 52,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Skill, hits: [
+    { at: 40, mv: 183.64, energy: 5, offtune: 9600 },
+    { at: 81, mv: 14.5 },
+    { at: 81, mv: 14.5 },
+    { at: 83, mv: 14.5 },
+    { at: 83, mv: 14.5 },
+  ], castConcerto: 7, castForte3: 1,
 });
 const FatalFinale = carlottaAction("Liberation - Fatal Finale", {
-  frames: 170, timestop: 170, motionStop: 140,
-  cancelFrames: 138,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Skill, mv: 644.33, castConcerto: 10, offtune: 50400, castForte3: -4,
+  animFrames: 170, timestop: 170, motionStop: 140,
+  commitFrames: 138,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Skill, hits: [{ at: 138, mv: 644.33, offtune: 50400 }], castConcerto: 10, castForte3: -4,
 });
 
 const Intro = carlottaAction("Intro - Wintertime Aria", {
-  frames: 84, motionStop: 84, cancelFrames: 70, hitFrame: 80,
-  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 298.23, energy: 10, castConcerto: 10, offtune: 9335, forte2: 30, castForte1: 3,
+  animFrames: 84, motionStop: 84, commitFrames: 70,
+  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, hits: [
+    { at: 56, mv: 178.93, energy: 6, offtune: 5601 },
+    { at: 65, mv: 59.65, energy: 2, offtune: 1867 },
+    { at: 80, mv: 59.65, energy: 2, offtune: 1867, forte2: 30 },
+  ], castConcerto: 10, castForte1: 3,
 });
 /** No handoff buff of any kind is described on her own kit page — left as a plain damage hit. */
-const Outro = carlottaAction("Outro - Closing Remark", { cancelFrames: 0, frames: 0, cast: Cast.Outro, type: Type.Outro, mv: 794.2, castConcerto: -100});
+const Outro = carlottaAction("Outro - Closing Remark", { commitFrames: 0, animFrames: 0, cast: Cast.Outro, type: Type.Outro, hits: [{ at: 0, mv: 794.2 }], castConcerto: -100});
 
 /* ------------------------------------------------------------------------------------ buffs */
 
@@ -146,7 +177,6 @@ const Outro = carlottaAction("Outro - Closing Remark", { cancelFrames: 0, frames
 const DECONSTRUCTION = new Debuff({
   name: "Carlotta: Deconstruction", duration: 60 * 4,
   applyStats: () => { if (isHeld(CARLOTTA_RESONATOR)) addStat(Stat.DefIgnoreOld, 18); },
-  convertStats: () => { if (casting(Cast.Outro) && isHeld(CARLOTTA_RESONATOR)) revokeEnemy(DECONSTRUCTION); },
 });
 
 const CL_INHERENT_1 = new Inherent({
@@ -204,11 +234,13 @@ const CL_S2 = new Sequence({
 
 /** S3: one more strike at the end of Closing Remark — 1032.18% ATK, queued behind the outro on her
  *  own slot — and +93% multiplier on Art of Violence and Chromatic Splendor. */
-const Sparks = carlottaAction("Outro - Kaleidoscope Sparks", { frames: 0, type: Type.Outro, mv: 1032.18 });
+const Sparks = carlottaAction("Outro - Kaleidoscope Sparks", { animFrames: 0, type: Type.Outro, hits: [{ at: 0, mv: 1032.18 }]});
 const CL_S3 = new Sequence({
   name: "Carlotta S3: Adelante, Cortado, Spinning in Grace",
   applyStats: () => { if (runningAction(Skill1) || runningAction(Skill2)) addStat(Stat.MulMv, 93); },
-  updateDebuffs: () => { if (runningAction(Outro)) queue(Sparks); },
+  updateDebuffs: () => {
+    if (runningAction(Outro)) queue(Sparks);
+  },
 });
 
 /** S4: any of her three Heavy Attacks gives the whole team +25% Resonance Skill DMG Bonus for 30s —

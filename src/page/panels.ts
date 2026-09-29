@@ -136,14 +136,16 @@ export function infoPopover(info: InfoEntry[] | undefined, slotHue: Map<string, 
   return lazyPop(`<span class="pop info"><table>${rows}</table></span>`);
 }
 
-/** The Time cell's hover, laid out like a stat panel: each press the row covers, in order, at the
- *  frames it played (to its cut, less any time stop), each followed by what cutting it cost,
+/** The Time cell's hover, laid out like a stat panel: each on-field press the row covers, in order,
+ *  at the frames it played (to its cut, less any time stop), each followed by what cutting it cost,
  *  footed to the frames the clock charged: a press's full frames, less its time stop. */
 export function framesPopover(snaps: ResolvedSnapshot[]): string {
   const line = (k: string, v: string | number, cls = ""): string => `<tr${cls}><td class="k">${esc(k)}</td><td class="v">${v}</td></tr>`;
   const rows: string[] = [];
   let total = 0, banks = 0;
   for (const s of snaps) {
+    // an off-field press is on nobody's clock: it lists nothing
+    if (!s.active) continue;
     // a split press's row shows its cast, which played none of the hit's frames
     const cost = (s.hitAt !== undefined ? s.action.castPart() : s.action).cost(s.tag);
     total += cost.total - s.timestopBanked;
@@ -156,6 +158,7 @@ export function framesPopover(snaps: ResolvedSnapshot[]): string {
     || s.tag === ActionTag.DodgeCancel
     || s.tag === ActionTag.JumpCancel
     || s.tag === ActionTag.SwapCancel
+    || s.tag === ActionTag.HitCancel
     if (!insta) rows.push(line(`${s.action.name}${cut ? " (c)" : ""}`, cost.action));
     // the world stood still for part of it: the clock takes it back off
     if (cost.timestop) rows.push(line("Timestop", -cost.timestop));
@@ -168,7 +171,7 @@ export function framesPopover(snaps: ResolvedSnapshot[]): string {
     total += s.swapFrames ?? 0;
     banks += Math.max(0, s.action.timestop - cost.timestop);
   }
-  return lazyPop(`<span class="pop frames"><table><tr class="sec"><td colspan="2">Frames</td></tr>`
+  return lazyPop(`<span class="pop frames"><table><tr class="sec"><td colspan="2">Active Frames</td></tr>`
     + rows.join("")
     + line("Total", total, ' class="sum"')
     // time stop outlasting the press, carried to the ones after it
@@ -526,19 +529,19 @@ export function loadoutTable(run: TeamRun, erReq?: Map<string, string>): string 
 
 /* -------------------------------------------------------------------------------- DPR table */
 
-/** Damage per rotation: a row per member, Tune Break and Total, over the opener and every loop that
- *  ran whole, then the whole 2 minutes. With `lines` (the detail page) a figure opens its breakdown
+/** Damage per rotation: a row per member, Tune Break and Total, over the opener and each loop, then
+ *  all four rotations. With `lines` (the detail page) a figure opens its breakdown
  *  under the table; the comparison table's Total DPR hover passes none (no hover inside a hover). */
 export function dprTable(run: TeamRun, lines?: ChainGroup[][]): string {
   const grand = run.fightTotal;
   const flat = lines?.flat();
-  // the sections that ran whole; `lines` also carries the last one, cut short by the time running out
+  // the four rotations
   const whole = run.sectionTotals.length;
   const slots = [...run.members.map((m) => m.name), TUNE_BREAK_ENEMY.name];
   const slotHue = new Map([...run.members.map((m): [string, string] => [m.name, m.color]),
     [TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color]]);
   // the sections, named once over for both the column headings and the breakdowns' titles
-  const sections = ["Opener", ...Array.from({ length: whole - 1 }, (_, i) => `Loop ${i + 1}`), "2min"];
+  const sections = ["Opener", ...Array.from({ length: whole - 1 }, (_, i) => `Loop ${i + 1}`), "4 Rot"];
   const ownTotal = (slot: string): number => run.fightBySlot.get(slot) ?? 0;
   // the row opens on the team's own Total, which is the figure the table is read for
   const selected = flat ? `${TEAM_ROW}|${whole}` : "";
@@ -554,7 +557,7 @@ export function dprTable(run: TeamRun, lines?: ChainGroup[][]): string {
   const head = `<div class="rtrow rthead">`
     + `<div class="c"></div>`
     + sections.slice(0, whole).map((n) => `<div class="c num">${n}</div>`).join("")
-    + `<div class="c num tot">Total (2min)</div>`
+    + `<div class="c num tot">Total (4 Rot)</div>`
     + `</div>`;
 
   // A figure is a distribution cell only on the detail page, where there is a rotation to break
@@ -838,7 +841,7 @@ function distCell(lines: ChainGroup[], slot: string, section: string, hue: strin
     total += avg;
     // A status ladder carries Status on top of its own Subtype — the Subtype is the whole name anyone
     // reads it by, so Status drops out and the hit wears that status's own alone shade.
-    const subtype = snap.action.subtype;
+    const subtype = snap.action.lastHit?.subtype ?? null;
     const type = snap.type === Type.Status && subtype !== null ? null : snap.type;
     const key = (type ?? 0) | (subtype ?? 0);
     const slice = types.get(key);

@@ -45,18 +45,37 @@ function skAction(id: string, def: object): Action {
 // Empirical Data (forte1): 1 a stage, capped at 5 — the engine floors at 0 but imposes no
 // ceiling itself, so BA3's +2/MA's +1 landing on 5 relies on this loop never running a fourth
 // basic before Forte: Illation spends the whole gauge below.
-const BA1 = skAction("Basic - Origin Calculus 1", { frames: 23, cancelFrames: 15, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 31.78, energy: 0.5, concerto: 1.6, offtune: 2664, forte1: 1 });
-const BA2 = skAction("Basic - Origin Calculus 2", { frames: 33, cancelFrames: 20, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 47.72, energy: 0.76, concerto: 2.4, offtune: 4000, forte1: 1 });
-const BA3 = skAction("Basic - Origin Calculus 3", { frames: 47, cancelFrames: 20, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 69.96, energy: 1.11, concerto: 3.54, offtune: 5865, forte1: 2 });
+const BA1 = skAction("Basic - Origin Calculus 1", { animFrames: 23, commitFrames: 15, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 15, mv: 31.78, energy: 0.5, concerto: 1.6, offtune: 2664, forte1: 1 }]});
+const BA2 = skAction("Basic - Origin Calculus 2", { animFrames: 33, commitFrames: 20, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 8, mv: 23.86, energy: 0.38, concerto: 1.2, offtune: 2000, forte1: 1 },
+    { at: 20, mv: 23.86, energy: 0.38, concerto: 1.2, offtune: 2000 },
+  ]});
+const BA3 = skAction("Basic - Origin Calculus 3", { animFrames: 47, commitFrames: 20, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 20, mv: 23.32, energy: 0.37, concerto: 1.18, offtune: 1955 },
+    { at: 29, mv: 23.32, energy: 0.37, concerto: 1.18, offtune: 1955, forte1: 1 },
+    { at: 38, mv: 23.32, energy: 0.37, concerto: 1.18, offtune: 1955, forte1: 1 },
+  ]});
 
-const MA = skAction("Mid-air - Origin Calculus Plunge", { frames: 50, cancelFrames: 46, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 73.96, energy: 1.55, concerto: 5, offtune: 4960, forte1: 1 });
+const MA = skAction("Mid-air - Origin Calculus Plunge", { animFrames: 50, commitFrames: 46, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 46, mv: 73.96, energy: 1.55, concerto: 5, offtune: 4960, forte1: 1 }]});
 
-const Skill = skAction("Skill - Chaos Theory", { frames: 39, cancelFrames: 17, cooldown: 60 * 16, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 156.55, energy: 10, concerto: 10, castConcerto: 20, offtune: 5250 });
+const Skill = skAction("Skill - Chaos Theory", { animFrames: 39, commitFrames: 17, cooldown: 60 * 16, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, hits: [
+    { at: 55, mv: 31.31, energy: 2, concerto: 2, offtune: 1050, updateDebuffs: () => applyCurrent(HEALS, 1) },
+    { at: 57, mv: 31.31, energy: 2, concerto: 2, offtune: 1050 },
+    { at: 60, mv: 31.31, energy: 2, concerto: 2, offtune: 1050 },
+    { at: 62, mv: 31.31, energy: 2, concerto: 2, offtune: 1050 },
+    { at: 65, mv: 31.31, energy: 2, concerto: 2, offtune: 1050 },
+  ], castConcerto: 20});
 
-const FHA = skAction("Forte Heavy - Illation", { frames: 48, cancelFrames: 5, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, mv: 281.3, energy: 4.95, castConcerto: 11, offtune: 6360, castForte1: -5});
+const FHA = skAction("Forte Heavy - Illation", { animFrames: 48, commitFrames: 5, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, hits: [
+    { at: 22, mv: 56.26, energy: 0.99, offtune: 1272 },
+    { at: 34, mv: 56.26, energy: 0.99, offtune: 1272 },
+    { at: 46, mv: 56.26, energy: 0.99, offtune: 1272 },
+    { at: 58, mv: 56.26, energy: 0.99, offtune: 1272 },
+    { at: 64, mv: 56.26, energy: 0.99, offtune: 1272 },
+  ], castConcerto: 11, castForte1: -5});
 
 const Liberation = skAction("Liberation - End Loop", {
-  frames: 207, cancelFrames: 207, timestop: 207, motionStop: 207, cooldown: 60 * 25,
+  animFrames: 207, commitFrames: 207, timestop: 207, motionStop: 207, cooldown: 60 * 25,
   node: Node.Liberation, cast: Cast.Liberation, castConcerto: 20, resetEnergy: true,
   // "Generate the Outer Stellarealm": a cast puts up a *new* realm rather than stepping the one
   // already standing, so whatever stage is up is replaced by Outer — which is what puts the realm
@@ -67,13 +86,22 @@ const Liberation = skAction("Liberation - End Loop", {
   },
 });
 
-const Intro = skAction("Intro - Enlightenment", { frames: 85, cancelFrames: 44, motionStop: 29, node: Node.Intro, cast: Cast.Intro, type: Type.Skill, mv: 226.5, energy: 10, concerto: 10, castConcerto: 10, offtune: 11395 });
+const Intro = skAction("Intro - Enlightenment", { animFrames: 85, commitFrames: 44, motionStop: 29, node: Node.Intro, cast: Cast.Intro, type: Type.Skill, hits: [
+    { at: 83, mv: 45.3, energy: 2, concerto: 2, offtune: 2279, updateDebuffs: () => applyCurrent(HEALS, 1) },
+    { at: 85, mv: 45.3, energy: 2, concerto: 2, offtune: 2279 },
+    { at: 87, mv: 45.3, energy: 2, concerto: 2, offtune: 2279 },
+    { at: 90, mv: 45.3, energy: 2, concerto: 2, offtune: 2279 },
+    { at: 92, mv: 45.3, energy: 2, concerto: 2, offtune: 2279 },
+  ], castConcerto: 10});
 // replaces plain Intro under a Supernal Stellarealm (see SHOREKEEPER_RESONATOR's own intro() below); scales
 // off HP, counts as liberation damage, always crits, and ends the realm on resolving
 const EIntro = skAction("Intro - Discernment", {
-  frames: 215, cancelFrames: 143, timestop: 135, motionStop: 135,
-  node: Node.Intro, cast: Cast.Intro, type: Type.Liberation, scaling: Scaling.Hp, mv: 58.92,
-  energy: 10.02, castConcerto: 20, offtune: 73242,
+  animFrames: 215, commitFrames: 143, timestop: 135, motionStop: 135,
+  node: Node.Intro, cast: Cast.Intro, type: Type.Liberation, scaling: Scaling.Hp, hits: [
+    { at: 143, mv: 19.64, energy: 3.34, offtune: 24414, updateDebuffs: () => applyCurrent(HEALS, 1) },
+    { at: 155, mv: 19.64, energy: 3.34, offtune: 24414 },
+    { at: 167, mv: 19.64, energy: 3.34, offtune: 24414 },
+  ], castConcerto: 20,
   applyStats: () => { addStat(Stat.CritRate, 100); },
   updateBuffs: () => {
     // One Discernment per Supernal realm generated (its own text), with nothing here to enforce
@@ -92,7 +120,7 @@ const EIntro = skAction("Intro - Discernment", {
 
 /** Puts Binary Butterfly on the team, so amplification starts with whoever she hands the field to. */
 const Outro = skAction("Outro - Binary Butterfly", {
-  frames: 0, cancelFrames: 0,
+  animFrames: 0, commitFrames: 0,
   cast: Cast.Outro, castConcerto: -100,
   updateBuffs: () => applyTeam(SK_OUTRO, 1),
 });
@@ -226,9 +254,9 @@ const SHOREKEEPER_RESONATOR = new Resonator({
   // reads the realm as it stands, already stepped by the preceding outro
 
   updateDebuffs: () => {
-    // her own healing marker, read by every healing sonata and weapon (statuses.ts) —
-    // applied to the healer alone, never the team
-    if (runningAction(Skill) || runningAction(Liberation) || runningAction(Intro) || runningAction(EIntro)) applyCurrent(HEALS, 1);
+    // her own healing marker, read by every healing sonata and weapon (statuses.ts) — applied to the
+    // healer alone; Chaos Theory's and both Intros' are their first hits'
+    if (runningAction(Liberation)) applyCurrent(HEALS, 1);
   },
 
 });

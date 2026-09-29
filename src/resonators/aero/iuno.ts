@@ -46,61 +46,122 @@ function iunoAction(id: string, def: object): Action {
 }
 
 // --- basics and dodge counter, all shielding
-const BA1 = iunoAction("Basic - Moonring 1", { frames: 29, cancelFrames: 16, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 87.68, energy: 1.23, concerto: 1.23, offtune: 3920, forte1: 5 });
-const BA2 = iunoAction("Basic - Moonring 2", { frames: 51, cancelFrames: 42, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 139.58, energy: 1.97, concerto: 1.97, offtune: 6242, forte1: 10 });
-const BA3 = iunoAction("Basic - Moonring 3", { frames: 100, cancelFrames: 67, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 266.61, energy: 3.73, concerto: 3.73, offtune: 11921, forte1: 20 });
-const DC = iunoAction("Dodge Counter - Moonring", { frames: 51, cancelFrames: 42, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, mv: 248.73, energy: 2, concerto: 13.97, offtune: 6321, forte1:10 });
+const BA1 = iunoAction("Basic - Moonring 1", { animFrames: 29, commitFrames: 16, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 16, mv: 87.68, energy: 1.23, concerto: 1.23, offtune: 3920, forte1: 5 }]});
+const BA2 = iunoAction("Basic - Moonring 2", { animFrames: 51, commitFrames: 42, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 25, mv: 46.06, energy: 0.65, concerto: 0.65, offtune: 2060 },
+    { at: 32, mv: 46.06, energy: 0.65, concerto: 0.65, offtune: 2060 },
+    { at: 42, mv: 47.46, energy: 0.67, concerto: 0.67, offtune: 2122, forte1: 10 },
+  ]});
+const BA3 = iunoAction("Basic - Moonring 3", { animFrames: 100, commitFrames: 67, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 29, mv: 87.98, energy: 1.23, concerto: 1.23, offtune: 3934 },
+    { at: 56, mv: 87.98, energy: 1.23, concerto: 1.23, offtune: 3934 },
+    { at: 67, mv: 90.65, energy: 1.27, concerto: 1.27, offtune: 4053, forte1: 20 },
+  ]});
+const DC = iunoAction("Dodge Counter - Moonring", { animFrames: 51, commitFrames: 42, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, hits: [
+    { at: 25, mv: 82.08, energy: 0.66, concerto: 4.6097, offtune: 2086 },
+    { at: 32, mv: 82.08, energy: 0.66, concerto: 4.6097, offtune: 2086 },
+    { at: 42, mv: 84.57, energy: 0.68, concerto: 4.7506, offtune: 2149, forte1: 10 },
+  ]});
 
 const BA123 = new ActionGroup("Basic - Moonring 123", [BA1, BA2, BA3]);
 
 // --- Moonbow basics (Lunar Cycle - New Moon), considered liberation damage; also shield
-const MA1 = iunoAction("Basic - Moonbow 1", { frames: 34, cancelFrames: 15, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, mv: 126.45, energy: 2.33, concerto: 2.65, offtune: 4240 });
-const MA2 = iunoAction("Basic - Moonbow 2", { frames: 45, cancelFrames: 24, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, mv: 167.01, energy: 3.27, concerto: 3.51, offtune: 5601 });
-const MA3 = iunoAction("Basic - Moonbow 3", { frames: 92, cancelFrames: 53, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, mv: 334.02, energy: 6, concerto: 7, offtune: 11200 });
-const MDC = iunoAction("Dodge Counter - Moonbow", { frames: 45, cancelFrames: 24, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Liberation, mv: 310.17, energy: 1.77, concerto: 13.51, offtune: 5601 });
+const MA1 = iunoAction("Basic - Moonbow 1", { animFrames: 34, commitFrames: 15, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, hits: [{ at: 15, mv: 126.45, energy: 2.33, concerto: 2.65, offtune: 4240 }]});
+const MA2 = iunoAction("Basic - Moonbow 2", { animFrames: 45, commitFrames: 24, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, hits: [
+    { at: 10, mv: 55.67, energy: 1.09, concerto: 1.17, offtune: 1867 },
+    { at: 17, mv: 55.67, energy: 1.09, concerto: 1.17, offtune: 1867 },
+    { at: 24, mv: 55.67, energy: 1.09, concerto: 1.17, offtune: 1867 },
+  ]});
+const MA3 = iunoAction("Basic - Moonbow 3", { animFrames: 92, commitFrames: 53, node: Node.Normal, cast: Cast.Basic, type: Type.Liberation, hits: [
+    { at: 18, mv: 167.01, energy: 3, concerto: 3.5, offtune: 5600 },
+    { at: 53, mv: 167.01, energy: 3, concerto: 3.5, offtune: 5600 },
+  ]});
+const MDC = iunoAction("Dodge Counter - Moonbow", { animFrames: 45, commitFrames: 24, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Liberation, hits: [
+    { at: 10, mv: 103.39, energy: 0.59, concerto: 4.5033, offtune: 1867 },
+    { at: 17, mv: 103.39, energy: 0.59, concerto: 4.5033, offtune: 1867 },
+    { at: 24, mv: 103.39, energy: 0.59, concerto: 4.5034, offtune: 1867 },
+  ]});
 
 const MA123 = new ActionGroup("Basic - Moonbow 123", [MA1, MA2, MA3]);
 
 // --- resonance skill
-const Skill = iunoAction("Skill - Pulse of Origins", { frames: 69, cancelFrames: 58, cooldown: 60 * 6, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 261.07, energy: 4.58, castConcerto: 6, offtune: 8086 });
-const ESkill = iunoAction("Skill - Closing Refrain", { frames: 109, cancelFrames: 82, cooldown: 60 * 8, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 426.46, energy: 8.15, castConcerto: 8, offtune: 13200, castForte1: 25});
+const Skill = iunoAction("Skill - Pulse of Origins", { animFrames: 69, commitFrames: 58, cooldown: 60 * 6, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, hits: [
+    { at: 28, mv: 18.65, energy: 0.33, offtune: 578 },
+    { at: 32, mv: 18.65, energy: 0.33, offtune: 578 },
+    { at: 35, mv: 18.65, energy: 0.33, offtune: 578 },
+    { at: 39, mv: 18.65, energy: 0.33, offtune: 578 },
+    { at: 42, mv: 18.65, energy: 0.33, offtune: 578 },
+    { at: 46, mv: 18.65, energy: 0.33, offtune: 578 },
+    { at: 50, mv: 18.65, energy: 0.33, offtune: 578 },
+    { at: 58, mv: 130.52, energy: 2.27, offtune: 4040 },
+  ], castConcerto: 6});
+const ESkill = iunoAction("Skill - Closing Refrain", { animFrames: 109, commitFrames: 82, cooldown: 60 * 8, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, hits: [
+    { at: 14, mv: 140.73, energy: 2.69, offtune: 4356 },
+    { at: 74, mv: 140.73, energy: 2.69, offtune: 4356 },
+    { at: 82, mv: 145, energy: 2.77, offtune: 4488 },
+  ], castConcerto: 8, castForte1: 25});
 /** Arc Beyond the Edge: 2 charges on a 10s cooldown, its enhanced form the same press. */
 const ARC_CD = new Cooldown({ frames: 60 * 10, charges: 2 });
-const MSkill = iunoAction("Skill - Arc Beyond the Edge", { frames: 85, cancelFrames: 50, cooldown: ARC_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Liberation, mv: 439.58, energy: 9.36, castConcerto: 8, offtune: 10720 });
+const MSkill = iunoAction("Skill - Arc Beyond the Edge", { animFrames: 85, commitFrames: 50, cooldown: ARC_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Liberation, hits: [
+    { at: 50, mv: 219.79, energy: 4.68, offtune: 5360 },
+    { at: 78, mv: 219.79, energy: 4.68, offtune: 5360 },
+  ], castConcerto: 8});
 
 // --- liberation: shields and grants Blessing
 const Liberation = iunoAction("Liberation - Beneath Lunar Tides", {
-  frames: 250, cancelFrames: 240, timestop: 240, motionStop: 240, cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, mv: 1093.46, castConcerto: 20,
-  offtune: 96000, castForte1: 60, resetEnergy: true,
+  animFrames: 250, commitFrames: 240, timestop: 240, motionStop: 240, cooldown: 60 * 25,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, hits: [{ at: 196, mv: 1093.46, offtune: 96000 }], castConcerto: 20, castForte1: 60, resetEnergy: true,
 });
 
 // --- intro / outro
 const Intro = iunoAction("Intro - Illuminated Manifestation", {
-  frames: 81, cancelFrames: 81, hitFrame: 76, motionStop: 27,
-  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 159.09,
-  energy: 10, castConcerto: 10, offtune: 10400, castForte1: 40,
+  animFrames: 81, commitFrames: 81, motionStop: 27,
+  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, hits: [
+    { at: 48, mv: 15.91, energy: 1, offtune: 1040 },
+    { at: 52, mv: 15.91, energy: 1, offtune: 1040 },
+    { at: 55, mv: 15.91, energy: 1, offtune: 1040 },
+    { at: 59, mv: 15.91, energy: 1, offtune: 1040 },
+    { at: 62, mv: 15.91, energy: 1, offtune: 1040 },
+    { at: 66, mv: 15.91, energy: 1, offtune: 1040 },
+    { at: 70, mv: 15.91, energy: 1, offtune: 1040 },
+    { at: 76, mv: 47.72, energy: 3, offtune: 3120 },
+  ], castConcerto: 10, castForte1: 40,
 });
 const Outro = iunoAction("Outro - From Gloom to Gleam", {
-  frames: 0, cancelFrames: 0,
-  cast: Cast.Outro, type: Type.Outro, mv: 100, castConcerto: -100,
+  animFrames: 0, commitFrames: 0,
+  cast: Cast.Outro, type: Type.Outro, hits: [{ at: 0, mv: 100 }], castConcerto: -100,
   updateBuffs: () => queueOutro(IUNO_OUTRO),
 });
 
 // --- forte (jump / Flux) casts, all liberation damage while in Lunar Cycle, same shielding
-const JumpHeavy = iunoAction("Heavy - Flux: Moonbow", { frames: 86, cancelFrames: 70, node: Node.Forte, cast: Cast.Heavy, type: Type.Liberation, mv: 250.51, energy: 3.5, concerto: 7, offtune: 11200 });
-const FJump = iunoAction("Heavy - Flux: Moonring", { frames: 114, cancelFrames: 97, node: Node.Forte, cast: Cast.Heavy, type: Type.Liberation, mv: 316.72, energy: 4.44, concerto: 8.88, offtune: 14160 });
-const FMA1 = iunoAction("Forte Basic - Enhanced Moonbow 1", { frames: 34, cancelFrames: 15, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, mv: 205.97, energy: 2.33, concerto: 2.65, castConcerto: 4, offtune: 4240, castForte1: -10});
-const FMA2 = iunoAction("Forte Basic - Enhanced Moonbow 2", { frames: 45, cancelFrames: 24, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, mv: 286.29, energy: 3.27, concerto: 3.51, castConcerto: 6, offtune: 5601, castForte1: -15});
-const FMA3 = iunoAction("Forte Basic - Enhanced Moonbow 3", { frames: 92, cancelFrames: 53, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, mv: 532.82, energy: 6, concerto: 7, castConcerto: 10, offtune: 11200, castForte1: -25});
-const FMSkill = iunoAction("Forte Skill - Enhanced Arc Beyond the Edge", { frames: 85, cancelFrames: 50, cooldown: ARC_CD, node: Node.Forte, cast: Cast.Skill, type: Type.Liberation, mv: 638.38, energy: 9.36, castConcerto: 18, offtune: 10720, castForte1: -25});
+const JumpHeavy = iunoAction("Heavy - Flux: Moonbow", { animFrames: 86, commitFrames: 70, node: Node.Forte, cast: Cast.Heavy, type: Type.Liberation, hits: [{ at: 70, mv: 250.51, energy: 3.5, concerto: 7, offtune: 11200 }]});
+const FJump = iunoAction("Heavy - Flux: Moonring", { animFrames: 114, commitFrames: 97, node: Node.Forte, cast: Cast.Heavy, type: Type.Liberation, hits: [
+    { at: 66, mv: 79.18, energy: 1.11, concerto: 2.22, offtune: 3540 },
+    { at: 82, mv: 79.18, energy: 1.11, concerto: 2.22, offtune: 3540 },
+    { at: 90, mv: 79.18, energy: 1.11, concerto: 2.22, offtune: 3540 },
+    { at: 97, mv: 79.18, energy: 1.11, concerto: 2.22, offtune: 3540 },
+  ]});
+const FMA1 = iunoAction("Forte Basic - Enhanced Moonbow 1", { animFrames: 34, commitFrames: 15, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, hits: [{ at: 15, mv: 205.97, energy: 2.33, concerto: 2.65, offtune: 4240 }], castConcerto: 4, castForte1: -10});
+const FMA2 = iunoAction("Forte Basic - Enhanced Moonbow 2", { animFrames: 45, commitFrames: 24, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, hits: [
+    { at: 10, mv: 95.43, energy: 1.09, concerto: 1.17, offtune: 1867 },
+    { at: 17, mv: 95.43, energy: 1.09, concerto: 1.17, offtune: 1867 },
+    { at: 24, mv: 95.43, energy: 1.09, concerto: 1.17, offtune: 1867 },
+  ], castConcerto: 6, castForte1: -15});
+const FMA3 = iunoAction("Forte Basic - Enhanced Moonbow 3", { animFrames: 92, commitFrames: 53, node: Node.Forte, cast: Cast.Basic, type: Type.Liberation, hits: [
+    { at: 18, mv: 266.41, energy: 3, concerto: 3.5, offtune: 5600 },
+    { at: 53, mv: 266.41, energy: 3, concerto: 3.5, offtune: 5600 },
+  ], castConcerto: 10, castForte1: -25});
+const FMSkill = iunoAction("Forte Skill - Enhanced Arc Beyond the Edge", { animFrames: 85, commitFrames: 50, cooldown: ARC_CD, node: Node.Forte, cast: Cast.Skill, type: Type.Liberation, hits: [
+    { at: 50, mv: 319.19, energy: 4.68, offtune: 5360 },
+    { at: 78, mv: 319.19, energy: 4.68, offtune: 5360 },
+  ], castConcerto: 18, castForte1: -25});
 
 const FMA123 = new ActionGroup("Forte - Enhanced Moonbow 123", [FMA1, FMA2, FMA3]);
 
 /** Ends Lunar Cycle and conjures the Full Moon domain. */
 const FHA = iunoAction("Heavy - Absolute Fullness", {
-  frames: 89, cancelFrames: 66,
-  node: Node.Forte, cast: Cast.Heavy, type: Type.Liberation, mv: 159.05, energy: 5, offtune: 2400,
+  animFrames: 89, commitFrames: 66,
+  node: Node.Forte, cast: Cast.Heavy, type: Type.Liberation, hits: [{ at: 66, mv: 159.05, energy: 5, offtune: 2400 }],
   updateBuffs: () => applyTeam(IUNO_DOMAIN, 1),
 });
 
@@ -174,9 +235,9 @@ const IUNO_RESONATOR = new Resonator({
   maxEnergy: 125,
   maxForte1: 100,
 
-  // every cast of hers but the Outro shields
-  updateDebuffs: () => { 
-    if (runningAnyOf(SHIELDING)) gainShield(1); 
+  // every hit of hers but the Outro's shields, at the shield's own cooldown
+  updateDebuffs: () => {
+    if (runningAnyOf(SHIELDING)) gainShield();
   },
 
 });
@@ -211,7 +272,9 @@ const IO_S3 = new Sequence({
  *  is a Blessing stack — she gains her own off that cast already, so the others get theirs here. */
 const IO_S4 = new Sequence({
   name: "Iuno S4: Rainy Season Dwell in My Eyes",
-  updateDebuffs: () => { if (runningAction(FHA)) applyOthers(IUNO_BLESSING, 1); },
+  updateDebuffs: () => {
+    if (runningAction(FHA)) applyOthers(IUNO_BLESSING, 1);
+  },
 });
 
 /** S5: +20% Resonance Liberation DMG Bonus. */

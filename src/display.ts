@@ -8,10 +8,10 @@ import {
   TAG_NAME, CAST_NAME, NODE_NAME, SCALING_NAME, RESOURCE_NAME,
   ActionTag,
 } from "./engine/stats.js";
-import type { Type, StatKey } from "./engine/stats.js";
+import type { Type, Subtype, StatKey, Tag } from "./engine/stats.js";
 import { mvPercent, effectiveShred, effectiveRes, damageFactors, RESONATOR_LEVEL, LEVEL_90_DOT, LEVEL_90_TUNE } from "./engine/damage.js";
 import { BASE_RESISTANCE, ENEMY_MAX_OFFTUNE } from "./shared/tunebreak.js";
-import type { Action } from "./engine/rotation.js";
+import type { Action, Hit } from "./engine/rotation.js";
 import type { ChainGroup, ResolvedSnapshot } from "./engine/evaluate.js";
 import type { HeldBuff } from "./engine/state.js";
 
@@ -72,14 +72,12 @@ export const fmtExact = (v: number | string | null | undefined): string =>
 
 const FORTE_GAUGES = [Resource.Forte1, Resource.Forte2, Resource.Forte3, Resource.Forte4, Resource.Forte5];
 
-/** A fight frame as the Time column reads it: what is left of a 2:00.00 clock (m:ss.cc, truncated), with a
- *  minus sign once the fight has run past it. */
+/** A fight frame as the Time column reads it: the time since the fight began (m:ss.cc, truncated). */
 export const clockAt = (frame: number): string => {
-  const left = 60 * 120 - frame;
   // hundredths of a second, truncated rather than rounded
-  const cs = Math.floor((Math.abs(left) * 100) / 60);
+  const cs = Math.floor((frame * 100) / 60);
   const sec = String(Math.floor(cs / 100) % 60).padStart(2, "0");
-  return `${left < 0 ? "-" : ""}${Math.floor(cs / 6000)}:${sec}.${String(cs % 100).padStart(2, "0")}`;
+  return `${Math.floor(cs / 6000)}:${sec}.${String(cs % 100).padStart(2, "0")}`;
 };
 
 /** Columns that always print their full digit count rather than trimming trailing zeros — the
@@ -107,10 +105,12 @@ export const digitsOf = (raw: RawRow, col: Column): number => {
 const keysFor = (action: Action, ...stats: (Stat | EnemyStat)[]): StatKey[] =>
   stats.flatMap((stat) => [
     stat,
-    ...[action.element, action.type, action.subtype].filter((tag) => tag !== null)
+    ...[action.lastHit?.element ?? null, action.lastHit?.type ?? null, action.lastHit?.subtype ?? null].filter((tag) => tag !== null)
       .map((tag) => scopedStat(tag!, stat)),
   ]);
 
+/** The subtype a row's stats were read under: its last hit's. */
+const sub = (action: Action): Subtype | null => action.lastHit?.subtype ?? null;
 const special = (action: Action): boolean =>
   action.scaling === Scaling.Dot || action.scaling === Scaling.Tune || action.scaling === Scaling.Fixed;
 const fixed = (action: Action): boolean => action.scaling === Scaling.Fixed;
@@ -140,15 +140,15 @@ const constantScalerOf = (action: Action) => (action.scaling === null ? undefine
 const FEEDS: Record<string, (action: Action) => StatKey[]> = {
   scaler: (a) => { const s = scalerOf(a); return s ? keysFor(a, ...s.stats) : []; },
   mv: (a) => keysFor(a, Stat.AddMv, Stat.MulMv),
-  cr: (a) => (fixed(a) ? [] : !special(a) ? keysFor(a, Stat.CritRate) : a.subtype === null ? [] : [scopedStat(a.subtype, Stat.CritRate)]),
-  cd: (a) => (fixed(a) ? [] : !special(a) ? keysFor(a, Stat.CritDmg) : a.subtype === null ? [] : [scopedStat(a.subtype, Stat.CritDmg)]),
+  cr: (a) => (fixed(a) ? [] : !special(a) ? keysFor(a, Stat.CritRate) : !sub(a) ? [] : [scopedStat(sub(a)!, Stat.CritRate)]),
+  cd: (a) => (fixed(a) ? [] : !special(a) ? keysFor(a, Stat.CritDmg) : !sub(a) ? [] : [scopedStat(sub(a)!, Stat.CritDmg)]),
   dmgBonus: (a) => (special(a) ? [] : keysFor(a, Stat.DmgBonus)),
   amp: (a) => (a.scaling === Scaling.Tune || fixed(a) ? []
     : a.scaling !== Scaling.Dot ? keysFor(a, Stat.Amp)
-    : a.subtype === null ? [] : [scopedStat(a.subtype, Stat.Amp)]),
+    : !sub(a) ? [] : [scopedStat(sub(a)!, Stat.Amp)]),
   dealt: (a) => (fixed(a) ? []
     : a.scaling !== Scaling.Dot ? keysFor(a, Stat.TotalDmg, Stat.DamageTaken)
-    : a.subtype === null ? [] : [scopedStat(a.subtype, Stat.TotalDmg), scopedStat(a.subtype, Stat.DamageTaken)]),
+    : !sub(a) ? [] : [scopedStat(sub(a)!, Stat.TotalDmg), scopedStat(sub(a)!, Stat.DamageTaken)]),
   effDef: (a) => (fixed(a) ? []
     : a.scaling === Scaling.Dot ? keysFor(a, EnemyStat.DefReduce)
     : keysFor(a, Stat.DefIgnoreNew, Stat.DefIgnoreOld, EnemyStat.DefReduce)),
@@ -182,13 +182,20 @@ const actionInfo = (
   push("Node", action.node === null ? null : NODE_NAME[action.node]);
   push("Cast", action.cast === null ? null : CAST_NAME[action.cast]);
   push("Subcast", action.subcast === null ? null : CAST_NAME[action.subcast]);
-  push("Attribute", action.element === null ? null : TAG_NAME[action.element]);
+  // every attribute/type/subtype its hits dealt as, and the type its last hit was assigned
+  const kinds = (of: (h: Hit) => Tag | null, also: Tag | null = null): string | null => {
+    const seen = new Set<Tag>(action.hits.map(of).filter((v): v is Tag => v !== null));
+    if (also !== null) seen.add(also);
+    return seen.size ? [...seen].map((v) => TAG_NAME[v]).join(", ") : null;
+  };
+  push("Attribute", kinds((h) => h.element));
   push("Scaling", action.scaling === null ? null : SCALING_NAME[action.scaling]);
-  push("Type", type === null ? null : TAG_NAME[type]);
-  push("Subtype", action.subtype === null ? null : TAG_NAME[action.subtype]);
-  push("Frames", String(action.frames));
-  // an unmeasured one is the press's own frames, which the Frames line already says
-  if (action.def.cancelFrames !== undefined) push("Cancel Frames", String(action.cancelFrames));
+  push("Type", kinds((h) => h.type, type));
+  push("Subtype", kinds((h) => h.subtype));
+  push("Hits", action.hits.length > 1 ? action.hits.map((h) => h.at).join(", ") : null);
+  push("Anim Frames", String(action.animFrames));
+  // an unmeasured one is the press's own frames, which the line above already says
+  if (action.def.commitFrames !== undefined) push("Commit Frames", String(action.commitFrames));
   push("Time Stop", action.timestop ? String(action.timestop) : null);
   push("Motion Stop", action.motionStop ? String(action.motionStop) : null);
   // what queued it — a buff, a piece of gear, the cast it followed — in its owner's colour
@@ -584,7 +591,7 @@ export function buildReport(lines: ChainGroup[]): Report {
   const columns: Column[] = [
     { key: "member", label: "member", align: "left" },
     { key: "action", label: "action", align: "left" },
-    // the clock as the row's own press ends, counting down from 2:00.00 (`clockAt`)
+    // the clock as the row's own press ends, counting up from 0:00.00 (`clockAt`)
     { key: "time", label: "time", noTotal: true, full: "Time" },
     { key: "avg", label: "avg dmg", full: "Final Damage" },
     { key: "mv", label: "mv%", digits: 2, percent: true, full: "Motion Value" },

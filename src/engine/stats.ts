@@ -264,6 +264,7 @@ export enum ActionTag {
   InstaJump = "instant jump",
   SwapCancel = "swap on hit",
   InstaSwap = "instant swap",
+  HitCancel = "cancel on hit",
 }
 
 export const enum Cast {

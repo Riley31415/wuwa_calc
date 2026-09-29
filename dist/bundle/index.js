@@ -58,7 +58,7 @@ import {
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-T57A3OYQ.js";
+} from "./chunk-5HD4I4GB.js";
 
 // dist/src/display.js
 var formatters = /* @__PURE__ */ new Map();
@@ -84,10 +84,9 @@ var FORTE_GAUGES = [
   /* Resource.Forte5 */
 ];
 var clockAt = (frame) => {
-  const left = 60 * 120 - frame;
-  const cs = Math.floor(Math.abs(left) * 100 / 60);
+  const cs = Math.floor(frame * 100 / 60);
   const sec = String(Math.floor(cs / 100) % 60).padStart(2, "0");
-  return `${left < 0 ? "-" : ""}${Math.floor(cs / 6e3)}:${sec}.${String(cs % 100).padStart(2, "0")}`;
+  return `${Math.floor(cs / 6e3)}:${sec}.${String(cs % 100).padStart(2, "0")}`;
 };
 var PAD_DIGITS_COLUMNS = /* @__PURE__ */ new Set([
   "energy",
@@ -113,8 +112,9 @@ var digitsOf = (raw, col) => {
 };
 var keysFor = (action, ...stats) => stats.flatMap((stat) => [
   stat,
-  ...[action.element, action.type, action.subtype].filter((tag) => tag !== null).map((tag) => scopedStat(tag, stat))
+  ...[action.lastHit?.element ?? null, action.lastHit?.type ?? null, action.lastHit?.subtype ?? null].filter((tag) => tag !== null).map((tag) => scopedStat(tag, stat))
 ]);
+var sub = (action) => action.lastHit?.subtype ?? null;
 var special = (action) => action.scaling === 3 || action.scaling === 4 || action.scaling === 5;
 var fixed = (action) => action.scaling === 5;
 var SCALERS = {
@@ -173,8 +173,8 @@ var FEEDS = {
     a,
     9
     /* Stat.CritRate */
-  ) : a.subtype === null ? [] : [scopedStat(
-    a.subtype,
+  ) : !sub(a) ? [] : [scopedStat(
+    sub(a),
     9
     /* Stat.CritRate */
   )],
@@ -182,8 +182,8 @@ var FEEDS = {
     a,
     10
     /* Stat.CritDmg */
-  ) : a.subtype === null ? [] : [scopedStat(
-    a.subtype,
+  ) : !sub(a) ? [] : [scopedStat(
+    sub(a),
     10
     /* Stat.CritDmg */
   )],
@@ -196,8 +196,8 @@ var FEEDS = {
     a,
     18
     /* Stat.Amp */
-  ) : a.subtype === null ? [] : [scopedStat(
-    a.subtype,
+  ) : !sub(a) ? [] : [scopedStat(
+    sub(a),
     18
     /* Stat.Amp */
   )],
@@ -206,12 +206,12 @@ var FEEDS = {
     19,
     20
     /* Stat.DamageTaken */
-  ) : a.subtype === null ? [] : [scopedStat(
-    a.subtype,
+  ) : !sub(a) ? [] : [scopedStat(
+    sub(a),
     19
     /* Stat.TotalDmg */
   ), scopedStat(
-    a.subtype,
+    sub(a),
     20
     /* Stat.DamageTaken */
   )],
@@ -313,13 +313,20 @@ var actionInfo = (action, type, source) => {
   push("Node", action.node === null ? null : NODE_NAME[action.node]);
   push("Cast", action.cast === null ? null : CAST_NAME[action.cast]);
   push("Subcast", action.subcast === null ? null : CAST_NAME[action.subcast]);
-  push("Attribute", action.element === null ? null : TAG_NAME[action.element]);
+  const kinds = (of, also = null) => {
+    const seen = new Set(action.hits.map(of).filter((v) => v !== null));
+    if (also !== null)
+      seen.add(also);
+    return seen.size ? [...seen].map((v) => TAG_NAME[v]).join(", ") : null;
+  };
+  push("Attribute", kinds((h) => h.element));
   push("Scaling", action.scaling === null ? null : SCALING_NAME[action.scaling]);
-  push("Type", type === null ? null : TAG_NAME[type]);
-  push("Subtype", action.subtype === null ? null : TAG_NAME[action.subtype]);
-  push("Frames", String(action.frames));
-  if (action.def.cancelFrames !== void 0)
-    push("Cancel Frames", String(action.cancelFrames));
+  push("Type", kinds((h) => h.type, type));
+  push("Subtype", kinds((h) => h.subtype));
+  push("Hits", action.hits.length > 1 ? action.hits.map((h) => h.at).join(", ") : null);
+  push("Anim Frames", String(action.animFrames));
+  if (action.def.commitFrames !== void 0)
+    push("Commit Frames", String(action.commitFrames));
   push("Time Stop", action.timestop ? String(action.timestop) : null);
   push("Motion Stop", action.motionStop ? String(action.motionStop) : null);
   if (source)
@@ -692,7 +699,7 @@ function buildReport(lines) {
   const columns = [
     { key: "member", label: "member", align: "left" },
     { key: "action", label: "action", align: "left" },
-    // the clock as the row's own press ends, counting down from 2:00.00 (`clockAt`)
+    // the clock as the row's own press ends, counting up from 0:00.00 (`clockAt`)
     { key: "time", label: "time", noTotal: true, full: "Time" },
     { key: "avg", label: "avg dmg", full: "Final Damage" },
     { key: "mv", label: "mv%", digits: 2, percent: true, full: "Motion Value" },
@@ -1440,11 +1447,13 @@ function framesPopover(snaps) {
   const rows = [];
   let total = 0, banks = 0;
   for (const s of snaps) {
+    if (!s.active)
+      continue;
     const cost = (s.hitAt !== void 0 ? s.action.castPart() : s.action).cost(s.tag);
     total += cost.total - s.timestopBanked;
     const insta = s.tag === ActionTag.InstaCancel || s.tag === ActionTag.InstaDodge || s.tag === ActionTag.InstaJump || s.tag === ActionTag.InstaSwap;
     const fast = s.tag === ActionTag.EasyCancel;
-    const cut = s.tag === ActionTag.Cancel || s.tag === ActionTag.EasyCancel || s.tag === ActionTag.DodgeCancel || s.tag === ActionTag.JumpCancel || s.tag === ActionTag.SwapCancel;
+    const cut = s.tag === ActionTag.Cancel || s.tag === ActionTag.EasyCancel || s.tag === ActionTag.DodgeCancel || s.tag === ActionTag.JumpCancel || s.tag === ActionTag.SwapCancel || s.tag === ActionTag.HitCancel;
     if (!insta)
       rows.push(line(`${s.action.name}${cut ? " (c)" : ""}`, cost.action));
     if (cost.timestop)
@@ -1458,7 +1467,7 @@ function framesPopover(snaps) {
     total += s.swapFrames ?? 0;
     banks += Math.max(0, s.action.timestop - cost.timestop);
   }
-  return lazyPop(`<span class="pop frames"><table><tr class="sec"><td colspan="2">Frames</td></tr>` + rows.join("") + line("Total", total, ' class="sum"') + (banks ? line("Timestop Banked", banks) : "") + `</table></span>`);
+  return lazyPop(`<span class="pop frames"><table><tr class="sec"><td colspan="2">Active Frames</td></tr>` + rows.join("") + line("Total", total, ' class="sum"') + (banks ? line("Timestop Banked", banks) : "") + `</table></span>`);
 }
 var GEAR_SECTION_ENABLED = false;
 function buffsPopover(member2, gear, local, global, enemy, slotHue) {
@@ -1792,7 +1801,7 @@ function dprTable(run, lines) {
     ...run.members.map((m) => [m.name, m.color]),
     [TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color]
   ]);
-  const sections = ["Opener", ...Array.from({ length: whole - 1 }, (_, i) => `Loop ${i + 1}`), "2min"];
+  const sections = ["Opener", ...Array.from({ length: whole - 1 }, (_, i) => `Loop ${i + 1}`), "4 Rot"];
   const ownTotal = (slot) => run.fightBySlot.get(slot) ?? 0;
   const selected2 = flat ? `${TEAM_ROW}|${whole}` : "";
   if (lines)
@@ -1805,7 +1814,7 @@ function dprTable(run, lines) {
       // for each loop column, the whole fight in order for the Total
       ...[...lines.slice(0, whole).map((sec) => [sec]), lines].map((secs, i) => [`${TEAM_ROW}|${i}`, teamCell(secs, sections[i] ?? "", slotHue)])
     ]);
-  const head = `<div class="rtrow rthead"><div class="c"></div>` + sections.slice(0, whole).map((n) => `<div class="c num">${n}</div>`).join("") + `<div class="c num tot">Total (2min)</div></div>`;
+  const head = `<div class="rtrow rthead"><div class="c"></div>` + sections.slice(0, whole).map((n) => `<div class="c num">${n}</div>`).join("") + `<div class="c num tot">Total (4 Rot)</div></div>`;
   const valueCell = (sec, value, key, cls = "") => sec ? `<div class="c num dist-cell${cls}${key === selected2 ? " sel" : ""}" data-dist="${key}">${fmt(value)}</div>` : `<div class="c num${cls}">${fmt(value)}</div>`;
   const rowLabel = (slot, mem) => `<div class="c name"${mem}${lines ? ` data-dist-row="${esc(slot)}"` : ""}>${esc(slot)}</div>`;
   const dataRow = (slot, color) => {
@@ -2005,7 +2014,7 @@ function distCell(lines, slot, section, hue) {
   let nodeless = 0;
   eachHit(lines, slot, (snap, avg) => {
     total += avg;
-    const subtype = snap.action.subtype;
+    const subtype = snap.action.lastHit?.subtype ?? null;
     const type = snap.type === 32768 && subtype !== null ? null : snap.type;
     const key = (type ?? 0) | (subtype ?? 0);
     const slice = types.get(key);
@@ -2697,7 +2706,7 @@ var hueShown = true;
 var personalOpen = [false, false, false];
 var cmpDrawn = /* @__PURE__ */ new Set();
 var teamMode = "dpr";
-var TEAM_HEAD = { dpr: "Team Average DPR", dps: "Team DPS (2min)" };
+var TEAM_HEAD = { dpr: "Team Average DPR", dps: "Team DPS (4 Rot)" };
 var wholeDamage = (run) => run.sectionTotals.reduce((a, b) => a + b, 0);
 var teamFigure = (run) => Math.floor(wholeDamage(run) / (teamMode === "dpr" ? Math.max(1, run.sectionTotals.length) : run.seconds));
 var personalFigure = (run, name) => Math.floor(run.sectionBySlot.reduce((a, by) => a + (by.get(name) ?? 0), 0) / (teamMode === "dpr" ? Math.max(1, run.sectionTotals.length) : run.seconds));
@@ -3489,7 +3498,8 @@ var TAG_KIND = {
   [ActionTag.Field]: "field",
   [ActionTag.DodgeCancel]: "dash",
   [ActionTag.JumpCancel]: "jump",
-  [ActionTag.Cancel]: "cancel"
+  [ActionTag.Cancel]: "cancel",
+  [ActionTag.HitCancel]: "hit"
 };
 function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = true } = {}) {
   return columns.map((col) => {
@@ -3522,8 +3532,6 @@ function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = tr
     if (col.key === "concerto" && Number(row.raw["short:concerto"]))
       cls.push("underspent");
     if (col.key.startsWith("gauge:") && Number(row.raw[`short:${col.key}`]))
-      cls.push("negative");
-    if (col.key === "time" && Number(row.raw["end:time"]) > 60 * 120)
       cls.push("negative");
     const text = esc(fmt(v, digitsOf(row.raw, col), PAD_DIGITS_COLUMNS.has(col.key), GROUPED_COLUMNS.has(col.key))) + (col.percent && typeof v === "number" ? "%" : "") + gaugeSuffix(row.raw, col.key);
     let html = sources && text ? `<span class="has">${text}</span>` : text;

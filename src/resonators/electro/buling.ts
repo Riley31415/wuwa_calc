@@ -41,7 +41,7 @@ import {
   stacksOfTeam,
   isHeld,
   casting,
-  currentAction,
+  currentAction, pressed,
   runningAction,
   addStat,
   revokeCurrent,
@@ -73,12 +73,25 @@ const THUNDER = { updateDebuffs: () => gainTrigram(2) };
 
 // --- basics, mid-air, dodge counter (Hexagram Calls, Lightning Falls) — Stage 2 banks Trigram:
 //     Mountain, Stage 4 and Mid-air bank Trigram: Thunder
-const BA1 = bulingAction("Basic - Hexagram Calls, Lightning Falls 1", { frames: 28, cancelFrames: 8, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 41.46, offtune: 3336, energy: 1.06, concerto: 3.34 });
-const BA2 = bulingAction("Basic - Hexagram Calls, Lightning Falls 2", { frames: 45, cancelFrames: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 66.90, offtune: 5384, energy: 1.70, concerto: 5.40, ...MOUNTAIN });
-const BA3 = bulingAction("Basic - Hexagram Calls, Lightning Falls 3", { frames: 31, cancelFrames: 1, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 47.02, offtune: 3784, energy: 1.20, concerto: 3.80 });
-const BA4 = bulingAction("Basic - Hexagram Calls, Lightning Falls 4", { frames: 60, cancelFrames: 23, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 93.64, offtune: 7536, energy: 2.36, concerto: 7.54, ...THUNDER });
-const MA = bulingAction("Mid-air - Hexagram Calls, Lightning Falls Plunge", { frames: 46, cancelFrames: 39, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 73.96, offtune: 4960, energy: 1.24, concerto: 4.96, ...THUNDER });
-const DC = bulingAction("Dodge Counter - Hexagram Calls, Lightning Falls 3", { frames: 31, cancelFrames: 1, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, mv: 47.02, offtune: 3784, energy: 1.20, concerto: 13.80 });
+const BA1 = bulingAction("Basic - Hexagram Calls, Lightning Falls 1", { animFrames: 28, commitFrames: 8, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 14, mv: 20.73, energy: 0.53, concerto: 1.67, offtune: 1668 },
+    { at: 20, mv: 20.73, energy: 0.53, concerto: 1.67, offtune: 1668 },
+  ]});
+const BA2 = bulingAction("Basic - Hexagram Calls, Lightning Falls 2", { animFrames: 45, commitFrames: 2, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 8, mv: 33.45, energy: 0.85, concerto: 2.7, offtune: 2692,
+      ...MOUNTAIN },
+    { at: 15, mv: 33.45, energy: 0.85, concerto: 2.7, offtune: 2692 },
+  ]});
+const BA3 = bulingAction("Basic - Hexagram Calls, Lightning Falls 3", { animFrames: 31, commitFrames: 1, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 1, mv: 23.51, energy: 0.6, concerto: 1.9, offtune: 1892 },
+    { at: 10, mv: 23.51, energy: 0.6, concerto: 1.9, offtune: 1892 },
+  ]});
+const BA4 = bulingAction("Basic - Hexagram Calls, Lightning Falls 4", { animFrames: 60, commitFrames: 23, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 23, mv: 93.64, energy: 2.36, concerto: 7.54, offtune: 7536 }], ...THUNDER });
+const MA = bulingAction("Mid-air - Hexagram Calls, Lightning Falls Plunge", { animFrames: 46, commitFrames: 39, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 39, mv: 73.96, energy: 1.24, concerto: 4.96, offtune: 4960 }], ...THUNDER });
+const DC = bulingAction("Dodge Counter - Hexagram Calls, Lightning Falls 3", { animFrames: 31, commitFrames: 1, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, hits: [
+    { at: 1, mv: 23.51, energy: 0.6, concerto: 6.9, offtune: 1892 },
+    { at: 10, mv: 23.51, energy: 0.6, concerto: 6.9, offtune: 1892 },
+  ]});
 
 const BA12 = new ActionGroup("Basic - Hexagram Calls, Lightning Falls 12", [BA1, BA2])
 // The held Heavy spends the two leftmost Trigrams (spendTrigrams(), which every form runs first)
@@ -99,11 +112,11 @@ const YIN = {
     if (isHeld(MINOR_YANG)) { revokeCurrent(MINOR_YANG); revokeCurrent(MINOR_YIN); applyCurrent(YIN_YANG_BALANCE, 1); }
   },
 };
-const HA_MOUNTAIN_OVER_THUNDER = bulingAction("Heavy - Mountain Over Thunder", { frames: 70, cancelFrames: 40, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 178.93, offtune: 8000, energy: 3.00, concerto: 15, castForte1: -2, ...YANG });
-const HA_THUNDER_OVER_MOUNTAIN = bulingAction("Heavy - Thunder Over Mountain", { frames: 70, cancelFrames: 40, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 89.47, offtune: 8000, energy: 3.00, concerto: 15, castForte1: -2, ...YANG });
-const HA_TWIN_MOUNTAINS = bulingAction("Heavy - Twin Mountains", { frames: 60, cancelFrames: 40, node: Node.Normal, cast: Cast.Heavy, concerto: 15, castForte1: -2, ...YIN });
+const HA_MOUNTAIN_OVER_THUNDER = bulingAction("Heavy - Mountain Over Thunder", { animFrames: 70, commitFrames: 40, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, hits: [{ at: 46, mv: 178.93, energy: 3, concerto: 15, offtune: 8000 }], castForte1: -2, ...YANG });
+const HA_THUNDER_OVER_MOUNTAIN = bulingAction("Heavy - Thunder Over Mountain", { animFrames: 70, commitFrames: 40, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, hits: [{ at: 46, mv: 89.47, energy: 3, concerto: 15, offtune: 8000 }], castForte1: -2, ...YANG });
+const HA_TWIN_MOUNTAINS = bulingAction("Heavy - Twin Mountains", { animFrames: 60, commitFrames: 40, node: Node.Normal, cast: Cast.Heavy, concerto: 15, castForte1: -2, ...YIN });
 const HA_TWIN_THUNDERS = bulingAction("Heavy - Twin Thunders", {
-  frames: 60, cancelFrames: 40, node: Node.Normal, cast: Cast.Heavy, concerto: 15, castForte1: -2, ...YIN,
+  animFrames: 60, commitFrames: 40, node: Node.Normal, cast: Cast.Heavy, concerto: 15, castForte1: -2, ...YIN,
   updateBuffs: () => {
     YIN.updateBuffs();
     applyTeam(TWIN_THUNDERS_HEALS, 8);
@@ -129,7 +142,19 @@ const HA = new Action("Heavy - Trigram", {
 });
 
 // banks a Trigram: Thunder on cast
-const Skill = bulingAction("Skill - In Shadow Thunder Stirs", { cancelFrames: 0, frames: 53, cooldown: 60 * 15, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 116.8, offtune: 7832, energy: 15.00, castConcerto: 23, updateBuffs: () => gainTrigram(2) });
+const Skill = bulingAction("Skill - In Shadow Thunder Stirs", { commitFrames: 0, animFrames: 53, cooldown: 60 * 15, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, hits: [
+    { at: 9, mv: 58.4, energy: 7.5, offtune: 3916 },
+    { at: 60, mv: 5.84, energy: 0.75, offtune: 392 },
+    { at: 84, mv: 5.84, energy: 0.75, offtune: 392 },
+    { at: 108, mv: 5.84, energy: 0.75, offtune: 392 },
+    { at: 132, mv: 5.84, energy: 0.75, offtune: 392 },
+    { at: 156, mv: 5.84, energy: 0.75, offtune: 392 },
+    { at: 180, mv: 5.84, energy: 0.75, offtune: 392 },
+    { at: 204, mv: 5.84, energy: 0.75, offtune: 392 },
+    { at: 228, mv: 5.84, energy: 0.75, offtune: 392 },
+    { at: 252, mv: 5.84, energy: 0.75, offtune: 392 },
+    { at: 276, mv: 5.84, energy: 0.75, offtune: 388 },
+  ], castConcerto: 23, updateBuffs: () => gainTrigram(2) });
 
 // The Liberation is Harmony under Yin-Yang Balance — generating the Array, opening/refreshing
 // Thunder Spell at Primordial Qi — and the plain Flashing Thunder Spell otherwise, which does
@@ -137,10 +162,10 @@ const Skill = bulingAction("Skill - In Shadow Thunder Stirs", { cancelFrames: 0,
 /** Both Liberation forms draw on the one 24s cooldown. */
 const LIB_CD = new Cooldown({ frames: 60 * 24 });
 const Harmony = bulingAction("Liberation - Flashing Thunder Spell - Harmony", {
-  frames: 244, timestop: 231, motionStop: 187,
-  cancelFrames: 231,
+  animFrames: 244, timestop: 231, motionStop: 187,
+  commitFrames: 231,
   cooldown: LIB_CD,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, mv: 536.79, offtune: 72000, castConcerto: 20, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, hits: [{ at: 187, mv: 536.79, offtune: 72000 }], castConcerto: 20, resetEnergy: true,
   updateBuffs: () => {
     for (const stage of THUNDER_SPELL_STAGES) revokeTeam(stage);
     applyTeam(PRIMORDIAL_QI, 1);
@@ -150,10 +175,10 @@ const Harmony = bulingAction("Liberation - Flashing Thunder Spell - Harmony", {
   },
 });
 const FlashingThunderSpell = bulingAction("Liberation - Flashing Thunder Spell", {
-  frames: 244, timestop: 231, motionStop: 187,
-  cancelFrames: 231,
+  animFrames: 244, timestop: 231, motionStop: 187,
+  commitFrames: 231,
   cooldown: LIB_CD,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, mv: 357.86, offtune: 36000, castConcerto: 20, resetEnergy: true,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, hits: [{ at: 187, mv: 357.86, offtune: 36000 }], castConcerto: 20, resetEnergy: true,
 });
 /** The one Liberation a rotation writes, resolved on its row the way the Heavy is: Harmony while
  *  she holds Yin-Yang Balance, the plain cast otherwise. */
@@ -171,13 +196,13 @@ const ArrayTick = bulingAction("Liberation - Five Thunders Spell Array", {
 });
 
 const Intro = bulingAction("Intro - Summon and Smite", {
-  frames: 80, motionStop: 54, cancelFrames: 70, hitFrame: 61,
-  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 131.10, offtune: 8792, castConcerto: 10,
+  animFrames: 80, motionStop: 54, commitFrames: 70,
+  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, hits: [{ at: 61, mv: 131.1, offtune: 8792 }], castConcerto: 10,
   updateDebuffs: () => inflictElectroFlare(4),
 });
 const Outro = bulingAction("Outro - Exorcism Spell", {
-  cancelFrames: 0,
-  frames: 0,
+  commitFrames: 0,
+  animFrames: 0,
   cast: Cast.Outro, castConcerto: -100,
   updateBuffs: () => {
     applyTeam(BULING_OUTRO, 1);
@@ -251,7 +276,7 @@ const TRIGRAMS = new Buff({
  *  and it hits anyway). At four held, every Trigram shifts left, the leftmost is dropped and the
  *  new one takes the last slot — the count stands. */
 function gainTrigram(kind: number): void {
-  if (!currentAction().mv) return;
+  if (!pressed().hits.length) return;
   const word = stacksOf(TRIGRAMS);
   let trigrams = word & 0xff, n = 0;
   while (n < 4 && (trigrams >> (2 * n)) & 3) n++;
@@ -307,7 +332,9 @@ const BL_S4 = new Sequence({
 /** The Array inflicts 6 more Electro Flare the moment it is generated. */
 const BL_S5 = new Sequence({
   name: "Buling S5",
-  updateDebuffs: () => { if (runningAction(Harmony)) inflictElectroFlare(6); },
+  updateDebuffs: () => {
+    if (runningAction(Harmony)) inflictElectroFlare(6);
+  },
 });
 
 const BL_S6 = new Sequence({

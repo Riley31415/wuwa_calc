@@ -28,6 +28,7 @@ import {
   applyCurrent,
   casting,
   currentAction,
+  pressed,
   runningAction,
   forte1,
   getStat,
@@ -63,27 +64,78 @@ function luukAction(id: string, def: object): Action {
 
 // --- Such is Light, the ground chain. Stage 3 hurls a whirling blade (5.02% x30, taken at the
 //     table's own full count); Stage 4 is what replaces Resonance Skill with Aureole of Execution.
-const BA1 = luukAction("Basic - Such is Light 1", { frames: 31, cancelFrames: 21, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 81.12, energy: 1.2, concerto: 2.4, offtune: 3840, forte1: 12 });
-const BA2 = luukAction("Basic - Such is Light 2", { frames: 56, cancelFrames: 51, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 150.4, energy: 2.23, concerto: 4.45, offtune: 7120, forte1: 22.25 });
-const BA3 = luukAction("Basic - Such is Light 3", { frames: 56, cancelFrames: 21, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 150.6, energy: 2.4, concerto: 4.5, offtune: 7110, forte1: 22.5 });
-const BA4 = luukAction("Basic - Such is Light 4", { frames: 39, cancelFrames: 21, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 96.33, energy: 1.43, concerto: 2.85, offtune: 4560, forte1: 14.25 });
-const HA = luukAction("Heavy - Such is Light", { frames: 60, cancelFrames: 24, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, mv: 91.26, energy: 1.35, concerto: 2.7, offtune: 4320, forte1: 13.5 });
-const DC = luukAction("Dodge Counter - Such is Light", { frames: 56, cancelFrames: 50, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, mv: 251.8, energy: 2.24, concerto: 17.46, offtune: 7120, forte1: 11.13 });
+const BA1 = luukAction("Basic - Such is Light 1", { animFrames: 31, commitFrames: 21, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 10, mv: 40.56, energy: 0.6, concerto: 1.2, offtune: 1920, forte1: 6 },
+    { at: 21, mv: 40.56, energy: 0.6, concerto: 1.2, offtune: 1920, forte1: 6 },
+  ]});
+const BA2 = luukAction("Basic - Such is Light 2", { animFrames: 56, commitFrames: 51, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 8, mv: 60.16, energy: 0.89, concerto: 1.78, offtune: 2848, forte1: 8.9 },
+    { at: 51, mv: 90.24, energy: 1.34, concerto: 2.67, offtune: 4272, forte1: 13.35 },
+  ]});
+const BA3 = luukAction("Basic - Such is Light 3", { animFrames: 56, commitFrames: 21, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 33, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 35, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 40, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 46, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 52, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 59, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 64, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 70, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 76, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 82, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 89, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 94, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 100, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 106, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 112, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 119, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 124, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 130, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 136, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 142, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 149, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 154, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 160, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 166, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 172, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 179, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 184, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 190, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 196, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+    { at: 202, mv: 5.02, energy: 0.08, concerto: 0.15, offtune: 237, forte1: 0.75 },
+  ]});
+const BA4 = luukAction("Basic - Such is Light 4", { animFrames: 39, commitFrames: 21, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 21, mv: 96.33, energy: 1.43, concerto: 2.85, offtune: 4560, forte1: 14.25 }]});
+const HA = luukAction("Heavy - Such is Light", { animFrames: 60, commitFrames: 24, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, hits: [{ at: 24, mv: 91.26, energy: 1.35, concerto: 2.7, offtune: 4320, forte1: 13.5 }]});
+const DC = luukAction("Dodge Counter - Such is Light", { animFrames: 56, commitFrames: 50, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, hits: [{ at: 50, mv: 251.8, energy: 2.24, concerto: 17.46, offtune: 7120, forte1: 11.13 }]});
 
 // --- the mid-air chain. Stage 2 and 3 come in two forms by input: Scythe: Dissection (Normal
 //     Attack) or Scythe: Resection (Jump), the latter inflicting Tune Strain - Shifting. Stage 3
 //     of either is what replaces Resonance Skill with Aureole of Execution.
-const MA1 = luukAction("Mid-air - Such is Light 1", { frames: 37, cancelFrames: 10, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 57.46, energy: 0.85, concerto: 1.7, offtune: 2720, forte1: 8.5 });
-const MA2 = luukAction("Mid-air - Scythe: Dissection 2", { frames: 27, cancelFrames: 27, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 94.09, energy: 1.4, concerto: 2.5, offtune: 4000, forte1: 12.5 });
-const MA3 = luukAction("Mid-air - Scythe: Dissection 3", { frames: 72, cancelFrames: 64, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 143.1, energy: 2.73, concerto: 3.96, offtune: 6320, forte1: 19.76 });
+const MA1 = luukAction("Mid-air - Such is Light 1", { animFrames: 37, commitFrames: 10, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 10, mv: 57.46, energy: 0.85, concerto: 1.7, offtune: 2720, forte1: 8.5 }]});
+const MA2 = luukAction("Mid-air - Scythe: Dissection 2", { animFrames: 27, commitFrames: 27, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 11, mv: 28.23, energy: 0.42, concerto: 0.75, offtune: 1200, forte1: 3.75 },
+    { at: 17, mv: 28.23, energy: 0.42, concerto: 0.75, offtune: 1200, forte1: 3.75 },
+    { at: 27, mv: 37.63, energy: 0.56, concerto: 1, offtune: 1600, forte1: 5 },
+  ]});
+const MA3 = luukAction("Mid-air - Scythe: Dissection 3", { animFrames: 72, commitFrames: 64, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 8, mv: 42.93, energy: 0.82, concerto: 1.19, offtune: 1896, forte1: 5.93 },
+    { at: 18, mv: 42.93, energy: 0.82, concerto: 1.19, offtune: 1896, forte1: 5.93 },
+    { at: 64, mv: 57.24, energy: 1.09, concerto: 1.58, offtune: 2528, forte1: 7.9 },
+  ]});
 // Resection 2/3, Golden Reflux, every Aureole of Execution and his Intro lay Tune Strain - Shifting
 const STRAIN = { updateDebuffs: () => applyStrain() };
 /** What every Aureole of Execution form carries: the kit's own Tune Strain, and the Endnote the
  *  cast banks (see ENDNOTES). */
 const AUREOLE = { ...STRAIN, updateBuffs: () => applyCurrent(ENDNOTES, 1) };
-const MA2R = luukAction("Mid-air - Scythe: Resection 2", { frames: 30, cancelFrames: 30, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 100.84, energy: 1.5, concerto: 2.7, offtune: 4320, forte1: 13.5, ...STRAIN });
-const MA3R = luukAction("Mid-air - Scythe: Resection 3", { frames: 66, cancelFrames: 47, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 149.84, energy: 2.82, concerto: 4.16, offtune: 6640, forte1: 20.76, ...STRAIN });
-const MA4 = luukAction("Mid-air - Such is Light 4", { frames: 60, cancelFrames: 40, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 104.78, energy: 1.55, concerto: 1, offtune: 4960, forte1: 15.5 });
+const MA2R = luukAction("Mid-air - Scythe: Resection 2", { animFrames: 30, commitFrames: 30, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 13, mv: 50.42, energy: 0.75, concerto: 1.35, offtune: 2160, forte1: 6.75 },
+    { at: 30, mv: 50.42, energy: 0.75, concerto: 1.35, offtune: 2160, forte1: 6.75 },
+  ], ...STRAIN });
+const MA3R = luukAction("Mid-air - Scythe: Resection 3", { animFrames: 66, commitFrames: 47, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
+    { at: 14, mv: 74.92, energy: 1.41, concerto: 2.08, offtune: 3320, forte1: 10.38 },
+    { at: 47, mv: 74.92, energy: 1.41, concerto: 2.08, offtune: 3320, forte1: 10.38 },
+  ], ...STRAIN });
+const MA4 = luukAction("Mid-air - Such is Light 4", { animFrames: 60, commitFrames: 40, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 40, mv: 104.78, energy: 1.55, concerto: 1, offtune: 4960, forte1: 15.5 }]});
 const MDC = luukAction("Dodge Counter - Such is Light (Mid-Air)", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, mv: 256.87, energy: 2.3, concerto: 17.6, offtune: 7360, forte1: 23 });
 
 // --- Reunion of All the Fallen. Golden Reflux is the plain Resonance Skill (2 charges); after
@@ -94,20 +146,31 @@ const MDC = luukAction("Dodge Counter - Such is Light (Mid-Air)", { node: Node.N
 //     Earthshaker detonates.
 // Golden Reflux: 2 charges on an 8s recharge; S5 takes 2s off and adds a third
 const SKILL_CD = new Cooldown({ frames: () => (isHeld(LK_S5) ? 60 * 6 : 60 * 8), charges: () => (isHeld(LK_S5) ? 3 : 2) });
-const Skill = luukAction("Skill - Golden Reflux", { frames: 68, cancelFrames: 46, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 201.2, energy: 2.3, concerto: 4.6, offtune: 7360, forte1: 23, ...STRAIN });
-const Ring = luukAction("Skill - Aureole of Execution: Ring", { frames: 81, cancelFrames: 46, node: Node.Skill, cast: Cast.Skill, type: Type.Basic, mv: 221.33, energy: 8, concerto: 10, offtune: 10400, forte1: 32.5, ...AUREOLE });
-const Breach = luukAction("Skill - Aureole of Execution: Breach", { frames: 81, cancelFrames: 45, node: Node.Skill, cast: Cast.Skill, type: Type.Basic, mv: 287.73, energy: 8.01, concerto: 10.02, offtune: 10320, forte1: 32.25, ...AUREOLE });
-const Glare = luukAction("Skill - Aureole of Execution: Glare", { frames: 106, cancelFrames: 50, node: Node.Skill, cast: Cast.Skill, type: Type.Basic, mv: 354.11, energy: 6, concerto: 10, offtune: 7840, forte1: 24.5, ...AUREOLE });
-const GoldenImpale = luukAction("Basic - Golden Impale", { frames: 68, cancelFrames: 46, node: Node.Skill, cast: Cast.Basic, type: Type.Basic, mv: 155.47, energy: 2.3, concerto: 4.6, offtune: 7360, forte1: 23 });
+const Skill = luukAction("Skill - Golden Reflux", { animFrames: 68, commitFrames: 46, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, hits: [{ at: 46, mv: 201.2, energy: 2.3, concerto: 4.6, offtune: 7360, forte1: 23 }], ...STRAIN });
+const Ring = luukAction("Skill - Aureole of Execution: Ring", { animFrames: 81, commitFrames: 46, node: Node.Skill, cast: Cast.Skill, type: Type.Basic, hits: [
+    { at: 15, mv: 26.56, energy: 0.96, concerto: 1.2, offtune: 1248, forte1: 3.9 },
+    { at: 21, mv: 26.56, energy: 0.96, concerto: 1.2, offtune: 1248, forte1: 3.9 },
+    { at: 27, mv: 26.56, energy: 0.96, concerto: 1.2, offtune: 1248, forte1: 3.9 },
+    { at: 33, mv: 26.56, energy: 0.96, concerto: 1.2, offtune: 1248, forte1: 3.9 },
+    { at: 39, mv: 26.56, energy: 0.96, concerto: 1.2, offtune: 1248, forte1: 3.9 },
+    { at: 46, mv: 88.53, energy: 3.2, concerto: 4, offtune: 4160, forte1: 13 },
+  ], ...AUREOLE });
+const Breach = luukAction("Skill - Aureole of Execution: Breach", { animFrames: 81, commitFrames: 45, node: Node.Skill, cast: Cast.Skill, type: Type.Basic, hits: [
+    { at: 33, mv: 95.91, energy: 2.67, concerto: 3.34, offtune: 3440, forte1: 10.75 },
+    { at: 39, mv: 95.91, energy: 2.67, concerto: 3.34, offtune: 3440, forte1: 10.75 },
+    { at: 45, mv: 95.91, energy: 2.67, concerto: 3.34, offtune: 3440, forte1: 10.75 },
+  ], ...AUREOLE });
+const Glare = luukAction("Skill - Aureole of Execution: Glare", { animFrames: 106, commitFrames: 50, node: Node.Skill, cast: Cast.Skill, type: Type.Basic, hits: [{ at: 50, mv: 354.11, energy: 6, concerto: 10, offtune: 7840, forte1: 24.5 }], ...AUREOLE });
+const GoldenImpale = luukAction("Basic - Golden Impale", { animFrames: 68, commitFrames: 46, node: Node.Skill, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 46, mv: 155.47, energy: 2.3, concerto: 4.6, offtune: 7360, forte1: 23 }]});
 /** Detonates 5s after Glare lays it, or the moment a Gavel of Earthshaker lands on it — queued
  *  off the Gavel here, since the rotation always follows a Glare with one. */
-const IchorDeposit = luukAction("Skill - Ichor Deposit", { frames: 0, node: Node.Skill, type: Type.Basic, mv: 153.45 });
+const IchorDeposit = luukAction("Skill - Ichor Deposit", { animFrames: 0, node: Node.Skill, type: Type.Basic, hits: [{ at: 0, mv: 153.45 }]});
 
 // --- Spark from the Frost. Gavel of Earthshaker is the mid-air slam a Glare opens up; it
 //     detonates the Deposit, and its Concerto is all the flat regen row (the hit itself carries 0).
 const Gavel = luukAction("Mid-air - Gavel of Earthshaker", {
-  frames: 41, cancelFrames: 26,
-  node: Node.Forte, cast: Cast.Basic, type: Type.Basic, mv: 306.9, energy: 6, concerto: 10, offtune: 8080, forte1: 25.25,
+  animFrames: 41, commitFrames: 26,
+  node: Node.Forte, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 26, mv: 306.9, energy: 6, concerto: 10, offtune: 8080, forte1: 25.25 }],
   updateDebuffs: () => queue(IchorDeposit),
 });
 
@@ -115,21 +178,67 @@ const Gavel = luukAction("Mid-air - Gavel of Earthshaker", {
  *  every bonus — Scaling.Fixed, in the same x100 units Roccia's own fixed hit uses. Taken at the
  *  table's full 5s (33 ticks); in play it vanishes on his next damaging cast, so this is its
  *  ceiling — at 330 damage a summon, nothing turns on it. Hurled by the Intro and by Breach. */
-const IchorBlade = luukAction("Forte - Ichor Blade", { frames: 357, cancelFrames: 357, node: Node.Forte, type: Type.Basic, scaling: Scaling.Fixed, mv: 10 * 33 });
+const IchorBlade = luukAction("Forte - Ichor Blade", { animFrames: 357, commitFrames: 357, node: Node.Forte, type: Type.Basic, scaling: Scaling.Fixed, hits: [
+    { at: 60, mv: 9.7059 },
+    { at: 69, mv: 9.7059 },
+    { at: 78, mv: 9.7059 },
+    { at: 87, mv: 9.7059 },
+    { at: 96, mv: 9.7059 },
+    { at: 105, mv: 9.7059 },
+    { at: 114, mv: 9.7059 },
+    { at: 123, mv: 9.7059 },
+    { at: 132, mv: 9.7059 },
+    { at: 141, mv: 9.7059 },
+    { at: 150, mv: 9.7059 },
+    { at: 159, mv: 9.7059 },
+    { at: 168, mv: 9.7059 },
+    { at: 177, mv: 9.7059 },
+    { at: 186, mv: 9.7059 },
+    { at: 195, mv: 9.7059 },
+    { at: 204, mv: 9.7059 },
+    { at: 213, mv: 9.7059 },
+    { at: 222, mv: 9.7059 },
+    { at: 231, mv: 9.7059 },
+    { at: 240, mv: 9.7059 },
+    { at: 249, mv: 9.7059 },
+    { at: 258, mv: 9.7059 },
+    { at: 267, mv: 9.7059 },
+    { at: 276, mv: 9.7059 },
+    { at: 285, mv: 9.7059 },
+    { at: 294, mv: 9.7059 },
+    { at: 303, mv: 9.7059 },
+    { at: 312, mv: 9.7059 },
+    { at: 321, mv: 9.7059 },
+    { at: 330, mv: 9.7059 },
+    { at: 339, mv: 9.7059 },
+    { at: 348, mv: 9.7059 },
+    { at: 357, mv: 9.7053 },
+  ]});
 
 const Liberation = luukAction("Liberation - Rewritten in Winter's Margins", {
-  frames: 247, cancelFrames: 247, timestop: 247, motionStop: 247, cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Basic, mv: 994.09, castConcerto: 20, offtune: 67200, resetEnergy: true,
+  animFrames: 247, commitFrames: 247, timestop: 247, motionStop: 247, cooldown: 60 * 25,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Basic, hits: [
+    { at: 230, mv: 745.54, offtune: 50400 },
+    { at: 232, mv: 49.71, offtune: 3360 },
+    { at: 234, mv: 49.71, offtune: 3360 },
+    { at: 237, mv: 49.71, offtune: 3360 },
+    { at: 239, mv: 49.71, offtune: 3360 },
+    { at: 242, mv: 49.71, offtune: 3360 },
+  ], castConcerto: 20, resetEnergy: true,
 });
 
 const Intro = luukAction("Intro - Before Injection of Dawn", {
-  frames: 75, cancelFrames: 73, hitFrame: 39, motionStop: 21,
-  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, mv: 218.01, energy: 10.02, castConcerto: 10, offtune: 10320, forte1: 100, ...STRAIN,
+  animFrames: 75, commitFrames: 73, motionStop: 21,
+  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, hits: [
+    { at: 27, mv: 72.67, energy: 3.34, offtune: 3440 },
+    { at: 33, mv: 72.67, energy: 3.34, offtune: 3440 },
+    { at: 39, mv: 72.67, energy: 3.34, offtune: 3440, forte1: 100 },
+  ], castConcerto: 10, ...STRAIN,
   // updateBuffs: () => applyCurrent(DAWNLIT_KEEP, 1),  // DAWNLIT_KEEP grants no stat and nothing reads it
 });
 const Outro = luukAction("Outro - Bow to the Last Light", {
-  frames: 0, cancelFrames: 0,
-  cast: Cast.Outro, type: Type.Outro, mv: 500, castConcerto: -100,
+  animFrames: 0, commitFrames: 0,
+  cast: Cast.Outro, type: Type.Outro, hits: [{ at: 0, mv: 500 }], castConcerto: -100,
   updateBuffs: () => applyCurrent(GOLDEN_RULE),
 });
 
@@ -152,8 +261,8 @@ const AUREATE_JUDGE = new Buff({
     if (forte1() <= 0 && !runningAction(Gavel) && !runningAction(IchorDeposit) && !runningAction(TUNE_BREAK)) revokeCurrent(AUREATE_JUDGE);
   },
   applyStats: () => {
-    const a = currentAction();
-    if (a.forte1 > 0) addStat(Stat.AddCastForte1, -a.forte1);
+    const a = pressed();
+    if (a.forte1 > a.castForte[0]!) addStat(Stat.AddCastForte1, -(a.forte1 - a.castForte[0]!));
     if (isAureole() || runningAction(Gavel)) { addStat(Stat.MulMv, 110); addStat(Stat.AddOfftune, 25200); }
     if (isAureole()) {
       addStat(Stat.AddCastForte1, -100);
@@ -234,7 +343,7 @@ const LUUK_RESONATOR = new Resonator({
   weapon: WeaponType.Gauntlets,
   color: "#ddb246",
   intro: Intro,
-  tuneBreak: tuneBreak(94, 94, 70),
+  tuneBreak: tuneBreak(94, 94, 70, [[72, 1600]]),
   maxEnergy: 125,
   maxForte1: 300,
 
@@ -327,7 +436,7 @@ const LK_S6 = new Sequence({
   combatStart: () => maxStackIncrease(TUNE_STRAIN_INTERFERED, 2),
   hitGlobal: () => { if (runningAction(TUNE_BREAK)) applyCurrent(DAWN_UNFURLING, 1); },
   afterAction: () => {
-    if (currentAction().mv > 0 && stacksOfEnemy(TUNE_STRAIN_INTERFERED) > 0) applyEnemy(TUNE_STRAIN_INTERFERED, 2);
+    if (pressed().hits.length > 0 && stacksOfEnemy(TUNE_STRAIN_INTERFERED) > 0) applyEnemy(TUNE_STRAIN_INTERFERED, 2);
   },
   applyStats: () => {
     if (runningAction(Liberation)) addStat(Stat.DmgBonus, Math.min(120, 40 * stacksOf(ENDNOTES)));

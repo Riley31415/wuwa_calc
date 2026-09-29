@@ -27,7 +27,7 @@ export const DREAM_OF_THE_LOST_3PC = new Sonata3pc({
  *  Intro also summons it for a bonus hit. The Echo Skill holds 2 charges, one back every 8s; the
  *  Intro summon is assumed to draw on none, available whenever an Intro lands. */
 export const ACTION_FALSE_SOVEREIGN = new Action("Echo - False Sovereign", {
-  frames: 60, cancelFrames: 46,
+  animFrames: 60, commitFrames: 46,
   cooldown: new Cooldown({ frames: 60 * 8, charges: 2 }),
   cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo, mv: 221.4, energy: 3.04,
 });
@@ -190,7 +190,7 @@ export const ACTION_THRENODIAN_LEVIATHAN = new Action("Echo - Reminiscence: Levi
  *  motion value, so the report names what it is. Carries no energy or
  *  concerto — nanoka gives the summon one damage row and these hits none of their own. */
 export const ACTION_CORE_OF_COLLAPSE = new Action("Echo - Core of Collapse", {
-  element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo, frames: 5,
+  element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo, animFrames: 5,
   mv: 24.57 * 8,
   applyStats: () => { if (stacksOfEnemy(HAVOC_BANE) > 0) addStat(Stat.DamageTaken, 100); },
 });

@@ -10,7 +10,7 @@ import {
   addStat,
   applied,
   applyEnemy,
-  currentAction,
+  currentAction, pressed,
   runningAction,
   currentTeam,
   equip,
@@ -52,7 +52,7 @@ export const TUNE_BREAK_COOLDOWN: Debuff = new Debuff({
   // every AddOfftune source has landed. What a kit puts on the bar directly (DirectOfftune,
   // Denia's half-bar surge) is not a gain the cooldown holds off.
   lateConvertStats: () => {
-    const built = currentAction().offtune + getStat(Stat.AddOfftune);
+    const built = pressed().offtune + getStat(Stat.AddOfftune);
     if (built > 0) addStat(Stat.DirectOfftune, -built * getStat(Stat.OfftuneBuildup) / 100);
   },
 });
@@ -107,7 +107,7 @@ export const TUNE_BREAK = new Action("Tune Break (Auto Generated)", {
   element: Attribute.Physical, scaling: Scaling.Tune, cast: Cast.TuneBreak, type: Type.Break,
   mv: 1600, slot: TUNE_BREAK_ENEMY.name,
   // the world stands still for all of it, so the clock charges none
-  frames: 90, timestop: 90, motionStop: 70,
+  animFrames: 90, timestop: 90, motionStop: 70,
   // A cast nobody pressed, so `run()` counts it triggered by its cast: every per-action clock in
   // the fight — the two below, a sonata's own cadence, an inherent counting presses — reads
   // `triggeredAction()` and passes it over, rather than each having to know the break by name.
@@ -117,21 +117,25 @@ export const TUNE_BREAK = new Action("Tune Break (Auto Generated)", {
   applyStats: () => { addStat(Stat.DirectOfftune, -ENEMY_MAX_OFFTUNE); },
 });
 
-/** The break as one resonator performs it: the same hit, played over their own frames — a form of
+/** A sword's and a broadblade's break hits (wuwalab), [frame, mv]; the other classes land one. */
+export const SWORD_BREAK: [number, number][] = [[30, 100], [36, 100], [42, 100], [48, 100], [72, 1200]];
+export const BROADBLADE_BREAK: [number, number][] = [[4, 173.34], [26, 226.66], [66, 1200]];
+
+/** The break as one resonator performs it: its hits, played over their own frames — a form of
  *  `TUNE_BREAK`, so every `runningAction(TUNE_BREAK)` still reads it. */
-export function tuneBreak(frames: number, timestop: number, motionStop: number): Action {
-  const out = TUNE_BREAK.variant(TUNE_BREAK.name, { frames, timestop, motionStop });
+export function tuneBreak(animFrames: number, timestop: number, motionStop: number, hits: [number, number][]): Action {
+  const out = TUNE_BREAK.variant(TUNE_BREAK.name, { animFrames, timestop, motionStop, hits: hits.map(([at, mv]) => ({ at, mv })) });
   out.formOf = TUNE_BREAK;
   return out;
 }
 
 /** Each weapon class's own Tune Break (wuwalab's "Tune Break Skill", the class's usual one). */
 const CLASS_TUNE_BREAK: Record<WeaponType, Action> = {
-  [WeaponType.Sword]: tuneBreak(90, 90, 70),
-  [WeaponType.Broadblade]: tuneBreak(94, 94, 64),
-  [WeaponType.Rectifier]: tuneBreak(90, 90, 54),
-  [WeaponType.Pistols]: tuneBreak(96, 96, 70),
-  [WeaponType.Gauntlets]: tuneBreak(92, 92, 70),
+  [WeaponType.Sword]: tuneBreak(90, 90, 70, SWORD_BREAK),
+  [WeaponType.Broadblade]: tuneBreak(94, 94, 64, BROADBLADE_BREAK),
+  [WeaponType.Rectifier]: tuneBreak(90, 90, 54, [[56, 1600]]),
+  [WeaponType.Pistols]: tuneBreak(96, 96, 70, [[72, 1600]]),
+  [WeaponType.Gauntlets]: tuneBreak(92, 92, 70, [[72, 1600]]),
 };
 
 /** What a full bar queues: resolved when reached to the on-field resonator's own break — their kit's

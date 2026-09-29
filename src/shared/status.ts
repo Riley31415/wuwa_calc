@@ -43,13 +43,12 @@ import {
   queueOn,
   tickInEnemy,
   asSource,
-  elapsed,
   setStacksSelf,
   stacksOf,
   withMoment,
   fireHeldGrants,
   currentMember,
-  castFrame,
+  currentFrame,
 } from "../engine/context.js";
 import { Action } from "../engine/rotation.js";
 import type { TeamMember } from "../engine/state.js";
@@ -61,48 +60,16 @@ export const SHIELD = new Buff({
     convertStats: ()=> revokeCurrent(SHIELD),
 });
 
-/** The frame a resonator can next gain a shield — held as its stack count, so a variant replay
- *  restores it with everything else — and the same as it stood before the action now being
- *  evaluated (keyed by that action's cast frame + 1), what a gain on the cast itself checks. */
+/** The frame a resonator can next gain a shield, held as its stack count so a variant replay
+ *  restores it with everything else. */
 const SHIELD_READY = new Buff({ name: "Shield Cooldown", maxStacks: 1e9, hidden: true });
-const SHIELD_ACTION = new Buff({ name: "Shield Cooldown (action)", maxStacks: 1e9, hidden: true });
-const SHIELD_BEFORE = new Buff({ name: "Shield Cooldown (before)", maxStacks: 1e9, hidden: true });
 
-/** The shield cooldown as this action found it, noted the first time it is asked. */
-function readyBefore(start: number): number {
-  if (stacksOf(SHIELD_ACTION) !== start + 1) {
-    setStacksSelf(SHIELD_ACTION, start + 1);
-    setStacksSelf(SHIELD_BEFORE, stacksOf(SHIELD_READY));
-  }
-  return stacksOf(SHIELD_BEFORE);
-}
-
-/** Gain up to `n` shields off the action being evaluated, at a 0.5s (30f) cooldown per resonator:
- *  the action's first lands 30 frames after its cast, any more at 60, 90, ... only while it still
- *  plays (a cut press has fewer), and each at least 30 frames after that resonator's last. */
-export function gainShield(n = 1): void {
-  const start = castFrame();
-  readyBefore(start);
-  const slots = Math.max(1, Math.floor(elapsed() / 30));
-  let ready = stacksOf(SHIELD_READY), got = 0;
-  for (let k = 1; k <= slots && got < n; k++) {
-    const at = start + 30 * k;
-    if (at < ready) continue;
-    got++;
-    ready = at + 30;
-  }
-  if (!got) return;
-  applyCurrent(SHIELD, got);
-  setStacksSelf(SHIELD_READY, ready);
-}
-
-/** One shield on the cast itself (Ruler's Realm's on an Intro), ahead of the 30f an on-hit gain
- *  waits — so it checks the cooldown as the action found it, whatever the hits have since taken. */
-export function gainShieldOnCast(): void {
-  const start = castFrame();
-  if (start < readyBefore(start)) return;
+/** A shield off the hit (or cast) being evaluated, at a 0.5s (30f) cooldown per resonator. */
+export function gainShield(): void {
+  const now = currentFrame();
+  if (now < stacksOf(SHIELD_READY)) return;
   applyCurrent(SHIELD, 1);
-  setStacksSelf(SHIELD_READY, Math.max(stacksOf(SHIELD_READY), start + 30));
+  setStacksSelf(SHIELD_READY, now + 30);
 }
 
 /** Healing any resonator in the team never applied to the team only applied on the healer who cast it
@@ -321,7 +288,9 @@ export const HELIACAL_EMBER: Debuff = new Debuff({
  *  Same shape Fusion Burst and Electro Flare use for a kit's own status instance. */
 export const HELIACAL_EMBER_ACTIONS: (Action | null)[] = [null, ...SPECTRO_FRAZZLE_MVS.map((_, i) =>
   new Action(`Heliacal Ember - ${i + 1} Stack${i ? "s" : ""}`, {
-    element: Attribute.Spectro, type: Type.Status, subtype: Subtype.SpectroFrazzle, scaling: Scaling.Dot, mv: 0,
+    element: Attribute.Spectro, type: Type.Status, subtype: Subtype.SpectroFrazzle, scaling: Scaling.Dot,
+    // one hit, worth nothing of its own: the rungs below add all of it
+    hits: [{ at: 0 }],
     applyStats: () => {
       for (let n = i; n >= 0; n--) {
         const rung = SPECTRO_FRAZZLE_ACTIONS[n + 1]!;

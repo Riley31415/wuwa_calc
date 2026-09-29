@@ -77,8 +77,8 @@ export interface Result {
    *  give the same numbers off a traced one). */
   mv: number;
   avg: number;
-  /** The frame a split press's hit landed (an outro's, a swap-out's), which filled this cast row
-   *  in — what its Time cell reads. Unset on every other row. */
+  /** The frame a split press's last hit landed, which filled this cast row in — what its Time cell
+   *  reads. Unset on every other row. */
   hitAt?: number;
   /** The 15 frames a new resonator coming in cost, charged to the row that handed the field over. */
   swapFrames?: number;
@@ -97,9 +97,8 @@ export interface Result {
  *  action came off the rotation list or was queued mid-fight. */
 export interface ResolvedSnapshot extends Result, Snapshot {
   entries: StatEntry[];
-  /** The damage type this action was actually evaluated as — its own `type`, unless a held Gear
-   *  called `typeOverride()` on it (`action.type` off a snapshot is always the base type; this is
-   *  the effective one, what `isType()` answered against). */
+  /** The damage type the hit was actually evaluated as — its own `type`, unless a held Gear called
+   *  `typeOverride()` on it: what `isType()` answered against. */
   type: Type | null;
   /** This slot's own forte gauges 1-5, as they stood once this action resolved. */
   forte: [number, number, number, number, number];
@@ -142,8 +141,8 @@ export interface ResolvedSnapshot extends Result, Snapshot {
    *  action's own gain landed — what the Energy Requirements table reads off a resetEnergy-marked
    *  Liberation's own row to compute that loop's ER requirement. */
   realEnergyBefore: number;
-  /** The fight clock as this action's cast started, in frames (`State.frame`), and how many
-   *  frames later its hit landed — its own `frames` when it was an on-field press, else 0. */
+  /** The fight clock as this action's cast started, in frames (`State.frame`), and how many frames
+   *  the press charged the clock — its `animFrames` or its cut when it was an on-field press, else 0. */
   frame: number;
   frames: number;
   /** The press's one tag, its cut where the rotation cut it — what its row carries. */
@@ -203,12 +202,13 @@ export interface ChainGroup<S extends Result = ResolvedSnapshot> {
   fieldKey?: string;
 }
 
-/** Evaluate one action on `state`'s active slot — a whole press, or one half of a press whose hit is
- *  queued (`Action.half`). The cast: an Intro adopts whatever's queued for it, then every held
- *  Gear's updateGlobal() (every slot's own gear, see `runGlobals`), then updateBuffs(). The hit, at
- *  its hit frame: updateDebuffs(), hitGlobal(), the grants its inflictions trigger, then
- *  applyStats(), convertStats(), lateConvertStats(), and afterAction() once it has banked. An
- *  Outro's cast advances the active slot afterward.
+/** Evaluate one action on `state`'s active slot — a whole press, or one part of a press whose hits
+ *  are queued (`Action.half`). The cast: an Intro adopts whatever's queued for it, then every held
+ *  Gear's updateGlobal() (every slot's own gear, see `runGlobals`), then updateBuffs(). Each hit, at
+ *  its own frame: on the first, updateDebuffs() and hitGlobal(); on every one, eachHit(), the grants
+ *  its inflictions trigger, applyStats(), convertStats(), lateConvertStats(), and the onHit grants
+ *  once it has banked. The end (`closePress`): afterAction(). An Outro's cast advances the active
+ *  slot afterward.
  *
  *  The action itself is a Gear too, and its own hook for a phase runs first in that phase, ahead
  *  of every held Gear's (see `actionHook`) — so a cast's own effect is in place before anything
@@ -227,9 +227,11 @@ export function evaluate(state: State, action: Action, triggered = false, source
   ctx.state = state;
   ctx.slot = slot;
   ctx.act = action;
-  // a queued hit's two halves each run their own side; a whole press runs both, cast then hit
-  const castSide = action.half !== "hit", hitSide = action.half !== "cast";
-  phaseMask = (castSide ? CAST_PHASES : 0) | (hitSide ? HIT_PHASES : 0);
+  // each part of a split press runs its own side — a hitless cast its hit's too — and a whole press all
+  const half = action.half;
+  const castSide = half === null || half === "cast", hitSide = half === null || half === "hit" || action.hitsAtCast;
+  const lands = hitSide && action.hits.length > 0;
+  phaseMask = (castSide ? CAST_PHASES : 0) | (hitSide ? HIT_PHASES : 0) | (lands ? ON_HIT_PHASES : 0) | (half === null ? END_PHASES : 0);
   // a step's own cut, else the form's (an insta cancel, a swap)
   const tag = cut ?? action.tag;
   // time stop outlasting this press is banked, and a bank already standing is spent on it first
@@ -290,28 +292,27 @@ export function evaluate(state: State, action: Action, triggered = false, source
     runPhase(1, true);
   }
 
-  // The hit lands at its `hitFrame` (its cancel frame unless declared) — at the cast itself for a
-  // press with no hit, or a cast whose hit is queued — and the rest of the press, cut or whole, is
-  // only time on the clock, which `run()` walks after it. Whatever ran out before the hit is gone
-  // before its phases run or the popover reads.
+  // A part lands where it is due and a whole press on its cast; the rest of the press is only time
+  // on the clock, which `run()` walks after it, landing each hit at its own frame.
   const frames = ctx.actFrames;
-  const hitClock = !hitSide || action.mv <= 0 ? 0 : Math.min(frames, Math.max(0, action.hitClock(tag) - timestopBanked));
-  state.frame = frameStart + hitClock;
-  // ...and every clock the span carried past a tick fires, before what ran out is dropped
-  // the motion stop the press actually played, beyond the time stop already off its frames
+  // how far off-field time falls behind the clock over the press: its motion stop pauses an
+  // inactive resonator, while time stop it doesn't cover runs on for them though the clock is still
   const cost = action.cost(tag);
-  const motionStop = Math.max(0, Math.min(action.motionStop, cost.action) - cost.timestop);
-  const hitStop = Math.min(motionStop, hitClock);
-  if (hitClock) state.runTicks(frameStart, state.frame, hitStop);
-  state.expireBuffs();
+  const ownStop = Math.min(action.motionStop, cost.action);
+  const stopBanked = Math.min(state.motionStopBank, cost.action + cost.global - ownStop);
+  state.motionStopBank += action.motionStop - ownStop - stopBanked;
+  const offFieldShift = frames - (cost.action + cost.global - ownStop - stopBanked);
+  ctx.offFieldShift = offFieldShift;
 
-  // The hit: updateDebuffs() first — what it inflicts goes on the target before anything looks at
-  // `applied()` — then every slot's hitGlobal(), then the grants its inflictions trigger.
+  // Every hit: the action's own updateDebuffs() and the hit's, every held Gear's, then the same for
+  // hitGlobal(), then the grants its inflictions trigger
   if (hitSide) {
     capture(slot, state);
     actionHook(action.updateDebuffsFn, 0);
+    if (lands) actionHook(action.lastHit!.updateDebuffs, 0);
     runPhase(0, true);
     actionHook(action.hitGlobalFn, 0);
+    if (lands) actionHook(action.lastHit!.hitGlobal, 0);
     runGlobals(state, slot, true);
     capture(slot, state);
     runPhase(7, true);
@@ -378,6 +379,17 @@ export function evaluate(state: State, action: Action, triggered = false, source
   ctx.readStamp++;
   ctx.readPhase = READ_APPLY;
   replay.length = 0;
+  // a hit of a split press takes its share of what the stat phases add per press (`PER_PRESS`)
+  const share = action.mvShare;
+  if (share !== 1) for (let k = 0; k < PER_PRESS.length; k++) shareBase[k] = slot.effective[PER_PRESS[k]!]!;
+  // what the stat phases spend or revoke, the press spends once, on its last hit: an earlier one runs
+  // them dry and puts the fight back after, so a buff consumed by the press pays into all of it
+  const defer = half === "hit" && action.hitIndex < action.formOf!.hits.length - 1;
+  if (defer) {
+    ctx.guarded = true;
+    (state.deferSnap ??= new FightSnapshot(state)).take(state);
+    ctx.dryRun = true;
+  }
   actionHook(action.applyStatsFn, 2);
   runPhase(2, true);
   // the applyStats journal alone, and whether the phase moved anything, for a variant that must
@@ -394,6 +406,8 @@ export function evaluate(state: State, action: Action, triggered = false, source
   actionHook(action.lateConvertStatsFn, 4);
   runPhase(4, true);
   ctx.recording = false;
+  if (share !== 1) shareOut(slot.effective, share);
+  ctx.dryRun = false;
 
   // A variant's row differs from the real build's only where its main-stat piece differs from the
   // held one (`variantDiff`): it is the real build's row copied, with those indices recomputed
@@ -442,11 +456,16 @@ export function evaluate(state: State, action: Action, triggered = false, source
       runPhase(3, true);
       actionHook(action.lateConvertStatsFn, 4);
       runPhase(4, true);
+      if (share !== 1) shareOut(eff, share, pre, vbase);
       let unsafe = ctx.mutHash !== primaryHash;
       for (const s of RESOURCE_STATS) if (eff[s] !== primaryEff[s]) unsafe = true;
       if (unsafe) slot.variantUnsafe[v] = true;
     }
     if (anyDry) { ctx.dryRun = false; after.restore(state); slot.effective = primaryEff; }
+  }
+  if (defer) {
+    state.deferSnap!.restore(state);
+    ctx.guarded = pre !== null;
   }
   // What belongs in the resonator popover is what's held once updateBuffs() has finished, before
   // applyStats()/convertStats() run. A buff that spends/revokes itself inside its own convertStats() (Jingran's
@@ -625,6 +644,14 @@ export function evaluate(state: State, action: Action, triggered = false, source
     if (forte[i]! < 0) forteShort[i] = true;
   }
 
+  // the hit is dealt and banked: its onHit grants, which pay from the next hit on
+  if (lands) {
+    capture(slot, state);
+    actionHook(action.onHitFn, 8);
+    runPhase(8, true);
+    ctx.buff = null;
+  }
+
   // Everything this action banks is now banked, so afterAction() is the one phase that can read a
   // gauge as the action actually leaves it — and the last chance to spend one back down before the
   // snapshot below reports it. Same frozen roster the stat phases just ran on.
@@ -694,12 +721,12 @@ export function evaluate(state: State, action: Action, triggered = false, source
     runPhase(5, false);
     ctx.buff = null;
   }
-  // what a swap cancel paid on for the last time goes with it — after its hit, where it queued one
-  if (action.half !== "cast") for (const gear of ctx.swapLosses) slot.revoke(gear);
+  // what a swap cancel paid on for the last time goes with it — at its end, where it queued one
+  if (half === null) for (const gear of ctx.swapLosses) slot.revoke(gear);
   // the rest of the press is `run()`'s to walk, landing whatever hit falls due inside it
   if (frameStart + frames > state.playsTo) {
     state.playsTo = frameStart + frames;
-    state.playStop = motionStop - hitStop;
+    state.playStop = Math.max(0, offFieldShift);
   }
   const atk = foldStat(effective, Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk);
   const hp = foldStat(effective, Stat.BaseHp, Stat.BonusHp, Stat.FlatHp);
@@ -715,12 +742,12 @@ export function evaluate(state: State, action: Action, triggered = false, source
   const result: Result = {
     action, member: slot.name, slot: action.slot ?? slot.name, triggered, source,
     group: null, groupEnd: false, groupSpill: null, queued: false, mv, avg, variantAvg, starts: frameStart,
-    // the hit is in at its hit frame, not at the press's end or after the 6/12 frames a cut costs
-    ends: frameStart + (hitSide ? hitClock : Math.min(frames, Math.max(0, (action.formOf ?? action).hitClock(tag) - timestopBanked))),
+    // the last hit is in at its own frame, not at the press's end or after the 6/12 frames a cut costs
+    ends: frameStart + (half === "cast" ? (action.formOf ?? action).lastHitDelay() : 0),
   };
   const snapshot: ResolvedSnapshot | null = !ctx.tracing ? null : {
     ...result,
-    type: ctx.overrideType ?? action.type,   // the effective type — see ResolvedSnapshot.type
+    type: ctx.overrideType ?? action.lastHit?.type ?? null,   // the effective type — see ResolvedSnapshot.type
     stat, stats: effective, atk, hp, def,
     amp: effective[Stat.Amp]!,
     subtypeAmp: effective[SUBTYPE_AMP_INDEX]!,
@@ -753,6 +780,41 @@ export function evaluate(state: State, action: Action, triggered = false, source
   return snapshot ?? result;
 }
 
+/** A press's off-field shift (`ctx.offFieldShift`) on every inactive resonator's queued hits: its
+ *  motion stop holds them back, time stop it doesn't cover brings them on — to the cast at most. */
+function shiftOffField(state: State, shift: number, from: number): void {
+  for (const h of state.timed) {
+    if (h.slot === state.presser || h.due <= from) continue;
+    h.due = shift > 0 ? h.due + shift : Math.max(from, h.due + shift);
+  }
+  state.timed.sort((p, q) => p.due - q.due);
+  // their clocks too: a pause plays out as the press is walked (`playStop`), free frames at once
+  if (shift < 0) state.runTicks(from, from, shift);
+}
+
+/** The end of a split press, where its animation (or its cut) runs out: afterAction() alone, over
+ *  the roster as it stands, with no row of its own. */
+function closePress(state: State, action: Action, triggered: boolean): void {
+  const slot = state.slot;
+  ctx.state = state;
+  ctx.slot = slot;
+  ctx.act = action;
+  phaseMask = END_PHASES;
+  ctx.actFrames = 0;
+  ctx.triggered = triggered;
+  ctx.tagWord = tagWordOf(action);
+  ctx.overrideType = null; ctx.overrideSubtype = null; ctx.droppedCast = null;
+  ctx.swapLosses.clear();
+  ctx.actionStamp++;
+  state.expireBuffs();
+  capture(slot, state);
+  ctx.mutHash = 0;
+  actionHook(action.afterActionFn, 5);
+  runPhase(5, false);
+  ctx.buff = null;
+  ctx.stacks = -1;
+}
+
 /** Run a rotation across `state`, splicing in anything queue()d right after the action that
  *  queued it — each member's own action sequence, concatenated in turn order; Outro/Intro
  *  handoff and active-slot advancement happen automatically inside evaluate(). A queued
@@ -766,7 +828,7 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
   // follow-up spliced in right behind whatever queued it. An ActionGroup is expanded here, before
   // anything runs: from this point down only real casts exist, and a group survives purely as the
   // `group`/`end` tags the report reads back off each result.
-  interface Step { action: Action; slot: number; by: HeldBuff | null; group: ActionGroup | null; end: boolean; spill: ActionGroup | null; queued: boolean; cut: ActionTag | null; at?: number; into?: Result | null; away?: boolean; losses?: Gear[]; frames?: number }
+  interface Step { action: Action; slot: number; by: HeldBuff | null; group: ActionGroup | null; end: boolean; spill: ActionGroup | null; queued: boolean; cut: ActionTag | null; at?: number; into?: Result | null; away?: boolean; losses?: Gear[]; frames?: number; closes?: boolean; triggered?: boolean }
   // a cancelled step plays its own Action (duck-checked, the class being rotation.ts's)
   const unwrap = (a: Action): [Action, ActionTag | null] => ((a as CancelledStep).of !== undefined ? [(a as CancelledStep).of, (a as CancelledStep).kind] : [a, null]);
   const steps: Step[] = [];
@@ -776,6 +838,8 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
     const group = (entry as ActionGroup).actions !== undefined ? (entry as ActionGroup) : null;
     const members = group ? group.actions : [entry];
     members.forEach((m, k) => {
+      // a group expands one level: a cut group inside another is written cut on the outer one
+      if ((m as ActionGroup).actions !== undefined) throw new Error(`${group!.name}: holds the group ${m.name} — cut the outer group instead`);
       const [a, cut] = unwrap(m);
       steps.push({ action: a, slot: -1, by: null, group, end: group !== null && k === members.length - 1, spill: null, queued: false, cut });
     });
@@ -800,7 +864,7 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
       state.frame = to;
       state.expireBuffs();
       if (pendingQueue.length) {
-        steps.splice(i, 0, ...pendingQueue.map((q): Step => ({ action: q.action, slot: q.slot, by: q.by, group: null, end: false, spill: null, queued: true, cut: null })));
+        steps.splice(i, 0, ...pendingQueue.map((q): Step => ({ action: q.action, slot: q.slot, by: q.by, group: null, end: false, spill: q.event ? null : spillGroup, queued: true, cut: null })));
         pendingQueue.length = 0;
       }
       if (to < state.playsTo) return true;
@@ -811,40 +875,60 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
   let spillGroup: ActionGroup | null = null;
   let i = 0, guard = 0;
   while (i < steps.length || (flush && state.timed.length)) {
-    if (i >= steps.length && flush && state.timed.every((h) => !h.action)) {
-      // only functions left on the clock: run them, nothing more to play
-      for (const h of state.timed.splice(0)) {
-        ctx.state = state;
-        ctx.slot = state.slots[h.slot]!;
-        state.frame = Math.max(state.frame, h.due);
-        h.apply?.();
-      }
-      break;
-    }
     if (++guard > 10000) throw new Error("action queue did not drain");
     // whatever is already queued plays before the clock moves on
     const walking = steps[i]?.queued ? state.frame < state.playsTo : walk();
+    // a flush's end plays out what is left on the clock a frame at a time, in its own order
+    const draining = flush && i >= steps.length;
+    const first = draining ? Math.min(...state.timed.map((h) => h.due)) : 0;
     // a hit on the clock whose time has come lands before the next cast, at its own frame — but one
     // landing off field (an Outro's, an insta swap's) due on the very frame the next press starts
     // lands after it, so the incoming Intro is cast first
-    const due = state.timed.filter((h) => h.due < state.frame || (h.due === state.frame && (walking || !h.away)) || (flush && i >= steps.length));
+    const due = state.timed.filter((h) => (draining ? h.due <= first : h.due < state.frame || (h.due === state.frame && (walking || !h.away))));
     if (due.length) {
+      due.sort((p, q) => p.due - q.due);
       state.timed = state.timed.filter((h) => !due.includes(h));
-      // a function on the clock (a heal tick's) runs on its slot at its frame, no row of its own
+      // one landing mid-group is that group's spill, like any follow-up there, so its row stays whole
+      const spill = ctx.insideGroup ? spillGroup : null;
+      const landed: Step[] = [];
       for (const h of due) {
-        if (!h.apply) continue;
+        if (h.action) {
+          landed.push({ action: h.action, slot: h.slot, by: h.by, group: null, end: false, spill, queued: true, cut: null, at: h.due, into: h.into, away: h.away, losses: h.losses, frames: h.frames, closes: h.closes, triggered: h.triggered });
+          continue;
+        }
+        // a function on the clock (a heal tick's, a kit's scheduled one) runs on its slot at its
+        // frame, no row of its own — and what it queues plays there
         const now = state.frame;
         state.frame = h.due;
         ctx.state = state;
         ctx.slot = state.slots[h.slot]!;
-        h.apply();
-        state.frame = Math.max(now, state.frame);
+        h.apply?.();
+        state.frame = Math.max(now, draining ? h.due : state.frame);
+        for (const q of pendingQueue) landed.push({ action: q.action, slot: q.slot, by: q.by, group: null, end: false, spill: q.event ? null : spillGroup, queued: true, cut: null, at: h.due });
+        pendingQueue.length = 0;
       }
-      // one landing mid-group is that group's spill, like any follow-up there, so its row stays whole
-      const spill = ctx.insideGroup ? spillGroup : null;
-      steps.splice(i, 0, ...due.filter((h) => h.action).map((h): Step => ({ action: h.action!, slot: h.slot, by: h.by, group: null, end: false, spill, queued: true, cut: null, at: h.due, into: h.into, away: h.away, losses: h.losses, frames: h.frames })));
+      steps.splice(i, 0, ...landed);
     }
+    if (i >= steps.length) continue;
     const step = steps[i++]!;
+    if (step.closes) {
+      const now = state.frame, field = state.onField, before = state.active;
+      state.active = step.slot;
+      state.frame = step.at!;
+      if (step.away) state.onField = -1;
+      ctx.pressFrames = step.frames ?? 0;
+      ctx.pressStart = step.into?.starts ?? state.frame;
+      closePress(state, step.action, !!step.triggered);
+      if (step.losses) for (const gear of step.losses) state.slots[step.slot]!.revoke(gear);
+      state.frame = Math.max(now, state.frame);
+      state.onField = field;
+      state.active = before;
+      if (pendingQueue.length) {
+        steps.splice(i, 0, ...pendingQueue.map((q): Step => ({ action: q.action, slot: q.slot, by: q.by, group: null, end: false, spill: q.event ? null : spillGroup, queued: true, cut: null, at: step.at })));
+        pendingQueue.length = 0;
+      }
+      continue;
+    }
     // A new resonator's first press pays the swap: 15 frames on the clock, charged to the row that
     // handed the field over. The buff clocks run through them, and what a tick queues there plays
     // ahead of the press.
@@ -937,13 +1021,18 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
     const kind = cut ?? action.tag;
     const checked = !dash && action.half === null;
     if (checked && LENGTH_CHECKED.has(kind)) checkCutLength(pressed.cancelOf ?? pressed, kind);
-    if (checked && SLOW_CUTS.has(kind) && action.cancelFrames <= 6) {
-      throw new Error(`${action.name}: cancels at frame ${action.cancelFrames}, inside an insta cut's 6 — write it as ${INSTA_OF[kind as ActionTag]} instead of ${kind}`);
+    if (checked && SLOW_CUTS.has(kind) && action.commitFrames <= 6) {
+      throw new Error(`${action.name}: commits at frame ${action.commitFrames}, inside an insta cut's 6 — write it as ${INSTA_OF[kind as ActionTag]} instead of ${kind}`);
     }
-    // a press with a hit casts now and queues its hit on the time-ordered queue, at its hit frame
-    const split = action.splitsHit(cut) ? { due: (step.at ?? state.frame) + action.hitDelay(cut), action: action.hitPart(), slot: state.active, into: null as Result | null, by: null, away: action.hitsAway(cut), losses: undefined as Gear[] | undefined, frames: 0 } : null;
+    // a press that takes time casts now and queues each hit on the time-ordered queue at its own
+    // frame, and its end where it runs out
+    const whole = action;
+    const castAt = step.at ?? state.frame, away = whole.splitsHit(cut) && whole.hitsAway(cut);
+    const split = whole.splitsHit(cut)
+      ? whole.hits.map((_, k) => ({ due: castAt + whole.hitDelay(k), action: whole.hitPart(k), slot: state.active, into: null as Result | null, by: null, away, frames: 0, triggered: false }))
+      : null;
     if (split) {
-      state.timed.push(split);
+      state.timed.push(...split);
       state.timed.sort((p, q) => p.due - q.due);
       action = action.castPart();
     }
@@ -958,10 +1047,22 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
     ctx.pressFrames = step.frames ?? 0;
     ctx.pressStart = step.into?.starts ?? state.frame;
     const result = evaluate(state, action, triggered, by, cut);
-    // the hit carries its press's length, and what a swap cancel loses goes once it has landed
-    if (split) split.frames = ctx.actFrames;
-    if (split && ctx.swapLosses.size) split.losses = [...ctx.swapLosses];
-    if (step.losses) for (const gear of step.losses) state.slots[step.slot]!.revoke(gear);
+    if (ctx.offFieldShift !== 0) shiftOffField(state, ctx.offFieldShift, now);
+    // each hit carries its press's length, and the end — where what a swap cancel loses goes — is
+    // where the press runs out, never ahead of a hit it committed
+    if (split) {
+      for (const h of split) {
+        h.frames = ctx.actFrames;
+        h.triggered = triggered;
+      }
+      const last = split.reduce((m, h) => Math.max(m, h.due), castAt);
+      const runs = whole.castsInstantly ? whole.instantEnd() : ctx.actFrames;
+      state.timed.push({
+        due: Math.max(last, castAt + runs), action: whole.endPart(), slot: state.active, into: null, by: null, away, frames: ctx.actFrames,
+        losses: ctx.swapLosses.size ? [...ctx.swapLosses] : undefined, closes: true, triggered,
+      });
+      state.timed.sort((p, q) => p.due - q.due);
+    }
     if (step.at !== undefined) {
       state.frame = Math.max(now, state.frame);
       state.onField = field;
@@ -973,10 +1074,10 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
       result.groupEnd = step.end;
       result.groupSpill = step.spill;
       result.queued = step.queued;
-      // one row stands for the whole press, in cast order: its hit fills it in when it lands
+      // one row stands for the whole press, in cast order: each hit adds itself in as it lands
       if (split) {
-        split.into = result;
-        result.action = action.formOf!;
+        for (const h of state.timed) if (h.action?.formOf === whole && h.into === null) h.into = result;
+        result.action = whole;
       }
       out.push(result);
       // the row the next resonator's swap frames go on: a swap-out press before any Outro
@@ -1021,22 +1122,30 @@ const LENGTH_CHECKED = new Set<string>([ActionTag.Cancel, ActionTag.EasyCancel, 
 /** A cut whose input timing runs longer than the press played out only made it longer — raw
  *  frames, time stop and all; the dash or jump itself isn't counted. An unmeasured press has none. */
 function checkCutLength(base: Action, kind: ActionTag): void {
-  if (!base.frames) return;
+  if (!base.animFrames) return;
   const c = base.cost(kind), cut = c.action + c.global;
-  if (cut > base.frames) throw new Error(`${base.name}: its ${kind} takes ${cut} frames, longer than the ${base.frames} it plays uncut`);
+  if (cut > base.animFrames) throw new Error(`${base.name}: its ${kind} takes ${cut} frames, longer than the ${base.animFrames} it plays uncut`);
 }
 
-/** What a queued hit's row keeps of its cast when the hit lands: who pressed it, how and when.
- *  Everything else — damage, stats, the buffs that paid, what the hit banked — is the hit's. */
+/** What a queued hit's row keeps of its cast when a hit lands: who pressed it, how and when. The
+ *  damage, motion value and gauges sum across its hits; the stats and buffs are the last one's. */
 const CAST_KEEPS = new Set(["action", "member", "slot", "triggered", "group", "groupEnd", "groupSpill", "source", "queued",
   "frame", "frames", "tag", "active", "timestopBanked", "energyWiped", "concertoShort", "realEnergyBefore",
   "energyBefore", "concertoBefore", "offtuneBefore", "forteBefore", "energy", "concerto", "offtune", "forte"]);
 
-/** Fill a split press's cast row in with its hit, landed at `at`. */
+/** Add one of a split press's hits, landed at `at`, into its cast row. */
 function landHit(row: Result, hit: Result, at: number): void {
   const r = row as unknown as Record<string, unknown>, h = hit as unknown as Record<string, unknown>;
   const fields = r.opensFields as ActionField[] | undefined, short = r.forteShort as boolean[] | undefined;
+  // the first hit replaces what the cast dealt; each after it adds on
+  const summed = row.hitAt !== undefined, avg = row.avg, mv = row.mv, variantAvg = row.variantAvg;
   for (const k of Object.keys(h)) if (!CAST_KEEPS.has(k)) r[k] = h[k];
+  if (summed) {
+    row.avg += avg;
+    row.mv += mv;
+    if (row.variantAvg && variantAvg) row.variantAvg = row.variantAvg.map((v, n) => v + variantAvg[n]!);
+  }
+
   if (fields) r.opensFields = [...fields, ...(h.opensFields as ActionField[])];
   if (short) r.forteShort = short.map((b, n) => b || (h.forteShort as boolean[])[n]!);
   // the row shows what the press projects: its cast's running totals plus what its hit banked,
@@ -1075,6 +1184,20 @@ function resourceMoved(diff: number[], eff: number[], from: number[]): boolean {
 const RESOURCE_MASK: boolean[] = ZERO_STATS.map(() => false);
 for (const s of RESOURCE_STATS) RESOURCE_MASK[s] = true;
 
+/** What a buff adds to a press as a whole — its motion value and what it banks — which a split
+ *  press's hits share out by motion value rather than each taking in full. */
+const PER_PRESS: Stat[] = [Stat.AddMv, Stat.AddEnergy, Stat.AddConcerto, Stat.AddOfftune, Stat.DirectOfftune,
+  Stat.AddForte1, Stat.AddForte2, Stat.AddForte3, Stat.AddForte4, Stat.AddForte5, Stat.AddCastEnergy, Stat.AddCastConcerto,
+  Stat.AddCastForte1, Stat.AddCastForte2, Stat.AddCastForte3, Stat.AddCastForte4, Stat.AddCastForte5];
+const shareBase: number[] = PER_PRESS.map(() => 0);
+/** Scale what the stat phases added to `PER_PRESS` down to this hit's `share`: over `shareBase`
+ *  for the real build, over its own starting row (`pre` + `vbase`) for a variant's dry run. */
+function shareOut(eff: number[], share: number, pre?: number[], vbase?: number[]): void {
+  for (let k = 0; k < PER_PRESS.length; k++) {
+    const i = PER_PRESS[k]!, from = pre ? pre[i]! + vbase![i]! : shareBase[k]!;
+    eff[i] = from + (eff[i]! - from) * share;
+  }
+}
 const ADD_FORTE = [Stat.AddForte1, Stat.AddForte2, Stat.AddForte3, Stat.AddForte4, Stat.AddForte5];
 const ADD_CAST_FORTE = [Stat.AddCastForte1, Stat.AddCastForte2, Stat.AddCastForte3, Stat.AddCastForte4, Stat.AddCastForte5];
 
@@ -1124,8 +1247,11 @@ function constBaseOf(slot: TeamMember, from: Gear | null, to: Gear | null, from2
 /** Which of `runPhase()`'s phases run for the action being evaluated: a cast half only the cast's
  *  (`updateBuffs`, and the popover's constant stats), a queued hit only the hit's, a whole press both. */
 const CAST_PHASES = (1 << 1) | (1 << 6);
-const HIT_PHASES = (1 << 0) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7);
-let phaseMask = CAST_PHASES | HIT_PHASES;
+const HIT_PHASES = (1 << 0) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 6) | (1 << 7);
+/** The onHit grants, on a part that lands a hit. */
+const ON_HIT_PHASES = 1 << 8;
+const END_PHASES = 1 << 5;
+let phaseMask = CAST_PHASES | HIT_PHASES | ON_HIT_PHASES | END_PHASES;
 function runPhase(p: number, withStacks: boolean): void {
   if (!((phaseMask >> p) & 1)) return;
   for (let q = 0; q < 3; q++) {
