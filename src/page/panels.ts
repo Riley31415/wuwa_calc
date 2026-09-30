@@ -4,23 +4,23 @@
  */
 import { Stat, Attribute, Type, Subtype, scopedStat, splitStat, isPercent, statLabel, TAG_NAME, NODE_NAME } from "../engine/stats.js";
 import type { StatKey, Tag } from "../engine/stats.js";
-import type { StatEntry } from "../engine/state.js";
-import { Sonata } from "../engine/gear.js";
-import type { Buff, Gear } from "../engine/gear.js";
-import { menuStats } from "../engine/context.js";
-import { substatRollBuffs, litStats } from "../shared/substats.js";
-import { erRollsFor } from "../teamrun.js";
-import { mainstatSlotBuffs } from "../shared/mainstats.js";
-import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
-import type { HeldBuff } from "../engine/state.js";
-import type { ChainGroup, ResolvedSnapshot } from "../engine/evaluate.js";
+import type { StatEntry } from "../mirror/state.js";
+import { Sonata } from "../mirror/gear.js";
+import type { Buff, Gear } from "../mirror/gear.js";
+import { menuStats } from "../mirror/context.js";
+import { substatRollBuffs, litStats } from "../mirror/shared.js";
+import { erRollsFor } from "../mirror/teamrun.js";
+import { mainstatSlotBuffs } from "../mirror/shared.js";
+import { TUNE_BREAK_ENEMY } from "../mirror/shared.js";
+import type { HeldBuff } from "../mirror/state.js";
+import type { ChainGroup, ResolvedSnapshot } from "../mirror/evaluate.js";
 import { fmt, fmtExact } from "../display.js";
 import type { Column, TraceEntry, InfoEntry } from "../display.js";
 import type { Member, Combo } from "../solver.js";
-import { hitsOf } from "../teamrun.js";
-import type { TeamRun } from "../teamrun.js";
+import { hitsOf } from "../mirror/teamrun.js";
+import type { TeamRun } from "../mirror/teamrun.js";
 import { results, FALLBACK_HUE } from "./model.js";
-import { ActionTag } from "../engine/rotation.js";
+import { ActionTag } from "../mirror/rotation.js";
 
 export const esc = (s: unknown): string => String(s)
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -81,7 +81,7 @@ export const panelRow = (r: TraceEntry, slotHue: Map<string, string>, { noSource
   const show = (v: number): string => (r.digits === undefined ? fmtExact(v) : fmt(v, r.digits, true));
   const value = `<td class="v">${r.text !== undefined ? esc(r.text)
     : r.mult ? `&times;${show(r.value)}` : `${show(r.value)}${unit(r)}`}</td>`;
-  if (r.summary) return `<tr class="sum"><td class="k">${esc(label)}</td>${value}</tr>`;
+  if (r.summary) return `<tr class="sum${r.joined ? " joined" : ""}"><td class="k">${esc(label)}</td>${value}</tr>`;
   return noSource
     ? `<tr><td class="k">${esc(label)}</td>${value}</tr>`
     : `<tr><td class="s"${own ? ` style="--own:${own}"` : ""}>${esc(source || label)}</td>${value}</tr>`;
@@ -159,6 +159,8 @@ export function framesPopover(snaps: ResolvedSnapshot[]): string {
     || s.tag === ActionTag.JumpCancel
     || s.tag === ActionTag.SwapCancel
     || s.tag === ActionTag.HitCancel
+    || s.tag === ActionTag.DodgeOnHit
+    || s.tag === ActionTag.JumpOnHit
     if (!insta) rows.push(line(`${s.action.name}${cut ? " (c)" : ""}`, cost.action));
     // the world stood still for part of it: the clock takes it back off
     if (cost.timestop) rows.push(line("Timestop", -cost.timestop));
@@ -541,7 +543,7 @@ export function dprTable(run: TeamRun, lines?: ChainGroup[][]): string {
   const slotHue = new Map([...run.members.map((m): [string, string] => [m.name, m.color]),
     [TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color]]);
   // the sections, named once over for both the column headings and the breakdowns' titles
-  const sections = ["Opener", ...Array.from({ length: whole - 1 }, (_, i) => `Loop ${i + 1}`), "4 Rot"];
+  const sections = ["Opener", ...Array.from({ length: whole - 1 }, (_, i) => `Loop ${i + 1}`), "4 Rots"];
   const ownTotal = (slot: string): number => run.fightBySlot.get(slot) ?? 0;
   // the row opens on the team's own Total, which is the figure the table is read for
   const selected = flat ? `${TEAM_ROW}|${whole}` : "";
@@ -557,7 +559,7 @@ export function dprTable(run: TeamRun, lines?: ChainGroup[][]): string {
   const head = `<div class="rtrow rthead">`
     + `<div class="c"></div>`
     + sections.slice(0, whole).map((n) => `<div class="c num">${n}</div>`).join("")
-    + `<div class="c num tot">Total (4 Rot)</div>`
+    + `<div class="c num tot">Total</div>`
     + `</div>`;
 
   // A figure is a distribution cell only on the detail page, where there is a rotation to break
@@ -841,7 +843,7 @@ function distCell(lines: ChainGroup[], slot: string, section: string, hue: strin
     total += avg;
     // A status ladder carries Status on top of its own Subtype — the Subtype is the whole name anyone
     // reads it by, so Status drops out and the hit wears that status's own alone shade.
-    const subtype = snap.action.lastHit?.subtype ?? null;
+    const subtype = snap.action.lastBullet?.subtype ?? null;
     const type = snap.type === Type.Status && subtype !== null ? null : snap.type;
     const key = (type ?? 0) | (subtype ?? 0);
     const slice = types.get(key);

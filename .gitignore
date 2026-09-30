@@ -9,3 +9,13 @@ dist/*
 # the precomputed solve cache the published table opens on (src/precompute.ts), committed for
 # the same reason
 !dist/solves/
+
+# the Rust engine port: build output, the port agents' scratch crates, and what the checks regenerate
+rust/target/
+rust_work/
+rust/check/
+rust/harness/rref/
+rust/harness/nul
+rust/trace.txt
+# the wasm build the page loads beside the bundle (rust/build_wasm.py)
+!dist/engine.wasm

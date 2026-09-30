@@ -1,13 +1,6 @@
 #
 check shield application
-
-#
-also add a new forced wait for phrolova: if she would cast any action that would end maestro while an enhanced hecate is in progress or is in queue, she must wait until all of them have fully completed
-
-also verify that if the stat ends after an HBA1 cast before it hits, it just shows as a 0 damage cast in the action log
-
-# todo
-add qte frame
+check status application bullets
 
 #
 better wait Xs visual
@@ -16,10 +9,7 @@ better wait Xs visual
 fix rebecca rotation time
 
 #
-def ignore formula
-
-#
-add er/crit/hp reccomendations for kit requirements
+add minimum ER/crit for qy, roccia, sk, mornye
 
 # standard 5 star/4 star
 calcharo

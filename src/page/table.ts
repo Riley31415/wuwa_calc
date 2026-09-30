@@ -6,7 +6,7 @@ import { Tier } from "../engine/stats.js";
 import { fmt } from "../display.js";
 import { loadoutName, sequenceLevels, scopedKey, axisUsed, compares, weaponBase, echoLines, echoLabel, axisOpen, AXES } from "../solver.js";
 import type { Member, Combo, Axis, TeamCost, ScopedCompare } from "../solver.js";
-import type { TeamRun } from "../teamrun.js";
+import type { TeamRun } from "../mirror/teamrun.js";
 import {
   TEAMS,
   filters,
@@ -282,19 +282,20 @@ const cmpDrawn = new Set<string>();
  *  four rotations, as the damage one of them does on average (DPR, beside how long one takes) or as
  *  the rate over the time they took (DPS). */
 let teamMode: "dpr" | "dps" = "dpr";
-const TEAM_HEAD = { dpr: "Team Average DPR", dps: "Team DPS (4 Rot)" };
+const TEAM_HEAD = { dpr: "Team DPR", dps: "Team DPS" };
 const wholeDamage = (run: TeamRun): number => run.sectionTotals.reduce((a, b) => a + b, 0);
 const teamFigure = (run: TeamRun): number =>
   Math.floor(wholeDamage(run) / (teamMode === "dpr" ? Math.max(1, run.sectionTotals.length) : run.seconds));
-/** The same for one member: their share of those sections, per section or per second. */
+/** One member's share of those sections, always per section whatever the team column reads. */
 const personalFigure = (run: TeamRun, name: string): number =>
-  Math.floor(run.sectionBySlot.reduce((a, by) => a + (by.get(name) ?? 0), 0) / (teamMode === "dpr" ? Math.max(1, run.sectionTotals.length) : run.seconds));
-/** The team cell's text: DPR beside how long one of those sections takes on average — plain for
- *  the sizing row, the time dimmed in the cell itself. */
-const loopTime = (run: TeamRun): string => `(${(run.seconds / Math.max(1, run.sectionTotals.length)).toFixed(1)}s)`;
-const teamText = (run: TeamRun): string => (teamMode === "dpr" ? `${fmt(teamFigure(run))} ${loopTime(run)}` : fmt(teamFigure(run)));
-const teamHtml = (run: TeamRun): string =>
-  (teamMode === "dpr" ? `${fmt(teamFigure(run))} <span class="looptime">${loopTime(run)}</span>` : fmt(teamFigure(run)));
+  Math.floor(run.sectionBySlot.reduce((a, by) => a + (by.get(name) ?? 0), 0) / Math.max(1, run.sectionTotals.length));
+/** The team cell's time, a dimmed subscript: the final rotation's length beside DPR, all four's
+ *  together beside DPS — plain for the sizing row. */
+const loopTime = (run: TeamRun): string => (teamMode === "dpr"
+  ? `${(run.sectionSeconds[run.sectionSeconds.length - 1] ?? 0).toFixed(1)}s`
+  : `${Math.round(run.sectionSeconds.reduce((a, b) => a + b, 0))}s`);
+const teamText = (run: TeamRun): string => `${fmt(teamFigure(run))}${loopTime(run)}`;
+const teamHtml = (run: TeamRun): string => `${fmt(teamFigure(run))}<sub class="looptime">${loopTime(run)}</sub>`;
 /** A compare's share, one decimal truncated — never rounded up to a gain it didn't make. */
 const pctTrunc = (ratio: number): string => `${fmt(Math.trunc(ratio * 1000) / 10, 1, true)}%`;
 

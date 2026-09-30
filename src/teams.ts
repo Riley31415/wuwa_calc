@@ -5,58 +5,82 @@
  * a one-entry list. Position matters: slot 1 runs its opener. Workers are handed a team's index
  * into `ALL_TEAMS` (`teamKey`), which both threads build alike.
  */
-import type { Loadout } from "./engine/gear.js";
-import { teamPlayable } from "./engine/rotation.js";
-import { CARTETHYIA } from "./resonators/aero/cartethyia.js";
-import { CIACCONA } from "./resonators/aero/ciaccona.js";
-import { IUNO, IUNO_MDPS } from "./resonators/aero/iuno.js";
-import { JIANXIN } from "./resonators/aero/jianxin.js";
-import { JIYAN } from "./resonators/aero/jiyan.js";
-import { QINGXIAO } from "./resonators/aero/qingxiao.js";
-import { QIUYUAN, QIUYUAN_MDPS } from "./resonators/aero/qiuyuan.js";
-import { ROVER_AERO } from "./resonators/aero/rover_aero.js";
-import { SIGRIKA as SIGRIKA_EXTEND, SIGRIKA_FAST } from "./resonators/aero/sigrika.js";
-import { AUGUSTA } from "./resonators/electro/augusta.js";
-import { BULING } from "./resonators/electro/buling.js";
-import { HSIN_FLARE, HSIN_UNISON } from "./resonators/electro/hsin.js";
-import { REBECCA } from "./resonators/electro/rebecca.js";
-import { ROVER_ELECTRO, ROVER_ELECTRO_MDPS } from "./resonators/electro/rover_electro.js";
-import { SUOMING, SUOMING_MDPS, SUOMING_MDPS_DOUBLE } from "./resonators/electro/suoming.js";
-import { XIANGLI_YAO } from "./resonators/electro/xiangli_yao.js";
-import { YINLIN } from "./resonators/electro/yinlin.js";
-import { AEMEATH_BURST, AEMEATH_RUPTURE } from "./resonators/fusion/aemeath.js";
-import { BRANT, BRANT_MDPS } from "./resonators/fusion/brant.js";
-import { CHANGLI } from "./resonators/fusion/changli.js";
-import { DENIA_BURST, DENIA_STRAIN } from "./resonators/fusion/denia.js";
-import { ENCORE } from "./resonators/fusion/encore.js";
-import { GALBRENA } from "./resonators/fusion/galbrena.js";
-import { JINGRAN } from "./resonators/fusion/jingran.js";
-import { LUPA } from "./resonators/fusion/lupa.js";
-import { MORNYE } from "./resonators/fusion/mornye.js";
-import { MORTEFI } from "./resonators/fusion/mortefi.js";
-import { CARLOTTA } from "./resonators/glacio/carlotta.js";
-import { HIYUKI } from "./resonators/glacio/hiyuki.js";
-import { LUCILLA, LUCILLA_CHAFE } from "./resonators/glacio/lucilla.js";
-import { SANHUA } from "./resonators/glacio/sanhua.js";
-import { SUISUI } from "./resonators/glacio/suisui.js";
-import { ZHEZHI } from "./resonators/glacio/zhezhi.js";
-import { CAMELLYA_123_ALWAYS_OUTRO as CAMELLYA_123_ALWAYS, CAMELLYA_DOUBLE_123S6, CAMELLYA_DOUBLE_ALWAYS} from "./resonators/havoc/camellya.js";
-import { CANTARELLA, CANTARELLA_MDPS } from "./resonators/havoc/cantarella.js";
-import { CHISA } from "./resonators/havoc/chisa.js";
-import { DANJIN } from "./resonators/havoc/danjin.js";
-import { PHRO_12s, PHRO_10s } from "./resonators/havoc/phrolova.js";
-import { ROCCIA, ROCCIA_MDPS } from "./resonators/havoc/roccia.js";
-import { ROVER_HAVOC } from "./resonators/havoc/rover_havoc.js";
-import { XUANLING,  } from "./resonators/havoc/xuanling.js";
-import { JINHSI, JINHSI_SUPPORT } from "./resonators/spectro/jinhsi.js";
-import { LUCY } from "./resonators/spectro/lucy.js";
-import { LUUK, LUUK_16s } from "./resonators/spectro/luuk.js";
-import { LYNAE_RUPTURE, LYNAE_STRAIN } from "./resonators/spectro/lynae.js";
-import { PHOEBE_ABSOLUTION, PHOEBE_CONFESSION } from "./resonators/spectro/phoebe.js";
-import { ROVER_SPECTRO } from "./resonators/spectro/rover_spectro.js";
-import { SHOREKEEPER } from "./resonators/spectro/shorekeeper.js";
-import { VERINA } from "./resonators/spectro/verina.js";
-import { ZANI } from "./resonators/spectro/zani.js";
+import { LOADOUTS } from "./mirror/gear.js";
+import type { Loadout } from "./mirror/gear.js";
+import { teamPlayable } from "./mirror/rotation.js";
+
+// the loadouts by the TS export each was; one the engine has not ported yet is undefined, and every
+// team naming it drops out below until it is
+const CARTETHYIA = LOADOUTS["CARTETHYIA"]!;
+const CAMELLYA_123_ALWAYS = LOADOUTS["CAMELLYA_123_ALWAYS_OUTRO"]!;
+const CAMELLYA_DOUBLE_123S6 = LOADOUTS["CAMELLYA_DOUBLE_123S6"]!;
+const CAMELLYA_DOUBLE_ALWAYS = LOADOUTS["CAMELLYA_DOUBLE_ALWAYS"]!;
+const CIACCONA = LOADOUTS["CIACCONA"]!;
+const IUNO = LOADOUTS["IUNO"]!;
+const IUNO_MDPS = LOADOUTS["IUNO_MDPS"]!;
+const JIANXIN = LOADOUTS["JIANXIN"]!;
+const JIYAN = LOADOUTS["JIYAN"]!;
+const QINGXIAO = LOADOUTS["QINGXIAO"]!;
+const QIUYUAN = LOADOUTS["QIUYUAN"]!;
+const QIUYUAN_MDPS = LOADOUTS["QIUYUAN_MDPS"]!;
+const ROVER_AERO = LOADOUTS["ROVER_AERO"]!;
+const SIGRIKA_EXTEND = LOADOUTS["SIGRIKA"]!;
+const SIGRIKA_FAST = LOADOUTS["SIGRIKA_FAST"]!;
+const AUGUSTA = LOADOUTS["AUGUSTA"]!;
+const BULING = LOADOUTS["BULING"]!;
+const HSIN_FLARE = LOADOUTS["HSIN_FLARE"]!;
+const HSIN_UNISON = LOADOUTS["HSIN_UNISON"]!;
+const REBECCA = LOADOUTS["REBECCA"]!;
+const ROVER_ELECTRO = LOADOUTS["ROVER_ELECTRO"]!;
+const ROVER_ELECTRO_MDPS = LOADOUTS["ROVER_ELECTRO_MDPS"]!;
+const SUOMING = LOADOUTS["SUOMING"]!;
+const SUOMING_MDPS = LOADOUTS["SUOMING_MDPS"]!;
+const SUOMING_MDPS_DOUBLE = LOADOUTS["SUOMING_MDPS_DOUBLE"]!;
+const XIANGLI_YAO = LOADOUTS["XIANGLI_YAO"]!;
+const YINLIN = LOADOUTS["YINLIN"]!;
+const AEMEATH_BURST = LOADOUTS["AEMEATH_BURST"]!;
+const AEMEATH_RUPTURE = LOADOUTS["AEMEATH_RUPTURE"]!;
+const BRANT = LOADOUTS["BRANT"]!;
+const BRANT_MDPS = LOADOUTS["BRANT_MDPS"]!;
+const CHANGLI = LOADOUTS["CHANGLI"]!;
+const DENIA_BURST = LOADOUTS["DENIA_BURST"]!;
+const DENIA_STRAIN = LOADOUTS["DENIA_STRAIN"]!;
+const ENCORE = LOADOUTS["ENCORE"]!;
+const GALBRENA = LOADOUTS["GALBRENA"]!;
+const JINGRAN = LOADOUTS["JINGRAN"]!;
+const LUPA = LOADOUTS["LUPA"]!;
+const MORNYE = LOADOUTS["MORNYE"]!;
+const MORTEFI = LOADOUTS["MORTEFI"]!;
+const CARLOTTA = LOADOUTS["CARLOTTA"]!;
+const HIYUKI = LOADOUTS["HIYUKI"]!;
+const LUCILLA = LOADOUTS["LUCILLA"]!;
+const LUCILLA_CHAFE = LOADOUTS["LUCILLA_CHAFE"]!;
+const SANHUA = LOADOUTS["SANHUA"]!;
+const SUISUI = LOADOUTS["SUISUI"]!;
+const ZHEZHI = LOADOUTS["ZHEZHI"]!;
+const CANTARELLA = LOADOUTS["CANTARELLA"]!;
+const CANTARELLA_MDPS = LOADOUTS["CANTARELLA_MDPS"]!;
+const CHISA = LOADOUTS["CHISA"]!;
+const DANJIN = LOADOUTS["DANJIN"]!;
+const PHRO_12s = LOADOUTS["PHRO_12s"]!;
+const PHRO_10s = LOADOUTS["PHRO_10s"]!;
+const ROCCIA = LOADOUTS["ROCCIA"]!;
+const ROCCIA_MDPS = LOADOUTS["ROCCIA_MDPS"]!;
+const ROVER_HAVOC = LOADOUTS["ROVER_HAVOC"]!;
+const XUANLING = LOADOUTS["XUANLING"]!;
+const JINHSI = LOADOUTS["JINHSI"]!;
+const JINHSI_SUPPORT = LOADOUTS["JINHSI_SUPPORT"]!;
+const LUCY = LOADOUTS["LUCY"]!;
+const LUUK = LOADOUTS["LUUK"]!;
+const LUUK_16s = LOADOUTS["LUUK_16s"]!;
+const LYNAE_RUPTURE = LOADOUTS["LYNAE_RUPTURE"]!;
+const LYNAE_STRAIN = LOADOUTS["LYNAE_STRAIN"]!;
+const PHOEBE_ABSOLUTION = LOADOUTS["PHOEBE_ABSOLUTION"]!;
+const PHOEBE_CONFESSION = LOADOUTS["PHOEBE_CONFESSION"]!;
+const ROVER_SPECTRO = LOADOUTS["ROVER_SPECTRO"]!;
+const SHOREKEEPER = LOADOUTS["SHOREKEEPER"]!;
+const VERINA = LOADOUTS["VERINA"]!;
+const ZANI = LOADOUTS["ZANI"]!;
 
 /** One position in a team: the main DPS bare, or the list of loadouts a support position runs. */
 type Slot = Loadout | Loadout[];
@@ -274,7 +298,7 @@ const idOf = (l: Loadout): number => {
 const EXPANDED: TeamEntry[] = TEAMS.flatMap((slots, from) => {
   // a bare loadout is a main DPS; a list is a support position, however many choices it holds
   const mdps = slots.map((s) => !Array.isArray(s));
-  const [a, b, c] = slots.map((s) => (Array.isArray(s) ? [...new Set(s)] : [s]));
+  const [a, b, c] = slots.map((s) => (Array.isArray(s) ? [...new Set(s)] : [s]).filter((l): l is Loadout => l !== undefined));
   if (!mdps.some(Boolean)) {
     const names = [a, b, c].map((s) => s!.map((l) => l.resonator.name).join("/")).join(", ");
     throw new Error(`the team [${names}] has no bare loadout naming its main DPS`);
@@ -287,9 +311,7 @@ const EXPANDED: TeamEntry[] = TEAMS.flatMap((slots, from) => {
     // every chain level its members declare rotations for must be playable (rotation.ts `teamPlayable()`)
     .filter((team) => {
       const names = team.loadouts.map((l) => l.resonator.name);
-      const [x, y, z] = team.loadouts.map((l) => l.rotations);
-      let why: string | null = null;
-      for (const rx of x!) for (const ry of y!) for (const rz of z!) why ??= teamPlayable([rx, ry, rz], names);
+      const why = teamPlayable(team.loadouts);
       if (why) UNPLAYABLE_TEAMS.push({ names, why });
       return why === null;
     });

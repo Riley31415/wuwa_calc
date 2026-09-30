@@ -3,11 +3,11 @@
  * the row set a solve opens, and `solveTeam`. DOM-free so a pool of Workers can run it — this file
  * is also the worker's own entry point (see the foot). The engine run it scores with is teamrun.ts.
  */
-import { Buff, Loadout, EchoLoadout, Weapon, baseSequence } from "./engine/gear.js";
+import { Buff, Loadout, EchoLoadout, Weapon, baseSequence } from "./mirror/gear.js";
 import { Tier } from "./engine/stats.js";
-import type { Matrix } from "./engine/gear.js";
-import { runTeam, scoreOf, erRollsFor } from "./teamrun.js";
-import type { TeamRun, RowScore } from "./teamrun.js";
+import type { Matrix } from "./mirror/gear.js";
+import { runTeam, scoreOf, erRollsFor } from "./mirror/teamrun.js";
+import type { TeamRun, RowScore } from "./mirror/teamrun.js";
 import { teamAt } from "./teams.js";
 
 export interface Member {
@@ -285,7 +285,7 @@ function scoreMainstatsRun(teamKey: string, members: Member[], picks: Pick[], wh
       const scored: TeamRun = {
         state: run.state, teamKey, members, combo: c, rotationLines: null, variantRuns: [],
         total: variant.total, bySlot: variant.bySlot, sectionTotals: variant.sectionTotals, sectionBySlot: variant.sectionBySlot,
-        fightTotal: variant.fightTotal, fightBySlot: variant.fightBySlot, seconds: variant.seconds,
+        fightTotal: variant.fightTotal, fightBySlot: variant.fightBySlot, seconds: variant.seconds, sectionSeconds: run.sectionSeconds,
       };
       trialCache.set(trialKey(teamKey, c), scored);
       scores[k] = scored;

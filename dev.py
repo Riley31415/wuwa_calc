@@ -54,11 +54,11 @@ DEFAULT_PORT = 8731
 # limit; bundled it is 18, and the search starts ~0.2s sooner. `--outbase` keeps the worker at the
 # same relative path index.js finds it by (`new URL("./solver.js", import.meta.url)`).
 ESBUILD_ARGS = [
-    "dist/src/index.js", "dist/src/solver.js", "--bundle", "--splitting", "--format=esm",
+    "dist/src/index.js", "dist/src/solver.js", "dist/src/worker.js", "--bundle", "--splitting", "--format=esm", "--external:node:*",
     "--outdir=dist/bundle", "--outbase=dist/src", "--log-level=warning",
 ]
 
-WATCH_EXTS = {".html", ".css", ".js"}
+WATCH_EXTS = {".html", ".css", ".js", ".wasm"}
 POLL_SECONDS = 0.4
 
 # What /__livereload reports: a checksum of every watched file's path and mtime, not a counter — a
@@ -77,13 +77,36 @@ def _snapshot() -> dict:
     for p in ROOT.rglob("*"):
         if p.suffix not in WATCH_EXTS or "node_modules" in p.parts:
             continue
-        if "dist" in p.parts and "bundle" not in p.parts:
+        if "dist" in p.parts and "bundle" not in p.parts and p.name != "engine.wasm":
             continue
         try:
             state[str(p)] = p.stat().st_mtime
         except OSError:
             pass  # deleted between the glob and the stat — treat as absent, not fatal
     return state
+
+
+def _rust_mtimes() -> dict:
+    """path -> mtime for the engine's sources: rust/src and its manifest."""
+    crate = ROOT / "rust"
+    files = [*crate.joinpath("src").rglob("*.rs"), crate / "Cargo.toml"]
+    return {str(p): p.stat().st_mtime for p in files if p.exists()}
+
+
+def _wasm_loop() -> None:
+    """Rebuild dist/engine.wasm whenever a .rs file changes; the page reloads off the new module's
+    mtime like any bundle edit. A failed compile keeps the last good module and logs to logs/wasm.log."""
+    sys.path.insert(0, str(ROOT / "rust"))
+    from build_wasm import build
+    LOGS.mkdir(exist_ok=True)
+    last = None
+    while True:
+        cur = _rust_mtimes()
+        if cur != last:
+            with open(LOGS / "wasm.log", "w", encoding="utf-8") as log:
+                build(log)
+            last = cur
+        time.sleep(POLL_SECONDS)
 
 
 def _sweep_chunks() -> None:
@@ -290,6 +313,8 @@ def main() -> int:
         ]
 
     threading.Thread(target=_watch_loop, daemon=True).start()
+    if not serve_only:
+        threading.Thread(target=_wasm_loop, daemon=True).start()
     httpd = ThreadingHTTPServer(("127.0.0.1", port), partial(NoCacheHandler, directory=str(ROOT)))
     what = "hot reload" if serve_only else "tsc --watch + esbuild --watch + hot reload"
     print(f"serving http://127.0.0.1:{port}/index.html  ({what}; ctrl-c to stop)")

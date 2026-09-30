@@ -3,15 +3,15 @@
  * column order (kept in localStorage) with its pointer handlers.
  */
 import { Stat, Cast, SCALING_NAME, ActionTag } from "../engine/stats.js";
-import type { Gear } from "../engine/gear.js";
-import { menuStats } from "../engine/context.js";
-import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
-import type { ChainGroup, ResolvedSnapshot } from "../engine/evaluate.js";
+import type { Gear } from "../mirror/gear.js";
+import { menuStats } from "../mirror/context.js";
+import { TUNE_BREAK_ENEMY } from "../mirror/shared.js";
+import type { ChainGroup, ResolvedSnapshot } from "../mirror/evaluate.js";
 import { columnOf, gaugeSuffix, fmt, digitsOf, PAD_DIGITS_COLUMNS, GROUPED_COLUMNS, OFFTUNE_RATE, ENERGY_RATE } from "../display.js";
 import type { Report, Column, ReportRow, ReportPart, TraceEntry } from "../display.js";
-import type { TeamRun } from "../teamrun.js";
-import { hitsOf, erRollsFor } from "../teamrun.js";
-import { ER_TOLERANCE } from "../shared/substats.js";
+import type { TeamRun } from "../mirror/teamrun.js";
+import { hitsOf, erRollsFor } from "../mirror/teamrun.js";
+import { ER_TOLERANCE } from "../mirror/shared.js";
 import { results, detailFor, FALLBACK_HUE } from "./model.js";
 import { esc, lazyPop, rect, zoom, clearPops, panelRow, popover, infoPopover, buffsPopover, framesPopover, equippedGear, dprTable, loadoutTable, wireDistribution, drivePanel, dropPanel, holdPanels } from "./panels.js";
 import { rememberTableScroll } from "./table.js";
@@ -37,7 +37,7 @@ function cell(col: Column, { cls = [], html = "", pop = "", style = "", attr = "
 const TAG_KIND: Partial<Record<ActionTag, string>> = {
   [ActionTag.InstaCancel]: "insta", [ActionTag.InstaDodge]: "insta", [ActionTag.InstaJump]: "insta", [ActionTag.InstaSwap]: "insta",
   [ActionTag.SwapCancel]: "swap", [ActionTag.EasyCancel]: "easy", [ActionTag.Field]: "field",
-  [ActionTag.DodgeCancel]: "dash", [ActionTag.JumpCancel]: "jump", [ActionTag.Cancel]: "cancel", [ActionTag.HitCancel]: "hit",
+  [ActionTag.DodgeCancel]: "dash", [ActionTag.JumpCancel]: "jump", [ActionTag.Cancel]: "cancel", [ActionTag.HitCancel]: "hit", [ActionTag.DodgeOnHit]: "dash", [ActionTag.JumpOnHit]: "jump",
 };
 
 /** One row of the log. A running column is blank where the row left it exactly as it came in
@@ -258,7 +258,7 @@ function erRequirement(flat: ChainGroup[], resetIdx: number, member: string, max
       if (s.member !== member) continue;
       if (s.action.resetEnergy) break walk;
       if (s.energyWiped) continue;
-      const gain = (s.action.energy + s.stat(Stat.AddEnergy) + s.stat(Stat.AddCastEnergy)) * (1 + s.stat(Stat.EnergyRegenMult) / 100);
+      const gain = (s.action.energy + s.stat(Stat.AddEnergy) + (s.castGain?.[0] ?? 0)) * (1 + s.stat(Stat.EnergyRegenMult) / 100);
       buffed += gain * (s.stat(Stat.Er) - constant);
     }
   }

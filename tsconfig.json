@@ -35,5 +35,10 @@
      break mechanic again, registered into the engine rather than seeded onto a State. */
   "exclude": [
     "node_modules", "dist",
+    /* the TS engine and kits the Rust engine (rust/) replaced — kept on disk until the port is
+       done, compiled only by rust/harness as the reference */
+    "src/engine/context.ts", "src/engine/evaluate.ts", "src/engine/state.ts", "src/engine/gear.ts",
+    "src/engine/rotation.ts", "src/engine/runtime.ts", "src/engine/damage.ts",
+    "src/shared", "src/resonators", "src/weapons", "src/echoes", "src/teamrun.ts", "src/cost.ts",
   ]
 }

@@ -1,0 +1,132 @@
+/** Signature Gauntlets weapons. Each export is the weapon's five refinements, R1 first (gear.ts's
+ *  own `refinements()`); a number that grows with rank is written as its five values. */
+import { WeaponType, Stat, Attribute, Type, Subtype, Cast } from "../engine/stats.js";
+import { Buff, Weapon, refinements } from "../engine/gear.js";
+import { setStacksSelf, casting, applied, onCast, onType, onInflict, onApplied } from "../engine/context.js";
+import { SHIELD } from "../shared/status.js";
+import { TUNE_STRAIN_SHIFTING } from "../shared/tunebreak.js";
+
+/** Verity's Handle, Xiangli Yao's sig: Ad Veritatem. +12% Attribute DMG Bonus flat.
+ *  Liberation grants +48% Liberation DMG Bonus for 8s, extended by each Skill cast while up —
+ *  approximated as a flat re-grant per Skill cast rather than a real countdown. Not owned by any
+ *  resonator implemented yet — exported standalone. */
+export const VERITYS_HANDLE = refinements((r, rank) => {
+  const AD_VERITATEM = new Buff({
+    name: `Verity's Handle: Ad Veritatem${rank}`,
+    duration: 60 * 8,
+    stats: [[Stat.DmgBonus, [48, 60, 72, 84, 96][r]!, Type.Liberation]],
+  });
+  return new Weapon({
+    weaponType: WeaponType.Gauntlets, name: `Verity's Handle${rank}`,
+    stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.DmgBonus, [12, 15, 18, 21, 24][r]!]],
+    grants: [{ on: onCast(Cast.Liberation), buff: AD_VERITATEM }],
+  });
+});
+
+/** Tragicomedy, Roccia's sig: Fool's Warble. +12% ATK flat. Basic Attack or Intro grants
+ *  +48% Heavy Attack DMG Bonus for 3s. "Basic Attack" is the cast, not the damage type. */
+export const TRAGICOMEDY = refinements((r, rank) => {
+  const FOOLS_WARBLE = new Buff({
+    name: `Tragicomedy: Fool's Warble${rank}`,
+    duration: 60 * 3,
+    stats: [[Stat.DmgBonus, [48, 60, 72, 84, 96][r]!, Type.Heavy]],
+  });
+  return new Weapon({
+    weaponType: WeaponType.Gauntlets, name: `Tragicomedy${rank}`,
+    stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
+    grants: [{ on: onCast(Cast.Basic, Cast.Intro), buff: FOOLS_WARBLE }],
+  });
+});
+
+/** Blazing Justice, Zani's sig: Darkness Breaker. +12% ATK flat. A Basic Attack cast opens a 6s
+ *  window in which the wielder's damage ignores 8% of the target's DEF and their Spectro Frazzle
+ *  DMG is amplified 50% — a short self window, re-opened by every Basic.
+ *  "Casting Basic Attack" is the cast, not the damage type. */
+export const BLAZING_JUSTICE = refinements((r, rank) => {
+  const DARKNESS_BREAKER = new Buff({
+    name: `Blazing Justice: Darkness Breaker${rank}`, duration: 60 * 6,
+    stats: [
+      [Stat.DefIgnoreOld, [8, 10, 12, 14, 16][r]!],
+      [Stat.Amp, [50, 62.5, 75, 87.5, 100][r]!, Subtype.SpectroFrazzle],
+    ],
+  });
+  return new Weapon({
+    weaponType: WeaponType.Gauntlets, name: `Blazing Justice${rank}`,
+    stats: [[Stat.BaseAtk, 587.5], [Stat.CritDmg, 48.6], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
+    grants: [{ on: onCast(Cast.Basic), buff: DARKNESS_BREAKER }],
+  });
+});
+
+/** Solsworn Ciphers, Sigrika's sig: Sunward. +12% ATK flat. Intro/Echo Skill grants +32%
+ *  Echo Skill DMG Amp for 15s; dealing Echo Skill DMG makes Aero DMG ignore 10% DEF for 6s. */
+export const SOLSWORN_CIPHERS = refinements((r, rank) => {
+  const SUNWARD_AMP = new Buff({
+    name: `Solsworn Ciphers: Sunward${rank} (intro/echo)`,
+    duration: 60 * 15,
+    stats: [[Stat.Amp, [32, 40, 48, 56, 64][r]!, Type.Echo]],
+  });
+  const SUNWARD_IGNORE = new Buff({
+    name: `Solsworn Ciphers: Sunward${rank} (echo dmg)`,
+    duration: 60 * 6,
+    stats: [[Stat.DefIgnoreNew, [10, 12.5, 15, 17.5, 20][r]!, Attribute.Aero]],
+  });
+  return new Weapon({
+    weaponType: WeaponType.Gauntlets, name: `Solsworn Ciphers${rank}`,
+    stats: [[Stat.BaseAtk, 587.5], [Stat.CritDmg, 48.6], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
+    grants: [
+      { on: onCast(Cast.Intro, Cast.Echo), buff: SUNWARD_AMP },
+      { on: onType(Type.Echo), buff: SUNWARD_IGNORE, onHit: true },
+    ],
+  });
+});
+
+/** Moongazer's Sigil, Iuno's sig: Plenilune Radiance. +12% ATK flat. An Intro or Liberation cast
+ *  grants +20% Liberation DMG Bonus for 15s. Per
+ *  shield stack her Liberation damage also pierces defence — her own Intro takes that stack
+ *  straight to the ceiling, every other shielding cast adds one per shield it declares. */
+export const IUNO_SIG = refinements((r, rank) => {
+  const PLENILUNE_DMG = new Buff({
+    name: `Moongazer's Sigil: Plenilune Radiance${rank} (intro/lib)`,
+    duration: 60 * 15,
+    stats: [[Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Type.Liberation]],
+  });
+  const MOONGAZER_STACKS = new Buff({
+    name: `Moongazer's Sigil: Plenilune Radiance${rank} (shield)`, maxStacks: 5, duration: 60 * 7,
+    // scoped to liberation damage — most of Lunar Cycle qualifies, intro/outro/echo don't
+    stats: [[Stat.DefIgnoreNew, [7.2, 8.4, 9.6, 10.8, 12][r]!, Type.Liberation]], perStack: true,
+  });
+  return new Weapon({
+    weaponType: WeaponType.Gauntlets, name: `Moongazer's Sigil${rank}`,
+    stats: [[Stat.BaseAtk, 500], [Stat.CritRate, 36], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
+    grants: [
+      { on: onCast(Cast.Intro, Cast.Liberation), buff: PLENILUNE_DMG },
+      { on: onApplied(SHIELD), buff: MOONGAZER_STACKS, stacks: () => applied(SHIELD) },
+    ],
+    updateBuffs: () => { if (casting(Cast.Intro)) setStacksSelf(MOONGAZER_STACKS, 5); },
+  });
+});
+
+/** Daybreaker's Spine, Luuk's sig: Suturing Dayline. +12% ATK flat. Dealing Basic Attack DMG
+ *  puts up +20% Spectro DMG Bonus for 4s, and each Tune Strain - Shifting the wielder inflicts (a
+ *  cast declaring `strain`) puts up +20% Basic Attack DMG Amplification and 10% DEF ignore on Basic
+ *  Attack DMG for 6s — both short self buffs, re-applied by nearly everything he does, lost after
+ *  his outro. */
+export const DAYBREAKERS_SPINE = refinements((r, rank) => {
+  const SUTURING_DAYLINE_SPECTRO = new Buff({
+    name: `Daybreaker's Spine: Suturing Dayline${rank} (basic)`,
+    duration: 60 * 4,
+    stats: [[Stat.DmgBonus, [20, 25, 30, 35, 40][r]!, Attribute.Spectro]],
+  });
+  const SUTURING_DAYLINE_STRAIN = new Buff({
+    name: `Daybreaker's Spine: Suturing Dayline${rank} (strain)`, duration: 60 * 6,
+    stats: [[Stat.Amp, [20, 25, 30, 35, 40][r]!, Type.Basic], [Stat.DefIgnoreNew, [10, 12.5, 15, 17.5, 20][r]!, Type.Basic]],
+  });
+  return new Weapon({
+    weaponType: WeaponType.Gauntlets, name: `Daybreaker's Spine${rank}`,
+    stats: [[Stat.BaseAtk, 587.5], [Stat.CritRate, 24.3], [Stat.BonusAtk, [12, 15, 18, 21, 24][r]!]],
+    grants: [
+      { on: onType(Type.Basic), buff: SUTURING_DAYLINE_SPECTRO, onHit: true },
+      { on: onInflict(TUNE_STRAIN_SHIFTING), buff: SUTURING_DAYLINE_STRAIN },
+    ],
+  });
+});

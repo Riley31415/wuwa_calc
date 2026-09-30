@@ -4,14 +4,14 @@
  * through. Everything that draws (table.ts, detail.ts) reads from here; index.ts drives it.
  */
 import { Tier } from "../engine/stats.js";
-import { baseSequence } from "../engine/gear.js";
-import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
+import { baseSequence } from "../mirror/gear.js";
+import { TUNE_BREAK_ENEMY } from "../mirror/shared.js";
 import { buildReport } from "../display.js";
 import type { Report } from "../display.js";
 import { member, comboOf, eligibleWeapons, refineLevels, sequenceLevels, scopedKey, axisUsed, weaponBase, echoLabel, MAINSTAT_ROWS, defaultFilters, bestKey, picksKey, axisOpen, filterSignature, AXES } from "../solver.js";
 import type { Member, Combo, Pick, Filters, Solved, SolveSave, Axis, TeamCost, ScopedCompare } from "../solver.js";
-import { runTeam, runFromScore } from "../teamrun.js";
-import type { TeamRun } from "../teamrun.js";
+import { runTeam, runFromScore } from "../mirror/teamrun.js";
+import type { TeamRun } from "../mirror/teamrun.js";
 import { teamKey, teamAt, ALL_TEAMS, PRIMARY_TEAM, INTERCHANGEABLE } from "../teams.js";
 
 /* ------------------------------------------------------------------------------------ teams */

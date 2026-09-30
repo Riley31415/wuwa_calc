@@ -10,7 +10,7 @@
 import { fmt } from "./display.js";
 import { hasBuild, solveTeam, bestKey, picksKey, isProgress } from "./solver.js";
 import type { Member, Solved, SolveRequest, SolveResponse, SolveProgress } from "./solver.js";
-import { runTeam } from "./teamrun.js";
+import { runTeam } from "./mirror/teamrun.js";
 import {
   TEAMS, filters, results, bestPicks, picksCache, storeSolved, teamWanted, teamRows, estimatedRowCount, rowFromKey,
   setVisibleRows, visibleRows, discardRestoredSolves, loadShipped, loadSolves, saveSolves, solveFits,
@@ -113,6 +113,8 @@ async function runMissing(rows: TeamRow[]): Promise<void> {
 const WORKER_LIMIT = 8;
 let pool: Worker[] | null = null;
 let poolTried = false;
+/** Per worker, whether its engine came up: true on its `ready`, false if it failed to load. */
+const readyOf = new WeakMap<Worker, Promise<boolean>>();
 
 /** Drop the pool for the rest of the session: its workers are on a build this page isn't, and every
  *  team they answer would only be thrown away and redone here. A rebuild is what puts them there —
@@ -132,8 +134,17 @@ function workerPool(): Worker[] | null {
   try {
     // a query string nothing has cached: the published site caches for ten minutes, and a worker
     // on last build's engine solves with last build's kits
-    pool = Array.from({ length: want }, () =>
-      new Worker(new URL(`./solver.js?v=${Date.now()}`, import.meta.url), { type: "module" }));
+    pool = Array.from({ length: want }, () => {
+      const w = new Worker(new URL(`./worker.js?v=${Date.now()}`, import.meta.url), { type: "module" });
+      readyOf.set(w, new Promise((resolve) => {
+        w.onmessage = () => resolve(true);
+        w.onerror = (e) => {
+          e.preventDefault();
+          resolve(false);
+        };
+      }));
+      return w;
+    });
   } catch (err) {
     console.warn("Workers unavailable, optimizing on the main thread instead:", err);
     pool = null;
@@ -171,6 +182,11 @@ function solveOnWorkers(
         onDone(members);
         void pump(w);
       };
+      if (!(await readyOf.get(w))) {
+        console.warn(`worker failed to load, solving ${key} here`);
+        finish(solveTeam(key, members, filters, known));
+        return;
+      }
       w.onmessage = ({ data }: MessageEvent<SolveResponse | SolveProgress>) => {
         if (isProgress(data)) { onShare?.(members, data.share); return; }
         const solved: Solved = { picks: data.picks, rows: data.rows, scores: data.scores, hidden: data.hidden ?? [], hiddenScores: data.hiddenScores ?? [] };

@@ -2,10 +2,9 @@ import {
   ALL_TEAMS,
   AXES,
   ActionTag,
-  BASE_RESISTANCE,
+  BASE_RESISTANCE_GEAR,
   CAST_NAME,
-  ENEMY_MAX_OFFTUNE,
-  ER_TOLERANCE,
+  ENEMY,
   INTERCHANGEABLE,
   LEVEL_90_DOT,
   LEVEL_90_TUNE,
@@ -17,11 +16,11 @@ import {
   SCALING_NAME,
   Sonata,
   TAG_NAME,
-  TUNE_BREAK_ENEMY,
   axisOpen,
   axisUsed,
   baseSequence,
   bestKey,
+  breakdownOf,
   comboOf,
   compares,
   damageFactors,
@@ -37,11 +36,8 @@ import {
   hitsOf,
   isPercent,
   isProgress,
-  litStats,
   loadoutName,
-  mainstatSlotBuffs,
   member,
-  menuStats,
   mvPercent,
   picksKey,
   refineLevels,
@@ -53,12 +49,23 @@ import {
   solveTeam,
   splitStat,
   statLabel,
-  substatRollBuffs,
   tagKind,
   teamAt,
   teamKey,
   weaponBase
-} from "./chunk-5HD4I4GB.js";
+} from "./chunk-H4EWKDLE.js";
+
+// dist/src/mirror/shared.js
+var TUNE_BREAK_ENEMY = ENEMY;
+var BASE_RESISTANCE = BASE_RESISTANCE_GEAR;
+var ENEMY_MAX_OFFTUNE = 392e3;
+var ER_TOLERANCE = 0;
+var litStats = (maxEnergy) => maxEnergy ? [
+  11
+  /* Stat.Er */
+] : [];
+var substatRollBuffs = (piece) => breakdownOf(piece);
+var mainstatSlotBuffs = (piece) => breakdownOf(piece);
 
 // dist/src/display.js
 var formatters = /* @__PURE__ */ new Map();
@@ -112,9 +119,9 @@ var digitsOf = (raw, col) => {
 };
 var keysFor = (action, ...stats) => stats.flatMap((stat) => [
   stat,
-  ...[action.lastHit?.element ?? null, action.lastHit?.type ?? null, action.lastHit?.subtype ?? null].filter((tag) => tag !== null).map((tag) => scopedStat(tag, stat))
+  ...[action.lastBullet?.element ?? null, action.lastBullet?.type ?? null, action.lastBullet?.subtype ?? null].filter((tag) => tag !== null).map((tag) => scopedStat(tag, stat))
 ]);
-var sub = (action) => action.lastHit?.subtype ?? null;
+var sub = (action) => action.lastBullet?.subtype ?? null;
 var special = (action) => action.scaling === 3 || action.scaling === 4 || action.scaling === 5;
 var fixed = (action) => action.scaling === 5;
 var SCALERS = {
@@ -217,23 +224,23 @@ var FEEDS = {
   )],
   effDef: (a) => fixed(a) ? [] : a.scaling === 3 ? keysFor(
     a,
-    43
+    36
     /* EnemyStat.DefReduce */
   ) : keysFor(
     a,
     22,
     23,
-    43
+    36
     /* EnemyStat.DefReduce */
   ),
   effRes: (a) => a.scaling === 3 ? keysFor(
     a,
-    42
+    35
     /* EnemyStat.ResReduce */
   ) : fixed(a) ? [] : keysFor(
     a,
     21,
-    42
+    35
     /* EnemyStat.ResReduce */
   )
   // energy/concerto/offtune are running totals — `rowValues()` builds their panels by hand
@@ -284,7 +291,7 @@ var SECTION_OF = {
     /* Stat.DefIgnoreOld */
   ]: "DEF Ignore (old)",
   [
-    43
+    36
     /* EnemyStat.DefReduce */
   ]: "DEF Reduce",
   [
@@ -292,7 +299,7 @@ var SECTION_OF = {
     /* Stat.ResIgnore */
   ]: "RES Ignore",
   [
-    42
+    35
     /* EnemyStat.ResReduce */
   ]: "RES Reduce",
   [
@@ -314,7 +321,7 @@ var actionInfo = (action, type, source) => {
   push("Cast", action.cast === null ? null : CAST_NAME[action.cast]);
   push("Subcast", action.subcast === null ? null : CAST_NAME[action.subcast]);
   const kinds = (of, also = null) => {
-    const seen = new Set(action.hits.map(of).filter((v) => v !== null));
+    const seen = new Set(action.bullets.map(of).filter((v) => v !== null));
     if (also !== null)
       seen.add(also);
     return seen.size ? [...seen].map((v) => TAG_NAME[v]).join(", ") : null;
@@ -323,10 +330,11 @@ var actionInfo = (action, type, source) => {
   push("Scaling", action.scaling === null ? null : SCALING_NAME[action.scaling]);
   push("Type", kinds((h) => h.type, type));
   push("Subtype", kinds((h) => h.subtype));
-  push("Hits", action.hits.length > 1 ? action.hits.map((h) => h.at).join(", ") : null);
+  push("Hits", action.bullets.length > 1 ? action.bullets.map((h) => h.hitFrame).join(", ") : null);
+  push("Commits", action.bullets.some((h) => h.commitFrame !== h.hitFrame) ? action.bullets.map((h) => h.commitFrame).join(", ") : null);
   push("Anim Frames", String(action.animFrames));
-  if (action.def.commitFrames !== void 0)
-    push("Commit Frames", String(action.commitFrames));
+  push("Prio Frames", action.prioFrames ? String(action.prioFrames) : null);
+  push("QTE Frames", action.qteFrames ? String(action.qteFrames) : null);
   push("Time Stop", action.timestop ? String(action.timestop) : null);
   push("Motion Stop", action.motionStop ? String(action.motionStop) : null);
   if (source)
@@ -494,16 +502,38 @@ function rowValues(snap, { mv, avg }, members = []) {
   if (constant)
     raw["empty:scaler"] = constant.label;
   sources.effRes = (sources.effRes ?? []).map((r) => ({ ...r, value: -r.value }));
+  if (!fixed(snap.action)) {
+    const dot = snap.action.scaling === 3;
+    const pct = (v) => `${fmt(v, 2)}%`;
+    const ignoreNew = dot ? 0 : snap.stat(
+      22
+      /* Stat.DefIgnoreNew */
+    ), ignoreOld = dot ? 0 : snap.stat(
+      23
+      /* Stat.DefIgnoreOld */
+    );
+    const reduce = snap.stat(
+      36
+      /* EnemyStat.DefReduce */
+    );
+    const base = fmt(snap.enemyDef, 0, false, false);
+    const inner = [reduce, ignoreOld].filter((v) => v !== 0).map((v) => ` \u2212 ${pct(v)}`).join("");
+    const floored = inner ? `floor(${base} \xD7 (1${inner}))` : base;
+    const formula = `1 \u2212 ${floored}${ignoreNew ? ` \xD7 (1 \u2212 ${pct(ignoreNew)})` : ""} / ${base}`;
+    sources.effDef = [
+      ...sources.effDef ?? [],
+      { source: "", label: "Formula", value: 0, text: formula, summary: true, place: "afterTotal" },
+      { source: "", label: "Effective Def Shred", value: effectiveShred(snap) * 100, percent: true, digits: 2, summary: true, place: "afterTotal", joined: true }
+    ];
+  }
   const RESOURCE_STAT = {
     energy: [
-      26,
-      35
-      /* Stat.AddCastEnergy */
+      26
+      /* Stat.AddEnergy */
     ],
     concerto: [
-      27,
-      36
-      /* Stat.AddCastConcerto */
+      27
+      /* Stat.AddConcerto */
     ],
     offtune: [
       28
@@ -511,9 +541,14 @@ function rowValues(snap, { mv, avg }, members = []) {
     ]
   };
   const CAST_SHARE = { energy: snap.action.castEnergy, concerto: snap.action.castConcerto, offtune: 0 };
+  const castAdded = (i) => (snap.castAdds ?? []).filter((c) => c.gains[i] !== 0).map((c) => ({ source: c.source, value: c.gains[i], owner: c.owner ?? void 0, label: "on cast" }));
+  const CAST_ADD = { energy: 0, concerto: 1, offtune: -1 };
   for (const key of ["energy", "concerto", "offtune"]) {
     const wiped = key === "energy" && snap.energyWiped;
-    const traced = wiped ? [] : RESOURCE_STAT[key].flatMap((st) => tracing(snap, keysFor(snap.action, st), false)).map((r) => ({ ...r, value: r.value / RESOURCE_SCALE[key] }));
+    const traced = wiped ? [] : [
+      ...RESOURCE_STAT[key].flatMap((st) => tracing(snap, keysFor(snap.action, st), false)),
+      ...CAST_ADD[key] < 0 ? [] : castAdded(CAST_ADD[key])
+    ].map((r) => ({ ...r, value: r.value / RESOURCE_SCALE[key] }));
     const own = wiped ? [] : ownShares(snap, snap.action[key] / RESOURCE_SCALE[key], CAST_SHARE[key] / RESOURCE_SCALE[key]);
     const rows = [...own, ...traced];
     const folded = [...own, ...foldDuplicates(traced)];
@@ -577,17 +612,9 @@ function rowValues(snap, { mv, avg }, members = []) {
     34
     /* Stat.AddForte5 */
   ];
-  const CAST_FORTE_STAT = [
-    37,
-    38,
-    39,
-    40,
-    41
-    /* Stat.AddCastForte5 */
-  ];
   FORTE_GAUGES.forEach((key, i) => {
     const declared = snap.action[FORTE_FIELD[i]];
-    const traced = [FORTE_STAT[i], CAST_FORTE_STAT[i]].flatMap((st) => tracing(snap, keysFor(snap.action, st)));
+    const traced = [...tracing(snap, keysFor(snap.action, FORTE_STAT[i])), ...castAdded(2 + i)];
     const rows = [];
     if (snap.action.resetForte[i]) {
       rows.push({ source: snap.action.name, value: 0, text: "RESET", owner: snap.member });
@@ -710,7 +737,8 @@ function buildReport(lines) {
     { key: "cr", label: "cr%", digits: 1, percent: true, full: "Crit Rate" },
     { key: "cd", label: "cd%", digits: 1, percent: true, full: "Crit Dmg" },
     // both halves carry their own section heading, so `full` is only the empty-panel one
-    { key: "effDef", label: "ignore%", digits: 1, percent: true, full: "DEF Ignore", fullEmpty: "DEF Shred" },
+    // its panel ends on the shred's own formula and result rather than a Total
+    { key: "effDef", label: "shred%", digits: 1, percent: true, noTotal: true, full: "DEF Ignore", fullEmpty: "DEF Shred" },
     { key: "effRes", label: "res%", digits: 1, percent: true, full: "Enemy RES" },
     { key: "dealt", label: "vuln%", digits: 1, percent: true, full: "Vulnerability" },
     // digits match nanoka's precision; offtune is /10000 (RESOURCE_SCALE) and reads to two like
@@ -1365,6 +1393,23 @@ var routeTeam = () => {
   return key && results.has(key) ? key : null;
 };
 
+// dist/src/mirror/context.js
+function menuStats(gear) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const g of gear) {
+    for (const [stat, value, tag] of g.lines) {
+      const key = tag === void 0 ? stat : stat | tag;
+      const dedupe = `${g.name} ${key}`;
+      if (seen.has(dedupe))
+        continue;
+      seen.add(dedupe);
+      out.push({ stat: key, value, source: g.name, owner: "", gear: g });
+    }
+  }
+  return out;
+}
+
 // dist/src/page/panels.js
 var esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 var coarse = matchMedia("(pointer: coarse)").matches;
@@ -1406,7 +1451,7 @@ var panelRow = (r, slotHue, { noSource = false } = {}) => {
   const show = (v) => r.digits === void 0 ? fmtExact(v) : fmt(v, r.digits, true);
   const value = `<td class="v">${r.text !== void 0 ? esc(r.text) : r.mult ? `&times;${show(r.value)}` : `${show(r.value)}${unit(r)}`}</td>`;
   if (r.summary)
-    return `<tr class="sum"><td class="k">${esc(label)}</td>${value}</tr>`;
+    return `<tr class="sum${r.joined ? " joined" : ""}"><td class="k">${esc(label)}</td>${value}</tr>`;
   return noSource ? `<tr><td class="k">${esc(label)}</td>${value}</tr>` : `<tr><td class="s"${own ? ` style="--own:${own}"` : ""}>${esc(source || label)}</td>${value}</tr>`;
 };
 function popover(col, rows, total, slotHue, suffix = "", empty = "") {
@@ -1453,7 +1498,7 @@ function framesPopover(snaps) {
     total += cost.total - s.timestopBanked;
     const insta = s.tag === ActionTag.InstaCancel || s.tag === ActionTag.InstaDodge || s.tag === ActionTag.InstaJump || s.tag === ActionTag.InstaSwap;
     const fast = s.tag === ActionTag.EasyCancel;
-    const cut = s.tag === ActionTag.Cancel || s.tag === ActionTag.EasyCancel || s.tag === ActionTag.DodgeCancel || s.tag === ActionTag.JumpCancel || s.tag === ActionTag.SwapCancel || s.tag === ActionTag.HitCancel;
+    const cut = s.tag === ActionTag.Cancel || s.tag === ActionTag.EasyCancel || s.tag === ActionTag.DodgeCancel || s.tag === ActionTag.JumpCancel || s.tag === ActionTag.SwapCancel || s.tag === ActionTag.HitCancel || s.tag === ActionTag.DodgeOnHit || s.tag === ActionTag.JumpOnHit;
     if (!insta)
       rows.push(line(`${s.action.name}${cut ? " (c)" : ""}`, cost.action));
     if (cost.timestop)
@@ -1801,7 +1846,7 @@ function dprTable(run, lines) {
     ...run.members.map((m) => [m.name, m.color]),
     [TUNE_BREAK_ENEMY.name, TUNE_BREAK_ENEMY.color]
   ]);
-  const sections = ["Opener", ...Array.from({ length: whole - 1 }, (_, i) => `Loop ${i + 1}`), "4 Rot"];
+  const sections = ["Opener", ...Array.from({ length: whole - 1 }, (_, i) => `Loop ${i + 1}`), "4 Rots"];
   const ownTotal = (slot) => run.fightBySlot.get(slot) ?? 0;
   const selected2 = flat ? `${TEAM_ROW}|${whole}` : "";
   if (lines)
@@ -1814,7 +1859,7 @@ function dprTable(run, lines) {
       // for each loop column, the whole fight in order for the Total
       ...[...lines.slice(0, whole).map((sec) => [sec]), lines].map((secs, i) => [`${TEAM_ROW}|${i}`, teamCell(secs, sections[i] ?? "", slotHue)])
     ]);
-  const head = `<div class="rtrow rthead"><div class="c"></div>` + sections.slice(0, whole).map((n) => `<div class="c num">${n}</div>`).join("") + `<div class="c num tot">Total (4 Rot)</div></div>`;
+  const head = `<div class="rtrow rthead"><div class="c"></div>` + sections.slice(0, whole).map((n) => `<div class="c num">${n}</div>`).join("") + `<div class="c num tot">Total</div></div>`;
   const valueCell = (sec, value, key, cls = "") => sec ? `<div class="c num dist-cell${cls}${key === selected2 ? " sel" : ""}" data-dist="${key}">${fmt(value)}</div>` : `<div class="c num${cls}">${fmt(value)}</div>`;
   const rowLabel = (slot, mem) => `<div class="c name"${mem}${lines ? ` data-dist-row="${esc(slot)}"` : ""}>${esc(slot)}</div>`;
   const dataRow = (slot, color) => {
@@ -2014,7 +2059,7 @@ function distCell(lines, slot, section, hue) {
   let nodeless = 0;
   eachHit(lines, slot, (snap, avg) => {
     total += avg;
-    const subtype = snap.action.lastHit?.subtype ?? null;
+    const subtype = snap.action.lastBullet?.subtype ?? null;
     const type = snap.type === 32768 && subtype !== null ? null : snap.type;
     const key = (type ?? 0) | (subtype ?? 0);
     const slice = types.get(key);
@@ -2706,13 +2751,13 @@ var hueShown = true;
 var personalOpen = [false, false, false];
 var cmpDrawn = /* @__PURE__ */ new Set();
 var teamMode = "dpr";
-var TEAM_HEAD = { dpr: "Team Average DPR", dps: "Team DPS (4 Rot)" };
+var TEAM_HEAD = { dpr: "Team DPR", dps: "Team DPS" };
 var wholeDamage = (run) => run.sectionTotals.reduce((a, b) => a + b, 0);
 var teamFigure = (run) => Math.floor(wholeDamage(run) / (teamMode === "dpr" ? Math.max(1, run.sectionTotals.length) : run.seconds));
-var personalFigure = (run, name) => Math.floor(run.sectionBySlot.reduce((a, by) => a + (by.get(name) ?? 0), 0) / (teamMode === "dpr" ? Math.max(1, run.sectionTotals.length) : run.seconds));
-var loopTime = (run) => `(${(run.seconds / Math.max(1, run.sectionTotals.length)).toFixed(1)}s)`;
-var teamText = (run) => teamMode === "dpr" ? `${fmt(teamFigure(run))} ${loopTime(run)}` : fmt(teamFigure(run));
-var teamHtml = (run) => teamMode === "dpr" ? `${fmt(teamFigure(run))} <span class="looptime">${loopTime(run)}</span>` : fmt(teamFigure(run));
+var personalFigure = (run, name) => Math.floor(run.sectionBySlot.reduce((a, by) => a + (by.get(name) ?? 0), 0) / Math.max(1, run.sectionTotals.length));
+var loopTime = (run) => teamMode === "dpr" ? `${(run.sectionSeconds[run.sectionSeconds.length - 1] ?? 0).toFixed(1)}s` : `${Math.round(run.sectionSeconds.reduce((a, b) => a + b, 0))}s`;
+var teamText = (run) => `${fmt(teamFigure(run))}${loopTime(run)}`;
+var teamHtml = (run) => `${fmt(teamFigure(run))}<sub class="looptime">${loopTime(run)}</sub>`;
 var pctTrunc = (ratio) => `${fmt(Math.trunc(ratio * 1e3) / 10, 1, true)}%`;
 var tableView = null;
 function comparisonTable(rows) {
@@ -3499,7 +3544,9 @@ var TAG_KIND = {
   [ActionTag.DodgeCancel]: "dash",
   [ActionTag.JumpCancel]: "jump",
   [ActionTag.Cancel]: "cancel",
-  [ActionTag.HitCancel]: "hit"
+  [ActionTag.HitCancel]: "hit",
+  [ActionTag.DodgeOnHit]: "dash",
+  [ActionTag.JumpOnHit]: "jump"
 };
 function stepRow(columns, row, slotHue, gearByMember, { part = false, caret = true } = {}) {
   return columns.map((col) => {
@@ -3685,10 +3732,7 @@ function erRequirement(flat, resetIdx, member2, maxEnergy, constant) {
       const gain = (s.action.energy + s.stat(
         26
         /* Stat.AddEnergy */
-      ) + s.stat(
-        35
-        /* Stat.AddCastEnergy */
-      )) * (1 + s.stat(
+      ) + (s.castGain?.[0] ?? 0)) * (1 + s.stat(
         14
         /* Stat.EnergyRegenMult */
       ) / 100);
@@ -4817,6 +4861,7 @@ async function runMissing(rows) {
 var WORKER_LIMIT = 8;
 var pool = null;
 var poolTried = false;
+var readyOf = /* @__PURE__ */ new WeakMap();
 function dropWorkers() {
   for (const w of pool ?? [])
     w.terminate();
@@ -4828,7 +4873,17 @@ function workerPool() {
   poolTried = true;
   const want = Math.max(1, Math.min(WORKER_LIMIT, (navigator.hardwareConcurrency || 4) - 1));
   try {
-    pool = Array.from({ length: want }, () => new Worker(new URL(`./solver.js?v=${Date.now()}`, import.meta.url), { type: "module" }));
+    pool = Array.from({ length: want }, () => {
+      const w = new Worker(new URL(`./worker.js?v=${Date.now()}`, import.meta.url), { type: "module" });
+      readyOf.set(w, new Promise((resolve) => {
+        w.onmessage = () => resolve(true);
+        w.onerror = (e) => {
+          e.preventDefault();
+          resolve(false);
+        };
+      }));
+      return w;
+    });
   } catch (err) {
     console.warn("Workers unavailable, optimizing on the main thread instead:", err);
     pool = null;
@@ -4859,6 +4914,11 @@ function solveOnWorkers(workers, teams, onDone, onShare) {
         onDone(members);
         void pump(w);
       };
+      if (!await readyOf.get(w)) {
+        console.warn(`worker failed to load, solving ${key} here`);
+        finish2(solveTeam(key, members, filters, known));
+        return;
+      }
       w.onmessage = ({ data }) => {
         if (isProgress(data)) {
           onShare?.(members, data.share);

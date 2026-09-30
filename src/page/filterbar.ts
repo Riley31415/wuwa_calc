@@ -2,7 +2,7 @@
  * The filter aside: the option/help boxes, the chips, and the search bar with its own UI state.
  * Filter *actions* (what a search hit or chip does) live in table.ts beside the table's handlers.
  */
-import { TUNE_BREAK_ENEMY } from "../shared/tunebreak.js";
+import { TUNE_BREAK_ENEMY } from "../mirror/shared.js";
 import { eligibleWeapons, scopedKey, axisUsed, weaponBase, echoLabel, axisOpen, AXES } from "../solver.js";
 import type { Axis, TeamCost, ScopedCompare } from "../solver.js";
 import { TEAMS, RESONATOR_HUE, filters, resonatorFilters, OPTION_FILTER_MAPS, sequenceTagsOf, tagOwner, comparable, MATRIX_RESONATORS } from "./model.js";

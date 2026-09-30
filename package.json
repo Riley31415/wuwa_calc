@@ -5,11 +5,12 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
-    "build": "tsc && npm run bundle",
+    "build": "python rust/build_wasm.py && tsc && npm run bundle",
+    "wasm": "python rust/build_wasm.py",
     "watch": "tsc --watch",
     "dev": "python dev.py",
     "precompute": "node dist/src/precompute.js",
-    "bundle": "node -e \"require('node:fs').rmSync('dist/bundle',{recursive:true,force:true})\" && esbuild dist/src/index.js dist/src/solver.js --bundle --splitting --format=esm --outdir=dist/bundle --outbase=dist/src"
+    "bundle": "node -e \"require('node:fs').rmSync('dist/bundle',{recursive:true,force:true})\" && esbuild dist/src/index.js dist/src/solver.js dist/src/worker.js --bundle --splitting --format=esm --external:node:* --outdir=dist/bundle --outbase=dist/src"
   },
   "repository": {
     "type": "git",
