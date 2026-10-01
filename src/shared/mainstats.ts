@@ -73,6 +73,34 @@ const slotBuffOf = (key: Mainstat): Buff => {
   });
 };
 
+/** Where a 43311 build sits among the ones the solver may prune (solver.ts's `scoreMainstatsRun`):
+ *  a crit 4-cost and 3-costs of ATK or one element only. There the 4-cost only moves crit, which the
+ *  3-costs never touch, so CR vs CD ranks the same over every pair; and trading an element 3-cost for
+ *  ATK pays less each time, so ele/ele, atk/ele, atk/atk rise then fall. HP and ER 3-costs feed
+ *  conversions and the Energy solve, so a build carrying one is never pruned. */
+export interface CritLine {
+  four: Mainstat;
+  /** How many of the two 3-costs are ATK: 0, 1 or 2. */
+  atk: number;
+  /** The element the others roll, or null for atk/atk. */
+  element: Mainstat | null;
+  /** The 1-costs, which are never pruned across. */
+  ones: string;
+}
+const CRIT_LINES = new WeakMap<Buff, CritLine>();
+export const critLineOf = (piece: Buff): CritLine | undefined => CRIT_LINES.get(piece);
+
+const critLine = (slots: Mainstat[]): CritLine | undefined => {
+  if (slots.map(costOf).join("") !== "43311") return undefined;
+  const [four, a, b] = slots as [Mainstat, Mainstat, Mainstat];
+  if (four !== Mainstat.CR4 && four !== Mainstat.CD4) return undefined;
+  const threes = [a, b];
+  if (!threes.every((k) => k === Mainstat.ATK3 || ELEMENTS.includes(k))) return undefined;
+  const elements = threes.filter((k) => k !== Mainstat.ATK3);
+  if (elements.length === 2 && elements[0] !== elements[1]) return undefined;
+  return { four, atk: 2 - elements.length, element: elements[0] ?? null, ones: slots.slice(3).join(",") };
+};
+
 /** Five echoes to a build, cost capped at twelve. */
 const SLOTS = 5, COST_CAP = 12;
 
@@ -108,6 +136,8 @@ export function mainstats(...slots: Mainstat[]): Buff {
     constantStats: () => { for (const { stat, tag, value } of entries) addStat(stat, value, tag ?? undefined); },
   });
   SLOT_BUFFS.set(piece, slots.map(slotBuffOf));
+  const line = critLine(slots);
+  if (line) CRIT_LINES.set(piece, line);
   return piece;
 }
 

@@ -46,28 +46,28 @@ function rocciaAction(id: string, def: object): Action {
 // --- basics, mid-air, dodge counter (Pero, Easy)
 const BA1 = rocciaAction("Basic - Pero, Easy 1", { animFrames: 29, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 73.18, energy: 1.09, concerto: 3.47, offtune: 3464, forte1: 19 });
 // PLACEHOLDER FRAMES
-const BA2 = rocciaAction("Basic - Pero, Easy 2", { animFrames: 60, commitFrames: 15, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 15, mv: 38.14, energy: 0.57, concerto: 1.81, offtune: 1806 },
-    { at: 15, mv: 38.14, energy: 0.57, concerto: 1.81, offtune: 1806 },
-    { at: 15, mv: 38.14, energy: 0.57, concerto: 1.81, offtune: 1806, forte1: 33 },
+const BA2 = rocciaAction("Basic - Pero, Easy 2", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 15, mv: 38.14, energy: 0.57, concerto: 1.81, offtune: 1806 },
+    { hitFrame: 15, mv: 38.14, energy: 0.57, concerto: 1.81, offtune: 1806 },
+    { hitFrame: 15, mv: 38.14, energy: 0.57, concerto: 1.81, offtune: 1806, forte1: 33 },
   ]});
 // PLACEHOLDER FRAMES
-const BA3 = rocciaAction("Basic - Pero, Easy 3", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 60, mv: 33.8, energy: 0.5, concerto: 1.6, offtune: 1600 },
-    { at: 60, mv: 33.8, energy: 0.5, concerto: 1.6, offtune: 1600 },
-    { at: 60, mv: 101.4, energy: 1.5, concerto: 4.8, offtune: 4800, forte1: 49 },
+const BA3 = rocciaAction("Basic - Pero, Easy 3", { animFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 60, mv: 33.8, energy: 0.5, concerto: 1.6, offtune: 1600 },
+    { hitFrame: 60, mv: 33.8, energy: 0.5, concerto: 1.6, offtune: 1600 },
+    { hitFrame: 60, mv: 101.4, energy: 1.5, concerto: 4.8, offtune: 4800, forte1: 49 },
   ]});
 // PLACEHOLDER FRAMES
-const BA4 = rocciaAction("Basic - Pero, Easy 4", { animFrames: 76, commitFrames: 39, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 39, mv: 104.19, energy: 1.55, concerto: 4.94, offtune: 4932 },
-    { at: 39, mv: 104.19, energy: 1.55, concerto: 4.94, offtune: 4932, forte1: 100 },
+const BA4 = rocciaAction("Basic - Pero, Easy 4", { animFrames: 76, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 39, mv: 104.19, energy: 1.55, concerto: 4.94, offtune: 4932 },
+    { hitFrame: 39, mv: 104.19, energy: 1.55, concerto: 4.94, offtune: 4932, forte1: 100 },
   ]});
 const MA = rocciaAction("Mid-air - Pero, Easy Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 104.78, energy: 1.55, concerto: 4.96, offtune: 4960, forte1: 38 });
 // PLACEHOLDER FRAMES
-const DC = rocciaAction("Dodge Counter - Pero, Easy", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, hits: [
-    { at: 0, mv: 68.9, energy: 0.52, concerto: 1.67, offtune: 1662 },
-    { at: 0, mv: 68.9, energy: 0.52, concerto: 1.67, offtune: 1662 },
-    { at: 0, mv: 68.9, energy: 0.52, concerto: 1.67, offtune: 1662 },
+const DC = rocciaAction("Dodge Counter - Pero, Easy", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+    { hitFrame: 0, mv: 68.9, energy: 0.52, concerto: 1.67, offtune: 1662 },
+    { hitFrame: 0, mv: 68.9, energy: 0.52, concerto: 1.67, offtune: 1662 },
+    { hitFrame: 0, mv: 68.9, energy: 0.52, concerto: 1.67, offtune: 1662 },
   ], castConcerto: 10});
 
 // hitting with 100+ Imagination also launches Beyond Imagination — a second way in besides Skill
@@ -75,15 +75,15 @@ const HA = rocciaAction("Heavy - Pero, Easy", { animFrames: 152, node: Node.Norm
 
 // pulls in targets and always launches Beyond Imagination
 // PLACEHOLDER FRAMES
-const Skill = rocciaAction("Skill - Acrobatic Trick", { animFrames: 90, commitFrames: 66, cooldown: 60 * 10, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, hits: [
-    { at: 66, mv: 61.47, energy: 1.75, offtune: 1374 },
-    { at: 66, mv: 61.47, energy: 1.75, offtune: 1374 },
-    { at: 66, mv: 61.47, energy: 1.75, offtune: 1374 },
-    { at: 66, mv: 61.47, energy: 1.75, offtune: 1374 },
-    { at: 66, mv: 61.47, energy: 1.75, offtune: 1374 },
-    { at: 66, mv: 61.47, energy: 1.75, offtune: 1374 },
-    { at: 66, mv: 61.47, energy: 1.75, offtune: 1374 },
-    { at: 66, mv: 61.47, energy: 1.75, offtune: 1374, forte1: 100 },
+const Skill = rocciaAction("Skill - Acrobatic Trick", { animFrames: 90, cooldown: 60 * 10, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+    { hitFrame: 66, mv: 61.47, energy: 1.75, offtune: 1374 },
+    { hitFrame: 66, mv: 61.47, energy: 1.75, offtune: 1374 },
+    { hitFrame: 66, mv: 61.47, energy: 1.75, offtune: 1374 },
+    { hitFrame: 66, mv: 61.47, energy: 1.75, offtune: 1374 },
+    { hitFrame: 66, mv: 61.47, energy: 1.75, offtune: 1374 },
+    { hitFrame: 66, mv: 61.47, energy: 1.75, offtune: 1374 },
+    { hitFrame: 66, mv: 61.47, energy: 1.75, offtune: 1374 },
+    { hitFrame: 66, mv: 61.47, energy: 1.75, offtune: 1374, forte1: 100 },
   ], castConcerto: 20});
 
 // Real Fantasy: 100 Imagination is spent once, on the first hit, not a per-stage cost
@@ -99,12 +99,12 @@ const RealityRecreation = rocciaAction("Basic - Reality Recreation (S6)", { anim
 // Resonance Cost 125 (maxEnergy below) is nanoka's own declared cost, not the migrated sheet's 0
 // PLACEHOLDER FRAMES
 const Liberation = rocciaAction("Liberation - Commedia Improvviso!", {
-  animFrames: 60, timestop: 60,
+  animFrames: 60, timestop: 60, motionStop: 60, prioFrames: 60,
   cooldown: 60 * 20,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, hits: [
-    { at: 60, mv: 278.34, offtune: 32000 },
-    { at: 60, mv: 278.34, offtune: 32000 },
-    { at: 60, mv: 278.34, offtune: 32000 },
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, bullets: [
+    { hitFrame: 60, mv: 278.34, offtune: 32000 },
+    { hitFrame: 60, mv: 278.34, offtune: 32000 },
+    { hitFrame: 60, mv: 278.34, offtune: 32000 },
   ], castConcerto: 20, resetEnergy: true,
   updateBuffs: () => applyTeam(COMMEDIA_TEAM_ATK),
 });

@@ -2,13 +2,14 @@
  * Running an action: the phase order, the snapshot each one resolves into, and `run()`, which
  * walks a rotation and drains whatever the casts queued behind them.
  */
-import { Stat, EnemyStat, Type, Cast, ActionTag } from "./stats.js";
+import { Stat, EnemyStat, Type, Cast, ActionTag, INSTA_DELAY, SWAP_DELAY } from "./stats.js";
 import type { Action, ActionGroup, ActionField, CancelledStep, DashMarker } from "./rotation.js";
+import type { CastAdd } from "./runtime.js";
 import { ctx, pendingQueue, tagWordOf, RESOURCE_STATS, replay, readAny, READ_APPLY, READ_CONVERT, READ_AFTER, applied as appliedRecord } from "./runtime.js";
 import { Gear, PHASE_COUNT } from "./gear.js";
-import type { VariantAt } from "./state.js";
+import type { VariantAt, Timed, StatRow } from "./state.js";
 import {
-  State, TeamMember, StatEntry, HeldBuff, ZERO_STATS, SUBTYPE_AMP_INDEX, SUBTYPE_CRIT_RATE_INDEX, SUBTYPE_CRIT_DMG_INDEX, SUBTYPE_TOTAL_DMG_INDEX, SUBTYPE_DAMAGE_TAKEN_INDEX, FightSnapshot, capEnergy,
+  State, TeamMember, StatEntry, HeldBuff, ZERO_STATS, statRow, SUBTYPE_AMP_INDEX, SUBTYPE_CRIT_RATE_INDEX, SUBTYPE_CRIT_DMG_INDEX, SUBTYPE_TOTAL_DMG_INDEX, SUBTYPE_DAMAGE_TAKEN_INDEX, FightSnapshot, capEnergy,
   EMPTY_HELD, EMPTY_FORTE, EMPTY_FIELDS, enemyDef, enemyRes,
 } from "./state.js";
 import { casting, isCast } from "./context.js";
@@ -21,7 +22,7 @@ export interface Snapshot {
   stat(key: Stat | EnemyStat): number;
   /** The same totals `stat()` reads, as the array itself — indexed by the stat, for damage.ts's
    *  dozen reads per row. */
-  stats: number[];
+  stats: StatRow;
   atk: number; hp: number; def: number;
   amp: number; dmgBonus: number;
   /** The `Subtype`-scoped part of `amp` on its own — the only amplification a dot row reads (see
@@ -80,11 +81,13 @@ export interface Result {
   /** The frame a split press's last hit landed, which filled this cast row in — what its Time cell
    *  reads. Unset on every other row. */
   hitAt?: number;
-  /** The 15 frames a new resonator coming in cost, charged to the row that handed the field over. */
+  /** The `SWAP_DELAY` a new resonator coming in costs, charged to the row that handed the field over. */
   swapFrames?: number;
   /** The frame this press was cast, and the one its hit is in — its frames run out, or its cancel
    *  frame where it was cut (none of the cut's own frames) — short of a split hit. */
   starts: number;
+  /** What cast hooks added straight to the cast (`addToCast()`): energy, concerto, forte 1-5; null for none. */
+  castGain: number[] | null;
   ends: number;
 }
 
@@ -97,6 +100,8 @@ export interface Result {
  *  action came off the rotation list or was queued mid-fight. */
 export interface ResolvedSnapshot extends Result, Snapshot {
   entries: StatEntry[];
+  /** What cast hooks added straight to the cast (`addToCast()`), by who: energy, concerto, forte 1-5. */
+  castAdds: CastAdd[];
   /** The damage type the hit was actually evaluated as — its own `type`, unless a held Gear called
    *  `typeOverride()` on it: what `isType()` answered against. */
   type: Type | null;
@@ -230,7 +235,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // each part of a split press runs its own side — a hitless cast its hit's too — and a whole press all
   const half = action.half;
   const castSide = half === null || half === "cast", hitSide = half === null || half === "hit" || action.hitsAtCast;
-  const lands = hitSide && action.hits.length > 0;
+  const lands = hitSide && action.bullets.length > 0;
   phaseMask = (castSide ? CAST_PHASES : 0) | (hitSide ? HIT_PHASES : 0) | (lands ? ON_HIT_PHASES : 0) | (half === null ? END_PHASES : 0);
   // a step's own cut, else the form's (an insta cancel, a swap)
   const tag = cut ?? action.tag;
@@ -256,7 +261,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // old code cleared these and then cloned `totals` at the end, paying an O(entries) copy per
   // action for the same guarantee).
   // ...untraced, nothing keeps the array past this action, so it is cleared in place instead
-  if (ctx.tracing) slot.effective = ZERO_STATS.slice();
+  if (ctx.tracing) slot.effective = statRow();
   else slot.effective.fill(0);
   ctx.wrote = 0;
   // What each gauge held coming into this action. The report needs it to tell a row that
@@ -270,7 +275,16 @@ export function evaluate(state: State, action: Action, triggered = false, source
   if (ctx.tracing) { slot.entries = []; slot.totals = new Map(); }
 
   if (castSide && casting(Cast.Intro)) {
-    for (const gear of state.outroQueue.splice(0)) slot.addStack(gear, 1);
+    // the Outro's buffs land on the Intro's QTE frame, their durations starting there
+    const intro = action.formOf ?? action, qte = intro.qteFrames;
+    if (!qte) for (const gear of state.outroQueue.splice(0)) slot.addStack(gear, 1);
+    else {
+      const due = state.frame + qte - Math.min(intro.timestop, qte);
+      state.timed.push({ due, action: null, slot: state.active, into: null, by: null, apply: () => {
+        for (const gear of state.outroQueue.splice(0)) slot.addStack(gear, 1);
+      } });
+      state.timed.sort((p, q) => p.due - q.due);
+    }
     // ...and whatever was waiting on this Intro lands right behind it (see `queueOnIntro()`)
     pendingQueue.push(...state.introQueue.splice(0));
   }
@@ -284,12 +298,17 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // be reachable. For a locally-held gear `ctx.slot` is switched to *its own holder* for the call,
   // so `revoke()`/`applySelf()`/`stacksOf()` inside it resolve against whoever holds it; global and
   // enemy gear keep `ctx.slot` on the actor. Then updateBuffs() over what that left.
+  ctx.castGain.fill(0);
+  ctx.inCast = false;
+  if (ctx.tracing) ctx.castAdds = [];
   if (castSide) {
+    ctx.inCast = true;
     actionHook(action.updateGlobalFn, 1);
     runGlobals(state, slot, false);
     capture(slot, state);
     actionHook(action.updateBuffsFn, 1);
     runPhase(1, true);
+    ctx.inCast = false;
   }
 
   // A part lands where it is due and a whole press on its cast; the rest of the press is only time
@@ -309,10 +328,10 @@ export function evaluate(state: State, action: Action, triggered = false, source
   if (hitSide) {
     capture(slot, state);
     actionHook(action.updateDebuffsFn, 0);
-    if (lands) actionHook(action.lastHit!.updateDebuffs, 0);
+    if (lands) actionHook(action.lastBullet!.updateDebuffs, 0);
     runPhase(0, true);
     actionHook(action.hitGlobalFn, 0);
-    if (lands) actionHook(action.lastHit!.hitGlobal, 0);
+    if (lands) actionHook(action.lastBullet!.hitGlobal, 0);
     runGlobals(state, slot, true);
     capture(slot, state);
     runPhase(7, true);
@@ -322,16 +341,11 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // moment ago: a buff updateBuffs() just granted pays into this same action, and one it just
   // revoked pays nothing. Captured again at post-update counts, so a buff that gained or spent
   // stacks reports the count it actually ended on to its own applyStats() — and this one capture
-  // serves every phase from here down, so a buff that spends itself in convertStats() (Jingran's
-  // Fire of Life) still reaches lateConvertStats()/afterAction() and the popover below.
+  // serves every stat phase from here down, none of which may change what is held.
   capture(slot, state);
-  // The popover's own roster, taken here rather than read off the live pools after the phases
-  // below have run: what applyStats()/convertStats() pay out over *is* this action's finalized
-  // buff set, and whatever those hooks then revoke only takes effect from the next action on.
-  // Reading afterwards dropped exactly the gear that clears itself every action — the Shield and
-  // Healed markers, which are revoked in their own convertStats() and so were never in the panel
-  // for the cast that granted them. Counts come along, since a hookless Gear is in no phase list
-  // and so in no `frozen` below.
+  // The popover's own roster: what applyStats()/convertStats() pay out over *is* this action's
+  // finalized buff set. Counts come along, since a hookless Gear is in no phase list and so in no
+  // `frozen` below.
   const heldPools = ctx.tracing
     ? [slot.stacks, state.globalStacks, state.enemyStacks]
       .map((pool) => pool.gears().map((g) => [g, pool.get(g) ?? 0, pool.left(g)] as const))
@@ -343,15 +357,16 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // so far contributed, before the real build's constant base goes in
   // (all zeroes when the grant phases wrote no stat, the usual case — then `ZERO_STATS` itself,
   // read-only, and the base below is copied in rather than added onto zeroes)
-  let pre: number[] | null = null;
+  let pre: StatRow | null = null;
+  let variantEff: StatRow[] | null = null;
+  let variantAt: VariantAt | null = null;
+  let anyDry = false;
   if (!ctx.tracing && slot.variants.length !== 0) {
     if (ctx.wrote === 0) pre = ZERO_STATS;
     else { pre = slot.pre; for (let i = 0; i < pre.length; i++) pre[i] = slot.effective[i]!; }
   }
-  // ...and the fight as it stands going into them, for each variant to start from
-  ctx.guarded = pre !== null;
-  const snapshots = pre !== null ? (state.snapshots ??= [new FightSnapshot(state), new FightSnapshot(state), new FightSnapshot(state), new FightSnapshot(state)]) : null;
-  if (snapshots !== null) snapshots[0].take(state);
+  // the stat phases change nothing in the fight, so a variant's dry re-run needs no snapshot of it —
+  // only an afterAction (a whole press's) can, and that takes its own below
   if (ctx.tracing) runPhase(6, true);
   else {
     // ...and the variants' own bases alongside it: they are the same sum with one main stat
@@ -382,14 +397,6 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // a hit of a split press takes its share of what the stat phases add per press (`PER_PRESS`)
   const share = action.mvShare;
   if (share !== 1) for (let k = 0; k < PER_PRESS.length; k++) shareBase[k] = slot.effective[PER_PRESS[k]!]!;
-  // what the stat phases spend or revoke, the press spends once, on its last hit: an earlier one runs
-  // them dry and puts the fight back after, so a buff consumed by the press pays into all of it
-  const defer = half === "hit" && action.hitIndex < action.formOf!.hits.length - 1;
-  if (defer) {
-    ctx.guarded = true;
-    (state.deferSnap ??= new FightSnapshot(state)).take(state);
-    ctx.dryRun = true;
-  }
   actionHook(action.applyStatsFn, 2);
   runPhase(2, true);
   // the applyStats journal alone, and whether the phase moved anything, for a variant that must
@@ -413,18 +420,13 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // held one (`variantDiff`): it is the real build's row copied, with those indices recomputed
   // from the same operands in the same order — the variant's own base, then the journaled writes
   // to them. Pure through here, that happens after afterAction below, off the finished row. An
-  // impure variant runs the conversion phases again now, dry, on the same captured roster, with
-  // the fight rolled back to what the real build left after each (`ctx.dryRun`/`restoreFight`) —
-  // so every hook reads exactly what it read in the real build, live reads included. A variant
-  // whose hooks would have granted/spent/queued anything different, or whose resource stats would
-  // bank differently, is marked unsafe: its fight would not have been this fight.
-  let variantEff: number[][] | null = null;
-  let variantAt: VariantAt | null = null;
-  let anyDry = false;
-  if (pre !== null && snapshots !== null) {
+  // impure variant runs the conversion phases again now, dry, on the same captured roster — the
+  // stat phases change nothing, so every hook reads exactly what it read in the real build, live
+  // reads included. A variant whose resource stats would bank differently, or whose afterAction
+  // would change the fight differently, is marked unsafe: its fight would not have been this fight.
+  if (pre !== null) {
     variantEff = [];
-    const primaryHash = ctx.mutHash, primaryEff = slot.effective;
-    const [before, after] = snapshots;
+    const primaryEff = slot.effective;
     let at = slot.variantAt.get(ctx.tagWord);
     if (at === undefined) {
       const base = slot.constBase.get(ctx.tagWord)!;
@@ -439,39 +441,30 @@ export function evaluate(state: State, action: Action, triggered = false, source
     }
     variantAt = at;
     for (let v = 0; v < slot.variants.length; v++) {
-      const eff = slot.variantEff[v] ??= ZERO_STATS.slice();
+      const eff = slot.variantEff[v] ??= statRow();
       variantEff.push(eff);
       const diff = at.diffs[v]!, vbase = at.bases[v]!;
       slot.variantDry[v] = readAny(diff, READ_APPLY | READ_CONVERT);
       if (!slot.variantDry[v]) continue;
-      if (!anyDry) { anyDry = true; after.take(state); ctx.dryRun = true; }
+      if (!anyDry) { anyDry = true; ctx.dryRun = true; }
       const replayable = !applyMoved && !readAny(diff, READ_APPLY);
       if (replayable) sparseRow(diff, vbase, eff, slot.post2, pre, 0, replay2);
       else for (let i = 0; i < eff.length; i++) eff[i] = pre[i]! + vbase[i]!;
       slot.effective = eff;
-      before.restore(state);
-      ctx.mutHash = 0;
       if (!replayable) { actionHook(action.applyStatsFn, 2); runPhase(2, true); }
       actionHook(action.convertStatsFn, 3);
       runPhase(3, true);
       actionHook(action.lateConvertStatsFn, 4);
       runPhase(4, true);
       if (share !== 1) shareOut(eff, share, pre, vbase);
-      let unsafe = ctx.mutHash !== primaryHash;
+      let unsafe = false;
       for (const s of RESOURCE_STATS) if (eff[s] !== primaryEff[s]) unsafe = true;
       if (unsafe) slot.variantUnsafe[v] = true;
     }
-    if (anyDry) { ctx.dryRun = false; after.restore(state); slot.effective = primaryEff; }
+    if (anyDry) { ctx.dryRun = false; slot.effective = primaryEff; }
   }
-  if (defer) {
-    state.deferSnap!.restore(state);
-    ctx.guarded = pre !== null;
-  }
-  // What belongs in the resonator popover is what's held once updateBuffs() has finished, before
-  // applyStats()/convertStats() run. A buff that spends/revokes itself inside its own convertStats() (Jingran's
-  // Fire of Life: does its one job, then removes itself the same action) still counts as having
-  // been present and paid out, so it still belongs in the list — which is why the roster comes off
-  // `active`/the pre-convert pools rather than being re-derived here. Buffs only: everything this
+  // What belongs in the resonator popover is what's held while applyStats()/convertStats() run —
+  // `heldPools` above. Buffs only: everything this
   // member `equip()`-ped is gear (see TeamMember.equipped), and the loadout popover on their own
   // name already names all of it. Globals need no such filter — equip() only ever writes to a
   // slot, so nothing equipped can reach globalStacks.
@@ -480,9 +473,8 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // stat one of them just contributed (Jingran's HP-based step counts) needs the final number.
   // The *roster* named is `heldPools`, taken before those hooks ran (see above); only the naming
   // happens here. `currentHeldStacks` is still the same frozen map applyStats()/convertStats() just used
-  // (not re-frozen here), so a buff's own stack-count display still reports the count it actually held at
-  // that point too, not whatever's left once convertStats() may have spent it down (Fire of Life again — 0
-  // stacks by now, were this re-frozen). Trace-only: every one of these is a `Gear.toString()`,
+  // (not re-frozen here), so a buff's own stack-count display reports the count it held at that point.
+  // Trace-only: every one of these is a `Gear.toString()`,
   // and nothing but the detail page's own resonator popover ever reads them (see `ctx.tracing`).
   let heldLocal: HeldBuff[] = EMPTY_HELD, heldGlobal: HeldBuff[] = EMPTY_HELD, heldEnemy: HeldBuff[] = EMPTY_HELD;
   if (ctx.tracing) {
@@ -497,9 +489,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
     }
     // Gear with no hook at all is in none of those phase lists and so in no freeze, and falls back
     // to the count captured alongside it in `heldPools` — its own pool's, at the same moment the
-    // phases captured theirs. A live read would be wrong twice over now: a gear revoked in
-    // convertStats() is out of every pool by here, and a global or enemy Gear is never in
-    // `slot.stacks` to begin with.
+    // phases captured theirs — a global or enemy Gear is never in `slot.stacks` to begin with.
     const describe = ([g, n, left]: readonly [Gear, number, number]): HeldBuff => {
       ctx.buff = g;
       ctx.stacks = frozen.get(g) ?? n;
@@ -542,7 +532,8 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // Energy alone carries a multiplier: `(base + AddEnergy) x (1 + Energy Regen Multiplier)`.
   // a buff's gains bank with the half they belong to: the hit's with a hit, the cast's with a cast
   // each half banks what its own hooks granted: the stat phases' on the hit, updateBuffs' on the cast
-  const addEnergy = effective[Stat.AddEnergy]! + effective[Stat.AddCastEnergy]!;
+  const gain = ctx.castGain;
+  const addEnergy = effective[Stat.AddEnergy]! + gain[0]!;
   const energyGain = (action.energy + addEnergy) * (1 + effective[Stat.EnergyRegenMult]! / 100);
   slot.energy = Math.max(0, slot.energy + energyGain);
   // An outro leaves the field with no Energy at all — not a spend of a known size, so it is simply
@@ -569,7 +560,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // the bar goes below empty until that hit lands
   const concertoShort = spend > 0 && slot.concerto < spend;
   if ((spend > 0 || outro) && slot.concerto > 100) slot.concerto = 100;
-  const addConcerto = effective[Stat.AddConcerto]! + effective[Stat.AddCastConcerto]!;
+  const addConcerto = effective[Stat.AddConcerto]! + gain[1]!;
   const concerto = slot.concerto + action.concerto + addConcerto;
   slot.concerto = spend > 0 ? concerto : Math.max(0, concerto);
   // Off-Tune Buildup Rate scales what an action *builds*, never what lands on the bar directly:
@@ -636,7 +627,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
   const forte = slot.forte, forteShort: [boolean, boolean, boolean, boolean, boolean] = [false, false, false, false, false];
   for (let i = 0; i < 5; i++) {
     const cap = slot.resonator?.maxForte[i] ?? 0;
-    const delta = action.forteDeltas[i]! + effective[ADD_FORTE[i]!]! + effective[ADD_CAST_FORTE[i]!]!;
+    const delta = action.forteDeltas[i]! + effective[ADD_FORTE[i]!]! + gain[2 + i]!;
     if (action.resetForte[i]) forte[i] = 0;
     if (cap > 0 && delta < 0 && forte[i]! > cap) forte[i] = cap;
     if (delta > 0 && forte[i]! < 0) forte[i] = 0;
@@ -658,7 +649,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
   //
   // The variants' own afterAction runs first, dry, so each sees the roster and gauges exactly as
   // the real build's is about to — and each variant's damage is read here, off its own totals.
-  const avgOf = (eff: number[]): number => damageAvgOf(
+  const avgOf = (eff: StatRow): number => damageAvgOf(
     action, eff,
     foldStat(eff, Stat.BaseAtk, Stat.BonusAtk, Stat.FlatAtk),
     foldStat(eff, Stat.BaseHp, Stat.BonusHp, Stat.FlatHp),
@@ -674,8 +665,20 @@ export function evaluate(state: State, action: Action, triggered = false, source
   // it already re-ran the conversions into, or the real build's with its indices recomputed — and
   // the real build's own result is put back after.
   let variantAvg: number[] | null = null;
-  if (variantEff !== null && snapshots !== null) {
-    const [, , banked, done] = snapshots;
+  if (variantEff !== null && (phaseMask & END_PHASES) === 0) {
+    // a part with no afterAction: each variant's row is the finished one with its own indices redone
+    variantAvg = [];
+    for (let v = 0; v < variantEff.length; v++) {
+      const eff = variantEff[v]!;
+      if (!slot.variantDry[v]) {
+        sparseRow(variantAt!.diffs[v]!, variantAt!.bases[v]!, eff, effective, pre!, 0, replay.length);
+        if (resourceMoved(variantAt!.diffs[v]!, eff, effective)) slot.variantUnsafe[v] = true;
+      }
+      variantAvg.push(avgOf(eff));
+    }
+  } else if (variantEff !== null) {
+    ctx.guarded = true;
+    const [banked, done] = (state.snapshots ??= [new FightSnapshot(state), new FightSnapshot(state)]);
     const replay4 = replay.length;
     const post4 = slot.post4;
     for (let i = 0; i < post4.length; i++) post4[i] = effective[i]!;
@@ -742,12 +745,13 @@ export function evaluate(state: State, action: Action, triggered = false, source
   const result: Result = {
     action, member: slot.name, slot: action.slot ?? slot.name, triggered, source,
     group: null, groupEnd: false, groupSpill: null, queued: false, mv, avg, variantAvg, starts: frameStart,
-    // the last hit is in at its own frame, not at the press's end or after the 6/12 frames a cut costs
+    castGain: gain.some((n) => n !== 0) ? gain.slice() : null,
+    // the last hit is in at its own frame, not at the press's end or after the delay a cut costs
     ends: frameStart + (half === "cast" ? (action.formOf ?? action).lastHitDelay() : 0),
   };
   const snapshot: ResolvedSnapshot | null = !ctx.tracing ? null : {
     ...result,
-    type: ctx.overrideType ?? action.lastHit?.type ?? null,   // the effective type — see ResolvedSnapshot.type
+    type: ctx.overrideType ?? action.lastBullet?.type ?? null,   // the effective type — see ResolvedSnapshot.type
     stat, stats: effective, atk, hp, def,
     amp: effective[Stat.Amp]!,
     subtypeAmp: effective[SUBTYPE_AMP_INDEX]!,
@@ -759,6 +763,7 @@ export function evaluate(state: State, action: Action, triggered = false, source
     enemyRes: enemyRes(),
     enemyDef: enemyDef(),
     entries: slot.entries,
+    castAdds: ctx.castAdds,
     forte: [...slot.forte],
     forteBefore,
     maxForte: slot.resonator?.maxForte ?? EMPTY_FORTE,
@@ -821,17 +826,32 @@ function closePress(state: State, action: Action, triggered: boolean): void {
  *  follow-up runs on its own caller's slot even if the active slot has since moved on (e.g. an
  *  Outro evaluated between the queue() call and the follow-up actually running); a plain
  *  rotation entry always runs on whichever slot is active when its turn comes. */
+/** One step `run()` plays. */
+interface Step { action: Action; slot: number; by: HeldBuff | null; group: ActionGroup | null; end: boolean; spill: ActionGroup | null; queued: boolean; cut: ActionTag | null; at?: number; into?: Result | null; away?: boolean; losses?: Gear[]; frames?: number; closes?: boolean; triggered?: boolean; hold?: boolean }
+
+/** The steps still to play: whatever was put in front (a stack, its top playing next) ahead of the
+ *  rest of the written list, walked by index — so putting a follow-up in front of the rest moves
+ *  nothing already queued. */
+class StepQueue {
+  private front: Step[] = [];
+  private at = 0;
+  constructor(private readonly list: Step[]) {}
+  get size(): number { return this.front.length + this.list.length - this.at; }
+  peek(): Step | undefined { return this.front.length ? this.front[this.front.length - 1] : this.list[this.at]; }
+  take(): Step { return this.front.length ? this.front.pop()! : this.list[this.at++]!; }
+  /** `steps` next, in order, ahead of everything left. */
+  unshift(steps: Step[]): void { for (let k = steps.length - 1; k >= 0; k--) this.front.push(steps[k]!); }
+}
+
 export function run(state: State, rotation: Action[], flush = false): Result[] {
   const out: Result[] = [];
-  // One list of steps walked by index rather than drained with shift() (O(n) per step). A step is
-  // a rotation entry (`slot` -1: run on whoever is active when its turn comes) or a queued
-  // follow-up spliced in right behind whatever queued it. An ActionGroup is expanded here, before
-  // anything runs: from this point down only real casts exist, and a group survives purely as the
-  // `group`/`end` tags the report reads back off each result.
-  interface Step { action: Action; slot: number; by: HeldBuff | null; group: ActionGroup | null; end: boolean; spill: ActionGroup | null; queued: boolean; cut: ActionTag | null; at?: number; into?: Result | null; away?: boolean; losses?: Gear[]; frames?: number; closes?: boolean; triggered?: boolean }
+  // The steps to play (`StepQueue`): each rotation entry (`slot` -1: run on whoever is active when
+  // its turn comes), and each queued follow-up put in right behind whatever queued it. An
+  // ActionGroup is expanded here, before anything runs: from this point down only real casts
+  // exist, and a group survives purely as the `group`/`end` tags the report reads back off each result.
   // a cancelled step plays its own Action (duck-checked, the class being rotation.ts's)
   const unwrap = (a: Action): [Action, ActionTag | null] => ((a as CancelledStep).of !== undefined ? [(a as CancelledStep).of, (a as CancelledStep).kind] : [a, null]);
-  const steps: Step[] = [];
+  const written: Step[] = [];
   for (const entry of rotation) {
     // a duck-check rather than `instanceof ActionGroup`: the class lives in rotation.ts, which
     // this module may only reference as types (see the import note at the top)
@@ -841,9 +861,10 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
       // a group expands one level: a cut group inside another is written cut on the outer one
       if ((m as ActionGroup).actions !== undefined) throw new Error(`${group!.name}: holds the group ${m.name} — cut the outer group instead`);
       const [a, cut] = unwrap(m);
-      steps.push({ action: a, slot: -1, by: null, group, end: group !== null && k === members.length - 1, spill: null, queued: false, cut });
+      written.push({ action: a, slot: -1, by: null, group, end: group !== null && k === members.length - 1, spill: null, queued: false, cut });
     });
   }
+  const steps = new StepQueue(written);
   ctx.insideGroup = false;
   // The group whose beat is still resolving — its own members, then the follow-ups they queued,
   // the last member's included. Every cast spliced in while this stands is that group's spill, and
@@ -864,7 +885,7 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
       state.frame = to;
       state.expireBuffs();
       if (pendingQueue.length) {
-        steps.splice(i, 0, ...pendingQueue.map((q): Step => ({ action: q.action, slot: q.slot, by: q.by, group: null, end: false, spill: q.event ? null : spillGroup, queued: true, cut: null })));
+        steps.unshift(pendingQueue.map((q): Step => ({ action: q.action, slot: q.slot, by: q.by, group: null, end: false, spill: q.event ? null : spillGroup, queued: true, cut: null })));
         pendingQueue.length = 0;
       }
       if (to < state.playsTo) return true;
@@ -873,21 +894,29 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
     return false;
   };
   let spillGroup: ActionGroup | null = null;
-  let i = 0, guard = 0;
-  while (i < steps.length || (flush && state.timed.length)) {
+  let guard = 0;
+  while (steps.size || (flush && state.timed.length)) {
     if (++guard > 10000) throw new Error("action queue did not drain");
     // whatever is already queued plays before the clock moves on
-    const walking = steps[i]?.queued ? state.frame < state.playsTo : walk();
+    const walking = steps.peek()?.queued ? state.frame < state.playsTo : walk();
     // a flush's end plays out what is left on the clock a frame at a time, in its own order
-    const draining = flush && i >= steps.length;
+    const draining = flush && !steps.size;
     const first = draining ? Math.min(...state.timed.map((h) => h.due)) : 0;
     // a hit on the clock whose time has come lands before the next cast, at its own frame — but one
     // landing off field (an Outro's, an insta swap's) due on the very frame the next press starts
     // lands after it, so the incoming Intro is cast first
-    const due = state.timed.filter((h) => (draining ? h.due <= first : h.due < state.frame || (h.due === state.frame && (walking || !h.away))));
-    if (due.length) {
+    const isDue = (h: Timed): boolean => (draining ? h.due <= first : h.due < state.frame || (h.due === state.frame && (walking || !h.away)));
+    let anyDue = false;
+    for (let k = 0; k < state.timed.length; k++) {
+      if (!isDue(state.timed[k]!)) continue;
+      anyDue = true;
+      break;
+    }
+    if (anyDue) {
+      const due: Timed[] = [], kept: Timed[] = [];
+      for (const h of state.timed) (isDue(h) ? due : kept).push(h);
       due.sort((p, q) => p.due - q.due);
-      state.timed = state.timed.filter((h) => !due.includes(h));
+      state.timed = kept;
       // one landing mid-group is that group's spill, like any follow-up there, so its row stays whole
       const spill = ctx.insideGroup ? spillGroup : null;
       const landed: Step[] = [];
@@ -907,10 +936,13 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
         for (const q of pendingQueue) landed.push({ action: q.action, slot: q.slot, by: q.by, group: null, end: false, spill: q.event ? null : spillGroup, queued: true, cut: null, at: h.due });
         pendingQueue.length = 0;
       }
-      steps.splice(i, 0, ...landed);
+      steps.unshift(landed);
     }
-    if (i >= steps.length) continue;
-    const step = steps[i++]!;
+    if (!steps.size) continue;
+    // a rotation press waits for the last one to finish playing: the walk only stopped short of it
+    // to land what fell due on the way
+    if (!steps.peek()!.queued && state.frame < state.playsTo) continue;
+    const step = steps.take();
     if (step.closes) {
       const now = state.frame, field = state.onField, before = state.active;
       state.active = step.slot;
@@ -924,25 +956,45 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
       state.onField = field;
       state.active = before;
       if (pendingQueue.length) {
-        steps.splice(i, 0, ...pendingQueue.map((q): Step => ({ action: q.action, slot: q.slot, by: q.by, group: null, end: false, spill: q.event ? null : spillGroup, queued: true, cut: null, at: step.at })));
+        steps.unshift(pendingQueue.map((q): Step => ({ action: q.action, slot: q.slot, by: q.by, group: null, end: false, spill: q.event ? null : spillGroup, queued: true, cut: null, at: step.at })));
         pendingQueue.length = 0;
       }
       continue;
     }
-    // A new resonator's first press pays the swap: 15 frames on the clock, charged to the row that
+    // A new resonator's first press pays the swap: SWAP_DELAY on the clock, charged to the row that
     // handed the field over. The buff clocks run through them, and what a tick queues there plays
     // ahead of the press.
-    if (!step.queued && state.presser >= 0 && state.presser !== state.active) {
-      if (state.swapRow) state.swapRow.swapFrames = (state.swapRow.swapFrames ?? 0) + 15;
+    if (!step.queued && !step.hold && state.presser >= 0 && state.presser !== state.active) {
+      // a kit that keeps the field waiting (`ResonatorDef.holdBefore`) has the one leaving wait on
+      // a row of their own before the swap — an Outro's was asked ahead of the Outro itself
+      const holdFn = state.slot.resonator?.holdFn;
+      if (holdFn && step.slot < 0) {
+        ctx.state = state;
+        ctx.slot = state.slot;
+        const hold = holdFn(step.action);
+        if (hold) {
+          steps.unshift([{ action: hold, slot: state.presser, by: null, group: null, end: false, spill: null, queued: false, cut: null, hold: true }, step]);
+          continue;
+        }
+      }
+      if (state.swapPaid) {
+        // an Outro handed over: the swap was paid before it
+        state.swapPaid = false;
+        state.swapRow = null;
+        state.presser = state.active;
+        steps.unshift([step]);
+        continue;
+      }
+      if (state.swapRow) state.swapRow.swapFrames = (state.swapRow.swapFrames ?? 0) + SWAP_DELAY;
       state.swapRow = null;
       state.presser = state.active;
-      state.playsTo = state.frame + 15;
+      state.playsTo = state.frame + SWAP_DELAY;
       state.playStop = 0;
-      i--;
+      steps.unshift([step]);
       continue;
     }
     // the field is whoever makes the next press: a swap hands nothing over, the next press takes it
-    if (!step.queued) {
+    if (!step.queued && !step.hold) {
       state.onField = state.active;
       state.presser = state.active;
     }
@@ -960,9 +1012,8 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
       ctx.state = state;
       ctx.slot = state.slot;
       if (step.action.skipNextFn()) {
-        const gated = steps[i];
-        i++;
-        if (gated?.group) while (i < steps.length && steps[i]!.group === gated.group) i++;
+        const gated = steps.size ? steps.take() : undefined;
+        if (gated?.group) while (steps.size && steps.peek()!.group === gated.group) steps.take();
       }
       continue;
     }
@@ -976,15 +1027,50 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
       // resolved to no cast at all this step (deferred onto a later one — see `queueOnIntro()`)
       if (!action) continue;
     }
+    // an Outro into a kit that keeps the field waiting (`ResonatorDef.holdBefore`) waits first, on
+    // a row of its own, and the Outro comes round again
+    const into = state.slots[(state.active + state.outroDir + state.slots.length) % state.slots.length]!.resonator;
+    if (step.slot < 0 && isCast(action, Cast.Outro) && into?.holdFn && into.intro) {
+      ctx.state = state;
+      ctx.slot = state.slot;
+      const hold = into.holdFn(into.intro);
+      if (hold) {
+        steps.unshift([{ action: hold, slot: -1, by: null, group: null, end: false, spill: null, queued: false, cut: null }, step]);
+        continue;
+      }
+    }
+    // ...and one whose visit will reach a cooldown not back yet waits it out the same way, on the
+    // outgoing member, so the press it gates lands ready rather than idling inside that visit
+    if (step.slot < 0 && isCast(action, Cast.Outro)) {
+      const to = (state.active + state.outroDir + state.slots.length) % state.slots.length;
+      // read at where the Outro would be cast: a hit landing mid-wait stops the clock short of it,
+      // and the swap delay still to pay comes first
+      const castAt = Math.max(state.frame, state.playsTo) + (state.swapPaid ? 0 : SWAP_DELAY);
+      const short = state.slots[to]!.handoffShortfall(state.slot.visitChain, castAt, state.plannedGates?.(to) ?? null);
+      if (short) {
+        steps.unshift([{ action: short.cd.wait(short.frames), slot: -1, by: null, group: null, end: false, spill: null, queued: false, cut: null }, step]);
+        continue;
+      }
+      // the swap out is paid on the way off, by the outgoing member's own last press, and the
+      // Outro it triggers is cast once it has played — the Outro never carries the delay
+      if (!state.swapPaid) {
+        if (state.lastOwn) state.lastOwn.swapFrames = (state.lastOwn.swapFrames ?? 0) + SWAP_DELAY;
+        state.playsTo = Math.max(state.frame, state.playsTo) + SWAP_DELAY;
+        state.playStop = 0;
+        state.swapPaid = true;
+        steps.unshift([step]);
+        continue;
+      }
+    }
     // a rotation entry with no charge left waits it out on a row of its own, spliced in ahead of
     // it so whatever the wait queues runs first, and then comes round again
     if (step.slot < 0 && action.cooldown) {
       ctx.state = state;
       ctx.slot = state.slot;
+      state.slot.noteGate(action.cooldown, Math.max(state.frame, state.playsTo));
       const cd = state.slot.cooldownAt(action.cooldown, state.frame);
       if (cd.charges <= 0) {
-        i--;
-        steps.splice(i, 0, { action: action.cooldown.wait(cd.next - state.frame), slot: -1, by: null, group: null, end: false, spill: null, queued: false, cut: null });
+        steps.unshift([{ action: action.cooldown.wait(cd.next - state.frame), slot: -1, by: null, group: null, end: false, spill: null, queued: false, cut: null }, step]);
         continue;
       }
       state.slot.spendCooldown(action.cooldown, state.frame, action.cooldownFrames || undefined);
@@ -1012,7 +1098,7 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
     const triggered = action.tag === ActionTag.Field || by !== null;
     // a dash the next press stops time on is cut short by it, an insta cancel that keeps its hit;
     // a marker there resolves only when reached, so it is taken as stopping nothing
-    const nextPress = steps[i]?.action;
+    const nextPress = steps.peek()?.action;
     const dash = (step.action as unknown as DashMarker).after !== undefined && !!nextPress && !nextPress.resolveFn && nextPress.timestop > 0;
     // a summon's hit is nobody's to cut
     let cut = summon ? null : dash ? ActionTag.InstaCancel : step.cut;
@@ -1021,15 +1107,17 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
     const kind = cut ?? action.tag;
     const checked = !dash && action.half === null;
     if (checked && LENGTH_CHECKED.has(kind)) checkCutLength(pressed.cancelOf ?? pressed, kind);
-    if (checked && SLOW_CUTS.has(kind) && action.commitFrames <= 6) {
-      throw new Error(`${action.name}: commits at frame ${action.commitFrames}, inside an insta cut's 6 — write it as ${INSTA_OF[kind as ActionTag]} instead of ${kind}`);
+    // a marker resolving to presses of either kind can't be written insta for the hitless one alone
+    if (checked && !step.action.resolveFn && SLOW_CUTS.has(kind) && action.cutFrame <= INSTA_DELAY) {
+      throw new Error(`${action.name}: cuts at frame ${action.cutFrame}, inside an insta cut's ${INSTA_DELAY} — write it as ${INSTA_OF[kind as ActionTag]} instead of ${kind}`);
     }
     // a press that takes time casts now and queues each hit on the time-ordered queue at its own
     // frame, and its end where it runs out
     const whole = action;
-    const castAt = step.at ?? state.frame, away = whole.splitsHit(cut) && whole.hitsAway(cut);
-    const split = whole.splitsHit(cut)
-      ? whole.hits.map((_, k) => ({ due: castAt + whole.hitDelay(k), action: whole.hitPart(k), slot: state.active, into: null as Result | null, by: null, away, frames: 0, triggered: false }))
+    const splits = whole.splitsHit(cut);
+    const castAt = step.at ?? state.frame, away = splits && whole.hitsAway(cut);
+    const split = splits
+      ? whole.bullets.map((_, k) => ({ due: castAt + whole.hitDelay(k), action: whole.hitPart(k), slot: state.active, into: null as Result | null, by: null, away, frames: 0, triggered: false }))
       : null;
     if (split) {
       state.timed.push(...split);
@@ -1038,7 +1126,10 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
     }
     // an Outro hands the field on as it is cast
     const n = state.slots.length, next = (state.active + state.outroDir + n) % n;
-    if (isCast(action, Cast.Outro) && action.half !== "hit") state.onField = next;
+    if (isCast(action, Cast.Outro) && action.half !== "hit") {
+      state.onField = next;
+      state.slots[next]!.arrive(state.slots[state.active]!.visitChain, Math.max(state.frame, state.playsTo));
+    }
     // a landing hit is played at its own frame, then the clock goes back to where the fight is —
     // a split one off field whoever holds it: its owner left on the press it split from
     const now = state.frame, field = state.onField;
@@ -1080,10 +1171,12 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
         result.action = whole;
       }
       out.push(result);
-      // the row the next resonator's swap frames go on: a swap-out press before any Outro
+      // the row the next resonator's swap frames go on: a swap-out press (an Outro's are paid
+      // ahead of it, on `lastOwn`)
       const tag = cut ?? action.tag;
       const swaps = tag === ActionTag.SwapCancel || tag === ActionTag.InstaSwap;
-      if (swaps || (isCast(action, Cast.Outro) && !state.swapRow)) state.swapRow = result;
+      if (swaps) state.swapRow = result;
+      if (!step.queued && !triggered && !isCast(action, Cast.Outro)) state.lastOwn = result;
     }
     // a queued follow-up's own turn doesn't stick — restore whoever was actually active,
     // unless the follow-up was itself an outro (genuinely advances the team)
@@ -1099,15 +1192,15 @@ export function run(state: State, rotation: Action[], flush = false): Result[] {
       const from = split ? result.starts : result.ends;
       const at = step.at ?? (from < state.frame ? from : undefined);
       for (const p of pendingQueue) queued.push({ action: p.action, slot: p.slot, by: p.by, group: null, end: false, spill: p.event ? null : spillGroup, queued: true, cut: null, at });
-      steps.splice(i, 0, ...queued);
+      steps.unshift(queued);
       pendingQueue.length = 0;
     }
   }
   return out;
 }
 
-/** The cuts that play up to the cancel frame — pointless on a press whose cancel frame an insta
- *  cut (6f) already reaches, so writing one there throws. */
+/** The cuts that play up to the cut frame (`cutFrame`) — pointless on a press whose cut frame an
+ *  insta cut (6f) already reaches, so writing one there throws. */
 const SLOW_CUTS = new Set<string>([ActionTag.Cancel, ActionTag.EasyCancel, ActionTag.DodgeCancel, ActionTag.JumpCancel, ActionTag.SwapCancel]);
 /** What each of those is written as instead, cut insta. */
 const INSTA_OF: Partial<Record<ActionTag, string>> = {
@@ -1127,35 +1220,35 @@ function checkCutLength(base: Action, kind: ActionTag): void {
   if (cut > base.animFrames) throw new Error(`${base.name}: its ${kind} takes ${cut} frames, longer than the ${base.animFrames} it plays uncut`);
 }
 
-/** What a queued hit's row keeps of its cast when a hit lands: who pressed it, how and when. The
- *  damage, motion value and gauges sum across its hits; the stats and buffs are the last one's. */
+/** What a queued hit's row keeps of its cast when a hit lands: who pressed it, how and when, and
+ *  the gauges it walked in with. The damage and motion value sum across its hits; the stats, buffs
+ *  and gauge readings are the last one's — what the bars held once its last bullet was in. */
 const CAST_KEEPS = new Set(["action", "member", "slot", "triggered", "group", "groupEnd", "groupSpill", "source", "queued",
   "frame", "frames", "tag", "active", "timestopBanked", "energyWiped", "concertoShort", "realEnergyBefore",
-  "energyBefore", "concertoBefore", "offtuneBefore", "forteBefore", "energy", "concerto", "offtune", "forte"]);
+  "energyBefore", "concertoBefore", "offtuneBefore", "forteBefore", "castGain", "castAdds"]);
 
 /** Add one of a split press's hits, landed at `at`, into its cast row. */
 function landHit(row: Result, hit: Result, at: number): void {
-  const r = row as unknown as Record<string, unknown>, h = hit as unknown as Record<string, unknown>;
-  const fields = r.opensFields as ActionField[] | undefined, short = r.forteShort as boolean[] | undefined;
   // the first hit replaces what the cast dealt; each after it adds on
   const summed = row.hitAt !== undefined, avg = row.avg, mv = row.mv, variantAvg = row.variantAvg;
-  for (const k of Object.keys(h)) if (!CAST_KEEPS.has(k)) r[k] = h[k];
+  if (ctx.tracing) {
+    const r = row as unknown as Record<string, unknown>, h = hit as unknown as Record<string, unknown>;
+    const fields = r.opensFields as ActionField[] | undefined, short = r.forteShort as boolean[] | undefined;
+    for (const k of Object.keys(h)) if (!CAST_KEEPS.has(k)) r[k] = h[k];
+    if (fields) r.opensFields = [...fields, ...(h.opensFields as ActionField[])];
+    if (short) r.forteShort = short.map((b, n) => b || (h.forteShort as boolean[])[n]!);
+  } else {
+    // a lean row carries only these past what it keeps of its cast
+    row.mv = hit.mv;
+    row.avg = hit.avg;
+    row.variantAvg = hit.variantAvg;
+    row.starts = hit.starts;
+    row.ends = hit.ends;
+  }
   if (summed) {
     row.avg += avg;
     row.mv += mv;
     if (row.variantAvg && variantAvg) row.variantAvg = row.variantAvg.map((v, n) => v + variantAvg[n]!);
-  }
-
-  if (fields) r.opensFields = [...fields, ...(h.opensFields as ActionField[])];
-  if (short) r.forteShort = short.map((b, n) => b || (h.forteShort as boolean[])[n]!);
-  // the row shows what the press projects: its cast's running totals plus what its hit banked,
-  // though the hit lands after the swap
-  for (const k of ["energy", "concerto", "offtune"]) {
-    if (typeof r[k] === "number") r[k] = (r[k] as number) + (h[k] as number) - (h[`${k}Before`] as number);
-  }
-  if (Array.isArray(r.forte)) {
-    const f = r.forte as number[], hf = h.forte as number[], hb = h.forteBefore as number[];
-    r.forte = f.map((v, n) => v + hf[n]! - hb[n]!);
   }
   row.hitAt = at;
 }
@@ -1163,7 +1256,7 @@ function landHit(row: Result, hit: Result, at: number): void {
 /** Build a variant's row for the action being evaluated: `from` copied, then every index its
  *  main-stat piece moves (`diff`, see `VariantAt`) recomputed from `pre` plus the variant's own base, plus the
  *  journaled writes `[k0, k1)` to that index in order — exactly the additions a run wearing it makes. */
-function sparseRow(diff: number[], vbase: number[], eff: number[], from: number[], pre: number[], k0: number, k1: number): void {
+function sparseRow(diff: number[], vbase: StatRow, eff: StatRow, from: StatRow, pre: StatRow, k0: number, k1: number): void {
   for (let i = 0; i < eff.length; i++) eff[i] = from[i]!;
   const index = replay.index, value = replay.value;
   for (let d = 0; d < diff.length; d++) {
@@ -1176,30 +1269,28 @@ function sparseRow(diff: number[], vbase: number[], eff: number[], from: number[
 
 /** Whether a variant's row banks a resource differently from the real build's `from` — only its
  *  own moved indices (`diff`) can, every other one being a copy. */
-function resourceMoved(diff: number[], eff: number[], from: number[]): boolean {
+function resourceMoved(diff: number[], eff: StatRow, from: StatRow): boolean {
   for (let d = 0; d < diff.length; d++) { const i = diff[d]!; if (RESOURCE_MASK[i] && eff[i] !== from[i]) return true; }
   return false;
 }
 
-const RESOURCE_MASK: boolean[] = ZERO_STATS.map(() => false);
+const RESOURCE_MASK: boolean[] = Array.from(ZERO_STATS, () => false);
 for (const s of RESOURCE_STATS) RESOURCE_MASK[s] = true;
 
 /** What a buff adds to a press as a whole — its motion value and what it banks — which a split
  *  press's hits share out by motion value rather than each taking in full. */
 const PER_PRESS: Stat[] = [Stat.AddMv, Stat.AddEnergy, Stat.AddConcerto, Stat.AddOfftune, Stat.DirectOfftune,
-  Stat.AddForte1, Stat.AddForte2, Stat.AddForte3, Stat.AddForte4, Stat.AddForte5, Stat.AddCastEnergy, Stat.AddCastConcerto,
-  Stat.AddCastForte1, Stat.AddCastForte2, Stat.AddCastForte3, Stat.AddCastForte4, Stat.AddCastForte5];
+  Stat.AddForte1, Stat.AddForte2, Stat.AddForte3, Stat.AddForte4, Stat.AddForte5];
 const shareBase: number[] = PER_PRESS.map(() => 0);
 /** Scale what the stat phases added to `PER_PRESS` down to this hit's `share`: over `shareBase`
  *  for the real build, over its own starting row (`pre` + `vbase`) for a variant's dry run. */
-function shareOut(eff: number[], share: number, pre?: number[], vbase?: number[]): void {
+function shareOut(eff: StatRow, share: number, pre?: StatRow, vbase?: StatRow): void {
   for (let k = 0; k < PER_PRESS.length; k++) {
     const i = PER_PRESS[k]!, from = pre ? pre[i]! + vbase![i]! : shareBase[k]!;
     eff[i] = from + (eff[i]! - from) * share;
   }
 }
 const ADD_FORTE = [Stat.AddForte1, Stat.AddForte2, Stat.AddForte3, Stat.AddForte4, Stat.AddForte5];
-const ADD_CAST_FORTE = [Stat.AddCastForte1, Stat.AddCastForte2, Stat.AddCastForte3, Stat.AddCastForte4, Stat.AddCastForte5];
 
 const capList: Gear[][] = [[], [], []];
 const capCounts: number[][] = [[], [], []];
@@ -1222,9 +1313,9 @@ function capture(slot: TeamMember, state: State): void {
  *  is stood in for by `to` at the very same position — and `from2` by `to2` likewise, the substat
  *  tier a variant's ER moves — so a variant's base is built by exactly the additions, in exactly
  *  the order, a real run wearing them would make. */
-function constBaseOf(slot: TeamMember, from: Gear | null, to: Gear | null, from2: Gear | null = null, to2: Gear | null = null): number[] {
+function constBaseOf(slot: TeamMember, from: Gear | null, to: Gear | null, from2: Gear | null = null, to2: Gear | null = null): StatRow {
   const live = slot.effective;
-  slot.effective = ZERO_STATS.slice();
+  slot.effective = statRow();
   for (let q = 0; q < 3; q++) {
     const list = capList[q]!, counts = capCounts[q]!, hooks = capHooks[q]![6]!;
     for (let i = 0, m = hooks.length; i < m; i++) {
@@ -1254,6 +1345,16 @@ const END_PHASES = 1 << 5;
 let phaseMask = CAST_PHASES | HIT_PHASES | ON_HIT_PHASES | END_PHASES;
 function runPhase(p: number, withStacks: boolean): void {
   if (!((phaseMask >> p) & 1)) return;
+  ctx.inStats = STAT_PHASES.has(p);
+  try {
+    runHooks(p, withStacks);
+  } finally {
+    ctx.inStats = false;
+  }
+}
+/** applyStats, convertStats, lateConvertStats, constantStats: stats only. */
+const STAT_PHASES = new Set([2, 3, 4, 6]);
+function runHooks(p: number, withStacks: boolean): void {
   for (let q = 0; q < 3; q++) {
     const list = capList[q]!, counts = capCounts[q]!, hooks = capHooks[q]![p]!;
     for (let i = 0, m = hooks.length; i < m; i++) {
@@ -1301,5 +1402,10 @@ function actionHook(fn: (() => void) | undefined, p: number): void {
   if (!fn || !((phaseMask >> p) & 1)) return;
   ctx.buff = ctx.act;
   ctx.stacks = 1;
-  fn();
+  ctx.inStats = STAT_PHASES.has(p);
+  try {
+    fn();
+  } finally {
+    ctx.inStats = false;
+  }
 }

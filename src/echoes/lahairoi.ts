@@ -71,9 +71,9 @@ export const HYVATIA = new Mainslot({
  *  which is the reason Mornye wants it, her Liberation turning every point of ER past 100% into
  *  crit. */
 export const ACTION_REACTOR_HUSK = new Action("Echo - Reactor Husk", {
-  animFrames: 60, commitFrames: 46,
+  animFrames: 60, bullets: [{ hitFrame: 46, mv: 351, energy: 4.87 }],
   cooldown: 60 * 20,
-  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, mv: 351, energy: 4.87,
+  cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const REACTOR_HUSK = new Mainslot({
   name: "Reactor Husk",
@@ -288,9 +288,9 @@ export const GILDED_REVELATION_STACKS = new Buff({
  *  Blade in a second 4-cost slot and the Blade's own hit count, which the page doesn't give — not
  *  modelled; this is the Cannon on its own. */
 export const ACTION_NEBULOUS_CANNON = new Action("Echo - Twin Nova: Nebulous Cannon", {
-  animFrames: 60, commitFrames: 46,
+  animFrames: 60, bullets: [{ hitFrame: 46, mv: 80.51 * 2, energy: 0.55 * 2 }],
   cooldown: 60 * 8,
-  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo, mv: 80.51 * 2, energy: 0.55 * 2,
+  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const NEBULOUS_CANNON = new Mainslot({
   name: "Twin Nova: Nebulous Cannon",
@@ -324,9 +324,9 @@ export const TRICKSTER = new Mainslot({
  *  rotation places (the hold is a long channel), the hold kept as its own cast. Either way an
  *  Outro within 15s hands the incoming resonator +12% ATK for 15s. */
 export const ACTION_VOIDWING_MOTH = new Action("Echo - Voidwing Moth", {
-  animFrames: 60, commitFrames: 46,
+  animFrames: 60, bullets: [{ hitFrame: 46, mv: 405, energy: 5.62 }],
   cooldown: 60 * 25,
-  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo, mv: 405, energy: 5.62,
+  cast: Cast.Echo, element: Attribute.Spectro, scaling: Scaling.Atk, type: Type.Echo,
   updateBuffs: () => queueOutro(VOIDWING_HANDOFF),
 });
 export const VOIDWING_HANDOFF = handoff("Voidwing Moth: Outro", () => addStat(Stat.BonusAtk, 12));

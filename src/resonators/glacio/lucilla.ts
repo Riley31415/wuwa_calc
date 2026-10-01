@@ -94,13 +94,13 @@ const CHAFE_FIELD = new ActionField("Lucilla: Glacio Chafe");
 const CHAFE_WINDOW = new Buff({ field: CHAFE_FIELD });
 const CHAFE_RUNGS: (Action | null)[] = GLACIO_CHAFE_ACTIONS.map((a) => a?.variant(a.name, { field: CHAFE_FIELD }) ?? null);
 const Intro = lucillaAction("Intro - Clip It", {
-  animFrames: 81, commitFrames: 42, motionStop: 74, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, hits: [{ at: 38, mv: 97.42, energy: 11.75, concerto: 4.13, offtune: 5600, forte1: 100 }], castConcerto: 10,
+  animFrames: 81, prioFrames: 42, motionStop: 74, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 38, mv: 97.42, energy: 11.75, concerto: 4.13, offtune: 5600, forte1: 100 }], castConcerto: 10,
   ...CHAFES,
   updateBuffs: () => applyCurrent(CHAFE_WINDOW, 1),
 });
 // mutually exclusive: Echo hands off MONTAGE_HANDOFF, Chafe grants MONTAGE_CHAFE team-wide
 const Outro = lucillaAction("Outro - Montage", {
-  animFrames: 0, commitFrames: 0,
+  animFrames: 0,
   cast: Cast.Outro, castConcerto: -100,
   updateBuffs: () => {
     if (isHeld(MODE_CHAFE)) applyTeam(MONTAGE_CHAFE, 1);
@@ -109,16 +109,16 @@ const Outro = lucillaAction("Outro - Montage", {
 });
 
 // normal attacks: Basic 1/2, Basic 3 (Focus Ring, always assumed Perfect/Commendable)
-const BA1 = lucillaAction("Basic - Snapshot 1", { animFrames: 30, commitFrames: 14, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 14, mv: 59.29, energy: 1.07, concerto: 1.71, offtune: 3408 }]});
-const BA2 = lucillaAction("Basic - Snapshot 2", { animFrames: 32, commitFrames: 24, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 14, mv: 26.89, energy: 0.49, concerto: 0.78, offtune: 1546 },
-    { at: 24, mv: 40.34, energy: 0.73, concerto: 1.16, offtune: 2319 },
+const BA1 = lucillaAction("Basic - Snapshot 1", { animFrames: 30, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 14, mv: 59.29, energy: 1.07, concerto: 1.71, offtune: 3408 }]});
+const BA2 = lucillaAction("Basic - Snapshot 2", { animFrames: 32, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 14, mv: 26.89, energy: 0.49, concerto: 0.78, offtune: 1546 },
+    { hitFrame: 24, mv: 40.34, energy: 0.73, concerto: 1.16, offtune: 2319 },
   ]});
-const BA3 = lucillaAction("Basic - Snapshot 3 - Commendable", { animFrames: 106, commitFrames: 50, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 50, mv: 235.27, energy: 4.23, concerto: 6.77, offtune: 13524, forte1: 50 }]});
+const BA3 = lucillaAction("Basic - Snapshot 3 - Commendable", { animFrames: 106, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 50, mv: 235.27, energy: 4.23, concerto: 6.77, offtune: 13524, forte1: 50 }]});
 const MA = lucillaAction("Mid-air - Snapshot Plunge", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 86.29, energy: 1.55, concerto: 3.66, offtune: 4960 });
-const DC = lucillaAction("Dodge Counter - Snapshot", { animFrames: 32, commitFrames: 24, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, hits: [
-    { at: 14, mv: 67.83, energy: 1.22, concerto: 7.38, offtune: 3899 },
-    { at: 24, mv: 82.9, energy: 1.49, concerto: 9.02, offtune: 4766 },
+const DC = lucillaAction("Dodge Counter - Snapshot", { animFrames: 32, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+    { hitFrame: 14, mv: 67.83, energy: 1.22, concerto: 7.38, offtune: 3899 },
+    { hitFrame: 24, mv: 82.9, energy: 1.49, concerto: 9.02, offtune: 4766 },
   ]});
 
 // Phantom Frame (the pull-in dash, held to deploy Focus Ring) into either Compensate (cursor
@@ -128,27 +128,27 @@ const DC = lucillaAction("Dodge Counter - Snapshot", { animFrames: 32, commitFra
 const SKILL_CD = new Cooldown({ frames: 60 * 16 });
 // also reduces the Resonance Skill's own cooldown by 8s
 const Compensate = lucillaAction("Skill - Compensate", {
-  animFrames: 60, commitFrames: 53, cooldown: SKILL_CD,
-  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, hits: [
-    { at: 16, mv: 13.26, energy: 0.42, concerto: 0.69, offtune: 1334 },
-    { at: 22, mv: 13.26, energy: 0.42, concerto: 0.69, offtune: 1334 },
-    { at: 28, mv: 13.26, energy: 0.42, concerto: 0.69, offtune: 1334 },
-    { at: 53, mv: 249.07, energy: 9.31, concerto: 3.08, offtune: 4176, forte1: 25 },
+  animFrames: 60, cooldown: SKILL_CD,
+  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+    { hitFrame: 16, mv: 13.26, energy: 0.42, concerto: 0.69, offtune: 1334 },
+    { hitFrame: 22, mv: 13.26, energy: 0.42, concerto: 0.69, offtune: 1334 },
+    { hitFrame: 28, mv: 13.26, energy: 0.42, concerto: 0.69, offtune: 1334 },
+    { hitFrame: 53, mv: 249.07, energy: 9.31, concerto: 3.08, offtune: 4176, forte1: 25 },
   ],
   updateBuffs: () => reduceCooldown(SKILL_CD, 60 * 8),
 });
 // Spotlight lays a Chafe stack too, but only in Glacio Chafe mode
 const Spotlight = lucillaAction("Skill - Spotlight", {
-  animFrames: 107, commitFrames: 107, cooldown: SKILL_CD,
-  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, hits: [
-    { at: 16, mv: 13.26, energy: 0.42, concerto: 0.69, offtune: 1334,
+  animFrames: 107, cooldown: SKILL_CD,
+  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+    { hitFrame: 16, mv: 13.26, energy: 0.42, concerto: 0.69, offtune: 1334,
       updateDebuffs: () => { if (isHeld(MODE_CHAFE)) applyEnemy(GLACIO_CHAFE, 1); } },
-    { at: 22, mv: 13.26, energy: 0.42, concerto: 0.69, offtune: 1334 },
-    { at: 28, mv: 13.26, energy: 0.42, concerto: 0.69, offtune: 1334 },
-    { at: 57, mv: 82.35, energy: 4.19, concerto: 1.02, offtune: 1381 },
-    { at: 70, mv: 82.35, energy: 4.19, concerto: 1.02, offtune: 1381 },
-    { at: 101, mv: 274.48, energy: 13.94, concerto: 3.4, offtune: 4602, forte1: 50 },
-    { at: 143, mv: 109.8, energy: 5.58, concerto: 1.36, offtune: 1841 },
+    { hitFrame: 22, mv: 13.26, energy: 0.42, concerto: 0.69, offtune: 1334 },
+    { hitFrame: 28, mv: 13.26, energy: 0.42, concerto: 0.69, offtune: 1334 },
+    { hitFrame: 57, mv: 82.35, energy: 4.19, concerto: 1.02, offtune: 1381 },
+    { hitFrame: 70, mv: 82.35, energy: 4.19, concerto: 1.02, offtune: 1381 },
+    { hitFrame: 101, mv: 274.48, energy: 13.94, concerto: 3.4, offtune: 4602, forte1: 50 },
+    { hitFrame: 143, commitFrame: 107, mv: 109.8, energy: 5.58, concerto: 1.36, offtune: 1841 },
   ],
   applyStats: () => { addStat(Stat.AddConcerto, 20); }
 });
@@ -156,8 +156,8 @@ const Spotlight = lucillaAction("Skill - Spotlight", {
 // Echo Skill DMG under Echo mode; Chafe mode's own typeOverride makes it Basic Attack DMG instead
 // (see MODE_CHAFE) — one action, not one per mode
 const Liberation = lucillaAction("Liberation - Clear As Day", {
-  animFrames: 266, commitFrames: 266, timestop: 264, motionStop: 264, cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Echo, hits: [{ at: 204, mv: 142.74, offtune: 38400 }], castConcerto: 20, castForte1: -150,
+  animFrames: 266, timestop: 264, motionStop: 264, cooldown: 60 * 25,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Echo, bullets: [{ hitFrame: 204, mv: 142.74, offtune: 38400 }], castConcerto: 20, castForte1: -150,
   applyStats: () => { addStat(Stat.AddForte1, 150); },
   updateBuffs: () => {
     applyCurrent(LIB_SELF_DMG, 1);
@@ -167,30 +167,30 @@ const Liberation = lucillaAction("Liberation - Clear As Day", {
 
 // Reminiscence: Basic Attack - Tracing Forms (unconditionally Basic Attack DMG) and Letting It Go
 // (mode-typed). Stage 3 itself triggers Oblivion once per Photo actually banked (forte1, max 3).
-const UBA1 = lucillaAction("Basic - Tracing Forms 1", { animFrames: 27, commitFrames: 19, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 8, mv: 30.64, energy: 0.43, concerto: 0.83, offtune: 1370 },
-    { at: 19, mv: 45.95, energy: 0.65, concerto: 1.24, offtune: 2055 },
+const UBA1 = lucillaAction("Basic - Tracing Forms 1", { animFrames: 27, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 8, mv: 30.64, energy: 0.43, concerto: 0.83, offtune: 1370 },
+    { hitFrame: 19, mv: 45.95, energy: 0.65, concerto: 1.24, offtune: 2055 },
   ]});
-const UBA2 = lucillaAction("Basic - Tracing Forms 2", { animFrames: 54, commitFrames: 31, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 10, mv: 59.77, energy: 4.836, concerto: 1.9745, offtune: 2672 },
-    { at: 31, mv: 89.65, energy: 7.254, concerto: 2.9555, offtune: 4008 },
+const UBA2 = lucillaAction("Basic - Tracing Forms 2", { animFrames: 54, node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 10, mv: 59.77, energy: 4.836, concerto: 1.9745, offtune: 2672 },
+    { hitFrame: 31, mv: 89.65, energy: 7.254, concerto: 2.9555, offtune: 4008 },
   ]});
 const UBA3 = lucillaAction("Basic - Tracing Forms 3", {
-  animFrames: 142, commitFrames: 118,
-  node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 34, mv: 52.12, energy: 0.73, concerto: 1.4, offtune: 2330,
+  animFrames: 142,
+  node: Node.Liberation, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 34, mv: 52.12, energy: 0.73, concerto: 1.4, offtune: 2330,
       // on Stage 3's hit
       updateDebuffs: () => {
         const photos = Math.min(3, Math.floor(forte1() / 50));
         for (let i = 0; i < photos; i++) queue(isHeld(MODE_CHAFE) ? OblivionChafe : OblivionEcho);
       } },
-    { at: 46, mv: 52.12, energy: 0.73, concerto: 1.4, offtune: 2330 },
-    { at: 58, mv: 52.12, energy: 0.73, concerto: 1.4, offtune: 2330 },
-    { at: 70, mv: 52.12, energy: 0.73, concerto: 1.4, offtune: 2330 },
-    { at: 82, mv: 52.12, energy: 0.73, concerto: 1.4, offtune: 2330 },
-    { at: 94, mv: 52.12, energy: 0.73, concerto: 1.4, offtune: 2330 },
-    { at: 106, mv: 52.12, energy: 0.73, concerto: 1.4, offtune: 2330 },
-    { at: 118, mv: 52.12, energy: 0.73, concerto: 1.4, offtune: 2330 },
+    { hitFrame: 46, mv: 52.12, energy: 0.73, concerto: 1.4, offtune: 2330 },
+    { hitFrame: 58, mv: 52.12, energy: 0.73, concerto: 1.4, offtune: 2330 },
+    { hitFrame: 70, mv: 52.12, energy: 0.73, concerto: 1.4, offtune: 2330 },
+    { hitFrame: 82, mv: 52.12, energy: 0.73, concerto: 1.4, offtune: 2330 },
+    { hitFrame: 94, mv: 52.12, energy: 0.73, concerto: 1.4, offtune: 2330 },
+    { hitFrame: 106, mv: 52.12, energy: 0.73, concerto: 1.4, offtune: 2330 },
+    { hitFrame: 118, mv: 52.12, energy: 0.73, concerto: 1.4, offtune: 2330 },
   ],
 });
 
@@ -201,16 +201,16 @@ const UBA3 = lucillaAction("Basic - Tracing Forms 3", {
  *  is a real Echo cast, what "on Echo cast" watchers fire on; Chafe mode's is no cast at all), and
  *  typeOverride only assigns a damage type. */
 const OblivionEcho = lucillaAction("Forte Echo - Oblivion", { animFrames: 0, node: Node.Forte, cast: Cast.Echo, type: Type.Echo, mv: 285.48, offtune: 9600, castForte1: -50});
-const OblivionChafe = lucillaAction("Forte - Oblivion (Chafe)", { animFrames: 0, node: Node.Forte, type: Type.Basic, hits: [{ at: 0, mv: 285.48, offtune: 9600 }], castForte1: -50, ...CHAFES });
+const OblivionChafe = lucillaAction("Forte - Oblivion (Chafe)", { animFrames: 0, node: Node.Forte, type: Type.Basic, bullets: [{ hitFrame: 0, mv: 285.48, offtune: 9600 }], castForte1: -50, ...CHAFES });
 
 // concerto is 7.88 off its own 3 Damage Data hits, plus a separate flat +20 the page states
 // Letting It Go "additionally restores" — both folded into the one number below.
 // Echo Skill DMG, retagged Basic Attack DMG by Chafe mode the same way the Liberation is
-const LettingGo = lucillaAction("Basic - Letting It Go", { animFrames: 77, commitFrames: 54, node: Node.Liberation, type: Type.Echo, hits: [
-    { at: 0, mv: 84.81, energy: 0.34, concerto: 0.2233, offtune: 3652 },
-    { at: 12, mv: 84.81, energy: 0.34, concerto: 0.2233, offtune: 3652 },
-    { at: 24, mv: 84.81, energy: 0.34, concerto: 0.2233, offtune: 3652 },
-    { at: 54, mv: 593.64, energy: 2.34, concerto: 7.2101, offtune: 25558 },
+const LettingGo = lucillaAction("Basic - Letting It Go", { animFrames: 77, node: Node.Liberation, type: Type.Echo, bullets: [
+    { hitFrame: 0, mv: 84.81, energy: 0.34, concerto: 0.2233, offtune: 3652 },
+    { hitFrame: 12, mv: 84.81, energy: 0.34, concerto: 0.2233, offtune: 3652 },
+    { hitFrame: 24, mv: 84.81, energy: 0.34, concerto: 0.2233, offtune: 3652 },
+    { hitFrame: 54, mv: 593.64, energy: 2.34, concerto: 7.2101, offtune: 25558 },
   ],
   applyStats: () => { addStat(Stat.AddConcerto, 20); }
  });
@@ -419,7 +419,7 @@ const LC_S5 = new Sequence({
 const REMEMBRANCE_S6 = new Buff({
   name: "Lucilla S6: Remembrance", maxStacks: 3,
   applyStats: () => { if (runningAction(LettingGo)) addStat(Stat.DmgBonus, 200 * frozenStacks()); },
-  convertStats: () => { if (runningAction(LettingGo)) revokeCurrent(REMEMBRANCE_S6); },
+  afterAction: () => { if (runningAction(LettingGo)) revokeCurrent(REMEMBRANCE_S6); },
 });
 const LC_S6 = new Sequence({
   name: "Lucilla S6: Gazing In the Mist of Time",

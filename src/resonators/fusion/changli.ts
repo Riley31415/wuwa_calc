@@ -36,109 +36,109 @@ function changliAction(id: string, def: object): Action {
 }
 
 // --- basics, dodge counter, heavy (Blazing Enlightenment). Stage 4 opens True Sight.
-const BA1 = changliAction("Basic - Blazing Enlightenment 1", { animFrames: 27, commitFrames: 21, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 12, mv: 29.49, energy: 0.44, concerto: 0.88, offtune: 1396 },
-    { at: 21, mv: 29.49, energy: 0.44, concerto: 0.88, offtune: 1396 },
+const BA1 = changliAction("Basic - Blazing Enlightenment 1", { animFrames: 27, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 12, mv: 29.49, energy: 0.44, concerto: 0.88, offtune: 1396 },
+    { hitFrame: 21, mv: 29.49, energy: 0.44, concerto: 0.88, offtune: 1396 },
   ]});
-const BA2 = changliAction("Basic - Blazing Enlightenment 2", { animFrames: 32, commitFrames: 21, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 14, mv: 35.49, energy: 0.53, concerto: 1.05, offtune: 1680 },
-    { at: 21, mv: 35.49, energy: 0.53, concerto: 1.05, offtune: 1680 },
+const BA2 = changliAction("Basic - Blazing Enlightenment 2", { animFrames: 32, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 14, mv: 35.49, energy: 0.53, concerto: 1.05, offtune: 1680 },
+    { hitFrame: 21, mv: 35.49, energy: 0.53, concerto: 1.05, offtune: 1680 },
   ]});
-const BA3 = changliAction("Basic - Blazing Enlightenment 3", { animFrames: 39, commitFrames: 29, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 11, mv: 36.45, energy: 0.54, concerto: 1.08, offtune: 1726 },
-    { at: 21, mv: 36.45, energy: 0.54, concerto: 1.08, offtune: 1726 },
-    { at: 29, mv: 36.45, energy: 0.54, concerto: 1.08, offtune: 1726 },
+const BA3 = changliAction("Basic - Blazing Enlightenment 3", { animFrames: 39, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 11, mv: 36.45, energy: 0.54, concerto: 1.08, offtune: 1726 },
+    { hitFrame: 21, mv: 36.45, energy: 0.54, concerto: 1.08, offtune: 1726 },
+    { hitFrame: 29, mv: 36.45, energy: 0.54, concerto: 1.08, offtune: 1726 },
   ]});
-const BA4 = changliAction("Basic - Blazing Enlightenment 4", { animFrames: 68, commitFrames: 14, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 14, mv: 50.7, energy: 0.75, concerto: 1.5, offtune: 2400 },
-    { at: 32, mv: 29.58, energy: 0.44, concerto: 0.88, offtune: 1400 },
-    { at: 36, mv: 29.58, energy: 0.44, concerto: 0.88, offtune: 1400 },
-    { at: 40, mv: 29.58, energy: 0.44, concerto: 0.88, offtune: 1400 },
-    { at: 44, mv: 29.58, energy: 0.44, concerto: 0.88, offtune: 1400 },
+const BA4 = changliAction("Basic - Blazing Enlightenment 4", { animFrames: 68, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 14, mv: 50.7, energy: 0.75, concerto: 1.5, offtune: 2400 },
+    { hitFrame: 32, commitFrame: 14, mv: 29.58, energy: 0.44, concerto: 0.88, offtune: 1400 },
+    { hitFrame: 36, commitFrame: 14, mv: 29.58, energy: 0.44, concerto: 0.88, offtune: 1400 },
+    { hitFrame: 40, commitFrame: 14, mv: 29.58, energy: 0.44, concerto: 0.88, offtune: 1400 },
+    { hitFrame: 44, commitFrame: 14, mv: 29.58, energy: 0.44, concerto: 0.88, offtune: 1400 },
   ]});
-const DC = changliAction("Dodge Counter - Blazing Enlightenment 3", { animFrames: 39, commitFrames: 29, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, hits: [
-    { at: 11, mv: 82.64, energy: 1.04, concerto: 5.4133, offtune: 3326 },
-    { at: 21, mv: 82.64, energy: 1.04, concerto: 5.4133, offtune: 3326 },
-    { at: 29, mv: 82.64, energy: 1.04, concerto: 5.4134, offtune: 3326 },
+const DC = changliAction("Dodge Counter - Blazing Enlightenment 3", { animFrames: 39, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+    { hitFrame: 11, mv: 82.64, energy: 1.04, concerto: 5.4133, offtune: 3326 },
+    { hitFrame: 21, mv: 82.64, energy: 1.04, concerto: 5.4133, offtune: 3326 },
+    { hitFrame: 29, mv: 82.64, energy: 1.04, concerto: 5.4134, offtune: 3326 },
   ]});
-const HA = changliAction("Heavy - Blazing Enlightenment", { animFrames: 47, commitFrames: 35, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, hits: [
-    { at: 14, mv: 28.99, energy: 0.43, concerto: 0.86, offtune: 1372 },
-    { at: 20, mv: 28.99, energy: 0.43, concerto: 0.86, offtune: 1372 },
-    { at: 26, mv: 28.99, energy: 0.43, concerto: 0.86, offtune: 1372 },
-    { at: 35, mv: 37.27, energy: 0.56, concerto: 1.11, offtune: 1764 },
+const HA = changliAction("Heavy - Blazing Enlightenment", { animFrames: 47, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+    { hitFrame: 14, mv: 28.99, energy: 0.43, concerto: 0.86, offtune: 1372 },
+    { hitFrame: 20, mv: 28.99, energy: 0.43, concerto: 0.86, offtune: 1372 },
+    { hitFrame: 26, mv: 28.99, energy: 0.43, concerto: 0.86, offtune: 1372 },
+    { hitFrame: 35, mv: 37.27, energy: 0.56, concerto: 1.11, offtune: 1764 },
   ]});
 
 // --- mid-air basics, mid-air heavy — the same combo, airborne. Stage 4 also opens True Sight.
-const MA1 = changliAction("Mid-air - Blazing Enlightenment 1", { animFrames: 24, commitFrames: 13, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 13, mv: 61.35, energy: 0.91, concerto: 1.82, offtune: 2904 }]});
-const MA2 = changliAction("Mid-air - Blazing Enlightenment 2", { animFrames: 39, commitFrames: 27, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 17, mv: 50.87, energy: 0.76, concerto: 1.51, offtune: 2408 },
-    { at: 27, mv: 50.87, energy: 0.76, concerto: 1.51, offtune: 2408 },
+const MA1 = changliAction("Mid-air - Blazing Enlightenment 1", { animFrames: 24, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 61.35, energy: 0.91, concerto: 1.82, offtune: 2904 }]});
+const MA2 = changliAction("Mid-air - Blazing Enlightenment 2", { animFrames: 39, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 17, mv: 50.87, energy: 0.76, concerto: 1.51, offtune: 2408 },
+    { hitFrame: 27, mv: 50.87, energy: 0.76, concerto: 1.51, offtune: 2408 },
   ]});
-const MA3 = changliAction("Mid-air - Blazing Enlightenment 3", { animFrames: 47, commitFrames: 35, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 16, mv: 44, energy: 0.66, concerto: 1.31, offtune: 2083 },
-    { at: 25, mv: 44, energy: 0.66, concerto: 1.31, offtune: 2083 },
-    { at: 35, mv: 44, energy: 0.66, concerto: 1.31, offtune: 2083 },
+const MA3 = changliAction("Mid-air - Blazing Enlightenment 3", { animFrames: 47, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 16, mv: 44, energy: 0.66, concerto: 1.31, offtune: 2083 },
+    { hitFrame: 25, mv: 44, energy: 0.66, concerto: 1.31, offtune: 2083 },
+    { hitFrame: 35, mv: 44, energy: 0.66, concerto: 1.31, offtune: 2083 },
   ]});
-const MA4 = changliAction("Mid-air - Blazing Enlightenment 4", { animFrames: 53, commitFrames: 6, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 6, mv: 38.03, energy: 0.57, concerto: 1.13, offtune: 1800 },
-    { at: 18, mv: 22.18, energy: 0.33, concerto: 0.66, offtune: 1050 },
-    { at: 24, mv: 22.18, energy: 0.33, concerto: 0.66, offtune: 1050 },
-    { at: 29, mv: 22.18, energy: 0.33, concerto: 0.66, offtune: 1050 },
-    { at: 35, mv: 22.18, energy: 0.33, concerto: 0.66, offtune: 1050 },
+const MA4 = changliAction("Mid-air - Blazing Enlightenment 4", { animFrames: 53, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 6, mv: 38.03, energy: 0.57, concerto: 1.13, offtune: 1800 },
+    { hitFrame: 18, commitFrame: 6, mv: 22.18, energy: 0.33, concerto: 0.66, offtune: 1050 },
+    { hitFrame: 24, commitFrame: 6, mv: 22.18, energy: 0.33, concerto: 0.66, offtune: 1050 },
+    { hitFrame: 29, commitFrame: 6, mv: 22.18, energy: 0.33, concerto: 0.66, offtune: 1050 },
+    { hitFrame: 35, commitFrame: 6, mv: 22.18, energy: 0.33, concerto: 0.66, offtune: 1050 },
   ]});
-const MHA = changliAction("Heavy - Blazing Enlightenment (Mid-Air)", { animFrames: 54, commitFrames: 42, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, hits: [{ at: 42, mv: 123.27, energy: 1.55, concerto: 1, offtune: 4960 }]});
+const MHA = changliAction("Heavy - Blazing Enlightenment (Mid-Air)", { animFrames: 54, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [{ hitFrame: 42, mv: 123.27, energy: 1.55, concerto: 1, offtune: 4960 }]});
 
 // --- True Sight's own finishers: Conquest (ground Basic), Charge (jump/mid-air Basic) — both
 //     Resonance Skill DMG, both bank a stack of Enflamement and end True Sight
-const SBA = changliAction("Basic - True Sight: Conquest", { animFrames: 73, commitFrames: 68, node: Node.Skill, cast: Cast.Basic, type: Type.Skill, hits: [
-    { at: 26, mv: 58.95, energy: 0.81, offtune: 1797, forte1: 1 },
-    { at: 51, mv: 58.95, energy: 0.81, offtune: 1797 },
-    { at: 60, mv: 82.52, energy: 1.13, offtune: 2516 },
-    { at: 68, mv: 94.31, energy: 1.29, offtune: 2875 },
+const SBA = changliAction("Basic - True Sight: Conquest", { animFrames: 73, node: Node.Skill, cast: Cast.Basic, type: Type.Skill, bullets: [
+    { hitFrame: 26, mv: 58.95, energy: 0.81, offtune: 1797, forte1: 1 },
+    { hitFrame: 51, mv: 58.95, energy: 0.81, offtune: 1797 },
+    { hitFrame: 60, mv: 82.52, energy: 1.13, offtune: 2516 },
+    { hitFrame: 68, mv: 94.31, energy: 1.29, offtune: 2875 },
   ], castConcerto: 7});
-const SMA = changliAction("Basic - True Sight: Charge", { animFrames: 40, commitFrames: 26, node: Node.Skill, cast: Cast.Basic, type: Type.Skill, hits: [
-    { at: 13, mv: 72.68, energy: 1.03, offtune: 1741, forte1: 1 },
-    { at: 26, mv: 109.02, energy: 1.54, offtune: 2612 },
+const SMA = changliAction("Basic - True Sight: Charge", { animFrames: 40, node: Node.Skill, cast: Cast.Basic, type: Type.Skill, bullets: [
+    { hitFrame: 13, mv: 72.68, energy: 1.03, offtune: 1741, forte1: 1 },
+    { hitFrame: 26, mv: 109.02, energy: 1.54, offtune: 2612 },
   ], castConcerto: 6});
 
 // --- resonance skill: Tripartite Flames — also opens True Sight: Capture (bundled into this
 //     one hit's own total per wuwalab, not a separate press)
 // True Sight: Capture holds 2 charges, one back every 12s
-const Skill = changliAction("Skill - Tripartite Flames", { animFrames: 89, commitFrames: 74, cooldown: new Cooldown({ frames: 60 * 12, charges: 2 }), node: Node.Skill, cast: Cast.Skill, type: Type.Skill, hits: [
-    { at: 10, mv: 81.88, energy: 1.6, offtune: 2496 },
-    { at: 18, mv: 81.88, energy: 1.6, offtune: 2496 },
-    { at: 27, mv: 81.88, energy: 1.6, offtune: 2496 },
-    { at: 74, mv: 163.76, energy: 3.2, offtune: 4992 },
+const Skill = changliAction("Skill - Tripartite Flames", { animFrames: 89, cooldown: new Cooldown({ frames: 60 * 12, charges: 2 }), node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+    { hitFrame: 10, mv: 81.88, energy: 1.6, offtune: 2496 },
+    { hitFrame: 18, mv: 81.88, energy: 1.6, offtune: 2496 },
+    { hitFrame: 27, mv: 81.88, energy: 1.6, offtune: 2496 },
+    { hitFrame: 74, mv: 163.76, energy: 3.2, offtune: 4992 },
   ], castConcerto: 14});
 
 /** At 4 Enflamement — Sweeping Force's own +20% Fusion DMG Bonus/15% DEF ignore pays on this
  *  same hit (intrinsic to the cast, no separate lingering buff). */
-const FlamingSacrifice = changliAction("Forte Heavy - Flaming Sacrifice", { animFrames: 76, commitFrames: 52, node: Node.Forte, cast: Cast.Heavy, type: Type.Skill, hits: [
-    { at: 9, mv: 39.25, energy: 0.4, offtune: 1869 },
-    { at: 15, mv: 39.25, energy: 0.4, offtune: 1869 },
-    { at: 21, mv: 39.25, energy: 0.4, offtune: 1869 },
-    { at: 27, mv: 39.25, energy: 0.4, offtune: 1869 },
-    { at: 33, mv: 39.25, energy: 0.4, offtune: 1869 },
-    { at: 52, mv: 457.85, energy: 4.61, offtune: 21796 },
+const FlamingSacrifice = changliAction("Forte Heavy - Flaming Sacrifice", { animFrames: 76, node: Node.Forte, cast: Cast.Heavy, type: Type.Skill, bullets: [
+    { hitFrame: 9, mv: 39.25, energy: 0.4, offtune: 1869 },
+    { hitFrame: 15, mv: 39.25, energy: 0.4, offtune: 1869 },
+    { hitFrame: 21, mv: 39.25, energy: 0.4, offtune: 1869 },
+    { hitFrame: 27, mv: 39.25, energy: 0.4, offtune: 1869 },
+    { hitFrame: 33, mv: 39.25, energy: 0.4, offtune: 1869 },
+    { hitFrame: 52, mv: 457.85, energy: 4.61, offtune: 21796 },
   ], castConcerto: 10, castForte1: -4});
 
 // --- liberation: Radiance of Fealty — grants 4 Enflamement outright and opens Fiery Feather
 const Liberation = changliAction("Liberation - Radiance of Fealty", {
-  animFrames: 191, commitFrames: 191, timestop: 189, motionStop: 158, cooldown: 60 * 20,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, hits: [{ at: 163, mv: 1212.75, offtune: 100800 }], castConcerto: 20, castForte1: 4, resetEnergy: true,
+  animFrames: 191, timestop: 189, motionStop: 158, cooldown: 60 * 20,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [{ hitFrame: 163, mv: 1212.75, offtune: 100800 }], castConcerto: 20, castForte1: 4, resetEnergy: true,
   updateBuffs: () => applyCurrent(FIERY_FEATHER, 1),
 });
 
 // --- intro / outro. Intro also opens True Sight.
-const Intro = changliAction("Intro - Obedience of Rules", { animFrames: 45, commitFrames: 45, motionStop: 40, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, hits: [
-    { at: 6, mv: 44.5, energy: 3, offtune: 1791 },
-    { at: 18, mv: 25.96, energy: 1.75, offtune: 1045 },
-    { at: 24, mv: 25.96, energy: 1.75, offtune: 1045 },
-    { at: 29, mv: 25.96, energy: 1.75, offtune: 1045 },
-    { at: 35, mv: 25.96, energy: 1.75, offtune: 1045 },
+const Intro = changliAction("Intro - Obedience of Rules", { animFrames: 45, prioFrames: 45, motionStop: 40, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
+    { hitFrame: 6, mv: 44.5, energy: 3, offtune: 1791 },
+    { hitFrame: 18, mv: 25.96, energy: 1.75, offtune: 1045 },
+    { hitFrame: 24, mv: 25.96, energy: 1.75, offtune: 1045 },
+    { hitFrame: 29, mv: 25.96, energy: 1.75, offtune: 1045 },
+    { hitFrame: 35, mv: 25.96, energy: 1.75, offtune: 1045 },
   ], castConcerto: 10});
 const Outro = changliAction("Outro - Strategy of Duality", {
-  animFrames: 0, commitFrames: 0,
+  animFrames: 0,
   cast: Cast.Outro, castConcerto: -100,
   updateBuffs: () => queueOutro(CHANGLI_OUTRO),
 });
@@ -171,12 +171,12 @@ const CH_INHERENT_2 = new Inherent({
 });
 
 /** Radiance of Fealty grants a 10s window where the next Flaming Sacrifice gets +25% ATK —
- *  one-shot, consumed the instant it lands. */
+ *  one-shot, consumed once that press runs out. */
 const FIERY_FEATHER = new Buff({
   name: "Changli: Fiery Feather",
   duration: 60 * 10,
   applyStats: () => { if (runningAction(FlamingSacrifice)) addStat(Stat.BonusAtk, 25); },
-  convertStats: () => { if (runningAction(FlamingSacrifice)) revokeCurrent(FIERY_FEATHER); },
+  afterAction: () => { if (runningAction(FlamingSacrifice)) revokeCurrent(FIERY_FEATHER); },
 });
 
 /** Strategy of Duality: the outro handoff — 10s, or the receiver switching out, whichever comes

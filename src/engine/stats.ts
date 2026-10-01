@@ -73,16 +73,6 @@ export const enum Stat {
   AddForte3,
   AddForte4,
   AddForte5,
-  /** The same, banked with the *cast* rather than the hit (`ActionDef.castConcerto`): a gain a
-   *  buff pays on the press itself — "casting X restores N Concerto" — which a press whose hit
-   *  lands later, or never (an insta cut), still pays then. */
-  AddCastEnergy,
-  AddCastConcerto,
-  AddCastForte1,
-  AddCastForte2,
-  AddCastForte3,
-  AddCastForte4,
-  AddCastForte5,
 }
 
 /** Stats that describe the *enemy* itself — a real debuff on the target that every attacker reads
@@ -92,7 +82,7 @@ export const enum Stat {
  *  so a kit can't reach for the wrong pool by mistake. Numbered on from `Stat`'s last member so
  *  the two share one index space (see the header). */
 export const enum EnemyStat {
-  ResReduce = Stat.AddCastForte5 + 1,
+  ResReduce = Stat.AddForte5 + 1,
   DefReduce,
 }
 
@@ -116,9 +106,6 @@ export const STAT_NAME: Record<Stat | EnemyStat, string> = {
   [Stat.DirectOfftune]: "DirectOfftune",
   [Stat.AddForte1]: "Forte1", [Stat.AddForte2]: "Forte2", [Stat.AddForte3]: "Forte3",
   [Stat.AddForte4]: "Forte4", [Stat.AddForte5]: "Forte5",
-  [Stat.AddCastEnergy]: "Energy (cast)", [Stat.AddCastConcerto]: "Concerto (cast)",
-  [Stat.AddCastForte1]: "Forte1 (cast)", [Stat.AddCastForte2]: "Forte2 (cast)", [Stat.AddCastForte3]: "Forte3 (cast)",
-  [Stat.AddCastForte4]: "Forte4 (cast)", [Stat.AddCastForte5]: "Forte5 (cast)",
   [EnemyStat.ResReduce]: "Res Reduce", [EnemyStat.DefReduce]: "Def Reduce",
 };
 
@@ -249,6 +236,10 @@ export const enum BuffTarget { Self, Team, Enemy, Next }
 
 /** Cast identities with no damage type of their own (a Dodge Counter deals whatever `type` says);
  *  kept out of `Type` so they can't be reached for `type`/`subtype` by mistake. */
+/** Frames an animation runs on past the point it was cut: an insta cut's, an easy cancel's and a
+ *  plain (dodge, jump, on-hit) cancel's — and the handoff a swap costs the resonator coming in. */
+export const INSTA_DELAY = 6, EASY_DELAY = 6, CANCEL_DELAY = 12, SWAP_DELAY = 15;
+
 /** An action's one tag — the one its row carries, and what `cancelCost()` charges. Whether its
  *  owner is on field is the engine's (`State.onField`), not the tag's: a `Field` row reads FIELD
  *  or OFF-FIELD by it. */
@@ -256,15 +247,21 @@ export enum ActionTag {
   Default = "",
   Field = "field",
   Cancel = "cancel",
-  InstaCancel = "instant cancel",
-  EasyCancel = "easy cancel",
+  
+  EasyCancel = "easy cancel", // cancel with less delay
   DodgeCancel = "dodge cancel",
-  InstaDodge = "instant dodge",
   JumpCancel = "jump cancel",
+  SwapCancel = "swap cancel",
+
+  InstaCancel = "instant cancel",
+  InstaDodge = "instant dodge",
   InstaJump = "instant jump",
-  SwapCancel = "swap on hit",
   InstaSwap = "instant swap",
+
   HitCancel = "cancel on hit",
+  DodgeOnHit = "dodge on hit",
+  JumpOnHit = "jump on hit",
+  // no reason to swap on first hit
 }
 
 export const enum Cast {

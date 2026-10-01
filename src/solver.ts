@@ -9,6 +9,7 @@ import type { Matrix } from "./engine/gear.js";
 import { runTeam, scoreOf, erRollsFor } from "./teamrun.js";
 import type { TeamRun, RowScore } from "./teamrun.js";
 import { teamAt } from "./teams.js";
+import { critLineOf, Mainstat } from "./shared/mainstats.js";
 
 export interface Member {
   name: string;
@@ -257,15 +258,17 @@ function trialRun(teamKey: string, members: Member[], picks: Pick[]): TeamRun {
  * the engine can't vouch for (`unsafe`) is scored with a real run instead.
  * @returns per member in `who`, a `TeamRun` per main-stat index
  */
-function scoreMainstats(teamKey: string, members: Member[], picks: Pick[], who: number[]): Map<number, TeamRun[]> {
+function scoreMainstats(teamKey: string, members: Member[], picks: Pick[], who: number[], prune = true): Map<number, TeamRun[]> {
   const combo = members.map((m, i) => comboOf(m.loadout, picks[i]!));
-  const key = `${trialKey(teamKey, combo)}|${who.join(",")}`;
+  const key = `${trialKey(teamKey, combo)}|${who.join(",")}|${prune ? "p" : ""}`;
   let out = scoreCache.get(key);
-  if (!out) scoreCache.set(key, out = scoreMainstatsRun(teamKey, members, picks, who, combo));
+  if (!out) scoreCache.set(key, out = scoreMainstatsRun(teamKey, members, picks, who, combo, prune));
   return out;
 }
 
-function scoreMainstatsRun(teamKey: string, members: Member[], picks: Pick[], who: number[], combo: Combo[]): Map<number, TeamRun[]> {
+/** @param prune  leave unscored the builds a cheaper one proves can't win (see `pruneMainstats`) —
+ *  off where every row is shown. */
+function scoreMainstatsRun(teamKey: string, members: Member[], picks: Pick[], who: number[], combo: Combo[], prune: boolean): Map<number, TeamRun[]> {
   const alts = members.map((m, i) => (who.includes(i)
     ? m.loadout.mainstats.map((_, k) => k).filter((k) => k !== picks[i]!.mainstat) : null));
   const run = runTeam(teamKey, members, combo, false, alts.map((a, i) => a && a.map((k) => comboOf(members[i]!.loadout, { ...picks[i]!, mainstat: k }))));
@@ -274,25 +277,74 @@ function scoreMainstatsRun(teamKey: string, members: Member[], picks: Pick[], wh
   for (const i of who) {
     const scores: TeamRun[] = [];
     scores[picks[i]!.mainstat] = run;
+    // a variant the engine can't vouch for costs a real run, so those wait until pruning has had its say
+    const unsafe = new Set<number>();
     alts[i]!.forEach((k, v) => {
       const trial = picks.map((p, j) => (j === i ? { ...p, mainstat: k } : p));
       const variant = run.variantRuns[i]![v]!;
       if (variant.unsafe) {
-        scores[k] = trialRun(teamKey, members, trial);
+        unsafe.add(k);
         return;
       }
       const c = members.map((m, j) => comboOf(m.loadout, trial[j]!));
       const scored: TeamRun = {
         state: run.state, teamKey, members, combo: c, rotationLines: null, variantRuns: [],
         total: variant.total, bySlot: variant.bySlot, sectionTotals: variant.sectionTotals, sectionBySlot: variant.sectionBySlot,
-        fightTotal: variant.fightTotal, fightBySlot: variant.fightBySlot, seconds: variant.seconds,
+        fightTotal: variant.fightTotal, fightBySlot: variant.fightBySlot, seconds: variant.seconds, sectionSeconds: run.sectionSeconds,
       };
       trialCache.set(trialKey(teamKey, c), scored);
       scores[k] = scored;
     });
+    const total = (k: number): number => {
+      if (!scores[k]) scores[k] = trialRun(teamKey, members, picks.map((p, j) => (j === i ? { ...p, mainstat: k } : p)));
+      return scores[k]!.total;
+    };
+    const skip = prune ? pruneMainstats(members[i]!.loadout, scores, total) : new Set<number>();
+    for (const k of unsafe) if (!skip.has(k)) total(k);
     out.set(i, scores);
   }
   return out;
+}
+
+/**
+ * The 43311 builds a cheaper one proves can't win (`CritLine`): once CR and CD are ranked on one
+ * 3-cost pair, the loser's other builds; and per element, atk/atk once atk/ele loses to ele/ele (or
+ * ele/ele once atk/ele loses to atk/atk). `scores` holds what is already known; `total` scores a
+ * build, running it if it has to. A build already scored is never skipped, and a tie skips nothing.
+ */
+function pruneMainstats(l: Loadout, scores: TeamRun[], total: (k: number) => number): Set<number> {
+  const skip = new Set<number>();
+  const lines = l.mainstats.map((piece, k) => ({ k, line: critLineOf(piece) })).filter((x) => x.line);
+  const at = (four: Mainstat, atk: number, element: Mainstat | null, ones: string): number | undefined =>
+    lines.find(({ line }) => line!.four === four && line!.atk === atk && line!.element === element && line!.ones === ones)?.k;
+  // CR against CD, on the pair that costs the fewest real runs to compare
+  const pairs = lines.filter(({ line }) => line!.four === Mainstat.CR4)
+    .map(({ k, line }) => [k, at(Mainstat.CD4, line!.atk, line!.element, line!.ones)] as const)
+    .filter((pair): pair is readonly [number, number] => pair[1] !== undefined)
+    .sort((a, b) => Number(!scores[a[0]]) + Number(!scores[a[1]]) - Number(!scores[b[0]]) - Number(!scores[b[1]]));
+  let four: Mainstat | null = null;
+  if (pairs.length) {
+    const [cr, cd] = pairs[0]!;
+    const tcr = total(cr), tcd = total(cd);
+    if (tcr !== tcd) {
+      four = tcr > tcd ? Mainstat.CR4 : Mainstat.CD4;
+      for (const { k, line } of lines) if (line!.four !== four && !scores[k]) skip.add(k);
+    }
+  }
+  // the ATK/element trade along each element, for whichever 4-costs are still in the running
+  for (const { line } of lines) {
+    if (line!.atk !== 1 || (four !== null && line!.four !== four)) continue;
+    const { four: f, element, ones } = line!;
+    const ae = at(f, 1, element, ones)!, ee = at(f, 0, element, ones), aa = at(f, 2, null, ones);
+    if (ee === undefined || aa === undefined) continue;
+    const tae = total(ae);
+    if (!scores[ee] && scores[aa] && tae < total(aa)) {
+      skip.add(ee);
+      continue;
+    }
+    if (tae < total(ee) && !scores[aa]) skip.add(aa);
+  }
+  return skip;
 }
 
 /** Member `i`'s main stats ranked by what the *team* scores wearing each, best first — but a build
@@ -725,7 +777,7 @@ function rowPicks(
     });
     const open = mainstatsOpen(settled);
     if (!open.length) { rows.push(settled); continue; }
-    const scores = scoreMainstats(teamKey, members, settled, open);
+    const scores = scoreMainstats(teamKey, members, settled, open, false);
     const top = new Map<number, number[]>();
     for (const i of open) {
       // the comparison rows list every main stat on its own merits, over-budget ones included —

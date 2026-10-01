@@ -10,6 +10,7 @@ import { ctx, noteMutation, recordConsumed, pendingQueue, tagWord, recordWrite, 
 import { Gear, Buff, Debuff, Resonator, Mainslot } from "./gear.js";
 import type { Trigger } from "./gear.js";
 import { State, TeamMember, StatEntry, HeldBuff, SUBTYPE_AMP_INDEX, SUBTYPE_CRIT_RATE_INDEX, SUBTYPE_CRIT_DMG_INDEX, SUBTYPE_TOTAL_DMG_INDEX, SUBTYPE_DAMAGE_TAKEN_INDEX, BASIC_DMG_BONUS_INDEX } from "./state.js";
+import type { StatRow } from "./state.js";
 
 /** The three pools a phase reads — the acting slot's own, then team-wide, then enemy — as the
  *  arrays they held when `capture()` last ran. Three references apiece, nothing copied: a Pool's
@@ -156,7 +157,7 @@ export function tickInEnemy(gear: Gear): number { return ctx.state!.enemyStacks.
  *  The Action is never touched — kits compare actions by identity, and a mutated singleton would
  *  leak across the teams a worker runs. */
 export function typeOverride(type: Type | Subtype): void {
-  const h = ctx.act!.lastHit;
+  const h = ctx.act!.lastBullet;
   if (type & SUBTYPE_BITS) ctx.overrideSubtype = type as Subtype;
   else ctx.overrideType = type as Type;
   // the same three tags `tagWordOf()` folds, with the assignment standing in for whichever slot
@@ -193,7 +194,7 @@ function combined(fn: () => boolean, parts: Trigger[]): Trigger {
  *  two a held Gear's `typeOverride` assigned for this evaluation (a Basic hit assigned Liberation
  *  answers Liberation, not Basic). A cast has no type: false there, always. */
 export function isType(type: Type | Subtype): boolean {
-  const h = ctx.act!.lastHit;
+  const h = ctx.act!.lastBullet;
   if (!h) return false;
   return (ctx.overrideType ?? h.type) === type || (ctx.overrideSubtype ?? h.subtype) === type;
 }
@@ -317,7 +318,7 @@ export function frozenStacks(): number {
  *  it by that kit. Falls back to whoever's actually acting only if this Gear was somehow never
  *  attributed (shouldn't happen — every grant path calls `attribute()`). */
 /** One addition into `effective`, journaled while the applyStats phase is being recorded. */
-function write(effective: number[], index: number, value: number): void {
+function write(effective: StatRow, index: number, value: number): void {
   effective[index] = effective[index]! + value;
   ctx.wrote++;
   if (ctx.recording) recordWrite(index, value);
@@ -502,6 +503,20 @@ export const { get: enemyForte5, set: setEnemyForte5, add: addEnemyForte5 } = en
  *  still never *adds* to this directly, same as forte; evaluate() alone banks `action.concerto`/
  *  `AddConcerto` into it every action. */
 export function concerto(): number { return ctx.slot!.concerto; }
+
+/** What a cast hook adds straight to its press's cast — "casting X restores N Concerto" — banked
+ *  with the cast's own `castEnergy`/`castConcerto`/`castForteN`. Stats never carry these, and only a
+ *  cast hook (updateGlobal, updateBuffs, a cast grant) may add them. */
+export interface CastGain { energy?: number; concerto?: number; forte1?: number; forte2?: number; forte3?: number; forte4?: number; forte5?: number }
+const CAST_GAIN_KEYS = ["energy", "concerto", "forte1", "forte2", "forte3", "forte4", "forte5"] as const;
+export function addToCast(gain: CastGain): void {
+  if (!ctx.inCast) throw new Error(`${ctx.buff?.name ?? "?"}: addToCast() outside a cast hook (${ctx.act?.name ?? "?"})`);
+  const gains = CAST_GAIN_KEYS.map((k) => gain[k] ?? 0);
+  for (let i = 0; i < gains.length; i++) ctx.castGain[i] = ctx.castGain[i]! + gains[i]!;
+  if (ctx.tracing) ctx.castAdds.push({ source: ctx.buff?.toString() ?? "", owner: (ctx.buff && ctx.state!.sourceOf.get(ctx.buff)) ?? ctx.slot!.name ?? null, gains });
+}
+/** What cast hooks have added to this press's cast so far (`addToCast()`). */
+export function castGained(key: keyof CastGain): number { return ctx.castGain[CAST_GAIN_KEYS.indexOf(key)]!; }
 export function setConcerto(value: number): number {
   noteMutation(-10, value);
   return (ctx.slot!.concerto = value);
@@ -810,6 +825,18 @@ export function applyOn(resonator: Resonator | null, fn: () => void): void {
   const timed = ctx.state!.timed;
   timed.push({ due: ctx.tickAt, action: null, slot, into: null, by: queuedBy(), apply: fn });
   timed.sort((p, q) => p.due - q.due);
+}
+
+/** The frame the last press in `presses` still playing ends on (its queued end), or null if none is. */
+export function pressEndOf(presses: Set<Action>): number | null {
+  let end: number | null = null;
+  for (const h of ctx.state!.timed) {
+    if (!h.closes) continue;
+    for (let x: Action | null = h.action; x; x = x.cancelOf ?? x.formOf) {
+      if (presses.has(x)) end = Math.max(end ?? h.due, h.due);
+    }
+  }
+  return end;
 }
 
 /** Take back every hit and end still queued of a press in `presses` (or a form of one): an attack

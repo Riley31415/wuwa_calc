@@ -46,9 +46,9 @@ export const LAMP_5PC = new Sonata({
  *  Aero DMG Bonus flat, and +10% more for 15s on inflicting Tune Strain - Shifting — short and
  *  their own. Pairs with Heart of Evil's Purge below. */
 export const ACTION_CALAMITY_EFFIGY = new Action("Echo - Calamity Effigy", {
-  animFrames: 60, commitFrames: 46,
+  animFrames: 60, bullets: [{ hitFrame: 46, mv: 405, energy: 5.62 }],
   cooldown: 60 * 25,
-  cast: Cast.Echo, element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo, mv: 405, energy: 5.62,
+  cast: Cast.Echo, element: Attribute.Aero, scaling: Scaling.Atk, type: Type.Echo,
 });
 export const CALAMITY_EFFIGY_STRAIN = new Buff({
   name: "Calamity Effigy (strain)",
@@ -150,7 +150,7 @@ export const FORBIDDEN_BASTION = new Mainslot({
 
 /* ------------------------------------------------------------------------ Suoming and Hsin, 3.7 */
 
-/** "Stay tuned" (encore's placeholder name — the echo has none yet), the 3.7 Electro mainslot:
+/** Reminiscence: Suhsin (encore's "Stay tuned" placeholder), the 3.7 Electro mainslot:
  *  4 x 27.36% + 164.16% Electro for anybody, and 5 x 13.68% + 232.56% "when equipped by Hsin" —
  *  a whole second cast rather than a bonus on the first, so it is a Mainslot of its own that only
  *  her loadouts name, the way Adam Smasher's two forms are (lahairoi.ts). Both carry +10% Electro
@@ -158,39 +158,39 @@ export const FORBIDDEN_BASTION = new Mainslot({
  *  adds another +10% for 30s, so permanent once granted. Summon/transform is unconfirmed — the
  *  text says only "Cast Echo Skill to deal", the same wording as Nameless Explorer. */
 /** Named apart from the echo it sits on: the mainslot's own +10% is flat and this one is earned,
- *  and two lines reading "Stay tuned 4c" said nothing about which was which. */
+ *  and two lines with the echo's own name said nothing about which was which. */
 export const STAY_TUNED_BUFF = new Buff({
-  name: "Stay tuned 4c (flare/unison)",
+  name: "Reminiscence: Suhsin (flare/unison)",
   duration: 60 * 30,
   stats: [[Stat.DmgBonus, 10, Attribute.Electro]],
 });
 const STAY_TUNED_GRANTS = [{ on: either(onInflict(ELECTRO_FLARE), gainedUnison, unisonResponse), buff: STAY_TUNED_BUFF }];
-export const ACTION_STAY_TUNED = new Action("Echo - Stay tuned 4c", {
+export const ACTION_STAY_TUNED = new Action("Echo - Reminiscence: Suhsin", {
   cooldown: 60 * 20,
   cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
   mv: 27.36 * 4 + 164.16, energy: 0.38 * 4 + 2.28,
 });
 export const STAY_TUNED = new Mainslot({
-  name: "Stay tuned 4c",
+  name: "Reminiscence: Suhsin",
   action: ACTION_STAY_TUNED,
   stats: [[Stat.DmgBonus, 10, Attribute.Electro]],
   grants: STAY_TUNED_GRANTS,
 });
 
 /** Hsin's own form of it — her loadouts name this one instead. */
-export const ACTION_STAY_TUNED_HSIN = new Action("Echo - Stay tuned 4c (Hsin)", {
+export const ACTION_STAY_TUNED_HSIN = new Action("Echo - Reminiscence: Suhsin (Hsin)", {
   cooldown: 60 * 20,
   cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
   mv: 13.68 * 5 + 232.56, energy: 0.19 * 5 + 3.23,
 });
 export const STAY_TUNED_HSIN = new Mainslot({
-  name: "Stay tuned 4c",
+  name: "Reminiscence: Suhsin",
   action: ACTION_STAY_TUNED_HSIN,
   stats: [[Stat.DmgBonus, 10, Attribute.Electro]],
   grants: STAY_TUNED_GRANTS,
 });
 
-/** Soul of Despair (6000224, the 3-cost "Stay tuned"), Electro Rover's own mainslot: three
+/** Soulfrayer (6000224, the 3-cost "Stay tuned"), Electro Rover's own mainslot: three
  *  91.18% Electro hits, and the Impermanence Heron shape — its cast primes an Outro handoff, the
  *  incoming resonator's +12% Electro DMG Bonus for 15s, long enough to outlast their own visit
  *  (gear.ts's `handoff`). Text is the CN translation ("conductive" = Electro); encore's own
@@ -240,10 +240,10 @@ export const ELECTRIC_REFLECTION_BUFF = new Buff({
 });
 export const ELECTRIC_REFLECTION_HANDOFF = handoff("Flash of Electric Reflection 5pc (outro)", () => addStat(Stat.DmgBonus, 25, Attribute.Electro));
 
-/** Formless Demon (6000223 — "Sound Remains" in the CN text), the 3.7 healing mainslot: one 273.60%
- *  Fusion hit ("Molten" DMG in the CN translation — unconfirmed against EN text), and +10% Energy
- *  Regen for whoever wears it. Pairs with Flower of Tinged Yearning below. Summon by its text
- *  ("summon the Formless Demon"). */
+/** Formrender (6000223 — "Formless Demon" / "Sound Remains" in the CN text), the 3.7 healing
+ *  mainslot: one 273.60% Fusion hit ("Molten" DMG in the CN translation — unconfirmed against EN
+ *  text), and +10% Energy Regen for whoever wears it. Pairs with Flower of Tinged Yearning below.
+ *  Summon by its text ("summon the Formless Demon"). */
 export const ACTION_FORMLESS_DEMON = new Action("Echo - Formrender", {
   cooldown: 60 * 20,
   cast: Cast.Echo, element: Attribute.Fusion, scaling: Scaling.Atk, type: Type.Echo, mv: 273.6, energy: 3.8,

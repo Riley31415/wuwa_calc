@@ -59,6 +59,7 @@ import {
   forte2,
   frozenStacks,
   stacksOfEnemy,
+  addToCast,
 } from "../../engine/context.js";
 import { ActionGroup, Action, Cooldown, Rotation, START_3, ECHO, INTRO } from "../../engine/rotation.js";
 import { applied } from "../../engine/context.js";
@@ -77,92 +78,92 @@ function lucyAction(id: string, def: object): Action {
 }
 
 // --- Locked Thread, the ordinary chain. Everything here banks TCP.
-const BA1 = lucyAction("Basic - Locked Thread 1", { animFrames: 31, commitFrames: 19, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 14, mv: 24.302, energy: 0.38, concerto: 1.2461, offtune: 1504, forte1: 3.2 },
-    { at: 19, mv: 97.188, energy: 1.52, concerto: 4.9239, offtune: 6016, forte1: 12.8 },
+const BA1 = lucyAction("Basic - Locked Thread 1", { animFrames: 31, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 14, mv: 24.302, energy: 0.38, concerto: 1.2461, offtune: 1504, forte1: 3.2 },
+    { hitFrame: 19, mv: 97.188, energy: 1.52, concerto: 4.9239, offtune: 6016, forte1: 12.8 },
   ]});
-const BA2 = lucyAction("Basic - Locked Thread 2", { animFrames: 37, commitFrames: 26, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 12, mv: 20.66, energy: 0.32, concerto: 1.05, offtune: 1279, forte1: 4.08 },
-    { at: 23, mv: 20.05, energy: 0.32, concerto: 1.01, offtune: 1241, forte1: 3.96 },
-    { at: 26, mv: 20.05, energy: 0.32, concerto: 1.01, offtune: 1241, forte1: 3.96 },
+const BA2 = lucyAction("Basic - Locked Thread 2", { animFrames: 37, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 12, mv: 20.66, energy: 0.32, concerto: 1.05, offtune: 1279, forte1: 4.08 },
+    { hitFrame: 23, mv: 20.05, energy: 0.32, concerto: 1.01, offtune: 1241, forte1: 3.96 },
+    { hitFrame: 26, mv: 20.05, energy: 0.32, concerto: 1.01, offtune: 1241, forte1: 3.96 },
   ]});
-const BA3 = lucyAction("Basic - Locked Thread 3", { animFrames: 69, commitFrames: 53, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 10, mv: 36.06, energy: 0.56, concerto: 1.82, offtune: 2232, forte1: 5.4 },
-    { at: 31, mv: 36.06, energy: 0.56, concerto: 1.82, offtune: 2232, forte1: 5.4 },
-    { at: 53, mv: 48.08, energy: 0.75, concerto: 2.42, offtune: 2976, forte1: 7.2 },
+const BA3 = lucyAction("Basic - Locked Thread 3", { animFrames: 69, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 10, mv: 36.06, energy: 0.56, concerto: 1.82, offtune: 2232, forte1: 5.4 },
+    { hitFrame: 31, mv: 36.06, energy: 0.56, concerto: 1.82, offtune: 2232, forte1: 5.4 },
+    { hitFrame: 53, mv: 48.08, energy: 0.75, concerto: 2.42, offtune: 2976, forte1: 7.2 },
   ]});
-const BA4 = lucyAction("Basic - Locked Thread 4", { animFrames: 75, commitFrames: 63, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 10, mv: 31.02, energy: 0.48, concerto: 1.56, offtune: 1920, forte1: 5.2 },
-    { at: 12, mv: 15.51, energy: 0.24, concerto: 0.78, offtune: 960, forte1: 2.6 },
-    { at: 18, mv: 15.51, energy: 0.24, concerto: 0.78, offtune: 960, forte1: 2.6 },
-    { at: 24, mv: 15.51, energy: 0.24, concerto: 0.78, offtune: 960, forte1: 2.6 },
-    { at: 40, mv: 38.77, energy: 0.6, concerto: 1.95, offtune: 2400, forte1: 6.5 },
-    { at: 63, mv: 38.77, energy: 0.6, concerto: 1.95, offtune: 2400, forte1: 6.5 },
+const BA4 = lucyAction("Basic - Locked Thread 4", { animFrames: 75, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 10, mv: 31.02, energy: 0.48, concerto: 1.56, offtune: 1920, forte1: 5.2 },
+    { hitFrame: 12, mv: 15.51, energy: 0.24, concerto: 0.78, offtune: 960, forte1: 2.6 },
+    { hitFrame: 18, mv: 15.51, energy: 0.24, concerto: 0.78, offtune: 960, forte1: 2.6 },
+    { hitFrame: 24, mv: 15.51, energy: 0.24, concerto: 0.78, offtune: 960, forte1: 2.6 },
+    { hitFrame: 40, mv: 38.77, energy: 0.6, concerto: 1.95, offtune: 2400, forte1: 6.5 },
+    { hitFrame: 63, mv: 38.77, energy: 0.6, concerto: 1.95, offtune: 2400, forte1: 6.5 },
   ]});
-const MA = lucyAction("Mid-air - Locked Thread Plunge", { animFrames: 97, commitFrames: 79, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 74, mv: 58.16, energy: 1.13, concerto: 2.93, offtune: 3600, forte1: 4 },
-    { at: 79, mv: 58.16, energy: 1.13, concerto: 2.93, offtune: 3600, forte1: 4 },
+const MA = lucyAction("Mid-air - Locked Thread Plunge", { animFrames: 97, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 74, mv: 58.16, energy: 1.13, concerto: 2.93, offtune: 3600, forte1: 4 },
+    { hitFrame: 79, mv: 58.16, energy: 1.13, concerto: 2.93, offtune: 3600, forte1: 4 },
   ]});
-const DC = lucyAction("Dodge Counter - Locked Thread", { animFrames: 70, commitFrames: 54, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, hits: [
-    { at: 10, mv: 59.32, energy: 1.15, concerto: 5.992, offtune: 3672, forte1: 3.6 },
-    { at: 31, mv: 79.09, energy: 1.53, concerto: 7.976, offtune: 4896, forte1: 4.8 },
-    { at: 54, mv: 59.32, energy: 1.15, concerto: 5.992, offtune: 3672, forte1: 3.6 },
+const DC = lucyAction("Dodge Counter - Locked Thread", { animFrames: 70, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [
+    { hitFrame: 10, mv: 59.32, energy: 1.15, concerto: 5.992, offtune: 3672, forte1: 3.6 },
+    { hitFrame: 31, mv: 79.09, energy: 1.53, concerto: 7.976, offtune: 4896, forte1: 4.8 },
+    { hitFrame: 54, mv: 59.32, energy: 1.15, concerto: 5.992, offtune: 3672, forte1: 3.6 },
   ]});
-const HA1 = lucyAction("Heavy - Locked Thread 1", { animFrames: 48, commitFrames: 43, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, hits: [
-    { at: 16, mv: 22.1, energy: 0.43, concerto: 1.12, offtune: 1368, forte1: 3 },
-    { at: 30, mv: 22.1, energy: 0.43, concerto: 1.12, offtune: 1368, forte1: 3 },
-    { at: 43, mv: 29.47, energy: 0.57, concerto: 1.49, offtune: 1824, forte1: 4 },
+const HA1 = lucyAction("Heavy - Locked Thread 1", { animFrames: 48, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+    { hitFrame: 16, mv: 22.1, energy: 0.43, concerto: 1.12, offtune: 1368, forte1: 3 },
+    { hitFrame: 30, mv: 22.1, energy: 0.43, concerto: 1.12, offtune: 1368, forte1: 3 },
+    { hitFrame: 43, mv: 29.47, energy: 0.57, concerto: 1.49, offtune: 1824, forte1: 4 },
   ]});
-const HA2 = lucyAction("Heavy - Locked Thread 2", { animFrames: 109, commitFrames: 73, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, hits: [
-    { at: 8, mv: 56.86, energy: 1.1, concerto: 2.86, offtune: 3520, forte1: 4 },
-    { at: 17, mv: 56.86, energy: 1.1, concerto: 2.86, offtune: 3520, forte1: 4 },
-    { at: 25, mv: 18.96, energy: 0.37, concerto: 0.96, offtune: 1174, forte1: 1.34 },
-    { at: 31, mv: 18.96, energy: 0.37, concerto: 0.96, offtune: 1174, forte1: 1.34 },
-    { at: 37, mv: 18.96, energy: 0.37, concerto: 0.96, offtune: 1174, forte1: 1.34 },
-    { at: 56, mv: 56.86, energy: 1.1, concerto: 2.86, offtune: 3520, forte1: 4 },
-    { at: 73, mv: 56.86, energy: 1.1, concerto: 2.86, offtune: 3520, forte1: 4 },
+const HA2 = lucyAction("Heavy - Locked Thread 2", { animFrames: 109, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+    { hitFrame: 8, mv: 56.86, energy: 1.1, concerto: 2.86, offtune: 3520, forte1: 4 },
+    { hitFrame: 17, mv: 56.86, energy: 1.1, concerto: 2.86, offtune: 3520, forte1: 4 },
+    { hitFrame: 25, mv: 18.96, energy: 0.37, concerto: 0.96, offtune: 1174, forte1: 1.34 },
+    { hitFrame: 31, mv: 18.96, energy: 0.37, concerto: 0.96, offtune: 1174, forte1: 1.34 },
+    { hitFrame: 37, mv: 18.96, energy: 0.37, concerto: 0.96, offtune: 1174, forte1: 1.34 },
+    { hitFrame: 56, mv: 56.86, energy: 1.1, concerto: 2.86, offtune: 3520, forte1: 4 },
+    { hitFrame: 73, mv: 56.86, energy: 1.1, concerto: 2.86, offtune: 3520, forte1: 4 },
   ]});
 
 // --- Algorithm Compaction replaces the whole chain. Thread Shredding is Basic-cast but Heavy
 //     Attack DMG; the mid-air and dodge counter forms stay Basic. All of it banks Root Access.
-const EBA1 = lucyAction("Basic - Thread Shredding 1", { animFrames: 34, commitFrames: 23, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, hits: [
-    { at: 14, mv: 19.49, energy: 0.28, concerto: 1.12, offtune: 1120, forte2: 4.05 },
-    { at: 19, mv: 19.49, energy: 0.28, concerto: 1.12, offtune: 1120, forte2: 4.05 },
-    { at: 21, mv: 19.49, energy: 0.28, concerto: 1.12, offtune: 1120, forte2: 4.05 },
-    { at: 23, mv: 19.49, energy: 0.28, concerto: 1.12, offtune: 1120, forte2: 4.05 },
+const EBA1 = lucyAction("Basic - Thread Shredding 1", { animFrames: 34, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
+    { hitFrame: 14, mv: 19.49, energy: 0.28, concerto: 1.12, offtune: 1120, forte2: 4.05 },
+    { hitFrame: 19, mv: 19.49, energy: 0.28, concerto: 1.12, offtune: 1120, forte2: 4.05 },
+    { hitFrame: 21, mv: 19.49, energy: 0.28, concerto: 1.12, offtune: 1120, forte2: 4.05 },
+    { hitFrame: 23, mv: 19.49, energy: 0.28, concerto: 1.12, offtune: 1120, forte2: 4.05 },
   ]});
-const EBA2 = lucyAction("Basic - Thread Shredding 2", { animFrames: 55, commitFrames: 41, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, hits: [
-    { at: 24, mv: 22.27, energy: 0.32, concerto: 1.28, offtune: 1280, forte2: 5.91 },
-    { at: 28, mv: 22.27, energy: 0.32, concerto: 1.28, offtune: 1280, forte2: 5.91 },
-    { at: 32, mv: 22.27, energy: 0.32, concerto: 1.28, offtune: 1280, forte2: 5.91 },
-    { at: 37, mv: 22.27, energy: 0.32, concerto: 1.28, offtune: 1280, forte2: 5.91 },
-    { at: 41, mv: 22.27, energy: 0.32, concerto: 1.28, offtune: 1280, forte2: 5.91 },
+const EBA2 = lucyAction("Basic - Thread Shredding 2", { animFrames: 55, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
+    { hitFrame: 24, mv: 22.27, energy: 0.32, concerto: 1.28, offtune: 1280, forte2: 5.91 },
+    { hitFrame: 28, mv: 22.27, energy: 0.32, concerto: 1.28, offtune: 1280, forte2: 5.91 },
+    { hitFrame: 32, mv: 22.27, energy: 0.32, concerto: 1.28, offtune: 1280, forte2: 5.91 },
+    { hitFrame: 37, mv: 22.27, energy: 0.32, concerto: 1.28, offtune: 1280, forte2: 5.91 },
+    { hitFrame: 41, mv: 22.27, energy: 0.32, concerto: 1.28, offtune: 1280, forte2: 5.91 },
   ]});
-const EBA3 = lucyAction("Basic - Thread Shredding 3", { animFrames: 67, commitFrames: 49, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, hits: [
-    { at: 4, mv: 28.12, energy: 0.41, concerto: 1.62, offtune: 1616, forte2: 7.46 },
-    { at: 6, mv: 28.12, energy: 0.41, concerto: 1.62, offtune: 1616, forte2: 7.46 },
-    { at: 33, mv: 28.12, energy: 0.41, concerto: 1.62, offtune: 1616, forte2: 7.46 },
-    { at: 45, mv: 28.12, energy: 0.41, concerto: 1.62, offtune: 1616, forte2: 7.46 },
-    { at: 49, mv: 28.12, energy: 0.41, concerto: 1.62, offtune: 1616, forte2: 7.46 },
+const EBA3 = lucyAction("Basic - Thread Shredding 3", { animFrames: 67, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
+    { hitFrame: 4, mv: 28.12, energy: 0.41, concerto: 1.62, offtune: 1616, forte2: 7.46 },
+    { hitFrame: 6, mv: 28.12, energy: 0.41, concerto: 1.62, offtune: 1616, forte2: 7.46 },
+    { hitFrame: 33, mv: 28.12, energy: 0.41, concerto: 1.62, offtune: 1616, forte2: 7.46 },
+    { hitFrame: 45, mv: 28.12, energy: 0.41, concerto: 1.62, offtune: 1616, forte2: 7.46 },
+    { hitFrame: 49, mv: 28.12, energy: 0.41, concerto: 1.62, offtune: 1616, forte2: 7.46 },
   ]});
-const EBA4 = lucyAction("Basic - Thread Shredding 4", { animFrames: 57, commitFrames: 26, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, hits: [
-    { at: 3, mv: 25.06, energy: 0.36, concerto: 1.44, offtune: 1440, forte2: 6.65 },
-    { at: 6, mv: 25.06, energy: 0.36, concerto: 1.44, offtune: 1440, forte2: 6.65 },
-    { at: 9, mv: 25.06, energy: 0.36, concerto: 1.44, offtune: 1440, forte2: 6.65 },
-    { at: 13, mv: 25.06, energy: 0.36, concerto: 1.44, offtune: 1440, forte2: 6.65 },
-    { at: 26, mv: 25.06, energy: 0.36, concerto: 1.44, offtune: 1440, forte2: 6.65 },
+const EBA4 = lucyAction("Basic - Thread Shredding 4", { animFrames: 57, node: Node.Normal, cast: Cast.Basic, type: Type.Heavy, bullets: [
+    { hitFrame: 3, mv: 25.06, energy: 0.36, concerto: 1.44, offtune: 1440, forte2: 6.65 },
+    { hitFrame: 6, mv: 25.06, energy: 0.36, concerto: 1.44, offtune: 1440, forte2: 6.65 },
+    { hitFrame: 9, mv: 25.06, energy: 0.36, concerto: 1.44, offtune: 1440, forte2: 6.65 },
+    { hitFrame: 13, mv: 25.06, energy: 0.36, concerto: 1.44, offtune: 1440, forte2: 6.65 },
+    { hitFrame: 26, mv: 25.06, energy: 0.36, concerto: 1.44, offtune: 1440, forte2: 6.65 },
   ]});
-const EMA = lucyAction("Mid-air - Algorithm Compaction Plunge", { animFrames: 67, commitFrames: 43, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 34, mv: 62.63, energy: 1.13, concerto: 2.93, offtune: 3600 },
-    { at: 43, mv: 62.63, energy: 1.13, concerto: 2.93, offtune: 3600, forte2: 33.22 },
+const EMA = lucyAction("Mid-air - Algorithm Compaction Plunge", { animFrames: 67, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 34, mv: 62.63, energy: 1.13, concerto: 2.93, offtune: 3600 },
+    { hitFrame: 43, mv: 62.63, energy: 1.13, concerto: 2.93, offtune: 3600, forte2: 33.22 },
   ]});
 const EDC = lucyAction("Dodge Counter - Algorithm Compaction", { node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, mv: 194.85, energy: 3.5, concerto: 21.2, offtune: 11200, forte2: 29.55 });
-const EHA = lucyAction("Heavy - Single Threading", { animFrames: 67, commitFrames: 38, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, hits: [
-    { at: 8, mv: 23.39, energy: 0.34, concerto: 1.35, offtune: 1344, forte2: 6.2 },
-    { at: 13, mv: 23.39, energy: 0.34, concerto: 1.35, offtune: 1344, forte2: 6.2 },
-    { at: 19, mv: 23.39, energy: 0.34, concerto: 1.35, offtune: 1344, forte2: 6.2 },
-    { at: 24, mv: 23.39, energy: 0.34, concerto: 1.35, offtune: 1344, forte2: 6.2 },
-    { at: 38, mv: 23.39, energy: 0.34, concerto: 1.35, offtune: 1344, forte2: 6.2 },
+const EHA = lucyAction("Heavy - Single Threading", { animFrames: 67, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+    { hitFrame: 8, mv: 23.39, energy: 0.34, concerto: 1.35, offtune: 1344, forte2: 6.2 },
+    { hitFrame: 13, mv: 23.39, energy: 0.34, concerto: 1.35, offtune: 1344, forte2: 6.2 },
+    { hitFrame: 19, mv: 23.39, energy: 0.34, concerto: 1.35, offtune: 1344, forte2: 6.2 },
+    { hitFrame: 24, mv: 23.39, energy: 0.34, concerto: 1.35, offtune: 1344, forte2: 6.2 },
+    { hitFrame: 38, mv: 23.39, energy: 0.34, concerto: 1.35, offtune: 1344, forte2: 6.2 },
   ]});
 // Payload's charge, Deadlock and Multi-threading each land a Tune Hack
 const HACKS = { updateDebuffs: () => applyHack() };
@@ -170,22 +171,22 @@ const HACKS = { updateDebuffs: () => applyHack() };
 // — so that cast's own -100 lands exactly on empty, and everything before it still reports what
 // the gauge really banked
 const DualThreading = lucyAction("Heavy - Dual Threading", {
-  animFrames: 67, commitFrames: 48,
-  node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, hits: [
-    { at: 10, mv: 33.41, energy: 0.6, offtune: 1344 },
-    { at: 15, mv: 33.41, energy: 0.6, offtune: 1344 },
-    { at: 21, mv: 33.41, energy: 0.6, offtune: 1344 },
-    { at: 26, mv: 33.41, energy: 0.6, offtune: 1344 },
-    { at: 48, mv: 33.41, energy: 0.6, offtune: 1344 },
+  animFrames: 67,
+  node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+    { hitFrame: 10, mv: 33.41, energy: 0.6, offtune: 1344 },
+    { hitFrame: 15, mv: 33.41, energy: 0.6, offtune: 1344 },
+    { hitFrame: 21, mv: 33.41, energy: 0.6, offtune: 1344 },
+    { hitFrame: 26, mv: 33.41, energy: 0.6, offtune: 1344 },
+    { hitFrame: 48, mv: 33.41, energy: 0.6, offtune: 1344 },
   ], castConcerto: 8, castForte2: -100,
 });
 /** Multi-threading, at its bare values — the SQL form is the same cast with SQL's own additions on
  *  top (see SQL below), which is how nanoka lists it. */
-const MultiThreading = lucyAction("Heavy - Multi-threading", { animFrames: 61, commitFrames: 55, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, hits: [
-    { at: 38, mv: 59.65, energy: 0.75, offtune: 2520 },
-    { at: 43, mv: 59.65, energy: 0.75, offtune: 2520 },
-    { at: 49, mv: 59.65, energy: 0.75, offtune: 2520 },
-    { at: 55, mv: 59.65, energy: 0.75, offtune: 2520 },
+const MultiThreading = lucyAction("Heavy - Multi-threading", { animFrames: 61, node: Node.Normal, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+    { hitFrame: 38, mv: 59.65, energy: 0.75, offtune: 2520 },
+    { hitFrame: 43, mv: 59.65, energy: 0.75, offtune: 2520 },
+    { hitFrame: 49, mv: 59.65, energy: 0.75, offtune: 2520 },
+    { hitFrame: 55, mv: 59.65, energy: 0.75, offtune: 2520 },
   ], castConcerto: 8, ...HACKS });
 
 // --- Protocol Breach. Payload is the charge; hitting with it automatically triggers the follow-up,
@@ -193,8 +194,8 @@ const MultiThreading = lucyAction("Heavy - Multi-threading", { animFrames: 61, c
 //     rather than named by a rotation. Deadlock replaces both Payload and Pulse Interference at 100
 //     TCP and is Heavy Attack DMG rather than Resonance Skill DMG.
 const Skill1 = lucyAction("Skill - Payload (Charge)", {
-  animFrames: 55, commitFrames: 46, cooldown: 60 * 15,
-  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 30.08, energy: 1.5, concerto: 2.4, offtune: 1512, forte1: 3.6,
+  animFrames: 55, bullets: [{ hitFrame: 46, mv: 30.08, energy: 1.5, concerto: 2.4, offtune: 1512, forte1: 3.6 }], cooldown: 60 * 15,
+  node: Node.Skill, cast: Cast.Skill, type: Type.Skill,
   // hitting with the charge triggers the follow-up on its own
   updateDebuffs: () => {
     applyHack();
@@ -203,20 +204,20 @@ const Skill1 = lucyAction("Skill - Payload (Charge)", {
 });
 const Skill2 = lucyAction("Skill - Payload (Follow-Up)", { node: Node.Skill, cast: Cast.Skill, type: Type.Skill, mv: 70.17, energy: 3.5, concerto: 5.6, offtune: 3528, forte1: 8.4 });
 const Skill3 = lucyAction("Skill - Pulse Interference", {
-  animFrames: 156, commitFrames: 128,
-  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, hits: [
-    { at: 2, mv: 30.86, energy: 0.5, offtune: 1552, forte1: 0.442 },
-    { at: 12, mv: 30.86, energy: 0.5, offtune: 1552, forte1: 0.442 },
-    { at: 114, mv: 61.72, energy: 1, offtune: 3104, forte1: 0.884 },
-    { at: 121, mv: 61.72, energy: 1, offtune: 3104, forte1: 0.884 },
-    { at: 128, mv: 61.72, energy: 1, offtune: 3104, forte1: 0.884 },
-    { at: 128, mv: 61.72, energy: 1, offtune: 3104, forte1: 0.884 },
+  animFrames: 156,
+  node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+    { hitFrame: 2, mv: 30.86, energy: 0.5, offtune: 1552, forte1: 0.442 },
+    { hitFrame: 12, mv: 30.86, energy: 0.5, offtune: 1552, forte1: 0.442 },
+    { hitFrame: 114, mv: 61.72, energy: 1, offtune: 3104, forte1: 0.884 },
+    { hitFrame: 121, mv: 61.72, energy: 1, offtune: 3104, forte1: 0.884 },
+    { hitFrame: 128, mv: 61.72, energy: 1, offtune: 3104, forte1: 0.884 },
+    { hitFrame: 128, mv: 61.72, energy: 1, offtune: 3104, forte1: 0.884 },
   ], castConcerto: 8, castForte1: 7.58,
   updateBuffs: () => applyCurrent(DIGITAL_HANDSHAKE, 1),  // DIGITAL_HANDSHAKE grants no stat and nothing reads it
 });
 const Deadlock = lucyAction("Skill - Deadlock", {
-  animFrames: 72, commitFrames: 72, timestop: 60, motionStop: 36, cooldown: 60 * 14,
-  node: Node.Skill, cast: Cast.Skill, type: Type.Heavy, hits: [{ at: 35, mv: 51.7, energy: 2 }, { at: 64, mv: 206.77, energy: 8 }], castConcerto: 8, castForte1: -100, ...HACKS,
+  animFrames: 72, timestop: 60, motionStop: 36, cooldown: 60 * 14,
+  node: Node.Skill, cast: Cast.Skill, type: Type.Heavy, bullets: [{ hitFrame: 35, mv: 51.7, energy: 2 }, { hitFrame: 64, mv: 206.77, energy: 8 }], castConcerto: 8, castForte1: -100, ...HACKS,
   updateBuffs: () => {
     // enters Algorithm Compaction with one SQL; casting it again inside the state grants neither
     if (!isHeld(ALGORITHM_COMPACTION)) { applyCurrent(ALGORITHM_COMPACTION, 1); applyCurrent(SQL, 1); }
@@ -243,29 +244,29 @@ const OVERRIDE = {
   },
 };
 const Lib = lucyAction("Liberation - Netrunner: Override", {
-  animFrames: 262, commitFrames: 262, timestop: 202, motionStop: 202,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, hits: [{ at: 251, mv: 894.65, offtune: 43200 }], castConcerto: 20, resetEnergy: true, ...OVERRIDE,
+  animFrames: 262, timestop: 202, motionStop: 202,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, bullets: [{ hitFrame: 251, mv: 894.65, offtune: 43200 }], castConcerto: 20, resetEnergy: true, ...OVERRIDE,
 });
 const ELib = lucyAction("Liberation - Old Net Deep Dive: Override", {
-  animFrames: 262, commitFrames: 262, timestop: 262, motionStop: 262,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, hits: [{ at: 251, mv: 1789.29, offtune: 86400 }], castConcerto: 20, resetEnergy: true, ...OVERRIDE,
+  animFrames: 262, timestop: 262, motionStop: 262,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Heavy, bullets: [{ hitFrame: 251, mv: 1789.29, offtune: 86400 }], castConcerto: 20, resetEnergy: true, ...OVERRIDE,
 });
 // queued off the Liberation rather than played, but active casts all the same — she fires them from
 // inside her own Protocol Interface, on field, and marking them inactive would have her drop every
 // "lost on switching out" buff she is holding partway through her own Liberation
-const Ping = lucyAction("Liberation - Spoofing Program: Ping", { animFrames: 0, node: Node.Liberation, type: Type.Heavy, hits: [{ at: 0, mv: 79.53 }]});
-const SynapseBurnout = lucyAction("Liberation - Spoofing Program: Synapse Burnout", { animFrames: 0, node: Node.Liberation, type: Type.Heavy, hits: [{ at: 0, mv: 79.53 }]});
+const Ping = lucyAction("Liberation - Spoofing Program: Ping", { animFrames: 0, node: Node.Liberation, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 79.53 }]});
+const SynapseBurnout = lucyAction("Liberation - Spoofing Program: Synapse Burnout", { animFrames: 0, node: Node.Liberation, type: Type.Heavy, bullets: [{ hitFrame: 0, mv: 79.53 }]});
 const CrippleMovement = lucyAction("Liberation - Spoofing Program: Cripple Movement", {
   node: Node.Liberation, type: Type.Hack, scaling: Scaling.Tune, mv: 911.83,
 });
 
 const Intro = lucyAction("Intro - Outdated Hallucination", {
-  animFrames: 57, commitFrames: 45, motionStop: 28,
-  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, hits: [{ at: 34, mv: 69.14, energy: 5, offtune: 4280 }, { at: 39, mv: 69.14, energy: 5, offtune: 4280 }], castConcerto: 10,
+  animFrames: 57, prioFrames: 45, motionStop: 28,
+  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 34, mv: 69.14, energy: 5, offtune: 4280 }, { hitFrame: 39, mv: 69.14, energy: 5, offtune: 4280 }], castConcerto: 10,
   updateBuffs: () => applyCurrent(OUTDATED_HALLUCINATION, 1),
 });
 const Outro = lucyAction("Outro - Countermeasure Program", {
-  animFrames: 0, commitFrames: 0,
+  animFrames: 0,
   cast: Cast.Outro, castConcerto: -100,
   updateBuffs: () => { queueOutro(COUNTERMEASURE_HANDOFF); applyTeam(COUNTERMEASURE_MARKER, 1); }
 });
@@ -277,12 +278,12 @@ const Outro = lucyAction("Outro - Countermeasure Program", {
  *  holds revoke itself the moment a break went off. */
 const DataCrash = lucyAction("Tune Hack Response - Data Crash", {
   animFrames: 0,
-  node: Node.Forte, type: Type.Hack, scaling: Scaling.Tune, hits: [
-    { at: 0, mv: 1094.19 },
-    { at: 0, mv: 68.39 },
-    { at: 0, mv: 68.39 },
-    { at: 0, mv: 68.39 },
-    { at: 0, mv: 68.39 },
+  node: Node.Forte, type: Type.Hack, scaling: Scaling.Tune, bullets: [
+    { hitFrame: 0, mv: 1094.19 },
+    { hitFrame: 0, mv: 68.39 },
+    { hitFrame: 0, mv: 68.39 },
+    { hitFrame: 0, mv: 68.39 },
+    { hitFrame: 0, mv: 68.39 },
   ],
 });
 
@@ -294,7 +295,7 @@ const ALGORITHM_COMPACTION = new Buff({
   name: "Lucy: Algorithm Compaction",
   duration: 60 * 8,
   stats: [[Stat.DmgBonus, 65, Attribute.Spectro]],
-  convertStats: () => { if (runningAction(CrippleMovement)) revokeCurrent(ALGORITHM_COMPACTION); },
+  afterAction: () => { if (runningAction(CrippleMovement)) revokeCurrent(ALGORITHM_COMPACTION); },
 });
 
 /** SQL: one stack, banked on entering Algorithm Compaction and spent by the next Multi-threading
@@ -312,7 +313,7 @@ const SQL = new Buff({
     addStat(Stat.AddEnergy, 7);
     addStat(Stat.AddOfftune, 57600);
   },
-  convertStats: () => { if (runningAction(MultiThreading)) revokeCurrent(SQL); },
+  afterAction: () => { if (runningAction(MultiThreading)) revokeCurrent(SQL); },
 });
 
 /** Outdated Hallucination arms it: after her Intro, the *next* Pulse Interference grants 20.6 TCP on
@@ -320,8 +321,11 @@ const SQL = new Buff({
  *  next Intro gets nothing. */
 const OUTDATED_HALLUCINATION = new Buff({
   name: "Lucy: Outdated Hallucination",
-  applyStats: () => { if (runningAction(Skill3)) addStat(Stat.AddForte1, 20.60); },
-  convertStats: () => { if (runningAction(Skill3)) revokeCurrent(OUTDATED_HALLUCINATION); },
+  updateBuffs: () => {
+    if (!runningAction(Skill3)) return;
+    addToCast({ forte1: 20.60 });
+    revokeCurrent(OUTDATED_HALLUCINATION);
+  },
 });
 
 /** Digital Handshake: granted by Pulse Interference, and while she is on field and out of
@@ -330,7 +334,7 @@ const OUTDATED_HALLUCINATION = new Buff({
  *  end it (reaching 100 TCP, or either Liberation) has anything to end, so it simply stands. */
 const DIGITAL_HANDSHAKE = new Buff({ 
   name: "Lucy: Digital Handshake",
-  applyStats: () => { if (runningAction(Outro)) addStat(Stat.AddCastForte1, 12); }, // approximation
+  updateBuffs: () => { if (runningAction(Outro)) addToCast({ forte1: 12 }); }, // approximation
 });
 
 /** Spoofing Program: Cyberware Malfunction — marked targets take 5% more DMG for 30s, so permanent

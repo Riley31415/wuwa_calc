@@ -121,10 +121,10 @@ export const TUNE_BREAK = new Action("Tune Break (Auto Generated)", {
 export const SWORD_BREAK: [number, number][] = [[30, 100], [36, 100], [42, 100], [48, 100], [72, 1200]];
 export const BROADBLADE_BREAK: [number, number][] = [[4, 173.34], [26, 226.66], [66, 1200]];
 
-/** The break as one resonator performs it: its hits, played over their own frames — a form of
+/** The break as one resonator performs it: its bullets, played over their own frames — a form of
  *  `TUNE_BREAK`, so every `runningAction(TUNE_BREAK)` still reads it. */
-export function tuneBreak(animFrames: number, timestop: number, motionStop: number, hits: [number, number][]): Action {
-  const out = TUNE_BREAK.variant(TUNE_BREAK.name, { animFrames, timestop, motionStop, hits: hits.map(([at, mv]) => ({ at, mv })) });
+export function tuneBreak(animFrames: number, timestop: number, motionStop: number, bullets: [number, number][]): Action {
+  const out = TUNE_BREAK.variant(TUNE_BREAK.name, { animFrames, timestop, motionStop, bullets: bullets.map(([hitFrame, mv]) => ({ hitFrame, mv })) });
   out.formOf = TUNE_BREAK;
   return out;
 }
@@ -170,7 +170,7 @@ export const TUNE_STRAIN_INTERFERED = new Debuff({ name: "Tune Strain - Interfer
  *  its own Tune Break Boost is +0.12% total damage a stack of Interfered. Late, by when every Tbb
  *  source has landed. Called by the piece that makes the kit a responder — Luuk's resonator,
  *  Denia's Strain mode — so the loadout hover files it under that piece, while the value itself
- *  reads as the debuff's, which is what pays it. Same shape as unison.ts's `unisonBoonAmp()`. */
+ *  reads as the debuff's, which is what pays it. Same shape as unison.ts's `unisonBoonDmg()`. */
 export const strainPayout = (): Buff => new Buff({
   name: "Tune Strain - Interfered", hidden: true,
   lateConvertStats: () => tuneStrainPayout(),

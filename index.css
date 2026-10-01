@@ -982,7 +982,7 @@ main {
 .trow.thead .c.dprhead { cursor: pointer; }
 .trow.thead .c.dprhead:hover { color: var(--ink); }
 /* the loop time beside a team's DPR, read second */
-.c.teamdpr .looptime { color: var(--dim); }
+.c.teamdpr .looptime { color: var(--dim); font-size: 0.75em; line-height: 0; margin-left: 1px; }
 
 /* The `% of Baseline` column: one continuous hue ramp, written per row as `--hue` by
    `rankVisible()` — red at the strongest team, green at the baseline, purple at the weakest.
@@ -1090,13 +1090,13 @@ main {
   letter-spacing: .4px;
   line-height: 16px;
 }
-.ctag-cancel { --tag: #8e6cef; }
+.ctag-cancel { --tag: #3e8ef7; }
 .ctag-dash { --tag: #3e8ef7; }
-.ctag-jump { --tag: #f08a24; }
+.ctag-jump { --tag: #3e8ef7; }
 .ctag-insta { --tag: #e5484d; }
 .ctag-field { --tag: #8b8d98; }
 /* a swap cancel, whose hit lands on field before the swap */
-.ctag-swap { --tag: #f5c542; }
+.ctag-swap { --tag: #3e8ef7; }
 .ctag-easy { --tag: #3ddc7a; }
 /* a hit cancel, cut 12 frames after its first hit */
 .ctag-hit { --tag: #e3e32b; }
@@ -1522,6 +1522,7 @@ body.coldrag { user-select: none; }
    (the cell block's own panel is a plain list, detail.ts's `blockPanel` — no rule, nothing to sum) */
 .pop .sum td { padding-top: 5px; border-top: 1px solid var(--line-2); }
 .pop .sum td.v { color: var(--ink); }
+.pop .sum.joined td { padding-top: 0; border-top: none; }
 
 /* a group heading — base / bonus / flat, a scope ("Basic Dmg Bonus"), or the column's own name on
    a panel with no groups of its own. A group carries no subtotal of its own, so the heading is the

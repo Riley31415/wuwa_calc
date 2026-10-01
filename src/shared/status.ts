@@ -53,12 +53,9 @@ import {
 import { Action } from "../engine/rotation.js";
 import type { TeamMember } from "../engine/state.js";
 
-/** A shield going up, on the caster never applied to the team `applied()` being how
- *  many this cast granted. Never a stat. */
-export const SHIELD = new Buff({
-    name: "Shield", maxStacks: 9999,
-    convertStats: ()=> revokeCurrent(SHIELD),
-});
+/** A shield going up, on the caster never applied to the team — `applied()` being how many this
+ *  hit or cast granted. Display only: never a stat, and never taken off. */
+export const SHIELD = new Buff({ name: "Shield", maxStacks: 9999 });
 
 /** The frame a resonator can next gain a shield, held as its stack count so a variant replay
  *  restores it with everything else. */
@@ -74,10 +71,7 @@ export function gainShield(): void {
 
 /** Healing any resonator in the team never applied to the team only applied on the healer who cast it
  *  many this cast granted. Never a stat. */
-export const HEALS = new Buff({
-    name: "Healed", maxStacks: 9999,
-    convertStats: ()=> revokeCurrent(HEALS),
-});
+export const HEALS = new Buff({ name: "Healed", maxStacks: 9999 });
 
 /** The moment a heal tick lands in, outside any press: no cast, no type, nothing but the heal. */
 const HEAL_MOMENT = new Action("Heal");
@@ -138,8 +132,9 @@ export const OWN_CHAFE_RUNGS = new Map<Resonator, (Action | null)[]>();
 
 export const GLACIO_CHAFE = new Debuff({
     name: "Glacio Chafe", maxStacks: 10, duration: 60 * 15,
-    applyStats: () => {
-        const held = frozenStacks();
+    // each stack this hit laid (every one is laid in updateDebuffs) deals its rung, a bullet-less hit's too
+    hitGlobal: () => {
+        const held = stacksOfEnemy(GLACIO_CHAFE);
         const team = currentTeam(), me = currentMember();
         const own = team.slots[team.onField] === me && me.resonator ? OWN_CHAFE_RUNGS.get(me.resonator) : undefined;
         const rungs = own ?? GLACIO_CHAFE_ACTIONS;
@@ -290,7 +285,7 @@ export const HELIACAL_EMBER_ACTIONS: (Action | null)[] = [null, ...SPECTRO_FRAZZ
   new Action(`Heliacal Ember - ${i + 1} Stack${i ? "s" : ""}`, {
     element: Attribute.Spectro, type: Type.Status, subtype: Subtype.SpectroFrazzle, scaling: Scaling.Dot,
     // one hit, worth nothing of its own: the rungs below add all of it
-    hits: [{ at: 0 }],
+    bullets: [{ hitFrame: 0 }],
     applyStats: () => {
       for (let n = i; n >= 0; n--) {
         const rung = SPECTRO_FRAZZLE_ACTIONS[n + 1]!;

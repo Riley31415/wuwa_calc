@@ -37,6 +37,7 @@ import {
   lostOnSwap,
   addBuff,
   cancelHits,
+  pressEndOf,
   runningAnyOf,
   triggeredAction,
 } from "../../engine/context.js";
@@ -57,62 +58,62 @@ function phroAction(id: string, def: object): Action {
 
 // energy/concerto come off the migrated sheet's combined BA12/BA23/BA123 rows — BA1/BA2 are
 // derived by subtraction, cross-checked both ways against BA12 and BA23.
-const BA1 = phroAction("Basic - Movement of Life and Death 1", { animFrames: 44, commitFrames: 35, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 18, mv: 53.45, energy: 0.84, concerto: 1.68, offtune: 2688 },
-    { at: 35, mv: 53.45, energy: 0.84, concerto: 1.68, offtune: 2688 },
+const BA1 = phroAction("Basic - Movement of Life and Death 1", { animFrames: 44, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 18, mv: 53.45, energy: 0.84, concerto: 1.68, offtune: 2688 },
+    { hitFrame: 35, mv: 53.45, energy: 0.84, concerto: 1.68, offtune: 2688 },
   ]});
-const BA2 = phroAction("Basic - Movement of Life and Death 2", { animFrames: 36, commitFrames: 12, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 12, mv: 95.43, energy: 1.5, concerto: 3, offtune: 4800 }]});
-const BA3 = phroAction("Basic - Movement of Life and Death 3", { animFrames: 81, commitFrames: 60, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 30, mv: 32.69, energy: 0.52, concerto: 1.03, offtune: 1644, forte1: 1,
+const BA2 = phroAction("Basic - Movement of Life and Death 2", { animFrames: 36, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 12, mv: 95.43, energy: 1.5, concerto: 3, offtune: 4800 }]});
+const BA3 = phroAction("Basic - Movement of Life and Death 3", { animFrames: 81, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 30, mv: 32.69, energy: 0.52, concerto: 1.03, offtune: 1644, forte1: 1,
       updateDebuffs: () => gainNote(1) },
-    { at: 36, mv: 32.69, energy: 0.52, concerto: 1.03, offtune: 1644 },
-    { at: 42, mv: 32.69, energy: 0.52, concerto: 1.03, offtune: 1644 },
-    { at: 48, mv: 32.69, energy: 0.52, concerto: 1.03, offtune: 1644 },
-    { at: 54, mv: 32.69, energy: 0.52, concerto: 1.03, offtune: 1644 },
-    { at: 60, mv: 32.69, energy: 0.52, concerto: 1.03, offtune: 1644 },
+    { hitFrame: 36, mv: 32.69, energy: 0.52, concerto: 1.03, offtune: 1644 },
+    { hitFrame: 42, mv: 32.69, energy: 0.52, concerto: 1.03, offtune: 1644 },
+    { hitFrame: 48, mv: 32.69, energy: 0.52, concerto: 1.03, offtune: 1644 },
+    { hitFrame: 54, mv: 32.69, energy: 0.52, concerto: 1.03, offtune: 1644 },
+    { hitFrame: 60, mv: 32.69, energy: 0.52, concerto: 1.03, offtune: 1644 },
   ]});
 
-const Skill = phroAction("Skill - Whispers in a Fleeting Dream", { animFrames: 34, commitFrames: 18, cooldown: 60 * 12, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, hits: [
-    { at: 10, mv: 105.97, energy: 6.67, offtune: 2132, forte1: 1,
+const Skill = phroAction("Skill - Whispers in a Fleeting Dream", { animFrames: 34, cooldown: 60 * 12, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+    { hitFrame: 10, mv: 105.97, energy: 6.67, offtune: 2132, forte1: 1,
       updateDebuffs: () => gainNote(2) },
-    { at: 48, mv: 105.97, energy: 6.67, offtune: 2132 },
+    { hitFrame: 48, commitFrame: 18, mv: 105.97, energy: 6.67, offtune: 2132 },
   ], castConcerto: 10});
 
-const FBA = phroAction("Forte Basic - Movement of Fate and Finality", { animFrames: 92, commitFrames: 2, node: Node.Forte, cast: Cast.Basic, type: Type.Skill, hits: [
-    { at: 8, mv: 37.88, energy: 0.24, concerto: 0.75, offtune: 762, forte1: 1,
+const FBA = phroAction("Forte Basic - Movement of Fate and Finality", { animFrames: 92, node: Node.Forte, cast: Cast.Basic, type: Type.Skill, bullets: [
+    { hitFrame: 8, commitFrame: 2, mv: 37.88, energy: 0.24, concerto: 0.75, offtune: 762, forte1: 1,
       updateDebuffs: () => gainNote(1) },
-    { at: 14, mv: 37.88, energy: 0.24, concerto: 0.75, offtune: 762 },
-    { at: 20, mv: 37.88, energy: 0.24, concerto: 0.75, offtune: 762 },
-    { at: 26, mv: 37.88, energy: 0.24, concerto: 0.75, offtune: 762 },
-    { at: 53, mv: 117.83, energy: 0.75, concerto: 2.34, offtune: 2371 },
-    { at: 60, mv: 117.83, energy: 0.75, concerto: 2.34, offtune: 2371 },
-    { at: 67, mv: 117.83, energy: 0.75, concerto: 2.34, offtune: 2371 },
+    { hitFrame: 14, commitFrame: 2, mv: 37.88, energy: 0.24, concerto: 0.75, offtune: 762 },
+    { hitFrame: 20, commitFrame: 2, mv: 37.88, energy: 0.24, concerto: 0.75, offtune: 762 },
+    { hitFrame: 26, commitFrame: 2, mv: 37.88, energy: 0.24, concerto: 0.75, offtune: 762 },
+    { hitFrame: 53, commitFrame: 2, mv: 117.83, energy: 0.75, concerto: 2.34, offtune: 2371 },
+    { hitFrame: 60, commitFrame: 2, mv: 117.83, energy: 0.75, concerto: 2.34, offtune: 2371 },
+    { hitFrame: 67, commitFrame: 2, mv: 117.83, energy: 0.75, concerto: 2.34, offtune: 2371 },
   ]});
-const FSkill = phroAction("Forte Skill - Murmurs in a Haunting Dream", { animFrames: 79, commitFrames: 38, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, hits: [
-    { at: 10, mv: 23.21, energy: 0.15, concerto: 0.5, offtune: 467, forte1: 1,
+const FSkill = phroAction("Forte Skill - Murmurs in a Haunting Dream", { animFrames: 79, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
+    { hitFrame: 10, mv: 23.21, energy: 0.15, concerto: 0.5, offtune: 467, forte1: 1,
       updateDebuffs: () => gainNote(2) },
-    { at: 16, mv: 23.21, energy: 0.15, concerto: 0.5, offtune: 467 },
-    { at: 22, mv: 23.21, energy: 0.15, concerto: 0.5, offtune: 467 },
-    { at: 28, mv: 23.21, energy: 0.15, concerto: 0.5, offtune: 467 },
-    { at: 38, mv: 46.41, energy: 0.3, concerto: 1, offtune: 934 },
-    { at: 81, mv: 324.82, energy: 2.05, concerto: 7, offtune: 6536 },
+    { hitFrame: 16, mv: 23.21, energy: 0.15, concerto: 0.5, offtune: 467 },
+    { hitFrame: 22, mv: 23.21, energy: 0.15, concerto: 0.5, offtune: 467 },
+    { hitFrame: 28, mv: 23.21, energy: 0.15, concerto: 0.5, offtune: 467 },
+    { hitFrame: 38, mv: 46.41, energy: 0.3, concerto: 1, offtune: 934 },
+    { hitFrame: 81, commitFrame: 38, mv: 324.82, energy: 2.05, concerto: 7, offtune: 6536 },
   ]});
 
 /** Casting it sends Compose into its 25s cooldown, modelled as the cast's own. */
 const ScarletCoda = phroAction("Forte Heavy - Scarlet Coda", {
-  animFrames: 172, commitFrames: 139, cooldown: 60 * 25,
-  node: Node.Normal, cast: Cast.Heavy, subcast: Cast.Echo, type: Type.Skill, castForte1: -6,  hits: [
-    { at: 14, mv: 33.01, energy: 0.35, offtune: 8307 },
-    { at: 41, mv: 33.01, energy: 0.35, offtune: 8307 },
-    { at: 59, mv: 12.38, energy: 0.13, offtune: 3116 },
-    { at: 66, mv: 12.38, energy: 0.13, offtune: 3116 },
-    { at: 73, mv: 12.38, energy: 0.13, offtune: 3116 },
-    { at: 80, mv: 12.38, energy: 0.13, offtune: 3116 },
-    { at: 87, mv: 12.38, energy: 0.13, offtune: 3116 },
-    { at: 95, mv: 12.38, energy: 0.13, offtune: 3116 },
-    { at: 102, mv: 12.38, energy: 0.13, offtune: 3116 },
-    { at: 109, mv: 12.38, energy: 0.13, offtune: 3116 },
-    { at: 139, mv: 495.1, energy: 5.19, offtune: 124602 },
+  animFrames: 172, cooldown: 60 * 25,
+  node: Node.Normal, cast: Cast.Heavy, subcast: Cast.Echo, type: Type.Skill, castForte1: -6,  bullets: [
+    { hitFrame: 14, mv: 33.01, energy: 0.35, offtune: 8307 },
+    { hitFrame: 41, mv: 33.01, energy: 0.35, offtune: 8307 },
+    { hitFrame: 59, mv: 12.38, energy: 0.13, offtune: 3116 },
+    { hitFrame: 66, mv: 12.38, energy: 0.13, offtune: 3116 },
+    { hitFrame: 73, mv: 12.38, energy: 0.13, offtune: 3116 },
+    { hitFrame: 80, mv: 12.38, energy: 0.13, offtune: 3116 },
+    { hitFrame: 87, mv: 12.38, energy: 0.13, offtune: 3116 },
+    { hitFrame: 95, mv: 12.38, energy: 0.13, offtune: 3116 },
+    { hitFrame: 102, mv: 12.38, energy: 0.13, offtune: 3116 },
+    { hitFrame: 109, mv: 12.38, energy: 0.13, offtune: 3116 },
+    { hitFrame: 139, mv: 495.1, energy: 5.19, offtune: 124602 },
   ], castConcerto: 40,
 });
 
@@ -120,32 +121,32 @@ const ScarletCoda = phroAction("Forte Heavy - Scarlet Coda", {
 // "Lib2" row (465.22% MV) has no matching action here — a known gap, flagged rather than guessed.
 // Opens Maestro and banks the ten auto-cast chances (NOTES' own bits 12-15).
 const Liberation = phroAction("Liberation - Waltz of Forsaken Depths", {
-  animFrames: 240, commitFrames: 240, timestop: 240, motionStop: 240,
+  animFrames: 240, timestop: 240, motionStop: 240,
   node: Node.Liberation, cast: Cast.Liberation, castConcerto: 20, resetForte1: true,
   updateBuffs: () => startMaestro(),
 });
 /** Recast during Maestro: ends it (and with it Suite of Immortality's replacement). */
 export const CurtainCall = phroAction("Liberation - Curtain Call", {
-  animFrames: 83, commitFrames: 42,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, mv: 465.22, energy: 2.93, concerto: 5.85, offtune: 9360,
+  animFrames: 83, bullets: [{ hitFrame: 42, mv: 465.22, energy: 2.93, concerto: 5.85, offtune: 9360 }],
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation,
   updateBuffs: () => endMaestro(),
 });
 
 const Intro = phroAction("Intro - Suite of Quietus", {
-  animFrames: 80, commitFrames: 80, motionStop: 33,
-  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, hits: [{ at: 43, mv: 80.61, energy: 4, offtune: 4055 }, { at: 62, mv: 120.91, energy: 6, offtune: 6082 }], castConcerto: 10,
+  animFrames: 80, prioFrames: 80, motionStop: 33,
+  node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [{ hitFrame: 43, mv: 80.61, energy: 4, offtune: 4055 }, { hitFrame: 62, mv: 120.91, energy: 6, offtune: 6082 }], castConcerto: 10,
 });
 /** Maestro-replaced Intro — used whenever she re-enters with Maestro still open. Playing it is
  *  also what closes Maestro back out. */
 const EIntro = phroAction("Intro - Suite of Immortality", {
-  animFrames: 93, commitFrames: 93, motionStop: 51,
-  node: Node.Intro, cast: Cast.Intro, type: Type.Skill, hits: [{ at: 60, mv: 596.43, energy: 10, offtune: 9600 }], castConcerto: 10,resetForte1: true,
+  animFrames: 93, prioFrames: 93, motionStop: 51,
+  node: Node.Intro, cast: Cast.Intro, type: Type.Skill, bullets: [{ hitFrame: 60, mv: 596.43, energy: 10, offtune: 9600 }], castConcerto: 10,resetForte1: true,
   // the Waltz ends here, and the notes it was playing through go with it
   updateBuffs: () => endMaestro(),
 });
 /** In Maestro the Outro also queues two enhanced Hecate attacks, not charge-gated. */
 const Outro = phroAction("Outro - Unfinished Piece", {
-  animFrames: 0, commitFrames: 0,
+  animFrames: 0,
   cast: Cast.Outro, castConcerto: -100,
   updateBuffs: () => {
     queueOutro(PHROLOVA_OUTRO);
@@ -156,10 +157,10 @@ const Outro = phroAction("Outro - Unfinished Piece", {
 function hecateAction(id: string, def: object): Action {
   return new Action(id, { element: Attribute.Havoc, scaling: Scaling.Atk, type: Type.Echo, ...def });
 }
-/** One Hecate attack beside the fight: its hits on their frames (wuwalab), and its end playing
+/** One Hecate attack beside the fight: its bullets on their frames (wuwalab), and its end playing
  *  whatever she has queued next (`hecateEnded()`). */
-const hecateMove = (id: string, animFrames: number, hits: [number, number][]): Action => hecateAction(id, {
-  tag: ActionTag.Field, animFrames, hits: hits.map(([at, mv]) => ({ at, mv })), afterAction: () => hecateEnded(),
+const hecateMove = (id: string, animFrames: number, bullets: [number, number][]): Action => hecateAction(id, {
+  tag: ActionTag.Field, animFrames, bullets: bullets.map(([hitFrame, mv]) => ({ hitFrame, mv })), afterAction: () => hecateEnded(),
 });
 const HECATE_1 = hecateMove("Basic - Hecate 1", 40, [[10, 27.84]]);
 const HECATE_2 = hecateMove("Basic - Hecate 2", 49, [[4, 13.92], [22, 13.92]]);
@@ -172,8 +173,8 @@ const NOTE_MOVES = [
 
 // The manual command, pressed on field: Hecate 1-2 by hand, then the leftmost note's attack as
 // its swap form (`EnhancedHecate.instaSwap()`), Hecate carrying on from its end once Phrolova is out.
-const HBA1 = HECATE_1.variant(HECATE_1.name, { tag: ActionTag.Default, commitFrames: 10, afterAction: undefined });
-const HBA2 = HECATE_2.variant(HECATE_2.name, { tag: ActionTag.Default, commitFrames: 22, afterAction: undefined });
+const HBA1 = HECATE_1.variant(HECATE_1.name, { tag: ActionTag.Default, afterAction: undefined });
+const HBA2 = HECATE_2.variant(HECATE_2.name, { tag: ActionTag.Default, afterAction: undefined });
 const COMMANDS = NOTE_MOVES.map((move) => move.variant(`${move.name} (Command)`, {
   tag: ActionTag.Default, updateBuffs: () => startEnhanced(),
 }));
@@ -187,7 +188,7 @@ const EnhancedHecate = new Action("Enhanced Hecate Resolver", {
 
 /** Her basic attacks, which an enhanced one cuts short; and every attack of hers. */
 const BASIC_MOVES = new Set<Action>([HECATE_1, HECATE_2]);
-const MOVES = new Set<Action>([HECATE_1, HECATE_2, ...NOTE_MOVES, ...COMMANDS]);
+const MOVES = new Set<Action>([HECATE_1, HECATE_2, ...NOTE_MOVES, ...COMMANDS, HBA1, HBA2]);
 /** Every note attack, commanded or not (S6's multiplier). */
 const NOTE_ATTACKS = new Set<Action>([...NOTE_MOVES, ...COMMANDS]);
 
@@ -204,7 +205,7 @@ export const HECATE_ACTIONS = new Set<Action>([...MOVES, HBA1, HBA2]);
  *  Winds slides down a slot, that note is removed, and the new one takes the last slot; six
  *  Cadenzas part with nothing, and the gain is lost. */
 function gainNote(note: number): void {
-  if (!pressed().hits.length) return;
+  if (!pressed().bullets.length) return;
   if (isHeld(ACCIDENTAL)) { note = 3; revokeCurrent(ACCIDENTAL); }
   const word = stacksOf(NOTES);
   for (let shift = 0; shift < 12; shift += 2) {
@@ -237,6 +238,25 @@ function offField(): boolean {
   const team = currentTeam();
   if (team.slots[team.onField] !== her()) return true;
   return team.slot === her() && currentAction().swapOut;
+}
+
+/** Would casting `a` end Maestro: any cast of hers but Hecate's, the Waltz that opens it and the
+ *  Outro that hands it over. */
+function endsMaestro(a: Action): boolean {
+  if (a.cast === null) return false;
+  for (let x: Action | null = a; x; x = x.cancelOf ?? x.formOf) {
+    if (HECATE_ACTIONS.has(x) || x === Liberation || x === Outro) return false;
+  }
+  return true;
+}
+
+/** Before she arrives on a cast that would end Maestro, whoever hands her the field waits out the
+ *  enhanced attack Hecate is playing; asked again after, so one queued behind it is waited out too. */
+function hecateHold(next: Action): Action | null {
+  if (!her().stacksOf(MAESTRO) || !endsMaestro(next) || ((queued() >> 12) & 3) !== 3) return null;
+  const frames = (pressEndOf(NOTE_ATTACKS) ?? currentTeam().frame) - currentTeam().frame;
+  if (frames <= 0) return null;
+  return new Action(`Wait ${(frames / 60).toFixed(2)}s (Hecate)`, { animFrames: frames });
 }
 
 /** Hecate starts `move` now: its hits land on their frames, and its end plays whatever is next. */
@@ -366,10 +386,7 @@ export const MAESTRO = new Buff({
   stats: [[Stat.BonusAtk, 120]],
   tick: { every: 240, fire: (n) => consumeNotes(n) },
   // any cast of hers ends it but Hecate's own, the Waltz that opened it and the Outro handing over
-  updateBuffs: () => {
-    if (pressed().cast === null || triggeredAction() || runningAnyOf(HECATE_ACTIONS) || runningAction(Liberation) || runningAction(Outro)) return;
-    endMaestro();
-  },
+  updateBuffs: () => { if (!triggeredAction() && endsMaestro(pressed())) endMaestro(); },
   // any active Echo Skill cast, hers or a teammate's, spends a chance for an enhanced attack
   updateGlobal: () => {
     if (!casting(Cast.Echo) || !isActive()) return;
@@ -501,6 +518,7 @@ export const PHROLOVA_RESONATOR = new Resonator({
   // Maestro still open means Suite of Immortality (EIntro) instead of plain Intro
   maxEnergy: 0,
   maxForte1: 6,
+  holdBefore: (next) => hecateHold(next),
 
   // the note store and Hecate's queue, both empty (their always-set bits alone)
   combatStart: () => {
@@ -521,28 +539,28 @@ const BA23 = new ActionGroup("Basic - Movement of Life and Death 23", [BA2, BA3]
 const HBA12 = new ActionGroup("Basic - Hecate 12", [HBA1, HBA2]).dodgeCancel();
 
 const PHRO_FAST = new Rotation([
-  NOINTRO, BA23.hitCancel(), FBA.instaCancel(), ECHO, 
-  BA123.hitCancel(), FBA.instaCancel(), Skill.easyCancel(), FBA.instaCancel(), 
+  NOINTRO, BA23.dodgeCancel(), FBA.instaCancel(), ECHO, 
+  BA123.dodgeCancel(), FBA.instaCancel(), Skill.easyCancel(), FBA.instaCancel(),
   ScarletCoda.easyCancel(), Liberation, Outro,
   
-  INTRO, BA3.hitCancel(), FBA.instaCancel(), ECHO, 
-  BA123.hitCancel(), FBA.instaCancel(), Skill.easyCancel(), FBA.instaCancel(), 
+  INTRO, BA3.dodgeCancel(), FBA.instaCancel(), ECHO, 
+  BA123.dodgeCancel(), FBA.instaCancel(), Skill.easyCancel(), FBA.instaCancel(),
   ScarletCoda.easyCancel(), Liberation, Outro,
 ]);
 
 const PHRO_MANUAL = new Rotation([
-  NOINTRO, BA23.hitCancel(), FBA.instaCancel(), ECHO, 
-  BA123.hitCancel(), FBA.instaCancel(), Skill.easyCancel(), FBA.instaCancel(), 
+  NOINTRO, BA23.dodgeCancel(), FBA.instaCancel(), ECHO, 
+  BA123.dodgeCancel(), FBA.instaCancel(), Skill.easyCancel(), FBA.instaCancel(),
   ScarletCoda.easyCancel(), Liberation, Outro,
   
-  INTRO, BA3.hitCancel(), FBA.instaCancel(), ECHO, 
-  BA123.hitCancel(), FBA.instaCancel(), Skill.easyCancel(), FBA.instaCancel(), 
+  INTRO, BA3.dodgeCancel(), FBA.instaCancel(), ECHO, 
+  BA123.dodgeCancel(), FBA.instaCancel(), Skill.easyCancel(), FBA.instaCancel(),
   ScarletCoda.easyCancel(), Liberation, HBA12.instaDodge(), EnhancedHecate.instaSwap(), Outro,
 ]);
 
 const PHRO_5FBA = new Rotation([
-  NOINTRO, BA23.hitCancel(), FBA.instaCancel(), ECHO, 
-  BA123.hitCancel(), FBA.instaCancel(), Skill.easyCancel(), FBA.instaCancel(), 
+  NOINTRO, BA23.dodgeCancel(), FBA.instaCancel(), ECHO, 
+  BA123.dodgeCancel(), FBA.instaCancel(), Skill.easyCancel(), FBA.instaCancel(),
   ScarletCoda.easyCancel(), Liberation, Outro,
 
   INTRO, BA3.instaDodge(), FBA.instaDodge(),
@@ -553,15 +571,15 @@ const PHRO_5FBA = new Rotation([
 ]);
 
 const PHRO_FAST_S2 = new Rotation([
-  NOINTRO, BA23.hitCancel(), ECHO, FBA.instaCancel(), Skill.easyCancel(), FBA.instaCancel(), 
+  NOINTRO, BA23.hitCancel(), ECHO, FBA.instaCancel(), Skill.easyCancel(), FBA.instaCancel(),
   ScarletCoda.easyCancel(), Liberation, Outro,
   
-  INTRO, BA3.hitCancel(), FBA.instaDodge(),
+  INTRO, BA3.dodgeCancel(), FBA.instaDodge(),
   BA123.hitCancel(), ECHO, FBA.instaCancel(), Skill.easyCancel(), FBA.instaCancel(),
   ScarletCoda.easyCancel(), Liberation, Outro,
 ]);
 const PHRO_5FBA_S2 = new Rotation([
-  NOINTRO, BA23.hitCancel(), ECHO, FBA.instaCancel(), Skill.easyCancel(), FBA.instaCancel(), 
+  NOINTRO, BA23.hitCancel(), ECHO, FBA.instaCancel(), Skill.easyCancel(), FBA.instaCancel(),
   ScarletCoda.easyCancel(), Liberation, Outro,
 
   INTRO,

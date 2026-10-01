@@ -11,7 +11,7 @@ import {
 import type { Type, Subtype, StatKey, Tag } from "./engine/stats.js";
 import { mvPercent, effectiveShred, effectiveRes, damageFactors, RESONATOR_LEVEL, LEVEL_90_DOT, LEVEL_90_TUNE } from "./engine/damage.js";
 import { BASE_RESISTANCE, ENEMY_MAX_OFFTUNE } from "./shared/tunebreak.js";
-import type { Action, Hit } from "./engine/rotation.js";
+import type { Action, Bullet } from "./engine/rotation.js";
 import type { ChainGroup, ResolvedSnapshot } from "./engine/evaluate.js";
 import type { HeldBuff } from "./engine/state.js";
 
@@ -24,6 +24,8 @@ export interface TraceEntry {
   percent?: boolean;
   mult?: boolean;
   place?: "beforeTotal" | "afterTotal";
+  /** A summary row carrying on from the one above it, no rule between them. */
+  joined?: boolean;
   label?: string;
   /** Fixed decimals for this row. Omitted, the panel prints every place the value has — a hover
    *  is where the exact figure belongs; only a derived ratio wants a length of its own. */
@@ -105,12 +107,12 @@ export const digitsOf = (raw: RawRow, col: Column): number => {
 const keysFor = (action: Action, ...stats: (Stat | EnemyStat)[]): StatKey[] =>
   stats.flatMap((stat) => [
     stat,
-    ...[action.lastHit?.element ?? null, action.lastHit?.type ?? null, action.lastHit?.subtype ?? null].filter((tag) => tag !== null)
+    ...[action.lastBullet?.element ?? null, action.lastBullet?.type ?? null, action.lastBullet?.subtype ?? null].filter((tag) => tag !== null)
       .map((tag) => scopedStat(tag!, stat)),
   ]);
 
 /** The subtype a row's stats were read under: its last hit's. */
-const sub = (action: Action): Subtype | null => action.lastHit?.subtype ?? null;
+const sub = (action: Action): Subtype | null => action.lastBullet?.subtype ?? null;
 const special = (action: Action): boolean =>
   action.scaling === Scaling.Dot || action.scaling === Scaling.Tune || action.scaling === Scaling.Fixed;
 const fixed = (action: Action): boolean => action.scaling === Scaling.Fixed;
@@ -183,8 +185,8 @@ const actionInfo = (
   push("Cast", action.cast === null ? null : CAST_NAME[action.cast]);
   push("Subcast", action.subcast === null ? null : CAST_NAME[action.subcast]);
   // every attribute/type/subtype its hits dealt as, and the type its last hit was assigned
-  const kinds = (of: (h: Hit) => Tag | null, also: Tag | null = null): string | null => {
-    const seen = new Set<Tag>(action.hits.map(of).filter((v): v is Tag => v !== null));
+  const kinds = (of: (h: Bullet) => Tag | null, also: Tag | null = null): string | null => {
+    const seen = new Set<Tag>(action.bullets.map(of).filter((v): v is Tag => v !== null));
     if (also !== null) seen.add(also);
     return seen.size ? [...seen].map((v) => TAG_NAME[v]).join(", ") : null;
   };
@@ -192,10 +194,12 @@ const actionInfo = (
   push("Scaling", action.scaling === null ? null : SCALING_NAME[action.scaling]);
   push("Type", kinds((h) => h.type, type));
   push("Subtype", kinds((h) => h.subtype));
-  push("Hits", action.hits.length > 1 ? action.hits.map((h) => h.at).join(", ") : null);
+  push("Hits", action.bullets.length > 1 ? action.bullets.map((h) => h.hitFrame).join(", ") : null);
+  // a bullet committing ahead of its hit
+  push("Commits", action.bullets.some((h) => h.commitFrame !== h.hitFrame) ? action.bullets.map((h) => h.commitFrame).join(", ") : null);
   push("Anim Frames", String(action.animFrames));
-  // an unmeasured one is the press's own frames, which the line above already says
-  if (action.def.commitFrames !== undefined) push("Commit Frames", String(action.commitFrames));
+  push("Prio Frames", action.prioFrames ? String(action.prioFrames) : null);
+  push("QTE Frames", action.qteFrames ? String(action.qteFrames) : null);
   push("Time Stop", action.timestop ? String(action.timestop) : null);
   push("Motion Stop", action.motionStop ? String(action.motionStop) : null);
   // what queued it — a buff, a piece of gear, the cast it followed — in its owner's colour
@@ -371,17 +375,38 @@ function rowValues(
   if (constant) raw["empty:scaler"] = constant.label;
   // res shows what's *left*, so every feeding row is negated to add up to it
   sources.effRes = (sources.effRes ?? []).map((r) => ({ ...r, value: -r.value }));
+  // the shred's own formula with this row's figures in (a zero term left out), then what it comes to
+  if (!fixed(snap.action)) {
+    const dot = snap.action.scaling === Scaling.Dot;
+    const pct = (v: number): string => `${fmt(v, 2)}%`;
+    const ignoreNew = dot ? 0 : snap.stat(Stat.DefIgnoreNew), ignoreOld = dot ? 0 : snap.stat(Stat.DefIgnoreOld);
+    const reduce = snap.stat(EnemyStat.DefReduce);
+    const base = fmt(snap.enemyDef, 0, false, false);
+    const inner = [reduce, ignoreOld].filter((v) => v !== 0).map((v) => ` − ${pct(v)}`).join("");
+    const floored = inner ? `floor(${base} × (1${inner}))` : base;
+    const formula = `1 − ${floored}${ignoreNew ? ` × (1 − ${pct(ignoreNew)})` : ""} / ${base}`;
+    sources.effDef = [
+      ...(sources.effDef ?? []),
+      { source: "", label: "Formula", value: 0, text: formula, summary: true, place: "afterTotal" },
+      { source: "", label: "Effective Def Shred", value: effectiveShred(snap) * 100, percent: true, digits: 2, summary: true, place: "afterTotal", joined: true },
+    ];
+  }
 
   // running totals: the panel shows what moved the counter *this* action, footed to `moved:`
   const RESOURCE_STAT = {
-    energy: [Stat.AddEnergy, Stat.AddCastEnergy], concerto: [Stat.AddConcerto, Stat.AddCastConcerto], offtune: [Stat.AddOfftune],
+    energy: [Stat.AddEnergy], concerto: [Stat.AddConcerto], offtune: [Stat.AddOfftune],
   } as const;
   const CAST_SHARE = { energy: snap.action.castEnergy, concerto: snap.action.castConcerto, offtune: 0 } as const;
+  // what cast hooks added straight to the cast (`addToCast()`), gauge by gauge: energy, concerto, forte 1-5
+  const castAdded = (i: number): TraceEntry[] => (snap.castAdds ?? [])
+    .filter((c) => c.gains[i] !== 0)
+    .map((c) => ({ source: c.source, value: c.gains[i]!, owner: c.owner ?? undefined, label: "on cast" }));
+  const CAST_ADD = { energy: 0, concerto: 1, offtune: -1 } as const;
   for (const key of ["energy", "concerto", "offtune"] as const) {
     // an outro wipes energy outright, so nothing contributed to what the cell reads
     const wiped = key === "energy" && snap.energyWiped;
-    const traced = wiped ? [] : RESOURCE_STAT[key]
-      .flatMap((st) => tracing(snap, keysFor(snap.action, st), false))
+    const traced = wiped ? [] : [...RESOURCE_STAT[key].flatMap((st) => tracing(snap, keysFor(snap.action, st), false)),
+      ...(CAST_ADD[key] < 0 ? [] : castAdded(CAST_ADD[key]))]
       .map((r) => ({ ...r, value: r.value / RESOURCE_SCALE[key] }));
     const own = wiped ? [] : ownShares(snap, snap.action[key] / RESOURCE_SCALE[key], CAST_SHARE[key] / RESOURCE_SCALE[key]);
     const rows: TraceEntry[] = [...own, ...traced];
@@ -420,10 +445,9 @@ function rowValues(
   // forte: the action's declared delta plus any AddForteN a held buff contributed
   const FORTE_FIELD = ["forte1", "forte2", "forte3", "forte4", "forte5"] as const;
   const FORTE_STAT = [Stat.AddForte1, Stat.AddForte2, Stat.AddForte3, Stat.AddForte4, Stat.AddForte5] as const;
-  const CAST_FORTE_STAT = [Stat.AddCastForte1, Stat.AddCastForte2, Stat.AddCastForte3, Stat.AddCastForte4, Stat.AddCastForte5] as const;
   FORTE_GAUGES.forEach((key, i) => {
     const declared = snap.action[FORTE_FIELD[i]!];
-    const traced = [FORTE_STAT[i]!, CAST_FORTE_STAT[i]!].flatMap((st) => tracing(snap, keysFor(snap.action, st)));
+    const traced = [...tracing(snap, keysFor(snap.action, FORTE_STAT[i]!)), ...castAdded(2 + i)];
     const rows: TraceEntry[] = [];
     // a cast that wipes the bar first: its own row says so rather than carrying a figure, since
     // what it takes off is whatever happened to be there
@@ -602,7 +626,8 @@ export function buildReport(lines: ChainGroup[]): Report {
     { key: "cr", label: "cr%", digits: 1, percent: true, full: "Crit Rate" },
     { key: "cd", label: "cd%", digits: 1, percent: true, full: "Crit Dmg" },
     // both halves carry their own section heading, so `full` is only the empty-panel one
-    { key: "effDef", label: "ignore%", digits: 1, percent: true, full: "DEF Ignore", fullEmpty: "DEF Shred" },
+    // its panel ends on the shred's own formula and result rather than a Total
+    { key: "effDef", label: "shred%", digits: 1, percent: true, noTotal: true, full: "DEF Ignore", fullEmpty: "DEF Shred" },
     { key: "effRes", label: "res%", digits: 1, percent: true, full: "Enemy RES" },
     { key: "dealt", label: "vuln%", digits: 1, percent: true, full: "Vulnerability" },
     // digits match nanoka's precision; offtune is /10000 (RESOURCE_SCALE) and reads to two like
@@ -626,8 +651,9 @@ export function buildReport(lines: ChainGroup[]): Report {
     const part = rowValues(snap, { mv: mvPercent(snap), avg });
     part.raw.action = snap.action.name;
     if (tagOf(snap)) part.raw["tag:action"] = tagOf(snap);
-    // a split press reads when its hit landed; everything else when its frames ran out
-    const end = snap.hitAt ?? snap.ends;
+    // where the press's animation ran out, or was cut or swapped out of — the swap delay a swap out
+    // charges it included — not its last hit
+    const end = snap.frame + snap.frames + (snap.swapFrames ?? 0);
     part.raw.time = clockAt(end);
     part.raw["end:time"] = end;
     return {
@@ -643,8 +669,8 @@ export function buildReport(lines: ChainGroup[]): Report {
     raw.action = line.id;
     // a group is cut where its last press is
     if (tagOf(snap)) raw["tag:action"] = tagOf(snap);
-    // a group or a field's run ends when its last press or hit does, whatever snap the row reads
-    const end = Math.max(...(line.members?.length ? line.members : [snap]).map((s) => s.hitAt ?? s.ends));
+    // a group or a field's run ends when its last press does, whatever snap the row reads
+    const end = Math.max(...(line.members?.length ? line.members : [snap]).map((s) => s.frame + s.frames + (s.swapFrames ?? 0)));
     raw.time = clockAt(end);
     raw["end:time"] = end;
     return {

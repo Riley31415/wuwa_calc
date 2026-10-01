@@ -43,26 +43,38 @@
 - a loadout's `weapons` list its best signature first and its best standard weapon second — with the weapons box closed the solver runs only that one
 
 # cast and hit
-every press is a cast plus its `hits` — each `{ at, mv, energy, concerto, offtune, forteN, element?,
-type?, subtype?, updateDebuffs?, hitGlobal? }`, queued at its own frame — plus an end where the press runs out
-(`animFrames`, or a cut's `commitFrames` + 6/12). the action itself has no element/type/subtype: a
-def's own are only what its hits share. no `hits` = a cast alone that deals as nothing (a plain `mv`
-is one hit at `commitFrames`); an insta cut keeps the hits landed by frame 6, or all if it commits by
-6; `.hitCancel()` (HIT CANCEL) cuts 12 frames after the first hit, keeping only that frame's hits
+every press is a cast plus its `bullets` — each `{ hitFrame, commitFrame?, mv, energy, concerto, offtune,
+forteN, element?, type?, subtype?, updateDebuffs?, hitGlobal? }`, landing at its `hitFrame` — plus an end
+where the press runs out. a bullet's `commitFrame` (default `hitFrame`) is where it is guaranteed: a cut
+after it can't stop it. the action itself has no element/type/subtype: a def's own are only what its
+bullets share. no `bullets` = a cast alone that deals as nothing (a plain `mv` is one bullet at
+`animFrames`)
+- cuts: `cancel`/`dodgeCancel`/`jump`/`easyCancel`/`swapCancel` cut at `cutFrame` — the last bullet's
+  commit, or `prioFrames` where that is later — then the animation runs on past the cut:
+  `CANCEL_DELAY` (12), `EASY_DELAY` (6), none for a swap, whose `SWAP_DELAY` (15) is the incoming
+  resonator's. a cut that runs longer than the whole press, or cuts inside `INSTA_DELAY` (6), throws.
+  an insta cut keeps the bullets committed by `INSTA_DELAY`; `.hitCancel()` (CANCEL ON HIT),
+  `.dodgeOnHit()` and `.jumpOnHit()` cut `CANCEL_DELAY` after the first bullet hits, keeping the
+  bullets committed by then; each throws on a press whose bullets hit on one frame
+- an Intro's `qteFrames` (default 0, Intros only) is where the Outro buffs queued for it land, their
+  durations starting there
 - cast: `updateGlobal` (every slot's gear), then `updateBuffs` and plain `grants`. `casting()` grants,
-  stance switches, spends on cast, Outro handoffs (`queueOutro` — an Outro's hits land after the next
-  Intro), `respondToUnison`. a cast has no type: never ask `isType()`/`onType` there
+  stance switches, spends on cast, Outro handoffs (`queueOutro` — an Outro's bullets land after the next
+  Intro), `respondToUnison`. a cast has no type: never ask `isType()`/`onType` there. what a cast
+  itself restores or spends beyond its declared `castEnergy`/`castConcerto`/`castForteN` goes through
+  `addToCast({ energy, concerto, forteN })` from a cast hook — never a stat
 - every hit: the action's own and the hit's own `updateDebuffs`, every held Gear's, then the same for
   `hitGlobal`, the grants reading inflictions (`onInflict`/`onApplied`/`inflicting(...)`), the stat
   phases, then `afterHit` and the `onHit` grants after the hit's damage. all of it runs on every hit:
   what a press does once (a status it lays, a heal marker, a queued follow-up) goes on the hit that
-  does it (`hits: [{ at, ..., updateDebuffs }]`) — a held Gear's effect on one action goes there too,
+  does it (`bullets: [{ hitFrame, ..., updateDebuffs }]`) — a held Gear's effect on one action goes there too,
   reading the Gear (`isHeld(S3)`), rather than the Gear asking `runningAction(X)` on every hit
 - end: `afterAction`, once the press is over
-- stats only ever apply on hits. a buff's per-press adds (`AddMv`, `AddEnergy`/`Concerto`/`Offtune`,
-  `AddForteN` and their `AddCast` forms) are shared across the hits by mv; what the stat phases spend
-  or revoke lands on the last hit (earlier hits run them dry), so a buff the press consumes pays into
-  all of it. a stat hook re-adding the press's own gain reads `pressed()`, not the hit
+- stats only ever apply on hits, and the stat hooks (`applyStats`, `convertStats`, `lateConvertStats`,
+  `constantStats`) only write stats: no buff, debuff, gauge, queue or `lostOnSwap()` changes there
+  (the engine throws). a buff the press consumes pays in applyStats and is revoked in a guarded
+  `afterAction`. a buff's per-press adds (`AddMv`, `AddEnergy`/`Concerto`/`Offtune`, `AddForteN`) are
+  shared across the hits by mv; a stat hook re-adding the press's own gain reads `pressed()`, not the hit
 - a gauge a cast converts ("consumes every crystal") is spent in `updateBuffs`, off what the cast
   found — a stat hook re-reads it on every hit
 - off-field time: a press's motion stop pauses every inactive resonator's queued hits and clocks
@@ -118,27 +130,27 @@ Mourning Aix, but Zani wears Capitaneus, an Elite. slot costs are ceilings, not 
 3-cost in the main slot is legal and just leaves a point unspent.
 
 # frames
-every pressed action declares `animFrames` and its `hits`; a field's own hits and coordinated/response
-hits (FIELD-tagged, no `cast`) take no `animFrames`. read them off wuwalab — `abilities[*]` of
-`api.wuwalab.com/api/app/characters/<slug>` — or, for a kit wuwalab lacks, off a frame table the user
-pastes (the same columns). with neither, list the nanoka row's hits all at `commitFrames` (else
-`animFrames`) and mark the action `// PLACEHOLDER FRAMES`:
+every pressed action declares `animFrames` and its `bullets`; a field's own bullets and
+coordinated/response ones (FIELD-tagged, no `cast`) take no `animFrames`. read them off wuwalab —
+`abilities[*]` of `api.wuwalab.com/api/app/characters/<slug>` — or, for a kit wuwalab lacks, off a frame
+table the user pastes (the same columns). with neither, list the nanoka row's bullets all at
+`animFrames` and mark the action `// PLACEHOLDER FRAMES`:
 
-- `animFrames` = `total_frames`; `commitFrames` = `earliest_frame_cancel` exactly as given, 0 included
-  — the frame by which every hit is committed, landing even if the animation is cut before it. left
-  out, it defaults to `animFrames`, so any cut of that press throws; only an insta cut can be made
-- each hit's `at` = `hits[*].frame`; its mv/energy/concerto/offtune/forte are the kit's own totals
-  shared out by wuwalab's per-hit weights (the kit's numbers stay the source of truth)
+- `animFrames` = `total_frames`
+- each bullet's `hitFrame` = `hits[*].frame`; one hitting after `earliest_frame_cancel` commits there
+  (`commitFrame`), landing even if the press is cut before it. its mv/energy/concerto/offtune/forte are
+  the kit's own totals shared out by wuwalab's per-hit weights (the kit's numbers stay the source of truth)
 - `timestop` / `motionStop` are frame ranges, start..end inclusive where a start of 0 is frame 1:
   the span is `end - max(start, 1) + 1` (Qingxiao's Intro motion stop 3-31 = 29, a 0-180 time stop
   = 180). a table's `5-37F` tag reads the same way (33); a bare `122F` is the whole 122. a zero
   stop is left out
-- `priority_timeline` ("0:11, 60:0"): a cancel frame can't fall inside a stretch of priority 11+ —
-  move it to the frame that stretch ends, or to `animFrames` if it never drops (Jingran's Intro 43 -> 60)
+- `prioFrames` = where `priority_timeline`'s ("0:11, 60:0") last stretch of priority 11+ ends, or
+  `total_frames` if it never drops (Jingran's Intro 60); left out where it has none. a kit wuwalab
+  lacks takes its `motionStop`
 - pair an engine action to its ability by name, then check off-tune/MV agree; a row the kit has no
   action for is left alone, and a kit action with no row keeps what it has — say which
 - Tune Break: each weapon class has its own default (tunebreak.ts); a kit whose "Tune Break Skill"
-  differs declares `tuneBreak: tuneBreak(animFrames, timestop, motionStop, hits)` on its Resonator, or a
+  differs declares `tuneBreak: tuneBreak(animFrames, timestop, motionStop, bullets)` on its Resonator, or a
   resolver where it depends on form (Aemeath's Mech, Cartethyia's Fleurdelys)
 - cooldowns: `cooldown: 60 * s` off the ability's `cooldown` (frames) or nanoka's "... Cooldown" row;
   two presses on one button share a `new Cooldown({ frames })`

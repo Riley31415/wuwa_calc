@@ -9,6 +9,9 @@ import type { Action } from "./rotation.js";
 import type { Gear } from "./gear.js";
 import type { State, TeamMember, HeldBuff } from "./state.js";
 
+/** One `addToCast()` call, for the hover panels: who added what — energy, concerto, forte 1-5. */
+export interface CastAdd { source: string; owner: string | null; gains: number[] }
+
 /** The engine's ambient state: which team, member, gear and action a hook is running for, plus the
  *  per-action scratch every phase writes through. One object rather than a module of `let`s
  *  because `context.ts` and `evaluate.ts` both write these and an ES module cannot assign to a
@@ -51,6 +54,15 @@ export const ctx: {
    *  the same, and compared: a variant that would have granted, spent or queued anything the real
    *  build didn't is one whose numbers can't stand in for a real run. */
   mutHash: number;
+  /** Set while a stat hook (applyStats, convertStats, lateConvertStats, constantStats) runs: none may
+   *  change a buff, a gauge or the queue, only write stats. */
+  inStats: boolean;
+  /** Set while a cast's hooks run — where `addToCast()` may add to what it banks. */
+  inCast: boolean;
+  /** What cast hooks added to this press's cast (`addToCast()`): energy, concerto, forte 1-5. */
+  castGain: number[];
+  /** ...and who added it, traced only. */
+  castAdds: CastAdd[];
   /** How many stat writes the action being evaluated has made — zeroed at its start, so the
    *  constant base can be copied in rather than added when the grant phases wrote nothing. */
   wrote: number;
@@ -101,6 +113,10 @@ export const ctx: {
   dryRun: false,
   guarded: false,
   mutHash: 0,
+  inStats: false,
+  inCast: false,
+  castGain: [0, 0, 0, 0, 0, 0, 0],
+  castAdds: [],
   wrote: 0,
   recording: false,
   readPhase: 0,
@@ -123,7 +139,7 @@ export const tagWord = (element: Attribute | null, type: Type | null, subtype: S
 export const tagWordOf = (action: Action): number => {
   let word = action._tagWord;
   if (word === undefined) {
-    const h = action.lastHit;
+    const h = action.lastBullet;
     action._tagWord = word = h ? tagWord(h.element, h.type, h.subtype) : 0;
   }
   return word;
@@ -133,14 +149,17 @@ export const tagWordOf = (action: Action): number => {
  *  that key held before — as flat triples, for `undoDry()` to reverse before a snapshot is put
  *  back. A journal rather than a copy because a variant writes two or three entries and the copy
  *  was the whole map, once per variant per action. */
-export const dryLog: (Map<Gear, number> | Set<Gear> | number[] | Gear | number | boolean | undefined)[] = [];
+export const dryLog: (Map<Gear, number> | Set<Gear> | number[] | Int32Array | Undoable | Gear | number | boolean | undefined)[] = [];
+/** A container that puts a whole replaced array back itself (`Pool`'s grown `at`). */
+export interface Undoable { undoGrow(prev: Int32Array): void }
 export function undoDry(): void {
   if (dryLog.length === 0) return;
   for (let i = dryLog.length - 3; i >= 0; i -= 3) {
     const target = dryLog[i], gear = dryLog[i + 1] as Gear, prev = dryLog[i + 2];
     if (target instanceof Map) { if (prev === undefined) target.delete(gear); else target.set(gear, prev as number); }
-    // a Pool's expiry array: the "gear" is the index written
-    else if (Array.isArray(target)) target[gear as unknown as number] = prev as number;
+    // a Pool's expiry array or `at`: the "gear" is the index written
+    else if (Array.isArray(target) || target instanceof Int32Array) target[gear as unknown as number] = prev as number;
+    else if (typeof (target as Undoable).undoGrow === "function") (target as Undoable).undoGrow(prev as unknown as Int32Array);
     else if (prev) (target as Set<Gear>).add(gear); else (target as Set<Gear>).delete(gear);
   }
   dryLog.length = 0;
@@ -173,14 +192,15 @@ export const readAny = (indices: number[], phases: number): boolean => {
   return false;
 };
 
-export const noteMutation = (id: number, n: number): void => { ctx.mutHash = (Math.imul(ctx.mutHash ^ id, 0x9e3779b1) + n) | 0; };
+export const noteMutation = (id: number, n: number): void => {
+  if (ctx.inStats) throw new Error(`${ctx.buff?.name ?? "?"}: a stat hook changed the fight (${ctx.act?.name ?? "?"}) — buffs, gauges and queues move outside applyStats/convertStats`);
+  ctx.mutHash = (Math.imul(ctx.mutHash ^ id, 0x9e3779b1) + n) | 0;
+};
 /** The stats `evaluate()` banks into the running gauges — a variant that moves any of these would
  *  bank differently, so the real build's fight isn't its fight either. */
 export const RESOURCE_STATS: Stat[] = [
   Stat.AddEnergy, Stat.AddConcerto, Stat.AddOfftune, Stat.DirectOfftune, Stat.OfftuneBuildup, Stat.EnergyRegenMult,
   Stat.AddForte1, Stat.AddForte2, Stat.AddForte3, Stat.AddForte4, Stat.AddForte5,
-  Stat.AddCastEnergy, Stat.AddCastConcerto,
-  Stat.AddCastForte1, Stat.AddCastForte2, Stat.AddCastForte3, Stat.AddCastForte4, Stat.AddCastForte5,
 ];
 
 /** What was granted (or spent) during the action being evaluated, by Gear and by whose doing —

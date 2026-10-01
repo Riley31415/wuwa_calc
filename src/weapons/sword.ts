@@ -36,7 +36,7 @@ export const BLAZING_BRILLIANCE = refinements((r, rank) => {
   const SEARING_FEATHER: Buff = new Buff({
     name: `Blazing Brilliance: Crimson Phoenix${rank}`, maxStacks: 14,
     stats: [[Stat.DmgBonus, [4, 5, 6, 7, 8][r]!, Type.Skill]], perStack: true,
-    convertStats: () => { if (casting(Cast.Outro) && frozenStacks() >= 14) revokeCurrent(SEARING_FEATHER); },
+    afterAction: () => { if (casting(Cast.Outro) && stacksOf(SEARING_FEATHER) >= 14) revokeCurrent(SEARING_FEATHER); },
   });
   const SEARING_CLOCK = new Buff({
     name: `Blazing Brilliance: Crimson Phoenix${rank}`, hidden: true,

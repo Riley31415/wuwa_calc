@@ -27,9 +27,9 @@ export const DREAM_OF_THE_LOST_3PC = new Sonata3pc({
  *  Intro also summons it for a bonus hit. The Echo Skill holds 2 charges, one back every 8s; the
  *  Intro summon is assumed to draw on none, available whenever an Intro lands. */
 export const ACTION_FALSE_SOVEREIGN = new Action("Echo - False Sovereign", {
-  animFrames: 60, commitFrames: 46,
+  animFrames: 60, bullets: [{ hitFrame: 46, mv: 221.4, energy: 3.04 }],
   cooldown: new Cooldown({ frames: 60 * 8, charges: 2 }),
-  cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo, mv: 221.4, energy: 3.04,
+  cast: Cast.Echo, element: Attribute.Electro, scaling: Scaling.Atk, type: Type.Echo,
 });
 // no energy: the Intro summon has its own damage row and, unlike the transform strike, pays none
 export const ACTION_FALSE_SOVEREIGN_INTRO = new Action("Echo - False Sovereign (Intro)", {

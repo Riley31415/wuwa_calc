@@ -7,6 +7,7 @@ import {
   addStat, frozenStacks, casting, currentTeam, currentMember, addBuff, applyCurrent, removeStack, revokeCurrent, applied,
   onCast, onType, onApplied, isActive, isType, setStacksSelf, triggeredAction,
   applyTeam, currentAction, pressed, extendCurrent, isHeld, inflicting,
+  addToCast,
 } from "../engine/context.js";
 import { SHIELD, HEALS, inflictedNegativeStatus, inflictedNegativeStatusBy } from "../shared/status.js";
 
@@ -161,9 +162,9 @@ export const STARFIELD_CALIBRATOR = refinements((r, rank) => {
    *  pays for, and back on the wielder's own Outro. */
   const DEFINITE_SOLUTION: Buff = new Buff({
     name: `Starfield Calibrator: Definite Solution${rank}`,
-    applyStats: () => {
+    updateBuffs: () => {
       if (!casting(Cast.Skill)) return;
-      addStat(Stat.AddCastConcerto, [8, 10, 12, 14, 16][r]!);
+      addToCast({ concerto: [8, 10, 12, 14, 16][r]! });
       revokeCurrent(DEFINITE_SOLUTION);
     },
   });

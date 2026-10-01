@@ -53,191 +53,191 @@ function lynaeAction(id: string, def: object): Action {
 
 // --- Chroma Drift, the out-of-Parade chain. Spark Collision Lv.3 is what sends her into
 //     Kaleidoscopic Parade, so it opens the rotation and the rest of this chain never gets played.
-const BA1 = lynaeAction("Basic - Chroma Drift 1", { animFrames: 31, commitFrames: 16, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 16, mv: 86.19, energy: 1.28, concerto: 4.59, offtune: 4080, forte1: 12 }]});
-const BA2 = lynaeAction("Basic - Chroma Drift 2", { animFrames: 66, commitFrames: 39, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 15, mv: 52.39, energy: 0.78, concerto: 2.79, offtune: 2480 },
-    { at: 29, mv: 52.39, energy: 0.78, concerto: 2.79, offtune: 2480 },
-    { at: 39, mv: 52.39, energy: 0.78, concerto: 2.79, offtune: 2480, forte1: 21 },
+const BA1 = lynaeAction("Basic - Chroma Drift 1", { animFrames: 31, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 16, mv: 86.19, energy: 1.28, concerto: 4.59, offtune: 4080, forte1: 12 }]});
+const BA2 = lynaeAction("Basic - Chroma Drift 2", { animFrames: 66, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 15, mv: 52.39, energy: 0.78, concerto: 2.79, offtune: 2480 },
+    { hitFrame: 29, mv: 52.39, energy: 0.78, concerto: 2.79, offtune: 2480 },
+    { hitFrame: 39, mv: 52.39, energy: 0.78, concerto: 2.79, offtune: 2480, forte1: 21 },
   ]});
-const BA3 = lynaeAction("Basic - Chroma Drift 3", { animFrames: 44, commitFrames: 28, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 28, mv: 123.37, energy: 1.83, concerto: 6.57, offtune: 5840, forte1: 17 }]});
-const DC = lynaeAction("Dodge Counter - Chroma Drift", { animFrames: 49, commitFrames: 31, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, hits: [{ at: 31, mv: 239.97, energy: 2.05, concerto: 17.38, offtune: 6560, forte1: 19 }]});
-const MA = lynaeAction("Mid-air - Chroma Drift Plunge", { animFrames: 54, commitFrames: 41, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 26, mv: 14.37, energy: 0.22, concerto: 0.77, offtune: 680 },
-    { at: 41, mv: 129.28, energy: 1.92, concerto: 6.89, offtune: 6120, forte1: 20 },
+const BA3 = lynaeAction("Basic - Chroma Drift 3", { animFrames: 44, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 28, mv: 123.37, energy: 1.83, concerto: 6.57, offtune: 5840, forte1: 17 }]});
+const DC = lynaeAction("Dodge Counter - Chroma Drift", { animFrames: 49, node: Node.Normal, cast: Cast.DodgeCounter, type: Type.Basic, bullets: [{ hitFrame: 31, mv: 239.97, energy: 2.05, concerto: 17.38, offtune: 6560, forte1: 19 }]});
+const MA = lynaeAction("Mid-air - Chroma Drift Plunge", { animFrames: 54, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 26, mv: 14.37, energy: 0.22, concerto: 0.77, offtune: 680 },
+    { hitFrame: 41, mv: 129.28, energy: 1.92, concerto: 6.89, offtune: 6120, forte1: 20 },
   ]});
-const SparkCollision = lynaeAction("Basic - Spark Collision Lv. 3", { animFrames: 157, commitFrames: 111, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 100, mv: 277.78, energy: 4.11, concerto: 14.8, offtune: 13150 },
-    { at: 111, mv: 277.78, energy: 4.11, concerto: 14.8, offtune: 13150, forte2: 120 },
+const SparkCollision = lynaeAction("Basic - Spark Collision Lv. 3", { animFrames: 157, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 100, mv: 277.78, energy: 4.11, concerto: 14.8, offtune: 13150 },
+    { hitFrame: 111, mv: 277.78, energy: 4.11, concerto: 14.8, offtune: 13150, forte2: 120 },
   ], castForte1: -120});
 
 // --- Kaleidoscopic Parade, the combo she actually plays
-const KBA1 = lynaeAction("Basic - Kaleidoscopic Parade 1", { animFrames: 35, commitFrames: 13, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 13, mv: 82.81, energy: 1.23, concerto: 4.41, offtune: 3920 }]});
-const KBA2 = lynaeAction("Basic - Kaleidoscopic Parade 2", { animFrames: 28, commitFrames: 21, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 10, mv: 38.87, energy: 0.58, concerto: 2.07, offtune: 1840 },
-    { at: 21, mv: 38.87, energy: 0.58, concerto: 2.07, offtune: 1840 },
+const KBA1 = lynaeAction("Basic - Kaleidoscopic Parade 1", { animFrames: 35, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 13, mv: 82.81, energy: 1.23, concerto: 4.41, offtune: 3920 }]});
+const KBA2 = lynaeAction("Basic - Kaleidoscopic Parade 2", { animFrames: 28, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 10, mv: 38.87, energy: 0.58, concerto: 2.07, offtune: 1840 },
+    { hitFrame: 21, mv: 38.87, energy: 0.58, concerto: 2.07, offtune: 1840 },
   ]});
-const KBA3 = lynaeAction("Basic - Kaleidoscopic Parade 3", { animFrames: 40, commitFrames: 24, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 12, mv: 37.75, energy: 0.56, concerto: 2.01, offtune: 1787 },
-    { at: 16, mv: 37.75, energy: 0.56, concerto: 2.01, offtune: 1787 },
-    { at: 24, mv: 37.75, energy: 0.56, concerto: 2.01, offtune: 1787 },
+const KBA3 = lynaeAction("Basic - Kaleidoscopic Parade 3", { animFrames: 40, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 12, mv: 37.75, energy: 0.56, concerto: 2.01, offtune: 1787 },
+    { hitFrame: 16, mv: 37.75, energy: 0.56, concerto: 2.01, offtune: 1787 },
+    { hitFrame: 24, mv: 37.75, energy: 0.56, concerto: 2.01, offtune: 1787 },
   ]});
-const KBA4 = lynaeAction("Basic - Kaleidoscopic Parade 4", { animFrames: 70, commitFrames: 50, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 14, mv: 29.75, energy: 0.44, concerto: 1.59, offtune: 1408 },
-    { at: 25, mv: 29.75, energy: 0.44, concerto: 1.59, offtune: 1408 },
-    { at: 38, mv: 44.62, energy: 0.66, concerto: 2.38, offtune: 2112 },
-    { at: 50, mv: 44.62, energy: 0.66, concerto: 2.38, offtune: 2112 },
+const KBA4 = lynaeAction("Basic - Kaleidoscopic Parade 4", { animFrames: 70, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 14, mv: 29.75, energy: 0.44, concerto: 1.59, offtune: 1408 },
+    { hitFrame: 25, mv: 29.75, energy: 0.44, concerto: 1.59, offtune: 1408 },
+    { hitFrame: 38, mv: 44.62, energy: 0.66, concerto: 2.38, offtune: 2112 },
+    { hitFrame: 50, mv: 44.62, energy: 0.66, concerto: 2.38, offtune: 2112 },
   ]});
-const KBA5 = lynaeAction("Basic - Kaleidoscopic Parade 5", { animFrames: 99, commitFrames: 29, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 8, mv: 75.54, energy: 1.12, concerto: 4.03, offtune: 3576 },
-    { at: 29, mv: 15.11, energy: 0.23, concerto: 0.81, offtune: 716 },
-    { at: 35, mv: 15.11, energy: 0.23, concerto: 0.81, offtune: 716 },
-    { at: 41, mv: 15.11, energy: 0.23, concerto: 0.81, offtune: 716 },
-    { at: 47, mv: 15.11, energy: 0.23, concerto: 0.81, offtune: 716 },
-    { at: 53, mv: 15.11, energy: 0.23, concerto: 0.81, offtune: 716 },
-    { at: 59, mv: 100.72, energy: 1.49, concerto: 5.37, offtune: 4768 },
+const KBA5 = lynaeAction("Basic - Kaleidoscopic Parade 5", { animFrames: 99, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 8, mv: 75.54, energy: 1.12, concerto: 4.03, offtune: 3576 },
+    { hitFrame: 29, mv: 15.11, energy: 0.23, concerto: 0.81, offtune: 716 },
+    { hitFrame: 35, commitFrame: 29, mv: 15.11, energy: 0.23, concerto: 0.81, offtune: 716 },
+    { hitFrame: 41, commitFrame: 29, mv: 15.11, energy: 0.23, concerto: 0.81, offtune: 716 },
+    { hitFrame: 47, commitFrame: 29, mv: 15.11, energy: 0.23, concerto: 0.81, offtune: 716 },
+    { hitFrame: 53, commitFrame: 29, mv: 15.11, energy: 0.23, concerto: 0.81, offtune: 716 },
+    { hitFrame: 59, commitFrame: 29, mv: 100.72, energy: 1.49, concerto: 5.37, offtune: 4768 },
   ]});
-const KHeavy = lynaeAction("Heavy - Kaleidoscopic Parade (Ground)", { animFrames: 82, commitFrames: 56, node: Node.Normal, cast: Cast.Heavy, type: Type.Basic, hits: [
-    { at: 10, mv: 17.63, energy: 0.42, concerto: 0.94, offtune: 835 },
-    { at: 14, mv: 17.63, energy: 0.42, concerto: 0.94, offtune: 835 },
-    { at: 18, mv: 17.63, energy: 0.42, concerto: 0.94, offtune: 835 },
-    { at: 22, mv: 17.63, energy: 0.42, concerto: 0.94, offtune: 835 },
-    { at: 26, mv: 17.63, energy: 0.42, concerto: 0.94, offtune: 835 },
-    { at: 30, mv: 17.63, energy: 0.42, concerto: 0.94, offtune: 835 },
-    { at: 34, mv: 17.63, energy: 0.42, concerto: 0.94, offtune: 835 },
+const KHeavy = lynaeAction("Heavy - Kaleidoscopic Parade (Ground)", { animFrames: 82, node: Node.Normal, cast: Cast.Heavy, type: Type.Basic, bullets: [
+    { hitFrame: 10, mv: 17.63, energy: 0.42, concerto: 0.94, offtune: 835 },
+    { hitFrame: 14, mv: 17.63, energy: 0.42, concerto: 0.94, offtune: 835 },
+    { hitFrame: 18, mv: 17.63, energy: 0.42, concerto: 0.94, offtune: 835 },
+    { hitFrame: 22, mv: 17.63, energy: 0.42, concerto: 0.94, offtune: 835 },
+    { hitFrame: 26, mv: 17.63, energy: 0.42, concerto: 0.94, offtune: 835 },
+    { hitFrame: 30, mv: 17.63, energy: 0.42, concerto: 0.94, offtune: 835 },
+    { hitFrame: 34, mv: 17.63, energy: 0.42, concerto: 0.94, offtune: 835 },
   ]});
-const GraffitiBlast = lynaeAction("Heavy - Kaleidoscopic Parade: Graffiti Blast", { animFrames: 70, commitFrames: 70, node: Node.Normal, cast: Cast.Heavy, type: Type.Basic, mv: 104.78, energy: 1.55, concerto: 5.58, offtune: 4960 });
+const GraffitiBlast = lynaeAction("Heavy - Kaleidoscopic Parade: Graffiti Blast", { animFrames: 70, node: Node.Normal, cast: Cast.Heavy, type: Type.Basic, mv: 104.78, energy: 1.55, concerto: 5.58, offtune: 4960 });
 
 // --- Forte Circuit. These carry Photochromic Flux, which is what shifts the target (see the two
 //     Resonance Modes below). Visual Impact is the big one, on a 25s cooldown.
-const PolychromeLeap1 = lynaeAction("Forte Basic - Polychrome Leap 1", { animFrames: 46, commitFrames: 25, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 12, mv: 33.8, energy: 0.75, concerto: 1.8, offtune: 1600 },
-    { at: 21, mv: 33.8, energy: 0.75, concerto: 1.8, offtune: 1600 },
-    { at: 25, mv: 33.8, energy: 0.75, concerto: 1.8, offtune: 1600 },
+const PolychromeLeap1 = lynaeAction("Forte Basic - Polychrome Leap 1", { animFrames: 46, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 12, mv: 33.8, energy: 0.75, concerto: 1.8, offtune: 1600 },
+    { hitFrame: 21, mv: 33.8, energy: 0.75, concerto: 1.8, offtune: 1600 },
+    { hitFrame: 25, mv: 33.8, energy: 0.75, concerto: 1.8, offtune: 1600 },
   ], castForte2: -40,  });
-const PolychromeLeap2 = lynaeAction("Forte Basic - Polychrome Leap 2", { animFrames: 42, commitFrames: 42, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 12, mv: 16.9, energy: 0.38, concerto: 0.9, offtune: 800 },
-    { at: 18, mv: 16.9, energy: 0.38, concerto: 0.9, offtune: 800 },
-    { at: 24, mv: 16.9, energy: 0.38, concerto: 0.9, offtune: 800 },
-    { at: 30, mv: 16.9, energy: 0.38, concerto: 0.9, offtune: 800 },
-    { at: 36, mv: 16.9, energy: 0.38, concerto: 0.9, offtune: 800 },
-    { at: 42, mv: 16.9, energy: 0.38, concerto: 0.9, offtune: 800 },
+const PolychromeLeap2 = lynaeAction("Forte Basic - Polychrome Leap 2", { animFrames: 42, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 12, mv: 16.9, energy: 0.38, concerto: 0.9, offtune: 800 },
+    { hitFrame: 18, mv: 16.9, energy: 0.38, concerto: 0.9, offtune: 800 },
+    { hitFrame: 24, mv: 16.9, energy: 0.38, concerto: 0.9, offtune: 800 },
+    { hitFrame: 30, mv: 16.9, energy: 0.38, concerto: 0.9, offtune: 800 },
+    { hitFrame: 36, mv: 16.9, energy: 0.38, concerto: 0.9, offtune: 800 },
+    { hitFrame: 42, mv: 16.9, energy: 0.38, concerto: 0.9, offtune: 800 },
   ], castForte2: -40,  });
-const PolychromeLeap3 = lynaeAction("Forte Basic - Polychrome Leap 3", { animFrames: 37, commitFrames: 14, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 14, mv: 13.1, energy: 0.3, concerto: 0.7, offtune: 620 },
-    { at: 17, mv: 13.1, energy: 0.3, concerto: 0.7, offtune: 620 },
-    { at: 20, mv: 13.1, energy: 0.3, concerto: 0.7, offtune: 620 },
-    { at: 23, mv: 13.1, energy: 0.3, concerto: 0.7, offtune: 620 },
-    { at: 50, mv: 13.1, energy: 0.3, concerto: 0.7, offtune: 620 },
-    { at: 53, mv: 13.1, energy: 0.3, concerto: 0.7, offtune: 620 },
-    { at: 56, mv: 13.1, energy: 0.3, concerto: 0.7, offtune: 620 },
-    { at: 59, mv: 13.1, energy: 0.3, concerto: 0.7, offtune: 620 },
+const PolychromeLeap3 = lynaeAction("Forte Basic - Polychrome Leap 3", { animFrames: 37, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 14, mv: 13.1, energy: 0.3, concerto: 0.7, offtune: 620 },
+    { hitFrame: 17, commitFrame: 14, mv: 13.1, energy: 0.3, concerto: 0.7, offtune: 620 },
+    { hitFrame: 20, commitFrame: 14, mv: 13.1, energy: 0.3, concerto: 0.7, offtune: 620 },
+    { hitFrame: 23, commitFrame: 14, mv: 13.1, energy: 0.3, concerto: 0.7, offtune: 620 },
+    { hitFrame: 50, commitFrame: 14, mv: 13.1, energy: 0.3, concerto: 0.7, offtune: 620 },
+    { hitFrame: 53, commitFrame: 14, mv: 13.1, energy: 0.3, concerto: 0.7, offtune: 620 },
+    { hitFrame: 56, commitFrame: 14, mv: 13.1, energy: 0.3, concerto: 0.7, offtune: 620 },
+    { hitFrame: 59, commitFrame: 14, mv: 13.1, energy: 0.3, concerto: 0.7, offtune: 620 },
   ], castForte2: -40,  });
-const IridescentSplash = lynaeAction("Forte Basic - Iridescent Splash", { animFrames: 64, commitFrames: 38, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 38, mv: 304.18, energy: 8.13, concerto: 7.65, offtune: 6800 }],  });
+const IridescentSplash = lynaeAction("Forte Basic - Iridescent Splash", { animFrames: 64, node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 38, mv: 304.18, energy: 8.13, concerto: 7.65, offtune: 6800 }],  });
 const VisualImpact = lynaeAction("Forte Basic - Visual Impact", {
-  animFrames: 105, commitFrames: 42, cooldown: 60 * 25,
-  node: Node.Forte, cast: Cast.Basic, type: Type.Basic, hits: [{ at: 42, mv: 1216.72, energy: 14.05, concerto: 14.58, offtune: 60960 }],
+  animFrames: 105, cooldown: 60 * 25,
+  node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [{ hitFrame: 42, mv: 1216.72, energy: 14.05, concerto: 14.58, offtune: 60960 }],
   updateBuffs: () => applyTeam(SPECTRAL_ANALYSIS_TBB, 1),
 });
 
 // Lynae-Style Palettes and Additive Color share one 6s cooldown
 const SKILL_CD = new Cooldown({ frames: 60 * 6 });
-const Skill = lynaeAction("Skill - Lynae-Style Palettes", { animFrames: 76, commitFrames: 30, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, hits: [
-    { at: 30, mv: 139.31, energy: 4.37, concerto: 4.91, offtune: 4360 },
-    { at: 51, mv: 46.44, energy: 1.46, concerto: 1.64, offtune: 1454 },
-    { at: 58, mv: 46.44, energy: 1.46, concerto: 1.64, offtune: 1454 },
-    { at: 62, mv: 46.44, energy: 1.46, concerto: 1.64, offtune: 1454, forte1: 25 },
+const Skill = lynaeAction("Skill - Lynae-Style Palettes", { animFrames: 76, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+    { hitFrame: 30, mv: 139.31, energy: 4.37, concerto: 4.91, offtune: 4360 },
+    { hitFrame: 51, commitFrame: 30, mv: 46.44, energy: 1.46, concerto: 1.64, offtune: 1454 },
+    { hitFrame: 58, commitFrame: 30, mv: 46.44, energy: 1.46, concerto: 1.64, offtune: 1454 },
+    { hitFrame: 62, commitFrame: 30, mv: 46.44, energy: 1.46, concerto: 1.64, offtune: 1454, forte1: 25 },
   ]});
-const AdditiveColor = lynaeAction("Skill - Additive Color", { animFrames: 75, commitFrames: 30, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, hits: [
-    { at: 16, mv: 116.31, energy: 3.46, concerto: 4.1, offtune: 3640 },
-    { at: 30, mv: 116.31, energy: 3.46, concerto: 4.1, offtune: 3640 },
+const AdditiveColor = lynaeAction("Skill - Additive Color", { animFrames: 75, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+    { hitFrame: 16, mv: 116.31, energy: 3.46, concerto: 4.1, offtune: 3640 },
+    { hitFrame: 30, mv: 116.31, energy: 3.46, concerto: 4.1, offtune: 3640 },
   ]});
 
 const Liberation = lynaeAction("Liberation - Prismatic Overblast", {
-  animFrames: 240, commitFrames: 240, timestop: 240, motionStop: 223, cooldown: 60 * 25,
-  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, hits: [
-    { at: 189, mv: 87.48, offtune: 4800 },
-    { at: 195, mv: 87.48, offtune: 4800 },
-    { at: 201, mv: 87.48, offtune: 4800 },
-    { at: 207, mv: 87.48, offtune: 4800 },
-    { at: 213, mv: 87.48, offtune: 4800 },
-    { at: 219, mv: 87.48, offtune: 4800 },
-    { at: 225, mv: 87.48, offtune: 4800 },
-    { at: 231, mv: 87.48, offtune: 4800 },
-    { at: 237, mv: 87.48, offtune: 4800 },
-    { at: 243, mv: 87.48, offtune: 4800 },
+  animFrames: 240, timestop: 240, motionStop: 223, cooldown: 60 * 25,
+  node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, bullets: [
+    { hitFrame: 189, mv: 87.48, offtune: 4800 },
+    { hitFrame: 195, mv: 87.48, offtune: 4800 },
+    { hitFrame: 201, mv: 87.48, offtune: 4800 },
+    { hitFrame: 207, mv: 87.48, offtune: 4800 },
+    { hitFrame: 213, mv: 87.48, offtune: 4800 },
+    { hitFrame: 219, mv: 87.48, offtune: 4800 },
+    { hitFrame: 225, mv: 87.48, offtune: 4800 },
+    { hitFrame: 231, mv: 87.48, offtune: 4800 },
+    { hitFrame: 237, mv: 87.48, offtune: 4800 },
+    { hitFrame: 243, commitFrame: 240, mv: 87.48, offtune: 4800 },
   ],
   castConcerto: 20, resetEnergy: true,
   updateBuffs: () => applyTeam(PRISMATIC_OVERBLAST, 1),
 });
-const VividTomorrow = lynaeAction("Basic - To a Vivid Tomorrow!", { animFrames: 159, commitFrames: 118, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 52, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
-    { at: 56, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
-    { at: 60, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
-    { at: 65, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
-    { at: 69, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
-    { at: 73, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
-    { at: 77, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
-    { at: 81, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
-    { at: 86, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
-    { at: 90, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
-    { at: 94, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
-    { at: 98, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
-    { at: 118, mv: 10.05, energy: 0.27, concerto: 0.97, offtune: 856 },
-    { at: 124, mv: 10.05, energy: 0.27, concerto: 0.97, offtune: 856 },
-    { at: 130, mv: 10.05, energy: 0.27, concerto: 0.97, offtune: 856 },
-    { at: 136, mv: 10.05, energy: 0.27, concerto: 0.97, offtune: 856 },
-    { at: 142, mv: 10.05, energy: 0.27, concerto: 0.97, offtune: 856 },
-    { at: 148, mv: 10.05, energy: 0.27, concerto: 0.97, offtune: 856 },
-    { at: 154, mv: 10.05, energy: 0.27, concerto: 0.97, offtune: 856 },
-    { at: 160, mv: 10.05, energy: 0.27, concerto: 0.97, offtune: 856 },
-    { at: 166, mv: 10.05, energy: 0.27, concerto: 0.97, offtune: 856 },
-    { at: 172, mv: 10.05, energy: 0.27, concerto: 0.97, offtune: 856 },
+const VividTomorrow = lynaeAction("Basic - To a Vivid Tomorrow!", { animFrames: 159, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 52, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
+    { hitFrame: 56, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
+    { hitFrame: 60, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
+    { hitFrame: 65, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
+    { hitFrame: 69, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
+    { hitFrame: 73, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
+    { hitFrame: 77, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
+    { hitFrame: 81, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
+    { hitFrame: 86, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
+    { hitFrame: 90, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
+    { hitFrame: 94, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
+    { hitFrame: 98, mv: 8.38, energy: 0.23, concerto: 0.81, offtune: 714 },
+    { hitFrame: 118, mv: 10.05, energy: 0.27, concerto: 0.97, offtune: 856 },
+    { hitFrame: 124, commitFrame: 118, mv: 10.05, energy: 0.27, concerto: 0.97, offtune: 856 },
+    { hitFrame: 130, commitFrame: 118, mv: 10.05, energy: 0.27, concerto: 0.97, offtune: 856 },
+    { hitFrame: 136, commitFrame: 118, mv: 10.05, energy: 0.27, concerto: 0.97, offtune: 856 },
+    { hitFrame: 142, commitFrame: 118, mv: 10.05, energy: 0.27, concerto: 0.97, offtune: 856 },
+    { hitFrame: 148, commitFrame: 118, mv: 10.05, energy: 0.27, concerto: 0.97, offtune: 856 },
+    { hitFrame: 154, commitFrame: 118, mv: 10.05, energy: 0.27, concerto: 0.97, offtune: 856 },
+    { hitFrame: 160, commitFrame: 118, mv: 10.05, energy: 0.27, concerto: 0.97, offtune: 856 },
+    { hitFrame: 166, commitFrame: 118, mv: 10.05, energy: 0.27, concerto: 0.97, offtune: 856 },
+    { hitFrame: 172, commitFrame: 118, mv: 10.05, energy: 0.27, concerto: 0.97, offtune: 856 },
   ]});
 
-const Intro = lynaeAction("Intro - Time to Show Some Colors!", { animFrames: 76, commitFrames: 44, motionStop: 63, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, hits: [
-    { at: 44, mv: 22.48, energy: 1.34, concerto: 1.2, offtune: 1064 },
-    { at: 50, mv: 22.48, energy: 1.34, concerto: 1.2, offtune: 1064 },
-    { at: 56, mv: 22.48, energy: 1.34, concerto: 1.2, offtune: 1064 },
-    { at: 62, mv: 22.48, energy: 1.34, concerto: 1.2, offtune: 1064 },
-    { at: 68, mv: 22.48, energy: 1.34, concerto: 1.2, offtune: 1064 },
-    { at: 74, mv: 22.48, energy: 1.34, concerto: 1.2, offtune: 1064 },
-    { at: 80, mv: 22.48, energy: 1.34, concerto: 1.2, offtune: 1064 },
-    { at: 86, mv: 22.48, energy: 1.34, concerto: 1.2, offtune: 1064 },
-    { at: 92, mv: 22.48, energy: 1.34, concerto: 1.2, offtune: 1064 },
-    { at: 98, mv: 22.48, energy: 1.34, concerto: 1.2, offtune: 1064, forte1: 100 },
+const Intro = lynaeAction("Intro - Time to Show Some Colors!", { animFrames: 76, prioFrames: 44, motionStop: 63, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, bullets: [
+    { hitFrame: 44, mv: 22.48, energy: 1.34, concerto: 1.2, offtune: 1064 },
+    { hitFrame: 50, commitFrame: 44, mv: 22.48, energy: 1.34, concerto: 1.2, offtune: 1064 },
+    { hitFrame: 56, commitFrame: 44, mv: 22.48, energy: 1.34, concerto: 1.2, offtune: 1064 },
+    { hitFrame: 62, commitFrame: 44, mv: 22.48, energy: 1.34, concerto: 1.2, offtune: 1064 },
+    { hitFrame: 68, commitFrame: 44, mv: 22.48, energy: 1.34, concerto: 1.2, offtune: 1064 },
+    { hitFrame: 74, commitFrame: 44, mv: 22.48, energy: 1.34, concerto: 1.2, offtune: 1064 },
+    { hitFrame: 80, commitFrame: 44, mv: 22.48, energy: 1.34, concerto: 1.2, offtune: 1064 },
+    { hitFrame: 86, commitFrame: 44, mv: 22.48, energy: 1.34, concerto: 1.2, offtune: 1064 },
+    { hitFrame: 92, commitFrame: 44, mv: 22.48, energy: 1.34, concerto: 1.2, offtune: 1064 },
+    { hitFrame: 98, commitFrame: 44, mv: 22.48, energy: 1.34, concerto: 1.2, offtune: 1064, forte1: 100 },
   ], castConcerto: 10});
 const Outro = lynaeAction("Outro - Let's Hit the Road!", {
-  animFrames: 159, commitFrames: 118,
-  cast: Cast.Outro, type: Type.Outro, hits: [
-    { at: 52, mv: 4.55 },
-    { at: 58, mv: 4.55 },
-    { at: 64, mv: 4.55 },
-    { at: 70, mv: 4.55 },
-    { at: 76, mv: 4.55 },
-    { at: 82, mv: 4.55 },
-    { at: 88, mv: 4.55 },
-    { at: 94, mv: 4.55 },
-    { at: 100, mv: 4.55 },
-    { at: 106, mv: 4.55 },
-    { at: 110, mv: 4.55 },
-    { at: 112, mv: 4.55 },
-    { at: 116, mv: 4.55 },
-    { at: 118, mv: 4.55 },
-    { at: 122, mv: 4.55 },
-    { at: 128, mv: 4.55 },
-    { at: 134, mv: 4.55 },
-    { at: 140, mv: 4.55 },
-    { at: 146, mv: 4.55 },
-    { at: 152, mv: 4.55 },
-    { at: 158, mv: 4.55 },
-    { at: 164, mv: 4.45 },
+  animFrames: 159,
+  cast: Cast.Outro, type: Type.Outro, bullets: [
+    { hitFrame: 52, mv: 4.55 },
+    { hitFrame: 58, mv: 4.55 },
+    { hitFrame: 64, mv: 4.55 },
+    { hitFrame: 70, mv: 4.55 },
+    { hitFrame: 76, mv: 4.55 },
+    { hitFrame: 82, mv: 4.55 },
+    { hitFrame: 88, mv: 4.55 },
+    { hitFrame: 94, mv: 4.55 },
+    { hitFrame: 100, mv: 4.55 },
+    { hitFrame: 106, mv: 4.55 },
+    { hitFrame: 110, mv: 4.55 },
+    { hitFrame: 112, mv: 4.55 },
+    { hitFrame: 116, mv: 4.55 },
+    { hitFrame: 118, mv: 4.55 },
+    { hitFrame: 122, commitFrame: 118, mv: 4.55 },
+    { hitFrame: 128, commitFrame: 118, mv: 4.55 },
+    { hitFrame: 134, commitFrame: 118, mv: 4.55 },
+    { hitFrame: 140, commitFrame: 118, mv: 4.55 },
+    { hitFrame: 146, commitFrame: 118, mv: 4.55 },
+    { hitFrame: 152, commitFrame: 118, mv: 4.55 },
+    { hitFrame: 158, commitFrame: 118, mv: 4.55 },
+    { hitFrame: 164, commitFrame: 118, mv: 4.45 },
   ], castConcerto: -100,
   updateBuffs: () => queueOutro(LYNAE_OUTRO),
 });
 
 const SpectralAnalysis = lynaeAction("Tune Rupture Response - Spectral Analysis", {
   animFrames: 0,
-  node: Node.Forte, type: Type.Rupture, hits: [{ at: 0, mv: 1880.75 }], scaling: Scaling.Tune
+  node: Node.Forte, type: Type.Rupture, bullets: [{ hitFrame: 0, mv: 1880.75 }], scaling: Scaling.Tune
 });
 
 /* ------------------------------------------------------------------------------------- modes */

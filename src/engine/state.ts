@@ -69,14 +69,13 @@ export const SUBTYPE_CRIT_DMG_INDEX = STAT_COUNT + 3;
 export const SUBTYPE_TOTAL_DMG_INDEX = STAT_COUNT + 4;
 export const SUBTYPE_DAMAGE_TAKEN_INDEX = STAT_COUNT + 5;
 
-/** What every action's own `effective` starts as — cloned per action with `.slice()`, which is one
- *  memcpy of ~36 doubles. A plain array rather than a `Float64Array`: a typed array is a separate
- *  buffer object with its own header, and allocating one per action was the single most expensive
- *  line in `evaluate()`. The one fractional write below (and its undo) is deliberate — V8 fixes an
- *  array's element kind once it widens, and a clone inherits it, so every copy is a double array
- *  from the start rather than transitioning from integers on its first real contribution. */
-export const ZERO_STATS: number[] = new Array<number>(STAT_COUNT + 6).fill(0);
-ZERO_STATS[0] = 0.5; ZERO_STATS[0] = 0;
+/** One stat row: every stat plus the split slots above, indexed by the stat itself. */
+export type StatRow = Float64Array;
+export const STAT_ROW_LENGTH = STAT_COUNT + 6;
+/** A fresh all-zero row. Untraced runs reuse each slot's rows, so only a traced run allocates per action. */
+export const statRow = (): StatRow => new Float64Array(STAT_ROW_LENGTH);
+/** What every action's own `effective` starts as; read-only. */
+export const ZERO_STATS: StatRow = statRow();
 
 /**
  * One pool of held Gear — a member's own, the team-wide pool, or the enemy's — with the stack
@@ -94,12 +93,18 @@ ZERO_STATS[0] = 0.5; ZERO_STATS[0] = 0;
 /** Bumped whenever a Gear with `constantStats` enters or leaves any pool — which is team setup,
  *  and then essentially never — so every slot's `constBase` cache can tell it is stale. */
 
-export interface PoolSnapshot { list: Gear[]; counts: number[]; hooks: number[][]; globalHooks: Gear[]; at: Map<Gear, number>; dead: number; expires: number[]; nextExpiry: number; progress: number[]; ticks: number[] }
+export interface PoolSnapshot { list: Gear[]; counts: number[]; hooks: number[][]; globalHooks: Gear[]; at: Int32Array; dead: number; expires: number[]; nextExpiry: number; progress: number[]; ticks: number[] }
 /** A slot's main-stat variants' constant bases for one action tag word, and per variant the
  *  indices where that base differs from the real build's — the only stats a variant's row can
  *  differ in (see `evaluate()`). */
-export interface VariantAt { bases: number[][]; diffs: number[][] }
+export interface VariantAt { bases: StatRow[]; diffs: number[][] }
+/** A cooldown-gated press of a visit, and how many frames after the handoff it comes up. */
+export interface VisitGate { cd: Cooldown; offset: number }
+
 export interface MemberSnapshot { pool: PoolSnapshot; globalHooks: Set<Gear>; forte: number[]; concerto: number }
+
+/** The next free `Gear.poolIdx`. */
+let nextPoolIdx = 0;
 
 class Pool {
   /** Every Gear granted here, in the order it was first granted — a Map's own order, so hooks run
@@ -118,11 +123,31 @@ class Pool {
   /** The live Gear here with an `updateGlobalFn`, in order — what `evaluate()`'s updateGlobal
    *  phase walks for the team-wide and enemy pools. */
   globalHooks: Gear[] = [];
-  /** Where each live Gear sits in `list`. Written in place — nothing iterates it — except while a
-   *  `snapshot()` is live (`ctx.guarded`), where the first write swaps in a copy (`write()`) so
-   *  `restore()` can put the original back untouched. */
-  private at = new Map<Gear, number>();
+  /** Where each live Gear sits in `list`, plus one, by its `poolIdx` (0: not held here). Written in
+   *  place — nothing iterates it — except while a `snapshot()` is live (`ctx.guarded`), where the
+   *  first write swaps in a copy (`write()`) so `restore()` can put the original back untouched. */
+  private at = new Int32Array(Math.max(256, nextPoolIdx * 2));
   private atCloned = false;
+  /** `gear`'s position in `list`, -1 where it is not held here. */
+  private pos(gear: Gear): number {
+    const k = gear.poolIdx;
+    return k >= 0 && k < this.at.length ? this.at[k]! - 1 : -1;
+  }
+  /** Room in `at` for `gear`'s index, handing it one first if it has none — a grown array is a new
+   *  one, which a dry run journals so `undoDry()` puts the old one back. */
+  private reach(gear: Gear): number {
+    const k = gear.poolIdx >= 0 ? gear.poolIdx : (gear.poolIdx = nextPoolIdx++);
+    if (k >= this.at.length) {
+      const grown = new Int32Array(Math.max(k + 1, this.at.length * 2));
+      grown.set(this.at);
+      if (ctx.dryRun) dryLog.push(this, 0 as unknown as Gear, this.at as unknown as number);
+      this.at = grown;
+      // under a live snapshot the new array is already this pool's own
+      if (ctx.guarded) this.atCloned = true;
+    }
+    return k;
+  }
+  undoGrow(prev: Int32Array): void { this.at = prev; }
   /** How many entries of `list` are dropped Gear. */
   private dead = 0;
   /** The fight frame `list[i]` runs out at (`State.frame` at its last grant plus its `duration`),
@@ -141,7 +166,8 @@ class Pool {
   private ticks: number[] = [];
   private ticksCloned = false;
 
-  has(gear: Gear): boolean { return this.at.has(gear); }
+  has(gear: Gear): boolean { return this.pos(gear) >= 0; }
+
   /** Everything a dry run can move, by reference — the arrays are never written in place, and
    *  `at`/`expires` are cloned before a ctx.guarded write ever touches them — for `restore()`. */
   snapshotInto(s: PoolSnapshot): void {
@@ -155,12 +181,15 @@ class Pool {
     this.progress = s.progress; this.ticks = s.ticks;
     this.atCloned = false; this.expiresCloned = false; this.ticksCloned = false;
   }
-  /** Ahead of a write to `at`. Under a dry run the write is journaled for `undoDry()` to reverse;
+  /** Ahead of a write to `at` — returns the index to write, and runs before `this.at` is read for
+   *  it, since it may swap the array. Under a dry run the write is journaled for `undoDry()` to reverse;
    *  otherwise, while a snapshot is live, the first write swaps in a copy so the snapshot's own
    *  map stays as it was. */
-  private write(gear: Gear): void {
-    if (ctx.dryRun) dryLog.push(this.at, gear, this.at.get(gear));
-    else if (ctx.guarded && !this.atCloned) { this.at = new Map(this.at); this.atCloned = true; }
+  private write(gear: Gear): number {
+    const k = this.reach(gear);
+    if (ctx.dryRun) dryLog.push(this.at, k as unknown as Gear, this.at[k]);
+    else if (ctx.guarded && !this.atCloned) { this.at = this.at.slice(); this.atCloned = true; }
+    return k;
   }
   /** The same ahead of a write to `expires[i]`. */
   private writeExpiry(i: number): void {
@@ -187,20 +216,20 @@ class Pool {
   }
   /** Refresh a held timed Gear's expiry without changing its count — a re-grant at full stacks. */
   touch(gear: Gear): void {
-    const i = this.at.get(gear);
-    if (i !== undefined) this.stamp(i, gear);
+    const i = this.pos(gear);
+    if (i >= 0) this.stamp(i, gear);
   }
   /** Push a held timed Gear's expiry `frames` later, its count untouched — "extends its duration". */
   extend(gear: Gear, frames: number): void {
-    const i = this.at.get(gear);
-    if (i === undefined || !this.expires[i]) return;
+    const i = this.pos(gear);
+    if (i < 0 || !this.expires[i]) return;
     this.writeExpiry(i);
     this.expires[i] += frames;
   }
   /** Frames `gear` has left, or 0 where it is untimed or not held. */
   left(gear: Gear): number {
-    const i = this.at.get(gear);
-    if (i === undefined) return 0;
+    const i = this.pos(gear);
+    if (i < 0) return 0;
     const at = this.expires[i]!;
     return at === 0 ? 0 : at - ctx.state!.frame;
   }
@@ -211,7 +240,7 @@ class Pool {
     let out: Gear[] | null = null, next = Infinity;
     for (let i = 0; i < this.list.length; i++) {
       const at = this.expires[i]!;
-      if (at === 0 || this.at.get(this.list[i]!) !== i) continue;
+      if (at === 0 || this.pos(this.list[i]!) !== i) continue;
       if (at <= now) (out ??= []).push(this.list[i]!);
       else if (at < next) next = at;
     }
@@ -220,13 +249,13 @@ class Pool {
   }
   /** How many ticks `gear` has fired since it was granted, 0 where it is not held. */
   ticksOf(gear: Gear): number {
-    const i = this.at.get(gear);
-    return i === undefined ? 0 : this.ticks[i]!;
+    const i = this.pos(gear);
+    return i < 0 ? 0 : this.ticks[i]!;
   }
   /** Frames until `gear`'s next tick, 0 where it has no tick or is not held. */
   tickIn(gear: Gear): number {
-    const i = this.at.get(gear);
-    if (i === undefined || !gear.tickFn) return 0;
+    const i = this.pos(gear);
+    if (i < 0 || !gear.tickFn) return 0;
     return gear.tickEvery!() - this.progress[i]!;
   }
   /** Run the fight clock from frame `a` to `b` over every live Gear with a tick: each accrues the
@@ -235,10 +264,25 @@ class Pool {
    *  An `every` of 0 is the clock standing still for this span. The fires are only collected
    *  (`due`, with each tick's ordinal and the frame it falls on), for the caller to run once the
    *  pass is over: one may grant into or revoke out of this very pool. */
+  /** The indices in `list` holding a Gear with a clock, rebuilt whenever `list` is replaced. */
+  private tickFor: Gear[] | null = null;
+  private tickIdx: number[] = [];
+  /** Does any Gear this pool has ever held carry a clock — `advance()` has nothing to do without. */
+  hasTicks(): boolean {
+    if (this.tickFor !== this.list) {
+      this.tickFor = this.list;
+      this.tickIdx = [];
+      for (let i = 0; i < this.list.length; i++) if (this.list[i]!.tickFn) this.tickIdx.push(i);
+    }
+    return this.tickIdx.length !== 0;
+  }
   advance(a: number, b: number, due: { gear: Gear; n: number; at: number }[], motionStop = 0, offField: (gear: Gear) => boolean = () => false): void {
-    for (let i = 0; i < this.list.length; i++) {
+    if (!this.hasTicks()) return;
+    const idx = this.tickIdx;
+    for (let t = 0; t < idx.length; t++) {
+      const i = idx[t]!;
       const gear = this.list[i]!;
-      if (!gear.tickFn || this.at.get(gear) !== i) continue;
+      if (this.pos(gear) !== i) continue;
       const at = this.expires[i]!;
       // an off-field clock loses the press's motion-stopped frames, or gains its free time stop
       const skip = offField(gear) ? motionStop : 0;
@@ -263,17 +307,17 @@ class Pool {
     }
   }
   get(gear: Gear): number | undefined {
-    const i = this.at.get(gear);
-    return i === undefined ? undefined : this.counts[i];
+    const i = this.pos(gear);
+    return i < 0 ? undefined : this.counts[i];
   }
   /** Every live Gear, in order — for the report's popover; the phases read `hooks` instead. */
-  gears(): Gear[] { return this.list.filter((g, i) => this.at.get(g) === i); }
+  gears(): Gear[] { return this.list.filter((g, i) => this.pos(g) === i); }
 
   /** `refresh` is whether this write restarts a timed Gear's clock: a grant does, a spend does not
    *  — a buff that pays a stack off (Brant's S2 blasts) keeps the window it was granted with. */
   set(gear: Gear, n: number, refresh = true): void {
-    const i = this.at.get(gear);
-    if (i !== undefined) {
+    const i = this.pos(gear);
+    if (i >= 0) {
       const counts = this.counts.slice();
       counts[i] = n;
       this.counts = counts;
@@ -281,8 +325,8 @@ class Pool {
       return;
     }
     const k = this.list.length;
-    this.write(gear);
-    this.at.set(gear, k);
+    const w = this.write(gear);
+    this.at[w] = k + 1;
     const list = this.list.slice(), counts = this.counts.slice();
     list.push(gear); counts.push(n);
     this.list = list; this.counts = counts;
@@ -305,10 +349,10 @@ class Pool {
     if (gear.constantStatsFn) ctx.constVersion++;
   }
   delete(gear: Gear): void {
-    const i = this.at.get(gear);
-    if (i === undefined) return;
-    this.write(gear);
-    this.at.delete(gear);
+    const i = this.pos(gear);
+    if (i < 0) return;
+    const w = this.write(gear);
+    this.at[w] = 0;
     if (gear.constantStatsFn) ctx.constVersion++;
     if (gear.hookMask) {
       const hooks = this.hooks.slice();
@@ -326,10 +370,10 @@ class Pool {
     const hooks: number[][] = Array.from({ length: PHASE_COUNT }, () => []);
     for (let i = 0; i < this.list.length; i++) {
       const gear = this.list[i]!;
-      if (this.at.get(gear) !== i) continue;
+      if (this.pos(gear) !== i) continue;
       const k = list.length;
-      this.write(gear);
-      this.at.set(gear, k);
+      const w = this.write(gear);
+      this.at[w] = k + 1;
       list.push(gear); counts.push(this.counts[i]!); expires.push(this.expires[i]!);
       progress.push(this.progress[i]!); ticks.push(this.ticks[i]!);
       for (let mask = gear.hookMask, p = 0; mask; mask >>= 1, p++) if (mask & 1) hooks[p]!.push(k);
@@ -370,6 +414,17 @@ export class TeamMember {
    *  back (Infinity while full). Written only between actions and by kit hooks outside dry runs,
    *  so no fight snapshot carries it. */
   cooldowns = new Map<Cooldown, { charges: number; next: number }>();
+  /** The rotation chain this member is playing now (rotation.ts's `runChain`), null outside one. */
+  visitChain: object | null = null;
+  /** The frame the field was last handed to this member, and the visit that handed it — a repeating
+   *  schedule always follows one visit with the same next one, so that visit names this one. */
+  handoffAt = -1;
+  private handoffKey: object | null = null;
+  /** Per handing visit, how long after the handoff each cooldown-gated press of this member's
+   *  visit came up — first reached, before any wait — read at the next handoff from that visit to
+   *  hold it until the press would land ready (`handoffShortfall`). */
+  private gates = new Map<object, Map<Cooldown, number>>();
+  private gateSeen = new Set<Cooldown>();
   /** A second, parallel energy counter for the ER-requirement estimate (the detail page's own
    *  Energy Requirements table) — unlike `energy` above, it starts a fight already filled (set to
    *  `maxEnergy` by Resonator's own combatStart) and only resets on a `resetEnergy`-marked
@@ -435,12 +490,12 @@ export class TeamMember {
    *  test it against the action's own tags directly. Indexed by `STAT_INDEX`, not keyed by the
    *  stat string. Replaced (not cleared) each action, so a snapshot can keep the one it was built
    *  with at zero copying cost. */
-  effective: number[] = ZERO_STATS.slice();
+  effective: StatRow = statRow();
   /** What every held Gear's `constantStats` adds up to for this slot, per action tag word (the
    *  scopes that match), in `effective`'s own shape — built the first time each tag word is seen
    *  and added into `effective` in one pass every action after (see `evaluate()`). Cleared when
    *  `ctx.constVersion` moves on. */
-  constBase = new Map<number, number[]>();
+  constBase = new Map<number, StatRow>();
   constBaseVersion = -1;
   /** Main-stat variants to score alongside this member's own build (solver.ts's own
    *  `scoreMainstats()`): the held main-stat Buff each stands in for, the alternatives, and per
@@ -464,10 +519,10 @@ export class TeamMember {
   variantUnsafe: boolean[] = [];
   /** Scratch for a varied action, reused rather than allocated per action: the stats as the phases
    *  before the constant base left them, and each variant's own working copy. */
-  pre: number[] = ZERO_STATS.slice();
-  post2: number[] = ZERO_STATS.slice();
-  post4: number[] = ZERO_STATS.slice();
-  variantEff: number[][] = [];
+  pre: StatRow = statRow();
+  post2: StatRow = statRow();
+  post4: StatRow = statRow();
+  variantEff: StatRow[] = [];
   /** Per variant, whether the action being evaluated re-ran its conversions dry (see `evaluate()`). */
   variantDry: boolean[] = [];
 
@@ -554,6 +609,49 @@ export class TeamMember {
   }
   /** Spend one charge of `cd` at frame `now`, starting its recharge if the count was full — for
    *  `frames` where the cast sets its own length on a shared cooldown. */
+  /** The field is handed to this member at `now` by the visit `from` (null: none to learn from). */
+  arrive(from: object | null, now: number): void {
+    this.handoffAt = now;
+    this.handoffKey = from;
+    this.gateSeen.clear();
+  }
+  /** A rotation press gated by `cd` reached at `now` in this visit: its offset from the handoff. */
+  noteGate(cd: Cooldown, now: number): void {
+    if (this.handoffAt < 0 || !this.handoffKey || this.gateSeen.has(cd)) return;
+    this.gateSeen.add(cd);
+    let gates = this.gates.get(this.handoffKey);
+    if (!gates) this.gates.set(this.handoffKey, (gates = new Map()));
+    gates.set(cd, now - this.handoffAt);
+  }
+  /** How long a handoff from the visit `from` at `now` has to hold so every cooldown-gated press of
+   *  this member's coming visit lands with a charge ready, going by the last visit that one handed
+   *  into — the longest shortfall, with the Cooldown it is on, or null where none falls short. */
+  handoffShortfall(from: object | null, now: number, planned: VisitGate[] | null = null): { cd: Cooldown; frames: number } | null {
+    // a visit not seen from this handoff yet goes by its own presses' frames (`chainGates`)
+    const learned = from ? this.gates.get(from) : undefined;
+    const gates: Iterable<[Cooldown, number]> | null = learned ?? (planned && planned.map((g): [Cooldown, number] => [g.cd, g.offset]));
+    if (!gates) return null;
+    let out: { cd: Cooldown; frames: number } | null = null;
+    for (const [cd, offset] of gates) {
+      const at = now + offset;
+      const short = this.readyAt(cd, at) - at;
+      if (short > 0 && (!out || short > out.frames)) out = { cd, frames: short };
+    }
+    return out;
+  }
+  /** The first frame from `at` on with a charge of `cd` standing — `cooldownAt` read ahead, leaving
+   *  the stored charges where they are. */
+  private readyAt(cd: Cooldown, at: number): number {
+    const max = cd.charges();
+    const held = this.cooldowns.get(cd);
+    if (!held) return at;
+    let charges = held.charges, next = held.next;
+    while (charges < max && next <= at) {
+      charges++;
+      next = charges < max ? next + cd.frames() : Infinity;
+    }
+    return charges > 0 ? at : next;
+  }
   spendCooldown(cd: Cooldown, now: number, frames = cd.frames()): void {
     const s = this.cooldownAt(cd, now);
     if (s.next === Infinity) s.next = now + frames;
@@ -580,6 +678,9 @@ export class TeamMember {
 
 /** A team: several Slots, one active at a time, plus team-wide (global) Gear held once rather
  *  than per-slot — the "ticks for whoever's acting" mechanism the old engine's GlobalBuff was. */
+/** One entry on the fight's clock (`State.timed`): a queued hit, a press's end, or a function. */
+export interface Timed { due: number; action: Action | null; slot: number; into: Result | null; by: HeldBuff | null; away?: boolean; apply?: () => void; losses?: Gear[]; frames?: number; closes?: boolean; triggered?: boolean }
+
 export class State {
   slots: TeamMember[];
   active = 0;
@@ -592,6 +693,13 @@ export class State {
    *  are charged to (`run()`). */
   presser = -1;
   swapRow: Result | null = null;
+  /** The last press the on-field member made of their own — what an Outro's swap delay is charged
+   *  to, the Outro itself never carrying it — and whether that delay is already on the clock. */
+  lastOwn: Result | null = null;
+  swapPaid = false;
+  /** The visit a handoff into slot `to` opens, timed off its presses (rotation.ts's `chainGates`),
+   *  for a handoff with no visit learned yet — set by `runRotations()`, null outside one. */
+  plannedGates: ((to: number) => VisitGate[] | null) | null = null;
   /** Where the last press (or the handoff's swap frames) ends, and how much of its off-field
    *  pause is still to play: `run()` walks the clock there, landing every queued hit due on the way. */
   playsTo = 0;
@@ -637,7 +745,7 @@ export class State {
    *  the cast's row, and takes with it what its swap cancel loses once it lands (`losses`); one a
    *  tick queued (`ctx.tickAt`) is a row of its own, credited to `by`; one with `apply` and no
    *  action is run there instead (`applyOn()`, a heal tick's), no row at all. */
-  timed: { due: number; action: Action | null; slot: number; into: Result | null; by: HeldBuff | null; away?: boolean; apply?: () => void; losses?: Gear[]; frames?: number; closes?: boolean; triggered?: boolean }[] = [];
+  timed: Timed[] = [];
   /** Casts waiting for the next Intro — queued behind it, on the slot that queued them, the
    *  moment an Intro-cast action is evaluated (see `queueOnIntro()`). */
   introQueue: { action: Action; slot: number; by: HeldBuff | null; event: boolean }[] = [];
@@ -673,11 +781,9 @@ export class State {
    *  member's turn. This is what tells those apart. Trace-only, like `grantedBy` above. */
   grantedOn = new Map<Gear, string>();
 
-  /** The three fight snapshots `evaluate()` takes around a varied action — before the stat phases,
-   *  after them, and after banking — made once, the first time this team needs them. */
-  snapshots: [FightSnapshot, FightSnapshot, FightSnapshot, FightSnapshot] | null = null;
-  /** The fight going into a non-final hit's stat phases, put back after them (`evaluate()`). */
-  deferSnap: FightSnapshot | null = null;
+  /** The two fight snapshots `evaluate()` takes around a varied whole press's afterAction — after
+   *  banking, and after the real build's own — made once, the first time this team needs them. */
+  snapshots: [FightSnapshot, FightSnapshot] | null = null;
 
   constructor(names: string[]) {
     this.slots = names.map((n, i) => { const m = new TeamMember(n); m.index = i; return m; });
@@ -824,6 +930,7 @@ export class State {
       return !!owner && !!presser && owner !== presser;
     };
     const collect = (pool: Pool, slot: TeamMember, holder: TeamMember | null): void => {
+      if (!pool.hasTicks()) return;
       const from = due.length;
       ctx.slot = slot;
       pool.advance(a, b, due as { gear: Gear; n: number; at: number }[], motionStop, offField(holder));
@@ -861,7 +968,7 @@ export class FightSnapshot {
   enemy: PoolSnapshot;
   offtune = 0;
   constructor(state: State) {
-    const pool = (): PoolSnapshot => ({ list: [], counts: [], hooks: [], globalHooks: [], at: new Map(), dead: 0, expires: [], nextExpiry: Infinity, progress: [], ticks: [] });
+    const pool = (): PoolSnapshot => ({ list: [], counts: [], hooks: [], globalHooks: [], at: new Int32Array(0), dead: 0, expires: [], nextExpiry: Infinity, progress: [], ticks: [] });
     const member = (): MemberSnapshot => ({ pool: pool(), globalHooks: new Set(), forte: [0, 0, 0, 0, 0], concerto: 0 });
     this.members = state.slots.map(member);
     this.global = pool(); this.enemy = pool();

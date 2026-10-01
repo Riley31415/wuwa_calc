@@ -48,7 +48,7 @@ export interface GearDef {
   /** The hit phase's first hook: what the hit *inflicts* — the enemy debuffs (Tune Shifting, the
    *  elemental Negative Statuses) and the shield marker (see statuses.ts) it puts up. Runs on every
    *  hit, ahead of `hitGlobal` and the stat phases — an action's own too; an infliction a press makes
-   *  once goes on the hit that makes it (`HitDef.updateDebuffs`). Never a stat. */
+   *  once goes on the hit that makes it (`BulletDef.updateDebuffs`). Never a stat. */
   updateDebuffs?: () => void;
   /** The cast's watcher over the whole team: same shape as `updateBuffs`, but run for this Gear
    *  whoever casts — every slot's own held gear, not just the caster's. What a self-held buff needs
@@ -178,6 +178,9 @@ export class Gear {
   /** A small integer unique to this Gear — what a variant dry run hashes a mutation by, to tell
    *  whether it would have changed the fight (see `noteMutation()`). */
   id: number;
+  /** A dense index the pools file this Gear under (`Pool.at`), handed out the first time any pool
+   *  holds it; -1 until then. Engine-owned. */
+  poolIdx = -1;
   /** The same six hooks by phase index (bit order of `PHASE_*`), for `runPhase()` to call one
    *  phase's hook without naming the field — only the phases set in `hookMask` are ever read. */
   hookFns: ((() => void) | undefined)[] = [];
@@ -711,6 +714,9 @@ export interface ResonatorDef extends GearDef {
   dodge?: (after: Action) => Action | null;
   /** The same for a jump. */
   jump?: (after: Action) => Action | null;
+  /** A wait the resonator handing this one the field must play before `next` (the arrival's first
+   *  cast; an Outro asks with the Intro) — Phrolova's Hecate. Asked again after it; null goes ahead. */
+  holdBefore?: (next: Action) => Action | null;
   /** How hard this resonator is to own, which is what sets the resonance-chain level their build
    *  is costed at — see stats.ts's own `Tier` and `baseSequence()`. Unset means `Tier.Limited`. */
   tier?: Tier;
@@ -743,6 +749,7 @@ export class Resonator extends Gear {
   tuneBreak?: Action;
   dodgeFn?: (after: Action) => Action | null;
   jumpFn?: (after: Action) => Action | null;
+  holdFn?: (next: Action) => Action | null;
   tier: Tier;
   constructor(def: ResonatorDef) {
     super({
@@ -789,6 +796,7 @@ export class Resonator extends Gear {
     this.intro = def.intro;
     this.tuneBreak = def.tuneBreak;
     this.dodgeFn = def.dodge;
+    this.holdFn = def.holdBefore;
     this.jumpFn = def.jump;
     this.tier = def.tier ?? Tier.Limited;
   }

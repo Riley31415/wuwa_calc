@@ -37,7 +37,7 @@ function cell(col: Column, { cls = [], html = "", pop = "", style = "", attr = "
 const TAG_KIND: Partial<Record<ActionTag, string>> = {
   [ActionTag.InstaCancel]: "insta", [ActionTag.InstaDodge]: "insta", [ActionTag.InstaJump]: "insta", [ActionTag.InstaSwap]: "insta",
   [ActionTag.SwapCancel]: "swap", [ActionTag.EasyCancel]: "easy", [ActionTag.Field]: "field",
-  [ActionTag.DodgeCancel]: "dash", [ActionTag.JumpCancel]: "jump", [ActionTag.Cancel]: "cancel", [ActionTag.HitCancel]: "hit",
+  [ActionTag.DodgeCancel]: "dash", [ActionTag.JumpCancel]: "jump", [ActionTag.Cancel]: "cancel", [ActionTag.HitCancel]: "hit", [ActionTag.DodgeOnHit]: "dash", [ActionTag.JumpOnHit]: "jump",
 };
 
 /** One row of the log. A running column is blank where the row left it exactly as it came in
@@ -258,7 +258,7 @@ function erRequirement(flat: ChainGroup[], resetIdx: number, member: string, max
       if (s.member !== member) continue;
       if (s.action.resetEnergy) break walk;
       if (s.energyWiped) continue;
-      const gain = (s.action.energy + s.stat(Stat.AddEnergy) + s.stat(Stat.AddCastEnergy)) * (1 + s.stat(Stat.EnergyRegenMult) / 100);
+      const gain = (s.action.energy + s.stat(Stat.AddEnergy) + (s.castGain?.[0] ?? 0)) * (1 + s.stat(Stat.EnergyRegenMult) / 100);
       buffed += gain * (s.stat(Stat.Er) - constant);
     }
   }

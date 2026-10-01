@@ -37,6 +37,9 @@ export interface TeamRun {
   fightBySlot: Map<string, number>;
   /** How long the four rotations took, in seconds — what DPS and the loop length divide by. */
   seconds: number;
+  /** How long each rotation took, in seconds — first cast to the next rotation's (the fight's end
+   *  for the last); they add up to `seconds`. */
+  sectionSeconds: number[];
   /** Per member, per main-stat variant scored alongside this run (state.ts's `TeamMember.variants`). */
   variantRuns: VariantRun[][];
   /** The detail page's report, built on first open (page/model.ts's `detailFor`). */
@@ -350,6 +353,11 @@ const ER_SEEN = new Map<string, Map<string, number>[]>();
 const ER_NEED_AT = new Map<string, number[]>();
 const needKey = (teamKey: string, combo: Combo[]): string => `${teamKey}|${combo.map((c) => c.key).join(",")}`;
 
+/** Per loadout and build, the least any team has measured it to need: the opening guess for a team
+ *  not run yet. The least, since a guess too high costs a whole re-run and one too low only the part
+ *  of a run up to the Liberation it can't fill. */
+const ER_PRIOR = new WeakMap<Loadout, Map<string, number>>();
+
 /** Per loadout, the constant ER a combo's own gear adds up to — the same pieces recur across a
  *  team's combos, so this is read far more often than it is filled. */
 const ER_HELD = new WeakMap<Loadout, Map<string, number>>();
@@ -359,11 +367,11 @@ const ER_HELD = new WeakMap<Loadout, Map<string, number>>();
  *  that run and becomes the guess every combo after starts from. */
 export function erNeedFor(teamKey: string, members: Member[], combo: Combo[]): number[] {
   const last = ER_LAST.get(teamKey), seen = ER_SEEN.get(teamKey);
-  return members.map((_, i) => seen?.[i]?.get(combo[i]!.build) ?? last?.[i] ?? 0);
+  return members.map((m, i) => seen?.[i]?.get(combo[i]!.build) ?? last?.[i] ?? ER_PRIOR.get(m.loadout)?.get(combo[i]!.build) ?? 0);
 }
 
 /** Bank what a run of `combo` measured (or, with `member`, what one cast of theirs asked for). */
-function remember(teamKey: string, combo: Combo[], need: number[], member = -1): void {
+function remember(teamKey: string, members: Member[], combo: Combo[], need: number[], member = -1): void {
   ER_LAST.set(teamKey, need);
   let seen = ER_SEEN.get(teamKey);
   if (!seen) {
@@ -371,7 +379,12 @@ function remember(teamKey: string, combo: Combo[], need: number[], member = -1):
     ER_SEEN.set(teamKey, seen);
   }
   need.forEach((n, i) => {
-    if (member < 0 || member === i) seen![i]!.set(combo[i]!.build, n);
+    if (member >= 0 && member !== i) return;
+    seen![i]!.set(combo[i]!.build, n);
+    let prior = ER_PRIOR.get(members[i]!.loadout);
+    if (!prior) ER_PRIOR.set(members[i]!.loadout, prior = new Map());
+    const was = prior.get(combo[i]!.build);
+    if (was === undefined || n < was) prior.set(combo[i]!.build, n);
   });
 }
 
@@ -468,7 +481,7 @@ export function runTeam(teamKey: string, members: Member[], combo: Combo[], trac
         const at = members.findIndex((m) => m.name === ER_SHORT.member);
         const raised = (ER_NEED_AT.get(key) ?? erNeedFor(teamKey, members, combo)).slice();
         raised[at] = Math.max(raised[at] ?? 0, ER_SHORT.need);
-        remember(teamKey, combo, raised, at);
+        remember(teamKey, members, combo, raised, at);
         if (known) ER_NEED_AT.set(key, raised);
         floor[at] = erRollsFor(teamKey, members, combo)[at]!;
         continue;
@@ -477,7 +490,7 @@ export function runTeam(teamKey: string, members: Member[], combo: Combo[], trac
       const measured = run.state ? measureNeed(members, combo, run.state) : null;
       if (measured && !known) {
         ER_NEED_AT.set(key, measured);
-        remember(teamKey, combo, measured);
+        remember(teamKey, members, combo, measured);
       }
       if (measured) {
         const asked = erRollsFor(teamKey, members, combo);
@@ -543,9 +556,10 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
   withTeam(state, () => equipEnemy(TUNE_BREAK_ENEMY));
 
   // one continuous fight of four rotations, whatever the team, the opener the first of them
-  const { sections, end: frames } = runRotations(state, members.map((m, i) => m.loadout.rotationAt(combo[i]!.sequence)), 4);
+  const { sections, starts, end: frames } = runRotations(state, members.map((m, i) => m.loadout.rotationAt(combo[i]!.sequence)), 4);
   const complete = sections.length;
   const rotationLines = sections.map(toLines);
+  const sectionSeconds = starts.map((at, k) => ((starts[k + 1] ?? frames) - at) / 60);
 
   const { total, bySlot, sectionTotals, sectionBySlot, fightTotal, fightBySlot, seconds } = sumRun(rotationLines, complete, frames, (line) => line.avg);
   const variantRuns = variantSums(rotationLines, complete, frames, members, variants, state);
@@ -553,19 +567,19 @@ function runTeamInner(teamKey: string, members: Member[], combo: Combo[], trace:
   // a traced run's results are the full snapshots (see `Result`), which the report's own folds read
   return {
     state, teamKey, members, combo, rotationLines: trace ? collapseFields(rotationLines as ChainGroup[][]) : null,
-    total, bySlot, sectionTotals, sectionBySlot, fightTotal, fightBySlot, seconds, variantRuns,
+    total, bySlot, sectionTotals, sectionBySlot, fightTotal, fightBySlot, seconds, sectionSeconds, variantRuns,
   };
 }
 
 /** A row's figures as plain data a worker can post back: `TeamRun`'s own, Maps as entries. */
 export interface RowScore {
   total: number; bySlot: [string, number][]; sectionTotals: number[]; sectionBySlot: [string, number][][];
-  fightTotal?: number; fightBySlot?: [string, number][]; seconds?: number;
+  fightTotal?: number; fightBySlot?: [string, number][]; seconds?: number; sectionSeconds?: number[];
 }
 
 export const scoreOf = (run: TeamRun): RowScore => ({
   total: run.total, bySlot: [...run.bySlot], sectionTotals: run.sectionTotals, sectionBySlot: run.sectionBySlot.map((by) => [...by]),
-  fightTotal: run.fightTotal, fightBySlot: [...run.fightBySlot], seconds: run.seconds,
+  fightTotal: run.fightTotal, fightBySlot: [...run.fightBySlot], seconds: run.seconds, sectionSeconds: run.sectionSeconds,
 });
 
 export const runFromScore = (teamKey: string, members: Member[], combo: Combo[], score: RowScore): TeamRun => ({
@@ -577,4 +591,6 @@ export const runFromScore = (teamKey: string, members: Member[], combo: Combo[],
   fightBySlot: new Map(score.fightBySlot ?? score.bySlot.map(([slot, v]): [string, number] => [slot, (v * 120) / 26])),
   // a score saved before it: the time the sections took, off their damage and its rate
   seconds: score.seconds ?? (score.sectionTotals.reduce((a, b) => a + b, 0) * 26) / Math.max(1, score.total),
+  // a score saved before it: each rotation the average of the time they took
+  sectionSeconds: score.sectionSeconds ?? score.sectionTotals.map(() => (score.seconds ?? 0) / Math.max(1, score.sectionTotals.length)),
 });

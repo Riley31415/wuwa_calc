@@ -29,6 +29,7 @@ import {
   applyCurrent,
   applyTeam,
   casting,
+  castGained,
   currentAction,
   currentTeam,
   getStat,
@@ -76,7 +77,7 @@ export const gainedUnison = inflicting(() => applied(UNISON) > 0);
  *  and gone once the Intro row has paid out. */
 export const UNISON_INTRO = new Buff({
   //name: "Unison Intro",
-  convertStats: () => { if (casting(Cast.Intro)) revokeCurrent(UNISON_INTRO); },
+  afterAction: () => { if (casting(Cast.Intro)) revokeCurrent(UNISON_INTRO); },
 });
 
 /** Is the Intro being resolved or evaluated answering a Unison outro? True from an Intro Resolver —
@@ -90,7 +91,7 @@ export function unisonIntro(): boolean {
  *  Intro in its own updateBuffs, which runs ahead of every held Gear's, so all of them see it. */
 export const UNISON_RESPONSE = new Buff({
   //name: "Unison Response",
-  convertStats: () => { if (casting(Cast.Intro)) revokeCurrent(UNISON_RESPONSE); },
+  afterAction: () => { if (casting(Cast.Intro)) revokeCurrent(UNISON_RESPONSE); },
 });
 
 /** What a responder's Unison Intro form declares in its updateBuffs — the handoff is adopted ahead
@@ -104,11 +105,11 @@ export const unisonResponse = inflicting(() => applied(UNISON_RESPONSE) > 0);
 
 /** "When the wielder consumes Concerto Energy" — a cast of their own that spends some, which an
  *  outro's own bar is not. Reads the declared field plus whatever a held buff's own conditional
- *  spend (Suoming's Rift Cleaver, Unison held) has already added by this point — the action's own
- *  updateBuffs runs ahead of every held Gear's in the same phase, so that addition is in `getStat`
- *  before this is ever checked. */
+ *  spend (Suoming's Rift Cleaver, Unison held) has already added to the cast by this point — the
+ *  action's own updateBuffs runs ahead of every held Gear's in the same phase, so that addition is
+ *  in `castGained()` before this is ever checked. */
 export const consumedConcerto = (): boolean =>
-  currentAction().concerto + getStat(Stat.AddConcerto) + getStat(Stat.AddCastConcerto) < 0 && !casting(Cast.Outro);
+  currentAction().concerto + getStat(Stat.AddConcerto) + castGained("concerto") < 0 && !casting(Cast.Outro);
 
 /** Unison Boon: +3% DMG dealt a stack, two at most — three with Hsin's Gleaning Simple Joys and
  *  four with her S6, each of which is both a cap raise and the extra grant that reaches it — 30s,
@@ -132,16 +133,16 @@ export function grantBoon(marker: Buff): void {
   applyCurrent(marker, 1);
 }
 
-/** The Boon's payout: +3% DMG Amplification a stack, +4.5% beside Suoming's S6. Carried by a
+/** The Boon's payout: +3% Total DMG a stack, +4.5% beside Suoming's S6. Carried by a
  *  responder's own `boonPayout()` buff rather than by the Boon itself — the Boon is one shared
  *  team-wide Gear, so whoever granted it first would be the only member the loadout hover could
  *  trace it back to (see `State.grantedBy`). */
-export const unisonBoonAmp = (): void => {
+export const unisonBoonDmg = (): void => {
   const stacks = stacksOfTeam(UNISON_BOON);
   // filed under the Boon itself, so the stat's own hover names what actually pays it rather than
   // the piece that called for it — the caller is still the holder, so the loadout hover keeps
   // listing it under that mode/resonator
-  if (stacks) addStat(Stat.Amp, (stacksOfTeam(NINE_SHADOWS) ? 4.5 : 3) * stacks);
+  if (stacks) addStat(Stat.TotalDmg, (stacksOfTeam(NINE_SHADOWS) ? 4.5 : 3) * stacks);
 };
 
 /** Suoming's S6 on the team: every stack of Unison Boon pays half again — +4.5% rather than +3%,
@@ -154,5 +155,5 @@ export const NINE_SHADOWS = new Buff({ name: "Suoming S6: Nine Shadows at Her Si
  *  here. Hidden, since the Boon it stands for is already a held buff in its own right. */
 export const boonPayout = (): Buff => new Buff({
   name: "Unison Boon", hidden: true,
-  applyStats: () => unisonBoonAmp(),
+  applyStats: () => unisonBoonDmg(),
 });

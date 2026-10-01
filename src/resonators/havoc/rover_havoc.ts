@@ -42,21 +42,21 @@ function roverAction(id: string, def: object): Action {
 //     combos sharing a prefix (cross-checked two ways, all consistent).
 const BA1 = roverAction("Basic - Tuneslayer 1", { animFrames: 18, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 56.67, energy: 0.6, concerto: 0.74, offtune: 2400, forte1: 3 });
 // PLACEHOLDER FRAMES
-const BA2 = roverAction("Basic - Tuneslayer 2", { animFrames: 33, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 33, mv: 56.67, energy: 0.6, concerto: 0.74, offtune: 2400 },
-    { at: 33, mv: 56.67, energy: 0.6, concerto: 0.74, offtune: 2400, forte1: 6 },
+const BA2 = roverAction("Basic - Tuneslayer 2", { animFrames: 33, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 33, mv: 56.67, energy: 0.6, concerto: 0.74, offtune: 2400 },
+    { hitFrame: 33, mv: 56.67, energy: 0.6, concerto: 0.74, offtune: 2400, forte1: 6 },
   ]});
-const BA3 = roverAction("Basic - Tuneslayer 3", { animFrames: 33, commitFrames: 27, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 85.00, energy: 0.9, concerto: 1.11, offtune: 2800, forte1: 4 });
+const BA3 = roverAction("Basic - Tuneslayer 3", { animFrames: 33, bullets: [{ hitFrame: 27, mv: 85.00, energy: 0.9, concerto: 1.11, offtune: 2800, forte1: 4 }], node: Node.Normal, cast: Cast.Basic, type: Type.Basic});
 // PLACEHOLDER FRAMES
-const BA4 = roverAction("Basic - Tuneslayer 4", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 0, mv: 40.3, energy: 0.42, concerto: 0.52, offtune: 1707 },
-    { at: 0, mv: 40.3, energy: 0.42, concerto: 0.52, offtune: 1707 },
-    { at: 0, mv: 40.3, energy: 0.42, concerto: 0.52, offtune: 1707, forte1: 9 },
+const BA4 = roverAction("Basic - Tuneslayer 4", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 0, mv: 40.3, energy: 0.42, concerto: 0.52, offtune: 1707 },
+    { hitFrame: 0, mv: 40.3, energy: 0.42, concerto: 0.52, offtune: 1707 },
+    { hitFrame: 0, mv: 40.3, energy: 0.42, concerto: 0.52, offtune: 1707, forte1: 9 },
   ]});
 // PLACEHOLDER FRAMES
-const BA5 = roverAction("Basic - Tuneslayer 5", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 0, mv: 94.44, energy: 1, concerto: 1.24, offtune: 4000 },
-    { at: 0, mv: 94.44, energy: 1, concerto: 1.24, offtune: 4000, forte1: 10 },
+const BA5 = roverAction("Basic - Tuneslayer 5", { node: Node.Normal, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 0, mv: 94.44, energy: 1, concerto: 1.24, offtune: 4000 },
+    { hitFrame: 0, mv: 94.44, energy: 1, concerto: 1.24, offtune: 4000, forte1: 10 },
   ]});
 
 const MA = roverAction("Mid-air - Plunging Attack", { animFrames: 37, node: Node.Normal, cast: Cast.Basic, type: Type.Basic, mv: 117.10, energy: 0.41, concerto: 1, offtune: 9600, forte1: 9 });
@@ -66,8 +66,8 @@ const HA = roverAction("Heavy - Attack", { node: Node.Normal, cast: Cast.Heavy, 
 // --- forte circuit: Devastation, at full Umbra — enters Dark Surge, considered Heavy Attack DMG,
 //     and (S4) shreds the target's own Havoc RES
 const Devastation = roverAction("Forte Heavy - Devastation", {
-  animFrames: 62, commitFrames: 15,
-  node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, mv: 228.14, energy: 1.7, offtune: 56320, castForte1: -100,
+  animFrames: 62, bullets: [{ hitFrame: 15, mv: 228.14, energy: 1.7, offtune: 56320 }],
+  node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, castForte1: -100,
   updateBuffs: () => {
     applyCurrent(DARK_SURGE, 1);
     // S2: entering Dark Surge through Devastation resets Wingblade's cooldown
@@ -82,24 +82,24 @@ const EBA1 = roverAction("Basic - Umbra 1", { node: Node.Forte, cast: Cast.Basic
 const EBA2 = roverAction("Basic - Umbra 2", { node: Node.Forte, cast: Cast.Basic, type: Type.Basic, mv: 93.94, energy: 0.7, concerto: 1.2, offtune: 2560 });
 const EBA3 = roverAction("Basic - Umbra 3", { node: Node.Forte, cast: Cast.Basic, type: Type.Basic, mv: 155.67, energy: 1.16, concerto: 1.98, offtune: 4480 });
 // PLACEHOLDER FRAMES
-const EBA4 = roverAction("Basic - Umbra 4", { node: Node.Forte, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 0, mv: 37.13, energy: 0.2733, concerto: 0.4717, offtune: 2213.3333 },
-    { at: 0, mv: 37.13, energy: 0.2733, concerto: 0.4717, offtune: 2213.3333 },
-    { at: 0, mv: 37.13, energy: 0.2733, concerto: 0.4717, offtune: 2213.3333 },
-    { at: 0, mv: 111.39, energy: 0.8201, concerto: 1.4149, offtune: 6640.0001 },
+const EBA4 = roverAction("Basic - Umbra 4", { node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 0, mv: 37.13, energy: 0.2733, concerto: 0.4717, offtune: 2213.3333 },
+    { hitFrame: 0, mv: 37.13, energy: 0.2733, concerto: 0.4717, offtune: 2213.3333 },
+    { hitFrame: 0, mv: 37.13, energy: 0.2733, concerto: 0.4717, offtune: 2213.3333 },
+    { hitFrame: 0, mv: 111.39, energy: 0.8201, concerto: 1.4149, offtune: 6640.0001 },
   ]});
 // updateDebuffs is her own healing marker, read by every healing sonata and weapon (statuses.ts)
 // — applied to the healer alone, never the team
 // PLACEHOLDER FRAMES
 const EBA5 = roverAction("Basic - Umbra 5", {
-  animFrames: 63, commitFrames: 24,
-  node: Node.Forte, cast: Cast.Basic, type: Type.Basic, hits: [
-    { at: 24, mv: 28.52, energy: 0.2125, concerto: 0.2263, offtune: 7040.3086,
+  animFrames: 63,
+  node: Node.Forte, cast: Cast.Basic, type: Type.Basic, bullets: [
+    { hitFrame: 24, mv: 28.52, energy: 0.2125, concerto: 0.2263, offtune: 7040.3086,
       updateDebuffs: () => applyCurrent(HEALS, 1) },
-    { at: 24, mv: 28.52, energy: 0.2125, concerto: 0.2263, offtune: 7040.3086 },
-    { at: 24, mv: 28.52, energy: 0.2125, concerto: 0.2263, offtune: 7040.3086 },
-    { at: 24, mv: 28.52, energy: 0.2125, concerto: 0.2263, offtune: 7040.3086 },
-    { at: 24, mv: 114.07, energy: 0.85, concerto: 0.9048, offtune: 28158.7656 },
+    { hitFrame: 24, mv: 28.52, energy: 0.2125, concerto: 0.2263, offtune: 7040.3086 },
+    { hitFrame: 24, mv: 28.52, energy: 0.2125, concerto: 0.2263, offtune: 7040.3086 },
+    { hitFrame: 24, mv: 28.52, energy: 0.2125, concerto: 0.2263, offtune: 7040.3086 },
+    { hitFrame: 24, mv: 114.07, energy: 0.85, concerto: 0.9048, offtune: 28158.7656 },
   ],
 });
 
@@ -108,12 +108,12 @@ const EDC = roverAction("Dodge Counter - Umbra", { node: Node.Forte, cast: Cast.
 
 const EHA = roverAction("Heavy - Umbra", { animFrames: 43, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, mv: 128.83, energy: 0.96, concerto: 1.64, offtune: 6400 });
 // PLACEHOLDER FRAMES
-const EHA2 = roverAction("Heavy - Umbra: Thwackblade", { animFrames: 42, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, hits: [
-    { at: 42, mv: 126.65, energy: 0.9435, concerto: 1.6131, offtune: 6622.7792 },
-    { at: 42, mv: 9.95, energy: 0.0741, concerto: 0.1267, offtune: 520.3052 },
-    { at: 42, mv: 9.95, energy: 0.0741, concerto: 0.1267, offtune: 520.3052 },
-    { at: 42, mv: 9.95, energy: 0.0741, concerto: 0.1267, offtune: 520.3052 },
-    { at: 42, mv: 9.95, energy: 0.0742, concerto: 0.1268, offtune: 520.3052 },
+const EHA2 = roverAction("Heavy - Umbra: Thwackblade", { animFrames: 42, node: Node.Forte, cast: Cast.Heavy, type: Type.Heavy, bullets: [
+    { hitFrame: 42, mv: 126.65, energy: 0.9435, concerto: 1.6131, offtune: 6622.7792 },
+    { hitFrame: 42, mv: 9.95, energy: 0.0741, concerto: 0.1267, offtune: 520.3052 },
+    { hitFrame: 42, mv: 9.95, energy: 0.0741, concerto: 0.1267, offtune: 520.3052 },
+    { hitFrame: 42, mv: 9.95, energy: 0.0741, concerto: 0.1267, offtune: 520.3052 },
+    { hitFrame: 42, mv: 9.95, energy: 0.0742, concerto: 0.1268, offtune: 520.3052 },
   ]});
 
 // --- resonance skill: Wingblade outside Dark Surge, Lifetaker inside it — both share
@@ -121,22 +121,22 @@ const EHA2 = roverAction("Heavy - Umbra: Thwackblade", { animFrames: 42, node: N
 /** Wingblade and Umbra: Lifetaker share one 12s cooldown. */
 const SKILL_CD = new Cooldown({ frames: 60 * 12 });
 // PLACEHOLDER FRAMES
-const Skill = roverAction("Skill - Wingblade", { animFrames: 66, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, hits: [
-    { at: 66, mv: 286.29, energy: 6, offtune: 4320 },
-    { at: 66, mv: 286.29, energy: 6, offtune: 4320, forte1: 39 },
+const Skill = roverAction("Skill - Wingblade", { animFrames: 66, cooldown: SKILL_CD, node: Node.Skill, cast: Cast.Skill, type: Type.Skill, bullets: [
+    { hitFrame: 66, mv: 286.29, energy: 6, offtune: 4320 },
+    { hitFrame: 66, mv: 286.29, energy: 6, offtune: 4320, forte1: 39 },
   ], castConcerto: 15});
 // PLACEHOLDER FRAMES
-const ESkill = roverAction("Skill - Umbra: Lifetaker", { animFrames: 66, cooldown: SKILL_CD, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, hits: [
-    { at: 66, mv: 276.35, energy: 3.7313, offtune: 5440.2471 },
-    { at: 66, mv: 276.35, energy: 3.7313, offtune: 5440.2471 },
-    { at: 66, mv: 9.95, energy: 0.1343, offtune: 195.8765 },
-    { at: 66, mv: 9.95, energy: 0.1343, offtune: 195.8765 },
-    { at: 66, mv: 9.95, energy: 0.1343, offtune: 195.8765 },
-    { at: 66, mv: 9.95, energy: 0.1345, offtune: 195.8763, forte1: 39 },
+const ESkill = roverAction("Skill - Umbra: Lifetaker", { animFrames: 66, cooldown: SKILL_CD, node: Node.Forte, cast: Cast.Skill, type: Type.Skill, bullets: [
+    { hitFrame: 66, mv: 276.35, energy: 3.7313, offtune: 5440.2471 },
+    { hitFrame: 66, mv: 276.35, energy: 3.7313, offtune: 5440.2471 },
+    { hitFrame: 66, mv: 9.95, energy: 0.1343, offtune: 195.8765 },
+    { hitFrame: 66, mv: 9.95, energy: 0.1343, offtune: 195.8765 },
+    { hitFrame: 66, mv: 9.95, energy: 0.1343, offtune: 195.8765 },
+    { hitFrame: 66, mv: 9.95, energy: 0.1345, offtune: 195.8763, forte1: 39 },
   ], castConcerto: 15});
 
 // --- liberation: Deadening Abyss — also shreds the target's own Havoc RES (S4)
-const Liberation = roverAction("Liberation - Deadening Abyss", { animFrames: 139, timestop: 139, cooldown: 60 * 16, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, mv: 1520.90, castConcerto: 20, offtune: 53760, resetEnergy: true });
+const Liberation = roverAction("Liberation - Deadening Abyss", { animFrames: 139, timestop: 139, motionStop: 139, prioFrames: 139, cooldown: 60 * 16, node: Node.Liberation, cast: Cast.Liberation, type: Type.Liberation, mv: 1520.90, castConcerto: 20, offtune: 53760, resetEnergy: true });
 
 // --- intro / outro
 const Intro = roverAction("Intro - Instant of Annihilation", { animFrames: 60, node: Node.Intro, cast: Cast.Intro, type: Type.Intro, forte1: 29, mv: 198.81, energy: 10, castConcerto: 10, offtune: 1867 });
@@ -163,9 +163,7 @@ const RH_INHERENT_1 = new Inherent({
 const RH_INHERENT_2 = new Inherent({
   name: "Inherent: Bleak Crescendo",
   applyStats: () => {
-    if (isHeld(DARK_SURGE) && casting(Cast.Basic)) {
-      addStat(Stat.AddCastEnergy, 1);
-    }
+    if (isHeld(DARK_SURGE) && casting(Cast.Basic)) addStat(Stat.AddEnergy, 1);
   }
 });
 

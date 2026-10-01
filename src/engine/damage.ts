@@ -11,13 +11,14 @@
  */
 import type { Action } from "./rotation.js";
 import { Stat, EnemyStat, Scaling } from "./stats.js";
+import type { StatRow } from "./state.js";
 
 /** A resolved action snapshot, from `State.resolve()` — everything the formula reads off it. */
 export interface Snapshot {
   action: Action;
   stat(key: Stat | EnemyStat): number;
   /** `stat()`'s own backing array, indexed by the stat itself — what the formula below reads. */
-  stats: number[];
+  stats: StatRow;
   atk: number;
   hp: number;
   def: number;
@@ -66,10 +67,10 @@ const notDotFor = (snapshot: Snapshot): number =>
 /** The scalar forms of the enemy-side terms, off the figures alone: `damageAvgOf()` (the search's
  *  per-variant path, which has no Snapshot object) and the Snapshot forms below share them, so the
  *  two can't drift. */
-const shredOf = (stats: number[], notDot: number, base: number): number =>
+const shredOf = (stats: StatRow, notDot: number, base: number): number =>
   1 - ((1 - notDot * stats[Stat.DefIgnoreNew]! / 100)
     * Math.floor(base * (1 - stats[EnemyStat.DefReduce]! / 100 - notDot * stats[Stat.DefIgnoreOld]! / 100))) / base;
-const resOf = (stats: number[], notDot: number, enemyRes: number): number =>
+const resOf = (stats: StatRow, notDot: number, enemyRes: number): number =>
   (enemyRes / 100 - stats[Stat.ResIgnore]! / 100 * notDot - stats[EnemyStat.ResReduce]! / 100) * 100;
 const resFactorFrom = (finalRes: number): number =>
   (finalRes < 0 ? 1 - finalRes / 2
@@ -222,7 +223,7 @@ export function damageFactors(snapshot: Snapshot): DamageFactors {
  * itself a summed entry (a resonator's own kit-base value plus a weapon's own base line), not a
  * fixed per-slot number, matching the old engine's total().
  */
-export const foldStat = (stats: number[], base: Stat, bonus: Stat, flat: Stat): number => {
+export const foldStat = (stats: StatRow, base: Stat, bonus: Stat, flat: Stat): number => {
   const b = Math.floor(stats[base]!);
   return b + Math.floor(b * stats[bonus]! / 100) + stats[flat]!;
 };
@@ -230,7 +231,7 @@ export const foldStat = (stats: number[], base: Stat, bonus: Stat, flat: Stat): 
 /** `damageFactors().avg` alone, off the figures rather than a Snapshot — the same expressions in
  *  the same order, with nothing allocated. The search calls this once per variant per action. */
 export function damageAvgOf(
-  action: Action, stats: number[], atk: number, hp: number, def: number,
+  action: Action, stats: StatRow, atk: number, hp: number, def: number,
   amp: number, subtypeAmp: number, dmgBonus: number, subtypeCritRate: number, subtypeCritDmg: number,
   subtypeTotalDmg: number, subtypeDamageTaken: number, enemyRes: number, enemyDef: number,
 ): number {
